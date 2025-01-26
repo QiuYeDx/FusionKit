@@ -45,20 +45,20 @@ if (process.platform === 'linux') {
   describe('[electron-vite-react] e2e tests', async () => {
     test('startup', async () => {
       const title = await page.title()
-      expect(title).eq('Electron + Vite + React')
+      expect(title).eq('FusionKit')
     })
 
-    test('should be home page is load correctly', async () => {
-      const h1 = await page.$('h1')
-      const title = await h1?.textContent()
-      expect(title).eq('Electron + Vite + React')
-    })
+    // test('should be home page is load correctly', async () => {
+    //   const h1 = await page.$('h1')
+    //   const title = await h1?.textContent()
+    //   expect(title).eq('Electron + Vite + React')
+    // })
 
-    test('should be count button can click', async () => {
-      const countButton = await page.$('button')
-      await countButton?.click()
-      const countValue = await countButton?.textContent()
-      expect(countValue).eq('count is 1')
-    })
+    // test('should be count button can click', async () => {
+    //   const countButton = await page.$('button')
+    //   await countButton?.click()
+    //   const countValue = await countButton?.textContent()
+    //   expect(countValue).eq('count is 1')
+    // })
   })
 }

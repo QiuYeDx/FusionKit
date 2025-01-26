@@ -7,6 +7,7 @@ import type {
 } from 'electron-updater'
 
 const { autoUpdater } = createRequire(import.meta.url)('electron-updater');
+// TODO: 需要更新 electron-builder.json
 
 export function update(win: Electron.BrowserWindow) {
 

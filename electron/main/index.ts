@@ -45,8 +45,13 @@ const indexHtml = path.join(RENDERER_DIST, 'index.html')
 
 async function createWindow() {
   win = new BrowserWindow({
-    title: 'Main window',
+    title: 'FusionKit',
     icon: path.join(process.env.VITE_PUBLIC, 'favicon.ico'),
+    width: 1080,
+    height: 720,
+    minWidth: 768,
+    minHeight: 540,
+    resizable: true,
     webPreferences: {
       preload,
       // Warning: Enable nodeIntegration and disable contextIsolation is not secure in production
