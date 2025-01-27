@@ -1,11 +1,6 @@
+import { LangEnum } from "@/type/lang";
 import i18n from "i18next";
 import { initReactI18next } from "react-i18next";
-
-enum LangEnum {
-  ZH = "zh",
-  EN = "en",
-  JA = "ja",
-}
 
 // 从 localStorage 中读取用户设置的语言
 const savedLanguage: LangEnum = (localStorage.getItem("lang") ||
