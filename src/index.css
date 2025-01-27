@@ -7,11 +7,25 @@
   line-height: 1.5;
   font-weight: 400; */
 
+  height: 100vh;
+  overflow: hidden;
+
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   -webkit-text-size-adjust: 100%;
+}
+
+body {
+  height: 100%;
+  max-height: 100%;
+  margin: 0;
+}
+
+#root {
+  height: 100%;
+  max-height: 100%;
 }
 
 /* #app {
@@ -20,6 +34,12 @@
   padding: 2rem;
   text-align: center;
 } */
+
+.app {
+  height: 100%;
+  max-height: 100%;
+  overflow: auto;
+}
 
 /* @media (prefers-color-scheme: light) {
   :root {

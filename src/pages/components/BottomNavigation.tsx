@@ -14,9 +14,9 @@ const BottomNavigation: React.FC = () => {
   const location = useLocation();
 
   return (
-    <div className="fixed bottom-0 left-1/2 -translate-x-1/2">
+    <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full flex justify-center">
       {/* 底部导航栏 */}
-      <ul className="menu bg-base-200 menu-horizontal rounded-box ring ring-base-100 gap-1">
+      <ul className="mx-2 menu bg-base-200 menu-horizontal rounded-box ring ring-base-100 gap-1 justify-center">
         <li>
           <a
             className={location.pathname === "/" ? "active" : ""}
