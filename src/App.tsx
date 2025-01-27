@@ -1,11 +1,9 @@
-import React from "react";
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import "./App.css";
 import About from "./pages/About";
 import Setting from "./pages/Setting";
 import Home from "./pages/Home";
 import Tools from "./pages/Tools";
-import useInitializeTheme from "@/hook/useInitializeTheme";
 import BottomNavigation from "@/pages/components/BottomNavigation";
 import useTheme from "./hook/useTheme";
 import AppTitleBar from "./pages/components/AppTitleBar";
