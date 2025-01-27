@@ -1,6 +1,4 @@
-/* #root {
-  max-width: 1280px;
-  margin: 0 auto;
-  padding: 2rem;
-  text-align: center;
-} */
+/* 用于设置 electron 可拖拽区域 */
+.app-region-drag {
+  app-region: drag;
+}
