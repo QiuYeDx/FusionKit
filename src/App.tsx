@@ -10,9 +10,7 @@ import BottomNavigation from "@/pages/components/BottomNavigation";
 import useTheme from "./hook/useTheme";
 
 function App() {
-  // 初始化主题
-  useInitializeTheme();
-  // 系统深色模式监听
+  // 初始化主题, 并添加系统深色模式监听
   useTheme();
 
   return (

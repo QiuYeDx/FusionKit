@@ -8,14 +8,14 @@ function ThemeConfig() {
 
   return (
     <div className="bg-base-200 p-4 rounded-lg overflow-auto">
-      <div className="text-xl font-semibold mb-4 sticky left-0">{t("theme_config")}</div>
+      <div className="text-xl font-semibold mb-4 sticky left-0">{t("setting:subtitle.theme_config")}</div>
 
       <div className="join">
         <input
           className="join-item btn btn-sm bg-base-100"
           type="radio"
           name="theme"
-          aria-label={t('light_mode')}
+          aria-label={t('setting:fields.light_mode')}
           checked={theme === "light"}
           onChange={() => setTheme("light")}
         />
@@ -23,7 +23,7 @@ function ThemeConfig() {
           className="join-item btn btn-sm bg-base-100 mt-[3px]"
           type="radio"
           name="theme"
-          aria-label={t('dark_mode')}
+          aria-label={t('setting:fields.dark_mode')}
           checked={theme === "dark"}
           onChange={() => setTheme("dark")}
         />
@@ -31,7 +31,7 @@ function ThemeConfig() {
           className="join-item btn btn-sm bg-base-100 mt-[3px]"
           type="radio"
           name="theme"
-          aria-label={t('system_mode')}
+          aria-label={t('setting:fields.system_mode')}
           checked={theme === "system"}
           onChange={() => setTheme("system")}
         />

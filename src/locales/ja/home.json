@@ -1,0 +1,14 @@
+{
+  "welcome": "FusionKit へようこそ",
+  "home_description": "効率的で便利なワークフローを提供するクロスプラットフォームのデスクトップツールボックスです。",
+  "subtitle_tool_title": "字幕処理",
+  "subtitle_tool_description": "AI 翻訳、フォーマット変換などの字幕処理機能。",
+  "rename_tool_title": "ファイル一括リネーム",
+  "rename_tool_description": "複数のファイルを簡単に一括リネーム。",
+  "music_tool_title": "有料音楽の復号化",
+  "music_tool_description": "有料音楽を FLAC/MP3 形式に変換。",
+  "cross_platform_title": "クロスプラットフォーム対応",
+  "cross_platform_description": "Windows、macOS、Linux をサポート。",
+  "get_started": "始める",
+  "learn_more": "詳細を見る"
+}

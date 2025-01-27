@@ -1,0 +1,14 @@
+{
+  "welcome": "欢迎使用 FusionKit",
+  "home_description": "一个跨平台的桌面工具箱，为您提供高效、便捷的工作流。",
+  "subtitle_tool_title": "字幕处理",
+  "subtitle_tool_description": "AI 翻译、格式转换等字幕处理功能。",
+  "rename_tool_title": "文件批量重命名",
+  "rename_tool_description": "轻松批量重命名多个文件。",
+  "music_tool_title": "付费音乐解密",
+  "music_tool_description": "将付费音乐转换为 FLAC/MP3 格式。",
+  "cross_platform_title": "跨平台支持",
+  "cross_platform_description": "支持 Windows、macOS 和 Linux。",
+  "get_started": "开始使用",
+  "learn_more": "了解更多"
+}

@@ -1,0 +1,13 @@
+{
+  "title": "Setting",
+  "description": "Customize your experience by adjusting the theme and language settings.",
+  "subtitle": {
+    "theme_config": "Theme Settings",
+    "language_config": "Language Settings"
+  },
+  "fields": {
+    "light_mode": "Light Mode",
+    "dark_mode": "Dark Mode",
+    "system_mode": "Follow System"
+  }
+}

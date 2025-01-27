@@ -1,0 +1,13 @@
+{
+  "title": "設定",
+  "description": "テーマや言語設定を調整して、あなたに合った体験をカスタマイズしてください。",
+  "subtitle": {
+    "theme_config": "テーマ設定",
+    "language_config": "言語設定"
+  },
+  "fields": {
+    "light_mode": "ライトモード",
+    "dark_mode": "ダークモード",
+    "system_mode": "システムに従う"
+  }
+}

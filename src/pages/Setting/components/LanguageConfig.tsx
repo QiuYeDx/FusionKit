@@ -7,7 +7,7 @@ function LanguageConfig() {
 
   return (
     <div className="bg-base-200 p-4 rounded-lg overflow-auto">
-      <div className="text-xl font-semibold mb-4 sticky left-0">{t('language_config')}</div>
+      <div className="text-xl font-semibold mb-4 sticky left-0">{t('setting:subtitle.language_config')}</div>
 
       <div className="join">
         <input

@@ -1,0 +1,14 @@
+{
+  "welcome": "Welcome to FusionKit",
+  "home_description": "A cross-platform desktop toolbox designed to provide you with an efficient and convenient workflow.",
+  "subtitle_tool_title": "Subtitle Processing",
+  "subtitle_tool_description": "AI translation, format conversion, and other subtitle processing features.",
+  "rename_tool_title": "Batch File Renaming",
+  "rename_tool_description": "Easily rename multiple files in bulk.",
+  "music_tool_title": "Paid Music Decryption",
+  "music_tool_description": "Convert paid music to FLAC/MP3 format.",
+  "cross_platform_title": "Cross-Platform Support",
+  "cross_platform_description": "Supports Windows, macOS, and Linux.",
+  "get_started": "Get Started",
+  "learn_more": "Learn More"
+}

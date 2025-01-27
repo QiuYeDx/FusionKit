@@ -23,7 +23,7 @@ const BottomNavigation: React.FC = () => {
             onClick={() => navigate("/")}
           >
             <HomeIcon className="size-5" />
-            {t("home")}
+            {t("menu.home")}
           </a>
         </li>
         <li>
@@ -32,7 +32,7 @@ const BottomNavigation: React.FC = () => {
             onClick={() => navigate("/tools")}
           >
             <WrenchScrewdriverIcon className="size-5" />
-            {t("tools")}
+            {t("menu.tools")}
           </a>
         </li>
         <li>
@@ -41,7 +41,7 @@ const BottomNavigation: React.FC = () => {
             onClick={() => navigate("/about")}
           >
             <InformationCircleIcon className="size-5" />
-            {t("about")}
+            {t("menu.about")}
           </a>
         </li>
         <li>
@@ -50,7 +50,7 @@ const BottomNavigation: React.FC = () => {
             onClick={() => navigate("/setting")}
           >
             <Cog6ToothIcon className="size-5" />
-            {t("setting")}
+            {t("menu.setting")}
           </a>
         </li>
       </ul>

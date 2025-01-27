@@ -9,10 +9,10 @@ function Home() {
       {/* 欢迎语 */}
       <div className="text-center mb-8">
         <h1 className="text-4xl font-bold text-gray-800 dark:text-gray-100 mb-4">
-          {t("welcome")}
+          {t("home:welcome")}
         </h1>
         <p className="text-lg text-gray-600 dark:text-gray-300">
-          {t("home_description")}
+          {t("home:home_description")}
         </p>
       </div>
 
@@ -21,30 +21,30 @@ function Home() {
         {/* 字幕处理 */}
         <div className="bg-base-200 p-6 rounded-lg">
           <h2 className="text-2xl font-semibold text-gray-800 dark:text-gray-100 mb-4">
-            {t("subtitle_tool_title")}
+            {t("home:subtitle_tool_title")}
           </h2>
           <p className="text-gray-600 dark:text-gray-300">
-            {t("subtitle_tool_description")}
+            {t("home:subtitle_tool_description")}
           </p>
         </div>
 
         {/* 文件批量重命名 */}
         <div className="bg-base-200 p-6 rounded-lg">
           <h2 className="text-2xl font-semibold text-gray-800 dark:text-gray-100 mb-4">
-            {t("rename_tool_title")}
+            {t("home:rename_tool_title")}
           </h2>
           <p className="text-gray-600 dark:text-gray-300">
-            {t("rename_tool_description")}
+            {t("home:rename_tool_description")}
           </p>
         </div>
 
         {/* 付费音乐解密 */}
         <div className="bg-base-200 p-6 rounded-lg">
           <h2 className="text-2xl font-semibold text-gray-800 dark:text-gray-100 mb-4">
-            {t("music_tool_title")}
+            {t("home:music_tool_title")}
           </h2>
           <p className="text-gray-600 dark:text-gray-300">
-            {t("music_tool_description")}
+            {t("home:music_tool_description")}
           </p>
         </div>
       </div>
@@ -52,10 +52,10 @@ function Home() {
       {/* 跨平台支持 */}
       <div className="text-center mt-8">
         <h2 className="text-2xl font-semibold text-gray-800 dark:text-gray-100 mb-4">
-          {t("cross_platform_title")}
+          {t("home:cross_platform_title")}
         </h2>
         <p className="text-gray-600 dark:text-gray-300 mb-4">
-          {t("cross_platform_description")}
+          {t("home:cross_platform_description")}
         </p>
         {/* <div className="flex justify-center space-x-4">
           <span className="text-gray-600 dark:text-gray-300">Windows</span>
@@ -67,10 +67,10 @@ function Home() {
       {/* 操作按钮 */}
       <div className="text-center mt-8">
         <button className="btn btn-primary mr-4">
-          {t("get_started")}
+          {t("home:get_started")}
         </button>
         <button className="btn btn-outline">
-          {t("learn_more")}
+          {t("home:learn_more")}
         </button>
       </div>
     </div>

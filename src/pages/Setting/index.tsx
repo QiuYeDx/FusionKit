@@ -8,10 +8,10 @@ const Setting: React.FC = () => {
   const { t } = useTranslation();
   return (
     <div className="p-4">
-      <div className="text-2xl font-bold mb-4">{t("setting")}</div>
+      <div className="text-2xl font-bold mb-4">{t("setting:title")}</div>
       <div className="mb-6">
         <div className="text-gray-600 dark:text-gray-300">
-          {t("setting_description")}
+          {t("setting:description")}
         </div>
       </div>
 
