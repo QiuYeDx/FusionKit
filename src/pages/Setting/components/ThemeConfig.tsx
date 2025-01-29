@@ -1,10 +1,9 @@
-import useTheme from "@/hook/useTheme";
+import useThemeStore from "@/store/useThemeStore";
 import { useTranslation } from "react-i18next";
 
 function ThemeConfig() {
   const { t } = useTranslation(); // 使用 useTranslation Hook 获取 t 函数
-  // 使用 useTheme Hook 获取当前主题和设置主题的函数
-  const { theme, setTheme } = useTheme();
+  const { theme, setTheme } = useThemeStore();
 
   return (
     <div className="bg-base-200 p-4 rounded-lg overflow-auto">

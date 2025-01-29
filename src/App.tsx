@@ -5,12 +5,12 @@ import Setting from "./pages/Setting";
 import Home from "./pages/Home";
 import Tools from "./pages/Tools";
 import BottomNavigation from "@/pages/components/BottomNavigation";
-import useTheme from "./hook/useTheme";
 import AppTitleBar from "./pages/components/AppTitleBar";
+import useThemeStore from "./store/useThemeStore";
 
 function App() {
   // 初始化主题, 并添加系统深色模式监听
-  useTheme();
+  useThemeStore();
 
   return (
     <div className="app">
