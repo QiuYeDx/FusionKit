@@ -47,6 +47,7 @@ const useThemeStore = create<ThemeStore>((set, get) => {
 
   return {
     theme: "system", // 初始值，会在 initializeTheme 中被覆盖
+    isDark: false, // 初始值，会在 initializeTheme 中被覆盖
     setTheme,
   };
 });
