@@ -1,6 +1,7 @@
 import useFadeMaskLayerStore from "@/store/useFadeMaskLayer";
+import useThemeStore from "@/store/useThemeStore";
 import { useSpringValue } from "@react-spring/web";
-import { MouseEvent, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useWindowSize } from "react-use";
 
 function FadeMaskLayer() {
@@ -11,49 +12,67 @@ function FadeMaskLayer() {
     rectWidth,
     rectHeight,
     showMaskLayer,
-    setCenterXY,
-    setRectSize,
-    setShowMaskLayer,
+    showInner,
+    backgroundImage,
+    visible,
+    setVisible,
     getTargetRadius,
   } = useFadeMaskLayerStore();
+  const { isDark } = useThemeStore();
   const [r, setR] = useState(0);
-  // const requestAnimationFrameIDRef = useRef(-1);
 
-  const rSpring = useSpringValue(0, {
-    onChange(val: any) {
-      setR(val);
-      // 暂时看起来不需要
-      // requestAnimationFrameIDRef.current = requestAnimationFrame(() => {
-      //   setR(val);
-      //   requestAnimationFrameIDRef.current = -1;
-      // });
-    },
-  });
+  const rSpring = useSpringValue(
+    isDark ? Math.sqrt(width ** 2 + height ** 2) : 0,
+    {
+      config: {
+        // duration: 3000, // for debug
+      },
+      onChange(val: any) {
+        setR(val);
+      },
+      onRest() {
+        setVisible(false);
+      },
+    }
+  );
 
   useEffect(() => {
     const targetR = getTargetRadius();
     if (rSpring) {
-      rSpring.start(showMaskLayer ? targetR : 0);
+      rSpring.start(isDark ? targetR : 0);
     }
   }, [showMaskLayer, getTargetRadius()]);
 
-  // * 业务方的触发方法
-  const handleTestClick = (e: MouseEvent<HTMLDivElement>) => {
-    setRectSize(width, height);
-    setCenterXY(e.clientX, e.clientY);
-    setShowMaskLayer(!showMaskLayer);
-  };
+  // * 业务方的触发方法(使用示例)
+  // const handleTestClick = (e: MouseEvent<HTMLDivElement>) => {
+  //   setShowInner(false); // 根据需要进行选择
+  //   setRectSize(width, height);
+  //   setCenterXY(e.clientX, e.clientY);
+  //   setShowMaskLayer(!showMaskLayer);
+  // };
 
-  // pointer-events-none
-  return (
+  return !visible ? (
+    <div className="hidden"></div>
+  ) : showInner ? (
     <div
-      className={`fixed inset-0 h-full w-full bg-blue-300 bg-opacity-40 mask`}
+      className={`fade-mask-layer fixed inset-0 h-full w-full bg-cover bg-center pointer-events-none z-50`}
       style={{
         maskImage: `url(
           "data:image/svg+xml,%3csvg width='${rectWidth}' height='${rectHeight}' xmlns='http://www.w3.org/2000/svg'%3e%3ccircle fill='black' cx='${cx}' cy='${cy}' r='${r}' fill-rule='evenodd'/%3e%3c/svg%3e"
         )`,
+        backgroundImage: backgroundImage ? `url(${backgroundImage})` : "none",
+        // ...(backgroundImage
+        //   ? { backgroundImage: `url(${backgroundImage})` }
+        //   : {}),
       }}
-      onClick={handleTestClick}
+    ></div>
+  ) : (
+    <div
+      className="fade-mask-layer fade-mask-layer-inner fixed inset-0 h-full w-full bg-cover bg-center pointer-events-none z-50"
+      style={{
+        maskImage: `url("data:image/svg+xml,%3csvg width='${rectWidth}' height='${rectHeight}' xmlns='http://www.w3.org/2000/svg'%3e%3cmask id='mask'%3e%3crect width='100%25' height='100%25' fill='white'/%3e%3ccircle cx='${cx}' cy='${cy}' r='${r}' fill='black'/%3e%3c/mask%3e%3crect width='100%25' height='100%25' fill='white' mask='url(%23mask)'/%3e%3c/svg%3e")`,
+        backgroundImage: backgroundImage ? `url(${backgroundImage})` : "none",
+      }}
     ></div>
   );
 }

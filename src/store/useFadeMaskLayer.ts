@@ -5,9 +5,13 @@ interface FadeMaskLayerStore {
   cy: number; // 圆心的 y 坐标
   rectWidth: number; // 矩形可视区域宽度
   rectHeight: number; // 矩形可视区域长度
-  showMaskLayer: boolean; // 是否显示遮罩层内容
+  showMaskLayer: boolean; // 是否显示遮罩层内容, 默认为 false
+  showInner: boolean; // 控制 Layer 自身显示圆形内部还是外部的部分, 默认为 true
   // 保存遮罩层背景图片数据
   backgroundImage: string | null; // 遮罩层背景图片
+  visible: boolean; // 遮罩层是否可见
+  setVisible: (flag: boolean) => void; // 设置 visible
+  setShowInner: (showInner: boolean) => void; // 设置 showInner
   setCenterXY: (x: number, y: number) => void; // 设置 cx 和 cy
   setRectSize: (w: number, h: number) => void; // 设置 rectWidth 和 rectHeight
   setShowMaskLayer: (flag: boolean) => void; // 设置 showMaskLayer
@@ -17,6 +21,16 @@ interface FadeMaskLayerStore {
 }
 
 const useFadeMaskLayerStore = create<FadeMaskLayerStore>((set, get) => {
+  const setVisible = (flag: boolean) => {
+    set({ visible: flag });
+  };
+
+  const setShowInner = (showInner: boolean) => {
+    set({
+      showInner,
+    });
+  };
+
   const setCenterXY = (x: number, y: number) => {
     set({
       cx: x,
@@ -66,8 +80,14 @@ const useFadeMaskLayerStore = create<FadeMaskLayerStore>((set, get) => {
   return {
     cx: 0,
     cy: 0,
+    rectWidth: 0,
+    rectHeight: 0,
     showMaskLayer: false,
+    showInner: true,
     backgroundImage: null,
+    visible: false,
+    setVisible,
+    setShowInner,
     setCenterXY,
     setRectSize,
     setShowMaskLayer,

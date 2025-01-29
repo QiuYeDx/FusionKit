@@ -5,6 +5,7 @@ interface ThemeStore {
   theme: "light" | "dark" | "system";
   isDark: boolean;
   setTheme: (newTheme: "light" | "dark" | "system") => void;
+  initializeTheme: () => void;
 }
 
 const useThemeStore = create<ThemeStore>((set, get) => {
@@ -31,7 +32,7 @@ const useThemeStore = create<ThemeStore>((set, get) => {
   };
 
   // 初始化主题
-  initializeTheme();
+  // initializeTheme(); // 应该在外部调用, 在最先引入这个 store 的组件的地方调用
 
   // 监听系统主题变化
   const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
@@ -49,6 +50,7 @@ const useThemeStore = create<ThemeStore>((set, get) => {
     theme: "system", // 初始值，会在 initializeTheme 中被覆盖
     isDark: false, // 初始值，会在 initializeTheme 中被覆盖
     setTheme,
+    initializeTheme,
   };
 });
 

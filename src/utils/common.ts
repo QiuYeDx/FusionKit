@@ -16,7 +16,7 @@ export const applyTheme = (theme: "light" | "dark" | "system") => {
 export const getIsDark = (savedTheme: "light" | "dark" | "system" | null) => {
   return (
     savedTheme === "dark" ||
-    (savedTheme === "system" &&
+    ((!savedTheme || savedTheme === "system") &&
       window.matchMedia("(prefers-color-scheme: dark)").matches)
   );
 };

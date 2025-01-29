@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, MouseEvent } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import {
@@ -8,25 +8,73 @@ import {
   WrenchScrewdriverIcon,
 } from "@heroicons/react/24/outline";
 import useThemeStore from "@/store/useThemeStore";
+import useFadeMaskLayerStore from "@/store/useFadeMaskLayer";
+import { useWindowSize } from "react-use";
+import * as htmlToImage from "html-to-image";
+import { toPng, toJpeg, toBlob, toPixelData, toSvg } from "html-to-image";
 
 const BottomNavigation: React.FC = () => {
+  const { width, height } = useWindowSize();
   const { t } = useTranslation();
   const navigate = useNavigate();
   const location = useLocation();
   const { isDark, setTheme } = useThemeStore();
 
-  const handleToggleDarkMode = () => {
-    if (isDark) {
-      setTheme("light");
-    } else {
-      setTheme("dark");
-    }
+  const {
+    showMaskLayer,
+    setVisible,
+    setShowInner,
+    setCenterXY,
+    setRectSize,
+    setShowMaskLayer,
+    setBackgroundImage,
+  } = useFadeMaskLayerStore();
+
+  const handleToggleDarkMode = (e: MouseEvent<HTMLLabelElement>) => {
+    // 截取当前内容
+    const node = document.getElementById("root");
+
+    htmlToImage
+      .toPng(node as any, {
+        filter: (el: any) => {
+          if (!el) return false;
+          if (el.classList && el.classList.contains("fade-mask-layer"))
+            return false;
+          return true;
+        },
+      })
+      .then((dataUrl: any) => {
+        // 获取到图片的 Base64 数据
+        setBackgroundImage(dataUrl);
+
+        // * 执行后续步骤
+        if (isDark) {
+          setShowInner(true);
+          setShowMaskLayer(true);
+        } else {
+          setShowInner(false);
+        }
+        setVisible(true);
+        setRectSize(width, height);
+        setCenterXY(e.clientX, e.clientY);
+        setShowMaskLayer(!showMaskLayer);
+
+        // * 在真正切换 theme 之前截图并显示过渡动效
+        if (isDark) {
+          setTheme("light");
+        } else {
+          setTheme("dark");
+        }
+      })
+      .catch((error: any) => {
+        console.error("Error generating image:", error);
+      });
   };
 
   return (
     <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full flex justify-center items-center">
       {/* 底部导航栏 */}
-      <ul className="bg-opacity-50 my-2 glass mx-2 menu bg-base-200 menu-horizontal rounded-box ring ring-base-100 gap-1 justify-center">
+      <ul className="bg-opacity-50 my-2 glass mx-2 menu bg-base-200 menu-horizontal rounded-box ring ring-base-100 gap-1 justify-center flex-nowrap">
         <li>
           <a
             className={location.pathname === "/" ? "active" : ""}
