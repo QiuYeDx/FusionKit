@@ -59,6 +59,12 @@ const BottomNavigation: React.FC = () => {
         setCenterXY(e.clientX, e.clientY);
         setShowMaskLayer(!showMaskLayer);
 
+        const appElement = document.querySelector(".app");
+        if (appElement) {
+          appElement.scrollTo({
+            top: 0,
+          });
+        }
         // * 在真正切换 theme 之前截图并显示过渡动效
         if (isDark) {
           setTheme("light");
