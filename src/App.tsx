@@ -1,12 +1,13 @@
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
-import "./App.css";
-import About from "./pages/About";
-import Setting from "./pages/Setting";
-import Home from "./pages/Home";
-import Tools from "./pages/Tools";
+import "@/App.css";
+import About from "@/pages/About";
+import Setting from "@/pages/Setting";
+import Home from "@/pages/Home";
+import Tools from "@/pages/Tools";
 import BottomNavigation from "@/pages/components/BottomNavigation";
-import AppTitleBar from "./pages/components/AppTitleBar";
-import useThemeStore from "./store/useThemeStore";
+import AppTitleBar from "@/pages/components/AppTitleBar";
+import useThemeStore from "@/store/useThemeStore";
+import FadeMaskLayer from "@/pages/components/FadeMaskLayer";
 
 function App() {
   // 初始化主题, 并添加系统深色模式监听
@@ -28,6 +29,9 @@ function App() {
 
       {/* 底部导航栏 */}
       <BottomNavigation />
+
+      {/* 全局过渡遮罩层 */}
+      <FadeMaskLayer />
     </div>
   );
 }
