@@ -3,11 +3,19 @@
   "description": "通过调整主题和语言设置来个性化您的体验。",
   "subtitle": {
     "theme_config": "主题设置",
-    "language_config": "语言设置"
+    "language_config": "语言设置",
+    "apikey_config": "模型设置"
   },
   "fields": {
     "light_mode": "浅色模式",
     "dark_mode": "深色模式",
-    "system_mode": "跟随系统"
+    "system_mode": "跟随系统",
+    "other": "其他",
+    "apikey": "API Key",
+    "model_url": "Base URL"
+  },
+  "placeholder": {
+    "apikey": "请输入 API Key",
+    "model_url": "请输入 Base URL"
   }
 }

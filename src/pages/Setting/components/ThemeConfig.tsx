@@ -9,7 +9,7 @@ function ThemeConfig() {
     <div className="bg-base-200 p-4 rounded-lg overflow-auto">
       <div className="text-xl font-semibold mb-4 sticky left-0">{t("setting:subtitle.theme_config")}</div>
 
-      <div className="join">
+      <div className="join -ml-1">
         <input
           className="join-item btn btn-sm bg-base-100 text-nowrap"
           type="radio"

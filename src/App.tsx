@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import "@/App.css";
 import About from "@/pages/About";
@@ -8,14 +9,17 @@ import BottomNavigation from "@/pages/components/BottomNavigation";
 import AppTitleBar from "@/pages/components/AppTitleBar";
 import useThemeStore from "@/store/useThemeStore";
 import FadeMaskLayer from "@/pages/components/FadeMaskLayer";
-import { useEffect } from "react";
+import useModelStore from "@/store/useModelStore";
 
 function App() {
   // 初始化主题, 并添加系统深色模式监听
   const initializeTheme = useThemeStore((state) => state.initializeTheme);
+  // 初始化模型配置
+  const { initializeModel } = useModelStore();
 
   useEffect(() => {
     initializeTheme();
+    initializeModel();
   }, []);
 
   return (

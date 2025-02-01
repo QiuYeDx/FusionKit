@@ -12,7 +12,7 @@ function LanguageConfig() {
         {t("setting:subtitle.language_config")}
       </div>
 
-      <div className="join">
+      <div className="join -ml-1">
         <input
           className="join-item btn btn-sm bg-base-100"
           type="radio"
