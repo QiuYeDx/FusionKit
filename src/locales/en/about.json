@@ -1,0 +1,9 @@
+{
+  "title": "About",
+  "description": "Thank you for using our application! This page provides information about the app's version, the team behind it, and how to contact us for support or feedback.",
+  "subtitle": {
+    "version": "Version",
+    "author": "Author",
+    "contact": "Contact"
+  }
+}

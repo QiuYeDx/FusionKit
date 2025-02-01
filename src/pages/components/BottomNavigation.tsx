@@ -80,7 +80,7 @@ const BottomNavigation: React.FC = () => {
   return (
     <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full flex justify-center items-center">
       {/* 底部导航栏 */}
-      <ul className="bg-opacity-50 my-2 glass mx-2 menu bg-base-200 menu-horizontal rounded-box ring ring-base-100 gap-1 justify-center flex-nowrap">
+      <ul className="my-2 glass mx-2 menu bg-base-200 menu-horizontal rounded-box ring ring-base-100 gap-1 justify-center flex-nowrap">
         <li>
           <a
             className={location.pathname === "/" ? "active" : ""}

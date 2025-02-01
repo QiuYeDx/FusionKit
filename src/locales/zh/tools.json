@@ -1,0 +1,14 @@
+{
+  "title": "工具",
+  "description": "探索我们提供的多种实用工具，涵盖字幕处理、音乐编辑和文件重命名等功能，助您高效完成任务。",
+  "subtitle": {
+    "subtitle_tools": "字幕工具箱",
+    "music_tools": "音乐工具箱",
+    "rename_tools": "重命名工具箱"
+  },
+  "sub_desc": {
+    "subtitle_tools": "AI 翻译、格式转换等字幕处理功能。",
+    "music_tools": "将付费音乐转换为 FLAC/MP3 格式。",
+    "rename_tools": "轻松批量重命名多个文件。"
+  }
+}

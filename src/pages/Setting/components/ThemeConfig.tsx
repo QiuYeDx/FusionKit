@@ -11,7 +11,7 @@ function ThemeConfig() {
 
       <div className="join">
         <input
-          className="join-item btn btn-sm bg-base-100"
+          className="join-item btn btn-sm bg-base-100 text-nowrap"
           type="radio"
           name="theme"
           aria-label={t('setting:fields.light_mode')}
@@ -19,7 +19,7 @@ function ThemeConfig() {
           onChange={() => setTheme("light")}
         />
         <input
-          className="join-item btn btn-sm bg-base-100 mt-[3px]"
+          className="join-item btn btn-sm bg-base-100 text-nowrap mt-[3px]"
           type="radio"
           name="theme"
           aria-label={t('setting:fields.dark_mode')}
@@ -27,7 +27,7 @@ function ThemeConfig() {
           onChange={() => setTheme("dark")}
         />
         <input
-          className="join-item btn btn-sm bg-base-100 mt-[3px]"
+          className="join-item btn btn-sm bg-base-100 text-nowrap mt-[3px]"
           type="radio"
           name="theme"
           aria-label={t('setting:fields.system_mode')}

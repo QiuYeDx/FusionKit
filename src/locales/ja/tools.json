@@ -1,0 +1,14 @@
+{
+  "title": "ツール",
+  "description": "字幕処理、音楽編集、ファイル名変更など、多様な便利なツールを提供しています。効率的にタスクを完了するお手伝いをします。",
+  "subtitle": {
+    "subtitle_tools": "字幕ツール",
+    "music_tools": "音楽ツール",
+    "rename_tools": "名前変更ツール"
+  },
+  "sub_desc": {
+    "subtitle_tools": "AI翻訳、フォーマット変換などの字幕処理機能。",
+    "music_tools": "有料音楽をFLAC/MP3形式に変換。",
+    "rename_tools": "複数のファイルを簡単に一括リネーム。"
+  }
+}

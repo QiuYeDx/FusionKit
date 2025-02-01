@@ -1,0 +1,14 @@
+{
+  "title": "Tools",
+  "description": "Explore a variety of practical tools we offer, including subtitle processing, music editing, and file renaming, to help you complete tasks efficiently.",
+  "subtitle": {
+    "subtitle_tools": "Subtitle Tools",
+    "music_tools": "Music Tools",
+    "rename_tools": "Rename Tools"
+  },
+  "sub_desc": {
+    "subtitle_tools": "AI translation, format conversion, and other subtitle processing features.",
+    "music_tools": "Convert paid music to FLAC/MP3 format.",
+    "rename_tools": "Easily batch rename multiple files."
+  }
+}
