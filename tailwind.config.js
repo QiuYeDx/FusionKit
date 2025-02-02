@@ -7,7 +7,23 @@ export default {
     './src/**/*.{js,ts,jsx,tsx}',
   ],
   theme: {
-    extend: {},
+    extend: {
+      animation: {
+        'fade-up-for-bottombar.5s': 'fadeUpForBottomBar 0.5s ease-out forwards',
+      },
+      keyframes: {
+        fadeUpForBottomBar: {
+          '0%': {
+            opacity: '0',
+            transform: 'translateY(68px)', // 从下方20px开始
+          },
+          '100%': {
+            opacity: '1',
+            transform: 'translateY(0)', // 位置恢复到原位
+          },
+        },
+      },
+    },
   },
   darkMode: ['selector', '[data-theme="dark"]'],
   corePlugins: {

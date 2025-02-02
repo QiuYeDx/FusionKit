@@ -10,5 +10,10 @@
     "subtitle_tools": "AI 翻译、格式转换等字幕处理功能。",
     "music_tools": "将付费音乐转换为 FLAC/MP3 格式。",
     "rename_tools": "轻松批量重命名多个文件。"
+  },
+  "fields": {
+    "subtitle_translator": "字幕AI翻译",
+    "subtitle_formatter": "字幕格式转换",
+    "subtitle_language_extractor": "字幕语言提取"
   }
 }

@@ -40,6 +40,7 @@ if (!app.requestSingleInstanceLock()) {
 }
 
 let win: BrowserWindow | null = null;
+// let subtitleWindow: BrowserWindow | null = null;
 const preload = path.join(__dirname, "../preload/index.mjs");
 const indexHtml = path.join(RENDERER_DIST, "index.html");
 
@@ -91,7 +92,20 @@ async function createWindow() {
   // update(win)
 }
 
-app.whenReady().then(createWindow);
+// 为每个工具创建新的窗口
+// async function createToolsWindows() {
+//   subtitleWindow = new BrowserWindow({
+//     width: 600,
+//     height: 400,
+//     show: true,
+//   });
+//   subtitleWindow.loadURL("http://localhost:3000/tools/subtitle/translator"); // 字幕翻译工具二级窗口
+// }
+
+app.whenReady().then(() => {
+  createWindow();
+  // createToolsWindows(); // 为每个工具创建新的窗口
+});
 
 app.on("window-all-closed", () => {
   win = null;

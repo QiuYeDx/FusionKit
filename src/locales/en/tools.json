@@ -10,5 +10,10 @@
     "subtitle_tools": "AI translation, format conversion, and other subtitle processing features.",
     "music_tools": "Convert paid music to FLAC/MP3 format.",
     "rename_tools": "Easily batch rename multiple files."
+  },
+  "fields": {
+    "subtitle_translator": "AI Translation",
+    "subtitle_formatter": "Format Conversion",
+    "subtitle_language_extractor": "Language Extraction"
   }
 }

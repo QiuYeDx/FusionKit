@@ -10,5 +10,10 @@
     "subtitle_tools": "AI翻訳、フォーマット変換などの字幕処理機能。",
     "music_tools": "有料音楽をFLAC/MP3形式に変換。",
     "rename_tools": "複数のファイルを簡単に一括リネーム。"
+  },
+  "fields": {
+    "subtitle_translator": "字幕AI翻訳",
+    "subtitle_formatter": "字幕フォーマット変換",
+    "subtitle_language_extractor": "字幕言語抽出"
   }
 }

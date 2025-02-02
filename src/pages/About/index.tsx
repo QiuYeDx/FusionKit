@@ -17,7 +17,7 @@ const About: React.FC = () => {
         </div>
       </div>
 
-      <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-4 mb-16">
         <div className="bg-base-200 p-4 rounded-lg overflow-auto">
           <div className="text-xl font-semibold mb-4 sticky left-0">
             {t("about:subtitle.version")}

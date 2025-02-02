@@ -1,7 +1,8 @@
-import React, { useEffect, useState, MouseEvent } from "react";
+import React, { useEffect, useState, MouseEvent, useMemo, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import {
+  ArrowUturnLeftIcon,
   Cog6ToothIcon,
   HomeIcon,
   InformationCircleIcon,
@@ -12,6 +13,8 @@ import useFadeMaskLayerStore from "@/store/useFadeMaskLayer";
 import { useWindowSize } from "react-use";
 import * as htmlToImage from "html-to-image";
 import { toPng, toJpeg, toBlob, toPixelData, toSvg } from "html-to-image";
+import { ToolNameMap } from "@/constants/router";
+import { animated, useSpring } from "@react-spring/web";
 
 const BottomNavigation: React.FC = () => {
   const { width, height } = useWindowSize();
@@ -19,6 +22,10 @@ const BottomNavigation: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { isDark, setTheme } = useThemeStore();
+
+  const currentToolName = useMemo(() => {
+    return ToolNameMap[location.pathname] || "-";
+  }, [location.pathname]);
 
   const {
     showMaskLayer,
@@ -77,48 +84,98 @@ const BottomNavigation: React.FC = () => {
       });
   };
 
+  // 判断当前是否为主菜单
+  const isMainMenu = ["/", "/about", "/setting", "/tools"].includes(
+    location.pathname
+  );
+
+  // 主菜单动画配置
+  const mainMenuFadeUpProps = useSpring({
+    from: { opacity: 0, transform: "translateY(68px)" },
+    to: { opacity: 1, transform: "translateY(0)" },
+    config: { tension: 200, friction: 15 },
+    reverse: !isMainMenu,
+  });
+
+  // 子菜单动画配置
+  const subMenuFadeUpProps = useSpring({
+    from: { opacity: 0, transform: "translateY(68px)" },
+    to: { opacity: 1, transform: "translateY(0)" },
+    config: { tension: 200, friction: 15 },
+    reverse: isMainMenu,
+  });
+
   return (
     <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full flex justify-center items-center">
       {/* 底部导航栏 */}
-      <ul className="my-2 glass mx-2 menu bg-base-200 menu-horizontal rounded-box ring ring-base-100 gap-1 justify-center flex-nowrap">
-        <li>
-          <a
-            className={location.pathname === "/" ? "active" : ""}
-            onClick={() => navigate("/")}
-          >
-            <HomeIcon className="size-5" />
-            {t("menu.home")}
-          </a>
-        </li>
-        <li>
-          <a
-            className={location.pathname === "/tools" ? "active" : ""}
-            onClick={() => navigate("/tools")}
-          >
-            <WrenchScrewdriverIcon className="size-5" />
-            {t("menu.tools")}
-          </a>
-        </li>
-        <li>
-          <a
-            className={location.pathname === "/about" ? "active" : ""}
-            onClick={() => navigate("/about")}
-          >
-            <InformationCircleIcon className="size-5" />
-            {t("menu.about")}
-          </a>
-        </li>
-        <li>
-          <a
-            className={location.pathname === "/setting" ? "active" : ""}
-            onClick={() => navigate("/setting")}
-          >
-            <Cog6ToothIcon className="size-5" />
-            {t("menu.setting")}
-          </a>
-        </li>
-      </ul>
+      {isMainMenu ? (
+        // 一级菜单
+        <animated.ul
+          style={mainMenuFadeUpProps}
+          className="my-2 glass mx-2 menu bg-base-200 menu-horizontal rounded-box ring ring-base-100 gap-1 justify-center flex-nowrap"
+        >
+          <li>
+            <a
+              className={location.pathname === "/" ? "active" : ""}
+              onClick={() => navigate("/")}
+            >
+              <HomeIcon className="size-5" />
+              {t("menu.home")}
+            </a>
+          </li>
+          <li>
+            <a
+              className={location.pathname === "/tools" ? "active" : ""}
+              onClick={() => navigate("/tools")}
+            >
+              <WrenchScrewdriverIcon className="size-5" />
+              {t("menu.tools")}
+            </a>
+          </li>
+          <li>
+            <a
+              className={location.pathname === "/about" ? "active" : ""}
+              onClick={() => navigate("/about")}
+            >
+              <InformationCircleIcon className="size-5" />
+              {t("menu.about")}
+            </a>
+          </li>
+          <li>
+            <a
+              className={location.pathname === "/setting" ? "active" : ""}
+              onClick={() => navigate("/setting")}
+            >
+              <Cog6ToothIcon className="size-5" />
+              {t("menu.setting")}
+            </a>
+          </li>
+        </animated.ul>
+      ) : (
+        // 二级菜单
+        <animated.ul
+          style={subMenuFadeUpProps}
+          className="my-2 glass mx-2 menu bg-base-200 menu-horizontal rounded-box ring ring-base-100 gap-1 justify-center flex-nowrap"
+        >
+          <li>
+            <a
+              className={location.pathname === "/" ? "active" : ""}
+              onClick={() => navigate("/tools")}
+            >
+              <ArrowUturnLeftIcon className="size-5" />
+              {t("menu.back")}
+            </a>
+          </li>
+          <li>
+            <a className="active">
+              <WrenchScrewdriverIcon className="size-5" />
+              {t(currentToolName)}
+            </a>
+          </li>
+        </animated.ul>
+      )}
 
+      {/* Dark Mode 快捷切换 */}
       <div className="absolute right-6">
         <label
           className={`swap swap-rotate ${isDark ? "" : "swap-active"}`}

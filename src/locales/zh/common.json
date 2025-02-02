@@ -3,6 +3,10 @@
     "home": "主页",
     "tools": "工具",
     "about": "关于",
-    "setting": "设置"
+    "setting": "设置",
+    "back": "返回",
+    "subtitle": {
+      "translator": "字幕AI翻译"
+    }
   }
 }

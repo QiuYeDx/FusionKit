@@ -3,6 +3,10 @@
     "home": "ホーム",
     "tools": "ツール",
     "about": "について",
-    "setting": "設定"
+    "setting": "設定",
+    "back": "戻る",
+    "subtitle": {
+      "translator": "字幕AI翻訳"
+    }
   }
 }

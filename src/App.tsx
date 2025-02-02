@@ -10,6 +10,7 @@ import AppTitleBar from "@/pages/components/AppTitleBar";
 import useThemeStore from "@/store/useThemeStore";
 import FadeMaskLayer from "@/pages/components/FadeMaskLayer";
 import useModelStore from "@/store/useModelStore";
+import SubtitleTranslator from "./pages/Tools/Subtitle/SubtitleTranslator";
 
 function App() {
   // 初始化主题, 并添加系统深色模式监听
@@ -30,10 +31,17 @@ function App() {
       <div className="h-6"></div>
 
       <Routes>
+        {/* 一级页面 */}
         <Route path="/" element={<Home />} />
         <Route path="/tools" element={<Tools />} />
         <Route path="/about" element={<About />} />
         <Route path="/setting" element={<Setting />} />
+
+        {/* 二级页面 */}
+        <Route
+          path="/tools/subtitle/translator"
+          element={<SubtitleTranslator />}
+        />
       </Routes>
 
       {/* 底部导航栏 */}

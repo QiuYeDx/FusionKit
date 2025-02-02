@@ -3,6 +3,10 @@
     "home": "Home",
     "tools": "Tools",
     "about": "About",
-    "setting": "Setting"
+    "setting": "Setting",
+    "back": "Back",
+    "subtitle": {
+      "translator": "Subtitle AI Translation"
+    }
   }
 }
