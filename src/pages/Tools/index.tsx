@@ -4,7 +4,7 @@ import { useNavigate } from "react-router-dom";
 
 const Tools: React.FC = () => {
   const navigate = useNavigate();
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
 
   return (
     <div className="p-4">

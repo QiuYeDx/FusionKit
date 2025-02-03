@@ -8,5 +8,7 @@
     "subtitle": {
       "translator": "字幕AI翻訳"
     }
-  }
+  },
+  "start": "開始",
+  "retry": "リトライ"
 }

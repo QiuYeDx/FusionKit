@@ -23,6 +23,8 @@ const Setting: React.FC = () => {
         <LanguageConfig />
         {/* API Key 设置 */}
         <ApiKeyConfig />
+        {/* 代理设置 */}
+        {/* TODO */}
       </div>
     </div>
   );

@@ -1,0 +1,33 @@
+{
+  "translator": {
+    "title": "AI字幕翻訳",
+    "description": "LRC・SRT形式の日本語字幕を中日バイリンガル字幕に翻訳対応",
+    "config_title": "設定オプション",
+    "fields": {
+      "subtitle_file_type": "字幕ファイル形式",
+      "subtitle_slice_mode": "分割モード",
+      "no_tasks": "処理待ちのタスクはありません",
+      "start_all": "一括処理開始",
+      "files_only": "対応形式: {formats}",
+      "upload_tips": "クリックしてアップロード、またはファイルをドラッグ",
+      "custom_slice_length": "カスタム分割長"
+    },
+    "slice_types": {
+      "normal": "通常モード",
+      "sensitive": "厳密モード",
+      "custom": "カスタム"
+    },
+    "task_status": {
+      "notstarted": "待機中",
+      "waiting": "処理待ち",
+      "pending": "処理中",
+      "resolved": "完了",
+      "failed": "失敗"
+    },
+    "errors": {
+      "invalid_file_type": "非対応ファイル形式: {types}"
+    },
+    "upload_section": "字幕アップロードエリア",
+    "task_management": "タスク監視パネル"
+  }
+}

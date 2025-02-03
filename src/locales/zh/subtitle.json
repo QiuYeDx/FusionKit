@@ -1,0 +1,33 @@
+{
+  "translator": {
+    "title": "字幕AI翻译",
+    "description": "支持 lrc、srt 格式日文字幕翻译为中日双语字幕。",
+    "config_title": "配置选项",
+    "fields": {
+      "subtitle_file_type": "字幕文件格式",
+      "subtitle_slice_mode": "分片模式",
+      "no_tasks": "当前没有待处理任务",
+      "start_all": "批量开始全部任务",
+      "files_only": "仅支持 {formats} 格式文件",
+      "upload_tips": "点击上传或直接拖拽文件到这里",
+      "custom_slice_length": "自定义分片长度"
+    },
+    "slice_types": {
+      "normal": "普通模式",
+      "sensitive": "敏感模式",
+      "custom": "自定义"
+    },
+    "task_status": {
+      "notstarted": "待启动",
+      "waiting": "等待处理",
+      "pending": "正在翻译",
+      "resolved": "翻译完成",
+      "failed": "翻译失败"
+    },
+    "errors": {
+      "invalid_file_type": "不支持的文件类型：{types}"
+    },
+    "upload_section": "字幕文件上传区",
+    "task_management": "任务队列监控面板"
+  }
+}

@@ -8,5 +8,7 @@
     "subtitle": {
       "translator": "字幕AI翻译"
     }
-  }
+  },
+  "start": "开始",
+  "retry": "重试"
 }

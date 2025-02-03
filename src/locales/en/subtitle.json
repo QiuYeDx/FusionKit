@@ -1,0 +1,33 @@
+{
+  "translator": {
+    "title": "AI Subtitle Translation",
+    "description": "Supports translation of Japanese subtitles in LRC/SRT formats to Chinese-Japanese bilingual subtitles.",
+    "config_title": "Configuration Options",
+    "fields": {
+      "subtitle_file_type": "Subtitle Format",
+      "subtitle_slice_mode": "Segmentation Mode",
+      "no_tasks": "No pending tasks",
+      "start_all": "Start All Tasks",
+      "files_only": "Supported formats: {formats}",
+      "upload_tips": "Click to upload or drag files here",
+      "custom_slice_length": "Custom Segment Length"
+    },
+    "slice_types": {
+      "normal": "Normal Mode",
+      "sensitive": "Sensitive Mode",
+      "custom": "Custom"
+    },
+    "task_status": {
+      "notstarted": "Ready",
+      "waiting": "Queued",
+      "pending": "Processing",
+      "resolved": "Completed",
+      "failed": "Failed"
+    },
+    "errors": {
+      "invalid_file_type": "Unsupported file type: {types}"
+    },
+    "upload_section": "Subtitle Upload Area",
+    "task_management": "Task Monitoring Panel"
+  }
+}
