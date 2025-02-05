@@ -247,20 +247,20 @@ function SubtitleTranslator() {
         </div>
       </div>
 
-      {/* 输出路径选择区块 */}
+      {/* 输出设置区块 */}
       <div className="mb-4">
         <div className="bg-base-200 p-4 rounded-lg">
           <div className="text-xl font-semibold mb-4">
             {t("subtitle:translator.output_path_section")}
           </div>
           <div className="flex items-center gap-4">
-            <button
-              onClick={handleSelectOutputPath}
-              className="btn btn-primary btn-sm"
-            >
-              {t("subtitle:translator.fields.select_output_path")}
-            </button>
-            <div className="flex-1">
+            <div className="join grow">
+              <button
+                onClick={handleSelectOutputPath}
+                className="btn btn-primary btn-sm join-item"
+              >
+                {t("subtitle:translator.fields.select_output_path")}
+              </button>
               <input
                 type="text"
                 placeholder={t(
@@ -268,7 +268,7 @@ function SubtitleTranslator() {
                 )}
                 value={outputURL}
                 onChange={() => {}} // 防止显示控制台警告
-                className="input input-sm input-bordered box-border w-full shrink-0"
+                className="join-item input input-sm input-bordered box-border grow shrink-0"
               />
             </div>
           </div>
