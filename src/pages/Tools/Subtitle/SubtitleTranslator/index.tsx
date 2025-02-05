@@ -42,6 +42,28 @@ function SubtitleTranslator() {
 
   const [isDragging, setIsDragging] = useState(false);
 
+  // 保存用户选择的文件输出路径
+  const [outputURL, setOutputURL] = useState<string>("");
+
+  // 选择输出路径
+  const handleSelectOutputPath = async () => {
+    try {
+      // 通过 IPC 调用主进程的目录选择对话框
+      const result = await window.ipcRenderer.invoke("select-output-directory");
+
+      if (result && !result.canceled && result.filePaths.length > 0) {
+        const selectedPath = result.filePaths[0];
+        setOutputURL(selectedPath);
+        showToast(
+          t("subtitle:translator.infos.output_path_selected"),
+          "success"
+        );
+      }
+    } catch (error) {
+      showToast(t("subtitle:translator.errors.path_selection_failed"), "error");
+    }
+  };
+
   // 处理文件拖入区域的拖拽事件
   const handleDragEnter = (e: React.DragEvent<HTMLLabelElement>) => {
     e.preventDefault();
@@ -73,6 +95,13 @@ function SubtitleTranslator() {
   };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!outputURL) {
+      showToast(
+        t("subtitle:translator.errors.please_select_output_url"),
+        "error"
+      );
+      return;
+    }
     const files = e.target.files;
     if (!files || files.length === 0) return;
 
@@ -126,7 +155,7 @@ function SubtitleTranslator() {
         fileType: extension as SubtitleFileType,
         sliceType, // 使用当前配置的分片模式
         originFileURL: fileUrl,
-        targetFileURL: "",
+        targetFileURL: outputURL,
         status: TaskStatus.NOT_STARTED,
         progress: 0,
       };
@@ -167,29 +196,6 @@ function SubtitleTranslator() {
             {t("subtitle:translator.config_title")}
           </div>
 
-          {/* 文件类型选择 */}
-          {/* <div className="form-control -mt-2">
-            <label className="label -mb-2">
-              <span className="label-text">
-                {t("subtitle:translator.fields.subtitle_file_type")}
-              </span>
-            </label>
-            <div className="join">
-              {Object.values(SubtitleFileType).map((type, index) => (
-                <input
-                  key={type}
-                  type="radio"
-                  aria-label={type}
-                  checked={fileType === type}
-                  className={`join-item btn btn-sm bg-base-100 ${
-                    index > 0 ? "mt-[3px]" : ""
-                  }`}
-                  onClick={() => setFileType(type)}
-                ></input>
-              ))}
-            </div>
-          </div> */}
-
           {/* 分片模式选择 */}
           <div className="form-control -ml-1">
             <label className="label -mb-2">
@@ -219,15 +225,15 @@ function SubtitleTranslator() {
 
           {/* 自定义分片长度输入 */}
           {sliceType === SubtitleSliceType.CUSTOM && (
-            <div className="form-control mt-4">
-              <label className="label">
+            <div className="form-control mt-2">
+              <label className="label -ml-1 -mb-1">
                 <span className="label-text">
                   {t("subtitle:translator.fields.custom_slice_length")} (chars)
                 </span>
               </label>
               <input
                 type="number"
-                className="input input-bordered input-sm w-32"
+                className="input input-sm input-bordered box-border w-32"
                 value={customLengthInput}
                 min="100"
                 max="2000"
@@ -238,6 +244,34 @@ function SubtitleTranslator() {
               />
             </div>
           )}
+        </div>
+      </div>
+
+      {/* 输出路径选择区块 */}
+      <div className="mb-4">
+        <div className="bg-base-200 p-4 rounded-lg">
+          <div className="text-xl font-semibold mb-4">
+            {t("subtitle:translator.output_path_section")}
+          </div>
+          <div className="flex items-center gap-4">
+            <button
+              onClick={handleSelectOutputPath}
+              className="btn btn-primary btn-sm"
+            >
+              {t("subtitle:translator.fields.select_output_path")}
+            </button>
+            <div className="flex-1">
+              <input
+                type="text"
+                placeholder={t(
+                  "subtitle:translator.fields.no_output_path_selected"
+                )}
+                value={outputURL}
+                onChange={() => {}} // 防止显示控制台警告
+                className="input input-sm input-bordered box-border w-full shrink-0"
+              />
+            </div>
+          </div>
         </div>
       </div>
 

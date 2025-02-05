@@ -11,7 +11,9 @@
       "files_only": "仅支持 {formats} 格式文件",
       "upload_tips": "点击上传或直接拖拽文件到这里",
       "custom_slice_length": "自定义分片长度",
-      "remove_all_resolved_task": "清空完成"
+      "remove_all_resolved_task": "清空完成",
+      "select_output_path": "选择输出路径",
+      "no_output_path_selected": "未选择输出路径"
     },
     "slice_types": {
       "normal": "普通模式",
@@ -25,11 +27,17 @@
       "resolved": "翻译完成",
       "failed": "翻译失败"
     },
+    "infos": {
+      "output_path_selected": "输出路径已设置"
+    },
     "errors": {
       "invalid_file_type": "不支持的文件类型：{types}",
-      "duplicate_file": "文件 {file} 已存在，跳过重复添加"
+      "duplicate_file": "文件 {file} 已存在，跳过重复添加",
+      "path_selection_failed": "路径选择失败，请重试",
+      "please_select_output_url": "请先选择输出路径"
     },
     "upload_section": "文件上传",
-    "task_management": "任务队列"
+    "task_management": "任务队列",
+    "output_path_section": "输出设置"
   }
 }

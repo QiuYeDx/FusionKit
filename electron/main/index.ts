@@ -1,4 +1,4 @@
-import { app, BrowserWindow, shell, ipcMain } from "electron";
+import { app, BrowserWindow, shell, ipcMain, dialog } from "electron";
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
@@ -144,4 +144,12 @@ ipcMain.handle("open-win", (_, arg) => {
   } else {
     childWindow.loadFile(indexHtml, { hash: arg });
   }
+});
+
+ipcMain.handle("select-output-directory", async () => {
+  return await dialog.showOpenDialog({
+    title: "选择输出目录",
+    properties: ["openDirectory", "createDirectory"],
+    buttonLabel: "选择此目录",
+  });
 });
