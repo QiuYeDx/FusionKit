@@ -6,4 +6,6 @@ export enum Model {
 
 export type ModelUrlMap = Record<Model, string>;
 
+export type ModelKeyMap = Record<Model, string>;
+
 export type ApiKeyMap = Record<Model, string>;

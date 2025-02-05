@@ -8,6 +8,12 @@ export const DEFAULT_MODEL_URL_MAP = {
   [Model.Other]: "",
 };
 
+export const DEFAULT_MODEL_KEY_MAP = {
+  [Model.DeepSeek]: "deepseek-chat",
+  [Model.OpenAI]: "gpt-4o",
+  [Model.Other]: "",
+};
+
 export const DEFAULT_APIKEY_MAP = {
   [Model.DeepSeek]: "",
   [Model.OpenAI]: "",

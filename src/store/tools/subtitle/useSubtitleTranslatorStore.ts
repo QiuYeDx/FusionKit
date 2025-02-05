@@ -25,8 +25,9 @@ interface SubtitleTranslatorStore {
   setCustomSliceLength: (length: number) => void;
   initializeSubtitleTranslatorStore: () => void;
   addTask: (task: SubtitleTranslatorTask) => void;
-  startTask: (fileUrl: string) => void;
-  retryTask: (fileUrl: string) => void;
+  startTask: (fileName: string) => void;
+  retryTask: (fileName: string) => void;
+  removeAllResolvedTask: () => void;
   startAllTasks: () => void;
 }
 
@@ -82,15 +83,15 @@ const useSubtitleTranslatorStore = create<SubtitleTranslatorStore>((set) => ({
     }),
 
   // 启动单个任务
-  startTask: (fileUrl) =>
+  startTask: (fileName) =>
     set((state) => {
       const task = state.notStartedTaskQueue.find(
-        (t) => t.originFileURL === fileUrl
+        (t) => t.fileName === fileName
       );
       if (!task) return state;
 
       const updatedQueue = state.notStartedTaskQueue.filter(
-        (t) => t.originFileURL !== fileUrl
+        (t) => t.fileName !== fileName
       );
       const updatedTask = { ...task, status: TaskStatus.WAITING };
 
@@ -101,11 +102,9 @@ const useSubtitleTranslatorStore = create<SubtitleTranslatorStore>((set) => ({
     }),
 
   // 重试任务
-  retryTask: (fileUrl) =>
+  retryTask: (fileName) =>
     set((state) => {
-      const task = state.failedTaskQueue.find(
-        (t) => t.originFileURL === fileUrl
-      );
+      const task = state.failedTaskQueue.find((t) => t.fileName === fileName);
       if (!task) return state;
 
       const clonedTask = cloneDeep({
@@ -116,7 +115,7 @@ const useSubtitleTranslatorStore = create<SubtitleTranslatorStore>((set) => ({
 
       return {
         failedTaskQueue: state.failedTaskQueue.filter(
-          (t) => t.originFileURL !== fileUrl
+          (t) => t.fileName !== fileName
         ),
         notStartedTaskQueue: [...state.notStartedTaskQueue, clonedTask],
       };
@@ -138,12 +137,18 @@ const useSubtitleTranslatorStore = create<SubtitleTranslatorStore>((set) => ({
         .map((t) => ({ ...t, status: TaskStatus.WAITING }));
 
       return {
-        notStartedTaskQueue: state.notStartedTaskQueue.filter((t) =>
-          activeUrls.has(t.originFileURL) // ? 为什么这样写 ?
+        notStartedTaskQueue: state.notStartedTaskQueue.filter(
+          (t) => activeUrls.has(t.originFileURL) // ? 为什么这样写 ?
         ),
         waitingTaskQueue: [...state.waitingTaskQueue, ...validTasks],
       };
     }),
+
+  removeAllResolvedTask: () => {
+    set({
+      resolvedTaskQueue: [],
+    });
+  },
 }));
 
 export default useSubtitleTranslatorStore;

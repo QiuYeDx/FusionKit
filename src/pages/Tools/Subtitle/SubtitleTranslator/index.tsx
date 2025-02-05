@@ -7,7 +7,12 @@ import {
 } from "@/type/subtitle";
 import { useTranslation } from "react-i18next";
 import { useState } from "react";
-import { FolderIcon, FolderOpenIcon } from "@heroicons/react/24/outline";
+import {
+  ArrowPathIcon,
+  FolderIcon,
+  FolderOpenIcon,
+  PlayCircleIcon,
+} from "@heroicons/react/24/outline";
 import { showToast } from "@/utils/toast";
 
 function SubtitleTranslator() {
@@ -28,6 +33,7 @@ function SubtitleTranslator() {
     startTask,
     retryTask,
     startAllTasks,
+    removeAllResolvedTask,
   } = useSubtitleTranslatorStore();
 
   const [customLengthInput, setCustomLengthInput] = useState(
@@ -287,13 +293,24 @@ function SubtitleTranslator() {
           <div className="text-xl font-semibold">
             {t("subtitle:translator.task_management")}
           </div>
-          <button
-            className="btn btn-primary btn-sm"
-            onClick={() => startAllTasks()}
-            disabled={notStartedTaskQueue.length === 0}
-          >
-            {t("subtitle:translator.fields.start_all")}
-          </button>
+          <div className="flex gap-2">
+            {/* 全部开始 */}
+            <button
+              className="btn btn-primary btn-sm"
+              onClick={() => startAllTasks()}
+              disabled={notStartedTaskQueue.length === 0}
+            >
+              {t("subtitle:translator.fields.start_all")}
+            </button>
+            {/* 清空完成 */}
+            <button
+              className="btn btn-primary btn-sm"
+              onClick={() => removeAllResolvedTask()}
+              disabled={resolvedTaskQueue.length === 0}
+            >
+              {t("subtitle:translator.fields.remove_all_resolved_task")}
+            </button>
+          </div>
         </div>
 
         {/* 任务列表 */}
@@ -334,20 +351,20 @@ function SubtitleTranslator() {
 
                 <div className="flex items-center gap-2">
                   {task.status === TaskStatus.FAILED && (
-                    <button
-                      className="btn btn-error btn-xs"
-                      onClick={() => retryTask(task.originFileURL)}
+                    <a
+                      className="cursor-pointer"
+                      onClick={() => retryTask(task.fileName)}
                     >
-                      {t("common:retry")}
-                    </button>
+                      <ArrowPathIcon className="size-6" />
+                    </a>
                   )}
                   {task.status === TaskStatus.NOT_STARTED && (
-                    <button
-                      className="btn btn-primary btn-xs"
-                      onClick={() => startTask(task.originFileURL)}
+                    <a
+                      className="cursor-pointer"
+                      onClick={() => startTask(task.fileName)}
                     >
-                      {t("common:start")}
-                    </button>
+                      <PlayCircleIcon className="size-6" />
+                    </a>
                   )}
                 </div>
               </div>

@@ -12,10 +12,12 @@
     "system_mode": "跟随系统",
     "other": "其他",
     "apikey": "API Key",
-    "model_url": "Base URL"
+    "model_url": "Base URL",
+    "model_key": "Model Key"
   },
   "placeholder": {
     "apikey": "请输入 API Key",
-    "model_url": "请输入 Base URL"
+    "model_url": "请输入 Base URL",
+    "model_key": "请输入 Model Key"
   }
 }

@@ -10,7 +10,8 @@
       "start_all": "全部开始",
       "files_only": "仅支持 {formats} 格式文件",
       "upload_tips": "点击上传或直接拖拽文件到这里",
-      "custom_slice_length": "自定义分片长度"
+      "custom_slice_length": "自定义分片长度",
+      "remove_all_resolved_task": "清空完成"
     },
     "slice_types": {
       "normal": "普通模式",

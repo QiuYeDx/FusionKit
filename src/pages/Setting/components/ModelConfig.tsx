@@ -8,9 +8,11 @@ function ModelConfig() {
     model,
     apiKeyMap,
     modelUrlMap,
+    modelKeyMap,
     setModel,
     setApiKeyByType,
     setModelUrlByType,
+    setModelKeyByType,
   } = useModelStore();
 
   const handleApiKeyChange = (e: any) => {
@@ -21,6 +23,11 @@ function ModelConfig() {
   const handleModelUrlChange = (e: any) => {
     const val = e.target.value;
     setModelUrlByType(model, val);
+  };
+
+  const handleModelKeyChange = (e: any) => {
+    const val = e.target.value;
+    setModelKeyByType(model, val);
   };
 
   return (
@@ -89,6 +96,26 @@ function ModelConfig() {
             value={modelUrlMap[model]}
             disabled={[Model.DeepSeek, Model.OpenAI].includes(model)}
             onChange={handleModelUrlChange}
+            className="input input-sm input-bordered box-border w-full max-w-xs shrink-0"
+          />
+        </label>
+      )}
+
+      {/* 自定义模型 Key 输入 */}
+      {model === Model.Other && (
+        <label className="form-control w-full max-w-xs">
+          <div className="label mt-1 -mb-1 shrink-0">
+            <span className="label-text">{t("setting:fields.model_key")}</span>
+            <span className="label-text-alt">
+              {model === Model.Other ? t(`setting:fields.other`) : model}
+            </span>
+          </div>
+          <input
+            type="text"
+            placeholder={t("setting:placeholder.model_key")}
+            value={modelKeyMap[model]}
+            disabled={[Model.DeepSeek, Model.OpenAI].includes(model)}
+            onChange={handleModelKeyChange}
             className="input input-sm input-bordered box-border w-full max-w-xs shrink-0"
           />
         </label>
