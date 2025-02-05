@@ -11,6 +11,7 @@ import useThemeStore from "@/store/useThemeStore";
 import FadeMaskLayer from "@/pages/components/FadeMaskLayer";
 import useModelStore from "@/store/useModelStore";
 import SubtitleTranslator from "./pages/Tools/Subtitle/SubtitleTranslator";
+import { Toaster } from "react-hot-toast";
 
 function App() {
   // 初始化主题, 并添加系统深色模式监听
@@ -46,6 +47,9 @@ function App() {
 
       {/* 底部导航栏 */}
       <BottomNavigation />
+
+      {/* 全局 Toast */}
+      <Toaster position="top-right" reverseOrder={false} />
 
       {/* 全局过渡遮罩层 */}
       <FadeMaskLayer />

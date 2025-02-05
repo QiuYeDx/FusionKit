@@ -7,6 +7,8 @@ import {
 } from "@/type/subtitle";
 import { useTranslation } from "react-i18next";
 import { useState } from "react";
+import { FolderIcon, FolderOpenIcon } from "@heroicons/react/24/outline";
+import { showToast } from "@/utils/toast";
 
 function SubtitleTranslator() {
   const { t } = useTranslation();
@@ -32,28 +34,87 @@ function SubtitleTranslator() {
     sliceLengthMap?.[SubtitleSliceType.CUSTOM]?.toString() || "500"
   );
 
+  const [isDragging, setIsDragging] = useState(false);
+
+  // 处理文件拖入区域的拖拽事件
+  const handleDragEnter = (e: React.DragEvent<HTMLLabelElement>) => {
+    e.preventDefault();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent<HTMLLabelElement>) => {
+    e.preventDefault();
+    setIsDragging(false);
+  };
+
+  const handleDragOver = (e: React.DragEvent<HTMLLabelElement>) => {
+    e.preventDefault(); // 必须阻止默认行为以允许拖放
+  };
+
+  // 处理文件拖放事件
+  const handleDrop = (e: React.DragEvent<HTMLLabelElement>) => {
+    e.preventDefault();
+    setIsDragging(false);
+
+    // 获取拖放的文件
+    const files = e.dataTransfer.files;
+    if (files.length > 0) {
+      // 调用文件上传处理函数
+      handleFileUpload({
+        target: { files },
+      } as React.ChangeEvent<HTMLInputElement>);
+    }
+  };
+
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
 
+    // 获取已有的任务文件路径列表
+    const existingFileNames = [
+      ...notStartedTaskQueue,
+      ...waitingTaskQueue,
+      ...pendingTaskQueue,
+      ...resolvedTaskQueue,
+      ...failedTaskQueue,
+    ].map((task) => task.fileName);
+
     // 遍历所有选中的文件
     Array.from(files).forEach((file) => {
       const extension = file.name.split(".").pop()?.toUpperCase();
+
+      // 检查文件类型是否支持
       if (
         !Object.values(SubtitleFileType).includes(extension as SubtitleFileType)
       ) {
         // 如果文件类型不支持，显示错误提示
-        alert(
+        showToast(
           t("subtitle:translator.errors.invalid_file_type").replace(
             "{types}",
             extension || " - "
-          )
+          ),
+          "error"
         );
         return; // 跳过此文件
       }
 
-      // 为每个文件生成 URL 并创建任务
+      // 为每个文件生成 URL
       const fileUrl = URL.createObjectURL(file);
+
+      // 检查文件名称是否已存在
+      if (existingFileNames.includes(file.name)) {
+        // 如果文件名称已存在，显示警告提示
+        showToast(
+          t("subtitle:translator.errors.duplicate_file").replace(
+            "{file}",
+            file.name
+          ),
+          "error"
+        );
+        return; // 跳过此文件
+      }
+
+      // 创建任务
       const newTask: SubtitleTranslatorTask = {
         fileName: file.name,
         fileType: extension as SubtitleFileType,
@@ -143,6 +204,7 @@ function SubtitleTranslator() {
                   className={`join-item btn btn-sm bg-base-100 ${
                     index > 0 ? "mt-[3px]" : ""
                   }`}
+                  onChange={() => {}} // 防止显示控制台警告
                   onClick={() => setSliceType(type)}
                 ></input>
               ))}
@@ -179,7 +241,17 @@ function SubtitleTranslator() {
           <div className="text-xl font-semibold mb-4">
             {t("subtitle:translator.upload_section")}
           </div>
-          <label className="flex flex-col items-center justify-center border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-6 cursor-pointer hover:bg-base-300 transition-colors">
+          <label
+            className={`flex flex-col items-center justify-center border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-6 cursor-pointer transition-colors file-drop-zone ${
+              isDragging
+                ? "border-blue-500 bg-blue-50 dark:bg-blue-700 dark:bg-opacity-30"
+                : "hover:bg-base-300"
+            }`}
+            onDragEnter={handleDragEnter}
+            onDragLeave={handleDragLeave}
+            onDragOver={handleDragOver}
+            onDrop={handleDrop}
+          >
             <input
               type="file"
               multiple
@@ -187,8 +259,14 @@ function SubtitleTranslator() {
               accept=".lrc,.srt"
               onChange={handleFileUpload}
             />
-            <div className="text-4xl mb-2">📁</div>
-            <div className="text-center">
+            <div className="text-4xl -mb-2 pointer-events-none">
+              {isDragging ? (
+                <FolderOpenIcon className="h-10" />
+              ) : (
+                <FolderIcon className="h-10" />
+              )}
+            </div>
+            <div className="text-center pointer-events-none">
               <p className="font-medium">
                 {t("subtitle:translator.fields.upload_tips")}
               </p>
@@ -238,11 +316,18 @@ function SubtitleTranslator() {
                   <div className="font-medium flex-1">
                     {task.fileName}
                     <div className="text-sm text-gray-500 mt-1">
+                      {/* 显示任务状态 */}
                       {t(
                         `subtitle:translator.task_status.${task.status.toLowerCase()}`
                       )}
                       {task.status === TaskStatus.PENDING &&
                         ` (${Math.round(task.progress || 0)}%)`}
+                      {/* 显示分片模式 */}
+                      <span className="ml-4">
+                        {t(
+                          `subtitle:translator.slice_types.${task.sliceType.toLowerCase()}`
+                        )}
+                      </span>
                     </div>
                   </div>
                 </div>

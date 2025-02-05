@@ -27,7 +27,7 @@
     "errors": {
       "invalid_file_type": "非対応ファイル形式: {types}"
     },
-    "upload_section": "字幕アップロードエリア",
-    "task_management": "タスク監視パネル"
+    "upload_section": "ファイルアップロード",
+    "task_management": "タスク管理"
   }
 }

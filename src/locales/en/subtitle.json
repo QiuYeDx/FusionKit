@@ -27,7 +27,7 @@
     "errors": {
       "invalid_file_type": "Unsupported file type: {types}"
     },
-    "upload_section": "Subtitle Upload Area",
-    "task_management": "Task Monitoring Panel"
+    "upload_section": "File Upload",
+    "task_management": "Task Queue"
   }
 }
