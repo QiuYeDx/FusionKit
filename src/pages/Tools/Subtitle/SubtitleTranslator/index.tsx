@@ -272,6 +272,8 @@ function SubtitleTranslator() {
               />
             </div>
           </div>
+
+          {/* TODO: 输出文件前缀、后缀设置 */}
         </div>
       </div>
 
