@@ -19,7 +19,7 @@ export enum TaskStatus {
 
 export type SubtitleTranslatorTask = {
   fileName: string;
-  // fileType: SubtitleFileType;
+  fileContent: string;
   sliceType: SubtitleSliceType;
   originFileURL: string; // 源文件路径
   targetFileURL: string; // 输出文件路径

@@ -24,8 +24,15 @@
       "resolved": "Completed",
       "failed": "Failed"
     },
+    "infos": {
+      "output_path_selected": "Output path is set",
+      "total_fragments": "Total fragments: {count}"
+    },
     "errors": {
-      "invalid_file_type": "Unsupported file type: {types}"
+      "invalid_file_type": "Unsupported file type: {types}",
+      "duplicate_file": "File {file} already exists, skipping duplicate addition",
+      "path_selection_failed": "Path selection failed, please try again",
+      "please_select_output_url": "Please select the output URL first"
     },
     "upload_section": "File Upload",
     "task_management": "Task Queue"

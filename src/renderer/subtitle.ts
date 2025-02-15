@@ -3,6 +3,7 @@ import useSubtitleTranslatorStore from "@/store/tools/subtitle/useSubtitleTransl
 
 // 在渲染进程中接收到进度更新后更新状态
 window.ipcRenderer.on("update-progress", (_, progressData) => {
+  console.info('>>> 收到 updateProgress', progressData);
   const store = useSubtitleTranslatorStore.getState();
   store.updateProgress(
     progressData.fileName,

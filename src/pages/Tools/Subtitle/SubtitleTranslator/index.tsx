@@ -118,14 +118,11 @@ function SubtitleTranslator() {
     ].map((task) => task.fileName);
 
     // 遍历所有选中的文件
-    Array.from(files).forEach((file) => {
+    for (const file of Array.from(files)) {
       const extension = file.name.split(".").pop()?.toUpperCase();
 
       // 检查文件类型是否支持
-      if (
-        !Object.values(SubtitleFileType).includes(extension as SubtitleFileType)
-      ) {
-        // 如果文件类型不支持，显示错误提示
+      if (!Object.values(SubtitleFileType).includes(extension as SubtitleFileType)) {
         showToast(
           t("subtitle:translator.errors.invalid_file_type").replace(
             "{types}",
@@ -133,41 +130,42 @@ function SubtitleTranslator() {
           ),
           "error"
         );
-        return; // 跳过此文件
+        continue;
       }
-
-      // 为每个文件生成 URL
-      const fileUrl = URL.createObjectURL(file);
 
       // 检查文件名称是否已存在
       if (existingFileNames.includes(file.name)) {
-        // 如果文件名称已存在，显示警告提示
         showToast(
-          t("subtitle:translator.errors.duplicate_file").replace(
-            "{file}",
-            file.name
-          ),
+          t("subtitle:translator.errors.duplicate_file").replace("{file}", file.name),
           "error"
         );
-        return; // 跳过此文件
+        continue;
       }
 
-      // 创建任务
-      const newTask: SubtitleTranslatorTask = {
-        fileName: file.name,
-        fileType: extension as SubtitleFileType,
-        sliceType, // 使用当前配置的分片模式
-        originFileURL: fileUrl,
-        targetFileURL: outputURL,
-        status: TaskStatus.NOT_STARTED,
-        progress: 0,
+      try {
+        // 读取文件内容
+        const fileContent = await file.text();
+        
+        // 创建任务
+        const newTask: SubtitleTranslatorTask = {
+          fileName: file.name,
+          fileContent, // 设置文件内容
+          sliceType,
+          originFileURL: URL.createObjectURL(file),
+          targetFileURL: outputURL,
+          status: TaskStatus.NOT_STARTED,
+          progress: 0,
 
-        apiKey: getApiKeyByType(model),
-        apiModel: getModelKeyByType(model),
-        endPoint: getModelUrlByType(model),
-      };
-      addTask(newTask); // 将任务添加到任务队列
-    });
+          apiKey: getApiKeyByType(model),
+          apiModel: getModelKeyByType(model),
+          endPoint: getModelUrlByType(model),
+        };
+        addTask(newTask);
+      } catch (error) {
+        console.error("读取文件失败:", error);
+        showToast(`读取文件 ${file.name} 失败`, "error");
+      }
+    }
   };
 
   const getTaskStatusColor = (status: TaskStatus) => {
@@ -381,7 +379,7 @@ function SubtitleTranslator() {
                         `subtitle:translator.task_status.${task.status.toLowerCase()}`
                       )}
                       {task.status === TaskStatus.PENDING &&
-                        ` (${Math.round(task.progress || 0)}%)`}
+                        ` ${Math.round(task.progress || 0)}% (${task.resolvedFragments || 0}/${task.totalFragments || 0})`}
                       {/* 显示分片模式 */}
                       <span className="ml-4">
                         {t(

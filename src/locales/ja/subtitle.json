@@ -24,8 +24,15 @@
       "resolved": "完了",
       "failed": "失敗"
     },
+    "infos": {
+      "output_path_selected": "出力パスが設定されています",
+      "total_fragments": "総分片数：{count}"
+    },
     "errors": {
-      "invalid_file_type": "非対応ファイル形式: {types}"
+      "invalid_file_type": "非対応ファイル形式: {types}",
+      "duplicate_file": "ファイル {file} は既に存在します。",
+      "path_selection_failed": "パス選択に失敗しました。再試行してください。",
+      "please_select_output_url": "出力URLを先に選択してください。"
     },
     "upload_section": "ファイルアップロード",
     "task_management": "タスク管理"

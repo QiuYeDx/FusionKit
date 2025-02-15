@@ -2,7 +2,8 @@ import { promises as fs } from "fs";
 import path from "path";
 import { DEFAULT_SLICE_LENGTH_MAP } from "../contants";
 import { SubtitleSliceType, SubtitleTranslatorTask } from "../typing";
-import { ipcMain } from "electron";
+import { ipcMain, BrowserWindow } from "electron";
+import axios from 'axios';
 
 export abstract class BaseTranslator {
   protected abstract splitContent(content: string, maxTokens: number): string[];
@@ -16,20 +17,53 @@ export abstract class BaseTranslator {
   protected retryDelay = 1000;
 
   async translate(task: SubtitleTranslatorTask, signal?: AbortSignal) {
-    const content = await this.readFile(task.originFileURL);
-    const maxTokens = this.getMaxTokens(task.sliceType);
-    const fragments = this.splitContent(content, maxTokens);
+    try {
+      console.log("开始处理文件:", task.fileName);
+      const content = task.fileContent;
+      console.log("文件内容长度:", content.length);
+      
+      const maxTokens = this.getMaxTokens(task.sliceType);
+      console.log("使用的最大 token 数:", maxTokens);
+      
+      const fragments = this.splitContent(content, maxTokens);
+      console.log("分片数量:", fragments.length);
+      
+      // 初始化进度
+      this.updateProgress(task, 0, fragments.length);
+      
+      const translatedFragments: string[] = [];
 
-    for (const [index, fragment] of fragments.entries()) {
-      if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
+      for (const [index, fragment] of fragments.entries()) {
+        if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
 
-      const result = await this.translateFragment(
-        fragment,
-        index > 0 ? fragments[index - 1] : "",
-        task.extraInfo?.apiKey
-      );
+        const result = await this.translateFragment(
+          fragment,
+          index > 0 ? fragments[index - 1] : "",
+          task.apiKey,
+          task.apiModel,
+        );
 
-      this.updateProgress(task, index + 1, fragments.length);
+        if (!result) {
+          throw new Error("Translation result is undefined");
+        }
+
+        translatedFragments.push(result);
+        console.log("result", result);
+
+        // 更新当前分片进度
+        this.updateProgress(task, index + 1, fragments.length);
+      }
+
+      // 将翻译后的内容写入目标文件
+      const translatedContent = translatedFragments.join("\n");
+      await this.writeFile(task.targetFileURL, translatedContent, task.fileName);
+
+      // 通知任务完成
+      this.updateProgress(task, fragments.length, fragments.length);
+
+    } catch (error) {
+      console.error("翻译过程出错:", error);
+      throw error;
     }
   }
 
@@ -38,28 +72,72 @@ export abstract class BaseTranslator {
     current: number,
     total: number
   ) {
-    // 发送进度到渲染进程
-    ipcMain.emit("update-progress", {
-      fileName: task.fileName,
-      current,
-      total,
-      progress: (current / total) * 100,
-    });
+    // 更新任务对象
+    task.resolvedFragments = current;
+    task.totalFragments = total;
+    task.progress = Math.round((current / total) * 100);
+
+    // 获取主窗口并发送消息
+    const mainWindow = BrowserWindow.getAllWindows()[0];
+    if (mainWindow) {
+      console.log("发送进度更新:", {
+        fileName: task.fileName,
+        resolvedFragments: current,
+        totalFragments: total,
+        progress: task.progress
+      });
+      
+      mainWindow.webContents.send("update-progress", {
+        fileName: task.fileName,
+        resolvedFragments: current,
+        totalFragments: total,
+        progress: task.progress
+      });
+    } else {
+      console.error("未找到主窗口，无法发送进度更新");
+    }
   }
 
-  private async readFile(fileURL: string) {
+  // private async readFile(fileURL: string) {
+  //   try {
+  //     // 确保路径是绝对路径
+  //     const absolutePath = path.resolve(fileURL);
+
+  //     // 读取文件内容
+  //     const fileContent = await fs.readFile(absolutePath, "utf-8");
+
+  //     // 返回文件内容
+  //     return fileContent;
+  //   } catch (error) {
+  //     console.error("读取文件时出错:", error);
+  //     throw new Error("无法读取文件");
+  //   }
+  // }
+
+  // // 从 blobURL 中获取文件内容， 返回实际字符串
+  // private async readFile(blobURL: string) {
+  //   const response = await fetch(blobURL);
+  //   const blob = await response.blob();
+  //   // return new File([blob], "file.txt", { type: "text/plain" });
+  //   return blob.toString();
+  // }
+
+  private async writeFile(fileURL: string, content: string, fileName: string) {
     try {
+      const newFileURL = path.join(fileURL, fileName);
       // 确保路径是绝对路径
       const absolutePath = path.resolve(fileURL);
+      
+      // 确保目标目录存在
+      const targetDir = path.dirname(absolutePath);
+      await fs.mkdir(targetDir, { recursive: true });
 
-      // 读取文件内容
-      const fileContent = await fs.readFile(absolutePath, "utf-8");
-
-      // 返回文件内容
-      return fileContent;
+      // 写入文件内容
+      await fs.writeFile(newFileURL, content, 'utf-8');
+      console.log("文件已成功写入:", fileName);
     } catch (error) {
-      console.error("读取文件时出错:", error);
-      throw new Error("无法读取文件");
+      console.error("写入文件时出错:", error);
+      throw new Error("无法写入文件");
     }
   }
 
@@ -71,46 +149,62 @@ export abstract class BaseTranslator {
     content: string,
     context: string,
     apiKey: string,
-    signal?: AbortSignal
-  ) {
+    apiModel: string,
+  ): Promise<string> {
     const prompt = this.formatPrompt(content, context);
-    const headers = this.createHeaders(apiKey);
 
     for (let attempt = 1; attempt <= this.maxRetries; attempt++) {
       try {
-        const controller = new AbortController();
-        signal?.addEventListener("abort", () => controller.abort());
+        const response = await axios.post(
+          this.getApiEndpoint(),
+          {
+            model: apiModel,
+            messages: [
+              {
+                role: "user",
+                content: prompt
+              }
+            ],
+            max_tokens: 3500,
+            temperature: 0.3
+          },
+          {
+            headers: {
+              'Authorization': `Bearer ${apiKey}`,
+              'Content-Type': 'application/json'
+            }
+          }
+        );
 
-        const response = await fetch(this.getApiEndpoint(), {
-          method: "POST",
-          headers,
-          body: this.buildRequestBody(prompt),
-          signal: controller.signal,
-        });
-
-        if (response.status === 429) {
-          await this.handleRateLimit(response);
-          continue;
+        if (!response.data) {
+          throw new Error('翻译返回结果为空');
         }
 
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
+        console.log("翻译响应数据:", response.data);
+        return this.parseResponse(response.data);
 
-        return await this.parseResponse(await response.json());
       } catch (error) {
-        if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
-        if (attempt === this.maxRetries) throw this.normalizeError(error);
-        await new Promise((r) => setTimeout(r, this.retryDelay * attempt));
+        if (signal?.aborted) {
+          throw new DOMException("Aborted", "AbortError");
+        }
+        
+        console.error(`第 ${attempt} 次翻译尝试失败:`, error);
+        
+        if (attempt === this.maxRetries) {
+          throw this.normalizeError(error);
+        }
+        
+        // 重试延迟
+        await new Promise(r => setTimeout(r, this.retryDelay * attempt));
       }
     }
+
+    throw new Error('所有翻译尝试都失败了');
   }
 
   // 以下为需要子类实现的抽象方法
   protected abstract getApiEndpoint(): string;
-  protected abstract createHeaders(apiKey: string): Record<string, string>;
-  protected abstract buildRequestBody(prompt: string): BodyInit;
-  protected abstract parseResponse(response: any): Promise<string>;
+  protected abstract parseResponse(responseData: any): Promise<string>;
   protected abstract normalizeError(error: unknown): Error;
 
   // 通用的速率限制处理

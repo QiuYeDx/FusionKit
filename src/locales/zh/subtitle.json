@@ -28,7 +28,8 @@
       "failed": "翻译失败"
     },
     "infos": {
-      "output_path_selected": "输出路径已设置"
+      "output_path_selected": "输出路径已设置",
+      "total_fragments": "总分片数：{count}"
     },
     "errors": {
       "invalid_file_type": "不支持的文件类型：{types}",

@@ -107,7 +107,7 @@ const useSubtitleTranslatorStore = create<SubtitleTranslatorStore>((set) => ({
         const updatedTask = { ...task, status: TaskStatus.PENDING };
 
         // 任务启动
-        window.ipcRenderer.send("start-translation", updatedTask);
+        window.ipcRenderer.invoke("translate-subtitle", updatedTask);
 
         return {
           notStartedTaskQueue: state.notStartedTaskQueue.filter(
@@ -171,7 +171,7 @@ const useSubtitleTranslatorStore = create<SubtitleTranslatorStore>((set) => ({
 
       // 任务启动
       updatedTasks.forEach((task) => {
-        window.ipcRenderer.send("start-translation", task);
+        window.ipcRenderer.invoke("translate-subtitle", task);
       });
 
       return {
@@ -192,6 +192,7 @@ const useSubtitleTranslatorStore = create<SubtitleTranslatorStore>((set) => ({
 
   updateProgress: (fileName, resolvedFragments, totalFragments, progress) => {
     set((state) => {
+      console.info('>>> 收到 updateProgress', fileName, resolvedFragments, totalFragments, progress);
       const task = state.pendingTaskQueue.find((t) => t.fileName === fileName);
       if (!task) return state;
 
