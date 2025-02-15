@@ -14,6 +14,7 @@ import {
   PlayCircleIcon,
 } from "@heroicons/react/24/outline";
 import { showToast } from "@/utils/toast";
+import useModelStore from "@/store/useModelStore";
 
 function SubtitleTranslator() {
   const { t } = useTranslation();
@@ -35,6 +36,8 @@ function SubtitleTranslator() {
     startAllTasks,
     removeAllResolvedTask,
   } = useSubtitleTranslatorStore();
+  const { model, getApiKeyByType, getModelKeyByType, getModelUrlByType } =
+    useModelStore();
 
   const [customLengthInput, setCustomLengthInput] = useState(
     sliceLengthMap?.[SubtitleSliceType.CUSTOM]?.toString() || "500"
@@ -158,6 +161,10 @@ function SubtitleTranslator() {
         targetFileURL: outputURL,
         status: TaskStatus.NOT_STARTED,
         progress: 0,
+
+        apiKey: getApiKeyByType(model),
+        apiModel: getModelKeyByType(model),
+        endPoint: getModelUrlByType(model),
       };
       addTask(newTask); // 将任务添加到任务队列
     });

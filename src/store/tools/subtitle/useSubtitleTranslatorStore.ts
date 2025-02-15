@@ -8,6 +8,9 @@ import {
   TaskStatus,
 } from "@/type/subtitle";
 
+// 最大并发数
+const MAX_CONCURRENCY = 5;
+
 interface SubtitleTranslatorStore {
   // fileType: SubtitleFileType;
   sliceType: SubtitleSliceType;
@@ -29,11 +32,20 @@ interface SubtitleTranslatorStore {
   retryTask: (fileName: string) => void;
   removeAllResolvedTask: () => void;
   startAllTasks: () => void;
+
+  // TODO: 任务取消
+  // cancelTask: (fileName: string) => void;
+  updateProgress: (
+    fileName: string,
+    resolvedFragments: number,
+    totalFragments: number,
+    progress: number
+  ) => void;
 }
 
 const useSubtitleTranslatorStore = create<SubtitleTranslatorStore>((set) => ({
   // 初始状态
-  fileType: SubtitleFileType.LRC,
+  // fileType: SubtitleFileType.LRC,
   sliceType: SubtitleSliceType.NORMAL,
   sliceLengthMap: DEFAULT_SLICE_LENGTH_MAP,
   notStartedTaskQueue: [],
@@ -90,6 +102,22 @@ const useSubtitleTranslatorStore = create<SubtitleTranslatorStore>((set) => ({
       );
       if (!task) return state;
 
+      // 如果并发数未满
+      if (state.pendingTaskQueue.length < MAX_CONCURRENCY) {
+        const updatedTask = { ...task, status: TaskStatus.PENDING };
+
+        // 任务启动
+        window.ipcRenderer.send("start-translation", updatedTask);
+
+        return {
+          notStartedTaskQueue: state.notStartedTaskQueue.filter(
+            (t) => t.fileName !== fileName
+          ),
+          pendingTaskQueue: [...state.pendingTaskQueue, updatedTask],
+        };
+      }
+
+      // 如果并发数已满
       const updatedQueue = state.notStartedTaskQueue.filter(
         (t) => t.fileName !== fileName
       );
@@ -121,32 +149,100 @@ const useSubtitleTranslatorStore = create<SubtitleTranslatorStore>((set) => ({
       };
     }),
 
-  // 批量启动
-  startAllTasks: () =>
+  // 批量启动任务(超出并发数的任务会被加入等待队列)
+  startAllTasks: () => {
     set((state) => {
-      const activeUrls = new Set(
-        [
-          ...state.waitingTaskQueue,
-          ...state.pendingTaskQueue,
-          ...state.resolvedTaskQueue,
-        ].map((t) => t.originFileURL)
+      const pendingTasks = state.pendingTaskQueue.length;
+      const waitingTasks = state.waitingTaskQueue.length;
+
+      const tasksToStart = state.notStartedTaskQueue.slice(
+        0,
+        MAX_CONCURRENCY - pendingTasks
       );
 
-      const validTasks = state.notStartedTaskQueue
-        .filter((t) => !activeUrls.has(t.originFileURL))
-        .map((t) => ({ ...t, status: TaskStatus.WAITING }));
+      const tasksToWait = state.notStartedTaskQueue.slice(
+        MAX_CONCURRENCY - pendingTasks
+      );
+
+      const updatedTasks = tasksToStart.map((task) => ({
+        ...task,
+        status: TaskStatus.PENDING,
+      }));
+
+      // 任务启动
+      updatedTasks.forEach((task) => {
+        window.ipcRenderer.send("start-translation", task);
+      });
 
       return {
-        notStartedTaskQueue: state.notStartedTaskQueue.filter(
-          (t) => activeUrls.has(t.originFileURL) // ? 为什么这样写 ?
+        notStartedTaskQueue: state.notStartedTaskQueue.slice(
+          MAX_CONCURRENCY - pendingTasks
         ),
-        waitingTaskQueue: [...state.waitingTaskQueue, ...validTasks],
+        waitingTaskQueue: [...state.waitingTaskQueue, ...tasksToWait],
+        pendingTaskQueue: [...state.pendingTaskQueue, ...updatedTasks],
       };
-    }),
+    });
+  },
 
   removeAllResolvedTask: () => {
     set({
       resolvedTaskQueue: [],
+    });
+  },
+
+  updateProgress: (fileName, resolvedFragments, totalFragments, progress) => {
+    set((state) => {
+      const task = state.pendingTaskQueue.find((t) => t.fileName === fileName);
+      if (!task) return state;
+
+      // 如果任务完成
+      if (resolvedFragments === totalFragments) {
+        const updatedTask = {
+          ...task,
+          resolvedFragments,
+          totalFragments,
+          progress: 100,
+          status: TaskStatus.RESOLVED,
+        };
+
+        // 如果等待队列中有任务且并发数未满
+        if (
+          state.waitingTaskQueue.length > 0 &&
+          state.pendingTaskQueue.length < MAX_CONCURRENCY
+        ) {
+          const waitingTask = state.waitingTaskQueue[0];
+          const updatedWaitingTask = {
+            ...waitingTask,
+            status: TaskStatus.PENDING,
+          };
+          return {
+            waitingTaskQueue: state.waitingTaskQueue.slice(1),
+            pendingTaskQueue: [...state.pendingTaskQueue, updatedWaitingTask],
+            resolvedTaskQueue: [...state.resolvedTaskQueue, updatedTask],
+          };
+        }
+
+        return {
+          pendingTaskQueue: state.pendingTaskQueue.filter(
+            (t) => t.fileName !== fileName
+          ),
+          resolvedTaskQueue: [...state.resolvedTaskQueue, updatedTask],
+        };
+      }
+
+      // 任务未完成
+      const updatedTask = {
+        ...task,
+        resolvedFragments,
+        totalFragments,
+        progress,
+      };
+
+      return {
+        pendingTaskQueue: state.pendingTaskQueue.map((t) =>
+          t.fileName === fileName ? updatedTask : t
+        ),
+      };
     });
   },
 }));

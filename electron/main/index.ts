@@ -3,10 +3,12 @@ import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 import os from "node:os";
+import { setupTranslationIPC } from "./translation/ipc";
 // import { update } from './update'
 
 const require = createRequire(import.meta.url);
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+import { TranslationService } from "./translation/translation-service";
 
 // The built directory structure
 //
@@ -40,6 +42,7 @@ if (!app.requestSingleInstanceLock()) {
 }
 
 let win: BrowserWindow | null = null;
+let translationService: TranslationService = new TranslationService();
 // let subtitleWindow: BrowserWindow | null = null;
 const preload = path.join(__dirname, "../preload/index.mjs");
 const indexHtml = path.join(RENDERER_DIST, "index.html");
@@ -105,6 +108,7 @@ async function createWindow() {
 app.whenReady().then(() => {
   createWindow();
   // createToolsWindows(); // 为每个工具创建新的窗口
+  setupTranslationIPC(translationService);
 });
 
 app.on("window-all-closed", () => {

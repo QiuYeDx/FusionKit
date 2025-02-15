@@ -13,6 +13,9 @@ interface ModelStore {
   modelUrlMap: ModelUrlMap;
   modelKeyMap: ModelKeyMap;
   apiKeyMap: ApiKeyMap;
+  getApiKeyByType: (modelType: Model) => string; // 获取指定模型的 ApiKey
+  getModelKeyByType: (modelType: Model) => string; // 获取指定模型的 Key(具体使用的模型 Key)
+  getModelUrlByType: (modelType: Model) => string; // 获取指定模型的 URL
   setModel: (newModel: Model) => void; // 设置当前使用的模型类型
   setModelKeyByType: (modelType: Model, newModelKey: string) => void; // 设置指定模型的 Key(具体使用的模型 Key)
   setModelUrlByType: (modelType: Model, newModelUrl: string) => void; // 设置指定模型的 URL
@@ -45,6 +48,18 @@ const useModelStore = create<ModelStore>((set, get) => {
       apiKeyMap: state.apiKeyMap,
     };
     localStorage.setItem("modelConfig", JSON.stringify(ans));
+  };
+
+  const getApiKeyByType = (modelType: Model) => {
+    return get().apiKeyMap[modelType];
+  };
+
+  const getModelKeyByType = (modelType: Model) => {
+    return get().modelKeyMap[modelType];
+  };
+
+  const getModelUrlByType = (modelType: Model) => {
+    return get().modelUrlMap[modelType];
   };
 
   const setModel = (newModel: Model) => {
@@ -87,6 +102,9 @@ const useModelStore = create<ModelStore>((set, get) => {
     modelUrlMap: DEFAULT_MODEL_URL_MAP,
     modelKeyMap: DEFAULT_MODEL_KEY_MAP,
     apiKeyMap: DEFAULT_APIKEY_MAP,
+    getApiKeyByType,
+    getModelKeyByType,
+    getModelUrlByType,
     setModel,
     setModelUrlByType,
     setModelKeyByType,

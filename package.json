@@ -23,6 +23,7 @@
     "@heroicons/react": "^2.2.0",
     "@react-spring/web": "^9.7.5",
     "electron-updater": "^6.3.9",
+    "gpt-3-encoder": "^1.1.4",
     "html-to-image": "^1.11.11",
     "i18next": "^24.2.2",
     "lodash": "^4.17.21",
