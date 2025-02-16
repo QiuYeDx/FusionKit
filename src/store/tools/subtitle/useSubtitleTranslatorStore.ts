@@ -7,6 +7,7 @@ import {
   SubtitleTranslatorTask,
   TaskStatus,
 } from "@/type/subtitle";
+import { showToast } from "@/utils/toast";
 
 // 最大并发数
 const MAX_CONCURRENCY = 5;
@@ -32,6 +33,7 @@ interface SubtitleTranslatorStore {
   retryTask: (fileName: string) => void;
   removeAllResolvedTask: () => void;
   startAllTasks: () => void;
+  addFailedTask: (errorData: { fileName: string, error: string, message: string }) => void;
 
   // TODO: 任务取消
   // cancelTask: (fileName: string) => void;
@@ -169,16 +171,19 @@ const useSubtitleTranslatorStore = create<SubtitleTranslatorStore>((set) => ({
         status: TaskStatus.PENDING,
       }));
 
+      const updatedWaitingTasks = tasksToWait.map((task) => ({
+        ...task,
+        status: TaskStatus.WAITING,
+      }));
+
       // 任务启动
       updatedTasks.forEach((task) => {
         window.ipcRenderer.invoke("translate-subtitle", task);
       });
 
       return {
-        notStartedTaskQueue: state.notStartedTaskQueue.slice(
-          MAX_CONCURRENCY - pendingTasks
-        ),
-        waitingTaskQueue: [...state.waitingTaskQueue, ...tasksToWait],
+        notStartedTaskQueue: [],
+        waitingTaskQueue: [...state.waitingTaskQueue, ...updatedWaitingTasks],
         pendingTaskQueue: [...state.pendingTaskQueue, ...updatedTasks],
       };
     });
@@ -216,6 +221,10 @@ const useSubtitleTranslatorStore = create<SubtitleTranslatorStore>((set) => ({
             ...waitingTask,
             status: TaskStatus.PENDING,
           };
+
+          // 任务启动
+          window.ipcRenderer.invoke("translate-subtitle", updatedWaitingTask);
+
           return {
             waitingTaskQueue: state.waitingTaskQueue.slice(1),
             pendingTaskQueue: [...state.pendingTaskQueue, updatedWaitingTask],
@@ -243,6 +252,50 @@ const useSubtitleTranslatorStore = create<SubtitleTranslatorStore>((set) => ({
         pendingTaskQueue: state.pendingTaskQueue.map((t) =>
           t.fileName === fileName ? updatedTask : t
         ),
+      };
+    });
+  },
+
+  addFailedTask: (errorData: { fileName: string, error: string, message: string }) => {
+    set((state) => {
+      const task = state.pendingTaskQueue.find((t) => t.fileName === errorData.fileName);
+      if (!task) return state;
+
+      const updatedTask = {
+        ...task,
+        status: TaskStatus.FAILED,
+        extraInfo: {
+          error: errorData.error,
+          message: errorData.message,
+        }
+      };
+
+      showToast(errorData.message, "error");
+
+      // 如果等待队列中有任务且并发数未满
+      if (
+        state.waitingTaskQueue.length > 0 &&
+        state.pendingTaskQueue.length < MAX_CONCURRENCY
+      ) {
+        const waitingTask = state.waitingTaskQueue[0];  
+        const updatedWaitingTask = {
+          ...waitingTask,
+          status: TaskStatus.PENDING,
+        };
+
+        // 任务启动
+        window.ipcRenderer.invoke("translate-subtitle", updatedWaitingTask);
+        
+        return {
+          waitingTaskQueue: state.waitingTaskQueue.slice(1),
+          pendingTaskQueue: [...state.pendingTaskQueue.filter((t) => t.fileName !== errorData.fileName), updatedWaitingTask],
+          failedTaskQueue: [...state.failedTaskQueue, updatedTask],
+        };
+      }
+
+      return {
+        pendingTaskQueue: state.pendingTaskQueue.filter((t) => t.fileName !== errorData.fileName),
+        failedTaskQueue: [...state.failedTaskQueue, updatedTask],
       };
     });
   },

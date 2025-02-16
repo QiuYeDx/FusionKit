@@ -12,3 +12,9 @@ window.ipcRenderer.on("update-progress", (_, progressData) => {
     progressData.progress
   );
 });
+
+window.ipcRenderer.on("task-failed", (_, errorData) => {
+  console.info('>>> 收到 task-failed', errorData);
+  const store = useSubtitleTranslatorStore.getState();
+  store.addFailedTask(errorData);
+});

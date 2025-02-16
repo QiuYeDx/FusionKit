@@ -13,7 +13,8 @@ export abstract class BaseTranslator {
   ): string;
 
   // 新增重试配置（子类可覆盖）
-  protected maxRetries = 3;
+  // TODO: 未来做成可配置的
+  protected maxRetries = 5;
   protected retryDelay = 1000;
 
   async translate(task: SubtitleTranslatorTask, signal?: AbortSignal) {
@@ -62,6 +63,18 @@ export abstract class BaseTranslator {
       this.updateProgress(task, fragments.length, fragments.length);
 
     } catch (error) {
+      // 获取主窗口并发送消息
+      const mainWindow = BrowserWindow.getAllWindows()[0];
+      if (mainWindow) {   
+        mainWindow.webContents.send("task-failed", {
+          fileName: task.fileName,
+          error: error instanceof Error ? error.message : '未知错误',
+          message: '请求接口失败' // 显示 toast 的信息
+        });
+      } else {
+        console.error("未找到主窗口，无法发送进度更新");
+      }
+
       console.error("翻译过程出错:", error);
       throw error;
     }
@@ -166,7 +179,7 @@ export abstract class BaseTranslator {
               }
             ],
             max_tokens: 3500,
-            temperature: 0.3
+            // temperature: 0.3
           },
           {
             headers: {
@@ -184,9 +197,9 @@ export abstract class BaseTranslator {
         return this.parseResponse(response.data);
 
       } catch (error) {
-        if (signal?.aborted) {
-          throw new DOMException("Aborted", "AbortError");
-        }
+        // if (signal?.aborted) {
+        //   throw new DOMException("Aborted", "AbortError");
+        // }
         
         console.error(`第 ${attempt} 次翻译尝试失败:`, error);
         

@@ -59,7 +59,7 @@ async function createWindow() {
     // remove the default titlebar
     titleBarStyle: "hidden",
     // expose window controlls in Windows/Linux
-    ...(process.platform !== "darwin" ? { titleBarOverlay: true } : {}),
+    // ...(process.platform !== "darwin" ? { titleBarOverlay: true } : {}), // TODO: 临时关闭 Windows 上的右上角操作按钮
     webPreferences: {
       preload,
       // Warning: Enable nodeIntegration and disable contextIsolation is not secure in production

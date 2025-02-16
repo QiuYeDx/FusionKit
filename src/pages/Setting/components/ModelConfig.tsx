@@ -65,7 +65,7 @@ function ModelConfig() {
       </div>
 
       {/* 模型 apiKey 输入 */}
-      <label className="form-control w-full max-w-xs">
+      <label className="form-control w-full max-w-2xl">
         <div className="label mt-1 -mb-1">
           <span className="label-text">{t("setting:fields.apikey")}</span>
           <span className="label-text-alt">
@@ -77,13 +77,13 @@ function ModelConfig() {
           placeholder={t("setting:placeholder.apikey")}
           value={apiKeyMap[model]}
           onChange={handleApiKeyChange}
-          className="input input-sm input-bordered box-border w-full max-w-xs"
+          className="input input-sm input-bordered box-border w-full max-w-2xl"
         />
       </label>
 
       {/* 自定义模型 URL 输入 */}
       {model === Model.Other && (
-        <label className="form-control w-full max-w-xs">
+        <label className="form-control w-full max-w-2xl">
           <div className="label mt-1 -mb-1 shrink-0">
             <span className="label-text">{t("setting:fields.model_url")}</span>
             <span className="label-text-alt">
@@ -92,18 +92,18 @@ function ModelConfig() {
           </div>
           <input
             type="text"
-            placeholder={t("setting:placeholder.model_url")}
+            placeholder={t("setting:placeholder.model_url") + '(https://.../v1/chat/completions)'}
             value={modelUrlMap[model]}
             disabled={[Model.DeepSeek, Model.OpenAI].includes(model)}
             onChange={handleModelUrlChange}
-            className="input input-sm input-bordered box-border w-full max-w-xs shrink-0"
+            className="input input-sm input-bordered box-border w-full max-w-2xl shrink-0"
           />
         </label>
       )}
 
       {/* 自定义模型 Key 输入 */}
       {model === Model.Other && (
-        <label className="form-control w-full max-w-xs">
+        <label className="form-control w-full max-w-2xl">
           <div className="label mt-1 -mb-1 shrink-0">
             <span className="label-text">{t("setting:fields.model_key")}</span>
             <span className="label-text-alt">
@@ -116,7 +116,7 @@ function ModelConfig() {
             value={modelKeyMap[model]}
             disabled={[Model.DeepSeek, Model.OpenAI].includes(model)}
             onChange={handleModelKeyChange}
-            className="input input-sm input-bordered box-border w-full max-w-xs shrink-0"
+            className="input input-sm input-bordered box-border w-full max-w-2xl shrink-0"
           />
         </label>
       )}

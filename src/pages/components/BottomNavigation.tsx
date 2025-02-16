@@ -106,13 +106,13 @@ const BottomNavigation: React.FC = () => {
   });
 
   return (
-    <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full flex justify-center items-center">
+    <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full flex justify-center items-center pointer-events-none">
       {/* 底部导航栏 */}
       {isMainMenu ? (
         // 一级菜单
         <animated.ul
           style={mainMenuFadeUpProps}
-          className="my-2 glass mx-2 menu bg-base-200 menu-horizontal rounded-box ring ring-base-100 gap-1 justify-center flex-nowrap"
+          className="my-2 glass mx-2 menu bg-base-200 menu-horizontal rounded-box ring ring-base-100 gap-1 justify-center flex-nowrap pointer-events-auto"
         >
           <li>
             <a
@@ -155,7 +155,7 @@ const BottomNavigation: React.FC = () => {
         // 二级菜单
         <animated.ul
           style={subMenuFadeUpProps}
-          className="my-2 glass mx-2 menu bg-base-200 menu-horizontal rounded-box ring ring-base-100 gap-1 justify-center flex-nowrap"
+          className="my-2 glass mx-2 menu bg-base-200 menu-horizontal rounded-box ring ring-base-100 gap-1 justify-center flex-nowrap pointer-events-auto"
         >
           <li>
             <a
@@ -176,7 +176,7 @@ const BottomNavigation: React.FC = () => {
       )}
 
       {/* Dark Mode 快捷切换 */}
-      <div className="absolute right-6">
+      <div className="absolute right-6 pointer-events-auto">
         <label
           className={`swap swap-rotate ${isDark ? "" : "swap-active"}`}
           onClick={handleToggleDarkMode}

@@ -11,14 +11,14 @@ export class TranslationService {
 
     try {
       const translator = this.getTranslator(
-        task.fileName.split(".")[1].toUpperCase() as SubtitleFileType,
+        task.fileName.split(".").at(-1)?.toUpperCase() as SubtitleFileType,
         {
           apiKey: task.apiKey,
           apiModel: task.apiModel,
           endpoint: task.endPoint,
         }
       );
-      console.info(">>> [processTask] task: ", task);
+      console.info(">>> [processTask] task: ", task, translator);
       await translator.translate(task, controller.signal);
       return { status: "completed" };
     } catch (error) {
