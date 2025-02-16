@@ -22,8 +22,8 @@ export class TranslationService {
       await translator.translate(task, controller.signal);
       return { status: "completed" };
     } catch (error) {
-      if (error.name === "AbortError") return { status: "cancelled" };
-      return { status: "failed", error: error.message };
+      if (error instanceof Error && error.name === "AbortError") return { status: "cancelled" };
+      return { status: "failed", error: error instanceof Error ? error.message : "未知错误" };
     } finally {
       this.activeTasks.delete(task.fileName);
     }

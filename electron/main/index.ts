@@ -50,7 +50,7 @@ const indexHtml = path.join(RENDERER_DIST, "index.html");
 async function createWindow() {
   win = new BrowserWindow({
     title: "FusionKit",
-    icon: path.join(process.env.VITE_PUBLIC, "favicon.ico"),
+    icon: path.join(process.env.VITE_PUBLIC, "FusionKit.ico"),
     width: 1080,
     height: 720,
     minWidth: 720,
