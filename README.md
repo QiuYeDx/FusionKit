@@ -90,5 +90,5 @@ MIT License
 
 ## 联系方式
 
-- 项目主页：[GitHub](https://github.com/yourusername/FusionKit)
-- 问题反馈：[Issues](https://github.com/yourusername/FusionKit/issues)
+- 项目主页：[GitHub](https://github.com/QiuYeDx/FusionKit)
+- 问题反馈：[Issues](https://github.com/QiuYeDx/FusionKit/issues)
