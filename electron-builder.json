@@ -1,8 +1,9 @@
 {
   "$schema": "https://raw.githubusercontent.com/electron-userland/electron-builder/master/packages/app-builder-lib/scheme.json",
-  "appId": "YourAppID",
+  "appId": "com.fusionkit.app",
   "asar": true,
   "directories": {
+    "buildResources": "build",
     "output": "release/${version}"
   },
   "files": [
@@ -25,13 +26,20 @@
         ]
       }
     ],
+    "icon": "build/FusionKit.ico",
     "artifactName": "${productName}_${version}.${ext}"
   },
   "nsis": {
     "oneClick": false,
     "perMachine": false,
     "allowToChangeInstallationDirectory": true,
-    "deleteAppDataOnUninstall": false
+    "deleteAppDataOnUninstall": false,
+    "installerIcon": "build/FusionKit.ico",
+    "uninstallerIcon": "build/FusionKit.ico",
+    "installerHeaderIcon": "build/FusionKit.ico",
+    "createDesktopShortcut": true,
+    "createStartMenuShortcut": true,
+    "shortcutName": "FusionKit"
   },
   "publish": {
     "provider": "generic",
