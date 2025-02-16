@@ -23,7 +23,7 @@ const About: React.FC = () => {
             {t("about:subtitle.version")}
           </div>
 
-          <div>0.1.0</div>
+          <div>0.0.1</div>
         </div>
 
         <div className="bg-base-200 p-4 rounded-lg overflow-auto">
