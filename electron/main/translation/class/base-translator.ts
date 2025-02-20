@@ -66,7 +66,7 @@ export abstract class BaseTranslator {
       //   fileType === SubtitleFileType.SRT
       //     ? fixSrtSubtitles(translatedFragments.join("\n"))
       //     : translatedFragments.join("\n");
-      const translatedContent = translatedFragments.join("\n");
+      const translatedContent = translatedFragments.join("\n\n");
       await this.writeFile(
         task.targetFileURL,
         translatedContent,
