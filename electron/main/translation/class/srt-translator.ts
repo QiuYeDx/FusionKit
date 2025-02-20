@@ -32,12 +32,6 @@ export class SRTTranslator extends BaseTranslator {
     for (const block of subtitleBlocks) {
       if (!block.trim()) continue; // 跳过空块
 
-      // 确保块以序号开始（简单验证）
-      // if (!/^\d+\n/.test(block)) {
-      //   console.warn(`Invalid SRT block detected: ${block}`);
-      //   continue; // 跳过不符合格式的块
-      // }
-
       // 计算当前块的 token 数
       const blockTokens = this.countTokens(block);
 
@@ -139,19 +133,25 @@ export class SRTTranslator extends BaseTranslator {
   }
 
   private postProcess(content: string): string {
-    // 假设字幕块以数字开头，以时间戳和内容行结尾
-    const srtBlockRegex =
-      /\d+\n\d{2}:\d{2}:\d{2},\d{3} --> \d{2}:\d{2}:\d{2},\d{3}\n[\s\S]*?(?=\n\n|\n$)/g;
-    const matches = content.match(srtBlockRegex);
-    if (matches) {
-      return matches.join("\n\n");
-    }
     // 清理 markdown 和多余换行
-    return content
+    let cleaned = content
       .replace(/```srt?/g, "")
       .replace(/```/g, "")
-      .replace(/\n+/g, "\n")
+      .replace(/\n{3,}/g, "\n\n")
       .trim();
+
+    // 尝试提取 SRT 块
+    const srtBlockRegex =
+      /\d+\n\d{2}:\d{2}:\d{2},\d{3} --> \d{2}:\d{2}:\d{2},\d{3}\n[\s\S]*?(?=\n\n|\n$)/g;
+    const matches = cleaned.match(srtBlockRegex);
+
+    if (matches && matches.length > 0) {
+      return matches.join("\n\n");
+    }
+
+    // 如果正则匹配失败，返回清理后的内容并记录警告
+    console.warn("SRT block regex failed, returning cleaned content:", cleaned);
+    return cleaned;
   }
 
   private finalizeTranslation(task: SubtitleTranslatorTask) {
