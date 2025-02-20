@@ -33,10 +33,10 @@ export class SRTTranslator extends BaseTranslator {
       if (!block.trim()) continue; // 跳过空块
 
       // 确保块以序号开始（简单验证）
-      if (!/^\d+\n/.test(block)) {
-        console.warn(`Invalid SRT block detected: ${block}`);
-        continue; // 跳过不符合格式的块
-      }
+      // if (!/^\d+\n/.test(block)) {
+      //   console.warn(`Invalid SRT block detected: ${block}`);
+      //   continue; // 跳过不符合格式的块
+      // }
 
       // 计算当前块的 token 数
       const blockTokens = this.countTokens(block);
@@ -80,7 +80,7 @@ export class SRTTranslator extends BaseTranslator {
     return (
       `你是一个专业的字幕翻译专家。你的任务是将日语字幕翻译为中日双语格式，每行日语后面紧跟着对应的中文翻译。请保持翻译的连贯性和准确性。\n\n` +
       `以下是前面的翻译内容（仅供参考，不要翻译）：\n${context}\n\n` +
-      `请翻译以下字幕内容（只翻译这部分）：\n\n${partialContent}\n\n` +
+      `请翻译以下字幕内容（只翻译这部分，但请确保和上文是连贯的，符合srt字幕格式的）：\n\n${partialContent}\n\n` +
       `翻译后的格式应与原文相同，每行日语后紧跟中文翻译。不要添加任何额外的解释或markdown格式。`
     );
   }
