@@ -62,10 +62,11 @@ export abstract class BaseTranslator {
 
       // 将翻译后的内容写入目标文件
       const fileType = task.fileName.split(".").at(-1)?.toUpperCase();
-      const translatedContent =
-        fileType === SubtitleFileType.SRT
-          ? fixSrtSubtitles(translatedFragments.join("\n"))
-          : translatedFragments.join("\n");
+      // const translatedContent =
+      //   fileType === SubtitleFileType.SRT
+      //     ? fixSrtSubtitles(translatedFragments.join("\n"))
+      //     : translatedFragments.join("\n");
+      const translatedContent = translatedFragments.join("\n");
       await this.writeFile(
         task.targetFileURL,
         translatedContent,
@@ -84,7 +85,9 @@ export abstract class BaseTranslator {
           message: "请求接口失败", // 显示 toast 的信息
         });
       } else {
-        console.error("[base-translator] main window not fount, updateProgress failed");
+        console.error(
+          "[base-translator] main window not fount, updateProgress failed"
+        );
       }
 
       console.error("[base-translator] error in translating:", error);
