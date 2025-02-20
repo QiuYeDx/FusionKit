@@ -1,9 +1,14 @@
 import { promises as fs } from "fs";
 import path from "path";
 import { DEFAULT_SLICE_LENGTH_MAP } from "../contants";
-import { SubtitleSliceType, SubtitleTranslatorTask } from "../typing";
+import {
+  SubtitleFileType,
+  SubtitleSliceType,
+  SubtitleTranslatorTask,
+} from "../typing";
 import { ipcMain, BrowserWindow } from "electron";
-import axios from 'axios';
+import axios from "axios";
+import { fixSrtSubtitles } from "../utils";
 
 export abstract class BaseTranslator {
   protected abstract splitContent(content: string, maxTokens: number): string[];
@@ -19,19 +24,19 @@ export abstract class BaseTranslator {
 
   async translate(task: SubtitleTranslatorTask, signal?: AbortSignal) {
     try {
-      console.log("开始处理文件:", task.fileName);
+      console.log("[01] start process file:", task.fileName);
       const content = task.fileContent;
-      console.log("文件内容长度:", content.length);
-      
+      console.log("[02] content length:", content.length);
+
       const maxTokens = this.getMaxTokens(task.sliceType);
-      console.log("使用的最大 token 数:", maxTokens);
-      
+      console.log("[03] max token num:", maxTokens);
+
       const fragments = this.splitContent(content, maxTokens);
-      console.log("分片数量:", fragments.length);
-      
+      console.log("[04] fragments num:", fragments.length);
+
       // 初始化进度
       this.updateProgress(task, 0, fragments.length);
-      
+
       const translatedFragments: string[] = [];
 
       for (const [index, fragment] of fragments.entries()) {
@@ -41,7 +46,7 @@ export abstract class BaseTranslator {
           fragment,
           index > 0 ? fragments[index - 1] : "",
           task.apiKey,
-          task.apiModel,
+          task.apiModel
         );
 
         if (!result) {
@@ -56,26 +61,33 @@ export abstract class BaseTranslator {
       }
 
       // 将翻译后的内容写入目标文件
-      const translatedContent = translatedFragments.join("\n");
-      await this.writeFile(task.targetFileURL, translatedContent, task.fileName);
+      const fileType = task.fileName.split(".").at(-1)?.toUpperCase();
+      const translatedContent =
+        fileType === SubtitleFileType.SRT
+          ? fixSrtSubtitles(translatedFragments.join("\n"))
+          : translatedFragments.join("\n");
+      await this.writeFile(
+        task.targetFileURL,
+        translatedContent,
+        task.fileName
+      );
 
       // 通知任务完成
       this.updateProgress(task, fragments.length, fragments.length);
-
     } catch (error) {
       // 获取主窗口并发送消息
       const mainWindow = BrowserWindow.getAllWindows()[0];
-      if (mainWindow) {   
+      if (mainWindow) {
         mainWindow.webContents.send("task-failed", {
           fileName: task.fileName,
-          error: error instanceof Error ? error.message : '未知错误',
-          message: '请求接口失败' // 显示 toast 的信息
+          error: error instanceof Error ? error.message : "未知错误",
+          message: "请求接口失败", // 显示 toast 的信息
         });
       } else {
-        console.error("未找到主窗口，无法发送进度更新");
+        console.error("[base-translator] main window not fount, updateProgress failed");
       }
 
-      console.error("翻译过程出错:", error);
+      console.error("[base-translator] error in translating:", error);
       throw error;
     }
   }
@@ -97,56 +109,32 @@ export abstract class BaseTranslator {
         fileName: task.fileName,
         resolvedFragments: current,
         totalFragments: total,
-        progress: task.progress
+        progress: task.progress,
       });
-      
+
       mainWindow.webContents.send("update-progress", {
         fileName: task.fileName,
         resolvedFragments: current,
         totalFragments: total,
-        progress: task.progress
+        progress: task.progress,
       });
     } else {
       console.error("未找到主窗口，无法发送进度更新");
     }
   }
 
-  // private async readFile(fileURL: string) {
-  //   try {
-  //     // 确保路径是绝对路径
-  //     const absolutePath = path.resolve(fileURL);
-
-  //     // 读取文件内容
-  //     const fileContent = await fs.readFile(absolutePath, "utf-8");
-
-  //     // 返回文件内容
-  //     return fileContent;
-  //   } catch (error) {
-  //     console.error("读取文件时出错:", error);
-  //     throw new Error("无法读取文件");
-  //   }
-  // }
-
-  // // 从 blobURL 中获取文件内容， 返回实际字符串
-  // private async readFile(blobURL: string) {
-  //   const response = await fetch(blobURL);
-  //   const blob = await response.blob();
-  //   // return new File([blob], "file.txt", { type: "text/plain" });
-  //   return blob.toString();
-  // }
-
   private async writeFile(fileURL: string, content: string, fileName: string) {
     try {
       const newFileURL = path.join(fileURL, fileName);
       // 确保路径是绝对路径
       const absolutePath = path.resolve(fileURL);
-      
+
       // 确保目标目录存在
       const targetDir = path.dirname(absolutePath);
       await fs.mkdir(targetDir, { recursive: true });
 
       // 写入文件内容
-      await fs.writeFile(newFileURL, content, 'utf-8');
+      await fs.writeFile(newFileURL, content, "utf-8");
       console.log("文件已成功写入:", fileName);
     } catch (error) {
       console.error("写入文件时出错:", error);
@@ -162,7 +150,7 @@ export abstract class BaseTranslator {
     content: string,
     context: string,
     apiKey: string,
-    apiModel: string,
+    apiModel: string
   ): Promise<string> {
     const prompt = this.formatPrompt(content, context);
 
@@ -175,44 +163,44 @@ export abstract class BaseTranslator {
             messages: [
               {
                 role: "user",
-                content: prompt
-              }
+                content: prompt,
+              },
             ],
             max_tokens: 3500,
+            stream: false,
             // temperature: 0.3
           },
           {
             headers: {
-              'Authorization': `Bearer ${apiKey}`,
-              'Content-Type': 'application/json'
-            }
+              Authorization: `Bearer ${apiKey}`,
+              "Content-Type": "application/json",
+            },
           }
         );
 
         if (!response.data) {
-          throw new Error('翻译返回结果为空');
+          throw new Error("翻译返回结果为空");
         }
 
         console.log("翻译响应数据:", response.data);
         return this.parseResponse(response.data);
-
       } catch (error) {
         // if (signal?.aborted) {
         //   throw new DOMException("Aborted", "AbortError");
         // }
-        
+
         console.error(`第 ${attempt} 次翻译尝试失败:`, error);
-        
+
         if (attempt === this.maxRetries) {
           throw this.normalizeError(error);
         }
-        
+
         // 重试延迟
-        await new Promise(r => setTimeout(r, this.retryDelay * attempt));
+        await new Promise((r) => setTimeout(r, this.retryDelay * attempt));
       }
     }
 
-    throw new Error('所有翻译尝试都失败了');
+    throw new Error("所有翻译尝试都失败了");
   }
 
   // 以下为需要子类实现的抽象方法
