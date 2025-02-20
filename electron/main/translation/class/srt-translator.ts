@@ -26,19 +26,53 @@ export class SRTTranslator extends BaseTranslator {
     const fragments: string[] = [];
     let currentFragment = "";
 
-    content.split("\n").forEach((line) => {
-      const potentialFragment = currentFragment
-        ? `${currentFragment}\n${line}`
-        : line;
-      if (this.countTokens(potentialFragment) > maxTokens) {
-        fragments.push(currentFragment);
-        currentFragment = line;
-      } else {
-        currentFragment = potentialFragment;
-      }
-    });
+    // 将内容按 SRT 字幕块分割（两个换行符 \n\n 分隔块）
+    const subtitleBlocks = content.trim().split(/\n\n+/);
 
-    if (currentFragment) fragments.push(currentFragment);
+    for (const block of subtitleBlocks) {
+      if (!block.trim()) continue; // 跳过空块
+
+      // 确保块以序号开始（简单验证）
+      if (!/^\d+\n/.test(block)) {
+        console.warn(`Invalid SRT block detected: ${block}`);
+        continue; // 跳过不符合格式的块
+      }
+
+      // 计算当前块的 token 数
+      const blockTokens = this.countTokens(block);
+
+      if (blockTokens > maxTokens) {
+        // 如果单个块超过 maxTokens，直接作为单独的分片
+        if (currentFragment) {
+          fragments.push(currentFragment);
+          currentFragment = "";
+        }
+        fragments.push(block);
+      } else {
+        // 检查加入当前块后是否超过 maxTokens
+        const potentialFragment = currentFragment
+          ? `${currentFragment}\n\n${block}`
+          : block;
+        const potentialTokens = this.countTokens(potentialFragment);
+
+        if (potentialTokens > maxTokens) {
+          // 如果超过限制，将当前积累的内容作为一个分片，新块放入下一个分片
+          if (currentFragment) {
+            fragments.push(currentFragment);
+            currentFragment = block;
+          }
+        } else {
+          // 未超过限制，继续积累
+          currentFragment = potentialFragment;
+        }
+      }
+    }
+
+    // 处理最后一个分片
+    if (currentFragment) {
+      fragments.push(currentFragment);
+    }
+
     return fragments;
   }
 
