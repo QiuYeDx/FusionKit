@@ -35,7 +35,7 @@ export class SRTTranslator extends BaseTranslator {
       // 计算当前块的 token 数
       const blockTokens = this.countTokens(block);
 
-      if (blockTokens > maxTokens) {
+      if (blockTokens >= maxTokens) {
         // 如果单个块超过 maxTokens，直接作为单独的分片
         if (currentFragment) {
           fragments.push(currentFragment);
@@ -49,7 +49,7 @@ export class SRTTranslator extends BaseTranslator {
           : block;
         const potentialTokens = this.countTokens(potentialFragment);
 
-        if (potentialTokens > maxTokens) {
+        if (potentialTokens >= maxTokens) {
           // 如果超过限制，将当前积累的内容作为一个分片，新块放入下一个分片
           if (currentFragment) {
             fragments.push(currentFragment);
@@ -134,24 +134,25 @@ export class SRTTranslator extends BaseTranslator {
 
   private postProcess(content: string): string {
     // 清理 markdown 和多余换行
-    let cleaned = content
-      .replace(/```srt?/g, "")
-      .replace(/```/g, "")
-      .replace(/\n{3,}/g, "\n\n")
-      .trim();
+    // let cleaned = content
+    //   .replace(/```srt?/g, "")
+    //   .replace(/```/g, "")
+    //   .replace(/\n{3,}/g, "\n\n")
+    //   .trim();
 
-    // 尝试提取 SRT 块
-    const srtBlockRegex =
-      /\d+\n\d{2}:\d{2}:\d{2},\d{3} --> \d{2}:\d{2}:\d{2},\d{3}\n[\s\S]*?(?=\n\n|\n$)/g;
-    const matches = cleaned.match(srtBlockRegex);
+    // // 尝试提取 SRT 块
+    // const srtBlockRegex =
+    //   /\d+\n\d{2}:\d{2}:\d{2},\d{3} --> \d{2}:\d{2}:\d{2},\d{3}\n[\s\S]*?(?=\n\n|\n$)/g;
+    // const matches = cleaned.match(srtBlockRegex);
 
-    if (matches && matches.length > 0) {
-      return matches.join("\n\n");
-    }
+    // if (matches && matches.length > 0) {
+    //   return matches.join("\n\n");
+    // }
 
-    // 如果正则匹配失败，返回清理后的内容并记录警告
-    console.warn("SRT block regex failed, returning cleaned content:", cleaned);
-    return cleaned;
+    // // 如果正则匹配失败，返回清理后的内容并记录警告
+    // console.warn("SRT block regex failed, returning cleaned content:", cleaned);
+    // return cleaned;
+    return content;
   }
 
   private finalizeTranslation(task: SubtitleTranslatorTask) {
