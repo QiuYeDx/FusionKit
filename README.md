@@ -5,6 +5,7 @@ FusionKit 是一个基于 Electron 的桌面工具集合应用，目前主要提
 ## 功能特点
 
 ### 字幕翻译
+
 - 支持 LRC、SRT 格式字幕文件
 - 日文到中文的翻译
 - 保留原文对照显示
@@ -24,17 +25,20 @@ FusionKit 是一个基于 Electron 的桌面工具集合应用，目前主要提
 ## 开发环境配置
 
 1. 克隆仓库
+
 ```bash
 git clone https://github.com/yourusername/FusionKit.git
 cd FusionKit
 ```
 
 2. 安装依赖
+
 ```bash
 npm install
 ```
 
 3. 启动开发服务器
+
 ```bash
 npm run dev
 ```
@@ -49,7 +53,7 @@ npm run build
 
 ## 项目结构
 
-```
+```plaintext
 FusionKit/
 ├── electron/              # Electron 主进程代码
 │   ├── main/             # 主进程核心逻辑
@@ -66,6 +70,7 @@ FusionKit/
 ## 配置说明
 
 ### 翻译模式
+
 - 普通模式：适用于大多数字幕文件
 - 敏感模式：更小的分片大小，适用于特殊内容
 - 自定义模式：可自定义分片长度
@@ -75,6 +80,18 @@ FusionKit/
 ```13:13:src/store/tools/subtitle/useSubtitleTranslatorStore.ts
 const MAX_CONCURRENCY = 5;
 ```
+
+## TODO
+
+- [P1] 任务错误信息的记录与展示
+- [P1] 单条任务的终止与删除
+- [P1] 任务失败后输出成功部分内容和剩余内容
+- [P1] 支持 think 类型模型，删除`<think></think>`标签内容
+- [P2] 任务的"断点续传"
+- [P2] 支持自定义任务并发数
+- [P2] 实装字幕格式转换工具
+- [P2] 支持多套自定义模型的配置
+- [P3] 支持把配置导出为 json 并支持导入配置
 
 ## 贡献指南
 
