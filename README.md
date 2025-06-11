@@ -34,19 +34,19 @@ cd FusionKit
 2. 安装依赖
 
 ```bash
-npm install
+pnpm i
 ```
 
 3. 启动开发服务器
 
 ```bash
-npm run dev
+pnpm dev
 ```
 
 ## 构建
 
 ```bash
-npm run build
+pnpm build
 ```
 
 构建后的应用将在 `release` 目录中生成。
@@ -91,6 +91,7 @@ const MAX_CONCURRENCY = 5;
 - [P2] 支持自定义任务并发数
 - [P2] 实装字幕格式转换工具
 - [P2] 支持多套自定义模型的配置
+- [P2] 添加 token 消耗和估算价格的提示
 - [P3] 支持把配置导出为 json 并支持导入配置
 
 ## 贡献指南
