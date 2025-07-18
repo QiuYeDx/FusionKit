@@ -33,13 +33,13 @@ interface SubtitleTranslatorStore {
   retryTask: (fileName: string) => void;
   removeAllResolvedTask: () => void;
   startAllTasks: () => void;
-  addFailedTask: (errorData: { 
-    fileName: string, 
-    error: string, 
-    message: string,
-    errorLogs?: string[],
-    timestamp?: string,
-    stackTrace?: string,
+  addFailedTask: (errorData: {
+    fileName: string;
+    error: string;
+    message: string;
+    errorLogs?: string[];
+    timestamp?: string;
+    stackTrace?: string;
   }) => void;
 
   // 任务取消和删除
@@ -205,7 +205,13 @@ const useSubtitleTranslatorStore = create<SubtitleTranslatorStore>((set) => ({
 
   updateProgress: (fileName, resolvedFragments, totalFragments, progress) => {
     set((state) => {
-      console.info('>>> 收到 updateProgress', fileName, resolvedFragments, totalFragments, progress);
+      console.info(
+        ">>> 收到 updateProgress",
+        fileName,
+        resolvedFragments,
+        totalFragments,
+        progress
+      );
       const task = state.pendingTaskQueue.find((t) => t.fileName === fileName);
       if (!task) return state;
 
@@ -264,16 +270,18 @@ const useSubtitleTranslatorStore = create<SubtitleTranslatorStore>((set) => ({
     });
   },
 
-  addFailedTask: (errorData: { 
-    fileName: string, 
-    error: string, 
-    message: string,
-    errorLogs?: string[],
-    timestamp?: string,
-    stackTrace?: string,
+  addFailedTask: (errorData: {
+    fileName: string;
+    error: string;
+    message: string;
+    errorLogs?: string[];
+    timestamp?: string;
+    stackTrace?: string;
   }) => {
     set((state) => {
-      const task = state.pendingTaskQueue.find((t) => t.fileName === errorData.fileName);
+      const task = state.pendingTaskQueue.find(
+        (t) => t.fileName === errorData.fileName
+      );
       if (!task) return state;
 
       const updatedTask = {
@@ -286,7 +294,7 @@ const useSubtitleTranslatorStore = create<SubtitleTranslatorStore>((set) => ({
           timestamp: errorData.timestamp,
           stackTrace: errorData.stackTrace,
           errorLogs: errorData.errorLogs || [],
-        }
+        },
       };
 
       // 显示简短的错误Toast
@@ -297,7 +305,7 @@ const useSubtitleTranslatorStore = create<SubtitleTranslatorStore>((set) => ({
         state.waitingTaskQueue.length > 0 &&
         state.pendingTaskQueue.length < MAX_CONCURRENCY
       ) {
-        const waitingTask = state.waitingTaskQueue[0];  
+        const waitingTask = state.waitingTaskQueue[0];
         const updatedWaitingTask = {
           ...waitingTask,
           status: TaskStatus.PENDING,
@@ -305,16 +313,23 @@ const useSubtitleTranslatorStore = create<SubtitleTranslatorStore>((set) => ({
 
         // 任务启动
         window.ipcRenderer.invoke("translate-subtitle", updatedWaitingTask);
-        
+
         return {
           waitingTaskQueue: state.waitingTaskQueue.slice(1),
-          pendingTaskQueue: [...state.pendingTaskQueue.filter((t) => t.fileName !== errorData.fileName), updatedWaitingTask],
+          pendingTaskQueue: [
+            ...state.pendingTaskQueue.filter(
+              (t) => t.fileName !== errorData.fileName
+            ),
+            updatedWaitingTask,
+          ],
           failedTaskQueue: [...state.failedTaskQueue, updatedTask],
         };
       }
 
       return {
-        pendingTaskQueue: state.pendingTaskQueue.filter((t) => t.fileName !== errorData.fileName),
+        pendingTaskQueue: state.pendingTaskQueue.filter(
+          (t) => t.fileName !== errorData.fileName
+        ),
         failedTaskQueue: [...state.failedTaskQueue, updatedTask],
       };
     });
@@ -324,7 +339,7 @@ const useSubtitleTranslatorStore = create<SubtitleTranslatorStore>((set) => ({
   cancelTask: (fileName) => {
     // 通过 IPC 通知主进程取消任务
     window.ipcRenderer.send("cancel-translation", fileName);
-    
+
     set((state) => {
       // 从 pending 队列中找到任务
       const task = state.pendingTaskQueue.find((t) => t.fileName === fileName);
@@ -336,7 +351,7 @@ const useSubtitleTranslatorStore = create<SubtitleTranslatorStore>((set) => ({
         extraInfo: {
           error: "CANCELED",
           message: "任务已被用户取消",
-        }
+        },
       };
 
       showToast("任务已取消", "success");
@@ -357,13 +372,18 @@ const useSubtitleTranslatorStore = create<SubtitleTranslatorStore>((set) => ({
 
         return {
           waitingTaskQueue: state.waitingTaskQueue.slice(1),
-          pendingTaskQueue: [...state.pendingTaskQueue.filter((t) => t.fileName !== fileName), updatedWaitingTask],
+          pendingTaskQueue: [
+            ...state.pendingTaskQueue.filter((t) => t.fileName !== fileName),
+            updatedWaitingTask,
+          ],
           failedTaskQueue: [...state.failedTaskQueue, canceledTask],
         };
       }
 
       return {
-        pendingTaskQueue: state.pendingTaskQueue.filter((t) => t.fileName !== fileName),
+        pendingTaskQueue: state.pendingTaskQueue.filter(
+          (t) => t.fileName !== fileName
+        ),
         failedTaskQueue: [...state.failedTaskQueue, canceledTask],
       };
     });
@@ -373,14 +393,24 @@ const useSubtitleTranslatorStore = create<SubtitleTranslatorStore>((set) => ({
   deleteTask: (fileName) => {
     set((state) => {
       return {
-        notStartedTaskQueue: state.notStartedTaskQueue.filter((t) => t.fileName !== fileName),
-        waitingTaskQueue: state.waitingTaskQueue.filter((t) => t.fileName !== fileName),
-        pendingTaskQueue: state.pendingTaskQueue.filter((t) => t.fileName !== fileName),
-        resolvedTaskQueue: state.resolvedTaskQueue.filter((t) => t.fileName !== fileName),
-        failedTaskQueue: state.failedTaskQueue.filter((t) => t.fileName !== fileName),
+        notStartedTaskQueue: state.notStartedTaskQueue.filter(
+          (t) => t.fileName !== fileName
+        ),
+        waitingTaskQueue: state.waitingTaskQueue.filter(
+          (t) => t.fileName !== fileName
+        ),
+        pendingTaskQueue: state.pendingTaskQueue.filter(
+          (t) => t.fileName !== fileName
+        ),
+        resolvedTaskQueue: state.resolvedTaskQueue.filter(
+          (t) => t.fileName !== fileName
+        ),
+        failedTaskQueue: state.failedTaskQueue.filter(
+          (t) => t.fileName !== fileName
+        ),
       };
     });
-    
+
     showToast("任务已删除", "success");
   },
 }));

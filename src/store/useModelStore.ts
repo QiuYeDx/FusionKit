@@ -3,8 +3,9 @@ import {
   DEFAULT_MODEL,
   DEFAULT_MODEL_KEY_MAP,
   DEFAULT_MODEL_URL_MAP,
+  DEFAULT_TOKEN_PRICING_MAP,
 } from "@/constants/model";
-import { ApiKeyMap, Model, ModelKeyMap, ModelUrlMap } from "@/type/model";
+import { ApiKeyMap, Model, ModelKeyMap, ModelUrlMap, TokenPricingMap, TokenPricing } from "@/type/model";
 import { create } from "zustand";
 import { cloneDeep } from "lodash";
 
@@ -13,13 +14,16 @@ interface ModelStore {
   modelUrlMap: ModelUrlMap;
   modelKeyMap: ModelKeyMap;
   apiKeyMap: ApiKeyMap;
+  tokenPricingMap: TokenPricingMap;
   getApiKeyByType: (modelType: Model) => string; // 获取指定模型的 ApiKey
   getModelKeyByType: (modelType: Model) => string; // 获取指定模型的 Key(具体使用的模型 Key)
   getModelUrlByType: (modelType: Model) => string; // 获取指定模型的 URL
+  getTokenPricingByType: (modelType: Model) => TokenPricing; // 获取指定模型的Token价格
   setModel: (newModel: Model) => void; // 设置当前使用的模型类型
   setModelKeyByType: (modelType: Model, newModelKey: string) => void; // 设置指定模型的 Key(具体使用的模型 Key)
   setModelUrlByType: (modelType: Model, newModelUrl: string) => void; // 设置指定模型的 URL
   setApiKeyByType: (modelType: Model, newApiKey: string) => void; // 设置指定模型的 ApiKey
+  setTokenPricingByType: (modelType: Model, pricing: TokenPricing) => void; // 设置指定模型的Token价格
   initializeModel: () => void;
 }
 
@@ -31,11 +35,13 @@ const useModelStore = create<ModelStore>((set, get) => {
     const modelUrlMap = modelConfig?.modelUrlMap || DEFAULT_MODEL_URL_MAP;
     const modelKeyMap = modelConfig?.modelKeyMap || DEFAULT_MODEL_KEY_MAP;
     const apiKeyMap = modelConfig?.apiKeyMap || DEFAULT_APIKEY_MAP;
+    const tokenPricingMap = modelConfig?.tokenPricingMap || DEFAULT_TOKEN_PRICING_MAP;
     set({
       model: initialModel,
       modelUrlMap,
       modelKeyMap,
       apiKeyMap,
+      tokenPricingMap,
     });
   };
 
@@ -46,6 +52,7 @@ const useModelStore = create<ModelStore>((set, get) => {
       modelUrlMap: state.modelUrlMap,
       modelKeyMap: state.modelKeyMap,
       apiKeyMap: state.apiKeyMap,
+      tokenPricingMap: state.tokenPricingMap,
     };
     localStorage.setItem("modelConfig", JSON.stringify(ans));
   };
@@ -60,6 +67,10 @@ const useModelStore = create<ModelStore>((set, get) => {
 
   const getModelUrlByType = (modelType: Model) => {
     return get().modelUrlMap[modelType];
+  };
+
+  const getTokenPricingByType = (modelType: Model) => {
+    return get().tokenPricingMap[modelType];
   };
 
   const setModel = (newModel: Model) => {
@@ -97,18 +108,30 @@ const useModelStore = create<ModelStore>((set, get) => {
     _memoryInLocalStorage();
   };
 
+  const setTokenPricingByType = (modelType: Model, pricing: TokenPricing) => {
+    const newTokenPricingMap = cloneDeep(get().tokenPricingMap);
+    newTokenPricingMap[modelType] = pricing;
+    set({
+      tokenPricingMap: newTokenPricingMap,
+    });
+    _memoryInLocalStorage();
+  };
+
   return {
     model: DEFAULT_MODEL,
     modelUrlMap: DEFAULT_MODEL_URL_MAP,
     modelKeyMap: DEFAULT_MODEL_KEY_MAP,
     apiKeyMap: DEFAULT_APIKEY_MAP,
+    tokenPricingMap: DEFAULT_TOKEN_PRICING_MAP,
     getApiKeyByType,
     getModelKeyByType,
     getModelUrlByType,
+    getTokenPricingByType,
     setModel,
     setModelUrlByType,
     setModelKeyByType,
     setApiKeyByType,
+    setTokenPricingByType,
     initializeModel,
   };
 });

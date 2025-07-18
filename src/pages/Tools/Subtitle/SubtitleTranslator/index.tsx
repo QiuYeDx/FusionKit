@@ -6,7 +6,7 @@ import {
   type SubtitleTranslatorTask,
 } from "@/type/subtitle";
 import { useTranslation } from "react-i18next";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import {
   ArrowPathIcon,
   FolderIcon,
@@ -15,10 +15,12 @@ import {
   XMarkIcon,
   TrashIcon,
   ExclamationTriangleIcon,
+  CpuChipIcon,
 } from "@heroicons/react/24/outline";
 import { showToast } from "@/utils/toast";
 import useModelStore from "@/store/useModelStore";
 import ErrorDetailModal from "@/components/ErrorDetailModal";
+import { estimateSubtitleTokens, formatTokens, formatCost } from "@/utils/tokenEstimate";
 
 function SubtitleTranslator() {
   const { t } = useTranslation();
@@ -42,7 +44,7 @@ function SubtitleTranslator() {
     cancelTask,
     deleteTask,
   } = useSubtitleTranslatorStore();
-  const { model, getApiKeyByType, getModelKeyByType, getModelUrlByType } =
+  const { model, getApiKeyByType, getModelKeyByType, getModelUrlByType, getTokenPricingByType } =
     useModelStore();
 
   const [customLengthInput, setCustomLengthInput] = useState(
@@ -57,6 +59,44 @@ function SubtitleTranslator() {
   // 错误详情模态框状态
   const [errorModalOpen, setErrorModalOpen] = useState(false);
   const [selectedErrorTask, setSelectedErrorTask] = useState<SubtitleTranslatorTask | null>(null);
+
+  // 计算总的token统计
+  const tokenStats = useMemo(() => {
+    const allTasks = [
+      ...notStartedTaskQueue,
+      ...waitingTaskQueue,
+      ...pendingTaskQueue,
+      ...resolvedTaskQueue,
+      ...failedTaskQueue,
+    ];
+
+    let totalTokens = 0;
+    let totalCost = 0;
+    let pendingTokens = 0;
+    let pendingCost = 0;
+
+    allTasks.forEach(task => {
+      if (task.costEstimate) {
+        totalTokens += task.costEstimate.totalTokens || 0;
+        totalCost += task.costEstimate.estimatedCost || 0;
+        
+        if (task.status === TaskStatus.NOT_STARTED || 
+            task.status === TaskStatus.WAITING || 
+            task.status === TaskStatus.PENDING) {
+          pendingTokens += task.costEstimate.totalTokens || 0;
+          pendingCost += task.costEstimate.estimatedCost || 0;
+        }
+      }
+    });
+
+    return {
+      totalTokens,
+      totalCost,
+      pendingTokens,
+      pendingCost,
+      taskCount: allTasks.length
+    };
+  }, [notStartedTaskQueue, waitingTaskQueue, pendingTaskQueue, resolvedTaskQueue, failedTaskQueue]);
 
   // 打开错误详情模态框
   const openErrorModal = (task: SubtitleTranslatorTask) => {
@@ -173,6 +213,16 @@ function SubtitleTranslator() {
         // 读取文件内容
         const fileContent = await file.text();
 
+        // 计算token预估
+        const tokenPricing = getTokenPricingByType(model);
+        const tokenEstimate = await estimateSubtitleTokens(
+          fileContent,
+          sliceType,
+          sliceType === SubtitleSliceType.CUSTOM ? sliceLengthMap[SubtitleSliceType.CUSTOM] : undefined,
+          model,
+          tokenPricing
+        );
+
         // 创建任务
         const newTask: SubtitleTranslatorTask = {
           fileName: file.name,
@@ -182,6 +232,7 @@ function SubtitleTranslator() {
           targetFileURL: outputURL,
           status: TaskStatus.NOT_STARTED,
           progress: 0,
+          costEstimate: tokenEstimate,
 
           apiKey: getApiKeyByType(model),
           apiModel: getModelKeyByType(model),
@@ -309,6 +360,39 @@ function SubtitleTranslator() {
         </div>
       </div>
 
+      {/* Token消耗预估配置显示 */}
+      <div className="mb-4">
+        <div className="bg-base-200 p-4 rounded-lg">
+          <div className="text-xl font-semibold mb-4">
+            新任务配置
+          </div>
+          <div className="text-sm text-gray-600 dark:text-gray-300 mb-3">
+            当前分片模式配置，将应用于新添加的任务。已存在的任务保持创建时的配置不变。
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
+            <div className="bg-base-100 rounded p-3">
+              <div className="text-gray-500 text-xs mb-1">当前分片模式</div>
+              <div className="font-medium">
+                {t(`subtitle:translator.slice_types.${sliceType.toLowerCase()}`)}
+                {sliceType === SubtitleSliceType.CUSTOM && (
+                  <span className="ml-1 text-gray-500">({sliceLengthMap[SubtitleSliceType.CUSTOM]}字符)</span>
+                )}
+              </div>
+            </div>
+            <div className="bg-base-100 rounded p-3">
+              <div className="text-gray-500 text-xs mb-1">费率 (输入/输出)</div>
+              <div className="font-mono text-sm">
+                ${getTokenPricingByType(model).inputTokensPerMillion.toFixed(2)}/${getTokenPricingByType(model).outputTokensPerMillion.toFixed(2)} per 1M tokens
+              </div>
+            </div>
+            <div className="bg-base-100 rounded p-3">
+              <div className="text-gray-500 text-xs mb-1">任务总数</div>
+              <div className="font-medium">{tokenStats.taskCount} 个任务</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* 文件上传区域 */}
       <div className="mb-4">
         <div className="bg-base-200 p-4 rounded-lg">
@@ -381,6 +465,34 @@ function SubtitleTranslator() {
           </div>
         </div>
 
+        {/* Token统计信息 */}
+        {tokenStats.taskCount > 0 && (
+          <div className="bg-base-100 rounded-lg p-4 mb-4">
+            <div className="flex items-center gap-2 mb-3">
+              <CpuChipIcon className="h-5 w-5" />
+              <span className="font-semibold">Token消耗预估</span>
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+              <div className="bg-base-200 rounded p-3">
+                <div className="text-gray-500 text-xs mb-1">总Token数</div>
+                <div className="font-mono text-lg">{formatTokens(tokenStats.totalTokens)}</div>
+              </div>
+              <div className="bg-base-200 rounded p-3">
+                <div className="text-gray-500 text-xs mb-1">预估总费用</div>
+                <div className="font-mono text-lg">{formatCost(tokenStats.totalCost)}</div>
+              </div>
+              <div className="bg-base-200 rounded p-3">
+                <div className="text-gray-500 text-xs mb-1">待处理Token</div>
+                <div className="font-mono text-lg text-orange-600">{formatTokens(tokenStats.pendingTokens)}</div>
+              </div>
+              <div className="bg-base-200 rounded p-3">
+                <div className="text-gray-500 text-xs mb-1">待处理费用</div>
+                <div className="font-mono text-lg text-orange-600">{formatCost(tokenStats.pendingCost)}</div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* 任务列表 */}
         <div className="space-y-4">
           {[
@@ -410,11 +522,20 @@ function SubtitleTranslator() {
                           task.resolvedFragments || 0
                         }/${task.totalFragments || 0})`}
                       {/* 显示分片模式 */}
-                      <span className="ml-4">
+                      <span className="ml-4 px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded text-xs">
                         {t(
                           `subtitle:translator.slice_types.${task.sliceType.toLowerCase()}`
                         )}
                       </span>
+                      {/* 显示token预估信息 */}
+                      {task.costEstimate && (
+                        <span className="ml-4 font-mono">
+                          Tokens: {formatTokens(task.costEstimate.totalTokens)}
+                          <span className="ml-2 text-green-600">
+                            ~{formatCost(task.costEstimate.estimatedCost)}
+                          </span>
+                        </span>
+                      )}
                     </div>
                   </div>
                 </div>
