@@ -90,8 +90,8 @@ export class TranslationService {
     // 输入token = 原始内容token + prompt开销
     const inputTokens = originalTokens + (fragmentCount * promptOverhead);
     
-    // 输出token估算（通常翻译后的内容会比原文稍多，这里估算为1.2倍）
-    const outputTokens = Math.ceil(originalTokens * 1.2);
+    // 输出token估算（通常翻译后的内容会比原文稍多，这里估算为1.5倍）
+    const outputTokens = Math.ceil(originalTokens * 1.5);
     
     const totalTokens = inputTokens + outputTokens;
     

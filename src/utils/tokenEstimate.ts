@@ -59,7 +59,7 @@ const estimateSubtitleTokensFallback = (
   const approximateTokens = Math.ceil(content.length * 0.75);
   const fragmentCount = Math.ceil(approximateTokens / 1000); // 假设每个分片1000tokens
   const inputTokens = approximateTokens + (fragmentCount * 200);
-  const outputTokens = Math.ceil(approximateTokens * 1.2);
+  const outputTokens = Math.ceil(approximateTokens * 1.5);
   const totalTokens = inputTokens + outputTokens;
   
   // 使用传入的价格或默认价格
