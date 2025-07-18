@@ -35,8 +35,9 @@ interface SubtitleTranslatorStore {
   startAllTasks: () => void;
   addFailedTask: (errorData: { fileName: string, error: string, message: string }) => void;
 
-  // TODO: 任务取消
-  // cancelTask: (fileName: string) => void;
+  // 任务取消和删除
+  cancelTask: (fileName: string) => void;
+  deleteTask: (fileName: string) => void;
   updateProgress: (
     fileName: string,
     resolvedFragments: number,
@@ -298,6 +299,70 @@ const useSubtitleTranslatorStore = create<SubtitleTranslatorStore>((set) => ({
         failedTaskQueue: [...state.failedTaskQueue, updatedTask],
       };
     });
+  },
+
+  // 取消任务
+  cancelTask: (fileName) => {
+    // 通过 IPC 通知主进程取消任务
+    window.ipcRenderer.send("cancel-translation", fileName);
+    
+    set((state) => {
+      // 从 pending 队列中找到任务
+      const task = state.pendingTaskQueue.find((t) => t.fileName === fileName);
+      if (!task) return state;
+
+      const canceledTask = {
+        ...task,
+        status: TaskStatus.FAILED,
+        extraInfo: {
+          error: "CANCELED",
+          message: "任务已被用户取消",
+        }
+      };
+
+      showToast("任务已取消", "success");
+
+      // 如果等待队列中有任务且并发数未满
+      if (
+        state.waitingTaskQueue.length > 0 &&
+        state.pendingTaskQueue.length <= MAX_CONCURRENCY
+      ) {
+        const waitingTask = state.waitingTaskQueue[0];
+        const updatedWaitingTask = {
+          ...waitingTask,
+          status: TaskStatus.PENDING,
+        };
+
+        // 启动等待队列中的下一个任务
+        window.ipcRenderer.invoke("translate-subtitle", updatedWaitingTask);
+
+        return {
+          waitingTaskQueue: state.waitingTaskQueue.slice(1),
+          pendingTaskQueue: [...state.pendingTaskQueue.filter((t) => t.fileName !== fileName), updatedWaitingTask],
+          failedTaskQueue: [...state.failedTaskQueue, canceledTask],
+        };
+      }
+
+      return {
+        pendingTaskQueue: state.pendingTaskQueue.filter((t) => t.fileName !== fileName),
+        failedTaskQueue: [...state.failedTaskQueue, canceledTask],
+      };
+    });
+  },
+
+  // 删除任务
+  deleteTask: (fileName) => {
+    set((state) => {
+      return {
+        notStartedTaskQueue: state.notStartedTaskQueue.filter((t) => t.fileName !== fileName),
+        waitingTaskQueue: state.waitingTaskQueue.filter((t) => t.fileName !== fileName),
+        pendingTaskQueue: state.pendingTaskQueue.filter((t) => t.fileName !== fileName),
+        resolvedTaskQueue: state.resolvedTaskQueue.filter((t) => t.fileName !== fileName),
+        failedTaskQueue: state.failedTaskQueue.filter((t) => t.fileName !== fileName),
+      };
+    });
+    
+    showToast("任务已删除", "success");
   },
 }));
 

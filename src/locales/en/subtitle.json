@@ -12,6 +12,12 @@
       "upload_tips": "Click to upload or drag files here",
       "custom_slice_length": "Custom Segment Length"
     },
+    "actions": {
+      "start": "Start Task",
+      "retry": "Retry Task",
+      "cancel": "Cancel Task",
+      "delete": "Delete Task"
+    },
     "slice_types": {
       "normal": "Normal Mode",
       "sensitive": "Sensitive Mode",

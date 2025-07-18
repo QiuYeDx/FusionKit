@@ -12,6 +12,12 @@
       "upload_tips": "クリックしてアップロード、またはファイルをドラッグ",
       "custom_slice_length": "カスタム分割長"
     },
+    "actions": {
+      "start": "タスク開始",
+      "retry": "タスク再試行",
+      "cancel": "タスクキャンセル",
+      "delete": "タスク削除"
+    },
     "slice_types": {
       "normal": "通常モード",
       "sensitive": "厳密モード",

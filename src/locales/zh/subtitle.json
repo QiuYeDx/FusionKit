@@ -15,6 +15,12 @@
       "select_output_path": "选择输出路径",
       "no_output_path_selected": "未选择输出路径"
     },
+    "actions": {
+      "start": "开始任务",
+      "retry": "重试任务",
+      "cancel": "取消任务",
+      "delete": "删除任务"
+    },
     "slice_types": {
       "normal": "普通模式",
       "sensitive": "敏感模式",

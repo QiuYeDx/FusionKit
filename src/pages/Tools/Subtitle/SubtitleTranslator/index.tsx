@@ -12,6 +12,8 @@ import {
   FolderIcon,
   FolderOpenIcon,
   PlayCircleIcon,
+  XMarkIcon,
+  TrashIcon,
 } from "@heroicons/react/24/outline";
 import { showToast } from "@/utils/toast";
 import useModelStore from "@/store/useModelStore";
@@ -35,6 +37,8 @@ function SubtitleTranslator() {
     retryTask,
     startAllTasks,
     removeAllResolvedTask,
+    cancelTask,
+    deleteTask,
   } = useSubtitleTranslatorStore();
   const { model, getApiKeyByType, getModelKeyByType, getModelUrlByType } =
     useModelStore();
@@ -122,7 +126,9 @@ function SubtitleTranslator() {
       const extension = file.name.split(".").pop()?.toUpperCase();
 
       // 检查文件类型是否支持
-      if (!Object.values(SubtitleFileType).includes(extension as SubtitleFileType)) {
+      if (
+        !Object.values(SubtitleFileType).includes(extension as SubtitleFileType)
+      ) {
         showToast(
           t("subtitle:translator.errors.invalid_file_type").replace(
             "{types}",
@@ -136,7 +142,10 @@ function SubtitleTranslator() {
       // 检查文件名称是否已存在
       if (existingFileNames.includes(file.name)) {
         showToast(
-          t("subtitle:translator.errors.duplicate_file").replace("{file}", file.name),
+          t("subtitle:translator.errors.duplicate_file").replace(
+            "{file}",
+            file.name
+          ),
           "error"
         );
         continue;
@@ -145,7 +154,7 @@ function SubtitleTranslator() {
       try {
         // 读取文件内容
         const fileContent = await file.text();
-        
+
         // 创建任务
         const newTask: SubtitleTranslatorTask = {
           fileName: file.name,
@@ -379,7 +388,9 @@ function SubtitleTranslator() {
                         `subtitle:translator.task_status.${task.status.toLowerCase()}`
                       )}
                       {task.status === TaskStatus.PENDING &&
-                        ` ${Math.round(task.progress || 0)}% (${task.resolvedFragments || 0}/${task.totalFragments || 0})`}
+                        ` ${Math.round(task.progress || 0)}% (${
+                          task.resolvedFragments || 0
+                        }/${task.totalFragments || 0})`}
                       {/* 显示分片模式 */}
                       <span className="ml-4">
                         {t(
@@ -391,22 +402,48 @@ function SubtitleTranslator() {
                 </div>
 
                 <div className="flex items-center gap-2">
+                  {/* 重试按钮 - 仅失败任务显示 */}
                   {task.status === TaskStatus.FAILED && (
                     <a
-                      className="cursor-pointer"
+                      className="cursor-pointer tooltip"
+                      data-tip={t("subtitle:translator.actions.retry")}
                       onClick={() => retryTask(task.fileName)}
                     >
                       <ArrowPathIcon className="size-6" />
                     </a>
                   )}
+
+                  {/* 开始按钮 - 仅未开始任务显示 */}
                   {task.status === TaskStatus.NOT_STARTED && (
                     <a
-                      className="cursor-pointer"
+                      className="cursor-pointer tooltip"
+                      data-tip={t("subtitle:translator.actions.start")}
                       onClick={() => startTask(task.fileName)}
                     >
                       <PlayCircleIcon className="size-6" />
                     </a>
                   )}
+
+                  {/* 取消按钮 - 仅进行中和等待中任务显示 */}
+                  {(task.status === TaskStatus.PENDING ||
+                    task.status === TaskStatus.WAITING) && (
+                    <a
+                      className="cursor-pointer tooltip"
+                      data-tip={t("subtitle:translator.actions.cancel")}
+                      onClick={() => cancelTask(task.fileName)}
+                    >
+                      <XMarkIcon className="size-6" />
+                    </a>
+                  )}
+
+                  {/* 删除按钮 - 所有状态都可删除 */}
+                  <a
+                    className="cursor-pointer tooltip"
+                    data-tip={t("subtitle:translator.actions.delete")}
+                    onClick={() => deleteTask(task.fileName)}
+                  >
+                    <TrashIcon className="size-6" />
+                  </a>
                 </div>
               </div>
 
