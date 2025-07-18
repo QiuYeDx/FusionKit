@@ -8,7 +8,7 @@ import {
 } from "../typing";
 import { ipcMain, BrowserWindow } from "electron";
 import axios from "axios";
-import { fixSrtSubtitles } from "../utils";
+import { fixSrtSubtitles, removeThinkTags, hasThinkTags } from "../utils";
 
 export abstract class BaseTranslator {
   protected abstract splitContent(content: string, maxTokens: number): string[];
@@ -218,6 +218,23 @@ export abstract class BaseTranslator {
 
         console.log("翻译响应数据:", response.data);
         errorLogs.push(`[${new Date().toISOString()}] 第 ${attempt} 次翻译请求成功`);
+        
+        // 清理响应数据中的 think 标签（适配深度思考类型模型）
+        if (response.data.choices?.[0]?.message?.content) {
+          const originalContent = response.data.choices[0].message.content;
+          
+          // 只有检测到think标签时才进行清理，提高性能
+          if (hasThinkTags(originalContent)) {
+            const cleanedContent = removeThinkTags(originalContent);
+            errorLogs.push(`[${new Date().toISOString()}] 检测到think标签，已清理思考内容`);
+            console.log("清理think标签前:", originalContent);
+            console.log("清理think标签后:", cleanedContent);
+            
+            // 更新响应数据
+            response.data.choices[0].message.content = cleanedContent;
+          }
+        }
+        
         return this.parseResponse(response.data);
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error);
