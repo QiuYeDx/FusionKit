@@ -33,7 +33,14 @@ interface SubtitleTranslatorStore {
   retryTask: (fileName: string) => void;
   removeAllResolvedTask: () => void;
   startAllTasks: () => void;
-  addFailedTask: (errorData: { fileName: string, error: string, message: string }) => void;
+  addFailedTask: (errorData: { 
+    fileName: string, 
+    error: string, 
+    message: string,
+    errorLogs?: string[],
+    timestamp?: string,
+    stackTrace?: string,
+  }) => void;
 
   // 任务取消和删除
   cancelTask: (fileName: string) => void;
@@ -257,7 +264,14 @@ const useSubtitleTranslatorStore = create<SubtitleTranslatorStore>((set) => ({
     });
   },
 
-  addFailedTask: (errorData: { fileName: string, error: string, message: string }) => {
+  addFailedTask: (errorData: { 
+    fileName: string, 
+    error: string, 
+    message: string,
+    errorLogs?: string[],
+    timestamp?: string,
+    stackTrace?: string,
+  }) => {
     set((state) => {
       const task = state.pendingTaskQueue.find((t) => t.fileName === errorData.fileName);
       if (!task) return state;
@@ -265,13 +279,18 @@ const useSubtitleTranslatorStore = create<SubtitleTranslatorStore>((set) => ({
       const updatedTask = {
         ...task,
         status: TaskStatus.FAILED,
+        errorLog: errorData.errorLogs || [],
         extraInfo: {
           error: errorData.error,
           message: errorData.message,
+          timestamp: errorData.timestamp,
+          stackTrace: errorData.stackTrace,
+          errorLogs: errorData.errorLogs || [],
         }
       };
 
-      showToast(errorData.message, "error");
+      // 显示简短的错误Toast
+      showToast(`${errorData.message}`, "error");
 
       // 如果等待队列中有任务且并发数未满
       if (

@@ -52,7 +52,7 @@ async function createWindow() {
     title: "FusionKit",
     icon: path.join(process.env.VITE_PUBLIC, "FusionKit.ico"),
     width: 1080,
-    height: 720,
+    height: 786,
     minWidth: 720,
     minHeight: 540,
     resizable: true,

@@ -23,16 +23,24 @@ export abstract class BaseTranslator {
   protected retryDelay = 1000;
 
   async translate(task: SubtitleTranslatorTask, signal?: AbortSignal) {
+    const errorLogs: string[] = [];
+    const startTime = new Date().toISOString();
+
     try {
       console.log("[01] start process file:", task.fileName);
+      errorLogs.push(`[${new Date().toISOString()}] 开始处理文件: ${task.fileName}`);
+      
       const content = task.fileContent;
       console.log("[02] content length:", content.length);
+      errorLogs.push(`[${new Date().toISOString()}] 文件内容长度: ${content.length}`);
 
       const maxTokens = this.getMaxTokens(task.sliceType);
       console.log("[03] max token num:", maxTokens);
+      errorLogs.push(`[${new Date().toISOString()}] 最大Token数: ${maxTokens}`);
 
       const fragments = this.splitContent(content, maxTokens);
       console.log("[04] fragments num:", fragments.length);
+      errorLogs.push(`[${new Date().toISOString()}] 分片数量: ${fragments.length}`);
 
       // 初始化进度
       this.updateProgress(task, 0, fragments.length);
@@ -42,47 +50,67 @@ export abstract class BaseTranslator {
       for (const [index, fragment] of fragments.entries()) {
         if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
 
-        const result = await this.translateFragment(
-          fragment,
-          index > 0 ? fragments[index - 1] : "",
-          task.apiKey,
-          task.apiModel
-        );
+        try {
+          errorLogs.push(`[${new Date().toISOString()}] 开始翻译第 ${index + 1}/${fragments.length} 个分片`);
+          
+          const result = await this.translateFragment(
+            fragment,
+            index > 0 ? fragments[index - 1] : "",
+            task.apiKey,
+            task.apiModel,
+            errorLogs
+          );
 
-        if (!result) {
-          throw new Error("Translation result is undefined");
+          if (!result) {
+            throw new Error("Translation result is undefined");
+          }
+
+          translatedFragments.push(result);
+          console.log("result", result);
+          errorLogs.push(`[${new Date().toISOString()}] 第 ${index + 1} 个分片翻译完成`);
+
+          // 更新当前分片进度
+          this.updateProgress(task, index + 1, fragments.length);
+        } catch (fragmentError) {
+          errorLogs.push(`[${new Date().toISOString()}] 第 ${index + 1} 个分片翻译失败: ${fragmentError instanceof Error ? fragmentError.message : String(fragmentError)}`);
+          throw fragmentError;
         }
-
-        translatedFragments.push(result);
-        console.log("result", result);
-
-        // 更新当前分片进度
-        this.updateProgress(task, index + 1, fragments.length);
       }
 
       // 将翻译后的内容写入目标文件
       const fileType = task.fileName.split(".").at(-1)?.toUpperCase();
-      // const translatedContent =
-      //   fileType === SubtitleFileType.SRT
-      //     ? fixSrtSubtitles(translatedFragments.join("\n"))
-      //     : translatedFragments.join("\n");
       const translatedContent = translatedFragments.join("\n\n");
+      
+      errorLogs.push(`[${new Date().toISOString()}] 开始写入文件到: ${task.targetFileURL}`);
       await this.writeFile(
         task.targetFileURL,
         translatedContent,
         task.fileName
       );
+      errorLogs.push(`[${new Date().toISOString()}] 文件写入完成`);
 
       // 通知任务完成
       this.updateProgress(task, fragments.length, fragments.length);
+      errorLogs.push(`[${new Date().toISOString()}] 任务完成`);
     } catch (error) {
+      const errorDetails = error instanceof Error ? error.message : String(error);
+      const stackTrace = error instanceof Error ? error.stack : "无堆栈信息";
+      
+      errorLogs.push(`[${new Date().toISOString()}] 任务失败: ${errorDetails}`);
+      if (stackTrace) {
+        errorLogs.push(`[${new Date().toISOString()}] 堆栈跟踪: ${stackTrace}`);
+      }
+
       // 获取主窗口并发送消息
       const mainWindow = BrowserWindow.getAllWindows()[0];
       if (mainWindow) {
         mainWindow.webContents.send("task-failed", {
           fileName: task.fileName,
-          error: error instanceof Error ? error.message : "未知错误",
+          error: errorDetails,
           message: "请求接口失败", // 显示 toast 的信息
+          errorLogs: errorLogs,
+          timestamp: startTime,
+          stackTrace: stackTrace,
         });
       } else {
         console.error(
@@ -153,12 +181,15 @@ export abstract class BaseTranslator {
     content: string,
     context: string,
     apiKey: string,
-    apiModel: string
+    apiModel: string,
+    errorLogs: string[]
   ): Promise<string> {
     const prompt = this.formatPrompt(content, context);
 
     for (let attempt = 1; attempt <= this.maxRetries; attempt++) {
       try {
+        errorLogs.push(`[${new Date().toISOString()}] 尝试第 ${attempt}/${this.maxRetries} 次翻译请求`);
+        
         const response = await axios.post(
           this.getApiEndpoint(),
           {
@@ -186,20 +217,30 @@ export abstract class BaseTranslator {
         }
 
         console.log("翻译响应数据:", response.data);
+        errorLogs.push(`[${new Date().toISOString()}] 第 ${attempt} 次翻译请求成功`);
         return this.parseResponse(response.data);
       } catch (error) {
-        // if (signal?.aborted) {
-        //   throw new DOMException("Aborted", "AbortError");
-        // }
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        errorLogs.push(`[${new Date().toISOString()}] 第 ${attempt} 次翻译尝试失败: ${errorMessage}`);
+        
+        if (axios.isAxiosError(error)) {
+          errorLogs.push(`[${new Date().toISOString()}] HTTP状态码: ${error.response?.status || 'N/A'}`);
+          if (error.response?.data) {
+            errorLogs.push(`[${new Date().toISOString()}] 响应数据: ${JSON.stringify(error.response.data)}`);
+          }
+        }
 
         console.error(`第 ${attempt} 次翻译尝试失败:`, error);
 
         if (attempt === this.maxRetries) {
+          errorLogs.push(`[${new Date().toISOString()}] 已达到最大重试次数，翻译失败`);
           throw this.normalizeError(error);
         }
 
         // 重试延迟
-        await new Promise((r) => setTimeout(r, this.retryDelay * attempt));
+        const delay = this.retryDelay * attempt;
+        errorLogs.push(`[${new Date().toISOString()}] 等待 ${delay}ms 后重试`);
+        await new Promise((r) => setTimeout(r, delay));
       }
     }
 

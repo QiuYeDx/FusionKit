@@ -14,9 +14,11 @@ import {
   PlayCircleIcon,
   XMarkIcon,
   TrashIcon,
+  ExclamationTriangleIcon,
 } from "@heroicons/react/24/outline";
 import { showToast } from "@/utils/toast";
 import useModelStore from "@/store/useModelStore";
+import ErrorDetailModal from "@/components/ErrorDetailModal";
 
 function SubtitleTranslator() {
   const { t } = useTranslation();
@@ -51,6 +53,22 @@ function SubtitleTranslator() {
 
   // 保存用户选择的文件输出路径
   const [outputURL, setOutputURL] = useState<string>("");
+
+  // 错误详情模态框状态
+  const [errorModalOpen, setErrorModalOpen] = useState(false);
+  const [selectedErrorTask, setSelectedErrorTask] = useState<SubtitleTranslatorTask | null>(null);
+
+  // 打开错误详情模态框
+  const openErrorModal = (task: SubtitleTranslatorTask) => {
+    setSelectedErrorTask(task);
+    setErrorModalOpen(true);
+  };
+
+  // 关闭错误详情模态框
+  const closeErrorModal = () => {
+    setErrorModalOpen(false);
+    setSelectedErrorTask(null);
+  };
 
   // 选择输出路径
   const handleSelectOutputPath = async () => {
@@ -401,7 +419,18 @@ function SubtitleTranslator() {
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-4">
+                  {/* 查看错误详情按钮 - 仅失败任务显示 */}
+                  {task.status === TaskStatus.FAILED && (
+                    <a
+                      className="cursor-pointer tooltip text-error"
+                      data-tip="查看错误详情"
+                      onClick={() => openErrorModal(task)}
+                    >
+                      <ExclamationTriangleIcon className="size-6" />
+                    </a>
+                  )}
+
                   {/* 重试按钮 - 仅失败任务显示 */}
                   {task.status === TaskStatus.FAILED && (
                     <a
@@ -468,6 +497,19 @@ function SubtitleTranslator() {
             </div>
           )}
       </div>
+
+      {/* 错误详情模态框 */}
+      {selectedErrorTask && (
+        <ErrorDetailModal
+          isOpen={errorModalOpen}
+          onClose={closeErrorModal}
+          taskName={selectedErrorTask.fileName}
+          errorMessage={selectedErrorTask.extraInfo?.message || "未知错误"}
+          errorDetails={selectedErrorTask.extraInfo?.error || "无详细错误信息"}
+          errorLogs={selectedErrorTask.extraInfo?.errorLogs || selectedErrorTask.errorLog || []}
+          timestamp={selectedErrorTask.extraInfo?.timestamp}
+        />
+      )}
     </div>
   );
 }
