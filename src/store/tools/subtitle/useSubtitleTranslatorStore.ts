@@ -16,6 +16,7 @@ interface SubtitleTranslatorStore {
   // fileType: SubtitleFileType;
   sliceType: SubtitleSliceType;
   sliceLengthMap: Record<SubtitleSliceType, number>;
+  outputURL: string; // 添加输出路径状态
   // 任务队列
   notStartedTaskQueue: SubtitleTranslatorTask[];
   waitingTaskQueue: SubtitleTranslatorTask[];
@@ -27,6 +28,7 @@ interface SubtitleTranslatorStore {
   // setFileType: (fileType: SubtitleFileType) => void;
   setSliceType: (sliceType: SubtitleSliceType) => void;
   setCustomSliceLength: (length: number) => void;
+  setOutputURL: (url: string) => void; // 添加设置输出路径的方法
   initializeSubtitleTranslatorStore: () => void;
   addTask: (task: SubtitleTranslatorTask) => void;
   startTask: (fileName: string) => void;
@@ -53,11 +55,30 @@ interface SubtitleTranslatorStore {
   ) => void;
 }
 
+// 从 localStorage 读取保存的输出路径
+const getSavedOutputURL = (): string => {
+  try {
+    return localStorage.getItem("subtitle-translator-output-url") || "";
+  } catch {
+    return "";
+  }
+};
+
+// 保存输出路径到 localStorage
+const saveOutputURL = (url: string): void => {
+  try {
+    localStorage.setItem("subtitle-translator-output-url", url);
+  } catch {
+    // 静默处理存储失败
+  }
+};
+
 const useSubtitleTranslatorStore = create<SubtitleTranslatorStore>((set) => ({
   // 初始状态
   // fileType: SubtitleFileType.LRC,
   sliceType: SubtitleSliceType.NORMAL,
   sliceLengthMap: DEFAULT_SLICE_LENGTH_MAP,
+  outputURL: getSavedOutputURL(), // 从本地存储读取输出路径
   notStartedTaskQueue: [],
   waitingTaskQueue: [],
   pendingTaskQueue: [],
@@ -74,6 +95,12 @@ const useSubtitleTranslatorStore = create<SubtitleTranslatorStore>((set) => ({
         [SubtitleSliceType.CUSTOM]: length,
       },
     })),
+
+  // 设置输出路径并持久化
+  setOutputURL: (url) => {
+    saveOutputURL(url);
+    set({ outputURL: url });
+  },
 
   // 初始化（重置）
   initializeSubtitleTranslatorStore: () =>
