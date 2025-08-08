@@ -12,6 +12,7 @@ import FadeMaskLayer from "@/pages/components/FadeMaskLayer";
 import useModelStore from "@/store/useModelStore";
 import SubtitleTranslator from "./pages/Tools/Subtitle/SubtitleTranslator";
 import SubtitleConverter from "./pages/Tools/Subtitle/SubtitleConverter";
+import SubtitleLanguageExtractor from "./pages/Tools/Subtitle/SubtitleLanguageExtractor";
 import { Toaster } from "react-hot-toast";
 
 function App() {
@@ -47,6 +48,10 @@ function App() {
         <Route
           path="/tools/subtitle/converter"
           element={<SubtitleConverter />}
+        />
+        <Route
+          path="/tools/subtitle/extractor"
+          element={<SubtitleLanguageExtractor />}
         />
       </Routes>
 

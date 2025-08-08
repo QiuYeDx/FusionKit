@@ -7,6 +7,7 @@ import { setupTranslationIPC } from "./translation/ipc";
 // import { update } from './update'
 import { setupPowerIPC } from "./power";
 import { setupConversionIPC } from "./conversion/ipc";
+import { setupExtractionIPC } from "./extraction/ipc";
 
 const require = createRequire(import.meta.url);
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -113,6 +114,7 @@ app.whenReady().then(() => {
   setupTranslationIPC(translationService);
   setupPowerIPC(win);
   setupConversionIPC();
+  setupExtractionIPC();
 });
 
 app.on("window-all-closed", () => {

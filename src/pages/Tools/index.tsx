@@ -39,7 +39,7 @@ const Tools: React.FC = () => {
               {/* 字幕格式转换 */}
               {t("tools:fields.subtitle_formatter")}
             </div>
-            <div className="badge border-solid border-gray-400 select-none cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700">
+            <div className="badge border-solid border-gray-400 select-none cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700" onClick={() => navigate("/tools/subtitle/extractor")}>
               {/* 字幕语言提取 */}
               {t("tools:fields.subtitle_language_extractor")}
             </div>
