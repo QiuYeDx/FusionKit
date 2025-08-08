@@ -53,6 +53,9 @@ interface SubtitleTranslatorStore {
     totalFragments: number,
     progress: number
   ) => void;
+
+  // 标记任务完成并记录最终输出路径
+  markTaskResolved: (fileName: string, outputFilePath: string) => void;
 }
 
 // 从 localStorage 读取保存的输出路径
@@ -439,6 +442,28 @@ const useSubtitleTranslatorStore = create<SubtitleTranslatorStore>((set) => ({
     });
 
     showToast("任务已删除", "success");
+  },
+
+  // 记录最终输出路径
+  markTaskResolved: (fileName, outputFilePath) => {
+    set((state) => {
+      const task = state.pendingTaskQueue.find((t) => t.fileName === fileName);
+      if (!task) return state;
+      const updatedTask: SubtitleTranslatorTask = {
+        ...task,
+        status: TaskStatus.RESOLVED,
+        progress: 100,
+        extraInfo: {
+          ...(task.extraInfo || {}),
+          outputFilePath,
+        },
+      };
+
+      return {
+        pendingTaskQueue: state.pendingTaskQueue.filter((t) => t.fileName !== fileName),
+        resolvedTaskQueue: [...state.resolvedTaskQueue, updatedTask],
+      };
+    });
   },
 }));
 

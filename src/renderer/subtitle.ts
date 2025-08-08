@@ -18,3 +18,9 @@ window.ipcRenderer.on("task-failed", (_, errorData) => {
   const store = useSubtitleTranslatorStore.getState();
   store.addFailedTask(errorData);
 });
+
+window.ipcRenderer.on("task-resolved", (_, data: { fileName: string; outputFilePath: string }) => {
+  console.info('>>> 收到 task-resolved', data);
+  const store = useSubtitleTranslatorStore.getState();
+  store.markTaskResolved(data.fileName, data.outputFilePath);
+});

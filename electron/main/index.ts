@@ -6,6 +6,7 @@ import os from "node:os";
 import { setupTranslationIPC } from "./translation/ipc";
 // import { update } from './update'
 import { setupPowerIPC } from "./power";
+import { setupConversionIPC } from "./conversion/ipc";
 
 const require = createRequire(import.meta.url);
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -111,6 +112,7 @@ app.whenReady().then(() => {
   // createToolsWindows(); // 为每个工具创建新的窗口
   setupTranslationIPC(translationService);
   setupPowerIPC(win);
+  setupConversionIPC();
 });
 
 app.on("window-all-closed", () => {

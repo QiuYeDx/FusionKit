@@ -82,12 +82,22 @@ export abstract class BaseTranslator {
       const translatedContent = translatedFragments.join("\n\n");
       
       errorLogs.push(`[${new Date().toISOString()}] 开始写入文件到: ${task.targetFileURL}`);
-      await this.writeFile(
+      const finalPath = await this.writeFile(
         task.targetFileURL,
         translatedContent,
         task.fileName
       );
-      errorLogs.push(`[${new Date().toISOString()}] 文件写入完成`);
+      errorLogs.push(`[${new Date().toISOString()}] 文件写入完成: ${finalPath}`);
+
+      // 通知任务完成（包含最终输出路径）
+      const mainWindow = BrowserWindow.getAllWindows()[0];
+      if (mainWindow) {
+        mainWindow.webContents.send("task-resolved", {
+          fileName: task.fileName,
+          outputFilePath: finalPath,
+          finalFileName: path.basename(finalPath),
+        });
+      }
 
       // 通知任务完成
       this.updateProgress(task, fragments.length, fragments.length);
@@ -156,17 +166,30 @@ export abstract class BaseTranslator {
 
   private async writeFile(fileURL: string, content: string, fileName: string) {
     try {
-      const newFileURL = path.join(fileURL, fileName);
-      // 确保路径是绝对路径
-      const absolutePath = path.resolve(fileURL);
+      const absoluteOutputDir = path.resolve(fileURL);
+      await fs.mkdir(absoluteOutputDir, { recursive: true });
 
-      // 确保目标目录存在
-      const targetDir = path.dirname(absolutePath);
-      await fs.mkdir(targetDir, { recursive: true });
+      const parsed = path.parse(fileName);
+      let finalPath = path.join(absoluteOutputDir, parsed.base);
+      let index = 1;
+      while (true) {
+        try {
+          await fs.access(finalPath);
+          // exists → try next index
+          finalPath = path.join(
+            absoluteOutputDir,
+            `${parsed.name} (${index})${parsed.ext}`
+          );
+          index++;
+        } catch {
+          // not exist
+          break;
+        }
+      }
 
-      // 写入文件内容
-      await fs.writeFile(newFileURL, content, "utf-8");
-      console.log("文件已成功写入:", fileName);
+      await fs.writeFile(finalPath, content, "utf-8");
+      console.log("文件已成功写入:", path.basename(finalPath));
+      return finalPath;
     } catch (error) {
       console.error("写入文件时出错:", error);
       throw new Error("无法写入文件");

@@ -29,12 +29,18 @@ const Tools: React.FC = () => {
               className="badge border-solid border-gray-400 select-none cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700"
               onClick={() => navigate("/tools/subtitle/translator")}
             >
+              {/* 字幕AI翻译 */}
               {t("tools:fields.subtitle_translator")}
             </div>
-            <div className="badge border-solid border-gray-400 select-none cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700">
+            <div
+              className="badge border-solid border-gray-400 select-none cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700"
+              onClick={() => navigate("/tools/subtitle/converter")}
+            >
+              {/* 字幕格式转换 */}
               {t("tools:fields.subtitle_formatter")}
             </div>
             <div className="badge border-solid border-gray-400 select-none cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700">
+              {/* 字幕语言提取 */}
               {t("tools:fields.subtitle_language_extractor")}
             </div>
           </div>

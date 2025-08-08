@@ -842,6 +842,12 @@ function SubtitleTranslator() {
                           </span>
                         </span>
                       )}
+                      {/* 显示输出路径（完成后） */}
+                      {task.status === TaskStatus.RESOLVED && task.extraInfo?.outputFilePath && (
+                        <span className="ml-4 font-mono text-xs text-green-600">
+                          输出: {task.extraInfo.outputFilePath}
+                        </span>
+                      )}
                     </div>
                   </div>
                 </div>
