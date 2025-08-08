@@ -6,7 +6,7 @@ import {
   type SubtitleTranslatorTask,
 } from "@/type/subtitle";
 import { useTranslation } from "react-i18next";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import {
   ArrowPathIcon,
   FolderIcon,
@@ -16,6 +16,7 @@ import {
   TrashIcon,
   ExclamationTriangleIcon,
   CpuChipIcon,
+  ChevronDownIcon,
 } from "@heroicons/react/24/outline";
 import { showToast } from "@/utils/toast";
 import useModelStore from "@/store/useModelStore";
@@ -68,6 +69,130 @@ function SubtitleTranslator() {
   const [errorModalOpen, setErrorModalOpen] = useState(false);
   const [selectedErrorTask, setSelectedErrorTask] =
     useState<SubtitleTranslatorTask | null>(null);
+
+  // 定时开始相关状态
+  const [scheduleTime, setScheduleTime] = useState<string>(""); // 本地时间，格式 YYYY-MM-DDTHH:mm
+  const [scheduleEnabled, setScheduleEnabled] = useState<boolean>(false);
+  const [preventSleep, setPreventSleep] = useState<boolean>(false);
+  const [blockerId, setBlockerId] = useState<number | null>(null);
+  const [remainingMs, setRemainingMs] = useState<number>(0);
+  const hasTriggeredRef = useRef<boolean>(false);
+  const intervalRef = useRef<number | null>(null);
+  const [isScheduleOpen, setIsScheduleOpen] = useState<boolean>(false);
+  const [isConfigOpen, setIsConfigOpen] = useState<boolean>(true);
+  const [isOutputOpen, setIsOutputOpen] = useState<boolean>(true);
+  const [isNewTaskConfigOpen, setIsNewTaskConfigOpen] = useState<boolean>(true);
+
+  const targetEpochMs = useMemo(() => {
+    if (!scheduleTime) return NaN;
+    const ms = new Date(scheduleTime).getTime();
+    return Number.isFinite(ms) ? ms : NaN;
+  }, [scheduleTime]);
+
+  const stopPowerBlocker = async () => {
+    try {
+      if (blockerId != null) {
+        await window.ipcRenderer.invoke("power-blocker-stop", blockerId);
+      }
+    } catch {}
+    setBlockerId(null);
+  };
+
+  const startPowerBlockerUntil = async (untilEpochMs: number) => {
+    try {
+      const res = await window.ipcRenderer.invoke("power-blocker-start", {
+        type: "prevent-app-suspension",
+        untilEpochMs,
+      });
+      if (res?.id != null) setBlockerId(res.id as number);
+    } catch (e) {
+      // 即便失败，不阻塞后续定时
+    }
+  };
+
+  const resetInterval = () => {
+    if (intervalRef.current) {
+      window.clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    }
+  };
+
+  const cancelSchedule = async (showMsg = true) => {
+    setScheduleEnabled(false);
+    hasTriggeredRef.current = false;
+    resetInterval();
+    await stopPowerBlocker();
+    if (showMsg) showToast("已取消定时任务", "success");
+  };
+
+  const tryTriggerStart = async () => {
+    if (!scheduleEnabled) return;
+    if (!Number.isFinite(targetEpochMs)) return;
+    if (hasTriggeredRef.current) return;
+    if (Date.now() >= targetEpochMs) {
+      hasTriggeredRef.current = true;
+      await stopPowerBlocker();
+      if (notStartedTaskQueue.length > 0) {
+        startAllTasks();
+        showToast("已到达定时时间，开始全部任务", "success");
+      } else {
+        showToast("已到达定时时间，但没有可开始的任务", "default");
+      }
+      // 结束计划
+      setScheduleEnabled(false);
+      resetInterval();
+    }
+  };
+
+  // 定时/倒计时与系统恢复补偿
+  useEffect(() => {
+    // 清理历史 interval
+    resetInterval();
+
+    if (!scheduleEnabled || !Number.isFinite(targetEpochMs)) {
+      setRemainingMs(0);
+      return;
+    }
+
+    // 初始剩余时间
+    setRemainingMs(Math.max(0, targetEpochMs - Date.now()));
+
+    // 每秒更新一次并尝试触发
+    intervalRef.current = window.setInterval(() => {
+      setRemainingMs(Math.max(0, targetEpochMs - Date.now()));
+      tryTriggerStart();
+    }, 1000);
+
+    // 监听系统恢复事件，补偿睡眠期间错过的触发
+    const resumeHandler = () => {
+      tryTriggerStart();
+    };
+    window.ipcRenderer.on("system-resumed", resumeHandler);
+
+    return () => {
+      resetInterval();
+      window.ipcRenderer.off("system-resumed", resumeHandler);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scheduleEnabled, targetEpochMs]);
+
+  const formatRemaining = (ms: number) => {
+    if (!scheduleEnabled || !Number.isFinite(targetEpochMs)) return "--";
+    const totalSec = Math.max(0, Math.floor(ms / 1000));
+    const h = Math.floor(totalSec / 3600);
+    const m = Math.floor((totalSec % 3600) / 60);
+    const s = totalSec % 60;
+    const pad = (n: number) => n.toString().padStart(2, "0");
+    return h > 0 ? `${pad(h)}:${pad(m)}:${pad(s)}` : `${pad(m)}:${pad(s)}`;
+  };
+
+  // 组件卸载清理防睡眠
+  useEffect(() => {
+    return () => {
+      stopPowerBlocker();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // 计算总的token统计
   const tokenStats = useMemo(() => {
@@ -293,57 +418,71 @@ function SubtitleTranslator() {
 
       {/* 配置区块 */}
       <div className="flex flex-col gap-4 mb-4">
-        <div className="bg-base-200 p-4 rounded-lg">
-          <div className="text-xl font-semibold mb-2">
-            {t("subtitle:translator.config_title")}
-          </div>
-
-          {/* 分片模式选择 */}
-          <div className="form-control -ml-1">
-            <label className="label -mb-2">
-              <span className="label-text">
-                {t("subtitle:translator.fields.subtitle_slice_mode")}
-              </span>
-            </label>
-            <div className="join -ml-0.5">
-              {Object.values(SubtitleSliceType).map((type, index) => (
-                <input
-                  type="radio"
-                  checked={sliceType === type}
-                  name="subtitle_slice_type"
-                  aria-label={t(
-                    `subtitle:translator.slice_types.${type.toLowerCase()}`
-                  )}
-                  key={type}
-                  className={`join-item btn btn-sm bg-base-100 ${
-                    index > 0 ? "mt-[3px]" : ""
-                  }`}
-                  onChange={() => {}} // 防止显示控制台警告
-                  onClick={() => setSliceType(type)}
-                ></input>
-              ))}
+        <div className="bg-base-200 rounded-lg">
+          <div
+            className="flex items-center justify-between p-4 cursor-pointer select-none"
+            onClick={() => setIsConfigOpen((v) => !v)}
+          >
+            <div className="text-xl font-semibold">
+              {t("subtitle:translator.config_title")}
             </div>
+            <ChevronDownIcon
+              className={`h-5 w-5 transition-transform ${
+                isConfigOpen ? "rotate-180" : ""
+              }`}
+            />
           </div>
+          {isConfigOpen && (
+            <div className="-mt-2 p-4 pt-0">
+              {/* 分片模式选择 */}
+              <div className="form-control -ml-1">
+                <label className="label -mb-2 pt-0">
+                  <span className="label-text">
+                    {t("subtitle:translator.fields.subtitle_slice_mode")}
+                  </span>
+                </label>
+                <div className="join -ml-0.5">
+                  {Object.values(SubtitleSliceType).map((type, index) => (
+                    <input
+                      type="radio"
+                      checked={sliceType === type}
+                      name="subtitle_slice_type"
+                      aria-label={t(
+                        `subtitle:translator.slice_types.${type.toLowerCase()}`
+                      )}
+                      key={type}
+                      className={`join-item btn btn-sm bg-base-100 ${
+                        index > 0 ? "mt-[3px]" : ""
+                      }`}
+                      onChange={() => {}} // 防止显示控制台警告
+                      onClick={() => setSliceType(type)}
+                    ></input>
+                  ))}
+                </div>
+              </div>
 
-          {/* 自定义分片长度输入 */}
-          {sliceType === SubtitleSliceType.CUSTOM && (
-            <div className="form-control mt-2">
-              <label className="label -ml-1 -mb-1">
-                <span className="label-text">
-                  {t("subtitle:translator.fields.custom_slice_length")} (chars)
-                </span>
-              </label>
-              <input
-                type="number"
-                className="input input-sm input-bordered box-border w-32"
-                value={customLengthInput}
-                min="100"
-                max="2000"
-                onChange={(e) => {
-                  setCustomLengthInput(e.target.value);
-                  setCustomSliceLength(Number(e.target.value));
-                }}
-              />
+              {/* 自定义分片长度输入 */}
+              {sliceType === SubtitleSliceType.CUSTOM && (
+                <div className="form-control mt-2">
+                  <label className="label -ml-1 -mb-1">
+                    <span className="label-text">
+                      {t("subtitle:translator.fields.custom_slice_length")}{" "}
+                      (chars)
+                    </span>
+                  </label>
+                  <input
+                    type="number"
+                    className="input input-sm input-bordered box-border w-32"
+                    value={customLengthInput}
+                    min="100"
+                    max="2000"
+                    onChange={(e) => {
+                      setCustomLengthInput(e.target.value);
+                      setCustomSliceLength(Number(e.target.value));
+                    }}
+                  />
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -351,69 +490,204 @@ function SubtitleTranslator() {
 
       {/* 输出设置区块 */}
       <div className="mb-4">
-        <div className="bg-base-200 p-4 rounded-lg">
-          <div className="text-xl font-semibold mb-4">
-            {t("subtitle:translator.output_path_section")}
-          </div>
-          <div className="flex items-center gap-4">
-            <div className="join grow">
-              <button
-                onClick={handleSelectOutputPath}
-                className="btn btn-primary btn-sm join-item"
-              >
-                {t("subtitle:translator.fields.select_output_path")}
-              </button>
-              <input
-                type="text"
-                placeholder={t(
-                  "subtitle:translator.fields.no_output_path_selected"
-                )}
-                value={outputURL}
-                onChange={() => {}} // 防止显示控制台警告
-                className="join-item input input-sm input-bordered box-border grow shrink-0"
-              />
+        <div className="bg-base-200 rounded-lg">
+          <div
+            className="flex items-center justify-between p-4 cursor-pointer select-none"
+            onClick={() => setIsOutputOpen((v) => !v)}
+          >
+            <div className="text-xl font-semibold">
+              {t("subtitle:translator.output_path_section")}
             </div>
+            <ChevronDownIcon
+              className={`h-5 w-5 transition-transform ${
+                isOutputOpen ? "rotate-180" : ""
+              }`}
+            />
           </div>
+          {isOutputOpen && (
+            <div className="-mt-2 p-4 pt-0">
+              <div className="flex items-center gap-4">
+                <div className="join grow">
+                  <button
+                    onClick={handleSelectOutputPath}
+                    className="btn btn-primary btn-sm join-item"
+                  >
+                    {t("subtitle:translator.fields.select_output_path")}
+                  </button>
+                  <input
+                    type="text"
+                    placeholder={t(
+                      "subtitle:translator.fields.no_output_path_selected"
+                    )}
+                    value={outputURL}
+                    onChange={() => {}} // 防止显示控制台警告
+                    className="join-item input input-sm input-bordered box-border grow shrink-0"
+                  />
+                </div>
+              </div>
 
-          {/* TODO: 输出文件前缀、后缀设置 */}
+              {/* TODO: 输出文件前缀、后缀设置 */}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* 定时开始设置 */}
+      <div className="mb-4">
+        <div className="bg-base-200 rounded-lg">
+          <div
+            className="flex items-center justify-between p-4 cursor-pointer select-none"
+            onClick={() => setIsScheduleOpen((v) => !v)}
+          >
+            <div className="text-xl font-semibold">定时开始</div>
+            <ChevronDownIcon
+              className={`h-5 w-5 transition-transform ${
+                isScheduleOpen ? "rotate-180" : ""
+              }`}
+            />
+          </div>
+          {isScheduleOpen && (
+            <div className="-mt-2 p-4 pt-0">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
+                <div className="form-control">
+                  <label className="label -ml-1 -mb-1">
+                    <span className="label-text">开始时间</span>
+                  </label>
+                  <input
+                    type="datetime-local"
+                    className="input input-sm input-bordered"
+                    value={scheduleTime}
+                    onChange={(e) => setScheduleTime(e.target.value)}
+                    min={new Date(Date.now() + 60_000)
+                      .toISOString()
+                      .slice(0, 16)}
+                  />
+                </div>
+                <div className="form-control">
+                  <label className="label cursor-pointer space-x-2">
+                    <span className="label-text">防止系统睡眠直到开始</span>
+                    <input
+                      type="checkbox"
+                      className="toggle toggle-sm"
+                      checked={preventSleep}
+                      onChange={(e) => setPreventSleep(e.target.checked)}
+                    />
+                  </label>
+                  <span className="text-xs text-gray-500">
+                    仅防止因空闲触发的睡眠，不阻止手动睡眠或合盖
+                  </span>
+                </div>
+                <div className="flex gap-2">
+                  {!scheduleEnabled ? (
+                    <button
+                      className="btn btn-primary btn-sm"
+                      disabled={
+                        !scheduleTime || !Number.isFinite(targetEpochMs)
+                      }
+                      onClick={async () => {
+                        if (!scheduleTime || !Number.isFinite(targetEpochMs))
+                          return;
+                        if (targetEpochMs <= Date.now()) {
+                          showToast("请选择未来的时间", "default");
+                          return;
+                        }
+                        hasTriggeredRef.current = false;
+                        setScheduleEnabled(true);
+                        if (preventSleep)
+                          await startPowerBlockerUntil(targetEpochMs);
+                        showToast("已设置定时开始", "success");
+                      }}
+                    >
+                      启用定时
+                    </button>
+                  ) : (
+                    <button
+                      className="btn btn-outline btn-sm"
+                      onClick={() => cancelSchedule()}
+                    >
+                      取消定时
+                    </button>
+                  )}
+                </div>
+              </div>
+              <div className="mt-2 text-sm text-gray-600">
+                <span className="mr-2">状态：</span>
+                {scheduleEnabled ? (
+                  <span>
+                    已启用，倒计时 {formatRemaining(remainingMs)}
+                    {blockerId != null && (
+                      <span className="ml-2 text-xs text-green-600">
+                        已防睡眠
+                      </span>
+                    )}
+                  </span>
+                ) : (
+                  <span>未启用</span>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
       {/* Token消耗预估配置显示 */}
       <div className="mb-4">
-        <div className="bg-base-200 p-4 rounded-lg">
-          <div className="text-xl font-semibold mb-4">新任务配置</div>
-          <div className="text-sm text-gray-600 dark:text-gray-300 mb-3">
-            当前分片模式配置，将应用于新添加的任务。已存在的任务保持创建时的配置不变。
+        <div className="bg-base-200 rounded-lg">
+          <div
+            className="flex items-center justify-between p-4 cursor-pointer select-none"
+            onClick={() => setIsNewTaskConfigOpen((v) => !v)}
+          >
+            <div className="text-xl font-semibold">新任务配置</div>
+            <ChevronDownIcon
+              className={`h-5 w-5 transition-transform ${
+                isNewTaskConfigOpen ? "rotate-180" : ""
+              }`}
+            />
           </div>
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
-            <div className="bg-base-100 rounded p-3">
-              <div className="text-gray-500 text-xs mb-1">当前分片模式</div>
-              <div className="font-medium">
-                {t(
-                  `subtitle:translator.slice_types.${sliceType.toLowerCase()}`
-                )}
-                {sliceType === SubtitleSliceType.CUSTOM && (
-                  <span className="ml-1 text-gray-500">
-                    ({sliceLengthMap[SubtitleSliceType.CUSTOM]}字符)
-                  </span>
-                )}
+          {isNewTaskConfigOpen && (
+            <div className="-mt-2 p-4 pt-0">
+              <div className="text-sm text-gray-600 dark:text-gray-300 mb-3">
+                当前分片模式配置，将应用于新添加的任务。已存在的任务保持创建时的配置不变。
+              </div>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
+                <div className="bg-base-100 rounded p-3">
+                  <div className="text-gray-500 text-xs mb-1">当前分片模式</div>
+                  <div className="font-medium">
+                    {t(
+                      `subtitle:translator.slice_types.${sliceType.toLowerCase()}`
+                    )}
+                    {sliceType === SubtitleSliceType.CUSTOM && (
+                      <span className="ml-1 text-gray-500">
+                        ({sliceLengthMap[SubtitleSliceType.CUSTOM]}字符)
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <div className="bg-base-100 rounded p-3">
+                  <div className="text-gray-500 text-xs mb-1">
+                    费率 (输入/输出)
+                  </div>
+                  <div className="font-mono text-sm">
+                    $
+                    {getTokenPricingByType(model).inputTokensPerMillion.toFixed(
+                      2
+                    )}
+                    /$
+                    {getTokenPricingByType(
+                      model
+                    ).outputTokensPerMillion.toFixed(2)}{" "}
+                    per 1M tokens
+                  </div>
+                </div>
+                <div className="bg-base-100 rounded p-3">
+                  <div className="text-gray-500 text-xs mb-1">任务总数</div>
+                  <div className="font-medium">
+                    {tokenStats.taskCount} 个任务
+                  </div>
+                </div>
               </div>
             </div>
-            <div className="bg-base-100 rounded p-3">
-              <div className="text-gray-500 text-xs mb-1">费率 (输入/输出)</div>
-              <div className="font-mono text-sm">
-                ${getTokenPricingByType(model).inputTokensPerMillion.toFixed(2)}
-                /$
-                {getTokenPricingByType(model).outputTokensPerMillion.toFixed(2)}{" "}
-                per 1M tokens
-              </div>
-            </div>
-            <div className="bg-base-100 rounded p-3">
-              <div className="text-gray-500 text-xs mb-1">任务总数</div>
-              <div className="font-medium">{tokenStats.taskCount} 个任务</div>
-            </div>
-          </div>
+          )}
         </div>
       </div>
 
