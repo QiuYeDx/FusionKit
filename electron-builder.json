@@ -15,7 +15,8 @@
     "target": [
       "dmg",
       "zip"
-    ]
+    ],
+    "icon": "build/FusionKit.icns"
   },
   "win": {
     "target": [
@@ -40,6 +41,9 @@
     "createDesktopShortcut": true,
     "createStartMenuShortcut": true,
     "shortcutName": "FusionKit"
+  },
+  "dmg": {
+    "icon": "build/FusionKit.icns"
   },
   "publish": {
     "provider": "generic",
