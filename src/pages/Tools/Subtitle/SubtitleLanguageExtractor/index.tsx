@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import {
   ArrowPathIcon,
   FolderIcon,
@@ -28,6 +29,7 @@ interface ExtractTask {
 }
 
 function SubtitleLanguageExtractor() {
+  const { t } = useTranslation();
   // 折叠状态
   const [isConfigOpen, setIsConfigOpen] = useState<boolean>(true);
   const [isOutputOpen, setIsOutputOpen] = useState<boolean>(true);
@@ -80,15 +82,18 @@ function SubtitleLanguageExtractor() {
 
   const handleSelectOutputPath = async () => {
     try {
-      const result = await window.ipcRenderer.invoke("select-output-directory");
+      const result = await window.ipcRenderer.invoke("select-output-directory", {
+        title: t("subtitle:extractor.dialog.select_output_title"),
+        buttonLabel: t("subtitle:extractor.dialog.select_output_confirm"),
+      });
       if (result && !result.canceled && result.filePaths.length > 0) {
         const selectedPath = result.filePaths[0];
         setOutputURL(selectedPath);
         localStorage.setItem("subtitle-extractor-output-url", selectedPath);
-        showToast("已选择输出目录", "success");
+        showToast(t("subtitle:extractor.infos.output_path_selected"), "success");
       }
     } catch (error) {
-      showToast("选择输出目录失败", "error");
+      showToast(t("subtitle:extractor.errors.path_selection_failed"), "error");
     }
   };
 
@@ -116,7 +121,7 @@ function SubtitleLanguageExtractor() {
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!outputURL) {
-      showToast("请先选择输出目录", "error");
+      showToast(t("subtitle:extractor:errors.please_select_output_url"), "error");
       return;
     }
     const files = e.target.files;
@@ -127,11 +132,11 @@ function SubtitleLanguageExtractor() {
     for (const file of Array.from(files)) {
       const ext = file.name.split(".").pop()?.toUpperCase();
       if (!ext || ![SubtitleFileType.LRC, SubtitleFileType.SRT].includes(ext as any)) {
-        showToast(`不支持的文件类型: ${ext || "-"}`, "error");
+        showToast(t("subtitle:extractor:errors.invalid_file_type").replace("{types}", ext || "-"), "error");
         continue;
       }
       if (existingNames.includes(file.name)) {
-        showToast(`重复的文件: ${file.name}`, "error");
+        showToast(t("subtitle:extractor:errors.duplicate_file").replace("{file}", file.name), "error");
         continue;
       }
 
@@ -150,7 +155,7 @@ function SubtitleLanguageExtractor() {
         };
         setTasks((prev) => [...prev, newTask]);
       } catch (err) {
-        showToast(`读取文件 ${file.name} 失败`, "error");
+        showToast(t("subtitle:extractor:errors.read_file_failed").replace("{file}", file.name), "error");
       }
     }
   };
@@ -185,7 +190,7 @@ function SubtitleLanguageExtractor() {
             : t
         )
       );
-      showToast(`提取完成: ${fileName}`, "success");
+      showToast(t("subtitle:extractor:infos.task_extract_done").replace("{file}", fileName), "success");
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       setTasks((prev) =>
@@ -200,7 +205,7 @@ function SubtitleLanguageExtractor() {
             : t
         )
       );
-      showToast(`提取失败: ${fileName}`, "error");
+      showToast(t("subtitle:extractor:errors.task_extract_failed").replace("{file}", fileName), "error");
     }
   };
 
@@ -229,7 +234,7 @@ function SubtitleLanguageExtractor() {
 
   const deleteTask = (fileName: string) => {
     setTasks((prev) => prev.filter((t) => t.fileName !== fileName));
-    showToast("任务已删除", "success");
+    showToast(t("subtitle:extractor:infos.task_deleted"), "success");
   };
 
   const getTaskStatusColor = (status: TaskStatus) => {
@@ -249,9 +254,9 @@ function SubtitleLanguageExtractor() {
 
   return (
     <div className="p-4">
-      <div className="text-2xl font-bold mb-4">字幕语言提取</div>
+      <div className="text-2xl font-bold mb-4">{t("subtitle:extractor:title")}</div>
       <div className="mb-6 text-gray-600 dark:text-gray-300">
-        支持从 LRC/SRT 双语字幕中仅保留中文字幕或仅保留日语字幕，保持原格式与时间轴。
+        {t("subtitle:extractor:description")}
       </div>
 
       {/* 配置选项 */}
@@ -261,21 +266,21 @@ function SubtitleLanguageExtractor() {
             className="flex items-center justify-between p-4 cursor-pointer select-none"
             onClick={() => setIsConfigOpen((v) => !v)}
           >
-            <div className="text-xl font-semibold">配置选项</div>
+            <div className="text-xl font-semibold">{t("subtitle:extractor:config_title")}</div>
             <ChevronDownIcon className={`h-5 w-5 transition-transform ${isConfigOpen ? "rotate-180" : ""}`} />
           </div>
           {isConfigOpen && (
             <div className="-mt-2 p-4 pt-0">
               <div className="form-control -ml-1">
                 <label className="label -mb-2 pt-0">
-                  <span className="label-text">保留语言</span>
+                  <span className="label-text">{t("subtitle:extractor:fields.keep_language")}</span>
                 </label>
                 <div className="join -ml-0.5">
                   <input
                     type="radio"
                     className="join-item btn btn-sm bg-base-100"
                     name="keep_lang"
-                    aria-label="仅中文"
+                    aria-label={t("subtitle:extractor:fields.zh_only")}
                     checked={keep === "ZH"}
                     onChange={() => setKeep("ZH")}
                   />
@@ -283,7 +288,7 @@ function SubtitleLanguageExtractor() {
                     type="radio"
                     className="join-item btn btn-sm bg-base-100 mt-[3px]"
                     name="keep_lang"
-                    aria-label="仅日文"
+                    aria-label={t("subtitle:extractor:fields.ja_only")}
                     checked={keep === "JA"}
                     onChange={() => setKeep("JA")}
                   />
@@ -301,7 +306,7 @@ function SubtitleLanguageExtractor() {
             className="flex items-center justify-between p-4 cursor-pointer select-none"
             onClick={() => setIsOutputOpen((v) => !v)}
           >
-            <div className="text-xl font-semibold">输出设置</div>
+            <div className="text-xl font-semibold">{t("subtitle:extractor:output_path_section")}</div>
             <ChevronDownIcon className={`h-5 w-5 transition-transform ${isOutputOpen ? "rotate-180" : ""}`} />
           </div>
           {isOutputOpen && (
@@ -309,11 +314,11 @@ function SubtitleLanguageExtractor() {
               <div className="flex items-center gap-4">
                 <div className="join grow">
                   <button onClick={handleSelectOutputPath} className="btn btn-primary btn-sm join-item">
-                    选择输出目录
+                    {t("subtitle:extractor:fields.select_output_path")}
                   </button>
                   <input
                     type="text"
-                    placeholder="未选择输出目录"
+                    placeholder={t("subtitle:extractor:fields.no_output_path_selected")}
                     value={outputURL}
                     onChange={() => {}}
                     className="join-item input input-sm input-bordered box-border grow shrink-0"
@@ -332,19 +337,19 @@ function SubtitleLanguageExtractor() {
             className="flex items-center justify-between p-4 cursor-pointer select-none"
             onClick={() => setIsSummaryOpen((v) => !v)}
           >
-            <div className="text-xl font-semibold">当前配置</div>
+            <div className="text-xl font-semibold">{t("subtitle:extractor:summary_title")}</div>
             <ChevronDownIcon className={`h-5 w-5 transition-transform ${isSummaryOpen ? "rotate-180" : ""}`} />
           </div>
           {isSummaryOpen && (
             <div className="-mt-2 p-4 pt-0">
               <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
                 <div className="bg-base-100 rounded p-3">
-                  <div className="text-gray-500 text-xs mb-1">保留语言</div>
-                  <div className="font-medium">{keep === "ZH" ? "中文" : "日文"}</div>
+                  <div className="text-gray-500 text-xs mb-1">{t("subtitle:extractor:fields.keep_language")}</div>
+                  <div className="font-medium">{keep === "ZH" ? t("subtitle:extractor:fields.zh") : t("subtitle:extractor:fields.ja")}</div>
                 </div>
                 <div className="bg-base-100 rounded p-3">
-                  <div className="text-gray-500 text-xs mb-1">任务总数</div>
-                  <div className="font-medium">{tasks.length} 个任务</div>
+                  <div className="text-gray-500 text-xs mb-1">{t("subtitle:extractor:summary.total_tasks")}</div>
+                  <div className="font-medium">{t("subtitle:extractor:summary.task_count").replace("{count}", String(tasks.length))}</div>
                 </div>
               </div>
             </div>
@@ -355,7 +360,7 @@ function SubtitleLanguageExtractor() {
       {/* 文件上传 */}
       <div className="mb-4">
         <div className="bg-base-200 p-4 rounded-lg">
-          <div className="text-xl font-semibold mb-4">文件上传</div>
+          <div className="text-xl font-semibold mb-4">{t("subtitle:extractor:upload_section")}</div>
           <label
             className={`flex flex-col items-center justify-center border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-6 cursor-pointer transition-colors file-drop-zone ${
               isDragging ? "border-blue-500 bg-blue-50 dark:bg-blue-700 dark:bg-opacity-30" : "hover:bg-base-300"
@@ -370,8 +375,8 @@ function SubtitleLanguageExtractor() {
               {isDragging ? <FolderOpenIcon className="h-10" /> : <FolderIcon className="h-10" />}
             </div>
             <div className="text-center pointer-events-none">
-              <p className="font-medium">点击或拖拽 LRC/SRT 文件到此处</p>
-              <p className="text-sm text-gray-500 mt-1">仅支持 .lrc, .srt</p>
+              <p className="font-medium">{t("subtitle:extractor:fields.upload_tips")}</p>
+              <p className="text-sm text-gray-500 mt-1">{t("subtitle:extractor:fields.files_only")}</p>
             </div>
           </label>
         </div>
@@ -380,17 +385,17 @@ function SubtitleLanguageExtractor() {
       {/* 任务管理 */}
       <div className="bg-base-200 p-4 rounded-lg mb-12">
         <div className="flex items-center justify-between mb-4">
-          <div className="text-xl font-semibold">任务管理</div>
+          <div className="text-xl font-semibold">{t("subtitle:extractor:task_management")}</div>
           <div className="flex gap-2">
             <button className="btn btn-primary btn-sm" onClick={startAllTasks} disabled={notStartedTasks.length === 0}>
-              开始全部
+              {t("subtitle:extractor:fields.start_all")}
             </button>
             <button
               className="btn btn-primary btn-sm"
               onClick={removeAllResolvedTask}
               disabled={resolvedTasks.length === 0}
             >
-              清空完成
+              {t("subtitle:extractor:fields.remove_all_resolved_task")}
             </button>
           </div>
         </div>
@@ -405,15 +410,15 @@ function SubtitleLanguageExtractor() {
                   <div className="font-medium flex-1">
                     {task.fileName}
                     <div className="text-sm text-gray-500 mt-1">
-                      {task.status === TaskStatus.NOT_STARTED && "未开始"}
-                      {task.status === TaskStatus.PENDING && ` 处理中 ${Math.round(task.progress || 0)}%`}
-                      {task.status === TaskStatus.RESOLVED && " 已完成"}
-                      {task.status === TaskStatus.FAILED && " 失败"}
+                      {task.status === TaskStatus.NOT_STARTED && t("subtitle:extractor:task_status.notstarted")}
+                      {task.status === TaskStatus.PENDING && `${t("subtitle:extractor:task_status.pending")} ${Math.round(task.progress || 0)}%`}
+                      {task.status === TaskStatus.RESOLVED && ` ${t("subtitle:extractor:task_status.resolved")}`}
+                      {task.status === TaskStatus.FAILED && ` ${t("subtitle:extractor:task_status.failed")}`}
                       <span className="ml-4 px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded text-xs">
-                        {task.fileType} · {task.keep === "ZH" ? "中文" : "日文"}
+                        {task.fileType} · {task.keep === "ZH" ? t("subtitle:extractor:fields.zh") : t("subtitle:extractor:fields.ja")}
                       </span>
                       {task.outputFilePath && (
-                        <span className="ml-4 font-mono text-xs text-green-600">输出: {task.outputFilePath}</span>
+                        <span className="ml-4 font-mono text-xs text-green-600">{t("subtitle:extractor:labels.output")}: {task.outputFilePath}</span>
                       )}
                     </div>
                   </div>
@@ -421,24 +426,24 @@ function SubtitleLanguageExtractor() {
 
                 <div className="flex items-center gap-4">
                   {task.status === TaskStatus.FAILED && (
-                    <a className="cursor-pointer tooltip text-error" data-tip="查看错误详情" onClick={() => openErrorModal(task)}>
+                    <a className="cursor-pointer tooltip text-error" data-tip={t("subtitle:extractor:actions.view_error_detail")} onClick={() => openErrorModal(task)}>
                       <ExclamationTriangleIcon className="size-6" />
                     </a>
                   )}
 
                   {task.status === TaskStatus.FAILED && (
-                    <a className="cursor-pointer tooltip" data-tip="重试" onClick={() => retryTask(task.fileName)}>
+                    <a className="cursor-pointer tooltip" data-tip={t("subtitle:extractor:actions.retry")} onClick={() => retryTask(task.fileName)}>
                       <ArrowPathIcon className="size-6" />
                     </a>
                   )}
 
                   {task.status === TaskStatus.NOT_STARTED && (
-                    <a className="cursor-pointer tooltip" data-tip="开始" onClick={() => startTask(task.fileName)}>
+                    <a className="cursor-pointer tooltip" data-tip={t("subtitle:extractor:actions.start")} onClick={() => startTask(task.fileName)}>
                       <PlayCircleIcon className="size-6" />
                     </a>
                   )}
 
-                  <a className="cursor-pointer tooltip" data-tip="删除" onClick={() => deleteTask(task.fileName)}>
+                  <a className="cursor-pointer tooltip" data-tip={t("subtitle:extractor:actions.delete")} onClick={() => deleteTask(task.fileName)}>
                     <TrashIcon className="size-6" />
                   </a>
                 </div>
@@ -451,7 +456,7 @@ function SubtitleLanguageExtractor() {
           ))}
         </div>
 
-        {tasks.length === 0 && <div className="text-center py-8 text-gray-500">暂无任务</div>}
+        {tasks.length === 0 && <div className="text-center py-8 text-gray-500">{t("subtitle:extractor:fields.no_tasks")}</div>}
       </div>
 
       {selectedErrorTask && (

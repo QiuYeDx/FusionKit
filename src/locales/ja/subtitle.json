@@ -32,15 +32,165 @@
     },
     "infos": {
       "output_path_selected": "出力パスが設定されています",
-      "total_fragments": "総分片数：{count}"
+      "total_fragments": "総分片数：{count}",
+      "task_deleted": "タスクを削除しました",
+      "task_canceled": "タスクをキャンセルしました",
+      "task_canceled_by_user": "ユーザーによりキャンセルされました",
+      "task_cancel_toast": "タスクをキャンセルしました"
     },
     "errors": {
       "invalid_file_type": "非対応ファイル形式: {types}",
       "duplicate_file": "ファイル {file} は既に存在します。",
       "path_selection_failed": "パス選択に失敗しました。再試行してください。",
-      "please_select_output_url": "出力URLを先に選択してください。"
+      "please_select_output_url": "出力URLを先に選択してください。",
+      "read_file_failed": "ファイル {file} の読み取りに失敗しました"
     },
     "upload_section": "ファイルアップロード",
-    "task_management": "タスク管理"
+    "task_management": "タスク管理",
+    "dialog": {
+      "select_output_title": "出力ディレクトリを選択",
+      "select_output_confirm": "このディレクトリを使用"
+    },
+    "schedule": {
+      "title": "スケジュール開始",
+      "start_time": "開始時間",
+      "prevent_sleep_until_start": "開始までシステムのスリープを防止",
+      "prevent_sleep_note": "アイドルによるスリープのみ防止。手動スリープや蓋閉じは対象外",
+      "choose_future_time": "未来の時間を選択してください",
+      "scheduled_set": "スケジュールを設定しました",
+      "enable": "スケジュールを有効化",
+      "cancel": "スケジュールを解除",
+      "status": "状態:",
+      "enabled_countdown": "有効、カウントダウン",
+      "sleep_blocker_on": "スリープ防止中",
+      "disabled": "無効"
+    },
+    "new_task_config": {
+      "title": "新規タスク設定",
+      "note": "現在の分割モードは新規タスクに適用されます。既存のタスクは作成時の設定を維持します。",
+      "current_slice_mode": "現在の分割モード",
+      "chars_suffix": "文字",
+      "rate_in_out": "レート（入力/出力）",
+      "total_tasks": "タスク総数",
+      "task_count": "{count} 件"
+    }
+  },
+  "extractor": {
+    "title": "字幕言語抽出",
+    "description": "LRC/SRTのバイリンガル字幕から中国語のみ、または日本語のみを保持し、フォーマットとタイムスタンプを維持します。",
+    "config_title": "設定オプション",
+    "output_path_section": "出力設定",
+    "summary_title": "現在の設定",
+    "upload_section": "ファイルアップロード",
+    "task_management": "タスク管理",
+    "fields": {
+      "keep_language": "保持する言語",
+      "zh_only": "中国語のみ",
+      "ja_only": "日本語のみ",
+      "zh": "中国語",
+      "ja": "日本語",
+      "select_output_path": "出力ディレクトリを選択",
+      "no_output_path_selected": "出力ディレクトリが未選択",
+      "upload_tips": "LRC/SRTファイルをクリックまたはドラッグ",
+      "files_only": ".lrc, .srt のみ対応",
+      "start_all": "一括開始",
+      "remove_all_resolved_task": "完了をクリア",
+      "no_tasks": "タスクはありません"
+    },
+    "task_status": {
+      "notstarted": "未開始",
+      "pending": "処理中",
+      "resolved": "完了",
+      "failed": "失敗"
+    },
+    "summary": {
+      "total_tasks": "タスク総数",
+      "task_count": "{count} 件"
+    },
+    "labels": {
+      "output": "出力"
+    },
+    "actions": {
+      "view_error_detail": "エラー詳細を表示",
+      "retry": "再試行",
+      "start": "開始",
+      "delete": "削除"
+    },
+    "infos": {
+      "output_path_selected": "出力パスが設定されました",
+      "task_deleted": "タスクを削除しました",
+      "task_extract_done": "抽出完了：{file}"
+    },
+    "errors": {
+      "path_selection_failed": "パス選択に失敗しました。再試行してください。",
+      "please_select_output_url": "先に出力ディレクトリを選択してください",
+      "invalid_file_type": "非対応ファイル形式：{types}",
+      "duplicate_file": "重複ファイル：{file}",
+      "read_file_failed": "ファイル {file} の読み取りに失敗しました",
+      "task_extract_failed": "抽出に失敗しました：{file}"
+    },
+    "dialog": {
+      "select_output_title": "出力ディレクトリを選択",
+      "select_output_confirm": "このディレクトリを使用"
+    }
+  },
+  "converter": {
+    "title": "字幕形式変換",
+    "description": "LRC と SRT の相互変換に対応します。",
+    "config_title": "設定オプション",
+    "output_path_section": "出力設定",
+    "summary_title": "現在の設定",
+    "upload_section": "ファイルアップロード",
+    "task_management": "タスク管理",
+    "fields": {
+      "convert_direction": "変換方向",
+      "lrc_to_srt": "LRC → SRT",
+      "srt_to_lrc": "SRT → LRC",
+      "default_duration_label": "デフォルトの長さ（秒、終了時間がない場合に使用）",
+      "select_output_path": "出力ディレクトリを選択",
+      "no_output_path_selected": "出力ディレクトリが未選択",
+      "upload_tips": "LRC/SRTファイルをクリックまたはドラッグ",
+      "files_only": ".lrc, .srt のみ対応",
+      "start_all": "一括開始",
+      "remove_all_resolved_task": "完了をクリア",
+      "no_tasks": "タスクはありません"
+    },
+    "task_status": {
+      "notstarted": "未開始",
+      "pending": "処理中",
+      "resolved": "完了",
+      "failed": "失敗"
+    },
+    "summary": {
+      "total_tasks": "タスク総数",
+      "task_count": "{count} 件",
+      "default_duration": "デフォルトの長さ"
+    },
+    "labels": {
+      "output": "出力"
+    },
+    "actions": {
+      "view_error_detail": "エラー詳細を表示",
+      "retry": "再試行",
+      "start": "開始",
+      "delete": "削除"
+    },
+    "infos": {
+      "output_path_selected": "出力パスが設定されました",
+      "task_deleted": "タスクを削除しました",
+      "task_convert_done": "変換完了：{file}"
+    },
+    "errors": {
+      "path_selection_failed": "パス選択に失敗しました。再試行してください。",
+      "please_select_output_url": "先に出力ディレクトリを選択してください",
+      "invalid_file_type": "非対応ファイル形式：{types}",
+      "duplicate_file": "重複ファイル：{file}",
+      "read_file_failed": "ファイル {file} の読み取りに失敗しました",
+      "task_convert_failed": "変換に失敗しました：{file}"
+    },
+    "dialog": {
+      "select_output_title": "出力ディレクトリを選択",
+      "select_output_confirm": "このディレクトリを使用"
+    }
   }
 }

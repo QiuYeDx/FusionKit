@@ -6,9 +6,33 @@
     "setting": "Setting",
     "back": "Back",
     "subtitle": {
-      "translator": "Subtitle AI Translation"
+      "translator": "Subtitle AI Translation",
+      "converter": "Subtitle Format Converter",
+      "extractor": "Language Extraction"
     }
   },
   "start": "Start",
-  "retry": "Retry"
+  "retry": "Retry",
+  "app_name": "FusionKit",
+  "action": {
+    "copy_error": "Copy error info"
+  },
+  "info": {
+    "copy_success": "Copied error info to clipboard"
+  },
+  "error": {
+    "detail_title": "Error Details",
+    "task_name": "Task Name",
+    "time": "Time",
+    "message": "Message",
+    "detail": "Detail",
+    "logs": "Logs",
+    "logs_with_count": "Logs ({count} records)",
+    "copy_failed": "Copy failed, please copy manually"
+  },
+  "lang": {
+    "zh": "Chinese",
+    "ja": "Japanese",
+    "en": "English"
+  }
 }

@@ -4,7 +4,8 @@
   "subtitle": {
     "theme_config": "テーマ設定",
     "language_config": "言語設定",
-    "apikey_config": "モデル設定"
+    "apikey_config": "モデル設定",
+    "token_price_config": "Token 価格設定"
   },
   "fields": {
     "light_mode": "ライトモード",
@@ -12,7 +13,21 @@
     "system_mode": "システムに従う",
     "other": "その他",
     "apikey": "APIキー",
-    "model_url": "ベースURL"
+    "model_url": "ベースURL",
+    "token_price": {
+      "intro_title": "Token 価格設定",
+      "intro_desc": "1M tokens あたりの価格（USD）を設定します。",
+      "intro_desc_preset": "プリセットモデルの価格は調整可能ですが、公式価格の使用を推奨します。",
+      "input_price": "入力トークン価格",
+      "output_price": "出力トークン価格",
+      "per_million": "$/1M tokens",
+      "current_price_title": "{model} の現在のトークン価格：",
+      "custom_model": "カスタムモデル",
+      "input_label": "入力:",
+      "output_label": "出力:",
+      "preset_note": "注意：{model} の価格は公式価格に基づいてプリセットされています。必要に応じて調整できますが、正確性のため公式価格の使用を推奨します。",
+      "custom_note": "ヒント：ご利用のカスタムモデルの実際の価格に基づいてトークン価格を設定してください。正確な費用見積りに役立ちます。"
+    }
   },
   "placeholder": {
     "apikey": "APIキーを入力してください",

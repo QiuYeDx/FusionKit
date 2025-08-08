@@ -113,7 +113,10 @@ function ModelConfig() {
           </div>
           <input
             type="text"
-            placeholder={t("setting:placeholder.model_url") + '(https://.../v1/chat/completions)'}
+            placeholder={
+              t("setting:placeholder.model_url") +
+              "(https://.../v1/chat/completions)"
+            }
             value={modelUrlMap[model]}
             disabled={[Model.DeepSeek, Model.OpenAI].includes(model)}
             onChange={handleModelUrlChange}
@@ -144,25 +147,33 @@ function ModelConfig() {
 
       {/* Token价格配置 */}
       <div className="mt-6">
-        <div className="text-lg font-semibold mb-3">Token 价格配置</div>
-        <div className="text-sm text-gray-600 dark:text-gray-300 mb-4">
-          配置每1M tokens的价格（美元）。
-          {model !== Model.Other && "预设模型的价格可以调整，但建议使用官方定价。"}
+        <div className="text-lg font-semibold mb-3">
+          {t("setting:subtitle.token_price_config")}
         </div>
-        
+        <div className="text-sm text-gray-600 dark:text-gray-300 mb-4">
+          {t("setting:fields.token_price.intro_desc")}
+          {model !== Model.Other && " "}
+          {model !== Model.Other &&
+            t("setting:fields.token_price.intro_desc_preset")}
+        </div>
+
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-2xl">
           {/* 输入Token价格 */}
           <label className="form-control">
             <div className="label -mb-1">
-              <span className="label-text">输入Token价格</span>
-              <span className="label-text-alt">$/1M tokens</span>
+              <span className="label-text">
+                {t("setting:fields.token_price.input_price")}
+              </span>
+              <span className="label-text-alt">
+                {t("setting:fields.token_price.per_million")}
+              </span>
             </div>
             <input
               type="number"
               step="0.01"
               min="0"
               placeholder="1.5"
-              value={tokenPricingMap[model]?.inputTokensPerMillion || ''}
+              value={tokenPricingMap[model]?.inputTokensPerMillion || ""}
               onChange={handleInputTokenPriceChange}
               className="input input-sm input-bordered box-border w-full"
             />
@@ -171,15 +182,19 @@ function ModelConfig() {
           {/* 输出Token价格 */}
           <label className="form-control">
             <div className="label -mb-1">
-              <span className="label-text">输出Token价格</span>
-              <span className="label-text-alt">$/1M tokens</span>
+              <span className="label-text">
+                {t("setting:fields.token_price.output_price")}
+              </span>
+              <span className="label-text-alt">
+                {t("setting:fields.token_price.per_million")}
+              </span>
             </div>
             <input
               type="number"
               step="0.01"
               min="0"
               placeholder="2.0"
-              value={tokenPricingMap[model]?.outputTokensPerMillion || ''}
+              value={tokenPricingMap[model]?.outputTokensPerMillion || ""}
               onChange={handleOutputTokenPriceChange}
               className="input input-sm input-bordered box-border w-full"
             />
@@ -189,25 +204,39 @@ function ModelConfig() {
         {/* 当前模型价格展示 */}
         <div className="mt-4 p-3 bg-base-100 rounded-lg max-w-2xl">
           <div className="text-sm text-gray-600 dark:text-gray-300 mb-2">
-            当前 {model === Model.Other ? "自定义模型" : model} 的Token价格：
+            {t("setting:fields.token_price.current_price_title").replace(
+              "{model}",
+              model === Model.Other
+                ? t("setting:fields.token_price.custom_model")
+                : model
+            )}
           </div>
           <div className="font-mono text-sm">
-            输入: ${tokenPricingMap[model]?.inputTokensPerMillion?.toFixed(2) || '0.00'}/1M tokens
+            {t("setting:fields.token_price.input_label")} $
+            {tokenPricingMap[model]?.inputTokensPerMillion?.toFixed(2) ||
+              "0.00"}
+            /1M tokens
           </div>
           <div className="font-mono text-sm">
-            输出: ${tokenPricingMap[model]?.outputTokensPerMillion?.toFixed(2) || '0.00'}/1M tokens
+            {t("setting:fields.token_price.output_label")} $
+            {tokenPricingMap[model]?.outputTokensPerMillion?.toFixed(2) ||
+              "0.00"}
+            /1M tokens
           </div>
         </div>
 
         {model !== Model.Other && (
           <div className="mt-3 text-xs text-orange-600 max-w-2xl">
-            注意：{model} 的价格已根据官方定价预设。您可以根据实际情况调整价格，但建议使用官方定价以确保准确性。
+            {t("setting:fields.token_price.preset_note").replace(
+              "{model}",
+              model
+            )}
           </div>
         )}
-        
+
         {model === Model.Other && (
           <div className="mt-3 text-xs text-blue-600 max-w-2xl">
-            提示：请根据您使用的自定义模型的实际定价设置Token价格，以获得准确的费用预估。
+            {t("setting:fields.token_price.custom_note")}
           </div>
         )}
       </div>

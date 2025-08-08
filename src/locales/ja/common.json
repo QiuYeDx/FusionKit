@@ -6,9 +6,33 @@
     "setting": "設定",
     "back": "戻る",
     "subtitle": {
-      "translator": "字幕AI翻訳"
+      "translator": "字幕AI翻訳",
+      "converter": "字幕形式変換",
+      "extractor": "字幕言語抽出"
     }
   },
   "start": "開始",
-  "retry": "リトライ"
+  "retry": "リトライ",
+  "app_name": "FusionKit",
+  "action": {
+    "copy_error": "エラー情報をコピー"
+  },
+  "info": {
+    "copy_success": "エラー情報をクリップボードにコピーしました"
+  },
+  "error": {
+    "detail_title": "エラー詳細",
+    "task_name": "タスク名",
+    "time": "時間",
+    "message": "メッセージ",
+    "detail": "詳細",
+    "logs": "ログ",
+    "logs_with_count": "ログ（{count} 件）",
+    "copy_failed": "コピーに失敗しました。手動でコピーしてください"
+  },
+  "lang": {
+    "zh": "中国語",
+    "ja": "日本語",
+    "en": "英語"
+  }
 }

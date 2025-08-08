@@ -256,7 +256,10 @@ function SubtitleTranslator() {
   const handleSelectOutputPath = async () => {
     try {
       // 通过 IPC 调用主进程的目录选择对话框
-      const result = await window.ipcRenderer.invoke("select-output-directory");
+      const result = await window.ipcRenderer.invoke("select-output-directory", {
+        title: t("subtitle:translator.dialog.select_output_title"),
+        buttonLabel: t("subtitle:translator.dialog.select_output_confirm"),
+      });
 
       if (result && !result.canceled && result.filePaths.length > 0) {
         const selectedPath = result.filePaths[0];
@@ -384,8 +387,8 @@ function SubtitleTranslator() {
         };
         addTask(newTask);
       } catch (error) {
-        console.error("读取文件失败:", error);
-        showToast(`读取文件 ${file.name} 失败`, "error");
+        console.error(t("subtitle:translator.errors.read_file_failed"), error);
+      showToast(t("subtitle:translator.errors.read_file_failed").replace("{file}", file.name), "error");
       }
     }
   };
@@ -539,7 +542,7 @@ function SubtitleTranslator() {
             className="flex items-center justify-between p-4 cursor-pointer select-none"
             onClick={() => setIsScheduleOpen((v) => !v)}
           >
-            <div className="text-xl font-semibold">定时开始</div>
+            <div className="text-xl font-semibold">{t("subtitle:translator.schedule.title")}</div>
             <ChevronDownIcon
               className={`h-5 w-5 transition-transform ${
                 isScheduleOpen ? "rotate-180" : ""
@@ -551,7 +554,7 @@ function SubtitleTranslator() {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
                 <div className="form-control">
                   <label className="label -ml-1 -mb-1">
-                    <span className="label-text">开始时间</span>
+                    <span className="label-text">{t("subtitle:translator.schedule.start_time")}</span>
                   </label>
                   <input
                     type="datetime-local"
@@ -565,7 +568,7 @@ function SubtitleTranslator() {
                 </div>
                 <div className="form-control">
                   <label className="label cursor-pointer space-x-2">
-                    <span className="label-text">防止系统睡眠直到开始</span>
+                    <span className="label-text">{t("subtitle:translator.schedule.prevent_sleep_until_start")}</span>
                     <input
                       type="checkbox"
                       className="toggle toggle-sm"
@@ -574,7 +577,7 @@ function SubtitleTranslator() {
                     />
                   </label>
                   <span className="text-xs text-gray-500">
-                    仅防止因空闲触发的睡眠，不阻止手动睡眠或合盖
+                    {t("subtitle:translator.schedule.prevent_sleep_note")}
                   </span>
                 </div>
                 <div className="flex gap-2">
@@ -588,41 +591,41 @@ function SubtitleTranslator() {
                         if (!scheduleTime || !Number.isFinite(targetEpochMs))
                           return;
                         if (targetEpochMs <= Date.now()) {
-                          showToast("请选择未来的时间", "default");
+                          showToast(t("subtitle:translator.schedule.choose_future_time"), "default");
                           return;
                         }
                         hasTriggeredRef.current = false;
                         setScheduleEnabled(true);
                         if (preventSleep)
                           await startPowerBlockerUntil(targetEpochMs);
-                        showToast("已设置定时开始", "success");
+                        showToast(t("subtitle:translator.schedule.scheduled_set"), "success");
                       }}
                     >
-                      启用定时
+                      {t("subtitle:translator.schedule.enable")}
                     </button>
                   ) : (
                     <button
                       className="btn btn-outline btn-sm"
                       onClick={() => cancelSchedule()}
                     >
-                      取消定时
+                      {t("subtitle:translator.schedule.cancel")}
                     </button>
                   )}
                 </div>
               </div>
               <div className="mt-2 text-sm text-gray-600">
-                <span className="mr-2">状态：</span>
+                <span className="mr-2">{t("subtitle:translator.schedule.status")}</span>
                 {scheduleEnabled ? (
                   <span>
-                    已启用，倒计时 {formatRemaining(remainingMs)}
+                    {t("subtitle:translator.schedule.enabled_countdown")} {formatRemaining(remainingMs)}
                     {blockerId != null && (
                       <span className="ml-2 text-xs text-green-600">
-                        已防睡眠
+                        {t("subtitle:translator.schedule.sleep_blocker_on")}
                       </span>
                     )}
                   </span>
                 ) : (
-                  <span>未启用</span>
+                  <span>{t("subtitle:translator.schedule.disabled")}</span>
                 )}
               </div>
             </div>
@@ -637,7 +640,7 @@ function SubtitleTranslator() {
             className="flex items-center justify-between p-4 cursor-pointer select-none"
             onClick={() => setIsNewTaskConfigOpen((v) => !v)}
           >
-            <div className="text-xl font-semibold">新任务配置</div>
+            <div className="text-xl font-semibold">{t("subtitle:translator.new_task_config.title")}</div>
             <ChevronDownIcon
               className={`h-5 w-5 transition-transform ${
                 isNewTaskConfigOpen ? "rotate-180" : ""
@@ -647,26 +650,24 @@ function SubtitleTranslator() {
           {isNewTaskConfigOpen && (
             <div className="-mt-2 p-4 pt-0">
               <div className="text-sm text-gray-600 dark:text-gray-300 mb-3">
-                当前分片模式配置，将应用于新添加的任务。已存在的任务保持创建时的配置不变。
+                {t("subtitle:translator.new_task_config.note")}
               </div>
               <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
                 <div className="bg-base-100 rounded p-3">
-                  <div className="text-gray-500 text-xs mb-1">当前分片模式</div>
+                  <div className="text-gray-500 text-xs mb-1">{t("subtitle:translator.new_task_config.current_slice_mode")}</div>
                   <div className="font-medium">
                     {t(
                       `subtitle:translator.slice_types.${sliceType.toLowerCase()}`
                     )}
                     {sliceType === SubtitleSliceType.CUSTOM && (
                       <span className="ml-1 text-gray-500">
-                        ({sliceLengthMap[SubtitleSliceType.CUSTOM]}字符)
+                        ({sliceLengthMap[SubtitleSliceType.CUSTOM]}{t("subtitle:translator.new_task_config.chars_suffix")})
                       </span>
                     )}
                   </div>
                 </div>
                 <div className="bg-base-100 rounded p-3">
-                  <div className="text-gray-500 text-xs mb-1">
-                    费率 (输入/输出)
-                  </div>
+                  <div className="text-gray-500 text-xs mb-1">{t("subtitle:translator.new_task_config.rate_in_out")}</div>
                   <div className="font-mono text-sm">
                     $
                     {getTokenPricingByType(model).inputTokensPerMillion.toFixed(
@@ -680,9 +681,9 @@ function SubtitleTranslator() {
                   </div>
                 </div>
                 <div className="bg-base-100 rounded p-3">
-                  <div className="text-gray-500 text-xs mb-1">任务总数</div>
+                  <div className="text-gray-500 text-xs mb-1">{t("subtitle:translator.new_task_config.total_tasks")}</div>
                   <div className="font-medium">
-                    {tokenStats.taskCount} 个任务
+                    {t("subtitle:translator.new_task_config.task_count").replace("{count}", String(tokenStats.taskCount))}
                   </div>
                 </div>
               </div>
@@ -857,7 +858,7 @@ function SubtitleTranslator() {
                   {task.status === TaskStatus.FAILED && (
                     <a
                       className="cursor-pointer tooltip text-error"
-                      data-tip="查看错误详情"
+                      data-tip={t("subtitle:translator.actions.view_error_detail")}
                       onClick={() => openErrorModal(task)}
                     >
                       <ExclamationTriangleIcon className="size-6" />

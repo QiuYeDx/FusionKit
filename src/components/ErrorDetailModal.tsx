@@ -28,22 +28,22 @@ const ErrorDetailModal: React.FC<ErrorDetailModalProps> = ({
   // 复制错误信息到剪贴板
   const copyToClipboard = () => {
     const errorInfo = [
-      `任务名称: ${taskName}`,
-      `错误时间: ${timestamp || new Date().toLocaleString()}`,
-      `错误消息: ${errorMessage}`,
-      `错误详情: ${errorDetails}`,
+      `${t("common:error.task_name")}: ${taskName}`,
+      `${t("common:error.time")}: ${timestamp || new Date().toLocaleString()}`,
+      `${t("common:error.message")}: ${errorMessage}`,
+      `${t("common:error.detail")}: ${errorDetails}`,
       "",
-      "详细日志:",
+      `${t("common:error.logs")}:`,
       ...errorLogs.map((log, index) => `${index + 1}. ${log}`),
     ].join("\n");
 
     navigator.clipboard
       .writeText(errorInfo)
       .then(() => {
-        showToast("错误信息已复制到剪贴板", "success");
+        showToast(t("common:info.copy_success"), "success");
       })
       .catch(() => {
-        showToast("复制失败，请手动复制", "error");
+        showToast(t("common:error.copy_failed"), "error");
       });
   };
 
@@ -126,13 +126,13 @@ const ErrorDetailModal: React.FC<ErrorDetailModalProps> = ({
                 {/* 头部 */}
                 <div className="flex items-center justify-between px-6 pt-2 border-b border-base-300/50 bg-base-100/80 backdrop-blur-sm rounded-t-xl">
                   <h2 className="text-xl font-semibold text-base-content">
-                    错误详情 - {taskName}
+                    {t("common:error.detail_title")} - {taskName}
                   </h2>
                   <div className="flex items-center gap-2">
                     <button
                       onClick={copyToClipboard}
                       className="btn btn-ghost btn-sm tooltip"
-                      data-tip="复制错误信息"
+                      data-tip={t("common:action.copy_error")}
                     >
                       <ClipboardDocumentIcon className="w-5 h-5" />
                     </button>
@@ -149,7 +149,7 @@ const ErrorDetailModal: React.FC<ErrorDetailModalProps> = ({
                     {timestamp && (
                       <div>
                         <label className="block text-sm font-medium text-base-content mb-1">
-                          错误时间
+                          {t("common:error.time")}
                         </label>
                         <div className="text-sm text-base-content/70">
                           {timestamp}
@@ -159,7 +159,7 @@ const ErrorDetailModal: React.FC<ErrorDetailModalProps> = ({
 
                     <div>
                       <label className="block text-sm font-medium text-base-content mb-1">
-                        错误消息
+                        {t("common:error.message")}
                       </label>
                       <div className="bg-error/10 text-error border border-error/20 rounded-lg p-3 text-sm">
                         {errorMessage}
@@ -168,7 +168,7 @@ const ErrorDetailModal: React.FC<ErrorDetailModalProps> = ({
 
                     <div>
                       <label className="block text-sm font-medium text-base-content mb-1">
-                        错误详情
+                        {t("common:error.detail")}
                       </label>
                       <div className="bg-base-200 rounded-lg p-3 text-sm text-base-content/80 font-mono">
                         {errorDetails}
@@ -178,7 +178,7 @@ const ErrorDetailModal: React.FC<ErrorDetailModalProps> = ({
                     {errorLogs.length > 0 && (
                       <div>
                         <label className="block text-sm font-medium text-base-content mb-1">
-                          详细日志 ({errorLogs.length} 条记录)
+                          {t("common:error.logs_with_count").replace("{count}", String(errorLogs.length))}
                         </label>
                         <div className="bg-base-200 rounded-lg p-4 space-y-2 max-h-64 overflow-y-auto">
                           {logTrail.map((styles, index) => (

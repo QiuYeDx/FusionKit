@@ -93,14 +93,23 @@ function SubtitleConverter() {
 
   const handleSelectOutputPath = async () => {
     try {
-      const result = await window.ipcRenderer.invoke("select-output-directory");
+      const result = await window.ipcRenderer.invoke(
+        "select-output-directory",
+        {
+          title: t("subtitle:converter.dialog.select_output_title"),
+          buttonLabel: t("subtitle:converter.dialog.select_output_confirm"),
+        }
+      );
       if (result && !result.canceled && result.filePaths.length > 0) {
         const selectedPath = result.filePaths[0];
         setOutputURL(selectedPath);
-        showToast("已选择输出目录", "success");
+        showToast(
+          t("subtitle:converter.infos.output_path_selected"),
+          "success"
+        );
       }
     } catch (error) {
-      showToast("选择输出目录失败", "error");
+      showToast(t("subtitle:converter.errors.path_selection_failed"), "error");
     }
   };
 
@@ -128,7 +137,10 @@ function SubtitleConverter() {
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!outputURL) {
-      showToast("请先选择输出目录", "error");
+      showToast(
+        t("subtitle:converter.errors.please_select_output_url"),
+        "error"
+      );
       return;
     }
     const files = e.target.files;
@@ -142,11 +154,23 @@ function SubtitleConverter() {
         !ext ||
         ![SubtitleFileType.LRC, SubtitleFileType.SRT].includes(ext as any)
       ) {
-        showToast(`不支持的文件类型: ${ext || "-"}`, "error");
+        showToast(
+          t("subtitle:converter.errors.invalid_file_type").replace(
+            "{types}",
+            ext || "-"
+          ),
+          "error"
+        );
         continue;
       }
       if (existingNames.includes(file.name)) {
-        showToast(`重复的文件: ${file.name}`, "error");
+        showToast(
+          t("subtitle:converter.errors.duplicate_file").replace(
+            "{file}",
+            file.name
+          ),
+          "error"
+        );
         continue;
       }
 
@@ -170,7 +194,13 @@ function SubtitleConverter() {
         };
         setTasks((prev) => [...prev, newTask]);
       } catch (err) {
-        showToast(`读取文件 ${file.name} 失败`, "error");
+        showToast(
+          t("subtitle:converter.errors.read_file_failed").replace(
+            "{file}",
+            file.name
+          ),
+          "error"
+        );
       }
     }
   };
@@ -210,7 +240,13 @@ function SubtitleConverter() {
             : t
         )
       );
-      showToast(`转换完成: ${fileName}`, "success");
+      showToast(
+        t("subtitle:converter:infos.task_convert_done").replace(
+          "{file}",
+          fileName
+        ),
+        "success"
+      );
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       setTasks((prev) =>
@@ -225,7 +261,13 @@ function SubtitleConverter() {
             : t
         )
       );
-      showToast(`转换失败: ${fileName}`, "error");
+      showToast(
+        t("subtitle:converter:errors.task_convert_failed").replace(
+          "{file}",
+          fileName
+        ),
+        "error"
+      );
     }
   };
 
@@ -260,7 +302,7 @@ function SubtitleConverter() {
 
   const deleteTask = (fileName: string) => {
     setTasks((prev) => prev.filter((t) => t.fileName !== fileName));
-    showToast("任务已删除", "success");
+    showToast(t("subtitle:converter:infos.task_deleted"), "success");
   };
 
   const getTaskStatusColor = (status: TaskStatus) => {
@@ -280,9 +322,11 @@ function SubtitleConverter() {
 
   return (
     <div className="p-4">
-      <div className="text-2xl font-bold mb-4">字幕格式转换</div>
+      <div className="text-2xl font-bold mb-4">
+        {t("subtitle:converter:title")}
+      </div>
       <div className="mb-6 text-gray-600 dark:text-gray-300">
-        支持 LRC 与 SRT 两种字幕格式之间的相互转换。
+        {t("subtitle:converter:description")}
       </div>
 
       {/* 配置选项 */}
@@ -292,7 +336,9 @@ function SubtitleConverter() {
             className="flex items-center justify-between p-4 cursor-pointer select-none"
             onClick={() => setIsConfigOpen((v) => !v)}
           >
-            <div className="text-xl font-semibold">配置选项</div>
+            <div className="text-xl font-semibold">
+              {t("subtitle:converter:config_title")}
+            </div>
             <ChevronDownIcon
               className={`h-5 w-5 transition-transform ${
                 isConfigOpen ? "rotate-180" : ""
@@ -303,14 +349,16 @@ function SubtitleConverter() {
             <div className="-mt-2 p-4 pt-0">
               <div className="form-control -ml-1">
                 <label className="label -mb-2 pt-0">
-                  <span className="label-text">转换方向</span>
+                  <span className="label-text">
+                    {t("subtitle:converter:fields.convert_direction")}
+                  </span>
                 </label>
                 <div className="join -ml-0.5">
                   <input
                     type="radio"
                     className="join-item btn btn-sm bg-base-100"
                     name="convert_dir"
-                    aria-label="LRC → SRT"
+                    aria-label={t("subtitle:converter:fields.lrc_to_srt")}
                     checked={direction === "LRC_TO_SRT"}
                     onChange={() => setDirection("LRC_TO_SRT")}
                   />
@@ -318,7 +366,7 @@ function SubtitleConverter() {
                     type="radio"
                     className="join-item btn btn-sm bg-base-100 mt-[3px]"
                     name="convert_dir"
-                    aria-label="SRT → LRC"
+                    aria-label={t("subtitle:converter:fields.srt_to_lrc")}
                     checked={direction === "SRT_TO_LRC"}
                     onChange={() => setDirection("SRT_TO_LRC")}
                   />
@@ -329,7 +377,7 @@ function SubtitleConverter() {
                 <div className="form-control mt-2">
                   <label className="label -ml-1 -mb-1">
                     <span className="label-text">
-                      默认时长 (秒，缺少结束时间时使用)
+                      {t("subtitle:converter:fields.default_duration_label")}
                     </span>
                   </label>
                   <input
@@ -354,7 +402,9 @@ function SubtitleConverter() {
             className="flex items-center justify-between p-4 cursor-pointer select-none"
             onClick={() => setIsOutputOpen((v) => !v)}
           >
-            <div className="text-xl font-semibold">输出设置</div>
+            <div className="text-xl font-semibold">
+              {t("subtitle:converter:output_path_section")}
+            </div>
             <ChevronDownIcon
               className={`h-5 w-5 transition-transform ${
                 isOutputOpen ? "rotate-180" : ""
@@ -369,11 +419,13 @@ function SubtitleConverter() {
                     onClick={handleSelectOutputPath}
                     className="btn btn-primary btn-sm join-item"
                   >
-                    选择输出目录
+                    {t("subtitle:converter:fields.select_output_path")}
                   </button>
                   <input
                     type="text"
-                    placeholder="未选择输出目录"
+                    placeholder={t(
+                      "subtitle:converter:fields.no_output_path_selected"
+                    )}
                     value={outputURL}
                     onChange={() => {}}
                     className="join-item input input-sm input-bordered box-border grow shrink-0"
@@ -392,7 +444,9 @@ function SubtitleConverter() {
             className="flex items-center justify-between p-4 cursor-pointer select-none"
             onClick={() => setIsSummaryOpen((v) => !v)}
           >
-            <div className="text-xl font-semibold">当前配置</div>
+            <div className="text-xl font-semibold">
+              {t("subtitle:converter:summary_title")}
+            </div>
             <ChevronDownIcon
               className={`h-5 w-5 transition-transform ${
                 isSummaryOpen ? "rotate-180" : ""
@@ -403,20 +457,33 @@ function SubtitleConverter() {
             <div className="-mt-2 p-4 pt-0">
               <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
                 <div className="bg-base-100 rounded p-3">
-                  <div className="text-gray-500 text-xs mb-1">转换方向</div>
+                  <div className="text-gray-500 text-xs mb-1">
+                    {t("subtitle:converter:fields.convert_direction")}
+                  </div>
                   <div className="font-medium">
-                    {direction === "LRC_TO_SRT" ? "LRC → SRT" : "SRT → LRC"}
+                    {direction === "LRC_TO_SRT"
+                      ? t("subtitle:converter:fields.lrc_to_srt")
+                      : t("subtitle:converter:fields.srt_to_lrc")}
                   </div>
                 </div>
                 {direction === "LRC_TO_SRT" && (
                   <div className="bg-base-100 rounded p-3">
-                    <div className="text-gray-500 text-xs mb-1">默认时长</div>
+                    <div className="text-gray-500 text-xs mb-1">
+                      {t("subtitle:converter:summary.default_duration")}
+                    </div>
                     <div className="font-medium">{defaultDurationSec}s</div>
                   </div>
                 )}
                 <div className="bg-base-100 rounded p-3">
-                  <div className="text-gray-500 text-xs mb-1">任务总数</div>
-                  <div className="font-medium">{tasks.length} 个任务</div>
+                  <div className="text-gray-500 text-xs mb-1">
+                    {t("subtitle:converter:summary.total_tasks")}
+                  </div>
+                  <div className="font-medium">
+                    {t("subtitle:converter:summary.task_count").replace(
+                      "{count}",
+                      String(tasks.length)
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
@@ -427,7 +494,9 @@ function SubtitleConverter() {
       {/* 文件上传 */}
       <div className="mb-4">
         <div className="bg-base-200 p-4 rounded-lg">
-          <div className="text-xl font-semibold mb-4">文件上传</div>
+          <div className="text-xl font-semibold mb-4">
+            {t("subtitle:converter:upload_section")}
+          </div>
           <label
             className={`flex flex-col items-center justify-center border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-6 cursor-pointer transition-colors file-drop-zone ${
               isDragging
@@ -454,8 +523,12 @@ function SubtitleConverter() {
               )}
             </div>
             <div className="text-center pointer-events-none">
-              <p className="font-medium">点击或拖拽 LRC/SRT 文件到此处</p>
-              <p className="text-sm text-gray-500 mt-1">仅支持 .lrc, .srt</p>
+              <p className="font-medium">
+                {t("subtitle:converter:fields.upload_tips")}
+              </p>
+              <p className="text-sm text-gray-500 mt-1">
+                {t("subtitle:converter:fields.files_only")}
+              </p>
             </div>
           </label>
         </div>
@@ -464,21 +537,23 @@ function SubtitleConverter() {
       {/* 任务管理 */}
       <div className="bg-base-200 p-4 rounded-lg mb-12">
         <div className="flex items-center justify-between mb-4">
-          <div className="text-xl font-semibold">任务管理</div>
+          <div className="text-xl font-semibold">
+            {t("subtitle:converter:task_management")}
+          </div>
           <div className="flex gap-2">
             <button
               className="btn btn-primary btn-sm"
               onClick={startAllTasks}
               disabled={notStartedTasks.length === 0}
             >
-              开始全部
+              {t("subtitle:converter:fields.start_all")}
             </button>
             <button
               className="btn btn-primary btn-sm"
               onClick={removeAllResolvedTask}
               disabled={resolvedTasks.length === 0}
             >
-              清空完成
+              {t("subtitle:converter:fields.remove_all_resolved_task")}
             </button>
           </div>
         </div>
@@ -497,17 +572,23 @@ function SubtitleConverter() {
                   <div className="font-medium flex-1">
                     {task.fileName}
                     <div className="text-sm text-gray-500 mt-1">
-                      {task.status === TaskStatus.NOT_STARTED && "未开始"}
+                      {task.status === TaskStatus.NOT_STARTED &&
+                        t("subtitle:converter:task_status.notstarted")}
                       {task.status === TaskStatus.PENDING &&
-                        ` 处理中 ${Math.round(task.progress || 0)}%`}
-                      {task.status === TaskStatus.RESOLVED && " 已完成"}
-                      {task.status === TaskStatus.FAILED && " 失败"}
+                        ` ${t(
+                          "subtitle:converter:task_status.pending"
+                        )} ${Math.round(task.progress || 0)}%`}
+                      {task.status === TaskStatus.RESOLVED &&
+                        ` ${t("subtitle:converter:task_status.resolved")}`}
+                      {task.status === TaskStatus.FAILED &&
+                        ` ${t("subtitle:converter:task_status.failed")}`}
                       <span className="ml-4 px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded text-xs">
                         {task.from} → {task.to}
                       </span>
                       {task.outputFilePath && (
                         <span className="ml-4 font-mono text-xs text-green-600">
-                          输出: {task.outputFilePath}
+                          {t("subtitle:converter:labels.output")}:{" "}
+                          {task.outputFilePath}
                         </span>
                       )}
                     </div>
@@ -518,7 +599,9 @@ function SubtitleConverter() {
                   {task.status === TaskStatus.FAILED && (
                     <a
                       className="cursor-pointer tooltip text-error"
-                      data-tip="查看错误详情"
+                      data-tip={t(
+                        "subtitle:converter:actions.view_error_detail"
+                      )}
                       onClick={() => openErrorModal(task)}
                     >
                       <ExclamationTriangleIcon className="size-6" />
@@ -528,7 +611,7 @@ function SubtitleConverter() {
                   {task.status === TaskStatus.FAILED && (
                     <a
                       className="cursor-pointer tooltip"
-                      data-tip="重试"
+                      data-tip={t("subtitle:converter:actions.retry")}
                       onClick={() => retryTask(task.fileName)}
                     >
                       <ArrowPathIcon className="size-6" />
@@ -538,7 +621,7 @@ function SubtitleConverter() {
                   {task.status === TaskStatus.NOT_STARTED && (
                     <a
                       className="cursor-pointer tooltip"
-                      data-tip="开始"
+                      data-tip={t("subtitle:converter:actions.start")}
                       onClick={() => startTask(task.fileName)}
                     >
                       <PlayCircleIcon className="size-6" />
@@ -547,7 +630,7 @@ function SubtitleConverter() {
 
                   <a
                     className="cursor-pointer tooltip"
-                    data-tip="删除"
+                    data-tip={t("subtitle:converter:actions.delete")}
                     onClick={() => deleteTask(task.fileName)}
                   >
                     <TrashIcon className="size-6" />
@@ -567,7 +650,9 @@ function SubtitleConverter() {
         </div>
 
         {tasks.length === 0 && (
-          <div className="text-center py-8 text-gray-500">暂无任务</div>
+          <div className="text-center py-8 text-gray-500">
+            {t("subtitle:converter:fields.no_tasks")}
+          </div>
         )}
       </div>
 

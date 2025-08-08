@@ -35,16 +35,166 @@
     },
     "infos": {
       "output_path_selected": "输出路径已设置",
-      "total_fragments": "总分片数：{count}"
+      "total_fragments": "总分片数：{count}",
+      "task_deleted": "任务已删除",
+      "task_canceled": "任务已取消",
+      "task_canceled_by_user": "任务已被用户取消",
+      "task_cancel_toast": "任务已取消"
     },
     "errors": {
       "invalid_file_type": "不支持的文件类型：{types}",
       "duplicate_file": "文件 {file} 已存在，跳过重复添加",
       "path_selection_failed": "路径选择失败，请重试",
-      "please_select_output_url": "请先选择输出路径"
+      "please_select_output_url": "请先选择输出路径",
+      "read_file_failed": "读取文件 {file} 失败"
     },
     "upload_section": "文件上传",
     "task_management": "任务队列",
-    "output_path_section": "输出设置"
+    "output_path_section": "输出设置",
+    "dialog": {
+      "select_output_title": "选择输出目录",
+      "select_output_confirm": "选择此目录"
+    },
+    "schedule": {
+      "title": "定时开始",
+      "start_time": "开始时间",
+      "prevent_sleep_until_start": "防止系统睡眠直到开始",
+      "prevent_sleep_note": "仅防止因空闲触发的睡眠，不阻止手动睡眠或合盖",
+      "choose_future_time": "请选择未来的时间",
+      "scheduled_set": "已设置定时开始",
+      "enable": "启用定时",
+      "cancel": "取消定时",
+      "status": "状态：",
+      "enabled_countdown": "已启用，倒计时",
+      "sleep_blocker_on": "已防睡眠",
+      "disabled": "未启用"
+    },
+    "new_task_config": {
+      "title": "新任务配置",
+      "note": "当前分片模式配置，将应用于新添加的任务。已存在的任务保持创建时的配置不变。",
+      "current_slice_mode": "当前分片模式",
+      "chars_suffix": "字符",
+      "rate_in_out": "费率 (输入/输出)",
+      "total_tasks": "任务总数",
+      "task_count": "{count} 个任务"
+    }
+  },
+  "extractor": {
+    "title": "字幕语言提取",
+    "description": "支持从 LRC/SRT 双语字幕中仅保留中文字幕或仅保留日语字幕，保持原格式与时间轴。",
+    "config_title": "配置选项",
+    "output_path_section": "输出设置",
+    "summary_title": "当前配置",
+    "upload_section": "文件上传",
+    "task_management": "任务管理",
+    "fields": {
+      "keep_language": "保留语言",
+      "zh_only": "仅中文",
+      "ja_only": "仅日文",
+      "zh": "中文",
+      "ja": "日文",
+      "select_output_path": "选择输出目录",
+      "no_output_path_selected": "未选择输出目录",
+      "upload_tips": "点击或拖拽 LRC/SRT 文件到此处",
+      "files_only": "仅支持 .lrc, .srt",
+      "start_all": "开始全部",
+      "remove_all_resolved_task": "清空完成",
+      "no_tasks": "暂无任务"
+    },
+    "task_status": {
+      "notstarted": "未开始",
+      "pending": "处理中",
+      "resolved": "已完成",
+      "failed": "失败"
+    },
+    "summary": {
+      "total_tasks": "任务总数",
+      "task_count": "共 {count} 个任务"
+    },
+    "labels": {
+      "output": "输出"
+    },
+    "actions": {
+      "view_error_detail": "查看错误详情",
+      "retry": "重试",
+      "start": "开始",
+      "delete": "删除"
+    },
+    "infos": {
+      "output_path_selected": "输出路径已设置",
+      "task_deleted": "任务已删除",
+      "task_extract_done": "提取完成：{file}"
+    },
+    "errors": {
+      "path_selection_failed": "路径选择失败，请重试",
+      "please_select_output_url": "请先选择输出目录",
+      "invalid_file_type": "不支持的文件类型：{types}",
+      "duplicate_file": "重复的文件：{file}",
+      "read_file_failed": "读取文件 {file} 失败",
+      "task_extract_failed": "提取失败：{file}"
+    },
+    "dialog": {
+      "select_output_title": "选择输出目录",
+      "select_output_confirm": "选择此目录"
+    }
+  },
+  "converter": {
+    "title": "字幕格式转换",
+    "description": "支持 LRC 与 SRT 两种字幕格式之间的相互转换。",
+    "config_title": "配置选项",
+    "output_path_section": "输出设置",
+    "summary_title": "当前配置",
+    "upload_section": "文件上传",
+    "task_management": "任务管理",
+    "fields": {
+      "convert_direction": "转换方向",
+      "lrc_to_srt": "LRC → SRT",
+      "srt_to_lrc": "SRT → LRC",
+      "default_duration_label": "默认时长 (秒，缺少结束时间时使用)",
+      "select_output_path": "选择输出目录",
+      "no_output_path_selected": "未选择输出目录",
+      "upload_tips": "点击或拖拽 LRC/SRT 文件到此处",
+      "files_only": "仅支持 .lrc, .srt",
+      "start_all": "开始全部",
+      "remove_all_resolved_task": "清空完成",
+      "no_tasks": "暂无任务"
+    },
+    "task_status": {
+      "notstarted": "未开始",
+      "pending": "处理中",
+      "resolved": "已完成",
+      "failed": "失败"
+    },
+    "summary": {
+      "total_tasks": "任务总数",
+      "task_count": "共 {count} 个任务",
+      "default_duration": "默认时长"
+    },
+    "labels": {
+      "output": "输出"
+    },
+    "actions": {
+      "view_error_detail": "查看错误详情",
+      "retry": "重试",
+      "start": "开始",
+      "delete": "删除"
+    },
+    "infos": {
+      "output_path_selected": "输出路径已设置",
+      "task_deleted": "任务已删除",
+      "task_convert_done": "转换完成：{file}"
+    },
+    "errors": {
+      "path_selection_failed": "路径选择失败，请重试",
+      "please_select_output_url": "请先选择输出目录",
+      "invalid_file_type": "不支持的文件类型：{types}",
+      "duplicate_file": "重复的文件：{file}",
+      "read_file_failed": "读取文件 {file} 失败",
+      "task_convert_failed": "转换失败：{file}"
+    },
+    "dialog": {
+      "select_output_title": "选择输出目录",
+      "select_output_confirm": "选择此目录"
+    }
   }
 }

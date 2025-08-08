@@ -17,7 +17,7 @@ function LanguageConfig() {
           className="join-item btn btn-sm bg-base-100"
           type="radio"
           name="language"
-          aria-label="中文" // 固定显示“中文”
+          aria-label={t("common:lang.zh", { defaultValue: "中文" })}
           checked={language === "zh"}
           onChange={() => changeLanguage(LangEnum.ZH)}
         />
@@ -25,7 +25,7 @@ function LanguageConfig() {
           className="join-item btn btn-sm bg-base-100 mt-[3px]"
           type="radio"
           name="language"
-          aria-label="日本語" // 固定显示“日本語”
+          aria-label={t("common:lang.ja", { defaultValue: "日本語" })}
           checked={language === "ja"}
           onChange={() => changeLanguage(LangEnum.JA)}
         />
@@ -33,7 +33,7 @@ function LanguageConfig() {
           className="join-item btn btn-sm bg-base-100 mt-[3px]"
           type="radio"
           name="language"
-          aria-label="English" // 固定显示“English”
+          aria-label={t("common:lang.en", { defaultValue: "English" })}
           checked={language === "en"}
           onChange={() => changeLanguage(LangEnum.EN)}
         />

@@ -6,9 +6,33 @@
     "setting": "设置",
     "back": "返回",
     "subtitle": {
-      "translator": "字幕AI翻译"
+      "translator": "字幕AI翻译",
+      "converter": "字幕格式转换",
+      "extractor": "字幕语言提取"
     }
   },
   "start": "开始",
-  "retry": "重试"
+  "retry": "重试",
+  "app_name": "FusionKit",
+  "action": {
+    "copy_error": "复制错误信息"
+  },
+  "info": {
+    "copy_success": "错误信息已复制到剪贴板"
+  },
+  "error": {
+    "detail_title": "错误详情",
+    "task_name": "任务名称",
+    "time": "错误时间",
+    "message": "错误消息",
+    "detail": "错误详情",
+    "logs": "详细日志",
+    "logs_with_count": "详细日志 ({count} 条记录)",
+    "copy_failed": "复制失败，请手动复制"
+  },
+  "lang": {
+    "zh": "中文",
+    "ja": "日本語",
+    "en": "English"
+  }
 }

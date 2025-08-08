@@ -4,7 +4,8 @@
   "subtitle": {
     "theme_config": "Theme Settings",
     "language_config": "Language Settings",
-    "apikey_config": "Model Settings"
+    "apikey_config": "Model Settings",
+    "token_price_config": "Token Pricing"
   },
   "fields": {
     "light_mode": "Light Mode",
@@ -12,7 +13,21 @@
     "system_mode": "Follow System",
     "other": "Other",
     "apikey": "API Key",
-    "model_url": "Base URL"
+    "model_url": "Base URL",
+    "token_price": {
+      "intro_title": "Token Pricing",
+      "intro_desc": "Configure the price per 1M tokens (USD).",
+      "intro_desc_preset": "Preset model prices can be adjusted, but using the official pricing is recommended.",
+      "input_price": "Input Token Price",
+      "output_price": "Output Token Price",
+      "per_million": "$/1M tokens",
+      "current_price_title": "Current Token Price for {model}:",
+      "custom_model": "Custom Model",
+      "input_label": "Input:",
+      "output_label": "Output:",
+      "preset_note": "Note: {model} pricing is preset based on official rates. You may adjust as needed, but official pricing is recommended for accuracy.",
+      "custom_note": "Tip: Please set the token prices based on your custom model's actual pricing for an accurate cost estimate."
+    }
   },
   "placeholder": {
     "apikey": "Please enter your API Key",

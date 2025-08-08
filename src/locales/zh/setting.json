@@ -4,7 +4,8 @@
   "subtitle": {
     "theme_config": "主题设置",
     "language_config": "语言设置",
-    "apikey_config": "模型设置"
+    "apikey_config": "模型设置",
+    "token_price_config": "Token 价格配置"
   },
   "fields": {
     "light_mode": "浅色模式",
@@ -13,7 +14,21 @@
     "other": "其他",
     "apikey": "API Key",
     "model_url": "Base URL",
-    "model_key": "Model Key"
+    "model_key": "Model Key",
+    "token_price": {
+      "intro_title": "Token 价格配置",
+      "intro_desc": "配置每 1M tokens 的价格（美元）。",
+      "intro_desc_preset": "预设模型的价格可以调整，但建议使用官方定价。",
+      "input_price": "输入 Token 价格",
+      "output_price": "输出 Token 价格",
+      "per_million": "$/1M tokens",
+      "current_price_title": "当前 {model} 的 Token 价格：",
+      "custom_model": "自定义模型",
+      "input_label": "输入:",
+      "output_label": "输出:",
+      "preset_note": "注意：{model} 的价格已根据官方定价预设。您可以根据实际情况调整价格，但建议使用官方定价以确保准确性。",
+      "custom_note": "提示：请根据您使用的自定义模型的实际定价设置 Token 价格，以获得准确的费用预估。"
+    }
   },
   "placeholder": {
     "apikey": "请输入 API Key",

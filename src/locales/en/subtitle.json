@@ -32,15 +32,165 @@
     },
     "infos": {
       "output_path_selected": "Output path is set",
-      "total_fragments": "Total fragments: {count}"
+      "total_fragments": "Total fragments: {count}",
+      "task_deleted": "Task deleted",
+      "task_canceled": "Task canceled",
+      "task_canceled_by_user": "Task canceled by user",
+      "task_cancel_toast": "Task canceled"
     },
     "errors": {
       "invalid_file_type": "Unsupported file type: {types}",
       "duplicate_file": "File {file} already exists, skipping duplicate addition",
       "path_selection_failed": "Path selection failed, please try again",
-      "please_select_output_url": "Please select the output URL first"
+      "please_select_output_url": "Please select the output URL first",
+      "read_file_failed": "Failed to read file {file}"
     },
     "upload_section": "File Upload",
-    "task_management": "Task Queue"
+    "task_management": "Task Queue",
+    "dialog": {
+      "select_output_title": "Select Output Directory",
+      "select_output_confirm": "Use This Directory"
+    },
+    "schedule": {
+      "title": "Scheduled Start",
+      "start_time": "Start Time",
+      "prevent_sleep_until_start": "Prevent system sleep until start",
+      "prevent_sleep_note": "Prevents idle sleep only; manual sleep or lid close is not blocked",
+      "choose_future_time": "Please choose a future time",
+      "scheduled_set": "Scheduled start set",
+      "enable": "Enable schedule",
+      "cancel": "Cancel schedule",
+      "status": "Status:",
+      "enabled_countdown": "Enabled, countdown",
+      "sleep_blocker_on": "Sleep blocked",
+      "disabled": "Disabled"
+    },
+    "new_task_config": {
+      "title": "New Task Configuration",
+      "note": "Current slice mode applies to newly added tasks. Existing tasks keep their creation-time configuration.",
+      "current_slice_mode": "Current Slice Mode",
+      "chars_suffix": "chars",
+      "rate_in_out": "Rate (Input/Output)",
+      "total_tasks": "Total Tasks",
+      "task_count": "{count} tasks"
+    }
+  },
+  "extractor": {
+    "title": "Subtitle Language Extraction",
+    "description": "Keep only Chinese or only Japanese from bilingual LRC/SRT subtitles while preserving format and timestamps.",
+    "config_title": "Configuration Options",
+    "output_path_section": "Output Settings",
+    "summary_title": "Current Configuration",
+    "upload_section": "File Upload",
+    "task_management": "Task Management",
+    "fields": {
+      "keep_language": "Keep Language",
+      "zh_only": "Chinese Only",
+      "ja_only": "Japanese Only",
+      "zh": "Chinese",
+      "ja": "Japanese",
+      "select_output_path": "Select Output Directory",
+      "no_output_path_selected": "No output directory selected",
+      "upload_tips": "Click or drag LRC/SRT files here",
+      "files_only": "Only .lrc, .srt supported",
+      "start_all": "Start All",
+      "remove_all_resolved_task": "Clear Completed",
+      "no_tasks": "No tasks yet"
+    },
+    "task_status": {
+      "notstarted": "Not Started",
+      "pending": "Processing",
+      "resolved": "Completed",
+      "failed": "Failed"
+    },
+    "summary": {
+      "total_tasks": "Total Tasks",
+      "task_count": "{count} tasks"
+    },
+    "labels": {
+      "output": "Output"
+    },
+    "actions": {
+      "view_error_detail": "View Error Details",
+      "retry": "Retry",
+      "start": "Start",
+      "delete": "Delete"
+    },
+    "infos": {
+      "output_path_selected": "Output path set",
+      "task_deleted": "Task deleted",
+      "task_extract_done": "Extraction done: {file}"
+    },
+    "errors": {
+      "path_selection_failed": "Path selection failed, please try again",
+      "please_select_output_url": "Please select the output directory first",
+      "invalid_file_type": "Unsupported file type: {types}",
+      "duplicate_file": "Duplicate file: {file}",
+      "read_file_failed": "Failed to read file {file}",
+      "task_extract_failed": "Extraction failed: {file}"
+    },
+    "dialog": {
+      "select_output_title": "Select Output Directory",
+      "select_output_confirm": "Use This Directory"
+    }
+  },
+  "converter": {
+    "title": "Subtitle Format Converter",
+    "description": "Convert between LRC and SRT subtitle formats.",
+    "config_title": "Configuration Options",
+    "output_path_section": "Output Settings",
+    "summary_title": "Current Configuration",
+    "upload_section": "File Upload",
+    "task_management": "Task Management",
+    "fields": {
+      "convert_direction": "Convert Direction",
+      "lrc_to_srt": "LRC → SRT",
+      "srt_to_lrc": "SRT → LRC",
+      "default_duration_label": "Default duration (seconds, used when end time is missing)",
+      "select_output_path": "Select Output Directory",
+      "no_output_path_selected": "No output directory selected",
+      "upload_tips": "Click or drag LRC/SRT files here",
+      "files_only": "Only .lrc, .srt supported",
+      "start_all": "Start All",
+      "remove_all_resolved_task": "Clear Completed",
+      "no_tasks": "No tasks yet"
+    },
+    "task_status": {
+      "notstarted": "Not Started",
+      "pending": "Processing",
+      "resolved": "Completed",
+      "failed": "Failed"
+    },
+    "summary": {
+      "total_tasks": "Total Tasks",
+      "task_count": "{count} tasks",
+      "default_duration": "Default Duration"
+    },
+    "labels": {
+      "output": "Output"
+    },
+    "actions": {
+      "view_error_detail": "View Error Details",
+      "retry": "Retry",
+      "start": "Start",
+      "delete": "Delete"
+    },
+    "infos": {
+      "output_path_selected": "Output path set",
+      "task_deleted": "Task deleted",
+      "task_convert_done": "Conversion done: {file}"
+    },
+    "errors": {
+      "path_selection_failed": "Path selection failed, please try again",
+      "please_select_output_url": "Please select the output directory first",
+      "invalid_file_type": "Unsupported file type: {types}",
+      "duplicate_file": "Duplicate file: {file}",
+      "read_file_failed": "Failed to read file {file}",
+      "task_convert_failed": "Conversion failed: {file}"
+    },
+    "dialog": {
+      "select_output_title": "Select Output Directory",
+      "select_output_confirm": "Use This Directory"
+    }
   }
 }

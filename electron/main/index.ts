@@ -52,7 +52,7 @@ const indexHtml = path.join(RENDERER_DIST, "index.html");
 
 async function createWindow() {
   win = new BrowserWindow({
-    title: "FusionKit",
+    title: process.env.APP_NAME || "FusionKit",
     icon: path.join(process.env.VITE_PUBLIC, "FusionKit.ico"),
     width: 1080,
     height: 786,
@@ -156,10 +156,10 @@ ipcMain.handle("open-win", (_, arg) => {
   }
 });
 
-ipcMain.handle("select-output-directory", async () => {
+ipcMain.handle("select-output-directory", async (_event, options?: { title?: string; buttonLabel?: string }) => {
   return await dialog.showOpenDialog({
-    title: "选择输出目录",
+    title: options?.title ?? "选择输出目录",
     properties: ["openDirectory", "createDirectory"],
-    buttonLabel: "选择此目录",
+    buttonLabel: options?.buttonLabel ?? "选择此目录",
   });
 });

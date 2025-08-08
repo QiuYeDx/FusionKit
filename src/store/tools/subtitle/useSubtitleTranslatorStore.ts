@@ -8,6 +8,7 @@ import {
   TaskStatus,
 } from "@/type/subtitle";
 import { showToast } from "@/utils/toast";
+import i18n from "i18next";
 
 // 最大并发数
 const MAX_CONCURRENCY = 5;
@@ -380,11 +381,11 @@ const useSubtitleTranslatorStore = create<SubtitleTranslatorStore>((set) => ({
         status: TaskStatus.FAILED,
         extraInfo: {
           error: "CANCELED",
-          message: "任务已被用户取消",
+          message: i18n.t("subtitle:translator.infos.task_canceled"),
         },
       };
 
-      showToast("任务已取消", "success");
+      showToast(i18n.t("subtitle:translator.infos.task_cancel_toast"), "success");
 
       // 如果等待队列中有任务且并发数未满
       if (
@@ -441,7 +442,7 @@ const useSubtitleTranslatorStore = create<SubtitleTranslatorStore>((set) => ({
       };
     });
 
-    showToast("任务已删除", "success");
+    showToast(i18n.t("subtitle:translator.infos.task_deleted"), "success");
   },
 
   // 记录最终输出路径

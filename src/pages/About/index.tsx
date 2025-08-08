@@ -28,6 +28,22 @@ const About: React.FC = () => {
 
         <div className="bg-base-200 p-4 rounded-lg overflow-auto">
           <div className="text-xl font-semibold mb-4 sticky left-0">
+            {t("about:subtitle.github")}
+          </div>
+
+          <div>
+            <a
+              href="https://github.com/QiuYeDx/FusionKit"
+              target="_blank"
+              className="link link-hover"
+            >
+              https://github.com/QiuYeDx/FusionKit
+            </a>
+          </div>
+        </div>
+
+        <div className="bg-base-200 p-4 rounded-lg overflow-auto">
+          <div className="text-xl font-semibold mb-4 sticky left-0">
             {t("about:subtitle.author")}
           </div>
 
