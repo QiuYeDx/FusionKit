@@ -256,10 +256,35 @@ const useSubtitleTranslatorStore = create<SubtitleTranslatorStore>((set) => ({
           status: TaskStatus.RESOLVED,
         };
 
-        // 如果等待队列中有任务且并发数未满
+        // 从 pending 中移除已完成任务
+        const remainingPending = state.pendingTaskQueue.filter(
+          (t) => t.fileName !== fileName
+        );
+
+        // 将任务加入/更新到 resolved（避免重复）
+        const existingResolved = state.resolvedTaskQueue.find(
+          (t) => t.fileName === fileName
+        );
+        const nextResolvedQueue = existingResolved
+          ? state.resolvedTaskQueue.map((t) =>
+              t.fileName === fileName
+                ? {
+                    // 保留已存在的 extraInfo（例如 outputFilePath）
+                    ...t,
+                    ...updatedTask,
+                    extraInfo: {
+                      ...(t.extraInfo || {}),
+                      ...(updatedTask as any).extraInfo,
+                    },
+                  }
+                : t
+            )
+          : [...state.resolvedTaskQueue, updatedTask];
+
+        // 如有空闲并发，则从 waiting 拉起下一个任务
         if (
           state.waitingTaskQueue.length > 0 &&
-          state.pendingTaskQueue.length < MAX_CONCURRENCY
+          remainingPending.length < MAX_CONCURRENCY
         ) {
           const waitingTask = state.waitingTaskQueue[0];
           const updatedWaitingTask = {
@@ -272,16 +297,14 @@ const useSubtitleTranslatorStore = create<SubtitleTranslatorStore>((set) => ({
 
           return {
             waitingTaskQueue: state.waitingTaskQueue.slice(1),
-            pendingTaskQueue: [...state.pendingTaskQueue, updatedWaitingTask],
-            resolvedTaskQueue: [...state.resolvedTaskQueue, updatedTask],
+            pendingTaskQueue: [...remainingPending, updatedWaitingTask],
+            resolvedTaskQueue: nextResolvedQueue,
           };
         }
 
         return {
-          pendingTaskQueue: state.pendingTaskQueue.filter(
-            (t) => t.fileName !== fileName
-          ),
-          resolvedTaskQueue: [...state.resolvedTaskQueue, updatedTask],
+          pendingTaskQueue: remainingPending,
+          resolvedTaskQueue: nextResolvedQueue,
         };
       }
 
@@ -385,7 +408,10 @@ const useSubtitleTranslatorStore = create<SubtitleTranslatorStore>((set) => ({
         },
       };
 
-      showToast(i18n.t("subtitle:translator.infos.task_cancel_toast"), "success");
+      showToast(
+        i18n.t("subtitle:translator.infos.task_cancel_toast"),
+        "success"
+      );
 
       // 如果等待队列中有任务且并发数未满
       if (
@@ -448,22 +474,88 @@ const useSubtitleTranslatorStore = create<SubtitleTranslatorStore>((set) => ({
   // 记录最终输出路径
   markTaskResolved: (fileName, outputFilePath) => {
     set((state) => {
-      const task = state.pendingTaskQueue.find((t) => t.fileName === fileName);
-      if (!task) return state;
-      const updatedTask: SubtitleTranslatorTask = {
-        ...task,
-        status: TaskStatus.RESOLVED,
-        progress: 100,
-        extraInfo: {
-          ...(task.extraInfo || {}),
-          outputFilePath,
-        },
-      };
+      // 1) 如果任务仍在 pending 中：由本函数负责移除并（如需）拉起下一个等待任务
+      const pendingTask = state.pendingTaskQueue.find(
+        (t) => t.fileName === fileName
+      );
+      if (pendingTask) {
+        const remainingPending = state.pendingTaskQueue.filter(
+          (t) => t.fileName !== fileName
+        );
 
-      return {
-        pendingTaskQueue: state.pendingTaskQueue.filter((t) => t.fileName !== fileName),
-        resolvedTaskQueue: [...state.resolvedTaskQueue, updatedTask],
-      };
+        // 目标 resolved 任务（合并已有 extraInfo 并注入 outputFilePath）
+        const baseResolved: SubtitleTranslatorTask = {
+          ...pendingTask,
+          status: TaskStatus.RESOLVED,
+          progress: 100,
+          extraInfo: {
+            ...(pendingTask.extraInfo || {}),
+            outputFilePath,
+          },
+        };
+
+        const existingResolved = state.resolvedTaskQueue.find(
+          (t) => t.fileName === fileName
+        );
+        const nextResolvedQueue = existingResolved
+          ? state.resolvedTaskQueue.map((t) =>
+              t.fileName === fileName
+                ? {
+                    ...t,
+                    ...baseResolved,
+                    extraInfo: {
+                      ...(t.extraInfo || {}),
+                      ...(baseResolved.extraInfo || {}),
+                    },
+                  }
+                : t
+            )
+          : [...state.resolvedTaskQueue, baseResolved];
+
+        // 如果并发有空位，拉起等待中的下一个
+        if (
+          state.waitingTaskQueue.length > 0 &&
+          remainingPending.length < MAX_CONCURRENCY
+        ) {
+          const waitingTask = state.waitingTaskQueue[0];
+          const updatedWaitingTask = {
+            ...waitingTask,
+            status: TaskStatus.PENDING,
+          };
+          window.ipcRenderer.invoke("translate-subtitle", updatedWaitingTask);
+
+          return {
+            waitingTaskQueue: state.waitingTaskQueue.slice(1),
+            pendingTaskQueue: [...remainingPending, updatedWaitingTask],
+            resolvedTaskQueue: nextResolvedQueue,
+          };
+        }
+
+        return {
+          pendingTaskQueue: remainingPending,
+          resolvedTaskQueue: nextResolvedQueue,
+        };
+      }
+
+      // 2) 如果 pending 中没有该任务，但 resolved 已存在：仅补充输出路径
+      const existingResolved = state.resolvedTaskQueue.find(
+        (t) => t.fileName === fileName
+      );
+      if (existingResolved) {
+        return {
+          resolvedTaskQueue: state.resolvedTaskQueue.map((t) =>
+            t.fileName === fileName
+              ? {
+                  ...t,
+                  extraInfo: { ...(t.extraInfo || {}), outputFilePath },
+                }
+              : t
+          ),
+        };
+      }
+
+      // 3) 否则保持不变（理论上不应发生）
+      return state;
     });
   },
 }));
