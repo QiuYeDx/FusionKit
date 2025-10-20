@@ -10,5 +10,9 @@
   "cross_platform_title": "跨平台支持",
   "cross_platform_description": "支持 Windows、macOS 和 Linux。",
   "get_started": "开始使用",
-  "learn_more": "了解更多"
+  "learn_more": "了解更多",
+  "feature_fast": "快速高效",
+  "feature_secure": "安全可靠",
+  "feature_rich": "功能丰富",
+  "feature_cross_platform": "跨平台支持"
 }

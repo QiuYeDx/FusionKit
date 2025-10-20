@@ -1,8 +1,10 @@
 import React from "react";
-import { XMarkIcon, ClipboardDocumentIcon } from "@heroicons/react/24/outline";
+import { X, Copy } from "lucide-react";
 import { useTransition, animated, config, useTrail } from "@react-spring/web";
 import { useTranslation } from "react-i18next";
 import { showToast } from "@/utils/toast";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 interface ErrorDetailModalProps {
   isOpen: boolean;
@@ -108,7 +110,7 @@ const ErrorDetailModal: React.FC<ErrorDetailModalProps> = ({
           item && (
             <animated.div
               style={styles}
-              className="fixed inset-0 z-50 bg-black bg-opacity-50"
+              className="fixed inset-0 z-50 bg-black/50"
               onClick={onClose}
             />
           )
@@ -121,24 +123,26 @@ const ErrorDetailModal: React.FC<ErrorDetailModalProps> = ({
             <div className="fixed inset-0 z-[60] flex items-center justify-center pointer-events-none">
               <animated.div
                 style={styles}
-                className="relative bg-base-100 rounded-xl shadow-2xl ring-1 ring-black/5 max-w-4xl w-full mx-4 max-h-[80vh] flex flex-col pointer-events-auto"
+                className="relative bg-card rounded-xl shadow-2xl ring-1 ring-border max-w-4xl w-full mx-4 max-h-[80vh] flex flex-col pointer-events-auto"
               >
                 {/* 头部 */}
-                <div className="flex items-center justify-between px-6 pt-2 border-b border-base-300/50 bg-base-100/80 backdrop-blur-sm rounded-t-xl">
-                  <h2 className="text-xl font-semibold text-base-content">
+                <div className="flex items-center justify-between px-6 pt-2 border-b border-border bg-card/80 backdrop-blur-sm rounded-t-xl">
+                  <h2 className="text-xl font-semibold text-foreground">
                     {t("common:error.detail_title")} - {taskName}
                   </h2>
                   <div className="flex items-center gap-2">
-                    <button
+                    <Button
+                      variant="ghost"
+                      size="sm"
                       onClick={copyToClipboard}
-                      className="btn btn-ghost btn-sm tooltip"
+                      className="tooltip"
                       data-tip={t("common:action.copy_error")}
                     >
-                      <ClipboardDocumentIcon className="w-5 h-5" />
-                    </button>
-                    <button onClick={onClose} className="btn btn-ghost btn-sm">
-                      <XMarkIcon className="w-5 h-5" />
-                    </button>
+                      <Copy className="w-5 h-5" />
+                    </Button>
+                    <Button variant="ghost" size="sm" onClick={onClose}>
+                      <X className="w-5 h-5" />
+                    </Button>
                   </div>
                 </div>
 
@@ -148,46 +152,46 @@ const ErrorDetailModal: React.FC<ErrorDetailModalProps> = ({
                   <div className="space-y-4">
                     {timestamp && (
                       <div>
-                        <label className="block text-sm font-medium text-base-content mb-1">
+                        <label className="block text-sm font-medium text-foreground mb-1">
                           {t("common:error.time")}
                         </label>
-                        <div className="text-sm text-base-content/70">
+                        <div className="text-sm text-muted-foreground">
                           {timestamp}
                         </div>
                       </div>
                     )}
 
                     <div>
-                      <label className="block text-sm font-medium text-base-content mb-1">
+                      <label className="block text-sm font-medium text-foreground mb-1">
                         {t("common:error.message")}
                       </label>
-                      <div className="bg-error/10 text-error border border-error/20 rounded-lg p-3 text-sm">
+                      <div className="bg-destructive/10 text-destructive border border-destructive/20 rounded-lg p-3 text-sm">
                         {errorMessage}
                       </div>
                     </div>
 
                     <div>
-                      <label className="block text-sm font-medium text-base-content mb-1">
+                      <label className="block text-sm font-medium text-foreground mb-1">
                         {t("common:error.detail")}
                       </label>
-                      <div className="bg-base-200 rounded-lg p-3 text-sm text-base-content/80 font-mono">
+                      <div className="bg-muted rounded-lg p-3 text-sm text-muted-foreground font-mono">
                         {errorDetails}
                       </div>
                     </div>
 
                     {errorLogs.length > 0 && (
                       <div>
-                        <label className="block text-sm font-medium text-base-content mb-1">
+                        <label className="block text-sm font-medium text-foreground mb-1">
                           {t("common:error.logs_with_count").replace("{count}", String(errorLogs.length))}
                         </label>
-                        <div className="bg-base-200 rounded-lg p-4 space-y-2 max-h-64 overflow-y-auto">
+                        <div className="bg-muted rounded-lg p-4 space-y-2 max-h-64 overflow-y-auto">
                           {logTrail.map((styles, index) => (
                             <animated.div
                               key={index}
                               style={styles}
-                              className="text-sm text-base-content/70 font-mono border-l-2 border-base-300 pl-3"
+                              className="text-sm text-muted-foreground font-mono border-l-2 border-border pl-3"
                             >
-                              <span className="text-base-content/50 mr-2">
+                              <span className="text-muted-foreground/50 mr-2">
                                 #{index + 1}
                               </span>
                               {errorLogs[index]}

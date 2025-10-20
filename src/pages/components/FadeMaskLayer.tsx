@@ -5,6 +5,10 @@ import { useEffect, useState } from "react";
 import { useWindowSize } from "react-use";
 
 function FadeMaskLayer() {
+  // TODO: 临时禁用过渡遮罩动画，待问题修复后再启用
+  return null;
+
+  /* 原始代码已注释，待修复后恢复
   const { width, height } = useWindowSize();
   const {
     cx,
@@ -75,6 +79,7 @@ function FadeMaskLayer() {
       }}
     ></div>
   );
+  */
 }
 
 export default FadeMaskLayer;

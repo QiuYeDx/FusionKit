@@ -10,5 +10,9 @@
   "cross_platform_title": "クロスプラットフォーム対応",
   "cross_platform_description": "Windows、macOS、Linux をサポート。",
   "get_started": "始める",
-  "learn_more": "詳細を見る"
+  "learn_more": "詳細を見る",
+  "feature_fast": "高速で効率的",
+  "feature_secure": "安全で信頼性",
+  "feature_rich": "機能豊富",
+  "feature_cross_platform": "クロスプラットフォーム"
 }

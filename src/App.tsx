@@ -13,7 +13,7 @@ import useModelStore from "@/store/useModelStore";
 import SubtitleTranslator from "./pages/Tools/Subtitle/SubtitleTranslator";
 import SubtitleConverter from "./pages/Tools/Subtitle/SubtitleConverter";
 import SubtitleLanguageExtractor from "./pages/Tools/Subtitle/SubtitleLanguageExtractor";
-import { Toaster } from "react-hot-toast";
+import { Toaster } from "@/components/ui/sonner";
 
 function App() {
   // 初始化主题, 并添加系统深色模式监听
@@ -27,7 +27,7 @@ function App() {
   }, []);
 
   return (
-    <div className="app bg-base-100">
+    <div className="app bg-background text-foreground">
       <AppTitleBar />
       {/* 占位用, 防止 AppTitleBar 遮挡有效内容 */}
       {/* TODO: Windows 下的高度待确认, 可能需要为动态高度 */}
@@ -59,7 +59,7 @@ function App() {
       <BottomNavigation />
 
       {/* 全局 Toast */}
-      <Toaster position="top-right" reverseOrder={false} />
+      <Toaster position="top-right" />
 
       {/* 全局过渡遮罩层 */}
       <FadeMaskLayer />

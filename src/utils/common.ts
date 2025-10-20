@@ -7,9 +7,19 @@ export const applyTheme = (theme: "light" | "dark" | "system") => {
       .matches
       ? "dark"
       : "light";
-    htmlElement.setAttribute("data-theme", systemTheme);
+    // 使用 class 而不是 data-theme，以支持 shadcn/ui
+    if (systemTheme === "dark") {
+      htmlElement.classList.add("dark");
+    } else {
+      htmlElement.classList.remove("dark");
+    }
   } else {
-    htmlElement.setAttribute("data-theme", theme);
+    // 使用 class 而不是 data-theme，以支持 shadcn/ui
+    if (theme === "dark") {
+      htmlElement.classList.add("dark");
+    } else {
+      htmlElement.classList.remove("dark");
+    }
   }
 };
 

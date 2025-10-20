@@ -10,5 +10,9 @@
   "cross_platform_title": "Cross-Platform Support",
   "cross_platform_description": "Supports Windows, macOS, and Linux.",
   "get_started": "Get Started",
-  "learn_more": "Learn More"
+  "learn_more": "Learn More",
+  "feature_fast": "Fast & Efficient",
+  "feature_secure": "Secure & Reliable",
+  "feature_rich": "Feature Rich",
+  "feature_cross_platform": "Cross-Platform"
 }

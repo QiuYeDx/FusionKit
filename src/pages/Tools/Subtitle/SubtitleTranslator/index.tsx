@@ -8,16 +8,16 @@ import {
 import { useTranslation } from "react-i18next";
 import { useState, useMemo, useEffect, useRef } from "react";
 import {
-  ArrowPathIcon,
-  FolderIcon,
-  FolderOpenIcon,
-  PlayCircleIcon,
-  XMarkIcon,
-  TrashIcon,
-  ExclamationTriangleIcon,
-  CpuChipIcon,
-  ChevronDownIcon,
-} from "@heroicons/react/24/outline";
+  RotateCw,
+  Folder,
+  FolderOpen,
+  PlayCircle,
+  X,
+  Trash2,
+  AlertTriangle,
+  Cpu,
+  ChevronDown,
+} from "lucide-react";
 import { showToast } from "@/utils/toast";
 import useModelStore from "@/store/useModelStore";
 import ErrorDetailModal from "@/components/ErrorDetailModal";
@@ -26,6 +26,19 @@ import {
   formatTokens,
   formatCost,
 } from "@/utils/tokenEstimate";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { ButtonGroup } from "@/components/ui/button-group";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { Progress } from "@/components/ui/progress";
+import { Calendar } from "@/components/ui/calendar";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { cn } from "@/lib/utils";
 
 function SubtitleTranslator() {
   const { t } = useTranslation();
@@ -72,6 +85,9 @@ function SubtitleTranslator() {
 
   // 定时开始相关状态
   const [scheduleTime, setScheduleTime] = useState<string>(""); // 本地时间，格式 YYYY-MM-DDTHH:mm
+  const [scheduleDate, setScheduleDate] = useState<Date | undefined>(undefined);
+  const [scheduleTimeValue, setScheduleTimeValue] = useState<string>("10:00");
+  const [datePopoverOpen, setDatePopoverOpen] = useState(false);
   const [scheduleEnabled, setScheduleEnabled] = useState<boolean>(false);
   const [preventSleep, setPreventSleep] = useState<boolean>(false);
   const [blockerId, setBlockerId] = useState<number | null>(null);
@@ -88,6 +104,19 @@ function SubtitleTranslator() {
     const ms = new Date(scheduleTime).getTime();
     return Number.isFinite(ms) ? ms : NaN;
   }, [scheduleTime]);
+
+  // 同步日期和时间到 scheduleTime
+  useEffect(() => {
+    if (scheduleDate && scheduleTimeValue) {
+      const year = scheduleDate.getFullYear();
+      const month = String(scheduleDate.getMonth() + 1).padStart(2, "0");
+      const day = String(scheduleDate.getDate()).padStart(2, "0");
+      const dateTimeString = `${year}-${month}-${day}T${scheduleTimeValue}`;
+      setScheduleTime(dateTimeString);
+    } else {
+      setScheduleTime("");
+    }
+  }, [scheduleDate, scheduleTimeValue]);
 
   const stopPowerBlocker = async () => {
     try {
@@ -256,10 +285,13 @@ function SubtitleTranslator() {
   const handleSelectOutputPath = async () => {
     try {
       // 通过 IPC 调用主进程的目录选择对话框
-      const result = await window.ipcRenderer.invoke("select-output-directory", {
-        title: t("subtitle:translator.dialog.select_output_title"),
-        buttonLabel: t("subtitle:translator.dialog.select_output_confirm"),
-      });
+      const result = await window.ipcRenderer.invoke(
+        "select-output-directory",
+        {
+          title: t("subtitle:translator.dialog.select_output_title"),
+          buttonLabel: t("subtitle:translator.dialog.select_output_confirm"),
+        }
+      );
 
       if (result && !result.canceled && result.filePaths.length > 0) {
         const selectedPath = result.filePaths[0];
@@ -388,7 +420,13 @@ function SubtitleTranslator() {
         addTask(newTask);
       } catch (error) {
         console.error(t("subtitle:translator.errors.read_file_failed"), error);
-      showToast(t("subtitle:translator.errors.read_file_failed").replace("{file}", file.name), "error");
+        showToast(
+          t("subtitle:translator.errors.read_file_failed").replace(
+            "{file}",
+            file.name
+          ),
+          "error"
+        );
       }
     }
   };
@@ -396,7 +434,7 @@ function SubtitleTranslator() {
   const getTaskStatusColor = (status: TaskStatus) => {
     switch (status) {
       case TaskStatus.NOT_STARTED:
-        return "bg-gray-500";
+        return "bg-secondary";
       case TaskStatus.WAITING:
         return "bg-blue-500";
       case TaskStatus.PENDING:
@@ -406,7 +444,7 @@ function SubtitleTranslator() {
       case TaskStatus.FAILED:
         return "bg-red-500";
       default:
-        return "bg-gray-500";
+        return "bg-secondary";
     }
   };
 
@@ -415,67 +453,61 @@ function SubtitleTranslator() {
       <div className="text-2xl font-bold mb-4">
         {t("subtitle:translator.title")}
       </div>
-      <div className="mb-6 text-gray-600 dark:text-gray-300">
+      <div className="mb-6 text-muted-foreground">
         {t("subtitle:translator.description")}
       </div>
 
       {/* 配置区块 */}
       <div className="flex flex-col gap-4 mb-4">
-        <div className="bg-base-200 rounded-lg">
+        <Card>
           <div
             className="flex items-center justify-between p-4 cursor-pointer select-none"
             onClick={() => setIsConfigOpen((v) => !v)}
           >
-            <div className="text-xl font-semibold">
+            <CardTitle className="text-xl">
               {t("subtitle:translator.config_title")}
-            </div>
-            <ChevronDownIcon
-              className={`h-5 w-5 transition-transform ${
-                isConfigOpen ? "rotate-180" : ""
-              }`}
+            </CardTitle>
+            <ChevronDown
+              className={cn(
+                "h-5 w-5 transition-transform",
+                isConfigOpen && "rotate-180"
+              )}
             />
           </div>
           {isConfigOpen && (
-            <div className="-mt-2 p-4 pt-0">
+            <CardContent className="pt-0 space-y-4">
               {/* 分片模式选择 */}
-              <div className="form-control -ml-1">
-                <label className="label -mb-2 pt-0">
-                  <span className="label-text">
-                    {t("subtitle:translator.fields.subtitle_slice_mode")}
-                  </span>
-                </label>
-                <div className="join -ml-0.5">
-                  {Object.values(SubtitleSliceType).map((type, index) => (
-                    <input
-                      type="radio"
-                      checked={sliceType === type}
-                      name="subtitle_slice_type"
-                      aria-label={t(
+              <div className="flex items-center gap-4">
+                <Label className="text-sm font-medium min-w-[100px]">
+                  {t("subtitle:translator.fields.subtitle_slice_mode")}
+                </Label>
+                <ButtonGroup>
+                  {Object.values(SubtitleSliceType).map((type) => (
+                    <Button
+                      key={type}
+                      size="sm"
+                      variant={sliceType === type ? "default" : "outline"}
+                      onClick={() => setSliceType(type as SubtitleSliceType)}
+                    >
+                      {t(
                         `subtitle:translator.slice_types.${type.toLowerCase()}`
                       )}
-                      key={type}
-                      className={`join-item btn btn-sm bg-base-100 ${
-                        index > 0 ? "mt-[3px]" : ""
-                      }`}
-                      onChange={() => {}} // 防止显示控制台警告
-                      onClick={() => setSliceType(type)}
-                    ></input>
+                    </Button>
                   ))}
-                </div>
+                </ButtonGroup>
               </div>
 
               {/* 自定义分片长度输入 */}
               {sliceType === SubtitleSliceType.CUSTOM && (
-                <div className="form-control mt-2">
-                  <label className="label -ml-1 -mb-1">
-                    <span className="label-text">
-                      {t("subtitle:translator.fields.custom_slice_length")}{" "}
-                      (chars)
-                    </span>
-                  </label>
-                  <input
+                <div className="space-y-2 mt-4">
+                  <Label htmlFor="custom-length">
+                    {t("subtitle:translator.fields.custom_slice_length")}{" "}
+                    (chars)
+                  </Label>
+                  <Input
+                    id="custom-length"
                     type="number"
-                    className="input input-sm input-bordered box-border w-32"
+                    className="w-32"
                     value={customLengthInput}
                     min="100"
                     max="2000"
@@ -486,188 +518,278 @@ function SubtitleTranslator() {
                   />
                 </div>
               )}
-            </div>
+            </CardContent>
           )}
-        </div>
+        </Card>
       </div>
 
       {/* 输出设置区块 */}
       <div className="mb-4">
-        <div className="bg-base-200 rounded-lg">
+        <Card>
           <div
             className="flex items-center justify-between p-4 cursor-pointer select-none"
             onClick={() => setIsOutputOpen((v) => !v)}
           >
-            <div className="text-xl font-semibold">
+            <CardTitle className="text-xl">
               {t("subtitle:translator.output_path_section")}
-            </div>
-            <ChevronDownIcon
-              className={`h-5 w-5 transition-transform ${
-                isOutputOpen ? "rotate-180" : ""
-              }`}
+            </CardTitle>
+            <ChevronDown
+              className={cn(
+                "h-5 w-5 transition-transform",
+                isOutputOpen && "rotate-180"
+              )}
             />
           </div>
           {isOutputOpen && (
-            <div className="-mt-2 p-4 pt-0">
+            <CardContent className="pt-0">
               <div className="flex items-center gap-4">
-                <div className="join grow">
-                  <button
-                    onClick={handleSelectOutputPath}
-                    className="btn btn-primary btn-sm join-item"
-                  >
-                    {t("subtitle:translator.fields.select_output_path")}
-                  </button>
-                  <input
-                    type="text"
-                    placeholder={t(
-                      "subtitle:translator.fields.no_output_path_selected"
-                    )}
-                    value={outputURL}
-                    onChange={() => {}} // 防止显示控制台警告
-                    className="join-item input input-sm input-bordered box-border grow shrink-0"
-                  />
-                </div>
+                <Button onClick={handleSelectOutputPath} size="sm">
+                  {t("subtitle:translator.fields.select_output_path")}
+                </Button>
+                <Input
+                  type="text"
+                  placeholder={t(
+                    "subtitle:translator.fields.no_output_path_selected"
+                  )}
+                  value={outputURL}
+                  onChange={() => {}} // 防止显示控制台警告
+                  className="grow"
+                  readOnly
+                />
               </div>
 
               {/* TODO: 输出文件前缀、后缀设置 */}
-            </div>
+            </CardContent>
           )}
-        </div>
+        </Card>
       </div>
 
       {/* 定时开始设置 */}
       <div className="mb-4">
-        <div className="bg-base-200 rounded-lg">
+        <Card>
           <div
             className="flex items-center justify-between p-4 cursor-pointer select-none"
             onClick={() => setIsScheduleOpen((v) => !v)}
           >
-            <div className="text-xl font-semibold">{t("subtitle:translator.schedule.title")}</div>
-            <ChevronDownIcon
-              className={`h-5 w-5 transition-transform ${
-                isScheduleOpen ? "rotate-180" : ""
-              }`}
+            <CardTitle className="text-xl">
+              {t("subtitle:translator.schedule.title")}
+            </CardTitle>
+            <ChevronDown
+              className={cn(
+                "h-5 w-5 transition-transform",
+                isScheduleOpen && "rotate-180"
+              )}
             />
           </div>
           {isScheduleOpen && (
-            <div className="-mt-2 p-4 pt-0">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
-                <div className="form-control">
-                  <label className="label -ml-1 -mb-1">
-                    <span className="label-text">{t("subtitle:translator.schedule.start_time")}</span>
-                  </label>
-                  <input
-                    type="datetime-local"
-                    className="input input-sm input-bordered"
-                    value={scheduleTime}
-                    onChange={(e) => setScheduleTime(e.target.value)}
-                    min={new Date(Date.now() + 60_000)
-                      .toISOString()
-                      .slice(0, 16)}
-                  />
+            <CardContent className="pt-0">
+              <div className="space-y-4">
+                {/* 第一行：日期时间选择和操作按钮 */}
+                <div className="flex flex-col sm:flex-row sm:items-end gap-4">
+                  <div className="flex flex-wrap gap-3 flex-1">
+                    {/* 日期选择器 */}
+                    <div className="flex flex-col gap-2">
+                      <Label htmlFor="schedule-date" className="px-1">
+                        {t("subtitle:translator.schedule.date")}
+                      </Label>
+                      <Popover
+                        open={datePopoverOpen}
+                        onOpenChange={setDatePopoverOpen}
+                      >
+                        <PopoverTrigger asChild>
+                          <Button
+                            variant="outline"
+                            id="schedule-date"
+                            className="w-[180px] justify-between font-normal"
+                          >
+                            {scheduleDate
+                              ? scheduleDate.toLocaleDateString()
+                              : t("subtitle:translator.schedule.select_date")}
+                            <ChevronDown className="h-4 w-4" />
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent
+                          className="w-auto overflow-hidden p-0"
+                          align="start"
+                        >
+                          <Calendar
+                            mode="single"
+                            selected={scheduleDate}
+                            captionLayout="dropdown"
+                            onSelect={(date) => {
+                              setScheduleDate(date);
+                              setDatePopoverOpen(false);
+                            }}
+                            disabled={(date) =>
+                              date < new Date(new Date().setHours(0, 0, 0, 0))
+                            }
+                          />
+                        </PopoverContent>
+                      </Popover>
+                    </div>
+
+                    {/* 时间选择器 */}
+                    <div className="flex flex-col gap-2">
+                      <Label htmlFor="schedule-time" className="px-1">
+                        {t("subtitle:translator.schedule.time")}
+                      </Label>
+                      <Input
+                        type="time"
+                        id="schedule-time"
+                        value={scheduleTimeValue}
+                        onChange={(e) => setScheduleTimeValue(e.target.value)}
+                        className="w-[140px] bg-background appearance-none [&::-webkit-calendar-picker-indicator]:hidden [&::-webkit-calendar-picker-indicator]:appearance-none"
+                      />
+                    </div>
+                  </div>
+
+                  {/* 操作按钮 */}
+                  <div className="flex gap-2 sm:pb-0">
+                    {!scheduleEnabled ? (
+                      <Button
+                        size="default"
+                        disabled={
+                          !scheduleTime || !Number.isFinite(targetEpochMs)
+                        }
+                        onClick={async () => {
+                          if (!scheduleTime || !Number.isFinite(targetEpochMs))
+                            return;
+                          if (targetEpochMs <= Date.now()) {
+                            showToast(
+                              t(
+                                "subtitle:translator.schedule.choose_future_time"
+                              ),
+                              "default"
+                            );
+                            return;
+                          }
+                          hasTriggeredRef.current = false;
+                          setScheduleEnabled(true);
+                          if (preventSleep)
+                            await startPowerBlockerUntil(targetEpochMs);
+                          showToast(
+                            t("subtitle:translator.schedule.scheduled_set"),
+                            "success"
+                          );
+                        }}
+                        className="min-w-[100px]"
+                      >
+                        {t("subtitle:translator.schedule.enable")}
+                      </Button>
+                    ) : (
+                      <Button
+                        variant="outline"
+                        size="default"
+                        onClick={() => cancelSchedule()}
+                        className="min-w-[100px]"
+                      >
+                        {t("subtitle:translator.schedule.cancel")}
+                      </Button>
+                    )}
+                  </div>
                 </div>
-                <div className="form-control">
-                  <label className="label cursor-pointer space-x-2">
-                    <span className="label-text">{t("subtitle:translator.schedule.prevent_sleep_until_start")}</span>
+
+                {/* 第二行：防止睡眠选项 */}
+                <div className="flex flex-col gap-2 p-3 rounded-lg bg-muted/50">
+                  <div className="flex items-center space-x-2">
                     <input
                       type="checkbox"
-                      className="toggle toggle-sm"
+                      id="prevent-sleep"
+                      className="rounded border-input"
                       checked={preventSleep}
                       onChange={(e) => setPreventSleep(e.target.checked)}
                     />
-                  </label>
-                  <span className="text-xs text-gray-500">
+                    <Label
+                      htmlFor="prevent-sleep"
+                      className="cursor-pointer font-medium"
+                    >
+                      {t(
+                        "subtitle:translator.schedule.prevent_sleep_until_start"
+                      )}
+                    </Label>
+                  </div>
+                  <p className="text-xs text-muted-foreground ml-6">
                     {t("subtitle:translator.schedule.prevent_sleep_note")}
-                  </span>
+                  </p>
                 </div>
-                <div className="flex gap-2">
-                  {!scheduleEnabled ? (
-                    <button
-                      className="btn btn-primary btn-sm"
-                      disabled={
-                        !scheduleTime || !Number.isFinite(targetEpochMs)
-                      }
-                      onClick={async () => {
-                        if (!scheduleTime || !Number.isFinite(targetEpochMs))
-                          return;
-                        if (targetEpochMs <= Date.now()) {
-                          showToast(t("subtitle:translator.schedule.choose_future_time"), "default");
-                          return;
-                        }
-                        hasTriggeredRef.current = false;
-                        setScheduleEnabled(true);
-                        if (preventSleep)
-                          await startPowerBlockerUntil(targetEpochMs);
-                        showToast(t("subtitle:translator.schedule.scheduled_set"), "success");
-                      }}
-                    >
-                      {t("subtitle:translator.schedule.enable")}
-                    </button>
+
+                {/* 状态显示 */}
+                <div className="flex items-center gap-2 p-3 rounded-lg border bg-card">
+                  <span className="text-sm font-medium">
+                    {t("subtitle:translator.schedule.status")}
+                  </span>
+                  <div className="h-4 w-px bg-border" />
+                  {scheduleEnabled ? (
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-sm text-foreground">
+                        {t("subtitle:translator.schedule.enabled_countdown")}{" "}
+                        <span className="font-mono font-semibold">
+                          {formatRemaining(remainingMs)}
+                        </span>
+                      </span>
+                      {blockerId != null && (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">
+                          {t("subtitle:translator.schedule.sleep_blocker_on")}
+                        </span>
+                      )}
+                    </div>
                   ) : (
-                    <button
-                      className="btn btn-outline btn-sm"
-                      onClick={() => cancelSchedule()}
-                    >
-                      {t("subtitle:translator.schedule.cancel")}
-                    </button>
+                    <span className="text-sm text-muted-foreground">
+                      {t("subtitle:translator.schedule.disabled")}
+                    </span>
                   )}
                 </div>
               </div>
-              <div className="mt-2 text-sm text-gray-600">
-                <span className="mr-2">{t("subtitle:translator.schedule.status")}</span>
-                {scheduleEnabled ? (
-                  <span>
-                    {t("subtitle:translator.schedule.enabled_countdown")} {formatRemaining(remainingMs)}
-                    {blockerId != null && (
-                      <span className="ml-2 text-xs text-green-600">
-                        {t("subtitle:translator.schedule.sleep_blocker_on")}
-                      </span>
-                    )}
-                  </span>
-                ) : (
-                  <span>{t("subtitle:translator.schedule.disabled")}</span>
-                )}
-              </div>
-            </div>
+            </CardContent>
           )}
-        </div>
+        </Card>
       </div>
 
       {/* Token消耗预估配置显示 */}
       <div className="mb-4">
-        <div className="bg-base-200 rounded-lg">
+        <Card>
           <div
             className="flex items-center justify-between p-4 cursor-pointer select-none"
             onClick={() => setIsNewTaskConfigOpen((v) => !v)}
           >
-            <div className="text-xl font-semibold">{t("subtitle:translator.new_task_config.title")}</div>
-            <ChevronDownIcon
-              className={`h-5 w-5 transition-transform ${
-                isNewTaskConfigOpen ? "rotate-180" : ""
-              }`}
+            <CardTitle className="text-xl">
+              {t("subtitle:translator.new_task_config.title")}
+            </CardTitle>
+            <ChevronDown
+              className={cn(
+                "h-5 w-5 transition-transform",
+                isNewTaskConfigOpen && "rotate-180"
+              )}
             />
           </div>
           {isNewTaskConfigOpen && (
-            <div className="-mt-2 p-4 pt-0">
-              <div className="text-sm text-gray-600 dark:text-gray-300 mb-3">
+            <CardContent className="pt-0">
+              <div className="text-sm text-muted-foreground mb-3">
                 {t("subtitle:translator.new_task_config.note")}
               </div>
               <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
-                <div className="bg-base-100 rounded p-3">
-                  <div className="text-gray-500 text-xs mb-1">{t("subtitle:translator.new_task_config.current_slice_mode")}</div>
+                <div className="bg-muted rounded p-3">
+                  <div className="text-muted-foreground text-xs mb-1">
+                    {t(
+                      "subtitle:translator.new_task_config.current_slice_mode"
+                    )}
+                  </div>
                   <div className="font-medium">
                     {t(
                       `subtitle:translator.slice_types.${sliceType.toLowerCase()}`
                     )}
                     {sliceType === SubtitleSliceType.CUSTOM && (
-                      <span className="ml-1 text-gray-500">
-                        ({sliceLengthMap[SubtitleSliceType.CUSTOM]}{t("subtitle:translator.new_task_config.chars_suffix")})
+                      <span className="ml-1 text-muted-foreground">
+                        ({sliceLengthMap[SubtitleSliceType.CUSTOM]}
+                        {t("subtitle:translator.new_task_config.chars_suffix")})
                       </span>
                     )}
                   </div>
                 </div>
-                <div className="bg-base-100 rounded p-3">
-                  <div className="text-gray-500 text-xs mb-1">{t("subtitle:translator.new_task_config.rate_in_out")}</div>
+                <div className="bg-muted rounded p-3">
+                  <div className="text-muted-foreground text-xs mb-1">
+                    {t("subtitle:translator.new_task_config.rate_in_out")}
+                  </div>
                   <div className="font-mono text-sm">
                     $
                     {getTokenPricingByType(model).inputTokensPerMillion.toFixed(
@@ -680,257 +802,272 @@ function SubtitleTranslator() {
                     per 1M tokens
                   </div>
                 </div>
-                <div className="bg-base-100 rounded p-3">
-                  <div className="text-gray-500 text-xs mb-1">{t("subtitle:translator.new_task_config.total_tasks")}</div>
+                <div className="bg-muted rounded p-3">
+                  <div className="text-muted-foreground text-xs mb-1">
+                    {t("subtitle:translator.new_task_config.total_tasks")}
+                  </div>
                   <div className="font-medium">
-                    {t("subtitle:translator.new_task_config.task_count").replace("{count}", String(tokenStats.taskCount))}
+                    {t(
+                      "subtitle:translator.new_task_config.task_count"
+                    ).replace("{count}", String(tokenStats.taskCount))}
                   </div>
                 </div>
               </div>
-            </div>
+            </CardContent>
           )}
-        </div>
+        </Card>
       </div>
 
       {/* 文件上传区域 */}
       <div className="mb-4">
-        <div className="bg-base-200 p-4 rounded-lg">
-          <div className="text-xl font-semibold mb-4">
-            {t("subtitle:translator.upload_section")}
-          </div>
-          <label
-            className={`flex flex-col items-center justify-center border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-6 cursor-pointer transition-colors file-drop-zone ${
-              isDragging
-                ? "border-blue-500 bg-blue-50 dark:bg-blue-700 dark:bg-opacity-30"
-                : "hover:bg-base-300"
-            }`}
-            onDragEnter={handleDragEnter}
-            onDragLeave={handleDragLeave}
-            onDragOver={handleDragOver}
-            onDrop={handleDrop}
-          >
-            <input
-              type="file"
-              multiple
-              className="hidden"
-              accept=".lrc,.srt"
-              onChange={handleFileUpload}
-            />
-            <div className="text-4xl -mb-2 pointer-events-none">
-              {isDragging ? (
-                <FolderOpenIcon className="h-10" />
-              ) : (
-                <FolderIcon className="h-10" />
+        <Card>
+          <CardHeader>
+            <CardTitle>{t("subtitle:translator.upload_section")}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <label
+              className={cn(
+                "flex flex-col items-center justify-center border-2 border-dashed rounded-lg p-6 cursor-pointer transition-colors file-drop-zone",
+                isDragging
+                  ? "border-primary bg-primary/10"
+                  : "border-border hover:bg-muted/50"
               )}
-            </div>
-            <div className="text-center pointer-events-none">
-              <p className="font-medium">
-                {t("subtitle:translator.fields.upload_tips")}
-              </p>
-              <p className="text-sm text-gray-500 mt-1">
-                {t("subtitle:translator.fields.files_only").replace(
-                  "{formats}",
-                  ".lrc, .srt"
+              onDragEnter={handleDragEnter}
+              onDragLeave={handleDragLeave}
+              onDragOver={handleDragOver}
+              onDrop={handleDrop}
+            >
+              <input
+                type="file"
+                multiple
+                className="hidden"
+                accept=".lrc,.srt"
+                onChange={handleFileUpload}
+              />
+              <div className="text-4xl -mb-2 pointer-events-none">
+                {isDragging ? (
+                  <FolderOpen className="h-10 w-10" />
+                ) : (
+                  <Folder className="h-10 w-10" />
                 )}
-              </p>
-            </div>
-          </label>
-        </div>
+              </div>
+              <div className="mt-3 text-center pointer-events-none">
+                <p className="font-medium">
+                  {t("subtitle:translator.fields.upload_tips")}
+                </p>
+                <p className="text-sm text-muted-foreground mt-1">
+                  {t("subtitle:translator.fields.files_only").replace(
+                    "{formats}",
+                    ".lrc, .srt"
+                  )}
+                </p>
+              </div>
+            </label>
+          </CardContent>
+        </Card>
       </div>
 
       {/* 任务管理区域 */}
-      <div className="bg-base-200 p-4 rounded-lg mb-12">
-        <div className="flex items-center justify-between mb-4">
-          <div className="text-xl font-semibold">
-            {t("subtitle:translator.task_management")}
-          </div>
-          <div className="flex gap-2">
-            {/* 全部开始 */}
-            <button
-              className="btn btn-primary btn-sm"
-              onClick={() => startAllTasks()}
-              disabled={notStartedTaskQueue.length === 0}
-            >
-              {t("subtitle:translator.fields.start_all")}
-            </button>
-            {/* 清空完成 */}
-            <button
-              className="btn btn-primary btn-sm"
-              onClick={() => removeAllResolvedTask()}
-              disabled={resolvedTaskQueue.length === 0}
-            >
-              {t("subtitle:translator.fields.remove_all_resolved_task")}
-            </button>
-          </div>
-        </div>
-
-        {/* Token统计信息 */}
-        {tokenStats.taskCount > 0 && (
-          <div className="bg-base-100 rounded-lg p-4 mb-4">
-            <div className="flex items-center gap-2 mb-3">
-              <CpuChipIcon className="h-5 w-5" />
-              <span className="font-semibold">Token消耗预估</span>
-            </div>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-              <div className="bg-base-200 rounded p-3">
-                <div className="text-gray-500 text-xs mb-1">总Token数</div>
-                <div className="font-mono text-lg">
-                  {formatTokens(tokenStats.totalTokens)}
-                </div>
-              </div>
-              <div className="bg-base-200 rounded p-3">
-                <div className="text-gray-500 text-xs mb-1">预估总费用</div>
-                <div className="font-mono text-lg">
-                  {formatCost(tokenStats.totalCost)}
-                </div>
-              </div>
-              <div className="bg-base-200 rounded p-3">
-                <div className="text-gray-500 text-xs mb-1">待处理Token</div>
-                <div className="font-mono text-lg text-orange-600">
-                  {formatTokens(tokenStats.pendingTokens)}
-                </div>
-              </div>
-              <div className="bg-base-200 rounded p-3">
-                <div className="text-gray-500 text-xs mb-1">待处理费用</div>
-                <div className="font-mono text-lg text-orange-600">
-                  {formatCost(tokenStats.pendingCost)}
-                </div>
-              </div>
+      <Card className="mb-12">
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <CardTitle>{t("subtitle:translator.task_management")}</CardTitle>
+            <div className="flex gap-2">
+              {/* 全部开始 */}
+              <Button
+                size="sm"
+                onClick={() => startAllTasks()}
+                disabled={notStartedTaskQueue.length === 0}
+              >
+                {t("subtitle:translator.fields.start_all")}
+              </Button>
+              {/* 清空完成 */}
+              <Button
+                size="sm"
+                onClick={() => removeAllResolvedTask()}
+                disabled={resolvedTaskQueue.length === 0}
+              >
+                {t("subtitle:translator.fields.remove_all_resolved_task")}
+              </Button>
             </div>
           </div>
-        )}
+        </CardHeader>
+        <CardContent>
+          {/* Token统计信息 */}
+          {tokenStats.taskCount > 0 && (
+            <div className="bg-muted rounded-lg p-4 mb-4">
+              <div className="flex items-center gap-2 mb-3">
+                <Cpu className="h-5 w-5" />
+                <span className="font-semibold">Token消耗预估</span>
+              </div>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                <div className="bg-card rounded p-3">
+                  <div className="text-muted-foreground text-xs mb-1">
+                    总Token数
+                  </div>
+                  <div className="font-mono text-lg">
+                    {formatTokens(tokenStats.totalTokens)}
+                  </div>
+                </div>
+                <div className="bg-card rounded p-3">
+                  <div className="text-muted-foreground text-xs mb-1">
+                    预估总费用
+                  </div>
+                  <div className="font-mono text-lg">
+                    {formatCost(tokenStats.totalCost)}
+                  </div>
+                </div>
+                <div className="bg-card rounded p-3">
+                  <div className="text-muted-foreground text-xs mb-1">
+                    待处理Token
+                  </div>
+                  <div className="font-mono text-lg text-orange-600">
+                    {formatTokens(tokenStats.pendingTokens)}
+                  </div>
+                </div>
+                <div className="bg-card rounded p-3">
+                  <div className="text-muted-foreground text-xs mb-1">
+                    待处理费用
+                  </div>
+                  <div className="font-mono text-lg text-orange-600">
+                    {formatCost(tokenStats.pendingCost)}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
 
-        {/* 任务列表 */}
-        <div className="space-y-4">
-          {[
-            ...notStartedTaskQueue,
-            ...waitingTaskQueue,
-            ...pendingTaskQueue,
-            ...resolvedTaskQueue,
-            ...failedTaskQueue,
-          ].map((task, index) => (
-            <div key={index} className="bg-base-100 rounded-lg p-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-4 flex-1">
-                  <div
-                    className={`w-3 h-3 rounded-full ${getTaskStatusColor(
-                      task.status
-                    )}`}
-                  />
-                  <div className="font-medium flex-1">
-                    {task.fileName}
-                    <div className="text-sm text-gray-500 mt-1">
-                      {/* 显示任务状态 */}
-                      {t(
-                        `subtitle:translator.task_status.${task.status.toLowerCase()}`
-                      )}
-                      {task.status === TaskStatus.PENDING &&
-                        ` ${Math.round(task.progress || 0)}% (${
-                          task.resolvedFragments || 0
-                        }/${task.totalFragments || 0})`}
-                      {/* 显示分片模式 */}
-                      <span className="ml-4 px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded text-xs">
+          {/* 任务列表 */}
+          <div className="space-y-4">
+            {[
+              ...notStartedTaskQueue,
+              ...waitingTaskQueue,
+              ...pendingTaskQueue,
+              ...resolvedTaskQueue,
+              ...failedTaskQueue,
+            ].map((task, index) => (
+              <div key={index} className="bg-muted rounded-lg p-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-4 flex-1">
+                    <div
+                      className={`w-3 h-3 rounded-full ${getTaskStatusColor(
+                        task.status
+                      )}`}
+                    />
+                    <div className="font-medium flex-1">
+                      {task.fileName}
+                      <div className="text-sm text-muted-foreground mt-1">
+                        {/* 显示任务状态 */}
                         {t(
-                          `subtitle:translator.slice_types.${task.sliceType.toLowerCase()}`
+                          `subtitle:translator.task_status.${task.status.toLowerCase()}`
                         )}
-                      </span>
-                      {/* 显示token预估信息 */}
-                      {task.costEstimate && (
-                        <span className="ml-4 font-mono">
-                          Tokens: {formatTokens(task.costEstimate.totalTokens)}
-                          <span className="ml-2 text-green-600">
-                            ~{formatCost(task.costEstimate.estimatedCost)}
+                        {task.status === TaskStatus.PENDING &&
+                          ` ${Math.round(task.progress || 0)}% (${
+                            task.resolvedFragments || 0
+                          }/${task.totalFragments || 0})`}
+                        {/* 显示分片模式 */}
+                        <span className="ml-4 px-2 py-1 bg-muted-foreground/20 rounded text-xs">
+                          {t(
+                            `subtitle:translator.slice_types.${task.sliceType.toLowerCase()}`
+                          )}
+                        </span>
+                        {/* 显示token预估信息 */}
+                        {task.costEstimate && (
+                          <span className="ml-4 font-mono">
+                            Tokens:{" "}
+                            {formatTokens(task.costEstimate.totalTokens)}
+                            <span className="ml-2 text-green-600">
+                              ~{formatCost(task.costEstimate.estimatedCost)}
+                            </span>
                           </span>
-                        </span>
-                      )}
-                      {/* 显示输出路径（完成后） */}
-                      {task.status === TaskStatus.RESOLVED && task.extraInfo?.outputFilePath && (
-                        <span className="ml-4 font-mono text-xs text-green-600">
-                          输出: {task.extraInfo.outputFilePath}
-                        </span>
-                      )}
+                        )}
+                        {/* 显示输出路径（完成后） */}
+                        {task.status === TaskStatus.RESOLVED &&
+                          task.extraInfo?.outputFilePath && (
+                            <span className="ml-4 font-mono text-xs text-green-600">
+                              输出: {task.extraInfo.outputFilePath}
+                            </span>
+                          )}
+                      </div>
                     </div>
+                  </div>
+
+                  <div className="flex items-center gap-4">
+                    {/* 查看错误详情按钮 - 仅失败任务显示 */}
+                    {task.status === TaskStatus.FAILED && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="text-destructive hover:text-destructive"
+                        onClick={() => openErrorModal(task)}
+                      >
+                        <AlertTriangle className="h-5 w-5" />
+                      </Button>
+                    )}
+
+                    {/* 重试按钮 - 仅失败任务显示 */}
+                    {task.status === TaskStatus.FAILED && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => retryTask(task.fileName)}
+                      >
+                        <RotateCw className="h-5 w-5" />
+                      </Button>
+                    )}
+
+                    {/* 开始按钮 - 仅未开始任务显示 */}
+                    {task.status === TaskStatus.NOT_STARTED && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => startTask(task.fileName)}
+                      >
+                        <PlayCircle className="h-5 w-5" />
+                      </Button>
+                    )}
+
+                    {/* 取消按钮 - 仅进行中和等待中任务显示 */}
+                    {(task.status === TaskStatus.PENDING ||
+                      task.status === TaskStatus.WAITING) && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => cancelTask(task.fileName)}
+                      >
+                        <X className="h-5 w-5" />
+                      </Button>
+                    )}
+
+                    {/* 删除按钮 - 所有状态都可删除 */}
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => deleteTask(task.fileName)}
+                    >
+                      <Trash2 className="h-5 w-5" />
+                    </Button>
                   </div>
                 </div>
 
-                <div className="flex items-center gap-4">
-                  {/* 查看错误详情按钮 - 仅失败任务显示 */}
-                  {task.status === TaskStatus.FAILED && (
-                    <a
-                      className="cursor-pointer tooltip text-error"
-                      data-tip={t("subtitle:translator.actions.view_error_detail")}
-                      onClick={() => openErrorModal(task)}
-                    >
-                      <ExclamationTriangleIcon className="size-6" />
-                    </a>
-                  )}
-
-                  {/* 重试按钮 - 仅失败任务显示 */}
-                  {task.status === TaskStatus.FAILED && (
-                    <a
-                      className="cursor-pointer tooltip"
-                      data-tip={t("subtitle:translator.actions.retry")}
-                      onClick={() => retryTask(task.fileName)}
-                    >
-                      <ArrowPathIcon className="size-6" />
-                    </a>
-                  )}
-
-                  {/* 开始按钮 - 仅未开始任务显示 */}
-                  {task.status === TaskStatus.NOT_STARTED && (
-                    <a
-                      className="cursor-pointer tooltip"
-                      data-tip={t("subtitle:translator.actions.start")}
-                      onClick={() => startTask(task.fileName)}
-                    >
-                      <PlayCircleIcon className="size-6" />
-                    </a>
-                  )}
-
-                  {/* 取消按钮 - 仅进行中和等待中任务显示 */}
-                  {(task.status === TaskStatus.PENDING ||
-                    task.status === TaskStatus.WAITING) && (
-                    <a
-                      className="cursor-pointer tooltip"
-                      data-tip={t("subtitle:translator.actions.cancel")}
-                      onClick={() => cancelTask(task.fileName)}
-                    >
-                      <XMarkIcon className="size-6" />
-                    </a>
-                  )}
-
-                  {/* 删除按钮 - 所有状态都可删除 */}
-                  <a
-                    className="cursor-pointer tooltip"
-                    data-tip={t("subtitle:translator.actions.delete")}
-                    onClick={() => deleteTask(task.fileName)}
-                  >
-                    <TrashIcon className="size-6" />
-                  </a>
-                </div>
+                {task.status === TaskStatus.PENDING && (
+                  <Progress value={task.progress} className="w-full mt-2" />
+                )}
               </div>
+            ))}
+          </div>
 
-              {task.status === TaskStatus.PENDING && (
-                <progress
-                  className="progress progress-primary w-full mt-2"
-                  value={task.progress}
-                  max="100"
-                />
-              )}
-            </div>
-          ))}
-        </div>
-
-        {!notStartedTaskQueue.length &&
-          !waitingTaskQueue.length &&
-          !pendingTaskQueue.length &&
-          !resolvedTaskQueue.length &&
-          !failedTaskQueue.length && (
-            <div className="text-center py-8 text-gray-500">
-              {t("subtitle:translator.fields.no_tasks")}
-            </div>
-          )}
-      </div>
+          {!notStartedTaskQueue.length &&
+            !waitingTaskQueue.length &&
+            !pendingTaskQueue.length &&
+            !resolvedTaskQueue.length &&
+            !failedTaskQueue.length && (
+              <div className="text-center py-8 text-muted-foreground">
+                {t("subtitle:translator.fields.no_tasks")}
+              </div>
+            )}
+        </CardContent>
+      </Card>
 
       {/* 错误详情模态框 */}
       {selectedErrorTask && (

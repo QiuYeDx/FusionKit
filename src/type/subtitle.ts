@@ -1,6 +1,7 @@
 export enum SubtitleFileType {
   LRC = "LRC",
   SRT = "SRT",
+  VTT = "VTT",
 }
 
 export enum SubtitleSliceType {

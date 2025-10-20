@@ -1,13 +1,7 @@
 import React, { useEffect, useState, MouseEvent, useMemo, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import {
-  ArrowUturnLeftIcon,
-  Cog6ToothIcon,
-  HomeIcon,
-  InformationCircleIcon,
-  WrenchScrewdriverIcon,
-} from "@heroicons/react/24/outline";
+import { Home, Wrench, Info, Settings, RotateCcw, Moon, Sun } from "lucide-react";
 import useThemeStore from "@/store/useThemeStore";
 import useFadeMaskLayerStore from "@/store/useFadeMaskLayer";
 import { useWindowSize } from "react-use";
@@ -15,6 +9,8 @@ import * as htmlToImage from "html-to-image";
 import { toPng, toJpeg, toBlob, toPixelData, toSvg } from "html-to-image";
 import { ToolNameMap } from "@/constants/router";
 import { animated, useSpring } from "@react-spring/web";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 const BottomNavigation: React.FC = () => {
   const { width, height } = useWindowSize();
@@ -37,7 +33,7 @@ const BottomNavigation: React.FC = () => {
     setBackgroundImage,
   } = useFadeMaskLayerStore();
 
-  const handleToggleDarkMode = (e: MouseEvent<HTMLLabelElement>) => {
+  const handleToggleDarkMode = (e: MouseEvent<HTMLButtonElement>) => {
     // 截取当前内容
     const node = document.getElementById("root");
 
@@ -110,95 +106,88 @@ const BottomNavigation: React.FC = () => {
       {/* 底部导航栏 */}
       {isMainMenu ? (
         // 一级菜单
-        <animated.ul
+        <animated.div
           style={mainMenuFadeUpProps}
-          className="my-2 glass mx-2 menu bg-base-200 menu-horizontal rounded-box ring ring-base-100 gap-1 justify-center flex-nowrap pointer-events-auto"
+          className="my-2 mx-2 flex gap-1 justify-center flex-nowrap pointer-events-auto backdrop-blur-md bg-card/80 border border-border rounded-lg p-1 shadow-lg"
         >
-          <li>
-            <a
-              className={location.pathname === "/" ? "active" : ""}
-              onClick={() => navigate("/")}
-            >
-              <HomeIcon className="size-5" />
-              {t("menu.home")}
-            </a>
-          </li>
-          <li>
-            <a
-              className={location.pathname === "/tools" ? "active" : ""}
-              onClick={() => navigate("/tools")}
-            >
-              <WrenchScrewdriverIcon className="size-5" />
-              {t("menu.tools")}
-            </a>
-          </li>
-          <li>
-            <a
-              className={location.pathname === "/about" ? "active" : ""}
-              onClick={() => navigate("/about")}
-            >
-              <InformationCircleIcon className="size-5" />
-              {t("menu.about")}
-            </a>
-          </li>
-          <li>
-            <a
-              className={location.pathname === "/setting" ? "active" : ""}
-              onClick={() => navigate("/setting")}
-            >
-              <Cog6ToothIcon className="size-5" />
-              {t("menu.setting")}
-            </a>
-          </li>
-        </animated.ul>
+          <Button
+            variant={location.pathname === "/" ? "secondary" : "ghost"}
+            size="sm"
+            onClick={() => navigate("/")}
+            className="gap-2"
+          >
+            <Home className="size-5" />
+            {t("menu.home")}
+          </Button>
+          <Button
+            variant={location.pathname === "/tools" ? "secondary" : "ghost"}
+            size="sm"
+            onClick={() => navigate("/tools")}
+            className="gap-2"
+          >
+            <Wrench className="size-5" />
+            {t("menu.tools")}
+          </Button>
+          <Button
+            variant={location.pathname === "/about" ? "secondary" : "ghost"}
+            size="sm"
+            onClick={() => navigate("/about")}
+            className="gap-2"
+          >
+            <Info className="size-5" />
+            {t("menu.about")}
+          </Button>
+          <Button
+            variant={location.pathname === "/setting" ? "secondary" : "ghost"}
+            size="sm"
+            onClick={() => navigate("/setting")}
+            className="gap-2"
+          >
+            <Settings className="size-5" />
+            {t("menu.setting")}
+          </Button>
+        </animated.div>
       ) : (
         // 二级菜单
-        <animated.ul
+        <animated.div
           style={subMenuFadeUpProps}
-          className="my-2 glass mx-2 menu bg-base-200 menu-horizontal rounded-box ring ring-base-100 gap-1 justify-center flex-nowrap pointer-events-auto"
+          className="my-2 mx-2 flex gap-1 justify-center flex-nowrap pointer-events-auto backdrop-blur-md bg-card/80 border border-border rounded-lg p-1 shadow-lg"
         >
-          <li>
-            <a
-              className={location.pathname === "/" ? "active" : ""}
-              onClick={() => navigate("/tools")}
-            >
-              <ArrowUturnLeftIcon className="size-5" />
-              {t("menu.back")}
-            </a>
-          </li>
-          <li>
-            <a className="active">
-              <WrenchScrewdriverIcon className="size-5" />
-              {t(currentToolName)}
-            </a>
-          </li>
-        </animated.ul>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => navigate("/tools")}
+            className="gap-2"
+          >
+            <RotateCcw className="size-5" />
+            {t("menu.back")}
+          </Button>
+          <Button
+            variant="secondary"
+            size="sm"
+            className="gap-2"
+          >
+            <Wrench className="size-5" />
+            {t(currentToolName)}
+          </Button>
+        </animated.div>
       )}
 
       {/* Dark Mode 快捷切换 */}
       <div className="absolute right-6 pointer-events-auto">
-        <label
-          className={`swap swap-rotate ${isDark ? "" : "swap-active"}`}
+        <Button
+          variant="ghost"
+          size="icon"
           onClick={handleToggleDarkMode}
+          className="h-9 w-9"
         >
-          {/* sun icon */}
-          <svg
-            className="swap-on h-6 w-6 fill-current"
-            xmlns="http://www.w3.org/2000/svg"
-            viewBox="0 0 24 24"
-          >
-            <path d="M5.64,17l-.71.71a1,1,0,0,0,0,1.41,1,1,0,0,0,1.41,0l.71-.71A1,1,0,0,0,5.64,17ZM5,12a1,1,0,0,0-1-1H3a1,1,0,0,0,0,2H4A1,1,0,0,0,5,12Zm7-7a1,1,0,0,0,1-1V3a1,1,0,0,0-2,0V4A1,1,0,0,0,12,5ZM5.64,7.05a1,1,0,0,0,.7.29,1,1,0,0,0,.71-.29,1,1,0,0,0,0-1.41l-.71-.71A1,1,0,0,0,4.93,6.34Zm12,.29a1,1,0,0,0,.7-.29l.71-.71a1,1,0,1,0-1.41-1.41L17,5.64a1,1,0,0,0,0,1.41A1,1,0,0,0,17.66,7.34ZM21,11H20a1,1,0,0,0,0,2h1a1,1,0,0,0,0-2Zm-9,8a1,1,0,0,0-1,1v1a1,1,0,0,0,2,0V20A1,1,0,0,0,12,19ZM18.36,17A1,1,0,0,0,17,18.36l.71.71a1,1,0,0,0,1.41,0,1,1,0,0,0,0-1.41ZM12,6.5A5.5,5.5,0,1,0,17.5,12,5.51,5.51,0,0,0,12,6.5Zm0,9A3.5,3.5,0,1,1,15.5,12,3.5,3.5,0,0,1,12,15.5Z" />
-          </svg>
-
-          {/* moon icon */}
-          <svg
-            className="swap-off h-6 w-6 fill-current"
-            xmlns="http://www.w3.org/2000/svg"
-            viewBox="0 0 24 24"
-          >
-            <path d="M21.64,13a1,1,0,0,0-1.05-.14,8.05,8.05,0,0,1-3.37.73A8.15,8.15,0,0,1,9.08,5.49a8.59,8.59,0,0,1,.25-2A1,1,0,0,0,8,2.36,10.14,10.14,0,1,0,22,14.05,1,1,0,0,0,21.64,13Zm-9.5,6.69A8.14,8.14,0,0,1,7.08,5.22v.27A10.15,10.15,0,0,0,17.22,15.63a9.79,9.79,0,0,0,2.1-.22A8.11,8.11,0,0,1,12.14,19.73Z" />
-          </svg>
-        </label>
+          {isDark ? (
+            <Moon className="h-5 w-5" />
+          ) : (
+            <Sun className="h-5 w-5" />
+          )}
+          <span className="sr-only">切换主题</span>
+        </Button>
       </div>
     </div>
   );

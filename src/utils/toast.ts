@@ -1,5 +1,4 @@
-import useThemeStore from "@/store/useThemeStore";
-import toast from "react-hot-toast";
+import { toast } from "sonner";
 
 /**
  * 通用的 toast 提示工具函数
@@ -10,30 +9,19 @@ export const showToast = (
   message: string,
   type: "default" | "success" | "error" | "loading" = "default"
 ) => {
-  const isDark = useThemeStore.getState().isDark; // 直接读取 Store 的当前状态
-
-  // 根据主题设置 toast 样式
-  const toastStyle = {
-    background: isDark ? "#333" : "#fff",
-    color: isDark ? "#fff" : "#333",
-    borderRadius: "8px",
-    padding: "12px 16px",
-    boxShadow: "0 4px 12px rgba(0, 0, 0, 0.1)",
-  };
-
   // 根据类型调用不同的 toast 方法
   switch (type) {
     case "success":
-      toast.success(message, { style: toastStyle });
+      toast.success(message);
       break;
     case "error":
-      toast.error(message, { style: toastStyle });
+      toast.error(message);
       break;
     case "loading":
-      toast.loading(message, { style: toastStyle });
+      toast.loading(message);
       break;
     default:
-      toast(message, { style: toastStyle });
+      toast(message);
       break;
   }
 };

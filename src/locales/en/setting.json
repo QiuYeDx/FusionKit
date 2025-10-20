@@ -2,18 +2,23 @@
   "title": "Setting",
   "description": "Customize your experience by adjusting the theme and language settings.",
   "subtitle": {
+    "general_config": "General Settings",
     "theme_config": "Theme Settings",
     "language_config": "Language Settings",
     "apikey_config": "Model Settings",
     "token_price_config": "Token Pricing"
   },
   "fields": {
+    "language": "Language",
+    "theme": "Theme",
+    "model_type": "Model Type",
     "light_mode": "Light Mode",
     "dark_mode": "Dark Mode",
     "system_mode": "Follow System",
     "other": "Other",
     "apikey": "API Key",
     "model_url": "Base URL",
+    "model_key": "Model Key",
     "token_price": {
       "intro_title": "Token Pricing",
       "intro_desc": "Configure the price per 1M tokens (USD).",

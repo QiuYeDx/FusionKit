@@ -2,12 +2,16 @@
   "title": "设置",
   "description": "通过调整主题和语言设置来个性化您的体验。",
   "subtitle": {
+    "general_config": "常规设置",
     "theme_config": "主题设置",
     "language_config": "语言设置",
     "apikey_config": "模型设置",
     "token_price_config": "Token 价格配置"
   },
   "fields": {
+    "language": "语言",
+    "theme": "主题",
+    "model_type": "模型类型",
     "light_mode": "浅色模式",
     "dark_mode": "深色模式",
     "system_mode": "跟随系统",

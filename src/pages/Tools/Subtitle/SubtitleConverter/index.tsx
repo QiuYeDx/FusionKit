@@ -1,19 +1,32 @@
 import { useTranslation } from "react-i18next";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  ArrowPathIcon,
-  FolderIcon,
-  FolderOpenIcon,
-  PlayCircleIcon,
-  XMarkIcon,
-  TrashIcon,
-  ExclamationTriangleIcon,
-  CpuChipIcon,
-  ChevronDownIcon,
-} from "@heroicons/react/24/outline";
+  RotateCw,
+  Folder,
+  FolderOpen,
+  PlayCircle,
+  X,
+  Trash2,
+  AlertTriangle,
+  ChevronDown,
+} from "lucide-react";
 import { SubtitleFileType, TaskStatus } from "@/type/subtitle";
 import { showToast } from "@/utils/toast";
 import ErrorDetailModal from "@/components/ErrorDetailModal";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { ButtonGroup } from "@/components/ui/button-group";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { Progress } from "@/components/ui/progress";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { cn } from "@/lib/utils";
 
 interface SubtitleConverterTask {
   fileName: string;
@@ -38,8 +51,8 @@ function SubtitleConverter() {
   const [isSummaryOpen, setIsSummaryOpen] = useState<boolean>(true);
 
   // 配置
-  const [direction, setDirection] = useState<"LRC_TO_SRT" | "SRT_TO_LRC">(
-    "LRC_TO_SRT"
+  const [toFormat, setToFormat] = useState<SubtitleFileType>(
+    SubtitleFileType.SRT
   );
   const [defaultDurationSec, setDefaultDurationSec] = useState<string>("2");
 
@@ -152,7 +165,11 @@ function SubtitleConverter() {
       const ext = file.name.split(".").pop()?.toUpperCase();
       if (
         !ext ||
-        ![SubtitleFileType.LRC, SubtitleFileType.SRT].includes(ext as any)
+        ![
+          SubtitleFileType.LRC,
+          SubtitleFileType.SRT,
+          SubtitleFileType.VTT,
+        ].includes(ext as any)
       ) {
         showToast(
           t("subtitle:converter.errors.invalid_file_type").replace(
@@ -177,10 +194,7 @@ function SubtitleConverter() {
       try {
         const fileContent = await file.text();
         const from = ext as SubtitleFileType;
-        const to =
-          from === SubtitleFileType.LRC
-            ? SubtitleFileType.SRT
-            : SubtitleFileType.LRC;
+        const to = toFormat;
 
         const newTask: SubtitleConverterTask = {
           fileName: file.name,
@@ -308,7 +322,7 @@ function SubtitleConverter() {
   const getTaskStatusColor = (status: TaskStatus) => {
     switch (status) {
       case TaskStatus.NOT_STARTED:
-        return "bg-gray-500";
+        return "bg-secondary";
       case TaskStatus.PENDING:
         return "bg-yellow-500";
       case TaskStatus.RESOLVED:
@@ -316,7 +330,7 @@ function SubtitleConverter() {
       case TaskStatus.FAILED:
         return "bg-red-500";
       default:
-        return "bg-gray-500";
+        return "bg-secondary";
     }
   };
 
@@ -325,157 +339,151 @@ function SubtitleConverter() {
       <div className="text-2xl font-bold mb-4">
         {t("subtitle:converter:title")}
       </div>
-      <div className="mb-6 text-gray-600 dark:text-gray-300">
+      <div className="mb-6 text-muted-foreground">
         {t("subtitle:converter:description")}
       </div>
 
       {/* 配置选项 */}
       <div className="flex flex-col gap-4 mb-4">
-        <div className="bg-base-200 rounded-lg">
+        <Card>
           <div
             className="flex items-center justify-between p-4 cursor-pointer select-none"
             onClick={() => setIsConfigOpen((v) => !v)}
           >
-            <div className="text-xl font-semibold">
+            <CardTitle className="text-xl">
               {t("subtitle:converter:config_title")}
-            </div>
-            <ChevronDownIcon
-              className={`h-5 w-5 transition-transform ${
-                isConfigOpen ? "rotate-180" : ""
-              }`}
+            </CardTitle>
+            <ChevronDown
+              className={cn(
+                "h-5 w-5 transition-transform",
+                isConfigOpen && "rotate-180"
+              )}
             />
           </div>
           {isConfigOpen && (
-            <div className="-mt-2 p-4 pt-0">
-              <div className="form-control -ml-1">
-                <label className="label -mb-2 pt-0">
-                  <span className="label-text">
-                    {t("subtitle:converter:fields.convert_direction")}
-                  </span>
-                </label>
-                <div className="join -ml-0.5">
-                  <input
-                    type="radio"
-                    className="join-item btn btn-sm bg-base-100"
-                    name="convert_dir"
-                    aria-label={t("subtitle:converter:fields.lrc_to_srt")}
-                    checked={direction === "LRC_TO_SRT"}
-                    onChange={() => setDirection("LRC_TO_SRT")}
-                  />
-                  <input
-                    type="radio"
-                    className="join-item btn btn-sm bg-base-100 mt-[3px]"
-                    name="convert_dir"
-                    aria-label={t("subtitle:converter:fields.srt_to_lrc")}
-                    checked={direction === "SRT_TO_LRC"}
-                    onChange={() => setDirection("SRT_TO_LRC")}
-                  />
+            <CardContent className="pt-0">
+              <div className="space-y-4">
+                <div className="flex items-center gap-4">
+                  <Label className="text-sm font-medium min-w-[100px]">
+                    {t("subtitle:converter:fields.target_format")}
+                  </Label>
+                  <Select
+                    value={toFormat}
+                    onValueChange={(value) =>
+                      setToFormat(value as SubtitleFileType)
+                    }
+                  >
+                    <SelectTrigger className="w-32">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={SubtitleFileType.LRC}>LRC</SelectItem>
+                      <SelectItem value={SubtitleFileType.SRT}>SRT</SelectItem>
+                      <SelectItem value={SubtitleFileType.VTT}>VTT</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
-              </div>
 
-              {direction === "LRC_TO_SRT" && (
-                <div className="form-control mt-2">
-                  <label className="label -ml-1 -mb-1">
-                    <span className="label-text">
+                {toFormat !== SubtitleFileType.LRC && (
+                  <div className="space-y-2">
+                    <Label htmlFor="duration">
                       {t("subtitle:converter:fields.default_duration_label")}
-                    </span>
-                  </label>
-                  <input
-                    type="number"
-                    className="input input-sm input-bordered box-border w-32"
-                    value={defaultDurationSec}
-                    min="1"
-                    max="10"
-                    onChange={(e) => setDefaultDurationSec(e.target.value)}
-                  />
-                </div>
-              )}
-            </div>
+                    </Label>
+                    <Input
+                      id="duration"
+                      type="number"
+                      className="w-32"
+                      value={defaultDurationSec}
+                      min="1"
+                      max="10"
+                      onChange={(e) => setDefaultDurationSec(e.target.value)}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      {t("subtitle:converter:fields.duration_hint")}
+                    </p>
+                  </div>
+                )}
+              </div>
+            </CardContent>
           )}
-        </div>
+        </Card>
       </div>
 
       {/* 输出设置 */}
       <div className="mb-4">
-        <div className="bg-base-200 rounded-lg">
+        <Card>
           <div
             className="flex items-center justify-between p-4 cursor-pointer select-none"
             onClick={() => setIsOutputOpen((v) => !v)}
           >
-            <div className="text-xl font-semibold">
+            <CardTitle className="text-xl">
               {t("subtitle:converter:output_path_section")}
-            </div>
-            <ChevronDownIcon
-              className={`h-5 w-5 transition-transform ${
-                isOutputOpen ? "rotate-180" : ""
-              }`}
+            </CardTitle>
+            <ChevronDown
+              className={cn(
+                "h-5 w-5 transition-transform",
+                isOutputOpen && "rotate-180"
+              )}
             />
           </div>
           {isOutputOpen && (
-            <div className="-mt-2 p-4 pt-0">
+            <CardContent className="pt-0">
               <div className="flex items-center gap-4">
-                <div className="join grow">
-                  <button
-                    onClick={handleSelectOutputPath}
-                    className="btn btn-primary btn-sm join-item"
-                  >
-                    {t("subtitle:converter:fields.select_output_path")}
-                  </button>
-                  <input
-                    type="text"
-                    placeholder={t(
-                      "subtitle:converter:fields.no_output_path_selected"
-                    )}
-                    value={outputURL}
-                    onChange={() => {}}
-                    className="join-item input input-sm input-bordered box-border grow shrink-0"
-                  />
-                </div>
+                <Button onClick={handleSelectOutputPath} size="sm">
+                  {t("subtitle:converter:fields.select_output_path")}
+                </Button>
+                <Input
+                  type="text"
+                  placeholder={t(
+                    "subtitle:converter:fields.no_output_path_selected"
+                  )}
+                  value={outputURL}
+                  onChange={() => {}}
+                  className="grow"
+                  readOnly
+                />
               </div>
-            </div>
+            </CardContent>
           )}
-        </div>
+        </Card>
       </div>
 
       {/* 配置摘要 */}
       <div className="mb-4">
-        <div className="bg-base-200 rounded-lg">
+        <Card>
           <div
             className="flex items-center justify-between p-4 cursor-pointer select-none"
             onClick={() => setIsSummaryOpen((v) => !v)}
           >
-            <div className="text-xl font-semibold">
+            <CardTitle className="text-xl">
               {t("subtitle:converter:summary_title")}
-            </div>
-            <ChevronDownIcon
-              className={`h-5 w-5 transition-transform ${
-                isSummaryOpen ? "rotate-180" : ""
-              }`}
+            </CardTitle>
+            <ChevronDown
+              className={cn(
+                "h-5 w-5 transition-transform",
+                isSummaryOpen && "rotate-180"
+              )}
             />
           </div>
           {isSummaryOpen && (
-            <div className="-mt-2 p-4 pt-0">
+            <CardContent className="pt-0">
               <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
-                <div className="bg-base-100 rounded p-3">
-                  <div className="text-gray-500 text-xs mb-1">
-                    {t("subtitle:converter:fields.convert_direction")}
+                <div className="bg-muted rounded p-3">
+                  <div className="text-muted-foreground text-xs mb-1">
+                    {t("subtitle:converter:fields.target_format")}
                   </div>
-                  <div className="font-medium">
-                    {direction === "LRC_TO_SRT"
-                      ? t("subtitle:converter:fields.lrc_to_srt")
-                      : t("subtitle:converter:fields.srt_to_lrc")}
-                  </div>
+                  <div className="font-medium">{toFormat}</div>
                 </div>
-                {direction === "LRC_TO_SRT" && (
-                  <div className="bg-base-100 rounded p-3">
-                    <div className="text-gray-500 text-xs mb-1">
+                {toFormat !== SubtitleFileType.LRC && (
+                  <div className="bg-muted rounded p-3">
+                    <div className="text-muted-foreground text-xs mb-1">
                       {t("subtitle:converter:summary.default_duration")}
                     </div>
                     <div className="font-medium">{defaultDurationSec}s</div>
                   </div>
                 )}
-                <div className="bg-base-100 rounded p-3">
-                  <div className="text-gray-500 text-xs mb-1">
+                <div className="bg-muted rounded p-3">
+                  <div className="text-muted-foreground text-xs mb-1">
                     {t("subtitle:converter:summary.total_tasks")}
                   </div>
                   <div className="font-medium">
@@ -486,175 +494,174 @@ function SubtitleConverter() {
                   </div>
                 </div>
               </div>
-            </div>
+            </CardContent>
           )}
-        </div>
+        </Card>
       </div>
 
       {/* 文件上传 */}
       <div className="mb-4">
-        <div className="bg-base-200 p-4 rounded-lg">
-          <div className="text-xl font-semibold mb-4">
-            {t("subtitle:converter:upload_section")}
-          </div>
-          <label
-            className={`flex flex-col items-center justify-center border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-6 cursor-pointer transition-colors file-drop-zone ${
-              isDragging
-                ? "border-blue-500 bg-blue-50 dark:bg-blue-700 dark:bg-opacity-30"
-                : "hover:bg-base-300"
-            }`}
-            onDragEnter={handleDragEnter}
-            onDragLeave={handleDragLeave}
-            onDragOver={handleDragOver}
-            onDrop={handleDrop}
-          >
-            <input
-              type="file"
-              multiple
-              className="hidden"
-              accept=".lrc,.srt"
-              onChange={handleFileUpload}
-            />
-            <div className="text-4xl -mb-2 pointer-events-none">
-              {isDragging ? (
-                <FolderOpenIcon className="h-10" />
-              ) : (
-                <FolderIcon className="h-10" />
+        <Card>
+          <CardHeader>
+            <CardTitle>{t("subtitle:converter:upload_section")}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <label
+              className={cn(
+                "flex flex-col items-center justify-center border-2 border-dashed rounded-lg p-6 cursor-pointer transition-colors file-drop-zone",
+                isDragging
+                  ? "border-primary bg-primary/10"
+                  : "border-border hover:bg-muted/50"
               )}
-            </div>
-            <div className="text-center pointer-events-none">
-              <p className="font-medium">
-                {t("subtitle:converter:fields.upload_tips")}
-              </p>
-              <p className="text-sm text-gray-500 mt-1">
-                {t("subtitle:converter:fields.files_only")}
-              </p>
-            </div>
-          </label>
-        </div>
+              onDragEnter={handleDragEnter}
+              onDragLeave={handleDragLeave}
+              onDragOver={handleDragOver}
+              onDrop={handleDrop}
+            >
+              <input
+                type="file"
+                multiple
+                className="hidden"
+                accept=".lrc,.srt,.vtt"
+                onChange={handleFileUpload}
+              />
+              <div className="text-4xl -mb-2 pointer-events-none">
+                {isDragging ? (
+                  <FolderOpen className="h-10 w-10" />
+                ) : (
+                  <Folder className="h-10 w-10" />
+                )}
+              </div>
+              <div className="mt-3 text-center pointer-events-none">
+                <p className="font-medium">
+                  {t("subtitle:converter:fields.upload_tips")}
+                </p>
+                <p className="text-sm text-muted-foreground mt-1">
+                  {t("subtitle:converter:fields.files_only")}
+                </p>
+              </div>
+            </label>
+          </CardContent>
+        </Card>
       </div>
 
       {/* 任务管理 */}
-      <div className="bg-base-200 p-4 rounded-lg mb-12">
-        <div className="flex items-center justify-between mb-4">
-          <div className="text-xl font-semibold">
-            {t("subtitle:converter:task_management")}
+      <Card className="mb-12">
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <CardTitle>{t("subtitle:converter:task_management")}</CardTitle>
+            <div className="flex gap-2">
+              <Button
+                size="sm"
+                onClick={startAllTasks}
+                disabled={notStartedTasks.length === 0}
+              >
+                {t("subtitle:converter:fields.start_all")}
+              </Button>
+              <Button
+                size="sm"
+                onClick={removeAllResolvedTask}
+                disabled={resolvedTasks.length === 0}
+              >
+                {t("subtitle:converter:fields.remove_all_resolved_task")}
+              </Button>
+            </div>
           </div>
-          <div className="flex gap-2">
-            <button
-              className="btn btn-primary btn-sm"
-              onClick={startAllTasks}
-              disabled={notStartedTasks.length === 0}
-            >
-              {t("subtitle:converter:fields.start_all")}
-            </button>
-            <button
-              className="btn btn-primary btn-sm"
-              onClick={removeAllResolvedTask}
-              disabled={resolvedTasks.length === 0}
-            >
-              {t("subtitle:converter:fields.remove_all_resolved_task")}
-            </button>
-          </div>
-        </div>
-
-        {/* 列表 */}
-        <div className="space-y-4">
-          {tasks.map((task, index) => (
-            <div key={index} className="bg-base-100 rounded-lg p-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-4 flex-1">
-                  <div
-                    className={`w-3 h-3 rounded-full ${getTaskStatusColor(
-                      task.status
-                    )}`}
-                  />
-                  <div className="font-medium flex-1">
-                    {task.fileName}
-                    <div className="text-sm text-gray-500 mt-1">
-                      {task.status === TaskStatus.NOT_STARTED &&
-                        t("subtitle:converter:task_status.notstarted")}
-                      {task.status === TaskStatus.PENDING &&
-                        ` ${t(
-                          "subtitle:converter:task_status.pending"
-                        )} ${Math.round(task.progress || 0)}%`}
-                      {task.status === TaskStatus.RESOLVED &&
-                        ` ${t("subtitle:converter:task_status.resolved")}`}
-                      {task.status === TaskStatus.FAILED &&
-                        ` ${t("subtitle:converter:task_status.failed")}`}
-                      <span className="ml-4 px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded text-xs">
-                        {task.from} → {task.to}
-                      </span>
-                      {task.outputFilePath && (
-                        <span className="ml-4 font-mono text-xs text-green-600">
-                          {t("subtitle:converter:labels.output")}:{" "}
-                          {task.outputFilePath}
+        </CardHeader>
+        <CardContent>
+          {/* 列表 */}
+          <div className="space-y-4">
+            {tasks.map((task, index) => (
+              <div key={index} className="bg-muted rounded-lg p-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-4 flex-1">
+                    <div
+                      className={`w-3 h-3 rounded-full ${getTaskStatusColor(
+                        task.status
+                      )}`}
+                    />
+                    <div className="font-medium flex-1">
+                      {task.fileName}
+                      <div className="text-sm text-muted-foreground mt-1">
+                        {task.status === TaskStatus.NOT_STARTED &&
+                          t("subtitle:converter:task_status.notstarted")}
+                        {task.status === TaskStatus.PENDING &&
+                          ` ${t(
+                            "subtitle:converter:task_status.pending"
+                          )} ${Math.round(task.progress || 0)}%`}
+                        {task.status === TaskStatus.RESOLVED &&
+                          ` ${t("subtitle:converter:task_status.resolved")}`}
+                        {task.status === TaskStatus.FAILED &&
+                          ` ${t("subtitle:converter:task_status.failed")}`}
+                        <span className="ml-4 px-2 py-1 bg-muted-foreground/20 rounded text-xs">
+                          {task.from} → {task.to}
                         </span>
-                      )}
+                        {task.outputFilePath && (
+                          <span className="ml-4 font-mono text-xs text-green-600">
+                            {t("subtitle:converter:labels.output")}:{" "}
+                            {task.outputFilePath}
+                          </span>
+                        )}
+                      </div>
                     </div>
+                  </div>
+
+                  <div className="flex items-center gap-4">
+                    {task.status === TaskStatus.FAILED && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="text-destructive hover:text-destructive"
+                        onClick={() => openErrorModal(task)}
+                      >
+                        <AlertTriangle className="h-5 w-5" />
+                      </Button>
+                    )}
+
+                    {task.status === TaskStatus.FAILED && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => retryTask(task.fileName)}
+                      >
+                        <RotateCw className="h-5 w-5" />
+                      </Button>
+                    )}
+
+                    {task.status === TaskStatus.NOT_STARTED && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => startTask(task.fileName)}
+                      >
+                        <PlayCircle className="h-5 w-5" />
+                      </Button>
+                    )}
+
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => deleteTask(task.fileName)}
+                    >
+                      <Trash2 className="h-5 w-5" />
+                    </Button>
                   </div>
                 </div>
 
-                <div className="flex items-center gap-4">
-                  {task.status === TaskStatus.FAILED && (
-                    <a
-                      className="cursor-pointer tooltip text-error"
-                      data-tip={t(
-                        "subtitle:converter:actions.view_error_detail"
-                      )}
-                      onClick={() => openErrorModal(task)}
-                    >
-                      <ExclamationTriangleIcon className="size-6" />
-                    </a>
-                  )}
-
-                  {task.status === TaskStatus.FAILED && (
-                    <a
-                      className="cursor-pointer tooltip"
-                      data-tip={t("subtitle:converter:actions.retry")}
-                      onClick={() => retryTask(task.fileName)}
-                    >
-                      <ArrowPathIcon className="size-6" />
-                    </a>
-                  )}
-
-                  {task.status === TaskStatus.NOT_STARTED && (
-                    <a
-                      className="cursor-pointer tooltip"
-                      data-tip={t("subtitle:converter:actions.start")}
-                      onClick={() => startTask(task.fileName)}
-                    >
-                      <PlayCircleIcon className="size-6" />
-                    </a>
-                  )}
-
-                  <a
-                    className="cursor-pointer tooltip"
-                    data-tip={t("subtitle:converter:actions.delete")}
-                    onClick={() => deleteTask(task.fileName)}
-                  >
-                    <TrashIcon className="size-6" />
-                  </a>
-                </div>
+                {task.status === TaskStatus.PENDING && (
+                  <Progress value={task.progress} className="w-full mt-2" />
+                )}
               </div>
-
-              {task.status === TaskStatus.PENDING && (
-                <progress
-                  className="progress progress-primary w-full mt-2"
-                  value={task.progress}
-                  max="100"
-                />
-              )}
-            </div>
-          ))}
-        </div>
-
-        {tasks.length === 0 && (
-          <div className="text-center py-8 text-gray-500">
-            {t("subtitle:converter:fields.no_tasks")}
+            ))}
           </div>
-        )}
-      </div>
+
+          {tasks.length === 0 && (
+            <div className="text-center py-8 text-muted-foreground">
+              {t("subtitle:converter:fields.no_tasks")}
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {selectedErrorTask && (
         <ErrorDetailModal
