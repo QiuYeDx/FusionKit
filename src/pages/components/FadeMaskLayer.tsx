@@ -5,10 +5,6 @@ import { useEffect, useState } from "react";
 import { useWindowSize } from "react-use";
 
 function FadeMaskLayer() {
-  // TODO: 临时禁用过渡遮罩动画，待问题修复后再启用
-  return null;
-
-  /* 原始代码已注释，待修复后恢复
   const { width, height } = useWindowSize();
   const {
     cx,
@@ -45,6 +41,18 @@ function FadeMaskLayer() {
     if (rSpring) {
       rSpring.start(isDark ? targetR : 0);
     }
+
+    // 重置页面滚动到顶部
+    // 找到 ScrollArea 内部的实际滚动容器
+    const scrollViewport = document.querySelector(
+      "[data-radix-scroll-area-viewport]"
+    );
+    if (scrollViewport) {
+      scrollViewport.scrollTo({
+        top: 0,
+        behavior: "instant" as ScrollBehavior,
+      });
+    }
   }, [showMaskLayer, getTargetRadius()]);
 
   // * 业务方的触发方法(使用示例)
@@ -79,7 +87,6 @@ function FadeMaskLayer() {
       }}
     ></div>
   );
-  */
 }
 
 export default FadeMaskLayer;

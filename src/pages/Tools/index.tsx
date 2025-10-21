@@ -31,7 +31,7 @@ const Tools: React.FC = () => {
           <CardContent>
             <div className="grid gap-3 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
               <div
-                className="group relative overflow-hidden rounded-lg border bg-background p-4 hover:bg-accent cursor-pointer transition-all duration-200 hover:shadow-md"
+                className="group relative overflow-hidden rounded-lg border bg-background p-4 hover:bg-accent cursor-pointer transition-all duration-200 hover:shadow-lg"
                 onClick={() => navigate("/tools/subtitle/translator")}
               >
                 <div className="flex items-start justify-between">
@@ -48,7 +48,7 @@ const Tools: React.FC = () => {
               </div>
               
               <div
-                className="group relative overflow-hidden rounded-lg border bg-background p-4 hover:bg-accent cursor-pointer transition-all duration-200 hover:shadow-md"
+                className="group relative overflow-hidden rounded-lg border bg-background p-4 hover:bg-accent cursor-pointer transition-all duration-200 hover:shadow-lg"
                 onClick={() => navigate("/tools/subtitle/converter")}
               >
                 <div className="flex items-start justify-between">
@@ -65,7 +65,7 @@ const Tools: React.FC = () => {
               </div>
               
               <div
-                className="group relative overflow-hidden rounded-lg border bg-background p-4 hover:bg-accent cursor-pointer transition-all duration-200 hover:shadow-md"
+                className="group relative overflow-hidden rounded-lg border bg-background p-4 hover:bg-accent cursor-pointer transition-all duration-200 hover:shadow-lg"
                 onClick={() => navigate("/tools/subtitle/extractor")}
               >
                 <div className="flex items-start justify-between">

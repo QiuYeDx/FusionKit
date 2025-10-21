@@ -171,8 +171,14 @@
     @apply border-border outline-ring/50;
   }
 
+  html,
+  body {
+    @apply overflow-hidden;
+    height: 100%;
+  }
+
   html {
-    @apply scroll-smooth;
+    /* 移除 scroll-smooth，因为现在使用 ScrollArea 组件 */
   }
 
   body {
@@ -395,7 +401,12 @@
     @apply border-border outline-ring/50;
   }
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground overflow-hidden;
+    height: 100%;
+  }
+  html {
+    @apply overflow-hidden;
+    height: 100%;
   }
 }
 

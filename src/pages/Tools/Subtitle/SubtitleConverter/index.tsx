@@ -322,7 +322,7 @@ function SubtitleConverter() {
   const getTaskStatusColor = (status: TaskStatus) => {
     switch (status) {
       case TaskStatus.NOT_STARTED:
-        return "bg-secondary";
+        return "bg-gray-500";
       case TaskStatus.PENDING:
         return "bg-yellow-500";
       case TaskStatus.RESOLVED:
@@ -330,7 +330,7 @@ function SubtitleConverter() {
       case TaskStatus.FAILED:
         return "bg-red-500";
       default:
-        return "bg-secondary";
+        return "bg-gray-500";
     }
   };
 
@@ -361,7 +361,7 @@ function SubtitleConverter() {
             />
           </div>
           {isConfigOpen && (
-            <CardContent className="pt-0">
+            <CardContent className="p-4 pt-0">
               <div className="space-y-4">
                 <div className="flex items-center gap-4">
                   <Label className="text-sm font-medium min-w-[100px]">
@@ -427,7 +427,7 @@ function SubtitleConverter() {
             />
           </div>
           {isOutputOpen && (
-            <CardContent className="pt-0">
+            <CardContent className="p-4 pt-0">
               <div className="flex items-center gap-4">
                 <Button onClick={handleSelectOutputPath} size="sm">
                   {t("subtitle:converter:fields.select_output_path")}
@@ -466,33 +466,39 @@ function SubtitleConverter() {
             />
           </div>
           {isSummaryOpen && (
-            <CardContent className="pt-0">
+            <CardContent className="p-4 pt-0">
               <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
-                <div className="bg-muted rounded p-3">
-                  <div className="text-muted-foreground text-xs mb-1">
-                    {t("subtitle:converter:fields.target_format")}
-                  </div>
-                  <div className="font-medium">{toFormat}</div>
-                </div>
-                {toFormat !== SubtitleFileType.LRC && (
-                  <div className="bg-muted rounded p-3">
+                <Card className="border-muted">
+                  <CardContent className="p-3">
                     <div className="text-muted-foreground text-xs mb-1">
-                      {t("subtitle:converter:summary.default_duration")}
+                      {t("subtitle:converter:fields.target_format")}
                     </div>
-                    <div className="font-medium">{defaultDurationSec}s</div>
-                  </div>
+                    <div className="font-medium">{toFormat}</div>
+                  </CardContent>
+                </Card>
+                {toFormat !== SubtitleFileType.LRC && (
+                  <Card className="border-muted">
+                    <CardContent className="p-3">
+                      <div className="text-muted-foreground text-xs mb-1">
+                        {t("subtitle:converter:summary.default_duration")}
+                      </div>
+                      <div className="font-medium">{defaultDurationSec}s</div>
+                    </CardContent>
+                  </Card>
                 )}
-                <div className="bg-muted rounded p-3">
-                  <div className="text-muted-foreground text-xs mb-1">
-                    {t("subtitle:converter:summary.total_tasks")}
-                  </div>
-                  <div className="font-medium">
-                    {t("subtitle:converter:summary.task_count").replace(
-                      "{count}",
-                      String(tasks.length)
-                    )}
-                  </div>
-                </div>
+                <Card className="border-muted">
+                  <CardContent className="p-3">
+                    <div className="text-muted-foreground text-xs mb-1">
+                      {t("subtitle:converter:summary.total_tasks")}
+                    </div>
+                    <div className="font-medium">
+                      {t("subtitle:converter:summary.task_count").replace(
+                        "{count}",
+                        String(tasks.length)
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
               </div>
             </CardContent>
           )}
@@ -502,10 +508,10 @@ function SubtitleConverter() {
       {/* 文件上传 */}
       <div className="mb-4">
         <Card>
-          <CardHeader>
-            <CardTitle>{t("subtitle:converter:upload_section")}</CardTitle>
+          <CardHeader className="p-4">
+            <CardTitle className="text-xl">{t("subtitle:converter:upload_section")}</CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="p-4">
             <label
               className={cn(
                 "flex flex-col items-center justify-center border-2 border-dashed rounded-lg p-6 cursor-pointer transition-colors file-drop-zone",
@@ -547,11 +553,12 @@ function SubtitleConverter() {
 
       {/* 任务管理 */}
       <Card className="mb-12">
-        <CardHeader>
+        <CardHeader className="p-4">
           <div className="flex items-center justify-between">
-            <CardTitle>{t("subtitle:converter:task_management")}</CardTitle>
+            <CardTitle className="text-xl">{t("subtitle:converter:task_management")}</CardTitle>
             <div className="flex gap-2">
               <Button
+                variant={notStartedTasks.length === 0 ? "outline" : "default"}
                 size="sm"
                 onClick={startAllTasks}
                 disabled={notStartedTasks.length === 0}
@@ -559,6 +566,7 @@ function SubtitleConverter() {
                 {t("subtitle:converter:fields.start_all")}
               </Button>
               <Button
+                variant={resolvedTasks.length === 0 ? "outline" : "default"}
                 size="sm"
                 onClick={removeAllResolvedTask}
                 disabled={resolvedTasks.length === 0}
@@ -568,90 +576,92 @@ function SubtitleConverter() {
             </div>
           </div>
         </CardHeader>
-        <CardContent>
+        <CardContent className="p-4">
           {/* 列表 */}
           <div className="space-y-4">
             {tasks.map((task, index) => (
-              <div key={index} className="bg-muted rounded-lg p-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-4 flex-1">
-                    <div
-                      className={`w-3 h-3 rounded-full ${getTaskStatusColor(
-                        task.status
-                      )}`}
-                    />
-                    <div className="font-medium flex-1">
-                      {task.fileName}
-                      <div className="text-sm text-muted-foreground mt-1">
-                        {task.status === TaskStatus.NOT_STARTED &&
-                          t("subtitle:converter:task_status.notstarted")}
-                        {task.status === TaskStatus.PENDING &&
-                          ` ${t(
-                            "subtitle:converter:task_status.pending"
-                          )} ${Math.round(task.progress || 0)}%`}
-                        {task.status === TaskStatus.RESOLVED &&
-                          ` ${t("subtitle:converter:task_status.resolved")}`}
-                        {task.status === TaskStatus.FAILED &&
-                          ` ${t("subtitle:converter:task_status.failed")}`}
-                        <span className="ml-4 px-2 py-1 bg-muted-foreground/20 rounded text-xs">
-                          {task.from} → {task.to}
-                        </span>
-                        {task.outputFilePath && (
-                          <span className="ml-4 font-mono text-xs text-green-600">
-                            {t("subtitle:converter:labels.output")}:{" "}
-                            {task.outputFilePath}
+              <Card key={index}>
+                <CardContent className="p-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-4 flex-1">
+                      <div
+                        className={`w-3 h-3 rounded-full ${getTaskStatusColor(
+                          task.status
+                        )}`}
+                      />
+                      <div className="font-medium flex-1">
+                        {task.fileName}
+                        <div className="text-sm text-muted-foreground mt-1">
+                          {task.status === TaskStatus.NOT_STARTED &&
+                            t("subtitle:converter:task_status.notstarted")}
+                          {task.status === TaskStatus.PENDING &&
+                            ` ${t(
+                              "subtitle:converter:task_status.pending"
+                            )} ${Math.round(task.progress || 0)}%`}
+                          {task.status === TaskStatus.RESOLVED &&
+                            ` ${t("subtitle:converter:task_status.resolved")}`}
+                          {task.status === TaskStatus.FAILED &&
+                            ` ${t("subtitle:converter:task_status.failed")}`}
+                          <span className="ml-4 px-2 py-1 bg-muted-foreground/20 rounded text-xs">
+                            {task.from} → {task.to}
                           </span>
-                        )}
+                          {task.outputFilePath && (
+                            <span className="ml-4 font-mono text-xs text-green-600">
+                              {t("subtitle:converter:labels.output")}:{" "}
+                              {task.outputFilePath}
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </div>
+
+                    <ButtonGroup>
+                      {task.status === TaskStatus.FAILED && (
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          className="text-destructive hover:text-destructive"
+                          onClick={() => openErrorModal(task)}
+                        >
+                          <AlertTriangle className="h-5 w-5" />
+                        </Button>
+                      )}
+
+                      {task.status === TaskStatus.FAILED && (
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          onClick={() => retryTask(task.fileName)}
+                        >
+                          <RotateCw className="h-5 w-5" />
+                        </Button>
+                      )}
+
+                      {task.status === TaskStatus.NOT_STARTED && (
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          onClick={() => startTask(task.fileName)}
+                        >
+                          <PlayCircle className="h-5 w-5" />
+                        </Button>
+                      )}
+
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        onClick={() => deleteTask(task.fileName)}
+                      >
+                        <Trash2 className="h-5 w-5" />
+                      </Button>
+                    </ButtonGroup>
                   </div>
 
-                  <div className="flex items-center gap-4">
-                    {task.status === TaskStatus.FAILED && (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="text-destructive hover:text-destructive"
-                        onClick={() => openErrorModal(task)}
-                      >
-                        <AlertTriangle className="h-5 w-5" />
-                      </Button>
-                    )}
-
-                    {task.status === TaskStatus.FAILED && (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => retryTask(task.fileName)}
-                      >
-                        <RotateCw className="h-5 w-5" />
-                      </Button>
-                    )}
-
-                    {task.status === TaskStatus.NOT_STARTED && (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => startTask(task.fileName)}
-                      >
-                        <PlayCircle className="h-5 w-5" />
-                      </Button>
-                    )}
-
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => deleteTask(task.fileName)}
-                    >
-                      <Trash2 className="h-5 w-5" />
-                    </Button>
-                  </div>
-                </div>
-
-                {task.status === TaskStatus.PENDING && (
-                  <Progress value={task.progress} className="w-full mt-2" />
-                )}
-              </div>
+                  {task.status === TaskStatus.PENDING && (
+                    <Progress value={task.progress} className="w-full mt-2" />
+                  )}
+                </CardContent>
+              </Card>
             ))}
           </div>
 

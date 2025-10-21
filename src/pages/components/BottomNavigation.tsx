@@ -1,7 +1,15 @@
 import React, { useEffect, useState, MouseEvent, useMemo, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { Home, Wrench, Info, Settings, RotateCcw, Moon, Sun } from "lucide-react";
+import {
+  Home,
+  Wrench,
+  Info,
+  Settings,
+  RotateCcw,
+  Moon,
+  Sun,
+} from "lucide-react";
 import useThemeStore from "@/store/useThemeStore";
 import useFadeMaskLayerStore from "@/store/useFadeMaskLayer";
 import { useWindowSize } from "react-use";
@@ -62,13 +70,8 @@ const BottomNavigation: React.FC = () => {
         setCenterXY(e.clientX, e.clientY);
         setShowMaskLayer(!showMaskLayer);
 
-        const appElement = document.querySelector(".app");
-        if (appElement) {
-          appElement.scrollTo({
-            top: 0,
-          });
-        }
         // * 在真正切换 theme 之前截图并显示过渡动效
+        // 注意：页面滚动重置逻辑已移至 FadeMaskLayer 组件中统一处理
         if (isDark) {
           setTheme("light");
         } else {
@@ -162,11 +165,7 @@ const BottomNavigation: React.FC = () => {
             <RotateCcw className="size-5" />
             {t("menu.back")}
           </Button>
-          <Button
-            variant="secondary"
-            size="sm"
-            className="gap-2"
-          >
+          <Button variant="secondary" size="sm" className="gap-2">
             <Wrench className="size-5" />
             {t(currentToolName)}
           </Button>
@@ -176,16 +175,12 @@ const BottomNavigation: React.FC = () => {
       {/* Dark Mode 快捷切换 */}
       <div className="absolute right-6 pointer-events-auto">
         <Button
-          variant="ghost"
+          variant="outline"
           size="icon"
           onClick={handleToggleDarkMode}
-          className="h-9 w-9"
+          className="h-9 w-9 rounded-full"
         >
-          {isDark ? (
-            <Moon className="h-5 w-5" />
-          ) : (
-            <Sun className="h-5 w-5" />
-          )}
+          {isDark ? <Moon className="h-5 w-5" /> : <Sun className="h-5 w-5" />}
           <span className="sr-only">切换主题</span>
         </Button>
       </div>
