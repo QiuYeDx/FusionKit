@@ -15,7 +15,8 @@
   "retry": "リトライ",
   "app_name": "FusionKit",
   "action": {
-    "copy_error": "エラー情報をコピー"
+    "copy_error": "エラー情報をコピー",
+    "close": "閉じる"
   },
   "info": {
     "copy_success": "エラー情報をクリップボードにコピーしました"

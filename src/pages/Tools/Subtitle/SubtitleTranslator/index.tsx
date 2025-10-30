@@ -459,10 +459,10 @@ function SubtitleTranslator() {
       </div>
 
       {/* 配置区块 */}
-      <div className="flex flex-col gap-4 mb-4">
+      <div className="flex flex-col space-y-4 mb-4">
         <Card>
-          <div
-            className="flex items-center justify-between p-4 cursor-pointer select-none"
+          <CardHeader
+            className="flex items-center justify-between cursor-pointer select-none"
             onClick={() => setIsConfigOpen((v) => !v)}
           >
             <CardTitle className="text-xl">
@@ -474,9 +474,9 @@ function SubtitleTranslator() {
                 isConfigOpen && "rotate-180"
               )}
             />
-          </div>
+          </CardHeader>
           {isConfigOpen && (
-            <CardContent className="p-4 pt-0 space-y-4">
+            <CardContent className="space-y-4">
               {/* 分片模式选择 */}
               <div className="flex items-center gap-4">
                 <Label className="text-sm font-medium min-w-[100px]">
@@ -500,7 +500,7 @@ function SubtitleTranslator() {
 
               {/* 自定义分片长度输入 */}
               {sliceType === SubtitleSliceType.CUSTOM && (
-                <div className="space-y-2 mt-4">
+                <div className="space-y-2">
                   <Label htmlFor="custom-length">
                     {t("subtitle:translator.fields.custom_slice_length")}{" "}
                     (chars)
@@ -527,8 +527,8 @@ function SubtitleTranslator() {
       {/* 输出设置区块 */}
       <div className="mb-4">
         <Card>
-          <div
-            className="flex items-center justify-between p-4 cursor-pointer select-none"
+          <CardHeader
+            className="flex items-center justify-between cursor-pointer select-none"
             onClick={() => setIsOutputOpen((v) => !v)}
           >
             <CardTitle className="text-xl">
@@ -540,9 +540,9 @@ function SubtitleTranslator() {
                 isOutputOpen && "rotate-180"
               )}
             />
-          </div>
+          </CardHeader>
           {isOutputOpen && (
-            <CardContent className="p-4 pt-0">
+            <CardContent>
               <div className="flex items-center gap-4">
                 <Button onClick={handleSelectOutputPath} size="sm">
                   {t("subtitle:translator.fields.select_output_path")}
@@ -568,8 +568,8 @@ function SubtitleTranslator() {
       {/* 定时开始设置 */}
       <div className="mb-4">
         <Card>
-          <div
-            className="flex items-center justify-between p-4 cursor-pointer select-none"
+          <CardHeader
+            className="flex items-center justify-between cursor-pointer select-none"
             onClick={() => setIsScheduleOpen((v) => !v)}
           >
             <CardTitle className="text-xl">
@@ -581,9 +581,9 @@ function SubtitleTranslator() {
                 isScheduleOpen && "rotate-180"
               )}
             />
-          </div>
+          </CardHeader>
           {isScheduleOpen && (
-            <CardContent className="p-4 pt-0">
+            <CardContent>
               <div className="space-y-4">
                 {/* 第一行：日期时间选择和操作按钮 */}
                 <div className="flex flex-col sm:flex-row sm:items-end gap-4">
@@ -721,7 +721,7 @@ function SubtitleTranslator() {
 
                 {/* 状态显示 */}
                 <Card>
-                  <CardContent className="p-3">
+                  <CardContent>
                     <div className="flex items-center gap-2">
                       <span className="text-sm font-medium">
                         {t("subtitle:translator.schedule.status")}
@@ -762,8 +762,8 @@ function SubtitleTranslator() {
       {/* Token消耗预估配置显示 */}
       <div className="mb-4">
         <Card>
-          <div
-            className="flex items-center justify-between p-4 cursor-pointer select-none"
+          <CardHeader
+            className="flex items-center justify-between cursor-pointer select-none"
             onClick={() => setIsNewTaskConfigOpen((v) => !v)}
           >
             <CardTitle className="text-xl">
@@ -775,15 +775,15 @@ function SubtitleTranslator() {
                 isNewTaskConfigOpen && "rotate-180"
               )}
             />
-          </div>
+          </CardHeader>
           {isNewTaskConfigOpen && (
-            <CardContent className="p-4 pt-0">
+            <CardContent>
               <div className="text-sm text-muted-foreground mb-3">
                 {t("subtitle:translator.new_task_config.note")}
               </div>
               <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
                 <Card className="border-muted">
-                  <CardContent className="p-3">
+                  <CardContent>
                     <div className="text-muted-foreground text-xs mb-1">
                       {t(
                         "subtitle:translator.new_task_config.current_slice_mode"
@@ -806,7 +806,7 @@ function SubtitleTranslator() {
                   </CardContent>
                 </Card>
                 <Card className="border-muted">
-                  <CardContent className="p-3">
+                  <CardContent>
                     <div className="text-muted-foreground text-xs mb-1">
                       {t("subtitle:translator.new_task_config.rate_in_out")}
                     </div>
@@ -824,7 +824,7 @@ function SubtitleTranslator() {
                   </CardContent>
                 </Card>
                 <Card className="border-muted">
-                  <CardContent className="p-3">
+                  <CardContent>
                     <div className="text-muted-foreground text-xs mb-1">
                       {t("subtitle:translator.new_task_config.total_tasks")}
                     </div>
@@ -844,10 +844,12 @@ function SubtitleTranslator() {
       {/* 文件上传区域 */}
       <div className="mb-4">
         <Card>
-          <CardHeader className="p-4">
-            <CardTitle className="text-xl">{t("subtitle:translator.upload_section")}</CardTitle>
+          <CardHeader>
+            <CardTitle className="text-xl">
+              {t("subtitle:translator.upload_section")}
+            </CardTitle>
           </CardHeader>
-          <CardContent className="p-4">
+          <CardContent>
             <label
               className={cn(
                 "flex flex-col items-center justify-center border-2 border-dashed rounded-lg p-6 cursor-pointer transition-colors file-drop-zone",
@@ -892,9 +894,11 @@ function SubtitleTranslator() {
 
       {/* 任务管理区域 */}
       <Card className="mb-12">
-        <CardHeader className="p-4">
+        <CardHeader>
           <div className="flex items-center justify-between">
-            <CardTitle className="text-xl">{t("subtitle:translator.task_management")}</CardTitle>
+            <CardTitle className="text-xl">
+              {t("subtitle:translator.task_management")}
+            </CardTitle>
             <div className="flex gap-2">
               {/* 全部开始 */}
               <Button
@@ -919,20 +923,20 @@ function SubtitleTranslator() {
             </div>
           </div>
         </CardHeader>
-        <CardContent className="p-4">
+        <CardContent>
           {/* Token统计信息 */}
           {tokenStats.taskCount > 0 && (
             <Card className="mb-4">
-              <CardHeader className="pb-3">
+              <CardHeader>
                 <div className="flex items-center gap-2">
                   <Cpu className="h-5 w-5" />
                   <CardTitle className="text-lg">Token消耗预估</CardTitle>
                 </div>
               </CardHeader>
-              <CardContent className="p-4">
+              <CardContent>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                   <Card className="border-muted">
-                    <CardContent className="p-3">
+                    <CardContent>
                       <div className="text-muted-foreground text-xs mb-1">
                         总Token数
                       </div>
@@ -942,7 +946,7 @@ function SubtitleTranslator() {
                     </CardContent>
                   </Card>
                   <Card className="border-muted">
-                    <CardContent className="p-3">
+                    <CardContent>
                       <div className="text-muted-foreground text-xs mb-1">
                         预估总费用
                       </div>
@@ -952,7 +956,7 @@ function SubtitleTranslator() {
                     </CardContent>
                   </Card>
                   <Card className="border-muted">
-                    <CardContent className="p-3">
+                    <CardContent>
                       <div className="text-muted-foreground text-xs mb-1">
                         待处理Token
                       </div>
@@ -962,7 +966,7 @@ function SubtitleTranslator() {
                     </CardContent>
                   </Card>
                   <Card className="border-muted">
-                    <CardContent className="p-3">
+                    <CardContent>
                       <div className="text-muted-foreground text-xs mb-1">
                         待处理费用
                       </div>
@@ -986,7 +990,7 @@ function SubtitleTranslator() {
               ...failedTaskQueue,
             ].map((task, index) => (
               <Card key={index}>
-                <CardContent className="p-4">
+                <CardContent>
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-4 flex-1">
                       <div
@@ -1111,21 +1115,19 @@ function SubtitleTranslator() {
       </Card>
 
       {/* 错误详情模态框 */}
-      {selectedErrorTask && (
-        <ErrorDetailModal
-          isOpen={errorModalOpen}
-          onClose={closeErrorModal}
-          taskName={selectedErrorTask.fileName}
-          errorMessage={selectedErrorTask.extraInfo?.message || "未知错误"}
-          errorDetails={selectedErrorTask.extraInfo?.error || "无详细错误信息"}
-          errorLogs={
-            selectedErrorTask.extraInfo?.errorLogs ||
-            selectedErrorTask.errorLog ||
-            []
-          }
-          timestamp={selectedErrorTask.extraInfo?.timestamp}
-        />
-      )}
+      <ErrorDetailModal
+        isOpen={errorModalOpen}
+        onClose={closeErrorModal}
+        taskName={selectedErrorTask?.fileName || ""}
+        errorMessage={selectedErrorTask?.extraInfo?.message || "未知错误"}
+        errorDetails={selectedErrorTask?.extraInfo?.error || "无详细错误信息"}
+        errorLogs={
+          selectedErrorTask?.extraInfo?.errorLogs ||
+          selectedErrorTask?.errorLog ||
+          []
+        }
+        timestamp={selectedErrorTask?.extraInfo?.timestamp}
+      />
     </div>
   );
 }

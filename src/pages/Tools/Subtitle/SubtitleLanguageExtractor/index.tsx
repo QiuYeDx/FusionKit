@@ -318,10 +318,10 @@ function SubtitleLanguageExtractor() {
       </div>
 
       {/* 配置选项 */}
-      <div className="flex flex-col gap-4 mb-4">
+      <div className="flex flex-col space-y-4 mb-4">
         <Card>
-          <div
-            className="flex items-center justify-between p-4 cursor-pointer select-none"
+          <CardHeader
+            className="flex items-center justify-between cursor-pointer select-none"
             onClick={() => setIsConfigOpen((v) => !v)}
           >
             <CardTitle className="text-xl">
@@ -333,9 +333,9 @@ function SubtitleLanguageExtractor() {
                 isConfigOpen && "rotate-180"
               )}
             />
-          </div>
+          </CardHeader>
           {isConfigOpen && (
-            <CardContent className="p-4 pt-0">
+            <CardContent>
               <div className="flex items-center gap-4">
                 <Label className="text-sm font-medium min-w-[100px]">
                   {t("subtitle:extractor:fields.keep_language")}
@@ -365,8 +365,8 @@ function SubtitleLanguageExtractor() {
       {/* 输出设置 */}
       <div className="mb-4">
         <Card>
-          <div
-            className="flex items-center justify-between p-4 cursor-pointer select-none"
+          <CardHeader
+            className="flex items-center justify-between cursor-pointer select-none"
             onClick={() => setIsOutputOpen((v) => !v)}
           >
             <CardTitle className="text-xl">
@@ -378,9 +378,9 @@ function SubtitleLanguageExtractor() {
                 isOutputOpen && "rotate-180"
               )}
             />
-          </div>
+          </CardHeader>
           {isOutputOpen && (
-            <CardContent className="p-4 pt-0">
+            <CardContent>
               <div className="flex items-center gap-4">
                 <Button onClick={handleSelectOutputPath} size="sm">
                   {t("subtitle:extractor:fields.select_output_path")}
@@ -404,8 +404,8 @@ function SubtitleLanguageExtractor() {
       {/* 配置摘要 */}
       <div className="mb-4">
         <Card>
-          <div
-            className="flex items-center justify-between p-4 cursor-pointer select-none"
+          <CardHeader
+            className="flex items-center justify-between cursor-pointer select-none"
             onClick={() => setIsSummaryOpen((v) => !v)}
           >
             <CardTitle className="text-xl">
@@ -417,12 +417,12 @@ function SubtitleLanguageExtractor() {
                 isSummaryOpen && "rotate-180"
               )}
             />
-          </div>
+          </CardHeader>
           {isSummaryOpen && (
-            <CardContent className="p-4 pt-0">
+            <CardContent>
               <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
                 <Card className="border-muted">
-                  <CardContent className="p-3">
+                  <CardContent>
                     <div className="text-muted-foreground text-xs mb-1">
                       {t("subtitle:extractor:fields.keep_language")}
                     </div>
@@ -434,7 +434,7 @@ function SubtitleLanguageExtractor() {
                   </CardContent>
                 </Card>
                 <Card className="border-muted">
-                  <CardContent className="p-3">
+                  <CardContent>
                     <div className="text-muted-foreground text-xs mb-1">
                       {t("subtitle:extractor:summary.total_tasks")}
                     </div>
@@ -455,10 +455,10 @@ function SubtitleLanguageExtractor() {
       {/* 文件上传 */}
       <div className="mb-4">
         <Card>
-          <CardHeader className="p-4">
+          <CardHeader>
             <CardTitle className="text-xl">{t("subtitle:extractor:upload_section")}</CardTitle>
           </CardHeader>
-          <CardContent className="p-4">
+          <CardContent>
             <label
               className={cn(
                 "flex flex-col items-center justify-center border-2 border-dashed rounded-lg p-6 cursor-pointer transition-colors file-drop-zone",
@@ -500,7 +500,7 @@ function SubtitleLanguageExtractor() {
 
       {/* 任务管理 */}
       <Card className="mb-12">
-        <CardHeader className="p-4">
+        <CardHeader>
           <div className="flex items-center justify-between">
             <CardTitle className="text-xl">{t("subtitle:extractor:task_management")}</CardTitle>
             <div className="flex gap-2">
@@ -523,12 +523,12 @@ function SubtitleLanguageExtractor() {
             </div>
           </div>
         </CardHeader>
-        <CardContent className="p-4">
+        <CardContent>
           {/* 列表 */}
           <div className="space-y-4">
             {tasks.map((task, index) => (
               <Card key={index}>
-                <CardContent className="p-4">
+                <CardContent>
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-4 flex-1">
                       <div

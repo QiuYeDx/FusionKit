@@ -35,7 +35,7 @@ function App() {
       <div className="h-6"></div>
 
       {/* 使用 ScrollArea 替代 HTML 滚动 */}
-      <ScrollArea className="flex-1">
+      <ScrollArea className="flex-1 h-full mt-6">
         <div className="pb-20">
           {/* pb-20 为底部导航栏留出空间 */}
           <Routes>

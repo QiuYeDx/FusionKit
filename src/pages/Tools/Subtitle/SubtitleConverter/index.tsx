@@ -344,10 +344,10 @@ function SubtitleConverter() {
       </div>
 
       {/* 配置选项 */}
-      <div className="flex flex-col gap-4 mb-4">
+      <div className="flex flex-col space-y-4 mb-4">
         <Card>
-          <div
-            className="flex items-center justify-between p-4 cursor-pointer select-none"
+          <CardHeader
+            className="flex items-center justify-between cursor-pointer select-none"
             onClick={() => setIsConfigOpen((v) => !v)}
           >
             <CardTitle className="text-xl">
@@ -359,9 +359,9 @@ function SubtitleConverter() {
                 isConfigOpen && "rotate-180"
               )}
             />
-          </div>
+          </CardHeader>
           {isConfigOpen && (
-            <CardContent className="p-4 pt-0">
+            <CardContent>
               <div className="space-y-4">
                 <div className="flex items-center gap-4">
                   <Label className="text-sm font-medium min-w-[100px]">
@@ -412,8 +412,8 @@ function SubtitleConverter() {
       {/* 输出设置 */}
       <div className="mb-4">
         <Card>
-          <div
-            className="flex items-center justify-between p-4 cursor-pointer select-none"
+          <CardHeader
+            className="flex items-center justify-between cursor-pointer select-none"
             onClick={() => setIsOutputOpen((v) => !v)}
           >
             <CardTitle className="text-xl">
@@ -425,9 +425,9 @@ function SubtitleConverter() {
                 isOutputOpen && "rotate-180"
               )}
             />
-          </div>
+          </CardHeader>
           {isOutputOpen && (
-            <CardContent className="p-4 pt-0">
+            <CardContent>
               <div className="flex items-center gap-4">
                 <Button onClick={handleSelectOutputPath} size="sm">
                   {t("subtitle:converter:fields.select_output_path")}
@@ -451,8 +451,8 @@ function SubtitleConverter() {
       {/* 配置摘要 */}
       <div className="mb-4">
         <Card>
-          <div
-            className="flex items-center justify-between p-4 cursor-pointer select-none"
+          <CardHeader
+            className="flex items-center justify-between cursor-pointer select-none"
             onClick={() => setIsSummaryOpen((v) => !v)}
           >
             <CardTitle className="text-xl">
@@ -464,12 +464,12 @@ function SubtitleConverter() {
                 isSummaryOpen && "rotate-180"
               )}
             />
-          </div>
+          </CardHeader>
           {isSummaryOpen && (
-            <CardContent className="p-4 pt-0">
+            <CardContent>
               <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
                 <Card className="border-muted">
-                  <CardContent className="p-3">
+                  <CardContent>
                     <div className="text-muted-foreground text-xs mb-1">
                       {t("subtitle:converter:fields.target_format")}
                     </div>
@@ -478,7 +478,7 @@ function SubtitleConverter() {
                 </Card>
                 {toFormat !== SubtitleFileType.LRC && (
                   <Card className="border-muted">
-                    <CardContent className="p-3">
+                    <CardContent>
                       <div className="text-muted-foreground text-xs mb-1">
                         {t("subtitle:converter:summary.default_duration")}
                       </div>
@@ -487,7 +487,7 @@ function SubtitleConverter() {
                   </Card>
                 )}
                 <Card className="border-muted">
-                  <CardContent className="p-3">
+                  <CardContent>
                     <div className="text-muted-foreground text-xs mb-1">
                       {t("subtitle:converter:summary.total_tasks")}
                     </div>
@@ -508,10 +508,10 @@ function SubtitleConverter() {
       {/* 文件上传 */}
       <div className="mb-4">
         <Card>
-          <CardHeader className="p-4">
+          <CardHeader>
             <CardTitle className="text-xl">{t("subtitle:converter:upload_section")}</CardTitle>
           </CardHeader>
-          <CardContent className="p-4">
+          <CardContent>
             <label
               className={cn(
                 "flex flex-col items-center justify-center border-2 border-dashed rounded-lg p-6 cursor-pointer transition-colors file-drop-zone",
@@ -553,7 +553,7 @@ function SubtitleConverter() {
 
       {/* 任务管理 */}
       <Card className="mb-12">
-        <CardHeader className="p-4">
+        <CardHeader>
           <div className="flex items-center justify-between">
             <CardTitle className="text-xl">{t("subtitle:converter:task_management")}</CardTitle>
             <div className="flex gap-2">
@@ -576,12 +576,12 @@ function SubtitleConverter() {
             </div>
           </div>
         </CardHeader>
-        <CardContent className="p-4">
+        <CardContent>
           {/* 列表 */}
           <div className="space-y-4">
             {tasks.map((task, index) => (
               <Card key={index}>
-                <CardContent className="p-4">
+                <CardContent>
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-4 flex-1">
                       <div
