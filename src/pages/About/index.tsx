@@ -26,7 +26,7 @@ const About: React.FC = () => {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div>0.1.2</div>
+            <div>0.1.3</div>
           </CardContent>
         </Card>
 

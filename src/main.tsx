@@ -14,7 +14,11 @@ import { HashRouter } from "react-router-dom";
 // 在渲染进程中接收进度更新并调用 store 的 updateProgress 方法
 import "@/renderer/subtitle";
 
-ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
+const root = ReactDOM.createRoot(
+  document.getElementById("root") as HTMLElement
+);
+
+root.render(
   <React.StrictMode>
     <HashRouter>
       <App />
