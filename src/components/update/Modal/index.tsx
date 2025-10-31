@@ -59,7 +59,7 @@ const Modal = (props: Parameters<typeof ModalTemplate>[0] & { open: boolean }) =
   const { open, ...omit } = props
 
   return createPortal(
-    open ? ModalTemplate(omit) : null,
+    open ? <ModalTemplate {...omit} /> : null,
     document.body,
   )
 }
