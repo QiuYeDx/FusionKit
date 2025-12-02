@@ -2,7 +2,7 @@ import useFadeMaskLayerStore from "@/store/useFadeMaskLayer";
 import useThemeStore from "@/store/useThemeStore";
 import { useSpringValue } from "@react-spring/web";
 import { useEffect, useState } from "react";
-import { useWindowSize } from "react-use";
+import { useWindowSize } from "@reactuses/core";
 
 function FadeMaskLayer() {
   const { width, height } = useWindowSize();
