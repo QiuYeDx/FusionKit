@@ -19,6 +19,7 @@ import { ButtonGroup } from "@/components/ui/button-group";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
   SelectContent,
@@ -55,6 +56,12 @@ function SubtitleConverter() {
     SubtitleFileType.SRT
   );
   const [defaultDurationSec, setDefaultDurationSec] = useState<string>("2");
+  const [stripMediaExt, setStripMediaExt] = useState<boolean>(() => {
+    const raw = localStorage.getItem("subtitle-converter-strip-media-ext");
+    // 默认开启：避免 xxx.wav.vtt 转换后变成 xxx.wav.lrc
+    if (raw === null) return true;
+    return raw === "true";
+  });
 
   // 输出路径
   const [outputURL, setOutputURL] = useState<string>(
@@ -66,6 +73,15 @@ function SubtitleConverter() {
       localStorage.setItem("subtitle-converter-output-url", outputURL);
     } catch {}
   }, [outputURL]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(
+        "subtitle-converter-strip-media-ext",
+        String(stripMediaExt)
+      );
+    } catch {}
+  }, [stripMediaExt]);
 
   // 拖拽
   const [isDragging, setIsDragging] = useState(false);
@@ -241,6 +257,7 @@ function SubtitleConverter() {
         to: task.to,
         outputDir: task.targetFileURL,
         defaultDurationMs,
+        stripMediaExt,
       });
       setTasks((prev) =>
         prev.map((t) =>
@@ -255,7 +272,7 @@ function SubtitleConverter() {
         )
       );
       showToast(
-        t("subtitle:converter:infos.task_convert_done").replace(
+        t("subtitle:converter.infos.task_convert_done").replace(
           "{file}",
           fileName
         ),
@@ -276,7 +293,7 @@ function SubtitleConverter() {
         )
       );
       showToast(
-        t("subtitle:converter:errors.task_convert_failed").replace(
+        t("subtitle:converter.errors.task_convert_failed").replace(
           "{file}",
           fileName
         ),
@@ -316,7 +333,7 @@ function SubtitleConverter() {
 
   const deleteTask = (fileName: string) => {
     setTasks((prev) => prev.filter((t) => t.fileName !== fileName));
-    showToast(t("subtitle:converter:infos.task_deleted"), "success");
+    showToast(t("subtitle:converter.infos.task_deleted"), "success");
   };
 
   const getTaskStatusColor = (status: TaskStatus) => {
@@ -337,10 +354,10 @@ function SubtitleConverter() {
   return (
     <div className="p-4">
       <div className="text-2xl font-bold mb-4">
-        {t("subtitle:converter:title")}
+        {t("subtitle:converter.title")}
       </div>
       <div className="mb-6 text-muted-foreground">
-        {t("subtitle:converter:description")}
+        {t("subtitle:converter.description")}
       </div>
 
       {/* 配置选项 */}
@@ -351,7 +368,7 @@ function SubtitleConverter() {
             onClick={() => setIsConfigOpen((v) => !v)}
           >
             <CardTitle className="text-xl">
-              {t("subtitle:converter:config_title")}
+              {t("subtitle:converter.config_title")}
             </CardTitle>
             <ChevronDown
               className={cn(
@@ -365,7 +382,7 @@ function SubtitleConverter() {
               <div className="space-y-4">
                 <div className="flex items-center gap-4">
                   <Label className="text-sm font-medium min-w-[100px]">
-                    {t("subtitle:converter:fields.target_format")}
+                    {t("subtitle:converter.fields.target_format")}
                   </Label>
                   <Select
                     value={toFormat}
@@ -387,7 +404,7 @@ function SubtitleConverter() {
                 {toFormat !== SubtitleFileType.LRC && (
                   <div className="space-y-2">
                     <Label htmlFor="duration">
-                      {t("subtitle:converter:fields.default_duration_label")}
+                      {t("subtitle:converter.fields.default_duration_label")}
                     </Label>
                     <Input
                       id="duration"
@@ -399,10 +416,26 @@ function SubtitleConverter() {
                       onChange={(e) => setDefaultDurationSec(e.target.value)}
                     />
                     <p className="text-xs text-muted-foreground">
-                      {t("subtitle:converter:fields.duration_hint")}
+                      {t("subtitle:converter.fields.duration_hint")}
                     </p>
                   </div>
                 )}
+
+                <div className="flex items-start gap-3">
+                  <Checkbox
+                    id="stripMediaExt"
+                    checked={stripMediaExt}
+                    onCheckedChange={(v) => setStripMediaExt(Boolean(v))}
+                  />
+                  <div className="space-y-1">
+                    <Label htmlFor="stripMediaExt">
+                      {t("subtitle:converter.fields.strip_media_ext_label")}
+                    </Label>
+                    <p className="text-xs text-muted-foreground">
+                      {t("subtitle:converter.fields.strip_media_ext_hint")}
+                    </p>
+                  </div>
+                </div>
               </div>
             </CardContent>
           )}
@@ -417,7 +450,7 @@ function SubtitleConverter() {
             onClick={() => setIsOutputOpen((v) => !v)}
           >
             <CardTitle className="text-xl">
-              {t("subtitle:converter:output_path_section")}
+              {t("subtitle:converter.output_path_section")}
             </CardTitle>
             <ChevronDown
               className={cn(
@@ -430,12 +463,12 @@ function SubtitleConverter() {
             <CardContent>
               <div className="flex items-center gap-4">
                 <Button onClick={handleSelectOutputPath} size="sm">
-                  {t("subtitle:converter:fields.select_output_path")}
+                  {t("subtitle:converter.fields.select_output_path")}
                 </Button>
                 <Input
                   type="text"
                   placeholder={t(
-                    "subtitle:converter:fields.no_output_path_selected"
+                    "subtitle:converter.fields.no_output_path_selected"
                   )}
                   value={outputURL}
                   onChange={() => {}}
@@ -456,7 +489,7 @@ function SubtitleConverter() {
             onClick={() => setIsSummaryOpen((v) => !v)}
           >
             <CardTitle className="text-xl">
-              {t("subtitle:converter:summary_title")}
+              {t("subtitle:converter.summary_title")}
             </CardTitle>
             <ChevronDown
               className={cn(
@@ -471,7 +504,7 @@ function SubtitleConverter() {
                 <Card className="border-muted">
                   <CardContent>
                     <div className="text-muted-foreground text-xs mb-1">
-                      {t("subtitle:converter:fields.target_format")}
+                      {t("subtitle:converter.fields.target_format")}
                     </div>
                     <div className="font-medium">{toFormat}</div>
                   </CardContent>
@@ -480,7 +513,7 @@ function SubtitleConverter() {
                   <Card className="border-muted">
                     <CardContent>
                       <div className="text-muted-foreground text-xs mb-1">
-                        {t("subtitle:converter:summary.default_duration")}
+                        {t("subtitle:converter.summary.default_duration")}
                       </div>
                       <div className="font-medium">{defaultDurationSec}s</div>
                     </CardContent>
@@ -489,10 +522,10 @@ function SubtitleConverter() {
                 <Card className="border-muted">
                   <CardContent>
                     <div className="text-muted-foreground text-xs mb-1">
-                      {t("subtitle:converter:summary.total_tasks")}
+                      {t("subtitle:converter.summary.total_tasks")}
                     </div>
                     <div className="font-medium">
-                      {t("subtitle:converter:summary.task_count").replace(
+                      {t("subtitle:converter.summary.task_count").replace(
                         "{count}",
                         String(tasks.length)
                       )}
@@ -509,7 +542,7 @@ function SubtitleConverter() {
       <div className="mb-4">
         <Card>
           <CardHeader>
-            <CardTitle className="text-xl">{t("subtitle:converter:upload_section")}</CardTitle>
+            <CardTitle className="text-xl">{t("subtitle:converter.upload_section")}</CardTitle>
           </CardHeader>
           <CardContent>
             <label
@@ -540,10 +573,10 @@ function SubtitleConverter() {
               </div>
               <div className="mt-3 text-center pointer-events-none">
                 <p className="font-medium">
-                  {t("subtitle:converter:fields.upload_tips")}
+                  {t("subtitle:converter.fields.upload_tips")}
                 </p>
                 <p className="text-sm text-muted-foreground mt-1">
-                  {t("subtitle:converter:fields.files_only")}
+                  {t("subtitle:converter.fields.files_only")}
                 </p>
               </div>
             </label>
@@ -555,7 +588,7 @@ function SubtitleConverter() {
       <Card className="mb-12">
         <CardHeader>
           <div className="flex items-center justify-between">
-            <CardTitle className="text-xl">{t("subtitle:converter:task_management")}</CardTitle>
+            <CardTitle className="text-xl">{t("subtitle:converter.task_management")}</CardTitle>
             <div className="flex gap-2">
               <Button
                 variant={notStartedTasks.length === 0 ? "outline" : "default"}
@@ -563,7 +596,7 @@ function SubtitleConverter() {
                 onClick={startAllTasks}
                 disabled={notStartedTasks.length === 0}
               >
-                {t("subtitle:converter:fields.start_all")}
+                {t("subtitle:converter.fields.start_all")}
               </Button>
               <Button
                 variant={resolvedTasks.length === 0 ? "outline" : "default"}
@@ -571,7 +604,7 @@ function SubtitleConverter() {
                 onClick={removeAllResolvedTask}
                 disabled={resolvedTasks.length === 0}
               >
-                {t("subtitle:converter:fields.remove_all_resolved_task")}
+                {t("subtitle:converter.fields.remove_all_resolved_task")}
               </Button>
             </div>
           </div>
@@ -593,21 +626,21 @@ function SubtitleConverter() {
                         {task.fileName}
                         <div className="text-sm text-muted-foreground mt-1">
                           {task.status === TaskStatus.NOT_STARTED &&
-                            t("subtitle:converter:task_status.notstarted")}
+                            t("subtitle:converter.task_status.notstarted")}
                           {task.status === TaskStatus.PENDING &&
                             ` ${t(
-                              "subtitle:converter:task_status.pending"
+                              "subtitle:converter.task_status.pending"
                             )} ${Math.round(task.progress || 0)}%`}
                           {task.status === TaskStatus.RESOLVED &&
-                            ` ${t("subtitle:converter:task_status.resolved")}`}
+                            ` ${t("subtitle:converter.task_status.resolved")}`}
                           {task.status === TaskStatus.FAILED &&
-                            ` ${t("subtitle:converter:task_status.failed")}`}
+                            ` ${t("subtitle:converter.task_status.failed")}`}
                           <span className="ml-4 px-2 py-1 bg-muted-foreground/20 rounded text-xs">
                             {task.from} → {task.to}
                           </span>
                           {task.outputFilePath && (
                             <span className="ml-4 font-mono text-xs text-green-600">
-                              {t("subtitle:converter:labels.output")}:{" "}
+                              {t("subtitle:converter.labels.output")}:{" "}
                               {task.outputFilePath}
                             </span>
                           )}
@@ -667,7 +700,7 @@ function SubtitleConverter() {
 
           {tasks.length === 0 && (
             <div className="text-center py-8 text-muted-foreground">
-              {t("subtitle:converter:fields.no_tasks")}
+              {t("subtitle:converter.fields.no_tasks")}
             </div>
           )}
         </CardContent>

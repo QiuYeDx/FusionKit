@@ -6,12 +6,56 @@ export type ConvertParams = {
   from: "LRC" | "SRT" | "VTT";
   to: "LRC" | "SRT" | "VTT";
   defaultDurationMs?: number; // for LRC->SRT/VTT last line or gaps
+  /**
+   * When true, strips common media file extensions that appear before the subtitle
+   * extension. Example: "xxxname.wav.vtt" -> output base becomes "xxxname".
+   */
+  stripMediaExt?: boolean;
 };
 
 export type ConvertResult = {
   outputFileName: string;
   outputContent: string;
 };
+
+const COMMON_MEDIA_EXTS = new Set([
+  // audio
+  ".wav",
+  ".mp3",
+  ".flac",
+  ".m4a",
+  ".aac",
+  ".ogg",
+  ".opus",
+  ".wma",
+  // video
+  ".mp4",
+  ".mkv",
+  ".avi",
+  ".mov",
+  ".wmv",
+  ".webm",
+  ".m4v",
+  ".ts",
+  ".m2ts",
+]);
+
+function getOutputBaseName(fileName: string, stripMediaExt?: boolean): string {
+  // Remove the last extension first (e.g. ".vtt")
+  let base = path.parse(fileName).name;
+
+  // Then optionally strip a known media extension before it (e.g. ".wav")
+  if (stripMediaExt) {
+    const parsed2 = path.parse(base);
+    const ext2 = parsed2.ext.toLowerCase();
+    if (ext2 && COMMON_MEDIA_EXTS.has(ext2)) {
+      base = parsed2.name;
+    }
+  }
+
+  // Fallback for weird edge cases like ".vtt"
+  return base || "subtitle";
+}
 
 function pad2(n: number): string {
   return n.toString().padStart(2, "0");
@@ -369,8 +413,8 @@ function convertVTTtoSRT(content: string): string {
 }
 
 export function convertSubtitle(params: ConvertParams): ConvertResult {
-  const { fileName, fileContent, from, to, defaultDurationMs } = params;
-  const parsed = path.parse(fileName);
+  const { fileName, fileContent, from, to, defaultDurationMs, stripMediaExt } =
+    params;
   let outputContent = "";
   let outputExt = "";
 
@@ -396,6 +440,7 @@ export function convertSubtitle(params: ConvertParams): ConvertResult {
     throw new Error(`Unsupported conversion: ${from} -> ${to}`);
   }
 
-  const outputFileName = `${parsed.name}${outputExt}`;
+  const outputBaseName = getOutputBaseName(fileName, stripMediaExt);
+  const outputFileName = `${outputBaseName}${outputExt}`;
   return { outputFileName, outputContent };
 }

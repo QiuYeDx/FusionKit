@@ -149,6 +149,8 @@
       "target_format": "Target Format",
       "default_duration_label": "Default Duration (seconds)",
       "duration_hint": "Used only when converting from LRC to SRT/VTT for subtitles without end time",
+      "strip_media_ext_label": "Strip media extension (e.g. .wav/.mp4)",
+      "strip_media_ext_hint": "If the input name is like xxx.wav.vtt, the output will be xxx.lrc (instead of xxx.wav.lrc)",
       "select_output_path": "Select Output Directory",
       "no_output_path_selected": "No output directory selected",
       "upload_tips": "Click or drag LRC/SRT/VTT files here",

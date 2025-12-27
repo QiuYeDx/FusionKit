@@ -153,6 +153,8 @@
       "target_format": "目标格式",
       "default_duration_label": "默认时长 (秒)",
       "duration_hint": "仅当从 LRC 转换为 SRT/VTT 时，用于缺少结束时间的字幕",
+      "strip_media_ext_label": "移除媒体扩展名（如 .wav/.mp4）",
+      "strip_media_ext_hint": "当输入文件名类似 xxx.wav.vtt 时，输出将为 xxx.lrc（而不是 xxx.wav.lrc）",
       "select_output_path": "选择输出目录",
       "no_output_path_selected": "未选择输出目录",
       "upload_tips": "点击或拖拽 LRC/SRT/VTT 文件到此处",
