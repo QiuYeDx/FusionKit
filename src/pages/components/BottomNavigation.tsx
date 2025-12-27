@@ -12,7 +12,7 @@ import {
 } from "lucide-react";
 import useThemeStore from "@/store/useThemeStore";
 import useFadeMaskLayerStore from "@/store/useFadeMaskLayer";
-import { useWindowSize } from "react-use";
+import { useWindowSize } from "@reactuses/core";
 import * as htmlToImage from "html-to-image";
 import { toPng, toJpeg, toBlob, toPixelData, toSvg } from "html-to-image";
 import { ToolNameMap } from "@/constants/router";
