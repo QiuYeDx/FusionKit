@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import {
   RotateCw,
@@ -10,8 +10,14 @@ import {
   AlertTriangle,
   ChevronDown,
 } from "lucide-react";
-import { SubtitleFileType, TaskStatus } from "@/type/subtitle";
+import {
+  OutputConflictPolicy,
+  OutputPathMode,
+  SubtitleFileType,
+  TaskStatus,
+} from "@/type/subtitle";
 import { showToast } from "@/utils/toast";
+import { getSourceDirFromFile } from "@/utils/filePath";
 import ErrorDetailModal from "@/components/ErrorDetailModal";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -33,6 +39,7 @@ interface ExtractTask {
   errorLog?: string[];
   extraInfo?: { [key: string]: any };
   outputFilePath?: string;
+  conflictPolicy?: OutputConflictPolicy;
 }
 
 function SubtitleLanguageExtractor() {
@@ -49,6 +56,30 @@ function SubtitleLanguageExtractor() {
   const [outputURL, setOutputURL] = useState<string>(
     localStorage.getItem("subtitle-extractor-output-url") || ""
   );
+  const [outputMode, setOutputMode] = useState<OutputPathMode>(() => {
+    const raw = localStorage.getItem("subtitle-extractor-output-mode");
+    return raw === "source" ? "source" : "custom";
+  });
+  const [conflictPolicy, setConflictPolicy] =
+    useState<OutputConflictPolicy>(() => {
+      const raw = localStorage.getItem("subtitle-extractor-conflict-policy");
+      return raw === "overwrite" ? "overwrite" : "index";
+    });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem("subtitle-extractor-output-mode", outputMode);
+    } catch {}
+  }, [outputMode]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(
+        "subtitle-extractor-conflict-policy",
+        conflictPolicy
+      );
+    } catch {}
+  }, [conflictPolicy]);
 
   // 拖拽
   const [isDragging, setIsDragging] = useState(false);
@@ -133,7 +164,7 @@ function SubtitleLanguageExtractor() {
   };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!outputURL) {
+    if (outputMode === "custom" && !outputURL) {
       showToast(
         t("subtitle:extractor:errors.please_select_output_url"),
         "error"
@@ -171,6 +202,16 @@ function SubtitleLanguageExtractor() {
         continue;
       }
 
+      const outputDir =
+        outputMode === "source" ? getSourceDirFromFile(file) : outputURL;
+      if (!outputDir) {
+        showToast(
+          t("subtitle:extractor:errors.source_path_missing"),
+          "error"
+        );
+        continue;
+      }
+
       try {
         const fileContent = await file.text();
         const fileType = ext as SubtitleFileType;
@@ -179,10 +220,11 @@ function SubtitleLanguageExtractor() {
           fileContent,
           fileType,
           originFileURL: URL.createObjectURL(file),
-          targetFileURL: outputURL,
+          targetFileURL: outputDir,
           keep,
           status: TaskStatus.NOT_STARTED,
           progress: 0,
+          conflictPolicy,
         };
         setTasks((prev) => [...prev, newTask]);
       } catch (err) {
@@ -216,6 +258,7 @@ function SubtitleLanguageExtractor() {
         fileType: task.fileType,
         keep: task.keep,
         outputDir: task.targetFileURL,
+        conflictPolicy: task.conflictPolicy ?? conflictPolicy,
       });
       setTasks((prev) =>
         prev.map((t) =>
@@ -381,20 +424,89 @@ function SubtitleLanguageExtractor() {
           </CardHeader>
           {isOutputOpen && (
             <CardContent>
-              <div className="flex items-center gap-4">
-                <Button onClick={handleSelectOutputPath} size="sm">
-                  {t("subtitle:extractor:fields.select_output_path")}
-                </Button>
-                <Input
-                  type="text"
-                  placeholder={t(
-                    "subtitle:extractor:fields.no_output_path_selected"
-                  )}
-                  value={outputURL}
-                  onChange={() => {}}
-                  className="grow"
-                  readOnly
-                />
+              <div className="space-y-3">
+                <div className="flex items-center gap-4">
+                  <Label className="text-sm font-medium min-w-[100px]">
+                    {t("subtitle:extractor:fields.output_mode")}
+                  </Label>
+                  <ButtonGroup>
+                    <Button
+                      className="w-30"
+                      size="sm"
+                      variant={outputMode === "custom" ? "default" : "outline"}
+                      onClick={() => setOutputMode("custom")}
+                    >
+                      {t("subtitle:extractor:fields.output_mode_custom")}
+                    </Button>
+                    <Button
+                      className="w-30"
+                      size="sm"
+                      variant={outputMode === "source" ? "default" : "outline"}
+                      onClick={() => setOutputMode("source")}
+                    >
+                      {t("subtitle:extractor:fields.output_mode_source")}
+                    </Button>
+                  </ButtonGroup>
+                </div>
+
+                {/* 选择输出目录 */}
+                {outputMode === "custom" ? (
+                  <div className="w-full">
+                    <ButtonGroup className="flex items-center pl-[116px] w-full">
+                      <Button
+                        className="w-30"
+                        onClick={handleSelectOutputPath}
+                        size="sm"
+                      >
+                        {t("subtitle:extractor:fields.select_output_path")}
+                      </Button>
+                      <Input
+                        type="text"
+                        placeholder={t(
+                          "subtitle:extractor:fields.no_output_path_selected"
+                        )}
+                        value={outputURL}
+                        onChange={() => { }}
+                        onClick={handleSelectOutputPath}
+                        className="grow"
+                        readOnly
+                      />
+                    </ButtonGroup>
+                  </div>
+                ) : (
+                  <p className="text-xs text-muted-foreground ml-[116px]">
+                    {t("subtitle:extractor:fields.output_mode_source_hint")}
+                  </p>
+                )}
+
+                {/* 重名处理方式 */}
+                <div className="flex items-center gap-4">
+                  <Label className="text-sm font-medium min-w-[100px]">
+                    {t("subtitle:extractor:fields.conflict_policy")}
+                  </Label>
+                  <ButtonGroup>
+                    <Button
+                      className="w-30"
+                      size="sm"
+                      variant={
+                        conflictPolicy === "index" ? "default" : "outline"
+                      }
+                      onClick={() => setConflictPolicy("index")}
+                    >
+                      {t("subtitle:extractor:fields.conflict_policy_index")}
+                    </Button>
+                    <Button
+                      className="w-30"
+                      size="sm"
+                      variant={
+                        conflictPolicy === "overwrite" ? "default" : "outline"
+                      }
+                      onClick={() => setConflictPolicy("overwrite")}
+                    >
+                      {t("subtitle:extractor:fields.conflict_policy_overwrite")}
+                    </Button>
+                  </ButtonGroup>
+                </div>
               </div>
             </CardContent>
           )}

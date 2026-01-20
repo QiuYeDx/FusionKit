@@ -10,6 +10,8 @@ import { ipcMain, BrowserWindow } from "electron";
 import axios from "axios";
 import { fixSrtSubtitles, removeThinkTags, hasThinkTags } from "../utils";
 
+type OutputConflictPolicy = "overwrite" | "index";
+
 export abstract class BaseTranslator {
   protected abstract splitContent(content: string, maxTokens: number): string[];
   protected abstract formatPrompt(
@@ -85,7 +87,8 @@ export abstract class BaseTranslator {
       const finalPath = await this.writeFile(
         task.targetFileURL,
         translatedContent,
-        task.fileName
+        task.fileName,
+        task.conflictPolicy
       );
       errorLogs.push(`[${new Date().toISOString()}] 文件写入完成: ${finalPath}`);
 
@@ -164,26 +167,33 @@ export abstract class BaseTranslator {
     }
   }
 
-  private async writeFile(fileURL: string, content: string, fileName: string) {
+  private async writeFile(
+    fileURL: string,
+    content: string,
+    fileName: string,
+    conflictPolicy: OutputConflictPolicy = "index"
+  ) {
     try {
       const absoluteOutputDir = path.resolve(fileURL);
       await fs.mkdir(absoluteOutputDir, { recursive: true });
 
       const parsed = path.parse(fileName);
       let finalPath = path.join(absoluteOutputDir, parsed.base);
-      let index = 1;
-      while (true) {
-        try {
-          await fs.access(finalPath);
-          // exists → try next index
-          finalPath = path.join(
-            absoluteOutputDir,
-            `${parsed.name} (${index})${parsed.ext}`
-          );
-          index++;
-        } catch {
-          // not exist
-          break;
+      if (conflictPolicy !== "overwrite") {
+        let index = 1;
+        while (true) {
+          try {
+            await fs.access(finalPath);
+            // exists → try next index
+            finalPath = path.join(
+              absoluteOutputDir,
+              `${parsed.name} (${index})${parsed.ext}`
+            );
+            index++;
+          } catch {
+            // not exist
+            break;
+          }
         }
       }
 

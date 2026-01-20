@@ -18,6 +18,9 @@ export enum TaskStatus {
   FAILED = "Failed",
 }
 
+export type OutputConflictPolicy = "overwrite" | "index";
+export type OutputPathMode = "custom" | "source";
+
 export type SubtitleTranslatorTask = {
   fileName: string;
   fileContent: string;
@@ -43,4 +46,5 @@ export type SubtitleTranslatorTask = {
   endPoint: string;
 
   extraInfo?: { [key: string]: any };
+  conflictPolicy?: OutputConflictPolicy;
 };

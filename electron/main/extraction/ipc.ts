@@ -3,9 +3,16 @@ import path from "path";
 import { promises as fs } from "fs";
 import { extractSubtitle, type ExtractParams } from "./extractor";
 
-async function ensureUniquePath(dir: string, fileName: string): Promise<string> {
+type OutputConflictPolicy = "overwrite" | "index";
+
+async function resolveOutputPath(
+  dir: string,
+  fileName: string,
+  conflictPolicy: OutputConflictPolicy = "index"
+): Promise<string> {
   const parsed = path.parse(fileName);
   let candidate = path.join(dir, parsed.base);
+  if (conflictPolicy === "overwrite") return candidate;
   let index = 1;
   while (true) {
     try {
@@ -21,12 +28,22 @@ async function ensureUniquePath(dir: string, fileName: string): Promise<string> 
 export function setupExtractionIPC() {
   ipcMain.handle(
     "extract-subtitle-language",
-    async (_event, payload: ExtractParams & { outputDir: string }) => {
-      const { outputDir, ...rest } = payload;
+    async (
+      _event,
+      payload: ExtractParams & {
+        outputDir: string;
+        conflictPolicy?: OutputConflictPolicy;
+      }
+    ) => {
+      const { outputDir, conflictPolicy, ...rest } = payload;
       const { outputFileName, outputContent } = extractSubtitle(rest);
 
       await fs.mkdir(outputDir, { recursive: true });
-      const targetPath = await ensureUniquePath(outputDir, outputFileName);
+      const targetPath = await resolveOutputPath(
+        outputDir,
+        outputFileName,
+        conflictPolicy ?? "index"
+      );
       await fs.writeFile(targetPath, outputContent, "utf-8");
 
       return {

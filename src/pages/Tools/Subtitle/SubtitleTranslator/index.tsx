@@ -1,5 +1,7 @@
 import useSubtitleTranslatorStore from "@/store/tools/subtitle/useSubtitleTranslatorStore";
 import {
+  OutputConflictPolicy,
+  OutputPathMode,
   SubtitleFileType,
   SubtitleSliceType,
   TaskStatus,
@@ -19,6 +21,7 @@ import {
   ChevronDown,
 } from "lucide-react";
 import { showToast } from "@/utils/toast";
+import { getSourceDirFromFile } from "@/utils/filePath";
 import useModelStore from "@/store/useModelStore";
 import ErrorDetailModal from "@/components/ErrorDetailModal";
 import {
@@ -76,6 +79,15 @@ function SubtitleTranslator() {
   const [customLengthInput, setCustomLengthInput] = useState(
     sliceLengthMap?.[SubtitleSliceType.CUSTOM]?.toString() || "500"
   );
+  const [outputMode, setOutputMode] = useState<OutputPathMode>(() => {
+    const raw = localStorage.getItem("subtitle-translator-output-mode");
+    return raw === "source" ? "source" : "custom";
+  });
+  const [conflictPolicy, setConflictPolicy] =
+    useState<OutputConflictPolicy>(() => {
+      const raw = localStorage.getItem("subtitle-translator-conflict-policy");
+      return raw === "overwrite" ? "overwrite" : "index";
+    });
 
   const [isDragging, setIsDragging] = useState(false);
 
@@ -99,6 +111,21 @@ function SubtitleTranslator() {
   const [isConfigOpen, setIsConfigOpen] = useState<boolean>(true);
   const [isOutputOpen, setIsOutputOpen] = useState<boolean>(true);
   const [isNewTaskConfigOpen, setIsNewTaskConfigOpen] = useState<boolean>(true);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem("subtitle-translator-output-mode", outputMode);
+    } catch {}
+  }, [outputMode]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(
+        "subtitle-translator-conflict-policy",
+        conflictPolicy
+      );
+    } catch {}
+  }, [conflictPolicy]);
 
   const targetEpochMs = useMemo(() => {
     if (!scheduleTime) return NaN;
@@ -338,7 +365,7 @@ function SubtitleTranslator() {
   };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!outputURL) {
+    if (outputMode === "custom" && !outputURL) {
       showToast(
         t("subtitle:translator.errors.please_select_output_url"),
         "error"
@@ -387,6 +414,16 @@ function SubtitleTranslator() {
         continue;
       }
 
+      const outputDir =
+        outputMode === "source" ? getSourceDirFromFile(file) : outputURL;
+      if (!outputDir) {
+        showToast(
+          t("subtitle:translator.errors.source_path_missing"),
+          "error"
+        );
+        continue;
+      }
+
       try {
         // 读取文件内容
         const fileContent = await file.text();
@@ -409,7 +446,7 @@ function SubtitleTranslator() {
           fileContent, // 设置文件内容
           sliceType,
           originFileURL: URL.createObjectURL(file),
-          targetFileURL: outputURL,
+          targetFileURL: outputDir,
           status: TaskStatus.NOT_STARTED,
           progress: 0,
           costEstimate: tokenEstimate,
@@ -417,6 +454,7 @@ function SubtitleTranslator() {
           apiKey: getApiKeyByType(model),
           apiModel: getModelKeyByType(model),
           endPoint: getModelUrlByType(model),
+          conflictPolicy,
         };
         addTask(newTask);
       } catch (error) {
@@ -543,23 +581,90 @@ function SubtitleTranslator() {
           </CardHeader>
           {isOutputOpen && (
             <CardContent>
-              <div className="flex items-center gap-4">
-                <Button onClick={handleSelectOutputPath} size="sm">
-                  {t("subtitle:translator.fields.select_output_path")}
-                </Button>
-                <Input
-                  type="text"
-                  placeholder={t(
-                    "subtitle:translator.fields.no_output_path_selected"
-                  )}
-                  value={outputURL}
-                  onChange={() => {}} // 防止显示控制台警告
-                  className="grow"
-                  readOnly
-                />
-              </div>
+              <div className="space-y-3">
+                <div className="flex items-center gap-4">
+                  <Label className="text-sm font-medium min-w-[100px]">
+                    {t("subtitle:translator.fields.output_mode")}
+                  </Label>
+                  <ButtonGroup>
+                    <Button
+                      className="w-30"
+                      size="sm"
+                      variant={outputMode === "custom" ? "default" : "outline"}
+                      onClick={() => setOutputMode("custom")}
+                    >
+                      {t("subtitle:translator.fields.output_mode_custom")}
+                    </Button>
+                    <Button
+                      className="w-30"
+                      size="sm"
+                      variant={outputMode === "source" ? "default" : "outline"}
+                      onClick={() => setOutputMode("source")}
+                    >
+                      {t("subtitle:translator.fields.output_mode_source")}
+                    </Button>
+                  </ButtonGroup>
+                </div>
 
-              {/* TODO: 输出文件前缀、后缀设置 */}
+                {/* 选择输出目录 */}
+                {outputMode === "custom" ? (
+                  <div className="w-full">
+                    <ButtonGroup className="flex items-center pl-[116px] w-full">
+                      <Button
+                        className="w-30"
+                        onClick={handleSelectOutputPath}
+                        size="sm"
+                      >
+                        {t("subtitle:translator.fields.select_output_path")}
+                      </Button>
+                      <Input
+                        type="text"
+                        placeholder={t(
+                          "subtitle:translator.fields.no_output_path_selected"
+                        )}
+                        value={outputURL}
+                        onChange={() => { }}
+                        onClick={handleSelectOutputPath}
+                        className="grow"
+                        readOnly
+                      />
+                    </ButtonGroup>
+                  </div>
+                ) : (
+                  <p className="text-xs text-muted-foreground ml-[116px]">
+                    {t("subtitle:translator.fields.output_mode_source_hint")}
+                  </p>
+                )}
+
+                {/* 重名处理方式 */}
+                <div className="flex items-center gap-4">
+                  <Label className="text-sm font-medium min-w-[100px]">
+                    {t("subtitle:translator.fields.conflict_policy")}
+                  </Label>
+                  <ButtonGroup>
+                    <Button
+                      className="w-30"
+                      size="sm"
+                      variant={
+                        conflictPolicy === "index" ? "default" : "outline"
+                      }
+                      onClick={() => setConflictPolicy("index")}
+                    >
+                      {t("subtitle:translator.fields.conflict_policy_index")}
+                    </Button>
+                    <Button
+                      className="w-30"
+                      size="sm"
+                      variant={
+                        conflictPolicy === "overwrite" ? "default" : "outline"
+                      }
+                      onClick={() => setConflictPolicy("overwrite")}
+                    >
+                      {t("subtitle:translator.fields.conflict_policy_overwrite")}
+                    </Button>
+                  </ButtonGroup>
+                </div>
+              </div>
             </CardContent>
           )}
         </Card>

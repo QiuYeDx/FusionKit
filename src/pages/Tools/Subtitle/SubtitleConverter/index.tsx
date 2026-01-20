@@ -10,8 +10,14 @@ import {
   AlertTriangle,
   ChevronDown,
 } from "lucide-react";
-import { SubtitleFileType, TaskStatus } from "@/type/subtitle";
+import {
+  OutputConflictPolicy,
+  OutputPathMode,
+  SubtitleFileType,
+  TaskStatus,
+} from "@/type/subtitle";
 import { showToast } from "@/utils/toast";
+import { getSourceDirFromFile } from "@/utils/filePath";
 import ErrorDetailModal from "@/components/ErrorDetailModal";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -41,6 +47,7 @@ interface SubtitleConverterTask {
   errorLog?: string[];
   extraInfo?: { [key: string]: any };
   outputFilePath?: string;
+  conflictPolicy?: OutputConflictPolicy;
 }
 
 function SubtitleConverter() {
@@ -67,12 +74,36 @@ function SubtitleConverter() {
   const [outputURL, setOutputURL] = useState<string>(
     localStorage.getItem("subtitle-converter-output-url") || ""
   );
+  const [outputMode, setOutputMode] = useState<OutputPathMode>(() => {
+    const raw = localStorage.getItem("subtitle-converter-output-mode");
+    return raw === "source" ? "source" : "custom";
+  });
+  const [conflictPolicy, setConflictPolicy] =
+    useState<OutputConflictPolicy>(() => {
+      const raw = localStorage.getItem("subtitle-converter-conflict-policy");
+      return raw === "overwrite" ? "overwrite" : "index";
+    });
 
   useEffect(() => {
     try {
       localStorage.setItem("subtitle-converter-output-url", outputURL);
-    } catch {}
+    } catch { }
   }, [outputURL]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem("subtitle-converter-output-mode", outputMode);
+    } catch { }
+  }, [outputMode]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(
+        "subtitle-converter-conflict-policy",
+        conflictPolicy
+      );
+    } catch { }
+  }, [conflictPolicy]);
 
   useEffect(() => {
     try {
@@ -80,7 +111,7 @@ function SubtitleConverter() {
         "subtitle-converter-strip-media-ext",
         String(stripMediaExt)
       );
-    } catch {}
+    } catch { }
   }, [stripMediaExt]);
 
   // 拖拽
@@ -165,7 +196,7 @@ function SubtitleConverter() {
   };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!outputURL) {
+    if (outputMode === "custom" && !outputURL) {
       showToast(
         t("subtitle:converter.errors.please_select_output_url"),
         "error"
@@ -207,6 +238,16 @@ function SubtitleConverter() {
         continue;
       }
 
+      const outputDir =
+        outputMode === "source" ? getSourceDirFromFile(file) : outputURL;
+      if (!outputDir) {
+        showToast(
+          t("subtitle:converter.errors.source_path_missing"),
+          "error"
+        );
+        continue;
+      }
+
       try {
         const fileContent = await file.text();
         const from = ext as SubtitleFileType;
@@ -218,9 +259,10 @@ function SubtitleConverter() {
           from,
           to,
           originFileURL: URL.createObjectURL(file),
-          targetFileURL: outputURL,
+          targetFileURL: outputDir,
           status: TaskStatus.NOT_STARTED,
           progress: 0,
+          conflictPolicy,
         };
         setTasks((prev) => [...prev, newTask]);
       } catch (err) {
@@ -258,16 +300,17 @@ function SubtitleConverter() {
         outputDir: task.targetFileURL,
         defaultDurationMs,
         stripMediaExt,
+        conflictPolicy: task.conflictPolicy ?? conflictPolicy,
       });
       setTasks((prev) =>
         prev.map((t) =>
           t.fileName === fileName
             ? {
-                ...t,
-                status: TaskStatus.RESOLVED,
-                progress: 100,
-                outputFilePath: res?.outputFilePath,
-              }
+              ...t,
+              status: TaskStatus.RESOLVED,
+              progress: 100,
+              outputFilePath: res?.outputFilePath,
+            }
             : t
         )
       );
@@ -284,11 +327,11 @@ function SubtitleConverter() {
         prev.map((t) =>
           t.fileName === fileName
             ? {
-                ...t,
-                status: TaskStatus.FAILED,
-                progress: 0,
-                extraInfo: { message, error },
-              }
+              ...t,
+              status: TaskStatus.FAILED,
+              progress: 0,
+              extraInfo: { message, error },
+            }
             : t
         )
       );
@@ -317,11 +360,11 @@ function SubtitleConverter() {
       prev.map((t) =>
         t.fileName === fileName
           ? {
-              ...t,
-              status: TaskStatus.NOT_STARTED,
-              progress: 0,
-              extraInfo: undefined,
-            }
+            ...t,
+            status: TaskStatus.NOT_STARTED,
+            progress: 0,
+            extraInfo: undefined,
+          }
           : t
       )
     );
@@ -403,38 +446,46 @@ function SubtitleConverter() {
 
                 {toFormat !== SubtitleFileType.LRC && (
                   <div className="space-y-2">
-                    <Label htmlFor="duration">
-                      {t("subtitle:converter.fields.default_duration_label")}
-                    </Label>
-                    <Input
-                      id="duration"
-                      type="number"
-                      className="w-32"
-                      value={defaultDurationSec}
-                      min="1"
-                      max="10"
-                      onChange={(e) => setDefaultDurationSec(e.target.value)}
-                    />
-                    <p className="text-xs text-muted-foreground">
+                    <div className="flex items-center gap-4">
+                      <Label
+                        htmlFor="duration"
+                        className="text-sm font-medium min-w-[100px]"
+                      >
+                        {t("subtitle:converter.fields.default_duration_label")}
+                      </Label>
+                      <Input
+                        id="duration"
+                        type="number"
+                        className="w-32"
+                        value={defaultDurationSec}
+                        min="1"
+                        max="10"
+                        onChange={(e) => setDefaultDurationSec(e.target.value)}
+                      />
+                    </div>
+                    <p className="text-xs text-muted-foreground ml-[116px]">
                       {t("subtitle:converter.fields.duration_hint")}
                     </p>
                   </div>
                 )}
 
-                <div className="flex items-start gap-3">
-                  <Checkbox
-                    id="stripMediaExt"
-                    checked={stripMediaExt}
-                    onCheckedChange={(v) => setStripMediaExt(Boolean(v))}
-                  />
-                  <div className="space-y-1">
-                    <Label htmlFor="stripMediaExt">
+                <div className="space-y-2">
+                  <div className="flex items-start gap-4">
+                    <Label
+                      htmlFor="stripMediaExt"
+                      className="text-sm font-medium min-w-[100px]"
+                    >
                       {t("subtitle:converter.fields.strip_media_ext_label")}
                     </Label>
-                    <p className="text-xs text-muted-foreground">
-                      {t("subtitle:converter.fields.strip_media_ext_hint")}
-                    </p>
+                    <Checkbox
+                      id="stripMediaExt"
+                      checked={stripMediaExt}
+                      onCheckedChange={(v) => setStripMediaExt(Boolean(v))}
+                    />
                   </div>
+                  <p className="text-xs text-muted-foreground ml-[116px]">
+                    {t("subtitle:converter.fields.strip_media_ext_hint")}
+                  </p>
                 </div>
               </div>
             </CardContent>
@@ -461,20 +512,85 @@ function SubtitleConverter() {
           </CardHeader>
           {isOutputOpen && (
             <CardContent>
-              <div className="flex items-center gap-4">
-                <Button onClick={handleSelectOutputPath} size="sm">
-                  {t("subtitle:converter.fields.select_output_path")}
-                </Button>
-                <Input
-                  type="text"
-                  placeholder={t(
-                    "subtitle:converter.fields.no_output_path_selected"
-                  )}
-                  value={outputURL}
-                  onChange={() => {}}
-                  className="grow"
-                  readOnly
-                />
+              <div className="space-y-3">
+                <div className="flex items-center gap-4">
+                  <Label className="text-sm font-medium min-w-[100px]">
+                    {t("subtitle:converter.fields.output_mode")}
+                  </Label>
+                  <ButtonGroup>
+                    <Button
+                      className="w-30"
+                      size="sm"
+                      variant={outputMode === "custom" ? "default" : "outline"}
+                      onClick={() => setOutputMode("custom")}
+                    >
+                      {t("subtitle:converter.fields.output_mode_custom")}
+                    </Button>
+                    <Button
+                      className="w-30"
+                      size="sm"
+                      variant={outputMode === "source" ? "default" : "outline"}
+                      onClick={() => setOutputMode("source")}
+                    >
+                      {t("subtitle:converter.fields.output_mode_source")}
+                    </Button>
+                  </ButtonGroup>
+                </div>
+
+                {/* 选择输出目录 */}
+                {outputMode === "custom" ? (
+                  <div className="w-full">
+                    <ButtonGroup className="flex items-center pl-[116px] w-full">
+                      <Button className="w-30" onClick={handleSelectOutputPath} size="sm">
+                        {t("subtitle:converter.fields.select_output_path")}
+                      </Button>
+                      <Input
+                        type="text"
+                        placeholder={t(
+                          "subtitle:converter.fields.no_output_path_selected"
+                        )}
+                        value={outputURL}
+                        onChange={() => { }}
+                        onClick={handleSelectOutputPath}
+                        className="grow"
+                        readOnly
+                      />
+                    </ButtonGroup>
+                  </div>
+                ) : (
+                  <p className="text-xs text-muted-foreground ml-[116px]">
+                    {t("subtitle:converter.fields.output_mode_source_hint")}
+                  </p>
+                )}
+
+                {/* 重名处理方式 */}
+                <div className="flex items-center gap-4">
+                  <Label className="text-sm font-medium min-w-[100px]">
+                    {t("subtitle:converter.fields.conflict_policy")}
+                  </Label>
+                  <ButtonGroup>
+                    <Button
+                      className="w-30"
+                      size="sm"
+                      variant={
+                        conflictPolicy === "index" ? "default" : "outline"
+                      }
+                      onClick={() => setConflictPolicy("index")}
+                    >
+                      {t("subtitle:converter.fields.conflict_policy_index")}
+                    </Button>
+                    <Button
+                      className="w-30"
+                      size="sm"
+                      variant={
+                        conflictPolicy === "overwrite" ? "default" : "outline"
+                      }
+                      onClick={() => setConflictPolicy("overwrite")}
+                    >
+                      {t("subtitle:converter.fields.conflict_policy_overwrite")}
+                    </Button>
+                  </ButtonGroup>
+                </div>
               </div>
             </CardContent>
           )}
