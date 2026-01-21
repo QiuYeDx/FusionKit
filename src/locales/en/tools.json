@@ -15,5 +15,15 @@
     "subtitle_translator": "AI Translation",
     "subtitle_formatter": "Format Conversion",
     "subtitle_language_extractor": "Language Extraction"
+  },
+  "field_desc": {
+    "subtitle_translator": "Translate subtitle files with AI models",
+    "subtitle_formatter": "Convert subtitle formats (SRT, ASS, etc.)",
+    "subtitle_language_extractor": "Extract a specific language from bilingual subtitles"
+  },
+  "coming_soon": {
+    "title": "Coming Soon",
+    "music_desc": "More music tools are on the way",
+    "rename_desc": "Batch rename tools are coming soon"
   }
 }

@@ -40,7 +40,7 @@ const Tools: React.FC = () => {
                       {t("tools:fields.subtitle_translator")}
                     </h3>
                     <p className="text-sm text-muted-foreground">
-                      使用AI模型翻译字幕文件
+                      {t("tools:field_desc.subtitle_translator")}
                     </p>
                   </div>
                   <ChevronRight className="h-5 w-5 text-muted-foreground group-hover:translate-x-1 transition-transform" />
@@ -57,7 +57,7 @@ const Tools: React.FC = () => {
                       {t("tools:fields.subtitle_formatter")}
                     </h3>
                     <p className="text-sm text-muted-foreground">
-                      转换字幕格式（SRT、ASS等）
+                      {t("tools:field_desc.subtitle_formatter")}
                     </p>
                   </div>
                   <ChevronRight className="h-5 w-5 text-muted-foreground group-hover:translate-x-1 transition-transform" />
@@ -74,7 +74,7 @@ const Tools: React.FC = () => {
                       {t("tools:fields.subtitle_language_extractor")}
                     </h3>
                     <p className="text-sm text-muted-foreground">
-                      从双语字幕中提取指定语言
+                      {t("tools:field_desc.subtitle_language_extractor")}
                     </p>
                   </div>
                   <ChevronRight className="h-5 w-5 text-muted-foreground group-hover:translate-x-1 transition-transform" />
@@ -100,10 +100,10 @@ const Tools: React.FC = () => {
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
                     <h3 className="font-semibold text-base mb-1">
-                      敬请期待
+                      {t("tools:coming_soon.title")}
                     </h3>
                     <p className="text-sm text-muted-foreground">
-                      更多音乐工具即将推出
+                      {t("tools:coming_soon.music_desc")}
                     </p>
                   </div>
                 </div>
@@ -128,10 +128,10 @@ const Tools: React.FC = () => {
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
                     <h3 className="font-semibold text-base mb-1">
-                      敬请期待
+                      {t("tools:coming_soon.title")}
                     </h3>
                     <p className="text-sm text-muted-foreground">
-                      批量重命名工具即将推出
+                      {t("tools:coming_soon.rename_desc")}
                     </p>
                   </div>
                 </div>

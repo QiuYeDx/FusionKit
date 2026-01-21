@@ -8,7 +8,7 @@ import {
   TaskStatus,
 } from "@/type/subtitle";
 import { showToast } from "@/utils/toast";
-import i18n from "i18next";
+import i18n from "@/i18n";
 
 // 最大并发数
 const MAX_CONCURRENCY = 5;

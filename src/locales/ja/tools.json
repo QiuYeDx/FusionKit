@@ -15,5 +15,15 @@
     "subtitle_translator": "字幕AI翻訳",
     "subtitle_formatter": "字幕フォーマット変換",
     "subtitle_language_extractor": "字幕言語抽出"
+  },
+  "field_desc": {
+    "subtitle_translator": "AIモデルで字幕ファイルを翻訳",
+    "subtitle_formatter": "字幕形式を変換（SRT、ASS など）",
+    "subtitle_language_extractor": "バイリンガル字幕から指定言語を抽出"
+  },
+  "coming_soon": {
+    "title": "近日公開",
+    "music_desc": "音楽ツールを順次追加予定",
+    "rename_desc": "一括リネームツールを近日追加予定"
   }
 }

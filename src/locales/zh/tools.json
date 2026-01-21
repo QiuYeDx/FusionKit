@@ -15,5 +15,15 @@
     "subtitle_translator": "字幕AI翻译",
     "subtitle_formatter": "字幕格式转换",
     "subtitle_language_extractor": "字幕语言提取"
+  },
+  "field_desc": {
+    "subtitle_translator": "使用AI模型翻译字幕文件",
+    "subtitle_formatter": "转换字幕格式（SRT、ASS等）",
+    "subtitle_language_extractor": "从双语字幕中提取指定语言"
+  },
+  "coming_soon": {
+    "title": "敬请期待",
+    "music_desc": "更多音乐工具即将推出",
+    "rename_desc": "批量重命名工具即将推出"
   }
 }

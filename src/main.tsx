@@ -8,7 +8,7 @@ import "./demos/ipc";
 // If you want use Node.js, the`nodeIntegration` needs to be enabled in the Main process.
 // import './demos/node'
 
-import "@/locales/i18n";
+import "@/i18n";
 import { HashRouter } from "react-router-dom";
 
 // 在渲染进程中接收进度更新并调用 store 的 updateProgress 方法
