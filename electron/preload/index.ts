@@ -1,4 +1,4 @@
-import { ipcRenderer, contextBridge } from 'electron'
+import { ipcRenderer, contextBridge, webUtils } from 'electron'
 
 // --------- Expose some API to the Renderer process ---------
 contextBridge.exposeInMainWorld('ipcRenderer', {
@@ -21,6 +21,14 @@ contextBridge.exposeInMainWorld('ipcRenderer', {
 
   // You can expose other APTs you need here.
   // ...
+})
+
+// --------- Expose webUtils API for file path access ---------
+// From Electron 24+, use webUtils.getPathForFile() instead of File.path
+contextBridge.exposeInMainWorld('electronUtils', {
+  getPathForFile(file: File): string {
+    return webUtils.getPathForFile(file)
+  },
 })
 
 // --------- Preload scripts loading ---------
