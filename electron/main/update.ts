@@ -7,7 +7,6 @@ import type {
 } from 'electron-updater'
 
 const { autoUpdater } = createRequire(import.meta.url)('electron-updater');
-// TODO: 需要更新 electron-builder.json
 
 export function update(win: Electron.BrowserWindow) {
 
@@ -35,7 +34,7 @@ export function update(win: Electron.BrowserWindow) {
     }
 
     try {
-      return await autoUpdater.checkForUpdatesAndNotify()
+      return await autoUpdater.checkForUpdates()
     } catch (error) {
       return { message: 'Network error', error }
     }

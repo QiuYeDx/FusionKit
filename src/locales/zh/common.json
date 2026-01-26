@@ -16,7 +16,8 @@
   "app_name": "FusionKit",
   "action": {
     "copy_error": "复制错误信息",
-    "close": "关闭"
+    "close": "关闭",
+    "check_update": "检查更新"
   },
   "info": {
     "copy_success": "错误信息已复制到剪贴板"

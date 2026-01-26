@@ -1,12 +1,19 @@
 import useModelStore from "@/store/useModelStore";
 import { Model } from "@/type/model";
 import { useTranslation } from "react-i18next";
-import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ButtonGroup } from "@/components/ui/button-group";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { OPENAI_MODEL_OPTIONS } from "@/constants/model";
 
 function ModelConfig() {
   const { t } = useTranslation(); // 使用 useTranslation Hook 获取 t 函数
@@ -23,6 +30,32 @@ function ModelConfig() {
     setTokenPricingByType,
   } = useModelStore();
 
+  const openAiModelKey = modelKeyMap[Model.OpenAI];
+  const openAiModelOptions =
+    openAiModelKey &&
+    !OPENAI_MODEL_OPTIONS.some((option) => option.value === openAiModelKey)
+      ? [
+          ...OPENAI_MODEL_OPTIONS,
+          {
+            label: `${openAiModelKey} (${t("setting:fields.other")})`,
+            value: openAiModelKey,
+            pricing:
+              tokenPricingMap[Model.OpenAI] ?? OPENAI_MODEL_OPTIONS[0].pricing,
+          },
+        ]
+      : OPENAI_MODEL_OPTIONS;
+  const resolvedOpenAiPricing =
+    openAiModelOptions.find((option) => option.value === openAiModelKey)
+      ?.pricing ?? OPENAI_MODEL_OPTIONS[0].pricing;
+  const inputTokenPlaceholder =
+    model === Model.OpenAI
+      ? resolvedOpenAiPricing.inputTokensPerMillion.toFixed(2)
+      : "1.5";
+  const outputTokenPlaceholder =
+    model === Model.OpenAI
+      ? resolvedOpenAiPricing.outputTokensPerMillion.toFixed(2)
+      : "2.0";
+
   const handleApiKeyChange = (e: any) => {
     const val = e.target.value;
     setApiKeyByType(model, val);
@@ -36,6 +69,14 @@ function ModelConfig() {
   const handleModelKeyChange = (e: any) => {
     const val = e.target.value;
     setModelKeyByType(model, val);
+  };
+
+  const handleOpenAiModelChange = (val: string) => {
+    setModelKeyByType(Model.OpenAI, val);
+    const matched = OPENAI_MODEL_OPTIONS.find((option) => option.value === val);
+    if (matched) {
+      setTokenPricingByType(Model.OpenAI, { ...matched.pricing });
+    }
   };
 
   const handleInputTokenPriceChange = (e: any) => {
@@ -112,6 +153,30 @@ function ModelConfig() {
           />
         </div>
 
+        {/* OpenAI 模型选择 */}
+        {model === Model.OpenAI && (
+          <div className="w-full max-w-2xl space-y-2">
+            <div className="flex justify-between items-center">
+              <Label htmlFor="openai-model">
+                {t("setting:fields.model_name")}
+              </Label>
+              <span className="text-sm text-muted-foreground">OpenAI</span>
+            </div>
+            <Select value={openAiModelKey} onValueChange={handleOpenAiModelChange}>
+              <SelectTrigger id="openai-model" className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {openAiModelOptions.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+
         {/* 自定义模型 URL 输入 */}
         {model === Model.Other && (
           <div className="w-full max-w-2xl space-y-2">
@@ -187,7 +252,7 @@ function ModelConfig() {
                 type="number"
                 step="0.01"
                 min="0"
-                placeholder="1.5"
+                placeholder={inputTokenPlaceholder}
                 value={tokenPricingMap[model]?.inputTokensPerMillion || ""}
                 onChange={handleInputTokenPriceChange}
                 className="w-full"
@@ -209,7 +274,7 @@ function ModelConfig() {
                 type="number"
                 step="0.01"
                 min="0"
-                placeholder="2.0"
+                placeholder={outputTokenPlaceholder}
                 value={tokenPricingMap[model]?.outputTokensPerMillion || ""}
                 onChange={handleOutputTokenPriceChange}
                 className="w-full"

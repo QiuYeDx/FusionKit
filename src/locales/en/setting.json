@@ -12,6 +12,7 @@
     "language": "Language",
     "theme": "Theme",
     "model_type": "Model Type",
+    "model_name": "Model",
     "light_mode": "Light Mode",
     "dark_mode": "Dark Mode",
     "system_mode": "Follow System",

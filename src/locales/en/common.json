@@ -16,7 +16,8 @@
   "app_name": "FusionKit",
   "action": {
     "copy_error": "Copy error info",
-    "close": "Close"
+    "close": "Close",
+    "check_update": "Check update"
   },
   "info": {
     "copy_success": "Copied error info to clipboard"

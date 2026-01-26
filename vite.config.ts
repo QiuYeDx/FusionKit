@@ -13,12 +13,16 @@ export default defineConfig(({ command }) => {
   const isServe = command === 'serve'
   const isBuild = command === 'build'
   const sourcemap = isServe || !!process.env.VSCODE_DEBUG
+  const appVersion = process.env.VITE_APP_VERSION ?? pkg.version
 
   return {
     resolve: {
       alias: {
         '@': path.join(__dirname, 'src')
       },
+    },
+    define: {
+      'import.meta.env.VITE_APP_VERSION': JSON.stringify(appVersion),
     },
     plugins: [
       react(),

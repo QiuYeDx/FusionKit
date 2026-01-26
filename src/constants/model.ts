@@ -1,6 +1,52 @@
-import { Model, TokenPricingMap } from "@/type/model";
+import { Model, TokenPricing, TokenPricingMap } from "@/type/model";
 
 export const DEFAULT_MODEL = Model.DeepSeek;
+
+export const OPENAI_MODEL_OPTIONS: Array<{
+  label: string;
+  value: string;
+  pricing: TokenPricing;
+}> = [
+  {
+    label: "GPT-5.2",
+    value: "gpt-5.2",
+    pricing: {
+      inputTokensPerMillion: 1.75,
+      outputTokensPerMillion: 14.0,
+    },
+  },
+  {
+    label: "GPT-5",
+    value: "gpt-5",
+    pricing: {
+      inputTokensPerMillion: 1.25,
+      outputTokensPerMillion: 10.0,
+    },
+  },
+  {
+    label: "GPT-5 mini",
+    value: "gpt-5-mini",
+    pricing: {
+      inputTokensPerMillion: 0.25,
+      outputTokensPerMillion: 2.0,
+    },
+  },
+  {
+    label: "GPT-5 nano",
+    value: "gpt-5-nano",
+    pricing: {
+      inputTokensPerMillion: 0.05,
+      outputTokensPerMillion: 0.4,
+    },
+  },
+];
+
+export const DEFAULT_OPENAI_MODEL_KEY = OPENAI_MODEL_OPTIONS[0].value;
+
+export const DEEPSEEK_DEFAULT_TOKEN_PRICING: TokenPricing = {
+  inputTokensPerMillion: 0.28, // DeepSeek: 官方价格（缓存未命中）
+  outputTokensPerMillion: 0.42,
+};
 
 export const DEFAULT_MODEL_URL_MAP = {
   [Model.DeepSeek]: "https://api.deepseek.com/v1/chat/completions",
@@ -10,7 +56,7 @@ export const DEFAULT_MODEL_URL_MAP = {
 
 export const DEFAULT_MODEL_KEY_MAP = {
   [Model.DeepSeek]: "deepseek-chat",
-  [Model.OpenAI]: "gpt-4o",
+  [Model.OpenAI]: DEFAULT_OPENAI_MODEL_KEY,
   [Model.Other]: "",
 };
 
@@ -23,12 +69,10 @@ export const DEFAULT_APIKEY_MAP = {
 // 各模型的默认token价格 (美元/1M tokens)
 export const DEFAULT_TOKEN_PRICING_MAP: TokenPricingMap = {
   [Model.DeepSeek]: {
-    inputTokensPerMillion: 0.278, // DeepSeek: 2元人民币/1M tokens ≈ 0.278美元
-    outputTokensPerMillion: 1.111, // DeepSeek: 8元人民币/1M tokens ≈ 1.111美元
+    ...DEEPSEEK_DEFAULT_TOKEN_PRICING,
   },
   [Model.OpenAI]: {
-    inputTokensPerMillion: 5.0, // OpenAI: $5.00/1M tokens
-    outputTokensPerMillion: 20.0, // OpenAI: $20.00/1M tokens
+    ...OPENAI_MODEL_OPTIONS[0].pricing,
   },
   [Model.Other]: {
     inputTokensPerMillion: 1.0, // 自定义模型的默认价格

@@ -12,6 +12,7 @@
     "language": "语言",
     "theme": "主题",
     "model_type": "模型类型",
+    "model_name": "模型",
     "light_mode": "浅色模式",
     "dark_mode": "深色模式",
     "system_mode": "跟随系统",

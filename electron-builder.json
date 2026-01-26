@@ -46,8 +46,10 @@
     "icon": "build/FusionKit.icns"
   },
   "publish": {
-    "provider": "generic",
+    "provider": "github",
     "channel": "latest",
-    "url": "https://github.com/electron-vite/electron-vite-react/releases/download/v0.9.9/"
+    "owner": "QiuYeDx",
+    "repo": "FusionKit",
+    "releaseType": "release"
   }
 }

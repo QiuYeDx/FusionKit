@@ -16,7 +16,8 @@
   "app_name": "FusionKit",
   "action": {
     "copy_error": "エラー情報をコピー",
-    "close": "閉じる"
+    "close": "閉じる",
+    "check_update": "更新を確認"
   },
   "info": {
     "copy_success": "エラー情報をクリップボードにコピーしました"

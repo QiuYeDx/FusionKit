@@ -12,6 +12,7 @@
     "language": "言語",
     "theme": "テーマ",
     "model_type": "モデルタイプ",
+    "model_name": "モデル",
     "light_mode": "ライトモード",
     "dark_mode": "ダークモード",
     "system_mode": "システムに従う",

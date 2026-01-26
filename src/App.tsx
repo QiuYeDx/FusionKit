@@ -15,6 +15,7 @@ import SubtitleConverter from "./pages/Tools/Subtitle/SubtitleConverter";
 import SubtitleLanguageExtractor from "./pages/Tools/Subtitle/SubtitleLanguageExtractor";
 import { Toaster } from "@/components/ui/sonner";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import Update from "@/components/update";
 
 function App() {
   // 初始化主题, 并添加系统深色模式监听
@@ -67,6 +68,9 @@ function App() {
 
       {/* 全局 Toast */}
       <Toaster position="top-right" />
+
+      {/* 自动更新检测 */}
+      <Update autoCheck showTrigger={false} />
 
       {/* 全局过渡遮罩层 */}
       <FadeMaskLayer />

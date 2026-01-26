@@ -1,12 +1,15 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { UPDATE_CHECK_EVENT } from "@/components/update";
 
 const About: React.FC = () => {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
+  const appVersion = import.meta.env.VITE_APP_VERSION || "-";
 
-  const changeLanguage = (lng: string) => {
-    i18n.changeLanguage(lng);
+  const handleManualCheck = () => {
+    window.dispatchEvent(new Event(UPDATE_CHECK_EVENT));
   };
 
   return (
@@ -22,11 +25,26 @@ const About: React.FC = () => {
         <Card className="overflow-auto">
           <CardHeader className="sticky left-0">
             <CardTitle className="text-xl">
-              {t("about:subtitle.version")}
+              {t("about:subtitle.version")} / {t("about:subtitle.update")}
             </CardTitle>
           </CardHeader>
-          <CardContent>
-            <div>0.1.5</div>
+          <CardContent className="grid gap-4 sm:grid-cols-2">
+            <div className="rounded-lg border bg-muted/50 p-4">
+              <div className="text-xs text-muted-foreground">
+                {t("about:subtitle.version")}
+              </div>
+              <div className="mt-2 font-mono text-lg font-semibold">
+                {appVersion}
+              </div>
+            </div>
+            <div className="flex flex-col justify-between gap-3 rounded-lg border bg-muted/50 p-4">
+              <div className="text-xs text-muted-foreground">
+                {t("about:subtitle.update")}
+              </div>
+              <Button size="sm" onClick={handleManualCheck} className="self-start">
+                {t("common:action.check_update")}
+              </Button>
+            </div>
           </CardContent>
         </Card>
 

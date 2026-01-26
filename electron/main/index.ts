@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 import path from "node:path";
 import os from "node:os";
 import { setupTranslationIPC } from "./translation/ipc";
-// import { update } from './update'
+import { update } from "./update";
 import { setupPowerIPC } from "./power";
 import { setupConversionIPC } from "./conversion/ipc";
 import { setupExtractionIPC } from "./extraction/ipc";
@@ -95,7 +95,9 @@ async function createWindow() {
   });
 
   // Auto update
-  // update(win)
+  if (win) {
+    update(win);
+  }
 }
 
 // 为每个工具创建新的窗口
