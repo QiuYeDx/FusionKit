@@ -17,7 +17,25 @@
   "action": {
     "copy_error": "Copy error info",
     "close": "Close",
-    "check_update": "Check update"
+    "check_update": "Check update",
+    "cancel": "Cancel"
+  },
+  "update": {
+    "title": "Update",
+    "checking": "Checking for updates...",
+    "available_title": "New version available v{{version}}",
+    "available_desc": "Current v{{current}} → Latest v{{latest}}",
+    "ready_to_download": "Click Update to start downloading.",
+    "downloading": "Downloading update...",
+    "downloaded": "Download completed. Ready to install.",
+    "progress": "Update progress",
+    "up_to_date_title": "You're up to date",
+    "up_to_date_desc": "Current version v{{version}}",
+    "latest_version": "Latest version v{{version}}",
+    "error_title": "Update failed",
+    "start_download": "Update",
+    "install_now": "Install now",
+    "later": "Later"
   },
   "info": {
     "copy_success": "Copied error info to clipboard"

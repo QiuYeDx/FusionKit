@@ -1,5 +1,6 @@
 import type { ProgressInfo } from 'electron-updater'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import Progress from '@/components/update/Progress'
@@ -21,14 +22,16 @@ const Update = ({
   autoCheckDelay = 1500,
   showTrigger = true,
   manualTriggerEvent = UPDATE_CHECK_EVENT,
-  triggerLabel = 'Check update',
-  checkingLabel = 'Checking...',
+  triggerLabel,
+  checkingLabel,
 }: UpdateProps) => {
+  const { t } = useTranslation()
   const [checking, setChecking] = useState(false)
   const [updateAvailable, setUpdateAvailable] = useState(false)
   const [versionInfo, setVersionInfo] = useState<VersionInfo>()
   const [updateError, setUpdateError] = useState<ErrorType>()
   const [progressInfo, setProgressInfo] = useState<Partial<ProgressInfo>>()
+  const [downloadStatus, setDownloadStatus] = useState<'idle' | 'downloading' | 'downloaded'>('idle')
   const [modalOpen, setModalOpen] = useState<boolean>(false)
   const [modalBtn, setModalBtn] = useState<{
     cancelText?: string
@@ -36,27 +39,38 @@ const Update = ({
     onCancel?: () => void
     onOk?: () => void
   }>({
-    cancelText: 'Close',
-    okText: 'OK',
-    onCancel: () => setModalOpen(false),
+    okText: undefined,
     onOk: () => setModalOpen(false),
   })
 
   const resetModalBtn = useCallback(() => {
     setModalBtn({
-      cancelText: 'Close',
-      okText: 'OK',
-      onCancel: () => setModalOpen(false),
+      cancelText: undefined,
+      okText: t('common:action.close'),
       onOk: () => setModalOpen(false),
     })
+  }, [t])
+
+  const handleStartDownload = useCallback(() => {
+    setDownloadStatus('downloading')
+    window.ipcRenderer.invoke('start-download')
   }, [])
+
+  const triggerText = useMemo(() => {
+    return triggerLabel ?? t('common:action.check_update')
+  }, [t, triggerLabel])
+
+  const checkingText = useMemo(() => {
+    return checkingLabel ?? t('common:update.checking')
+  }, [t, checkingLabel])
 
   const checkUpdate = useCallback(async (source: 'manual' | 'auto' = 'manual') => {
     setChecking(true)
     setUpdateError(undefined)
     setUpdateAvailable(false)
     setVersionInfo(undefined)
-    setProgressInfo({ percent: 0 })
+    setProgressInfo(undefined)
+    setDownloadStatus('idle')
     resetModalBtn()
     /**
      * @type {import('electron-updater').UpdateCheckResult | null | { message: string, error: Error }}
@@ -79,41 +93,48 @@ const Update = ({
   const onUpdateCanAvailable = useCallback((_event: Electron.IpcRendererEvent, arg1: VersionInfo) => {
     setVersionInfo(arg1)
     setUpdateError(undefined)
+    setDownloadStatus('idle')
     // Can be update
     if (arg1.update) {
       setModalBtn(state => ({
         ...state,
-        cancelText: 'Cancel',
-        okText: 'Update',
-        onOk: () => window.ipcRenderer.invoke('start-download'),
+        cancelText: t('common:action.cancel'),
+        okText: t('common:update.start_download'),
+        onCancel: () => setModalOpen(false),
+        onOk: handleStartDownload,
       }))
       setUpdateAvailable(true)
       setModalOpen(true)
     } else {
       setUpdateAvailable(false)
+      resetModalBtn()
     }
-  }, [])
+  }, [handleStartDownload, resetModalBtn, t])
 
   const onUpdateError = useCallback((_event: Electron.IpcRendererEvent, arg1: ErrorType) => {
     setUpdateAvailable(false)
     setUpdateError(arg1)
+    setDownloadStatus('idle')
     resetModalBtn()
   }, [resetModalBtn])
 
   const onDownloadProgress = useCallback((_event: Electron.IpcRendererEvent, arg1: ProgressInfo) => {
     setProgressInfo(arg1)
+    setDownloadStatus('downloading')
   }, [])
 
   const onUpdateDownloaded = useCallback((_event: Electron.IpcRendererEvent) => {
     setProgressInfo({ percent: 100 })
     setModalBtn(state => ({
       ...state,
-      cancelText: 'Later',
-      okText: 'Install now',
+      cancelText: t('common:update.later'),
+      okText: t('common:update.install_now'),
+      onCancel: () => setModalOpen(false),
       onOk: () => window.ipcRenderer.invoke('quit-and-install'),
     }))
+    setDownloadStatus('downloaded')
     setModalOpen(true)
-  }, [])
+  }, [t])
 
   useEffect(() => {
     // Get version information and whether to update
@@ -160,45 +181,75 @@ const Update = ({
       <Dialog open={modalOpen} onOpenChange={setModalOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Update</DialogTitle>
+            <DialogTitle>{t('common:update.title')}</DialogTitle>
           </DialogHeader>
           <div className='modal-slot'>
-            {updateError
+          {updateError
+            ? (
+              <div className='space-y-2'>
+                <div className='text-sm font-medium text-destructive'>{t('common:update.error_title')}</div>
+                <div className='text-sm text-muted-foreground'>{updateError.message}</div>
+              </div>
+            ) : updateAvailable
               ? (
-                <div>
-                  <p>Error downloading the latest version.</p>
-                  <p>{updateError.message}</p>
-                </div>
-              ) : updateAvailable
-                ? (
-                  <div>
-                    <div>The last version is: v{versionInfo?.newVersion}</div>
-                    <div className='new-version__target'>v{versionInfo?.version} -&gt; v{versionInfo?.newVersion}</div>
-                    <div className='update__progress'>
-                      <div className='progress__title'>Update progress:</div>
-                      <div className='progress__bar'>
-                        <Progress percent={progressInfo?.percent} ></Progress>
-                      </div>
-                    </div>
+                <div className='space-y-2'>
+                  <div className='text-sm font-medium'>
+                    {t('common:update.available_title', { version: versionInfo?.newVersion ?? '-' })}
                   </div>
-                )
-                : (
-                  <div className='can-not-available'>{JSON.stringify(versionInfo ?? {}, null, 2)}</div>
-                )}
+                  <div className='text-xs text-muted-foreground'>
+                    {t('common:update.available_desc', {
+                      current: versionInfo?.version ?? '-',
+                      latest: versionInfo?.newVersion ?? '-',
+                    })}
+                  </div>
+                  {downloadStatus === 'idle' ? (
+                    <div className='text-xs text-muted-foreground'>{t('common:update.ready_to_download')}</div>
+                  ) : (
+                    <>
+                      {downloadStatus === 'downloaded' ? (
+                        <div className='text-xs text-emerald-600'>{t('common:update.downloaded')}</div>
+                      ) : (
+                        <div className='text-xs text-muted-foreground'>{t('common:update.downloading')}</div>
+                      )}
+                      <div className='update__progress'>
+                        <div className='progress__title'>{t('common:update.progress')}:</div>
+                        <div className='progress__bar'>
+                          <Progress percent={progressInfo?.percent} ></Progress>
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </div>
+              )
+              : (
+                <div className='space-y-2'>
+                  <div className='text-sm font-medium'>{t('common:update.up_to_date_title')}</div>
+                  <div className='text-sm text-muted-foreground'>
+                    {t('common:update.up_to_date_desc', { version: versionInfo?.version ?? '-' })}
+                  </div>
+                  {versionInfo?.newVersion && versionInfo?.newVersion !== versionInfo?.version ? (
+                    <div className='text-xs text-muted-foreground'>
+                      {t('common:update.latest_version', { version: versionInfo?.newVersion })}
+                    </div>
+                  ) : null}
+                </div>
+              )}
           </div>
-          <DialogFooter>
+        <DialogFooter>
+          {modalBtn?.cancelText ? (
             <Button variant="outline" onClick={modalBtn?.onCancel}>
               {modalBtn?.cancelText}
             </Button>
-            <Button onClick={modalBtn?.onOk}>
-              {modalBtn?.okText}
-            </Button>
-          </DialogFooter>
+          ) : null}
+          <Button onClick={modalBtn?.onOk}>
+            {modalBtn?.okText ?? t('common:action.close')}
+          </Button>
+        </DialogFooter>
         </DialogContent>
       </Dialog>
       {showTrigger ? (
         <button disabled={checking} onClick={() => checkUpdate('manual')}>
-          {checking ? checkingLabel : triggerLabel}
+          {checking ? checkingText : triggerText}
         </button>
       ) : null}
     </>

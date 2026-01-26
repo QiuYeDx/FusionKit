@@ -3,13 +3,15 @@
     display: flex;
   }
 
-  .new-version__target,
   .update__progress {
-    margin-left: 40px;
+    margin-top: 8px;
+    display: flex;
+    align-items: center;
   }
 
   .progress__title {
     margin-right: 10px;
+    white-space: nowrap;
   }
 
   .progress__bar {

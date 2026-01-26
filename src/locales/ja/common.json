@@ -17,7 +17,25 @@
   "action": {
     "copy_error": "エラー情報をコピー",
     "close": "閉じる",
-    "check_update": "更新を確認"
+    "check_update": "更新を確認",
+    "cancel": "キャンセル"
+  },
+  "update": {
+    "title": "アップデート",
+    "checking": "更新を確認中...",
+    "available_title": "新しいバージョン v{{version}} が利用可能です",
+    "available_desc": "現在 v{{current}} → 最新 v{{latest}}",
+    "ready_to_download": "「アップデート」を押してダウンロードを開始します。",
+    "downloading": "ダウンロード中...",
+    "downloaded": "ダウンロード完了。インストール準備完了。",
+    "progress": "進捗",
+    "up_to_date_title": "最新バージョンです",
+    "up_to_date_desc": "現在のバージョン v{{version}}",
+    "latest_version": "最新バージョン v{{version}}",
+    "error_title": "更新に失敗しました",
+    "start_download": "アップデート",
+    "install_now": "今すぐインストール",
+    "later": "後で"
   },
   "info": {
     "copy_success": "エラー情報をクリップボードにコピーしました"
