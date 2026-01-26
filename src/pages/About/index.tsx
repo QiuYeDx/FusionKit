@@ -1,16 +1,32 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { UPDATE_CHECK_EVENT } from "@/components/update";
+import { UPDATE_CHECK_EVENT, UPDATE_STATUS_EVENT } from "@/components/update";
 
 const About: React.FC = () => {
   const { t } = useTranslation();
   const appVersion = import.meta.env.VITE_APP_VERSION || "-";
+  const [updateChecking, setUpdateChecking] = useState(false);
 
   const handleManualCheck = () => {
+    setUpdateChecking(true);
     window.dispatchEvent(new Event(UPDATE_CHECK_EVENT));
   };
+
+  useEffect(() => {
+    const handler = (event: Event) => {
+      const detail = (event as CustomEvent<{ checking: boolean; source: "manual" | "auto" }>)
+        .detail;
+      if (!detail || detail.source !== "manual") return;
+      setUpdateChecking(detail.checking);
+    };
+
+    window.addEventListener(UPDATE_STATUS_EVENT, handler as EventListener);
+    return () => {
+      window.removeEventListener(UPDATE_STATUS_EVENT, handler as EventListener);
+    };
+  }, []);
 
   return (
     <div className="p-4">
@@ -41,8 +57,16 @@ const About: React.FC = () => {
               <div className="text-xs text-muted-foreground">
                 {t("about:subtitle.update")}
               </div>
-              <Button size="sm" onClick={handleManualCheck} className="self-start">
-                {t("common:action.check_update")}
+              <Button
+                size="sm"
+                onClick={handleManualCheck}
+                disabled={updateChecking}
+                aria-busy={updateChecking}
+                className="self-start"
+              >
+                {updateChecking
+                  ? t("common:update.checking")
+                  : t("common:action.check_update")}
               </Button>
             </div>
           </CardContent>
@@ -89,8 +113,8 @@ const About: React.FC = () => {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <a 
-              href="mailto:me@qiueydx.com" 
+            <a
+              href="mailto:me@qiueydx.com"
               className="text-primary hover:underline"
             >
               me@qiuyedx.com

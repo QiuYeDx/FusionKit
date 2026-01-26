@@ -1,22 +1,18 @@
 .modal-slot {
-  .update-progress {
-    display: flex;
-  }
-
   .update__progress {
     margin-top: 8px;
-    display: flex;
-    align-items: center;
+    display: grid;
+    gap: 6px;
   }
 
-  .progress__title {
-    margin-right: 10px;
-    white-space: nowrap;
+  .progress__meta {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
   }
 
   .progress__bar {
-    width: 0;
-    flex-grow: 1;
+    width: 100%;
   }
 
   .can-not-available {

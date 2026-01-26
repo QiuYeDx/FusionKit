@@ -3,10 +3,11 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import Progress from '@/components/update/Progress'
+import { Progress } from '@/components/ui/progress'
 import './update.css'
 
 export const UPDATE_CHECK_EVENT = 'fusionkit-check-update'
+export const UPDATE_STATUS_EVENT = 'fusionkit-update-status'
 const RELEASES_URL = 'https://github.com/QiuYeDx/FusionKit/releases/latest'
 
 type UpdateProps = {
@@ -65,31 +66,46 @@ const Update = ({
     return checkingLabel ?? t('common:update.checking')
   }, [t, checkingLabel])
 
+  const progressValue = useMemo(() => {
+    const value = Number(progressInfo?.percent ?? 0)
+    if (Number.isNaN(value)) return 0
+    return Math.max(0, Math.min(100, Math.round(value)))
+  }, [progressInfo?.percent])
+
+  const emitUpdateStatus = useCallback((checking: boolean, source: 'manual' | 'auto') => {
+    window.dispatchEvent(new CustomEvent(UPDATE_STATUS_EVENT, { detail: { checking, source } }))
+  }, [])
+
   const checkUpdate = useCallback(async (source: 'manual' | 'auto' = 'manual') => {
     setChecking(true)
+    emitUpdateStatus(true, source)
     setUpdateError(undefined)
     setUpdateAvailable(false)
     setVersionInfo(undefined)
     setProgressInfo(undefined)
     setDownloadStatus('idle')
     resetModalBtn()
-    /**
-     * @type {import('electron-updater').UpdateCheckResult | null | { message: string, error: Error }}
-     */
-    const result = await window.ipcRenderer.invoke('check-update')
-    setChecking(false)
+    try {
+      /**
+       * @type {import('electron-updater').UpdateCheckResult | null | { message: string, error: Error }}
+       */
+      const result = await window.ipcRenderer.invoke('check-update')
 
-    if (source === 'manual') {
-      setModalOpen(true)
-    }
-    if (result?.error) {
-      const message = result?.message ?? result?.error?.message
-      if (source === 'auto' && message === 'The update feature is only available after the package.') {
-        return
+      if (source === 'manual') {
+        setModalOpen(true)
       }
-      setUpdateError(result?.error)
+      if (result?.error) {
+        const message = result?.message ?? result?.error?.message
+        if (source === 'auto' && message === 'The update feature is only available after the package.') {
+          return
+        }
+        setUpdateError(result?.error)
+      }
+    } finally {
+      setChecking(false)
+      emitUpdateStatus(false, source)
     }
-  }, [resetModalBtn])
+  }, [emitUpdateStatus, resetModalBtn])
 
   const onUpdateCanAvailable = useCallback((_event: Electron.IpcRendererEvent, arg1: VersionInfo) => {
     setVersionInfo(arg1)
@@ -209,6 +225,11 @@ const Update = ({
                       latest: versionInfo?.newVersion ?? '-',
                     })}
                   </div>
+                  <Button asChild variant="outline" size="sm" className="self-start">
+                    <a href={RELEASES_URL} target="_blank" rel="noreferrer">
+                      {t('common:update.open_releases')}
+                    </a>
+                  </Button>
                   {downloadStatus === 'idle' ? (
                     <div className='text-xs text-muted-foreground'>{t('common:update.ready_to_download')}</div>
                   ) : (
@@ -219,10 +240,11 @@ const Update = ({
                         <div className='text-xs text-muted-foreground'>{t('common:update.downloading')}</div>
                       )}
                       <div className='update__progress'>
-                        <div className='progress__title'>{t('common:update.progress')}:</div>
-                        <div className='progress__bar'>
-                          <Progress percent={progressInfo?.percent} ></Progress>
+                        <div className='progress__meta text-xs text-muted-foreground'>
+                          <span>{t('common:update.progress')}</span>
+                          <span className='font-mono'>{progressValue}%</span>
                         </div>
+                        <Progress value={progressValue} className='progress__bar' />
                       </div>
                     </>
                   )}
