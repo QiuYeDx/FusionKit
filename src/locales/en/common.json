@@ -33,6 +33,7 @@
     "up_to_date_desc": "Current version v{{version}}",
     "latest_version": "Latest version v{{version}}",
     "error_title": "Update failed",
+    "open_releases": "Open release page",
     "start_download": "Update",
     "install_now": "Install now",
     "later": "Later"

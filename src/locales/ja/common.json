@@ -33,6 +33,7 @@
     "up_to_date_desc": "現在のバージョン v{{version}}",
     "latest_version": "最新バージョン v{{version}}",
     "error_title": "更新に失敗しました",
+    "open_releases": "リリースページを開く",
     "start_download": "アップデート",
     "install_now": "今すぐインストール",
     "later": "後で"

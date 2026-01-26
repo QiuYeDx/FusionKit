@@ -7,6 +7,7 @@ import Progress from '@/components/update/Progress'
 import './update.css'
 
 export const UPDATE_CHECK_EVENT = 'fusionkit-check-update'
+const RELEASES_URL = 'https://github.com/QiuYeDx/FusionKit/releases/latest'
 
 type UpdateProps = {
   autoCheck?: boolean
@@ -116,6 +117,7 @@ const Update = ({
     setUpdateError(arg1)
     setDownloadStatus('idle')
     resetModalBtn()
+    setModalOpen(true)
   }, [resetModalBtn])
 
   const onDownloadProgress = useCallback((_event: Electron.IpcRendererEvent, arg1: ProgressInfo) => {
@@ -186,9 +188,14 @@ const Update = ({
           <div className='modal-slot'>
           {updateError
             ? (
-              <div className='space-y-2'>
+              <div className='space-y-3'>
                 <div className='text-sm font-medium text-destructive'>{t('common:update.error_title')}</div>
                 <div className='text-sm text-muted-foreground'>{updateError.message}</div>
+                <Button asChild variant="outline" size="sm">
+                  <a href={RELEASES_URL} target="_blank" rel="noreferrer">
+                    {t('common:update.open_releases')}
+                  </a>
+                </Button>
               </div>
             ) : updateAvailable
               ? (

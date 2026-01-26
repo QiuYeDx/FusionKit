@@ -33,6 +33,7 @@
     "up_to_date_desc": "当前版本 v{{version}}",
     "latest_version": "最新版本 v{{version}}",
     "error_title": "更新失败",
+    "open_releases": "打开发布页",
     "start_download": "更新",
     "install_now": "立即安装",
     "later": "稍后"
