@@ -35,6 +35,9 @@ const Update = ({
   const [progressInfo, setProgressInfo] = useState<Partial<ProgressInfo>>()
   const [downloadStatus, setDownloadStatus] = useState<'idle' | 'downloading' | 'downloaded'>('idle')
   const [modalOpen, setModalOpen] = useState<boolean>(false)
+  const [manualDownloading, setManualDownloading] = useState(false)
+  const [manualDownloadPath, setManualDownloadPath] = useState<string>()
+  const [manualDownloadError, setManualDownloadError] = useState<string>()
   const [modalBtn, setModalBtn] = useState<{
     cancelText?: string
     okText?: string
@@ -58,6 +61,36 @@ const Update = ({
     window.ipcRenderer.invoke('start-download')
   }, [])
 
+  const handleManualDownload = useCallback(async () => {
+    setManualDownloading(true)
+    setManualDownloadError(undefined)
+    setManualDownloadPath(undefined)
+    try {
+      const dialogResult = await window.ipcRenderer.invoke('select-output-directory', {
+        title: t('common:update.select_directory_title'),
+        buttonLabel: t('common:update.select_directory_button'),
+      })
+
+      if (dialogResult?.canceled || !dialogResult?.filePaths?.[0]) {
+        return
+      }
+
+      const result = await window.ipcRenderer.invoke('download-installer', {
+        directory: dialogResult.filePaths[0],
+      })
+
+      if (result?.error) {
+        setManualDownloadError(result?.message ?? result?.error?.message ?? t('common:update.manual_download_failed'))
+        return
+      }
+
+      if (result?.filePath) {
+        setManualDownloadPath(result.filePath)
+      }
+    } finally {
+      setManualDownloading(false)
+    }
+  }, [t])
   const triggerText = useMemo(() => {
     return triggerLabel ?? t('common:action.check_update')
   }, [t, triggerLabel])
@@ -84,6 +117,8 @@ const Update = ({
     setVersionInfo(undefined)
     setProgressInfo(undefined)
     setDownloadStatus('idle')
+    setManualDownloadError(undefined)
+    setManualDownloadPath(undefined)
     resetModalBtn()
     try {
       /**
@@ -206,12 +241,36 @@ const Update = ({
             ? (
               <div className='space-y-3'>
                 <div className='text-sm font-medium text-destructive'>{t('common:update.error_title')}</div>
-                <div className='text-sm text-muted-foreground'>{updateError.message}</div>
-                <Button asChild variant="outline" size="sm">
-                  <a href={RELEASES_URL} target="_blank" rel="noreferrer">
-                    {t('common:update.open_releases')}
-                  </a>
-                </Button>
+                <div className='rounded-md bg-muted/50 p-3 text-xs text-muted-foreground wrap-break-word whitespace-pre-wrap'>
+                  {updateError.message}
+                </div>
+                <div className='flex flex-wrap gap-2'>
+                  <Button asChild variant="outline" size="sm">
+                    <a href={RELEASES_URL} target="_blank" rel="noreferrer">
+                      {t('common:update.open_releases')}
+                    </a>
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleManualDownload}
+                    disabled={manualDownloading}
+                  >
+                    {manualDownloading
+                      ? t('common:update.downloading_package')
+                      : t('common:update.download_package')}
+                  </Button>
+                </div>
+                {manualDownloadError ? (
+                  <div className='text-xs text-destructive wrap-break-word whitespace-pre-wrap'>
+                    {manualDownloadError}
+                  </div>
+                ) : null}
+                {manualDownloadPath ? (
+                  <div className='text-xs text-muted-foreground wrap-break-word whitespace-pre-wrap'>
+                    {t('common:update.manual_download_saved', { path: manualDownloadPath })}
+                  </div>
+                ) : null}
               </div>
             ) : updateAvailable
               ? (
@@ -225,11 +284,33 @@ const Update = ({
                       latest: versionInfo?.newVersion ?? '-',
                     })}
                   </div>
-                  <Button asChild variant="outline" size="sm" className="self-start">
-                    <a href={RELEASES_URL} target="_blank" rel="noreferrer">
-                      {t('common:update.open_releases')}
-                    </a>
-                  </Button>
+                  <div className='flex flex-wrap gap-2'>
+                    <Button asChild variant="outline" size="sm">
+                      <a href={RELEASES_URL} target="_blank" rel="noreferrer">
+                        {t('common:update.open_releases')}
+                      </a>
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleManualDownload}
+                      disabled={manualDownloading}
+                    >
+                      {manualDownloading
+                        ? t('common:update.downloading_package')
+                        : t('common:update.download_package')}
+                    </Button>
+                  </div>
+                  {manualDownloadError ? (
+                    <div className='text-xs text-destructive wrap-break-word whitespace-pre-wrap'>
+                      {manualDownloadError}
+                    </div>
+                  ) : null}
+                  {manualDownloadPath ? (
+                    <div className='text-xs text-muted-foreground wrap-break-word whitespace-pre-wrap'>
+                      {t('common:update.manual_download_saved', { path: manualDownloadPath })}
+                    </div>
+                  ) : null}
                   {downloadStatus === 'idle' ? (
                     <div className='text-xs text-muted-foreground'>{t('common:update.ready_to_download')}</div>
                   ) : (

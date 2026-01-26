@@ -34,6 +34,12 @@
     "latest_version": "最新バージョン v{{version}}",
     "error_title": "更新に失敗しました",
     "open_releases": "リリースページを開く",
+    "download_package": "インストーラーをダウンロード",
+    "downloading_package": "インストーラーをダウンロード中...",
+    "manual_download_saved": "保存先: {{path}}",
+    "manual_download_failed": "インストーラーのダウンロードに失敗しました",
+    "select_directory_title": "保存先フォルダを選択",
+    "select_directory_button": "このフォルダを選択",
     "start_download": "アップデート",
     "install_now": "今すぐインストール",
     "later": "後で"

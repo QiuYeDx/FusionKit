@@ -34,6 +34,12 @@
     "latest_version": "最新版本 v{{version}}",
     "error_title": "更新失败",
     "open_releases": "打开发布页",
+    "download_package": "下载安装包",
+    "downloading_package": "正在下载安装包...",
+    "manual_download_saved": "已保存到 {{path}}",
+    "manual_download_failed": "下载安装包失败",
+    "select_directory_title": "选择下载目录",
+    "select_directory_button": "选择此目录",
     "start_download": "更新",
     "install_now": "立即安装",
     "later": "稍后"

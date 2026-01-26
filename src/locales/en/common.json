@@ -34,6 +34,12 @@
     "latest_version": "Latest version v{{version}}",
     "error_title": "Update failed",
     "open_releases": "Open release page",
+    "download_package": "Download installer",
+    "downloading_package": "Downloading installer...",
+    "manual_download_saved": "Saved to {{path}}",
+    "manual_download_failed": "Failed to download installer.",
+    "select_directory_title": "Select download folder",
+    "select_directory_button": "Select folder",
     "start_download": "Update",
     "install_now": "Install now",
     "later": "Later"
