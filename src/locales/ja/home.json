@@ -8,11 +8,14 @@
   "music_tool_title": "有料音楽の復号化",
   "music_tool_description": "有料音楽を FLAC/MP3 形式に変換。",
   "cross_platform_title": "クロスプラットフォーム対応",
-  "cross_platform_description": "Windows、macOS、Linux をサポート。",
+  "cross_platform_description": "Electron で構築され、Windows、macOS、Linux を一貫したネイティブ体験でサポートします。",
   "get_started": "始める",
   "learn_more": "詳細を見る",
-  "feature_fast": "高速で効率的",
-  "feature_secure": "安全で信頼性",
   "feature_rich": "機能豊富",
-  "feature_cross_platform": "クロスプラットフォーム"
+  "feature_cross_platform": "クロスプラットフォーム",
+  "core_features_title": "コア機能",
+  "feature_fast": "高速で効率的",
+  "feature_fast_description": "最適化されたアーキテクチャと効率的な処理フローにより、極めて高速なパフォーマンスと応答性を提供します。",
+  "feature_secure": "安全で信頼性",
+  "feature_secure_description": "すべてのデータはローカルで処理され、クラウドにアップロードされないため、プライバシーとセキュリティが確保されます。"
 }

@@ -8,11 +8,14 @@
   "music_tool_title": "Paid Music Decryption",
   "music_tool_description": "Convert paid music to FLAC/MP3 format.",
   "cross_platform_title": "Cross-Platform Support",
-  "cross_platform_description": "Supports Windows, macOS, and Linux.",
+  "cross_platform_description": "Built with Electron, supporting Windows, macOS, and Linux with a consistent native experience.",
   "get_started": "Get Started",
   "learn_more": "Learn More",
-  "feature_fast": "Fast & Efficient",
-  "feature_secure": "Secure & Reliable",
   "feature_rich": "Feature Rich",
-  "feature_cross_platform": "Cross-Platform"
+  "feature_cross_platform": "Cross-Platform",
+  "core_features_title": "Core Features",
+  "feature_fast": "Fast & Efficient",
+  "feature_fast_description": "Optimized architecture and efficient processing pipelines, delivering blazing-fast performance and responsiveness.",
+  "feature_secure": "Secure & Reliable",
+  "feature_secure_description": "All data is processed locally without uploading to the cloud, ensuring your privacy and security."
 }

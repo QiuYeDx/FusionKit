@@ -8,11 +8,14 @@
   "music_tool_title": "付费音乐解密",
   "music_tool_description": "将付费音乐转换为 FLAC/MP3 格式。",
   "cross_platform_title": "跨平台支持",
-  "cross_platform_description": "支持 Windows、macOS 和 Linux。",
+  "cross_platform_description": "基于 Electron 构建，支持 Windows、macOS 和 Linux，提供一致的原生体验。",
   "get_started": "开始使用",
   "learn_more": "了解更多",
-  "feature_fast": "快速高效",
-  "feature_secure": "安全可靠",
   "feature_rich": "功能丰富",
-  "feature_cross_platform": "跨平台支持"
+  "feature_cross_platform": "跨平台支持",
+  "core_features_title": "核心特性",
+  "feature_fast": "快速高效",
+  "feature_fast_description": "优化的架构设计与高效的处理流程，提供极致的运行速度和响应体验。",
+  "feature_secure": "安全可靠",
+  "feature_secure_description": "本地处理数据，无需上传云端，确保您的隐私安全。"
 }

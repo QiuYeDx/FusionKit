@@ -1,166 +1,200 @@
+import React from "react";
 import { useTranslation } from "react-i18next";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { useSpring, animated, useTrail } from "@react-spring/web";
+import { useNavigate } from "react-router-dom";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import {
   Subtitles,
   FileText,
   Music,
-  Sparkles,
-  Zap,
-  Shield,
-  ArrowRight,
   Monitor,
-  Cpu,
-  Layers,
+  Rocket,
+  ChevronRight,
+  Zap,
+  Shield
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { useNavigate } from "react-router-dom";
-import { useState } from "react";
 import FusionKitLogo from "@/assets/FusionKit.png";
 
-function Home() {
+const Home: React.FC = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const [hoveredCard, setHoveredCard] = useState<number | null>(null);
-
-  // 标题动画
-  const titleSpring = useSpring({
-    from: { opacity: 0, transform: "translateY(-30px)" },
-    to: { opacity: 1, transform: "translateY(0px)" },
-    config: { tension: 280, friction: 60 },
-  });
-
-  // Logo 动画
-  const logoSpring = useSpring({
-    from: { opacity: 0, transform: "scale(0.8) rotate(-10deg)" },
-    to: { opacity: 1, transform: "scale(1) rotate(0deg)" },
-    config: { tension: 280, friction: 60 },
-    delay: 100,
-  });
-
-  // 描述文字动画
-  const descSpring = useSpring({
-    from: { opacity: 0 },
-    to: { opacity: 1 },
-    config: { duration: 800 },
-    delay: 200,
-  });
-
-  // 工具特性数据
-  const features = [
-    {
-      icon: Subtitles,
-      title: t("home:subtitle_tool_title"),
-      description: t("home:subtitle_tool_description"),
-      gradient: "from-blue-500 to-cyan-500",
-      lightGradient: "from-blue-50 to-cyan-50",
-      action: () => navigate("/tools"),
-    },
-    {
-      icon: FileText,
-      title: t("home:rename_tool_title"),
-      description: t("home:rename_tool_description"),
-      gradient: "from-purple-500 to-pink-500",
-      lightGradient: "from-purple-50 to-pink-50",
-      action: () => navigate("/tools"),
-    },
-    {
-      icon: Music,
-      title: t("home:music_tool_title"),
-      description: t("home:music_tool_description"),
-      gradient: "from-orange-500 to-red-500",
-      lightGradient: "from-orange-50 to-red-50",
-      action: () => navigate("/tools"),
-    },
-  ];
 
   return (
-    <div className="p-6 pb-20 overflow-visible relative">
-      {/* 背景装饰 */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-20 right-20 w-96 h-96 bg-gradient-to-br from-blue-400/10 to-purple-400/10 rounded-full blur-3xl" />
-        <div className="absolute bottom-20 left-20 w-96 h-96 bg-gradient-to-br from-pink-400/10 to-orange-400/10 rounded-full blur-3xl" />
+    <div className="p-4">
+      {/* 头部欢迎区域 */}
+      <div className="flex flex-col items-center text-center mt-6 mb-12">
+        <img
+          src={FusionKitLogo}
+          alt="FusionKit Logo"
+          className="w-24 h-24 mb-6 rounded-2xl shadow-sm border"
+        />
+        <h1 className="text-3xl md:text-4xl font-bold tracking-tight mb-4">
+          {t("home:welcome")}
+        </h1>
+        <p className="text-lg text-muted-foreground max-w-2xl mb-8">
+          {t("home:home_description")}
+        </p>
+        <div className="flex gap-4">
+          <Button size="lg" onClick={() => navigate("/tools")}>
+            <Rocket className="mr-2 h-5 w-5" />
+            {t("home:get_started")}
+          </Button>
+          <Button size="lg" variant="outline" onClick={() => navigate("/about")}>
+            {t("home:learn_more")}
+          </Button>
+        </div>
       </div>
 
-      <div className="relative z-10">
-        {/* Hero 区域 */}
-        <div className="text-center mb-16 mt-8">
-          {/* Logo */}
-          <animated.div style={logoSpring} className="flex justify-center mb-6">
-            <div className="relative">
-              <img
-                src={FusionKitLogo}
-                alt="FusionKit Logo"
-                className="w-24 h-24 drop-shadow-2xl"
-              />
-              <div className="absolute inset-0 bg-gradient-to-br from-blue-500/20 to-purple-500/20 rounded-full blur-xl animate-pulse" />
+      {/* 特色功能展示 */}
+      <div className="flex flex-col gap-4 mb-14">
+        {/* 工具总览 */}
+        <Card className="overflow-auto">
+          <CardHeader className="sticky left-0">
+            <CardTitle className="text-xl">
+              {t("home:feature_rich")}
+            </CardTitle>
+            <CardDescription>
+              {t("home:home_description")}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid gap-3 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
+              {/* 字幕处理 */}
+              <div
+                className="group relative overflow-hidden rounded-lg border bg-background p-4 hover:bg-accent cursor-pointer transition-all duration-200 hover:shadow-sm"
+                onClick={() => navigate("/tools")}
+              >
+                <div className="flex items-start justify-between">
+                  <div className="flex flex-col gap-2">
+                    <div className="rounded-md bg-primary/10 w-10 h-10 flex items-center justify-center text-primary">
+                      <Subtitles className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <h3 className="font-semibold text-base mb-1">
+                        {t("home:subtitle_tool_title")}
+                      </h3>
+                      <p className="text-sm text-muted-foreground">
+                        {t("home:subtitle_tool_description")}
+                      </p>
+                    </div>
+                  </div>
+                  <ChevronRight className="h-5 w-5 text-muted-foreground group-hover:translate-x-1 transition-transform mt-2" />
+                </div>
+              </div>
+
+              {/* 文件重命名 */}
+              <div
+                className="group relative overflow-hidden rounded-lg border bg-background p-4 hover:bg-accent cursor-pointer transition-all duration-200 hover:shadow-sm"
+                onClick={() => navigate("/tools")}
+              >
+                <div className="flex items-start justify-between">
+                  <div className="flex flex-col gap-2">
+                    <div className="rounded-md bg-primary/10 w-10 h-10 flex items-center justify-center text-primary">
+                      <FileText className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <h3 className="font-semibold text-base mb-1">
+                        {t("home:rename_tool_title")}
+                      </h3>
+                      <p className="text-sm text-muted-foreground">
+                        {t("home:rename_tool_description")}
+                      </p>
+                    </div>
+                  </div>
+                  <ChevronRight className="h-5 w-5 text-muted-foreground group-hover:translate-x-1 transition-transform mt-2" />
+                </div>
+              </div>
+
+              {/* 音乐解密 */}
+              <div
+                className="group relative overflow-hidden rounded-lg border bg-background p-4 hover:bg-accent cursor-pointer transition-all duration-200 hover:shadow-sm"
+                onClick={() => navigate("/tools")}
+              >
+                <div className="flex items-start justify-between">
+                  <div className="flex flex-col gap-2">
+                    <div className="rounded-md bg-primary/10 w-10 h-10 flex items-center justify-center text-primary">
+                      <Music className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <h3 className="font-semibold text-base mb-1">
+                        {t("home:music_tool_title")}
+                      </h3>
+                      <p className="text-sm text-muted-foreground">
+                        {t("home:music_tool_description")}
+                      </p>
+                    </div>
+                  </div>
+                  <ChevronRight className="h-5 w-5 text-muted-foreground group-hover:translate-x-1 transition-transform mt-2" />
+                </div>
+              </div>
             </div>
-          </animated.div>
+          </CardContent>
+        </Card>
 
-          {/* 标题 */}
-          <animated.h1
-            style={titleSpring}
-            className="text-5xl md:text-6xl font-bold mb-6 bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 dark:from-blue-400 dark:via-purple-400 dark:to-pink-400 bg-clip-text text-transparent"
-          >
-            {t("home:welcome")}
-          </animated.h1>
+        {/* 跨平台与特性 */}
+        <div className="grid gap-4 md:grid-cols-2">
+          <Card className="overflow-auto">
+            <CardHeader className="sticky left-0">
+              <CardTitle className="text-xl flex items-center gap-2">
+                <Monitor className="h-5 w-5" />
+                {t("home:cross_platform_title")}
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid gap-3 grid-cols-3">
+                <div className="flex flex-col items-center justify-center p-4 rounded-lg border bg-muted/50">
+                  <Monitor className="h-6 w-6 mb-2 text-muted-foreground" />
+                  <span className="text-sm font-medium">Windows</span>
+                </div>
+                <div className="flex flex-col items-center justify-center p-4 rounded-lg border bg-muted/50">
+                  <Monitor className="h-6 w-6 mb-2 text-muted-foreground" />
+                  <span className="text-sm font-medium">macOS</span>
+                </div>
+                <div className="flex flex-col items-center justify-center p-4 rounded-lg border bg-muted/50">
+                  <Monitor className="h-6 w-6 mb-2 text-muted-foreground" />
+                  <span className="text-sm font-medium">Linux</span>
+                </div>
+              </div>
+              <p className="text-sm text-muted-foreground mt-4">
+                {t("home:cross_platform_description")}
+              </p>
+            </CardContent>
+          </Card>
 
-          {/* 描述 */}
-          <animated.p
-            style={descSpring}
-            className="text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto leading-relaxed"
-          >
-            {t("home:home_description")}
-          </animated.p>
-
-          {/* 装饰性闪光图标 */}
-          <animated.div
-            style={descSpring}
-            className="flex justify-center gap-2 mt-6"
-          >
-            <Sparkles className="w-5 h-5 text-yellow-500 animate-pulse" />
-            <Sparkles className="w-4 h-4 text-blue-500 animate-pulse delay-100" />
-            <Sparkles className="w-5 h-5 text-purple-500 animate-pulse delay-200" />
-          </animated.div>
+          <Card className="overflow-auto">
+            <CardHeader className="sticky left-0">
+              <CardTitle className="text-xl flex items-center gap-2">
+                <Zap className="h-5 w-5" />
+                {t("home:core_features_title")}
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                <div className="flex items-center gap-3">
+                  <div className="bg-primary/10 p-2 rounded-full">
+                    <Zap className="h-4 w-4 text-primary" />
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-medium">{t("home:feature_fast")}</h4>
+                    <p className="text-sm text-muted-foreground">{t("home:feature_fast_description")}</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  <div className="bg-primary/10 p-2 rounded-full">
+                    <Shield className="h-4 w-4 text-primary" />
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-medium">{t("home:feature_secure")}</h4>
+                    <p className="text-sm text-muted-foreground">{t("home:feature_secure_description")}</p>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
         </div>
-
-        {/* CTA 区域 */}
-        <animated.div
-          style={useSpring({
-            from: { opacity: 0 },
-            to: { opacity: 1 },
-            delay: 900,
-          })}
-          className="text-center mt-16"
-        >
-          <div className="inline-flex gap-4">
-            <Button
-              size="lg"
-              className="text-lg px-8 shadow-lg hover:shadow-xl transition-all duration-300 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
-              onClick={() => navigate("/tools")}
-            >
-              <Cpu className="w-5 h-5 mr-2" />
-              {t("home:get_started")}
-            </Button>
-            <Button
-              size="lg"
-              variant="outline"
-              className="text-lg px-8 shadow-lg hover:shadow-xl transition-all duration-300"
-              onClick={() => navigate("/about")}
-            >
-              {t("home:learn_more")}
-            </Button>
-          </div>
-        </animated.div>
       </div>
     </div>
   );
-}
+};
 
 export default Home;
