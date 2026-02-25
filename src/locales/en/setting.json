@@ -30,7 +30,14 @@
       "port": "Port",
       "none_desc": "Connect directly without any proxy server.",
       "system_desc": "Use the proxy settings configured in your operating system.",
-      "custom_desc": "Route network requests through the specified proxy server."
+      "custom_desc": "Route network requests through the specified proxy server.",
+      "test_btn": "Test",
+      "test_tooltip": "Test current network connection",
+      "test_success": "Connection successful",
+      "test_fail": "Connection failed",
+      "test_latency": "Latency",
+      "test_proxy_addr": "Proxy address",
+      "test_error": "Error"
     },
     "token_price": {
       "intro_title": "Token Pricing",

@@ -30,7 +30,14 @@
       "port": "端口",
       "none_desc": "直接连接网络，不使用任何代理服务器。",
       "system_desc": "使用操作系统配置的代理设置。",
-      "custom_desc": "通过指定的代理服务器转发网络请求。"
+      "custom_desc": "通过指定的代理服务器转发网络请求。",
+      "test_btn": "测试",
+      "test_tooltip": "点击测试当前网络连接",
+      "test_success": "连接成功",
+      "test_fail": "连接失败",
+      "test_latency": "延迟",
+      "test_proxy_addr": "代理地址",
+      "test_error": "错误"
     },
     "token_price": {
       "intro_title": "Token 价格配置",

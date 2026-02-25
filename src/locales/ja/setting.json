@@ -30,7 +30,14 @@
       "port": "ポート",
       "none_desc": "プロキシサーバーを使用せず、直接接続します。",
       "system_desc": "OSに設定されたプロキシ設定を使用します。",
-      "custom_desc": "指定したプロキシサーバー経由でネットワーク要求を転送します。"
+      "custom_desc": "指定したプロキシサーバー経由でネットワーク要求を転送します。",
+      "test_btn": "テスト",
+      "test_tooltip": "現在のネットワーク接続をテスト",
+      "test_success": "接続成功",
+      "test_fail": "接続失敗",
+      "test_latency": "遅延",
+      "test_proxy_addr": "プロキシアドレス",
+      "test_error": "エラー"
     },
     "token_price": {
       "intro_title": "Token 価格設定",

@@ -13,7 +13,7 @@ import {
   Zap,
   Shield
 } from "lucide-react";
-import FusionKitLogo from "@/assets/FusionKit.png";
+import FusionKitLogo from "@/assets/FusionKit.svg";
 
 const Home: React.FC = () => {
   const { t } = useTranslation();
@@ -26,7 +26,7 @@ const Home: React.FC = () => {
         <img
           src={FusionKitLogo}
           alt="FusionKit Logo"
-          className="w-24 h-24 mb-6 rounded-2xl shadow-sm border"
+          className="w-24 h-24 mb-6 rounded-2xl shadow-sm"
         />
         <h1 className="text-3xl md:text-4xl font-bold tracking-tight mb-4">
           {t("home:welcome")}
