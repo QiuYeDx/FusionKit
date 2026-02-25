@@ -1,10 +1,11 @@
 import type { ProgressInfo } from 'electron-updater'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Progress } from '@/components/ui/progress'
-import './update.css'
+import { CheckCircle2, AlertCircle, DownloadCloud, MonitorUp, ArrowRight, FolderDown } from 'lucide-react'
 
 export const UPDATE_CHECK_EVENT = 'fusionkit-check-update'
 export const UPDATE_STATUS_EVENT = 'fusionkit-update-status'
@@ -232,129 +233,148 @@ const Update = ({
   return (
     <>
       <Dialog open={modalOpen} onOpenChange={setModalOpen}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
-            <DialogTitle>{t('common:update.title')}</DialogTitle>
+            <DialogTitle className="flex items-center gap-2">
+              <MonitorUp className="w-5 h-5 text-primary" />
+              {t('common:update.title')}
+            </DialogTitle>
           </DialogHeader>
-          <div className='modal-slot'>
-          {updateError
-            ? (
-              <div className='space-y-3'>
-                <div className='text-sm font-medium text-destructive'>{t('common:update.error_title')}</div>
-                <div className='rounded-md bg-muted/50 p-3 text-xs text-muted-foreground wrap-break-word whitespace-pre-wrap'>
-                  {updateError.message}
-                </div>
-                <div className='flex flex-wrap gap-2'>
-                  <Button asChild variant="outline" size="sm">
+          <div className="py-4">
+            {updateError ? (
+              <div className="space-y-4">
+                <Alert variant="destructive">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertTitle>{t('common:update.error_title')}</AlertTitle>
+                  <AlertDescription className="mt-2 break-all whitespace-pre-wrap">
+                    {updateError.message}
+                  </AlertDescription>
+                </Alert>
+                <div className="flex flex-col gap-2 sm:flex-row">
+                  <Button asChild variant="outline" className="flex-1 gap-2">
                     <a href={RELEASES_URL} target="_blank" rel="noreferrer">
+                      <DownloadCloud className="w-4 h-4" />
                       {t('common:update.open_releases')}
                     </a>
                   </Button>
                   <Button
                     variant="outline"
-                    size="sm"
+                    className="flex-1 gap-2"
                     onClick={handleManualDownload}
                     disabled={manualDownloading}
                   >
+                    <FolderDown className="w-4 h-4" />
                     {manualDownloading
                       ? t('common:update.downloading_package')
                       : t('common:update.download_package')}
                   </Button>
                 </div>
-                {manualDownloadError ? (
-                  <div className='text-xs text-destructive wrap-break-word whitespace-pre-wrap'>
+                {manualDownloadError && (
+                  <p className="text-sm text-destructive wrap-break-word whitespace-pre-wrap">
                     {manualDownloadError}
-                  </div>
-                ) : null}
-                {manualDownloadPath ? (
-                  <div className='text-xs text-muted-foreground wrap-break-word whitespace-pre-wrap'>
+                  </p>
+                )}
+                {manualDownloadPath && (
+                  <p className="text-sm text-muted-foreground wrap-break-word whitespace-pre-wrap">
                     {t('common:update.manual_download_saved', { path: manualDownloadPath })}
-                  </div>
-                ) : null}
+                  </p>
+                )}
               </div>
-            ) : updateAvailable
-              ? (
-                <div className='space-y-2'>
-                  <div className='text-sm font-medium'>
-                    {t('common:update.available_title', { version: versionInfo?.newVersion ?? '-' })}
+            ) : updateAvailable ? (
+              <div className="space-y-6">
+                <div className="flex items-center justify-between rounded-lg border bg-card p-4">
+                  <div className="space-y-1">
+                    <p className="text-sm font-medium leading-none">
+                      {t('common:update.available_title', { version: versionInfo?.newVersion ?? '-' })}
+                    </p>
+                    <p className="text-sm text-muted-foreground flex items-center gap-2">
+                      <span className="font-mono bg-muted px-1.5 py-0.5 rounded text-xs">{versionInfo?.version ?? '-'}</span>
+                      <ArrowRight className="w-3 h-3" />
+                      <span className="font-mono bg-primary/10 text-primary px-1.5 py-0.5 rounded text-xs font-semibold">{versionInfo?.newVersion ?? '-'}</span>
+                    </p>
                   </div>
-                  <div className='text-xs text-muted-foreground'>
-                    {t('common:update.available_desc', {
-                      current: versionInfo?.version ?? '-',
-                      latest: versionInfo?.newVersion ?? '-',
-                    })}
-                  </div>
-                  <div className='flex flex-wrap gap-2'>
-                    <Button asChild variant="outline" size="sm">
+                </div>
+
+                <div className="space-y-4">
+                  <div className="flex flex-col gap-2 sm:flex-row">
+                    <Button asChild variant="outline" className="flex-1 gap-2">
                       <a href={RELEASES_URL} target="_blank" rel="noreferrer">
+                        <DownloadCloud className="w-4 h-4" />
                         {t('common:update.open_releases')}
                       </a>
                     </Button>
                     <Button
                       variant="outline"
-                      size="sm"
+                      className="flex-1 gap-2"
                       onClick={handleManualDownload}
                       disabled={manualDownloading}
                     >
+                      <FolderDown className="w-4 h-4" />
                       {manualDownloading
                         ? t('common:update.downloading_package')
                         : t('common:update.download_package')}
                     </Button>
                   </div>
-                  {manualDownloadError ? (
-                    <div className='text-xs text-destructive wrap-break-word whitespace-pre-wrap'>
+                  {manualDownloadError && (
+                    <p className="text-sm text-destructive wrap-break-word whitespace-pre-wrap">
                       {manualDownloadError}
-                    </div>
-                  ) : null}
-                  {manualDownloadPath ? (
-                    <div className='text-xs text-muted-foreground wrap-break-word whitespace-pre-wrap'>
+                    </p>
+                  )}
+                  {manualDownloadPath && (
+                    <p className="text-sm text-muted-foreground wrap-break-word whitespace-pre-wrap">
                       {t('common:update.manual_download_saved', { path: manualDownloadPath })}
-                    </div>
-                  ) : null}
-                  {downloadStatus === 'idle' ? (
-                    <div className='text-xs text-muted-foreground'>{t('common:update.ready_to_download')}</div>
-                  ) : (
-                    <>
-                      {downloadStatus === 'downloaded' ? (
-                        <div className='text-xs text-emerald-600'>{t('common:update.downloaded')}</div>
-                      ) : (
-                        <div className='text-xs text-muted-foreground'>{t('common:update.downloading')}</div>
-                      )}
-                      <div className='update__progress'>
-                        <div className='progress__meta text-xs text-muted-foreground'>
-                          <span>{t('common:update.progress')}</span>
-                          <span className='font-mono'>{progressValue}%</span>
-                        </div>
-                        <Progress value={progressValue} className='progress__bar' />
-                      </div>
-                    </>
+                    </p>
                   )}
                 </div>
-              )
-              : (
-                <div className='space-y-2'>
-                  <div className='text-sm font-medium'>{t('common:update.up_to_date_title')}</div>
-                  <div className='text-sm text-muted-foreground'>
-                    {t('common:update.up_to_date_desc', { version: versionInfo?.version ?? '-' })}
-                  </div>
-                  {versionInfo?.newVersion && versionInfo?.newVersion !== versionInfo?.version ? (
-                    <div className='text-xs text-muted-foreground'>
-                      {t('common:update.latest_version', { version: versionInfo?.newVersion })}
+
+                {downloadStatus !== 'idle' && (
+                  <div className="space-y-2 bg-muted/50 p-4 rounded-lg">
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="font-medium text-muted-foreground">
+                        {downloadStatus === 'downloaded'
+                          ? <span className="text-emerald-600 flex items-center gap-1.5"><CheckCircle2 className="w-4 h-4" />{t('common:update.downloaded')}</span>
+                          : t('common:update.downloading')}
+                      </span>
+                      <span className="font-mono text-muted-foreground">{progressValue}%</span>
                     </div>
-                  ) : null}
+                    <Progress value={progressValue} className="h-2" />
+                  </div>
+                )}
+                {downloadStatus === 'idle' && (
+                  <p className="text-sm text-muted-foreground text-center">
+                    {t('common:update.ready_to_download')}
+                  </p>
+                )}
+              </div>
+            ) : (
+              <div className="flex flex-col items-center justify-center py-6 text-center space-y-4">
+                <div className="w-12 h-12 rounded-full bg-emerald-100/50 dark:bg-emerald-500/10 flex items-center justify-center">
+                  <CheckCircle2 className="w-6 h-6 text-emerald-600 dark:text-emerald-500" />
                 </div>
-              )}
+                <div className="space-y-1">
+                  <p className="text-base font-semibold">{t('common:update.up_to_date_title')}</p>
+                  <p className="text-sm text-muted-foreground">
+                    {t('common:update.up_to_date_desc', { version: versionInfo?.version ?? '-' })}
+                  </p>
+                </div>
+                {versionInfo?.newVersion && versionInfo?.newVersion !== versionInfo?.version && (
+                  <p className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded">
+                    {t('common:update.latest_version', { version: versionInfo?.newVersion })}
+                  </p>
+                )}
+              </div>
+            )}
           </div>
-        <DialogFooter>
-          {modalBtn?.cancelText ? (
-            <Button variant="outline" onClick={modalBtn?.onCancel}>
-              {modalBtn?.cancelText}
+          <DialogFooter className="sm:justify-end gap-2">
+            {modalBtn?.cancelText && (
+              <Button variant="outline" onClick={modalBtn?.onCancel}>
+                {modalBtn?.cancelText}
+              </Button>
+            )}
+            <Button onClick={modalBtn?.onOk}>
+              {modalBtn?.okText ?? t('common:action.close')}
             </Button>
-          ) : null}
-          <Button onClick={modalBtn?.onOk}>
-            {modalBtn?.okText ?? t('common:action.close')}
-          </Button>
-        </DialogFooter>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
       {showTrigger ? (

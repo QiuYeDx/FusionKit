@@ -10,6 +10,7 @@ import AppTitleBar from "@/pages/components/AppTitleBar";
 import useThemeStore from "@/store/useThemeStore";
 import FadeMaskLayer from "@/pages/components/FadeMaskLayer";
 import useModelStore from "@/store/useModelStore";
+import useProxyStore from "@/store/useProxyStore";
 import SubtitleTranslator from "./pages/Tools/Subtitle/SubtitleTranslator";
 import SubtitleConverter from "./pages/Tools/Subtitle/SubtitleConverter";
 import SubtitleLanguageExtractor from "./pages/Tools/Subtitle/SubtitleLanguageExtractor";
@@ -22,10 +23,13 @@ function App() {
   const initializeTheme = useThemeStore((state) => state.initializeTheme);
   // 初始化模型配置
   const { initializeModel } = useModelStore();
+  // 初始化代理配置
+  const { initializeProxy } = useProxyStore();
 
   useEffect(() => {
     initializeTheme();
     initializeModel();
+    initializeProxy();
   }, []);
 
   return (

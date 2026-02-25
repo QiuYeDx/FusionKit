@@ -6,7 +6,8 @@
     "theme_config": "テーマ設定",
     "language_config": "言語設定",
     "apikey_config": "モデル設定",
-    "token_price_config": "Token 価格設定"
+    "token_price_config": "Token 価格設定",
+    "proxy_config": "プロキシ設定"
   },
   "fields": {
     "language": "言語",
@@ -20,6 +21,17 @@
     "apikey": "APIキー",
     "model_url": "ベースURL",
     "model_key": "Model Key",
+    "proxy": {
+      "mode": "プロキシモード",
+      "none": "プロキシなし",
+      "system": "システムプロキシ",
+      "custom": "カスタムプロキシ",
+      "host": "プロキシアドレス",
+      "port": "ポート",
+      "none_desc": "プロキシサーバーを使用せず、直接接続します。",
+      "system_desc": "OSに設定されたプロキシ設定を使用します。",
+      "custom_desc": "指定したプロキシサーバー経由でネットワーク要求を転送します。"
+    },
     "token_price": {
       "intro_title": "Token 価格設定",
       "intro_desc": "1M tokens あたりの価格（USD）を設定します。",
@@ -37,6 +49,8 @@
   },
   "placeholder": {
     "apikey": "APIキーを入力してください",
-    "model_url": "ベースURLを入力してください"
+    "model_url": "ベースURLを入力してください",
+    "proxy_host": "127.0.0.1",
+    "proxy_port": "7890"
   }
 }

@@ -9,6 +9,7 @@ import {
 import { ipcMain, BrowserWindow } from "electron";
 import axios from "axios";
 import { fixSrtSubtitles, removeThinkTags, hasThinkTags } from "../utils";
+import { getAxiosProxyConfig } from "../../proxy";
 
 type OutputConflictPolicy = "overwrite" | "index";
 
@@ -235,13 +236,13 @@ export abstract class BaseTranslator {
             ],
             max_tokens: 3500,
             stream: false,
-            // temperature: 0.3
           },
           {
             headers: {
               Authorization: `Bearer ${apiKey}`,
               "Content-Type": "application/json",
             },
+            ...getAxiosProxyConfig(),
           }
         );
 

@@ -6,7 +6,8 @@
     "theme_config": "Theme Settings",
     "language_config": "Language Settings",
     "apikey_config": "Model Settings",
-    "token_price_config": "Token Pricing"
+    "token_price_config": "Token Pricing",
+    "proxy_config": "Proxy Settings"
   },
   "fields": {
     "language": "Language",
@@ -20,6 +21,17 @@
     "apikey": "API Key",
     "model_url": "Base URL",
     "model_key": "Model Key",
+    "proxy": {
+      "mode": "Proxy Mode",
+      "none": "No Proxy",
+      "system": "System Proxy",
+      "custom": "Custom Proxy",
+      "host": "Proxy Host",
+      "port": "Port",
+      "none_desc": "Connect directly without any proxy server.",
+      "system_desc": "Use the proxy settings configured in your operating system.",
+      "custom_desc": "Route network requests through the specified proxy server."
+    },
     "token_price": {
       "intro_title": "Token Pricing",
       "intro_desc": "Configure the price per 1M tokens (USD).",
@@ -37,6 +49,8 @@
   },
   "placeholder": {
     "apikey": "Please enter your API Key",
-    "model_url": "Please enter the Base URL"
+    "model_url": "Please enter the Base URL",
+    "proxy_host": "127.0.0.1",
+    "proxy_port": "7890"
   }
 }

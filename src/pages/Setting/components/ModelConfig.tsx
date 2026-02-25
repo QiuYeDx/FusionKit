@@ -98,7 +98,7 @@ function ModelConfig() {
   };
 
   return (
-    <Card className="mb-16 overflow-auto">
+    <Card className="overflow-auto">
       <CardHeader className="sticky left-0">
         <CardTitle className="text-xl">
           {t("setting:subtitle.apikey_config")}

@@ -6,7 +6,8 @@
     "theme_config": "主题设置",
     "language_config": "语言设置",
     "apikey_config": "模型设置",
-    "token_price_config": "Token 价格配置"
+    "token_price_config": "Token 价格配置",
+    "proxy_config": "代理设置"
   },
   "fields": {
     "language": "语言",
@@ -20,6 +21,17 @@
     "apikey": "API Key",
     "model_url": "Base URL",
     "model_key": "Model Key",
+    "proxy": {
+      "mode": "代理模式",
+      "none": "不使用代理",
+      "system": "系统代理",
+      "custom": "自定义代理",
+      "host": "代理地址",
+      "port": "端口",
+      "none_desc": "直接连接网络，不使用任何代理服务器。",
+      "system_desc": "使用操作系统配置的代理设置。",
+      "custom_desc": "通过指定的代理服务器转发网络请求。"
+    },
     "token_price": {
       "intro_title": "Token 价格配置",
       "intro_desc": "配置每 1M tokens 的价格（美元）。",
@@ -38,6 +50,8 @@
   "placeholder": {
     "apikey": "请输入 API Key",
     "model_url": "请输入 Base URL",
-    "model_key": "请输入 Model Key"
+    "model_key": "请输入 Model Key",
+    "proxy_host": "127.0.0.1",
+    "proxy_port": "7890"
   }
 }
