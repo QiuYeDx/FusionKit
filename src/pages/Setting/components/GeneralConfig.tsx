@@ -1,16 +1,22 @@
 import useLanguage from "@/hook/useLanguage";
 import useThemeStore from "@/store/useThemeStore";
+import useNotificationStore from "@/store/useNotificationStore";
+import { showSystemNotification } from "@/utils/notification";
 import { LangEnum } from "@/type/lang";
 import { useTranslation } from "react-i18next";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ButtonGroup } from "@/components/ui/button-group";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
+import { Bell } from "lucide-react";
 
 function GeneralConfig() {
   const { t } = useTranslation();
   const { language, changeLanguage } = useLanguage();
   const { theme, setTheme } = useThemeStore();
+  const { enabled: notificationEnabled, setEnabled: setNotificationEnabled } =
+    useNotificationStore();
 
   return (
     <Card className="overflow-auto">
@@ -78,6 +84,42 @@ function GeneralConfig() {
               {t('setting:fields.system_mode')}
             </Button>
           </ButtonGroup>
+        </div>
+
+        {/* 系统通知设置 */}
+        <div className="flex items-center gap-4">
+          <Label className="text-sm font-medium min-w-[80px]">
+            {t("setting:fields.notification.label")}
+          </Label>
+          <div className="flex items-center gap-3">
+            <Switch
+              checked={notificationEnabled}
+              onCheckedChange={(checked) => {
+                setNotificationEnabled(checked);
+                if (checked) {
+                  showSystemNotification(
+                    t("setting:fields.notification.test_title"),
+                    t("setting:fields.notification.test_body"),
+                    true
+                  );
+                }
+              }}
+            />
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() =>
+                showSystemNotification(
+                  t("setting:fields.notification.test_title"),
+                  t("setting:fields.notification.test_body"),
+                  true
+                )
+              }
+            >
+              <Bell className="h-4 w-4 mr-1" />
+              {t("setting:fields.notification.test_btn")}
+            </Button>
+          </div>
         </div>
       </CardContent>
     </Card>

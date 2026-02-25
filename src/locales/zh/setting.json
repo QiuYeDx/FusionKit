@@ -33,6 +33,14 @@
       "apply_custom_key": "使用",
       "empty_custom_key": "请输入模型 Key"
     },
+    "notification": {
+      "label": "系统通知",
+      "test_btn": "测试通知",
+      "test_title": "FusionKit",
+      "test_body": "系统通知功能正常！",
+      "task_resolved": "{{file}} 任务已完成",
+      "task_failed": "{{file}} 任务失败"
+    },
     "proxy": {
       "mode": "代理模式",
       "none": "不使用代理",

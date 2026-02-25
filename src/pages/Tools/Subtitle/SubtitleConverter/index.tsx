@@ -17,6 +17,7 @@ import {
   TaskStatus,
 } from "@/type/subtitle";
 import { showToast } from "@/utils/toast";
+import { showSystemNotification } from "@/utils/notification";
 import { getSourceDirFromFile } from "@/utils/filePath";
 import ErrorDetailModal from "@/components/ErrorDetailModal";
 import { Button } from "@/components/ui/button";
@@ -321,6 +322,10 @@ function SubtitleConverter() {
         ),
         "success"
       );
+      showSystemNotification(
+        "FusionKit",
+        t("setting:fields.notification.task_resolved", { file: fileName })
+      );
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       setTasks((prev) =>
@@ -341,6 +346,10 @@ function SubtitleConverter() {
           fileName
         ),
         "error"
+      );
+      showSystemNotification(
+        "FusionKit",
+        t("setting:fields.notification.task_failed", { file: fileName })
       );
     }
   };

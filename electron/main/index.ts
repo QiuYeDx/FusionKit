@@ -1,4 +1,4 @@
-import { app, BrowserWindow, shell, ipcMain, dialog } from "electron";
+import { app, BrowserWindow, shell, ipcMain, dialog, Notification } from "electron";
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
@@ -157,6 +157,12 @@ ipcMain.handle("open-win", (_, arg) => {
     childWindow.loadURL(`${VITE_DEV_SERVER_URL}#${arg}`);
   } else {
     childWindow.loadFile(indexHtml, { hash: arg });
+  }
+});
+
+ipcMain.on("show-notification", (_event, { title, body }: { title: string; body: string }) => {
+  if (Notification.isSupported()) {
+    new Notification({ title, body }).show();
   }
 });
 

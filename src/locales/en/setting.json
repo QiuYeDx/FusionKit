@@ -33,6 +33,14 @@
       "apply_custom_key": "Use",
       "empty_custom_key": "Please enter a model key"
     },
+    "notification": {
+      "label": "Notification",
+      "test_btn": "Test",
+      "test_title": "FusionKit",
+      "test_body": "System notification is working!",
+      "task_resolved": "{{file}} completed",
+      "task_failed": "{{file}} failed"
+    },
     "proxy": {
       "mode": "Proxy Mode",
       "none": "No Proxy",

@@ -33,6 +33,14 @@
       "apply_custom_key": "使用",
       "empty_custom_key": "モデルキーを入力してください"
     },
+    "notification": {
+      "label": "システム通知",
+      "test_btn": "テスト",
+      "test_title": "FusionKit",
+      "test_body": "システム通知は正常に動作しています！",
+      "task_resolved": "{{file}} が完了しました",
+      "task_failed": "{{file}} が失敗しました"
+    },
     "proxy": {
       "mode": "プロキシモード",
       "none": "プロキシなし",

@@ -19,6 +19,7 @@
 | 执行字幕转换（写入输出文件） | `window.ipcRenderer.invoke("convert-subtitle", payload)` | Renderer → Main | 计算/写盘属于特权操作，建议放 Main；Renderer 只传入内容与配置。 |
 | 处理“带进度/推送”的事件 | `window.ipcRenderer.on(channel, listener)` | Renderer | 适合进度推送、日志推送；请求/响应优先用 `invoke/handle`。 |
 | Toast 提示 | `showToast(message, "success" \| "error")` | Renderer：`src/utils/toast.ts` | 统一风格与交互。 |
+| 系统通知（任务完成/失败等） | `showSystemNotification(title, body, force?)` | Renderer：`src/utils/notification.ts` | 受全局开关控制；`force=true` 忽略开关（测试用）。详见 `docs/system-notification.md`。 |
 | 生成可预览/缓存的临时 URL | `URL.createObjectURL(file)` | Renderer | 适合本地预览；用完建议 `URL.revokeObjectURL(url)` 避免内存泄漏。 |
 
 ## 文件路径：优先级与最佳实践
@@ -77,3 +78,6 @@ if (!dir) {
 - 文件路径工具：`src/utils/filePath.ts`
 - 目录选择 IPC：`electron/main/index.ts`（`select-output-directory`）
 - 字幕转换 IPC：`electron/main/conversion/ipc.ts`（由 `setupConversionIPC()` 注册）
+- 系统通知工具：`src/utils/notification.ts`
+- 系统通知 IPC：`electron/main/index.ts`（`show-notification`）
+- 通知开关 Store：`src/store/useNotificationStore.ts`
