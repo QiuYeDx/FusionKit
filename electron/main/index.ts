@@ -60,9 +60,10 @@ async function createWindow() {
     minWidth: 720,
     minHeight: 540,
     resizable: true,
-    // remove the default titlebar
     titleBarStyle: "hidden",
-    // expose window controlls in Windows/Linux
+    ...(process.platform === "darwin"
+      ? { trafficLightPosition: { x: 16, y: 12 } }
+      : {}),
     // ...(process.platform !== "darwin" ? { titleBarOverlay: true } : {}), // TODO: 临时关闭 Windows 上的右上角操作按钮
     webPreferences: {
       preload,

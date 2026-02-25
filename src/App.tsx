@@ -36,12 +36,11 @@ function App() {
     <div className="app bg-background text-foreground h-screen flex flex-col overflow-hidden">
       <AppTitleBar />
       {/* 占位用, 防止 AppTitleBar 遮挡有效内容 */}
-      {/* TODO: Windows 下的高度待确认, 可能需要为动态高度 */}
-      <div className="h-6"></div>
+      <div className="h-10"></div>
 
       {/* 使用 ScrollArea 替代 HTML 滚动 */}
-      <ScrollArea className="flex-1 h-full mt-6">
-        <div className="pb-20">
+      <ScrollArea className="flex-1 h-full">
+        <div className="pb-20 pt-10">
           {/* pb-20 为底部导航栏留出空间 */}
           <Routes>
             {/* 一级页面 */}
