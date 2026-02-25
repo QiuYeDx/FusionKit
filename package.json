@@ -5,7 +5,7 @@
   "main": "dist-electron/main/index.js",
   "description": "",
   "author": "QiuYeDx <qiuyedx@foxmail.com>",
-  "license": "MIT",
+  "license": "PolyForm-Noncommercial-1.0.0",
   "private": true,
   "engines": {
     "node": ">=18.0.0"

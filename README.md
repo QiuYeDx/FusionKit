@@ -169,7 +169,7 @@ FusionKit/
 
 ## 许可证
 
-本项目基于 [MIT License](LICENSE) 开源。
+本项目采用 [PolyForm Noncommercial License 1.0.0](LICENSE) 发布，仅允许非商业使用，禁止用于任何商业目的。
 
 ## 相关链接
 
