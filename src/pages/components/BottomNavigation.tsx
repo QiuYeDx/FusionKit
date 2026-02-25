@@ -16,7 +16,7 @@ import { useWindowSize } from "@reactuses/core";
 import * as htmlToImage from "html-to-image";
 import { toPng, toJpeg, toBlob, toPixelData, toSvg } from "html-to-image";
 import { ToolNameMap } from "@/constants/router";
-import { animated, useSpring } from "@react-spring/web";
+import { motion, AnimatePresence } from "motion/react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -88,89 +88,87 @@ const BottomNavigation: React.FC = () => {
     location.pathname
   );
 
-  // 主菜单动画配置
-  const mainMenuFadeUpProps = useSpring({
-    from: { opacity: 0, transform: "translateY(68px)" },
-    to: { opacity: 1, transform: "translateY(0)" },
-    config: { tension: 200, friction: 15 },
-    reverse: !isMainMenu,
-  });
-
-  // 子菜单动画配置
-  const subMenuFadeUpProps = useSpring({
-    from: { opacity: 0, transform: "translateY(68px)" },
-    to: { opacity: 1, transform: "translateY(0)" },
-    config: { tension: 200, friction: 15 },
-    reverse: isMainMenu,
-  });
+  const springTransition = {
+    type: "spring" as const,
+    stiffness: 200,
+    damping: 15,
+  };
 
   return (
     <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full flex justify-center items-center pointer-events-none">
       {/* 底部导航栏 */}
-      {isMainMenu ? (
-        // 一级菜单
-        <animated.div
-          style={mainMenuFadeUpProps}
-          className="my-2 mx-2 flex gap-1 justify-center flex-nowrap pointer-events-auto backdrop-blur-md bg-card/80 border border-border rounded-lg p-1 shadow-lg"
-        >
-          <Button
-            variant={location.pathname === "/" ? "secondary" : "ghost"}
-            size="sm"
-            onClick={() => navigate("/")}
-            className="gap-2"
+      <AnimatePresence mode="popLayout">
+        {isMainMenu ? (
+          <motion.div
+            key="main-menu"
+            initial={{ opacity: 0, y: 68 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 68 }}
+            transition={springTransition}
+            className="my-2 mx-2 flex gap-1 justify-center flex-nowrap pointer-events-auto backdrop-blur-md bg-card/80 border border-border rounded-lg p-1 shadow-lg"
           >
-            <Home className="size-5" />
-            {t("menu.home")}
-          </Button>
-          <Button
-            variant={location.pathname === "/tools" ? "secondary" : "ghost"}
-            size="sm"
-            onClick={() => navigate("/tools")}
-            className="gap-2"
+            <Button
+              variant={location.pathname === "/" ? "secondary" : "ghost"}
+              size="sm"
+              onClick={() => navigate("/")}
+              className="gap-2"
+            >
+              <Home className="size-5" />
+              {t("menu.home")}
+            </Button>
+            <Button
+              variant={location.pathname === "/tools" ? "secondary" : "ghost"}
+              size="sm"
+              onClick={() => navigate("/tools")}
+              className="gap-2"
+            >
+              <Wrench className="size-5" />
+              {t("menu.tools")}
+            </Button>
+            <Button
+              variant={location.pathname === "/about" ? "secondary" : "ghost"}
+              size="sm"
+              onClick={() => navigate("/about")}
+              className="gap-2"
+            >
+              <Info className="size-5" />
+              {t("menu.about")}
+            </Button>
+            <Button
+              variant={location.pathname === "/setting" ? "secondary" : "ghost"}
+              size="sm"
+              onClick={() => navigate("/setting")}
+              className="gap-2"
+            >
+              <Settings className="size-5" />
+              {t("menu.setting")}
+            </Button>
+          </motion.div>
+        ) : (
+          <motion.div
+            key="sub-menu"
+            initial={{ opacity: 0, y: 68 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 68 }}
+            transition={springTransition}
+            className="my-2 mx-2 flex gap-1 justify-center flex-nowrap pointer-events-auto backdrop-blur-md bg-card/80 border border-border rounded-lg p-1 shadow-lg"
           >
-            <Wrench className="size-5" />
-            {t("menu.tools")}
-          </Button>
-          <Button
-            variant={location.pathname === "/about" ? "secondary" : "ghost"}
-            size="sm"
-            onClick={() => navigate("/about")}
-            className="gap-2"
-          >
-            <Info className="size-5" />
-            {t("menu.about")}
-          </Button>
-          <Button
-            variant={location.pathname === "/setting" ? "secondary" : "ghost"}
-            size="sm"
-            onClick={() => navigate("/setting")}
-            className="gap-2"
-          >
-            <Settings className="size-5" />
-            {t("menu.setting")}
-          </Button>
-        </animated.div>
-      ) : (
-        // 二级菜单
-        <animated.div
-          style={subMenuFadeUpProps}
-          className="my-2 mx-2 flex gap-1 justify-center flex-nowrap pointer-events-auto backdrop-blur-md bg-card/80 border border-border rounded-lg p-1 shadow-lg"
-        >
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => navigate("/tools")}
-            className="gap-2"
-          >
-            <RotateCcw className="size-5" />
-            {t("menu.back")}
-          </Button>
-          <Button variant="secondary" size="sm" className="gap-2">
-            <Wrench className="size-5" />
-            {t(currentToolName)}
-          </Button>
-        </animated.div>
-      )}
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => navigate("/tools")}
+              className="gap-2"
+            >
+              <RotateCcw className="size-5" />
+              {t("menu.back")}
+            </Button>
+            <Button variant="secondary" size="sm" className="gap-2">
+              <Wrench className="size-5" />
+              {t(currentToolName)}
+            </Button>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Dark Mode 快捷切换 */}
       <div className="absolute right-6 pointer-events-auto">

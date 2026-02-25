@@ -1,7 +1,7 @@
 {
   "name": "FusionKit",
   "productName": "FusionKit",
-  "version": "0.1.11",
+  "version": "0.1.12",
   "main": "dist-electron/main/index.js",
   "description": "",
   "author": "QiuYeDx <qiuyedx@foxmail.com>",
@@ -38,7 +38,6 @@
     "@radix-ui/react-slot": "^1.2.3",
     "@radix-ui/react-tabs": "^1.1.13",
     "@radix-ui/react-tooltip": "^1.2.8",
-    "@react-spring/web": "^10.0",
     "@reactuses/core": "^6.1.6",
     "axios": "^1.7.9",
     "class-variance-authority": "^0.7.1",

@@ -1,7 +1,7 @@
 import useFadeMaskLayerStore from "@/store/useFadeMaskLayer";
 import useThemeStore from "@/store/useThemeStore";
-import { useSpringValue } from "@react-spring/web";
-import { useEffect, useState } from "react";
+import { useMotionValue, animate as motionAnimate } from "motion/react";
+import { useEffect, useRef, useState } from "react";
 import { useWindowSize } from "@reactuses/core";
 
 function FadeMaskLayer() {
@@ -21,29 +21,29 @@ function FadeMaskLayer() {
   const { isDark } = useThemeStore();
   const [r, setR] = useState(0);
 
-  const rSpring = useSpringValue(
-    isDark ? Math.sqrt(width ** 2 + height ** 2) : 0,
-    {
-      config: {
-        // duration: 3000, // for debug
-      },
-      onChange(val: any) {
-        setR(val);
-      },
-      onRest() {
-        setVisible(false);
-      },
-    }
+  const rMotionValue = useMotionValue(
+    isDark ? Math.sqrt(width ** 2 + height ** 2) : 0
   );
+  const animationRef = useRef<ReturnType<typeof motionAnimate> | null>(null);
+
+  useEffect(() => {
+    return rMotionValue.on("change", (val) => setR(val));
+  }, [rMotionValue]);
 
   useEffect(() => {
     const targetR = getTargetRadius();
-    if (rSpring) {
-      rSpring.start(isDark ? targetR : 0);
-    }
 
-    // 重置页面滚动到顶部
-    // 找到 ScrollArea 内部的实际滚动容器
+    animationRef.current?.stop();
+    animationRef.current = motionAnimate(
+      rMotionValue,
+      isDark ? targetR : 0,
+      {
+        type: "spring",
+        bounce: 0,
+        onComplete: () => setVisible(false),
+      }
+    );
+
     const scrollViewport = document.querySelector(
       "[data-radix-scroll-area-viewport]"
     );
