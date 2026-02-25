@@ -21,6 +21,18 @@
     "apikey": "APIキー",
     "model_url": "ベースURL",
     "model_key": "Model Key",
+    "model_fetch": {
+      "no_key": "先にOpenAI APIキーを設定してください",
+      "success": "{{count}} 件の利用可能なモデルを取得しました",
+      "error": "モデルリストの取得に失敗しました",
+      "preset_group": "プリセットモデル",
+      "remote_group": "リモートモデル",
+      "refresh_tooltip": "APIから最新のモデルリストを取得",
+      "manual_key_label": "Model Key を手動入力",
+      "manual_key_hint": "API リクエストの model パラメータとして使用",
+      "apply_custom_key": "使用",
+      "empty_custom_key": "モデルキーを入力してください"
+    },
     "proxy": {
       "mode": "プロキシモード",
       "none": "プロキシなし",
@@ -57,6 +69,7 @@
   "placeholder": {
     "apikey": "APIキーを入力してください",
     "model_url": "ベースURLを入力してください",
+    "model_key": "Model Key を入力してください",
     "proxy_host": "127.0.0.1",
     "proxy_port": "7890"
   }

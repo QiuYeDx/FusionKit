@@ -21,6 +21,18 @@
     "apikey": "API Key",
     "model_url": "Base URL",
     "model_key": "Model Key",
+    "model_fetch": {
+      "no_key": "请先设置 OpenAI API Key",
+      "success": "已获取 {{count}} 个可用模型",
+      "error": "获取模型列表失败",
+      "preset_group": "预设模型",
+      "remote_group": "远程模型",
+      "refresh_tooltip": "从 API 获取最新模型列表",
+      "manual_key_label": "手动输入 Model Key",
+      "manual_key_hint": "将作为接口请求的 model 参数",
+      "apply_custom_key": "使用",
+      "empty_custom_key": "请输入模型 Key"
+    },
     "proxy": {
       "mode": "代理模式",
       "none": "不使用代理",

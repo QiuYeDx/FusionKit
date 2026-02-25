@@ -1,3 +1,4 @@
+import { useState, useCallback, useMemo, useEffect } from "react";
 import useModelStore from "@/store/useModelStore";
 import { Model } from "@/type/model";
 import { useTranslation } from "react-i18next";
@@ -7,13 +8,29 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
+  SelectSeparator,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { OPENAI_MODEL_OPTIONS } from "@/constants/model";
+import { OPENAI_MODEL_OPTIONS, DEFAULT_MODEL_URL_MAP } from "@/constants/model";
+import { RefreshCw, Loader2 } from "lucide-react";
+import { toast } from "sonner";
+
+const MODEL_EXCLUDE_PATTERNS = [
+  "embed", "whisper", "tts", "dall-e", "moderation",
+  "audio", "realtime", "transcri", "search", "similarity",
+  "code-", "text-", "if-", "canary",
+];
 
 function ModelConfig() {
   const { t } = useTranslation(); // 使用 useTranslation Hook 获取 t 函数
@@ -30,23 +47,72 @@ function ModelConfig() {
     setTokenPricingByType,
   } = useModelStore();
 
+  const [fetchedModels, setFetchedModels] = useState<string[]>([]);
+  const [isFetchingModels, setIsFetchingModels] = useState(false);
+  const [customOpenAiModelInput, setCustomOpenAiModelInput] = useState("");
+
   const openAiModelKey = modelKeyMap[Model.OpenAI];
-  const openAiModelOptions =
-    openAiModelKey &&
-    !OPENAI_MODEL_OPTIONS.some((option) => option.value === openAiModelKey)
-      ? [
-          ...OPENAI_MODEL_OPTIONS,
-          {
-            label: `${openAiModelKey} (${t("setting:fields.other")})`,
-            value: openAiModelKey,
-            pricing:
-              tokenPricingMap[Model.OpenAI] ?? OPENAI_MODEL_OPTIONS[0].pricing,
-          },
-        ]
-      : OPENAI_MODEL_OPTIONS;
+
+  useEffect(() => {
+    setCustomOpenAiModelInput("");
+  }, [openAiModelKey]);
+
+  const fetchOpenAIModels = useCallback(async () => {
+    const apiKey = apiKeyMap[Model.OpenAI];
+    if (!apiKey) {
+      toast.error(t("setting:fields.model_fetch.no_key"));
+      return;
+    }
+    setIsFetchingModels(true);
+    try {
+      const baseUrl =
+        modelUrlMap[Model.OpenAI] || DEFAULT_MODEL_URL_MAP[Model.OpenAI];
+      const modelsUrl = baseUrl.replace(/\/chat\/completions\/?$/, "/models");
+      const response = await fetch(modelsUrl, {
+        headers: { Authorization: `Bearer ${apiKey}` },
+      });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const data = await response.json();
+      const models: string[] = (data.data || [])
+        .map((m: any) => m.id as string)
+        .filter((id: string) => {
+          const lower = id.toLowerCase();
+          return !MODEL_EXCLUDE_PATTERNS.some((p) => lower.includes(p));
+        })
+        .sort();
+      setFetchedModels(models);
+      toast.success(
+        t("setting:fields.model_fetch.success", { count: models.length })
+      );
+    } catch (err) {
+      console.error("Failed to fetch OpenAI models:", err);
+      toast.error(t("setting:fields.model_fetch.error"));
+    } finally {
+      setIsFetchingModels(false);
+    }
+  }, [apiKeyMap, modelUrlMap, t]);
+
+  const presetValues = useMemo(
+    () => new Set(OPENAI_MODEL_OPTIONS.map((o) => o.value)),
+    []
+  );
+
+  const remoteOnlyModels = useMemo(
+    () => fetchedModels.filter((id) => !presetValues.has(id)),
+    [fetchedModels, presetValues]
+  );
+
+  const allKnownValues = useMemo(
+    () => new Set([...presetValues, ...fetchedModels]),
+    [presetValues, fetchedModels]
+  );
+  const hasCustomKey = openAiModelKey && !allKnownValues.has(openAiModelKey);
+
   const resolvedOpenAiPricing =
-    openAiModelOptions.find((option) => option.value === openAiModelKey)
-      ?.pricing ?? OPENAI_MODEL_OPTIONS[0].pricing;
+    OPENAI_MODEL_OPTIONS.find((option) => option.value === openAiModelKey)
+      ?.pricing ??
+    tokenPricingMap[Model.OpenAI] ??
+    OPENAI_MODEL_OPTIONS[0].pricing;
   const inputTokenPlaceholder =
     model === Model.OpenAI
       ? resolvedOpenAiPricing.inputTokensPerMillion.toFixed(2)
@@ -73,10 +139,21 @@ function ModelConfig() {
 
   const handleOpenAiModelChange = (val: string) => {
     setModelKeyByType(Model.OpenAI, val);
-    const matched = OPENAI_MODEL_OPTIONS.find((option) => option.value === val);
-    if (matched) {
-      setTokenPricingByType(Model.OpenAI, { ...matched.pricing });
+    const matchedPreset = OPENAI_MODEL_OPTIONS.find(
+      (option) => option.value === val
+    );
+    if (matchedPreset) {
+      setTokenPricingByType(Model.OpenAI, { ...matchedPreset.pricing });
     }
+  };
+
+  const handleApplyCustomOpenAiModelKey = () => {
+    const customModelKey = customOpenAiModelInput.trim();
+    if (!customModelKey) {
+      toast.error(t("setting:fields.model_fetch.empty_custom_key"));
+      return;
+    }
+    handleOpenAiModelChange(customModelKey);
   };
 
   const handleInputTokenPriceChange = (e: any) => {
@@ -162,18 +239,114 @@ function ModelConfig() {
               </Label>
               <span className="text-sm text-muted-foreground">OpenAI</span>
             </div>
-            <Select value={openAiModelKey} onValueChange={handleOpenAiModelChange}>
-              <SelectTrigger id="openai-model" className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {openAiModelOptions.map((option) => (
-                  <SelectItem key={option.value} value={option.value}>
-                    {option.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <div className="flex items-center gap-2">
+              <Select
+                value={openAiModelKey}
+                onValueChange={handleOpenAiModelChange}
+              >
+                <SelectTrigger id="openai-model" className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectGroup>
+                    <SelectLabel>
+                      {t("setting:fields.model_fetch.preset_group")}
+                    </SelectLabel>
+                    {OPENAI_MODEL_OPTIONS.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        <span className="flex items-center gap-2">
+                          <span>{option.label}</span>
+                          <span className="text-muted-foreground text-xs font-mono">
+                            {option.value}
+                          </span>
+                        </span>
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                  {remoteOnlyModels.length > 0 && (
+                    <>
+                      <SelectSeparator />
+                      <SelectGroup>
+                        <SelectLabel>
+                          {t("setting:fields.model_fetch.remote_group")}
+                        </SelectLabel>
+                        {remoteOnlyModels.map((id) => (
+                          <SelectItem key={id} value={id}>
+                            <span className="font-mono text-xs">{id}</span>
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                    </>
+                  )}
+                  {hasCustomKey && (
+                    <>
+                      <SelectSeparator />
+                      <SelectItem value={openAiModelKey}>
+                        <span className="flex items-center gap-2">
+                          <span>{openAiModelKey}</span>
+                          <span className="text-muted-foreground text-xs">
+                            ({t("setting:fields.other")})
+                          </span>
+                        </span>
+                      </SelectItem>
+                    </>
+                  )}
+                </SelectContent>
+              </Select>
+              <Tooltip delayDuration={700}>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="shrink-0 size-9"
+                    onClick={fetchOpenAIModels}
+                    disabled={isFetchingModels}
+                    aria-label={t("setting:fields.model_fetch.refresh_tooltip")}
+                  >
+                    {isFetchingModels ? (
+                      <Loader2 className="size-4 animate-spin" />
+                    ) : (
+                      <RefreshCw className="size-4" />
+                    )}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom">
+                  {t("setting:fields.model_fetch.refresh_tooltip")}
+                </TooltipContent>
+              </Tooltip>
+            </div>
+            <div className="space-y-2">
+              <div className="flex justify-between items-center">
+                <Label htmlFor="openai-model-key-input">
+                  {t("setting:fields.model_fetch.manual_key_label")}
+                </Label>
+                <span className="text-xs text-muted-foreground">
+                  {t("setting:fields.model_fetch.manual_key_hint")}
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Input
+                  id="openai-model-key-input"
+                  type="text"
+                  placeholder={t("setting:placeholder.model_key")}
+                  value={customOpenAiModelInput}
+                  onChange={(e) => setCustomOpenAiModelInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      handleApplyCustomOpenAiModelKey();
+                    }
+                  }}
+                  className="w-full"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handleApplyCustomOpenAiModelKey}
+                >
+                  {t("setting:fields.model_fetch.apply_custom_key")}
+                </Button>
+              </div>
+            </div>
           </div>
         )}
 
