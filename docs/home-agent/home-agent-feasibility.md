@@ -6,6 +6,8 @@
 
 - 调用哪个工具（字幕翻译 / 格式转换 / 语言提取）。
 - 选择哪些文件进入哪个工具的任务队列。
+- 在目录级范围内递归发现文件、识别哪些文件值得处理。
+- 灵活理解“多目录 + 多文件 + 混合指定”的目标集合，并智能处理冲突。
 - 自动补全合理参数，并将任务加入对应进度列表。
 - 在必要时向用户追问，避免误操作。
 
@@ -53,8 +55,9 @@
 3. **缺少 Agent 规划循环**
    - 还没有对话上下文管理、工具调用决策、参数填充、置信度追问等机制。
 
-4. **缺少全局可复用的文件上下文池**
-   - 当前文件上传主要在工具页面内处理，首页 Agent 无法直接复用同一批文件上下文。
+4. **缺少目录级发现与筛选能力**
+   - 当前以手动上传为主，缺少“按目录递归扫描 -> 过滤 -> 候选清单确认”的能力。
+   - 无法支持“处理某系统目录下所有字幕文件”这类高效率指令。
 
 ---
 
@@ -102,6 +105,8 @@ Home Agent UI（新首页）
    ↓
 Agent Orchestrator（意图识别 + 工具选择 + 参数生成）
    ↓
+Directory Discovery（目录递归扫描 + 文件元数据索引 + 预筛选）
+   ↓
 Tool Registry（Schema + 校验 + 默认值策略）
    ↓
 Task Hub（统一任务模型，写入各工具队列）
@@ -119,14 +124,83 @@ Electron Main IPC 执行
 
 ## 6. “AI 自动决定文件与参数”的落地机制
 
-### 6.1 文件选择策略（重点）
+### 6.1 文件选择策略（升级为“多目标混合指定”）
 
-Agent 不应直接“猜文件”，应基于可见上下文做决策：
+目标是让 Agent 能理解并执行这类复杂指令：
 
-1. 用户在首页上传/拖入文件（形成候选池）。
-2. 记录文件元信息：`name/ext/path/size/hash/preview`。
-3. Agent 只允许在候选池中选文件，不可访问未知路径。
-4. 当匹配不唯一时，必须追问确认（例如“全部 srt 还是仅最近 3 个？”）。
+- “处理 A、B 两个目录下所有字幕，并额外包含 `x.srt` 和 `y.lrc`。”
+- “处理 `Downloads` 下字幕，但排除 `archive` 子目录，再加上桌面的 `final.srt`。”
+- “目录里都处理，`old` 子目录不要；`old/keep_this.srt` 例外保留。”
+
+建议采用“**目标解析 -> 授权校验 -> 扫描扩展 -> 统一筛选 -> 可编辑清单**”流程。
+
+### 6.1.1 目标集合模型（支持多目录 + 多文件 + 混合）
+
+建议引入统一结构：
+
+```ts
+type TargetSet = {
+  includeDirectories: string[];
+  includeFiles: string[];
+  excludeDirectories: string[];
+  excludeFiles: string[];
+  includeGlobs: string[];
+  excludeGlobs: string[];
+  recursive: boolean;
+  maxDepth?: number;
+};
+```
+
+说明：
+
+1. `includeDirectories`：可同时包含多个目录。
+2. `includeFiles`：可同时包含多个绝对路径文件。
+3. 目录和文件可混合存在，最终统一去重合并。
+4. `exclude*` 用于快速排除子目录或文件。
+
+### 6.1.2 智能解析与冲突处理规则
+
+Agent 处理多目标输入时，按以下步骤执行：
+
+1. **自然语言解析**
+   - 从对话里抽取目录、文件、排除项、扩展名限制、时间范围等约束。
+2. **权限与路径校验**
+   - 校验每个目录/文件是否已授权，未授权时逐项请求授权或让用户改路径。
+3. **目录扩展扫描**
+   - 对 `includeDirectories` 递归扫描字幕文件，并保留来源目录标记。
+4. **显式文件并入**
+   - 将 `includeFiles` 直接加入候选，即使不在目录内也可参与处理。
+5. **冲突消解与优先级**
+   - 默认优先级建议：`excludeFiles` > `includeFiles` > `excludeDirectories/excludeGlobs` > `includeDirectories/includeGlobs`。
+   - 可选策略：若用户明确“文件优先于目录排除”，则允许 `includeFiles` 覆盖目录排除。
+6. **结果分流**
+   - 生成 `candidateList` 与 `excludedList`，并给出每条排除原因。
+7. **歧义追问**
+   - 当路径不明确或条件冲突时，Agent 必须追问，而不是擅自猜测。
+
+### 6.1.3 目录级筛选判定建议
+
+为了让 Agent 的“哪些文件值得处理”更稳定，建议将判定分层：
+
+1. **硬规则层（确定性）**
+   - 文件类型是否匹配、大小范围、路径黑白名单、输出是否已存在。
+2. **启发式层（可解释）**
+   - 文件名包含关键词（`translated` / `zh-only` / `final` 等）可推测已处理状态。
+3. **内容抽样层（按需）**
+   - 对少量样本读取前 N 行判断是否双语、是否已是目标格式。
+4. **LLM 判别层（最后使用）**
+   - 仅在规则无法判定时调用模型，且要写出判定理由。
+
+### 6.1.4 清单确认与二次筛选（可编辑）
+
+Agent 应在对话中展示“拟处理列表 + 排除理由”，用户可继续说：
+
+- “移除 `xxx` 子目录”
+- “保留最近 20 个文件”
+- “把 `abc.srt` 去掉”
+- “再加上 `~/Desktop/manual_fix.srt`”
+
+Agent 根据增删指令实时更新候选清单，并给出变更摘要（新增/移除数量和明细）。
 
 ### 6.2 参数补全策略（重点）
 
@@ -134,15 +208,30 @@ Agent 不应直接“猜文件”，应基于可见上下文做决策：
 
 1. 用户明确给定参数（最高优先）。
 2. 当前会话上下文（上一轮确认的偏好）。
-3. 工具默认值（来自现有设置页/store）。
-4. 若关键参数缺失且存在风险，触发追问。
+3. 目录上下文默认值（最近一次扫描目录集合、常用排除目录）。
+4. 工具默认值（来自现有设置页/store）。
+5. 若关键参数缺失且存在风险，触发追问。
 
 ### 6.3 入队策略
 
-建议提供两种执行模式：
+建议提供三种执行模式：
 
-- **草案模式（默认）**：AI 先把任务加入 `NotStarted`，用户点确认开始。
-- **自动执行模式**：AI 生成计划后立即开始（需显式开启）。
+- **草案模式（默认）**：AI 先生成“目录扫描结果 + 任务草案”，用户确认后入队。
+- **确认即执行模式**：用户确认清单后自动开始全部任务。
+- **自动执行模式（显式开启）**：Agent 在每轮筛选后直接入队（适合批量自动化场景）。
+
+### 6.4 安全边界与权限模型（目录场景必备）
+
+支持目录级自治后，必须增加权限与防误操作边界：
+
+1. **目录/文件授权白名单**
+   - Agent 只能访问用户已授权的目录或文件路径，不允许越权访问任意路径。
+2. **系统敏感目录保护**
+   - 默认禁止扫描高风险路径（如系统目录、应用安装目录、隐藏系统目录），除非用户明确二次确认。
+3. **分级读取**
+   - 第一步只读元数据；第二步仅对候选文件做内容抽样；第三步执行时才完整读取。
+4. **可审计性**
+   - 每次扫描记录：扫描根目录、过滤条件、命中数量、排除原因、用户确认动作。
 
 ---
 
@@ -157,6 +246,8 @@ Agent 不应直接“猜文件”，应基于可见上下文做决策：
 - `TaskKind`: `subtitle.translate | subtitle.convert | subtitle.extract`
 - `TaskLifecycle`: `draft | queued | running | success | failed | canceled`
 - `TaskSource`: `home-agent | tool-page | api`
+- `TaskDiscovery`: `manual-upload | directory-scan | history-reuse`
+- `TaskTargetRef`: `targetSetId`, `sourceDirectory`, `explicitFile`
 
 ### 阶段 1：抽离转换/提取的任务 store（关键）
 
@@ -174,6 +265,8 @@ Agent 不应直接“猜文件”，应基于可见上下文做决策：
 - `src/agent/tool-registry.ts`：声明每个工具的 `name/description/schema`.
 - `src/agent/tool-schemas.ts`：参数 Zod Schema。
 - `src/agent/tool-executor.ts`：把合法入参转换成任务并入队。
+- `src/agent/discovery-engine.ts`：多目录扫描、候选筛选、排除原因生成。
+- `src/agent/target-resolver.ts`：混合目标解析、冲突消解、权限检查。
 
 ### 阶段 3：实现首页 Agent Orchestrator
 
@@ -225,6 +318,10 @@ Agent 不应直接“猜文件”，应基于可见上下文做决策：
    - 用途：控制 Agent 发起任务或工具执行并发。
    - 理由：避免批量任务瞬时触发导致资源抖动。
 
+5. **fast-glob / tinyglobby（二选一）**
+   - 用途：目录递归扫描字幕文件。
+   - 理由：性能和可控性都优于手写递归遍历。
+
 ### 8.2 可选增强（按需）
 
 1. **LangGraph.js**
@@ -243,6 +340,10 @@ Agent 不应直接“猜文件”，应基于可见上下文做决策：
    - 用途：模型接口和 IPC mock 测试。
    - 适用：提高回归测试稳定性。
 
+5. **chokidar**
+   - 用途：可选的目录监听与增量刷新（长会话时自动发现新文件）。
+   - 适用：需要“扫描后持续监控目录变化”的增强场景。
+
 ---
 
 ## 9. 建议的工具定义（示例）
@@ -256,13 +357,29 @@ type ToolDefinition = {
 };
 ```
 
-建议最少先做 3 个工具（MVP）：
+建议优先做 7 个工具（MVP）：
 
-1. `queue_subtitle_translate_tasks`
+1. `resolve_processing_targets`
+   - 入参：`userInstruction`, `conversationContext`
+   - 出参：`targetSet`（含多目录、多文件、排除项、冲突提示）
+
+2. `scan_subtitle_files_in_targets`
+   - 入参：`targetSet`（支持多目录并包含显式文件）
+   - 出参：`discoveredFiles[]`
+
+3. `build_processing_candidates`
+   - 入参：`discoveredFiles[]`, `intent`, `policy`
+   - 出参：`candidateList[]`, `excludedList[]`（含原因）
+
+4. `apply_candidate_filters`
+   - 入参：`candidateList[]`, `userPatch`（移除目录/文件、数量限制、时间过滤）
+   - 出参：`filteredCandidates[]`
+
+5. `queue_subtitle_translate_tasks`
    - 入参：`files[]`, `sliceType`, `outputMode`, `outputDir`, `conflictPolicy`
-2. `queue_subtitle_convert_tasks`
+6. `queue_subtitle_convert_tasks`
    - 入参：`files[]`, `to`, `defaultDurationMs`, `stripMediaExt`, `outputMode`, `outputDir`, `conflictPolicy`
-3. `queue_subtitle_extract_tasks`
+7. `queue_subtitle_extract_tasks`
    - 入参：`files[]`, `keep`, `outputMode`, `outputDir`, `conflictPolicy`
 
 ---
@@ -289,6 +406,11 @@ type ToolDefinition = {
 - `src/agent/tool-schemas.ts`
 - `src/agent/orchestrator.ts`
 - `src/agent/file-context.ts`
+- `src/agent/discovery-engine.ts`
+- `src/agent/target-resolver.ts`
+- `src/agent/filter-rules.ts`
+- `src/agent/candidate-review.ts`
+- `electron/main/fs/ipc.ts`（目录扫描 / 文件元信息读取）
 - `docs/home-agent-feasibility.md`（本文）
 
 ---
@@ -307,18 +429,35 @@ type ToolDefinition = {
 
 控制：
 
-- 只允许从用户显式上传的候选池选择。
-- 执行前展示文件清单 + 参数摘要。
-- 默认草案模式，不直接执行。
+- 目录扫描结果必须先形成“候选 + 排除”双清单，并展示排除理由。
+- 支持用户对文件/目录做二次筛选（移除、保留、限制条数）。
+- 默认草案模式，不直接执行；自动执行需显式开启。
+- 对系统敏感目录增加强确认与告警文案。
 
-### 11.3 风险：成本不可控（翻译模型调用）
+### 11.3 风险：多目标指令歧义或冲突
+
+控制：
+
+- 对同一轮中“包含/排除冲突”的路径做高亮并展示消解结果。
+- 冲突策略固定且可配置（例如“排除优先”），并在 UI 明示当前策略。
+- 路径模糊、相对路径不确定、软链接跳转等场景必须追问确认。
+
+### 11.4 风险：目录扫描性能与卡顿
+
+控制：
+
+- 大目录采用分批扫描与分页展示，避免一次性渲染全部结果。
+- 增加扫描上限（文件数/目录深度/总大小）与中断能力。
+- 扫描任务独立于 UI 渲染，必要时下沉主进程或 worker。
+
+### 11.5 风险：成本不可控（翻译模型调用）
 
 控制：
 
 - 复用现有 token 预估逻辑（`estimate-subtitle-tokens`）。
 - 增加“本次计划预计费用”展示和预算阈值提醒。
 
-### 11.4 风险：可观察性不足
+### 11.6 风险：可观察性不足
 
 控制：
 
@@ -333,16 +472,22 @@ type ToolDefinition = {
 
 - 工具参数 schema 校验。
 - 参数默认值填充逻辑。
-- 文件筛选规则（按扩展名/用户指令）。
+- 多目录+多文件混合输入解析与冲突消解逻辑。
+- 文件筛选规则（按扩展名/目录规则/用户二次指令）。
+- 候选与排除清单生成逻辑（含排除原因可解释性）。
 
 ### 集成测试
 
 - 模拟 LLM 输出 tool-call -> 校验 -> 入队 -> 执行回调。
+- 模拟“多目录 + 多文件 + 排除项”混合指令解析全链路。
+- 模拟“目录扫描 -> 候选生成 -> 用户二筛 -> 入队”全链路。
 - 异常流程：空文件、无输出目录、模型配置缺失、IPC 报错。
 
 ### E2E 测试（Playwright）
 
 - 首页上传文件 -> 对话下达任务 -> 生成计划 -> 确认执行 -> 观察进度。
+- 首页输入目录指令 -> 递归扫描 -> 清单确认/移除子目录 -> 执行。
+- 首页输入“多个目录 + 多个文件 + 排除规则”-> 清单更新 -> 执行。
 - 多工具串联任务（例如“先转 SRT 再提取中文”）。
 
 ---
@@ -351,14 +496,15 @@ type ToolDefinition = {
 
 | 里程碑 | 目标 | 预估 |
 | --- | --- | --- |
-| M0 | 任务模型与边界设计 | 0.5 - 1 天 |
+| M0 | 任务模型与边界设计（含目录权限模型） | 1 天 |
 | M1 | 转换/提取 store 抽离 + 统一任务总线 | 2 - 3 天 |
-| M2 | Tool Registry + 校验层 | 1 - 2 天 |
-| M3 | 首页对话 UI + Agent 编排 MVP | 2 - 3 天 |
-| M4 | 进度回流、失败处理、可解释性完善 | 1 - 2 天 |
-| M5 | 测试、回归、文档补齐 | 1 - 2 天 |
+| M2 | 目录扫描与候选筛选引擎 | 2 - 3 天 |
+| M3 | Tool Registry + 校验层（含 discovery tools） | 1 - 2 天 |
+| M4 | 首页对话 UI + Agent 编排 MVP | 2 - 3 天 |
+| M5 | 进度回流、失败处理、可解释性完善 | 1 - 2 天 |
+| M6 | 测试、回归、文档补齐 | 1 - 2 天 |
 
-**总计：约 7.5 - 13 天（视功能深度和测试覆盖而定）**。
+**总计：约 10 - 16 天（目录级能力会增加实现与测试复杂度）**。
 
 ---
 
@@ -366,8 +512,11 @@ type ToolDefinition = {
 
 满足以下条件即可进入可用状态：
 
-- 首页可上传文件并对话下达任务。
+- 首页支持“上传文件”与“目录指令扫描”两种入口。
 - Agent 能在三种字幕工具中自动选择并生成任务草案。
+- Agent 能递归扫描目录并给出“候选 + 排除原因”双清单。
+- Agent 能同时处理多个目录与多个文件的混合输入，并正确处理冲突。
+- 用户可在对话中二次筛选（移除文件/目录、限制数量）并实时更新清单。
 - Agent 能将任务写入对应工具的进度列表（至少翻译 + 转换 + 提取）。
 - 用户可在执行前确认/修改关键参数。
 - 执行过程中可看到实时进度、失败原因与重试入口。
