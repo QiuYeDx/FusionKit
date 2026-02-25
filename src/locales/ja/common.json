@@ -42,7 +42,9 @@
     "select_directory_button": "このフォルダを選択",
     "start_download": "アップデート",
     "install_now": "今すぐインストール",
-    "later": "後で"
+    "later": "後で",
+    "changelog_title": "更新内容",
+    "changelog_loading": "変更ログを取得中…"
   },
   "info": {
     "copy_success": "エラー情報をクリップボードにコピーしました"

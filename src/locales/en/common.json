@@ -42,7 +42,9 @@
     "select_directory_button": "Select folder",
     "start_download": "Update",
     "install_now": "Install now",
-    "later": "Later"
+    "later": "Later",
+    "changelog_title": "What's New",
+    "changelog_loading": "Loading changelog…"
   },
   "info": {
     "copy_success": "Copied error info to clipboard"
