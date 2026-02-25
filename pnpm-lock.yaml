@@ -166,6 +166,9 @@ devDependencies:
   vitest:
     specifier: ^2.1.5
     version: 2.1.9
+  xmlbuilder:
+    specifier: ^15.1.1
+    version: 15.1.1
 
 packages:
 
