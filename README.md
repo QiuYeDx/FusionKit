@@ -74,7 +74,7 @@
 | UI 组件 | shadcn/ui (Radix UI) |
 | 状态管理 | Zustand |
 | 国际化 | i18next |
-| 动画 | Motion (react-spring) |
+| 动画 | Motion |
 | 测试 | Vitest + Playwright |
 | 包管理器 | pnpm |
 
