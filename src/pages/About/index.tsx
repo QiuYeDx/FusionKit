@@ -95,14 +95,33 @@ const About: React.FC = () => {
               {t("about:subtitle.author")}
             </CardTitle>
           </CardHeader>
-          <CardContent>
-            <a
-              href="https://github.com/qiuyedx"
-              target="_blank"
-              className="text-primary hover:underline"
-            >
-              QiuYeDx
-            </a>
+          <CardContent className="flex flex-col gap-2">
+            <div className="flex flex-wrap gap-x-4">
+              <a
+                href="https://github.com/qiuyedx"
+                target="_blank"
+                className="text-primary hover:underline"
+              >
+                QiuYeDx
+              </a>
+            </div>
+            <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm">
+              <a
+                href="https://qiuvision.com"
+                target="_blank"
+                className="text-muted-foreground hover:text-primary hover:underline"
+              >
+                qiuvision.com
+              </a>
+              <span className="text-muted-foreground/40">|</span>
+              <a
+                href="https://blog.qiuyedx.com"
+                target="_blank"
+                className="text-muted-foreground hover:text-primary hover:underline"
+              >
+                blog.qiuyedx.com
+              </a>
+            </div>
           </CardContent>
         </Card>
 
