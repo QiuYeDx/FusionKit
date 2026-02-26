@@ -607,3 +607,66 @@ v2（4 工具、多轮循环、对话优先）:
 4. **第 6.1 节的 TargetSet 不再暴露给 LLM**：原设计让 LLM 构造完整的 TargetSet 对象，实际测试中 LLM 难以正确填充 10 个字段。v2 改为 LLM 只提供目录路径列表，扫描和筛选由 executor 内部处理。
 
 这些偏差均在不影响最终能力的前提下，显著降低了 LLM 出错概率和开发维护成本。后续如需恢复高级筛选能力（如排除规则、glob 模式），可以在 v2 基础上渐进增加工具参数，而非回退到 v1 的复杂管线。
+
+---
+
+## 17. 执行模式实现（2026-02-26 补充）
+
+v2 架构完成后，Agent 具备了 scan → queue 的完整链路，但 queue 工具只将任务加入队列（`TaskStatus.NOT_STARTED`），用户必须手动前往工具页启动。本节补充三种执行模式的实现，对应原方案第 6.3 节"入队策略"。
+
+### 17.1 三种执行模式
+
+| 模式 | 标识 | 对应原方案 | 行为 |
+| --- | --- | --- | --- |
+| 仅添加任务 | `queue_only` | 草案模式（默认） | 任务入队后不触发执行，用户前往工具页手动启动 |
+| 询问后执行 | `ask_before_execute` | 确认即执行模式 | 任务入队后在对话区展示确认卡片，用户点击「立即执行」后调用 `startAllTasks()` |
+| 自动执行 | `auto_execute` | 自动执行模式 | 任务入队后立即自动调用对应 store 的 `startAllTasks()` |
+
+### 17.2 实现方案
+
+#### 执行模式状态管理
+
+- `ExecutionMode` 类型定义在 `src/agent/types.ts`
+- `useAgentStore` 新增 `executionMode` 字段，通过 `localStorage` 持久化，默认 `queue_only`
+- 用户通过首页底部的 `Select` 下拉切换模式
+
+#### 入队后处理（`handlePostQueue`）
+
+`tool-executor.ts` 新增统一的 `handlePostQueue(storeType, queuedCount, result)` 函数，三个 queue 工具在返回结果前调用：
+
+```text
+handlePostQueue:
+  ├→ queue_only      → 不做额外操作，返回 executionStatus: "queued_only"
+  ├→ auto_execute    → 立即调用 executeTasksInStores([storeType])，返回 executionStatus: "started"
+  └→ ask_before_execute → 设置 pendingExecution 到 AgentStore，返回 executionStatus: "pending_confirmation"
+```
+
+#### 待确认执行（ask_before_execute）
+
+- `PendingExecution` 接口跟踪哪些 store 有待执行任务及数量
+- 支持累积多轮 queue（如 scan → queue translate → queue convert 后统一确认）
+- `PendingExecutionCard` UI 组件在对话区展示确认/取消按钮
+- 用户点击「立即执行」调用 `confirmExecution()`，内部遍历 `pendingExecution.stores` 调用各 store 的 `startAllTasks()`
+
+#### System Prompt 动态感知
+
+- `orchestrator.ts` 的 system prompt 从静态常量改为 `buildSystemPrompt()` 动态函数
+- 根据当前 `executionMode` 生成不同的指导文案，让 LLM 准确描述入队后的执行状态
+
+### 17.3 与原方案的对应关系
+
+原方案第 6.3 节设计了三种入队策略（草案/确认即执行/自动执行），本实现完整落地了这三种模式：
+
+1. **草案模式** → `queue_only`：保持原设计意图，任务仅入队不执行
+2. **确认即执行** → `ask_before_execute`：原设计通过"对话中确认清单"触发，实际实现改为更直观的 UI 卡片确认（避免通过 LLM 中转确认，减少误解风险）
+3. **自动执行** → `auto_execute`：与原设计一致，入队后立即开始
+
+### 17.4 文件变更
+
+| 文件 | 变更 |
+| --- | --- |
+| `src/agent/types.ts` | 新增 `ExecutionMode`、`TaskStoreType`、`PendingExecution` 类型（42 → 60 行） |
+| `src/store/agent/useAgentStore.ts` | 新增执行模式状态、持久化、确认/取消方法、`executeTasksInStores` 导出（64 → 110 行） |
+| `src/agent/tool-executor.ts` | 新增 `handlePostQueue()` 函数，3 个 queue 工具统一调用（298 → 340 行） |
+| `src/agent/orchestrator.ts` | `SYSTEM_PROMPT` 常量 → `buildSystemPrompt()` 动态函数（262 → 279 行） |
+| `src/pages/HomeAgent/index.tsx` | 新增 `ExecutionModeSelector` + `PendingExecutionCard` 组件（284 → 402 行） |

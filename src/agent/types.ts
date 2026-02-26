@@ -24,6 +24,24 @@ export interface AgentToolResult {
 }
 
 // ---------------------------------------------------------------------------
+// 执行模式
+// ---------------------------------------------------------------------------
+
+export type ExecutionMode =
+  | "queue_only"
+  | "ask_before_execute"
+  | "auto_execute";
+
+export type TaskStoreType = "translate" | "convert" | "extract";
+
+/** ask_before_execute 模式下的待确认执行信息 */
+export interface PendingExecution {
+  stores: TaskStoreType[];
+  taskCounts: Partial<Record<TaskStoreType, number>>;
+  timestamp: number;
+}
+
+// ---------------------------------------------------------------------------
 // Agent 会话状态
 // ---------------------------------------------------------------------------
 

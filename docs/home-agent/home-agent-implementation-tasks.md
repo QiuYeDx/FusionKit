@@ -100,6 +100,16 @@
 | R-007 | 更新 `HomeAgent/index.tsx`：移除 PlanCard，优化工具结果展示 | P0 | R-005,R-006 | DONE | 0.5h |
 | R-008 | 删除废弃文件：`discovery-engine.ts`、`filter-rules.ts`、`target-resolver.ts` | P0 | R-003 | DONE | - |
 
+### E1 执行模式阶段任务
+
+| ID | 任务 | 优先级 | 依赖 | 状态 | 预计 |
+| --- | --- | --- | --- | --- | --- |
+| E-001 | `types.ts` 新增 `ExecutionMode`、`TaskStoreType`、`PendingExecution` 类型 | P0 | R-005 | DONE | 0.25h |
+| E-002 | `useAgentStore.ts` 新增执行模式状态（localStorage 持久化）、待确认执行跟踪、`confirmExecution`/`dismissExecution` 方法 | P0 | E-001 | DONE | 0.5h |
+| E-003 | `tool-executor.ts` 新增 `handlePostQueue` 函数：queue 工具执行后根据执行模式分别处理（queue_only/ask_before_execute/auto_execute） | P0 | E-001,E-002 | DONE | 0.5h |
+| E-004 | `orchestrator.ts` 更新 system prompt 为动态生成，感知当前执行模式并指导 LLM 准确描述执行状态 | P0 | E-003 | DONE | 0.25h |
+| E-005 | `HomeAgent/index.tsx` 新增 `ExecutionModeSelector` 组件（3 种模式切换）和 `PendingExecutionCard` 组件（ask_before_execute 模式下的确认/取消 UI） | P0 | E-002,E-004 | DONE | 0.5h |
+
 ---
 
 ## 5. 分阶段执行清单（可勾选）
@@ -159,13 +169,15 @@
 - [x] R-006 Store 精简完成
 - [x] R-007 HomeAgent UI 适配完成
 - [ ] ~~T-019 二次筛选交互~~ → CANCELLED
-- [ ] ~~T-020 三种执行模式~~ → CANCELLED
+- [x] ~~T-020 三种执行模式~~ → CANCELLED，由 E-001~E-005 替代并完成
+- [x] E-001~E-005 执行模式完成（仅添加任务 / 询问后执行 / 自动执行）
 
 ### M4 DoD（更新后）
 
 - 用户可通过对话完成：闲聊 / 任务下达 / 扫描文件 / 入队执行
 - 普通对话不会触发工具调用或报错
 - 多步任务（scan → queue）可在一次对话中自动完成
+- 三种执行模式可切换：仅添加任务 / 询问后执行 / 自动执行
 
 ## M5：风险控制与可观测性
 
@@ -257,6 +269,39 @@ v2 架构（4 工具、多轮循环）:
 
 ---
 
+## 7-2. E1 执行模式记录（2026-02-26）
+
+### 7-2.1 背景
+
+v2 架构完成后，Agent 具备了 scan → queue 的完整链路，但 queue 工具仅将任务加入队列（`TaskStatus.NOT_STARTED`），缺少后续的执行触发机制。用户需要手动前往工具页启动任务，体验不完整。
+
+### 7-2.2 三种执行模式
+
+| 模式 | 标识 | 行为 |
+| --- | --- | --- |
+| 仅添加任务 | `queue_only` | 任务入队后不做任何执行操作，用户需手动前往工具页启动（默认） |
+| 询问后执行 | `ask_before_execute` | 任务入队后在对话区弹出确认卡片，用户点击「立即执行」后触发 `startAllTasks()` |
+| 自动执行 | `auto_execute` | 任务入队后立即自动调用对应 store 的 `startAllTasks()` |
+
+### 7-2.3 设计要点
+
+1. **执行模式持久化**：通过 `localStorage` 存储用户偏好，页面刷新后保留选择。
+2. **模式感知 System Prompt**：`orchestrator.ts` 的 system prompt 改为动态生成（`buildSystemPrompt()`），根据当前执行模式指导 LLM 准确描述执行状态。
+3. **执行模式解耦**：执行逻辑集中在 `tool-executor.ts` 的 `handlePostQueue()` 函数中，queue 工具执行后统一调用，避免在每个工具函数内重复处理。
+4. **待确认执行状态**：`ask_before_execute` 模式下通过 `useAgentStore.pendingExecution` 跟踪待确认信息，支持累积多轮 queue（如 scan → queue translate → queue convert），最终一次性确认执行。
+
+### 7-2.4 文件变更
+
+| 文件 | 变更类型 | 说明 |
+| --- | --- | --- |
+| `src/agent/types.ts` | 新增类型 | 新增 `ExecutionMode`、`TaskStoreType`、`PendingExecution` |
+| `src/store/agent/useAgentStore.ts` | 扩展 | 新增 `executionMode`（持久化）、`pendingExecution`、`confirmExecution`/`dismissExecution` 方法、`executeTasksInStores` 导出函数 |
+| `src/agent/tool-executor.ts` | 扩展 | 新增 `handlePostQueue()` 函数，3 个 queue 工具返回前统一调用 |
+| `src/agent/orchestrator.ts` | 修改 | `SYSTEM_PROMPT` 常量 → `buildSystemPrompt()` 动态函数，感知执行模式 |
+| `src/pages/HomeAgent/index.tsx` | 扩展 | 新增 `ExecutionModeSelector`（Select 下拉）和 `PendingExecutionCard`（确认/取消按钮）组件 |
+
+---
+
 ## 7. 每日推进模板（复制使用）
 
 ```md
@@ -313,8 +358,9 @@ v2 架构（4 工具、多轮循环）:
 
 ## 10. 当前执行建议
 
-v2 重构已完成核心链路，下一步建议：
+v2 重构 + E1 执行模式均已完成，下一步建议：
 
-1. 手工验证 v2 架构的三个核心场景（闲聊 / 扫描+入队 / 错误处理）
-2. `T-021` 权限白名单（防止扫描敏感目录）
-3. `T-023` 单元测试（基于新的 4 工具 schema）
+1. 手工验证三种执行模式的端到端流程（queue_only / ask_before_execute / auto_execute）
+2. 手工验证 v2 架构的三个核心场景（闲聊 / 扫描+入队 / 错误处理）
+3. `T-021` 权限白名单（防止扫描敏感目录）
+4. `T-023` 单元测试（基于新的 4 工具 schema + 执行模式逻辑）

@@ -5,6 +5,7 @@ import type {
   QueueConvertArgs,
   QueueExtractArgs,
 } from "./tool-schemas";
+import type { TaskStoreType } from "./types";
 import {
   TaskStatus,
   type SubtitleConverterTask,
@@ -14,6 +15,7 @@ import useSubtitleConverterStore from "@/store/tools/subtitle/useSubtitleConvert
 import useSubtitleExtractorStore from "@/store/tools/subtitle/useSubtitleExtractorStore";
 import useSubtitleTranslatorStore from "@/store/tools/subtitle/useSubtitleTranslatorStore";
 import useModelStore from "@/store/useModelStore";
+import useAgentStore, { executeTasksInStores } from "@/store/agent/useAgentStore";
 
 // ---------------------------------------------------------------------------
 // Tool Executor — 工具执行桥梁
@@ -53,6 +55,58 @@ export async function executeTool(
   } catch (err: any) {
     return { success: false, error: err?.message || String(err) };
   }
+}
+
+// ---------------------------------------------------------------------------
+// 执行模式处理 — 入队后根据模式决定是否立即执行
+// ---------------------------------------------------------------------------
+
+function handlePostQueue(
+  storeType: TaskStoreType,
+  queuedCount: number,
+  result: ToolExecutionResult
+): ToolExecutionResult {
+  if (queuedCount === 0) return result;
+
+  const { executionMode, pendingExecution } = useAgentStore.getState();
+
+  switch (executionMode) {
+    case "auto_execute":
+      executeTasksInStores([storeType]);
+      result.data = {
+        ...result.data,
+        executionMode: "auto_execute",
+        executionStatus: "started",
+      };
+      break;
+
+    case "ask_before_execute": {
+      const prevStores = pendingExecution?.stores ?? [];
+      const prevCounts = pendingExecution?.taskCounts ?? {};
+      useAgentStore.getState().setPendingExecution({
+        stores: prevStores.includes(storeType) ? prevStores : [...prevStores, storeType],
+        taskCounts: { ...prevCounts, [storeType]: (prevCounts[storeType] ?? 0) + queuedCount },
+        timestamp: Date.now(),
+      });
+      result.data = {
+        ...result.data,
+        executionMode: "ask_before_execute",
+        executionStatus: "pending_confirmation",
+      };
+      break;
+    }
+
+    case "queue_only":
+    default:
+      result.data = {
+        ...result.data,
+        executionMode: "queue_only",
+        executionStatus: "queued_only",
+      };
+      break;
+  }
+
+  return result;
 }
 
 // ---------------------------------------------------------------------------
@@ -147,7 +201,7 @@ async function executeQueueTranslate(
     queued++;
   }
 
-  return {
+  const result: ToolExecutionResult = {
     success: true,
     data: {
       queuedCount: queued,
@@ -155,6 +209,8 @@ async function executeQueueTranslate(
       ...(errors.length > 0 ? { errors } : {}),
     },
   };
+
+  return handlePostQueue("translate", queued, result);
 }
 
 // ---------------------------------------------------------------------------
@@ -194,7 +250,7 @@ async function executeQueueConvert(
     queued++;
   }
 
-  return {
+  const result: ToolExecutionResult = {
     success: true,
     data: {
       queuedCount: queued,
@@ -202,6 +258,8 @@ async function executeQueueConvert(
       ...(errors.length > 0 ? { errors } : {}),
     },
   };
+
+  return handlePostQueue("convert", queued, result);
 }
 
 // ---------------------------------------------------------------------------
@@ -241,7 +299,7 @@ async function executeQueueExtract(
     queued++;
   }
 
-  return {
+  const result: ToolExecutionResult = {
     success: true,
     data: {
       queuedCount: queued,
@@ -249,6 +307,8 @@ async function executeQueueExtract(
       ...(errors.length > 0 ? { errors } : {}),
     },
   };
+
+  return handlePostQueue("extract", queued, result);
 }
 
 // ---------------------------------------------------------------------------

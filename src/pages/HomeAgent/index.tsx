@@ -6,24 +6,46 @@ import {
   Loader2,
   Bot,
   User,
-  Wrench,
   RotateCcw,
   Sparkles,
   ArrowRight,
   CheckCircle2,
   XCircle,
+  Play,
+  ListPlus,
+  MessageSquareMore,
+  Zap,
 } from "lucide-react";
 import useAgentStore from "@/store/agent/useAgentStore";
 import { handleUserMessage } from "@/agent/orchestrator";
-import type { AgentMessage } from "@/agent/types";
+import type { AgentMessage, ExecutionMode } from "@/agent/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import FusionKitLogo from "@/assets/FusionKit.svg";
 
 // ---------------------------------------------------------------------------
 // HomeAgent 页面 — 对话式 Agent 工作台
 // ---------------------------------------------------------------------------
+
+const EXECUTION_MODE_OPTIONS: { value: ExecutionMode; label: string; icon: React.ReactNode }[] = [
+  { value: "queue_only", label: "仅添加任务", icon: <ListPlus className="h-3.5 w-3.5" /> },
+  { value: "ask_before_execute", label: "询问后执行", icon: <MessageSquareMore className="h-3.5 w-3.5" /> },
+  { value: "auto_execute", label: "自动执行", icon: <Zap className="h-3.5 w-3.5" /> },
+];
+
+const STORE_LABEL: Record<string, string> = {
+  translate: "翻译",
+  convert: "转换",
+  extract: "提取",
+};
 
 function HomeAgent() {
   const { t } = useTranslation();
@@ -32,12 +54,21 @@ function HomeAgent() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const { session, isStreaming, resetSession } = useAgentStore();
+  const {
+    session,
+    isStreaming,
+    resetSession,
+    executionMode,
+    setExecutionMode,
+    pendingExecution,
+    confirmExecution,
+    dismissExecution,
+  } = useAgentStore();
   const { messages, status } = session;
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+  }, [messages, pendingExecution]);
 
   const handleSend = async () => {
     const trimmed = input.trim();
@@ -120,6 +151,15 @@ function HomeAgent() {
             </div>
           )}
 
+          {/* 待确认执行卡片（ask_before_execute 模式） */}
+          {pendingExecution && !isStreaming && (
+            <PendingExecutionCard
+              pendingExecution={pendingExecution}
+              onConfirm={confirmExecution}
+              onDismiss={dismissExecution}
+            />
+          )}
+
           <div ref={messagesEndRef} />
         </div>
       )}
@@ -127,7 +167,12 @@ function HomeAgent() {
       {/* 底部输入区域 */}
       <div className="sticky bottom-0 pt-2">
         {!isEmpty && (
-          <div className="flex justify-end mb-2">
+          <div className="flex items-center justify-between mb-2">
+            <ExecutionModeSelector
+              value={executionMode}
+              onChange={setExecutionMode}
+              disabled={isStreaming}
+            />
             <Button
               variant="ghost"
               size="sm"
@@ -141,6 +186,13 @@ function HomeAgent() {
           </div>
         )}
         <div className="flex items-center gap-2">
+          {isEmpty && (
+            <ExecutionModeSelector
+              value={executionMode}
+              onChange={setExecutionMode}
+              disabled={isStreaming}
+            />
+          )}
           <Input
             ref={inputRef}
             placeholder="输入任务或随意聊天，例如：把这个目录下的字幕文件转换为 SRT…"
@@ -170,6 +222,72 @@ function HomeAgent() {
 // ---------------------------------------------------------------------------
 // 子组件
 // ---------------------------------------------------------------------------
+
+function ExecutionModeSelector({
+  value,
+  onChange,
+  disabled,
+}: {
+  value: ExecutionMode;
+  onChange: (mode: ExecutionMode) => void;
+  disabled?: boolean;
+}) {
+  return (
+    <Select value={value} onValueChange={(v) => onChange(v as ExecutionMode)} disabled={disabled}>
+      <SelectTrigger size="sm" className="h-7 text-xs gap-1.5 text-muted-foreground">
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent>
+        {EXECUTION_MODE_OPTIONS.map((opt) => (
+          <SelectItem key={opt.value} value={opt.value}>
+            <span className="flex items-center gap-1.5">
+              {opt.icon}
+              {opt.label}
+            </span>
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+}
+
+function PendingExecutionCard({
+  pendingExecution,
+  onConfirm,
+  onDismiss,
+}: {
+  pendingExecution: { stores: string[]; taskCounts: Record<string, number> };
+  onConfirm: () => void;
+  onDismiss: () => void;
+}) {
+  const summary = pendingExecution.stores
+    .map((s) => `${STORE_LABEL[s] ?? s} ${pendingExecution.taskCounts[s] ?? 0} 个`)
+    .join("、");
+
+  return (
+    <div className="flex items-start gap-2 pl-10 animate-in fade-in slide-in-from-bottom-2 duration-300">
+      <div className="rounded-lg border border-primary/20 bg-primary/5 p-3 w-full max-w-md">
+        <p className="text-sm mb-2.5">
+          已加入队列：{summary}任务。是否立即开始执行？
+        </p>
+        <div className="flex items-center gap-2">
+          <Button size="sm" onClick={onConfirm} className="h-7 text-xs gap-1">
+            <Play className="h-3 w-3" />
+            立即执行
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={onDismiss}
+            className="h-7 text-xs text-muted-foreground"
+          >
+            稍后手动
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function MessageBubble({ message }: { message: AgentMessage }) {
   const isUser = message.role === "user";

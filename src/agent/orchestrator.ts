@@ -10,7 +10,19 @@ import type { AgentMessage } from "./types";
 
 const MAX_TOOL_ROUNDS = 20;
 
-const SYSTEM_PROMPT = `You are FusionKit Assistant, a helpful AI that assists users with subtitle file processing tasks.
+function buildSystemPrompt(): string {
+  const { executionMode } = useAgentStore.getState();
+
+  const executionModeDescription = {
+    queue_only:
+      'Current execution mode: **Queue Only** — tasks are only added to the queue. The user will start them manually from the tool page. After queuing, tell the user: "已将任务加入队列，请前往对应工具页手动启动。"',
+    ask_before_execute:
+      'Current execution mode: **Ask Before Execute** — tasks are added to the queue, then the user will be asked via UI whether to execute immediately. After queuing, tell the user: "已将任务加入队列，请在下方确认是否立即执行。"',
+    auto_execute:
+      'Current execution mode: **Auto Execute** — tasks are added to the queue and automatically started. After queuing, tell the user: "已将任务加入队列并自动开始执行。"',
+  }[executionMode];
+
+  return `You are FusionKit Assistant, a helpful AI that assists users with subtitle file processing tasks.
 
 ## Your Capabilities
 You have access to tools for three subtitle operations:
@@ -30,13 +42,18 @@ You have access to tools for three subtitle operations:
 - **Respond in the same language as the user.**
 - **When information is missing** (e.g. no path given, unclear operation), ask the user politely. Do NOT guess.
 
+## Execution Mode
+${executionModeDescription}
+When the tool result includes "executionMode" and "executionStatus", use them to inform your response accurately. Do NOT fabricate execution status.
+
 ## Workflow for Task Requests
 1. User mentions an operation + a path → call scan_subtitle_files with the directory
 2. Review scan results → call the matching queue_* tool with discovered file paths
-3. Summarize what was queued
+3. Summarize what was queued and the execution status based on the current execution mode
 
 ## Workflow for Non-Task Messages
 Just respond naturally. Talk about the app, answer questions, or have a friendly conversation.`;
+}
 
 function generateId(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
@@ -191,7 +208,7 @@ function buildLLMMessages(
   sessionMessages: AgentMessage[]
 ): Array<Record<string, any>> {
   const msgs: Array<Record<string, any>> = [
-    { role: "system", content: SYSTEM_PROMPT },
+    { role: "system", content: buildSystemPrompt() },
   ];
 
   for (const m of sessionMessages) {
