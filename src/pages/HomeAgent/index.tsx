@@ -116,7 +116,7 @@ function HomeAgent() {
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "Enter" && !e.shiftKey) {
+    if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
       e.preventDefault();
       handleSend();
     }
@@ -274,8 +274,8 @@ function HomeAgent() {
       {/* ===== Message List ===== */}
       {!isEmpty && (
         <div className="relative flex-1 min-h-0">
-          <div className="pointer-events-none absolute inset-x-0 -top-8 z-10 h-12 bg-linear-to-b from-background via-background/90 to-transparent" />
-          <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 h-28 bg-linear-to-t from-background via-background/90 to-transparent" />
+          <div className="pointer-events-none fixed inset-x-0 -top-2 z-20 h-12 bg-linear-to-b from-background via-background/80 to-transparent" />
+          <div className="pointer-events-none fixed inset-x-0 bottom-0 z-10 h-28 bg-linear-to-t from-background via-background/90 to-transparent" />
 
           <div className="h-full overflow-y-auto px-4 pt-2 pb-2">
             <div className="max-w-2xl mx-auto space-y-4 pt-1 pb-44">
