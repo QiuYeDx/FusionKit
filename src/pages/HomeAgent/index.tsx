@@ -159,9 +159,9 @@ function HomeAgent() {
         layout
         transition={{ type: "spring", bounce: 0, duration: 0.8 }}
         className={cn(
-          "flex items-center gap-1.5 rounded-full border shadow-sm",
+          "flex items-center gap-1.5 rounded-full border border-border/70 shadow-sm",
           "bg-background",
-          "focus-within:shadow-md focus-within:border-ring/40",
+          "focus-within:shadow-md focus-within:border-ring/50",
           "max-w-2xl mx-auto w-full",
           "pl-1.5 pr-1.5 py-1",
           "pointer-events-auto"
@@ -179,7 +179,7 @@ function HomeAgent() {
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={handleKeyDown}
           disabled={isStreaming}
-          className="flex-1 bg-transparent outline-none text-sm placeholder:text-muted-foreground/50 disabled:opacity-50 min-w-0"
+          className="flex-1 bg-transparent outline-none text-sm placeholder:text-muted-foreground/70 disabled:opacity-50 min-w-0"
         />
         <Button
           onClick={handleSend}
@@ -189,7 +189,7 @@ function HomeAgent() {
             "transition-all duration-200",
             canSend
               ? "bg-primary text-primary-foreground shadow-sm hover:opacity-90"
-              : "bg-transparent text-muted-foreground/30"
+              : "bg-transparent text-muted-foreground/45"
           )}
         >
           {isStreaming ? (
@@ -346,8 +346,8 @@ function CapsuleModeSelector({
         size="sm"
         className={cn(
           "h-8 rounded-full border-0 shadow-none -translate-x-0.5",
-          "bg-secondary hover:bg-accent/50",
-          "text-muted-foreground",
+          "bg-secondary hover:bg-accent/60",
+          "text-foreground/65",
           "focus-visible:ring-0",
           "cursor-pointer shrink-0"
         )}
@@ -503,7 +503,7 @@ function SuggestionPill({
       variant="outline"
       className={cn(
         "flex items-center gap-1.5 rounded-full",
-        "px-3.5 py-1.5 text-sm text-muted-foreground",
+        "px-3.5 py-1.5 text-sm text-foreground/60",
         "transition-all duration-200"
       )}
       onClick={onClick}
