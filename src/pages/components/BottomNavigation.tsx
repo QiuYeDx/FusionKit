@@ -88,10 +88,17 @@ const BottomNavigation: React.FC = () => {
     location.pathname
   );
 
+  const mainNavItems = [
+    { path: "/", icon: Home, label: "menu.home" },
+    { path: "/tools", icon: Wrench, label: "menu.tools" },
+    { path: "/about", icon: Info, label: "menu.about" },
+    { path: "/setting", icon: Settings, label: "menu.setting" },
+  ];
+
   const springTransition = {
     type: "spring" as const,
-    stiffness: 200,
-    damping: 15,
+    duration: 0.5,
+    bounce: 0
   };
 
   return (
@@ -105,44 +112,29 @@ const BottomNavigation: React.FC = () => {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 68 }}
             transition={springTransition}
-            className="my-2 mx-2 flex gap-1 justify-center flex-nowrap pointer-events-auto backdrop-blur-md bg-card/80 border border-border rounded-lg p-1 shadow-lg"
+            className="my-2 mx-2 flex gap-1 justify-center flex-nowrap pointer-events-auto backdrop-blur-md bg-card/80 border border-border rounded-full p-1 shadow-lg"
           >
-            <Button
-              variant={location.pathname === "/" ? "secondary" : "ghost"}
-              size="sm"
-              onClick={() => navigate("/")}
-              className="gap-2"
-            >
-              <Home className="size-5" />
-              {t("menu.home")}
-            </Button>
-            <Button
-              variant={location.pathname === "/tools" ? "secondary" : "ghost"}
-              size="sm"
-              onClick={() => navigate("/tools")}
-              className="gap-2"
-            >
-              <Wrench className="size-5" />
-              {t("menu.tools")}
-            </Button>
-            <Button
-              variant={location.pathname === "/about" ? "secondary" : "ghost"}
-              size="sm"
-              onClick={() => navigate("/about")}
-              className="gap-2"
-            >
-              <Info className="size-5" />
-              {t("menu.about")}
-            </Button>
-            <Button
-              variant={location.pathname === "/setting" ? "secondary" : "ghost"}
-              size="sm"
-              onClick={() => navigate("/setting")}
-              className="gap-2"
-            >
-              <Settings className="size-5" />
-              {t("menu.setting")}
-            </Button>
+            {mainNavItems.map(({ path, icon: Icon, label }) => (
+              <Button
+                key={path}
+                variant="ghost"
+                size="sm"
+                onClick={() => navigate(path)}
+                className="gap-2 rounded-full relative hover:bg-transparent dark:hover:bg-transparent"
+              >
+                {location.pathname === path && (
+                  <motion.div
+                    layoutId="nav-highlight"
+                    className="absolute inset-0 bg-secondary rounded-full"
+                    transition={{
+                      type: "spring", duration: 0.5, bounce: 0
+                    }}
+                  />
+                )}
+                <Icon className="size-5 relative z-1" />
+                <span className="relative z-1">{t(label)}</span>
+              </Button>
+            ))}
           </motion.div>
         ) : (
           <motion.div
@@ -151,18 +143,18 @@ const BottomNavigation: React.FC = () => {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 68 }}
             transition={springTransition}
-            className="my-2 mx-2 flex gap-1 justify-center flex-nowrap pointer-events-auto backdrop-blur-md bg-card/80 border border-border rounded-lg p-1 shadow-lg"
+            className="my-2 mx-2 flex gap-1 justify-center flex-nowrap pointer-events-auto backdrop-blur-md bg-card/80 border border-border rounded-full p-1 shadow-lg"
           >
             <Button
               variant="ghost"
               size="sm"
               onClick={() => navigate("/tools")}
-              className="gap-2"
+              className="gap-2 rounded-full"
             >
               <RotateCcw className="size-5" />
               {t("menu.back")}
             </Button>
-            <Button variant="secondary" size="sm" className="gap-2">
+            <Button variant="secondary" size="sm" className="gap-2 rounded-full">
               <Wrench className="size-5" />
               {t(currentToolName)}
             </Button>
@@ -176,7 +168,7 @@ const BottomNavigation: React.FC = () => {
           variant="outline"
           size="icon"
           onClick={handleToggleDarkMode}
-          className="h-9 w-9 rounded-full"
+          className="h-9 w-9 rounded-full dark:bg-background dark:hover:bg-accent"
         >
           {isDark ? <Moon className="h-5 w-5" /> : <Sun className="h-5 w-5" />}
           <span className="sr-only">切换主题</span>
