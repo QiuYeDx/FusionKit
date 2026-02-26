@@ -95,7 +95,7 @@ const BottomNavigation: React.FC = () => {
   };
 
   return (
-    <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full flex justify-center items-center pointer-events-none">
+    <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full flex justify-center items-center pointer-events-none z-40">
       {/* 底部导航栏 */}
       <AnimatePresence mode="popLayout">
         {isMainMenu ? (

@@ -123,9 +123,75 @@ function HomeAgent() {
 
   const isEmpty = messages.length === 0;
   const canSend = input.trim().length > 0 && !isStreaming;
+  const inputCapsule = (
+    <>
+      {!isEmpty && (
+        <div className="max-w-2xl mx-auto flex justify-end mb-2 pointer-events-auto">
+          <Button
+            variant="outline"
+            onClick={handleResetClick}
+            disabled={isStreaming}
+            className={cn(
+              "flex items-center gap-1 text-xs rounded-full transition-colors disabled:opacity-40",
+              "dark:bg-background dark:hover:bg-accent",
+              confirmingReset
+                ? "text-destructive hover:text-destructive/80"
+                : "text-muted-foreground/80 hover:text-foreground"
+            )}
+          >
+            <RotateCcw className="h-3 w-3" />
+            {confirmingReset ? "确认新建?" : "新对话"}
+          </Button>
+        </div>
+      )}
+
+      <div
+        className={cn(
+          "flex items-center gap-1.5 rounded-full border shadow-sm",
+          "bg-background transition-all duration-200",
+          "focus-within:shadow-md focus-within:border-ring/40",
+          "max-w-2xl mx-auto w-full",
+          "pl-1.5 pr-1.5 py-1",
+          "pointer-events-auto"
+        )}
+      >
+        <CapsuleModeSelector
+          value={executionMode}
+          onChange={setExecutionMode}
+          disabled={isStreaming}
+        />
+        <input
+          ref={inputRef}
+          placeholder="输入任务或随意聊天…"
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyDown={handleKeyDown}
+          disabled={isStreaming}
+          className="flex-1 bg-transparent outline-none text-sm placeholder:text-muted-foreground/50 disabled:opacity-50 min-w-0"
+        />
+        <Button
+          onClick={handleSend}
+          disabled={!canSend}
+          className={cn(
+            "flex items-center justify-center rounded-full w-8 h-8 shrink-0",
+            "transition-all duration-200",
+            canSend
+              ? "bg-primary text-primary-foreground shadow-sm hover:opacity-90"
+              : "bg-transparent text-muted-foreground/30"
+          )}
+        >
+          {isStreaming ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <Send className="h-4 w-4" />
+          )}
+        </Button>
+      </div>
+    </>
+  );
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="relative flex flex-col h-full min-h-0">
       {/* ===== Empty State ===== */}
       {isEmpty && (
         <div className="mt-4 mb-6 flex-1 flex flex-col items-center justify-center px-4 animate-in fade-in duration-500">
@@ -195,96 +261,53 @@ function HomeAgent() {
 
       {/* ===== Message List ===== */}
       {!isEmpty && (
-        <div className="flex-1 overflow-y-auto px-4 pt-2 pb-2 min-h-0">
-          <div className="max-w-2xl mx-auto space-y-4">
-            {messages.map((msg) => (
-              <MessageBubble key={msg.id} message={msg} />
-            ))}
+        <div className="relative flex-1 min-h-0">
+          <div className="pointer-events-none absolute inset-x-0 -top-8 z-10 h-12 bg-linear-to-b from-background via-background/90 to-transparent" />
+          <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 h-28 bg-linear-to-t from-background via-background/90 to-transparent" />
 
-            {isStreaming && status === "thinking" && (
-              <div className="flex items-center gap-2 text-muted-foreground text-sm pl-10">
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                <span>思考中…</span>
-              </div>
-            )}
+          <div className="h-full overflow-y-auto px-4 pt-2 pb-2">
+            <div className="max-w-2xl mx-auto space-y-4 pt-1 pb-44">
+              {messages.map((msg) => (
+                <MessageBubble key={msg.id} message={msg} />
+              ))}
 
-            {pendingExecution && !isStreaming && (
-              <PendingExecutionCard
-                pendingExecution={pendingExecution}
-                onConfirm={confirmExecution}
-                onDismiss={dismissExecution}
-              />
-            )}
+              {isStreaming && status === "thinking" && (
+                <div className="flex items-center gap-2 text-muted-foreground text-sm pl-10">
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  <span>思考中…</span>
+                </div>
+              )}
 
-            <div ref={messagesEndRef} />
+              {pendingExecution && !isStreaming && (
+                <PendingExecutionCard
+                  pendingExecution={pendingExecution}
+                  onConfirm={confirmExecution}
+                  onDismiss={dismissExecution}
+                />
+              )}
+
+              <div ref={messagesEndRef} />
+            </div>
           </div>
         </div>
       )}
 
       {/* ===== Bottom Input Area ===== */}
-      <div className="shrink-0 px-4 pb-4 pt-2">
-        {!isEmpty && (
-          <div className="max-w-2xl mx-auto flex justify-end mb-1.5">
-            <Button
-              variant="ghost"
-              onClick={handleResetClick}
-              disabled={isStreaming}
-              className={cn(
-                "flex items-center gap-1 text-xs transition-colors disabled:opacity-40",
-                confirmingReset
-                  ? "text-destructive hover:text-destructive/80"
-                  : "text-muted-foreground/60 hover:text-foreground"
-              )}
-            >
-              <RotateCcw className="h-3 w-3" />
-              {confirmingReset ? "确认新建?" : "新对话"}
-            </Button>
-          </div>
-        )}
-
-        {/* Capsule Input */}
-        <div
-          className={cn(
-            "flex items-center gap-1.5 rounded-full border shadow-sm",
-            "bg-background transition-all duration-200",
-            "focus-within:shadow-md focus-within:border-ring/40",
-            "max-w-2xl mx-auto w-full",
-            "pl-1.5 pr-1.5 py-1"
-          )}
-        >
-          <CapsuleModeSelector
-            value={executionMode}
-            onChange={setExecutionMode}
-            disabled={isStreaming}
-          />
-          <input
-            ref={inputRef}
-            placeholder="输入任务或随意聊天…"
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={handleKeyDown}
-            disabled={isStreaming}
-            className="flex-1 bg-transparent outline-none text-sm placeholder:text-muted-foreground/50 disabled:opacity-50 min-w-0"
-          />
-          <Button
-            onClick={handleSend}
-            disabled={!canSend}
-            className={cn(
-              "flex items-center justify-center rounded-full w-8 h-8 shrink-0",
-              "transition-all duration-200",
-              canSend
-                ? "bg-primary text-primary-foreground shadow-sm hover:opacity-90"
-                : "bg-transparent text-muted-foreground/30"
-            )}
-          >
-            {isStreaming ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <Send className="h-4 w-4" />
-            )}
-          </Button>
+      {isEmpty ? (
+        <div className="shrink-0 px-4 pb-4 pt-2 transition-[opacity,transform] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none">
+          {inputCapsule}
         </div>
-      </div>
+      ) : (
+        <>
+          {/* <div className="pointer-events-none fixed inset-x-0 bottom-0 z-10 h-26 bg-background/95 backdrop-blur-sm" /> */}
+          <div className="pointer-events-none fixed inset-x-0 bottom-0 h-32 bg-linear-to-b from-transparent via-background/95 to-background" />
+          <div className="fixed inset-x-0 bottom-[42px] z-20 pointer-events-none animate-in fade-in slide-in-from-bottom-3 duration-300 motion-reduce:animate-none">
+            <div className="relative px-4 pt-3 pb-4 transition-[opacity,transform] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none pointer-events-none">
+              {inputCapsule}
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }
