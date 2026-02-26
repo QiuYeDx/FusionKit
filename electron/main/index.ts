@@ -9,6 +9,7 @@ import { setupPowerIPC } from "./power";
 import { setupConversionIPC } from "./conversion/ipc";
 import { setupExtractionIPC } from "./extraction/ipc";
 import { setupProxyIPC } from "./proxy";
+import { setupFsIPC } from "./fs/ipc";
 
 const require = createRequire(import.meta.url);
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -120,6 +121,7 @@ app.whenReady().then(() => {
   setupConversionIPC();
   setupExtractionIPC();
   setupProxyIPC();
+  setupFsIPC();
 });
 
 app.on("window-all-closed", () => {

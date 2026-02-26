@@ -101,6 +101,9 @@ dependencies:
   tailwind-merge:
     specifier: ^3.3.1
     version: 3.5.0
+  zod:
+    specifier: ^4.3.6
+    version: 4.3.6
   zustand:
     specifier: ^5.0.3
     version: 5.0.11(@types/react@19.1.1)(react@19.1.1)
@@ -5302,6 +5305,10 @@ packages:
       compress-commons: 4.1.2
       readable-stream: 3.6.2
     dev: true
+
+  /zod@4.3.6:
+    resolution: {integrity: sha512-rftlrkhHZOcjDwkGlnUtZZkvaPHCsDATp4pGpuOOMDaTdDDXF91wuVDJoWoPsKX/3YPQ5fHuF3STjcYyKr+Qhg==}
+    dev: false
 
   /zustand@5.0.11(@types/react@19.1.1)(react@19.1.1):
     resolution: {integrity: sha512-fdZY+dk7zn/vbWNCYmzZULHRrss0jx5pPFiOuMZ/5HJN6Yv3u+1Wswy/4MpZEkEGhtNH+pwxZB8OKgUBPzYAGg==}
