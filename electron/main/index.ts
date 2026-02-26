@@ -163,6 +163,33 @@ ipcMain.handle("open-win", (_, arg) => {
   }
 });
 
+type WindowControlAction = "close" | "minimize" | "toggle-maximize";
+
+ipcMain.handle("window-control", (event, action: WindowControlAction) => {
+  const targetWindow = BrowserWindow.fromWebContents(event.sender);
+  if (!targetWindow) {
+    return { success: false };
+  }
+
+  switch (action) {
+    case "minimize":
+      targetWindow.minimize();
+      return { success: true };
+    case "toggle-maximize":
+      if (targetWindow.isMaximized()) {
+        targetWindow.unmaximize();
+      } else {
+        targetWindow.maximize();
+      }
+      return { success: true, isMaximized: targetWindow.isMaximized() };
+    case "close":
+      targetWindow.close();
+      return { success: true };
+    default:
+      return { success: false };
+  }
+});
+
 ipcMain.on("show-notification", (_event, { title, body }: { title: string; body: string }) => {
   if (Notification.isSupported()) {
     new Notification({ title, body }).show();
