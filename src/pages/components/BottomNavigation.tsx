@@ -120,7 +120,7 @@ const BottomNavigation: React.FC = () => {
                 variant="ghost"
                 size="sm"
                 onClick={() => navigate(path)}
-                className="gap-2 rounded-full relative hover:bg-transparent dark:hover:bg-transparent"
+                className={cn("gap-2 rounded-full relative hover:bg-transparent dark:hover:bg-transparent text-muted-foreground/70 hover:text-foreground transition-colors", location.pathname === path && "text-foreground")}
               >
                 {location.pathname === path && (
                   <motion.div
