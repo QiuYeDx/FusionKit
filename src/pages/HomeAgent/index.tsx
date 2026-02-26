@@ -141,7 +141,7 @@ function HomeAgent() {
               disabled={isStreaming}
               className={cn(
                 "flex items-center gap-1 text-xs rounded-full transition-colors disabled:opacity-40",
-                "dark:bg-background dark:hover:bg-accent",
+                "dark:bg-background dark:hover:bg-accent shadow-none",
                 confirmingReset
                   ? "text-destructive hover:text-destructive/80"
                   : "text-muted-foreground/80 hover:text-foreground"
