@@ -16,6 +16,7 @@ import {
   MessageSquareMore,
   Zap,
 } from "lucide-react";
+import { motion, AnimatePresence } from "motion/react";
 import useAgentStore from "@/store/agent/useAgentStore";
 import { handleUserMessage } from "@/agent/orchestrator";
 import type { AgentMessage, ExecutionMode } from "@/agent/types";
@@ -125,30 +126,41 @@ function HomeAgent() {
   const canSend = input.trim().length > 0 && !isStreaming;
   const inputCapsule = (
     <>
-      {!isEmpty && (
-        <div className="max-w-2xl mx-auto flex justify-end mb-2 pointer-events-auto">
-          <Button
-            variant="outline"
-            onClick={handleResetClick}
-            disabled={isStreaming}
-            className={cn(
-              "flex items-center gap-1 text-xs rounded-full transition-colors disabled:opacity-40",
-              "dark:bg-background dark:hover:bg-accent",
-              confirmingReset
-                ? "text-destructive hover:text-destructive/80"
-                : "text-muted-foreground/80 hover:text-foreground"
-            )}
+      <AnimatePresence>
+        {!isEmpty && (
+          <motion.div
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 6 }}
+            transition={{ type: "spring", bounce: 0, duration: 0.8, delay: 1.2 }}
+            className="max-w-2xl mx-auto flex justify-end mb-2 pointer-events-auto"
           >
-            <RotateCcw className="h-3 w-3" />
-            {confirmingReset ? "确认新建?" : "新对话"}
-          </Button>
-        </div>
-      )}
+            <Button
+              variant="outline"
+              onClick={handleResetClick}
+              disabled={isStreaming}
+              className={cn(
+                "flex items-center gap-1 text-xs rounded-full transition-colors disabled:opacity-40",
+                "dark:bg-background dark:hover:bg-accent",
+                confirmingReset
+                  ? "text-destructive hover:text-destructive/80"
+                  : "text-muted-foreground/80 hover:text-foreground"
+              )}
+            >
+              <RotateCcw className="h-3 w-3" />
+              {confirmingReset ? "确认新建?" : "新对话"}
+            </Button>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
-      <div
+      <motion.div
+        layoutId="input-capsule"
+        layout
+        transition={{ type: "spring", bounce: 0, duration: 0.8 }}
         className={cn(
           "flex items-center gap-1.5 rounded-full border shadow-sm",
-          "bg-background transition-all duration-200",
+          "bg-background",
           "focus-within:shadow-md focus-within:border-ring/40",
           "max-w-2xl mx-auto w-full",
           "pl-1.5 pr-1.5 py-1",
@@ -186,7 +198,7 @@ function HomeAgent() {
             <Send className="h-4 w-4" />
           )}
         </Button>
-      </div>
+      </motion.div>
     </>
   );
 
@@ -220,10 +232,10 @@ function HomeAgent() {
             />
           </div>
 
-          <h1 className="text-xl font-semibold tracking-tight mb-1 z-10">
+          <h1 className="text-xl font-semibold tracking-tight mt-4 mb-4 z-10">
             FusionKit Agent
           </h1>
-          <p className="text-sm text-muted-foreground max-w-sm text-center mb-8 z-10">
+          <p className="text-sm text-muted-foreground max-w-sm text-center mb-6 z-10">
             {t("home:home_description")}
           </p>
 
@@ -294,15 +306,14 @@ function HomeAgent() {
 
       {/* ===== Bottom Input Area ===== */}
       {isEmpty ? (
-        <div className="shrink-0 px-4 pb-4 pt-2 transition-[opacity,transform] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none">
+        <div className="absolute inset-x-0 top-72 z-20 px-4 pb-4 pt-2 pointer-events-none">
           {inputCapsule}
         </div>
       ) : (
         <>
-          {/* <div className="pointer-events-none fixed inset-x-0 bottom-0 z-10 h-26 bg-background/95 backdrop-blur-sm" /> */}
           <div className="pointer-events-none fixed inset-x-0 bottom-0 h-32 bg-linear-to-b from-transparent via-background/95 to-background" />
-          <div className="fixed inset-x-0 bottom-[42px] z-20 pointer-events-none animate-in fade-in slide-in-from-bottom-3 duration-300 motion-reduce:animate-none">
-            <div className="relative px-4 pt-3 pb-4 transition-[opacity,transform] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none pointer-events-none">
+          <div className="fixed inset-x-0 bottom-[42px] z-20 pointer-events-none">
+            <div className="relative px-4 pt-3 pb-4 pointer-events-none">
               {inputCapsule}
             </div>
           </div>
