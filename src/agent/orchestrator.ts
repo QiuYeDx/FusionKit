@@ -8,7 +8,7 @@ import type { AgentMessage } from "./types";
 // Orchestrator — 对话优先、按需调用工具、多轮循环
 // ---------------------------------------------------------------------------
 
-const MAX_TOOL_ROUNDS = 5;
+const MAX_TOOL_ROUNDS = 20;
 
 const SYSTEM_PROMPT = `You are FusionKit Assistant, a helpful AI that assists users with subtitle file processing tasks.
 
