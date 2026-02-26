@@ -68,6 +68,8 @@ function HomeAgent() {
   const [input, setInput] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const [confirmingReset, setConfirmingReset] = useState(false);
+  const confirmResetTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   const {
     session,
@@ -84,6 +86,26 @@ function HomeAgent() {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, pendingExecution]);
+
+  useEffect(() => {
+    return () => {
+      if (confirmResetTimer.current) clearTimeout(confirmResetTimer.current);
+    };
+  }, []);
+
+  const handleResetClick = () => {
+    if (confirmingReset) {
+      setConfirmingReset(false);
+      if (confirmResetTimer.current) clearTimeout(confirmResetTimer.current);
+      resetSession();
+    } else {
+      setConfirmingReset(true);
+      confirmResetTimer.current = setTimeout(
+        () => setConfirmingReset(false),
+        3000
+      );
+    }
+  };
 
   const handleSend = async () => {
     const trimmed = input.trim();
@@ -205,12 +227,17 @@ function HomeAgent() {
           <div className="max-w-2xl mx-auto flex justify-end mb-1.5">
             <Button
               variant="ghost"
-              onClick={resetSession}
+              onClick={handleResetClick}
               disabled={isStreaming}
-              className="flex items-center gap-1 text-xs text-muted-foreground/60 hover:text-foreground transition-colors disabled:opacity-40"
+              className={cn(
+                "flex items-center gap-1 text-xs transition-colors disabled:opacity-40",
+                confirmingReset
+                  ? "text-destructive hover:text-destructive/80"
+                  : "text-muted-foreground/60 hover:text-foreground"
+              )}
             >
               <RotateCcw className="h-3 w-3" />
-              新对话
+              {confirmingReset ? "确认新建?" : "新对话"}
             </Button>
           </div>
         )}
@@ -416,10 +443,10 @@ function MessageBubble({ message }: { message: AgentMessage }) {
       </div>
       <div
         className={cn(
-          "rounded-2xl px-3.5 py-2.5 max-w-[80%] text-sm leading-relaxed",
+          "relative rounded-sm px-4 py-2.5 max-w-[80%] text-sm leading-relaxed",
           isUser
-            ? "bg-primary text-primary-foreground rounded-tr-sm"
-            : "bg-muted rounded-tl-sm"
+            ? "bg-primary text-primary-foreground chat-bubble-user"
+            : "bg-muted chat-bubble-assistant"
         )}
       >
         <p className="whitespace-pre-wrap wrap-break-word">{message.content}</p>
