@@ -16,6 +16,8 @@ import useSubtitleExtractorStore from "@/store/tools/subtitle/useSubtitleExtract
 import useSubtitleTranslatorStore from "@/store/tools/subtitle/useSubtitleTranslatorStore";
 import useModelStore from "@/store/useModelStore";
 import useAgentStore, { executeTasksInStores } from "@/store/agent/useAgentStore";
+import { estimateSubtitleTokens } from "@/utils/tokenEstimate";
+import type { SubtitleSliceType } from "@/type/subtitle";
 
 // ---------------------------------------------------------------------------
 // Tool Executor — 工具执行桥梁
@@ -172,6 +174,7 @@ async function executeQueueTranslate(
 ): Promise<ToolExecutionResult> {
   const store = useSubtitleTranslatorStore.getState();
   const modelStore = useModelStore.getState();
+  const currentModel = modelStore.model;
 
   let queued = 0;
   const errors: string[] = [];
@@ -185,6 +188,15 @@ async function executeQueueTranslate(
     const fileName = extractFileName(filePath);
     const outputDir = resolveOutputDir(args.outputMode, args.outputDir, filePath);
 
+    const tokenPricing = modelStore.getTokenPricingByType(currentModel);
+    const costEstimate = await estimateSubtitleTokens(
+      fileContent,
+      args.sliceType as SubtitleSliceType,
+      undefined,
+      currentModel,
+      tokenPricing
+    );
+
     store.addTask({
       fileName,
       fileContent,
@@ -193,9 +205,10 @@ async function executeQueueTranslate(
       targetFileURL: outputDir,
       status: TaskStatus.NOT_STARTED,
       progress: 0,
-      apiKey: modelStore.apiKey,
-      apiModel: modelStore.model,
-      endPoint: modelStore.endPoint,
+      costEstimate,
+      apiKey: modelStore.getApiKeyByType(currentModel),
+      apiModel: modelStore.getModelKeyByType(currentModel),
+      endPoint: modelStore.getModelUrlByType(currentModel),
       conflictPolicy: "index",
     });
     queued++;
