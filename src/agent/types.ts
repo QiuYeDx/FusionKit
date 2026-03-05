@@ -4,6 +4,12 @@
 
 export type AgentMessageRole = "user" | "assistant" | "system" | "tool";
 
+export interface AgentToolCall {
+  toolCallId: string;
+  toolName: string;
+  args: Record<string, unknown>;
+}
+
 export interface AgentMessage {
   id: string;
   role: AgentMessageRole;
@@ -11,8 +17,8 @@ export interface AgentMessage {
   timestamp: number;
   /** tool 消息对应的执行结果 */
   toolResult?: AgentToolResult;
-  /** assistant 消息中 LLM 返回的原始 tool_calls，用于 round-trip 回传 API */
-  rawToolCalls?: any[];
+  /** assistant 消息中的 tool calls（用于会话历史回传 API） */
+  toolCalls?: AgentToolCall[];
 }
 
 export interface AgentToolResult {
@@ -48,6 +54,7 @@ export interface PendingExecution {
 export type AgentSessionStatus =
   | "idle"
   | "thinking"
+  | "streaming"
   | "error";
 
 export interface AgentSession {

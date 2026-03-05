@@ -81,6 +81,7 @@ function HomeAgent() {
   const {
     session,
     isStreaming,
+    streamingText,
     resetSession,
     executionMode,
     setExecutionMode,
@@ -92,7 +93,7 @@ function HomeAgent() {
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, pendingExecution]);
+  }, [messages, pendingExecution, streamingText]);
 
   useEffect(() => {
     return () => {
@@ -289,10 +290,24 @@ function HomeAgent() {
                 <MessageBubble key={msg.id} message={msg} />
               ))}
 
-              {isStreaming && status === "thinking" && (
+              {isStreaming && status === "thinking" && !streamingText && (
                 <div className="flex items-center gap-2 text-muted-foreground text-sm pl-10">
                   <Loader2 className="h-3.5 w-3.5 animate-spin" />
                   <span>思考中…</span>
+                </div>
+              )}
+
+              {isStreaming && streamingText && (
+                <div className="flex items-start gap-2.5">
+                  <div className="flex items-center justify-center rounded-full w-7 h-7 shrink-0 bg-muted text-muted-foreground">
+                    <Bot className="h-3.5 w-3.5" />
+                  </div>
+                  <div className="relative rounded-sm px-4 py-2.5 max-w-[80%] text-sm leading-relaxed bg-muted chat-bubble-assistant">
+                    <p className="whitespace-pre-wrap wrap-break-word">
+                      {streamingText}
+                      <span className="inline-block w-1.5 h-4 ml-0.5 -mb-0.5 bg-foreground/60 animate-pulse" />
+                    </p>
+                  </div>
                 </div>
               )}
 
@@ -477,7 +492,7 @@ function MessageBubble({ message }: { message: AgentMessage }) {
   if (
     message.role === "assistant" &&
     !message.content &&
-    message.rawToolCalls?.length
+    message.toolCalls?.length
   ) {
     return null;
   }

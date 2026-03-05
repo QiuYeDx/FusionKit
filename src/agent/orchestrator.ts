@@ -1,14 +1,15 @@
+import { streamText, stepCountIs, type ModelMessage } from "ai";
+import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 import useAgentStore from "@/store/agent/useAgentStore";
 import useModelStore from "@/store/useModelStore";
-import { getToolDescriptionsForLLM } from "./tool-registry";
-import { executeTool } from "./tool-executor";
-import type { AgentMessage } from "./types";
+import { agentTools } from "./tools";
+import type { AgentMessage, AgentToolCall } from "./types";
 
 // ---------------------------------------------------------------------------
-// Orchestrator — 对话优先、按需调用工具、多轮循环
+// Orchestrator — AI SDK streamText 驱动的对话 + 工具循环
 // ---------------------------------------------------------------------------
 
-const MAX_TOOL_ROUNDS = 20;
+let activeAbortController: AbortController | null = null;
 
 function buildSystemPrompt(): string {
   const { executionMode } = useAgentStore.getState();
@@ -60,8 +61,75 @@ function generateId(): string {
 }
 
 /**
+ * 创建 OpenAI 兼容的 AI SDK model 实例
+ */
+function createModel(endPoint: string, apiKey: string, modelKey: string) {
+  const baseURL = endPoint.replace(/\/chat\/completions\/?$/, "");
+  const provider = createOpenAICompatible({
+    baseURL,
+    apiKey,
+    name: "fusionkit-provider",
+  });
+  return provider(modelKey);
+}
+
+/**
+ * 将 AgentMessage[] 转换为 AI SDK ModelMessage[] 格式
+ */
+function buildModelMessages(sessionMessages: AgentMessage[]): ModelMessage[] {
+  const msgs: ModelMessage[] = [];
+
+  for (const m of sessionMessages) {
+    if (m.role === "user") {
+      msgs.push({ role: "user", content: m.content });
+    } else if (m.role === "assistant") {
+      if (m.toolCalls && m.toolCalls.length > 0) {
+        msgs.push({
+          role: "assistant",
+          content: [
+            ...(m.content ? [{ type: "text" as const, text: m.content }] : []),
+            ...m.toolCalls.map((tc) => ({
+              type: "tool-call" as const,
+              toolCallId: tc.toolCallId,
+              toolName: tc.toolName,
+              input: tc.args,
+            })),
+          ],
+        });
+      } else {
+        msgs.push({ role: "assistant", content: m.content });
+      }
+    } else if (m.role === "tool" && m.toolResult) {
+      msgs.push({
+        role: "tool",
+        content: [
+          {
+            type: "tool-result" as const,
+            toolCallId: m.toolResult.callId,
+            toolName: m.toolResult.toolName,
+            output: m.toolResult.data ?? m.toolResult.error ?? "",
+          },
+        ],
+      });
+    }
+  }
+
+  return msgs;
+}
+
+/**
+ * 中止当前正在进行的流式请求
+ */
+export function abortCurrentStream(): void {
+  if (activeAbortController) {
+    activeAbortController.abort();
+    activeAbortController = null;
+  }
+}
+
+/**
  * 处理用户输入。
- * 流程：用户消息 → LLM → (可能多轮 tool-call 循环) → 最终文本回复
+ * 流程：用户消息 → streamText（自动工具循环 + 流式传输）→ 实时更新 UI
  */
 export async function handleUserMessage(userContent: string): Promise<void> {
   const store = useAgentStore.getState();
@@ -94,185 +162,132 @@ export async function handleUserMessage(userContent: string): Promise<void> {
     return;
   }
 
+  activeAbortController = new AbortController();
+
   try {
-    await runAgentLoop(endPoint, apiKey, modelKey);
-    store.setStatus("idle");
+    const latestMessages = useAgentStore.getState().session.messages;
+    const modelMessages = buildModelMessages(latestMessages);
+    const aiModel = createModel(endPoint, apiKey, modelKey);
+
+    const result = streamText({
+      model: aiModel,
+      system: buildSystemPrompt(),
+      messages: modelMessages,
+      tools: agentTools,
+      stopWhen: stepCountIs(20),
+      temperature: 0.3,
+      maxOutputTokens: 4096,
+      abortSignal: activeAbortController.signal,
+    });
+
+    const pendingToolCalls: AgentToolCall[] = [];
+    const pendingToolResults: Array<{
+      toolCallId: string;
+      toolName: string;
+      output: unknown;
+    }> = [];
+    let hasStartedStreaming = false;
+
+    for await (const part of result.fullStream) {
+      switch (part.type) {
+        case "text-delta": {
+          if (!hasStartedStreaming) {
+            hasStartedStreaming = true;
+            useAgentStore.getState().setStatus("streaming");
+          }
+          useAgentStore.getState().appendStreamingText(part.text);
+          break;
+        }
+
+        case "tool-call": {
+          pendingToolCalls.push({
+            toolCallId: part.toolCallId,
+            toolName: part.toolName,
+            args: part.input as Record<string, unknown>,
+          });
+          break;
+        }
+
+        case "tool-result": {
+          pendingToolResults.push({
+            toolCallId: part.toolCallId,
+            toolName: part.toolName,
+            output: part.output,
+          });
+          break;
+        }
+
+        case "finish-step": {
+          if (pendingToolCalls.length > 0) {
+            const currentStreamingText = useAgentStore.getState().streamingText;
+            useAgentStore.getState().commitStreamingAsAssistant(
+              currentStreamingText,
+              [...pendingToolCalls]
+            );
+
+            for (const tr of pendingToolResults) {
+              const toolResult = tr.output as any;
+              const isSuccess = toolResult?.success !== false;
+              useAgentStore.getState().addMessage({
+                id: generateId(),
+                role: "tool",
+                content: JSON.stringify(
+                  toolResult?.data ?? toolResult?.error ?? toolResult,
+                  null,
+                  2
+                ),
+                timestamp: Date.now(),
+                toolResult: {
+                  callId: tr.toolCallId,
+                  toolName: tr.toolName,
+                  success: isSuccess,
+                  data: toolResult?.data ?? toolResult,
+                  error: toolResult?.error,
+                },
+              });
+            }
+
+            pendingToolCalls.length = 0;
+            pendingToolResults.length = 0;
+            hasStartedStreaming = false;
+          }
+          break;
+        }
+
+        case "error": {
+          throw part.error;
+        }
+      }
+    }
+
+    const finalStreamingText = useAgentStore.getState().streamingText;
+    if (finalStreamingText) {
+      useAgentStore.getState().commitStreamingAsAssistant(finalStreamingText);
+    }
+
+    useAgentStore.getState().setStatus("idle");
   } catch (err: any) {
-    console.error("Orchestrator error:", err);
-    store.addMessage({
-      id: generateId(),
-      role: "assistant",
-      content: `调用出错：${err?.message || String(err)}`,
-      timestamp: Date.now(),
-    });
-    store.setStatus("error");
-  } finally {
-    store.setStreaming(false);
-  }
-}
-
-// ---------------------------------------------------------------------------
-// 多轮 Agent 循环：LLM 回复 → 有 tool_calls 则执行并再次请求 → 直到纯文本
-// ---------------------------------------------------------------------------
-
-async function runAgentLoop(
-  endPoint: string,
-  apiKey: string,
-  modelKey: string
-): Promise<void> {
-  const store = useAgentStore.getState;
-
-  for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
-    const messages = buildLLMMessages(store().session.messages);
-    const response = await callLLM(endPoint, apiKey, modelKey, messages);
-
-    const choice = response?.choices?.[0];
-    if (!choice) {
-      store().addMessage({
-        id: generateId(),
-        role: "assistant",
-        content: "模型返回了空响应，请稍后重试。",
-        timestamp: Date.now(),
-      });
-      return;
-    }
-
-    const assistantContent = choice.message?.content || "";
-    const toolCalls: any[] | undefined = choice.message?.tool_calls;
-
-    if (!toolCalls || toolCalls.length === 0) {
-      if (assistantContent) {
-        store().addMessage({
-          id: generateId(),
-          role: "assistant",
-          content: assistantContent,
-          timestamp: Date.now(),
-        });
-      }
-      return;
-    }
-
-    // 有 tool_calls：先记录 assistant 消息（含 rawToolCalls）
-    store().addMessage({
-      id: generateId(),
-      role: "assistant",
-      content: assistantContent,
-      timestamp: Date.now(),
-      rawToolCalls: toolCalls,
-    });
-
-    // 依次执行每个 tool call，并将结果作为 tool 消息加入
-    for (const tc of toolCalls) {
-      const toolName = tc.function?.name;
-      let toolArgs: unknown;
-      try {
-        toolArgs = JSON.parse(tc.function?.arguments || "{}");
-      } catch {
-        toolArgs = {};
-      }
-
-      const result = await executeTool(toolName, toolArgs);
-
-      store().addMessage({
-        id: generateId(),
-        role: "tool",
-        content: JSON.stringify(result.data ?? result.error, null, 2),
-        timestamp: Date.now(),
-        toolResult: {
-          callId: tc.id,
-          toolName,
-          success: result.success,
-          data: result.data,
-          error: result.error,
-        },
-      });
-    }
-
-    // 继续循环：LLM 将看到 tool 结果，决定是否继续调用工具或给出最终回复
-  }
-
-  // 超出最大轮次，给出兜底回复
-  store().addMessage({
-    id: generateId(),
-    role: "assistant",
-    content: "操作步骤过多，已停止自动执行。请检查结果或重新描述需求。",
-    timestamp: Date.now(),
-  });
-}
-
-// ---------------------------------------------------------------------------
-// 构建 LLM 消息序列
-// ---------------------------------------------------------------------------
-
-function buildLLMMessages(
-  sessionMessages: AgentMessage[]
-): Array<Record<string, any>> {
-  const msgs: Array<Record<string, any>> = [
-    { role: "system", content: buildSystemPrompt() },
-  ];
-
-  for (const m of sessionMessages) {
-    if (m.role === "tool") {
-      msgs.push({
-        role: "tool",
-        content: m.content,
-        tool_call_id: m.toolResult?.callId,
-      });
-    } else if (
-      m.role === "assistant" &&
-      m.rawToolCalls &&
-      m.rawToolCalls.length > 0
-    ) {
-      msgs.push({
-        role: "assistant",
-        content: m.content || null,
-        tool_calls: m.rawToolCalls,
-      });
+    const partial = useAgentStore.getState().streamingText;
+    if (partial) {
+      useAgentStore.getState().commitStreamingAsAssistant(partial);
     } else {
-      msgs.push({ role: m.role, content: m.content });
+      useAgentStore.getState().clearStreamingText();
     }
+
+    if (err?.name === "AbortError") {
+      useAgentStore.getState().setStatus("idle");
+    } else {
+      console.error("Orchestrator error:", err);
+      useAgentStore.getState().addMessage({
+        id: generateId(),
+        role: "assistant",
+        content: `调用出错：${err?.message || String(err)}`,
+        timestamp: Date.now(),
+      });
+      useAgentStore.getState().setStatus("error");
+    }
+  } finally {
+    useAgentStore.getState().setStreaming(false);
+    activeAbortController = null;
   }
-
-  return msgs;
-}
-
-// ---------------------------------------------------------------------------
-// LLM API 调用
-// ---------------------------------------------------------------------------
-
-async function callLLM(
-  endPoint: string,
-  apiKey: string,
-  modelKey: string,
-  messages: Array<Record<string, any>>
-): Promise<any> {
-  const tools = getToolDescriptionsForLLM();
-
-  const body: Record<string, any> = {
-    model: modelKey,
-    messages,
-    temperature: 0.3,
-    max_tokens: 4096,
-  };
-
-  if (tools.length > 0) {
-    body.tools = tools;
-    body.tool_choice = "auto";
-  }
-
-  const response = await fetch(endPoint, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify(body),
-  });
-
-  if (!response.ok) {
-    const text = await response.text();
-    throw new Error(`LLM API error ${response.status}: ${text}`);
-  }
-
-  return response.json();
 }

@@ -3,6 +3,7 @@ import type {
   AgentMessage,
   AgentSession,
   AgentSessionStatus,
+  AgentToolCall,
   ExecutionMode,
   PendingExecution,
   TaskStoreType,
@@ -12,18 +13,22 @@ import useSubtitleConverterStore from "@/store/tools/subtitle/useSubtitleConvert
 import useSubtitleExtractorStore from "@/store/tools/subtitle/useSubtitleExtractorStore";
 
 // ---------------------------------------------------------------------------
-// Agent Store — 会话、消息、执行模式状态管理
+// Agent Store — 会话、消息、流式状态、执行模式
 // ---------------------------------------------------------------------------
 
 interface AgentStore {
   session: AgentSession;
   isStreaming: boolean;
+  streamingText: string;
   executionMode: ExecutionMode;
   pendingExecution: PendingExecution | null;
 
   addMessage: (message: AgentMessage) => void;
   setStatus: (status: AgentSessionStatus) => void;
   setStreaming: (streaming: boolean) => void;
+  appendStreamingText: (delta: string) => void;
+  clearStreamingText: () => void;
+  commitStreamingAsAssistant: (text: string, toolCalls?: AgentToolCall[]) => void;
   resetSession: () => void;
   setExecutionMode: (mode: ExecutionMode) => void;
   setPendingExecution: (pe: PendingExecution | null) => void;
@@ -80,6 +85,7 @@ export function executeTasksInStores(stores: TaskStoreType[]): void {
 const useAgentStore = create<AgentStore>((set, get) => ({
   session: createNewSession(),
   isStreaming: false,
+  streamingText: "",
   executionMode: loadExecutionMode(),
   pendingExecution: null,
 
@@ -99,10 +105,38 @@ const useAgentStore = create<AgentStore>((set, get) => ({
 
   setStreaming: (streaming) => set({ isStreaming: streaming }),
 
+  appendStreamingText: (delta) =>
+    set((state) => ({ streamingText: state.streamingText + delta })),
+
+  clearStreamingText: () => set({ streamingText: "" }),
+
+  commitStreamingAsAssistant: (text, toolCalls) => {
+    if (!text && (!toolCalls || toolCalls.length === 0)) {
+      set({ streamingText: "" });
+      return;
+    }
+    const msg: AgentMessage = {
+      id: generateId(),
+      role: "assistant",
+      content: text,
+      timestamp: Date.now(),
+      ...(toolCalls && toolCalls.length > 0 ? { toolCalls } : {}),
+    };
+    set((state) => ({
+      streamingText: "",
+      session: {
+        ...state.session,
+        messages: [...state.session.messages, msg],
+        updatedAt: Date.now(),
+      },
+    }));
+  },
+
   resetSession: () =>
     set({
       session: createNewSession(),
       isStreaming: false,
+      streamingText: "",
       pendingExecution: null,
     }),
 

@@ -1,4 +1,3 @@
-import { validateToolArgs } from "./tool-registry";
 import type {
   ScanSubtitleFilesArgs,
   QueueTranslateArgs,
@@ -20,43 +19,13 @@ import { estimateSubtitleTokens } from "@/utils/tokenEstimate";
 import type { SubtitleSliceType } from "@/type/subtitle";
 
 // ---------------------------------------------------------------------------
-// Tool Executor — 工具执行桥梁
+// Tool Executor — 工具执行函数（由 AI SDK tool() 的 execute 调用）
 // ---------------------------------------------------------------------------
 
 export interface ToolExecutionResult {
   success: boolean;
   data?: any;
   error?: string;
-}
-
-export async function executeTool(
-  toolName: string,
-  rawArgs: unknown
-): Promise<ToolExecutionResult> {
-  try {
-    switch (toolName) {
-      case "scan_subtitle_files":
-        return executeScan(
-          validateToolArgs<ScanSubtitleFilesArgs>(toolName, rawArgs)
-        );
-      case "queue_subtitle_translate":
-        return executeQueueTranslate(
-          validateToolArgs<QueueTranslateArgs>(toolName, rawArgs)
-        );
-      case "queue_subtitle_convert":
-        return executeQueueConvert(
-          validateToolArgs<QueueConvertArgs>(toolName, rawArgs)
-        );
-      case "queue_subtitle_extract":
-        return executeQueueExtract(
-          validateToolArgs<QueueExtractArgs>(toolName, rawArgs)
-        );
-      default:
-        return { success: false, error: `Unknown tool: ${toolName}` };
-    }
-  } catch (err: any) {
-    return { success: false, error: err?.message || String(err) };
-  }
 }
 
 // ---------------------------------------------------------------------------
@@ -115,7 +84,7 @@ function handlePostQueue(
 // scan_subtitle_files
 // ---------------------------------------------------------------------------
 
-async function executeScan(
+export async function executeScan(
   args: ScanSubtitleFilesArgs
 ): Promise<ToolExecutionResult> {
   const allFiles: Array<{
@@ -169,7 +138,7 @@ async function executeScan(
 // queue_subtitle_translate
 // ---------------------------------------------------------------------------
 
-async function executeQueueTranslate(
+export async function executeQueueTranslate(
   args: QueueTranslateArgs
 ): Promise<ToolExecutionResult> {
   const store = useSubtitleTranslatorStore.getState();
@@ -230,7 +199,7 @@ async function executeQueueTranslate(
 // queue_subtitle_convert
 // ---------------------------------------------------------------------------
 
-async function executeQueueConvert(
+export async function executeQueueConvert(
   args: QueueConvertArgs
 ): Promise<ToolExecutionResult> {
   const store = useSubtitleConverterStore.getState();
@@ -279,7 +248,7 @@ async function executeQueueConvert(
 // queue_subtitle_extract
 // ---------------------------------------------------------------------------
 
-async function executeQueueExtract(
+export async function executeQueueExtract(
   args: QueueExtractArgs
 ): Promise<ToolExecutionResult> {
   const store = useSubtitleExtractorStore.getState();
