@@ -74,6 +74,7 @@ function SubtitleConverter() {
     retryTask,
     deleteTask,
     removeAllResolvedTasks,
+    clearAllTasks,
   } = useSubtitleConverterStore();
 
   const allTasks = [
@@ -536,7 +537,7 @@ function SubtitleConverter() {
       </div>
 
       {/* 任务管理 */}
-      <Card className="mb-12">
+      <Card className="mb-12 overflow-hidden">
         <CardHeader>
           <div className="flex items-center justify-between">
             <CardTitle className="text-xl">{t("subtitle:converter.task_management")}</CardTitle>
@@ -557,14 +558,22 @@ function SubtitleConverter() {
               >
                 {t("subtitle:converter.fields.remove_all_resolved_task")}
               </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={clearAllTasks}
+                disabled={allTasks.length === 0 || pendingTasks.length > 0}
+              >
+                {t("subtitle:converter.fields.clear_all_tasks")}
+              </Button>
             </div>
           </div>
         </CardHeader>
         <CardContent>
-          <div className="space-y-3 max-w-4xl">
+          <div className="space-y-3">
             {allTasks.map((task, index) => (
-              <Card key={index}>
-                <CardContent>
+              <Card key={index} className="overflow-hidden">
+                <CardContent className="min-w-0">
                   <div className="flex items-center justify-between gap-3">
                     <div className="flex items-center gap-3 flex-1 min-w-0">
                       <div

@@ -60,6 +60,7 @@ interface SubtitleExtractorStore {
   retryTask: (fileName: string) => void;
   deleteTask: (fileName: string) => void;
   removeAllResolvedTasks: () => void;
+  clearAllTasks: () => void;
   initializeStore: () => void;
 }
 
@@ -271,6 +272,15 @@ const useSubtitleExtractorStore = create<SubtitleExtractorStore>(
     },
 
     removeAllResolvedTasks: () => set({ resolvedTasks: [] }),
+
+    clearAllTasks: () => {
+      set({
+        notStartedTasks: [],
+        resolvedTasks: [],
+        failedTasks: [],
+      });
+      showToast(i18n.t("subtitle:extractor:infos.all_tasks_cleared"), "success");
+    },
 
     initializeStore: () =>
       set({

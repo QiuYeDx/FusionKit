@@ -35,6 +35,7 @@ interface SubtitleTranslatorStore {
   startTask: (fileName: string) => void;
   retryTask: (fileName: string) => void;
   removeAllResolvedTask: () => void;
+  clearAllTasks: () => void;
   startAllTasks: () => void;
   addFailedTask: (errorData: {
     fileName: string;
@@ -232,6 +233,16 @@ const useSubtitleTranslatorStore = create<SubtitleTranslatorStore>((set) => ({
     set({
       resolvedTaskQueue: [],
     });
+  },
+
+  clearAllTasks: () => {
+    set({
+      notStartedTaskQueue: [],
+      waitingTaskQueue: [],
+      resolvedTaskQueue: [],
+      failedTaskQueue: [],
+    });
+    showToast(i18n.t("subtitle:translator.infos.all_tasks_cleared"), "success");
   },
 
   updateProgress: (fileName, resolvedFragments, totalFragments, progress) => {

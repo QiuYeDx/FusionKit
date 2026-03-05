@@ -12,6 +12,7 @@
       "upload_tips": "点击上传或直接拖拽文件到这里",
       "custom_slice_length": "自定义分片长度",
       "remove_all_resolved_task": "清空完成",
+      "clear_all_tasks": "全部清空",
       "select_output_path": "选择输出路径",
       "no_output_path_selected": "未选择输出路径",
       "output_mode": "输出位置",
@@ -44,6 +45,7 @@
       "output_path_selected": "输出路径已设置",
       "total_fragments": "总分片数：{count}",
       "task_deleted": "任务已删除",
+      "all_tasks_cleared": "已清空所有任务",
       "task_canceled": "任务已取消",
       "task_canceled_by_user": "任务已被用户取消",
       "task_cancel_toast": "任务已取消"
@@ -117,6 +119,7 @@
       "files_only": "仅支持 .lrc, .srt",
       "start_all": "开始全部",
       "remove_all_resolved_task": "清空完成",
+      "clear_all_tasks": "全部清空",
       "no_tasks": "暂无任务"
     },
     "task_status": {
@@ -141,6 +144,7 @@
     "infos": {
       "output_path_selected": "输出路径已设置",
       "task_deleted": "任务已删除",
+      "all_tasks_cleared": "已清空所有任务",
       "task_extract_done": "提取完成：{file}"
     },
     "errors": {
@@ -184,6 +188,7 @@
       "files_only": "仅支持 .lrc, .srt, .vtt",
       "start_all": "开始全部",
       "remove_all_resolved_task": "清空完成",
+      "clear_all_tasks": "全部清空",
       "no_tasks": "暂无任务"
     },
     "task_status": {
@@ -209,6 +214,7 @@
     "infos": {
       "output_path_selected": "输出路径已设置",
       "task_deleted": "任务已删除",
+      "all_tasks_cleared": "已清空所有任务",
       "task_convert_done": "转换完成：{file}"
     },
     "errors": {

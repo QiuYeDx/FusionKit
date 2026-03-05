@@ -12,6 +12,7 @@
       "upload_tips": "Click to upload or drag files here",
       "custom_slice_length": "Custom Segment Length",
       "remove_all_resolved_task": "Clear Completed",
+      "clear_all_tasks": "Clear All",
       "select_output_path": "Select Output Directory",
       "no_output_path_selected": "No output directory selected",
       "output_mode": "Output location",
@@ -44,6 +45,7 @@
       "output_path_selected": "Output path is set",
       "total_fragments": "Total fragments: {count}",
       "task_deleted": "Task deleted",
+      "all_tasks_cleared": "All tasks cleared",
       "task_canceled": "Task canceled",
       "task_canceled_by_user": "Task canceled by user",
       "task_cancel_toast": "Task canceled"
@@ -117,6 +119,7 @@
       "files_only": "Only .lrc, .srt supported",
       "start_all": "Start All",
       "remove_all_resolved_task": "Clear Completed",
+      "clear_all_tasks": "Clear All",
       "no_tasks": "No tasks yet"
     },
     "task_status": {
@@ -141,6 +144,7 @@
     "infos": {
       "output_path_selected": "Output path set",
       "task_deleted": "Task deleted",
+      "all_tasks_cleared": "All tasks cleared",
       "task_extract_done": "Extraction done: {file}"
     },
     "errors": {
@@ -184,6 +188,7 @@
       "files_only": "Only .lrc, .srt, .vtt supported",
       "start_all": "Start All",
       "remove_all_resolved_task": "Clear Completed",
+      "clear_all_tasks": "Clear All",
       "no_tasks": "No tasks yet"
     },
     "task_status": {
@@ -209,6 +214,7 @@
     "infos": {
       "output_path_selected": "Output path set",
       "task_deleted": "Task deleted",
+      "all_tasks_cleared": "All tasks cleared",
       "task_convert_done": "Conversion done: {file}"
     },
     "errors": {

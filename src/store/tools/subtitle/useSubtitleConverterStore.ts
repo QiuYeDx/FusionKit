@@ -74,6 +74,7 @@ interface SubtitleConverterStore {
   retryTask: (fileName: string) => void;
   deleteTask: (fileName: string) => void;
   removeAllResolvedTasks: () => void;
+  clearAllTasks: () => void;
   initializeStore: () => void;
 }
 
@@ -279,6 +280,15 @@ const useSubtitleConverterStore = create<SubtitleConverterStore>((set, get) => (
   },
 
   removeAllResolvedTasks: () => set({ resolvedTasks: [] }),
+
+  clearAllTasks: () => {
+    set({
+      notStartedTasks: [],
+      resolvedTasks: [],
+      failedTasks: [],
+    });
+    showToast(i18n.t("subtitle:converter.infos.all_tasks_cleared"), "success");
+  },
 
   initializeStore: () =>
     set({

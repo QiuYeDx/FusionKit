@@ -62,6 +62,7 @@ function SubtitleLanguageExtractor() {
     retryTask,
     deleteTask,
     removeAllResolvedTasks,
+    clearAllTasks,
   } = useSubtitleExtractorStore();
 
   const allTasks = [
@@ -472,7 +473,7 @@ function SubtitleLanguageExtractor() {
       </div>
 
       {/* 任务管理 */}
-      <Card className="mb-12">
+      <Card className="mb-12 overflow-hidden">
         <CardHeader>
           <div className="flex items-center justify-between">
             <CardTitle className="text-xl">{t("subtitle:extractor:task_management")}</CardTitle>
@@ -493,14 +494,22 @@ function SubtitleLanguageExtractor() {
               >
                 {t("subtitle:extractor:fields.remove_all_resolved_task")}
               </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={clearAllTasks}
+                disabled={allTasks.length === 0 || pendingTasks.length > 0}
+              >
+                {t("subtitle:extractor:fields.clear_all_tasks")}
+              </Button>
             </div>
           </div>
         </CardHeader>
         <CardContent>
-          <div className="space-y-3 max-w-4xl">
+          <div className="space-y-3">
             {allTasks.map((task, index) => (
-              <Card key={index}>
-                <CardContent>
+              <Card key={index} className="overflow-hidden">
+                <CardContent className="min-w-0">
                   <div className="flex items-center justify-between gap-3">
                     <div className="flex items-center gap-3 flex-1 min-w-0">
                       <div

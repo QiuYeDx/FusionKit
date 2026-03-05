@@ -41,7 +41,8 @@ function App() {
 
       {/* 使用 ScrollArea 替代 HTML 滚动 */}
       <ScrollArea className="flex-1 h-full">
-        <div className="pt-10">
+        {/* 加个 100vw 防止内容过宽把页面宽度撑宽 */}
+        <div className="pt-10 w-screen">
           {/* pb-20 为底部导航栏留出空间 */}
           <Routes>
             {/* 一级页面 */}

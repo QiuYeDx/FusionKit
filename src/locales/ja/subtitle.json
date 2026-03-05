@@ -12,6 +12,7 @@
       "upload_tips": "クリックしてアップロード、またはファイルをドラッグ",
       "custom_slice_length": "カスタム分割長",
       "remove_all_resolved_task": "完了をクリア",
+      "clear_all_tasks": "すべてクリア",
       "select_output_path": "出力ディレクトリを選択",
       "no_output_path_selected": "出力ディレクトリが未選択",
       "output_mode": "出力先",
@@ -44,6 +45,7 @@
       "output_path_selected": "出力パスが設定されています",
       "total_fragments": "総分片数：{count}",
       "task_deleted": "タスクを削除しました",
+      "all_tasks_cleared": "すべてのタスクをクリアしました",
       "task_canceled": "タスクをキャンセルしました",
       "task_canceled_by_user": "ユーザーによりキャンセルされました",
       "task_cancel_toast": "タスクをキャンセルしました"
@@ -117,6 +119,7 @@
       "files_only": ".lrc, .srt のみ対応",
       "start_all": "一括開始",
       "remove_all_resolved_task": "完了をクリア",
+      "clear_all_tasks": "すべてクリア",
       "no_tasks": "タスクはありません"
     },
     "task_status": {
@@ -141,6 +144,7 @@
     "infos": {
       "output_path_selected": "出力パスが設定されました",
       "task_deleted": "タスクを削除しました",
+      "all_tasks_cleared": "すべてのタスクをクリアしました",
       "task_extract_done": "抽出完了：{file}"
     },
     "errors": {
@@ -184,6 +188,7 @@
       "files_only": ".lrc, .srt, .vtt のみ対応",
       "start_all": "一括開始",
       "remove_all_resolved_task": "完了をクリア",
+      "clear_all_tasks": "すべてクリア",
       "no_tasks": "タスクはありません"
     },
     "task_status": {
@@ -209,6 +214,7 @@
     "infos": {
       "output_path_selected": "出力パスが設定されました",
       "task_deleted": "タスクを削除しました",
+      "all_tasks_cleared": "すべてのタスクをクリアしました",
       "task_convert_done": "変換完了：{file}"
     },
     "errors": {
