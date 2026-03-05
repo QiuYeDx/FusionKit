@@ -340,7 +340,7 @@
 }
 
 .streaming-fade-in {
-  animation: stream-fade-in 300ms ease-out forwards;
+  animation: stream-fade-in 500ms ease-out forwards;
 }
 
 @keyframes ring-breathe {

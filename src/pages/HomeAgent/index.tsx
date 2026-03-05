@@ -555,7 +555,11 @@ function StreamingTextContent({ text }: { text: string }) {
       {segmentsRef.current.map((seg, i) => (
         <span key={i} className="streaming-fade-in">{seg}</span>
       ))}
-      <span className="inline-block w-1.5 h-4 ml-0.5 -mb-0.5 bg-foreground/60 animate-pulse" />
+      <motion.span
+        layoutId="streaming-cursor"
+        className="inline-block w-1.5 h-4 ml-0.5 -mb-0.5 bg-foreground/60 animate-pulse"
+        transition={{ type: "spring", bounce: 0, duration: 0.2 }}
+      />
     </p>
   );
 }
