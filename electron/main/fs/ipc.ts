@@ -155,6 +155,7 @@ export function setupFsIPC() {
     async (_event, params: ReadFileHeadParams): Promise<string> => {
       const { filePath, lines } = params;
       const content = await fs.readFile(filePath, "utf-8");
+      if (lines >= 100_000) return content;
       return content.split("\n").slice(0, lines).join("\n");
     }
   );

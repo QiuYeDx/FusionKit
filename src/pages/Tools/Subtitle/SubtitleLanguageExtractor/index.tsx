@@ -137,7 +137,11 @@ function SubtitleLanguageExtractor() {
 
     const existingNames = allTasks.map((t) => t.fileName);
 
-    for (const file of Array.from(files)) {
+    const fileArray = Array.from(files);
+    for (let i = 0; i < fileArray.length; i++) {
+      const file = fileArray[i];
+      if (i > 0) await new Promise((r) => setTimeout(r, 0));
+
       const ext = file.name.split(".").pop()?.toUpperCase();
       if (
         !ext ||

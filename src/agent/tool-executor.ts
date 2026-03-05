@@ -148,7 +148,10 @@ export async function executeQueueTranslate(
   let queued = 0;
   const errors: string[] = [];
 
-  for (const filePath of args.filePaths) {
+  for (let i = 0; i < args.filePaths.length; i++) {
+    if (i > 0) await new Promise((r) => setTimeout(r, 0));
+    const filePath = args.filePaths[i];
+
     const fileContent = await readFileContent(filePath);
     if (fileContent === null) {
       errors.push(`Cannot read: ${filePath}`);
@@ -207,7 +210,10 @@ export async function executeQueueConvert(
   let queued = 0;
   const errors: string[] = [];
 
-  for (const filePath of args.filePaths) {
+  for (let i = 0; i < args.filePaths.length; i++) {
+    if (i > 0) await new Promise((r) => setTimeout(r, 0));
+    const filePath = args.filePaths[i];
+
     const fileContent = await readFileContent(filePath);
     if (fileContent === null) {
       errors.push(`Cannot read: ${filePath}`);
@@ -256,7 +262,10 @@ export async function executeQueueExtract(
   let queued = 0;
   const errors: string[] = [];
 
-  for (const filePath of args.filePaths) {
+  for (let i = 0; i < args.filePaths.length; i++) {
+    if (i > 0) await new Promise((r) => setTimeout(r, 0));
+    const filePath = args.filePaths[i];
+
     const fileContent = await readFileContent(filePath);
     if (fileContent === null) {
       errors.push(`Cannot read: ${filePath}`);

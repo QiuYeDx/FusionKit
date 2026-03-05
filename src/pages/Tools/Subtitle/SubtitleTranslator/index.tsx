@@ -387,11 +387,14 @@ function SubtitleTranslator() {
       ...failedTaskQueue,
     ].map((task) => task.fileName);
 
-    // 遍历所有选中的文件
-    for (const file of Array.from(files)) {
+    const fileArray = Array.from(files);
+    for (let i = 0; i < fileArray.length; i++) {
+      const file = fileArray[i];
+      // 每处理一个文件后让步给事件循环，避免阻塞 UI 更新
+      if (i > 0) await new Promise((r) => setTimeout(r, 0));
+
       const extension = file.name.split(".").pop()?.toUpperCase();
 
-      // 检查文件类型是否支持
       if (
         !Object.values(SubtitleFileType).includes(extension as SubtitleFileType)
       ) {
@@ -405,7 +408,6 @@ function SubtitleTranslator() {
         continue;
       }
 
-      // 检查文件名称是否已存在
       if (existingFileNames.includes(file.name)) {
         showToast(
           t("subtitle:translator.errors.duplicate_file").replace(
@@ -428,10 +430,8 @@ function SubtitleTranslator() {
       }
 
       try {
-        // 读取文件内容
         const fileContent = await file.text();
 
-        // 计算token预估
         const tokenPricing = getTokenPricingByType(model);
         const tokenEstimate = await estimateSubtitleTokens(
           fileContent,
@@ -443,10 +443,9 @@ function SubtitleTranslator() {
           tokenPricing
         );
 
-        // 创建任务
         const newTask: SubtitleTranslatorTask = {
           fileName: file.name,
-          fileContent, // 设置文件内容
+          fileContent,
           sliceType,
           originFileURL: URL.createObjectURL(file),
           targetFileURL: outputDir,
