@@ -18,7 +18,7 @@ const Tools: React.FC = () => {
       </div>
 
       {/* 字幕工具箱 */}
-      <div className="flex flex-col gap-4 mb-14">
+      <div className="flex flex-col gap-4 mb-[42px]">
         <Card className="overflow-auto">
           <CardHeader className="sticky left-0">
             <CardTitle className="text-xl">

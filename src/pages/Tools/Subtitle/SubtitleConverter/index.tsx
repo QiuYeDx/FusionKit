@@ -677,23 +677,23 @@ function SubtitleConverter() {
                   {expandedTasks.has(task.fileName) && (
                     <div className="mt-3 pt-3 border-t border-border/50">
                       <div className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 text-xs">
-                        <span className="text-muted-foreground">转换格式</span>
+                        <span className="text-muted-foreground">{t("subtitle:converter.task_detail.conversion_format")}</span>
                         <span>
                           {task.from} → {task.to}
                         </span>
-                        <span className="text-muted-foreground">源文件</span>
+                        <span className="text-muted-foreground">{t("subtitle:converter.task_detail.source_file")}</span>
                         <span className="font-mono break-all">
                           {task.originFileURL}
                         </span>
-                        <span className="text-muted-foreground">输出路径</span>
+                        <span className="text-muted-foreground">{t("subtitle:converter.task_detail.output_path")}</span>
                         <span className="font-mono break-all">
                           {task.targetFileURL}
                         </span>
-                        <span className="text-muted-foreground">重名策略</span>
+                        <span className="text-muted-foreground">{t("subtitle:converter.task_detail.conflict_policy")}</span>
                         <span>
                           {task.conflictPolicy === "overwrite"
-                            ? "覆盖"
-                            : "自动编号"}
+                            ? t("subtitle:converter.task_detail.overwrite")
+                            : t("subtitle:converter.task_detail.auto_index")}
                         </span>
                       </div>
                     </div>
@@ -716,8 +716,8 @@ function SubtitleConverter() {
           isOpen={errorModalOpen}
           onClose={closeErrorModal}
           taskName={selectedErrorTask.fileName}
-          errorMessage={selectedErrorTask.extraInfo?.message || "未知错误"}
-          errorDetails={selectedErrorTask.extraInfo?.error || "无详细错误信息"}
+          errorMessage={selectedErrorTask.extraInfo?.message || t("subtitle:converter.error_fallback.unknown")}
+          errorDetails={selectedErrorTask.extraInfo?.error || t("subtitle:converter.error_fallback.no_detail")}
           errorLogs={selectedErrorTask.errorLog || []}
         />
       )}

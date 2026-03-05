@@ -182,7 +182,7 @@ function SubtitleTranslator() {
     hasTriggeredRef.current = false;
     resetInterval();
     await stopPowerBlocker();
-    if (showMsg) showToast("已取消定时任务", "success");
+    if (showMsg) showToast(t("subtitle:translator.schedule.schedule_canceled"), "success");
   };
 
   const tryTriggerStart = async () => {
@@ -194,9 +194,9 @@ function SubtitleTranslator() {
       await stopPowerBlocker();
       if (notStartedTaskQueue.length > 0) {
         startAllTasks();
-        showToast("已到达定时时间，开始全部任务", "success");
+        showToast(t("subtitle:translator.schedule.time_reached_start"), "success");
       } else {
-        showToast("已到达定时时间，但没有可开始的任务", "default");
+        showToast(t("subtitle:translator.schedule.time_reached_no_tasks"), "default");
       }
       // 结束计划
       setScheduleEnabled(false);
@@ -543,7 +543,7 @@ function SubtitleTranslator() {
                 <div className="space-y-2">
                   <Label htmlFor="custom-length">
                     {t("subtitle:translator.fields.custom_slice_length")}{" "}
-                    (chars)
+                    ({t("subtitle:translator.new_task_config.chars_suffix")})
                   </Label>
                   <Input
                     id="custom-length"
@@ -926,7 +926,7 @@ function SubtitleTranslator() {
                       {getTokenPricingByType(
                         model
                       ).outputTokensPerMillion.toFixed(2)}{" "}
-                      per 1M tokens
+                      {t("subtitle:translator.new_task_config.rate_suffix")}
                     </div>
                   </CardContent>
                 </Card>
@@ -1051,7 +1051,7 @@ function SubtitleTranslator() {
               <CardHeader>
                 <div className="flex items-center gap-2">
                   <Cpu className="h-5 w-5" />
-                  <CardTitle className="text-lg">Token消耗预估</CardTitle>
+                  <CardTitle className="text-lg">{t("subtitle:translator.token_stats.title")}</CardTitle>
                 </div>
               </CardHeader>
               <CardContent>
@@ -1059,7 +1059,7 @@ function SubtitleTranslator() {
                   <Card className="border-muted">
                     <CardContent>
                       <div className="text-muted-foreground text-xs mb-1">
-                        总Token数
+                        {t("subtitle:translator.token_stats.total_tokens")}
                       </div>
                       <div className="font-mono text-lg">
                         {formatTokens(tokenStats.totalTokens)}
@@ -1069,7 +1069,7 @@ function SubtitleTranslator() {
                   <Card className="border-muted">
                     <CardContent>
                       <div className="text-muted-foreground text-xs mb-1">
-                        预估总费用
+                        {t("subtitle:translator.token_stats.total_cost")}
                       </div>
                       <div className="font-mono text-lg">
                         {formatCost(tokenStats.totalCost)}
@@ -1079,7 +1079,7 @@ function SubtitleTranslator() {
                   <Card className="border-muted">
                     <CardContent>
                       <div className="text-muted-foreground text-xs mb-1">
-                        待处理Token
+                        {t("subtitle:translator.token_stats.pending_tokens")}
                       </div>
                       <div className="font-mono text-lg text-orange-600">
                         {formatTokens(tokenStats.pendingTokens)}
@@ -1089,7 +1089,7 @@ function SubtitleTranslator() {
                   <Card className="border-muted">
                     <CardContent>
                       <div className="text-muted-foreground text-xs mb-1">
-                        待处理费用
+                        {t("subtitle:translator.token_stats.pending_cost")}
                       </div>
                       <div className="font-mono text-lg text-orange-600">
                         {formatCost(tokenStats.pendingCost)}
@@ -1230,45 +1230,45 @@ function SubtitleTranslator() {
                   {expandedTasks.has(task.fileName) && (
                     <div className="mt-3 pt-3 border-t border-border/50">
                       <div className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 text-xs">
-                        <span className="text-muted-foreground">分片模式</span>
+                        <span className="text-muted-foreground">{t("subtitle:translator.task_detail.slice_mode")}</span>
                         <span>
                           {t(
                             `subtitle:translator.slice_types.${task.sliceType.toLowerCase()}`
                           )}
                         </span>
-                        <span className="text-muted-foreground">API 模型</span>
+                        <span className="text-muted-foreground">{t("subtitle:translator.task_detail.api_model")}</span>
                         <span className="font-mono">{task.apiModel}</span>
                         <span className="text-muted-foreground">
-                          API 地址
+                          {t("subtitle:translator.task_detail.api_endpoint")}
                         </span>
                         <span className="font-mono break-all">
                           {task.endPoint}
                         </span>
-                        <span className="text-muted-foreground">输出路径</span>
+                        <span className="text-muted-foreground">{t("subtitle:translator.task_detail.output_path")}</span>
                         <span className="font-mono break-all">
                           {task.targetFileURL}
                         </span>
-                        <span className="text-muted-foreground">重名策略</span>
+                        <span className="text-muted-foreground">{t("subtitle:translator.task_detail.conflict_policy")}</span>
                         <span>
                           {task.conflictPolicy === "overwrite"
-                            ? "覆盖"
-                            : "自动编号"}
+                            ? t("subtitle:translator.task_detail.overwrite")
+                            : t("subtitle:translator.task_detail.auto_index")}
                         </span>
                         {task.costEstimate && (
                           <>
                             <span className="text-muted-foreground">
-                              分片数量
+                              {t("subtitle:translator.task_detail.fragment_count")}
                             </span>
                             <span>
-                              {task.costEstimate.fragmentCount} 个分片
+                              {task.costEstimate.fragmentCount} {t("subtitle:translator.task_detail.fragment_suffix")}
                             </span>
                             <span className="text-muted-foreground">
-                              Token 预估
+                              {t("subtitle:translator.task_detail.token_estimate")}
                             </span>
                             <span className="font-mono">
-                              输入{" "}
+                              {t("subtitle:translator.task_detail.input")}{" "}
                               {formatTokens(task.costEstimate.inputTokens)} /
-                              输出{" "}
+                              {t("subtitle:translator.task_detail.output")}{" "}
                               {formatTokens(task.costEstimate.outputTokens)}
                             </span>
                           </>
@@ -1298,8 +1298,8 @@ function SubtitleTranslator() {
         isOpen={errorModalOpen}
         onClose={closeErrorModal}
         taskName={selectedErrorTask?.fileName || ""}
-        errorMessage={selectedErrorTask?.extraInfo?.message || "未知错误"}
-        errorDetails={selectedErrorTask?.extraInfo?.error || "无详细错误信息"}
+        errorMessage={selectedErrorTask?.extraInfo?.message || t("subtitle:translator.error_fallback.unknown")}
+        errorDetails={selectedErrorTask?.extraInfo?.error || t("subtitle:translator.error_fallback.no_detail")}
         errorLogs={
           selectedErrorTask?.extraInfo?.errorLogs ||
           selectedErrorTask?.errorLog ||

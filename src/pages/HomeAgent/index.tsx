@@ -298,15 +298,12 @@ function HomeAgent() {
               )}
 
               {isStreaming && streamingText && (
-                <div className="flex items-start gap-2.5">
+                <div className="flex items-start gap-2.5 animate-in fade-in slide-in-from-bottom-2 duration-300">
                   <div className="flex items-center justify-center rounded-full w-7 h-7 shrink-0 bg-muted text-muted-foreground">
                     <Bot className="h-3.5 w-3.5" />
                   </div>
                   <div className="relative rounded-sm px-4 py-2.5 max-w-[80%] text-sm leading-relaxed bg-muted chat-bubble-assistant">
-                    <p className="whitespace-pre-wrap wrap-break-word">
-                      {streamingText}
-                      <span className="inline-block w-1.5 h-4 ml-0.5 -mb-0.5 bg-foreground/60 animate-pulse" />
-                    </p>
+                    <StreamingTextContent text={streamingText} />
                   </div>
                 </div>
               )}
@@ -529,6 +526,37 @@ function MessageBubble({ message }: { message: AgentMessage }) {
         <p className="whitespace-pre-wrap wrap-break-word">{message.content}</p>
       </div>
     </div>
+  );
+}
+
+function StreamingTextContent({ text }: { text: string }) {
+  const segmentsRef = useRef<string[]>([]);
+  const processedLenRef = useRef(0);
+
+  if (text.length === 0 && processedLenRef.current > 0) {
+    segmentsRef.current = [];
+    processedLenRef.current = 0;
+  }
+
+  if (text.length > processedLenRef.current) {
+    const delta = text.slice(processedLenRef.current);
+    const segs = segmentsRef.current;
+    const lastSeg = segs.length > 0 ? segs[segs.length - 1] : undefined;
+    if (lastSeg !== undefined && lastSeg.length < 12) {
+      segs[segs.length - 1] = lastSeg + delta;
+    } else {
+      segs.push(delta);
+    }
+    processedLenRef.current = text.length;
+  }
+
+  return (
+    <p className="whitespace-pre-wrap wrap-break-word">
+      {segmentsRef.current.map((seg, i) => (
+        <span key={i} className="streaming-fade-in">{seg}</span>
+      ))}
+      <span className="inline-block w-1.5 h-4 ml-0.5 -mb-0.5 bg-foreground/60 animate-pulse" />
+    </p>
   );
 }
 

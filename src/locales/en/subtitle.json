@@ -61,6 +61,32 @@
     "upload_section": "File Upload",
     "task_management": "Task Queue",
     "output_path_section": "Output Settings",
+    "token_stats": {
+      "title": "Token Consumption Estimate",
+      "total_tokens": "Total Tokens",
+      "total_cost": "Estimated Total Cost",
+      "pending_tokens": "Pending Tokens",
+      "pending_cost": "Pending Cost"
+    },
+    "task_detail": {
+      "slice_mode": "Slice Mode",
+      "api_model": "API Model",
+      "api_endpoint": "API Endpoint",
+      "source_file": "Source File",
+      "output_path": "Output Path",
+      "conflict_policy": "Conflict Policy",
+      "overwrite": "Overwrite",
+      "auto_index": "Auto-number",
+      "fragment_count": "Fragment Count",
+      "fragment_suffix": "fragments",
+      "token_estimate": "Token Estimate",
+      "input": "Input",
+      "output": "Output"
+    },
+    "error_fallback": {
+      "unknown": "Unknown error",
+      "no_detail": "No error details available"
+    },
     "dialog": {
       "select_output_title": "Select Output Directory",
       "select_output_confirm": "Use This Directory"
@@ -80,7 +106,10 @@
       "status": "Status:",
       "enabled_countdown": "Enabled, countdown",
       "sleep_blocker_on": "Sleep blocked",
-      "disabled": "Disabled"
+      "disabled": "Disabled",
+      "schedule_canceled": "Schedule canceled",
+      "time_reached_start": "Scheduled time reached, starting all tasks",
+      "time_reached_no_tasks": "Scheduled time reached, but no tasks to start"
     },
     "new_task_config": {
       "title": "New Task Configuration",
@@ -88,6 +117,7 @@
       "current_slice_mode": "Current Slice Mode",
       "chars_suffix": "chars",
       "rate_in_out": "Rate (Input/Output)",
+      "rate_suffix": "per 1M tokens",
       "total_tasks": "Total Tasks",
       "task_count": "{count} tasks"
     }
@@ -146,6 +176,19 @@
       "task_deleted": "Task deleted",
       "all_tasks_cleared": "All tasks cleared",
       "task_extract_done": "Extraction done: {file}"
+    },
+    "task_detail": {
+      "file_format": "File Format",
+      "keep_language": "Kept Language",
+      "source_file": "Source File",
+      "output_path": "Output Path",
+      "conflict_policy": "Conflict Policy",
+      "overwrite": "Overwrite",
+      "auto_index": "Auto-number"
+    },
+    "error_fallback": {
+      "unknown": "Unknown error",
+      "no_detail": "No error details available"
     },
     "errors": {
       "path_selection_failed": "Path selection failed, please try again",
@@ -216,6 +259,18 @@
       "task_deleted": "Task deleted",
       "all_tasks_cleared": "All tasks cleared",
       "task_convert_done": "Conversion done: {file}"
+    },
+    "task_detail": {
+      "conversion_format": "Conversion Format",
+      "source_file": "Source File",
+      "output_path": "Output Path",
+      "conflict_policy": "Conflict Policy",
+      "overwrite": "Overwrite",
+      "auto_index": "Auto-number"
+    },
+    "error_fallback": {
+      "unknown": "Unknown error",
+      "no_detail": "No error details available"
     },
     "errors": {
       "path_selection_failed": "Path selection failed, please try again",

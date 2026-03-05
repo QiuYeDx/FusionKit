@@ -61,6 +61,32 @@
     "upload_section": "ファイルアップロード",
     "task_management": "タスク管理",
     "output_path_section": "出力設定",
+    "token_stats": {
+      "title": "トークン消費予測",
+      "total_tokens": "トークン合計",
+      "total_cost": "予測総コスト",
+      "pending_tokens": "処理待ちトークン",
+      "pending_cost": "処理待ちコスト"
+    },
+    "task_detail": {
+      "slice_mode": "分割モード",
+      "api_model": "APIモデル",
+      "api_endpoint": "APIエンドポイント",
+      "source_file": "ソースファイル",
+      "output_path": "出力パス",
+      "conflict_policy": "重名ポリシー",
+      "overwrite": "上書き",
+      "auto_index": "自動連番",
+      "fragment_count": "分割数",
+      "fragment_suffix": "個",
+      "token_estimate": "トークン予測",
+      "input": "入力",
+      "output": "出力"
+    },
+    "error_fallback": {
+      "unknown": "不明なエラー",
+      "no_detail": "エラー詳細なし"
+    },
     "dialog": {
       "select_output_title": "出力ディレクトリを選択",
       "select_output_confirm": "このディレクトリを使用"
@@ -80,7 +106,10 @@
       "status": "状態:",
       "enabled_countdown": "有効、カウントダウン",
       "sleep_blocker_on": "スリープ防止中",
-      "disabled": "無効"
+      "disabled": "無効",
+      "schedule_canceled": "スケジュールをキャンセルしました",
+      "time_reached_start": "予定時刻に達しました、全タスクを開始します",
+      "time_reached_no_tasks": "予定時刻に達しましたが、開始可能なタスクがありません"
     },
     "new_task_config": {
       "title": "新規タスク設定",
@@ -88,6 +117,7 @@
       "current_slice_mode": "現在の分割モード",
       "chars_suffix": "文字",
       "rate_in_out": "レート（入力/出力）",
+      "rate_suffix": "/ 100万トークン",
       "total_tasks": "タスク総数",
       "task_count": "{count} 件"
     }
@@ -146,6 +176,19 @@
       "task_deleted": "タスクを削除しました",
       "all_tasks_cleared": "すべてのタスクをクリアしました",
       "task_extract_done": "抽出完了：{file}"
+    },
+    "task_detail": {
+      "file_format": "ファイル形式",
+      "keep_language": "保持する言語",
+      "source_file": "ソースファイル",
+      "output_path": "出力パス",
+      "conflict_policy": "重名ポリシー",
+      "overwrite": "上書き",
+      "auto_index": "自動連番"
+    },
+    "error_fallback": {
+      "unknown": "不明なエラー",
+      "no_detail": "エラー詳細なし"
     },
     "errors": {
       "path_selection_failed": "パス選択に失敗しました。再試行してください。",
@@ -216,6 +259,18 @@
       "task_deleted": "タスクを削除しました",
       "all_tasks_cleared": "すべてのタスクをクリアしました",
       "task_convert_done": "変換完了：{file}"
+    },
+    "task_detail": {
+      "conversion_format": "変換形式",
+      "source_file": "ソースファイル",
+      "output_path": "出力パス",
+      "conflict_policy": "重名ポリシー",
+      "overwrite": "上書き",
+      "auto_index": "自動連番"
+    },
+    "error_fallback": {
+      "unknown": "不明なエラー",
+      "no_detail": "エラー詳細なし"
     },
     "errors": {
       "path_selection_failed": "パス選択に失敗しました。再試行してください。",
