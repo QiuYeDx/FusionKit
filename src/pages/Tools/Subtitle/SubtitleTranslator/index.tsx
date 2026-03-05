@@ -19,6 +19,7 @@ import {
   AlertTriangle,
   Cpu,
   ChevronDown,
+  Info,
 } from "lucide-react";
 import { showToast } from "@/utils/toast";
 import { getSourceDirFromFile } from "@/utils/filePath";
@@ -111,6 +112,7 @@ function SubtitleTranslator() {
   const [isConfigOpen, setIsConfigOpen] = useState<boolean>(true);
   const [isOutputOpen, setIsOutputOpen] = useState<boolean>(true);
   const [isNewTaskConfigOpen, setIsNewTaskConfigOpen] = useState<boolean>(true);
+  const [expandedTasks, setExpandedTasks] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     try {
@@ -1086,7 +1088,7 @@ function SubtitleTranslator() {
           )}
 
           {/* 任务列表 */}
-          <div className="space-y-4">
+          <div className="space-y-3 max-w-4xl">
             {[
               ...notStartedTaskQueue,
               ...waitingTaskQueue,
@@ -1096,17 +1098,18 @@ function SubtitleTranslator() {
             ].map((task, index) => (
               <Card key={index}>
                 <CardContent>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-4 flex-1">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-3 flex-1 min-w-0">
                       <div
-                        className={`w-3 h-3 rounded-full ${getTaskStatusColor(
+                        className={`w-2.5 h-2.5 rounded-full shrink-0 ${getTaskStatusColor(
                           task.status
                         )}`}
                       />
-                      <div className="font-medium flex-1">
-                        {task.fileName}
-                        <div className="text-sm text-muted-foreground mt-1">
-                          {/* 显示任务状态 */}
+                      <div className="min-w-0 flex-1">
+                        <span className="font-medium text-sm truncate block">
+                          {task.fileName}
+                        </span>
+                        <div className="text-xs text-muted-foreground mt-1 flex items-center flex-wrap gap-1.5">
                           {t(
                             `subtitle:translator.task_status.${task.status.toLowerCase()}`
                           )}
@@ -1114,35 +1117,46 @@ function SubtitleTranslator() {
                             ` ${Math.round(task.progress || 0)}% (${
                               task.resolvedFragments || 0
                             }/${task.totalFragments || 0})`}
-                          {/* 显示分片模式 */}
-                          <span className="ml-4 px-2 py-1 bg-muted-foreground/20 rounded text-xs">
+                          <span className="px-1.5 py-0.5 bg-muted rounded-md text-xs">
                             {t(
                               `subtitle:translator.slice_types.${task.sliceType.toLowerCase()}`
                             )}
                           </span>
-                          {/* 显示token预估信息 */}
                           {task.costEstimate && (
-                            <span className="ml-4 font-mono">
-                              Tokens:{" "}
+                            <span className="font-mono">
                               {formatTokens(task.costEstimate.totalTokens)}
-                              <span className="ml-2 text-green-600">
+                              <span className="ml-1 text-green-600">
                                 ~{formatCost(task.costEstimate.estimatedCost)}
                               </span>
                             </span>
                           )}
-                          {/* 显示输出路径（完成后） */}
                           {task.status === TaskStatus.RESOLVED &&
                             task.extraInfo?.outputFilePath && (
-                              <span className="ml-4 font-mono text-xs text-green-600">
-                                输出: {task.extraInfo.outputFilePath}
+                              <span className="font-mono text-green-600 truncate max-w-[200px]">
+                                → {task.extraInfo.outputFilePath}
                               </span>
                             )}
                         </div>
                       </div>
                     </div>
 
-                    <ButtonGroup>
-                      {/* 查看错误详情按钮 - 仅失败任务显示 */}
+                    <ButtonGroup className="shrink-0">
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        onClick={() => {
+                          setExpandedTasks((prev) => {
+                            const next = new Set(prev);
+                            if (next.has(task.fileName))
+                              next.delete(task.fileName);
+                            else next.add(task.fileName);
+                            return next;
+                          });
+                        }}
+                      >
+                        <Info className="h-4 w-4" />
+                      </Button>
+
                       {task.status === TaskStatus.FAILED && (
                         <Button
                           variant="outline"
@@ -1150,33 +1164,30 @@ function SubtitleTranslator() {
                           className="text-destructive hover:text-destructive"
                           onClick={() => openErrorModal(task)}
                         >
-                          <AlertTriangle className="h-5 w-5" />
+                          <AlertTriangle className="h-4 w-4" />
                         </Button>
                       )}
 
-                      {/* 重试按钮 - 仅失败任务显示 */}
                       {task.status === TaskStatus.FAILED && (
                         <Button
                           variant="outline"
                           size="icon"
                           onClick={() => retryTask(task.fileName)}
                         >
-                          <RotateCw className="h-5 w-5" />
+                          <RotateCw className="h-4 w-4" />
                         </Button>
                       )}
 
-                      {/* 开始按钮 - 仅未开始任务显示 */}
                       {task.status === TaskStatus.NOT_STARTED && (
                         <Button
                           variant="outline"
                           size="icon"
                           onClick={() => startTask(task.fileName)}
                         >
-                          <PlayCircle className="h-5 w-5" />
+                          <PlayCircle className="h-4 w-4" />
                         </Button>
                       )}
 
-                      {/* 取消按钮 - 仅进行中和等待中任务显示 */}
                       {(task.status === TaskStatus.PENDING ||
                         task.status === TaskStatus.WAITING) && (
                         <Button
@@ -1184,23 +1195,72 @@ function SubtitleTranslator() {
                           size="icon"
                           onClick={() => cancelTask(task.fileName)}
                         >
-                          <X className="h-5 w-5" />
+                          <X className="h-4 w-4" />
                         </Button>
                       )}
 
-                      {/* 删除按钮 - 所有状态都可删除 */}
                       <Button
                         variant="outline"
                         size="icon"
                         onClick={() => deleteTask(task.fileName)}
                       >
-                        <Trash2 className="h-5 w-5" />
+                        <Trash2 className="h-4 w-4" />
                       </Button>
                     </ButtonGroup>
                   </div>
 
                   {task.status === TaskStatus.PENDING && (
                     <Progress value={task.progress} className="w-full mt-2" />
+                  )}
+
+                  {expandedTasks.has(task.fileName) && (
+                    <div className="mt-3 pt-3 border-t border-border/50">
+                      <div className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 text-xs">
+                        <span className="text-muted-foreground">分片模式</span>
+                        <span>
+                          {t(
+                            `subtitle:translator.slice_types.${task.sliceType.toLowerCase()}`
+                          )}
+                        </span>
+                        <span className="text-muted-foreground">API 模型</span>
+                        <span className="font-mono">{task.apiModel}</span>
+                        <span className="text-muted-foreground">
+                          API 地址
+                        </span>
+                        <span className="font-mono break-all">
+                          {task.endPoint}
+                        </span>
+                        <span className="text-muted-foreground">输出路径</span>
+                        <span className="font-mono break-all">
+                          {task.targetFileURL}
+                        </span>
+                        <span className="text-muted-foreground">重名策略</span>
+                        <span>
+                          {task.conflictPolicy === "overwrite"
+                            ? "覆盖"
+                            : "自动编号"}
+                        </span>
+                        {task.costEstimate && (
+                          <>
+                            <span className="text-muted-foreground">
+                              分片数量
+                            </span>
+                            <span>
+                              {task.costEstimate.fragmentCount} 个分片
+                            </span>
+                            <span className="text-muted-foreground">
+                              Token 预估
+                            </span>
+                            <span className="font-mono">
+                              输入{" "}
+                              {formatTokens(task.costEstimate.inputTokens)} /
+                              输出{" "}
+                              {formatTokens(task.costEstimate.outputTokens)}
+                            </span>
+                          </>
+                        )}
+                      </div>
+                    </div>
                   )}
                 </CardContent>
               </Card>

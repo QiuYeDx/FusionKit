@@ -61,6 +61,12 @@ const STORE_LABEL: Record<string, string> = {
   extract: "提取",
 };
 
+const STORE_PATH: Record<string, string> = {
+  translate: "/tools/subtitle/translator",
+  convert: "/tools/subtitle/converter",
+  extract: "/tools/subtitle/extractor",
+};
+
 // ---------------------------------------------------------------------------
 
 function HomeAgent() {
@@ -377,18 +383,40 @@ function PendingExecutionCard({
   onConfirm: () => void;
   onDismiss: () => void;
 }) {
-  const summary = pendingExecution.stores
-    .map(
-      (s) =>
-        `${STORE_LABEL[s] ?? s} ${pendingExecution.taskCounts[s] ?? 0} 个`
-    )
-    .join("、");
+  const navigate = useNavigate();
 
   return (
     <div className="pl-10 animate-in fade-in slide-in-from-bottom-2 duration-300">
-      <div className="rounded-2xl border border-primary/15 bg-primary/5 p-3.5 max-w-md">
-        <p className="text-sm mb-3">
-          已加入队列：{summary}任务。是否立即开始执行？
+      <div className="rounded-xl border border-border/60 bg-muted/40 p-4 max-w-sm">
+        <p className="text-sm font-medium mb-2.5">已加入队列</p>
+
+        <div className="space-y-1.5 mb-3">
+          {pendingExecution.stores.map((store) => (
+            <div
+              key={store}
+              className="flex items-center justify-between rounded-lg bg-background/60 border border-border/40 px-3 py-1.5"
+            >
+              <span className="text-sm text-muted-foreground">
+                {STORE_LABEL[store] ?? store}{" "}
+                <span className="font-medium text-foreground">
+                  {pendingExecution.taskCounts[store] ?? 0}
+                </span>{" "}
+                个任务
+              </span>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-6 w-6 p-0 text-muted-foreground hover:text-foreground"
+                onClick={() => navigate(STORE_PATH[store])}
+              >
+                <ArrowRight className="h-3.5 w-3.5" />
+              </Button>
+            </div>
+          ))}
+        </div>
+
+        <p className="text-xs text-muted-foreground mb-3">
+          是否立即开始执行？
         </p>
         <div className="flex items-center gap-2">
           <Button
