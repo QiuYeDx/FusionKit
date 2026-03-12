@@ -12,6 +12,7 @@
       "upload_tips": "点击上传或直接拖拽文件到这里",
       "custom_slice_length": "自定义分片长度",
       "remove_all_resolved_task": "清空完成",
+      "clear_all_tasks": "全部清空",
       "select_output_path": "选择输出路径",
       "no_output_path_selected": "未选择输出路径",
       "output_mode": "输出位置",
@@ -44,6 +45,7 @@
       "output_path_selected": "输出路径已设置",
       "total_fragments": "总分片数：{count}",
       "task_deleted": "任务已删除",
+      "all_tasks_cleared": "已清空所有任务",
       "task_canceled": "任务已取消",
       "task_canceled_by_user": "任务已被用户取消",
       "task_cancel_toast": "任务已取消"
@@ -59,6 +61,32 @@
     "upload_section": "文件上传",
     "task_management": "任务队列",
     "output_path_section": "输出设置",
+    "token_stats": {
+      "title": "Token消耗预估",
+      "total_tokens": "总Token数",
+      "total_cost": "预估总费用",
+      "pending_tokens": "待处理Token",
+      "pending_cost": "待处理费用"
+    },
+    "task_detail": {
+      "slice_mode": "分片模式",
+      "api_model": "API 模型",
+      "api_endpoint": "API 地址",
+      "source_file": "源文件",
+      "output_path": "输出路径",
+      "conflict_policy": "重名策略",
+      "overwrite": "覆盖",
+      "auto_index": "自动编号",
+      "fragment_count": "分片数量",
+      "fragment_suffix": "个分片",
+      "token_estimate": "Token 预估",
+      "input": "输入",
+      "output": "输出"
+    },
+    "error_fallback": {
+      "unknown": "未知错误",
+      "no_detail": "无详细错误信息"
+    },
     "dialog": {
       "select_output_title": "选择输出目录",
       "select_output_confirm": "选择此目录"
@@ -78,7 +106,10 @@
       "status": "状态：",
       "enabled_countdown": "已启用，倒计时",
       "sleep_blocker_on": "已防睡眠",
-      "disabled": "未启用"
+      "disabled": "未启用",
+      "schedule_canceled": "已取消定时任务",
+      "time_reached_start": "已到达定时时间，开始全部任务",
+      "time_reached_no_tasks": "已到达定时时间，但没有可开始的任务"
     },
     "new_task_config": {
       "title": "新任务配置",
@@ -86,6 +117,7 @@
       "current_slice_mode": "当前分片模式",
       "chars_suffix": "字符",
       "rate_in_out": "费率 (输入/输出)",
+      "rate_suffix": "每百万Token",
       "total_tasks": "任务总数",
       "task_count": "{count} 个任务"
     }
@@ -117,6 +149,7 @@
       "files_only": "仅支持 .lrc, .srt",
       "start_all": "开始全部",
       "remove_all_resolved_task": "清空完成",
+      "clear_all_tasks": "全部清空",
       "no_tasks": "暂无任务"
     },
     "task_status": {
@@ -141,7 +174,21 @@
     "infos": {
       "output_path_selected": "输出路径已设置",
       "task_deleted": "任务已删除",
+      "all_tasks_cleared": "已清空所有任务",
       "task_extract_done": "提取完成：{file}"
+    },
+    "task_detail": {
+      "file_format": "文件格式",
+      "keep_language": "保留语言",
+      "source_file": "源文件",
+      "output_path": "输出路径",
+      "conflict_policy": "重名策略",
+      "overwrite": "覆盖",
+      "auto_index": "自动编号"
+    },
+    "error_fallback": {
+      "unknown": "未知错误",
+      "no_detail": "无详细错误信息"
     },
     "errors": {
       "path_selection_failed": "路径选择失败，请重试",
@@ -184,6 +231,7 @@
       "files_only": "仅支持 .lrc, .srt, .vtt",
       "start_all": "开始全部",
       "remove_all_resolved_task": "清空完成",
+      "clear_all_tasks": "全部清空",
       "no_tasks": "暂无任务"
     },
     "task_status": {
@@ -209,7 +257,20 @@
     "infos": {
       "output_path_selected": "输出路径已设置",
       "task_deleted": "任务已删除",
+      "all_tasks_cleared": "已清空所有任务",
       "task_convert_done": "转换完成：{file}"
+    },
+    "task_detail": {
+      "conversion_format": "转换格式",
+      "source_file": "源文件",
+      "output_path": "输出路径",
+      "conflict_policy": "重名策略",
+      "overwrite": "覆盖",
+      "auto_index": "自动编号"
+    },
+    "error_fallback": {
+      "unknown": "未知错误",
+      "no_detail": "无详细错误信息"
     },
     "errors": {
       "path_selection_failed": "路径选择失败，请重试",

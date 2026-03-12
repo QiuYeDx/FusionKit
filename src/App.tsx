@@ -4,6 +4,7 @@ import "@/App.css";
 import About from "@/pages/About";
 import Setting from "@/pages/Setting";
 import Home from "@/pages/Home";
+import HomeAgent from "@/pages/HomeAgent";
 import Tools from "@/pages/Tools";
 import BottomNavigation from "@/pages/components/BottomNavigation";
 import AppTitleBar from "@/pages/components/AppTitleBar";
@@ -40,11 +41,13 @@ function App() {
 
       {/* 使用 ScrollArea 替代 HTML 滚动 */}
       <ScrollArea className="flex-1 h-full">
-        <div className="pb-20 pt-10">
+        {/* 加个 100vw 防止内容过宽把页面宽度撑宽 */}
+        <div className="pt-10 w-screen">
           {/* pb-20 为底部导航栏留出空间 */}
           <Routes>
             {/* 一级页面 */}
-            <Route path="/" element={<Home />} />
+            <Route path="/" element={<HomeAgent />} />
+            <Route path="/home-classic" element={<Home />} />
             <Route path="/tools" element={<Tools />} />
             <Route path="/about" element={<About />} />
             <Route path="/setting" element={<Setting />} />

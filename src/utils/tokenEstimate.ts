@@ -1,20 +1,41 @@
 import { SubtitleSliceType } from "@/type/subtitle";
 import { Model, TokenPricing } from "@/type/model";
+import { DEFAULT_SLICE_LENGTH_MAP } from "@/constants/subtitle";
 
 /**
- * 估算字幕翻译的token消耗量（通过IPC调用主进程）
- * @param content 字幕内容
- * @param sliceType 分片类型
- * @param customSliceLength 自定义分片长度（当sliceType为CUSTOM时使用）
- * @param model 模型类型
- * @param tokenPricing token价格信息
- * @returns 预估的token消耗量信息
+ * 快速估算文本的 token 数量（纯前端，无 IPC）。
+ * 对 CJK / 假名等宽字符按 ~1 token 计，Latin/数字/标点按 ~0.25 token 计。
+ * 精度足以用于费用预览，避免调用 gpt-3-encoder 阻塞主进程。
+ */
+function countTokensFast(text: string): number {
+  let tokens = 0;
+  for (let i = 0; i < text.length; i++) {
+    const code = text.charCodeAt(i);
+    if (
+      (code >= 0x4e00 && code <= 0x9fff) || // CJK Unified Ideographs
+      (code >= 0x3400 && code <= 0x4dbf) || // CJK Extension A
+      (code >= 0x3000 && code <= 0x303f) || // CJK Symbols & Punctuation
+      (code >= 0x3040 && code <= 0x309f) || // Hiragana
+      (code >= 0x30a0 && code <= 0x30ff) || // Katakana
+      (code >= 0xff00 && code <= 0xffef) || // Fullwidth Forms
+      (code >= 0xac00 && code <= 0xd7af)    // Hangul Syllables
+    ) {
+      tokens += 1;
+    } else {
+      tokens += 0.25;
+    }
+  }
+  return Math.ceil(tokens);
+}
+
+/**
+ * 估算字幕翻译的 token 消耗量（纯渲染进程本地计算，不阻塞主进程）
  */
 export const estimateSubtitleTokens = async (
   content: string,
   sliceType: SubtitleSliceType,
   customSliceLength?: number,
-  model?: Model,
+  _model?: Model,
   tokenPricing?: TokenPricing
 ): Promise<{
   inputTokens: number;
@@ -23,57 +44,29 @@ export const estimateSubtitleTokens = async (
   estimatedCost: number;
   fragmentCount: number;
 }> => {
-  try {
-    // 通过IPC调用主进程的token估算
-    const result = await window.ipcRenderer.invoke("estimate-subtitle-tokens", {
-      content,
-      sliceType,
-      customSliceLength,
-      inputTokenPrice: tokenPricing?.inputTokensPerMillion,
-      outputTokenPrice: tokenPricing?.outputTokensPerMillion
-    });
-    return result;
-  } catch (error) {
-    console.error("调用主进程计算token失败:", error);
-    // 如果调用失败，使用简化的前端估算作为兜底
-    return estimateSubtitleTokensFallback(content, sliceType, customSliceLength, tokenPricing);
-  }
-};
+  const maxTokens =
+    sliceType === SubtitleSliceType.CUSTOM
+      ? customSliceLength || 500
+      : DEFAULT_SLICE_LENGTH_MAP[sliceType];
 
-/**
- * 前端兜底的token估算（当主进程调用失败时使用）
- */
-const estimateSubtitleTokensFallback = (
-  content: string,
-  sliceType: SubtitleSliceType,
-  customSliceLength?: number,
-  tokenPricing?: TokenPricing
-): {
-  inputTokens: number;
-  outputTokens: number;
-  totalTokens: number;
-  estimatedCost: number;
-  fragmentCount: number;
-} => {
-  // 简化的token估算
-  const approximateTokens = Math.ceil(content.length * 0.75);
-  const fragmentCount = Math.ceil(approximateTokens / 1000); // 假设每个分片1000tokens
-  const inputTokens = approximateTokens + (fragmentCount * 200);
-  const outputTokens = Math.ceil(approximateTokens * 1.5);
+  const originalTokens = countTokensFast(content);
+  const promptOverhead = 200;
+  const fragmentCount = Math.max(
+    1,
+    Math.ceil(originalTokens / Math.max(1, maxTokens - promptOverhead))
+  );
+
+  const inputTokens = originalTokens + fragmentCount * promptOverhead;
+  const outputTokens = Math.ceil(originalTokens * 1.5);
   const totalTokens = inputTokens + outputTokens;
-  
-  // 使用传入的价格或默认价格
+
   const inputPrice = tokenPricing?.inputTokensPerMillion || 1.5;
   const outputPrice = tokenPricing?.outputTokensPerMillion || 2.0;
-  const estimatedCost = (inputTokens / 1000000) * inputPrice + (outputTokens / 1000000) * outputPrice;
-  
-  return {
-    inputTokens,
-    outputTokens,
-    totalTokens,
-    estimatedCost,
-    fragmentCount
-  };
+  const estimatedCost =
+    (inputTokens / 1_000_000) * inputPrice +
+    (outputTokens / 1_000_000) * outputPrice;
+
+  return { inputTokens, outputTokens, totalTokens, estimatedCost, fragmentCount };
 };
 
 /**

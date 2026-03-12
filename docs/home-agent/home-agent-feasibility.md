@@ -533,3 +533,140 @@ type ToolDefinition = {
 3. **最后演进到多步自治编排**（跨工具链式处理）。
 
 按这个顺序推进，能够最大化复用 FusionKit 现有代码资产，同时把风险和返工成本降到最低。
+
+---
+
+## 16. v2 架构重构（2026-02-26 补充）
+
+v1 实现（基于上述第 7~9 节方案）完成后，经实际使用发现以下根本性问题，触发了架构重构。
+
+### 16.1 v1 存在的问题
+
+| # | 问题 | 影响 |
+| --- | --- | --- |
+| 1 | System Prompt 过于激进（"CRITICAL: Act immediately"、"NEVER reply with a question"） | 用户闲聊时 LLM 强行调用工具，臆想不存在的任务并报错 |
+| 2 | Orchestrator 只支持一轮 follow-up | scan → queue 多步链路无法在一次对话中完成 |
+| 3 | 7 个工具、schema 深度嵌套（TargetSet 10 字段、DiscoveredFile 6 字段） | LLM 极易生成错误参数，Zod 校验频繁失败 |
+| 4 | `resolve_processing_targets` 是空壳 stub | 注册但返回占位文本，误导 LLM 调用 |
+| 5 | 无非任务对话路径 | 普通聊天触发异常流程 |
+
+根本原因：**将 Agent 设计为"工具调用管线"而非"对话助手"**。原方案假设每轮对话都会产出任务，但实际使用中大量对话是闲聊、提问、确认，不涉及任何工具调用。
+
+### 16.2 v2 设计原则
+
+1. **对话优先，工具按需**：LLM 默认作为普通对话助手；只在用户明确表达任务意图且信息充分时才调用工具。
+2. **参数极简**：工具 schema 尽量扁平，LLM 只需提供路径字符串数组等最少信息，不需要构造复杂嵌套对象。
+3. **多轮自动循环**：orchestrator 支持最多 N 轮 tool-call 循环，LLM 自主决定何时停止。
+4. **不臆想**：system prompt 明确"信息不足时追问，不要猜测"。
+
+### 16.3 架构对比
+
+```text
+v1（7 工具、单轮 follow-up、强制 tool-call）:
+  用户消息 → LLM(强制 tool-call) → 执行 1 轮 → LLM 总结 → 结束
+  问题：闲聊报错、链路断裂、参数错误
+
+v2（4 工具、多轮循环、对话优先）:
+  用户消息 → LLM(自由决策)
+    ├→ 无任务意图 → 纯文本回复 → 直接展示，结束
+    └→ 有任务意图 → tool_calls → 执行 → 结果送回 LLM → 循环 → 最终回复
+```
+
+### 16.4 工具变更
+
+| v1 工具（7 个） | v2 工具（4 个） | 变更说明 |
+| --- | --- | --- |
+| `resolve_processing_targets` | 删除 | 空壳 stub，目标解析由 LLM system prompt 承担 |
+| `scan_subtitle_files_in_targets` | `scan_subtitle_files` | 移除嵌套 TargetSet，入参简化为 `{ directories, extensions?, recursive? }` |
+| `build_processing_candidates` | 删除 | 中间筛选步骤不必要，LLM 自然语言能力替代 |
+| `apply_candidate_filters` | 删除 | 同上 |
+| `queue_subtitle_translate_tasks` | `queue_subtitle_translate` | `files: DiscoveredFile[]` → `filePaths: string[]` |
+| `queue_subtitle_convert_tasks` | `queue_subtitle_convert` | 同上 |
+| `queue_subtitle_extract_tasks` | `queue_subtitle_extract` | 同上 |
+
+### 16.5 文件变更
+
+| 文件 | 变更 |
+| --- | --- |
+| `src/agent/tool-schemas.ts` | 重写：7 嵌套 schema → 4 扁平 schema |
+| `src/agent/tool-registry.ts` | 重写：7 → 4 工具 |
+| `src/agent/tool-executor.ts` | 重写：接收路径字符串替代嵌套对象 |
+| `src/agent/orchestrator.ts` | 重写：对话优先 prompt + 多轮循环 |
+| `src/agent/types.ts` | 精简：324 → ~40 行 |
+| `src/store/agent/useAgentStore.ts` | 精简：188 → ~60 行 |
+| `src/pages/HomeAgent/index.tsx` | 优化：移除 PlanCard，改进工具结果展示 |
+| `src/agent/discovery-engine.ts` | **删除** |
+| `src/agent/filter-rules.ts` | **删除** |
+| `src/agent/target-resolver.ts` | **删除** |
+
+### 16.6 对原方案的偏差说明
+
+1. **第 7 节"7 个工具"简化为 4 个**：目录发现与筛选相关的 3 个中间工具（resolve_processing_targets、build_processing_candidates、apply_candidate_filters）被移除。实践证明 LLM 在处理这些中间环节时频繁出错，且这些步骤可以由 LLM 的语义理解能力自然完成。
+2. **第 5 节的 Directory Discovery 层取消独立模块**：扫描逻辑内联到 tool-executor 中直接调用 IPC，不再维护独立的 discovery-engine 和 filter-rules。
+3. **Task Hub / Plan 概念暂时移除**：v1 中的 AgentPlan、UnifiedTask、TaskLifecycle 等 20+ 类型在 MVP 阶段过度设计，v2 简化为直接向各工具 store 注入任务。
+4. **第 6.1 节的 TargetSet 不再暴露给 LLM**：原设计让 LLM 构造完整的 TargetSet 对象，实际测试中 LLM 难以正确填充 10 个字段。v2 改为 LLM 只提供目录路径列表，扫描和筛选由 executor 内部处理。
+
+这些偏差均在不影响最终能力的前提下，显著降低了 LLM 出错概率和开发维护成本。后续如需恢复高级筛选能力（如排除规则、glob 模式），可以在 v2 基础上渐进增加工具参数，而非回退到 v1 的复杂管线。
+
+---
+
+## 17. 执行模式实现（2026-02-26 补充）
+
+v2 架构完成后，Agent 具备了 scan → queue 的完整链路，但 queue 工具只将任务加入队列（`TaskStatus.NOT_STARTED`），用户必须手动前往工具页启动。本节补充三种执行模式的实现，对应原方案第 6.3 节"入队策略"。
+
+### 17.1 三种执行模式
+
+| 模式 | 标识 | 对应原方案 | 行为 |
+| --- | --- | --- | --- |
+| 仅添加任务 | `queue_only` | 草案模式（默认） | 任务入队后不触发执行，用户前往工具页手动启动 |
+| 询问后执行 | `ask_before_execute` | 确认即执行模式 | 任务入队后在对话区展示确认卡片，用户点击「立即执行」后调用 `startAllTasks()` |
+| 自动执行 | `auto_execute` | 自动执行模式 | 任务入队后立即自动调用对应 store 的 `startAllTasks()` |
+
+### 17.2 实现方案
+
+#### 执行模式状态管理
+
+- `ExecutionMode` 类型定义在 `src/agent/types.ts`
+- `useAgentStore` 新增 `executionMode` 字段，通过 `localStorage` 持久化，默认 `queue_only`
+- 用户通过首页底部的 `Select` 下拉切换模式
+
+#### 入队后处理（`handlePostQueue`）
+
+`tool-executor.ts` 新增统一的 `handlePostQueue(storeType, queuedCount, result)` 函数，三个 queue 工具在返回结果前调用：
+
+```text
+handlePostQueue:
+  ├→ queue_only      → 不做额外操作，返回 executionStatus: "queued_only"
+  ├→ auto_execute    → 立即调用 executeTasksInStores([storeType])，返回 executionStatus: "started"
+  └→ ask_before_execute → 设置 pendingExecution 到 AgentStore，返回 executionStatus: "pending_confirmation"
+```
+
+#### 待确认执行（ask_before_execute）
+
+- `PendingExecution` 接口跟踪哪些 store 有待执行任务及数量
+- 支持累积多轮 queue（如 scan → queue translate → queue convert 后统一确认）
+- `PendingExecutionCard` UI 组件在对话区展示确认/取消按钮
+- 用户点击「立即执行」调用 `confirmExecution()`，内部遍历 `pendingExecution.stores` 调用各 store 的 `startAllTasks()`
+
+#### System Prompt 动态感知
+
+- `orchestrator.ts` 的 system prompt 从静态常量改为 `buildSystemPrompt()` 动态函数
+- 根据当前 `executionMode` 生成不同的指导文案，让 LLM 准确描述入队后的执行状态
+
+### 17.3 与原方案的对应关系
+
+原方案第 6.3 节设计了三种入队策略（草案/确认即执行/自动执行），本实现完整落地了这三种模式：
+
+1. **草案模式** → `queue_only`：保持原设计意图，任务仅入队不执行
+2. **确认即执行** → `ask_before_execute`：原设计通过"对话中确认清单"触发，实际实现改为更直观的 UI 卡片确认（避免通过 LLM 中转确认，减少误解风险）
+3. **自动执行** → `auto_execute`：与原设计一致，入队后立即开始
+
+### 17.4 文件变更
+
+| 文件 | 变更 |
+| --- | --- |
+| `src/agent/types.ts` | 新增 `ExecutionMode`、`TaskStoreType`、`PendingExecution` 类型（42 → 60 行） |
+| `src/store/agent/useAgentStore.ts` | 新增执行模式状态、持久化、确认/取消方法、`executeTasksInStores` 导出（64 → 110 行） |
+| `src/agent/tool-executor.ts` | 新增 `handlePostQueue()` 函数，3 个 queue 工具统一调用（298 → 340 行） |
+| `src/agent/orchestrator.ts` | `SYSTEM_PROMPT` 常量 → `buildSystemPrompt()` 动态函数（262 → 279 行） |
+| `src/pages/HomeAgent/index.tsx` | 新增 `ExecutionModeSelector` + `PendingExecutionCard` 组件（284 → 402 行） |

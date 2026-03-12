@@ -1,24 +1,23 @@
 import { useTranslation } from "react-i18next";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useState } from "react";
 import {
   RotateCw,
   Folder,
   FolderOpen,
   PlayCircle,
-  X,
   Trash2,
   AlertTriangle,
   ChevronDown,
+  Info,
 } from "lucide-react";
 import {
-  OutputConflictPolicy,
-  OutputPathMode,
+  SubtitleConverterTask,
   SubtitleFileType,
   TaskStatus,
 } from "@/type/subtitle";
 import { showToast } from "@/utils/toast";
-import { showSystemNotification } from "@/utils/notification";
 import { getSourceDirFromFile } from "@/utils/filePath";
+import useSubtitleConverterStore from "@/store/tools/subtitle/useSubtitleConverterStore";
 import ErrorDetailModal from "@/components/ErrorDetailModal";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -36,112 +35,54 @@ import {
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 
-interface SubtitleConverterTask {
-  fileName: string;
-  fileContent: string;
-  from: SubtitleFileType;
-  to: SubtitleFileType;
-  originFileURL: string;
-  targetFileURL: string;
-  status: TaskStatus;
-  progress?: number;
-  errorLog?: string[];
-  extraInfo?: { [key: string]: any };
-  outputFilePath?: string;
-  conflictPolicy?: OutputConflictPolicy;
-}
-
 function SubtitleConverter() {
   const { t } = useTranslation();
 
-  // 折叠状态
+  // 折叠状态（纯 UI，留在组件内）
   const [isConfigOpen, setIsConfigOpen] = useState<boolean>(true);
   const [isOutputOpen, setIsOutputOpen] = useState<boolean>(true);
   const [isSummaryOpen, setIsSummaryOpen] = useState<boolean>(true);
-
-  // 配置
-  const [toFormat, setToFormat] = useState<SubtitleFileType>(
-    SubtitleFileType.SRT
-  );
-  const [defaultDurationSec, setDefaultDurationSec] = useState<string>("2");
-  const [stripMediaExt, setStripMediaExt] = useState<boolean>(() => {
-    const raw = localStorage.getItem("subtitle-converter-strip-media-ext");
-    // 默认开启：避免 xxx.wav.vtt 转换后变成 xxx.wav.lrc
-    if (raw === null) return true;
-    return raw === "true";
-  });
-
-  // 输出路径
-  const [outputURL, setOutputURL] = useState<string>(
-    localStorage.getItem("subtitle-converter-output-url") || ""
-  );
-  const [outputMode, setOutputMode] = useState<OutputPathMode>(() => {
-    const raw = localStorage.getItem("subtitle-converter-output-mode");
-    return raw === "source" ? "source" : "custom";
-  });
-  const [conflictPolicy, setConflictPolicy] =
-    useState<OutputConflictPolicy>(() => {
-      const raw = localStorage.getItem("subtitle-converter-conflict-policy");
-      return raw === "overwrite" ? "overwrite" : "index";
-    });
-
-  useEffect(() => {
-    try {
-      localStorage.setItem("subtitle-converter-output-url", outputURL);
-    } catch { }
-  }, [outputURL]);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem("subtitle-converter-output-mode", outputMode);
-    } catch { }
-  }, [outputMode]);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem(
-        "subtitle-converter-conflict-policy",
-        conflictPolicy
-      );
-    } catch { }
-  }, [conflictPolicy]);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem(
-        "subtitle-converter-strip-media-ext",
-        String(stripMediaExt)
-      );
-    } catch { }
-  }, [stripMediaExt]);
-
-  // 拖拽
   const [isDragging, setIsDragging] = useState(false);
+  const [expandedTasks, setExpandedTasks] = useState<Set<string>>(new Set());
 
-  // 任务
-  const [tasks, setTasks] = useState<SubtitleConverterTask[]>([]);
-
-  const notStartedTasks = useMemo(
-    () => tasks.filter((t) => t.status === TaskStatus.NOT_STARTED),
-    [tasks]
-  );
-  const pendingTasks = useMemo(
-    () => tasks.filter((t) => t.status === TaskStatus.PENDING),
-    [tasks]
-  );
-  const resolvedTasks = useMemo(
-    () => tasks.filter((t) => t.status === TaskStatus.RESOLVED),
-    [tasks]
-  );
-  const failedTasks = useMemo(
-    () => tasks.filter((t) => t.status === TaskStatus.FAILED),
-    [tasks]
-  );
-
-  // 错误详情
+  // 错误详情弹窗
   const [errorModalOpen, setErrorModalOpen] = useState(false);
   const [selectedErrorTask, setSelectedErrorTask] =
     useState<SubtitleConverterTask | null>(null);
+
+  // ---- 从 Store 获取状态与方法 ----
+  const {
+    toFormat,
+    defaultDurationSec,
+    stripMediaExt,
+    outputURL,
+    outputMode,
+    conflictPolicy,
+    notStartedTasks,
+    pendingTasks,
+    resolvedTasks,
+    failedTasks,
+    setToFormat,
+    setDefaultDurationSec,
+    setStripMediaExt,
+    setOutputURL,
+    setOutputMode,
+    setConflictPolicy,
+    addTask,
+    startTask,
+    startAllTasks,
+    retryTask,
+    deleteTask,
+    removeAllResolvedTasks,
+    clearAllTasks,
+  } = useSubtitleConverterStore();
+
+  const allTasks = [
+    ...notStartedTasks,
+    ...pendingTasks,
+    ...resolvedTasks,
+    ...failedTasks,
+  ];
 
   const openErrorModal = (task: SubtitleConverterTask) => {
     setSelectedErrorTask(task);
@@ -162,14 +103,13 @@ function SubtitleConverter() {
         }
       );
       if (result && !result.canceled && result.filePaths.length > 0) {
-        const selectedPath = result.filePaths[0];
-        setOutputURL(selectedPath);
+        setOutputURL(result.filePaths[0]);
         showToast(
           t("subtitle:converter.infos.output_path_selected"),
           "success"
         );
       }
-    } catch (error) {
+    } catch {
       showToast(t("subtitle:converter.errors.path_selection_failed"), "error");
     }
   };
@@ -207,9 +147,13 @@ function SubtitleConverter() {
     const files = e.target.files;
     if (!files || files.length === 0) return;
 
-    const existingNames = tasks.map((t) => t.fileName);
+    const existingNames = allTasks.map((t) => t.fileName);
 
-    for (const file of Array.from(files)) {
+    const fileArray = Array.from(files);
+    for (let i = 0; i < fileArray.length; i++) {
+      const file = fileArray[i];
+      if (i > 0) await new Promise((r) => setTimeout(r, 0));
+
       const ext = file.name.split(".").pop()?.toUpperCase();
       if (
         !ext ||
@@ -252,21 +196,20 @@ function SubtitleConverter() {
       try {
         const fileContent = await file.text();
         const from = ext as SubtitleFileType;
-        const to = toFormat;
 
         const newTask: SubtitleConverterTask = {
           fileName: file.name,
           fileContent,
           from,
-          to,
+          to: toFormat,
           originFileURL: URL.createObjectURL(file),
           targetFileURL: outputDir,
           status: TaskStatus.NOT_STARTED,
           progress: 0,
           conflictPolicy,
         };
-        setTasks((prev) => [...prev, newTask]);
-      } catch (err) {
+        addTask(newTask);
+      } catch {
         showToast(
           t("subtitle:converter.errors.read_file_failed").replace(
             "{file}",
@@ -276,116 +219,6 @@ function SubtitleConverter() {
         );
       }
     }
-  };
-
-  const startTask = async (fileName: string) => {
-    setTasks((prev) =>
-      prev.map((t) =>
-        t.fileName === fileName
-          ? { ...t, status: TaskStatus.PENDING, progress: 10 }
-          : t
-      )
-    );
-
-    const task = tasks.find((t) => t.fileName === fileName);
-    if (!task) return;
-
-    try {
-      const defaultDurationMs =
-        Math.max(0, Math.floor(Number(defaultDurationSec) * 1000)) || 2000;
-      const res = await window.ipcRenderer.invoke("convert-subtitle", {
-        fileName: task.fileName,
-        fileContent: task.fileContent,
-        from: task.from,
-        to: task.to,
-        outputDir: task.targetFileURL,
-        defaultDurationMs,
-        stripMediaExt,
-        conflictPolicy: task.conflictPolicy ?? conflictPolicy,
-      });
-      setTasks((prev) =>
-        prev.map((t) =>
-          t.fileName === fileName
-            ? {
-              ...t,
-              status: TaskStatus.RESOLVED,
-              progress: 100,
-              outputFilePath: res?.outputFilePath,
-            }
-            : t
-        )
-      );
-      showToast(
-        t("subtitle:converter.infos.task_convert_done").replace(
-          "{file}",
-          fileName
-        ),
-        "success"
-      );
-      showSystemNotification(
-        "FusionKit",
-        t("setting:fields.notification.task_resolved", { file: fileName })
-      );
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      setTasks((prev) =>
-        prev.map((t) =>
-          t.fileName === fileName
-            ? {
-              ...t,
-              status: TaskStatus.FAILED,
-              progress: 0,
-              extraInfo: { message, error },
-            }
-            : t
-        )
-      );
-      showToast(
-        t("subtitle:converter.errors.task_convert_failed").replace(
-          "{file}",
-          fileName
-        ),
-        "error"
-      );
-      showSystemNotification(
-        "FusionKit",
-        t("setting:fields.notification.task_failed", { file: fileName })
-      );
-    }
-  };
-
-  const startAllTasks = async () => {
-    const targets = tasks.filter((t) => t.status === TaskStatus.NOT_STARTED);
-    for (const t of targets) {
-      // 顺序执行，避免磁盘抖动；转换轻量，速度可接受
-      // 如需并发，可 Promise.all 或限制并发
-      // eslint-disable-next-line no-await-in-loop
-      await startTask(t.fileName);
-    }
-  };
-
-  const retryTask = (fileName: string) => {
-    setTasks((prev) =>
-      prev.map((t) =>
-        t.fileName === fileName
-          ? {
-            ...t,
-            status: TaskStatus.NOT_STARTED,
-            progress: 0,
-            extraInfo: undefined,
-          }
-          : t
-      )
-    );
-  };
-
-  const removeAllResolvedTask = () => {
-    setTasks((prev) => prev.filter((t) => t.status !== TaskStatus.RESOLVED));
-  };
-
-  const deleteTask = (fileName: string) => {
-    setTasks((prev) => prev.filter((t) => t.fileName !== fileName));
-    showToast(t("subtitle:converter.infos.task_deleted"), "success");
   };
 
   const getTaskStatusColor = (status: TaskStatus) => {
@@ -546,7 +379,6 @@ function SubtitleConverter() {
                   </ButtonGroup>
                 </div>
 
-                {/* 选择输出目录 */}
                 {outputMode === "custom" ? (
                   <div className="w-full">
                     <ButtonGroup className="flex items-center pl-[116px] w-full">
@@ -559,7 +391,7 @@ function SubtitleConverter() {
                           "subtitle:converter.fields.no_output_path_selected"
                         )}
                         value={outputURL}
-                        onChange={() => { }}
+                        onChange={() => {}}
                         onClick={handleSelectOutputPath}
                         className="grow"
                         readOnly
@@ -572,7 +404,6 @@ function SubtitleConverter() {
                   </p>
                 )}
 
-                {/* 重名处理方式 */}
                 <div className="flex items-center gap-4">
                   <Label className="text-sm font-medium min-w-[100px]">
                     {t("subtitle:converter.fields.conflict_policy")}
@@ -652,7 +483,7 @@ function SubtitleConverter() {
                     <div className="font-medium">
                       {t("subtitle:converter.summary.task_count").replace(
                         "{count}",
-                        String(tasks.length)
+                        String(allTasks.length)
                       )}
                     </div>
                   </CardContent>
@@ -710,7 +541,7 @@ function SubtitleConverter() {
       </div>
 
       {/* 任务管理 */}
-      <Card className="mb-12">
+      <Card className="mb-12 overflow-hidden">
         <CardHeader>
           <div className="flex items-center justify-between">
             <CardTitle className="text-xl">{t("subtitle:converter.task_management")}</CardTitle>
@@ -726,54 +557,78 @@ function SubtitleConverter() {
               <Button
                 variant={resolvedTasks.length === 0 ? "outline" : "default"}
                 size="sm"
-                onClick={removeAllResolvedTask}
+                onClick={removeAllResolvedTasks}
                 disabled={resolvedTasks.length === 0}
               >
                 {t("subtitle:converter.fields.remove_all_resolved_task")}
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={clearAllTasks}
+                disabled={allTasks.length === 0 || pendingTasks.length > 0}
+              >
+                {t("subtitle:converter.fields.clear_all_tasks")}
               </Button>
             </div>
           </div>
         </CardHeader>
         <CardContent>
-          {/* 列表 */}
-          <div className="space-y-4">
-            {tasks.map((task, index) => (
-              <Card key={index}>
-                <CardContent>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-4 flex-1">
+          <div className="space-y-3">
+            {allTasks.map((task, index) => (
+              <Card key={index} className="overflow-hidden">
+                <CardContent className="min-w-0">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-3 flex-1 min-w-0">
                       <div
-                        className={`w-3 h-3 rounded-full ${getTaskStatusColor(
+                        className={`w-2.5 h-2.5 rounded-full shrink-0 ${getTaskStatusColor(
                           task.status
                         )}`}
                       />
-                      <div className="font-medium flex-1">
-                        {task.fileName}
-                        <div className="text-sm text-muted-foreground mt-1">
+                      <div className="min-w-0 flex-1">
+                        <span className="font-medium text-sm truncate block">
+                          {task.fileName}
+                        </span>
+                        <div className="text-xs text-muted-foreground mt-1 flex items-center flex-wrap gap-1.5">
                           {task.status === TaskStatus.NOT_STARTED &&
                             t("subtitle:converter.task_status.notstarted")}
                           {task.status === TaskStatus.PENDING &&
-                            ` ${t(
+                            `${t(
                               "subtitle:converter.task_status.pending"
                             )} ${Math.round(task.progress || 0)}%`}
                           {task.status === TaskStatus.RESOLVED &&
-                            ` ${t("subtitle:converter.task_status.resolved")}`}
+                            t("subtitle:converter.task_status.resolved")}
                           {task.status === TaskStatus.FAILED &&
-                            ` ${t("subtitle:converter.task_status.failed")}`}
-                          <span className="ml-4 px-2 py-1 bg-muted-foreground/20 rounded text-xs">
+                            t("subtitle:converter.task_status.failed")}
+                          <span className="px-1.5 py-0.5 bg-muted rounded-md text-xs">
                             {task.from} → {task.to}
                           </span>
                           {task.outputFilePath && (
-                            <span className="ml-4 font-mono text-xs text-green-600">
-                              {t("subtitle:converter.labels.output")}:{" "}
-                              {task.outputFilePath}
+                            <span className="font-mono text-green-600 truncate max-w-[200px]">
+                              → {task.outputFilePath}
                             </span>
                           )}
                         </div>
                       </div>
                     </div>
 
-                    <ButtonGroup>
+                    <ButtonGroup className="shrink-0">
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        onClick={() => {
+                          setExpandedTasks((prev) => {
+                            const next = new Set(prev);
+                            if (next.has(task.fileName))
+                              next.delete(task.fileName);
+                            else next.add(task.fileName);
+                            return next;
+                          });
+                        }}
+                      >
+                        <Info className="h-4 w-4" />
+                      </Button>
+
                       {task.status === TaskStatus.FAILED && (
                         <Button
                           variant="outline"
@@ -781,7 +636,7 @@ function SubtitleConverter() {
                           className="text-destructive hover:text-destructive"
                           onClick={() => openErrorModal(task)}
                         >
-                          <AlertTriangle className="h-5 w-5" />
+                          <AlertTriangle className="h-4 w-4" />
                         </Button>
                       )}
 
@@ -791,7 +646,7 @@ function SubtitleConverter() {
                           size="icon"
                           onClick={() => retryTask(task.fileName)}
                         >
-                          <RotateCw className="h-5 w-5" />
+                          <RotateCw className="h-4 w-4" />
                         </Button>
                       )}
 
@@ -801,7 +656,7 @@ function SubtitleConverter() {
                           size="icon"
                           onClick={() => startTask(task.fileName)}
                         >
-                          <PlayCircle className="h-5 w-5" />
+                          <PlayCircle className="h-4 w-4" />
                         </Button>
                       )}
 
@@ -810,7 +665,7 @@ function SubtitleConverter() {
                         size="icon"
                         onClick={() => deleteTask(task.fileName)}
                       >
-                        <Trash2 className="h-5 w-5" />
+                        <Trash2 className="h-4 w-4" />
                       </Button>
                     </ButtonGroup>
                   </div>
@@ -818,12 +673,37 @@ function SubtitleConverter() {
                   {task.status === TaskStatus.PENDING && (
                     <Progress value={task.progress} className="w-full mt-2" />
                   )}
+
+                  {expandedTasks.has(task.fileName) && (
+                    <div className="mt-3 pt-3 border-t border-border/50">
+                      <div className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 text-xs">
+                        <span className="text-muted-foreground">{t("subtitle:converter.task_detail.conversion_format")}</span>
+                        <span>
+                          {task.from} → {task.to}
+                        </span>
+                        <span className="text-muted-foreground">{t("subtitle:converter.task_detail.source_file")}</span>
+                        <span className="font-mono break-all">
+                          {task.originFileURL}
+                        </span>
+                        <span className="text-muted-foreground">{t("subtitle:converter.task_detail.output_path")}</span>
+                        <span className="font-mono break-all">
+                          {task.targetFileURL}
+                        </span>
+                        <span className="text-muted-foreground">{t("subtitle:converter.task_detail.conflict_policy")}</span>
+                        <span>
+                          {task.conflictPolicy === "overwrite"
+                            ? t("subtitle:converter.task_detail.overwrite")
+                            : t("subtitle:converter.task_detail.auto_index")}
+                        </span>
+                      </div>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             ))}
           </div>
 
-          {tasks.length === 0 && (
+          {allTasks.length === 0 && (
             <div className="text-center py-8 text-muted-foreground">
               {t("subtitle:converter.fields.no_tasks")}
             </div>
@@ -836,8 +716,8 @@ function SubtitleConverter() {
           isOpen={errorModalOpen}
           onClose={closeErrorModal}
           taskName={selectedErrorTask.fileName}
-          errorMessage={selectedErrorTask.extraInfo?.message || "未知错误"}
-          errorDetails={selectedErrorTask.extraInfo?.error || "无详细错误信息"}
+          errorMessage={selectedErrorTask.extraInfo?.message || t("subtitle:converter.error_fallback.unknown")}
+          errorDetails={selectedErrorTask.extraInfo?.error || t("subtitle:converter.error_fallback.no_detail")}
           errorLogs={selectedErrorTask.errorLog || []}
         />
       )}

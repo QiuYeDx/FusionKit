@@ -1,0 +1,348 @@
+import type {
+  ScanSubtitleFilesArgs,
+  QueueTranslateArgs,
+  QueueConvertArgs,
+  QueueExtractArgs,
+} from "./tool-schemas";
+import type { TaskStoreType } from "./types";
+import {
+  TaskStatus,
+  type SubtitleConverterTask,
+  type SubtitleExtractorTask,
+} from "@/type/subtitle";
+import useSubtitleConverterStore from "@/store/tools/subtitle/useSubtitleConverterStore";
+import useSubtitleExtractorStore from "@/store/tools/subtitle/useSubtitleExtractorStore";
+import useSubtitleTranslatorStore from "@/store/tools/subtitle/useSubtitleTranslatorStore";
+import useModelStore from "@/store/useModelStore";
+import useAgentStore, { executeTasksInStores } from "@/store/agent/useAgentStore";
+import { estimateSubtitleTokens } from "@/utils/tokenEstimate";
+import type { SubtitleSliceType } from "@/type/subtitle";
+
+// ---------------------------------------------------------------------------
+// Tool Executor — 工具执行函数（由 AI SDK tool() 的 execute 调用）
+// ---------------------------------------------------------------------------
+
+export interface ToolExecutionResult {
+  success: boolean;
+  data?: any;
+  error?: string;
+}
+
+// ---------------------------------------------------------------------------
+// 执行模式处理 — 入队后根据模式决定是否立即执行
+// ---------------------------------------------------------------------------
+
+function handlePostQueue(
+  storeType: TaskStoreType,
+  queuedCount: number,
+  result: ToolExecutionResult
+): ToolExecutionResult {
+  if (queuedCount === 0) return result;
+
+  const { executionMode, pendingExecution } = useAgentStore.getState();
+
+  switch (executionMode) {
+    case "auto_execute":
+      executeTasksInStores([storeType]);
+      result.data = {
+        ...result.data,
+        executionMode: "auto_execute",
+        executionStatus: "started",
+      };
+      break;
+
+    case "ask_before_execute": {
+      const prevStores = pendingExecution?.stores ?? [];
+      const prevCounts = pendingExecution?.taskCounts ?? {};
+      useAgentStore.getState().setPendingExecution({
+        stores: prevStores.includes(storeType) ? prevStores : [...prevStores, storeType],
+        taskCounts: { ...prevCounts, [storeType]: (prevCounts[storeType] ?? 0) + queuedCount },
+        timestamp: Date.now(),
+      });
+      result.data = {
+        ...result.data,
+        executionMode: "ask_before_execute",
+        executionStatus: "pending_confirmation",
+      };
+      break;
+    }
+
+    case "queue_only":
+    default:
+      result.data = {
+        ...result.data,
+        executionMode: "queue_only",
+        executionStatus: "queued_only",
+      };
+      break;
+  }
+
+  return result;
+}
+
+// ---------------------------------------------------------------------------
+// scan_subtitle_files
+// ---------------------------------------------------------------------------
+
+export async function executeScan(
+  args: ScanSubtitleFilesArgs
+): Promise<ToolExecutionResult> {
+  const allFiles: Array<{
+    absolutePath: string;
+    fileName: string;
+    extension: string;
+    size: number;
+    sourceDirectory: string;
+  }> = [];
+
+  for (const dir of args.directories) {
+    try {
+      const result = await window.ipcRenderer.invoke("scan-directory", {
+        directory: dir,
+        extensions: args.extensions,
+        recursive: args.recursive,
+        maxFiles: 10000,
+      });
+      if (result?.files) {
+        for (const f of result.files) {
+          allFiles.push({
+            absolutePath: f.absolutePath,
+            fileName: f.fileName,
+            extension: f.extension,
+            size: f.size,
+            sourceDirectory: f.sourceDirectory ?? dir,
+          });
+        }
+      }
+    } catch (err: any) {
+      return {
+        success: false,
+        error: `Failed to scan directory "${dir}": ${err?.message || err}`,
+      };
+    }
+  }
+
+  const deduped = deduplicateByPath(allFiles);
+
+  return {
+    success: true,
+    data: {
+      files: deduped,
+      totalCount: deduped.length,
+      scannedDirectories: args.directories,
+    },
+  };
+}
+
+// ---------------------------------------------------------------------------
+// queue_subtitle_translate
+// ---------------------------------------------------------------------------
+
+export async function executeQueueTranslate(
+  args: QueueTranslateArgs
+): Promise<ToolExecutionResult> {
+  const store = useSubtitleTranslatorStore.getState();
+  const modelStore = useModelStore.getState();
+  const currentModel = modelStore.model;
+
+  let queued = 0;
+  const errors: string[] = [];
+
+  for (let i = 0; i < args.filePaths.length; i++) {
+    if (i > 0) await new Promise((r) => setTimeout(r, 0));
+    const filePath = args.filePaths[i];
+
+    const fileContent = await readFileContent(filePath);
+    if (fileContent === null) {
+      errors.push(`Cannot read: ${filePath}`);
+      continue;
+    }
+    const fileName = extractFileName(filePath);
+    const outputDir = resolveOutputDir(args.outputMode, args.outputDir, filePath);
+
+    const tokenPricing = modelStore.getTokenPricingByType(currentModel);
+    const costEstimate = await estimateSubtitleTokens(
+      fileContent,
+      args.sliceType as SubtitleSliceType,
+      undefined,
+      currentModel,
+      tokenPricing
+    );
+
+    store.addTask({
+      fileName,
+      fileContent,
+      sliceType: args.sliceType as any,
+      originFileURL: filePath,
+      targetFileURL: outputDir,
+      status: TaskStatus.NOT_STARTED,
+      progress: 0,
+      costEstimate,
+      apiKey: modelStore.getApiKeyByType(currentModel),
+      apiModel: modelStore.getModelKeyByType(currentModel),
+      endPoint: modelStore.getModelUrlByType(currentModel),
+      conflictPolicy: "index",
+    });
+    queued++;
+  }
+
+  const result: ToolExecutionResult = {
+    success: true,
+    data: {
+      queuedCount: queued,
+      totalFiles: args.filePaths.length,
+      ...(errors.length > 0 ? { errors } : {}),
+    },
+  };
+
+  return handlePostQueue("translate", queued, result);
+}
+
+// ---------------------------------------------------------------------------
+// queue_subtitle_convert
+// ---------------------------------------------------------------------------
+
+export async function executeQueueConvert(
+  args: QueueConvertArgs
+): Promise<ToolExecutionResult> {
+  const store = useSubtitleConverterStore.getState();
+
+  let queued = 0;
+  const errors: string[] = [];
+
+  for (let i = 0; i < args.filePaths.length; i++) {
+    if (i > 0) await new Promise((r) => setTimeout(r, 0));
+    const filePath = args.filePaths[i];
+
+    const fileContent = await readFileContent(filePath);
+    if (fileContent === null) {
+      errors.push(`Cannot read: ${filePath}`);
+      continue;
+    }
+    const fileName = extractFileName(filePath);
+    const ext = extractExtension(filePath);
+    const outputDir = resolveOutputDir(args.outputMode, args.outputDir, filePath);
+
+    const task: SubtitleConverterTask = {
+      fileName,
+      fileContent,
+      from: ext as any,
+      to: args.to as any,
+      originFileURL: filePath,
+      targetFileURL: outputDir,
+      status: TaskStatus.NOT_STARTED,
+      progress: 0,
+      conflictPolicy: "index",
+    };
+    store.addTask(task);
+    queued++;
+  }
+
+  const result: ToolExecutionResult = {
+    success: true,
+    data: {
+      queuedCount: queued,
+      totalFiles: args.filePaths.length,
+      ...(errors.length > 0 ? { errors } : {}),
+    },
+  };
+
+  return handlePostQueue("convert", queued, result);
+}
+
+// ---------------------------------------------------------------------------
+// queue_subtitle_extract
+// ---------------------------------------------------------------------------
+
+export async function executeQueueExtract(
+  args: QueueExtractArgs
+): Promise<ToolExecutionResult> {
+  const store = useSubtitleExtractorStore.getState();
+
+  let queued = 0;
+  const errors: string[] = [];
+
+  for (let i = 0; i < args.filePaths.length; i++) {
+    if (i > 0) await new Promise((r) => setTimeout(r, 0));
+    const filePath = args.filePaths[i];
+
+    const fileContent = await readFileContent(filePath);
+    if (fileContent === null) {
+      errors.push(`Cannot read: ${filePath}`);
+      continue;
+    }
+    const fileName = extractFileName(filePath);
+    const ext = extractExtension(filePath);
+    const outputDir = resolveOutputDir(args.outputMode, args.outputDir, filePath);
+
+    const task: SubtitleExtractorTask = {
+      fileName,
+      fileContent,
+      fileType: ext as any,
+      originFileURL: filePath,
+      targetFileURL: outputDir,
+      keep: args.keep,
+      status: TaskStatus.NOT_STARTED,
+      progress: 0,
+      conflictPolicy: "index",
+    };
+    store.addTask(task);
+    queued++;
+  }
+
+  const result: ToolExecutionResult = {
+    success: true,
+    data: {
+      queuedCount: queued,
+      totalFiles: args.filePaths.length,
+      ...(errors.length > 0 ? { errors } : {}),
+    },
+  };
+
+  return handlePostQueue("extract", queued, result);
+}
+
+// ---------------------------------------------------------------------------
+// 工具函数
+// ---------------------------------------------------------------------------
+
+async function readFileContent(absolutePath: string): Promise<string | null> {
+  try {
+    return await window.ipcRenderer.invoke("read-file-head", {
+      filePath: absolutePath,
+      lines: 999999,
+    });
+  } catch {
+    return null;
+  }
+}
+
+function extractFileName(filePath: string): string {
+  return filePath.replace(/\\/g, "/").split("/").pop() || filePath;
+}
+
+function extractExtension(filePath: string): string {
+  const parts = filePath.split(".");
+  return (parts.pop() || "").toUpperCase();
+}
+
+function resolveOutputDir(
+  mode: string | undefined,
+  customDir: string | undefined,
+  filePath: string
+): string {
+  if (mode === "custom" && customDir) return customDir;
+  return filePath.replace(/\\/g, "/").split("/").slice(0, -1).join("/");
+}
+
+function deduplicateByPath<T extends { absolutePath: string }>(
+  files: T[]
+): T[] {
+  const seen = new Set<string>();
+  return files.filter((f) => {
+    const key = f.absolutePath.replace(/\\/g, "/");
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}

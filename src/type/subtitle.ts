@@ -48,3 +48,33 @@ export type SubtitleTranslatorTask = {
   extraInfo?: { [key: string]: any };
   conflictPolicy?: OutputConflictPolicy;
 };
+
+export type SubtitleConverterTask = {
+  fileName: string;
+  fileContent: string;
+  from: SubtitleFileType;
+  to: SubtitleFileType;
+  originFileURL: string;
+  targetFileURL: string;
+  status: TaskStatus;
+  progress?: number;
+  errorLog?: string[];
+  extraInfo?: { [key: string]: any };
+  outputFilePath?: string;
+  conflictPolicy?: OutputConflictPolicy;
+};
+
+export type SubtitleExtractorTask = {
+  fileName: string;
+  fileContent: string;
+  fileType: SubtitleFileType;
+  originFileURL: string;
+  targetFileURL: string;
+  keep: "ZH" | "JA";
+  status: TaskStatus;
+  progress?: number;
+  errorLog?: string[];
+  extraInfo?: { [key: string]: any };
+  outputFilePath?: string;
+  conflictPolicy?: OutputConflictPolicy;
+};

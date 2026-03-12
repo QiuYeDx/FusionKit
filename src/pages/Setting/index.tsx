@@ -16,7 +16,7 @@ const Setting: React.FC = () => {
         </div>
       </div>
 
-      <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-4 pb-[42px]">
         {/* 常规设置 (主题 + 语言) */}
         <GeneralConfig />
         {/* 代理设置 */}
