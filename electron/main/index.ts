@@ -63,7 +63,7 @@ async function createWindow() {
     resizable: true,
     titleBarStyle: "hidden",
     ...(process.platform === "darwin"
-      ? { trafficLightPosition: { x: 16, y: 12 } }
+      ? { trafficLightPosition: { x: 15, y: 11.5 } } // macOS 左上角的红黄绿圆点
       : {}),
     // ...(process.platform !== "darwin" ? { titleBarOverlay: true } : {}), // TODO: 临时关闭 Windows 上的右上角操作按钮
     webPreferences: {
