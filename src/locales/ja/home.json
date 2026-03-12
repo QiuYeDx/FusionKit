@@ -17,5 +17,7 @@
   "feature_fast": "高速で効率的",
   "feature_fast_description": "最適化されたアーキテクチャと効率的な処理フローにより、極めて高速なパフォーマンスと応答性を提供します。",
   "feature_secure": "安全で信頼性",
-  "feature_secure_description": "すべてのデータはローカルで処理され、クラウドにアップロードされないため、プライバシーとセキュリティが確保されます。"
+  "feature_secure_description": "すべてのデータはローカルで処理され、クラウドにアップロードされないため、プライバシーとセキュリティが確保されます。",
+  "agent_not_configured": "Agent で使用するモデルが設定されていません。設定ページでモデル構成を追加してください。",
+  "go_settings": "設定へ"
 }

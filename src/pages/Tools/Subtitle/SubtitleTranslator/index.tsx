@@ -70,13 +70,7 @@ function SubtitleTranslator() {
     cancelTask,
     deleteTask,
   } = useSubtitleTranslatorStore();
-  const {
-    model,
-    getApiKeyByType,
-    getModelKeyByType,
-    getModelUrlByType,
-    getTokenPricingByType,
-  } = useModelStore();
+  const taskProfile = useModelStore((s) => s.getTaskProfile());
 
   const [customLengthInput, setCustomLengthInput] = useState(
     sliceLengthMap?.[SubtitleSliceType.CUSTOM]?.toString() || "500"
@@ -432,16 +426,17 @@ function SubtitleTranslator() {
       try {
         const fileContent = await file.text();
 
-        const tokenPricing = getTokenPricingByType(model);
-        const tokenEstimate = await estimateSubtitleTokens(
-          fileContent,
-          sliceType,
-          sliceType === SubtitleSliceType.CUSTOM
-            ? sliceLengthMap[SubtitleSliceType.CUSTOM]
-            : undefined,
-          model,
-          tokenPricing
-        );
+        const tokenEstimate = taskProfile
+          ? await estimateSubtitleTokens(
+              fileContent,
+              sliceType,
+              sliceType === SubtitleSliceType.CUSTOM
+                ? sliceLengthMap[SubtitleSliceType.CUSTOM]
+                : undefined,
+              taskProfile.provider,
+              taskProfile.tokenPricing
+            )
+          : undefined;
 
         const newTask: SubtitleTranslatorTask = {
           fileName: file.name,
@@ -453,9 +448,9 @@ function SubtitleTranslator() {
           progress: 0,
           costEstimate: tokenEstimate,
 
-          apiKey: getApiKeyByType(model),
-          apiModel: getModelKeyByType(model),
-          endPoint: getModelUrlByType(model),
+          apiKey: taskProfile?.apiKey ?? "",
+          apiModel: taskProfile?.modelKey ?? "",
+          endPoint: taskProfile?.baseUrl ?? "",
           conflictPolicy,
         };
         addTask(newTask);
@@ -919,13 +914,9 @@ function SubtitleTranslator() {
                     </div>
                     <div className="font-mono text-sm">
                       $
-                      {getTokenPricingByType(
-                        model
-                      ).inputTokensPerMillion.toFixed(2)}
+                      {(taskProfile?.tokenPricing.inputTokensPerMillion ?? 0).toFixed(2)}
                       /$
-                      {getTokenPricingByType(
-                        model
-                      ).outputTokensPerMillion.toFixed(2)}{" "}
+                      {(taskProfile?.tokenPricing.outputTokensPerMillion ?? 0).toFixed(2)}{" "}
                       {t("subtitle:translator.new_task_config.rate_suffix")}
                     </div>
                   </CardContent>

@@ -145,22 +145,21 @@ export async function handleUserMessage(userContent: string): Promise<void> {
   store.setStatus("thinking");
   store.setStreaming(true);
 
-  const model = modelStore.model;
-  const apiKey = modelStore.getApiKeyByType(model);
-  const endPoint = modelStore.getModelUrlByType(model);
-  const modelKey = modelStore.getModelKeyByType(model);
+  const agentProfile = modelStore.getAgentProfile();
 
-  if (!apiKey) {
+  if (!agentProfile || !agentProfile.apiKey) {
     store.addMessage({
       id: generateId(),
       role: "assistant",
-      content: "请先在设置页面配置 API Key。",
+      content: "请先在设置页面配置 Agent 所用的模型。",
       timestamp: Date.now(),
     });
     store.setStatus("error");
     store.setStreaming(false);
     return;
   }
+
+  const { apiKey, baseUrl: endPoint, modelKey } = agentProfile;
 
   activeAbortController = new AbortController();
 

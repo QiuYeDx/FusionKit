@@ -7,7 +7,9 @@
     "language_config": "语言设置",
     "apikey_config": "模型设置",
     "token_price_config": "Token 价格配置",
-    "proxy_config": "代理设置"
+    "proxy_config": "代理设置",
+    "model_assignment": "模型分配",
+    "model_profiles": "模型配置"
   },
   "fields": {
     "language": "语言",
@@ -22,7 +24,7 @@
     "model_url": "Base URL",
     "model_key": "Model Key",
     "model_fetch": {
-      "no_key": "请先设置 OpenAI API Key",
+      "no_key": "请先设置 API Key",
       "success": "已获取 {{count}} 个可用模型",
       "error": "获取模型列表失败",
       "preset_group": "预设模型",
@@ -72,6 +74,30 @@
       "output_label": "输出:",
       "preset_note": "注意：{model} 的价格已根据官方定价预设。您可以根据实际情况调整价格，但建议使用官方定价以确保准确性。",
       "custom_note": "提示：请根据您使用的自定义模型的实际定价设置 Token 价格，以获得准确的费用预估。"
+    },
+    "assignment": {
+      "description": "为不同功能模块指定使用的模型配置。Agent 模型用于 AI 对话，任务执行模型用于字幕翻译等具体任务。",
+      "agent_model": "Agent 模型（AI 对话）",
+      "task_model": "任务执行模型（字幕翻译等）",
+      "select_placeholder": "选择模型配置…",
+      "not_configured": "未配置",
+      "locked": "会话中",
+      "locked_tooltip": "当前有会话进行中，无法修改 Agent 所用的模型。请新建对话后再修改。"
+    },
+    "profile": {
+      "add": "添加配置",
+      "empty": "暂无模型配置，请添加一个。",
+      "add_first": "添加第一个模型配置",
+      "in_use": "使用中",
+      "no_key": "未配置 API Key",
+      "dialog_title_add": "添加模型配置",
+      "dialog_title_edit": "编辑模型配置",
+      "dialog_description": "配置模型的连接信息和参数。",
+      "name": "配置名称",
+      "name_placeholder": "例如：DeepSeek V3、GPT-5 等",
+      "cancel": "取消",
+      "create": "创建",
+      "save": "保存"
     }
   },
   "placeholder": {

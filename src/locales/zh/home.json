@@ -17,5 +17,7 @@
   "feature_fast": "快速高效",
   "feature_fast_description": "优化的架构设计与高效的处理流程，提供极致的运行速度和响应体验。",
   "feature_secure": "安全可靠",
-  "feature_secure_description": "本地处理数据，无需上传云端，确保您的隐私安全。"
+  "feature_secure_description": "本地处理数据，无需上传云端，确保您的隐私安全。",
+  "agent_not_configured": "尚未配置 Agent 所用的模型，请先前往设置页面添加模型配置。",
+  "go_settings": "前往设置"
 }

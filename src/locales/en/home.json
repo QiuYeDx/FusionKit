@@ -17,5 +17,7 @@
   "feature_fast": "Fast & Efficient",
   "feature_fast_description": "Optimized architecture and efficient processing pipelines, delivering blazing-fast performance and responsiveness.",
   "feature_secure": "Secure & Reliable",
-  "feature_secure_description": "All data is processed locally without uploading to the cloud, ensuring your privacy and security."
+  "feature_secure_description": "All data is processed locally without uploading to the cloud, ensuring your privacy and security.",
+  "agent_not_configured": "The Agent model is not configured. Please go to Settings to add a model profile.",
+  "go_settings": "Settings"
 }

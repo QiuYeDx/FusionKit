@@ -7,7 +7,9 @@
     "language_config": "Language Settings",
     "apikey_config": "Model Settings",
     "token_price_config": "Token Pricing",
-    "proxy_config": "Proxy Settings"
+    "proxy_config": "Proxy Settings",
+    "model_assignment": "Model Assignment",
+    "model_profiles": "Model Profiles"
   },
   "fields": {
     "language": "Language",
@@ -22,7 +24,7 @@
     "model_url": "Base URL",
     "model_key": "Model Key",
     "model_fetch": {
-      "no_key": "Please set the OpenAI API Key first",
+      "no_key": "Please set the API Key first",
       "success": "Fetched {{count}} available models",
       "error": "Failed to fetch model list",
       "preset_group": "Preset Models",
@@ -72,6 +74,30 @@
       "output_label": "Output:",
       "preset_note": "Note: {model} pricing is preset based on official rates. You may adjust as needed, but official pricing is recommended for accuracy.",
       "custom_note": "Tip: Please set the token prices based on your custom model's actual pricing for an accurate cost estimate."
+    },
+    "assignment": {
+      "description": "Assign model profiles to different modules. The Agent model is used for AI conversations, and the Task model is used for subtitle translation and other tasks.",
+      "agent_model": "Agent Model (AI Chat)",
+      "task_model": "Task Execution Model (Translation, etc.)",
+      "select_placeholder": "Select a model profile…",
+      "not_configured": "Not configured",
+      "locked": "In session",
+      "locked_tooltip": "A conversation is in progress. Please start a new conversation before changing the Agent model."
+    },
+    "profile": {
+      "add": "Add Profile",
+      "empty": "No model profiles yet. Please add one.",
+      "add_first": "Add your first model profile",
+      "in_use": "In use",
+      "no_key": "No API Key",
+      "dialog_title_add": "Add Model Profile",
+      "dialog_title_edit": "Edit Model Profile",
+      "dialog_description": "Configure the connection details and parameters for this model.",
+      "name": "Profile Name",
+      "name_placeholder": "e.g., DeepSeek V3, GPT-5, etc.",
+      "cancel": "Cancel",
+      "create": "Create",
+      "save": "Save"
     }
   },
   "placeholder": {

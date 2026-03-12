@@ -7,7 +7,9 @@
     "language_config": "言語設定",
     "apikey_config": "モデル設定",
     "token_price_config": "Token 価格設定",
-    "proxy_config": "プロキシ設定"
+    "proxy_config": "プロキシ設定",
+    "model_assignment": "モデル割り当て",
+    "model_profiles": "モデル構成"
   },
   "fields": {
     "language": "言語",
@@ -22,7 +24,7 @@
     "model_url": "ベースURL",
     "model_key": "Model Key",
     "model_fetch": {
-      "no_key": "先にOpenAI APIキーを設定してください",
+      "no_key": "先にAPIキーを設定してください",
       "success": "{{count}} 件の利用可能なモデルを取得しました",
       "error": "モデルリストの取得に失敗しました",
       "preset_group": "プリセットモデル",
@@ -72,6 +74,30 @@
       "output_label": "出力:",
       "preset_note": "注意：{model} の価格は公式価格に基づいてプリセットされています。必要に応じて調整できますが、正確性のため公式価格の使用を推奨します。",
       "custom_note": "ヒント：ご利用のカスタムモデルの実際の価格に基づいてトークン価格を設定してください。正確な費用見積りに役立ちます。"
+    },
+    "assignment": {
+      "description": "異なる機能モジュールに使用するモデル構成を指定します。Agentモデルは AI 会話に、タスク実行モデルは字幕翻訳などの具体的なタスクに使用されます。",
+      "agent_model": "Agent モデル（AI 会話）",
+      "task_model": "タスク実行モデル（字幕翻訳など）",
+      "select_placeholder": "モデル構成を選択…",
+      "not_configured": "未設定",
+      "locked": "セッション中",
+      "locked_tooltip": "会話が進行中です。Agent モデルを変更するには、新しい会話を開始してください。"
+    },
+    "profile": {
+      "add": "構成を追加",
+      "empty": "モデル構成がありません。追加してください。",
+      "add_first": "最初のモデル構成を追加",
+      "in_use": "使用中",
+      "no_key": "APIキー未設定",
+      "dialog_title_add": "モデル構成を追加",
+      "dialog_title_edit": "モデル構成を編集",
+      "dialog_description": "モデルの接続情報とパラメータを設定します。",
+      "name": "構成名",
+      "name_placeholder": "例：DeepSeek V3、GPT-5 など",
+      "cancel": "キャンセル",
+      "create": "作成",
+      "save": "保存"
     }
   },
   "placeholder": {

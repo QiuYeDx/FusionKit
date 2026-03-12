@@ -143,7 +143,14 @@ export async function executeQueueTranslate(
 ): Promise<ToolExecutionResult> {
   const store = useSubtitleTranslatorStore.getState();
   const modelStore = useModelStore.getState();
-  const currentModel = modelStore.model;
+  const taskProfile = modelStore.getTaskProfile();
+
+  if (!taskProfile || !taskProfile.apiKey) {
+    return {
+      success: false,
+      error: "未配置任务执行模型，请在设置页面配置。",
+    };
+  }
 
   let queued = 0;
   const errors: string[] = [];
@@ -160,13 +167,12 @@ export async function executeQueueTranslate(
     const fileName = extractFileName(filePath);
     const outputDir = resolveOutputDir(args.outputMode, args.outputDir, filePath);
 
-    const tokenPricing = modelStore.getTokenPricingByType(currentModel);
     const costEstimate = await estimateSubtitleTokens(
       fileContent,
       args.sliceType as SubtitleSliceType,
       undefined,
-      currentModel,
-      tokenPricing
+      taskProfile.provider,
+      taskProfile.tokenPricing
     );
 
     store.addTask({
@@ -178,9 +184,9 @@ export async function executeQueueTranslate(
       status: TaskStatus.NOT_STARTED,
       progress: 0,
       costEstimate,
-      apiKey: modelStore.getApiKeyByType(currentModel),
-      apiModel: modelStore.getModelKeyByType(currentModel),
-      endPoint: modelStore.getModelUrlByType(currentModel),
+      apiKey: taskProfile.apiKey,
+      apiModel: taskProfile.modelKey,
+      endPoint: taskProfile.baseUrl,
       conflictPolicy: "index",
     });
     queued++;

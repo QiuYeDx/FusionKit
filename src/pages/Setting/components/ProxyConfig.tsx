@@ -166,7 +166,7 @@ function ProxyConfig() {
           {t("setting:subtitle.proxy_config")}
         </CardTitle>
       </CardHeader>
-      <CardContent className="space-y-6">
+      <CardContent className="space-y-2">
         <div className="flex items-center gap-4">
           <Label className="text-sm font-medium min-w-[80px]">
             {t("setting:fields.proxy.mode")}

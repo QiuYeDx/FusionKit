@@ -15,10 +15,14 @@ import {
   ListPlus,
   MessageSquareMore,
   Zap,
+  Square,
+  Settings,
+  AlertTriangle,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import useAgentStore from "@/store/agent/useAgentStore";
-import { handleUserMessage } from "@/agent/orchestrator";
+import useModelStore from "@/store/useModelStore";
+import { handleUserMessage, abortCurrentStream } from "@/agent/orchestrator";
 import type { AgentMessage, ExecutionMode } from "@/agent/types";
 import { Button } from "@/components/ui/button";
 import {
@@ -90,6 +94,9 @@ function HomeAgent() {
     dismissExecution,
   } = useAgentStore();
   const { messages, status } = session;
+
+  const agentProfile = useModelStore((s) => s.getAgentProfile());
+  const hasAgentConfig = !!(agentProfile && agentProfile.apiKey);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -189,18 +196,20 @@ function HomeAgent() {
           className="flex-1 bg-transparent outline-none text-sm placeholder:text-muted-foreground/70 disabled:opacity-50 min-w-0"
         />
         <Button
-          onClick={handleSend}
-          disabled={!canSend}
+          onClick={isStreaming ? () => abortCurrentStream() : handleSend}
+          disabled={!isStreaming && !canSend}
           className={cn(
             "flex items-center justify-center rounded-full w-8 h-8 shrink-0",
             "transition-all duration-200",
-            canSend
-              ? "bg-primary text-primary-foreground shadow-sm hover:opacity-90"
-              : "bg-transparent text-muted-foreground/45"
+            isStreaming
+              ? "shadow-sm hover:bg-destructive"
+              : canSend
+                ? "bg-primary text-primary-foreground shadow-sm hover:opacity-90"
+                : "bg-transparent text-muted-foreground/45"
           )}
         >
           {isStreaming ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
+            <Square className="h-3.5 w-3.5 fill-current" />
           ) : (
             <Send className="h-4 w-4" />
           )}
@@ -245,6 +254,25 @@ function HomeAgent() {
           <p className="text-sm text-muted-foreground max-w-sm text-center mb-6 z-10">
             {t("home:home_description")}
           </p>
+
+          {/* Unconfigured Agent Banner */}
+          {!hasAgentConfig && (
+            <div className="flex items-center gap-3 px-4 py-3 rounded-xl border border-amber-500/30 bg-amber-500/5 max-w-md mb-4 z-10">
+              <AlertTriangle className="h-4 w-4 text-amber-500 shrink-0" />
+              <span className="text-sm text-amber-700 dark:text-amber-400 flex-1">
+                {t("home:agent_not_configured")}
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                className="shrink-0 gap-1 text-xs rounded-full"
+                onClick={() => navigate("/setting")}
+              >
+                <Settings className="h-3 w-3" />
+                {t("home:go_settings")}
+              </Button>
+            </div>
+          )}
 
           {/* Suggestion Pills */}
           <div className="flex flex-wrap justify-center gap-2 max-w-md">
@@ -324,7 +352,7 @@ function HomeAgent() {
 
       {/* ===== Bottom Input Area ===== */}
       {isEmpty ? (
-        <div className="absolute inset-x-0 top-72 z-20 px-4 pb-4 pt-2 pointer-events-none">
+        <div className={cn("absolute inset-x-0 z-20 px-4 pb-4 pt-2 pointer-events-none", hasAgentConfig ? "top-72" : "top-82")}>
           {inputCapsule}
         </div>
       ) : (
