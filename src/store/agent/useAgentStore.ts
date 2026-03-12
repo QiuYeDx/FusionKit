@@ -7,6 +7,7 @@ import type {
   ExecutionMode,
   PendingExecution,
   TaskStoreType,
+  TokenStats,
 } from "@/agent/types";
 import useSubtitleTranslatorStore from "@/store/tools/subtitle/useSubtitleTranslatorStore";
 import useSubtitleConverterStore from "@/store/tools/subtitle/useSubtitleConverterStore";
@@ -22,6 +23,7 @@ interface AgentStore {
   streamingText: string;
   executionMode: ExecutionMode;
   pendingExecution: PendingExecution | null;
+  tokenStats: TokenStats;
 
   addMessage: (message: AgentMessage) => void;
   setStatus: (status: AgentSessionStatus) => void;
@@ -34,6 +36,14 @@ interface AgentStore {
   setPendingExecution: (pe: PendingExecution | null) => void;
   confirmExecution: () => void;
   dismissExecution: () => void;
+  recordUsage: (data: {
+    promptTokens: number;
+    completionTokens: number;
+    totalTokens: number;
+    cost: number;
+    stepCount: number;
+    lastPromptTokens: number;
+  }) => void;
 }
 
 function generateId(): string {
@@ -47,6 +57,18 @@ function createNewSession(): AgentSession {
     status: "idle",
     createdAt: Date.now(),
     updatedAt: Date.now(),
+  };
+}
+
+function createEmptyTokenStats(): TokenStats {
+  return {
+    totalPromptTokens: 0,
+    totalCompletionTokens: 0,
+    totalTokens: 0,
+    totalCost: 0,
+    stepCount: 0,
+    lastPromptTokens: 0,
+    interactions: [],
   };
 }
 
@@ -88,6 +110,7 @@ const useAgentStore = create<AgentStore>((set, get) => ({
   streamingText: "",
   executionMode: loadExecutionMode(),
   pendingExecution: null,
+  tokenStats: createEmptyTokenStats(),
 
   addMessage: (message) =>
     set((state) => ({
@@ -138,6 +161,7 @@ const useAgentStore = create<AgentStore>((set, get) => ({
       isStreaming: false,
       streamingText: "",
       pendingExecution: null,
+      tokenStats: createEmptyTokenStats(),
     }),
 
   setExecutionMode: (mode) => {
@@ -155,6 +179,22 @@ const useAgentStore = create<AgentStore>((set, get) => ({
   },
 
   dismissExecution: () => set({ pendingExecution: null }),
+
+  recordUsage: ({ promptTokens, completionTokens, totalTokens, cost, stepCount, lastPromptTokens }) =>
+    set((state) => ({
+      tokenStats: {
+        totalPromptTokens: state.tokenStats.totalPromptTokens + promptTokens,
+        totalCompletionTokens: state.tokenStats.totalCompletionTokens + completionTokens,
+        totalTokens: state.tokenStats.totalTokens + totalTokens,
+        totalCost: state.tokenStats.totalCost + cost,
+        stepCount: state.tokenStats.stepCount + stepCount,
+        lastPromptTokens,
+        interactions: [
+          ...state.tokenStats.interactions,
+          { timestamp: Date.now(), promptTokens, completionTokens, totalTokens, cost, stepCount },
+        ],
+      },
+    })),
 }));
 
 export default useAgentStore;

@@ -66,6 +66,27 @@ export const DEFAULT_APIKEY_MAP = {
   [Model.Other]: "",
 };
 
+/**
+ * 根据 modelKey 推断模型的上下文窗口大小（tokens）。
+ * 当 ModelProfile 没有显式设置 contextWindow 时作为默认值使用。
+ */
+export function inferContextWindowSize(modelKey: string): number {
+  const key = modelKey.toLowerCase();
+  if (key.includes("deepseek")) return 128_000;
+  if (key.includes("gpt")) return 272_000;
+  if (key.includes("gpt-5")) return 272_000;
+  if (key.includes("gpt-4o") || key.includes("gpt-4-turbo")) return 128_000;
+  if (key.includes("gpt-4")) return 128_000;
+  if (key.includes("gpt-3.5")) return 16_385;
+  if (key.includes("claude")) return 200_000;
+  if (key.includes("gemini")) return 1_048_576;
+  if (key.includes("qwen")) return 128_000;
+  if (key.includes("glm") || key.includes("chatglm")) return 128_000;
+  if (key.includes("mistral")) return 32_000;
+  if (key.includes("llama")) return 128_000;
+  return 128_000;
+}
+
 // 各模型的默认token价格 (美元/1M tokens)
 export const DEFAULT_TOKEN_PRICING_MAP: TokenPricingMap = {
   [Model.DeepSeek]: {

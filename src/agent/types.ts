@@ -64,3 +64,33 @@ export interface AgentSession {
   createdAt: number;
   updatedAt: number;
 }
+
+// ---------------------------------------------------------------------------
+// Token 使用统计
+// ---------------------------------------------------------------------------
+
+export interface TokenUsage {
+  promptTokens: number;
+  completionTokens: number;
+  totalTokens: number;
+}
+
+export interface InteractionTokenRecord {
+  timestamp: number;
+  promptTokens: number;
+  completionTokens: number;
+  totalTokens: number;
+  cost: number;
+  stepCount: number;
+}
+
+export interface TokenStats {
+  totalPromptTokens: number;
+  totalCompletionTokens: number;
+  totalTokens: number;
+  totalCost: number;
+  stepCount: number;
+  /** 最近一步的 promptTokens，反映当前上下文窗口占用 */
+  lastPromptTokens: number;
+  interactions: InteractionTokenRecord[];
+}

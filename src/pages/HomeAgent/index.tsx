@@ -1,5 +1,6 @@
 import React, { useRef, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 import { useNavigate } from "react-router-dom";
 import {
   Send,
@@ -18,6 +19,7 @@ import {
   Square,
   Settings,
   AlertTriangle,
+  Activity,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import useAgentStore from "@/store/agent/useAgentStore";
@@ -32,6 +34,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { inferContextWindowSize } from "@/constants/model";
 import { cn } from "@/lib/utils";
 import FusionKitLogo from "@/assets/FusionKit.svg";
 
@@ -39,30 +47,30 @@ import FusionKitLogo from "@/assets/FusionKit.svg";
 
 const EXECUTION_MODE_OPTIONS: {
   value: ExecutionMode;
-  label: string;
+  labelKey: string;
   icon: React.ReactNode;
 }[] = [
     {
       value: "queue_only",
-      label: "仅添加",
+      labelKey: "home:execution_mode_queue_only",
       icon: <ListPlus className="h-3.5 w-3.5" />,
     },
     {
       value: "ask_before_execute",
-      label: "询问执行",
+      labelKey: "home:execution_mode_ask_before_execute",
       icon: <MessageSquareMore className="h-3.5 w-3.5" />,
     },
     {
       value: "auto_execute",
-      label: "自动执行",
+      labelKey: "home:execution_mode_auto_execute",
       icon: <Zap className="h-3.5 w-3.5" />,
     },
   ];
 
-const STORE_LABEL: Record<string, string> = {
-  translate: "翻译",
-  convert: "转换",
-  extract: "提取",
+const STORE_LABEL_KEYS: Record<string, string> = {
+  translate: "home:store_label_translate",
+  convert: "home:store_label_convert",
+  extract: "home:store_label_extract",
 };
 
 const STORE_PATH: Record<string, string> = {
@@ -147,14 +155,15 @@ function HomeAgent() {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 6 }}
             transition={{ type: "spring", bounce: 0, duration: 0.8, delay: 1.2 }}
-            className="max-w-2xl mx-auto flex justify-end mb-2 pointer-events-auto"
+            className="max-w-2xl mx-auto mb-2 pointer-events-auto flex items-end justify-between gap-2"
           >
+            <TokenStatsBar className="max-w-none mx-0 mb-0" />
             <Button
               variant="outline"
               onClick={handleResetClick}
               disabled={isStreaming}
               className={cn(
-                "flex items-center gap-1 text-xs rounded-full transition-colors disabled:opacity-40",
+                "ml-auto flex items-center gap-1 text-xs rounded-full transition-colors disabled:opacity-40",
                 "dark:bg-background dark:hover:bg-accent shadow-none",
                 confirmingReset
                   ? "text-destructive hover:text-destructive/80"
@@ -162,7 +171,9 @@ function HomeAgent() {
               )}
             >
               <RotateCcw className="h-3 w-3" />
-              {confirmingReset ? "确认新建?" : "新对话"}
+              {confirmingReset
+                ? t("home:confirm_new_conversation")
+                : t("home:new_conversation")}
             </Button>
           </motion.div>
         )}
@@ -188,7 +199,7 @@ function HomeAgent() {
         />
         <input
           ref={inputRef}
-          placeholder="输入任务或随意聊天…"
+          placeholder={t("home:agent_input_placeholder")}
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={handleKeyDown}
@@ -249,7 +260,7 @@ function HomeAgent() {
           </div>
 
           <h1 className="text-xl font-semibold tracking-tight mt-4 mb-4 z-10">
-            FusionKit Agent
+            {t("home:agent_title")}
           </h1>
           <p className="text-sm text-muted-foreground max-w-sm text-center mb-6 z-10">
             {t("home:home_description")}
@@ -275,30 +286,28 @@ function HomeAgent() {
           )}
 
           {/* Suggestion Pills */}
-          <div className="flex flex-wrap justify-center gap-2 max-w-md">
+          <div className="flex flex-nowrap justify-center gap-2 max-w-md">
             <SuggestionPill
               icon={<Sparkles className="h-3 w-3" />}
-              text="翻译 SRT 字幕"
+              text={t("home:suggestion_translate_srt")}
               onClick={() => {
-                setInput("翻译 ~/Downloads 目录下所有 SRT 字幕文件");
+                setInput(t("home:suggestion_translate_srt_prompt"));
                 inputRef.current?.focus();
               }}
             />
             <SuggestionPill
               icon={<Sparkles className="h-3 w-3" />}
-              text="LRC 转 SRT"
+              text={t("home:suggestion_lrc_to_srt")}
               onClick={() => {
-                setInput(
-                  "把 ~/Downloads 目录下的 LRC 字幕文件转换成 SRT 格式"
-                );
+                setInput(t("home:suggestion_lrc_to_srt_prompt"));
                 inputRef.current?.focus();
               }}
             />
             <SuggestionPill
               icon={<Sparkles className="h-3 w-3" />}
-              text="提取中文字幕"
+              text={t("home:suggestion_extract_chinese")}
               onClick={() => {
-                setInput("从 ~/Downloads 目录下的双语字幕中提取中文部分");
+                setInput(t("home:suggestion_extract_chinese_prompt"));
                 inputRef.current?.focus();
               }}
             />
@@ -321,7 +330,7 @@ function HomeAgent() {
               {isStreaming && status === "thinking" && !streamingText && (
                 <div className="flex items-center gap-2 text-muted-foreground text-sm pl-10">
                   <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                  <span>思考中…</span>
+                  <span>{t("home:agent_thinking")}</span>
                 </div>
               )}
 
@@ -382,6 +391,8 @@ function CapsuleModeSelector({
   onChange: (mode: ExecutionMode) => void;
   disabled?: boolean;
 }) {
+  const { t } = useTranslation();
+
   return (
     <Select
       value={value}
@@ -405,7 +416,7 @@ function CapsuleModeSelector({
           <SelectItem key={opt.value} value={opt.value}>
             <span className="flex items-center gap-1.5">
               {opt.icon}
-              {opt.label}
+              {t(opt.labelKey)}
             </span>
           </SelectItem>
         ))}
@@ -423,12 +434,13 @@ function PendingExecutionCard({
   onConfirm: () => void;
   onDismiss: () => void;
 }) {
+  const { t } = useTranslation();
   const navigate = useNavigate();
 
   return (
     <div className="pl-10 animate-in fade-in slide-in-from-bottom-2 duration-300">
       <div className="rounded-xl border border-border/60 bg-muted/40 p-4 max-w-sm">
-        <p className="text-sm font-medium mb-2.5">已加入队列</p>
+        <p className="text-sm font-medium mb-2.5">{t("home:queued_title")}</p>
 
         <div className="space-y-1.5 mb-3">
           {pendingExecution.stores.map((store) => (
@@ -437,11 +449,11 @@ function PendingExecutionCard({
               className="flex items-center justify-between rounded-lg bg-background/60 border border-border/40 px-3 py-1.5"
             >
               <span className="text-sm text-muted-foreground">
-                {STORE_LABEL[store] ?? store}{" "}
+                {t(STORE_LABEL_KEYS[store] ?? store)}{" "}
                 <span className="font-medium text-foreground">
                   {pendingExecution.taskCounts[store] ?? 0}
                 </span>{" "}
-                个任务
+                {t("home:task_unit")}
               </span>
               <Button
                 variant="ghost"
@@ -456,7 +468,7 @@ function PendingExecutionCard({
         </div>
 
         <p className="text-xs text-muted-foreground mb-3">
-          是否立即开始执行？
+          {t("home:execute_immediately_confirm")}
         </p>
         <div className="flex items-center gap-2">
           <Button
@@ -465,7 +477,7 @@ function PendingExecutionCard({
             className="h-7 rounded-full text-xs gap-1 px-3"
           >
             <Play className="h-3 w-3" />
-            立即执行
+            {t("home:execute_now")}
           </Button>
           <Button
             variant="ghost"
@@ -473,7 +485,7 @@ function PendingExecutionCard({
             onClick={onDismiss}
             className="h-7 rounded-full text-xs text-muted-foreground px-3"
           >
-            稍后手动
+            {t("home:execute_later")}
           </Button>
         </div>
       </div>
@@ -482,6 +494,7 @@ function PendingExecutionCard({
 }
 
 function MessageBubble({ message }: { message: AgentMessage }) {
+  const { t } = useTranslation();
   const isUser = message.role === "user";
   const isTool = message.role === "tool";
 
@@ -504,10 +517,10 @@ function MessageBubble({ message }: { message: AgentMessage }) {
             ) : (
               <XCircle className="h-3 w-3 text-destructive" />
             )}
-            <span>{result?.toolName ?? "工具执行"}</span>
+            <span>{result?.toolName ?? t("home:tool_execution_fallback")}</span>
           </div>
           <pre className="whitespace-pre-wrap wrap-break-word max-h-48 overflow-auto text-foreground/80">
-            {formatToolContent(message.content)}
+            {formatToolContent(message.content, t)}
           </pre>
         </div>
       </div>
@@ -618,10 +631,248 @@ function SuggestionPill({
 }
 
 // ---------------------------------------------------------------------------
+// Token Stats Bar — 上下文占用 + Token 统计 + 使用日志
+// ---------------------------------------------------------------------------
+
+function formatTokenCount(count: number): string {
+  if (count >= 1_000_000) return `${(count / 1_000_000).toFixed(1)}M`;
+  if (count >= 1_000) return `${(count / 1_000).toFixed(1)}K`;
+  return count.toString();
+}
+
+function TokenStatsBar({ className }: { className?: string } = {}) {
+  const { t, i18n } = useTranslation();
+  const tokenStats = useAgentStore((s) => s.tokenStats);
+  const isStreaming = useAgentStore((s) => s.isStreaming);
+  const agentProfile = useModelStore((s) => s.getAgentProfile());
+
+  if (tokenStats.stepCount === 0) return null;
+
+  const modelKey = agentProfile?.modelKey ?? "";
+  const contextWindow = inferContextWindowSize(modelKey);
+  const contextPercent = Math.min(
+    100,
+    (tokenStats.lastPromptTokens / contextWindow) * 100
+  );
+  const pricing = agentProfile?.tokenPricing;
+  const locale = i18n.resolvedLanguage || i18n.language || "en-US";
+
+  const barColor =
+    contextPercent > 85
+      ? "bg-destructive"
+      : contextPercent > 60
+        ? "bg-amber-500"
+        : "bg-emerald-500";
+
+  const barColorMuted =
+    contextPercent > 85
+      ? "text-destructive"
+      : contextPercent > 60
+        ? "text-amber-500"
+        : "text-emerald-600 dark:text-emerald-400";
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 4 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ type: "spring", bounce: 0, duration: 0.5 }}
+      className={cn("max-w-2xl mx-auto pointer-events-auto", className)}
+    >
+      <Popover>
+        <PopoverTrigger asChild>
+          <button
+            className={cn(
+              "flex items-center gap-2 text-[10px] text-muted-foreground/60",
+              "hover:text-muted-foreground transition-colors rounded-full",
+              "px-2.5 pt-1 cursor-pointer select-none",
+              isStreaming && "animate-pulse"
+            )}
+          >
+            <Activity className="h-3 w-3 shrink-0" />
+
+            <span className="flex items-center gap-1.5">
+              <span>{t("home:context_label")}</span>
+              <span className="w-14 h-1 rounded-full bg-muted overflow-hidden border border-muted-foreground/25">
+                <span
+                  className={cn(
+                    "block h-full rounded-full transition-all duration-700",
+                    barColor
+                  )}
+                  style={{ width: `${contextPercent}%` }}
+                />
+              </span>
+              <span className={cn("tabular-nums", barColorMuted)}>
+                {contextPercent.toFixed(0)}%
+              </span>
+            </span>
+
+            <span className="text-muted-foreground/25">·</span>
+
+            <span className="tabular-nums">
+              ↓{formatTokenCount(tokenStats.totalPromptTokens)}
+            </span>
+            <span className="tabular-nums">
+              ↑{formatTokenCount(tokenStats.totalCompletionTokens)}
+            </span>
+
+            <span className="text-muted-foreground/25">·</span>
+
+            <span className="tabular-nums">
+              ${tokenStats.totalCost.toFixed(4)}
+            </span>
+          </button>
+        </PopoverTrigger>
+
+        <PopoverContent
+          align="center"
+          side="top"
+          sideOffset={8}
+          className="w-80 p-0 rounded-xl"
+        >
+          <div className="p-4 space-y-3.5">
+            {/* --- Context usage --- */}
+            <div>
+              <p className="text-[11px] font-medium text-muted-foreground mb-2">
+                {t("home:context_usage")}
+              </p>
+              <div className="h-2 rounded-full bg-muted overflow-hidden mb-1.5">
+                <div
+                  className={cn(
+                    "h-full rounded-full transition-all duration-700",
+                    barColor
+                  )}
+                  style={{ width: `${contextPercent}%` }}
+                />
+              </div>
+              <div className="flex justify-between text-[11px] text-muted-foreground tabular-nums">
+                <span>
+                  {tokenStats.lastPromptTokens.toLocaleString()} /{" "}
+                  {contextWindow.toLocaleString()} {t("home:tokens_unit")}
+                </span>
+                <span className={barColorMuted}>
+                  {contextPercent.toFixed(1)}%
+                </span>
+              </div>
+            </div>
+
+            {/* --- Session stats --- */}
+            <div>
+              <p className="text-[11px] font-medium text-muted-foreground mb-2">
+                {t("home:session_stats")}
+              </p>
+              <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-[11px]">
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">{t("home:input_label")}</span>
+                  <span className="tabular-nums">
+                    {tokenStats.totalPromptTokens.toLocaleString()}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">{t("home:output_label")}</span>
+                  <span className="tabular-nums">
+                    {tokenStats.totalCompletionTokens.toLocaleString()}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">{t("home:total_label")}</span>
+                  <span className="tabular-nums font-medium">
+                    {tokenStats.totalTokens.toLocaleString()}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">{t("home:calls_label")}</span>
+                  <span className="tabular-nums">
+                    {tokenStats.stepCount} {t("home:times_unit")}
+                  </span>
+                </div>
+                {pricing && (
+                  <>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">{t("home:input_cost_label")}</span>
+                      <span className="tabular-nums">
+                        $
+                        {(
+                          (tokenStats.totalPromptTokens *
+                            pricing.inputTokensPerMillion) /
+                          1_000_000
+                        ).toFixed(6)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">{t("home:output_cost_label")}</span>
+                      <span className="tabular-nums">
+                        $
+                        {(
+                          (tokenStats.totalCompletionTokens *
+                            pricing.outputTokensPerMillion) /
+                          1_000_000
+                        ).toFixed(6)}
+                      </span>
+                    </div>
+                  </>
+                )}
+                <div className="col-span-2 flex justify-between border-t border-border/30 pt-1 mt-0.5">
+                  <span className="text-muted-foreground font-medium">
+                    {t("home:total_cost_label")}
+                  </span>
+                  <span className="tabular-nums font-medium">
+                    ${tokenStats.totalCost.toFixed(6)}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* --- Interaction log --- */}
+            {tokenStats.interactions.length > 0 && (
+              <div>
+                <p className="text-[11px] font-medium text-muted-foreground mb-2">
+                  {t("home:token_log")}
+                </p>
+                <div className="max-h-36 overflow-y-auto space-y-0.5 -mx-1 px-1">
+                  {tokenStats.interactions.map((rec, i) => (
+                    <div
+                      key={i}
+                      className="flex items-center gap-2 text-[10px] text-muted-foreground rounded px-1.5 py-0.5 hover:bg-muted/50"
+                    >
+                      <span className="text-muted-foreground/40 w-4 shrink-0 text-right tabular-nums">
+                        #{i + 1}
+                      </span>
+                      <span className="w-10 shrink-0 tabular-nums">
+                        {new Date(rec.timestamp).toLocaleTimeString(locale, {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                      </span>
+                      <span className="flex-1 tabular-nums">
+                        ↓{formatTokenCount(rec.promptTokens)}{" "}
+                        ↑{formatTokenCount(rec.completionTokens)}
+                      </span>
+                      <span className="tabular-nums shrink-0">
+                        ${rec.cost.toFixed(4)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* --- Model info footer --- */}
+            <div className="text-[10px] text-muted-foreground/40 pt-1 border-t border-border/20">
+              {modelKey || t("home:unknown_model")} ·{" "}
+              {formatTokenCount(contextWindow)} {t("home:context_window")}
+            </div>
+          </div>
+        </PopoverContent>
+      </Popover>
+    </motion.div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Utilities
 // ---------------------------------------------------------------------------
 
-function formatToolContent(raw: string): string {
+function formatToolContent(raw: string, t: TFunction): string {
   try {
     const parsed = JSON.parse(raw);
     if (parsed?.files && Array.isArray(parsed.files)) {
@@ -630,11 +881,14 @@ function formatToolContent(raw: string): string {
         .slice(0, 10)
         .map((f: any) => f.fileName || f)
         .join("\n  ");
-      const more = count > 10 ? `\n  ... 共 ${count} 个文件` : "";
-      return `发现 ${count} 个文件:\n  ${names}${more}`;
+      const more = count > 10 ? `\n  ${t("home:tool_result_more_files", { count })}` : "";
+      return `${t("home:tool_result_files_found", { count })}:\n  ${names}${more}`;
     }
     if (parsed?.queuedCount !== undefined) {
-      return `已加入队列: ${parsed.queuedCount}/${parsed.totalFiles} 个文件`;
+      return t("home:tool_result_queued_progress", {
+        queuedCount: parsed.queuedCount,
+        totalFiles: parsed.totalFiles,
+      });
     }
     if (typeof parsed === "string") return parsed;
     return JSON.stringify(parsed, null, 2);

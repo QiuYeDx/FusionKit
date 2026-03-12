@@ -3,7 +3,7 @@ import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 import useAgentStore from "@/store/agent/useAgentStore";
 import useModelStore from "@/store/useModelStore";
 import { agentTools } from "./tools";
-import type { AgentMessage, AgentToolCall } from "./types";
+import type { AgentMessage, AgentToolCall, TokenUsage } from "./types";
 
 // ---------------------------------------------------------------------------
 // Orchestrator — AI SDK streamText 驱动的对话 + 工具循环
@@ -160,6 +160,8 @@ export async function handleUserMessage(userContent: string): Promise<void> {
   }
 
   const { apiKey, baseUrl: endPoint, modelKey } = agentProfile;
+  const pricing = agentProfile.tokenPricing;
+  const stepUsages: TokenUsage[] = [];
 
   activeAbortController = new AbortController();
 
@@ -217,6 +219,16 @@ export async function handleUserMessage(userContent: string): Promise<void> {
         }
 
         case "finish-step": {
+          const rawPart = part as Record<string, any>;
+          const u = rawPart.usage;
+          if (u && typeof u.inputTokens === "number") {
+            stepUsages.push({
+              promptTokens: u.inputTokens,
+              completionTokens: u.outputTokens ?? 0,
+              totalTokens: u.totalTokens ?? 0,
+            });
+          }
+
           if (pendingToolCalls.length > 0) {
             const currentStreamingText = useAgentStore.getState().streamingText;
             useAgentStore.getState().commitStreamingAsAssistant(
@@ -264,6 +276,19 @@ export async function handleUserMessage(userContent: string): Promise<void> {
       useAgentStore.getState().commitStreamingAsAssistant(finalStreamingText);
     }
 
+    if (stepUsages.length === 0) {
+      try {
+        const u = await result.usage;
+        if (u && typeof u.inputTokens === "number") {
+          stepUsages.push({
+            promptTokens: u.inputTokens,
+            completionTokens: u.outputTokens ?? 0,
+            totalTokens: u.totalTokens ?? 0,
+          });
+        }
+      } catch { /* silent */ }
+    }
+
     useAgentStore.getState().setStatus("idle");
   } catch (err: any) {
     const partial = useAgentStore.getState().streamingText;
@@ -286,6 +311,25 @@ export async function handleUserMessage(userContent: string): Promise<void> {
       useAgentStore.getState().setStatus("error");
     }
   } finally {
+    if (stepUsages.length > 0) {
+      const lastStep = stepUsages[stepUsages.length - 1];
+      const totalP = stepUsages.reduce((s, u) => s + u.promptTokens, 0);
+      const totalC = stepUsages.reduce((s, u) => s + u.completionTokens, 0);
+      const totalT = stepUsages.reduce((s, u) => s + u.totalTokens, 0);
+      const cost =
+        (totalP * pricing.inputTokensPerMillion +
+          totalC * pricing.outputTokensPerMillion) /
+        1_000_000;
+      useAgentStore.getState().recordUsage({
+        promptTokens: totalP,
+        completionTokens: totalC,
+        totalTokens: totalT,
+        cost,
+        stepCount: stepUsages.length,
+        lastPromptTokens: lastStep.promptTokens,
+      });
+    }
+
     useAgentStore.getState().setStreaming(false);
     activeAbortController = null;
   }
