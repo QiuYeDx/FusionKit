@@ -1,7 +1,7 @@
 import { SubtitleFileType, SubtitleTranslatorTask, SubtitleSliceType } from "./typing";
 import { LRCTranslator } from "./class/lrc-translator";
 import { SRTTranslator } from "./class/srt-translator";
-import { encode } from "gpt-3-encoder";
+import { encode } from "gpt-tokenizer";
 import { DEFAULT_SLICE_LENGTH_MAP } from "./contants";
 
 export class TranslationService {

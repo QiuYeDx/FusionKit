@@ -46,6 +46,11 @@ interface SubtitleTranslatorStore {
     stackTrace?: string;
   }) => void;
 
+  updateTaskCostEstimate: (
+    fileName: string,
+    costEstimate: SubtitleTranslatorTask["costEstimate"],
+  ) => void;
+
   // 任务取消和删除
   cancelTask: (fileName: string) => void;
   deleteTask: (fileName: string) => void;
@@ -134,6 +139,19 @@ const useSubtitleTranslatorStore = create<SubtitleTranslatorStore>((set) => ({
       return allTasks.some((t) => t.originFileURL === task.originFileURL)
         ? state // 已存在相同URL的任务
         : { notStartedTaskQueue: [...state.notStartedTaskQueue, task] };
+    }),
+
+  updateTaskCostEstimate: (fileName, costEstimate) =>
+    set((state) => {
+      const patch = (queue: SubtitleTranslatorTask[]) =>
+        queue.map((t) => (t.fileName === fileName ? { ...t, costEstimate } : t));
+      return {
+        notStartedTaskQueue: patch(state.notStartedTaskQueue),
+        waitingTaskQueue: patch(state.waitingTaskQueue),
+        pendingTaskQueue: patch(state.pendingTaskQueue),
+        resolvedTaskQueue: patch(state.resolvedTaskQueue),
+        failedTaskQueue: patch(state.failedTaskQueue),
+      };
     }),
 
   // 启动单个任务

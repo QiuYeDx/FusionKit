@@ -38,6 +38,7 @@ export type SubtitleTranslatorTask = {
     totalTokens: number;
     estimatedCost: number;
     fragmentCount: number;
+    loading?: boolean;
   }; // 费用预估
   errorLog?: string[]; // 错误日志
 

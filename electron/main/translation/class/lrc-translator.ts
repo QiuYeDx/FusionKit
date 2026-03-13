@@ -1,7 +1,7 @@
 // src/main/translation/lrc-translator.ts
 import { BaseTranslator } from "./base-translator";
 import { SubtitleTranslatorTask } from "../typing";
-import { encode } from "gpt-3-encoder";
+import { encode } from "gpt-tokenizer";
 
 export class LRCTranslator extends BaseTranslator {
   private readonly apiModel: string;

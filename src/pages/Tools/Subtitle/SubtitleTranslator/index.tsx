@@ -26,6 +26,7 @@ import { getSourceDirFromFile } from "@/utils/filePath";
 import useModelStore from "@/store/useModelStore";
 import ErrorDetailModal from "@/components/ErrorDetailModal";
 import {
+  estimateSubtitleTokensFast,
   estimateSubtitleTokens,
   formatTokens,
   formatCost,
@@ -69,6 +70,7 @@ function SubtitleTranslator() {
     clearAllTasks,
     cancelTask,
     deleteTask,
+    updateTaskCostEstimate,
   } = useSubtitleTranslatorStore();
   const taskProfile = useModelStore((s) => s.getTaskProfile());
 
@@ -279,12 +281,15 @@ function SubtitleTranslator() {
       }
     });
 
+    const hasLoading = allTasks.some((task) => task.costEstimate?.loading);
+
     return {
       totalTokens,
       totalCost,
       pendingTokens,
       pendingCost,
       taskCount: allTasks.length,
+      hasLoading,
     };
   }, [
     notStartedTaskQueue,
@@ -426,15 +431,18 @@ function SubtitleTranslator() {
       try {
         const fileContent = await file.text();
 
-        const tokenEstimate = taskProfile
-          ? await estimateSubtitleTokens(
+        const customLen =
+          sliceType === SubtitleSliceType.CUSTOM
+            ? sliceLengthMap[SubtitleSliceType.CUSTOM]
+            : undefined;
+
+        const fastEstimate = taskProfile
+          ? estimateSubtitleTokensFast(
               fileContent,
               sliceType,
-              sliceType === SubtitleSliceType.CUSTOM
-                ? sliceLengthMap[SubtitleSliceType.CUSTOM]
-                : undefined,
+              customLen,
               taskProfile.provider,
-              taskProfile.tokenPricing
+              taskProfile.tokenPricing,
             )
           : undefined;
 
@@ -446,7 +454,7 @@ function SubtitleTranslator() {
           targetFileURL: outputDir,
           status: TaskStatus.NOT_STARTED,
           progress: 0,
-          costEstimate: tokenEstimate,
+          costEstimate: fastEstimate,
 
           apiKey: taskProfile?.apiKey ?? "",
           apiModel: taskProfile?.modelKey ?? "",
@@ -454,6 +462,19 @@ function SubtitleTranslator() {
           conflictPolicy,
         };
         addTask(newTask);
+
+        if (taskProfile) {
+          const fileName = file.name;
+          estimateSubtitleTokens(
+            fileContent,
+            sliceType,
+            customLen,
+            taskProfile.provider,
+            taskProfile.tokenPricing,
+          ).then((precise) => {
+            updateTaskCostEstimate(fileName, precise);
+          });
+        }
       } catch (error) {
         console.error(t("subtitle:translator.errors.read_file_failed"), error);
         showToast(
@@ -1052,7 +1073,10 @@ function SubtitleTranslator() {
                       <div className="text-muted-foreground text-xs mb-1">
                         {t("subtitle:translator.token_stats.total_tokens")}
                       </div>
-                      <div className="font-mono text-lg">
+                      <div className="font-mono text-lg inline-flex items-center gap-1.5">
+                        {tokenStats.hasLoading && (
+                          <RotateCw className="h-3.5 w-3.5 animate-spin text-muted-foreground/60" />
+                        )}
                         {formatTokens(tokenStats.totalTokens)}
                       </div>
                     </CardContent>
@@ -1128,7 +1152,10 @@ function SubtitleTranslator() {
                             )}
                           </span>
                           {task.costEstimate && (
-                            <span className="font-mono">
+                            <span className="font-mono inline-flex items-center gap-1">
+                              {task.costEstimate.loading ? (
+                                <RotateCw className="h-3 w-3 animate-spin text-muted-foreground/60" />
+                              ) : null}
                               {formatTokens(task.costEstimate.totalTokens)}
                               <span className="ml-1 text-green-600">
                                 ~{formatCost(task.costEstimate.estimatedCost)}

@@ -43,7 +43,7 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "electron-updater": "^6.6.2",
-    "gpt-3-encoder": "^1.1.4",
+    "gpt-tokenizer": "^3.4.0",
     "html-to-image": "^1.11.11",
     "i18next": "^24.2.2",
     "lodash": "^4.17.21",

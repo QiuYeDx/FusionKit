@@ -71,9 +71,9 @@ dependencies:
   electron-updater:
     specifier: ^6.6.2
     version: 6.8.3
-  gpt-3-encoder:
-    specifier: ^1.1.4
-    version: 1.1.4
+  gpt-tokenizer:
+    specifier: ^3.4.0
+    version: 3.4.0
   html-to-image:
     specifier: ^1.11.11
     version: 1.11.13
@@ -3725,8 +3725,8 @@ packages:
       responselike: 2.0.1
     dev: true
 
-  /gpt-3-encoder@1.1.4:
-    resolution: {integrity: sha512-fSQRePV+HUAhCn7+7HL7lNIXNm6eaFWFbNLOOGtmSJ0qJycyQvj60OvRlH7mee8xAMjBDNRdMXlMwjAbMTDjkg==}
+  /gpt-tokenizer@3.4.0:
+    resolution: {integrity: sha512-wxFLnhIXTDjYebd9A9pGl3e31ZpSypbpIJSOswbgop5jLte/AsZVDvjlbEuVFlsqZixVKqbcoNmRlFDf6pz/UQ==}
     dev: false
 
   /graceful-fs@4.2.11:

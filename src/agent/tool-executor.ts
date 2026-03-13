@@ -15,7 +15,10 @@ import useSubtitleExtractorStore from "@/store/tools/subtitle/useSubtitleExtract
 import useSubtitleTranslatorStore from "@/store/tools/subtitle/useSubtitleTranslatorStore";
 import useModelStore from "@/store/useModelStore";
 import useAgentStore, { executeTasksInStores } from "@/store/agent/useAgentStore";
-import { estimateSubtitleTokens } from "@/utils/tokenEstimate";
+import {
+  estimateSubtitleTokensFast,
+  estimateSubtitleTokens,
+} from "@/utils/tokenEstimate";
 import type { SubtitleSliceType } from "@/type/subtitle";
 
 // ---------------------------------------------------------------------------
@@ -167,12 +170,12 @@ export async function executeQueueTranslate(
     const fileName = extractFileName(filePath);
     const outputDir = resolveOutputDir(args.outputMode, args.outputDir, filePath);
 
-    const costEstimate = await estimateSubtitleTokens(
+    const fastEstimate = estimateSubtitleTokensFast(
       fileContent,
       args.sliceType as SubtitleSliceType,
       undefined,
       taskProfile.provider,
-      taskProfile.tokenPricing
+      taskProfile.tokenPricing,
     );
 
     store.addTask({
@@ -183,13 +186,24 @@ export async function executeQueueTranslate(
       targetFileURL: outputDir,
       status: TaskStatus.NOT_STARTED,
       progress: 0,
-      costEstimate,
+      costEstimate: fastEstimate,
       apiKey: taskProfile.apiKey,
       apiModel: taskProfile.modelKey,
       endPoint: taskProfile.baseUrl,
       conflictPolicy: "index",
     });
     queued++;
+
+    const capturedFileName = fileName;
+    estimateSubtitleTokens(
+      fileContent,
+      args.sliceType as SubtitleSliceType,
+      undefined,
+      taskProfile.provider,
+      taskProfile.tokenPricing,
+    ).then((precise) => {
+      store.updateTaskCostEstimate(capturedFileName, precise);
+    });
   }
 
   const result: ToolExecutionResult = {

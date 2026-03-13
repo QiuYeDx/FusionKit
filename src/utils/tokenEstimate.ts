@@ -2,23 +2,22 @@ import { SubtitleSliceType } from "@/type/subtitle";
 import { Model, TokenPricing } from "@/type/model";
 import { DEFAULT_SLICE_LENGTH_MAP } from "@/constants/subtitle";
 
-/**
- * 快速估算文本的 token 数量（纯前端，无 IPC）。
- * 对 CJK / 假名等宽字符按 ~1 token 计，Latin/数字/标点按 ~0.25 token 计。
- * 精度足以用于费用预览，避免调用 gpt-3-encoder 阻塞主进程。
- */
+// ---------------------------------------------------------------------------
+// Fast heuristic counter (sync, zero-dependency)
+// ---------------------------------------------------------------------------
+
 function countTokensFast(text: string): number {
   let tokens = 0;
   for (let i = 0; i < text.length; i++) {
     const code = text.charCodeAt(i);
     if (
-      (code >= 0x4e00 && code <= 0x9fff) || // CJK Unified Ideographs
-      (code >= 0x3400 && code <= 0x4dbf) || // CJK Extension A
-      (code >= 0x3000 && code <= 0x303f) || // CJK Symbols & Punctuation
-      (code >= 0x3040 && code <= 0x309f) || // Hiragana
-      (code >= 0x30a0 && code <= 0x30ff) || // Katakana
-      (code >= 0xff00 && code <= 0xffef) || // Fullwidth Forms
-      (code >= 0xac00 && code <= 0xd7af)    // Hangul Syllables
+      (code >= 0x4e00 && code <= 0x9fff) ||
+      (code >= 0x3400 && code <= 0x4dbf) ||
+      (code >= 0x3000 && code <= 0x303f) ||
+      (code >= 0x3040 && code <= 0x309f) ||
+      (code >= 0x30a0 && code <= 0x30ff) ||
+      (code >= 0xff00 && code <= 0xffef) ||
+      (code >= 0xac00 && code <= 0xd7af)
     ) {
       tokens += 1;
     } else {
@@ -28,32 +27,56 @@ function countTokensFast(text: string): number {
   return Math.ceil(tokens);
 }
 
-/**
- * 估算字幕翻译的 token 消耗量（纯渲染进程本地计算，不阻塞主进程）
- */
-export const estimateSubtitleTokens = async (
-  content: string,
-  sliceType: SubtitleSliceType,
-  customSliceLength?: number,
-  _model?: Model,
-  tokenPricing?: TokenPricing
-): Promise<{
+// ---------------------------------------------------------------------------
+// Precise counter (async, lazy-loads gpt-tokenizer)
+// ---------------------------------------------------------------------------
+
+type EncodeFn = (text: string) => number[];
+let _encodeFn: EncodeFn | null = null;
+let _loadPromise: Promise<EncodeFn> | null = null;
+
+function loadTokenizer(): Promise<EncodeFn> {
+  if (_encodeFn) return Promise.resolve(_encodeFn);
+  if (_loadPromise) return _loadPromise;
+  _loadPromise = import("gpt-tokenizer").then((mod) => {
+    _encodeFn = mod.encode as EncodeFn;
+    return _encodeFn;
+  });
+  return _loadPromise;
+}
+
+async function countTokensPrecise(text: string): Promise<number> {
+  const encode = await loadTokenizer();
+  return encode(text).length;
+}
+
+// ---------------------------------------------------------------------------
+// CostEstimate shape
+// ---------------------------------------------------------------------------
+
+export type CostEstimateResult = {
   inputTokens: number;
   outputTokens: number;
   totalTokens: number;
   estimatedCost: number;
   fragmentCount: number;
-}> => {
-  const maxTokens =
-    sliceType === SubtitleSliceType.CUSTOM
-      ? customSliceLength || 500
-      : DEFAULT_SLICE_LENGTH_MAP[sliceType];
+  loading?: boolean;
+};
 
-  const originalTokens = countTokensFast(content);
+// ---------------------------------------------------------------------------
+// Internal helper: build estimate from a raw token count
+// ---------------------------------------------------------------------------
+
+function buildEstimate(
+  originalTokens: number,
+  maxTokens: number,
+  tokenPricing?: TokenPricing,
+  loading?: boolean,
+): CostEstimateResult {
   const promptOverhead = 200;
   const fragmentCount = Math.max(
     1,
-    Math.ceil(originalTokens / Math.max(1, maxTokens - promptOverhead))
+    Math.ceil(originalTokens / Math.max(1, maxTokens - promptOverhead)),
   );
 
   const inputTokens = originalTokens + fragmentCount * promptOverhead;
@@ -66,14 +89,52 @@ export const estimateSubtitleTokens = async (
     (inputTokens / 1_000_000) * inputPrice +
     (outputTokens / 1_000_000) * outputPrice;
 
-  return { inputTokens, outputTokens, totalTokens, estimatedCost, fragmentCount };
-};
+  return { inputTokens, outputTokens, totalTokens, estimatedCost, fragmentCount, loading };
+}
 
-/**
- * 格式化token数量为可读字符串
- * @param tokens token数量
- * @returns 格式化后的字符串
- */
+// ---------------------------------------------------------------------------
+// Public: synchronous fast estimate (used for immediate UI feedback)
+// ---------------------------------------------------------------------------
+
+export function estimateSubtitleTokensFast(
+  content: string,
+  sliceType: SubtitleSliceType,
+  customSliceLength?: number,
+  _model?: Model,
+  tokenPricing?: TokenPricing,
+): CostEstimateResult {
+  const maxTokens =
+    sliceType === SubtitleSliceType.CUSTOM
+      ? customSliceLength || 500
+      : DEFAULT_SLICE_LENGTH_MAP[sliceType];
+
+  return buildEstimate(countTokensFast(content), maxTokens, tokenPricing, true);
+}
+
+// ---------------------------------------------------------------------------
+// Public: async precise estimate (lazy-loads gpt-tokenizer)
+// ---------------------------------------------------------------------------
+
+export async function estimateSubtitleTokens(
+  content: string,
+  sliceType: SubtitleSliceType,
+  customSliceLength?: number,
+  _model?: Model,
+  tokenPricing?: TokenPricing,
+): Promise<CostEstimateResult> {
+  const maxTokens =
+    sliceType === SubtitleSliceType.CUSTOM
+      ? customSliceLength || 500
+      : DEFAULT_SLICE_LENGTH_MAP[sliceType];
+
+  const originalTokens = await countTokensPrecise(content);
+  return buildEstimate(originalTokens, maxTokens, tokenPricing, false);
+}
+
+// ---------------------------------------------------------------------------
+// Formatting helpers
+// ---------------------------------------------------------------------------
+
 export const formatTokens = (tokens: number): string => {
   if (tokens >= 1000000) {
     return `${(tokens / 1000000).toFixed(1)}M`;
@@ -83,18 +144,13 @@ export const formatTokens = (tokens: number): string => {
   return tokens.toString();
 };
 
-/**
- * 格式化费用为可读字符串
- * @param cost 费用（美元）
- * @returns 格式化后的字符串
- */
 export const formatCost = (cost: number): string => {
   if (cost < 0.001) {
-    return `$${(cost * 1000).toFixed(3)}‰`; // 千分之几美元
+    return `$${(cost * 1000).toFixed(3)}‰`;
   } else if (cost < 0.01) {
     return `$${cost.toFixed(4)}`;
   } else if (cost < 1) {
     return `$${cost.toFixed(3)}`;
   }
   return `$${cost.toFixed(2)}`;
-}; 
+};
