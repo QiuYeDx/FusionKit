@@ -24,6 +24,7 @@ interface AgentStore {
   executionMode: ExecutionMode;
   pendingExecution: PendingExecution | null;
   tokenStats: TokenStats;
+  activeToolCalls: AgentToolCall[];
 
   addMessage: (message: AgentMessage) => void;
   setStatus: (status: AgentSessionStatus) => void;
@@ -36,6 +37,8 @@ interface AgentStore {
   setPendingExecution: (pe: PendingExecution | null) => void;
   confirmExecution: () => void;
   dismissExecution: () => void;
+  setActiveToolCalls: (calls: AgentToolCall[]) => void;
+  clearActiveToolCalls: () => void;
   recordUsage: (data: {
     promptTokens: number;
     completionTokens: number;
@@ -111,6 +114,7 @@ const useAgentStore = create<AgentStore>((set, get) => ({
   executionMode: loadExecutionMode(),
   pendingExecution: null,
   tokenStats: createEmptyTokenStats(),
+  activeToolCalls: [],
 
   addMessage: (message) =>
     set((state) => ({
@@ -162,6 +166,7 @@ const useAgentStore = create<AgentStore>((set, get) => ({
       streamingText: "",
       pendingExecution: null,
       tokenStats: createEmptyTokenStats(),
+      activeToolCalls: [],
     }),
 
   setExecutionMode: (mode) => {
@@ -179,6 +184,9 @@ const useAgentStore = create<AgentStore>((set, get) => ({
   },
 
   dismissExecution: () => set({ pendingExecution: null }),
+
+  setActiveToolCalls: (calls) => set({ activeToolCalls: calls }),
+  clearActiveToolCalls: () => set({ activeToolCalls: [] }),
 
   recordUsage: ({ promptTokens, completionTokens, totalTokens, cost, stepCount, lastPromptTokens }) =>
     set((state) => ({

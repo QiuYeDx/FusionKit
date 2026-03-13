@@ -200,12 +200,36 @@ export async function handleUserMessage(userContent: string): Promise<void> {
           break;
         }
 
+        case "tool-call-streaming-start": {
+          const current = useAgentStore.getState().activeToolCalls;
+          useAgentStore.getState().setActiveToolCalls([
+            ...current,
+            {
+              toolCallId: part.toolCallId,
+              toolName: part.toolName,
+              args: {},
+            },
+          ]);
+          break;
+        }
+
         case "tool-call": {
           pendingToolCalls.push({
             toolCallId: part.toolCallId,
             toolName: part.toolName,
             args: part.input as Record<string, unknown>,
           });
+          const active = useAgentStore.getState().activeToolCalls;
+          if (!active.some((tc) => tc.toolCallId === part.toolCallId)) {
+            useAgentStore.getState().setActiveToolCalls([
+              ...active,
+              {
+                toolCallId: part.toolCallId,
+                toolName: part.toolName,
+                args: part.input as Record<string, unknown>,
+              },
+            ]);
+          }
           break;
         }
 
@@ -230,6 +254,7 @@ export async function handleUserMessage(userContent: string): Promise<void> {
           }
 
           if (pendingToolCalls.length > 0) {
+            useAgentStore.getState().clearActiveToolCalls();
             const currentStreamingText = useAgentStore.getState().streamingText;
             useAgentStore.getState().commitStreamingAsAssistant(
               currentStreamingText,
@@ -330,6 +355,7 @@ export async function handleUserMessage(userContent: string): Promise<void> {
       });
     }
 
+    useAgentStore.getState().clearActiveToolCalls();
     useAgentStore.getState().setStreaming(false);
     activeAbortController = null;
   }

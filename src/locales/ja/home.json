@@ -58,6 +58,11 @@
   "token_log": "Token ログ",
   "unknown_model": "不明なモデル",
   "context_window": "コンテキストウィンドウ",
+  "tool_name_scan": "字幕ファイルをスキャン",
+  "tool_name_translate": "翻訳タスクをキューに追加",
+  "tool_name_convert": "変換タスクをキューに追加",
+  "tool_name_extract": "抽出タスクをキューに追加",
+  "tool_executing": "実行中…",
   "tool_result_more_files": "... 合計 {{count}} ファイル",
   "tool_result_files_found": "{{count}} 個のファイルを検出",
   "tool_result_queued_progress": "キューに追加済み: {{queuedCount}}/{{totalFiles}} ファイル"

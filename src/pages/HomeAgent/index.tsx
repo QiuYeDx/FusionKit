@@ -25,7 +25,7 @@ import { motion, AnimatePresence } from "motion/react";
 import useAgentStore from "@/store/agent/useAgentStore";
 import useModelStore from "@/store/useModelStore";
 import { handleUserMessage, abortCurrentStream } from "@/agent/orchestrator";
-import type { AgentMessage, ExecutionMode } from "@/agent/types";
+import type { AgentMessage, AgentToolCall, ExecutionMode } from "@/agent/types";
 import { Button } from "@/components/ui/button";
 import {
   Select,
@@ -67,6 +67,13 @@ const EXECUTION_MODE_OPTIONS: {
     },
   ];
 
+const TOOL_LABEL_KEYS: Record<string, string> = {
+  scan_subtitle_files: "home:tool_name_scan",
+  queue_subtitle_translate: "home:tool_name_translate",
+  queue_subtitle_convert: "home:tool_name_convert",
+  queue_subtitle_extract: "home:tool_name_extract",
+};
+
 const STORE_LABEL_KEYS: Record<string, string> = {
   translate: "home:store_label_translate",
   convert: "home:store_label_convert",
@@ -100,6 +107,7 @@ function HomeAgent() {
     pendingExecution,
     confirmExecution,
     dismissExecution,
+    activeToolCalls,
   } = useAgentStore();
   const { messages, status } = session;
 
@@ -108,7 +116,7 @@ function HomeAgent() {
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, pendingExecution, streamingText]);
+  }, [messages, pendingExecution, streamingText, activeToolCalls]);
 
   useEffect(() => {
     return () => {
@@ -327,7 +335,7 @@ function HomeAgent() {
                 <MessageBubble key={msg.id} message={msg} />
               ))}
 
-              {isStreaming && status === "thinking" && !streamingText && (
+              {isStreaming && status === "thinking" && !streamingText && activeToolCalls.length === 0 && (
                 <div className="flex items-center gap-2 text-muted-foreground text-sm pl-10">
                   <Loader2 className="h-3.5 w-3.5 animate-spin" />
                   <span>{t("home:agent_thinking")}</span>
@@ -343,6 +351,10 @@ function HomeAgent() {
                     <StreamingTextContent text={streamingText} />
                   </div>
                 </div>
+              )}
+
+              {isStreaming && activeToolCalls.length > 0 && (
+                <ToolCallBubble toolCalls={activeToolCalls} isLoading />
               )}
 
               {pendingExecution && !isStreaming && (
@@ -532,39 +544,85 @@ function MessageBubble({ message }: { message: AgentMessage }) {
     !message.content &&
     message.toolCalls?.length
   ) {
-    return null;
+    return <ToolCallBubble toolCalls={message.toolCalls} />;
   }
 
   return (
+    <>
+      <div
+        className={cn(
+          "flex items-start gap-2.5",
+          isUser ? "flex-row-reverse" : ""
+        )}
+      >
+        <div
+          className={cn(
+            "flex items-center justify-center rounded-full w-7 h-7 shrink-0",
+            isUser
+              ? "bg-primary text-primary-foreground"
+              : "bg-muted text-muted-foreground"
+          )}
+        >
+          {isUser ? (
+            <User className="h-3.5 w-3.5" />
+          ) : (
+            <Bot className="h-3.5 w-3.5" />
+          )}
+        </div>
+        <div
+          className={cn(
+            "relative rounded-sm px-4 py-2.5 max-w-[80%] text-sm leading-relaxed",
+            isUser
+              ? "bg-primary text-primary-foreground chat-bubble-user"
+              : "bg-muted chat-bubble-assistant"
+          )}
+        >
+          <p className="whitespace-pre-wrap wrap-break-word">{message.content}</p>
+        </div>
+      </div>
+      {message.role === "assistant" && message.toolCalls && message.toolCalls.length > 0 && (
+        <ToolCallBubble toolCalls={message.toolCalls} />
+      )}
+    </>
+  );
+}
+
+function ToolCallBubble({
+  toolCalls,
+  isLoading = false,
+}: {
+  toolCalls: AgentToolCall[];
+  isLoading?: boolean;
+}) {
+  const { t } = useTranslation();
+  return (
     <div
       className={cn(
-        "flex items-start gap-2.5",
-        isUser ? "flex-row-reverse" : ""
+        "pl-10",
+        isLoading && "animate-in fade-in slide-in-from-bottom-2 duration-300"
       )}
     >
-      <div
-        className={cn(
-          "flex items-center justify-center rounded-full w-7 h-7 shrink-0",
-          isUser
-            ? "bg-primary text-primary-foreground"
-            : "bg-muted text-muted-foreground"
-        )}
-      >
-        {isUser ? (
-          <User className="h-3.5 w-3.5" />
-        ) : (
-          <Bot className="h-3.5 w-3.5" />
-        )}
-      </div>
-      <div
-        className={cn(
-          "relative rounded-sm px-4 py-2.5 max-w-[80%] text-sm leading-relaxed",
-          isUser
-            ? "bg-primary text-primary-foreground chat-bubble-user"
-            : "bg-muted chat-bubble-assistant"
-        )}
-      >
-        <p className="whitespace-pre-wrap wrap-break-word">{message.content}</p>
+      <div className="inline-flex flex-col gap-1 rounded-lg border border-border/40 bg-muted/30 px-3 py-2">
+        {toolCalls.map((tc) => (
+          <div
+            key={tc.toolCallId}
+            className="flex items-center gap-2 text-xs"
+          >
+            {isLoading ? (
+              <Loader2 className="h-3 w-3 animate-spin text-primary/70" />
+            ) : (
+              <CheckCircle2 className="h-3 w-3 text-emerald-500/70" />
+            )}
+            <span className="text-muted-foreground">
+              {t(TOOL_LABEL_KEYS[tc.toolName] ?? tc.toolName)}
+            </span>
+            {isLoading && (
+              <span className="text-muted-foreground/40 text-[10px]">
+                {t("home:tool_executing")}
+              </span>
+            )}
+          </div>
+        ))}
       </div>
     </div>
   );

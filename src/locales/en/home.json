@@ -58,6 +58,11 @@
   "token_log": "Token Log",
   "unknown_model": "Unknown Model",
   "context_window": "context window",
+  "tool_name_scan": "Scan Subtitle Files",
+  "tool_name_translate": "Queue Translation",
+  "tool_name_convert": "Queue Conversion",
+  "tool_name_extract": "Queue Extraction",
+  "tool_executing": "Executing...",
   "tool_result_more_files": "... {{count}} files total",
   "tool_result_files_found": "{{count}} files found",
   "tool_result_queued_progress": "Added to queue: {{queuedCount}}/{{totalFiles}} files"
