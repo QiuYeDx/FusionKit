@@ -100,6 +100,10 @@ function buildModelMessages(sessionMessages: AgentMessage[]): ModelMessage[] {
         msgs.push({ role: "assistant", content: m.content });
       }
     } else if (m.role === "tool" && m.toolResult) {
+      const output = m.toolResult.success === false
+        ? { type: "error-text" as const, value: m.toolResult.error ?? "Unknown error" }
+        : { type: "json" as const, value: m.toolResult.data ?? null };
+
       msgs.push({
         role: "tool",
         content: [
@@ -107,7 +111,7 @@ function buildModelMessages(sessionMessages: AgentMessage[]): ModelMessage[] {
             type: "tool-result" as const,
             toolCallId: m.toolResult.callId,
             toolName: m.toolResult.toolName,
-            output: m.toolResult.data ?? m.toolResult.error ?? "",
+            output,
           },
         ],
       });
@@ -197,19 +201,6 @@ export async function handleUserMessage(userContent: string): Promise<void> {
             useAgentStore.getState().setStatus("streaming");
           }
           useAgentStore.getState().appendStreamingText(part.text);
-          break;
-        }
-
-        case "tool-call-streaming-start": {
-          const current = useAgentStore.getState().activeToolCalls;
-          useAgentStore.getState().setActiveToolCalls([
-            ...current,
-            {
-              toolCallId: part.toolCallId,
-              toolName: part.toolName,
-              args: {},
-            },
-          ]);
           break;
         }
 
