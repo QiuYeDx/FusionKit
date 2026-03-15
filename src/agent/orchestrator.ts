@@ -204,6 +204,21 @@ export async function handleUserMessage(userContent: string): Promise<void> {
           break;
         }
 
+        case "tool-input-start": {
+          const active = useAgentStore.getState().activeToolCalls;
+          if (!active.some((tc) => tc.toolCallId === part.id)) {
+            useAgentStore.getState().setActiveToolCalls([
+              ...active,
+              {
+                toolCallId: part.id,
+                toolName: part.toolName,
+                args: {},
+              },
+            ]);
+          }
+          break;
+        }
+
         case "tool-call": {
           pendingToolCalls.push({
             toolCallId: part.toolCallId,
@@ -211,7 +226,16 @@ export async function handleUserMessage(userContent: string): Promise<void> {
             args: part.input as Record<string, unknown>,
           });
           const active = useAgentStore.getState().activeToolCalls;
-          if (!active.some((tc) => tc.toolCallId === part.toolCallId)) {
+          const existing = active.find((tc) => tc.toolCallId === part.toolCallId);
+          if (existing) {
+            useAgentStore.getState().setActiveToolCalls(
+              active.map((tc) =>
+                tc.toolCallId === part.toolCallId
+                  ? { ...tc, args: part.input as Record<string, unknown> }
+                  : tc
+              )
+            );
+          } else {
             useAgentStore.getState().setActiveToolCalls([
               ...active,
               {
