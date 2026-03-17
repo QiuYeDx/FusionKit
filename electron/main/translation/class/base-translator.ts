@@ -17,13 +17,12 @@ export abstract class BaseTranslator {
   protected abstract splitContent(content: string, maxTokens: number): string[];
   protected abstract formatPrompt(
     partialContent: string,
-    context: string
+    context: string,
   ): string;
 
-  // 新增重试配置（子类可覆盖）
-  // TODO: 未来做成可配置的
   protected maxRetries = 5;
   protected retryDelay = 1000;
+  protected maxSliceConcurrency = 5;
 
   async translate(task: SubtitleTranslatorTask, signal?: AbortSignal) {
     const errorLogs: string[] = [];
@@ -31,11 +30,15 @@ export abstract class BaseTranslator {
 
     try {
       console.log("[01] start process file:", task.fileName);
-      errorLogs.push(`[${new Date().toISOString()}] 开始处理文件: ${task.fileName}`);
-      
+      errorLogs.push(
+        `[${new Date().toISOString()}] 开始处理文件: ${task.fileName}`,
+      );
+
       const content = task.fileContent;
       console.log("[02] content length:", content.length);
-      errorLogs.push(`[${new Date().toISOString()}] 文件内容长度: ${content.length}`);
+      errorLogs.push(
+        `[${new Date().toISOString()}] 文件内容长度: ${content.length}`,
+      );
 
       const maxTokens = this.getMaxTokens(task.sliceType);
       console.log("[03] max token num:", maxTokens);
@@ -43,55 +46,49 @@ export abstract class BaseTranslator {
 
       const fragments = this.splitContent(content, maxTokens);
       console.log("[04] fragments num:", fragments.length);
-      errorLogs.push(`[${new Date().toISOString()}] 分片数量: ${fragments.length}`);
+      errorLogs.push(
+        `[${new Date().toISOString()}] 分片数量: ${fragments.length}`,
+      );
 
-      // 初始化进度
       this.updateProgress(task, 0, fragments.length);
 
-      const translatedFragments: string[] = [];
+      let translatedFragments: string[];
 
-      for (const [index, fragment] of fragments.entries()) {
-        if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
-
-        try {
-          errorLogs.push(`[${new Date().toISOString()}] 开始翻译第 ${index + 1}/${fragments.length} 个分片`);
-          
-          const result = await this.translateFragment(
-            fragment,
-            index > 0 ? fragments[index - 1] : "",
-            task.apiKey,
-            task.apiModel,
-            errorLogs
-          );
-
-          if (!result) {
-            throw new Error("Translation result is undefined");
-          }
-
-          translatedFragments.push(result);
-          console.log("result", result);
-          errorLogs.push(`[${new Date().toISOString()}] 第 ${index + 1} 个分片翻译完成`);
-
-          // 更新当前分片进度
-          this.updateProgress(task, index + 1, fragments.length);
-        } catch (fragmentError) {
-          errorLogs.push(`[${new Date().toISOString()}] 第 ${index + 1} 个分片翻译失败: ${fragmentError instanceof Error ? fragmentError.message : String(fragmentError)}`);
-          throw fragmentError;
-        }
+      if (task.concurrentSlices && fragments.length > 1) {
+        errorLogs.push(
+          `[${new Date().toISOString()}] 并发模式，最大并发数: ${this.maxSliceConcurrency}`,
+        );
+        translatedFragments = await this.translateFragmentsConcurrently(
+          fragments,
+          task,
+          signal,
+          errorLogs,
+        );
+      } else {
+        translatedFragments = await this.translateFragmentsSequentially(
+          fragments,
+          task,
+          signal,
+          errorLogs,
+        );
       }
 
       // 将翻译后的内容写入目标文件
       const fileType = task.fileName.split(".").at(-1)?.toUpperCase();
       const translatedContent = translatedFragments.join("\n\n");
-      
-      errorLogs.push(`[${new Date().toISOString()}] 开始写入文件到: ${task.targetFileURL}`);
+
+      errorLogs.push(
+        `[${new Date().toISOString()}] 开始写入文件到: ${task.targetFileURL}`,
+      );
       const finalPath = await this.writeFile(
         task.targetFileURL,
         translatedContent,
         task.fileName,
-        task.conflictPolicy
+        task.conflictPolicy,
       );
-      errorLogs.push(`[${new Date().toISOString()}] 文件写入完成: ${finalPath}`);
+      errorLogs.push(
+        `[${new Date().toISOString()}] 文件写入完成: ${finalPath}`,
+      );
 
       // 通知任务完成（包含最终输出路径）
       const mainWindow = BrowserWindow.getAllWindows()[0];
@@ -107,9 +104,10 @@ export abstract class BaseTranslator {
       this.updateProgress(task, fragments.length, fragments.length);
       errorLogs.push(`[${new Date().toISOString()}] 任务完成`);
     } catch (error) {
-      const errorDetails = error instanceof Error ? error.message : String(error);
+      const errorDetails =
+        error instanceof Error ? error.message : String(error);
       const stackTrace = error instanceof Error ? error.stack : "无堆栈信息";
-      
+
       errorLogs.push(`[${new Date().toISOString()}] 任务失败: ${errorDetails}`);
       if (stackTrace) {
         errorLogs.push(`[${new Date().toISOString()}] 堆栈跟踪: ${stackTrace}`);
@@ -128,7 +126,7 @@ export abstract class BaseTranslator {
         });
       } else {
         console.error(
-          "[base-translator] main window not fount, updateProgress failed"
+          "[base-translator] main window not fount, updateProgress failed",
         );
       }
 
@@ -137,10 +135,113 @@ export abstract class BaseTranslator {
     }
   }
 
+  private async translateFragmentsSequentially(
+    fragments: string[],
+    task: SubtitleTranslatorTask,
+    signal: AbortSignal | undefined,
+    errorLogs: string[],
+  ): Promise<string[]> {
+    const results: string[] = [];
+
+    for (const [index, fragment] of fragments.entries()) {
+      if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
+
+      try {
+        errorLogs.push(
+          `[${new Date().toISOString()}] 开始翻译第 ${index + 1}/${fragments.length} 个分片`,
+        );
+
+        const result = await this.translateFragment(
+          fragment,
+          index > 0 ? fragments[index - 1] : "",
+          task.apiKey,
+          task.apiModel,
+          errorLogs,
+        );
+
+        if (!result) {
+          throw new Error("Translation result is undefined");
+        }
+
+        results.push(result);
+        errorLogs.push(
+          `[${new Date().toISOString()}] 第 ${index + 1} 个分片翻译完成`,
+        );
+        this.updateProgress(task, index + 1, fragments.length);
+      } catch (fragmentError) {
+        errorLogs.push(
+          `[${new Date().toISOString()}] 第 ${index + 1} 个分片翻译失败: ${fragmentError instanceof Error ? fragmentError.message : String(fragmentError)}`,
+        );
+        throw fragmentError;
+      }
+    }
+
+    return results;
+  }
+
+  private async translateFragmentsConcurrently(
+    fragments: string[],
+    task: SubtitleTranslatorTask,
+    signal: AbortSignal | undefined,
+    errorLogs: string[],
+  ): Promise<string[]> {
+    const results: (string | null)[] = new Array(fragments.length).fill(null);
+    let completedCount = 0;
+    let nextIndex = 0;
+    let failed = false;
+
+    const worker = async (): Promise<void> => {
+      while (!failed) {
+        const index = nextIndex++;
+        if (index >= fragments.length) break;
+        if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
+
+        const fragment = fragments[index];
+        const context = index > 0 ? fragments[index - 1] : "";
+
+        try {
+          errorLogs.push(
+            `[${new Date().toISOString()}] [并发] 开始翻译第 ${index + 1}/${fragments.length} 个分片`,
+          );
+
+          const result = await this.translateFragment(
+            fragment,
+            context,
+            task.apiKey,
+            task.apiModel,
+            errorLogs,
+          );
+
+          if (!result) {
+            throw new Error("Translation result is undefined");
+          }
+
+          results[index] = result;
+          completedCount++;
+          errorLogs.push(
+            `[${new Date().toISOString()}] [并发] 第 ${index + 1} 个分片翻译完成 (${completedCount}/${fragments.length})`,
+          );
+          this.updateProgress(task, completedCount, fragments.length);
+        } catch (err) {
+          failed = true;
+          errorLogs.push(
+            `[${new Date().toISOString()}] [并发] 第 ${index + 1} 个分片翻译失败: ${err instanceof Error ? err.message : String(err)}`,
+          );
+          throw err;
+        }
+      }
+    };
+
+    const workerCount = Math.min(this.maxSliceConcurrency, fragments.length);
+    await Promise.all(Array.from({ length: workerCount }, () => worker()));
+
+    return results.filter((r): r is string => r !== null);
+  }
+
   private updateProgress(
     task: SubtitleTranslatorTask,
     current: number,
-    total: number
+    total: number,
   ) {
     // 更新任务对象
     task.resolvedFragments = current;
@@ -172,7 +273,7 @@ export abstract class BaseTranslator {
     fileURL: string,
     content: string,
     fileName: string,
-    conflictPolicy: OutputConflictPolicy = "index"
+    conflictPolicy: OutputConflictPolicy = "index",
   ) {
     try {
       const absoluteOutputDir = path.resolve(fileURL);
@@ -188,7 +289,7 @@ export abstract class BaseTranslator {
             // exists → try next index
             finalPath = path.join(
               absoluteOutputDir,
-              `${parsed.name} (${index})${parsed.ext}`
+              `${parsed.name} (${index})${parsed.ext}`,
             );
             index++;
           } catch {
@@ -216,14 +317,16 @@ export abstract class BaseTranslator {
     context: string,
     apiKey: string,
     apiModel: string,
-    errorLogs: string[]
+    errorLogs: string[],
   ): Promise<string> {
     const prompt = this.formatPrompt(content, context);
 
     for (let attempt = 1; attempt <= this.maxRetries; attempt++) {
       try {
-        errorLogs.push(`[${new Date().toISOString()}] 尝试第 ${attempt}/${this.maxRetries} 次翻译请求`);
-        
+        errorLogs.push(
+          `[${new Date().toISOString()}] 尝试第 ${attempt}/${this.maxRetries} 次翻译请求`,
+        );
+
         const response = await axios.post(
           this.getApiEndpoint(),
           {
@@ -243,7 +346,7 @@ export abstract class BaseTranslator {
               "Content-Type": "application/json",
             },
             ...getAxiosProxyConfig(),
-          }
+          },
         );
 
         if (!response.data) {
@@ -251,40 +354,53 @@ export abstract class BaseTranslator {
         }
 
         console.log("翻译响应数据:", response.data);
-        errorLogs.push(`[${new Date().toISOString()}] 第 ${attempt} 次翻译请求成功`);
-        
+        errorLogs.push(
+          `[${new Date().toISOString()}] 第 ${attempt} 次翻译请求成功`,
+        );
+
         // 清理响应数据中的 think 标签（适配深度思考类型模型）
         if (response.data.choices?.[0]?.message?.content) {
           const originalContent = response.data.choices[0].message.content;
-          
+
           // 只有检测到think标签时才进行清理，提高性能
           if (hasThinkTags(originalContent)) {
             const cleanedContent = removeThinkTags(originalContent);
-            errorLogs.push(`[${new Date().toISOString()}] 检测到think标签，已清理思考内容`);
+            errorLogs.push(
+              `[${new Date().toISOString()}] 检测到think标签，已清理思考内容`,
+            );
             console.log("清理think标签前:", originalContent);
             console.log("清理think标签后:", cleanedContent);
-            
+
             // 更新响应数据
             response.data.choices[0].message.content = cleanedContent;
           }
         }
-        
+
         return this.parseResponse(response.data);
       } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : String(error);
-        errorLogs.push(`[${new Date().toISOString()}] 第 ${attempt} 次翻译尝试失败: ${errorMessage}`);
-        
+        const errorMessage =
+          error instanceof Error ? error.message : String(error);
+        errorLogs.push(
+          `[${new Date().toISOString()}] 第 ${attempt} 次翻译尝试失败: ${errorMessage}`,
+        );
+
         if (axios.isAxiosError(error)) {
-          errorLogs.push(`[${new Date().toISOString()}] HTTP状态码: ${error.response?.status || 'N/A'}`);
+          errorLogs.push(
+            `[${new Date().toISOString()}] HTTP状态码: ${error.response?.status || "N/A"}`,
+          );
           if (error.response?.data) {
-            errorLogs.push(`[${new Date().toISOString()}] 响应数据: ${JSON.stringify(error.response.data)}`);
+            errorLogs.push(
+              `[${new Date().toISOString()}] 响应数据: ${JSON.stringify(error.response.data)}`,
+            );
           }
         }
 
         console.error(`第 ${attempt} 次翻译尝试失败:`, error);
 
         if (attempt === this.maxRetries) {
-          errorLogs.push(`[${new Date().toISOString()}] 已达到最大重试次数，翻译失败`);
+          errorLogs.push(
+            `[${new Date().toISOString()}] 已达到最大重试次数，翻译失败`,
+          );
           throw this.normalizeError(error);
         }
 

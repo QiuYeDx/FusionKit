@@ -21,7 +21,9 @@
       "output_mode_source_hint": "各ファイルは元のフォルダへ出力されます",
       "conflict_policy": "同名時の処理",
       "conflict_policy_overwrite": "上書き",
-      "conflict_policy_index": "連番を付加"
+      "conflict_policy_index": "連番を付加",
+      "concurrent_slices": "スライス並行翻訳",
+      "concurrent_slices_hint": "有効にすると、1つのタスクの複数スライスがAPIへ並行リクエストされ、翻訳速度が大幅に向上しますが、瞬間的な同時リクエスト数が増加します"
     },
     "actions": {
       "start": "タスク開始",
@@ -81,7 +83,10 @@
       "fragment_suffix": "個",
       "token_estimate": "トークン予測",
       "input": "入力",
-      "output": "出力"
+      "output": "出力",
+      "concurrent_slices": "並行スライス",
+      "concurrent_on": "有効",
+      "concurrent_off": "無効"
     },
     "error_fallback": {
       "unknown": "不明なエラー",

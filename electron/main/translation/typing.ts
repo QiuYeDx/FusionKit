@@ -45,4 +45,5 @@ export type SubtitleTranslatorTask = {
 
   extraInfo?: { [key: string]: any };
   conflictPolicy?: OutputConflictPolicy;
+  concurrentSlices?: boolean;
 };

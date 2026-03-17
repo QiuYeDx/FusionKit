@@ -21,7 +21,9 @@
       "output_mode_source_hint": "每个文件将输出到其源文件所在目录",
       "conflict_policy": "重名处理",
       "conflict_policy_overwrite": "覆盖原文件",
-      "conflict_policy_index": "自动加序号"
+      "conflict_policy_index": "自动加序号",
+      "concurrent_slices": "切片并发翻译",
+      "concurrent_slices_hint": "开启后单个任务的多个切片将并发请求 API，显著提升翻译速度，但会增加瞬时并发数"
     },
     "actions": {
       "start": "开始任务",
@@ -81,7 +83,10 @@
       "fragment_suffix": "个分片",
       "token_estimate": "Token 预估",
       "input": "输入",
-      "output": "输出"
+      "output": "输出",
+      "concurrent_slices": "并发切片",
+      "concurrent_on": "已开启",
+      "concurrent_off": "已关闭"
     },
     "error_fallback": {
       "unknown": "未知错误",

@@ -21,7 +21,9 @@
       "output_mode_source_hint": "Each file outputs to its source directory",
       "conflict_policy": "Name conflicts",
       "conflict_policy_overwrite": "Overwrite",
-      "conflict_policy_index": "Add index suffix"
+      "conflict_policy_index": "Add index suffix",
+      "concurrent_slices": "Concurrent Slice Translation",
+      "concurrent_slices_hint": "When enabled, multiple slices of a single task will request the API concurrently, significantly improving translation speed but increasing burst concurrency"
     },
     "actions": {
       "start": "Start Task",
@@ -81,7 +83,10 @@
       "fragment_suffix": "fragments",
       "token_estimate": "Token Estimate",
       "input": "Input",
-      "output": "Output"
+      "output": "Output",
+      "concurrent_slices": "Concurrent Slices",
+      "concurrent_on": "Enabled",
+      "concurrent_off": "Disabled"
     },
     "error_fallback": {
       "unknown": "Unknown error",

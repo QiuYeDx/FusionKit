@@ -1,7 +1,7 @@
 {
   "name": "FusionKit",
   "productName": "FusionKit",
-  "version": "0.2.1",
+  "version": "0.2.2-beta.1",
   "main": "dist-electron/main/index.js",
   "description": "",
   "author": "QiuYeDx <qiuyedx@foxmail.com>",

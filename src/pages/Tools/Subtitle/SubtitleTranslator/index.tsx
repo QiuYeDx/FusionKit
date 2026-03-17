@@ -87,6 +87,11 @@ function SubtitleTranslator() {
       return raw === "overwrite" ? "overwrite" : "index";
     });
 
+  const [concurrentSlices, setConcurrentSlices] = useState<boolean>(() => {
+    const raw = localStorage.getItem("subtitle-translator-concurrent-slices");
+    return raw === null ? true : raw === "true";
+  });
+
   const [isDragging, setIsDragging] = useState(false);
 
   // 错误详情模态框状态
@@ -125,6 +130,15 @@ function SubtitleTranslator() {
       );
     } catch {}
   }, [conflictPolicy]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(
+        "subtitle-translator-concurrent-slices",
+        String(concurrentSlices)
+      );
+    } catch {}
+  }, [concurrentSlices]);
 
   const targetEpochMs = useMemo(() => {
     if (!scheduleTime) return NaN;
@@ -460,6 +474,7 @@ function SubtitleTranslator() {
           apiModel: taskProfile?.modelKey ?? "",
           endPoint: taskProfile?.baseUrl ?? "",
           conflictPolicy,
+          concurrentSlices,
         };
         addTask(newTask);
 
@@ -575,6 +590,29 @@ function SubtitleTranslator() {
                   />
                 </div>
               )}
+
+              {/* 并发切片开关 */}
+              <Label
+                htmlFor="concurrent-slices"
+                className="hover:bg-accent/50 flex items-start gap-3 rounded-lg border p-3 cursor-pointer has-aria-checked:border-primary has-aria-checked:bg-primary/5 dark:has-aria-checked:bg-primary/10"
+              >
+                <Checkbox
+                  id="concurrent-slices"
+                  checked={concurrentSlices}
+                  onCheckedChange={(checked) =>
+                    setConcurrentSlices(checked as boolean)
+                  }
+                  className="data-[state=checked]:border-primary data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground"
+                />
+                <div className="grid gap-1.5 font-normal">
+                  <p className="text-sm leading-none font-medium">
+                    {t("subtitle:translator.fields.concurrent_slices")}
+                  </p>
+                  <p className="text-muted-foreground text-xs">
+                    {t("subtitle:translator.fields.concurrent_slices_hint")}
+                  </p>
+                </div>
+              </Label>
             </CardContent>
           )}
         </Card>
@@ -1271,6 +1309,12 @@ function SubtitleTranslator() {
                           {task.conflictPolicy === "overwrite"
                             ? t("subtitle:translator.task_detail.overwrite")
                             : t("subtitle:translator.task_detail.auto_index")}
+                        </span>
+                        <span className="text-muted-foreground">{t("subtitle:translator.task_detail.concurrent_slices")}</span>
+                        <span>
+                          {task.concurrentSlices
+                            ? t("subtitle:translator.task_detail.concurrent_on")
+                            : t("subtitle:translator.task_detail.concurrent_off")}
                         </span>
                         {task.costEstimate && (
                           <>
