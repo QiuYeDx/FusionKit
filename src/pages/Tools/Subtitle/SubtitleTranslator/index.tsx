@@ -23,11 +23,20 @@ import {
   Cpu,
   ChevronDown,
   Info,
+  Pencil,
 } from "lucide-react";
 import { showToast } from "@/utils/toast";
-import { getSourceDirFromFile } from "@/utils/filePath";
+import { getSourceDirFromFile, getFilePathFromFile } from "@/utils/filePath";
 import useModelStore from "@/store/useModelStore";
 import ErrorDetailModal from "@/components/ErrorDetailModal";
+import ConfirmDialog from "@/components/ConfirmDialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   estimateSubtitleTokensFast,
   estimateSubtitleTokens,
@@ -80,6 +89,7 @@ function SubtitleTranslator() {
     clearAllTasks,
     cancelTask,
     deleteTask,
+    updateTask,
     updateTaskCostEstimate,
   } = useSubtitleTranslatorStore();
   const taskProfile = useModelStore((s) => s.getTaskProfile());
@@ -141,6 +151,21 @@ function SubtitleTranslator() {
   const [isOutputOpen, setIsOutputOpen] = useState<boolean>(true);
   const [isNewTaskConfigOpen, setIsNewTaskConfigOpen] = useState<boolean>(true);
   const [expandedTasks, setExpandedTasks] = useState<Set<string>>(new Set());
+
+  // 删除确认弹窗
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
+  const [taskToDelete, setTaskToDelete] = useState<string | null>(null);
+  const [confirmClearOpen, setConfirmClearOpen] = useState(false);
+
+  // 编辑任务配置弹窗
+  const [editTaskOpen, setEditTaskOpen] = useState(false);
+  const [editingTask, setEditingTask] = useState<SubtitleTranslatorTask | null>(null);
+  const [editSourceLang, setEditSourceLang] = useState<TranslationLanguage>("JA");
+  const [editTargetLang, setEditTargetLang] = useState<TranslationLanguage>("ZH");
+  const [editOutputMode, setEditOutputMode] = useState<TranslationOutputMode>("bilingual");
+  const [editSliceType, setEditSliceType] = useState<SubtitleSliceType>(SubtitleSliceType.NORMAL);
+  const [editConflictPolicy, setEditConflictPolicy] = useState<OutputConflictPolicy>("index");
+  const [editConcurrentSlices, setEditConcurrentSlices] = useState(true);
 
   useEffect(() => {
     try {
@@ -367,6 +392,63 @@ function SubtitleTranslator() {
     failedTaskQueue,
   ]);
 
+  const hasRunningTasks =
+    pendingTaskQueue.length > 0 || waitingTaskQueue.length > 0;
+
+  const handleDeleteTask = (task: SubtitleTranslatorTask) => {
+    if (
+      task.status === TaskStatus.PENDING ||
+      task.status === TaskStatus.WAITING
+    ) {
+      setTaskToDelete(task.fileName);
+      setConfirmDeleteOpen(true);
+    } else {
+      deleteTask(task.fileName);
+    }
+  };
+
+  const handleClearAllTasks = () => {
+    if (hasRunningTasks) {
+      setConfirmClearOpen(true);
+    } else {
+      clearAllTasks();
+    }
+  };
+
+  const handleOpenFileLocation = (task: SubtitleTranslatorTask) => {
+    const filePath =
+      task.status === TaskStatus.RESOLVED && task.extraInfo?.outputFilePath
+        ? task.extraInfo.outputFilePath
+        : task.originFileURL;
+    window.ipcRenderer.invoke("show-item-in-folder", filePath);
+  };
+
+  const handleOpenEditTask = (task: SubtitleTranslatorTask) => {
+    setEditingTask(task);
+    setEditSourceLang(task.sourceLang || "JA");
+    setEditTargetLang(task.targetLang || "ZH");
+    setEditOutputMode(task.translationOutputMode || "bilingual");
+    setEditSliceType(task.sliceType);
+    setEditConflictPolicy(task.conflictPolicy || "index");
+    setEditConcurrentSlices(task.concurrentSlices ?? true);
+    setEditTaskOpen(true);
+  };
+
+  const handleSaveEditTask = () => {
+    if (!editingTask) return;
+    updateTask(editingTask.fileName, {
+      sourceLang: editSourceLang,
+      targetLang: editTargetLang,
+      translationOutputMode: editOutputMode,
+      sliceType: editSliceType,
+      conflictPolicy: editConflictPolicy,
+      concurrentSlices: editConcurrentSlices,
+    });
+    showToast(t("subtitle:translator.edit_task.saved"), "success");
+    setEditTaskOpen(false);
+    setEditingTask(null);
+  };
+
   // 打开错误详情模态框
   const openErrorModal = (task: SubtitleTranslatorTask) => {
     setSelectedErrorTask(task);
@@ -518,7 +600,7 @@ function SubtitleTranslator() {
           fileName: file.name,
           fileContent,
           sliceType,
-          originFileURL: URL.createObjectURL(file),
+          originFileURL: getFilePathFromFile(file) ?? file.name,
           targetFileURL: outputDir,
           status: TaskStatus.NOT_STARTED,
           progress: 0,
@@ -1237,13 +1319,13 @@ function SubtitleTranslator() {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => clearAllTasks()}
+                onClick={handleClearAllTasks}
                 disabled={
-                  (notStartedTaskQueue.length === 0 &&
-                    resolvedTaskQueue.length === 0 &&
-                    failedTaskQueue.length === 0) ||
-                  pendingTaskQueue.length > 0 ||
-                  waitingTaskQueue.length > 0
+                  notStartedTaskQueue.length === 0 &&
+                  waitingTaskQueue.length === 0 &&
+                  pendingTaskQueue.length === 0 &&
+                  resolvedTaskQueue.length === 0 &&
+                  failedTaskQueue.length === 0
                 }
               >
                 {t("subtitle:translator.fields.clear_all_tasks")}
@@ -1439,7 +1521,26 @@ function SubtitleTranslator() {
                       <Button
                         variant="outline"
                         size="icon"
-                        onClick={() => deleteTask(task.fileName)}
+                        onClick={() => handleOpenFileLocation(task)}
+                      >
+                        <FolderOpen className="h-4 w-4" />
+                      </Button>
+
+                      {(task.status === TaskStatus.NOT_STARTED ||
+                        task.status === TaskStatus.FAILED) && (
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          onClick={() => handleOpenEditTask(task)}
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                      )}
+
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        onClick={() => handleDeleteTask(task)}
                       >
                         <Trash2 className="h-4 w-4" />
                       </Button>
@@ -1546,6 +1647,119 @@ function SubtitleTranslator() {
         }
         timestamp={selectedErrorTask?.extraInfo?.timestamp}
       />
+
+      {/* 删除确认弹窗 */}
+      <ConfirmDialog
+        open={confirmDeleteOpen}
+        onOpenChange={setConfirmDeleteOpen}
+        title={t("common:confirm.delete_running_task_title")}
+        description={t("common:confirm.delete_running_task_desc")}
+        confirmText={t("common:action.confirm")}
+        cancelText={t("common:action.cancel")}
+        onConfirm={() => {
+          if (taskToDelete) {
+            cancelTask(taskToDelete);
+            deleteTask(taskToDelete);
+            setTaskToDelete(null);
+          }
+        }}
+      />
+
+      {/* 清空确认弹窗 */}
+      <ConfirmDialog
+        open={confirmClearOpen}
+        onOpenChange={setConfirmClearOpen}
+        title={t("common:confirm.clear_running_tasks_title")}
+        description={t("common:confirm.clear_running_tasks_desc")}
+        confirmText={t("common:action.confirm")}
+        cancelText={t("common:action.cancel")}
+        onConfirm={clearAllTasks}
+      />
+
+      {/* 编辑任务配置弹窗 */}
+      <Dialog open={editTaskOpen} onOpenChange={setEditTaskOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t("subtitle:translator.edit_task.title")}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>{t("subtitle:translator.fields.source_language")}</Label>
+                <Select value={editSourceLang} onValueChange={(v) => setEditSourceLang(v as TranslationLanguage)}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {SUPPORTED_LANGUAGES.map((lang) => (
+                      <SelectItem key={lang.code} value={lang.code}>
+                        {t(lang.labelKey)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>{t("subtitle:translator.fields.target_language")}</Label>
+                <Select value={editTargetLang} onValueChange={(v) => setEditTargetLang(v as TranslationLanguage)}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {SUPPORTED_LANGUAGES.map((lang) => (
+                      <SelectItem key={lang.code} value={lang.code}>
+                        {t(lang.labelKey)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>{t("subtitle:translator.fields.translation_output_mode")}</Label>
+              <Select value={editOutputMode} onValueChange={(v) => setEditOutputMode(v as TranslationOutputMode)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="bilingual">{t("subtitle:translator.fields.output_bilingual")}</SelectItem>
+                  <SelectItem value="target_only">{t("subtitle:translator.fields.output_target_only")}</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>{t("subtitle:translator.fields.subtitle_slice_mode")}</Label>
+              <Select value={editSliceType} onValueChange={(v) => setEditSliceType(v as SubtitleSliceType)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={SubtitleSliceType.NORMAL}>{t("subtitle:translator.slice_types.normal")}</SelectItem>
+                  <SelectItem value={SubtitleSliceType.SENSITIVE}>{t("subtitle:translator.slice_types.sensitive")}</SelectItem>
+                  <SelectItem value={SubtitleSliceType.CUSTOM}>{t("subtitle:translator.slice_types.custom")}</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>{t("subtitle:translator.fields.conflict_policy")}</Label>
+              <Select value={editConflictPolicy} onValueChange={(v) => setEditConflictPolicy(v as OutputConflictPolicy)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="index">{t("subtitle:translator.fields.conflict_policy_index")}</SelectItem>
+                  <SelectItem value="overwrite">{t("subtitle:translator.fields.conflict_policy_overwrite")}</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex items-center gap-2">
+              <Checkbox
+                checked={editConcurrentSlices}
+                onCheckedChange={(v) => setEditConcurrentSlices(!!v)}
+              />
+              <Label>{t("subtitle:translator.fields.concurrent_slices")}</Label>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditTaskOpen(false)}>
+              {t("common:action.cancel")}
+            </Button>
+            <Button onClick={handleSaveEditTask}>
+              {t("common:action.save")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

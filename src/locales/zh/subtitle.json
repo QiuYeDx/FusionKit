@@ -105,6 +105,10 @@
       "concurrent_on": "已开启",
       "concurrent_off": "已关闭"
     },
+    "edit_task": {
+      "title": "编辑任务配置",
+      "saved": "任务配置已更新"
+    },
     "error_fallback": {
       "unknown": "未知错误",
       "no_detail": "无详细错误信息"
@@ -209,6 +213,10 @@
       "overwrite": "覆盖",
       "auto_index": "自动编号"
     },
+    "edit_task": {
+      "title": "编辑任务配置",
+      "saved": "任务配置已更新"
+    },
     "error_fallback": {
       "unknown": "未知错误",
       "no_detail": "无详细错误信息"
@@ -290,6 +298,10 @@
       "conflict_policy": "重名策略",
       "overwrite": "覆盖",
       "auto_index": "自动编号"
+    },
+    "edit_task": {
+      "title": "编辑任务配置",
+      "saved": "任务配置已更新"
     },
     "error_fallback": {
       "unknown": "未知错误",

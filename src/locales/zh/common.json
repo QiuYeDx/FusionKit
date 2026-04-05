@@ -18,7 +18,17 @@
     "copy_error": "复制错误信息",
     "close": "关闭",
     "check_update": "检查更新",
-    "cancel": "取消"
+    "cancel": "取消",
+    "confirm": "确认",
+    "save": "保存",
+    "open_file_location": "打开文件位置",
+    "edit_task_config": "编辑任务配置"
+  },
+  "confirm": {
+    "delete_running_task_title": "确认删除",
+    "delete_running_task_desc": "该任务正在执行中，删除后无法恢复。确定要删除吗？",
+    "clear_running_tasks_title": "确认清空",
+    "clear_running_tasks_desc": "当前有任务正在执行中，清空后将终止所有任务。确定要清空吗？"
   },
   "update": {
     "title": "更新",

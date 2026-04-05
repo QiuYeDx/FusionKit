@@ -51,6 +51,9 @@ interface SubtitleTranslatorStore {
     costEstimate: SubtitleTranslatorTask["costEstimate"],
   ) => void;
 
+  // 编辑任务配置（仅限 NOT_STARTED / FAILED 状态）
+  updateTask: (fileName: string, updates: Partial<SubtitleTranslatorTask>) => void;
+
   // 任务取消和删除
   cancelTask: (fileName: string) => void;
   deleteTask: (fileName: string) => void;
@@ -83,7 +86,7 @@ const saveOutputURL = (url: string): void => {
   }
 };
 
-const useSubtitleTranslatorStore = create<SubtitleTranslatorStore>((set) => ({
+const useSubtitleTranslatorStore = create<SubtitleTranslatorStore>((set, get) => ({
   // 初始状态
   // fileType: SubtitleFileType.LRC,
   sliceType: SubtitleSliceType.NORMAL,
@@ -254,9 +257,15 @@ const useSubtitleTranslatorStore = create<SubtitleTranslatorStore>((set) => ({
   },
 
   clearAllTasks: () => {
+    const state = get();
+    state.pendingTaskQueue.forEach((task) => {
+      window.ipcRenderer.send("cancel-translation", task.fileName);
+    });
+
     set({
       notStartedTaskQueue: [],
       waitingTaskQueue: [],
+      pendingTaskQueue: [],
       resolvedTaskQueue: [],
       failedTaskQueue: [],
     });
@@ -417,6 +426,16 @@ const useSubtitleTranslatorStore = create<SubtitleTranslatorStore>((set) => ({
       };
     });
   },
+
+  updateTask: (fileName, updates) =>
+    set((state) => ({
+      notStartedTaskQueue: state.notStartedTaskQueue.map((t) =>
+        t.fileName === fileName ? { ...t, ...updates } : t
+      ),
+      failedTaskQueue: state.failedTaskQueue.map((t) =>
+        t.fileName === fileName ? { ...t, ...updates } : t
+      ),
+    })),
 
   // 取消任务
   cancelTask: (fileName) => {

@@ -18,7 +18,17 @@
     "copy_error": "Copy error info",
     "close": "Close",
     "check_update": "Check update",
-    "cancel": "Cancel"
+    "cancel": "Cancel",
+    "confirm": "Confirm",
+    "save": "Save",
+    "open_file_location": "Open file location",
+    "edit_task_config": "Edit task configuration"
+  },
+  "confirm": {
+    "delete_running_task_title": "Confirm Deletion",
+    "delete_running_task_desc": "This task is currently running. Deleting it cannot be undone. Are you sure?",
+    "clear_running_tasks_title": "Confirm Clear All",
+    "clear_running_tasks_desc": "Some tasks are still running. Clearing will terminate all tasks. Are you sure?"
   },
   "update": {
     "title": "Update",

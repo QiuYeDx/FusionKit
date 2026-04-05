@@ -105,6 +105,10 @@
       "concurrent_on": "有効",
       "concurrent_off": "無効"
     },
+    "edit_task": {
+      "title": "タスク設定を編集",
+      "saved": "タスク設定を更新しました"
+    },
     "error_fallback": {
       "unknown": "不明なエラー",
       "no_detail": "エラー詳細なし"
@@ -209,6 +213,10 @@
       "overwrite": "上書き",
       "auto_index": "自動連番"
     },
+    "edit_task": {
+      "title": "タスク設定を編集",
+      "saved": "タスク設定を更新しました"
+    },
     "error_fallback": {
       "unknown": "不明なエラー",
       "no_detail": "エラー詳細なし"
@@ -290,6 +298,10 @@
       "conflict_policy": "重名ポリシー",
       "overwrite": "上書き",
       "auto_index": "自動連番"
+    },
+    "edit_task": {
+      "title": "タスク設定を編集",
+      "saved": "タスク設定を更新しました"
     },
     "error_fallback": {
       "unknown": "不明なエラー",

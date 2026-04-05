@@ -9,16 +9,33 @@ import {
   AlertTriangle,
   ChevronDown,
   Info,
+  Pencil,
 } from "lucide-react";
 import {
+  OutputConflictPolicy,
   SubtitleExtractorTask,
   SubtitleFileType,
   TaskStatus,
 } from "@/type/subtitle";
 import { showToast } from "@/utils/toast";
-import { getSourceDirFromFile } from "@/utils/filePath";
+import { getSourceDirFromFile, getFilePathFromFile } from "@/utils/filePath";
 import useSubtitleExtractorStore from "@/store/tools/subtitle/useSubtitleExtractorStore";
 import ErrorDetailModal from "@/components/ErrorDetailModal";
+import ConfirmDialog from "@/components/ConfirmDialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ButtonGroup } from "@/components/ui/button-group";
@@ -61,6 +78,7 @@ function SubtitleLanguageExtractor() {
     startAllTasks,
     retryTask,
     deleteTask,
+    updateTask,
     removeAllResolvedTasks,
     clearAllTasks,
   } = useSubtitleExtractorStore();
@@ -72,6 +90,17 @@ function SubtitleLanguageExtractor() {
     ...failedTasks,
   ];
 
+  // 删除确认弹窗
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
+  const [taskToDelete, setTaskToDelete] = useState<string | null>(null);
+  const [confirmClearOpen, setConfirmClearOpen] = useState(false);
+
+  // 编辑任务配置弹窗
+  const [editTaskOpen, setEditTaskOpen] = useState(false);
+  const [editingTask, setEditingTask] = useState<SubtitleExtractorTask | null>(null);
+  const [editKeep, setEditKeep] = useState<"ZH" | "JA">("ZH");
+  const [editConflictPolicy, setEditConflictPolicy] = useState<OutputConflictPolicy>("index");
+
   const openErrorModal = (task: SubtitleExtractorTask) => {
     setSelectedErrorTask(task);
     setErrorModalOpen(true);
@@ -79,6 +108,49 @@ function SubtitleLanguageExtractor() {
   const closeErrorModal = () => {
     setErrorModalOpen(false);
     setSelectedErrorTask(null);
+  };
+
+  const handleDeleteTask = (task: SubtitleExtractorTask) => {
+    if (task.status === TaskStatus.PENDING) {
+      setTaskToDelete(task.fileName);
+      setConfirmDeleteOpen(true);
+    } else {
+      deleteTask(task.fileName);
+    }
+  };
+
+  const handleClearAllTasks = () => {
+    if (pendingTasks.length > 0) {
+      setConfirmClearOpen(true);
+    } else {
+      clearAllTasks();
+    }
+  };
+
+  const handleOpenFileLocation = (task: SubtitleExtractorTask) => {
+    const filePath =
+      task.status === TaskStatus.RESOLVED && task.outputFilePath
+        ? task.outputFilePath
+        : task.originFileURL;
+    window.ipcRenderer.invoke("show-item-in-folder", filePath);
+  };
+
+  const handleOpenEditTask = (task: SubtitleExtractorTask) => {
+    setEditingTask(task);
+    setEditKeep(task.keep);
+    setEditConflictPolicy(task.conflictPolicy || "index");
+    setEditTaskOpen(true);
+  };
+
+  const handleSaveEditTask = () => {
+    if (!editingTask) return;
+    updateTask(editingTask.fileName, {
+      keep: editKeep,
+      conflictPolicy: editConflictPolicy,
+    });
+    showToast(t("subtitle:extractor.edit_task.saved"), "success");
+    setEditTaskOpen(false);
+    setEditingTask(null);
   };
 
   const handleSelectOutputPath = async () => {
@@ -184,7 +256,7 @@ function SubtitleLanguageExtractor() {
           fileName: file.name,
           fileContent,
           fileType,
-          originFileURL: URL.createObjectURL(file),
+          originFileURL: getFilePathFromFile(file) ?? file.name,
           targetFileURL: outputDir,
           keep,
           status: TaskStatus.NOT_STARTED,
@@ -501,8 +573,8 @@ function SubtitleLanguageExtractor() {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={clearAllTasks}
-                disabled={allTasks.length === 0 || pendingTasks.length > 0}
+                onClick={handleClearAllTasks}
+                disabled={allTasks.length === 0}
               >
                 {t("subtitle:extractor:fields.clear_all_tasks")}
               </Button>
@@ -602,7 +674,26 @@ function SubtitleLanguageExtractor() {
                       <Button
                         variant="outline"
                         size="icon"
-                        onClick={() => deleteTask(task.fileName)}
+                        onClick={() => handleOpenFileLocation(task)}
+                      >
+                        <FolderOpen className="h-4 w-4" />
+                      </Button>
+
+                      {(task.status === TaskStatus.NOT_STARTED ||
+                        task.status === TaskStatus.FAILED) && (
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          onClick={() => handleOpenEditTask(task)}
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                      )}
+
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        onClick={() => handleDeleteTask(task)}
                       >
                         <Trash2 className="h-4 w-4" />
                       </Button>
@@ -664,6 +755,72 @@ function SubtitleLanguageExtractor() {
           errorLogs={selectedErrorTask.errorLog || []}
         />
       )}
+
+      {/* 删除确认弹窗 */}
+      <ConfirmDialog
+        open={confirmDeleteOpen}
+        onOpenChange={setConfirmDeleteOpen}
+        title={t("common:confirm.delete_running_task_title")}
+        description={t("common:confirm.delete_running_task_desc")}
+        confirmText={t("common:action.confirm")}
+        cancelText={t("common:action.cancel")}
+        onConfirm={() => {
+          if (taskToDelete) {
+            deleteTask(taskToDelete);
+            setTaskToDelete(null);
+          }
+        }}
+      />
+
+      {/* 清空确认弹窗 */}
+      <ConfirmDialog
+        open={confirmClearOpen}
+        onOpenChange={setConfirmClearOpen}
+        title={t("common:confirm.clear_running_tasks_title")}
+        description={t("common:confirm.clear_running_tasks_desc")}
+        confirmText={t("common:action.confirm")}
+        cancelText={t("common:action.cancel")}
+        onConfirm={clearAllTasks}
+      />
+
+      {/* 编辑任务配置弹窗 */}
+      <Dialog open={editTaskOpen} onOpenChange={setEditTaskOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t("subtitle:extractor.edit_task.title")}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <Label>{t("subtitle:extractor.fields.keep_language")}</Label>
+              <Select value={editKeep} onValueChange={(v) => setEditKeep(v as "ZH" | "JA")}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ZH">{t("subtitle:extractor.fields.zh")}</SelectItem>
+                  <SelectItem value="JA">{t("subtitle:extractor.fields.ja")}</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>{t("subtitle:extractor.fields.conflict_policy")}</Label>
+              <Select value={editConflictPolicy} onValueChange={(v) => setEditConflictPolicy(v as OutputConflictPolicy)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="index">{t("subtitle:extractor.fields.conflict_policy_index")}</SelectItem>
+                  <SelectItem value="overwrite">{t("subtitle:extractor.fields.conflict_policy_overwrite")}</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditTaskOpen(false)}>
+              {t("common:action.cancel")}
+            </Button>
+            <Button onClick={handleSaveEditTask}>
+              {t("common:action.save")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

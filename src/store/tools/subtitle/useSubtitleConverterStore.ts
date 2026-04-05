@@ -73,6 +73,7 @@ interface SubtitleConverterStore {
   startAllTasks: () => void;
   retryTask: (fileName: string) => void;
   deleteTask: (fileName: string) => void;
+  updateTask: (fileName: string, updates: Partial<SubtitleConverterTask>) => void;
   removeAllResolvedTasks: () => void;
   clearAllTasks: () => void;
   initializeStore: () => void;
@@ -170,18 +171,21 @@ const useSubtitleConverterStore = create<SubtitleConverterStore>((set, get) => (
         conflictPolicy: task.conflictPolicy ?? conflictPolicy,
       })
       .then((res: any) => {
-        set((s) => ({
-          pendingTasks: s.pendingTasks.filter((t) => t.fileName !== fileName),
-          resolvedTasks: [
-            ...s.resolvedTasks,
-            {
-              ...task,
-              status: TaskStatus.RESOLVED,
-              progress: 100,
-              outputFilePath: res?.outputFilePath,
-            },
-          ],
-        }));
+        set((s) => {
+          if (!s.pendingTasks.some((t) => t.fileName === fileName)) return s;
+          return {
+            pendingTasks: s.pendingTasks.filter((t) => t.fileName !== fileName),
+            resolvedTasks: [
+              ...s.resolvedTasks,
+              {
+                ...task,
+                status: TaskStatus.RESOLVED,
+                progress: 100,
+                outputFilePath: res?.outputFilePath,
+              },
+            ],
+          };
+        });
         showToast(
           i18n
             .t("subtitle:converter.infos.task_convert_done")
@@ -198,18 +202,21 @@ const useSubtitleConverterStore = create<SubtitleConverterStore>((set, get) => (
       .catch((error: unknown) => {
         const message =
           error instanceof Error ? error.message : String(error);
-        set((s) => ({
-          pendingTasks: s.pendingTasks.filter((t) => t.fileName !== fileName),
-          failedTasks: [
-            ...s.failedTasks,
-            {
-              ...task,
-              status: TaskStatus.FAILED,
-              progress: 0,
-              extraInfo: { message, error },
-            },
-          ],
-        }));
+        set((s) => {
+          if (!s.pendingTasks.some((t) => t.fileName === fileName)) return s;
+          return {
+            pendingTasks: s.pendingTasks.filter((t) => t.fileName !== fileName),
+            failedTasks: [
+              ...s.failedTasks,
+              {
+                ...task,
+                status: TaskStatus.FAILED,
+                progress: 0,
+                extraInfo: { message, error },
+              },
+            ],
+          };
+        });
         showToast(
           i18n
             .t("subtitle:converter.errors.task_convert_failed")
@@ -279,11 +286,22 @@ const useSubtitleConverterStore = create<SubtitleConverterStore>((set, get) => (
     showToast(i18n.t("subtitle:converter.infos.task_deleted"), "success");
   },
 
+  updateTask: (fileName, updates) =>
+    set((state) => ({
+      notStartedTasks: state.notStartedTasks.map((t) =>
+        t.fileName === fileName ? { ...t, ...updates } : t
+      ),
+      failedTasks: state.failedTasks.map((t) =>
+        t.fileName === fileName ? { ...t, ...updates } : t
+      ),
+    })),
+
   removeAllResolvedTasks: () => set({ resolvedTasks: [] }),
 
   clearAllTasks: () => {
     set({
       notStartedTasks: [],
+      pendingTasks: [],
       resolvedTasks: [],
       failedTasks: [],
     });

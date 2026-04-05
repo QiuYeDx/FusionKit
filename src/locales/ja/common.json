@@ -18,7 +18,17 @@
     "copy_error": "エラー情報をコピー",
     "close": "閉じる",
     "check_update": "更新を確認",
-    "cancel": "キャンセル"
+    "cancel": "キャンセル",
+    "confirm": "確認",
+    "save": "保存",
+    "open_file_location": "ファイルの場所を開く",
+    "edit_task_config": "タスク設定を編集"
+  },
+  "confirm": {
+    "delete_running_task_title": "削除の確認",
+    "delete_running_task_desc": "このタスクは実行中です。削除すると元に戻せません。よろしいですか？",
+    "clear_running_tasks_title": "全クリアの確認",
+    "clear_running_tasks_desc": "実行中のタスクがあります。クリアするとすべてのタスクが終了します。よろしいですか？"
   },
   "update": {
     "title": "アップデート",

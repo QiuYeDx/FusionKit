@@ -105,6 +105,10 @@
       "concurrent_on": "Enabled",
       "concurrent_off": "Disabled"
     },
+    "edit_task": {
+      "title": "Edit Task Configuration",
+      "saved": "Task configuration updated"
+    },
     "error_fallback": {
       "unknown": "Unknown error",
       "no_detail": "No error details available"
@@ -209,6 +213,10 @@
       "overwrite": "Overwrite",
       "auto_index": "Auto-number"
     },
+    "edit_task": {
+      "title": "Edit Task Configuration",
+      "saved": "Task configuration updated"
+    },
     "error_fallback": {
       "unknown": "Unknown error",
       "no_detail": "No error details available"
@@ -290,6 +298,10 @@
       "conflict_policy": "Conflict Policy",
       "overwrite": "Overwrite",
       "auto_index": "Auto-number"
+    },
+    "edit_task": {
+      "title": "Edit Task Configuration",
+      "saved": "Task configuration updated"
     },
     "error_fallback": {
       "unknown": "Unknown error",

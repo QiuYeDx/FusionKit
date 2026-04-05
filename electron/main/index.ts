@@ -196,6 +196,10 @@ ipcMain.on("show-notification", (_event, { title, body }: { title: string; body:
   }
 });
 
+ipcMain.handle("show-item-in-folder", (_event, filePath: string) => {
+  shell.showItemInFolder(filePath);
+});
+
 ipcMain.handle("select-output-directory", async (_event, options?: { title?: string; buttonLabel?: string }) => {
   return await dialog.showOpenDialog({
     title: options?.title ?? "选择输出目录",

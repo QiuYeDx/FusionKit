@@ -59,6 +59,7 @@ interface SubtitleExtractorStore {
   startAllTasks: () => void;
   retryTask: (fileName: string) => void;
   deleteTask: (fileName: string) => void;
+  updateTask: (fileName: string, updates: Partial<SubtitleExtractorTask>) => void;
   removeAllResolvedTasks: () => void;
   clearAllTasks: () => void;
   initializeStore: () => void;
@@ -150,20 +151,23 @@ const useSubtitleExtractorStore = create<SubtitleExtractorStore>(
           conflictPolicy: task.conflictPolicy ?? conflictPolicy,
         })
         .then((res: any) => {
-          set((s) => ({
-            pendingTasks: s.pendingTasks.filter(
-              (t) => t.fileName !== fileName
-            ),
-            resolvedTasks: [
-              ...s.resolvedTasks,
-              {
-                ...task,
-                status: TaskStatus.RESOLVED,
-                progress: 100,
-                outputFilePath: res?.outputFilePath,
-              },
-            ],
-          }));
+          set((s) => {
+            if (!s.pendingTasks.some((t) => t.fileName === fileName)) return s;
+            return {
+              pendingTasks: s.pendingTasks.filter(
+                (t) => t.fileName !== fileName
+              ),
+              resolvedTasks: [
+                ...s.resolvedTasks,
+                {
+                  ...task,
+                  status: TaskStatus.RESOLVED,
+                  progress: 100,
+                  outputFilePath: res?.outputFilePath,
+                },
+              ],
+            };
+          });
           showToast(
             i18n
               .t("subtitle:extractor:infos.task_extract_done")
@@ -180,20 +184,23 @@ const useSubtitleExtractorStore = create<SubtitleExtractorStore>(
         .catch((error: unknown) => {
           const message =
             error instanceof Error ? error.message : String(error);
-          set((s) => ({
-            pendingTasks: s.pendingTasks.filter(
-              (t) => t.fileName !== fileName
-            ),
-            failedTasks: [
-              ...s.failedTasks,
-              {
-                ...task,
-                status: TaskStatus.FAILED,
-                progress: 0,
-                extraInfo: { message, error },
-              },
-            ],
-          }));
+          set((s) => {
+            if (!s.pendingTasks.some((t) => t.fileName === fileName)) return s;
+            return {
+              pendingTasks: s.pendingTasks.filter(
+                (t) => t.fileName !== fileName
+              ),
+              failedTasks: [
+                ...s.failedTasks,
+                {
+                  ...task,
+                  status: TaskStatus.FAILED,
+                  progress: 0,
+                  extraInfo: { message, error },
+                },
+              ],
+            };
+          });
           showToast(
             i18n
               .t("subtitle:extractor:errors.task_extract_failed")
@@ -271,11 +278,22 @@ const useSubtitleExtractorStore = create<SubtitleExtractorStore>(
       showToast(i18n.t("subtitle:extractor:infos.task_deleted"), "success");
     },
 
+    updateTask: (fileName, updates) =>
+      set((state) => ({
+        notStartedTasks: state.notStartedTasks.map((t) =>
+          t.fileName === fileName ? { ...t, ...updates } : t
+        ),
+        failedTasks: state.failedTasks.map((t) =>
+          t.fileName === fileName ? { ...t, ...updates } : t
+        ),
+      })),
+
     removeAllResolvedTasks: () => set({ resolvedTasks: [] }),
 
     clearAllTasks: () => {
       set({
         notStartedTasks: [],
+        pendingTasks: [],
         resolvedTasks: [],
         failedTasks: [],
       });
