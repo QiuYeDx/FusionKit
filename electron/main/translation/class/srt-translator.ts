@@ -1,6 +1,7 @@
 import { encode } from "gpt-tokenizer";
 import { SubtitleTranslatorTask } from "../typing";
 import { BaseTranslator } from "./base-translator";
+import { getLanguageName } from "../contants";
 
 type TranslatorConfig = {
   apiKey: string;
@@ -71,11 +72,27 @@ export class SRTTranslator extends BaseTranslator {
   }
 
   protected formatPrompt(partialContent: string, context: string): string {
+    const srcName = getLanguageName(this.sourceLang);
+    const tgtName = getLanguageName(this.targetLang);
+
+    if (this.bilingualOutput) {
+      return (
+        `You are a professional subtitle translator. Translate the following ${srcName} subtitles into bilingual format: keep each original ${srcName} line, then immediately follow it with the ${tgtName} translation on the next line. Maintain coherence and accuracy.\n\n` +
+        (context
+          ? `Previous translated content (for reference only, do NOT translate again):\n${context}\n\n`
+          : "") +
+        `Translate the following subtitle content (only this part, ensure coherence with context above, maintain SRT format):\n\n${partialContent}\n\n` +
+        `Output format must match the original. Each ${srcName} text line must be immediately followed by its ${tgtName} translation. Do not add any extra explanations or markdown formatting.`
+      );
+    }
+
     return (
-      `你是一个专业的字幕翻译专家。你的任务是将日语字幕翻译为中日双语格式，每行日语后面紧跟着对应的中文翻译。请保持翻译的连贯性和准确性。\n\n` +
-      `以下是前面的翻译内容（仅供参考，不要翻译）：\n${context}\n\n` +
-      `请翻译以下字幕内容（只翻译这部分，但请确保和上文是连贯的，符合srt字幕格式的）：\n\n${partialContent}\n\n` +
-      `翻译后的格式应与原文相同，每行日语后紧跟中文翻译。不要添加任何额外的解释或markdown格式。`
+      `You are a professional subtitle translator. Translate the following ${srcName} subtitles into ${tgtName}. Replace all ${srcName} text with the ${tgtName} translation. Maintain coherence and accuracy.\n\n` +
+      (context
+        ? `Previous translated content (for reference only, do NOT translate again):\n${context}\n\n`
+        : "") +
+      `Translate the following subtitle content (only this part, ensure coherence with context above, maintain SRT format):\n\n${partialContent}\n\n` +
+      `Output only the ${tgtName} translations in the original SRT format. Do not add any extra explanations or markdown formatting.`
     );
   }
 

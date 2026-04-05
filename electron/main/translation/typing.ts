@@ -19,6 +19,19 @@ export enum TaskStatus {
 
 export type OutputConflictPolicy = "overwrite" | "index";
 
+export type TranslationLanguage =
+  | "ZH"
+  | "JA"
+  | "EN"
+  | "KO"
+  | "FR"
+  | "DE"
+  | "ES"
+  | "RU"
+  | "PT";
+
+export type TranslationOutputMode = "bilingual" | "target_only";
+
 export type SubtitleTranslatorTask = {
   fileName: string;
   fileContent: string;
@@ -42,6 +55,10 @@ export type SubtitleTranslatorTask = {
   apiKey: string;
   apiModel: string;
   endPoint: string;
+
+  sourceLang?: TranslationLanguage;
+  targetLang?: TranslationLanguage;
+  translationOutputMode?: TranslationOutputMode;
 
   extraInfo?: { [key: string]: any };
   conflictPolicy?: OutputConflictPolicy;

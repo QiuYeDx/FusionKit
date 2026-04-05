@@ -30,6 +30,18 @@ export const queueTranslateSchema = z.object({
     .enum(["NORMAL", "SENSITIVE", "CUSTOM"])
     .default("NORMAL")
     .describe("Translation slice strategy"),
+  sourceLang: z
+    .enum(["ZH", "JA", "EN", "KO", "FR", "DE", "ES", "RU", "PT"])
+    .default("JA")
+    .describe("Source language code. Default: JA (Japanese)"),
+  targetLang: z
+    .enum(["ZH", "JA", "EN", "KO", "FR", "DE", "ES", "RU", "PT"])
+    .default("ZH")
+    .describe("Target language code. Default: ZH (Chinese)"),
+  translationOutputMode: z
+    .enum(["bilingual", "target_only"])
+    .default("bilingual")
+    .describe("'bilingual' = keep source + target lines, 'target_only' = only translated text"),
   outputMode: z
     .enum(["source", "custom"])
     .default("source")

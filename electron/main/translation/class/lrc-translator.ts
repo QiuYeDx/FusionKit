@@ -2,6 +2,7 @@
 import { BaseTranslator } from "./base-translator";
 import { SubtitleTranslatorTask } from "../typing";
 import { encode } from "gpt-tokenizer";
+import { getLanguageName } from "../contants";
 
 export class LRCTranslator extends BaseTranslator {
   private readonly apiModel: string;
@@ -49,12 +50,23 @@ export class LRCTranslator extends BaseTranslator {
   }
 
   protected formatPrompt(partialContent: string, context: string): string {
+    const srcName = getLanguageName(this.sourceLang);
+    const tgtName = getLanguageName(this.targetLang);
+
+    if (this.bilingualOutput) {
+      return (
+        `Translate the following ${srcName} subtitle content into bilingual format with ${srcName} and ${tgtName}. Each ${srcName} line should be immediately followed by the ${tgtName} translation with the same timestamp. Maintain coherence. Example format:\n` +
+        `[00:00.05]<${srcName} text>\n` +
+        `[00:00.05]<${tgtName} translation>\n` +
+        (context ? `Previous translated content:\n${context}\n` : "") +
+        `Translate the following content:\n\n${partialContent}`
+      );
+    }
+
     return (
-      `将以下字幕内容翻译为中日双语，每行日语后面紧跟着对应的中文，保持连贯性，格式如下:\n` +
-      `[00:00.05]おねだりにしてみてほしいの\n` +
-      `[00:00.05]想让我撒娇试试看\n` +
-      `${context ? `前面的翻译内容是:\n${context}\n` : ""}` +
-      `请处理以下内容:\n\n${partialContent}`
+      `Translate the following ${srcName} subtitle content into ${tgtName}. Replace all ${srcName} text with ${tgtName} translation. Maintain the LRC format and timestamps. Maintain coherence.\n` +
+      (context ? `Previous translated content:\n${context}\n` : "") +
+      `Translate the following content:\n\n${partialContent}`
     );
   }
 

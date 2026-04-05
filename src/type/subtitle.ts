@@ -21,6 +21,34 @@ export enum TaskStatus {
 export type OutputConflictPolicy = "overwrite" | "index";
 export type OutputPathMode = "custom" | "source";
 
+export type TranslationLanguage =
+  | "ZH"
+  | "JA"
+  | "EN"
+  | "KO"
+  | "FR"
+  | "DE"
+  | "ES"
+  | "RU"
+  | "PT";
+
+export type TranslationOutputMode = "bilingual" | "target_only";
+
+export const SUPPORTED_LANGUAGES: {
+  code: TranslationLanguage;
+  labelKey: string;
+}[] = [
+  { code: "ZH", labelKey: "subtitle:translator.languages.ZH" },
+  { code: "JA", labelKey: "subtitle:translator.languages.JA" },
+  { code: "EN", labelKey: "subtitle:translator.languages.EN" },
+  { code: "KO", labelKey: "subtitle:translator.languages.KO" },
+  { code: "FR", labelKey: "subtitle:translator.languages.FR" },
+  { code: "DE", labelKey: "subtitle:translator.languages.DE" },
+  { code: "ES", labelKey: "subtitle:translator.languages.ES" },
+  { code: "RU", labelKey: "subtitle:translator.languages.RU" },
+  { code: "PT", labelKey: "subtitle:translator.languages.PT" },
+];
+
 export type SubtitleTranslatorTask = {
   fileName: string;
   fileContent: string;
@@ -45,6 +73,10 @@ export type SubtitleTranslatorTask = {
   apiKey: string;
   apiModel: string;
   endPoint: string;
+
+  sourceLang?: TranslationLanguage;
+  targetLang?: TranslationLanguage;
+  translationOutputMode?: TranslationOutputMode;
 
   extraInfo?: { [key: string]: any };
   conflictPolicy?: OutputConflictPolicy;

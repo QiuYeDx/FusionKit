@@ -1,11 +1,27 @@
 {
   "translator": {
     "title": "AI Subtitle Translation",
-    "description": "Supports translation of Japanese subtitles in LRC/SRT formats to Chinese-Japanese bilingual subtitles.",
+    "description": "Supports multi-language translation of LRC/SRT subtitles, with bilingual or target-only output.",
     "config_title": "Configuration Options",
+    "languages": {
+      "ZH": "Chinese",
+      "JA": "Japanese",
+      "EN": "English",
+      "KO": "Korean",
+      "FR": "French",
+      "DE": "German",
+      "ES": "Spanish",
+      "RU": "Russian",
+      "PT": "Portuguese"
+    },
     "fields": {
       "subtitle_file_type": "Subtitle Format",
       "subtitle_slice_mode": "Segmentation Mode",
+      "source_language": "Source Language",
+      "target_language": "Target Language",
+      "translation_output_mode": "Output Mode",
+      "output_bilingual": "Bilingual",
+      "output_target_only": "Target Only",
       "no_tasks": "No pending tasks",
       "start_all": "Start All Tasks",
       "files_only": "Supported formats: {formats}",
@@ -71,6 +87,7 @@
       "pending_cost": "Pending Cost"
     },
     "task_detail": {
+      "language_pair": "Language Pair",
       "slice_mode": "Slice Mode",
       "api_model": "API Model",
       "api_endpoint": "API Endpoint",
@@ -119,6 +136,7 @@
     "new_task_config": {
       "title": "New Task Configuration",
       "note": "Current slice mode applies to newly added tasks. Existing tasks keep their creation-time configuration.",
+      "current_language_pair": "Language Pair",
       "current_slice_mode": "Current Slice Mode",
       "chars_suffix": "chars",
       "rate_in_out": "Rate (Input/Output)",

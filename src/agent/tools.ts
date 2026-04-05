@@ -29,7 +29,8 @@ export const agentTools = {
   queue_subtitle_translate: tool({
     description:
       "Add subtitle files to the TRANSLATION queue. " +
-      "Translates subtitle text content into another language. " +
+      "Translates subtitle text from one language to another (default: Japanese→Chinese, bilingual output). " +
+      "Supports languages: ZH(Chinese), JA(Japanese), EN(English), KO(Korean), FR(French), DE(German), ES(Spanish), RU(Russian), PT(Portuguese). " +
       "Requires filePaths from a previous scan result.",
     inputSchema: queueTranslateSchema,
     execute: async (args) => executeQueueTranslate(args),

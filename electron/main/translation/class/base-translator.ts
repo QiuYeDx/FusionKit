@@ -24,7 +24,15 @@ export abstract class BaseTranslator {
   protected retryDelay = 1000;
   protected maxSliceConcurrency = 5;
 
+  protected sourceLang: string = "JA";
+  protected targetLang: string = "ZH";
+  protected bilingualOutput: boolean = true;
+
   async translate(task: SubtitleTranslatorTask, signal?: AbortSignal) {
+    this.sourceLang = task.sourceLang || "JA";
+    this.targetLang = task.targetLang || "ZH";
+    this.bilingualOutput = task.translationOutputMode !== "target_only";
+
     const errorLogs: string[] = [];
     const startTime = new Date().toISOString();
 

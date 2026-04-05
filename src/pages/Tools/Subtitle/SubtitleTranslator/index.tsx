@@ -5,7 +5,10 @@ import {
   SubtitleFileType,
   SubtitleSliceType,
   TaskStatus,
+  SUPPORTED_LANGUAGES,
   type SubtitleTranslatorTask,
+  type TranslationLanguage,
+  type TranslationOutputMode,
 } from "@/type/subtitle";
 import { useTranslation } from "react-i18next";
 import { useState, useMemo, useEffect, useRef } from "react";
@@ -44,6 +47,13 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 
 function SubtitleTranslator() {
@@ -92,6 +102,22 @@ function SubtitleTranslator() {
     return raw === null ? true : raw === "true";
   });
 
+  const [sourceLang, setSourceLang] = useState<TranslationLanguage>(() => {
+    const raw = localStorage.getItem("subtitle-translator-source-lang");
+    return (raw as TranslationLanguage) || "JA";
+  });
+
+  const [targetLang, setTargetLang] = useState<TranslationLanguage>(() => {
+    const raw = localStorage.getItem("subtitle-translator-target-lang");
+    return (raw as TranslationLanguage) || "ZH";
+  });
+
+  const [translationOutputMode, setTranslationOutputMode] =
+    useState<TranslationOutputMode>(() => {
+      const raw = localStorage.getItem("subtitle-translator-translation-output-mode");
+      return raw === "target_only" ? "target_only" : "bilingual";
+    });
+
   const [isDragging, setIsDragging] = useState(false);
 
   // 错误详情模态框状态
@@ -139,6 +165,34 @@ function SubtitleTranslator() {
       );
     } catch {}
   }, [concurrentSlices]);
+
+  useEffect(() => {
+    if (sourceLang === targetLang) {
+      const fallback = SUPPORTED_LANGUAGES.find((l) => l.code !== sourceLang);
+      if (fallback) setTargetLang(fallback.code);
+    }
+  }, [sourceLang, targetLang]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem("subtitle-translator-source-lang", sourceLang);
+    } catch {}
+  }, [sourceLang]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem("subtitle-translator-target-lang", targetLang);
+    } catch {}
+  }, [targetLang]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(
+        "subtitle-translator-translation-output-mode",
+        translationOutputMode
+      );
+    } catch {}
+  }, [translationOutputMode]);
 
   const targetEpochMs = useMemo(() => {
     if (!scheduleTime) return NaN;
@@ -473,6 +527,9 @@ function SubtitleTranslator() {
           apiKey: taskProfile?.apiKey ?? "",
           apiModel: taskProfile?.modelKey ?? "",
           endPoint: taskProfile?.baseUrl ?? "",
+          sourceLang,
+          targetLang,
+          translationOutputMode,
           conflictPolicy,
           concurrentSlices,
         };
@@ -590,6 +647,87 @@ function SubtitleTranslator() {
                   />
                 </div>
               )}
+
+              {/* 源语言选择 */}
+              <div className="flex items-center gap-4">
+                <Label className="text-sm font-medium min-w-[100px]">
+                  {t("subtitle:translator.fields.source_language")}
+                </Label>
+                <Select
+                  value={sourceLang}
+                  onValueChange={(v) =>
+                    setSourceLang(v as TranslationLanguage)
+                  }
+                >
+                  <SelectTrigger size="sm" className="w-[160px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {SUPPORTED_LANGUAGES.map((lang) => (
+                      <SelectItem key={lang.code} value={lang.code}>
+                        {t(lang.labelKey)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* 目标语言选择 */}
+              <div className="flex items-center gap-4">
+                <Label className="text-sm font-medium min-w-[100px]">
+                  {t("subtitle:translator.fields.target_language")}
+                </Label>
+                <Select
+                  value={targetLang}
+                  onValueChange={(v) =>
+                    setTargetLang(v as TranslationLanguage)
+                  }
+                >
+                  <SelectTrigger size="sm" className="w-[160px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {SUPPORTED_LANGUAGES.filter(
+                      (lang) => lang.code !== sourceLang
+                    ).map((lang) => (
+                      <SelectItem key={lang.code} value={lang.code}>
+                        {t(lang.labelKey)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* 翻译输出模式 */}
+              <div className="flex items-center gap-4">
+                <Label className="text-sm font-medium min-w-[100px]">
+                  {t("subtitle:translator.fields.translation_output_mode")}
+                </Label>
+                <ButtonGroup>
+                  <Button
+                    size="sm"
+                    variant={
+                      translationOutputMode === "bilingual"
+                        ? "default"
+                        : "outline"
+                    }
+                    onClick={() => setTranslationOutputMode("bilingual")}
+                  >
+                    {t("subtitle:translator.fields.output_bilingual")}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant={
+                      translationOutputMode === "target_only"
+                        ? "default"
+                        : "outline"
+                    }
+                    onClick={() => setTranslationOutputMode("target_only")}
+                  >
+                    {t("subtitle:translator.fields.output_target_only")}
+                  </Button>
+                </ButtonGroup>
+              </div>
 
               {/* 并发切片开关 */}
               <Label
@@ -942,7 +1080,26 @@ function SubtitleTranslator() {
               <div className="text-sm text-muted-foreground mb-3">
                 {t("subtitle:translator.new_task_config.note")}
               </div>
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                <Card className="border-muted">
+                  <CardContent>
+                    <div className="text-muted-foreground text-xs mb-1">
+                      {t(
+                        "subtitle:translator.new_task_config.current_language_pair"
+                      )}
+                    </div>
+                    <div className="font-medium">
+                      {t(`subtitle:translator.languages.${sourceLang}`)}
+                      {" → "}
+                      {t(`subtitle:translator.languages.${targetLang}`)}
+                      <span className="ml-1.5 text-muted-foreground text-xs">
+                        ({translationOutputMode === "bilingual"
+                          ? t("subtitle:translator.fields.output_bilingual")
+                          : t("subtitle:translator.fields.output_target_only")})
+                      </span>
+                    </div>
+                  </CardContent>
+                </Card>
                 <Card className="border-muted">
                   <CardContent>
                     <div className="text-muted-foreground text-xs mb-1">
@@ -1185,6 +1342,16 @@ function SubtitleTranslator() {
                               task.resolvedFragments || 0
                             }/${task.totalFragments || 0})`}
                           <span className="px-1.5 py-0.5 bg-muted rounded-md text-xs">
+                            {t(`subtitle:translator.languages.${task.sourceLang || "JA"}`)}
+                            →
+                            {t(`subtitle:translator.languages.${task.targetLang || "ZH"}`)}
+                          </span>
+                          <span className="px-1.5 py-0.5 bg-muted rounded-md text-xs">
+                            {task.translationOutputMode === "target_only"
+                              ? t("subtitle:translator.fields.output_target_only")
+                              : t("subtitle:translator.fields.output_bilingual")}
+                          </span>
+                          <span className="px-1.5 py-0.5 bg-muted rounded-md text-xs">
                             {t(
                               `subtitle:translator.slice_types.${task.sliceType.toLowerCase()}`
                             )}
@@ -1286,6 +1453,16 @@ function SubtitleTranslator() {
                   {expandedTasks.has(task.fileName) && (
                     <div className="mt-3 pt-3 border-t border-border/50">
                       <div className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 text-xs">
+                        <span className="text-muted-foreground">{t("subtitle:translator.task_detail.language_pair")}</span>
+                        <span>
+                          {t(`subtitle:translator.languages.${task.sourceLang || "JA"}`)}
+                          {" → "}
+                          {t(`subtitle:translator.languages.${task.targetLang || "ZH"}`)}
+                          {" · "}
+                          {task.translationOutputMode === "target_only"
+                            ? t("subtitle:translator.fields.output_target_only")
+                            : t("subtitle:translator.fields.output_bilingual")}
+                        </span>
                         <span className="text-muted-foreground">{t("subtitle:translator.task_detail.slice_mode")}</span>
                         <span>
                           {t(

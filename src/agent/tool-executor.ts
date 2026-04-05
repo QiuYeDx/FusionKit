@@ -19,7 +19,11 @@ import {
   estimateSubtitleTokensFast,
   estimateSubtitleTokens,
 } from "@/utils/tokenEstimate";
-import type { SubtitleSliceType } from "@/type/subtitle";
+import type {
+  SubtitleSliceType,
+  TranslationLanguage,
+  TranslationOutputMode,
+} from "@/type/subtitle";
 
 // ---------------------------------------------------------------------------
 // Tool Executor — 工具执行函数（由 AI SDK tool() 的 execute 调用）
@@ -190,6 +194,9 @@ export async function executeQueueTranslate(
       apiKey: taskProfile.apiKey,
       apiModel: taskProfile.modelKey,
       endPoint: taskProfile.baseUrl,
+      sourceLang: (args.sourceLang || "JA") as TranslationLanguage,
+      targetLang: (args.targetLang || "ZH") as TranslationLanguage,
+      translationOutputMode: (args.translationOutputMode || "bilingual") as TranslationOutputMode,
       conflictPolicy: "index",
     });
     queued++;

@@ -1,11 +1,27 @@
 {
   "translator": {
     "title": "AI字幕翻訳",
-    "description": "LRC・SRT形式の日本語字幕を中日バイリンガル字幕に翻訳対応",
+    "description": "LRC・SRT形式の字幕を多言語翻訳対応。バイリンガルまたはターゲット言語のみの出力が可能。",
     "config_title": "設定オプション",
+    "languages": {
+      "ZH": "中国語",
+      "JA": "日本語",
+      "EN": "英語",
+      "KO": "韓国語",
+      "FR": "フランス語",
+      "DE": "ドイツ語",
+      "ES": "スペイン語",
+      "RU": "ロシア語",
+      "PT": "ポルトガル語"
+    },
     "fields": {
       "subtitle_file_type": "字幕ファイル形式",
       "subtitle_slice_mode": "分割モード",
+      "source_language": "ソース言語",
+      "target_language": "ターゲット言語",
+      "translation_output_mode": "出力モード",
+      "output_bilingual": "バイリンガル",
+      "output_target_only": "ターゲットのみ",
       "no_tasks": "処理待ちのタスクはありません",
       "start_all": "一括処理開始",
       "files_only": "対応形式: {formats}",
@@ -71,6 +87,7 @@
       "pending_cost": "処理待ちコスト"
     },
     "task_detail": {
+      "language_pair": "翻訳言語",
       "slice_mode": "分割モード",
       "api_model": "APIモデル",
       "api_endpoint": "APIエンドポイント",
@@ -119,6 +136,7 @@
     "new_task_config": {
       "title": "新規タスク設定",
       "note": "現在の分割モードは新規タスクに適用されます。既存のタスクは作成時の設定を維持します。",
+      "current_language_pair": "翻訳言語",
       "current_slice_mode": "現在の分割モード",
       "chars_suffix": "文字",
       "rate_in_out": "レート（入力/出力）",

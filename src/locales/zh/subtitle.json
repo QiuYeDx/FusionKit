@@ -1,11 +1,27 @@
 {
   "translator": {
     "title": "字幕AI翻译",
-    "description": "支持 lrc、srt 格式日文字幕翻译为中日双语字幕。",
+    "description": "支持 lrc、srt 格式字幕的多语言翻译，可输出双语或仅目标语言字幕。",
     "config_title": "配置选项",
+    "languages": {
+      "ZH": "中文",
+      "JA": "日语",
+      "EN": "英语",
+      "KO": "韩语",
+      "FR": "法语",
+      "DE": "德语",
+      "ES": "西班牙语",
+      "RU": "俄语",
+      "PT": "葡萄牙语"
+    },
     "fields": {
       "subtitle_file_type": "字幕文件格式",
       "subtitle_slice_mode": "分片模式",
+      "source_language": "源语言",
+      "target_language": "目标语言",
+      "translation_output_mode": "输出模式",
+      "output_bilingual": "双语字幕",
+      "output_target_only": "仅目标语言",
       "no_tasks": "当前没有待处理任务",
       "start_all": "全部开始",
       "files_only": "仅支持 {formats} 格式文件",
@@ -71,6 +87,7 @@
       "pending_cost": "待处理费用"
     },
     "task_detail": {
+      "language_pair": "翻译语言",
       "slice_mode": "分片模式",
       "api_model": "API 模型",
       "api_endpoint": "API 地址",
@@ -119,6 +136,7 @@
     "new_task_config": {
       "title": "新任务配置",
       "note": "当前分片模式配置，将应用于新添加的任务。已存在的任务保持创建时的配置不变。",
+      "current_language_pair": "翻译语言",
       "current_slice_mode": "当前分片模式",
       "chars_suffix": "字符",
       "rate_in_out": "费率 (输入/输出)",
