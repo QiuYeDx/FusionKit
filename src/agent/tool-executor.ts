@@ -197,7 +197,8 @@ export async function executeQueueTranslate(
       sourceLang: (args.sourceLang || "JA") as TranslationLanguage,
       targetLang: (args.targetLang || "ZH") as TranslationLanguage,
       translationOutputMode: (args.translationOutputMode || "bilingual") as TranslationOutputMode,
-      conflictPolicy: "index",
+      conflictPolicy: args.conflictPolicy ?? "index",
+      concurrentSlices: args.concurrentSlices ?? true,
     });
     queued++;
 
@@ -259,7 +260,7 @@ export async function executeQueueConvert(
       targetFileURL: outputDir,
       status: TaskStatus.NOT_STARTED,
       progress: 0,
-      conflictPolicy: "index",
+      conflictPolicy: args.conflictPolicy ?? "index",
     };
     store.addTask(task);
     queued++;
@@ -311,7 +312,7 @@ export async function executeQueueExtract(
       keep: args.keep,
       status: TaskStatus.NOT_STARTED,
       progress: 0,
-      conflictPolicy: "index",
+      conflictPolicy: args.conflictPolicy ?? "index",
     };
     store.addTask(task);
     queued++;

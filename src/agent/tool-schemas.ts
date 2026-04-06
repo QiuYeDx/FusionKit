@@ -50,6 +50,18 @@ export const queueTranslateSchema = z.object({
     .string()
     .optional()
     .describe("Output directory (required when outputMode is 'custom')"),
+  conflictPolicy: z
+    .enum(["index", "overwrite"])
+    .default("index")
+    .describe(
+      "How to handle filename conflicts. 'index' = append numeric suffix (e.g. file_1.srt), 'overwrite' = replace existing file. Default: 'index'. Use 'overwrite' only when the user explicitly requests overwriting / replacing existing files."
+    ),
+  concurrentSlices: z
+    .boolean()
+    .default(true)
+    .describe(
+      "Whether to translate slices concurrently for faster speed. Default: true. Set to false only when the user explicitly requests sequential / non-concurrent / 串行 / 不要并发 / 逐条 processing."
+    ),
 });
 
 /** queue_subtitle_convert_tasks — 将文件加入格式转换队列 */
@@ -69,6 +81,12 @@ export const queueConvertSchema = z.object({
     .string()
     .optional()
     .describe("Output directory (required when outputMode is 'custom')"),
+  conflictPolicy: z
+    .enum(["index", "overwrite"])
+    .default("index")
+    .describe(
+      "How to handle filename conflicts. 'index' = append numeric suffix (e.g. file_1.srt), 'overwrite' = replace existing file. Default: 'index'. Use 'overwrite' only when the user explicitly requests overwriting / replacing existing files."
+    ),
 });
 
 /** queue_subtitle_extract_tasks — 将文件加入语言提取队列 */
@@ -89,6 +107,12 @@ export const queueExtractSchema = z.object({
     .string()
     .optional()
     .describe("Output directory (required when outputMode is 'custom')"),
+  conflictPolicy: z
+    .enum(["index", "overwrite"])
+    .default("index")
+    .describe(
+      "How to handle filename conflicts. 'index' = append numeric suffix (e.g. file_1.srt), 'overwrite' = replace existing file. Default: 'index'. Use 'overwrite' only when the user explicitly requests overwriting / replacing existing files."
+    ),
 });
 
 // ---------------------------------------------------------------------------
