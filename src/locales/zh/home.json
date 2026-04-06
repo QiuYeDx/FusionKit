@@ -65,5 +65,20 @@
   "tool_executing": "执行中…",
   "tool_result_more_files": "... 共 {{count}} 个文件",
   "tool_result_files_found": "发现 {{count}} 个文件",
-  "tool_result_queued_progress": "已加入队列: {{queuedCount}}/{{totalFiles}} 个文件"
+  "tool_result_queued_progress": "已加入队列: {{queuedCount}}/{{totalFiles}} 个文件",
+  "session_log_title": "会话日志",
+  "session_log_description": "共 {{count}} 条日志记录",
+  "session_log_empty": "暂无日志记录",
+  "export_session": "导出会话",
+  "import_session": "导入会话",
+  "import_failed": "导入失败",
+  "log_type_user_message": "用户消息",
+  "log_type_assistant_message": "助手回复",
+  "log_type_status_change": "状态变更",
+  "log_type_tool_call": "工具调用",
+  "log_type_tool_result": "工具响应",
+  "log_type_usage": "Token 用量",
+  "log_type_error": "错误",
+  "log_type_abort": "中止",
+  "log_type_session_reset": "会话重置"
 }

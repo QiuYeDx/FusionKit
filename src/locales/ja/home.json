@@ -65,5 +65,20 @@
   "tool_executing": "実行中…",
   "tool_result_more_files": "... 合計 {{count}} ファイル",
   "tool_result_files_found": "{{count}} 個のファイルを検出",
-  "tool_result_queued_progress": "キューに追加済み: {{queuedCount}}/{{totalFiles}} ファイル"
+  "tool_result_queued_progress": "キューに追加済み: {{queuedCount}}/{{totalFiles}} ファイル",
+  "session_log_title": "セッションログ",
+  "session_log_description": "{{count}} 件のログ",
+  "session_log_empty": "ログはまだありません",
+  "export_session": "セッションをエクスポート",
+  "import_session": "セッションをインポート",
+  "import_failed": "インポート失敗",
+  "log_type_user_message": "ユーザーメッセージ",
+  "log_type_assistant_message": "アシスタント応答",
+  "log_type_status_change": "状態変更",
+  "log_type_tool_call": "ツール呼び出し",
+  "log_type_tool_result": "ツール応答",
+  "log_type_usage": "Token 使用量",
+  "log_type_error": "エラー",
+  "log_type_abort": "中断",
+  "log_type_session_reset": "セッションリセット"
 }

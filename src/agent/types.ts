@@ -94,3 +94,39 @@ export interface TokenStats {
   lastPromptTokens: number;
   interactions: InteractionTokenRecord[];
 }
+
+// ---------------------------------------------------------------------------
+// Agent 会话日志
+// ---------------------------------------------------------------------------
+
+export type AgentLogEntryType =
+  | "user_message"
+  | "assistant_message"
+  | "status_change"
+  | "tool_call"
+  | "tool_result"
+  | "usage"
+  | "error"
+  | "abort"
+  | "session_reset";
+
+export interface AgentLogEntry {
+  id: string;
+  timestamp: number;
+  type: AgentLogEntryType;
+  summary: string;
+  data?: Record<string, unknown>;
+}
+
+// ---------------------------------------------------------------------------
+// 会话导出 / 导入
+// ---------------------------------------------------------------------------
+
+export interface SessionExportData {
+  version: number;
+  exportedAt: number;
+  session: AgentSession;
+  tokenStats: TokenStats;
+  sessionLog: AgentLogEntry[];
+  executionMode: ExecutionMode;
+}

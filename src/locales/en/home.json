@@ -65,5 +65,20 @@
   "tool_executing": "Executing...",
   "tool_result_more_files": "... {{count}} files total",
   "tool_result_files_found": "{{count}} files found",
-  "tool_result_queued_progress": "Added to queue: {{queuedCount}}/{{totalFiles}} files"
+  "tool_result_queued_progress": "Added to queue: {{queuedCount}}/{{totalFiles}} files",
+  "session_log_title": "Session Log",
+  "session_log_description": "{{count}} log entries",
+  "session_log_empty": "No log entries yet",
+  "export_session": "Export Session",
+  "import_session": "Import Session",
+  "import_failed": "Import failed",
+  "log_type_user_message": "User Message",
+  "log_type_assistant_message": "Assistant Reply",
+  "log_type_status_change": "Status Change",
+  "log_type_tool_call": "Tool Call",
+  "log_type_tool_result": "Tool Result",
+  "log_type_usage": "Token Usage",
+  "log_type_error": "Error",
+  "log_type_abort": "Abort",
+  "log_type_session_reset": "Session Reset"
 }

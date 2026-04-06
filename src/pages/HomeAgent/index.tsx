@@ -20,11 +20,16 @@ import {
   Settings,
   AlertTriangle,
   Activity,
+  ScrollText,
+  Download,
+  Upload,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import useAgentStore from "@/store/agent/useAgentStore";
 import useModelStore from "@/store/useModelStore";
 import { handleUserMessage, abortCurrentStream } from "@/agent/orchestrator";
+import { exportSession, importSession } from "@/agent/session-io";
+import SessionLogViewer from "./SessionLogViewer";
 import type { AgentMessage, AgentToolCall, ExecutionMode } from "@/agent/types";
 import { Button } from "@/components/ui/button";
 import {
@@ -96,6 +101,8 @@ function HomeAgent() {
   const inputRef = useRef<HTMLInputElement>(null);
   const [confirmingReset, setConfirmingReset] = useState(false);
   const confirmResetTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const [logOpen, setLogOpen] = useState(false);
+  const [importError, setImportError] = useState<string | null>(null);
 
   const {
     session,
@@ -108,6 +115,7 @@ function HomeAgent() {
     confirmExecution,
     dismissExecution,
     activeToolCalls,
+    sessionLog,
   } = useAgentStore();
   const { messages, status } = session;
 
@@ -135,6 +143,19 @@ function HomeAgent() {
         () => setConfirmingReset(false),
         3000
       );
+    }
+  };
+
+  const handleExport = async () => {
+    await exportSession();
+  };
+
+  const handleImport = async () => {
+    setImportError(null);
+    const result = await importSession();
+    if (!result.success && result.error) {
+      setImportError(result.error);
+      setTimeout(() => setImportError(null), 4000);
     }
   };
 
@@ -166,23 +187,72 @@ function HomeAgent() {
             className="max-w-2xl mx-auto mb-2 pointer-events-auto flex items-end justify-between gap-2"
           >
             <TokenStatsBar className="max-w-none mx-0 mb-0" />
-            <Button
-              variant="outline"
-              onClick={handleResetClick}
-              disabled={isStreaming}
-              className={cn(
-                "ml-auto flex items-center gap-1 text-xs rounded-full transition-colors disabled:opacity-40",
-                "dark:bg-background dark:hover:bg-accent shadow-none",
-                confirmingReset
-                  ? "text-destructive hover:text-destructive/80"
-                  : "text-muted-foreground/80 hover:text-foreground"
-              )}
-            >
-              <RotateCcw className="h-3 w-3" />
-              {confirmingReset
-                ? t("home:confirm_new_conversation")
-                : t("home:new_conversation")}
-            </Button>
+            <div className="flex items-center gap-1 ml-auto translate-y-1">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setLogOpen(true)}
+                disabled={sessionLog.length === 0}
+                className="h-7 px-2 text-xs text-muted-foreground/60 hover:text-foreground rounded-full disabled:opacity-30"
+                title={t("home:session_log_title")}
+              >
+                <ScrollText className="h-3 w-3" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleExport}
+                disabled={isStreaming || messages.length === 0}
+                className="h-7 px-2 text-xs text-muted-foreground/60 hover:text-foreground rounded-full disabled:opacity-30"
+                title={t("home:export_session")}
+              >
+                <Upload className="h-3 w-3" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleImport}
+                disabled={isStreaming}
+                className="h-7 px-2 text-xs text-muted-foreground/60 hover:text-foreground rounded-full disabled:opacity-30"
+                title={t("home:import_session")}
+              >
+                <Download className="h-3 w-3" />
+              </Button>
+              <Button
+                variant="ghost"
+                onClick={handleResetClick}
+                disabled={isStreaming}
+                className={cn(
+                  "h-7 px-2 text-xs text-muted-foreground/60 hover:text-foreground rounded-full disabled:opacity-30",
+                  "dark:bg-background dark:hover:bg-accent shadow-none",
+                  confirmingReset
+                    ? "text-destructive hover:text-destructive/80"
+                    : "text-muted-foreground/80 hover:text-foreground"
+                )}
+              >
+                <RotateCcw className="h-3 w-3" />
+                {confirmingReset
+                  ? t("home:confirm_new_conversation")
+                  : t("home:new_conversation")}
+              </Button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Import error toast */}
+      <AnimatePresence>
+        {importError && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            className="max-w-2xl mx-auto mb-2 pointer-events-auto"
+          >
+            <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-destructive/30 bg-destructive/5 text-xs text-destructive">
+              <AlertTriangle className="h-3 w-3 shrink-0" />
+              <span>{t("home:import_failed")}: {importError}</span>
+            </div>
           </motion.div>
         )}
       </AnimatePresence>
@@ -386,6 +456,8 @@ function HomeAgent() {
           </div>
         </>
       )}
+
+      <SessionLogViewer open={logOpen} onOpenChange={setLogOpen} />
     </div>
   );
 }

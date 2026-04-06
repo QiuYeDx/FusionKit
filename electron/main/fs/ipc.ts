@@ -1,4 +1,4 @@
-import { ipcMain } from "electron";
+import { ipcMain, dialog } from "electron";
 import path from "path";
 import { promises as fs } from "fs";
 
@@ -201,6 +201,51 @@ export function setupFsIPC() {
       } catch {
         return { exists: false, isDirectory: false, isFile: false };
       }
+    }
+  );
+
+  /**
+   * save-session-file: 使用保存对话框将 Agent 会话导出为 JSON 文件
+   */
+  ipcMain.handle(
+    "save-session-file",
+    async (
+      _event,
+      params: { defaultName: string; content: string }
+    ): Promise<{ success: boolean; filePath?: string }> => {
+      const result = await dialog.showSaveDialog({
+        title: "Export Agent Session",
+        defaultPath: params.defaultName,
+        filters: [{ name: "JSON", extensions: ["json"] }],
+      });
+
+      if (result.canceled || !result.filePath) {
+        return { success: false };
+      }
+
+      await fs.writeFile(result.filePath, params.content, "utf-8");
+      return { success: true, filePath: result.filePath };
+    }
+  );
+
+  /**
+   * open-session-file: 使用打开对话框读取 Agent 会话 JSON 文件
+   */
+  ipcMain.handle(
+    "open-session-file",
+    async (): Promise<{ success: boolean; content?: string; cancelled?: boolean }> => {
+      const result = await dialog.showOpenDialog({
+        title: "Import Agent Session",
+        filters: [{ name: "JSON", extensions: ["json"] }],
+        properties: ["openFile"],
+      });
+
+      if (result.canceled || result.filePaths.length === 0) {
+        return { success: false, cancelled: true };
+      }
+
+      const content = await fs.readFile(result.filePaths[0], "utf-8");
+      return { success: true, content };
     }
   );
 }

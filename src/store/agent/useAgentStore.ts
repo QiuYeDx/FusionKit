@@ -4,8 +4,11 @@ import type {
   AgentSession,
   AgentSessionStatus,
   AgentToolCall,
+  AgentLogEntry,
+  AgentLogEntryType,
   ExecutionMode,
   PendingExecution,
+  SessionExportData,
   TaskStoreType,
   TokenStats,
 } from "@/agent/types";
@@ -25,6 +28,7 @@ interface AgentStore {
   pendingExecution: PendingExecution | null;
   tokenStats: TokenStats;
   activeToolCalls: AgentToolCall[];
+  sessionLog: AgentLogEntry[];
 
   addMessage: (message: AgentMessage) => void;
   setStatus: (status: AgentSessionStatus) => void;
@@ -47,6 +51,9 @@ interface AgentStore {
     stepCount: number;
     lastPromptTokens: number;
   }) => void;
+  appendLog: (type: AgentLogEntryType, summary: string, data?: Record<string, unknown>) => void;
+  getSessionExportData: () => SessionExportData;
+  restoreSession: (data: SessionExportData) => void;
 }
 
 function generateId(): string {
@@ -115,6 +122,7 @@ const useAgentStore = create<AgentStore>((set, get) => ({
   pendingExecution: null,
   tokenStats: createEmptyTokenStats(),
   activeToolCalls: [],
+  sessionLog: [],
 
   addMessage: (message) =>
     set((state) => ({
@@ -159,7 +167,8 @@ const useAgentStore = create<AgentStore>((set, get) => ({
     }));
   },
 
-  resetSession: () =>
+  resetSession: () => {
+    get().appendLog("session_reset", "Session reset");
     set({
       session: createNewSession(),
       isStreaming: false,
@@ -167,7 +176,9 @@ const useAgentStore = create<AgentStore>((set, get) => ({
       pendingExecution: null,
       tokenStats: createEmptyTokenStats(),
       activeToolCalls: [],
-    }),
+      sessionLog: [],
+    });
+  },
 
   setExecutionMode: (mode) => {
     persistExecutionMode(mode);
@@ -203,6 +214,46 @@ const useAgentStore = create<AgentStore>((set, get) => ({
         ],
       },
     })),
+
+  appendLog: (type, summary, data) =>
+    set((state) => ({
+      sessionLog: [
+        ...state.sessionLog,
+        {
+          id: generateId(),
+          timestamp: Date.now(),
+          type,
+          summary,
+          ...(data ? { data } : {}),
+        },
+      ],
+    })),
+
+  getSessionExportData: (): SessionExportData => {
+    const { session, tokenStats, sessionLog, executionMode } = get();
+    return {
+      version: 1,
+      exportedAt: Date.now(),
+      session,
+      tokenStats,
+      sessionLog,
+      executionMode,
+    };
+  },
+
+  restoreSession: (data) => {
+    persistExecutionMode(data.executionMode);
+    set({
+      session: data.session,
+      tokenStats: data.tokenStats,
+      sessionLog: data.sessionLog,
+      executionMode: data.executionMode,
+      isStreaming: false,
+      streamingText: "",
+      pendingExecution: null,
+      activeToolCalls: [],
+    });
+  },
 }));
 
 export default useAgentStore;

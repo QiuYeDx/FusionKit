@@ -147,18 +147,22 @@ export async function handleUserMessage(userContent: string): Promise<void> {
     timestamp: Date.now(),
   };
   store.addMessage(userMsg);
+  store.appendLog("user_message", userContent, { messageId: userMsg.id });
   store.setStatus("thinking");
   store.setStreaming(true);
+  store.appendLog("status_change", "thinking");
 
   const agentProfile = modelStore.getAgentProfile();
 
   if (!agentProfile || !agentProfile.apiKey) {
+    const errMsg = "请先在设置页面配置 Agent 所用的模型。";
     store.addMessage({
       id: generateId(),
       role: "assistant",
-      content: "请先在设置页面配置 Agent 所用的模型。",
+      content: errMsg,
       timestamp: Date.now(),
     });
+    store.appendLog("error", errMsg, { reason: "no_agent_profile" });
     store.setStatus("error");
     store.setStreaming(false);
     return;
@@ -221,10 +225,16 @@ export async function handleUserMessage(userContent: string): Promise<void> {
         }
 
         case "tool-call": {
+          const toolArgs = part.input as Record<string, unknown>;
           pendingToolCalls.push({
             toolCallId: part.toolCallId,
             toolName: part.toolName,
-            args: part.input as Record<string, unknown>,
+            args: toolArgs,
+          });
+          useAgentStore.getState().appendLog("tool_call", `${part.toolName}`, {
+            toolCallId: part.toolCallId,
+            toolName: part.toolName,
+            args: toolArgs,
           });
           const active = useAgentStore.getState().activeToolCalls;
           const existing = active.find((tc) => tc.toolCallId === part.toolCallId);
@@ -255,6 +265,12 @@ export async function handleUserMessage(userContent: string): Promise<void> {
             toolName: part.toolName,
             output: part.output,
           });
+          const toolOutput = part.output as Record<string, unknown> | undefined;
+          useAgentStore.getState().appendLog("tool_result", `${part.toolName} → ${toolOutput?.success === false ? "failed" : "ok"}`, {
+            toolCallId: part.toolCallId,
+            toolName: part.toolName,
+            output: toolOutput,
+          });
           break;
         }
 
@@ -276,6 +292,13 @@ export async function handleUserMessage(userContent: string): Promise<void> {
               currentStreamingText,
               [...pendingToolCalls]
             );
+            if (currentStreamingText) {
+              useAgentStore.getState().appendLog("assistant_message", currentStreamingText.slice(0, 200), {
+                content: currentStreamingText,
+                hasToolCalls: true,
+                toolCallCount: pendingToolCalls.length,
+              });
+            }
 
             for (const tr of pendingToolResults) {
               const toolResult = tr.output as any;
@@ -315,6 +338,9 @@ export async function handleUserMessage(userContent: string): Promise<void> {
     const finalStreamingText = useAgentStore.getState().streamingText;
     if (finalStreamingText) {
       useAgentStore.getState().commitStreamingAsAssistant(finalStreamingText);
+      useAgentStore.getState().appendLog("assistant_message", finalStreamingText.slice(0, 200), {
+        content: finalStreamingText,
+      });
     }
 
     if (stepUsages.length === 0) {
@@ -331,6 +357,7 @@ export async function handleUserMessage(userContent: string): Promise<void> {
     }
 
     useAgentStore.getState().setStatus("idle");
+    useAgentStore.getState().appendLog("status_change", "idle");
   } catch (err: any) {
     const partial = useAgentStore.getState().streamingText;
     if (partial) {
@@ -340,14 +367,20 @@ export async function handleUserMessage(userContent: string): Promise<void> {
     }
 
     if (err?.name === "AbortError") {
+      useAgentStore.getState().appendLog("abort", "Stream aborted by user");
       useAgentStore.getState().setStatus("idle");
     } else {
+      const errDetail = err?.message || String(err);
       console.error("Orchestrator error:", err);
       useAgentStore.getState().addMessage({
         id: generateId(),
         role: "assistant",
-        content: `调用出错：${err?.message || String(err)}`,
+        content: `调用出错：${errDetail}`,
         timestamp: Date.now(),
+      });
+      useAgentStore.getState().appendLog("error", errDetail, {
+        name: err?.name,
+        stack: err?.stack,
       });
       useAgentStore.getState().setStatus("error");
     }
@@ -368,6 +401,13 @@ export async function handleUserMessage(userContent: string): Promise<void> {
         cost,
         stepCount: stepUsages.length,
         lastPromptTokens: lastStep.promptTokens,
+      });
+      useAgentStore.getState().appendLog("usage", `${totalT} tokens / $${cost.toFixed(6)}`, {
+        promptTokens: totalP,
+        completionTokens: totalC,
+        totalTokens: totalT,
+        cost,
+        stepCount: stepUsages.length,
       });
     }
 
