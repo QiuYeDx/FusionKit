@@ -156,6 +156,14 @@ function HomeAgent() {
     textareaRef.current?.focus();
   }, [isMultiline]);
 
+  const prevStreamingRef = useRef(false);
+  useEffect(() => {
+    if (prevStreamingRef.current && !isStreaming) {
+      textareaRef.current?.focus();
+    }
+    prevStreamingRef.current = isStreaming;
+  }, [isStreaming]);
+
   const handleResetClick = () => {
     if (confirmingReset) {
       setConfirmingReset(false);
