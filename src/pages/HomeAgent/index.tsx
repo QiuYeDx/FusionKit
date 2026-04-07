@@ -373,9 +373,7 @@ function HomeAgent() {
           ) : (
             <motion.div layoutId="capsule-send" className="ml-auto shrink-0">
               <Button
-                onClick={
-                  isStreaming ? () => abortCurrentStream() : handleSend
-                }
+                onClick={isStreaming ? () => abortCurrentStream() : handleSend}
                 disabled={!isStreaming && !canSend}
                 className={cn(
                   "flex items-center justify-center rounded-full w-8 h-8 shrink-0",
@@ -424,11 +422,11 @@ function HomeAgent() {
         ></motion.div>
         <motion.div
           layout
-          className="absolute z-50 top-5 left-0 w-0 h-[calc(100%-2.5rem)] border-l border-l-border"
+          className="absolute z-50 top-5 left-0 w-0 min-h-px h-[calc(100%-2.5rem)] border-l border-l-border"
         ></motion.div>
         <motion.div
           layout
-          className="absolute z-50 top-5 right-0 w-0 h-[calc(100%-2.5rem)] border-r border-r-border"
+          className="absolute z-50 top-5 right-0 w-0 min-h-px h-[calc(100%-2.5rem)] border-r border-r-border"
         ></motion.div>
       </motion.div>
     </motion.div>
