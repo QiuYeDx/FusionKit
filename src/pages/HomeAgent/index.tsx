@@ -314,7 +314,11 @@ function HomeAgent() {
           )}
         >
           {!isMultiline && (
-            <motion.div layoutId="capsule-mode" className="shrink-0">
+            <motion.div
+              layout="position"
+              layoutId="capsule-mode"
+              className="shrink-0"
+            >
               <CapsuleModeSelector
                 value={executionMode}
                 onChange={setExecutionMode}
@@ -339,14 +343,22 @@ function HomeAgent() {
           </motion.div>
           {isMultiline ? (
             <div className="flex items-center justify-between">
-              <motion.div layoutId="capsule-mode" className="shrink-0">
+              <motion.div
+                layout="position"
+                layoutId="capsule-mode"
+                className="shrink-0"
+              >
                 <CapsuleModeSelector
                   value={executionMode}
                   onChange={setExecutionMode}
                   disabled={isStreaming}
                 />
               </motion.div>
-              <motion.div layoutId="capsule-send" className="shrink-0">
+              <motion.div
+                layout="position"
+                layoutId="capsule-send"
+                className="shrink-0"
+              >
                 <Button
                   onClick={
                     isStreaming ? () => abortCurrentStream() : handleSend
@@ -371,7 +383,11 @@ function HomeAgent() {
               </motion.div>
             </div>
           ) : (
-            <motion.div layoutId="capsule-send" className="ml-auto shrink-0">
+            <motion.div
+              layout="position"
+              layoutId="capsule-send"
+              className="ml-auto shrink-0"
+            >
               <Button
                 onClick={isStreaming ? () => abortCurrentStream() : handleSend}
                 disabled={!isStreaming && !canSend}
@@ -571,22 +587,36 @@ function HomeAgent() {
 
       {/* ===== Bottom Input Area ===== */}
       {isEmpty ? (
-        <div
+        <motion.div
+          layoutId="input-capsule"
+          // transition={{
+          //   type: "spring",
+          //   bounce: 0,
+          //   duration: 0.8,
+          // }}
           className={cn(
             "absolute inset-x-0 z-20 px-4 pb-4 pt-2 pointer-events-none",
             hasAgentConfig ? "top-72" : "top-82",
           )}
         >
           {inputCapsule}
-        </div>
+        </motion.div>
       ) : (
         <>
           <div className="pointer-events-none fixed inset-x-0 bottom-0 h-32 bg-linear-to-b from-transparent via-background/95 to-background" />
-          <div className="fixed inset-x-0 bottom-[42px] z-20 pointer-events-none">
+          <motion.div
+            layoutId="input-capsule"
+            // transition={{
+            //   type: "spring",
+            //   bounce: 0,
+            //   duration: 0.8,
+            // }}
+            className="fixed inset-x-0 bottom-[42px] z-20 pointer-events-none"
+          >
             <div className="relative px-4 pt-3 pb-4 pointer-events-none">
               {inputCapsule}
             </div>
-          </div>
+          </motion.div>
         </>
       )}
 
