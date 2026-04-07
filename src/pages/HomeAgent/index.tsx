@@ -238,10 +238,11 @@ function HomeAgent() {
   const isEmpty = messages.length === 0;
   const canSend = input.trim().length > 0 && !isStreaming;
   const inputCapsule = (
-    <>
-      <AnimatePresence>
+    <motion.div layout>
+      <AnimatePresence mode="popLayout">
         {!isEmpty && (
           <motion.div
+            layout="position"
             initial={{ opacity: 0, y: 6 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 6 }}
@@ -337,63 +338,28 @@ function HomeAgent() {
       >
         <div
           className={cn(
-            isMultiline
-              ? "flex flex-col gap-1 p-1.5"
-              : "flex items-center gap-1.5 px-1.5 py-1",
+            "px-1.5 py-1",
+            isMultiline ? "flex flex-col gap-1" : "flex items-center gap-1.5",
           )}
         >
-            {isMultiline ? (
-              <>
-                <motion.div
-                  key="textarea"
-                  layoutId="input-field"
-                  className="w-full"
-                >
-                  <Textarea
-                    ref={textareaRef}
-                    placeholder={t("home:agent_input_placeholder")}
-                    value={input}
-                    onChange={(e) => setInput(e.target.value)}
-                    onKeyDown={handleTextareaKeyDown}
-                    disabled={isStreaming}
-                    className="bg-transparent border-0 shadow-none rounded-none min-h-0 px-1.5 py-1 text-sm placeholder:text-muted-foreground/70 disabled:opacity-50 resize-none max-h-40 overflow-y-auto focus-visible:ring-0 focus-visible:border-transparent dark:bg-transparent"
-                  />
-                </motion.div>
-                <div className="flex items-center justify-between">
-                  <motion.div layoutId="capsule-mode" className="shrink-0">
-                    <CapsuleModeSelector
-                      value={executionMode}
-                      onChange={setExecutionMode}
-                      disabled={isStreaming}
-                    />
-                  </motion.div>
-                  <motion.div layoutId="capsule-send" className="shrink-0">
-                    <Button
-                      onClick={
-                        isStreaming ? () => abortCurrentStream() : handleSend
-                      }
-                      disabled={!isStreaming && !canSend}
-                      className={cn(
-                        "flex items-center justify-center rounded-full w-8 h-8 shrink-0",
-                        "transition-all duration-200",
-                        isStreaming
-                          ? "shadow-sm hover:bg-destructive"
-                          : canSend
-                            ? "bg-primary text-primary-foreground shadow-sm hover:opacity-90"
-                            : "bg-transparent text-muted-foreground/45",
-                      )}
-                    >
-                      {isStreaming ? (
-                        <Square className="h-3.5 w-3.5 fill-current" />
-                      ) : (
-                        <Send className="h-4 w-4" />
-                      )}
-                    </Button>
-                  </motion.div>
-                </div>
-              </>
-            ) : (
-              <>
+          {isMultiline ? (
+            <>
+              <motion.div
+                key="textarea"
+                layoutId="input-field"
+                className="w-full"
+              >
+                <Textarea
+                  ref={textareaRef}
+                  placeholder={t("home:agent_input_placeholder")}
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  onKeyDown={handleTextareaKeyDown}
+                  disabled={isStreaming}
+                  className="bg-transparent border-0 shadow-none rounded-none min-h-0 px-1.5 py-1 text-sm placeholder:text-muted-foreground/70 disabled:opacity-50 resize-none max-h-40 overflow-y-auto focus-visible:ring-0 focus-visible:border-transparent dark:bg-transparent"
+                />
+              </motion.div>
+              <div className="flex items-center justify-between">
                 <motion.div layoutId="capsule-mode" className="shrink-0">
                   <CapsuleModeSelector
                     value={executionMode}
@@ -401,23 +367,7 @@ function HomeAgent() {
                     disabled={isStreaming}
                   />
                 </motion.div>
-                <motion.div
-                  key="input"
-                  layoutId="input-field"
-                  className="flex-1 min-w-0"
-                >
-                  <Input
-                    ref={inputRef}
-                    placeholder={t("home:agent_input_placeholder")}
-                    value={input}
-                    onChange={(e) => setInput(e.target.value)}
-                    onKeyDown={handleKeyDown}
-                    onPaste={handlePaste}
-                    disabled={isStreaming}
-                    className="bg-transparent border-0 shadow-none rounded-none h-auto px-0 py-0 text-sm placeholder:text-muted-foreground/70 disabled:opacity-50 focus-visible:ring-0 focus-visible:border-transparent dark:bg-transparent"
-                  />
-                </motion.div>
-                <motion.div layoutId="capsule-send" className="ml-auto shrink-0">
+                <motion.div layoutId="capsule-send" className="shrink-0">
                   <Button
                     onClick={
                       isStreaming ? () => abortCurrentStream() : handleSend
@@ -440,21 +390,95 @@ function HomeAgent() {
                     )}
                   </Button>
                 </motion.div>
-              </>
-            )}
+              </div>
+            </>
+          ) : (
+            <>
+              <motion.div layoutId="capsule-mode" className="shrink-0">
+                <CapsuleModeSelector
+                  value={executionMode}
+                  onChange={setExecutionMode}
+                  disabled={isStreaming}
+                />
+              </motion.div>
+              <motion.div
+                key="input"
+                layoutId="input-field"
+                className="flex-1 min-w-0"
+              >
+                <Input
+                  ref={inputRef}
+                  placeholder={t("home:agent_input_placeholder")}
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  onPaste={handlePaste}
+                  disabled={isStreaming}
+                  className="bg-transparent border-0 shadow-none rounded-none h-auto px-0 py-0 text-sm placeholder:text-muted-foreground/70 disabled:opacity-50 focus-visible:ring-0 focus-visible:border-transparent dark:bg-transparent"
+                />
+              </motion.div>
+              <motion.div layoutId="capsule-send" className="ml-auto shrink-0">
+                <Button
+                  onClick={
+                    isStreaming ? () => abortCurrentStream() : handleSend
+                  }
+                  disabled={!isStreaming && !canSend}
+                  className={cn(
+                    "flex items-center justify-center rounded-full w-8 h-8 shrink-0",
+                    "transition-all duration-200",
+                    isStreaming
+                      ? "shadow-sm hover:bg-destructive"
+                      : canSend
+                        ? "bg-primary text-primary-foreground shadow-sm hover:opacity-90"
+                        : "bg-transparent text-muted-foreground/45",
+                  )}
+                >
+                  {isStreaming ? (
+                    <Square className="h-3.5 w-3.5 fill-current" />
+                  ) : (
+                    <Send className="h-4 w-4" />
+                  )}
+                </Button>
+              </motion.div>
+            </>
+          )}
         </div>
         {/* 模拟四角边框 */}
-        <motion.div layout className="size-5 absolute z-50 top-0 left-0 rounded-tl-3xl border-l border-t border-l-border border-t-border"></motion.div>
-        <motion.div layout className="size-5 absolute z-50 top-0 right-0 rounded-tr-3xl border-r border-t border-r-border border-t-border"></motion.div>
-        <motion.div layout className="size-5 absolute z-50 bottom-0 left-0 rounded-bl-3xl border-b border-l border-b-border border-l-border"></motion.div>
-        <motion.div layout className="size-5 absolute z-50 bottom-0 right-0 rounded-br-3xl border-b border-r border-b-border border-r-border"></motion.div>
+        <motion.div
+          layout
+          className="size-5 absolute z-50 top-0 left-0 rounded-tl-3xl border-l border-t border-l-border border-t-border"
+        ></motion.div>
+        <motion.div
+          layout
+          className="size-5 absolute z-50 top-0 right-0 rounded-tr-3xl border-r border-t border-r-border border-t-border"
+        ></motion.div>
+        <motion.div
+          layout
+          className="size-5 absolute z-50 bottom-0 left-0 rounded-bl-3xl border-b border-l border-b-border border-l-border"
+        ></motion.div>
+        <motion.div
+          layout
+          className="size-5 absolute z-50 bottom-0 right-0 rounded-br-3xl border-b border-r border-b-border border-r-border"
+        ></motion.div>
         {/* 模拟四边边框 */}
-        <motion.div layout className="absolute z-50 top-0 left-5 h-0 w-[calc(100%-2.5rem)] border-t border-t-border"></motion.div>
-        <motion.div layout className="absolute z-50 bottom-0 left-5 h-0 w-[calc(100%-2.5rem)] border-b border-b-border"></motion.div>
-        <motion.div layout className="absolute z-50 top-5 left-0 w-0 h-[calc(100%-2.5rem)] border-l border-l-border"></motion.div>
-        <motion.div layout className="absolute z-50 top-5 right-0 w-0 h-[calc(100%-2.5rem)] border-r border-r-border"></motion.div>
+        <motion.div
+          layout
+          className="absolute z-50 top-0 left-5 h-0 w-[calc(100%-2.5rem)] border-t border-t-border"
+        ></motion.div>
+        <motion.div
+          layout
+          className="absolute z-50 bottom-0 left-5 h-0 w-[calc(100%-2.5rem)] border-b border-b-border"
+        ></motion.div>
+        <motion.div
+          layout
+          className="absolute z-50 top-5 left-0 w-0 h-[calc(100%-2.5rem)] border-l border-l-border"
+        ></motion.div>
+        <motion.div
+          layout
+          className="absolute z-50 top-5 right-0 w-0 h-[calc(100%-2.5rem)] border-r border-r-border"
+        ></motion.div>
       </motion.div>
-    </>
+    </motion.div>
   );
 
   return (
