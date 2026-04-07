@@ -46,6 +46,8 @@ import {
 } from "@/components/ui/popover";
 import { inferContextWindowSize } from "@/constants/model";
 import { cn } from "@/lib/utils";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import FusionKitLogo from "@/assets/FusionKit.svg";
 
 // ---------------------------------------------------------------------------
@@ -55,22 +57,22 @@ const EXECUTION_MODE_OPTIONS: {
   labelKey: string;
   icon: React.ReactNode;
 }[] = [
-    {
-      value: "queue_only",
-      labelKey: "home:execution_mode_queue_only",
-      icon: <ListPlus className="h-3.5 w-3.5" />,
-    },
-    {
-      value: "ask_before_execute",
-      labelKey: "home:execution_mode_ask_before_execute",
-      icon: <MessageSquareMore className="h-3.5 w-3.5" />,
-    },
-    {
-      value: "auto_execute",
-      labelKey: "home:execution_mode_auto_execute",
-      icon: <Zap className="h-3.5 w-3.5" />,
-    },
-  ];
+  {
+    value: "queue_only",
+    labelKey: "home:execution_mode_queue_only",
+    icon: <ListPlus className="h-3.5 w-3.5" />,
+  },
+  {
+    value: "ask_before_execute",
+    labelKey: "home:execution_mode_ask_before_execute",
+    icon: <MessageSquareMore className="h-3.5 w-3.5" />,
+  },
+  {
+    value: "auto_execute",
+    labelKey: "home:execution_mode_auto_execute",
+    icon: <Zap className="h-3.5 w-3.5" />,
+  },
+];
 
 const TOOL_LABEL_KEYS: Record<string, string> = {
   scan_subtitle_files: "home:tool_name_scan",
@@ -99,8 +101,12 @@ function HomeAgent() {
   const [input, setInput] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const nextCursorPosRef = useRef<number | null>(null);
   const [confirmingReset, setConfirmingReset] = useState(false);
-  const confirmResetTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const confirmResetTimer = useRef<ReturnType<typeof setTimeout> | undefined>(
+    undefined,
+  );
   const [logOpen, setLogOpen] = useState(false);
   const [importError, setImportError] = useState<string | null>(null);
 
@@ -122,6 +128,16 @@ function HomeAgent() {
   const agentProfile = useModelStore((s) => s.getAgentProfile());
   const hasAgentConfig = !!(agentProfile && agentProfile.apiKey);
 
+  const [isMultiline, setIsMultiline] = useState(false);
+
+  useEffect(() => {
+    if (!isMultiline && input.includes("\n")) {
+      setIsMultiline(true);
+    } else if (isMultiline && input === "") {
+      setIsMultiline(false);
+    }
+  }, [input, isMultiline]);
+
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, pendingExecution, streamingText, activeToolCalls]);
@@ -132,6 +148,22 @@ function HomeAgent() {
     };
   }, []);
 
+  useEffect(() => {
+    requestAnimationFrame(() => {
+      const el = isMultiline ? textareaRef.current : inputRef.current;
+      if (el) {
+        el.focus();
+        if (nextCursorPosRef.current !== null) {
+          el.setSelectionRange(
+            nextCursorPosRef.current,
+            nextCursorPosRef.current,
+          );
+          nextCursorPosRef.current = null;
+        }
+      }
+    });
+  }, [isMultiline]);
+
   const handleResetClick = () => {
     if (confirmingReset) {
       setConfirmingReset(false);
@@ -141,7 +173,7 @@ function HomeAgent() {
       setConfirmingReset(true);
       confirmResetTimer.current = setTimeout(
         () => setConfirmingReset(false),
-        3000
+        3000,
       );
     }
   };
@@ -167,9 +199,39 @@ function HomeAgent() {
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter" && !e.nativeEvent.isComposing) {
+      if (e.shiftKey) {
+        e.preventDefault();
+        const target = e.currentTarget;
+        const start = target.selectionStart ?? input.length;
+        const end = target.selectionEnd ?? input.length;
+        nextCursorPosRef.current = start + 1;
+        setInput(input.slice(0, start) + "\n" + input.slice(end));
+      } else {
+        e.preventDefault();
+        handleSend();
+      }
+    }
+  };
+
+  const handleTextareaKeyDown = (
+    e: React.KeyboardEvent<HTMLTextAreaElement>,
+  ) => {
     if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
       e.preventDefault();
       handleSend();
+    }
+  };
+
+  const handlePaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
+    const pastedText = e.clipboardData.getData("text");
+    if (pastedText.includes("\n")) {
+      e.preventDefault();
+      const target = e.currentTarget;
+      const start = target.selectionStart ?? input.length;
+      const end = target.selectionEnd ?? input.length;
+      nextCursorPosRef.current = start + pastedText.length;
+      setInput(input.slice(0, start) + pastedText + input.slice(end));
     }
   };
 
@@ -183,7 +245,12 @@ function HomeAgent() {
             initial={{ opacity: 0, y: 6 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 6 }}
-            transition={{ type: "spring", bounce: 0, duration: 0.8, delay: 1.2 }}
+            transition={{
+              type: "spring",
+              bounce: 0,
+              duration: 0.8,
+              delay: 1.2,
+            }}
             className="max-w-2xl mx-auto mb-2 pointer-events-auto flex items-end justify-between gap-2"
           >
             <TokenStatsBar className="max-w-none mx-0 mb-0" />
@@ -227,7 +294,7 @@ function HomeAgent() {
                   "dark:bg-background dark:hover:bg-accent shadow-none",
                   confirmingReset
                     ? "text-destructive hover:text-destructive/80"
-                    : "text-muted-foreground/80 hover:text-foreground"
+                    : "text-muted-foreground/80 hover:text-foreground",
                 )}
               >
                 <RotateCcw className="h-3 w-3" />
@@ -251,58 +318,141 @@ function HomeAgent() {
           >
             <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-destructive/30 bg-destructive/5 text-xs text-destructive">
               <AlertTriangle className="h-3 w-3 shrink-0" />
-              <span>{t("home:import_failed")}: {importError}</span>
+              <span>
+                {t("home:import_failed")}: {importError}
+              </span>
             </div>
           </motion.div>
         )}
       </AnimatePresence>
 
       <motion.div
-        layoutId="input-capsule"
-        layout
-        transition={{ type: "spring", bounce: 0, duration: 0.8 }}
         className={cn(
-          "flex items-center gap-1.5 rounded-full border border-border/70 shadow-sm",
+          "shadow-sm relative",
           "bg-background",
           "focus-within:shadow-md focus-within:border-ring/50",
           "max-w-2xl mx-auto w-full",
-          "pl-1.5 pr-1.5 py-1",
-          "pointer-events-auto"
+          "pointer-events-auto",
         )}
       >
-        <CapsuleModeSelector
-          value={executionMode}
-          onChange={setExecutionMode}
-          disabled={isStreaming}
-        />
-        <input
-          ref={inputRef}
-          placeholder={t("home:agent_input_placeholder")}
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={handleKeyDown}
-          disabled={isStreaming}
-          className="flex-1 bg-transparent outline-none text-sm placeholder:text-muted-foreground/70 disabled:opacity-50 min-w-0"
-        />
-        <Button
-          onClick={isStreaming ? () => abortCurrentStream() : handleSend}
-          disabled={!isStreaming && !canSend}
+        <div
           className={cn(
-            "flex items-center justify-center rounded-full w-8 h-8 shrink-0",
-            "transition-all duration-200",
-            isStreaming
-              ? "shadow-sm hover:bg-destructive"
-              : canSend
-                ? "bg-primary text-primary-foreground shadow-sm hover:opacity-90"
-                : "bg-transparent text-muted-foreground/45"
+            isMultiline
+              ? "flex flex-col gap-1 p-1.5"
+              : "flex items-center gap-1.5 px-1.5 py-1",
           )}
         >
-          {isStreaming ? (
-            <Square className="h-3.5 w-3.5 fill-current" />
-          ) : (
-            <Send className="h-4 w-4" />
-          )}
-        </Button>
+            {isMultiline ? (
+              <>
+                <motion.div
+                  key="textarea"
+                  layoutId="input-field"
+                  className="w-full"
+                >
+                  <Textarea
+                    ref={textareaRef}
+                    placeholder={t("home:agent_input_placeholder")}
+                    value={input}
+                    onChange={(e) => setInput(e.target.value)}
+                    onKeyDown={handleTextareaKeyDown}
+                    disabled={isStreaming}
+                    className="bg-transparent border-0 shadow-none rounded-none min-h-0 px-1.5 py-1 text-sm placeholder:text-muted-foreground/70 disabled:opacity-50 resize-none max-h-40 overflow-y-auto focus-visible:ring-0 focus-visible:border-transparent dark:bg-transparent"
+                  />
+                </motion.div>
+                <div className="flex items-center justify-between">
+                  <motion.div layoutId="capsule-mode" className="shrink-0">
+                    <CapsuleModeSelector
+                      value={executionMode}
+                      onChange={setExecutionMode}
+                      disabled={isStreaming}
+                    />
+                  </motion.div>
+                  <motion.div layoutId="capsule-send" className="shrink-0">
+                    <Button
+                      onClick={
+                        isStreaming ? () => abortCurrentStream() : handleSend
+                      }
+                      disabled={!isStreaming && !canSend}
+                      className={cn(
+                        "flex items-center justify-center rounded-full w-8 h-8 shrink-0",
+                        "transition-all duration-200",
+                        isStreaming
+                          ? "shadow-sm hover:bg-destructive"
+                          : canSend
+                            ? "bg-primary text-primary-foreground shadow-sm hover:opacity-90"
+                            : "bg-transparent text-muted-foreground/45",
+                      )}
+                    >
+                      {isStreaming ? (
+                        <Square className="h-3.5 w-3.5 fill-current" />
+                      ) : (
+                        <Send className="h-4 w-4" />
+                      )}
+                    </Button>
+                  </motion.div>
+                </div>
+              </>
+            ) : (
+              <>
+                <motion.div layoutId="capsule-mode" className="shrink-0">
+                  <CapsuleModeSelector
+                    value={executionMode}
+                    onChange={setExecutionMode}
+                    disabled={isStreaming}
+                  />
+                </motion.div>
+                <motion.div
+                  key="input"
+                  layoutId="input-field"
+                  className="flex-1 min-w-0"
+                >
+                  <Input
+                    ref={inputRef}
+                    placeholder={t("home:agent_input_placeholder")}
+                    value={input}
+                    onChange={(e) => setInput(e.target.value)}
+                    onKeyDown={handleKeyDown}
+                    onPaste={handlePaste}
+                    disabled={isStreaming}
+                    className="bg-transparent border-0 shadow-none rounded-none h-auto px-0 py-0 text-sm placeholder:text-muted-foreground/70 disabled:opacity-50 focus-visible:ring-0 focus-visible:border-transparent dark:bg-transparent"
+                  />
+                </motion.div>
+                <motion.div layoutId="capsule-send" className="ml-auto shrink-0">
+                  <Button
+                    onClick={
+                      isStreaming ? () => abortCurrentStream() : handleSend
+                    }
+                    disabled={!isStreaming && !canSend}
+                    className={cn(
+                      "flex items-center justify-center rounded-full w-8 h-8 shrink-0",
+                      "transition-all duration-200",
+                      isStreaming
+                        ? "shadow-sm hover:bg-destructive"
+                        : canSend
+                          ? "bg-primary text-primary-foreground shadow-sm hover:opacity-90"
+                          : "bg-transparent text-muted-foreground/45",
+                    )}
+                  >
+                    {isStreaming ? (
+                      <Square className="h-3.5 w-3.5 fill-current" />
+                    ) : (
+                      <Send className="h-4 w-4" />
+                    )}
+                  </Button>
+                </motion.div>
+              </>
+            )}
+        </div>
+        {/* 模拟四角边框 */}
+        <motion.div layout className="size-5 absolute z-50 top-0 left-0 rounded-tl-3xl border-l border-t border-l-border border-t-border"></motion.div>
+        <motion.div layout className="size-5 absolute z-50 top-0 right-0 rounded-tr-3xl border-r border-t border-r-border border-t-border"></motion.div>
+        <motion.div layout className="size-5 absolute z-50 bottom-0 left-0 rounded-bl-3xl border-b border-l border-b-border border-l-border"></motion.div>
+        <motion.div layout className="size-5 absolute z-50 bottom-0 right-0 rounded-br-3xl border-b border-r border-b-border border-r-border"></motion.div>
+        {/* 模拟四边边框 */}
+        <motion.div layout className="absolute z-50 top-0 left-5 h-0 w-[calc(100%-2.5rem)] border-t border-t-border"></motion.div>
+        <motion.div layout className="absolute z-50 bottom-0 left-5 h-0 w-[calc(100%-2.5rem)] border-b border-b-border"></motion.div>
+        <motion.div layout className="absolute z-50 top-5 left-0 w-0 h-[calc(100%-2.5rem)] border-l border-l-border"></motion.div>
+        <motion.div layout className="absolute z-50 top-5 right-0 w-0 h-[calc(100%-2.5rem)] border-r border-r-border"></motion.div>
       </motion.div>
     </>
   );
@@ -405,12 +555,15 @@ function HomeAgent() {
                 <MessageBubble key={msg.id} message={msg} />
               ))}
 
-              {isStreaming && status === "thinking" && !streamingText && activeToolCalls.length === 0 && (
-                <div className="flex items-center gap-2 text-muted-foreground text-sm pl-10">
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                  <span>{t("home:agent_thinking")}</span>
-                </div>
-              )}
+              {isStreaming &&
+                status === "thinking" &&
+                !streamingText &&
+                activeToolCalls.length === 0 && (
+                  <div className="flex items-center gap-2 text-muted-foreground text-sm pl-10">
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    <span>{t("home:agent_thinking")}</span>
+                  </div>
+                )}
 
               {isStreaming && streamingText && (
                 <div className="flex items-start gap-2.5 animate-in fade-in slide-in-from-bottom-2 duration-300">
@@ -443,7 +596,12 @@ function HomeAgent() {
 
       {/* ===== Bottom Input Area ===== */}
       {isEmpty ? (
-        <div className={cn("absolute inset-x-0 z-20 px-4 pb-4 pt-2 pointer-events-none", hasAgentConfig ? "top-72" : "top-82")}>
+        <div
+          className={cn(
+            "absolute inset-x-0 z-20 px-4 pb-4 pt-2 pointer-events-none",
+            hasAgentConfig ? "top-72" : "top-82",
+          )}
+        >
           {inputCapsule}
         </div>
       ) : (
@@ -490,7 +648,7 @@ function CapsuleModeSelector({
           "bg-secondary hover:bg-accent/60",
           "text-foreground/65",
           "focus-visible:ring-0",
-          "cursor-pointer shrink-0"
+          "cursor-pointer shrink-0",
         )}
       >
         <SelectValue />
@@ -592,7 +750,7 @@ function MessageBubble({ message }: { message: AgentMessage }) {
             "rounded-xl border p-3 text-xs font-mono max-w-full overflow-auto",
             isSuccess
               ? "bg-muted/40 border-border/50"
-              : "bg-destructive/5 border-destructive/20"
+              : "bg-destructive/5 border-destructive/20",
           )}
         >
           <div className="flex items-center gap-1.5 mb-1 text-muted-foreground">
@@ -624,7 +782,7 @@ function MessageBubble({ message }: { message: AgentMessage }) {
       <div
         className={cn(
           "flex items-start gap-2.5",
-          isUser ? "flex-row-reverse" : ""
+          isUser ? "flex-row-reverse" : "",
         )}
       >
         <div
@@ -632,7 +790,7 @@ function MessageBubble({ message }: { message: AgentMessage }) {
             "flex items-center justify-center rounded-full w-7 h-7 shrink-0",
             isUser
               ? "bg-primary text-primary-foreground"
-              : "bg-muted text-muted-foreground"
+              : "bg-muted text-muted-foreground",
           )}
         >
           {isUser ? (
@@ -646,15 +804,19 @@ function MessageBubble({ message }: { message: AgentMessage }) {
             "relative rounded-sm px-4 py-2.5 max-w-[80%] text-sm leading-relaxed",
             isUser
               ? "bg-primary text-primary-foreground chat-bubble-user"
-              : "bg-muted chat-bubble-assistant"
+              : "bg-muted chat-bubble-assistant",
           )}
         >
-          <p className="whitespace-pre-wrap wrap-break-word">{message.content}</p>
+          <p className="whitespace-pre-wrap wrap-break-word">
+            {message.content}
+          </p>
         </div>
       </div>
-      {message.role === "assistant" && message.toolCalls && message.toolCalls.length > 0 && (
-        <ToolCallBubble toolCalls={message.toolCalls} />
-      )}
+      {message.role === "assistant" &&
+        message.toolCalls &&
+        message.toolCalls.length > 0 && (
+          <ToolCallBubble toolCalls={message.toolCalls} />
+        )}
     </>
   );
 }
@@ -671,15 +833,12 @@ function ToolCallBubble({
     <div
       className={cn(
         "pl-10",
-        isLoading && "animate-in fade-in slide-in-from-bottom-2 duration-300"
+        isLoading && "animate-in fade-in slide-in-from-bottom-2 duration-300",
       )}
     >
       <div className="inline-flex flex-col gap-1 rounded-lg border border-border/40 bg-muted/30 px-3 py-2">
         {toolCalls.map((tc) => (
-          <div
-            key={tc.toolCallId}
-            className="flex items-center gap-2 text-xs"
-          >
+          <div key={tc.toolCallId} className="flex items-center gap-2 text-xs">
             {isLoading ? (
               <Loader2 className="h-3 w-3 animate-spin text-primary/70" />
             ) : (
@@ -724,7 +883,9 @@ function StreamingTextContent({ text }: { text: string }) {
   return (
     <p className="whitespace-pre-wrap wrap-break-word">
       {segmentsRef.current.map((seg, i) => (
-        <span key={i} className="streaming-fade-in">{seg}</span>
+        <span key={i} className="streaming-fade-in">
+          {seg}
+        </span>
       ))}
       <motion.span
         layoutId="streaming-cursor"
@@ -750,7 +911,7 @@ function SuggestionPill({
       className={cn(
         "flex items-center gap-1.5 rounded-full",
         "px-3.5 py-1.5 text-sm text-foreground/60",
-        "transition-all duration-200"
+        "transition-all duration-200",
       )}
       onClick={onClick}
     >
@@ -782,7 +943,7 @@ function TokenStatsBar({ className }: { className?: string } = {}) {
   const contextWindow = inferContextWindowSize(modelKey);
   const contextPercent = Math.min(
     100,
-    (tokenStats.lastPromptTokens / contextWindow) * 100
+    (tokenStats.lastPromptTokens / contextWindow) * 100,
   );
   const pricing = agentProfile?.tokenPricing;
   const locale = i18n.resolvedLanguage || i18n.language || "en-US";
@@ -815,7 +976,7 @@ function TokenStatsBar({ className }: { className?: string } = {}) {
               "flex items-center gap-2 text-[10px] text-muted-foreground/60",
               "hover:text-muted-foreground transition-colors rounded-full",
               "px-2.5 pt-1 cursor-pointer select-none",
-              isStreaming && "animate-pulse"
+              isStreaming && "animate-pulse",
             )}
           >
             <Activity className="h-3 w-3 shrink-0" />
@@ -826,7 +987,7 @@ function TokenStatsBar({ className }: { className?: string } = {}) {
                 <span
                   className={cn(
                     "block h-full rounded-full transition-all duration-700",
-                    barColor
+                    barColor,
                   )}
                   style={{ width: `${contextPercent}%` }}
                 />
@@ -869,7 +1030,7 @@ function TokenStatsBar({ className }: { className?: string } = {}) {
                 <div
                   className={cn(
                     "h-full rounded-full transition-all duration-700",
-                    barColor
+                    barColor,
                   )}
                   style={{ width: `${contextPercent}%` }}
                 />
@@ -892,25 +1053,33 @@ function TokenStatsBar({ className }: { className?: string } = {}) {
               </p>
               <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-[11px]">
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">{t("home:input_label")}</span>
+                  <span className="text-muted-foreground">
+                    {t("home:input_label")}
+                  </span>
                   <span className="tabular-nums">
                     {tokenStats.totalPromptTokens.toLocaleString()}
                   </span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">{t("home:output_label")}</span>
+                  <span className="text-muted-foreground">
+                    {t("home:output_label")}
+                  </span>
                   <span className="tabular-nums">
                     {tokenStats.totalCompletionTokens.toLocaleString()}
                   </span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">{t("home:total_label")}</span>
+                  <span className="text-muted-foreground">
+                    {t("home:total_label")}
+                  </span>
                   <span className="tabular-nums font-medium">
                     {tokenStats.totalTokens.toLocaleString()}
                   </span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">{t("home:calls_label")}</span>
+                  <span className="text-muted-foreground">
+                    {t("home:calls_label")}
+                  </span>
                   <span className="tabular-nums">
                     {tokenStats.stepCount} {t("home:times_unit")}
                   </span>
@@ -918,7 +1087,9 @@ function TokenStatsBar({ className }: { className?: string } = {}) {
                 {pricing && (
                   <>
                     <div className="flex justify-between">
-                      <span className="text-muted-foreground">{t("home:input_cost_label")}</span>
+                      <span className="text-muted-foreground">
+                        {t("home:input_cost_label")}
+                      </span>
                       <span className="tabular-nums">
                         $
                         {(
@@ -929,7 +1100,9 @@ function TokenStatsBar({ className }: { className?: string } = {}) {
                       </span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-muted-foreground">{t("home:output_cost_label")}</span>
+                      <span className="text-muted-foreground">
+                        {t("home:output_cost_label")}
+                      </span>
                       <span className="tabular-nums">
                         $
                         {(
@@ -974,8 +1147,8 @@ function TokenStatsBar({ className }: { className?: string } = {}) {
                         })}
                       </span>
                       <span className="flex-1 tabular-nums">
-                        ↓{formatTokenCount(rec.promptTokens)}{" "}
-                        ↑{formatTokenCount(rec.completionTokens)}
+                        ↓{formatTokenCount(rec.promptTokens)} ↑
+                        {formatTokenCount(rec.completionTokens)}
                       </span>
                       <span className="tabular-nums shrink-0">
                         ${rec.cost.toFixed(4)}
@@ -1011,7 +1184,8 @@ function formatToolContent(raw: string, t: TFunction): string {
         .slice(0, 10)
         .map((f: any) => f.fileName || f)
         .join("\n  ");
-      const more = count > 10 ? `\n  ${t("home:tool_result_more_files", { count })}` : "";
+      const more =
+        count > 10 ? `\n  ${t("home:tool_result_more_files", { count })}` : "";
       return `${t("home:tool_result_files_found", { count })}:\n  ${names}${more}`;
     }
     if (parsed?.queuedCount !== undefined) {
