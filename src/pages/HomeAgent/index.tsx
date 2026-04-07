@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useState } from "react";
+import React, { useRef, useEffect, useLayoutEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
 import { useNavigate } from "react-router-dom";
@@ -46,7 +46,6 @@ import {
 } from "@/components/ui/popover";
 import { inferContextWindowSize } from "@/constants/model";
 import { cn } from "@/lib/utils";
-import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import FusionKitLogo from "@/assets/FusionKit.svg";
 
@@ -100,9 +99,7 @@ function HomeAgent() {
   const navigate = useNavigate();
   const [input, setInput] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const nextCursorPosRef = useRef<number | null>(null);
   const [confirmingReset, setConfirmingReset] = useState(false);
   const confirmResetTimer = useRef<ReturnType<typeof setTimeout> | undefined>(
     undefined,
@@ -148,20 +145,15 @@ function HomeAgent() {
     };
   }, []);
 
+  useLayoutEffect(() => {
+    const el = textareaRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${el.scrollHeight}px`;
+  }, [input]);
+
   useEffect(() => {
-    requestAnimationFrame(() => {
-      const el = isMultiline ? textareaRef.current : inputRef.current;
-      if (el) {
-        el.focus();
-        if (nextCursorPosRef.current !== null) {
-          el.setSelectionRange(
-            nextCursorPosRef.current,
-            nextCursorPosRef.current,
-          );
-          nextCursorPosRef.current = null;
-        }
-      }
-    });
+    textareaRef.current?.focus();
   }, [isMultiline]);
 
   const handleResetClick = () => {
@@ -198,40 +190,10 @@ function HomeAgent() {
     await handleUserMessage(trimmed);
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "Enter" && !e.nativeEvent.isComposing) {
-      if (e.shiftKey) {
-        e.preventDefault();
-        const target = e.currentTarget;
-        const start = target.selectionStart ?? input.length;
-        const end = target.selectionEnd ?? input.length;
-        nextCursorPosRef.current = start + 1;
-        setInput(input.slice(0, start) + "\n" + input.slice(end));
-      } else {
-        e.preventDefault();
-        handleSend();
-      }
-    }
-  };
-
-  const handleTextareaKeyDown = (
-    e: React.KeyboardEvent<HTMLTextAreaElement>,
-  ) => {
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
       e.preventDefault();
       handleSend();
-    }
-  };
-
-  const handlePaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
-    const pastedText = e.clipboardData.getData("text");
-    if (pastedText.includes("\n")) {
-      e.preventDefault();
-      const target = e.currentTarget;
-      const start = target.selectionStart ?? input.length;
-      const end = target.selectionEnd ?? input.length;
-      nextCursorPosRef.current = start + pastedText.length;
-      setInput(input.slice(0, start) + pastedText + input.slice(end));
     }
   };
 
@@ -336,64 +298,39 @@ function HomeAgent() {
           "pointer-events-auto",
         )}
       >
-        <div
+        <motion.div
+          layout
           className={cn(
             "px-1.5 py-1",
             isMultiline ? "flex flex-col gap-1" : "flex items-center gap-1.5",
           )}
         >
+          {!isMultiline && (
+            <motion.div layoutId="capsule-mode" className="shrink-0">
+              <CapsuleModeSelector
+                value={executionMode}
+                onChange={setExecutionMode}
+                disabled={isStreaming}
+              />
+            </motion.div>
+          )}
+          <motion.div
+            layout="preserve-aspect"
+            className={isMultiline ? "w-full" : "flex-1 min-w-0"}
+          >
+            <Textarea
+              ref={textareaRef}
+              rows={1}
+              placeholder={t("home:agent_input_placeholder")}
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={handleKeyDown}
+              disabled={isStreaming}
+              className="bg-transparent border-0 shadow-none rounded-none min-h-0 px-1.5 py-1 text-sm placeholder:text-muted-foreground/70 disabled:opacity-50 resize-none max-h-40 overflow-y-auto focus-visible:ring-0 focus-visible:border-transparent dark:bg-transparent"
+            />
+          </motion.div>
           {isMultiline ? (
-            <>
-              <motion.div
-                key="textarea"
-                layoutId="input-field"
-                className="w-full"
-              >
-                <Textarea
-                  ref={textareaRef}
-                  placeholder={t("home:agent_input_placeholder")}
-                  value={input}
-                  onChange={(e) => setInput(e.target.value)}
-                  onKeyDown={handleTextareaKeyDown}
-                  disabled={isStreaming}
-                  className="bg-transparent border-0 shadow-none rounded-none min-h-0 px-1.5 py-1 text-sm placeholder:text-muted-foreground/70 disabled:opacity-50 resize-none max-h-40 overflow-y-auto focus-visible:ring-0 focus-visible:border-transparent dark:bg-transparent"
-                />
-              </motion.div>
-              <div className="flex items-center justify-between">
-                <motion.div layoutId="capsule-mode" className="shrink-0">
-                  <CapsuleModeSelector
-                    value={executionMode}
-                    onChange={setExecutionMode}
-                    disabled={isStreaming}
-                  />
-                </motion.div>
-                <motion.div layoutId="capsule-send" className="shrink-0">
-                  <Button
-                    onClick={
-                      isStreaming ? () => abortCurrentStream() : handleSend
-                    }
-                    disabled={!isStreaming && !canSend}
-                    className={cn(
-                      "flex items-center justify-center rounded-full w-8 h-8 shrink-0",
-                      "transition-all duration-200",
-                      isStreaming
-                        ? "shadow-sm hover:bg-destructive"
-                        : canSend
-                          ? "bg-primary text-primary-foreground shadow-sm hover:opacity-90"
-                          : "bg-transparent text-muted-foreground/45",
-                    )}
-                  >
-                    {isStreaming ? (
-                      <Square className="h-3.5 w-3.5 fill-current" />
-                    ) : (
-                      <Send className="h-4 w-4" />
-                    )}
-                  </Button>
-                </motion.div>
-              </div>
-            </>
-          ) : (
-            <>
+            <div className="flex items-center justify-between">
               <motion.div layoutId="capsule-mode" className="shrink-0">
                 <CapsuleModeSelector
                   value={executionMode}
@@ -401,23 +338,7 @@ function HomeAgent() {
                   disabled={isStreaming}
                 />
               </motion.div>
-              <motion.div
-                key="input"
-                layoutId="input-field"
-                className="flex-1 min-w-0"
-              >
-                <Input
-                  ref={inputRef}
-                  placeholder={t("home:agent_input_placeholder")}
-                  value={input}
-                  onChange={(e) => setInput(e.target.value)}
-                  onKeyDown={handleKeyDown}
-                  onPaste={handlePaste}
-                  disabled={isStreaming}
-                  className="bg-transparent border-0 shadow-none rounded-none h-auto px-0 py-0 text-sm placeholder:text-muted-foreground/70 disabled:opacity-50 focus-visible:ring-0 focus-visible:border-transparent dark:bg-transparent"
-                />
-              </motion.div>
-              <motion.div layoutId="capsule-send" className="ml-auto shrink-0">
+              <motion.div layoutId="capsule-send" className="shrink-0">
                 <Button
                   onClick={
                     isStreaming ? () => abortCurrentStream() : handleSend
@@ -440,9 +361,33 @@ function HomeAgent() {
                   )}
                 </Button>
               </motion.div>
-            </>
+            </div>
+          ) : (
+            <motion.div layoutId="capsule-send" className="ml-auto shrink-0">
+              <Button
+                onClick={
+                  isStreaming ? () => abortCurrentStream() : handleSend
+                }
+                disabled={!isStreaming && !canSend}
+                className={cn(
+                  "flex items-center justify-center rounded-full w-8 h-8 shrink-0",
+                  "transition-all duration-200",
+                  isStreaming
+                    ? "shadow-sm hover:bg-destructive"
+                    : canSend
+                      ? "bg-primary text-primary-foreground shadow-sm hover:opacity-90"
+                      : "bg-transparent text-muted-foreground/45",
+                )}
+              >
+                {isStreaming ? (
+                  <Square className="h-3.5 w-3.5 fill-current" />
+                ) : (
+                  <Send className="h-4 w-4" />
+                )}
+              </Button>
+            </motion.div>
           )}
-        </div>
+        </motion.div>
         {/* 模拟四角边框 */}
         <motion.div
           layout
@@ -544,7 +489,7 @@ function HomeAgent() {
               text={t("home:suggestion_translate_srt")}
               onClick={() => {
                 setInput(t("home:suggestion_translate_srt_prompt"));
-                inputRef.current?.focus();
+                textareaRef.current?.focus();
               }}
             />
             <SuggestionPill
@@ -552,7 +497,7 @@ function HomeAgent() {
               text={t("home:suggestion_lrc_to_srt")}
               onClick={() => {
                 setInput(t("home:suggestion_lrc_to_srt_prompt"));
-                inputRef.current?.focus();
+                textareaRef.current?.focus();
               }}
             />
             <SuggestionPill
@@ -560,7 +505,7 @@ function HomeAgent() {
               text={t("home:suggestion_extract_chinese")}
               onClick={() => {
                 setInput(t("home:suggestion_extract_chinese_prompt"));
-                inputRef.current?.focus();
+                textareaRef.current?.focus();
               }}
             />
           </div>
