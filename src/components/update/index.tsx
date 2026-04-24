@@ -2,7 +2,13 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import {
+  ScrollableDialog,
+  ScrollableDialogHeader,
+  ScrollableDialogContent,
+  ScrollableDialogFooter,
+  DialogTitle,
+} from '@/components/qiuye-ui/scrollable-dialog'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { CheckCircle2, AlertCircle, DownloadCloud, MonitorUp, ArrowRight, Loader2, FileText } from 'lucide-react'
 import { useChangelog, type ChangelogEntry } from './useChangelog'
@@ -132,83 +138,85 @@ const Update = ({
 
   return (
     <>
-      <Dialog open={modalOpen} onOpenChange={setModalOpen}>
-        <DialogContent className={updateAvailable && changelogEntries.length > 0 ? 'sm:max-w-[500px]' : 'sm:max-w-[425px]'}>
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <MonitorUp className="w-5 h-5 text-primary" />
-              {t('common:update.title')}
-            </DialogTitle>
-          </DialogHeader>
-          <div className="py-4">
-            {updateError ? (
-              <div className="space-y-4">
-                <Alert variant="destructive">
-                  <AlertCircle className="h-4 w-4" />
-                  <AlertTitle>{t('common:update.error_title')}</AlertTitle>
-                  <AlertDescription className="mt-2 break-all whitespace-pre-wrap">
-                    {updateError.message}
-                  </AlertDescription>
-                </Alert>
-                <Button asChild variant="outline" className="w-full gap-2">
-                  <a href={RELEASES_URL} target="_blank" rel="noreferrer">
-                    <DownloadCloud className="w-4 h-4" />
-                    {t('common:update.open_releases')}
-                  </a>
-                </Button>
-              </div>
-            ) : updateAvailable ? (
-              <div className="space-y-4">
-                <div className="flex items-center justify-between rounded-lg border bg-card p-4">
-                  <div className="space-y-1">
-                    <p className="text-sm font-medium leading-none">
-                      {t('common:update.available_title', { version: versionInfo?.newVersion ?? '-' })}
-                    </p>
-                    <p className="text-sm text-muted-foreground flex items-center gap-2">
-                      <span className="font-mono bg-muted px-1.5 py-0.5 rounded text-xs">{versionInfo?.version ?? '-'}</span>
-                      <ArrowRight className="w-3 h-3" />
-                      <span className="font-mono bg-primary/10 text-primary px-1.5 py-0.5 rounded text-xs font-semibold">{versionInfo?.newVersion ?? '-'}</span>
-                    </p>
-                  </div>
-                </div>
-                <ChangelogSection
-                  loading={changelogLoading}
-                  entries={changelogEntries}
-                  t={t}
-                />
-                <Button asChild variant="outline" className="w-full gap-2">
-                  <a href={RELEASES_URL} target="_blank" rel="noreferrer">
-                    <DownloadCloud className="w-4 h-4" />
-                    {t('common:update.open_releases')}
-                  </a>
-                </Button>
-              </div>
-            ) : (
-              <div className="flex flex-col items-center justify-center py-6 text-center space-y-4">
-                <div className="w-12 h-12 rounded-full bg-emerald-100/50 dark:bg-emerald-500/10 flex items-center justify-center">
-                  <CheckCircle2 className="w-6 h-6 text-emerald-600 dark:text-emerald-500" />
-                </div>
+      <ScrollableDialog
+        open={modalOpen}
+        onOpenChange={setModalOpen}
+        maxWidth={updateAvailable && changelogEntries.length > 0 ? 'sm:max-w-[500px]' : 'sm:max-w-[425px]'}
+      >
+        <ScrollableDialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <MonitorUp className="w-5 h-5 text-primary" />
+            {t('common:update.title')}
+          </DialogTitle>
+        </ScrollableDialogHeader>
+        <ScrollableDialogContent>
+          {updateError ? (
+            <div className="space-y-4">
+              <Alert variant="destructive">
+                <AlertCircle className="h-4 w-4" />
+                <AlertTitle>{t('common:update.error_title')}</AlertTitle>
+                <AlertDescription className="mt-2 break-all whitespace-pre-wrap">
+                  {updateError.message}
+                </AlertDescription>
+              </Alert>
+              <Button asChild variant="outline" className="w-full gap-2">
+                <a href={RELEASES_URL} target="_blank" rel="noreferrer">
+                  <DownloadCloud className="w-4 h-4" />
+                  {t('common:update.open_releases')}
+                </a>
+              </Button>
+            </div>
+          ) : updateAvailable ? (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between rounded-lg border bg-card p-4">
                 <div className="space-y-1">
-                  <p className="text-base font-semibold">{t('common:update.up_to_date_title')}</p>
-                  <p className="text-sm text-muted-foreground">
-                    {t('common:update.up_to_date_desc', { version: versionInfo?.version ?? '-' })}
+                  <p className="text-sm font-medium leading-none">
+                    {t('common:update.available_title', { version: versionInfo?.newVersion ?? '-' })}
+                  </p>
+                  <p className="text-sm text-muted-foreground flex items-center gap-2">
+                    <span className="font-mono bg-muted px-1.5 py-0.5 rounded text-xs">{versionInfo?.version ?? '-'}</span>
+                    <ArrowRight className="w-3 h-3" />
+                    <span className="font-mono bg-primary/10 text-primary px-1.5 py-0.5 rounded text-xs font-semibold">{versionInfo?.newVersion ?? '-'}</span>
                   </p>
                 </div>
-                {versionInfo?.newVersion && versionInfo?.newVersion !== versionInfo?.version && (
-                  <p className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded">
-                    {t('common:update.latest_version', { version: versionInfo?.newVersion })}
-                  </p>
-                )}
               </div>
-            )}
-          </div>
-          <DialogFooter className="sm:justify-end">
-            <Button onClick={() => setModalOpen(false)}>
-              {t('common:action.close')}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+              <ChangelogSection
+                loading={changelogLoading}
+                entries={changelogEntries}
+                t={t}
+              />
+              <Button asChild variant="outline" className="w-full gap-2">
+                <a href={RELEASES_URL} target="_blank" rel="noreferrer">
+                  <DownloadCloud className="w-4 h-4" />
+                  {t('common:update.open_releases')}
+                </a>
+              </Button>
+            </div>
+          ) : (
+            <div className="flex flex-col items-center justify-center py-6 text-center space-y-4">
+              <div className="w-12 h-12 rounded-full bg-emerald-100/50 dark:bg-emerald-500/10 flex items-center justify-center">
+                <CheckCircle2 className="w-6 h-6 text-emerald-600 dark:text-emerald-500" />
+              </div>
+              <div className="space-y-1">
+                <p className="text-base font-semibold">{t('common:update.up_to_date_title')}</p>
+                <p className="text-sm text-muted-foreground">
+                  {t('common:update.up_to_date_desc', { version: versionInfo?.version ?? '-' })}
+                </p>
+              </div>
+              {versionInfo?.newVersion && versionInfo?.newVersion !== versionInfo?.version && (
+                <p className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded">
+                  {t('common:update.latest_version', { version: versionInfo?.newVersion })}
+                </p>
+              )}
+            </div>
+          )}
+        </ScrollableDialogContent>
+        <ScrollableDialogFooter className="flex justify-end">
+          <Button onClick={() => setModalOpen(false)}>
+            {t('common:action.close')}
+          </Button>
+        </ScrollableDialogFooter>
+      </ScrollableDialog>
       {showTrigger ? (
         <button disabled={checking} onClick={() => checkUpdate('manual')}>
           {checking ? checkingText : triggerText}
