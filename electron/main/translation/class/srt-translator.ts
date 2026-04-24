@@ -1,3 +1,15 @@
+/**
+ * SRT 字幕格式翻译器
+ *
+ * SRT 格式特点：字幕以"块"为单位，块间用空行分隔，每块结构如下：
+ *   1                              <- 序号
+ *   00:00:01,000 --> 00:00:03,000  <- 时间轴
+ *   字幕文本（可能多行）            <- 文本内容
+ *
+ * 分片策略：以完整字幕块为最小单元进行累计，不会拆开单个块。
+ * 这比 LRC 的逐行分片更复杂，因为 SRT 一个块可能包含多行文本。
+ */
+
 import { encode } from "gpt-tokenizer";
 import { SubtitleTranslatorTask } from "../typing";
 import { BaseTranslator } from "./base-translator";
@@ -23,47 +35,47 @@ export class SRTTranslator extends BaseTranslator {
     this.costPerOutput = config.costRates?.output ?? 0.002;
   }
 
+  /**
+   * SRT 分片：以字幕块（\n\n 分隔）为最小单元进行累计。
+   * 三种情况：
+   *   - 单块超过 maxTokens → 独立成片（极端情况）
+   *   - 累计后超过 maxTokens → 当前累计成片，新块开启下一片
+   *   - 累计后未超过 → 继续累计
+   */
   protected splitContent(content: string, maxTokens: number): string[] {
     const fragments: string[] = [];
     let currentFragment = "";
 
-    // 将内容按 SRT 字幕块分割（两个换行符 \n\n 分隔块）
     const subtitleBlocks = content.trim().split(/\n\n+/);
 
     for (const block of subtitleBlocks) {
-      if (!block.trim()) continue; // 跳过空块
+      if (!block.trim()) continue;
 
-      // 计算当前块的 token 数
       const blockTokens = this.countTokens(block);
 
       if (blockTokens >= maxTokens) {
-        // 如果单个块超过 maxTokens，直接作为单独的分片
         if (currentFragment) {
           fragments.push(currentFragment);
           currentFragment = "";
         }
         fragments.push(block);
       } else {
-        // 检查加入当前块后是否超过 maxTokens
         const potentialFragment = currentFragment
           ? `${currentFragment}\n\n${block}`
           : block;
         const potentialTokens = this.countTokens(potentialFragment);
 
         if (potentialTokens >= maxTokens) {
-          // 如果超过限制，将当前积累的内容作为一个分片，新块放入下一个分片
           if (currentFragment) {
             fragments.push(currentFragment);
             currentFragment = block;
           }
         } else {
-          // 未超过限制，继续积累
           currentFragment = potentialFragment;
         }
       }
     }
 
-    // 处理最后一个分片
     if (currentFragment) {
       fragments.push(currentFragment);
     }
@@ -71,6 +83,12 @@ export class SRTTranslator extends BaseTranslator {
     return fragments;
   }
 
+  /**
+   * 构建 SRT 翻译 prompt。
+   * 与 LRC 的区别：SRT prompt 要求 LLM 以"专业字幕翻译者"角色回答，
+   * 并强调保持 SRT 格式、不添加额外说明。
+   * context 参数提供上一片的翻译结果，帮助 LLM 保持术语和语气一致性。
+   */
   protected formatPrompt(partialContent: string, context: string): string {
     const srcName = getLanguageName(this.sourceLang);
     const tgtName = getLanguageName(this.targetLang);
@@ -112,7 +130,6 @@ export class SRTTranslator extends BaseTranslator {
     return JSON.stringify({
       model: this.apiModel,
       messages: [{ role: "user", content: prompt }],
-      // temperature: 0.3,
       max_tokens: 3500,
     });
   }
@@ -128,7 +145,7 @@ export class SRTTranslator extends BaseTranslator {
     return new Error(`翻译错误: ${String(error)}`);
   }
 
-  // 覆盖父类方法添加后处理
+  /** 覆盖父类 translate，在翻译完成后执行 SRT 特有的收尾逻辑 */
   async translate(task: SubtitleTranslatorTask, signal?: AbortSignal) {
     await super.translate(task, signal);
     task.progress = 100;
@@ -149,31 +166,17 @@ export class SRTTranslator extends BaseTranslator {
     );
   }
 
+  /**
+   * SRT 后处理。
+   * 注释掉的代码是之前尝试用正则提取 SRT 块的逻辑，
+   * 但由于 LLM 返回格式不稳定（双语模式下块结构变化），
+   * 改为直接返回原始内容，由前端或用户侧处理格式问题。
+   */
   private postProcess(content: string): string {
-    // 清理 markdown 和多余换行
-    // let cleaned = content
-    //   .replace(/```srt?/g, "")
-    //   .replace(/```/g, "")
-    //   .replace(/\n{3,}/g, "\n\n")
-    //   .trim();
-
-    // // 尝试提取 SRT 块
-    // const srtBlockRegex =
-    //   /\d+\n\d{2}:\d{2}:\d{2},\d{3} --> \d{2}:\d{2}:\d{2},\d{3}\n[\s\S]*?(?=\n\n|\n$)/g;
-    // const matches = cleaned.match(srtBlockRegex);
-
-    // if (matches && matches.length > 0) {
-    //   return matches.join("\n\n");
-    // }
-
-    // // 如果正则匹配失败，返回清理后的内容并记录警告
-    // console.warn("SRT block regex failed, returning cleaned content:", cleaned);
-    // return cleaned;
     return content;
   }
 
   private finalizeTranslation(task: SubtitleTranslatorTask) {
     console.log(` 翻译完成，总费用：$${this.totalCost.toFixed(2)}`);
-    // 实际文件保存逻辑...
   }
 }

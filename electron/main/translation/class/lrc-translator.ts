@@ -1,4 +1,14 @@
-// src/main/translation/lrc-translator.ts
+/**
+ * LRC 歌词格式翻译器
+ *
+ * LRC 格式特点：每行以时间标签开头，如 [00:01.50]歌词文本
+ * 分片策略：按行累计 token 数，不拆分单行（LRC 每行较短，不会超限）
+ *
+ * 双语输出示例：
+ *   [00:01.50]夜に駆ける
+ *   [00:01.50]奔向夜晚
+ */
+
 import { BaseTranslator } from "./base-translator";
 import { SubtitleTranslatorTask } from "../typing";
 import { encode } from "gpt-tokenizer";
@@ -6,8 +16,10 @@ import { getLanguageName } from "../contants";
 
 export class LRCTranslator extends BaseTranslator {
   private readonly apiModel: string;
+  /** 费用单价（美元 / 百万 token） */
   private readonly costPerInput: number;
   private readonly costPerOutput: number;
+  /** 累计费用（美元），在 parseResponse 中逐片累加 */
   private totalCost = 0;
 
   constructor(
@@ -24,6 +36,10 @@ export class LRCTranslator extends BaseTranslator {
     this.costPerOutput = config.costRates?.output || 0.002;
   }
 
+  /**
+   * LRC 分片：逐行累计 token，超过 maxTokens 时切分。
+   * LRC 每行都是独立的时间标签+文本，天然以行为最小单元。
+   */
   protected splitContent(content: string, maxTokens: number): string[] {
     const parts: string[] = [];
     let currentPart: string[] = [];
@@ -49,6 +65,11 @@ export class LRCTranslator extends BaseTranslator {
     return parts;
   }
 
+  /**
+   * 构建 LRC 翻译 prompt。
+   * 双语模式：要求 LLM 在每行原文后紧跟一行译文（使用相同时间标签）
+   * 仅译文模式：直接替换原文为译文
+   */
   protected formatPrompt(partialContent: string, context: string): string {
     const srcName = getLanguageName(this.sourceLang);
     const tgtName = getLanguageName(this.targetLang);
@@ -94,11 +115,11 @@ export class LRCTranslator extends BaseTranslator {
     });
   }
 
+  /** 解析 LLM 响应，清洗 markdown 格式残留，并累计本次调用的费用 */
   protected async parseResponse(response: any): Promise<string> {
     const content = response.choices[0].message.content;
     const cleanedContent = this.cleanTranslatedContent(content);
 
-    // 计算费用
     const inputTokens = response.usage?.prompt_tokens || 0;
     const outputTokens = response.usage?.completion_tokens || 0;
     this.totalCost += (inputTokens / 1_000_000) * this.costPerInput;
@@ -107,6 +128,11 @@ export class LRCTranslator extends BaseTranslator {
     return cleanedContent;
   }
 
+  /**
+   * 清洗 LLM 返回的 LRC 内容：
+   *   1. 移除 markdown 代码块标记（```lrc / ```plaintext）
+   *   2. 只保留以 "[" 开头的行（过滤 LLM 可能附加的说明文字）
+   */
   private cleanTranslatedContent(content: string): string {
     return content
       .replace(/^\s*```(lrc|plaintext)?\s*/g, "")
@@ -124,8 +150,8 @@ export class LRCTranslator extends BaseTranslator {
     return new Error(`Translation failed: ${String(error)}`);
   }
 
-  // 新增上下文保留机制
+  /** 上下文窗口大小：保留最后 N 句作为下一片翻译的 context（预留扩展） */
   protected getContextWindowSize(): number {
-    return 2; // 保留最后两句作为上下文
+    return 2;
   }
 }

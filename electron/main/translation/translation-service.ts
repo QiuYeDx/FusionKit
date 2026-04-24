@@ -1,3 +1,14 @@
+/**
+ * 字幕翻译模块 - 服务层（入口）
+ *
+ * TranslationService 是翻译功能的统一入口，职责：
+ *   1. 管理活跃任务的生命周期（启动 / 取消）
+ *   2. 根据文件扩展名自动选择对应的 Translator（策略模式）
+ *   3. 提供翻译前的 token 预估能力
+ *
+ * 调用路径：IPC handler → TranslationService.processTask → LRC/SRTTranslator.translate
+ */
+
 import { SubtitleFileType, SubtitleTranslatorTask, SubtitleSliceType } from "./typing";
 import { LRCTranslator } from "./class/lrc-translator";
 import { SRTTranslator } from "./class/srt-translator";
@@ -5,8 +16,13 @@ import { encode } from "gpt-tokenizer";
 import { DEFAULT_SLICE_LENGTH_MAP } from "./contants";
 
 export class TranslationService {
+  /** 以 fileName 为 key 追踪正在执行的任务，用于支持取消操作 */
   private activeTasks = new Map<string, AbortController>();
 
+  /**
+   * 处理一个翻译任务：根据文件后缀选择翻译器 → 执行翻译 → 返回最终状态。
+   * AbortController 贯穿整个翻译流程，任何阶段调用 cancelTask 都能中断。
+   */
   async processTask(task: SubtitleTranslatorTask) {
     const controller = new AbortController();
     this.activeTasks.set(task.fileName, controller);
@@ -31,6 +47,7 @@ export class TranslationService {
     }
   }
 
+  /** 根据文件类型创建对应的翻译器实例（策略模式） */
   private getTranslator(
     fileType: SubtitleFileType,
     params: { apiKey: string; apiModel: string; endpoint: string }
@@ -49,18 +66,19 @@ export class TranslationService {
     }[fileType];
   }
 
+  /** 通过 AbortController 取消指定文件的翻译任务 */
   cancelTask(fileName: string) {
     this.activeTasks.get(fileName)?.abort();
   }
 
   /**
-   * 估算字幕翻译的token消耗量
-   * @param content 字幕内容
-   * @param sliceType 分片类型
-   * @param customSliceLength 自定义分片长度（当sliceType为CUSTOM时使用）
-   * @param inputTokenPrice 输入token价格（每1M token的美元价格）
-   * @param outputTokenPrice 输出token价格（每1M token的美元价格）
-   * @returns 预估的token消耗量信息
+   * 翻译前的 token 预估。在用户点击"翻译"之前展示预估费用，帮助用户决策。
+   *
+   * 预估逻辑：
+   *   1. 用 gpt-tokenizer 精确计算原文 token 数
+   *   2. 根据 maxTokens 和 prompt 开销估算分片数
+   *   3. 输出 token 按原文的 1.5 倍估算（翻译通常会扩展文本量）
+   *   4. 费用 = 输入 token 单价 + 输出 token 单价（按百万 token 计）
    */
   estimateTokens(
     content: string,
@@ -75,28 +93,21 @@ export class TranslationService {
     estimatedCost: number;
     fragmentCount: number;
   } {
-    // 获取最大token数
     const maxTokens = sliceType === SubtitleSliceType.CUSTOM 
       ? (customSliceLength || 500)
       : DEFAULT_SLICE_LENGTH_MAP[sliceType];
 
-    // 计算原始内容的token数量
     const originalTokens = this.calculateTokens(content);
     
-    // 估算分片数量（考虑到翻译prompt会增加一些token）
-    const promptOverhead = 200; // 每个分片的prompt大约增加200个token
+    // 每个分片都会附带系统 prompt，约占 200 tokens
+    const promptOverhead = 200;
     const fragmentCount = Math.ceil(originalTokens / (maxTokens - promptOverhead));
     
-    // 输入token = 原始内容token + prompt开销
     const inputTokens = originalTokens + (fragmentCount * promptOverhead);
-    
-    // 输出token估算（通常翻译后的内容会比原文稍多，这里估算为1.5倍）
     const outputTokens = Math.ceil(originalTokens * 1.5);
-    
     const totalTokens = inputTokens + outputTokens;
     
-    // 费用估算（使用传入的价格或默认价格）
-    const inputCostPer1M = inputTokenPrice || 1.5; // 默认价格（美元/1M tokens）
+    const inputCostPer1M = inputTokenPrice || 1.5;
     const outputCostPer1M = outputTokenPrice || 2.0;
     const estimatedCost = (inputTokens / 1000000) * inputCostPer1M + (outputTokens / 1000000) * outputCostPer1M;
     
@@ -109,17 +120,12 @@ export class TranslationService {
     };
   }
 
-  /**
-   * 计算文本的token数量
-   * @param text 要计算的文本
-   * @returns token数量
-   */
+  /** 使用 gpt-tokenizer 计算精确 token 数，编码失败时回退到字符数 × 0.75 的粗略估算 */
   private calculateTokens(text: string): number {
     try {
       return encode(text).length;
     } catch (error) {
       console.error("计算token失败:", error);
-      // 如果编码失败，使用粗略估算：平均每个字符约0.75个token
       return Math.ceil(text.length * 0.75);
     }
   }

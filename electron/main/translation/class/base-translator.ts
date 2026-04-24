@@ -1,3 +1,20 @@
+/**
+ * 字幕翻译模块 - 翻译器抽象基类
+ *
+ * 采用模板方法模式，定义翻译的完整流程，子类只需实现格式相关的差异部分：
+ *
+ *   translate()                  ← 入口（本类实现）
+ *     ├─ splitContent()          ← 抽象：按格式拆分字幕为 fragment
+ *     ├─ translateFragment()     ← 本类实现：单片翻译（含重试）
+ *     │   ├─ formatPrompt()      ← 抽象：构建 LLM prompt
+ *     │   ├─ getApiEndpoint()    ← 抽象：API 地址
+ *     │   └─ parseResponse()     ← 抽象：解析 LLM 返回
+ *     ├─ writeFile()             ← 本类实现：写入结果文件
+ *     └─ updateProgress()        ← 本类实现：通过 IPC 推送进度
+ *
+ * 子类：LRCTranslator（.lrc 歌词）、SRTTranslator（.srt 字幕）
+ */
+
 import { promises as fs } from "fs";
 import path from "path";
 import { DEFAULT_SLICE_LENGTH_MAP } from "../contants";
@@ -14,20 +31,34 @@ import { getAxiosProxyConfig } from "../../proxy";
 type OutputConflictPolicy = "overwrite" | "index";
 
 export abstract class BaseTranslator {
+  /** 子类实现：将字幕文本按 token 上限拆分为多个 fragment */
   protected abstract splitContent(content: string, maxTokens: number): string[];
+  /** 子类实现：根据当前 fragment 和上文 context 构建发给 LLM 的 prompt */
   protected abstract formatPrompt(
     partialContent: string,
     context: string,
   ): string;
 
   protected maxRetries = 5;
+  /** 基础重试延迟（实际延迟 = retryDelay × 已尝试次数，线性退避） */
   protected retryDelay = 1000;
+  /** 并发模式下同时翻译的最大分片数 */
   protected maxSliceConcurrency = 5;
 
   protected sourceLang: string = "JA";
   protected targetLang: string = "ZH";
   protected bilingualOutput: boolean = true;
 
+  /**
+   * 翻译主流程（模板方法）。
+   *
+   * 执行步骤：
+   *   1. 初始化语言设置
+   *   2. 将字幕内容拆分为多个 fragment（由子类 splitContent 实现）
+   *   3. 根据 concurrentSlices 选择顺序或并发翻译
+   *   4. 将所有翻译结果拼接并写入目标文件
+   *   5. 通过 IPC 通知渲染进程翻译结果（成功/失败）
+   */
   async translate(task: SubtitleTranslatorTask, signal?: AbortSignal) {
     this.sourceLang = task.sourceLang || "JA";
     this.targetLang = task.targetLang || "ZH";
@@ -81,7 +112,6 @@ export abstract class BaseTranslator {
         );
       }
 
-      // 将翻译后的内容写入目标文件
       const fileType = task.fileName.split(".").at(-1)?.toUpperCase();
       const translatedContent = translatedFragments.join("\n\n");
 
@@ -98,7 +128,7 @@ export abstract class BaseTranslator {
         `[${new Date().toISOString()}] 文件写入完成: ${finalPath}`,
       );
 
-      // 通知任务完成（包含最终输出路径）
+      // 通过 IPC 将最终输出路径发送给渲染进程，用于 UI 展示"打开文件"按钮
       const mainWindow = BrowserWindow.getAllWindows()[0];
       if (mainWindow) {
         mainWindow.webContents.send("task-resolved", {
@@ -108,7 +138,6 @@ export abstract class BaseTranslator {
         });
       }
 
-      // 通知任务完成
       this.updateProgress(task, fragments.length, fragments.length);
       errorLogs.push(`[${new Date().toISOString()}] 任务完成`);
     } catch (error) {
@@ -121,13 +150,12 @@ export abstract class BaseTranslator {
         errorLogs.push(`[${new Date().toISOString()}] 堆栈跟踪: ${stackTrace}`);
       }
 
-      // 获取主窗口并发送消息
       const mainWindow = BrowserWindow.getAllWindows()[0];
       if (mainWindow) {
         mainWindow.webContents.send("task-failed", {
           fileName: task.fileName,
           error: errorDetails,
-          message: "请求接口失败", // 显示 toast 的信息
+          message: "请求接口失败",
           errorLogs: errorLogs,
           timestamp: startTime,
           stackTrace: stackTrace,
@@ -143,6 +171,10 @@ export abstract class BaseTranslator {
     }
   }
 
+  /**
+   * 顺序翻译：逐片调用 LLM，前一片的原文作为 context 传入下一片的 prompt，
+   * 保证翻译连贯性。适合对上下文敏感的内容。
+   */
   private async translateFragmentsSequentially(
     fragments: string[],
     task: SubtitleTranslatorTask,
@@ -187,6 +219,14 @@ export abstract class BaseTranslator {
     return results;
   }
 
+  /**
+   * 并发翻译：启动 N 个 worker 竞争消费 fragment 队列。
+   *
+   * 实现要点：
+   *   - 用 nextIndex 做无锁队列指针（JS 单线程安全）
+   *   - results 按原始下标写入，保证最终顺序正确
+   *   - 任一 worker 失败后设置 failed 标志，其余 worker 尽快退出
+   */
   private async translateFragmentsConcurrently(
     fragments: string[],
     task: SubtitleTranslatorTask,
@@ -246,17 +286,16 @@ export abstract class BaseTranslator {
     return results.filter((r): r is string => r !== null);
   }
 
+  /** 更新任务进度并通过 IPC "update-progress" 事件推送给渲染进程 */
   private updateProgress(
     task: SubtitleTranslatorTask,
     current: number,
     total: number,
   ) {
-    // 更新任务对象
     task.resolvedFragments = current;
     task.totalFragments = total;
     task.progress = Math.round((current / total) * 100);
 
-    // 获取主窗口并发送消息
     const mainWindow = BrowserWindow.getAllWindows()[0];
     if (mainWindow) {
       console.log("发送进度更新:", {
@@ -277,6 +316,11 @@ export abstract class BaseTranslator {
     }
   }
 
+  /**
+   * 将翻译结果写入目标文件。
+   * 当 conflictPolicy 为 "index" 时，若文件已存在则自动追加序号：
+   *   output.srt → output (1).srt → output (2).srt → ...
+   */
   private async writeFile(
     fileURL: string,
     content: string,
@@ -294,14 +338,12 @@ export abstract class BaseTranslator {
         while (true) {
           try {
             await fs.access(finalPath);
-            // exists → try next index
             finalPath = path.join(
               absoluteOutputDir,
               `${parsed.name} (${index})${parsed.ext}`,
             );
             index++;
           } catch {
-            // not exist
             break;
           }
         }
@@ -320,6 +362,13 @@ export abstract class BaseTranslator {
     return DEFAULT_SLICE_LENGTH_MAP[sliceType];
   }
 
+  /**
+   * 翻译单个 fragment：构建 prompt → 调用 LLM API → 解析返回。
+   * 内置线性退避重试机制（最多 maxRetries 次），每次失败后延迟递增。
+   *
+   * 特殊处理：部分深度思考模型（如 DeepSeek R1）会在返回中包含 <think> 标签，
+   * 这里会在解析前自动清理这些标签。
+   */
   private async translateFragment(
     content: string,
     context: string,
@@ -366,11 +415,10 @@ export abstract class BaseTranslator {
           `[${new Date().toISOString()}] 第 ${attempt} 次翻译请求成功`,
         );
 
-        // 清理响应数据中的 think 标签（适配深度思考类型模型）
+        // 适配深度思考模型：清理 <think>...</think> 标签避免污染翻译结果
         if (response.data.choices?.[0]?.message?.content) {
           const originalContent = response.data.choices[0].message.content;
 
-          // 只有检测到think标签时才进行清理，提高性能
           if (hasThinkTags(originalContent)) {
             const cleanedContent = removeThinkTags(originalContent);
             errorLogs.push(
@@ -379,7 +427,6 @@ export abstract class BaseTranslator {
             console.log("清理think标签前:", originalContent);
             console.log("清理think标签后:", cleanedContent);
 
-            // 更新响应数据
             response.data.choices[0].message.content = cleanedContent;
           }
         }
@@ -412,7 +459,6 @@ export abstract class BaseTranslator {
           throw this.normalizeError(error);
         }
 
-        // 重试延迟
         const delay = this.retryDelay * attempt;
         errorLogs.push(`[${new Date().toISOString()}] 等待 ${delay}ms 后重试`);
         await new Promise((r) => setTimeout(r, delay));
@@ -422,12 +468,14 @@ export abstract class BaseTranslator {
     throw new Error("所有翻译尝试都失败了");
   }
 
-  // 以下为需要子类实现的抽象方法
+  /** 子类实现：返回 LLM Chat Completions API 的端点 URL */
   protected abstract getApiEndpoint(): string;
+  /** 子类实现：从 LLM 响应中提取并清洗翻译文本 */
   protected abstract parseResponse(responseData: any): Promise<string>;
+  /** 子类实现：将未知错误标准化为 Error 对象 */
   protected abstract normalizeError(error: unknown): Error;
 
-  // 通用的速率限制处理
+  /** 处理 429 速率限制：读取 Retry-After 头并等待对应时间（预留扩展，当前未被调用） */
   private async handleRateLimit(response: Response) {
     const retryAfter = response.headers.get("Retry-After") || "5";
     const delay = parseInt(retryAfter) * 1000;
