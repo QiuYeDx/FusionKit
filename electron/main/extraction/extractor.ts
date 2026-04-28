@@ -1,20 +1,39 @@
 /**
  * 字幕语言提取器
  *
- * 从中日双语字幕文件（LRC / SRT）中识别并提取指定语言的文本行。
- * 核心流程：逐行语言分类 → 按时间/区块聚合 → 保留目标语言行 → 重组输出。
+ * 从双语字幕文件（LRC / SRT）中识别并提取指定语言的文本行。
+ * 核心流程：逐行 Unicode Script 检测 → 按时间/区块聚合 → 保留目标语言行 → 重组输出。
+ *
+ * 支持的语言：ZH / JA / EN / KO / FR / DE / ES / RU / PT
+ * 检测策略基于 Unicode 脚本范围，而非特定语言的硬编码正则。
  */
 import path from "path";
 
-/** 要保留的目标语言：ZH = 中文，JA = 日文 */
-export type KeepLanguage = "ZH" | "JA";
+// ---------------------------------------------------------------------------
+// 类型定义
+// ---------------------------------------------------------------------------
+
+/**
+ * 要保留的目标语言。
+ * 复用渲染进程的 TranslationLanguage 联合类型值。
+ */
+export type ExtractKeepLanguage =
+  | "ZH"
+  | "JA"
+  | "EN"
+  | "KO"
+  | "FR"
+  | "DE"
+  | "ES"
+  | "RU"
+  | "PT";
 
 export interface ExtractParams {
   fileName: string;
   fileContent: string;
   fileType: "LRC" | "SRT";
   /** 指定要保留哪种语言 */
-  keep: KeepLanguage;
+  keep: ExtractKeepLanguage;
 }
 
 export interface ExtractResult {
@@ -22,54 +41,214 @@ export interface ExtractResult {
   outputContent: string;
 }
 
-// ─── 语言特征正则 ───────────────────────────────────────
-// 判定优先级：假名 / 日文标点 / 日文助词 → JA；中文标点 / 虚词 / 简体字 → ZH
+// ---------------------------------------------------------------------------
+// Unicode Script 检测
+// ---------------------------------------------------------------------------
 
-/** 平假名 + 片假名 + 半角片假名，出现即确定为日文 */
+/**
+ * 脚本类别——用于将文本行归类到大的书写系统类别。
+ *
+ * - CJK_ZH: CJK 汉字（不含假名）→ 中文
+ * - KANA_JA: 含平假名/片假名 → 日文
+ * - HANGUL: 含韩文音节/字母 → 韩语
+ * - CYRILLIC: 含西里尔字母 → 俄语
+ * - LATIN: 拉丁字母为主 → 英/法/德/西/葡
+ * - UNKNOWN: 无法归类（纯数字/符号等）
+ */
+type ScriptCategory =
+  | "CJK_ZH"
+  | "KANA_JA"
+  | "HANGUL"
+  | "CYRILLIC"
+  | "LATIN"
+  | "UNKNOWN";
+
+// ─── 脚本特征正则 ─────────────────────────────────────
+
+/** 平假名 + 片假名 + 半角片假名 */
 const reKana = /[\u3040-\u30FF\uFF66-\uFF9D]/;
-/** 日文专用标点（「」、。等），中文不使用这些 */
+
+/** 韩文音节块 + 韩文字母（兼容/相容字母） */
+const reHangul = /[\uAC00-\uD7AF\u3130-\u318F\uA960-\uA97F\uD7B0-\uD7FF]/;
+
+/** 西里尔字母（基本 + 补充） */
+const reCyrillic = /[\u0400-\u04FF\u0500-\u052F]/;
+
+/** CJK 统一汉字（基本区 + 扩展 A） */
+const reCJK = /[\u4E00-\u9FFF\u3400-\u4DBF]/;
+
+/** 基本拉丁字母（含扩展拉丁 A/B、拉丁扩展附加、重音字母等） */
+const reLatin = /[\u0041-\u007A\u00C0-\u024F\u1E00-\u1EFF]/;
+
+// ─── ZH / JA 细分正则（用于 CJK 场景下的二次区分） ────
+
+/** 日文专用标点 */
 const reJapPunct = /[、。「」『』・〜ー]/;
-/** 中文全角标点，日文不使用 */
+
+/** 日文常见助词/语尾 */
+const reJapGrammar =
+  /(です|ます|だ|だった|ない|たい|よう|から|まで|って|では|じゃ|か|ね|よ)/;
+
+/** 中文全角标点 */
 const reCnPunct = /[，。！？：；、""''、（）《》【】]/;
-/** 高频中文虚词/功能词，出现即可判定为中文句子 */
+
+/** 高频中文虚词/功能词 */
 const reCnFunc =
   /[的了在是我你他她它们这那着啊吧吗呢和与将会一个没有不是还有已经可以因为所以如果但是就是]/;
-/** 简体字独有字形（与繁体/日文汉字不同），用于无假名时区分 ZH/JA（如 乐→楽） */
+
+/** 简体字独有字形 */
 const SIMP_ONLY =
   /[乐么们这那国齐礼专业为云亿仅从众优会传伤伞伟伪余伙价体佣儿册军农冲决净兰兴养兽内册写冲击冻划则别删刘华协单卖卢卫厂厅历厉压县参双发变叠叶号后吗问间难]/;
 
-function hasKana(text: string): boolean {
-  return reKana.test(text);
-}
-
 /**
- * 对单行文本进行语言分类。
+ * 对单行文本进行 Unicode 脚本分类。
  *
  * 判定策略（短路优先）：
- * 1. 含假名 / 日文标点 / 日文常见助词 → JA
- * 2. 含中文标点 / 中文虚词 / 简体专属字 → ZH
- * 3. 以上都不满足 → UNKNOWN（纯英文、纯数字等）
+ * 1. 含假名 → KANA_JA（即使同时含汉字，有假名说明是日文）
+ * 2. 含韩文 → HANGUL
+ * 3. 含西里尔 → CYRILLIC
+ * 4. 含 CJK 汉字（已排除假名）→ CJK_ZH
+ * 5. 含拉丁字母 → LATIN
+ * 6. 以上都不满足 → UNKNOWN
  */
-function classifyLine(text: string): "JA" | "ZH" | "UNKNOWN" {
+function detectLineScript(text: string): ScriptCategory {
   if (!text) return "UNKNOWN";
   const t = text.trim();
   if (!t) return "UNKNOWN";
 
-  if (
-    hasKana(t) ||
-    reJapPunct.test(t) ||
-    /(です|ます|だ|だった|ない|たい|よう|から|まで|って|では|じゃ|か|ね|よ)/.test(
-      t
-    )
-  ) {
-    return "JA";
+  // 假名优先（日文）
+  if (reKana.test(t) || reJapPunct.test(t) || reJapGrammar.test(t)) {
+    return "KANA_JA";
   }
 
-  if (reCnPunct.test(t) || reCnFunc.test(t) || SIMP_ONLY.test(t)) {
-    return "ZH";
+  // 韩文
+  if (reHangul.test(t)) {
+    return "HANGUL";
+  }
+
+  // 西里尔
+  if (reCyrillic.test(t)) {
+    return "CYRILLIC";
+  }
+
+  // CJK 汉字（已排除假名场景）→ 中文
+  if (reCJK.test(t)) {
+    // 额外验证：如果有中文标点/虚词/简体字特征，更确定是中文
+    // 即使没有这些特征，纯 CJK 无假名也归为中文
+    return "CJK_ZH";
+  }
+
+  // 拉丁字母
+  if (reLatin.test(t)) {
+    return "LATIN";
   }
 
   return "UNKNOWN";
+}
+
+/**
+ * 将用户选择的目标语言映射到对应的 ScriptCategory。
+ */
+function getScriptForLanguage(lang: ExtractKeepLanguage): ScriptCategory {
+  switch (lang) {
+    case "ZH":
+      return "CJK_ZH";
+    case "JA":
+      return "KANA_JA";
+    case "KO":
+      return "HANGUL";
+    case "RU":
+      return "CYRILLIC";
+    // EN, FR, DE, ES, PT 都属于拉丁脚本
+    default:
+      return "LATIN";
+  }
+}
+
+/**
+ * ZH/JA 场景下的细分判定。
+ * 当目标是 ZH 但行被检测为 KANA_JA 时返回 false，反之亦然。
+ * 用于处理中日双语字幕中 CJK 行的精确区分。
+ */
+function isZhLine(text: string): boolean {
+  return reCnPunct.test(text) || reCnFunc.test(text) || SIMP_ONLY.test(text);
+}
+
+/**
+ * 从同一时间点/区块的多行文本中，筛选出目标语言的行。
+ *
+ * 通用策略：
+ * 1. 检测每行的 ScriptCategory
+ * 2. 保留与目标语言 script 匹配的行
+ * 3. ZH/JA 特殊处理：两者都可能含 CJK，需二次区分
+ * 4. 兜底策略：排除已确定的非目标行
+ */
+function chooseLinesForKeep(
+  lines: string[],
+  keep: ExtractKeepLanguage
+): string[] {
+  const targetScript = getScriptForLanguage(keep);
+  const scripts = lines.map((l) => detectLineScript(l));
+
+  // ---- ZH / JA 特殊处理 ----
+  // 中日双语字幕中，两种语言都可能含 CJK 汉字
+  if (keep === "ZH") {
+    // 目标是中文：优先选 CJK_ZH 行，同时排除 KANA_JA 行
+    const zhLines = lines.filter(
+      (l, i) => scripts[i] === "CJK_ZH" || (scripts[i] !== "KANA_JA" && isZhLine(l))
+    );
+    if (zhLines.length > 0) return zhLines;
+
+    // 兜底：如果有 KANA_JA 行，排除它们后剩余的可能是中文
+    if (scripts.includes("KANA_JA")) {
+      const nonJa = lines.filter((_, i) => scripts[i] !== "KANA_JA");
+      if (nonJa.length > 0) return nonJa;
+    }
+    return [];
+  }
+
+  if (keep === "JA") {
+    // 目标是日文：优先选 KANA_JA 行
+    const jaLines = lines.filter((_, i) => scripts[i] === "KANA_JA");
+    if (jaLines.length > 0) return jaLines;
+
+    // 兜底策略 1：双行中排除中文行
+    if (lines.length === 2) {
+      const zhIdx = scripts.findIndex(
+        (s, i) => s === "CJK_ZH" || isZhLine(lines[i])
+      );
+      if (zhIdx !== -1) {
+        const otherIdx = zhIdx === 0 ? 1 : 0;
+        return [lines[otherIdx]];
+      }
+    }
+    // 兜底策略 2：多行中排除中文行
+    const hasZh = scripts.some((s, i) => s === "CJK_ZH" || isZhLine(lines[i]));
+    if (hasZh) {
+      const nonZh = lines.filter(
+        (l, i) => scripts[i] !== "CJK_ZH" && !isZhLine(l)
+      );
+      if (nonZh.length > 0) return nonZh;
+    }
+    return [];
+  }
+
+  // ---- 通用处理 ----
+  // 直接按 script 类别匹配
+  const matched = lines.filter((_, i) => scripts[i] === targetScript);
+  if (matched.length > 0) return matched;
+
+  // 兜底：排除已确定的其他 script 行
+  const knownOther = lines.filter(
+    (_, i) => scripts[i] !== "UNKNOWN" && scripts[i] !== targetScript
+  );
+  if (knownOther.length > 0 && knownOther.length < lines.length) {
+    return lines.filter(
+      (_, i) => scripts[i] === "UNKNOWN" || scripts[i] === targetScript
+    );
+  }
+
+  return [];
 }
 
 /** 判断是否为 SRT 时间轴行，格式：00:01:23,456 --> 00:01:25,789 */
@@ -77,40 +256,6 @@ function parseSrtTimestamp(line: string): boolean {
   return /(\d{2}:\d{2}:\d{2},\d{3})\s*-->\s*(\d{2}:\d{2}:\d{2},\d{3})/.test(
     line
   );
-}
-
-/**
- * 从同一时间点/区块的多行文本中，筛选出目标语言的行。
- *
- * 保留 ZH 时：直接过滤出被判定为 ZH 的行，没有则返回空。
- * 保留 JA 时：
- *   - 优先返回被判定为 JA 的行
- *   - 兜底策略 1：恰好 2 行且其中一行是 ZH → 另一行视为 JA（典型中日双语成对）
- *   - 兜底策略 2：多行中存在 ZH → 排除 ZH 后的行视为 JA 候选
- */
-function chooseLinesForKeep(lines: string[], keep: KeepLanguage): string[] {
-  const types = lines.map((l) => classifyLine(l));
-  if (keep === "ZH") {
-    const zh = lines.filter((_, i) => types[i] === "ZH");
-    if (zh.length > 0) return zh;
-    return [];
-  } else {
-    const ja = lines.filter((_, i) => types[i] === "JA");
-    if (ja.length > 0) return ja;
-    // 兜底策略 1：双行中排除中文行
-    if (lines.length === 2) {
-      const idxZh = types.indexOf("ZH");
-      if (idxZh !== -1) {
-        const otherIdx = idxZh === 0 ? 1 : 0;
-        return [lines[otherIdx]];
-      }
-    }
-    // 兜底策略 2：多行中排除中文行
-    if (types.includes("ZH")) {
-      return lines.filter((_, i) => types[i] !== "ZH");
-    }
-    return [];
-  }
 }
 
 /**
@@ -122,11 +267,11 @@ function chooseLinesForKeep(lines: string[], keep: KeepLanguage): string[] {
  *
  * 处理流程：
  * 1. 解析每行的时间标签（支持 [mm:ss.xxx]，一行可含多个标签）
- * 2. 将文本按时间戳聚合（同一时刻的中日两行归为一组）
+ * 2. 将文本按时间戳聚合（同一时刻的两行归为一组）
  * 3. 对每组调用 chooseLinesForKeep 筛选目标语言
  * 4. 按时间升序输出，每个时间点只保留一行
  */
-function extractFromLRC(content: string, keep: KeepLanguage): string {
+function extractFromLRC(content: string, keep: ExtractKeepLanguage): string {
   const normalized = content.replace(/\r\n/g, "\n");
   const lines = normalized.split("\n");
 
@@ -202,7 +347,7 @@ function extractFromLRC(content: string, keep: KeepLanguage): string {
  * 3. 提取文本行并通过 chooseLinesForKeep 筛选目标语言
  * 4. 重新编号并组装输出
  */
-function extractFromSRT(content: string, keep: KeepLanguage): string {
+function extractFromSRT(content: string, keep: ExtractKeepLanguage): string {
   const normalized = content.replace(/\r\n/g, "\n").trim();
   if (!normalized) return "";
 

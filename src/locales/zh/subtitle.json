@@ -151,7 +151,7 @@
   },
   "extractor": {
     "title": "字幕语言提取",
-    "description": "支持从 LRC/SRT 双语字幕中仅保留中文字幕或仅保留日语字幕，保持原格式与时间轴。",
+    "description": "支持从 LRC/SRT 双语字幕中提取指定语言的文本行，保持原格式与时间轴。",
     "config_title": "配置选项",
     "output_path_section": "输出设置",
     "summary_title": "当前配置",
@@ -159,10 +159,6 @@
     "task_management": "任务管理",
     "fields": {
       "keep_language": "保留语言",
-      "zh_only": "仅中文",
-      "ja_only": "仅日文",
-      "zh": "中文",
-      "ja": "日文",
       "select_output_path": "选择输出目录",
       "no_output_path_selected": "未选择输出目录",
       "output_mode": "输出位置",

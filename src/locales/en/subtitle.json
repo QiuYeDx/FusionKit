@@ -151,7 +151,7 @@
   },
   "extractor": {
     "title": "Subtitle Language Extraction",
-    "description": "Keep only Chinese or only Japanese from bilingual LRC/SRT subtitles while preserving format and timestamps.",
+    "description": "Extract text lines of a specified language from bilingual LRC/SRT subtitles while preserving format and timestamps.",
     "config_title": "Configuration Options",
     "output_path_section": "Output Settings",
     "summary_title": "Current Configuration",
@@ -159,10 +159,6 @@
     "task_management": "Task Management",
     "fields": {
       "keep_language": "Keep Language",
-      "zh_only": "Chinese Only",
-      "ja_only": "Japanese Only",
-      "zh": "Chinese",
-      "ja": "Japanese",
       "select_output_path": "Select Output Directory",
       "no_output_path_selected": "No output directory selected",
       "output_mode": "Output location",

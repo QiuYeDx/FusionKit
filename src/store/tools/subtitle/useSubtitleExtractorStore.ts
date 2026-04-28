@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { persist as persistMiddleware, createJSONStorage } from "zustand/middleware";
 import {
+  ExtractKeepLanguage,
   OutputConflictPolicy,
   OutputPathMode,
   SubtitleExtractorTask,
@@ -23,7 +24,7 @@ const LEGACY_KEYS = {
 
 interface SubtitleExtractorStore {
   // 配置
-  keep: "ZH" | "JA";
+  keep: ExtractKeepLanguage;
   outputURL: string;
   outputMode: OutputPathMode;
   conflictPolicy: OutputConflictPolicy;
@@ -35,7 +36,7 @@ interface SubtitleExtractorStore {
   failedTasks: SubtitleExtractorTask[];
 
   // 配置方法
-  setKeep: (keep: "ZH" | "JA") => void;
+  setKeep: (keep: ExtractKeepLanguage) => void;
   setOutputURL: (url: string) => void;
   setOutputMode: (mode: OutputPathMode) => void;
   setConflictPolicy: (policy: OutputConflictPolicy) => void;
@@ -290,6 +291,7 @@ const useSubtitleExtractorStore = create<SubtitleExtractorStore>()(
       name: "fusionkit-subtitle-extractor",
       storage: createJSONStorage(() => localStorage),
       partialize: (state) => ({
+        keep: state.keep,
         outputURL: state.outputURL,
         outputMode: state.outputMode,
         conflictPolicy: state.conflictPolicy,

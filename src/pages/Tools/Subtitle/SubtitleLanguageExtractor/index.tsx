@@ -12,6 +12,8 @@ import {
   Pencil,
 } from "lucide-react";
 import {
+  EXTRACT_SUPPORTED_LANGUAGES,
+  ExtractKeepLanguage,
   OutputConflictPolicy,
   SubtitleExtractorTask,
   SubtitleFileType,
@@ -98,7 +100,7 @@ function SubtitleLanguageExtractor() {
   // 编辑任务配置弹窗
   const [editTaskOpen, setEditTaskOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<SubtitleExtractorTask | null>(null);
-  const [editKeep, setEditKeep] = useState<"ZH" | "JA">("ZH");
+  const [editKeep, setEditKeep] = useState<ExtractKeepLanguage>("ZH");
   const [editConflictPolicy, setEditConflictPolicy] = useState<OutputConflictPolicy>("index");
 
   const openErrorModal = (task: SubtitleExtractorTask) => {
@@ -133,6 +135,12 @@ function SubtitleLanguageExtractor() {
         ? task.outputFilePath
         : task.originFileURL;
     window.ipcRenderer.invoke("show-item-in-folder", filePath);
+  };
+
+  /** 获取语言的本地化名称 */
+  const getLanguageLabel = (code: string): string => {
+    const lang = EXTRACT_SUPPORTED_LANGUAGES.find((l) => l.code === code);
+    return lang ? t(lang.labelKey) : code;
   };
 
   const handleOpenEditTask = (task: SubtitleExtractorTask) => {
@@ -323,22 +331,21 @@ function SubtitleLanguageExtractor() {
                 <Label className="text-sm font-medium min-w-[100px]">
                   {t("subtitle:extractor:fields.keep_language")}
                 </Label>
-                <ButtonGroup>
-                  <Button
-                    size="sm"
-                    variant={keep === "ZH" ? "default" : "outline"}
-                    onClick={() => setKeep("ZH")}
-                  >
-                    {t("subtitle:extractor:fields.zh_only")}
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant={keep === "JA" ? "default" : "outline"}
-                    onClick={() => setKeep("JA")}
-                  >
-                    {t("subtitle:extractor:fields.ja_only")}
-                  </Button>
-                </ButtonGroup>
+                <Select
+                  value={keep}
+                  onValueChange={(v) => setKeep(v as ExtractKeepLanguage)}
+                >
+                  <SelectTrigger className="w-[200px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {EXTRACT_SUPPORTED_LANGUAGES.map((lang) => (
+                      <SelectItem key={lang.code} value={lang.code}>
+                        {t(lang.labelKey)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
             </CardContent>
           )}
@@ -477,9 +484,7 @@ function SubtitleLanguageExtractor() {
                       {t("subtitle:extractor:fields.keep_language")}
                     </div>
                     <div className="font-medium">
-                      {keep === "ZH"
-                        ? t("subtitle:extractor:fields.zh")
-                        : t("subtitle:extractor:fields.ja")}
+                      {getLanguageLabel(keep)}
                     </div>
                   </CardContent>
                 </Card>
@@ -610,9 +615,7 @@ function SubtitleLanguageExtractor() {
                             t("subtitle:extractor:task_status.failed")}
                           <span className="px-1.5 py-0.5 bg-muted rounded-md text-xs">
                             {task.fileType} ·{" "}
-                            {task.keep === "ZH"
-                              ? t("subtitle:extractor:fields.zh")
-                              : t("subtitle:extractor:fields.ja")}
+                            {getLanguageLabel(task.keep)}
                           </span>
                           {task.outputFilePath && (
                             <span className="font-mono text-green-600 truncate max-w-[200px]">
@@ -711,9 +714,7 @@ function SubtitleLanguageExtractor() {
                         <span>{task.fileType}</span>
                         <span className="text-muted-foreground">{t("subtitle:extractor.task_detail.keep_language")}</span>
                         <span>
-                          {task.keep === "ZH"
-                            ? t("subtitle:extractor.fields.zh")
-                            : t("subtitle:extractor.fields.ja")}
+                          {getLanguageLabel(task.keep)}
                         </span>
                         <span className="text-muted-foreground">{t("subtitle:extractor.task_detail.source_file")}</span>
                         <span className="font-mono break-all">
@@ -792,11 +793,14 @@ function SubtitleLanguageExtractor() {
           <div className="space-y-4 py-2">
             <div className="space-y-2">
               <Label>{t("subtitle:extractor.fields.keep_language")}</Label>
-              <Select value={editKeep} onValueChange={(v) => setEditKeep(v as "ZH" | "JA")}>
+              <Select value={editKeep} onValueChange={(v) => setEditKeep(v as ExtractKeepLanguage)}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="ZH">{t("subtitle:extractor.fields.zh")}</SelectItem>
-                  <SelectItem value="JA">{t("subtitle:extractor.fields.ja")}</SelectItem>
+                  {EXTRACT_SUPPORTED_LANGUAGES.map((lang) => (
+                    <SelectItem key={lang.code} value={lang.code}>
+                      {t(lang.labelKey)}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>

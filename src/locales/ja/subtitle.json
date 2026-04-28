@@ -151,7 +151,7 @@
   },
   "extractor": {
     "title": "字幕言語抽出",
-    "description": "LRC/SRTのバイリンガル字幕から中国語のみ、または日本語のみを保持し、フォーマットとタイムスタンプを維持します。",
+    "description": "LRC/SRTのバイリンガル字幕から指定した言語の行を抽出し、フォーマットとタイムスタンプを維持します。",
     "config_title": "設定オプション",
     "output_path_section": "出力設定",
     "summary_title": "現在の設定",
@@ -159,10 +159,6 @@
     "task_management": "タスク管理",
     "fields": {
       "keep_language": "保持する言語",
-      "zh_only": "中国語のみ",
-      "ja_only": "日本語のみ",
-      "zh": "中国語",
-      "ja": "日本語",
       "select_output_path": "出力ディレクトリを選択",
       "no_output_path_selected": "出力ディレクトリが未選択",
       "output_mode": "出力先",

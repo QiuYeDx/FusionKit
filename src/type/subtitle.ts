@@ -49,6 +49,25 @@ export const SUPPORTED_LANGUAGES: {
   { code: "PT", labelKey: "subtitle:translator.languages.PT" },
 ];
 
+/** 语言提取工具支持的目标语言（复用 TranslationLanguage） */
+export type ExtractKeepLanguage = TranslationLanguage;
+
+/** 提取工具可选语言列表，复用翻译器的 i18n key */
+export const EXTRACT_SUPPORTED_LANGUAGES: {
+  code: ExtractKeepLanguage;
+  labelKey: string;
+}[] = [
+  { code: "ZH", labelKey: "subtitle:translator.languages.ZH" },
+  { code: "JA", labelKey: "subtitle:translator.languages.JA" },
+  { code: "EN", labelKey: "subtitle:translator.languages.EN" },
+  { code: "KO", labelKey: "subtitle:translator.languages.KO" },
+  { code: "FR", labelKey: "subtitle:translator.languages.FR" },
+  { code: "DE", labelKey: "subtitle:translator.languages.DE" },
+  { code: "ES", labelKey: "subtitle:translator.languages.ES" },
+  { code: "RU", labelKey: "subtitle:translator.languages.RU" },
+  { code: "PT", labelKey: "subtitle:translator.languages.PT" },
+];
+
 export type SubtitleTranslatorTask = {
   fileName: string;
   fileContent: string;
@@ -104,7 +123,7 @@ export type SubtitleExtractorTask = {
   fileType: SubtitleFileType;
   originFileURL: string;
   targetFileURL: string;
-  keep: "ZH" | "JA";
+  keep: ExtractKeepLanguage;
   status: TaskStatus;
   progress?: number;
   errorLog?: string[];
