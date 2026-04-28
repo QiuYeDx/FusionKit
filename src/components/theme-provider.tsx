@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, ReactNode } from "react"
+import { createContext, useContext, ReactNode } from "react"
 import useThemeStore from "@/store/useThemeStore"
 
 type Theme = "dark" | "light" | "system"
@@ -25,11 +25,7 @@ export function ThemeProvider({
   storageKey = "theme",
   ...props
 }: ThemeProviderProps) {
-  const { theme, isDark, setTheme, initializeTheme } = useThemeStore()
-
-  useEffect(() => {
-    initializeTheme()
-  }, [initializeTheme])
+  const { theme, isDark, setTheme } = useThemeStore()
 
   const value = {
     theme,
@@ -43,6 +39,7 @@ export function ThemeProvider({
     </ThemeProviderContext.Provider>
   )
 }
+
 
 export const useTheme = () => {
   const context = useContext(ThemeProviderContext)

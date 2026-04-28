@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { persist as persistMiddleware, createJSONStorage } from "zustand/middleware";
 import {
   OutputConflictPolicy,
   OutputPathMode,
@@ -10,25 +11,11 @@ import { showToast } from "@/utils/toast";
 import { showSystemNotification } from "@/utils/notification";
 import i18n from "@/i18n";
 
-// ---------------------------------------------------------------------------
-// localStorage 持久化工具
-// ---------------------------------------------------------------------------
-
-function loadString(key: string, fallback: string): string {
-  try {
-    return localStorage.getItem(key) ?? fallback;
-  } catch {
-    return fallback;
-  }
-}
-
-function persist(key: string, value: string): void {
-  try {
-    localStorage.setItem(key, value);
-  } catch {
-    /* silent */
-  }
-}
+const LEGACY_KEYS = {
+  outputURL: "subtitle-extractor-output-url",
+  outputMode: "subtitle-extractor-output-mode",
+  conflictPolicy: "subtitle-extractor-conflict-policy",
+};
 
 // ---------------------------------------------------------------------------
 // Store 类型
@@ -69,19 +56,13 @@ interface SubtitleExtractorStore {
 // Store 实现
 // ---------------------------------------------------------------------------
 
-const useSubtitleExtractorStore = create<SubtitleExtractorStore>(
-  (set, get) => ({
-    // 初始配置
+const useSubtitleExtractorStore = create<SubtitleExtractorStore>()(
+  persistMiddleware(
+    (set, get) => ({
     keep: "ZH",
-    outputURL: loadString("subtitle-extractor-output-url", ""),
-    outputMode: loadString(
-      "subtitle-extractor-output-mode",
-      "custom"
-    ) as OutputPathMode,
-    conflictPolicy: loadString(
-      "subtitle-extractor-conflict-policy",
-      "index"
-    ) as OutputConflictPolicy,
+    outputURL: "",
+    outputMode: "custom" as OutputPathMode,
+    conflictPolicy: "index" as OutputConflictPolicy,
 
     // 任务队列
     notStartedTasks: [],
@@ -94,17 +75,14 @@ const useSubtitleExtractorStore = create<SubtitleExtractorStore>(
     setKeep: (keep) => set({ keep }),
 
     setOutputURL: (url) => {
-      persist("subtitle-extractor-output-url", url);
       set({ outputURL: url });
     },
 
     setOutputMode: (mode) => {
-      persist("subtitle-extractor-output-mode", mode);
       set({ outputMode: mode });
     },
 
     setConflictPolicy: (policy) => {
-      persist("subtitle-extractor-conflict-policy", policy);
       set({ conflictPolicy: policy });
     },
 
@@ -307,7 +285,38 @@ const useSubtitleExtractorStore = create<SubtitleExtractorStore>(
         resolvedTasks: [],
         failedTasks: [],
       }),
-  })
+    }),
+    {
+      name: "fusionkit-subtitle-extractor",
+      storage: createJSONStorage(() => localStorage),
+      partialize: (state) => ({
+        outputURL: state.outputURL,
+        outputMode: state.outputMode,
+        conflictPolicy: state.conflictPolicy,
+      }),
+      onRehydrateStorage: () => {
+        // 一次性迁移：旧的分散 key → 新的统一 key
+        if (localStorage.getItem("fusionkit-subtitle-extractor") === null) {
+          const hasLegacy = Object.values(LEGACY_KEYS).some(
+            (k) => localStorage.getItem(k) !== null
+          );
+          if (hasLegacy) {
+            const outputURL = localStorage.getItem(LEGACY_KEYS.outputURL) ?? "";
+            const outputMode = localStorage.getItem(LEGACY_KEYS.outputMode) ?? "custom";
+            const conflictPolicy = localStorage.getItem(LEGACY_KEYS.conflictPolicy) ?? "index";
+            localStorage.setItem(
+              "fusionkit-subtitle-extractor",
+              JSON.stringify({
+                state: { outputURL, outputMode, conflictPolicy },
+                version: 0,
+              })
+            );
+            Object.values(LEGACY_KEYS).forEach((k) => localStorage.removeItem(k));
+          }
+        }
+      },
+    }
+  )
 );
 
 export default useSubtitleExtractorStore;

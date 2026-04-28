@@ -2,7 +2,7 @@
 
 > 本文档用于记录和追踪 FusionKit 项目各项 TODO 的开发进度。  
 > 状态说明：`⬜ 待开始` · `🔵 进行中` · `✅ 已完成` · `⏸️ 暂缓` · `❌ 取消`  
-> 最后更新：2026-04-27 16:05
+> 最后更新：2026-04-28 14:30
 
 ---
 
@@ -11,13 +11,13 @@
 | 分类 | 总计 | ✅ | 🔵 | ⬜ | ⏸️ |
 |------|------|-----|-----|-----|-----|
 | 一、新功能 | 10 | 0 | 0 | 6 | 4 |
-| 二、代码质量 | 13 | 6 | 0 | 7 | 0 |
-| 三、架构 & 性能 | 8 | 0 | 0 | 8 | 0 |
+| 二、代码质量 | 13 | 7 | 0 | 6 | 0 |
+| 三、架构 & 性能 | 8 | 1 | 0 | 7 | 0 |
 | 四、测试 | 4 | 0 | 0 | 0 | 4 |
 | 五、文档 & DX | 5 | 0 | 0 | 5 | 0 |
 | 六、安全 & 发布 | 4 | 0 | 0 | 4 | 0 |
 | 七、国际化 | 3 | 0 | 0 | 3 | 0 |
-| **合计** | **47** | **6** | **0** | **33** | **8** |
+| **合计** | **47** | **8** | **0** | **31** | **8** |
 
 ---
 
@@ -81,9 +81,9 @@
 
 ### 2.1 TODO / 注释清理
 
-- ⬜ **Q-01** 清理 `Setting/index.tsx#L7` 的 TODO 注释
+- ✅ **Q-01** 清理 `Setting/index.tsx#L7` 的 TODO 注释
   - 统一配置持久化的改造见 A-01，此处仅清理或更新注释
-  - 备注：
+  - 备注：已完成 (2026-04-28)，配合 A-01 一并处理
 
 - ✅ **Q-02** 清理 `electron/main/index.ts#L68` 旧 TODO 注释
   - Windows 标题栏操作按钮已实现，仅需删除该行注释
@@ -144,10 +144,10 @@
 
 ### 3.1 架构优化
 
-- ⬜ **A-01** 统一配置持久化层 `🔴 高`
-  - 引入 zustand persist middleware 或 electron-store，统一管理 Model / Proxy / Theme / ExecutionMode 等配置
-  - 涉及文件：`src/store/useModelStore.ts`、`useProxyStore.ts`、`useThemeStore.ts`、`useAgentStore.ts`
-  - 备注：
+- ✅ **A-01** 统一配置持久化层 `🔴 高`
+  - 引入 zustand persist middleware，统一管理 Model / Proxy / Theme / ExecutionMode / Notification / Subtitle 工具配置
+  - 涉及文件：`src/store/useModelStore.ts`、`useProxyStore.ts`、`useThemeStore.ts`、`useAgentStore.ts`、`useNotificationStore.ts`、`useSubtitleTranslatorStore.ts`、`useSubtitleConverterStore.ts`、`useSubtitleExtractorStore.ts`、`App.tsx`、`Setting/index.tsx`、`theme-provider.tsx`
+  - 备注：已完成 (2026-04-28)，所有 store 已迁移至 persist middleware，旧 localStorage key 自动迁移
 
 - ⬜ **A-02** IPC 通信类型安全 `🟡 中`
   - 定义 IPC channel 契约类型，替代纯字符串通道名
@@ -275,7 +275,7 @@
 |---|------|------|------|
 | 1 | T-01 | 字幕语言提取通用化 | ⬜ |
 | 2 | Q-03 | 拆分 HomeAgent/index.tsx | ⬜ |
-| 3 | A-01 | 统一配置持久化 | ⬜ |
+| 3 | A-01 | 统一配置持久化 | ✅ |
 | 4 | S-01 | API Key 加密存储 | ⬜ |
 | 5 | Q-02 + Q-06~Q-10 | 清理旧注释与废弃代码 | ✅ |
 
@@ -288,6 +288,7 @@
 | 2026-04-27 | 初始创建，基于 v0.2.4-beta.1 源码分析，含 47 项任务 |
 | 2026-04-27 | 完成 Q-02、Q-06、Q-07、Q-09、Q-10（清理旧注释与废弃代码），5/47 ✅ |
 | 2026-04-28 | 完成 Q-11（preload Loading 重写视觉效果 & 适配主题），6/47 ✅ |
+| 2026-04-28 | 完成 A-01 + Q-01（统一配置持久化层 + 清理 Setting TODO），8/47 ✅ |
 
 <!-- 
 使用说明：

@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { persist, createJSONStorage } from "zustand/middleware";
 import { cloneDeep } from "lodash";
 import { DEFAULT_SLICE_LENGTH_MAP } from "@/constants/subtitle";
 import {
@@ -68,30 +69,16 @@ interface SubtitleTranslatorStore {
   markTaskResolved: (fileName: string, outputFilePath: string) => void;
 }
 
-// 从 localStorage 读取保存的输出路径
-const getSavedOutputURL = (): string => {
-  try {
-    return localStorage.getItem("subtitle-translator-output-url") || "";
-  } catch {
-    return "";
-  }
-};
+const LEGACY_KEY = "subtitle-translator-output-url";
 
-// 保存输出路径到 localStorage
-const saveOutputURL = (url: string): void => {
-  try {
-    localStorage.setItem("subtitle-translator-output-url", url);
-  } catch {
-    // 静默处理存储失败
-  }
-};
-
-const useSubtitleTranslatorStore = create<SubtitleTranslatorStore>((set, get) => ({
+const useSubtitleTranslatorStore = create<SubtitleTranslatorStore>()(
+  persist(
+    (set, get) => ({
   // 初始状态
   // fileType: SubtitleFileType.LRC,
   sliceType: SubtitleSliceType.NORMAL,
   sliceLengthMap: DEFAULT_SLICE_LENGTH_MAP,
-  outputURL: getSavedOutputURL(), // 从本地存储读取输出路径
+  outputURL: "",
   notStartedTaskQueue: [],
   waitingTaskQueue: [],
   pendingTaskQueue: [],
@@ -109,9 +96,8 @@ const useSubtitleTranslatorStore = create<SubtitleTranslatorStore>((set, get) =>
       },
     })),
 
-  // 设置输出路径并持久化
+  // 设置输出路径
   setOutputURL: (url) => {
-    saveOutputURL(url);
     set({ outputURL: url });
   },
 
@@ -606,6 +592,27 @@ const useSubtitleTranslatorStore = create<SubtitleTranslatorStore>((set, get) =>
       return state;
     });
   },
-}));
+    }),
+    {
+      name: "fusionkit-subtitle-translator",
+      storage: createJSONStorage(() => localStorage),
+      partialize: (state) => ({ outputURL: state.outputURL }),
+      onRehydrateStorage: () => {
+        // 一次性迁移：旧 key → 新 key
+        if (
+          localStorage.getItem(LEGACY_KEY) !== null &&
+          localStorage.getItem("fusionkit-subtitle-translator") === null
+        ) {
+          const saved = localStorage.getItem(LEGACY_KEY) || "";
+          localStorage.setItem(
+            "fusionkit-subtitle-translator",
+            JSON.stringify({ state: { outputURL: saved }, version: 0 })
+          );
+          localStorage.removeItem(LEGACY_KEY);
+        }
+      },
+    }
+  )
+);
 
 export default useSubtitleTranslatorStore;

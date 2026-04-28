@@ -1,28 +1,36 @@
 import { create } from "zustand";
+import { persist, createJSONStorage } from "zustand/middleware";
 
 interface NotificationStore {
   enabled: boolean;
   setEnabled: (enabled: boolean) => void;
 }
 
-const STORAGE_KEY = "notification-enabled";
+const LEGACY_KEY = "notification-enabled";
 
-const getStoredEnabled = (): boolean => {
-  try {
-    return localStorage.getItem(STORAGE_KEY) === "true";
-  } catch {
-    return false;
-  }
-};
-
-const useNotificationStore = create<NotificationStore>((set) => ({
-  enabled: getStoredEnabled(),
-  setEnabled: (enabled) => {
-    try {
-      localStorage.setItem(STORAGE_KEY, String(enabled));
-    } catch {}
-    set({ enabled });
-  },
-}));
+const useNotificationStore = create<NotificationStore>()(
+  persist(
+    (set) => ({
+      enabled: false,
+      setEnabled: (enabled) => set({ enabled }),
+    }),
+    {
+      name: "fusionkit-notification",
+      storage: createJSONStorage(() => localStorage),
+      partialize: (state) => ({ enabled: state.enabled }),
+      onRehydrateStorage: () => {
+        // 一次性迁移：旧 key → 新 key
+        const legacy = localStorage.getItem(LEGACY_KEY);
+        if (legacy !== null) {
+          localStorage.setItem(
+            "fusionkit-notification",
+            JSON.stringify({ state: { enabled: legacy === "true" }, version: 0 })
+          );
+          localStorage.removeItem(LEGACY_KEY);
+        }
+      },
+    }
+  )
+);
 
 export default useNotificationStore;

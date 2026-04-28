@@ -4,7 +4,6 @@ import { useTranslation } from "react-i18next";
 import ModelConfig from "./components/ModelConfig";
 import ProxyConfig from "./components/ProxyConfig";
 
-// TODO: 所有的设置均作为一个配置对象, 存储在用户本地, 应用初始化时优先加载
 const Setting: React.FC = () => {
   const { t } = useTranslation();
   return (

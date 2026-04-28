@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { persist, createJSONStorage } from "zustand/middleware";
 import type {
   AgentMessage,
   AgentSession,
@@ -82,22 +83,6 @@ function createEmptyTokenStats(): TokenStats {
   };
 }
 
-function loadExecutionMode(): ExecutionMode {
-  try {
-    const saved = localStorage.getItem("agent-execution-mode");
-    if (saved === "queue_only" || saved === "ask_before_execute" || saved === "auto_execute") {
-      return saved;
-    }
-  } catch { /* silent */ }
-  return "queue_only";
-}
-
-function persistExecutionMode(mode: ExecutionMode): void {
-  try {
-    localStorage.setItem("agent-execution-mode", mode);
-  } catch { /* silent */ }
-}
-
 export function executeTasksInStores(stores: TaskStoreType[]): void {
   for (const storeType of stores) {
     switch (storeType) {
@@ -114,146 +99,171 @@ export function executeTasksInStores(stores: TaskStoreType[]): void {
   }
 }
 
-const useAgentStore = create<AgentStore>((set, get) => ({
-  session: createNewSession(),
-  isStreaming: false,
-  streamingText: "",
-  executionMode: loadExecutionMode(),
-  pendingExecution: null,
-  tokenStats: createEmptyTokenStats(),
-  activeToolCalls: [],
-  sessionLog: [],
+const LEGACY_KEY = "agent-execution-mode";
 
-  addMessage: (message) =>
-    set((state) => ({
-      session: {
-        ...state.session,
-        messages: [...state.session.messages, message],
-        updatedAt: Date.now(),
-      },
-    })),
-
-  setStatus: (status) =>
-    set((state) => ({
-      session: { ...state.session, status, updatedAt: Date.now() },
-    })),
-
-  setStreaming: (streaming) => set({ isStreaming: streaming }),
-
-  appendStreamingText: (delta) =>
-    set((state) => ({ streamingText: state.streamingText + delta })),
-
-  clearStreamingText: () => set({ streamingText: "" }),
-
-  commitStreamingAsAssistant: (text, toolCalls) => {
-    if (!text && (!toolCalls || toolCalls.length === 0)) {
-      set({ streamingText: "" });
-      return;
-    }
-    const msg: AgentMessage = {
-      id: generateId(),
-      role: "assistant",
-      content: text,
-      timestamp: Date.now(),
-      ...(toolCalls && toolCalls.length > 0 ? { toolCalls } : {}),
-    };
-    set((state) => ({
-      streamingText: "",
-      session: {
-        ...state.session,
-        messages: [...state.session.messages, msg],
-        updatedAt: Date.now(),
-      },
-    }));
-  },
-
-  resetSession: () => {
-    get().appendLog("session_reset", "Session reset");
-    set({
+const useAgentStore = create<AgentStore>()(
+  persist(
+    (set, get) => ({
       session: createNewSession(),
       isStreaming: false,
       streamingText: "",
+      executionMode: "queue_only" as ExecutionMode,
       pendingExecution: null,
       tokenStats: createEmptyTokenStats(),
       activeToolCalls: [],
       sessionLog: [],
-    });
-  },
 
-  setExecutionMode: (mode) => {
-    persistExecutionMode(mode);
-    set({ executionMode: mode });
-  },
+      addMessage: (message) =>
+        set((state) => ({
+          session: {
+            ...state.session,
+            messages: [...state.session.messages, message],
+            updatedAt: Date.now(),
+          },
+        })),
 
-  setPendingExecution: (pe) => set({ pendingExecution: pe }),
+      setStatus: (status) =>
+        set((state) => ({
+          session: { ...state.session, status, updatedAt: Date.now() },
+        })),
 
-  confirmExecution: () => {
-    const { pendingExecution } = get();
-    if (!pendingExecution) return;
-    executeTasksInStores(pendingExecution.stores);
-    set({ pendingExecution: null });
-  },
+      setStreaming: (streaming) => set({ isStreaming: streaming }),
 
-  dismissExecution: () => set({ pendingExecution: null }),
+      appendStreamingText: (delta) =>
+        set((state) => ({ streamingText: state.streamingText + delta })),
 
-  setActiveToolCalls: (calls) => set({ activeToolCalls: calls }),
-  clearActiveToolCalls: () => set({ activeToolCalls: [] }),
+      clearStreamingText: () => set({ streamingText: "" }),
 
-  recordUsage: ({ promptTokens, completionTokens, totalTokens, cost, stepCount, lastPromptTokens }) =>
-    set((state) => ({
-      tokenStats: {
-        totalPromptTokens: state.tokenStats.totalPromptTokens + promptTokens,
-        totalCompletionTokens: state.tokenStats.totalCompletionTokens + completionTokens,
-        totalTokens: state.tokenStats.totalTokens + totalTokens,
-        totalCost: state.tokenStats.totalCost + cost,
-        stepCount: state.tokenStats.stepCount + stepCount,
-        lastPromptTokens,
-        interactions: [
-          ...state.tokenStats.interactions,
-          { timestamp: Date.now(), promptTokens, completionTokens, totalTokens, cost, stepCount },
-        ],
-      },
-    })),
-
-  appendLog: (type, summary, data) =>
-    set((state) => ({
-      sessionLog: [
-        ...state.sessionLog,
-        {
+      commitStreamingAsAssistant: (text, toolCalls) => {
+        if (!text && (!toolCalls || toolCalls.length === 0)) {
+          set({ streamingText: "" });
+          return;
+        }
+        const msg: AgentMessage = {
           id: generateId(),
+          role: "assistant",
+          content: text,
           timestamp: Date.now(),
-          type,
-          summary,
-          ...(data ? { data } : {}),
-        },
-      ],
-    })),
+          ...(toolCalls && toolCalls.length > 0 ? { toolCalls } : {}),
+        };
+        set((state) => ({
+          streamingText: "",
+          session: {
+            ...state.session,
+            messages: [...state.session.messages, msg],
+            updatedAt: Date.now(),
+          },
+        }));
+      },
 
-  getSessionExportData: (): SessionExportData => {
-    const { session, tokenStats, sessionLog, executionMode } = get();
-    return {
-      version: 1,
-      exportedAt: Date.now(),
-      session,
-      tokenStats,
-      sessionLog,
-      executionMode,
-    };
-  },
+      resetSession: () => {
+        get().appendLog("session_reset", "Session reset");
+        set({
+          session: createNewSession(),
+          isStreaming: false,
+          streamingText: "",
+          pendingExecution: null,
+          tokenStats: createEmptyTokenStats(),
+          activeToolCalls: [],
+          sessionLog: [],
+        });
+      },
 
-  restoreSession: (data) => {
-    persistExecutionMode(data.executionMode);
-    set({
-      session: data.session,
-      tokenStats: data.tokenStats,
-      sessionLog: data.sessionLog,
-      executionMode: data.executionMode,
-      isStreaming: false,
-      streamingText: "",
-      pendingExecution: null,
-      activeToolCalls: [],
-    });
-  },
-}));
+      setExecutionMode: (mode) => {
+        set({ executionMode: mode });
+      },
+
+      setPendingExecution: (pe) => set({ pendingExecution: pe }),
+
+      confirmExecution: () => {
+        const { pendingExecution } = get();
+        if (!pendingExecution) return;
+        executeTasksInStores(pendingExecution.stores);
+        set({ pendingExecution: null });
+      },
+
+      dismissExecution: () => set({ pendingExecution: null }),
+
+      setActiveToolCalls: (calls) => set({ activeToolCalls: calls }),
+      clearActiveToolCalls: () => set({ activeToolCalls: [] }),
+
+      recordUsage: ({ promptTokens, completionTokens, totalTokens, cost, stepCount, lastPromptTokens }) =>
+        set((state) => ({
+          tokenStats: {
+            totalPromptTokens: state.tokenStats.totalPromptTokens + promptTokens,
+            totalCompletionTokens: state.tokenStats.totalCompletionTokens + completionTokens,
+            totalTokens: state.tokenStats.totalTokens + totalTokens,
+            totalCost: state.tokenStats.totalCost + cost,
+            stepCount: state.tokenStats.stepCount + stepCount,
+            lastPromptTokens,
+            interactions: [
+              ...state.tokenStats.interactions,
+              { timestamp: Date.now(), promptTokens, completionTokens, totalTokens, cost, stepCount },
+            ],
+          },
+        })),
+
+      appendLog: (type, summary, data) =>
+        set((state) => ({
+          sessionLog: [
+            ...state.sessionLog,
+            {
+              id: generateId(),
+              timestamp: Date.now(),
+              type,
+              summary,
+              ...(data ? { data } : {}),
+            },
+          ],
+        })),
+
+      getSessionExportData: (): SessionExportData => {
+        const { session, tokenStats, sessionLog, executionMode } = get();
+        return {
+          version: 1,
+          exportedAt: Date.now(),
+          session,
+          tokenStats,
+          sessionLog,
+          executionMode,
+        };
+      },
+
+      restoreSession: (data) => {
+        set({
+          session: data.session,
+          tokenStats: data.tokenStats,
+          sessionLog: data.sessionLog,
+          executionMode: data.executionMode,
+          isStreaming: false,
+          streamingText: "",
+          pendingExecution: null,
+          activeToolCalls: [],
+        });
+      },
+    }),
+    {
+      name: "fusionkit-agent",
+      storage: createJSONStorage(() => localStorage),
+      partialize: (state) => ({ executionMode: state.executionMode }),
+      onRehydrateStorage: () => {
+        // 一次性迁移：旧 key → 新 key
+        if (
+          localStorage.getItem(LEGACY_KEY) !== null &&
+          localStorage.getItem("fusionkit-agent") === null
+        ) {
+          const saved = localStorage.getItem(LEGACY_KEY);
+          if (saved === "queue_only" || saved === "ask_before_execute" || saved === "auto_execute") {
+            localStorage.setItem(
+              "fusionkit-agent",
+              JSON.stringify({ state: { executionMode: saved }, version: 0 })
+            );
+          }
+          localStorage.removeItem(LEGACY_KEY);
+        }
+      },
+    }
+  )
+);
 
 export default useAgentStore;

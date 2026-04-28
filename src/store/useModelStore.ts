@@ -7,6 +7,7 @@ import {
 } from "@/constants/model";
 import type { Model, ModelProfile, ModelAssignment } from "@/type/model";
 import { create } from "zustand";
+import { persist, createJSONStorage } from "zustand/middleware";
 
 // ---------------------------------------------------------------------------
 // Model Store — Profile-based model configuration
@@ -25,23 +26,10 @@ interface ModelStore {
 
   getAgentProfile: () => ModelProfile | null;
   getTaskProfile: () => ModelProfile | null;
-
-  initializeModel: () => void;
 }
 
 function generateId(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
-}
-
-const STORAGE_KEY = "modelConfig";
-
-function persist(state: { profiles: ModelProfile[]; assignment: ModelAssignment }) {
-  try {
-    localStorage.setItem(
-      STORAGE_KEY,
-      JSON.stringify({ version: 2, profiles: state.profiles, assignment: state.assignment })
-    );
-  } catch { /* silent */ }
 }
 
 /**
@@ -90,90 +78,112 @@ function migrateFromV1(raw: Record<string, any>): {
   };
 }
 
-const useModelStore = create<ModelStore>((set, get) => ({
-  profiles: [],
-  assignment: { agent: null, taskExecution: null },
+const LEGACY_KEY = "modelConfig";
 
-  addProfile: (profile) => {
-    const id = generateId();
-    const newProfile: ModelProfile = { ...profile, id };
-    set((s) => {
-      const next = { profiles: [...s.profiles, newProfile], assignment: s.assignment };
-      persist(next);
-      return next;
-    });
-    return id;
-  },
+const useModelStore = create<ModelStore>()(
+  persist(
+    (set, get) => ({
+      profiles: [],
+      assignment: { agent: null, taskExecution: null },
 
-  updateProfile: (id, updates) => {
-    set((s) => {
-      const next = {
-        profiles: s.profiles.map((p) => (p.id === id ? { ...p, ...updates } : p)),
-        assignment: s.assignment,
-      };
-      persist(next);
-      return next;
-    });
-  },
+      addProfile: (profile) => {
+        const id = generateId();
+        const newProfile: ModelProfile = { ...profile, id };
+        set((s) => ({
+          profiles: [...s.profiles, newProfile],
+        }));
+        return id;
+      },
 
-  removeProfile: (id) => {
-    set((s) => {
-      const newAssignment = { ...s.assignment };
-      if (newAssignment.agent === id) newAssignment.agent = null;
-      if (newAssignment.taskExecution === id) newAssignment.taskExecution = null;
-      const next = {
-        profiles: s.profiles.filter((p) => p.id !== id),
-        assignment: newAssignment,
-      };
-      persist(next);
-      return next;
-    });
-  },
+      updateProfile: (id, updates) => {
+        set((s) => ({
+          profiles: s.profiles.map((p) => (p.id === id ? { ...p, ...updates } : p)),
+        }));
+      },
 
-  getProfileById: (id) => {
-    return get().profiles.find((p) => p.id === id);
-  },
+      removeProfile: (id) => {
+        set((s) => {
+          const newAssignment = { ...s.assignment };
+          if (newAssignment.agent === id) newAssignment.agent = null;
+          if (newAssignment.taskExecution === id) newAssignment.taskExecution = null;
+          return {
+            profiles: s.profiles.filter((p) => p.id !== id),
+            assignment: newAssignment,
+          };
+        });
+      },
 
-  setAssignment: (module, profileId) => {
-    set((s) => {
-      const next = {
-        profiles: s.profiles,
-        assignment: { ...s.assignment, [module]: profileId },
-      };
-      persist(next);
-      return next;
-    });
-  },
+      getProfileById: (id) => {
+        return get().profiles.find((p) => p.id === id);
+      },
 
-  getAgentProfile: () => {
-    const { profiles, assignment } = get();
-    if (!assignment.agent) return null;
-    return profiles.find((p) => p.id === assignment.agent) ?? null;
-  },
+      setAssignment: (module, profileId) => {
+        set((s) => ({
+          assignment: { ...s.assignment, [module]: profileId },
+        }));
+      },
 
-  getTaskProfile: () => {
-    const { profiles, assignment } = get();
-    if (!assignment.taskExecution) return null;
-    return profiles.find((p) => p.id === assignment.taskExecution) ?? null;
-  },
+      getAgentProfile: () => {
+        const { profiles, assignment } = get();
+        if (!assignment.agent) return null;
+        return profiles.find((p) => p.id === assignment.agent) ?? null;
+      },
 
-  initializeModel: () => {
-    try {
-      const raw = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "{}");
+      getTaskProfile: () => {
+        const { profiles, assignment } = get();
+        if (!assignment.taskExecution) return null;
+        return profiles.find((p) => p.id === assignment.taskExecution) ?? null;
+      },
+    }),
+    {
+      name: "fusionkit-model",
+      storage: createJSONStorage(() => localStorage),
+      version: 2,
+      partialize: (state) => ({
+        profiles: state.profiles,
+        assignment: state.assignment,
+      }),
+      migrate: (persisted: any, version: number) => {
+        // v1 (flat model/apiKeyMap) → v2 (profiles + assignment)
+        if (version < 2) {
+          if (persisted && (persisted.model || persisted.apiKeyMap)) {
+            return migrateFromV1(persisted);
+          }
+        }
+        return persisted;
+      },
+      onRehydrateStorage: () => {
+        // 一次性迁移：旧 key → 新 key
+        if (
+          localStorage.getItem(LEGACY_KEY) !== null &&
+          localStorage.getItem("fusionkit-model") === null
+        ) {
+          try {
+            const raw = JSON.parse(localStorage.getItem(LEGACY_KEY)!);
 
-      if (raw.version === 2 && Array.isArray(raw.profiles)) {
-        set({ profiles: raw.profiles, assignment: raw.assignment || { agent: null, taskExecution: null } });
-        return;
-      }
-
-      if (raw.model || raw.apiKeyMap) {
-        const migrated = migrateFromV1(raw);
-        set(migrated);
-        persist(migrated);
-        return;
-      }
-    } catch { /* silent */ }
-  },
-}));
+            if (raw.version === 2 && Array.isArray(raw.profiles)) {
+              // 已经是 v2 格式，直接迁移
+              localStorage.setItem(
+                "fusionkit-model",
+                JSON.stringify({
+                  state: { profiles: raw.profiles, assignment: raw.assignment || { agent: null, taskExecution: null } },
+                  version: 2,
+                })
+              );
+            } else if (raw.model || raw.apiKeyMap) {
+              // v1 格式，需要 migrate
+              const migrated = migrateFromV1(raw);
+              localStorage.setItem(
+                "fusionkit-model",
+                JSON.stringify({ state: migrated, version: 2 })
+              );
+            }
+          } catch { /* silent */ }
+          localStorage.removeItem(LEGACY_KEY);
+        }
+      },
+    }
+  )
+);
 
 export default useModelStore;

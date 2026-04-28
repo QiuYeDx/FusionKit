@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useRef } from "react";
 import { Routes, Route, useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "motion/react";
 import "@/App.css";
@@ -9,16 +9,14 @@ import HomeAgent from "@/pages/HomeAgent";
 import Tools from "@/pages/Tools";
 import BottomNavigation from "@/pages/components/BottomNavigation";
 import AppTitleBar from "@/pages/components/AppTitleBar";
-import useThemeStore from "@/store/useThemeStore";
 import FadeMaskLayer from "@/pages/components/FadeMaskLayer";
-import useModelStore from "@/store/useModelStore";
-import useProxyStore from "@/store/useProxyStore";
 import SubtitleTranslator from "./pages/Tools/Subtitle/SubtitleTranslator";
 import SubtitleConverter from "./pages/Tools/Subtitle/SubtitleConverter";
 import SubtitleLanguageExtractor from "./pages/Tools/Subtitle/SubtitleLanguageExtractor";
 import { Toaster } from "@/components/ui/sonner";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import Update from "@/components/update";
+
 
 const ROUTE_ORDER: Record<string, number> = {
   "/": 0,
@@ -68,19 +66,6 @@ function App() {
     directionRef.current = nextIndex > prevIndex ? 1 : -1;
     prevPathRef.current = location.pathname;
   }
-
-  // 初始化主题, 并添加系统深色模式监听
-  const initializeTheme = useThemeStore((state) => state.initializeTheme);
-  // 初始化模型配置
-  const { initializeModel } = useModelStore();
-  // 初始化代理配置
-  const { initializeProxy } = useProxyStore();
-
-  useEffect(() => {
-    initializeTheme();
-    initializeModel();
-    initializeProxy();
-  }, []);
 
   return (
     <div className="app bg-background text-foreground h-screen flex flex-col overflow-hidden">

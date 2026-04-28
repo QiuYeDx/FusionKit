@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { persist as persistMiddleware, createJSONStorage } from "zustand/middleware";
 import {
   OutputConflictPolicy,
   OutputPathMode,
@@ -10,35 +11,12 @@ import { showToast } from "@/utils/toast";
 import { showSystemNotification } from "@/utils/notification";
 import i18n from "@/i18n";
 
-// ---------------------------------------------------------------------------
-// localStorage 持久化工具
-// ---------------------------------------------------------------------------
-
-function loadString(key: string, fallback: string): string {
-  try {
-    return localStorage.getItem(key) ?? fallback;
-  } catch {
-    return fallback;
-  }
-}
-
-function loadBoolean(key: string, fallback: boolean): boolean {
-  try {
-    const raw = localStorage.getItem(key);
-    if (raw === null) return fallback;
-    return raw === "true";
-  } catch {
-    return fallback;
-  }
-}
-
-function persist(key: string, value: string): void {
-  try {
-    localStorage.setItem(key, value);
-  } catch {
-    /* silent */
-  }
-}
+const LEGACY_KEYS = {
+  outputURL: "subtitle-converter-output-url",
+  outputMode: "subtitle-converter-output-mode",
+  conflictPolicy: "subtitle-converter-conflict-policy",
+  stripMediaExt: "subtitle-converter-strip-media-ext",
+};
 
 // ---------------------------------------------------------------------------
 // Store 类型
@@ -83,14 +61,15 @@ interface SubtitleConverterStore {
 // Store 实现
 // ---------------------------------------------------------------------------
 
-const useSubtitleConverterStore = create<SubtitleConverterStore>((set, get) => ({
-  // 初始配置（从 localStorage 恢复）
+const useSubtitleConverterStore = create<SubtitleConverterStore>()(
+  persistMiddleware(
+    (set, get) => ({
   toFormat: SubtitleFileType.SRT,
   defaultDurationSec: "2",
-  stripMediaExt: loadBoolean("subtitle-converter-strip-media-ext", true),
-  outputURL: loadString("subtitle-converter-output-url", ""),
-  outputMode: loadString("subtitle-converter-output-mode", "custom") as OutputPathMode,
-  conflictPolicy: loadString("subtitle-converter-conflict-policy", "index") as OutputConflictPolicy,
+  stripMediaExt: true,
+  outputURL: "",
+  outputMode: "custom" as OutputPathMode,
+  conflictPolicy: "index" as OutputConflictPolicy,
 
   // 任务队列
   notStartedTasks: [],
@@ -105,22 +84,18 @@ const useSubtitleConverterStore = create<SubtitleConverterStore>((set, get) => (
   setDefaultDurationSec: (sec) => set({ defaultDurationSec: sec }),
 
   setStripMediaExt: (val) => {
-    persist("subtitle-converter-strip-media-ext", String(val));
     set({ stripMediaExt: val });
   },
 
   setOutputURL: (url) => {
-    persist("subtitle-converter-output-url", url);
     set({ outputURL: url });
   },
 
   setOutputMode: (mode) => {
-    persist("subtitle-converter-output-mode", mode);
     set({ outputMode: mode });
   },
 
   setConflictPolicy: (policy) => {
-    persist("subtitle-converter-conflict-policy", policy);
     set({ conflictPolicy: policy });
   },
 
@@ -315,6 +290,41 @@ const useSubtitleConverterStore = create<SubtitleConverterStore>((set, get) => (
       resolvedTasks: [],
       failedTasks: [],
     }),
-}));
+    }),
+    {
+      name: "fusionkit-subtitle-converter",
+      storage: createJSONStorage(() => localStorage),
+      partialize: (state) => ({
+        outputURL: state.outputURL,
+        outputMode: state.outputMode,
+        conflictPolicy: state.conflictPolicy,
+        stripMediaExt: state.stripMediaExt,
+      }),
+      onRehydrateStorage: () => {
+        // 一次性迁移：旧的分散 key → 新的统一 key
+        if (localStorage.getItem("fusionkit-subtitle-converter") === null) {
+          const hasLegacy = Object.values(LEGACY_KEYS).some(
+            (k) => localStorage.getItem(k) !== null
+          );
+          if (hasLegacy) {
+            const outputURL = localStorage.getItem(LEGACY_KEYS.outputURL) ?? "";
+            const outputMode = localStorage.getItem(LEGACY_KEYS.outputMode) ?? "custom";
+            const conflictPolicy = localStorage.getItem(LEGACY_KEYS.conflictPolicy) ?? "index";
+            const stripRaw = localStorage.getItem(LEGACY_KEYS.stripMediaExt);
+            const stripMediaExt = stripRaw === null ? true : stripRaw === "true";
+            localStorage.setItem(
+              "fusionkit-subtitle-converter",
+              JSON.stringify({
+                state: { outputURL, outputMode, conflictPolicy, stripMediaExt },
+                version: 0,
+              })
+            );
+            Object.values(LEGACY_KEYS).forEach((k) => localStorage.removeItem(k));
+          }
+        }
+      },
+    }
+  )
+);
 
 export default useSubtitleConverterStore;
