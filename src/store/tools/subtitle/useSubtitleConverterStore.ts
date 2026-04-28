@@ -109,7 +109,11 @@ const useSubtitleConverterStore = create<SubtitleConverterStore>()(
         ...state.resolvedTasks,
         ...state.failedTasks,
       ];
-      if (allTasks.some((t) => t.originFileURL === task.originFileURL)) {
+      if (allTasks.some((t) => t.fileName === task.fileName)) {
+        showToast(
+          i18n.t("subtitle:converter.errors.duplicate_file").replace("{file}", task.fileName),
+          "error"
+        );
         return state;
       }
       return { notStartedTasks: [...state.notStartedTasks, task] };

@@ -125,9 +125,14 @@ const useSubtitleTranslatorStore = create<SubtitleTranslatorStore>()(
         ...state.failedTaskQueue,
       ];
 
-      return allTasks.some((t) => t.originFileURL === task.originFileURL)
-        ? state // 已存在相同URL的任务
-        : { notStartedTaskQueue: [...state.notStartedTaskQueue, task] };
+      if (allTasks.some((t) => t.fileName === task.fileName)) {
+        showToast(
+          i18n.t("subtitle:translator.errors.duplicate_file").replace("{file}", task.fileName),
+          "error"
+        );
+        return state;
+      }
+      return { notStartedTaskQueue: [...state.notStartedTaskQueue, task] };
     }),
 
   updateTaskCostEstimate: (fileName, costEstimate) =>

@@ -97,7 +97,11 @@ const useSubtitleExtractorStore = create<SubtitleExtractorStore>()(
           ...state.resolvedTasks,
           ...state.failedTasks,
         ];
-        if (allTasks.some((t) => t.originFileURL === task.originFileURL)) {
+        if (allTasks.some((t) => t.fileName === task.fileName)) {
+          showToast(
+            i18n.t("subtitle:extractor:errors.duplicate_file").replace("{file}", task.fileName),
+            "error"
+          );
           return state;
         }
         return { notStartedTasks: [...state.notStartedTasks, task] };

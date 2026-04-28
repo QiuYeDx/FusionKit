@@ -284,6 +284,9 @@ function SubtitleConverter() {
         );
       }
     }
+
+    // 重置 input value，确保同一文件可以再次选择触发 onChange
+    if (e.target) e.target.value = "";
   };
 
   const getTaskStatusColor = (status: TaskStatus) => {
