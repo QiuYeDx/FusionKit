@@ -12,7 +12,7 @@
 import { BaseTranslator } from "./base-translator";
 import { SubtitleTranslatorTask } from "../typing";
 import { encode } from "gpt-tokenizer";
-import { getLanguageName } from "../contants";
+import { getLanguageName } from "../constants";
 
 export class LRCTranslator extends BaseTranslator {
   private readonly apiModel: string;

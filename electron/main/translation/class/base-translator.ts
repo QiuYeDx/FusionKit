@@ -17,7 +17,7 @@
 
 import { promises as fs } from "fs";
 import path from "path";
-import { DEFAULT_SLICE_LENGTH_MAP } from "../contants";
+import { DEFAULT_SLICE_LENGTH_MAP } from "../constants";
 import {
   SubtitleFileType,
   SubtitleSliceType,

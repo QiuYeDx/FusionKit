@@ -15,7 +15,7 @@ export enum SubtitleFileType {
 /**
  * 分片策略类型，决定每次发送给 LLM 的文本量（token 上限）。
  * 越小的分片精度越高但请求次数更多、费用更高。
- * 具体数值映射见 contants.ts 中的 DEFAULT_SLICE_LENGTH_MAP。
+ * 具体数值映射见 constants.ts 中的 DEFAULT_SLICE_LENGTH_MAP。
  */
 export enum SubtitleSliceType {
   /** 常规模式，单片最大 3000 tokens */

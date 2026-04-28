@@ -48,7 +48,6 @@ if (!app.requestSingleInstanceLock()) {
 
 let win: BrowserWindow | null = null;
 let translationService: TranslationService = new TranslationService();
-// let subtitleWindow: BrowserWindow | null = null;
 const preload = path.join(__dirname, "../preload/index.mjs");
 const indexHtml = path.join(RENDERER_DIST, "index.html");
 
@@ -65,7 +64,6 @@ async function createWindow() {
     ...(process.platform === "darwin"
       ? { trafficLightPosition: { x: 15, y: 11.5 } } // macOS 左上角的红黄绿圆点
       : {}),
-    // ...(process.platform !== "darwin" ? { titleBarOverlay: true } : {}), // TODO: 临时关闭 Windows 上的右上角操作按钮
     webPreferences: {
       preload,
       // Warning: Enable nodeIntegration and disable contextIsolation is not secure in production
@@ -103,19 +101,8 @@ async function createWindow() {
   }
 }
 
-// 为每个工具创建新的窗口
-// async function createToolsWindows() {
-//   subtitleWindow = new BrowserWindow({
-//     width: 600,
-//     height: 400,
-//     show: true,
-//   });
-//   subtitleWindow.loadURL("http://localhost:3000/tools/subtitle/translator"); // 字幕翻译工具二级窗口
-// }
-
 app.whenReady().then(() => {
   createWindow();
-  // createToolsWindows(); // 为每个工具创建新的窗口
   setupTranslationIPC(translationService);
   setupPowerIPC(win);
   setupConversionIPC();

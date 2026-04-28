@@ -13,7 +13,7 @@
 import { encode } from "gpt-tokenizer";
 import { SubtitleTranslatorTask } from "../typing";
 import { BaseTranslator } from "./base-translator";
-import { getLanguageName } from "../contants";
+import { getLanguageName } from "../constants";
 
 type TranslatorConfig = {
   apiKey: string;

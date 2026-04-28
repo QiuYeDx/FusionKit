@@ -13,7 +13,7 @@ import { SubtitleFileType, SubtitleTranslatorTask, SubtitleSliceType } from "./t
 import { LRCTranslator } from "./class/lrc-translator";
 import { SRTTranslator } from "./class/srt-translator";
 import { encode } from "gpt-tokenizer";
-import { DEFAULT_SLICE_LENGTH_MAP } from "./contants";
+import { DEFAULT_SLICE_LENGTH_MAP } from "./constants";
 
 export class TranslationService {
   /** 以 fileName 为 key 追踪正在执行的任务，用于支持取消操作 */
