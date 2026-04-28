@@ -1,4 +1,4 @@
-import { app, BrowserWindow, shell, ipcMain, dialog, Notification } from "electron";
+import { app, BrowserWindow, shell, ipcMain, dialog, Notification, Menu } from "electron";
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
@@ -82,6 +82,34 @@ async function createWindow() {
     win.webContents.openDevTools();
   } else {
     win.loadFile(indexHtml);
+
+    // 生产环境：禁用刷新和开发者工具快捷键
+    win.webContents.on("before-input-event", (event, input) => {
+      const isCtrlOrCmd = input.control || input.meta;
+
+      // 禁止刷新: F5, Ctrl/Cmd+R, Ctrl/Cmd+Shift+R
+      if (input.key === "F5") {
+        event.preventDefault();
+        return;
+      }
+      if (isCtrlOrCmd && input.key.toLowerCase() === "r") {
+        event.preventDefault();
+        return;
+      }
+
+      // 禁止开发者工具: F12, Ctrl/Cmd+Shift+I
+      if (input.key === "F12") {
+        event.preventDefault();
+        return;
+      }
+      if (isCtrlOrCmd && input.shift && input.key.toLowerCase() === "i") {
+        event.preventDefault();
+        return;
+      }
+    });
+
+    // 设置空菜单，移除默认菜单中的刷新/开发者工具快捷键
+    Menu.setApplicationMenu(Menu.buildFromTemplate([]));
   }
 
   // Test actively push message to the Electron-Renderer
