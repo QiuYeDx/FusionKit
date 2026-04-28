@@ -33,7 +33,11 @@
       "manual_key_label": "手动输入 Model Key",
       "manual_key_hint": "将作为接口请求的 model 参数",
       "apply_custom_key": "使用",
-      "empty_custom_key": "请输入模型 Key"
+      "empty_custom_key": "请输入模型 Key",
+      "deepseek_legacy_warning": "该模型将于 2026 年 7 月 24 日后停用，建议切换至 V4 系列模型。",
+      "badge_recommended": "推荐",
+      "badge_flagship": "旗舰",
+      "badge_legacy": "旧版"
     },
     "notification": {
       "label": "系统通知",

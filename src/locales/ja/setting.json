@@ -33,7 +33,11 @@
       "manual_key_label": "Model Key を手動入力",
       "manual_key_hint": "API リクエストの model パラメータとして使用",
       "apply_custom_key": "使用",
-      "empty_custom_key": "モデルキーを入力してください"
+      "empty_custom_key": "モデルキーを入力してください",
+      "deepseek_legacy_warning": "このモデルは 2026 年 7 月 24 日以降に廃止予定です。V4 シリーズへの切り替えをお勧めします。",
+      "badge_recommended": "おすすめ",
+      "badge_flagship": "フラッグシップ",
+      "badge_legacy": "旧バージョン"
     },
     "notification": {
       "label": "システム通知",

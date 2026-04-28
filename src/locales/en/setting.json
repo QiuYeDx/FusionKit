@@ -33,7 +33,11 @@
       "manual_key_label": "Manual Model Key",
       "manual_key_hint": "Used as the request model parameter",
       "apply_custom_key": "Use",
-      "empty_custom_key": "Please enter a model key"
+      "empty_custom_key": "Please enter a model key",
+      "deepseek_legacy_warning": "This model will be deprecated after July 24, 2026. It is recommended to switch to V4 series.",
+      "badge_recommended": "Recommended",
+      "badge_flagship": "Flagship",
+      "badge_legacy": "Legacy"
     },
     "notification": {
       "label": "Notification",

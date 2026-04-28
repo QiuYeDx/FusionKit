@@ -35,6 +35,7 @@ import {
 } from "@/components/ui/dialog";
 import {
   OPENAI_MODEL_OPTIONS,
+  DEEPSEEK_MODEL_OPTIONS,
   DEFAULT_MODEL_URL_MAP,
   DEFAULT_MODEL_KEY_MAP,
   DEFAULT_TOKEN_PRICING_MAP,
@@ -492,6 +493,15 @@ function ProfileEditDialog({ open, onOpenChange, profile }: ProfileDialogProps) 
     }
   };
 
+  const handleDeepSeekModelChange = (val: string) => {
+    setModelKey(val);
+    const matchedPreset = DEEPSEEK_MODEL_OPTIONS.find((o) => o.value === val);
+    if (matchedPreset) {
+      setInputPrice(matchedPreset.pricing.inputTokensPerMillion);
+      setOutputPrice(matchedPreset.pricing.outputTokensPerMillion);
+    }
+  };
+
   const handleApplyCustomModelKey = () => {
     const custom = customModelInput.trim();
     if (!custom) {
@@ -565,6 +575,52 @@ function ProfileEditDialog({ open, onOpenChange, profile }: ProfileDialogProps) 
               onChange={(e) => setApiKey(e.target.value)}
             />
           </div>
+
+          {/* DeepSeek Model Selector */}
+          {provider === Model.DeepSeek && (
+            <div className="space-y-2">
+              <Label>{t("setting:fields.model_name")}</Label>
+              <Select value={modelKey} onValueChange={handleDeepSeekModelChange}>
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectGroup>
+                    <SelectLabel>{t("setting:fields.model_fetch.preset_group")}</SelectLabel>
+                    {DEEPSEEK_MODEL_OPTIONS.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        <span className="flex items-center gap-2">
+                          <span>{option.label}</span>
+                          <span className="text-muted-foreground text-xs font-mono">{option.value}</span>
+                          {option.badge && (
+                            <Badge
+                              variant="outline"
+                              className={cn(
+                                "text-[10px] px-1.5 py-0 ml-1",
+                                option.badge === "legacy"
+                                  ? "text-muted-foreground border-muted-foreground/30"
+                                  : option.badge === "flagship"
+                                    ? "text-purple-600 dark:text-purple-400 border-purple-500/30"
+                                    : "text-emerald-600 dark:text-emerald-400 border-emerald-500/30"
+                              )}
+                            >
+                              {t(`setting:fields.model_fetch.badge_${option.badge}`)}
+                            </Badge>
+                          )}
+                        </span>
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+              {DEEPSEEK_MODEL_OPTIONS.find((o) => o.value === modelKey)?.badge === "legacy" && (
+                <p className="text-xs text-amber-600 dark:text-amber-400 flex items-center gap-1">
+                  <AlertTriangle className="h-3 w-3 shrink-0" />
+                  {t("setting:fields.model_fetch.deepseek_legacy_warning")}
+                </p>
+              )}
+            </div>
+          )}
 
           {/* OpenAI Model Selector */}
           {provider === Model.OpenAI && (
