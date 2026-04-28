@@ -211,11 +211,6 @@ const Update = ({
             </div>
           )}
         </ScrollableDialogContent>
-        <ScrollableDialogFooter className="flex justify-end">
-          <Button onClick={() => setModalOpen(false)}>
-            {t('common:action.close')}
-          </Button>
-        </ScrollableDialogFooter>
       </ScrollableDialog>
       {showTrigger ? (
         <button disabled={checking} onClick={() => checkUpdate('manual')}>
