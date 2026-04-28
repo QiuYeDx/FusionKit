@@ -413,36 +413,36 @@ function HomeAgent() {
         {/* 模拟四角边框 */}
         <motion.div
           layout
-          className="size-5 absolute z-50 top-0 left-0 rounded-tl-3xl border-l border-t border-l-border border-t-border"
+          className="size-5 absolute z-50 top-0 left-0 rounded-tl-3xl border-l border-t border-[oklch(0.922_0_0)] dark:border-[oklch(0.231_0_0)]"
         ></motion.div>
         <motion.div
           layout
-          className="size-5 absolute z-50 top-0 right-0 rounded-tr-3xl border-r border-t border-r-border border-t-border"
+          className="size-5 absolute z-50 top-0 right-0 rounded-tr-3xl border-r border-t border-[oklch(0.922_0_0)] dark:border-[oklch(0.231_0_0)]"
         ></motion.div>
         <motion.div
           layout
-          className="size-5 absolute z-50 bottom-0 left-0 rounded-bl-3xl border-b border-l border-b-border border-l-border"
+          className="size-5 absolute z-50 bottom-0 left-0 rounded-bl-3xl border-b border-l border-[oklch(0.922_0_0)] dark:border-[oklch(0.231_0_0)]"
         ></motion.div>
         <motion.div
           layout
-          className="size-5 absolute z-50 bottom-0 right-0 rounded-br-3xl border-b border-r border-b-border border-r-border"
+          className="size-5 absolute z-50 bottom-0 right-0 rounded-br-3xl border-b border-r border-[oklch(0.922_0_0)] dark:border-[oklch(0.231_0_0)]"
         ></motion.div>
         {/* 模拟四边边框 */}
         <motion.div
           layout
-          className="absolute z-50 top-0 left-5 h-0 w-[calc(100%-2.5rem)] border-t border-t-border"
+          className="absolute z-50 top-0 left-5 h-0 w-[calc(100%-2.5rem)] border-t border-[oklch(0.922_0_0)] dark:border-[oklch(0.231_0_0)]"
         ></motion.div>
         <motion.div
           layout
-          className="absolute z-50 bottom-0 left-5 h-0 w-[calc(100%-2.5rem)] border-b border-b-border"
+          className="absolute z-50 bottom-0 left-5 h-0 w-[calc(100%-2.5rem)] border-b border-[oklch(0.922_0_0)] dark:border-[oklch(0.231_0_0)]"
         ></motion.div>
         <motion.div
           layout
-          className="absolute z-50 top-5 left-0 w-0 min-h-px h-[calc(100%-2.5rem)] border-l border-l-border"
+          className="absolute z-50 top-5 left-0 w-0 min-h-px h-[calc(100%-2.5rem)] border-l border-[oklch(0.922_0_0)] dark:border-[oklch(0.231_0_0)]"
         ></motion.div>
         <motion.div
           layout
-          className="absolute z-50 top-5 right-0 w-0 min-h-px h-[calc(100%-2.5rem)] border-r border-r-border"
+          className="absolute z-50 top-5 right-0 w-0 min-h-px h-[calc(100%-2.5rem)] border-r border-[oklch(0.922_0_0)] dark:border-[oklch(0.231_0_0)]"
         ></motion.div>
       </motion.div>
     </motion.div>
