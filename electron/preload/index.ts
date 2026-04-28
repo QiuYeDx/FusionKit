@@ -60,47 +60,129 @@ const safeDOM = {
 }
 
 /**
- * https://tobiasahlin.com/spinkit
- * https://connoratherton.com/loaders
- * https://projects.lukehaas.me/css-loaders
- * https://matejkustec.github.io/SpinThatShit
+ * Preload loading screen — matches FusionKit's visual identity.
+ * Detects theme from localStorage / system preference so the background
+ * color is correct from the very first frame.
  */
 function useLoading() {
-  const className = `loaders-css__square-spin`
+  // ---- Theme detection (mirrors src/utils/common.ts logic) ----
+  const savedTheme = (typeof localStorage !== 'undefined'
+    ? localStorage.getItem('theme')
+    : null) as 'light' | 'dark' | 'system' | null
+
+  const prefersDark =
+    typeof window !== 'undefined' &&
+    window.matchMedia('(prefers-color-scheme: dark)').matches
+
+  const isDark =
+    savedTheme === 'dark' ||
+    ((!savedTheme || savedTheme === 'system') && prefersDark)
+
+  // ---- Palette ----
+  const bg        = isDark ? '#1b1b1f' : '#ffffff'
+  const rectBack  = isDark ? '#a1a1aa' : '#a1a1aa'
+  const rectFront = isDark ? '#ffffff' : '#09090b'
+  const glowColor = isDark
+    ? 'rgba(161,161,170,0.18)'
+    : 'rgba(9,9,11,0.06)'
+  const shimmer   = isDark
+    ? 'rgba(255,255,255,0.04)'
+    : 'rgba(0,0,0,0.025)'
+
   const styleContent = `
-@keyframes square-spin {
-  25% { transform: perspective(100px) rotateX(180deg) rotateY(0); }
-  50% { transform: perspective(100px) rotateX(180deg) rotateY(180deg); }
-  75% { transform: perspective(100px) rotateX(0) rotateY(180deg); }
-  100% { transform: perspective(100px) rotateX(0) rotateY(0); }
+/* ---------- Preload Loading Screen ---------- */
+
+@keyframes fk-breathe {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50%      { transform: scale(1.06); opacity: 0.72; }
 }
-.${className} > div {
-  animation-fill-mode: both;
-  width: 50px;
-  height: 50px;
-  background: #fff;
-  animation: square-spin 3s 0s cubic-bezier(0.09, 0.57, 0.49, 0.9) infinite;
+
+@keyframes fk-glow-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 ${glowColor}; }
+  50%      { box-shadow: 0 0 28px 8px ${glowColor}; }
 }
+
+@keyframes fk-shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+@keyframes fk-fade-in {
+  from { opacity: 0; transform: scale(0.88); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
 .app-loading-wrap {
   position: fixed;
-  top: 0;
-  left: 0;
+  inset: 0;
   width: 100vw;
   height: 100vh;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
-  background: #282c34;
+  background: ${bg};
   z-index: 9;
+  -webkit-app-region: drag;
+  user-select: none;
+  transition: opacity 0.35s ease;
 }
-    `
+
+.app-loading-wrap.fk-fade-out {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.fk-logo-wrap {
+  position: relative;
+  width: 72px;
+  height: 72px;
+  animation: fk-fade-in 0.5s ease-out both,
+             fk-glow-pulse 2.8s ease-in-out infinite;
+  border-radius: 16px;
+}
+
+.fk-logo-svg {
+  width: 72px;
+  height: 72px;
+  animation: fk-breathe 2.8s ease-in-out infinite;
+}
+
+.fk-shimmer-bar {
+  margin-top: 28px;
+  width: 96px;
+  height: 3px;
+  border-radius: 2px;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    ${shimmer} 20%,
+    ${isDark ? 'rgba(255,255,255,0.10)' : 'rgba(0,0,0,0.06)'} 50%,
+    ${shimmer} 80%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
+  animation: fk-shimmer 1.8s ease-in-out infinite,
+             fk-fade-in 0.6s ease-out 0.15s both;
+}
+  `
+
+  const logoSVG = `
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" class="fk-logo-svg">
+  <rect x="128" y="124" width="196" height="196" rx="36" fill="${rectBack}"/>
+  <rect x="188" y="192" width="196" height="196" rx="36" fill="${rectFront}"/>
+</svg>`
+
   const oStyle = document.createElement('style')
   const oDiv = document.createElement('div')
 
   oStyle.id = 'app-loading-style'
   oStyle.innerHTML = styleContent
   oDiv.className = 'app-loading-wrap'
-  oDiv.innerHTML = `<div class="${className}"><div></div></div>`
+  oDiv.innerHTML = `
+    <div class="fk-logo-wrap">${logoSVG}</div>
+    <div class="fk-shimmer-bar"></div>
+  `
 
   return {
     appendLoading() {
@@ -108,8 +190,11 @@ function useLoading() {
       safeDOM.append(document.body, oDiv)
     },
     removeLoading() {
-      safeDOM.remove(document.head, oStyle)
-      safeDOM.remove(document.body, oDiv)
+      oDiv.classList.add('fk-fade-out')
+      setTimeout(() => {
+        safeDOM.remove(document.head, oStyle)
+        safeDOM.remove(document.body, oDiv)
+      }, 350)
     },
   }
 }
