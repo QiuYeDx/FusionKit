@@ -34,17 +34,19 @@ function getRouteIndex(pathname: string): number {
 
 const SLIDE_OFFSET = 60;
 
+// Avoid transform-based route motion: transformed ancestors make fixed
+// descendants position against the page wrapper instead of the viewport.
 const pageVariants = {
   enter: (direction: number) => ({
-    x: direction * SLIDE_OFFSET,
+    left: direction * SLIDE_OFFSET,
     opacity: 0,
   }),
   center: {
-    x: 0,
+    left: 0,
     opacity: 1,
   },
   exit: (direction: number) => ({
-    x: -direction * SLIDE_OFFSET,
+    left: -direction * SLIDE_OFFSET,
     opacity: 0,
   }),
 };
@@ -84,6 +86,7 @@ function App() {
             <motion.div
               key={location.pathname}
               custom={directionRef.current}
+              className="relative"
               variants={pageVariants}
               initial="enter"
               animate="center"
