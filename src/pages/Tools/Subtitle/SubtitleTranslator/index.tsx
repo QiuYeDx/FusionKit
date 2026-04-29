@@ -1253,9 +1253,9 @@ function SubtitleTranslator() {
 
       {/* Token消耗预估配置显示 */}
       <div className="mb-4">
-        <Card>
+        <Card className="gap-3 py-4">
           <CardHeader
-            className="flex items-center justify-between cursor-pointer select-none"
+            className="flex items-center justify-between cursor-pointer select-none px-4"
             onClick={() => setIsNewTaskConfigOpen((v) => !v)}
           >
             <CardTitle className="text-xl">
@@ -1269,79 +1269,71 @@ function SubtitleTranslator() {
             />
           </CardHeader>
           {isNewTaskConfigOpen && (
-            <CardContent>
-              <div className="text-sm text-muted-foreground mb-3">
+            <CardContent className="px-4">
+              <div className="text-sm text-muted-foreground mb-2">
                 {t("subtitle:translator.new_task_config.note")}
               </div>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                <Card className="border-muted">
-                  <CardContent>
-                    <div className="text-muted-foreground text-xs mb-1">
-                      {t(
-                        "subtitle:translator.new_task_config.current_language_pair"
-                      )}
-                    </div>
-                    <div className="font-medium">
-                      {t(`subtitle:translator.languages.${sourceLang}`)}
-                      {" → "}
-                      {t(`subtitle:translator.languages.${targetLang}`)}
-                      <span className="ml-1.5 text-muted-foreground text-xs">
-                        ({translationOutputMode === "bilingual"
-                          ? t("subtitle:translator.fields.output_bilingual")
-                          : t("subtitle:translator.fields.output_target_only")})
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+                <div className="rounded-lg border border-muted/70 bg-muted/20 px-3 py-2.5">
+                  <div className="text-muted-foreground text-xs mb-1">
+                    {t(
+                      "subtitle:translator.new_task_config.current_language_pair"
+                    )}
+                  </div>
+                  <div className="font-medium">
+                    {t(`subtitle:translator.languages.${sourceLang}`)}
+                    {" → "}
+                    {t(`subtitle:translator.languages.${targetLang}`)}
+                    <span className="ml-1.5 text-muted-foreground text-xs">
+                      ({translationOutputMode === "bilingual"
+                        ? t("subtitle:translator.fields.output_bilingual")
+                        : t("subtitle:translator.fields.output_target_only")})
+                    </span>
+                  </div>
+                </div>
+                <div className="rounded-lg border border-muted/70 bg-muted/20 px-3 py-2.5">
+                  <div className="text-muted-foreground text-xs mb-1">
+                    {t(
+                      "subtitle:translator.new_task_config.current_slice_mode"
+                    )}
+                  </div>
+                  <div className="font-medium">
+                    {t(
+                      `subtitle:translator.slice_types.${sliceType.toLowerCase()}`
+                    )}
+                    {sliceType === SubtitleSliceType.CUSTOM && (
+                      <span className="ml-1 text-muted-foreground">
+                        ({sliceLengthMap[SubtitleSliceType.CUSTOM]}
+                        {t(
+                          "subtitle:translator.new_task_config.chars_suffix"
+                        )}
+                        )
                       </span>
-                    </div>
-                  </CardContent>
-                </Card>
-                <Card className="border-muted">
-                  <CardContent>
-                    <div className="text-muted-foreground text-xs mb-1">
-                      {t(
-                        "subtitle:translator.new_task_config.current_slice_mode"
-                      )}
-                    </div>
-                    <div className="font-medium">
-                      {t(
-                        `subtitle:translator.slice_types.${sliceType.toLowerCase()}`
-                      )}
-                      {sliceType === SubtitleSliceType.CUSTOM && (
-                        <span className="ml-1 text-muted-foreground">
-                          ({sliceLengthMap[SubtitleSliceType.CUSTOM]}
-                          {t(
-                            "subtitle:translator.new_task_config.chars_suffix"
-                          )}
-                          )
-                        </span>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
-                <Card className="border-muted">
-                  <CardContent>
-                    <div className="text-muted-foreground text-xs mb-1">
-                      {t("subtitle:translator.new_task_config.rate_in_out")}
-                    </div>
-                    <div className="font-mono text-sm">
-                      $
-                      {(taskProfile?.tokenPricing.inputTokensPerMillion ?? 0).toFixed(2)}
-                      /$
-                      {(taskProfile?.tokenPricing.outputTokensPerMillion ?? 0).toFixed(2)}{" "}
-                      {t("subtitle:translator.new_task_config.rate_suffix")}
-                    </div>
-                  </CardContent>
-                </Card>
-                <Card className="border-muted">
-                  <CardContent>
-                    <div className="text-muted-foreground text-xs mb-1">
-                      {t("subtitle:translator.new_task_config.total_tasks")}
-                    </div>
-                    <div className="font-medium">
-                      {t(
-                        "subtitle:translator.new_task_config.task_count"
-                      ).replace("{count}", String(tokenStats.taskCount))}
-                    </div>
-                  </CardContent>
-                </Card>
+                    )}
+                  </div>
+                </div>
+                <div className="rounded-lg border border-muted/70 bg-muted/20 px-3 py-2.5">
+                  <div className="text-muted-foreground text-xs mb-1">
+                    {t("subtitle:translator.new_task_config.rate_in_out")}
+                  </div>
+                  <div className="font-mono text-sm">
+                    $
+                    {(taskProfile?.tokenPricing.inputTokensPerMillion ?? 0).toFixed(2)}
+                    /$
+                    {(taskProfile?.tokenPricing.outputTokensPerMillion ?? 0).toFixed(2)}{" "}
+                    {t("subtitle:translator.new_task_config.rate_suffix")}
+                  </div>
+                </div>
+                <div className="rounded-lg border border-muted/70 bg-muted/20 px-3 py-2.5">
+                  <div className="text-muted-foreground text-xs mb-1">
+                    {t("subtitle:translator.new_task_config.total_tasks")}
+                  </div>
+                  <div className="font-medium">
+                    {t(
+                      "subtitle:translator.new_task_config.task_count"
+                    ).replace("{count}", String(tokenStats.taskCount))}
+                  </div>
+                </div>
               </div>
             </CardContent>
           )}
@@ -1447,58 +1439,52 @@ function SubtitleTranslator() {
         <CardContent>
           {/* Token统计信息 */}
           {tokenStats.taskCount > 0 && (
-            <Card className="mb-4">
-              <CardHeader>
+            <Card className="mb-4 gap-3 py-4">
+              <CardHeader className="px-4">
                 <div className="flex items-center gap-2">
-                  <Cpu className="h-5 w-5" />
-                  <CardTitle className="text-lg">{t("subtitle:translator.token_stats.title")}</CardTitle>
+                  <Cpu className="h-4 w-4 text-muted-foreground" />
+                  <CardTitle className="text-base">
+                    {t("subtitle:translator.token_stats.title")}
+                  </CardTitle>
                 </div>
               </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                  <Card className="border-muted">
-                    <CardContent>
-                      <div className="text-muted-foreground text-xs mb-1">
-                        {t("subtitle:translator.token_stats.total_tokens")}
-                      </div>
-                      <div className="font-mono text-lg inline-flex items-center gap-1.5">
-                        {tokenStats.hasLoading && (
-                          <RotateCw className="h-3.5 w-3.5 animate-spin text-muted-foreground/60" />
-                        )}
-                        {formatTokens(tokenStats.totalTokens)}
-                      </div>
-                    </CardContent>
-                  </Card>
-                  <Card className="border-muted">
-                    <CardContent>
-                      <div className="text-muted-foreground text-xs mb-1">
-                        {t("subtitle:translator.token_stats.total_cost")}
-                      </div>
-                      <div className="font-mono text-lg">
-                        {formatCost(tokenStats.totalCost)}
-                      </div>
-                    </CardContent>
-                  </Card>
-                  <Card className="border-muted">
-                    <CardContent>
-                      <div className="text-muted-foreground text-xs mb-1">
-                        {t("subtitle:translator.token_stats.pending_tokens")}
-                      </div>
-                      <div className="font-mono text-lg text-orange-600">
-                        {formatTokens(tokenStats.pendingTokens)}
-                      </div>
-                    </CardContent>
-                  </Card>
-                  <Card className="border-muted">
-                    <CardContent>
-                      <div className="text-muted-foreground text-xs mb-1">
-                        {t("subtitle:translator.token_stats.pending_cost")}
-                      </div>
-                      <div className="font-mono text-lg text-orange-600">
-                        {formatCost(tokenStats.pendingCost)}
-                      </div>
-                    </CardContent>
-                  </Card>
+              <CardContent className="px-4">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+                  <div className="rounded-lg border border-muted/70 bg-muted/20 px-3 py-2.5">
+                    <div className="text-muted-foreground text-xs mb-1">
+                      {t("subtitle:translator.token_stats.total_tokens")}
+                    </div>
+                    <div className="font-mono text-base inline-flex items-center gap-1.5">
+                      {tokenStats.hasLoading && (
+                        <RotateCw className="h-3.5 w-3.5 animate-spin text-muted-foreground/60" />
+                      )}
+                      {formatTokens(tokenStats.totalTokens)}
+                    </div>
+                  </div>
+                  <div className="rounded-lg border border-muted/70 bg-muted/20 px-3 py-2.5">
+                    <div className="text-muted-foreground text-xs mb-1">
+                      {t("subtitle:translator.token_stats.total_cost")}
+                    </div>
+                    <div className="font-mono text-base">
+                      {formatCost(tokenStats.totalCost)}
+                    </div>
+                  </div>
+                  <div className="rounded-lg border border-muted/70 bg-muted/20 px-3 py-2.5">
+                    <div className="text-muted-foreground text-xs mb-1">
+                      {t("subtitle:translator.token_stats.pending_tokens")}
+                    </div>
+                    <div className="font-mono text-base text-orange-600">
+                      {formatTokens(tokenStats.pendingTokens)}
+                    </div>
+                  </div>
+                  <div className="rounded-lg border border-muted/70 bg-muted/20 px-3 py-2.5">
+                    <div className="text-muted-foreground text-xs mb-1">
+                      {t("subtitle:translator.token_stats.pending_cost")}
+                    </div>
+                    <div className="font-mono text-base text-orange-600">
+                      {formatCost(tokenStats.pendingCost)}
+                    </div>
+                  </div>
                 </div>
               </CardContent>
             </Card>
