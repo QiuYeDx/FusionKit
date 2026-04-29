@@ -1,5 +1,10 @@
 import { cloneDeep } from "lodash";
-import { SubtitleTranslatorTask, TaskStatus } from "@/type/subtitle";
+import {
+  SubtitleTranslatorTask,
+  TaskStatus,
+  type SubtitleTranslationRecovery,
+  type TranslationRecoveryMode,
+} from "@/type/subtitle";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -178,17 +183,30 @@ export function startAllTasks(
   };
 }
 
+/**
+ * 重试失败任务。
+ *   - mode "resume"（默认）: 保留 recovery 信息，续跑时只翻译未完成分片
+ *   - mode "restart": 清空 recovery，进度归零，完全重新翻译
+ */
 export function retryTask(
   state: TranslatorQueueState,
   fileName: string,
+  mode: TranslationRecoveryMode = "resume",
 ): TranslatorQueueResult {
   const task = state.failedTaskQueue.find((t) => t.fileName === fileName);
   if (!task) return { state, effects: [] };
 
+  const isResume = mode !== "restart";
+
   const reset = cloneDeep({
     ...task,
     status: TaskStatus.NOT_STARTED,
-    progress: 0,
+    progress: isResume ? task.progress : 0,
+    resolvedFragments: isResume ? task.resolvedFragments : 0,
+    totalFragments: isResume ? task.totalFragments : undefined,
+    recovery: isResume ? task.recovery : undefined,
+    recoveryMode: mode,
+    checkpointPath: isResume ? task.recovery?.checkpointPath : undefined,
   });
 
   return {
@@ -226,6 +244,8 @@ export function updateTask(
  * Handle progress updates from the main process.
  * When resolvedFragments === totalFragments the task is moved to resolved and
  * a waiting task is promoted if a slot opens up.
+ *
+ * payload.recovery 携带 checkpoint 路径，patch 到任务上以供续跑使用。
  */
 export function completeTaskProgress(
   state: TranslatorQueueState,
@@ -234,10 +254,15 @@ export function completeTaskProgress(
     resolvedFragments: number;
     totalFragments: number;
     progress: number;
+    recovery?: Pick<
+      SubtitleTranslationRecovery,
+      "checkpointPath" | "completedOutputPath" | "remainingOutputPath"
+    >;
   },
   maxConcurrency: number,
 ): TranslatorQueueResult {
-  const { fileName, resolvedFragments, totalFragments, progress } = payload;
+  const { fileName, resolvedFragments, totalFragments, progress, recovery } =
+    payload;
   const task = state.pendingTaskQueue.find((t) => t.fileName === fileName);
   if (!task) return { state, effects: [] };
 
@@ -259,10 +284,23 @@ export function completeTaskProgress(
     const nextResolved = mergeIntoResolved(state.resolvedTaskQueue, completed);
 
     return promoteWaitingTaskIfSlotAvailable(
-      { ...state, pendingTaskQueue: remainingPending, resolvedTaskQueue: nextResolved },
+      {
+        ...state,
+        pendingTaskQueue: remainingPending,
+        resolvedTaskQueue: nextResolved,
+      },
       maxConcurrency,
     );
   }
+
+  const recoveryPatch: Partial<SubtitleTranslatorTask> = recovery
+    ? {
+        recovery: {
+          ...(task.recovery || {}),
+          ...recovery,
+        },
+      }
+    : {};
 
   return {
     state: {
@@ -277,6 +315,7 @@ export function completeTaskProgress(
               resolvedFragments,
               totalFragments,
               progress,
+              ...recoveryPatch,
             }
           : t,
       ),
@@ -343,6 +382,8 @@ export function resolveTask(
  * Move a task from pending to failed. After removal the waiting queue is
  * checked — this fixes the original bug where a full-capacity failure didn't
  * promote a waiting task because the length check happened before removal.
+ *
+ * errorData.recovery 来自主进程 task-failed 事件，保存到任务上供续跑使用。
  */
 export function failTask(
   state: TranslatorQueueState,
@@ -353,6 +394,7 @@ export function failTask(
     errorLogs?: string[];
     timestamp?: string;
     stackTrace?: string;
+    recovery?: SubtitleTranslationRecovery;
   },
   maxConcurrency: number,
 ): TranslatorQueueResult {
@@ -365,6 +407,9 @@ export function failTask(
     ...task,
     status: TaskStatus.FAILED,
     errorLog: errorData.errorLogs || [],
+    recovery: errorData.recovery,
+    resolvedFragments: errorData.recovery?.resolvedFragments ?? task.resolvedFragments,
+    totalFragments: errorData.recovery?.totalFragments ?? task.totalFragments,
     extraInfo: {
       error: errorData.error,
       message: errorData.message,

@@ -68,18 +68,41 @@ export const EXTRACT_SUPPORTED_LANGUAGES: {
   { code: "PT", labelKey: "subtitle:translator.languages.PT" },
 ];
 
+/**
+ * 续跑模式：
+ *   - auto:    有可用 checkpoint 则续跑，否则首次执行
+ *   - resume:  必须加载 checkpoint
+ *   - restart: 忽略 checkpoint，重新翻译
+ */
+export type TranslationRecoveryMode = "auto" | "resume" | "restart";
+
+/**
+ * 恢复信息摘要，由 task-failed / update-progress 事件携带，
+ * 保存在 SubtitleTranslatorTask.recovery 中供 UI 使用。
+ */
+export type SubtitleTranslationRecovery = {
+  checkpointPath?: string;
+  completedOutputPath?: string;
+  remainingOutputPath?: string;
+  errorLogPath?: string;
+  resumable?: boolean;
+  failedFragmentIndexes?: number[];
+  resolvedFragments?: number;
+  totalFragments?: number;
+};
+
 export type SubtitleTranslatorTask = {
   fileName: string;
   fileContent: string;
   sliceType: SubtitleSliceType;
   customSliceLength?: number;
-  originFileURL: string; // 源文件路径
-  targetFileURL: string; // 输出文件路径
-  status: TaskStatus; // 任务状态
-  totalFragments?: number; // 总分片数
-  resolvedFragments?: number; // 已完成的分片数
+  originFileURL: string;
+  targetFileURL: string;
+  status: TaskStatus;
+  totalFragments?: number;
+  resolvedFragments?: number;
   progress?: number;
-  controller?: AbortController; // 用于任务取消
+  controller?: AbortController;
   costEstimate?: {
     inputTokens: number;
     outputTokens: number;
@@ -87,8 +110,8 @@ export type SubtitleTranslatorTask = {
     estimatedCost: number;
     fragmentCount: number;
     loading?: boolean;
-  }; // 费用预估
-  errorLog?: string[]; // 错误日志
+  };
+  errorLog?: string[];
 
   apiKey: string;
   apiModel: string;
@@ -101,6 +124,13 @@ export type SubtitleTranslatorTask = {
   extraInfo?: { [key: string]: any };
   conflictPolicy?: OutputConflictPolicy;
   concurrentSlices?: boolean;
+
+  /** 续跑恢复信息（失败任务携带，用于续跑重试） */
+  recovery?: SubtitleTranslationRecovery;
+  /** 续跑模式，仅在重试时设置 */
+  recoveryMode?: TranslationRecoveryMode;
+  /** checkpoint 文件路径，续跑时传入主进程 */
+  checkpointPath?: string;
 };
 
 export type SubtitleConverterTask = {

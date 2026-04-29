@@ -22,11 +22,32 @@ import {
   SubtitleFileType,
   SubtitleSliceType,
   SubtitleTranslatorTask,
+  type TranslationCheckpointManifest,
+  type SubtitleTranslationRecovery,
 } from "../typing";
 import { ipcMain, BrowserWindow } from "electron";
 import axios from "axios";
 import { fixSrtSubtitles, removeThinkTags, hasThinkTags } from "../utils";
 import { getAxiosProxyConfig } from "../../proxy";
+import {
+  createManifest,
+  loadManifest,
+  validateManifest,
+  CheckpointWriter,
+  buildCheckpointPaths,
+  getIncompleteIndexes,
+  getResolvedCount,
+  allFragmentsResolved,
+  markFragmentRunning,
+  markFragmentResolved,
+  markFragmentFailed,
+  buildRecoverySummary,
+} from "../checkpoint";
+import {
+  flushRecoveryArtifacts,
+  buildFinalContent,
+  cleanupOnSuccess,
+} from "../recovery-artifacts";
 
 type OutputConflictPolicy = "overwrite" | "index";
 type TranslationFragmentMeta = {
@@ -59,9 +80,11 @@ export abstract class BaseTranslator {
    * 执行步骤：
    *   1. 初始化语言设置
    *   2. 将字幕内容拆分为多个 fragment（由子类 splitContent 实现）
-   *   3. 根据 concurrentSlices 选择顺序或并发翻译
-   *   4. 将所有翻译结果拼接并写入目标文件
-   *   5. 通过 IPC 通知渲染进程翻译结果（成功/失败）
+   *   3. 创建或加载 checkpoint manifest
+   *   4. 跳过 checkpoint 中已成功的分片，只翻译 pending/failed 分片
+   *   5. 每个分片成功后更新 checkpoint 并刷新 completed/remaining
+   *   6. 全部分片完成后合并最终文件
+   *   7. 通过 IPC 通知渲染进程翻译结果（成功/失败）
    */
   async translate(task: SubtitleTranslatorTask, signal?: AbortSignal) {
     this.sourceLang = task.sourceLang || "JA";
@@ -70,6 +93,11 @@ export abstract class BaseTranslator {
 
     const errorLogs: string[] = [];
     const startTime = new Date().toISOString();
+    const outputDir = path.resolve(task.targetFileURL);
+
+    let manifest: TranslationCheckpointManifest | undefined;
+    let manifestPath: string | undefined;
+    let cpWriter: CheckpointWriter | undefined;
 
     try {
       console.log("[01] start process file:", task.fileName);
@@ -93,31 +121,85 @@ export abstract class BaseTranslator {
         `[${new Date().toISOString()}] 分片数量: ${fragments.length}`,
       );
 
-      this.updateProgress(task, 0, fragments.length);
+      // ── checkpoint 加载或创建 ─────────────────────────────────────────
+      await fs.mkdir(outputDir, { recursive: true });
+      const paths = buildCheckpointPaths(outputDir, task.fileName);
+      manifestPath = paths.manifestPath;
 
-      let translatedFragments: string[];
+      const recoveryMode = task.recoveryMode || "auto";
 
+      if (recoveryMode !== "restart" && task.checkpointPath) {
+        try {
+          const loaded = await loadManifest(task.checkpointPath);
+          const validation = validateManifest(loaded, task, fragments);
+          if (validation.valid) {
+            manifest = loaded;
+            manifest.status = "running";
+            manifest.updatedAt = new Date().toISOString();
+            manifestPath = task.checkpointPath;
+            errorLogs.push(
+              `[${new Date().toISOString()}] 从 checkpoint 续跑，已完成 ${getResolvedCount(manifest)}/${manifest.fragments.length} 个分片`,
+            );
+          } else {
+            const reason = validation.reason;
+            errorLogs.push(
+              `[${new Date().toISOString()}] Checkpoint 校验失败: ${reason}`,
+            );
+            if (recoveryMode === "resume") {
+              throw new Error(`续跑文件与当前任务不匹配: ${reason}`);
+            }
+          }
+        } catch (e) {
+          if (recoveryMode === "resume") throw e;
+          errorLogs.push(
+            `[${new Date().toISOString()}] 加载 checkpoint 失败，将重新开始`,
+          );
+        }
+      }
+
+      if (!manifest) {
+        manifest = createManifest(task, fragments, outputDir);
+      }
+
+      cpWriter = new CheckpointWriter(manifestPath);
+      await cpWriter.write(manifest);
+      await flushRecoveryArtifacts(manifest);
+
+      const resolvedBefore = getResolvedCount(manifest);
+      this.updateProgress(task, resolvedBefore, fragments.length, manifest, manifestPath);
+
+      // ── 翻译分片 ─────────────────────────────────────────────────────
       if (task.concurrentSlices && fragments.length > 1) {
         errorLogs.push(
           `[${new Date().toISOString()}] 并发模式，最大并发数: ${this.maxSliceConcurrency}`,
         );
-        translatedFragments = await this.translateFragmentsConcurrently(
+        await this.translateFragmentsConcurrently(
           fragments,
           task,
           signal,
           errorLogs,
+          manifest,
+          cpWriter,
+          manifestPath,
         );
       } else {
-        translatedFragments = await this.translateFragmentsSequentially(
+        await this.translateFragmentsSequentially(
           fragments,
           task,
           signal,
           errorLogs,
+          manifest,
+          cpWriter,
+          manifestPath,
         );
       }
 
-      const fileType = task.fileName.split(".").at(-1)?.toUpperCase();
-      const translatedContent = translatedFragments.join("\n\n");
+      // ── 合并最终文件 ──────────────────────────────────────────────────
+      if (!allFragmentsResolved(manifest)) {
+        throw new Error("存在未完成的分片，无法生成最终文件");
+      }
+
+      const translatedContent = buildFinalContent(manifest);
 
       errorLogs.push(
         `[${new Date().toISOString()}] 开始写入文件到: ${task.targetFileURL}`,
@@ -132,7 +214,13 @@ export abstract class BaseTranslator {
         `[${new Date().toISOString()}] 文件写入完成: ${finalPath}`,
       );
 
-      // 通过 IPC 将最终输出路径发送给渲染进程，用于 UI 展示"打开文件"按钮
+      manifest.status = "completed";
+      manifest.finalOutputPath = finalPath;
+      manifest.updatedAt = new Date().toISOString();
+      await cpWriter.write(manifest);
+
+      await cleanupOnSuccess(manifest, manifestPath);
+
       const mainWindow = BrowserWindow.getAllWindows()[0];
       if (mainWindow) {
         mainWindow.webContents.send("task-resolved", {
@@ -154,6 +242,20 @@ export abstract class BaseTranslator {
         errorLogs.push(`[${new Date().toISOString()}] 堆栈跟踪: ${stackTrace}`);
       }
 
+      // flush checkpoint & recovery artifacts on failure
+      let recovery: SubtitleTranslationRecovery | undefined;
+      if (manifest && cpWriter && manifestPath) {
+        try {
+          manifest.status = "failed";
+          manifest.updatedAt = new Date().toISOString();
+          await cpWriter.write(manifest);
+          await flushRecoveryArtifacts(manifest, errorLogs);
+          recovery = buildRecoverySummary(manifest, manifestPath);
+        } catch (flushErr) {
+          console.error("[base-translator] flush checkpoint failed:", flushErr);
+        }
+      }
+
       const mainWindow = BrowserWindow.getAllWindows()[0];
       if (mainWindow) {
         mainWindow.webContents.send("task-failed", {
@@ -163,6 +265,7 @@ export abstract class BaseTranslator {
           errorLogs: errorLogs,
           timestamp: startTime,
           stackTrace: stackTrace,
+          recovery,
         });
       } else {
         console.error(
@@ -176,19 +279,29 @@ export abstract class BaseTranslator {
   }
 
   /**
-   * 顺序翻译：逐片调用 LLM，前一片的原文作为 context 传入下一片的 prompt，
-   * 保证翻译连贯性。适合对上下文敏感的内容。
+   * 顺序翻译：逐片调用 LLM，前一片的原文作为 context 传入下一片的 prompt。
+   * 已在 checkpoint 中标记为 resolved 的分片会被跳过。
    */
   private async translateFragmentsSequentially(
     fragments: string[],
     task: SubtitleTranslatorTask,
     signal: AbortSignal | undefined,
     errorLogs: string[],
-  ): Promise<string[]> {
-    const results: string[] = [];
+    manifest: TranslationCheckpointManifest,
+    cpWriter: CheckpointWriter,
+    manifestPath: string,
+  ): Promise<void> {
+    const incompleteSet = new Set(getIncompleteIndexes(manifest));
 
     for (const [index, fragment] of fragments.entries()) {
       if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
+
+      if (!incompleteSet.has(index)) {
+        continue;
+      }
+
+      const cpFragment = manifest.fragments[index];
+      markFragmentRunning(cpFragment, task.apiModel);
 
       try {
         errorLogs.push(
@@ -204,49 +317,61 @@ export abstract class BaseTranslator {
           { index: index + 1, total: fragments.length },
         );
 
-        results.push(result);
+        markFragmentResolved(cpFragment, result);
+        manifest.updatedAt = new Date().toISOString();
+        await cpWriter.write(manifest);
+        await flushRecoveryArtifacts(manifest);
+
+        const resolved = getResolvedCount(manifest);
         errorLogs.push(
-          `[${new Date().toISOString()}] 第 ${index + 1} 个分片翻译完成`,
+          `[${new Date().toISOString()}] 第 ${index + 1} 个分片翻译完成 (${resolved}/${fragments.length})`,
         );
-        this.updateProgress(task, index + 1, fragments.length);
+        this.updateProgress(task, resolved, fragments.length, manifest, manifestPath);
       } catch (fragmentError) {
+        markFragmentFailed(
+          cpFragment,
+          fragmentError instanceof Error
+            ? fragmentError.message
+            : String(fragmentError),
+        );
         errorLogs.push(
           `[${new Date().toISOString()}] 第 ${index + 1} 个分片翻译失败: ${fragmentError instanceof Error ? fragmentError.message : String(fragmentError)}`,
         );
         throw fragmentError;
       }
     }
-
-    return results;
   }
 
   /**
-   * 并发翻译：启动 N 个 worker 竞争消费 fragment 队列。
-   *
-   * 实现要点：
-   *   - 用 nextIndex 做无锁队列指针（JS 单线程安全）
-   *   - results 按原始下标写入，保证最终顺序正确
-   *   - 任一 worker 失败后设置 failed 标志，其余 worker 尽快退出
+   * 并发翻译：启动 N 个 worker 竞争消费未完成的 fragment 队列。
+   * checkpoint 写入通过 CheckpointWriter 串行化，避免竞态。
    */
   private async translateFragmentsConcurrently(
     fragments: string[],
     task: SubtitleTranslatorTask,
     signal: AbortSignal | undefined,
     errorLogs: string[],
-  ): Promise<string[]> {
-    const results: (string | null)[] = new Array(fragments.length).fill(null);
-    let completedCount = 0;
-    let nextIndex = 0;
+    manifest: TranslationCheckpointManifest,
+    cpWriter: CheckpointWriter,
+    manifestPath: string,
+  ): Promise<void> {
+    const pendingIndexes = getIncompleteIndexes(manifest);
+    if (pendingIndexes.length === 0) return;
+
+    let cursor = 0;
     let failed = false;
 
     const worker = async (): Promise<void> => {
       while (!failed) {
-        const index = nextIndex++;
-        if (index >= fragments.length) break;
+        const pos = cursor++;
+        if (pos >= pendingIndexes.length) break;
+        const index = pendingIndexes[pos];
         if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
 
         const fragment = fragments[index];
         const context = index > 0 ? fragments[index - 1] : "";
+        const cpFragment = manifest.fragments[index];
+        markFragmentRunning(cpFragment, task.apiModel);
 
         try {
           errorLogs.push(
@@ -262,14 +387,22 @@ export abstract class BaseTranslator {
             { index: index + 1, total: fragments.length },
           );
 
-          results[index] = result;
-          completedCount++;
+          markFragmentResolved(cpFragment, result);
+          manifest.updatedAt = new Date().toISOString();
+          await cpWriter.write(manifest);
+          await flushRecoveryArtifacts(manifest);
+
+          const resolved = getResolvedCount(manifest);
           errorLogs.push(
-            `[${new Date().toISOString()}] [并发] 第 ${index + 1} 个分片翻译完成 (${completedCount}/${fragments.length})`,
+            `[${new Date().toISOString()}] [并发] 第 ${index + 1} 个分片翻译完成 (${resolved}/${fragments.length})`,
           );
-          this.updateProgress(task, completedCount, fragments.length);
+          this.updateProgress(task, resolved, fragments.length, manifest, manifestPath);
         } catch (err) {
           failed = true;
+          markFragmentFailed(
+            cpFragment,
+            err instanceof Error ? err.message : String(err),
+          );
           errorLogs.push(
             `[${new Date().toISOString()}] [并发] 第 ${index + 1} 个分片翻译失败: ${err instanceof Error ? err.message : String(err)}`,
           );
@@ -278,10 +411,8 @@ export abstract class BaseTranslator {
       }
     };
 
-    const workerCount = Math.min(this.maxSliceConcurrency, fragments.length);
+    const workerCount = Math.min(this.maxSliceConcurrency, pendingIndexes.length);
     await Promise.all(Array.from({ length: workerCount }, () => worker()));
-
-    return results.filter((r): r is string => r !== null);
   }
 
   /** 更新任务进度并通过 IPC "update-progress" 事件推送给渲染进程 */
@@ -289,26 +420,35 @@ export abstract class BaseTranslator {
     task: SubtitleTranslatorTask,
     current: number,
     total: number,
+    manifest?: TranslationCheckpointManifest,
+    manifestPath?: string,
   ) {
     task.resolvedFragments = current;
     task.totalFragments = total;
     task.progress = Math.round((current / total) * 100);
 
+    const payload: Record<string, unknown> = {
+      fileName: task.fileName,
+      resolvedFragments: current,
+      totalFragments: total,
+      progress: task.progress,
+    };
+
+    if (manifest && manifestPath) {
+      payload.recovery = {
+        checkpointPath: manifestPath,
+        completedOutputPath: manifest.completedOutputPath,
+        remainingOutputPath: manifest.remainingOutputPath,
+      } satisfies Pick<
+        SubtitleTranslationRecovery,
+        "checkpointPath" | "completedOutputPath" | "remainingOutputPath"
+      >;
+    }
+
     const mainWindow = BrowserWindow.getAllWindows()[0];
     if (mainWindow) {
-      console.log("发送进度更新:", {
-        fileName: task.fileName,
-        resolvedFragments: current,
-        totalFragments: total,
-        progress: task.progress,
-      });
-
-      mainWindow.webContents.send("update-progress", {
-        fileName: task.fileName,
-        resolvedFragments: current,
-        totalFragments: total,
-        progress: task.progress,
-      });
+      console.log("发送进度更新:", payload);
+      mainWindow.webContents.send("update-progress", payload);
     } else {
       console.error("未找到主窗口，无法发送进度更新");
     }

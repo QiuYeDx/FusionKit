@@ -4,6 +4,8 @@ import { DEFAULT_SLICE_LENGTH_MAP } from "@/constants/subtitle";
 import {
   SubtitleSliceType,
   SubtitleTranslatorTask,
+  type SubtitleTranslationRecovery,
+  type TranslationRecoveryMode,
 } from "@/type/subtitle";
 import { showToast } from "@/utils/toast";
 import i18n from "@/i18n";
@@ -36,7 +38,7 @@ interface SubtitleTranslatorStore {
   initializeSubtitleTranslatorStore: () => void;
   addTask: (task: SubtitleTranslatorTask) => void;
   startTask: (fileName: string) => void;
-  retryTask: (fileName: string) => void;
+  retryTask: (fileName: string, mode?: TranslationRecoveryMode) => void;
   removeAllResolvedTask: () => void;
   clearAllTasks: () => void;
   startAllTasks: () => void;
@@ -47,6 +49,7 @@ interface SubtitleTranslatorStore {
     errorLogs?: string[];
     timestamp?: string;
     stackTrace?: string;
+    recovery?: SubtitleTranslationRecovery;
   }) => void;
   updateTaskCostEstimate: (
     fileName: string,
@@ -60,6 +63,10 @@ interface SubtitleTranslatorStore {
     resolvedFragments: number,
     totalFragments: number,
     progress: number,
+    recovery?: Pick<
+      SubtitleTranslationRecovery,
+      "checkpointPath" | "completedOutputPath" | "remainingOutputPath"
+    >,
   ) => void;
   markTaskResolved: (fileName: string, outputFilePath: string) => void;
 }
@@ -170,8 +177,12 @@ const useSubtitleTranslatorStore = create<SubtitleTranslatorStore>()(
         executeEffects(result.effects);
       },
 
-      retryTask: (fileName) => {
-        const result = QueueService.retryTask(getQueueState(get()), fileName);
+      retryTask: (fileName, mode = "resume") => {
+        const result = QueueService.retryTask(
+          getQueueState(get()),
+          fileName,
+          mode,
+        );
         set(result.state);
       },
 
@@ -196,7 +207,13 @@ const useSubtitleTranslatorStore = create<SubtitleTranslatorStore>()(
         showToast(i18n.t("subtitle:translator.infos.all_tasks_cleared"), "success");
       },
 
-      updateProgress: (fileName, resolvedFragments, totalFragments, progress) => {
+      updateProgress: (
+        fileName,
+        resolvedFragments,
+        totalFragments,
+        progress,
+        recovery,
+      ) => {
         console.info(
           ">>> 收到 updateProgress",
           fileName,
@@ -206,7 +223,7 @@ const useSubtitleTranslatorStore = create<SubtitleTranslatorStore>()(
         );
         const result = QueueService.completeTaskProgress(
           getQueueState(get()),
-          { fileName, resolvedFragments, totalFragments, progress },
+          { fileName, resolvedFragments, totalFragments, progress, recovery },
           MAX_CONCURRENCY,
         );
         set(result.state);

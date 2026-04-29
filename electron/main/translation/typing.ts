@@ -98,4 +98,87 @@ export type SubtitleTranslatorTask = {
   conflictPolicy?: OutputConflictPolicy;
   /** 是否启用分片并发翻译（多个分片同时调用 API） */
   concurrentSlices?: boolean;
+
+  /**
+   * 续跑模式（仅由 retry 流程设置）：
+   *   - auto:    有可用 checkpoint 则续跑，否则首次执行
+   *   - resume:  必须加载 checkpoint，加载失败则报错
+   *   - restart: 忽略 checkpoint，全部重新翻译
+   */
+  recoveryMode?: TranslationRecoveryMode;
+  /** 续跑清单文件路径，续跑时由 renderer 传入 */
+  checkpointPath?: string;
+};
+
+// ─── Recovery & Checkpoint ──────────────────────────────────────────────────
+
+export type TranslationRecoveryMode = "auto" | "resume" | "restart";
+
+export type CheckpointFragmentStatus =
+  | "pending"
+  | "running"
+  | "resolved"
+  | "failed";
+
+export type CheckpointFragment = {
+  index: number;
+  sourceHash: string;
+  sourceContent: string;
+  translatedContent?: string;
+  status: CheckpointFragmentStatus;
+  attempts: number;
+  error?: string;
+  startedAt?: string;
+  completedAt?: string;
+  model?: string;
+};
+
+/**
+ * 翻译检查点清单，持久化到 `*.fusionkit.resume.json`。
+ * 是任务恢复的唯一依据；不包含 apiKey 等敏感信息。
+ */
+export type TranslationCheckpointManifest = {
+  schemaVersion: 1;
+  taskId: string;
+  status: "running" | "failed" | "cancelled" | "completed";
+  createdAt: string;
+  updatedAt: string;
+
+  fileName: string;
+  sourceFilePath?: string;
+  sourceContentHash: string;
+  sourceSize?: number;
+  sourceMtimeMs?: number;
+
+  outputDir: string;
+  finalOutputPath?: string;
+  completedOutputPath: string;
+  remainingOutputPath: string;
+  errorLogPath?: string;
+
+  options: {
+    fileType: SubtitleFileType;
+    sliceType: SubtitleSliceType;
+    customSliceLength?: number;
+    sourceLang: string;
+    targetLang: string;
+    translationOutputMode: "bilingual" | "target_only";
+  };
+
+  fragments: CheckpointFragment[];
+};
+
+/**
+ * 恢复信息摘要，附加到 task-failed / update-progress payload，
+ * 也保存在 renderer 端的 SubtitleTranslatorTask.recovery 中。
+ */
+export type SubtitleTranslationRecovery = {
+  checkpointPath?: string;
+  completedOutputPath?: string;
+  remainingOutputPath?: string;
+  errorLogPath?: string;
+  resumable?: boolean;
+  failedFragmentIndexes?: number[];
+  resolvedFragments?: number;
+  totalFragments?: number;
 };
