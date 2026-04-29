@@ -38,11 +38,13 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
-  estimateSubtitleTokensFast,
-  estimateSubtitleTokens,
   formatTokens,
   formatCost,
 } from "@/utils/tokenEstimate";
+import {
+  getEstimateWorkerClient,
+  buildEstimateKey,
+} from "@/services/subtitle/subtitleTokenEstimateWorkerClient";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ButtonGroup } from "@/components/ui/button-group";
@@ -396,6 +398,7 @@ function SubtitleTranslator() {
     pendingTaskQueue.length > 0 || waitingTaskQueue.length > 0;
 
   const handleDeleteTask = (task: SubtitleTranslatorTask) => {
+    getEstimateWorkerClient().cancelByFileName(task.fileName);
     if (
       task.status === TaskStatus.PENDING ||
       task.status === TaskStatus.WAITING
@@ -440,21 +443,16 @@ function SubtitleTranslator() {
       editSliceType === SubtitleSliceType.CUSTOM
         ? sliceLengthMap[SubtitleSliceType.CUSTOM]
         : undefined;
-    const estimateOptions = {
-      fileName: editingTask.fileName,
-      sourceLang: editSourceLang,
-      targetLang: editTargetLang,
-      translationOutputMode: editOutputMode,
-    };
-    const fastEstimate = taskProfile
-      ? estimateSubtitleTokensFast(
-          editingTask.fileContent,
-          editSliceType,
-          customLen,
-          taskProfile.provider,
-          taskProfile.tokenPricing,
-          estimateOptions,
-        )
+
+    const loadingCostEstimate = taskProfile
+      ? {
+          inputTokens: 0,
+          outputTokens: 0,
+          totalTokens: 0,
+          estimatedCost: 0,
+          fragmentCount: 0,
+          loading: true,
+        }
       : editingTask.costEstimate;
 
     updateTask(editingTask.fileName, {
@@ -465,20 +463,54 @@ function SubtitleTranslator() {
       customSliceLength: customLen,
       conflictPolicy: editConflictPolicy,
       concurrentSlices: editConcurrentSlices,
-      costEstimate: fastEstimate,
+      costEstimate: loadingCostEstimate,
     });
 
     if (taskProfile) {
       const fileName = editingTask.fileName;
-      estimateSubtitleTokens(
-        editingTask.fileContent,
+      const estimateKey = buildEstimateKey(
+        fileName,
         editSliceType,
         customLen,
-        taskProfile.provider,
-        taskProfile.tokenPricing,
-        estimateOptions,
-      ).then((precise) => {
-        updateTaskCostEstimate(fileName, precise);
+        editSourceLang,
+        editTargetLang,
+        editOutputMode,
+      );
+
+      getEstimateWorkerClient().cancelByFileName(fileName);
+      getEstimateWorkerClient().enqueue({
+        fileName,
+        content: editingTask.fileContent,
+        sliceType: editSliceType,
+        customSliceLength: customLen,
+        tokenPricing: taskProfile.tokenPricing,
+        sourceLang: editSourceLang,
+        targetLang: editTargetLang,
+        translationOutputMode: editOutputMode,
+        onResult: (estimate) => {
+          const currentKey = buildEstimateKey(
+            fileName,
+            editSliceType,
+            customLen,
+            editSourceLang,
+            editTargetLang,
+            editOutputMode,
+          );
+          if (currentKey === estimateKey) {
+            updateTaskCostEstimate(fileName, estimate);
+          }
+        },
+        onError: (error) => {
+          console.error(`[TokenEstimate] edit failed for ${fileName}:`, error);
+          updateTaskCostEstimate(fileName, {
+            inputTokens: 0,
+            outputTokens: 0,
+            totalTokens: 0,
+            estimatedCost: 0,
+            fragmentCount: 0,
+            loading: false,
+          });
+        },
       });
     }
 
@@ -624,20 +656,15 @@ function SubtitleTranslator() {
             ? sliceLengthMap[SubtitleSliceType.CUSTOM]
             : undefined;
 
-        const fastEstimate = taskProfile
-          ? estimateSubtitleTokensFast(
-              fileContent,
-              sliceType,
-              customLen,
-              taskProfile.provider,
-              taskProfile.tokenPricing,
-              {
-                fileName: file.name,
-                sourceLang,
-                targetLang,
-                translationOutputMode,
-              },
-            )
+        const loadingCostEstimate = taskProfile
+          ? {
+              inputTokens: 0,
+              outputTokens: 0,
+              totalTokens: 0,
+              estimatedCost: 0,
+              fragmentCount: 0,
+              loading: true,
+            }
           : undefined;
 
         const newTask: SubtitleTranslatorTask = {
@@ -648,7 +675,7 @@ function SubtitleTranslator() {
           targetFileURL: outputDir,
           status: TaskStatus.NOT_STARTED,
           progress: 0,
-          costEstimate: fastEstimate,
+          costEstimate: loadingCostEstimate,
           customSliceLength: customLen,
 
           apiKey: taskProfile?.apiKey ?? "",
@@ -664,20 +691,50 @@ function SubtitleTranslator() {
 
         if (taskProfile) {
           const fileName = file.name;
-          estimateSubtitleTokens(
-            fileContent,
+          const estimateKey = buildEstimateKey(
+            fileName,
             sliceType,
             customLen,
-            taskProfile.provider,
-            taskProfile.tokenPricing,
-            {
-              fileName,
-              sourceLang,
-              targetLang,
-              translationOutputMode,
+            sourceLang,
+            targetLang,
+            translationOutputMode,
+          );
+          getEstimateWorkerClient().enqueue({
+            fileName,
+            content: fileContent,
+            sliceType,
+            customSliceLength: customLen,
+            tokenPricing: taskProfile.tokenPricing,
+            sourceLang,
+            targetLang,
+            translationOutputMode,
+            onResult: (estimate) => {
+              const currentKey = buildEstimateKey(
+                fileName,
+                sliceType,
+                customLen,
+                sourceLang,
+                targetLang,
+                translationOutputMode,
+              );
+              if (currentKey === estimateKey) {
+                updateTaskCostEstimate(fileName, estimate);
+              }
             },
-          ).then((precise) => {
-            updateTaskCostEstimate(fileName, precise);
+            onError: (error) => {
+              console.error(
+                `[TokenEstimate] failed for ${fileName}:`,
+                error,
+              );
+              updateTaskCostEstimate(fileName, {
+                inputTokens: 0,
+                outputTokens: 0,
+                totalTokens: 0,
+                estimatedCost: 0,
+                fragmentCount: 0,
+                loading: false,
+              });
+            },
           });
         }
       } catch (error) {
