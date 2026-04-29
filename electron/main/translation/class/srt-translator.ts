@@ -45,6 +45,7 @@ export class SRTTranslator extends BaseTranslator {
   protected splitContent(content: string, maxTokens: number): string[] {
     const fragments: string[] = [];
     let currentFragment = "";
+    const safeMaxTokens = Math.max(1, Math.floor(maxTokens));
 
     const subtitleBlocks = content.trim().split(/\n\n+/);
 
@@ -53,7 +54,7 @@ export class SRTTranslator extends BaseTranslator {
 
       const blockTokens = this.countTokens(block);
 
-      if (blockTokens >= maxTokens) {
+      if (blockTokens >= safeMaxTokens) {
         if (currentFragment) {
           fragments.push(currentFragment);
           currentFragment = "";
@@ -65,7 +66,7 @@ export class SRTTranslator extends BaseTranslator {
           : block;
         const potentialTokens = this.countTokens(potentialFragment);
 
-        if (potentialTokens >= maxTokens) {
+        if (potentialTokens >= safeMaxTokens) {
           if (currentFragment) {
             fragments.push(currentFragment);
             currentFragment = block;

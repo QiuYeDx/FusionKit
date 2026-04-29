@@ -44,11 +44,25 @@ export class LRCTranslator extends BaseTranslator {
     const parts: string[] = [];
     let currentPart: string[] = [];
     let currentTokenCount = 0;
+    const safeMaxTokens = Math.max(1, Math.floor(maxTokens));
 
     for (const line of content.split("\n")) {
       const lineTokens = encode(line).length;
 
-      if (currentTokenCount + lineTokens > maxTokens) {
+      if (lineTokens > safeMaxTokens) {
+        if (currentPart.length > 0) {
+          parts.push(currentPart.join("\n"));
+        }
+        parts.push(line);
+        currentPart = [];
+        currentTokenCount = 0;
+        continue;
+      }
+
+      if (
+        currentPart.length > 0 &&
+        currentTokenCount + lineTokens > safeMaxTokens
+      ) {
         parts.push(currentPart.join("\n"));
         currentPart = [line];
         currentTokenCount = lineTokens;

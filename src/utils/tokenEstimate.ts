@@ -1,6 +1,14 @@
 import { SubtitleSliceType } from "@/type/subtitle";
-import { Model, TokenPricing } from "@/type/model";
+import type {
+  TranslationLanguage,
+  TranslationOutputMode,
+} from "@/type/subtitle";
+import type { Model, TokenPricing } from "@/type/model";
 import { DEFAULT_SLICE_LENGTH_MAP } from "@/constants/subtitle";
+import {
+  buildSubtitleTokenEstimate,
+  type SubtitleTokenEstimateResult,
+} from "@/utils/subtitleTokenEstimateCore";
 
 // ---------------------------------------------------------------------------
 // Fast heuristic counter (sync, zero-dependency)
@@ -45,51 +53,28 @@ function loadTokenizer(): Promise<EncodeFn> {
   return _loadPromise;
 }
 
-async function countTokensPrecise(text: string): Promise<number> {
-  const encode = await loadTokenizer();
-  return encode(text).length;
-}
-
 // ---------------------------------------------------------------------------
 // CostEstimate shape
 // ---------------------------------------------------------------------------
 
-export type CostEstimateResult = {
-  inputTokens: number;
-  outputTokens: number;
-  totalTokens: number;
-  estimatedCost: number;
-  fragmentCount: number;
-  loading?: boolean;
+export type CostEstimateResult = SubtitleTokenEstimateResult;
+
+export type SubtitleTokenEstimateOptions = {
+  fileName?: string;
+  sourceLang?: TranslationLanguage;
+  targetLang?: TranslationLanguage;
+  translationOutputMode?: TranslationOutputMode;
 };
 
-// ---------------------------------------------------------------------------
-// Internal helper: build estimate from a raw token count
-// ---------------------------------------------------------------------------
+function resolveMaxTokens(
+  sliceType: SubtitleSliceType,
+  customSliceLength?: number,
+): number {
+  const fallback = DEFAULT_SLICE_LENGTH_MAP[sliceType];
+  const value =
+    sliceType === SubtitleSliceType.CUSTOM ? customSliceLength : fallback;
 
-function buildEstimate(
-  originalTokens: number,
-  maxTokens: number,
-  tokenPricing?: TokenPricing,
-  loading?: boolean,
-): CostEstimateResult {
-  const promptOverhead = 200;
-  const fragmentCount = Math.max(
-    1,
-    Math.ceil(originalTokens / Math.max(1, maxTokens - promptOverhead)),
-  );
-
-  const inputTokens = originalTokens + fragmentCount * promptOverhead;
-  const outputTokens = Math.ceil(originalTokens * 1.5);
-  const totalTokens = inputTokens + outputTokens;
-
-  const inputPrice = tokenPricing?.inputTokensPerMillion || 1.5;
-  const outputPrice = tokenPricing?.outputTokensPerMillion || 2.0;
-  const estimatedCost =
-    (inputTokens / 1_000_000) * inputPrice +
-    (outputTokens / 1_000_000) * outputPrice;
-
-  return { inputTokens, outputTokens, totalTokens, estimatedCost, fragmentCount, loading };
+  return Number.isFinite(value) && value && value > 0 ? value : fallback;
 }
 
 // ---------------------------------------------------------------------------
@@ -102,13 +87,16 @@ export function estimateSubtitleTokensFast(
   customSliceLength?: number,
   _model?: Model,
   tokenPricing?: TokenPricing,
+  options: SubtitleTokenEstimateOptions = {},
 ): CostEstimateResult {
-  const maxTokens =
-    sliceType === SubtitleSliceType.CUSTOM
-      ? customSliceLength || 500
-      : DEFAULT_SLICE_LENGTH_MAP[sliceType];
-
-  return buildEstimate(countTokensFast(content), maxTokens, tokenPricing, true);
+  return buildSubtitleTokenEstimate({
+    content,
+    maxTokens: resolveMaxTokens(sliceType, customSliceLength),
+    countTokens: countTokensFast,
+    tokenPricing,
+    loading: true,
+    ...options,
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -121,14 +109,18 @@ export async function estimateSubtitleTokens(
   customSliceLength?: number,
   _model?: Model,
   tokenPricing?: TokenPricing,
+  options: SubtitleTokenEstimateOptions = {},
 ): Promise<CostEstimateResult> {
-  const maxTokens =
-    sliceType === SubtitleSliceType.CUSTOM
-      ? customSliceLength || 500
-      : DEFAULT_SLICE_LENGTH_MAP[sliceType];
+  const encode = await loadTokenizer();
 
-  const originalTokens = await countTokensPrecise(content);
-  return buildEstimate(originalTokens, maxTokens, tokenPricing, false);
+  return buildSubtitleTokenEstimate({
+    content,
+    maxTokens: resolveMaxTokens(sliceType, customSliceLength),
+    countTokens: (text) => encode(text).length,
+    tokenPricing,
+    loading: false,
+    ...options,
+  });
 }
 
 // ---------------------------------------------------------------------------

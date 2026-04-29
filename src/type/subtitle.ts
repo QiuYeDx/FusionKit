@@ -72,6 +72,7 @@ export type SubtitleTranslatorTask = {
   fileName: string;
   fileContent: string;
   sliceType: SubtitleSliceType;
+  customSliceLength?: number;
   originFileURL: string; // 源文件路径
   targetFileURL: string; // 输出文件路径
   status: TaskStatus; // 任务状态

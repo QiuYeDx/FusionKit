@@ -9,11 +9,18 @@
  * 调用路径：IPC handler → TranslationService.processTask → LRC/SRTTranslator.translate
  */
 
-import { SubtitleFileType, SubtitleTranslatorTask, SubtitleSliceType } from "./typing";
+import {
+  SubtitleFileType,
+  SubtitleSliceType,
+  type SubtitleTranslatorTask,
+  type TranslationLanguage,
+  type TranslationOutputMode,
+} from "./typing";
 import { LRCTranslator } from "./class/lrc-translator";
 import { SRTTranslator } from "./class/srt-translator";
 import { encode } from "gpt-tokenizer";
 import { DEFAULT_SLICE_LENGTH_MAP } from "./constants";
+import { buildSubtitleTokenEstimate } from "../../../src/utils/subtitleTokenEstimateCore";
 
 export class TranslationService {
   /** 以 fileName 为 key 追踪正在执行的任务，用于支持取消操作 */
@@ -76,16 +83,21 @@ export class TranslationService {
    *
    * 预估逻辑：
    *   1. 用 gpt-tokenizer 精确计算原文 token 数
-   *   2. 根据 maxTokens 和 prompt 开销估算分片数
-   *   3. 输出 token 按原文的 1.5 倍估算（翻译通常会扩展文本量）
-   *   4. 费用 = 输入 token 单价 + 输出 token 单价（按百万 token 计）
+   *   2. 按实际 LRC/SRT 分片规则估算分片数
+   *   3. 按每个分片的 prompt 估算输入 token
+   *   4. 输出 token 按输出模式估算
+   *   5. 费用 = 输入 token 单价 + 输出 token 单价（按百万 token 计）
    */
   estimateTokens(
     content: string,
     sliceType: SubtitleSliceType,
     customSliceLength?: number,
     inputTokenPrice?: number,
-    outputTokenPrice?: number
+    outputTokenPrice?: number,
+    fileName?: string,
+    sourceLang?: TranslationLanguage,
+    targetLang?: TranslationLanguage,
+    translationOutputMode?: TranslationOutputMode,
   ): {
     inputTokens: number;
     outputTokens: number;
@@ -93,31 +105,24 @@ export class TranslationService {
     estimatedCost: number;
     fragmentCount: number;
   } {
-    const maxTokens = sliceType === SubtitleSliceType.CUSTOM 
-      ? (customSliceLength || 500)
-      : DEFAULT_SLICE_LENGTH_MAP[sliceType];
+    const maxTokens =
+      sliceType === SubtitleSliceType.CUSTOM
+        ? customSliceLength || DEFAULT_SLICE_LENGTH_MAP[SubtitleSliceType.CUSTOM]
+        : DEFAULT_SLICE_LENGTH_MAP[sliceType];
 
-    const originalTokens = this.calculateTokens(content);
-    
-    // 每个分片都会附带系统 prompt，约占 200 tokens
-    const promptOverhead = 200;
-    const fragmentCount = Math.ceil(originalTokens / (maxTokens - promptOverhead));
-    
-    const inputTokens = originalTokens + (fragmentCount * promptOverhead);
-    const outputTokens = Math.ceil(originalTokens * 1.5);
-    const totalTokens = inputTokens + outputTokens;
-    
-    const inputCostPer1M = inputTokenPrice || 1.5;
-    const outputCostPer1M = outputTokenPrice || 2.0;
-    const estimatedCost = (inputTokens / 1000000) * inputCostPer1M + (outputTokens / 1000000) * outputCostPer1M;
-    
-    return {
-      inputTokens,
-      outputTokens,
-      totalTokens,
-      estimatedCost,
-      fragmentCount
-    };
+    return buildSubtitleTokenEstimate({
+      content,
+      maxTokens,
+      countTokens: (text) => this.calculateTokens(text),
+      tokenPricing: {
+        inputTokensPerMillion: inputTokenPrice,
+        outputTokensPerMillion: outputTokenPrice,
+      },
+      fileName,
+      sourceLang,
+      targetLang,
+      translationOutputMode,
+    });
   }
 
   /** 使用 gpt-tokenizer 计算精确 token 数，编码失败时回退到字符数 × 0.75 的粗略估算 */

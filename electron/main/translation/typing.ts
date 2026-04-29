@@ -63,6 +63,7 @@ export type SubtitleTranslatorTask = {
   fileName: string;
   fileContent: string;
   sliceType: SubtitleSliceType;
+  customSliceLength?: number;
   originFileURL: string;
   /** 输出目录路径（非完整文件路径，文件名由 fileName 决定） */
   targetFileURL: string;

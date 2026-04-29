@@ -14,7 +14,12 @@
 
 import { ipcMain } from "electron";
 import { TranslationService } from "./translation-service";
-import { SubtitleTranslatorTask, SubtitleSliceType } from "./typing";
+import {
+  SubtitleSliceType,
+  type SubtitleTranslatorTask,
+  type TranslationLanguage,
+  type TranslationOutputMode,
+} from "./typing";
 
 export function setupTranslationIPC(translationService: TranslationService) {
   ipcMain.handle(
@@ -32,13 +37,21 @@ export function setupTranslationIPC(translationService: TranslationService) {
       customSliceLength?: number;
       inputTokenPrice?: number;
       outputTokenPrice?: number;
+      fileName?: string;
+      sourceLang?: TranslationLanguage;
+      targetLang?: TranslationLanguage;
+      translationOutputMode?: TranslationOutputMode;
     }) => {
       return translationService.estimateTokens(
         data.content, 
         data.sliceType, 
         data.customSliceLength,
         data.inputTokenPrice,
-        data.outputTokenPrice
+        data.outputTokenPrice,
+        data.fileName,
+        data.sourceLang,
+        data.targetLang,
+        data.translationOutputMode,
       );
     }
   );

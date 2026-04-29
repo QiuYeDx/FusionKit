@@ -83,7 +83,7 @@ export abstract class BaseTranslator {
         `[${new Date().toISOString()}] 文件内容长度: ${content.length}`,
       );
 
-      const maxTokens = this.getMaxTokens(task.sliceType);
+      const maxTokens = this.getMaxTokens(task);
       console.log("[03] max token num:", maxTokens);
       errorLogs.push(`[${new Date().toISOString()}] 最大Token数: ${maxTokens}`);
 
@@ -356,8 +356,17 @@ export abstract class BaseTranslator {
     }
   }
 
-  private getMaxTokens(sliceType: SubtitleSliceType) {
-    return DEFAULT_SLICE_LENGTH_MAP[sliceType];
+  private getMaxTokens(task: SubtitleTranslatorTask) {
+    if (
+      task.sliceType === SubtitleSliceType.CUSTOM &&
+      Number.isFinite(task.customSliceLength) &&
+      task.customSliceLength &&
+      task.customSliceLength > 0
+    ) {
+      return Math.floor(task.customSliceLength);
+    }
+
+    return DEFAULT_SLICE_LENGTH_MAP[task.sliceType];
   }
 
   private logEmptyTranslationResult(

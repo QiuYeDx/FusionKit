@@ -436,14 +436,52 @@ function SubtitleTranslator() {
 
   const handleSaveEditTask = () => {
     if (!editingTask) return;
+    const customLen =
+      editSliceType === SubtitleSliceType.CUSTOM
+        ? sliceLengthMap[SubtitleSliceType.CUSTOM]
+        : undefined;
+    const estimateOptions = {
+      fileName: editingTask.fileName,
+      sourceLang: editSourceLang,
+      targetLang: editTargetLang,
+      translationOutputMode: editOutputMode,
+    };
+    const fastEstimate = taskProfile
+      ? estimateSubtitleTokensFast(
+          editingTask.fileContent,
+          editSliceType,
+          customLen,
+          taskProfile.provider,
+          taskProfile.tokenPricing,
+          estimateOptions,
+        )
+      : editingTask.costEstimate;
+
     updateTask(editingTask.fileName, {
       sourceLang: editSourceLang,
       targetLang: editTargetLang,
       translationOutputMode: editOutputMode,
       sliceType: editSliceType,
+      customSliceLength: customLen,
       conflictPolicy: editConflictPolicy,
       concurrentSlices: editConcurrentSlices,
+      costEstimate: fastEstimate,
     });
+
+    if (taskProfile) {
+      const fileName = editingTask.fileName;
+      estimateSubtitleTokens(
+        editingTask.fileContent,
+        editSliceType,
+        customLen,
+        taskProfile.provider,
+        taskProfile.tokenPricing,
+        estimateOptions,
+      ).then((precise) => {
+        updateTaskCostEstimate(fileName, precise);
+      });
+    }
+
     showToast(t("subtitle:translator.edit_task.saved"), "success");
     setEditTaskOpen(false);
     setEditingTask(null);
@@ -593,6 +631,12 @@ function SubtitleTranslator() {
               customLen,
               taskProfile.provider,
               taskProfile.tokenPricing,
+              {
+                fileName: file.name,
+                sourceLang,
+                targetLang,
+                translationOutputMode,
+              },
             )
           : undefined;
 
@@ -605,6 +649,7 @@ function SubtitleTranslator() {
           status: TaskStatus.NOT_STARTED,
           progress: 0,
           costEstimate: fastEstimate,
+          customSliceLength: customLen,
 
           apiKey: taskProfile?.apiKey ?? "",
           apiModel: taskProfile?.modelKey ?? "",
@@ -625,6 +670,12 @@ function SubtitleTranslator() {
             customLen,
             taskProfile.provider,
             taskProfile.tokenPricing,
+            {
+              fileName,
+              sourceLang,
+              targetLang,
+              translationOutputMode,
+            },
           ).then((precise) => {
             updateTaskCostEstimate(fileName, precise);
           });
