@@ -28,7 +28,8 @@ describe("subtitle token estimate", () => {
       },
     );
 
-    expect(estimate.fragmentCount).toBe(5);
+    expect(estimate.fragmentCount).toBeGreaterThan(1);
+    expect(estimate.fragmentCount).toBeLessThan(20);
     expect(estimate.inputTokens).toBeLessThan(5000);
   });
 
@@ -61,6 +62,19 @@ describe("subtitle token estimate", () => {
   });
 
   it("keeps precise sensitive estimates in the same order of magnitude as real chunks", async () => {
+    const fastEstimate = estimateSubtitleTokensFast(
+      makeLrcLines(60),
+      SubtitleSliceType.SENSITIVE,
+      undefined,
+      undefined,
+      undefined,
+      {
+        fileName: "song.lrc",
+        sourceLang: "JA",
+        targetLang: "ZH",
+        translationOutputMode: "target_only",
+      },
+    );
     const estimate = await estimateSubtitleTokens(
       makeLrcLines(60),
       SubtitleSliceType.SENSITIVE,
@@ -75,7 +89,7 @@ describe("subtitle token estimate", () => {
       },
     );
 
-    expect(estimate.fragmentCount).toBeGreaterThan(1);
-    expect(estimate.fragmentCount).toBeLessThan(20);
+    expect(fastEstimate.fragmentCount).toBe(estimate.fragmentCount);
+    expect(fastEstimate.inputTokens).toBe(estimate.inputTokens);
   });
 });

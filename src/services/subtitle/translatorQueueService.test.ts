@@ -48,8 +48,11 @@ function makeTask(name: string, overrides?: Partial<SubtitleTranslatorTask>): Su
   };
 }
 
-function pendingTask(name: string): SubtitleTranslatorTask {
-  return makeTask(name, { status: TaskStatus.PENDING });
+function pendingTask(
+  name: string,
+  overrides?: Partial<SubtitleTranslatorTask>,
+): SubtitleTranslatorTask {
+  return makeTask(name, { status: TaskStatus.PENDING, ...overrides });
 }
 
 function waitingTask(name: string): SubtitleTranslatorTask {
@@ -154,15 +157,26 @@ describe("completeTaskProgress", () => {
   it("updates progress for incomplete task", () => {
     const state: TranslatorQueueState = {
       ...emptyState(),
-      pendingTaskQueue: [pendingTask("a.srt")],
+      pendingTaskQueue: [
+        pendingTask("a.srt", {
+          costEstimate: {
+            inputTokens: 100,
+            outputTokens: 50,
+            totalTokens: 150,
+            estimatedCost: 0.001,
+            fragmentCount: 8,
+          },
+        }),
+      ],
     };
     const result = completeTaskProgress(
       state,
-      { fileName: "a.srt", resolvedFragments: 3, totalFragments: 10, progress: 30 },
+      { fileName: "a.srt", resolvedFragments: 3, totalFragments: 5, progress: 60 },
       MAX,
     );
-    expect(result.state.pendingTaskQueue[0].progress).toBe(30);
+    expect(result.state.pendingTaskQueue[0].progress).toBe(60);
     expect(result.state.pendingTaskQueue[0].resolvedFragments).toBe(3);
+    expect(result.state.pendingTaskQueue[0].costEstimate?.fragmentCount).toBe(5);
     expect(result.effects).toHaveLength(0);
   });
 

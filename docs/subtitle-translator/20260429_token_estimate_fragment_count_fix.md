@@ -28,6 +28,8 @@ inputTokens = originalTokens + fragmentCount * promptOverhead
 - prompt 开销被错误地用于压缩分片容量，而真实切片逻辑不会从 `maxTokens` 中扣除 prompt。
 - 自定义分片长度只参与前端预估，没有随任务传给主进程执行。
 
+后续复查又发现一个残留问题：前端上传文件时会先写入 `estimateSubtitleTokensFast` 的同步启发式结果，再异步回填 `gpt-tokenizer` 的精确结果。如果用户在精确回填前点击开始，任务详情可能仍显示启发式分片数，例如 8 个分片；主进程开始执行后会用真实 tokenizer 切片，于是进度立刻变成 5 个分片。这说明“首屏预估”和“执行切片”仍不是同一口径。
+
 ## 修复方案
 
 本次修复将预估口径改为贴近真实执行：
@@ -41,20 +43,23 @@ inputTokens = originalTokens + fragmentCount * promptOverhead
    - 仅译文：按原文 token 的翻译扩展量估算。
    - 双语字幕：按原文 + 译文估算。
 5. `customSliceLength` 写入任务并传给主进程，保证自定义分片长度的预估和实际翻译一致。
-6. 编辑任务配置后立即重新计算快速预估，并异步刷新精确预估，避免任务详情继续显示旧配置下的成本。
+6. 前端同步预估不再使用字符启发式 tokenizer，改为直接使用 `gpt-tokenizer`，确保任务刚加入队列时的分片数就和主进程执行口径一致。
+7. 编辑任务配置后立即重新计算预估，避免任务详情继续显示旧配置下的成本。
+8. 队列收到主进程 `update-progress` 后，会用真实 `totalFragments` 同步修正 `costEstimate.fragmentCount`，作为防御性兜底，避免任务详情和进度条显示不同分片数。
 
 ## 验证
 
 已新增 `src/utils/tokenEstimate.test.ts` 覆盖敏感模式下的异常分片场景：
 
-- 60 行 LRC、敏感模式下，快速预估分片数为 5，而不是旧逻辑下按 token 数膨胀出的数百片。
+- 60 行 LRC、敏感模式下，分片数量保持在真实切片同量级，而不是旧逻辑下按 token 数膨胀出的数百片。
 - 双语输出 token 预估大于仅译文输出。
-- 精确 tokenizer 路径下，敏感模式分片数量保持在真实切片同量级。
+- 同步预估和异步预估使用同一 tokenizer，分片数和输入 token 保持一致。
+- `translatorQueueService` 覆盖进度回传时用真实 `totalFragments` 修正任务预估分片数的兜底逻辑。
 
 本地验证结果：
 
 ```bash
-pnpm exec vitest run src/utils/tokenEstimate.test.ts
+pnpm exec vitest run src/utils/tokenEstimate.test.ts src/services/subtitle/translatorQueueService.test.ts
 pnpm exec tsc --noEmit
 ```
 

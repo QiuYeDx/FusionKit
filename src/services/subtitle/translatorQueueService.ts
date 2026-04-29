@@ -244,6 +244,9 @@ export function completeTaskProgress(
   if (resolvedFragments === totalFragments) {
     const completed: SubtitleTranslatorTask = {
       ...task,
+      costEstimate: task.costEstimate
+        ? { ...task.costEstimate, fragmentCount: totalFragments }
+        : task.costEstimate,
       resolvedFragments,
       totalFragments,
       progress: 100,
@@ -266,7 +269,15 @@ export function completeTaskProgress(
       ...state,
       pendingTaskQueue: state.pendingTaskQueue.map((t) =>
         t.fileName === fileName
-          ? { ...t, resolvedFragments, totalFragments, progress }
+          ? {
+              ...t,
+              costEstimate: t.costEstimate
+                ? { ...t.costEstimate, fragmentCount: totalFragments }
+                : t.costEstimate,
+              resolvedFragments,
+              totalFragments,
+              progress,
+            }
           : t,
       ),
     },

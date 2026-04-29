@@ -9,48 +9,14 @@ import {
   buildSubtitleTokenEstimate,
   type SubtitleTokenEstimateResult,
 } from "@/utils/subtitleTokenEstimateCore";
+import { encode } from "gpt-tokenizer";
 
 // ---------------------------------------------------------------------------
-// Fast heuristic counter (sync, zero-dependency)
+// Token counter
 // ---------------------------------------------------------------------------
 
-function countTokensFast(text: string): number {
-  let tokens = 0;
-  for (let i = 0; i < text.length; i++) {
-    const code = text.charCodeAt(i);
-    if (
-      (code >= 0x4e00 && code <= 0x9fff) ||
-      (code >= 0x3400 && code <= 0x4dbf) ||
-      (code >= 0x3000 && code <= 0x303f) ||
-      (code >= 0x3040 && code <= 0x309f) ||
-      (code >= 0x30a0 && code <= 0x30ff) ||
-      (code >= 0xff00 && code <= 0xffef) ||
-      (code >= 0xac00 && code <= 0xd7af)
-    ) {
-      tokens += 1;
-    } else {
-      tokens += 0.25;
-    }
-  }
-  return Math.ceil(tokens);
-}
-
-// ---------------------------------------------------------------------------
-// Precise counter (async, lazy-loads gpt-tokenizer)
-// ---------------------------------------------------------------------------
-
-type EncodeFn = (text: string) => number[];
-let _encodeFn: EncodeFn | null = null;
-let _loadPromise: Promise<EncodeFn> | null = null;
-
-function loadTokenizer(): Promise<EncodeFn> {
-  if (_encodeFn) return Promise.resolve(_encodeFn);
-  if (_loadPromise) return _loadPromise;
-  _loadPromise = import("gpt-tokenizer").then((mod) => {
-    _encodeFn = mod.encode as EncodeFn;
-    return _encodeFn;
-  });
-  return _loadPromise;
+function countTokens(text: string): number {
+  return encode(text).length;
 }
 
 // ---------------------------------------------------------------------------
@@ -78,7 +44,7 @@ function resolveMaxTokens(
 }
 
 // ---------------------------------------------------------------------------
-// Public: synchronous fast estimate (used for immediate UI feedback)
+// Public: synchronous estimate used for immediate UI feedback
 // ---------------------------------------------------------------------------
 
 export function estimateSubtitleTokensFast(
@@ -92,15 +58,15 @@ export function estimateSubtitleTokensFast(
   return buildSubtitleTokenEstimate({
     content,
     maxTokens: resolveMaxTokens(sliceType, customSliceLength),
-    countTokens: countTokensFast,
+    countTokens,
     tokenPricing,
-    loading: true,
+    loading: false,
     ...options,
   });
 }
 
 // ---------------------------------------------------------------------------
-// Public: async precise estimate (lazy-loads gpt-tokenizer)
+// Public: async estimate kept for existing call sites
 // ---------------------------------------------------------------------------
 
 export async function estimateSubtitleTokens(
@@ -111,12 +77,10 @@ export async function estimateSubtitleTokens(
   tokenPricing?: TokenPricing,
   options: SubtitleTokenEstimateOptions = {},
 ): Promise<CostEstimateResult> {
-  const encode = await loadTokenizer();
-
   return buildSubtitleTokenEstimate({
     content,
     maxTokens: resolveMaxTokens(sliceType, customSliceLength),
-    countTokens: (text) => encode(text).length,
+    countTokens,
     tokenPricing,
     loading: false,
     ...options,
