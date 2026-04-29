@@ -2,6 +2,12 @@
 
 本项目的所有重要更改都将记录在此文件中。
 
+## [0.2.5-beta.0] - 2026-04-29
+
+### 文档
+
+- 新增 `useSubtitleTranslatorStore` 拆分评估与实施方案，明确 renderer 侧队列 service 和 IPC 执行 service 的拆分边界
+
 ## [0.2.4] - 2026-04-29
 
 ### 新增
