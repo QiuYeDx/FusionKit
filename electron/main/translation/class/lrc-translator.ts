@@ -10,9 +10,9 @@
  */
 
 import { BaseTranslator } from "./base-translator";
-import { SubtitleTranslatorTask } from "../typing";
 import { encode } from "gpt-tokenizer";
 import { getLanguageName } from "../constants";
+import { cleanTranslatedLrcContent } from "../lrc-utils";
 
 export class LRCTranslator extends BaseTranslator {
   private readonly apiModel: string;
@@ -73,12 +73,15 @@ export class LRCTranslator extends BaseTranslator {
   protected formatPrompt(partialContent: string, context: string): string {
     const srcName = getLanguageName(this.sourceLang);
     const tgtName = getLanguageName(this.targetLang);
+    const outputRules =
+      "Output only valid LRC lines. Every output line must start with a timestamp or metadata tag in [] format. Do not add markdown formatting or explanations.\n";
 
     if (this.bilingualOutput) {
       return (
         `Translate the following ${srcName} subtitle content into bilingual format with ${srcName} and ${tgtName}. Each ${srcName} line should be immediately followed by the ${tgtName} translation with the same timestamp. Maintain coherence. Example format:\n` +
         `[00:00.05]<${srcName} text>\n` +
         `[00:00.05]<${tgtName} translation>\n` +
+        outputRules +
         (context ? `Previous translated content:\n${context}\n` : "") +
         `Translate the following content:\n\n${partialContent}`
       );
@@ -86,6 +89,7 @@ export class LRCTranslator extends BaseTranslator {
 
     return (
       `Translate the following ${srcName} subtitle content into ${tgtName}. Replace all ${srcName} text with ${tgtName} translation. Maintain the LRC format and timestamps. Maintain coherence.\n` +
+      outputRules +
       (context ? `Previous translated content:\n${context}\n` : "") +
       `Translate the following content:\n\n${partialContent}`
     );
@@ -118,7 +122,7 @@ export class LRCTranslator extends BaseTranslator {
   /** 解析 LLM 响应，清洗 markdown 格式残留，并累计本次调用的费用 */
   protected async parseResponse(response: any): Promise<string> {
     const content = response.choices[0].message.content;
-    const cleanedContent = this.cleanTranslatedContent(content);
+    const cleanedContent = cleanTranslatedLrcContent(content);
 
     const inputTokens = response.usage?.prompt_tokens || 0;
     const outputTokens = response.usage?.completion_tokens || 0;
@@ -126,21 +130,6 @@ export class LRCTranslator extends BaseTranslator {
     this.totalCost += (outputTokens / 1_000_000) * this.costPerOutput;
 
     return cleanedContent;
-  }
-
-  /**
-   * 清洗 LLM 返回的 LRC 内容：
-   *   1. 移除 markdown 代码块标记（```lrc / ```plaintext）
-   *   2. 只保留以 "[" 开头的行（过滤 LLM 可能附加的说明文字）
-   */
-  private cleanTranslatedContent(content: string): string {
-    return content
-      .replace(/^\s*```(lrc|plaintext)?\s*/g, "")
-      .replace(/```$/g, "")
-      .split("\n")
-      .filter((line) => line.startsWith("["))
-      .join("\n")
-      .trim();
   }
 
   protected normalizeError(error: unknown): Error {

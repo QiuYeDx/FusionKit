@@ -29,6 +29,10 @@ import { fixSrtSubtitles, removeThinkTags, hasThinkTags } from "../utils";
 import { getAxiosProxyConfig } from "../../proxy";
 
 type OutputConflictPolicy = "overwrite" | "index";
+type TranslationFragmentMeta = {
+  index: number;
+  total: number;
+};
 
 export abstract class BaseTranslator {
   /** 子类实现：将字幕文本按 token 上限拆分为多个 fragment */
@@ -197,11 +201,8 @@ export abstract class BaseTranslator {
           task.apiKey,
           task.apiModel,
           errorLogs,
+          { index: index + 1, total: fragments.length },
         );
-
-        if (!result) {
-          throw new Error("Translation result is undefined");
-        }
 
         results.push(result);
         errorLogs.push(
@@ -258,11 +259,8 @@ export abstract class BaseTranslator {
             task.apiKey,
             task.apiModel,
             errorLogs,
+            { index: index + 1, total: fragments.length },
           );
-
-          if (!result) {
-            throw new Error("Translation result is undefined");
-          }
 
           results[index] = result;
           completedCount++;
@@ -362,6 +360,44 @@ export abstract class BaseTranslator {
     return DEFAULT_SLICE_LENGTH_MAP[sliceType];
   }
 
+  private logEmptyTranslationResult(
+    responseData: any,
+    parsedResult: unknown,
+    errorLogs: string[],
+    fragmentMeta?: TranslationFragmentMeta,
+  ) {
+    const rawContent = responseData?.choices?.[0]?.message?.content;
+    const rawLength = typeof rawContent === "string" ? rawContent.length : 0;
+    const parsedLength =
+      typeof parsedResult === "string" ? parsedResult.length : 0;
+    const hasMessageContent = typeof rawContent === "string";
+    const fragmentLabel = fragmentMeta
+      ? `第 ${fragmentMeta.index}/${fragmentMeta.total} 个分片`
+      : "未知分片";
+
+    errorLogs.push(
+      `[${new Date().toISOString()}] 翻译结果为空 (${fragmentLabel})，原始内容长度: ${rawLength}，清洗后长度: ${parsedLength}，choices[0].message.content存在: ${hasMessageContent ? "是" : "否"}`,
+    );
+
+    const preview = this.createLogPreview(rawContent);
+    if (preview) {
+      errorLogs.push(
+        `[${new Date().toISOString()}] 原始返回预览: ${preview}`,
+      );
+    }
+  }
+
+  private createLogPreview(value: unknown, maxLength = 500): string {
+    if (typeof value !== "string") return "";
+
+    const compact = value.replace(/\s+/g, " ").trim();
+    if (!compact) return "";
+
+    return compact.length > maxLength
+      ? `${compact.slice(0, maxLength)}...`
+      : compact;
+  }
+
   /**
    * 翻译单个 fragment：构建 prompt → 调用 LLM API → 解析返回。
    * 内置线性退避重试机制（最多 maxRetries 次），每次失败后延迟递增。
@@ -375,6 +411,7 @@ export abstract class BaseTranslator {
     apiKey: string,
     apiModel: string,
     errorLogs: string[],
+    fragmentMeta?: TranslationFragmentMeta,
   ): Promise<string> {
     const prompt = this.formatPrompt(content, context);
 
@@ -431,7 +468,21 @@ export abstract class BaseTranslator {
           }
         }
 
-        return this.parseResponse(response.data);
+        const parsedResult = await this.parseResponse(response.data);
+        if (
+          typeof parsedResult !== "string" ||
+          parsedResult.trim().length === 0
+        ) {
+          this.logEmptyTranslationResult(
+            response.data,
+            parsedResult,
+            errorLogs,
+            fragmentMeta,
+          );
+          throw new Error("Translation result is empty after parsing");
+        }
+
+        return parsedResult;
       } catch (error) {
         const errorMessage =
           error instanceof Error ? error.message : String(error);
