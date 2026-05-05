@@ -22,6 +22,8 @@
 
 **FusionKit** 是一款基于 Electron 的跨平台桌面工具集合应用，旨在将多种实用工具整合在一个优雅的界面中。内置 AI 助手，可通过自然语言对话驱动字幕翻译、格式转换与语言提取等操作，同时也提供完整的手动工具界面。
 
+PS: 使用时可以配合`Faster-Whisper-GUI`音频转文本，然后再用本工具进行 AI 翻译，相关教程[「音频转字幕&人声分离」猴子也能懂的 Faster-Whisper-GUI 使用教程](https://qiuvision.com/notes/1)
+
 ## 功能特性
 
 ### FusionKit Assistant（AI 助手）
