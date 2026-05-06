@@ -795,6 +795,24 @@ function SubtitleTranslator() {
     }
   };
 
+  const formatTaskSliceMode = (task: SubtitleTranslatorTask) => {
+    const sliceModeLabel = t(
+      `subtitle:translator.slice_types.${task.sliceType.toLowerCase()}`
+    );
+
+    if (
+      task.sliceType !== SubtitleSliceType.CUSTOM ||
+      typeof task.customSliceLength !== "number" ||
+      !Number.isFinite(task.customSliceLength)
+    ) {
+      return sliceModeLabel;
+    }
+
+    return `${sliceModeLabel} (${task.customSliceLength}${t(
+      "subtitle:translator.new_task_config.chars_suffix"
+    )})`;
+  };
+
   return (
     <div className="p-4">
       <div className="text-2xl font-bold mb-4">
@@ -1566,9 +1584,7 @@ function SubtitleTranslator() {
                               : t("subtitle:translator.fields.output_bilingual")}
                           </span>
                           <span className="px-1.5 py-0.5 bg-muted rounded-md text-xs">
-                            {t(
-                              `subtitle:translator.slice_types.${task.sliceType.toLowerCase()}`
-                            )}
+                            {formatTaskSliceMode(task)}
                           </span>
                           {task.costEstimate && (
                             <span className="font-mono inline-flex items-center gap-1">
@@ -1701,9 +1717,7 @@ function SubtitleTranslator() {
                         </span>
                         <span className="text-muted-foreground">{t("subtitle:translator.task_detail.slice_mode")}</span>
                         <span>
-                          {t(
-                            `subtitle:translator.slice_types.${task.sliceType.toLowerCase()}`
-                          )}
+                          {formatTaskSliceMode(task)}
                         </span>
                         <span className="text-muted-foreground">{t("subtitle:translator.task_detail.api_model")}</span>
                         <span className="font-mono">{task.apiModel}</span>
