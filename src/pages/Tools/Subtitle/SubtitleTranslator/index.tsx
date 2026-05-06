@@ -24,6 +24,7 @@ import {
   ChevronDown,
   Info,
   Pencil,
+  CircleHelp,
 } from "lucide-react";
 import { showToast } from "@/utils/toast";
 import { getSourceDirFromFile, getFilePathFromFile } from "@/utils/filePath";
@@ -65,7 +66,31 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
+
+function CostEstimateHelp({ content }: { content: string }) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <button
+          aria-label={content}
+          className="inline-flex h-3.5 w-3.5 cursor-help items-center justify-center rounded-sm border-0 bg-transparent p-0 text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+          type="button"
+        >
+          <CircleHelp className="h-3.5 w-3.5" />
+        </button>
+      </TooltipTrigger>
+      <TooltipContent className="max-w-[280px] leading-relaxed" side="top">
+        {content}
+      </TooltipContent>
+    </Tooltip>
+  );
+}
 
 function SubtitleTranslator() {
   const { t } = useTranslation();
@@ -1462,8 +1487,13 @@ function SubtitleTranslator() {
                     </div>
                   </div>
                   <div className="rounded-lg border border-muted/70 bg-muted/20 px-3 py-2.5">
-                    <div className="text-muted-foreground text-xs mb-1">
-                      {t("subtitle:translator.token_stats.total_cost")}
+                    <div className="text-muted-foreground text-xs mb-1 inline-flex items-center gap-1">
+                      <span>
+                        {t("subtitle:translator.token_stats.total_cost")}
+                      </span>
+                      <CostEstimateHelp
+                        content={t("subtitle:translator.token_stats.cost_tooltip")}
+                      />
                     </div>
                     <div className="font-mono text-base">
                       {formatCost(tokenStats.totalCost)}
@@ -1478,8 +1508,13 @@ function SubtitleTranslator() {
                     </div>
                   </div>
                   <div className="rounded-lg border border-muted/70 bg-muted/20 px-3 py-2.5">
-                    <div className="text-muted-foreground text-xs mb-1">
-                      {t("subtitle:translator.token_stats.pending_cost")}
+                    <div className="text-muted-foreground text-xs mb-1 inline-flex items-center gap-1">
+                      <span>
+                        {t("subtitle:translator.token_stats.pending_cost")}
+                      </span>
+                      <CostEstimateHelp
+                        content={t("subtitle:translator.token_stats.cost_tooltip")}
+                      />
                     </div>
                     <div className="font-mono text-base text-orange-600">
                       {formatCost(tokenStats.pendingCost)}
@@ -1541,8 +1576,11 @@ function SubtitleTranslator() {
                                 <RotateCw className="h-3 w-3 animate-spin text-muted-foreground/60" />
                               ) : null}
                               {formatTokens(task.costEstimate.totalTokens)}
-                              <span className="ml-1 text-green-600">
+                              <span className="ml-1 inline-flex items-center gap-1 text-green-600">
                                 ~{formatCost(task.costEstimate.estimatedCost)}
+                                <CostEstimateHelp
+                                  content={t("subtitle:translator.token_stats.cost_tooltip")}
+                                />
                               </span>
                             </span>
                           )}

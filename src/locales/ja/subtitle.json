@@ -84,7 +84,8 @@
       "total_tokens": "トークン合計",
       "total_cost": "予測総コスト",
       "pending_tokens": "処理待ちトークン",
-      "pending_cost": "処理待ちコスト"
+      "pending_cost": "処理待ちコスト",
+      "cost_tooltip": "これは概算費用です。実際の課金には入力 Token と出力 Token の両方が含まれ、出力 Token は翻訳前に正確には分かりません。翻訳結果が長いほど実際の費用が予測より高くなる可能性があり、最終的にはモデル提供元の請求が基準になります。"
     },
     "task_detail": {
       "language_pair": "翻訳言語",
