@@ -84,7 +84,8 @@
       "total_tokens": "Total Tokens",
       "total_cost": "Estimated Total Cost",
       "pending_tokens": "Pending Tokens",
-      "pending_cost": "Pending Cost"
+      "pending_cost": "Pending Cost",
+      "cost_tooltip": "This is only an estimate. Actual billing includes both input and output tokens, and output tokens cannot be known exactly before translation. Longer translations may cost more than estimated; final billing depends on the model provider."
     },
     "task_detail": {
       "language_pair": "Language Pair",

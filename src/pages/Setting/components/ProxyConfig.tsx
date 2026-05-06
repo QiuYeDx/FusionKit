@@ -77,28 +77,28 @@ function ProxyTestButton() {
           ? t("setting:fields.proxy.test_success")
           : t("setting:fields.proxy.test_fail")}
       </div>
-      <div className="border-t border-white/10 pt-1 space-y-0.5">
+      <div className="border-t border-background/10 pt-1 space-y-0.5">
         {result.ip && (
           <div>
-            <span className="text-white/60">IP: </span>
+            <span className="text-background/60">IP: </span>
             {result.ip}
           </div>
         )}
         <div>
-          <span className="text-white/60">
+          <span className="text-background/60">
             {t("setting:fields.proxy.test_latency")}:{" "}
           </span>
           {result.latencyMs}ms
         </div>
         <div>
-          <span className="text-white/60">
+          <span className="text-background/60">
             {t("setting:fields.proxy.mode")}:{" "}
           </span>
           {proxyModeLabel(result.proxyMode)}
         </div>
         {result.proxyAddress && (
           <div>
-            <span className="text-white/60">
+            <span className="text-background/60">
               {t("setting:fields.proxy.test_proxy_addr")}:{" "}
             </span>
             {result.proxyAddress}
@@ -106,13 +106,13 @@ function ProxyTestButton() {
         )}
         {result.httpStatus && (
           <div>
-            <span className="text-white/60">HTTP: </span>
+            <span className="text-background/60">HTTP: </span>
             {result.httpStatus}
           </div>
         )}
         {result.error && (
           <div className="text-red-300 break-all">
-            <span className="text-white/60">
+            <span className="text-background/60">
               {t("setting:fields.proxy.test_error")}:{" "}
             </span>
             {result.error}

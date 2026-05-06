@@ -119,22 +119,6 @@ export class SRTTranslator extends BaseTranslator {
     return this.config.endpoint;
   }
 
-  protected createHeaders(): Record<string, string> {
-    return {
-      Authorization: `Bearer ${this.config.apiKey}`,
-      "Content-Type": "application/json",
-      "X-Request-Source": "srt-translator",
-    };
-  }
-
-  protected buildRequestBody(prompt: string): BodyInit {
-    return JSON.stringify({
-      model: this.apiModel,
-      messages: [{ role: "user", content: prompt }],
-      max_tokens: 3500,
-    });
-  }
-
   protected async parseResponse(response: any): Promise<string> {
     const translated = response.choices[0].message.content;
     this.totalCost += this.calculateCost(response.usage);

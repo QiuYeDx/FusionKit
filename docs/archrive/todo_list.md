@@ -44,7 +44,7 @@
 
 | 文件 | 行数 | 建议 |
 |------|------|------|
-| [HomeAgent/index.tsx](file:///Users/qiuyedx/Documents/Github/FusionKit/src/pages/HomeAgent/index.tsx) | **1210 行** | 这是项目中最大的单文件，包含主页面 + 8 个子组件。建议拆分为独立组件文件：`MessageBubble`, `ToolCallBubble`, `StreamingTextContent`, `TokenStatsBar`, `CapsuleModeSelector`, `PendingExecutionCard`, `SuggestionPill` 等 |
+| [HomeAgent/index.tsx](file:///Users/qiuyedx/Documents/Github/FusionKit/src/pages/HomeAgent/index.tsx) | **1210 行** | 这是项目中最大的单文件，包含主页面 + 多个子组件。建议拆分为独立组件文件：`MessageBubble`, `ToolCallBubble`, `TokenStatsBar`, `CapsuleModeSelector`, `PendingExecutionCard`, `SuggestionPill` 等 |
 | [ModelConfig.tsx](file:///Users/qiuyedx/Documents/Github/FusionKit/src/pages/Setting/components/ModelConfig.tsx) | **27KB** | 模型配置页面较大，可拆分 ProfileEditor / ProfileList 等子组件 |
 | [useSubtitleTranslatorStore.ts](file:///Users/qiuyedx/Documents/Github/FusionKit/src/store/tools/subtitle/useSubtitleTranslatorStore.ts) | **18KB** | 翻译 Store 逻辑密集，可考虑抽离任务执行逻辑到独立 service 层 |
 

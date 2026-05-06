@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useLayoutEffect, useState } from "react";
+import React, { useMemo, useRef, useEffect, useLayoutEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
 import { useNavigate } from "react-router-dom";
@@ -9,10 +9,6 @@ import {
   User,
   RotateCcw,
   Sparkles,
-  ArrowRight,
-  CheckCircle2,
-  XCircle,
-  Play,
   ListPlus,
   MessageSquareMore,
   Zap,
@@ -30,7 +26,12 @@ import useModelStore from "@/store/useModelStore";
 import { handleUserMessage, abortCurrentStream } from "@/agent/orchestrator";
 import { exportSession, importSession } from "@/agent/session-io";
 import SessionLogViewer from "./SessionLogViewer";
-import type { AgentMessage, AgentToolCall, ExecutionMode } from "@/agent/types";
+import type {
+  AgentMessage,
+  AgentToolCall,
+  ExecutionMode,
+  PendingExecution,
+} from "@/agent/types";
 import { Button } from "@/components/ui/button";
 import {
   Select,
@@ -48,7 +49,16 @@ import { inferContextWindowSize } from "@/constants/model";
 import { cn } from "@/lib/utils";
 import { Textarea } from "@/components/ui/textarea";
 import FusionKitLogo from "@/assets/FusionKit.svg";
+import {
+  ChatMarkdownRenderer,
+  type MarkdownWidgetRegistry,
+  type MarkdownWidgetContext,
+} from "@/components/qiuye-ui/markdown-renderer";
+import { builtinWidgetRegistry } from "@/components/qiuye-ui/markdown-renderer/widgets/builtin-registry";
+import { pendingExecutionWidget } from "@/components/qiuye-ui/markdown-renderer/widgets/PendingExecutionWidget";
 
+// ---------------------------------------------------------------------------
+// Constants
 // ---------------------------------------------------------------------------
 
 const EXECUTION_MODE_OPTIONS: {
@@ -73,13 +83,6 @@ const EXECUTION_MODE_OPTIONS: {
   },
 ];
 
-const TOOL_LABEL_KEYS: Record<string, string> = {
-  scan_subtitle_files: "home:tool_name_scan",
-  queue_subtitle_translate: "home:tool_name_translate",
-  queue_subtitle_convert: "home:tool_name_convert",
-  queue_subtitle_extract: "home:tool_name_extract",
-};
-
 const STORE_LABEL_KEYS: Record<string, string> = {
   translate: "home:store_label_translate",
   convert: "home:store_label_convert",
@@ -93,10 +96,105 @@ const STORE_PATH: Record<string, string> = {
 };
 
 // ---------------------------------------------------------------------------
+// Widget registry (builtin + pending-execution)
+// ---------------------------------------------------------------------------
+
+const homeAgentWidgetRegistry: MarkdownWidgetRegistry = {
+  ...builtinWidgetRegistry,
+  [pendingExecutionWidget.type]: pendingExecutionWidget,
+};
+
+// ---------------------------------------------------------------------------
+// Structured data → Widget fence converters
+// ---------------------------------------------------------------------------
+
+function toolCallsToFences(
+  toolCalls: AgentToolCall[],
+  status: "pending" | "running" | "success" = "success",
+): string {
+  return toolCalls
+    .map((tc) => {
+      const payload = JSON.stringify({
+        name: tc.toolName,
+        status,
+        input: tc.args,
+      });
+      return "\n\n```qv:tool-call\n" + payload + "\n```";
+    })
+    .join("");
+}
+
+function pendingExecutionToFence(pe: PendingExecution): string {
+  const payload = JSON.stringify({
+    stores: pe.stores.map((s) => ({
+      name: s,
+      labelKey: STORE_LABEL_KEYS[s] ?? s,
+      count: pe.taskCounts[s] ?? 0,
+      path: STORE_PATH[s],
+    })),
+    ...(pe.resolvedAction ? { resolvedAction: pe.resolvedAction } : {}),
+  });
+  return "```qv:pending-execution\n" + payload + "\n```";
+}
+
+function formatToolResultAsMarkdown(message: AgentMessage, t: TFunction): string {
+  const result = message.toolResult;
+  const isSuccess = result?.success ?? true;
+  const toolName = result?.toolName ?? t("home:tool_execution_fallback");
+  const statusMark = isSuccess ? " ✓" : " ✗";
+  const raw = message.content;
+
+  let body: string;
+  try {
+    const parsed = JSON.parse(raw);
+    if (parsed?.files && Array.isArray(parsed.files)) {
+      const count = parsed.totalCount ?? parsed.files.length;
+      const names = parsed.files
+        .slice(0, 10)
+        .map((f: Record<string, unknown>) => `- \`${(f.fileName as string) || f}\``)
+        .join("\n");
+      const more =
+        count > 10
+          ? `\n- *...${t("home:tool_result_more_files", { count })}*`
+          : "";
+      body = `${t("home:tool_result_files_found", { count })}:\n${names}${more}`;
+    } else if (parsed?.queuedCount !== undefined) {
+      if (parsed?.batch) {
+        body = t("home:tool_result_queued_batch_progress", {
+          queuedCount: parsed.queuedCount,
+          batchStart: Number(parsed.batch.batchStart ?? 0) + 1,
+          batchEnd: parsed.batch.batchEnd,
+          queuedThrough: parsed.batch.queuedThrough,
+          totalFiles: parsed.totalFiles,
+          remainingCount: parsed.batch.remainingCount,
+        });
+        if (parsed.batch.hasMore) {
+          body += `\n${t("home:tool_result_queued_batch_more", {
+            nextBatchStart: parsed.batch.nextBatchStart,
+          })}`;
+        }
+      } else {
+        body = t("home:tool_result_queued_progress", {
+          queuedCount: parsed.queuedCount,
+          totalFiles: parsed.totalFiles,
+        });
+      }
+    } else if (typeof parsed === "string") {
+      body = parsed;
+    } else {
+      body = "```json\n" + JSON.stringify(parsed, null, 2) + "\n```";
+    }
+  } catch {
+    body = raw.length > 500 ? raw.slice(0, 500) + "…" : raw;
+  }
+
+  return `**${toolName}**${statusMark}\n\n${body}`;
+}
+
+// ---------------------------------------------------------------------------
 
 function HomeAgent() {
   const { t } = useTranslation();
-  const navigate = useNavigate();
   const [input, setInput] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -127,6 +225,28 @@ function HomeAgent() {
 
   const [isMultiline, setIsMultiline] = useState(false);
 
+  // Input history navigation (Up/Down arrow), persisted across sessions
+  const INPUT_HISTORY_KEY = "fusionkit-input-history";
+  const INPUT_HISTORY_MAX = 50;
+  const historyIndexRef = useRef(-1);
+  const draftRef = useRef("");
+  const inputHistoryRef = useRef<string[]>(null!);
+  if (inputHistoryRef.current === null) {
+    try {
+      const raw = localStorage.getItem(INPUT_HISTORY_KEY);
+      inputHistoryRef.current = raw ? JSON.parse(raw) : [];
+    } catch {
+      inputHistoryRef.current = [];
+    }
+  }
+  const pushHistory = (text: string) => {
+    const hist = inputHistoryRef.current;
+    if (hist[hist.length - 1] === text) return;
+    hist.push(text);
+    if (hist.length > INPUT_HISTORY_MAX) hist.splice(0, hist.length - INPUT_HISTORY_MAX);
+    localStorage.setItem(INPUT_HISTORY_KEY, JSON.stringify(hist));
+  };
+
   useEffect(() => {
     if (!isMultiline && input.includes("\n")) {
       setIsMultiline(true);
@@ -155,6 +275,28 @@ function HomeAgent() {
   useEffect(() => {
     textareaRef.current?.focus();
   }, [isMultiline]);
+
+  const navigate = useNavigate();
+
+  const widgetContext = useMemo<MarkdownWidgetContext>(
+    () => ({
+      conversationId: session.id,
+      role: "assistant",
+      density: "compact",
+      isStreaming,
+      onWidgetAction: (action) => {
+        if (action.type === "pending-execution") {
+          if (action.action === "confirm") confirmExecution();
+          if (action.action === "dismiss") dismissExecution();
+          if (action.action === "navigate") {
+            const path = (action.payload as { path?: string })?.path;
+            if (path) navigate(path);
+          }
+        }
+      },
+    }),
+    [session.id, isStreaming, confirmExecution, dismissExecution, navigate],
+  );
 
   const prevStreamingRef = useRef(false);
   useEffect(() => {
@@ -194,7 +336,10 @@ function HomeAgent() {
   const handleSend = async () => {
     const trimmed = input.trim();
     if (!trimmed || isStreaming) return;
+    pushHistory(trimmed);
     setInput("");
+    historyIndexRef.current = -1;
+    draftRef.current = "";
     await handleUserMessage(trimmed);
   };
 
@@ -202,6 +347,42 @@ function HomeAgent() {
     if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
       e.preventDefault();
       handleSend();
+      return;
+    }
+
+    const hist = inputHistoryRef.current;
+    if (e.key === "ArrowUp" && hist.length > 0) {
+      const el = textareaRef.current;
+      const isAtStart = !el || el.selectionStart === 0;
+      const isSingleLine = !input.includes("\n");
+      if (isAtStart && isSingleLine) {
+        e.preventDefault();
+        if (historyIndexRef.current === -1) {
+          draftRef.current = input;
+        }
+        const nextIdx = Math.min(
+          historyIndexRef.current + 1,
+          hist.length - 1,
+        );
+        historyIndexRef.current = nextIdx;
+        setInput(hist[hist.length - 1 - nextIdx]);
+      }
+    }
+
+    if (e.key === "ArrowDown" && historyIndexRef.current >= 0) {
+      const el = textareaRef.current;
+      const isAtEnd = !el || el.selectionStart === el.value.length;
+      const isSingleLine = !input.includes("\n");
+      if (isAtEnd && isSingleLine) {
+        e.preventDefault();
+        const nextIdx = historyIndexRef.current - 1;
+        historyIndexRef.current = nextIdx;
+        if (nextIdx < 0) {
+          setInput(draftRef.current);
+        } else {
+          setInput(hist[hist.length - 1 - nextIdx]);
+        }
+      }
     }
   };
 
@@ -543,9 +724,15 @@ function HomeAgent() {
           <div className="h-full overflow-y-auto px-4 pt-2 pb-2">
             <div className="max-w-2xl mx-auto space-y-4 pt-1 pb-44">
               {messages.map((msg) => (
-                <MessageBubble key={msg.id} message={msg} />
+                <MessageBubble
+                  key={msg.id}
+                  message={msg}
+                  widgetRegistry={homeAgentWidgetRegistry}
+                  widgetContext={widgetContext}
+                />
               ))}
 
+              {/* Thinking indicator */}
               {isStreaming &&
                 status === "thinking" &&
                 !streamingText &&
@@ -556,27 +743,42 @@ function HomeAgent() {
                   </div>
                 )}
 
-              {isStreaming && streamingText && (
-                <div className="flex items-start gap-2.5 animate-in fade-in slide-in-from-bottom-2 duration-300">
-                  <div className="flex items-center justify-center rounded-full w-7 h-7 shrink-0 bg-muted text-muted-foreground">
-                    <Bot className="h-3.5 w-3.5" />
+              {/* Streaming assistant response + in-flight tool calls */}
+              {isStreaming &&
+                (streamingText || activeToolCalls.length > 0) && (
+                  <div className="flex items-start gap-2.5 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                    <div className="flex items-center justify-center rounded-full w-7 h-7 shrink-0 bg-muted text-muted-foreground">
+                      <Bot className="h-3.5 w-3.5" />
+                    </div>
+                    <div className="flex-1 min-w-0 max-w-[80%] text-sm leading-relaxed">
+                      <ChatMarkdownRenderer
+                        content={
+                          (streamingText || "") +
+                          (activeToolCalls.length > 0
+                            ? toolCallsToFences(activeToolCalls, "running")
+                            : "")
+                        }
+                        widgetRegistry={homeAgentWidgetRegistry}
+                        widgetContext={{
+                          ...widgetContext,
+                          isStreaming: true,
+                        }}
+                        codeBlock={{ colorTheme: "qiuvision" }}
+                      />
+                    </div>
                   </div>
-                  <div className="relative rounded-sm px-4 py-2.5 max-w-[80%] text-sm leading-relaxed bg-muted chat-bubble-assistant">
-                    <StreamingTextContent text={streamingText} />
-                  </div>
-                </div>
-              )}
+                )}
 
-              {isStreaming && activeToolCalls.length > 0 && (
-                <ToolCallBubble toolCalls={activeToolCalls} isLoading />
-              )}
-
+              {/* Pending execution widget */}
               {pendingExecution && !isStreaming && (
-                <PendingExecutionCard
-                  pendingExecution={pendingExecution}
-                  onConfirm={confirmExecution}
-                  onDismiss={dismissExecution}
-                />
+                <div className="pl-10 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                  <ChatMarkdownRenderer
+                    content={pendingExecutionToFence(pendingExecution)}
+                    widgetRegistry={homeAgentWidgetRegistry}
+                    widgetContext={widgetContext}
+                    codeBlock={{ colorTheme: "qiuvision" }}
+                  />
+                </div>
               )}
 
               <div ref={messagesEndRef} />
@@ -672,232 +874,71 @@ function CapsuleModeSelector({
   );
 }
 
-function PendingExecutionCard({
-  pendingExecution,
-  onConfirm,
-  onDismiss,
+function MessageBubble({
+  message,
+  widgetRegistry,
+  widgetContext,
 }: {
-  pendingExecution: { stores: string[]; taskCounts: Record<string, number> };
-  onConfirm: () => void;
-  onDismiss: () => void;
+  message: AgentMessage;
+  widgetRegistry: MarkdownWidgetRegistry;
+  widgetContext: MarkdownWidgetContext;
 }) {
-  const { t } = useTranslation();
-  const navigate = useNavigate();
-
-  return (
-    <div className="pl-10 animate-in fade-in slide-in-from-bottom-2 duration-300">
-      <div className="rounded-xl border border-border/60 bg-muted/40 p-4 max-w-sm">
-        <p className="text-sm font-medium mb-2.5">{t("home:queued_title")}</p>
-
-        <div className="space-y-1.5 mb-3">
-          {pendingExecution.stores.map((store) => (
-            <div
-              key={store}
-              className="flex items-center justify-between rounded-lg bg-background/60 border border-border/40 px-3 py-1.5"
-            >
-              <span className="text-sm text-muted-foreground">
-                {t(STORE_LABEL_KEYS[store] ?? store)}{" "}
-                <span className="font-medium text-foreground">
-                  {pendingExecution.taskCounts[store] ?? 0}
-                </span>{" "}
-                {t("home:task_unit")}
-              </span>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-6 w-6 p-0 text-muted-foreground hover:text-foreground"
-                onClick={() => navigate(STORE_PATH[store])}
-              >
-                <ArrowRight className="h-3.5 w-3.5" />
-              </Button>
-            </div>
-          ))}
-        </div>
-
-        <p className="text-xs text-muted-foreground mb-3">
-          {t("home:execute_immediately_confirm")}
-        </p>
-        <div className="flex items-center gap-2">
-          <Button
-            size="sm"
-            onClick={onConfirm}
-            className="h-7 rounded-full text-xs gap-1 px-3"
-          >
-            <Play className="h-3 w-3" />
-            {t("home:execute_now")}
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={onDismiss}
-            className="h-7 rounded-full text-xs text-muted-foreground px-3"
-          >
-            {t("home:execute_later")}
-          </Button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function MessageBubble({ message }: { message: AgentMessage }) {
   const { t } = useTranslation();
   const isUser = message.role === "user";
   const isTool = message.role === "tool";
 
-  if (isTool) {
-    const result = message.toolResult;
-    const isSuccess = result?.success ?? true;
+  // --- User: bubble style ---
+  if (isUser) {
     return (
-      <div className="pl-10">
-        <div
-          className={cn(
-            "rounded-xl border p-3 text-xs font-mono max-w-full overflow-auto",
-            isSuccess
-              ? "bg-muted/40 border-border/50"
-              : "bg-destructive/5 border-destructive/20",
-          )}
-        >
-          <div className="flex items-center gap-1.5 mb-1 text-muted-foreground">
-            {isSuccess ? (
-              <CheckCircle2 className="h-3 w-3 text-green-600" />
-            ) : (
-              <XCircle className="h-3 w-3 text-destructive" />
-            )}
-            <span>{result?.toolName ?? t("home:tool_execution_fallback")}</span>
-          </div>
-          <pre className="whitespace-pre-wrap wrap-break-word max-h-48 overflow-auto text-foreground/80">
-            {formatToolContent(message.content, t)}
-          </pre>
+      <div className="flex items-start gap-2.5 flex-row-reverse">
+        <div className="flex items-center justify-center rounded-full w-7 h-7 shrink-0 bg-primary text-primary-foreground">
+          <User className="h-3.5 w-3.5" />
         </div>
-      </div>
-    );
-  }
-
-  if (
-    message.role === "assistant" &&
-    !message.content &&
-    message.toolCalls?.length
-  ) {
-    return <ToolCallBubble toolCalls={message.toolCalls} />;
-  }
-
-  return (
-    <>
-      <div
-        className={cn(
-          "flex items-start gap-2.5",
-          isUser ? "flex-row-reverse" : "",
-        )}
-      >
-        <div
-          className={cn(
-            "flex items-center justify-center rounded-full w-7 h-7 shrink-0",
-            isUser
-              ? "bg-primary text-primary-foreground"
-              : "bg-muted text-muted-foreground",
-          )}
-        >
-          {isUser ? (
-            <User className="h-3.5 w-3.5" />
-          ) : (
-            <Bot className="h-3.5 w-3.5" />
-          )}
-        </div>
-        <div
-          className={cn(
-            "relative rounded-sm px-4 py-2.5 max-w-[80%] text-sm leading-relaxed",
-            isUser
-              ? "bg-primary text-primary-foreground chat-bubble-user"
-              : "bg-muted chat-bubble-assistant",
-          )}
-        >
+        <div className="relative rounded-sm px-4 py-2.5 max-w-[80%] text-sm leading-relaxed bg-primary text-primary-foreground chat-bubble-user">
           <p className="whitespace-pre-wrap wrap-break-word">
             {message.content}
           </p>
         </div>
       </div>
-      {message.role === "assistant" &&
-        message.toolCalls &&
-        message.toolCalls.length > 0 && (
-          <ToolCallBubble toolCalls={message.toolCalls} />
-        )}
-    </>
-  );
-}
+    );
+  }
 
-function ToolCallBubble({
-  toolCalls,
-  isLoading = false,
-}: {
-  toolCalls: AgentToolCall[];
-  isLoading?: boolean;
-}) {
-  const { t } = useTranslation();
+  // --- Tool result: markdown formatted ---
+  if (isTool) {
+    return (
+      <div className="pl-10">
+        <ChatMarkdownRenderer
+          content={formatToolResultAsMarkdown(message, t)}
+          widgetRegistry={widgetRegistry}
+          widgetContext={widgetContext}
+          codeBlock={{ colorTheme: "qiuvision" }}
+        />
+      </div>
+    );
+  }
+
+  // --- Assistant: no bubble, ChatMarkdownRenderer ---
+  let content = message.content || "";
+  if (message.toolCalls && message.toolCalls.length > 0) {
+    content += toolCallsToFences(message.toolCalls, "success");
+  }
+
+  if (!content.trim()) return null;
+
   return (
-    <div
-      className={cn(
-        "pl-10",
-        isLoading && "animate-in fade-in slide-in-from-bottom-2 duration-300",
-      )}
-    >
-      <div className="inline-flex flex-col gap-1 rounded-lg border border-border/40 bg-muted/30 px-3 py-2">
-        {toolCalls.map((tc) => (
-          <div key={tc.toolCallId} className="flex items-center gap-2 text-xs">
-            {isLoading ? (
-              <Loader2 className="h-3 w-3 animate-spin text-primary/70" />
-            ) : (
-              <CheckCircle2 className="h-3 w-3 text-emerald-500/70" />
-            )}
-            <span className="text-muted-foreground">
-              {t(TOOL_LABEL_KEYS[tc.toolName] ?? tc.toolName)}
-            </span>
-            {isLoading && (
-              <span className="text-muted-foreground/40 text-[10px]">
-                {t("home:tool_executing")}
-              </span>
-            )}
-          </div>
-        ))}
+    <div className="flex items-start gap-2.5">
+      <div className="flex items-center justify-center rounded-full w-7 h-7 shrink-0 bg-muted text-muted-foreground">
+        <Bot className="h-3.5 w-3.5" />
+      </div>
+      <div className="flex-1 min-w-0 max-w-[80%] text-sm leading-relaxed">
+        <ChatMarkdownRenderer
+          content={content}
+          widgetRegistry={widgetRegistry}
+          widgetContext={widgetContext}
+          codeBlock={{ colorTheme: "qiuvision" }}
+        />
       </div>
     </div>
-  );
-}
-
-function StreamingTextContent({ text }: { text: string }) {
-  const segmentsRef = useRef<string[]>([]);
-  const processedLenRef = useRef(0);
-
-  if (text.length === 0 && processedLenRef.current > 0) {
-    segmentsRef.current = [];
-    processedLenRef.current = 0;
-  }
-
-  if (text.length > processedLenRef.current) {
-    const delta = text.slice(processedLenRef.current);
-    const segs = segmentsRef.current;
-    const lastSeg = segs.length > 0 ? segs[segs.length - 1] : undefined;
-    if (lastSeg !== undefined && lastSeg.length < 12) {
-      segs[segs.length - 1] = lastSeg + delta;
-    } else {
-      segs.push(delta);
-    }
-    processedLenRef.current = text.length;
-  }
-
-  return (
-    <p className="whitespace-pre-wrap wrap-break-word">
-      {segmentsRef.current.map((seg, i) => (
-        <span key={i} className="streaming-fade-in">
-          {seg}
-        </span>
-      ))}
-      <motion.span
-        layoutId="streaming-cursor"
-        className="inline-block w-1.5 h-4 ml-0.5 -mb-0.5 bg-foreground/60 animate-pulse"
-        transition={{ type: "spring", bounce: 0, duration: 0.2 }}
-      />
-    </p>
   );
 }
 
@@ -1174,36 +1215,6 @@ function TokenStatsBar({ className }: { className?: string } = {}) {
       </Popover>
     </motion.div>
   );
-}
-
-// ---------------------------------------------------------------------------
-// Utilities
-// ---------------------------------------------------------------------------
-
-function formatToolContent(raw: string, t: TFunction): string {
-  try {
-    const parsed = JSON.parse(raw);
-    if (parsed?.files && Array.isArray(parsed.files)) {
-      const count = parsed.totalCount ?? parsed.files.length;
-      const names = parsed.files
-        .slice(0, 10)
-        .map((f: any) => f.fileName || f)
-        .join("\n  ");
-      const more =
-        count > 10 ? `\n  ${t("home:tool_result_more_files", { count })}` : "";
-      return `${t("home:tool_result_files_found", { count })}:\n  ${names}${more}`;
-    }
-    if (parsed?.queuedCount !== undefined) {
-      return t("home:tool_result_queued_progress", {
-        queuedCount: parsed.queuedCount,
-        totalFiles: parsed.totalFiles,
-      });
-    }
-    if (typeof parsed === "string") return parsed;
-    return JSON.stringify(parsed, null, 2);
-  } catch {
-    return raw.length > 500 ? raw.slice(0, 500) + "…" : raw;
-  }
 }
 
 export default HomeAgent;

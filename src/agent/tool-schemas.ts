@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { DEFAULT_QUEUE_BATCH_SIZE, MAX_QUEUE_BATCH_SIZE } from "./queue-batch";
 
 // ---------------------------------------------------------------------------
 // Agent 工具入参 Schema（精简版）
@@ -25,11 +26,42 @@ export const queueTranslateSchema = z.object({
   filePaths: z
     .array(z.string())
     .min(1)
-    .describe("Absolute paths of subtitle files to translate"),
+    .optional()
+    .describe(
+      "Absolute paths of subtitle files to translate. Use this only for small explicit file lists; for scan results, prefer scanId + batchStart + batchSize."
+    ),
+  scanId: z
+    .string()
+    .optional()
+    .describe("scanId returned by scan_subtitle_files. Use this for batch queueing large scan results."),
+  batchStart: z
+    .number()
+    .int()
+    .min(0)
+    .default(0)
+    .describe("Zero-based start index within the scan result when scanId is used."),
+  batchSize: z
+    .number()
+    .int()
+    .min(1)
+    .max(MAX_QUEUE_BATCH_SIZE)
+    .default(DEFAULT_QUEUE_BATCH_SIZE)
+    .describe(`Number of files to queue from scanId. Default ${DEFAULT_QUEUE_BATCH_SIZE}; max ${MAX_QUEUE_BATCH_SIZE}.`),
   sliceType: z
     .enum(["NORMAL", "SENSITIVE", "CUSTOM"])
     .default("NORMAL")
-    .describe("Translation slice strategy"),
+    .describe(
+      "Translation slice strategy. Use CUSTOM when the user gives an explicit slice length, token/chunk limit, or phrases like 按照1200分词 / 每片1200 / 1200 tokens."
+    ),
+  customSliceLength: z
+    .number()
+    .int()
+    .min(100)
+    .max(2000)
+    .optional()
+    .describe(
+      "Custom translation slice length. Set this to the explicit number from the user when they request custom slicing, e.g. 按照1200分词 -> customSliceLength=1200 and sliceType=CUSTOM."
+    ),
   sourceLang: z
     .enum(["ZH", "JA", "EN", "KO", "FR", "DE", "ES", "RU", "PT"])
     .default("JA")
@@ -69,7 +101,27 @@ export const queueConvertSchema = z.object({
   filePaths: z
     .array(z.string())
     .min(1)
-    .describe("Absolute paths of subtitle files to convert"),
+    .optional()
+    .describe(
+      "Absolute paths of subtitle files to convert. Use this only for small explicit file lists; for scan results, prefer scanId + batchStart + batchSize."
+    ),
+  scanId: z
+    .string()
+    .optional()
+    .describe("scanId returned by scan_subtitle_files. Use this for batch queueing large scan results."),
+  batchStart: z
+    .number()
+    .int()
+    .min(0)
+    .default(0)
+    .describe("Zero-based start index within the scan result when scanId is used."),
+  batchSize: z
+    .number()
+    .int()
+    .min(1)
+    .max(MAX_QUEUE_BATCH_SIZE)
+    .default(DEFAULT_QUEUE_BATCH_SIZE)
+    .describe(`Number of files to queue from scanId. Default ${DEFAULT_QUEUE_BATCH_SIZE}; max ${MAX_QUEUE_BATCH_SIZE}.`),
   to: z
     .enum(["LRC", "SRT", "VTT"])
     .describe("Target subtitle format"),
@@ -94,7 +146,27 @@ export const queueExtractSchema = z.object({
   filePaths: z
     .array(z.string())
     .min(1)
-    .describe("Absolute paths of subtitle files to extract from"),
+    .optional()
+    .describe(
+      "Absolute paths of subtitle files to extract from. Use this only for small explicit file lists; for scan results, prefer scanId + batchStart + batchSize."
+    ),
+  scanId: z
+    .string()
+    .optional()
+    .describe("scanId returned by scan_subtitle_files. Use this for batch queueing large scan results."),
+  batchStart: z
+    .number()
+    .int()
+    .min(0)
+    .default(0)
+    .describe("Zero-based start index within the scan result when scanId is used."),
+  batchSize: z
+    .number()
+    .int()
+    .min(1)
+    .max(MAX_QUEUE_BATCH_SIZE)
+    .default(DEFAULT_QUEUE_BATCH_SIZE)
+    .describe(`Number of files to queue from scanId. Default ${DEFAULT_QUEUE_BATCH_SIZE}; max ${MAX_QUEUE_BATCH_SIZE}.`),
   keep: z
     .enum(["ZH", "JA"])
     .default("ZH")

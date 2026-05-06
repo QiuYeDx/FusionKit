@@ -45,6 +45,8 @@ export interface PendingExecution {
   stores: TaskStoreType[];
   taskCounts: Partial<Record<TaskStoreType, number>>;
   timestamp: number;
+  /** 用户已做出决策时的操作类型，为 null 表示尚未决策 */
+  resolvedAction?: "confirm" | "dismiss" | null;
 }
 
 // ---------------------------------------------------------------------------

@@ -84,7 +84,8 @@
       "total_tokens": "总Token数",
       "total_cost": "预估总费用",
       "pending_tokens": "待处理Token",
-      "pending_cost": "待处理费用"
+      "pending_cost": "待处理费用",
+      "cost_tooltip": "当前仅为预估费用。实际计费会同时包含输入和输出 Token，输出 Token 在翻译前无法精确得知；翻译结果越长，实际费用越可能高于预估，最终以模型服务商账单为准。"
     },
     "task_detail": {
       "language_pair": "翻译语言",

@@ -4,6 +4,7 @@ import useAgentStore from "@/store/agent/useAgentStore";
 import useModelStore from "@/store/useModelStore";
 import { agentTools } from "./tools";
 import type { AgentMessage, AgentToolCall, TokenUsage } from "./types";
+import { DEFAULT_QUEUE_BATCH_SIZE, MAX_QUEUE_BATCH_SIZE } from "./queue-batch";
 
 // ---------------------------------------------------------------------------
 // Orchestrator — AI SDK streamText 驱动的对话 + 工具循环
@@ -39,9 +40,13 @@ You have access to tools for three subtitle operations:
   - "翻译" / "translate" = LANGUAGE translation, use queue_subtitle_translate
   - "提取" / "extract" = Extract one language from bilingual, use queue_subtitle_extract
 - **Scan before queue**: When the user mentions a directory path for processing, first call scan_subtitle_files to discover files, then call the appropriate queue tool with the discovered filePaths.
+- **Batch large scan results**: scan_subtitle_files returns a scanId. If the scan finds more than ${DEFAULT_QUEUE_BATCH_SIZE} files, DO NOT copy the whole file list into filePaths. Queue by repeated calls to the matching queue_* tool using scanId, batchStart, and batchSize=${DEFAULT_QUEUE_BATCH_SIZE} (never above ${MAX_QUEUE_BATCH_SIZE}).
+- **Continue queue batches**: After each queue_* result, check batch.hasMore. If true, immediately call the same queue_* tool again with the same operation options and batchStart=batch.nextBatchStart. Continue until batch.hasMore is false, then summarize. Do not stop after the first batch unless the user explicitly requested only part of the files.
+- **Small explicit lists**: Use filePaths directly only when the user gave a small file list or the scan result is small enough to fit comfortably.
 - **Default outputMode is "source"** (save output next to the original file) unless the user specifies otherwise.
 - **Default conflictPolicy is "index"** (append numeric suffix like _1, _2 to avoid overwriting). Set to "overwrite" ONLY when the user explicitly says to overwrite / replace / 覆盖 / 同名覆盖 / 直接替换 existing files.
 - **For translation, default concurrentSlices is true** (parallel slice processing for speed). Set to false ONLY when the user explicitly asks for sequential / non-concurrent / 串行 / 不要并发 / 逐条翻译 processing.
+- **For translation custom slicing**: If the user gives an explicit slice length or token/chunk size, set sliceType="CUSTOM" and customSliceLength to that number. Chinese phrases such as "按照1200分词", "按1200词", "每片1200", "分片长度1200", "token上限1200", or "自定义1200" all mean customSliceLength=1200. Keep the same custom slice options across every scanId batch.
 - **For translation**: Default sourceLang is "JA" and targetLang is "ZH". Default translationOutputMode is "bilingual". Infer languages from user context when possible (e.g. "translate English subtitles to Chinese" → sourceLang="EN", targetLang="ZH").
 - **Respond in the same language as the user.**
 - **When information is missing** (e.g. no path given, unclear operation), ask the user politely. Do NOT guess.
@@ -52,8 +57,9 @@ When the tool result includes "executionMode" and "executionStatus", use them to
 
 ## Workflow for Task Requests
 1. User mentions an operation + a path → call scan_subtitle_files with the directory
-2. Review scan results → call the matching queue_* tool with discovered file paths
-3. Summarize what was queued and the execution status based on the current execution mode
+2. Review scan results → call the matching queue_* tool. For large scans, use scanId batches: 0, ${DEFAULT_QUEUE_BATCH_SIZE}, ${DEFAULT_QUEUE_BATCH_SIZE * 2}, ...
+3. Keep queueing batches using batch.nextBatchStart until the tool result says batch.hasMore=false
+4. Summarize what was queued and the execution status based on the current execution mode
 
 ## Workflow for Non-Task Messages
 Just respond naturally. Talk about the app, answer questions, or have a friendly conversation.`;
@@ -186,7 +192,7 @@ export async function handleUserMessage(userContent: string): Promise<void> {
       system: buildSystemPrompt(),
       messages: modelMessages,
       tools: agentTools,
-      stopWhen: stepCountIs(20),
+      stopWhen: stepCountIs(50),
       temperature: 0.3,
       maxOutputTokens: 4096,
       abortSignal: activeAbortController.signal,
