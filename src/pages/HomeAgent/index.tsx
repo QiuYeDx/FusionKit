@@ -159,10 +159,26 @@ function formatToolResultAsMarkdown(message: AgentMessage, t: TFunction): string
           : "";
       body = `${t("home:tool_result_files_found", { count })}:\n${names}${more}`;
     } else if (parsed?.queuedCount !== undefined) {
-      body = t("home:tool_result_queued_progress", {
-        queuedCount: parsed.queuedCount,
-        totalFiles: parsed.totalFiles,
-      });
+      if (parsed?.batch) {
+        body = t("home:tool_result_queued_batch_progress", {
+          queuedCount: parsed.queuedCount,
+          batchStart: Number(parsed.batch.batchStart ?? 0) + 1,
+          batchEnd: parsed.batch.batchEnd,
+          queuedThrough: parsed.batch.queuedThrough,
+          totalFiles: parsed.totalFiles,
+          remainingCount: parsed.batch.remainingCount,
+        });
+        if (parsed.batch.hasMore) {
+          body += `\n${t("home:tool_result_queued_batch_more", {
+            nextBatchStart: parsed.batch.nextBatchStart,
+          })}`;
+        }
+      } else {
+        body = t("home:tool_result_queued_progress", {
+          queuedCount: parsed.queuedCount,
+          totalFiles: parsed.totalFiles,
+        });
+      }
     } else if (typeof parsed === "string") {
       body = parsed;
     } else {

@@ -31,7 +31,8 @@ export const agentTools = {
       "Add subtitle files to the TRANSLATION queue. " +
       "Translates subtitle text from one language to another (default: Japanese→Chinese, bilingual output). " +
       "Supports languages: ZH(Chinese), JA(Japanese), EN(English), KO(Korean), FR(French), DE(German), ES(Spanish), RU(Russian), PT(Portuguese). " +
-      "Requires filePaths from a previous scan result.",
+      "When the user requests an explicit slice length such as 按照1200分词 / every 1200 tokens, set sliceType=CUSTOM and customSliceLength to that number. " +
+      "Use filePaths for small explicit lists, or use scanId + batchStart + batchSize from a previous scan result for large batch queueing.",
     inputSchema: queueTranslateSchema,
     execute: async (args) => executeQueueTranslate(args),
   }),
@@ -40,7 +41,7 @@ export const agentTools = {
     description:
       "Add subtitle files to the FORMAT CONVERSION queue. " +
       "Converts between subtitle formats (SRT↔LRC↔VTT). " +
-      "Requires filePaths from a previous scan result.",
+      "Use filePaths for small explicit lists, or use scanId + batchStart + batchSize from a previous scan result for large batch queueing.",
     inputSchema: queueConvertSchema,
     execute: async (args) => executeQueueConvert(args),
   }),
@@ -49,7 +50,7 @@ export const agentTools = {
     description:
       "Add subtitle files to the LANGUAGE EXTRACTION queue. " +
       "Extracts one language (Chinese or Japanese) from bilingual subtitles. " +
-      "Requires filePaths from a previous scan result.",
+      "Use filePaths for small explicit lists, or use scanId + batchStart + batchSize from a previous scan result for large batch queueing.",
     inputSchema: queueExtractSchema,
     execute: async (args) => executeQueueExtract(args),
   }),

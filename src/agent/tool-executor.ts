@@ -19,6 +19,12 @@ import {
   estimateSubtitleTokensFast,
   estimateSubtitleTokens,
 } from "@/utils/tokenEstimate";
+import {
+  createScanResultPayload,
+  resolveQueueFileSelection,
+  type QueueFileSelection,
+} from "./queue-batch";
+import { resolveTranslationSliceConfig } from "./translation-slice-config";
 import type {
   SubtitleSliceType,
   TranslationLanguage,
@@ -133,11 +139,7 @@ export async function executeScan(
 
   return {
     success: true,
-    data: {
-      files: deduped,
-      totalCount: deduped.length,
-      scannedDirectories: args.directories,
-    },
+    data: createScanResultPayload(deduped, args.directories),
   };
 }
 
@@ -161,10 +163,25 @@ export async function executeQueueTranslate(
 
   let queued = 0;
   const errors: string[] = [];
+  const selection = resolveQueueFileSelection(args);
+  if (!selection.ok) {
+    return {
+      success: false,
+      error: selection.error,
+    };
+  }
+  const sliceConfig = resolveTranslationSliceConfig(
+    args,
+    getLatestUserMessageContent(),
+  );
+  const sourceLang = (args.sourceLang || "JA") as TranslationLanguage;
+  const targetLang = (args.targetLang || "ZH") as TranslationLanguage;
+  const translationOutputMode = (args.translationOutputMode ||
+    "bilingual") as TranslationOutputMode;
 
-  for (let i = 0; i < args.filePaths.length; i++) {
+  for (let i = 0; i < selection.filePaths.length; i++) {
     if (i > 0) await new Promise((r) => setTimeout(r, 0));
-    const filePath = args.filePaths[i];
+    const filePath = selection.filePaths[i];
 
     const fileContent = await readFileContent(filePath);
     if (fileContent === null) {
@@ -176,16 +193,18 @@ export async function executeQueueTranslate(
 
     const fastEstimate = estimateSubtitleTokensFast(
       fileContent,
-      args.sliceType as SubtitleSliceType,
-      undefined,
+      sliceConfig.sliceType as SubtitleSliceType,
+      sliceConfig.customSliceLength,
       taskProfile.provider,
       taskProfile.tokenPricing,
+      { sourceLang, targetLang, translationOutputMode },
     );
 
     store.addTask({
       fileName,
       fileContent,
-      sliceType: args.sliceType as any,
+      sliceType: sliceConfig.sliceType as any,
+      customSliceLength: sliceConfig.customSliceLength,
       originFileURL: filePath,
       targetFileURL: outputDir,
       status: TaskStatus.NOT_STARTED,
@@ -194,9 +213,9 @@ export async function executeQueueTranslate(
       apiKey: taskProfile.apiKey,
       apiModel: taskProfile.modelKey,
       endPoint: taskProfile.baseUrl,
-      sourceLang: (args.sourceLang || "JA") as TranslationLanguage,
-      targetLang: (args.targetLang || "ZH") as TranslationLanguage,
-      translationOutputMode: (args.translationOutputMode || "bilingual") as TranslationOutputMode,
+      sourceLang,
+      targetLang,
+      translationOutputMode,
       conflictPolicy: args.conflictPolicy ?? "index",
       concurrentSlices: args.concurrentSlices ?? true,
     });
@@ -205,10 +224,11 @@ export async function executeQueueTranslate(
     const capturedFileName = fileName;
     estimateSubtitleTokens(
       fileContent,
-      args.sliceType as SubtitleSliceType,
-      undefined,
+      sliceConfig.sliceType as SubtitleSliceType,
+      sliceConfig.customSliceLength,
       taskProfile.provider,
       taskProfile.tokenPricing,
+      { sourceLang, targetLang, translationOutputMode },
     ).then((precise) => {
       store.updateTaskCostEstimate(capturedFileName, precise);
     });
@@ -216,11 +236,7 @@ export async function executeQueueTranslate(
 
   const result: ToolExecutionResult = {
     success: true,
-    data: {
-      queuedCount: queued,
-      totalFiles: args.filePaths.length,
-      ...(errors.length > 0 ? { errors } : {}),
-    },
+    data: createQueueResultData(selection, queued, errors),
   };
 
   return handlePostQueue("translate", queued, result);
@@ -237,10 +253,17 @@ export async function executeQueueConvert(
 
   let queued = 0;
   const errors: string[] = [];
+  const selection = resolveQueueFileSelection(args);
+  if (!selection.ok) {
+    return {
+      success: false,
+      error: selection.error,
+    };
+  }
 
-  for (let i = 0; i < args.filePaths.length; i++) {
+  for (let i = 0; i < selection.filePaths.length; i++) {
     if (i > 0) await new Promise((r) => setTimeout(r, 0));
-    const filePath = args.filePaths[i];
+    const filePath = selection.filePaths[i];
 
     const fileContent = await readFileContent(filePath);
     if (fileContent === null) {
@@ -268,11 +291,7 @@ export async function executeQueueConvert(
 
   const result: ToolExecutionResult = {
     success: true,
-    data: {
-      queuedCount: queued,
-      totalFiles: args.filePaths.length,
-      ...(errors.length > 0 ? { errors } : {}),
-    },
+    data: createQueueResultData(selection, queued, errors),
   };
 
   return handlePostQueue("convert", queued, result);
@@ -289,10 +308,17 @@ export async function executeQueueExtract(
 
   let queued = 0;
   const errors: string[] = [];
+  const selection = resolveQueueFileSelection(args);
+  if (!selection.ok) {
+    return {
+      success: false,
+      error: selection.error,
+    };
+  }
 
-  for (let i = 0; i < args.filePaths.length; i++) {
+  for (let i = 0; i < selection.filePaths.length; i++) {
     if (i > 0) await new Promise((r) => setTimeout(r, 0));
-    const filePath = args.filePaths[i];
+    const filePath = selection.filePaths[i];
 
     const fileContent = await readFileContent(filePath);
     if (fileContent === null) {
@@ -320,11 +346,7 @@ export async function executeQueueExtract(
 
   const result: ToolExecutionResult = {
     success: true,
-    data: {
-      queuedCount: queued,
-      totalFiles: args.filePaths.length,
-      ...(errors.length > 0 ? { errors } : {}),
-    },
+    data: createQueueResultData(selection, queued, errors),
   };
 
   return handlePostQueue("extract", queued, result);
@@ -363,6 +385,14 @@ function resolveOutputDir(
   return filePath.replace(/\\/g, "/").split("/").slice(0, -1).join("/");
 }
 
+function getLatestUserMessageContent(): string {
+  const messages = useAgentStore.getState().session.messages;
+  for (let i = messages.length - 1; i >= 0; i--) {
+    if (messages[i].role === "user") return messages[i].content;
+  }
+  return "";
+}
+
 function deduplicateByPath<T extends { absolutePath: string }>(
   files: T[]
 ): T[] {
@@ -373,4 +403,24 @@ function deduplicateByPath<T extends { absolutePath: string }>(
     seen.add(key);
     return true;
   });
+}
+
+function createQueueResultData(
+  selection: Extract<QueueFileSelection, { ok: true }>,
+  queuedCount: number,
+  errors: string[],
+) {
+  return {
+    queuedCount,
+    totalFiles: selection.totalFiles,
+    ...(selection.source === "scan"
+      ? {
+          batch: {
+            ...selection.batch,
+            queuedCount,
+          },
+        }
+      : {}),
+    ...(errors.length > 0 ? { errors } : {}),
+  };
 }

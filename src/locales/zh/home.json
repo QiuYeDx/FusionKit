@@ -68,6 +68,8 @@
   "tool_result_more_files": "... 共 {{count}} 个文件",
   "tool_result_files_found": "发现 {{count}} 个文件",
   "tool_result_queued_progress": "已加入队列: {{queuedCount}}/{{totalFiles}} 个文件",
+  "tool_result_queued_batch_progress": "本批已加入队列: {{queuedCount}} 个文件（第 {{batchStart}}-{{batchEnd}} 个，进度 {{queuedThrough}}/{{totalFiles}}，剩余 {{remainingCount}} 个）",
+  "tool_result_queued_batch_more": "下一批从索引 {{nextBatchStart}} 继续。",
   "session_log_title": "会话日志",
   "session_log_description": "共 {{count}} 条日志记录",
   "session_log_empty": "暂无日志记录",
