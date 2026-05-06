@@ -37,11 +37,12 @@ export function buildRemainingContent(
 
 export function buildFinalContent(
   manifest: TranslationCheckpointManifest,
+  separator: string = "\n\n",
 ): string {
   return manifest.fragments
     .sort((a, b) => a.index - b.index)
     .map((f) => f.translatedContent!)
-    .join("\n\n");
+    .join(separator);
 }
 
 // ─── File writers ───────────────────────────────────────────────────────────

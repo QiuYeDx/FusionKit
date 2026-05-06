@@ -73,6 +73,8 @@ export abstract class BaseTranslator {
   protected sourceLang: string = "JA";
   protected targetLang: string = "ZH";
   protected bilingualOutput: boolean = true;
+  private maxResponseTokens: number = 4096;
+  protected fragmentSeparator: string = "\n\n";
 
   /**
    * 翻译主流程（模板方法）。
@@ -112,8 +114,9 @@ export abstract class BaseTranslator {
       );
 
       const maxTokens = this.getMaxTokens(task);
-      console.log("[03] max token num:", maxTokens);
-      errorLogs.push(`[${new Date().toISOString()}] 最大Token数: ${maxTokens}`);
+      this.maxResponseTokens = this.computeResponseMaxTokens(maxTokens);
+      console.log("[03] max token num:", maxTokens, "response max:", this.maxResponseTokens);
+      errorLogs.push(`[${new Date().toISOString()}] 最大Token数: ${maxTokens}, 响应Token上限: ${this.maxResponseTokens}`);
 
       const fragments = this.splitContent(content, maxTokens);
       console.log("[04] fragments num:", fragments.length);
@@ -199,7 +202,7 @@ export abstract class BaseTranslator {
         throw new Error("存在未完成的分片，无法生成最终文件");
       }
 
-      const translatedContent = buildFinalContent(manifest);
+      const translatedContent = buildFinalContent(manifest, this.fragmentSeparator);
 
       errorLogs.push(
         `[${new Date().toISOString()}] 开始写入文件到: ${task.targetFileURL}`,
@@ -496,6 +499,16 @@ export abstract class BaseTranslator {
     }
   }
 
+  /**
+   * 根据分片 token 上限和输出模式计算 API 响应的 max_tokens。
+   * 双语模式输出行数约为源文本 2 倍，乘以 3 作为安全余量；
+   * 仅译文模式乘以 2 保证充裕空间。最低不少于 4096。
+   */
+  private computeResponseMaxTokens(maxSourceTokens: number): number {
+    const multiplier = this.bilingualOutput ? 3 : 2;
+    return Math.max(4096, Math.ceil(maxSourceTokens * multiplier));
+  }
+
   private getMaxTokens(task: SubtitleTranslatorTask) {
     if (
       task.sliceType === SubtitleSliceType.CUSTOM &&
@@ -580,7 +593,7 @@ export abstract class BaseTranslator {
                 content: prompt,
               },
             ],
-            max_tokens: 3500,
+            max_tokens: this.maxResponseTokens,
             stream: false,
           },
           {
@@ -600,6 +613,13 @@ export abstract class BaseTranslator {
         errorLogs.push(
           `[${new Date().toISOString()}] 第 ${attempt} 次翻译请求成功`,
         );
+
+        const finishReason = response.data.choices?.[0]?.finish_reason;
+        if (finishReason === "length") {
+          errorLogs.push(
+            `[${new Date().toISOString()}] 警告: 翻译结果可能因达到token上限被截断 (finish_reason=length, max_tokens=${this.maxResponseTokens})`,
+          );
+        }
 
         // 适配深度思考模型：清理 <think>...</think> 标签避免污染翻译结果
         if (response.data.choices?.[0]?.message?.content) {

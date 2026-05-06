@@ -15,6 +15,8 @@ import { getLanguageName } from "../constants";
 import { cleanTranslatedLrcContent } from "../lrc-utils";
 
 export class LRCTranslator extends BaseTranslator {
+  protected fragmentSeparator = "\n";
+
   private readonly apiModel: string;
   /** 费用单价（美元 / 百万 token） */
   private readonly costPerInput: number;
@@ -111,26 +113,6 @@ export class LRCTranslator extends BaseTranslator {
 
   protected getApiEndpoint(): string {
     return this.config.endpoint;
-  }
-
-  protected createHeaders(apiKey: string): Record<string, string> {
-    return {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    };
-  }
-
-  protected buildRequestBody(prompt: string): BodyInit {
-    return JSON.stringify({
-      model: this.apiModel,
-      messages: [
-        {
-          role: "user",
-          content: prompt,
-        },
-      ],
-      max_tokens: 3500,
-    });
   }
 
   /** 解析 LLM 响应，清洗 markdown 格式残留，并累计本次调用的费用 */
