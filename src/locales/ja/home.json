@@ -42,6 +42,8 @@
   "execute_immediately_confirm": "今すぐ実行しますか？",
   "execute_now": "今すぐ実行",
   "execute_later": "あとで手動",
+  "execution_confirmed": "実行を開始しました",
+  "execution_dismissed": "後で手動実行を選択しました",
   "tool_execution_fallback": "ツール実行",
   "context_label": "コンテキスト",
   "context_usage": "コンテキスト使用率",
