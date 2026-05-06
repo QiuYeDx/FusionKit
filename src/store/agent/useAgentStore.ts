@@ -177,12 +177,20 @@ const useAgentStore = create<AgentStore>()(
 
       confirmExecution: () => {
         const { pendingExecution } = get();
-        if (!pendingExecution) return;
+        if (!pendingExecution || pendingExecution.resolvedAction) return;
         executeTasksInStores(pendingExecution.stores);
-        set({ pendingExecution: null });
+        set({
+          pendingExecution: { ...pendingExecution, resolvedAction: "confirm" },
+        });
       },
 
-      dismissExecution: () => set({ pendingExecution: null }),
+      dismissExecution: () => {
+        const { pendingExecution } = get();
+        if (!pendingExecution || pendingExecution.resolvedAction) return;
+        set({
+          pendingExecution: { ...pendingExecution, resolvedAction: "dismiss" },
+        });
+      },
 
       setActiveToolCalls: (calls) => set({ activeToolCalls: calls }),
       clearActiveToolCalls: () => set({ activeToolCalls: [] }),

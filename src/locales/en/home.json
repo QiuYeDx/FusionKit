@@ -42,6 +42,8 @@
   "execute_immediately_confirm": "Start execution now?",
   "execute_now": "Execute Now",
   "execute_later": "Later",
+  "execution_confirmed": "Execution started",
+  "execution_dismissed": "Deferred to manual execution",
   "tool_execution_fallback": "Tool Execution",
   "context_label": "Context",
   "context_usage": "Context Usage",

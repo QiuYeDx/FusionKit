@@ -92,7 +92,7 @@
 ### 2.2 大文件拆分
 
 - ⬜ **Q-03** 拆分 `HomeAgent/index.tsx`（1210 行）
-  - 拆出子组件：MessageBubble、ToolCallBubble、StreamingTextContent、TokenStatsBar、CapsuleModeSelector、PendingExecutionCard、SuggestionPill
+  - 拆出子组件：MessageBubble、ToolCallBubble、TokenStatsBar、CapsuleModeSelector、PendingExecutionCard、SuggestionPill
   - 备注：
 
 - ⬜ **Q-04** 拆分 `ModelConfig.tsx`（27KB）

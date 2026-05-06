@@ -611,7 +611,7 @@ HomeAgent
 │   │   ├── 助手消息（左侧灰色气泡）
 │   │   └── 工具消息（缩进的结果卡片）
 │   ├── ToolCallBubble（正在执行的工具调用）
-│   ├── StreamingTextContent（流式文字 + 闪烁光标）
+│   ├── ChatMarkdownRenderer（流式 Markdown 渲染）
 │   └── PendingExecutionCard（待确认执行卡片）
 │
 └── 底部输入区
@@ -631,9 +631,10 @@ HomeAgent
   - 如果有 `toolCalls` → 额外渲染 `ToolCallBubble`
 - `role: "tool"` → 缩进的结果卡片（成功绿色 / 失败红色）
 
-**`StreamingTextContent`** — 流式文字动画
-- 使用 `useRef` 将文字增量分段，每段应用 `streaming-fade-in` CSS 动画
-- 末尾有闪烁光标，用 `motion.span` 的 `layoutId` 保持位置连续性
+**流式 Markdown 渲染** — 实时内容输出
+- 流式阶段直接复用 `ChatMarkdownRenderer` 渲染 Markdown 内容
+- 支持 Markdown 格式（标题、列表、代码块等）的实时渲染
+- 同时渲染 in-flight tool call Widget（显示工具执行中状态）
 
 **`PendingExecutionCard`** — 执行确认卡片
 - 仅在 `ask_before_execute` 模式下出现
