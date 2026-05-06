@@ -1,4 +1,4 @@
-import useLanguage from "@/hook/useLanguage";
+import useLanguage from "@/hooks/useLanguage";
 import useThemeStore from "@/store/useThemeStore";
 import useNotificationStore from "@/store/useNotificationStore";
 import { showSystemNotification } from "@/utils/notification";
