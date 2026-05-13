@@ -1,7 +1,10 @@
 <div align="center">
-  <img src="build/icon.png" alt="FusionKit Logo" width="128" height="128" />
+  <img src="./public/banner.png" alt="FusionKit Banner" width="100%" />
+</div>
+
+<div align="center">
   <h1>FusionKit</h1>
-  <p>一站式跨平台桌面工具集合</p>
+  <p>AI 驱动的跨平台桌面工具集合</p>
   <p>
     <a href="https://github.com/QiuYeDx/FusionKit/releases/latest">
       <img src="https://img.shields.io/github/v/release/QiuYeDx/FusionKit?style=flat-square&color=blue" alt="Latest Release" />
