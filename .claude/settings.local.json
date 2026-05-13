@@ -1,7 +1,10 @@
 {
   "permissions": {
     "allow": [
-      "Bash(git log:*)"
+      "Bash(git log:*)",
+      "Bash(find / -type d -name \"*qiuye-edge-gradient*\")",
+      "Bash(find / -type d -name \"*edge-gradient-mask*\")",
+      "Read(//Users/qiuyedx/**)"
     ]
   }
 }

@@ -57,7 +57,7 @@ async function createWindow() {
     icon: path.join(process.env.VITE_PUBLIC, "FusionKit.ico"),
     width: 1080,
     height: 786,
-    minWidth: 720,
+    minWidth: 786,
     minHeight: 540,
     resizable: true,
     titleBarStyle: "hidden",
