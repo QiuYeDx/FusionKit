@@ -1,6 +1,6 @@
 {
   "title": "设置",
-  "description": "通过调整主题和语言设置来个性化您的体验。",
+  "description": "配置 FusionKit 的外观、网络与 AI 模型参数。",
   "subtitle": {
     "general_config": "常规设置",
     "theme_config": "主题设置",
@@ -10,6 +10,20 @@
     "proxy_config": "代理设置",
     "model_assignment": "模型分配",
     "model_profiles": "模型配置"
+  },
+  "nav": {
+    "general": {
+      "label": "常规",
+      "hint": "外观、语言、通知"
+    },
+    "proxy": {
+      "label": "网络代理",
+      "hint": "无代理 / 系统 / 自定义"
+    },
+    "model": {
+      "label": "AI 模型",
+      "hint": "模型分配 · 模型配置"
+    }
   },
   "fields": {
     "language": "语言",

@@ -1,6 +1,6 @@
 {
   "title": "Setting",
-  "description": "Customize your experience by adjusting the theme and language settings.",
+  "description": "Configure FusionKit's appearance, network and AI model parameters.",
   "subtitle": {
     "general_config": "General Settings",
     "theme_config": "Theme Settings",
@@ -10,6 +10,20 @@
     "proxy_config": "Proxy Settings",
     "model_assignment": "Model Assignment",
     "model_profiles": "Model Profiles"
+  },
+  "nav": {
+    "general": {
+      "label": "General",
+      "hint": "Appearance, language, notifications"
+    },
+    "proxy": {
+      "label": "Network Proxy",
+      "hint": "None / System / Custom"
+    },
+    "model": {
+      "label": "AI Model",
+      "hint": "Assignment · Profiles"
+    }
   },
   "fields": {
     "language": "Language",

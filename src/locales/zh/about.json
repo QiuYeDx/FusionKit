@@ -1,11 +1,55 @@
 {
   "title": "关于",
-  "description": "感谢您使用我们的应用程序！本页面提供了应用程序的版本信息、开发团队介绍以及如何联系我们获取支持或反馈。",
+  "description": "项目信息、版本、链接与构建详情。",
+  "tagline": "一站式跨平台桌面工具集合，内置 AI 助手，可通过自然语言对话驱动字幕翻译、格式转换与语言提取等操作。",
   "subtitle": {
     "version": "版本",
     "update": "更新",
     "github": "GitHub",
     "author": "作者",
-    "contact": "联系方式"
-  }
+    "contact": "联系方式",
+    "tech_stack": "技术栈与构建信息"
+  },
+  "badge": {
+    "latest": "最新"
+  },
+  "stats": {
+    "platform": "平台支持",
+    "license": "许可证",
+    "build": "构建",
+    "stack": "技术栈"
+  },
+  "buttons": {
+    "repo": "GitHub 仓库",
+    "changelog": "更新日志"
+  },
+  "links": {
+    "repo": {
+      "title": "项目仓库",
+      "desc": "源码、Issue、Release"
+    },
+    "author": {
+      "title": "作者主页",
+      "desc": "QiuYeDx · 设计与开发者"
+    },
+    "blog": {
+      "title": "作者博客",
+      "desc": "开发笔记与教程"
+    },
+    "contact": {
+      "title": "联系邮箱",
+      "desc": "问题反馈与商务咨询"
+    }
+  },
+  "tech": {
+    "framework": "框架",
+    "language": "语言",
+    "build_tool": "构建工具",
+    "style": "样式系统",
+    "state": "状态管理",
+    "ai": "AI 集成",
+    "i18n": "国际化",
+    "pkg": "包管理器"
+  },
+  "license_note": "本项目采用 PolyForm Noncommercial License 1.0.0 发布，仅允许非商业使用。"
 }

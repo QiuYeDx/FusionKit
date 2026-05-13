@@ -1,11 +1,55 @@
 {
   "title": "About",
-  "description": "Thank you for using our application! This page provides information about the app's version, the team behind it, and how to contact us for support or feedback.",
+  "description": "Project info, version, links and build details.",
+  "tagline": "An all-in-one cross-platform desktop toolkit with a built-in AI assistant that drives subtitle translation, format conversion and language extraction via natural-language conversations.",
   "subtitle": {
     "version": "Version",
     "update": "Update",
     "github": "GitHub",
     "author": "Author",
-    "contact": "Contact"
-  }
+    "contact": "Contact",
+    "tech_stack": "Tech Stack & Build Info"
+  },
+  "badge": {
+    "latest": "Latest"
+  },
+  "stats": {
+    "platform": "Platforms",
+    "license": "License",
+    "build": "Build",
+    "stack": "Stack"
+  },
+  "buttons": {
+    "repo": "GitHub Repo",
+    "changelog": "Changelog"
+  },
+  "links": {
+    "repo": {
+      "title": "Repository",
+      "desc": "Source, Issues, Releases"
+    },
+    "author": {
+      "title": "Author Homepage",
+      "desc": "QiuYeDx · Designer & Developer"
+    },
+    "blog": {
+      "title": "Author's Blog",
+      "desc": "Dev notes & tutorials"
+    },
+    "contact": {
+      "title": "Contact Email",
+      "desc": "Feedback & business inquiries"
+    }
+  },
+  "tech": {
+    "framework": "Framework",
+    "language": "Language",
+    "build_tool": "Build Tool",
+    "style": "Styling",
+    "state": "State Management",
+    "ai": "AI SDK",
+    "i18n": "i18n",
+    "pkg": "Package Manager"
+  },
+  "license_note": "Released under PolyForm Noncommercial License 1.0.0. Non-commercial use only."
 }

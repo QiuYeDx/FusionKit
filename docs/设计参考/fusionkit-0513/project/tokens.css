@@ -1,0 +1,138 @@
+/* FusionKit Redesign — Design Tokens
+ * Neutral foundation (warm stone) + one accent (tweakable)
+ * Light + Dark, OKLCH for harmonious tints
+ */
+
+:root {
+  /* ── Surfaces (light, warm stone) ─────────────────────── */
+  --bg:           oklch(0.985 0.003 80);
+  --bg-subtle:    oklch(0.965 0.004 80);
+  --card:         #ffffff;
+  --card-2:       oklch(0.975 0.004 80);
+
+  /* ── Lines & text ─────────────────────────────────────── */
+  --line:         oklch(0.925 0.006 80);
+  --line-strong:  oklch(0.875 0.008 80);
+  --fg:           oklch(0.205 0.005 80);
+  --fg-2:         oklch(0.32 0.006 80);
+  --mute:         oklch(0.555 0.008 80);
+  --mute-2:       oklch(0.68 0.008 80);
+
+  /* ── Accent (default: graphite black) ─────────────────── */
+  --acc:          oklch(0.20 0.005 80);
+  --acc-ink:      #ffffff;
+  --acc-soft:     oklch(0.95 0.008 80);
+  --acc-line:     oklch(0.55 0.008 80);
+
+  /* ── Semantic ─────────────────────────────────────────── */
+  --green:        oklch(0.62 0.12 150);
+  --green-soft:   oklch(0.95 0.04 150);
+  --amber:        oklch(0.72 0.13 75);
+  --amber-soft:   oklch(0.96 0.05 80);
+  --red:          oklch(0.58 0.18 25);
+  --red-soft:     oklch(0.96 0.04 25);
+  --blue:         oklch(0.58 0.14 240);
+  --blue-soft:    oklch(0.96 0.03 240);
+
+  /* ── Tool identity hues (per-tool accent stripe) ──────── */
+  --t-translator: oklch(0.65 0.16 45);   /* warm orange */
+  --t-converter:  oklch(0.60 0.14 240);  /* blue */
+  --t-extractor:  oklch(0.62 0.12 150);  /* green */
+  --t-music:      oklch(0.65 0.15 350);  /* pink */
+  --t-rename:     oklch(0.60 0.14 290);  /* violet */
+
+  /* ── Type ─────────────────────────────────────────────── */
+  --font-sans: "Geist", -apple-system, "SF Pro Text", "Helvetica Neue", system-ui, sans-serif;
+  --font-mono: "Geist Mono", "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+}
+
+[data-theme="dark"] {
+  --bg:           oklch(0.16 0.004 80);
+  --bg-subtle:    oklch(0.135 0.004 80);
+  --card:         oklch(0.205 0.005 80);
+  --card-2:       oklch(0.235 0.005 80);
+
+  --line:         oklch(0.275 0.006 80);
+  --line-strong:  oklch(0.345 0.006 80);
+  --fg:           oklch(0.97 0.003 80);
+  --fg-2:         oklch(0.88 0.004 80);
+  --mute:         oklch(0.66 0.008 80);
+  --mute-2:       oklch(0.50 0.008 80);
+
+  --acc:          oklch(0.96 0.003 80);
+  --acc-ink:      oklch(0.18 0.005 80);
+  --acc-soft:     oklch(0.28 0.008 80);
+  --acc-line:     oklch(0.62 0.008 80);
+
+  --green-soft:   oklch(0.28 0.06 150);
+  --amber-soft:   oklch(0.30 0.07 80);
+  --red-soft:     oklch(0.30 0.07 25);
+  --blue-soft:    oklch(0.27 0.05 240);
+}
+
+/* Accent presets (tweakable) ───────────────────────────── */
+[data-accent="orange"] {
+  --acc:          oklch(0.65 0.17 45);
+  --acc-ink:      #ffffff;
+  --acc-soft:     oklch(0.95 0.04 45);
+  --acc-line:     oklch(0.78 0.13 45);
+}
+[data-theme="dark"][data-accent="orange"] {
+  --acc-soft:     oklch(0.32 0.08 45);
+  --acc-line:     oklch(0.55 0.14 45);
+}
+
+[data-accent="indigo"] {
+  --acc:          oklch(0.55 0.18 270);
+  --acc-ink:      #ffffff;
+  --acc-soft:     oklch(0.95 0.04 270);
+  --acc-line:     oklch(0.72 0.14 270);
+}
+[data-theme="dark"][data-accent="indigo"] {
+  --acc-soft:     oklch(0.30 0.09 270);
+  --acc-line:     oklch(0.52 0.15 270);
+}
+
+[data-accent="teal"] {
+  --acc:          oklch(0.58 0.12 195);
+  --acc-ink:      #ffffff;
+  --acc-soft:     oklch(0.95 0.03 195);
+  --acc-line:     oklch(0.74 0.10 195);
+}
+[data-theme="dark"][data-accent="teal"] {
+  --acc-soft:     oklch(0.28 0.06 195);
+  --acc-line:     oklch(0.52 0.11 195);
+}
+
+/* ── Base & utilities ─────────────────────────────────── */
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body {
+  font-family: var(--font-sans);
+  color: var(--fg);
+  background: #e6e3dc;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  letter-spacing: -0.005em;
+}
+[data-theme="dark"] body { background: #0a0908; }
+
+/* numeric text uses mono */
+.mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+.tnum { font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
+
+/* simple scrollbar */
+.fk-scroll::-webkit-scrollbar { width: 8px; height: 8px; }
+.fk-scroll::-webkit-scrollbar-thumb {
+  background: var(--line-strong); border-radius: 10px;
+}
+.fk-scroll::-webkit-scrollbar-track { background: transparent; }
+
+/* focus ring */
+button:focus-visible, [role="button"]:focus-visible {
+  outline: 2px solid var(--acc-line);
+  outline-offset: 2px;
+}
+
+/* drag region on macOS window simulation */
+.fk-titlebar { user-select: none; -webkit-user-select: none; }

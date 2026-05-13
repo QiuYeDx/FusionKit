@@ -1,11 +1,55 @@
 {
   "title": "について",
-  "description": "当アプリをご利用いただきありがとうございます！このページでは、アプリのバージョン情報、開発チームの紹介、およびサポートやフィードバックの連絡方法を提供しています。",
+  "description": "プロジェクト情報、バージョン、リンク、ビルド詳細。",
+  "tagline": "AI アシスタント内蔵のクロスプラットフォーム デスクトップ ツールキット。自然言語の対話で字幕翻訳・形式変換・言語抽出を駆動します。",
   "subtitle": {
     "version": "バージョン",
     "update": "アップデート",
     "github": "GitHub",
     "author": "作者",
-    "contact": "連絡先"
-  }
+    "contact": "連絡先",
+    "tech_stack": "技術スタックとビルド情報"
+  },
+  "badge": {
+    "latest": "最新"
+  },
+  "stats": {
+    "platform": "対応プラットフォーム",
+    "license": "ライセンス",
+    "build": "ビルド",
+    "stack": "技術スタック"
+  },
+  "buttons": {
+    "repo": "GitHub リポジトリ",
+    "changelog": "更新履歴"
+  },
+  "links": {
+    "repo": {
+      "title": "リポジトリ",
+      "desc": "ソース、Issue、Release"
+    },
+    "author": {
+      "title": "作者ホームページ",
+      "desc": "QiuYeDx · デザイナー & デベロッパー"
+    },
+    "blog": {
+      "title": "作者ブログ",
+      "desc": "開発メモとチュートリアル"
+    },
+    "contact": {
+      "title": "連絡先メール",
+      "desc": "フィードバック・ビジネス相談"
+    }
+  },
+  "tech": {
+    "framework": "フレームワーク",
+    "language": "言語",
+    "build_tool": "ビルドツール",
+    "style": "スタイリング",
+    "state": "状態管理",
+    "ai": "AI SDK",
+    "i18n": "i18n",
+    "pkg": "パッケージマネージャ"
+  },
+  "license_note": "本プロジェクトは PolyForm Noncommercial License 1.0.0 で公開されており、非商用利用のみ許可されています。"
 }
