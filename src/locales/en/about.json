@@ -29,12 +29,12 @@
       "desc": "Source, Issues, Releases"
     },
     "author": {
-      "title": "Author Homepage",
-      "desc": "QiuYeDx · Designer & Developer"
+      "title": "Author Site · Global",
+      "desc": "Vercel-hosted, optimized for global access"
     },
     "blog": {
-      "title": "Author's Blog",
-      "desc": "Dev notes & tutorials"
+      "title": "Author Site · China",
+      "desc": "CDN-accelerated for mainland China"
     },
     "contact": {
       "title": "Contact Email",

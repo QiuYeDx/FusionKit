@@ -95,7 +95,7 @@ const Setting: React.FC = () => {
                 key={item.key}
                 onClick={() => setTab(item.key)}
                 className={cn(
-                  "group flex items-center gap-2.5 px-3 py-2.5 rounded-lg border text-left transition-colors",
+                  "group flex items-center gap-2.5 px-3 py-2.5 rounded-lg border text-left transition-colors cursor-pointer",
                   "max-md:shrink-0 max-md:min-w-[160px]",
                   active
                     ? "bg-accent border-foreground/15 text-foreground"

@@ -9,7 +9,7 @@ import {
   RefreshCw,
   Github,
   ExternalLink,
-  FileText,
+  Globe,
   Mail,
   Info,
   ArrowUpRight,
@@ -171,7 +171,7 @@ const About: React.FC = () => {
           tone="text-foreground"
         />
         <LinkCard
-          icon={<ExternalLink className="h-[18px] w-[18px]" />}
+          icon={<Globe className="h-[18px] w-[18px]" />}
           title={t("about:links.author.title")}
           url="qiuvision.com"
           desc={t("about:links.author.desc")}
@@ -180,7 +180,7 @@ const About: React.FC = () => {
           accentRgb="14 165 233"
         />
         <LinkCard
-          icon={<FileText className="h-[18px] w-[18px]" />}
+          icon={<ExternalLink className="h-[18px] w-[18px]" />}
           title={t("about:links.blog.title")}
           url="blog.qiuyedx.com"
           desc={t("about:links.blog.desc")}

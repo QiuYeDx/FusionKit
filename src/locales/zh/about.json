@@ -29,12 +29,12 @@
       "desc": "源码、Issue、Release"
     },
     "author": {
-      "title": "作者主页",
-      "desc": "QiuYeDx · 设计与开发者"
+      "title": "作者主页 · 全球",
+      "desc": "Vercel 部署，海外 / 全球访问"
     },
     "blog": {
-      "title": "作者博客",
-      "desc": "开发笔记与教程"
+      "title": "作者主页 · 国内",
+      "desc": "CDN 加速，中国大陆可直接访问"
     },
     "contact": {
       "title": "联系邮箱",

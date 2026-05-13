@@ -29,12 +29,12 @@
       "desc": "ソース、Issue、Release"
     },
     "author": {
-      "title": "作者ホームページ",
-      "desc": "QiuYeDx · デザイナー & デベロッパー"
+      "title": "作者サイト · 海外",
+      "desc": "Vercel デプロイ、グローバルアクセス向け"
     },
     "blog": {
-      "title": "作者ブログ",
-      "desc": "開発メモとチュートリアル"
+      "title": "作者サイト · 国内",
+      "desc": "CDN アクセラレーション、中国大陸向け"
     },
     "contact": {
       "title": "連絡先メール",
