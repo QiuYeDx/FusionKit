@@ -847,7 +847,7 @@ function SubtitleTranslator() {
       {/* ── Two-column layout ───────────────────────────── */}
       <div className="grid grid-cols-1 lg:grid-cols-[320px_minmax(0,1fr)] gap-4 items-start">
         {/* ── Left: sticky config rail ───────────────────── */}
-        <aside className="lg:sticky lg:top-2">
+        <aside className="lg:sticky lg:top-10">
           <Card className="overflow-hidden p-0 gap-0">
             <div className="flex items-center gap-2 px-4 py-3 bg-muted/40 border-b">
               <Settings className="h-3.5 w-3.5 text-muted-foreground" />
