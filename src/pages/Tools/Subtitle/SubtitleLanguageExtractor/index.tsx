@@ -7,10 +7,14 @@ import {
   PlayCircle,
   Trash2,
   AlertTriangle,
-  ChevronDown,
   Info,
   Pencil,
+  Upload,
+  Settings,
 } from "lucide-react";
+import ToolPageHeader from "@/pages/Tools/_shared/ToolPageHeader";
+import { TOOL_META } from "@/pages/Tools/_shared/toolMeta";
+import { Badge } from "@/components/ui/badge";
 import {
   EXTRACT_SUPPORTED_LANGUAGES,
   ExtractKeepLanguage,
@@ -49,10 +53,6 @@ import { cn } from "@/lib/utils";
 function SubtitleLanguageExtractor() {
   const { t } = useTranslation();
 
-  // 折叠状态（纯 UI，留在组件内）
-  const [isConfigOpen, setIsConfigOpen] = useState<boolean>(true);
-  const [isOutputOpen, setIsOutputOpen] = useState<boolean>(true);
-  const [isSummaryOpen, setIsSummaryOpen] = useState<boolean>(true);
   const [isDragging, setIsDragging] = useState(false);
   const [expandedTasks, setExpandedTasks] = useState<Set<string>>(new Set());
 
@@ -302,43 +302,45 @@ function SubtitleLanguageExtractor() {
     }
   };
 
-  return (
-    <div className="p-4">
-      <div className="text-2xl font-bold mb-4">
-        {t("subtitle:extractor:title")}
-      </div>
-      <div className="mb-6 text-muted-foreground">
-        {t("subtitle:extractor:description")}
-      </div>
 
-      {/* 配置选项 */}
-      <div className="flex flex-col space-y-4 mb-4">
-        <Card>
-          <CardHeader
-            className="flex items-center justify-between cursor-pointer select-none"
-            onClick={() => setIsConfigOpen((v) => !v)}
-          >
-            <CardTitle className="text-xl">
-              {t("subtitle:extractor:config_title")}
-            </CardTitle>
-            <ChevronDown
-              className={cn(
-                "h-5 w-5 transition-transform",
-                isConfigOpen && "rotate-180"
-              )}
-            />
-          </CardHeader>
-          {isConfigOpen && (
-            <CardContent>
-              <div className="flex items-center gap-4">
-                <Label className="text-sm font-medium min-w-[100px]">
+  return (
+    <div className="px-4 sm:px-8 pt-6 pb-[100px] max-w-7xl mx-auto">
+      <ToolPageHeader
+        meta={TOOL_META.extractor}
+        title={t("subtitle:extractor:title")}
+        description={t("subtitle:extractor:description")}
+        categoryLabel={t("tools:subtitle.subtitle_tools")}
+        right={
+          <Badge variant="secondary" className="gap-1.5 font-normal">
+            <span className="font-mono text-[11px]">
+              {t("subtitle:extractor:fields.keep_language")}: {getLanguageLabel(keep)}
+            </span>
+          </Badge>
+        }
+      />
+
+      <div className="grid grid-cols-1 lg:grid-cols-[320px_minmax(0,1fr)] gap-4 items-start">
+        {/* ── Left: sticky config rail ───────────────────── */}
+        <aside className="lg:sticky lg:top-2">
+          <Card className="overflow-hidden p-0 gap-0">
+            <div className="flex items-center gap-2 px-4 py-3 bg-muted/40 border-b">
+              <Settings className="h-3.5 w-3.5 text-muted-foreground" />
+              <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-foreground/80">
+                {t("subtitle:extractor:config_title")}
+              </span>
+            </div>
+
+            <div className="p-4 space-y-5">
+              {/* Keep language */}
+              <div className="space-y-1.5">
+                <div className="text-[11px] font-medium text-muted-foreground">
                   {t("subtitle:extractor:fields.keep_language")}
-                </Label>
+                </div>
                 <Select
                   value={keep}
                   onValueChange={(v) => setKeep(v as ExtractKeepLanguage)}
                 >
-                  <SelectTrigger className="w-[200px]">
+                  <SelectTrigger size="sm" className="w-full">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -350,417 +352,395 @@ function SubtitleLanguageExtractor() {
                   </SelectContent>
                 </Select>
               </div>
-            </CardContent>
-          )}
-        </Card>
-      </div>
 
-      {/* 输出设置 */}
-      <div className="mb-4">
-        <Card>
-          <CardHeader
-            className="flex items-center justify-between cursor-pointer select-none"
-            onClick={() => setIsOutputOpen((v) => !v)}
-          >
-            <CardTitle className="text-xl">
-              {t("subtitle:extractor:output_path_section")}
-            </CardTitle>
-            <ChevronDown
-              className={cn(
-                "h-5 w-5 transition-transform",
-                isOutputOpen && "rotate-180"
-              )}
-            />
-          </CardHeader>
-          {isOutputOpen && (
-            <CardContent>
-              <div className="space-y-3">
-                <div className="flex items-center gap-4">
-                  <Label className="text-sm font-medium min-w-[100px]">
-                    {t("subtitle:extractor:fields.output_mode")}
-                  </Label>
-                  <ButtonGroup>
-                    <Button
-                      className="w-30"
-                      size="sm"
-                      variant={outputMode === "custom" ? "default" : "outline"}
-                      onClick={() => setOutputMode("custom")}
-                    >
-                      {t("subtitle:extractor:fields.output_mode_custom")}
-                    </Button>
-                    <Button
-                      className="w-30"
-                      size="sm"
-                      variant={outputMode === "source" ? "default" : "outline"}
-                      onClick={() => setOutputMode("source")}
-                    >
-                      {t("subtitle:extractor:fields.output_mode_source")}
-                    </Button>
-                  </ButtonGroup>
+              <div className="h-px bg-border -mx-4" />
+
+              {/* Output mode */}
+              <div className="space-y-1.5">
+                <div className="text-[11px] font-medium text-muted-foreground">
+                  {t("subtitle:extractor:fields.output_mode")}
                 </div>
-
+                <ButtonGroup className="w-full">
+                  <Button
+                    size="sm"
+                    className="flex-1"
+                    variant={outputMode === "custom" ? "default" : "outline"}
+                    onClick={() => setOutputMode("custom")}
+                  >
+                    {t("subtitle:extractor:fields.output_mode_custom")}
+                  </Button>
+                  <Button
+                    size="sm"
+                    className="flex-1"
+                    variant={outputMode === "source" ? "default" : "outline"}
+                    onClick={() => setOutputMode("source")}
+                  >
+                    {t("subtitle:extractor:fields.output_mode_source")}
+                  </Button>
+                </ButtonGroup>
                 {outputMode === "custom" ? (
-                  <div className="w-full">
-                    <ButtonGroup className="flex items-center pl-[116px] w-full">
-                      <Button
-                        className="w-30"
-                        onClick={handleSelectOutputPath}
-                        size="sm"
-                      >
-                        {t("subtitle:extractor:fields.select_output_path")}
-                      </Button>
-                      <Input
-                        type="text"
-                        placeholder={t(
-                          "subtitle:extractor:fields.no_output_path_selected"
-                        )}
-                        value={outputURL}
-                        onChange={() => {}}
-                        onClick={handleSelectOutputPath}
-                        className="grow"
-                        readOnly
-                      />
-                    </ButtonGroup>
+                  <div
+                    className="mt-1.5 flex items-center gap-2 p-2 pl-2.5 rounded-md border bg-muted/40 cursor-pointer hover:bg-muted/60 transition-colors"
+                    onClick={handleSelectOutputPath}
+                    title={outputURL || t("subtitle:extractor:fields.no_output_path_selected")}
+                  >
+                    <Folder className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                    <span className="flex-1 min-w-0 truncate font-mono text-[11px] text-foreground/80">
+                      {outputURL ||
+                        t("subtitle:extractor:fields.no_output_path_selected")}
+                    </span>
+                    <button
+                      type="button"
+                      className="text-[11px] text-primary font-medium hover:underline"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleSelectOutputPath();
+                      }}
+                    >
+                      {t("subtitle:extractor:fields.select_output_path")}
+                    </button>
                   </div>
                 ) : (
-                  <p className="text-xs text-muted-foreground ml-[116px]">
+                  <p className="text-[11px] text-muted-foreground mt-1">
                     {t("subtitle:extractor:fields.output_mode_source_hint")}
                   </p>
                 )}
+              </div>
 
-                <div className="flex items-center gap-4">
-                  <Label className="text-sm font-medium min-w-[100px]">
-                    {t("subtitle:extractor:fields.conflict_policy")}
-                  </Label>
-                  <ButtonGroup>
-                    <Button
-                      className="w-30"
-                      size="sm"
-                      variant={
-                        conflictPolicy === "index" ? "default" : "outline"
-                      }
-                      onClick={() => setConflictPolicy("index")}
-                    >
-                      {t("subtitle:extractor:fields.conflict_policy_index")}
-                    </Button>
-                    <Button
-                      className="w-30"
-                      size="sm"
-                      variant={
-                        conflictPolicy === "overwrite" ? "default" : "outline"
-                      }
-                      onClick={() => setConflictPolicy("overwrite")}
-                    >
-                      {t("subtitle:extractor:fields.conflict_policy_overwrite")}
-                    </Button>
-                  </ButtonGroup>
+              {/* Conflict policy */}
+              <div className="space-y-1.5">
+                <div className="text-[11px] font-medium text-muted-foreground">
+                  {t("subtitle:extractor:fields.conflict_policy")}
                 </div>
+                <ButtonGroup className="w-full">
+                  <Button
+                    size="sm"
+                    className="flex-1"
+                    variant={conflictPolicy === "index" ? "default" : "outline"}
+                    onClick={() => setConflictPolicy("index")}
+                  >
+                    {t("subtitle:extractor:fields.conflict_policy_index")}
+                  </Button>
+                  <Button
+                    size="sm"
+                    className="flex-1"
+                    variant={
+                      conflictPolicy === "overwrite" ? "default" : "outline"
+                    }
+                    onClick={() => setConflictPolicy("overwrite")}
+                  >
+                    {t("subtitle:extractor:fields.conflict_policy_overwrite")}
+                  </Button>
+                </ButtonGroup>
               </div>
-            </CardContent>
-          )}
-        </Card>
-      </div>
-
-      {/* 配置摘要 */}
-      <div className="mb-4">
-        <Card>
-          <CardHeader
-            className="flex items-center justify-between cursor-pointer select-none"
-            onClick={() => setIsSummaryOpen((v) => !v)}
-          >
-            <CardTitle className="text-xl">
-              {t("subtitle:extractor:summary_title")}
-            </CardTitle>
-            <ChevronDown
-              className={cn(
-                "h-5 w-5 transition-transform",
-                isSummaryOpen && "rotate-180"
-              )}
-            />
-          </CardHeader>
-          {isSummaryOpen && (
-            <CardContent>
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
-                <Card className="border-muted">
-                  <CardContent>
-                    <div className="text-muted-foreground text-xs mb-1">
-                      {t("subtitle:extractor:fields.keep_language")}
-                    </div>
-                    <div className="font-medium">
-                      {getLanguageLabel(keep)}
-                    </div>
-                  </CardContent>
-                </Card>
-                <Card className="border-muted">
-                  <CardContent>
-                    <div className="text-muted-foreground text-xs mb-1">
-                      {t("subtitle:extractor:summary.total_tasks")}
-                    </div>
-                    <div className="font-medium">
-                      {t("subtitle:extractor:summary.task_count").replace(
-                        "{count}",
-                        String(allTasks.length)
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
-            </CardContent>
-          )}
-        </Card>
-      </div>
-
-      {/* 文件上传 */}
-      <div className="mb-4">
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-xl">{t("subtitle:extractor:upload_section")}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <label
-              className={cn(
-                "flex flex-col items-center justify-center border-2 border-dashed rounded-lg p-6 cursor-pointer transition-colors file-drop-zone",
-                isDragging
-                  ? "border-primary bg-primary/10"
-                  : "border-border hover:bg-muted/50"
-              )}
-              onDragEnter={handleDragEnter}
-              onDragLeave={handleDragLeave}
-              onDragOver={handleDragOver}
-              onDrop={handleDrop}
-            >
-              <input
-                type="file"
-                multiple
-                className="hidden"
-                accept=".lrc,.srt"
-                onChange={handleFileUpload}
-              />
-              <div className="text-4xl -mb-2 pointer-events-none">
-                {isDragging ? (
-                  <FolderOpen className="h-10 w-10" />
-                ) : (
-                  <Folder className="h-10 w-10" />
-                )}
-              </div>
-              <div className="mt-3 text-center pointer-events-none">
-                <p className="font-medium">
-                  {t("subtitle:extractor:fields.upload_tips")}
-                </p>
-                <p className="text-sm text-muted-foreground mt-1">
-                  {t("subtitle:extractor:fields.files_only")}
-                </p>
-              </div>
-            </label>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* 任务管理 */}
-      <Card className="mb-12 overflow-hidden">
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-xl">{t("subtitle:extractor:task_management")}</CardTitle>
-            <div className="flex gap-2">
-              <Button
-                variant={notStartedTasks.length === 0 ? "outline" : "default"}
-                size="sm"
-                onClick={startAllTasks}
-                disabled={notStartedTasks.length === 0}
-              >
-                {t("subtitle:extractor:fields.start_all")}
-              </Button>
-              <Button
-                variant={resolvedTasks.length === 0 ? "outline" : "default"}
-                size="sm"
-                onClick={removeAllResolvedTasks}
-                disabled={resolvedTasks.length === 0}
-              >
-                {t("subtitle:extractor:fields.remove_all_resolved_task")}
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleClearAllTasks}
-                disabled={allTasks.length === 0}
-              >
-                {t("subtitle:extractor:fields.clear_all_tasks")}
-              </Button>
             </div>
+          </Card>
+        </aside>
+
+        {/* ── Right: main column ─────────────────────────── */}
+        <main className="flex flex-col gap-3 min-w-0">
+          {/* Drop zone */}
+          <label
+            className={cn(
+              "relative flex items-center gap-4 rounded-xl border-2 border-dashed px-5 py-5 cursor-pointer transition-colors",
+              isDragging
+                ? "border-primary bg-primary/5"
+                : "border-border hover:bg-muted/40"
+            )}
+            onDragEnter={handleDragEnter}
+            onDragLeave={handleDragLeave}
+            onDragOver={handleDragOver}
+            onDrop={handleDrop}
+          >
+            <input
+              type="file"
+              multiple
+              className="hidden"
+              accept=".lrc,.srt"
+              onChange={handleFileUpload}
+            />
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border bg-muted/40 text-foreground/70">
+              {isDragging ? (
+                <FolderOpen className="h-5 w-5" />
+              ) : (
+                <Upload className="h-5 w-5" />
+              )}
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="text-sm font-semibold">
+                {t("subtitle:extractor:fields.upload_tips")}
+              </div>
+              <div className="text-xs text-muted-foreground mt-0.5">
+                {t("subtitle:extractor:fields.files_only")}
+              </div>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                (e.currentTarget.parentElement?.querySelector(
+                  "input[type=file]"
+                ) as HTMLInputElement | null)?.click();
+              }}
+            >
+              <Folder className="h-3.5 w-3.5" />
+              {t("subtitle:extractor:fields.select_output_path", "选择文件")}
+            </Button>
+          </label>
+
+          {/* Current target chip line */}
+          <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-muted-foreground px-1">
+            <span>
+              {t("subtitle:extractor:fields.keep_language")}:{" "}
+              <span className="font-mono text-foreground/80">
+                {getLanguageLabel(keep)}
+              </span>
+            </span>
+            <span className="opacity-50">·</span>
+            <span>
+              {t("subtitle:extractor:fields.conflict_policy")}:{" "}
+              <span className="text-foreground/80">
+                {conflictPolicy === "overwrite"
+                  ? t("subtitle:extractor:fields.conflict_policy_overwrite")
+                  : t("subtitle:extractor:fields.conflict_policy_index")}
+              </span>
+            </span>
           </div>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-3">
-            {allTasks.map((task, index) => (
-              <Card key={index} className="overflow-hidden">
-                <CardContent className="min-w-0">
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-3 flex-1 min-w-0">
+
+          {/* Task queue */}
+          <Card className="overflow-hidden p-0 gap-0">
+            <CardHeader className="flex flex-row items-center justify-between gap-3 px-4 py-3 space-y-0 border-b">
+              <div className="flex items-center gap-2">
+                <CardTitle className="text-[13.5px] font-semibold">
+                  {t("subtitle:extractor:task_management")}
+                </CardTitle>
+                <Badge variant="secondary" className="font-mono text-[11px]">
+                  {allTasks.length}
+                </Badge>
+              </div>
+              <div className="flex gap-1.5">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={removeAllResolvedTasks}
+                  disabled={resolvedTasks.length === 0}
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                  {t("subtitle:extractor:fields.remove_all_resolved_task")}
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleClearAllTasks}
+                  disabled={allTasks.length === 0}
+                >
+                  {t("subtitle:extractor:fields.clear_all_tasks")}
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={startAllTasks}
+                  disabled={notStartedTasks.length === 0}
+                >
+                  <PlayCircle className="h-3.5 w-3.5" />
+                  {t("subtitle:extractor:fields.start_all")}
+                </Button>
+              </div>
+            </CardHeader>
+
+            <div className="divide-y">
+              {allTasks.length === 0 ? (
+                <div className="text-center py-10 text-sm text-muted-foreground">
+                  {t("subtitle:extractor:fields.no_tasks")}
+                </div>
+              ) : (
+                allTasks.map((task) => (
+                  <div key={task.fileName} className="px-4 py-3">
+                    <div className="flex items-start gap-3">
                       <div
-                        className={`w-2.5 h-2.5 rounded-full shrink-0 ${getTaskStatusColor(
-                          task.status
-                        )}`}
+                        className={cn(
+                          "mt-1 w-2.5 h-2.5 rounded-full shrink-0",
+                          getTaskStatusColor(task.status)
+                        )}
                       />
-                      <div className="min-w-0 flex-1">
-                        <span className="font-medium text-sm truncate block">
-                          {task.fileName}
-                        </span>
-                        <div className="text-xs text-muted-foreground mt-1 flex items-center flex-wrap gap-1.5">
-                          {task.status === TaskStatus.NOT_STARTED &&
-                            t("subtitle:extractor:task_status.notstarted")}
-                          {task.status === TaskStatus.PENDING &&
-                            `${t(
-                              "subtitle:extractor:task_status.pending"
-                            )} ${Math.round(task.progress || 0)}%`}
-                          {task.status === TaskStatus.RESOLVED &&
-                            t("subtitle:extractor:task_status.resolved")}
-                          {task.status === TaskStatus.FAILED &&
-                            t("subtitle:extractor:task_status.failed")}
-                          <span className="px-1.5 py-0.5 bg-muted rounded-md text-xs">
-                            {task.fileType} ·{" "}
-                            {getLanguageLabel(task.keep)}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono text-[13px] font-medium truncate">
+                            {task.fileName}
                           </span>
+                          <Badge
+                            variant="outline"
+                            className="text-[10px] h-4 px-1.5 font-normal shrink-0"
+                          >
+                            {task.status === TaskStatus.NOT_STARTED &&
+                              t("subtitle:extractor:task_status.notstarted")}
+                            {task.status === TaskStatus.PENDING &&
+                              `${t(
+                                "subtitle:extractor:task_status.pending"
+                              )} · ${Math.round(task.progress || 0)}%`}
+                            {task.status === TaskStatus.RESOLVED &&
+                              t("subtitle:extractor:task_status.resolved")}
+                            {task.status === TaskStatus.FAILED &&
+                              t("subtitle:extractor:task_status.failed")}
+                          </Badge>
+                        </div>
+                        <div className="mt-1 flex items-center flex-wrap gap-x-2 gap-y-1 text-[11px] text-muted-foreground">
+                          <span className="font-mono">{task.fileType}</span>
+                          <span className="h-0.5 w-0.5 rounded-full bg-muted-foreground/40" />
+                          <span>{getLanguageLabel(task.keep)}</span>
                           {task.outputFilePath && (
-                            <span className="font-mono text-green-600 truncate max-w-[200px]">
-                              → {task.outputFilePath}
-                            </span>
+                            <>
+                              <span className="h-0.5 w-0.5 rounded-full bg-muted-foreground/40" />
+                              <span className="font-mono text-emerald-600 dark:text-emerald-400 truncate max-w-[220px]">
+                                → {task.outputFilePath}
+                              </span>
+                            </>
                           )}
                         </div>
                       </div>
+
+                      <ButtonGroup className="shrink-0">
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          onClick={() => {
+                            setExpandedTasks((prev) => {
+                              const next = new Set(prev);
+                              if (next.has(task.fileName))
+                                next.delete(task.fileName);
+                              else next.add(task.fileName);
+                              return next;
+                            });
+                          }}
+                        >
+                          <Info className="h-3.5 w-3.5" />
+                        </Button>
+                        {task.status === TaskStatus.FAILED && (
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            className="text-destructive hover:text-destructive"
+                            onClick={() => openErrorModal(task)}
+                          >
+                            <AlertTriangle className="h-3.5 w-3.5" />
+                          </Button>
+                        )}
+                        {task.status === TaskStatus.FAILED && (
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            onClick={() => retryTask(task.fileName)}
+                          >
+                            <RotateCw className="h-3.5 w-3.5" />
+                          </Button>
+                        )}
+                        {task.status === TaskStatus.NOT_STARTED && (
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            onClick={() => startTask(task.fileName)}
+                          >
+                            <PlayCircle className="h-3.5 w-3.5" />
+                          </Button>
+                        )}
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          onClick={() => handleOpenFileLocation(task)}
+                        >
+                          <FolderOpen className="h-3.5 w-3.5" />
+                        </Button>
+                        {(task.status === TaskStatus.NOT_STARTED ||
+                          task.status === TaskStatus.FAILED) && (
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            onClick={() => handleOpenEditTask(task)}
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                          </Button>
+                        )}
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          onClick={() => handleDeleteTask(task)}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </ButtonGroup>
                     </div>
 
-                    <ButtonGroup className="shrink-0">
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        onClick={() => {
-                          setExpandedTasks((prev) => {
-                            const next = new Set(prev);
-                            if (next.has(task.fileName))
-                              next.delete(task.fileName);
-                            else next.add(task.fileName);
-                            return next;
-                          });
-                        }}
-                      >
-                        <Info className="h-4 w-4" />
-                      </Button>
-
-                      {task.status === TaskStatus.FAILED && (
-                        <Button
-                          variant="outline"
-                          size="icon"
-                          className="text-destructive hover:text-destructive"
-                          onClick={() => openErrorModal(task)}
-                        >
-                          <AlertTriangle className="h-4 w-4" />
-                        </Button>
-                      )}
-
-                      {task.status === TaskStatus.FAILED && (
-                        <Button
-                          variant="outline"
-                          size="icon"
-                          onClick={() => retryTask(task.fileName)}
-                        >
-                          <RotateCw className="h-4 w-4" />
-                        </Button>
-                      )}
-
-                      {task.status === TaskStatus.NOT_STARTED && (
-                        <Button
-                          variant="outline"
-                          size="icon"
-                          onClick={() => startTask(task.fileName)}
-                        >
-                          <PlayCircle className="h-4 w-4" />
-                        </Button>
-                      )}
-
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        onClick={() => handleOpenFileLocation(task)}
-                      >
-                        <FolderOpen className="h-4 w-4" />
-                      </Button>
-
-                      {(task.status === TaskStatus.NOT_STARTED ||
-                        task.status === TaskStatus.FAILED) && (
-                        <Button
-                          variant="outline"
-                          size="icon"
-                          onClick={() => handleOpenEditTask(task)}
-                        >
-                          <Pencil className="h-4 w-4" />
-                        </Button>
-                      )}
-
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        onClick={() => handleDeleteTask(task)}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </ButtonGroup>
-                  </div>
-
-                  {task.status === TaskStatus.PENDING && (
-                    <Progress value={task.progress} className="w-full mt-2" />
-                  )}
-
-                  {expandedTasks.has(task.fileName) && (
-                    <div className="mt-3 pt-3 border-t border-border/50">
-                      <div className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 text-xs">
-                        <span className="text-muted-foreground">{t("subtitle:extractor.task_detail.file_format")}</span>
-                        <span>{task.fileType}</span>
-                        <span className="text-muted-foreground">{t("subtitle:extractor.task_detail.keep_language")}</span>
-                        <span>
-                          {getLanguageLabel(task.keep)}
-                        </span>
-                        <span className="text-muted-foreground">{t("subtitle:extractor.task_detail.source_file")}</span>
-                        <span className="font-mono break-all">
-                          {task.originFileURL}
-                        </span>
-                        <span className="text-muted-foreground">{t("subtitle:extractor.task_detail.output_path")}</span>
-                        <span className="font-mono break-all">
-                          {task.targetFileURL}
-                        </span>
-                        <span className="text-muted-foreground">{t("subtitle:extractor.task_detail.conflict_policy")}</span>
-                        <span>
-                          {task.conflictPolicy === "overwrite"
-                            ? t("subtitle:extractor.task_detail.overwrite")
-                            : t("subtitle:extractor.task_detail.auto_index")}
+                    {task.status === TaskStatus.PENDING && (
+                      <div className="mt-2 flex items-center gap-2">
+                        <Progress value={task.progress} className="flex-1 h-1" />
+                        <span className="font-mono text-[10.5px] text-muted-foreground w-8 text-right">
+                          {Math.round(task.progress || 0)}%
                         </span>
                       </div>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            ))}
-          </div>
+                    )}
 
-          {allTasks.length === 0 && (
-            <div className="text-center py-8 text-muted-foreground">
-              {t("subtitle:extractor:fields.no_tasks")}
+                    {expandedTasks.has(task.fileName) && (
+                      <div className="mt-3 pt-3 border-t border-border/50">
+                        <div className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 text-xs">
+                          <span className="text-muted-foreground">
+                            {t("subtitle:extractor.task_detail.file_format")}
+                          </span>
+                          <span>{task.fileType}</span>
+                          <span className="text-muted-foreground">
+                            {t("subtitle:extractor.task_detail.keep_language")}
+                          </span>
+                          <span>{getLanguageLabel(task.keep)}</span>
+                          <span className="text-muted-foreground">
+                            {t("subtitle:extractor.task_detail.source_file")}
+                          </span>
+                          <span className="font-mono break-all">
+                            {task.originFileURL}
+                          </span>
+                          <span className="text-muted-foreground">
+                            {t("subtitle:extractor.task_detail.output_path")}
+                          </span>
+                          <span className="font-mono break-all">
+                            {task.targetFileURL}
+                          </span>
+                          <span className="text-muted-foreground">
+                            {t(
+                              "subtitle:extractor.task_detail.conflict_policy"
+                            )}
+                          </span>
+                          <span>
+                            {task.conflictPolicy === "overwrite"
+                              ? t("subtitle:extractor.task_detail.overwrite")
+                              : t("subtitle:extractor.task_detail.auto_index")}
+                          </span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))
+              )}
             </div>
-          )}
-        </CardContent>
-      </Card>
+          </Card>
+        </main>
+      </div>
 
       {selectedErrorTask && (
         <ErrorDetailModal
           isOpen={errorModalOpen}
           onClose={closeErrorModal}
           taskName={selectedErrorTask.fileName}
-          errorMessage={selectedErrorTask.extraInfo?.message || t("subtitle:extractor.error_fallback.unknown")}
-          errorDetails={selectedErrorTask.extraInfo?.error || t("subtitle:extractor.error_fallback.no_detail")}
+          errorMessage={
+            selectedErrorTask.extraInfo?.message ||
+            t("subtitle:extractor.error_fallback.unknown")
+          }
+          errorDetails={
+            selectedErrorTask.extraInfo?.error ||
+            t("subtitle:extractor.error_fallback.no_detail")
+          }
           errorLogs={selectedErrorTask.errorLog || []}
         />
       )}
 
-      {/* 删除确认弹窗 */}
       <ConfirmDialog
         open={confirmDeleteOpen}
         onOpenChange={setConfirmDeleteOpen}
@@ -776,7 +756,6 @@ function SubtitleLanguageExtractor() {
         }}
       />
 
-      {/* 清空确认弹窗 */}
       <ConfirmDialog
         open={confirmClearOpen}
         onOpenChange={setConfirmClearOpen}
@@ -787,17 +766,23 @@ function SubtitleLanguageExtractor() {
         onConfirm={clearAllTasks}
       />
 
-      {/* 编辑任务配置弹窗 */}
       <Dialog open={editTaskOpen} onOpenChange={setEditTaskOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{t("subtitle:extractor.edit_task.title")}</DialogTitle>
+            <DialogTitle>
+              {t("subtitle:extractor.edit_task.title")}
+            </DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-2">
             <div className="space-y-2">
               <Label>{t("subtitle:extractor.fields.keep_language")}</Label>
-              <Select value={editKeep} onValueChange={(v) => setEditKeep(v as ExtractKeepLanguage)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+              <Select
+                value={editKeep}
+                onValueChange={(v) => setEditKeep(v as ExtractKeepLanguage)}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
                 <SelectContent>
                   {EXTRACT_SUPPORTED_LANGUAGES.map((lang) => (
                     <SelectItem key={lang.code} value={lang.code}>
@@ -809,11 +794,22 @@ function SubtitleLanguageExtractor() {
             </div>
             <div className="space-y-2">
               <Label>{t("subtitle:extractor.fields.conflict_policy")}</Label>
-              <Select value={editConflictPolicy} onValueChange={(v) => setEditConflictPolicy(v as OutputConflictPolicy)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+              <Select
+                value={editConflictPolicy}
+                onValueChange={(v) =>
+                  setEditConflictPolicy(v as OutputConflictPolicy)
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="index">{t("subtitle:extractor.fields.conflict_policy_index")}</SelectItem>
-                  <SelectItem value="overwrite">{t("subtitle:extractor.fields.conflict_policy_overwrite")}</SelectItem>
+                  <SelectItem value="index">
+                    {t("subtitle:extractor.fields.conflict_policy_index")}
+                  </SelectItem>
+                  <SelectItem value="overwrite">
+                    {t("subtitle:extractor.fields.conflict_policy_overwrite")}
+                  </SelectItem>
                 </SelectContent>
               </Select>
             </div>

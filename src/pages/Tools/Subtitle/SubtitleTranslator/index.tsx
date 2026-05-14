@@ -25,7 +25,14 @@ import {
   Info,
   Pencil,
   CircleHelp,
+  ArrowRight,
+  Upload,
+  Clock,
+  Settings,
 } from "lucide-react";
+import ToolPageHeader from "@/pages/Tools/_shared/ToolPageHeader";
+import { TOOL_META } from "@/pages/Tools/_shared/toolMeta";
+import { Badge } from "@/components/ui/badge";
 import { showToast } from "@/utils/toast";
 import { getSourceDirFromFile, getFilePathFromFile } from "@/utils/filePath";
 import useModelStore from "@/store/useModelStore";
@@ -174,9 +181,6 @@ function SubtitleTranslator() {
   const hasTriggeredRef = useRef<boolean>(false);
   const intervalRef = useRef<number | null>(null);
   const [isScheduleOpen, setIsScheduleOpen] = useState<boolean>(false);
-  const [isConfigOpen, setIsConfigOpen] = useState<boolean>(true);
-  const [isOutputOpen, setIsOutputOpen] = useState<boolean>(true);
-  const [isNewTaskConfigOpen, setIsNewTaskConfigOpen] = useState<boolean>(true);
   const [expandedTasks, setExpandedTasks] = useState<Set<string>>(new Set());
 
   // 删除确认弹窗
@@ -813,135 +817,103 @@ function SubtitleTranslator() {
     )})`;
   };
 
+
+  const modelDisplay =
+    taskProfile?.modelKey ||
+    t("subtitle:translator.fields.no_model_selected", "未选择模型");
+
+  const allTasks = [
+    ...notStartedTaskQueue,
+    ...waitingTaskQueue,
+    ...pendingTaskQueue,
+    ...resolvedTaskQueue,
+    ...failedTaskQueue,
+  ];
+
   return (
-    <div className="p-4">
-      <div className="text-2xl font-bold mb-4">
-        {t("subtitle:translator.title")}
-      </div>
-      <div className="mb-6 text-muted-foreground">
-        {t("subtitle:translator.description")}
-      </div>
+    <div className="px-4 sm:px-8 pt-6 pb-[100px] max-w-7xl mx-auto">
+      <ToolPageHeader
+        meta={TOOL_META.translator}
+        title={t("subtitle:translator.title")}
+        description={t("subtitle:translator.description")}
+        categoryLabel={t("tools:subtitle.subtitle_tools")}
+        right={
+          <Badge variant="secondary" className="gap-1.5 font-normal">
+            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 shadow-[0_0_0_3px_rgba(16,185,129,0.18)]" />
+            <span className="font-mono text-[11px]">{modelDisplay}</span>
+          </Badge>
+        }
+      />
 
-      {/* 配置区块 */}
-      <div className="flex flex-col space-y-4 mb-4">
-        <Card>
-          <CardHeader
-            className="flex items-center justify-between cursor-pointer select-none"
-            onClick={() => setIsConfigOpen((v) => !v)}
-          >
-            <CardTitle className="text-xl">
-              {t("subtitle:translator.config_title")}
-            </CardTitle>
-            <ChevronDown
-              className={cn(
-                "h-5 w-5 transition-transform",
-                isConfigOpen && "rotate-180"
-              )}
-            />
-          </CardHeader>
-          {isConfigOpen && (
-            <CardContent className="space-y-4">
-              {/* 分片模式选择 */}
-              <div className="flex items-center gap-4">
-                <Label className="text-sm font-medium min-w-[100px]">
-                  {t("subtitle:translator.fields.subtitle_slice_mode")}
-                </Label>
-                <ButtonGroup>
-                  {Object.values(SubtitleSliceType).map((type) => (
-                    <Button
-                      key={type}
-                      size="sm"
-                      variant={sliceType === type ? "default" : "outline"}
-                      onClick={() => setSliceType(type as SubtitleSliceType)}
-                    >
-                      {t(
-                        `subtitle:translator.slice_types.${type.toLowerCase()}`
-                      )}
-                    </Button>
-                  ))}
-                </ButtonGroup>
-              </div>
+      {/* ── Two-column layout ───────────────────────────── */}
+      <div className="grid grid-cols-1 lg:grid-cols-[320px_minmax(0,1fr)] gap-4 items-start">
+        {/* ── Left: sticky config rail ───────────────────── */}
+        <aside className="lg:sticky lg:top-2">
+          <Card className="overflow-hidden p-0 gap-0">
+            <div className="flex items-center gap-2 px-4 py-3 bg-muted/40 border-b">
+              <Settings className="h-3.5 w-3.5 text-muted-foreground" />
+              <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-foreground/80">
+                {t("subtitle:translator.config_title")}
+              </span>
+            </div>
 
-              {/* 自定义分片长度输入 */}
-              {sliceType === SubtitleSliceType.CUSTOM && (
-                <div className="space-y-2">
-                  <Label htmlFor="custom-length">
-                    {t("subtitle:translator.fields.custom_slice_length")}{" "}
-                    ({t("subtitle:translator.new_task_config.chars_suffix")})
-                  </Label>
-                  <Input
-                    id="custom-length"
-                    type="number"
-                    className="w-32"
-                    value={customLengthInput}
-                    min="100"
-                    max="2000"
-                    onChange={(e) => {
-                      setCustomLengthInput(e.target.value);
-                      setCustomSliceLength(Number(e.target.value));
-                    }}
-                  />
-                </div>
-              )}
-
-              {/* 源语言选择 */}
-              <div className="flex items-center gap-4">
-                <Label className="text-sm font-medium min-w-[100px]">
-                  {t("subtitle:translator.fields.source_language")}
-                </Label>
-                <Select
-                  value={sourceLang}
-                  onValueChange={(v) =>
-                    setSourceLang(v as TranslationLanguage)
-                  }
-                >
-                  <SelectTrigger size="sm" className="w-[160px]">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {SUPPORTED_LANGUAGES.map((lang) => (
-                      <SelectItem key={lang.code} value={lang.code}>
-                        {t(lang.labelKey)}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {/* 目标语言选择 */}
-              <div className="flex items-center gap-4">
-                <Label className="text-sm font-medium min-w-[100px]">
+            <div className="p-4 space-y-5">
+              {/* Language pair */}
+              <div className="space-y-1.5">
+                <div className="text-[11px] font-medium text-muted-foreground">
+                  {t("subtitle:translator.fields.source_language")} →{" "}
                   {t("subtitle:translator.fields.target_language")}
-                </Label>
-                <Select
-                  value={targetLang}
-                  onValueChange={(v) =>
-                    setTargetLang(v as TranslationLanguage)
-                  }
-                >
-                  <SelectTrigger size="sm" className="w-[160px]">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {SUPPORTED_LANGUAGES.filter(
-                      (lang) => lang.code !== sourceLang
-                    ).map((lang) => (
-                      <SelectItem key={lang.code} value={lang.code}>
-                        {t(lang.labelKey)}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                </div>
+                <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-1.5">
+                  <Select
+                    value={sourceLang}
+                    onValueChange={(v) =>
+                      setSourceLang(v as TranslationLanguage)
+                    }
+                  >
+                    <SelectTrigger size="sm" className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {SUPPORTED_LANGUAGES.map((lang) => (
+                        <SelectItem key={lang.code} value={lang.code}>
+                          {t(lang.labelKey)}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <ArrowRight className="h-3.5 w-3.5 text-muted-foreground" />
+                  <Select
+                    value={targetLang}
+                    onValueChange={(v) =>
+                      setTargetLang(v as TranslationLanguage)
+                    }
+                  >
+                    <SelectTrigger size="sm" className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {SUPPORTED_LANGUAGES.filter(
+                        (lang) => lang.code !== sourceLang
+                      ).map((lang) => (
+                        <SelectItem key={lang.code} value={lang.code}>
+                          {t(lang.labelKey)}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
 
-              {/* 翻译输出模式 */}
-              <div className="flex items-center gap-4">
-                <Label className="text-sm font-medium min-w-[100px]">
+              {/* Output mode */}
+              <div className="space-y-1.5">
+                <div className="text-[11px] font-medium text-muted-foreground">
                   {t("subtitle:translator.fields.translation_output_mode")}
-                </Label>
-                <ButtonGroup>
+                </div>
+                <ButtonGroup className="w-full">
                   <Button
                     size="sm"
+                    className="flex-1"
                     variant={
                       translationOutputMode === "bilingual"
                         ? "default"
@@ -953,6 +925,7 @@ function SubtitleTranslator() {
                   </Button>
                   <Button
                     size="sm"
+                    className="flex-1"
                     variant={
                       translationOutputMode === "target_only"
                         ? "default"
@@ -965,167 +938,190 @@ function SubtitleTranslator() {
                 </ButtonGroup>
               </div>
 
-              {/* 并发切片开关 */}
-              <Label
+              {/* Slice */}
+              <div className="space-y-1.5">
+                <div className="text-[11px] font-medium text-muted-foreground">
+                  {t("subtitle:translator.fields.subtitle_slice_mode")}
+                </div>
+                <ButtonGroup className="w-full">
+                  {Object.values(SubtitleSliceType).map((type) => (
+                    <Button
+                      key={type}
+                      size="sm"
+                      className="flex-1"
+                      variant={sliceType === type ? "default" : "outline"}
+                      onClick={() => setSliceType(type as SubtitleSliceType)}
+                    >
+                      {t(
+                        `subtitle:translator.slice_types.${type.toLowerCase()}`
+                      )}
+                    </Button>
+                  ))}
+                </ButtonGroup>
+                {sliceType === SubtitleSliceType.CUSTOM && (
+                  <div className="flex items-center gap-2 pt-1">
+                    <Input
+                      type="number"
+                      className="w-24 h-8 font-mono text-xs"
+                      value={customLengthInput}
+                      min="100"
+                      max="2000"
+                      onChange={(e) => {
+                        setCustomLengthInput(e.target.value);
+                        setCustomSliceLength(Number(e.target.value));
+                      }}
+                    />
+                    <span className="text-[11px] text-muted-foreground">
+                      {t("subtitle:translator.new_task_config.chars_suffix")} /{" "}
+                      {t("subtitle:translator.slice_types.custom")}
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              <div className="h-px bg-border -mx-4" />
+
+              {/* Output path */}
+              <div className="space-y-1.5">
+                <div className="text-[11px] font-medium text-muted-foreground">
+                  {t("subtitle:translator.fields.output_mode")}
+                </div>
+                <ButtonGroup className="w-full">
+                  <Button
+                    size="sm"
+                    className="flex-1"
+                    variant={outputMode === "custom" ? "default" : "outline"}
+                    onClick={() => setOutputMode("custom")}
+                  >
+                    {t("subtitle:translator.fields.output_mode_custom")}
+                  </Button>
+                  <Button
+                    size="sm"
+                    className="flex-1"
+                    variant={outputMode === "source" ? "default" : "outline"}
+                    onClick={() => setOutputMode("source")}
+                  >
+                    {t("subtitle:translator.fields.output_mode_source")}
+                  </Button>
+                </ButtonGroup>
+                {outputMode === "custom" ? (
+                  <div
+                    className="mt-1.5 flex items-center gap-2 p-2 pl-2.5 rounded-md border bg-muted/40 cursor-pointer hover:bg-muted/60 transition-colors"
+                    onClick={handleSelectOutputPath}
+                    title={outputURL || t("subtitle:translator.fields.no_output_path_selected")}
+                  >
+                    <Folder className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                    <span className="flex-1 min-w-0 truncate font-mono text-[11px] text-foreground/80">
+                      {outputURL ||
+                        t(
+                          "subtitle:translator.fields.no_output_path_selected"
+                        )}
+                    </span>
+                    <button
+                      type="button"
+                      className="text-[11px] text-primary font-medium hover:underline"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleSelectOutputPath();
+                      }}
+                    >
+                      {t("subtitle:translator.fields.select_output_path")}
+                    </button>
+                  </div>
+                ) : (
+                  <p className="text-[11px] text-muted-foreground mt-1">
+                    {t("subtitle:translator.fields.output_mode_source_hint")}
+                  </p>
+                )}
+              </div>
+
+              {/* Conflict policy */}
+              <div className="space-y-1.5">
+                <div className="text-[11px] font-medium text-muted-foreground">
+                  {t("subtitle:translator.fields.conflict_policy")}
+                </div>
+                <ButtonGroup className="w-full">
+                  <Button
+                    size="sm"
+                    className="flex-1"
+                    variant={conflictPolicy === "index" ? "default" : "outline"}
+                    onClick={() => setConflictPolicy("index")}
+                  >
+                    {t("subtitle:translator.fields.conflict_policy_index")}
+                  </Button>
+                  <Button
+                    size="sm"
+                    className="flex-1"
+                    variant={
+                      conflictPolicy === "overwrite" ? "default" : "outline"
+                    }
+                    onClick={() => setConflictPolicy("overwrite")}
+                  >
+                    {t("subtitle:translator.fields.conflict_policy_overwrite")}
+                  </Button>
+                </ButtonGroup>
+              </div>
+
+              <div className="h-px bg-border -mx-4" />
+
+              {/* Concurrent slices */}
+              <label
                 htmlFor="concurrent-slices"
-                className="hover:bg-accent/50 flex items-start gap-3 rounded-lg border p-3 cursor-pointer has-aria-checked:border-primary has-aria-checked:bg-primary/5 dark:has-aria-checked:bg-primary/10"
+                className={cn(
+                  "flex items-start justify-between gap-3 rounded-lg border p-3 cursor-pointer transition-colors",
+                  concurrentSlices
+                    ? "border-primary/40 bg-primary/5"
+                    : "hover:bg-accent/40"
+                )}
               >
+                <div className="flex flex-col gap-0.5 min-w-0">
+                  <span className="text-[12.5px] font-medium leading-tight">
+                    {t("subtitle:translator.fields.concurrent_slices")}
+                  </span>
+                  <span className="text-[11px] text-muted-foreground leading-snug">
+                    {t("subtitle:translator.fields.concurrent_slices_hint")}
+                  </span>
+                </div>
                 <Checkbox
                   id="concurrent-slices"
                   checked={concurrentSlices}
                   onCheckedChange={(checked) =>
                     setConcurrentSlices(checked as boolean)
                   }
-                  className="data-[state=checked]:border-primary data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground"
+                  className="mt-0.5"
                 />
-                <div className="grid gap-1.5 font-normal">
-                  <p className="text-sm leading-none font-medium">
-                    {t("subtitle:translator.fields.concurrent_slices")}
-                  </p>
-                  <p className="text-muted-foreground text-xs">
-                    {t("subtitle:translator.fields.concurrent_slices_hint")}
-                  </p>
-                </div>
-              </Label>
-            </CardContent>
-          )}
-        </Card>
-      </div>
+              </label>
 
-      {/* 输出设置区块 */}
-      <div className="mb-4">
-        <Card>
-          <CardHeader
-            className="flex items-center justify-between cursor-pointer select-none"
-            onClick={() => setIsOutputOpen((v) => !v)}
-          >
-            <CardTitle className="text-xl">
-              {t("subtitle:translator.output_path_section")}
-            </CardTitle>
-            <ChevronDown
-              className={cn(
-                "h-5 w-5 transition-transform",
-                isOutputOpen && "rotate-180"
-              )}
-            />
-          </CardHeader>
-          {isOutputOpen && (
-            <CardContent>
-              <div className="space-y-3">
-                <div className="flex items-center gap-4">
-                  <Label className="text-sm font-medium min-w-[100px]">
-                    {t("subtitle:translator.fields.output_mode")}
-                  </Label>
-                  <ButtonGroup>
-                    <Button
-                      className="w-30"
-                      size="sm"
-                      variant={outputMode === "custom" ? "default" : "outline"}
-                      onClick={() => setOutputMode("custom")}
-                    >
-                      {t("subtitle:translator.fields.output_mode_custom")}
-                    </Button>
-                    <Button
-                      className="w-30"
-                      size="sm"
-                      variant={outputMode === "source" ? "default" : "outline"}
-                      onClick={() => setOutputMode("source")}
-                    >
-                      {t("subtitle:translator.fields.output_mode_source")}
-                    </Button>
-                  </ButtonGroup>
-                </div>
+              {/* Schedule (collapsible) */}
+              <button
+                type="button"
+                onClick={() => setIsScheduleOpen((v) => !v)}
+                className="flex items-center justify-between gap-3 w-full rounded-lg border border-dashed p-3 cursor-pointer hover:bg-accent/40 transition-colors text-left"
+              >
+                <span className="flex items-center gap-2">
+                  <Clock className="h-3.5 w-3.5 text-muted-foreground" />
+                  <span className="text-[12.5px] font-medium">
+                    {t("subtitle:translator.schedule.title")}
+                  </span>
+                  {scheduleEnabled && (
+                    <Badge variant="secondary" className="text-[10px] h-4 px-1.5">
+                      {formatRemaining(remainingMs)}
+                    </Badge>
+                  )}
+                </span>
+                <ChevronDown
+                  className={cn(
+                    "h-3.5 w-3.5 text-muted-foreground transition-transform",
+                    isScheduleOpen && "rotate-180"
+                  )}
+                />
+              </button>
 
-                {/* 选择输出目录 */}
-                {outputMode === "custom" ? (
-                  <div className="w-full">
-                    <ButtonGroup className="flex items-center pl-[116px] w-full">
-                      <Button
-                        className="w-30"
-                        onClick={handleSelectOutputPath}
-                        size="sm"
-                      >
-                        {t("subtitle:translator.fields.select_output_path")}
-                      </Button>
-                      <Input
-                        type="text"
-                        placeholder={t(
-                          "subtitle:translator.fields.no_output_path_selected"
-                        )}
-                        value={outputURL}
-                        onChange={() => { }}
-                        onClick={handleSelectOutputPath}
-                        className="grow"
-                        readOnly
-                      />
-                    </ButtonGroup>
-                  </div>
-                ) : (
-                  <p className="text-xs text-muted-foreground ml-[116px]">
-                    {t("subtitle:translator.fields.output_mode_source_hint")}
-                  </p>
-                )}
-
-                {/* 重名处理方式 */}
-                <div className="flex items-center gap-4">
-                  <Label className="text-sm font-medium min-w-[100px]">
-                    {t("subtitle:translator.fields.conflict_policy")}
-                  </Label>
-                  <ButtonGroup>
-                    <Button
-                      className="w-30"
-                      size="sm"
-                      variant={
-                        conflictPolicy === "index" ? "default" : "outline"
-                      }
-                      onClick={() => setConflictPolicy("index")}
-                    >
-                      {t("subtitle:translator.fields.conflict_policy_index")}
-                    </Button>
-                    <Button
-                      className="w-30"
-                      size="sm"
-                      variant={
-                        conflictPolicy === "overwrite" ? "default" : "outline"
-                      }
-                      onClick={() => setConflictPolicy("overwrite")}
-                    >
-                      {t("subtitle:translator.fields.conflict_policy_overwrite")}
-                    </Button>
-                  </ButtonGroup>
-                </div>
-              </div>
-            </CardContent>
-          )}
-        </Card>
-      </div>
-
-      {/* 定时开始设置 */}
-      <div className="mb-4">
-        <Card>
-          <CardHeader
-            className="flex items-center justify-between cursor-pointer select-none"
-            onClick={() => setIsScheduleOpen((v) => !v)}
-          >
-            <CardTitle className="text-xl">
-              {t("subtitle:translator.schedule.title")}
-            </CardTitle>
-            <ChevronDown
-              className={cn(
-                "h-5 w-5 transition-transform",
-                isScheduleOpen && "rotate-180"
-              )}
-            />
-          </CardHeader>
-          {isScheduleOpen && (
-            <CardContent>
-              <div className="space-y-4">
-                {/* 第一行：日期时间选择和操作按钮 */}
-                <div className="flex flex-col sm:flex-row sm:items-end gap-4">
-                  <div className="flex flex-wrap gap-3 flex-1">
-                    {/* 日期选择器 */}
-                    <div className="flex flex-col gap-2">
-                      <Label htmlFor="schedule-date" className="px-1">
+              {isScheduleOpen && (
+                <div className="space-y-3 pt-1">
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="space-y-1">
+                      <Label className="text-[11px] text-muted-foreground">
                         {t("subtitle:translator.schedule.date")}
                       </Label>
                       <Popover
@@ -1135,13 +1131,17 @@ function SubtitleTranslator() {
                         <PopoverTrigger asChild>
                           <Button
                             variant="outline"
-                            id="schedule-date"
-                            className="w-[180px] justify-between font-normal"
+                            size="sm"
+                            className="w-full justify-between font-normal text-xs px-2"
                           >
-                            {scheduleDate
-                              ? scheduleDate.toLocaleDateString()
-                              : t("subtitle:translator.schedule.select_date")}
-                            <ChevronDown className="h-4 w-4" />
+                            <span className="truncate">
+                              {scheduleDate
+                                ? scheduleDate.toLocaleDateString()
+                                : t(
+                                    "subtitle:translator.schedule.select_date"
+                                  )}
+                            </span>
+                            <ChevronDown className="h-3 w-3 shrink-0" />
                           </Button>
                         </PopoverTrigger>
                         <PopoverContent
@@ -1163,26 +1163,53 @@ function SubtitleTranslator() {
                         </PopoverContent>
                       </Popover>
                     </div>
-
-                    {/* 时间选择器 */}
-                    <div className="flex flex-col gap-2">
-                      <Label htmlFor="schedule-time" className="px-1">
+                    <div className="space-y-1">
+                      <Label className="text-[11px] text-muted-foreground">
                         {t("subtitle:translator.schedule.time")}
                       </Label>
                       <Input
                         type="time"
-                        id="schedule-time"
                         value={scheduleTimeValue}
                         onChange={(e) => setScheduleTimeValue(e.target.value)}
-                        className="w-[140px] bg-background appearance-none [&::-webkit-calendar-picker-indicator]:hidden [&::-webkit-calendar-picker-indicator]:appearance-none"
+                        className="h-8 text-xs bg-background [&::-webkit-calendar-picker-indicator]:hidden"
                       />
                     </div>
                   </div>
 
-                  {/* 操作按钮 */}
-                  <div className="flex gap-2 sm:pb-0">
+                  <label
+                    htmlFor="prevent-sleep"
+                    className={cn(
+                      "flex items-start gap-2 rounded-md border p-2 cursor-pointer transition-colors",
+                      preventSleep
+                        ? "border-primary/40 bg-primary/5"
+                        : "hover:bg-accent/40"
+                    )}
+                  >
+                    <Checkbox
+                      id="prevent-sleep"
+                      checked={preventSleep}
+                      onCheckedChange={(checked) =>
+                        setPreventSleep(checked as boolean)
+                      }
+                      className="mt-0.5"
+                    />
+                    <div className="flex flex-col gap-0.5 min-w-0">
+                      <span className="text-[11.5px] font-medium leading-tight">
+                        {t(
+                          "subtitle:translator.schedule.prevent_sleep_until_start"
+                        )}
+                      </span>
+                      <span className="text-[10.5px] text-muted-foreground leading-snug">
+                        {t("subtitle:translator.schedule.prevent_sleep_note")}
+                      </span>
+                    </div>
+                  </label>
+
+                  <div className="flex items-center gap-2">
                     {!scheduleEnabled ? (
                       <Button
+                        size="sm"
+                        className="flex-1"
                         variant={
                           !scheduleTime || !Number.isFinite(targetEpochMs)
                             ? "outline"
@@ -1212,583 +1239,524 @@ function SubtitleTranslator() {
                             "success"
                           );
                         }}
-                        className="min-w-[100px]"
                       >
                         {t("subtitle:translator.schedule.enable")}
                       </Button>
                     ) : (
                       <Button
+                        size="sm"
                         variant="outline"
-                        size="default"
+                        className="flex-1"
                         onClick={() => cancelSchedule()}
-                        className="min-w-[100px]"
                       >
                         {t("subtitle:translator.schedule.cancel")}
                       </Button>
                     )}
                   </div>
-                </div>
 
-                {/* 第二行：防止睡眠选项 */}
-                <Label
-                  htmlFor="prevent-sleep"
-                  className="hover:bg-accent/50 flex items-start gap-3 rounded-lg border p-3 cursor-pointer has-[[aria-checked=true]]:border-primary has-[[aria-checked=true]]:bg-primary/5 dark:has-[[aria-checked=true]]:bg-primary/10"
-                >
-                  <Checkbox
-                    id="prevent-sleep"
-                    checked={preventSleep}
-                    onCheckedChange={(checked) =>
-                      setPreventSleep(checked as boolean)
-                    }
-                    className="data-[state=checked]:border-primary data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground"
-                  />
-                  <div className="grid gap-1.5 font-normal">
-                    <p className="text-sm leading-none font-medium">
-                      {t(
-                        "subtitle:translator.schedule.prevent_sleep_until_start"
-                      )}
-                    </p>
-                    <p className="text-muted-foreground text-xs">
-                      {t("subtitle:translator.schedule.prevent_sleep_note")}
-                    </p>
-                  </div>
-                </Label>
-
-                {/* 状态显示 */}
-                <Card>
-                  <CardContent>
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-medium">
-                        {t("subtitle:translator.schedule.status")}
-                      </span>
-                      <div className="h-4 w-px bg-border" />
-                      {scheduleEnabled ? (
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className="text-sm text-foreground">
-                            {t(
-                              "subtitle:translator.schedule.enabled_countdown"
-                            )}{" "}
-                            <span className="font-mono font-semibold">
-                              {formatRemaining(remainingMs)}
-                            </span>
-                          </span>
-                          {blockerId != null && (
-                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">
-                              {t(
-                                "subtitle:translator.schedule.sleep_blocker_on"
-                              )}
-                            </span>
-                          )}
-                        </div>
-                      ) : (
-                        <span className="text-sm text-muted-foreground">
-                          {t("subtitle:translator.schedule.disabled")}
-                        </span>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
-            </CardContent>
-          )}
-        </Card>
-      </div>
-
-      {/* Token消耗预估配置显示 */}
-      <div className="mb-4">
-        <Card className="gap-3 py-4">
-          <CardHeader
-            className="flex items-center justify-between cursor-pointer select-none px-4"
-            onClick={() => setIsNewTaskConfigOpen((v) => !v)}
-          >
-            <CardTitle className="text-xl">
-              {t("subtitle:translator.new_task_config.title")}
-            </CardTitle>
-            <ChevronDown
-              className={cn(
-                "h-5 w-5 transition-transform",
-                isNewTaskConfigOpen && "rotate-180"
-              )}
-            />
-          </CardHeader>
-          {isNewTaskConfigOpen && (
-            <CardContent className="px-4">
-              <div className="text-sm text-muted-foreground mb-2">
-                {t("subtitle:translator.new_task_config.note")}
-              </div>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
-                <div className="rounded-lg border border-muted/70 bg-muted/20 px-3 py-2.5">
-                  <div className="text-muted-foreground text-xs mb-1">
-                    {t(
-                      "subtitle:translator.new_task_config.current_language_pair"
-                    )}
-                  </div>
-                  <div className="font-medium">
-                    {t(`subtitle:translator.languages.${sourceLang}`)}
-                    {" → "}
-                    {t(`subtitle:translator.languages.${targetLang}`)}
-                    <span className="ml-1.5 text-muted-foreground text-xs">
-                      ({translationOutputMode === "bilingual"
-                        ? t("subtitle:translator.fields.output_bilingual")
-                        : t("subtitle:translator.fields.output_target_only")})
+                  <div className="flex items-center gap-2 px-2 py-1.5 rounded-md bg-muted/40 text-[11px]">
+                    <span className="font-medium text-muted-foreground">
+                      {t("subtitle:translator.schedule.status")}
                     </span>
-                  </div>
-                </div>
-                <div className="rounded-lg border border-muted/70 bg-muted/20 px-3 py-2.5">
-                  <div className="text-muted-foreground text-xs mb-1">
-                    {t(
-                      "subtitle:translator.new_task_config.current_slice_mode"
-                    )}
-                  </div>
-                  <div className="font-medium">
-                    {t(
-                      `subtitle:translator.slice_types.${sliceType.toLowerCase()}`
-                    )}
-                    {sliceType === SubtitleSliceType.CUSTOM && (
-                      <span className="ml-1 text-muted-foreground">
-                        ({sliceLengthMap[SubtitleSliceType.CUSTOM]}
-                        {t(
-                          "subtitle:translator.new_task_config.chars_suffix"
+                    {scheduleEnabled ? (
+                      <>
+                        <span className="font-mono text-foreground">
+                          {formatRemaining(remainingMs)}
+                        </span>
+                        {blockerId != null && (
+                          <span className="ml-auto inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">
+                            {t("subtitle:translator.schedule.sleep_blocker_on")}
+                          </span>
                         )}
-                        )
+                      </>
+                    ) : (
+                      <span className="text-muted-foreground">
+                        {t("subtitle:translator.schedule.disabled")}
                       </span>
                     )}
                   </div>
                 </div>
-                <div className="rounded-lg border border-muted/70 bg-muted/20 px-3 py-2.5">
-                  <div className="text-muted-foreground text-xs mb-1">
-                    {t("subtitle:translator.new_task_config.rate_in_out")}
-                  </div>
-                  <div className="font-mono text-sm">
-                    $
-                    {(taskProfile?.tokenPricing.inputTokensPerMillion ?? 0).toFixed(2)}
-                    /$
-                    {(taskProfile?.tokenPricing.outputTokensPerMillion ?? 0).toFixed(2)}{" "}
-                    {t("subtitle:translator.new_task_config.rate_suffix")}
-                  </div>
-                </div>
-                <div className="rounded-lg border border-muted/70 bg-muted/20 px-3 py-2.5">
-                  <div className="text-muted-foreground text-xs mb-1">
-                    {t("subtitle:translator.new_task_config.total_tasks")}
-                  </div>
-                  <div className="font-medium">
-                    {t(
-                      "subtitle:translator.new_task_config.task_count"
-                    ).replace("{count}", String(tokenStats.taskCount))}
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          )}
-        </Card>
-      </div>
-
-      {/* 文件上传区域 */}
-      <div className="mb-4">
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-xl">
-              {t("subtitle:translator.upload_section")}
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <label
-              className={cn(
-                "flex flex-col items-center justify-center border-2 border-dashed rounded-lg p-6 cursor-pointer transition-colors file-drop-zone",
-                isDragging
-                  ? "border-primary bg-primary/10"
-                  : "border-border hover:bg-muted/50"
               )}
-              onDragEnter={handleDragEnter}
-              onDragLeave={handleDragLeave}
-              onDragOver={handleDragOver}
-              onDrop={handleDrop}
-            >
-              <input
-                type="file"
-                multiple
-                className="hidden"
-                accept=".lrc,.srt"
-                onChange={handleFileUpload}
-              />
-              <div className="text-4xl -mb-2 pointer-events-none">
-                {isDragging ? (
-                  <FolderOpen className="h-10 w-10" />
-                ) : (
-                  <Folder className="h-10 w-10" />
+            </div>
+          </Card>
+        </aside>
+
+        {/* ── Right: main column ─────────────────────────── */}
+        <main className="flex flex-col gap-3 min-w-0">
+          {/* Drop zone */}
+          <label
+            className={cn(
+              "relative flex items-center gap-4 rounded-xl border-2 border-dashed px-5 py-5 cursor-pointer transition-colors",
+              isDragging
+                ? "border-primary bg-primary/5"
+                : "border-border hover:bg-muted/40"
+            )}
+            onDragEnter={handleDragEnter}
+            onDragLeave={handleDragLeave}
+            onDragOver={handleDragOver}
+            onDrop={handleDrop}
+          >
+            <input
+              type="file"
+              multiple
+              className="hidden"
+              accept=".lrc,.srt"
+              onChange={handleFileUpload}
+            />
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border bg-muted/40 text-foreground/70">
+              {isDragging ? (
+                <FolderOpen className="h-5 w-5" />
+              ) : (
+                <Upload className="h-5 w-5" />
+              )}
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="text-sm font-semibold">
+                {isDragging
+                  ? t("subtitle:translator.fields.upload_tips_dragging", "释放以添加字幕文件")
+                  : t("subtitle:translator.fields.upload_tips")}
+              </div>
+              <div className="text-xs text-muted-foreground mt-0.5">
+                {t("subtitle:translator.fields.files_only").replace(
+                  "{formats}",
+                  ".lrc, .srt"
                 )}
               </div>
-              <div className="mt-3 text-center pointer-events-none">
-                <p className="font-medium">
-                  {t("subtitle:translator.fields.upload_tips")}
-                </p>
-                <p className="text-sm text-muted-foreground mt-1">
-                  {t("subtitle:translator.fields.files_only").replace(
-                    "{formats}",
-                    ".lrc, .srt"
-                  )}
-                </p>
-              </div>
-            </label>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* 任务管理区域 */}
-      <Card className="mb-12 overflow-hidden">
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-xl">
-              {t("subtitle:translator.task_management")}
-            </CardTitle>
-            <div className="flex gap-2">
-              {/* 全部开始 */}
-              <Button
-                variant={
-                  notStartedTaskQueue.length === 0 ? "outline" : "default"
-                }
-                size="sm"
-                onClick={() => startAllTasks()}
-                disabled={notStartedTaskQueue.length === 0}
-              >
-                {t("subtitle:translator.fields.start_all")}
-              </Button>
-              {/* 清空完成 */}
-              <Button
-                variant={resolvedTaskQueue.length === 0 ? "outline" : "default"}
-                size="sm"
-                onClick={() => removeAllResolvedTask()}
-                disabled={resolvedTaskQueue.length === 0}
-              >
-                {t("subtitle:translator.fields.remove_all_resolved_task")}
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleClearAllTasks}
-                disabled={
-                  notStartedTaskQueue.length === 0 &&
-                  waitingTaskQueue.length === 0 &&
-                  pendingTaskQueue.length === 0 &&
-                  resolvedTaskQueue.length === 0 &&
-                  failedTaskQueue.length === 0
-                }
-              >
-                {t("subtitle:translator.fields.clear_all_tasks")}
-              </Button>
             </div>
-          </div>
-        </CardHeader>
-        <CardContent>
-          {/* Token统计信息 */}
-          {tokenStats.taskCount > 0 && (
-            <Card className="mb-4 gap-3 py-4">
-              <CardHeader className="px-4">
-                <div className="flex items-center gap-2">
-                  <Cpu className="h-4 w-4 text-muted-foreground" />
-                  <CardTitle className="text-base">
-                    {t("subtitle:translator.token_stats.title")}
-                  </CardTitle>
-                </div>
-              </CardHeader>
-              <CardContent className="px-4">
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
-                  <div className="rounded-lg border border-muted/70 bg-muted/20 px-3 py-2.5">
-                    <div className="text-muted-foreground text-xs mb-1">
-                      {t("subtitle:translator.token_stats.total_tokens")}
-                    </div>
-                    <div className="font-mono text-base inline-flex items-center gap-1.5">
-                      {tokenStats.hasLoading && (
-                        <RotateCw className="h-3.5 w-3.5 animate-spin text-muted-foreground/60" />
-                      )}
-                      {formatTokens(tokenStats.totalTokens)}
-                    </div>
-                  </div>
-                  <div className="rounded-lg border border-muted/70 bg-muted/20 px-3 py-2.5">
-                    <div className="text-muted-foreground text-xs mb-1 inline-flex items-center gap-1">
-                      <span>
-                        {t("subtitle:translator.token_stats.total_cost")}
-                      </span>
-                      <CostEstimateHelp
-                        content={t("subtitle:translator.token_stats.cost_tooltip")}
-                      />
-                    </div>
-                    <div className="font-mono text-base">
-                      {formatCost(tokenStats.totalCost)}
-                    </div>
-                  </div>
-                  <div className="rounded-lg border border-muted/70 bg-muted/20 px-3 py-2.5">
-                    <div className="text-muted-foreground text-xs mb-1">
-                      {t("subtitle:translator.token_stats.pending_tokens")}
-                    </div>
-                    <div className="font-mono text-base text-orange-600">
-                      {formatTokens(tokenStats.pendingTokens)}
-                    </div>
-                  </div>
-                  <div className="rounded-lg border border-muted/70 bg-muted/20 px-3 py-2.5">
-                    <div className="text-muted-foreground text-xs mb-1 inline-flex items-center gap-1">
-                      <span>
-                        {t("subtitle:translator.token_stats.pending_cost")}
-                      </span>
-                      <CostEstimateHelp
-                        content={t("subtitle:translator.token_stats.cost_tooltip")}
-                      />
-                    </div>
-                    <div className="font-mono text-base text-orange-600">
-                      {formatCost(tokenStats.pendingCost)}
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+            <Button
+              variant="outline"
+              size="sm"
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                (e.currentTarget.parentElement?.querySelector(
+                  "input[type=file]"
+                ) as HTMLInputElement | null)?.click();
+              }}
+            >
+              <Folder className="h-3.5 w-3.5" />
+              {t("subtitle:translator.fields.select_output_path", "选择文件")}
+            </Button>
+          </label>
+
+          {/* Current task pricing chip line */}
+          {taskProfile && (
+            <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-muted-foreground px-1">
+              <span className="font-mono">
+                {t(`subtitle:translator.languages.${sourceLang}`)} →{" "}
+                {t(`subtitle:translator.languages.${targetLang}`)}
+              </span>
+              <span className="opacity-50">·</span>
+              <span>
+                {translationOutputMode === "bilingual"
+                  ? t("subtitle:translator.fields.output_bilingual")
+                  : t("subtitle:translator.fields.output_target_only")}
+              </span>
+              <span className="opacity-50">·</span>
+              <span>
+                {t(`subtitle:translator.slice_types.${sliceType.toLowerCase()}`)}
+                {sliceType === SubtitleSliceType.CUSTOM &&
+                  ` (${sliceLengthMap[SubtitleSliceType.CUSTOM]}${t(
+                    "subtitle:translator.new_task_config.chars_suffix"
+                  )})`}
+              </span>
+              <span className="opacity-50">·</span>
+              <span className="font-mono">
+                $
+                {(taskProfile.tokenPricing.inputTokensPerMillion ?? 0).toFixed(
+                  2
+                )}{" "}
+                / $
+                {(taskProfile.tokenPricing.outputTokensPerMillion ?? 0).toFixed(
+                  2
+                )}{" "}
+                {t("subtitle:translator.new_task_config.rate_suffix")}
+              </span>
+            </div>
           )}
 
-          {/* 任务列表 */}
-          <div className="space-y-3">
-            {[
-              ...notStartedTaskQueue,
-              ...waitingTaskQueue,
-              ...pendingTaskQueue,
-              ...resolvedTaskQueue,
-              ...failedTaskQueue,
-            ].map((task, index) => (
-              <Card key={index} className="overflow-hidden">
-                <CardContent className="min-w-0">
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-3 flex-1 min-w-0">
+          {/* Task queue */}
+          <Card className="overflow-hidden p-0 gap-0">
+            <CardHeader className="flex flex-row items-center justify-between gap-3 px-4 py-3 space-y-0 border-b">
+              <div className="flex items-center gap-2">
+                <CardTitle className="text-[13.5px] font-semibold">
+                  {t("subtitle:translator.task_management")}
+                </CardTitle>
+                <Badge variant="secondary" className="font-mono text-[11px]">
+                  {allTasks.length}
+                </Badge>
+              </div>
+              <div className="flex gap-1.5">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => removeAllResolvedTask()}
+                  disabled={resolvedTaskQueue.length === 0}
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                  {t("subtitle:translator.fields.remove_all_resolved_task")}
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleClearAllTasks}
+                  disabled={allTasks.length === 0}
+                >
+                  {t("subtitle:translator.fields.clear_all_tasks")}
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={() => startAllTasks()}
+                  disabled={notStartedTaskQueue.length === 0}
+                >
+                  <PlayCircle className="h-3.5 w-3.5" />
+                  {t("subtitle:translator.fields.start_all")}
+                </Button>
+              </div>
+            </CardHeader>
+
+            <div className="divide-y">
+              {allTasks.length === 0 ? (
+                <div className="text-center py-10 text-sm text-muted-foreground">
+                  {t("subtitle:translator.fields.no_tasks")}
+                </div>
+              ) : (
+                allTasks.map((task) => (
+                  <div key={task.fileName} className="px-4 py-3">
+                    <div className="flex items-start gap-3">
                       <div
-                        className={`w-2.5 h-2.5 rounded-full shrink-0 ${getTaskStatusColor(
-                          task.status
-                        )}`}
+                        className={cn(
+                          "mt-1 w-2.5 h-2.5 rounded-full shrink-0",
+                          getTaskStatusColor(task.status)
+                        )}
                       />
-                      <div className="min-w-0 flex-1">
-                        <span className="font-medium text-sm truncate block">
-                          {task.fileName}
-                        </span>
-                        <div className="text-xs text-muted-foreground mt-1 flex items-center flex-wrap gap-1.5">
-                          {t(
-                            `subtitle:translator.task_status.${task.status.toLowerCase()}`
-                          )}
-                          {task.status === TaskStatus.PENDING &&
-                            ` ${Math.round(task.progress || 0)}% (${
-                              task.resolvedFragments || 0
-                            }/${task.totalFragments || 0})`}
-                          <span className="px-1.5 py-0.5 bg-muted rounded-md text-xs">
-                            {t(`subtitle:translator.languages.${task.sourceLang || "JA"}`)}
-                            →
-                            {t(`subtitle:translator.languages.${task.targetLang || "ZH"}`)}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono text-[13px] font-medium truncate">
+                            {task.fileName}
                           </span>
-                          <span className="px-1.5 py-0.5 bg-muted rounded-md text-xs">
+                          <Badge
+                            variant="outline"
+                            className="text-[10px] h-4 px-1.5 font-normal shrink-0"
+                          >
+                            {t(
+                              `subtitle:translator.task_status.${task.status.toLowerCase()}`
+                            )}
+                            {task.status === TaskStatus.PENDING &&
+                              ` · ${Math.round(task.progress || 0)}%`}
+                          </Badge>
+                        </div>
+                        <div className="mt-1 flex items-center flex-wrap gap-x-2 gap-y-1 text-[11px] text-muted-foreground">
+                          <span>
+                            {t(
+                              `subtitle:translator.languages.${task.sourceLang || "JA"}`
+                            )}{" "}
+                            →{" "}
+                            {t(
+                              `subtitle:translator.languages.${task.targetLang || "ZH"}`
+                            )}
+                          </span>
+                          <span className="h-0.5 w-0.5 rounded-full bg-muted-foreground/40" />
+                          <span>
                             {task.translationOutputMode === "target_only"
-                              ? t("subtitle:translator.fields.output_target_only")
-                              : t("subtitle:translator.fields.output_bilingual")}
+                              ? t(
+                                  "subtitle:translator.fields.output_target_only"
+                                )
+                              : t(
+                                  "subtitle:translator.fields.output_bilingual"
+                                )}
                           </span>
-                          <span className="px-1.5 py-0.5 bg-muted rounded-md text-xs">
-                            {formatTaskSliceMode(task)}
-                          </span>
+                          <span className="h-0.5 w-0.5 rounded-full bg-muted-foreground/40" />
+                          <span>{formatTaskSliceMode(task)}</span>
                           {task.costEstimate && (
-                            <span className="font-mono inline-flex items-center gap-1">
-                              {task.costEstimate.loading ? (
-                                <RotateCw className="h-3 w-3 animate-spin text-muted-foreground/60" />
-                              ) : null}
-                              {formatTokens(task.costEstimate.totalTokens)}
-                              <span className="ml-1 inline-flex items-center gap-1 text-green-600">
+                            <>
+                              <span className="h-0.5 w-0.5 rounded-full bg-muted-foreground/40" />
+                              <span className="font-mono inline-flex items-center gap-1">
+                                {task.costEstimate.loading && (
+                                  <RotateCw className="h-3 w-3 animate-spin text-muted-foreground/60" />
+                                )}
+                                {formatTokens(task.costEstimate.totalTokens)}
+                              </span>
+                              <span className="h-0.5 w-0.5 rounded-full bg-muted-foreground/40" />
+                              <span className="font-mono inline-flex items-center gap-0.5 text-emerald-600 dark:text-emerald-400">
                                 ~{formatCost(task.costEstimate.estimatedCost)}
                                 <CostEstimateHelp
-                                  content={t("subtitle:translator.token_stats.cost_tooltip")}
+                                  content={t(
+                                    "subtitle:translator.token_stats.cost_tooltip"
+                                  )}
                                 />
                               </span>
-                            </span>
+                            </>
                           )}
                           {task.status === TaskStatus.RESOLVED &&
                             task.extraInfo?.outputFilePath && (
-                              <span className="font-mono text-green-600 truncate max-w-[200px]">
-                                → {task.extraInfo.outputFilePath}
-                              </span>
+                              <>
+                                <span className="h-0.5 w-0.5 rounded-full bg-muted-foreground/40" />
+                                <span className="font-mono text-emerald-600 dark:text-emerald-400 truncate max-w-[220px]">
+                                  → {task.extraInfo.outputFilePath}
+                                </span>
+                              </>
                             )}
                         </div>
                       </div>
-                    </div>
 
-                    <ButtonGroup className="shrink-0">
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        onClick={() => {
-                          setExpandedTasks((prev) => {
-                            const next = new Set(prev);
-                            if (next.has(task.fileName))
-                              next.delete(task.fileName);
-                            else next.add(task.fileName);
-                            return next;
-                          });
-                        }}
-                      >
-                        <Info className="h-4 w-4" />
-                      </Button>
-
-                      {task.status === TaskStatus.FAILED && (
+                      <ButtonGroup className="shrink-0">
                         <Button
                           variant="outline"
                           size="icon"
-                          className="text-destructive hover:text-destructive"
-                          onClick={() => openErrorModal(task)}
+                          onClick={() => {
+                            setExpandedTasks((prev) => {
+                              const next = new Set(prev);
+                              if (next.has(task.fileName))
+                                next.delete(task.fileName);
+                              else next.add(task.fileName);
+                              return next;
+                            });
+                          }}
+                          title={t("common:action.info", "详情")}
                         >
-                          <AlertTriangle className="h-4 w-4" />
+                          <Info className="h-3.5 w-3.5" />
                         </Button>
-                      )}
-
-                      {task.status === TaskStatus.FAILED && (
-                        <Button
-                          variant="outline"
-                          size="icon"
-                          onClick={() => retryTask(task.fileName)}
-                        >
-                          <RotateCw className="h-4 w-4" />
-                        </Button>
-                      )}
-
-                      {task.status === TaskStatus.NOT_STARTED && (
-                        <Button
-                          variant="outline"
-                          size="icon"
-                          onClick={() => startTask(task.fileName)}
-                        >
-                          <PlayCircle className="h-4 w-4" />
-                        </Button>
-                      )}
-
-                      {(task.status === TaskStatus.PENDING ||
-                        task.status === TaskStatus.WAITING) && (
-                        <Button
-                          variant="outline"
-                          size="icon"
-                          onClick={() => cancelTask(task.fileName)}
-                        >
-                          <X className="h-4 w-4" />
-                        </Button>
-                      )}
-
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        onClick={() => handleOpenFileLocation(task)}
-                      >
-                        <FolderOpen className="h-4 w-4" />
-                      </Button>
-
-                      {(task.status === TaskStatus.NOT_STARTED ||
-                        task.status === TaskStatus.FAILED) && (
-                        <Button
-                          variant="outline"
-                          size="icon"
-                          onClick={() => handleOpenEditTask(task)}
-                        >
-                          <Pencil className="h-4 w-4" />
-                        </Button>
-                      )}
-
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        onClick={() => handleDeleteTask(task)}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </ButtonGroup>
-                  </div>
-
-                  {task.status === TaskStatus.PENDING && (
-                    <Progress value={task.progress} className="w-full mt-2" />
-                  )}
-
-                  {expandedTasks.has(task.fileName) && (
-                    <div className="mt-3 pt-3 border-t border-border/50">
-                      <div className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 text-xs">
-                        <span className="text-muted-foreground">{t("subtitle:translator.task_detail.language_pair")}</span>
-                        <span>
-                          {t(`subtitle:translator.languages.${task.sourceLang || "JA"}`)}
-                          {" → "}
-                          {t(`subtitle:translator.languages.${task.targetLang || "ZH"}`)}
-                          {" · "}
-                          {task.translationOutputMode === "target_only"
-                            ? t("subtitle:translator.fields.output_target_only")
-                            : t("subtitle:translator.fields.output_bilingual")}
-                        </span>
-                        <span className="text-muted-foreground">{t("subtitle:translator.task_detail.slice_mode")}</span>
-                        <span>
-                          {formatTaskSliceMode(task)}
-                        </span>
-                        <span className="text-muted-foreground">{t("subtitle:translator.task_detail.api_model")}</span>
-                        <span className="font-mono">{task.apiModel}</span>
-                        <span className="text-muted-foreground">
-                          {t("subtitle:translator.task_detail.api_endpoint")}
-                        </span>
-                        <span className="font-mono break-all">
-                          {task.endPoint}
-                        </span>
-                        <span className="text-muted-foreground">{t("subtitle:translator.task_detail.output_path")}</span>
-                        <span className="font-mono break-all">
-                          {task.targetFileURL}
-                        </span>
-                        <span className="text-muted-foreground">{t("subtitle:translator.task_detail.conflict_policy")}</span>
-                        <span>
-                          {task.conflictPolicy === "overwrite"
-                            ? t("subtitle:translator.task_detail.overwrite")
-                            : t("subtitle:translator.task_detail.auto_index")}
-                        </span>
-                        <span className="text-muted-foreground">{t("subtitle:translator.task_detail.concurrent_slices")}</span>
-                        <span>
-                          {task.concurrentSlices
-                            ? t("subtitle:translator.task_detail.concurrent_on")
-                            : t("subtitle:translator.task_detail.concurrent_off")}
-                        </span>
-                        {task.costEstimate && (
-                          <>
-                            <span className="text-muted-foreground">
-                              {t("subtitle:translator.task_detail.fragment_count")}
-                            </span>
-                            <span>
-                              {task.costEstimate.fragmentCount} {t("subtitle:translator.task_detail.fragment_suffix")}
-                            </span>
-                            <span className="text-muted-foreground">
-                              {t("subtitle:translator.task_detail.token_estimate")}
-                            </span>
-                            <span className="font-mono">
-                              {t("subtitle:translator.task_detail.input")}{" "}
-                              {formatTokens(task.costEstimate.inputTokens)} /
-                              {t("subtitle:translator.task_detail.output")}{" "}
-                              {formatTokens(task.costEstimate.outputTokens)}
-                            </span>
-                          </>
+                        {task.status === TaskStatus.FAILED && (
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            className="text-destructive hover:text-destructive"
+                            onClick={() => openErrorModal(task)}
+                          >
+                            <AlertTriangle className="h-3.5 w-3.5" />
+                          </Button>
                         )}
-                      </div>
+                        {task.status === TaskStatus.FAILED && (
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            onClick={() => retryTask(task.fileName)}
+                          >
+                            <RotateCw className="h-3.5 w-3.5" />
+                          </Button>
+                        )}
+                        {task.status === TaskStatus.NOT_STARTED && (
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            onClick={() => startTask(task.fileName)}
+                          >
+                            <PlayCircle className="h-3.5 w-3.5" />
+                          </Button>
+                        )}
+                        {(task.status === TaskStatus.PENDING ||
+                          task.status === TaskStatus.WAITING) && (
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            onClick={() => cancelTask(task.fileName)}
+                          >
+                            <X className="h-3.5 w-3.5" />
+                          </Button>
+                        )}
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          onClick={() => handleOpenFileLocation(task)}
+                        >
+                          <FolderOpen className="h-3.5 w-3.5" />
+                        </Button>
+                        {(task.status === TaskStatus.NOT_STARTED ||
+                          task.status === TaskStatus.FAILED) && (
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            onClick={() => handleOpenEditTask(task)}
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                          </Button>
+                        )}
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          onClick={() => handleDeleteTask(task)}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </ButtonGroup>
                     </div>
-                  )}
-                </CardContent>
-              </Card>
-            ))}
-          </div>
 
-          {!notStartedTaskQueue.length &&
-            !waitingTaskQueue.length &&
-            !pendingTaskQueue.length &&
-            !resolvedTaskQueue.length &&
-            !failedTaskQueue.length && (
-              <div className="text-center py-8 text-muted-foreground">
-                {t("subtitle:translator.fields.no_tasks")}
+                    {task.status === TaskStatus.PENDING && (
+                      <div className="mt-2 flex items-center gap-2">
+                        <Progress value={task.progress} className="flex-1 h-1" />
+                        <span className="font-mono text-[10.5px] text-muted-foreground w-8 text-right">
+                          {Math.round(task.progress || 0)}%
+                        </span>
+                      </div>
+                    )}
+
+                    {expandedTasks.has(task.fileName) && (
+                      <div className="mt-3 pt-3 border-t border-border/50">
+                        <div className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 text-xs">
+                          <span className="text-muted-foreground">
+                            {t(
+                              "subtitle:translator.task_detail.language_pair"
+                            )}
+                          </span>
+                          <span>
+                            {t(
+                              `subtitle:translator.languages.${task.sourceLang || "JA"}`
+                            )}
+                            {" → "}
+                            {t(
+                              `subtitle:translator.languages.${task.targetLang || "ZH"}`
+                            )}
+                            {" · "}
+                            {task.translationOutputMode === "target_only"
+                              ? t(
+                                  "subtitle:translator.fields.output_target_only"
+                                )
+                              : t(
+                                  "subtitle:translator.fields.output_bilingual"
+                                )}
+                          </span>
+                          <span className="text-muted-foreground">
+                            {t("subtitle:translator.task_detail.slice_mode")}
+                          </span>
+                          <span>{formatTaskSliceMode(task)}</span>
+                          <span className="text-muted-foreground">
+                            {t("subtitle:translator.task_detail.api_model")}
+                          </span>
+                          <span className="font-mono">{task.apiModel}</span>
+                          <span className="text-muted-foreground">
+                            {t(
+                              "subtitle:translator.task_detail.api_endpoint"
+                            )}
+                          </span>
+                          <span className="font-mono break-all">
+                            {task.endPoint}
+                          </span>
+                          <span className="text-muted-foreground">
+                            {t(
+                              "subtitle:translator.task_detail.output_path"
+                            )}
+                          </span>
+                          <span className="font-mono break-all">
+                            {task.targetFileURL}
+                          </span>
+                          <span className="text-muted-foreground">
+                            {t(
+                              "subtitle:translator.task_detail.conflict_policy"
+                            )}
+                          </span>
+                          <span>
+                            {task.conflictPolicy === "overwrite"
+                              ? t(
+                                  "subtitle:translator.task_detail.overwrite"
+                                )
+                              : t(
+                                  "subtitle:translator.task_detail.auto_index"
+                                )}
+                          </span>
+                          <span className="text-muted-foreground">
+                            {t(
+                              "subtitle:translator.task_detail.concurrent_slices"
+                            )}
+                          </span>
+                          <span>
+                            {task.concurrentSlices
+                              ? t(
+                                  "subtitle:translator.task_detail.concurrent_on"
+                                )
+                              : t(
+                                  "subtitle:translator.task_detail.concurrent_off"
+                                )}
+                          </span>
+                          {task.costEstimate && (
+                            <>
+                              <span className="text-muted-foreground">
+                                {t(
+                                  "subtitle:translator.task_detail.fragment_count"
+                                )}
+                              </span>
+                              <span>
+                                {task.costEstimate.fragmentCount}{" "}
+                                {t(
+                                  "subtitle:translator.task_detail.fragment_suffix"
+                                )}
+                              </span>
+                              <span className="text-muted-foreground">
+                                {t(
+                                  "subtitle:translator.task_detail.token_estimate"
+                                )}
+                              </span>
+                              <span className="font-mono">
+                                {t(
+                                  "subtitle:translator.task_detail.input"
+                                )}{" "}
+                                {formatTokens(task.costEstimate.inputTokens)} /{" "}
+                                {t(
+                                  "subtitle:translator.task_detail.output"
+                                )}{" "}
+                                {formatTokens(task.costEstimate.outputTokens)}
+                              </span>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
+          </Card>
+
+          {/* Summary stat bar */}
+          {tokenStats.taskCount > 0 && (
+            <Card className="p-0">
+              <div className="flex items-center gap-2 px-4 py-3 border-b">
+                <Cpu className="h-3.5 w-3.5 text-muted-foreground" />
+                <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-foreground/80">
+                  {t("subtitle:translator.token_stats.title")}
+                </span>
               </div>
-            )}
-        </CardContent>
-      </Card>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-0 divide-x divide-y md:divide-y-0">
+                <Stat
+                  label={t("subtitle:translator.new_task_config.total_tasks")}
+                  value={tokenStats.taskCount}
+                />
+                <Stat
+                  label={t("subtitle:translator.token_stats.total_tokens")}
+                  value={formatTokens(tokenStats.totalTokens)}
+                  loading={tokenStats.hasLoading}
+                />
+                <Stat
+                  label={t("subtitle:translator.token_stats.total_cost")}
+                  value={formatCost(tokenStats.totalCost)}
+                  accent
+                  helpContent={t("subtitle:translator.token_stats.cost_tooltip")}
+                />
+                <Stat
+                  label={t("subtitle:translator.token_stats.pending_cost")}
+                  value={formatCost(tokenStats.pendingCost)}
+                  tone="warn"
+                  helpContent={t("subtitle:translator.token_stats.cost_tooltip")}
+                />
+              </div>
+            </Card>
+          )}
+        </main>
+      </div>
 
-      {/* 错误详情模态框 */}
+      {/* ── Dialogs ──────────────────────────────────────── */}
       <ErrorDetailModal
         isOpen={errorModalOpen}
         onClose={closeErrorModal}
         taskName={selectedErrorTask?.fileName || ""}
-        errorMessage={selectedErrorTask?.extraInfo?.message || t("subtitle:translator.error_fallback.unknown")}
-        errorDetails={selectedErrorTask?.extraInfo?.error || t("subtitle:translator.error_fallback.no_detail")}
+        errorMessage={
+          selectedErrorTask?.extraInfo?.message ||
+          t("subtitle:translator.error_fallback.unknown")
+        }
+        errorDetails={
+          selectedErrorTask?.extraInfo?.error ||
+          t("subtitle:translator.error_fallback.no_detail")
+        }
         errorLogs={
           selectedErrorTask?.extraInfo?.errorLogs ||
           selectedErrorTask?.errorLog ||
@@ -1797,7 +1765,6 @@ function SubtitleTranslator() {
         timestamp={selectedErrorTask?.extraInfo?.timestamp}
       />
 
-      {/* 删除确认弹窗 */}
       <ConfirmDialog
         open={confirmDeleteOpen}
         onOpenChange={setConfirmDeleteOpen}
@@ -1814,7 +1781,6 @@ function SubtitleTranslator() {
         }}
       />
 
-      {/* 清空确认弹窗 */}
       <ConfirmDialog
         open={confirmClearOpen}
         onOpenChange={setConfirmClearOpen}
@@ -1825,18 +1791,28 @@ function SubtitleTranslator() {
         onConfirm={clearAllTasks}
       />
 
-      {/* 编辑任务配置弹窗 */}
       <Dialog open={editTaskOpen} onOpenChange={setEditTaskOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{t("subtitle:translator.edit_task.title")}</DialogTitle>
+            <DialogTitle>
+              {t("subtitle:translator.edit_task.title")}
+            </DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-2">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>{t("subtitle:translator.fields.source_language")}</Label>
-                <Select value={editSourceLang} onValueChange={(v) => setEditSourceLang(v as TranslationLanguage)}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
+                <Label>
+                  {t("subtitle:translator.fields.source_language")}
+                </Label>
+                <Select
+                  value={editSourceLang}
+                  onValueChange={(v) =>
+                    setEditSourceLang(v as TranslationLanguage)
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
                   <SelectContent>
                     {SUPPORTED_LANGUAGES.map((lang) => (
                       <SelectItem key={lang.code} value={lang.code}>
@@ -1847,9 +1823,18 @@ function SubtitleTranslator() {
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label>{t("subtitle:translator.fields.target_language")}</Label>
-                <Select value={editTargetLang} onValueChange={(v) => setEditTargetLang(v as TranslationLanguage)}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
+                <Label>
+                  {t("subtitle:translator.fields.target_language")}
+                </Label>
+                <Select
+                  value={editTargetLang}
+                  onValueChange={(v) =>
+                    setEditTargetLang(v as TranslationLanguage)
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
                   <SelectContent>
                     {SUPPORTED_LANGUAGES.map((lang) => (
                       <SelectItem key={lang.code} value={lang.code}>
@@ -1861,33 +1846,74 @@ function SubtitleTranslator() {
               </div>
             </div>
             <div className="space-y-2">
-              <Label>{t("subtitle:translator.fields.translation_output_mode")}</Label>
-              <Select value={editOutputMode} onValueChange={(v) => setEditOutputMode(v as TranslationOutputMode)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+              <Label>
+                {t("subtitle:translator.fields.translation_output_mode")}
+              </Label>
+              <Select
+                value={editOutputMode}
+                onValueChange={(v) =>
+                  setEditOutputMode(v as TranslationOutputMode)
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="bilingual">{t("subtitle:translator.fields.output_bilingual")}</SelectItem>
-                  <SelectItem value="target_only">{t("subtitle:translator.fields.output_target_only")}</SelectItem>
+                  <SelectItem value="bilingual">
+                    {t("subtitle:translator.fields.output_bilingual")}
+                  </SelectItem>
+                  <SelectItem value="target_only">
+                    {t("subtitle:translator.fields.output_target_only")}
+                  </SelectItem>
                 </SelectContent>
               </Select>
             </div>
             <div className="space-y-2">
-              <Label>{t("subtitle:translator.fields.subtitle_slice_mode")}</Label>
-              <Select value={editSliceType} onValueChange={(v) => setEditSliceType(v as SubtitleSliceType)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+              <Label>
+                {t("subtitle:translator.fields.subtitle_slice_mode")}
+              </Label>
+              <Select
+                value={editSliceType}
+                onValueChange={(v) =>
+                  setEditSliceType(v as SubtitleSliceType)
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value={SubtitleSliceType.NORMAL}>{t("subtitle:translator.slice_types.normal")}</SelectItem>
-                  <SelectItem value={SubtitleSliceType.SENSITIVE}>{t("subtitle:translator.slice_types.sensitive")}</SelectItem>
-                  <SelectItem value={SubtitleSliceType.CUSTOM}>{t("subtitle:translator.slice_types.custom")}</SelectItem>
+                  <SelectItem value={SubtitleSliceType.NORMAL}>
+                    {t("subtitle:translator.slice_types.normal")}
+                  </SelectItem>
+                  <SelectItem value={SubtitleSliceType.SENSITIVE}>
+                    {t("subtitle:translator.slice_types.sensitive")}
+                  </SelectItem>
+                  <SelectItem value={SubtitleSliceType.CUSTOM}>
+                    {t("subtitle:translator.slice_types.custom")}
+                  </SelectItem>
                 </SelectContent>
               </Select>
             </div>
             <div className="space-y-2">
               <Label>{t("subtitle:translator.fields.conflict_policy")}</Label>
-              <Select value={editConflictPolicy} onValueChange={(v) => setEditConflictPolicy(v as OutputConflictPolicy)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+              <Select
+                value={editConflictPolicy}
+                onValueChange={(v) =>
+                  setEditConflictPolicy(v as OutputConflictPolicy)
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="index">{t("subtitle:translator.fields.conflict_policy_index")}</SelectItem>
-                  <SelectItem value="overwrite">{t("subtitle:translator.fields.conflict_policy_overwrite")}</SelectItem>
+                  <SelectItem value="index">
+                    {t("subtitle:translator.fields.conflict_policy_index")}
+                  </SelectItem>
+                  <SelectItem value="overwrite">
+                    {t(
+                      "subtitle:translator.fields.conflict_policy_overwrite"
+                    )}
+                  </SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -1896,7 +1922,9 @@ function SubtitleTranslator() {
                 checked={editConcurrentSlices}
                 onCheckedChange={(v) => setEditConcurrentSlices(!!v)}
               />
-              <Label>{t("subtitle:translator.fields.concurrent_slices")}</Label>
+              <Label>
+                {t("subtitle:translator.fields.concurrent_slices")}
+              </Label>
             </div>
           </div>
           <DialogFooter>
@@ -1909,6 +1937,43 @@ function SubtitleTranslator() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+    </div>
+  );
+}
+
+function Stat({
+  label,
+  value,
+  accent,
+  tone,
+  loading,
+  helpContent,
+}: {
+  label: string;
+  value: React.ReactNode;
+  accent?: boolean;
+  tone?: "warn";
+  loading?: boolean;
+  helpContent?: string;
+}) {
+  return (
+    <div className="px-4 py-3 flex flex-col gap-1">
+      <div className="text-[10.5px] font-medium uppercase tracking-[0.05em] text-muted-foreground inline-flex items-center gap-1">
+        <span>{label}</span>
+        {helpContent && <CostEstimateHelp content={helpContent} />}
+      </div>
+      <div
+        className={cn(
+          "font-mono text-lg font-semibold tracking-tight inline-flex items-center gap-1.5",
+          accent && "text-primary",
+          tone === "warn" && "text-orange-600 dark:text-orange-400"
+        )}
+      >
+        {loading && (
+          <RotateCw className="h-3.5 w-3.5 animate-spin text-muted-foreground/60" />
+        )}
+        {value}
+      </div>
     </div>
   );
 }
