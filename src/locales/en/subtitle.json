@@ -26,6 +26,7 @@
       "start_all": "Start All Tasks",
       "files_only": "Supported formats: {formats}",
       "upload_tips": "Click to upload or drag files here",
+      "upload_tips_dragging": "Release to add subtitle files",
       "select_file": "Select files",
       "custom_slice_length": "Custom Segment Length",
       "remove_all_resolved_task": "Clear Completed",

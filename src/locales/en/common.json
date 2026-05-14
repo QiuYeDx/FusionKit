@@ -22,7 +22,8 @@
     "confirm": "Confirm",
     "save": "Save",
     "open_file_location": "Open file location",
-    "edit_task_config": "Edit task configuration"
+    "edit_task_config": "Edit task configuration",
+    "info": "Details"
   },
   "confirm": {
     "delete_running_task_title": "Confirm Deletion",
