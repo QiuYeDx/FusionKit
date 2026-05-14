@@ -836,7 +836,6 @@ function SubtitleTranslator() {
         meta={TOOL_META.translator}
         title={t("subtitle:translator.title")}
         description={t("subtitle:translator.description")}
-        categoryLabel={t("tools:subtitle.subtitle_tools")}
         right={
           <Badge variant="secondary" className="gap-1.5 font-normal">
             <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 shadow-[0_0_0_3px_rgba(16,185,129,0.18)]" />

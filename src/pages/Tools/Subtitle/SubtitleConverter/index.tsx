@@ -311,7 +311,6 @@ function SubtitleConverter() {
         meta={TOOL_META.converter}
         title={t("subtitle:converter.title")}
         description={t("subtitle:converter.description")}
-        categoryLabel={t("tools:subtitle.subtitle_tools")}
         right={
           <Badge variant="secondary" className="gap-1.5 font-normal">
             <span className="font-mono text-[11px]">

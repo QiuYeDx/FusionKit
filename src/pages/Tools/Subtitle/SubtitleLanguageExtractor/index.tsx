@@ -309,7 +309,6 @@ function SubtitleLanguageExtractor() {
         meta={TOOL_META.extractor}
         title={t("subtitle:extractor:title")}
         description={t("subtitle:extractor:description")}
-        categoryLabel={t("tools:subtitle.subtitle_tools")}
         right={
           <Badge variant="secondary" className="gap-1.5 font-normal">
             <span className="font-mono text-[11px]">
