@@ -485,7 +485,7 @@ function SubtitleLanguageExtractor() {
               }}
             >
               <Folder className="h-3.5 w-3.5" />
-              {t("subtitle:extractor:fields.select_output_path", "选择文件")}
+              {t("subtitle:extractor:fields.select_file")}
             </Button>
           </label>
 

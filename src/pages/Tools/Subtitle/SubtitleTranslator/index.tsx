@@ -1334,7 +1334,7 @@ function SubtitleTranslator() {
               }}
             >
               <Folder className="h-3.5 w-3.5" />
-              {t("subtitle:translator.fields.select_output_path", "选择文件")}
+              {t("subtitle:translator.fields.select_file")}
             </Button>
           </label>
 
