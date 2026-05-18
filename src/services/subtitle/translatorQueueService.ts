@@ -494,6 +494,10 @@ export function deleteTask(
   state: TranslatorQueueState,
   fileName: string,
 ): TranslatorQueueResult {
+  const wasPending = state.pendingTaskQueue.some(
+    (t) => t.fileName === fileName,
+  );
+
   return {
     state: {
       notStartedTaskQueue: state.notStartedTaskQueue.filter(
@@ -512,7 +516,7 @@ export function deleteTask(
         (t) => t.fileName !== fileName,
       ),
     },
-    effects: [],
+    effects: wasPending ? [{ type: "cancel" as const, fileName }] : [],
   };
 }
 

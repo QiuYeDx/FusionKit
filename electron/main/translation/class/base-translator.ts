@@ -198,6 +198,8 @@ export abstract class BaseTranslator {
       }
 
       // ── 合并最终文件 ──────────────────────────────────────────────────
+      if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
+
       if (!allFragmentsResolved(manifest)) {
         throw new Error("存在未完成的分片，无法生成最终文件");
       }
@@ -317,6 +319,7 @@ export abstract class BaseTranslator {
           task.apiKey,
           task.apiModel,
           errorLogs,
+          signal,
           { index: index + 1, total: fragments.length },
         );
 
@@ -387,6 +390,7 @@ export abstract class BaseTranslator {
             task.apiKey,
             task.apiModel,
             errorLogs,
+            signal,
             { index: index + 1, total: fragments.length },
           );
 
@@ -573,11 +577,14 @@ export abstract class BaseTranslator {
     apiKey: string,
     apiModel: string,
     errorLogs: string[],
+    signal?: AbortSignal,
     fragmentMeta?: TranslationFragmentMeta,
   ): Promise<string> {
     const prompt = this.formatPrompt(content, context);
 
     for (let attempt = 1; attempt <= this.maxRetries; attempt++) {
+      if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
+
       try {
         errorLogs.push(
           `[${new Date().toISOString()}] 尝试第 ${attempt}/${this.maxRetries} 次翻译请求`,
@@ -602,6 +609,7 @@ export abstract class BaseTranslator {
               "Content-Type": "application/json",
             },
             ...getAxiosProxyConfig(),
+            signal,
           },
         );
 
@@ -672,6 +680,8 @@ export abstract class BaseTranslator {
 
         console.error(`第 ${attempt} 次翻译尝试失败:`, error);
 
+        if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
+
         if (attempt === this.maxRetries) {
           errorLogs.push(
             `[${new Date().toISOString()}] 已达到最大重试次数，翻译失败`,
@@ -681,7 +691,7 @@ export abstract class BaseTranslator {
 
         const delay = this.retryDelay * attempt;
         errorLogs.push(`[${new Date().toISOString()}] 等待 ${delay}ms 后重试`);
-        await new Promise((r) => setTimeout(r, delay));
+        await this.abortableDelay(delay, signal);
       }
     }
 
@@ -694,6 +704,24 @@ export abstract class BaseTranslator {
   protected abstract parseResponse(responseData: any): Promise<string>;
   /** 子类实现：将未知错误标准化为 Error 对象 */
   protected abstract normalizeError(error: unknown): Error;
+
+  private abortableDelay(ms: number, signal?: AbortSignal): Promise<void> {
+    return new Promise((resolve, reject) => {
+      if (signal?.aborted) {
+        reject(new DOMException("Aborted", "AbortError"));
+        return;
+      }
+      const timer = setTimeout(() => {
+        signal?.removeEventListener("abort", onAbort);
+        resolve();
+      }, ms);
+      const onAbort = () => {
+        clearTimeout(timer);
+        reject(new DOMException("Aborted", "AbortError"));
+      };
+      signal?.addEventListener("abort", onAbort, { once: true });
+    });
+  }
 
   /** 处理 429 速率限制：读取 Retry-After 头并等待对应时间（预留扩展，当前未被调用） */
   private async handleRateLimit(response: Response) {
