@@ -76,6 +76,7 @@
   "export_session": "セッションをエクスポート",
   "import_session": "セッションをインポート",
   "import_failed": "インポート失敗",
+  "scroll_to_bottom": "一番下へ移動",
   "log_type_user_message": "ユーザーメッセージ",
   "log_type_assistant_message": "アシスタント応答",
   "log_type_status_change": "状態変更",

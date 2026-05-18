@@ -76,6 +76,7 @@
   "export_session": "Export Session",
   "import_session": "Import Session",
   "import_failed": "Import failed",
+  "scroll_to_bottom": "Scroll to bottom",
   "log_type_user_message": "User Message",
   "log_type_assistant_message": "Assistant Reply",
   "log_type_status_change": "Status Change",

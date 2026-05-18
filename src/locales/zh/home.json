@@ -76,6 +76,7 @@
   "export_session": "导出会话",
   "import_session": "导入会话",
   "import_failed": "导入失败",
+  "scroll_to_bottom": "回到最下方",
   "log_type_user_message": "用户消息",
   "log_type_assistant_message": "助手回复",
   "log_type_status_change": "状态变更",

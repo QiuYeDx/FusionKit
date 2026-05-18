@@ -1,4 +1,11 @@
-import React, { useMemo, useRef, useEffect, useLayoutEffect, useState } from "react";
+import React, {
+  useCallback,
+  useMemo,
+  useRef,
+  useEffect,
+  useLayoutEffect,
+  useState,
+} from "react";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
 import { useNavigate } from "react-router-dom";
@@ -19,6 +26,7 @@ import {
   ScrollText,
   Download,
   Upload,
+  ArrowDown,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import useAgentStore from "@/store/agent/useAgentStore";
@@ -94,6 +102,8 @@ const STORE_PATH: Record<string, string> = {
   convert: "/tools/subtitle/converter",
   extract: "/tools/subtitle/extractor",
 };
+
+const SCROLL_BOTTOM_THRESHOLD = 8;
 
 // ---------------------------------------------------------------------------
 // Widget registry (builtin + pending-execution)
@@ -196,7 +206,10 @@ function formatToolResultAsMarkdown(message: AgentMessage, t: TFunction): string
 function HomeAgent() {
   const { t } = useTranslation();
   const [input, setInput] = useState("");
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const scrollViewportRef = useRef<HTMLDivElement | null>(null);
+  const isAtBottomRef = useRef(true);
+  const scrollFrameRef = useRef<number | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [confirmingReset, setConfirmingReset] = useState(false);
   const confirmResetTimer = useRef<ReturnType<typeof setTimeout> | undefined>(
@@ -219,11 +232,57 @@ function HomeAgent() {
     sessionLog,
   } = useAgentStore();
   const { messages, status } = session;
+  const isEmpty = messages.length === 0;
 
   const agentProfile = useModelStore((s) => s.getAgentProfile());
   const hasAgentConfig = !!(agentProfile && agentProfile.apiKey);
 
   const [isMultiline, setIsMultiline] = useState(false);
+  const [isAtBottom, setIsAtBottom] = useState(true);
+
+  const setBottomState = useCallback((nextIsAtBottom: boolean) => {
+    isAtBottomRef.current = nextIsAtBottom;
+    setIsAtBottom((prev) =>
+      prev === nextIsAtBottom ? prev : nextIsAtBottom,
+    );
+  }, []);
+
+  const updateScrollPosition = useCallback(() => {
+    const el = scrollViewportRef.current;
+    if (!el) return;
+
+    const distanceToBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+    setBottomState(distanceToBottom <= SCROLL_BOTTOM_THRESHOLD);
+  }, [setBottomState]);
+
+  const scrollToBottom = useCallback(
+    (behavior: ScrollBehavior = "auto") => {
+      const el = scrollViewportRef.current;
+      if (!el) return;
+
+      setBottomState(true);
+      el.scrollTo({
+        top: Math.max(0, el.scrollHeight - el.clientHeight),
+        behavior,
+      });
+    },
+    [setBottomState],
+  );
+
+  const scheduleScrollToBottom = useCallback(
+    (behavior: ScrollBehavior = "auto") => {
+      if (scrollFrameRef.current !== null) {
+        cancelAnimationFrame(scrollFrameRef.current);
+      }
+
+      scrollFrameRef.current = requestAnimationFrame(() => {
+        scrollFrameRef.current = null;
+        if (!isAtBottomRef.current) return;
+        scrollToBottom(behavior);
+      });
+    },
+    [scrollToBottom],
+  );
 
   // Input history navigation (Up/Down arrow), persisted across sessions
   const INPUT_HISTORY_KEY = "fusionkit-input-history";
@@ -255,9 +314,72 @@ function HomeAgent() {
     }
   }, [input, isMultiline]);
 
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, pendingExecution, streamingText, activeToolCalls]);
+  useLayoutEffect(() => {
+    const root = rootRef.current;
+    if (!root) return;
+
+    const viewport = root.closest<HTMLDivElement>(
+      '[data-slot="scroll-area-viewport"]',
+    );
+    if (!viewport) return;
+
+    scrollViewportRef.current = viewport;
+    viewport.addEventListener("scroll", updateScrollPosition, {
+      passive: true,
+    });
+
+    const resizeObserver = new ResizeObserver(() => {
+      if (isAtBottomRef.current) {
+        scheduleScrollToBottom("auto");
+      } else {
+        updateScrollPosition();
+      }
+    });
+    resizeObserver.observe(root);
+
+    if (isAtBottomRef.current) {
+      scheduleScrollToBottom("auto");
+    } else {
+      updateScrollPosition();
+    }
+
+    return () => {
+      viewport.removeEventListener("scroll", updateScrollPosition);
+      resizeObserver.disconnect();
+      if (scrollViewportRef.current === viewport) {
+        scrollViewportRef.current = null;
+      }
+      if (scrollFrameRef.current !== null) {
+        cancelAnimationFrame(scrollFrameRef.current);
+        scrollFrameRef.current = null;
+      }
+    };
+  }, [scheduleScrollToBottom, updateScrollPosition]);
+
+  useLayoutEffect(() => {
+    if (isEmpty) {
+      setBottomState(true);
+      return;
+    }
+
+    if (!isAtBottomRef.current) {
+      updateScrollPosition();
+      return;
+    }
+
+    scheduleScrollToBottom("auto");
+  }, [
+    activeToolCalls,
+    isEmpty,
+    isStreaming,
+    messages.length,
+    pendingExecution,
+    scheduleScrollToBottom,
+    setBottomState,
+    status,
+    streamingText.length,
+    updateScrollPosition,
+  ]);
 
   useEffect(() => {
     return () => {
@@ -386,8 +508,10 @@ function HomeAgent() {
     }
   };
 
-  const isEmpty = messages.length === 0;
   const canSend = input.trim().length > 0 && !isStreaming;
+  const showScrollToBottomButton = !isEmpty && !isAtBottom;
+  const hasActiveResponse =
+    isStreaming || status === "thinking" || status === "streaming";
   const inputCapsule = (
     <motion.div layout>
       <AnimatePresence mode="popLayout">
@@ -630,10 +754,13 @@ function HomeAgent() {
   );
 
   return (
-    <div className="relative flex flex-col h-full min-h-0">
+    <div
+      ref={rootRef}
+      className="relative flex min-h-[calc(100dvh-120px)] flex-col"
+    >
       {/* ===== Empty State ===== */}
       {isEmpty && (
-        <div className="mt-4 mb-6 flex-1 flex flex-col items-center justify-center px-4 animate-in fade-in duration-500">
+        <div className="flex flex-1 flex-col items-center justify-center px-4 pb-28 pt-8 animate-in fade-in duration-500">
           {/* Concentric Circles + Logo */}
           <div className="relative flex items-center justify-center mb-8 z-0">
             <div
@@ -685,8 +812,15 @@ function HomeAgent() {
             </div>
           )}
 
+          <motion.div
+            layoutId="input-capsule"
+            className="z-20 mt-7 w-full pointer-events-none"
+          >
+            {inputCapsule}
+          </motion.div>
+
           {/* Suggestion Pills */}
-          <div className="flex flex-nowrap justify-center gap-2 max-w-md">
+          <div className="mt-6 flex flex-nowrap justify-center gap-2 max-w-md">
             <SuggestionPill
               icon={<Sparkles className="h-3 w-3" />}
               text={t("home:suggestion_translate_srt")}
@@ -721,7 +855,7 @@ function HomeAgent() {
           <div className="pointer-events-none fixed inset-x-0 -top-2 z-20 h-12 bg-linear-to-b from-background via-background/80 to-transparent" />
           <div className="pointer-events-none fixed inset-x-0 bottom-0 z-10 h-28 bg-linear-to-t from-background via-background/90 to-transparent" />
 
-          <div className="h-full overflow-y-auto px-4 pt-2 pb-2">
+          <div className="px-4 pt-2 pb-2">
             <div className="max-w-2xl mx-auto space-y-4 pt-1 pb-44">
               {messages.map((msg) => (
                 <MessageBubble
@@ -780,30 +914,47 @@ function HomeAgent() {
                   />
                 </div>
               )}
-
-              <div ref={messagesEndRef} />
             </div>
           </div>
+
+          <AnimatePresence>
+            {showScrollToBottomButton && (
+              <motion.div
+                initial={{ opacity: 0, y: 42, scale: 0.8 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: 42, scale: 0.8 }}
+                transition={{ type: "spring", bounce: 0, duration: 0.3 }}
+                className="pointer-events-none fixed inset-x-0 bottom-[142px] z-50 flex justify-center px-4"
+              >
+                <Button
+                  variant="outline"
+                  size={hasActiveResponse ? "sm" : "icon"}
+                  aria-label={t("home:scroll_to_bottom")}
+                  title={t("home:scroll_to_bottom")}
+                  onClick={() => scrollToBottom("smooth")}
+                  className={cn(
+                    "pointer-events-auto border-border/60 bg-background/72 text-foreground/75 backdrop-blur-[5px]",
+                    "shadow-[0_3px_10px_rgba(0,0,0,0.08)] ring-1 ring-background/35 hover:bg-background/84 hover:text-foreground",
+                    "dark:bg-background/58 dark:ring-foreground/5 dark:hover:bg-background/72",
+                    hasActiveResponse
+                      ? "h-8 w-[52px] gap-0 rounded-[18px] px-0"
+                      : "h-9 w-9 rounded-full",
+                  )}
+                >
+                  {hasActiveResponse ? (
+                    <ScrollToBottomLoadingDots />
+                  ) : (
+                    <ArrowDown className="h-4 w-4" />
+                  )}
+                </Button>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
       )}
 
       {/* ===== Bottom Input Area ===== */}
-      {isEmpty ? (
-        <motion.div
-          layoutId="input-capsule"
-          // transition={{
-          //   type: "spring",
-          //   bounce: 0,
-          //   duration: 0.8,
-          // }}
-          className={cn(
-            "absolute inset-x-0 z-20 px-4 pb-4 pt-2 pointer-events-none",
-            hasAgentConfig ? "top-72" : "top-82",
-          )}
-        >
-          {inputCapsule}
-        </motion.div>
-      ) : (
+      {!isEmpty && (
         <>
           <div className="pointer-events-none fixed inset-x-0 bottom-0 h-32 bg-linear-to-b from-transparent via-background/95 to-background" />
           <motion.div
@@ -964,6 +1115,28 @@ function SuggestionPill({
       {icon}
       <span>{text}</span>
     </Button>
+  );
+}
+
+function ScrollToBottomLoadingDots() {
+  return (
+    <span className="flex items-center justify-center gap-1">
+      {[0, 1, 2].map((i) => (
+        <motion.span
+          key={i}
+          className="h-[4.5px] w-[4.5px] rounded-full bg-current"
+          animate={{
+            y: [0, -3, 0],
+          }}
+          transition={{
+            duration: 0.82,
+            repeat: Infinity,
+            ease: "easeInOut",
+            delay: i * 0.12,
+          }}
+        />
+      ))}
+    </span>
   );
 }
 
