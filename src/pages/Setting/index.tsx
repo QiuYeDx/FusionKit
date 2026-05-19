@@ -23,9 +23,33 @@ const NAV: NavItem[] = [
   { key: "model",   labelKey: "setting:nav.model.label",   hintKey: "setting:nav.model.hint",   icon: Cpu },
 ];
 
+const EASE_OUT_QUAD = [0.25, 0.46, 0.45, 0.94] as const;
+
+const contentVariants = {
+  initial: (dir: number) => ({ opacity: 0, y: dir * 8 }),
+  animate: {
+    opacity: 1,
+    y: 0,
+    transition: { duration: 0.15, ease: EASE_OUT_QUAD },
+  },
+  exit: (dir: number) => ({
+    opacity: 0,
+    y: dir * -4,
+    transition: { duration: 0.1, ease: EASE_OUT_QUAD },
+  }),
+};
+
 const Setting: React.FC = () => {
   const { t } = useTranslation();
   const [tab, setTab] = useState<TabKey>("general");
+  const [direction, setDirection] = useState(0);
+
+  const handleTabChange = useCallback((newTab: TabKey) => {
+    const oldIdx = NAV.findIndex((n) => n.key === tab);
+    const newIdx = NAV.findIndex((n) => n.key === newTab);
+    setDirection(newIdx > oldIdx ? 1 : -1);
+    setTab(newTab);
+  }, [tab]);
 
   const scrollRootRef = useRef<HTMLDivElement>(null);
   const viewportRef = useRef<HTMLDivElement | null>(null);
@@ -86,24 +110,31 @@ const Setting: React.FC = () => {
       {/* Body: SubNav rail (fixed) + scrollable panel */}
       <div className="grid grid-cols-[200px_1fr] gap-5 flex-1 min-h-0 max-md:grid-cols-1 max-md:gap-3">
         {/* SubNav rail */}
-        <nav className="flex flex-col gap-1 max-md:flex-row max-md:overflow-x-auto max-md:shrink-0">
+        <nav className="flex flex-col gap-1 max-md:flex-row max-md:overflow-x-auto max-md:shrink-0 isolate">
           {NAV.map((item) => {
             const active = item.key === tab;
             const Icon = item.icon;
             return (
               <button
                 key={item.key}
-                onClick={() => setTab(item.key)}
+                onClick={() => handleTabChange(item.key)}
                 className={cn(
-                  "group flex items-center gap-2.5 px-3 py-2.5 rounded-lg border text-left transition-colors cursor-pointer",
+                  "group relative flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-left transition-colors cursor-pointer",
                   "max-md:shrink-0 max-md:min-w-[160px]",
                   active
-                    ? "bg-accent border-foreground/15 text-foreground"
-                    : "bg-transparent border-transparent text-muted-foreground hover:bg-accent/50 hover:text-foreground"
+                    ? "z-0 text-foreground"
+                    : "z-[1] text-muted-foreground hover:bg-accent/50 hover:text-foreground"
                 )}
               >
-                <Icon className="h-[15px] w-[15px] shrink-0" />
-                <div className="flex-1 min-w-0">
+                {active && (
+                  <motion.div
+                    layoutId="setting-nav-indicator"
+                    className="absolute inset-0 rounded-lg bg-accent border border-foreground/15"
+                    transition={{ type: "spring", duration: 0.35, bounce: 0.15 }}
+                  />
+                )}
+                <Icon className="relative h-[15px] w-[15px] shrink-0" />
+                <div className="relative flex-1 min-w-0">
                   <div className="text-[13px] font-medium leading-tight">
                     {t(item.labelKey)}
                   </div>
@@ -130,11 +161,24 @@ const Setting: React.FC = () => {
           className="relative min-w-0 min-h-0"
         >
           <ScrollArea className="h-full">
-            <div className="flex flex-col gap-4 py-1 pr-3">
-              {tab === "general" && <GeneralConfig />}
-              {tab === "proxy" && <ProxyConfig />}
-              {tab === "model" && <ModelConfig />}
-            </div>
+            <AnimatePresence mode="wait" custom={direction}>
+              <motion.div
+                key={tab}
+                custom={direction}
+                variants={contentVariants}
+                initial="initial"
+                animate="animate"
+                exit="exit"
+                onAnimationStart={(def) => {
+                  if (def === "animate") checkScroll();
+                }}
+                className="flex flex-col gap-4 py-1 pr-3"
+              >
+                {tab === "general" && <GeneralConfig />}
+                {tab === "proxy" && <ProxyConfig />}
+                {tab === "model" && <ModelConfig />}
+              </motion.div>
+            </AnimatePresence>
           </ScrollArea>
 
           <AnimatePresence>
