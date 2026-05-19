@@ -1,6 +1,6 @@
 {
   "title": "設定",
-  "description": "テーマや言語設定を調整して、あなたに合った体験をカスタマイズしてください。",
+  "description": "FusionKit の外観、ネットワーク、AI モデルのパラメータを構成します。",
   "subtitle": {
     "general_config": "一般設定",
     "theme_config": "テーマ設定",
@@ -10,6 +10,20 @@
     "proxy_config": "プロキシ設定",
     "model_assignment": "モデル割り当て",
     "model_profiles": "モデル構成"
+  },
+  "nav": {
+    "general": {
+      "label": "一般",
+      "hint": "外観・言語・通知"
+    },
+    "proxy": {
+      "label": "ネットワーク",
+      "hint": "なし / システム / カスタム"
+    },
+    "model": {
+      "label": "AI モデル",
+      "hint": "割り当て · 構成"
+    }
   },
   "fields": {
     "language": "言語",

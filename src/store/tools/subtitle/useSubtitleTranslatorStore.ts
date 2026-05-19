@@ -265,6 +265,7 @@ const useSubtitleTranslatorStore = create<SubtitleTranslatorStore>()(
       deleteTask: (fileName) => {
         const result = QueueService.deleteTask(getQueueState(get()), fileName);
         set(result.state);
+        executeEffects(result.effects);
         showToast(i18n.t("subtitle:translator.infos.task_deleted"), "success");
       },
 

@@ -22,7 +22,8 @@
     "confirm": "确认",
     "save": "保存",
     "open_file_location": "打开文件位置",
-    "edit_task_config": "编辑任务配置"
+    "edit_task_config": "编辑任务配置",
+    "info": "详情"
   },
   "confirm": {
     "delete_running_task_title": "确认删除",

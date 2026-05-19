@@ -22,7 +22,8 @@
     "confirm": "確認",
     "save": "保存",
     "open_file_location": "ファイルの場所を開く",
-    "edit_task_config": "タスク設定を編集"
+    "edit_task_config": "タスク設定を編集",
+    "info": "詳細"
   },
   "confirm": {
     "delete_running_task_title": "削除の確認",

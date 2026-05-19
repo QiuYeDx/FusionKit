@@ -1,7 +1,16 @@
 {
   "permissions": {
     "allow": [
-      "Bash(git log:*)"
+      "Bash(git log:*)",
+      "Bash(find / -type d -name \"*qiuye-edge-gradient*\")",
+      "Bash(find / -type d -name \"*edge-gradient-mask*\")",
+      "Read(//Users/qiuyedx/**)",
+      "Bash(npx tsc *)",
+      "Bash(echo \"exit=$?\")",
+      "Bash(sed -n '1,306p' /Users/qiuyedx/Documents/Github/FusionKit/src/pages/Tools/Subtitle/SubtitleConverter/index.tsx)",
+      "Read(//tmp/**)",
+      "Read(//private/tmp/**)",
+      "Bash(npx vite *)"
     ]
   }
 }
