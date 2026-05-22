@@ -38,7 +38,6 @@ import type {
   AgentMessage,
   AgentToolCall,
   ExecutionMode,
-  PendingNameTranslationPlan,
   PendingExecution,
 } from "@/agent/types";
 import { Button } from "@/components/ui/button";
@@ -164,20 +163,6 @@ function nameTranslationPlanToFence(
   );
 }
 
-function pendingNameTranslationPlanToFence(
-  pendingPlan: PendingNameTranslationPlan,
-): string {
-  const payload = JSON.stringify({
-    ...pendingPlan.summary,
-    requiresConfirmation: true,
-    resolvedAction: pendingPlan.resolvedAction,
-    isApplying: pendingPlan.isApplying,
-    applyResult: pendingPlan.applyResult,
-    error: pendingPlan.error,
-  });
-  return "```qv:name-translation-plan\n" + payload + "\n```";
-}
-
 function nameTranslationApplyResultToFence(
   result: Record<string, unknown>,
 ): string {
@@ -280,7 +265,6 @@ function HomeAgent() {
     pendingExecution,
     confirmExecution,
     dismissExecution,
-    pendingNameTranslationPlan,
     confirmNameTranslationPlan,
     dismissNameTranslationPlan,
     activeToolCalls,
@@ -429,7 +413,6 @@ function HomeAgent() {
     isStreaming,
     messages.length,
     pendingExecution,
-    pendingNameTranslationPlan,
     scheduleScrollToBottom,
     setBottomState,
     status,
@@ -990,19 +973,10 @@ function HomeAgent() {
                 </div>
               )}
 
-              {/* Pending name translation plan widget */}
-              {pendingNameTranslationPlan && !isStreaming && (
-                <div className="pl-10 animate-in fade-in slide-in-from-bottom-2 duration-300">
-                  <ChatMarkdownRenderer
-                    content={pendingNameTranslationPlanToFence(
-                      pendingNameTranslationPlan
-                    )}
-                    widgetRegistry={homeAgentWidgetRegistry}
-                    widgetContext={widgetContext}
-                    codeBlock={{ colorTheme: "qiuvision" }}
-                  />
-                </div>
-              )}
+              {/* pendingNameTranslationPlan is NOT rendered here because the
+                 tool result message already contains a NameTranslationPlanWidget
+                 that reads live state from the store. Rendering it again would
+                 cause a duplicate card. */}
             </div>
           </div>
 
