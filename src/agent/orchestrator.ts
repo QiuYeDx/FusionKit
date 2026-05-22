@@ -313,26 +313,14 @@ export async function handleUserMessage(userContent: string): Promise<void> {
           }
 
           if (pendingToolCalls.length > 0) {
-            useAgentStore.getState().clearActiveToolCalls();
             const currentStreamingText = useAgentStore.getState().streamingText;
-            useAgentStore.getState().commitStreamingAsAssistant(
-              currentStreamingText,
-              [...pendingToolCalls]
-            );
-            if (currentStreamingText) {
-              useAgentStore.getState().appendLog("assistant_message", currentStreamingText.slice(0, 200), {
-                content: currentStreamingText,
-                hasToolCalls: true,
-                toolCallCount: pendingToolCalls.length,
-              });
-            }
 
-            for (const tr of pendingToolResults) {
+            const toolMessages: AgentMessage[] = pendingToolResults.map((tr) => {
               const toolResult = tr.output as any;
               const isSuccess = toolResult?.success !== false;
-              useAgentStore.getState().addMessage({
+              return {
                 id: generateId(),
-                role: "tool",
+                role: "tool" as const,
                 content: JSON.stringify(
                   toolResult?.data ?? toolResult?.error ?? toolResult,
                   null,
@@ -346,6 +334,27 @@ export async function handleUserMessage(userContent: string): Promise<void> {
                   data: toolResult?.data ?? toolResult,
                   error: toolResult?.error,
                 },
+              };
+            });
+
+            useAgentStore.getState().commitStepBatch(
+              currentStreamingText,
+              [...pendingToolCalls],
+              toolMessages,
+            );
+
+            if (currentStreamingText) {
+              useAgentStore.getState().appendLog("assistant_message", currentStreamingText.slice(0, 200), {
+                content: currentStreamingText,
+                hasToolCalls: true,
+                toolCallCount: pendingToolCalls.length,
+              });
+            }
+            for (const tr of pendingToolResults) {
+              const toolOutput = tr.output as Record<string, unknown> | undefined;
+              useAgentStore.getState().appendLog("tool_result_committed", `${tr.toolName} → ${toolOutput?.success === false ? "failed" : "ok"}`, {
+                toolCallId: tr.toolCallId,
+                toolName: tr.toolName,
               });
             }
 

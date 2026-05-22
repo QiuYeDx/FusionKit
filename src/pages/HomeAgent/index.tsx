@@ -240,7 +240,11 @@ function formatToolResultAsMarkdown(message: AgentMessage, t: TFunction): string
     } else if (typeof parsed === "string") {
       body = parsed;
     } else {
-      body = "```json\n" + JSON.stringify(parsed, null, 2) + "\n```";
+      const jsonStr = JSON.stringify(parsed, null, 2);
+      body =
+        jsonStr.length > 800
+          ? "```json\n" + jsonStr.slice(0, 800) + "\n// …(truncated)\n```"
+          : "```json\n" + jsonStr + "\n```";
     }
   } catch {
     body = raw.length > 500 ? raw.slice(0, 500) + "…" : raw;
@@ -457,7 +461,6 @@ function HomeAgent() {
       conversationId: session.id,
       role: "assistant",
       density: "compact",
-      isStreaming,
       onWidgetAction: (action) => {
         if (action.type === "pending-execution") {
           if (action.action === "confirm") confirmExecution();
@@ -484,7 +487,6 @@ function HomeAgent() {
     }),
     [
       session.id,
-      isStreaming,
       confirmExecution,
       dismissExecution,
       confirmNameTranslationPlan,
@@ -1112,73 +1114,76 @@ function CapsuleModeSelector({
   );
 }
 
-function MessageBubble({
-  message,
-  widgetRegistry,
-  widgetContext,
-}: {
-  message: AgentMessage;
-  widgetRegistry: MarkdownWidgetRegistry;
-  widgetContext: MarkdownWidgetContext;
-}) {
-  const { t } = useTranslation();
-  const isUser = message.role === "user";
-  const isTool = message.role === "tool";
+const MessageBubble = React.memo(
+  function MessageBubble({
+    message,
+    widgetRegistry,
+    widgetContext,
+  }: {
+    message: AgentMessage;
+    widgetRegistry: MarkdownWidgetRegistry;
+    widgetContext: MarkdownWidgetContext;
+  }) {
+    const { t } = useTranslation();
+    const isUser = message.role === "user";
+    const isTool = message.role === "tool";
 
-  // --- User: bubble style ---
-  if (isUser) {
-    return (
-      <div className="flex items-start gap-2.5 flex-row-reverse">
-        <div className="flex items-center justify-center rounded-full w-7 h-7 shrink-0 bg-primary text-primary-foreground">
-          <User className="h-3.5 w-3.5" />
+    if (isUser) {
+      return (
+        <div className="flex items-start gap-2.5 flex-row-reverse">
+          <div className="flex items-center justify-center rounded-full w-7 h-7 shrink-0 bg-primary text-primary-foreground">
+            <User className="h-3.5 w-3.5" />
+          </div>
+          <div className="relative rounded-sm px-4 py-2.5 max-w-[80%] text-sm leading-relaxed bg-primary text-primary-foreground chat-bubble-user">
+            <p className="whitespace-pre-wrap wrap-break-word">
+              {message.content}
+            </p>
+          </div>
         </div>
-        <div className="relative rounded-sm px-4 py-2.5 max-w-[80%] text-sm leading-relaxed bg-primary text-primary-foreground chat-bubble-user">
-          <p className="whitespace-pre-wrap wrap-break-word">
-            {message.content}
-          </p>
+      );
+    }
+
+    if (isTool) {
+      return (
+        <div className="pl-10">
+          <ChatMarkdownRenderer
+            content={formatToolResultAsMarkdown(message, t)}
+            widgetRegistry={widgetRegistry}
+            widgetContext={widgetContext}
+            codeBlock={{ colorTheme: "qiuvision" }}
+          />
+        </div>
+      );
+    }
+
+    let content = message.content || "";
+    if (message.toolCalls && message.toolCalls.length > 0) {
+      content += toolCallsToFences(message.toolCalls, "success");
+    }
+
+    if (!content.trim()) return null;
+
+    return (
+      <div className="flex items-start gap-2.5">
+        <div className="flex items-center justify-center rounded-full w-7 h-7 shrink-0 bg-muted text-muted-foreground">
+          <Bot className="h-3.5 w-3.5" />
+        </div>
+        <div className="flex-1 min-w-0 max-w-[80%] text-sm leading-relaxed">
+          <ChatMarkdownRenderer
+            content={content}
+            widgetRegistry={widgetRegistry}
+            widgetContext={widgetContext}
+            codeBlock={{ colorTheme: "qiuvision" }}
+          />
         </div>
       </div>
     );
-  }
-
-  // --- Tool result: markdown formatted ---
-  if (isTool) {
-    return (
-      <div className="pl-10">
-        <ChatMarkdownRenderer
-          content={formatToolResultAsMarkdown(message, t)}
-          widgetRegistry={widgetRegistry}
-          widgetContext={widgetContext}
-          codeBlock={{ colorTheme: "qiuvision" }}
-        />
-      </div>
-    );
-  }
-
-  // --- Assistant: no bubble, ChatMarkdownRenderer ---
-  let content = message.content || "";
-  if (message.toolCalls && message.toolCalls.length > 0) {
-    content += toolCallsToFences(message.toolCalls, "success");
-  }
-
-  if (!content.trim()) return null;
-
-  return (
-    <div className="flex items-start gap-2.5">
-      <div className="flex items-center justify-center rounded-full w-7 h-7 shrink-0 bg-muted text-muted-foreground">
-        <Bot className="h-3.5 w-3.5" />
-      </div>
-      <div className="flex-1 min-w-0 max-w-[80%] text-sm leading-relaxed">
-        <ChatMarkdownRenderer
-          content={content}
-          widgetRegistry={widgetRegistry}
-          widgetContext={widgetContext}
-          codeBlock={{ colorTheme: "qiuvision" }}
-        />
-      </div>
-    </div>
-  );
-}
+  },
+  (prev, next) =>
+    prev.message === next.message &&
+    prev.widgetRegistry === next.widgetRegistry &&
+    prev.widgetContext === next.widgetContext,
+);
 
 function SuggestionPill({
   icon,

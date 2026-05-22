@@ -59,6 +59,8 @@ function NameTranslationPlanWidgetComponent({
       : null
   );
 
+  const isStreaming = useAgentStore((state) => state.isStreaming);
+
   const resolvedAction =
     pendingPlan?.resolvedAction ?? props.resolvedAction ?? null;
   const isApplying = pendingPlan?.isApplying ?? props.isApplying ?? false;
@@ -70,7 +72,7 @@ function NameTranslationPlanWidgetComponent({
     props.blockedCount === 0 &&
     !resolvedAction &&
     !isApplying &&
-    !context.isStreaming;
+    !isStreaming;
   const hasRiskPrompt = props.totalTargets > 50 || props.warnings.length > 0;
 
   const handleConfirm = () => {
@@ -194,7 +196,7 @@ function NameTranslationPlanWidgetComponent({
               variant="ghost"
               size="sm"
               onClick={handleDismiss}
-              disabled={isApplying || context.isStreaming}
+              disabled={isApplying || isStreaming}
               className="h-7 rounded-full px-3 text-xs text-muted-foreground"
             >
               取消

@@ -124,6 +124,7 @@ export type AgentLogEntryType =
   | "status_change"
   | "tool_call"
   | "tool_result"
+  | "tool_result_committed"
   | "name_translation_plan"
   | "name_translation_apply"
   | "usage"

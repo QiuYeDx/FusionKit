@@ -39,11 +39,17 @@ interface AgentStore {
   sessionLog: AgentLogEntry[];
 
   addMessage: (message: AgentMessage) => void;
+  addMessages: (messages: AgentMessage[]) => void;
   setStatus: (status: AgentSessionStatus) => void;
   setStreaming: (streaming: boolean) => void;
   appendStreamingText: (delta: string) => void;
   clearStreamingText: () => void;
   commitStreamingAsAssistant: (text: string, toolCalls?: AgentToolCall[]) => void;
+  commitStepBatch: (
+    assistantText: string,
+    toolCalls: AgentToolCall[],
+    toolMessages: AgentMessage[],
+  ) => void;
   resetSession: () => void;
   setExecutionMode: (mode: ExecutionMode) => void;
   setPendingExecution: (pe: PendingExecution | null) => void;
@@ -133,6 +139,15 @@ const useAgentStore = create<AgentStore>()(
           },
         })),
 
+      addMessages: (messages) =>
+        set((state) => ({
+          session: {
+            ...state.session,
+            messages: [...state.session.messages, ...messages],
+            updatedAt: Date.now(),
+          },
+        })),
+
       setStatus: (status) =>
         set((state) => ({
           session: { ...state.session, status, updatedAt: Date.now() },
@@ -165,6 +180,35 @@ const useAgentStore = create<AgentStore>()(
             updatedAt: Date.now(),
           },
         }));
+      },
+
+      commitStepBatch: (assistantText, toolCalls, toolMessages) => {
+        set((state) => {
+          const now = Date.now();
+          const newMessages = [...state.session.messages];
+
+          if (assistantText || toolCalls.length > 0) {
+            newMessages.push({
+              id: generateId(),
+              role: "assistant",
+              content: assistantText,
+              timestamp: now,
+              ...(toolCalls.length > 0 ? { toolCalls } : {}),
+            });
+          }
+
+          newMessages.push(...toolMessages);
+
+          return {
+            streamingText: "",
+            activeToolCalls: [],
+            session: {
+              ...state.session,
+              messages: newMessages,
+              updatedAt: now,
+            },
+          };
+        });
       },
 
       resetSession: () => {
