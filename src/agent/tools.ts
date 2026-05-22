@@ -4,16 +4,22 @@ import {
   queueTranslateSchema,
   queueConvertSchema,
   queueExtractSchema,
+  inspectRenamePathsSchema,
+  createNameTranslationPlanSchema,
+  applyNameTranslationPlanSchema,
 } from "./tool-schemas";
 import {
   executeScan,
   executeQueueTranslate,
   executeQueueConvert,
   executeQueueExtract,
+  executeInspectRenamePaths,
+  executeCreateNameTranslationPlan,
+  executeApplyNameTranslationPlan,
 } from "./tool-executor";
 
 // ---------------------------------------------------------------------------
-// AI SDK Tool Definitions — 4 个核心工具
+// AI SDK Tool Definitions — 字幕工具 + 名称翻译工具
 // ---------------------------------------------------------------------------
 
 export const agentTools = {
@@ -53,5 +59,31 @@ export const agentTools = {
       "Use filePaths for small explicit lists, or use scanId + batchStart + batchSize from a previous scan result for large batch queueing.",
     inputSchema: queueExtractSchema,
     execute: async (args) => executeQueueExtract(args),
+  }),
+
+  inspect_rename_paths: tool({
+    description:
+      "Inspect file or directory paths before file/folder name translation or batch rename. " +
+      "Use this when the user's rename scope is ambiguous or you need to know whether a path is a file or directory. " +
+      "This tool never changes the filesystem.",
+    inputSchema: inspectRenamePathsSchema,
+    execute: async (args) => executeInspectRenamePaths(args),
+  }),
+
+  create_name_translation_plan: tool({
+    description:
+      "Create a dry-run plan for translating file or folder names without changing file contents. " +
+      "Use this for 文件名/文件夹名/重命名/改名/name translation requests. " +
+      "Always call this before any rename apply. It returns a planId, preview, counts, warnings, and confirmation requirement.",
+    inputSchema: createNameTranslationPlanSchema,
+    execute: async (args) => executeCreateNameTranslationPlan(args),
+  }),
+
+  apply_name_translation_plan: tool({
+    description:
+      "Apply a previously created name translation plan after explicit user confirmation. " +
+      "Never call this automatically from Auto Execute mode. The latest user message must clearly confirm applying the rename plan.",
+    inputSchema: applyNameTranslationPlanSchema,
+    execute: async (args) => executeApplyNameTranslationPlan(args),
   }),
 };

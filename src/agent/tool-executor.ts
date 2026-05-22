@@ -3,6 +3,9 @@ import type {
   QueueTranslateArgs,
   QueueConvertArgs,
   QueueExtractArgs,
+  InspectRenamePathsArgs,
+  CreateNameTranslationPlanArgs,
+  ApplyNameTranslationPlanArgs,
 } from "./tool-schemas";
 import type { TaskStoreType } from "./types";
 import {
@@ -30,6 +33,18 @@ import type {
   TranslationLanguage,
   TranslationOutputMode,
 } from "@/type/subtitle";
+import { createNameTranslationPlan } from "@/services/rename/nameTranslationPlanner";
+import { getNameTranslationPlan } from "@/services/rename/namePlanStore";
+import {
+  applyNameTranslationPlan as applyStoredNameTranslationPlan,
+  validateNameTranslationPlan,
+} from "@/services/rename/nameApplyService";
+import {
+  DEFAULT_NAME_TRANSLATION_OPTIONS,
+  type InspectedRenamePath,
+  type NameTranslationOptions,
+} from "@/services/rename/nameTypes";
+import { isExplicitRenameConfirmation } from "./name-plan-confirmation";
 
 // ---------------------------------------------------------------------------
 // Tool Executor — 工具执行函数（由 AI SDK tool() 的 execute 调用）
@@ -141,6 +156,206 @@ export async function executeScan(
     success: true,
     data: createScanResultPayload(deduped, args.directories),
   };
+}
+
+// ---------------------------------------------------------------------------
+// inspect_rename_paths
+// ---------------------------------------------------------------------------
+
+export async function executeInspectRenamePaths(
+  args: InspectRenamePathsArgs
+): Promise<ToolExecutionResult> {
+  try {
+    const result = await getIpcRenderer().invoke("inspect-rename-paths", {
+      paths: args.paths,
+    });
+
+    return {
+      success: true,
+      data: {
+        paths: ((result?.paths ?? []) as InspectedRenamePath[]).map(
+          enrichInspectedRenamePath
+        ),
+      },
+    };
+  } catch (err: any) {
+    return {
+      success: false,
+      error: `Failed to inspect rename paths: ${err?.message || err}`,
+    };
+  }
+}
+
+// ---------------------------------------------------------------------------
+// create_name_translation_plan
+// ---------------------------------------------------------------------------
+
+export async function executeCreateNameTranslationPlan(
+  args: CreateNameTranslationPlanArgs
+): Promise<ToolExecutionResult> {
+  try {
+    const options = toNameTranslationOptions(args);
+    const summary = await createNameTranslationPlan(options);
+    const requiresConfirmation = !summary.clarificationRequired;
+    const executionStatus = summary.clarificationRequired
+      ? "clarification_required"
+      : "preview_created";
+
+    const store = useAgentStore.getState();
+    if (requiresConfirmation) {
+      store.setPendingNameTranslationPlan({
+        planId: summary.planId,
+        createdAt: Date.now(),
+        summary,
+        resolvedAction: null,
+      });
+    }
+    store.appendLog(
+      "name_translation_plan",
+      `Created rename plan ${summary.planId}`,
+      {
+        planId: summary.planId,
+        readyCount: summary.readyCount,
+        blockedCount: summary.blockedCount,
+        skippedCount: summary.skippedCount,
+        unchangedCount: summary.unchangedCount,
+        applyable: summary.applyable,
+        executionStatus,
+      }
+    );
+
+    return {
+      success: true,
+      data: {
+        ...summary,
+        requiresConfirmation,
+        executionStatus,
+      },
+    };
+  } catch (err: any) {
+    return {
+      success: false,
+      error: `Failed to create name translation plan: ${err?.message || err}`,
+    };
+  }
+}
+
+// ---------------------------------------------------------------------------
+// apply_name_translation_plan
+// ---------------------------------------------------------------------------
+
+export async function executeApplyNameTranslationPlan(
+  args: ApplyNameTranslationPlanArgs
+): Promise<ToolExecutionResult> {
+  const latestUserMessage = getLatestUserMessageContent();
+  if (!isExplicitRenameConfirmation(latestUserMessage, args.planId)) {
+    return {
+      success: false,
+      error:
+        "应用重命名计划前需要用户明确确认，例如「确认执行刚才的重命名计划」。",
+      data: {
+        planId: args.planId,
+        executionStatus: "confirmation_required",
+      },
+    };
+  }
+
+  const store = useAgentStore.getState();
+  const pendingPlan = store.pendingNameTranslationPlan;
+  if (
+    !pendingPlan ||
+    pendingPlan.planId !== args.planId ||
+    pendingPlan.resolvedAction
+  ) {
+    return {
+      success: false,
+      error: "只能应用当前等待确认的最新重命名计划，请先重新生成预览。",
+      data: {
+        planId: args.planId,
+        executionStatus: "no_pending_plan",
+      },
+    };
+  }
+
+  const plan = getNameTranslationPlan(args.planId);
+  if (!plan) {
+    return {
+      success: false,
+      error: "重命名计划已过期或不存在，请重新生成预览。",
+      data: {
+        planId: args.planId,
+        executionStatus: "plan_missing",
+      },
+    };
+  }
+
+  if (!plan.applyable || plan.blockedCount > 0) {
+    return {
+      success: false,
+      error: "当前重命名计划不可应用，请先处理冲突或重新生成预览。",
+      data: {
+        planId: args.planId,
+        executionStatus: "plan_blocked",
+        blockedCount: plan.blockedCount,
+        applyable: plan.applyable,
+      },
+    };
+  }
+
+  try {
+    const validation = await validateNameTranslationPlan(args.planId);
+    if (!validation.valid) {
+      return {
+        success: false,
+        error: validation.errors[0]?.message ?? "重命名计划校验失败。",
+        data: {
+          planId: args.planId,
+          executionStatus: "validation_failed",
+          validation,
+        },
+      };
+    }
+
+    const result = await applyStoredNameTranslationPlan(args.planId);
+    useAgentStore.getState().setPendingNameTranslationPlan({
+      ...pendingPlan,
+      resolvedAction: "confirm",
+      applyResult: result,
+      error: undefined,
+    });
+    useAgentStore.getState().appendLog(
+      "name_translation_apply",
+      `Applied rename plan ${args.planId}`,
+      { planId: args.planId, result }
+    );
+
+    return {
+      success: true,
+      data: {
+        ...result,
+        executionStatus: "applied",
+      },
+    };
+  } catch (err: any) {
+    const error = `Failed to apply name translation plan: ${err?.message || err}`;
+    useAgentStore.getState().setPendingNameTranslationPlan({
+      ...pendingPlan,
+      error,
+    });
+    useAgentStore.getState().appendLog("error", error, {
+      planId: args.planId,
+      source: "apply_name_translation_plan",
+    });
+
+    return {
+      success: false,
+      error,
+      data: {
+        planId: args.planId,
+        executionStatus: "apply_failed",
+      },
+    };
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -358,7 +573,7 @@ export async function executeQueueExtract(
 
 async function readFileContent(absolutePath: string): Promise<string | null> {
   try {
-    return await window.ipcRenderer.invoke("read-file-head", {
+    return await getIpcRenderer().invoke("read-file-head", {
       filePath: absolutePath,
       lines: 999999,
     });
@@ -422,5 +637,92 @@ function createQueueResultData(
         }
       : {}),
     ...(errors.length > 0 ? { errors } : {}),
+  };
+}
+
+function getIpcRenderer(): Window["ipcRenderer"] {
+  if (typeof window === "undefined" || !window.ipcRenderer) {
+    throw new Error("Electron IPC is not available in this environment.");
+  }
+  return window.ipcRenderer;
+}
+
+function enrichInspectedRenamePath(path: InspectedRenamePath) {
+  return {
+    ...path,
+    suggestedScopes:
+      path.exists && path.kind === "directory"
+        ? ["self", "children", "descendants"]
+        : path.exists && path.kind === "file"
+          ? ["self"]
+          : [],
+  };
+}
+
+function toNameTranslationOptions(
+  args: CreateNameTranslationPlanArgs
+): NameTranslationOptions {
+  const scoped = normalizeNameTranslationScope(args);
+  return {
+    ...DEFAULT_NAME_TRANSLATION_OPTIONS,
+    ...scoped,
+    roots: args.roots,
+    sourceLang: args.sourceLang,
+    targetLang: args.targetLang,
+    namingStyle: args.namingStyle,
+    collisionPolicy: args.collisionPolicy,
+    includeHidden: args.includeHidden,
+    preserveExtension: true,
+    preserveLeadingDot: true,
+    preserveTechnicalTokens: true,
+    ...(args.pathSegmentStartPath && args.pathSegmentEndPath
+      ? {
+          pathSegmentRange: {
+            startPath: args.pathSegmentStartPath,
+            endPath: args.pathSegmentEndPath,
+            includeEndFileName: args.includeEndFileName,
+          },
+        }
+      : {}),
+  };
+}
+
+function normalizeNameTranslationScope(args: CreateNameTranslationPlanArgs) {
+  if (args.scope === "self") {
+    return {
+      scope: args.scope,
+      targetKind: args.targetKind,
+      recursive: false,
+      maxDepth: 0,
+      includeRoot: true,
+    };
+  }
+
+  if (args.scope === "children") {
+    return {
+      scope: args.scope,
+      targetKind: args.targetKind,
+      recursive: false,
+      maxDepth: 1,
+      includeRoot: false,
+    };
+  }
+
+  if (args.scope === "descendants") {
+    return {
+      scope: args.scope,
+      targetKind: args.targetKind,
+      recursive: true,
+      maxDepth: Math.max(2, args.maxDepth || 5),
+      includeRoot: false,
+    };
+  }
+
+  return {
+    scope: args.scope,
+    targetKind: args.targetKind,
+    recursive: args.recursive,
+    maxDepth: args.maxDepth,
+    includeRoot: args.includeRoot,
   };
 }

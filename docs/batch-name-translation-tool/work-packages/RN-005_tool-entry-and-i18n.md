@@ -1,7 +1,7 @@
 # 工作包 RN-005：工具入口与 i18n
 
 > 来源设计文档：`docs/batch-name-translation-tool/batch-name-translation-tool-final-design.md`  
-> 状态：未开始  
+> 状态：已完成
 > 优先级：P1  
 > 依赖：RN-004 可并行后半段
 
@@ -181,3 +181,31 @@ pnpm dev
 
 RN-005 不应修改 rename 核心逻辑。它只负责让 RN-004 的页面被稳定访问，并确保多语言入口不会破坏已有字幕工具入口。
 
+---
+
+## 实施结果
+
+- 完成日期：2026-05-21
+- 实施记录：`docs/batch-name-translation-tool/implementation-records/2026-05-21_RN-005_tool-entry-and-i18n.md`
+- 关键文件：
+  - `src/pages/Tools/_shared/toolMeta.ts`
+  - `src/pages/Tools/index.tsx`
+  - `src/i18n/constants.ts`
+  - `src/i18n/resources.ts`
+  - `src/locales/zh/tools.json`
+  - `src/locales/en/tools.json`
+  - `src/locales/ja/tools.json`
+  - `src/locales/zh/rename.json`
+  - `src/locales/en/rename.json`
+  - `src/locales/ja/rename.json`
+  - `src/pages/Tools/Rename/NameTranslator/*`
+  - `src/store/tools/rename/useNameTranslatorStore.ts`
+- 验证：
+  - `pnpm exec tsc --noEmit`
+  - `pnpm exec vitest run test/rename src/services/rename`
+  - `pnpm build`
+  - `pnpm dev` 启动通过；Electron 点击冒烟本轮受 Computer Use 授权限制，未计入已完成验证。
+- 说明：
+  - 采用推荐方案 2：新增 `nameTranslator` 工具 key，分类仍为 `rename`。
+  - 重命名工具箱已展示可点击的名称翻译工具，不再使用 Coming Soon 占位。
+  - 新工具页和 store 的用户可见文案迁入 `rename` namespace，中英日均已补齐。

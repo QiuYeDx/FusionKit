@@ -14,12 +14,18 @@
   "fields": {
     "subtitle_translator": "字幕AI翻訳",
     "subtitle_formatter": "字幕フォーマット変換",
-    "subtitle_language_extractor": "字幕言語抽出"
+    "subtitle_language_extractor": "字幕言語抽出",
+    "name_translator": "ファイル/フォルダ名翻訳"
   },
   "field_desc": {
     "subtitle_translator": "AIモデルで字幕ファイルを翻訳",
     "subtitle_formatter": "字幕形式を変換（SRT、ASS など）",
-    "subtitle_language_extractor": "バイリンガル字幕から指定言語を抽出"
+    "subtitle_language_extractor": "バイリンガル字幕から指定言語を抽出",
+    "name_translator": "ファイルやフォルダ名を一括翻訳し、プレビュー後に安全にリネームします"
+  },
+  "chips": {
+    "name_translator_files": "ファイル · フォルダ",
+    "name_translator_safe": "プレビュー · Journal"
   },
   "coming_soon": {
     "title": "近日公開",

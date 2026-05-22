@@ -187,6 +187,73 @@ export const queueExtractSchema = z.object({
     ),
 });
 
+/** inspect_rename_paths — 检查名称翻译/重命名路径 */
+export const inspectRenamePathsSchema = z.object({
+  paths: z
+    .array(z.string())
+    .min(1)
+    .describe("Absolute file or directory paths to inspect for name translation / rename."),
+});
+
+/** create_name_translation_plan — 创建名称翻译 dry-run 计划 */
+export const createNameTranslationPlanSchema = z.object({
+  roots: z
+    .array(z.string())
+    .min(1)
+    .describe("Absolute file or directory paths provided by the user."),
+  scope: z
+    .enum(["self", "children", "descendants", "path_segments"])
+    .default("self")
+    .describe(
+      "Rename scope. Use self for the selected basename, children for direct children, descendants only when the user explicitly requests recursion, path_segments only for explicit path-segment renaming."
+    ),
+  targetKind: z
+    .enum(["files", "directories", "both"])
+    .default("files")
+    .describe("Which target kinds to rename."),
+  recursive: z
+    .boolean()
+    .default(false)
+    .describe("Whether to include nested descendants. Must be true only when recursion is explicit."),
+  maxDepth: z.number().int().min(0).max(20).default(1),
+  includeHidden: z.boolean().default(false),
+  includeRoot: z
+    .boolean()
+    .default(true)
+    .describe("Whether to include the root path itself when scope allows it."),
+  sourceLang: z
+    .enum(["auto", "ZH", "JA", "EN", "KO", "FR", "DE", "ES", "RU", "PT"])
+    .default("auto"),
+  targetLang: z
+    .enum(["ZH", "JA", "EN", "KO", "FR", "DE", "ES", "RU", "PT"])
+    .default("ZH"),
+  namingStyle: z
+    .enum(["preserve", "space", "kebab", "snake", "title", "lower"])
+    .default("preserve"),
+  collisionPolicy: z
+    .enum(["fail", "append_index"])
+    .default("fail")
+    .describe("Default fail. Use append_index only when the user explicitly accepts indexed names."),
+  pathSegmentStartPath: z
+    .string()
+    .optional()
+    .describe("Required when scope=path_segments: the path segment where translation starts."),
+  pathSegmentEndPath: z
+    .string()
+    .optional()
+    .describe("Required when scope=path_segments: the path segment where translation ends."),
+  includeEndFileName: z.boolean().default(true),
+});
+
+/** apply_name_translation_plan — 应用已确认的名称翻译计划 */
+export const applyNameTranslationPlanSchema = z.object({
+  planId: z.string().min(1).describe("Plan id returned by create_name_translation_plan."),
+  confirmationText: z
+    .string()
+    .optional()
+    .describe("The user's latest explicit confirmation text, if available."),
+});
+
 // ---------------------------------------------------------------------------
 // 类型导出
 // ---------------------------------------------------------------------------
@@ -195,3 +262,10 @@ export type ScanSubtitleFilesArgs = z.infer<typeof scanSubtitleFilesSchema>;
 export type QueueTranslateArgs = z.infer<typeof queueTranslateSchema>;
 export type QueueConvertArgs = z.infer<typeof queueConvertSchema>;
 export type QueueExtractArgs = z.infer<typeof queueExtractSchema>;
+export type InspectRenamePathsArgs = z.infer<typeof inspectRenamePathsSchema>;
+export type CreateNameTranslationPlanArgs = z.infer<
+  typeof createNameTranslationPlanSchema
+>;
+export type ApplyNameTranslationPlanArgs = z.infer<
+  typeof applyNameTranslationPlanSchema
+>;

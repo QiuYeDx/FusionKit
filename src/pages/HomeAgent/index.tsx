@@ -38,6 +38,7 @@ import type {
   AgentMessage,
   AgentToolCall,
   ExecutionMode,
+  PendingNameTranslationPlan,
   PendingExecution,
 } from "@/agent/types";
 import { Button } from "@/components/ui/button";
@@ -64,6 +65,10 @@ import {
 } from "@/components/qiuye-ui/markdown-renderer";
 import { builtinWidgetRegistry } from "@/components/qiuye-ui/markdown-renderer/widgets/builtin-registry";
 import { pendingExecutionWidget } from "@/components/qiuye-ui/markdown-renderer/widgets/PendingExecutionWidget";
+import {
+  nameTranslationApplyResultWidget,
+  nameTranslationPlanWidget,
+} from "./components/NameTranslationPlanWidget";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -112,6 +117,8 @@ const SCROLL_BOTTOM_THRESHOLD = 8;
 const homeAgentWidgetRegistry: MarkdownWidgetRegistry = {
   ...builtinWidgetRegistry,
   [pendingExecutionWidget.type]: pendingExecutionWidget,
+  [nameTranslationPlanWidget.type]: nameTranslationPlanWidget,
+  [nameTranslationApplyResultWidget.type]: nameTranslationApplyResultWidget,
 };
 
 // ---------------------------------------------------------------------------
@@ -147,6 +154,40 @@ function pendingExecutionToFence(pe: PendingExecution): string {
   return "```qv:pending-execution\n" + payload + "\n```";
 }
 
+function nameTranslationPlanToFence(
+  plan: Record<string, unknown>,
+): string {
+  return (
+    "```qv:name-translation-plan\n" +
+    JSON.stringify(plan) +
+    "\n```"
+  );
+}
+
+function pendingNameTranslationPlanToFence(
+  pendingPlan: PendingNameTranslationPlan,
+): string {
+  const payload = JSON.stringify({
+    ...pendingPlan.summary,
+    requiresConfirmation: true,
+    resolvedAction: pendingPlan.resolvedAction,
+    isApplying: pendingPlan.isApplying,
+    applyResult: pendingPlan.applyResult,
+    error: pendingPlan.error,
+  });
+  return "```qv:name-translation-plan\n" + payload + "\n```";
+}
+
+function nameTranslationApplyResultToFence(
+  result: Record<string, unknown>,
+): string {
+  return (
+    "```qv:name-translation-apply-result\n" +
+    JSON.stringify(result) +
+    "\n```"
+  );
+}
+
 function formatToolResultAsMarkdown(message: AgentMessage, t: TFunction): string {
   const result = message.toolResult;
   const isSuccess = result?.success ?? true;
@@ -157,6 +198,13 @@ function formatToolResultAsMarkdown(message: AgentMessage, t: TFunction): string
   let body: string;
   try {
     const parsed = JSON.parse(raw);
+    if (isSuccess && result?.toolName === "create_name_translation_plan") {
+      return nameTranslationPlanToFence(parsed);
+    }
+    if (isSuccess && result?.toolName === "apply_name_translation_plan") {
+      return nameTranslationApplyResultToFence(parsed);
+    }
+
     if (parsed?.files && Array.isArray(parsed.files)) {
       const count = parsed.totalCount ?? parsed.files.length;
       const names = parsed.files
@@ -228,6 +276,9 @@ function HomeAgent() {
     pendingExecution,
     confirmExecution,
     dismissExecution,
+    pendingNameTranslationPlan,
+    confirmNameTranslationPlan,
+    dismissNameTranslationPlan,
     activeToolCalls,
     sessionLog,
   } = useAgentStore();
@@ -374,6 +425,7 @@ function HomeAgent() {
     isStreaming,
     messages.length,
     pendingExecution,
+    pendingNameTranslationPlan,
     scheduleScrollToBottom,
     setBottomState,
     status,
@@ -415,9 +467,30 @@ function HomeAgent() {
             if (path) navigate(path);
           }
         }
+        if (action.type === "name-translation-plan") {
+          const planId = (action.payload as { planId?: string })?.planId;
+          if (action.action === "confirm" && planId) {
+            void confirmNameTranslationPlan(planId);
+          }
+          if (action.action === "dismiss" && planId) {
+            dismissNameTranslationPlan(planId);
+          }
+          if (action.action === "navigate") {
+            const path = (action.payload as { path?: string })?.path;
+            if (path) navigate(path);
+          }
+        }
       },
     }),
-    [session.id, isStreaming, confirmExecution, dismissExecution, navigate],
+    [
+      session.id,
+      isStreaming,
+      confirmExecution,
+      dismissExecution,
+      confirmNameTranslationPlan,
+      dismissNameTranslationPlan,
+      navigate,
+    ],
   );
 
   const prevStreamingRef = useRef(false);
@@ -908,6 +981,20 @@ function HomeAgent() {
                 <div className="pl-10 animate-in fade-in slide-in-from-bottom-2 duration-300">
                   <ChatMarkdownRenderer
                     content={pendingExecutionToFence(pendingExecution)}
+                    widgetRegistry={homeAgentWidgetRegistry}
+                    widgetContext={widgetContext}
+                    codeBlock={{ colorTheme: "qiuvision" }}
+                  />
+                </div>
+              )}
+
+              {/* Pending name translation plan widget */}
+              {pendingNameTranslationPlan && !isStreaming && (
+                <div className="pl-10 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                  <ChatMarkdownRenderer
+                    content={pendingNameTranslationPlanToFence(
+                      pendingNameTranslationPlan
+                    )}
                     widgetRegistry={homeAgentWidgetRegistry}
                     widgetContext={widgetContext}
                     codeBlock={{ colorTheme: "qiuvision" }}

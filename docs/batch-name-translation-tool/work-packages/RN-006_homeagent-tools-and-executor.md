@@ -1,7 +1,7 @@
 # 工作包 RN-006：HomeAgent 工具 Schema 与执行器
 
 > 来源设计文档：`docs/batch-name-translation-tool/batch-name-translation-tool-final-design.md`  
-> 状态：未开始  
+> 状态：已完成  
 > 优先级：P0  
 > 依赖：RN-001, RN-002, RN-003
 
@@ -228,3 +228,32 @@ pnpm test
 
 RN-006 完成后，Agent 应能生成 plan，但用户体验仍可能只是普通工具结果 JSON。RN-007 会把这个结果变成可确认的 UI 卡片。不要在 RN-006 里为了省 UI 工作而放宽 apply 确认规则。
 
+---
+
+## 实施结果
+
+- 完成日期：2026-05-21
+- 实施记录：`docs/batch-name-translation-tool/implementation-records/2026-05-21_RN-006_homeagent-tools-and-executor.md`
+- 关键文件：
+  - `src/agent/tool-schemas.ts`
+  - `src/agent/tools.ts`
+  - `src/agent/tool-executor.ts`
+  - `src/agent/orchestrator.ts`
+  - `src/agent/types.ts`
+  - `src/store/agent/useAgentStore.ts`
+  - `src/pages/HomeAgent/SessionLogViewer.tsx`
+  - `src/agent/name-plan-confirmation.ts`
+  - `src/agent/name-translation-intent.ts`
+  - `src/agent/name-plan-confirmation.test.ts`
+  - `src/agent/name-translation-intent.test.ts`
+  - `src/agent/tool-schemas.test.ts`
+- 验证：
+  - `pnpm exec vitest run src/agent/tool-schemas.test.ts src/agent/name-plan-confirmation.test.ts src/agent/name-translation-intent.test.ts`
+  - `pnpm exec tsc --noEmit`
+  - `pnpm exec vitest run src/agent src/services/rename test/rename`
+  - `pnpm build`
+- 说明：
+  - HomeAgent 已注册 `inspect_rename_paths`、`create_name_translation_plan`、`apply_name_translation_plan`。
+  - create plan 只生成 dry-run 预览，并写入 `pendingNameTranslationPlan` 与 session log。
+  - apply 必须匹配当前 pending plan，且最近用户消息需要明确确认；`auto_execute` 不会绕过该规则。
+  - RN-007 仍需补专用预览确认 UI，本工作包只提供工具结果与 pending 状态。

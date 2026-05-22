@@ -1,7 +1,7 @@
 # 工作包 RN-002：名称翻译 Planner
 
 > 来源设计文档：`docs/batch-name-translation-tool/batch-name-translation-tool-final-design.md`  
-> 状态：未开始  
+> 状态：已完成
 > 优先级：P0  
 > 依赖：RN-001
 
@@ -248,3 +248,25 @@ pnpm test
 
 RN-002 完成后，RN-003 应只消费 `NameTranslationPlan`，不再重新翻译或重新决定 targetPath。RN-004 和 RN-006 都应通过同一个 planner 创建预览，避免手动工具和 Agent 出现两套行为。
 
+---
+
+## 实施结果
+
+- 完成日期：2026-05-19
+- 实施记录：`docs/batch-name-translation-tool/implementation-records/2026-05-19_RN-002_name-translation-planner.md`
+- 关键文件：
+  - `src/services/rename/nameTypes.ts`
+  - `src/services/rename/namePlanStore.ts`
+  - `src/services/rename/nameTargetResolver.ts`
+  - `src/services/rename/nameTranslationPlanner.ts`
+  - `src/services/rename/nameTranslationPrompt.ts`
+  - `src/services/rename/nameSanitize.ts`
+  - `src/services/rename/nameConflict.ts`
+  - `src/services/rename/namePath.ts`
+  - `src/services/rename/*.test.ts`
+- 验证：
+  - `pnpm exec vitest run test/rename/scanner.test.ts src/services/rename`
+  - `pnpm build`
+- 说明：
+  - `path_segments` 缺少边界时返回 `clarificationRequired`。
+  - 有边界的 `path_segments` 当前仍生成不可应用预览，完整路径片段重命名顺序留给后续阶段，避免误执行高风险路径变更。

@@ -1,0 +1,186 @@
+{
+  "page": {
+    "title": "ファイル/フォルダ名翻訳",
+    "description": "ファイルやフォルダを選択し、dry-run プレビューを生成してから安全にリネームします。",
+    "badge": "dry-run first",
+    "error_title": "操作に失敗しました",
+    "loading_plan_title": "HomeAgent の計画を読み込み中",
+    "loading_plan_desc": "先ほど生成したプレビュー、選択パス、適用状態を復元しています。",
+    "loaded_from_agent_title": "HomeAgent のプレビューを読み込みました",
+    "loaded_from_agent_desc": "計画 {{planId}}（対象 {{count}} 件）を表示しています。まだ dry-run のため、ファイルは変更されていません。"
+  },
+  "risk_reasons": {
+    "directories": "フォルダ名の変更を含む",
+    "descendants": "再帰範囲",
+    "path_segments": "パスセグメント",
+    "large_batch": "100 件超",
+    "warnings": "警告を含む"
+  },
+  "path": {
+    "section_title": "パス",
+    "dialog_title": "名前を翻訳するファイルまたはフォルダを選択",
+    "dialog_button": "選択",
+    "drop_title": "ファイルまたはフォルダをここにドロップ",
+    "drop_hint": "混在選択に対応。プレビュー生成ではファイルシステムを変更しません。",
+    "select_mixed": "ファイル/フォルダ",
+    "select_dirs": "フォルダのみ",
+    "empty": "選択したパスの種類、子項数、リスクラベルが表示されます。",
+    "file_unit": "ファイル",
+    "directory_unit": "フォルダ",
+    "counts": "{{files}} ファイル · {{directories}} フォルダ",
+    "remove_tooltip": "パスを削除",
+    "reset_tooltip": "現在の選択をクリア",
+    "create_preview": "プレビュー生成"
+  },
+  "options": {
+    "section_title": "設定",
+    "scope_label": "翻訳範囲",
+    "scope": {
+      "self": { "label": "選択名", "hint": "選択したファイルまたはフォルダ自体のみ翻訳" },
+      "children": { "label": "直下の項目", "hint": "フォルダ内の第 1 階層のみ翻訳" },
+      "descendants": { "label": "再帰項目", "hint": "下位フォルダも含める" },
+      "path_segments": { "label": "パスセグメント", "hint": "開始/終了階層の指定が必要" }
+    },
+    "target_kind_label": "対象タイプ",
+    "target_kind": {
+      "files": "ファイル",
+      "directories": "フォルダ",
+      "both": "すべて"
+    },
+    "max_depth_label": "再帰深度",
+    "max_depth_hint": "再帰項目モードのみ有効。20 はほぼ無制限です。",
+    "language_label": "言語",
+    "source_auto": "自動検出",
+    "languages": {
+      "ZH": "中国語",
+      "EN": "英語",
+      "JA": "日本語",
+      "KO": "韓国語",
+      "FR": "フランス語",
+      "DE": "ドイツ語",
+      "ES": "スペイン語",
+      "RU": "ロシア語",
+      "PT": "ポルトガル語"
+    },
+    "naming_style_label": "命名スタイル",
+    "naming_styles": {
+      "preserve": "元のスタイルを保持",
+      "space": "スペース区切り",
+      "kebab": "ケバブケース",
+      "snake": "スネークケース",
+      "title": "Title Case",
+      "lower": "lowercase"
+    },
+    "skip_hidden_label": "隠し項目をスキップ",
+    "skip_hidden_hint": ".env や隠しフォルダなどはデフォルトで処理しません",
+    "preserve_extension_label": "拡張子を保持",
+    "preserve_extension_hint": "ファイル stem のみ翻訳し、.srt / .mp4 などは変更しません",
+    "preserve_tokens_label": "番号と技術タグを保持",
+    "preserve_tokens_hint": "S01E02、1080p、字幕グループなどの token をできるだけ保持",
+    "collision_label": "競合処理",
+    "collision_fail": "ブロック",
+    "collision_append_index": "自動採番"
+  },
+  "preview": {
+    "title": "プレビュー",
+    "empty_title": "リネームプレビューはまだありません",
+    "empty_desc": "パスを選択してプレビューを生成すると、ここで確認、編集、スキップ、適用できます。",
+    "revalidate": "再検証",
+    "summary": {
+      "ready": "ready",
+      "blocked": "blocked",
+      "skipped": "skipped",
+      "unchanged": "unchanged",
+      "warnings": "warnings"
+    },
+    "clarification_title": "範囲の詳細が必要です",
+    "columns": {
+      "status": "状態",
+      "type": "タイプ",
+      "original_name": "元の名前",
+      "new_name": "新しい名前",
+      "source_path": "元パス",
+      "target_path": "対象パス",
+      "reason": "理由/警告",
+      "actions": "操作"
+    },
+    "kind": {
+      "file": "ファイル",
+      "directory": "フォルダ"
+    },
+    "actions": {
+      "skip": "スキップ",
+      "restore": "AI 提案に戻す",
+      "auto_index": "競合に自動採番を使う"
+    },
+    "pagination_hint": "大量プレビューを一度に描画しないよう、1 ページ {{count}} 件です。",
+    "previous": "前へ",
+    "next": "次へ",
+    "status": {
+      "ready": "ready",
+      "unchanged": "unchanged",
+      "skipped": "skipped",
+      "blocked": "blocked",
+      "applied": "applied",
+      "failed": "failed",
+      "rolled_back": "rolled back"
+    }
+  },
+  "apply": {
+    "title": "適用",
+    "metrics": {
+      "ready": "適用可",
+      "blocked": "ブロック",
+      "skipped": "スキップ",
+      "unchanged": "変更なし",
+      "success": "成功",
+      "failed": "失敗"
+    },
+    "warnings_title": "計画に警告があります",
+    "validation_failed_title": "検証に失敗しました",
+    "result_title": "実行結果",
+    "rollback": "ロールバックを試す",
+    "rollback_summary": "journal {{journalId}} のロールバック：成功 {{success}}、失敗 {{failed}}",
+    "apply_button": "リネームを適用",
+    "no_plan_hint": "実際のリネームでは必ず先に journal を書き込みます。dry-run プレビューは迂回しません。",
+    "blocked_hint": "blocked が 0 で ready が 1 以上の場合のみ適用できます。",
+    "confirm_hint": "適用前に高リスク条件を確認します。",
+    "phase": {
+      "validating": "validating",
+      "applying": "applying",
+      "rolling_back": "rolling back",
+      "done": "done",
+      "failed": "failed"
+    }
+  },
+  "risk": {
+    "title": "高リスクのリネームを確認",
+    "metrics": {
+      "impacted": "影響項目",
+      "files": "ファイル",
+      "directories": "フォルダ",
+      "warnings": "警告"
+    },
+    "reasons_title": "リスク理由",
+    "scope": "範囲：{{scope}}",
+    "journal_hint": "journal はアプリデータに保存され、ベストエフォートのロールバックに利用できますが、トランザクション保証ではありません。",
+    "apply_hint": "確認後にのみ apply-rename-plan を呼び出します。",
+    "cancel": "キャンセル",
+    "confirm": "適用を確認"
+  },
+  "messages": {
+    "select_paths_first": "先にファイルまたはフォルダを 1 つ以上選択してください。",
+    "preview_created": "プレビューを生成しました。ファイルはまだ変更されていません。",
+    "missing_plan": "先にリネームプレビューを生成してください。",
+    "validating": "リネーム計画を検証中...",
+    "applying": "リネームを適用中...",
+    "done": "リネームが完了しました。",
+    "validation_failed": "リネーム計画の検証に失敗しました。",
+    "rename_finished": "リネーム処理が完了しました。",
+    "rolling_back": "ロールバックを試行中...",
+    "rollback_done": "ロールバック要求が完了しました。",
+    "ipc_unavailable": "Electron IPC を利用できません。",
+    "plan_not_found": "リネーム計画 {{planId}} が見つかりません。期限切れまたはクリア済みの可能性があります。プレビューを再生成してください。",
+    "plan_loaded_from_agent": "HomeAgent のリネームプレビューを読み込みました。"
+  }
+}

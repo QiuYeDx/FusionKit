@@ -1,7 +1,7 @@
 # 工作包 RN-003：安全 Apply + Journal
 
 > 来源设计文档：`docs/batch-name-translation-tool/batch-name-translation-tool-final-design.md`  
-> 状态：未开始  
+> 状态：已完成
 > 优先级：P0  
 > 依赖：RN-001, RN-002
 
@@ -247,3 +247,26 @@ pnpm test
 
 RN-003 是整个功能的安全边界。后续 UI 和 Agent 不应直接调用 `fs.rename`，只能通过 `apply-rename-plan`。如果发现 planner 生成的 plan 仍有风险，应在 RN-003 的 validate 阶段阻止，而不是相信上游已经完全正确。
 
+---
+
+## 实施结果
+
+- 完成日期：2026-05-19
+- 实施记录：`docs/batch-name-translation-tool/implementation-records/2026-05-19_RN-003_safe-apply-and-journal.md`
+- 关键文件：
+  - `electron/main/rename/planner-validation.ts`
+  - `electron/main/rename/journal.ts`
+  - `electron/main/rename/apply.ts`
+  - `electron/main/rename/path-utils.ts`
+  - `electron/main/rename/ipc.ts`
+  - `electron/main/rename/types.ts`
+  - `src/services/rename/nameApplyService.ts`
+  - `test/rename/apply.test.ts`
+  - `test/rename/journal.test.ts`
+- 验证：
+  - `pnpm exec vitest run test/rename src/services/rename`
+  - `pnpm build`
+- 说明：
+  - apply 前校验失败会拒绝执行，不写入 rename 操作。
+  - journal 每步落盘；中途失败保留 `failed/temp_done` 等状态供诊断和回滚。
+  - 回滚按目录优先并维护路径重写，以支持“父目录 + 子项”一起改名后的恢复。

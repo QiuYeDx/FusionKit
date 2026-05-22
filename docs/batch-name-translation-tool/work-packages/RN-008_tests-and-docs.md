@@ -1,7 +1,7 @@
 # 工作包 RN-008：测试与文档回填
 
 > 来源设计文档：`docs/batch-name-translation-tool/batch-name-translation-tool-final-design.md`  
-> 状态：未开始  
+> 状态：已完成  
 > 优先级：P0  
 > 依赖：RN-001 至 RN-007
 
@@ -183,3 +183,22 @@ HomeAgent 场景：
 
 RN-008 不只是补测试。它要把实现和设计重新对齐，让下一个维护者不必从聊天记录里猜测真实行为。如果有功能延后，必须明确写成已知限制，而不是让文档保持理想化状态。
 
+---
+
+## 实施结果
+
+- 完成日期：2026-05-21
+- 实施记录：`docs/batch-name-translation-tool/implementation-records/2026-05-21_RN-008_tests-and-docs.md`
+- 实现偏差/最终状态记录：`docs/batch-name-translation-tool/implementation-notes/2026-05-21_final-implementation-status.md`
+- 关键变更：
+  - 补充 rename scanner 测试：目录 self、children directories。
+  - 补充 planner 测试：显式 `path_segments` 当前延后、unsafe path segment 起点。
+  - 补充 apply 测试：独立目录 rename + rollback。
+  - 修正字幕队列 retry 测试，使其符合当前 failure recovery 设计：默认 resume 保留 progress，restart 才清零。
+  - Electron E2E 在 Linux、Codex seatbelt sandbox 或 `FUSIONKIT_SKIP_E2E=1` 时显式跳过，并为清理逻辑增加守卫。
+  - final design 追加 RN-008 实现回填，记录最终 IPC、路由、plan store TTL、`path_segments` 状态、journal/rollback 限制和 HomeAgent widget。
+- 验证：
+  - `pnpm exec vitest run test/rename src/services/rename src/agent`
+  - `pnpm test`
+  - `pnpm exec tsc --noEmit`
+  - `pnpm build`

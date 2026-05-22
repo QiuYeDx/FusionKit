@@ -1,7 +1,7 @@
 # 工作包 RN-007：HomeAgent 预览确认 UI
 
 > 来源设计文档：`docs/batch-name-translation-tool/batch-name-translation-tool-final-design.md`  
-> 状态：未开始  
+> 状态：已完成  
 > 优先级：P1  
 > 依赖：RN-006
 
@@ -98,12 +98,12 @@
 
 ## 打开完整预览
 
-可选实现：
+实现要求：
 
 1. 跳转 `/tools/rename/name-translator?planId=<planId>`。
-2. 工具页加载 plan store 中的 plan。
-
-如果跨页面 plan store 尚未准备好，先实现跳转到工具页并提示用户重新生成预览，不阻塞主确认链路。
+2. 工具页读取 `planId` query，并从 renderer memory `namePlanStore` 加载完整 plan。
+3. 加载后同步恢复工具页的选中路径、配置、预览表、应用区和原始 AI 建议，避免用户在 HomeAgent 已生成预览后进入空白工具页。
+4. 如果 plan 已过期或被清理，工具页应显示明确错误，提示用户重新生成预览。
 
 ---
 
@@ -154,3 +154,26 @@ pnpm dev
 
 RN-007 是 HomeAgent 的最后安全门。UI 的存在不是装饰，它要让用户在真实写入前看到足够信息。不要把卡片简化到只显示一个「确认」按钮。
 
+---
+
+## 实施结果
+
+- 完成日期：2026-05-21
+- 实施记录：`docs/batch-name-translation-tool/implementation-records/2026-05-21_RN-007_homeagent-preview-confirmation-ui.md`
+- 关键文件：
+  - `src/pages/HomeAgent/components/NameTranslationPlanWidget.tsx`
+  - `src/pages/HomeAgent/index.tsx`
+  - `src/store/agent/useAgentStore.ts`
+  - `src/agent/types.ts`
+- 验证：
+  - `pnpm exec tsc --noEmit`
+  - `pnpm exec vitest run src/agent src/services/rename test/rename`
+  - `pnpm build`
+  - `pnpm dev` 已启动；in-app browser 对 `http://localhost:5173/` 的访问被环境策略拒绝，未完成视觉冒烟。
+- 说明：
+  - 新增 `qv:name-translation-plan` 与 `qv:name-translation-apply-result` widget。
+  - `create_name_translation_plan` tool result 会渲染为专用预览卡片。
+  - pending rename plan 会在 HomeAgent 消息流底部展示同款确认卡，支持确认、取消、打开工具页。
+  - “在工具页打开”会带 `planId` 跳转，工具页自动恢复 HomeAgent 刚生成的完整预览和配置。
+  - blocked 或不可应用计划会禁用确认按钮；高数量或 warning 计划会触发二次确认。
+  - 确认后展示成功/失败数量和 `journalId`；取消后保留历史预览状态。

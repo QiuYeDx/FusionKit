@@ -13,6 +13,7 @@ import FadeMaskLayer from "@/pages/components/FadeMaskLayer";
 import SubtitleTranslator from "./pages/Tools/Subtitle/SubtitleTranslator";
 import SubtitleConverter from "./pages/Tools/Subtitle/SubtitleConverter";
 import SubtitleLanguageExtractor from "./pages/Tools/Subtitle/SubtitleLanguageExtractor";
+import NameTranslator from "./pages/Tools/Rename/NameTranslator";
 import { Toaster } from "@/components/ui/sonner";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import Update from "@/components/update";
@@ -113,6 +114,10 @@ function App() {
                 <Route
                   path="/tools/subtitle/extractor"
                   element={<SubtitleLanguageExtractor />}
+                />
+                <Route
+                  path="/tools/rename/name-translator"
+                  element={<NameTranslator />}
                 />
               </Routes>
             </motion.div>

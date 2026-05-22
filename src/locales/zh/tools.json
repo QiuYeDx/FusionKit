@@ -14,12 +14,18 @@
   "fields": {
     "subtitle_translator": "字幕AI翻译",
     "subtitle_formatter": "字幕格式转换",
-    "subtitle_language_extractor": "字幕语言提取"
+    "subtitle_language_extractor": "字幕语言提取",
+    "name_translator": "文件名/文件夹名翻译"
   },
   "field_desc": {
     "subtitle_translator": "使用AI模型翻译字幕文件",
     "subtitle_formatter": "转换字幕格式（SRT、ASS等）",
-    "subtitle_language_extractor": "从双语字幕中提取指定语言"
+    "subtitle_language_extractor": "从双语字幕中提取指定语言",
+    "name_translator": "批量翻译文件和文件夹名称，先预览再安全重命名"
+  },
+  "chips": {
+    "name_translator_files": "文件 · 文件夹",
+    "name_translator_safe": "预览 · Journal"
   },
   "coming_soon": {
     "title": "敬请期待",

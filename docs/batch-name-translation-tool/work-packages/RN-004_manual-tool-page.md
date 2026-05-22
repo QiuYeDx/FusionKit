@@ -1,7 +1,7 @@
 # 工作包 RN-004：手动工具页
 
 > 来源设计文档：`docs/batch-name-translation-tool/batch-name-translation-tool-final-design.md`  
-> 状态：未开始  
+> 状态：已完成
 > 优先级：P1  
 > 依赖：RN-001, RN-002, RN-003
 
@@ -228,3 +228,29 @@ pnpm dev
 
 RN-004 完成后，工具本体应已经可用。RN-005 只负责把入口打开和多语言补齐；RN-006/RN-007 只通过同一套 service/store 复用能力，不能绕过手动工具页已经验证过的安全链路。
 
+---
+
+## 实施结果
+
+- 完成日期：2026-05-20
+- 实施记录：`docs/batch-name-translation-tool/implementation-records/2026-05-20_RN-004_manual-tool-page.md`
+- 关键文件：
+  - `src/store/tools/rename/useNameTranslatorStore.ts`
+  - `src/pages/Tools/Rename/NameTranslator/index.tsx`
+  - `src/pages/Tools/Rename/NameTranslator/components/PathPickerPanel.tsx`
+  - `src/pages/Tools/Rename/NameTranslator/components/OptionsPanel.tsx`
+  - `src/pages/Tools/Rename/NameTranslator/components/PlanPreviewTable.tsx`
+  - `src/pages/Tools/Rename/NameTranslator/components/ApplySummaryPanel.tsx`
+  - `src/pages/Tools/Rename/NameTranslator/components/RiskConfirmDialog.tsx`
+  - `src/App.tsx`
+  - `src/constants/router.ts`
+  - `src/pages/Tools/_shared/toolMeta.ts`
+- 验证：
+  - `pnpm exec vitest run test/rename src/services/rename`
+  - `pnpm exec tsc --noEmit`
+  - `pnpm build`
+  - `pnpm dev` + Electron 窗口冒烟检查 `/tools/rename/name-translator`
+- 说明：
+  - 工具列表入口仍保持 `soon`，只登记路由和二级页标题，正式放开入口留给 RN-005。
+  - `path_segments` 继续展示为需补充范围/不可应用，不在 RN-004 中实现高级片段编辑器。
+  - 预览表支持分页、手动编辑、跳过、恢复 AI 建议、自动编号策略、重新校验。

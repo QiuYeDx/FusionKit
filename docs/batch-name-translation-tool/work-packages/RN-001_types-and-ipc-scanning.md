@@ -1,7 +1,7 @@
 # 工作包 RN-001：类型与 IPC 扫描能力
 
 > 来源设计文档：`docs/batch-name-translation-tool/batch-name-translation-tool-final-design.md`  
-> 状态：未开始  
+> 状态：已完成
 > 优先级：P0  
 > 依赖：无
 
@@ -202,3 +202,18 @@ pnpm build
 
 RN-001 完成后，RN-002 可以直接调用 `scan-rename-targets` 获取候选目标，不再重复实现目录遍历逻辑。后续如果安全目录规则需要调整，应优先修改 `scanner.ts`，不要在 UI 或 Agent 中复制一份规则。
 
+---
+
+## 实施结果
+
+- 完成日期：2026-05-19
+- 实施记录：`docs/batch-name-translation-tool/implementation-records/2026-05-19_RN-001_types-and-ipc-scanning.md`
+- 关键文件：
+  - `electron/main/rename/types.ts`
+  - `electron/main/rename/scanner.ts`
+  - `electron/main/rename/ipc.ts`
+  - `electron/main/index.ts`
+  - `test/rename/scanner.test.ts`
+- 验证：
+  - `pnpm exec vitest run test/rename/scanner.test.ts`
+  - `pnpm build`

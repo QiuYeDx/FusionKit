@@ -1423,3 +1423,42 @@ tmp/
 6. `auto_execute` 不适用于真实 rename；最多自动生成预览。
 7. 执行层必须有 journal，因为批量 rename 不是单事务操作。
 8. 工具 Schema 可以比字幕工具多一个 apply 阶段，这是为了文件系统安全付出的必要复杂度。
+
+---
+
+## 24. RN-008 实现回填
+
+截至 2026-05-21，RN-001 至 RN-007 已完成，RN-008 对最终实现做如下同步记录：
+
+1. 最终 IPC 名称：
+   - `select-rename-paths`
+   - `inspect-rename-paths`
+   - `scan-rename-targets`
+   - `validate-rename-plan`
+   - `apply-rename-plan`
+   - `rollback-rename-journal`
+   - 名称翻译 planner 复用既有 `check-path-exists` 检查目标路径是否存在。
+2. 最终路由：
+   - 手动工具页：`/tools/rename/name-translator`
+   - HomeAgent 卡片的“在工具页打开”会跳转到 `/tools/rename/name-translator?planId=<planId>`；工具页会自动消费该 query，从 renderer memory `namePlanStore` 恢复完整 plan、选中路径、配置、预览表和应用区。
+3. Plan store 策略：
+   - renderer memory store：`src/services/rename/namePlanStore.ts`
+   - 默认 TTL：30 分钟。
+   - 最多保留 10 个 plan，超过后按创建时间淘汰。
+   - 不持久化完整 plan；应用前必须通过 `planId` 找到未过期 plan。
+4. `path_segments` 状态：
+   - 缺少起止边界时返回 `clarificationRequired.code = "path_segment_boundary_required"`。
+   - 起点为根目录、Home 根目录或系统保护目录时返回 `unsafe_path_segment_start`。
+   - 即使起止边界齐全，当前实现仍返回 `path_segments_deferred`，不生成可应用 plan；该能力保留到 Phase 4。
+5. Journal 与 rollback：
+   - 默认 journal 目录为 `app.getPath("userData")/rename-journals`。
+   - apply 使用两阶段 temp/final rename，并在中途失败时保留 readable journal。
+   - rollback 只处理 journal 中 `final_done` 或 `temp_done` 的可恢复项；如果目标路径已被用户移动、修改或被新文件占用，会记录失败，不提供完整事务保证。
+6. HomeAgent UI：
+   - Agent 工具为 `inspect_rename_paths`、`create_name_translation_plan`、`apply_name_translation_plan`。
+   - `create_name_translation_plan` 结果渲染为 `qv:name-translation-plan` 预览卡片。
+   - `apply_name_translation_plan` 结果渲染为 `qv:name-translation-apply-result`。
+   - `auto_execute` 不会自动应用 rename；应用必须来自 UI 点击确认或最近用户消息的明确确认。
+7. 验证命令与结果记录在：
+   - `docs/batch-name-translation-tool/implementation-notes/2026-05-21_final-implementation-status.md`
+   - `docs/batch-name-translation-tool/implementation-records/2026-05-21_RN-008_tests-and-docs.md`
