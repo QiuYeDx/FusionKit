@@ -108,6 +108,11 @@ const STORE_PATH: Record<string, string> = {
 };
 
 const SCROLL_BOTTOM_THRESHOLD = 8;
+const EMPTY_STATE_LAYOUT_TRANSITION = {
+  type: "spring",
+  bounce: 0,
+  duration: 0.8,
+} as const;
 
 // ---------------------------------------------------------------------------
 // Widget registry (builtin + pending-execution)
@@ -571,7 +576,7 @@ function HomeAgent() {
   const hasActiveResponse =
     isStreaming || status === "thinking" || status === "streaming";
   const inputCapsule = (
-    <motion.div layout>
+    <motion.div layout transition={EMPTY_STATE_LAYOUT_TRANSITION}>
       <AnimatePresence mode="popLayout">
         {!isEmpty && (
           <motion.div
@@ -818,9 +823,17 @@ function HomeAgent() {
     >
       {/* ===== Empty State ===== */}
       {isEmpty && (
-        <div className="flex flex-1 flex-col items-center justify-center px-4 pb-28 pt-8 animate-in fade-in duration-500">
+        <motion.div
+          layout
+          transition={EMPTY_STATE_LAYOUT_TRANSITION}
+          className="flex flex-1 flex-col items-center justify-center px-4 pb-28 pt-8 animate-in fade-in duration-500"
+        >
           {/* Concentric Circles + Logo */}
-          <div className="relative flex items-center justify-center mb-8 z-0">
+          <motion.div
+            layout="position"
+            transition={EMPTY_STATE_LAYOUT_TRANSITION}
+            className="relative flex items-center justify-center mb-8 z-0"
+          >
             <div
               className="absolute w-48 h-48 rounded-full border border-border/25"
               style={{ animation: "ring-breathe 6s ease-in-out infinite" }}
@@ -842,18 +855,30 @@ function HomeAgent() {
               alt="FusionKit"
               className="w-12 h-12 rounded-xl relative z-10"
             />
-          </div>
+          </motion.div>
 
-          <h1 className="text-xl font-semibold tracking-tight mt-4 mb-4 z-10">
+          <motion.h1
+            layout="position"
+            transition={EMPTY_STATE_LAYOUT_TRANSITION}
+            className="text-xl font-semibold tracking-tight mt-4 mb-4 z-10"
+          >
             {t("home:agent_title")}
-          </h1>
-          <p className="text-sm text-muted-foreground max-w-sm text-center mb-6 z-10">
+          </motion.h1>
+          <motion.p
+            layout="position"
+            transition={EMPTY_STATE_LAYOUT_TRANSITION}
+            className="text-sm text-muted-foreground max-w-sm text-center mb-6 z-10"
+          >
             {t("home:home_description")}
-          </p>
+          </motion.p>
 
           {/* Unconfigured Agent Banner */}
           {!hasAgentConfig && (
-            <div className="flex items-center gap-3 px-4 py-3 rounded-xl border border-amber-500/30 bg-amber-500/5 max-w-md mb-4 z-10">
+            <motion.div
+              layout="position"
+              transition={EMPTY_STATE_LAYOUT_TRANSITION}
+              className="flex items-center gap-3 px-4 py-3 rounded-xl border border-amber-500/30 bg-amber-500/5 max-w-md mb-4 z-10"
+            >
               <AlertTriangle className="h-4 w-4 text-amber-500 shrink-0" />
               <span className="text-sm text-amber-700 dark:text-amber-400 flex-1">
                 {t("home:agent_not_configured")}
@@ -867,18 +892,24 @@ function HomeAgent() {
                 <Settings className="h-3 w-3" />
                 {t("home:go_settings")}
               </Button>
-            </div>
+            </motion.div>
           )}
 
           <motion.div
+            layout
             layoutId="input-capsule"
+            transition={EMPTY_STATE_LAYOUT_TRANSITION}
             className="z-20 mt-7 w-full pointer-events-none"
           >
             {inputCapsule}
           </motion.div>
 
           {/* Suggestion Pills */}
-          <div className="mt-6 flex flex-nowrap justify-center gap-2 max-w-md">
+          <motion.div
+            layout="position"
+            transition={EMPTY_STATE_LAYOUT_TRANSITION}
+            className="mt-6 flex flex-nowrap justify-center gap-2 max-w-md"
+          >
             <SuggestionPill
               icon={<Sparkles className="h-3 w-3" />}
               text={t("home:suggestion_translate_srt")}
@@ -903,8 +934,8 @@ function HomeAgent() {
                 textareaRef.current?.focus();
               }}
             />
-          </div>
-        </div>
+          </motion.div>
+        </motion.div>
       )}
 
       {/* ===== Message List ===== */}
