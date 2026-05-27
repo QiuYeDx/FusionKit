@@ -57,6 +57,7 @@ import { inferContextWindowSize } from "@/constants/model";
 import { cn } from "@/lib/utils";
 import { Textarea } from "@/components/ui/textarea";
 import FusionKitLogo from "@/assets/FusionKit.svg";
+import { getFilePathFromFile } from "@/utils/filePath";
 import {
   ChatMarkdownRenderer,
   type MarkdownWidgetRegistry,
@@ -68,6 +69,12 @@ import {
   nameTranslationApplyResultWidget,
   nameTranslationPlanWidget,
 } from "./components/NameTranslationPlanWidget";
+
+// ---------------------------------------------------------------------------
+// Persist draft input across in-app navigation (reset on full page reload)
+// ---------------------------------------------------------------------------
+
+let draftInputCache = "";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -247,7 +254,7 @@ function formatToolResultAsMarkdown(message: AgentMessage, t: TFunction): string
 
 function HomeAgent() {
   const { t } = useTranslation();
-  const [input, setInput] = useState("");
+  const [input, setInput] = useState(draftInputCache);
   const rootRef = useRef<HTMLDivElement>(null);
   const scrollViewportRef = useRef<HTMLDivElement | null>(null);
   const isAtBottomRef = useRef(true);
@@ -281,8 +288,10 @@ function HomeAgent() {
   const agentProfile = useModelStore((s) => s.getAgentProfile());
   const hasAgentConfig = !!(agentProfile && agentProfile.apiKey);
 
-  const [isMultiline, setIsMultiline] = useState(false);
+  const [isMultiline, setIsMultiline] = useState(() => draftInputCache.includes("\n"));
   const [isAtBottom, setIsAtBottom] = useState(true);
+  const [isDragOver, setIsDragOver] = useState(false);
+  const dragCounterRef = useRef(0);
 
   const setBottomState = useCallback((nextIsAtBottom: boolean) => {
     isAtBottomRef.current = nextIsAtBottom;
@@ -349,6 +358,10 @@ function HomeAgent() {
     if (hist.length > INPUT_HISTORY_MAX) hist.splice(0, hist.length - INPUT_HISTORY_MAX);
     localStorage.setItem(INPUT_HISTORY_KEY, JSON.stringify(hist));
   };
+
+  useEffect(() => {
+    draftInputCache = input;
+  }, [input]);
 
   useEffect(() => {
     if (!isMultiline && input.includes("\n")) {
@@ -439,7 +452,10 @@ function HomeAgent() {
   }, [input]);
 
   useEffect(() => {
-    textareaRef.current?.focus();
+    const el = textareaRef.current;
+    if (!el) return;
+    el.focus();
+    el.setSelectionRange(el.value.length, el.value.length);
   }, [isMultiline]);
 
   const navigate = useNavigate();
@@ -571,6 +587,56 @@ function HomeAgent() {
     }
   };
 
+  const handleDragEnter = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounterRef.current += 1;
+    if (e.dataTransfer.types.includes("Files")) {
+      setIsDragOver(true);
+    }
+  }, []);
+
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+  }, []);
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounterRef.current -= 1;
+    if (dragCounterRef.current === 0) {
+      setIsDragOver(false);
+    }
+  }, []);
+
+  const handleDrop = useCallback(
+    (e: React.DragEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      setIsDragOver(false);
+      dragCounterRef.current = 0;
+
+      const files = Array.from(e.dataTransfer.files);
+      if (files.length === 0) return;
+
+      const paths = files
+        .map((f) => getFilePathFromFile(f))
+        .filter((p): p is string => !!p);
+
+      if (paths.length === 0) return;
+
+      const pathText = paths.map((p) => `\`${p}\``).join(" ");
+      setInput((prev) => {
+        const trimmed = prev.trimEnd();
+        return trimmed ? `${trimmed} ${pathText}` : pathText;
+      });
+
+      textareaRef.current?.focus();
+    },
+    [],
+  );
+
   const canSend = input.trim().length > 0 && !isStreaming;
   const showScrollToBottomButton = !isEmpty && !isAtBottom;
   const hasActiveResponse =
@@ -666,14 +732,35 @@ function HomeAgent() {
       </AnimatePresence>
 
       <motion.div
+        onDragEnter={handleDragEnter}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
         className={cn(
           "shadow-sm relative",
           "bg-background",
           "focus-within:shadow-md focus-within:border-ring/50",
           "max-w-2xl mx-auto w-full",
           "pointer-events-auto",
+          "transition-colors duration-150",
+          isDragOver && "bg-primary/5 ring-2 ring-primary/40 ring-inset",
         )}
       >
+        <AnimatePresence>
+          {isDragOver && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.15 }}
+              className="absolute inset-0 z-60 flex items-center justify-center rounded-3xl pointer-events-none"
+            >
+              <span className="text-xs text-primary font-medium">
+                {t("home:drop_files_hint")}
+              </span>
+            </motion.div>
+          )}
+        </AnimatePresence>
         <motion.div
           layout
           className={cn(

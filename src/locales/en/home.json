@@ -85,5 +85,6 @@
   "log_type_usage": "Token Usage",
   "log_type_error": "Error",
   "log_type_abort": "Abort",
-  "log_type_session_reset": "Session Reset"
+  "log_type_session_reset": "Session Reset",
+  "drop_files_hint": "Drop to add file paths"
 }
