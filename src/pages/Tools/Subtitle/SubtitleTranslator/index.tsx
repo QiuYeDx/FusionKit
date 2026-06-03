@@ -29,6 +29,7 @@ import {
   Upload,
   Clock,
   Settings,
+  History,
 } from "lucide-react";
 import ToolPageHeader from "@/pages/Tools/_shared/ToolPageHeader";
 import { TOOL_META } from "@/pages/Tools/_shared/toolMeta";
@@ -79,6 +80,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
+import RecoveryDialog from "./components/RecoveryDialog";
 
 function CostEstimateHelp({ content }: { content: string }) {
   return (
@@ -187,6 +189,9 @@ function SubtitleTranslator() {
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const [taskToDelete, setTaskToDelete] = useState<string | null>(null);
   const [confirmClearOpen, setConfirmClearOpen] = useState(false);
+
+  // 恢复历史任务弹窗
+  const [recoveryDialogOpen, setRecoveryDialogOpen] = useState(false);
 
   // 编辑任务配置弹窗
   const [editTaskOpen, setEditTaskOpen] = useState(false);
@@ -1389,6 +1394,14 @@ function SubtitleTranslator() {
                 <Button
                   variant="outline"
                   size="sm"
+                  onClick={() => setRecoveryDialogOpen(true)}
+                >
+                  <History className="h-3.5 w-3.5" />
+                  {t("subtitle:translator.recovery.title")}
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
                   onClick={() => removeAllResolvedTask()}
                   disabled={resolvedTaskQueue.length === 0}
                 >
@@ -1939,6 +1952,11 @@ function SubtitleTranslator() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <RecoveryDialog
+        open={recoveryDialogOpen}
+        onOpenChange={setRecoveryDialogOpen}
+      />
     </div>
   );
 }

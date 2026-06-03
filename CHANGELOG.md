@@ -4,6 +4,14 @@
 
 ## [0.2.8-beta.2] - 2026-06-03
 
+### 新增
+
+- 字幕翻译历史任务恢复功能：支持扫描输出目录或选择目录发现 `*.fusionkit.resume.json`，从历史恢复清单重建翻译任务并续跑
+- 新增恢复历史任务弹窗（RecoveryDialog），支持扫描当前输出目录、选择目录、导入单个恢复清单三种入口
+- 新增 `manifest_fragments` 恢复模式：源文件缺失或变化时，使用恢复清单中的原始分片继续翻译
+- 新增 `validateManifestSelfContained` checkpoint 自校验，不依赖源文件验证 manifest 完整性
+- 新增队列 `addRecoveredTask` / `addRecoveredTasks` API，支持 checkpointPath 联合去重
+
 ### 优化
 
 - 字幕翻译任务列表进度显示增加已完成分片数/总分片数（n/N）
