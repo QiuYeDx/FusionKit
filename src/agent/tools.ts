@@ -7,6 +7,8 @@ import {
   inspectRenamePathsSchema,
   createNameTranslationPlanSchema,
   applyNameTranslationPlanSchema,
+  scanSubtitleRecoveryTasksSchema,
+  queueRecoveredSubtitleTranslateSchema,
 } from "./tool-schemas";
 import {
   executeScan,
@@ -16,6 +18,8 @@ import {
   executeInspectRenamePaths,
   executeCreateNameTranslationPlan,
   executeApplyNameTranslationPlan,
+  executeScanSubtitleRecoveryTasks,
+  executeQueueRecoveredSubtitleTranslate,
 } from "./tool-executor";
 
 // ---------------------------------------------------------------------------
@@ -85,5 +89,23 @@ export const agentTools = {
       "Never call this automatically from Auto Execute mode. The latest user message must clearly confirm applying the rename plan.",
     inputSchema: applyNameTranslationPlanSchema,
     execute: async (args) => executeApplyNameTranslationPlan(args),
+  }),
+
+  scan_subtitle_recovery_tasks: tool({
+    description:
+      "Scan for FusionKit recovery manifests (*.fusionkit.resume.json) to find unfinished subtitle translation tasks. " +
+      "Use this when the user wants to resume/recover/continue previous failed or interrupted subtitle translations. " +
+      "Returns a recoveryScanId and candidate preview. Do NOT use scan_subtitle_files for recovery manifests.",
+    inputSchema: scanSubtitleRecoveryTasksSchema,
+    execute: async (args) => executeScanSubtitleRecoveryTasks(args),
+  }),
+
+  queue_recovered_subtitle_translate: tool({
+    description:
+      "Add recovered subtitle translation candidates to the translation queue. " +
+      "Use recoveryScanId from scan_subtitle_recovery_tasks for batch queueing, or checkpointPaths for small explicit lists. " +
+      "Language, slice strategy, and output directory are determined by the recovery manifest — do NOT override them.",
+    inputSchema: queueRecoveredSubtitleTranslateSchema,
+    execute: async (args) => executeQueueRecoveredSubtitleTranslate(args),
   }),
 };

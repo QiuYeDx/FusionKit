@@ -86,5 +86,10 @@
   "log_type_error": "错误",
   "log_type_abort": "中止",
   "log_type_session_reset": "会话重置",
+  "log_type_name_translation_plan": "重命名计划",
+  "log_type_name_translation_apply": "重命名执行",
+  "log_type_tool_result_committed": "工具提交",
+  "log_type_subtitle_recovery_scan": "恢复扫描",
+  "log_type_subtitle_recovery_queue": "恢复入队",
   "drop_files_hint": "松开以添加文件路径"
 }

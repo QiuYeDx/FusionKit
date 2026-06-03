@@ -127,6 +127,8 @@ export type AgentLogEntryType =
   | "tool_result_committed"
   | "name_translation_plan"
   | "name_translation_apply"
+  | "subtitle_recovery_scan"
+  | "subtitle_recovery_queue"
   | "usage"
   | "error"
   | "abort"

@@ -16,9 +16,18 @@
 
 - 字幕翻译任务列表进度显示增加已完成分片数/总分片数（n/N）
 
+### Agent
+
+- HomeAgent 新增 `scan_subtitle_recovery_tasks` 和 `queue_recovered_subtitle_translate` 工具，支持通过自然语言恢复历史字幕翻译任务
+- HomeAgent System Prompt 新增恢复任务操作区分规则和 Subtitle Recovery Workflow，禁止将 `*.fusionkit.resume.json` 误用为普通字幕文件
+- 新增 recovery-batch 缓存模块，支持 `recoveryScanId` 分批入队、`recoverability` 过滤和有界 preview 返回
+- 新增 `subtitle-recovery-intent` 意图分类辅助
+- 会话日志新增 `subtitle_recovery_scan` / `subtitle_recovery_queue` 类型
+
 ### 文档
 
 - 新增字幕翻译历史任务扫描与恢复开发设计文档
+- 新增 HomeAgent 控制字幕翻译历史任务恢复设计文档
 
 ## [0.2.8] - 2026-05-27
 

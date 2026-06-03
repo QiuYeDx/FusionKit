@@ -254,6 +254,65 @@ export const applyNameTranslationPlanSchema = z.object({
     .describe("The user's latest explicit confirmation text, if available."),
 });
 
+/** scan_subtitle_recovery_tasks — 扫描恢复清单 */
+export const scanSubtitleRecoveryTasksSchema = z.object({
+  roots: z
+    .array(z.string())
+    .optional()
+    .describe("Absolute directories to scan for *.fusionkit.resume.json."),
+  checkpointPaths: z
+    .array(z.string())
+    .optional()
+    .describe("Explicit *.fusionkit.resume.json file paths to inspect."),
+  useCurrentOutputDir: z
+    .boolean()
+    .default(false)
+    .describe(
+      "Use current subtitle translator output directory when user asks to scan previous output without giving a path.",
+    ),
+  recursive: z.boolean().default(true),
+  maxDepth: z.number().int().min(0).max(12).default(8),
+  maxFiles: z.number().int().min(1).max(500).default(500),
+  includeCompleted: z.boolean().default(false),
+});
+
+/** queue_recovered_subtitle_translate — 把恢复候选加入翻译队列 */
+export const queueRecoveredSubtitleTranslateSchema = z.object({
+  recoveryScanId: z
+    .string()
+    .optional()
+    .describe("recoveryScanId returned by scan_subtitle_recovery_tasks."),
+  checkpointPaths: z
+    .array(z.string())
+    .optional()
+    .describe("Explicit checkpoint paths. Use only for small explicit lists."),
+  candidateIds: z
+    .array(z.string())
+    .optional()
+    .describe("Specific candidate ids from a recovery scan preview."),
+  batchStart: z.number().int().min(0).default(0),
+  batchSize: z
+    .number()
+    .int()
+    .min(1)
+    .max(MAX_QUEUE_BATCH_SIZE)
+    .default(DEFAULT_QUEUE_BATCH_SIZE),
+  recoverability: z
+    .enum(["ready", "ready_from_manifest", "both"])
+    .default("both")
+    .describe("Which recoverable candidates to queue."),
+  conflictPolicy: z
+    .enum(["index", "overwrite"])
+    .default("index")
+    .describe(
+      "Final output filename conflict policy. Use overwrite only when explicitly requested.",
+    ),
+  concurrentSlices: z
+    .boolean()
+    .default(true)
+    .describe("Whether resumed unfinished slices may run concurrently."),
+});
+
 // ---------------------------------------------------------------------------
 // 类型导出
 // ---------------------------------------------------------------------------
@@ -268,4 +327,10 @@ export type CreateNameTranslationPlanArgs = z.infer<
 >;
 export type ApplyNameTranslationPlanArgs = z.infer<
   typeof applyNameTranslationPlanSchema
+>;
+export type ScanSubtitleRecoveryTasksArgs = z.infer<
+  typeof scanSubtitleRecoveryTasksSchema
+>;
+export type QueueRecoveredSubtitleTranslateArgs = z.infer<
+  typeof queueRecoveredSubtitleTranslateSchema
 >;

@@ -86,5 +86,10 @@
   "log_type_error": "エラー",
   "log_type_abort": "中断",
   "log_type_session_reset": "セッションリセット",
+  "log_type_name_translation_plan": "リネーム計画",
+  "log_type_name_translation_apply": "リネーム実行",
+  "log_type_tool_result_committed": "ツール確定",
+  "log_type_subtitle_recovery_scan": "復元スキャン",
+  "log_type_subtitle_recovery_queue": "復元キュー",
   "drop_files_hint": "ドロップしてファイルパスを追加"
 }

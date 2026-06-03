@@ -6,12 +6,17 @@ import type {
   InspectRenamePathsArgs,
   CreateNameTranslationPlanArgs,
   ApplyNameTranslationPlanArgs,
+  ScanSubtitleRecoveryTasksArgs,
+  QueueRecoveredSubtitleTranslateArgs,
 } from "./tool-schemas";
 import type { TaskStoreType } from "./types";
 import {
   TaskStatus,
   type SubtitleConverterTask,
   type SubtitleExtractorTask,
+  type SubtitleTranslatorTask,
+  type TranslationRecoveryCandidate,
+  type TranslationRecoveryInputMode,
 } from "@/type/subtitle";
 import useSubtitleConverterStore from "@/store/tools/subtitle/useSubtitleConverterStore";
 import useSubtitleExtractorStore from "@/store/tools/subtitle/useSubtitleExtractorStore";
@@ -27,6 +32,10 @@ import {
   resolveQueueFileSelection,
   type QueueFileSelection,
 } from "./queue-batch";
+import {
+  createRecoveryScanResultPayload,
+  resolveRecoveryCandidateSelection,
+} from "./recovery-batch";
 import { resolveTranslationSliceConfig } from "./translation-slice-config";
 import type {
   SubtitleSliceType,
@@ -45,6 +54,11 @@ import {
   type NameTranslationOptions,
 } from "@/services/rename/nameTypes";
 import { isExplicitRenameConfirmation } from "./name-plan-confirmation";
+import {
+  scanTranslationRecoveryArtifacts,
+  inspectTranslationRecoveryArtifact,
+  createRecoveredSubtitleTaskDraft,
+} from "@/services/subtitle/translatorRecoveryService";
 
 // ---------------------------------------------------------------------------
 // Tool Executor — 工具执行函数（由 AI SDK tool() 的 execute 调用）
@@ -565,6 +579,246 @@ export async function executeQueueExtract(
   };
 
   return handlePostQueue("extract", queued, result);
+}
+
+// ---------------------------------------------------------------------------
+// scan_subtitle_recovery_tasks
+// ---------------------------------------------------------------------------
+
+export async function executeScanSubtitleRecoveryTasks(
+  args: ScanSubtitleRecoveryTasksArgs,
+): Promise<ToolExecutionResult> {
+  const roots: string[] = [...(args.roots ?? [])];
+
+  if (args.useCurrentOutputDir) {
+    const outputURL = useSubtitleTranslatorStore.getState().outputURL;
+    if (outputURL) {
+      roots.push(outputURL);
+    } else if (roots.length === 0 && !args.checkpointPaths?.length) {
+      return {
+        success: false,
+        error:
+          "当前字幕翻译输出目录为空，请提供要扫描的目录路径。",
+      };
+    }
+  }
+
+  const allCandidates: TranslationRecoveryCandidate[] = [];
+  const seenCheckpoints = new Set<string>();
+  const errors: string[] = [];
+
+  if (roots.length > 0) {
+    try {
+      const scanResult = await scanTranslationRecoveryArtifacts({
+        roots,
+        recursive: args.recursive,
+        maxDepth: args.maxDepth,
+        maxFiles: args.maxFiles,
+        includeCompleted: args.includeCompleted,
+      });
+      for (const c of scanResult.candidates) {
+        const key = c.checkpointPath.replace(/\\/g, "/");
+        if (!seenCheckpoints.has(key)) {
+          seenCheckpoints.add(key);
+          allCandidates.push(c);
+        }
+      }
+      for (const e of scanResult.errors) {
+        errors.push(`${e.path}: ${e.reason}`);
+      }
+    } catch (err: any) {
+      return {
+        success: false,
+        error: `Failed to scan recovery artifacts: ${err?.message || err}`,
+      };
+    }
+  }
+
+  if (args.checkpointPaths && args.checkpointPaths.length > 0) {
+    for (const cp of args.checkpointPaths) {
+      const key = cp.replace(/\\/g, "/");
+      if (seenCheckpoints.has(key)) continue;
+      try {
+        const candidate = await inspectTranslationRecoveryArtifact(cp);
+        seenCheckpoints.add(key);
+        allCandidates.push(candidate);
+      } catch (err: any) {
+        errors.push(`${cp}: ${err?.message || err}`);
+      }
+    }
+  }
+
+  if (roots.length === 0 && (!args.checkpointPaths || args.checkpointPaths.length === 0)) {
+    return {
+      success: false,
+      error:
+        "roots、checkpointPaths、useCurrentOutputDir 至少需要一个有效值。",
+    };
+  }
+
+  const scannedRoots = roots.length > 0 ? roots : args.checkpointPaths?.map(
+    (p) => p.replace(/\\/g, "/").split("/").slice(0, -1).join("/"),
+  ) ?? [];
+
+  const payload = createRecoveryScanResultPayload(allCandidates, scannedRoots);
+
+  useAgentStore.getState().appendLog(
+    "subtitle_recovery_scan",
+    `Scanned ${allCandidates.length} candidates, ${payload.recoverableCount} recoverable`,
+    {
+      recoveryScanId: payload.recoveryScanId,
+      totalCount: payload.totalCount,
+      recoverableCount: payload.recoverableCount,
+      readyCount: payload.readyCount,
+      readyFromManifestCount: payload.readyFromManifestCount,
+      completedCount: payload.completedCount,
+      invalidCount: payload.invalidCount,
+      scannedRoots,
+      ...(errors.length > 0 ? { errors } : {}),
+    },
+  );
+
+  return {
+    success: true,
+    data: {
+      ...payload,
+      ...(errors.length > 0 ? { errors } : {}),
+    },
+  };
+}
+
+// ---------------------------------------------------------------------------
+// queue_recovered_subtitle_translate
+// ---------------------------------------------------------------------------
+
+export async function executeQueueRecoveredSubtitleTranslate(
+  args: QueueRecoveredSubtitleTranslateArgs,
+): Promise<ToolExecutionResult> {
+  const modelStore = useModelStore.getState();
+  const taskProfile = modelStore.getTaskProfile();
+
+  if (!taskProfile || !taskProfile.apiKey) {
+    return {
+      success: false,
+      error: "未配置任务执行模型，请在设置页面配置。",
+    };
+  }
+
+  const selection = resolveRecoveryCandidateSelection(args);
+
+  let candidatesToProcess: TranslationRecoveryCandidate[];
+
+  if (!selection.ok) {
+    return { success: false, error: selection.error };
+  }
+
+  if (selection.source === "checkpointPaths") {
+    candidatesToProcess = [];
+    for (const cp of args.checkpointPaths!) {
+      try {
+        const candidate = await inspectTranslationRecoveryArtifact(cp);
+        const recoverability = args.recoverability ?? "both";
+        const isRecoverable =
+          recoverability === "both"
+            ? candidate.recoverability === "ready" ||
+              candidate.recoverability === "ready_from_manifest"
+            : candidate.recoverability === recoverability;
+        if (isRecoverable) {
+          candidatesToProcess.push(candidate);
+        }
+      } catch {
+        /* skip unreadable checkpoints */
+      }
+    }
+  } else {
+    candidatesToProcess = selection.candidates;
+  }
+
+  let queuedCount = 0;
+  let skippedCount = 0;
+  let readyCount = 0;
+  let readyFromManifestCount = 0;
+  const errors: string[] = [];
+  const tasks: SubtitleTranslatorTask[] = [];
+
+  for (let i = 0; i < candidatesToProcess.length; i++) {
+    if (i > 0) await new Promise((r) => setTimeout(r, 0));
+    const candidate = candidatesToProcess[i];
+
+    let recoveryInputMode: TranslationRecoveryInputMode;
+    if (candidate.recoverability === "ready") {
+      recoveryInputMode = "source_file";
+      readyCount++;
+    } else if (candidate.recoverability === "ready_from_manifest") {
+      recoveryInputMode = "manifest_fragments";
+      readyFromManifestCount++;
+    } else {
+      skippedCount++;
+      continue;
+    }
+
+    try {
+      const draft = await createRecoveredSubtitleTaskDraft({
+        checkpointPath: candidate.checkpointPath,
+        recoveryInputMode,
+      });
+
+      const task: SubtitleTranslatorTask = {
+        ...draft,
+        fileContent: draft.fileContent || "",
+        status: TaskStatus.NOT_STARTED,
+        apiKey: taskProfile.apiKey,
+        apiModel: taskProfile.modelKey,
+        endPoint: taskProfile.baseUrl,
+        conflictPolicy: args.conflictPolicy ?? "index",
+        concurrentSlices: args.concurrentSlices ?? true,
+      };
+      tasks.push(task);
+    } catch (err: any) {
+      errors.push(`${candidate.checkpointPath}: ${err?.message || err}`);
+      skippedCount++;
+    }
+  }
+
+  if (tasks.length > 0) {
+    const addResult = useSubtitleTranslatorStore.getState().addRecoveredTasks(tasks);
+    queuedCount = addResult.addedCount;
+    skippedCount += addResult.skippedCount;
+  }
+
+  const resultData: Record<string, unknown> = {
+    queuedCount,
+    skippedCount,
+    totalCandidates: candidatesToProcess.length,
+    readyCount,
+    readyFromManifestCount,
+    invalidCount: skippedCount,
+    sourceFileCount: readyCount,
+    manifestFragmentCount: readyFromManifestCount,
+    ...(selection.source === "scan" ? { batch: { ...selection.batch, queuedCount } } : {}),
+    ...(errors.length > 0 ? { errors } : {}),
+  };
+
+  const result: ToolExecutionResult = {
+    success: true,
+    data: resultData,
+  };
+
+  useAgentStore.getState().appendLog(
+    "subtitle_recovery_queue",
+    `Queued ${queuedCount} recovered tasks, skipped ${skippedCount}`,
+    {
+      queuedCount,
+      skippedCount,
+      readyCount,
+      readyFromManifestCount,
+      ...(selection.source === "scan"
+        ? { recoveryScanId: selection.batch.recoveryScanId }
+        : {}),
+    },
+  );
+
+  return handlePostQueue("translate", queuedCount, result);
 }
 
 // ---------------------------------------------------------------------------

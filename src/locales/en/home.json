@@ -86,5 +86,10 @@
   "log_type_error": "Error",
   "log_type_abort": "Abort",
   "log_type_session_reset": "Session Reset",
+  "log_type_name_translation_plan": "Rename Plan",
+  "log_type_name_translation_apply": "Rename Apply",
+  "log_type_tool_result_committed": "Tool Committed",
+  "log_type_subtitle_recovery_scan": "Recovery Scan",
+  "log_type_subtitle_recovery_queue": "Recovery Queue",
   "drop_files_hint": "Drop to add file paths"
 }
