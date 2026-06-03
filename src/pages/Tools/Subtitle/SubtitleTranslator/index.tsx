@@ -1442,7 +1442,7 @@ function SubtitleTranslator() {
                               `subtitle:translator.task_status.${task.status.toLowerCase()}`
                             )}
                             {task.status === TaskStatus.PENDING &&
-                              ` · ${Math.round(task.progress || 0)}%`}
+                              ` · ${task.totalFragments ? `${task.resolvedFragments ?? 0}/${task.totalFragments} · ` : ""}${Math.round(task.progress || 0)}%`}
                           </Badge>
                         </div>
                         <div className="mt-1 flex items-center flex-wrap gap-x-2 gap-y-1 text-[11px] text-muted-foreground">
@@ -1584,7 +1584,10 @@ function SubtitleTranslator() {
                     {task.status === TaskStatus.PENDING && (
                       <div className="mt-2 flex items-center gap-2">
                         <Progress value={task.progress} className="flex-1 h-1" />
-                        <span className="font-mono text-[10.5px] text-muted-foreground w-8 text-right">
+                        <span className="font-mono text-[10.5px] text-muted-foreground text-right whitespace-nowrap">
+                          {task.totalFragments
+                            ? `${task.resolvedFragments ?? 0}/${task.totalFragments} · `
+                            : ""}
                           {Math.round(task.progress || 0)}%
                         </span>
                       </div>
