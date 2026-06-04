@@ -80,6 +80,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
+import { Tour, type TourStep } from "@/components/qiuye-ui/tour";
 import RecoveryDialog from "./components/RecoveryDialog";
 
 function CostEstimateHelp({ content }: { content: string }) {
@@ -192,6 +193,100 @@ function SubtitleTranslator() {
 
   // 恢复历史任务弹窗
   const [recoveryDialogOpen, setRecoveryDialogOpen] = useState(false);
+
+  // Tour 引导状态（延迟到入场动画结束后再自动打开）
+  const [tourOpen, setTourOpen] = useState(false);
+  useEffect(() => {
+    if (localStorage.getItem("subtitle-translator-tour-done")) return;
+    const timer = setTimeout(() => setTourOpen(true), 400);
+    return () => clearTimeout(timer);
+  }, []);
+  const tourSteps: TourStep[] = useMemo(
+    () => [
+      {
+        target: "#tour-config-panel",
+        title: t("subtitle:translator.tour.config_title", "翻译配置面板"),
+        content: t(
+          "subtitle:translator.tour.config_content",
+          "在左侧面板中配置翻译参数，包括语言、输出格式、分片模式和输出路径等。所有配置会自动保存，下次打开时保留。"
+        ),
+        placement: "right",
+      },
+      {
+        target: "#tour-lang-pair",
+        title: t("subtitle:translator.tour.lang_title", "选择翻译语言"),
+        content: t(
+          "subtitle:translator.tour.lang_content",
+          "设置字幕的源语言和目标语言。系统支持日语、英语、中文等多种语言互译。"
+        ),
+        placement: "right",
+      },
+      {
+        target: "#tour-output-mode",
+        title: t("subtitle:translator.tour.output_mode_title", "翻译输出模式"),
+        content: t(
+          "subtitle:translator.tour.output_mode_content",
+          "「双语」模式保留原文并附加译文，「仅译文」模式只输出翻译结果。"
+        ),
+        placement: "right",
+      },
+      {
+        target: "#tour-slice-mode",
+        title: t("subtitle:translator.tour.slice_title", "字幕分片策略"),
+        content: t(
+          "subtitle:translator.tour.slice_content",
+          "字幕会按分片策略拆分后逐片发送给 AI 翻译。可选标准、精细或自定义字数分片。"
+        ),
+        placement: "right",
+      },
+      {
+        target: "#tour-output-path",
+        title: t("subtitle:translator.tour.output_path_title", "输出路径"),
+        content: t(
+          "subtitle:translator.tour.output_path_content",
+          "选择翻译结果的保存位置：指定自定义文件夹，或保存到字幕源文件所在目录。"
+        ),
+        placement: "right",
+      },
+      {
+        target: "#tour-schedule",
+        title: t("subtitle:translator.tour.schedule_title", "定时翻译"),
+        content: t(
+          "subtitle:translator.tour.schedule_content",
+          "可设置定时自动开始翻译，适合在深夜或空闲时段批量处理任务。"
+        ),
+        placement: "right",
+      },
+      {
+        target: "#tour-upload-zone",
+        title: t("subtitle:translator.tour.upload_title", "添加字幕文件"),
+        content: t(
+          "subtitle:translator.tour.upload_content",
+          "将 .lrc 或 .srt 字幕文件拖拽到此处，或点击选择文件。支持同时添加多个文件。"
+        ),
+        placement: "bottom",
+      },
+      {
+        target: "#tour-task-queue",
+        title: t("subtitle:translator.tour.queue_title", "任务队列"),
+        content: t(
+          "subtitle:translator.tour.queue_content",
+          "所有添加的翻译任务会在这里展示。可以查看进度、编辑配置、重试失败任务或删除任务。"
+        ),
+        placement: "top",
+      },
+      {
+        target: "#tour-start-all-btn",
+        title: t("subtitle:translator.tour.start_title", "开始翻译"),
+        content: t(
+          "subtitle:translator.tour.start_content",
+          "点击即可一键启动所有待翻译任务。翻译完成后可在输出路径找到结果文件。"
+        ),
+        placement: "bottom",
+      },
+    ],
+    [t]
+  );
 
   // 编辑任务配置弹窗
   const [editTaskOpen, setEditTaskOpen] = useState(false);
@@ -842,17 +937,28 @@ function SubtitleTranslator() {
         title={t("subtitle:translator.title")}
         description={t("subtitle:translator.description")}
         right={
-          <Badge variant="secondary" className="gap-1.5 font-normal">
-            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 shadow-[0_0_0_3px_rgba(16,185,129,0.18)]" />
-            <span className="font-mono text-[11px]">{modelDisplay}</span>
-          </Badge>
+          <>
+            <Badge variant="secondary" className="gap-1.5 font-normal">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 shadow-[0_0_0_3px_rgba(16,185,129,0.18)]" />
+              <span className="font-mono text-[11px]">{modelDisplay}</span>
+            </Badge>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 text-muted-foreground hover:text-foreground"
+              onClick={() => setTourOpen(true)}
+              title={t("subtitle:translator.tour.trigger", "使用引导")}
+            >
+              <CircleHelp className="h-4 w-4" />
+            </Button>
+          </>
         }
       />
 
       {/* ── Two-column layout ───────────────────────────── */}
       <div className="grid grid-cols-1 lg:grid-cols-[320px_minmax(0,1fr)] gap-4 items-start">
         {/* ── Left: sticky config rail ───────────────────── */}
-        <aside className="lg:sticky lg:top-10">
+        <aside id="tour-config-panel" className="lg:sticky lg:top-10">
           <Card className="overflow-hidden p-0 gap-0">
             <div className="flex items-center gap-2 px-4 py-3 bg-muted/40 border-b">
               <Settings className="h-3.5 w-3.5 text-muted-foreground" />
@@ -863,7 +969,7 @@ function SubtitleTranslator() {
 
             <div className="p-4 space-y-5">
               {/* Language pair */}
-              <div className="space-y-1.5">
+              <div id="tour-lang-pair" className="space-y-1.5">
                 <div className="text-[11px] font-medium text-muted-foreground">
                   {t("subtitle:translator.fields.source_language")} →{" "}
                   {t("subtitle:translator.fields.target_language")}
@@ -910,7 +1016,7 @@ function SubtitleTranslator() {
               </div>
 
               {/* Output mode */}
-              <div className="space-y-1.5">
+              <div id="tour-output-mode" className="space-y-1.5">
                 <div className="text-[11px] font-medium text-muted-foreground">
                   {t("subtitle:translator.fields.translation_output_mode")}
                 </div>
@@ -943,7 +1049,7 @@ function SubtitleTranslator() {
               </div>
 
               {/* Slice */}
-              <div className="space-y-1.5">
+              <div id="tour-slice-mode" className="space-y-1.5">
                 <div className="text-[11px] font-medium text-muted-foreground">
                   {t("subtitle:translator.fields.subtitle_slice_mode")}
                 </div>
@@ -986,7 +1092,7 @@ function SubtitleTranslator() {
               <div className="h-px bg-border -mx-4" />
 
               {/* Output path */}
-              <div className="space-y-1.5">
+              <div id="tour-output-path" className="space-y-1.5">
                 <div className="text-[11px] font-medium text-muted-foreground">
                   {t("subtitle:translator.fields.output_mode")}
                 </div>
@@ -1098,6 +1204,7 @@ function SubtitleTranslator() {
 
               {/* Schedule (collapsible) */}
               <button
+                id="tour-schedule"
                 type="button"
                 onClick={() => setIsScheduleOpen((v) => !v)}
                 className="flex items-center justify-between gap-3 w-full rounded-lg border border-dashed p-3 cursor-pointer hover:bg-accent/40 transition-colors text-left"
@@ -1289,6 +1396,7 @@ function SubtitleTranslator() {
         <main className="flex flex-col gap-3 min-w-0">
           {/* Drop zone */}
           <label
+            id="tour-upload-zone"
             className={cn(
               "relative flex items-center gap-4 rounded-xl border-2 border-dashed px-5 py-5 cursor-pointer transition-colors",
               isDragging
@@ -1380,7 +1488,7 @@ function SubtitleTranslator() {
           )}
 
           {/* Task queue */}
-          <Card className="overflow-hidden p-0 gap-0">
+          <Card id="tour-task-queue" className="overflow-hidden p-0 gap-0">
             <CardHeader className="flex flex-row items-center justify-between gap-3 px-4 py-3 space-y-0 border-b">
               <div className="flex items-center gap-2">
                 <CardTitle className="text-[13.5px] font-semibold">
@@ -1417,6 +1525,7 @@ function SubtitleTranslator() {
                   {t("subtitle:translator.fields.clear_all_tasks")}
                 </Button>
                 <Button
+                  id="tour-start-all-btn"
                   size="sm"
                   onClick={() => startAllTasks()}
                   disabled={notStartedTaskQueue.length === 0}
@@ -1956,6 +2065,20 @@ function SubtitleTranslator() {
       <RecoveryDialog
         open={recoveryDialogOpen}
         onOpenChange={setRecoveryDialogOpen}
+      />
+
+      <Tour
+        steps={tourSteps}
+        open={tourOpen}
+        onOpenChange={setTourOpen}
+        onFinish={() => {
+          localStorage.setItem("subtitle-translator-tour-done", "1");
+        }}
+        onSkip={() => {
+          localStorage.setItem("subtitle-translator-tour-done", "1");
+        }}
+        maskClosable
+        scrollIntoView
       />
     </div>
   );

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import {
   RotateCw,
@@ -11,6 +11,7 @@ import {
   Pencil,
   Upload,
   Settings,
+  CircleHelp,
 } from "lucide-react";
 import ToolPageHeader from "@/pages/Tools/_shared/ToolPageHeader";
 import { TOOL_META } from "@/pages/Tools/_shared/toolMeta";
@@ -49,6 +50,7 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
+import { Tour, type TourStep } from "@/components/qiuye-ui/tour";
 
 function SubtitleLanguageExtractor() {
   const { t } = useTranslation();
@@ -102,6 +104,73 @@ function SubtitleLanguageExtractor() {
   const [editingTask, setEditingTask] = useState<SubtitleExtractorTask | null>(null);
   const [editKeep, setEditKeep] = useState<ExtractKeepLanguage>("ZH");
   const [editConflictPolicy, setEditConflictPolicy] = useState<OutputConflictPolicy>("index");
+
+  // Tour 引导状态（延迟到入场动画结束后再自动打开）
+  const [tourOpen, setTourOpen] = useState(false);
+  useEffect(() => {
+    if (localStorage.getItem("subtitle-extractor-tour-done")) return;
+    const timer = setTimeout(() => setTourOpen(true), 400);
+    return () => clearTimeout(timer);
+  }, []);
+  const tourSteps: TourStep[] = useMemo(
+    () => [
+      {
+        target: "#ext-tour-config",
+        title: t("subtitle:extractor.tour.config_title", "提取配置"),
+        content: t(
+          "subtitle:extractor.tour.config_content",
+          "在左侧面板设置提取参数：保留语言、输出路径和冲突策略。配置会自动保存。"
+        ),
+        placement: "right" as const,
+      },
+      {
+        target: "#ext-tour-keep",
+        title: t("subtitle:extractor.tour.keep_title", "保留语言"),
+        content: t(
+          "subtitle:extractor.tour.keep_content",
+          "选择从双语字幕中需要保留的语言。工具将自动识别并提取对应语言的行。"
+        ),
+        placement: "right" as const,
+      },
+      {
+        target: "#ext-tour-output",
+        title: t("subtitle:extractor.tour.output_title", "输出路径"),
+        content: t(
+          "subtitle:extractor.tour.output_content",
+          "选择提取结果的保存位置：指定自定义文件夹，或保存到源文件所在目录。"
+        ),
+        placement: "right" as const,
+      },
+      {
+        target: "#ext-tour-upload",
+        title: t("subtitle:extractor.tour.upload_title", "添加字幕文件"),
+        content: t(
+          "subtitle:extractor.tour.upload_content",
+          "将 .lrc 或 .srt 双语字幕文件拖拽到此处，或点击选择文件。支持批量添加。"
+        ),
+        placement: "bottom" as const,
+      },
+      {
+        target: "#ext-tour-queue",
+        title: t("subtitle:extractor.tour.queue_title", "任务队列"),
+        content: t(
+          "subtitle:extractor.tour.queue_content",
+          "添加的提取任务会在这里展示，可查看状态、编辑配置或删除任务。"
+        ),
+        placement: "top" as const,
+      },
+      {
+        target: "#ext-tour-start",
+        title: t("subtitle:extractor.tour.start_title", "开始提取"),
+        content: t(
+          "subtitle:extractor.tour.start_content",
+          "点击即可一键启动所有待提取任务，完成后在输出路径找到单语结果文件。"
+        ),
+        placement: "bottom" as const,
+      },
+    ],
+    [t]
+  );
 
   const openErrorModal = (task: SubtitleExtractorTask) => {
     setSelectedErrorTask(task);
@@ -310,17 +379,28 @@ function SubtitleLanguageExtractor() {
         title={t("subtitle:extractor:title")}
         description={t("subtitle:extractor:description")}
         right={
-          <Badge variant="secondary" className="gap-1.5 font-normal">
-            <span className="font-mono text-[11px]">
-              {t("subtitle:extractor:fields.keep_language")}: {getLanguageLabel(keep)}
-            </span>
-          </Badge>
+          <>
+            <Badge variant="secondary" className="gap-1.5 font-normal">
+              <span className="font-mono text-[11px]">
+                {t("subtitle:extractor:fields.keep_language")}: {getLanguageLabel(keep)}
+              </span>
+            </Badge>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 text-muted-foreground hover:text-foreground"
+              onClick={() => setTourOpen(true)}
+              title={t("subtitle:extractor.tour.trigger", "使用引导")}
+            >
+              <CircleHelp className="h-4 w-4" />
+            </Button>
+          </>
         }
       />
 
       <div className="grid grid-cols-1 lg:grid-cols-[320px_minmax(0,1fr)] gap-4 items-start">
         {/* ── Left: sticky config rail ───────────────────── */}
-        <aside className="lg:sticky lg:top-10">
+        <aside id="ext-tour-config" className="lg:sticky lg:top-10">
           <Card className="overflow-hidden p-0 gap-0">
             <div className="flex items-center gap-2 px-4 py-3 bg-muted/40 border-b">
               <Settings className="h-3.5 w-3.5 text-muted-foreground" />
@@ -331,7 +411,7 @@ function SubtitleLanguageExtractor() {
 
             <div className="p-4 space-y-5">
               {/* Keep language */}
-              <div className="space-y-1.5">
+              <div id="ext-tour-keep" className="space-y-1.5">
                 <div className="text-[11px] font-medium text-muted-foreground">
                   {t("subtitle:extractor:fields.keep_language")}
                 </div>
@@ -355,7 +435,7 @@ function SubtitleLanguageExtractor() {
               <div className="h-px bg-border -mx-4" />
 
               {/* Output mode */}
-              <div className="space-y-1.5">
+              <div id="ext-tour-output" className="space-y-1.5">
                 <div className="text-[11px] font-medium text-muted-foreground">
                   {t("subtitle:extractor:fields.output_mode")}
                 </div>
@@ -440,6 +520,7 @@ function SubtitleLanguageExtractor() {
         <main className="flex flex-col gap-3 min-w-0">
           {/* Drop zone */}
           <label
+            id="ext-tour-upload"
             className={cn(
               "relative flex items-center gap-4 rounded-xl border-2 border-dashed px-5 py-5 cursor-pointer transition-colors",
               isDragging
@@ -509,7 +590,7 @@ function SubtitleLanguageExtractor() {
           </div>
 
           {/* Task queue */}
-          <Card className="overflow-hidden p-0 gap-0">
+          <Card id="ext-tour-queue" className="overflow-hidden p-0 gap-0">
             <CardHeader className="flex flex-row items-center justify-between gap-3 px-4 py-3 space-y-0 border-b">
               <div className="flex items-center gap-2">
                 <CardTitle className="text-[13.5px] font-semibold">
@@ -538,6 +619,7 @@ function SubtitleLanguageExtractor() {
                   {t("subtitle:extractor:fields.clear_all_tasks")}
                 </Button>
                 <Button
+                  id="ext-tour-start"
                   size="sm"
                   onClick={startAllTasks}
                   disabled={notStartedTasks.length === 0}
@@ -823,6 +905,20 @@ function SubtitleLanguageExtractor() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <Tour
+        steps={tourSteps}
+        open={tourOpen}
+        onOpenChange={setTourOpen}
+        onFinish={() => {
+          localStorage.setItem("subtitle-extractor-tour-done", "1");
+        }}
+        onSkip={() => {
+          localStorage.setItem("subtitle-extractor-tour-done", "1");
+        }}
+        maskClosable
+        scrollIntoView
+      />
     </div>
   );
 }

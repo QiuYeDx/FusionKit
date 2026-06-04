@@ -1,5 +1,5 @@
 import { useTranslation } from "react-i18next";
-import { useState } from "react";
+import { useState, useMemo, useEffect } from "react";
 import {
   RotateCw,
   Folder,
@@ -11,6 +11,7 @@ import {
   Pencil,
   Upload,
   Settings,
+  CircleHelp,
 } from "lucide-react";
 import ToolPageHeader from "@/pages/Tools/_shared/ToolPageHeader";
 import { TOOL_META } from "@/pages/Tools/_shared/toolMeta";
@@ -48,6 +49,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
+import { Tour, type TourStep } from "@/components/qiuye-ui/tour";
 
 function SubtitleConverter() {
   const { t } = useTranslation();
@@ -105,6 +107,73 @@ function SubtitleConverter() {
   const [editingTask, setEditingTask] = useState<SubtitleConverterTask | null>(null);
   const [editToFormat, setEditToFormat] = useState<SubtitleFileType>(SubtitleFileType.SRT);
   const [editConflictPolicy, setEditConflictPolicy] = useState<OutputConflictPolicy>("index");
+
+  // Tour 引导状态（延迟到入场动画结束后再自动打开）
+  const [tourOpen, setTourOpen] = useState(false);
+  useEffect(() => {
+    if (localStorage.getItem("subtitle-converter-tour-done")) return;
+    const timer = setTimeout(() => setTourOpen(true), 400);
+    return () => clearTimeout(timer);
+  }, []);
+  const tourSteps: TourStep[] = useMemo(
+    () => [
+      {
+        target: "#cvt-tour-config",
+        title: t("subtitle:converter.tour.config_title", "转换配置"),
+        content: t(
+          "subtitle:converter.tour.config_content",
+          "在左侧面板设置转换参数：目标格式、默认时长、输出路径等。配置会自动保存。"
+        ),
+        placement: "right" as const,
+      },
+      {
+        target: "#cvt-tour-format",
+        title: t("subtitle:converter.tour.format_title", "目标格式"),
+        content: t(
+          "subtitle:converter.tour.format_content",
+          "选择要转换的目标字幕格式：LRC（歌词）、SRT（通用字幕）或 VTT（Web 字幕）。"
+        ),
+        placement: "right" as const,
+      },
+      {
+        target: "#cvt-tour-output",
+        title: t("subtitle:converter.tour.output_title", "输出路径"),
+        content: t(
+          "subtitle:converter.tour.output_content",
+          "选择转换结果的保存位置：指定自定义文件夹，或直接保存到源文件所在目录。"
+        ),
+        placement: "right" as const,
+      },
+      {
+        target: "#cvt-tour-upload",
+        title: t("subtitle:converter.tour.upload_title", "添加字幕文件"),
+        content: t(
+          "subtitle:converter.tour.upload_content",
+          "将 .lrc、.srt 或 .vtt 字幕文件拖拽到此处，或点击选择文件。支持批量添加。"
+        ),
+        placement: "bottom" as const,
+      },
+      {
+        target: "#cvt-tour-queue",
+        title: t("subtitle:converter.tour.queue_title", "任务队列"),
+        content: t(
+          "subtitle:converter.tour.queue_content",
+          "添加的转换任务会在这里展示，可查看状态、编辑配置或删除任务。"
+        ),
+        placement: "top" as const,
+      },
+      {
+        target: "#cvt-tour-start",
+        title: t("subtitle:converter.tour.start_title", "开始转换"),
+        content: t(
+          "subtitle:converter.tour.start_content",
+          "点击即可一键启动所有待转换任务，完成后在输出路径找到结果文件。"
+        ),
+        placement: "bottom" as const,
+      },
+    ],
+    [t]
+  );
 
   const openErrorModal = (task: SubtitleConverterTask) => {
     setSelectedErrorTask(task);
@@ -312,17 +381,28 @@ function SubtitleConverter() {
         title={t("subtitle:converter.title")}
         description={t("subtitle:converter.description")}
         right={
-          <Badge variant="secondary" className="gap-1.5 font-normal">
-            <span className="font-mono text-[11px]">
-              {t("subtitle:converter.fields.target_format")}: {toFormat}
-            </span>
-          </Badge>
+          <>
+            <Badge variant="secondary" className="gap-1.5 font-normal">
+              <span className="font-mono text-[11px]">
+                {t("subtitle:converter.fields.target_format")}: {toFormat}
+              </span>
+            </Badge>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 text-muted-foreground hover:text-foreground"
+              onClick={() => setTourOpen(true)}
+              title={t("subtitle:converter.tour.trigger", "使用引导")}
+            >
+              <CircleHelp className="h-4 w-4" />
+            </Button>
+          </>
         }
       />
 
       <div className="grid grid-cols-1 lg:grid-cols-[320px_minmax(0,1fr)] gap-4 items-start">
         {/* ── Left: sticky config rail ───────────────────── */}
-        <aside className="lg:sticky lg:top-10">
+        <aside id="cvt-tour-config" className="lg:sticky lg:top-10">
           <Card className="overflow-hidden p-0 gap-0">
             <div className="flex items-center gap-2 px-4 py-3 bg-muted/40 border-b">
               <Settings className="h-3.5 w-3.5 text-muted-foreground" />
@@ -333,7 +413,7 @@ function SubtitleConverter() {
 
             <div className="p-4 space-y-5">
               {/* Target format */}
-              <div className="space-y-1.5">
+              <div id="cvt-tour-format" className="space-y-1.5">
                 <div className="text-[11px] font-medium text-muted-foreground">
                   {t("subtitle:converter.fields.target_format")}
                 </div>
@@ -405,7 +485,7 @@ function SubtitleConverter() {
               <div className="h-px bg-border -mx-4" />
 
               {/* Output mode */}
-              <div className="space-y-1.5">
+              <div id="cvt-tour-output" className="space-y-1.5">
                 <div className="text-[11px] font-medium text-muted-foreground">
                   {t("subtitle:converter.fields.output_mode")}
                 </div>
@@ -490,6 +570,7 @@ function SubtitleConverter() {
         <main className="flex flex-col gap-3 min-w-0">
           {/* Drop zone */}
           <label
+            id="cvt-tour-upload"
             className={cn(
               "relative flex items-center gap-4 rounded-xl border-2 border-dashed px-5 py-5 cursor-pointer transition-colors",
               isDragging
@@ -568,7 +649,7 @@ function SubtitleConverter() {
           </div>
 
           {/* Task queue */}
-          <Card className="overflow-hidden p-0 gap-0">
+          <Card id="cvt-tour-queue" className="overflow-hidden p-0 gap-0">
             <CardHeader className="flex flex-row items-center justify-between gap-3 px-4 py-3 space-y-0 border-b">
               <div className="flex items-center gap-2">
                 <CardTitle className="text-[13.5px] font-semibold">
@@ -597,6 +678,7 @@ function SubtitleConverter() {
                   {t("subtitle:converter.fields.clear_all_tasks")}
                 </Button>
                 <Button
+                  id="cvt-tour-start"
                   size="sm"
                   onClick={startAllTasks}
                   disabled={notStartedTasks.length === 0}
@@ -880,6 +962,20 @@ function SubtitleConverter() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <Tour
+        steps={tourSteps}
+        open={tourOpen}
+        onOpenChange={setTourOpen}
+        onFinish={() => {
+          localStorage.setItem("subtitle-converter-tour-done", "1");
+        }}
+        onSkip={() => {
+          localStorage.setItem("subtitle-converter-tour-done", "1");
+        }}
+        maskClosable
+        scrollIntoView
+      />
     </div>
   );
 }

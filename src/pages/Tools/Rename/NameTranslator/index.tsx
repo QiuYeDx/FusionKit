@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { AlertTriangle, Loader2, ShieldCheck } from "lucide-react";
+import { AlertTriangle, CircleHelp, Loader2, ShieldCheck } from "lucide-react";
 import { useSearchParams } from "react-router-dom";
 import ToolPageHeader from "@/pages/Tools/_shared/ToolPageHeader";
 import { TOOL_META } from "@/pages/Tools/_shared/toolMeta";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Tour, type TourStep } from "@/components/qiuye-ui/tour";
 import useNameTranslatorStore from "@/store/tools/rename/useNameTranslatorStore";
 import type { NameTranslationPlan } from "@/services/rename/nameTypes";
 import ApplySummaryPanel from "./components/ApplySummaryPanel";
@@ -48,6 +50,55 @@ export default function NameTranslator() {
     "idle" | "loading" | "loaded" | "missing"
   >("idle");
 
+  // Tour 引导状态（延迟到入场动画结束后再自动打开）
+  const [tourOpen, setTourOpen] = useState(false);
+  useEffect(() => {
+    if (localStorage.getItem("name-translator-tour-done")) return;
+    const timer = setTimeout(() => setTourOpen(true), 400);
+    return () => clearTimeout(timer);
+  }, []);
+  const tourSteps: TourStep[] = useMemo(
+    () => [
+      {
+        target: "#nt-tour-path-picker",
+        title: t("tour.path_picker_title", "选择文件或文件夹"),
+        content: t(
+          "tour.path_picker_content",
+          "将需要重命名的文件或文件夹拖拽到此处，或点击按钮选择。支持同时添加多个路径。"
+        ),
+        placement: "right" as const,
+      },
+      {
+        target: "#nt-tour-options",
+        title: t("tour.options_title", "翻译选项"),
+        content: t(
+          "tour.options_content",
+          "配置翻译参数：源语言、目标语言、命名风格、翻译范围等。不同配置会影响重命名的结果。"
+        ),
+        placement: "right" as const,
+      },
+      {
+        target: "#nt-tour-preview",
+        title: t("tour.preview_title", "预览重命名计划"),
+        content: t(
+          "tour.preview_content",
+          "生成预览后，所有待重命名的项目会在此展示。你可以逐条编辑、恢复原始建议或跳过某些项。"
+        ),
+        placement: "left" as const,
+      },
+      {
+        target: "#nt-tour-apply",
+        title: t("tour.apply_title", "应用重命名"),
+        content: t(
+          "tour.apply_content",
+          "确认计划无误后点击应用。系统会自动记录操作日志，如需撤销可一键回滚。"
+        ),
+        placement: "top" as const,
+      },
+    ],
+    [t]
+  );
+
   const risk = useMemo(() => getRiskSummary(currentPlan), [currentPlan]);
 
   useEffect(() => {
@@ -89,28 +140,43 @@ export default function NameTranslator() {
         title={t("page.title")}
         description={t("page.description")}
         right={
-          <Badge variant="secondary" className="gap-1.5 font-normal">
-            <ShieldCheck className="h-3.5 w-3.5" />
-            <span className="font-mono text-[11px]">{t("page.badge")}</span>
-          </Badge>
+          <>
+            <Badge variant="secondary" className="gap-1.5 font-normal">
+              <ShieldCheck className="h-3.5 w-3.5" />
+              <span className="font-mono text-[11px]">{t("page.badge")}</span>
+            </Badge>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 text-muted-foreground hover:text-foreground"
+              onClick={() => setTourOpen(true)}
+              title={t("tour.trigger", "使用引导")}
+            >
+              <CircleHelp className="h-4 w-4" />
+            </Button>
+          </>
         }
       />
 
       <div className="grid grid-cols-1 lg:grid-cols-[340px_minmax(0,1fr)] gap-4 items-start">
         <aside className="flex flex-col gap-4 lg:sticky lg:top-10">
-          <PathPickerPanel
-            selectedPaths={selectedPaths}
-            isPlanning={isPlanning}
-            onAddPaths={addPaths}
-            onRemovePath={removePath}
-            onCreatePreview={createPreview}
-            onReset={reset}
-          />
-          <OptionsPanel
-            options={options}
-            disabled={isPlanning || isApplying}
-            onUpdateOptions={updateOptions}
-          />
+          <div id="nt-tour-path-picker">
+            <PathPickerPanel
+              selectedPaths={selectedPaths}
+              isPlanning={isPlanning}
+              onAddPaths={addPaths}
+              onRemovePath={removePath}
+              onCreatePreview={createPreview}
+              onReset={reset}
+            />
+          </div>
+          <div id="nt-tour-options">
+            <OptionsPanel
+              options={options}
+              disabled={isPlanning || isApplying}
+              onUpdateOptions={updateOptions}
+            />
+          </div>
         </aside>
 
         <main className="flex min-w-0 flex-col gap-3">
@@ -145,25 +211,29 @@ export default function NameTranslator() {
             </Alert>
           ) : null}
 
-          <PlanPreviewTable
-            plan={currentPlan}
-            isPlanning={isPlanning}
-            originalSuggestions={originalSuggestions}
-            onEditItem={updatePlanItem}
-            onRevalidate={revalidateCurrentPlan}
-            onUseAutoIndex={() => updateOptions({ collisionPolicy: "append_index" })}
-          />
+          <div id="nt-tour-preview">
+            <PlanPreviewTable
+              plan={currentPlan}
+              isPlanning={isPlanning}
+              originalSuggestions={originalSuggestions}
+              onEditItem={updatePlanItem}
+              onRevalidate={revalidateCurrentPlan}
+              onUseAutoIndex={() => updateOptions({ collisionPolicy: "append_index" })}
+            />
+          </div>
 
-          <ApplySummaryPanel
-            plan={currentPlan}
-            isApplying={isApplying}
-            applyProgress={applyProgress}
-            lastApplyResult={lastApplyResult}
-            lastRollbackResult={lastRollbackResult}
-            lastValidation={lastValidation}
-            onApply={requestApply}
-            onRollback={rollback}
-          />
+          <div id="nt-tour-apply">
+            <ApplySummaryPanel
+              plan={currentPlan}
+              isApplying={isApplying}
+              applyProgress={applyProgress}
+              lastApplyResult={lastApplyResult}
+              lastRollbackResult={lastRollbackResult}
+              lastValidation={lastValidation}
+              onApply={requestApply}
+              onRollback={rollback}
+            />
+          </div>
         </main>
       </div>
 
@@ -173,6 +243,20 @@ export default function NameTranslator() {
         risk={risk}
         onOpenChange={setRiskDialogOpen}
         onConfirm={confirmRiskApply}
+      />
+
+      <Tour
+        steps={tourSteps}
+        open={tourOpen}
+        onOpenChange={setTourOpen}
+        onFinish={() => {
+          localStorage.setItem("name-translator-tour-done", "1");
+        }}
+        onSkip={() => {
+          localStorage.setItem("name-translator-tour-done", "1");
+        }}
+        maskClosable
+        scrollIntoView
       />
     </div>
   );
