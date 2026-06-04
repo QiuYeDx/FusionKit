@@ -294,7 +294,7 @@ export function CodeBlockPanel({
       </div>
 
       {/* Panel 配色样式（通过 CSS 变量驱动，自动去重） */}
-      <style>{`
+      <style jsx global>{`
         .cbp-filename {
           color: var(--cbp-filename);
         }
