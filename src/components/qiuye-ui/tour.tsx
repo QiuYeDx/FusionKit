@@ -186,6 +186,14 @@ interface PopoverPosition {
   arrowY: number;
 }
 
+// 自动滚动期间保持旧视觉步骤，稳定后再提交新步骤并恢复 Motion layout 动画。
+type TourScrollPhase = "idle" | "scrolling" | "settling";
+
+interface PendingScrollStep {
+  stepIndex: number;
+  step: TourStep;
+}
+
 const DEFAULT_POPOVER_WIDTH = 340;
 const DEFAULT_VIEWPORT_PADDING = 16;
 const DEFAULT_SPOTLIGHT_PADDING = 8;
@@ -194,6 +202,11 @@ const DEFAULT_OFFSET = 14;
 const DEFAULT_Z_INDEX = 80;
 const DEFAULT_POPOVER_HEIGHT = 220;
 const ARROW_SAFE_OFFSET = 18;
+const SCROLL_STABLE_FRAME_COUNT = 3;
+const SCROLL_STABLE_THRESHOLD = 0.5;
+const SCROLL_MIN_SETTLE_DURATION = 220;
+const SCROLL_NO_MOVEMENT_SETTLE_DURATION = 320;
+const SCROLL_MAX_SETTLE_DURATION = 1600;
 
 const layoutTransition = {
   type: "spring" as const,
@@ -204,6 +217,10 @@ const layoutTransition = {
 const reducedTransition = {
   duration: 0.18,
   ease: "easeOut" as const,
+};
+
+const instantTransition = {
+  duration: 0,
 };
 
 const clamp = (value: number, min: number, max: number) =>
@@ -232,7 +249,7 @@ const toTourRect = (rect: DOMRect): TourRect => ({
 const expandRect = (
   rect: TourRect,
   padding: number,
-  viewport: ViewportSize
+  viewport: ViewportSize,
 ): TourRect => {
   const left = clamp(rect.left - padding, 0, viewport.width);
   const top = clamp(rect.top - padding, 0, viewport.height);
@@ -249,11 +266,67 @@ const expandRect = (
   };
 };
 
+const isRectWithinViewport = (
+  rect: TourRect,
+  viewport: ViewportSize,
+  padding: number,
+) =>
+  rect.top >= padding &&
+  rect.left >= padding &&
+  rect.bottom <= viewport.height - padding &&
+  rect.right <= viewport.width - padding;
+
+const isTargetWithinVisibleBounds = (
+  target: HTMLElement,
+  rect: TourRect,
+  viewport: ViewportSize,
+  padding: number,
+) => {
+  if (!isRectWithinViewport(rect, viewport, padding)) return false;
+
+  let ancestor = target.parentElement;
+  while (ancestor && ancestor !== document.body) {
+    const styles = window.getComputedStyle(ancestor);
+    const clipsX = ["auto", "scroll", "hidden", "clip"].includes(
+      styles.overflowX,
+    );
+    const clipsY = ["auto", "scroll", "hidden", "clip"].includes(
+      styles.overflowY,
+    );
+
+    if (clipsX || clipsY) {
+      const ancestorRect = ancestor.getBoundingClientRect();
+      if (
+        (clipsX &&
+          (rect.left < ancestorRect.left || rect.right > ancestorRect.right)) ||
+        (clipsY &&
+          (rect.top < ancestorRect.top || rect.bottom > ancestorRect.bottom))
+      ) {
+        return false;
+      }
+    }
+
+    ancestor = ancestor.parentElement;
+  }
+
+  return true;
+};
+
+const hasRectChanged = (
+  previous: TourRect,
+  next: TourRect,
+  threshold: number,
+) =>
+  Math.abs(previous.top - next.top) > threshold ||
+  Math.abs(previous.left - next.left) > threshold ||
+  Math.abs(previous.width - next.width) > threshold ||
+  Math.abs(previous.height - next.height) > threshold;
+
 const isHTMLElement = (value: unknown): value is HTMLElement =>
   typeof HTMLElement !== "undefined" && value instanceof HTMLElement;
 
 const resolveTarget = (
-  target: TourStep["target"] | undefined
+  target: TourStep["target"] | undefined,
 ): HTMLElement | null => {
   if (!target || typeof document === "undefined") return null;
 
@@ -293,7 +366,7 @@ const getBestPlacement = (
   popoverSize: PopoverSize,
   viewport: ViewportSize,
   offset: number,
-  viewportPadding: number
+  viewportPadding: number,
 ): TourPlacement => {
   const available = {
     top: rect.top - viewportPadding - offset,
@@ -330,19 +403,21 @@ const getBestPlacement = (
 
   const uniqueOrder = Array.from(new Set(fallbackOrder));
   const fitting = uniqueOrder.find(
-    (placement) => available[placement] >= required[placement]
+    (placement) => available[placement] >= required[placement],
   );
 
   if (fitting) return fitting;
 
-  return uniqueOrder.sort((a, b) => available[b] - available[a])[0] ?? preferred;
+  return (
+    uniqueOrder.sort((a, b) => available[b] - available[a])[0] ?? preferred
+  );
 };
 
 const getAlignedStart = (
   align: TourAlign,
   rectStart: number,
   rectSize: number,
-  popoverSize: number
+  popoverSize: number,
 ) => {
   if (align === "start") return rectStart;
   if (align === "end") return rectStart + rectSize - popoverSize;
@@ -370,7 +445,7 @@ const getPopoverPosition = ({
 }): PopoverPosition => {
   const width = Math.max(
     240,
-    Math.min(popoverWidth, Math.max(240, viewport.width - viewportPadding * 2))
+    Math.min(popoverWidth, Math.max(240, viewport.width - viewportPadding * 2)),
   );
   const height = popoverSize.height || DEFAULT_POPOVER_HEIGHT;
 
@@ -392,7 +467,7 @@ const getPopoverPosition = ({
     size,
     viewport,
     offset,
-    viewportPadding
+    viewportPadding,
   );
 
   let left = 0;
@@ -415,12 +490,12 @@ const getPopoverPosition = ({
   const clampedLeft = clamp(
     left,
     viewportPadding,
-    Math.max(viewportPadding, viewport.width - width - viewportPadding)
+    Math.max(viewportPadding, viewport.width - width - viewportPadding),
   );
   const clampedTop = clamp(
     top,
     viewportPadding,
-    Math.max(viewportPadding, viewport.height - height - viewportPadding)
+    Math.max(viewportPadding, viewport.height - height - viewportPadding),
   );
   const targetCenterX = rect.left + rect.width / 2;
   const targetCenterY = rect.top + rect.height / 2;
@@ -430,8 +505,16 @@ const getPopoverPosition = ({
     left: clampedLeft,
     width,
     placement,
-    arrowX: clamp(targetCenterX - clampedLeft, ARROW_SAFE_OFFSET, width - ARROW_SAFE_OFFSET),
-    arrowY: clamp(targetCenterY - clampedTop, ARROW_SAFE_OFFSET, height - ARROW_SAFE_OFFSET),
+    arrowX: clamp(
+      targetCenterX - clampedLeft,
+      ARROW_SAFE_OFFSET,
+      width - ARROW_SAFE_OFFSET,
+    ),
+    arrowY: clamp(
+      targetCenterY - clampedTop,
+      ARROW_SAFE_OFFSET,
+      height - ARROW_SAFE_OFFSET,
+    ),
   };
 };
 
@@ -504,17 +587,31 @@ export function Tour({
   const [mounted, setMounted] = useState(false);
   const [internalOpen, setInternalOpen] = useState(defaultOpen);
   const [internalStep, setInternalStep] = useState(defaultStep);
+  const [visualStepIndex, setVisualStepIndex] = useState(defaultStep);
   const [targetElement, setTargetElement] = useState<HTMLElement | null>(null);
   const [spotlightRect, setSpotlightRect] = useState<TourRect | null>(null);
-  const [viewport, setViewport] = useState<ViewportSize>({ width: 0, height: 0 });
+  const [viewport, setViewport] = useState<ViewportSize>({
+    width: 0,
+    height: 0,
+  });
   const [popoverSize, setPopoverSize] = useState<PopoverSize>({
     width: popoverWidth,
     height: DEFAULT_POPOVER_HEIGHT,
   });
   const [hasMeasured, setHasMeasured] = useState(false);
+  const [scrollPhase, setScrollPhase] = useState<TourScrollPhase>("idle");
 
   const popoverRef = useRef<HTMLDivElement | null>(null);
   const measureFrameRef = useRef<number | null>(null);
+  const scrollMonitorFrameRef = useRef<number | null>(null);
+  const scrollRestoreFrameRef = useRef<number | null>(null);
+  const scrollPhaseRef = useRef<TourScrollPhase>("idle");
+  const pendingScrollStepRef = useRef<PendingScrollStep | null>(null);
+  const scrollTargetRef = useRef<HTMLElement | null>(null);
+  const scrollStartedAtRef = useRef(0);
+  const scrollLastRectRef = useRef<TourRect | null>(null);
+  const scrollStableFramesRef = useRef(0);
+  const scrollHasMovedRef = useRef(false);
   const previousActiveElementRef = useRef<Element | null>(null);
   const lastEnteredStepRef = useRef<number | null>(null);
 
@@ -524,11 +621,28 @@ export function Tour({
   const rawStepIndex = currentStep ?? internalStep;
   const maxStepIndex = Math.max(0, steps.length - 1);
   const stepIndex = clamp(rawStepIndex, 0, maxStepIndex);
-  const activeStep = steps[stepIndex];
-  const isFirstStep = stepIndex === 0;
-  const isLastStep = stepIndex === steps.length - 1;
-  const stepKey = getStepKey(activeStep, stepIndex);
-  const transition = prefersReducedMotion ? reducedTransition : layoutTransition;
+  const requestedStep = steps[stepIndex];
+  const clampedVisualStepIndex = clamp(visualStepIndex, 0, maxStepIndex);
+  const activeStep = steps[clampedVisualStepIndex];
+  const isFirstStep = clampedVisualStepIndex === 0;
+  const isLastStep = clampedVisualStepIndex === steps.length - 1;
+  const isRequestedFirstStep = stepIndex === 0;
+  const isRequestedLastStep = stepIndex === steps.length - 1;
+  const requestedStepKey = getStepKey(requestedStep, stepIndex);
+  const stepKey = getStepKey(activeStep, clampedVisualStepIndex);
+  const transition = prefersReducedMotion
+    ? reducedTransition
+    : layoutTransition;
+  const positionTransition =
+    scrollPhase === "idle"
+      ? transition
+      : { ...transition, layout: instantTransition };
+  const contentTransition =
+    scrollPhase === "idle"
+      ? prefersReducedMotion
+        ? reducedTransition
+        : layoutTransition
+      : instantTransition;
 
   const setOpenState = useCallback(
     (nextOpen: boolean) => {
@@ -537,7 +651,7 @@ export function Tour({
       }
       onOpenChange?.(nextOpen);
     },
-    [isOpenControlled, onOpenChange]
+    [isOpenControlled, onOpenChange],
   );
 
   const setStepState = useCallback(
@@ -548,7 +662,7 @@ export function Tour({
       }
       onStepChange?.(clampedStep);
     },
-    [isStepControlled, maxStepIndex, onStepChange]
+    [isStepControlled, maxStepIndex, onStepChange],
   );
 
   const skip = useCallback(() => {
@@ -562,36 +676,163 @@ export function Tour({
   }, [onFinish, setOpenState]);
 
   const previous = useCallback(() => {
-    if (isFirstStep) return;
+    if (isRequestedFirstStep) return;
     setStepState(stepIndex - 1);
-  }, [isFirstStep, setStepState, stepIndex]);
+  }, [isRequestedFirstStep, setStepState, stepIndex]);
 
   const next = useCallback(() => {
-    if (isLastStep) {
+    if (isRequestedLastStep) {
       finish();
       return;
     }
     setStepState(stepIndex + 1);
-  }, [finish, isLastStep, setStepState, stepIndex]);
+  }, [finish, isRequestedLastStep, setStepState, stepIndex]);
+
+  const updateMeasurement = useCallback(
+    (
+      step: TourStep,
+      nextTarget: HTMLElement | null,
+      nextViewport: ViewportSize,
+    ) => {
+      setViewport(nextViewport);
+      setTargetElement(nextTarget);
+      setHasMeasured(true);
+
+      if (!nextTarget) {
+        setSpotlightRect(null);
+        return;
+      }
+
+      const targetRect = toTourRect(nextTarget.getBoundingClientRect());
+      const padding = step.spotlightPadding ?? DEFAULT_SPOTLIGHT_PADDING;
+      setSpotlightRect(expandRect(targetRect, padding, nextViewport));
+    },
+    [],
+  );
 
   const measure = useCallback(() => {
     if (!resolvedOpen || !activeStep) return;
 
     const nextViewport = getViewportSize();
     const nextTarget = resolveTarget(activeStep.target);
-    setViewport(nextViewport);
-    setTargetElement(nextTarget);
-    setHasMeasured(true);
+    updateMeasurement(activeStep, nextTarget, nextViewport);
+  }, [activeStep, resolvedOpen, updateMeasurement]);
 
-    if (!nextTarget) {
-      setSpotlightRect(null);
+  const setScrollPhaseState = useCallback((nextPhase: TourScrollPhase) => {
+    if (scrollPhaseRef.current === nextPhase) return;
+    scrollPhaseRef.current = nextPhase;
+    setScrollPhase(nextPhase);
+  }, []);
+
+  const cancelScrollTracking = useCallback(() => {
+    if (scrollMonitorFrameRef.current !== null) {
+      window.cancelAnimationFrame(scrollMonitorFrameRef.current);
+      scrollMonitorFrameRef.current = null;
+    }
+    if (scrollRestoreFrameRef.current !== null) {
+      window.cancelAnimationFrame(scrollRestoreFrameRef.current);
+      scrollRestoreFrameRef.current = null;
+    }
+
+    pendingScrollStepRef.current = null;
+    scrollTargetRef.current = null;
+    scrollLastRectRef.current = null;
+    scrollStableFramesRef.current = 0;
+    scrollHasMovedRef.current = false;
+  }, []);
+
+  const finishScrollTracking = useCallback(() => {
+    if (scrollPhaseRef.current !== "scrolling") return;
+
+    const pendingStep = pendingScrollStepRef.current;
+    if (!pendingStep) {
+      setScrollPhaseState("idle");
       return;
     }
 
-    const targetRect = toTourRect(nextTarget.getBoundingClientRect());
-    const padding = activeStep.spotlightPadding ?? DEFAULT_SPOTLIGHT_PADDING;
-    setSpotlightRect(expandRect(targetRect, padding, nextViewport));
-  }, [activeStep, resolvedOpen]);
+    if (scrollMonitorFrameRef.current !== null) {
+      window.cancelAnimationFrame(scrollMonitorFrameRef.current);
+      scrollMonitorFrameRef.current = null;
+    }
+    if (measureFrameRef.current !== null) {
+      window.cancelAnimationFrame(measureFrameRef.current);
+      measureFrameRef.current = null;
+    }
+
+    const nextViewport = getViewportSize();
+    const nextTarget = resolveTarget(pendingStep.step.target);
+    pendingScrollStepRef.current = null;
+    scrollTargetRef.current = null;
+    setScrollPhaseState("settling");
+    setVisualStepIndex(pendingStep.stepIndex);
+    updateMeasurement(pendingStep.step, nextTarget, nextViewport);
+
+    scrollRestoreFrameRef.current = window.requestAnimationFrame(() => {
+      scrollRestoreFrameRef.current = window.requestAnimationFrame(() => {
+        scrollRestoreFrameRef.current = null;
+        setScrollPhaseState("idle");
+      });
+    });
+  }, [setScrollPhaseState, updateMeasurement]);
+
+  const startScrollTracking = useCallback(
+    (
+      target: HTMLElement,
+      initialRect: TourRect,
+      pendingStep: PendingScrollStep,
+    ) => {
+      cancelScrollTracking();
+      pendingScrollStepRef.current = pendingStep;
+      scrollTargetRef.current = target;
+      scrollStartedAtRef.current = performance.now();
+      scrollLastRectRef.current = initialRect;
+
+      // 使用目标矩形稳定帧判断滚动结束，兼容页面与嵌套滚动容器。
+      const checkScrollSettled = (timestamp: number) => {
+        if (
+          scrollPhaseRef.current !== "scrolling" ||
+          scrollTargetRef.current !== target
+        ) {
+          return;
+        }
+
+        const nextRect = toTourRect(target.getBoundingClientRect());
+        const previousRect = scrollLastRectRef.current;
+        const moved = previousRect
+          ? hasRectChanged(previousRect, nextRect, SCROLL_STABLE_THRESHOLD)
+          : false;
+
+        if (moved) {
+          scrollHasMovedRef.current = true;
+          scrollStableFramesRef.current = 0;
+        } else {
+          scrollStableFramesRef.current += 1;
+        }
+
+        scrollLastRectRef.current = nextRect;
+
+        const elapsed = timestamp - scrollStartedAtRef.current;
+        const canSettleWithoutMovement =
+          elapsed >= SCROLL_NO_MOVEMENT_SETTLE_DURATION;
+        const hasStableFinalPosition =
+          elapsed >= SCROLL_MIN_SETTLE_DURATION &&
+          scrollStableFramesRef.current >= SCROLL_STABLE_FRAME_COUNT &&
+          (scrollHasMovedRef.current || canSettleWithoutMovement);
+
+        if (hasStableFinalPosition || elapsed >= SCROLL_MAX_SETTLE_DURATION) {
+          finishScrollTracking();
+          return;
+        }
+
+        scrollMonitorFrameRef.current =
+          window.requestAnimationFrame(checkScrollSettled);
+      };
+
+      scrollMonitorFrameRef.current =
+        window.requestAnimationFrame(checkScrollSettled);
+    },
+    [cancelScrollTracking, finishScrollTracking],
+  );
 
   const scheduleMeasure = useCallback(() => {
     if (measureFrameRef.current !== null) {
@@ -622,51 +863,111 @@ export function Tour({
 
   useEffect(() => {
     if (!resolvedOpen) {
+      cancelScrollTracking();
+      setScrollPhaseState("idle");
+      setVisualStepIndex(defaultStep);
       setTargetElement(null);
       setSpotlightRect(null);
       setHasMeasured(false);
     }
-  }, [resolvedOpen]);
+  }, [
+    cancelScrollTracking,
+    defaultStep,
+    resolvedOpen,
+    setScrollPhaseState,
+  ]);
 
   useEffect(() => {
-    if (!resolvedOpen || !activeStep) return;
+    if (!resolvedOpen || !requestedStep) return;
 
     let cancelled = false;
-    const target = resolveTarget(activeStep.target);
+    cancelScrollTracking();
 
-    if (target && scrollIntoView) {
-      target.scrollIntoView({
-        block: "center",
-        inline: "center",
-        behavior: prefersReducedMotion ? "auto" : "smooth",
+    const nextViewport = getViewportSize();
+    const target = resolveTarget(requestedStep.target);
+    const targetRect = target
+      ? toTourRect(target.getBoundingClientRect())
+      : null;
+    const shouldAutoScroll = Boolean(
+      target &&
+      targetRect &&
+      scrollIntoView &&
+      !isTargetWithinVisibleBounds(
+        target,
+        targetRect,
+        nextViewport,
+        viewportPadding,
+      ),
+    );
+
+    if (target && targetRect && shouldAutoScroll) {
+      setScrollPhaseState("scrolling");
+
+      measureFrameRef.current = window.requestAnimationFrame(() => {
+        measureFrameRef.current = null;
+        if (cancelled) return;
+
+        target.scrollIntoView({
+          block: "center",
+          inline: "center",
+          behavior: prefersReducedMotion ? "auto" : "smooth",
+        });
+        startScrollTracking(target, targetRect, {
+          stepIndex,
+          step: requestedStep,
+        });
       });
+    } else {
+      setScrollPhaseState("idle");
+      setVisualStepIndex(stepIndex);
+      updateMeasurement(requestedStep, target, nextViewport);
+
+      const frameOne = window.requestAnimationFrame(() => {
+        const frameTwo = window.requestAnimationFrame(() => {
+          if (!cancelled) {
+            const refreshedViewport = getViewportSize();
+            const refreshedTarget = resolveTarget(requestedStep.target);
+            updateMeasurement(
+              requestedStep,
+              refreshedTarget,
+              refreshedViewport,
+            );
+          }
+        });
+
+        measureFrameRef.current = frameTwo;
+      });
+
+      measureFrameRef.current = frameOne;
     }
-
-    const frameOne = window.requestAnimationFrame(() => {
-      const frameTwo = window.requestAnimationFrame(() => {
-        if (!cancelled) {
-          measure();
-        }
-      });
-
-      measureFrameRef.current = frameTwo;
-    });
-
-    measureFrameRef.current = frameOne;
 
     return () => {
       cancelled = true;
+      cancelScrollTracking();
       if (measureFrameRef.current !== null) {
         window.cancelAnimationFrame(measureFrameRef.current);
         measureFrameRef.current = null;
       }
     };
-  }, [activeStep, measure, prefersReducedMotion, resolvedOpen, scrollIntoView, stepKey]);
+  }, [
+    cancelScrollTracking,
+    prefersReducedMotion,
+    requestedStep,
+    requestedStepKey,
+    resolvedOpen,
+    scrollIntoView,
+    setScrollPhaseState,
+    startScrollTracking,
+    stepIndex,
+    updateMeasurement,
+    viewportPadding,
+  ]);
 
   useEffect(() => {
     if (!resolvedOpen) return;
 
     const handleScrollOrResize = () => {
+      if (scrollPhaseRef.current === "settling") return;
       scheduleMeasure();
     };
 
@@ -686,11 +987,23 @@ export function Tour({
     return () => {
       window.removeEventListener("resize", handleScrollOrResize);
       window.removeEventListener("scroll", handleScrollOrResize, true);
-      window.visualViewport?.removeEventListener("resize", handleScrollOrResize);
-      window.visualViewport?.removeEventListener("scroll", handleScrollOrResize);
+      window.visualViewport?.removeEventListener(
+        "resize",
+        handleScrollOrResize,
+      );
+      window.visualViewport?.removeEventListener(
+        "scroll",
+        handleScrollOrResize,
+      );
       observer?.disconnect();
     };
   }, [resolvedOpen, scheduleMeasure, targetElement]);
+
+  useEffect(() => {
+    return () => {
+      cancelScrollTracking();
+    };
+  }, [cancelScrollTracking]);
 
   useEffect(() => {
     if (!resolvedOpen) return;
@@ -722,6 +1035,8 @@ export function Tour({
         return;
       }
 
+      if (scrollPhase !== "idle") return;
+
       if (event.key === "ArrowLeft") {
         event.preventDefault();
         previous();
@@ -739,7 +1054,7 @@ export function Tour({
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [next, previous, resolvedOpen, skip]);
+  }, [next, previous, resolvedOpen, scrollPhase, skip]);
 
   useEffect(() => {
     if (!resolvedOpen) return;
@@ -756,17 +1071,17 @@ export function Tour({
   }, [resolvedOpen]);
 
   useEffect(() => {
-    if (!resolvedOpen || !hasMeasured) return;
+    if (!resolvedOpen || !hasMeasured || scrollPhase !== "idle") return;
 
     const focusFrame = window.requestAnimationFrame(() => {
       popoverRef.current?.focus({ preventScroll: true });
     });
 
     return () => window.cancelAnimationFrame(focusFrame);
-  }, [hasMeasured, resolvedOpen, stepKey]);
+  }, [hasMeasured, resolvedOpen, scrollPhase, stepKey]);
 
   useEffect(() => {
-    if (!resolvedOpen || !activeStep) {
+    if (!resolvedOpen || !requestedStep) {
       const previousStepIndex = lastEnteredStepRef.current;
       if (previousStepIndex !== null) {
         steps[previousStepIndex]?.onLeave?.();
@@ -782,9 +1097,9 @@ export function Tour({
       steps[previousStepIndex]?.onLeave?.();
     }
 
-    activeStep.onEnter?.();
+    requestedStep.onEnter?.();
     lastEnteredStepRef.current = stepIndex;
-  }, [activeStep, resolvedOpen, stepIndex, steps]);
+  }, [requestedStep, resolvedOpen, stepIndex, steps]);
 
   useEffect(() => {
     if (!resolvedOpen || !popoverRef.current) return;
@@ -810,7 +1125,8 @@ export function Tour({
   const preferredPlacement = activeStep?.placement ?? "bottom";
   const align = activeStep?.align ?? "center";
   const offset = activeStep?.offset ?? DEFAULT_OFFSET;
-  const spotlightRadius = activeStep?.spotlightRadius ?? DEFAULT_SPOTLIGHT_RADIUS;
+  const spotlightRadius =
+    activeStep?.spotlightRadius ?? DEFAULT_SPOTLIGHT_RADIUS;
   const popoverPosition = useMemo(
     () =>
       getPopoverPosition({
@@ -832,21 +1148,21 @@ export function Tour({
       spotlightRect,
       viewport,
       viewportPadding,
-    ]
+    ],
   );
 
   const renderContext: TourRenderContext | null = activeStep
     ? {
-      step: activeStep,
-      stepIndex,
-      totalSteps: steps.length,
-      isFirstStep,
-      isLastStep,
-      previous,
-      next,
-      skip,
-      finish,
-    }
+        step: activeStep,
+        stepIndex: clampedVisualStepIndex,
+        totalSteps: steps.length,
+        isFirstStep,
+        isLastStep,
+        previous,
+        next,
+        skip,
+        finish,
+      }
     : null;
 
   const handleMaskClick = useCallback(
@@ -857,7 +1173,7 @@ export function Tour({
         skip();
       }
     },
-    [maskClosable, skip]
+    [maskClosable, skip],
   );
 
   const blockers = useMemo(() => {
@@ -911,9 +1227,12 @@ export function Tour({
 
   const missingTarget = hasMeasured && !targetElement;
   const shouldRenderSpotlight = Boolean(showMask && spotlightRect);
-  const shouldRenderMaskBlockers = Boolean(showMask && spotlightRect);
+  const shouldRenderMaskBlockers = Boolean(
+    showMask && spotlightRect && scrollPhase === "idle",
+  );
   const shouldRenderTargetBlocker =
-    Boolean(showMask && spotlightRect) && !allowTargetInteraction;
+    Boolean(showMask && spotlightRect && scrollPhase === "idle") &&
+    !allowTargetInteraction;
 
   return createPortal(
     <AnimatePresence>
@@ -921,10 +1240,14 @@ export function Tour({
         key="tour-root"
         className={cn("fixed inset-0 pointer-events-none", className)}
         style={{ zIndex }}
+        inert={scrollPhase !== "idle" ? true : undefined}
+        aria-hidden={scrollPhase !== "idle" ? true : undefined}
         initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
+        animate={{ opacity: scrollPhase === "idle" ? 1 : 0 }}
         exit={{ opacity: 0 }}
-        transition={prefersReducedMotion ? reducedTransition : { duration: 0.2 }}
+        transition={
+          prefersReducedMotion ? reducedTransition : { duration: 0.2 }
+        }
       >
         <LayoutGroup id={`${instanceId}-layout`}>
           {shouldRenderMaskBlockers &&
@@ -957,7 +1280,7 @@ export function Tour({
               className={cn(
                 "fixed pointer-events-none border border-white/70 ring-1 ring-primary/50",
                 "shadow-[0_0_0_9999px_rgba(2,6,23,0.58)] dark:shadow-[0_0_0_9999px_rgba(0,0,0,0.68)]",
-                spotlightClassName
+                spotlightClassName,
               )}
               style={{
                 top: spotlightRect.top,
@@ -966,7 +1289,7 @@ export function Tour({
                 height: spotlightRect.height,
                 borderRadius: spotlightRadius,
               }}
-              transition={transition}
+              transition={positionTransition}
             />
           )}
 
@@ -985,7 +1308,7 @@ export function Tour({
                 "rounded-lg border border-border/80 bg-popover text-popover-foreground shadow-2xl",
                 "focus-visible:ring-2 focus-visible:ring-primary/45 focus-visible:ring-offset-2 focus-visible:ring-offset-background",
                 popoverClassName,
-                activeStep.popoverClassName
+                activeStep.popoverClassName,
               )}
               style={
                 {
@@ -1007,22 +1330,20 @@ export function Tour({
                   ? { opacity: 0 }
                   : { opacity: 0, scale: 0.98, y: 4 }
               }
-              transition={transition}
+              transition={positionTransition}
             >
               {spotlightRect && (
                 <span
                   aria-hidden
                   className={cn(
                     "absolute z-0 size-3 rotate-45 border-border/80 bg-popover",
-                    popoverPosition.placement === "top" &&
-                    "border-r border-b",
+                    popoverPosition.placement === "top" && "border-r border-b",
                     popoverPosition.placement === "bottom" &&
-                    "border-l border-t",
-                    popoverPosition.placement === "left" &&
-                    "border-t border-r",
+                      "border-l border-t",
+                    popoverPosition.placement === "left" && "border-t border-r",
                     popoverPosition.placement === "right" &&
-                    "border-b border-l",
-                    getArrowClassName(popoverPosition.placement)
+                      "border-b border-l",
+                    getArrowClassName(popoverPosition.placement),
                   )}
                 />
               )}
@@ -1030,12 +1351,12 @@ export function Tour({
               <motion.div
                 layout
                 className="relative z-10 space-y-4 p-4"
-                transition={transition}
+                transition={positionTransition}
               >
                 <motion.div
                   layout
                   className="flex items-start justify-between gap-3"
-                  transition={transition}
+                  transition={positionTransition}
                 >
                   <div className="min-w-0 space-y-1">
                     <h2
@@ -1045,21 +1366,21 @@ export function Tour({
                       {activeStep.title}
                     </h2>
                     <div className="sr-only" aria-live="polite">
-                      Step {stepIndex + 1} of {steps.length}
+                      Step {clampedVisualStepIndex + 1} of {steps.length}
                     </div>
                   </div>
                   <Badge
                     variant="outline"
                     className="shrink-0 rounded-md px-2 py-0.5 font-mono text-[11px]"
                   >
-                    {stepIndex + 1} / {steps.length}
+                    {clampedVisualStepIndex + 1} / {steps.length}
                   </Badge>
                 </motion.div>
 
                 <motion.div
                   layout
                   className="relative overflow-hidden"
-                  transition={transition}
+                  transition={positionTransition}
                 >
                   <AnimatePresence mode="popLayout" initial={false}>
                     <motion.div
@@ -1068,16 +1389,18 @@ export function Tour({
                       id={contentId}
                       className="text-sm leading-6 text-muted-foreground"
                       initial={
-                        prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: 4 }
+                        prefersReducedMotion
+                          ? { opacity: 0 }
+                          : { opacity: 0, y: 4 }
                       }
                       animate={{ opacity: 1, y: 0 }}
                       exit={
-                        prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: -4 }
+                        prefersReducedMotion
+                          ? { opacity: 0 }
+                          : { opacity: 0, y: -4 }
                       }
                       transition={
-                        prefersReducedMotion
-                          ? reducedTransition
-                          : layoutTransition
+                        contentTransition
                       }
                     >
                       {activeStep.content}
@@ -1096,7 +1419,7 @@ export function Tour({
                   <motion.div
                     layout
                     className="flex flex-wrap items-center justify-between gap-2 pt-1"
-                    transition={transition}
+                    transition={positionTransition}
                   >
                     <Button
                       type="button"
@@ -1139,6 +1462,6 @@ export function Tour({
         </LayoutGroup>
       </motion.div>
     </AnimatePresence>,
-    document.body
+    document.body,
   );
 }
