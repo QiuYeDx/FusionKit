@@ -7,6 +7,12 @@ import type {
   MarkdownWidgetDefinition,
 } from "../markdown-types";
 
+function truncateJson(value: unknown, maxLen: number): string {
+  const raw = JSON.stringify(value, null, 0);
+  if (raw.length <= maxLen) return raw;
+  return raw.slice(0, maxLen) + "…";
+}
+
 interface ToolCallProps {
   name: string;
   status?: "pending" | "running" | "success" | "error";
@@ -66,7 +72,7 @@ function ToolCallWidgetComponent({
             <div>
               <span className="text-muted-foreground/70">输入: </span>
               <code className="text-foreground/80 font-mono">
-                {JSON.stringify(input, null, 0)}
+                {truncateJson(input, 300)}
               </code>
             </div>
           )}
@@ -74,7 +80,7 @@ function ToolCallWidgetComponent({
             <div>
               <span className="text-muted-foreground/70">输出: </span>
               <code className="text-foreground/80 font-mono">
-                {JSON.stringify(output, null, 0)}
+                {truncateJson(output, 300)}
               </code>
             </div>
           )}

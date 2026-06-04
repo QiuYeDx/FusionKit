@@ -8,6 +8,7 @@ import type {
   AgentLogEntry,
   AgentLogEntryType,
   ExecutionMode,
+  PendingNameTranslationPlan,
   PendingExecution,
   SessionExportData,
   TaskStoreType,
@@ -16,6 +17,11 @@ import type {
 import useSubtitleTranslatorStore from "@/store/tools/subtitle/useSubtitleTranslatorStore";
 import useSubtitleConverterStore from "@/store/tools/subtitle/useSubtitleConverterStore";
 import useSubtitleExtractorStore from "@/store/tools/subtitle/useSubtitleExtractorStore";
+import { getNameTranslationPlan } from "@/services/rename/namePlanStore";
+import {
+  applyNameTranslationPlan,
+  validateNameTranslationPlan,
+} from "@/services/rename/nameApplyService";
 
 // ---------------------------------------------------------------------------
 // Agent Store — 会话、消息、流式状态、执行模式
@@ -27,21 +33,31 @@ interface AgentStore {
   streamingText: string;
   executionMode: ExecutionMode;
   pendingExecution: PendingExecution | null;
+  pendingNameTranslationPlan: PendingNameTranslationPlan | null;
   tokenStats: TokenStats;
   activeToolCalls: AgentToolCall[];
   sessionLog: AgentLogEntry[];
 
   addMessage: (message: AgentMessage) => void;
+  addMessages: (messages: AgentMessage[]) => void;
   setStatus: (status: AgentSessionStatus) => void;
   setStreaming: (streaming: boolean) => void;
   appendStreamingText: (delta: string) => void;
   clearStreamingText: () => void;
   commitStreamingAsAssistant: (text: string, toolCalls?: AgentToolCall[]) => void;
+  commitStepBatch: (
+    assistantText: string,
+    toolCalls: AgentToolCall[],
+    toolMessages: AgentMessage[],
+  ) => void;
   resetSession: () => void;
   setExecutionMode: (mode: ExecutionMode) => void;
   setPendingExecution: (pe: PendingExecution | null) => void;
   confirmExecution: () => void;
   dismissExecution: () => void;
+  setPendingNameTranslationPlan: (plan: PendingNameTranslationPlan | null) => void;
+  confirmNameTranslationPlan: (planId: string) => Promise<void>;
+  dismissNameTranslationPlan: (planId: string) => void;
   setActiveToolCalls: (calls: AgentToolCall[]) => void;
   clearActiveToolCalls: () => void;
   recordUsage: (data: {
@@ -109,6 +125,7 @@ const useAgentStore = create<AgentStore>()(
       streamingText: "",
       executionMode: "queue_only" as ExecutionMode,
       pendingExecution: null,
+      pendingNameTranslationPlan: null,
       tokenStats: createEmptyTokenStats(),
       activeToolCalls: [],
       sessionLog: [],
@@ -118,6 +135,15 @@ const useAgentStore = create<AgentStore>()(
           session: {
             ...state.session,
             messages: [...state.session.messages, message],
+            updatedAt: Date.now(),
+          },
+        })),
+
+      addMessages: (messages) =>
+        set((state) => ({
+          session: {
+            ...state.session,
+            messages: [...state.session.messages, ...messages],
             updatedAt: Date.now(),
           },
         })),
@@ -156,6 +182,35 @@ const useAgentStore = create<AgentStore>()(
         }));
       },
 
+      commitStepBatch: (assistantText, toolCalls, toolMessages) => {
+        set((state) => {
+          const now = Date.now();
+          const newMessages = [...state.session.messages];
+
+          if (assistantText || toolCalls.length > 0) {
+            newMessages.push({
+              id: generateId(),
+              role: "assistant",
+              content: assistantText,
+              timestamp: now,
+              ...(toolCalls.length > 0 ? { toolCalls } : {}),
+            });
+          }
+
+          newMessages.push(...toolMessages);
+
+          return {
+            streamingText: "",
+            activeToolCalls: [],
+            session: {
+              ...state.session,
+              messages: newMessages,
+              updatedAt: now,
+            },
+          };
+        });
+      },
+
       resetSession: () => {
         get().appendLog("session_reset", "Session reset");
         set({
@@ -163,6 +218,7 @@ const useAgentStore = create<AgentStore>()(
           isStreaming: false,
           streamingText: "",
           pendingExecution: null,
+          pendingNameTranslationPlan: null,
           tokenStats: createEmptyTokenStats(),
           activeToolCalls: [],
           sessionLog: [],
@@ -190,6 +246,96 @@ const useAgentStore = create<AgentStore>()(
         set({
           pendingExecution: { ...pendingExecution, resolvedAction: "dismiss" },
         });
+      },
+
+      setPendingNameTranslationPlan: (plan) =>
+        set({ pendingNameTranslationPlan: plan }),
+
+      confirmNameTranslationPlan: async (planId) => {
+        const { pendingNameTranslationPlan } = get();
+        if (
+          !pendingNameTranslationPlan ||
+          pendingNameTranslationPlan.planId !== planId ||
+          pendingNameTranslationPlan.resolvedAction
+        ) {
+          return;
+        }
+
+        try {
+          const plan = getNameTranslationPlan(planId);
+          if (!plan) {
+            throw new Error("重命名计划已过期或不存在，请重新生成预览。");
+          }
+        if (!plan.applyable || plan.blockedCount > 0) {
+          throw new Error("当前重命名计划不可应用，请先处理冲突或重新生成预览。");
+        }
+
+        set({
+          pendingNameTranslationPlan: {
+            ...pendingNameTranslationPlan,
+            isApplying: true,
+            error: undefined,
+          },
+        });
+
+        const validation = await validateNameTranslationPlan(planId);
+        if (!validation.valid) {
+          throw new Error(
+              validation.errors[0]?.message ?? "重命名计划校验失败。"
+            );
+          }
+
+          const result = await applyNameTranslationPlan(planId);
+          set({
+            pendingNameTranslationPlan: {
+              ...pendingNameTranslationPlan,
+              isApplying: false,
+              resolvedAction: "confirm",
+              applyResult: result,
+              error: undefined,
+            },
+          });
+          get().appendLog(
+            "name_translation_apply",
+            `Applied rename plan ${planId}`,
+            { planId, result }
+          );
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          set({
+            pendingNameTranslationPlan: {
+              ...pendingNameTranslationPlan,
+              isApplying: false,
+              error: message,
+            },
+          });
+          get().appendLog("error", message, {
+            planId,
+            source: "confirm_name_translation_plan",
+          });
+        }
+      },
+
+      dismissNameTranslationPlan: (planId) => {
+        const { pendingNameTranslationPlan } = get();
+        if (
+          !pendingNameTranslationPlan ||
+          pendingNameTranslationPlan.planId !== planId ||
+          pendingNameTranslationPlan.resolvedAction
+        ) {
+          return;
+        }
+        set({
+          pendingNameTranslationPlan: {
+            ...pendingNameTranslationPlan,
+            resolvedAction: "dismiss",
+          },
+        });
+        get().appendLog(
+          "name_translation_plan",
+          `Dismissed rename plan ${planId}`,
+          { planId, action: "dismiss" }
+        );
       },
 
       setActiveToolCalls: (calls) => set({ activeToolCalls: calls }),
@@ -246,6 +392,7 @@ const useAgentStore = create<AgentStore>()(
           isStreaming: false,
           streamingText: "",
           pendingExecution: null,
+          pendingNameTranslationPlan: null,
           activeToolCalls: [],
         });
       },

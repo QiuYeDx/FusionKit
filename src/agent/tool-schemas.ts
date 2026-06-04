@@ -187,6 +187,132 @@ export const queueExtractSchema = z.object({
     ),
 });
 
+/** inspect_rename_paths — 检查名称翻译/重命名路径 */
+export const inspectRenamePathsSchema = z.object({
+  paths: z
+    .array(z.string())
+    .min(1)
+    .describe("Absolute file or directory paths to inspect for name translation / rename."),
+});
+
+/** create_name_translation_plan — 创建名称翻译 dry-run 计划 */
+export const createNameTranslationPlanSchema = z.object({
+  roots: z
+    .array(z.string())
+    .min(1)
+    .describe("Absolute file or directory paths provided by the user."),
+  scope: z
+    .enum(["self", "children", "descendants", "path_segments"])
+    .default("self")
+    .describe(
+      "Rename scope. Use self for the selected basename, children for direct children, descendants only when the user explicitly requests recursion, path_segments only for explicit path-segment renaming."
+    ),
+  targetKind: z
+    .enum(["files", "directories", "both"])
+    .default("files")
+    .describe("Which target kinds to rename."),
+  recursive: z
+    .boolean()
+    .default(false)
+    .describe("Whether to include nested descendants. Must be true only when recursion is explicit."),
+  maxDepth: z.number().int().min(0).max(20).default(1),
+  includeHidden: z.boolean().default(false),
+  includeRoot: z
+    .boolean()
+    .default(true)
+    .describe("Whether to include the root path itself when scope allows it."),
+  sourceLang: z
+    .enum(["auto", "ZH", "JA", "EN", "KO", "FR", "DE", "ES", "RU", "PT"])
+    .default("auto"),
+  targetLang: z
+    .enum(["ZH", "JA", "EN", "KO", "FR", "DE", "ES", "RU", "PT"])
+    .default("ZH"),
+  namingStyle: z
+    .enum(["preserve", "space", "kebab", "snake", "title", "lower"])
+    .default("preserve"),
+  collisionPolicy: z
+    .enum(["fail", "append_index"])
+    .default("fail")
+    .describe("Default fail. Use append_index only when the user explicitly accepts indexed names."),
+  pathSegmentStartPath: z
+    .string()
+    .optional()
+    .describe("Required when scope=path_segments: the path segment where translation starts."),
+  pathSegmentEndPath: z
+    .string()
+    .optional()
+    .describe("Required when scope=path_segments: the path segment where translation ends."),
+  includeEndFileName: z.boolean().default(true),
+});
+
+/** apply_name_translation_plan — 应用已确认的名称翻译计划 */
+export const applyNameTranslationPlanSchema = z.object({
+  planId: z.string().min(1).describe("Plan id returned by create_name_translation_plan."),
+  confirmationText: z
+    .string()
+    .optional()
+    .describe("The user's latest explicit confirmation text, if available."),
+});
+
+/** scan_subtitle_recovery_tasks — 扫描恢复清单 */
+export const scanSubtitleRecoveryTasksSchema = z.object({
+  roots: z
+    .array(z.string())
+    .optional()
+    .describe("Absolute directories to scan for *.fusionkit.resume.json."),
+  checkpointPaths: z
+    .array(z.string())
+    .optional()
+    .describe("Explicit *.fusionkit.resume.json file paths to inspect."),
+  useCurrentOutputDir: z
+    .boolean()
+    .default(false)
+    .describe(
+      "Use current subtitle translator output directory when user asks to scan previous output without giving a path.",
+    ),
+  recursive: z.boolean().default(true),
+  maxDepth: z.number().int().min(0).max(12).default(8),
+  maxFiles: z.number().int().min(1).max(500).default(500),
+  includeCompleted: z.boolean().default(false),
+});
+
+/** queue_recovered_subtitle_translate — 把恢复候选加入翻译队列 */
+export const queueRecoveredSubtitleTranslateSchema = z.object({
+  recoveryScanId: z
+    .string()
+    .optional()
+    .describe("recoveryScanId returned by scan_subtitle_recovery_tasks."),
+  checkpointPaths: z
+    .array(z.string())
+    .optional()
+    .describe("Explicit checkpoint paths. Use only for small explicit lists."),
+  candidateIds: z
+    .array(z.string())
+    .optional()
+    .describe("Specific candidate ids from a recovery scan preview."),
+  batchStart: z.number().int().min(0).default(0),
+  batchSize: z
+    .number()
+    .int()
+    .min(1)
+    .max(MAX_QUEUE_BATCH_SIZE)
+    .default(DEFAULT_QUEUE_BATCH_SIZE),
+  recoverability: z
+    .enum(["ready", "ready_from_manifest", "both"])
+    .default("both")
+    .describe("Which recoverable candidates to queue."),
+  conflictPolicy: z
+    .enum(["index", "overwrite"])
+    .default("index")
+    .describe(
+      "Final output filename conflict policy. Use overwrite only when explicitly requested.",
+    ),
+  concurrentSlices: z
+    .boolean()
+    .default(true)
+    .describe("Whether resumed unfinished slices may run concurrently."),
+});
+
 // ---------------------------------------------------------------------------
 // 类型导出
 // ---------------------------------------------------------------------------
@@ -195,3 +321,16 @@ export type ScanSubtitleFilesArgs = z.infer<typeof scanSubtitleFilesSchema>;
 export type QueueTranslateArgs = z.infer<typeof queueTranslateSchema>;
 export type QueueConvertArgs = z.infer<typeof queueConvertSchema>;
 export type QueueExtractArgs = z.infer<typeof queueExtractSchema>;
+export type InspectRenamePathsArgs = z.infer<typeof inspectRenamePathsSchema>;
+export type CreateNameTranslationPlanArgs = z.infer<
+  typeof createNameTranslationPlanSchema
+>;
+export type ApplyNameTranslationPlanArgs = z.infer<
+  typeof applyNameTranslationPlanSchema
+>;
+export type ScanSubtitleRecoveryTasksArgs = z.infer<
+  typeof scanSubtitleRecoveryTasksSchema
+>;
+export type QueueRecoveredSubtitleTranslateArgs = z.infer<
+  typeof queueRecoveredSubtitleTranslateSchema
+>;

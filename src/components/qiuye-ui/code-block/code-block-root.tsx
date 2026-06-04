@@ -241,6 +241,10 @@ export function CodeBlock({
   className = "",
 }: CodeBlockProps) {
   const code = children.trim();
+  const rawLines = useMemo(() => code.split("\n"), [code]);
+  const lineCount = rawLines.length;
+  const lineNumberDigits = String(Math.max(lineCount, 1)).length;
+  const lineNumberWidth = `${Math.max(2, lineNumberDigits * 0.55 + 1.35)}rem`;
 
   // ---- 主题解析 + CSS 变量 ----
   const resolvedTheme = useMemo(
@@ -256,7 +260,10 @@ export function CodeBlock({
   const hasHighlights = highlightLineSet != null && highlightLineSet.size > 0;
 
   const cssVars = useMemo(() => {
-    const base = themeVarsToCSSProperties(resolvedTheme.vars);
+    const base = {
+      ...themeVarsToCSSProperties(resolvedTheme.vars),
+      "--cb-ln-width": lineNumberWidth,
+    };
     if (!diff && !hasHighlights) return base;
 
     const bg = resolvedTheme.vars.bg;
@@ -284,13 +291,10 @@ export function CodeBlock({
         "--cb-hl-indicator": rgbaStr(info, d ? 0.5 : 0.45),
       }),
     };
-  }, [resolvedTheme.vars, diff, isDark, hasHighlights]);
+  }, [resolvedTheme.vars, lineNumberWidth, diff, isDark, hasHighlights]);
 
   // ---- 模式判定 ----
   const effectiveMode: CodeBlockDisplayMode | null = displayMode ?? null;
-
-  const rawLines = useMemo(() => code.split("\n"), [code]);
-  const lineCount = rawLines.length;
 
   // ---- 行号显示策略 ----
   const lineNumbersVisible =
@@ -464,8 +468,8 @@ export function CodeBlock({
 
   // ---- Collapse 展开/折叠模式 ----
   if (effectiveMode === "collapse" && shouldCollapse) {
-    // 折叠高度计算：pre padding-top(0.5rem) + maxLines × 行高(0.875rem × 1.6 = 1.4rem)
-    const collapsedMaxHeight = `${0.5 + maxLines * 1.4}rem`;
+    // 折叠高度计算：maxLines × 行高(0.875rem × 1.6 = 1.4rem)
+    const collapsedMaxHeight = `${maxLines * 1.4}rem`;
 
     return (
       <div className={wrapperClass} style={cssVars as React.CSSProperties}>
@@ -563,14 +567,14 @@ export function CodeBlock({
 
 function CodeBlockStyles() {
   return (
-    <style>{`
+    <style jsx global>{`
       /* ============================================
          代码块基础样式
          ============================================ */
 
       .qiuye-code-block pre {
         margin: 2rem 0;
-        padding: 0.5rem 0.5rem 0.5rem 0;
+        padding: 0;
         border-radius: 8px;
         overflow-x: auto;
         font-size: 0.875rem;
@@ -595,20 +599,20 @@ function CodeBlockStyles() {
 
       /* 代码行容器 */
       .qiuye-code-block pre code > div {
+        position: relative;
         display: flex;
         align-items: flex-start;
         min-height: 1.6em;
-        padding: 0 0.25rem;
-        /* margin: 0 -0.5rem; */
+        padding: 0 0.75rem 0 0;
         border-radius: 0;
       }
       
       .qiuye-code-block.hide-line-numbers pre code > div {
+        position: relative;
         display: flex;
         align-items: flex-start;
         min-height: 1.6em;
         padding: 0 0.75rem;
-        /* margin: 0 -0.5rem; */
         border-radius: 0;
       }
 
@@ -622,13 +626,15 @@ function CodeBlockStyles() {
          ============================================ */
 
       .qiuye-code-block .line-number {
-        display: inline-block;
-        width: 3rem;
-        min-width: 3rem;
-        padding-right: 0.25rem;
-        margin-right: 0.5rem;
-        text-align: center;
+        display: inline-flex;
+        justify-content: center;
+        width: var(--cb-ln-width);
+        min-width: var(--cb-ln-width);
+        padding: 0;
+        margin-right: 0.625rem;
         color: var(--cb-ln-color);
+        font-variant-numeric: tabular-nums;
+        text-align: center;
         user-select: none;
         border-right: 1px solid var(--cb-ln-border);
         flex-shrink: 0;
@@ -649,14 +655,11 @@ function CodeBlockStyles() {
           margin: 1.5rem 0;
           border-radius: 6px;
           font-size: 0.8rem;
-          padding: 0.5rem 0.5rem 0.5rem 0;
+          padding: 0;
         }
 
         .qiuye-code-block .line-number {
-          width: 2.5rem;
-          min-width: 2.5rem;
-          padding-right: 0.75rem;
-          margin-right: 0.75rem;
+          margin-right: 0.5rem;
           font-size: 0.8rem;
         }
 
@@ -1015,24 +1018,54 @@ function CodeBlockStyles() {
       /* 新增行 - 绿色背景 + 左侧指示条 */
       .qiuye-code-block.diff-mode pre code > div[data-diff="add"] {
         background-color: var(--cb-diff-add-bg);
-        box-shadow: inset 3px 0 0 0 var(--cb-diff-add-indicator);
       }
 
       /* 删除行 - 红色背景 + 左侧指示条 */
       .qiuye-code-block.diff-mode pre code > div[data-diff="remove"] {
         background-color: var(--cb-diff-remove-bg);
-        box-shadow: inset 3px 0 0 0 var(--cb-diff-remove-indicator);
       }
 
       /* 信息行（@@ / +++ / ---） - 蓝色背景 + 左侧指示条 */
       .qiuye-code-block.diff-mode pre code > div[data-diff="info"] {
         background-color: var(--cb-diff-info-bg);
-        box-shadow: inset 3px 0 0 0 var(--cb-diff-info-indicator);
       }
 
       /* Diff 行取消圆角（让连续同类行视觉合并） */
       .qiuye-code-block.diff-mode pre code > div[data-diff] {
         border-radius: 0;
+      }
+
+      .qiuye-code-block.diff-mode pre code > div[data-diff]::before,
+      .qiuye-code-block pre code > div[data-highlight]::before {
+        content: "";
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        left: 0;
+        z-index: 2;
+        width: 3px;
+        pointer-events: none;
+      }
+
+      .qiuye-code-block.diff-mode
+        pre
+        code
+        > div[data-diff="add"]::before {
+        background-color: var(--cb-diff-add-indicator);
+      }
+
+      .qiuye-code-block.diff-mode
+        pre
+        code
+        > div[data-diff="remove"]::before {
+        background-color: var(--cb-diff-remove-indicator);
+      }
+
+      .qiuye-code-block.diff-mode
+        pre
+        code
+        > div[data-diff="info"]::before {
+        background-color: var(--cb-diff-info-indicator);
       }
 
       /* Sticky 行号 —— diff 行使用对应的不透明混合色 */
@@ -1067,7 +1100,10 @@ function CodeBlockStyles() {
       .qiuye-code-block pre code > div[data-highlight] {
         background-color: var(--cb-hl-bg);
         border-radius: 0;
-        box-shadow: inset 3px 0 0 0 var(--cb-hl-indicator);
+      }
+
+      .qiuye-code-block pre code > div[data-highlight]::before {
+        background-color: var(--cb-hl-indicator);
       }
 
       .qiuye-code-block pre code > div[data-highlight]:hover {

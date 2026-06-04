@@ -340,7 +340,7 @@ describe("clearTasks", () => {
 // ─── retryTask ───────────────────────────────────────────────────────────────
 
 describe("retryTask", () => {
-  it("moves task from failed to notStarted with reset progress", () => {
+  it("moves task from failed to notStarted and preserves progress for resume", () => {
     const state: TranslatorQueueState = {
       ...emptyState(),
       failedTaskQueue: [makeTask("a.srt", { status: TaskStatus.FAILED, progress: 50 })],
@@ -349,7 +349,38 @@ describe("retryTask", () => {
     expect(result.state.failedTaskQueue).toHaveLength(0);
     expect(result.state.notStartedTaskQueue).toHaveLength(1);
     expect(result.state.notStartedTaskQueue[0].status).toBe(TaskStatus.NOT_STARTED);
+    expect(result.state.notStartedTaskQueue[0].progress).toBe(50);
+    expect(result.state.notStartedTaskQueue[0].recoveryMode).toBe("resume");
+  });
+
+  it("resets progress when retry mode is restart", () => {
+    const state: TranslatorQueueState = {
+      ...emptyState(),
+      failedTaskQueue: [
+        makeTask("a.srt", {
+          status: TaskStatus.FAILED,
+          progress: 50,
+          resolvedFragments: 1,
+          totalFragments: 2,
+          recovery: {
+            checkpointPath: "/tmp/a.resume.json",
+            completedOutputPath: "/tmp/a.completed.srt",
+            remainingOutputPath: "/tmp/a.remaining.srt",
+            failedFragmentIndexes: [],
+          },
+        }),
+      ],
+    };
+    const result = retryTask(state, "a.srt", "restart");
+
+    expect(result.state.failedTaskQueue).toHaveLength(0);
+    expect(result.state.notStartedTaskQueue).toHaveLength(1);
+    expect(result.state.notStartedTaskQueue[0].status).toBe(TaskStatus.NOT_STARTED);
     expect(result.state.notStartedTaskQueue[0].progress).toBe(0);
+    expect(result.state.notStartedTaskQueue[0].resolvedFragments).toBe(0);
+    expect(result.state.notStartedTaskQueue[0].totalFragments).toBeUndefined();
+    expect(result.state.notStartedTaskQueue[0].recovery).toBeUndefined();
+    expect(result.state.notStartedTaskQueue[0].recoveryMode).toBe("restart");
   });
 });
 

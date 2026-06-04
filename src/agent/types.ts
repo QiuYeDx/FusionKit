@@ -1,3 +1,8 @@
+import type {
+  NameTranslationApplyResult,
+  NameTranslationPlanSummary,
+} from "@/services/rename/nameTypes";
+
 // ---------------------------------------------------------------------------
 // Agent 会话与消息类型
 // ---------------------------------------------------------------------------
@@ -47,6 +52,18 @@ export interface PendingExecution {
   timestamp: number;
   /** 用户已做出决策时的操作类型，为 null 表示尚未决策 */
   resolvedAction?: "confirm" | "dismiss" | null;
+}
+
+/** 名称翻译 dry-run 后等待用户确认的计划 */
+export interface PendingNameTranslationPlan {
+  planId: string;
+  createdAt: number;
+  summary: NameTranslationPlanSummary;
+  isApplying?: boolean;
+  /** 用户已做出决策时的操作类型，为 null 表示尚未决策 */
+  resolvedAction?: "confirm" | "dismiss" | null;
+  applyResult?: NameTranslationApplyResult;
+  error?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -107,6 +124,11 @@ export type AgentLogEntryType =
   | "status_change"
   | "tool_call"
   | "tool_result"
+  | "tool_result_committed"
+  | "name_translation_plan"
+  | "name_translation_apply"
+  | "subtitle_recovery_scan"
+  | "subtitle_recovery_queue"
   | "usage"
   | "error"
   | "abort"

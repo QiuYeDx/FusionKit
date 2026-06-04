@@ -201,6 +201,63 @@ export function validateManifest(
   return { valid: true };
 }
 
+// ─── Self-contained validation ──────────────────────────────────────────────
+
+/**
+ * 校验 manifest 自身结构完整性，不依赖源文件。
+ * 用于 manifest_fragments 恢复模式，直接使用 manifest 中的分片续跑。
+ */
+export function validateManifestSelfContained(
+  manifest: TranslationCheckpointManifest,
+): ValidationResult {
+  if (manifest.schemaVersion !== CURRENT_SCHEMA_VERSION) {
+    return { valid: false, reason: `不支持的 schema 版本: ${manifest.schemaVersion}` };
+  }
+
+  if (!manifest.fileName || !manifest.outputDir || !manifest.options || !manifest.fragments) {
+    return { valid: false, reason: "缺少必要字段" };
+  }
+
+  if (!Array.isArray(manifest.fragments) || manifest.fragments.length === 0) {
+    return { valid: false, reason: "fragments 为空" };
+  }
+
+  const indexes = new Set<number>();
+  for (const frag of manifest.fragments) {
+    if (typeof frag.index !== "number" || indexes.has(frag.index)) {
+      return { valid: false, reason: `fragment index 不连续或重复: ${frag.index}` };
+    }
+    indexes.add(frag.index);
+
+    if (!frag.sourceContent || !frag.sourceHash) {
+      return { valid: false, reason: `第 ${frag.index} 个 fragment 缺少 sourceContent 或 sourceHash` };
+    }
+
+    const computedHash = hashContent(frag.sourceContent);
+    if (computedHash !== frag.sourceHash) {
+      return { valid: false, reason: `第 ${frag.index} 个 fragment hash 校验失败` };
+    }
+
+    if (frag.status === "resolved" && !frag.translatedContent) {
+      return { valid: false, reason: `第 ${frag.index} 个 fragment 标记为 resolved 但无译文` };
+    }
+  }
+
+  return { valid: true };
+}
+
+/**
+ * 从 manifest 的 fragments 中提取原文分片，
+ * 用于 manifest_fragments 模式下不依赖源文件的续跑。
+ */
+export function getManifestFragments(
+  manifest: TranslationCheckpointManifest,
+): string[] {
+  return manifest.fragments
+    .sort((a, b) => a.index - b.index)
+    .map((f) => f.sourceContent);
+}
+
 // ─── Persist ────────────────────────────────────────────────────────────────
 
 /**

@@ -33,6 +33,8 @@ import {
   createManifest,
   loadManifest,
   validateManifest,
+  validateManifestSelfContained,
+  getManifestFragments,
   CheckpointWriter,
   buildCheckpointPaths,
   getIncompleteIndexes,
@@ -118,11 +120,7 @@ export abstract class BaseTranslator {
       console.log("[03] max token num:", maxTokens, "response max:", this.maxResponseTokens);
       errorLogs.push(`[${new Date().toISOString()}] 最大Token数: ${maxTokens}, 响应Token上限: ${this.maxResponseTokens}`);
 
-      const fragments = this.splitContent(content, maxTokens);
-      console.log("[04] fragments num:", fragments.length);
-      errorLogs.push(
-        `[${new Date().toISOString()}] 分片数量: ${fragments.length}`,
-      );
+      let fragments: string[];
 
       // ── checkpoint 加载或创建 ─────────────────────────────────────────
       await fs.mkdir(outputDir, { recursive: true });
@@ -130,35 +128,73 @@ export abstract class BaseTranslator {
       manifestPath = paths.manifestPath;
 
       const recoveryMode = task.recoveryMode || "auto";
+      const recoveryInputMode = (task as any).recoveryInputMode;
 
-      if (recoveryMode !== "restart" && task.checkpointPath) {
+      if (
+        recoveryMode !== "restart" &&
+        task.checkpointPath &&
+        recoveryInputMode === "manifest_fragments"
+      ) {
+        // manifest_fragments 模式：直接使用 manifest 中的分片，不依赖源文件
         try {
           const loaded = await loadManifest(task.checkpointPath);
-          const validation = validateManifest(loaded, task, fragments);
-          if (validation.valid) {
+          const selfValidation = validateManifestSelfContained(loaded);
+          if (selfValidation.valid) {
             manifest = loaded;
             manifest.status = "running";
             manifest.updatedAt = new Date().toISOString();
             manifestPath = task.checkpointPath;
+            fragments = getManifestFragments(manifest);
             errorLogs.push(
-              `[${new Date().toISOString()}] 从 checkpoint 续跑，已完成 ${getResolvedCount(manifest)}/${manifest.fragments.length} 个分片`,
+              `[${new Date().toISOString()}] manifest_fragments 模式续跑，已完成 ${getResolvedCount(manifest)}/${manifest.fragments.length} 个分片`,
             );
           } else {
-            const reason = validation.reason;
-            errorLogs.push(
-              `[${new Date().toISOString()}] Checkpoint 校验失败: ${reason}`,
-            );
-            if (recoveryMode === "resume") {
-              throw new Error(`续跑文件与当前任务不匹配: ${reason}`);
-            }
+            throw new Error(`Manifest 自校验失败: ${selfValidation.reason}`);
           }
         } catch (e) {
           if (recoveryMode === "resume") throw e;
           errorLogs.push(
-            `[${new Date().toISOString()}] 加载 checkpoint 失败，将重新开始`,
+            `[${new Date().toISOString()}] manifest_fragments 加载失败，回退到常规分片`,
           );
+          fragments = this.splitContent(content, maxTokens);
+        }
+      } else {
+        fragments = this.splitContent(content, maxTokens);
+
+        if (recoveryMode !== "restart" && task.checkpointPath) {
+          try {
+            const loaded = await loadManifest(task.checkpointPath);
+            const validation = validateManifest(loaded, task, fragments);
+            if (validation.valid) {
+              manifest = loaded;
+              manifest.status = "running";
+              manifest.updatedAt = new Date().toISOString();
+              manifestPath = task.checkpointPath;
+              errorLogs.push(
+                `[${new Date().toISOString()}] 从 checkpoint 续跑，已完成 ${getResolvedCount(manifest)}/${manifest.fragments.length} 个分片`,
+              );
+            } else {
+              const reason = validation.reason;
+              errorLogs.push(
+                `[${new Date().toISOString()}] Checkpoint 校验失败: ${reason}`,
+              );
+              if (recoveryMode === "resume") {
+                throw new Error(`续跑文件与当前任务不匹配: ${reason}`);
+              }
+            }
+          } catch (e) {
+            if (recoveryMode === "resume") throw e;
+            errorLogs.push(
+              `[${new Date().toISOString()}] 加载 checkpoint 失败，将重新开始`,
+            );
+          }
         }
       }
+
+      console.log("[04] fragments num:", fragments.length);
+      errorLogs.push(
+        `[${new Date().toISOString()}] 分片数量: ${fragments.length}`,
+      );
 
       if (!manifest) {
         manifest = createManifest(task, fragments, outputDir);

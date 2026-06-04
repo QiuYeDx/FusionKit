@@ -9,6 +9,9 @@
       "translator": "Subtitle AI Translation",
       "converter": "Subtitle Format Converter",
       "extractor": "Language Extraction"
+    },
+    "rename": {
+      "name_translator": "File/Folder Name Translation"
     }
   },
   "start": "Start",

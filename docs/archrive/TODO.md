@@ -42,17 +42,19 @@
   - 涉及文件：`src/store/agent/useAgentStore.ts`、`src/agent/session-io.ts`
   - 备注：
 
-- ⬜ **T-04** 拖拽文件到 Agent 输入框
-  - 支持拖拽文件/文件夹到对话框，自动识别路径和操作意图
+- ✅ **T-04** 拖拽文件到 Agent 输入框
+  - 支持拖拽文件/文件夹到对话框，自动识别路径并添加到输入框
   - 涉及文件：`src/pages/HomeAgent/index.tsx`
-  - 备注：
+  - 完成时间：2026-05-27
+  - 备注：拖入文件后以 backtick 包裹路径追加到输入内容，支持多文件同时拖入，含拖拽视觉反馈
 
 ### 🟢 低优先级
 
-- ⬜ **T-05** Agent Markdown 渲染
+- ✅ **T-05** Agent Markdown 渲染
   - 助手回复接入 Markdown 渲染（代码块、列表等）
   - 涉及文件：`src/pages/HomeAgent/index.tsx` (MessageBubble)
-  - 备注：
+  - 完成时间：2026-05-27
+  - 备注：已通过 `ChatMarkdownRenderer` 组件实现，支持代码块高亮、列表、表格等
 
 - ⬜ **T-06** Agent 自定义 system prompt
   - 让用户自定义 system prompt 或选择模板

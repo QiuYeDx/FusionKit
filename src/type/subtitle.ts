@@ -91,6 +91,10 @@ export type SubtitleTranslationRecovery = {
   totalFragments?: number;
 };
 
+export type TranslationRecoveryInputMode =
+  | "source_file"
+  | "manifest_fragments";
+
 export type SubtitleTranslatorTask = {
   fileName: string;
   fileContent: string;
@@ -131,6 +135,98 @@ export type SubtitleTranslatorTask = {
   recoveryMode?: TranslationRecoveryMode;
   /** checkpoint 文件路径，续跑时传入主进程 */
   checkpointPath?: string;
+  /** 恢复输入模式：source_file 依赖源文件分片，manifest_fragments 直接使用 manifest 中的分片 */
+  recoveryInputMode?: TranslationRecoveryInputMode;
+};
+
+export type TranslationRecoveryScanRequest = {
+  roots: string[];
+  recursive?: boolean;
+  maxDepth?: number;
+  maxFiles?: number;
+  includeCompleted?: boolean;
+};
+
+export type TranslationRecoveryScanResult = {
+  candidates: TranslationRecoveryCandidate[];
+  scannedDirs: number;
+  scannedFiles: number;
+  skippedFiles: number;
+  truncated: boolean;
+  errors: Array<{ path: string; reason: string }>;
+};
+
+export type TranslationRecoveryCandidate = {
+  id: string;
+  checkpointPath: string;
+  fileName: string;
+  manifestStatus: "running" | "failed" | "cancelled" | "completed";
+  createdAt: string;
+  updatedAt: string;
+
+  outputDir: string;
+  completedOutputPath?: string;
+  remainingOutputPath?: string;
+  errorLogPath?: string;
+  finalOutputPath?: string;
+
+  options: {
+    fileType: "LRC" | "SRT";
+    sliceType: "NORMAL" | "SENSITIVE" | "CUSTOM";
+    customSliceLength?: number;
+    sourceLang: string;
+    targetLang: string;
+    translationOutputMode: "bilingual" | "target_only";
+  };
+
+  resolvedFragments: number;
+  totalFragments: number;
+  failedFragmentIndexes?: number[];
+  progress: number;
+
+  sourceFilePath?: string;
+  sourceState:
+    | "matched"
+    | "missing"
+    | "changed"
+    | "unknown"
+    | "not_checked";
+
+  recoverability:
+    | "ready"
+    | "ready_from_manifest"
+    | "completed"
+    | "no_pending_fragments"
+    | "unsupported_schema"
+    | "corrupt_manifest"
+    | "invalid_manifest"
+    | "too_large";
+
+  blockingReason?: string;
+};
+
+export type TranslationRecoveryImportRequest = {
+  checkpointPath: string;
+  recoveryInputMode: TranslationRecoveryInputMode;
+};
+
+export type RecoveredSubtitleTaskDraft = {
+  fileName: string;
+  fileContent?: string;
+  originFileURL: string;
+  targetFileURL: string;
+  sliceType: SubtitleSliceType;
+  customSliceLength?: number;
+  sourceLang: TranslationLanguage;
+  targetLang: TranslationLanguage;
+  translationOutputMode: TranslationOutputMode;
+  resolvedFragments: number;
+  totalFragments: number;
+  progress: number;
+  recoveryMode: "resume";
+  checkpointPath: string;
+  recoveryInputMode: TranslationRecoveryInputMode;
+  recovery: SubtitleTranslationRecovery;
 };
 
 export type SubtitleConverterTask = {

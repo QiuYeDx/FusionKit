@@ -37,6 +37,8 @@ interface SubtitleTranslatorStore {
   setOutputURL: (url: string) => void;
   initializeSubtitleTranslatorStore: () => void;
   addTask: (task: SubtitleTranslatorTask) => void;
+  addRecoveredTask: (task: SubtitleTranslatorTask) => { added: boolean; reason?: string };
+  addRecoveredTasks: (tasks: SubtitleTranslatorTask[]) => { addedCount: number; skippedCount: number };
   startTask: (fileName: string) => void;
   retryTask: (fileName: string, mode?: TranslationRecoveryMode) => void;
   removeAllResolvedTask: () => void;
@@ -147,6 +149,20 @@ const useSubtitleTranslatorStore = create<SubtitleTranslatorStore>()(
           return;
         }
         set(result.state);
+      },
+
+      addRecoveredTask: (task) => {
+        const result = QueueService.addRecoveredTask(getQueueState(get()), task);
+        if (result.result.added) {
+          set(result.state);
+        }
+        return result.result;
+      },
+
+      addRecoveredTasks: (tasks) => {
+        const result = QueueService.addRecoveredTasks(getQueueState(get()), tasks);
+        set(result.state);
+        return { addedCount: result.addedCount, skippedCount: result.skippedCount };
       },
 
       updateTaskCostEstimate: (fileName, costEstimate) => {

@@ -1,0 +1,186 @@
+{
+  "page": {
+    "title": "文件名/文件夹名翻译",
+    "description": "选择文件或文件夹，生成 dry-run 预览，确认后安全应用重命名。",
+    "badge": "dry-run first",
+    "error_title": "操作失败",
+    "loading_plan_title": "正在加载 HomeAgent 计划",
+    "loading_plan_desc": "正在恢复刚刚生成的预览、选中路径和可应用状态。",
+    "loaded_from_agent_title": "已加载 HomeAgent 预览",
+    "loaded_from_agent_desc": "正在查看计划 {{planId}}，共 {{count}} 个目标；这里仍然是 dry-run，未修改任何文件。"
+  },
+  "risk_reasons": {
+    "directories": "包含目录重命名",
+    "descendants": "递归范围",
+    "path_segments": "路径片段",
+    "large_batch": "超过 100 项",
+    "warnings": "包含警告"
+  },
+  "path": {
+    "section_title": "路径",
+    "dialog_title": "选择要翻译名称的文件或文件夹",
+    "dialog_button": "选择",
+    "drop_title": "拖拽文件或文件夹到这里",
+    "drop_hint": "支持混合选择，生成预览前不会改动文件系统",
+    "select_mixed": "文件/文件夹",
+    "select_dirs": "仅文件夹",
+    "empty": "选择路径后会显示类型、子项数量和风险标签。",
+    "file_unit": "文件",
+    "directory_unit": "文件夹",
+    "counts": "{{files}} 文件 · {{directories}} 文件夹",
+    "remove_tooltip": "移除路径",
+    "reset_tooltip": "清空当前选择",
+    "create_preview": "生成预览"
+  },
+  "options": {
+    "section_title": "配置",
+    "scope_label": "翻译范围",
+    "scope": {
+      "self": { "label": "所选名称", "hint": "只翻译选中的文件或文件夹本身" },
+      "children": { "label": "直接子项", "hint": "只翻译文件夹第一层内容" },
+      "descendants": { "label": "递归子项", "hint": "包含多层子目录" },
+      "path_segments": { "label": "路径片段", "hint": "需要后续指定起止层级" }
+    },
+    "target_kind_label": "目标类型",
+    "target_kind": {
+      "files": "文件",
+      "directories": "文件夹",
+      "both": "全部"
+    },
+    "max_depth_label": "递归深度",
+    "max_depth_hint": "仅递归子项模式生效，20 近似无限",
+    "language_label": "语言",
+    "source_auto": "自动识别",
+    "languages": {
+      "ZH": "中文",
+      "EN": "英文",
+      "JA": "日文",
+      "KO": "韩文",
+      "FR": "法文",
+      "DE": "德文",
+      "ES": "西文",
+      "RU": "俄文",
+      "PT": "葡文"
+    },
+    "naming_style_label": "命名风格",
+    "naming_styles": {
+      "preserve": "保留原风格",
+      "space": "空格分词",
+      "kebab": "短横线",
+      "snake": "下划线",
+      "title": "Title Case",
+      "lower": "lowercase"
+    },
+    "skip_hidden_label": "跳过隐藏项",
+    "skip_hidden_hint": "默认不处理 .env、隐藏目录等路径",
+    "preserve_extension_label": "保留扩展名",
+    "preserve_extension_hint": "文件只翻译 stem，不改 .srt / .mp4 等扩展名",
+    "preserve_tokens_label": "保留编号和技术 tag",
+    "preserve_tokens_hint": "尽量保留 S01E02、1080p、字幕组等 token",
+    "collision_label": "冲突处理",
+    "collision_fail": "阻止",
+    "collision_append_index": "自动编号"
+  },
+  "preview": {
+    "title": "预览",
+    "empty_title": "还没有重命名预览",
+    "empty_desc": "选择路径并生成预览后，可以在这里检查、编辑、跳过和应用。",
+    "revalidate": "重新校验",
+    "summary": {
+      "ready": "ready",
+      "blocked": "blocked",
+      "skipped": "skipped",
+      "unchanged": "unchanged",
+      "warnings": "warnings"
+    },
+    "clarification_title": "需要补充范围",
+    "columns": {
+      "status": "状态",
+      "type": "类型",
+      "original_name": "原名称",
+      "new_name": "新名称",
+      "source_path": "原路径",
+      "target_path": "目标路径",
+      "reason": "原因/警告",
+      "actions": "操作"
+    },
+    "kind": {
+      "file": "文件",
+      "directory": "文件夹"
+    },
+    "actions": {
+      "skip": "跳过",
+      "restore": "恢复 AI 建议",
+      "auto_index": "对冲突使用自动编号"
+    },
+    "pagination_hint": "每页 {{count}} 项，避免大批量预览一次渲染过多行。",
+    "previous": "上一页",
+    "next": "下一页",
+    "status": {
+      "ready": "ready",
+      "unchanged": "unchanged",
+      "skipped": "skipped",
+      "blocked": "blocked",
+      "applied": "applied",
+      "failed": "failed",
+      "rolled_back": "rolled back"
+    }
+  },
+  "apply": {
+    "title": "应用",
+    "metrics": {
+      "ready": "可应用",
+      "blocked": "阻塞",
+      "skipped": "跳过",
+      "unchanged": "无变化",
+      "success": "成功",
+      "failed": "失败"
+    },
+    "warnings_title": "计划包含警告",
+    "validation_failed_title": "校验未通过",
+    "result_title": "执行结果",
+    "rollback": "尝试回滚",
+    "rollback_summary": "回滚 journal {{journalId}}：成功 {{success}}，失败 {{failed}}",
+    "apply_button": "应用重命名",
+    "no_plan_hint": "所有真实重命名都会先写 journal；这里不会绕过 dry-run 预览。",
+    "blocked_hint": "只有 blocked 为 0 且 ready 大于 0 时才允许应用。",
+    "confirm_hint": "点击应用前会按高风险规则检查是否需要二次确认。",
+    "phase": {
+      "validating": "validating",
+      "applying": "applying",
+      "rolling_back": "rolling back",
+      "done": "done",
+      "failed": "failed"
+    }
+  },
+  "risk": {
+    "title": "确认高风险重命名",
+    "metrics": {
+      "impacted": "影响项",
+      "files": "文件",
+      "directories": "文件夹",
+      "warnings": "警告"
+    },
+    "reasons_title": "风险原因",
+    "scope": "范围：{{scope}}",
+    "journal_hint": "journal 会在执行层写入应用数据目录，可用于尽力回滚，但不是事务保证。",
+    "apply_hint": "确认后才会调用 apply-rename-plan。",
+    "cancel": "取消",
+    "confirm": "确认应用"
+  },
+  "messages": {
+    "select_paths_first": "请先选择至少一个文件或文件夹。",
+    "preview_created": "预览已生成，尚未修改任何文件。",
+    "missing_plan": "请先生成重命名预览。",
+    "validating": "正在校验重命名计划...",
+    "applying": "正在应用重命名...",
+    "done": "重命名已完成。",
+    "validation_failed": "重命名计划校验未通过。",
+    "rename_finished": "重命名执行完成。",
+    "rolling_back": "正在尝试回滚...",
+    "rollback_done": "回滚请求已完成。",
+    "ipc_unavailable": "Electron IPC 不可用。",
+    "plan_not_found": "未找到重命名计划 {{planId}}，可能已过期或被清理，请重新生成预览。",
+    "plan_loaded_from_agent": "已加载 HomeAgent 中的重命名预览。"
+  }
+}

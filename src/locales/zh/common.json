@@ -9,6 +9,9 @@
       "translator": "字幕AI翻译",
       "converter": "字幕格式转换",
       "extractor": "字幕语言提取"
+    },
+    "rename": {
+      "name_translator": "文件名/文件夹名翻译"
     }
   },
   "start": "开始",

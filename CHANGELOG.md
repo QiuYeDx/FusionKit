@@ -2,6 +2,48 @@
 
 本项目的所有重要更改都将记录在此文件中。
 
+## [0.2.8] - 2026-06-03
+
+### 新增
+
+- 所有工具详情页新增 Tour 引导功能（字幕翻译、字幕转换、字幕语言提取、文件名翻译）
+- 首次进入页面自动弹出分步引导，覆盖完整使用流程
+- 页头右上角新增引导触发按钮，可随时手动重新查看引导
+- 引导延迟至页面入场动画结束后触发，避免聚焦位置偏移
+- 字幕翻译历史任务恢复功能：支持扫描输出目录或选择目录发现 `*.fusionkit.resume.json`，从历史恢复清单重建翻译任务并续跑
+- 新增恢复历史任务弹窗（RecoveryDialog），支持扫描当前输出目录、选择目录、导入单个恢复清单三种入口
+- 新增 `manifest_fragments` 恢复模式：源文件缺失或变化时，使用恢复清单中的原始分片继续翻译
+- 新增 `validateManifestSelfContained` checkpoint 自校验，不依赖源文件验证 manifest 完整性
+- 新增队列 `addRecoveredTask` / `addRecoveredTasks` API，支持 checkpointPath 联合去重
+- 文件名批量翻译工具，支持通过 Agent 对话批量翻译文件名
+- HomeAgent 支持拖拽文件/文件夹到输入框，自动识别路径并追加
+- HomeAgent 输入框草稿缓存，跨页面导航保持输入内容
+
+### 优化
+
+- 字幕翻译任务列表进度显示增加已完成分片数/总分片数（n/N）
+- 补充输入框上下元素的 layout 动画过渡效果
+
+### 修复
+
+- 修复 HomeAgent 工具调用结束时页面卡死的性能问题
+- 修复名称翻译预览卡片在消息列表中重复出现两次的问题
+
+### Agent
+
+- HomeAgent 新增 `scan_subtitle_recovery_tasks` 和 `queue_recovered_subtitle_translate` 工具，支持通过自然语言恢复历史字幕翻译任务
+- HomeAgent System Prompt 新增恢复任务操作区分规则和 Subtitle Recovery Workflow，禁止将 `*.fusionkit.resume.json` 误用为普通字幕文件
+- 新增 recovery-batch 缓存模块，支持 `recoveryScanId` 分批入队、`recoverability` 过滤和有界 preview 返回
+- 新增 `subtitle-recovery-intent` 意图分类辅助
+- 会话日志新增 `subtitle_recovery_scan` / `subtitle_recovery_queue` 类型
+
+### 文档
+
+- 新增字幕翻译历史任务扫描与恢复开发设计文档
+- 新增 HomeAgent 控制字幕翻译历史任务恢复设计文档
+- 新增批量文件名翻译工具开发设计与实施文档
+- 新增拖拽文件路径到 Agent 输入框实现文档
+
 ## [0.2.7] - 2026-05-19
 
 ### 优化

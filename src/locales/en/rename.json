@@ -1,0 +1,186 @@
+{
+  "page": {
+    "title": "File/Folder Name Translator",
+    "description": "Select files or folders, generate a dry-run preview, then safely apply renames after confirmation.",
+    "badge": "dry-run first",
+    "error_title": "Action failed",
+    "loading_plan_title": "Loading HomeAgent plan",
+    "loading_plan_desc": "Restoring the preview, selected paths, and apply state from the plan you just created.",
+    "loaded_from_agent_title": "HomeAgent preview loaded",
+    "loaded_from_agent_desc": "Viewing plan {{planId}} with {{count}} targets. This is still a dry run; no files have been modified."
+  },
+  "risk_reasons": {
+    "directories": "Includes folder renames",
+    "descendants": "Recursive scope",
+    "path_segments": "Path segments",
+    "large_batch": "More than 100 items",
+    "warnings": "Contains warnings"
+  },
+  "path": {
+    "section_title": "Paths",
+    "dialog_title": "Select files or folders whose names should be translated",
+    "dialog_button": "Select",
+    "drop_title": "Drop files or folders here",
+    "drop_hint": "Mixed selections are supported. Preview generation does not modify the filesystem.",
+    "select_mixed": "Files/Folders",
+    "select_dirs": "Folders only",
+    "empty": "Selected paths will show type, child counts, and risk labels.",
+    "file_unit": "file",
+    "directory_unit": "folder",
+    "counts": "{{files}} files · {{directories}} folders",
+    "remove_tooltip": "Remove path",
+    "reset_tooltip": "Clear current selection",
+    "create_preview": "Generate Preview"
+  },
+  "options": {
+    "section_title": "Options",
+    "scope_label": "Scope",
+    "scope": {
+      "self": { "label": "Selected name", "hint": "Translate only the selected file or folder itself" },
+      "children": { "label": "Direct children", "hint": "Translate only the first level inside folders" },
+      "descendants": { "label": "Recursive children", "hint": "Include nested subfolders" },
+      "path_segments": { "label": "Path segments", "hint": "Requires explicit start and end levels later" }
+    },
+    "target_kind_label": "Target type",
+    "target_kind": {
+      "files": "Files",
+      "directories": "Folders",
+      "both": "All"
+    },
+    "max_depth_label": "Recursive depth",
+    "max_depth_hint": "Only used for recursive children. 20 is effectively unlimited.",
+    "language_label": "Language",
+    "source_auto": "Auto detect",
+    "languages": {
+      "ZH": "Chinese",
+      "EN": "English",
+      "JA": "Japanese",
+      "KO": "Korean",
+      "FR": "French",
+      "DE": "German",
+      "ES": "Spanish",
+      "RU": "Russian",
+      "PT": "Portuguese"
+    },
+    "naming_style_label": "Naming style",
+    "naming_styles": {
+      "preserve": "Preserve style",
+      "space": "Space separated",
+      "kebab": "Kebab case",
+      "snake": "Snake case",
+      "title": "Title Case",
+      "lower": "lowercase"
+    },
+    "skip_hidden_label": "Skip hidden items",
+    "skip_hidden_hint": "Hidden paths such as .env and hidden folders are skipped by default",
+    "preserve_extension_label": "Preserve extensions",
+    "preserve_extension_hint": "Only translate the file stem; keep extensions such as .srt or .mp4",
+    "preserve_tokens_label": "Preserve numbers and technical tags",
+    "preserve_tokens_hint": "Try to keep tokens such as S01E02, 1080p, and release group tags",
+    "collision_label": "Collision handling",
+    "collision_fail": "Block",
+    "collision_append_index": "Auto index"
+  },
+  "preview": {
+    "title": "Preview",
+    "empty_title": "No rename preview yet",
+    "empty_desc": "After selecting paths and generating a preview, you can review, edit, skip, and apply changes here.",
+    "revalidate": "Revalidate",
+    "summary": {
+      "ready": "ready",
+      "blocked": "blocked",
+      "skipped": "skipped",
+      "unchanged": "unchanged",
+      "warnings": "warnings"
+    },
+    "clarification_title": "More scope detail required",
+    "columns": {
+      "status": "Status",
+      "type": "Type",
+      "original_name": "Original name",
+      "new_name": "New name",
+      "source_path": "Source path",
+      "target_path": "Target path",
+      "reason": "Reason/Warnings",
+      "actions": "Actions"
+    },
+    "kind": {
+      "file": "File",
+      "directory": "Folder"
+    },
+    "actions": {
+      "skip": "Skip",
+      "restore": "Restore AI suggestion",
+      "auto_index": "Use auto index for conflicts"
+    },
+    "pagination_hint": "{{count}} items per page to avoid rendering huge previews at once.",
+    "previous": "Previous",
+    "next": "Next",
+    "status": {
+      "ready": "ready",
+      "unchanged": "unchanged",
+      "skipped": "skipped",
+      "blocked": "blocked",
+      "applied": "applied",
+      "failed": "failed",
+      "rolled_back": "rolled back"
+    }
+  },
+  "apply": {
+    "title": "Apply",
+    "metrics": {
+      "ready": "Ready",
+      "blocked": "Blocked",
+      "skipped": "Skipped",
+      "unchanged": "Unchanged",
+      "success": "Success",
+      "failed": "Failed"
+    },
+    "warnings_title": "Plan contains warnings",
+    "validation_failed_title": "Validation failed",
+    "result_title": "Apply result",
+    "rollback": "Try rollback",
+    "rollback_summary": "Rollback journal {{journalId}}: {{success}} succeeded, {{failed}} failed",
+    "apply_button": "Apply Renames",
+    "no_plan_hint": "Every real rename writes a journal first. This flow never bypasses the dry-run preview.",
+    "blocked_hint": "Apply is enabled only when blocked is 0 and ready is greater than 0.",
+    "confirm_hint": "High-risk rules are checked before applying.",
+    "phase": {
+      "validating": "validating",
+      "applying": "applying",
+      "rolling_back": "rolling back",
+      "done": "done",
+      "failed": "failed"
+    }
+  },
+  "risk": {
+    "title": "Confirm high-risk rename",
+    "metrics": {
+      "impacted": "Impacted",
+      "files": "Files",
+      "directories": "Folders",
+      "warnings": "Warnings"
+    },
+    "reasons_title": "Risk reasons",
+    "scope": "Scope: {{scope}}",
+    "journal_hint": "A journal is written under app data and can help with best-effort rollback, but it is not a transaction guarantee.",
+    "apply_hint": "apply-rename-plan is called only after confirmation.",
+    "cancel": "Cancel",
+    "confirm": "Confirm Apply"
+  },
+  "messages": {
+    "select_paths_first": "Select at least one file or folder first.",
+    "preview_created": "Preview generated. No files have been modified.",
+    "missing_plan": "Generate a rename preview first.",
+    "validating": "Validating rename plan...",
+    "applying": "Applying renames...",
+    "done": "Renames completed.",
+    "validation_failed": "Rename plan validation failed.",
+    "rename_finished": "Rename execution finished.",
+    "rolling_back": "Trying rollback...",
+    "rollback_done": "Rollback request completed.",
+    "ipc_unavailable": "Electron IPC is not available.",
+    "plan_not_found": "Rename plan {{planId}} was not found. It may have expired or been cleared; please generate a new preview.",
+    "plan_loaded_from_agent": "Loaded the rename preview from HomeAgent."
+  }
+}

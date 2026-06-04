@@ -57,6 +57,7 @@ import { inferContextWindowSize } from "@/constants/model";
 import { cn } from "@/lib/utils";
 import { Textarea } from "@/components/ui/textarea";
 import FusionKitLogo from "@/assets/FusionKit.svg";
+import { getFilePathFromFile } from "@/utils/filePath";
 import {
   ChatMarkdownRenderer,
   type MarkdownWidgetRegistry,
@@ -64,6 +65,16 @@ import {
 } from "@/components/qiuye-ui/markdown-renderer";
 import { builtinWidgetRegistry } from "@/components/qiuye-ui/markdown-renderer/widgets/builtin-registry";
 import { pendingExecutionWidget } from "@/components/qiuye-ui/markdown-renderer/widgets/PendingExecutionWidget";
+import {
+  nameTranslationApplyResultWidget,
+  nameTranslationPlanWidget,
+} from "./components/NameTranslationPlanWidget";
+
+// ---------------------------------------------------------------------------
+// Persist draft input across in-app navigation (reset on full page reload)
+// ---------------------------------------------------------------------------
+
+let draftInputCache = "";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -104,6 +115,11 @@ const STORE_PATH: Record<string, string> = {
 };
 
 const SCROLL_BOTTOM_THRESHOLD = 8;
+const EMPTY_STATE_LAYOUT_TRANSITION = {
+  type: "spring",
+  bounce: 0,
+  duration: 0.8,
+} as const;
 
 // ---------------------------------------------------------------------------
 // Widget registry (builtin + pending-execution)
@@ -112,6 +128,8 @@ const SCROLL_BOTTOM_THRESHOLD = 8;
 const homeAgentWidgetRegistry: MarkdownWidgetRegistry = {
   ...builtinWidgetRegistry,
   [pendingExecutionWidget.type]: pendingExecutionWidget,
+  [nameTranslationPlanWidget.type]: nameTranslationPlanWidget,
+  [nameTranslationApplyResultWidget.type]: nameTranslationApplyResultWidget,
 };
 
 // ---------------------------------------------------------------------------
@@ -147,6 +165,26 @@ function pendingExecutionToFence(pe: PendingExecution): string {
   return "```qv:pending-execution\n" + payload + "\n```";
 }
 
+function nameTranslationPlanToFence(
+  plan: Record<string, unknown>,
+): string {
+  return (
+    "```qv:name-translation-plan\n" +
+    JSON.stringify(plan) +
+    "\n```"
+  );
+}
+
+function nameTranslationApplyResultToFence(
+  result: Record<string, unknown>,
+): string {
+  return (
+    "```qv:name-translation-apply-result\n" +
+    JSON.stringify(result) +
+    "\n```"
+  );
+}
+
 function formatToolResultAsMarkdown(message: AgentMessage, t: TFunction): string {
   const result = message.toolResult;
   const isSuccess = result?.success ?? true;
@@ -157,6 +195,13 @@ function formatToolResultAsMarkdown(message: AgentMessage, t: TFunction): string
   let body: string;
   try {
     const parsed = JSON.parse(raw);
+    if (isSuccess && result?.toolName === "create_name_translation_plan") {
+      return nameTranslationPlanToFence(parsed);
+    }
+    if (isSuccess && result?.toolName === "apply_name_translation_plan") {
+      return nameTranslationApplyResultToFence(parsed);
+    }
+
     if (parsed?.files && Array.isArray(parsed.files)) {
       const count = parsed.totalCount ?? parsed.files.length;
       const names = parsed.files
@@ -192,7 +237,11 @@ function formatToolResultAsMarkdown(message: AgentMessage, t: TFunction): string
     } else if (typeof parsed === "string") {
       body = parsed;
     } else {
-      body = "```json\n" + JSON.stringify(parsed, null, 2) + "\n```";
+      const jsonStr = JSON.stringify(parsed, null, 2);
+      body =
+        jsonStr.length > 800
+          ? "```json\n" + jsonStr.slice(0, 800) + "\n// …(truncated)\n```"
+          : "```json\n" + jsonStr + "\n```";
     }
   } catch {
     body = raw.length > 500 ? raw.slice(0, 500) + "…" : raw;
@@ -205,7 +254,7 @@ function formatToolResultAsMarkdown(message: AgentMessage, t: TFunction): string
 
 function HomeAgent() {
   const { t } = useTranslation();
-  const [input, setInput] = useState("");
+  const [input, setInput] = useState(draftInputCache);
   const rootRef = useRef<HTMLDivElement>(null);
   const scrollViewportRef = useRef<HTMLDivElement | null>(null);
   const isAtBottomRef = useRef(true);
@@ -228,6 +277,8 @@ function HomeAgent() {
     pendingExecution,
     confirmExecution,
     dismissExecution,
+    confirmNameTranslationPlan,
+    dismissNameTranslationPlan,
     activeToolCalls,
     sessionLog,
   } = useAgentStore();
@@ -237,8 +288,10 @@ function HomeAgent() {
   const agentProfile = useModelStore((s) => s.getAgentProfile());
   const hasAgentConfig = !!(agentProfile && agentProfile.apiKey);
 
-  const [isMultiline, setIsMultiline] = useState(false);
+  const [isMultiline, setIsMultiline] = useState(() => draftInputCache.includes("\n"));
   const [isAtBottom, setIsAtBottom] = useState(true);
+  const [isDragOver, setIsDragOver] = useState(false);
+  const dragCounterRef = useRef(0);
 
   const setBottomState = useCallback((nextIsAtBottom: boolean) => {
     isAtBottomRef.current = nextIsAtBottom;
@@ -305,6 +358,10 @@ function HomeAgent() {
     if (hist.length > INPUT_HISTORY_MAX) hist.splice(0, hist.length - INPUT_HISTORY_MAX);
     localStorage.setItem(INPUT_HISTORY_KEY, JSON.stringify(hist));
   };
+
+  useEffect(() => {
+    draftInputCache = input;
+  }, [input]);
 
   useEffect(() => {
     if (!isMultiline && input.includes("\n")) {
@@ -395,7 +452,10 @@ function HomeAgent() {
   }, [input]);
 
   useEffect(() => {
-    textareaRef.current?.focus();
+    const el = textareaRef.current;
+    if (!el) return;
+    el.focus();
+    el.setSelectionRange(el.value.length, el.value.length);
   }, [isMultiline]);
 
   const navigate = useNavigate();
@@ -405,7 +465,6 @@ function HomeAgent() {
       conversationId: session.id,
       role: "assistant",
       density: "compact",
-      isStreaming,
       onWidgetAction: (action) => {
         if (action.type === "pending-execution") {
           if (action.action === "confirm") confirmExecution();
@@ -415,9 +474,29 @@ function HomeAgent() {
             if (path) navigate(path);
           }
         }
+        if (action.type === "name-translation-plan") {
+          const planId = (action.payload as { planId?: string })?.planId;
+          if (action.action === "confirm" && planId) {
+            void confirmNameTranslationPlan(planId);
+          }
+          if (action.action === "dismiss" && planId) {
+            dismissNameTranslationPlan(planId);
+          }
+          if (action.action === "navigate") {
+            const path = (action.payload as { path?: string })?.path;
+            if (path) navigate(path);
+          }
+        }
       },
     }),
-    [session.id, isStreaming, confirmExecution, dismissExecution, navigate],
+    [
+      session.id,
+      confirmExecution,
+      dismissExecution,
+      confirmNameTranslationPlan,
+      dismissNameTranslationPlan,
+      navigate,
+    ],
   );
 
   const prevStreamingRef = useRef(false);
@@ -508,12 +587,62 @@ function HomeAgent() {
     }
   };
 
+  const handleDragEnter = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounterRef.current += 1;
+    if (e.dataTransfer.types.includes("Files")) {
+      setIsDragOver(true);
+    }
+  }, []);
+
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+  }, []);
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounterRef.current -= 1;
+    if (dragCounterRef.current === 0) {
+      setIsDragOver(false);
+    }
+  }, []);
+
+  const handleDrop = useCallback(
+    (e: React.DragEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      setIsDragOver(false);
+      dragCounterRef.current = 0;
+
+      const files = Array.from(e.dataTransfer.files);
+      if (files.length === 0) return;
+
+      const paths = files
+        .map((f) => getFilePathFromFile(f))
+        .filter((p): p is string => !!p);
+
+      if (paths.length === 0) return;
+
+      const pathText = paths.map((p) => `\`${p}\``).join(" ");
+      setInput((prev) => {
+        const trimmed = prev.trimEnd();
+        return trimmed ? `${trimmed} ${pathText}` : pathText;
+      });
+
+      textareaRef.current?.focus();
+    },
+    [],
+  );
+
   const canSend = input.trim().length > 0 && !isStreaming;
   const showScrollToBottomButton = !isEmpty && !isAtBottom;
   const hasActiveResponse =
     isStreaming || status === "thinking" || status === "streaming";
   const inputCapsule = (
-    <motion.div layout>
+    <motion.div layout transition={EMPTY_STATE_LAYOUT_TRANSITION}>
       <AnimatePresence mode="popLayout">
         {!isEmpty && (
           <motion.div
@@ -603,14 +732,35 @@ function HomeAgent() {
       </AnimatePresence>
 
       <motion.div
+        onDragEnter={handleDragEnter}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
         className={cn(
           "shadow-sm relative",
           "bg-background",
           "focus-within:shadow-md focus-within:border-ring/50",
           "max-w-2xl mx-auto w-full",
           "pointer-events-auto",
+          "transition-colors duration-150",
+          isDragOver && "bg-primary/5 ring-2 ring-primary/40 ring-inset",
         )}
       >
+        <AnimatePresence>
+          {isDragOver && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.15 }}
+              className="absolute inset-0 z-60 flex items-center justify-center rounded-3xl pointer-events-none"
+            >
+              <span className="text-xs text-primary font-medium">
+                {t("home:drop_files_hint")}
+              </span>
+            </motion.div>
+          )}
+        </AnimatePresence>
         <motion.div
           layout
           className={cn(
@@ -760,9 +910,17 @@ function HomeAgent() {
     >
       {/* ===== Empty State ===== */}
       {isEmpty && (
-        <div className="flex flex-1 flex-col items-center justify-center px-4 pb-28 pt-8 animate-in fade-in duration-500">
+        <motion.div
+          layout
+          transition={EMPTY_STATE_LAYOUT_TRANSITION}
+          className="flex flex-1 flex-col items-center justify-center px-4 pb-28 pt-8 animate-in fade-in duration-500"
+        >
           {/* Concentric Circles + Logo */}
-          <div className="relative flex items-center justify-center mb-8 z-0">
+          <motion.div
+            layout="position"
+            transition={EMPTY_STATE_LAYOUT_TRANSITION}
+            className="relative flex items-center justify-center mb-8 z-0"
+          >
             <div
               className="absolute w-48 h-48 rounded-full border border-border/25"
               style={{ animation: "ring-breathe 6s ease-in-out infinite" }}
@@ -784,18 +942,30 @@ function HomeAgent() {
               alt="FusionKit"
               className="w-12 h-12 rounded-xl relative z-10"
             />
-          </div>
+          </motion.div>
 
-          <h1 className="text-xl font-semibold tracking-tight mt-4 mb-4 z-10">
+          <motion.h1
+            layout="position"
+            transition={EMPTY_STATE_LAYOUT_TRANSITION}
+            className="text-xl font-semibold tracking-tight mt-4 mb-4 z-10"
+          >
             {t("home:agent_title")}
-          </h1>
-          <p className="text-sm text-muted-foreground max-w-sm text-center mb-6 z-10">
+          </motion.h1>
+          <motion.p
+            layout="position"
+            transition={EMPTY_STATE_LAYOUT_TRANSITION}
+            className="text-sm text-muted-foreground max-w-sm text-center mb-6 z-10"
+          >
             {t("home:home_description")}
-          </p>
+          </motion.p>
 
           {/* Unconfigured Agent Banner */}
           {!hasAgentConfig && (
-            <div className="flex items-center gap-3 px-4 py-3 rounded-xl border border-amber-500/30 bg-amber-500/5 max-w-md mb-4 z-10">
+            <motion.div
+              layout="position"
+              transition={EMPTY_STATE_LAYOUT_TRANSITION}
+              className="flex items-center gap-3 px-4 py-3 rounded-xl border border-amber-500/30 bg-amber-500/5 max-w-md mb-4 z-10"
+            >
               <AlertTriangle className="h-4 w-4 text-amber-500 shrink-0" />
               <span className="text-sm text-amber-700 dark:text-amber-400 flex-1">
                 {t("home:agent_not_configured")}
@@ -809,18 +979,24 @@ function HomeAgent() {
                 <Settings className="h-3 w-3" />
                 {t("home:go_settings")}
               </Button>
-            </div>
+            </motion.div>
           )}
 
           <motion.div
+            layout
             layoutId="input-capsule"
+            transition={EMPTY_STATE_LAYOUT_TRANSITION}
             className="z-20 mt-7 w-full pointer-events-none"
           >
             {inputCapsule}
           </motion.div>
 
           {/* Suggestion Pills */}
-          <div className="mt-6 flex flex-nowrap justify-center gap-2 max-w-md">
+          <motion.div
+            layout="position"
+            transition={EMPTY_STATE_LAYOUT_TRANSITION}
+            className="mt-6 flex flex-nowrap justify-center gap-2 max-w-md"
+          >
             <SuggestionPill
               icon={<Sparkles className="h-3 w-3" />}
               text={t("home:suggestion_translate_srt")}
@@ -845,8 +1021,8 @@ function HomeAgent() {
                 textareaRef.current?.focus();
               }}
             />
-          </div>
-        </div>
+          </motion.div>
+        </motion.div>
       )}
 
       {/* ===== Message List ===== */}
@@ -914,6 +1090,11 @@ function HomeAgent() {
                   />
                 </div>
               )}
+
+              {/* pendingNameTranslationPlan is NOT rendered here because the
+                 tool result message already contains a NameTranslationPlanWidget
+                 that reads live state from the store. Rendering it again would
+                 cause a duplicate card. */}
             </div>
           </div>
 
@@ -1025,73 +1206,76 @@ function CapsuleModeSelector({
   );
 }
 
-function MessageBubble({
-  message,
-  widgetRegistry,
-  widgetContext,
-}: {
-  message: AgentMessage;
-  widgetRegistry: MarkdownWidgetRegistry;
-  widgetContext: MarkdownWidgetContext;
-}) {
-  const { t } = useTranslation();
-  const isUser = message.role === "user";
-  const isTool = message.role === "tool";
+const MessageBubble = React.memo(
+  function MessageBubble({
+    message,
+    widgetRegistry,
+    widgetContext,
+  }: {
+    message: AgentMessage;
+    widgetRegistry: MarkdownWidgetRegistry;
+    widgetContext: MarkdownWidgetContext;
+  }) {
+    const { t } = useTranslation();
+    const isUser = message.role === "user";
+    const isTool = message.role === "tool";
 
-  // --- User: bubble style ---
-  if (isUser) {
-    return (
-      <div className="flex items-start gap-2.5 flex-row-reverse">
-        <div className="flex items-center justify-center rounded-full w-7 h-7 shrink-0 bg-primary text-primary-foreground">
-          <User className="h-3.5 w-3.5" />
+    if (isUser) {
+      return (
+        <div className="flex items-start gap-2.5 flex-row-reverse">
+          <div className="flex items-center justify-center rounded-full w-7 h-7 shrink-0 bg-primary text-primary-foreground">
+            <User className="h-3.5 w-3.5" />
+          </div>
+          <div className="relative rounded-sm px-4 py-2.5 max-w-[80%] text-sm leading-relaxed bg-primary text-primary-foreground chat-bubble-user">
+            <p className="whitespace-pre-wrap wrap-break-word">
+              {message.content}
+            </p>
+          </div>
         </div>
-        <div className="relative rounded-sm px-4 py-2.5 max-w-[80%] text-sm leading-relaxed bg-primary text-primary-foreground chat-bubble-user">
-          <p className="whitespace-pre-wrap wrap-break-word">
-            {message.content}
-          </p>
+      );
+    }
+
+    if (isTool) {
+      return (
+        <div className="pl-10">
+          <ChatMarkdownRenderer
+            content={formatToolResultAsMarkdown(message, t)}
+            widgetRegistry={widgetRegistry}
+            widgetContext={widgetContext}
+            codeBlock={{ colorTheme: "qiuvision" }}
+          />
+        </div>
+      );
+    }
+
+    let content = message.content || "";
+    if (message.toolCalls && message.toolCalls.length > 0) {
+      content += toolCallsToFences(message.toolCalls, "success");
+    }
+
+    if (!content.trim()) return null;
+
+    return (
+      <div className="flex items-start gap-2.5">
+        <div className="flex items-center justify-center rounded-full w-7 h-7 shrink-0 bg-muted text-muted-foreground">
+          <Bot className="h-3.5 w-3.5" />
+        </div>
+        <div className="flex-1 min-w-0 max-w-[80%] text-sm leading-relaxed">
+          <ChatMarkdownRenderer
+            content={content}
+            widgetRegistry={widgetRegistry}
+            widgetContext={widgetContext}
+            codeBlock={{ colorTheme: "qiuvision" }}
+          />
         </div>
       </div>
     );
-  }
-
-  // --- Tool result: markdown formatted ---
-  if (isTool) {
-    return (
-      <div className="pl-10">
-        <ChatMarkdownRenderer
-          content={formatToolResultAsMarkdown(message, t)}
-          widgetRegistry={widgetRegistry}
-          widgetContext={widgetContext}
-          codeBlock={{ colorTheme: "qiuvision" }}
-        />
-      </div>
-    );
-  }
-
-  // --- Assistant: no bubble, ChatMarkdownRenderer ---
-  let content = message.content || "";
-  if (message.toolCalls && message.toolCalls.length > 0) {
-    content += toolCallsToFences(message.toolCalls, "success");
-  }
-
-  if (!content.trim()) return null;
-
-  return (
-    <div className="flex items-start gap-2.5">
-      <div className="flex items-center justify-center rounded-full w-7 h-7 shrink-0 bg-muted text-muted-foreground">
-        <Bot className="h-3.5 w-3.5" />
-      </div>
-      <div className="flex-1 min-w-0 max-w-[80%] text-sm leading-relaxed">
-        <ChatMarkdownRenderer
-          content={content}
-          widgetRegistry={widgetRegistry}
-          widgetContext={widgetContext}
-          codeBlock={{ colorTheme: "qiuvision" }}
-        />
-      </div>
-    </div>
-  );
-}
+  },
+  (prev, next) =>
+    prev.message === next.message &&
+    prev.widgetRegistry === next.widgetRegistry &&
+    prev.widgetContext === next.widgetContext,
+);
 
 function SuggestionPill({
   icon,

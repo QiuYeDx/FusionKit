@@ -13,6 +13,7 @@ type CardItem = {
   descKey: string;
   /** Localized short feature chips */
   chips?: string[];
+  chipKeys?: string[];
 };
 
 type Category = {
@@ -66,9 +67,13 @@ const CATEGORIES: Category[] = [
     hintKey: "tools:sub_desc.rename_tools",
     items: [
       {
-        id: "rename",
-        titleKey: "tools:coming_soon.title",
-        descKey: "tools:coming_soon.rename_desc",
+        id: "nameTranslator",
+        titleKey: "tools:fields.name_translator",
+        descKey: "tools:field_desc.name_translator",
+        chipKeys: [
+          "tools:chips.name_translator_files",
+          "tools:chips.name_translator_safe",
+        ],
       },
     ],
   },
@@ -228,9 +233,10 @@ function ToolCard({
         )}
       </div>
 
-      {item.chips && item.chips.length > 0 && (
+      {((item.chipKeys && item.chipKeys.length > 0) ||
+        (item.chips && item.chips.length > 0)) && (
         <div className="flex flex-wrap gap-1.5 mt-3.5">
-          {item.chips.map((c, i) => (
+          {(item.chipKeys ?? item.chips ?? []).map((c, i) => (
             <span
               key={i}
               className="inline-flex items-center gap-1 px-2 py-[3px] rounded-md border bg-muted/30 text-[11px] font-medium text-foreground/80"
@@ -239,7 +245,7 @@ function ToolCard({
                 className="h-1.5 w-1.5 rounded-full"
                 style={{ background: tone }}
               />
-              {c}
+              {item.chipKeys ? t(c) : c}
             </span>
           ))}
         </div>

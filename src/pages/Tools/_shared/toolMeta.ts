@@ -6,7 +6,7 @@ export type ToolKey =
   | "converter"
   | "extractor"
   | "music"
-  | "rename";
+  | "nameTranslator";
 
 export type ToolMeta = {
   id: ToolKey;
@@ -50,12 +50,13 @@ export const TOOL_META: Record<ToolKey, ToolMeta> = {
     category: "music",
     status: "soon",
   },
-  rename: {
-    id: "rename",
+  nameTranslator: {
+    id: "nameTranslator",
     toneVar: "--tool-rename",
     icon: Edit,
     category: "rename",
-    status: "soon",
+    status: "stable",
+    route: "/tools/rename/name-translator",
   },
 };
 

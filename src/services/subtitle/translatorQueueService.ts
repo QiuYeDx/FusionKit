@@ -547,3 +547,77 @@ export function removeAllResolvedTasks(
     effects: [],
   };
 }
+
+// ─── Recovery ─────────────────────────────────────────────────────────────────
+
+export type AddRecoveredTaskResult = {
+  added: boolean;
+  reason?: "duplicate_file" | "duplicate_checkpoint";
+};
+
+/**
+ * 将恢复的任务加入 notStartedTaskQueue。
+ * 去重规则：
+ *   1. checkpointPath 相同 -> 跳过
+ *   2. originFileURL + targetFileURL + fileName 全部相同 -> 跳过
+ */
+export function addRecoveredTask(
+  state: TranslatorQueueState,
+  task: SubtitleTranslatorTask,
+): TranslatorQueueResult & { result: AddRecoveredTaskResult } {
+  const allTasks = [
+    ...state.notStartedTaskQueue,
+    ...state.waitingTaskQueue,
+    ...state.pendingTaskQueue,
+    ...state.resolvedTaskQueue,
+    ...state.failedTaskQueue,
+  ];
+
+  if (
+    task.checkpointPath &&
+    allTasks.some((t) => t.checkpointPath && t.checkpointPath === task.checkpointPath)
+  ) {
+    return { state, effects: [], result: { added: false, reason: "duplicate_checkpoint" } };
+  }
+
+  if (
+    allTasks.some(
+      (t) =>
+        t.fileName === task.fileName &&
+        t.originFileURL === task.originFileURL &&
+        t.targetFileURL === task.targetFileURL,
+    )
+  ) {
+    return { state, effects: [], result: { added: false, reason: "duplicate_file" } };
+  }
+
+  return {
+    state: {
+      ...state,
+      notStartedTaskQueue: [...state.notStartedTaskQueue, task],
+    },
+    effects: [],
+    result: { added: true },
+  };
+}
+
+export function addRecoveredTasks(
+  state: TranslatorQueueState,
+  tasks: SubtitleTranslatorTask[],
+): TranslatorQueueResult & { addedCount: number; skippedCount: number } {
+  let currentState = state;
+  let addedCount = 0;
+  let skippedCount = 0;
+
+  for (const task of tasks) {
+    const result = addRecoveredTask(currentState, task);
+    currentState = result.state;
+    if (result.result.added) {
+      addedCount++;
+    } else {
+      skippedCount++;
+    }
+  }
+
+  return { state: currentState, effects: [], addedCount, skippedCount };
+}
