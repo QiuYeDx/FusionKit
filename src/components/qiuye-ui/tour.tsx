@@ -1150,6 +1150,7 @@ export function Tour({
       viewportPadding,
     ],
   );
+  const isCompactFooter = popoverPosition.width < 300;
 
   const renderContext: TourRenderContext | null = activeStep
     ? {
@@ -1350,7 +1351,10 @@ export function Tour({
 
               <motion.div
                 layout
-                className="relative z-10 space-y-4 p-4"
+                className={cn(
+                  "relative z-10",
+                  isCompactFooter ? "space-y-3 p-3" : "space-y-4 p-4",
+                )}
                 transition={positionTransition}
               >
                 <motion.div
@@ -1418,36 +1422,59 @@ export function Tour({
                 ) : (
                   <motion.div
                     layout
-                    className="flex flex-wrap items-center justify-between gap-2 pt-1"
+                    className={cn(
+                      "flex items-center justify-between pt-1",
+                      isCompactFooter ? "gap-1.5" : "flex-wrap gap-2",
+                    )}
                     transition={positionTransition}
                   >
                     <Button
                       type="button"
                       variant="ghost"
                       size="sm"
-                      className="h-8 gap-1.5 px-2 text-muted-foreground cursor-pointer"
+                      className={cn(
+                        "h-8 text-muted-foreground cursor-pointer",
+                        isCompactFooter
+                          ? "gap-1 px-1.5 text-xs"
+                          : "gap-1.5 px-2",
+                      )}
                       onClick={skip}
                     >
                       <X className="size-3.5" />
                       Skip
                     </Button>
 
-                    <div className="flex items-center gap-2">
+                    <div
+                      className={cn(
+                        "flex items-center",
+                        isCompactFooter ? "gap-1.5" : "gap-2",
+                      )}
+                    >
                       <Button
                         type="button"
                         variant="outline"
                         size="sm"
-                        className="h-8 gap-1.5 px-2.5 cursor-pointer"
+                        className={cn(
+                          "h-8 cursor-pointer",
+                          isCompactFooter
+                            ? "gap-1 px-2 text-xs"
+                            : "gap-1.5 px-2.5",
+                        )}
                         disabled={isFirstStep}
                         onClick={previous}
                       >
                         <ChevronLeft className="size-3.5" />
-                        Previous
+                        {isCompactFooter ? "Prev" : "Previous"}
                       </Button>
                       <Button
                         type="button"
                         size="sm"
-                        className="h-8 gap-1.5 px-3 cursor-pointer"
+                        className={cn(
+                          "h-8 cursor-pointer",
+                          isCompactFooter
+                            ? "gap-1 px-2 text-xs"
+                            : "gap-1.5 px-3",
+                        )}
                         onClick={next}
                       >
                         {isLastStep ? "Done" : "Next"}
