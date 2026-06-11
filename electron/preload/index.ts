@@ -60,125 +60,28 @@ const safeDOM = {
 }
 
 /**
- * Preload loading screen — matches FusionKit's visual identity.
- * Detects theme from localStorage / system preference so the background
- * color is correct from the very first frame.
+ * Preload loading screen.
+ * Uses a synthetic percent value while the renderer boots, then converges to
+ * 100% when React posts the ready message.
  */
 function useLoading() {
-  type ThemeValue = 'light' | 'dark' | 'system'
-
-  // Keep this in sync with the persisted theme store in src/store/useThemeStore.ts.
-  const getSavedTheme = (): ThemeValue | null => {
-    if (typeof localStorage === 'undefined') return null
-
-    try {
-      const persistedTheme = localStorage.getItem('fusionkit-theme')
-      if (persistedTheme) {
-        const theme = JSON.parse(persistedTheme)?.state?.theme
-        if (theme === 'light' || theme === 'dark' || theme === 'system') {
-          return theme
-        }
-      }
-    } catch {
-      // Fall back to the legacy value or the system preference.
-    }
-
-    const legacyTheme = localStorage.getItem('theme')
-    return legacyTheme === 'light' || legacyTheme === 'dark' || legacyTheme === 'system'
-      ? legacyTheme
-      : null
-  }
-
-  const savedTheme = getSavedTheme()
-
-  const prefersDark =
-    typeof window !== 'undefined' &&
-    window.matchMedia('(prefers-color-scheme: dark)').matches
-
-  const isDark =
-    savedTheme === 'dark' ||
-    ((!savedTheme || savedTheme === 'system') && prefersDark)
-
-  const palette = isDark
-    ? {
-        background: '#1b1b1f',
-        foreground: '#fafafa',
-        muted: '#a1a1aa',
-        line: 'rgba(255,255,255,0.09)',
-        lineStrong: 'rgba(255,255,255,0.16)',
-        tileBack: '#71717a',
-        tileFront: '#f4f4f5',
-        tileFrontHighlight: 'rgba(255,255,255,0.9)',
-        tileShadow: 'rgba(0,0,0,0.34)',
-        glowViolet: 'rgba(139,92,246,0.15)',
-        glowBlue: 'rgba(56,189,248,0.11)',
-        meterIdle: 'rgba(255,255,255,0.12)',
-        meterActive: 'rgba(255,255,255,0.8)',
-      }
-    : {
-        background: '#fafafa',
-        foreground: '#18181b',
-        muted: '#71717a',
-        line: 'rgba(9,9,11,0.07)',
-        lineStrong: 'rgba(9,9,11,0.13)',
-        tileBack: '#a1a1aa',
-        tileFront: '#18181b',
-        tileFrontHighlight: 'rgba(255,255,255,0.2)',
-        tileShadow: 'rgba(9,9,11,0.16)',
-        glowViolet: 'rgba(124,58,237,0.09)',
-        glowBlue: 'rgba(2,132,199,0.07)',
-        meterIdle: 'rgba(9,9,11,0.1)',
-        meterActive: 'rgba(9,9,11,0.72)',
-      }
-
   const styleContent = `
 /* ---------- Preload Loading Screen ---------- */
 
-@keyframes fk-content-enter {
-  from { opacity: 0; transform: translateY(8px) scale(0.96); }
-  to   { opacity: 1; transform: translateY(0) scale(1); }
-}
-
-@keyframes fk-ambient-drift-a {
-  0%, 100% { transform: translate3d(-5%, -3%, 0) scale(1); opacity: 0.72; }
-  50%      { transform: translate3d(4%, 5%, 0) scale(1.12); opacity: 1; }
-}
-
-@keyframes fk-ambient-drift-b {
-  0%, 100% { transform: translate3d(4%, 3%, 0) scale(1.08); opacity: 0.85; }
-  50%      { transform: translate3d(-4%, -5%, 0) scale(0.96); opacity: 0.58; }
-}
-
-@keyframes fk-orbit {
-  to { transform: rotate(360deg); }
-}
-
-@keyframes fk-orbit-reverse {
-  to { transform: rotate(-360deg); }
-}
-
-@keyframes fk-tile-back {
-  0%, 100% { transform: translate3d(-12px, -11px, 0) rotate(-3deg); }
-  50%      { transform: translate3d(-16px, -15px, 0) rotate(-7deg); }
-}
-
-@keyframes fk-tile-front {
-  0%, 100% { transform: translate3d(12px, 13px, 0) rotate(0deg); }
-  50%      { transform: translate3d(15px, 16px, 0) rotate(3deg); }
-}
-
-@keyframes fk-core-pulse {
-  0%, 100% { transform: scale(0.65); opacity: 0; }
-  42%      { transform: scale(1); opacity: 0.8; }
-  72%      { transform: scale(1.35); opacity: 0; }
-}
-
-@keyframes fk-meter {
-  0%, 18%, 100% { transform: scaleX(0.45); background: ${palette.meterIdle}; }
-  42%, 70%      { transform: scaleX(1); background: ${palette.meterActive}; }
+@keyframes fk-loader-enter {
+  from {
+    opacity: 0;
+    transform: scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
 }
 
 .app-loading-wrap {
+  --fk-reveal-size: 0px;
+  --fk-progress-ratio: 0%;
   position: fixed;
   inset: 0;
   width: 100vw;
@@ -187,164 +90,114 @@ function useLoading() {
   align-items: center;
   justify-content: center;
   overflow: hidden;
-  background: ${palette.background};
+  background: #000;
+  color: #fff;
   z-index: 2147483647;
   -webkit-app-region: drag;
   user-select: none;
   isolation: isolate;
-  transition: opacity 0.48s cubic-bezier(0.4, 0, 0.2, 1);
+  animation: fk-loader-enter 0.28s ease-out both;
+  transition: background-color 0.24s ease;
 }
 
-.app-loading-wrap.fk-fade-out {
-  opacity: 0;
+.app-loading-wrap.fk-exiting {
+  background-color: transparent;
   pointer-events: none;
 }
 
-.app-loading-wrap.fk-fade-out .fk-loading-content {
-  transform: translateY(-4px) scale(0.985);
-  opacity: 0;
-}
-
-.fk-ambient {
+.fk-reveal-circle {
   position: absolute;
-  width: min(68vw, 720px);
-  aspect-ratio: 1;
+  left: 50%;
+  top: 50%;
+  width: var(--fk-reveal-size);
+  height: var(--fk-reveal-size);
   border-radius: 50%;
-  pointer-events: none;
-  filter: blur(2px);
-  opacity: 0.8;
+  background: #fff;
+  transform: translate(-50%, -50%);
+  opacity: 1;
+  filter: blur(0);
+  will-change: width, height, transform, opacity, filter;
+  transition:
+    opacity 0.76s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 0.76s cubic-bezier(0.22, 1, 0.36, 1),
+    filter 0.76s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-.fk-ambient-a {
-  top: -42%;
-  left: -14%;
-  background: radial-gradient(circle, ${palette.glowViolet} 0%, transparent 68%);
-  animation: fk-ambient-drift-a 7s ease-in-out infinite;
+.app-loading-wrap.fk-exiting .fk-reveal-circle {
+  opacity: 0;
+  filter: blur(18px);
+  transform: translate(-50%, -50%) scale(1.08);
 }
 
-.fk-ambient-b {
-  right: -18%;
-  bottom: -48%;
-  background: radial-gradient(circle, ${palette.glowBlue} 0%, transparent 68%);
-  animation: fk-ambient-drift-b 8.5s ease-in-out infinite;
-}
-
-.fk-loading-content {
+.fk-progress-stack {
   position: relative;
-  z-index: 1;
+  z-index: 2;
   display: flex;
   flex-direction: column;
   align-items: center;
-  transform-origin: center;
+  justify-content: center;
+  color: #fff;
+  mix-blend-mode: difference;
+  text-align: center;
+  opacity: 1;
+  transform: translateX(-0.02em);
   transition:
-    transform 0.48s cubic-bezier(0.4, 0, 0.2, 1),
-    opacity 0.32s ease;
-  animation: fk-content-enter 0.7s cubic-bezier(0.16, 1, 0.3, 1) both;
+    opacity 0.34s ease,
+    transform 0.5s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-.fk-mark-stage {
-  position: relative;
-  width: 120px;
-  height: 120px;
-  display: grid;
-  place-items: center;
-  filter: drop-shadow(0 18px 24px ${palette.tileShadow});
+.app-loading-wrap.fk-exiting .fk-progress-stack {
+  opacity: 0;
+  transform: translateX(-0.02em) translateY(-10px) scale(0.96);
 }
 
-.fk-orbit {
-  position: absolute;
-  inset: 4px;
-  border: 1px solid ${palette.line};
-  border-radius: 50%;
-  animation: fk-orbit 12s linear infinite;
-}
-
-.fk-orbit::before {
-  content: '';
-  position: absolute;
-  top: -2px;
-  left: 50%;
-  width: 4px;
-  height: 4px;
-  border-radius: 50%;
-  background: ${palette.foreground};
-  box-shadow: 0 0 10px ${palette.foreground};
-}
-
-.fk-orbit-inner {
-  position: absolute;
-  inset: 20px;
-  border: 1px dashed ${palette.lineStrong};
-  border-radius: 50%;
-  animation: fk-orbit-reverse 16s linear infinite;
-}
-
-.fk-tile {
-  position: absolute;
-  width: 52px;
-  height: 52px;
-  border-radius: 13px;
-  will-change: transform;
-}
-
-.fk-tile::after {
-  content: '';
-  position: absolute;
-  inset: 1px;
-  border-radius: 12px;
-  background: linear-gradient(145deg, ${palette.tileFrontHighlight}, transparent 42%);
-  opacity: 0.45;
-}
-
-.fk-tile-back {
-  background: ${palette.tileBack};
-  animation: fk-tile-back 3.2s cubic-bezier(0.65, 0, 0.35, 1) infinite;
-}
-
-.fk-tile-front {
-  background: ${palette.tileFront};
-  animation: fk-tile-front 3.2s cubic-bezier(0.65, 0, 0.35, 1) infinite;
-}
-
-.fk-core {
-  position: absolute;
-  width: 12px;
-  height: 12px;
-  border: 1px solid ${palette.foreground};
-  border-radius: 4px;
-  animation: fk-core-pulse 3.2s ease-out infinite;
+.fk-percent {
+  font-family:
+    ui-sans-serif,
+    -apple-system,
+    BlinkMacSystemFont,
+    'SF Pro Display',
+    'Segoe UI',
+    sans-serif;
+  font-size: clamp(76px, 15vw, 168px);
+  font-weight: 680;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.085em;
+  line-height: 0.84;
 }
 
 .fk-wordmark {
-  margin-top: 28px;
-  color: ${palette.foreground};
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  font-size: 17px;
-  font-weight: 620;
-  letter-spacing: -0.035em;
+  margin-top: clamp(18px, 2.8vh, 26px);
+  font-family:
+    ui-monospace,
+    'SFMono-Regular',
+    'SF Mono',
+    Menlo,
+    Consolas,
+    monospace;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.34em;
+  line-height: 1;
+  opacity: 0.78;
+  text-transform: uppercase;
 }
 
-.fk-meter {
-  display: flex;
-  gap: 5px;
-  margin-top: 15px;
+.fk-progress-track {
+  position: relative;
+  width: clamp(118px, 20vw, 188px);
+  height: 1px;
+  margin-top: 18px;
+  overflow: hidden;
+  background: rgb(255 255 255 / 0.22);
 }
 
-.fk-meter span {
-  width: 15px;
-  height: 2px;
-  border-radius: 999px;
-  transform-origin: center;
-  background: ${palette.meterIdle};
-  animation: fk-meter 1.8s ease-in-out infinite;
-}
-
-.fk-meter span:nth-child(2) {
-  animation-delay: 0.16s;
-}
-
-.fk-meter span:nth-child(3) {
-  animation-delay: 0.32s;
+.fk-progress-track::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  width: var(--fk-progress-ratio);
+  background: currentColor;
 }
 
 .fk-sr-only {
@@ -360,69 +213,162 @@ function useLoading() {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .fk-ambient,
-  .fk-orbit,
-  .fk-orbit-inner,
-  .fk-tile,
-  .fk-core,
-  .fk-meter span {
+  .app-loading-wrap {
     animation: none;
+    transition-duration: 0.18s;
   }
 
-  .fk-tile-back {
-    transform: translate3d(-13px, -12px, 0);
+  .fk-reveal-circle,
+  .fk-progress-stack {
+    transition-duration: 0.18s;
   }
 
-  .fk-tile-front {
-    transform: translate3d(13px, 14px, 0);
-  }
-
-  .fk-meter span {
-    transform: scaleX(0.7);
-    background: ${palette.meterActive};
+  .app-loading-wrap.fk-exiting .fk-reveal-circle {
+    filter: none;
+    transform: translate(-50%, -50%);
   }
 }
   `
 
   const oStyle = document.createElement('style')
   const oDiv = document.createElement('div')
-  let isRemoving = false
+  const prefersReducedMotion =
+    typeof window !== 'undefined' &&
+    window.matchMedia('(prefers-reduced-motion: reduce)').matches
+
+  let animationFrameId: number | undefined
+  let hasMounted = false
+  let hasCompleted = false
+  let readyRequested = false
+  let startedAt = 0
+  let progress = 0
+  let maxRevealSize = 0
 
   oStyle.id = 'app-loading-style'
   oStyle.innerHTML = styleContent
   oDiv.className = 'app-loading-wrap'
-  oDiv.setAttribute('role', 'status')
+  oDiv.setAttribute('role', 'progressbar')
+  oDiv.setAttribute('aria-label', 'FusionKit loading')
   oDiv.setAttribute('aria-live', 'polite')
+  oDiv.setAttribute('aria-valuemin', '0')
+  oDiv.setAttribute('aria-valuemax', '100')
   oDiv.innerHTML = `
-    <div class="fk-ambient fk-ambient-a"></div>
-    <div class="fk-ambient fk-ambient-b"></div>
-    <div class="fk-loading-content" aria-hidden="true">
-      <div class="fk-mark-stage">
-        <div class="fk-orbit"></div>
-        <div class="fk-orbit-inner"></div>
-        <div class="fk-tile fk-tile-back"></div>
-        <div class="fk-tile fk-tile-front"></div>
-        <div class="fk-core"></div>
-      </div>
+    <div class="fk-reveal-circle" aria-hidden="true"></div>
+    <div class="fk-progress-stack" aria-hidden="true">
+      <div class="fk-percent">00%</div>
       <div class="fk-wordmark">FusionKit</div>
-      <div class="fk-meter"><span></span><span></span><span></span></div>
+      <div class="fk-progress-track"></div>
     </div>
     <span class="fk-sr-only">FusionKit is starting</span>
   `
 
+  const progressLabel = oDiv.querySelector<HTMLElement>('.fk-percent')
+
+  const formatPercent = (value: number) => {
+    const rounded = Math.min(100, Math.max(0, Math.round(value)))
+    return `${rounded < 10 ? `0${rounded}` : rounded}%`
+  }
+
+  const renderProgress = (value: number) => {
+    progress = Math.min(100, Math.max(0, value))
+    const rounded = Math.min(100, Math.max(0, Math.round(progress)))
+    const revealSize = maxRevealSize * (progress / 100)
+
+    oDiv.style.setProperty('--fk-reveal-size', `${revealSize}px`)
+    oDiv.style.setProperty('--fk-progress-ratio', `${progress}%`)
+    oDiv.setAttribute('aria-valuenow', String(rounded))
+    oDiv.setAttribute('aria-valuetext', `${rounded}%`)
+
+    if (progressLabel) {
+      progressLabel.textContent = formatPercent(progress)
+    }
+  }
+
+  const updateViewportMetrics = () => {
+    const width = window.innerWidth || document.documentElement.clientWidth || 1
+    const height = window.innerHeight || document.documentElement.clientHeight || 1
+    const radiusToFarthestCorner = Math.sqrt(width * width + height * height) / 2
+
+    maxRevealSize = Math.ceil(radiusToFarthestCorner * 2)
+    renderProgress(progress)
+  }
+
+  const cleanupLoading = () => {
+    if (animationFrameId !== undefined) {
+      cancelAnimationFrame(animationFrameId)
+      animationFrameId = undefined
+    }
+
+    window.removeEventListener('resize', updateViewportMetrics)
+    safeDOM.remove(document.head, oStyle)
+    safeDOM.remove(document.body, oDiv)
+  }
+
+  const completeLoading = () => {
+    if (hasCompleted) return
+
+    hasCompleted = true
+    renderProgress(100)
+
+    requestAnimationFrame(() => {
+      oDiv.classList.add('fk-exiting')
+    })
+
+    setTimeout(cleanupLoading, prefersReducedMotion ? 220 : 820)
+  }
+
+  const tick = (time: number) => {
+    if (!hasMounted || hasCompleted) return
+    if (!startedAt) startedAt = time
+
+    if (prefersReducedMotion && !readyRequested) {
+      animationFrameId = requestAnimationFrame(tick)
+      return
+    }
+
+    const elapsed = time - startedAt
+    const syntheticTarget = Math.min(92, 92 * (1 - Math.exp(-elapsed / 1800)))
+    const target = readyRequested ? 100 : syntheticTarget
+    const easing = readyRequested ? 0.24 : 0.055
+    const nextProgress = progress + (target - progress) * easing
+
+    renderProgress(nextProgress)
+
+    if (readyRequested && nextProgress >= 99.75) {
+      completeLoading()
+      return
+    }
+
+    animationFrameId = requestAnimationFrame(tick)
+  }
+
+  const startProgress = () => {
+    if (animationFrameId !== undefined || hasCompleted) return
+    animationFrameId = requestAnimationFrame(tick)
+  }
+
   return {
     appendLoading() {
+      if (hasCompleted) return
+
       safeDOM.append(document.head, oStyle)
       safeDOM.append(document.body, oDiv)
+      hasMounted = true
+      updateViewportMetrics()
+      window.addEventListener('resize', updateViewportMetrics)
+      startProgress()
     },
     removeLoading() {
-      if (isRemoving) return
-      isRemoving = true
-      oDiv.classList.add('fk-fade-out')
-      setTimeout(() => {
-        safeDOM.remove(document.head, oStyle)
-        safeDOM.remove(document.body, oDiv)
-      }, 500)
+      if (hasCompleted) return
+
+      readyRequested = true
+
+      if (!hasMounted) {
+        hasCompleted = true
+        return
+      }
+
+      startProgress()
     },
   }
 }
