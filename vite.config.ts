@@ -14,6 +14,8 @@ export default defineConfig(({ command }) => {
   const isBuild = command === 'build'
   const sourcemap = isServe || !!process.env.VSCODE_DEBUG
   const appVersion = process.env.VITE_APP_VERSION ?? pkg.version
+  const dependencyNames = Object.keys('dependencies' in pkg ? pkg.dependencies : {})
+  const preloadExternal = dependencyNames.filter((dependencyName) => dependencyName !== 'motion')
 
   return {
     resolve: {
@@ -44,7 +46,7 @@ export default defineConfig(({ command }) => {
               minify: isBuild,
               outDir: 'dist-electron/main',
               rollupOptions: {
-                external: Object.keys('dependencies' in pkg ? pkg.dependencies : {}),
+                external: dependencyNames,
               },
             },
           },
@@ -59,7 +61,7 @@ export default defineConfig(({ command }) => {
               minify: isBuild,
               outDir: 'dist-electron/preload',
               rollupOptions: {
-                external: Object.keys('dependencies' in pkg ? pkg.dependencies : {}),
+                external: preloadExternal,
               },
             },
           },

@@ -1,4 +1,5 @@
 import { ipcRenderer, contextBridge, webUtils } from 'electron'
+import { animate, motionValue } from 'motion'
 
 // --------- Expose some API to the Renderer process ---------
 contextBridge.exposeInMainWorld('ipcRenderer', {
@@ -82,6 +83,8 @@ function useLoading() {
 .app-loading-wrap {
   --fk-reveal-size: 0px;
   --fk-progress-ratio: 0%;
+  --fk-exit-radius: 0px;
+  --fk-exit-edge: 1px;
   position: fixed;
   inset: 0;
   width: 100vw;
@@ -97,7 +100,6 @@ function useLoading() {
   user-select: none;
   isolation: isolate;
   animation: fk-loader-enter 0.28s ease-out both;
-  transition: background-color 0.24s ease;
 }
 
 .app-loading-wrap.fk-exiting {
@@ -116,17 +118,32 @@ function useLoading() {
   transform: translate(-50%, -50%);
   opacity: 1;
   filter: blur(0);
-  will-change: width, height, transform, opacity, filter;
-  transition:
-    opacity 0.76s cubic-bezier(0.22, 1, 0.36, 1),
-    transform 0.76s cubic-bezier(0.22, 1, 0.36, 1),
-    filter 0.76s cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: width, height, opacity;
 }
 
-.app-loading-wrap.fk-exiting .fk-reveal-circle {
+.fk-exit-mask {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: #fff;
   opacity: 0;
-  filter: blur(18px);
-  transform: translate(-50%, -50%) scale(1.08);
+  pointer-events: none;
+  -webkit-mask-image: radial-gradient(
+    circle at center,
+    transparent 0 var(--fk-exit-radius),
+    #000 var(--fk-exit-edge)
+  );
+  mask-image: radial-gradient(
+    circle at center,
+    transparent 0 var(--fk-exit-radius),
+    #000 var(--fk-exit-edge)
+  );
+  will-change: opacity, -webkit-mask-image, mask-image;
+}
+
+.fk-exit-mask.fk-exit-mask-solid {
+  -webkit-mask-image: none;
+  mask-image: none;
 }
 
 .fk-progress-stack {
@@ -141,14 +158,7 @@ function useLoading() {
   text-align: center;
   opacity: 1;
   transform: translateX(-0.02em);
-  transition:
-    opacity 0.34s ease,
-    transform 0.5s cubic-bezier(0.22, 1, 0.36, 1);
-}
-
-.app-loading-wrap.fk-exiting .fk-progress-stack {
-  opacity: 0;
-  transform: translateX(-0.02em) translateY(-10px) scale(0.96);
+  will-change: opacity, transform;
 }
 
 .fk-percent {
@@ -213,20 +223,7 @@ function useLoading() {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .app-loading-wrap {
-    animation: none;
-    transition-duration: 0.18s;
-  }
-
-  .fk-reveal-circle,
-  .fk-progress-stack {
-    transition-duration: 0.18s;
-  }
-
-  .app-loading-wrap.fk-exiting .fk-reveal-circle {
-    filter: none;
-    transform: translate(-50%, -50%);
-  }
+  .app-loading-wrap { animation: none; }
 }
   `
 
@@ -235,14 +232,39 @@ function useLoading() {
   const prefersReducedMotion =
     typeof window !== 'undefined' &&
     window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  const minimumCountDuration = prefersReducedMotion ? 180 : 1200
+  const minimumCompleteHold = prefersReducedMotion ? 80 : 180
+  const exitRevealDuration = prefersReducedMotion ? 220 : 920
+  const completeSweepDuration = prefersReducedMotion ? 120 : 420
+  const exitTextDuration = prefersReducedMotion ? 120 : 500
+  const layerSwapDuration = prefersReducedMotion ? 80 : 180
+  const syntheticProgressCeiling = 92
 
-  let animationFrameId: number | undefined
+  const springTransition = (durationMs: number) => ({
+    type: 'spring' as const,
+    duration: durationMs / 1000,
+    bounce: 0,
+  })
+
   let hasMounted = false
   let hasCompleted = false
   let readyRequested = false
-  let startedAt = 0
+  let minimumCountCompleted = false
+  let isCompleting = false
   let progress = 0
   let maxRevealSize = 0
+  let maxExitRadius = 0
+  let progressAnimation: ReturnType<typeof animate> | undefined
+  let completeAnimation: ReturnType<typeof animate> | undefined
+  let exitRevealAnimation: ReturnType<typeof animate> | undefined
+  let exitTextAnimation: ReturnType<typeof animate> | undefined
+  let layerSwapAnimation: ReturnType<typeof animate> | undefined
+  let exitMaskAnimation: ReturnType<typeof animate> | undefined
+  let minimumCountTimer: ReturnType<typeof setTimeout> | undefined
+  let completeSweepTimer: ReturnType<typeof setTimeout> | undefined
+  let completeHoldTimer: ReturnType<typeof setTimeout> | undefined
+  let exitRevealStartTimer: ReturnType<typeof setTimeout> | undefined
+  let exitRevealCleanupTimer: ReturnType<typeof setTimeout> | undefined
 
   oStyle.id = 'app-loading-style'
   oStyle.innerHTML = styleContent
@@ -254,6 +276,7 @@ function useLoading() {
   oDiv.setAttribute('aria-valuemax', '100')
   oDiv.innerHTML = `
     <div class="fk-reveal-circle" aria-hidden="true"></div>
+    <div class="fk-exit-mask" aria-hidden="true"></div>
     <div class="fk-progress-stack" aria-hidden="true">
       <div class="fk-percent">00%</div>
       <div class="fk-wordmark">FusionKit</div>
@@ -263,6 +286,9 @@ function useLoading() {
   `
 
   const progressLabel = oDiv.querySelector<HTMLElement>('.fk-percent')
+  const progressStack = oDiv.querySelector<HTMLElement>('.fk-progress-stack')
+  const revealCircle = oDiv.querySelector<HTMLElement>('.fk-reveal-circle')
+  const exitMask = oDiv.querySelector<HTMLElement>('.fk-exit-mask')
 
   const formatPercent = (value: number) => {
     const rounded = Math.min(100, Math.max(0, Math.round(value)))
@@ -290,61 +316,157 @@ function useLoading() {
     const radiusToFarthestCorner = Math.sqrt(width * width + height * height) / 2
 
     maxRevealSize = Math.ceil(radiusToFarthestCorner * 2)
+    maxExitRadius = Math.ceil(radiusToFarthestCorner + 32)
     renderProgress(progress)
   }
 
+  const renderExitReveal = (ratio: number) => {
+    const clampedRatio = Math.min(1, Math.max(0, ratio))
+    const radius = maxExitRadius * clampedRatio
+
+    oDiv.style.setProperty('--fk-exit-radius', `${radius}px`)
+    oDiv.style.setProperty('--fk-exit-edge', `${radius + 1}px`)
+  }
+
+  const progressMotion = motionValue(0)
+  const exitRevealMotion = motionValue(0)
+  const unsubscribeProgress = progressMotion.on('change', renderProgress)
+  const unsubscribeExitReveal = exitRevealMotion.on('change', renderExitReveal)
+
   const cleanupLoading = () => {
-    if (animationFrameId !== undefined) {
-      cancelAnimationFrame(animationFrameId)
-      animationFrameId = undefined
-    }
+    progressAnimation?.stop()
+    completeAnimation?.stop()
+    exitRevealAnimation?.stop()
+    exitTextAnimation?.stop()
+    layerSwapAnimation?.stop()
+    exitMaskAnimation?.stop()
+    progressAnimation = undefined
+    completeAnimation = undefined
+    exitRevealAnimation = undefined
+    exitTextAnimation = undefined
+    layerSwapAnimation = undefined
+    exitMaskAnimation = undefined
+
+    ;[
+      minimumCountTimer,
+      completeSweepTimer,
+      completeHoldTimer,
+      exitRevealStartTimer,
+      exitRevealCleanupTimer,
+    ].forEach((timer) => {
+      if (timer !== undefined) clearTimeout(timer)
+    })
+    minimumCountTimer = undefined
+    completeSweepTimer = undefined
+    completeHoldTimer = undefined
+    exitRevealStartTimer = undefined
+    exitRevealCleanupTimer = undefined
+    unsubscribeProgress()
+    unsubscribeExitReveal()
 
     window.removeEventListener('resize', updateViewportMetrics)
     safeDOM.remove(document.head, oStyle)
     safeDOM.remove(document.body, oDiv)
   }
 
-  const completeLoading = () => {
+  const playExitReveal = () => {
+    oDiv.classList.add('fk-exiting')
+
+    if (progressStack) {
+      exitTextAnimation = animate(
+        progressStack,
+        {
+          opacity: 0,
+          transform: 'translateX(-0.02em) translateY(-10px) scale(0.96)',
+        },
+        springTransition(exitTextDuration),
+      )
+    }
+
+    if (revealCircle) {
+      layerSwapAnimation = animate(
+        revealCircle,
+        { opacity: 0 },
+        springTransition(layerSwapDuration),
+      )
+    }
+
+    exitRevealStartTimer = setTimeout(() => {
+      exitMask?.classList.remove('fk-exit-mask-solid')
+      exitRevealMotion.set(0)
+      exitRevealAnimation = animate(exitRevealMotion, 1, {
+        ...springTransition(exitRevealDuration),
+        onComplete: cleanupLoading,
+      })
+      exitRevealCleanupTimer = setTimeout(cleanupLoading, exitRevealDuration + 160)
+      exitRevealStartTimer = undefined
+    }, exitTextDuration)
+  }
+
+  const enterCompleteHold = () => {
     if (hasCompleted) return
 
     hasCompleted = true
-    renderProgress(100)
+    progressMotion.set(100)
+    exitRevealMotion.set(0)
+    if (exitMask) {
+      exitMask.classList.add('fk-exit-mask-solid')
+      exitMask.style.opacity = '1'
+    }
 
-    requestAnimationFrame(() => {
-      oDiv.classList.add('fk-exiting')
-    })
+    progressAnimation?.stop()
+    completeAnimation?.stop()
+    progressAnimation = undefined
+    completeAnimation = undefined
+    if (completeSweepTimer !== undefined) {
+      clearTimeout(completeSweepTimer)
+      completeSweepTimer = undefined
+    }
 
-    setTimeout(cleanupLoading, prefersReducedMotion ? 220 : 820)
+    completeHoldTimer = setTimeout(() => {
+      playExitReveal()
+      completeHoldTimer = undefined
+    }, minimumCompleteHold)
   }
 
-  const tick = (time: number) => {
-    if (!hasMounted || hasCompleted) return
-    if (!startedAt) startedAt = time
+  const playCompleteSweep = () => {
+    if (isCompleting || hasCompleted) return
+    isCompleting = true
+    progressAnimation?.stop()
+    progressAnimation = undefined
 
-    if (prefersReducedMotion && !readyRequested) {
-      animationFrameId = requestAnimationFrame(tick)
-      return
+    completeAnimation = animate(progressMotion, 100, {
+      ...springTransition(completeSweepDuration),
+      onComplete: enterCompleteHold,
+    })
+    completeSweepTimer = setTimeout(enterCompleteHold, completeSweepDuration + 80)
+  }
+
+  const completeMinimumCount = () => {
+    if (minimumCountCompleted || hasCompleted) return
+
+    minimumCountCompleted = true
+    progressAnimation?.stop()
+    progressAnimation = undefined
+    if (minimumCountTimer !== undefined) {
+      clearTimeout(minimumCountTimer)
+      minimumCountTimer = undefined
     }
+    progressMotion.set(syntheticProgressCeiling)
 
-    const elapsed = time - startedAt
-    const syntheticTarget = Math.min(92, 92 * (1 - Math.exp(-elapsed / 1800)))
-    const target = readyRequested ? 100 : syntheticTarget
-    const easing = readyRequested ? 0.24 : 0.055
-    const nextProgress = progress + (target - progress) * easing
-
-    renderProgress(nextProgress)
-
-    if (readyRequested && nextProgress >= 99.75) {
-      completeLoading()
-      return
+    if (readyRequested) {
+      playCompleteSweep()
     }
-
-    animationFrameId = requestAnimationFrame(tick)
   }
 
   const startProgress = () => {
-    if (animationFrameId !== undefined || hasCompleted) return
-    animationFrameId = requestAnimationFrame(tick)
+    if (progressAnimation !== undefined || hasCompleted) return
+
+    progressAnimation = animate(progressMotion, syntheticProgressCeiling, {
+      ...springTransition(minimumCountDuration),
+      onComplete: completeMinimumCount,
+    })
+    minimumCountTimer = setTimeout(completeMinimumCount, minimumCountDuration + 80)
   }
 
   return {
@@ -365,6 +487,11 @@ function useLoading() {
 
       if (!hasMounted) {
         hasCompleted = true
+        return
+      }
+
+      if (minimumCountCompleted) {
+        playCompleteSweep()
         return
       }
 
