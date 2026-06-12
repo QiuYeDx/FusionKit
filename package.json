@@ -40,7 +40,7 @@
     "@radix-ui/react-tabs": "^1.1.13",
     "@radix-ui/react-tooltip": "^1.2.8",
     "@reactuses/core": "^6.1.6",
-    "ai": "^6.0.0",
+    "ai": "^6.0.202",
     "axios": "^1.7.9",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
