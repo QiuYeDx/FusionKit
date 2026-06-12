@@ -152,7 +152,7 @@ function blendColors(bgHex: string, fgHex: string, alpha: number): string {
  * const vars = createCodeBlockThemeVars({
  *   bg: "#1A1A1A",
  *   fg: "#ECECEC",
- *   accent: "#D6C8A6",   // 强调色（影响滚动条、悬停边框等）
+ *   accent: "#D6C8A6",   // 强调色（影响行悬停、按钮悬停边框等）
  *   muted: "#9FA3A8",    // 次级色（影响行号、按钮文字等）
  *   isDark: true,
  * });
@@ -163,7 +163,7 @@ export function createCodeBlockThemeVars(opts: {
   bg: string;
   /** 前景色 (hex) */
   fg: string;
-  /** 强调色 (hex)，影响滚动条滑块、悬停边框、行悬停背景等 */
+  /** 强调色 (hex)，影响悬停边框、行悬停背景等 */
   accent: string;
   /** 次级色 (hex)，影响行号文字、按钮文字等 */
   muted: string;
@@ -180,9 +180,13 @@ export function createCodeBlockThemeVars(opts: {
     hoverSolid: blendColors(bg, accent, isDark ? 0.08 : 0.06),
     lnColor: hexToRgba(muted, isDark ? 0.5 : 0.65),
     lnBorder: hexToRgba(fg, isDark ? 0.1 : 0.15),
-    sbThumb: hexToRgba(accent, isDark ? 0.3 : 0.4),
-    sbThumbHover: hexToRgba(accent, isDark ? 0.5 : 0.6),
-    sbTrack: hexToRgba(isDark ? "#FFFFFF" : fg, 0.05),
+    // 滚动条保持中性色，避免主题强调色让大面积滚动区域显得突兀。
+    sbThumb: hexToRgba(isDark ? "#FFFFFF" : fg, isDark ? 0.18 : 0.22),
+    sbThumbHover: hexToRgba(
+      isDark ? "#FFFFFF" : fg,
+      isDark ? 0.3 : 0.36,
+    ),
+    sbTrack: hexToRgba(isDark ? "#FFFFFF" : fg, isDark ? 0.04 : 0.035),
     btnText: hexToRgba(isDark ? muted : fg, isDark ? 0.7 : 0.55),
     btnBorder: hexToRgba(isDark ? accent : fg, isDark ? 0.15 : 0.12),
     btnHoverText: hexToRgba(fg, 0.85),

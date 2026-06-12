@@ -11,6 +11,8 @@ import { Highlight, type PrismTheme } from "prism-react-renderer";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import { AnimatePresence } from "motion/react";
 
+import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
+
 import {
   resolveCodeBlockTheme,
   themeVarsToCSSProperties,
@@ -315,7 +317,7 @@ export function CodeBlock({
   // ---- Scroll / Auto-height 模式状态 ----
   const isScrollable =
     effectiveMode === "scroll" || effectiveMode === "auto-height";
-  const scrollContentRef = useRef<HTMLDivElement>(null);
+  const scrollAreaRef = useRef<HTMLDivElement>(null);
   const [scrollShadow, setScrollShadow] = useState({
     top: false,
     bottom: false,
@@ -335,7 +337,9 @@ export function CodeBlock({
   // Scroll shadow 检测（scroll / auto-height 模式）
   useEffect(() => {
     if (!isScrollable) return;
-    const el = scrollContentRef.current;
+    const el = scrollAreaRef.current?.querySelector<HTMLElement>(
+      "[data-slot='scroll-area-viewport']",
+    );
     if (!el) return;
 
     const update = () => {
@@ -350,12 +354,14 @@ export function CodeBlock({
     el.addEventListener("scroll", update, { passive: true });
     const ro = new ResizeObserver(update);
     ro.observe(el);
+    const content = el.firstElementChild;
+    if (content) ro.observe(content);
 
     return () => {
       el.removeEventListener("scroll", update);
       ro.disconnect();
     };
-  }, [isScrollable]);
+  }, [isScrollable, code]);
 
   // 收起代码块时的处理：滚动到代码块位置 + 聚光灯强调动画（可配置）
   const handleCollapse = useCallback(() => {
@@ -411,6 +417,20 @@ export function CodeBlock({
     });
   }, [spotlightOnCollapse]);
 
+  const codeScrollAreaClass =
+    effectiveMode === "auto-height"
+      ? "code-block-scroll-area code-block-scroll-area-auto-height"
+      : effectiveMode === "scroll"
+        ? "code-block-scroll-area code-block-scroll-area-scroll"
+        : "code-block-scroll-area";
+
+  const codeScrollAreaStyle =
+    effectiveMode === "scroll"
+      ? ({
+          "--cb-scroll-max-height": resolvedMaxHeight,
+        } as React.CSSProperties)
+      : undefined;
+
   // 语法高亮渲染
   const highlightedCode = (
     <Highlight theme={resolvedTheme.syntax} code={code} language={language}>
@@ -422,27 +442,37 @@ export function CodeBlock({
         getTokenProps,
       }) => (
         <pre className={hlClassName} style={style}>
-          <code>
-            {tokens.map((line, i) => (
-              <div
-                key={i}
-                {...getLineProps({ line })}
-                data-diff={
-                  diff
-                    ? getDiffLineType(rawLines[i] ?? "") || undefined
-                    : undefined
-                }
-                data-highlight={highlightLineSet?.has(i + 1) || undefined}
-              >
-                <span className="line-number">{i + 1}</span>
-                <span className="line-content">
-                  {line.map((token, key) => (
-                    <span key={key} {...getTokenProps({ token })} />
-                  ))}
-                </span>
-              </div>
-            ))}
-          </code>
+          <ScrollArea
+            ref={isScrollable ? scrollAreaRef : undefined}
+            className={codeScrollAreaClass}
+            style={codeScrollAreaStyle}
+          >
+            <code>
+              {tokens.map((line, i) => (
+                <div
+                  key={i}
+                  {...getLineProps({ line })}
+                  data-diff={
+                    diff
+                      ? getDiffLineType(rawLines[i] ?? "") || undefined
+                      : undefined
+                  }
+                  data-highlight={highlightLineSet?.has(i + 1) || undefined}
+                >
+                  <span className="line-number">{i + 1}</span>
+                  <span className="line-content">
+                    {line.map((token, key) => (
+                      <span key={key} {...getTokenProps({ token })} />
+                    ))}
+                  </span>
+                </div>
+              ))}
+            </code>
+            <ScrollBar
+              orientation="horizontal"
+              className="code-block-scrollbar"
+            />
+          </ScrollArea>
         </pre>
       )}
     </Highlight>
@@ -526,17 +556,7 @@ export function CodeBlock({
     return (
       <div className={wrapperClass} style={cssVars as React.CSSProperties}>
         <div className="scrollable-code-block">
-          <div
-            ref={scrollContentRef}
-            className="scrollable-code-content"
-            style={
-              effectiveMode === "scroll"
-                ? { maxHeight: resolvedMaxHeight }
-                : undefined
-            }
-          >
-            {highlightedCode}
-          </div>
+          <div className="scrollable-code-content">{highlightedCode}</div>
           {/* 滚动阴影指示器 - 提示上方/下方还有更多内容 */}
           <div
             className={`scroll-shadow scroll-shadow-top${scrollShadow.top ? " visible" : ""}`}
@@ -560,30 +580,58 @@ export function CodeBlock({
 }
 
 // ============================================
-// 样式组件（全局 style 标签）
+// 样式组件（styled-jsx global，自动去重）
 // 所有配色通过 CSS 自定义属性（--cb-xxx）驱动，
 // 无需 .dark 前缀重复，同一份 CSS 适配任意主题。
 // ============================================
 
 function CodeBlockStyles() {
   return (
-    <style>{`
+    <style jsx global>{`
       /* ============================================
          代码块基础样式
          ============================================ */
 
       .qiuye-code-block pre {
-        margin: 2rem 0;
+        margin: 0;
         padding: 0;
         border-radius: 8px;
-        overflow-x: auto;
+        overflow: hidden;
         font-size: 0.875rem;
         line-height: 1.6;
         box-shadow: 0 4px 12px var(--cb-shadow-lg);
         border: 1px solid var(--cb-border);
-        scrollbar-width: thin;
-        scrollbar-color: var(--cb-sb-thumb) var(--cb-sb-track);
+      }
+
+      .qiuye-code-block .code-block-scroll-area {
+        width: 100%;
+        max-width: 100%;
+        overflow: hidden;
+        background: var(--cb-bg);
+      }
+
+      .qiuye-code-block
+        .code-block-scroll-area
+        [data-slot="scroll-area-viewport"] {
         overscroll-behavior-x: none;
+      }
+
+      .qiuye-code-block .code-block-scroll-area-scroll {
+        max-height: var(--cb-scroll-max-height);
+      }
+
+      .qiuye-code-block
+        .code-block-scroll-area-scroll
+        [data-slot="scroll-area-viewport"] {
+        max-height: var(--cb-scroll-max-height);
+      }
+
+      .qiuye-code-block .code-block-scroll-area-auto-height,
+      .qiuye-code-block
+        .code-block-scroll-area-auto-height
+        [data-slot="scroll-area-viewport"] {
+        height: 100%;
+        min-height: 0;
       }
 
       .qiuye-code-block pre code {
@@ -669,26 +717,25 @@ function CodeBlockStyles() {
       }
 
       /* ============================================
-         滚动条美化 - Webkit
+         滚动条美化 - shadcn/ui ScrollArea
          ============================================ */
 
-      .qiuye-code-block pre::-webkit-scrollbar {
-        height: 10px;
-      }
-
-      .qiuye-code-block pre::-webkit-scrollbar-track {
+      .qiuye-code-block [data-slot="scroll-area-scrollbar"] {
+        z-index: 4;
         background: var(--cb-sb-track);
-        border-radius: 5px;
       }
 
-      .qiuye-code-block pre::-webkit-scrollbar-thumb {
-        background: var(--cb-sb-thumb);
-        border-radius: 5px;
-        transition: background 0.2s ease;
+      .qiuye-code-block [data-slot="scroll-area-thumb"] {
+        background-color: var(--cb-sb-thumb);
+        transition: background-color 0.2s ease;
       }
 
-      .qiuye-code-block pre::-webkit-scrollbar-thumb:hover {
-        background: var(--cb-sb-thumb-hover);
+      .qiuye-code-block [data-slot="scroll-area-thumb"]:hover {
+        background-color: var(--cb-sb-thumb-hover);
+      }
+
+      .qiuye-code-block [data-slot="scroll-area-corner"] {
+        background: var(--cb-sb-track);
       }
 
       /* ============================================
@@ -698,7 +745,7 @@ function CodeBlockStyles() {
       /* 容器 - 接管 pre 的外层样式 */
       .qiuye-code-block .collapsible-code-block {
         position: relative;
-        margin: 2rem 0;
+        margin: 0;
         border-radius: 8px;
         box-shadow: 0 4px 12px var(--cb-shadow-lg);
         overflow: hidden;
@@ -847,7 +894,7 @@ function CodeBlockStyles() {
       /* 容器 - 接管 pre 的外层样式（与 collapsible-code-block 类似） */
       .qiuye-code-block .scrollable-code-block {
         position: relative;
-        margin: 2rem 0;
+        margin: 0;
         border-radius: 8px;
         box-shadow: 0 4px 12px var(--cb-shadow-lg);
         overflow: hidden;
@@ -857,44 +904,15 @@ function CodeBlockStyles() {
 
       /* 内部可滚动区域 - 纵向 + 横向均可滚动 */
       .qiuye-code-block .scrollable-code-block .scrollable-code-content {
-        overflow: auto;
-        scrollbar-width: thin;
-        scrollbar-color: var(--cb-sb-thumb) var(--cb-sb-track);
-        overscroll-behavior-x: none;
+        min-width: 0;
       }
 
-      /* 内部 pre 取消自身外层样式（由 wrapper 统一处理），并取消 overflow 交给父容器 */
+      /* 内部 pre 取消自身外层样式（由 wrapper 统一处理） */
       .qiuye-code-block .scrollable-code-block pre {
         margin: 0;
         border: none;
         border-radius: 0;
         box-shadow: none;
-        overflow: visible;
-      }
-
-      /* Webkit 滚动条美化 - 可滚动代码内容区 */
-      .qiuye-code-block .scrollable-code-content::-webkit-scrollbar {
-        width: 10px;
-        height: 10px;
-      }
-
-      .qiuye-code-block .scrollable-code-content::-webkit-scrollbar-track {
-        background: var(--cb-sb-track);
-      }
-
-      .qiuye-code-block .scrollable-code-content::-webkit-scrollbar-thumb {
-        background: var(--cb-sb-thumb);
-        border-radius: 5px;
-        transition: background 0.2s ease;
-      }
-
-      .qiuye-code-block
-        .scrollable-code-content::-webkit-scrollbar-thumb:hover {
-        background: var(--cb-sb-thumb-hover);
-      }
-
-      .qiuye-code-block .scrollable-code-content::-webkit-scrollbar-corner {
-        background: var(--cb-sb-track);
       }
 
       /* ---- 滚动阴影指示器 ---- */
@@ -951,6 +969,10 @@ function CodeBlockStyles() {
       .qiuye-code-block.auto-height-mode .scrollable-code-content {
         flex: 1;
         min-height: 0;
+      }
+
+      .qiuye-code-block.auto-height-mode .scrollable-code-content pre {
+        height: 100%;
       }
 
       /* 滚动模式 - 移动端响应式 */

@@ -237,7 +237,10 @@ export function CodeBlockPanel({
 
   return (
     <div
-      className={cn("group/code-panel rounded-xl", className)}
+      className={cn(
+        "group/code-panel w-full min-w-0 max-w-full overflow-hidden rounded-xl",
+        className,
+      )}
       style={
         {
           backgroundColor: panelBg,
@@ -251,12 +254,12 @@ export function CodeBlockPanel({
       }
     >
       {/* ---- 面板内容区域 ---- */}
-      <div className="rounded-xl p-1 text-sm">
+      <div className="min-w-0 rounded-xl p-1 text-sm">
         {/* ---- 头部：文件名 + 复制按钮 ---- */}
         {hasHeader && (
-          <div className="flex items-center justify-between px-3 pt-0.5 pb-1">
+          <div className="flex min-w-0 items-center justify-between gap-2 pl-3 pr-[2px] pt-0.5 pb-[5px]">
             {displayLabel ? (
-              <span className="cbp-filename text-xs/5 font-medium select-none">
+              <span className="cbp-filename min-w-0 truncate text-xs/5 font-medium select-none">
                 {displayLabel}
               </span>
             ) : (
@@ -288,13 +291,13 @@ export function CodeBlockPanel({
           </div>
         )}
         {/* ---- 代码内容容器 ---- */}
-        <div className="code-block-panel-content overflow-hidden rounded-lg">
+        <div className="code-block-panel-content min-w-0 overflow-hidden rounded-lg">
           {children}
         </div>
       </div>
 
       {/* Panel 配色样式（通过 CSS 变量驱动，自动去重） */}
-      <style>{`
+      <style jsx global>{`
         .cbp-filename {
           color: var(--cbp-filename);
         }
