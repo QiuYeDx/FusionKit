@@ -71,6 +71,13 @@
       "title": "Title Case",
       "lower": "lowercase"
     },
+    "output_mode_label": "Output mode",
+    "output_mode": {
+      "target_only": "Translation only",
+      "bilingual_target_first": "Translation + Original",
+      "bilingual_original_first": "Original + Translation"
+    },
+    "separator_label": "Separator",
     "skip_hidden_label": "Skip hidden items",
     "skip_hidden_hint": "Hidden paths such as .env and hidden folders are skipped by default",
     "preserve_extension_label": "Preserve extensions",

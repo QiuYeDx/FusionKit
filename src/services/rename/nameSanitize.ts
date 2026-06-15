@@ -16,6 +16,26 @@ export interface SanitizedNameResult {
   warnings: string[];
 }
 
+function sanitizeSeparator(separator: string): string {
+  return separator
+    .replace(INVALID_FILENAME_CHARS, "")
+    .replace(CONTROL_CHARS, "")
+    .replace(/\s+/g, " ");
+}
+
+function composeBilingualStem(
+  sanitizedTranslatedStem: string,
+  originalStem: string,
+  options: NameTranslationOptions
+): string {
+  const sep = sanitizeSeparator(options.bilingualSeparator || " - ") || " - ";
+
+  if (options.outputMode === "bilingual_target_first") {
+    return `${sanitizedTranslatedStem}${sep}${originalStem}`;
+  }
+  return `${originalStem}${sep}${sanitizedTranslatedStem}`;
+}
+
 export function sanitizeTranslatedName(
   target: NameTranslationTarget,
   translatedStem: string,
@@ -54,9 +74,14 @@ export function sanitizeTranslatedName(
     warnings.push("windows_reserved_name_adjusted");
   }
 
+  let finalStem = sanitizedStem;
+  if (options.outputMode && options.outputMode !== "target_only") {
+    finalStem = composeBilingualStem(sanitizedStem, target.stem, options);
+  }
+
   const extension =
     options.preserveExtension && target.kind === "file" ? target.extension : "";
-  let newName = `${sanitizedStem}${extension}`;
+  let newName = `${finalStem}${extension}`;
 
   if (newName.length > MAX_BASENAME_LENGTH) {
     const maxStemLength = MAX_BASENAME_LENGTH - extension.length;
@@ -69,8 +94,8 @@ export function sanitizeTranslatedName(
         warnings,
       };
     }
-    sanitizedStem = sanitizedStem.slice(0, maxStemLength).replace(/[. ]+$/g, "");
-    newName = `${sanitizedStem}${extension}`;
+    finalStem = finalStem.slice(0, maxStemLength).replace(/[. ]+$/g, "");
+    newName = `${finalStem}${extension}`;
     warnings.push("name_truncated");
   }
 

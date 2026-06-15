@@ -924,6 +924,8 @@ function toNameTranslationOptions(
     sourceLang: args.sourceLang,
     targetLang: args.targetLang,
     namingStyle: args.namingStyle,
+    outputMode: args.outputMode,
+    bilingualSeparator: args.bilingualSeparator,
     collisionPolicy: args.collisionPolicy,
     includeHidden: args.includeHidden,
     preserveExtension: true,

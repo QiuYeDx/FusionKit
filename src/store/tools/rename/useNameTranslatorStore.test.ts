@@ -20,6 +20,81 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
+describe("useNameTranslatorStore outputMode local rebuild", () => {
+  it("recomposes item names in-place when outputMode changes without re-calling LLM", async () => {
+    const invoke = vi.fn(async (channel: string, payload: { paths: string[] }) => {
+      if (channel === "inspect-rename-paths") {
+        return {
+          paths: payload.paths.map((path) => ({
+            path,
+            exists: true,
+            kind: "file",
+            basename: "第01話.srt",
+            parentPath: "/tmp/rename",
+            riskLevel: "normal",
+            warnings: [],
+          })),
+        };
+      }
+      if (channel === "check-path-exists") return false;
+      return { valid: true, errors: [], warnings: [] };
+    });
+    vi.stubGlobal("window", { ipcRenderer: { invoke } });
+
+    const plan = createPlan();
+    rememberNameTranslationPlan(plan);
+
+    await useNameTranslatorStore
+      .getState()
+      .loadPlanFromCache("rename_plan_from_agent");
+
+    useNameTranslatorStore
+      .getState()
+      .updateOptions({ outputMode: "bilingual_target_first" });
+
+    const state = useNameTranslatorStore.getState();
+    expect(state.currentPlan).not.toBeNull();
+    expect(state.currentPlan!.items[0].newName).toBe("Episode 01 - 第01話.srt");
+    expect(state.currentPlan!.items[0].translatedStem).toBe("Episode 01");
+  });
+
+  it("recomposes item names when bilingualSeparator changes", async () => {
+    const invoke = vi.fn(async (channel: string, payload: { paths: string[] }) => {
+      if (channel === "inspect-rename-paths") {
+        return {
+          paths: payload.paths.map((path) => ({
+            path,
+            exists: true,
+            kind: "file",
+            basename: "第01話.srt",
+            parentPath: "/tmp/rename",
+            riskLevel: "normal",
+            warnings: [],
+          })),
+        };
+      }
+      if (channel === "check-path-exists") return false;
+      return { valid: true, errors: [], warnings: [] };
+    });
+    vi.stubGlobal("window", { ipcRenderer: { invoke } });
+
+    const plan = createPlan();
+    rememberNameTranslationPlan(plan);
+
+    await useNameTranslatorStore
+      .getState()
+      .loadPlanFromCache("rename_plan_from_agent");
+
+    useNameTranslatorStore
+      .getState()
+      .updateOptions({ outputMode: "bilingual_original_first", bilingualSeparator: "_" });
+
+    const state = useNameTranslatorStore.getState();
+    expect(state.currentPlan).not.toBeNull();
+    expect(state.currentPlan!.items[0].newName).toBe("第01話_Episode 01.srt");
+  });
+});
+
 describe("useNameTranslatorStore plan hydration", () => {
   it("loads a HomeAgent-created plan from memory by planId", async () => {
     const invoke = vi.fn(async (channel: string, payload: { paths: string[] }) => {

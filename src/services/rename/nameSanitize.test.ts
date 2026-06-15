@@ -41,6 +41,85 @@ describe("sanitizeTranslatedName", () => {
     expect(result.valid).toBe(false);
     expect(result.reason).toBe("empty_name");
   });
+
+  it("produces bilingual name with target first", () => {
+    const result = sanitizeTranslatedName(
+      createTarget({ originalName: "第01話.srt", stem: "第01話", extension: ".srt" }),
+      "Episode 1",
+      createOptions({ outputMode: "bilingual_target_first", bilingualSeparator: " - " })
+    );
+
+    expect(result.valid).toBe(true);
+    expect(result.newName).toBe("Episode 1 - 第01話.srt");
+    expect(result.translatedStem).toBe("Episode 1");
+  });
+
+  it("produces bilingual name with original first", () => {
+    const result = sanitizeTranslatedName(
+      createTarget({ originalName: "第01話.srt", stem: "第01話", extension: ".srt" }),
+      "Episode 1",
+      createOptions({ outputMode: "bilingual_original_first", bilingualSeparator: " - " })
+    );
+
+    expect(result.valid).toBe(true);
+    expect(result.newName).toBe("第01話 - Episode 1.srt");
+    expect(result.translatedStem).toBe("Episode 1");
+  });
+
+  it("uses custom separator in bilingual mode", () => {
+    const result = sanitizeTranslatedName(
+      createTarget({ originalName: "日本語.txt", stem: "日本語", extension: ".txt" }),
+      "Japanese",
+      createOptions({ outputMode: "bilingual_target_first", bilingualSeparator: "_" })
+    );
+
+    expect(result.valid).toBe(true);
+    expect(result.newName).toBe("Japanese_日本語.txt");
+  });
+
+  it("sanitizes illegal characters from separator", () => {
+    const result = sanitizeTranslatedName(
+      createTarget({ originalName: "名前.srt", stem: "名前", extension: ".srt" }),
+      "Name",
+      createOptions({ outputMode: "bilingual_target_first", bilingualSeparator: " / " })
+    );
+
+    expect(result.valid).toBe(true);
+    expect(result.newName).toBe("Name 名前.srt");
+  });
+
+  it("falls back to default separator when sanitized separator is empty", () => {
+    const result = sanitizeTranslatedName(
+      createTarget({ originalName: "名前.srt", stem: "名前", extension: ".srt" }),
+      "Name",
+      createOptions({ outputMode: "bilingual_target_first", bilingualSeparator: "/*?" })
+    );
+
+    expect(result.valid).toBe(true);
+    expect(result.newName).toBe("Name - 名前.srt");
+  });
+
+  it("target_only mode preserves existing behavior", () => {
+    const result = sanitizeTranslatedName(
+      createTarget({ originalName: "第01話.srt", stem: "第01話", extension: ".srt" }),
+      "Episode 1",
+      createOptions({ outputMode: "target_only" })
+    );
+
+    expect(result.valid).toBe(true);
+    expect(result.newName).toBe("Episode 1.srt");
+  });
+
+  it("handles directories in bilingual mode (no extension)", () => {
+    const result = sanitizeTranslatedName(
+      createTarget({ originalName: "ドラマ", stem: "ドラマ", extension: "", kind: "directory" }),
+      "Drama",
+      createOptions({ outputMode: "bilingual_original_first", bilingualSeparator: " - " })
+    );
+
+    expect(result.valid).toBe(true);
+    expect(result.newName).toBe("ドラマ - Drama");
+  });
 });
 
 function createOptions(

@@ -33,6 +33,11 @@ export type NameNamingStyle =
   | "title"
   | "lower";
 
+export type NameOutputMode =
+  | "target_only"
+  | "bilingual_target_first"
+  | "bilingual_original_first";
+
 export interface PathSegmentRange {
   startPath: string;
   endPath: string;
@@ -50,6 +55,8 @@ export interface NameTranslationOptions {
   sourceLang: NameTranslationSourceLanguage;
   targetLang: NameTranslationLanguage;
   namingStyle: NameNamingStyle;
+  outputMode: NameOutputMode;
+  bilingualSeparator: string;
   preserveExtension: boolean;
   preserveLeadingDot: boolean;
   preserveTechnicalTokens: boolean;
@@ -98,6 +105,8 @@ export const DEFAULT_NAME_TRANSLATION_OPTIONS: Omit<
   sourceLang: "auto",
   targetLang: "ZH",
   namingStyle: "preserve",
+  outputMode: "target_only",
+  bilingualSeparator: " - ",
   preserveExtension: true,
   preserveLeadingDot: true,
   preserveTechnicalTokens: true,

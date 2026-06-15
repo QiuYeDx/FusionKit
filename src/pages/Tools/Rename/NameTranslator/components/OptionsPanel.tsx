@@ -15,6 +15,7 @@ import {
 import { Switch } from "@/components/ui/switch";
 import type {
   NameNamingStyle,
+  NameOutputMode,
   NameTranslationLanguage,
   NameTranslationOptions,
   NameTranslationScope,
@@ -86,6 +87,12 @@ const NAMING_STYLES: Array<{ value: NameNamingStyle }> = [
   { value: "snake" },
   { value: "title" },
   { value: "lower" },
+];
+
+const OUTPUT_MODES: Array<{ value: NameOutputMode }> = [
+  { value: "target_only" },
+  { value: "bilingual_target_first" },
+  { value: "bilingual_original_first" },
 ];
 
 export default function OptionsPanel({
@@ -251,6 +258,45 @@ export default function OptionsPanel({
               ))}
             </SelectContent>
           </Select>
+        </div>
+
+        <div className="space-y-1.5">
+          <div className="text-[11px] font-medium text-muted-foreground">
+            {t("options.output_mode_label")}
+          </div>
+          <Select
+            value={options.outputMode}
+            disabled={disabled}
+            onValueChange={(value) =>
+              onUpdateOptions({ outputMode: value as NameOutputMode })
+            }
+          >
+            <SelectTrigger size="sm" className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {OUTPUT_MODES.map((mode) => (
+                <SelectItem key={mode.value} value={mode.value}>
+                  {t(`options.output_mode.${mode.value}`)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {options.outputMode !== "target_only" && (
+            <div className="flex items-center gap-2 mt-1.5">
+              <Label className="text-[11px] text-muted-foreground whitespace-nowrap">
+                {t("options.separator_label")}
+              </Label>
+              <Input
+                className="h-7 w-24 font-mono text-xs text-center"
+                disabled={disabled}
+                value={options.bilingualSeparator}
+                onChange={(event) =>
+                  onUpdateOptions({ bilingualSeparator: event.target.value })
+                }
+              />
+            </div>
+          )}
         </div>
 
         <div className="space-y-2">

@@ -48,6 +48,19 @@ describe("name translation tool schemas", () => {
     expect(parsed.includeHidden).toBe(false);
     expect(parsed.collisionPolicy).toBe("fail");
     expect(parsed.targetLang).toBe("ZH");
+    expect(parsed.outputMode).toBe("target_only");
+    expect(parsed.bilingualSeparator).toBe(" - ");
+  });
+
+  it("accepts bilingual output mode settings", () => {
+    const parsed = createNameTranslationPlanSchema.parse({
+      roots: ["/tmp/日剧"],
+      outputMode: "bilingual_target_first",
+      bilingualSeparator: "_",
+    });
+
+    expect(parsed.outputMode).toBe("bilingual_target_first");
+    expect(parsed.bilingualSeparator).toBe("_");
   });
 
   it("keeps explicit recursive descendant settings", () => {

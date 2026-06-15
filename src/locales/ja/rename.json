@@ -71,6 +71,13 @@
       "title": "Title Case",
       "lower": "lowercase"
     },
+    "output_mode_label": "出力モード",
+    "output_mode": {
+      "target_only": "翻訳のみ",
+      "bilingual_target_first": "翻訳 + 原文",
+      "bilingual_original_first": "原文 + 翻訳"
+    },
+    "separator_label": "セパレータ",
     "skip_hidden_label": "隠し項目をスキップ",
     "skip_hidden_hint": ".env や隠しフォルダなどはデフォルトで処理しません",
     "preserve_extension_label": "拡張子を保持",

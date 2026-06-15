@@ -14,6 +14,7 @@ import {
 } from "@/services/rename/namePath";
 import { checkRenameTargetExists } from "@/services/rename/nameTargetResolver";
 import { createNameTranslationPlan } from "@/services/rename/nameTranslationPlanner";
+import { sanitizeTranslatedName } from "@/services/rename/nameSanitize";
 import { validatePlanItems } from "@/services/rename/nameConflict";
 import {
   applyNameTranslationPlan,
@@ -30,6 +31,7 @@ import type {
   NameTranslationPlan,
   NameTranslationPlanItem,
   NameTranslationPlanSummary,
+  NameTranslationTarget,
   RollbackRenameJournalResult,
   SelectedPath,
   ValidateRenamePlanResult,
@@ -163,15 +165,15 @@ const useNameTranslatorStore = create<NameTranslatorStore>((set, get) => ({
     });
 
     if (state.currentPlan && isPlanLocalOptionPatch(patch)) {
+      const mergedOptions = { ...state.currentPlan.options, ...patch };
+      const needsNameRecomposition =
+        patch.outputMode !== undefined || patch.bilingualSeparator !== undefined;
+      const nextItems = needsNameRecomposition
+        ? recomposeItemNames(state.currentPlan.items, mergedOptions)
+        : state.currentPlan.items;
       const nextPlan = rebuildPlan(
-        {
-          ...state.currentPlan,
-          options: {
-            ...state.currentPlan.options,
-            ...patch,
-          },
-        },
-        state.currentPlan.items
+        { ...state.currentPlan, options: mergedOptions },
+        nextItems
       );
       commitPlan(set, nextPlan, { options, lastValidation: null });
       void get().revalidateCurrentPlan();
@@ -525,11 +527,17 @@ function normalizeOptions(input: NameTranslationOptions): NameTranslationOptions
   return next;
 }
 
+const LOCAL_REBUILD_KEYS = new Set([
+  "collisionPolicy",
+  "outputMode",
+  "bilingualSeparator",
+]);
+
 function isPlanLocalOptionPatch(
   patch: Partial<NameTranslationOptions>
 ): boolean {
   const keys = Object.keys(patch);
-  return keys.length > 0 && keys.every((key) => key === "collisionPolicy");
+  return keys.length > 0 && keys.every((key) => LOCAL_REBUILD_KEYS.has(key));
 }
 
 function patchPlanItem(
@@ -804,6 +812,46 @@ function shortPlanId(planId: string): string {
 
 function addUniqueWarning(warnings: string[], warning: string): string[] {
   return warnings.includes(warning) ? warnings : [...warnings, warning];
+}
+
+function recomposeItemNames(
+  items: NameTranslationPlanItem[],
+  options: NameTranslationOptions
+): NameTranslationPlanItem[] {
+  return items.map((item) => {
+    if (item.status === "skipped" || item.status === "blocked") return item;
+
+    const originalStem = pathStem(item.originalName);
+    const extension =
+      item.kind === "file" ? item.originalName.slice(originalStem.length) : "";
+
+    const fakeTarget: NameTranslationTarget = {
+      id: item.targetId,
+      kind: item.kind,
+      absolutePath: item.sourcePath,
+      parentPath: item.sourceParentPath,
+      originalName: item.originalName,
+      stem: originalStem,
+      extension,
+      depthFromRoot: 0,
+      anchorRoot: "",
+    };
+
+    const sanitized = sanitizeTranslatedName(
+      fakeTarget,
+      item.translatedStem,
+      options
+    );
+    if (!sanitized.valid) return item;
+
+    const newTargetPath = joinPath(item.sourceParentPath, sanitized.newName);
+    return {
+      ...item,
+      newName: sanitized.newName,
+      targetPath: newTargetPath,
+      status: samePath(item.sourcePath, newTargetPath) ? "unchanged" : "ready",
+    };
+  });
 }
 
 function getIpcRenderer(): Window["ipcRenderer"] {

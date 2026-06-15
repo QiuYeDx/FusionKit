@@ -230,6 +230,14 @@ export const createNameTranslationPlanSchema = z.object({
   namingStyle: z
     .enum(["preserve", "space", "kebab", "snake", "title", "lower"])
     .default("preserve"),
+  outputMode: z
+    .enum(["target_only", "bilingual_target_first", "bilingual_original_first"])
+    .default("target_only")
+    .describe("Output filename mode. target_only replaces the original name; bilingual modes keep both translated and original text."),
+  bilingualSeparator: z
+    .string()
+    .default(" - ")
+    .describe("Separator between translated and original parts in bilingual mode."),
   collisionPolicy: z
     .enum(["fail", "append_index"])
     .default("fail")
