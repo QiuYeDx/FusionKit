@@ -246,7 +246,7 @@ export default function PlanPreviewTable({
                     </div>
                   </TableCell>
                   <TableCell>
-                    <Tooltip>
+                    <Tooltip disableHoverableContent>
                       <TooltipTrigger asChild>
                         <span className="block max-w-[220px] truncate text-xs font-medium">
                           {item.originalName}
@@ -261,7 +261,7 @@ export default function PlanPreviewTable({
                     </Tooltip>
                   </TableCell>
                   <TableCell>
-                    <Tooltip>
+                    <Tooltip disableHoverableContent>
                       <TooltipTrigger asChild>
                         <Input
                           value={draft}
@@ -290,7 +290,7 @@ export default function PlanPreviewTable({
                     </Tooltip>
                   </TableCell>
                   <TableCell>
-                    <Tooltip>
+                    <Tooltip disableHoverableContent>
                       <TooltipTrigger asChild>
                         <span className="block max-w-[320px] truncate font-mono text-[11px] text-muted-foreground">
                           {item.sourcePath}
@@ -302,7 +302,7 @@ export default function PlanPreviewTable({
                     </Tooltip>
                   </TableCell>
                   <TableCell>
-                    <Tooltip>
+                    <Tooltip disableHoverableContent>
                       <TooltipTrigger asChild>
                         <span className="block max-w-[320px] truncate font-mono text-[11px] text-muted-foreground">
                           {item.targetPath}
@@ -499,7 +499,7 @@ function IconAction({
   children: ReactNode;
 }) {
   return (
-    <Tooltip>
+    <Tooltip disableHoverableContent>
       <TooltipTrigger asChild>
         <Button
           type="button"
