@@ -118,7 +118,8 @@
     "actions": {
       "skip": "跳過",
       "restore": "恢復 AI 建議",
-      "auto_index": "對衝突使用自動編號"
+      "auto_index": "對衝突使用自動編號",
+      "open_folder": "開啟所在資料夾"
     },
     "pagination_hint": "每頁 {{count}} 項，避免大批次預覽一次呈現過多行。",
     "previous": "上一頁",

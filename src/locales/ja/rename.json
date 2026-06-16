@@ -118,7 +118,8 @@
     "actions": {
       "skip": "スキップ",
       "restore": "AI 提案に戻す",
-      "auto_index": "競合に自動採番を使う"
+      "auto_index": "競合に自動採番を使う",
+      "open_folder": "保存先フォルダを開く"
     },
     "pagination_hint": "大量プレビューを一度に描画しないよう、1 ページ {{count}} 件です。",
     "previous": "前へ",

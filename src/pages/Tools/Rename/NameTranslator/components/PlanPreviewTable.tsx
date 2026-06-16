@@ -5,6 +5,7 @@ import {
   CheckCircle2,
   File,
   Folder,
+  FolderOpen,
   Pencil,
   RotateCcw,
   RotateCw,
@@ -15,8 +16,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import {
-  Table,
   TableBody,
   TableCell,
   TableHead,
@@ -46,6 +47,12 @@ interface PlanPreviewTableProps {
 }
 
 const PAGE_SIZE = 50;
+const LONG_TEXT_TOOLTIP_CLASS =
+  "max-w-[min(560px,calc(100vw-2rem))] whitespace-normal text-left text-wrap break-words leading-relaxed [overflow-wrap:anywhere] [word-break:normal]";
+const PATH_TOOLTIP_CLASS = cn(
+  LONG_TEXT_TOOLTIP_CLASS,
+  "font-mono text-[11px]"
+);
 
 export default function PlanPreviewTable({
   plan,
@@ -183,139 +190,184 @@ export default function PlanPreviewTable({
         </div>
       ) : null}
 
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead className="w-[94px]">
-              {t("preview.columns.status")}
-            </TableHead>
-            <TableHead className="w-[74px]">
-              {t("preview.columns.type")}
-            </TableHead>
-            <TableHead className="min-w-[160px]">
-              {t("preview.columns.original_name")}
-            </TableHead>
-            <TableHead className="min-w-[190px]">
-              {t("preview.columns.new_name")}
-            </TableHead>
-            <TableHead className="min-w-[220px]">
-              {t("preview.columns.source_path")}
-            </TableHead>
-            <TableHead className="min-w-[220px]">
-              {t("preview.columns.target_path")}
-            </TableHead>
-            <TableHead className="min-w-[150px]">
-              {t("preview.columns.reason")}
-            </TableHead>
-            <TableHead className="w-[128px] text-right">
-              {t("preview.columns.actions")}
-            </TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {pageItems.map((item) => {
-            const draft = draftNames[item.id] ?? item.newName;
-            const suggestion = originalSuggestions[item.id];
-            return (
-              <TableRow
-                key={item.id}
-                className={cn(
-                  item.status === "blocked" && "bg-destructive/5",
-                  ["skipped", "unchanged"].includes(item.status) && "opacity-70"
-                )}
-              >
-                <TableCell>
-                  <StatusBadge status={item.status} />
-                </TableCell>
-                <TableCell>
-                  <div className="flex items-center gap-1.5 text-xs">
-                    {item.kind === "directory" ? (
-                      <Folder className="h-3.5 w-3.5 text-muted-foreground" />
-                    ) : (
-                      <File className="h-3.5 w-3.5 text-muted-foreground" />
-                    )}
-                    {t(`preview.kind.${item.kind}`)}
-                  </div>
-                </TableCell>
-                <TableCell>
-                  <span className="block max-w-[220px] truncate text-xs font-medium">
-                    {item.originalName}
-                  </span>
-                </TableCell>
-                <TableCell>
-                  <Input
-                    value={draft}
-                    disabled={item.status === "applied"}
-                    className="h-8 min-w-[180px] font-mono text-xs"
-                    onChange={(event) =>
-                      setDraftNames((current) => ({
-                        ...current,
-                        [item.id]: event.target.value,
-                      }))
-                    }
-                    onBlur={() => commitDraft(item)}
-                    onKeyDown={(event) => {
-                      if (event.key === "Enter") {
-                        event.currentTarget.blur();
-                      }
-                    }}
-                  />
-                </TableCell>
-                <TableCell>
-                  <span className="block max-w-[320px] truncate font-mono text-[11px] text-muted-foreground">
-                    {item.sourcePath}
-                  </span>
-                </TableCell>
-                <TableCell>
-                  <span className="block max-w-[320px] truncate font-mono text-[11px] text-muted-foreground">
-                    {item.targetPath}
-                  </span>
-                </TableCell>
-                <TableCell>
-                  <ReasonCell item={item} />
-                </TableCell>
-                <TableCell>
-                  <div className="flex justify-end gap-1">
-                    <IconAction
-                      label={t("preview.actions.skip")}
-                      disabled={item.status === "skipped" || item.status === "applied"}
-                      onClick={() =>
-                        onEditItem(item.id, {
-                          status: "skipped",
-                          reason: "manual_skip",
-                        })
-                      }
-                    >
-                      <SkipForward className="h-3.5 w-3.5" />
-                    </IconAction>
-                    <IconAction
-                      label={t("preview.actions.restore")}
-                      disabled={!suggestion || item.status === "applied"}
-                      onClick={() =>
-                        suggestion &&
-                        onEditItem(item.id, {
-                          ...suggestion,
-                          status: "ready",
-                          reason: undefined,
-                        })
-                      }
-                    >
-                      <RotateCcw className="h-3.5 w-3.5" />
-                    </IconAction>
-                    <IconAction
-                      label={t("preview.actions.auto_index")}
-                      disabled={item.status !== "blocked"}
-                      onClick={onUseAutoIndex}
-                    >
-                      <CheckCircle2 className="h-3.5 w-3.5" />
-                    </IconAction>
-                  </div>
-                </TableCell>
-              </TableRow>
-            );
-          })}
-        </TableBody>
-      </Table>
+      <ScrollArea className="w-full">
+        <table className="w-full caption-bottom text-sm">
+          <TableHeader>
+            <TableRow>
+              <TableHead className="w-[94px]">
+                {t("preview.columns.status")}
+              </TableHead>
+              <TableHead className="w-[74px]">
+                {t("preview.columns.type")}
+              </TableHead>
+              <TableHead className="min-w-[160px]">
+                {t("preview.columns.original_name")}
+              </TableHead>
+              <TableHead className="min-w-[190px]">
+                {t("preview.columns.new_name")}
+              </TableHead>
+              <TableHead className="min-w-[220px]">
+                {t("preview.columns.source_path")}
+              </TableHead>
+              <TableHead className="min-w-[220px]">
+                {t("preview.columns.target_path")}
+              </TableHead>
+              <TableHead className="min-w-[150px]">
+                {t("preview.columns.reason")}
+              </TableHead>
+              <TableHead className="w-[128px] text-right">
+                {t("preview.columns.actions")}
+              </TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {pageItems.map((item) => {
+              const draft = draftNames[item.id] ?? item.newName;
+              const suggestion = originalSuggestions[item.id];
+              return (
+                <TableRow
+                  key={item.id}
+                  className={cn(
+                    item.status === "blocked" && "bg-destructive/5",
+                    ["skipped", "unchanged"].includes(item.status) && "opacity-70"
+                  )}
+                >
+                  <TableCell>
+                    <StatusBadge status={item.status} />
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-1.5 text-xs">
+                      {item.kind === "directory" ? (
+                        <Folder className="h-3.5 w-3.5 text-muted-foreground" />
+                      ) : (
+                        <File className="h-3.5 w-3.5 text-muted-foreground" />
+                      )}
+                      {t(`preview.kind.${item.kind}`)}
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span className="block max-w-[220px] truncate text-xs font-medium">
+                          {item.originalName}
+                        </span>
+                      </TooltipTrigger>
+                      <TooltipContent
+                        side="bottom"
+                        className={LONG_TEXT_TOOLTIP_CLASS}
+                      >
+                        {item.originalName}
+                      </TooltipContent>
+                    </Tooltip>
+                  </TableCell>
+                  <TableCell>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Input
+                          value={draft}
+                          disabled={item.status === "applied"}
+                          className="h-8 min-w-[180px] font-mono text-xs"
+                          onChange={(event) =>
+                            setDraftNames((current) => ({
+                              ...current,
+                              [item.id]: event.target.value,
+                            }))
+                          }
+                          onBlur={() => commitDraft(item)}
+                          onKeyDown={(event) => {
+                            if (event.key === "Enter") {
+                              event.currentTarget.blur();
+                            }
+                          }}
+                        />
+                      </TooltipTrigger>
+                      <TooltipContent
+                        side="bottom"
+                        className={LONG_TEXT_TOOLTIP_CLASS}
+                      >
+                        {draft}
+                      </TooltipContent>
+                    </Tooltip>
+                  </TableCell>
+                  <TableCell>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span className="block max-w-[320px] truncate font-mono text-[11px] text-muted-foreground">
+                          {item.sourcePath}
+                        </span>
+                      </TooltipTrigger>
+                      <TooltipContent side="bottom" className={PATH_TOOLTIP_CLASS}>
+                        {item.sourcePath}
+                      </TooltipContent>
+                    </Tooltip>
+                  </TableCell>
+                  <TableCell>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span className="block max-w-[320px] truncate font-mono text-[11px] text-muted-foreground">
+                          {item.targetPath}
+                        </span>
+                      </TooltipTrigger>
+                      <TooltipContent side="bottom" className={PATH_TOOLTIP_CLASS}>
+                        {item.targetPath}
+                      </TooltipContent>
+                    </Tooltip>
+                  </TableCell>
+                  <TableCell>
+                    <ReasonCell item={item} />
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex justify-end gap-1">
+                      <IconAction
+                        label={t("preview.actions.skip")}
+                        disabled={item.status === "skipped" || item.status === "applied"}
+                        onClick={() =>
+                          onEditItem(item.id, {
+                            status: "skipped",
+                            reason: "manual_skip",
+                          })
+                        }
+                      >
+                        <SkipForward className="h-3.5 w-3.5" />
+                      </IconAction>
+                      <IconAction
+                        label={t("preview.actions.restore")}
+                        disabled={!suggestion || item.status === "applied"}
+                        onClick={() =>
+                          suggestion &&
+                          onEditItem(item.id, {
+                            ...suggestion,
+                            status: "ready",
+                            reason: undefined,
+                          })
+                        }
+                      >
+                        <RotateCcw className="h-3.5 w-3.5" />
+                      </IconAction>
+                      <IconAction
+                        label={t("preview.actions.auto_index")}
+                        disabled={item.status !== "blocked"}
+                        onClick={onUseAutoIndex}
+                      >
+                        <CheckCircle2 className="h-3.5 w-3.5" />
+                      </IconAction>
+                      <IconAction
+                        label={t("preview.actions.open_folder")}
+                        onClick={() =>
+                          window.ipcRenderer.invoke("show-item-in-folder", item.sourcePath)
+                        }
+                      >
+                        <FolderOpen className="h-3.5 w-3.5" />
+                      </IconAction>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              );
+            })}
+          </TableBody>
+        </table>
+        <ScrollBar orientation="horizontal" />
+      </ScrollArea>
 
       <div className="flex items-center justify-between gap-3 border-t px-4 py-3">
         <div className="text-[11px] text-muted-foreground">

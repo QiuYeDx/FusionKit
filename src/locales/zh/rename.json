@@ -118,7 +118,8 @@
     "actions": {
       "skip": "跳过",
       "restore": "恢复 AI 建议",
-      "auto_index": "对冲突使用自动编号"
+      "auto_index": "对冲突使用自动编号",
+      "open_folder": "打开所在文件夹"
     },
     "pagination_hint": "每页 {{count}} 项，避免大批量预览一次渲染过多行。",
     "previous": "上一页",

@@ -118,7 +118,8 @@
     "actions": {
       "skip": "Skip",
       "restore": "Restore AI suggestion",
-      "auto_index": "Use auto index for conflicts"
+      "auto_index": "Use auto index for conflicts",
+      "open_folder": "Open containing folder"
     },
     "pagination_hint": "{{count}} items per page to avoid rendering huge previews at once.",
     "previous": "Previous",
