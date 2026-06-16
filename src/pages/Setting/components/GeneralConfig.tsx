@@ -37,7 +37,14 @@ function GeneralConfig() {
               variant={language === LangEnum.ZH ? "default" : "outline"}
               onClick={() => changeLanguage(LangEnum.ZH)}
             >
-              {t("common:lang.zh", { defaultValue: "中文" })}
+              {t("common:lang.zh", { defaultValue: "简体中文" })}
+            </Button>
+            <Button
+              size="sm"
+              variant={language === LangEnum.ZH_HANT ? "default" : "outline"}
+              onClick={() => changeLanguage(LangEnum.ZH_HANT)}
+            >
+              {t("common:lang.zh-Hant", { defaultValue: "繁體中文" })}
             </Button>
             <Button
               size="sm"

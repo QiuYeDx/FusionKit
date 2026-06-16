@@ -1,0 +1,368 @@
+{
+  "translator": {
+    "title": "字幕AI翻譯",
+    "description": "支援 lrc、srt 格式字幕的多語言翻譯，可輸出雙語或僅目標語言字幕。",
+    "config_title": "設定選項",
+    "languages": {
+      "ZH": "中文",
+      "JA": "日語",
+      "EN": "英語",
+      "KO": "韓語",
+      "FR": "法語",
+      "DE": "德語",
+      "ES": "西班牙語",
+      "RU": "俄語",
+      "PT": "葡萄牙語"
+    },
+    "fields": {
+      "subtitle_file_type": "字幕檔案格式",
+      "subtitle_slice_mode": "分片模式",
+      "source_language": "來源語言",
+      "target_language": "目標語言",
+      "translation_output_mode": "輸出模式",
+      "output_bilingual": "雙語字幕",
+      "output_target_only": "僅目標語言",
+      "no_tasks": "目前沒有待處理任務",
+      "start_all": "全部開始",
+      "files_only": "僅支援 {formats} 格式檔案",
+      "upload_tips": "點擊上傳或直接拖曳檔案到這裡",
+      "upload_tips_dragging": "釋放以新增字幕檔案",
+      "select_file": "選擇檔案",
+      "custom_slice_length": "自訂分片長度",
+      "remove_all_resolved_task": "清空完成",
+      "clear_all_tasks": "全部清空",
+      "select_output_path": "選擇輸出路徑",
+      "no_output_path_selected": "未選擇輸出路徑",
+      "output_mode": "輸出位置",
+      "output_mode_custom": "自訂目錄",
+      "output_mode_source": "與來源檔案同目錄",
+      "output_mode_source_hint": "每個檔案將輸出到其來源檔案所在目錄",
+      "conflict_policy": "重名處理",
+      "conflict_policy_overwrite": "覆蓋原檔案",
+      "conflict_policy_index": "自動加序號",
+      "concurrent_slices": "切片並行翻譯",
+      "concurrent_slices_hint": "開啟後單一任務的多個切片將並行請求 API，顯著提升翻譯速度，但會增加瞬時並行數"
+    },
+    "actions": {
+      "start": "開始任務",
+      "retry": "重試任務",
+      "cancel": "取消任務",
+      "delete": "刪除任務"
+    },
+    "slice_types": {
+      "normal": "普通模式",
+      "sensitive": "敏感模式",
+      "custom": "自訂"
+    },
+    "task_status": {
+      "notstarted": "待啟動",
+      "waiting": "等待處理",
+      "pending": "正在翻譯",
+      "resolved": "翻譯完成",
+      "failed": "翻譯失敗"
+    },
+    "infos": {
+      "output_path_selected": "輸出路徑已設定",
+      "total_fragments": "總分片數：{count}",
+      "task_deleted": "任務已刪除",
+      "all_tasks_cleared": "已清空所有任務",
+      "task_canceled": "任務已取消",
+      "task_canceled_by_user": "任務已被使用者取消",
+      "task_cancel_toast": "任務已取消"
+    },
+    "errors": {
+      "invalid_file_type": "不支援的檔案類型：{types}",
+      "duplicate_file": "檔案 {file} 已存在，跳過重複新增",
+      "path_selection_failed": "路徑選擇失敗，請重試",
+      "please_select_output_url": "請先選擇輸出路徑",
+      "source_path_missing": "無法讀取來源檔案路徑，請改用自訂輸出目錄",
+      "read_file_failed": "讀取檔案 {file} 失敗"
+    },
+    "upload_section": "檔案上傳",
+    "task_management": "任務佇列",
+    "output_path_section": "輸出設定",
+    "token_stats": {
+      "title": "Token消耗預估",
+      "total_tokens": "總Token數",
+      "total_cost": "預估總費用",
+      "pending_tokens": "待處理Token",
+      "pending_cost": "待處理費用",
+      "cost_tooltip": "目前僅為預估費用。實際計費會同時包含輸入和輸出 Token，輸出 Token 在翻譯前無法精確得知；翻譯結果越長，實際費用越可能高於預估，最終以模型服務商帳單為準。"
+    },
+    "task_detail": {
+      "language_pair": "翻譯語言",
+      "slice_mode": "分片模式",
+      "api_model": "API 模型",
+      "api_endpoint": "API 位址",
+      "source_file": "來源檔案",
+      "output_path": "輸出路徑",
+      "conflict_policy": "重名策略",
+      "overwrite": "覆蓋",
+      "auto_index": "自動編號",
+      "fragment_count": "分片數量",
+      "fragment_suffix": "個分片",
+      "token_estimate": "Token 預估",
+      "input": "輸入",
+      "output": "輸出",
+      "concurrent_slices": "並行切片",
+      "concurrent_on": "已開啟",
+      "concurrent_off": "已關閉"
+    },
+    "edit_task": {
+      "title": "編輯任務設定",
+      "saved": "任務設定已更新"
+    },
+    "error_fallback": {
+      "unknown": "未知錯誤",
+      "no_detail": "無詳細錯誤資訊"
+    },
+    "dialog": {
+      "select_output_title": "選擇輸出目錄",
+      "select_output_confirm": "選擇此目錄"
+    },
+    "schedule": {
+      "title": "定時開始",
+      "start_time": "開始時間",
+      "date": "日期",
+      "time": "時間",
+      "select_date": "選擇日期",
+      "prevent_sleep_until_start": "防止系統睡眠直到開始",
+      "prevent_sleep_note": "僅防止因閒置觸發的睡眠，不阻止手動睡眠或闔蓋",
+      "choose_future_time": "請選擇未來的時間",
+      "scheduled_set": "已設定定時開始",
+      "enable": "啟用定時",
+      "cancel": "取消定時",
+      "status": "狀態：",
+      "enabled_countdown": "已啟用，倒數計時",
+      "sleep_blocker_on": "已防睡眠",
+      "disabled": "未啟用",
+      "schedule_canceled": "已取消定時任務",
+      "time_reached_start": "已到達定時時間，開始全部任務",
+      "time_reached_no_tasks": "已到達定時時間，但沒有可開始的任務"
+    },
+    "new_task_config": {
+      "title": "新任務設定",
+      "note": "目前分片模式設定，將套用於新新增的任務。已存在的任務保持建立時的設定不變。",
+      "current_language_pair": "翻譯語言",
+      "current_slice_mode": "目前分片模式",
+      "chars_suffix": "字元",
+      "rate_in_out": "費率（輸入/輸出）",
+      "rate_suffix": "每百萬Token",
+      "total_tasks": "任務總數",
+      "task_count": "{count} 個任務"
+    },
+    "recovery": {
+      "title": "復原歷史任務",
+      "scan_current_output": "掃描目前輸出目錄",
+      "select_directory": "選擇目錄掃描",
+      "import_manifest": "匯入復原清單",
+      "add_to_queue": "加入佇列",
+      "add_and_start": "加入並立即開始",
+      "ready": "可復原",
+      "ready_from_manifest": "使用復原清單續跑",
+      "source_matched": "來源檔案一致",
+      "source_missing": "來源檔案不存在",
+      "source_changed": "來源檔案已變更",
+      "source_unknown": "來源檔案狀態未知",
+      "invalid_manifest": "復原清單無效",
+      "corrupt_manifest": "復原清單損壞",
+      "unsupported_schema": "不支援的格式版本",
+      "completed": "已完成",
+      "no_pending_fragments": "沒有未完成分片",
+      "too_large": "檔案過大",
+      "no_candidates": "未找到可復原的歷史任務",
+      "scan_truncated": "掃描結果已截斷，僅顯示前 {count} 個",
+      "duplicate_skipped": "已跳過 {count} 個重複任務",
+      "scanning": "正在掃描...",
+      "scan_complete": "掃描完成，找到 {count} 個復原候選",
+      "scan_error": "掃描出錯",
+      "import_success": "已成功加入 {count} 個任務到佇列",
+      "source_unavailable_hint": "來源檔案不可用或已變更，將使用復原清單中的原始分片繼續翻譯",
+      "open_location": "開啟位置",
+      "ignore": "忽略",
+      "select_all": "全選",
+      "deselect_all": "取消全選",
+      "selected_count": "已選擇 {count} 個",
+      "progress_label": "進度",
+      "last_updated": "最近更新",
+      "file_name": "檔案名稱",
+      "status": "狀態",
+      "fragments": "分片進度",
+      "language": "語言",
+      "slice_type": "分片策略",
+      "output_dir": "輸出目錄",
+      "confirm_add_from_manifest": "確認使用復原清單加入佇列？",
+      "confirm_add_from_manifest_desc": "來源檔案不可用或已變更，將直接使用復原清單中儲存的原始分片資料繼續翻譯。"
+    }
+  },
+  "extractor": {
+    "title": "字幕語言擷取",
+    "description": "支援從 LRC/SRT 雙語字幕中擷取指定語言的文字行，保持原格式與時間軸。",
+    "config_title": "設定選項",
+    "output_path_section": "輸出設定",
+    "summary_title": "目前設定",
+    "upload_section": "檔案上傳",
+    "task_management": "任務管理",
+    "fields": {
+      "keep_language": "保留語言",
+      "select_output_path": "選擇輸出目錄",
+      "no_output_path_selected": "未選擇輸出目錄",
+      "output_mode": "輸出位置",
+      "output_mode_custom": "自訂目錄",
+      "output_mode_source": "與來源檔案同目錄",
+      "output_mode_source_hint": "每個檔案將輸出到其來源檔案所在目錄",
+      "conflict_policy": "重名處理",
+      "conflict_policy_overwrite": "覆蓋原檔案",
+      "conflict_policy_index": "自動加序號",
+      "upload_tips": "點擊或拖曳 LRC/SRT 檔案到此處",
+      "files_only": "僅支援 .lrc, .srt",
+      "select_file": "選擇檔案",
+      "start_all": "開始全部",
+      "remove_all_resolved_task": "清空完成",
+      "clear_all_tasks": "全部清空",
+      "no_tasks": "暫無任務"
+    },
+    "task_status": {
+      "notstarted": "未開始",
+      "pending": "處理中",
+      "resolved": "已完成",
+      "failed": "失敗"
+    },
+    "summary": {
+      "total_tasks": "任務總數",
+      "task_count": "共 {count} 個任務"
+    },
+    "labels": {
+      "output": "輸出"
+    },
+    "actions": {
+      "view_error_detail": "檢視錯誤詳情",
+      "retry": "重試",
+      "start": "開始",
+      "delete": "刪除"
+    },
+    "infos": {
+      "output_path_selected": "輸出路徑已設定",
+      "task_deleted": "任務已刪除",
+      "all_tasks_cleared": "已清空所有任務",
+      "task_extract_done": "擷取完成：{file}"
+    },
+    "task_detail": {
+      "file_format": "檔案格式",
+      "keep_language": "保留語言",
+      "source_file": "來源檔案",
+      "output_path": "輸出路徑",
+      "conflict_policy": "重名策略",
+      "overwrite": "覆蓋",
+      "auto_index": "自動編號"
+    },
+    "edit_task": {
+      "title": "編輯任務設定",
+      "saved": "任務設定已更新"
+    },
+    "error_fallback": {
+      "unknown": "未知錯誤",
+      "no_detail": "無詳細錯誤資訊"
+    },
+    "errors": {
+      "path_selection_failed": "路徑選擇失敗，請重試",
+      "please_select_output_url": "請先選擇輸出目錄",
+      "source_path_missing": "無法讀取來源檔案路徑，請改用自訂輸出目錄",
+      "invalid_file_type": "不支援的檔案類型：{types}",
+      "duplicate_file": "重複的檔案：{file}",
+      "read_file_failed": "讀取檔案 {file} 失敗",
+      "task_extract_failed": "擷取失敗：{file}"
+    },
+    "dialog": {
+      "select_output_title": "選擇輸出目錄",
+      "select_output_confirm": "選擇此目錄"
+    }
+  },
+  "converter": {
+    "title": "字幕格式轉換",
+    "description": "支援 LRC、SRT、VTT 三種字幕格式之間的相互轉換。",
+    "config_title": "設定選項",
+    "output_path_section": "輸出設定",
+    "summary_title": "目前設定",
+    "upload_section": "檔案上傳",
+    "task_management": "任務管理",
+    "fields": {
+      "target_format": "目標格式",
+      "default_duration_label": "預設時長（秒）",
+      "duration_hint": "僅當從 LRC 轉換為 SRT/VTT 時，用於缺少結束時間的字幕",
+      "strip_media_ext_label": "移除媒體副檔名（如 .wav/.mp4）",
+      "strip_media_ext_hint": "當輸入檔案名稱類似 xxx.wav.vtt 時，輸出將為 xxx.lrc（而不是 xxx.wav.lrc）",
+      "select_output_path": "選擇輸出目錄",
+      "no_output_path_selected": "未選擇輸出目錄",
+      "output_mode": "輸出位置",
+      "output_mode_custom": "自訂目錄",
+      "output_mode_source": "與來源檔案同目錄",
+      "output_mode_source_hint": "每個檔案將輸出到其來源檔案所在目錄",
+      "conflict_policy": "重名處理",
+      "conflict_policy_overwrite": "覆蓋原檔案",
+      "conflict_policy_index": "自動加序號",
+      "upload_tips": "點擊或拖曳 LRC/SRT/VTT 檔案到此處",
+      "files_only": "僅支援 .lrc, .srt, .vtt",
+      "select_file": "選擇檔案",
+      "start_all": "開始全部",
+      "remove_all_resolved_task": "清空完成",
+      "clear_all_tasks": "全部清空",
+      "no_tasks": "暫無任務"
+    },
+    "task_status": {
+      "notstarted": "未開始",
+      "pending": "處理中",
+      "resolved": "已完成",
+      "failed": "失敗"
+    },
+    "summary": {
+      "total_tasks": "任務總數",
+      "task_count": "共 {count} 個任務",
+      "default_duration": "預設時長"
+    },
+    "labels": {
+      "output": "輸出"
+    },
+    "actions": {
+      "view_error_detail": "檢視錯誤詳情",
+      "retry": "重試",
+      "start": "開始",
+      "delete": "刪除"
+    },
+    "infos": {
+      "output_path_selected": "輸出路徑已設定",
+      "task_deleted": "任務已刪除",
+      "all_tasks_cleared": "已清空所有任務",
+      "task_convert_done": "轉換完成：{file}"
+    },
+    "task_detail": {
+      "conversion_format": "轉換格式",
+      "source_file": "來源檔案",
+      "output_path": "輸出路徑",
+      "conflict_policy": "重名策略",
+      "overwrite": "覆蓋",
+      "auto_index": "自動編號"
+    },
+    "edit_task": {
+      "title": "編輯任務設定",
+      "saved": "任務設定已更新"
+    },
+    "error_fallback": {
+      "unknown": "未知錯誤",
+      "no_detail": "無詳細錯誤資訊"
+    },
+    "errors": {
+      "path_selection_failed": "路徑選擇失敗，請重試",
+      "please_select_output_url": "請先選擇輸出目錄",
+      "source_path_missing": "無法讀取來源檔案路徑，請改用自訂輸出目錄",
+      "invalid_file_type": "不支援的檔案類型：{types}",
+      "duplicate_file": "重複的檔案：{file}",
+      "read_file_failed": "讀取檔案 {file} 失敗",
+      "task_convert_failed": "轉換失敗：{file}"
+    },
+    "dialog": {
+      "select_output_title": "選擇輸出目錄",
+      "select_output_confirm": "選擇此目錄"
+    }
+  }
+}

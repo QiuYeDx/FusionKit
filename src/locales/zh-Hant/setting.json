@@ -1,0 +1,128 @@
+{
+  "title": "設定",
+  "description": "設定 FusionKit 的外觀、網路與 AI 模型參數。",
+  "subtitle": {
+    "general_config": "常規設定",
+    "theme_config": "主題設定",
+    "language_config": "語言設定",
+    "apikey_config": "模型設定",
+    "token_price_config": "Token 價格設定",
+    "proxy_config": "代理設定",
+    "model_assignment": "模型分配",
+    "model_profiles": "模型設定檔"
+  },
+  "nav": {
+    "general": {
+      "label": "常規",
+      "hint": "外觀、語言、通知"
+    },
+    "proxy": {
+      "label": "網路代理",
+      "hint": "無代理 / 系統 / 自訂"
+    },
+    "model": {
+      "label": "AI 模型",
+      "hint": "模型分配 · 模型設定檔"
+    }
+  },
+  "fields": {
+    "language": "語言",
+    "theme": "主題",
+    "model_type": "模型類型",
+    "model_name": "模型",
+    "light_mode": "淺色模式",
+    "dark_mode": "深色模式",
+    "system_mode": "跟隨系統",
+    "other": "其他",
+    "apikey": "API Key",
+    "model_url": "Base URL",
+    "model_key": "Model Key",
+    "model_fetch": {
+      "no_key": "請先設定 API Key",
+      "success": "已取得 {{count}} 個可用模型",
+      "error": "取得模型列表失敗",
+      "preset_group": "預設模型",
+      "remote_group": "遠端模型",
+      "refresh_tooltip": "從 API 取得最新模型列表",
+      "manual_key_label": "手動輸入 Model Key",
+      "manual_key_hint": "將作為介面請求的 model 參數",
+      "apply_custom_key": "使用",
+      "empty_custom_key": "請輸入模型 Key",
+      "deepseek_legacy_warning": "該模型將於 2026 年 7 月 24 日後停用，建議切換至 V4 系列模型。",
+      "badge_recommended": "推薦",
+      "badge_flagship": "旗艦",
+      "badge_legacy": "舊版"
+    },
+    "notification": {
+      "label": "系統通知",
+      "test_btn": "測試通知",
+      "test_title": "FusionKit",
+      "test_body": "系統通知功能正常！",
+      "task_resolved": "{{file}} 任務已完成",
+      "task_failed": "{{file}} 任務失敗"
+    },
+    "proxy": {
+      "mode": "代理模式",
+      "none": "不使用代理",
+      "system": "系統代理",
+      "custom": "自訂代理",
+      "host": "代理位址",
+      "port": "連接埠",
+      "none_desc": "直接連線網路，不使用任何代理伺服器。",
+      "system_desc": "使用作業系統設定的代理設定。",
+      "custom_desc": "透過指定的代理伺服器轉發網路請求。",
+      "test_btn": "測試",
+      "test_tooltip": "點擊測試目前網路連線",
+      "test_success": "連線成功",
+      "test_fail": "連線失敗",
+      "test_latency": "延遲",
+      "test_proxy_addr": "代理位址",
+      "test_error": "錯誤"
+    },
+    "token_price": {
+      "intro_title": "Token 價格設定",
+      "intro_desc": "設定每 1M tokens 的價格（美元）。",
+      "intro_desc_preset": "預設模型的價格可以調整，但建議使用官方定價。",
+      "input_price": "輸入 Token 價格",
+      "output_price": "輸出 Token 價格",
+      "per_million": "$/1M tokens",
+      "current_price_title": "目前 {model} 的 Token 價格：",
+      "custom_model": "自訂模型",
+      "input_label": "輸入：",
+      "output_label": "輸出：",
+      "preset_note": "注意：{model} 的價格已根據官方定價預設。您可以根據實際情況調整價格，但建議使用官方定價以確保準確性。",
+      "custom_note": "提示：請根據您使用的自訂模型的實際定價設定 Token 價格，以獲得準確的費用預估。"
+    },
+    "assignment": {
+      "description": "為不同功能模組指定使用的模型設定。Agent 模型用於 AI 對話，任務執行模型用於字幕翻譯等具體任務。",
+      "agent_model": "Agent 模型（AI 對話）",
+      "task_model": "任務執行模型（字幕翻譯等）",
+      "select_placeholder": "選擇模型設定…",
+      "not_configured": "未設定",
+      "locked": "對話中",
+      "locked_tooltip": "目前有對話進行中，無法修改 Agent 所用的模型。請新建對話後再修改。"
+    },
+    "profile": {
+      "add": "新增設定",
+      "empty": "暫無模型設定，請新增一個。",
+      "add_first": "新增第一個模型設定",
+      "in_use": "使用中",
+      "no_key": "未設定 API Key",
+      "dialog_title_add": "新增模型設定",
+      "dialog_title_edit": "編輯模型設定",
+      "dialog_description": "設定模型的連線資訊和參數。",
+      "name": "設定名稱",
+      "name_placeholder": "例如：DeepSeek V3、GPT-5 等",
+      "cancel": "取消",
+      "create": "建立",
+      "save": "儲存"
+    }
+  },
+  "placeholder": {
+    "apikey": "請輸入 API Key",
+    "model_url": "請輸入 Base URL",
+    "model_key": "請輸入 Model Key",
+    "proxy_host": "127.0.0.1",
+    "proxy_port": "7890"
+  }
+}

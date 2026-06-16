@@ -20,7 +20,7 @@ i18n.use(initReactI18next).init({
   supportedLngs: SUPPORTED_LANGUAGES,
   ns: NAMESPACES,
   defaultNS: DEFAULT_NAMESPACE,
-  load: "languageOnly",
+  load: "currentOnly",
   interpolation: {
     escapeValue: false,
   },

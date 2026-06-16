@@ -1,0 +1,193 @@
+{
+  "page": {
+    "title": "檔案名稱/資料夾名稱翻譯",
+    "description": "選擇檔案或資料夾，產生 dry-run 預覽，確認後安全套用重新命名。",
+    "badge": "dry-run first",
+    "error_title": "操作失敗",
+    "loading_plan_title": "正在載入 HomeAgent 計畫",
+    "loading_plan_desc": "正在恢復剛產生的預覽、選取路徑和可套用狀態。",
+    "loaded_from_agent_title": "已載入 HomeAgent 預覽",
+    "loaded_from_agent_desc": "正在檢視計畫 {{planId}}，共 {{count}} 個目標；這裡仍然是 dry-run，未修改任何檔案。"
+  },
+  "risk_reasons": {
+    "directories": "包含目錄重新命名",
+    "descendants": "遞迴範圍",
+    "path_segments": "路徑片段",
+    "large_batch": "超過 100 項",
+    "warnings": "包含警告"
+  },
+  "path": {
+    "section_title": "路徑",
+    "dialog_title": "選擇要翻譯名稱的檔案或資料夾",
+    "dialog_button": "選擇",
+    "drop_title": "拖曳檔案或資料夾到這裡",
+    "drop_hint": "支援混合選擇，產生預覽前不會變動檔案系統",
+    "select_mixed": "檔案/資料夾",
+    "select_dirs": "僅資料夾",
+    "empty": "選擇路徑後會顯示類型、子項數量和風險標籤。",
+    "file_unit": "檔案",
+    "directory_unit": "資料夾",
+    "counts": "{{files}} 檔案 · {{directories}} 資料夾",
+    "remove_tooltip": "移除路徑",
+    "reset_tooltip": "清空目前選擇",
+    "create_preview": "產生預覽"
+  },
+  "options": {
+    "section_title": "設定",
+    "scope_label": "翻譯範圍",
+    "scope": {
+      "self": { "label": "所選名稱", "hint": "只翻譯選取的檔案或資料夾本身" },
+      "children": { "label": "直接子項", "hint": "只翻譯資料夾第一層內容" },
+      "descendants": { "label": "遞迴子項", "hint": "包含多層子目錄" },
+      "path_segments": { "label": "路徑片段", "hint": "需要後續指定起止層級" }
+    },
+    "target_kind_label": "目標類型",
+    "target_kind": {
+      "files": "檔案",
+      "directories": "資料夾",
+      "both": "全部"
+    },
+    "max_depth_label": "遞迴深度",
+    "max_depth_hint": "僅遞迴子項模式生效，20 近似無限",
+    "language_label": "語言",
+    "source_auto": "自動辨識",
+    "languages": {
+      "ZH": "中文",
+      "EN": "英文",
+      "JA": "日文",
+      "KO": "韓文",
+      "FR": "法文",
+      "DE": "德文",
+      "ES": "西文",
+      "RU": "俄文",
+      "PT": "葡文"
+    },
+    "naming_style_label": "命名風格",
+    "naming_styles": {
+      "preserve": "保留原風格",
+      "space": "空格分詞",
+      "kebab": "短橫線",
+      "snake": "底線",
+      "title": "Title Case",
+      "lower": "lowercase"
+    },
+    "output_mode_label": "輸出模式",
+    "output_mode": {
+      "target_only": "僅譯文",
+      "bilingual_target_first": "譯文在前 + 原文",
+      "bilingual_original_first": "原文在前 + 譯文"
+    },
+    "separator_label": "分隔符號",
+    "skip_hidden_label": "跳過隱藏項",
+    "skip_hidden_hint": "預設不處理 .env、隱藏目錄等路徑",
+    "preserve_extension_label": "保留副檔名",
+    "preserve_extension_hint": "檔案只翻譯 stem，不改 .srt / .mp4 等副檔名",
+    "preserve_tokens_label": "保留編號和技術 tag",
+    "preserve_tokens_hint": "盡量保留 S01E02、1080p、字幕組等 token",
+    "collision_label": "衝突處理",
+    "collision_fail": "阻止",
+    "collision_append_index": "自動編號"
+  },
+  "preview": {
+    "title": "預覽",
+    "empty_title": "還沒有重新命名預覽",
+    "empty_desc": "選擇路徑並產生預覽後，可以在這裡檢查、編輯、跳過和套用。",
+    "revalidate": "重新驗證",
+    "summary": {
+      "ready": "ready",
+      "blocked": "blocked",
+      "skipped": "skipped",
+      "unchanged": "unchanged",
+      "warnings": "warnings"
+    },
+    "clarification_title": "需要補充範圍",
+    "columns": {
+      "status": "狀態",
+      "type": "類型",
+      "original_name": "原名稱",
+      "new_name": "新名稱",
+      "source_path": "原路徑",
+      "target_path": "目標路徑",
+      "reason": "原因/警告",
+      "actions": "操作"
+    },
+    "kind": {
+      "file": "檔案",
+      "directory": "資料夾"
+    },
+    "actions": {
+      "skip": "跳過",
+      "restore": "恢復 AI 建議",
+      "auto_index": "對衝突使用自動編號"
+    },
+    "pagination_hint": "每頁 {{count}} 項，避免大批次預覽一次呈現過多行。",
+    "previous": "上一頁",
+    "next": "下一頁",
+    "status": {
+      "ready": "ready",
+      "unchanged": "unchanged",
+      "skipped": "skipped",
+      "blocked": "blocked",
+      "applied": "applied",
+      "failed": "failed",
+      "rolled_back": "rolled back"
+    }
+  },
+  "apply": {
+    "title": "套用",
+    "metrics": {
+      "ready": "可套用",
+      "blocked": "阻塞",
+      "skipped": "跳過",
+      "unchanged": "無變化",
+      "success": "成功",
+      "failed": "失敗"
+    },
+    "warnings_title": "計畫包含警告",
+    "validation_failed_title": "驗證未通過",
+    "result_title": "執行結果",
+    "rollback": "嘗試回滾",
+    "rollback_summary": "回滾 journal {{journalId}}：成功 {{success}}，失敗 {{failed}}",
+    "apply_button": "套用重新命名",
+    "no_plan_hint": "所有實際重新命名都會先寫 journal；這裡不會繞過 dry-run 預覽。",
+    "blocked_hint": "只有 blocked 為 0 且 ready 大於 0 時才允許套用。",
+    "confirm_hint": "點擊套用前會按高風險規則檢查是否需要二次確認。",
+    "phase": {
+      "validating": "validating",
+      "applying": "applying",
+      "rolling_back": "rolling back",
+      "done": "done",
+      "failed": "failed"
+    }
+  },
+  "risk": {
+    "title": "確認高風險重新命名",
+    "metrics": {
+      "impacted": "影響項",
+      "files": "檔案",
+      "directories": "資料夾",
+      "warnings": "警告"
+    },
+    "reasons_title": "風險原因",
+    "scope": "範圍：{{scope}}",
+    "journal_hint": "journal 會在執行層寫入應用程式資料目錄，可用於盡力回滾，但不是交易保證。",
+    "apply_hint": "確認後才會呼叫 apply-rename-plan。",
+    "cancel": "取消",
+    "confirm": "確認套用"
+  },
+  "messages": {
+    "select_paths_first": "請先選擇至少一個檔案或資料夾。",
+    "preview_created": "預覽已產生，尚未修改任何檔案。",
+    "missing_plan": "請先產生重新命名預覽。",
+    "validating": "正在驗證重新命名計畫...",
+    "applying": "正在套用重新命名...",
+    "done": "重新命名已完成。",
+    "validation_failed": "重新命名計畫驗證未通過。",
+    "rename_finished": "重新命名執行完成。",
+    "rolling_back": "正在嘗試回滾...",
+    "rollback_done": "回滾請求已完成。",
+    "ipc_unavailable": "Electron IPC 不可用。",
+    "plan_not_found": "未找到重新命名計畫 {{planId}}，可能已過期或被清理，請重新產生預覽。",
+    "plan_loaded_from_agent": "已載入 HomeAgent 中的重新命名預覽。"
+  }
+}

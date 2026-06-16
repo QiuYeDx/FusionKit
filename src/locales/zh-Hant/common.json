@@ -1,0 +1,82 @@
+{
+  "menu": {
+    "home": "首頁",
+    "tools": "工具",
+    "about": "關於",
+    "setting": "設定",
+    "back": "返回",
+    "subtitle": {
+      "translator": "字幕AI翻譯",
+      "converter": "字幕格式轉換",
+      "extractor": "字幕語言擷取"
+    },
+    "rename": {
+      "name_translator": "檔案名稱/資料夾名稱翻譯"
+    }
+  },
+  "start": "開始",
+  "retry": "重試",
+  "app_name": "FusionKit",
+  "action": {
+    "copy_error": "複製錯誤資訊",
+    "close": "關閉",
+    "check_update": "檢查更新",
+    "cancel": "取消",
+    "confirm": "確認",
+    "save": "儲存",
+    "open_file_location": "開啟檔案位置",
+    "edit_task_config": "編輯任務設定",
+    "info": "詳情"
+  },
+  "confirm": {
+    "delete_running_task_title": "確認刪除",
+    "delete_running_task_desc": "該任務正在執行中，刪除後無法復原。確定要刪除嗎？",
+    "clear_running_tasks_title": "確認清空",
+    "clear_running_tasks_desc": "目前有任務正在執行中，清空後將終止所有任務。確定要清空嗎？"
+  },
+  "update": {
+    "title": "更新",
+    "checking": "正在檢查更新...",
+    "available_title": "發現新版本 v{{version}}",
+    "available_desc": "目前 v{{current}} → 最新 v{{latest}}",
+    "ready_to_download": "點擊「更新」開始下載。",
+    "downloading": "正在下載更新...",
+    "downloaded": "下載完成，準備安裝。",
+    "progress": "更新進度",
+    "up_to_date_title": "已是最新版本",
+    "up_to_date_desc": "目前版本 v{{version}}",
+    "latest_version": "最新版本 v{{version}}",
+    "error_title": "更新失敗",
+    "open_releases": "開啟發佈頁",
+    "download_package": "下載安裝包",
+    "downloading_package": "正在下載安裝包...",
+    "manual_download_saved": "已儲存至 {{path}}",
+    "manual_download_failed": "下載安裝包失敗",
+    "select_directory_title": "選擇下載目錄",
+    "select_directory_button": "選擇此目錄",
+    "start_download": "更新",
+    "install_now": "立即安裝",
+    "later": "稍後",
+    "changelog_title": "更新內容",
+    "changelog_loading": "正在取得更新日誌…"
+  },
+  "info": {
+    "copy_success": "錯誤資訊已複製到剪貼簿"
+  },
+  "error": {
+    "detail_title": "錯誤詳情",
+    "task_name": "任務名稱",
+    "time": "錯誤時間",
+    "message": "錯誤訊息",
+    "detail": "錯誤詳情",
+    "logs": "詳細日誌",
+    "logs_with_count": "詳細日誌 ({count} 條記錄)",
+    "copy_failed": "複製失敗，請手動複製"
+  },
+  "lang": {
+    "zh": "簡體中文",
+    "zh-Hant": "繁體中文",
+    "ja": "日本語",
+    "en": "English"
+  }
+}

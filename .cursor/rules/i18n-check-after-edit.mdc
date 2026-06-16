@@ -1,0 +1,27 @@
+---
+description: 修改 i18n 翻译文件后，运行完整性检查脚本确保四种语言同步
+globs: src/locales/**/*.json, src/i18n/**/*.ts
+alwaysApply: false
+---
+
+# i18n 修改后自动检查
+
+当你新增或修改了 `src/locales/` 下的翻译 JSON 文件，或变更了 `src/i18n/constants.ts` 中的命名空间/语言定义时，**必须在完成编辑后运行一次完整性检查**：
+
+```bash
+pnpm run i18n:check
+```
+
+## 检查项
+
+脚本 `scripts/check-i18n.mjs` 会自动检测：
+1. 某语言是否缺少命名空间文件
+2. Key 在四种语言（zh / en / ja / zh-Hant）之间是否有缺失或多余
+3. 翻译值是否为空
+4. 是否有疑似未翻译的条目（与 zh 源语言值完全相同）
+
+## 操作要求
+
+- 新增 Key 时，必须同步更新全部 4 种语言的对应 JSON 文件
+- 新增命名空间时，还需同步更新 `src/i18n/constants.ts` 的 `NAMESPACES` 和 `src/i18n/resources.ts` 的资源注册
+- 检查脚本有 error 输出时（exit code 1），必须修复后再提交

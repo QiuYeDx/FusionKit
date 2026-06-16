@@ -25,6 +25,14 @@ import zhSubtitle from "@/locales/zh/subtitle.json";
 import zhTools from "@/locales/zh/tools.json";
 import zhRename from "@/locales/zh/rename.json";
 
+import zhHantAbout from "@/locales/zh-Hant/about.json";
+import zhHantCommon from "@/locales/zh-Hant/common.json";
+import zhHantHome from "@/locales/zh-Hant/home.json";
+import zhHantSetting from "@/locales/zh-Hant/setting.json";
+import zhHantSubtitle from "@/locales/zh-Hant/subtitle.json";
+import zhHantTools from "@/locales/zh-Hant/tools.json";
+import zhHantRename from "@/locales/zh-Hant/rename.json";
+
 export const resources: Resource = {
   [LangEnum.EN]: {
     common: enCommon,
@@ -52,5 +60,14 @@ export const resources: Resource = {
     setting: zhSetting,
     subtitle: zhSubtitle,
     rename: zhRename,
+  },
+  [LangEnum.ZH_HANT]: {
+    common: zhHantCommon,
+    home: zhHantHome,
+    tools: zhHantTools,
+    about: zhHantAbout,
+    setting: zhHantSetting,
+    subtitle: zhHantSubtitle,
+    rename: zhHantRename,
   },
 };

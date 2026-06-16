@@ -21,7 +21,8 @@
     "build": "tsc && vite build && electron-builder --publish never",
     "preview": "vite preview",
     "pretest": "vite build --mode=test",
-    "test": "vitest run"
+    "test": "vitest run",
+    "i18n:check": "node scripts/check-i18n.mjs"
   },
   "dependencies": {
     "@ai-sdk/openai-compatible": "^1.0.0",

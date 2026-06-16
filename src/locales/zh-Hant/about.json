@@ -1,0 +1,55 @@
+{
+  "title": "關於",
+  "description": "專案資訊、版本、連結與建構詳情。",
+  "tagline": "一站式跨平台桌面工具集合，內建 AI 助手，可透過自然語言對話驅動字幕翻譯、格式轉換與語言擷取等操作。",
+  "subtitle": {
+    "version": "版本",
+    "update": "更新",
+    "github": "GitHub",
+    "author": "作者",
+    "contact": "聯絡方式",
+    "tech_stack": "技術棧與建構資訊"
+  },
+  "badge": {
+    "latest": "最新"
+  },
+  "stats": {
+    "platform": "平台支援",
+    "license": "授權條款",
+    "build": "建構",
+    "stack": "技術棧"
+  },
+  "buttons": {
+    "repo": "GitHub 倉庫",
+    "changelog": "更新日誌"
+  },
+  "links": {
+    "repo": {
+      "title": "專案倉庫",
+      "desc": "原始碼、Issue、Release"
+    },
+    "author": {
+      "title": "作者首頁 · 全球",
+      "desc": "Vercel 部署，海外 / 全球存取"
+    },
+    "blog": {
+      "title": "作者首頁 · 國內",
+      "desc": "CDN 加速，中國大陸可直接存取"
+    },
+    "contact": {
+      "title": "聯絡信箱",
+      "desc": "問題回饋與商務諮詢"
+    }
+  },
+  "tech": {
+    "framework": "框架",
+    "language": "語言",
+    "build_tool": "建構工具",
+    "style": "樣式系統",
+    "state": "狀態管理",
+    "ai": "AI 整合",
+    "i18n": "國際化",
+    "pkg": "套件管理器"
+  },
+  "license_note": "本專案採用 PolyForm Noncommercial License 1.0.0 發佈，僅允許非商業使用。"
+}

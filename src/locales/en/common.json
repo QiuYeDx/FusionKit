@@ -74,7 +74,8 @@
     "copy_failed": "Copy failed, please copy manually"
   },
   "lang": {
-    "zh": "Chinese",
+    "zh": "Simplified Chinese",
+    "zh-Hant": "Traditional Chinese",
     "ja": "Japanese",
     "en": "English"
   }
