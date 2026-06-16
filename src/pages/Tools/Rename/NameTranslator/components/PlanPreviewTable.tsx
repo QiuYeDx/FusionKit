@@ -91,7 +91,7 @@ export default function PlanPreviewTable({
   if (!plan) {
     return (
       <Card className="overflow-hidden p-0 gap-0">
-        <CardHeader className="flex flex-row items-center justify-between gap-3 px-4 py-3 space-y-0 border-b">
+        <CardHeader className="flex flex-row items-center justify-between gap-3 border-b px-4 py-3 space-y-0 [&.border-b]:pb-3">
           <CardTitle className="text-[13.5px] font-semibold">
             {t("preview.title")}
           </CardTitle>
@@ -116,7 +116,7 @@ export default function PlanPreviewTable({
 
   return (
     <Card className="overflow-hidden p-0 gap-0">
-      <CardHeader className="flex flex-row items-center justify-between gap-3 px-4 py-3 space-y-0 border-b">
+      <CardHeader className="flex flex-row items-center justify-between gap-3 border-b px-4 py-3 space-y-0 [&.border-b]:pb-3">
         <div className="flex min-w-0 items-center gap-2">
           <CardTitle className="text-[13.5px] font-semibold">
             {t("preview.title")}
