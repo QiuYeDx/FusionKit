@@ -547,6 +547,7 @@ function SubtitleTranslator() {
     }
   };
 
+
   const handleOpenFileLocation = (task: SubtitleTranslatorTask) => {
     const filePath =
       task.status === TaskStatus.RESOLVED && task.extraInfo?.outputFilePath
