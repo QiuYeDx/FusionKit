@@ -275,9 +275,10 @@ describe("createNameTranslationPlan", () => {
       createTarget("target_b", "第02話.srt", "第02話"),
     ];
     const progressEvents: NameTranslationPlanningProgress[] = [];
-    const checkPathsExist = vi.fn(async (paths: string[]) =>
-      new Set([paths[1]])
-    );
+    const checkPathsExist = vi.fn(async (paths: string[]) => ({
+      existingPaths: new Set([paths[1]]),
+      errorPaths: new Map<string, string>(),
+    }));
     const checkPathExists = vi.fn(async () => {
       throw new Error("single-path fallback should not run");
     });
@@ -304,6 +305,42 @@ describe("createNameTranslationPlan", () => {
     expect(summary.blockedCount).toBe(1);
     expect(summary.itemsPreview[1].reason).toBe("target_exists");
     expect(progressEvents.at(-1)?.metrics?.pathCheckRequestCount).toBe(1);
+  });
+
+  it("surfaces batch path-check errors as plan warnings", async () => {
+    const targets = [
+      createTarget("target_a", "第01話.srt", "第01話"),
+      createTarget("target_b", "第02話.srt", "第02話"),
+      createTarget("target_c", "第03話.srt", "第03話"),
+    ];
+    const checkPathsExist = vi.fn(async (paths: string[]) => ({
+      existingPaths: new Set([paths[0]]),
+      errorPaths: new Map<string, string>([
+        [paths[1], "EACCES: permission denied"],
+      ]),
+    }));
+
+    const summary = await createNameTranslationPlan(createOptions(), {
+      scanTargets: async () => createScanResult(targets),
+      translateBatch: async (items) =>
+        items.map((item, index) => ({
+          id: item.id,
+          translatedStem: `Episode ${index + 1}`,
+        })),
+      checkPathsExist,
+      checkPathExists: async () => false,
+    });
+
+    expect(checkPathsExist).toHaveBeenCalledTimes(1);
+    expect(summary.warnings).toContainEqual(
+      expect.stringContaining("EACCES: permission denied")
+    );
+    expect(summary.warnings).toContainEqual(
+      expect.stringContaining("/tmp/rename/Episode 2.srt")
+    );
+    expect(summary.readyCount).toBe(2);
+    expect(summary.blockedCount).toBe(1);
+    expect(summary.itemsPreview[0].reason).toBe("target_exists");
   });
 
   it("falls back to single-path checks when batch target path checks fail", async () => {
@@ -335,6 +372,76 @@ describe("createNameTranslationPlan", () => {
     expect(checkPathExists).toHaveBeenCalledTimes(2);
     expect(summary.itemsPreview[1].reason).toBe("target_exists");
     expect(progressEvents.at(-1)?.metrics?.pathCheckRequestCount).toBe(3);
+  });
+
+  it("warns when all single-path fallback checks fail", async () => {
+    const targets = [
+      createTarget("target_a", "第01話.srt", "第01話"),
+      createTarget("target_b", "第02話.srt", "第02話"),
+      createTarget("target_c", "第03話.srt", "第03話"),
+    ];
+    const checkPathsExist = vi.fn(async () => {
+      throw new Error("batch IPC unavailable");
+    });
+    const checkPathExists = vi.fn(async () => {
+      throw new Error("EACCES: permission denied");
+    });
+
+    const summary = await createNameTranslationPlan(createOptions(), {
+      scanTargets: async () => createScanResult(targets),
+      translateBatch: async (items) =>
+        items.map((item, index) => ({
+          id: item.id,
+          translatedStem: `Episode ${index + 1}`,
+        })),
+      checkPathsExist,
+      checkPathExists,
+    });
+
+    expect(checkPathsExist).toHaveBeenCalledTimes(1);
+    expect(checkPathExists).toHaveBeenCalledTimes(3);
+    expect(summary.readyCount).toBe(3);
+    expect(summary.warnings).toContainEqual(
+      expect.stringMatching(/路径存在性检查部分失败 \(3\/3\)/)
+    );
+    expect(summary.warnings).toContainEqual(
+      expect.stringContaining("冲突检测可能不完整")
+    );
+  });
+
+  it("warns when some single-path fallback checks fail", async () => {
+    const targets = [
+      createTarget("target_a", "第01話.srt", "第01話"),
+      createTarget("target_b", "第02話.srt", "第02話"),
+      createTarget("target_c", "第03話.srt", "第03話"),
+    ];
+    const checkPathsExist = vi.fn(async () => {
+      throw new Error("batch IPC unavailable");
+    });
+    const checkPathExists = vi.fn(async (targetPath: string) => {
+      if (targetPath.endsWith("Episode 2.srt")) {
+        throw new Error("EACCES: permission denied");
+      }
+      return false;
+    });
+
+    const summary = await createNameTranslationPlan(createOptions(), {
+      scanTargets: async () => createScanResult(targets),
+      translateBatch: async (items) =>
+        items.map((item, index) => ({
+          id: item.id,
+          translatedStem: `Episode ${index + 1}`,
+        })),
+      checkPathsExist,
+      checkPathExists,
+    });
+
+    expect(checkPathsExist).toHaveBeenCalledTimes(1);
+    expect(checkPathExists).toHaveBeenCalledTimes(3);
+    expect(summary.readyCount).toBe(3);
+    expect(summary.warnings).toContainEqual(
+      expect.stringMatching(/路径存在性检查部分失败 \(1\/3\)/)
+    );
   });
 
   it("runs translation batches with bounded concurrency", async () => {

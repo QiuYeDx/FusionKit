@@ -24,12 +24,12 @@
 
 | ID | 状态 | 完成日期 | 验证 | 实施记录 |
 | --- | --- | --- | --- | --- |
-| RV-001 | 未开始 | — | `pnpm exec vitest run test/rename/scanner.test.ts` | — |
-| RV-002 | 未开始 | — | `pnpm exec vitest run src/services/rename/nameTranslationPlanner.test.ts` | — |
-| RV-003 | 未开始 | — | `pnpm exec vitest run src/store/tools/rename/useNameTranslatorStore.test.ts` | — |
-| RV-004 | 未开始 | — | `pnpm exec vitest run src/services/rename/nameTranslationPlanner.test.ts` | — |
-| RV-005 | 未开始 | — | `pnpm exec vitest run src/services/rename/nameTranslationFastPath.test.ts` | — |
-| RV-006 | 未开始 | — | `pnpm exec vitest run test/rename/nameTranslationPlanner.performance.test.ts` | — |
+| RV-001 | 已完成 | 2026-06-22 | `pnpm exec vitest run test/rename/scanner.test.ts` — 13 tests passed | `docs/batch-name-translation-tool/implementation-records/2026-06-22_RV-001_dirent-symlink-detection.md` |
+| RV-002 | 已完成 | 2026-06-22 | `pnpm exec vitest run src/services/rename/nameTranslationPlanner.test.ts` — 21 tests passed | `docs/batch-name-translation-tool/implementation-records/2026-06-22_RV-002_check-targets-exist-errors.md` |
+| RV-003 | 已完成 | 2026-06-22 | `pnpm exec vitest run src/store/tools/rename/useNameTranslatorStore.test.ts` — 10 tests passed | `docs/batch-name-translation-tool/implementation-records/2026-06-22_RV-003_incomplete-plan-apply-guard.md` |
+| RV-004 | 已完成 | 2026-06-22 | `pnpm exec vitest run src/services/rename/nameTranslationPlanner.test.ts` — 23 tests passed | `docs/batch-name-translation-tool/implementation-records/2026-06-22_RV-004_fallback-path-check-warning.md` |
+| RV-005 | 已完成 | 2026-06-22 | `pnpm exec vitest run src/services/rename/nameTranslationFastPath.test.ts` — 76 tests passed | `docs/batch-name-translation-tool/implementation-records/2026-06-22_RV-005_fast-path-unit-tests.md` |
+| RV-006 | 已完成 | 2026-06-22 | `pnpm exec vitest run test/rename/nameTranslationPlanner.performance.test.ts` — 4 tests passed | `docs/batch-name-translation-tool/implementation-records/2026-06-22_RV-006_perf-test-flaky-fix.md` |
 
 ## 4. 工作包详情
 

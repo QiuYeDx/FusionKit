@@ -11,7 +11,9 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
+import { isPlanIncomplete } from "@/store/tools/rename/useNameTranslatorStore";
 import type {
   ApplyProgress,
   NameTranslationApplyResult,
@@ -99,9 +101,19 @@ export default function ApplySummaryPanel({
             <AlertDescription>
               <div className="flex flex-wrap gap-1.5">
                 {plan.warnings.slice(0, 5).map((warning) => (
-                  <Badge key={warning} variant="outline">
-                    {warning}
-                  </Badge>
+                  <Tooltip key={warning} disableHoverableContent>
+                    <TooltipTrigger asChild>
+                      <Badge variant="outline" className="max-w-full truncate">
+                        {warning}
+                      </Badge>
+                    </TooltipTrigger>
+                    <TooltipContent
+                      side="bottom"
+                      className="max-w-[min(560px,calc(100vw-2rem))] whitespace-normal text-left text-wrap leading-relaxed wrap-anywhere"
+                    >
+                      {warning}
+                    </TooltipContent>
+                  </Tooltip>
                 ))}
                 {plan.warnings.length > 5 ? (
                   <span className="text-xs text-muted-foreground">
@@ -201,6 +213,13 @@ export default function ApplySummaryPanel({
         {!plan ? (
           <p className="text-[11px] text-muted-foreground">
             {t("apply.no_plan_hint")}
+          </p>
+        ) : isPlanIncomplete(plan) ? (
+          <p className="text-[11px] text-destructive">
+            {t("apply.incomplete_hint", {
+              count: plan.items.length,
+              total: plan.totalTargets,
+            })}
           </p>
         ) : !canApply ? (
           <p className="text-[11px] text-muted-foreground">

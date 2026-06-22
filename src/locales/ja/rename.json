@@ -119,14 +119,15 @@
       "unchanged": "unchanged",
       "warnings": "warnings"
     },
+    "incomplete_warning_title": "プレビューが不完全です",
+    "incomplete_warning_desc": "{{count}}/{{total}} 件のみ表示されています。プレビュー制限を超えた項目は読み込まれていません。適用前にプレビューを再生成してください。",
     "clarification_title": "範囲の詳細が必要です",
     "columns": {
       "status": "状態",
       "type": "タイプ",
       "original_name": "元の名前",
       "new_name": "新しい名前",
-      "source_path": "元パス",
-      "target_path": "対象パス",
+      "path": "パス",
       "reason": "理由/警告",
       "actions": "操作"
     },
@@ -170,6 +171,7 @@
     "rollback_summary": "journal {{journalId}} のロールバック：成功 {{success}}、失敗 {{failed}}",
     "apply_button": "リネームを適用",
     "no_plan_hint": "実際のリネームでは必ず先に journal を書き込みます。dry-run プレビューは迂回しません。",
+    "incomplete_hint": "プレビューが不完全です（{{count}}/{{total}}）。適用できません。プレビューを再生成してください。",
     "blocked_hint": "blocked が 0 で ready が 1 以上の場合のみ適用できます。",
     "confirm_hint": "適用前に高リスク条件を確認します。",
     "phase": {
@@ -209,6 +211,7 @@
     "rollback_done": "ロールバック要求が完了しました。",
     "ipc_unavailable": "Electron IPC を利用できません。",
     "plan_not_found": "リネーム計画 {{planId}} が見つかりません。期限切れまたはクリア済みの可能性があります。プレビューを再生成してください。",
-    "plan_loaded_from_agent": "HomeAgent のリネームプレビューを読み込みました。"
+    "plan_loaded_from_agent": "HomeAgent のリネームプレビューを読み込みました。",
+    "plan_items_incomplete": "プレビューが不完全です（{{count}}/{{total}} 件のみ）。適用できません。プレビューを再生成してください。"
   }
 }

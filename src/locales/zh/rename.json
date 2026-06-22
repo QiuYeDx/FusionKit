@@ -119,14 +119,15 @@
       "unchanged": "unchanged",
       "warnings": "warnings"
     },
+    "incomplete_warning_title": "预览内容不完整",
+    "incomplete_warning_desc": "当前仅展示 {{count}}/{{total}} 个目标，超出预览限制的项目未加载。请重新生成预览以获取完整计划后再应用。",
     "clarification_title": "需要补充范围",
     "columns": {
       "status": "状态",
       "type": "类型",
       "original_name": "原名称",
       "new_name": "新名称",
-      "source_path": "原路径",
-      "target_path": "目标路径",
+      "path": "路径",
       "reason": "原因/警告",
       "actions": "操作"
     },
@@ -170,6 +171,7 @@
     "rollback_summary": "回滚 journal {{journalId}}：成功 {{success}}，失败 {{failed}}",
     "apply_button": "应用重命名",
     "no_plan_hint": "所有真实重命名都会先写 journal；这里不会绕过 dry-run 预览。",
+    "incomplete_hint": "预览不完整（{{count}}/{{total}}），无法应用。请重新生成预览。",
     "blocked_hint": "只有 blocked 为 0 且 ready 大于 0 时才允许应用。",
     "confirm_hint": "点击应用前会按高风险规则检查是否需要二次确认。",
     "phase": {
@@ -209,6 +211,7 @@
     "rollback_done": "回滚请求已完成。",
     "ipc_unavailable": "Electron IPC 不可用。",
     "plan_not_found": "未找到重命名计划 {{planId}}，可能已过期或被清理，请重新生成预览。",
-    "plan_loaded_from_agent": "已加载 HomeAgent 中的重命名预览。"
+    "plan_loaded_from_agent": "已加载 HomeAgent 中的重命名预览。",
+    "plan_items_incomplete": "当前预览不完整（仅包含 {{count}}/{{total}} 项），无法应用。请重新生成完整预览。"
   }
 }

@@ -5,6 +5,7 @@ import type { ModelProfile } from "@/type/model";
 import {
   DEFAULT_NAME_TRANSLATION_OPTIONS,
   NameTranslationPlannerError,
+  type BatchPathCheckResult,
   type ClarificationRequired,
   type NameTranslationModelInputItem,
   type NameTranslationModelOutputItem,
@@ -76,7 +77,7 @@ export interface CreateNameTranslationPlanDeps {
     options: NameTranslationOptions
   ) => Promise<NameTranslationModelOutputItem[]>;
   checkPathExists?: (filePath: string) => Promise<boolean>;
-  checkPathsExist?: (filePaths: string[]) => Promise<Iterable<string>>;
+  checkPathsExist?: (filePaths: string[]) => Promise<BatchPathCheckResult>;
   now?: () => number;
   previewLimit?: number;
   maxTargets?: number;
@@ -334,6 +335,7 @@ export async function createNameTranslationPlan(
       createPlanItem(target, normalizedOptions, translationMap, translationWarnings)
     );
     const pathCheckStats: PathCheckStats = { requestCount: 0 };
+    const pathCheckWarnings: string[] = [];
     progress.start("checking_targets", {
       totalTargets: scanResult.totalCount,
       warningCount: scanResult.warnings.length + translationWarnings.length,
@@ -343,7 +345,8 @@ export async function createNameTranslationPlan(
       deps.checkPathExists ?? checkRenameTargetExists,
       pathCheckStats,
       deps.checkPathsExist ??
-        (deps.checkPathExists ? undefined : checkRenameTargetsExist)
+        (deps.checkPathExists ? undefined : checkRenameTargetsExist),
+      pathCheckWarnings
     );
     throwIfPlanningAborted(deps.signal);
     progress.setMetrics({
@@ -365,7 +368,7 @@ export async function createNameTranslationPlan(
       previewLimit,
       options: normalizedOptions,
       items: validatedItems,
-      warnings: [...scanResult.warnings, ...translationWarnings],
+      warnings: [...scanResult.warnings, ...translationWarnings, ...pathCheckWarnings],
       totalTargets: scanResult.totalCount,
     });
     progress.setMetrics({
@@ -984,7 +987,8 @@ async function collectExistingTargetPaths(
   items: NameTranslationPlanItem[],
   checkPathExists: NonNullable<CreateNameTranslationPlanDeps["checkPathExists"]>,
   stats?: PathCheckStats,
-  checkPathsExist?: NonNullable<CreateNameTranslationPlanDeps["checkPathsExist"]>
+  checkPathsExist?: NonNullable<CreateNameTranslationPlanDeps["checkPathsExist"]>,
+  warnings?: string[]
 ): Promise<string[]> {
   const pathsToCheck = new Map<string, string>();
 
@@ -1002,7 +1006,11 @@ async function collectExistingTargetPaths(
   if (checkPathsExist) {
     if (stats) stats.requestCount += 1;
     try {
-      return [...(await checkPathsExist(targetPaths))].filter((targetPath) =>
+      const batchResult = await checkPathsExist(targetPaths);
+      for (const [errorPath, errorMessage] of batchResult.errorPaths) {
+        warnings?.push(`路径检查失败 (${errorMessage}): ${errorPath}`);
+      }
+      return [...batchResult.existingPaths].filter((targetPath) =>
         pathsToCheck.has(targetPath)
       );
     } catch {
@@ -1011,16 +1019,23 @@ async function collectExistingTargetPaths(
   }
 
   const existingPaths: string[] = [];
+  let checkErrorCount = 0;
   if (stats) stats.requestCount += targetPaths.length;
   await Promise.all(
     targetPaths.map(async (targetPath) => {
       try {
         if (await checkPathExists(targetPath)) existingPaths.push(targetPath);
       } catch {
-        // Permission and IPC failures are handled later by apply validation.
+        checkErrorCount += 1;
       }
     })
   );
+
+  if (checkErrorCount > 0) {
+    warnings?.push(
+      `路径存在性检查部分失败 (${checkErrorCount}/${targetPaths.length})，冲突检测可能不完整`
+    );
+  }
 
   return existingPaths;
 }

@@ -119,14 +119,15 @@
       "unchanged": "unchanged",
       "warnings": "warnings"
     },
+    "incomplete_warning_title": "預覽內容不完整",
+    "incomplete_warning_desc": "目前僅展示 {{count}}/{{total}} 個目標，超出預覽限制的項目未載入。請重新產生預覽以取得完整計畫後再套用。",
     "clarification_title": "需要補充範圍",
     "columns": {
       "status": "狀態",
       "type": "類型",
       "original_name": "原名稱",
       "new_name": "新名稱",
-      "source_path": "原路徑",
-      "target_path": "目標路徑",
+      "path": "路徑",
       "reason": "原因/警告",
       "actions": "操作"
     },
@@ -170,6 +171,7 @@
     "rollback_summary": "回滾 journal {{journalId}}：成功 {{success}}，失敗 {{failed}}",
     "apply_button": "套用重新命名",
     "no_plan_hint": "所有實際重新命名都會先寫 journal；這裡不會繞過 dry-run 預覽。",
+    "incomplete_hint": "預覽不完整（{{count}}/{{total}}），無法套用。請重新產生預覽。",
     "blocked_hint": "只有 blocked 為 0 且 ready 大於 0 時才允許套用。",
     "confirm_hint": "點擊套用前會按高風險規則檢查是否需要二次確認。",
     "phase": {
@@ -209,6 +211,7 @@
     "rollback_done": "回滾請求已完成。",
     "ipc_unavailable": "Electron IPC 不可用。",
     "plan_not_found": "未找到重新命名計畫 {{planId}}，可能已過期或被清理，請重新產生預覽。",
-    "plan_loaded_from_agent": "已載入 HomeAgent 中的重新命名預覽。"
+    "plan_loaded_from_agent": "已載入 HomeAgent 中的重新命名預覽。",
+    "plan_items_incomplete": "目前預覽不完整（僅包含 {{count}}/{{total}} 項），無法套用。請重新產生完整預覽。"
   }
 }

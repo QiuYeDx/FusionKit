@@ -412,6 +412,17 @@ const useNameTranslatorStore = create<NameTranslatorStore>((set, get) => ({
       return;
     }
 
+    if (isPlanIncomplete(plan)) {
+      showToast(
+        i18n.t("rename:messages.plan_items_incomplete", {
+          count: plan.items.length,
+          total: plan.totalTargets,
+        }),
+        "error"
+      );
+      return;
+    }
+
     set({
       isApplying: true,
       applyProgress: {
@@ -688,7 +699,8 @@ async function collectExistingTargetPaths(
   if (targetPaths.length === 0) return [];
 
   try {
-    return [...(await checkRenameTargetsExist(targetPaths))].filter((targetPath) =>
+    const batchResult = await checkRenameTargetsExist(targetPaths);
+    return [...batchResult.existingPaths].filter((targetPath) =>
       candidates.has(targetPath)
     );
   } catch {
@@ -808,6 +820,7 @@ function createPlanFromSummary(
   summary: NameTranslationPlanSummary,
   options: NameTranslationOptions
 ): NameTranslationPlan {
+  const incomplete = summary.itemsPreview.length < summary.totalTargets;
   return {
     ...summary,
     createdAt: Date.now(),
@@ -816,7 +829,12 @@ function createPlanFromSummary(
     roots: options.roots,
     items: summary.itemsPreview,
     itemsStored: false,
+    applyable: incomplete ? false : summary.applyable,
   };
+}
+
+function isPlanIncomplete(plan: NameTranslationPlan): boolean {
+  return !plan.itemsStored && plan.items.length < plan.totalTargets;
 }
 
 function collectOriginalSuggestions(
@@ -956,4 +974,5 @@ function getErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
+export { isPlanIncomplete };
 export default useNameTranslatorStore;

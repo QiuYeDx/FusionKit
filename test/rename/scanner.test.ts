@@ -267,6 +267,45 @@ describe("scanRenameTargets", () => {
     expect(statSpy).toHaveBeenCalledTimes(1);
   });
 
+  it("detects symlink directories via dirent and skips them in children scan", async () => {
+    const root = await createRenameTree();
+    const symlinkDirPath = path.join(root, "Linked Season");
+    try {
+      await fs.symlink(path.join(root, "Season 01"), symlinkDirPath, "dir");
+    } catch {
+      // Skip test on environments that disallow symlinks.
+      return;
+    }
+
+    const symlinkFilePath = path.join(root, "linked-sub.srt");
+    try {
+      await fs.symlink(path.join(root, "第01話.srt"), symlinkFilePath, "file");
+    } catch {
+      return;
+    }
+
+    const lstatSpy = vi.spyOn(fs, "lstat");
+
+    const result = await scanRenameTargets({
+      options: buildOptions({
+        roots: [root],
+        scope: "children",
+        targetKind: "both",
+      }),
+    });
+
+    const names = result.targets.map((t) => t.originalName);
+    expect(names).not.toContain("Linked Season");
+    expect(names).toContain("linked-sub.srt");
+    expect(
+      result.warnings.some((w) => w.includes("Symbolic link directory skipped"))
+    ).toBe(true);
+
+    const lstatCallPaths = lstatSpy.mock.calls.map((c) => String(c[0]));
+    expect(lstatCallPaths).toContain(symlinkDirPath);
+    expect(lstatCallPaths).toContain(symlinkFilePath);
+  });
+
   it("keeps descendant target ordering stable across scans", async () => {
     const root = await createRenameTree();
     const options = buildOptions({

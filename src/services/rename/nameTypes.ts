@@ -188,6 +188,11 @@ export interface CheckRenameTargetPathsResult {
   }>;
 }
 
+export interface BatchPathCheckResult {
+  existingPaths: Set<string>;
+  errorPaths: Map<string, string>;
+}
+
 export type NamePlanItemStatus =
   | "ready"
   | "unchanged"

@@ -1,4 +1,5 @@
 import type {
+  BatchPathCheckResult,
   CheckRenameTargetPathsResult,
   NameTranslationOptions,
   ScanRenameTargetsResult,
@@ -20,13 +21,18 @@ export async function checkRenameTargetExists(filePath: string): Promise<boolean
 
 export async function checkRenameTargetsExist(
   paths: string[]
-): Promise<Set<string>> {
-  if (paths.length === 0) return new Set();
+): Promise<BatchPathCheckResult> {
+  if (paths.length === 0) return { existingPaths: new Set(), errorPaths: new Map() };
   const ipcRenderer = getIpcRenderer();
   const result = (await ipcRenderer.invoke("check-rename-target-paths", {
     paths,
   })) as CheckRenameTargetPathsResult;
-  return new Set(result?.existingPaths ?? []);
+  return {
+    existingPaths: new Set(result?.existingPaths ?? []),
+    errorPaths: new Map(
+      (result?.errors ?? []).map((e) => [e.path, e.message])
+    ),
+  };
 }
 
 function getIpcRenderer(): Window["ipcRenderer"] {

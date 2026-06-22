@@ -28,6 +28,7 @@ import {
 } from "@/components/ui/table";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
+import { isPlanIncomplete } from "@/store/tools/rename/useNameTranslatorStore";
 import type {
   NameTranslationPlan,
   NameTranslationPlanItem,
@@ -215,6 +216,21 @@ export default function PlanPreviewTable({
         </div>
       ) : null}
 
+      {isPlanIncomplete(plan) ? (
+        <div className="p-4 pt-0">
+          <Alert>
+            <AlertTriangle className="h-4 w-4" />
+            <AlertTitle>{t("preview.incomplete_warning_title")}</AlertTitle>
+            <AlertDescription>
+              {t("preview.incomplete_warning_desc", {
+                count: plan.items.length,
+                total: plan.totalTargets,
+              })}
+            </AlertDescription>
+          </Alert>
+        </div>
+      ) : null}
+
       <ScrollArea className="w-full">
         <table className="w-full caption-bottom text-sm">
           <TableHeader>
@@ -228,14 +244,11 @@ export default function PlanPreviewTable({
               <TableHead className="min-w-[160px]">
                 {t("preview.columns.original_name")}
               </TableHead>
-              <TableHead className="min-w-[190px]">
+              <TableHead className="min-w-[260px]">
                 {t("preview.columns.new_name")}
               </TableHead>
-              <TableHead className="min-w-[220px]">
-                {t("preview.columns.source_path")}
-              </TableHead>
-              <TableHead className="min-w-[220px]">
-                {t("preview.columns.target_path")}
+              <TableHead className="min-w-[200px]">
+                {t("preview.columns.path")}
               </TableHead>
               <TableHead className="min-w-[150px]">
                 {t("preview.columns.reason")}
@@ -291,7 +304,7 @@ export default function PlanPreviewTable({
                         <Input
                           value={draft}
                           disabled={item.status === "applied"}
-                          className="h-8 min-w-[180px] font-mono text-xs"
+                          className="h-8 min-w-[240px] font-mono text-xs"
                           onChange={(event) =>
                             setDraftNames((current) => ({
                               ...current,
@@ -318,23 +331,11 @@ export default function PlanPreviewTable({
                     <Tooltip disableHoverableContent>
                       <TooltipTrigger asChild>
                         <span className="block max-w-[320px] truncate font-mono text-[11px] text-muted-foreground">
-                          {item.sourcePath}
+                          {item.sourceParentPath}
                         </span>
                       </TooltipTrigger>
                       <TooltipContent side="bottom" className={PATH_TOOLTIP_CLASS}>
-                        {item.sourcePath}
-                      </TooltipContent>
-                    </Tooltip>
-                  </TableCell>
-                  <TableCell>
-                    <Tooltip disableHoverableContent>
-                      <TooltipTrigger asChild>
-                        <span className="block max-w-[320px] truncate font-mono text-[11px] text-muted-foreground">
-                          {item.targetPath}
-                        </span>
-                      </TooltipTrigger>
-                      <TooltipContent side="bottom" className={PATH_TOOLTIP_CLASS}>
-                        {item.targetPath}
+                        {item.sourceParentPath}
                       </TooltipContent>
                     </Tooltip>
                   </TableCell>
@@ -379,7 +380,10 @@ export default function PlanPreviewTable({
                       <IconAction
                         label={t("preview.actions.open_folder")}
                         onClick={() =>
-                          window.ipcRenderer.invoke("show-item-in-folder", item.sourcePath)
+                          window.ipcRenderer.invoke(
+                            "show-item-in-folder",
+                            item.status === "applied" ? item.targetPath : item.sourcePath,
+                          )
                         }
                       >
                         <FolderOpen className="h-3.5 w-3.5" />

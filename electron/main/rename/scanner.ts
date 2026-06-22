@@ -549,6 +549,10 @@ async function getPathInfoFromDirent(
   targetPath: string,
   entry: Dirent
 ): Promise<PathInfo> {
+  if (entry.isSymbolicLink()) {
+    return getPathInfo(targetPath);
+  }
+
   const absolutePath = path.resolve(targetPath);
   const basename = path.basename(absolutePath);
   const parentPath = path.dirname(absolutePath);
