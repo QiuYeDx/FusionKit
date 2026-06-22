@@ -587,7 +587,7 @@ export function CodeBlock({
 
 function CodeBlockStyles() {
   return (
-    <style jsx global>{`
+    <style>{`
       /* ============================================
          代码块基础样式
          ============================================ */
