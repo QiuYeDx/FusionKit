@@ -10,12 +10,14 @@ import {
   RotateCcw,
   RotateCw,
   SkipForward,
+  X,
 } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Progress } from "@/components/ui/progress";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import {
   TableBody,
@@ -29,11 +31,13 @@ import { cn } from "@/lib/utils";
 import type {
   NameTranslationPlan,
   NameTranslationPlanItem,
+  NameTranslationPlanningProgress,
 } from "@/services/rename/nameTypes";
 
 interface PlanPreviewTableProps {
   plan: NameTranslationPlan | null;
   isPlanning: boolean;
+  planningProgress: NameTranslationPlanningProgress | null;
   originalSuggestions: Record<
     string,
     Pick<NameTranslationPlanItem, "newName" | "translatedStem" | "targetPath">
@@ -44,6 +48,7 @@ interface PlanPreviewTableProps {
   ) => void;
   onRevalidate: () => Promise<void>;
   onUseAutoIndex: () => void;
+  onCancelPlanning: () => void;
 }
 
 const PAGE_SIZE = 50;
@@ -57,10 +62,12 @@ const PATH_TOOLTIP_CLASS = cn(
 export default function PlanPreviewTable({
   plan,
   isPlanning,
+  planningProgress,
   originalSuggestions,
   onEditItem,
   onRevalidate,
   onUseAutoIndex,
+  onCancelPlanning,
 }: PlanPreviewTableProps) {
   const { t } = useTranslation("rename");
   const [page, setPage] = useState(0);
@@ -99,17 +106,25 @@ export default function PlanPreviewTable({
             dry-run
           </Badge>
         </CardHeader>
-        <div className="px-4 py-10 text-center">
-          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl border bg-muted/40 text-muted-foreground">
-            <Pencil className="h-5 w-5" />
+        {planningProgress ? (
+          <PlanningProgressPanel
+            progress={planningProgress}
+            canCancel={isPlanning}
+            onCancel={onCancelPlanning}
+          />
+        ) : (
+          <div className="px-4 py-10 text-center">
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl border bg-muted/40 text-muted-foreground">
+              <Pencil className="h-5 w-5" />
+            </div>
+            <div className="mt-3 text-sm font-medium">
+              {t("preview.empty_title")}
+            </div>
+            <div className="mt-1 text-xs text-muted-foreground">
+              {t("preview.empty_desc")}
+            </div>
           </div>
-          <div className="mt-3 text-sm font-medium">
-            {t("preview.empty_title")}
-          </div>
-          <div className="mt-1 text-xs text-muted-foreground">
-            {t("preview.empty_desc")}
-          </div>
-        </div>
+        )}
       </Card>
     );
   }
@@ -138,6 +153,16 @@ export default function PlanPreviewTable({
           </Button>
         </div>
       </CardHeader>
+
+      {planningProgress ? (
+        <div className="border-b">
+          <PlanningProgressPanel
+            progress={planningProgress}
+            canCancel={isPlanning}
+            onCancel={onCancelPlanning}
+          />
+        </div>
+      ) : null}
 
       <div className="flex flex-wrap items-center gap-1.5 border-b px-4 py-2">
         <SummaryBadge
@@ -401,6 +426,106 @@ export default function PlanPreviewTable({
       </div>
     </Card>
   );
+}
+
+function PlanningProgressPanel({
+  progress,
+  canCancel,
+  onCancel,
+}: {
+  progress: NameTranslationPlanningProgress | null;
+  canCancel: boolean;
+  onCancel: () => void;
+}) {
+  const { t } = useTranslation("rename");
+  const phase = progress?.phase ?? "scanning";
+  const value = getPlanningProgressValue(progress);
+  const detail = getPlanningProgressDetail(progress, t);
+
+  return (
+    <div className="px-4 py-4">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-sm font-medium">
+              {t("preview.planning.title")}
+            </span>
+            <Badge variant="secondary" className="font-mono text-[10.5px]">
+              {t(`preview.planning.phase.${phase}`)}
+            </Badge>
+          </div>
+          <div className="mt-1 text-xs text-muted-foreground">
+            {detail}
+          </div>
+        </div>
+        {canCancel ? (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="shrink-0"
+            onClick={onCancel}
+          >
+            <X className="h-3.5 w-3.5" />
+            {t("preview.planning.cancel")}
+          </Button>
+        ) : null}
+      </div>
+      <Progress value={value} className="mt-3 h-1.5" />
+    </div>
+  );
+}
+
+function getPlanningProgressValue(
+  progress: NameTranslationPlanningProgress | null
+): number {
+  if (!progress) return 8;
+  if (progress.phase === "done") return 100;
+  if (progress.phase === "failed" || progress.phase === "cancelled") return 100;
+  if (progress.phase === "storing") return 95;
+  if (progress.phase === "validating") return 88;
+  if (progress.phase === "checking_targets") return 78;
+  if (progress.phase === "translating") {
+    const total = progress.translatableCount ?? progress.totalTargets ?? 0;
+    if (total <= 0) return 45;
+    const translated = Math.min(progress.translatedCount ?? 0, total);
+    return Math.max(20, Math.min(75, 20 + (translated / total) * 55));
+  }
+  if (progress.phase === "classifying") return 18;
+  if (progress.phase === "scanning") return 10;
+  return 5;
+}
+
+function getPlanningProgressDetail(
+  progress: NameTranslationPlanningProgress | null,
+  t: ReturnType<typeof useTranslation<"rename">>["t"]
+): string {
+  if (!progress) return t("preview.planning.preparing");
+
+  if (progress.phase === "translating") {
+    const translated = progress.translatedCount ?? 0;
+    const total = progress.translatableCount ?? progress.totalTargets ?? 0;
+    const completedBatches = progress.completedBatchCount ?? 0;
+    const totalBatches = progress.totalBatchCount ?? 0;
+    if (totalBatches > 0) {
+      return t("preview.planning.detail_batches", {
+        translated,
+        total,
+        completed: completedBatches,
+        batches: totalBatches,
+      });
+    }
+    return t("preview.planning.detail_targets", { translated, total });
+  }
+
+  if (progress.phase === "checking_targets" || progress.phase === "validating") {
+    return t("preview.planning.detail_targets", {
+      translated: progress.translatedCount ?? progress.totalTargets ?? 0,
+      total: progress.totalTargets ?? 0,
+    });
+  }
+
+  return progress.message ?? t(`preview.planning.phase.${progress.phase}`);
 }
 
 function SummaryBadge({

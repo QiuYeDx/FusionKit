@@ -184,6 +184,13 @@ totalPlanningDurationMs
 2. 500 个目标至少减少 50% 以上墙钟时间。
 3. 重复生成同一目录预览时，缓存命中后接近“扫描 + 冲突校验”的耗时。
 
+2026-06-18 实现收口状态：
+
+- 默认翻译批大小为 50，并发上限为 3，限流后降级到 1 并退避重试。
+- fake model 性能回归测试已固定 500 targets 场景：同样 10 个 batch、每批 30ms 延迟下，并发 3 的墙钟耗时必须低于串行耗时的 85%，同时校验峰值并发不超过 3。
+- 重复预览通过 renderer 内存缓存回避模型请求；高置信快路径继续在 plan item warning 中留下 `model_note:fast_path:<reason>`。
+- 真实模型性能仍不写入 CI 断言，发布前按 10.3 手工验收记录。
+
 ## 5. 目标架构
 
 ### 5.1 总体设计
@@ -716,18 +723,19 @@ test/rename/apply.test.ts
 
 ### 10.2 性能回归测试
 
-建议新增 fake benchmark 测试，不依赖真实模型：
+已新增 fake benchmark 测试，不依赖真实模型：
 
 ```text
 test/rename/nameTranslationPlanner.performance.test.ts
 ```
 
-测试思路：
+覆盖范围：
 
-1. 构造 500 个 targets。
-2. fake `translateBatch` 每批固定 sleep 100ms。
-3. 对比并发前后耗时上限。
-4. 使用 fake timer 或真实 timer 时设置宽松阈值，避免 CI 抖动。
+1. 构造 500 个 targets，对比串行 batch 与并发 3 batch 的相对耗时，阈值保持宽松以避免 CI 抖动。
+2. 校验 `translationRequestCount`、`translationBatchCount`、`translationConcurrencyPeak` 和 `pathCheckRequestCount`。
+3. 组合验证缓存命中与快路径：500 targets 二次生成时不再调用 fake model。
+4. 验证取消后不继续启动 queued work，且不写入半成品 plan。
+5. 验证 recoverable parse 失败会按 batch split 恢复，并记录重试指标。
 
 ### 10.3 手工验收
 
@@ -739,6 +747,8 @@ test/rename/nameTranslationPlanner.performance.test.ts
 4. 模拟模型 429，确认 UI 显示降速重试。
 5. 点击取消，确认不会生成半成品 plan。
 6. apply 和 rollback 行为与当前一致。
+
+RN-PERF-007 只固化 fake model 回归测试和发布前手工验收清单；真实模型供应商、网络、限流策略的绝对耗时不进入自动化断言。
 
 ## 11. 推荐优先级
 
@@ -760,4 +770,3 @@ RN-PERF-003 bounded concurrent translation batches
 ```
 
 完成这三项后，再根据真实用户目录规模决定是否继续做批量 IPC 和扫描器优化。
-

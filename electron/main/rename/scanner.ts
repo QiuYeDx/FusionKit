@@ -33,6 +33,7 @@ export const BLOCKED_ABSOLUTE_PATHS_WIN32 = [
 const DEFAULT_MAX_TARGETS = 5000;
 const MAX_SCAN_DEPTH = 20;
 const MAX_WARNINGS = 100;
+const DEFAULT_SCAN_CONCURRENCY = 32;
 
 interface PathInfo {
   absolutePath: string;
@@ -54,6 +55,22 @@ interface ScanContext {
   warnings: string[];
   totalCount: number;
   truncated: boolean;
+}
+
+interface DirectoryTask {
+  directoryPath: string;
+  anchorRoot: string;
+  depthFromRoot: number;
+}
+
+interface DirectoryEntryInfo {
+  absolutePath: string;
+  info: PathInfo;
+}
+
+interface DirectorySnapshot {
+  task: DirectoryTask;
+  entries: DirectoryEntryInfo[];
 }
 
 export function splitNameParts(
@@ -176,7 +193,7 @@ export async function scanRenameTargets(
     if (options.scope === "children") {
       await scanDirectoryLevel(context, anchorRoot, anchorRoot, 1, false);
     } else {
-      await scanDirectoryLevel(context, anchorRoot, anchorRoot, 1, true);
+      await scanDirectoryTree(context, anchorRoot, anchorRoot, 1);
     }
   }
 
@@ -256,19 +273,20 @@ async function scanDirectoryLevel(
   if (context.truncated) return;
   if (depthFromRoot > clampMaxDepth(context.options.maxDepth)) return;
 
-  let entries: Dirent[];
-  try {
-    entries = await readDirectoryEntries(directoryPath);
-  } catch {
+  const snapshot = await readDirectorySnapshot({
+    directoryPath,
+    anchorRoot,
+    depthFromRoot,
+  });
+  if (!snapshot) {
     pushWarning(context.warnings, `Directory could not be read: ${directoryPath}`);
     return;
   }
 
-  for (const entry of entries) {
+  for (const entry of snapshot.entries) {
     if (context.truncated) break;
 
-    const absolutePath = path.join(directoryPath, entry.name);
-    const info = await getPathInfo(absolutePath);
+    const { absolutePath, info } = entry;
 
     await addTarget(context, absolutePath, anchorRoot, depthFromRoot, info);
 
@@ -287,6 +305,99 @@ async function scanDirectoryLevel(
       );
     }
   }
+}
+
+async function scanDirectoryTree(
+  context: ScanContext,
+  directoryPath: string,
+  anchorRoot: string,
+  depthFromRoot: number
+): Promise<void> {
+  let queue: DirectoryTask[] = [
+    {
+      directoryPath,
+      anchorRoot,
+      depthFromRoot,
+    },
+  ];
+
+  while (queue.length > 0 && !context.truncated) {
+    const batch = queue.splice(0, DEFAULT_SCAN_CONCURRENCY);
+    const snapshots = await Promise.all(
+      batch.map(async (task) => ({
+        task,
+        snapshot: await readDirectorySnapshot(task),
+      }))
+    );
+    const nextQueue: DirectoryTask[] = [];
+
+    for (const { task, snapshot } of snapshots) {
+      if (!snapshot) {
+        pushWarning(
+          context.warnings,
+          `Directory could not be read: ${task.directoryPath}`
+        );
+        continue;
+      }
+
+      const nextDepth = snapshot.task.depthFromRoot + 1;
+      const canDescend = nextDepth <= clampMaxDepth(context.options.maxDepth);
+
+      for (const entry of snapshot.entries) {
+        if (context.truncated) break;
+
+        await addTarget(
+          context,
+          entry.absolutePath,
+          snapshot.task.anchorRoot,
+          snapshot.task.depthFromRoot,
+          entry.info
+        );
+
+        if (
+          canDescend &&
+          entry.info.kind === "directory" &&
+          !shouldSkipDirectoryTraversal(context, entry.info)
+        ) {
+          nextQueue.push({
+            directoryPath: entry.absolutePath,
+            anchorRoot: snapshot.task.anchorRoot,
+            depthFromRoot: nextDepth,
+          });
+        }
+      }
+    }
+
+    queue = nextQueue;
+  }
+}
+
+async function readDirectorySnapshot(
+  task: DirectoryTask
+): Promise<DirectorySnapshot | null> {
+  let entries: Dirent[];
+  try {
+    entries = await readDirectoryEntries(task.directoryPath);
+  } catch {
+    return null;
+  }
+
+  const entryInfos = await mapWithConcurrency(
+    entries,
+    DEFAULT_SCAN_CONCURRENCY,
+    async (entry): Promise<DirectoryEntryInfo> => {
+      const absolutePath = path.join(task.directoryPath, entry.name);
+      return {
+        absolutePath,
+        info: await getPathInfoFromDirent(absolutePath, entry),
+      };
+    }
+  );
+
+  return {
+    task,
+    entries: entryInfos,
+  };
 }
 
 async function addTarget(
@@ -434,9 +545,67 @@ async function getPathInfo(targetPath: string): Promise<PathInfo> {
   }
 }
 
+async function getPathInfoFromDirent(
+  targetPath: string,
+  entry: Dirent
+): Promise<PathInfo> {
+  const absolutePath = path.resolve(targetPath);
+  const basename = path.basename(absolutePath);
+  const parentPath = path.dirname(absolutePath);
+  const hidden = isHiddenPathSegment(basename);
+
+  if (entry.isFile()) {
+    return {
+      absolutePath,
+      basename,
+      parentPath,
+      exists: true,
+      kind: "file",
+      hidden,
+      symlink: false,
+    };
+  }
+
+  if (entry.isDirectory()) {
+    return {
+      absolutePath,
+      basename,
+      parentPath,
+      exists: true,
+      kind: "directory",
+      hidden,
+      symlink: false,
+    };
+  }
+
+  return getPathInfo(absolutePath);
+}
+
 async function readDirectoryEntries(directoryPath: string): Promise<Dirent[]> {
   const entries = await fs.readdir(directoryPath, { withFileTypes: true });
   return entries.sort((a, b) => a.name.localeCompare(b.name));
+}
+
+async function mapWithConcurrency<T, R>(
+  items: T[],
+  concurrency: number,
+  mapper: (item: T, index: number) => Promise<R>
+): Promise<R[]> {
+  if (items.length === 0) return [];
+  const results = new Array<R>(items.length);
+  let nextIndex = 0;
+  const workerCount = Math.max(1, Math.min(items.length, concurrency));
+
+  async function worker(): Promise<void> {
+    while (true) {
+      const index = nextIndex++;
+      if (index >= items.length) return;
+      results[index] = await mapper(items[index], index);
+    }
+  }
+
+  await Promise.all(Array.from({ length: workerCount }, () => worker()));
+  return results;
 }
 
 function normalizeOptions(input: NameTranslationOptions): NameTranslationOptions {
@@ -477,11 +646,22 @@ function targetKindMatches(
 
 function buildScanResult(context: ScanContext): ScanRenameTargetsResult {
   return {
-    targets: context.targets,
+    targets: [...context.targets].sort(compareTargets),
     totalCount: context.totalCount,
     truncated: context.truncated,
     warnings: context.warnings,
   };
+}
+
+function compareTargets(
+  left: NameTranslationTarget,
+  right: NameTranslationTarget
+): number {
+  return (
+    compareKey(left.anchorRoot).localeCompare(compareKey(right.anchorRoot)) ||
+    left.depthFromRoot - right.depthFromRoot ||
+    compareKey(left.absolutePath).localeCompare(compareKey(right.absolutePath))
+  );
 }
 
 function createTargetId(absolutePath: string, anchorRoot: string): string {

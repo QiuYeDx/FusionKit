@@ -93,6 +93,25 @@
     "empty_title": "还没有重命名预览",
     "empty_desc": "选择路径并生成预览后，可以在这里检查、编辑、跳过和应用。",
     "revalidate": "重新校验",
+    "planning": {
+      "title": "正在生成预览",
+      "cancel": "取消",
+      "preparing": "准备中",
+      "detail_targets": "{{translated}}/{{total}} 个目标",
+      "detail_batches": "{{translated}}/{{total}} 个目标 · {{completed}}/{{batches}} 批",
+      "phase": {
+        "idle": "idle",
+        "scanning": "scanning",
+        "classifying": "classifying",
+        "translating": "translating",
+        "checking_targets": "checking",
+        "validating": "validating",
+        "storing": "storing",
+        "done": "done",
+        "failed": "failed",
+        "cancelled": "cancelled"
+      }
+    },
     "summary": {
       "ready": "ready",
       "blocked": "blocked",
@@ -185,6 +204,7 @@
     "done": "重命名已完成。",
     "validation_failed": "重命名计划校验未通过。",
     "rename_finished": "重命名执行完成。",
+    "planning_cancelled": "已取消预览生成。",
     "rolling_back": "正在尝试回滚...",
     "rollback_done": "回滚请求已完成。",
     "ipc_unavailable": "Electron IPC 不可用。",

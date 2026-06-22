@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   clearAllNameTranslationPlansForTest,
+  summarizeNameTranslationPlan,
   rememberNameTranslationPlan,
 } from "@/services/rename/namePlanStore";
 import {
@@ -8,6 +9,17 @@ import {
   type NameTranslationPlan,
 } from "@/services/rename/nameTypes";
 import useNameTranslatorStore from "./useNameTranslatorStore";
+
+const createNameTranslationPlanMock = vi.hoisted(() => vi.fn());
+
+vi.mock("@/services/rename/nameTranslationPlanner", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("@/services/rename/nameTranslationPlanner")>();
+  return {
+    ...actual,
+    createNameTranslationPlan: createNameTranslationPlanMock,
+  };
+});
 
 vi.mock("@/utils/toast", () => ({
   showToast: vi.fn(),
@@ -17,6 +29,7 @@ afterEach(() => {
   clearAllNameTranslationPlansForTest();
   useNameTranslatorStore.getState().reset();
   vi.unstubAllGlobals();
+  createNameTranslationPlanMock.mockReset();
   vi.clearAllMocks();
 });
 
@@ -93,6 +106,56 @@ describe("useNameTranslatorStore outputMode local rebuild", () => {
     expect(state.currentPlan).not.toBeNull();
     expect(state.currentPlan!.items[0].newName).toBe("第01話_Episode 01.srt");
   });
+
+  it("uses batch target path checks during local revalidation", async () => {
+    const invoke = vi.fn(async (channel: string, payload: { paths: string[] }) => {
+      if (channel === "inspect-rename-paths") {
+        return {
+          paths: payload.paths.map((path) => ({
+            path,
+            exists: true,
+            kind: "file",
+            basename: "第01話.srt",
+            parentPath: "/tmp/rename",
+            riskLevel: "normal",
+            warnings: [],
+          })),
+        };
+      }
+      if (channel === "check-rename-target-paths") {
+        return {
+          existingPaths: ["/tmp/rename/Episode 01.srt"],
+          errors: [],
+        };
+      }
+      if (channel === "check-path-exists") {
+        throw new Error("single-path fallback should not run");
+      }
+      return { valid: true, errors: [], warnings: [] };
+    });
+    vi.stubGlobal("window", { ipcRenderer: { invoke } });
+
+    const plan = createPlan();
+    rememberNameTranslationPlan(plan);
+
+    await useNameTranslatorStore
+      .getState()
+      .loadPlanFromCache("rename_plan_from_agent");
+
+    useNameTranslatorStore.getState().updateOptions({ collisionPolicy: "fail" });
+    await flushAsyncWork();
+
+    expect(invoke).toHaveBeenCalledWith("check-rename-target-paths", {
+      paths: ["/tmp/rename/Episode 01.srt"],
+    });
+    expect(
+      invoke.mock.calls.some((call) => call[0] === "check-path-exists")
+    ).toBe(false);
+    expect(useNameTranslatorStore.getState().currentPlan?.items[0]).toMatchObject({
+      status: "blocked",
+      reason: "target_exists",
+    });
+  });
 });
 
 describe("useNameTranslatorStore plan hydration", () => {
@@ -146,7 +209,112 @@ describe("useNameTranslatorStore plan hydration", () => {
   });
 });
 
-function createPlan(): NameTranslationPlan {
+describe("useNameTranslatorStore planning progress", () => {
+  it("stores planner progress and commits the generated plan", async () => {
+    stubRenameIpc();
+    const plan = createPlan("rename_plan_progress");
+    createNameTranslationPlanMock.mockImplementation(async (_options, deps) => {
+      deps.progress?.({
+        phase: "scanning",
+        totalTargets: 1,
+        scannedTargets: 1,
+      });
+      deps.progress?.({
+        phase: "translating",
+        totalTargets: 1,
+        translatableCount: 1,
+        translatedCount: 1,
+        completedBatchCount: 1,
+        totalBatchCount: 1,
+      });
+      rememberNameTranslationPlan(plan);
+      return summarizeNameTranslationPlan(plan);
+    });
+
+    await useNameTranslatorStore.getState().addPaths(["/tmp/rename/第01話.srt"]);
+    await useNameTranslatorStore.getState().createPreview();
+
+    const state = useNameTranslatorStore.getState();
+    expect(state.isPlanning).toBe(false);
+    expect(state.planningProgress).toBeNull();
+    expect(state.currentPlan?.planId).toBe("rename_plan_progress");
+    expect(state.history[0].planId).toBe("rename_plan_progress");
+    expect(createNameTranslationPlanMock).toHaveBeenCalledWith(
+      expect.objectContaining({ roots: ["/tmp/rename/第01話.srt"] }),
+      expect.objectContaining({
+        progress: expect.any(Function),
+        signal: expect.any(AbortSignal),
+      })
+    );
+  });
+
+  it("cancels planning and ignores late planner results", async () => {
+    stubRenameIpc();
+    const plan = createPlan("rename_plan_late");
+    let releasePlanner!: () => void;
+    const plannerReleased = new Promise<void>((resolve) => {
+      releasePlanner = resolve;
+    });
+
+    createNameTranslationPlanMock.mockImplementation(async (_options, deps) => {
+      deps.progress?.({
+        phase: "scanning",
+        totalTargets: 1,
+        scannedTargets: 1,
+      });
+      await plannerReleased;
+      rememberNameTranslationPlan(plan);
+      return summarizeNameTranslationPlan(plan);
+    });
+
+    await useNameTranslatorStore.getState().addPaths(["/tmp/rename/第01話.srt"]);
+    const previewPromise = useNameTranslatorStore.getState().createPreview();
+
+    expect(useNameTranslatorStore.getState().planningProgress?.phase).toBe(
+      "scanning"
+    );
+
+    useNameTranslatorStore.getState().cancelPlanning();
+    expect(useNameTranslatorStore.getState().isPlanning).toBe(false);
+    expect(useNameTranslatorStore.getState().planningProgress?.phase).toBe(
+      "cancelled"
+    );
+
+    releasePlanner();
+    await previewPromise;
+
+    const state = useNameTranslatorStore.getState();
+    expect(state.currentPlan).toBeNull();
+    expect(
+      state.history.some((item) => item.planId === "rename_plan_late")
+    ).toBe(false);
+    expect(state.planningProgress?.phase).toBe("cancelled");
+  });
+});
+
+function stubRenameIpc() {
+  const invoke = vi.fn(async (channel: string, payload: { paths: string[] }) => {
+    if (channel === "inspect-rename-paths") {
+      return {
+        paths: payload.paths.map((path) => ({
+          path,
+          exists: true,
+          kind: "file",
+          basename: "第01話.srt",
+          parentPath: "/tmp/rename",
+          riskLevel: "normal",
+          warnings: [],
+        })),
+      };
+    }
+    if (channel === "check-path-exists") return false;
+    return { valid: true, errors: [], warnings: [] };
+  });
+  vi.stubGlobal("window", { ipcRenderer: { invoke } });
+  return invoke;
+}
+
+function createPlan(planId = "rename_plan_from_agent"): NameTranslationPlan {
   const options = {
     ...DEFAULT_NAME_TRANSLATION_OPTIONS,
     roots: ["/tmp/rename/第01話.srt"],
@@ -157,7 +325,7 @@ function createPlan(): NameTranslationPlan {
   };
 
   return {
-    planId: "rename_plan_from_agent",
+    planId,
     createdAt: Date.now(),
     expiresAt: Date.now() + 30 * 60 * 1000,
     options,
@@ -202,4 +370,8 @@ function createPlan(): NameTranslationPlan {
     warnings: [],
     applyable: true,
   };
+}
+
+function flushAsyncWork(): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, 0));
 }

@@ -93,6 +93,25 @@
     "empty_title": "No rename preview yet",
     "empty_desc": "After selecting paths and generating a preview, you can review, edit, skip, and apply changes here.",
     "revalidate": "Revalidate",
+    "planning": {
+      "title": "Generating preview",
+      "cancel": "Cancel",
+      "preparing": "Preparing",
+      "detail_targets": "{{translated}}/{{total}} targets",
+      "detail_batches": "{{translated}}/{{total}} targets · {{completed}}/{{batches}} batches",
+      "phase": {
+        "idle": "idle",
+        "scanning": "scanning",
+        "classifying": "classifying",
+        "translating": "translating",
+        "checking_targets": "checking",
+        "validating": "validating",
+        "storing": "storing",
+        "done": "done",
+        "failed": "failed",
+        "cancelled": "cancelled"
+      }
+    },
     "summary": {
       "ready": "ready",
       "blocked": "blocked",
@@ -185,6 +204,7 @@
     "done": "Renames completed.",
     "validation_failed": "Rename plan validation failed.",
     "rename_finished": "Rename execution finished.",
+    "planning_cancelled": "Preview generation cancelled.",
     "rolling_back": "Trying rollback...",
     "rollback_done": "Rollback request completed.",
     "ipc_unavailable": "Electron IPC is not available.",

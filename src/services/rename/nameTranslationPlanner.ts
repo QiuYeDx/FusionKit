@@ -9,6 +9,9 @@ import {
   type NameTranslationModelInputItem,
   type NameTranslationModelOutputItem,
   type NameTranslationOptions,
+  type NameTranslationPlanningMetrics,
+  type NameTranslationPlanningPhase,
+  type NameTranslationPlanningProgress,
   type NameTranslationPlan,
   type NameTranslationPlanItem,
   type NameTranslationPlanSummary,
@@ -24,6 +27,7 @@ import { joinPath, isRootLikePath } from "./namePath";
 import { sanitizeTranslatedName } from "./nameSanitize";
 import { validatePlanItems } from "./nameConflict";
 import {
+  checkRenameTargetsExist,
   checkRenameTargetExists,
   scanNameTranslationTargets,
 } from "./nameTargetResolver";
@@ -31,11 +35,25 @@ import {
   buildNameTranslationSystemPrompt,
   buildNameTranslationUserPrompt,
 } from "./nameTranslationPrompt";
+import {
+  createNameTranslationCacheKey,
+  createNameTranslationOutputFromCache,
+  defaultNameTranslationCache,
+  type NameTranslationCache,
+} from "./nameTranslationCache";
+import { getNameTranslationFastPath } from "./nameTranslationFastPath";
 
 const DEFAULT_PREVIEW_LIMIT = 30;
 const DEFAULT_MAX_TARGETS = 5000;
-const TRANSLATION_BATCH_SIZE = 25;
 const MAX_TRANSLATION_WARNINGS = 200;
+const DEFAULT_TRANSLATION_BATCH_CONFIG: NameTranslationBatchConfig = {
+  batchSize: 50,
+  concurrency: 3,
+  minBatchSize: 5,
+  maxBatchSize: 80,
+  rateLimitBackoffMs: 1500,
+};
+const MAX_RATE_LIMIT_RETRIES = 2;
 
 const modelOutputSchema = z.object({
   items: z.array(
@@ -58,91 +76,384 @@ export interface CreateNameTranslationPlanDeps {
     options: NameTranslationOptions
   ) => Promise<NameTranslationModelOutputItem[]>;
   checkPathExists?: (filePath: string) => Promise<boolean>;
+  checkPathsExist?: (filePaths: string[]) => Promise<Iterable<string>>;
   now?: () => number;
   previewLimit?: number;
   maxTargets?: number;
   planIdFactory?: () => string;
+  progress?: (progress: NameTranslationPlanningProgress) => void;
+  signal?: AbortSignal;
+  translationCache?: NameTranslationCache;
+  batchConfig?: Partial<NameTranslationBatchConfig>;
 }
+
+export interface NameTranslationBatchConfig {
+  batchSize: number;
+  concurrency: number;
+  minBatchSize: number;
+  maxBatchSize: number;
+  rateLimitBackoffMs: number;
+}
+
+interface PlanningProgressReporter {
+  start: (
+    phase: NameTranslationPlanningPhase,
+    progress?: Omit<NameTranslationPlanningProgress, "phase" | "metrics">
+  ) => void;
+  emit: (
+    phase: NameTranslationPlanningPhase,
+    progress?: Omit<NameTranslationPlanningProgress, "phase" | "metrics">
+  ) => void;
+  finish: (
+    phase: Extract<NameTranslationPlanningPhase, "done" | "failed" | "cancelled">,
+    progress?: Omit<NameTranslationPlanningProgress, "phase" | "metrics">
+  ) => void;
+  completeCurrentPhase: (metricKey: keyof NameTranslationPlanningMetrics) => void;
+  setMetrics: (metrics: Partial<NameTranslationPlanningMetrics>) => void;
+}
+
+interface TranslationStats {
+  requestCount: number;
+  retryCount: number;
+  completedBatchCount: number;
+  totalBatchCount: number;
+  translatedCount: number;
+  translatableCount: number;
+  cacheHitCount: number;
+  fastPathCount: number;
+  activeBatchCount: number;
+  concurrencyPeak: number;
+}
+
+interface TranslationObserver {
+  stats: TranslationStats;
+  onProgress?: (stats: TranslationStats) => void;
+}
+
+interface PathCheckStats {
+  requestCount: number;
+}
+
+interface TranslationWorkItem {
+  key: string;
+  modelInput: NameTranslationModelInputItem;
+  targetIds: string[];
+}
+
+interface TranslationBatch {
+  workItems: TranslationWorkItem[];
+}
+
+interface PreparedTranslationWork {
+  translationMap: Map<string, NameTranslationModelOutputItem>;
+  workItems: TranslationWorkItem[];
+  translatableCount: number;
+  resolvedCount: number;
+  cacheHitCount: number;
+  fastPathCount: number;
+}
+
+interface TranslationRecoveryContext {
+  observer?: TranslationObserver;
+  batchConfig: NameTranslationBatchConfig;
+  signal?: AbortSignal;
+  onRateLimit?: () => void;
+}
+
+type ModelErrorCategory = "rate_limit" | "non_recoverable" | "recoverable";
 
 export async function createNameTranslationPlan(
   options: NameTranslationOptions,
   deps: CreateNameTranslationPlanDeps = {}
 ): Promise<NameTranslationPlanSummary> {
+  const clock = deps.now ?? Date.now;
+  const progress = createPlanningProgressReporter(deps.progress, clock);
   const normalizedOptions = normalizeNameTranslationOptions(options);
-  const now = deps.now?.() ?? Date.now();
+  const now = clock();
   const previewLimit = deps.previewLimit ?? DEFAULT_PREVIEW_LIMIT;
   const planId = deps.planIdFactory?.() ?? createPlanId();
 
-  const clarificationRequired =
-    getPathSegmentClarification(normalizedOptions) ??
-    getUnsafePathSegmentClarification(normalizedOptions);
+  try {
+    const clarificationRequired =
+      getPathSegmentClarification(normalizedOptions) ??
+      getUnsafePathSegmentClarification(normalizedOptions);
+    throwIfPlanningAborted(deps.signal);
 
-  if (clarificationRequired) {
+    if (clarificationRequired) {
+      const plan = buildPlan({
+        planId,
+        createdAt: now,
+        previewLimit,
+        options: normalizedOptions,
+        items: [],
+        warnings: [],
+        clarificationRequired,
+      });
+      throwIfPlanningAborted(deps.signal);
+      progress.start("storing");
+      rememberNameTranslationPlan(plan);
+      progress.finish("done", {
+        totalTargets: 0,
+        warningCount: 0,
+      });
+      return summarizeNameTranslationPlan(plan);
+    }
+
+    if (normalizedOptions.scope === "path_segments") {
+      const plan = buildPlan({
+        planId,
+        createdAt: now,
+        previewLimit,
+        options: normalizedOptions,
+        items: [],
+        warnings: [
+          "path_segments planning is intentionally non-applyable until path-level rename ordering is implemented.",
+        ],
+        clarificationRequired: {
+          code: "path_segments_deferred",
+          message:
+            "路径片段重命名需要额外确认和目录重写顺序，本阶段只生成不可应用预览。",
+        },
+      });
+      throwIfPlanningAborted(deps.signal);
+      progress.start("storing");
+      rememberNameTranslationPlan(plan);
+      progress.finish("done", {
+        totalTargets: 0,
+        warningCount: plan.warnings.length,
+      });
+      return summarizeNameTranslationPlan(plan);
+    }
+
+    const scanTargets = deps.scanTargets ?? scanNameTranslationTargets;
+    progress.start("scanning");
+    const scanResult = await scanTargets(
+      normalizedOptions,
+      deps.maxTargets ?? DEFAULT_MAX_TARGETS
+    );
+    progress.completeCurrentPhase("scanDurationMs");
+    progress.emit("scanning", {
+      totalTargets: scanResult.totalCount,
+      scannedTargets: scanResult.targets.length,
+      warningCount: scanResult.warnings.length,
+    });
+    throwIfPlanningAborted(deps.signal);
+
+    const translationWarnings: string[] = [];
+    const translationCache = deps.translationCache ?? defaultNameTranslationCache;
+    progress.start("classifying", {
+      totalTargets: scanResult.totalCount,
+      scannedTargets: scanResult.targets.length,
+      warningCount: scanResult.warnings.length,
+    });
+    const preparedTranslationWork = prepareTranslationWork(
+      scanResult.targets,
+      normalizedOptions,
+      translationCache,
+      clock,
+      deps.signal
+    );
+    progress.setMetrics({
+      translationCacheHitCount: preparedTranslationWork.cacheHitCount,
+      translationFastPathCount: preparedTranslationWork.fastPathCount,
+    });
+    progress.completeCurrentPhase("classifyingDurationMs");
+    progress.emit("classifying", {
+      totalTargets: scanResult.totalCount,
+      translatableCount: preparedTranslationWork.translatableCount,
+      translatedCount: preparedTranslationWork.resolvedCount,
+      cacheHitCount: preparedTranslationWork.cacheHitCount,
+      fastPathCount: preparedTranslationWork.fastPathCount,
+      warningCount: scanResult.warnings.length,
+    });
+    throwIfPlanningAborted(deps.signal);
+
+    const batchConfig = normalizeTranslationBatchConfig(deps.batchConfig);
+    const totalBatchCount = Math.ceil(
+      preparedTranslationWork.workItems.length / batchConfig.batchSize
+    );
+    progress.start("translating", {
+      totalTargets: scanResult.totalCount,
+      translatableCount: preparedTranslationWork.translatableCount,
+      translatedCount: preparedTranslationWork.resolvedCount,
+      cacheHitCount: preparedTranslationWork.cacheHitCount,
+      fastPathCount: preparedTranslationWork.fastPathCount,
+      completedBatchCount: 0,
+      totalBatchCount,
+      warningCount: scanResult.warnings.length,
+    });
+    const translationStats: TranslationStats = {
+      requestCount: 0,
+      retryCount: 0,
+      completedBatchCount: 0,
+      totalBatchCount,
+      translatedCount: preparedTranslationWork.resolvedCount,
+      translatableCount: preparedTranslationWork.translatableCount,
+      cacheHitCount: preparedTranslationWork.cacheHitCount,
+      fastPathCount: preparedTranslationWork.fastPathCount,
+      activeBatchCount: 0,
+      concurrencyPeak: 0,
+    };
+    const translationMap = await translateTargets(
+      preparedTranslationWork,
+      normalizedOptions,
+      deps.translateBatch ?? translateBatchWithTaskModel,
+      translationWarnings,
+      translationCache,
+      clock,
+      deps.signal,
+      batchConfig,
+      {
+        stats: translationStats,
+        onProgress: (stats) =>
+          progress.emit("translating", {
+            totalTargets: scanResult.totalCount,
+            translatableCount: stats.translatableCount,
+            translatedCount: stats.translatedCount,
+            cacheHitCount: stats.cacheHitCount,
+            fastPathCount: stats.fastPathCount,
+            activeBatchCount: stats.activeBatchCount,
+            completedBatchCount: stats.completedBatchCount,
+            totalBatchCount: stats.totalBatchCount,
+            retryCount: stats.retryCount,
+            warningCount: scanResult.warnings.length + translationWarnings.length,
+          }),
+      }
+    );
+    throwIfPlanningAborted(deps.signal);
+    progress.setMetrics({
+      translationRequestCount: translationStats.requestCount,
+      translationBatchCount: translationStats.totalBatchCount,
+      translationConcurrencyPeak: translationStats.concurrencyPeak,
+      translationCacheHitCount: translationStats.cacheHitCount,
+      translationFastPathCount: translationStats.fastPathCount,
+    });
+    progress.completeCurrentPhase("translationDurationMs");
+
+    const rawItems = scanResult.targets.map((target) =>
+      createPlanItem(target, normalizedOptions, translationMap, translationWarnings)
+    );
+    const pathCheckStats: PathCheckStats = { requestCount: 0 };
+    progress.start("checking_targets", {
+      totalTargets: scanResult.totalCount,
+      warningCount: scanResult.warnings.length + translationWarnings.length,
+    });
+    const existingTargetPaths = await collectExistingTargetPaths(
+      rawItems,
+      deps.checkPathExists ?? checkRenameTargetExists,
+      pathCheckStats,
+      deps.checkPathsExist ??
+        (deps.checkPathExists ? undefined : checkRenameTargetsExist)
+    );
+    throwIfPlanningAborted(deps.signal);
+    progress.setMetrics({
+      pathCheckRequestCount: pathCheckStats.requestCount,
+    });
+    progress.completeCurrentPhase("pathCheckDurationMs");
+
+    progress.start("validating", {
+      totalTargets: scanResult.totalCount,
+      warningCount: scanResult.warnings.length + translationWarnings.length,
+    });
+    const planBuildStartedAt = clock();
+    const validatedItems = validatePlanItems(rawItems, normalizedOptions, {
+      existingTargetPaths,
+    });
     const plan = buildPlan({
       planId,
       createdAt: now,
       previewLimit,
       options: normalizedOptions,
-      items: [],
-      warnings: [],
-      clarificationRequired,
+      items: validatedItems,
+      warnings: [...scanResult.warnings, ...translationWarnings],
+      totalTargets: scanResult.totalCount,
+    });
+    progress.setMetrics({
+      planBuildDurationMs: Math.max(0, clock() - planBuildStartedAt),
+    });
+    throwIfPlanningAborted(deps.signal);
+
+    progress.start("storing", {
+      totalTargets: scanResult.totalCount,
+      warningCount: plan.warnings.length,
     });
     rememberNameTranslationPlan(plan);
-    return summarizeNameTranslationPlan(plan);
-  }
-
-  if (normalizedOptions.scope === "path_segments") {
-    const plan = buildPlan({
-      planId,
-      createdAt: now,
-      previewLimit,
-      options: normalizedOptions,
-      items: [],
-      warnings: [
-        "path_segments planning is intentionally non-applyable until path-level rename ordering is implemented.",
-      ],
-      clarificationRequired: {
-        code: "path_segments_deferred",
-        message:
-          "路径片段重命名需要额外确认和目录重写顺序，本阶段只生成不可应用预览。",
-      },
+    progress.finish("done", {
+      totalTargets: scanResult.totalCount,
+      translatedCount: translationStats.translatedCount,
+      cacheHitCount: translationStats.cacheHitCount,
+      fastPathCount: translationStats.fastPathCount,
+      completedBatchCount: translationStats.completedBatchCount,
+      totalBatchCount: translationStats.totalBatchCount,
+      retryCount: translationStats.retryCount,
+      warningCount: plan.warnings.length,
     });
-    rememberNameTranslationPlan(plan);
     return summarizeNameTranslationPlan(plan);
+  } catch (error) {
+    progress.finish(isPlanningCancelledError(error) ? "cancelled" : "failed");
+    throw error;
   }
+}
 
-  const scanTargets = deps.scanTargets ?? scanNameTranslationTargets;
-  const scanResult = await scanTargets(normalizedOptions, deps.maxTargets ?? DEFAULT_MAX_TARGETS);
-  const translationWarnings: string[] = [];
-  const translationMap = await translateTargets(
-    scanResult.targets,
-    normalizedOptions,
-    deps.translateBatch ?? translateBatchWithTaskModel,
-    translationWarnings
-  );
+function createPlanningProgressReporter(
+  callback: CreateNameTranslationPlanDeps["progress"],
+  now: () => number
+): PlanningProgressReporter {
+  const startedAt = now();
+  let phaseStartedAt = startedAt;
+  const metrics: NameTranslationPlanningMetrics = {};
 
-  const rawItems = scanResult.targets.map((target) =>
-    createPlanItem(target, normalizedOptions, translationMap, translationWarnings)
-  );
-  const existingTargetPaths = await collectExistingTargetPaths(
-    rawItems,
-    deps.checkPathExists ?? checkRenameTargetExists
-  );
-  const validatedItems = validatePlanItems(rawItems, normalizedOptions, {
-    existingTargetPaths,
-  });
-  const plan = buildPlan({
-    planId,
-    createdAt: now,
-    previewLimit,
-    options: normalizedOptions,
-    items: validatedItems,
-    warnings: [...scanResult.warnings, ...translationWarnings],
-    totalTargets: scanResult.totalCount,
-  });
+  const emitProgress = (
+    phase: NameTranslationPlanningPhase,
+    progress: Omit<NameTranslationPlanningProgress, "phase" | "metrics"> = {}
+  ) => {
+    if (!callback) return;
+    try {
+      callback({
+        phase,
+        ...progress,
+        metrics: {
+          ...metrics,
+          totalPlanningDurationMs: Math.max(0, now() - startedAt),
+        },
+      });
+    } catch {
+      // Progress observers must not affect plan generation.
+    }
+  };
 
-  rememberNameTranslationPlan(plan);
-  return summarizeNameTranslationPlan(plan);
+  return {
+    start: (phase, progress) => {
+      phaseStartedAt = now();
+      emitProgress(phase, progress);
+    },
+    emit: emitProgress,
+    finish: (phase, progress) => {
+      metrics.totalPlanningDurationMs = Math.max(0, now() - startedAt);
+      emitProgress(phase, progress);
+    },
+    completeCurrentPhase: (metricKey) => {
+      metrics[metricKey] = Math.max(0, now() - phaseStartedAt);
+    },
+    setMetrics: (nextMetrics) => {
+      Object.assign(metrics, nextMetrics);
+    },
+  };
+}
+
+function throwIfPlanningAborted(signal?: AbortSignal): void {
+  if (!signal?.aborted) return;
+  throw new NameTranslationPlannerError(
+    "名称翻译计划生成已取消。",
+    "planning_cancelled"
+  );
+}
+
+function isPlanningCancelledError(error: unknown): boolean {
+  return (
+    error instanceof NameTranslationPlannerError &&
+    error.code === "planning_cancelled"
+  );
 }
 
 function normalizeNameTranslationOptions(
@@ -159,6 +470,42 @@ function normalizeNameTranslationOptions(
     maxDepth: Number.isFinite(input?.maxDepth)
       ? Math.max(0, Math.min(20, Math.floor(input.maxDepth)))
       : DEFAULT_NAME_TRANSLATION_OPTIONS.maxDepth,
+  };
+}
+
+function normalizeTranslationBatchConfig(
+  input: Partial<NameTranslationBatchConfig> = {}
+): NameTranslationBatchConfig {
+  const minBatchSize = Math.max(
+    1,
+    Math.floor(input.minBatchSize ?? DEFAULT_TRANSLATION_BATCH_CONFIG.minBatchSize)
+  );
+  const maxBatchSize = Math.max(
+    minBatchSize,
+    Math.floor(input.maxBatchSize ?? DEFAULT_TRANSLATION_BATCH_CONFIG.maxBatchSize)
+  );
+  const requestedBatchSize = Math.floor(
+    input.batchSize ?? DEFAULT_TRANSLATION_BATCH_CONFIG.batchSize
+  );
+
+  return {
+    minBatchSize,
+    maxBatchSize,
+    batchSize: Math.max(
+      minBatchSize,
+      Math.min(maxBatchSize, requestedBatchSize)
+    ),
+    concurrency: Math.max(
+      1,
+      Math.floor(input.concurrency ?? DEFAULT_TRANSLATION_BATCH_CONFIG.concurrency)
+    ),
+    rateLimitBackoffMs: Math.max(
+      0,
+      Math.floor(
+        input.rateLimitBackoffMs ??
+          DEFAULT_TRANSLATION_BATCH_CONFIG.rateLimitBackoffMs
+      )
+    ),
   };
 }
 
@@ -196,49 +543,276 @@ function getUnsafePathSegmentClarification(
   };
 }
 
-async function translateTargets(
+function prepareTranslationWork(
   targets: NameTranslationTarget[],
   options: NameTranslationOptions,
-  translateBatch: NonNullable<CreateNameTranslationPlanDeps["translateBatch"]>,
-  warnings: string[]
-): Promise<Map<string, NameTranslationModelOutputItem>> {
+  translationCache: NameTranslationCache,
+  now: () => number,
+  signal?: AbortSignal
+): PreparedTranslationWork {
   const translationMap = new Map<string, NameTranslationModelOutputItem>();
+  const workItems: TranslationWorkItem[] = [];
+  const workItemsByKey = new Map<string, TranslationWorkItem>();
+  let translatableCount = 0;
+  let resolvedCount = 0;
+  let cacheHitCount = 0;
+  let fastPathCount = 0;
 
-  for (let start = 0; start < targets.length; start += TRANSLATION_BATCH_SIZE) {
-    const batchTargets = targets.slice(start, start + TRANSLATION_BATCH_SIZE);
-    const batchInput = batchTargets.map(toModelInputItem);
+  translationCache.clearExpired(now());
 
-    const outputs = await translateBatchWithRecovery(
-      batchInput,
-      options,
-      translateBatch,
-      warnings
-    );
-    const inputIds = new Set(batchInput.map((item) => item.id));
+  for (let index = 0; index < targets.length; index++) {
+    if (index % 200 === 0) throwIfPlanningAborted(signal);
+    const target = targets[index];
+    if (target.skipped) continue;
+    translatableCount += 1;
 
-    for (const output of outputs) {
-      if (!inputIds.has(output.id)) {
-        pushTranslationWarning(warnings, `unknown_model_output:${output.id}`);
-        continue;
-      }
-      if (translationMap.has(output.id)) {
-        pushTranslationWarning(warnings, `duplicate_model_output:${output.id}`);
-        continue;
-      }
-      translationMap.set(output.id, output);
+    const fastPathOutput = getNameTranslationFastPath(target, options);
+    if (fastPathOutput) {
+      translationMap.set(target.id, fastPathOutput);
+      fastPathCount += 1;
+      resolvedCount += 1;
+      continue;
     }
+
+    const key = createNameTranslationCacheKey(target, options);
+    const cached = translationCache.get(key);
+    if (cached) {
+      translationMap.set(
+        target.id,
+        createNameTranslationOutputFromCache(target.id, cached)
+      );
+      cacheHitCount += 1;
+      resolvedCount += 1;
+      continue;
+    }
+
+    const existingWorkItem = workItemsByKey.get(key);
+    if (existingWorkItem) {
+      existingWorkItem.targetIds.push(target.id);
+      continue;
+    }
+
+    const workItem: TranslationWorkItem = {
+      key,
+      modelInput: toModelInputItem(target),
+      targetIds: [target.id],
+    };
+    workItems.push(workItem);
+    workItemsByKey.set(key, workItem);
   }
 
+  throwIfPlanningAborted(signal);
+  return {
+    translationMap,
+    workItems,
+    translatableCount,
+    resolvedCount,
+    cacheHitCount,
+    fastPathCount,
+  };
+}
+
+async function translateTargets(
+  preparedWork: PreparedTranslationWork,
+  options: NameTranslationOptions,
+  translateBatch: NonNullable<CreateNameTranslationPlanDeps["translateBatch"]>,
+  warnings: string[],
+  translationCache: NameTranslationCache,
+  now: () => number,
+  signal?: AbortSignal,
+  batchConfig: NameTranslationBatchConfig = DEFAULT_TRANSLATION_BATCH_CONFIG,
+  observer?: TranslationObserver
+): Promise<Map<string, NameTranslationModelOutputItem>> {
+  const translationMap = new Map(preparedWork.translationMap);
+  const batches = createTranslationBatches(
+    preparedWork.workItems,
+    batchConfig.batchSize
+  );
+  if (batches.length === 0) {
+    observer?.onProgress?.({ ...observer.stats });
+    return translationMap;
+  }
+
+  let nextBatchIndex = 0;
+  let activeBatchCount = 0;
+  let completedBatchCount = 0;
+  let concurrencyLimit = batchConfig.concurrency;
+  let settled = false;
+
+  await new Promise<void>((resolve, reject) => {
+    const fail = (error: unknown) => {
+      if (settled) return;
+      settled = true;
+      reject(error);
+    };
+
+    const pump = () => {
+      if (settled) return;
+      try {
+        throwIfPlanningAborted(signal);
+      } catch (error) {
+        fail(error);
+        return;
+      }
+
+      if (completedBatchCount >= batches.length) {
+        settled = true;
+        resolve();
+        return;
+      }
+
+      while (
+        activeBatchCount < concurrencyLimit &&
+        nextBatchIndex < batches.length
+      ) {
+        const batch = batches[nextBatchIndex++];
+        activeBatchCount += 1;
+        updateActiveTranslationStats(observer, activeBatchCount);
+
+        runTranslationBatch(
+          batch,
+          options,
+          translateBatch,
+          warnings,
+          translationMap,
+          translationCache,
+          now,
+          {
+            observer,
+            batchConfig,
+            signal,
+            onRateLimit: () => {
+              concurrencyLimit = 1;
+            },
+          }
+        )
+          .then(() => {
+            activeBatchCount -= 1;
+            completedBatchCount += 1;
+            if (observer) {
+              observer.stats.completedBatchCount = completedBatchCount;
+              observer.stats.activeBatchCount = activeBatchCount;
+              observer.onProgress?.({ ...observer.stats });
+            }
+            pump();
+          })
+          .catch((error) => {
+            activeBatchCount -= 1;
+            updateActiveTranslationStats(observer, activeBatchCount);
+            fail(error);
+          });
+      }
+    };
+
+    pump();
+  });
+
+  throwIfPlanningAborted(signal);
   return translationMap;
+}
+
+async function runTranslationBatch(
+  batch: TranslationBatch,
+  options: NameTranslationOptions,
+  translateBatch: NonNullable<CreateNameTranslationPlanDeps["translateBatch"]>,
+  warnings: string[],
+  translationMap: Map<string, NameTranslationModelOutputItem>,
+  translationCache: NameTranslationCache,
+  now: () => number,
+  recoveryContext: TranslationRecoveryContext
+): Promise<void> {
+  throwIfPlanningAborted(recoveryContext.signal);
+  const batchInput = batch.workItems.map((workItem) => workItem.modelInput);
+  const workItemsByInputId = new Map(
+    batch.workItems.map((workItem) => [workItem.modelInput.id, workItem])
+  );
+  const seenOutputIds = new Set<string>();
+  const outputs = await translateBatchWithRecovery(
+    batchInput,
+    options,
+    translateBatch,
+    warnings,
+    recoveryContext
+  );
+  throwIfPlanningAborted(recoveryContext.signal);
+
+  for (const output of outputs) {
+    const workItem = workItemsByInputId.get(output.id);
+    if (!workItem) {
+      pushTranslationWarning(warnings, `unknown_model_output:${output.id}`);
+      continue;
+    }
+    if (seenOutputIds.has(output.id)) {
+      pushTranslationWarning(warnings, `duplicate_model_output:${output.id}`);
+      continue;
+    }
+    seenOutputIds.add(output.id);
+
+    translationCache.set({
+      key: workItem.key,
+      translatedStem: output.translatedStem,
+      confidence: output.confidence,
+      note: output.note,
+      createdAt: now(),
+    });
+
+    for (const targetId of workItem.targetIds) {
+      translationMap.set(targetId, {
+        ...output,
+        id: targetId,
+      });
+    }
+
+    const observer = recoveryContext.observer;
+    if (observer) {
+      observer.stats.translatedCount = Math.min(
+        observer.stats.translatableCount,
+        observer.stats.translatedCount + workItem.targetIds.length
+      );
+    }
+  }
+}
+
+function updateActiveTranslationStats(
+  observer: TranslationObserver | undefined,
+  activeBatchCount: number
+): void {
+  if (!observer) return;
+  observer.stats.activeBatchCount = activeBatchCount;
+  observer.stats.concurrencyPeak = Math.max(
+    observer.stats.concurrencyPeak,
+    activeBatchCount
+  );
+  observer.onProgress?.({ ...observer.stats });
+}
+
+function createTranslationBatches(
+  workItems: TranslationWorkItem[],
+  batchSize: number
+): TranslationBatch[] {
+  const batches: TranslationBatch[] = [];
+  for (let start = 0; start < workItems.length; start += batchSize) {
+    batches.push({
+      workItems: workItems.slice(start, start + batchSize),
+    });
+  }
+  return batches;
 }
 
 async function translateBatchWithRecovery(
   items: NameTranslationModelInputItem[],
   options: NameTranslationOptions,
   translateBatch: NonNullable<CreateNameTranslationPlanDeps["translateBatch"]>,
-  warnings: string[]
+  warnings: string[],
+  context: TranslationRecoveryContext,
+  rateLimitRetryCount = 0
 ): Promise<NameTranslationModelOutputItem[]> {
   try {
+    throwIfPlanningAborted(context.signal);
+    if (context.observer) {
+      context.observer.stats.requestCount += 1;
+      context.observer.onProgress?.({ ...context.observer.stats });
+    }
     return await translateBatch(items, options);
   } catch (error) {
     if (error instanceof NameTranslationPlannerError) {
@@ -247,8 +821,39 @@ async function translateBatchWithRecovery(
 
     const message = formatModelError(error);
     pushTranslationWarning(warnings, `model_batch_failed:${items.length}:${message}`);
+    const category = classifyModelError(message);
 
-    if (isNonRecoverableModelError(message)) {
+    if (category === "rate_limit") {
+      if (rateLimitRetryCount >= MAX_RATE_LIMIT_RETRIES) {
+        throw new NameTranslationPlannerError(
+          `名称翻译模型限流重试后仍失败：${message}`,
+          "model_request_failed"
+        );
+      }
+      context.onRateLimit?.();
+      if (context.observer) {
+        context.observer.stats.retryCount += 1;
+        context.observer.onProgress?.({ ...context.observer.stats });
+      }
+      pushTranslationWarning(
+        warnings,
+        `model_rate_limit_backoff:${items.length}:${context.batchConfig.rateLimitBackoffMs}ms`
+      );
+      await waitForTranslationRetry(
+        context.batchConfig.rateLimitBackoffMs,
+        context.signal
+      );
+      return translateBatchWithRecovery(
+        items,
+        options,
+        translateBatch,
+        warnings,
+        context,
+        rateLimitRetryCount + 1
+      );
+    }
+
+    if (category === "non_recoverable") {
       throw new NameTranslationPlannerError(
         `名称翻译模型调用失败：${message}`,
         "model_request_failed"
@@ -260,22 +865,30 @@ async function translateBatchWithRecovery(
     }
 
     const midpoint = Math.ceil(items.length / 2);
+    if (context.observer) {
+      context.observer.stats.retryCount += 1;
+      context.observer.onProgress?.({ ...context.observer.stats });
+    }
     pushTranslationWarning(
       warnings,
       `model_batch_retry_split:${items.length}:${midpoint}+${items.length - midpoint}`
     );
+    throwIfPlanningAborted(context.signal);
 
     const left = await translateBatchWithRecovery(
       items.slice(0, midpoint),
       options,
       translateBatch,
-      warnings
+      warnings,
+      context
     );
+    throwIfPlanningAborted(context.signal);
     const right = await translateBatchWithRecovery(
       items.slice(midpoint),
       options,
       translateBatch,
-      warnings
+      warnings,
+      context
     );
 
     return [...left, ...right];
@@ -369,7 +982,9 @@ function createPlanItem(
 
 async function collectExistingTargetPaths(
   items: NameTranslationPlanItem[],
-  checkPathExists: NonNullable<CreateNameTranslationPlanDeps["checkPathExists"]>
+  checkPathExists: NonNullable<CreateNameTranslationPlanDeps["checkPathExists"]>,
+  stats?: PathCheckStats,
+  checkPathsExist?: NonNullable<CreateNameTranslationPlanDeps["checkPathsExist"]>
 ): Promise<string[]> {
   const pathsToCheck = new Map<string, string>();
 
@@ -378,10 +993,27 @@ async function collectExistingTargetPaths(
     if (item.sourcePath === item.targetPath) continue;
     pathsToCheck.set(item.targetPath, item.targetPath);
   }
+  const targetPaths = [...pathsToCheck.values()];
+  if (targetPaths.length === 0) {
+    if (stats) stats.requestCount = 0;
+    return [];
+  }
+
+  if (checkPathsExist) {
+    if (stats) stats.requestCount += 1;
+    try {
+      return [...(await checkPathsExist(targetPaths))].filter((targetPath) =>
+        pathsToCheck.has(targetPath)
+      );
+    } catch {
+      // Older renderer/main pairs may not have the batch IPC yet.
+    }
+  }
 
   const existingPaths: string[] = [];
+  if (stats) stats.requestCount += targetPaths.length;
   await Promise.all(
-    [...pathsToCheck.values()].map(async (targetPath) => {
+    targetPaths.map(async (targetPath) => {
       try {
         if (await checkPathExists(targetPath)) existingPaths.push(targetPath);
       } catch {
@@ -428,6 +1060,11 @@ async function translateBatchWithTaskModel(
 
     return result.object.items;
   } catch (structuredError) {
+    const structuredMessage = formatModelError(structuredError);
+    if (classifyModelError(structuredMessage) !== "recoverable") {
+      throw structuredError;
+    }
+
     try {
       const result = await generateText({
         model,
@@ -590,14 +1227,46 @@ function extractFirstBalancedJson(
   return null;
 }
 
-function isNonRecoverableModelError(message: string): boolean {
-  return [
+function classifyModelError(message: string): ModelErrorCategory {
+  const isNonRecoverable = [
     /401|403|unauthorized|forbidden|invalid api key/i,
-    /429|rate limit|too many requests/i,
     /insufficient_quota|quota exceeded|billing/i,
     /404|model .*not found|model_not_found/i,
     /ENOTFOUND|ECONNREFUSED|network|fetch failed/i,
   ].some((pattern) => pattern.test(message));
+  if (isNonRecoverable) return "non_recoverable";
+
+  if (/429|rate limit|too many requests/i.test(message)) {
+    return "rate_limit";
+  }
+
+  return "recoverable";
+}
+
+function waitForTranslationRetry(
+  delayMs: number,
+  signal?: AbortSignal
+): Promise<void> {
+  throwIfPlanningAborted(signal);
+  if (delayMs <= 0) return Promise.resolve();
+
+  return new Promise((resolve, reject) => {
+    const handleAbort = () => {
+      clearTimeout(timeout);
+      reject(
+        new NameTranslationPlannerError(
+          "名称翻译计划生成已取消。",
+          "planning_cancelled"
+        )
+      );
+    };
+    const timeout = setTimeout(() => {
+      signal?.removeEventListener("abort", handleAbort);
+      resolve();
+    }, delayMs);
+
+    signal?.addEventListener("abort", handleAbort, { once: true });
+  });
 }
 
 function formatModelError(error: unknown): string {

@@ -93,6 +93,25 @@
     "empty_title": "リネームプレビューはまだありません",
     "empty_desc": "パスを選択してプレビューを生成すると、ここで確認、編集、スキップ、適用できます。",
     "revalidate": "再検証",
+    "planning": {
+      "title": "プレビューを生成中",
+      "cancel": "キャンセル",
+      "preparing": "準備中",
+      "detail_targets": "{{translated}}/{{total}} 件",
+      "detail_batches": "{{translated}}/{{total}} 件 · {{completed}}/{{batches}} バッチ",
+      "phase": {
+        "idle": "idle",
+        "scanning": "scanning",
+        "classifying": "classifying",
+        "translating": "translating",
+        "checking_targets": "checking",
+        "validating": "validating",
+        "storing": "storing",
+        "done": "done",
+        "failed": "failed",
+        "cancelled": "cancelled"
+      }
+    },
     "summary": {
       "ready": "ready",
       "blocked": "blocked",
@@ -185,6 +204,7 @@
     "done": "リネームが完了しました。",
     "validation_failed": "リネーム計画の検証に失敗しました。",
     "rename_finished": "リネーム処理が完了しました。",
+    "planning_cancelled": "プレビュー生成をキャンセルしました。",
     "rolling_back": "ロールバックを試行中...",
     "rollback_done": "ロールバック要求が完了しました。",
     "ipc_unavailable": "Electron IPC を利用できません。",

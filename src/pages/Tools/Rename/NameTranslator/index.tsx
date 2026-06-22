@@ -27,6 +27,7 @@ export default function NameTranslator() {
     options,
     currentPlan,
     isPlanning,
+    planningProgress,
     isApplying,
     applyProgress,
     lastApplyResult,
@@ -39,6 +40,7 @@ export default function NameTranslator() {
     updateOptions,
     loadPlanFromCache,
     createPreview,
+    cancelPlanning,
     updatePlanItem,
     revalidateCurrentPlan,
     applyCurrentPlan,
@@ -215,10 +217,12 @@ export default function NameTranslator() {
             <PlanPreviewTable
               plan={currentPlan}
               isPlanning={isPlanning}
+              planningProgress={planningProgress}
               originalSuggestions={originalSuggestions}
               onEditItem={updatePlanItem}
               onRevalidate={revalidateCurrentPlan}
               onUseAutoIndex={() => updateOptions({ collisionPolicy: "append_index" })}
+              onCancelPlanning={cancelPlanning}
             />
           </div>
 

@@ -92,6 +92,50 @@ export interface ApplyProgress {
   message: string;
 }
 
+export type NameTranslationPlanningPhase =
+  | "idle"
+  | "scanning"
+  | "classifying"
+  | "translating"
+  | "checking_targets"
+  | "validating"
+  | "storing"
+  | "done"
+  | "failed"
+  | "cancelled";
+
+export interface NameTranslationPlanningMetrics {
+  scanDurationMs?: number;
+  classifyingDurationMs?: number;
+  translationDurationMs?: number;
+  translationRequestCount?: number;
+  translationBatchCount?: number;
+  translationConcurrencyPeak?: number;
+  translationCacheHitCount?: number;
+  translationFastPathCount?: number;
+  pathCheckDurationMs?: number;
+  pathCheckRequestCount?: number;
+  planBuildDurationMs?: number;
+  totalPlanningDurationMs?: number;
+}
+
+export interface NameTranslationPlanningProgress {
+  phase: NameTranslationPlanningPhase;
+  message?: string;
+  totalTargets?: number;
+  scannedTargets?: number;
+  translatableCount?: number;
+  translatedCount?: number;
+  cacheHitCount?: number;
+  fastPathCount?: number;
+  activeBatchCount?: number;
+  completedBatchCount?: number;
+  totalBatchCount?: number;
+  retryCount?: number;
+  warningCount?: number;
+  metrics?: NameTranslationPlanningMetrics;
+}
+
 export const DEFAULT_NAME_TRANSLATION_OPTIONS: Omit<
   NameTranslationOptions,
   "roots"
@@ -134,6 +178,14 @@ export interface ScanRenameTargetsResult {
   totalCount: number;
   truncated: boolean;
   warnings: string[];
+}
+
+export interface CheckRenameTargetPathsResult {
+  existingPaths: string[];
+  errors: Array<{
+    path: string;
+    message: string;
+  }>;
 }
 
 export type NamePlanItemStatus =

@@ -1,10 +1,13 @@
 import { dialog, ipcMain } from "electron";
 import type { OpenDialogOptions } from "electron";
 import { applyRenamePlan, rollbackRenameJournal } from "./apply";
+import { checkRenameTargetPaths } from "./path-check";
 import { validateRenamePlan } from "./planner-validation";
 import { inspectRenamePaths, scanRenameTargets } from "./scanner";
 import type {
   ApplyRenamePlanParams,
+  CheckRenameTargetPathsParams,
+  CheckRenameTargetPathsResult,
   InspectRenamePathsParams,
   InspectRenamePathsResult,
   NameTranslationApplyResult,
@@ -52,6 +55,14 @@ export function setupRenameIPC() {
       _event,
       params: ScanRenameTargetsParams
     ): Promise<ScanRenameTargetsResult> => scanRenameTargets(params)
+  );
+
+  ipcMain.handle(
+    "check-rename-target-paths",
+    async (
+      _event,
+      params: CheckRenameTargetPathsParams
+    ): Promise<CheckRenameTargetPathsResult> => checkRenameTargetPaths(params)
   );
 
   ipcMain.handle(

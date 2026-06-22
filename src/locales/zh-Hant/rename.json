@@ -93,6 +93,25 @@
     "empty_title": "還沒有重新命名預覽",
     "empty_desc": "選擇路徑並產生預覽後，可以在這裡檢查、編輯、跳過和套用。",
     "revalidate": "重新驗證",
+    "planning": {
+      "title": "正在產生預覽",
+      "cancel": "取消",
+      "preparing": "準備中",
+      "detail_targets": "{{translated}}/{{total}} 個目標",
+      "detail_batches": "{{translated}}/{{total}} 個目標 · {{completed}}/{{batches}} 批",
+      "phase": {
+        "idle": "idle",
+        "scanning": "scanning",
+        "classifying": "classifying",
+        "translating": "translating",
+        "checking_targets": "checking",
+        "validating": "validating",
+        "storing": "storing",
+        "done": "done",
+        "failed": "failed",
+        "cancelled": "cancelled"
+      }
+    },
     "summary": {
       "ready": "ready",
       "blocked": "blocked",
@@ -185,6 +204,7 @@
     "done": "重新命名已完成。",
     "validation_failed": "重新命名計畫驗證未通過。",
     "rename_finished": "重新命名執行完成。",
+    "planning_cancelled": "已取消預覽產生。",
     "rolling_back": "正在嘗試回滾...",
     "rollback_done": "回滾請求已完成。",
     "ipc_unavailable": "Electron IPC 不可用。",

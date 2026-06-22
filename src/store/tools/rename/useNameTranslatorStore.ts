@@ -12,7 +12,10 @@ import {
   pathStem,
   samePath,
 } from "@/services/rename/namePath";
-import { checkRenameTargetExists } from "@/services/rename/nameTargetResolver";
+import {
+  checkRenameTargetsExist,
+  checkRenameTargetExists,
+} from "@/services/rename/nameTargetResolver";
 import { createNameTranslationPlan } from "@/services/rename/nameTranslationPlanner";
 import { sanitizeTranslatedName } from "@/services/rename/nameSanitize";
 import { validatePlanItems } from "@/services/rename/nameConflict";
@@ -28,6 +31,7 @@ import type {
   InspectedRenamePath,
   NameTranslationApplyResult,
   NameTranslationOptions,
+  NameTranslationPlanningProgress,
   NameTranslationPlan,
   NameTranslationPlanItem,
   NameTranslationPlanSummary,
@@ -54,6 +58,7 @@ interface NameTranslatorStore {
   options: NameTranslationOptions;
   currentPlan: NameTranslationPlan | null;
   isPlanning: boolean;
+  planningProgress: NameTranslationPlanningProgress | null;
   isApplying: boolean;
   applyProgress: ApplyProgress | null;
   lastApplyResult: NameTranslationApplyResult | null;
@@ -68,6 +73,7 @@ interface NameTranslatorStore {
   updateOptions: (patch: Partial<NameTranslationOptions>) => void;
   loadPlanFromCache: (planId: string) => Promise<boolean>;
   createPreview: () => Promise<void>;
+  cancelPlanning: () => void;
   updatePlanItem: (
     itemId: string,
     patch: Partial<NameTranslationPlanItem>
@@ -94,6 +100,8 @@ const REVALIDATABLE_BLOCK_REASONS = new Set([
 ]);
 
 const pendingPlanLoads = new Map<string, Promise<boolean>>();
+let planningRequestSeq = 0;
+let activePlanningController: AbortController | null = null;
 
 const useNameTranslatorStore = create<NameTranslatorStore>((set, get) => ({
   selectedPaths: [],
@@ -103,6 +111,7 @@ const useNameTranslatorStore = create<NameTranslatorStore>((set, get) => ({
   },
   currentPlan: null,
   isPlanning: false,
+  planningProgress: null,
   isApplying: false,
   applyProgress: null,
   lastApplyResult: null,
@@ -142,7 +151,7 @@ const useNameTranslatorStore = create<NameTranslatorStore>((set, get) => ({
       set({ lastError: message });
       showToast(message, "error");
     } finally {
-      set({ isPlanning: false });
+      set({ isPlanning: false, planningProgress: null });
     }
   },
 
@@ -216,6 +225,7 @@ const useNameTranslatorStore = create<NameTranslatorStore>((set, get) => ({
 
       set({
         isPlanning: true,
+        planningProgress: null,
         lastError: null,
         lastApplyResult: null,
         lastRollbackResult: null,
@@ -251,7 +261,7 @@ const useNameTranslatorStore = create<NameTranslatorStore>((set, get) => ({
         showToast(message, "error");
         return false;
       } finally {
-        set({ isPlanning: false });
+        set({ isPlanning: false, planningProgress: null });
       }
     })();
 
@@ -268,8 +278,14 @@ const useNameTranslatorStore = create<NameTranslatorStore>((set, get) => ({
       return;
     }
 
+    const requestId = ++planningRequestSeq;
+    const controller = new AbortController();
+    activePlanningController?.abort();
+    activePlanningController = controller;
+
     set({
       isPlanning: true,
+      planningProgress: null,
       lastError: null,
       lastApplyResult: null,
       lastRollbackResult: null,
@@ -278,14 +294,29 @@ const useNameTranslatorStore = create<NameTranslatorStore>((set, get) => ({
 
     try {
       const options = normalizeOptions({ ...get().options, roots });
-      const summary = await createNameTranslationPlan(options);
+      const summary = await createNameTranslationPlan(options, {
+        signal: controller.signal,
+        progress: (progress) => {
+          if (
+            requestId !== planningRequestSeq ||
+            controller.signal.aborted
+          ) {
+            return;
+          }
+          set({ planningProgress: progress });
+        },
+      });
+      if (requestId !== planningRequestSeq || controller.signal.aborted) return;
+
       const fullPlan = getNameTranslationPlan(summary.planId);
       const plan = fullPlan ?? createPlanFromSummary(summary, options);
       const originalSuggestions = collectOriginalSuggestions(plan.items);
+      if (requestId !== planningRequestSeq || controller.signal.aborted) return;
 
       set((state) => ({
         options,
         currentPlan: plan,
+        planningProgress: null,
         originalSuggestions,
         history: [
           summarizeNameTranslationPlan(plan),
@@ -299,12 +330,43 @@ const useNameTranslatorStore = create<NameTranslatorStore>((set, get) => ({
         showToast(i18n.t("rename:messages.preview_created"), "success");
       }
     } catch (error) {
+      if (isPlanningCancelled(error) || controller.signal.aborted) {
+        if (requestId === planningRequestSeq) {
+          set({
+            planningProgress: createCancelledPlanningProgress(),
+            lastError: null,
+          });
+        }
+        return;
+      }
       const message = getErrorMessage(error);
-      set({ lastError: message, currentPlan: null });
+      set({
+        lastError: message,
+        currentPlan: null,
+        planningProgress: {
+          phase: "failed",
+          message,
+        },
+      });
       showToast(message, "error");
     } finally {
-      set({ isPlanning: false });
+      if (requestId === planningRequestSeq) {
+        activePlanningController = null;
+        set({ isPlanning: false });
+      }
     }
+  },
+
+  cancelPlanning: () => {
+    if (!activePlanningController) return;
+    activePlanningController.abort();
+    activePlanningController = null;
+    planningRequestSeq++;
+    set({
+      isPlanning: false,
+      planningProgress: createCancelledPlanningProgress(),
+      lastError: null,
+    });
   },
 
   updatePlanItem: (itemId, patch) => {
@@ -445,6 +507,9 @@ const useNameTranslatorStore = create<NameTranslatorStore>((set, get) => ({
   },
 
   reset: () => {
+    activePlanningController?.abort();
+    activePlanningController = null;
+    planningRequestSeq++;
     set({
       selectedPaths: [],
       options: {
@@ -453,6 +518,7 @@ const useNameTranslatorStore = create<NameTranslatorStore>((set, get) => ({
       },
       currentPlan: null,
       isPlanning: false,
+      planningProgress: null,
       isApplying: false,
       applyProgress: null,
       lastApplyResult: null,
@@ -618,10 +684,20 @@ async function collectExistingTargetPaths(
     if (item.sourcePath === item.targetPath) continue;
     candidates.set(item.targetPath, item.targetPath);
   }
+  const targetPaths = [...candidates.values()];
+  if (targetPaths.length === 0) return [];
+
+  try {
+    return [...(await checkRenameTargetsExist(targetPaths))].filter((targetPath) =>
+      candidates.has(targetPath)
+    );
+  } catch {
+    // Older app shells may not have the batch IPC; keep the single-path fallback.
+  }
 
   const existing: string[] = [];
   await Promise.all(
-    [...candidates.values()].map(async (targetPath) => {
+    targetPaths.map(async (targetPath) => {
       try {
         if (await checkRenameTargetExists(targetPath)) existing.push(targetPath);
       } catch {
@@ -812,6 +888,21 @@ function shortPlanId(planId: string): string {
 
 function addUniqueWarning(warnings: string[], warning: string): string[] {
   return warnings.includes(warning) ? warnings : [...warnings, warning];
+}
+
+function createCancelledPlanningProgress(): NameTranslationPlanningProgress {
+  return {
+    phase: "cancelled",
+    message: i18n.t("rename:messages.planning_cancelled"),
+  };
+}
+
+function isPlanningCancelled(error: unknown): boolean {
+  return (
+    error instanceof Error &&
+    "code" in error &&
+    error.code === "planning_cancelled"
+  );
 }
 
 function recomposeItemNames(

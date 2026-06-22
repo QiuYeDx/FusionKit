@@ -1,7 +1,7 @@
 import { promises as fs } from "fs";
 import os from "os";
 import path from "path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   inspectRenamePaths,
   isBlockedPath,
@@ -16,6 +16,7 @@ import {
 const tempRoots: string[] = [];
 
 afterEach(async () => {
+  vi.restoreAllMocks();
   await Promise.all(
     tempRoots.splice(0).map((root) =>
       fs.rm(root, { recursive: true, force: true })
@@ -244,6 +245,44 @@ describe("scanRenameTargets", () => {
     expect(result.targets).toHaveLength(0);
     expect(result.warnings[0]).toContain("path_segments scope requires");
   });
+
+  it("uses dirent fast paths for regular directory entries", async () => {
+    const root = await createRenameTree();
+    const lstatSpy = vi.spyOn(fs, "lstat");
+    const statSpy = vi.spyOn(fs, "stat");
+
+    const result = await scanRenameTargets({
+      options: buildOptions({
+        roots: [root],
+        scope: "children",
+        targetKind: "both",
+      }),
+    });
+
+    expect(result.targets.map((target) => target.originalName)).toEqual([
+      "Season 01",
+      "第01話.srt",
+    ]);
+    expect(lstatSpy).toHaveBeenCalledTimes(1);
+    expect(statSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps descendant target ordering stable across scans", async () => {
+    const root = await createRenameTree();
+    const options = buildOptions({
+      roots: [root],
+      scope: "descendants",
+      targetKind: "both",
+      maxDepth: 3,
+    });
+
+    const first = await scanRenameTargets({ options });
+    const second = await scanRenameTargets({ options });
+
+    expect(first.targets.map(toStableTargetSignature)).toEqual(
+      second.targets.map(toStableTargetSignature)
+    );
+  });
 });
 
 async function createTempRoot(): Promise<string> {
@@ -281,4 +320,11 @@ function buildOptions(
     roots: overrides.roots,
     ...overrides,
   };
+}
+
+function toStableTargetSignature(target: {
+  absolutePath: string;
+  depthFromRoot: number;
+}): string {
+  return `${target.depthFromRoot}:${target.absolutePath}`;
 }
