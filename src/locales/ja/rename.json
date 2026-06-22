@@ -92,7 +92,28 @@
     "title": "プレビュー",
     "empty_title": "リネームプレビューはまだありません",
     "empty_desc": "パスを選択してプレビューを生成すると、ここで確認、編集、スキップ、適用できます。",
+    "no_targets_title": "条件に一致する項目がありません",
+    "no_targets_desc": "範囲「{{scope}}」と対象タイプ「{{targetKind}}」に一致する翻訳対象がありません。選択したパスがフォルダか確認するか、対象タイプまたは再帰深度を調整してプレビューを再生成してください。",
     "revalidate": "再検証",
+    "planning": {
+      "title": "プレビューを生成中",
+      "cancel": "キャンセル",
+      "preparing": "準備中",
+      "detail_targets": "{{translated}}/{{total}} 件",
+      "detail_batches": "{{translated}}/{{total}} 件 · {{completed}}/{{batches}} バッチ",
+      "phase": {
+        "idle": "idle",
+        "scanning": "scanning",
+        "classifying": "classifying",
+        "translating": "translating",
+        "checking_targets": "checking",
+        "validating": "validating",
+        "storing": "storing",
+        "done": "done",
+        "failed": "failed",
+        "cancelled": "cancelled"
+      }
+    },
     "summary": {
       "ready": "ready",
       "blocked": "blocked",
@@ -100,14 +121,15 @@
       "unchanged": "unchanged",
       "warnings": "warnings"
     },
+    "incomplete_warning_title": "プレビューが不完全です",
+    "incomplete_warning_desc": "{{count}}/{{total}} 件のみ表示されています。プレビュー制限を超えた項目は読み込まれていません。適用前にプレビューを再生成してください。",
     "clarification_title": "範囲の詳細が必要です",
     "columns": {
       "status": "状態",
       "type": "タイプ",
       "original_name": "元の名前",
       "new_name": "新しい名前",
-      "source_path": "元パス",
-      "target_path": "対象パス",
+      "path": "パス",
       "reason": "理由/警告",
       "actions": "操作"
     },
@@ -151,6 +173,7 @@
     "rollback_summary": "journal {{journalId}} のロールバック：成功 {{success}}、失敗 {{failed}}",
     "apply_button": "リネームを適用",
     "no_plan_hint": "実際のリネームでは必ず先に journal を書き込みます。dry-run プレビューは迂回しません。",
+    "incomplete_hint": "プレビューが不完全です（{{count}}/{{total}}）。適用できません。プレビューを再生成してください。",
     "blocked_hint": "blocked が 0 で ready が 1 以上の場合のみ適用できます。",
     "confirm_hint": "適用前に高リスク条件を確認します。",
     "phase": {
@@ -179,16 +202,19 @@
   "messages": {
     "select_paths_first": "先にファイルまたはフォルダを 1 つ以上選択してください。",
     "preview_created": "プレビューを生成しました。ファイルはまだ変更されていません。",
+    "preview_empty": "現在の範囲と対象タイプに一致する項目がありません。設定を調整して再試行してください。",
     "missing_plan": "先にリネームプレビューを生成してください。",
     "validating": "リネーム計画を検証中...",
     "applying": "リネームを適用中...",
     "done": "リネームが完了しました。",
     "validation_failed": "リネーム計画の検証に失敗しました。",
     "rename_finished": "リネーム処理が完了しました。",
+    "planning_cancelled": "プレビュー生成をキャンセルしました。",
     "rolling_back": "ロールバックを試行中...",
     "rollback_done": "ロールバック要求が完了しました。",
     "ipc_unavailable": "Electron IPC を利用できません。",
     "plan_not_found": "リネーム計画 {{planId}} が見つかりません。期限切れまたはクリア済みの可能性があります。プレビューを再生成してください。",
-    "plan_loaded_from_agent": "HomeAgent のリネームプレビューを読み込みました。"
+    "plan_loaded_from_agent": "HomeAgent のリネームプレビューを読み込みました。",
+    "plan_items_incomplete": "プレビューが不完全です（{{count}}/{{total}} 件のみ）。適用できません。プレビューを再生成してください。"
   }
 }

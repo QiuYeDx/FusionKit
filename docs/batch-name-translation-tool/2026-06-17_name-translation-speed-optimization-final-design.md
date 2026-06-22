@@ -184,6 +184,13 @@ totalPlanningDurationMs
 2. 500 个目标至少减少 50% 以上墙钟时间。
 3. 重复生成同一目录预览时，缓存命中后接近“扫描 + 冲突校验”的耗时。
 
+2026-06-18 实现收口状态：
+
+- 默认翻译批大小为 50，并发上限为 3，限流后降级到 1 并退避重试。
+- fake model 性能回归测试已固定 500 targets 场景：同样 10 个 batch、每批 30ms 延迟下，并发 3 的墙钟耗时必须低于串行耗时的 85%，同时校验峰值并发不超过 3。
+- 重复预览通过 renderer 内存缓存回避模型请求；高置信快路径继续在 plan item warning 中留下 `model_note:fast_path:<reason>`。
+- 真实模型性能仍不写入 CI 断言，发布前按 10.3 手工验收记录。
+
 ## 5. 目标架构
 
 ### 5.1 总体设计
@@ -367,6 +374,7 @@ interface NameTranslationBatchConfig {
   minBatchSize: number;
   maxBatchSize: number;
   rateLimitBackoffMs: number;
+  adaptiveBatching: boolean;
 }
 ```
 
@@ -378,16 +386,21 @@ concurrency: 3
 minBatchSize: 5
 maxBatchSize: 80
 rateLimitBackoffMs: 1500
+adaptiveBatching: true
 ```
 
 行为：
 
-1. 将未缓存、非快路径的 work items 按 batchSize 分批。
-2. 用 promise pool 跑最多 3 个并发模型请求。
-3. 任何批次成功后立即写入 translationMap 并上报 progress。
-4. schema 解析失败时拆分批次重试。
-5. 429 / rate limit 时降低全局并发到 1，并按退避等待后重试。
-6. 鉴权、模型不存在、quota、网络不可达等非可恢复错误直接失败，不再额外走 text fallback。
+1. 1～4 个未缓存、非快路径 work items 保持单请求，避免过度增加请求握手和输入 token。
+2. 从 5 个 work items 开始，若按 `batchSize` 计算出的批次数不超过并发数，则均匀拆成最多 3 批并发执行。例如 5 项拆为 `2 + 2 + 1`，不再作为一个大响应串行生成。
+3. 更大规模继续以 `batchSize=50` 为单批上限；当尾批明显偏小时，在不超过并发数的区间内优先均衡各批大小。
+4. 用 promise pool 跑最多 3 个并发模型请求。
+5. 任何批次成功后立即写入 translationMap 并上报 progress。
+6. schema 解析失败时拆分批次重试。
+7. 429 / rate limit 时降低全局并发到 1，并按退避等待后重试。
+8. 鉴权、模型不存在、quota、网络不可达等非可恢复错误直接失败，不再额外走 text fallback。
+
+自适应拆分会增加少量重复 system prompt 输入 token，但显著减少小批量多名称在单一模型响应中的串行输出时间。限流与失败恢复仍沿用现有降并发、退避和 batch split 机制。
 
 ### 5.7 structured output 兜底优化
 
@@ -716,18 +729,20 @@ test/rename/apply.test.ts
 
 ### 10.2 性能回归测试
 
-建议新增 fake benchmark 测试，不依赖真实模型：
+已新增 fake benchmark 测试，不依赖真实模型：
 
 ```text
 test/rename/nameTranslationPlanner.performance.test.ts
 ```
 
-测试思路：
+覆盖范围：
 
-1. 构造 500 个 targets。
-2. fake `translateBatch` 每批固定 sleep 100ms。
-3. 对比并发前后耗时上限。
-4. 使用 fake timer 或真实 timer 时设置宽松阈值，避免 CI 抖动。
+1. 构造 500 个 targets，对比串行 batch 与并发 3 batch 的相对耗时，阈值保持宽松以避免 CI 抖动。
+2. 校验 `translationRequestCount`、`translationBatchCount`、`translationConcurrencyPeak` 和 `pathCheckRequestCount`。
+3. 组合验证缓存命中与快路径：500 targets 二次生成时不再调用 fake model。
+4. 验证取消后不继续启动 queued work，且不写入半成品 plan。
+5. 验证 recoverable parse 失败会按 batch split 恢复，并记录重试指标。
+6. 验证 5 个名称默认拆为 `2 + 2 + 1` 三个并发请求；fake model 基准中 5 项耗时应明显低于旧单批策略，并保持在单项耗时的宽松倍数内。
 
 ### 10.3 手工验收
 
@@ -739,6 +754,8 @@ test/rename/nameTranslationPlanner.performance.test.ts
 4. 模拟模型 429，确认 UI 显示降速重试。
 5. 点击取消，确认不会生成半成品 plan。
 6. apply 和 rollback 行为与当前一致。
+
+RN-PERF-007 只固化 fake model 回归测试和发布前手工验收清单；真实模型供应商、网络、限流策略的绝对耗时不进入自动化断言。
 
 ## 11. 推荐优先级
 
@@ -760,4 +777,3 @@ RN-PERF-003 bounded concurrent translation batches
 ```
 
 完成这三项后，再根据真实用户目录规模决定是否继续做批量 IPC 和扫描器优化。
-

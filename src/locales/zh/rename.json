@@ -92,7 +92,28 @@
     "title": "预览",
     "empty_title": "还没有重命名预览",
     "empty_desc": "选择路径并生成预览后，可以在这里检查、编辑、跳过和应用。",
+    "no_targets_title": "没有找到符合条件的项目",
+    "no_targets_desc": "范围“{{scope}}”与目标类型“{{targetKind}}”下没有可翻译项目。请确认所选路径是文件夹，或调整目标类型、递归深度后重新生成预览。",
     "revalidate": "重新校验",
+    "planning": {
+      "title": "正在生成预览",
+      "cancel": "取消",
+      "preparing": "准备中",
+      "detail_targets": "{{translated}}/{{total}} 个目标",
+      "detail_batches": "{{translated}}/{{total}} 个目标 · {{completed}}/{{batches}} 批",
+      "phase": {
+        "idle": "idle",
+        "scanning": "scanning",
+        "classifying": "classifying",
+        "translating": "translating",
+        "checking_targets": "checking",
+        "validating": "validating",
+        "storing": "storing",
+        "done": "done",
+        "failed": "failed",
+        "cancelled": "cancelled"
+      }
+    },
     "summary": {
       "ready": "ready",
       "blocked": "blocked",
@@ -100,14 +121,15 @@
       "unchanged": "unchanged",
       "warnings": "warnings"
     },
+    "incomplete_warning_title": "预览内容不完整",
+    "incomplete_warning_desc": "当前仅展示 {{count}}/{{total}} 个目标，超出预览限制的项目未加载。请重新生成预览以获取完整计划后再应用。",
     "clarification_title": "需要补充范围",
     "columns": {
       "status": "状态",
       "type": "类型",
       "original_name": "原名称",
       "new_name": "新名称",
-      "source_path": "原路径",
-      "target_path": "目标路径",
+      "path": "路径",
       "reason": "原因/警告",
       "actions": "操作"
     },
@@ -151,6 +173,7 @@
     "rollback_summary": "回滚 journal {{journalId}}：成功 {{success}}，失败 {{failed}}",
     "apply_button": "应用重命名",
     "no_plan_hint": "所有真实重命名都会先写 journal；这里不会绕过 dry-run 预览。",
+    "incomplete_hint": "预览不完整（{{count}}/{{total}}），无法应用。请重新生成预览。",
     "blocked_hint": "只有 blocked 为 0 且 ready 大于 0 时才允许应用。",
     "confirm_hint": "点击应用前会按高风险规则检查是否需要二次确认。",
     "phase": {
@@ -179,16 +202,19 @@
   "messages": {
     "select_paths_first": "请先选择至少一个文件或文件夹。",
     "preview_created": "预览已生成，尚未修改任何文件。",
+    "preview_empty": "没有找到符合当前范围和目标类型的项目，请调整配置后重试。",
     "missing_plan": "请先生成重命名预览。",
     "validating": "正在校验重命名计划...",
     "applying": "正在应用重命名...",
     "done": "重命名已完成。",
     "validation_failed": "重命名计划校验未通过。",
     "rename_finished": "重命名执行完成。",
+    "planning_cancelled": "已取消预览生成。",
     "rolling_back": "正在尝试回滚...",
     "rollback_done": "回滚请求已完成。",
     "ipc_unavailable": "Electron IPC 不可用。",
     "plan_not_found": "未找到重命名计划 {{planId}}，可能已过期或被清理，请重新生成预览。",
-    "plan_loaded_from_agent": "已加载 HomeAgent 中的重命名预览。"
+    "plan_loaded_from_agent": "已加载 HomeAgent 中的重命名预览。",
+    "plan_items_incomplete": "当前预览不完整（仅包含 {{count}}/{{total}} 项），无法应用。请重新生成完整预览。"
   }
 }

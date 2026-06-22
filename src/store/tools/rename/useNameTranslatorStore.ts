@@ -12,7 +12,10 @@ import {
   pathStem,
   samePath,
 } from "@/services/rename/namePath";
-import { checkRenameTargetExists } from "@/services/rename/nameTargetResolver";
+import {
+  checkRenameTargetsExist,
+  checkRenameTargetExists,
+} from "@/services/rename/nameTargetResolver";
 import { createNameTranslationPlan } from "@/services/rename/nameTranslationPlanner";
 import { sanitizeTranslatedName } from "@/services/rename/nameSanitize";
 import { validatePlanItems } from "@/services/rename/nameConflict";
@@ -28,6 +31,7 @@ import type {
   InspectedRenamePath,
   NameTranslationApplyResult,
   NameTranslationOptions,
+  NameTranslationPlanningProgress,
   NameTranslationPlan,
   NameTranslationPlanItem,
   NameTranslationPlanSummary,
@@ -38,6 +42,7 @@ import type {
 } from "@/services/rename/nameTypes";
 import {
   DEFAULT_NAME_TRANSLATION_OPTIONS,
+  normalizeNameTranslationOptions,
 } from "@/services/rename/nameTypes";
 
 type OriginalSuggestion = Pick<
@@ -54,6 +59,7 @@ interface NameTranslatorStore {
   options: NameTranslationOptions;
   currentPlan: NameTranslationPlan | null;
   isPlanning: boolean;
+  planningProgress: NameTranslationPlanningProgress | null;
   isApplying: boolean;
   applyProgress: ApplyProgress | null;
   lastApplyResult: NameTranslationApplyResult | null;
@@ -68,6 +74,7 @@ interface NameTranslatorStore {
   updateOptions: (patch: Partial<NameTranslationOptions>) => void;
   loadPlanFromCache: (planId: string) => Promise<boolean>;
   createPreview: () => Promise<void>;
+  cancelPlanning: () => void;
   updatePlanItem: (
     itemId: string,
     patch: Partial<NameTranslationPlanItem>
@@ -94,6 +101,8 @@ const REVALIDATABLE_BLOCK_REASONS = new Set([
 ]);
 
 const pendingPlanLoads = new Map<string, Promise<boolean>>();
+let planningRequestSeq = 0;
+let activePlanningController: AbortController | null = null;
 
 const useNameTranslatorStore = create<NameTranslatorStore>((set, get) => ({
   selectedPaths: [],
@@ -103,6 +112,7 @@ const useNameTranslatorStore = create<NameTranslatorStore>((set, get) => ({
   },
   currentPlan: null,
   isPlanning: false,
+  planningProgress: null,
   isApplying: false,
   applyProgress: null,
   lastApplyResult: null,
@@ -127,8 +137,8 @@ const useNameTranslatorStore = create<NameTranslatorStore>((set, get) => ({
       ];
       const nextOptions = normalizeOptionsAfterPathChange(
         get().options,
-        nextSelected,
-        existing.length === 0
+        existing,
+        nextSelected
       );
 
       set({
@@ -142,15 +152,20 @@ const useNameTranslatorStore = create<NameTranslatorStore>((set, get) => ({
       set({ lastError: message });
       showToast(message, "error");
     } finally {
-      set({ isPlanning: false });
+      set({ isPlanning: false, planningProgress: null });
     }
   },
 
   removePath: (path) => {
-    const nextSelected = get().selectedPaths.filter((item) => item.path !== path);
+    const previousSelected = get().selectedPaths;
+    const nextSelected = previousSelected.filter((item) => item.path !== path);
     set({
       selectedPaths: nextSelected,
-      options: normalizeOptionsAfterPathChange(get().options, nextSelected, false),
+      options: normalizeOptionsAfterPathChange(
+        get().options,
+        previousSelected,
+        nextSelected
+      ),
       currentPlan: null,
       lastValidation: null,
     });
@@ -158,9 +173,22 @@ const useNameTranslatorStore = create<NameTranslatorStore>((set, get) => ({
 
   updateOptions: (patch) => {
     const state = get();
-    const options = normalizeOptions({
+    const requestedScope = patch.scope ?? state.options.scope;
+    const shouldInferTargetKind =
+      patch.targetKind === undefined &&
+      patch.scope !== undefined &&
+      shouldInferTargetKindForScopeChange(state.options.scope, requestedScope);
+    const options = normalizeNameTranslationOptions({
       ...state.options,
       ...patch,
+      ...(shouldInferTargetKind
+        ? {
+            targetKind: inferTargetKindForScope(
+              requestedScope,
+              state.selectedPaths
+            ),
+          }
+        : {}),
       roots: state.selectedPaths.map((item) => item.path),
     });
 
@@ -216,6 +244,7 @@ const useNameTranslatorStore = create<NameTranslatorStore>((set, get) => ({
 
       set({
         isPlanning: true,
+        planningProgress: null,
         lastError: null,
         lastApplyResult: null,
         lastRollbackResult: null,
@@ -225,7 +254,7 @@ const useNameTranslatorStore = create<NameTranslatorStore>((set, get) => ({
       try {
         const roots = getPlanRoots(plan);
         const selectedPaths = await restoreSelectedPaths(plan, roots);
-        const options = normalizeOptions({
+        const options = normalizeNameTranslationOptions({
           ...plan.options,
           roots,
         });
@@ -251,7 +280,7 @@ const useNameTranslatorStore = create<NameTranslatorStore>((set, get) => ({
         showToast(message, "error");
         return false;
       } finally {
-        set({ isPlanning: false });
+        set({ isPlanning: false, planningProgress: null });
       }
     })();
 
@@ -268,8 +297,14 @@ const useNameTranslatorStore = create<NameTranslatorStore>((set, get) => ({
       return;
     }
 
+    const requestId = ++planningRequestSeq;
+    const controller = new AbortController();
+    activePlanningController?.abort();
+    activePlanningController = controller;
+
     set({
       isPlanning: true,
+      planningProgress: null,
       lastError: null,
       lastApplyResult: null,
       lastRollbackResult: null,
@@ -277,15 +312,33 @@ const useNameTranslatorStore = create<NameTranslatorStore>((set, get) => ({
     });
 
     try {
-      const options = normalizeOptions({ ...get().options, roots });
-      const summary = await createNameTranslationPlan(options);
+      const options = normalizeNameTranslationOptions({
+        ...get().options,
+        roots,
+      });
+      const summary = await createNameTranslationPlan(options, {
+        signal: controller.signal,
+        progress: (progress) => {
+          if (
+            requestId !== planningRequestSeq ||
+            controller.signal.aborted
+          ) {
+            return;
+          }
+          set({ planningProgress: progress });
+        },
+      });
+      if (requestId !== planningRequestSeq || controller.signal.aborted) return;
+
       const fullPlan = getNameTranslationPlan(summary.planId);
       const plan = fullPlan ?? createPlanFromSummary(summary, options);
       const originalSuggestions = collectOriginalSuggestions(plan.items);
+      if (requestId !== planningRequestSeq || controller.signal.aborted) return;
 
       set((state) => ({
         options,
         currentPlan: plan,
+        planningProgress: null,
         originalSuggestions,
         history: [
           summarizeNameTranslationPlan(plan),
@@ -295,16 +348,49 @@ const useNameTranslatorStore = create<NameTranslatorStore>((set, get) => ({
 
       if (plan.clarificationRequired) {
         showToast(plan.clarificationRequired.message, "error");
+      } else if (plan.items.length === 0) {
+        showToast(i18n.t("rename:messages.preview_empty"), "error");
       } else {
         showToast(i18n.t("rename:messages.preview_created"), "success");
       }
     } catch (error) {
+      if (isPlanningCancelled(error) || controller.signal.aborted) {
+        if (requestId === planningRequestSeq) {
+          set({
+            planningProgress: createCancelledPlanningProgress(),
+            lastError: null,
+          });
+        }
+        return;
+      }
       const message = getErrorMessage(error);
-      set({ lastError: message, currentPlan: null });
+      set({
+        lastError: message,
+        currentPlan: null,
+        planningProgress: {
+          phase: "failed",
+          message,
+        },
+      });
       showToast(message, "error");
     } finally {
-      set({ isPlanning: false });
+      if (requestId === planningRequestSeq) {
+        activePlanningController = null;
+        set({ isPlanning: false });
+      }
     }
+  },
+
+  cancelPlanning: () => {
+    if (!activePlanningController) return;
+    activePlanningController.abort();
+    activePlanningController = null;
+    planningRequestSeq++;
+    set({
+      isPlanning: false,
+      planningProgress: createCancelledPlanningProgress(),
+      lastError: null,
+    });
   },
 
   updatePlanItem: (itemId, patch) => {
@@ -347,6 +433,17 @@ const useNameTranslatorStore = create<NameTranslatorStore>((set, get) => ({
     const plan = get().currentPlan;
     if (!plan) {
       showToast(i18n.t("rename:messages.missing_plan"), "error");
+      return;
+    }
+
+    if (isPlanIncomplete(plan)) {
+      showToast(
+        i18n.t("rename:messages.plan_items_incomplete", {
+          count: plan.items.length,
+          total: plan.totalTargets,
+        }),
+        "error"
+      );
       return;
     }
 
@@ -445,6 +542,9 @@ const useNameTranslatorStore = create<NameTranslatorStore>((set, get) => ({
   },
 
   reset: () => {
+    activePlanningController?.abort();
+    activePlanningController = null;
+    planningRequestSeq++;
     set({
       selectedPaths: [],
       options: {
@@ -453,6 +553,7 @@ const useNameTranslatorStore = create<NameTranslatorStore>((set, get) => ({
       },
       currentPlan: null,
       isPlanning: false,
+      planningProgress: null,
       isApplying: false,
       applyProgress: null,
       lastApplyResult: null,
@@ -475,23 +576,38 @@ async function inspectRenamePaths(
 
 function normalizeOptionsAfterPathChange(
   options: NameTranslationOptions,
-  selectedPaths: SelectedPath[],
-  shouldInferTargetKind: boolean
+  previousSelectedPaths: SelectedPath[],
+  selectedPaths: SelectedPath[]
 ): NameTranslationOptions {
+  const previousInferredTargetKind = inferTargetKindForScope(
+    options.scope,
+    previousSelectedPaths
+  );
+  const shouldInferTargetKind =
+    previousSelectedPaths.length === 0 ||
+    options.targetKind === previousInferredTargetKind;
   const inferredTargetKind = shouldInferTargetKind
-    ? inferTargetKind(selectedPaths)
+    ? inferTargetKindForScope(options.scope, selectedPaths)
     : options.targetKind;
 
-  return normalizeOptions({
+  return normalizeNameTranslationOptions({
     ...options,
     targetKind: inferredTargetKind,
     roots: selectedPaths.map((item) => item.path),
   });
 }
 
-function inferTargetKind(
+function inferTargetKindForScope(
+  scope: NameTranslationOptions["scope"],
   selectedPaths: SelectedPath[]
 ): NameTranslationOptions["targetKind"] {
+  if (scope === "children" || scope === "descendants") {
+    return "files";
+  }
+  if (scope === "path_segments") {
+    return "both";
+  }
+
   const hasFiles = selectedPaths.some((item) => item.kind === "file");
   const hasDirectories = selectedPaths.some((item) => item.kind === "directory");
 
@@ -500,31 +616,16 @@ function inferTargetKind(
   return "files";
 }
 
-function normalizeOptions(input: NameTranslationOptions): NameTranslationOptions {
-  const next = {
-    ...DEFAULT_NAME_TRANSLATION_OPTIONS,
-    ...input,
-    roots: [...new Set(input.roots.filter(Boolean))],
-  };
-
-  if (next.scope === "self") {
-    next.includeRoot = true;
-    next.recursive = false;
-    next.maxDepth = 0;
-  } else if (next.scope === "children") {
-    next.includeRoot = false;
-    next.recursive = false;
-    next.maxDepth = 1;
-  } else if (next.scope === "descendants") {
-    next.includeRoot = false;
-    next.recursive = true;
-    next.maxDepth = Math.max(2, Math.min(20, Math.floor(next.maxDepth || 5)));
-  } else {
-    next.recursive = false;
-    next.maxDepth = Math.max(0, Math.min(20, Math.floor(next.maxDepth || 0)));
-  }
-
-  return next;
+function shouldInferTargetKindForScopeChange(
+  previousScope: NameTranslationOptions["scope"],
+  nextScope: NameTranslationOptions["scope"]
+): boolean {
+  if (previousScope === nextScope) return false;
+  const previousIsCollectionScope =
+    previousScope === "children" || previousScope === "descendants";
+  const nextIsCollectionScope =
+    nextScope === "children" || nextScope === "descendants";
+  return !(previousIsCollectionScope && nextIsCollectionScope);
 }
 
 const LOCAL_REBUILD_KEYS = new Set([
@@ -618,10 +719,21 @@ async function collectExistingTargetPaths(
     if (item.sourcePath === item.targetPath) continue;
     candidates.set(item.targetPath, item.targetPath);
   }
+  const targetPaths = [...candidates.values()];
+  if (targetPaths.length === 0) return [];
+
+  try {
+    const batchResult = await checkRenameTargetsExist(targetPaths);
+    return [...batchResult.existingPaths].filter((targetPath) =>
+      candidates.has(targetPath)
+    );
+  } catch {
+    // Older app shells may not have the batch IPC; keep the single-path fallback.
+  }
 
   const existing: string[] = [];
   await Promise.all(
-    [...candidates.values()].map(async (targetPath) => {
+    targetPaths.map(async (targetPath) => {
       try {
         if (await checkRenameTargetExists(targetPath)) existing.push(targetPath);
       } catch {
@@ -732,6 +844,7 @@ function createPlanFromSummary(
   summary: NameTranslationPlanSummary,
   options: NameTranslationOptions
 ): NameTranslationPlan {
+  const incomplete = summary.itemsPreview.length < summary.totalTargets;
   return {
     ...summary,
     createdAt: Date.now(),
@@ -740,7 +853,12 @@ function createPlanFromSummary(
     roots: options.roots,
     items: summary.itemsPreview,
     itemsStored: false,
+    applyable: incomplete ? false : summary.applyable,
   };
+}
+
+function isPlanIncomplete(plan: NameTranslationPlan): boolean {
+  return !plan.itemsStored && plan.items.length < plan.totalTargets;
 }
 
 function collectOriginalSuggestions(
@@ -814,6 +932,21 @@ function addUniqueWarning(warnings: string[], warning: string): string[] {
   return warnings.includes(warning) ? warnings : [...warnings, warning];
 }
 
+function createCancelledPlanningProgress(): NameTranslationPlanningProgress {
+  return {
+    phase: "cancelled",
+    message: i18n.t("rename:messages.planning_cancelled"),
+  };
+}
+
+function isPlanningCancelled(error: unknown): boolean {
+  return (
+    error instanceof Error &&
+    "code" in error &&
+    error.code === "planning_cancelled"
+  );
+}
+
 function recomposeItemNames(
   items: NameTranslationPlanItem[],
   options: NameTranslationOptions
@@ -865,4 +998,5 @@ function getErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
+export { isPlanIncomplete };
 export default useNameTranslatorStore;

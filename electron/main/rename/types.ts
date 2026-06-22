@@ -139,6 +139,19 @@ export interface ScanRenameTargetsResult {
   warnings: string[];
 }
 
+export interface CheckRenameTargetPathsParams {
+  paths: string[];
+  concurrency?: number;
+}
+
+export interface CheckRenameTargetPathsResult {
+  existingPaths: string[];
+  errors: Array<{
+    path: string;
+    message: string;
+  }>;
+}
+
 export type NamePlanItemStatus =
   | "ready"
   | "unchanged"

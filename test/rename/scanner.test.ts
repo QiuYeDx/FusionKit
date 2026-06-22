@@ -1,7 +1,7 @@
 import { promises as fs } from "fs";
 import os from "os";
 import path from "path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   inspectRenamePaths,
   isBlockedPath,
@@ -16,6 +16,7 @@ import {
 const tempRoots: string[] = [];
 
 afterEach(async () => {
+  vi.restoreAllMocks();
   await Promise.all(
     tempRoots.splice(0).map((root) =>
       fs.rm(root, { recursive: true, force: true })
@@ -157,6 +158,25 @@ describe("scanRenameTargets", () => {
     ).toBe(true);
   });
 
+  it("normalizes stale self depth when switching to direct children", async () => {
+    const root = await createTempRoot();
+    await fs.writeFile(path.join(root, "第01話.srt"), "subtitle");
+
+    const result = await scanRenameTargets({
+      options: buildOptions({
+        roots: [root],
+        scope: "children",
+        targetKind: "files",
+        maxDepth: 0,
+        includeRoot: true,
+      }),
+    });
+
+    expect(result.targets.map((target) => target.originalName)).toEqual([
+      "第01話.srt",
+    ]);
+  });
+
   it("scans direct child directories when targetKind is directories", async () => {
     const root = await createRenameTree();
 
@@ -211,6 +231,45 @@ describe("scanRenameTargets", () => {
     expect(names).not.toContain("Linked Season");
   });
 
+  it("normalizes stale self depth when switching to recursive descendants", async () => {
+    const root = await createRenameTree();
+
+    const result = await scanRenameTargets({
+      options: buildOptions({
+        roots: [root],
+        scope: "descendants",
+        targetKind: "files",
+        maxDepth: 0,
+        recursive: false,
+        includeRoot: true,
+      }),
+    });
+
+    expect(result.targets.map((target) => target.originalName)).toEqual([
+      "第01話.srt",
+      "第02話.srt",
+      "第03話.srt",
+    ]);
+  });
+
+  it("returns a diagnostic warning when the selected target kind has no matches", async () => {
+    const root = await createTempRoot();
+    await fs.writeFile(path.join(root, "第01話.srt"), "subtitle");
+
+    const result = await scanRenameTargets({
+      options: buildOptions({
+        roots: [root],
+        scope: "children",
+        targetKind: "directories",
+      }),
+    });
+
+    expect(result.targets).toHaveLength(0);
+    expect(result.warnings).toContain(
+      "No matching rename targets were found (scope=children, targetKind=directories)."
+    );
+  });
+
   it("marks scans as truncated when maxTargets is reached", async () => {
     const root = await createTempRoot();
     await fs.writeFile(path.join(root, "a.srt"), "a");
@@ -243,6 +302,83 @@ describe("scanRenameTargets", () => {
 
     expect(result.targets).toHaveLength(0);
     expect(result.warnings[0]).toContain("path_segments scope requires");
+  });
+
+  it("uses dirent fast paths for regular directory entries", async () => {
+    const root = await createRenameTree();
+    const lstatSpy = vi.spyOn(fs, "lstat");
+    const statSpy = vi.spyOn(fs, "stat");
+
+    const result = await scanRenameTargets({
+      options: buildOptions({
+        roots: [root],
+        scope: "children",
+        targetKind: "both",
+      }),
+    });
+
+    expect(result.targets.map((target) => target.originalName)).toEqual([
+      "Season 01",
+      "第01話.srt",
+    ]);
+    expect(lstatSpy).toHaveBeenCalledTimes(1);
+    expect(statSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it("detects symlink directories via dirent and skips them in children scan", async () => {
+    const root = await createRenameTree();
+    const symlinkDirPath = path.join(root, "Linked Season");
+    try {
+      await fs.symlink(path.join(root, "Season 01"), symlinkDirPath, "dir");
+    } catch {
+      // Skip test on environments that disallow symlinks.
+      return;
+    }
+
+    const symlinkFilePath = path.join(root, "linked-sub.srt");
+    try {
+      await fs.symlink(path.join(root, "第01話.srt"), symlinkFilePath, "file");
+    } catch {
+      return;
+    }
+
+    const lstatSpy = vi.spyOn(fs, "lstat");
+
+    const result = await scanRenameTargets({
+      options: buildOptions({
+        roots: [root],
+        scope: "children",
+        targetKind: "both",
+      }),
+    });
+
+    const names = result.targets.map((t) => t.originalName);
+    expect(names).not.toContain("Linked Season");
+    expect(names).toContain("linked-sub.srt");
+    expect(
+      result.warnings.some((w) => w.includes("Symbolic link directory skipped"))
+    ).toBe(true);
+
+    const lstatCallPaths = lstatSpy.mock.calls.map((c) => String(c[0]));
+    expect(lstatCallPaths).toContain(symlinkDirPath);
+    expect(lstatCallPaths).toContain(symlinkFilePath);
+  });
+
+  it("keeps descendant target ordering stable across scans", async () => {
+    const root = await createRenameTree();
+    const options = buildOptions({
+      roots: [root],
+      scope: "descendants",
+      targetKind: "both",
+      maxDepth: 3,
+    });
+
+    const first = await scanRenameTargets({ options });
+    const second = await scanRenameTargets({ options });
+
+    expect(first.targets.map(toStableTargetSignature)).toEqual(
+      second.targets.map(toStableTargetSignature)
+    );
   });
 });
 
@@ -281,4 +417,11 @@ function buildOptions(
     roots: overrides.roots,
     ...overrides,
   };
+}
+
+function toStableTargetSignature(target: {
+  absolutePath: string;
+  depthFromRoot: number;
+}): string {
+  return `${target.depthFromRoot}:${target.absolutePath}`;
 }

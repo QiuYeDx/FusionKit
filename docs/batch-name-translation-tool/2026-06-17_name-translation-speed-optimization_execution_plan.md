@@ -49,13 +49,14 @@
 
 | ID | 状态 | 完成日期 | 标题 | 关键变更文件 | 验证 | 实施记录 | 未决问题 |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| RN-PERF-001 | 未开始 | - | Planner 进度与耗时观测 | `src/services/rename/nameTypes.ts`、`src/services/rename/nameTranslationPlanner.ts`、`src/services/rename/nameTranslationPlanner.test.ts` | `pnpm exec vitest run src/services/rename/nameTranslationPlanner.test.ts` | `docs/batch-name-translation-tool/implementation-records/YYYY-MM-DD_RN-PERF-001_planner-progress.md` | 无 |
-| RN-PERF-002 | 未开始 | - | Store/UI 规划进度与取消入口 | `src/store/tools/rename/useNameTranslatorStore.ts`、`src/store/tools/rename/useNameTranslatorStore.test.ts`、`src/pages/Tools/Rename/NameTranslator/index.tsx`、`src/pages/Tools/Rename/NameTranslator/components/*`、`src/locales/*/rename.json` | `pnpm exec vitest run src/store/tools/rename/useNameTranslatorStore.test.ts src/services/rename/nameTranslationPlanner.test.ts`；必要时补 `pnpm exec tsc --noEmit` | `docs/batch-name-translation-tool/implementation-records/YYYY-MM-DD_RN-PERF-002_store-ui-progress-cancel.md` | UI 文案需保持简短，不新增说明型长文案 |
-| RN-PERF-003 | 未开始 | - | 翻译去重、快路径与内存缓存 | `src/services/rename/nameTranslationPlanner.ts`、`src/services/rename/nameTranslationCache.ts`、`src/services/rename/nameTranslationFastPath.ts`、`src/services/rename/nameTranslationPlanner.test.ts` | `pnpm exec vitest run src/services/rename/nameTranslationPlanner.test.ts src/services/rename/nameSanitize.test.ts src/services/rename/nameConflict.test.ts` | `docs/batch-name-translation-tool/implementation-records/YYYY-MM-DD_RN-PERF-003_dedupe-cache-fast-path.md` | 快路径只允许高置信规则 |
-| RN-PERF-004 | 未开始 | - | 受控并发翻译、错误分类与 abort 语义 | `src/services/rename/nameTranslationPlanner.ts`、可选 `src/services/rename/nameTranslationBatchQueue.ts`、`src/services/rename/nameTranslationPlanner.test.ts` | `pnpm exec vitest run src/services/rename/nameTranslationPlanner.test.ts`；如新增性能测试则补 `pnpm exec vitest run test/rename/nameTranslationPlanner.performance.test.ts` | `docs/batch-name-translation-tool/implementation-records/YYYY-MM-DD_RN-PERF-004_concurrent-translation.md` | 429 后需降速，非可恢复错误需 fail fast |
-| RN-PERF-005 | 未开始 | - | 批量目标路径存在性 IPC | `electron/main/rename/types.ts`、`electron/main/rename/ipc.ts`、可选 `electron/main/rename/path-check.ts`、`src/services/rename/nameTargetResolver.ts`、`src/services/rename/nameTranslationPlanner.ts`、`src/store/tools/rename/useNameTranslatorStore.ts`、`test/rename/*` | `pnpm exec vitest run test/rename src/services/rename/nameTranslationPlanner.test.ts src/store/tools/rename/useNameTranslatorStore.test.ts` | `docs/batch-name-translation-tool/implementation-records/YYYY-MM-DD_RN-PERF-005_batch-path-exists-ipc.md` | 必须保留单路径 fallback |
-| RN-PERF-006 | 未开始 | - | 扫描器 IO 优化与稳定排序 | `electron/main/rename/scanner.ts`、`test/rename/scanner.test.ts` | `pnpm exec vitest run test/rename/scanner.test.ts` | `docs/batch-name-translation-tool/implementation-records/YYYY-MM-DD_RN-PERF-006_scanner-io-optimization.md` | symlink、hidden、protected path 行为不能变 |
-| RN-PERF-007 | 未开始 | - | 性能回归测试、验收记录与文档回填 | `test/rename/nameTranslationPlanner.performance.test.ts`、本执行计划、final design、README 或 implementation notes（按实际需要） | `pnpm exec vitest run test/rename/nameTranslationPlanner.performance.test.ts src/services/rename/nameTranslationPlanner.test.ts`；发布前补 `pnpm exec tsc --noEmit` 和 `pnpm build` | `docs/batch-name-translation-tool/implementation-records/YYYY-MM-DD_RN-PERF-007_perf-tests-docs.md` | 真实模型性能只做手工验收记录，不写入不稳定 CI 断言 |
+| RN-PERF-001 | 已完成 | 2026-06-17 | Planner 进度与耗时观测 | `src/services/rename/nameTypes.ts`、`src/services/rename/nameTranslationPlanner.ts`、`src/services/rename/nameTranslationPlanner.test.ts` | `pnpm exec vitest run src/services/rename/nameTranslationPlanner.test.ts`；`pnpm exec vitest run test/rename src/services/rename`；`pnpm exec tsc --noEmit` 失败于既有 code-block styled-jsx 属性类型问题 | `docs/batch-name-translation-tool/implementation-records/2026-06-17_RN-PERF-001_planner-progress.md` | 无 |
+| RN-PERF-002 | 已完成 | 2026-06-17 | Store/UI 规划进度与取消入口 | `src/store/tools/rename/useNameTranslatorStore.ts`、`src/store/tools/rename/useNameTranslatorStore.test.ts`、`src/pages/Tools/Rename/NameTranslator/index.tsx`、`src/pages/Tools/Rename/NameTranslator/components/PlanPreviewTable.tsx`、`src/locales/*/rename.json` | `pnpm exec vitest run src/services/rename/nameTranslationPlanner.test.ts src/store/tools/rename/useNameTranslatorStore.test.ts`；`pnpm exec vitest run test/rename src/services/rename src/store/tools/rename/useNameTranslatorStore.test.ts`；`pnpm run i18n:check`；`pnpm exec tsc --noEmit` 失败于既有 code-block styled-jsx 属性类型问题 | `docs/batch-name-translation-tool/implementation-records/2026-06-17_RN-PERF-002_store-ui-progress-cancel.md` | 无 |
+| RN-PERF-003 | 已完成 | 2026-06-17 | 翻译去重、快路径与内存缓存 | `src/services/rename/nameTranslationPlanner.ts`、`src/services/rename/nameTranslationCache.ts`、`src/services/rename/nameTranslationFastPath.ts`、`src/services/rename/nameTranslationPlanner.test.ts`、`src/services/rename/nameTranslationCache.test.ts` | `pnpm exec vitest run src/services/rename/nameTranslationPlanner.test.ts src/services/rename/nameTranslationCache.test.ts`；`pnpm exec vitest run test/rename src/services/rename src/store/tools/rename/useNameTranslatorStore.test.ts`；`pnpm run i18n:check`；`pnpm exec tsc --noEmit` 失败于既有 code-block styled-jsx 属性类型问题 | `docs/batch-name-translation-tool/implementation-records/2026-06-17_RN-PERF-003_dedupe-cache-fast-path.md` | 无 |
+| RN-PERF-004 | 已完成 | 2026-06-17 | 受控并发翻译、错误分类与 abort 语义 | `src/services/rename/nameTranslationPlanner.ts`、`src/services/rename/nameTranslationPlanner.test.ts` | `pnpm exec vitest run src/services/rename/nameTranslationPlanner.test.ts src/services/rename/nameTranslationCache.test.ts`；`pnpm exec vitest run test/rename src/services/rename src/store/tools/rename/useNameTranslatorStore.test.ts`；`pnpm run i18n:check`；`pnpm exec tsc --noEmit` 失败于既有 code-block styled-jsx 属性类型问题 | `docs/batch-name-translation-tool/implementation-records/2026-06-17_RN-PERF-004_concurrent-translation.md` | 无 |
+| RN-PERF-005 | 已完成 | 2026-06-18 | 批量目标路径存在性 IPC | `electron/main/rename/types.ts`、`electron/main/rename/ipc.ts`、`electron/main/rename/path-check.ts`、`src/services/rename/nameTargetResolver.ts`、`src/services/rename/nameTranslationPlanner.ts`、`src/store/tools/rename/useNameTranslatorStore.ts`、`test/rename/path-check.test.ts`、`src/services/rename/nameTranslationPlanner.test.ts`、`src/store/tools/rename/useNameTranslatorStore.test.ts` | `pnpm exec vitest run test/rename/path-check.test.ts src/services/rename/nameTranslationPlanner.test.ts src/store/tools/rename/useNameTranslatorStore.test.ts`；`pnpm exec vitest run test/rename src/services/rename src/store/tools/rename/useNameTranslatorStore.test.ts`；`pnpm run i18n:check`；`pnpm exec tsc --noEmit` 失败于既有 code-block styled-jsx 属性类型问题 | `docs/batch-name-translation-tool/implementation-records/2026-06-18_RN-PERF-005_batch-path-exists-ipc.md` | 无 |
+| RN-PERF-006 | 已完成 | 2026-06-18 | 扫描器 IO 优化与稳定排序 | `electron/main/rename/scanner.ts`、`test/rename/scanner.test.ts` | `pnpm exec vitest run test/rename/scanner.test.ts`；`pnpm exec vitest run test/rename src/services/rename src/store/tools/rename/useNameTranslatorStore.test.ts`；`pnpm run i18n:check`；`pnpm exec tsc --noEmit` 失败于既有 code-block styled-jsx 属性类型问题 | `docs/batch-name-translation-tool/implementation-records/2026-06-18_RN-PERF-006_scanner-io-optimization.md` | 无 |
+| RN-PERF-007 | 已完成 | 2026-06-18 | 性能回归测试、验收记录与文档回填 | `test/rename/nameTranslationPlanner.performance.test.ts`、本执行计划、final design、`docs/batch-name-translation-tool/implementation-notes/2026-05-21_final-implementation-status.md` | `pnpm exec vitest run test/rename/nameTranslationPlanner.performance.test.ts src/services/rename/nameTranslationPlanner.test.ts`；`pnpm exec vitest run test/rename src/services/rename src/store/tools/rename/useNameTranslatorStore.test.ts`；`pnpm run i18n:check`；`pnpm exec tsc --noEmit` 失败于既有 code-block styled-jsx 属性类型问题；`git diff --check` | `docs/batch-name-translation-tool/implementation-records/2026-06-18_RN-PERF-007_perf-tests-docs.md` | 真实模型性能按发布前手工验收清单执行；`pnpm build` 因 tsc 前置门禁仍被既有 styled-jsx 类型问题阻塞，未单独运行 |
+| RN-PERF-008 | 已完成 | 2026-06-22 | 小批量自适应并发拆分 | `src/services/rename/nameTranslationPlanner.ts`、`src/services/rename/nameTranslationPlanner.test.ts`、`test/rename/nameTranslationPlanner.performance.test.ts` | `pnpm exec vitest run test/rename src/services/rename src/store/tools/rename/useNameTranslatorStore.test.ts src/agent/tool-schemas.test.ts` — 168 tests passed；fake 基准 single=64ms、legacy five=202ms、adaptive five=97ms；`pnpm exec tsc --noEmit` 仅失败于既有 styled-jsx 类型问题 | `docs/batch-name-translation-tool/implementation-records/2026-06-22_RN-PERF-008_small-batch-adaptive-concurrency.md` | 真实供应商绝对耗时仍按发布前手工验收记录 |
 
 ## 5. 工作包详情
 
@@ -191,6 +192,26 @@
 - 性能测试阈值宽松，避免环境抖动导致误报。
 - 发布前验证命令和手工验收结果写入实施记录。
 
+### RN-PERF-008：小批量自适应并发拆分
+
+目标：修复 5～50 个名称仍落入单一模型请求、无法使用现有并发池的问题。
+
+实施范围：
+
+- `NameTranslationBatchConfig` 新增 `adaptiveBatching`，默认开启。
+- 1～4 个 work items 保持单请求。
+- 5 个以上且原始批次数未超过并发数时，均匀拆成最多 3 个批次。
+- 5 项默认形成 `2 + 2 + 1`，并发峰值不超过 3。
+- progress 的 `totalBatchCount` 与 metrics 使用自适应后的真实批次数。
+- 增加 single / legacy five / adaptive five fake model 对照基准。
+
+验收口径：
+
+- 5 项不再作为一个模型响应串行生成。
+- 4 项及以下不增加额外请求。
+- 429 降速、取消、缓存、快路径和 batch split recovery 行为保持兼容。
+- fake model 下 adaptive five 明显快于 legacy five，并保持在单项耗时的宽松倍数内。
+
 ## 6. 依赖关系
 
 ```text
@@ -294,5 +315,4 @@ pnpm exec vitest run test/rename/nameTranslationPlanner.performance.test.ts
 
 ## 10. 下一步建议
 
-下一次开发优先认领 `RN-PERF-001`。该工作包风险最低，能先建立阶段进度和耗时数据，为后续并发与缓存调参提供依据。
-
+性能优化主线 `RN-PERF-001` 到 `RN-PERF-008` 已收口。下一次优先处理发布前阻塞项：修复 `src/components/qiuye-ui/code-block/*` 中既有 styled-jsx React 类型问题，然后补跑 `pnpm exec tsc --noEmit`、`pnpm build` 和 10.3 的真实模型手工验收。

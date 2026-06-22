@@ -92,6 +92,50 @@ export interface ApplyProgress {
   message: string;
 }
 
+export type NameTranslationPlanningPhase =
+  | "idle"
+  | "scanning"
+  | "classifying"
+  | "translating"
+  | "checking_targets"
+  | "validating"
+  | "storing"
+  | "done"
+  | "failed"
+  | "cancelled";
+
+export interface NameTranslationPlanningMetrics {
+  scanDurationMs?: number;
+  classifyingDurationMs?: number;
+  translationDurationMs?: number;
+  translationRequestCount?: number;
+  translationBatchCount?: number;
+  translationConcurrencyPeak?: number;
+  translationCacheHitCount?: number;
+  translationFastPathCount?: number;
+  pathCheckDurationMs?: number;
+  pathCheckRequestCount?: number;
+  planBuildDurationMs?: number;
+  totalPlanningDurationMs?: number;
+}
+
+export interface NameTranslationPlanningProgress {
+  phase: NameTranslationPlanningPhase;
+  message?: string;
+  totalTargets?: number;
+  scannedTargets?: number;
+  translatableCount?: number;
+  translatedCount?: number;
+  cacheHitCount?: number;
+  fastPathCount?: number;
+  activeBatchCount?: number;
+  completedBatchCount?: number;
+  totalBatchCount?: number;
+  retryCount?: number;
+  warningCount?: number;
+  metrics?: NameTranslationPlanningMetrics;
+}
+
 export const DEFAULT_NAME_TRANSLATION_OPTIONS: Omit<
   NameTranslationOptions,
   "roots"
@@ -112,6 +156,63 @@ export const DEFAULT_NAME_TRANSLATION_OPTIONS: Omit<
   preserveTechnicalTokens: true,
   collisionPolicy: "fail",
 };
+
+export function normalizeNameTranslationOptions(
+  input: NameTranslationOptions
+): NameTranslationOptions {
+  const roots = Array.isArray(input?.roots)
+    ? [
+        ...new Set(
+          input.roots.filter(
+            (root) => typeof root === "string" && root.length > 0
+          )
+        ),
+      ]
+    : [];
+  const next: NameTranslationOptions = {
+    ...DEFAULT_NAME_TRANSLATION_OPTIONS,
+    ...input,
+    roots,
+  };
+
+  if (next.scope === "self") {
+    return {
+      ...next,
+      includeRoot: true,
+      recursive: false,
+      maxDepth: 0,
+    };
+  }
+
+  if (next.scope === "children") {
+    return {
+      ...next,
+      includeRoot: false,
+      recursive: false,
+      maxDepth: 1,
+    };
+  }
+
+  if (next.scope === "descendants") {
+    const requestedDepth = Number.isFinite(next.maxDepth)
+      ? Math.floor(next.maxDepth)
+      : 0;
+    return {
+      ...next,
+      includeRoot: false,
+      recursive: true,
+      maxDepth: requestedDepth >= 2 ? Math.min(20, requestedDepth) : 5,
+    };
+  }
+
+  return {
+    ...next,
+    recursive: false,
+    maxDepth: Number.isFinite(next.maxDepth)
+      ? Math.max(0, Math.min(20, Math.floor(next.maxDepth)))
+      : 0,
+  };
+}
 
 export interface NameTranslationTarget {
   id: string;
@@ -134,6 +235,19 @@ export interface ScanRenameTargetsResult {
   totalCount: number;
   truncated: boolean;
   warnings: string[];
+}
+
+export interface CheckRenameTargetPathsResult {
+  existingPaths: string[];
+  errors: Array<{
+    path: string;
+    message: string;
+  }>;
+}
+
+export interface BatchPathCheckResult {
+  existingPaths: Set<string>;
+  errorPaths: Map<string, string>;
 }
 
 export type NamePlanItemStatus =

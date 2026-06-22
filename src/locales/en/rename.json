@@ -92,7 +92,28 @@
     "title": "Preview",
     "empty_title": "No rename preview yet",
     "empty_desc": "After selecting paths and generating a preview, you can review, edit, skip, and apply changes here.",
+    "no_targets_title": "No matching items found",
+    "no_targets_desc": "No translatable items matched scope “{{scope}}” and target type “{{targetKind}}”. Confirm that the selected path is a folder, or adjust the target type or recursive depth and regenerate the preview.",
     "revalidate": "Revalidate",
+    "planning": {
+      "title": "Generating preview",
+      "cancel": "Cancel",
+      "preparing": "Preparing",
+      "detail_targets": "{{translated}}/{{total}} targets",
+      "detail_batches": "{{translated}}/{{total}} targets · {{completed}}/{{batches}} batches",
+      "phase": {
+        "idle": "idle",
+        "scanning": "scanning",
+        "classifying": "classifying",
+        "translating": "translating",
+        "checking_targets": "checking",
+        "validating": "validating",
+        "storing": "storing",
+        "done": "done",
+        "failed": "failed",
+        "cancelled": "cancelled"
+      }
+    },
     "summary": {
       "ready": "ready",
       "blocked": "blocked",
@@ -100,14 +121,15 @@
       "unchanged": "unchanged",
       "warnings": "warnings"
     },
+    "incomplete_warning_title": "Incomplete preview",
+    "incomplete_warning_desc": "Only {{count}}/{{total}} targets are shown. Items beyond the preview limit were not loaded. Regenerate the preview for a full plan before applying.",
     "clarification_title": "More scope detail required",
     "columns": {
       "status": "Status",
       "type": "Type",
       "original_name": "Original name",
       "new_name": "New name",
-      "source_path": "Source path",
-      "target_path": "Target path",
+      "path": "Path",
       "reason": "Reason/Warnings",
       "actions": "Actions"
     },
@@ -151,6 +173,7 @@
     "rollback_summary": "Rollback journal {{journalId}}: {{success}} succeeded, {{failed}} failed",
     "apply_button": "Apply Renames",
     "no_plan_hint": "Every real rename writes a journal first. This flow never bypasses the dry-run preview.",
+    "incomplete_hint": "Preview is incomplete ({{count}}/{{total}}). Cannot apply. Please regenerate the preview.",
     "blocked_hint": "Apply is enabled only when blocked is 0 and ready is greater than 0.",
     "confirm_hint": "High-risk rules are checked before applying.",
     "phase": {
@@ -179,16 +202,19 @@
   "messages": {
     "select_paths_first": "Select at least one file or folder first.",
     "preview_created": "Preview generated. No files have been modified.",
+    "preview_empty": "No items matched the current scope and target type. Adjust the options and try again.",
     "missing_plan": "Generate a rename preview first.",
     "validating": "Validating rename plan...",
     "applying": "Applying renames...",
     "done": "Renames completed.",
     "validation_failed": "Rename plan validation failed.",
     "rename_finished": "Rename execution finished.",
+    "planning_cancelled": "Preview generation cancelled.",
     "rolling_back": "Trying rollback...",
     "rollback_done": "Rollback request completed.",
     "ipc_unavailable": "Electron IPC is not available.",
     "plan_not_found": "Rename plan {{planId}} was not found. It may have expired or been cleared; please generate a new preview.",
-    "plan_loaded_from_agent": "Loaded the rename preview from HomeAgent."
+    "plan_loaded_from_agent": "Loaded the rename preview from HomeAgent.",
+    "plan_items_incomplete": "Preview is incomplete (only {{count}}/{{total}} items). Cannot apply. Please regenerate a full preview."
   }
 }
