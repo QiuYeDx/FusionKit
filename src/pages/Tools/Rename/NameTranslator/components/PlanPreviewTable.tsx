@@ -231,6 +231,23 @@ export default function PlanPreviewTable({
         </div>
       ) : null}
 
+      {plan.items.length === 0 && !plan.clarificationRequired ? (
+        <div className="p-4">
+          <Alert>
+            <AlertTriangle className="h-4 w-4" />
+            <AlertTitle>{t("preview.no_targets_title")}</AlertTitle>
+            <AlertDescription>
+              {t("preview.no_targets_desc", {
+                scope: t(`options.scope.${plan.options.scope}.label`),
+                targetKind: t(
+                  `options.target_kind.${plan.options.targetKind}`
+                ),
+              })}
+            </AlertDescription>
+          </Alert>
+        </div>
+      ) : null}
+
       <ScrollArea className="w-full">
         <table className="w-full caption-bottom text-sm">
           <TableHeader>

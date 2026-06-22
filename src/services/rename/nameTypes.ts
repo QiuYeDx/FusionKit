@@ -157,6 +157,63 @@ export const DEFAULT_NAME_TRANSLATION_OPTIONS: Omit<
   collisionPolicy: "fail",
 };
 
+export function normalizeNameTranslationOptions(
+  input: NameTranslationOptions
+): NameTranslationOptions {
+  const roots = Array.isArray(input?.roots)
+    ? [
+        ...new Set(
+          input.roots.filter(
+            (root) => typeof root === "string" && root.length > 0
+          )
+        ),
+      ]
+    : [];
+  const next: NameTranslationOptions = {
+    ...DEFAULT_NAME_TRANSLATION_OPTIONS,
+    ...input,
+    roots,
+  };
+
+  if (next.scope === "self") {
+    return {
+      ...next,
+      includeRoot: true,
+      recursive: false,
+      maxDepth: 0,
+    };
+  }
+
+  if (next.scope === "children") {
+    return {
+      ...next,
+      includeRoot: false,
+      recursive: false,
+      maxDepth: 1,
+    };
+  }
+
+  if (next.scope === "descendants") {
+    const requestedDepth = Number.isFinite(next.maxDepth)
+      ? Math.floor(next.maxDepth)
+      : 0;
+    return {
+      ...next,
+      includeRoot: false,
+      recursive: true,
+      maxDepth: requestedDepth >= 2 ? Math.min(20, requestedDepth) : 5,
+    };
+  }
+
+  return {
+    ...next,
+    recursive: false,
+    maxDepth: Number.isFinite(next.maxDepth)
+      ? Math.max(0, Math.min(20, Math.floor(next.maxDepth)))
+      : 0,
+  };
+}
+
 export interface NameTranslationTarget {
   id: string;
   kind: "file" | "directory";

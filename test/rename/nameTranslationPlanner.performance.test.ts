@@ -28,6 +28,58 @@ afterEach(() => {
 });
 
 describe("name translation planner performance regressions", () => {
+  it("keeps five-item preview latency close to one item with adaptive batches", async () => {
+    const single = await runTimedFakeModelPlan({
+      planId: "rename_perf_single_item",
+      targets: createChineseEpisodeTargets(1),
+      delayMs: 25,
+      perItemDelayMs: 35,
+      batchConfig: {},
+    });
+    const legacyFive = await runTimedFakeModelPlan({
+      planId: "rename_perf_legacy_five_items",
+      targets: createChineseEpisodeTargets(5),
+      delayMs: 25,
+      perItemDelayMs: 35,
+      batchConfig: {
+        adaptiveBatching: false,
+      },
+    });
+    const adaptiveFive = await runTimedFakeModelPlan({
+      planId: "rename_perf_adaptive_five_items",
+      targets: createChineseEpisodeTargets(5),
+      delayMs: 25,
+      perItemDelayMs: 35,
+      batchConfig: {},
+    });
+
+    expect(single.summary.readyCount).toBe(1);
+    expect(legacyFive.summary.readyCount).toBe(5);
+    expect(adaptiveFive.summary.readyCount).toBe(5);
+    expect(
+      single.translateBatch.mock.calls.map(([items]) => items.length)
+    ).toEqual([1]);
+    expect(
+      legacyFive.translateBatch.mock.calls.map(([items]) => items.length)
+    ).toEqual([5]);
+    expect(
+      adaptiveFive.translateBatch.mock.calls.map(([items]) => items.length)
+    ).toEqual([2, 2, 1]);
+    expect(adaptiveFive.maxActiveRequestCount).toBe(3);
+
+    console.log(
+      `[small-batch perf] single=${single.durationMs.toFixed(0)}ms, legacyFive=${legacyFive.durationMs.toFixed(0)}ms, adaptiveFive=${adaptiveFive.durationMs.toFixed(0)}ms`
+    );
+
+    expect(adaptiveFive.durationMs).toBeLessThan(legacyFive.durationMs * 0.8);
+    expect(adaptiveFive.durationMs).toBeLessThan(single.durationMs * 2.5);
+    expect(adaptiveFive.progressEvents.at(-1)?.metrics).toMatchObject({
+      translationRequestCount: 3,
+      translationBatchCount: 3,
+      translationConcurrencyPeak: 3,
+    });
+  });
+
   it("keeps 500-target fake model planning faster with bounded concurrency than serial batches", async () => {
     const targets = createChineseEpisodeTargets(500);
 
@@ -145,7 +197,10 @@ describe("name translation planner performance regressions", () => {
 
     expect(firstSummary.totalTargets).toBe(500);
     expect(secondSummary.totalTargets).toBe(500);
-    expect(firstTranslateBatch).toHaveBeenCalledTimes(2);
+    expect(firstTranslateBatch).toHaveBeenCalledTimes(3);
+    expect(
+      firstTranslateBatch.mock.calls.map(([items]) => items.length)
+    ).toEqual([9, 8, 8]);
     expect(firstTranslateBatch.mock.calls.flatMap(([items]) => items)).toHaveLength(
       25
     );
@@ -244,11 +299,13 @@ async function runTimedFakeModelPlan({
   planId,
   targets,
   delayMs,
+  perItemDelayMs = 0,
   batchConfig,
 }: {
   planId: string;
   targets: NameTranslationTarget[];
   delayMs: number;
+  perItemDelayMs?: number;
   batchConfig: Partial<NameTranslationBatchConfig>;
 }) {
   const progressEvents: NameTranslationPlanningProgress[] = [];
@@ -257,7 +314,7 @@ async function runTimedFakeModelPlan({
   const translateBatch = vi.fn(async (items: NameTranslationModelInputItem[]) => {
     activeRequestCount += 1;
     maxActiveRequestCount = Math.max(maxActiveRequestCount, activeRequestCount);
-    await delay(delayMs);
+    await delay(delayMs + items.length * perItemDelayMs);
     activeRequestCount -= 1;
     return items.map((item) => ({
       id: item.id,

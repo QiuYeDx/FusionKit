@@ -197,6 +197,13 @@ export async function scanRenameTargets(
     }
   }
 
+  if (context.targets.length === 0) {
+    pushWarning(
+      context.warnings,
+      `No matching rename targets were found (scope=${options.scope}, targetKind=${options.targetKind}).`
+    );
+  }
+
   return buildScanResult(context);
 }
 
@@ -616,14 +623,48 @@ function normalizeOptions(input: NameTranslationOptions): NameTranslationOptions
   const roots = Array.isArray(input?.roots)
     ? input.roots.filter((root) => typeof root === "string" && root.length > 0)
     : [];
-  const options = {
+  const options: NameTranslationOptions = {
     ...DEFAULT_NAME_TRANSLATION_OPTIONS,
     ...input,
     roots,
   };
 
+  if (options.scope === "self") {
+    return {
+      ...options,
+      includeRoot: true,
+      recursive: false,
+      maxDepth: 0,
+    };
+  }
+
+  if (options.scope === "children") {
+    return {
+      ...options,
+      includeRoot: false,
+      recursive: false,
+      maxDepth: 1,
+    };
+  }
+
+  if (options.scope === "descendants") {
+    const requestedDepth = Number.isFinite(options.maxDepth)
+      ? Math.floor(options.maxDepth)
+      : 0;
+    return {
+      ...options,
+      includeRoot: false,
+      recursive: true,
+      maxDepth:
+        requestedDepth >= 2
+          ? Math.min(MAX_SCAN_DEPTH, requestedDepth)
+          : 5,
+    };
+  }
+
   return {
     ...options,
+    recursive: false,
     maxDepth: clampMaxDepth(options.maxDepth),
   };
 }

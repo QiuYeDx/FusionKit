@@ -158,6 +158,25 @@ describe("scanRenameTargets", () => {
     ).toBe(true);
   });
 
+  it("normalizes stale self depth when switching to direct children", async () => {
+    const root = await createTempRoot();
+    await fs.writeFile(path.join(root, "第01話.srt"), "subtitle");
+
+    const result = await scanRenameTargets({
+      options: buildOptions({
+        roots: [root],
+        scope: "children",
+        targetKind: "files",
+        maxDepth: 0,
+        includeRoot: true,
+      }),
+    });
+
+    expect(result.targets.map((target) => target.originalName)).toEqual([
+      "第01話.srt",
+    ]);
+  });
+
   it("scans direct child directories when targetKind is directories", async () => {
     const root = await createRenameTree();
 
@@ -210,6 +229,45 @@ describe("scanRenameTargets", () => {
     expect(names).not.toContain(".git");
     expect(names).not.toContain(".hidden.srt");
     expect(names).not.toContain("Linked Season");
+  });
+
+  it("normalizes stale self depth when switching to recursive descendants", async () => {
+    const root = await createRenameTree();
+
+    const result = await scanRenameTargets({
+      options: buildOptions({
+        roots: [root],
+        scope: "descendants",
+        targetKind: "files",
+        maxDepth: 0,
+        recursive: false,
+        includeRoot: true,
+      }),
+    });
+
+    expect(result.targets.map((target) => target.originalName)).toEqual([
+      "第01話.srt",
+      "第02話.srt",
+      "第03話.srt",
+    ]);
+  });
+
+  it("returns a diagnostic warning when the selected target kind has no matches", async () => {
+    const root = await createTempRoot();
+    await fs.writeFile(path.join(root, "第01話.srt"), "subtitle");
+
+    const result = await scanRenameTargets({
+      options: buildOptions({
+        roots: [root],
+        scope: "children",
+        targetKind: "directories",
+      }),
+    });
+
+    expect(result.targets).toHaveLength(0);
+    expect(result.warnings).toContain(
+      "No matching rename targets were found (scope=children, targetKind=directories)."
+    );
   });
 
   it("marks scans as truncated when maxTargets is reached", async () => {

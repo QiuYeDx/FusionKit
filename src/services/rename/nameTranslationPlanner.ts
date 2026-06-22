@@ -3,8 +3,8 @@ import { generateObject, generateText } from "ai";
 import { z } from "zod";
 import type { ModelProfile } from "@/type/model";
 import {
-  DEFAULT_NAME_TRANSLATION_OPTIONS,
   NameTranslationPlannerError,
+  normalizeNameTranslationOptions,
   type BatchPathCheckResult,
   type ClarificationRequired,
   type NameTranslationModelInputItem,
@@ -47,12 +47,14 @@ import { getNameTranslationFastPath } from "./nameTranslationFastPath";
 const DEFAULT_PREVIEW_LIMIT = 30;
 const DEFAULT_MAX_TARGETS = 5000;
 const MAX_TRANSLATION_WARNINGS = 200;
+const DEFAULT_ADAPTIVE_BATCHING_THRESHOLD = 5;
 const DEFAULT_TRANSLATION_BATCH_CONFIG: NameTranslationBatchConfig = {
   batchSize: 50,
   concurrency: 3,
   minBatchSize: 5,
   maxBatchSize: 80,
   rateLimitBackoffMs: 1500,
+  adaptiveBatching: true,
 };
 const MAX_RATE_LIMIT_RETRIES = 2;
 
@@ -94,6 +96,7 @@ export interface NameTranslationBatchConfig {
   minBatchSize: number;
   maxBatchSize: number;
   rateLimitBackoffMs: number;
+  adaptiveBatching: boolean;
 }
 
 interface PlanningProgressReporter {
@@ -270,9 +273,10 @@ export async function createNameTranslationPlan(
     throwIfPlanningAborted(deps.signal);
 
     const batchConfig = normalizeTranslationBatchConfig(deps.batchConfig);
-    const totalBatchCount = Math.ceil(
-      preparedTranslationWork.workItems.length / batchConfig.batchSize
-    );
+    const totalBatchCount = createTranslationBatches(
+      preparedTranslationWork.workItems,
+      batchConfig
+    ).length;
     progress.start("translating", {
       totalTargets: scanResult.totalCount,
       translatableCount: preparedTranslationWork.translatableCount,
@@ -459,23 +463,6 @@ function isPlanningCancelledError(error: unknown): boolean {
   );
 }
 
-function normalizeNameTranslationOptions(
-  input: NameTranslationOptions
-): NameTranslationOptions {
-  const roots = Array.isArray(input?.roots)
-    ? input.roots.filter((root) => typeof root === "string" && root.length > 0)
-    : [];
-
-  return {
-    ...DEFAULT_NAME_TRANSLATION_OPTIONS,
-    ...input,
-    roots,
-    maxDepth: Number.isFinite(input?.maxDepth)
-      ? Math.max(0, Math.min(20, Math.floor(input.maxDepth)))
-      : DEFAULT_NAME_TRANSLATION_OPTIONS.maxDepth,
-  };
-}
-
 function normalizeTranslationBatchConfig(
   input: Partial<NameTranslationBatchConfig> = {}
 ): NameTranslationBatchConfig {
@@ -509,6 +496,9 @@ function normalizeTranslationBatchConfig(
           DEFAULT_TRANSLATION_BATCH_CONFIG.rateLimitBackoffMs
       )
     ),
+    adaptiveBatching:
+      input.adaptiveBatching ??
+      DEFAULT_TRANSLATION_BATCH_CONFIG.adaptiveBatching,
   };
 }
 
@@ -629,7 +619,7 @@ async function translateTargets(
   const translationMap = new Map(preparedWork.translationMap);
   const batches = createTranslationBatches(
     preparedWork.workItems,
-    batchConfig.batchSize
+    batchConfig
   );
   if (batches.length === 0) {
     observer?.onProgress?.({ ...observer.stats });
@@ -791,14 +781,66 @@ function updateActiveTranslationStats(
 
 function createTranslationBatches(
   workItems: TranslationWorkItem[],
-  batchSize: number
+  batchConfig: NameTranslationBatchConfig
 ): TranslationBatch[] {
+  if (workItems.length === 0) return [];
+
+  const configuredBatchCount = Math.ceil(
+    workItems.length / batchConfig.batchSize
+  );
+  const adaptiveBatchCount = Math.min(
+    batchConfig.concurrency,
+    workItems.length
+  );
+  const shouldBalanceAcrossWorkers =
+    batchConfig.adaptiveBatching &&
+    batchConfig.concurrency > 1 &&
+    workItems.length >= DEFAULT_ADAPTIVE_BATCHING_THRESHOLD &&
+    configuredBatchCount <= batchConfig.concurrency;
+
+  if (shouldBalanceAcrossWorkers) {
+    return createBalancedTranslationBatches(
+      workItems,
+      adaptiveBatchCount
+    );
+  }
+
   const batches: TranslationBatch[] = [];
-  for (let start = 0; start < workItems.length; start += batchSize) {
+  for (
+    let start = 0;
+    start < workItems.length;
+    start += batchConfig.batchSize
+  ) {
     batches.push({
-      workItems: workItems.slice(start, start + batchSize),
+      workItems: workItems.slice(start, start + batchConfig.batchSize),
     });
   }
+  return batches;
+}
+
+function createBalancedTranslationBatches(
+  workItems: TranslationWorkItem[],
+  batchCount: number
+): TranslationBatch[] {
+  const normalizedBatchCount = Math.max(
+    1,
+    Math.min(batchCount, workItems.length)
+  );
+  const baseBatchSize = Math.floor(
+    workItems.length / normalizedBatchCount
+  );
+  const largerBatchCount = workItems.length % normalizedBatchCount;
+  const batches: TranslationBatch[] = [];
+  let start = 0;
+
+  for (let index = 0; index < normalizedBatchCount; index++) {
+    const size = baseBatchSize + (index < largerBatchCount ? 1 : 0);
+    batches.push({
+      workItems: workItems.slice(start, start + size),
+    });
+    start += size;
+  }
+
   return batches;
 }
 

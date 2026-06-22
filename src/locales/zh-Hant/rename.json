@@ -92,6 +92,8 @@
     "title": "預覽",
     "empty_title": "還沒有重新命名預覽",
     "empty_desc": "選擇路徑並產生預覽後，可以在這裡檢查、編輯、跳過和套用。",
+    "no_targets_title": "找不到符合條件的項目",
+    "no_targets_desc": "範圍「{{scope}}」與目標類型「{{targetKind}}」下沒有可翻譯項目。請確認選取路徑是資料夾，或調整目標類型、遞迴深度後重新產生預覽。",
     "revalidate": "重新驗證",
     "planning": {
       "title": "正在產生預覽",
@@ -200,6 +202,7 @@
   "messages": {
     "select_paths_first": "請先選擇至少一個檔案或資料夾。",
     "preview_created": "預覽已產生，尚未修改任何檔案。",
+    "preview_empty": "找不到符合目前範圍和目標類型的項目，請調整設定後重試。",
     "missing_plan": "請先產生重新命名預覽。",
     "validating": "正在驗證重新命名計畫...",
     "applying": "正在套用重新命名...",

@@ -92,6 +92,8 @@
     "title": "预览",
     "empty_title": "还没有重命名预览",
     "empty_desc": "选择路径并生成预览后，可以在这里检查、编辑、跳过和应用。",
+    "no_targets_title": "没有找到符合条件的项目",
+    "no_targets_desc": "范围“{{scope}}”与目标类型“{{targetKind}}”下没有可翻译项目。请确认所选路径是文件夹，或调整目标类型、递归深度后重新生成预览。",
     "revalidate": "重新校验",
     "planning": {
       "title": "正在生成预览",
@@ -200,6 +202,7 @@
   "messages": {
     "select_paths_first": "请先选择至少一个文件或文件夹。",
     "preview_created": "预览已生成，尚未修改任何文件。",
+    "preview_empty": "没有找到符合当前范围和目标类型的项目，请调整配置后重试。",
     "missing_plan": "请先生成重命名预览。",
     "validating": "正在校验重命名计划...",
     "applying": "正在应用重命名...",

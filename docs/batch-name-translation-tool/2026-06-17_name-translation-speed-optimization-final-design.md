@@ -374,6 +374,7 @@ interface NameTranslationBatchConfig {
   minBatchSize: number;
   maxBatchSize: number;
   rateLimitBackoffMs: number;
+  adaptiveBatching: boolean;
 }
 ```
 
@@ -385,16 +386,21 @@ concurrency: 3
 minBatchSize: 5
 maxBatchSize: 80
 rateLimitBackoffMs: 1500
+adaptiveBatching: true
 ```
 
 行为：
 
-1. 将未缓存、非快路径的 work items 按 batchSize 分批。
-2. 用 promise pool 跑最多 3 个并发模型请求。
-3. 任何批次成功后立即写入 translationMap 并上报 progress。
-4. schema 解析失败时拆分批次重试。
-5. 429 / rate limit 时降低全局并发到 1，并按退避等待后重试。
-6. 鉴权、模型不存在、quota、网络不可达等非可恢复错误直接失败，不再额外走 text fallback。
+1. 1～4 个未缓存、非快路径 work items 保持单请求，避免过度增加请求握手和输入 token。
+2. 从 5 个 work items 开始，若按 `batchSize` 计算出的批次数不超过并发数，则均匀拆成最多 3 批并发执行。例如 5 项拆为 `2 + 2 + 1`，不再作为一个大响应串行生成。
+3. 更大规模继续以 `batchSize=50` 为单批上限；当尾批明显偏小时，在不超过并发数的区间内优先均衡各批大小。
+4. 用 promise pool 跑最多 3 个并发模型请求。
+5. 任何批次成功后立即写入 translationMap 并上报 progress。
+6. schema 解析失败时拆分批次重试。
+7. 429 / rate limit 时降低全局并发到 1，并按退避等待后重试。
+8. 鉴权、模型不存在、quota、网络不可达等非可恢复错误直接失败，不再额外走 text fallback。
+
+自适应拆分会增加少量重复 system prompt 输入 token，但显著减少小批量多名称在单一模型响应中的串行输出时间。限流与失败恢复仍沿用现有降并发、退避和 batch split 机制。
 
 ### 5.7 structured output 兜底优化
 
@@ -736,6 +742,7 @@ test/rename/nameTranslationPlanner.performance.test.ts
 3. 组合验证缓存命中与快路径：500 targets 二次生成时不再调用 fake model。
 4. 验证取消后不继续启动 queued work，且不写入半成品 plan。
 5. 验证 recoverable parse 失败会按 batch split 恢复，并记录重试指标。
+6. 验证 5 个名称默认拆为 `2 + 2 + 1` 三个并发请求；fake model 基准中 5 项耗时应明显低于旧单批策略，并保持在单项耗时的宽松倍数内。
 
 ### 10.3 手工验收
 

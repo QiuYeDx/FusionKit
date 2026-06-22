@@ -49,11 +49,6 @@ const SCOPE_OPTIONS: Array<{
     labelKey: "options.scope.descendants.label",
     hintKey: "options.scope.descendants.hint",
   },
-  {
-    value: "path_segments",
-    labelKey: "options.scope.path_segments.label",
-    hintKey: "options.scope.path_segments.hint",
-  },
 ];
 
 const TARGET_KIND_OPTIONS: Array<{

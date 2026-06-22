@@ -488,6 +488,75 @@ describe("createNameTranslationPlan", () => {
     });
   });
 
+  it("uses adaptive parallel batches for five default-config items", async () => {
+    const targets = Array.from({ length: 5 }, (_, index) =>
+      createTarget(
+        `target_${index}`,
+        `第${index + 1}章.srt`,
+        `第${index + 1}章`
+      )
+    );
+    const progressEvents: NameTranslationPlanningProgress[] = [];
+    let activeRequestCount = 0;
+    let maxActiveRequestCount = 0;
+    const batchSizes: number[] = [];
+
+    const summary = await createNameTranslationPlan(createOptions(), {
+      scanTargets: async () => createScanResult(targets),
+      translateBatch: async (items) => {
+        batchSizes.push(items.length);
+        activeRequestCount += 1;
+        maxActiveRequestCount = Math.max(
+          maxActiveRequestCount,
+          activeRequestCount
+        );
+        await Promise.resolve();
+        activeRequestCount -= 1;
+        return items.map((item) => ({
+          id: item.id,
+          translatedStem: `${item.stem} translated`,
+        }));
+      },
+      checkPathExists: async () => false,
+      progress: (progress) => progressEvents.push(progress),
+    });
+
+    expect(summary.readyCount).toBe(5);
+    expect(batchSizes).toEqual([2, 2, 1]);
+    expect(maxActiveRequestCount).toBe(3);
+    expect(progressEvents.at(-1)?.metrics).toMatchObject({
+      translationRequestCount: 3,
+      translationBatchCount: 3,
+      translationConcurrencyPeak: 3,
+    });
+  });
+
+  it("keeps fewer than five default-config items in one request", async () => {
+    const targets = Array.from({ length: 4 }, (_, index) =>
+      createTarget(
+        `target_${index}`,
+        `第${index + 1}章.srt`,
+        `第${index + 1}章`
+      )
+    );
+    const batchSizes: number[] = [];
+
+    const summary = await createNameTranslationPlan(createOptions(), {
+      scanTargets: async () => createScanResult(targets),
+      translateBatch: async (items) => {
+        batchSizes.push(items.length);
+        return items.map((item) => ({
+          id: item.id,
+          translatedStem: `${item.stem} translated`,
+        }));
+      },
+      checkPathExists: async () => false,
+    });
+
+    expect(summary.readyCount).toBe(4);
+    expect(batchSizes).toEqual([4]);
+  });
+
   it("backs off and retries rate-limited batches", async () => {
     const targets = [
       createTarget("target_a", "第一章.srt", "第一章"),

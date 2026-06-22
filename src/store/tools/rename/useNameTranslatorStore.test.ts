@@ -292,6 +292,103 @@ describe("useNameTranslatorStore planning progress", () => {
   });
 });
 
+describe("useNameTranslatorStore scope option normalization", () => {
+  it("switches a selected folder from self to child files by default", async () => {
+    const invoke = vi.fn(
+      async (channel: string, payload: { paths: string[] }) => {
+        if (channel === "inspect-rename-paths") {
+          return {
+            paths: payload.paths.map((path) => ({
+              path,
+              exists: true,
+              kind: "directory",
+              basename: "日剧",
+              parentPath: "/tmp",
+              directFileCount: 2,
+              directDirectoryCount: 1,
+              riskLevel: "normal",
+              warnings: [],
+            })),
+          };
+        }
+        return { valid: true, errors: [], warnings: [] };
+      }
+    );
+    vi.stubGlobal("window", { ipcRenderer: { invoke } });
+
+    await useNameTranslatorStore.getState().addPaths(["/tmp/日剧"]);
+
+    expect(useNameTranslatorStore.getState().options).toMatchObject({
+      scope: "self",
+      targetKind: "directories",
+      maxDepth: 0,
+    });
+
+    useNameTranslatorStore.getState().updateOptions({ scope: "children" });
+    expect(useNameTranslatorStore.getState().options).toMatchObject({
+      scope: "children",
+      targetKind: "files",
+      recursive: false,
+      maxDepth: 1,
+      includeRoot: false,
+    });
+
+    useNameTranslatorStore.getState().updateOptions({ scope: "descendants" });
+    expect(useNameTranslatorStore.getState().options).toMatchObject({
+      scope: "descendants",
+      targetKind: "files",
+      recursive: true,
+      maxDepth: 5,
+      includeRoot: false,
+    });
+
+    useNameTranslatorStore
+      .getState()
+      .updateOptions({ targetKind: "directories" });
+    useNameTranslatorStore.getState().updateOptions({ scope: "children" });
+    expect(useNameTranslatorStore.getState().options.targetKind).toBe(
+      "directories"
+    );
+
+    useNameTranslatorStore.getState().updateOptions({ scope: "self" });
+    expect(useNameTranslatorStore.getState().options.targetKind).toBe(
+      "directories"
+    );
+  });
+
+  it("keeps self-scope target kinds in sync as mixed paths are added", async () => {
+    const invoke = vi.fn(
+      async (channel: string, payload: { paths: string[] }) => {
+        if (channel === "inspect-rename-paths") {
+          return {
+            paths: payload.paths.map((path) => {
+              const isDirectory = path.endsWith("/日剧");
+              return {
+                path,
+                exists: true,
+                kind: isDirectory ? "directory" : "file",
+                basename: isDirectory ? "日剧" : "第01話.srt",
+                parentPath: "/tmp",
+                riskLevel: "normal",
+                warnings: [],
+              };
+            }),
+          };
+        }
+        return { valid: true, errors: [], warnings: [] };
+      }
+    );
+    vi.stubGlobal("window", { ipcRenderer: { invoke } });
+
+    await useNameTranslatorStore.getState().addPaths(["/tmp/日剧"]);
+    await useNameTranslatorStore
+      .getState()
+      .addPaths(["/tmp/第01話.srt"]);
+
+    expect(useNameTranslatorStore.getState().options.targetKind).toBe("both");
+  });
+});
+
 describe("useNameTranslatorStore incomplete plan apply guard", () => {
   it("blocks apply when plan items are incomplete (itemsStored=false, items < totalTargets)", async () => {
     const { showToast } = await import("@/utils/toast");

@@ -92,6 +92,8 @@
     "title": "Preview",
     "empty_title": "No rename preview yet",
     "empty_desc": "After selecting paths and generating a preview, you can review, edit, skip, and apply changes here.",
+    "no_targets_title": "No matching items found",
+    "no_targets_desc": "No translatable items matched scope “{{scope}}” and target type “{{targetKind}}”. Confirm that the selected path is a folder, or adjust the target type or recursive depth and regenerate the preview.",
     "revalidate": "Revalidate",
     "planning": {
       "title": "Generating preview",
@@ -200,6 +202,7 @@
   "messages": {
     "select_paths_first": "Select at least one file or folder first.",
     "preview_created": "Preview generated. No files have been modified.",
+    "preview_empty": "No items matched the current scope and target type. Adjust the options and try again.",
     "missing_plan": "Generate a rename preview first.",
     "validating": "Validating rename plan...",
     "applying": "Applying renames...",

@@ -214,7 +214,7 @@ Plan 包含：
    - 已选文件/文件夹列表。
    - 显示路径类型、子项数量、风险标签。
 2. 范围配置区
-   - Scope：仅所选名称 / 直接子项 / 递归子项 / 路径片段。
+   - Scope：当前手动页开放仅所选名称 / 直接子项 / 递归子项；路径片段待 Phase 4 完成边界输入与目录重写顺序后再开放。
    - Target Kind：文件 / 文件夹 / 文件和文件夹。
    - 递归深度：不递归、指定深度、无限递归。
 3. 翻译配置区
@@ -1450,6 +1450,7 @@ tmp/
    - 缺少起止边界时返回 `clarificationRequired.code = "path_segment_boundary_required"`。
    - 起点为根目录、Home 根目录或系统保护目录时返回 `unsafe_path_segment_start`。
    - 即使起止边界齐全，当前实现仍返回 `path_segments_deferred`，不生成可应用 plan；该能力保留到 Phase 4。
+   - 手动工具页不展示该延期选项，避免用户进入一个必然产生空预览的不可用流程；HomeAgent schema 继续保留 clarification/deferred 防护。
 5. Journal 与 rollback：
    - 默认 journal 目录为 `app.getPath("userData")/rename-journals`。
    - apply 使用两阶段 temp/final rename，并在中途失败时保留 readable journal。

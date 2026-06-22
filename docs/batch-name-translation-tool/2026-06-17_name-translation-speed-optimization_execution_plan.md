@@ -56,6 +56,7 @@
 | RN-PERF-005 | 已完成 | 2026-06-18 | 批量目标路径存在性 IPC | `electron/main/rename/types.ts`、`electron/main/rename/ipc.ts`、`electron/main/rename/path-check.ts`、`src/services/rename/nameTargetResolver.ts`、`src/services/rename/nameTranslationPlanner.ts`、`src/store/tools/rename/useNameTranslatorStore.ts`、`test/rename/path-check.test.ts`、`src/services/rename/nameTranslationPlanner.test.ts`、`src/store/tools/rename/useNameTranslatorStore.test.ts` | `pnpm exec vitest run test/rename/path-check.test.ts src/services/rename/nameTranslationPlanner.test.ts src/store/tools/rename/useNameTranslatorStore.test.ts`；`pnpm exec vitest run test/rename src/services/rename src/store/tools/rename/useNameTranslatorStore.test.ts`；`pnpm run i18n:check`；`pnpm exec tsc --noEmit` 失败于既有 code-block styled-jsx 属性类型问题 | `docs/batch-name-translation-tool/implementation-records/2026-06-18_RN-PERF-005_batch-path-exists-ipc.md` | 无 |
 | RN-PERF-006 | 已完成 | 2026-06-18 | 扫描器 IO 优化与稳定排序 | `electron/main/rename/scanner.ts`、`test/rename/scanner.test.ts` | `pnpm exec vitest run test/rename/scanner.test.ts`；`pnpm exec vitest run test/rename src/services/rename src/store/tools/rename/useNameTranslatorStore.test.ts`；`pnpm run i18n:check`；`pnpm exec tsc --noEmit` 失败于既有 code-block styled-jsx 属性类型问题 | `docs/batch-name-translation-tool/implementation-records/2026-06-18_RN-PERF-006_scanner-io-optimization.md` | 无 |
 | RN-PERF-007 | 已完成 | 2026-06-18 | 性能回归测试、验收记录与文档回填 | `test/rename/nameTranslationPlanner.performance.test.ts`、本执行计划、final design、`docs/batch-name-translation-tool/implementation-notes/2026-05-21_final-implementation-status.md` | `pnpm exec vitest run test/rename/nameTranslationPlanner.performance.test.ts src/services/rename/nameTranslationPlanner.test.ts`；`pnpm exec vitest run test/rename src/services/rename src/store/tools/rename/useNameTranslatorStore.test.ts`；`pnpm run i18n:check`；`pnpm exec tsc --noEmit` 失败于既有 code-block styled-jsx 属性类型问题；`git diff --check` | `docs/batch-name-translation-tool/implementation-records/2026-06-18_RN-PERF-007_perf-tests-docs.md` | 真实模型性能按发布前手工验收清单执行；`pnpm build` 因 tsc 前置门禁仍被既有 styled-jsx 类型问题阻塞，未单独运行 |
+| RN-PERF-008 | 已完成 | 2026-06-22 | 小批量自适应并发拆分 | `src/services/rename/nameTranslationPlanner.ts`、`src/services/rename/nameTranslationPlanner.test.ts`、`test/rename/nameTranslationPlanner.performance.test.ts` | `pnpm exec vitest run test/rename src/services/rename src/store/tools/rename/useNameTranslatorStore.test.ts src/agent/tool-schemas.test.ts` — 168 tests passed；fake 基准 single=64ms、legacy five=202ms、adaptive five=97ms；`pnpm exec tsc --noEmit` 仅失败于既有 styled-jsx 类型问题 | `docs/batch-name-translation-tool/implementation-records/2026-06-22_RN-PERF-008_small-batch-adaptive-concurrency.md` | 真实供应商绝对耗时仍按发布前手工验收记录 |
 
 ## 5. 工作包详情
 
@@ -191,6 +192,26 @@
 - 性能测试阈值宽松，避免环境抖动导致误报。
 - 发布前验证命令和手工验收结果写入实施记录。
 
+### RN-PERF-008：小批量自适应并发拆分
+
+目标：修复 5～50 个名称仍落入单一模型请求、无法使用现有并发池的问题。
+
+实施范围：
+
+- `NameTranslationBatchConfig` 新增 `adaptiveBatching`，默认开启。
+- 1～4 个 work items 保持单请求。
+- 5 个以上且原始批次数未超过并发数时，均匀拆成最多 3 个批次。
+- 5 项默认形成 `2 + 2 + 1`，并发峰值不超过 3。
+- progress 的 `totalBatchCount` 与 metrics 使用自适应后的真实批次数。
+- 增加 single / legacy five / adaptive five fake model 对照基准。
+
+验收口径：
+
+- 5 项不再作为一个模型响应串行生成。
+- 4 项及以下不增加额外请求。
+- 429 降速、取消、缓存、快路径和 batch split recovery 行为保持兼容。
+- fake model 下 adaptive five 明显快于 legacy five，并保持在单项耗时的宽松倍数内。
+
 ## 6. 依赖关系
 
 ```text
@@ -294,4 +315,4 @@ pnpm exec vitest run test/rename/nameTranslationPlanner.performance.test.ts
 
 ## 10. 下一步建议
 
-性能优化主线 `RN-PERF-001` 到 `RN-PERF-007` 已收口。下一次优先处理发布前阻塞项：修复 `src/components/qiuye-ui/code-block/*` 中既有 styled-jsx React 类型问题，然后补跑 `pnpm exec tsc --noEmit`、`pnpm build` 和 10.3 的真实模型手工验收。
+性能优化主线 `RN-PERF-001` 到 `RN-PERF-008` 已收口。下一次优先处理发布前阻塞项：修复 `src/components/qiuye-ui/code-block/*` 中既有 styled-jsx React 类型问题，然后补跑 `pnpm exec tsc --noEmit`、`pnpm build` 和 10.3 的真实模型手工验收。

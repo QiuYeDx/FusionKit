@@ -42,6 +42,7 @@ import type {
 } from "@/services/rename/nameTypes";
 import {
   DEFAULT_NAME_TRANSLATION_OPTIONS,
+  normalizeNameTranslationOptions,
 } from "@/services/rename/nameTypes";
 
 type OriginalSuggestion = Pick<
@@ -136,8 +137,8 @@ const useNameTranslatorStore = create<NameTranslatorStore>((set, get) => ({
       ];
       const nextOptions = normalizeOptionsAfterPathChange(
         get().options,
-        nextSelected,
-        existing.length === 0
+        existing,
+        nextSelected
       );
 
       set({
@@ -156,10 +157,15 @@ const useNameTranslatorStore = create<NameTranslatorStore>((set, get) => ({
   },
 
   removePath: (path) => {
-    const nextSelected = get().selectedPaths.filter((item) => item.path !== path);
+    const previousSelected = get().selectedPaths;
+    const nextSelected = previousSelected.filter((item) => item.path !== path);
     set({
       selectedPaths: nextSelected,
-      options: normalizeOptionsAfterPathChange(get().options, nextSelected, false),
+      options: normalizeOptionsAfterPathChange(
+        get().options,
+        previousSelected,
+        nextSelected
+      ),
       currentPlan: null,
       lastValidation: null,
     });
@@ -167,9 +173,22 @@ const useNameTranslatorStore = create<NameTranslatorStore>((set, get) => ({
 
   updateOptions: (patch) => {
     const state = get();
-    const options = normalizeOptions({
+    const requestedScope = patch.scope ?? state.options.scope;
+    const shouldInferTargetKind =
+      patch.targetKind === undefined &&
+      patch.scope !== undefined &&
+      shouldInferTargetKindForScopeChange(state.options.scope, requestedScope);
+    const options = normalizeNameTranslationOptions({
       ...state.options,
       ...patch,
+      ...(shouldInferTargetKind
+        ? {
+            targetKind: inferTargetKindForScope(
+              requestedScope,
+              state.selectedPaths
+            ),
+          }
+        : {}),
       roots: state.selectedPaths.map((item) => item.path),
     });
 
@@ -235,7 +254,7 @@ const useNameTranslatorStore = create<NameTranslatorStore>((set, get) => ({
       try {
         const roots = getPlanRoots(plan);
         const selectedPaths = await restoreSelectedPaths(plan, roots);
-        const options = normalizeOptions({
+        const options = normalizeNameTranslationOptions({
           ...plan.options,
           roots,
         });
@@ -293,7 +312,10 @@ const useNameTranslatorStore = create<NameTranslatorStore>((set, get) => ({
     });
 
     try {
-      const options = normalizeOptions({ ...get().options, roots });
+      const options = normalizeNameTranslationOptions({
+        ...get().options,
+        roots,
+      });
       const summary = await createNameTranslationPlan(options, {
         signal: controller.signal,
         progress: (progress) => {
@@ -326,6 +348,8 @@ const useNameTranslatorStore = create<NameTranslatorStore>((set, get) => ({
 
       if (plan.clarificationRequired) {
         showToast(plan.clarificationRequired.message, "error");
+      } else if (plan.items.length === 0) {
+        showToast(i18n.t("rename:messages.preview_empty"), "error");
       } else {
         showToast(i18n.t("rename:messages.preview_created"), "success");
       }
@@ -552,23 +576,38 @@ async function inspectRenamePaths(
 
 function normalizeOptionsAfterPathChange(
   options: NameTranslationOptions,
-  selectedPaths: SelectedPath[],
-  shouldInferTargetKind: boolean
+  previousSelectedPaths: SelectedPath[],
+  selectedPaths: SelectedPath[]
 ): NameTranslationOptions {
+  const previousInferredTargetKind = inferTargetKindForScope(
+    options.scope,
+    previousSelectedPaths
+  );
+  const shouldInferTargetKind =
+    previousSelectedPaths.length === 0 ||
+    options.targetKind === previousInferredTargetKind;
   const inferredTargetKind = shouldInferTargetKind
-    ? inferTargetKind(selectedPaths)
+    ? inferTargetKindForScope(options.scope, selectedPaths)
     : options.targetKind;
 
-  return normalizeOptions({
+  return normalizeNameTranslationOptions({
     ...options,
     targetKind: inferredTargetKind,
     roots: selectedPaths.map((item) => item.path),
   });
 }
 
-function inferTargetKind(
+function inferTargetKindForScope(
+  scope: NameTranslationOptions["scope"],
   selectedPaths: SelectedPath[]
 ): NameTranslationOptions["targetKind"] {
+  if (scope === "children" || scope === "descendants") {
+    return "files";
+  }
+  if (scope === "path_segments") {
+    return "both";
+  }
+
   const hasFiles = selectedPaths.some((item) => item.kind === "file");
   const hasDirectories = selectedPaths.some((item) => item.kind === "directory");
 
@@ -577,31 +616,16 @@ function inferTargetKind(
   return "files";
 }
 
-function normalizeOptions(input: NameTranslationOptions): NameTranslationOptions {
-  const next = {
-    ...DEFAULT_NAME_TRANSLATION_OPTIONS,
-    ...input,
-    roots: [...new Set(input.roots.filter(Boolean))],
-  };
-
-  if (next.scope === "self") {
-    next.includeRoot = true;
-    next.recursive = false;
-    next.maxDepth = 0;
-  } else if (next.scope === "children") {
-    next.includeRoot = false;
-    next.recursive = false;
-    next.maxDepth = 1;
-  } else if (next.scope === "descendants") {
-    next.includeRoot = false;
-    next.recursive = true;
-    next.maxDepth = Math.max(2, Math.min(20, Math.floor(next.maxDepth || 5)));
-  } else {
-    next.recursive = false;
-    next.maxDepth = Math.max(0, Math.min(20, Math.floor(next.maxDepth || 0)));
-  }
-
-  return next;
+function shouldInferTargetKindForScopeChange(
+  previousScope: NameTranslationOptions["scope"],
+  nextScope: NameTranslationOptions["scope"]
+): boolean {
+  if (previousScope === nextScope) return false;
+  const previousIsCollectionScope =
+    previousScope === "children" || previousScope === "descendants";
+  const nextIsCollectionScope =
+    nextScope === "children" || nextScope === "descendants";
+  return !(previousIsCollectionScope && nextIsCollectionScope);
 }
 
 const LOCAL_REBUILD_KEYS = new Set([
