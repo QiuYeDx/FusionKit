@@ -125,10 +125,10 @@
 
 | ID | 状态 | 完成日期 | 标题 | 关键变更文件 | 验证 | 实施记录 | 未决问题 |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| PRE-001 | 未开始 | — | 编码探测与解码依赖验证 | 计划新增 spike/test 文件、`package.json` | 依赖对 UTF-8/UTF-16/GB18030/Big5/Shift-JIS/Windows-1252 fixtures 的识别与解码验证 | — | 最终依赖与置信度策略 |
-| PRE-002 | 未开始 | — | Markdown AST 与双语输出验证 | 计划新增 Markdown fixtures/spike、`package.json` | GFM、frontmatter、source position、列表/引用/表格双语渲染验证 | — | 最终 AST 依赖组合 |
-| PRE-003 | 未开始 | — | 模型响应协议与 Fake Server 验证 | 计划新增 fake server、协议 spike/test | 至少两类 OpenAI Compatible 返回形态；非法 memory patch 降级 | — | JSON schema 或边界标记协议 |
-| PRE-004 | 未开始 | — | 小说级资源与工作区策略验证 | 计划新增 benchmark/spike | 1/10/50 MB TXT、代表性 Markdown 内存；NDJSON/原子写；磁盘空间检查可行性 | — | 首版硬限制与清理默认值 |
+| PRE-001 | 已完成 | 2026-06-23 | 编码探测与解码依赖验证 | `package.json`、`pnpm-lock.yaml`、`test/text-translation/encoding/*`、Final Design | `pnpm exec vitest run test/text-translation/encoding/encodingProbe.test.ts`（16 tests passed）；`pnpm exec tsc --noEmit`；`git diff --check`；Electron Node/ICU capability probe | `docs/v0.2.10/text-translator/long_text_translator_implementation_records/2026-06-23_PRE-001_encoding-detection-dependency-validation.md` | 无；正式模块由 BE-002 落地 |
+| PRE-002 | 已完成 | 2026-06-23 | Markdown AST 与双语输出验证 | `package.json`、`pnpm-lock.yaml`、`test/text-translation/markdown/*`、Final Design | `pnpm exec vitest run test/text-translation/markdown/markdownAstProbe.test.ts`（7 tests passed）；`pnpm exec vitest run test/text-translation`；`pnpm exec tsc --noEmit`；`pnpm build`；`git diff --check` | `docs/v0.2.10/text-translator/long_text_translator_implementation_records/2026-06-23_PRE-002_markdown-ast-bilingual-validation.md` | 无；正式模块由 MD-001/002/003 落地 |
+| PRE-003 | 已完成 | 2026-06-23 | 模型响应协议与 Fake Server 验证 | `test/text-translation/protocol/*`、Final Design | `pnpm exec vitest run test/text-translation/protocol/modelResponseProtocolProbe.test.ts`（11 tests passed）；`pnpm exec vitest run test/text-translation`（34 tests passed）；`pnpm exec tsc --noEmit`；`pnpm build`；`git diff --check` | `docs/v0.2.10/text-translator/long_text_translator_implementation_records/2026-06-23_PRE-003_model-response-protocol-validation.md` | 无；正式客户端与记忆合并由 BE-004、MEM-002 落地 |
+| PRE-004 | 已完成 | 2026-06-23 | 小说级资源与工作区策略验证 | `test/text-translation/resource/*`、Final Design | `node --expose-gc test/text-translation/resource/resourceBenchmark.mjs`；`pnpm exec vitest run test/text-translation/resource/workspaceStrategyProbe.test.ts`（6 tests passed）；`pnpm exec vitest run test/text-translation/resource/workspaceStrategyProbe.test.ts test/text-translation/encoding/encodingProbe.test.ts test/text-translation/markdown/markdownAstProbe.test.ts`（29 tests passed）；`pnpm exec tsc --noEmit`；`pnpm build`；`git diff --check` | `docs/v0.2.10/text-translator/long_text_translator_implementation_records/2026-06-23_PRE-004_resource-workspace-strategy-validation.md` | 无；M0 技术方案冻结已达成 |
 | CORE-001 | 未开始 | — | 共享领域类型、默认值与校验 | `src/type/textTranslation.ts`、主进程 types、测试 | 类型/默认值/配置预算校验单测；`tsc` | — | 无 |
 | CORE-002 | 未开始 | — | Namespaced IPC DTO 与事件序列契约 | `electron/main/text-translation/ipc.ts`、preload/renderer service、测试 | IPC 参数校验、`taskId`、sequence 去重测试 | — | 无 |
 | BE-001 | 未开始 | — | 工作区 Repository 与事件日志 | `electron/main/text-translation/persistence/*`、测试 | 原子写、NDJSON、路径约束、重放恢复测试 | — | 无 |
@@ -1071,16 +1071,16 @@ docs/v0.2.10/text-translator/fix/
 
 ## 12. 当前推荐下一步
 
-下一次实现会话认领：
+下一次实现会话优先认领：
 
 ```text
-PRE-001：编码探测与解码依赖验证
+CORE-001：共享领域类型、默认值与校验
 ```
 
 原因：
 
-1. 自动编码识别是所有 TXT/Markdown 输入的前置条件。
-2. 依赖选择可能影响包体积、Electron 兼容性和 fixture 方案。
-3. 该工作包不依赖其它未实现模块，风险独立且容易形成清晰决策记录。
+1. PRE-001 至 PRE-004 已完成，M0 技术方案冻结已达成。
+2. 编码、Markdown、模型协议、资源边界和工作区策略已有可复验记录。
+3. 下一步应把这些约束收敛为 Renderer/主进程共享的领域类型、默认值和校验函数。
 
-PRE-001 完成后，可并行推进 `PRE-002` 和 `PRE-003`。在 `PRE-001` 至 `PRE-004` 全部完成前，不建议开始大规模正式模块实现。
+CORE-001 完成后进入 `CORE-002：Namespaced IPC DTO 与事件序列契约`，再开始工作区 Repository 和输入解析的正式实现。

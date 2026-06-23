@@ -424,8 +424,9 @@ Renderer 不负责：
    - UTF-8 BOM
    - UTF-16 LE
    - UTF-16 BE
-2. 对无 BOM 内容执行严格 UTF-8 解码。
-3. UTF-8 失败时调用编码探测器生成候选：
+2. 对无 BOM、偶数字节长度且具有明显奇偶位 NUL 分布的内容，执行 UTF-16 LE/BE 启发式识别；没有足够结构证据时不猜测。
+3. 对其余无 BOM 内容执行严格 UTF-8 解码，并要求解码质量检查通过。
+4. UTF-8 失败时调用编码探测器生成候选：
    - GB18030 / GBK
    - Big5
    - Shift-JIS
@@ -433,11 +434,16 @@ Renderer 不负责：
    - EUC-KR
    - Windows-1252
    - UTF-16 变体
-4. 对候选编码分别抽样解码。
-5. 使用质量评分选出最佳候选。
-6. 对最终编码进行完整解码并验证。
+5. 对候选编码分别抽样解码。
+6. 使用质量评分选出最佳候选。
+7. 对最终编码进行完整解码并验证。
 
-建议引入稳定的编码探测和解码依赖，而不是自行实现编码表。具体依赖版本在执行计划阶段确定。
+PRE-001 已验证并固定首版依赖：
+
+- `chardet@2.2.0`：统计探测与候选置信度。纯 TypeScript、无原生绑定，覆盖首版目标编码。
+- `iconv-lite@0.7.2`：候选和最终文本解码。纯 JavaScript，统一 Windows/macOS/Linux 行为。
+
+不使用 Electron/Node `TextDecoder` 作为通用最终解码器。Electron 33 的 Node 20.18.3 运行时虽然接受目标编码标签，但实测 `windows-1252` 的 `0x80`、`0x91` 至 `0x97` 被保留为 C1 控制字符，而不是映射为欧元符号、智能引号和破折号；`iconv-lite` 能正确执行这些映射。`TextDecoder({ fatal: true })` 仍可在实现中作为严格 UTF-8 快路径验证器。
 
 ### 7.3 解码质量评分
 
@@ -449,6 +455,14 @@ Renderer 不负责：
 4. 目标语言文字范围与探测结果是否明显矛盾。
 5. Markdown 结构是否出现异常大量破碎符号。
 6. 不同候选之间的分数差。
+
+PRE-001 fixture 验证采用以下初始接受门槛，BE-002 实现时应以常量和测试固化：
+
+1. 解码质量分不低于 `0.82`。
+2. 统计探测置信度不低于 `0.55`。
+3. 最佳与次佳候选置信度差至少 `0.15`；最佳置信度达到 `0.90` 时可免除差值要求。
+4. BOM 和通过质量检查的严格 UTF-8 结果视为确定性结果。
+5. 不符合门槛时进入低置信度处理，不自动选择“最像”的编码。
 
 ### 7.4 低置信度处理
 
@@ -542,6 +556,20 @@ interface TranslationUnit {
 - table cell 文本。
 - link label 和 image alt 文本，可作为高级选项；首版默认翻译 label/alt、保护目标地址。
 
+PRE-002 已验证并固定首版解析依赖：
+
+- `unified@11.0.5`
+- `remark-parse@11.0.0`
+- `remark-gfm@4.0.1`
+- `remark-frontmatter@5.0.0`
+- `@types/mdast@4.0.4`（开发依赖）
+
+该组合与应用现有 `react-markdown@10 + remark-gfm@4` 渲染管线属于同一 Unified/mdast 生态，能够为 GFM 表格、任务列表、删除线、YAML/TOML frontmatter 和 CommonMark 节点提供稳定的 `position.start.offset` / `position.end.offset`。
+
+位置 offset 是 JavaScript 字符串的 UTF-16 code unit 索引。解析、替换和组装必须始终基于同一个已规范化字符串，并使用 `slice()` 从后向前应用变更；这样即使文本包含 emoji 等代理对字符，也不会发生偏移漂移。
+
+图片 alt 是一个已确认的特殊情况：mdast `image` / `imageReference` 节点暴露 `alt` 值和整个图片源码位置，但不会为 alt 创建独立子节点。MD-001 需要在该节点的受控源码范围内，用支持转义符和嵌套方括号的小型扫描器定位 alt span；不得替换整个 image 节点，也不得修改图片地址。
+
 ### 8.4 Markdown 格式保真
 
 实现不得把 AST 重新完整序列化为 Markdown。推荐：
@@ -553,6 +581,15 @@ interface TranslationUnit {
 5. 未参与翻译的字符保持逐字节等价的文本形式，换行规范化除外。
 
 这能减少列表缩进、空行、强调符号、链接格式和用户自定义排版被重写的风险。
+
+PRE-002 已验证以下插入契约能被 `ReactMarkdown + remark-gfm + remark-frontmatter` 正确解析：
+
+1. 标题、普通段落：原块后插入一个同级 blockquote。
+2. 列表：把整个列表视为一个翻译块，原列表后插入“包含译文列表的 blockquote”；不在每个原 list item 内分别插入，避免缩进归属和序号错乱。
+3. 原 blockquote：译文使用比原文多一层的引用深度，使其成为单独的嵌套译文引用块。
+4. 表格：保留完整原表格，在其后插入“包含同列数译文表格的 blockquote”，并保持原对齐方式。
+5. code、HTML、frontmatter、thematic break 等保护块不插入空译文块。
+6. 无法安全生成完整翻译结构时保留原块并记录 warning，不能退化为破坏原 Markdown 的局部拼接。
 
 ### 8.5 分片规划
 
@@ -638,7 +675,26 @@ interface SequentialTranslationResponse {
 }
 ```
 
-如果模型不稳定地支持结构化输出，可采用有明确边界标记的文本协议并严格解析；解析失败时允许使用“译文成功、记忆未更新”的降级路径，但必须记录警告。
+该接口是领域层结果，不代表线上必须使用单个 JSON 对象。PRE-003 已验证并固定首版线协议：
+
+1. 普通并发翻译返回纯译文文本。
+2. 串行翻译使用每次请求动态生成的边界标记：
+
+```text
+<<<FUSIONKIT_TRANSLATION:segment-42>>>
+译文正文
+<<<FUSIONKIT_MEMORY_PATCH:segment-42>>>
+{"currentSceneSummary":"..."}
+<<<FUSIONKIT_END:segment-42>>>
+```
+
+3. 边界 ID 只允许字母、数字、`_`、`-`，并与当前 segment/request 绑定。
+4. 三个边界必须各出现一次、顺序正确，边界前后不得有额外内容。
+5. `memoryPatch` 区域使用严格 JSON 和固定 schema；译文区域不要求 JSON 转义。
+6. 如果边界、译文、finish reason 或占位符无效，整个响应失败并重试。
+7. 如果仅 `memoryPatch` 无效，但译文已通过其他完整性检查，则允许“译文成功、记忆未更新”，记录警告且禁止推进稳定记忆版本。
+
+PRE-003 实测部分 OpenAI Compatible 服务会拒绝 `response_format`，而动态边界文本仍能通过普通 chat completions 返回。首版因此不依赖 JSON Schema、tool calling 或厂商私有结构化输出字段；未来可把结构化输出作为经过 capability probe 后的可选优化，但不能改变上述降级语义。
 
 ### 9.3 串行恢复规则
 
@@ -698,6 +754,16 @@ interface SemanticMemory {
 1. 继续使用用户术语。
 2. 记录冲突警告。
 3. 不把冲突写入有效记忆。
+
+`SemanticMemoryPatch` 不采用开放式 RFC 6902 JSON Patch，也不允许模型直接修改 `schemaVersion`、`version` 或术语 `origin`。首版只接受以下受限操作：
+
+- 替换文档、章节和当前场景摘要。
+- `characterUpserts`。
+- `terminologyUpserts`，合并时统一视为模型来源。
+- 追加 style rules、未决上下文和近期连贯性备注。
+- 按内容标识已解决的未决上下文。
+
+每个字符串长度和数组项目数必须有上限。Patch 的 schema 验证与实际合并分离：解析成功不代表允许覆盖用户术语，最终冲突规则由 memory manager 执行。
 
 ### 10.2 三级上下文
 
@@ -855,11 +921,15 @@ Prompt 必须强调：
 检查：
 
 1. 返回非空。
-2. 未残留 think 标签。
+2. 清理响应开头的 `<think>...</think>`；OpenAI Compatible 的独立 `reasoning_content` 不得混入译文。
 3. `finish_reason` 不是长度截断；如被截断则按可重试错误处理。
 4. 占位符完整。
-5. 结构化记忆 patch 可解析。
-6. 翻译长度没有明显异常。异常比例只触发警告或重试，不能作为唯一失败依据。
+5. 串行响应的动态边界唯一且顺序正确。
+6. 结构化记忆 patch 可解析；仅 patch 失败时不得更新记忆，但可保留已验证译文。
+7. `usage` 允许缺失，缺失时保留空值并继续执行，不伪造 token 数。
+8. 翻译长度没有明显异常。异常比例只触发警告或重试，不能作为唯一失败依据。
+
+占位符加强约束重试必须明确列出当前片期望的完整占位符序列，要求逐字复制、各出现一次并保持顺序，同时再次禁止解释文字和代码围栏。
 
 ### 11.5 重试分类
 
@@ -972,6 +1042,14 @@ interface TranslationRequestScheduler {
 - 大文本分片和译文使用独立文件。
 - 小型状态使用原子写 JSON。
 - 事件使用 append-only NDJSON。
+
+PRE-004 对 10,000 segment 的工作区模型验证显示：
+
+- `segments/index.ndjson` 约 0.88 MB。
+- 单片完成只需要写独立 result 文件和一行 event，样例约 `12,000 + 217` bytes。
+- 对照的单体 JSON manifest 即使不内嵌全部源文，也约 1.15 MB，且每片完成都会重写。
+
+因此正式实现中，segment 完成路径不得更新包含全部 segment 的大型 manifest。`task.json` 只更新小型计数和状态，必要时可做低频状态快照。
 
 ### 13.4 `task.json`
 
@@ -1432,14 +1510,38 @@ electron/main/text-translation/
 - 多文件项目总文本可明显大于单文件。
 - 不把完整译文和所有 segment 同时常驻内存。
 
-具体首版硬限制应在实现性能测试后确定。建议初始保护：
+PRE-004 实测环境为 macOS arm64、Node v20.19.5、`--expose-gc`。合成 TXT 样本结果：
+
+| 单文件大小 | 读取 | UTF-8 解码 | 64KB 抽样 token 估算 | 分片规划 | segment 数 | 观测 RSS |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| 1 MB | 0.25 ms | 2.27 ms | 7.26 ms | 0.28 ms | 63 | 114.59 MB |
+| 10 MB | 1.43 ms | 19.57 ms | 6.10 ms | 1.42 ms | 622 | 135.59 MB |
+| 50 MB | 12.32 ms | 93.13 ms | 5.83 ms | 5.43 ms | 3,110 | 247.39 MB |
+
+合成 Markdown 样本结果：
+
+| 单文件大小 | 读取 | UTF-8 解码 | Unified/remark AST parse | AST 节点 | 观测 RSS |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| 5 MB | 0.56 ms | 7.62 ms | 67,907 ms | 404,150 | 1,463.88 MB |
+
+结论：
+
+1. TXT 的全量读取和解码在 50 MB 级别可接受，但仍应避免同时保留多份全文副本。
+2. 准备阶段不得对 10 MB 以上长文同步执行全文精确 BPE tokenization；实测中 10 MB/50 MB 精确计数会进入不可接受等待。首版使用抽样精确计数 + 字节/字符比例估算，正式执行时对单个 segment 再做更精确预算。
+3. Markdown AST 成本远高于 TXT。5 MB 代表性 Markdown 已接近 1.5 GB RSS 和 68 秒解析时间，首版必须对 `.md` 设置更低保护阈值。
+
+首版保护：
 
 ```text
-单文件默认软警告：50 MB
-项目总量默认软警告：200 MB
+TXT 单文件软警告：50 MB
+TXT 单文件硬限制：200 MB
+Markdown 单文件软警告：5 MB
+Markdown 单文件硬限制：10 MB
+项目总量软警告：200 MB
+项目总量硬限制：1 GB
 ```
 
-这是警告而非最终限制。若解析器或实现采用全量字符串，必须在执行计划中验证峰值内存后再确定硬限制。
+硬限制是首版保护，不代表架构目标上限。后续若实现流式 TXT 解析、Markdown 分块解析或 worker 隔离，可通过新的性能验收调高。
 
 ### 20.2 内存
 
@@ -1453,6 +1555,16 @@ electron/main/text-translation/
 
 后续可升级为流式 TXT 解析；Markdown AST 通常需要完整文档，因此首版需要为单个超大 Markdown 文件设置合理保护。
 
+准备阶段 token 估算策略：
+
+1. 对文件抽取固定大小样本，默认 64 KB。
+2. 使用现有 tokenizer 对样本做精确计数。
+3. 按字节数和字符数估算全文 token 区间。
+4. 对计划生成的 segment 做局部精确或更高精度估算。
+5. UI 明确展示为“估算”，执行后以模型返回 usage 修正。
+
+不得在主进程同步精确 token 化整本小说全文。
+
 ### 20.3 磁盘
 
 工作区可能同时保存：
@@ -1462,7 +1574,16 @@ electron/main/text-translation/
 - 记忆快照。
 - 最终输出。
 
-开始前估算工作区需求，至少按源文件总大小的 3 倍检查可用磁盘空间并给出警告。实际检查方式需兼容 Electron 支持的平台。
+开始前估算工作区需求。PRE-004 固定首版公式：
+
+```text
+minimumRequiredBytes = sourceBytes * 2 + 64 MB
+recommendedAvailableBytes = sourceBytes * 3.5 + 128 MB
+```
+
+如果可用空间低于 minimum，准备阶段硬阻断。低于 recommended 但高于 minimum 时允许继续，但必须显示磁盘空间警告。
+
+跨平台检查优先使用 Node `fs.promises.statfs(workspaceRoot)` 并通过 feature detection 包装。若当前平台或文件系统不可用，应退化为软警告，不得伪造可用空间。
 
 ### 20.4 日志
 
@@ -1491,8 +1612,8 @@ electron/main/text-translation/
    - 完成后自动清理策略。
    - 保留 N 天后清理策略。
 4. 默认建议：
-   - 成功任务保留恢复工作区 7 天。
-   - 失败/取消任务保留，直到用户删除或达到较长清理期限。
+   - 成功任务保留恢复工作区 7 天，到期后可自动清理。
+   - 失败/取消/部分完成任务默认不自动清理，30 天后在任务管理中标记为建议清理；高级设置可允许自动清理非成功任务。
 5. 删除应只作用于该 `taskId` 的受控工作区，防止路径穿越。
 6. 所有从 Renderer 传入的路径都在主进程规范化和验证。
 
@@ -1694,15 +1815,19 @@ test/text-translation/
 - 人工段落审校编辑器。
 - 云同步。
 
-### 26.2 执行计划前需要技术验证，但不影响本设计方向
+### 26.2 技术验证状态
 
-1. 选择具体编码探测与解码依赖。
-2. 选择支持 GFM、frontmatter 和源码位置的 Markdown AST 依赖组合。
-3. 验证模型结构化响应在现有 OpenAI Compatible 提供商上的兼容性，决定 JSON schema 或边界标记协议。
-4. 测量大型 Markdown 的内存上限并确定硬限制。
-5. 确定工作区磁盘剩余空间检查的跨平台实现。
-6. 决定成功任务工作区默认清理时间是否最终采用 7 天。
-7. 使用 fixtures 验证 Markdown 表格双语 blockquote 在目标渲染器中的兼容性。
+已完成：
+
+1. PRE-001：固定 `chardet + iconv-lite` 编码探测与解码组合。
+2. PRE-002：固定 Unified/mdast 解析组合、源码位置策略，以及列表/引用/表格双语 blockquote 契约。
+3. PRE-003：固定普通译文文本与串行动态边界协议、受限 `memoryPatch` schema、非法 patch 降级边界，以及可复用 Fake OpenAI Compatible Server。
+
+仍需完成：
+
+1. 测量大型 Markdown 的内存上限并确定硬限制。
+2. 确定工作区磁盘剩余空间检查的跨平台实现。
+3. 决定成功任务工作区默认清理时间是否最终采用 7 天。
 
 这些项目应在执行计划中作为 `PRE` 技术验证工作包完成，验证结果不得静默改变本文的核心用户契约；如必须改变，应先更新 Final Design。
 

@@ -1,0 +1,72 @@
+[
+  {
+    "id": "utf8",
+    "expectedEncoding": "utf-8",
+    "hasBom": false,
+    "text": "第一章 雨夜\n这是一个用于测试长文本自动编码识别的中文段落。人物林舟走进车站，看见远处的灯光。\n日本語の文章も含めて UTF-8 を正しく識別します。 Café déjà vu — “quoted text”.",
+    "base64": "56ys5LiA56ugIOmbqOWknArov5nmmK/kuIDkuKrnlKjkuo7mtYvor5Xplb/mlofmnKzoh6rliqjnvJbnoIHor4bliKvnmoTkuK3mlofmrrXokL3jgILkurrnianmnpfoiJ/otbDov5vovabnq5nvvIznnIvop4Hov5zlpITnmoTnga/lhYnjgIIK5pel5pys6Kqe44Gu5paH56ug44KC5ZCr44KB44GmIFVURi04IOOCkuato+OBl+OBj+itmOWIpeOBl+OBvuOBmeOAgiBDYWbDqSBkw6lqw6AgdnUg4oCUIOKAnHF1b3RlZCB0ZXh04oCdLg=="
+  },
+  {
+    "id": "utf8_bom",
+    "expectedEncoding": "utf-8",
+    "hasBom": true,
+    "text": "UTF-8 BOM 示例。This file begins with a byte order mark and remains valid Unicode text.",
+    "base64": "77u/VVRGLTggQk9NIOekuuS+i+OAglRoaXMgZmlsZSBiZWdpbnMgd2l0aCBhIGJ5dGUgb3JkZXIgbWFyayBhbmQgcmVtYWlucyB2YWxpZCBVbmljb2RlIHRleHQu"
+  },
+  {
+    "id": "utf16le_bom",
+    "expectedEncoding": "utf-16le",
+    "hasBom": true,
+    "text": "第一章 雨夜\r\n这是 UTF-16 小端编码测试。This paragraph contains English and 中文。\r\n第二段继续描述故事场景和人物关系。",
+    "base64": "//4sewBO4HogAOiWHFkNAAoA2Y8vZiAAVQBUAEYALQAxADYAIAAPXO96Fn8BeEtt1YsCMFQAaABpAHMAIABwAGEAcgBhAGcAcgBhAHAAaAAgAGMAbwBuAHQAYQBpAG4AcwAgAEUAbgBnAGwAaQBzAGgAIABhAG4AZAAgAC1Oh2UCMA0ACgAse4xOtWvnfu1+z2Pwj0Vli046V29mjFS6Tmlyc1H7fAIw"
+  },
+  {
+    "id": "utf16be_bom",
+    "expectedEncoding": "utf-16be",
+    "hasBom": true,
+    "text": "序章\nこれは UTF-16 ビッグエンディアンの文字コード検出テストです。\n複数の文章を含めることで判定精度を確認します。",
+    "base64": "/v9ej3rgAAowUzCMMG8AIABVAFQARgAtADEANgAgMNMwwzCwMKgw8zDHMKMwojDzMG5lh1tXMLMw/DDJaRxR+jDGMLkwyDBnMFkwAgAKiQdlcDBuZYd64DCSVCswgTCLMFMwaDBnUiRbmny+XqYwkni6io0wVzB+MFkwAg=="
+  },
+  {
+    "id": "gb18030",
+    "expectedEncoding": "gb18030",
+    "hasBom": false,
+    "text": "第一章 雨夜\n这是一个用于测试 GB18030 编码识别的中文长段落。人物走进车站，灯光映在潮湿的地面上。\n第二段包含更多常用汉字、标点符号和叙事内容，以提高自动检测的可靠性。",
+    "base64": "tdrSu9XCINPq0rkK1eLKx9K7uPbTw9PasuLK1CBHQjE4MDMwILHgwuvKtrHwtcTW0M7Es6S2zsLkoaPIy87v19+9+LO11b6jrLXGueLTs9Tas7HKqrXEtdjD5snPoaMKtdq2/rbOsPy6rLj8tuCzo9PDurrX1qGiseq147f7usW6zdDwysLE2sjdo6zS1MzhuN/X1LavvOyy4rXEv8m/v9DUoaM="
+  },
+  {
+    "id": "big5",
+    "expectedEncoding": "big5",
+    "hasBom": false,
+    "text": "第一章 雨夜\n這是一個用於測試 Big5 編碼識別的繁體中文長段落。人物走進車站，燈光映在潮濕的地面上。\n第二段包含更多常用漢字、標點符號與敘事內容，以提高自動偵測的可靠性。",
+    "base64": "ssSkQLO5IKtCqV0Ks2+sT6RArdOlzqnztPq41SBCaWc1IL1zvVjD0adPqrrBY8XppKSk5ar4rHG4qKFDpEiqq6irtmmorq+4oUG/T6X6rE2mYrzpwOOquqZhrbGkV6FDCrLEpEescaVdp3Sn86ZosWClzrp+pnKhQrzQwkmyxbi5u1Cx1KjGpLquZaFBpUi0o7CqptuwyrC7tPqquqVpvmGpyqFD"
+  },
+  {
+    "id": "shift_jis",
+    "expectedEncoding": "shift_jis",
+    "hasBom": false,
+    "text": "第一章 雨の夜\nこれは Shift_JIS の文字コードを判定するための日本語の長い文章です。主人公は静かな駅に入り、遠くの明かりを見つめました。\n二つ目の段落には、より多くの漢字、ひらがな、カタカナ、句読点を含めています。",
+    "base64": "keaI6o/NIIlKgsyW6QqCsYLqgs0gU2hpZnRfSklTIILMlbaOmoNSgVuDaILwlLuS6IK3gumCvYLfgsyT+pZ7jOqCzJK3gqKVto/NgsWCt4FCjuWQbIz2gs2Qw4KpgsiJd4LJk/yC6IFBiZOCrYLMlr6CqYLogvCMqYLCgt+C3IK1gr2BQgqT8YLCltqCzJJpl46CyYLNgUGC5oLokb2CrYLMir+OmoFBgtCC54KqgsiBQYNKg16DSoNpgUGL5ZPHk1+C8Ircgt+CxIKigtyCt4FC"
+  },
+  {
+    "id": "euc_jp",
+    "expectedEncoding": "euc-jp",
+    "hasBom": false,
+    "text": "第一章 雨の夜\nこれは EUC-JP の文字コードを判定するための日本語の長い文章です。主人公は静かな駅に入り、遠くの明かりを見つめました。\n二つ目の段落には、より多くの漢字、ひらがな、カタカナ、句読点を含めています。",
+    "base64": "wuiw7L7PILGrpM7M6wqks6TspM8gRVVDLUpQIKTOyri7+qWzobylyaTyyL3E6qS5pOukv6ThpM7G/MvcuOykzsS5pKTKuL7PpMekuaGjvOe/zbj4pM/AxaSrpMqx2KTLxv6k6qGisfOkr6TOzMCkq6TqpPK4q6TEpOGk3qS3pL+howrG86TEzNykzsPKze6ky6TPoaKk6KTqwr+kr6TOtMG7+qGipNKk6aSspMqhoqWrpb+lq6XKoaK258bJxcCk8rTepOGkxqSkpN6kuaGj"
+  },
+  {
+    "id": "euc_kr",
+    "expectedEncoding": "euc-kr",
+    "hasBom": false,
+    "text": "첫 번째 장 비 오는 밤\n이 문장은 EUC-KR 문자 인코딩 자동 감지를 시험하기 위한 충분히 긴 한국어 문장입니다. 주인공은 조용한 역으로 들어가 멀리 있는 불빛을 바라보았습니다.\n두 번째 문단에는 더 많은 한글과 문장 부호를 포함하여 감지 신뢰도를 확인합니다.",
+    "base64": "w7kgufjCsCDA5SC68SC/wLTCILnjCsDMILmuwOXAuiBFVUMtS1Igua7A2iDAzsTatfkgwNq1vyCwqMH2uKYgvcPH6MfPseIgwKfH0SDD5rrQyPcgseQgx9Gxub7uILmuwOXA1LTPtNkuIMHWwM6w+MC6IMG2v+vH0SC/qsC4t84gtem+7rChILjWuK4gwNa0wiC60rr7wLsgudm287q4vtK9wLTPtNkuCrXOILn4wrAgua603L+htMIgtPUguLnAuiDH0bHbsPogua7A5SC6zsijuKYgxvfH1MfPv6kgsKjB9iC9xbfatbW4piDIrsDOx9W0z7TZLg=="
+  },
+  {
+    "id": "windows_1252",
+    "expectedEncoding": "windows-1252",
+    "hasBom": false,
+    "text": "Chapter One — A rainy evening\nThe café owner said, “It’s déjà vu,” while serving crème brûlée and piñata-shaped biscuits. This deliberately long English paragraph contains smart quotes, an em dash, accents, and the euro sign € for Windows-1252 detection.\nA second paragraph adds façade, naïve, résumé, coöperate, and more punctuation.",
+    "base64": "Q2hhcHRlciBPbmUglyBBIHJhaW55IGV2ZW5pbmcKVGhlIGNhZukgb3duZXIgc2FpZCwgk0l0knMgZOlq4CB2dSyUIHdoaWxlIHNlcnZpbmcgY3LobWUgYnL7bOllIGFuZCBwafFhdGEtc2hhcGVkIGJpc2N1aXRzLiBUaGlzIGRlbGliZXJhdGVseSBsb25nIEVuZ2xpc2ggcGFyYWdyYXBoIGNvbnRhaW5zIHNtYXJ0IHF1b3RlcywgYW4gZW0gZGFzaCwgYWNjZW50cywgYW5kIHRoZSBldXJvIHNpZ24ggCBmb3IgV2luZG93cy0xMjUyIGRldGVjdGlvbi4KQSBzZWNvbmQgcGFyYWdyYXBoIGFkZHMgZmHnYWRlLCBuYe92ZSwgculzdW3pLCBjb/ZwZXJhdGUsIGFuZCBtb3JlIHB1bmN0dWF0aW9uLg=="
+  }
+]
