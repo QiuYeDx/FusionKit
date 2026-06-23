@@ -129,7 +129,7 @@
 | PRE-002 | 已完成 | 2026-06-23 | Markdown AST 与双语输出验证 | `package.json`、`pnpm-lock.yaml`、`test/text-translation/markdown/*`、Final Design | `pnpm exec vitest run test/text-translation/markdown/markdownAstProbe.test.ts`（7 tests passed）；`pnpm exec vitest run test/text-translation`；`pnpm exec tsc --noEmit`；`pnpm build`；`git diff --check` | `docs/v0.2.10/text-translator/long_text_translator_implementation_records/2026-06-23_PRE-002_markdown-ast-bilingual-validation.md` | 无；正式模块由 MD-001/002/003 落地 |
 | PRE-003 | 已完成 | 2026-06-23 | 模型响应协议与 Fake Server 验证 | `test/text-translation/protocol/*`、Final Design | `pnpm exec vitest run test/text-translation/protocol/modelResponseProtocolProbe.test.ts`（11 tests passed）；`pnpm exec vitest run test/text-translation`（34 tests passed）；`pnpm exec tsc --noEmit`；`pnpm build`；`git diff --check` | `docs/v0.2.10/text-translator/long_text_translator_implementation_records/2026-06-23_PRE-003_model-response-protocol-validation.md` | 无；正式客户端与记忆合并由 BE-004、MEM-002 落地 |
 | PRE-004 | 已完成 | 2026-06-23 | 小说级资源与工作区策略验证 | `test/text-translation/resource/*`、Final Design | `node --expose-gc test/text-translation/resource/resourceBenchmark.mjs`；`pnpm exec vitest run test/text-translation/resource/workspaceStrategyProbe.test.ts`（6 tests passed）；`pnpm exec vitest run test/text-translation/resource/workspaceStrategyProbe.test.ts test/text-translation/encoding/encodingProbe.test.ts test/text-translation/markdown/markdownAstProbe.test.ts`（29 tests passed）；`pnpm exec tsc --noEmit`；`pnpm build`；`git diff --check` | `docs/v0.2.10/text-translator/long_text_translator_implementation_records/2026-06-23_PRE-004_resource-workspace-strategy-validation.md` | 无；M0 技术方案冻结已达成 |
-| CORE-001 | 未开始 | — | 共享领域类型、默认值与校验 | `src/type/textTranslation.ts`、主进程 types、测试 | 类型/默认值/配置预算校验单测；`tsc` | — | 无 |
+| CORE-001 | 已完成 | 2026-06-23 | 共享领域类型、默认值与校验 | `src/type/textTranslation.ts`、`src/type/textTranslation.test.ts` | `pnpm exec vitest run src/type/textTranslation.test.ts`（8 tests passed）；`pnpm exec vitest run src/type/textTranslation.test.ts test/text-translation/resource/workspaceStrategyProbe.test.ts test/text-translation/encoding/encodingProbe.test.ts test/text-translation/markdown/markdownAstProbe.test.ts`（37 tests passed）；`pnpm exec tsc --noEmit`；`pnpm build`；`git diff --check` | `docs/v0.2.10/text-translator/long_text_translator_implementation_records/2026-06-23_CORE-001_shared-domain-types-defaults-validation.md` | 无；正式 IPC 由 CORE-002 落地 |
 | CORE-002 | 未开始 | — | Namespaced IPC DTO 与事件序列契约 | `electron/main/text-translation/ipc.ts`、preload/renderer service、测试 | IPC 参数校验、`taskId`、sequence 去重测试 | — | 无 |
 | BE-001 | 未开始 | — | 工作区 Repository 与事件日志 | `electron/main/text-translation/persistence/*`、测试 | 原子写、NDJSON、路径约束、重放恢复测试 | — | 无 |
 | BE-002 | 未开始 | — | 文件检查、编码探测与解码 | `electron/main/text-translation/input/*`、fixtures/tests | 全编码 fixture、低置信度拒绝、fingerprint 测试 | — | 无 |
@@ -1074,13 +1074,13 @@ docs/v0.2.10/text-translator/fix/
 下一次实现会话优先认领：
 
 ```text
-CORE-001：共享领域类型、默认值与校验
+CORE-002：Namespaced IPC DTO 与事件序列契约
 ```
 
 原因：
 
-1. PRE-001 至 PRE-004 已完成，M0 技术方案冻结已达成。
-2. 编码、Markdown、模型协议、资源边界和工作区策略已有可复验记录。
-3. 下一步应把这些约束收敛为 Renderer/主进程共享的领域类型、默认值和校验函数。
+1. CORE-001 已完成，共享领域类型、默认值、资源边界和配置预算校验已有单测保护。
+2. 下一步需要把这些类型接入 IPC 边界，建立 `text-translation:*` namespaced channels。
+3. 先固定 IPC DTO 和事件 sequence，可以降低后续 Repository、Executor 与 Renderer store 的返工概率。
 
-CORE-001 完成后进入 `CORE-002：Namespaced IPC DTO 与事件序列契约`，再开始工作区 Repository 和输入解析的正式实现。
+CORE-002 完成后进入 `BE-001：工作区 Repository 与事件日志`，开始主进程持久化基础设施实现。
