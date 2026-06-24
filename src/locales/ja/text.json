@@ -1,0 +1,196 @@
+{
+  "translator": {
+    "title": "長文翻訳",
+    "description": "Renderer に本文を渡さず、長文翻訳タスクを準備します。",
+    "badges": {
+      "beta": "Beta",
+      "no_model": "モデルが必要",
+      "ready": "モデル準備済み"
+    },
+    "model": {
+      "title": "タスクモデル",
+      "ready": "タスク実行は {{name}} に割り当てられています。",
+      "missing_title": "タスク実行モデル未設定",
+      "missing_desc": "長文翻訳タスクを作成する前に、モデルプロファイルを選択してください。",
+      "configure": "設定"
+    },
+    "config": {
+      "title": "翻訳設定",
+      "desc": "単一TXT、並列モード、訳文のみ出力。",
+      "source_lang": "元言語",
+      "target_lang": "訳文言語",
+      "slice_tokens": "分割token",
+      "memory_tokens": "記憶token",
+      "concurrency": "並列数",
+      "execution_mode": "実行モード",
+      "project_mode": "プロジェクトモード",
+      "output_content": "出力内容",
+      "bilingual_label_mode": "対訳形式",
+      "reset_orders": "リセットするファイル番号",
+      "document_background": "文書背景",
+      "translation_instructions": "翻訳要件",
+      "style_instructions": "文体要件",
+      "glossary": "用語集",
+      "output_mode": "出力先",
+      "output_dir": "出力フォルダ",
+      "conflict_policy": "ファイル競合"
+    },
+    "output": {
+      "source": "元ファイルのフォルダ",
+      "custom": "カスタムフォルダ",
+      "not_selected": "フォルダ未選択",
+      "index": "番号を追加",
+      "overwrite": "上書き",
+      "target_only": "訳文のみ",
+      "bilingual": "対訳",
+      "bilingual_simple": "シンプル",
+      "bilingual_labels": "ラベル付き"
+    },
+    "actions": {
+      "select_file": "TXTを選択",
+      "remove_file": "削除",
+      "select_output": "出力フォルダを選択",
+      "prepare": "準備",
+      "preparing": "準備中",
+      "start": "開始",
+      "running": "実行中",
+      "cancel": "キャンセル",
+      "open_output": "出力を開く",
+      "open_workspace": "作業領域",
+      "recovery": "復元",
+      "clear": "クリア"
+    },
+    "file": {
+      "drop_title": "TXTファイルをここにドロップ",
+      "drop_desc": "Renderer はファイルパスのみをメインプロセスへ渡します。",
+      "selected_count": "{{count}} 個の TXT ファイルを選択済み",
+      "order_hint": "下のプロジェクト順序を確認してください。",
+      "size": "サイズ",
+      "encoding": "エンコーディング",
+      "confidence": "信頼度"
+    },
+    "queue": {
+      "title": "タスクキュー",
+      "desc": "テキスト翻訳タスクはまだありません。",
+      "ready_desc": "選択したTXTを準備してから翻訳を開始します。",
+      "empty_title": "ワークスペースは空です",
+      "empty_desc": "TXTタスク設定は次のパッケージで接続されます。",
+      "status_label": "状態",
+      "phase_label": "フェーズ",
+      "status_idle": "待機中",
+      "files_label": "ファイル",
+      "segments_label": "セグメント",
+      "batch_title": "独立タスクキュー",
+      "waiting_tasks": "{{count}} 件待機中",
+      "prepare_hint": "準備ではメインプロセスでファイルを読み、エンコーディング検出と分割計画を行います。"
+    },
+    "progress": {
+      "label": "進捗",
+      "segments": "{{completed}} / {{total}} セグメント",
+      "tokens": "入力 {{tokens}}",
+      "cost": "概算 {{cost}}"
+    },
+    "scope": {
+      "title": "現在のBeta範囲",
+      "single_txt": "単一または複数の TXT ファイル",
+      "parallel": "並列翻訳",
+      "target_only": "訳文のみ / 対訳出力",
+      "coming_next": "Markdown 出力は後続パッケージで追加されます。"
+    },
+    "execution": {
+      "parallel": "高速並列",
+      "sequential_context": "連続コンテキスト",
+      "parallel_desc": "速度とスループットを優先します。分割単位は互いに待たないため、構造が明確で文脈依存が低いテキストに向いています。",
+      "sequential_desc": "用語、人物関係、文体の連続性を優先します。各分割に意味記憶を含めるため、入力 token と費用は高くなります。"
+    },
+    "budget": {
+      "title": "コンテキスト予算",
+      "within": "現在の設定は既定のモデルコンテキスト枠に収まります。",
+      "exceeded": "現在の設定は既定のモデルコンテキスト枠を超えています。分割または記憶 token を下げてください。",
+      "model_context": "モデル文脈",
+      "required": "推定必要量",
+      "output_reserve": "出力予約"
+    },
+    "project": {
+      "independent": "独立ファイル",
+      "ordered": "順序付きプロジェクト",
+      "file_order": "ファイル順序",
+      "move_up": "上へ",
+      "move_down": "下へ",
+      "reset_placeholder": "例: 1, 3",
+      "glossary_placeholder": "1 行に 1 件: 原文 => 訳語 # メモ",
+      "serial_cost_title": "逐次コストの注意",
+      "serial_cost_desc": "連続コンテキストでは各セグメントに最大 {{tokens}} の記憶 token が追加されるため、入力コストは通常並列モードより高くなります。"
+    },
+    "languages": {
+      "AUTO": "自動"
+    },
+    "status": {
+      "not_started": "未開始",
+      "preparing": "準備中",
+      "waiting": "開始可能",
+      "running": "実行中",
+      "paused": "一時停止",
+      "completed": "完了",
+      "partially_completed": "一部完了",
+      "failed": "失敗",
+      "cancelled": "キャンセル済み"
+    },
+    "phase": {
+      "idle": "待機中",
+      "inspecting_files": "ファイル確認",
+      "detecting_encoding": "エンコーディング検出",
+      "parsing": "解析",
+      "planning_segments": "分割計画",
+      "estimating": "見積もり",
+      "translating": "翻訳中",
+      "assembling_outputs": "出力生成",
+      "completed": "完了"
+    },
+    "errors": {
+      "title": "タスクエラー",
+      "phase": "フェーズ: {{phase}}",
+      "file_path_unavailable": "選択したファイルパスを取得できません。",
+      "only_txt": "現在のBetaでは .txt ファイルのみ対応しています。",
+      "output_dir_required": "出力フォルダを選択するか、元ファイルのフォルダを使用してください。",
+      "budget_exceeded": "現在の token 予算はモデルコンテキスト枠を超えています。",
+      "output_not_ready": "出力はまだ準備できていません。"
+    },
+    "messages": {
+      "prepared": "タスクを準備しました。",
+      "prepared_batch": "{{count}} 件の独立タスクを準備しました。",
+      "completed": "翻訳が完了しました。",
+      "cancelled": "タスクをキャンセルしました。",
+      "output_path_selected": "出力フォルダを選択しました。"
+    },
+    "recovery": {
+      "title": "復元可能なタスク",
+      "loading": "ワークスペースをスキャン中…",
+      "empty_title": "復元可能なタスクはありません",
+      "empty_desc": "一時停止、キャンセル、失敗、一部完了のタスクがここに表示されます。",
+      "resumable": "続行可能",
+      "blocked": "ブロック中",
+      "segment_summary": "{{completed}} / {{total}} セグメント完了、失敗 {{failed}}",
+      "blocking_reason": "ブロック理由: {{reason}}",
+      "stale_from": "{{segmentId}} 以降の翻訳は再生成されます。",
+      "resume": "続行",
+      "restart": "最初から",
+      "workspace": "作業領域",
+      "delete": "削除",
+      "refresh": "更新",
+      "source": {
+        "matched": "元ファイル一致",
+        "changed": "元ファイル変更",
+        "missing": "元ファイルなし",
+        "unchecked": "元ファイル未確認"
+      }
+    },
+    "dialog": {
+      "select_output_title": "出力フォルダを選択",
+      "select_output_confirm": "このフォルダを使用"
+    },
+    "common": {
+      "empty_value": "—"
+    }
+  }
+}

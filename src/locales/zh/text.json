@@ -1,0 +1,196 @@
+{
+  "translator": {
+    "title": "长文本翻译",
+    "description": "准备长文本翻译任务，源文件正文不经过 Renderer 传输。",
+    "badges": {
+      "beta": "Beta",
+      "no_model": "需要任务模型",
+      "ready": "模型已就绪"
+    },
+    "model": {
+      "title": "任务模型",
+      "ready": "任务执行已分配到 {{name}}。",
+      "missing_title": "尚未配置任务执行模型",
+      "missing_desc": "创建长文本翻译任务前，请先选择一个模型配置。",
+      "configure": "去配置"
+    },
+    "config": {
+      "title": "翻译配置",
+      "desc": "单个 TXT、并发模式、仅译文输出。",
+      "source_lang": "源语言",
+      "target_lang": "目标语言",
+      "slice_tokens": "分片 token",
+      "memory_tokens": "记忆 token",
+      "concurrency": "并发数",
+      "execution_mode": "执行模式",
+      "project_mode": "项目模式",
+      "output_content": "输出内容",
+      "bilingual_label_mode": "对照格式",
+      "reset_orders": "重置文件序号",
+      "document_background": "文档背景",
+      "translation_instructions": "翻译要求",
+      "style_instructions": "文风要求",
+      "glossary": "术语表",
+      "output_mode": "输出路径",
+      "output_dir": "输出目录",
+      "conflict_policy": "文件冲突"
+    },
+    "output": {
+      "source": "源文件目录",
+      "custom": "自定义目录",
+      "not_selected": "尚未选择目录",
+      "index": "追加序号",
+      "overwrite": "覆盖",
+      "target_only": "仅译文",
+      "bilingual": "双语对照",
+      "bilingual_simple": "简洁模式",
+      "bilingual_labels": "标签模式"
+    },
+    "actions": {
+      "select_file": "选择 TXT",
+      "remove_file": "移除",
+      "select_output": "选择输出目录",
+      "prepare": "准备任务",
+      "preparing": "准备中",
+      "start": "开始翻译",
+      "running": "翻译中",
+      "cancel": "取消",
+      "open_output": "打开输出",
+      "open_workspace": "工作区",
+      "recovery": "恢复",
+      "clear": "清空"
+    },
+    "file": {
+      "drop_title": "将 TXT 文件拖到这里",
+      "drop_desc": "Renderer 只会把文件路径交给主进程。",
+      "selected_count": "已选择 {{count}} 个 TXT 文件",
+      "order_hint": "请确认下方项目顺序。",
+      "size": "大小",
+      "encoding": "编码",
+      "confidence": "置信度"
+    },
+    "queue": {
+      "title": "任务队列",
+      "desc": "还没有文本翻译任务。",
+      "ready_desc": "先准备选中的 TXT，再开始翻译。",
+      "empty_title": "工作区为空",
+      "empty_desc": "TXT 任务配置将在下一个工作包接入。",
+      "status_label": "状态",
+      "phase_label": "阶段",
+      "status_idle": "空闲",
+      "files_label": "文件",
+      "segments_label": "分片",
+      "batch_title": "独立任务队列",
+      "waiting_tasks": "{{count}} 个等待",
+      "prepare_hint": "准备任务会在主进程读取文件、探测编码并规划分片。"
+    },
+    "progress": {
+      "label": "进度",
+      "segments": "{{completed}} / {{total}} 分片",
+      "tokens": "输入 {{tokens}}",
+      "cost": "预估 {{cost}}"
+    },
+    "scope": {
+      "title": "当前 Beta 范围",
+      "single_txt": "单个或多个 TXT 文件",
+      "parallel": "并发翻译",
+      "target_only": "仅译文 / 双语输出",
+      "coming_next": "Markdown 输出会在后续工作包接入。"
+    },
+    "execution": {
+      "parallel": "快速并发",
+      "sequential_context": "连贯串行",
+      "parallel_desc": "优先速度与吞吐，分片互不等待，适合结构清晰或上下文依赖较低的文本。",
+      "sequential_desc": "优先术语、人物关系和文风连续性，逐片携带语义记忆，输入 token 与费用会更高。"
+    },
+    "budget": {
+      "title": "上下文预算",
+      "within": "当前配置可放入默认模型上下文窗口。",
+      "exceeded": "当前配置超过默认模型上下文窗口，请降低分片或记忆 token。",
+      "model_context": "模型上下文",
+      "required": "预计需求",
+      "output_reserve": "输出预留"
+    },
+    "project": {
+      "independent": "独立文件",
+      "ordered": "有序项目",
+      "file_order": "文件顺序",
+      "move_up": "上移",
+      "move_down": "下移",
+      "reset_placeholder": "如：1, 3",
+      "glossary_placeholder": "每行一个：原文 => 译文 # 备注",
+      "serial_cost_title": "串行费用提示",
+      "serial_cost_desc": "连贯串行会为每片额外携带最多 {{tokens}} 语义记忆 token，实际输入费用通常高于并发模式。"
+    },
+    "languages": {
+      "AUTO": "自动"
+    },
+    "status": {
+      "not_started": "未开始",
+      "preparing": "准备中",
+      "waiting": "可开始",
+      "running": "运行中",
+      "paused": "已暂停",
+      "completed": "已完成",
+      "partially_completed": "部分完成",
+      "failed": "失败",
+      "cancelled": "已取消"
+    },
+    "phase": {
+      "idle": "空闲",
+      "inspecting_files": "检查文件",
+      "detecting_encoding": "探测编码",
+      "parsing": "解析文本",
+      "planning_segments": "规划分片",
+      "estimating": "估算",
+      "translating": "翻译中",
+      "assembling_outputs": "组装输出",
+      "completed": "已完成"
+    },
+    "errors": {
+      "title": "任务错误",
+      "phase": "阶段：{{phase}}",
+      "file_path_unavailable": "无法读取所选文件路径。",
+      "only_txt": "当前 Beta 仅支持 .txt 文件。",
+      "output_dir_required": "请选择输出目录，或使用源文件目录。",
+      "budget_exceeded": "当前 token 预算超过模型上下文窗口。",
+      "output_not_ready": "输出文件尚未就绪。"
+    },
+    "messages": {
+      "prepared": "任务已准备。",
+      "prepared_batch": "已准备 {{count}} 个独立任务。",
+      "completed": "翻译已完成。",
+      "cancelled": "任务已取消。",
+      "output_path_selected": "已选择输出目录。"
+    },
+    "recovery": {
+      "title": "可恢复任务",
+      "loading": "正在扫描工作区…",
+      "empty_title": "没有可恢复任务",
+      "empty_desc": "暂停、取消、失败或部分完成的任务会显示在这里。",
+      "resumable": "可继续",
+      "blocked": "已阻塞",
+      "segment_summary": "已完成 {{completed}} / {{total}} 分片，失败 {{failed}} 个",
+      "blocking_reason": "阻塞原因：{{reason}}",
+      "stale_from": "从 {{segmentId}} 起的后续译文将重新翻译。",
+      "resume": "继续",
+      "restart": "从头开始",
+      "workspace": "工作区",
+      "delete": "删除",
+      "refresh": "刷新",
+      "source": {
+        "matched": "源文件匹配",
+        "changed": "源文件已变化",
+        "missing": "源文件缺失",
+        "unchecked": "源文件未检查"
+      }
+    },
+    "dialog": {
+      "select_output_title": "选择输出目录",
+      "select_output_confirm": "使用此目录"
+    },
+    "common": {
+      "empty_value": "—"
+    }
+  }
+}

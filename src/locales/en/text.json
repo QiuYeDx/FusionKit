@@ -1,0 +1,196 @@
+{
+  "translator": {
+    "title": "Long Text Translator",
+    "description": "Prepare a long-form text translation task without sending source content through the renderer.",
+    "badges": {
+      "beta": "Beta",
+      "no_model": "Model required",
+      "ready": "Model ready"
+    },
+    "model": {
+      "title": "Task model",
+      "ready": "Task execution is assigned to {{name}}.",
+      "missing_title": "No task execution model",
+      "missing_desc": "Choose a model profile before creating long-text translation tasks.",
+      "configure": "Configure"
+    },
+    "config": {
+      "title": "Configuration",
+      "desc": "Single TXT, parallel mode, target-only output.",
+      "source_lang": "Source",
+      "target_lang": "Target",
+      "slice_tokens": "Slice tokens",
+      "memory_tokens": "Memory tokens",
+      "concurrency": "Concurrency",
+      "execution_mode": "Execution mode",
+      "project_mode": "Project mode",
+      "output_content": "Output content",
+      "bilingual_label_mode": "Bilingual format",
+      "reset_orders": "Reset file orders",
+      "document_background": "Document background",
+      "translation_instructions": "Translation instructions",
+      "style_instructions": "Style instructions",
+      "glossary": "Glossary",
+      "output_mode": "Output path",
+      "output_dir": "Output folder",
+      "conflict_policy": "File conflict"
+    },
+    "output": {
+      "source": "Source folder",
+      "custom": "Custom folder",
+      "not_selected": "No folder selected",
+      "index": "Append index",
+      "overwrite": "Overwrite",
+      "target_only": "Translation only",
+      "bilingual": "Bilingual",
+      "bilingual_simple": "Simple",
+      "bilingual_labels": "With labels"
+    },
+    "actions": {
+      "select_file": "Select TXT",
+      "remove_file": "Remove",
+      "select_output": "Select output folder",
+      "prepare": "Prepare",
+      "preparing": "Preparing",
+      "start": "Start",
+      "running": "Running",
+      "cancel": "Cancel",
+      "open_output": "Open output",
+      "open_workspace": "Workspace",
+      "recovery": "Recovery",
+      "clear": "Clear"
+    },
+    "file": {
+      "drop_title": "Drop a TXT file here",
+      "drop_desc": "Only the file path is sent to the main process.",
+      "selected_count": "{{count}} TXT files selected",
+      "order_hint": "Confirm the project order below.",
+      "size": "Size",
+      "encoding": "Encoding",
+      "confidence": "Confidence"
+    },
+    "queue": {
+      "title": "Task queue",
+      "desc": "No text translation tasks yet.",
+      "ready_desc": "Prepare the selected TXT before starting translation.",
+      "empty_title": "The workspace is empty",
+      "empty_desc": "TXT task setup lands in the next package.",
+      "status_label": "Status",
+      "phase_label": "Phase",
+      "status_idle": "Idle",
+      "files_label": "Files",
+      "segments_label": "Segments",
+      "batch_title": "Independent task queue",
+      "waiting_tasks": "{{count}} waiting",
+      "prepare_hint": "Preparation reads the file in the main process, detects encoding, and plans segments."
+    },
+    "progress": {
+      "label": "Progress",
+      "segments": "{{completed}} / {{total}} segments",
+      "tokens": "Input {{tokens}}",
+      "cost": "Est. {{cost}}"
+    },
+    "scope": {
+      "title": "Current beta scope",
+      "single_txt": "Single or multiple TXT files",
+      "parallel": "Parallel translation",
+      "target_only": "Translation-only / bilingual output",
+      "coming_next": "Markdown output arrives in a later package."
+    },
+    "execution": {
+      "parallel": "Fast parallel",
+      "sequential_context": "Continuity serial",
+      "parallel_desc": "Prioritizes speed and throughput. Segments do not wait for each other, which fits clear structures or lower context dependency.",
+      "sequential_desc": "Prioritizes terminology, character relationships, and style continuity. Each segment carries semantic memory, so input tokens and cost are higher."
+    },
+    "budget": {
+      "title": "Context budget",
+      "within": "The current configuration fits within the default model context window.",
+      "exceeded": "The current configuration exceeds the default model context window. Lower slice or memory tokens.",
+      "model_context": "Model context",
+      "required": "Required",
+      "output_reserve": "Output reserve"
+    },
+    "project": {
+      "independent": "Independent files",
+      "ordered": "Ordered project",
+      "file_order": "File order",
+      "move_up": "Move up",
+      "move_down": "Move down",
+      "reset_placeholder": "e.g. 1, 3",
+      "glossary_placeholder": "One per line: source => target # note",
+      "serial_cost_title": "Serial cost note",
+      "serial_cost_desc": "Continuity serial can add up to {{tokens}} semantic-memory input tokens per segment, so input cost is usually higher than parallel mode."
+    },
+    "languages": {
+      "AUTO": "Auto"
+    },
+    "status": {
+      "not_started": "Not started",
+      "preparing": "Preparing",
+      "waiting": "Ready",
+      "running": "Running",
+      "paused": "Paused",
+      "completed": "Completed",
+      "partially_completed": "Partially completed",
+      "failed": "Failed",
+      "cancelled": "Cancelled"
+    },
+    "phase": {
+      "idle": "Idle",
+      "inspecting_files": "Inspecting files",
+      "detecting_encoding": "Detecting encoding",
+      "parsing": "Parsing",
+      "planning_segments": "Planning segments",
+      "estimating": "Estimating",
+      "translating": "Translating",
+      "assembling_outputs": "Assembling output",
+      "completed": "Completed"
+    },
+    "errors": {
+      "title": "Task error",
+      "phase": "Phase: {{phase}}",
+      "file_path_unavailable": "Unable to read the selected file path.",
+      "only_txt": "Only .txt files are supported in this beta.",
+      "output_dir_required": "Select an output folder or use the source folder.",
+      "budget_exceeded": "The token budget exceeds the model context window.",
+      "output_not_ready": "Output is not ready yet."
+    },
+    "messages": {
+      "prepared": "Task prepared.",
+      "prepared_batch": "{{count}} independent tasks prepared.",
+      "completed": "Translation completed.",
+      "cancelled": "Task cancelled.",
+      "output_path_selected": "Output folder selected."
+    },
+    "recovery": {
+      "title": "Recoverable tasks",
+      "loading": "Scanning workspaces…",
+      "empty_title": "No recoverable tasks",
+      "empty_desc": "Paused, cancelled, failed, or partial tasks appear here.",
+      "resumable": "Resumable",
+      "blocked": "Blocked",
+      "segment_summary": "{{completed}} / {{total}} segments completed, {{failed}} failed",
+      "blocking_reason": "Blocked: {{reason}}",
+      "stale_from": "Translations from {{segmentId}} onward will be regenerated.",
+      "resume": "Continue",
+      "restart": "Restart",
+      "workspace": "Workspace",
+      "delete": "Delete",
+      "refresh": "Refresh",
+      "source": {
+        "matched": "Source matched",
+        "changed": "Source changed",
+        "missing": "Source missing",
+        "unchecked": "Source unchecked"
+      }
+    },
+    "dialog": {
+      "select_output_title": "Select output folder",
+      "select_output_confirm": "Use this folder"
+    },
+    "common": {
+      "empty_value": "—"
+    }
+  }
+}

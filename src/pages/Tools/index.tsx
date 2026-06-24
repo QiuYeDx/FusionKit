@@ -17,7 +17,7 @@ type CardItem = {
 };
 
 type Category = {
-  key: "subtitle" | "music" | "rename";
+  key: "subtitle" | "music" | "rename" | "text";
   titleKey: string;
   hintKey: string;
   items: CardItem[];
@@ -73,6 +73,22 @@ const CATEGORIES: Category[] = [
         chipKeys: [
           "tools:chips.name_translator_files",
           "tools:chips.name_translator_safe",
+        ],
+      },
+    ],
+  },
+  {
+    key: "text",
+    titleKey: "tools:subtitle.text_tools",
+    hintKey: "tools:sub_desc.text_tools",
+    items: [
+      {
+        id: "textTranslator",
+        titleKey: "tools:fields.text_translator",
+        descKey: "tools:field_desc.text_translator",
+        chipKeys: [
+          "tools:chips.text_translator_txt",
+          "tools:chips.text_translator_beta",
         ],
       },
     ],

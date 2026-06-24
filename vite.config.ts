@@ -16,11 +16,12 @@ export default defineConfig(({ command }) => {
   const appVersion = process.env.VITE_APP_VERSION ?? pkg.version
   const dependencyNames = Object.keys('dependencies' in pkg ? pkg.dependencies : {})
   const preloadExternal = dependencyNames.filter((dependencyName) => dependencyName !== 'motion')
+  const srcAlias = path.join(__dirname, 'src')
 
   return {
     resolve: {
       alias: {
-        '@': path.join(__dirname, 'src')
+        '@': srcAlias
       },
     },
     define: {
@@ -41,6 +42,11 @@ export default defineConfig(({ command }) => {
             }
           },
           vite: {
+            resolve: {
+              alias: {
+                '@': srcAlias,
+              },
+            },
             build: {
               sourcemap,
               minify: isBuild,
@@ -56,6 +62,11 @@ export default defineConfig(({ command }) => {
           // Preload scripts may contain Web assets, so use the `build.rollupOptions.input` instead `build.lib.entry`.
           input: 'electron/preload/index.ts',
           vite: {
+            resolve: {
+              alias: {
+                '@': srcAlias,
+              },
+            },
             build: {
               sourcemap: sourcemap ? 'inline' : undefined, // #332
               minify: isBuild,

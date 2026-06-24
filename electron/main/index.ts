@@ -11,6 +11,11 @@ import { setupExtractionIPC } from "./extraction/ipc";
 import { setupProxyIPC } from "./proxy";
 import { setupFsIPC } from "./fs/ipc";
 import { setupRenameIPC } from "./rename/ipc";
+import {
+  emitTextTranslationEvent,
+  setupTextTranslationIPC,
+} from "./text-translation/ipc";
+import { TextTranslationService } from "./text-translation/text-translation-service";
 
 const require = createRequire(import.meta.url);
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -49,6 +54,12 @@ if (!app.requestSingleInstanceLock()) {
 
 let win: BrowserWindow | null = null;
 let translationService: TranslationService = new TranslationService();
+let textTranslationService = new TextTranslationService({
+  eventSink: (event) => {
+    if (!win || win.webContents.isDestroyed()) return;
+    emitTextTranslationEvent(win.webContents, event);
+  },
+});
 const preload = path.join(__dirname, "../preload/index.mjs");
 const indexHtml = path.join(RENDERER_DIST, "index.html");
 
@@ -139,6 +150,7 @@ app.whenReady().then(() => {
   setupProxyIPC();
   setupFsIPC();
   setupRenameIPC();
+  setupTextTranslationIPC(textTranslationService);
 });
 
 app.on("window-all-closed", () => {

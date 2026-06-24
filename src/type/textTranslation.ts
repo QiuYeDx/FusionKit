@@ -6,6 +6,8 @@ export type TextTranslationExecutionMode = "parallel" | "sequential_context";
 
 export type TextTranslationOutputMode = "target_only" | "bilingual";
 
+export type TextTranslationBilingualLabelMode = "none" | "labels";
+
 export type TextTranslationProjectMode =
   | "independent_files"
   | "ordered_project";
@@ -51,6 +53,12 @@ export type TextTranslationErrorCode =
   | "model_context_token_limit_out_of_range"
   | "model_context_budget_exceeded"
   | "missing_task_model"
+  | "file_not_found"
+  | "path_is_not_file"
+  | "file_read_failed"
+  | "empty_file"
+  | "encoding_detection_failed"
+  | "manual_encoding_quality_failed"
   | "file_size_soft_warning"
   | "file_size_hard_limit"
   | "project_size_soft_warning"
@@ -79,6 +87,8 @@ export interface TextTranslationFileRef {
   sizeBytes: number;
   modifiedAt: number;
   order: number;
+  detectedEncoding?: string;
+  encodingConfidence?: number;
 }
 
 export interface TextTranslationGlossaryEntry {
@@ -92,6 +102,7 @@ export interface TextTranslationOptions {
   targetLang: TranslationLanguage;
   executionMode: TextTranslationExecutionMode;
   outputMode: TextTranslationOutputMode;
+  bilingualLabelMode?: TextTranslationBilingualLabelMode;
   projectMode: TextTranslationProjectMode;
 
   sliceTokenLimit: number;
@@ -104,6 +115,8 @@ export interface TextTranslationOptions {
   translationInstructions?: string;
   styleInstructions?: string;
   glossary?: TextTranslationGlossaryEntry[];
+  memoryResetFileIds?: string[];
+  memoryResetFileOrders?: number[];
 
   outputDir?: string;
   outputPathMode: TextTranslationOutputPathMode;
@@ -197,6 +210,7 @@ export interface TextTranslationRecoverySummary {
   failedSegmentIds: string[];
   staleFromSegmentId?: string;
   blockingReason?: string;
+  sourceStatus?: "matched" | "changed" | "missing" | "unchecked";
 }
 
 export interface TextTranslationConfigValidationInput {
@@ -241,6 +255,7 @@ export const DEFAULT_TEXT_TRANSLATION_OPTIONS: TextTranslationOptions = {
   targetLang: "ZH",
   executionMode: "parallel",
   outputMode: "target_only",
+  bilingualLabelMode: "none",
   projectMode: "independent_files",
   sliceTokenLimit: DEFAULT_TEXT_TRANSLATION_SLICE_TOKEN_LIMIT,
   semanticMemoryTokenLimit: 8_192,
