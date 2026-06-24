@@ -1,11 +1,23 @@
-import { access, mkdir, mkdtemp, readFile, rm, writeFile } from "fs/promises";
+import {
+  access,
+  mkdir,
+  mkdtemp,
+  readFile,
+  rm,
+  unlink,
+  writeFile,
+} from "fs/promises";
 import os from "os";
 import path from "path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createTextTranslationOptions } from "@/type/textTranslation";
 import { TextTranslationService } from "../../../electron/main/text-translation/text-translation-service";
 import { TextTranslationWorkspaceRepository } from "../../../electron/main/text-translation/persistence/workspace-repository";
-import { formatSequentialTranslationResponse } from "../../../electron/main/text-translation/model/translation-response-protocol";
+import {
+  formatMarkdownBilingualTranslationResponse,
+  formatMarkdownTargetOnlyTranslationResponse,
+  formatSequentialTranslationResponse,
+} from "../../../electron/main/text-translation/model/translation-response-protocol";
 import {
   createChatCompletionBody,
   startFakeOpenAICompatibleServer,
@@ -22,7 +34,7 @@ describe("TextTranslationService BE-007 vertical slice", () => {
   });
 
   afterEach(async () => {
-    await server.close();
+    await server?.close();
     await rm(tempRoot, { recursive: true, force: true });
   });
 
@@ -674,4 +686,398 @@ describe("TextTranslationService BE-007 vertical slice", () => {
     if (!completed.ok) return;
     expect(completed.data.status).toBe("completed");
   });
+
+  it("translates a Markdown file in parallel target-only mode from frozen unit payloads", async () => {
+    const sourcePath = path.join(tempRoot, "chapter.md");
+    const outputDir = path.join(tempRoot, "out-markdown-target");
+    const markdown = [
+      "---",
+      "title: Original Title",
+      "---",
+      "",
+      "# Chapter One",
+      "",
+      "A paragraph with **strong text**, `inline code`, and [a link](https://example.com/path?q=1).",
+      "",
+      "```ts",
+      'const untouched = "code";',
+      "```",
+    ].join("\n");
+    await writeFile(sourcePath, markdown, "utf-8");
+
+    const repository = new TextTranslationWorkspaceRepository({
+      tasksRoot: path.join(tempRoot, "tasks-markdown-target"),
+    });
+    const service = new TextTranslationService({ repository });
+    const created = await service.createTask({
+      files: [{ sourcePath, order: 0 }],
+      options: createTextTranslationOptions({
+        outputDir,
+        outputPathMode: "custom",
+      }),
+      model: {
+        apiKey: "sk-e2e-secret",
+        modelKey: "fake-model",
+        endpoint: server.baseUrl,
+      },
+    });
+    expect(created.ok).toBe(true);
+    if (!created.ok) return;
+
+    const prepared = await service.prepareTask({ taskId: created.data.taskId });
+    expect(prepared.ok).toBe(true);
+    if (!prepared.ok) return;
+
+    const segments = await repository.readSegmentsIndex<{
+      segmentId: string;
+      fileId: string;
+      sourceTextSnapshotPath: string;
+    }>(created.data.taskId);
+    expect(segments).toHaveLength(1);
+    expect(segments[0].sourceTextSnapshotPath.endsWith(".json")).toBe(true);
+    expect(
+      await repository.readFileSourceSnapshot(
+        created.data.taskId,
+        segments[0].fileId,
+      ),
+    ).toBe(markdown);
+    const payload =
+      await repository.readSegmentSourcePayload<TestMarkdownTargetPayload>(
+        created.data.taskId,
+        segments[0].segmentId,
+      );
+    expect(payload.kind).toBe("markdown_target_only");
+
+    server.enqueue((request) => {
+      const body = JSON.stringify(request.body);
+      expect(body).not.toContain("Original Title");
+      expect(body).not.toContain("inline code");
+      expect(body).not.toContain("https://example.com/path?q=1");
+      expect(body).not.toContain("const untouched");
+      return {
+        body: createChatCompletionBody({
+          content: formatMarkdownTargetOnlyTranslationResponse(
+            payload.segmentId,
+            payload.units.map((unit) => ({
+              unitId: unit.unitId,
+              translatedText: translateMarkdownUnit(unit.sourceText),
+            })),
+          ),
+        }),
+      };
+    });
+
+    const completed = await service.startTask({ taskId: created.data.taskId });
+    expect(completed.ok).toBe(true);
+    if (!completed.ok) return;
+    expect(completed.data.status).toBe("completed");
+
+    const output = await readFile(
+      path.join(outputDir, "chapter.zh.md"),
+      "utf-8",
+    );
+    expect(output).toContain("title: Original Title");
+    expect(output).toContain("# 第一章");
+    expect(output).toContain(
+      "一个段落包含 **加粗文本**、`inline code`，以及 [一个链接](https://example.com/path?q=1)。",
+    );
+    expect(output).toContain('const untouched = "code";');
+
+    const persistedResult =
+      await repository.readSegmentResultPayload<TestMarkdownTargetResult>(
+        created.data.taskId,
+        segments[0].segmentId,
+      );
+    expect(persistedResult).toMatchObject({
+      schemaVersion: 1,
+      kind: "markdown_target_only",
+      segmentId: segments[0].segmentId,
+    });
+  });
+
+  it("translates Markdown bilingual blocks and restores protected placeholders", async () => {
+    const sourcePath = path.join(tempRoot, "bilingual.md");
+    const outputDir = path.join(tempRoot, "out-markdown-bilingual");
+    const markdown = [
+      "---",
+      "title: Original Title",
+      "---",
+      "",
+      "# Chapter One",
+      "",
+      "A paragraph with `inline code` and [a link](https://example.com/path?q=1).",
+    ].join("\n");
+    await writeFile(sourcePath, markdown, "utf-8");
+
+    const repository = new TextTranslationWorkspaceRepository({
+      tasksRoot: path.join(tempRoot, "tasks-markdown-bilingual"),
+    });
+    const service = new TextTranslationService({ repository });
+    const created = await service.createTask({
+      files: [{ sourcePath, order: 0 }],
+      options: createTextTranslationOptions({
+        outputMode: "bilingual",
+        outputDir,
+        outputPathMode: "custom",
+      }),
+      model: {
+        apiKey: "sk-e2e-secret",
+        modelKey: "fake-model",
+        endpoint: server.baseUrl,
+      },
+    });
+    expect(created.ok).toBe(true);
+    if (!created.ok) return;
+
+    const prepared = await service.prepareTask({ taskId: created.data.taskId });
+    expect(prepared.ok).toBe(true);
+    if (!prepared.ok) return;
+    const segments = await repository.readSegmentsIndex<{ segmentId: string }>(
+      created.data.taskId,
+    );
+    expect(segments).toHaveLength(1);
+    const payload =
+      await repository.readSegmentSourcePayload<TestMarkdownBilingualPayload>(
+        created.data.taskId,
+        segments[0].segmentId,
+      );
+    expect(payload.blocks).toHaveLength(2);
+    expect(payload.blocks[1].sourceText).not.toContain("inline code");
+    expect(payload.blocks[1].sourceText).not.toContain(
+      "https://example.com/path?q=1",
+    );
+
+    server.enqueue({
+      body: createChatCompletionBody({
+        content: formatMarkdownBilingualTranslationResponse(
+          payload.segmentId,
+          payload.blocks.map((item) => ({
+            blockId: item.blockId,
+            translatedMarkdown: translateMarkdownBlock(item),
+          })),
+        ),
+      }),
+    });
+
+    const completed = await service.startTask({ taskId: created.data.taskId });
+    expect(completed.ok).toBe(true);
+    if (!completed.ok) return;
+    expect(completed.data.status).toBe("completed");
+
+    const output = await readFile(
+      path.join(outputDir, "bilingual.zh.md"),
+      "utf-8",
+    );
+    expect(output).toContain("# Chapter One\n\n> 第一章");
+    expect(output).toContain(
+      "A paragraph with `inline code` and [a link](https://example.com/path?q=1).\n\n> 一个段落包含 `inline code` 和 [一个链接](https://example.com/path?q=1)。",
+    );
+    expect(output.match(/title: Original Title/g)).toHaveLength(1);
+  });
+
+  it("resumes a partial Markdown task from frozen workspace sources after the source file is deleted", async () => {
+    const sourcePath = path.join(tempRoot, "recover-source-missing.md");
+    const outputDir = path.join(tempRoot, "out-markdown-recovery");
+    await writeFile(sourcePath, "Alpha.\n\nBeta.", "utf-8");
+
+    const repository = new TextTranslationWorkspaceRepository({
+      tasksRoot: path.join(tempRoot, "tasks-markdown-recovery"),
+    });
+    const service = new TextTranslationService({ repository });
+    const created = await service.createTask({
+      files: [{ sourcePath, order: 0 }],
+      options: createTextTranslationOptions({
+        sliceTokenLimit: 1,
+        outputDir,
+        outputPathMode: "custom",
+      }),
+      model: {
+        apiKey: "sk-e2e-secret",
+        modelKey: "fake-model",
+        endpoint: server.baseUrl,
+      },
+    });
+    expect(created.ok).toBe(true);
+    if (!created.ok) return;
+
+    const prepared = await service.prepareTask({ taskId: created.data.taskId });
+    expect(prepared.ok).toBe(true);
+    if (!prepared.ok) return;
+    const segments = await repository.readSegmentsIndex<{ segmentId: string }>(
+      created.data.taskId,
+    );
+    expect(segments).toHaveLength(2);
+    const payloads = new Map<string, TestMarkdownTargetPayload>();
+    for (const segment of segments) {
+      payloads.set(
+        segment.segmentId,
+        await repository.readSegmentSourcePayload<TestMarkdownTargetPayload>(
+          created.data.taskId,
+          segment.segmentId,
+        ),
+      );
+    }
+
+    const firstSegmentId = segments[0].segmentId;
+    const initialResponder = createMarkdownTargetResponder({
+      payloads,
+      failSegmentId: segments[1].segmentId,
+    });
+    for (let index = 0; index < 4; index += 1) {
+      server.enqueue(initialResponder);
+    }
+
+    const partial = await service.startTask({ taskId: created.data.taskId });
+    expect(partial.ok).toBe(true);
+    if (!partial.ok) return;
+    expect(partial.data.status).toBe("partially_completed");
+    expect(
+      await repository.readSegmentResultPayload(
+        created.data.taskId,
+        firstSegmentId,
+      ),
+    ).toMatchObject({ segmentId: firstSegmentId });
+
+    await unlink(sourcePath);
+    const recoveredService = new TextTranslationService({ repository });
+    const recoverable = await recoveredService.listRecoverableTasks();
+    expect(recoverable.ok).toBe(true);
+    if (!recoverable.ok) return;
+    expect(recoverable.data).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          taskId: created.data.taskId,
+          resumable: true,
+          sourceStatus: "missing",
+          completedSegmentCount: 1,
+        }),
+      ]),
+    );
+
+    server.enqueue(createMarkdownTargetResponder({ payloads }));
+    const requestCountBeforeResume = server.requests.length;
+    const resumed = await recoveredService.resumeTask({
+      taskId: created.data.taskId,
+      model: {
+        apiKey: "sk-e2e-secret",
+        modelKey: "fake-model",
+        endpoint: server.baseUrl,
+      },
+    });
+    expect(resumed.ok).toBe(true);
+    if (!resumed.ok) return;
+    expect(resumed.data.status).toBe("completed");
+    expect(server.requests.length - requestCountBeforeResume).toBe(1);
+    expect(
+      await readFile(
+        path.join(outputDir, "recover-source-missing.zh.md"),
+        "utf-8",
+      ),
+    ).toBe("阿尔法。\n\n贝塔。");
+  });
 });
+
+interface TestProtectedPlaceholder {
+  token: string;
+  source: string;
+  kind: string;
+}
+
+interface TestMarkdownTargetPayload {
+  schemaVersion: 1;
+  kind: "markdown_target_only";
+  segmentId: string;
+  units: Array<{
+    unitId: string;
+    sourceText: string;
+    placeholders?: TestProtectedPlaceholder[];
+  }>;
+}
+
+interface TestMarkdownTargetResult {
+  schemaVersion: 1;
+  kind: "markdown_target_only";
+  segmentId: string;
+}
+
+interface TestMarkdownBilingualPayload {
+  schemaVersion: 1;
+  kind: "markdown_bilingual";
+  segmentId: string;
+  blocks: Array<{
+    blockId: string;
+    sourceText: string;
+    placeholders?: TestProtectedPlaceholder[];
+    block: {
+      nodeType: string;
+    };
+  }>;
+}
+
+function translateMarkdownUnit(sourceText: string): string {
+  const translations: Record<string, string> = {
+    "Chapter One": "第一章",
+    "A paragraph with ": "一个段落包含 ",
+    "strong text": "加粗文本",
+    ", ": "、",
+    ", and ": "，以及 ",
+    "a link": "一个链接",
+    ".": "。",
+    "Alpha.": "阿尔法。",
+    "Beta.": "贝塔。",
+  };
+  return translations[sourceText] ?? sourceText;
+}
+
+function translateMarkdownBlock(
+  item: TestMarkdownBilingualPayload["blocks"][number],
+): string {
+  if (item.block.nodeType === "heading") return "第一章";
+  return item.sourceText
+    .replace("A paragraph with ", "一个段落包含 ")
+    .replace(" and ", " 和 ")
+    .replace("[a link]", "[一个链接]")
+    .replace(/\.$/, "。");
+}
+
+function createMarkdownTargetResponder(input: {
+  payloads: Map<string, TestMarkdownTargetPayload>;
+  failSegmentId?: string;
+}) {
+  return (request: { body: Record<string, unknown> }) => {
+    const body = JSON.stringify(request.body);
+    const segmentId = body.match(
+      /FUSIONKIT_MARKDOWN_TARGET_ONLY:([^>\\]+)>>>/,
+    )?.[1];
+    if (!segmentId) {
+      throw new Error("Markdown target protocol id was not found in request.");
+    }
+    if (segmentId === input.failSegmentId) {
+      return {
+        status: 500,
+        body: {
+          error: {
+            message: "planned Markdown segment failure",
+            type: "server_error",
+            code: "planned_markdown_failure",
+          },
+        },
+      };
+    }
+    const payload = input.payloads.get(segmentId);
+    if (!payload) {
+      throw new Error(`Markdown payload not found for segment: ${segmentId}`);
+    }
+    return {
+      body: createChatCompletionBody({
+        content: formatMarkdownTargetOnlyTranslationResponse(
+          segmentId,
+          payload.units.map((unit) => ({
+            unitId: unit.unitId,
+            translatedText: translateMarkdownUnit(unit.sourceText),
+          })),
+        ),
+      }),
+    };
+  };
+}

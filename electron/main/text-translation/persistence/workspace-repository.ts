@@ -22,6 +22,7 @@ export interface TextTranslationWorkspacePaths {
   root: string;
   taskJson: string;
   filesNdjson: string;
+  fileSourcesDir: string;
   unitsDir: string;
   segmentsDir: string;
   segmentsIndex: string;
@@ -88,6 +89,7 @@ export class TextTranslationWorkspaceRepository {
       root,
       taskJson: path.join(root, "task.json"),
       filesNdjson: path.join(root, "files.ndjson"),
+      fileSourcesDir: path.join(root, "sources"),
       unitsDir: path.join(root, "units"),
       segmentsDir: path.join(root, "segments"),
       segmentsIndex: path.join(root, "segments", "index.ndjson"),
@@ -106,6 +108,7 @@ export class TextTranslationWorkspaceRepository {
     const paths = this.getPaths(taskId);
     await Promise.all([
       fs.mkdir(paths.root, { recursive: true }),
+      fs.mkdir(paths.fileSourcesDir, { recursive: true }),
       fs.mkdir(paths.unitsDir, { recursive: true }),
       fs.mkdir(paths.segmentsSourceDir, { recursive: true }),
       fs.mkdir(paths.resultsDir, { recursive: true }),
@@ -136,6 +139,29 @@ export class TextTranslationWorkspaceRepository {
   async readFilesIndex(taskId: string): Promise<TextTranslationFileRef[]> {
     return readNdjsonFile<TextTranslationFileRef>(
       this.getPaths(taskId).filesNdjson,
+    );
+  }
+
+  async writeFileSourceSnapshot(
+    taskId: string,
+    fileId: string,
+    sourceText: string,
+  ): Promise<string> {
+    assertSafeWorkspaceId(fileId, "fileId");
+    const paths = await this.ensureWorkspace(taskId);
+    const targetPath = path.join(paths.fileSourcesDir, `${fileId}.txt`);
+    await atomicWriteFile(targetPath, sourceText, "utf-8");
+    return targetPath;
+  }
+
+  async readFileSourceSnapshot(
+    taskId: string,
+    fileId: string,
+  ): Promise<string> {
+    assertSafeWorkspaceId(fileId, "fileId");
+    return fs.readFile(
+      path.join(this.getPaths(taskId).fileSourcesDir, `${fileId}.txt`),
+      "utf-8",
     );
   }
 
@@ -188,6 +214,35 @@ export class TextTranslationWorkspaceRepository {
     );
   }
 
+  async writeSegmentSourcePayload<TPayload>(
+    taskId: string,
+    segmentId: string,
+    payload: TPayload,
+  ): Promise<string> {
+    assertSafeWorkspaceId(segmentId, "segmentId");
+    const paths = await this.ensureWorkspace(taskId);
+    const targetPath = path.join(paths.segmentsSourceDir, `${segmentId}.json`);
+    await atomicWriteJson(targetPath, payload);
+    return targetPath;
+  }
+
+  async readSegmentSourcePayload<TPayload>(
+    taskId: string,
+    segmentId: string,
+  ): Promise<TPayload> {
+    assertSafeWorkspaceId(segmentId, "segmentId");
+    const payload = await readJsonFile<TPayload>(
+      path.join(
+        this.getPaths(taskId).segmentsSourceDir,
+        `${segmentId}.json`,
+      ),
+    );
+    if (payload === null) {
+      throw new Error(`Segment source payload not found: ${segmentId}`);
+    }
+    return payload;
+  }
+
   async writeSegmentResult(
     taskId: string,
     segmentId: string,
@@ -206,6 +261,32 @@ export class TextTranslationWorkspaceRepository {
       path.join(this.getPaths(taskId).resultsDir, `${segmentId}.txt`),
       "utf-8",
     );
+  }
+
+  async writeSegmentResultPayload<TPayload>(
+    taskId: string,
+    segmentId: string,
+    payload: TPayload,
+  ): Promise<string> {
+    assertSafeWorkspaceId(segmentId, "segmentId");
+    const paths = await this.ensureWorkspace(taskId);
+    const targetPath = path.join(paths.resultsDir, `${segmentId}.json`);
+    await atomicWriteJson(targetPath, payload);
+    return targetPath;
+  }
+
+  async readSegmentResultPayload<TPayload>(
+    taskId: string,
+    segmentId: string,
+  ): Promise<TPayload> {
+    assertSafeWorkspaceId(segmentId, "segmentId");
+    const payload = await readJsonFile<TPayload>(
+      path.join(this.getPaths(taskId).resultsDir, `${segmentId}.json`),
+    );
+    if (payload === null) {
+      throw new Error(`Segment result payload not found: ${segmentId}`);
+    }
+    return payload;
   }
 
   async writeMemoryLatest<TMemory>(

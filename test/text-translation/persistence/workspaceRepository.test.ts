@@ -44,6 +44,11 @@ describe("text translation workspace repository", () => {
 
     await repo.writeTask(task);
     await repo.writeFilesIndex(task.taskId, [file]);
+    const fileSourcePath = await repo.writeFileSourceSnapshot(
+      task.taskId,
+      file.fileId,
+      "# Hello",
+    );
     await repo.writeUnits(task.taskId, file.fileId, [
       { unitId: "unit_001", sourceText: "Hello" },
     ]);
@@ -55,10 +60,29 @@ describe("text translation workspace repository", () => {
       "segment_001",
       "Hello",
     );
+    const sourcePayloadPath = await repo.writeSegmentSourcePayload(
+      task.taskId,
+      "segment_002",
+      {
+        schemaVersion: 1,
+        kind: "markdown_target_only",
+        segmentId: "segment_002",
+      },
+    );
     const resultPath = await repo.writeSegmentResult(
       task.taskId,
       "segment_001",
       "你好",
+    );
+    const resultPayloadPath = await repo.writeSegmentResultPayload(
+      task.taskId,
+      "segment_002",
+      {
+        schemaVersion: 1,
+        kind: "markdown_target_only",
+        segmentId: "segment_002",
+        results: [{ unitId: "unit_001", translatedText: "你好" }],
+      },
     );
     await repo.writeMemoryLatest(task.taskId, { version: 1 });
     const snapshotPath = await repo.writeMemorySnapshot(task.taskId, "00000010", {
@@ -70,6 +94,9 @@ describe("text translation workspace repository", () => {
       schemaVersion: 1,
     });
     expect(await repo.readFilesIndex(task.taskId)).toEqual([file]);
+    expect(await repo.readFileSourceSnapshot(task.taskId, file.fileId)).toBe(
+      "# Hello",
+    );
     expect(await repo.readUnits(task.taskId, file.fileId)).toEqual([
       { unitId: "unit_001", sourceText: "Hello" },
     ]);
@@ -79,10 +106,29 @@ describe("text translation workspace repository", () => {
     expect(await repo.readSegmentSource(task.taskId, "segment_001")).toBe(
       "Hello",
     );
+    expect(
+      await repo.readSegmentSourcePayload(task.taskId, "segment_002"),
+    ).toMatchObject({
+      kind: "markdown_target_only",
+      segmentId: "segment_002",
+    });
     expect(await repo.readSegmentResult(task.taskId, "segment_001")).toBe("你好");
+    expect(
+      await repo.readSegmentResultPayload(task.taskId, "segment_002"),
+    ).toMatchObject({
+      kind: "markdown_target_only",
+      segmentId: "segment_002",
+    });
     expect(await repo.readMemoryLatest(task.taskId)).toEqual({ version: 1 });
     expect(await readFile(sourcePath, "utf-8")).toBe("Hello");
+    expect(await readFile(fileSourcePath, "utf-8")).toBe("# Hello");
+    expect(await readFile(sourcePayloadPath, "utf-8")).toContain(
+      '"markdown_target_only"',
+    );
     expect(await readFile(resultPath, "utf-8")).toBe("你好");
+    expect(await readFile(resultPayloadPath, "utf-8")).toContain(
+      '"translatedText": "你好"',
+    );
     expect(await readFile(snapshotPath, "utf-8")).toContain('"version": 10');
 
     const taskDirFiles = await readdir(repo.getTaskWorkspacePath(task.taskId));

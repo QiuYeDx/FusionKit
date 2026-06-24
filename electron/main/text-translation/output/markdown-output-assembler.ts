@@ -51,6 +51,7 @@ export interface AssembleMarkdownBilingualOptions {
   sourceText: string;
   translations: MarkdownBlockTranslationResult[];
   ast?: Root;
+  blocks?: MarkdownBilingualBlock[];
 }
 
 export interface WriteMarkdownTargetOnlyOutputOptions
@@ -65,6 +66,15 @@ export interface WriteMarkdownTargetOnlyOutputOptions
 export interface WriteMarkdownTargetOnlyOutputResult {
   outputPath: string;
   bytesWritten: number;
+}
+
+export interface WriteMarkdownBilingualOutputOptions
+  extends AssembleMarkdownBilingualOptions {
+  sourcePath: string;
+  targetLang: TranslationLanguage;
+  outputPathMode: TextTranslationOutputPathMode;
+  conflictPolicy: TextTranslationConflictPolicy;
+  outputDir?: string;
 }
 
 interface MarkdownReplacement {
@@ -163,8 +173,12 @@ export function collectMarkdownBilingualBlocks(
 export function assembleMarkdownBilingualContent(
   options: AssembleMarkdownBilingualOptions,
 ): string {
-  const ast = options.ast ?? parseMarkdownAst(options.sourceText);
-  const blocks = collectMarkdownBilingualBlocks(options.sourceText, ast);
+  const blocks =
+    options.blocks ??
+    collectMarkdownBilingualBlocks(
+      options.sourceText,
+      options.ast ?? parseMarkdownAst(options.sourceText),
+    );
   const translationByBlockId = new Map(
     options.translations.map((translation) => [translation.blockId, translation]),
   );
@@ -204,6 +218,18 @@ export function assembleMarkdownBilingualContent(
       output.slice(insertion.offset);
   }
   return output;
+}
+
+export async function writeMarkdownBilingualOutput(
+  options: WriteMarkdownBilingualOutputOptions,
+): Promise<WriteMarkdownTargetOnlyOutputResult> {
+  const content = assembleMarkdownBilingualContent(options);
+  const outputPath = await resolveTxtOutputPath(options);
+  await atomicWriteUtf8(outputPath, content);
+  return {
+    outputPath,
+    bytesWritten: Buffer.byteLength(content, "utf-8"),
+  };
 }
 
 function assertReplacementRanges(

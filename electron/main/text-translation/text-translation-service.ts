@@ -36,9 +36,21 @@ import {
   sendOpenAICompatibleChatCompletion,
   type OpenAICompatibleUsage,
 } from "../ai/openai-compatible-client";
-import { readAndDecodeTextTranslationInputFile } from "./input/file-reader";
+import {
+  readAndDecodeTextTranslationInputFile,
+  type TextTranslationDecodedInputFile,
+} from "./input/file-reader";
+import {
+  parseMarkdownTranslationUnits,
+} from "./parsing/markdown-parser";
+import {
+  applyProtectedPlaceholders,
+  type MarkdownProtectedSpan,
+  type ProtectedPlaceholder,
+} from "./parsing/protected-placeholders";
 import { parseTxtTranslationUnits } from "./parsing/text-parser";
 import { planTranslationSegments } from "./planning/segment-planner";
+import { countTextTokens } from "./planning/token-counter";
 import { TextTranslationRequestScheduler } from "./request-scheduler";
 import { TextTranslationWorkspaceRepository } from "./persistence/workspace-repository";
 import { trimSemanticMemoryToBudget } from "./memory/memory-budget";
@@ -47,14 +59,33 @@ import {
   SemanticMemoryManager,
 } from "./memory/semantic-memory-manager";
 import {
+  buildMarkdownBilingualTranslationPrompt,
+  buildMarkdownTargetOnlyTranslationPrompt,
   buildSequentialTranslationPrompt,
+  parseMarkdownBilingualTranslationResponse,
+  parseMarkdownTargetOnlyTranslationResponse,
   parseSequentialTranslationResponse,
+  TranslationProtocolError,
+  type MarkdownExpectedBlockTranslation,
+  type MarkdownExpectedUnitTranslation,
+  type MarkdownBlockTranslationProtocolResult,
+  type MarkdownUnitTranslationProtocolResult,
 } from "./model/translation-response-protocol";
 import {
   writeTxtOutput,
   type TextTranslationSegmentResult,
 } from "./output/text-output-assembler";
-import type { TranslationSegment, TranslationUnit } from "./types";
+import {
+  collectMarkdownBilingualBlocks,
+  writeMarkdownBilingualOutput,
+  writeMarkdownTargetOnlyOutput,
+  type MarkdownBilingualBlock,
+} from "./output/markdown-output-assembler";
+import type {
+  TranslationSegment,
+  TranslationUnit,
+  TranslationUnitKind,
+} from "./types";
 import type { TextTranslationWorkspaceEvent } from "./persistence/event-log";
 import type { SemanticMemoryWarning } from "./memory/memory-patch";
 import type { SemanticMemory } from "./memory/semantic-memory";
@@ -118,7 +149,7 @@ interface RuntimeTaskRecord {
   abortReason?: "cancel" | "pause";
   units?: TranslationUnit[];
   segments?: TranslationSegment[];
-  results?: TextTranslationSegmentResult[];
+  results?: RuntimeTranslationSegmentResult[];
   failedSegmentIds?: string[];
   staleFromSegmentId?: string;
   outputPaths?: string[];
@@ -131,11 +162,60 @@ interface TranslationSegmentFailure {
 }
 
 interface TranslateSegmentsResult {
-  results: TextTranslationSegmentResult[];
+  results: RuntimeTranslationSegmentResult[];
   failures: TranslationSegmentFailure[];
 }
 
 type PersistedTranslationSegment = Omit<TranslationSegment, "sourceText">;
+
+interface MarkdownTargetOnlySegmentPayload {
+  schemaVersion: 1;
+  kind: "markdown_target_only";
+  segmentId: string;
+  fileId: string;
+  units: MarkdownExpectedUnitTranslation[];
+}
+
+interface MarkdownBilingualSegmentItem
+  extends MarkdownExpectedBlockTranslation {
+  block: MarkdownBilingualBlock;
+}
+
+interface MarkdownBilingualSegmentPayload {
+  schemaVersion: 1;
+  kind: "markdown_bilingual";
+  segmentId: string;
+  fileId: string;
+  blocks: MarkdownBilingualSegmentItem[];
+}
+
+type MarkdownSegmentPayload =
+  | MarkdownTargetOnlySegmentPayload
+  | MarkdownBilingualSegmentPayload;
+
+interface MarkdownTargetOnlySegmentResult {
+  schemaVersion: 1;
+  kind: "markdown_target_only";
+  segmentId: string;
+  results: MarkdownUnitTranslationProtocolResult[];
+  stale?: boolean;
+}
+
+interface MarkdownBilingualSegmentResult {
+  schemaVersion: 1;
+  kind: "markdown_bilingual";
+  segmentId: string;
+  translations: MarkdownBlockTranslationProtocolResult[];
+  stale?: boolean;
+}
+
+type MarkdownSegmentResult =
+  | MarkdownTargetOnlySegmentResult
+  | MarkdownBilingualSegmentResult;
+
+type RuntimeTranslationSegmentResult =
+  | TextTranslationSegmentResult
+  | MarkdownSegmentResult;
 
 export class TextTranslationService implements TextTranslationIpcService {
   private readonly repository: TextTranslationWorkspaceRepository;
@@ -172,7 +252,7 @@ export class TextTranslationService implements TextTranslationIpcService {
     ) {
       return this.failure(
         "not_implemented",
-        "Text translation currently supports target-only or bilingual TXT tasks.",
+        "Text translation currently supports target-only or bilingual output.",
       );
     }
 
@@ -187,13 +267,18 @@ export class TextTranslationService implements TextTranslationIpcService {
           ...file,
           fileId: undefined,
         });
-        if (inspection.file.format !== "txt") {
-          return this.failure(
-            "not_implemented",
-            "Text translation currently supports TXT files only.",
-          );
-        }
         inspections.push(inspection);
+      }
+      if (
+        request.options.executionMode === "sequential_context" &&
+        inspections.some(
+          (inspection) => inspection.file.format === "markdown",
+        )
+      ) {
+        return this.failure(
+          "not_implemented",
+          "Sequential-context Markdown translation will be enabled by MD-006.",
+        );
       }
 
       const task = createTextTranslationTask({
@@ -271,54 +356,71 @@ export class TextTranslationService implements TextTranslationIpcService {
 
       this.patchTask(record, { phase: "parsing" });
       this.emitTaskUpdated(record);
-      const unitsByFile = decodedFiles.map((decoded) => ({
-        file: decoded.file,
-        units: parseTxtTranslationUnits({
-          fileId: decoded.file.fileId,
-          text: decoded.text,
-          maxUnitTokens: record.task.options.sliceTokenLimit,
-        }),
-      }));
+      const preparedFiles: PreparedTranslationFile[] = [];
+      const segments: TranslationSegment[] = [];
+      for (const decoded of decodedFiles) {
+        const prepared = prepareDecodedTranslationFile({
+          decoded,
+          outputMode: record.task.options.outputMode,
+          sliceTokenLimit: record.task.options.sliceTokenLimit,
+          startingGlobalIndex: segments.length,
+        });
+        preparedFiles.push(prepared);
+        segments.push(...prepared.segments);
+      }
 
       this.patchTask(record, { phase: "planning_segments" });
       this.emitTaskUpdated(record);
-      const units = unitsByFile.flatMap((entry) => entry.units);
-      const segments: TranslationSegment[] = [];
-      for (const entry of unitsByFile) {
-        segments.push(
-          ...planTranslationSegments({
-            fileId: entry.file.fileId,
-            units: entry.units,
-            sliceTokenLimit: record.task.options.sliceTokenLimit,
-            startingGlobalIndex: segments.length,
-          }),
-        );
-      }
-
-      record.units = units;
+      record.units = preparedFiles.flatMap((entry) => entry.units);
       record.segments = segments;
       record.results = [];
       record.failedSegmentIds = [];
       record.staleFromSegmentId = undefined;
       record.outputPaths = [];
 
-      for (const entry of unitsByFile) {
+      for (const entry of preparedFiles) {
         await this.repository.writeUnits(
           request.taskId,
           entry.file.fileId,
           entry.units,
         );
+        if (entry.file.format === "markdown") {
+          await this.repository.writeFileSourceSnapshot(
+            request.taskId,
+            entry.file.fileId,
+            entry.sourceText,
+          );
+        }
       }
       await this.repository.writeSegmentsIndex(
         request.taskId,
         segments.map(({ sourceText, ...segment }) => segment),
       );
-      for (const segment of segments) {
-        await this.repository.writeSegmentSource(
-          request.taskId,
-          segment.segmentId,
-          segment.sourceText,
+      for (const entry of preparedFiles) {
+        const markdownPayloadBySegmentId = new Map(
+          entry.markdownPayloads.map((payload) => [
+            payload.segmentId,
+            payload,
+          ]),
         );
+        for (const segment of entry.segments) {
+          const markdownPayload = markdownPayloadBySegmentId.get(
+            segment.segmentId,
+          );
+          if (markdownPayload) {
+            await this.repository.writeSegmentSourcePayload(
+              request.taskId,
+              segment.segmentId,
+              markdownPayload,
+            );
+          } else {
+            await this.repository.writeSegmentSource(
+              request.taskId,
+              segment.segmentId,
+              segment.sourceText,
+            );
+          }
+        }
       }
       if (record.task.options.executionMode === "sequential_context") {
         await this.memoryManager.initialize(request.taskId, {
@@ -798,12 +900,29 @@ export class TextTranslationService implements TextTranslationIpcService {
       await this.repository.readSegmentsIndex<PersistedTranslationSegment>(
         taskId,
       );
+    const files = await this.repository.readFilesIndex(taskId);
+    const fileById = new Map(files.map((file) => [file.fileId, file]));
+    const segmentById = new Map(
+      segments.map((segment) => [segment.segmentId, segment]),
+    );
     const replayed = await this.repository.replayEvents(taskId);
     const validCompletedSegmentIds: string[] = [];
 
     for (const segmentId of replayed.completedSegmentIds) {
       try {
-        await this.repository.readSegmentResult(taskId, segmentId);
+        const segment = segmentById.get(segmentId);
+        const file = segment ? fileById.get(segment.fileId) : undefined;
+        if (file?.format === "markdown") {
+          assertMarkdownSegmentResult(
+            await this.repository.readSegmentResultPayload<unknown>(
+              taskId,
+              segmentId,
+            ),
+            segmentId,
+          );
+        } else {
+          await this.repository.readSegmentResult(taskId, segmentId);
+        }
         validCompletedSegmentIds.push(segmentId);
       } catch {
         // A missing or corrupted result is treated as incomplete.
@@ -815,7 +934,26 @@ export class TextTranslationService implements TextTranslationIpcService {
     for (const segment of segments) {
       if (completedSet.has(segment.segmentId)) continue;
       try {
-        await this.repository.readSegmentSource(taskId, segment.segmentId);
+        const file = fileById.get(segment.fileId);
+        if (file?.format === "markdown") {
+          assertMarkdownSegmentPayload(
+            await this.repository.readSegmentSourcePayload<unknown>(
+              taskId,
+              segment.segmentId,
+            ),
+            segment.segmentId,
+          );
+        } else {
+          await this.repository.readSegmentSource(taskId, segment.segmentId);
+        }
+      } catch {
+        missingSourceSnapshots += 1;
+      }
+    }
+    for (const file of files) {
+      if (file.format !== "markdown") continue;
+      try {
+        await this.repository.readFileSourceSnapshot(taskId, file.fileId);
       } catch {
         missingSourceSnapshots += 1;
       }
@@ -857,6 +995,7 @@ export class TextTranslationService implements TextTranslationIpcService {
     }
 
     const files = await this.repository.readFilesIndex(taskId);
+    const fileById = new Map(files.map((file) => [file.fileId, file]));
     const persistedSegments =
       await this.repository.readSegmentsIndex<PersistedTranslationSegment>(
         taskId,
@@ -870,27 +1009,51 @@ export class TextTranslationService implements TextTranslationIpcService {
 
     const segments: TranslationSegment[] = [];
     for (const segment of persistedSegments) {
+      const file = fileById.get(segment.fileId);
+      const sourceText =
+        file?.format === "markdown"
+          ? summarizeMarkdownSegmentPayload(
+              assertMarkdownSegmentPayload(
+                await this.repository.readSegmentSourcePayload<unknown>(
+                  taskId,
+                  segment.segmentId,
+                ),
+                segment.segmentId,
+              ),
+            )
+          : await this.repository.readSegmentSource(taskId, segment.segmentId);
       segments.push({
         ...segment,
-        sourceText: await this.repository.readSegmentSource(
-          taskId,
-          segment.segmentId,
-        ),
+        sourceText,
       });
     }
 
     const replayed = await this.repository.replayEvents(taskId);
     this.nextSequenceByTask.set(taskId, replayed.lastSequence + 1);
-    const results: TextTranslationSegmentResult[] = [];
+    const results: RuntimeTranslationSegmentResult[] = [];
     for (const segmentId of replayed.completedSegmentIds) {
       try {
-        results.push({
-          segmentId,
-          translatedText: await this.repository.readSegmentResult(
-            taskId,
+        const segment = segments.find((item) => item.segmentId === segmentId);
+        const file = segment ? fileById.get(segment.fileId) : undefined;
+        if (file?.format === "markdown") {
+          results.push(
+            assertMarkdownSegmentResult(
+              await this.repository.readSegmentResultPayload<unknown>(
+                taskId,
+                segmentId,
+              ),
+              segmentId,
+            ),
+          );
+        } else {
+          results.push({
             segmentId,
-          ),
-        });
+            translatedText: await this.repository.readSegmentResult(
+              taskId,
+              segmentId,
+            ),
+          });
+        }
       } catch {
         // Missing result files are not considered completed.
       }
@@ -1085,7 +1248,7 @@ export class TextTranslationService implements TextTranslationIpcService {
     const segments = allSegments.filter(
       (segment) => !skipSegmentIds.has(segment.segmentId),
     );
-    const results: TextTranslationSegmentResult[] = [];
+    const results: RuntimeTranslationSegmentResult[] = [];
     const failures: TranslationSegmentFailure[] = [];
     let completedSegments = skipSegmentIds.size;
 
@@ -1107,26 +1270,64 @@ export class TextTranslationService implements TextTranslationIpcService {
             segmentId: segment.segmentId,
           });
 
-          const response = await sendOpenAICompatibleChatCompletion({
-            endpoint: record.model.endpoint,
-            apiKey: record.model.apiKey,
-            model: record.model.modelKey,
-            signal,
-            messages: [
-              {
-                role: "system",
-                content:
-                  "Translate the provided text. Return only the translation.",
-              },
-              { role: "user", content: segment.sourceText },
-            ],
-          });
-
-          const resultPath = await this.repository.writeSegmentResult(
-            record.task.taskId,
-            segment.segmentId,
-            response.content,
+          const file = record.task.files.find(
+            (item) => item.fileId === segment.fileId,
           );
+          if (!file) {
+            throw new Error(
+              `Translation segment references an unknown file: ${segment.fileId}`,
+            );
+          }
+
+          let result: RuntimeTranslationSegmentResult;
+          let resultPath: string;
+          let usage: OpenAICompatibleUsage | undefined;
+          if (file.format === "markdown") {
+            const payload = assertMarkdownSegmentPayload(
+              await this.repository.readSegmentSourcePayload<unknown>(
+                record.task.taskId,
+                segment.segmentId,
+              ),
+              segment.segmentId,
+            );
+            const translated = await this.translateMarkdownSegment(
+              record,
+              payload,
+              signal,
+            );
+            result = translated.result;
+            usage = translated.usage;
+            resultPath = await this.repository.writeSegmentResultPayload(
+              record.task.taskId,
+              segment.segmentId,
+              result,
+            );
+          } else {
+            const response = await sendOpenAICompatibleChatCompletion({
+              endpoint: record.model.endpoint,
+              apiKey: record.model.apiKey,
+              model: record.model.modelKey,
+              signal,
+              messages: [
+                {
+                  role: "system",
+                  content:
+                    "Translate the provided text. Return only the translation.",
+                },
+                { role: "user", content: segment.sourceText },
+              ],
+            });
+            result = {
+              segmentId: segment.segmentId,
+              translatedText: response.content,
+            };
+            usage = response.usage;
+            resultPath = await this.repository.writeSegmentResult(
+              record.task.taskId,
+              segment.segmentId,
+              response.content,
+            );
+          }
           await this.appendEvent(record.task.taskId, {
             type: "segment_completed",
             taskId: record.task.taskId,
@@ -1134,13 +1335,10 @@ export class TextTranslationService implements TextTranslationIpcService {
             occurredAt: new Date().toISOString(),
             segmentId: segment.segmentId,
             resultPath,
-            usage: toWorkspaceUsage(response.usage),
+            usage: toWorkspaceUsage(usage),
           });
 
-          results.push({
-            segmentId: segment.segmentId,
-            translatedText: response.content,
-          });
+          results.push(result);
           completedSegments += 1;
           this.patchTask(record, {
             progress: this.createProgress(
@@ -1171,6 +1369,112 @@ export class TextTranslationService implements TextTranslationIpcService {
     );
 
     return { results, failures };
+  }
+
+  private async translateMarkdownSegment(
+    record: RuntimeTaskRecord,
+    payload: MarkdownSegmentPayload,
+    signal: AbortSignal,
+  ): Promise<{
+    result: MarkdownSegmentResult;
+    usage?: OpenAICompatibleUsage;
+  }> {
+    const basePrompt =
+      payload.kind === "markdown_target_only"
+        ? buildMarkdownTargetOnlyTranslationPrompt({
+            sourceLang: record.task.options.sourceLang,
+            targetLang: record.task.options.targetLang,
+            protocolId: payload.segmentId,
+            units: payload.units,
+            documentBackground: record.task.options.documentBackground,
+            translationInstructions:
+              record.task.options.translationInstructions,
+            styleInstructions: record.task.options.styleInstructions,
+            glossaryText: formatGlossary(record.task.options.glossary),
+          })
+        : buildMarkdownBilingualTranslationPrompt({
+            sourceLang: record.task.options.sourceLang,
+            targetLang: record.task.options.targetLang,
+            protocolId: payload.segmentId,
+            blocks: payload.blocks.map((item) => ({
+              blockId: item.blockId,
+              sourceText: item.sourceText,
+              placeholders: item.placeholders,
+            })),
+            documentBackground: record.task.options.documentBackground,
+            translationInstructions:
+              record.task.options.translationInstructions,
+            styleInstructions: record.task.options.styleInstructions,
+            glossaryText: formatGlossary(record.task.options.glossary),
+          });
+    let prompt = basePrompt;
+
+    for (let protocolAttempt = 0; protocolAttempt < 2; protocolAttempt += 1) {
+      const response = await sendOpenAICompatibleChatCompletion({
+        endpoint: record.model.endpoint,
+        apiKey: record.model.apiKey,
+        model: record.model.modelKey,
+        signal,
+        messages: [
+          {
+            role: "system",
+            content:
+              "Translate Markdown while preserving the required FusionKit protocol and protected placeholders exactly.",
+          },
+          { role: "user", content: prompt },
+        ],
+      });
+
+      try {
+        const result: MarkdownSegmentResult =
+          payload.kind === "markdown_target_only"
+            ? {
+                schemaVersion: 1,
+                kind: "markdown_target_only",
+                segmentId: payload.segmentId,
+                results: parseMarkdownTargetOnlyTranslationResponse({
+                  text: response.content,
+                  finishReason: response.finishReason,
+                  protocolId: payload.segmentId,
+                  expectedUnits: payload.units,
+                }).results,
+              }
+            : {
+                schemaVersion: 1,
+                kind: "markdown_bilingual",
+                segmentId: payload.segmentId,
+                translations: parseMarkdownBilingualTranslationResponse({
+                  text: response.content,
+                  finishReason: response.finishReason,
+                  protocolId: payload.segmentId,
+                  expectedBlocks: payload.blocks.map((item) => ({
+                    blockId: item.blockId,
+                    sourceText: item.sourceText,
+                    placeholders: item.placeholders,
+                  })),
+                }).translations,
+              };
+
+        return { result, usage: response.usage };
+      } catch (error) {
+        if (
+          !(error instanceof TranslationProtocolError) ||
+          !error.retryable ||
+          protocolAttempt > 0
+        ) {
+          throw error;
+        }
+        prompt = [
+          basePrompt,
+          "",
+          "Retry correction:",
+          error.retryInstruction ??
+            "The previous response did not match the required Markdown item boundaries or expected ids. Return the exact protocol with every expected item exactly once and in order.",
+        ].join("\n");
+      }
+    }
+
+    throw new Error(`Markdown translation failed: ${payload.segmentId}`);
   }
 
   private async restoreMemoryBeforeSegment(
@@ -1235,7 +1539,9 @@ export class TextTranslationService implements TextTranslationIpcService {
     const results: TextTranslationSegmentResult[] = [];
     const failures: TranslationSegmentFailure[] = [];
     const resultBySegmentId = new Map(
-      (record.results ?? []).map((result) => [result.segmentId, result]),
+      (record.results ?? [])
+        .filter(isTextTranslationSegmentResult)
+        .map((result) => [result.segmentId, result]),
     );
     let completedSegments = completedSegmentIds.size;
     let recentSourceText = "";
@@ -1426,7 +1732,7 @@ export class TextTranslationService implements TextTranslationIpcService {
 
   private async writeTaskOutputs(
     record: RuntimeTaskRecord,
-    results: TextTranslationSegmentResult[],
+    results: RuntimeTranslationSegmentResult[],
   ): Promise<string[]> {
     const segments = record.segments ?? [];
     const outputPaths: string[] = [];
@@ -1438,27 +1744,116 @@ export class TextTranslationService implements TextTranslationIpcService {
       const fileSegments = segments.filter(
         (segment) => segment.fileId === file.fileId,
       );
-      if (fileSegments.length === 0) continue;
-
-      const output = await writeTxtOutput({
-        sourcePath: file.sourcePath,
-        targetLang: record.task.options.targetLang,
-        outputMode: record.task.options.outputMode,
-        labelMode: record.task.options.bilingualLabelMode,
-        outputPathMode: record.task.options.outputPathMode,
-        outputDir: resolveOutputDirForFile(
-          record.task.options.outputDir,
-          file.relativePath,
-        ),
-        conflictPolicy: record.task.options.conflictPolicy,
-        segments: fileSegments,
-        results,
-      });
+      if (fileSegments.length === 0 && file.format === "txt") continue;
+      const fileSegmentIds = new Set(
+        fileSegments.map((segment) => segment.segmentId),
+      );
+      const outputDir = resolveOutputDirForFile(
+        record.task.options.outputDir,
+        file.relativePath,
+      );
+      const output =
+        file.format === "markdown"
+          ? await this.writeMarkdownFileOutput({
+              record,
+              file,
+              fileSegments,
+              results: results
+                .filter(isMarkdownSegmentResult)
+                .filter((result) => fileSegmentIds.has(result.segmentId)),
+              outputDir,
+            })
+          : await writeTxtOutput({
+              sourcePath: file.sourcePath,
+              targetLang: record.task.options.targetLang,
+              outputMode: record.task.options.outputMode,
+              labelMode: record.task.options.bilingualLabelMode,
+              outputPathMode: record.task.options.outputPathMode,
+              outputDir,
+              conflictPolicy: record.task.options.conflictPolicy,
+              segments: fileSegments,
+              results: results
+                .filter(isTextTranslationSegmentResult)
+                .filter((result) => fileSegmentIds.has(result.segmentId)),
+            });
       outputPaths.push(output.outputPath);
       this.emitFileCompleted(record, file.fileId, output.outputPath);
     }
 
     return outputPaths;
+  }
+
+  private async writeMarkdownFileOutput(input: {
+    record: RuntimeTaskRecord;
+    file: TextTranslationTask["files"][number];
+    fileSegments: TranslationSegment[];
+    results: MarkdownSegmentResult[];
+    outputDir?: string;
+  }): Promise<{ outputPath: string; bytesWritten: number }> {
+    const sourceText = await this.repository.readFileSourceSnapshot(
+      input.record.task.taskId,
+      input.file.fileId,
+    );
+    const commonOutputOptions = {
+      sourcePath: input.file.sourcePath,
+      targetLang: input.record.task.options.targetLang,
+      outputPathMode: input.record.task.options.outputPathMode,
+      outputDir: input.outputDir,
+      conflictPolicy: input.record.task.options.conflictPolicy,
+    };
+
+    if (input.record.task.options.outputMode === "target_only") {
+      const units = await this.repository.readUnits<TranslationUnit>(
+        input.record.task.taskId,
+        input.file.fileId,
+      );
+      const unitResults = input.results.flatMap((result) => {
+        if (result.kind !== "markdown_target_only") {
+          throw new Error(
+            `Unexpected Markdown result kind for target-only output: ${result.kind}`,
+          );
+        }
+        return result.results;
+      });
+      return writeMarkdownTargetOnlyOutput({
+        ...commonOutputOptions,
+        sourceText,
+        units,
+        results: unitResults,
+      });
+    }
+
+    const blocks: MarkdownBilingualBlock[] = [];
+    for (const segment of input.fileSegments) {
+      const payload = assertMarkdownSegmentPayload(
+        await this.repository.readSegmentSourcePayload<unknown>(
+          input.record.task.taskId,
+          segment.segmentId,
+        ),
+        segment.segmentId,
+      );
+      if (payload.kind !== "markdown_bilingual") {
+        throw new Error(
+          `Unexpected Markdown payload kind for bilingual output: ${payload.kind}`,
+        );
+      }
+      blocks.push(...payload.blocks.map((item) => item.block));
+    }
+    const translations = input.results.flatMap((result) => {
+      if (result.kind !== "markdown_bilingual") {
+        throw new Error(
+          `Unexpected Markdown result kind for bilingual output: ${result.kind}`,
+        );
+      }
+      return result.translations;
+    });
+
+    return writeMarkdownBilingualOutput({
+      ...commonOutputOptions,
+      sourceText,
+      blocks,
+      translations,
+    });
   }
 
   private async writeFileEndMemorySnapshotIfNeeded(
@@ -1682,6 +2077,331 @@ export class TextTranslationService implements TextTranslationIpcService {
       error,
     });
   }
+}
+
+interface PreparedTranslationFile {
+  file: TextTranslationDecodedInputFile["file"];
+  sourceText: string;
+  units: TranslationUnit[];
+  segments: TranslationSegment[];
+  markdownPayloads: MarkdownSegmentPayload[];
+}
+
+function prepareDecodedTranslationFile(input: {
+  decoded: TextTranslationDecodedInputFile;
+  outputMode: TextTranslationTask["options"]["outputMode"];
+  sliceTokenLimit: number;
+  startingGlobalIndex: number;
+}): PreparedTranslationFile {
+  if (input.decoded.file.format === "txt") {
+    const units = parseTxtTranslationUnits({
+      fileId: input.decoded.file.fileId,
+      text: input.decoded.text,
+      maxUnitTokens: input.sliceTokenLimit,
+    });
+    return {
+      file: input.decoded.file,
+      sourceText: input.decoded.text,
+      units,
+      segments: planTranslationSegments({
+        fileId: input.decoded.file.fileId,
+        units,
+        sliceTokenLimit: input.sliceTokenLimit,
+        startingGlobalIndex: input.startingGlobalIndex,
+      }),
+      markdownPayloads: [],
+    };
+  }
+
+  const parsed = parseMarkdownTranslationUnits({
+    fileId: input.decoded.file.fileId,
+    text: input.decoded.text,
+  });
+  if (input.outputMode === "target_only") {
+    const segments = planTranslationSegments({
+      fileId: input.decoded.file.fileId,
+      units: parsed.units,
+      sliceTokenLimit: input.sliceTokenLimit,
+      startingGlobalIndex: input.startingGlobalIndex,
+    });
+    const unitById = new Map(
+      parsed.units.map((unit) => [unit.unitId, unit]),
+    );
+    const markdownPayloads = segments.map((segment) => {
+      const units = segment.unitIds.map((unitId) => {
+        const unit = unitById.get(unitId);
+        if (!unit) {
+          throw new Error(`Markdown segment references unknown unit: ${unitId}`);
+        }
+        return createMarkdownExpectedUnit({
+          sourceText: input.decoded.text,
+          unit,
+          protectedSpans: parsed.protectedSpans,
+          placeholderScope: `${segment.segmentId}_${unit.unitId}`,
+        });
+      });
+      const payload: MarkdownTargetOnlySegmentPayload = {
+        schemaVersion: 1,
+        kind: "markdown_target_only",
+        segmentId: segment.segmentId,
+        fileId: segment.fileId,
+        units,
+      };
+      applyMarkdownPayloadToSegment(segment, payload);
+      return payload;
+    });
+
+    return {
+      file: input.decoded.file,
+      sourceText: input.decoded.text,
+      units: parsed.units,
+      segments,
+      markdownPayloads,
+    };
+  }
+
+  const blocks = collectMarkdownBilingualBlocks(
+    input.decoded.text,
+    parsed.ast,
+  );
+  const blockPlanningUnits = blocks.map(
+    (block, order): TranslationUnit => ({
+      unitId: block.blockId,
+      fileId: input.decoded.file.fileId,
+      order,
+      kind: resolveMarkdownBlockUnitKind(block),
+      sourceStart: block.start,
+      sourceEnd: block.end,
+      sourceText: block.sourceText,
+      translatable: true,
+      tokenCount: countTextTokens(block.sourceText),
+      structuralContext:
+        block.quoteDepth > 1
+          ? { quoteDepth: block.quoteDepth - 1 }
+          : undefined,
+    }),
+  );
+  const segments = planTranslationSegments({
+    fileId: input.decoded.file.fileId,
+    units: blockPlanningUnits,
+    sliceTokenLimit: input.sliceTokenLimit,
+    startingGlobalIndex: input.startingGlobalIndex,
+  });
+  const blockById = new Map(blocks.map((block) => [block.blockId, block]));
+  const markdownPayloads = segments.map((segment) => {
+    const blockItems = segment.unitIds.map((blockId) => {
+      const block = blockById.get(blockId);
+      if (!block) {
+        throw new Error(
+          `Markdown segment references unknown bilingual block: ${blockId}`,
+        );
+      }
+      return createMarkdownExpectedBlock({
+        sourceText: input.decoded.text,
+        block,
+        protectedSpans: parsed.protectedSpans,
+        placeholderScope: `${segment.segmentId}_${block.blockId}`,
+      });
+    });
+    const payload: MarkdownBilingualSegmentPayload = {
+      schemaVersion: 1,
+      kind: "markdown_bilingual",
+      segmentId: segment.segmentId,
+      fileId: segment.fileId,
+      blocks: blockItems,
+    };
+    applyMarkdownPayloadToSegment(segment, payload);
+    return payload;
+  });
+
+  return {
+    file: input.decoded.file,
+    sourceText: input.decoded.text,
+    units: parsed.units,
+    segments,
+    markdownPayloads,
+  };
+}
+
+function createMarkdownExpectedUnit(input: {
+  sourceText: string;
+  unit: TranslationUnit;
+  protectedSpans: MarkdownProtectedSpan[];
+  placeholderScope: string;
+}): MarkdownExpectedUnitTranslation {
+  const tokenized = applyMarkdownRangePlaceholders({
+    sourceText: input.sourceText,
+    start: input.unit.sourceStart,
+    end: input.unit.sourceEnd,
+    protectedSpans: input.protectedSpans,
+    placeholderScope: input.placeholderScope,
+  });
+  return {
+    unitId: input.unit.unitId,
+    sourceText: tokenized.text,
+    ...(tokenized.placeholders.length > 0
+      ? { placeholders: tokenized.placeholders }
+      : {}),
+  };
+}
+
+function createMarkdownExpectedBlock(input: {
+  sourceText: string;
+  block: MarkdownBilingualBlock;
+  protectedSpans: MarkdownProtectedSpan[];
+  placeholderScope: string;
+}): MarkdownBilingualSegmentItem {
+  const tokenized = applyMarkdownRangePlaceholders({
+    sourceText: input.sourceText,
+    start: input.block.start,
+    end: input.block.end,
+    protectedSpans: input.protectedSpans,
+    placeholderScope: input.placeholderScope,
+  });
+  return {
+    blockId: input.block.blockId,
+    sourceText: tokenized.text,
+    ...(tokenized.placeholders.length > 0
+      ? { placeholders: tokenized.placeholders }
+      : {}),
+    block: input.block,
+  };
+}
+
+function applyMarkdownRangePlaceholders(input: {
+  sourceText: string;
+  start: number;
+  end: number;
+  protectedSpans: MarkdownProtectedSpan[];
+  placeholderScope: string;
+}): { text: string; placeholders: ProtectedPlaceholder[] } {
+  const rangeText = input.sourceText.slice(input.start, input.end);
+  const containedSpans = input.protectedSpans
+    .filter((span) => span.start >= input.start && span.end <= input.end)
+    .map((span) => ({
+      ...span,
+      start: span.start - input.start,
+      end: span.end - input.start,
+    }));
+  return applyProtectedPlaceholders({
+    source: rangeText,
+    spans: containedSpans,
+    segmentId: input.placeholderScope,
+  });
+}
+
+function applyMarkdownPayloadToSegment(
+  segment: TranslationSegment,
+  payload: MarkdownSegmentPayload,
+): void {
+  segment.sourceText = summarizeMarkdownSegmentPayload(payload);
+  segment.sourceTokenCount = countTextTokens(segment.sourceText);
+  segment.sourceTextSnapshotPath = path.posix.join(
+    "segments",
+    "source",
+    `${segment.segmentId}.json`,
+  );
+}
+
+function summarizeMarkdownSegmentPayload(
+  payload: MarkdownSegmentPayload,
+): string {
+  return (
+    payload.kind === "markdown_target_only"
+      ? payload.units.map((unit) => unit.sourceText ?? "")
+      : payload.blocks.map((block) => block.sourceText ?? "")
+  ).join("\n\n");
+}
+
+function resolveMarkdownBlockUnitKind(
+  block: MarkdownBilingualBlock,
+): TranslationUnitKind {
+  switch (block.nodeType) {
+    case "heading":
+      return "heading";
+    case "list":
+      return "list_item";
+    case "blockquote":
+      return "blockquote";
+    case "table":
+      return "table_cell";
+    case "paragraph":
+      return "paragraph";
+    default:
+      return "plain_text";
+  }
+}
+
+function assertMarkdownSegmentPayload(
+  value: unknown,
+  expectedSegmentId: string,
+): MarkdownSegmentPayload {
+  if (!isRecord(value) || value.schemaVersion !== 1) {
+    throw new Error(
+      `Invalid Markdown segment source payload: ${expectedSegmentId}`,
+    );
+  }
+  if (
+    value.segmentId !== expectedSegmentId ||
+    typeof value.fileId !== "string"
+  ) {
+    throw new Error(
+      `Markdown segment source payload identity mismatch: ${expectedSegmentId}`,
+    );
+  }
+  if (value.kind === "markdown_target_only" && Array.isArray(value.units)) {
+    return value as unknown as MarkdownTargetOnlySegmentPayload;
+  }
+  if (value.kind === "markdown_bilingual" && Array.isArray(value.blocks)) {
+    return value as unknown as MarkdownBilingualSegmentPayload;
+  }
+  throw new Error(
+    `Unsupported Markdown segment source payload: ${expectedSegmentId}`,
+  );
+}
+
+function assertMarkdownSegmentResult(
+  value: unknown,
+  expectedSegmentId: string,
+): MarkdownSegmentResult {
+  if (!isRecord(value) || value.schemaVersion !== 1) {
+    throw new Error(`Invalid Markdown segment result: ${expectedSegmentId}`);
+  }
+  if (value.segmentId !== expectedSegmentId) {
+    throw new Error(
+      `Markdown segment result identity mismatch: ${expectedSegmentId}`,
+    );
+  }
+  if (value.kind === "markdown_target_only" && Array.isArray(value.results)) {
+    return value as unknown as MarkdownTargetOnlySegmentResult;
+  }
+  if (
+    value.kind === "markdown_bilingual" &&
+    Array.isArray(value.translations)
+  ) {
+    return value as unknown as MarkdownBilingualSegmentResult;
+  }
+  throw new Error(`Unsupported Markdown segment result: ${expectedSegmentId}`);
+}
+
+function isMarkdownSegmentResult(
+  result: RuntimeTranslationSegmentResult,
+): result is MarkdownSegmentResult {
+  return (
+    "kind" in result &&
+    (result.kind === "markdown_target_only" ||
+      result.kind === "markdown_bilingual")
+  );
+}
+
+function isTextTranslationSegmentResult(
+  result: RuntimeTranslationSegmentResult,
+): result is TextTranslationSegmentResult {
+  return "translatedText" in result;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 
 function formatGlossary(

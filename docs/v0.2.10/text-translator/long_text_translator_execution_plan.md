@@ -4,7 +4,7 @@
 > Feature Slug：`long_text_translator`
 > 对应设计文档：`docs/v0.2.10/text-translator/long_text_translator_final_design.md`
 > 范围：把长文本翻译 Final Design 拆分为可跨会话实施、验证和交接的工作包。
-> 当前状态：M0 技术验证、BE 主进程最小闭环（CORE-001/002、BE-001 至 BE-007）、`FE-001` 至 `FE-004` 文本翻译 UI、`REL-001` 至 `REL-003` 可靠恢复能力、`MEM-001` 至 `MEM-004` 串行语义记忆能力、`PROJ-001`/`PROJ-002` 有序项目能力、`OUT-001` TXT 块级双语输出、`MD-001` 至 `MD-003` Markdown 解析/输出组装能力、`DOC-001` README/发布说明和 `DOC-002` 工作区清理与兼容策略已完成；所有非测试工作包已完成，后续进入 `QA-001` 至 `QA-003` 验收收口。
+> 当前状态：M0 技术验证、BE 主进程最小闭环（CORE-001/002、BE-001 至 BE-007）、`FE-001` 至 `FE-004` 文本翻译 UI、`REL-001` 至 `REL-003` 可靠恢复能力、`MEM-001` 至 `MEM-004` 串行语义记忆能力、`PROJ-001`/`PROJ-002` 有序项目能力、`OUT-001` TXT 块级双语输出、`MD-001` 至 `MD-005` Markdown 解析/输出组装、执行协议与 parallel E2E、`DOC-001` README/发布说明和 `DOC-002` 工作区清理与兼容策略已完成；现继续通过 `MD-006`、`FE-005`、`QA-MD-001`、`DOC-MD-001` 补齐 Markdown 串行恢复、Renderer 入口和发布验收后，再进入 `QA-001` 至 `QA-003` 发布候选验收。
 
 ---
 
@@ -68,7 +68,7 @@
 2. 再关闭“单个 TXT、仅译文、快速并发”的最小端到端路径。
 3. 再补任务恢复、部分完成、取消和全局公平调度。
 4. 再实现串行语义记忆和有序小说项目。
-5. 再实现 Markdown 结构保护和双语输出。
+5. 再实现 Markdown 结构保护、输出组装、端到端执行接入和 UI 开放。
 6. 最后完成高级 UI、性能验收、清理策略和发布文档。
 
 ### 3.2 最小端到端路径
@@ -116,7 +116,7 @@
 | M1 TXT 最小闭环 | 单个 TXT 可准备、快速并发翻译、输出仅译文并在 UI 展示结果 |
 | M2 可靠并发任务 | 全局调度、失败分类、部分完成、暂停/取消、断点恢复可用 |
 | M3 小说连贯模式 | 串行语义记忆、快照、压缩、跨文件有序项目可用 |
-| M4 Markdown 与双语 | Markdown 保护、仅译文、引用块双语及 TXT 双语可用 |
+| M4 Markdown 与双语 | TXT 双语可用，Markdown 保护、仅译文、引用块双语、端到端执行和 UI 开放可用 |
 | M5 发布候选 | 自动化测试、性能门槛、手工验收、i18n、README 和清理策略完成 |
 
 ---
@@ -154,7 +154,13 @@
 | MD-002 | 已完成 | 2026-06-23 | Markdown 仅译文输出 | `electron/main/text-translation/output/markdown-output-assembler.ts`、`test/text-translation/output/markdownOutputAssembler.test.ts` | `pnpm run i18n:check`（8 namespaces / 915 keys passed）；`pnpm exec tsc --noEmit`；`pnpm exec vitest run test/text-translation/output/markdownOutputAssembler.test.ts`（5 tests passed）；核心文本翻译回归（14 files / 89 tests passed）；`pnpm build`；`git diff --check` | `docs/v0.2.10/text-translator/long_text_translator_implementation_records/2026-06-23_MD-002_markdown-target-only-output.md` | Markdown target-only assembler 已完成；service 暂未接入 Markdown 执行 |
 | MD-003 | 已完成 | 2026-06-23 | Markdown 引用块双语输出 | `electron/main/text-translation/output/markdown-output-assembler.ts`、`test/text-translation/output/markdownOutputAssembler.test.ts` | `pnpm run i18n:check`（8 namespaces / 915 keys passed）；`pnpm exec tsc --noEmit`；`pnpm exec vitest run test/text-translation/output/markdownOutputAssembler.test.ts`（9 tests passed）；核心文本翻译回归（14 files / 93 tests passed）；`pnpm build`；`git diff --check` | `docs/v0.2.10/text-translator/long_text_translator_implementation_records/2026-06-23_MD-003_markdown-bilingual-blockquote-output.md` | Markdown 双语 blockquote assembler 已完成；service 暂未接入 Markdown 执行 |
 | FE-003 | 已完成 | 2026-06-23 | 完整模式与高级配置 UI | `src/pages/Tools/Text/TextTranslator/index.tsx`、`src/locales/*/text.json` | `pnpm run i18n:check`（8 namespaces / 924 keys passed）；`pnpm exec tsc --noEmit`；核心文本翻译回归（14 files / 93 tests passed）；`pnpm build`；`git diff --check` | `docs/v0.2.10/text-translator/long_text_translator_implementation_records/2026-06-23_FE-003_complete-mode-advanced-config-ui.md` | UI 新增模式说明与动态上下文预算校验；Markdown 端到端执行仍未开放 |
-| FE-004 | 已完成 | 2026-06-23 | 批量独立文件任务与队列体验 | `src/store/tools/text/useTextTranslatorStore.ts`、`src/pages/Tools/Text/TextTranslator/index.tsx`、`src/locales/*/text.json` | `pnpm run i18n:check`（8 namespaces / 927 keys passed）；`pnpm exec tsc --noEmit`；核心文本翻译回归（14 files / 93 tests passed）；`pnpm build`；`git diff --check` | `docs/v0.2.10/text-translator/long_text_translator_implementation_records/2026-06-23_FE-004_batch-independent-file-queue.md` | 多文件可选择 independent_files 创建多个单文件 task；队列可视化依赖事件更新，未做浏览器点击验证 |
+| FE-004 | 已完成 | 2026-06-23 | 批量独立文件任务与队列体验 | `src/store/tools/text/useTextTranslatorStore.ts`、`src/pages/Tools/Text/TextTranslator/index.tsx`、`src/locales/*/text.json` | `pnpm run i18n:check`（8 namespaces / 927 keys passed）；`pnpm exec tsc --noEmit`；核心文本翻译回归（14 files / 93 tests passed）；`pnpm build`；`git diff --check` | `docs/v0.2.10/text-translator/long_text_translator_implementation_records/2026-06-23_FE-004_batch-independent-file-queue.md` | 当前实现仅开放多 TXT；原计划“多选 TXT/MD”由 `FE-005` 补齐；队列可视化依赖事件更新，未做浏览器点击验证 |
+| MD-004 | 已完成 | 2026-06-24 | Markdown 执行协议与结果映射 | `electron/main/text-translation/model/translation-response-protocol.ts`、`test/text-translation/protocol/markdownTranslationResponseProtocol.test.ts`、`docs/v0.2.10/text-translator/fix/2026-06-24_long_text_translator_markdown-e2e-gap.md`、Final Design、Execution Plan | `pnpm exec vitest run test/text-translation/protocol/markdownTranslationResponseProtocol.test.ts`（7 tests passed）；`pnpm exec vitest run test/text-translation/protocol/markdownTranslationResponseProtocol.test.ts test/text-translation/parsing/markdownParser.test.ts test/text-translation/output/markdownOutputAssembler.test.ts`（23 tests passed）；`pnpm exec tsc --noEmit`；`git diff --check`；完整 protocol/fake server 回归已在 `MD-005` 提升权限验证中通过 | `docs/v0.2.10/text-translator/long_text_translator_implementation_records/2026-06-24_MD-004_markdown-response-protocol-mapping.md` | Markdown unit/block 响应协议已固定并由 `MD-005` 接入 parallel；sequential 协议接入由 `MD-006` 完成 |
+| MD-005 | 已完成 | 2026-06-24 | 主进程 Markdown parallel 端到端接入 | `electron/main/text-translation/text-translation-service.ts`、`electron/main/text-translation/persistence/workspace-repository.ts`、`electron/main/text-translation/output/markdown-output-assembler.ts`、`electron/main/text-translation/model/translation-response-protocol.ts`、`test/text-translation/service/textTranslationService.e2e.test.ts`、`test/text-translation/persistence/workspaceRepository.test.ts` | Markdown target-only/bilingual/source-missing-resume E2E（service E2E 10 tests passed）；`pnpm exec vitest run test/text-translation`（16 files / 131 tests passed）；共享类型/IPC 回归（3 files / 15 tests passed）；`pnpm exec tsc --noEmit`；`pnpm build`；`git diff --check` | `docs/v0.2.10/text-translator/long_text_translator_implementation_records/2026-06-24_MD-005_markdown-parallel-e2e.md` | 主进程 parallel 已支持 `.md/.markdown` target-only、bilingual、冻结 source 恢复和结构化增量结果；sequential Markdown 仍明确拒绝，交由 `MD-006` |
+| MD-006 | 未开始 | — | Markdown 串行记忆、恢复与 stale 接入 | `electron/main/text-translation/text-translation-service.ts`、`electron/main/text-translation/model/translation-response-protocol.ts`、`electron/main/text-translation/persistence/event-log.ts`、`test/text-translation/service/textTranslationService.e2e.test.ts` | `.md` sequential_context 两段以上 E2E；resume/retranslate stale E2E；memoryVersion 与 placeholder 校验测试；`pnpm exec tsc --noEmit`；`git diff --check` | — | 需确认 Markdown unit/block 译文协议如何与 `memoryPatch` 动态边界共存 |
+| FE-005 | 未开始 | — | Renderer Markdown 文件开放与 Beta 提示 | `src/pages/Tools/Text/TextTranslator/index.tsx`、`src/store/tools/text/useTextTranslatorStore.ts`、`src/locales/*/text.json` | `pnpm run i18n:check`；`pnpm exec tsc --noEmit`；`pnpm build`；浏览器/手工选择 `.md` 冒烟 | — | 必须等待 `MD-005` 至少完成 parallel E2E 后再开放 `.md` 入口 |
+| QA-MD-001 | 未开始 | — | Markdown E2E 自动化与恢复验收 | `test/text-translation/service/textTranslationService.e2e.test.ts`、`test/text-translation/markdown/fixtures/*`、`test/text-translation/output/markdownOutputAssembler.test.ts` | `pnpm exec vitest run test/text-translation/protocol test/text-translation/parsing/markdownParser.test.ts test/text-translation/output/markdownOutputAssembler.test.ts test/text-translation/service/textTranslationService.e2e.test.ts`；`pnpm exec vitest run test/text-translation` | — | 需要覆盖 protected placeholder 异常、source changed/missing、parallel、sequential、bilingual 和恢复 |
+| DOC-MD-001 | 未开始 | — | Markdown 发布文档同步 | `README.md`、`CHANGELOG.md`、Final Design、Execution Plan | `pnpm run i18n:check`（如改文案）；`git diff --check` | — | 只有 Markdown E2E 完成后，才能移除“端到端 Markdown 未开放”的发布限制说明 |
 | QA-001 | 未开始 | — | 核心自动化测试与 Fixture 收口 | `test/text-translation/*`、相关单测 | 单元+集成套件稳定通过；fake server 不访问真实网络 | — | 无 |
 | QA-002 | 未开始 | — | 小说级性能与资源验收 | benchmark/performance tests、记录 | 1/10/50 MB、数千 segment 恢复、写放大、Renderer payload | — | 根据结果确定硬限制 |
 | QA-003 | 未开始 | — | 跨平台手工验收与真实模型验证 | 验收记录 | TXT/MD、编码、并发/串行、项目、恢复、取消、输出 | — | 真实供应商组合 |
@@ -690,6 +696,69 @@
 - fixture 在应用渲染器中表现可接受。
 - 无法安全插入的结构保留原样并 warning。
 
+### MD-004：Markdown 执行协议与结果映射
+
+目标：补齐 Markdown 从模型响应到源码位置回填所需的稳定协议。
+
+实施范围：
+
+- 为 Markdown target-only 定义 `unitId -> translatedText` 响应协议。
+- 为 Markdown bilingual 定义 `blockId -> translatedMarkdown` 响应协议。
+- 协议采用普通 chat completions 可返回的动态边界文本，不依赖 `response_format`、tool calling 或厂商私有结构化输出能力。
+- 响应必须逐项校验 expected id，不允许缺失、重复、未知或乱序污染结果。
+- 对每个 unit/block 的 protected placeholders 执行完整性校验，缺失、重复、未知、乱序时触发可诊断失败和重试策略。
+- 定义 Markdown 协议与 sequential `memoryPatch` 动态边界共存方式，避免译文区域与记忆 patch 相互污染。
+
+验收口径：
+
+- target-only 可从一个 segment 响应中恢复全部 expected unit 译文。
+- bilingual 可从一个 segment 响应中恢复全部 expected block 译文。
+- 模型额外解释、代码围栏、非法边界、重复 id 和 placeholder mismatch 均有稳定错误。
+- 协议测试不访问真实网络，可复用 fake OpenAI Compatible server。
+
+### MD-005：主进程 Markdown parallel 端到端接入
+
+目标：让 `.md` / `.markdown` 文件在快速并发模式下完成 prepare、翻译、落盘、恢复和输出。
+
+实施范围：
+
+- `createTask()` 放开 Markdown 文件，但仍保留资源限制和格式校验。
+- `prepareTask()` 按 `file.format` 分派 TXT parser 或 `parseMarkdownTranslationUnits()`。
+- 将 normalized Markdown source 按 fileId 冻结到 workspace，恢复和输出组装不得重新依赖可能已变化或缺失的源文件。
+- Markdown segment source snapshot 使用带 placeholder 的安全文本，确保代码、URL、frontmatter、HTML、link/image destination 不作为自然语言发送。
+- parallel executor 根据 `outputMode` 使用 MD-004 协议请求 unit/block 译文，并将结构化结果增量落盘。
+- `writeTaskOutputs()` 按 `file.format` 调用 TXT 或 Markdown 输出组装器。
+- Markdown target-only 输出保持源码未翻译区域不变；Markdown bilingual 输出使用“原块 + 译文 blockquote”。
+
+验收口径：
+
+- 单 `.md` parallel target-only 通过 fake server 输出 `.zh.md`。
+- 单 `.md` parallel bilingual 通过 fake server 输出 blockquote 双语 `.zh.md`。
+- frontmatter、代码块、inline code、HTML、URL、link/image destination 输出不被改写。
+- source changed/missing 时仍可使用 workspace 冻结 source 组装已完成结果或继续恢复。
+- API Key、完整模型 profile 和未脱敏错误不写入 workspace。
+
+### MD-006：Markdown 串行记忆、恢复与 stale 接入
+
+目标：让 Markdown 文件在连贯串行模式下复用 TXT 已完成的语义记忆、恢复和 stale 契约。
+
+实施范围：
+
+- sequential executor 使用 MD-004 协议返回 Markdown unit/block 译文和 `memoryPatch`。
+- 每个 Markdown segment 严格等待前一 segment 的译文结果和 memory commit。
+- 恢复时从第一个未完成 Markdown segment 继续，且使用对应 memoryVersion。
+- `retranslateFromSegment()` 对 Markdown segment 标记后续 stale，并禁止 stale 译文进入 Markdown 输出。
+- protected placeholder mismatch 不推进稳定记忆版本。
+- 多文件 ordered_project 中 Markdown 与 TXT 的跨文件记忆行为一致；如混合格式存在风险，必须在本包明确支持或拒绝并记录原因。
+
+验收口径：
+
+- `.md` sequential_context 两个以上 segment 严格串行，请求中包含前文语义记忆。
+- 应用重启后 resume 不重复请求已完成 Markdown segment。
+- 中间重翻会使后续 Markdown segment stale，重跑完成后 stale 清空。
+- memory patch 非法时保留译文成功、记忆不更新的降级边界。
+- Markdown 输出不包含 stale 结果。
+
 ### FE-003：完整模式与高级配置 UI
 
 目标：开放 Final Design 中的主要配置。
@@ -712,11 +781,11 @@
 
 ### FE-004：批量独立文件任务与队列体验
 
-目标：支持多个互不相关文本文件的批量翻译。
+目标：支持多个互不相关 TXT 文件的批量翻译；Markdown 多选与端到端开放由 `FE-005` 补齐。
 
 实施范围：
 
-- 多选 TXT/MD。
+- 多选 TXT。
 - 独立文件分别创建 task。
 - 文件/任务队列、等待、运行、完成和失败。
 - 同名不同路径可同时存在。
@@ -728,6 +797,62 @@
 - 删除/取消按 taskId 生效。
 - 一个任务失败不影响其它独立任务。
 - Renderer 不保存全文。
+
+### FE-005：Renderer Markdown 文件开放与 Beta 提示
+
+目标：在主进程 Markdown parallel E2E 可用后，开放用户选择 Markdown 文件。
+
+实施范围：
+
+- 文件选择器和拖拽过滤支持 `.txt`、`.md`、`.markdown`。
+- 移除或改写“当前 Beta 仅支持 .txt”的错误文案。
+- 页面说明区展示 Markdown 支持范围、复杂结构保护策略和大文件资源限制。
+- 多文件 independent_files 和 ordered_project 均可显示 TXT/Markdown 混合队列；如 `MD-006` 尚未支持混合串行项目，UI 必须阻止并给出明确错误。
+- 保持 Renderer 只传文件路径、顺序和配置，不读取全文。
+
+验收口径：
+
+- 选择 `.md` 不再被 Renderer 拒绝。
+- 无主进程 Markdown E2E 能力时 UI 不提前开放入口。
+- i18n 四语言 key 一致。
+- 窄屏和默认窗口尺寸下提示不挤压主要操作区。
+
+### QA-MD-001：Markdown E2E 自动化与恢复验收
+
+目标：把 Markdown 从模块级测试推进到端到端回归套件。
+
+实施范围：
+
+- 单 `.md` parallel target-only fake server E2E。
+- 单 `.md` parallel bilingual blockquote fake server E2E。
+- `.md` sequential_context、resume 和 retranslate stale E2E。
+- protected placeholder 缺失、重复、未知、乱序失败路径。
+- source changed/missing 的 workspace 冻结 source 恢复。
+- Markdown output fixture 覆盖 frontmatter、标题、段落、列表、嵌套引用、表格、链接、图片、代码块、HTML。
+
+验收口径：
+
+- `test/text-translation` 全量稳定通过。
+- 测试不访问真实模型或公网。
+- 临时 workspace 和输出目录测试结束后清理。
+- QA 结果写入实施记录，并更新 `QA-001` 的整体收口判断。
+
+### DOC-MD-001：Markdown 发布文档同步
+
+目标：在 Markdown E2E 完成后，让文档、发布说明和执行计划与真实能力一致。
+
+实施范围：
+
+- README 长文本翻译范围从“Markdown 端到端未开放”改为实际支持范围。
+- CHANGELOG 限制项同步更新。
+- Final Design 状态说明更新为 Markdown E2E 已完成或仍有明确限制。
+- Execution Plan 台账、推荐下一步和 QA 入口同步更新。
+
+验收口径：
+
+- 不宣称尚未完成的 Markdown 能力。
+- 文档清楚说明 Markdown 复杂结构、资源限制和建议人工检查输出的边界。
+- `git diff --check` 通过。
 
 ### QA-001：核心自动化测试与 Fixture 收口
 
@@ -878,8 +1003,14 @@ M1 + PRE-002
   -> MD-001
   -> MD-002
   -> MD-003
+  -> MD-004
+  -> MD-005
+  -> MD-006
   -> FE-003
   -> FE-004
+  -> FE-005
+  -> QA-MD-001
+  -> DOC-MD-001
   -> M4
 
 M4
@@ -898,6 +1029,9 @@ M4
 - `BE-005` 可与 `BE-004` 并行。
 - `OUT-001` 可在 TXT units/results 契约稳定后，与恢复工作并行。
 - `MD-001` 可在 `PRE-002` 和 `CORE-001` 完成后提前实施，但 `MD-002/003` 应等待输出替换契约稳定。
+- `MD-004` 必须在 `MD-005/006` 前完成，因为它固定 Markdown 模型响应到 unit/block 的回填契约。
+- `FE-005` 必须等待 `MD-005` 至少完成 parallel Markdown E2E 后再开放 `.md` 文件选择入口。
+- `QA-MD-001` 应在 `MD-005/006` 和 `FE-005` 后执行，作为 M4 进入发布候选 QA 的门槛。
 - `QA-001` 应随工作包持续补测试，最终工作包负责收口而非一次补齐。
 
 ---
@@ -1082,28 +1216,20 @@ docs/v0.2.10/text-translator/fix/
 下一次实现会话优先认领：
 
 ```text
-QA-001：核心自动化测试与 Fixture 收口
+MD-006：Markdown 串行记忆、恢复与 stale 接入
 ```
 
 原因：
 
-1. BE-007 已完成，单 TXT、parallel、target-only 主进程闭环已通过 fake server 验证，包含准备、分片、请求、结果落盘、事件日志、输出组装和 API Key 不持久化。
-2. FE-001/FE-002 已完成工具入口、路由、四语言 `text` namespace、单 TXT 文件选择、配置、prepare/start、进度事件、输出/工作区打开和任务模型缺失状态。
-3. REL-001 至 REL-003 已完成非法状态转换拒绝、暂停/取消、部分完成、工作区扫描、source 状态摘要、resume/restart/delete 和恢复 UI。
-4. MEM-001 已完成 `SemanticMemory` 基础结构、默认/effective budget 解析、用户术语和显式风格规则保护、优先级裁剪、latest/snapshot 原子写入读取和 memoryVersion 单调递增。
-5. MEM-002 已完成受限 `SemanticMemoryPatch` schema、非法 patch 不写 latest、用户术语冲突 warning、本地合并、90% 阈值压缩前快照、压缩成功提交和压缩失败保持 stable latest 的回退边界。
-6. MEM-003 已完成单 TXT `sequential_context` 执行分支、动态边界响应解析、每片输入/输出 memoryVersion 事件、后片等待前片结果和记忆提交、当前片失败后停止后续，以及新 service 恢复时接续 event sequence 和 latest memory 的断点恢复。
-7. MEM-004 已完成 `retranslateFromSegment` IPC/service 契约、目标片及后续 `segment_stale` 标记、event replay 剔除 stale result、从目标片前 snapshot 恢复 memory、重跑失败保持 stale、重跑完成后清空 stale 链，以及恢复弹窗的 staleFromSegmentId 影响提示。
-8. PROJ-001 已支持 ordered_project 多 TXT 创建/准备、冻结 order、跨文件 global segment 顺序、串行跨文件共享 memory、文件结束 memory snapshot、指定 fileId/order 前重置 memory、每个文件独立输出并在 custom 输出目录下保留 relativePath 子目录。
-9. PROJ-002 已把多 TXT 选择、自然排序、上/下移动顺序确认、parallel/sequential 与 independent/ordered 切换、语义记忆 token、背景/翻译要求/风格、术语表文本、重置文件序号和串行费用提示接入 Renderer。
-10. OUT-001 已完成 TXT 仅译文/双语对照输出模式、简洁/标签格式、自然块级拼装、Renderer 配置、IPC 校验和输出写盘接入。
-11. MD-001 已完成正式 Markdown parser、GFM/frontmatter/source offset 解析、link/image 目标保护、图片 alt 定位、占位符替换/校验/恢复和 parser 单测。
-12. MD-002 已完成 Markdown 仅译文输出组装、unit source range 从后向前替换、占位符恢复、link label/image alt/列表/表格单元格替换和 Markdown 可重解析验证。
-13. MD-003 已完成 Markdown 双语 blockquote 输出组装，覆盖标题、段落、列表、嵌套引用和表格整体译文引用块，并复用 PRE-002 fixture 做精确输出比对。
-14. FE-003 已完成 Renderer 模式说明和动态上下文预算校验，页面可见并发/串行、输出内容、TXT 双语格式、分片/记忆/上下文/输出预留、背景/指令/风格和术语表配置。
-15. FE-004 已完成批量 independent_files 准备流程、多个单文件 task 创建/准备/启动、队列状态可视化和 progress/taskUpdated 事件回填。
-16. DOC-001 已更新 README 和 CHANGELOG，说明长文本翻译 Beta 范围、隐私边界、费用提示、Markdown 限制和当前未开放能力。
-17. DOC-002 已完成工作区清理计划/执行 API、7 天成功任务保留、30 天非成功人工复核、旧 schema 只读复核和缺失/无效 metadata 保护。
-18. 所有非测试工作包已完成；剩余 `QA-001` 至 `QA-003` 为测试、性能和真实环境验收收口。
+1. `MD-005` 已让主进程在 parallel 模式下支持 `.md/.markdown` target-only、bilingual、冻结 source、结构化增量结果和 source missing resume。
+2. `createTask()` 当前对 Markdown `sequential_context` 明确返回 `not_implemented`，尚未接入既有语义记忆版本、严格顺序和 stale 契约。
+3. `MD-004` 已提供 sequential Markdown translation section 与 `memoryPatch` 的共存解析，`MD-006` 可直接接入 service executor。
+4. `MD-006` 需要覆盖至少两个 Markdown segment 的严格串行、resume 不重复已完成 segment、中间重翻导致后续 stale，以及 placeholder mismatch 不推进稳定记忆版本。
+5. `MD-006` 完成后，下一步推进 `FE-005`、`QA-MD-001` 和 `DOC-MD-001`。
+6. `QA-001` 至 `QA-003` 仍是发布候选阶段，但应等待 Markdown E2E 全部补齐后再作为整体收口入口。
 
-DOC-002 完成后进入 `QA-001：核心自动化测试与 Fixture 收口`。
+本次缺口复核记录见：
+
+```text
+docs/v0.2.10/text-translator/fix/2026-06-24_long_text_translator_markdown-e2e-gap.md
+```
