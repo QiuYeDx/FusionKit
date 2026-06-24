@@ -176,6 +176,10 @@ function TextTranslator() {
   const progress = task?.progress;
   const currentStatus = task?.status ?? "not_started";
   const currentPhase = task?.phase ?? "idle";
+  const visibleLastError =
+    lastError && (!lastError.taskId || lastError.taskId === task?.taskId)
+      ? lastError
+      : null;
   const queuedWaitingTasks = queuedTasks.filter(
     (queuedTask) => queuedTask.status === "waiting",
   );
@@ -302,59 +306,83 @@ function TextTranslator() {
   }, [refreshActiveTask]);
 
   useEffect(() => {
+    const getStore = () => useTextTranslatorStore.getState();
     return subscribeTextTranslationEvents({
       taskUpdated: (event) => {
+        const { activeTaskId: currentActiveId } = getStore();
         upsertQueuedTask(event.task);
-        if (activeTaskId && event.taskId !== activeTaskId) return;
+        if (currentActiveId && event.taskId !== currentActiveId) return;
         setTask(event.task);
       },
       progress: (event) => {
-        const queuedTask = queuedTasks.find(
+        const { task: currentTask, queuedTasks: currentQueue } = getStore();
+        const matched = currentQueue.find(
           (item) => item.taskId === event.taskId,
         );
-        if (queuedTask) {
+        if (matched) {
           upsertQueuedTask({
-            ...queuedTask,
+            ...matched,
             phase: event.progress.phase,
             progress: event.progress,
             updatedAt: event.occurredAt,
           });
         }
-        if (!task || event.taskId !== task.taskId) return;
+        if (!currentTask || event.taskId !== currentTask.taskId) return;
         setTask({
-          ...task,
+          ...currentTask,
           phase: event.progress.phase,
           progress: event.progress,
           updatedAt: event.occurredAt,
         });
       },
       taskCompleted: (event) => {
+        const { activeTaskId: currentActiveId } = getStore();
         upsertQueuedTask(event.task);
-        if (activeTaskId && event.taskId !== activeTaskId) return;
+        if (currentActiveId && event.taskId !== currentActiveId) return;
         setTask(event.task);
         setOutputPaths(event.outputPaths);
         showToast(t("translator.messages.completed"), "success");
       },
       taskFailed: (event) => {
-        if (activeTaskId && event.taskId !== activeTaskId) return;
-        setLastError(toUiError(event.error, task?.phase));
-        showToast(event.error.message, "error");
+        const {
+          activeTaskId: currentActiveId,
+          task: currentTask,
+          queuedTasks: currentQueue,
+        } = getStore();
+        const matched = currentQueue.find(
+          (item) => item.taskId === event.taskId,
+        );
+        const failedTask =
+          event.task ??
+          (matched
+            ? {
+                ...matched,
+                status: "failed" as const,
+                phase: event.error.phase ?? matched.phase,
+              }
+            : null);
+        if (failedTask) {
+          upsertQueuedTask(failedTask);
+        }
+        if (currentActiveId && event.taskId !== currentActiveId) return;
+        if (failedTask) {
+          setTask(failedTask);
+        }
+        setLastError(
+          toUiError(
+            event.error,
+            failedTask?.phase ?? currentTask?.phase,
+            event.taskId,
+          ),
+        );
       },
       fileCompleted: (event) => {
-        if (activeTaskId && event.taskId !== activeTaskId) return;
+        const { activeTaskId: currentActiveId } = getStore();
+        if (currentActiveId && event.taskId !== currentActiveId) return;
         setOutputPaths([event.outputPath]);
       },
     });
-  }, [
-    activeTaskId,
-    queuedTasks,
-    setLastError,
-    setOutputPaths,
-    setTask,
-    t,
-    task,
-    upsertQueuedTask,
-  ]);
+  }, [setLastError, setOutputPaths, setTask, t, upsertQueuedTask]);
 
   const handleFiles = useCallback(
     (files: FileList | File[]) => {
@@ -550,11 +578,30 @@ function TextTranslator() {
           taskId: queuedTask.taskId,
         });
         if (!started.ok) {
-          handleIpcError(started.error, queuedTask.phase);
-          return;
+          const latest = await getTextTranslationTaskDetail({
+            taskId: queuedTask.taskId,
+          });
+          const failedTask = latest.ok && latest.data ? latest.data : null;
+          if (failedTask) {
+            upsertQueuedTask(failedTask);
+          }
+          setLastError(
+            toUiError(
+              started.error,
+              failedTask?.phase ?? started.error.phase ?? "translating",
+              queuedTask.taskId,
+            ),
+          );
+          showToast(started.error.message, "error");
+          continue;
         }
         upsertQueuedTask(started.data);
-        if (!task || started.data.taskId === task.taskId) {
+        const current = useTextTranslatorStore.getState();
+        if (
+          !current.task ||
+          started.data.taskId === current.task.taskId ||
+          current.task.status === "failed"
+        ) {
           setTask(started.data);
         }
         if (started.data.status === "completed") {
@@ -564,7 +611,7 @@ function TextTranslator() {
           if (
             revealed.ok &&
             revealed.data.path &&
-            (!task || started.data.taskId === task.taskId)
+            (!current.task || started.data.taskId === current.task.taskId)
           ) {
             setOutputPaths([revealed.data.path]);
           }
@@ -1508,16 +1555,16 @@ function TextTranslator() {
               />
             </div>
 
-            {lastError ? (
+            {visibleLastError ? (
               <Alert variant="destructive" className="rounded-lg">
                 <AlertTriangle className="h-4 w-4" />
                 <AlertTitle>{t("translator.errors.title")}</AlertTitle>
                 <AlertDescription>
-                  <div>{lastError.message}</div>
-                  {lastError.phase ? (
+                  <div>{visibleLastError.message}</div>
+                  {visibleLastError.phase ? (
                     <div className="text-xs">
                       {t("translator.errors.phase", {
-                        phase: t(PHASE_KEYS[lastError.phase]),
+                        phase: t(PHASE_KEYS[visibleLastError.phase]),
                       })}
                     </div>
                   ) : null}
@@ -1920,11 +1967,13 @@ function emptyToUndefined(value: string): string | undefined {
 function toUiError(
   error: TextTranslationIpcError,
   phase?: TextTranslationPhase,
+  taskId?: string,
 ) {
   return {
     code: error.code,
     message: error.message,
-    phase,
+    taskId,
+    phase: error.phase ?? phase,
     field: error.field,
   };
 }

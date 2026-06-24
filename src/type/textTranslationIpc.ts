@@ -1,5 +1,6 @@
 import type {
   CreateTextTranslationTaskRequest,
+  TextTranslationPhase,
   TextTranslationProgress,
   TextTranslationRecoverySummary,
   TextTranslationRuntimeModelConfig,
@@ -48,6 +49,7 @@ export type TextTranslationIpcErrorCode =
 export interface TextTranslationIpcError {
   code: TextTranslationIpcErrorCode;
   message: string;
+  phase?: TextTranslationPhase;
   field?: string;
   details?: Record<string, unknown>;
 }
@@ -143,6 +145,7 @@ export interface TextTranslationTaskCompletedEvent
 export interface TextTranslationTaskFailedEvent
   extends TextTranslationEventBase {
   type: "task-failed";
+  task: TextTranslationTask;
   error: TextTranslationIpcError;
 }
 

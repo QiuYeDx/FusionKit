@@ -1351,6 +1351,27 @@ text-translation:warning
 
 `sequence` 用于 Renderer 忽略乱序或重复事件。
 
+失败事件必须携带主进程失败后的任务快照，避免 Renderer 依赖本地过期 `task.phase` 或队列快照推断失败阶段：
+
+```ts
+interface TextTranslationTaskFailedEvent {
+  type: "task-failed";
+  taskId: string;
+  sequence: number;
+  occurredAt: string;
+  task: TextTranslationTask;
+  error: {
+    code: TextTranslationIpcErrorCode;
+    message: string;
+    phase?: TextTranslationPhase;
+    field?: string;
+    details?: Record<string, unknown>;
+  };
+}
+```
+
+当所有分片失败时，主进程返回的错误应包含当前失败阶段和首个分片失败摘要；不得记录源正文或完整模型返回。
+
 ### 17.3 进度模型
 
 ```ts

@@ -1,15 +1,27 @@
 import { toast } from "sonner";
 
-/**
- * 通用的 toast 提示工具函数
- * @param message 提示信息
- * @param type toast 类型（可选，默认为 'default'）
- */
+const DEDUP_WINDOW_MS = 1500;
+const recentToasts = new Map<string, number>();
+
+function isDuplicate(key: string): boolean {
+  const now = Date.now();
+  const last = recentToasts.get(key);
+  if (last && now - last < DEDUP_WINDOW_MS) return true;
+  recentToasts.set(key, now);
+  if (recentToasts.size > 20) {
+    for (const [k, ts] of recentToasts) {
+      if (now - ts >= DEDUP_WINDOW_MS) recentToasts.delete(k);
+    }
+  }
+  return false;
+}
+
 export const showToast = (
   message: string,
-  type: "default" | "success" | "error" | "loading" = "default"
+  type: "default" | "success" | "error" | "loading" = "default",
 ) => {
-  // 根据类型调用不同的 toast 方法
+  if (isDuplicate(`${type}:${message}`)) return;
+
   switch (type) {
     case "success":
       toast.success(message);

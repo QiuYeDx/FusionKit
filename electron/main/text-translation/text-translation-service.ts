@@ -521,7 +521,14 @@ export class TextTranslationService implements TextTranslationIpcService {
         if (status === "failed") {
           const failure = this.failure(
             "internal_error",
-            "All text translation segments failed.",
+            formatAllSegmentsFailedMessage(
+              "All text translation segments failed.",
+              translated.failures,
+            ),
+            {
+              phase: record.task.phase,
+              details: summarizeSegmentFailures(translated.failures),
+            },
           );
           this.emitTaskFailed(record, failure.error);
           return failure;
@@ -1163,7 +1170,14 @@ export class TextTranslationService implements TextTranslationIpcService {
         if (status === "failed") {
           const failure = this.failure(
             "internal_error",
-            "All remaining text translation segments failed.",
+            formatAllSegmentsFailedMessage(
+              "All remaining text translation segments failed.",
+              translated.failures,
+            ),
+            {
+              phase: record.task.phase,
+              details: summarizeSegmentFailures(translated.failures),
+            },
           );
           this.emitTaskFailed(record, failure.error);
           return failure;
@@ -2188,14 +2202,24 @@ export class TextTranslationService implements TextTranslationIpcService {
     return this.failure(
       "internal_error",
       error instanceof Error ? error.message : "Text translation task failed.",
+      undefined,
     );
   }
 
   private failure<T = never>(
     code: "invalid_ipc_request" | "not_implemented" | "internal_error",
     message: string,
+    options?: {
+      phase?: TextTranslationTask["phase"];
+      details?: Record<string, unknown>;
+    },
   ): Extract<TextTranslationIpcResult<T>, { ok: false }> {
-    return textTranslationIpcFailure({ code, message }) as Extract<
+    return textTranslationIpcFailure({
+      code,
+      message,
+      ...(options?.phase ? { phase: options.phase } : {}),
+      ...(options?.details ? { details: options.details } : {}),
+    }) as Extract<
       TextTranslationIpcResult<T>,
       { ok: false }
     >;
@@ -2259,6 +2283,7 @@ export class TextTranslationService implements TextTranslationIpcService {
       taskId: record.task.taskId,
       sequence: this.nextSequence(record.task.taskId),
       occurredAt: new Date().toISOString(),
+      task: record.task,
       error,
     });
   }
@@ -2686,4 +2711,38 @@ function toSegmentFailure(
         : "segment_failed",
     message: error instanceof Error ? error.message : "Segment failed.",
   };
+}
+
+function formatAllSegmentsFailedMessage(
+  baseMessage: string,
+  failures: TranslationSegmentFailure[],
+): string {
+  const firstMessage = failures[0]?.message?.trim();
+  if (!firstMessage) return baseMessage;
+  return `${baseMessage} First failure: ${truncateDiagnostic(firstMessage)}`;
+}
+
+function summarizeSegmentFailures(
+  failures: TranslationSegmentFailure[],
+): Record<string, unknown> {
+  const first = failures[0];
+  return {
+    failedSegments: failures.length,
+    ...(first
+      ? {
+          firstFailure: {
+            segmentId: first.segmentId,
+            errorCode: first.errorCode,
+            message: truncateDiagnostic(first.message),
+          },
+        }
+      : {}),
+  };
+}
+
+function truncateDiagnostic(message: string): string {
+  const normalized = message.replace(/\s+/g, " ").trim();
+  return normalized.length > 240
+    ? `${normalized.slice(0, 237)}...`
+    : normalized;
 }

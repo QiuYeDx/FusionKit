@@ -11,6 +11,7 @@ import os from "os";
 import path from "path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createTextTranslationOptions } from "@/type/textTranslation";
+import type { TextTranslationEvent } from "@/type/textTranslationIpc";
 import { TextTranslationService } from "../../../electron/main/text-translation/text-translation-service";
 import { TextTranslationWorkspaceRepository } from "../../../electron/main/text-translation/persistence/workspace-repository";
 import {
@@ -286,6 +287,86 @@ describe("TextTranslationService BE-007 vertical slice", () => {
     ).toHaveLength(1);
     expect(await readFile(path.join(tempRoot, "out", "partial.zh.txt"), "utf-8"))
       .toBe("好\n\n坏");
+  });
+
+  it("reports translating phase and first failure details when all segments fail", async () => {
+    const sourcePath = path.join(tempRoot, "all-fail.txt");
+    await writeFile(sourcePath, "first\n\nsecond", "utf-8");
+
+    for (let index = 0; index < 8; index += 1) {
+      server.enqueue({
+        status: 500,
+        body: {
+          error: {
+            message: "planned model outage",
+            type: "server_error",
+            code: "planned_outage",
+          },
+        },
+      });
+    }
+
+    const repository = new TextTranslationWorkspaceRepository({
+      tasksRoot: path.join(tempRoot, "tasks-all-fail"),
+    });
+    const events: TextTranslationEvent[] = [];
+    const service = new TextTranslationService({
+      repository,
+      eventSink: (event) => events.push(event),
+    });
+
+    const created = await service.createTask({
+      files: [{ sourcePath, order: 0 }],
+      options: createTextTranslationOptions({
+        sliceTokenLimit: 1,
+        outputDir: path.join(tempRoot, "out-all-fail"),
+        outputPathMode: "custom",
+      }),
+      model: {
+        apiKey: "sk-e2e-secret",
+        modelKey: "fake-model",
+        endpoint: server.baseUrl,
+      },
+    });
+    expect(created.ok).toBe(true);
+    if (!created.ok) return;
+
+    const prepared = await service.prepareTask({ taskId: created.data.taskId });
+    expect(prepared.ok).toBe(true);
+    if (!prepared.ok) return;
+    expect(prepared.data.progress.totalSegments).toBeGreaterThanOrEqual(2);
+
+    const failed = await service.startTask({ taskId: created.data.taskId });
+    expect(failed.ok).toBe(false);
+    if (failed.ok) return;
+
+    expect(failed.error.phase).toBe("translating");
+    expect(failed.error.message).toContain(
+      "All text translation segments failed.",
+    );
+    expect(failed.error.message).toContain("First failure:");
+    expect(failed.error.details).toMatchObject({
+      failedSegments: prepared.data.progress.totalSegments,
+      firstFailure: {
+        errorCode: "http_retryable",
+        message: expect.stringContaining("planned model outage"),
+      },
+    });
+
+    const failedEvent = [...events]
+      .reverse()
+      .find((event) => event.type === "task-failed");
+    expect(failedEvent).toMatchObject({
+      type: "task-failed",
+      taskId: created.data.taskId,
+      task: {
+        status: "failed",
+        phase: "translating",
+      },
+      error: {
+        phase: "translating",
+      },
+    });
   });
 
   it("runs sequential-context segments in order and resumes with the latest memory", async () => {

@@ -36,6 +36,7 @@ export interface TextTranslatorPreferences {
 export interface TextTranslatorUiError {
   code: TextTranslationIpcError["code"] | "renderer_error";
   message: string;
+  taskId?: string;
   phase?: TextTranslationTask["phase"];
   field?: string;
 }
