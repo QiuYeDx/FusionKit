@@ -11,6 +11,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { cn } from "@/lib/utils";
 import {
   FolderOpen,
   FileSearch,
@@ -245,8 +247,8 @@ export default function RecoveryDialog({ open, onOpenChange }: RecoveryDialogPro
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="max-w-3xl max-h-[80vh] flex flex-col">
-        <DialogHeader>
+      <DialogContent className="flex max-h-[80vh] w-[min(calc(100vw-2rem),48rem)] max-w-none min-w-0 flex-col overflow-hidden">
+        <DialogHeader className="shrink-0">
           <DialogTitle>{t("subtitle:translator.recovery.title")}</DialogTitle>
         </DialogHeader>
 
@@ -320,9 +322,9 @@ export default function RecoveryDialog({ open, onOpenChange }: RecoveryDialogPro
         )}
 
         {state === "ready" && candidates.length > 0 && (
-          <div className="flex flex-col gap-2 min-h-0 flex-1">
-            <div className="flex items-center justify-between text-xs text-muted-foreground px-1">
-              <span>
+          <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-hidden">
+            <div className="flex shrink-0 items-center justify-between gap-3 px-1 text-xs text-muted-foreground">
+              <span className="min-w-0 truncate">
                 {t("subtitle:translator.recovery.scan_complete").replace("{count}", String(candidates.length))}
                 {scanResult?.truncated && (
                   <span className="ml-1 text-amber-500">
@@ -330,7 +332,7 @@ export default function RecoveryDialog({ open, onOpenChange }: RecoveryDialogPro
                   </span>
                 )}
               </span>
-              <div className="flex gap-2">
+              <div className="flex shrink-0 gap-2">
                 <button className="hover:underline" onClick={handleSelectAll}>
                   {t("subtitle:translator.recovery.select_all")}
                 </button>
@@ -340,8 +342,8 @@ export default function RecoveryDialog({ open, onOpenChange }: RecoveryDialogPro
               </div>
             </div>
 
-            <ScrollArea className="flex-1 max-h-[400px] border rounded-md">
-              <div className="divide-y">
+            <ScrollArea className="min-h-0 flex-1 overflow-hidden rounded-md border">
+              <div className="min-w-0 divide-y">
                 {candidates.map((candidate) => (
                   <CandidateRow
                     key={candidate.id}
@@ -356,7 +358,7 @@ export default function RecoveryDialog({ open, onOpenChange }: RecoveryDialogPro
             </ScrollArea>
 
             {selected.size > 0 && (
-              <div className="text-xs text-muted-foreground px-1">
+              <div className="shrink-0 px-1 text-xs text-muted-foreground">
                 {t("subtitle:translator.recovery.selected_count").replace("{count}", String(selected.size))}
               </div>
             )}
@@ -371,7 +373,7 @@ export default function RecoveryDialog({ open, onOpenChange }: RecoveryDialogPro
         )}
 
         {state === "ready" && candidates.length > 0 && (
-          <DialogFooter className="gap-2">
+          <DialogFooter className="shrink-0 gap-2">
             <Button variant="outline" onClick={() => handleOpenChange(false)}>
               {t("subtitle:translator.recovery.ignore")}
             </Button>
@@ -416,8 +418,8 @@ function CandidateRow({
     candidate.recoverability === "ready" || candidate.recoverability === "ready_from_manifest";
 
   return (
-    <div className="flex items-start gap-3 px-3 py-2.5 hover:bg-muted/50 transition-colors">
-      <div className="pt-0.5">
+    <div className="flex min-w-0 items-start gap-3 overflow-hidden px-3 py-2.5 transition-colors hover:bg-muted/50">
+      <div className="shrink-0 pt-0.5">
         <Checkbox
           checked={isSelected}
           onCheckedChange={onToggle}
@@ -425,35 +427,38 @@ function CandidateRow({
         />
       </div>
 
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2">
-          <span className="text-sm font-medium truncate">{candidate.fileName}</span>
+      <div className="min-w-0 flex-1 overflow-hidden">
+        <div className="flex min-w-0 items-center gap-2 overflow-hidden">
+          <MiddleEllipsisTooltip
+            text={candidate.fileName}
+            className="flex-1 text-sm font-medium"
+          />
           <RecoverabilityBadge recoverability={candidate.recoverability} t={t} />
           <SourceStateBadge sourceState={candidate.sourceState} t={t} />
         </div>
 
-        <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
-          <span>
+        <div className="mt-1 flex min-w-0 items-center gap-3 overflow-hidden text-xs text-muted-foreground">
+          <span className="shrink-0">
             {candidate.options.sourceLang} → {candidate.options.targetLang}
           </span>
-          <span>
+          <span className="shrink-0">
             {candidate.resolvedFragments}/{candidate.totalFragments} ({candidate.progress}%)
           </span>
-          <span className="truncate max-w-[200px]" title={candidate.outputDir}>
-            {candidate.outputDir}
-          </span>
+          <MiddleEllipsisTooltip text={candidate.outputDir} className="flex-1 font-mono" />
         </div>
 
         {candidate.recoverability === "ready_from_manifest" && (
-          <div className="text-xs text-amber-600 mt-1">
-            {t("subtitle:translator.recovery.source_unavailable_hint")}
-          </div>
+          <MiddleEllipsisTooltip
+            text={t("subtitle:translator.recovery.source_unavailable_hint")}
+            className="mt-1 text-xs text-amber-600"
+          />
         )}
 
         {candidate.blockingReason && !isRecoverable && (
-          <div className="text-xs text-destructive mt-1">
-            {candidate.blockingReason}
-          </div>
+          <MiddleEllipsisTooltip
+            text={candidate.blockingReason}
+            className="mt-1 text-xs text-destructive"
+          />
         )}
       </div>
 
@@ -464,6 +469,53 @@ function CandidateRow({
       </div>
     </div>
   );
+}
+
+function MiddleEllipsisTooltip({
+  text,
+  className,
+}: {
+  text: string;
+  className?: string;
+}) {
+  const { leading, trailing } = splitMiddleText(text);
+
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span
+          tabIndex={0}
+          className={cn(
+            "flex min-w-0 max-w-full overflow-hidden whitespace-nowrap",
+            className
+          )}
+          aria-label={text}
+        >
+          <span className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap">
+            {leading}
+          </span>
+          {trailing && (
+            <span className="max-w-[50%] shrink-0 overflow-hidden text-ellipsis whitespace-nowrap">
+              {trailing}
+            </span>
+          )}
+        </span>
+      </TooltipTrigger>
+      <TooltipContent className="max-w-[640px] break-all text-left">
+        {text}
+      </TooltipContent>
+    </Tooltip>
+  );
+}
+
+function splitMiddleText(text: string): { leading: string; trailing: string } {
+  if (text.length <= 16) return { leading: text, trailing: "" };
+
+  const trailingLength = Math.min(24, Math.max(8, Math.floor(text.length * 0.35)));
+  return {
+    leading: text.slice(0, -trailingLength),
+    trailing: text.slice(-trailingLength),
+  };
 }
 
 function RecoverabilityBadge({

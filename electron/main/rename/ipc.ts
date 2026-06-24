@@ -1,7 +1,7 @@
 import { dialog, ipcMain } from "electron";
-import type { OpenDialogOptions } from "electron";
 import { applyRenamePlan, rollbackRenameJournal } from "./apply";
 import { checkRenameTargetPaths } from "./path-check";
+import { buildOpenDialogProperties } from "./dialog-options";
 import { validateRenamePlan } from "./planner-validation";
 import { inspectRenamePaths, scanRenameTargets } from "./scanner";
 import type {
@@ -88,18 +88,4 @@ export function setupRenameIPC() {
       params: RollbackRenameJournalParams
     ): Promise<RollbackRenameJournalResult> => rollbackRenameJournal(params)
   );
-}
-
-function buildOpenDialogProperties(
-  params?: SelectRenamePathsParams
-): OpenDialogOptions["properties"] {
-  const allowFiles = params?.allowFiles ?? true;
-  const allowDirectories = params?.allowDirectories ?? true;
-  const properties: OpenDialogOptions["properties"] = [];
-
-  if (allowFiles || !allowDirectories) properties.push("openFile");
-  if (allowDirectories || !allowFiles) properties.push("openDirectory");
-  if (params?.multiSelections ?? true) properties.push("multiSelections");
-
-  return properties;
 }

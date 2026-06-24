@@ -594,7 +594,7 @@ async function getPathInfoFromDirent(
 
 async function readDirectoryEntries(directoryPath: string): Promise<Dirent[]> {
   const entries = await fs.readdir(directoryPath, { withFileTypes: true });
-  return entries.sort((a, b) => a.name.localeCompare(b.name));
+  return entries.sort((a, b) => compareName(a.name, b.name));
 }
 
 async function mapWithConcurrency<T, R>(
@@ -703,9 +703,9 @@ function compareTargets(
   right: NameTranslationTarget
 ): number {
   return (
-    compareKey(left.anchorRoot).localeCompare(compareKey(right.anchorRoot)) ||
+    compareText(compareKey(left.anchorRoot), compareKey(right.anchorRoot)) ||
     left.depthFromRoot - right.depthFromRoot ||
-    compareKey(left.absolutePath).localeCompare(compareKey(right.absolutePath))
+    compareText(compareKey(left.absolutePath), compareKey(right.absolutePath))
   );
 }
 
@@ -739,4 +739,23 @@ function compareKey(targetPath: string): string {
   return process.platform === "win32" || process.platform === "darwin"
     ? normalized.toLowerCase()
     : normalized;
+}
+
+function compareName(left: string, right: string): number {
+  return (
+    compareText(normalizePlatformCase(left), normalizePlatformCase(right)) ||
+    compareText(left, right)
+  );
+}
+
+function normalizePlatformCase(value: string): string {
+  return process.platform === "win32" || process.platform === "darwin"
+    ? value.toLowerCase()
+    : value;
+}
+
+function compareText(left: string, right: string): number {
+  if (left < right) return -1;
+  if (left > right) return 1;
+  return 0;
 }
