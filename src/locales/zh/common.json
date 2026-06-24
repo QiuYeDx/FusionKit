@@ -12,6 +12,9 @@
     },
     "rename": {
       "name_translator": "文件名/文件夹名翻译"
+    },
+    "text": {
+      "translator": "长文本翻译"
     }
   },
   "start": "开始",

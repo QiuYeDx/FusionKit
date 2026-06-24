@@ -3,7 +3,6 @@
     "title": "Long Text Translator",
     "description": "Prepare a long-form text translation task without sending source content through the renderer.",
     "badges": {
-      "beta": "Beta",
       "no_model": "Model required",
       "ready": "Model ready"
     },
@@ -93,12 +92,7 @@
       "cost": "Est. {{cost}}"
     },
     "scope": {
-      "title": "Current beta scope",
-      "supported_files": "Single or multiple TXT / Markdown files",
-      "execution_modes": "Parallel / continuity-serial translation",
-      "outputs": "Translation-only / bilingual output",
-      "beta_desc": "TXT and Markdown are available in the current beta.",
-      "markdown_title": "Markdown beta",
+      "markdown_title": "Markdown structure and resource note",
       "markdown_desc": "Markdown preserves code, URLs, frontmatter, and HTML. Files above {{softLimit}} show a resource warning; {{hardLimit}} is the current hard limit. Review complex output before publishing."
     },
     "execution": {

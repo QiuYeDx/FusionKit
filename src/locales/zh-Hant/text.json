@@ -3,7 +3,6 @@
     "title": "長文本翻譯",
     "description": "準備長文本翻譯任務，源檔正文不經過 Renderer 傳輸。",
     "badges": {
-      "beta": "Beta",
       "no_model": "需要任務模型",
       "ready": "模型已就緒"
     },
@@ -93,12 +92,7 @@
       "cost": "預估 {{cost}}"
     },
     "scope": {
-      "title": "目前 Beta 範圍",
-      "supported_files": "單個或多個 TXT / Markdown 檔案",
-      "execution_modes": "並行翻譯 / 連貫串行",
-      "outputs": "僅譯文 / 雙語輸出",
-      "beta_desc": "目前 Beta 已開放 TXT 與 Markdown 端到端翻譯。",
-      "markdown_title": "Markdown Beta",
+      "markdown_title": "Markdown 結構與資源提示",
       "markdown_desc": "Markdown 會保護程式碼、URL、frontmatter 和 HTML。超過 {{softLimit}} 會提示資源風險，目前硬限制為 {{hardLimit}}；複雜文件發布前建議檢查輸出。"
     },
     "execution": {

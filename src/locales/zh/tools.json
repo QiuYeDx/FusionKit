@@ -11,7 +11,7 @@
     "subtitle_tools": "AI 翻译、格式转换等字幕处理功能。",
     "music_tools": "将付费音乐转换为 FLAC/MP3 格式。",
     "rename_tools": "轻松批量重命名多个文件。",
-    "text_tools": "长文本 TXT 翻译工作区。"
+    "text_tools": "长文本 TXT / Markdown 翻译工作区。"
   },
   "fields": {
     "subtitle_translator": "字幕AI翻译",
@@ -25,13 +25,13 @@
     "subtitle_formatter": "转换字幕格式（SRT、ASS等）",
     "subtitle_language_extractor": "从双语字幕中提取指定语言",
     "name_translator": "批量翻译文件和文件夹名称，先预览再安全重命名",
-    "text_translator": "通过任务模型翻译长篇 TXT 文件，并保留可恢复工作区"
+    "text_translator": "通过任务模型翻译长篇 TXT / Markdown 文件，并保留可恢复工作区"
   },
   "chips": {
     "name_translator_files": "文件 · 文件夹",
     "name_translator_safe": "预览 · Journal",
     "text_translator_txt": "TXT",
-    "text_translator_beta": "Beta"
+    "text_translator_markdown": "Markdown"
   },
   "coming_soon": {
     "title": "敬请期待",

@@ -28,7 +28,7 @@ const BottomNavigation: React.FC = () => {
   const { isDark, setTheme } = useThemeStore();
 
   const currentToolName = useMemo(() => {
-    return ToolNameMap[location.pathname] || "-";
+    return ToolNameMap[location.pathname] || "menu.tools";
   }, [location.pathname]);
 
   const {

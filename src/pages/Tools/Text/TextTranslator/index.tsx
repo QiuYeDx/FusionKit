@@ -19,7 +19,6 @@ import {
   PlayCircle,
   RefreshCw,
   Settings,
-  Sparkles,
   Trash2,
   Upload,
   X,
@@ -54,7 +53,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
 import useModelStore from "@/store/useModelStore";
 import useTextTranslatorStore from "@/store/tools/text/useTextTranslatorStore";
@@ -763,7 +761,7 @@ function TextTranslator() {
   };
 
   return (
-    <div className="px-4 sm:px-8 pt-6 pb-[100px] max-w-6xl mx-auto">
+    <div className="px-4 sm:px-8 pt-6 pb-[100px] max-w-7xl mx-auto">
       <ToolPageHeader
         meta={meta}
         title={t("translator.title")}
@@ -780,7 +778,7 @@ function TextTranslator() {
         }
       />
 
-      <div className="grid grid-cols-1 xl:grid-cols-[330px_minmax(0,1fr)_320px] gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-[320px_minmax(0,1fr)] gap-4 items-start">
         <Card className="rounded-lg">
           <CardHeader>
             <CardTitle>{t("translator.config.title")}</CardTitle>
@@ -1209,7 +1207,6 @@ function TextTranslator() {
                     : t("translator.queue.desc")}
                 </CardDescription>
               </div>
-              <Badge variant="outline">{t("translator.badges.beta")}</Badge>
             </div>
           </CardHeader>
           <CardContent className="space-y-5">
@@ -1622,86 +1619,6 @@ function TextTranslator() {
             ) : null}
           </CardContent>
         </Card>
-
-        <div className="flex flex-col gap-4">
-          <Card className="rounded-lg">
-            <CardHeader>
-              <CardTitle>{t("translator.model.title")}</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="flex items-start gap-3">
-                <div className="mt-0.5 inline-flex h-8 w-8 items-center justify-center rounded-lg border bg-muted/30">
-                  {hasUsableTaskModel ? (
-                    <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-                  ) : (
-                    <Settings className="h-4 w-4 text-muted-foreground" />
-                  )}
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="text-sm font-medium">
-                    {hasUsableTaskModel
-                      ? t("translator.model.ready", {
-                          name: taskProfile?.name ?? "",
-                        })
-                      : t("translator.model.missing_title")}
-                  </div>
-                  {hasUsableTaskModel ? (
-                    <p className="mt-1 truncate text-xs font-mono text-muted-foreground">
-                      {taskProfile?.modelKey}
-                    </p>
-                  ) : (
-                    <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
-                      {t("translator.model.missing_desc")}
-                    </p>
-                  )}
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Alert className="rounded-lg">
-            <Sparkles className="h-4 w-4" />
-            <AlertTitle>{t("translator.scope.title")}</AlertTitle>
-            <AlertDescription>
-              {t("translator.scope.beta_desc")}
-            </AlertDescription>
-          </Alert>
-
-          {isSequential ? (
-            <Alert className="rounded-lg">
-              <Languages className="h-4 w-4" />
-              <AlertTitle>{t("translator.project.serial_cost_title")}</AlertTitle>
-              <AlertDescription>
-                {t("translator.project.serial_cost_desc", {
-                  tokens: formatTokens(preferences.semanticMemoryTokenLimit),
-                })}
-              </AlertDescription>
-            </Alert>
-          ) : null}
-
-          <Card className="rounded-lg">
-            <CardHeader>
-              <CardTitle>{t("translator.scope.title")}</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="flex flex-col gap-3">
-                {[
-                  t("translator.scope.supported_files"),
-                  t("translator.scope.execution_modes"),
-                  t("translator.scope.outputs"),
-                ].map((item, index) => (
-                  <div key={item}>
-                    {index > 0 ? <Separator className="mb-3" /> : null}
-                    <div className="flex items-center gap-2 text-sm">
-                      <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-                      <span>{item}</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        </div>
       </div>
       <RecoveryDialog
         open={recoveryOpen}

@@ -3,7 +3,6 @@
     "title": "长文本翻译",
     "description": "准备长文本翻译任务，源文件正文不经过 Renderer 传输。",
     "badges": {
-      "beta": "Beta",
       "no_model": "需要任务模型",
       "ready": "模型已就绪"
     },
@@ -93,12 +92,7 @@
       "cost": "预估 {{cost}}"
     },
     "scope": {
-      "title": "当前 Beta 范围",
-      "supported_files": "单个或多个 TXT / Markdown 文件",
-      "execution_modes": "并发翻译 / 连贯串行",
-      "outputs": "仅译文 / 双语输出",
-      "beta_desc": "当前 Beta 已开放 TXT 与 Markdown 端到端翻译。",
-      "markdown_title": "Markdown Beta",
+      "markdown_title": "Markdown 结构与资源提示",
       "markdown_desc": "Markdown 会保护代码、URL、frontmatter 和 HTML。超过 {{softLimit}} 会提示资源风险，当前硬限制为 {{hardLimit}}；复杂文档发布前建议检查输出。"
     },
     "execution": {

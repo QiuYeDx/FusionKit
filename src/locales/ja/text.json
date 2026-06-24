@@ -3,7 +3,6 @@
     "title": "長文翻訳",
     "description": "Renderer に本文を渡さず、長文翻訳タスクを準備します。",
     "badges": {
-      "beta": "Beta",
       "no_model": "モデルが必要",
       "ready": "モデル準備済み"
     },
@@ -93,12 +92,7 @@
       "cost": "概算 {{cost}}"
     },
     "scope": {
-      "title": "現在のBeta範囲",
-      "supported_files": "単一または複数の TXT / Markdown ファイル",
-      "execution_modes": "並列翻訳 / 連続コンテキスト",
-      "outputs": "訳文のみ / 対訳出力",
-      "beta_desc": "現在の Beta では TXT と Markdown のエンドツーエンド翻訳を利用できます。",
-      "markdown_title": "Markdown Beta",
+      "markdown_title": "Markdown 構造とリソースの注意",
       "markdown_desc": "Markdown のコード、URL、frontmatter、HTML は保護されます。{{softLimit}} を超えるとリソース警告が表示され、現在の上限は {{hardLimit}} です。複雑な文書は公開前に出力を確認してください。"
     },
     "execution": {

@@ -88,7 +88,7 @@ const CATEGORIES: Category[] = [
         descKey: "tools:field_desc.text_translator",
         chipKeys: [
           "tools:chips.text_translator_txt",
-          "tools:chips.text_translator_beta",
+          "tools:chips.text_translator_markdown",
         ],
       },
     ],

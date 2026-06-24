@@ -11,7 +11,7 @@
     "subtitle_tools": "AI翻訳、フォーマット変換などの字幕処理機能。",
     "music_tools": "有料音楽をFLAC/MP3形式に変換。",
     "rename_tools": "複数のファイルを簡単に一括リネーム。",
-    "text_tools": "長文TXT翻訳ワークスペース。"
+    "text_tools": "長文 TXT / Markdown 翻訳ワークスペース。"
   },
   "fields": {
     "subtitle_translator": "字幕AI翻訳",
@@ -25,13 +25,13 @@
     "subtitle_formatter": "字幕形式を変換（SRT、ASS など）",
     "subtitle_language_extractor": "バイリンガル字幕から指定言語を抽出",
     "name_translator": "ファイルやフォルダ名を一括翻訳し、プレビュー後に安全にリネームします",
-    "text_translator": "タスク用モデルで長いTXTファイルを翻訳し、復元可能な作業領域を保持します"
+    "text_translator": "タスク用モデルで長い TXT / Markdown ファイルを翻訳し、復元可能な作業領域を保持します"
   },
   "chips": {
     "name_translator_files": "ファイル · フォルダ",
     "name_translator_safe": "プレビュー · Journal",
     "text_translator_txt": "TXT",
-    "text_translator_beta": "Beta"
+    "text_translator_markdown": "Markdown"
   },
   "coming_soon": {
     "title": "近日公開",

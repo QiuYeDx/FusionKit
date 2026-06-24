@@ -11,7 +11,7 @@
     "subtitle_tools": "AI translation, format conversion, and other subtitle processing features.",
     "music_tools": "Convert paid music to FLAC/MP3 format.",
     "rename_tools": "Easily batch rename multiple files.",
-    "text_tools": "Long-form TXT translation workspace."
+    "text_tools": "Long-form TXT / Markdown translation workspace."
   },
   "fields": {
     "subtitle_translator": "AI Translation",
@@ -25,13 +25,13 @@
     "subtitle_formatter": "Convert subtitle formats (SRT, ASS, etc.)",
     "subtitle_language_extractor": "Extract a specific language from bilingual subtitles",
     "name_translator": "Batch translate file and folder names with a safe preview before renaming",
-    "text_translator": "Translate long TXT files in a resumable workspace with model execution"
+    "text_translator": "Translate long TXT / Markdown files in a resumable workspace with model execution"
   },
   "chips": {
     "name_translator_files": "Files · Folders",
     "name_translator_safe": "Preview · Journal",
     "text_translator_txt": "TXT",
-    "text_translator_beta": "Beta"
+    "text_translator_markdown": "Markdown"
   },
   "coming_soon": {
     "title": "Coming Soon",
