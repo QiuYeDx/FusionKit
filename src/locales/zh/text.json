@@ -16,7 +16,7 @@
     },
     "config": {
       "title": "翻译配置",
-      "desc": "单个 TXT、并发模式、仅译文输出。",
+      "desc": "支持 TXT 与 Markdown、并发或连贯串行、仅译文或双语输出。",
       "source_lang": "源语言",
       "target_lang": "目标语言",
       "slice_tokens": "分片 token",
@@ -47,7 +47,7 @@
       "bilingual_labels": "标签模式"
     },
     "actions": {
-      "select_file": "选择 TXT",
+      "select_file": "选择文件",
       "remove_file": "移除",
       "select_output": "选择输出目录",
       "prepare": "准备任务",
@@ -61,10 +61,12 @@
       "clear": "清空"
     },
     "file": {
-      "drop_title": "将 TXT 文件拖到这里",
+      "drop_title": "将 TXT 或 Markdown 文件拖到这里",
       "drop_desc": "Renderer 只会把文件路径交给主进程。",
-      "selected_count": "已选择 {{count}} 个 TXT 文件",
+      "selected_count": "已选择 {{count}} 个文件",
       "order_hint": "请确认下方项目顺序。",
+      "txt": "TXT",
+      "markdown": "Markdown",
       "size": "大小",
       "encoding": "编码",
       "confidence": "置信度"
@@ -72,9 +74,9 @@
     "queue": {
       "title": "任务队列",
       "desc": "还没有文本翻译任务。",
-      "ready_desc": "先准备选中的 TXT，再开始翻译。",
+      "ready_desc": "先准备选中的文件，再开始翻译。",
       "empty_title": "工作区为空",
-      "empty_desc": "TXT 任务配置将在下一个工作包接入。",
+      "empty_desc": "选择 TXT 或 Markdown 文件以创建任务。",
       "status_label": "状态",
       "phase_label": "阶段",
       "status_idle": "空闲",
@@ -92,10 +94,12 @@
     },
     "scope": {
       "title": "当前 Beta 范围",
-      "single_txt": "单个或多个 TXT 文件",
-      "parallel": "并发翻译",
-      "target_only": "仅译文 / 双语输出",
-      "coming_next": "Markdown 输出会在后续工作包接入。"
+      "supported_files": "单个或多个 TXT / Markdown 文件",
+      "execution_modes": "并发翻译 / 连贯串行",
+      "outputs": "仅译文 / 双语输出",
+      "beta_desc": "当前 Beta 已开放 TXT 与 Markdown 端到端翻译。",
+      "markdown_title": "Markdown Beta",
+      "markdown_desc": "Markdown 会保护代码、URL、frontmatter 和 HTML。超过 {{softLimit}} 会提示资源风险，当前硬限制为 {{hardLimit}}；复杂文档发布前建议检查输出。"
     },
     "execution": {
       "parallel": "快速并发",
@@ -151,7 +155,7 @@
       "title": "任务错误",
       "phase": "阶段：{{phase}}",
       "file_path_unavailable": "无法读取所选文件路径。",
-      "only_txt": "当前 Beta 仅支持 .txt 文件。",
+      "unsupported_file": "仅支持 .txt、.md 和 .markdown 文件。",
       "output_dir_required": "请选择输出目录，或使用源文件目录。",
       "budget_exceeded": "当前 token 预算超过模型上下文窗口。",
       "output_not_ready": "输出文件尚未就绪。"

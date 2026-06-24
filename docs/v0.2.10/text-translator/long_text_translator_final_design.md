@@ -2,7 +2,7 @@
 
 > 日期：2026-06-23
 > Feature Slug：`long_text_translator`
-> 状态：设计已收敛；M0 技术验证、BE 主进程最小闭环（CORE-001/002、BE-001 至 BE-007）、FE-001 至 FE-004 文本翻译 UI、REL-001 至 REL-003 可靠恢复能力、MEM-001 至 MEM-004 串行语义记忆能力、PROJ-001/PROJ-002 有序项目能力、OUT-001 TXT 块级双语输出、MD-001 至 MD-006 Markdown parallel/sequential 执行、恢复与输出能力、DOC-001 README/发布说明与 DOC-002 工作区清理/兼容策略已完成；Execution Plan 仍需继续推进 `FE-005`、`QA-MD-001`、`DOC-MD-001` 开放 Renderer Markdown 入口并完成发布验收后再进入发布候选 QA
+> 状态：设计已收敛；M0 技术验证、BE 主进程最小闭环（CORE-001/002、BE-001 至 BE-007）、FE-001 至 FE-005 文本翻译 UI、REL-001 至 REL-003 可靠恢复能力、MEM-001 至 MEM-004 串行语义记忆能力、PROJ-001/PROJ-002 有序项目能力、OUT-001 TXT 块级双语输出、MD-001 至 MD-006 Markdown parallel/sequential 执行、恢复与输出能力、DOC-001 README/发布说明与 DOC-002 工作区清理/兼容策略已完成；Execution Plan 仍需继续推进 `QA-MD-001`、`DOC-MD-001` 完成 Markdown 发布验收和文档同步后再进入发布候选 QA
 > 范围：新增支持整本小说规模 `.txt` / `.md` 文件的批量 AI 翻译工具。
 
 ---
@@ -1836,7 +1836,7 @@ test/text-translation/
 1. MEM-001 至 MEM-004 已落地语义记忆模型、预算、快照、patch、压缩、串行 executor、恢复和 stale 契约。
 2. DOC-002 已落地 repository 层清理计划/执行 API、成功任务 7 天保留、非成功任务 30 天人工复核、缺失 metadata 和旧 schema 保护。
 3. TXT 端到端能力已完成；Markdown parallel/sequential、target-only/bilingual、冻结 source 恢复、memoryVersion、stale 重翻和 mixed ordered project 主进程 E2E 已完成。
-4. 2026-06-24 已新增 `fix/2026-06-24_long_text_translator_markdown-e2e-gap.md`，`MD-004` 至 `MD-006` 已完成，Execution Plan 仍需继续推进 `FE-005`、`QA-MD-001`、`DOC-MD-001`。
+4. 2026-06-24 已新增 `fix/2026-06-24_long_text_translator_markdown-e2e-gap.md`，`MD-004` 至 `MD-006` 和 `FE-005` 已完成，Execution Plan 仍需继续推进 `QA-MD-001`、`DOC-MD-001`。
 5. `QA-001` 至 `QA-003` 仍是发布候选验收入口，但应等待 Markdown E2E 补齐后再作为整体收口。
 
 后续工作不得静默改变本文的核心用户契约；如必须改变，应先更新 Final Design 和执行计划。

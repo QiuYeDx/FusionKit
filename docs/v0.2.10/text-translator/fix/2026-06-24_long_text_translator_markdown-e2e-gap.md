@@ -98,7 +98,8 @@ Markdown E2E 验收必须覆盖：
 - 2026-06-24：`MD-004` 已完成，新增 Markdown target-only `unitId -> translatedText`、bilingual `blockId -> translatedMarkdown` 边界协议、placeholder 完整性校验、sequential `memoryPatch` 共存解析和协议单测。
 - 2026-06-24：`MD-005` 已完成，主进程 parallel 模式已支持 `.md/.markdown` prepare、冻结 normalized source、placeholder-safe segment payload、结构化结果增量落盘、target-only/bilingual 输出和 source missing resume；同时修复 Markdown unit 协议错误裁掉边界空格的问题。
 - 2026-06-24：`MD-006` 已完成，Markdown `sequential_context` 已接入严格顺序、语义记忆版本、resume、retranslate stale、placeholder 加强重试和 memory patch 降级边界；ordered project 明确支持 TXT/Markdown 混合格式共享记忆。
+- 2026-06-24：`FE-005` 已完成，Renderer 文件选择和拖拽已开放 `.txt/.md/.markdown`，文件列表显示格式，Markdown 选中后展示 Beta、5 MB 软警告、10 MB 硬限制和复杂结构检查提示；四语旧“仅 TXT / Markdown 后续接入”文案已同步移除。
 
 ## 后续建议
 
-下一轮实现优先认领 `FE-005`，开放 Renderer 的 `.md/.markdown` 文件选择、拖拽和批量/ordered project 入口，并同步 Markdown Beta、资源限制和复杂结构检查提示。
+下一轮实现优先认领 `QA-MD-001`，使用复杂 fixture 和真实 UI 操作完成 Markdown parallel/sequential、target-only/bilingual、恢复、placeholder 异常和 mixed project 的整体验收。

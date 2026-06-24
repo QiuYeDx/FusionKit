@@ -16,7 +16,7 @@
     },
     "config": {
       "title": "翻譯設定",
-      "desc": "單個 TXT、並行模式、僅譯文輸出。",
+      "desc": "支援 TXT 與 Markdown、並行或連貫串行、僅譯文或雙語輸出。",
       "source_lang": "源語言",
       "target_lang": "目標語言",
       "slice_tokens": "分片 token",
@@ -47,7 +47,7 @@
       "bilingual_labels": "標籤模式"
     },
     "actions": {
-      "select_file": "選擇 TXT",
+      "select_file": "選擇檔案",
       "remove_file": "移除",
       "select_output": "選擇輸出目錄",
       "prepare": "準備任務",
@@ -61,10 +61,12 @@
       "clear": "清空"
     },
     "file": {
-      "drop_title": "將 TXT 檔案拖到這裡",
+      "drop_title": "將 TXT 或 Markdown 檔案拖到這裡",
       "drop_desc": "Renderer 只會把檔案路徑交給主進程。",
-      "selected_count": "已選擇 {{count}} 個 TXT 檔案",
+      "selected_count": "已選擇 {{count}} 個檔案",
       "order_hint": "請確認下方專案順序。",
+      "txt": "TXT",
+      "markdown": "Markdown",
       "size": "大小",
       "encoding": "編碼",
       "confidence": "信心值"
@@ -72,9 +74,9 @@
     "queue": {
       "title": "任務佇列",
       "desc": "還沒有文字翻譯任務。",
-      "ready_desc": "先準備選取的 TXT，再開始翻譯。",
+      "ready_desc": "先準備選取的檔案，再開始翻譯。",
       "empty_title": "工作區為空",
-      "empty_desc": "TXT 任務設定將在下一個工作包接入。",
+      "empty_desc": "選擇 TXT 或 Markdown 檔案以建立任務。",
       "status_label": "狀態",
       "phase_label": "階段",
       "status_idle": "閒置",
@@ -92,10 +94,12 @@
     },
     "scope": {
       "title": "目前 Beta 範圍",
-      "single_txt": "單個或多個 TXT 檔案",
-      "parallel": "並行翻譯",
-      "target_only": "僅譯文 / 雙語輸出",
-      "coming_next": "Markdown 輸出會在後續工作包接入。"
+      "supported_files": "單個或多個 TXT / Markdown 檔案",
+      "execution_modes": "並行翻譯 / 連貫串行",
+      "outputs": "僅譯文 / 雙語輸出",
+      "beta_desc": "目前 Beta 已開放 TXT 與 Markdown 端到端翻譯。",
+      "markdown_title": "Markdown Beta",
+      "markdown_desc": "Markdown 會保護程式碼、URL、frontmatter 和 HTML。超過 {{softLimit}} 會提示資源風險，目前硬限制為 {{hardLimit}}；複雜文件發布前建議檢查輸出。"
     },
     "execution": {
       "parallel": "快速並行",
@@ -151,7 +155,7 @@
       "title": "任務錯誤",
       "phase": "階段：{{phase}}",
       "file_path_unavailable": "無法讀取所選檔案路徑。",
-      "only_txt": "目前 Beta 僅支援 .txt 檔案。",
+      "unsupported_file": "僅支援 .txt、.md 和 .markdown 檔案。",
       "output_dir_required": "請選擇輸出目錄，或使用源檔目錄。",
       "budget_exceeded": "目前 token 預算超過模型上下文視窗。",
       "output_not_ready": "輸出檔案尚未就緒。"

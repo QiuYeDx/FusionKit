@@ -16,7 +16,7 @@
     },
     "config": {
       "title": "翻訳設定",
-      "desc": "単一TXT、並列モード、訳文のみ出力。",
+      "desc": "TXT と Markdown、並列または連続コンテキスト、訳文のみまたは対訳出力に対応します。",
       "source_lang": "元言語",
       "target_lang": "訳文言語",
       "slice_tokens": "分割token",
@@ -47,7 +47,7 @@
       "bilingual_labels": "ラベル付き"
     },
     "actions": {
-      "select_file": "TXTを選択",
+      "select_file": "ファイルを選択",
       "remove_file": "削除",
       "select_output": "出力フォルダを選択",
       "prepare": "準備",
@@ -61,10 +61,12 @@
       "clear": "クリア"
     },
     "file": {
-      "drop_title": "TXTファイルをここにドロップ",
+      "drop_title": "TXT または Markdown ファイルをここにドロップ",
       "drop_desc": "Renderer はファイルパスのみをメインプロセスへ渡します。",
-      "selected_count": "{{count}} 個の TXT ファイルを選択済み",
+      "selected_count": "{{count}} 個のファイルを選択済み",
       "order_hint": "下のプロジェクト順序を確認してください。",
+      "txt": "TXT",
+      "markdown": "Markdown",
       "size": "サイズ",
       "encoding": "エンコーディング",
       "confidence": "信頼度"
@@ -72,9 +74,9 @@
     "queue": {
       "title": "タスクキュー",
       "desc": "テキスト翻訳タスクはまだありません。",
-      "ready_desc": "選択したTXTを準備してから翻訳を開始します。",
+      "ready_desc": "選択したファイルを準備してから翻訳を開始します。",
       "empty_title": "ワークスペースは空です",
-      "empty_desc": "TXTタスク設定は次のパッケージで接続されます。",
+      "empty_desc": "TXT または Markdown ファイルを選択してタスクを作成します。",
       "status_label": "状態",
       "phase_label": "フェーズ",
       "status_idle": "待機中",
@@ -92,10 +94,12 @@
     },
     "scope": {
       "title": "現在のBeta範囲",
-      "single_txt": "単一または複数の TXT ファイル",
-      "parallel": "並列翻訳",
-      "target_only": "訳文のみ / 対訳出力",
-      "coming_next": "Markdown 出力は後続パッケージで追加されます。"
+      "supported_files": "単一または複数の TXT / Markdown ファイル",
+      "execution_modes": "並列翻訳 / 連続コンテキスト",
+      "outputs": "訳文のみ / 対訳出力",
+      "beta_desc": "現在の Beta では TXT と Markdown のエンドツーエンド翻訳を利用できます。",
+      "markdown_title": "Markdown Beta",
+      "markdown_desc": "Markdown のコード、URL、frontmatter、HTML は保護されます。{{softLimit}} を超えるとリソース警告が表示され、現在の上限は {{hardLimit}} です。複雑な文書は公開前に出力を確認してください。"
     },
     "execution": {
       "parallel": "高速並列",
@@ -151,7 +155,7 @@
       "title": "タスクエラー",
       "phase": "フェーズ: {{phase}}",
       "file_path_unavailable": "選択したファイルパスを取得できません。",
-      "only_txt": "現在のBetaでは .txt ファイルのみ対応しています。",
+      "unsupported_file": ".txt、.md、.markdown ファイルのみ対応しています。",
       "output_dir_required": "出力フォルダを選択するか、元ファイルのフォルダを使用してください。",
       "budget_exceeded": "現在の token 予算はモデルコンテキスト枠を超えています。",
       "output_not_ready": "出力はまだ準備できていません。"

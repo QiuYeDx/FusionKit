@@ -16,7 +16,7 @@
     },
     "config": {
       "title": "Configuration",
-      "desc": "Single TXT, parallel mode, target-only output.",
+      "desc": "TXT and Markdown, parallel or continuity-serial, translation-only or bilingual output.",
       "source_lang": "Source",
       "target_lang": "Target",
       "slice_tokens": "Slice tokens",
@@ -47,7 +47,7 @@
       "bilingual_labels": "With labels"
     },
     "actions": {
-      "select_file": "Select TXT",
+      "select_file": "Select files",
       "remove_file": "Remove",
       "select_output": "Select output folder",
       "prepare": "Prepare",
@@ -61,10 +61,12 @@
       "clear": "Clear"
     },
     "file": {
-      "drop_title": "Drop a TXT file here",
+      "drop_title": "Drop TXT or Markdown files here",
       "drop_desc": "Only the file path is sent to the main process.",
-      "selected_count": "{{count}} TXT files selected",
+      "selected_count": "{{count}} files selected",
       "order_hint": "Confirm the project order below.",
+      "txt": "TXT",
+      "markdown": "Markdown",
       "size": "Size",
       "encoding": "Encoding",
       "confidence": "Confidence"
@@ -72,9 +74,9 @@
     "queue": {
       "title": "Task queue",
       "desc": "No text translation tasks yet.",
-      "ready_desc": "Prepare the selected TXT before starting translation.",
+      "ready_desc": "Prepare the selected files before starting translation.",
       "empty_title": "The workspace is empty",
-      "empty_desc": "TXT task setup lands in the next package.",
+      "empty_desc": "Select TXT or Markdown files to create a task.",
       "status_label": "Status",
       "phase_label": "Phase",
       "status_idle": "Idle",
@@ -92,10 +94,12 @@
     },
     "scope": {
       "title": "Current beta scope",
-      "single_txt": "Single or multiple TXT files",
-      "parallel": "Parallel translation",
-      "target_only": "Translation-only / bilingual output",
-      "coming_next": "Markdown output arrives in a later package."
+      "supported_files": "Single or multiple TXT / Markdown files",
+      "execution_modes": "Parallel / continuity-serial translation",
+      "outputs": "Translation-only / bilingual output",
+      "beta_desc": "TXT and Markdown are available in the current beta.",
+      "markdown_title": "Markdown beta",
+      "markdown_desc": "Markdown preserves code, URLs, frontmatter, and HTML. Files above {{softLimit}} show a resource warning; {{hardLimit}} is the current hard limit. Review complex output before publishing."
     },
     "execution": {
       "parallel": "Fast parallel",
@@ -151,7 +155,7 @@
       "title": "Task error",
       "phase": "Phase: {{phase}}",
       "file_path_unavailable": "Unable to read the selected file path.",
-      "only_txt": "Only .txt files are supported in this beta.",
+      "unsupported_file": "Only .txt, .md, and .markdown files are supported.",
       "output_dir_required": "Select an output folder or use the source folder.",
       "budget_exceeded": "The token budget exceeds the model context window.",
       "output_not_ready": "Output is not ready yet."

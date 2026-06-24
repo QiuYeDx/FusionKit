@@ -61,6 +61,7 @@ import useTextTranslatorStore from "@/store/tools/text/useTextTranslatorStore";
 import {
   DEFAULT_TEXT_TRANSLATION_MODEL_CONTEXT_TOKEN_LIMIT,
   DEFAULT_TEXT_TRANSLATION_OPTIONS,
+  TEXT_TRANSLATION_RESOURCE_LIMITS,
   TEXT_TRANSLATION_TOKEN_LIMITS,
   createTextTranslationOptions,
   estimateTextTranslationRequiredContextTokens,
@@ -68,6 +69,7 @@ import {
   type TextTranslationBilingualLabelMode,
   type TextTranslationConflictPolicy,
   type TextTranslationExecutionMode,
+  type TextFileFormat,
   type TextTranslationGlossaryEntry,
   type TextTranslationOutputMode,
   type TextTranslationOutputPathMode,
@@ -104,6 +106,7 @@ import { showToast } from "@/utils/toast";
 type SelectedTextFile = {
   fileName: string;
   sourcePath: string;
+  format: TextFileFormat;
   sizeBytes: number;
   modifiedAt: number;
   order: number;
@@ -230,6 +233,9 @@ function TextTranslator() {
   const isIndependentBatch =
     sourceFiles.length > 1 && preferences.projectMode === "independent_files";
   const isSequential = preferences.executionMode === "sequential_context";
+  const hasMarkdownFiles = sourceFiles.some(
+    (file) => file.format === "markdown",
+  );
 
   const sourceLanguages = useMemo(
     () => [
@@ -365,8 +371,9 @@ function TextTranslator() {
           showToast(message, "error");
           return;
         }
-        if (!file.name.toLowerCase().endsWith(".txt")) {
-          const message = t("translator.errors.only_txt");
+        const format = detectSelectedTextFileFormat(file.name);
+        if (!format) {
+          const message = t("translator.errors.unsupported_file");
           setLastError({ code: "renderer_error", message, field: "sourcePath" });
           showToast(message, "error");
           return;
@@ -374,6 +381,7 @@ function TextTranslator() {
         nextFiles.push({
           fileName: file.name,
           sourcePath,
+          format,
           sizeBytes: file.size,
           modifiedAt: file.lastModified,
           order: 0,
@@ -1208,7 +1216,7 @@ function TextTranslator() {
             <input
               ref={fileInputRef}
               type="file"
-              accept=".txt,text/plain"
+              accept=".txt,.md,.markdown,text/plain,text/markdown"
               multiple
               className="hidden"
               onChange={(event) => {
@@ -1325,6 +1333,11 @@ function TextTranslator() {
                           {formatBytes(file.sizeBytes, locale)}
                         </div>
                       </div>
+                      <Badge variant="outline" className="shrink-0">
+                        {file.format === "markdown"
+                          ? t("translator.file.markdown")
+                          : t("translator.file.txt")}
+                      </Badge>
                       <Button
                         type="button"
                         variant="ghost"
@@ -1351,6 +1364,25 @@ function TextTranslator() {
                   ))}
                 </div>
               </div>
+            ) : null}
+
+            {hasMarkdownFiles ? (
+              <Alert className="rounded-lg">
+                <AlertTriangle className="h-4 w-4" />
+                <AlertTitle>{t("translator.scope.markdown_title")}</AlertTitle>
+                <AlertDescription>
+                  {t("translator.scope.markdown_desc", {
+                    softLimit: formatBytes(
+                      TEXT_TRANSLATION_RESOURCE_LIMITS.markdownSingleFileSoftWarningBytes,
+                      locale,
+                    ),
+                    hardLimit: formatBytes(
+                      TEXT_TRANSLATION_RESOURCE_LIMITS.markdownSingleFileHardLimitBytes,
+                      locale,
+                    ),
+                  })}
+                </AlertDescription>
+              </Alert>
             ) : null}
 
             {queuedTasks.length > 1 ? (
@@ -1631,7 +1663,7 @@ function TextTranslator() {
             <Sparkles className="h-4 w-4" />
             <AlertTitle>{t("translator.scope.title")}</AlertTitle>
             <AlertDescription>
-              {t("translator.scope.coming_next")}
+              {t("translator.scope.beta_desc")}
             </AlertDescription>
           </Alert>
 
@@ -1654,9 +1686,9 @@ function TextTranslator() {
             <CardContent>
               <div className="flex flex-col gap-3">
                 {[
-                  t("translator.scope.single_txt"),
-                  t("translator.scope.parallel"),
-                  t("translator.scope.target_only"),
+                  t("translator.scope.supported_files"),
+                  t("translator.scope.execution_modes"),
+                  t("translator.scope.outputs"),
                 ].map((item, index) => (
                   <div key={item}>
                     {index > 0 ? <Separator className="mb-3" /> : null}
@@ -1898,6 +1930,7 @@ function taskFilesToSelectedFiles(task: TextTranslationTask | null): SelectedTex
     .map((file) => ({
       fileName: file.fileName,
       sourcePath: file.sourcePath,
+      format: file.format,
       sizeBytes: file.sizeBytes,
       modifiedAt: file.modifiedAt,
       order: file.order,
@@ -1922,6 +1955,17 @@ function naturalCompare(left: string, right: string): number {
     numeric: true,
     sensitivity: "base",
   });
+}
+
+function detectSelectedTextFileFormat(
+  fileName: string,
+): TextFileFormat | null {
+  const lowerName = fileName.toLowerCase();
+  if (lowerName.endsWith(".txt")) return "txt";
+  if (lowerName.endsWith(".md") || lowerName.endsWith(".markdown")) {
+    return "markdown";
+  }
+  return null;
 }
 
 function parseGlossaryText(text: string): TextTranslationGlossaryEntry[] {
