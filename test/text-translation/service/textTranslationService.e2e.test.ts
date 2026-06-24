@@ -471,6 +471,350 @@ describe("TextTranslationService BE-007 vertical slice", () => {
     ).toBe("第一段\n\n第二段重译");
   });
 
+  it("runs sequential Markdown in order, resumes, and clears stale results after retranslation", async () => {
+    const sourcePath = path.join(tempRoot, "sequential-markdown.md");
+    const outputDir = path.join(tempRoot, "out-sequential-markdown");
+    await writeFile(sourcePath, "Alpha.\n\nBeta.", "utf-8");
+
+    const repository = new TextTranslationWorkspaceRepository({
+      tasksRoot: path.join(tempRoot, "tasks-sequential-markdown"),
+    });
+    const service = new TextTranslationService({ repository });
+    const created = await service.createTask({
+      files: [{ sourcePath, order: 0 }],
+      options: createTextTranslationOptions({
+        executionMode: "sequential_context",
+        sliceTokenLimit: 1,
+        outputDir,
+        outputPathMode: "custom",
+      }),
+      model: {
+        apiKey: "sk-e2e-secret",
+        modelKey: "fake-model",
+        endpoint: server.baseUrl,
+      },
+    });
+    expect(created.ok).toBe(true);
+    if (!created.ok) return;
+
+    const prepared = await service.prepareTask({ taskId: created.data.taskId });
+    expect(prepared.ok).toBe(true);
+    if (!prepared.ok) return;
+    const segments = await repository.readSegmentsIndex<{ segmentId: string }>(
+      created.data.taskId,
+    );
+    expect(segments).toHaveLength(2);
+    const payloads = await readMarkdownTargetPayloads(
+      repository,
+      created.data.taskId,
+      segments,
+    );
+
+    server.enqueue((request) => {
+      const body = JSON.stringify(request.body);
+      expect(body).toContain(segments[0].segmentId);
+      return {
+        body: createChatCompletionBody({
+          content: formatSequentialMarkdownTargetResponse(
+            payloads.get(segments[0].segmentId)!,
+            "阿尔法。",
+            { currentSceneSummary: "Alpha memory committed." },
+          ),
+        }),
+      };
+    });
+    server.enqueue({
+      status: 500,
+      body: {
+        error: {
+          message: "planned sequential Markdown failure",
+          type: "server_error",
+          code: "planned_markdown_failure",
+        },
+      },
+    });
+
+    const partial = await service.startTask({ taskId: created.data.taskId });
+    expect(partial.ok).toBe(true);
+    if (!partial.ok) return;
+    expect(partial.data.status).toBe("partially_completed");
+
+    const recoveredService = new TextTranslationService({ repository });
+    server.enqueue((request) => {
+      const body = JSON.stringify(request.body);
+      expect(body).toContain("Alpha memory committed.");
+      expect(body).toContain("阿尔法。");
+      expect(body).toContain(segments[1].segmentId);
+      return {
+        body: createChatCompletionBody({
+          content: formatSequentialMarkdownTargetResponse(
+            payloads.get(segments[1].segmentId)!,
+            "贝塔。",
+            { currentSceneSummary: "Beta memory committed." },
+          ),
+        }),
+      };
+    });
+
+    const resumed = await recoveredService.resumeTask({
+      taskId: created.data.taskId,
+      model: {
+        apiKey: "sk-e2e-secret",
+        modelKey: "fake-model",
+        endpoint: server.baseUrl,
+      },
+    });
+    expect(resumed.ok).toBe(true);
+    if (!resumed.ok) return;
+    expect(resumed.data.status).toBe("completed");
+    const replayed = await repository.replayEvents(created.data.taskId);
+    expect(replayed.segmentMemoryVersions[segments[0].segmentId]).toEqual({
+      inputMemoryVersion: 0,
+      memoryVersion: 1,
+    });
+    expect(replayed.segmentMemoryVersions[segments[1].segmentId]).toEqual({
+      inputMemoryVersion: 1,
+      memoryVersion: 2,
+    });
+    expect(
+      await readFile(
+        path.join(outputDir, "sequential-markdown.zh.md"),
+        "utf-8",
+      ),
+    ).toBe("阿尔法。\n\n贝塔。");
+
+    server.enqueue({
+      status: 500,
+      body: {
+        error: {
+          message: "planned Markdown retranslation failure",
+          type: "server_error",
+          code: "planned_markdown_failure",
+        },
+      },
+    });
+    const stalePartial = await recoveredService.retranslateFromSegment({
+      taskId: created.data.taskId,
+      segmentId: segments[1].segmentId,
+    });
+    expect(stalePartial.ok).toBe(true);
+    if (!stalePartial.ok) return;
+    expect(stalePartial.data.status).toBe("partially_completed");
+    const staleReplay = await repository.replayEvents(created.data.taskId);
+    expect(staleReplay.completedSegmentIds).toEqual([segments[0].segmentId]);
+    expect(staleReplay.staleSegmentIds).toEqual([segments[1].segmentId]);
+
+    server.enqueue((request) => {
+      const body = JSON.stringify(request.body);
+      expect(body).toContain("Alpha memory committed.");
+      expect(body).not.toContain("Beta memory committed.");
+      return {
+        body: createChatCompletionBody({
+          content: formatSequentialMarkdownTargetResponse(
+            payloads.get(segments[1].segmentId)!,
+            "贝塔重译。",
+            { currentSceneSummary: "Beta was retranslated." },
+          ),
+        }),
+      };
+    });
+    const rerun = await recoveredService.resumeTask({
+      taskId: created.data.taskId,
+    });
+    expect(rerun.ok).toBe(true);
+    if (!rerun.ok) return;
+    expect(rerun.data.status).toBe("completed");
+    expect(
+      (await repository.replayEvents(created.data.taskId)).staleSegmentIds,
+    ).toEqual([]);
+    expect(
+      await readFile(
+        path.join(outputDir, "sequential-markdown.zh (1).md"),
+        "utf-8",
+      ),
+    ).toBe("阿尔法。\n\n贝塔重译。");
+  });
+
+  it("retries sequential Markdown placeholder mismatches without committing the rejected memory patch", async () => {
+    const sourcePath = path.join(tempRoot, "sequential-placeholder.md");
+    const outputDir = path.join(tempRoot, "out-sequential-placeholder");
+    await writeFile(
+      sourcePath,
+      "A paragraph with `inline code`.",
+      "utf-8",
+    );
+
+    const repository = new TextTranslationWorkspaceRepository({
+      tasksRoot: path.join(tempRoot, "tasks-sequential-placeholder"),
+    });
+    const service = new TextTranslationService({ repository });
+    const created = await service.createTask({
+      files: [{ sourcePath, order: 0 }],
+      options: createTextTranslationOptions({
+        executionMode: "sequential_context",
+        outputMode: "bilingual",
+        outputDir,
+        outputPathMode: "custom",
+      }),
+      model: {
+        apiKey: "sk-e2e-secret",
+        modelKey: "fake-model",
+        endpoint: server.baseUrl,
+      },
+    });
+    expect(created.ok).toBe(true);
+    if (!created.ok) return;
+    const prepared = await service.prepareTask({ taskId: created.data.taskId });
+    expect(prepared.ok).toBe(true);
+    if (!prepared.ok) return;
+
+    const segments = await repository.readSegmentsIndex<{ segmentId: string }>(
+      created.data.taskId,
+    );
+    const payload =
+      await repository.readSegmentSourcePayload<TestMarkdownBilingualPayload>(
+        created.data.taskId,
+        segments[0].segmentId,
+      );
+    const placeholder = payload.blocks
+      .flatMap((block) => block.placeholders ?? [])
+      .at(0);
+    expect(placeholder).toBeDefined();
+
+    server.enqueue({
+      body: createChatCompletionBody({
+        content: formatSequentialTranslationResponse(
+          payload.segmentId,
+          formatMarkdownBilingualTranslationResponse(payload.segmentId, [
+            {
+              blockId: payload.blocks[0].blockId,
+              translatedMarkdown: "模型删除了保护占位符。",
+            },
+          ]),
+          { currentSceneSummary: "REJECTED_MEMORY_PATCH" },
+        ),
+      }),
+    });
+    server.enqueue((request) => {
+      const body = JSON.stringify(request.body);
+      expect(body).toContain("Retry correction:");
+      expect(body).not.toContain("REJECTED_MEMORY_PATCH");
+      return {
+        body: createChatCompletionBody({
+          content: formatSequentialTranslationResponse(
+            payload.segmentId,
+            formatMarkdownBilingualTranslationResponse(payload.segmentId, [
+              {
+                blockId: payload.blocks[0].blockId,
+                translatedMarkdown: `一个段落包含 ${placeholder!.token}。`,
+              },
+            ]),
+            { currentSceneSummary: "Accepted memory patch." },
+          ),
+        }),
+      };
+    });
+
+    const completed = await service.startTask({ taskId: created.data.taskId });
+    expect(completed.ok).toBe(true);
+    if (!completed.ok) return;
+    expect(completed.data.status).toBe("completed");
+    expect(server.requests).toHaveLength(2);
+    expect(await repository.readMemoryLatest(created.data.taskId)).toMatchObject({
+      version: 1,
+      currentSceneSummary: "Accepted memory patch.",
+    });
+    expect(
+      await readFile(
+        path.join(outputDir, "sequential-placeholder.zh.md"),
+        "utf-8",
+      ),
+    ).toBe(
+      "A paragraph with `inline code`.\n\n> 一个段落包含 `inline code`。",
+    );
+  });
+
+  it("shares sequential memory across ordered TXT and Markdown files", async () => {
+    const txtPath = path.join(tempRoot, "mixed-01.txt");
+    const markdownPath = path.join(tempRoot, "mixed-02.md");
+    const outputDir = path.join(tempRoot, "out-mixed-project");
+    await writeFile(txtPath, "Alpha.", "utf-8");
+    await writeFile(markdownPath, "# Beta", "utf-8");
+
+    const repository = new TextTranslationWorkspaceRepository({
+      tasksRoot: path.join(tempRoot, "tasks-mixed-project"),
+    });
+    const service = new TextTranslationService({ repository });
+    const created = await service.createTask({
+      files: [
+        { sourcePath: txtPath, order: 0 },
+        { sourcePath: markdownPath, order: 1 },
+      ],
+      options: createTextTranslationOptions({
+        executionMode: "sequential_context",
+        projectMode: "ordered_project",
+        outputDir,
+        outputPathMode: "custom",
+      }),
+      model: {
+        apiKey: "sk-e2e-secret",
+        modelKey: "fake-model",
+        endpoint: server.baseUrl,
+      },
+    });
+    expect(created.ok).toBe(true);
+    if (!created.ok) return;
+    const prepared = await service.prepareTask({ taskId: created.data.taskId });
+    expect(prepared.ok).toBe(true);
+    if (!prepared.ok) return;
+
+    const segments = await repository.readSegmentsIndex<{
+      segmentId: string;
+      fileId: string;
+    }>(created.data.taskId);
+    expect(segments).toHaveLength(2);
+    const markdownPayload =
+      await repository.readSegmentSourcePayload<TestMarkdownTargetPayload>(
+        created.data.taskId,
+        segments[1].segmentId,
+      );
+
+    server.enqueue({
+      body: createChatCompletionBody({
+        content: formatSequentialTranslationResponse(
+          segments[0].segmentId,
+          "阿尔法。",
+          { currentSceneSummary: "Mixed project memory." },
+        ),
+      }),
+    });
+    server.enqueue((request) => {
+      const body = JSON.stringify(request.body);
+      expect(body).toContain("Mixed project memory.");
+      expect(body).toContain("阿尔法。");
+      return {
+        body: createChatCompletionBody({
+          content: formatSequentialMarkdownTargetResponse(
+            markdownPayload,
+            "贝塔",
+            { currentSceneSummary: "Mixed project completed." },
+          ),
+        }),
+      };
+    });
+
+    const completed = await service.startTask({ taskId: created.data.taskId });
+    expect(completed.ok).toBe(true);
+    if (!completed.ok) return;
+    expect(completed.data.status).toBe("completed");
+    expect(
+      await readFile(path.join(outputDir, "mixed-01.zh.txt"), "utf-8"),
+    ).toBe("阿尔法。");
+    expect(
+      await readFile(path.join(outputDir, "mixed-02.zh.md"), "utf-8"),
+    ).toBe("# 贝塔");
+  });
+
   it("keeps sequential translation when only memory patch parsing fails", async () => {
     const sourcePath = path.join(tempRoot, "invalid-patch.txt");
     await writeFile(sourcePath, "Only paragraph.", "utf-8");
@@ -1080,4 +1424,40 @@ function createMarkdownTargetResponder(input: {
       }),
     };
   };
+}
+
+async function readMarkdownTargetPayloads(
+  repository: TextTranslationWorkspaceRepository,
+  taskId: string,
+  segments: Array<{ segmentId: string }>,
+): Promise<Map<string, TestMarkdownTargetPayload>> {
+  const payloads = new Map<string, TestMarkdownTargetPayload>();
+  for (const segment of segments) {
+    payloads.set(
+      segment.segmentId,
+      await repository.readSegmentSourcePayload<TestMarkdownTargetPayload>(
+        taskId,
+        segment.segmentId,
+      ),
+    );
+  }
+  return payloads;
+}
+
+function formatSequentialMarkdownTargetResponse(
+  payload: TestMarkdownTargetPayload,
+  translatedText: string,
+  memoryPatch: unknown,
+): string {
+  return formatSequentialTranslationResponse(
+    payload.segmentId,
+    formatMarkdownTargetOnlyTranslationResponse(
+      payload.segmentId,
+      payload.units.map((unit) => ({
+        unitId: unit.unitId,
+        translatedText,
+      })),
+    ),
+    memoryPatch,
+  );
 }

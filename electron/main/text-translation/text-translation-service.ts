@@ -64,6 +64,8 @@ import {
   buildSequentialTranslationPrompt,
   parseMarkdownBilingualTranslationResponse,
   parseMarkdownTargetOnlyTranslationResponse,
+  parseSequentialMarkdownBilingualTranslationResponse,
+  parseSequentialMarkdownTargetOnlyTranslationResponse,
   parseSequentialTranslationResponse,
   TranslationProtocolError,
   type MarkdownExpectedBlockTranslation,
@@ -87,7 +89,10 @@ import type {
   TranslationUnitKind,
 } from "./types";
 import type { TextTranslationWorkspaceEvent } from "./persistence/event-log";
-import type { SemanticMemoryWarning } from "./memory/memory-patch";
+import type {
+  SemanticMemoryPatch,
+  SemanticMemoryWarning,
+} from "./memory/memory-patch";
 import type { SemanticMemory } from "./memory/semantic-memory";
 
 export type TextTranslationEventSink = (event: TextTranslationEvent) => void;
@@ -164,6 +169,14 @@ interface TranslationSegmentFailure {
 interface TranslateSegmentsResult {
   results: RuntimeTranslationSegmentResult[];
   failures: TranslationSegmentFailure[];
+}
+
+interface SequentialSegmentTranslation {
+  result: RuntimeTranslationSegmentResult;
+  translatedTextForContext: string;
+  memoryPatch?: SemanticMemoryPatch;
+  warnings: SemanticMemoryWarning[];
+  usage?: OpenAICompatibleUsage;
 }
 
 type PersistedTranslationSegment = Omit<TranslationSegment, "sourceText">;
@@ -269,18 +282,6 @@ export class TextTranslationService implements TextTranslationIpcService {
         });
         inspections.push(inspection);
       }
-      if (
-        request.options.executionMode === "sequential_context" &&
-        inspections.some(
-          (inspection) => inspection.file.format === "markdown",
-        )
-      ) {
-        return this.failure(
-          "not_implemented",
-          "Sequential-context Markdown translation will be enabled by MD-006.",
-        );
-      }
-
       const task = createTextTranslationTask({
         taskId,
         files: inspections.map((inspection) =>
@@ -1536,12 +1537,10 @@ export class TextTranslationService implements TextTranslationIpcService {
     );
     if (startIndex < 0) return { results: [], failures: [] };
 
-    const results: TextTranslationSegmentResult[] = [];
+    const results: RuntimeTranslationSegmentResult[] = [];
     const failures: TranslationSegmentFailure[] = [];
     const resultBySegmentId = new Map(
-      (record.results ?? [])
-        .filter(isTextTranslationSegmentResult)
-        .map((result) => [result.segmentId, result]),
+      (record.results ?? []).map((result) => [result.segmentId, result]),
     );
     let completedSegments = completedSegmentIds.size;
     let recentSourceText = "";
@@ -1552,7 +1551,9 @@ export class TextTranslationService implements TextTranslationIpcService {
       const previousResult = resultBySegmentId.get(previousSegment.segmentId);
       if (previousResult) {
         recentSourceText = tailText(previousSegment.sourceText);
-        recentTranslatedText = tailText(previousResult.translatedText);
+        recentTranslatedText = tailText(
+          summarizeTranslationResult(previousResult),
+        );
         break;
       }
     }
@@ -1595,51 +1596,24 @@ export class TextTranslationService implements TextTranslationIpcService {
           latestMemory,
           record.task.options.semanticMemoryTokenLimit,
         ).memory;
-        const response = await sendOpenAICompatibleChatCompletion({
-          endpoint: record.model.endpoint,
-          apiKey: record.model.apiKey,
-          model: record.model.modelKey,
+        const translated = await this.translateSequentialSegment({
+          record,
+          segment,
+          memoryJson: JSON.stringify(trimmedMemory),
+          recentSourceText,
+          recentTranslatedText,
           signal,
-          messages: [
-            {
-              role: "system",
-              content:
-                "Translate long-form prose with continuity. Return only the required FusionKit sequential protocol.",
-            },
-            {
-              role: "user",
-              content: buildSequentialTranslationPrompt({
-                sourceLang: record.task.options.sourceLang,
-                targetLang: record.task.options.targetLang,
-                protocolId: segment.segmentId,
-                memoryJson: JSON.stringify(trimmedMemory),
-                sourceText: segment.sourceText,
-                recentSourceText,
-                recentTranslatedText,
-                documentBackground: record.task.options.documentBackground,
-                translationInstructions:
-                  record.task.options.translationInstructions,
-                styleInstructions: record.task.options.styleInstructions,
-                glossaryText: formatGlossary(record.task.options.glossary),
-              }),
-            },
-          ],
-        });
-        const parsed = parseSequentialTranslationResponse({
-          text: response.content,
-          finishReason: response.finishReason,
-          protocolId: segment.segmentId,
         });
 
-        for (const warning of parsed.warnings) {
+        for (const warning of translated.warnings) {
           await this.appendMemoryWarning(record, warning);
         }
 
         let outputMemoryVersion = latestMemory.version;
-        if (parsed.memoryPatch) {
+        if (translated.memoryPatch) {
           const patchResult = await this.memoryManager.applyPatch(
             record.task.taskId,
-            parsed.memoryPatch,
+            translated.memoryPatch,
             {
               updatedAfterSegmentId: segment.segmentId,
               snapshot: {
@@ -1652,13 +1626,29 @@ export class TextTranslationService implements TextTranslationIpcService {
           for (const warning of patchResult.warnings) {
             await this.appendMemoryWarning(record, warning);
           }
+        } else {
+          await this.repository.writeMemorySnapshot(
+            record.task.taskId,
+            createSemanticMemorySnapshotId({
+              kind: "periodic",
+              segmentId: segment.segmentId,
+              version: latestMemory.version,
+            }),
+            latestMemory,
+          );
         }
 
-        const resultPath = await this.repository.writeSegmentResult(
-          record.task.taskId,
-          segment.segmentId,
-          parsed.translatedText,
-        );
+        const resultPath = isMarkdownSegmentResult(translated.result)
+          ? await this.repository.writeSegmentResultPayload(
+              record.task.taskId,
+              segment.segmentId,
+              translated.result,
+            )
+          : await this.repository.writeSegmentResult(
+              record.task.taskId,
+              segment.segmentId,
+              translated.result.translatedText,
+            );
         await this.appendEvent(record.task.taskId, {
           type: "segment_completed",
           taskId: record.task.taskId,
@@ -1668,7 +1658,7 @@ export class TextTranslationService implements TextTranslationIpcService {
           resultPath,
           inputMemoryVersion: latestMemory.version,
           memoryVersion: outputMemoryVersion,
-          usage: toWorkspaceUsage(response.usage),
+          usage: toWorkspaceUsage(translated.usage),
         });
         await this.writeFileEndMemorySnapshotIfNeeded(
           record,
@@ -1676,14 +1666,12 @@ export class TextTranslationService implements TextTranslationIpcService {
           allSegments[index + 1],
         );
 
-        const result = {
-          segmentId: segment.segmentId,
-          translatedText: parsed.translatedText,
-        };
-        results.push(result);
-        resultBySegmentId.set(segment.segmentId, result);
+        results.push(translated.result);
+        resultBySegmentId.set(segment.segmentId, translated.result);
         recentSourceText = tailText(segment.sourceText);
-        recentTranslatedText = tailText(parsed.translatedText);
+        recentTranslatedText = tailText(
+          translated.translatedTextForContext,
+        );
         completedSegments += 1;
         this.patchTask(record, {
           progress: this.createProgress(
@@ -1714,6 +1702,203 @@ export class TextTranslationService implements TextTranslationIpcService {
     }
 
     return { results, failures };
+  }
+
+  private async translateSequentialSegment(input: {
+    record: RuntimeTaskRecord;
+    segment: TranslationSegment;
+    memoryJson: string;
+    recentSourceText: string;
+    recentTranslatedText: string;
+    signal: AbortSignal;
+  }): Promise<SequentialSegmentTranslation> {
+    const file = input.record.task.files.find(
+      (item) => item.fileId === input.segment.fileId,
+    );
+    if (!file) {
+      throw new Error(
+        `Translation segment references an unknown file: ${input.segment.fileId}`,
+      );
+    }
+
+    if (file.format === "txt") {
+      const response = await sendOpenAICompatibleChatCompletion({
+        endpoint: input.record.model.endpoint,
+        apiKey: input.record.model.apiKey,
+        model: input.record.model.modelKey,
+        signal: input.signal,
+        messages: [
+          {
+            role: "system",
+            content:
+              "Translate long-form prose with continuity. Return only the required FusionKit sequential protocol.",
+          },
+          {
+            role: "user",
+            content: buildSequentialTranslationPrompt({
+              sourceLang: input.record.task.options.sourceLang,
+              targetLang: input.record.task.options.targetLang,
+              protocolId: input.segment.segmentId,
+              memoryJson: input.memoryJson,
+              sourceText: input.segment.sourceText,
+              recentSourceText: input.recentSourceText,
+              recentTranslatedText: input.recentTranslatedText,
+              documentBackground:
+                input.record.task.options.documentBackground,
+              translationInstructions:
+                input.record.task.options.translationInstructions,
+              styleInstructions:
+                input.record.task.options.styleInstructions,
+              glossaryText: formatGlossary(
+                input.record.task.options.glossary,
+              ),
+            }),
+          },
+        ],
+      });
+      const parsed = parseSequentialTranslationResponse({
+        text: response.content,
+        finishReason: response.finishReason,
+        protocolId: input.segment.segmentId,
+      });
+      return {
+        result: {
+          segmentId: input.segment.segmentId,
+          translatedText: parsed.translatedText,
+        },
+        translatedTextForContext: parsed.translatedText,
+        memoryPatch: parsed.memoryPatch,
+        warnings: parsed.warnings,
+        usage: response.usage,
+      };
+    }
+
+    const payload = assertMarkdownSegmentPayload(
+      await this.repository.readSegmentSourcePayload<unknown>(
+        input.record.task.taskId,
+        input.segment.segmentId,
+      ),
+      input.segment.segmentId,
+    );
+    const markdownPrompt =
+      payload.kind === "markdown_target_only"
+        ? buildMarkdownTargetOnlyTranslationPrompt({
+            sourceLang: input.record.task.options.sourceLang,
+            targetLang: input.record.task.options.targetLang,
+            protocolId: payload.segmentId,
+            units: payload.units,
+          })
+        : buildMarkdownBilingualTranslationPrompt({
+            sourceLang: input.record.task.options.sourceLang,
+            targetLang: input.record.task.options.targetLang,
+            protocolId: payload.segmentId,
+            blocks: payload.blocks.map((item) => ({
+              blockId: item.blockId,
+              sourceText: item.sourceText,
+              placeholders: item.placeholders,
+            })),
+          });
+    const basePrompt = buildSequentialTranslationPrompt({
+      sourceLang: input.record.task.options.sourceLang,
+      targetLang: input.record.task.options.targetLang,
+      protocolId: input.segment.segmentId,
+      memoryJson: input.memoryJson,
+      sourceText: markdownPrompt,
+      recentSourceText: input.recentSourceText,
+      recentTranslatedText: input.recentTranslatedText,
+      documentBackground: input.record.task.options.documentBackground,
+      translationInstructions:
+        input.record.task.options.translationInstructions,
+      styleInstructions: input.record.task.options.styleInstructions,
+      glossaryText: formatGlossary(input.record.task.options.glossary),
+    });
+    let prompt = basePrompt;
+
+    for (let protocolAttempt = 0; protocolAttempt < 2; protocolAttempt += 1) {
+      const response = await sendOpenAICompatibleChatCompletion({
+        endpoint: input.record.model.endpoint,
+        apiKey: input.record.model.apiKey,
+        model: input.record.model.modelKey,
+        signal: input.signal,
+        messages: [
+          {
+            role: "system",
+            content:
+              "Translate Markdown with continuity. Return the FusionKit sequential protocol whose translation section contains the required FusionKit Markdown protocol.",
+          },
+          { role: "user", content: prompt },
+        ],
+      });
+
+      try {
+        if (payload.kind === "markdown_target_only") {
+          const parsed =
+            parseSequentialMarkdownTargetOnlyTranslationResponse({
+              text: response.content,
+              finishReason: response.finishReason,
+              sequentialProtocolId: input.segment.segmentId,
+              expectedUnits: payload.units,
+            });
+          const result: MarkdownTargetOnlySegmentResult = {
+            schemaVersion: 1,
+            kind: "markdown_target_only",
+            segmentId: payload.segmentId,
+            results: parsed.results,
+          };
+          return {
+            result,
+            translatedTextForContext: summarizeTranslationResult(result),
+            memoryPatch: parsed.memoryPatch,
+            warnings: parsed.warnings,
+            usage: response.usage,
+          };
+        }
+
+        const parsed =
+          parseSequentialMarkdownBilingualTranslationResponse({
+            text: response.content,
+            finishReason: response.finishReason,
+            sequentialProtocolId: input.segment.segmentId,
+            expectedBlocks: payload.blocks.map((item) => ({
+              blockId: item.blockId,
+              sourceText: item.sourceText,
+              placeholders: item.placeholders,
+            })),
+          });
+        const result: MarkdownBilingualSegmentResult = {
+          schemaVersion: 1,
+          kind: "markdown_bilingual",
+          segmentId: payload.segmentId,
+          translations: parsed.translations,
+        };
+        return {
+          result,
+          translatedTextForContext: summarizeTranslationResult(result),
+          memoryPatch: parsed.memoryPatch,
+          warnings: parsed.warnings,
+          usage: response.usage,
+        };
+      } catch (error) {
+        if (
+          !(error instanceof TranslationProtocolError) ||
+          !error.retryable ||
+          protocolAttempt > 0
+        ) {
+          throw error;
+        }
+        prompt = [
+          basePrompt,
+          "",
+          "Retry correction:",
+          error.retryInstruction ??
+            "The previous response did not match the nested sequential Markdown protocol. Return every expected Markdown item exactly once and keep the memory patch outside the Markdown translation section.",
+        ].join("\n");
+      }
+    }
+
+    throw new Error(
+      `Sequential Markdown translation failed: ${input.segment.segmentId}`,
+    );
   }
 
   private async appendMemoryWarning(
@@ -2398,6 +2583,19 @@ function isTextTranslationSegmentResult(
   result: RuntimeTranslationSegmentResult,
 ): result is TextTranslationSegmentResult {
   return "translatedText" in result;
+}
+
+function summarizeTranslationResult(
+  result: RuntimeTranslationSegmentResult,
+): string {
+  if (isTextTranslationSegmentResult(result)) {
+    return result.translatedText;
+  }
+  return result.kind === "markdown_target_only"
+    ? result.results.map((item) => item.translatedText).join("\n\n")
+    : result.translations
+        .map((item) => item.translatedMarkdown)
+        .join("\n\n");
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
