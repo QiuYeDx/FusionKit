@@ -11,3 +11,4 @@ export { ToolSection } from "./ToolSection";
 export { ToolStat, ToolStatGrid } from "./ToolStat";
 export { ToolActionBar, TooltipIconButton } from "./ToolActionBar";
 export { ToolDetailLayout } from "./ToolDetailLayout";
+export { ToolOutputPathPicker } from "./ToolOutputPathPicker";

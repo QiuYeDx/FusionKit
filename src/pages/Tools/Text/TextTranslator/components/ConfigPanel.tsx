@@ -1,5 +1,5 @@
 import { useTranslation } from "react-i18next";
-import { Cpu, Folder, FolderOpen, Languages, Sparkles } from "lucide-react";
+import { Cpu, FolderOpen, Languages, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ButtonGroup } from "@/components/ui/button-group";
 import {
@@ -21,7 +21,12 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
-import { InfoHint, ToolField, ToolSection } from "@/pages/Tools/_shared/ui";
+import {
+  InfoHint,
+  ToolField,
+  ToolOutputPathPicker,
+  ToolSection,
+} from "@/pages/Tools/_shared/ui";
 import {
   DEFAULT_TEXT_TRANSLATION_MODEL_CONTEXT_TOKEN_LIMIT,
   TEXT_TRANSLATION_TOKEN_LIMITS,
@@ -483,24 +488,13 @@ export default function ConfigPanel({
 
             {preferences.outputPathMode === "custom" ? (
               <ToolField label={t("translator.config.output_dir")}>
-                <div className="flex gap-2">
-                  <Input
-                    value={preferences.outputDir}
-                    readOnly
-                    placeholder={t("translator.output.not_selected")}
-                    className="min-w-0"
-                  />
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="icon"
-                    onClick={onSelectOutputPath}
-                    disabled={disabled}
-                    aria-label={t("translator.actions.select_output")}
-                  >
-                    <Folder className="h-4 w-4" />
-                  </Button>
-                </div>
+                <ToolOutputPathPicker
+                  value={preferences.outputDir}
+                  placeholder={t("translator.output.not_selected")}
+                  selectLabel={t("translator.actions.select_output")}
+                  onSelect={onSelectOutputPath}
+                  disabled={disabled}
+                />
               </ToolField>
             ) : null}
 

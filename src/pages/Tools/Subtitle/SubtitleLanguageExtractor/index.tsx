@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import ToolPageHeader from "@/pages/Tools/_shared/ToolPageHeader";
 import { TOOL_META } from "@/pages/Tools/_shared/toolMeta";
+import { ToolOutputPathPicker } from "@/pages/Tools/_shared/ui";
 import { Badge } from "@/components/ui/badge";
 import {
   EXTRACT_SUPPORTED_LANGUAGES,
@@ -458,27 +459,17 @@ function SubtitleLanguageExtractor() {
                   </Button>
                 </ButtonGroup>
                 {outputMode === "custom" ? (
-                  <div
-                    className="mt-1.5 flex items-center gap-2 p-2 pl-2.5 rounded-md border bg-muted/40 cursor-pointer hover:bg-muted/60 transition-colors"
-                    onClick={handleSelectOutputPath}
-                    title={outputURL || t("subtitle:extractor:fields.no_output_path_selected")}
-                  >
-                    <Folder className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                    <span className="flex-1 min-w-0 truncate font-mono text-[11px] text-foreground/80">
-                      {outputURL ||
-                        t("subtitle:extractor:fields.no_output_path_selected")}
-                    </span>
-                    <button
-                      type="button"
-                      className="text-[11px] text-primary font-medium hover:underline"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleSelectOutputPath();
-                      }}
-                    >
-                      {t("subtitle:extractor:fields.select_output_path")}
-                    </button>
-                  </div>
+                  <ToolOutputPathPicker
+                    className="mt-2"
+                    value={outputURL}
+                    placeholder={t(
+                      "subtitle:extractor:fields.no_output_path_selected"
+                    )}
+                    selectLabel={t(
+                      "subtitle:extractor:fields.select_output_path"
+                    )}
+                    onSelect={handleSelectOutputPath}
+                  />
                 ) : (
                   <p className="text-[11px] text-muted-foreground mt-1">
                     {t("subtitle:extractor:fields.output_mode_source_hint")}
