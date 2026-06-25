@@ -13,6 +13,12 @@
       "missing_desc": "長文翻訳タスクを作成する前に、モデルプロファイルを選択してください。",
       "configure": "設定"
     },
+    "sections": {
+      "basic": "基本設定",
+      "engine": "翻訳エンジン",
+      "prompt": "プロンプト設計",
+      "output": "出力設定"
+    },
     "config": {
       "title": "翻訳設定",
       "desc": "TXT と Markdown、並列または連続コンテキスト、訳文のみまたは対訳出力に対応します。",

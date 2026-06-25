@@ -13,6 +13,12 @@
       "missing_desc": "创建长文本翻译任务前，请先选择一个模型配置。",
       "configure": "去配置"
     },
+    "sections": {
+      "basic": "基础设置",
+      "engine": "翻译引擎",
+      "prompt": "提示词工程",
+      "output": "输出设置"
+    },
     "config": {
       "title": "翻译配置",
       "desc": "支持 TXT 与 Markdown、并发或连贯串行、仅译文或双语输出。",

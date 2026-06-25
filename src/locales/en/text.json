@@ -13,6 +13,12 @@
       "missing_desc": "Choose a model profile before creating long-text translation tasks.",
       "configure": "Configure"
     },
+    "sections": {
+      "basic": "Basics",
+      "engine": "Engine",
+      "prompt": "Prompt engineering",
+      "output": "Output"
+    },
     "config": {
       "title": "Configuration",
       "desc": "TXT and Markdown, parallel or continuity-serial, translation-only or bilingual output.",

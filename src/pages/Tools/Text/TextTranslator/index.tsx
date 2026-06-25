@@ -1,44 +1,17 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import {
-  AlertTriangle,
-  ArrowDown,
-  ArrowUp,
-  CheckCircle2,
   CircleDashed,
-  Cpu,
-  FileText,
-  Files,
   Folder,
-  FolderOpen,
-  History,
-  Languages,
-  Layers3,
   PlayCircle,
   RefreshCw,
-  Settings,
   Trash2,
-  Upload,
-  X,
 } from "lucide-react";
 import ToolPageHeader from "@/pages/Tools/_shared/ToolPageHeader";
 import { TOOL_META } from "@/pages/Tools/_shared/toolMeta";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Progress } from "@/components/ui/progress";
-import { Textarea } from "@/components/ui/textarea";
 import {
   Dialog,
   DialogContent,
@@ -46,42 +19,23 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { cn } from "@/lib/utils";
+import { ToolDetailLayout } from "@/pages/Tools/_shared/ui";
 import useModelStore from "@/store/useModelStore";
 import useTextTranslatorStore from "@/store/tools/text/useTextTranslatorStore";
 import {
   DEFAULT_TEXT_TRANSLATION_MODEL_CONTEXT_TOKEN_LIMIT,
-  DEFAULT_TEXT_TRANSLATION_OPTIONS,
-  TEXT_TRANSLATION_RESOURCE_LIMITS,
-  TEXT_TRANSLATION_TOKEN_LIMITS,
   createTextTranslationOptions,
   estimateTextTranslationRequiredContextTokens,
   resolveTextTranslationOutputTokenReserve,
-  type TextTranslationBilingualLabelMode,
-  type TextTranslationConflictPolicy,
-  type TextTranslationExecutionMode,
   type TextFileFormat,
   type TextTranslationGlossaryEntry,
-  type TextTranslationOutputMode,
-  type TextTranslationOutputPathMode,
-  type TextTranslationProjectMode,
   type TextTranslationPhase,
+  type TextTranslationProjectMode,
   type TextTranslationRecoverySummary,
   type TextTranslationRuntimeModelConfig,
   type TextTranslationTask,
-  type TextTranslationTaskStatus,
 } from "@/type/textTranslation";
-import {
-  SUPPORTED_LANGUAGES,
-  type TranslationLanguage,
-} from "@/type/subtitle";
+import { SUPPORTED_LANGUAGES } from "@/type/subtitle";
 import type { TextTranslationIpcError } from "@/type/textTranslationIpc";
 import {
   cancelTextTranslationTask,
@@ -98,8 +52,9 @@ import {
   subscribeTextTranslationEvents,
 } from "@/services/text/textTranslatorExecutionService";
 import { getFilePathFromFile } from "@/utils/filePath";
-import { formatCost, formatTokens } from "@/utils/tokenEstimate";
 import { showToast } from "@/utils/toast";
+import ConfigPanel from "./components/ConfigPanel";
+import TaskPanel from "./components/TaskPanel";
 
 type SelectedTextFile = {
   fileName: string;
@@ -109,30 +64,6 @@ type SelectedTextFile = {
   modifiedAt: number;
   order: number;
   relativePath?: string;
-};
-
-const STATUS_KEYS: Record<TextTranslationTaskStatus, string> = {
-  not_started: "translator.status.not_started",
-  preparing: "translator.status.preparing",
-  waiting: "translator.status.waiting",
-  running: "translator.status.running",
-  paused: "translator.status.paused",
-  completed: "translator.status.completed",
-  partially_completed: "translator.status.partially_completed",
-  failed: "translator.status.failed",
-  cancelled: "translator.status.cancelled",
-};
-
-const PHASE_KEYS: Record<TextTranslationPhase, string> = {
-  idle: "translator.phase.idle",
-  inspecting_files: "translator.phase.inspecting_files",
-  detecting_encoding: "translator.phase.detecting_encoding",
-  parsing: "translator.phase.parsing",
-  planning_segments: "translator.phase.planning_segments",
-  estimating: "translator.phase.estimating",
-  translating: "translator.phase.translating",
-  assembling_outputs: "translator.phase.assembling_outputs",
-  completed: "translator.phase.completed",
 };
 
 function TextTranslator() {
@@ -216,6 +147,10 @@ function TextTranslator() {
     estimateTextTranslationRequiredContextTokens(budgetOptions);
   const isBudgetExceeded =
     requiredContextTokens > DEFAULT_TEXT_TRANSLATION_MODEL_CONTEXT_TOKEN_LIMIT;
+  const budgetUsagePercent = Math.round(
+    (requiredContextTokens / DEFAULT_TEXT_TRANSLATION_MODEL_CONTEXT_TOKEN_LIMIT) *
+      100,
+  );
   const canPrepare =
     sourceFiles.length > 0 &&
     hasUsableTaskModel &&
@@ -234,7 +169,6 @@ function TextTranslator() {
   const isOrderedProject = preferences.projectMode === "ordered_project";
   const isIndependentBatch =
     sourceFiles.length > 1 && preferences.projectMode === "independent_files";
-  const isSequential = preferences.executionMode === "sequential_context";
   const hasMarkdownFiles = sourceFiles.some(
     (file) => file.format === "markdown",
   );
@@ -808,865 +742,84 @@ function TextTranslator() {
   };
 
   return (
-    <div className="px-4 sm:px-8 pt-6 pb-[100px] max-w-7xl mx-auto">
-      <ToolPageHeader
-        meta={meta}
-        title={t("translator.title")}
-        description={t("translator.description")}
-        right={
-          <Badge
-            variant={hasUsableTaskModel ? "secondary" : "outline"}
-            className="h-7 whitespace-nowrap"
-          >
-            {hasUsableTaskModel
-              ? t("translator.badges.ready")
-              : t("translator.badges.no_model")}
-          </Badge>
-        }
+    <ToolDetailLayout
+      header={
+        <ToolPageHeader
+          meta={meta}
+          title={t("translator.title")}
+          description={t("translator.description")}
+          right={
+            <Badge
+              variant={hasUsableTaskModel ? "secondary" : "outline"}
+              className="h-7 whitespace-nowrap"
+            >
+              {hasUsableTaskModel
+                ? t("translator.badges.ready")
+                : t("translator.badges.no_model")}
+            </Badge>
+          }
+        />
+      }
+      aside={
+        <ConfigPanel
+          preferences={preferences}
+          updatePreferences={updatePreferences}
+          disabled={isBusy}
+          sourceLanguages={sourceLanguages}
+          targetLanguages={targetLanguages}
+          budgetUsagePercent={budgetUsagePercent}
+          isBudgetExceeded={isBudgetExceeded}
+          requiredContextTokens={requiredContextTokens}
+          outputTokenReserve={outputTokenReserve}
+          onSelectOutputPath={handleSelectOutputPath}
+        />
+      }
+    >
+      <TaskPanel
+        sourceFiles={sourceFiles}
+        sourceFile={sourceFile}
+        isDragging={isDragging}
+        setIsDragging={setIsDragging}
+        task={task}
+        queuedTasks={queuedTasks}
+        queuedWaitingTasks={queuedWaitingTasks}
+        currentStatus={currentStatus}
+        currentPhase={currentPhase}
+        isPrepared={isPrepared}
+        isRunning={isRunning}
+        isBusy={isBusy}
+        isPreparing={isPreparing}
+        isStarting={isStarting}
+        hasUsableTaskModel={hasUsableTaskModel}
+        hasMarkdownFiles={hasMarkdownFiles}
+        isOrderedProject={isOrderedProject}
+        canPrepare={canPrepare}
+        canStart={canStart}
+        canCancel={canCancel}
+        canRevealOutput={canRevealOutput}
+        visibleLastError={visibleLastError}
+        estimatedCost={estimatedCost}
+        locale={locale}
+        fileInputRef={fileInputRef}
+        onFiles={handleFiles}
+        onClearFiles={() => {
+          setSelectedFiles([]);
+          clearTask();
+          setOutputPaths([]);
+        }}
+        onMoveFile={moveFile}
+        onSetSelectedFiles={setSelectedFiles}
+        onSetTask={setTask}
+        onSetActiveTaskId={setActiveTaskId}
+        onPrepare={handlePrepare}
+        onStart={handleStart}
+        onCancel={handleCancel}
+        onRevealOutput={handleRevealOutput}
+        onOpenRecovery={handleOpenRecovery}
+        onRevealWorkspace={handleRevealWorkspace}
+        onClear={handleClear}
+        onNavigateSettings={() => navigate("/setting")}
       />
-
-      <div className="grid grid-cols-1 lg:grid-cols-[320px_minmax(0,1fr)] gap-4 items-start">
-        <Card className="rounded-lg">
-          <CardHeader>
-            <CardTitle>{t("translator.config.title")}</CardTitle>
-            <CardDescription>{t("translator.config.desc")}</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-5">
-            <div className="grid grid-cols-2 gap-3">
-              <Field>
-                <Label>{t("translator.config.source_lang")}</Label>
-                <Select
-                  value={preferences.sourceLang}
-                  onValueChange={(value) =>
-                    updatePreferences({
-                      sourceLang: value as TranslationLanguage | "AUTO",
-                    })
-                  }
-                  disabled={isBusy}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {sourceLanguages.map((language) => (
-                      <SelectItem key={language.code} value={language.code}>
-                        {language.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </Field>
-              <Field>
-                <Label>{t("translator.config.target_lang")}</Label>
-                <Select
-                  value={preferences.targetLang}
-                  onValueChange={(value) =>
-                    updatePreferences({
-                      targetLang: value as TranslationLanguage,
-                    })
-                  }
-                  disabled={isBusy}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {targetLanguages.map((language) => (
-                      <SelectItem key={language.code} value={language.code}>
-                        {language.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </Field>
-            </div>
-
-            <Field>
-              <Label>{t("translator.config.output_content")}</Label>
-              <Select
-                value={preferences.outputMode}
-                onValueChange={(value) =>
-                  updatePreferences({
-                    outputMode: value as TextTranslationOutputMode,
-                  })
-                }
-                disabled={isBusy}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="target_only">
-                    {t("translator.output.target_only")}
-                  </SelectItem>
-                  <SelectItem value="bilingual">
-                    {t("translator.output.bilingual")}
-                  </SelectItem>
-                </SelectContent>
-              </Select>
-            </Field>
-
-            {preferences.outputMode === "bilingual" ? (
-              <Field>
-                <Label>{t("translator.config.bilingual_label_mode")}</Label>
-                <Select
-                  value={preferences.bilingualLabelMode}
-                  onValueChange={(value) =>
-                    updatePreferences({
-                      bilingualLabelMode:
-                        value as TextTranslationBilingualLabelMode,
-                    })
-                  }
-                  disabled={isBusy}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">
-                      {t("translator.output.bilingual_simple")}
-                    </SelectItem>
-                    <SelectItem value="labels">
-                      {t("translator.output.bilingual_labels")}
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
-              </Field>
-            ) : null}
-
-            <div className="grid grid-cols-2 gap-3">
-              <Field>
-                <Label>{t("translator.config.execution_mode")}</Label>
-                <Select
-                  value={preferences.executionMode}
-                  onValueChange={(value) =>
-                    updatePreferences({
-                      executionMode: value as TextTranslationExecutionMode,
-                    })
-                  }
-                  disabled={isBusy}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="parallel">
-                      {t("translator.execution.parallel")}
-                    </SelectItem>
-                    <SelectItem value="sequential_context">
-                      {t("translator.execution.sequential_context")}
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
-              </Field>
-              <Field>
-                <Label>{t("translator.config.project_mode")}</Label>
-                <Select
-                  value={preferences.projectMode}
-                  onValueChange={(value) =>
-                    updatePreferences({
-                      projectMode: value as TextTranslationProjectMode,
-                    })
-                  }
-                  disabled={isBusy}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="independent_files">
-                      {t("translator.project.independent")}
-                    </SelectItem>
-                    <SelectItem value="ordered_project">
-                      {t("translator.project.ordered")}
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
-              </Field>
-            </div>
-
-            <Alert className="rounded-lg">
-              <Languages className="h-4 w-4" />
-              <AlertTitle>
-                {isSequential
-                  ? t("translator.execution.sequential_context")
-                  : t("translator.execution.parallel")}
-              </AlertTitle>
-              <AlertDescription>
-                {isSequential
-                  ? t("translator.execution.sequential_desc")
-                  : t("translator.execution.parallel_desc")}
-              </AlertDescription>
-            </Alert>
-
-            <div className="grid grid-cols-2 gap-3">
-              <Field>
-                <Label>{t("translator.config.slice_tokens")}</Label>
-                <Input
-                  type="number"
-                  min={TEXT_TRANSLATION_TOKEN_LIMITS.minSliceTokenLimit}
-                  max={TEXT_TRANSLATION_TOKEN_LIMITS.maxSliceTokenLimit}
-                  value={preferences.sliceTokenLimit}
-                  disabled={isBusy}
-                  onChange={(event) =>
-                    updatePreferences({
-                      sliceTokenLimit: clampInteger(
-                        Number(event.target.value),
-                        TEXT_TRANSLATION_TOKEN_LIMITS.minSliceTokenLimit,
-                        TEXT_TRANSLATION_TOKEN_LIMITS.maxSliceTokenLimit,
-                      ),
-                    })
-                  }
-                />
-              </Field>
-              <Field>
-                <Label>{t("translator.config.concurrency")}</Label>
-                <Select
-                  value={String(preferences.parallelSliceConcurrency)}
-                  onValueChange={(value) =>
-                    updatePreferences({
-                      parallelSliceConcurrency: Number(value),
-                    })
-                  }
-                  disabled={isBusy}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {[1, 2, 3].map((value) => (
-                      <SelectItem key={value} value={String(value)}>
-                        {value}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </Field>
-            </div>
-
-            <Alert
-              className={cn(
-                "rounded-lg",
-                isBudgetExceeded && "border-destructive/50 text-destructive",
-              )}
-            >
-              <Cpu className="h-4 w-4" />
-              <AlertTitle>{t("translator.budget.title")}</AlertTitle>
-              <AlertDescription>
-                <div className="space-y-3">
-                  <p>
-                    {isBudgetExceeded
-                      ? t("translator.budget.exceeded")
-                      : t("translator.budget.within")}
-                  </p>
-                  <div className="grid grid-cols-1 gap-2">
-                    <FileDetail
-                      label={t("translator.budget.model_context")}
-                      value={formatTokens(
-                        DEFAULT_TEXT_TRANSLATION_MODEL_CONTEXT_TOKEN_LIMIT,
-                      )}
-                    />
-                    <FileDetail
-                      label={t("translator.budget.required")}
-                      value={formatTokens(requiredContextTokens)}
-                    />
-                    <FileDetail
-                      label={t("translator.budget.output_reserve")}
-                      value={formatTokens(outputTokenReserve)}
-                    />
-                  </div>
-                </div>
-              </AlertDescription>
-            </Alert>
-
-            {isSequential ? (
-              <div className="grid grid-cols-2 gap-3">
-                <Field>
-                  <Label>{t("translator.config.memory_tokens")}</Label>
-                  <Input
-                    type="number"
-                    min={TEXT_TRANSLATION_TOKEN_LIMITS.minSemanticMemoryTokenLimit}
-                    value={preferences.semanticMemoryTokenLimit}
-                    disabled={isBusy}
-                    onChange={(event) =>
-                      updatePreferences({
-                        semanticMemoryTokenLimit: clampInteger(
-                          Number(event.target.value),
-                          TEXT_TRANSLATION_TOKEN_LIMITS.minSemanticMemoryTokenLimit,
-                          DEFAULT_TEXT_TRANSLATION_MODEL_CONTEXT_TOKEN_LIMIT,
-                        ),
-                      })
-                    }
-                  />
-                </Field>
-                <Field>
-                  <Label>{t("translator.config.reset_orders")}</Label>
-                  <Input
-                    value={preferences.memoryResetFileOrdersText}
-                    disabled={isBusy}
-                    placeholder={t("translator.project.reset_placeholder")}
-                    onChange={(event) =>
-                      updatePreferences({
-                        memoryResetFileOrdersText: event.target.value,
-                      })
-                    }
-                  />
-                </Field>
-              </div>
-            ) : null}
-
-            {isSequential ? (
-              <div className="space-y-3">
-                <Field>
-                  <Label>{t("translator.config.document_background")}</Label>
-                  <Textarea
-                    value={preferences.documentBackground}
-                    disabled={isBusy}
-                    rows={3}
-                    onChange={(event) =>
-                      updatePreferences({ documentBackground: event.target.value })
-                    }
-                  />
-                </Field>
-                <Field>
-                  <Label>{t("translator.config.translation_instructions")}</Label>
-                  <Textarea
-                    value={preferences.translationInstructions}
-                    disabled={isBusy}
-                    rows={3}
-                    onChange={(event) =>
-                      updatePreferences({
-                        translationInstructions: event.target.value,
-                      })
-                    }
-                  />
-                </Field>
-                <Field>
-                  <Label>{t("translator.config.style_instructions")}</Label>
-                  <Textarea
-                    value={preferences.styleInstructions}
-                    disabled={isBusy}
-                    rows={3}
-                    onChange={(event) =>
-                      updatePreferences({ styleInstructions: event.target.value })
-                    }
-                  />
-                </Field>
-                <Field>
-                  <Label>{t("translator.config.glossary")}</Label>
-                  <Textarea
-                    value={preferences.glossaryText}
-                    disabled={isBusy}
-                    rows={4}
-                    placeholder={t("translator.project.glossary_placeholder")}
-                    onChange={(event) =>
-                      updatePreferences({ glossaryText: event.target.value })
-                    }
-                  />
-                </Field>
-              </div>
-            ) : null}
-
-            <Field>
-              <Label>{t("translator.config.output_mode")}</Label>
-              <Select
-                value={preferences.outputPathMode}
-                onValueChange={(value) =>
-                  updatePreferences({
-                    outputPathMode: value as TextTranslationOutputPathMode,
-                  })
-                }
-                disabled={isBusy}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="source">
-                    {t("translator.output.source")}
-                  </SelectItem>
-                  <SelectItem value="custom">
-                    {t("translator.output.custom")}
-                  </SelectItem>
-                </SelectContent>
-              </Select>
-            </Field>
-
-            {preferences.outputPathMode === "custom" ? (
-              <Field>
-                <Label>{t("translator.config.output_dir")}</Label>
-                <div className="flex gap-2">
-                  <Input
-                    value={preferences.outputDir}
-                    readOnly
-                    placeholder={t("translator.output.not_selected")}
-                    className="min-w-0"
-                  />
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="icon"
-                    onClick={handleSelectOutputPath}
-                    disabled={isBusy}
-                    aria-label={t("translator.actions.select_output")}
-                  >
-                    <Folder className="h-4 w-4" />
-                  </Button>
-                </div>
-              </Field>
-            ) : null}
-
-            <Field>
-              <Label>{t("translator.config.conflict_policy")}</Label>
-              <Select
-                value={preferences.conflictPolicy}
-                onValueChange={(value) =>
-                  updatePreferences({
-                    conflictPolicy: value as TextTranslationConflictPolicy,
-                  })
-                }
-                disabled={isBusy}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="index">
-                    {t("translator.output.index")}
-                  </SelectItem>
-                  <SelectItem value="overwrite">
-                    {t("translator.output.overwrite")}
-                  </SelectItem>
-                </SelectContent>
-              </Select>
-            </Field>
-          </CardContent>
-        </Card>
-
-        <Card className="rounded-lg">
-          <CardHeader>
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <CardTitle>{t("translator.queue.title")}</CardTitle>
-                <CardDescription className="mt-1">
-                  {sourceFile
-                    ? t("translator.queue.ready_desc")
-                    : t("translator.queue.desc")}
-                </CardDescription>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-5">
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept=".txt,.md,.markdown,text/plain,text/markdown"
-              multiple
-              className="hidden"
-              onChange={(event) => {
-                if (event.target.files) handleFiles(event.target.files);
-                event.target.value = "";
-              }}
-            />
-            <div
-              onDragEnter={(event) => {
-                event.preventDefault();
-                setIsDragging(true);
-              }}
-              onDragLeave={(event) => {
-                event.preventDefault();
-                setIsDragging(false);
-              }}
-              onDragOver={(event) => event.preventDefault()}
-              onDrop={(event) => {
-                event.preventDefault();
-                setIsDragging(false);
-                handleFiles(event.dataTransfer.files);
-              }}
-              className={cn(
-                "flex min-h-[146px] flex-col items-center justify-center rounded-lg border border-dashed bg-muted/20 px-4 py-6 text-center transition-colors",
-                isDragging && "border-primary bg-primary/5",
-              )}
-            >
-              <div className="mb-3 inline-flex h-12 w-12 items-center justify-center rounded-lg border bg-background text-muted-foreground">
-                {sourceFile ? (
-                  <FileText className="h-6 w-6" />
-                ) : (
-                  <Upload className="h-6 w-6" />
-                )}
-              </div>
-              {sourceFile ? (
-                <>
-                  <div className="max-w-full truncate text-sm font-semibold">
-                    {sourceFiles.length === 1
-                      ? sourceFile.fileName
-                      : t("translator.file.selected_count", {
-                          count: sourceFiles.length,
-                        })}
-                  </div>
-                  <div className="mt-1 max-w-full truncate text-xs text-muted-foreground">
-                    {sourceFiles.length === 1
-                      ? sourceFile.sourcePath
-                      : t("translator.file.order_hint")}
-                  </div>
-                </>
-              ) : (
-                <>
-                  <div className="text-sm font-semibold">
-                    {t("translator.file.drop_title")}
-                  </div>
-                  <div className="mt-1 text-xs text-muted-foreground">
-                    {t("translator.file.drop_desc")}
-                  </div>
-                </>
-              )}
-              <div className="mt-4 flex flex-wrap justify-center gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={isBusy}
-                >
-                  <Upload className="h-4 w-4" />
-                  {t("translator.actions.select_file")}
-                </Button>
-                {sourceFile ? (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => {
-                      setSelectedFiles([]);
-                      clearTask();
-                      setOutputPaths([]);
-                    }}
-                    disabled={isBusy}
-                  >
-                    <X className="h-4 w-4" />
-                    {t("translator.actions.remove_file")}
-                  </Button>
-                ) : null}
-              </div>
-            </div>
-
-            {sourceFiles.length > 0 ? (
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <Label>{t("translator.project.file_order")}</Label>
-                  <Badge variant="outline">
-                    {isOrderedProject || sourceFiles.length > 1
-                      ? t("translator.project.ordered")
-                      : t("translator.project.independent")}
-                  </Badge>
-                </div>
-                <div className="max-h-48 space-y-2 overflow-y-auto rounded-lg border p-2">
-                  {sourceFiles.map((file, index) => (
-                    <div
-                      key={`${file.sourcePath}-${index}`}
-                      className="flex items-center gap-2 rounded-md bg-muted/30 px-2 py-2"
-                    >
-                      <span className="w-6 shrink-0 text-xs text-muted-foreground">
-                        {index + 1}
-                      </span>
-                      <div className="min-w-0 flex-1">
-                        <div className="truncate text-sm font-medium">
-                          {file.relativePath ?? file.fileName}
-                        </div>
-                        <div className="truncate text-xs text-muted-foreground">
-                          {formatBytes(file.sizeBytes, locale)}
-                        </div>
-                      </div>
-                      <Badge variant="outline" className="shrink-0">
-                        {file.format === "markdown"
-                          ? t("translator.file.markdown")
-                          : t("translator.file.txt")}
-                      </Badge>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        className="h-7 w-7"
-                        disabled={index === 0 || isBusy}
-                        onClick={() => setSelectedFiles(moveFile(sourceFiles, index, -1))}
-                        aria-label={t("translator.project.move_up")}
-                      >
-                        <ArrowUp className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        className="h-7 w-7"
-                        disabled={index === sourceFiles.length - 1 || isBusy}
-                        onClick={() => setSelectedFiles(moveFile(sourceFiles, index, 1))}
-                        aria-label={t("translator.project.move_down")}
-                      >
-                        <ArrowDown className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ) : null}
-
-            {hasMarkdownFiles ? (
-              <Alert className="rounded-lg">
-                <AlertTriangle className="h-4 w-4" />
-                <AlertTitle>{t("translator.scope.markdown_title")}</AlertTitle>
-                <AlertDescription>
-                  {t("translator.scope.markdown_desc", {
-                    softLimit: formatBytes(
-                      TEXT_TRANSLATION_RESOURCE_LIMITS.markdownSingleFileSoftWarningBytes,
-                      locale,
-                    ),
-                    hardLimit: formatBytes(
-                      TEXT_TRANSLATION_RESOURCE_LIMITS.markdownSingleFileHardLimitBytes,
-                      locale,
-                    ),
-                  })}
-                </AlertDescription>
-              </Alert>
-            ) : null}
-
-            {queuedTasks.length > 1 ? (
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <Label>{t("translator.queue.batch_title")}</Label>
-                  <Badge variant="outline">
-                    {t("translator.queue.waiting_tasks", {
-                      count: queuedWaitingTasks.length,
-                    })}
-                  </Badge>
-                </div>
-                <div className="max-h-48 space-y-2 overflow-y-auto rounded-lg border p-2">
-                  {queuedTasks.map((queuedTask) => (
-                    <button
-                      key={queuedTask.taskId}
-                      type="button"
-                      className={cn(
-                        "flex w-full items-center gap-2 rounded-md px-2 py-2 text-left transition-colors",
-                        queuedTask.taskId === task?.taskId
-                          ? "bg-primary/10"
-                          : "bg-muted/30 hover:bg-muted/50",
-                      )}
-                      onClick={() => {
-                        setTask(queuedTask);
-                        setActiveTaskId(queuedTask.taskId);
-                      }}
-                    >
-                      <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
-                      <div className="min-w-0 flex-1">
-                        <div className="truncate text-sm font-medium">
-                          {queuedTask.files[0]?.relativePath ??
-                            queuedTask.files[0]?.fileName ??
-                            queuedTask.taskId}
-                        </div>
-                        <div className="truncate text-xs text-muted-foreground">
-                          {t("translator.progress.segments", {
-                            completed: queuedTask.progress.completedSegments,
-                            total: queuedTask.progress.totalSegments,
-                          })}
-                        </div>
-                      </div>
-                      <Badge variant="outline">
-                        {t(STATUS_KEYS[queuedTask.status])}
-                      </Badge>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            ) : null}
-
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              <Metric
-                icon={<ShieldIcon status={currentStatus} />}
-                label={t("translator.queue.status_label")}
-                value={t(STATUS_KEYS[currentStatus])}
-              />
-              <Metric
-                icon={<Cpu className="h-4 w-4" />}
-                label={t("translator.queue.phase_label")}
-                value={t(PHASE_KEYS[currentPhase])}
-              />
-              <Metric
-                icon={<Files className="h-4 w-4" />}
-                label={t("translator.queue.files_label")}
-                value={String(sourceFiles.length)}
-              />
-              <Metric
-                icon={<Layers3 className="h-4 w-4" />}
-                label={t("translator.queue.segments_label")}
-                value={String(progress?.totalSegments ?? 0)}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <div className="flex items-center justify-between text-xs text-muted-foreground">
-                <span>{t("translator.progress.label")}</span>
-                <span>{progress?.percentage ?? 0}%</span>
-              </div>
-              <Progress value={progress?.percentage ?? 0} />
-              <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
-                <span>
-                  {t("translator.progress.segments", {
-                    completed: progress?.completedSegments ?? 0,
-                    total: progress?.totalSegments ?? 0,
-                  })}
-                </span>
-                <span>
-                  {t("translator.progress.tokens", {
-                    tokens: progress?.estimatedInputTokens
-                      ? formatTokens(progress.estimatedInputTokens)
-                      : t("translator.common.empty_value"),
-                  })}
-                </span>
-                <span>
-                  {t("translator.progress.cost", {
-                    cost:
-                      estimatedCost === null
-                        ? t("translator.common.empty_value")
-                        : formatCost(estimatedCost),
-                  })}
-                </span>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-              <FileDetail
-                label={t("translator.file.size")}
-                value={
-                  sourceFile
-                    ? formatBytes(sourceFile.sizeBytes, locale)
-                    : t("translator.common.empty_value")
-                }
-              />
-              <FileDetail
-                label={t("translator.file.encoding")}
-                value={task?.files[0]?.detectedEncoding ?? t("translator.common.empty_value")}
-              />
-              <FileDetail
-                label={t("translator.file.confidence")}
-                value={
-                  typeof task?.files[0]?.encodingConfidence === "number"
-                    ? `${Math.round(task.files[0].encodingConfidence * 100)}%`
-                    : t("translator.common.empty_value")
-                }
-              />
-            </div>
-
-            {visibleLastError ? (
-              <Alert variant="destructive" className="rounded-lg">
-                <AlertTriangle className="h-4 w-4" />
-                <AlertTitle>{t("translator.errors.title")}</AlertTitle>
-                <AlertDescription>
-                  <div>{visibleLastError.message}</div>
-                  {visibleLastError.phase ? (
-                    <div className="text-xs">
-                      {t("translator.errors.phase", {
-                        phase: t(PHASE_KEYS[visibleLastError.phase]),
-                      })}
-                    </div>
-                  ) : null}
-                </AlertDescription>
-              </Alert>
-            ) : null}
-
-            {!hasUsableTaskModel ? (
-              <Alert className="rounded-lg">
-                <Settings className="h-4 w-4" />
-                <AlertTitle>{t("translator.model.missing_title")}</AlertTitle>
-                <AlertDescription>
-                  <p>{t("translator.model.missing_desc")}</p>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="mt-2"
-                    onClick={() => navigate("/setting")}
-                  >
-                    <Settings className="h-4 w-4" />
-                    {t("translator.model.configure")}
-                  </Button>
-                </AlertDescription>
-              </Alert>
-            ) : null}
-
-            <div className="flex flex-wrap gap-2">
-              <Button
-                type="button"
-                onClick={handlePrepare}
-                disabled={!canPrepare}
-              >
-                <RefreshCw className="h-4 w-4" />
-                {isPreparing
-                  ? t("translator.actions.preparing")
-                  : t("translator.actions.prepare")}
-              </Button>
-              <Button
-                type="button"
-                onClick={handleStart}
-                disabled={!canStart}
-              >
-                <PlayCircle className="h-4 w-4" />
-                {isStarting
-                  ? t("translator.actions.running")
-                  : t("translator.actions.start")}
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={handleCancel}
-                disabled={!canCancel}
-              >
-                <X className="h-4 w-4" />
-                {t("translator.actions.cancel")}
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={handleRevealOutput}
-                disabled={!canRevealOutput}
-              >
-                <FolderOpen className="h-4 w-4" />
-                {t("translator.actions.open_output")}
-              </Button>
-              <Button
-                type="button"
-                variant="ghost"
-                onClick={handleOpenRecovery}
-              >
-                <History className="h-4 w-4" />
-                {t("translator.actions.recovery")}
-              </Button>
-              <Button
-                type="button"
-                variant="ghost"
-                onClick={handleRevealWorkspace}
-                disabled={!task?.taskId}
-              >
-                <Folder className="h-4 w-4" />
-                {t("translator.actions.open_workspace")}
-              </Button>
-              <Button
-                type="button"
-                variant="ghost"
-                onClick={handleClear}
-                disabled={isRunning}
-              >
-                <Trash2 className="h-4 w-4" />
-                {t("translator.actions.clear")}
-              </Button>
-            </div>
-
-            {!isPrepared && sourceFile ? (
-              <p className="text-xs text-muted-foreground">
-                {t("translator.queue.prepare_hint")}
-              </p>
-            ) : null}
-          </CardContent>
-        </Card>
-      </div>
       <RecoveryDialog
         open={recoveryOpen}
         onOpenChange={setRecoveryOpen}
@@ -1679,40 +832,7 @@ function TextTranslator() {
         onDelete={handleDeleteRecovery}
         onRevealWorkspace={handleRevealRecoveryWorkspace}
       />
-    </div>
-  );
-}
-
-function Field({ children }: { children: ReactNode }) {
-  return <div className="space-y-2">{children}</div>;
-}
-
-function Metric({
-  icon,
-  label,
-  value,
-}: {
-  icon: ReactNode;
-  label: string;
-  value: string;
-}) {
-  return (
-    <div className="min-w-0 rounded-lg border px-3 py-3">
-      <div className="mb-1 flex items-center gap-1.5 text-xs text-muted-foreground">
-        {icon}
-        <span className="truncate">{label}</span>
-      </div>
-      <div className="truncate text-sm font-semibold">{value}</div>
-    </div>
-  );
-}
-
-function FileDetail({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="min-w-0 rounded-lg bg-muted/30 px-3 py-2">
-      <div className="text-xs text-muted-foreground">{label}</div>
-      <div className="mt-1 truncate text-sm font-medium">{value}</div>
-    </div>
+    </ToolDetailLayout>
   );
 }
 
@@ -1870,12 +990,6 @@ function RecoveryDialog({
       </DialogContent>
     </Dialog>
   );
-}
-
-function ShieldIcon({ status }: { status: TextTranslationTaskStatus }) {
-  if (status === "failed") return <AlertTriangle className="h-4 w-4" />;
-  if (status === "completed") return <CheckCircle2 className="h-4 w-4" />;
-  return <CircleDashed className="h-4 w-4" />;
 }
 
 function hasValidOutputPreference(
