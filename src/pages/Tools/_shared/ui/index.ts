@@ -1,14 +1,17 @@
 /**
  * Shared building blocks for tool detail pages.
  *
- * These components encode the tool detail page design spec so every tool page
- * shares one visual language: calm layout, foldable groups, inline "?" hints,
- * consistent metrics and a focused, two-tier action region.
+ * These components encode the compact tool detail page visual language taken
+ * from the Subtitle AI Translator baseline.
  */
 export { InfoHint } from "./InfoHint";
 export { ToolField } from "./ToolField";
-export { ToolSection } from "./ToolSection";
-export { ToolStat, ToolStatGrid } from "./ToolStat";
-export { ToolActionBar, TooltipIconButton } from "./ToolActionBar";
+export { ToolConfigPanel } from "./ToolConfigPanel";
+export { ToolConfigDisclosure } from "./ToolConfigDisclosure";
+export { ToolPanel } from "./ToolPanel";
+export { ToolConfigDivider } from "./ToolConfigDivider";
+export { ToolFileDropZone } from "./ToolFileDropZone";
+export { ToolSummaryLine } from "./ToolSummaryLine";
+export { ToolStatBar, type ToolStatBarItem } from "./ToolStatBar";
 export { ToolDetailLayout } from "./ToolDetailLayout";
 export { ToolOutputPathPicker } from "./ToolOutputPathPicker";

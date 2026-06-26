@@ -180,11 +180,11 @@ text-center py-10 text-sm text-muted-foreground
 | `InfoHint` | 保留，调整触发器尺寸以匹配 11px 标签 |
 | `ToolDetailLayout` | 重写为基准页的 320px 双栏契约 |
 | `ToolField` | 重写为基准页的 11px 标签与 `space-y-1.5` |
-| `ToolSection` | 不再作为默认配置结构；改造成可选的紧凑高级配置 Disclosure，或由新组件替代 |
-| `ToolStat` / `ToolStatGrid` | 被边到边 `ToolStatBar` 取代后删除 |
-| `ToolActionBar` / `TooltipIconButton` | 任务操作迁入紧凑面板头或任务行；无引用后删除 |
+| `ToolSection` | 已由 `ToolConfigDisclosure` / `ToolConfigPanel` 取代，并在 `CLEAN-001` 删除 |
+| `ToolStat` / `ToolStatGrid` | 已由边到边 `ToolStatBar` 取代，并在 `CLEAN-001` 删除 |
+| `ToolActionBar` / `TooltipIconButton` | 任务操作已迁入紧凑面板头或任务行，并在 `CLEAN-001` 删除 |
 
-删除必须以 `rg` 确认无生产引用为前提。
+`CLEAN-001` 删除前已用 `rg` 确认无生产代码和测试引用。
 
 ---
 
@@ -780,7 +780,7 @@ src/pages/Tools/Text/TextTranslator/components/ConfigPanel.tsx
 src/pages/Tools/Text/TextTranslator/components/TaskPanel.tsx
 ```
 
-## 11.2 计划新增
+## 11.2 已新增
 
 ```text
 src/pages/Tools/_shared/ui/ToolConfigPanel.tsx
@@ -794,9 +794,9 @@ src/pages/Tools/_shared/ui/ToolStatBar.tsx
 
 `ToolTaskRowShell.tsx` 仅在迁移至少两个任务页面后确认 API 足够简单时新增。
 
-## 11.3 计划删除
+## 11.3 已删除
 
-迁移完成且 `rg` 无引用后删除：
+迁移完成且 `rg` 无引用后已删除：
 
 ```text
 src/pages/Tools/_shared/ui/ToolSection.tsx
@@ -804,7 +804,7 @@ src/pages/Tools/_shared/ui/ToolStat.tsx
 src/pages/Tools/_shared/ui/ToolActionBar.tsx
 ```
 
-如果 `ToolSection` 的折叠实现被 `ToolConfigDisclosure` 复用，应移动内部逻辑后再删除，不能同时保留两个语义相近但视觉不同的公开组件。
+`ToolSection` 未被继续复用；高级配置语义由 `ToolConfigDisclosure` 承担，避免同时暴露两个语义相近但视觉不同的公开组件。
 
 ## 11.4 不变内容
 
@@ -856,7 +856,7 @@ electron/main/text-translation/**
 
 1. `rg` 检查旧组件和旧 class 复制。
 2. 删除无引用旧组件。
-3. 删除无引用 i18n key；不能仅凭命名判断。
+3. 检查无引用 i18n key；不能仅凭命名判断。`CLEAN-001` 未发现仅因旧组件删除而可安全移除的用户可见文案 key。
 4. 更新本设计文档中与实际实现不符的文件清单。
 
 ---
@@ -907,7 +907,7 @@ pnpm build
 使用：
 
 ```bash
-rg "ToolSection|ToolStatGrid|ToolActionBar" src
+rg "ToolSection|ToolStatGrid|ToolActionBar|TooltipIconButton|\\bToolStat\\b" src test -g '*.{ts,tsx}'
 rg "lg:grid-cols-\\[340px_minmax\\(0,1fr\\)\\]" src/pages/Tools
 rg "CardTitle className=\"text-base\"" src/pages/Tools
 ```

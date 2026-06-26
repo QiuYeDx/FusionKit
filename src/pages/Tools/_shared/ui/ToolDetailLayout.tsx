@@ -8,6 +8,8 @@ type ToolDetailLayoutProps = {
   aside: React.ReactNode;
   /** Main working column. */
   children: React.ReactNode;
+  asideClassName?: string;
+  mainClassName?: string;
   className?: string;
 };
 
@@ -22,6 +24,8 @@ export function ToolDetailLayout({
   header,
   aside,
   children,
+  asideClassName,
+  mainClassName,
   className,
 }: ToolDetailLayoutProps) {
   return (
@@ -32,9 +36,15 @@ export function ToolDetailLayout({
       )}
     >
       {header}
-      <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-[340px_minmax(0,1fr)] lg:gap-5">
-        <div className="min-w-0">{aside}</div>
-        <div className="min-w-0">{children}</div>
+      <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-[320px_minmax(0,1fr)]">
+        <aside
+          className={cn("min-w-0 lg:sticky lg:top-10", asideClassName)}
+        >
+          {aside}
+        </aside>
+        <main className={cn("flex min-w-0 flex-col gap-3", mainClassName)}>
+          {children}
+        </main>
       </div>
     </div>
   );

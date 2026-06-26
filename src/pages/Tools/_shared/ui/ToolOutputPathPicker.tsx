@@ -32,19 +32,19 @@ export function ToolOutputPathPicker({
         value={value}
         readOnly
         placeholder={placeholder}
-        className="min-w-0"
+        className="h-8 min-w-0 text-xs"
         title={value || placeholder}
       />
       <Button
         type="button"
         variant="outline"
-        size="icon"
+        size="icon-sm"
         onClick={onSelect}
         disabled={disabled}
         aria-label={selectLabel}
         title={selectLabel}
       >
-        <Folder className="h-4 w-4" />
+        <Folder className="h-3.5 w-3.5" />
       </Button>
     </div>
   );

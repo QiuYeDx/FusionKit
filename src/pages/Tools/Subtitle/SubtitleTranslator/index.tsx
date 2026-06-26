@@ -14,7 +14,6 @@ import { useTranslation } from "react-i18next";
 import { useState, useMemo, useEffect, useRef } from "react";
 import {
   RotateCw,
-  Folder,
   FolderOpen,
   PlayCircle,
   X,
@@ -26,14 +25,22 @@ import {
   Pencil,
   CircleHelp,
   ArrowRight,
-  Upload,
   Clock,
   Settings,
   History,
 } from "lucide-react";
 import ToolPageHeader from "@/pages/Tools/_shared/ToolPageHeader";
 import { TOOL_META } from "@/pages/Tools/_shared/toolMeta";
-import { ToolOutputPathPicker } from "@/pages/Tools/_shared/ui";
+import {
+  ToolConfigDivider,
+  ToolConfigPanel,
+  ToolDetailLayout,
+  ToolField,
+  ToolFileDropZone,
+  ToolOutputPathPicker,
+  ToolPanel,
+  ToolSummaryLine,
+} from "@/pages/Tools/_shared/ui";
 import { Badge } from "@/components/ui/badge";
 import { showToast } from "@/utils/toast";
 import { getSourceDirFromFile, getFilePathFromFile } from "@/utils/filePath";
@@ -56,7 +63,7 @@ import {
   buildEstimateKey,
 } from "@/services/subtitle/subtitleTokenEstimateWorkerClient";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { ButtonGroup } from "@/components/ui/button-group";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -687,37 +694,7 @@ function SubtitleTranslator() {
     }
   };
 
-  // 处理文件拖入区域的拖拽事件
-  const handleDragEnter = (e: React.DragEvent<HTMLLabelElement>) => {
-    e.preventDefault();
-    setIsDragging(true);
-  };
-
-  const handleDragLeave = (e: React.DragEvent<HTMLLabelElement>) => {
-    e.preventDefault();
-    setIsDragging(false);
-  };
-
-  const handleDragOver = (e: React.DragEvent<HTMLLabelElement>) => {
-    e.preventDefault(); // 必须阻止默认行为以允许拖放
-  };
-
-  // 处理文件拖放事件
-  const handleDrop = (e: React.DragEvent<HTMLLabelElement>) => {
-    e.preventDefault();
-    setIsDragging(false);
-
-    // 获取拖放的文件
-    const files = e.dataTransfer.files;
-    if (files.length > 0) {
-      // 调用文件上传处理函数
-      handleFileUpload({
-        target: { files },
-      } as React.ChangeEvent<HTMLInputElement>);
-    }
-  };
-
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = async (files: FileList) => {
     if (outputMode === "custom" && !outputURL) {
       showToast(
         t("subtitle:translator.errors.please_select_output_url"),
@@ -725,7 +702,6 @@ function SubtitleTranslator() {
       );
       return;
     }
-    const files = e.target.files;
     if (!files || files.length === 0) return;
 
     // 获取已有的任务文件路径列表
@@ -879,9 +855,6 @@ function SubtitleTranslator() {
         );
       }
     }
-
-    // 重置 input value，确保同一文件可以再次选择触发 onChange
-    if (e.target) e.target.value = "";
   };
 
   const getTaskStatusColor = (status: TaskStatus) => {
@@ -933,49 +906,47 @@ function SubtitleTranslator() {
   ];
 
   return (
-    <div className="px-4 sm:px-8 pt-6 pb-[100px] max-w-7xl mx-auto">
-      <ToolPageHeader
-        meta={TOOL_META.translator}
-        title={t("subtitle:translator.title")}
-        description={t("subtitle:translator.description")}
-        right={
-          <>
-            <Badge variant="secondary" className="gap-1.5 font-normal">
-              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 shadow-[0_0_0_3px_rgba(16,185,129,0.18)]" />
-              <span className="font-mono text-[11px]">{modelDisplay}</span>
-            </Badge>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8 text-muted-foreground hover:text-foreground"
-              onClick={() => setTourOpen(true)}
-              title={t("subtitle:translator.tour.trigger", "使用引导")}
-            >
-              <CircleHelp className="h-4 w-4" />
-            </Button>
-          </>
-        }
-      />
-
-      {/* ── Two-column layout ───────────────────────────── */}
-      <div className="grid grid-cols-1 lg:grid-cols-[320px_minmax(0,1fr)] gap-4 items-start">
-        {/* ── Left: sticky config rail ───────────────────── */}
-        <aside id="tour-config-panel" className="lg:sticky lg:top-10">
-          <Card className="overflow-hidden p-0 gap-0">
-            <div className="flex items-center gap-2 px-4 py-3 bg-muted/40 border-b">
-              <Settings className="h-3.5 w-3.5 text-muted-foreground" />
-              <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-foreground/80">
-                {t("subtitle:translator.config_title")}
-              </span>
-            </div>
-
-            <div className="p-4 space-y-5">
+    <ToolDetailLayout
+      header={
+        <ToolPageHeader
+          meta={TOOL_META.translator}
+          title={t("subtitle:translator.title")}
+          description={t("subtitle:translator.description")}
+          right={
+            <>
+              <Badge variant="secondary" className="gap-1.5 font-normal">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 shadow-[0_0_0_3px_rgba(16,185,129,0.18)]" />
+                <span className="font-mono text-[11px]">{modelDisplay}</span>
+              </Badge>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                onClick={() => setTourOpen(true)}
+                title={t("subtitle:translator.tour.trigger", "使用引导")}
+              >
+                <CircleHelp className="h-4 w-4" />
+              </Button>
+            </>
+          }
+        />
+      }
+      aside={
+        <div id="tour-config-panel">
+          <ToolConfigPanel
+            icon={Settings}
+            title={t("subtitle:translator.config_title")}
+          >
               {/* Language pair */}
-              <div id="tour-lang-pair" className="space-y-1.5">
-                <div className="text-[11px] font-medium text-muted-foreground">
-                  {t("subtitle:translator.fields.source_language")} →{" "}
-                  {t("subtitle:translator.fields.target_language")}
-                </div>
+              <ToolField
+                id="tour-lang-pair"
+                label={
+                  <>
+                    {t("subtitle:translator.fields.source_language")} →{" "}
+                    {t("subtitle:translator.fields.target_language")}
+                  </>
+                }
+              >
                 <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-1.5">
                   <Select
                     value={sourceLang}
@@ -1015,13 +986,13 @@ function SubtitleTranslator() {
                     </SelectContent>
                   </Select>
                 </div>
-              </div>
+              </ToolField>
 
               {/* Output mode */}
-              <div id="tour-output-mode" className="space-y-1.5">
-                <div className="text-[11px] font-medium text-muted-foreground">
-                  {t("subtitle:translator.fields.translation_output_mode")}
-                </div>
+              <ToolField
+                id="tour-output-mode"
+                label={t("subtitle:translator.fields.translation_output_mode")}
+              >
                 <ButtonGroup className="w-full">
                   <Button
                     size="sm"
@@ -1048,13 +1019,13 @@ function SubtitleTranslator() {
                     {t("subtitle:translator.fields.output_target_only")}
                   </Button>
                 </ButtonGroup>
-              </div>
+              </ToolField>
 
               {/* Slice */}
-              <div id="tour-slice-mode" className="space-y-1.5">
-                <div className="text-[11px] font-medium text-muted-foreground">
-                  {t("subtitle:translator.fields.subtitle_slice_mode")}
-                </div>
+              <ToolField
+                id="tour-slice-mode"
+                label={t("subtitle:translator.fields.subtitle_slice_mode")}
+              >
                 <ButtonGroup className="w-full">
                   {Object.values(SubtitleSliceType).map((type) => (
                     <Button
@@ -1089,15 +1060,15 @@ function SubtitleTranslator() {
                     </span>
                   </div>
                 )}
-              </div>
+              </ToolField>
 
-              <div className="h-px bg-border -mx-4" />
+              <ToolConfigDivider />
 
               {/* Output path */}
-              <div id="tour-output-path" className="space-y-1.5">
-                <div className="text-[11px] font-medium text-muted-foreground">
-                  {t("subtitle:translator.fields.output_mode")}
-                </div>
+              <ToolField
+                id="tour-output-path"
+                label={t("subtitle:translator.fields.output_mode")}
+              >
                 <ButtonGroup className="w-full">
                   <Button
                     size="sm"
@@ -1133,13 +1104,10 @@ function SubtitleTranslator() {
                     {t("subtitle:translator.fields.output_mode_source_hint")}
                   </p>
                 )}
-              </div>
+              </ToolField>
 
               {/* Conflict policy */}
-              <div className="space-y-1.5">
-                <div className="text-[11px] font-medium text-muted-foreground">
-                  {t("subtitle:translator.fields.conflict_policy")}
-                </div>
+              <ToolField label={t("subtitle:translator.fields.conflict_policy")}>
                 <ButtonGroup className="w-full">
                   <Button
                     size="sm"
@@ -1160,9 +1128,9 @@ function SubtitleTranslator() {
                     {t("subtitle:translator.fields.conflict_policy_overwrite")}
                   </Button>
                 </ButtonGroup>
-              </div>
+              </ToolField>
 
-              <div className="h-px bg-border -mx-4" />
+              <ToolConfigDivider />
 
               {/* Concurrent slices */}
               <label
@@ -1378,91 +1346,52 @@ function SubtitleTranslator() {
                   </div>
                 </div>
               )}
-            </div>
-          </Card>
-        </aside>
+          </ToolConfigPanel>
+        </div>
+      }
+    >
+      <ToolFileDropZone
+        id="tour-upload-zone"
+        accept=".lrc,.srt"
+        multiple
+        dragging={isDragging}
+        onDraggingChange={setIsDragging}
+        onFiles={handleFileUpload}
+        title={
+          isDragging
+            ? t(
+                "subtitle:translator.fields.upload_tips_dragging",
+                "释放以添加字幕文件"
+              )
+            : t("subtitle:translator.fields.upload_tips")
+        }
+        description={t("subtitle:translator.fields.files_only").replace(
+          "{formats}",
+          ".lrc, .srt"
+        )}
+        actionLabel={t("subtitle:translator.fields.select_file")}
+      />
 
-        {/* ── Right: main column ─────────────────────────── */}
-        <main className="flex flex-col gap-3 min-w-0">
-          {/* Drop zone */}
-          <label
-            id="tour-upload-zone"
-            className={cn(
-              "relative flex items-center gap-4 rounded-xl border-2 border-dashed px-5 py-5 cursor-pointer transition-colors",
-              isDragging
-                ? "border-primary bg-primary/5"
-                : "border-border hover:bg-muted/40"
-            )}
-            onDragEnter={handleDragEnter}
-            onDragLeave={handleDragLeave}
-            onDragOver={handleDragOver}
-            onDrop={handleDrop}
-          >
-            <input
-              type="file"
-              multiple
-              className="hidden"
-              accept=".lrc,.srt"
-              onChange={handleFileUpload}
-            />
-            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border bg-muted/40 text-foreground/70">
-              {isDragging ? (
-                <FolderOpen className="h-5 w-5" />
-              ) : (
-                <Upload className="h-5 w-5" />
-              )}
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="text-sm font-semibold">
-                {isDragging
-                  ? t("subtitle:translator.fields.upload_tips_dragging", "释放以添加字幕文件")
-                  : t("subtitle:translator.fields.upload_tips")}
-              </div>
-              <div className="text-xs text-muted-foreground mt-0.5">
-                {t("subtitle:translator.fields.files_only").replace(
-                  "{formats}",
-                  ".lrc, .srt"
-                )}
-              </div>
-            </div>
-            <Button
-              variant="outline"
-              size="sm"
-              type="button"
-              onClick={(e) => {
-                e.preventDefault();
-                (e.currentTarget.parentElement?.querySelector(
-                  "input[type=file]"
-                ) as HTMLInputElement | null)?.click();
-              }}
-            >
-              <Folder className="h-3.5 w-3.5" />
-              {t("subtitle:translator.fields.select_file")}
-            </Button>
-          </label>
-
-          {/* Current task pricing chip line */}
-          {taskProfile && (
-            <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-muted-foreground px-1">
-              <span className="font-mono">
+      {/* Current task pricing chip line */}
+      {taskProfile && (
+        <ToolSummaryLine
+          items={[
+            <span className="font-mono">
                 {t(`subtitle:translator.languages.${sourceLang}`)} →{" "}
                 {t(`subtitle:translator.languages.${targetLang}`)}
-              </span>
-              <span className="opacity-50">·</span>
+            </span>,
               <span>
                 {translationOutputMode === "bilingual"
                   ? t("subtitle:translator.fields.output_bilingual")
                   : t("subtitle:translator.fields.output_target_only")}
-              </span>
-              <span className="opacity-50">·</span>
+            </span>,
               <span>
                 {t(`subtitle:translator.slice_types.${sliceType.toLowerCase()}`)}
                 {sliceType === SubtitleSliceType.CUSTOM &&
                   ` (${sliceLengthMap[SubtitleSliceType.CUSTOM]}${t(
                     "subtitle:translator.new_task_config.chars_suffix"
                   )})`}
-              </span>
-              <span className="opacity-50">·</span>
+            </span>,
               <span className="font-mono">
                 $
                 {(taskProfile.tokenPricing.inputTokensPerMillion ?? 0).toFixed(
@@ -1473,22 +1402,22 @@ function SubtitleTranslator() {
                   2
                 )}{" "}
                 {t("subtitle:translator.new_task_config.rate_suffix")}
-              </span>
-            </div>
-          )}
+            </span>,
+          ]}
+        />
+      )}
 
-          {/* Task queue */}
-          <Card id="tour-task-queue" className="overflow-hidden p-0 gap-0">
-            <CardHeader className="flex flex-row items-center justify-between gap-3 px-4 py-3 space-y-0 border-b">
-              <div className="flex items-center gap-2">
-                <CardTitle className="text-[13.5px] font-semibold">
-                  {t("subtitle:translator.task_management")}
-                </CardTitle>
-                <Badge variant="secondary" className="font-mono text-[11px]">
-                  {allTasks.length}
-                </Badge>
-              </div>
-              <div className="flex gap-1.5">
+      {/* Task queue */}
+      <ToolPanel
+        id="tour-task-queue"
+        title={t("subtitle:translator.task_management")}
+        badge={
+          <Badge variant="secondary" className="font-mono text-[11px]">
+            {allTasks.length}
+          </Badge>
+        }
+        actions={
+          <>
                 <Button
                   variant="outline"
                   size="sm"
@@ -1523,10 +1452,10 @@ function SubtitleTranslator() {
                   <PlayCircle className="h-3.5 w-3.5" />
                   {t("subtitle:translator.fields.start_all")}
                 </Button>
-              </div>
-            </CardHeader>
-
-            <div className="divide-y">
+          </>
+        }
+        bodyClassName="divide-y"
+      >
               {allTasks.length === 0 ? (
                 <div className="text-center py-10 text-sm text-muted-foreground">
                   {t("subtitle:translator.fields.no_tasks")}
@@ -1818,8 +1747,7 @@ function SubtitleTranslator() {
                   </div>
                 ))
               )}
-            </div>
-          </Card>
+      </ToolPanel>
 
           {/* Summary stat bar */}
           {tokenStats.taskCount > 0 && (
@@ -1854,9 +1782,7 @@ function SubtitleTranslator() {
                 />
               </div>
             </Card>
-          )}
-        </main>
-      </div>
+      )}
 
       {/* ── Dialogs ──────────────────────────────────────── */}
       <ErrorDetailModal
@@ -2070,7 +1996,7 @@ function SubtitleTranslator() {
         maskClosable
         scrollIntoView
       />
-    </div>
+    </ToolDetailLayout>
   );
 }
 

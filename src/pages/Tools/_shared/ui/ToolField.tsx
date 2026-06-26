@@ -14,6 +14,7 @@ type ToolFieldProps = {
   /** Optional control aligned to the right edge of the label row. */
   action?: React.ReactNode;
   children: React.ReactNode;
+  id?: string;
   className?: string;
 };
 
@@ -31,15 +32,16 @@ export function ToolField({
   required,
   action,
   children,
+  id,
   className,
 }: ToolFieldProps) {
   return (
-    <div className={cn("space-y-1.5", className)}>
+    <div id={id} className={cn("space-y-1.5", className)}>
       <div className="flex min-h-4 items-center justify-between gap-2">
         <div className="flex items-center gap-1.5">
           <Label
             htmlFor={htmlFor}
-            className="gap-1 text-[13px] font-medium text-foreground/90"
+            className="gap-1 text-[11px] font-medium text-muted-foreground"
           >
             {label}
             {required ? (

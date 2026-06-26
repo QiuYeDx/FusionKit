@@ -54,11 +54,11 @@ export function InfoHint({
       aria-label={label}
       onClick={(event) => event.stopPropagation()}
       className={cn(
-        "inline-flex size-4 shrink-0 items-center justify-center rounded-full text-muted-foreground/70 transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
+        "inline-flex size-3.5 shrink-0 items-center justify-center rounded-full text-muted-foreground/70 transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
         className,
       )}
     >
-      <HelpCircle className={cn("size-3.5", iconClassName)} />
+      <HelpCircle className={cn("size-3", iconClassName)} />
     </button>
   );
 

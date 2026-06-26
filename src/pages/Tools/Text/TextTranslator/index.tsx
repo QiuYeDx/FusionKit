@@ -799,6 +799,35 @@ function TextTranslator() {
         canRevealOutput={canRevealOutput}
         visibleLastError={visibleLastError}
         estimatedCost={estimatedCost}
+        summaryItems={[
+          <span>
+            {sourceFiles.length > 0
+              ? t("translator.file.selected_count", {
+                  count: sourceFiles.length,
+                })
+              : `${t("translator.queue.files_label")} 0`}
+          </span>,
+          <span>
+            {preferences.projectMode === "ordered_project"
+              ? t("translator.project.ordered")
+              : t("translator.project.independent")}
+          </span>,
+          <span>
+            {preferences.executionMode === "sequential_context"
+              ? t("translator.execution.sequential_context")
+              : t("translator.execution.parallel")}
+          </span>,
+          <span>
+            {preferences.outputPathMode === "source"
+              ? t("translator.output.source")
+              : t("translator.output.custom")}
+          </span>,
+          <span className="font-mono">
+            {hasUsableTaskModel && taskProfile
+              ? taskProfile.name || taskProfile.modelKey
+              : t("translator.badges.no_model")}
+          </span>,
+        ]}
         locale={locale}
         fileInputRef={fileInputRef}
         onFiles={handleFiles}

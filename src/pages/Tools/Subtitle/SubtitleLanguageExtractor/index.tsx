@@ -2,20 +2,27 @@ import { useState, useMemo, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import {
   RotateCw,
-  Folder,
   FolderOpen,
   PlayCircle,
   Trash2,
   AlertTriangle,
   Info,
   Pencil,
-  Upload,
   Settings,
   CircleHelp,
 } from "lucide-react";
 import ToolPageHeader from "@/pages/Tools/_shared/ToolPageHeader";
 import { TOOL_META } from "@/pages/Tools/_shared/toolMeta";
-import { ToolOutputPathPicker } from "@/pages/Tools/_shared/ui";
+import {
+  ToolConfigDivider,
+  ToolConfigPanel,
+  ToolDetailLayout,
+  ToolField,
+  ToolFileDropZone,
+  ToolOutputPathPicker,
+  ToolPanel,
+  ToolSummaryLine,
+} from "@/pages/Tools/_shared/ui";
 import { Badge } from "@/components/ui/badge";
 import {
   EXTRACT_SUPPORTED_LANGUAGES,
@@ -45,7 +52,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ButtonGroup } from "@/components/ui/button-group";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -252,29 +258,7 @@ function SubtitleLanguageExtractor() {
     }
   };
 
-  const handleDragEnter = (e: React.DragEvent<HTMLLabelElement>) => {
-    e.preventDefault();
-    setIsDragging(true);
-  };
-  const handleDragLeave = (e: React.DragEvent<HTMLLabelElement>) => {
-    e.preventDefault();
-    setIsDragging(false);
-  };
-  const handleDragOver = (e: React.DragEvent<HTMLLabelElement>) => {
-    e.preventDefault();
-  };
-  const handleDrop = (e: React.DragEvent<HTMLLabelElement>) => {
-    e.preventDefault();
-    setIsDragging(false);
-    const files = e.dataTransfer.files;
-    if (files.length > 0) {
-      handleFileUpload({
-        target: { files },
-      } as React.ChangeEvent<HTMLInputElement>);
-    }
-  };
-
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = async (files: FileList) => {
     if (outputMode === "custom" && !outputURL) {
       showToast(
         t("subtitle:extractor:errors.please_select_output_url"),
@@ -282,7 +266,6 @@ function SubtitleLanguageExtractor() {
       );
       return;
     }
-    const files = e.target.files;
     if (!files || files.length === 0) return;
 
     const existingNames = allTasks.map((t) => t.fileName);
@@ -353,8 +336,6 @@ function SubtitleLanguageExtractor() {
       }
     }
 
-    // 重置 input value，确保同一文件可以再次选择触发 onChange
-    if (e.target) e.target.value = "";
   };
 
   const getTaskStatusColor = (status: TaskStatus) => {
@@ -371,430 +352,371 @@ function SubtitleLanguageExtractor() {
         return "bg-gray-500";
     }
   };
-
-
   return (
-    <div className="px-4 sm:px-8 pt-6 pb-[100px] max-w-7xl mx-auto">
-      <ToolPageHeader
-        meta={TOOL_META.extractor}
-        title={t("subtitle:extractor:title")}
-        description={t("subtitle:extractor:description")}
-        right={
-          <>
-            <Badge variant="secondary" className="gap-1.5 font-normal">
-              <span className="font-mono text-[11px]">
-                {t("subtitle:extractor:fields.keep_language")}: {getLanguageLabel(keep)}
-              </span>
-            </Badge>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8 text-muted-foreground hover:text-foreground"
-              onClick={() => setTourOpen(true)}
-              title={t("subtitle:extractor.tour.trigger", "使用引导")}
+    <ToolDetailLayout
+      header={
+        <ToolPageHeader
+          meta={TOOL_META.extractor}
+          title={t("subtitle:extractor:title")}
+          description={t("subtitle:extractor:description")}
+          right={
+            <>
+              <Badge variant="secondary" className="gap-1.5 font-normal">
+                <span className="font-mono text-[11px]">
+                  {t("subtitle:extractor:fields.keep_language")}:{" "}
+                  {getLanguageLabel(keep)}
+                </span>
+              </Badge>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                onClick={() => setTourOpen(true)}
+                title={t("subtitle:extractor.tour.trigger", "使用引导")}
+              >
+                <CircleHelp className="h-4 w-4" />
+              </Button>
+            </>
+          }
+        />
+      }
+      aside={
+        <div id="ext-tour-config">
+          <ToolConfigPanel
+            icon={Settings}
+            title={t("subtitle:extractor:config_title")}
+          >
+            {/* Keep language */}
+            <ToolField
+              id="ext-tour-keep"
+              label={t("subtitle:extractor:fields.keep_language")}
             >
-              <CircleHelp className="h-4 w-4" />
-            </Button>
-          </>
-        }
+              <Select
+                value={keep}
+                onValueChange={(v) => setKeep(v as ExtractKeepLanguage)}
+              >
+                <SelectTrigger size="sm" className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {EXTRACT_SUPPORTED_LANGUAGES.map((lang) => (
+                    <SelectItem key={lang.code} value={lang.code}>
+                      {t(lang.labelKey)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </ToolField>
+
+            <ToolConfigDivider />
+
+            {/* Output mode */}
+            <ToolField
+              id="ext-tour-output"
+              label={t("subtitle:extractor:fields.output_mode")}
+            >
+              <ButtonGroup className="w-full">
+                <Button
+                  size="sm"
+                  className="flex-1"
+                  variant={outputMode === "custom" ? "default" : "outline"}
+                  onClick={() => setOutputMode("custom")}
+                >
+                  {t("subtitle:extractor:fields.output_mode_custom")}
+                </Button>
+                <Button
+                  size="sm"
+                  className="flex-1"
+                  variant={outputMode === "source" ? "default" : "outline"}
+                  onClick={() => setOutputMode("source")}
+                >
+                  {t("subtitle:extractor:fields.output_mode_source")}
+                </Button>
+              </ButtonGroup>
+              {outputMode === "custom" ? (
+                <ToolOutputPathPicker
+                  className="mt-2"
+                  value={outputURL}
+                  placeholder={t(
+                    "subtitle:extractor:fields.no_output_path_selected"
+                  )}
+                  selectLabel={t(
+                    "subtitle:extractor:fields.select_output_path"
+                  )}
+                  onSelect={handleSelectOutputPath}
+                />
+              ) : (
+                <p className="text-[11px] text-muted-foreground mt-1">
+                  {t("subtitle:extractor:fields.output_mode_source_hint")}
+                </p>
+              )}
+            </ToolField>
+
+            {/* Conflict policy */}
+            <ToolField label={t("subtitle:extractor:fields.conflict_policy")}>
+              <ButtonGroup className="w-full">
+                <Button
+                  size="sm"
+                  className="flex-1"
+                  variant={conflictPolicy === "index" ? "default" : "outline"}
+                  onClick={() => setConflictPolicy("index")}
+                >
+                  {t("subtitle:extractor:fields.conflict_policy_index")}
+                </Button>
+                <Button
+                  size="sm"
+                  className="flex-1"
+                  variant={
+                    conflictPolicy === "overwrite" ? "default" : "outline"
+                  }
+                  onClick={() => setConflictPolicy("overwrite")}
+                >
+                  {t("subtitle:extractor:fields.conflict_policy_overwrite")}
+                </Button>
+              </ButtonGroup>
+            </ToolField>
+          </ToolConfigPanel>
+        </div>
+      }
+    >
+      <ToolFileDropZone
+        id="ext-tour-upload"
+        accept=".lrc,.srt"
+        multiple
+        dragging={isDragging}
+        onDraggingChange={setIsDragging}
+        onFiles={handleFileUpload}
+        title={t("subtitle:extractor:fields.upload_tips")}
+        description={t("subtitle:extractor:fields.files_only")}
+        actionLabel={t("subtitle:extractor:fields.select_file")}
       />
 
-      <div className="grid grid-cols-1 lg:grid-cols-[320px_minmax(0,1fr)] gap-4 items-start">
-        {/* ── Left: sticky config rail ───────────────────── */}
-        <aside id="ext-tour-config" className="lg:sticky lg:top-10">
-          <Card className="overflow-hidden p-0 gap-0">
-            <div className="flex items-center gap-2 px-4 py-3 bg-muted/40 border-b">
-              <Settings className="h-3.5 w-3.5 text-muted-foreground" />
-              <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-foreground/80">
-                {t("subtitle:extractor:config_title")}
-              </span>
-            </div>
+      <ToolSummaryLine
+        items={[
+          <span>
+            {t("subtitle:extractor:fields.keep_language")}:{" "}
+            <span className="font-mono text-foreground/80">
+              {getLanguageLabel(keep)}
+            </span>
+          </span>,
+          <span>
+            {t("subtitle:extractor:fields.conflict_policy")}:{" "}
+            <span className="text-foreground/80">
+              {conflictPolicy === "overwrite"
+                ? t("subtitle:extractor:fields.conflict_policy_overwrite")
+                : t("subtitle:extractor:fields.conflict_policy_index")}
+            </span>
+          </span>,
+        ]}
+      />
 
-            <div className="p-4 space-y-5">
-              {/* Keep language */}
-              <div id="ext-tour-keep" className="space-y-1.5">
-                <div className="text-[11px] font-medium text-muted-foreground">
-                  {t("subtitle:extractor:fields.keep_language")}
-                </div>
-                <Select
-                  value={keep}
-                  onValueChange={(v) => setKeep(v as ExtractKeepLanguage)}
-                >
-                  <SelectTrigger size="sm" className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {EXTRACT_SUPPORTED_LANGUAGES.map((lang) => (
-                      <SelectItem key={lang.code} value={lang.code}>
-                        {t(lang.labelKey)}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="h-px bg-border -mx-4" />
-
-              {/* Output mode */}
-              <div id="ext-tour-output" className="space-y-1.5">
-                <div className="text-[11px] font-medium text-muted-foreground">
-                  {t("subtitle:extractor:fields.output_mode")}
-                </div>
-                <ButtonGroup className="w-full">
-                  <Button
-                    size="sm"
-                    className="flex-1"
-                    variant={outputMode === "custom" ? "default" : "outline"}
-                    onClick={() => setOutputMode("custom")}
-                  >
-                    {t("subtitle:extractor:fields.output_mode_custom")}
-                  </Button>
-                  <Button
-                    size="sm"
-                    className="flex-1"
-                    variant={outputMode === "source" ? "default" : "outline"}
-                    onClick={() => setOutputMode("source")}
-                  >
-                    {t("subtitle:extractor:fields.output_mode_source")}
-                  </Button>
-                </ButtonGroup>
-                {outputMode === "custom" ? (
-                  <ToolOutputPathPicker
-                    className="mt-2"
-                    value={outputURL}
-                    placeholder={t(
-                      "subtitle:extractor:fields.no_output_path_selected"
-                    )}
-                    selectLabel={t(
-                      "subtitle:extractor:fields.select_output_path"
-                    )}
-                    onSelect={handleSelectOutputPath}
-                  />
-                ) : (
-                  <p className="text-[11px] text-muted-foreground mt-1">
-                    {t("subtitle:extractor:fields.output_mode_source_hint")}
-                  </p>
-                )}
-              </div>
-
-              {/* Conflict policy */}
-              <div className="space-y-1.5">
-                <div className="text-[11px] font-medium text-muted-foreground">
-                  {t("subtitle:extractor:fields.conflict_policy")}
-                </div>
-                <ButtonGroup className="w-full">
-                  <Button
-                    size="sm"
-                    className="flex-1"
-                    variant={conflictPolicy === "index" ? "default" : "outline"}
-                    onClick={() => setConflictPolicy("index")}
-                  >
-                    {t("subtitle:extractor:fields.conflict_policy_index")}
-                  </Button>
-                  <Button
-                    size="sm"
-                    className="flex-1"
-                    variant={
-                      conflictPolicy === "overwrite" ? "default" : "outline"
-                    }
-                    onClick={() => setConflictPolicy("overwrite")}
-                  >
-                    {t("subtitle:extractor:fields.conflict_policy_overwrite")}
-                  </Button>
-                </ButtonGroup>
-              </div>
-            </div>
-          </Card>
-        </aside>
-
-        {/* ── Right: main column ─────────────────────────── */}
-        <main className="flex flex-col gap-3 min-w-0">
-          {/* Drop zone */}
-          <label
-            id="ext-tour-upload"
-            className={cn(
-              "relative flex items-center gap-4 rounded-xl border-2 border-dashed px-5 py-5 cursor-pointer transition-colors",
-              isDragging
-                ? "border-primary bg-primary/5"
-                : "border-border hover:bg-muted/40"
-            )}
-            onDragEnter={handleDragEnter}
-            onDragLeave={handleDragLeave}
-            onDragOver={handleDragOver}
-            onDrop={handleDrop}
-          >
-            <input
-              type="file"
-              multiple
-              className="hidden"
-              accept=".lrc,.srt"
-              onChange={handleFileUpload}
-            />
-            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border bg-muted/40 text-foreground/70">
-              {isDragging ? (
-                <FolderOpen className="h-5 w-5" />
-              ) : (
-                <Upload className="h-5 w-5" />
-              )}
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="text-sm font-semibold">
-                {t("subtitle:extractor:fields.upload_tips")}
-              </div>
-              <div className="text-xs text-muted-foreground mt-0.5">
-                {t("subtitle:extractor:fields.files_only")}
-              </div>
-            </div>
+      <ToolPanel
+        id="ext-tour-queue"
+        title={t("subtitle:extractor:task_management")}
+        badge={
+          <Badge variant="secondary" className="font-mono text-[11px]">
+            {allTasks.length}
+          </Badge>
+        }
+        actions={
+          <>
             <Button
               variant="outline"
               size="sm"
-              type="button"
-              onClick={(e) => {
-                e.preventDefault();
-                (e.currentTarget.parentElement?.querySelector(
-                  "input[type=file]"
-                ) as HTMLInputElement | null)?.click();
-              }}
+              onClick={removeAllResolvedTasks}
+              disabled={resolvedTasks.length === 0}
             >
-              <Folder className="h-3.5 w-3.5" />
-              {t("subtitle:extractor:fields.select_file")}
+              <Trash2 className="h-3.5 w-3.5" />
+              {t("subtitle:extractor:fields.remove_all_resolved_task")}
             </Button>
-          </label>
-
-          {/* Current target chip line */}
-          <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-muted-foreground px-1">
-            <span>
-              {t("subtitle:extractor:fields.keep_language")}:{" "}
-              <span className="font-mono text-foreground/80">
-                {getLanguageLabel(keep)}
-              </span>
-            </span>
-            <span className="opacity-50">·</span>
-            <span>
-              {t("subtitle:extractor:fields.conflict_policy")}:{" "}
-              <span className="text-foreground/80">
-                {conflictPolicy === "overwrite"
-                  ? t("subtitle:extractor:fields.conflict_policy_overwrite")
-                  : t("subtitle:extractor:fields.conflict_policy_index")}
-              </span>
-            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleClearAllTasks}
+              disabled={allTasks.length === 0}
+            >
+              {t("subtitle:extractor:fields.clear_all_tasks")}
+            </Button>
+            <Button
+              id="ext-tour-start"
+              size="sm"
+              onClick={startAllTasks}
+              disabled={notStartedTasks.length === 0}
+            >
+              <PlayCircle className="h-3.5 w-3.5" />
+              {t("subtitle:extractor:fields.start_all")}
+            </Button>
+          </>
+        }
+        bodyClassName="divide-y"
+      >
+        {allTasks.length === 0 ? (
+          <div className="text-center py-10 text-sm text-muted-foreground">
+            {t("subtitle:extractor:fields.no_tasks")}
           </div>
-
-          {/* Task queue */}
-          <Card id="ext-tour-queue" className="overflow-hidden p-0 gap-0">
-            <CardHeader className="flex flex-row items-center justify-between gap-3 px-4 py-3 space-y-0 border-b">
-              <div className="flex items-center gap-2">
-                <CardTitle className="text-[13.5px] font-semibold">
-                  {t("subtitle:extractor:task_management")}
-                </CardTitle>
-                <Badge variant="secondary" className="font-mono text-[11px]">
-                  {allTasks.length}
-                </Badge>
-              </div>
-              <div className="flex gap-1.5">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={removeAllResolvedTasks}
-                  disabled={resolvedTasks.length === 0}
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                  {t("subtitle:extractor:fields.remove_all_resolved_task")}
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleClearAllTasks}
-                  disabled={allTasks.length === 0}
-                >
-                  {t("subtitle:extractor:fields.clear_all_tasks")}
-                </Button>
-                <Button
-                  id="ext-tour-start"
-                  size="sm"
-                  onClick={startAllTasks}
-                  disabled={notStartedTasks.length === 0}
-                >
-                  <PlayCircle className="h-3.5 w-3.5" />
-                  {t("subtitle:extractor:fields.start_all")}
-                </Button>
-              </div>
-            </CardHeader>
-
-            <div className="divide-y">
-              {allTasks.length === 0 ? (
-                <div className="text-center py-10 text-sm text-muted-foreground">
-                  {t("subtitle:extractor:fields.no_tasks")}
-                </div>
-              ) : (
-                allTasks.map((task) => (
-                  <div key={task.fileName} className="px-4 py-3">
-                    <div className="flex items-start gap-3">
-                      <div
-                        className={cn(
-                          "mt-1 w-2.5 h-2.5 rounded-full shrink-0",
-                          getTaskStatusColor(task.status)
-                        )}
-                      />
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <span className="font-mono text-[13px] font-medium truncate">
-                            {task.fileName}
-                          </span>
-                          <Badge
-                            variant="outline"
-                            className="text-[10px] h-4 px-1.5 font-normal shrink-0"
-                          >
-                            {task.status === TaskStatus.NOT_STARTED &&
-                              t("subtitle:extractor:task_status.notstarted")}
-                            {task.status === TaskStatus.PENDING &&
-                              `${t(
-                                "subtitle:extractor:task_status.pending"
-                              )} · ${Math.round(task.progress || 0)}%`}
-                            {task.status === TaskStatus.RESOLVED &&
-                              t("subtitle:extractor:task_status.resolved")}
-                            {task.status === TaskStatus.FAILED &&
-                              t("subtitle:extractor:task_status.failed")}
-                          </Badge>
-                        </div>
-                        <div className="mt-1 flex items-center flex-wrap gap-x-2 gap-y-1 text-[11px] text-muted-foreground">
-                          <span className="font-mono">{task.fileType}</span>
-                          <span className="h-0.5 w-0.5 rounded-full bg-muted-foreground/40" />
-                          <span>{getLanguageLabel(task.keep)}</span>
-                          {task.outputFilePath && (
-                            <>
-                              <span className="h-0.5 w-0.5 rounded-full bg-muted-foreground/40" />
-                              <span className="font-mono text-emerald-600 dark:text-emerald-400 truncate max-w-[220px]">
-                                → {task.outputFilePath}
-                              </span>
-                            </>
-                          )}
-                        </div>
-                      </div>
-
-                      <ButtonGroup className="shrink-0">
-                        <Button
-                          variant="outline"
-                          size="icon"
-                          onClick={() => {
-                            setExpandedTasks((prev) => {
-                              const next = new Set(prev);
-                              if (next.has(task.fileName))
-                                next.delete(task.fileName);
-                              else next.add(task.fileName);
-                              return next;
-                            });
-                          }}
-                        >
-                          <Info className="h-3.5 w-3.5" />
-                        </Button>
-                        {task.status === TaskStatus.FAILED && (
-                          <Button
-                            variant="outline"
-                            size="icon"
-                            className="text-destructive hover:text-destructive"
-                            onClick={() => openErrorModal(task)}
-                          >
-                            <AlertTriangle className="h-3.5 w-3.5" />
-                          </Button>
-                        )}
-                        {task.status === TaskStatus.FAILED && (
-                          <Button
-                            variant="outline"
-                            size="icon"
-                            onClick={() => retryTask(task.fileName)}
-                          >
-                            <RotateCw className="h-3.5 w-3.5" />
-                          </Button>
-                        )}
-                        {task.status === TaskStatus.NOT_STARTED && (
-                          <Button
-                            variant="outline"
-                            size="icon"
-                            onClick={() => startTask(task.fileName)}
-                          >
-                            <PlayCircle className="h-3.5 w-3.5" />
-                          </Button>
-                        )}
-                        <Button
-                          variant="outline"
-                          size="icon"
-                          onClick={() => handleOpenFileLocation(task)}
-                        >
-                          <FolderOpen className="h-3.5 w-3.5" />
-                        </Button>
-                        {(task.status === TaskStatus.NOT_STARTED ||
-                          task.status === TaskStatus.FAILED) && (
-                          <Button
-                            variant="outline"
-                            size="icon"
-                            onClick={() => handleOpenEditTask(task)}
-                          >
-                            <Pencil className="h-3.5 w-3.5" />
-                          </Button>
-                        )}
-                        <Button
-                          variant="outline"
-                          size="icon"
-                          onClick={() => handleDeleteTask(task)}
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </Button>
-                      </ButtonGroup>
-                    </div>
-
-                    {task.status === TaskStatus.PENDING && (
-                      <div className="mt-2 flex items-center gap-2">
-                        <Progress value={task.progress} className="flex-1 h-1" />
-                        <span className="font-mono text-[10.5px] text-muted-foreground w-8 text-right">
-                          {Math.round(task.progress || 0)}%
+        ) : (
+          allTasks.map((task) => (
+            <div key={task.fileName} className="px-4 py-3">
+              <div className="flex items-start gap-3">
+                <div
+                  className={cn(
+                    "mt-1 w-2.5 h-2.5 rounded-full shrink-0",
+                    getTaskStatusColor(task.status)
+                  )}
+                />
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono text-[13px] font-medium truncate">
+                      {task.fileName}
+                    </span>
+                    <Badge
+                      variant="outline"
+                      className="text-[10px] h-4 px-1.5 font-normal shrink-0"
+                    >
+                      {task.status === TaskStatus.NOT_STARTED &&
+                        t("subtitle:extractor:task_status.notstarted")}
+                      {task.status === TaskStatus.PENDING &&
+                        `${t("subtitle:extractor:task_status.pending")} · ${Math.round(
+                          task.progress || 0
+                        )}%`}
+                      {task.status === TaskStatus.RESOLVED &&
+                        t("subtitle:extractor:task_status.resolved")}
+                      {task.status === TaskStatus.FAILED &&
+                        t("subtitle:extractor:task_status.failed")}
+                    </Badge>
+                  </div>
+                  <div className="mt-1 flex items-center flex-wrap gap-x-2 gap-y-1 text-[11px] text-muted-foreground">
+                    <span className="font-mono">{task.fileType}</span>
+                    <span className="h-0.5 w-0.5 rounded-full bg-muted-foreground/40" />
+                    <span>{getLanguageLabel(task.keep)}</span>
+                    {task.outputFilePath && (
+                      <>
+                        <span className="h-0.5 w-0.5 rounded-full bg-muted-foreground/40" />
+                        <span className="font-mono text-emerald-600 dark:text-emerald-400 truncate max-w-[220px]">
+                          → {task.outputFilePath}
                         </span>
-                      </div>
-                    )}
-
-                    {expandedTasks.has(task.fileName) && (
-                      <div className="mt-3 pt-3 border-t border-border/50">
-                        <div className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 text-xs">
-                          <span className="text-muted-foreground">
-                            {t("subtitle:extractor.task_detail.file_format")}
-                          </span>
-                          <span>{task.fileType}</span>
-                          <span className="text-muted-foreground">
-                            {t("subtitle:extractor.task_detail.keep_language")}
-                          </span>
-                          <span>{getLanguageLabel(task.keep)}</span>
-                          <span className="text-muted-foreground">
-                            {t("subtitle:extractor.task_detail.source_file")}
-                          </span>
-                          <span className="font-mono break-all">
-                            {task.originFileURL}
-                          </span>
-                          <span className="text-muted-foreground">
-                            {t("subtitle:extractor.task_detail.output_path")}
-                          </span>
-                          <span className="font-mono break-all">
-                            {task.targetFileURL}
-                          </span>
-                          <span className="text-muted-foreground">
-                            {t(
-                              "subtitle:extractor.task_detail.conflict_policy"
-                            )}
-                          </span>
-                          <span>
-                            {task.conflictPolicy === "overwrite"
-                              ? t("subtitle:extractor.task_detail.overwrite")
-                              : t("subtitle:extractor.task_detail.auto_index")}
-                          </span>
-                        </div>
-                      </div>
+                      </>
                     )}
                   </div>
-                ))
+                </div>
+
+                <ButtonGroup className="shrink-0">
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={() => {
+                      setExpandedTasks((prev) => {
+                        const next = new Set(prev);
+                        if (next.has(task.fileName)) next.delete(task.fileName);
+                        else next.add(task.fileName);
+                        return next;
+                      });
+                    }}
+                  >
+                    <Info className="h-3.5 w-3.5" />
+                  </Button>
+                  {task.status === TaskStatus.FAILED && (
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="text-destructive hover:text-destructive"
+                      onClick={() => openErrorModal(task)}
+                    >
+                      <AlertTriangle className="h-3.5 w-3.5" />
+                    </Button>
+                  )}
+                  {task.status === TaskStatus.FAILED && (
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      onClick={() => retryTask(task.fileName)}
+                    >
+                      <RotateCw className="h-3.5 w-3.5" />
+                    </Button>
+                  )}
+                  {task.status === TaskStatus.NOT_STARTED && (
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      onClick={() => startTask(task.fileName)}
+                    >
+                      <PlayCircle className="h-3.5 w-3.5" />
+                    </Button>
+                  )}
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={() => handleOpenFileLocation(task)}
+                  >
+                    <FolderOpen className="h-3.5 w-3.5" />
+                  </Button>
+                  {(task.status === TaskStatus.NOT_STARTED ||
+                    task.status === TaskStatus.FAILED) && (
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      onClick={() => handleOpenEditTask(task)}
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                    </Button>
+                  )}
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={() => handleDeleteTask(task)}
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </Button>
+                </ButtonGroup>
+              </div>
+
+              {task.status === TaskStatus.PENDING && (
+                <div className="mt-2 flex items-center gap-2">
+                  <Progress value={task.progress} className="flex-1 h-1" />
+                  <span className="font-mono text-[10.5px] text-muted-foreground w-8 text-right">
+                    {Math.round(task.progress || 0)}%
+                  </span>
+                </div>
+              )}
+
+              {expandedTasks.has(task.fileName) && (
+                <div className="mt-3 pt-3 border-t border-border/50">
+                  <div className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 text-xs">
+                    <span className="text-muted-foreground">
+                      {t("subtitle:extractor.task_detail.file_format")}
+                    </span>
+                    <span>{task.fileType}</span>
+                    <span className="text-muted-foreground">
+                      {t("subtitle:extractor.task_detail.keep_language")}
+                    </span>
+                    <span>{getLanguageLabel(task.keep)}</span>
+                    <span className="text-muted-foreground">
+                      {t("subtitle:extractor.task_detail.source_file")}
+                    </span>
+                    <span className="font-mono break-all">
+                      {task.originFileURL}
+                    </span>
+                    <span className="text-muted-foreground">
+                      {t("subtitle:extractor.task_detail.output_path")}
+                    </span>
+                    <span className="font-mono break-all">
+                      {task.targetFileURL}
+                    </span>
+                    <span className="text-muted-foreground">
+                      {t("subtitle:extractor.task_detail.conflict_policy")}
+                    </span>
+                    <span>
+                      {task.conflictPolicy === "overwrite"
+                        ? t("subtitle:extractor.task_detail.overwrite")
+                        : t("subtitle:extractor.task_detail.auto_index")}
+                    </span>
+                  </div>
+                </div>
               )}
             </div>
-          </Card>
-        </main>
-      </div>
+          ))
+        )}
+      </ToolPanel>
 
       {selectedErrorTask && (
         <ErrorDetailModal
@@ -910,7 +832,7 @@ function SubtitleLanguageExtractor() {
         maskClosable
         scrollIntoView
       />
-    </div>
+    </ToolDetailLayout>
   );
 }
 

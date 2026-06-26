@@ -4,7 +4,7 @@
 > Feature Slug：`tool_detail_page_ui_standardization`
 > 对应设计文档：`docs/tool-detail-page-ui-standardization-final-design.md`
 > 范围：从字幕 AI 翻译页反向提取共享 UI，统一字幕转换、字幕提取、文件名翻译和长文本翻译详情页。
-> 当前状态：设计已定稿，实施尚未开始。
+> 当前状态：`PRE-001` / `UI-001` / `UI-002` / `UI-003` / `UI-004` / `TEXT-001` / `TEXT-002` / `TEXT-003` / `TEXT-004` / `CLEAN-001` 已完成，字幕同族页面、文件名翻译页、长文本翻译页迁移和旧视觉组件清理已完成；下一步建议认领 `QA-001`。
 
 ---
 
@@ -122,16 +122,16 @@
 
 | ID | 状态 | 完成日期 | 标题 | 关键变更文件 | 验证 | 实施记录 | 未决问题 |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| PRE-001 | 未开始 | — | 视觉基准与验收合同冻结 | 基准页源码、实施记录 | Electron 默认/最小窗口，Light/Dark，DOM/可访问状态检查 | — | 需记录字幕 AI 翻译页基准，不改产品代码 |
-| UI-001 | 未开始 | — | 共享紧凑骨架与字幕 AI 翻译页迁移 | `_shared/ui/*`、`SubtitleTranslator/index.tsx` | `tsc`、i18n、build、Electron 前后对比 | — | 依赖 PRE-001 |
-| UI-002 | 未开始 | — | 字幕转换页迁移与文件入口组合件 | `_shared/ui/*`、`SubtitleConverter/index.tsx` | `tsc`、build、默认/最小窗口视觉核对 | — | 依赖 UI-001 |
-| UI-003 | 未开始 | — | 字幕提取页迁移与抽象复核 | `_shared/ui/*`、`SubtitleLanguageExtractor/index.tsx` | `tsc`、build、三个字幕页对比 | — | 依赖 UI-002；决定是否需要 TaskRowShell |
-| UI-004 | 未开始 | — | 文件名翻译页布局与面板统一 | `NameTranslator/index.tsx`、`components/*.tsx` | rename 测试、tsc、build、Electron 视觉核对 | — | 依赖 UI-001；建议在 UI-003 后实施 |
-| TEXT-001 | 未开始 | — | 长文本配置栏迁移 | `TextTranslator/components/ConfigPanel.tsx`、`_shared/ui/*` | text 相关测试、i18n、tsc、build、配置状态核对 | — | 依赖 UI-003 |
-| TEXT-002 | 未开始 | — | 长文本工作区入口与任务面板骨架迁移 | `TextTranslator/index.tsx`、`TaskPanel.tsx`、`_shared/ui/*` | text 相关测试、tsc、build、文件选择状态核对 | — | 依赖 TEXT-001 |
-| TEXT-003 | 未开始 | — | 长文本任务行、状态、统计和操作收敛 | `TextTranslator/components/TaskPanel.tsx`、`_shared/ui/*` | text 相关测试、i18n、tsc、build、任务状态矩阵 | — | 依赖 TEXT-002 |
-| TEXT-004 | 未开始 | — | 长文本恢复、响应式与多语言视觉回归 | `TextTranslator/*`、`src/locales/*/text.json` | 恢复路径、786×540、Light/Dark、zh/en/ja | — | 依赖 TEXT-003 |
-| CLEAN-001 | 未开始 | — | 旧视觉组件、漂移 class 与文档收口 | `_shared/ui/*`、设计/执行计划 | `rg`、i18n、tsc、build、git diff check | — | 依赖 UI-004、TEXT-004 |
+| PRE-001 | 已完成 | 2026-06-26 | 视觉基准与验收合同冻结 | 基准页源码、实施记录 | Electron 默认、786×540、1440×900；Dark/Light；loading 已退出；无页面横向溢出 | `docs/tool-detail-page-ui-standardization_implementation_records/2026-06-26_PRE-001_UI-001_compact-baseline.md`、`docs/tool-detail-page-ui-standardization_implementation_records/2026-06-26_PRE-001_UI-001_UI-002_visual-matrix-closure.md` | 无 |
+| UI-001 | 已完成 | 2026-06-26 | 共享紧凑骨架与字幕 AI 翻译页迁移 | `_shared/ui/*`、`SubtitleTranslator/index.tsx` | `tsc`、i18n、Vite build、Electron 默认/最小/宽屏视觉矩阵通过、zip-only packaging 通过；DMG packaging 因 `hdiutil` 环境失败 | `docs/tool-detail-page-ui-standardization_implementation_records/2026-06-26_PRE-001_UI-001_compact-baseline.md`、`docs/tool-detail-page-ui-standardization_implementation_records/2026-06-26_PRE-001_UI-001_UI-002_visual-matrix-closure.md` | 旧长文本视觉组件暂保留供后续 `TEXT-*` / `CLEAN-001` 迁移删除 |
+| UI-002 | 已完成 | 2026-06-26 | 字幕转换页迁移与文件入口组合件 | `_shared/ui/*`、`SubtitleConverter/index.tsx` | `tsc`、i18n、Vite build、git diff check、Electron 默认/最小/宽屏视觉矩阵通过；未改业务 store/IPC | `docs/tool-detail-page-ui-standardization_implementation_records/2026-06-26_UI-002_subtitle-converter-migration.md`、`docs/tool-detail-page-ui-standardization_implementation_records/2026-06-26_PRE-001_UI-001_UI-002_visual-matrix-closure.md` | 真实文件转换链路留至后续 QA 工作包覆盖 |
+| UI-003 | 已完成 | 2026-06-26 | 字幕提取页迁移与抽象复核 | `_shared/ui/*`、`SubtitleLanguageExtractor/index.tsx` | `tsc`、i18n、Vite build、git diff check、三个字幕页 786×540/1440×900 × Light/Dark Electron 视觉矩阵通过 | `docs/tool-detail-page-ui-standardization_implementation_records/2026-06-26_UI-003_subtitle-extractor-migration.md` | 暂不新增 TaskRowShell；任务行继续由业务页面拥有 |
+| UI-004 | 已完成 | 2026-06-26 | 文件名翻译页布局与面板统一 | `NameTranslator/index.tsx`、`components/*.tsx` | rename 测试、tsc、i18n、Vite build、git diff check、786×540/1440×900 × Light/Dark Electron 视觉矩阵通过 | `docs/tool-detail-page-ui-standardization_implementation_records/2026-06-26_UI-004_name-translator-layout-migration.md` | 无 |
+| TEXT-001 | 已完成 | 2026-06-26 | 长文本配置栏迁移 | `TextTranslator/components/ConfigPanel.tsx`、`_shared/ui/ToolConfigDisclosure.tsx`、`_shared/ui/index.ts` | text 相关测试、i18n、tsc、Vite build、git diff check、786×540/1440×900 × Light/Dark Electron 配置栏视觉矩阵、串行/双语/自定义输出交互核对 | `docs/tool-detail-page-ui-standardization_implementation_records/2026-06-26_TEXT-001_text-translator-config-migration.md` | 右侧工作区仍为旧结构，交由 `TEXT-002` |
+| TEXT-002 | 已完成 | 2026-06-26 | 长文本工作区入口与任务面板骨架迁移 | `TextTranslator/index.tsx`、`TaskPanel.tsx` | text 相关测试、i18n、tsc、Vite build、git diff check、786×540/1440×900 × Light/Dark Electron 空状态与已选多文件视觉矩阵 | `docs/tool-detail-page-ui-standardization_implementation_records/2026-06-26_TEXT-002_text-translator-workspace-shell.md` | 任务行、指标小卡和进度详情仍为旧密度，交由 `TEXT-003` |
+| TEXT-003 | 已完成 | 2026-06-26 | 长文本任务行、状态、统计和操作收敛 | `TextTranslator/components/TaskPanel.tsx`、`_shared/ui/ToolStatBar.tsx`、`_shared/ui/index.ts` | text 相关测试、tsc、i18n、Vite build、git diff check、786×540/1440×900 × Light/Dark × 空/已选/已准备 Electron 视觉矩阵 | `docs/tool-detail-page-ui-standardization_implementation_records/2026-06-26_TEXT-003_text-translator-task-density.md` | prepared 截图存在成功 toast 遮挡噪声，但 DOM 指标确认 loading 已退出且无横向溢出；恢复弹窗、多语言细核交由 `TEXT-004` |
+| TEXT-004 | 已完成 | 2026-06-26 | 长文本恢复、响应式与多语言视觉回归 | `TextTranslator/*`、实施记录 | text 相关测试、tsc、i18n、Vite build、git diff check、Electron：786×540/1080×786/1440×900 × Light/Dark；zh/en/ja 最小窗口；恢复弹窗打开/刷新/继续/从头开始/删除/工作区路径；active task 切换 | `docs/tool-detail-page-ui-standardization_implementation_records/2026-06-26_TEXT-004_text-translator-recovery-responsive-i18n.md` | `missing_segment_index` 仍作为后端 blockingReason 原始值展示；非本次布局迁移阻塞，可后续作为文案优化 |
+| CLEAN-001 | 已完成 | 2026-06-26 | 旧视觉组件、漂移 class 与文档收口 | `_shared/ui/index.ts`、删除 `ToolSection.tsx` / `ToolStat.tsx` / `ToolActionBar.tsx`、设计/执行计划 | 旧组件引用 `rg`、漂移 class `rg`、共享边界 `rg`、tsc、i18n、Vite build、git diff check | `docs/tool-detail-page-ui-standardization_implementation_records/2026-06-26_CLEAN-001_legacy-ui-components-cleanup.md` | 无 |
 | QA-001 | 未开始 | — | 自动化回归与静态合同验收 | 相关测试、文档 | `pnpm test`、`pnpm run i18n:check`、`pnpm build` | — | 依赖 CLEAN-001 |
 | QA-002 | 未开始 | — | 五个工具页 Electron 视觉验收 | 实施记录、必要的 fix 文件 | 5 页面 × 3 尺寸 × 2 主题，多语言抽样 | — | 依赖 QA-001 |
 
@@ -522,7 +522,7 @@ git diff --check
 建议验证：
 
 ```text
-rg "ToolSection|ToolStatGrid|ToolStat|ToolActionBar|TooltipIconButton" src
+rg "ToolSection|ToolStatGrid|ToolActionBar|TooltipIconButton|\\bToolStat\\b" src test -g '*.{ts,tsx}'
 rg "lg:grid-cols-\\[340px_minmax\\(0,1fr\\)\\]" src/pages/Tools
 rg "CardTitle className=\"text-base\"" src/pages/Tools
 pnpm exec tsc --noEmit
@@ -814,12 +814,13 @@ YYYY-MM-DD_<工作包ID>_<short-title>.md
 
 ## 12. 下一步建议
 
-下一次实现会话优先认领 `PRE-001`：
+下一次实现会话优先认领 `QA-001`：
 
-1. 在 Electron 中冻结字幕 AI 翻译页的视觉基准；
-2. 记录默认、最小和宽屏尺寸；
-3. 关闭 Tour 后检查 Light/Dark；
-4. 写入第一份实施记录；
-5. 结束所有前端进程。
+1. 运行完整自动化回归、TypeScript、i18n、Vite build 和 `git diff --check`；
+2. 复核共享组件边界：不读取 store、不调用 IPC、不内置工具业务文案；
+3. 检查工作区无意外生成物；
+4. 将结果写入 `QA-001` 实施记录；
+5. 若发现回归，新增 `FIX-*` 工作包并记录，不直接关闭 `QA-001`；
+6. 回答用户前结束本次会话启动的全部前端服务和 Electron 进程。
 
-完成 `PRE-001` 后再认领 `UI-001`，开始共享组件和基准页迁移。
+完成 `QA-001` 后再认领 `QA-002`，执行五个工具详情页的 Electron 视觉矩阵验收。
