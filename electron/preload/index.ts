@@ -125,7 +125,6 @@ function useLoading() {
   --fk-loading-reveal: #fff;
   --fk-loading-exit: #fff;
   --fk-loading-ink-source: #fff;
-  --fk-loading-track-source: rgb(255 255 255 / 0.22);
   position: fixed;
   inset: 0;
   width: 100vw;
@@ -200,15 +199,17 @@ function useLoading() {
   flex-direction: column;
   align-items: center;
   justify-content: center;
+  min-width: 128px;
   color: var(--fk-loading-ink-source);
   mix-blend-mode: difference;
   text-align: center;
   opacity: 1;
-  transform: translateX(-0.02em);
+  transform: translateY(-1px);
   will-change: opacity, transform;
 }
 
 .fk-percent {
+  margin-top: 10px;
   font-family:
     ui-sans-serif,
     -apple-system,
@@ -216,45 +217,26 @@ function useLoading() {
     'SF Pro Display',
     'Segoe UI',
     sans-serif;
-  font-size: clamp(76px, 15vw, 168px);
-  font-weight: 680;
+  font-size: 13px;
+  font-weight: 560;
   font-variant-numeric: tabular-nums;
-  letter-spacing: -0.085em;
-  line-height: 0.84;
+  letter-spacing: 0;
+  line-height: 1;
+  opacity: 0.62;
 }
 
 .fk-wordmark {
-  margin-top: clamp(18px, 2.8vh, 26px);
   font-family:
-    ui-monospace,
-    'SFMono-Regular',
-    'SF Mono',
-    Menlo,
-    Consolas,
-    monospace;
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.34em;
+    ui-sans-serif,
+    -apple-system,
+    BlinkMacSystemFont,
+    'SF Pro Display',
+    'Segoe UI',
+    sans-serif;
+  font-size: 18px;
+  font-weight: 650;
+  letter-spacing: 0;
   line-height: 1;
-  opacity: 0.78;
-  text-transform: uppercase;
-}
-
-.fk-progress-track {
-  position: relative;
-  width: clamp(118px, 20vw, 188px);
-  height: 1px;
-  margin-top: 18px;
-  overflow: hidden;
-  background: var(--fk-loading-track-source);
-}
-
-.fk-progress-track::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  width: var(--fk-progress-ratio);
-  background: currentColor;
 }
 
 .fk-sr-only {
@@ -271,6 +253,17 @@ function useLoading() {
 
 @media (prefers-reduced-motion: reduce) {
   .app-loading-wrap { animation: none; }
+}
+
+@media (max-width: 420px), (max-height: 360px) {
+  .fk-percent {
+    margin-top: 8px;
+    font-size: 12px;
+  }
+
+  .fk-wordmark {
+    font-size: 16px;
+  }
 }
   `
 
@@ -326,9 +319,8 @@ function useLoading() {
     <div class="fk-reveal-circle" aria-hidden="true"></div>
     <div class="fk-exit-mask" aria-hidden="true"></div>
     <div class="fk-progress-stack" aria-hidden="true">
-      <div class="fk-percent">00%</div>
       <div class="fk-wordmark">FusionKit</div>
-      <div class="fk-progress-track"></div>
+      <div class="fk-percent">0%</div>
     </div>
     <span class="fk-sr-only">FusionKit is starting</span>
   `
@@ -340,7 +332,7 @@ function useLoading() {
 
   const formatPercent = (value: number) => {
     const rounded = Math.min(100, Math.max(0, Math.round(value)))
-    return `${rounded < 10 ? `0${rounded}` : rounded}%`
+    return `${rounded}%`
   }
 
   const renderProgress = (value: number) => {
