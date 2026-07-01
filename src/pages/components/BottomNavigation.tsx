@@ -61,7 +61,6 @@ const BottomNavigation: React.FC = () => {
         // * 执行后续步骤
         if (isDark) {
           setShowInner(true);
-          setShowMaskLayer(true);
         } else {
           setShowInner(false);
         }
