@@ -60,6 +60,42 @@ const safeDOM = {
   },
 }
 
+type ThemeValue = 'light' | 'dark' | 'system'
+type LoadingColorMode = 'light' | 'dark'
+
+const THEME_STORAGE_KEY = 'fusionkit-theme'
+const LEGACY_THEME_KEY = 'theme'
+
+const isThemeValue = (theme: unknown): theme is ThemeValue =>
+  theme === 'light' || theme === 'dark' || theme === 'system'
+
+const getStoredTheme = (): ThemeValue => {
+  try {
+    const rawTheme = window.localStorage.getItem(THEME_STORAGE_KEY)
+    if (rawTheme) {
+      const parsed = JSON.parse(rawTheme) as { state?: { theme?: unknown } }
+      if (isThemeValue(parsed.state?.theme)) {
+        return parsed.state.theme
+      }
+    }
+
+    const legacyTheme = window.localStorage.getItem(LEGACY_THEME_KEY)
+    return isThemeValue(legacyTheme) ? legacyTheme : 'system'
+  } catch {
+    return 'system'
+  }
+}
+
+const resolveLoadingColorMode = (): LoadingColorMode => {
+  const storedTheme = getStoredTheme()
+
+  if (storedTheme === 'light' || storedTheme === 'dark') {
+    return storedTheme
+  }
+
+  return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+}
+
 /**
  * Preload loading screen.
  * Uses a synthetic percent value while the renderer boots, then converges to
@@ -85,6 +121,11 @@ function useLoading() {
   --fk-progress-ratio: 0%;
   --fk-exit-radius: 0px;
   --fk-exit-edge: 1px;
+  --fk-loading-bg: #000;
+  --fk-loading-reveal: #fff;
+  --fk-loading-exit: #fff;
+  --fk-loading-ink-source: #fff;
+  --fk-loading-track-source: rgb(255 255 255 / 0.22);
   position: fixed;
   inset: 0;
   width: 100vw;
@@ -93,13 +134,19 @@ function useLoading() {
   align-items: center;
   justify-content: center;
   overflow: hidden;
-  background: #000;
-  color: #fff;
+  background: var(--fk-loading-bg);
+  color: var(--fk-loading-ink-source);
   z-index: 2147483647;
   -webkit-app-region: drag;
   user-select: none;
   isolation: isolate;
   animation: fk-loader-enter 0.28s ease-out both;
+}
+
+.app-loading-wrap[data-fk-color-mode='light'] {
+  --fk-loading-bg: #fff;
+  --fk-loading-reveal: #000;
+  --fk-loading-exit: #000;
 }
 
 .app-loading-wrap.fk-exiting {
@@ -114,7 +161,7 @@ function useLoading() {
   width: var(--fk-reveal-size);
   height: var(--fk-reveal-size);
   border-radius: 50%;
-  background: #fff;
+  background: var(--fk-loading-reveal);
   transform: translate(-50%, -50%);
   opacity: 1;
   filter: blur(0);
@@ -125,7 +172,7 @@ function useLoading() {
   position: absolute;
   inset: 0;
   z-index: 1;
-  background: #fff;
+  background: var(--fk-loading-exit);
   opacity: 0;
   pointer-events: none;
   -webkit-mask-image: radial-gradient(
@@ -153,7 +200,7 @@ function useLoading() {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  color: #fff;
+  color: var(--fk-loading-ink-source);
   mix-blend-mode: difference;
   text-align: center;
   opacity: 1;
@@ -199,7 +246,7 @@ function useLoading() {
   height: 1px;
   margin-top: 18px;
   overflow: hidden;
-  background: rgb(255 255 255 / 0.22);
+  background: var(--fk-loading-track-source);
 }
 
 .fk-progress-track::before {
@@ -269,6 +316,7 @@ function useLoading() {
   oStyle.id = 'app-loading-style'
   oStyle.innerHTML = styleContent
   oDiv.className = 'app-loading-wrap'
+  oDiv.dataset.fkColorMode = resolveLoadingColorMode()
   oDiv.setAttribute('role', 'progressbar')
   oDiv.setAttribute('aria-label', 'FusionKit loading')
   oDiv.setAttribute('aria-live', 'polite')
