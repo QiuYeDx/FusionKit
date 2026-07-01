@@ -12,6 +12,9 @@
     },
     "rename": {
       "name_translator": "檔案名稱/資料夾名稱翻譯"
+    },
+    "text": {
+      "translator": "長文本翻譯"
     }
   },
   "start": "開始",

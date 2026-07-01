@@ -12,10 +12,10 @@ import {
   SkipForward,
   X,
 } from "lucide-react";
+import { ToolPanel } from "@/pages/Tools/_shared/ui";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
@@ -98,15 +98,14 @@ export default function PlanPreviewTable({
 
   if (!plan) {
     return (
-      <Card className="overflow-hidden p-0 gap-0">
-        <CardHeader className="flex flex-row items-center justify-between gap-3 border-b px-4 py-3 space-y-0 [&.border-b]:pb-3">
-          <CardTitle className="text-[13.5px] font-semibold">
-            {t("preview.title")}
-          </CardTitle>
+      <ToolPanel
+        title={t("preview.title")}
+        badge={
           <Badge variant="secondary" className="font-mono text-[11px]">
             dry-run
           </Badge>
-        </CardHeader>
+        }
+      >
         {planningProgress ? (
           <PlanningProgressPanel
             progress={planningProgress}
@@ -126,35 +125,31 @@ export default function PlanPreviewTable({
             </div>
           </div>
         )}
-      </Card>
+      </ToolPanel>
     );
   }
 
   return (
-    <Card className="overflow-hidden p-0 gap-0">
-      <CardHeader className="flex flex-row items-center justify-between gap-3 border-b px-4 py-3 space-y-0 [&.border-b]:pb-3">
-        <div className="flex min-w-0 items-center gap-2">
-          <CardTitle className="text-[13.5px] font-semibold">
-            {t("preview.title")}
-          </CardTitle>
-          <Badge variant="secondary" className="font-mono text-[11px]">
-            {plan.items.length} / {plan.totalTargets}
-          </Badge>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            disabled={isPlanning}
-            onClick={onRevalidate}
-          >
-            <RotateCw className={cn("h-3.5 w-3.5", isPlanning && "animate-spin")} />
-            {t("preview.revalidate")}
-          </Button>
-        </div>
-      </CardHeader>
-
+    <ToolPanel
+      title={t("preview.title")}
+      badge={
+        <Badge variant="secondary" className="font-mono text-[11px]">
+          {plan.items.length} / {plan.totalTargets}
+        </Badge>
+      }
+      actions={
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          disabled={isPlanning}
+          onClick={onRevalidate}
+        >
+          <RotateCw className={cn("h-3.5 w-3.5", isPlanning && "animate-spin")} />
+          {t("preview.revalidate")}
+        </Button>
+      }
+    >
       {planningProgress ? (
         <div className="border-b">
           <PlanningProgressPanel
@@ -445,7 +440,7 @@ export default function PlanPreviewTable({
           </Button>
         </div>
       </div>
-    </Card>
+    </ToolPanel>
   );
 }
 

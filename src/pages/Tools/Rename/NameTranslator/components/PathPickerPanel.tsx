@@ -10,9 +10,9 @@ import {
   Upload,
   X,
 } from "lucide-react";
+import { ToolConfigPanel } from "@/pages/Tools/_shared/ui";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { getFilePathFromFile } from "@/utils/filePath";
@@ -66,20 +66,16 @@ export default function PathPickerPanel({
   };
 
   return (
-    <Card className="overflow-hidden p-0 gap-0">
-      <div className="flex items-center justify-between gap-2 px-4 py-3 bg-muted/40 border-b">
-        <div className="flex items-center gap-2">
-          <FolderOpen className="h-3.5 w-3.5 text-muted-foreground" />
-          <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-foreground/80">
-            {t("path.section_title")}
-          </span>
-        </div>
+    <ToolConfigPanel
+      icon={FolderOpen}
+      title={t("path.section_title")}
+      action={
         <Badge variant="secondary" className="font-mono text-[11px]">
           {selectedPaths.length}
         </Badge>
-      </div>
-
-      <div className="p-4 space-y-4">
+      }
+      contentClassName="space-y-4"
+    >
         <div
           className={cn(
             "relative flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed px-4 py-5 text-center transition-colors",
@@ -219,8 +215,7 @@ export default function PathPickerPanel({
             <TooltipContent>{t("path.reset_tooltip")}</TooltipContent>
           </Tooltip>
         </div>
-      </div>
-    </Card>
+    </ToolConfigPanel>
   );
 }
 

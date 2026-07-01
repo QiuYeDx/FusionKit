@@ -12,6 +12,9 @@
     },
     "rename": {
       "name_translator": "File/Folder Name Translation"
+    },
+    "text": {
+      "translator": "Long Text Translator"
     }
   },
   "start": "Start",

@@ -4,6 +4,7 @@ import { AlertTriangle, CircleHelp, Loader2, ShieldCheck } from "lucide-react";
 import { useSearchParams } from "react-router-dom";
 import ToolPageHeader from "@/pages/Tools/_shared/ToolPageHeader";
 import { TOOL_META } from "@/pages/Tools/_shared/toolMeta";
+import { ToolDetailLayout } from "@/pages/Tools/_shared/ui";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -135,111 +136,115 @@ export default function NameTranslator() {
     void applyCurrentPlan();
   };
 
-  return (
-    <div className="px-4 sm:px-8 pt-6 pb-[100px] max-w-7xl mx-auto">
-      <ToolPageHeader
-        meta={TOOL_META.nameTranslator}
-        title={t("page.title")}
-        description={t("page.description")}
-        right={
-          <>
-            <Badge variant="secondary" className="gap-1.5 font-normal">
-              <ShieldCheck className="h-3.5 w-3.5" />
-              <span className="font-mono text-[11px]">{t("page.badge")}</span>
-            </Badge>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8 text-muted-foreground hover:text-foreground"
-              onClick={() => setTourOpen(true)}
-              title={t("tour.trigger", "使用引导")}
-            >
-              <CircleHelp className="h-4 w-4" />
-            </Button>
-          </>
-        }
-      />
+  const header = (
+    <ToolPageHeader
+      meta={TOOL_META.nameTranslator}
+      title={t("page.title")}
+      description={t("page.description")}
+      right={
+        <>
+          <Badge variant="secondary" className="gap-1.5 font-normal">
+            <ShieldCheck className="h-3.5 w-3.5" />
+            <span className="font-mono text-[11px]">{t("page.badge")}</span>
+          </Badge>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 text-muted-foreground hover:text-foreground"
+            onClick={() => setTourOpen(true)}
+            title={t("tour.trigger", "使用引导")}
+          >
+            <CircleHelp className="h-4 w-4" />
+          </Button>
+        </>
+      }
+    />
+  );
 
-      <div className="grid grid-cols-1 lg:grid-cols-[340px_minmax(0,1fr)] gap-4 items-start">
-        <aside className="flex flex-col gap-4 lg:sticky lg:top-10">
-          <div id="nt-tour-path-picker">
-            <PathPickerPanel
-              selectedPaths={selectedPaths}
-              isPlanning={isPlanning}
-              onAddPaths={addPaths}
-              onRemovePath={removePath}
-              onCreatePreview={createPreview}
-              onReset={reset}
-            />
-          </div>
-          <div id="nt-tour-options">
-            <OptionsPanel
-              options={options}
-              disabled={isPlanning || isApplying}
-              onUpdateOptions={updateOptions}
-            />
-          </div>
-        </aside>
-
-        <main className="flex min-w-0 flex-col gap-3">
-          {requestedPlanId && urlPlanStatus === "loading" ? (
-            <Alert>
-              <Loader2 className="h-4 w-4 animate-spin" />
-              <AlertTitle>{t("page.loading_plan_title")}</AlertTitle>
-              <AlertDescription>{t("page.loading_plan_desc")}</AlertDescription>
-            </Alert>
-          ) : null}
-
-          {requestedPlanId &&
-          urlPlanStatus === "loaded" &&
-          currentPlan?.planId === requestedPlanId ? (
-            <Alert>
-              <ShieldCheck className="h-4 w-4" />
-              <AlertTitle>{t("page.loaded_from_agent_title")}</AlertTitle>
-              <AlertDescription>
-                {t("page.loaded_from_agent_desc", {
-                  planId: shortPlanId(currentPlan.planId),
-                  count: currentPlan.totalTargets,
-                })}
-              </AlertDescription>
-            </Alert>
-          ) : null}
-
-          {lastError ? (
-            <Alert variant="destructive">
-              <AlertTriangle className="h-4 w-4" />
-              <AlertTitle>{t("page.error_title")}</AlertTitle>
-              <AlertDescription>{lastError}</AlertDescription>
-            </Alert>
-          ) : null}
-
-          <div id="nt-tour-preview">
-            <PlanPreviewTable
-              plan={currentPlan}
-              isPlanning={isPlanning}
-              planningProgress={planningProgress}
-              originalSuggestions={originalSuggestions}
-              onEditItem={updatePlanItem}
-              onRevalidate={revalidateCurrentPlan}
-              onUseAutoIndex={() => updateOptions({ collisionPolicy: "append_index" })}
-              onCancelPlanning={cancelPlanning}
-            />
-          </div>
-
-          <div id="nt-tour-apply">
-            <ApplySummaryPanel
-              plan={currentPlan}
-              isApplying={isApplying}
-              applyProgress={applyProgress}
-              lastApplyResult={lastApplyResult}
-              lastRollbackResult={lastRollbackResult}
-              lastValidation={lastValidation}
-              onApply={requestApply}
-              onRollback={rollback}
-            />
-          </div>
-        </main>
+  const aside = (
+    <div className="flex flex-col gap-4">
+      <div id="nt-tour-path-picker">
+        <PathPickerPanel
+          selectedPaths={selectedPaths}
+          isPlanning={isPlanning}
+          onAddPaths={addPaths}
+          onRemovePath={removePath}
+          onCreatePreview={createPreview}
+          onReset={reset}
+        />
       </div>
+      <div id="nt-tour-options">
+        <OptionsPanel
+          options={options}
+          disabled={isPlanning || isApplying}
+          onUpdateOptions={updateOptions}
+        />
+      </div>
+    </div>
+  );
+
+  return (
+    <>
+      <ToolDetailLayout header={header} aside={aside}>
+        {requestedPlanId && urlPlanStatus === "loading" ? (
+          <Alert>
+            <Loader2 className="h-4 w-4 animate-spin" />
+            <AlertTitle>{t("page.loading_plan_title")}</AlertTitle>
+            <AlertDescription>{t("page.loading_plan_desc")}</AlertDescription>
+          </Alert>
+        ) : null}
+
+        {requestedPlanId &&
+        urlPlanStatus === "loaded" &&
+        currentPlan?.planId === requestedPlanId ? (
+          <Alert>
+            <ShieldCheck className="h-4 w-4" />
+            <AlertTitle>{t("page.loaded_from_agent_title")}</AlertTitle>
+            <AlertDescription>
+              {t("page.loaded_from_agent_desc", {
+                planId: shortPlanId(currentPlan.planId),
+                count: currentPlan.totalTargets,
+              })}
+            </AlertDescription>
+          </Alert>
+        ) : null}
+
+        {lastError ? (
+          <Alert variant="destructive">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertTitle>{t("page.error_title")}</AlertTitle>
+            <AlertDescription>{lastError}</AlertDescription>
+          </Alert>
+        ) : null}
+
+        <div id="nt-tour-preview">
+          <PlanPreviewTable
+            plan={currentPlan}
+            isPlanning={isPlanning}
+            planningProgress={planningProgress}
+            originalSuggestions={originalSuggestions}
+            onEditItem={updatePlanItem}
+            onRevalidate={revalidateCurrentPlan}
+            onUseAutoIndex={() =>
+              updateOptions({ collisionPolicy: "append_index" })
+            }
+            onCancelPlanning={cancelPlanning}
+          />
+        </div>
+
+        <div id="nt-tour-apply">
+          <ApplySummaryPanel
+            plan={currentPlan}
+            isApplying={isApplying}
+            applyProgress={applyProgress}
+            lastApplyResult={lastApplyResult}
+            lastRollbackResult={lastRollbackResult}
+            lastValidation={lastValidation}
+            onApply={requestApply}
+            onRollback={rollback}
+          />
+        </div>
+      </ToolDetailLayout>
 
       <RiskConfirmDialog
         open={riskDialogOpen}
@@ -262,7 +267,7 @@ export default function NameTranslator() {
         maskClosable
         scrollIntoView
       />
-    </div>
+    </>
   );
 }
 

@@ -1,19 +1,27 @@
 import type { LucideIcon } from "lucide-react";
-import { Languages, RefreshCw, FileText, Music, Edit } from "lucide-react";
+import {
+  BookOpenText,
+  Languages,
+  RefreshCw,
+  FileText,
+  Music,
+  Edit,
+} from "lucide-react";
 
 export type ToolKey =
   | "translator"
   | "converter"
   | "extractor"
   | "music"
-  | "nameTranslator";
+  | "nameTranslator"
+  | "textTranslator";
 
 export type ToolMeta = {
   id: ToolKey;
   /** CSS variable name (without var()) — defined in index.css */
   toneVar: string;
   icon: LucideIcon;
-  category: "subtitle" | "music" | "rename";
+  category: "subtitle" | "music" | "rename" | "text";
   status: "stable" | "soon";
   route?: string;
 };
@@ -57,6 +65,14 @@ export const TOOL_META: Record<ToolKey, ToolMeta> = {
     category: "rename",
     status: "stable",
     route: "/tools/rename/name-translator",
+  },
+  textTranslator: {
+    id: "textTranslator",
+    toneVar: "--tool-text",
+    icon: BookOpenText,
+    category: "text",
+    status: "stable",
+    route: "/tools/text/translator",
   },
 };
 

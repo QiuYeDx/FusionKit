@@ -60,6 +60,43 @@ const safeDOM = {
   },
 }
 
+type ThemeValue = 'light' | 'dark' | 'system'
+type LoadingColorMode = 'light' | 'dark'
+
+const THEME_STORAGE_KEY = 'fusionkit-theme'
+const LEGACY_THEME_KEY = 'theme'
+const START_LOADING_PROGRESS_CHANNEL = 'fusionkit-start-loading-progress'
+
+const isThemeValue = (theme: unknown): theme is ThemeValue =>
+  theme === 'light' || theme === 'dark' || theme === 'system'
+
+const getStoredTheme = (): ThemeValue => {
+  try {
+    const rawTheme = window.localStorage.getItem(THEME_STORAGE_KEY)
+    if (rawTheme) {
+      const parsed = JSON.parse(rawTheme) as { state?: { theme?: unknown } }
+      if (isThemeValue(parsed.state?.theme)) {
+        return parsed.state.theme
+      }
+    }
+
+    const legacyTheme = window.localStorage.getItem(LEGACY_THEME_KEY)
+    return isThemeValue(legacyTheme) ? legacyTheme : 'system'
+  } catch {
+    return 'system'
+  }
+}
+
+const resolveLoadingColorMode = (): LoadingColorMode => {
+  const storedTheme = getStoredTheme()
+
+  if (storedTheme === 'light' || storedTheme === 'dark') {
+    return storedTheme
+  }
+
+  return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+}
+
 /**
  * Preload loading screen.
  * Uses a synthetic percent value while the renderer boots, then converges to
@@ -85,6 +122,10 @@ function useLoading() {
   --fk-progress-ratio: 0%;
   --fk-exit-radius: 0px;
   --fk-exit-edge: 1px;
+  --fk-loading-bg: #000;
+  --fk-loading-reveal: #fff;
+  --fk-loading-exit: #fff;
+  --fk-loading-ink-source: #fff;
   position: fixed;
   inset: 0;
   width: 100vw;
@@ -93,13 +134,19 @@ function useLoading() {
   align-items: center;
   justify-content: center;
   overflow: hidden;
-  background: #000;
-  color: #fff;
+  background: var(--fk-loading-bg);
+  color: var(--fk-loading-ink-source);
   z-index: 2147483647;
   -webkit-app-region: drag;
   user-select: none;
   isolation: isolate;
   animation: fk-loader-enter 0.28s ease-out both;
+}
+
+.app-loading-wrap[data-fk-color-mode='light'] {
+  --fk-loading-bg: #fff;
+  --fk-loading-reveal: #000;
+  --fk-loading-exit: #000;
 }
 
 .app-loading-wrap.fk-exiting {
@@ -114,7 +161,7 @@ function useLoading() {
   width: var(--fk-reveal-size);
   height: var(--fk-reveal-size);
   border-radius: 50%;
-  background: #fff;
+  background: var(--fk-loading-reveal);
   transform: translate(-50%, -50%);
   opacity: 1;
   filter: blur(0);
@@ -125,7 +172,7 @@ function useLoading() {
   position: absolute;
   inset: 0;
   z-index: 1;
-  background: #fff;
+  background: var(--fk-loading-exit);
   opacity: 0;
   pointer-events: none;
   -webkit-mask-image: radial-gradient(
@@ -153,15 +200,17 @@ function useLoading() {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  color: #fff;
+  min-width: 128px;
+  color: var(--fk-loading-ink-source);
   mix-blend-mode: difference;
   text-align: center;
   opacity: 1;
-  transform: translateX(-0.02em);
+  transform: translateY(-1px);
   will-change: opacity, transform;
 }
 
 .fk-percent {
+  margin-top: 10px;
   font-family:
     ui-sans-serif,
     -apple-system,
@@ -169,45 +218,26 @@ function useLoading() {
     'SF Pro Display',
     'Segoe UI',
     sans-serif;
-  font-size: clamp(76px, 15vw, 168px);
-  font-weight: 680;
+  font-size: 13px;
+  font-weight: 560;
   font-variant-numeric: tabular-nums;
-  letter-spacing: -0.085em;
-  line-height: 0.84;
+  letter-spacing: 0;
+  line-height: 1;
+  opacity: 0.62;
 }
 
 .fk-wordmark {
-  margin-top: clamp(18px, 2.8vh, 26px);
   font-family:
-    ui-monospace,
-    'SFMono-Regular',
-    'SF Mono',
-    Menlo,
-    Consolas,
-    monospace;
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.34em;
+    ui-sans-serif,
+    -apple-system,
+    BlinkMacSystemFont,
+    'SF Pro Display',
+    'Segoe UI',
+    sans-serif;
+  font-size: 18px;
+  font-weight: 650;
+  letter-spacing: 0;
   line-height: 1;
-  opacity: 0.78;
-  text-transform: uppercase;
-}
-
-.fk-progress-track {
-  position: relative;
-  width: clamp(118px, 20vw, 188px);
-  height: 1px;
-  margin-top: 18px;
-  overflow: hidden;
-  background: rgb(255 255 255 / 0.22);
-}
-
-.fk-progress-track::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  width: var(--fk-progress-ratio);
-  background: currentColor;
 }
 
 .fk-sr-only {
@@ -225,6 +255,17 @@ function useLoading() {
 @media (prefers-reduced-motion: reduce) {
   .app-loading-wrap { animation: none; }
 }
+
+@media (max-width: 420px), (max-height: 360px) {
+  .fk-percent {
+    margin-top: 8px;
+    font-size: 12px;
+  }
+
+  .fk-wordmark {
+    font-size: 16px;
+  }
+}
   `
 
   const oStyle = document.createElement('style')
@@ -238,6 +279,7 @@ function useLoading() {
   const completeSweepDuration = prefersReducedMotion ? 120 : 420
   const exitTextDuration = prefersReducedMotion ? 120 : 500
   const layerSwapDuration = prefersReducedMotion ? 80 : 180
+  const initialProgressHoldDuration = prefersReducedMotion ? 80 : 320
   const syntheticProgressCeiling = 92
 
   const springTransition = (durationMs: number) => ({
@@ -251,6 +293,8 @@ function useLoading() {
   let readyRequested = false
   let minimumCountCompleted = false
   let isCompleting = false
+  let progressStartRequested = false
+  let progressStartScheduled = false
   let progress = 0
   let maxRevealSize = 0
   let maxExitRadius = 0
@@ -265,10 +309,16 @@ function useLoading() {
   let completeHoldTimer: ReturnType<typeof setTimeout> | undefined
   let exitRevealStartTimer: ReturnType<typeof setTimeout> | undefined
   let exitRevealCleanupTimer: ReturnType<typeof setTimeout> | undefined
+  let initialProgressHoldTimer: ReturnType<typeof setTimeout> | undefined
+  let initialProgressFrameOne: number | undefined
+  let initialProgressFrameTwo: number | undefined
+  let handleLoadingProgressStart: Parameters<typeof ipcRenderer.on>[1] | undefined
+  let handleVisibilityChange: (() => void) | undefined
 
   oStyle.id = 'app-loading-style'
   oStyle.innerHTML = styleContent
   oDiv.className = 'app-loading-wrap'
+  oDiv.dataset.fkColorMode = resolveLoadingColorMode()
   oDiv.setAttribute('role', 'progressbar')
   oDiv.setAttribute('aria-label', 'FusionKit loading')
   oDiv.setAttribute('aria-live', 'polite')
@@ -278,9 +328,8 @@ function useLoading() {
     <div class="fk-reveal-circle" aria-hidden="true"></div>
     <div class="fk-exit-mask" aria-hidden="true"></div>
     <div class="fk-progress-stack" aria-hidden="true">
-      <div class="fk-percent">00%</div>
       <div class="fk-wordmark">FusionKit</div>
-      <div class="fk-progress-track"></div>
+      <div class="fk-percent">0%</div>
     </div>
     <span class="fk-sr-only">FusionKit is starting</span>
   `
@@ -292,7 +341,7 @@ function useLoading() {
 
   const formatPercent = (value: number) => {
     const rounded = Math.min(100, Math.max(0, Math.round(value)))
-    return `${rounded < 10 ? `0${rounded}` : rounded}%`
+    return `${rounded}%`
   }
 
   const renderProgress = (value: number) => {
@@ -353,6 +402,7 @@ function useLoading() {
       completeHoldTimer,
       exitRevealStartTimer,
       exitRevealCleanupTimer,
+      initialProgressHoldTimer,
     ].forEach((timer) => {
       if (timer !== undefined) clearTimeout(timer)
     })
@@ -361,6 +411,26 @@ function useLoading() {
     completeHoldTimer = undefined
     exitRevealStartTimer = undefined
     exitRevealCleanupTimer = undefined
+    initialProgressHoldTimer = undefined
+
+    if (initialProgressFrameOne !== undefined) {
+      window.cancelAnimationFrame(initialProgressFrameOne)
+      initialProgressFrameOne = undefined
+    }
+    if (initialProgressFrameTwo !== undefined) {
+      window.cancelAnimationFrame(initialProgressFrameTwo)
+      initialProgressFrameTwo = undefined
+    }
+
+    if (handleLoadingProgressStart) {
+      ipcRenderer.off(START_LOADING_PROGRESS_CHANNEL, handleLoadingProgressStart)
+      handleLoadingProgressStart = undefined
+    }
+    if (handleVisibilityChange) {
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+      handleVisibilityChange = undefined
+    }
+
     unsubscribeProgress()
     unsubscribeExitReveal()
 
@@ -469,6 +539,51 @@ function useLoading() {
     minimumCountTimer = setTimeout(completeMinimumCount, minimumCountDuration + 80)
   }
 
+  const canStartProgress = () => document.visibilityState !== 'hidden'
+
+  const scheduleProgressStart = () => {
+    if (
+      progressStartScheduled ||
+      hasCompleted ||
+      !progressStartRequested ||
+      !hasMounted ||
+      !canStartProgress()
+    ) {
+      return
+    }
+
+    progressStartScheduled = true
+    progressMotion.set(0)
+    renderProgress(0)
+
+    initialProgressFrameOne = window.requestAnimationFrame(() => {
+      initialProgressFrameOne = undefined
+      initialProgressFrameTwo = window.requestAnimationFrame(() => {
+        initialProgressFrameTwo = undefined
+        initialProgressHoldTimer = setTimeout(() => {
+          initialProgressHoldTimer = undefined
+          startProgress()
+        }, initialProgressHoldDuration)
+      })
+    })
+  }
+
+  const requestProgressStart = () => {
+    if (hasCompleted || progressStartScheduled) return
+
+    progressStartRequested = true
+    scheduleProgressStart()
+  }
+
+  handleLoadingProgressStart = () => {
+    requestProgressStart()
+  }
+  handleVisibilityChange = () => {
+    scheduleProgressStart()
+  }
+  ipcRenderer.on(START_LOADING_PROGRESS_CHANNEL, handleLoadingProgressStart)
+  document.addEventListener('visibilitychange', handleVisibilityChange)
+
   return {
     appendLoading() {
       if (hasCompleted) return
@@ -478,7 +593,7 @@ function useLoading() {
       hasMounted = true
       updateViewportMetrics()
       window.addEventListener('resize', updateViewportMetrics)
-      startProgress()
+      scheduleProgressStart()
     },
     removeLoading() {
       if (hasCompleted) return
@@ -486,7 +601,6 @@ function useLoading() {
       readyRequested = true
 
       if (!hasMounted) {
-        hasCompleted = true
         return
       }
 
@@ -495,7 +609,6 @@ function useLoading() {
         return
       }
 
-      startProgress()
     },
   }
 }

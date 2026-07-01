@@ -8,6 +8,7 @@ import enSetting from "@/locales/en/setting.json";
 import enSubtitle from "@/locales/en/subtitle.json";
 import enTools from "@/locales/en/tools.json";
 import enRename from "@/locales/en/rename.json";
+import enText from "@/locales/en/text.json";
 
 import jaAbout from "@/locales/ja/about.json";
 import jaCommon from "@/locales/ja/common.json";
@@ -16,6 +17,7 @@ import jaSetting from "@/locales/ja/setting.json";
 import jaSubtitle from "@/locales/ja/subtitle.json";
 import jaTools from "@/locales/ja/tools.json";
 import jaRename from "@/locales/ja/rename.json";
+import jaText from "@/locales/ja/text.json";
 
 import zhAbout from "@/locales/zh/about.json";
 import zhCommon from "@/locales/zh/common.json";
@@ -24,6 +26,7 @@ import zhSetting from "@/locales/zh/setting.json";
 import zhSubtitle from "@/locales/zh/subtitle.json";
 import zhTools from "@/locales/zh/tools.json";
 import zhRename from "@/locales/zh/rename.json";
+import zhText from "@/locales/zh/text.json";
 
 import zhHantAbout from "@/locales/zh-Hant/about.json";
 import zhHantCommon from "@/locales/zh-Hant/common.json";
@@ -32,6 +35,7 @@ import zhHantSetting from "@/locales/zh-Hant/setting.json";
 import zhHantSubtitle from "@/locales/zh-Hant/subtitle.json";
 import zhHantTools from "@/locales/zh-Hant/tools.json";
 import zhHantRename from "@/locales/zh-Hant/rename.json";
+import zhHantText from "@/locales/zh-Hant/text.json";
 
 export const resources: Resource = {
   [LangEnum.EN]: {
@@ -42,6 +46,7 @@ export const resources: Resource = {
     setting: enSetting,
     subtitle: enSubtitle,
     rename: enRename,
+    text: enText,
   },
   [LangEnum.JA]: {
     common: jaCommon,
@@ -51,6 +56,7 @@ export const resources: Resource = {
     setting: jaSetting,
     subtitle: jaSubtitle,
     rename: jaRename,
+    text: jaText,
   },
   [LangEnum.ZH]: {
     common: zhCommon,
@@ -60,6 +66,7 @@ export const resources: Resource = {
     setting: zhSetting,
     subtitle: zhSubtitle,
     rename: zhRename,
+    text: zhText,
   },
   [LangEnum.ZH_HANT]: {
     common: zhHantCommon,
@@ -69,5 +76,6 @@ export const resources: Resource = {
     setting: zhHantSetting,
     subtitle: zhHantSubtitle,
     rename: zhHantRename,
+    text: zhHantText,
   },
 };

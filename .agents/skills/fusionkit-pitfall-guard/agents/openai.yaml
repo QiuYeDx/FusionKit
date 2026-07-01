@@ -1,0 +1,4 @@
+interface:
+  display_name: "FusionKit Pitfall Guard"
+  short_description: "FusionKit pitfall index and avoidance workflow"
+  default_prompt: "Use $fusionkit-pitfall-guard to check FusionKit pitfall records before diagnosing or changing code."

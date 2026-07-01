@@ -6,10 +6,10 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { ToolPanel } from "@/pages/Tools/_shared/ui";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
@@ -61,177 +61,175 @@ export default function ApplySummaryPanel({
           : 0;
 
   return (
-    <Card className="overflow-hidden p-0 gap-0">
-      <CardHeader className="flex flex-row items-center justify-between gap-3 border-b px-4 py-3 space-y-0 [&.border-b]:pb-3">
-        <div className="flex items-center gap-2">
-          <ShieldCheck className="h-3.5 w-3.5 text-muted-foreground" />
-          <CardTitle className="text-[13.5px] font-semibold">
-            {t("apply.title")}
-          </CardTitle>
-        </div>
-        {plan ? (
-          <Badge variant={plan.applyable ? "secondary" : "outline"} className="font-mono text-[11px]">
+    <ToolPanel
+      icon={ShieldCheck}
+      title={t("apply.title")}
+      badge={
+        plan ? (
+          <Badge
+            variant={plan.applyable ? "secondary" : "outline"}
+            className="font-mono text-[11px]"
+          >
             {plan.planId.slice(0, 18)}
           </Badge>
-        ) : null}
-      </CardHeader>
-
-      <div className="space-y-4 p-4">
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-          <Metric label={t("apply.metrics.ready")} value={plan?.readyCount ?? 0} />
-          <Metric
-            label={t("apply.metrics.blocked")}
-            value={plan?.blockedCount ?? 0}
-            tone="bad"
-          />
-          <Metric
-            label={t("apply.metrics.skipped")}
-            value={plan?.skippedCount ?? 0}
-          />
-          <Metric
-            label={t("apply.metrics.unchanged")}
-            value={plan?.unchangedCount ?? 0}
-          />
-        </div>
-
-        {plan?.warnings.length ? (
-          <Alert>
-            <AlertTriangle className="h-4 w-4" />
-            <AlertTitle>{t("apply.warnings_title")}</AlertTitle>
-            <AlertDescription>
-              <div className="flex flex-wrap gap-1.5">
-                {plan.warnings.slice(0, 5).map((warning) => (
-                  <Tooltip key={warning} disableHoverableContent>
-                    <TooltipTrigger asChild>
-                      <Badge variant="outline" className="max-w-full truncate">
-                        {warning}
-                      </Badge>
-                    </TooltipTrigger>
-                    <TooltipContent
-                      side="bottom"
-                      className="max-w-[min(560px,calc(100vw-2rem))] whitespace-normal text-left text-wrap leading-relaxed wrap-anywhere"
-                    >
-                      {warning}
-                    </TooltipContent>
-                  </Tooltip>
-                ))}
-                {plan.warnings.length > 5 ? (
-                  <span className="text-xs text-muted-foreground">
-                    +{plan.warnings.length - 5}
-                  </span>
-                ) : null}
-              </div>
-            </AlertDescription>
-          </Alert>
-        ) : null}
-
-        {lastValidation && !lastValidation.valid ? (
-          <Alert variant="destructive">
-            <AlertTriangle className="h-4 w-4" />
-            <AlertTitle>{t("apply.validation_failed_title")}</AlertTitle>
-            <AlertDescription>
-              {lastValidation.errors.slice(0, 3).map((error) => (
-                <p key={`${error.itemId ?? "global"}-${error.code}`}>
-                  {error.code}: {error.message}
-                </p>
-              ))}
-            </AlertDescription>
-          </Alert>
-        ) : null}
-
-        {applyProgress ? (
-          <div className="space-y-2 rounded-lg border bg-muted/30 p-3">
-            <div className="flex items-center justify-between gap-3">
-              <span className="text-[12.5px] font-medium">
-                {applyProgress.message}
-              </span>
-              <Badge variant="outline" className="font-mono text-[10.5px]">
-                {t(`apply.phase.${applyProgress.phase}`)}
-              </Badge>
-            </div>
-            <Progress value={progressValue} className="h-1.5" />
-          </div>
-        ) : null}
-
-        {lastApplyResult ? (
-          <div className="space-y-2 rounded-lg border p-3">
-            <div className="flex items-center gap-2 text-[12.5px] font-medium">
-              <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
-              {t("apply.result_title")}
-            </div>
-            <div className="grid grid-cols-3 gap-2 text-center">
-              <Metric
-                label={t("apply.metrics.success")}
-                value={lastApplyResult.successCount}
-              />
-              <Metric
-                label={t("apply.metrics.failed")}
-                value={lastApplyResult.failedCount}
-                tone="bad"
-              />
-              <Metric
-                label={t("apply.metrics.skipped")}
-                value={lastApplyResult.skippedCount}
-              />
-            </div>
-            <div className="rounded-md bg-muted/40 px-2 py-1.5 font-mono text-[11px] text-muted-foreground">
-              journalId: {lastApplyResult.journalId}
-            </div>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              disabled={isApplying}
-              onClick={() => onRollback(lastApplyResult.journalId)}
-            >
-              <RotateCcw className="h-3.5 w-3.5" />
-              {t("apply.rollback")}
-            </Button>
-          </div>
-        ) : null}
-
-        {lastRollbackResult ? (
-          <div className="rounded-lg border bg-muted/30 p-3 text-[12px]">
-            {t("apply.rollback_summary", {
-              journalId: lastRollbackResult.journalId,
-              success: lastRollbackResult.successCount,
-              failed: lastRollbackResult.failedCount,
-            })}
-          </div>
-        ) : null}
-
-        <Button
-          type="button"
-          className="w-full"
-          disabled={!canApply}
-          onClick={onApply}
-        >
-          <RotateCw className={cn("h-3.5 w-3.5", isApplying && "animate-spin")} />
-          {t("apply.apply_button")}
-        </Button>
-
-        {!plan ? (
-          <p className="text-[11px] text-muted-foreground">
-            {t("apply.no_plan_hint")}
-          </p>
-        ) : isPlanIncomplete(plan) ? (
-          <p className="text-[11px] text-destructive">
-            {t("apply.incomplete_hint", {
-              count: plan.items.length,
-              total: plan.totalTargets,
-            })}
-          </p>
-        ) : !canApply ? (
-          <p className="text-[11px] text-muted-foreground">
-            {t("apply.blocked_hint")}
-          </p>
-        ) : (
-          <p className="text-[11px] text-muted-foreground">
-            {t("apply.confirm_hint")}
-          </p>
-        )}
+        ) : null
+      }
+      bodyClassName="space-y-4 p-4"
+    >
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+        <Metric label={t("apply.metrics.ready")} value={plan?.readyCount ?? 0} />
+        <Metric
+          label={t("apply.metrics.blocked")}
+          value={plan?.blockedCount ?? 0}
+          tone="bad"
+        />
+        <Metric
+          label={t("apply.metrics.skipped")}
+          value={plan?.skippedCount ?? 0}
+        />
+        <Metric
+          label={t("apply.metrics.unchanged")}
+          value={plan?.unchangedCount ?? 0}
+        />
       </div>
-    </Card>
+
+      {plan?.warnings.length ? (
+        <Alert>
+          <AlertTriangle className="h-4 w-4" />
+          <AlertTitle>{t("apply.warnings_title")}</AlertTitle>
+          <AlertDescription>
+            <div className="flex flex-wrap gap-1.5">
+              {plan.warnings.slice(0, 5).map((warning) => (
+                <Tooltip key={warning} disableHoverableContent>
+                  <TooltipTrigger asChild>
+                    <Badge variant="outline" className="max-w-full truncate">
+                      {warning}
+                    </Badge>
+                  </TooltipTrigger>
+                  <TooltipContent
+                    side="bottom"
+                    className="max-w-[min(560px,calc(100vw-2rem))] whitespace-normal text-left text-wrap leading-relaxed wrap-anywhere"
+                  >
+                    {warning}
+                  </TooltipContent>
+                </Tooltip>
+              ))}
+              {plan.warnings.length > 5 ? (
+                <span className="text-xs text-muted-foreground">
+                  +{plan.warnings.length - 5}
+                </span>
+              ) : null}
+            </div>
+          </AlertDescription>
+        </Alert>
+      ) : null}
+
+      {lastValidation && !lastValidation.valid ? (
+        <Alert variant="destructive">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertTitle>{t("apply.validation_failed_title")}</AlertTitle>
+          <AlertDescription>
+            {lastValidation.errors.slice(0, 3).map((error) => (
+              <p key={`${error.itemId ?? "global"}-${error.code}`}>
+                {error.code}: {error.message}
+              </p>
+            ))}
+          </AlertDescription>
+        </Alert>
+      ) : null}
+
+      {applyProgress ? (
+        <div className="space-y-2 rounded-lg border bg-muted/30 p-3">
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-[12.5px] font-medium">
+              {applyProgress.message}
+            </span>
+            <Badge variant="outline" className="font-mono text-[10.5px]">
+              {t(`apply.phase.${applyProgress.phase}`)}
+            </Badge>
+          </div>
+          <Progress value={progressValue} className="h-1.5" />
+        </div>
+      ) : null}
+
+      {lastApplyResult ? (
+        <div className="space-y-2 rounded-lg border p-3">
+          <div className="flex items-center gap-2 text-[12.5px] font-medium">
+            <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+            {t("apply.result_title")}
+          </div>
+          <div className="grid grid-cols-3 gap-2 text-center">
+            <Metric
+              label={t("apply.metrics.success")}
+              value={lastApplyResult.successCount}
+            />
+            <Metric
+              label={t("apply.metrics.failed")}
+              value={lastApplyResult.failedCount}
+              tone="bad"
+            />
+            <Metric
+              label={t("apply.metrics.skipped")}
+              value={lastApplyResult.skippedCount}
+            />
+          </div>
+          <div className="rounded-md bg-muted/40 px-2 py-1.5 font-mono text-[11px] text-muted-foreground">
+            journalId: {lastApplyResult.journalId}
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={isApplying}
+            onClick={() => onRollback(lastApplyResult.journalId)}
+          >
+            <RotateCcw className="h-3.5 w-3.5" />
+            {t("apply.rollback")}
+          </Button>
+        </div>
+      ) : null}
+
+      {lastRollbackResult ? (
+        <div className="rounded-lg border bg-muted/30 p-3 text-[12px]">
+          {t("apply.rollback_summary", {
+            journalId: lastRollbackResult.journalId,
+            success: lastRollbackResult.successCount,
+            failed: lastRollbackResult.failedCount,
+          })}
+        </div>
+      ) : null}
+
+      <Button
+        type="button"
+        className="w-full"
+        disabled={!canApply}
+        onClick={onApply}
+      >
+        <RotateCw className={cn("h-3.5 w-3.5", isApplying && "animate-spin")} />
+        {t("apply.apply_button")}
+      </Button>
+
+      {!plan ? (
+        <p className="text-[11px] text-muted-foreground">
+          {t("apply.no_plan_hint")}
+        </p>
+      ) : isPlanIncomplete(plan) ? (
+        <p className="text-[11px] text-destructive">
+          {t("apply.incomplete_hint", {
+            count: plan.items.length,
+            total: plan.totalTargets,
+          })}
+        </p>
+      ) : !canApply ? (
+        <p className="text-[11px] text-muted-foreground">
+          {t("apply.blocked_hint")}
+        </p>
+      ) : (
+        <p className="text-[11px] text-muted-foreground">
+          {t("apply.confirm_hint")}
+        </p>
+      )}
+    </ToolPanel>
   );
 }
 

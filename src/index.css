@@ -44,6 +44,7 @@
   --tool-extractor: oklch(0.62 0.12 150);
   --tool-music: oklch(0.65 0.15 350);
   --tool-rename: oklch(0.60 0.14 290);
+  --tool-text: oklch(0.58 0.13 200);
 }
 
 .dark {
@@ -85,6 +86,7 @@
   --tool-extractor: oklch(0.72 0.12 150);
   --tool-music: oklch(0.74 0.15 350);
   --tool-rename: oklch(0.70 0.14 290);
+  --tool-text: oklch(0.72 0.13 200);
 }
 
 @theme {
