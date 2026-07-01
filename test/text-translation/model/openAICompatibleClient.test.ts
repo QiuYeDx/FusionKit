@@ -110,15 +110,9 @@ describe("OpenAI Compatible client", () => {
     expect(server.requests).toHaveLength(1);
   });
 
-  it("retries empty content and truncated finish reasons", async () => {
+  it("retries empty content responses", async () => {
     server.enqueue({
       body: createChatCompletionBody({ content: "" }),
-    });
-    server.enqueue({
-      body: createChatCompletionBody({
-        content: "cut off",
-        finishReason: "length",
-      }),
     });
     server.enqueue({
       body: createChatCompletionBody({ content: "Final translation" }),
@@ -129,11 +123,38 @@ describe("OpenAI Compatible client", () => {
       apiKey: "sk-test-secret",
       model: "fake-model",
       messages: [{ role: "user", content: "Translate" }],
-      retry: { maxRetries: 2, baseDelayMs: 1, jitterRatio: 0 },
+      retry: { maxRetries: 1, baseDelayMs: 1, jitterRatio: 0 },
     });
 
     expect(result.content).toBe("Final translation");
-    expect(server.requests).toHaveLength(3);
+    expect(server.requests).toHaveLength(2);
+  });
+
+  it("does not retry truncated finish reasons", async () => {
+    server.enqueue({
+      body: createChatCompletionBody({
+        content: "cut off",
+        finishReason: "length",
+      }),
+    });
+    server.enqueue({
+      body: createChatCompletionBody({ content: "Final translation" }),
+    });
+
+    await expect(
+      sendOpenAICompatibleChatCompletion({
+        endpoint: server.baseUrl,
+        apiKey: "sk-test-secret",
+        model: "fake-model",
+        messages: [{ role: "user", content: "Translate" }],
+        retry: { maxRetries: 2, baseDelayMs: 1, jitterRatio: 0 },
+      }),
+    ).rejects.toMatchObject({
+      code: "length_truncated",
+      retryable: false,
+    });
+
+    expect(server.requests).toHaveLength(1);
   });
 
   it("classifies aborts as non-retryable", async () => {

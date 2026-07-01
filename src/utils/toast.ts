@@ -18,7 +18,7 @@ function isDuplicate(key: string): boolean {
 
 export const showToast = (
   message: string,
-  type: "default" | "success" | "error" | "loading" = "default",
+  type: "default" | "success" | "error" | "warning" | "loading" = "default",
 ) => {
   if (isDuplicate(`${type}:${message}`)) return;
 
@@ -28,6 +28,9 @@ export const showToast = (
       break;
     case "error":
       toast.error(message);
+      break;
+    case "warning":
+      toast.warning(message);
       break;
     case "loading":
       toast.loading(message);

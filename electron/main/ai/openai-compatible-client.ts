@@ -179,8 +179,8 @@ function parseChatCompletionResponse(
   if (finishReason === "length") {
     throw new OpenAICompatibleClientError(
       "length_truncated",
-      "Model response was truncated by the output-token limit.",
-      true,
+      "Model response was truncated by the output-token limit. Consider reducing the slice token limit or using a model with a larger context window.",
+      false,
       { attempt },
     );
   }

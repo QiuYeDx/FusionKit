@@ -13,12 +13,12 @@ import { TOOL_META } from "@/pages/Tools/_shared/toolMeta";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
+  ScrollableDialog,
+  ScrollableDialogContent,
+  ScrollableDialogFooter,
+  ScrollableDialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
+} from "@/components/qiuye-ui/scrollable-dialog";
 import { ToolDetailLayout } from "@/pages/Tools/_shared/ui";
 import useModelStore from "@/store/useModelStore";
 import useTextTranslatorStore from "@/store/tools/text/useTextTranslatorStore";
@@ -309,11 +309,17 @@ function TextTranslator() {
             event.taskId,
           ),
         );
+        showToast(event.error.message || "Translation task failed.", "error");
       },
       fileCompleted: (event) => {
         const { activeTaskId: currentActiveId } = getStore();
         if (currentActiveId && event.taskId !== currentActiveId) return;
         setOutputPaths([event.outputPath]);
+      },
+      warning: (event) => {
+        const { activeTaskId: currentActiveId } = getStore();
+        if (currentActiveId && event.taskId !== currentActiveId) return;
+        showToast(event.warning.message, "warning");
       },
     });
   }, [setLastError, setOutputPaths, setTask, t, upsertQueuedTask]);
@@ -548,6 +554,24 @@ function TextTranslator() {
             (!current.task || started.data.taskId === current.task.taskId)
           ) {
             setOutputPaths([revealed.data.path]);
+          }
+        }
+        if (
+          started.data.status === "partially_completed" ||
+          started.data.status === "failed"
+        ) {
+          const latest = await getTextTranslationTaskDetail({
+            taskId: started.data.taskId,
+          });
+          if (latest.ok && latest.data) {
+            upsertQueuedTask(latest.data);
+            const latestCurrent = useTextTranslatorStore.getState();
+            if (
+              !latestCurrent.task ||
+              latest.data.taskId === latestCurrent.task.taskId
+            ) {
+              setTask(latest.data);
+            }
           }
         }
       }
@@ -891,133 +915,131 @@ function RecoveryDialog({
   const { t } = useTranslation("text");
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl">
-        <DialogHeader>
-          <DialogTitle>{t("translator.recovery.title")}</DialogTitle>
-        </DialogHeader>
-        <div className="max-h-[58vh] overflow-y-auto pr-1">
-          {loading ? (
-            <div className="flex min-h-[180px] items-center justify-center text-sm text-muted-foreground">
-              {t("translator.recovery.loading")}
+    <ScrollableDialog open={open} onOpenChange={onOpenChange} maxWidth="sm:max-w-3xl">
+      <ScrollableDialogHeader>
+        <DialogTitle>{t("translator.recovery.title")}</DialogTitle>
+      </ScrollableDialogHeader>
+      <ScrollableDialogContent fadeMasks>
+        {loading ? (
+          <div className="flex min-h-[180px] items-center justify-center text-sm text-muted-foreground">
+            {t("translator.recovery.loading")}
+          </div>
+        ) : recoveries.length === 0 ? (
+          <div className="flex min-h-[180px] flex-col items-center justify-center text-center">
+            <CircleDashed className="mb-3 h-8 w-8 text-muted-foreground" />
+            <div className="text-sm font-medium">
+              {t("translator.recovery.empty_title")}
             </div>
-          ) : recoveries.length === 0 ? (
-            <div className="flex min-h-[180px] flex-col items-center justify-center text-center">
-              <CircleDashed className="mb-3 h-8 w-8 text-muted-foreground" />
-              <div className="text-sm font-medium">
-                {t("translator.recovery.empty_title")}
-              </div>
-              <div className="mt-1 text-sm text-muted-foreground">
-                {t("translator.recovery.empty_desc")}
-              </div>
+            <div className="mt-1 text-sm text-muted-foreground">
+              {t("translator.recovery.empty_desc")}
             </div>
-          ) : (
-            <div className="space-y-3">
-              {recoveries.map((summary) => {
-                const isActing = actionTaskId === summary.taskId;
-                return (
-                  <div
-                    key={summary.taskId}
-                    className="rounded-lg border p-3"
-                  >
-                    <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-                      <div className="min-w-0">
-                        <div className="truncate text-sm font-semibold">
-                          {summary.taskId}
-                        </div>
-                        <div className="mt-1 flex flex-wrap gap-1.5">
-                          <Badge variant="outline">
-                            {t(`translator.status.${summary.status}`)}
-                          </Badge>
-                          <Badge variant={summary.resumable ? "secondary" : "outline"}>
-                            {summary.resumable
-                              ? t("translator.recovery.resumable")
-                              : t("translator.recovery.blocked")}
-                          </Badge>
-                          <Badge variant="outline">
-                            {t(
-                              `translator.recovery.source.${summary.sourceStatus ?? "unchecked"}`,
-                            )}
-                          </Badge>
-                        </div>
-                        <div className="mt-2 text-xs text-muted-foreground">
-                          {t("translator.recovery.segment_summary", {
-                            completed: summary.completedSegmentCount,
-                            total: summary.totalSegmentCount,
-                            failed: summary.failedSegmentIds.length,
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {recoveries.map((summary) => {
+              const isActing = actionTaskId === summary.taskId;
+              return (
+                <div
+                  key={summary.taskId}
+                  className="rounded-lg border p-3"
+                >
+                  <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                    <div className="min-w-0">
+                      <div className="truncate text-sm font-semibold">
+                        {summary.taskId}
+                      </div>
+                      <div className="mt-1 flex flex-wrap gap-1.5">
+                        <Badge variant="outline">
+                          {t(`translator.status.${summary.status}`)}
+                        </Badge>
+                        <Badge variant={summary.resumable ? "secondary" : "outline"}>
+                          {summary.resumable
+                            ? t("translator.recovery.resumable")
+                            : t("translator.recovery.blocked")}
+                        </Badge>
+                        <Badge variant="outline">
+                          {t(
+                            `translator.recovery.source.${summary.sourceStatus ?? "unchecked"}`,
+                          )}
+                        </Badge>
+                      </div>
+                      <div className="mt-2 text-xs text-muted-foreground">
+                        {t("translator.recovery.segment_summary", {
+                          completed: summary.completedSegmentCount,
+                          total: summary.totalSegmentCount,
+                          failed: summary.failedSegmentIds.length,
+                        })}
+                      </div>
+                      {summary.blockingReason ? (
+                        <div className="mt-1 text-xs text-destructive">
+                          {t("translator.recovery.blocking_reason", {
+                            reason: summary.blockingReason,
                           })}
                         </div>
-                        {summary.blockingReason ? (
-                          <div className="mt-1 text-xs text-destructive">
-                            {t("translator.recovery.blocking_reason", {
-                              reason: summary.blockingReason,
-                            })}
-                          </div>
-                        ) : null}
-                        {summary.staleFromSegmentId ? (
-                          <div className="mt-1 text-xs text-amber-600 dark:text-amber-400">
-                            {t("translator.recovery.stale_from", {
-                              segmentId: summary.staleFromSegmentId,
-                            })}
-                          </div>
-                        ) : null}
-                      </div>
-                      <div className="flex flex-wrap gap-2 md:justify-end">
-                        <Button
-                          type="button"
-                          size="sm"
-                          onClick={() => onResume(summary)}
-                          disabled={!summary.resumable || isActing}
-                        >
-                          <PlayCircle className="h-4 w-4" />
-                          {t("translator.recovery.resume")}
-                        </Button>
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="outline"
-                          onClick={() => onRestart(summary)}
-                          disabled={isActing}
-                        >
-                          <RefreshCw className="h-4 w-4" />
-                          {t("translator.recovery.restart")}
-                        </Button>
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => onRevealWorkspace(summary)}
-                          disabled={isActing}
-                        >
-                          <Folder className="h-4 w-4" />
-                          {t("translator.recovery.workspace")}
-                        </Button>
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => onDelete(summary)}
-                          disabled={isActing}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                          {t("translator.recovery.delete")}
-                        </Button>
-                      </div>
+                      ) : null}
+                      {summary.staleFromSegmentId ? (
+                        <div className="mt-1 text-xs text-amber-600 dark:text-amber-400">
+                          {t("translator.recovery.stale_from", {
+                            segmentId: summary.staleFromSegmentId,
+                          })}
+                        </div>
+                      ) : null}
+                    </div>
+                    <div className="flex flex-wrap gap-2 md:justify-end">
+                      <Button
+                        type="button"
+                        size="sm"
+                        onClick={() => onResume(summary)}
+                        disabled={!summary.resumable || isActing}
+                      >
+                        <PlayCircle className="h-4 w-4" />
+                        {t("translator.recovery.resume")}
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={() => onRestart(summary)}
+                        disabled={isActing}
+                      >
+                        <RefreshCw className="h-4 w-4" />
+                        {t("translator.recovery.restart")}
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => onRevealWorkspace(summary)}
+                        disabled={isActing}
+                      >
+                        <Folder className="h-4 w-4" />
+                        {t("translator.recovery.workspace")}
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => onDelete(summary)}
+                        disabled={isActing}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                        {t("translator.recovery.delete")}
+                      </Button>
                     </div>
                   </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-        <DialogFooter>
-          <Button type="button" variant="outline" onClick={onRefresh}>
-            <RefreshCw className="h-4 w-4" />
-            {t("translator.recovery.refresh")}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </ScrollableDialogContent>
+      <ScrollableDialogFooter>
+        <Button type="button" variant="outline" onClick={onRefresh}>
+          <RefreshCw className="h-4 w-4" />
+          {t("translator.recovery.refresh")}
+        </Button>
+      </ScrollableDialogFooter>
+    </ScrollableDialog>
   );
 }
 

@@ -95,6 +95,8 @@ import type {
 } from "./memory/memory-patch";
 import type { SemanticMemory } from "./memory/semantic-memory";
 
+const TEXT_TRANSLATION_REQUEST_TIMEOUT_MS = 180_000;
+
 export type TextTranslationEventSink = (event: TextTranslationEvent) => void;
 
 export interface TextTranslationIpcService {
@@ -518,19 +520,21 @@ export class TextTranslationService implements TextTranslationIpcService {
         await this.persistTask(record, record.segments.length);
         this.emitTaskUpdated(record);
         this.emitProgress(record);
+        const failure = this.failure(
+          "internal_error",
+          formatSegmentFailureMessage(
+            status === "failed"
+              ? "All text translation segments failed."
+              : `${translated.failures.length} of ${record.segments.length} segments failed during translation.`,
+            translated.failures,
+          ),
+          {
+            phase: record.task.phase,
+            details: summarizeSegmentFailures(translated.failures),
+          },
+        );
+        this.emitTaskFailed(record, failure.error);
         if (status === "failed") {
-          const failure = this.failure(
-            "internal_error",
-            formatAllSegmentsFailedMessage(
-              "All text translation segments failed.",
-              translated.failures,
-            ),
-            {
-              phase: record.task.phase,
-              details: summarizeSegmentFailures(translated.failures),
-            },
-          );
-          this.emitTaskFailed(record, failure.error);
           return failure;
         }
         return textTranslationIpcSuccess(record.task);
@@ -1167,19 +1171,21 @@ export class TextTranslationService implements TextTranslationIpcService {
         await this.persistTask(record, record.segments.length);
         this.emitTaskUpdated(record);
         this.emitProgress(record);
+        const failure = this.failure(
+          "internal_error",
+          formatSegmentFailureMessage(
+            status === "failed"
+              ? "All remaining text translation segments failed."
+              : `${translated.failures.length} of ${record.segments.length} segments failed during translation.`,
+            translated.failures,
+          ),
+          {
+            phase: record.task.phase,
+            details: summarizeSegmentFailures(translated.failures),
+          },
+        );
+        this.emitTaskFailed(record, failure.error);
         if (status === "failed") {
-          const failure = this.failure(
-            "internal_error",
-            formatAllSegmentsFailedMessage(
-              "All remaining text translation segments failed.",
-              translated.failures,
-            ),
-            {
-              phase: record.task.phase,
-              details: summarizeSegmentFailures(translated.failures),
-            },
-          );
-          this.emitTaskFailed(record, failure.error);
           return failure;
         }
         return textTranslationIpcSuccess(record.task);
@@ -1323,6 +1329,7 @@ export class TextTranslationService implements TextTranslationIpcService {
               apiKey: record.model.apiKey,
               model: record.model.modelKey,
               signal,
+              timeoutMs: TEXT_TRANSLATION_REQUEST_TIMEOUT_MS,
               messages: [
                 {
                   role: "system",
@@ -1430,6 +1437,7 @@ export class TextTranslationService implements TextTranslationIpcService {
         apiKey: record.model.apiKey,
         model: record.model.modelKey,
         signal,
+        timeoutMs: TEXT_TRANSLATION_REQUEST_TIMEOUT_MS,
         messages: [
           {
             role: "system",
@@ -1741,6 +1749,7 @@ export class TextTranslationService implements TextTranslationIpcService {
         apiKey: input.record.model.apiKey,
         model: input.record.model.modelKey,
         signal: input.signal,
+        timeoutMs: TEXT_TRANSLATION_REQUEST_TIMEOUT_MS,
         messages: [
           {
             role: "system",
@@ -1834,6 +1843,7 @@ export class TextTranslationService implements TextTranslationIpcService {
         apiKey: input.record.model.apiKey,
         model: input.record.model.modelKey,
         signal: input.signal,
+        timeoutMs: TEXT_TRANSLATION_REQUEST_TIMEOUT_MS,
         messages: [
           {
             role: "system",
@@ -2713,7 +2723,7 @@ function toSegmentFailure(
   };
 }
 
-function formatAllSegmentsFailedMessage(
+function formatSegmentFailureMessage(
   baseMessage: string,
   failures: TranslationSegmentFailure[],
 ): string {

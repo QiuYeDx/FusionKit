@@ -1,16 +1,15 @@
 import { useState, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
+  ScrollableDialog,
+  ScrollableDialogContent,
+  ScrollableDialogFooter,
+  ScrollableDialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
+} from "@/components/qiuye-ui/scrollable-dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import {
@@ -246,14 +245,14 @@ export default function RecoveryDialog({ open, onOpenChange }: RecoveryDialogPro
   ).length;
 
   return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="flex max-h-[80vh] w-[min(calc(100vw-2rem),48rem)] max-w-none min-w-0 flex-col overflow-hidden">
-        <DialogHeader className="shrink-0">
-          <DialogTitle>{t("subtitle:translator.recovery.title")}</DialogTitle>
-        </DialogHeader>
+    <ScrollableDialog open={open} onOpenChange={handleOpenChange} maxWidth="sm:max-w-3xl">
+      <ScrollableDialogHeader>
+        <DialogTitle>{t("subtitle:translator.recovery.title")}</DialogTitle>
+      </ScrollableDialogHeader>
 
+      <ScrollableDialogContent fadeMasks={state === "ready" && candidates.length > 0}>
         {state === "idle" && (
-          <div className="flex flex-col gap-3 py-4">
+          <div className="flex flex-col gap-3">
             {outputURL && (
               <Button
                 variant="outline"
@@ -322,8 +321,8 @@ export default function RecoveryDialog({ open, onOpenChange }: RecoveryDialogPro
         )}
 
         {state === "ready" && candidates.length > 0 && (
-          <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-hidden">
-            <div className="flex shrink-0 items-center justify-between gap-3 px-1 text-xs text-muted-foreground">
+          <div className="space-y-2">
+            <div className="flex items-center justify-between gap-3 px-1 text-xs text-muted-foreground">
               <span className="min-w-0 truncate">
                 {t("subtitle:translator.recovery.scan_complete").replace("{count}", String(candidates.length))}
                 {scanResult?.truncated && (
@@ -342,23 +341,21 @@ export default function RecoveryDialog({ open, onOpenChange }: RecoveryDialogPro
               </div>
             </div>
 
-            <ScrollArea className="min-h-0 flex-1 overflow-hidden rounded-md border">
-              <div className="min-w-0 divide-y">
-                {candidates.map((candidate) => (
-                  <CandidateRow
-                    key={candidate.id}
-                    candidate={candidate}
-                    isSelected={selected.has(candidate.id)}
-                    onToggle={() => handleToggleCandidate(candidate.id)}
-                    onOpenLocation={() => handleOpenLocation(candidate.outputDir)}
-                    t={t}
-                  />
-                ))}
-              </div>
-            </ScrollArea>
+            <div className="min-w-0 divide-y rounded-md border">
+              {candidates.map((candidate) => (
+                <CandidateRow
+                  key={candidate.id}
+                  candidate={candidate}
+                  isSelected={selected.has(candidate.id)}
+                  onToggle={() => handleToggleCandidate(candidate.id)}
+                  onOpenLocation={() => handleOpenLocation(candidate.outputDir)}
+                  t={t}
+                />
+              ))}
+            </div>
 
             {selected.size > 0 && (
-              <div className="shrink-0 px-1 text-xs text-muted-foreground">
+              <div className="px-1 text-xs text-muted-foreground">
                 {t("subtitle:translator.recovery.selected_count").replace("{count}", String(selected.size))}
               </div>
             )}
@@ -371,31 +368,31 @@ export default function RecoveryDialog({ open, onOpenChange }: RecoveryDialogPro
             <span className="text-sm">...</span>
           </div>
         )}
+      </ScrollableDialogContent>
 
-        {state === "ready" && candidates.length > 0 && (
-          <DialogFooter className="shrink-0 gap-2">
-            <Button variant="outline" onClick={() => handleOpenChange(false)}>
-              {t("subtitle:translator.recovery.ignore")}
-            </Button>
-            <Button
-              variant="outline"
-              disabled={selected.size === 0}
-              onClick={() => handleAddToQueue(false)}
-            >
-              {t("subtitle:translator.recovery.add_to_queue")}
-              {selected.size > 0 && ` (${selected.size})`}
-            </Button>
-            <Button
-              disabled={selected.size === 0}
-              onClick={() => handleAddToQueue(true)}
-            >
-              {t("subtitle:translator.recovery.add_and_start")}
-              {selected.size > 0 && ` (${selected.size})`}
-            </Button>
-          </DialogFooter>
-        )}
-      </DialogContent>
-    </Dialog>
+      {state === "ready" && candidates.length > 0 && (
+        <ScrollableDialogFooter className="flex justify-end gap-2">
+          <Button variant="outline" onClick={() => handleOpenChange(false)}>
+            {t("subtitle:translator.recovery.ignore")}
+          </Button>
+          <Button
+            variant="outline"
+            disabled={selected.size === 0}
+            onClick={() => handleAddToQueue(false)}
+          >
+            {t("subtitle:translator.recovery.add_to_queue")}
+            {selected.size > 0 && ` (${selected.size})`}
+          </Button>
+          <Button
+            disabled={selected.size === 0}
+            onClick={() => handleAddToQueue(true)}
+          >
+            {t("subtitle:translator.recovery.add_and_start")}
+            {selected.size > 0 && ` (${selected.size})`}
+          </Button>
+        </ScrollableDialogFooter>
+      )}
+    </ScrollableDialog>
   );
 }
 
