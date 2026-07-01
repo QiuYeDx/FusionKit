@@ -1,32 +1,24 @@
-// 应用主题
-export const applyTheme = (theme: "light" | "dark" | "system") => {
-  const htmlElement = document.documentElement;
+export type ThemeValue = "light" | "dark" | "system";
 
-  if (theme === "system") {
-    const systemTheme = window.matchMedia("(prefers-color-scheme: dark)")
-      .matches
-      ? "dark"
-      : "light";
-    // 使用 class 而不是 data-theme，以支持 shadcn/ui
-    if (systemTheme === "dark") {
-      htmlElement.classList.add("dark");
-    } else {
-      htmlElement.classList.remove("dark");
-    }
-  } else {
-    // 使用 class 而不是 data-theme，以支持 shadcn/ui
-    if (theme === "dark") {
-      htmlElement.classList.add("dark");
-    } else {
-      htmlElement.classList.remove("dark");
-    }
-  }
-};
-
-export const getIsDark = (savedTheme: "light" | "dark" | "system" | null) => {
+export const getIsDark = (savedTheme: ThemeValue | null) => {
   return (
     savedTheme === "dark" ||
     ((!savedTheme || savedTheme === "system") &&
+      typeof window !== "undefined" &&
       window.matchMedia("(prefers-color-scheme: dark)").matches)
   );
+};
+
+// 应用主题
+export const applyTheme = (theme: ThemeValue) => {
+  if (typeof document === "undefined") return;
+
+  const htmlElement = document.documentElement;
+
+  // 使用 class 而不是 data-theme，以支持 shadcn/ui
+  if (getIsDark(theme)) {
+    htmlElement.classList.add("dark");
+  } else {
+    htmlElement.classList.remove("dark");
+  }
 };
