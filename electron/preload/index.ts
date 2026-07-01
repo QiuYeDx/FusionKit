@@ -65,6 +65,7 @@ type LoadingColorMode = 'light' | 'dark'
 
 const THEME_STORAGE_KEY = 'fusionkit-theme'
 const LEGACY_THEME_KEY = 'theme'
+const START_LOADING_PROGRESS_CHANNEL = 'fusionkit-start-loading-progress'
 
 const isThemeValue = (theme: unknown): theme is ThemeValue =>
   theme === 'light' || theme === 'dark' || theme === 'system'
@@ -278,6 +279,7 @@ function useLoading() {
   const completeSweepDuration = prefersReducedMotion ? 120 : 420
   const exitTextDuration = prefersReducedMotion ? 120 : 500
   const layerSwapDuration = prefersReducedMotion ? 80 : 180
+  const initialProgressHoldDuration = prefersReducedMotion ? 80 : 320
   const syntheticProgressCeiling = 92
 
   const springTransition = (durationMs: number) => ({
@@ -291,6 +293,8 @@ function useLoading() {
   let readyRequested = false
   let minimumCountCompleted = false
   let isCompleting = false
+  let progressStartRequested = false
+  let progressStartScheduled = false
   let progress = 0
   let maxRevealSize = 0
   let maxExitRadius = 0
@@ -305,6 +309,11 @@ function useLoading() {
   let completeHoldTimer: ReturnType<typeof setTimeout> | undefined
   let exitRevealStartTimer: ReturnType<typeof setTimeout> | undefined
   let exitRevealCleanupTimer: ReturnType<typeof setTimeout> | undefined
+  let initialProgressHoldTimer: ReturnType<typeof setTimeout> | undefined
+  let initialProgressFrameOne: number | undefined
+  let initialProgressFrameTwo: number | undefined
+  let handleLoadingProgressStart: Parameters<typeof ipcRenderer.on>[1] | undefined
+  let handleVisibilityChange: (() => void) | undefined
 
   oStyle.id = 'app-loading-style'
   oStyle.innerHTML = styleContent
@@ -393,6 +402,7 @@ function useLoading() {
       completeHoldTimer,
       exitRevealStartTimer,
       exitRevealCleanupTimer,
+      initialProgressHoldTimer,
     ].forEach((timer) => {
       if (timer !== undefined) clearTimeout(timer)
     })
@@ -401,6 +411,26 @@ function useLoading() {
     completeHoldTimer = undefined
     exitRevealStartTimer = undefined
     exitRevealCleanupTimer = undefined
+    initialProgressHoldTimer = undefined
+
+    if (initialProgressFrameOne !== undefined) {
+      window.cancelAnimationFrame(initialProgressFrameOne)
+      initialProgressFrameOne = undefined
+    }
+    if (initialProgressFrameTwo !== undefined) {
+      window.cancelAnimationFrame(initialProgressFrameTwo)
+      initialProgressFrameTwo = undefined
+    }
+
+    if (handleLoadingProgressStart) {
+      ipcRenderer.off(START_LOADING_PROGRESS_CHANNEL, handleLoadingProgressStart)
+      handleLoadingProgressStart = undefined
+    }
+    if (handleVisibilityChange) {
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+      handleVisibilityChange = undefined
+    }
+
     unsubscribeProgress()
     unsubscribeExitReveal()
 
@@ -509,6 +539,51 @@ function useLoading() {
     minimumCountTimer = setTimeout(completeMinimumCount, minimumCountDuration + 80)
   }
 
+  const canStartProgress = () => document.visibilityState !== 'hidden'
+
+  const scheduleProgressStart = () => {
+    if (
+      progressStartScheduled ||
+      hasCompleted ||
+      !progressStartRequested ||
+      !hasMounted ||
+      !canStartProgress()
+    ) {
+      return
+    }
+
+    progressStartScheduled = true
+    progressMotion.set(0)
+    renderProgress(0)
+
+    initialProgressFrameOne = window.requestAnimationFrame(() => {
+      initialProgressFrameOne = undefined
+      initialProgressFrameTwo = window.requestAnimationFrame(() => {
+        initialProgressFrameTwo = undefined
+        initialProgressHoldTimer = setTimeout(() => {
+          initialProgressHoldTimer = undefined
+          startProgress()
+        }, initialProgressHoldDuration)
+      })
+    })
+  }
+
+  const requestProgressStart = () => {
+    if (hasCompleted || progressStartScheduled) return
+
+    progressStartRequested = true
+    scheduleProgressStart()
+  }
+
+  handleLoadingProgressStart = () => {
+    requestProgressStart()
+  }
+  handleVisibilityChange = () => {
+    scheduleProgressStart()
+  }
+  ipcRenderer.on(START_LOADING_PROGRESS_CHANNEL, handleLoadingProgressStart)
+  document.addEventListener('visibilitychange', handleVisibilityChange)
+
   return {
     appendLoading() {
       if (hasCompleted) return
@@ -518,7 +593,7 @@ function useLoading() {
       hasMounted = true
       updateViewportMetrics()
       window.addEventListener('resize', updateViewportMetrics)
-      startProgress()
+      scheduleProgressStart()
     },
     removeLoading() {
       if (hasCompleted) return
@@ -526,7 +601,6 @@ function useLoading() {
       readyRequested = true
 
       if (!hasMounted) {
-        hasCompleted = true
         return
       }
 
@@ -535,7 +609,6 @@ function useLoading() {
         return
       }
 
-      startProgress()
     },
   }
 }

@@ -62,6 +62,7 @@ let textTranslationService = new TextTranslationService({
 });
 const preload = path.join(__dirname, "../preload/index.mjs");
 const indexHtml = path.join(RENDERER_DIST, "index.html");
+const START_LOADING_PROGRESS_CHANNEL = "fusionkit-start-loading-progress";
 
 async function createWindow() {
   win = new BrowserWindow({
@@ -72,6 +73,7 @@ async function createWindow() {
     minWidth: 786,
     minHeight: 540,
     resizable: true,
+    show: false,
     titleBarStyle: "hidden",
     ...(process.platform === "darwin"
       ? { trafficLightPosition: { x: 15, y: 11.5 } } // macOS 左上角的红黄绿圆点
@@ -85,6 +87,24 @@ async function createWindow() {
       // Read more on https://www.electronjs.org/docs/latest/tutorial/context-isolation
       // contextIsolation: false,
     },
+  });
+
+  const startLoadingProgress = () => {
+    if (!win || win.webContents.isDestroyed()) return;
+    win.webContents.send(START_LOADING_PROGRESS_CHANNEL);
+  };
+
+  win.once("ready-to-show", () => {
+    if (!win || win.isDestroyed()) return;
+
+    win.show();
+    startLoadingProgress();
+  });
+
+  win.webContents.on("dom-ready", () => {
+    if (win?.isVisible()) {
+      startLoadingProgress();
+    }
   });
 
   if (VITE_DEV_SERVER_URL) {
