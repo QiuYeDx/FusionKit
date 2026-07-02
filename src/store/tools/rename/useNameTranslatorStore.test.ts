@@ -293,6 +293,49 @@ describe("useNameTranslatorStore planning progress", () => {
 });
 
 describe("useNameTranslatorStore scope option normalization", () => {
+  it("clears selected paths without resetting user options", async () => {
+    const invoke = vi.fn(
+      async (channel: string, payload: { paths: string[] }) => {
+        if (channel === "inspect-rename-paths") {
+          return {
+            paths: payload.paths.map((path) => ({
+              path,
+              exists: true,
+              kind: "file",
+              basename: "第01話.srt",
+              parentPath: "/tmp/rename",
+              riskLevel: "normal",
+              warnings: [],
+            })),
+          };
+        }
+        return { valid: true, errors: [], warnings: [] };
+      }
+    );
+    vi.stubGlobal("window", { ipcRenderer: { invoke } });
+
+    await useNameTranslatorStore.getState().addPaths(["/tmp/rename/第01話.srt"]);
+    useNameTranslatorStore.getState().updateOptions({
+      outputMode: "bilingual_original_first",
+      bilingualSeparator: "_",
+      targetLang: "JA",
+      collisionPolicy: "append_index",
+    });
+
+    useNameTranslatorStore.getState().clearSelection();
+
+    const state = useNameTranslatorStore.getState();
+    expect(state.selectedPaths).toEqual([]);
+    expect(state.currentPlan).toBeNull();
+    expect(state.options).toMatchObject({
+      roots: [],
+      outputMode: "bilingual_original_first",
+      bilingualSeparator: "_",
+      targetLang: "JA",
+      collisionPolicy: "append_index",
+    });
+  });
+
   it("switches a selected folder from self to child files by default", async () => {
     const invoke = vi.fn(
       async (channel: string, payload: { paths: string[] }) => {

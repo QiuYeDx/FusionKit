@@ -1,4 +1,4 @@
-import { useState, type DragEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type DragEvent } from "react";
 import { useTranslation } from "react-i18next";
 import {
   AlertTriangle,
@@ -37,6 +37,39 @@ export default function PathPickerPanel({
 }: PathPickerPanelProps) {
   const { t } = useTranslation("rename");
   const [isDragging, setIsDragging] = useState(false);
+  const selectedListRef = useRef<HTMLDivElement>(null);
+  const [showTopFade, setShowTopFade] = useState(false);
+  const [showBottomFade, setShowBottomFade] = useState(false);
+
+  const checkSelectedListScroll = useCallback(() => {
+    const root = selectedListRef.current;
+    if (!root) return;
+
+    const { scrollTop, scrollHeight, clientHeight } = root;
+    const maxScroll = scrollHeight - clientHeight;
+    setShowTopFade(scrollTop > 1);
+    setShowBottomFade(maxScroll > 0 && scrollTop < maxScroll - 1);
+  }, []);
+
+  useEffect(() => {
+    const root = selectedListRef.current;
+    if (!root) return;
+
+    root.addEventListener("scroll", checkSelectedListScroll, {
+      passive: true,
+    });
+    const ro =
+      typeof ResizeObserver === "undefined"
+        ? null
+        : new ResizeObserver(checkSelectedListScroll);
+    ro?.observe(root);
+    checkSelectedListScroll();
+
+    return () => {
+      root.removeEventListener("scroll", checkSelectedListScroll);
+      ro?.disconnect();
+    };
+  }, [checkSelectedListScroll, selectedPaths.length]);
 
   const selectPaths = async (
     allowFiles: boolean,
@@ -112,10 +145,10 @@ export default function PathPickerPanel({
               type="button"
               variant="outline"
               size="sm"
-              onClick={() => selectPaths(true, true)}
+              onClick={() => selectPaths(true, false)}
             >
-              <Folder className="h-3.5 w-3.5" />
-              {t("path.select_mixed")}
+              <File className="h-3.5 w-3.5" />
+              {t("path.select_files")}
             </Button>
             <Button
               type="button"
@@ -129,65 +162,88 @@ export default function PathPickerPanel({
           </div>
         </div>
 
-        <div className="space-y-2">
+        <div className="relative">
           {selectedPaths.length === 0 ? (
             <div className="rounded-lg border bg-muted/30 px-3 py-3 text-xs text-muted-foreground">
               {t("path.empty")}
             </div>
           ) : (
-            selectedPaths.map((item) => (
+            <>
               <div
-                key={item.path}
-                className="flex items-start gap-2 rounded-lg border bg-card px-3 py-2"
+                ref={selectedListRef}
+                className="max-h-[min(38vh,320px)] min-h-0 w-full overflow-x-hidden overflow-y-auto overscroll-contain rounded-lg pr-1"
               >
-                <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-md border bg-muted/40">
-                  {item.kind === "directory" ? (
-                    <Folder className="h-3.5 w-3.5" />
-                  ) : (
-                    <File className="h-3.5 w-3.5" />
-                  )}
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-1.5">
-                    <span className="truncate text-[12.5px] font-medium">
-                      {item.basename}
-                    </span>
-                    <RiskBadge riskLevel={item.riskLevel} />
-                  </div>
-                  <div className="truncate font-mono text-[11px] text-muted-foreground">
-                    {item.path}
-                  </div>
-                  {item.kind === "directory" ? (
-                    <div className="mt-1 text-[11px] text-muted-foreground">
-                      {t("path.counts", {
-                        files: item.directFileCount ?? 0,
-                        directories: item.directDirectoryCount ?? 0,
-                      })}
-                    </div>
-                  ) : null}
-                  {item.warnings.length > 0 ? (
-                    <div className="mt-1 flex items-center gap-1 text-[11px] text-amber-600 dark:text-amber-400">
-                      <AlertTriangle className="h-3 w-3 shrink-0" />
-                      <span className="truncate">{item.warnings.join("；")}</span>
-                    </div>
-                  ) : null}
-                </div>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="h-7 w-7"
-                      onClick={() => onRemovePath(item.path)}
+                <div className="flex min-w-0 flex-col gap-2">
+                  {selectedPaths.map((item) => (
+                    <div
+                      key={item.path}
+                      className="flex w-full min-w-0 items-start gap-2 overflow-hidden rounded-lg border bg-card px-3 py-2"
                     >
-                      <X className="h-3.5 w-3.5" />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>{t("path.remove_tooltip")}</TooltipContent>
-                </Tooltip>
+                      <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-md border bg-muted/40">
+                        {item.kind === "directory" ? (
+                          <Folder className="h-3.5 w-3.5" />
+                        ) : (
+                          <File className="h-3.5 w-3.5" />
+                        )}
+                      </div>
+                      <div className="min-w-0 flex-1 overflow-hidden">
+                        <div className="flex min-w-0 items-center gap-1.5">
+                          <span className="min-w-0 flex-1 truncate text-[12.5px] font-medium">
+                            {item.basename}
+                          </span>
+                          <RiskBadge riskLevel={item.riskLevel} />
+                        </div>
+                        <div className="w-full min-w-0 truncate font-mono text-[11px] text-muted-foreground">
+                          {item.path}
+                        </div>
+                        {item.kind === "directory" ? (
+                          <div className="mt-1 truncate text-[11px] text-muted-foreground">
+                            {t("path.counts", {
+                              files: item.directFileCount ?? 0,
+                              directories: item.directDirectoryCount ?? 0,
+                            })}
+                          </div>
+                        ) : null}
+                        {item.warnings.length > 0 ? (
+                          <div className="mt-1 flex items-center gap-1 text-[11px] text-amber-600 dark:text-amber-400">
+                            <AlertTriangle className="h-3 w-3 shrink-0" />
+                            <span className="min-w-0 truncate">
+                              {item.warnings.join("；")}
+                            </span>
+                          </div>
+                        ) : null}
+                      </div>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7"
+                            onClick={() => onRemovePath(item.path)}
+                          >
+                            <X className="h-3.5 w-3.5" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>{t("path.remove_tooltip")}</TooltipContent>
+                      </Tooltip>
+                    </div>
+                  ))}
+                </div>
               </div>
-            ))
+              {showTopFade ? (
+                <div
+                  aria-hidden="true"
+                  className="pointer-events-none absolute left-0 right-1 top-0 z-[5] h-8 rounded-t-lg bg-gradient-to-b from-card to-transparent"
+                />
+              ) : null}
+              {showBottomFade ? (
+                <div
+                  aria-hidden="true"
+                  className="pointer-events-none absolute bottom-0 left-0 right-1 z-[5] h-8 rounded-b-lg bg-gradient-to-t from-card to-transparent"
+                />
+              ) : null}
+            </>
           )}
         </div>
 

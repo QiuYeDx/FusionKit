@@ -46,7 +46,7 @@ export default function NameTranslator() {
     revalidateCurrentPlan,
     applyCurrentPlan,
     rollback,
-    reset,
+    clearSelection,
   } = useNameTranslatorStore();
   const [riskDialogOpen, setRiskDialogOpen] = useState(false);
   const [urlPlanStatus, setUrlPlanStatus] = useState<
@@ -170,7 +170,7 @@ export default function NameTranslator() {
           onAddPaths={addPaths}
           onRemovePath={removePath}
           onCreatePreview={createPreview}
-          onReset={reset}
+          onReset={clearSelection}
         />
       </div>
       <div id="nt-tour-options">

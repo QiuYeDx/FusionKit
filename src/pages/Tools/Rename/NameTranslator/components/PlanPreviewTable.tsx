@@ -59,6 +59,8 @@ const PATH_TOOLTIP_CLASS = cn(
   LONG_TEXT_TOOLTIP_CLASS,
   "font-mono text-[11px]"
 );
+const STICKY_ACTION_CELL_CLASS =
+  "sticky right-0 z-[2] bg-card shadow-[-12px_0_16px_-16px_rgba(0,0,0,0.35)] dark:shadow-[-12px_0_16px_-16px_rgba(0,0,0,0.7)]";
 
 export default function PlanPreviewTable({
   plan,
@@ -253,10 +255,10 @@ export default function PlanPreviewTable({
               <TableHead className="w-[74px]">
                 {t("preview.columns.type")}
               </TableHead>
-              <TableHead className="min-w-[160px]">
+              <TableHead className="min-w-[180px]">
                 {t("preview.columns.original_name")}
               </TableHead>
-              <TableHead className="min-w-[260px]">
+              <TableHead className="min-w-[360px]">
                 {t("preview.columns.new_name")}
               </TableHead>
               <TableHead className="min-w-[200px]">
@@ -265,7 +267,12 @@ export default function PlanPreviewTable({
               <TableHead className="min-w-[150px]">
                 {t("preview.columns.reason")}
               </TableHead>
-              <TableHead className="w-[128px] text-right">
+              <TableHead
+                className={cn(
+                  "w-[128px] min-w-[128px] text-right",
+                  STICKY_ACTION_CELL_CLASS
+                )}
+              >
                 {t("preview.columns.actions")}
               </TableHead>
             </TableRow>
@@ -303,7 +310,7 @@ export default function PlanPreviewTable({
                         </span>
                       </TooltipTrigger>
                       <TooltipContent
-                        side="bottom"
+                        side="left"
                         className={LONG_TEXT_TOOLTIP_CLASS}
                       >
                         {item.originalName}
@@ -316,7 +323,7 @@ export default function PlanPreviewTable({
                         <Input
                           value={draft}
                           disabled={item.status === "applied"}
-                          className="h-8 min-w-[240px] font-mono text-xs"
+                          className="h-8 min-w-[340px] font-mono text-xs"
                           onChange={(event) =>
                             setDraftNames((current) => ({
                               ...current,
@@ -332,7 +339,7 @@ export default function PlanPreviewTable({
                         />
                       </TooltipTrigger>
                       <TooltipContent
-                        side="bottom"
+                        side="left"
                         className={LONG_TEXT_TOOLTIP_CLASS}
                       >
                         {draft}
@@ -346,7 +353,7 @@ export default function PlanPreviewTable({
                           {item.sourceParentPath}
                         </span>
                       </TooltipTrigger>
-                      <TooltipContent side="bottom" className={PATH_TOOLTIP_CLASS}>
+                      <TooltipContent side="left" className={PATH_TOOLTIP_CLASS}>
                         {item.sourceParentPath}
                       </TooltipContent>
                     </Tooltip>
@@ -354,7 +361,7 @@ export default function PlanPreviewTable({
                   <TableCell>
                     <ReasonCell item={item} />
                   </TableCell>
-                  <TableCell>
+                  <TableCell className={STICKY_ACTION_CELL_CLASS}>
                     <div className="flex justify-end gap-1">
                       <IconAction
                         label={t("preview.actions.skip")}
@@ -653,7 +660,7 @@ function IconAction({
           {children}
         </Button>
       </TooltipTrigger>
-      <TooltipContent>{label}</TooltipContent>
+      <TooltipContent side="left">{label}</TooltipContent>
     </Tooltip>
   );
 }

@@ -82,6 +82,7 @@ interface NameTranslatorStore {
   revalidateCurrentPlan: () => Promise<void>;
   applyCurrentPlan: () => Promise<void>;
   rollback: (journalId: string) => Promise<void>;
+  clearSelection: () => void;
   reset: () => void;
 }
 
@@ -539,6 +540,29 @@ const useNameTranslatorStore = create<NameTranslatorStore>((set, get) => ({
     } finally {
       set({ isApplying: false });
     }
+  },
+
+  clearSelection: () => {
+    activePlanningController?.abort();
+    activePlanningController = null;
+    planningRequestSeq++;
+    set((state) => ({
+      selectedPaths: [],
+      options: normalizeNameTranslationOptions({
+        ...state.options,
+        roots: [],
+      }),
+      currentPlan: null,
+      isPlanning: false,
+      planningProgress: null,
+      isApplying: false,
+      applyProgress: null,
+      lastApplyResult: null,
+      lastRollbackResult: null,
+      lastValidation: null,
+      lastError: null,
+      originalSuggestions: {},
+    }));
   },
 
   reset: () => {
