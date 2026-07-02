@@ -15,6 +15,7 @@
 - 修复左侧已选路径列表使用 Radix ScrollArea 时未形成稳定滚动区域的问题，长文件名/路径不再造成横向溢出。
 - 预览表格的新名称列加宽，原名/新名/路径和操作按钮 tooltip 改为左侧显示。
 - 预览表格操作列改为 sticky right，横向滚动时始终可见。
+- 预览表格 sticky 操作列左侧增加渐变过渡遮罩，减轻固定列和可滚动内容之间的硬切割感。
 - 更新 zh、zh-Hant、en、ja 四语言文案。
 
 ## 修改文件
@@ -58,6 +59,7 @@ Playwright Chrome 浏览器级滚动布局检查
 - Vite build 通过；仅保留既有 dynamic/static import 与 chunk size warning。
 - `git diff --check` 通过。
 - 浏览器级滚动布局检查通过：18 个长路径条目下列表 `scrollHeight=1095`、`clientHeight=320`、`canScrollY=true`、`hasHorizontalOverflow=false`、`rowOverflow=false`、`panelOverflow=false`、生成预览按钮保持可见，滚动后上下渐变遮罩均显示。
+- 补充 sticky 操作列渐变遮罩后，TypeScript 检查、Vite build 与 `git diff --check` 通过，未新增前端服务进程。
 
 补充说明：
 

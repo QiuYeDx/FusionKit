@@ -59,8 +59,11 @@ const PATH_TOOLTIP_CLASS = cn(
   LONG_TEXT_TOOLTIP_CLASS,
   "font-mono text-[11px]"
 );
-const STICKY_ACTION_CELL_CLASS =
-  "sticky right-0 z-[2] bg-card shadow-[-12px_0_16px_-16px_rgba(0,0,0,0.35)] dark:shadow-[-12px_0_16px_-16px_rgba(0,0,0,0.7)]";
+const STICKY_ACTION_CELL_CLASS = cn(
+  "sticky right-0 z-[2] bg-card",
+  "before:pointer-events-none before:absolute before:inset-y-0 before:right-full before:w-10",
+  "before:bg-gradient-to-l before:from-card before:via-card/90 before:to-transparent before:content-['']"
+);
 
 export default function PlanPreviewTable({
   plan,
