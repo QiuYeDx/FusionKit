@@ -18,6 +18,7 @@ import {
 import { animate } from "motion";
 import { ImageIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { SmoothCorners } from "@/components/qiuye-ui/smooth-corners";
 import { usePreventScroll } from "@/hooks/use-prevent-scroll";
 import { useHoverSupport } from "@/hooks/use-hover-support";
 
@@ -33,6 +34,28 @@ const roundedClasses = {
 } as const;
 
 type RoundedSize = keyof typeof roundedClasses;
+
+const smoothCornerRadii: Record<RoundedSize, number> = {
+  none: 0,
+  sm: 2,
+  md: 6,
+  lg: 10,
+  xl: 14,
+  "2xl": 16,
+  "3xl": 24,
+  full: 9999,
+};
+
+interface ImageDimensions {
+  src: string;
+  width: number;
+  height: number;
+}
+
+interface ImageSize {
+  width: number;
+  height: number;
+}
 
 type BaseImageProps = Omit<
   React.ComponentPropsWithoutRef<"img">,
@@ -66,6 +89,18 @@ interface ImageViewerProps extends BaseImageProps {
    * 灯箱（Lightbox）中图片的圆角大小，未设置时继承 `rounded` 的值
    */
   lightboxRounded?: RoundedSize;
+  /**
+   * 是否启用 Figma/iOS 风格平滑圆角。
+   * 启用后会根据 `rounded` 和 `lightboxRounded` 对缩略图、骨架屏和灯箱图片做渐进增强。
+   * `rounded="none"` 与 `rounded="full"` 会保留原始几何语义，不应用平滑圆角。
+   * @default false
+   */
+  smoothCorners?: boolean;
+  /**
+   * 平滑圆角强度，范围 0..1。仅在 `smoothCorners` 为 true 时生效
+   * @default 0.7
+   */
+  smoothCornerSmoothing?: number;
   /**
    * 缩略图外层容器的自定义 className
    */
@@ -144,6 +179,27 @@ const formatSize = (value: number | string | undefined): string | undefined => {
   return typeof value === "number" ? `${value}px` : value;
 };
 
+const canUseSmoothCorners = (rounded: RoundedSize) =>
+  rounded !== "none" && rounded !== "full";
+
+const getLightboxImageSize = (
+  dimensions: ImageDimensions,
+  padding: number
+): ImageSize => {
+  const maxWidth = Math.max(1, window.innerWidth - padding * 2);
+  const maxHeight = Math.max(1, window.innerHeight - padding * 2);
+  const scale = Math.min(
+    1,
+    maxWidth / dimensions.width,
+    maxHeight / dimensions.height
+  );
+
+  return {
+    width: Math.round(dimensions.width * scale),
+    height: Math.round(dimensions.height * scale),
+  };
+};
+
 const getTouchDistance = (touches: React.TouchList) => {
   const dx = touches[0].clientX - touches[1].clientX;
   const dy = touches[0].clientY - touches[1].clientY;
@@ -174,8 +230,15 @@ const getTouchMidpoint = (touches: React.TouchList) => ({
  * // 禁用灯箱 + 限制最大尺寸
  * <ImageViewer src="/photo.jpg" enableLightbox={false} maxHeight={300} maxWidth="50%" />
  *
- * // 悬浮缩放 + 自定义灯箱圆角 + 背景模糊
- * <ImageViewer src="/photo.jpg" hoverScale={1.03} lightboxRounded="xl" overlayBlur />
+ * // 悬浮缩放 + 自定义灯箱圆角 + 平滑圆角
+ * <ImageViewer
+ *   src="/photo.jpg"
+ *   rounded="2xl"
+ *   lightboxRounded="2xl"
+ *   smoothCorners
+ *   hoverScale={1.03}
+ *   overlayBlur
+ * />
  * ```
  */
 export function ImageViewer({
@@ -184,6 +247,8 @@ export function ImageViewer({
   title,
   rounded = "lg",
   lightboxRounded,
+  smoothCorners = false,
+  smoothCornerSmoothing = 0.7,
   wrapperClassName,
   className,
   lightboxClassName,
@@ -207,6 +272,10 @@ export function ImageViewer({
   const [isOpen, setIsOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [blobUrl, setBlobUrl] = useState<string | null>(null);
+  const [imageDimensions, setImageDimensions] =
+    useState<ImageDimensions | null>(null);
+  const [lightboxImageSize, setLightboxImageSize] =
+    useState<ImageSize | null>(null);
   const imageRef = useRef<HTMLImageElement | null>(null);
   const lightboxGestureRef = useRef<HTMLDivElement | null>(null);
   // 灯箱图片的变换使用 MotionValue，避免高频触摸导致重渲染
@@ -250,11 +319,16 @@ export function ImageViewer({
   const resolvedSrc = typeof src === "string" ? src : blobUrl || undefined;
   const hasSource =
     typeof src === "string" ? src.trim().length > 0 : src instanceof Blob;
+  const currentImageDimensions =
+    imageDimensions?.src === resolvedSrc ? imageDimensions : null;
+  const paddingValue = Math.max(16, lightboxPadding);
 
   useEffect(() => {
     if (resolvedSrc) {
       setImageLoading(true);
       setImageError(false);
+      setImageDimensions(null);
+      setLightboxImageSize(null);
     }
   }, [resolvedSrc]);
 
@@ -265,24 +339,16 @@ export function ImageViewer({
     if (image.complete) {
       if (image.naturalWidth === 0) {
         setImageError(true);
+      } else {
+        setImageDimensions({
+          src: resolvedSrc,
+          width: image.naturalWidth,
+          height: image.naturalHeight,
+        });
       }
       setImageLoading(false);
     }
   }, [resolvedSrc]);
-
-  // 预加载图片，确保点击打开灯箱时图片已在浏览器缓存中
-  // 这可以避免首次打开灯箱时因图片加载延迟导致 layoutId 过渡动画异常
-  useEffect(() => {
-    if (!resolvedSrc || !enableLightbox) return;
-
-    const preloadImage = new Image();
-    preloadImage.src = resolvedSrc;
-
-    return () => {
-      // 组件卸载时清理预加载
-      preloadImage.src = "";
-    };
-  }, [resolvedSrc, enableLightbox]);
 
   // 组件卸载时清理复位动画与定时器
   useEffect(() => {
@@ -382,6 +448,22 @@ export function ImageViewer({
       closeLightbox();
     }
   }, [closeLightbox, enableLightbox, isOpen]);
+
+  useEffect(() => {
+    if (!isOpen || !currentImageDimensions) return;
+
+    const updateLightboxImageSize = () => {
+      setLightboxImageSize(
+        getLightboxImageSize(currentImageDimensions, paddingValue)
+      );
+    };
+
+    updateLightboxImageSize();
+    window.addEventListener("resize", updateLightboxImageSize);
+    return () => {
+      window.removeEventListener("resize", updateLightboxImageSize);
+    };
+  }, [currentImageDimensions, isOpen, paddingValue]);
 
   // 打开时重置状态，防止复位动画残留
   useEffect(() => {
@@ -635,64 +717,94 @@ export function ImageViewer({
     closeLightbox();
   };
 
+  const shouldSmoothInlineCorners =
+    smoothCorners && canUseSmoothCorners(rounded);
+  const inlineSmoothCornerRadius = smoothCornerRadii[rounded];
+
   if (!hasSource) {
     return (
-      <span
-        className={cn(
-          "inline-block my-4 w-full border border-dashed border-muted-foreground/30 bg-muted/20 p-4 text-center text-sm text-muted-foreground",
-          roundedClasses[rounded],
-          wrapperClassName
-        )}
+      <SmoothCorners
+        asChild
+        radius={inlineSmoothCornerRadius}
+        smoothing={smoothCornerSmoothing}
+        disabled={!shouldSmoothInlineCorners}
       >
-        {alt ? `图片占位: ${alt}` : "图片链接为空"}
-      </span>
+        <span
+          className={cn(
+            "inline-block my-4 w-full border border-dashed border-muted-foreground/30 bg-muted/20 p-4 text-center text-sm text-muted-foreground",
+            roundedClasses[rounded],
+            wrapperClassName
+          )}
+        >
+          {alt ? `图片占位: ${alt}` : "图片链接为空"}
+        </span>
+      </SmoothCorners>
     );
   }
 
   if (!resolvedSrc) {
     return (
-      <span
-        className={cn(
-          "inline-block my-6 w-full overflow-hidden",
-          roundedClasses[rounded],
-          wrapperClassName
-        )}
+      <SmoothCorners
+        asChild
+        radius={inlineSmoothCornerRadius}
+        smoothing={smoothCornerSmoothing}
+        disabled={!shouldSmoothInlineCorners}
       >
-        <span className="flex h-48 w-full items-center justify-center bg-muted/20">
-          <ImageIcon className="h-8 w-8 text-muted-foreground/30" />
+        <span
+          className={cn(
+            "inline-block my-6 w-full overflow-hidden",
+            roundedClasses[rounded],
+            wrapperClassName
+          )}
+        >
+          <span className="flex h-48 w-full items-center justify-center bg-muted/20">
+            <ImageIcon className="h-8 w-8 text-muted-foreground/30" />
+          </span>
         </span>
-      </span>
+      </SmoothCorners>
     );
   }
 
   if (imageError) {
     return (
-      <span
-        className={cn(
-          "inline-flex w-full flex-col items-center justify-center my-6 p-8 border border-muted-foreground/20 bg-muted/10 text-center",
-          roundedClasses[rounded],
-          wrapperClassName
-        )}
+      <SmoothCorners
+        asChild
+        radius={inlineSmoothCornerRadius}
+        smoothing={smoothCornerSmoothing}
+        disabled={!shouldSmoothInlineCorners}
       >
-        <ImageIcon className="h-12 w-12 text-muted-foreground/40 mb-3" />
-        <span className="text-sm font-medium text-muted-foreground/70 mb-1 block">
-          图片加载失败
+        <span
+          className={cn(
+            "inline-flex w-full flex-col items-center justify-center my-6 p-8 border border-muted-foreground/20 bg-muted/10 text-center",
+            roundedClasses[rounded],
+            wrapperClassName
+          )}
+        >
+          <ImageIcon className="h-12 w-12 text-muted-foreground/40 mb-3" />
+          <span className="text-sm font-medium text-muted-foreground/70 mb-1 block">
+            图片加载失败
+          </span>
+          {alt && (
+            <span className="text-xs text-muted-foreground/50 block">{alt}</span>
+          )}
+          <span className="text-xs text-muted-foreground/40 mt-2 font-mono break-all max-w-full block">
+            {resolvedSrc}
+          </span>
         </span>
-        {alt && (
-          <span className="text-xs text-muted-foreground/50 block">{alt}</span>
-        )}
-        <span className="text-xs text-muted-foreground/40 mt-2 font-mono break-all max-w-full block">
-          {resolvedSrc}
-        </span>
-      </span>
+      </SmoothCorners>
     );
   }
 
   const inlineRoundedClass = roundedClasses[rounded];
+  const resolvedLightboxRounded = lightboxRounded ?? rounded;
   const lightboxRoundedClass =
-    roundedClasses[lightboxRounded ?? rounded] ?? roundedClasses.lg;
-  const canPreview = enableLightbox && !imageError;
-  const paddingValue = Math.max(16, lightboxPadding);
+    roundedClasses[resolvedLightboxRounded] ?? roundedClasses.lg;
+  const shouldSmoothLightboxCorners =
+    smoothCorners && canUseSmoothCorners(resolvedLightboxRounded);
+  const lightboxSmoothCornerRadius =
+    smoothCornerRadii[resolvedLightboxRounded];
+  const canPreview =
+    enableLightbox && !imageError && currentImageDimensions !== null;
   const maxSizeStyle = {
     width: `calc(100vw - ${paddingValue * 2}px)`,
     height: `calc(100vh - ${paddingValue * 2}px)`,
@@ -701,101 +813,137 @@ export function ImageViewer({
   return (
     <LayoutGroup id={groupId}>
       <span className={cn("inline-block my-6 w-full", wrapperClassName)}>
-        <motion.button
-          type="button"
-          className={cn(
-            "group relative inline-block max-w-full bg-transparent p-0 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2 focus-visible:ring-offset-background",
-            inlineRoundedClass,
-            canPreview ? "cursor-zoom-in" : "cursor-default"
-          )}
-          whileHover={
-            canHover && hoverScale != null
-              ? {
-                scale: hoverScale,
-                transition: {
+        <SmoothCorners
+          asChild
+          radius={inlineSmoothCornerRadius}
+          smoothing={smoothCornerSmoothing}
+          disabled={!shouldSmoothInlineCorners}
+        >
+          <motion.button
+            type="button"
+            className={cn(
+              "group relative inline-block max-w-full bg-transparent p-0 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+              inlineRoundedClass,
+              canPreview ? "cursor-zoom-in" : "cursor-default"
+            )}
+            whileHover={
+              canHover && hoverScale != null
+                ? {
+                  scale: hoverScale,
+                  transition: {
+                    type: "spring",
+                    bounce: hoverBounce ?? 0.25,
+                    duration: hoverDuration,
+                  },
+                }
+                : undefined
+            }
+            whileTap={
+              hoverScale != null
+                ? {
+                  scale: 0.97,
+                  transition: {
+                    type: "spring",
+                    bounce: 0,
+                    duration: hoverDuration * 0.5,
+                  },
+                }
+                : undefined
+            }
+            transition={
+              hoverScale != null
+                ? {
                   type: "spring",
                   bounce: hoverBounce ?? 0.25,
                   duration: hoverDuration,
-                },
-              }
-              : undefined
-          }
-          whileTap={
-            hoverScale != null
-              ? {
-                scale: 0.97,
-                transition: {
-                  type: "spring",
-                  bounce: 0,
-                  duration: hoverDuration * 0.5,
-                },
-              }
-              : undefined
-          }
-          transition={
-            hoverScale != null
-              ? {
-                type: "spring",
-                bounce: hoverBounce ?? 0.25,
-                duration: hoverDuration,
-              }
-              : undefined
-          }
-          onClick={() => {
-            if (canPreview) setIsOpen(true);
-          }}
-        >
-          <AnimatePresence>
-            {imageLoading && (
-              <motion.span
-                key="image-skeleton"
-                aria-hidden
-                initial={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.4, ease: "easeOut" }}
+                }
+                : undefined
+            }
+            onClick={() => {
+              if (!canPreview || !currentImageDimensions) return;
+              setLightboxImageSize(
+                getLightboxImageSize(currentImageDimensions, paddingValue)
+              );
+              setIsOpen(true);
+            }}
+          >
+            <AnimatePresence>
+              {imageLoading && (
+                <SmoothCorners
+                  asChild
+                  radius={inlineSmoothCornerRadius}
+                  smoothing={smoothCornerSmoothing}
+                  disabled={!shouldSmoothInlineCorners}
+                >
+                  <motion.span
+                    key="image-skeleton"
+                    aria-hidden
+                    initial={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.4, ease: "easeOut" }}
+                    className={cn(
+                      "absolute inset-0 z-1 overflow-hidden",
+                      inlineRoundedClass
+                    )}
+                  >
+                    <div
+                      className={cn(
+                        "h-full w-full bg-accent animate-pulse",
+                        inlineRoundedClass
+                      )}
+                    />
+                  </motion.span>
+                </SmoothCorners>
+              )}
+            </AnimatePresence>
+            <SmoothCorners
+              asChild
+              radius={inlineSmoothCornerRadius}
+              smoothing={smoothCornerSmoothing}
+              disabled={!shouldSmoothInlineCorners}
+            >
+              <motion.img
+                layoutId={sharedLayoutId}
+                ref={imageRef}
+                src={resolvedSrc}
+                alt={alt || ""}
+                title={title}
+                draggable={selectable}
                 className={cn(
-                  "absolute inset-0 z-1",
-                  inlineRoundedClass
+                  "block h-auto max-w-full",
+                  !selectable && "select-none",
+                  inlineRoundedClass,
+                  className
                 )}
-              >
-                <div className={cn("h-full w-full bg-accent animate-pulse", inlineRoundedClass)}></div>
-              </motion.span>
-            )}
-          </AnimatePresence>
-          <motion.img
-            layoutId={sharedLayoutId}
-            ref={imageRef}
-            src={resolvedSrc}
-            alt={alt || ""}
-            title={title}
-            draggable={selectable}
-            className={cn(
-              "block h-auto max-w-full",
-              !selectable && "select-none",
-              inlineRoundedClass,
-              className
-            )}
-            style={{
-              maxHeight: formatSize(maxHeight),
-              maxWidth: formatSize(maxWidth),
-              opacity: imageLoading ? 0 : 1,
-              filter: imageLoading ? "blur(6px)" : "blur(0px)",
-              transition: "opacity 0.5s ease-out, filter 0.5s ease-out",
-              ...(!selectable && { WebkitTouchCallout: "none" }),
-            }}
-            loading={loading}
-            onLoad={(event) => {
-              setImageLoading(false);
-              onLoad?.(event);
-            }}
-            onError={(event) => {
-              setImageError(true);
-              setImageLoading(false);
-              onError?.(event);
-            }}
-            {...props}
-          />
-        </motion.button>
+                style={{
+                  maxHeight: formatSize(maxHeight),
+                  maxWidth: formatSize(maxWidth),
+                  opacity: imageLoading ? 0 : 1,
+                  filter: imageLoading ? "blur(6px)" : "none",
+                  transition: "opacity 0.5s ease-out, filter 0.5s ease-out",
+                  ...(!selectable && { WebkitTouchCallout: "none" }),
+                }}
+                loading={loading}
+                onLoad={(event) => {
+                  setImageDimensions({
+                    src: resolvedSrc,
+                    width: event.currentTarget.naturalWidth,
+                    height: event.currentTarget.naturalHeight,
+                  });
+                  setImageLoading(false);
+                  onLoad?.(event);
+                }}
+                onError={(event) => {
+                  setImageError(true);
+                  setImageLoading(false);
+                  setImageDimensions(null);
+                  onError?.(event);
+                }}
+                {...props}
+              />
+            </SmoothCorners>
+          </motion.button>
+        </SmoothCorners>
       </span>
 
       {mounted &&
@@ -847,26 +995,35 @@ export function ImageViewer({
                     onMouseDown={handleLightboxMouseDown}
                     onWheel={handleLightboxWheel}
                   >
-                    <motion.img
-                      layoutId={sharedLayoutId}
-                      src={resolvedSrc}
-                      alt={alt || ""}
-                      title={title}
-                      draggable={selectable}
-                      className={cn(
-                        "h-auto w-auto max-h-full max-w-full object-contain shadow-2xl",
-                        !selectable && "select-none",
-                        lightboxRoundedClass,
-                        lightboxClassName
-                      )}
-                      style={
-                        !selectable
-                          ? { WebkitTouchCallout: "none" }
-                          : undefined
-                      }
-                      // 灯箱图片使用 eager 加载，配合预加载确保过渡动画流畅
-                      loading="eager"
-                    />
+                    <SmoothCorners
+                      asChild
+                      radius={lightboxSmoothCornerRadius}
+                      smoothing={smoothCornerSmoothing}
+                      disabled={!shouldSmoothLightboxCorners}
+                    >
+                      <motion.img
+                        layoutId={sharedLayoutId}
+                        src={resolvedSrc}
+                        alt={alt || ""}
+                        title={title}
+                        width={lightboxImageSize?.width}
+                        height={lightboxImageSize?.height}
+                        draggable={selectable}
+                        className={cn(
+                          "max-h-full max-w-full object-contain shadow-2xl",
+                          !selectable && "select-none",
+                          lightboxRoundedClass,
+                          lightboxClassName
+                        )}
+                        style={
+                          !selectable
+                            ? { WebkitTouchCallout: "none" }
+                            : undefined
+                        }
+                        // 预先计算宽高，让重新请求中的图片节点也能被 Motion 正确测量
+                        loading="eager"
+                      />
+                    </SmoothCorners>
                   </motion.div>
                 </motion.div>
               </motion.div>

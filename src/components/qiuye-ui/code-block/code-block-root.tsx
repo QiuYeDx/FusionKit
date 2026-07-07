@@ -587,7 +587,7 @@ export function CodeBlock({
 
 function CodeBlockStyles() {
   return (
-    <style>{`
+    <style jsx global>{`
       /* ============================================
          代码块基础样式
          ============================================ */
@@ -675,6 +675,7 @@ function CodeBlockStyles() {
 
       .qiuye-code-block .line-number {
         display: inline-flex;
+        position: relative;
         justify-content: center;
         width: var(--cb-ln-width);
         min-width: var(--cb-ln-width);
@@ -1125,6 +1126,69 @@ function CodeBlockStyles() {
       }
 
       .qiuye-code-block pre code > div[data-highlight]::before {
+        background-color: var(--cb-hl-indicator);
+      }
+
+      .qiuye-code-block.sticky-line-numbers
+        pre
+        code
+        > div[data-diff]::before,
+      .qiuye-code-block.sticky-line-numbers
+        pre
+        code
+        > div[data-highlight]::before {
+        content: none;
+      }
+
+      .qiuye-code-block.sticky-line-numbers
+        pre
+        code
+        > div[data-diff]
+        .line-number::before,
+      .qiuye-code-block.sticky-line-numbers
+        pre
+        code
+        > div[data-highlight]
+        .line-number::before {
+        content: "";
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        left: 0;
+        z-index: 2;
+        width: 3px;
+        pointer-events: none;
+      }
+
+      .qiuye-code-block.diff-mode.sticky-line-numbers
+        pre
+        code
+        > div[data-diff="add"]
+        .line-number::before {
+        background-color: var(--cb-diff-add-indicator);
+      }
+
+      .qiuye-code-block.diff-mode.sticky-line-numbers
+        pre
+        code
+        > div[data-diff="remove"]
+        .line-number::before {
+        background-color: var(--cb-diff-remove-indicator);
+      }
+
+      .qiuye-code-block.diff-mode.sticky-line-numbers
+        pre
+        code
+        > div[data-diff="info"]
+        .line-number::before {
+        background-color: var(--cb-diff-info-indicator);
+      }
+
+      .qiuye-code-block.sticky-line-numbers
+        pre
+        code
+        > div[data-highlight]
+        .line-number::before {
         background-color: var(--cb-hl-indicator);
       }
 

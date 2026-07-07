@@ -7,7 +7,6 @@ import {
   CodeBlockPanel,
 } from "@/components/qiuye-ui/code-block";
 import {
-  Table,
   TableHeader,
   TableBody,
   TableRow,
@@ -19,6 +18,7 @@ import { parseWidgetFence } from "@/lib/markdown/parse-widget-fence";
 import { sanitizeUrl } from "@/lib/markdown/sanitize-url";
 import { isUrlAllowed, getSafeLinkProps } from "@/lib/markdown/link-policy";
 import { MarkdownWidgetRenderer } from "../MarkdownWidgetRenderer";
+import { MarkdownTableContainer } from "../MarkdownTableContainer";
 import type {
   MarkdownPresetConfig,
   MarkdownPresetComponentContext,
@@ -134,7 +134,7 @@ function createChatComponents(ctx: MarkdownPresetComponentContext): Components {
       return (
         <h1
           id={id}
-          className="scroll-m-16 text-lg font-bold tracking-tight mt-4 mb-2"
+          className="scroll-m-16 text-lg font-bold tracking-tight mt-4 mb-2 break-words"
           {...props}
         >
           {children}
@@ -147,7 +147,7 @@ function createChatComponents(ctx: MarkdownPresetComponentContext): Components {
       return (
         <h2
           id={id}
-          className="scroll-m-16 text-base font-semibold tracking-tight mt-3 mb-1.5"
+          className="scroll-m-16 text-base font-semibold tracking-tight mt-3 mb-1.5 break-words"
           {...props}
         >
           {children}
@@ -160,7 +160,7 @@ function createChatComponents(ctx: MarkdownPresetComponentContext): Components {
       return (
         <h3
           id={id}
-          className="scroll-m-16 text-sm font-semibold tracking-tight mt-3 mb-1"
+          className="scroll-m-16 text-sm font-semibold tracking-tight mt-3 mb-1 break-words"
           {...props}
         >
           {children}
@@ -173,7 +173,7 @@ function createChatComponents(ctx: MarkdownPresetComponentContext): Components {
       return (
         <h4
           id={id}
-          className="scroll-m-16 text-sm font-semibold mt-2 mb-1"
+          className="scroll-m-16 text-sm font-semibold mt-2 mb-1 break-words"
           {...props}
         >
           {children}
@@ -182,7 +182,7 @@ function createChatComponents(ctx: MarkdownPresetComponentContext): Components {
     },
 
     p: ({ children, ...props }) => (
-      <p className="leading-6 my-2 text-foreground" {...props}>
+      <p className="leading-6 my-2 text-foreground break-words" {...props}>
         {children}
       </p>
     ),
@@ -249,9 +249,15 @@ function createChatComponents(ctx: MarkdownPresetComponentContext): Components {
     ),
 
     table: ({ children, ...props }) => (
-      <div className="my-3 rounded-lg border border-border/60 overflow-x-auto">
-        <Table {...props}>{children}</Table>
-      </div>
+      <MarkdownTableContainer className="my-3">
+        <table
+          data-slot="table"
+          className="w-full min-w-[420px] caption-bottom text-sm"
+          {...props}
+        >
+          {children}
+        </table>
+      </MarkdownTableContainer>
     ),
     thead: ({ children, ...props }) => (
       <TableHeader className="bg-muted/40" {...props}>
@@ -305,6 +311,7 @@ export const chatPreset: MarkdownPresetConfig = {
     maxHeight: "240px",
     stickyLineNumbers: false,
     colorTheme: "github",
+    mermaidShowShadow: false,
   },
   createComponents: createChatComponents,
 };

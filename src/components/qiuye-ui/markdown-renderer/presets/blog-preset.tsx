@@ -8,7 +8,6 @@ import {
   CodeBlockPanel,
 } from "@/components/qiuye-ui/code-block";
 import {
-  Table,
   TableHeader,
   TableBody,
   TableRow,
@@ -17,6 +16,7 @@ import {
 } from "@/components/ui/table";
 import { parseCodeBlockMeta } from "@/lib/markdown/parse-code-block-meta";
 import { MermaidBlock } from "../blocks/MermaidBlock";
+import { MarkdownTableContainer } from "../MarkdownTableContainer";
 import type {
   MarkdownPresetConfig,
   MarkdownPresetComponentContext,
@@ -78,6 +78,7 @@ function createBlogComponents(ctx: MarkdownPresetComponentContext): Components {
             stickyLineNumbers={codeBlock.stickyLineNumbers}
             colorTheme={codeBlock.colorTheme}
             customTheme={codeBlock.customTheme}
+            showContainerShadow={codeBlock.mermaidShowShadow}
           >
             {rawCode}
           </MermaidBlock>
@@ -120,7 +121,7 @@ function createBlogComponents(ctx: MarkdownPresetComponentContext): Components {
       return (
         <h1
           id={id}
-          className="scroll-m-20 text-4xl font-bold tracking-tight mt-12 mb-6"
+          className="scroll-m-20 text-4xl font-bold tracking-tight mt-12 mb-6 break-words"
           {...props}
         >
           {children}
@@ -133,7 +134,7 @@ function createBlogComponents(ctx: MarkdownPresetComponentContext): Components {
       return (
         <h2
           id={id}
-          className="scroll-m-20 text-3xl font-semibold tracking-tight mt-10 mb-4 border-b pb-2"
+          className="scroll-m-20 text-3xl font-semibold tracking-tight mt-10 mb-4 border-b pb-2 break-words"
           {...props}
         >
           {children}
@@ -146,7 +147,7 @@ function createBlogComponents(ctx: MarkdownPresetComponentContext): Components {
       return (
         <h3
           id={id}
-          className="scroll-m-20 text-2xl font-semibold tracking-tight mt-8 mb-4"
+          className="scroll-m-20 text-2xl font-semibold tracking-tight mt-8 mb-4 break-words"
           {...props}
         >
           {children}
@@ -159,7 +160,7 @@ function createBlogComponents(ctx: MarkdownPresetComponentContext): Components {
       return (
         <h4
           id={id}
-          className="scroll-m-20 text-xl font-semibold tracking-tight mt-6 mb-3"
+          className="scroll-m-20 text-xl font-semibold tracking-tight mt-6 mb-3 break-words"
           {...props}
         >
           {children}
@@ -168,7 +169,7 @@ function createBlogComponents(ctx: MarkdownPresetComponentContext): Components {
     },
 
     p: ({ children, ...props }) => (
-      <p className="leading-7 my-4 text-muted-foreground" {...props}>
+      <p className="leading-7 my-4 text-muted-foreground break-words" {...props}>
         {children}
       </p>
     ),
@@ -224,9 +225,15 @@ function createBlogComponents(ctx: MarkdownPresetComponentContext): Components {
     ),
 
     table: ({ children, ...props }) => (
-      <div className="my-6 rounded-lg border border-border/60 overflow-hidden">
-        <Table {...props}>{children}</Table>
-      </div>
+      <MarkdownTableContainer className="my-6">
+        <table
+          data-slot="table"
+          className="w-full min-w-[520px] caption-bottom text-sm"
+          {...props}
+        >
+          {children}
+        </table>
+      </MarkdownTableContainer>
     ),
     thead: ({ children, ...props }) => (
       <TableHeader className="bg-muted/40" {...props}>
@@ -279,6 +286,7 @@ export const blogPreset: MarkdownPresetConfig = {
     maxLines: 15,
     stickyLineNumbers: true,
     colorTheme: "github",
+    mermaidShowShadow: false,
   },
   createComponents: createBlogComponents,
 };

@@ -72,7 +72,7 @@ const EFFECT_PRESETS: Record<ToggleEffectPreset, ToggleEffectConfig> = {
 /* -------------------------------------------------------------------------- */
 
 export interface DualStateToggleProps
-  extends Omit<ButtonProps, "onClick" | "onToggle" | "children"> {
+  extends Omit<ButtonProps, "onToggle" | "children"> {
   /** 是否处于激活状态 */
   active: boolean;
   /** 状态切换回调 */
@@ -207,23 +207,30 @@ export interface DualStateToggleProps
  * />
  * ```
  */
-export function DualStateToggle({
-  active,
-  onToggle,
-  activeIcon,
-  inactiveIcon,
-  activeLabel,
-  inactiveLabel,
-  blurAmount = "2px",
-  shape = "square",
-  effect = "fade",
-  transitionDuration = 0.25,
-  // shadcn/ui Button props — 提供最常用的默认值，外部可覆盖
-  variant = "default",
-  size = "icon",
-  className,
-  ...buttonProps
-}: DualStateToggleProps) {
+export const DualStateToggle = React.forwardRef<
+  HTMLButtonElement,
+  DualStateToggleProps
+>(function DualStateToggle(
+  {
+    active,
+    onToggle,
+    activeIcon,
+    inactiveIcon,
+    activeLabel,
+    inactiveLabel,
+    blurAmount = "2px",
+    shape = "square",
+    effect = "fade",
+    transitionDuration = 0.25,
+    // shadcn/ui Button props — 提供最常用的默认值，外部可覆盖
+    variant = "default",
+    size = "icon",
+    className,
+    onClick,
+    ...buttonProps
+  },
+  ref,
+) {
   // 解析过渡效果（预设 or 自定义）
   const resolvedEffect: ToggleEffectConfig =
     typeof effect === "string" ? EFFECT_PRESETS[effect] : effect;
@@ -241,6 +248,7 @@ export function DualStateToggle({
 
   return (
     <Button
+      ref={ref}
       variant={variant}
       size={size}
       className={cn(
@@ -248,7 +256,11 @@ export function DualStateToggle({
         shape === "circle" && "rounded-full",
         className
       )}
-      onClick={() => onToggle(!active)}
+      onClick={(event) => {
+        onClick?.(event);
+        if (event.defaultPrevented) return;
+        onToggle(!active);
+      }}
       {...buttonProps}
     >
       <AnimatePresence mode="popLayout" initial={false}>
@@ -284,4 +296,4 @@ export function DualStateToggle({
       )}
     </Button>
   );
-}
+});

@@ -34,6 +34,8 @@ export interface BlogMarkdownRendererProps {
   codeBlockColorTheme?: CodeBlockColorThemeName;
   /** 自定义代码块主题配置 */
   codeBlockCustomTheme?: CodeBlockThemeConfig | PrismTheme;
+  /** Mermaid 图表容器是否显示阴影，默认关闭 */
+  mermaidShowShadow?: boolean;
   /** 覆盖 react-markdown components */
   components?: Components;
   /** Widget 注册表（博客场景一般不用） */
@@ -65,6 +67,7 @@ export function BlogMarkdownRenderer({
   stickyLineNumbers,
   codeBlockColorTheme,
   codeBlockCustomTheme,
+  mermaidShowShadow,
   components,
   widgetRegistry,
   widgetContext,
@@ -76,6 +79,7 @@ export function BlogMarkdownRenderer({
     stickyLineNumbers: stickyLineNumbers,
     colorTheme: codeBlockColorTheme,
     customTheme: codeBlockCustomTheme,
+    mermaidShowShadow,
   };
 
   return (

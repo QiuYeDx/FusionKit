@@ -59,6 +59,8 @@ export interface MarkdownCodeBlockOptions {
   colorTheme?: CodeBlockColorThemeName;
   /** 自定义代码块主题配置 */
   customTheme?: CodeBlockThemeConfig | PrismTheme;
+  /** Mermaid 图表容器是否显示阴影，默认关闭 */
+  mermaidShowShadow?: boolean;
 }
 
 // ============================================

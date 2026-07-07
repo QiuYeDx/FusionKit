@@ -269,7 +269,7 @@ export function MarkdownRendererCore({
 
   return (
     <div
-      className={`${styles.root} ${modeClass} ${className}`}
+      className={`${styles.root} ${modeClass} min-w-0 max-w-full ${className}`}
       style={markdownThemeStyle}
     >
       <ReactMarkdown

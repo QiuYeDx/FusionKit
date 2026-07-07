@@ -11,6 +11,9 @@ dependencies:
   '@ai-sdk/openai-compatible':
     specifier: ^1.0.0
     version: 1.0.34(zod@4.3.6)
+  '@qiuyedx/smooth-corners':
+    specifier: ^0.1.0
+    version: 0.1.0
   '@radix-ui/react-checkbox':
     specifier: ^1.3.3
     version: 1.3.3(@types/react-dom@19.1.1)(@types/react@19.1.1)(react-dom@19.1.1)(react@19.1.1)
@@ -1153,6 +1156,10 @@ packages:
     dependencies:
       playwright: 1.58.2
     dev: true
+
+  /@qiuyedx/smooth-corners@0.1.0:
+    resolution: {integrity: sha512-xAJ2i+dUKxDbd4zRY8KZlI3atL+jrqcia/+fdHdtOn3hmWsnnN2rQLi3nOp89DbBXxvu1uLFHaiYTw511287uw==}
+    dev: false
 
   /@radix-ui/number@1.1.1:
     resolution: {integrity: sha512-MkKCwxlXTgz6CFoJx3pCwn07GKp36+aZyu/u2Ln2VrA5DcdyCZkASEDBTd8x5whTQQL5CiYf4prXKLcgQdv29g==}
