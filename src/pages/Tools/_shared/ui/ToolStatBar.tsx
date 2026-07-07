@@ -1,5 +1,5 @@
 import * as React from "react";
-import { Card } from "@/components/ui/card";
+import { SmoothCorners } from "@/components/qiuye-ui/smooth-corners";
 import { cn } from "@/lib/utils";
 import { InfoHint } from "./InfoHint";
 
@@ -55,7 +55,14 @@ export function ToolStatBar({
   if (visibleItems.length === 0) return null;
 
   return (
-    <Card className={cn("overflow-hidden p-0 gap-0", className)}>
+    <SmoothCorners
+      radius={16}
+      smoothing={0.72}
+      className={cn(
+        "flex flex-col overflow-hidden border bg-card text-card-foreground shadow-sm",
+        className,
+      )}
+    >
       {title || icon ? (
         <div className="flex items-center gap-2 border-b px-4 py-2.5 text-[12px] font-medium text-foreground/90">
           {icon ? (
@@ -94,7 +101,7 @@ export function ToolStatBar({
           </div>
         ))}
       </div>
-    </Card>
+    </SmoothCorners>
   );
 }
 

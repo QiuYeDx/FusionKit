@@ -9,7 +9,6 @@ import HomeAgent from "@/pages/HomeAgent";
 import Tools from "@/pages/Tools";
 import BottomNavigation from "@/pages/components/BottomNavigation";
 import AppTitleBar from "@/pages/components/AppTitleBar";
-import FadeMaskLayer from "@/pages/components/FadeMaskLayer";
 import SubtitleTranslator from "./pages/Tools/Subtitle/SubtitleTranslator";
 import SubtitleConverter from "./pages/Tools/Subtitle/SubtitleConverter";
 import SubtitleLanguageExtractor from "./pages/Tools/Subtitle/SubtitleLanguageExtractor";
@@ -139,8 +138,6 @@ function App() {
       {/* 自动更新检测 */}
       <Update autoCheck showTrigger={false} />
 
-      {/* 全局过渡遮罩层 */}
-      <FadeMaskLayer />
     </div>
   );
 }

@@ -56,9 +56,6 @@ dependencies:
   '@radix-ui/react-tooltip':
     specifier: ^1.2.8
     version: 1.2.8(@types/react-dom@19.1.1)(@types/react@19.1.1)(react-dom@19.1.1)(react@19.1.1)
-  '@reactuses/core':
-    specifier: ^6.1.6
-    version: 6.1.11(react@19.1.1)
   ai:
     specifier: ^6.0.0
     version: 6.0.116(zod@4.3.6)
@@ -80,9 +77,6 @@ dependencies:
   gpt-tokenizer:
     specifier: ^3.4.0
     version: 3.4.0
-  html-to-image:
-    specifier: ^1.11.11
-    version: 1.11.13
   i18next:
     specifier: ^24.2.2
     version: 24.2.3(typescript@5.9.3)
@@ -1131,10 +1125,6 @@ packages:
     resolution: {integrity: sha512-gxK9ZX2+Fex5zu8LhRQoMeMPEHbc73UKZ0FQ54YrQtUxE1VVhMwzeNtKRPAu5aXks4FasbMe4xB4bWrmq6Jlxw==}
     dependencies:
       langium: 4.2.3
-    dev: false
-
-  /@microsoft/fetch-event-source@2.0.1:
-    resolution: {integrity: sha512-W6CLUJ2eBMw3Rec70qrsEW0jOm/3twwJv21mrmj2yORiaVmVYGS4sSS5yUwvQc1ZlDLYGPnClVWmUUMagKNsfA==}
     dev: false
 
   /@opentelemetry/api@1.9.0:
@@ -2587,23 +2577,6 @@ packages:
 
   /@radix-ui/rect@1.1.1:
     resolution: {integrity: sha512-HPwpGIzkl28mWyZqG52jiqDJ12waP11Pa1lGoiyUkIEuMLBP0oeK/C89esbXrxsky5we7dfd8U58nm0SgAWpVw==}
-    dev: false
-
-  /@reactuses/core@6.1.11(react@19.1.1):
-    resolution: {integrity: sha512-MB5QX21xKMWaHKyrydJRdd4eUmZmVWtlm8y+f127KukgccJEHLZdHhoqt8s4ekjulegPv1cYi49A6zSBbCgzQQ==}
-    peerDependencies:
-      qrcode: ^1.5
-      react: ^16.8.0  || ^17.0.0 || ^18.0.0 || ^19.0.0
-    peerDependenciesMeta:
-      qrcode:
-        optional: true
-    dependencies:
-      '@microsoft/fetch-event-source': 2.0.1
-      js-cookie: 3.0.5
-      lodash-es: 4.17.23
-      react: 19.1.1
-      screenfull: 5.2.0
-      use-sync-external-store: 1.6.0(react@19.1.1)
     dev: false
 
   /@rolldown/pluginutils@1.0.0-beta.27:
@@ -5179,10 +5152,6 @@ packages:
       void-elements: 3.1.0
     dev: false
 
-  /html-to-image@1.11.13:
-    resolution: {integrity: sha512-cuOPoI7WApyhBElTTb9oqsawRvZ0rHhaHwghRLlTuffoD1B2aDemlCruLeZrUIIdvG7gs9xeELEPm6PhuASqrg==}
-    dev: false
-
   /html-url-attributes@3.0.1:
     resolution: {integrity: sha512-ol6UPyBWqsrO6EJySPz2O7ZSr856WDrEzM5zMqp+FJJLGMW35cLYmmZnl0vztAZxRUoNZJFTCohfjuIJ8I4QBQ==}
     dev: false
@@ -5366,11 +5335,6 @@ packages:
     resolution: {integrity: sha512-ekilCSN1jwRvIbgeg/57YFh8qQDNbwDb9xT/qu2DAHbFFZUicIl4ygVaAvzveMhMVr3LnpSKTNnwt8PoOfmKhQ==}
     hasBin: true
     dev: true
-
-  /js-cookie@3.0.5:
-    resolution: {integrity: sha512-cEiJEAEoIbWfCZYKWhVwFuvPX1gETRYPw6LlaTKoxD3s2AkXzkCjnp6h0V77ozyqj0jakteJ4YqDJT830+lVGw==}
-    engines: {node: '>=14'}
-    dev: false
 
   /js-tokens@4.0.0:
     resolution: {integrity: sha512-RdJUflcE3cUzKiMqQgsCu06FPu9UdIJO0beYbPhHN4k6apgJtifcoCtT9bcxOpYBtpD2kCM6Sbzg4CausW/PKQ==}
@@ -6988,11 +6952,6 @@ packages:
 
   /scheduler@0.26.0:
     resolution: {integrity: sha512-NlHwttCI/l5gCPR3D1nNXtWABUmBwvZpEQiD4IXSbIDq8BzLIK/7Ir5gTFSGZDUu37K5cMNp0hFtzO38sC7gWA==}
-
-  /screenfull@5.2.0:
-    resolution: {integrity: sha512-9BakfsO2aUQN2K9Fdbj87RJIEZ82Q9IGim7FqM5OsebfoFC6ZHXgDq/KvniuLTPdeM8wY2o6Dj3WQ7KeQCj3cA==}
-    engines: {node: '>=0.10.0'}
-    dev: false
 
   /semver-compare@1.0.0:
     resolution: {integrity: sha512-YM3/ITh2MJ5MtzaM429anh+x2jiLVjqILF4m4oyQB18W7Ggea7BfqdH/wGMK7dDiMghv/6WG7znWMwUDzJiXow==}

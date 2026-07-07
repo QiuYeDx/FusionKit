@@ -1,4 +1,4 @@
-import React, { useEffect, useState, MouseEvent, useMemo, useRef } from "react";
+import React, { useMemo } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import {
@@ -11,17 +11,13 @@ import {
   Sun,
 } from "lucide-react";
 import useThemeStore from "@/store/useThemeStore";
-import useFadeMaskLayerStore from "@/store/useFadeMaskLayer";
-import { useWindowSize } from "@reactuses/core";
-import * as htmlToImage from "html-to-image";
-import { toPng, toJpeg, toBlob, toPixelData, toSvg } from "html-to-image";
 import { ToolNameMap } from "@/constants/router";
 import { motion, AnimatePresence } from "motion/react";
 import { Button } from "@/components/ui/button";
+import { ThemeTransitionToggle } from "@/components/qiuye-ui/theme-transition-toggle";
 import { cn } from "@/lib/utils";
 
 const BottomNavigation: React.FC = () => {
-  const { width, height } = useWindowSize();
   const { t } = useTranslation();
   const navigate = useNavigate();
   const location = useLocation();
@@ -30,57 +26,6 @@ const BottomNavigation: React.FC = () => {
   const currentToolName = useMemo(() => {
     return ToolNameMap[location.pathname] || "menu.tools";
   }, [location.pathname]);
-
-  const {
-    showMaskLayer,
-    setVisible,
-    setShowInner,
-    setCenterXY,
-    setRectSize,
-    setShowMaskLayer,
-    setBackgroundImage,
-  } = useFadeMaskLayerStore();
-
-  const handleToggleDarkMode = (e: MouseEvent<HTMLButtonElement>) => {
-    // 截取当前内容
-    const node = document.getElementById("root");
-
-    htmlToImage
-      .toPng(node as any, {
-        filter: (el: any) => {
-          if (!el) return false;
-          if (el.classList && el.classList.contains("fade-mask-layer"))
-            return false;
-          return true;
-        },
-      })
-      .then((dataUrl: any) => {
-        // 获取到图片的 Base64 数据
-        setBackgroundImage(dataUrl);
-
-        // * 执行后续步骤
-        if (isDark) {
-          setShowInner(true);
-        } else {
-          setShowInner(false);
-        }
-        setVisible(true);
-        setRectSize(width, height);
-        setCenterXY(e.clientX, e.clientY);
-        setShowMaskLayer(!showMaskLayer);
-
-        // * 在真正切换 theme 之前截图并显示过渡动效
-        // 注意：页面滚动重置逻辑已移至 FadeMaskLayer 组件中统一处理
-        if (isDark) {
-          setTheme("light");
-        } else {
-          setTheme("dark");
-        }
-      })
-      .catch((error: any) => {
-        console.error("Error generating image:", error);
-      });
-  };
 
   // 判断当前是否为主菜单
   const isMainMenu = ["/", "/about", "/setting", "/tools"].includes(
@@ -163,15 +108,19 @@ const BottomNavigation: React.FC = () => {
 
       {/* Dark Mode 快捷切换 */}
       <div className="absolute right-6 pointer-events-auto">
-        <Button
+        <ThemeTransitionToggle
           variant="outline"
           size="icon"
-          onClick={handleToggleDarkMode}
+          isDark={isDark}
+          onToggle={(nextDark) => setTheme(nextDark ? "dark" : "light")}
+          buttonShape="circle"
+          lightIcon={<Sun className="size-5" />}
+          darkIcon={<Moon className="size-5" />}
+          lightLabel="切换到深色主题"
+          darkLabel="切换到浅色主题"
+          shape="circle"
           className="h-9 w-9 rounded-full dark:bg-background dark:hover:bg-accent"
-        >
-          {isDark ? <Moon className="h-5 w-5" /> : <Sun className="h-5 w-5" />}
-          <span className="sr-only">切换主题</span>
-        </Button>
+        />
       </div>
     </div>
   );

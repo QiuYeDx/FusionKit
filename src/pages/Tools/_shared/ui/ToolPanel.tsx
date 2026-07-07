@@ -1,6 +1,6 @@
 import * as React from "react";
 import type { LucideIcon } from "lucide-react";
-import { Card } from "@/components/ui/card";
+import { SmoothCorners } from "@/components/qiuye-ui/smooth-corners";
 import { cn } from "@/lib/utils";
 
 type ToolPanelProps = {
@@ -35,7 +35,15 @@ export function ToolPanel({
   bodyClassName,
 }: ToolPanelProps) {
   return (
-    <Card id={id} className={cn("overflow-hidden p-0 gap-0", className)}>
+    <SmoothCorners
+      id={id}
+      radius={16}
+      smoothing={0.72}
+      className={cn(
+        "flex flex-col overflow-hidden border bg-card text-card-foreground shadow-sm",
+        className,
+      )}
+    >
       <div
         className={cn(
           "flex flex-wrap items-center justify-between gap-3 border-b px-4 py-3",
@@ -57,7 +65,7 @@ export function ToolPanel({
       </div>
       <div className={bodyClassName}>{children}</div>
       {footer ? <div className="border-t px-4 py-3">{footer}</div> : null}
-    </Card>
+    </SmoothCorners>
   );
 }
 

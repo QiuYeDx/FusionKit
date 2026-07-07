@@ -52,5 +52,6 @@ docs/v0.2.11/
 | Feature Slug | 状态 | 入口 |
 | --- | --- | --- |
 | `name-translator-ux` | 已完成 `NT-UX-001` | `docs/v0.2.11/name-translator-ux/name-translator-ux-execution-plan.md` |
+| `qiuye-ui-refresh` | 已完成 `QIUYE-UI-001` | `docs/v0.2.11/qiuye-ui-refresh/qiuye-ui-refresh-execution-plan.md` |
 
 收到新的具体迭代需求后，在本目录下新增 `<feature-slug>/` 并补齐设计文档与执行计划。

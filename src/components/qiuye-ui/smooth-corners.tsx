@@ -3,10 +3,10 @@
 import * as React from "react";
 import { Slot } from "@radix-ui/react-slot";
 import {
+  computeSmoothCorners,
   smoothCorners,
   smoothCornersCSS,
 } from "@qiuyedx/smooth-corners";
-import { observe, unobserve } from "@qiuyedx/smooth-corners/observer";
 
 import { cn } from "@/lib/utils";
 
@@ -14,6 +14,7 @@ type SmoothCornerVars = Record<"--sc-r" | "--sc-i" | "--sc-s", string>;
 type SmoothCornerStyle = React.CSSProperties & Partial<SmoothCornerVars>;
 
 const STYLE_ID = "qiuye-ui-smooth-corners-style";
+const observedElements = new WeakMap<HTMLElement, ResizeObserver>();
 
 /**
  * 可复用的基础 CSS。需要手动放入全局样式时可直接使用该字符串。
@@ -56,6 +57,48 @@ function composeRefs<T>(...refs: Array<React.Ref<T> | undefined>) {
 
 function normalizeNumber(value: number | undefined, fallback: number) {
   return Number.isFinite(value) ? Number(value) : fallback;
+}
+
+function applySizeAwareSmoothCorners(
+  el: HTMLElement,
+  radius: number,
+  smoothing: number,
+) {
+  const rect = el.getBoundingClientRect();
+  const result = computeSmoothCorners(rect.width, rect.height, radius, smoothing);
+
+  el.style.setProperty("--sc-r", `${result.radius}px`);
+  el.style.setProperty("--sc-i", `${result.compensatedRadius}px`);
+  el.style.setProperty(
+    "--sc-s",
+    result.k === null ? "" : `superellipse(${result.k})`,
+  );
+}
+
+function observeSmoothCorners(
+  el: HTMLElement,
+  radius: number,
+  smoothing: number,
+) {
+  if (typeof ResizeObserver === "undefined") {
+    applySizeAwareSmoothCorners(el, radius, smoothing);
+    return;
+  }
+
+  unobserveSmoothCorners(el);
+  applySizeAwareSmoothCorners(el, radius, smoothing);
+
+  const observer = new ResizeObserver(() => {
+    applySizeAwareSmoothCorners(el, radius, smoothing);
+  });
+  observer.observe(el);
+  observedElements.set(el, observer);
+}
+
+function unobserveSmoothCorners(el: HTMLElement) {
+  const observer = observedElements.get(el);
+  observer?.disconnect();
+  observedElements.delete(el);
 }
 
 /** SmoothCorners 组件的属性 */
@@ -145,13 +188,10 @@ export const SmoothCorners = React.forwardRef<HTMLElement, SmoothCornersProps>(
       const el = localRef.current;
       if (!el || disabled || !observeSize) return;
 
-      observe(el, {
-        radius: normalizedRadius,
-        smoothing: normalizedSmoothing,
-      });
+      observeSmoothCorners(el, normalizedRadius, normalizedSmoothing);
 
       return () => {
-        unobserve(el);
+        unobserveSmoothCorners(el);
       };
     }, [disabled, normalizedRadius, normalizedSmoothing, observeSize]);
 

@@ -1,6 +1,7 @@
 import * as React from "react";
 import { FolderOpen, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { SmoothCorners } from "@/components/qiuye-ui/smooth-corners";
 import { cn } from "@/lib/utils";
 
 type ToolFileDropZoneProps = {
@@ -64,10 +65,12 @@ export function ToolFileDropZone({
   );
 
   return (
-    <div
+    <SmoothCorners
       id={id}
+      radius={18}
+      smoothing={0.74}
       className={cn(
-        "relative flex items-center gap-4 rounded-xl border-2 border-dashed px-5 py-5 transition-colors",
+        "relative flex items-center gap-4 border-2 border-dashed px-5 py-5 transition-colors",
         disabled
           ? "cursor-not-allowed border-border/70 opacity-60"
           : "cursor-pointer",
@@ -137,7 +140,7 @@ export function ToolFileDropZone({
           {actionLabel}
         </Button>
       </div>
-    </div>
+    </SmoothCorners>
   );
 }
 

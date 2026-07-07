@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import { ArrowRight, Clock } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { SmoothCorners } from "@/components/qiuye-ui/smooth-corners";
 import { cn } from "@/lib/utils";
 import ToolBadge from "./_shared/ToolBadge";
 import { TOOL_META, type ToolKey, toneCss } from "./_shared/toolMeta";
@@ -191,10 +192,12 @@ function ToolCard({
   const Icon = meta.icon;
 
   return (
-    <div
+    <SmoothCorners
       onClick={() => !isSoon && onOpen(item.id)}
+      radius={16}
+      smoothing={0.72}
       className={cn(
-        "group relative overflow-hidden rounded-xl border bg-card p-4 transition-all duration-200",
+        "group relative overflow-hidden border bg-card p-4 transition-all duration-200",
         isSoon
           ? "border-dashed opacity-65 cursor-default"
           : "cursor-pointer hover:-translate-y-[1px] hover:shadow-[0_6px_20px_-8px_rgba(0,0,0,0.12)]"
@@ -266,7 +269,7 @@ function ToolCard({
           ))}
         </div>
       )}
-    </div>
+    </SmoothCorners>
   );
 }
 
