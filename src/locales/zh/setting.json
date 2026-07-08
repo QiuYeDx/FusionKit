@@ -53,6 +53,19 @@
       "badge_flagship": "旗舰",
       "badge_legacy": "旧版"
     },
+    "api_format": {
+      "label": "API 格式",
+      "responses": "Responses API",
+      "chat_completions": "Chat Completions",
+      "responses_hint": "适合新版 OpenAI Responses 接口。",
+      "chat_hint": "适合 DeepSeek 和多数 OpenAI 兼容服务。",
+      "base_url_hint_responses": "建议填写 Base URL，例如 https://api.openai.com/v1；历史 /responses endpoint 也兼容。",
+      "base_url_hint_chat": "建议填写 Base URL，例如 https://api.example.com/v1；历史 /chat/completions endpoint 也兼容。",
+      "output_token_parameter": "输出 Token 参数",
+      "output_token_parameter_hint": "OpenAI 新模型通常使用 max_completion_tokens，第三方兼容服务通常使用 max_tokens。",
+      "max_tokens": "max_tokens",
+      "max_completion_tokens": "max_completion_tokens"
+    },
     "notification": {
       "label": "系统通知",
       "test_btn": "测试通知",
@@ -100,7 +113,10 @@
       "select_placeholder": "选择模型配置…",
       "not_configured": "未配置",
       "locked": "会话中",
-      "locked_tooltip": "当前有会话进行中，无法修改 Agent 所用的模型。请新建对话后再修改。"
+      "locked_tooltip": "当前有会话进行中，无法修改 Agent 所用的模型。请新建对话后再修改。",
+      "agent_unsupported_badge": "Agent 暂不支持",
+      "agent_unsupported_desc": "当前 Agent 暂不支持 Responses API。请选择 Chat Completions 配置；Responses API 配置仍可用于任务执行模型。",
+      "agent_unsupported_select": "当前 Agent 暂不支持 Responses API，请选择 Chat Completions 配置。"
     },
     "profile": {
       "add": "添加配置",

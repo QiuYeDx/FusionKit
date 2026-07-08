@@ -2,7 +2,11 @@ import { useState, useCallback, useMemo, useEffect } from "react";
 import useModelStore from "@/store/useModelStore";
 import useAgentStore from "@/store/agent/useAgentStore";
 import { Model } from "@/type/model";
-import type { ModelProfile } from "@/type/model";
+import type {
+  ModelApiFormat,
+  ModelProfile,
+  OutputTokenParameter,
+} from "@/type/model";
 import { useTranslation } from "react-i18next";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ButtonGroup } from "@/components/ui/button-group";
@@ -36,10 +40,14 @@ import {
 import {
   OPENAI_MODEL_OPTIONS,
   DEEPSEEK_MODEL_OPTIONS,
-  DEFAULT_MODEL_URL_MAP,
+  DEFAULT_MODEL_BASE_URL_MAP,
+  DEFAULT_MODEL_API_FORMAT_MAP,
   DEFAULT_MODEL_KEY_MAP,
+  DEFAULT_OUTPUT_TOKEN_PARAMETER_MAP,
   DEFAULT_TOKEN_PRICING_MAP,
 } from "@/constants/model";
+import { normalizeModelEndpoint } from "@/lib/model-endpoint";
+import { isAgentProfileApiFormatSupported } from "@/agent/api-format-capability";
 import {
   RefreshCw,
   Loader2,
@@ -99,6 +107,26 @@ function ModelAssignmentCard() {
 
   const agentProfile = profiles.find((p) => p.id === assignment.agent);
   const taskProfile = profiles.find((p) => p.id === assignment.taskExecution);
+  const agentProfileApiFormatUnsupported =
+    !!agentProfile && !isAgentProfileApiFormatSupported(agentProfile);
+
+  const handleAgentAssignmentChange = useCallback(
+    (value: string) => {
+      if (value === NONE_VALUE) {
+        setAssignment("agent", null);
+        return;
+      }
+
+      const nextProfile = profiles.find((p) => p.id === value);
+      if (nextProfile && !isAgentProfileApiFormatSupported(nextProfile)) {
+        toast.error(t("setting:fields.assignment.agent_unsupported_select"));
+        return;
+      }
+
+      setAssignment("agent", value);
+    },
+    [profiles, setAssignment, t],
+  );
 
   return (
     <Card>
@@ -132,7 +160,7 @@ function ModelAssignmentCard() {
           </div>
           <Select
             value={assignment.agent ?? NONE_VALUE}
-            onValueChange={(v) => setAssignment("agent", v === NONE_VALUE ? null : v)}
+            onValueChange={handleAgentAssignmentChange}
             disabled={hasActiveConversation}
           >
             <SelectTrigger className="w-full">
@@ -153,14 +181,27 @@ function ModelAssignmentCard() {
               </SelectItem>
               {profiles.map((p) => (
                 <SelectItem key={p.id} value={p.id}>
-                  <span className="flex items-center gap-2">
-                    <span>{p.name}</span>
-                    <span className="text-xs text-muted-foreground font-mono">{p.modelKey}</span>
+                  <span className="flex items-center justify-between gap-2">
+                    <span className="flex items-center gap-2 min-w-0">
+                      <span>{p.name}</span>
+                      <span className="text-xs text-muted-foreground font-mono">{p.modelKey}</span>
+                    </span>
+                    {!isAgentProfileApiFormatSupported(p) && (
+                      <Badge variant="outline" className="text-[10px] text-amber-600 dark:text-amber-400 border-amber-500/30">
+                        {t("setting:fields.assignment.agent_unsupported_badge")}
+                      </Badge>
+                    )}
                   </span>
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
+          {agentProfileApiFormatUnsupported && (
+            <div className="flex items-start gap-2 rounded-md border border-amber-500/25 bg-amber-500/5 px-3 py-2 text-xs text-amber-700 dark:text-amber-400">
+              <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+              <span>{t("setting:fields.assignment.agent_unsupported_desc")}</span>
+            </div>
+          )}
         </div>
 
         {/* Task Execution Model Assignment */}
@@ -298,6 +339,11 @@ function ModelProfilesCard() {
                             {t("setting:fields.profile.in_use")}
                           </Badge>
                         )}
+                        <Badge variant="outline" className="text-[10px] px-1.5 py-0">
+                          {profile.apiFormat === "responses"
+                            ? t("setting:fields.api_format.responses")
+                            : t("setting:fields.api_format.chat_completions")}
+                        </Badge>
                       </div>
                       <div className="flex items-center gap-3 mt-0.5">
                         <span className="text-xs text-muted-foreground font-mono truncate">
@@ -370,6 +416,10 @@ function ProfileEditDialog({ open, onOpenChange, profile }: ProfileDialogProps) 
   const [apiKey, setApiKey] = useState("");
   const [baseUrl, setBaseUrl] = useState("");
   const [modelKey, setModelKey] = useState("");
+  const [apiFormat, setApiFormat] =
+    useState<ModelApiFormat>("chat_completions");
+  const [outputTokenParameter, setOutputTokenParameter] =
+    useState<OutputTokenParameter>("max_tokens");
   const [inputPrice, setInputPrice] = useState<number>(0);
   const [outputPrice, setOutputPrice] = useState<number>(0);
 
@@ -386,14 +436,21 @@ function ProfileEditDialog({ open, onOpenChange, profile }: ProfileDialogProps) 
         setApiKey(profile.apiKey);
         setBaseUrl(profile.baseUrl);
         setModelKey(profile.modelKey);
+        setApiFormat(profile.apiFormat);
+        setOutputTokenParameter(
+          profile.outputTokenParameter ??
+            DEFAULT_OUTPUT_TOKEN_PARAMETER_MAP[profile.provider],
+        );
         setInputPrice(profile.tokenPricing.inputTokensPerMillion);
         setOutputPrice(profile.tokenPricing.outputTokensPerMillion);
       } else {
         setName("");
         setProvider(Model.DeepSeek);
         setApiKey("");
-        setBaseUrl(DEFAULT_MODEL_URL_MAP[Model.DeepSeek]);
+        setBaseUrl(DEFAULT_MODEL_BASE_URL_MAP[Model.DeepSeek]);
         setModelKey(DEFAULT_MODEL_KEY_MAP[Model.DeepSeek]);
+        setApiFormat(DEFAULT_MODEL_API_FORMAT_MAP[Model.DeepSeek]);
+        setOutputTokenParameter(DEFAULT_OUTPUT_TOKEN_PARAMETER_MAP[Model.DeepSeek]);
         setInputPrice(DEFAULT_TOKEN_PRICING_MAP[Model.DeepSeek].inputTokensPerMillion);
         setOutputPrice(DEFAULT_TOKEN_PRICING_MAP[Model.DeepSeek].outputTokensPerMillion);
       }
@@ -404,8 +461,10 @@ function ProfileEditDialog({ open, onOpenChange, profile }: ProfileDialogProps) 
 
   const handleProviderChange = (p: Model) => {
     setProvider(p);
-    setBaseUrl(DEFAULT_MODEL_URL_MAP[p]);
+    setBaseUrl(DEFAULT_MODEL_BASE_URL_MAP[p]);
     setModelKey(DEFAULT_MODEL_KEY_MAP[p]);
+    setApiFormat(DEFAULT_MODEL_API_FORMAT_MAP[p]);
+    setOutputTokenParameter(DEFAULT_OUTPUT_TOKEN_PARAMETER_MAP[p]);
     setInputPrice(DEFAULT_TOKEN_PRICING_MAP[p].inputTokensPerMillion);
     setOutputPrice(DEFAULT_TOKEN_PRICING_MAP[p].outputTokensPerMillion);
     if (!name || name === Model.DeepSeek || name === Model.OpenAI || name === t("setting:fields.other")) {
@@ -423,6 +482,8 @@ function ProfileEditDialog({ open, onOpenChange, profile }: ProfileDialogProps) 
       apiKey,
       baseUrl,
       modelKey,
+      apiFormat,
+      outputTokenParameter,
       tokenPricing: {
         inputTokensPerMillion: inputPrice,
         outputTokensPerMillion: outputPrice,
@@ -445,8 +506,9 @@ function ProfileEditDialog({ open, onOpenChange, profile }: ProfileDialogProps) 
     }
     setIsFetchingModels(true);
     try {
-      const modelsUrl = (baseUrl || DEFAULT_MODEL_URL_MAP[Model.OpenAI])
-        .replace(/\/chat\/completions\/?$/, "/models");
+      const modelsUrl = normalizeModelEndpoint(
+        baseUrl || DEFAULT_MODEL_BASE_URL_MAP[Model.OpenAI],
+      ).modelsUrl;
       const response = await fetch(modelsUrl, {
         headers: { Authorization: `Bearer ${apiKey}` },
       });
@@ -565,6 +627,34 @@ function ProfileEditDialog({ open, onOpenChange, profile }: ProfileDialogProps) 
             </ButtonGroup>
           </div>
 
+          {/* API Format */}
+          <div className="space-y-2">
+            <Label>{t("setting:fields.api_format.label")}</Label>
+            <ButtonGroup>
+              <Button
+                size="sm"
+                variant={apiFormat === "responses" ? "default" : "outline"}
+                onClick={() => setApiFormat("responses")}
+              >
+                {t("setting:fields.api_format.responses")}
+              </Button>
+              <Button
+                size="sm"
+                variant={
+                  apiFormat === "chat_completions" ? "default" : "outline"
+                }
+                onClick={() => setApiFormat("chat_completions")}
+              >
+                {t("setting:fields.api_format.chat_completions")}
+              </Button>
+            </ButtonGroup>
+            <p className="text-xs text-muted-foreground">
+              {apiFormat === "responses"
+                ? t("setting:fields.api_format.responses_hint")
+                : t("setting:fields.api_format.chat_hint")}
+            </p>
+          </div>
+
           {/* API Key */}
           <div className="space-y-2">
             <Label>{t("setting:fields.apikey")}</Label>
@@ -575,6 +665,49 @@ function ProfileEditDialog({ open, onOpenChange, profile }: ProfileDialogProps) 
               onChange={(e) => setApiKey(e.target.value)}
             />
           </div>
+
+          {/* Base URL */}
+          <div className="space-y-2">
+            <Label>{t("setting:fields.model_url")}</Label>
+            <Input
+              placeholder={t("setting:placeholder.model_url")}
+              value={baseUrl}
+              onChange={(e) => setBaseUrl(e.target.value)}
+            />
+            <p className="text-xs text-muted-foreground">
+              {apiFormat === "responses"
+                ? t("setting:fields.api_format.base_url_hint_responses")
+                : t("setting:fields.api_format.base_url_hint_chat")}
+            </p>
+          </div>
+
+          {/* Chat Completions token parameter */}
+          {apiFormat === "chat_completions" && (
+            <div className="space-y-2">
+              <Label>{t("setting:fields.api_format.output_token_parameter")}</Label>
+              <Select
+                value={outputTokenParameter}
+                onValueChange={(value) =>
+                  setOutputTokenParameter(value as OutputTokenParameter)
+                }
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="max_tokens">
+                    {t("setting:fields.api_format.max_tokens")}
+                  </SelectItem>
+                  <SelectItem value="max_completion_tokens">
+                    {t("setting:fields.api_format.max_completion_tokens")}
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                {t("setting:fields.api_format.output_token_parameter_hint")}
+              </p>
+            </div>
+          )}
 
           {/* DeepSeek Model Selector */}
           {provider === Model.DeepSeek && (
@@ -719,14 +852,6 @@ function ProfileEditDialog({ open, onOpenChange, profile }: ProfileDialogProps) 
           {/* Other: Base URL + Model Key */}
           {provider === Model.Other && (
             <>
-              <div className="space-y-2">
-                <Label>{t("setting:fields.model_url")}</Label>
-                <Input
-                  placeholder={t("setting:placeholder.model_url") + " (https://.../v1/chat/completions)"}
-                  value={baseUrl}
-                  onChange={(e) => setBaseUrl(e.target.value)}
-                />
-              </div>
               <div className="space-y-2">
                 <Label>{t("setting:fields.model_key")}</Label>
                 <Input

@@ -17,12 +17,8 @@ vi.mock("electron", () => ({
   },
 }));
 
-vi.mock("axios", () => ({
-  default: {
-    post: vi.fn(),
-    get: vi.fn(),
-    isAxiosError: vi.fn(() => false),
-  },
+vi.mock("../../electron/main/ai/model-runtime-client", () => ({
+  sendModelRuntimeText: vi.fn(),
 }));
 
 describe("BaseTranslator empty result retry", () => {
@@ -33,9 +29,9 @@ describe("BaseTranslator empty result retry", () => {
   it("retries when a successful response parses to an empty result", async () => {
     const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
     const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
-    const axios = (await import("axios")).default as unknown as {
-      post: ReturnType<typeof vi.fn>;
-    };
+    const { sendModelRuntimeText } = await import(
+      "../../electron/main/ai/model-runtime-client"
+    );
     const { BaseTranslator } = await import(
       "../../electron/main/translation/class/base-translator"
     );
@@ -55,12 +51,8 @@ describe("BaseTranslator empty result retry", () => {
         return partialContent;
       }
 
-      protected getApiEndpoint(): string {
-        return "https://example.test/chat/completions";
-      }
-
       protected async parseResponse(responseData: any): Promise<string> {
-        return responseData.choices?.[0]?.message?.content;
+        return responseData.content;
       }
 
       protected normalizeError(error: unknown): Error {
@@ -68,16 +60,14 @@ describe("BaseTranslator empty result retry", () => {
       }
     }
 
-    axios.post
+    vi.mocked(sendModelRuntimeText)
       .mockResolvedValueOnce({
-        data: {
-          choices: [{ message: { content: "   " } }],
-        },
+        content: "   ",
+        apiFormat: "chat_completions",
       })
       .mockResolvedValueOnce({
-        data: {
-          choices: [{ message: { content: "[00:01.00]翻译结果" } }],
-        },
+        content: "[00:01.00]翻译结果",
+        apiFormat: "chat_completions",
       });
 
     const outputDir = await mkdtemp(path.join(os.tmpdir(), "fusionkit-lrc-"));
@@ -101,7 +91,15 @@ describe("BaseTranslator empty result retry", () => {
       errorSpy.mockRestore();
     }
 
-    expect(axios.post).toHaveBeenCalledTimes(2);
+    expect(sendModelRuntimeText).toHaveBeenCalledTimes(2);
+    expect(sendModelRuntimeText).toHaveBeenCalledWith(
+      expect.objectContaining({
+        model: expect.objectContaining({
+          apiFormat: "chat_completions",
+          modelKey: "test-model",
+        }),
+      }),
+    );
     await expect(
       readFile(path.join(outputDir, "sample.lrc"), "utf-8"),
     ).resolves.toBe("[00:01.00]翻译结果");

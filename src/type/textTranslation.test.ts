@@ -195,12 +195,19 @@ describe("text translation domain contract", () => {
         profileId: "profile_task",
         modelKey: "deepseek-chat",
         endpointLabel: "api.deepseek.com",
+        apiFormat: "chat_completions",
       },
     });
 
     const persistedText = JSON.stringify(persisted);
     expect(persisted.status).toBe("not_started");
     expect(persisted.failedSegmentIds).toEqual([]);
+    expect(persisted.model).toEqual({
+      profileId: "profile_task",
+      modelKey: "deepseek-chat",
+      endpointLabel: "api.deepseek.com",
+      apiFormat: "chat_completions",
+    });
     expect(persistedText).not.toContain("apiKey");
     expect(persistedText).not.toContain("Authorization");
   });

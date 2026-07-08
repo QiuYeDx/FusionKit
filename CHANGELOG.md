@@ -2,7 +2,22 @@
 
 本项目的所有重要更改都将记录在此文件中。
 
-## [0.2.11] - 2026-07-02
+## [0.2.11] - 2026-07-08
+
+### 新增
+
+- 模型配置新增 API 格式选择，支持 OpenAI Responses API 与 Chat Completions / OpenAI Compatible 两种调用协议并存
+- OpenAI profile 新建时默认使用 Responses API，DeepSeek 和 Other profile 默认继续使用 Chat Completions，旧配置升级后保持原有调用格式
+- 新增统一模型运行时客户端，长文本翻译、字幕翻译、名称翻译和 HomeAgent 可按 profile 的 API 格式选择对应 adapter
+- 长文本翻译、字幕翻译和名称翻译支持 Responses API 非流式文本调用，统一处理 `store:false`、usage、截断、空响应、限流和错误分类
+- HomeAgent 新增 Responses API 工具循环支持，可处理流式文本、function call、tool result 回填、多步工具循环、取消和 usage 统计
+- 设置页模型列表拉取改为基于规范化 base URL 派生 `/models`，兼容历史 `/chat/completions` 与 `/responses` endpoint 输入
+
+### 安全与隐私
+
+- Responses API 请求默认发送 `store:false`，降低模型服务端保存请求内容的风险
+- 任务恢复清单、工作区 manifest 和事件日志不持久化 API Key、Authorization header 或完整模型请求体
+- 模型运行时错误信息增加 API Key 脱敏与统一错误分类，避免敏感凭据泄露到 UI 或日志
 
 ### 优化
 
@@ -15,6 +30,8 @@
 
 - 新增 v0.2.11 文件名翻译体验修复设计文档、执行计划和实施记录
 - 新增清空选择保留配置的 store 单测，覆盖路径清空不重置用户配置的行为
+- 新增 OpenAI 新旧 API 格式兼容设计文档、执行计划、fake server fixture、运行时 adapter 测试和逐工作包实施记录
+- 新增 Chat / Responses 双格式回归测试矩阵，覆盖模型 endpoint normalization、profile v3 迁移、长文本翻译、字幕翻译、名称翻译和 HomeAgent 工具循环
 
 ## [0.2.10] - 2026-07-01
 

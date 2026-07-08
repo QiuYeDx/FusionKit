@@ -59,6 +59,7 @@ import {
   inspectTranslationRecoveryArtifact,
   createRecoveredSubtitleTaskDraft,
 } from "@/services/subtitle/translatorRecoveryService";
+import { createSubtitleTaskModelFields } from "./task-model-config";
 
 // ---------------------------------------------------------------------------
 // Tool Executor — 工具执行函数（由 AI SDK tool() 的 execute 调用）
@@ -439,9 +440,7 @@ export async function executeQueueTranslate(
       status: TaskStatus.NOT_STARTED,
       progress: 0,
       costEstimate: fastEstimate,
-      apiKey: taskProfile.apiKey,
-      apiModel: taskProfile.modelKey,
-      endPoint: taskProfile.baseUrl,
+      ...createSubtitleTaskModelFields(taskProfile),
       sourceLang,
       targetLang,
       translationOutputMode,
@@ -767,9 +766,7 @@ export async function executeQueueRecoveredSubtitleTranslate(
         ...draft,
         fileContent: draft.fileContent || "",
         status: TaskStatus.NOT_STARTED,
-        apiKey: taskProfile.apiKey,
-        apiModel: taskProfile.modelKey,
-        endPoint: taskProfile.baseUrl,
+        ...createSubtitleTaskModelFields(taskProfile),
         conflictPolicy: args.conflictPolicy ?? "index",
         concurrentSlices: args.concurrentSlices ?? true,
       };

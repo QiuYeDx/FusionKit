@@ -53,6 +53,19 @@
       "badge_flagship": "旗艦",
       "badge_legacy": "舊版"
     },
+    "api_format": {
+      "label": "API 格式",
+      "responses": "Responses API",
+      "chat_completions": "Chat Completions",
+      "responses_hint": "適合新版 OpenAI Responses 介面。",
+      "chat_hint": "適合 DeepSeek 和多數 OpenAI 相容服務。",
+      "base_url_hint_responses": "建議填寫 Base URL，例如 https://api.openai.com/v1；歷史 /responses endpoint 也相容。",
+      "base_url_hint_chat": "建議填寫 Base URL，例如 https://api.example.com/v1；歷史 /chat/completions endpoint 也相容。",
+      "output_token_parameter": "輸出 Token 參數",
+      "output_token_parameter_hint": "OpenAI 新模型通常使用 max_completion_tokens，第三方相容服務通常使用 max_tokens。",
+      "max_tokens": "max_tokens",
+      "max_completion_tokens": "max_completion_tokens"
+    },
     "notification": {
       "label": "系統通知",
       "test_btn": "測試通知",
@@ -100,7 +113,10 @@
       "select_placeholder": "選擇模型設定…",
       "not_configured": "未設定",
       "locked": "對話中",
-      "locked_tooltip": "目前有對話進行中，無法修改 Agent 所用的模型。請新建對話後再修改。"
+      "locked_tooltip": "目前有對話進行中，無法修改 Agent 所用的模型。請新建對話後再修改。",
+      "agent_unsupported_badge": "Agent 暫不支援",
+      "agent_unsupported_desc": "目前 Agent 暫不支援 Responses API。請選擇 Chat Completions 設定；Responses API 設定仍可用於任務執行模型。",
+      "agent_unsupported_select": "目前 Agent 暫不支援 Responses API，請選擇 Chat Completions 設定。"
     },
     "profile": {
       "add": "新增設定",

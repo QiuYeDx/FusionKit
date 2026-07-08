@@ -13,6 +13,7 @@ import {
   validateListRecoverableTextTranslationTasksIpcRequest,
   validateRestartTextTranslationTaskIpcRequest,
   validateRetranslateTextTranslationFromSegmentIpcRequest,
+  validateResumeTextTranslationTaskIpcRequest,
   validateTextTranslationTaskIdIpcRequest,
   type CancelTextTranslationTaskRequest,
   type DeleteTextTranslationTaskRequest,
@@ -68,8 +69,9 @@ export function setupTextTranslationIPC(
     (request) => service.cancelTask(request),
   );
 
-  handleTaskRequest<ResumeTextTranslationTaskRequest, TextTranslationTask>(
+  handleValidatedRequest<ResumeTextTranslationTaskRequest, TextTranslationTask>(
     TEXT_TRANSLATION_IPC_CHANNELS.resumeTask,
+    validateResumeTextTranslationTaskIpcRequest,
     (request) => service.resumeTask(request),
   );
 

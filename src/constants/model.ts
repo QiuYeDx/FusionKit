@@ -1,4 +1,10 @@
-import { Model, TokenPricing, TokenPricingMap } from "@/type/model";
+import {
+  Model,
+  type ModelApiFormat,
+  type OutputTokenParameter,
+  type TokenPricing,
+  type TokenPricingMap,
+} from "@/type/model";
 
 export const DEFAULT_MODEL = Model.DeepSeek;
 
@@ -105,6 +111,27 @@ export const DEFAULT_MODEL_URL_MAP = {
   [Model.DeepSeek]: "https://api.deepseek.com/v1/chat/completions",
   [Model.OpenAI]: "https://api.openai.com/v1/chat/completions",
   [Model.Other]: "",
+};
+
+export const DEFAULT_MODEL_BASE_URL_MAP: Record<Model, string> = {
+  [Model.DeepSeek]: "https://api.deepseek.com/v1",
+  [Model.OpenAI]: "https://api.openai.com/v1",
+  [Model.Other]: "",
+};
+
+export const DEFAULT_MODEL_API_FORMAT_MAP: Record<Model, ModelApiFormat> = {
+  [Model.DeepSeek]: "chat_completions",
+  [Model.OpenAI]: "responses",
+  [Model.Other]: "chat_completions",
+};
+
+export const DEFAULT_OUTPUT_TOKEN_PARAMETER_MAP: Record<
+  Model,
+  OutputTokenParameter
+> = {
+  [Model.DeepSeek]: "max_tokens",
+  [Model.OpenAI]: "max_completion_tokens",
+  [Model.Other]: "max_tokens",
 };
 
 export const DEFAULT_MODEL_KEY_MAP = {

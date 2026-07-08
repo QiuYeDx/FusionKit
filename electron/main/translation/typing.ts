@@ -1,3 +1,5 @@
+import type { ModelApiFormat, OutputTokenParameter } from "@/type/model";
+
 /**
  * 字幕翻译模块 - 类型定义
  *
@@ -55,6 +57,9 @@ export type TranslationLanguage =
 /** 翻译输出模式："bilingual" 保留原文+译文双语 | "target_only" 仅输出译文 */
 export type TranslationOutputMode = "bilingual" | "target_only";
 
+export type SubtitleModelApiFormat = ModelApiFormat;
+export type SubtitleOutputTokenParameter = OutputTokenParameter;
+
 /**
  * 单个字幕翻译任务的完整描述，由渲染进程构建后通过 IPC 发送到主进程。
  * 包含文件信息、API 配置、翻译选项、以及运行时状态（进度/错误日志等）。
@@ -89,6 +94,8 @@ export type SubtitleTranslatorTask = {
   apiModel: string;
   /** OpenAI 兼容的 chat completions 端点 */
   endPoint: string;
+  apiFormat?: SubtitleModelApiFormat;
+  outputTokenParameter?: SubtitleOutputTokenParameter;
 
   sourceLang?: TranslationLanguage;
   targetLang?: TranslationLanguage;

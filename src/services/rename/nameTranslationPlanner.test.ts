@@ -3,7 +3,14 @@ import {
   createNameTranslationPlan,
   parseNameTranslationModelOutputText,
   repairNameTranslationModelJsonText,
+  translateBatchWithResponsesProfile,
 } from "./nameTranslationPlanner";
+import { Model, type ModelProfile } from "@/type/model";
+import {
+  createErrorBody,
+  createResponsesBody,
+  startFakeModelApiServer,
+} from "../../../test/ai/fakeModelApiServer";
 import {
   clearAllNameTranslationPlansForTest,
   getNameTranslationPlan,
@@ -727,6 +734,66 @@ describe("createNameTranslationPlan", () => {
     ]);
   });
 
+  it("translates model batches through Responses text JSON", async () => {
+    const server = await startFakeModelApiServer();
+    try {
+      server.enqueueRoute("responses", {
+        body: createResponsesBody({
+          outputText:
+            '{"items":[{"id":"target_a","translatedStem":"Episode 1"}]}',
+        }),
+      });
+
+      const result = await translateBatchWithResponsesProfile(
+        createResponsesProfile(server.baseUrl),
+        "System prompt",
+        "User prompt",
+        2048
+      );
+
+      expect(result).toEqual([
+        { id: "target_a", translatedStem: "Episode 1" },
+      ]);
+      expect(server.requests[0]).toMatchObject({
+        method: "POST",
+        url: "/v1/responses",
+        body: {
+          model: "fake-responses-model",
+          instructions: expect.stringContaining("Return raw JSON only"),
+          input: "User prompt",
+          max_output_tokens: 2048,
+          store: false,
+        },
+      });
+    } finally {
+      await server.close();
+    }
+  });
+
+  it("redacts API keys from Responses name translation errors", async () => {
+    const server = await startFakeModelApiServer();
+    try {
+      server.enqueueRoute("responses", {
+        status: 401,
+        body: createErrorBody(
+          "bad key sk-name-secret",
+          "invalid_api_key",
+        ),
+      });
+
+      await expect(
+        translateBatchWithResponsesProfile(
+          createResponsesProfile(server.baseUrl),
+          "System prompt",
+          "User prompt",
+          2048
+        )
+      ).rejects.toThrow(/REDACTED_API_KEY/);
+    } finally {
+      await server.close();
+    }
+  });
+
   it("returns clarification for path_segments without explicit boundaries", async () => {
     const summary = await createNameTranslationPlan(
       createOptions({
@@ -823,6 +890,23 @@ function createOptions(
     scope: "children",
     targetKind: "files",
     ...overrides,
+  };
+}
+
+function createResponsesProfile(baseUrl: string): ModelProfile {
+  return {
+    id: "profile_responses",
+    name: "Responses",
+    provider: Model.OpenAI,
+    apiKey: "sk-name-secret",
+    baseUrl,
+    modelKey: "fake-responses-model",
+    tokenPricing: {
+      inputTokensPerMillion: 1,
+      outputTokensPerMillion: 2,
+    },
+    apiFormat: "responses",
+    outputTokenParameter: "max_completion_tokens",
   };
 }
 

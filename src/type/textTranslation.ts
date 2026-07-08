@@ -1,4 +1,5 @@
 import type { TranslationLanguage } from "@/type/subtitle";
+import type { ModelApiFormat, OutputTokenParameter } from "@/type/model";
 
 export type TextFileFormat = "txt" | "markdown";
 
@@ -164,6 +165,7 @@ export interface TextTranslationPersistedModelRef {
   profileId?: string;
   modelKey?: string;
   endpointLabel?: string;
+  apiFormat?: ModelApiFormat;
 }
 
 export interface PersistedTextTranslationTask {
@@ -188,6 +190,8 @@ export interface TextTranslationRuntimeModelConfig {
   apiKey: string;
   modelKey: string;
   endpoint: string;
+  apiFormat: ModelApiFormat;
+  outputTokenParameter?: OutputTokenParameter;
 }
 
 export interface CreateTextTranslationTaskRequest {

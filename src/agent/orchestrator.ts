@@ -1,16 +1,21 @@
-import { streamText, stepCountIs, type ModelMessage } from "ai";
-import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
+import type { ModelMessage } from "ai";
 import useAgentStore from "@/store/agent/useAgentStore";
 import useModelStore from "@/store/useModelStore";
+import i18n from "@/i18n";
 import { agentTools } from "./tools";
 import type { AgentMessage, AgentToolCall, TokenUsage } from "./types";
 import { DEFAULT_QUEUE_BATCH_SIZE, MAX_QUEUE_BATCH_SIZE } from "./queue-batch";
+import { isAgentProfileApiFormatSupported } from "./api-format-capability";
+import { ChatCompletionsAgentAdapter } from "./runtime/chat-completions-agent-adapter";
+import { ResponsesAgentAdapter } from "./runtime/responses-agent-adapter";
 
 // ---------------------------------------------------------------------------
-// Orchestrator — AI SDK streamText 驱动的对话 + 工具循环
+// Orchestrator — 驱动 Chat Completions / Responses 对话 + 工具循环
 // ---------------------------------------------------------------------------
 
 let activeAbortController: AbortController | null = null;
+const chatCompletionsAgentAdapter = new ChatCompletionsAgentAdapter();
+const responsesAgentAdapter = new ResponsesAgentAdapter();
 
 function buildSystemPrompt(): string {
   const { executionMode } = useAgentStore.getState();
@@ -99,19 +104,6 @@ Just respond naturally. Talk about the app, answer questions, or have a friendly
 
 function generateId(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
-}
-
-/**
- * 创建 OpenAI 兼容的 AI SDK model 实例
- */
-function createModel(endPoint: string, apiKey: string, modelKey: string) {
-  const baseURL = endPoint.replace(/\/chat\/completions\/?$/, "");
-  const provider = createOpenAICompatible({
-    baseURL,
-    apiKey,
-    name: "fusionkit-provider",
-  });
-  return provider(modelKey);
 }
 
 /**
@@ -208,7 +200,30 @@ export async function handleUserMessage(userContent: string): Promise<void> {
     return;
   }
 
-  const { apiKey, baseUrl: endPoint, modelKey } = agentProfile;
+  if (!isAgentProfileApiFormatSupported(agentProfile)) {
+    const apiFormatLabel =
+      agentProfile.apiFormat === "responses"
+        ? i18n.t("home:api_format_responses")
+        : i18n.t("home:api_format_chat_completions");
+    const errMsg = i18n.t("home:agent_api_format_unsupported", {
+      format: apiFormatLabel,
+    });
+    store.addMessage({
+      id: generateId(),
+      role: "assistant",
+      content: errMsg,
+      timestamp: Date.now(),
+    });
+    store.appendLog("error", errMsg, {
+      reason: "unsupported_agent_api_format",
+      apiFormat: agentProfile.apiFormat,
+      profileId: agentProfile.id,
+    });
+    store.setStatus("error");
+    store.setStreaming(false);
+    return;
+  }
+
   const pricing = agentProfile.tokenPricing;
   const stepUsages: TokenUsage[] = [];
 
@@ -216,19 +231,28 @@ export async function handleUserMessage(userContent: string): Promise<void> {
 
   try {
     const latestMessages = useAgentStore.getState().session.messages;
-    const modelMessages = buildModelMessages(latestMessages);
-    const aiModel = createModel(endPoint, apiKey, modelKey);
-
-    const result = streamText({
-      model: aiModel,
-      system: buildSystemPrompt(),
-      messages: modelMessages,
-      tools: agentTools,
-      stopWhen: stepCountIs(50),
-      temperature: 0.3,
-      maxOutputTokens: 4096,
-      abortSignal: activeAbortController.signal,
-    });
+    const result =
+      (agentProfile.apiFormat ?? "chat_completions") === "responses"
+        ? responsesAgentAdapter.streamTurn({
+            profile: agentProfile,
+            system: buildSystemPrompt(),
+            messages: latestMessages,
+            tools: agentTools,
+            temperature: 0.3,
+            maxOutputTokens: 4096,
+            abortSignal: activeAbortController.signal,
+            maxSteps: 50,
+          })
+        : chatCompletionsAgentAdapter.streamTurn({
+            profile: agentProfile,
+            system: buildSystemPrompt(),
+            messages: buildModelMessages(latestMessages),
+            tools: agentTools,
+            temperature: 0.3,
+            maxOutputTokens: 4096,
+            abortSignal: activeAbortController.signal,
+            maxSteps: 50,
+          });
 
     const pendingToolCalls: AgentToolCall[] = [];
     const pendingToolResults: Array<{
@@ -270,6 +294,7 @@ export async function handleUserMessage(userContent: string): Promise<void> {
             toolCallId: part.toolCallId,
             toolName: part.toolName,
             args: toolArgs,
+            responseItemId: part.responseItemId,
           });
           useAgentStore.getState().appendLog("tool_call", `${part.toolName}`, {
             toolCallId: part.toolCallId,
@@ -282,7 +307,11 @@ export async function handleUserMessage(userContent: string): Promise<void> {
             useAgentStore.getState().setActiveToolCalls(
               active.map((tc) =>
                 tc.toolCallId === part.toolCallId
-                  ? { ...tc, args: part.input as Record<string, unknown> }
+                  ? {
+                      ...tc,
+                      args: part.input as Record<string, unknown>,
+                      responseItemId: part.responseItemId ?? tc.responseItemId,
+                    }
                   : tc
               )
             );
@@ -293,6 +322,7 @@ export async function handleUserMessage(userContent: string): Promise<void> {
                 toolCallId: part.toolCallId,
                 toolName: part.toolName,
                 args: part.input as Record<string, unknown>,
+                responseItemId: part.responseItemId,
               },
             ]);
           }

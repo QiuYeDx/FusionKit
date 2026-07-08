@@ -27,15 +27,16 @@ import {
   createTextTranslationTask,
   type CreateTextTranslationTaskRequest,
   type SourceFingerprint,
+  type TextTranslationPersistedModelRef,
   type TextTranslationProgress,
   type TextTranslationRecoverySummary,
   type TextTranslationRuntimeModelConfig,
   type TextTranslationTask,
 } from "@/type/textTranslation";
 import {
-  sendOpenAICompatibleChatCompletion,
-  type OpenAICompatibleUsage,
-} from "../ai/openai-compatible-client";
+  sendModelRuntimeText,
+  type ModelRuntimeUsage,
+} from "../ai/model-runtime-client";
 import {
   readAndDecodeTextTranslationInputFile,
   type TextTranslationDecodedInputFile,
@@ -178,7 +179,7 @@ interface SequentialSegmentTranslation {
   translatedTextForContext: string;
   memoryPatch?: SemanticMemoryPatch;
   warnings: SemanticMemoryWarning[];
-  usage?: OpenAICompatibleUsage;
+  usage?: ModelRuntimeUsage;
 }
 
 type PersistedTranslationSegment = Omit<TranslationSegment, "sourceText">;
@@ -1302,7 +1303,7 @@ export class TextTranslationService implements TextTranslationIpcService {
 
           let result: RuntimeTranslationSegmentResult;
           let resultPath: string;
-          let usage: OpenAICompatibleUsage | undefined;
+          let usage: ModelRuntimeUsage | undefined;
           if (file.format === "markdown") {
             const payload = assertMarkdownSegmentPayload(
               await this.repository.readSegmentSourcePayload<unknown>(
@@ -1324,10 +1325,8 @@ export class TextTranslationService implements TextTranslationIpcService {
               result,
             );
           } else {
-            const response = await sendOpenAICompatibleChatCompletion({
-              endpoint: record.model.endpoint,
-              apiKey: record.model.apiKey,
-              model: record.model.modelKey,
+            const response = await sendModelRuntimeText({
+              model: record.model,
               signal,
               timeoutMs: TEXT_TRANSLATION_REQUEST_TIMEOUT_MS,
               messages: [
@@ -1399,7 +1398,7 @@ export class TextTranslationService implements TextTranslationIpcService {
     signal: AbortSignal,
   ): Promise<{
     result: MarkdownSegmentResult;
-    usage?: OpenAICompatibleUsage;
+    usage?: ModelRuntimeUsage;
   }> {
     const basePrompt =
       payload.kind === "markdown_target_only"
@@ -1432,10 +1431,8 @@ export class TextTranslationService implements TextTranslationIpcService {
     let prompt = basePrompt;
 
     for (let protocolAttempt = 0; protocolAttempt < 2; protocolAttempt += 1) {
-      const response = await sendOpenAICompatibleChatCompletion({
-        endpoint: record.model.endpoint,
-        apiKey: record.model.apiKey,
-        model: record.model.modelKey,
+      const response = await sendModelRuntimeText({
+        model: record.model,
         signal,
         timeoutMs: TEXT_TRANSLATION_REQUEST_TIMEOUT_MS,
         messages: [
@@ -1744,10 +1741,8 @@ export class TextTranslationService implements TextTranslationIpcService {
     }
 
     if (file.format === "txt") {
-      const response = await sendOpenAICompatibleChatCompletion({
-        endpoint: input.record.model.endpoint,
-        apiKey: input.record.model.apiKey,
-        model: input.record.model.modelKey,
+      const response = await sendModelRuntimeText({
+        model: input.record.model,
         signal: input.signal,
         timeoutMs: TEXT_TRANSLATION_REQUEST_TIMEOUT_MS,
         messages: [
@@ -1838,10 +1833,8 @@ export class TextTranslationService implements TextTranslationIpcService {
     let prompt = basePrompt;
 
     for (let protocolAttempt = 0; protocolAttempt < 2; protocolAttempt += 1) {
-      const response = await sendOpenAICompatibleChatCompletion({
-        endpoint: input.record.model.endpoint,
-        apiKey: input.record.model.apiKey,
-        model: input.record.model.modelKey,
+      const response = await sendModelRuntimeText({
+        model: input.record.model,
         signal: input.signal,
         timeoutMs: TEXT_TRANSLATION_REQUEST_TIMEOUT_MS,
         messages: [
@@ -2134,6 +2127,7 @@ export class TextTranslationService implements TextTranslationIpcService {
         completedSegmentCount: record.task.progress.completedSegments,
         failedSegmentIds: record.failedSegmentIds ?? [],
         staleFromSegmentId: record.staleFromSegmentId,
+        model: createPersistedRuntimeModelRef(record.model),
       }),
     );
   }
@@ -2637,6 +2631,28 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 
+function createPersistedRuntimeModelRef(
+  model: TextTranslationRuntimeModelConfig,
+): TextTranslationPersistedModelRef {
+  return {
+    profileId: model.profileId,
+    modelKey: model.modelKey,
+    endpointLabel: createEndpointLabel(model.endpoint),
+    apiFormat: model.apiFormat ?? "chat_completions",
+  };
+}
+
+function createEndpointLabel(endpoint: string): string | undefined {
+  try {
+    const parsed = new URL(endpoint);
+    return parsed.host || undefined;
+  } catch {
+    const trimmed = endpoint.trim();
+    if (!trimmed) return undefined;
+    return trimmed.replace(/^https?:\/\//i, "").split("/")[0] || undefined;
+  }
+}
+
 function formatGlossary(
   glossary: RuntimeTaskRecord["task"]["options"]["glossary"],
 ): string | undefined {
@@ -2679,7 +2695,7 @@ function shouldResetMemoryBeforeSegment(
 }
 
 function toWorkspaceUsage(
-  usage: OpenAICompatibleUsage | undefined,
+  usage: ModelRuntimeUsage | undefined,
 ): { inputTokens?: number; outputTokens?: number } | undefined {
   if (!usage) return undefined;
   return {

@@ -788,6 +788,8 @@ function SubtitleTranslator() {
           apiKey: taskProfile?.apiKey ?? "",
           apiModel: taskProfile?.modelKey ?? "",
           endPoint: taskProfile?.baseUrl ?? "",
+          apiFormat: taskProfile?.apiFormat,
+          outputTokenParameter: taskProfile?.outputTokenParameter,
           sourceLang,
           targetLang,
           translationOutputMode,

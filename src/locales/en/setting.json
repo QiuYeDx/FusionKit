@@ -53,6 +53,19 @@
       "badge_flagship": "Flagship",
       "badge_legacy": "Legacy"
     },
+    "api_format": {
+      "label": "API Format",
+      "responses": "Responses API",
+      "chat_completions": "Chat Completions",
+      "responses_hint": "Use this for the newer OpenAI Responses endpoint.",
+      "chat_hint": "Use this for DeepSeek and most OpenAI-compatible providers.",
+      "base_url_hint_responses": "Recommended: a base URL such as https://api.openai.com/v1. Historical /responses endpoints are also supported.",
+      "base_url_hint_chat": "Recommended: a base URL such as https://api.example.com/v1. Historical /chat/completions endpoints are also supported.",
+      "output_token_parameter": "Output Token Parameter",
+      "output_token_parameter_hint": "Newer OpenAI models usually use max_completion_tokens; third-party compatible services usually use max_tokens.",
+      "max_tokens": "max_tokens",
+      "max_completion_tokens": "max_completion_tokens"
+    },
     "notification": {
       "label": "Notification",
       "test_btn": "Test",
@@ -100,7 +113,10 @@
       "select_placeholder": "Select a model profile…",
       "not_configured": "Not configured",
       "locked": "In session",
-      "locked_tooltip": "A conversation is in progress. Please start a new conversation before changing the Agent model."
+      "locked_tooltip": "A conversation is in progress. Please start a new conversation before changing the Agent model.",
+      "agent_unsupported_badge": "Agent unsupported",
+      "agent_unsupported_desc": "The Agent does not support Responses API yet. Choose a Chat Completions profile; Responses API profiles can still be used for task execution.",
+      "agent_unsupported_select": "The Agent does not support Responses API yet. Choose a Chat Completions profile."
     },
     "profile": {
       "add": "Add Profile",

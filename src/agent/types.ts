@@ -13,6 +13,7 @@ export interface AgentToolCall {
   toolCallId: string;
   toolName: string;
   args: Record<string, unknown>;
+  responseItemId?: string;
 }
 
 export interface AgentMessage {

@@ -1,3 +1,5 @@
+import type { ModelApiFormat, OutputTokenParameter } from "@/type/model";
+
 export enum SubtitleFileType {
   LRC = "LRC",
   SRT = "SRT",
@@ -33,6 +35,9 @@ export type TranslationLanguage =
   | "PT";
 
 export type TranslationOutputMode = "bilingual" | "target_only";
+
+export type SubtitleModelApiFormat = ModelApiFormat;
+export type SubtitleOutputTokenParameter = OutputTokenParameter;
 
 export const SUPPORTED_LANGUAGES: {
   code: TranslationLanguage;
@@ -120,6 +125,8 @@ export type SubtitleTranslatorTask = {
   apiKey: string;
   apiModel: string;
   endPoint: string;
+  apiFormat?: SubtitleModelApiFormat;
+  outputTokenParameter?: SubtitleOutputTokenParameter;
 
   sourceLang?: TranslationLanguage;
   targetLang?: TranslationLanguage;

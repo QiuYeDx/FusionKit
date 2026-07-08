@@ -203,6 +203,8 @@ export default function RecoveryDialog({ open, onOpenChange }: RecoveryDialogPro
           apiKey: taskProfile.apiKey,
           apiModel: taskProfile.modelKey,
           endPoint: taskProfile.baseUrl,
+          apiFormat: taskProfile.apiFormat,
+          outputTokenParameter: taskProfile.outputTokenParameter,
           conflictPolicy: "index",
           concurrentSlices: true,
         };

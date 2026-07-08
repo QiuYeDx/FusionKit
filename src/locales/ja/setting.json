@@ -53,6 +53,19 @@
       "badge_flagship": "フラッグシップ",
       "badge_legacy": "旧バージョン"
     },
+    "api_format": {
+      "label": "API 形式",
+      "responses": "Responses API",
+      "chat_completions": "Chat Completions",
+      "responses_hint": "新しい OpenAI Responses エンドポイント向けです。",
+      "chat_hint": "DeepSeek や多くの OpenAI 互換サービス向けです。",
+      "base_url_hint_responses": "https://api.openai.com/v1 のようなベース URL を推奨します。従来の /responses エンドポイントも利用できます。",
+      "base_url_hint_chat": "https://api.example.com/v1 のようなベース URL を推奨します。従来の /chat/completions エンドポイントも利用できます。",
+      "output_token_parameter": "出力 Token パラメータ",
+      "output_token_parameter_hint": "新しい OpenAI モデルは通常 max_completion_tokens を使い、互換サービスは通常 max_tokens を使います。",
+      "max_tokens": "max_tokens",
+      "max_completion_tokens": "max_completion_tokens"
+    },
     "notification": {
       "label": "システム通知",
       "test_btn": "テスト",
@@ -100,7 +113,10 @@
       "select_placeholder": "モデル構成を選択…",
       "not_configured": "未設定",
       "locked": "セッション中",
-      "locked_tooltip": "会話が進行中です。Agent モデルを変更するには、新しい会話を開始してください。"
+      "locked_tooltip": "会話が進行中です。Agent モデルを変更するには、新しい会話を開始してください。",
+      "agent_unsupported_badge": "Agent 未対応",
+      "agent_unsupported_desc": "Agent はまだ Responses API に対応していません。Chat Completions 構成を選択してください。Responses API 構成はタスク実行モデルには引き続き使用できます。",
+      "agent_unsupported_select": "Agent はまだ Responses API に対応していません。Chat Completions 構成を選択してください。"
     },
     "profile": {
       "add": "構成を追加",

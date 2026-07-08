@@ -1,8 +1,10 @@
 import {
   DEFAULT_APIKEY_MAP,
   DEFAULT_MODEL,
+  DEFAULT_MODEL_API_FORMAT_MAP,
   DEFAULT_MODEL_KEY_MAP,
   DEFAULT_MODEL_URL_MAP,
+  DEFAULT_OUTPUT_TOKEN_PARAMETER_MAP,
   DEFAULT_TOKEN_PRICING_MAP,
 } from "@/constants/model";
 import type { Model, ModelProfile, ModelAssignment } from "@/type/model";
@@ -17,8 +19,8 @@ interface ModelStore {
   profiles: ModelProfile[];
   assignment: ModelAssignment;
 
-  addProfile: (profile: Omit<ModelProfile, "id">) => string;
-  updateProfile: (id: string, updates: Partial<Omit<ModelProfile, "id">>) => void;
+  addProfile: (profile: ModelProfileInput) => string;
+  updateProfile: (id: string, updates: Partial<ModelProfileInput>) => void;
   removeProfile: (id: string) => void;
   getProfileById: (id: string) => ModelProfile | undefined;
 
@@ -28,13 +30,71 @@ interface ModelStore {
   getTaskProfile: () => ModelProfile | null;
 }
 
+type ModelProfileInput = Omit<
+  ModelProfile,
+  "id" | "apiFormat" | "outputTokenParameter"
+> &
+  Partial<Pick<ModelProfile, "apiFormat" | "outputTokenParameter">>;
+
 function generateId(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 }
 
+export function normalizeModelProfileForRuntime(
+  profile: ModelProfile | ModelProfileInput,
+  options: { legacyDefault?: boolean } = {},
+): ModelProfile | ModelProfileInput {
+  const provider = profile.provider;
+  const apiFormat =
+    profile.apiFormat ??
+    (options.legacyDefault
+      ? "chat_completions"
+      : DEFAULT_MODEL_API_FORMAT_MAP[provider]);
+
+  return {
+    ...profile,
+    apiFormat,
+    outputTokenParameter:
+      profile.outputTokenParameter ?? DEFAULT_OUTPUT_TOKEN_PARAMETER_MAP[provider],
+  };
+}
+
+export function migrateModelProfilesToV3(raw: unknown): {
+  profiles: ModelProfile[];
+  assignment: ModelAssignment;
+} {
+  const persisted = isRecord(raw) ? raw : {};
+  const profiles = Array.isArray(persisted.profiles)
+    ? persisted.profiles
+        .filter(isRecord)
+        .map((profile) =>
+          normalizeModelProfileForRuntime(
+            profile as unknown as ModelProfile,
+            { legacyDefault: true },
+          ) as ModelProfile,
+        )
+    : [];
+
+  const assignment = isRecord(persisted.assignment)
+    ? {
+        agent:
+          typeof persisted.assignment.agent === "string"
+            ? persisted.assignment.agent
+            : null,
+        taskExecution:
+          typeof persisted.assignment.taskExecution === "string"
+            ? persisted.assignment.taskExecution
+            : null,
+      }
+    : { agent: null, taskExecution: null };
+
+  return { profiles, assignment };
+}
+
 /**
- * Migrate from v1 (flat model/apiKeyMap/...) to v2 (profiles + assignment).
- * Creates one profile per provider that has a non-empty apiKey.
+ * Migrate from v1 (flat model/apiKeyMap/...) to v3 (profiles + assignment +
+ * API format metadata). Creates one profile per provider that has a non-empty
+ * apiKey.
  */
 function migrateFromV1(raw: Record<string, any>): {
   profiles: ModelProfile[];
@@ -62,6 +122,8 @@ function migrateFromV1(raw: Record<string, any>): {
       baseUrl: oldUrlMap[provider] || DEFAULT_MODEL_URL_MAP[provider as Model] || "",
       modelKey: oldKeyMap[provider] || DEFAULT_MODEL_KEY_MAP[provider as Model] || "",
       tokenPricing: oldPricingMap[provider] || { ...DEFAULT_TOKEN_PRICING_MAP[provider as Model] },
+      apiFormat: "chat_completions",
+      outputTokenParameter: DEFAULT_OUTPUT_TOKEN_PARAMETER_MAP[provider as Model],
     });
 
     if (provider === oldModel) {
@@ -88,7 +150,10 @@ const useModelStore = create<ModelStore>()(
 
       addProfile: (profile) => {
         const id = generateId();
-        const newProfile: ModelProfile = { ...profile, id };
+        const newProfile = normalizeModelProfileForRuntime({
+          ...profile,
+          id,
+        }) as ModelProfile;
         set((s) => ({
           profiles: [...s.profiles, newProfile],
         }));
@@ -97,7 +162,26 @@ const useModelStore = create<ModelStore>()(
 
       updateProfile: (id, updates) => {
         set((s) => ({
-          profiles: s.profiles.map((p) => (p.id === id ? { ...p, ...updates } : p)),
+          profiles: s.profiles.map((p) => {
+            if (p.id !== id) return p;
+            const providerChanged =
+              updates.provider !== undefined && updates.provider !== p.provider;
+            const next = { ...p, ...updates };
+            return normalizeModelProfileForRuntime(
+              {
+                ...next,
+                apiFormat:
+                  providerChanged && updates.apiFormat === undefined
+                    ? undefined
+                    : next.apiFormat,
+                outputTokenParameter:
+                  providerChanged && updates.outputTokenParameter === undefined
+                    ? undefined
+                    : next.outputTokenParameter,
+              },
+              { legacyDefault: false },
+            ) as ModelProfile;
+          }),
         }));
       },
 
@@ -138,19 +222,22 @@ const useModelStore = create<ModelStore>()(
     {
       name: "fusionkit-model",
       storage: createJSONStorage(() => localStorage),
-      version: 2,
+      version: 3,
       partialize: (state) => ({
         profiles: state.profiles,
         assignment: state.assignment,
       }),
       migrate: (persisted: any, version: number) => {
-        // v1 (flat model/apiKeyMap) → v2 (profiles + assignment)
+        // v1 (flat model/apiKeyMap) -> v3 (profiles + assignment + API format)
         if (version < 2) {
           if (persisted && (persisted.model || persisted.apiKeyMap)) {
-            return migrateFromV1(persisted);
+            return migrateModelProfilesToV3(migrateFromV1(persisted));
           }
         }
-        return persisted;
+        if (version < 3) {
+          return migrateModelProfilesToV3(persisted);
+        }
+        return migrateModelProfilesToV3(persisted);
       },
       onRehydrateStorage: () => {
         // 一次性迁移：旧 key → 新 key
@@ -162,20 +249,21 @@ const useModelStore = create<ModelStore>()(
             const raw = JSON.parse(localStorage.getItem(LEGACY_KEY)!);
 
             if (raw.version === 2 && Array.isArray(raw.profiles)) {
-              // 已经是 v2 格式，直接迁移
+              // 已经是 v2 格式，补齐 v3 字段后迁移
+              const migrated = migrateModelProfilesToV3(raw);
               localStorage.setItem(
                 "fusionkit-model",
                 JSON.stringify({
-                  state: { profiles: raw.profiles, assignment: raw.assignment || { agent: null, taskExecution: null } },
-                  version: 2,
+                  state: migrated,
+                  version: 3,
                 })
               );
             } else if (raw.model || raw.apiKeyMap) {
-              // v1 格式，需要 migrate
-              const migrated = migrateFromV1(raw);
+              // v1 格式，需要 migrate 并补齐 v3 字段
+              const migrated = migrateModelProfilesToV3(migrateFromV1(raw));
               localStorage.setItem(
                 "fusionkit-model",
-                JSON.stringify({ state: migrated, version: 2 })
+                JSON.stringify({ state: migrated, version: 3 })
               );
             }
           } catch { /* silent */ }
@@ -185,5 +273,9 @@ const useModelStore = create<ModelStore>()(
     }
   )
 );
+
+function isRecord(value: unknown): value is Record<string, any> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
 
 export default useModelStore;

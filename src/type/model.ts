@@ -17,8 +17,12 @@ export interface TokenPricing {
 
 export type TokenPricingMap = Record<Model, TokenPricing>;
 
+export type ModelApiFormat = "chat_completions" | "responses";
+
+export type OutputTokenParameter = "max_tokens" | "max_completion_tokens";
+
 // ---------------------------------------------------------------------------
-// Profile-based model config (v2)
+// Profile-based model config (v3)
 // ---------------------------------------------------------------------------
 
 export interface ModelProfile {
@@ -29,6 +33,8 @@ export interface ModelProfile {
   baseUrl: string;
   modelKey: string;
   tokenPricing: TokenPricing;
+  apiFormat: ModelApiFormat;
+  outputTokenParameter?: OutputTokenParameter;
 }
 
 export interface ModelAssignment {

@@ -14,6 +14,10 @@ import { encode } from "gpt-tokenizer";
 import { SubtitleTranslatorTask } from "../typing";
 import { BaseTranslator } from "./base-translator";
 import { getLanguageName } from "../constants";
+import type {
+  ModelRuntimeTextResult,
+  ModelRuntimeUsage,
+} from "../../ai/model-runtime-client";
 
 type TranslatorConfig = {
   apiKey: string;
@@ -115,12 +119,8 @@ export class SRTTranslator extends BaseTranslator {
     );
   }
 
-  protected getApiEndpoint(): string {
-    return this.config.endpoint;
-  }
-
-  protected async parseResponse(response: any): Promise<string> {
-    const translated = response.choices[0].message.content;
+  protected async parseResponse(response: ModelRuntimeTextResult): Promise<string> {
+    const translated = response.content;
     this.totalCost += this.calculateCost(response.usage);
     return this.postProcess(translated);
   }
@@ -141,13 +141,11 @@ export class SRTTranslator extends BaseTranslator {
     return encode(text).length;
   }
 
-  private calculateCost(usage: {
-    prompt_tokens: number;
-    completion_tokens: number;
-  }): number {
+  private calculateCost(usage: ModelRuntimeUsage | undefined): number {
+    if (!usage) return 0;
     return (
-      (usage.prompt_tokens * this.costPerInput) / 1000 +
-      (usage.completion_tokens * this.costPerOutput) / 1000
+      ((usage.inputTokens ?? 0) * this.costPerInput) / 1000 +
+      ((usage.outputTokens ?? 0) * this.costPerOutput) / 1000
     );
   }
 

@@ -2,6 +2,7 @@ import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 import { generateObject, generateText } from "ai";
 import { z } from "zod";
 import type { ModelProfile } from "@/type/model";
+import { normalizeModelEndpoint } from "@/lib/model-endpoint";
 import {
   NameTranslationPlannerError,
   normalizeNameTranslationOptions,
@@ -1094,10 +1095,20 @@ async function translateBatchWithTaskModel(
     );
   }
 
-  const model = createModel(taskProfile);
   const system = buildNameTranslationSystemPrompt(options);
   const prompt = buildNameTranslationUserPrompt(items);
   const maxOutputTokens = getModelOutputTokenBudget(items);
+
+  if (taskProfile.apiFormat === "responses") {
+    return translateBatchWithResponsesProfile(
+      taskProfile,
+      system,
+      prompt,
+      maxOutputTokens
+    );
+  }
+
+  const model = createModel(taskProfile);
 
   try {
     const result = await generateObject({
@@ -1142,6 +1153,62 @@ async function translateBatchWithTaskModel(
       );
     }
   }
+}
+
+export async function translateBatchWithResponsesProfile(
+  profile: ModelProfile,
+  system: string,
+  prompt: string,
+  maxOutputTokens: number
+): Promise<NameTranslationModelOutputItem[]> {
+  const response = await fetch(normalizeModelEndpoint(profile.baseUrl).responsesUrl, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${profile.apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model: profile.modelKey,
+      instructions: [
+        system,
+        "Return raw JSON only. The response must begin with { and end with }.",
+      ].join("\n"),
+      input: prompt,
+      temperature: 0.2,
+      max_output_tokens: maxOutputTokens,
+      store: false,
+    }),
+  });
+
+  const data = await response.json().catch(() => undefined);
+  if (!response.ok) {
+    throw new Error(
+      sanitizeModelErrorMessage(
+        `responses_http_${response.status}:${extractResponsesErrorMessage(data, response.status)}`,
+        profile.apiKey
+      )
+    );
+  }
+
+  if (isRecord(data) && data.status === "incomplete") {
+    const incompleteDetails = isRecord(data.incomplete_details)
+      ? data.incomplete_details
+      : undefined;
+    if (incompleteDetails?.reason === "max_output_tokens") {
+      throw new Error("responses_length_truncated:max_output_tokens");
+    }
+  }
+
+  if (isRecord(data) && data.status === "failed") {
+    throw new Error(
+      sanitizeModelErrorMessage(
+        `responses_failed:${extractResponsesErrorMessage(data, 200)}`,
+        profile.apiKey
+      )
+    );
+  }
+
+  return parseNameTranslationModelOutputText(extractResponsesText(data));
 }
 
 export function repairNameTranslationModelJsonText(text: string): string | null {
@@ -1347,6 +1414,51 @@ function createTextPreview(value: unknown, maxLength = 240): string {
     : compact;
 }
 
+function extractResponsesText(data: unknown): string {
+  if (!isRecord(data)) return "";
+  if (typeof data.output_text === "string") return data.output_text;
+  if (!Array.isArray(data.output)) return "";
+
+  return data.output
+    .map((item) => extractResponsesOutputItemText(item))
+    .filter(Boolean)
+    .join("");
+}
+
+function extractResponsesOutputItemText(item: unknown): string {
+  if (!isRecord(item)) return "";
+  if (typeof item.text === "string") return item.text;
+  if (typeof item.content === "string") return item.content;
+  if (!Array.isArray(item.content)) return "";
+
+  return item.content
+    .map((part) => {
+      if (!isRecord(part)) return "";
+      if (typeof part.text === "string") return part.text;
+      if (typeof part.content === "string") return part.content;
+      return "";
+    })
+    .join("");
+}
+
+function extractResponsesErrorMessage(data: unknown, status: number): string {
+  if (isRecord(data)) {
+    const error = isRecord(data.error) ? data.error : undefined;
+    if (typeof error?.message === "string") {
+      return error.message;
+    }
+  }
+  return `HTTP ${status}`;
+}
+
+function sanitizeModelErrorMessage(message: string, apiKey: string): string {
+  return apiKey ? message.replaceAll(apiKey, "[REDACTED_API_KEY]") : message;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
 function pushTranslationWarning(warnings: string[], warning: string): void {
   if (warnings.length >= MAX_TRANSLATION_WARNINGS) return;
   warnings.push(warning);
@@ -1358,7 +1470,7 @@ async function getTaskProfile(): Promise<ModelProfile | null> {
 }
 
 function createModel(profile: ModelProfile) {
-  const baseURL = profile.baseUrl.replace(/\/chat\/completions\/?$/, "");
+  const baseURL = normalizeModelEndpoint(profile.baseUrl).baseUrl;
   const provider = createOpenAICompatible({
     baseURL,
     apiKey: profile.apiKey,

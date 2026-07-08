@@ -24,6 +24,10 @@ import {
   startFakeOpenAICompatibleServer,
   type FakeOpenAICompatibleServer,
 } from "../protocol/fakeOpenAICompatibleServer";
+import {
+  createResponsesBody,
+  startFakeModelApiServer,
+} from "../../ai/fakeModelApiServer";
 
 describe("TextTranslationService BE-007 vertical slice", () => {
   let tempRoot: string;
@@ -96,6 +100,14 @@ describe("TextTranslationService BE-007 vertical slice", () => {
       path.join(tempRoot, "tasks", created.data.taskId, "task.json"),
       "utf-8",
     );
+    const persistedTask = JSON.parse(taskJson);
+    expect(persistedTask.model).toMatchObject({
+      modelKey: "fake-model",
+      endpointLabel: new URL(server.baseUrl).host,
+      apiFormat: "chat_completions",
+    });
+    expect(persistedTask.model).not.toHaveProperty("apiKey");
+    expect(persistedTask.model).not.toHaveProperty("endpoint");
     expect(taskJson).not.toContain("sk-e2e-secret");
     expect(taskJson).not.toContain("Authorization");
 
@@ -117,6 +129,87 @@ describe("TextTranslationService BE-007 vertical slice", () => {
     );
     expect(server.requests).toHaveLength(1);
     expect(JSON.stringify(server.requests[0].body)).toContain("Hello world.");
+  });
+
+  it("translates a single TXT task through the Responses runtime adapter", async () => {
+    const responsesServer = await startFakeModelApiServer();
+    try {
+      const sourcePath = path.join(tempRoot, "responses.txt");
+      const outputDir = path.join(tempRoot, "responses-out");
+      await writeFile(sourcePath, "Hello Responses.", "utf-8");
+
+      responsesServer.enqueueRoute("responses", {
+        body: createResponsesBody({
+          outputText: "你好，Responses。",
+          usage: {
+            input_tokens: 9,
+            output_tokens: 4,
+            total_tokens: 13,
+          },
+        }),
+      });
+
+      const repository = new TextTranslationWorkspaceRepository({
+        tasksRoot: path.join(tempRoot, "responses-tasks"),
+      });
+      const service = new TextTranslationService({ repository });
+
+      const created = await service.createTask({
+        files: [{ sourcePath, order: 0 }],
+        options: createTextTranslationOptions({
+          outputDir,
+          outputPathMode: "custom",
+          conflictPolicy: "index",
+        }),
+        model: {
+          apiKey: "sk-responses-secret",
+          modelKey: "fake-responses-model",
+          endpoint: responsesServer.baseUrl,
+          apiFormat: "responses",
+        },
+      });
+
+      expect(created.ok).toBe(true);
+      if (!created.ok) return;
+
+      const prepared = await service.prepareTask({ taskId: created.data.taskId });
+      expect(prepared.ok).toBe(true);
+      if (!prepared.ok) return;
+
+      const completed = await service.startTask({ taskId: created.data.taskId });
+      expect(completed.ok).toBe(true);
+      if (!completed.ok) return;
+
+      expect(completed.data.status).toBe("completed");
+      expect(
+        await readFile(path.join(outputDir, "responses.zh.txt"), "utf-8"),
+      ).toBe("你好，Responses。");
+      expect(responsesServer.requests).toHaveLength(1);
+      expect(responsesServer.requests[0]).toMatchObject({
+        method: "POST",
+        url: "/v1/responses",
+        body: {
+          model: "fake-responses-model",
+          input: "Hello Responses.",
+          store: false,
+        },
+      });
+      expect(JSON.stringify(responsesServer.requests[0].body)).toContain(
+        "Translate the provided text",
+      );
+
+      const taskJson = await readFile(
+        path.join(tempRoot, "responses-tasks", created.data.taskId, "task.json"),
+        "utf-8",
+      );
+      expect(JSON.parse(taskJson).model).toMatchObject({
+        modelKey: "fake-responses-model",
+        apiFormat: "responses",
+      });
+      expect(taskJson).not.toContain("sk-responses-secret");
+    } finally {
+      await responsesServer.close();
+    }
   });
 
   it("rejects illegal lifecycle transitions and preserves workspace on cancel", async () => {

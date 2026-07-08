@@ -13,6 +13,7 @@ import { BaseTranslator } from "./base-translator";
 import { encode } from "gpt-tokenizer";
 import { getLanguageName } from "../constants";
 import { cleanTranslatedLrcContent } from "../lrc-utils";
+import type { ModelRuntimeTextResult } from "../../ai/model-runtime-client";
 
 export class LRCTranslator extends BaseTranslator {
   protected fragmentSeparator = "\n";
@@ -111,17 +112,13 @@ export class LRCTranslator extends BaseTranslator {
     );
   }
 
-  protected getApiEndpoint(): string {
-    return this.config.endpoint;
-  }
-
   /** 解析 LLM 响应，清洗 markdown 格式残留，并累计本次调用的费用 */
-  protected async parseResponse(response: any): Promise<string> {
-    const content = response.choices[0].message.content;
+  protected async parseResponse(response: ModelRuntimeTextResult): Promise<string> {
+    const content = response.content;
     const cleanedContent = cleanTranslatedLrcContent(content);
 
-    const inputTokens = response.usage?.prompt_tokens || 0;
-    const outputTokens = response.usage?.completion_tokens || 0;
+    const inputTokens = response.usage?.inputTokens || 0;
+    const outputTokens = response.usage?.outputTokens || 0;
     this.totalCost += (inputTokens / 1_000_000) * this.costPerInput;
     this.totalCost += (outputTokens / 1_000_000) * this.costPerOutput;
 

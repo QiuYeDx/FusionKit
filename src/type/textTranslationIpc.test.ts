@@ -7,6 +7,7 @@ import {
   validateCreateTextTranslationTaskIpcRequest,
   validateDeleteTextTranslationTaskIpcRequest,
   validateListRecoverableTextTranslationTasksIpcRequest,
+  validateResumeTextTranslationTaskIpcRequest,
   validateTextTranslationTaskIdIpcRequest,
 } from "@/type/textTranslationIpc";
 
@@ -46,6 +47,84 @@ describe("text translation IPC contract", () => {
     if (result.ok) {
       expect(result.data.files[0].sourcePath).toBe("/books/chapter-01.txt");
       expect(result.data.model.apiKey).toBe("sk-runtime-only");
+      expect(result.data.model.apiFormat).toBe("chat_completions");
+    }
+  });
+
+  it("accepts explicit runtime model API format and rejects invalid values", () => {
+    const explicit = validateCreateTextTranslationTaskIpcRequest({
+      files: [
+        {
+          sourcePath: "/books/chapter-01.txt",
+          order: 0,
+        },
+      ],
+      options: DEFAULT_TEXT_TRANSLATION_OPTIONS,
+      model: {
+        apiKey: "sk-runtime-only",
+        modelKey: "gpt-5",
+        endpoint: "https://api.example.test/v1",
+        apiFormat: "responses",
+        outputTokenParameter: "max_completion_tokens",
+      },
+    });
+
+    expect(explicit.ok).toBe(true);
+    if (explicit.ok) {
+      expect(explicit.data.model).toMatchObject({
+        apiFormat: "responses",
+        outputTokenParameter: "max_completion_tokens",
+      });
+    }
+
+    const invalid = validateCreateTextTranslationTaskIpcRequest({
+      files: [
+        {
+          sourcePath: "/books/chapter-01.txt",
+          order: 0,
+        },
+      ],
+      options: DEFAULT_TEXT_TRANSLATION_OPTIONS,
+      model: {
+        apiKey: "sk-runtime-only",
+        modelKey: "gpt-5",
+        endpoint: "https://api.example.test/v1",
+        apiFormat: "legacy_responses",
+      },
+    });
+
+    expect(invalid.ok).toBe(false);
+    if (!invalid.ok) {
+      expect(invalid.error.field).toBe("model.apiFormat");
+    }
+  });
+
+  it("preserves runtime model metadata on resume requests", () => {
+    const result = validateResumeTextTranslationTaskIpcRequest({
+      taskId: "task_001",
+      model: {
+        profileId: "task-model",
+        apiKey: "sk-runtime-only",
+        modelKey: "gpt-5",
+        endpoint: "https://api.example.test/v1",
+        apiFormat: "responses",
+        outputTokenParameter: "max_completion_tokens",
+      },
+    });
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.data).toEqual({
+        taskId: "task_001",
+        model: {
+          profileId: "task-model",
+          apiKey: "sk-runtime-only",
+          modelKey: "gpt-5",
+          endpoint: "https://api.example.test/v1",
+          apiFormat: "responses",
+          outputTokenParameter: "max_completion_tokens",
+        },
+      });
     }
   });
 

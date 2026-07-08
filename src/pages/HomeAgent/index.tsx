@@ -32,6 +32,7 @@ import { motion, AnimatePresence } from "motion/react";
 import useAgentStore from "@/store/agent/useAgentStore";
 import useModelStore from "@/store/useModelStore";
 import { handleUserMessage, abortCurrentStream } from "@/agent/orchestrator";
+import { isAgentProfileApiFormatSupported } from "@/agent/api-format-capability";
 import { exportSession, importSession } from "@/agent/session-io";
 import SessionLogViewer from "./SessionLogViewer";
 import type {
@@ -287,6 +288,12 @@ function HomeAgent() {
 
   const agentProfile = useModelStore((s) => s.getAgentProfile());
   const hasAgentConfig = !!(agentProfile && agentProfile.apiKey);
+  const hasUnsupportedAgentApiFormat =
+    hasAgentConfig && !isAgentProfileApiFormatSupported(agentProfile);
+  const agentApiFormatLabel =
+    agentProfile?.apiFormat === "responses"
+      ? t("home:api_format_responses")
+      : t("home:api_format_chat_completions");
 
   const [isMultiline, setIsMultiline] = useState(() => draftInputCache.includes("\n"));
   const [isAtBottom, setIsAtBottom] = useState(true);
@@ -536,7 +543,7 @@ function HomeAgent() {
 
   const handleSend = async () => {
     const trimmed = input.trim();
-    if (!trimmed || isStreaming) return;
+    if (!trimmed || isStreaming || hasUnsupportedAgentApiFormat) return;
     pushHistory(trimmed);
     setInput("");
     historyIndexRef.current = -1;
@@ -637,10 +644,37 @@ function HomeAgent() {
     [],
   );
 
-  const canSend = input.trim().length > 0 && !isStreaming;
+  const canSend =
+    input.trim().length > 0 && !isStreaming && !hasUnsupportedAgentApiFormat;
   const showScrollToBottomButton = !isEmpty && !isAtBottom;
   const hasActiveResponse =
     isStreaming || status === "thinking" || status === "streaming";
+  const agentConfigNotice =
+    !hasAgentConfig || hasUnsupportedAgentApiFormat ? (
+      <motion.div
+        layout="position"
+        transition={EMPTY_STATE_LAYOUT_TRANSITION}
+        className="pointer-events-auto flex items-center gap-3 px-4 py-3 rounded-xl border border-amber-500/30 bg-amber-500/5 max-w-md mx-auto mb-4 z-10"
+      >
+        <AlertTriangle className="h-4 w-4 text-amber-500 shrink-0" />
+        <span className="text-sm text-amber-700 dark:text-amber-400 flex-1">
+          {hasUnsupportedAgentApiFormat
+            ? t("home:agent_api_format_unsupported", {
+                format: agentApiFormatLabel,
+              })
+            : t("home:agent_not_configured")}
+        </span>
+        <Button
+          variant="outline"
+          size="sm"
+          className="shrink-0 gap-1 text-xs rounded-full"
+          onClick={() => navigate("/setting")}
+        >
+          <Settings className="h-3 w-3" />
+          {t("home:go_settings")}
+        </Button>
+      </motion.div>
+    ) : null;
   const inputCapsule = (
     <motion.div layout transition={EMPTY_STATE_LAYOUT_TRANSITION}>
       <AnimatePresence mode="popLayout">
@@ -959,28 +993,7 @@ function HomeAgent() {
             {t("home:home_description")}
           </motion.p>
 
-          {/* Unconfigured Agent Banner */}
-          {!hasAgentConfig && (
-            <motion.div
-              layout="position"
-              transition={EMPTY_STATE_LAYOUT_TRANSITION}
-              className="flex items-center gap-3 px-4 py-3 rounded-xl border border-amber-500/30 bg-amber-500/5 max-w-md mb-4 z-10"
-            >
-              <AlertTriangle className="h-4 w-4 text-amber-500 shrink-0" />
-              <span className="text-sm text-amber-700 dark:text-amber-400 flex-1">
-                {t("home:agent_not_configured")}
-              </span>
-              <Button
-                variant="outline"
-                size="sm"
-                className="shrink-0 gap-1 text-xs rounded-full"
-                onClick={() => navigate("/setting")}
-              >
-                <Settings className="h-3 w-3" />
-                {t("home:go_settings")}
-              </Button>
-            </motion.div>
-          )}
+          {agentConfigNotice}
 
           <motion.div
             layout
@@ -1148,6 +1161,7 @@ function HomeAgent() {
             className="fixed inset-x-0 bottom-[42px] z-20 pointer-events-none"
           >
             <div className="relative px-4 pt-3 pb-4 pointer-events-none">
+              {agentConfigNotice}
               {inputCapsule}
             </div>
           </motion.div>

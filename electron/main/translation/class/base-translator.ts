@@ -7,8 +7,7 @@
  *     ├─ splitContent()          ← 抽象：按格式拆分字幕为 fragment
  *     ├─ translateFragment()     ← 本类实现：单片翻译（含重试）
  *     │   ├─ formatPrompt()      ← 抽象：构建 LLM prompt
- *     │   ├─ getApiEndpoint()    ← 抽象：API 地址
- *     │   └─ parseResponse()     ← 抽象：解析 LLM 返回
+ *     │   └─ parseResponse()     ← 抽象：后处理统一模型文本结果
  *     ├─ writeFile()             ← 本类实现：写入结果文件
  *     └─ updateProgress()        ← 本类实现：通过 IPC 推送进度
  *
@@ -26,9 +25,14 @@ import {
   type SubtitleTranslationRecovery,
 } from "../typing";
 import { ipcMain, BrowserWindow } from "electron";
-import axios from "axios";
-import { fixSrtSubtitles, removeThinkTags, hasThinkTags } from "../utils";
-import { getAxiosProxyConfig } from "../../proxy";
+import {
+  ModelRuntimeClientError,
+} from "../../ai/model-runtime-errors";
+import {
+  sendModelRuntimeText,
+  type ModelRuntimeConfig,
+  type ModelRuntimeTextResult,
+} from "../../ai/model-runtime-client";
 import {
   createManifest,
   loadManifest,
@@ -352,8 +356,7 @@ export abstract class BaseTranslator {
         const result = await this.translateFragment(
           fragment,
           index > 0 ? fragments[index - 1] : "",
-          task.apiKey,
-          task.apiModel,
+          task,
           errorLogs,
           signal,
           { index: index + 1, total: fragments.length },
@@ -423,8 +426,7 @@ export abstract class BaseTranslator {
           const result = await this.translateFragment(
             fragment,
             context,
-            task.apiKey,
-            task.apiModel,
+            task,
             errorLogs,
             signal,
             { index: index + 1, total: fragments.length },
@@ -563,12 +565,12 @@ export abstract class BaseTranslator {
   }
 
   private logEmptyTranslationResult(
-    responseData: any,
+    responseData: ModelRuntimeTextResult,
     parsedResult: unknown,
     errorLogs: string[],
     fragmentMeta?: TranslationFragmentMeta,
   ) {
-    const rawContent = responseData?.choices?.[0]?.message?.content;
+    const rawContent = responseData.content;
     const rawLength = typeof rawContent === "string" ? rawContent.length : 0;
     const parsedLength =
       typeof parsedResult === "string" ? parsedResult.length : 0;
@@ -578,7 +580,7 @@ export abstract class BaseTranslator {
       : "未知分片";
 
     errorLogs.push(
-      `[${new Date().toISOString()}] 翻译结果为空 (${fragmentLabel})，原始内容长度: ${rawLength}，清洗后长度: ${parsedLength}，choices[0].message.content存在: ${hasMessageContent ? "是" : "否"}`,
+      `[${new Date().toISOString()}] 翻译结果为空 (${fragmentLabel})，模型文本长度: ${rawLength}，清洗后长度: ${parsedLength}，content存在: ${hasMessageContent ? "是" : "否"}`,
     );
 
     const preview = this.createLogPreview(rawContent);
@@ -604,14 +606,12 @@ export abstract class BaseTranslator {
    * 翻译单个 fragment：构建 prompt → 调用 LLM API → 解析返回。
    * 内置线性退避重试机制（最多 maxRetries 次），每次失败后延迟递增。
    *
-   * 特殊处理：部分深度思考模型（如 DeepSeek R1）会在返回中包含 <think> 标签，
-   * 这里会在解析前自动清理这些标签。
+   * 模型请求由 ModelRuntimeClient 负责 endpoint、API 格式、错误分类与 think 标签清理。
    */
   private async translateFragment(
     content: string,
     context: string,
-    apiKey: string,
-    apiModel: string,
+    task: SubtitleTranslatorTask,
     errorLogs: string[],
     signal?: AbortSignal,
     fragmentMeta?: TranslationFragmentMeta,
@@ -626,68 +626,38 @@ export abstract class BaseTranslator {
           `[${new Date().toISOString()}] 尝试第 ${attempt}/${this.maxRetries} 次翻译请求`,
         );
 
-        const response = await axios.post(
-          this.getApiEndpoint(),
-          {
-            model: apiModel,
-            messages: [
-              {
-                role: "user",
-                content: prompt,
-              },
-            ],
-            max_tokens: this.maxResponseTokens,
-            stream: false,
-          },
-          {
-            headers: {
-              Authorization: `Bearer ${apiKey}`,
-              "Content-Type": "application/json",
+        const response = await sendModelRuntimeText({
+          model: this.createRuntimeModelConfig(task),
+          messages: [
+            {
+              role: "user",
+              content: prompt,
             },
-            ...getAxiosProxyConfig(),
-            signal,
-          },
-        );
+          ],
+          maxOutputTokens: this.maxResponseTokens,
+          signal,
+          retry: { maxRetries: 0 },
+        });
 
-        if (!response.data) {
-          throw new Error("翻译返回结果为空");
-        }
-
-        console.log("翻译响应数据:", response.data);
+        console.log("翻译响应数据:", response);
         errorLogs.push(
           `[${new Date().toISOString()}] 第 ${attempt} 次翻译请求成功`,
         );
 
-        const finishReason = response.data.choices?.[0]?.finish_reason;
+        const finishReason = response.finishReason;
         if (finishReason === "length") {
           errorLogs.push(
             `[${new Date().toISOString()}] 警告: 翻译结果可能因达到token上限被截断 (finish_reason=length, max_tokens=${this.maxResponseTokens})`,
           );
         }
 
-        // 适配深度思考模型：清理 <think>...</think> 标签避免污染翻译结果
-        if (response.data.choices?.[0]?.message?.content) {
-          const originalContent = response.data.choices[0].message.content;
-
-          if (hasThinkTags(originalContent)) {
-            const cleanedContent = removeThinkTags(originalContent);
-            errorLogs.push(
-              `[${new Date().toISOString()}] 检测到think标签，已清理思考内容`,
-            );
-            console.log("清理think标签前:", originalContent);
-            console.log("清理think标签后:", cleanedContent);
-
-            response.data.choices[0].message.content = cleanedContent;
-          }
-        }
-
-        const parsedResult = await this.parseResponse(response.data);
+        const parsedResult = await this.parseResponse(response);
         if (
           typeof parsedResult !== "string" ||
           parsedResult.trim().length === 0
         ) {
           this.logEmptyTranslationResult(
-            response.data,
+            response,
             parsedResult,
             errorLogs,
             fragmentMeta,
@@ -703,13 +673,13 @@ export abstract class BaseTranslator {
           `[${new Date().toISOString()}] 第 ${attempt} 次翻译尝试失败: ${errorMessage}`,
         );
 
-        if (axios.isAxiosError(error)) {
+        if (error instanceof ModelRuntimeClientError) {
           errorLogs.push(
-            `[${new Date().toISOString()}] HTTP状态码: ${error.response?.status || "N/A"}`,
+            `[${new Date().toISOString()}] 模型错误码: ${error.code}`,
           );
-          if (error.response?.data) {
+          if (error.details.status !== undefined) {
             errorLogs.push(
-              `[${new Date().toISOString()}] 响应数据: ${JSON.stringify(error.response.data)}`,
+              `[${new Date().toISOString()}] HTTP状态码: ${error.details.status}`,
             );
           }
         }
@@ -718,6 +688,10 @@ export abstract class BaseTranslator {
 
         if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
 
+        if (error instanceof ModelRuntimeClientError && !error.retryable) {
+          throw this.normalizeError(error);
+        }
+
         if (attempt === this.maxRetries) {
           errorLogs.push(
             `[${new Date().toISOString()}] 已达到最大重试次数，翻译失败`,
@@ -725,7 +699,7 @@ export abstract class BaseTranslator {
           throw this.normalizeError(error);
         }
 
-        const delay = this.retryDelay * attempt;
+        const delay = this.resolveRetryDelay(error, attempt);
         errorLogs.push(`[${new Date().toISOString()}] 等待 ${delay}ms 后重试`);
         await this.abortableDelay(delay, signal);
       }
@@ -734,10 +708,32 @@ export abstract class BaseTranslator {
     throw new Error("所有翻译尝试都失败了");
   }
 
-  /** 子类实现：返回 LLM Chat Completions API 的端点 URL */
-  protected abstract getApiEndpoint(): string;
-  /** 子类实现：从 LLM 响应中提取并清洗翻译文本 */
-  protected abstract parseResponse(responseData: any): Promise<string>;
+  private createRuntimeModelConfig(
+    task: SubtitleTranslatorTask,
+  ): ModelRuntimeConfig {
+    return {
+      apiKey: task.apiKey,
+      modelKey: task.apiModel,
+      endpoint: task.endPoint,
+      apiFormat: task.apiFormat ?? "chat_completions",
+      outputTokenParameter: task.outputTokenParameter,
+    };
+  }
+
+  private resolveRetryDelay(error: unknown, attempt: number): number {
+    if (
+      error instanceof ModelRuntimeClientError &&
+      error.details.retryAfterMs !== undefined
+    ) {
+      return Math.max(0, error.details.retryAfterMs);
+    }
+    return this.retryDelay * attempt;
+  }
+
+  /** 子类实现：从统一模型文本结果中后处理翻译文本 */
+  protected abstract parseResponse(
+    responseData: ModelRuntimeTextResult,
+  ): Promise<string>;
   /** 子类实现：将未知错误标准化为 Error 对象 */
   protected abstract normalizeError(error: unknown): Error;
 

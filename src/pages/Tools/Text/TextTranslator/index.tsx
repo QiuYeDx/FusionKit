@@ -200,6 +200,8 @@ function TextTranslator() {
       apiKey: taskProfile.apiKey,
       modelKey: taskProfile.modelKey,
       endpoint: taskProfile.baseUrl,
+      apiFormat: taskProfile.apiFormat,
+      outputTokenParameter: taskProfile.outputTokenParameter,
     };
   }, [hasUsableTaskModel, taskProfile]);
 

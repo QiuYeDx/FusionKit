@@ -7,6 +7,7 @@ import type {
   TextTranslationTask,
   TextTranslationValidationIssue,
 } from "@/type/textTranslation";
+import type { ModelApiFormat, OutputTokenParameter } from "@/type/model";
 
 export const TEXT_TRANSLATION_IPC_CHANNELS = {
   createTask: "text-translation:create-task",
@@ -248,9 +249,11 @@ export function validateCreateTextTranslationTaskIpcRequest(
   const modelResult = validateRuntimeModelPayload(payload.model, "model");
   if (!modelResult.ok) return modelResult;
 
-  return textTranslationIpcSuccess(
-    payload as unknown as CreateTextTranslationTaskRequest,
-  );
+  return textTranslationIpcSuccess({
+    files: payload.files as CreateTextTranslationTaskRequest["files"],
+    options: optionsResult.data as CreateTextTranslationTaskRequest["options"],
+    model: modelResult.data,
+  });
 }
 
 export function validateTextTranslationTaskIdIpcRequest(
@@ -276,14 +279,37 @@ export function validateRestartTextTranslationTaskIpcRequest(
   if (!taskIdResult.ok) return taskIdResult;
   if (!isRecord(payload)) return missingTaskId();
 
+  let model: TextTranslationRuntimeModelConfig | undefined;
   if (payload.model !== undefined) {
     const modelResult = validateRuntimeModelPayload(payload.model, "model");
     if (!modelResult.ok) return modelResult;
+    model = modelResult.data;
   }
 
-  return textTranslationIpcSuccess(
-    payload as unknown as RestartTextTranslationTaskRequest,
-  );
+  return textTranslationIpcSuccess({
+    taskId: taskIdResult.data.taskId,
+    ...(model ? { model } : {}),
+  });
+}
+
+export function validateResumeTextTranslationTaskIpcRequest(
+  payload: unknown,
+): TextTranslationIpcResult<ResumeTextTranslationTaskRequest> {
+  const taskIdResult = validateTextTranslationTaskIdIpcRequest(payload);
+  if (!taskIdResult.ok) return taskIdResult;
+  if (!isRecord(payload)) return missingTaskId();
+
+  let model: TextTranslationRuntimeModelConfig | undefined;
+  if (payload.model !== undefined) {
+    const modelResult = validateRuntimeModelPayload(payload.model, "model");
+    if (!modelResult.ok) return modelResult;
+    model = modelResult.data;
+  }
+
+  return textTranslationIpcSuccess({
+    taskId: taskIdResult.data.taskId,
+    ...(model ? { model } : {}),
+  });
 }
 
 export function validateRetranslateTextTranslationFromSegmentIpcRequest(
@@ -297,14 +323,18 @@ export function validateRetranslateTextTranslationFromSegmentIpcRequest(
     return invalidRequest("segmentId is required.", "segmentId");
   }
 
+  let model: TextTranslationRuntimeModelConfig | undefined;
   if (payload.model !== undefined) {
     const modelResult = validateRuntimeModelPayload(payload.model, "model");
     if (!modelResult.ok) return modelResult;
+    model = modelResult.data;
   }
 
-  return textTranslationIpcSuccess(
-    payload as unknown as RetranslateTextTranslationFromSegmentRequest,
-  );
+  return textTranslationIpcSuccess({
+    taskId: taskIdResult.data.taskId,
+    segmentId: payload.segmentId,
+    ...(model ? { model } : {}),
+  });
 }
 
 export function validateDeleteTextTranslationTaskIpcRequest(
@@ -576,9 +606,49 @@ function validateRuntimeModelPayload(
     }
   }
 
-  return textTranslationIpcSuccess(
-    model as unknown as TextTranslationRuntimeModelConfig,
-  );
+  if (
+    model.apiFormat !== undefined &&
+    !isModelApiFormat(model.apiFormat)
+  ) {
+    return invalidRequest(
+      "Runtime model apiFormat must be chat_completions or responses.",
+      `${field}.apiFormat`,
+    );
+  }
+
+  if (
+    model.outputTokenParameter !== undefined &&
+    !isOutputTokenParameter(model.outputTokenParameter)
+  ) {
+    return invalidRequest(
+      "Runtime model outputTokenParameter must be max_tokens or max_completion_tokens.",
+      `${field}.outputTokenParameter`,
+    );
+  }
+
+  return textTranslationIpcSuccess({
+    profileId:
+      typeof model.profileId === "string" ? model.profileId : undefined,
+    apiKey: model.apiKey as string,
+    modelKey: model.modelKey as string,
+    endpoint: model.endpoint as string,
+    apiFormat: isModelApiFormat(model.apiFormat)
+      ? model.apiFormat
+      : "chat_completions",
+    outputTokenParameter: isOutputTokenParameter(model.outputTokenParameter)
+      ? model.outputTokenParameter
+      : undefined,
+  });
+}
+
+function isModelApiFormat(value: unknown): value is ModelApiFormat {
+  return value === "chat_completions" || value === "responses";
+}
+
+function isOutputTokenParameter(
+  value: unknown,
+): value is OutputTokenParameter {
+  return value === "max_tokens" || value === "max_completion_tokens";
 }
 
 function invalidRequest(
