@@ -22,7 +22,6 @@ import {
   ToolOutputPathPicker,
 } from "@/pages/Tools/_shared/ui";
 import {
-  DEFAULT_TEXT_TRANSLATION_MODEL_CONTEXT_TOKEN_LIMIT,
   TEXT_TRANSLATION_TOKEN_LIMITS,
 } from "@/type/textTranslation";
 import type { TranslationLanguage } from "@/type/subtitle";
@@ -42,6 +41,7 @@ type ConfigPanelProps = {
   budgetUsagePercent: number;
   isBudgetExceeded: boolean;
   requiredContextTokens: number;
+  modelContextTokenLimit: number;
   outputTokenReserve: number;
   onSelectOutputPath: () => void;
 };
@@ -55,6 +55,7 @@ export default function ConfigPanel({
   budgetUsagePercent,
   isBudgetExceeded,
   requiredContextTokens,
+  modelContextTokenLimit,
   outputTokenReserve,
   onSelectOutputPath,
 }: ConfigPanelProps) {
@@ -315,9 +316,7 @@ export default function ConfigPanel({
                   <div className="flex justify-between gap-4">
                     <span>{t("translator.budget.model_context")}</span>
                     <span className="font-medium tabular-nums">
-                      {formatTokens(
-                        DEFAULT_TEXT_TRANSLATION_MODEL_CONTEXT_TOKEN_LIMIT,
-                      )}
+                      {formatTokens(modelContextTokenLimit)}
                     </span>
                   </div>
                   <div className="flex justify-between gap-4">
@@ -361,9 +360,7 @@ export default function ConfigPanel({
           />
           <div className="flex justify-between text-[11px] text-muted-foreground">
             <span>{formatTokens(requiredContextTokens)}</span>
-            <span>
-              {formatTokens(DEFAULT_TEXT_TRANSLATION_MODEL_CONTEXT_TOKEN_LIMIT)}
-            </span>
+            <span>{formatTokens(modelContextTokenLimit)}</span>
           </div>
         </div>
 
@@ -387,7 +384,7 @@ export default function ConfigPanel({
                       semanticMemoryTokenLimit: clampInt(
                         Number(e.target.value),
                         TEXT_TRANSLATION_TOKEN_LIMITS.minSemanticMemoryTokenLimit,
-                        DEFAULT_TEXT_TRANSLATION_MODEL_CONTEXT_TOKEN_LIMIT,
+                        modelContextTokenLimit,
                       ),
                     })
                   }

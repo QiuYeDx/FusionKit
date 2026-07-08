@@ -82,7 +82,7 @@ POST /v1/responses
 
 ### 4.2 非目标
 
-1. 不在本需求内升级或重排 OpenAI 模型价格表。
+1. 首版 API 格式兼容工作不主动升级或重排 OpenAI 模型价格表；验收后发现的模型预设与上下文窗口数据问题已作为 `FIX-001` 单独修复并记录。
 2. 不强制把 DeepSeek 或第三方服务迁到 Responses。
 3. 不把 OpenAI Responses 的内置 web/file/computer 工具接入 FusionKit 工具系统。
 4. 不引入云端会话持久化。除非用户显式选择，否则请求应尽量使用无状态模式，并对 OpenAI Responses 发送 `store: false`。

@@ -12,6 +12,7 @@ import ToolPageHeader from "@/pages/Tools/_shared/ToolPageHeader";
 import { TOOL_META } from "@/pages/Tools/_shared/toolMeta";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { inferContextWindowSize } from "@/constants/model";
 import {
   ScrollableDialog,
   ScrollableDialogContent,
@@ -120,6 +121,12 @@ function TextTranslator() {
   const isRunning = currentStatus === "running" || hasQueuedRunningTask || isStarting;
   const isBusy = isPreparing || isStarting || isCancelling;
   const isPrepared = Boolean(task && task.progress.totalSegments > 0);
+  const modelContextTokenLimit = useMemo(() => {
+    const modelKey = taskProfile?.modelKey?.trim();
+    return modelKey
+      ? inferContextWindowSize(modelKey)
+      : DEFAULT_TEXT_TRANSLATION_MODEL_CONTEXT_TOKEN_LIMIT;
+  }, [taskProfile?.modelKey]);
   const outputTokenReserve = resolveTextTranslationOutputTokenReserve(
     preferences.sliceTokenLimit,
   );
@@ -134,22 +141,20 @@ function TextTranslator() {
         projectMode: preferences.projectMode,
         sliceTokenLimit: preferences.sliceTokenLimit,
         semanticMemoryTokenLimit: preferences.semanticMemoryTokenLimit,
-        modelContextTokenLimit: DEFAULT_TEXT_TRANSLATION_MODEL_CONTEXT_TOKEN_LIMIT,
+        modelContextTokenLimit,
         outputTokenReserve,
         parallelSliceConcurrency: preferences.parallelSliceConcurrency,
         outputPathMode: preferences.outputPathMode,
         outputDir: preferences.outputDir,
         conflictPolicy: preferences.conflictPolicy,
       }),
-    [outputTokenReserve, preferences],
+    [modelContextTokenLimit, outputTokenReserve, preferences],
   );
   const requiredContextTokens =
     estimateTextTranslationRequiredContextTokens(budgetOptions);
-  const isBudgetExceeded =
-    requiredContextTokens > DEFAULT_TEXT_TRANSLATION_MODEL_CONTEXT_TOKEN_LIMIT;
+  const isBudgetExceeded = requiredContextTokens > modelContextTokenLimit;
   const budgetUsagePercent = Math.round(
-    (requiredContextTokens / DEFAULT_TEXT_TRANSLATION_MODEL_CONTEXT_TOKEN_LIMIT) *
-      100,
+    (requiredContextTokens / modelContextTokenLimit) * 100,
   );
   const canPrepare =
     sourceFiles.length > 0 &&
@@ -410,8 +415,7 @@ function TextTranslator() {
           projectMode,
           sliceTokenLimit: preferences.sliceTokenLimit,
           semanticMemoryTokenLimit: preferences.semanticMemoryTokenLimit,
-          modelContextTokenLimit:
-            DEFAULT_TEXT_TRANSLATION_MODEL_CONTEXT_TOKEN_LIMIT,
+          modelContextTokenLimit,
           outputTokenReserve,
           parallelSliceConcurrency: preferences.parallelSliceConcurrency,
           documentBackground: emptyToUndefined(preferences.documentBackground),
@@ -796,6 +800,7 @@ function TextTranslator() {
           budgetUsagePercent={budgetUsagePercent}
           isBudgetExceeded={isBudgetExceeded}
           requiredContextTokens={requiredContextTokens}
+          modelContextTokenLimit={modelContextTokenLimit}
           outputTokenReserve={outputTokenReserve}
           onSelectOutputPath={handleSelectOutputPath}
         />
