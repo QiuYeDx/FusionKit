@@ -47,7 +47,15 @@ export interface ValidateProtectedPlaceholdersResult {
   errors: string[];
 }
 
+export interface ReconcileProtectedPlaceholdersResult {
+  text: string;
+  repaired: boolean;
+  warnings: string[];
+}
+
 const PLACEHOLDER_PATTERN = /⟦FKP:([^:⟧]+):(\d{4})⟧/g;
+const LOOSE_PLACEHOLDER_PATTERN =
+  /⟦FKP:([^:⟧\]]+):(\d{4})⟧|\[\[FKP:([^:\]]+):(\d{4})\]\]/g;
 
 export function applyProtectedPlaceholders(
   options: ApplyProtectedPlaceholdersOptions,
@@ -127,6 +135,44 @@ export function validateProtectedPlaceholders(
   };
 }
 
+export function reconcileProtectedPlaceholders(
+  text: string,
+  placeholders: ProtectedPlaceholder[],
+): ReconcileProtectedPlaceholdersResult {
+  const warnings: string[] = [];
+  let expectedIndex = 0;
+  let observedCount = 0;
+
+  const rewritten = text.replace(LOOSE_PLACEHOLDER_PATTERN, () => {
+    observedCount += 1;
+    if (expectedIndex >= placeholders.length) {
+      warnings.push("removed_extra_placeholder");
+      return "";
+    }
+
+    const placeholder = placeholders[expectedIndex];
+    expectedIndex += 1;
+    return placeholder.token;
+  });
+
+  let repaired = rewritten;
+  while (expectedIndex < placeholders.length) {
+    warnings.push("inserted_missing_placeholder");
+    repaired = appendMissingPlaceholder(repaired, placeholders[expectedIndex].token);
+    expectedIndex += 1;
+  }
+
+  if (observedCount !== placeholders.length) {
+    warnings.push("placeholder_count_adjusted");
+  }
+
+  return {
+    text: repaired,
+    repaired: repaired !== text,
+    warnings: [...new Set(warnings)],
+  };
+}
+
 export function createProtectedPlaceholderToken(
   segmentId: string,
   index: number,
@@ -171,4 +217,9 @@ function normalizeProtectedSpans(
 function countOccurrences(text: string, token: string): number {
   if (!token) return 0;
   return text.split(token).length - 1;
+}
+
+function appendMissingPlaceholder(text: string, token: string): string {
+  if (!text) return token;
+  return /\s$/.test(text) ? `${text}${token}` : `${text} ${token}`;
 }

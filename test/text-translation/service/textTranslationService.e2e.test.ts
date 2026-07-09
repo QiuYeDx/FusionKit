@@ -323,6 +323,14 @@ describe("TextTranslationService BE-007 vertical slice", () => {
     expect(completed.data.progress.completedSegments).toBeLessThan(
       completed.data.progress.totalSegments,
     );
+    expect(completed.data.failureSummary).toMatchObject({
+      failedSegments: 1,
+      totalSegments: completed.data.progress.totalSegments,
+      firstFailure: {
+        errorCode: "http_retryable",
+        message: expect.stringContaining("planned segment failure"),
+      },
+    });
 
     const events = await repository.readEvents(created.data.taskId);
     expect(events.map((event) => event.type)).toEqual(
@@ -332,6 +340,23 @@ describe("TextTranslationService BE-007 vertical slice", () => {
     expect(replayed.status).toBe("partially_completed");
     expect(replayed.completedSegmentIds.length).toBeGreaterThan(0);
     expect(replayed.failedSegmentIds.length).toBeGreaterThan(0);
+    expect(replayed.segmentFailures[0]).toMatchObject({
+      errorCode: "http_retryable",
+      message: expect.stringContaining("planned segment failure"),
+    });
+
+    const persistedTask = JSON.parse(
+      await readFile(
+        path.join(tempRoot, "tasks", created.data.taskId, "task.json"),
+        "utf-8",
+      ),
+    ) as { failureSummary?: unknown };
+    expect(persistedTask.failureSummary).toMatchObject({
+      failedSegments: 1,
+      firstFailure: {
+        errorCode: "http_retryable",
+      },
+    });
 
     const recoveredService = new TextTranslationService({ repository });
     const recoverable = await recoveredService.listRecoverableTasks();
@@ -345,9 +370,24 @@ describe("TextTranslationService BE-007 vertical slice", () => {
           resumable: true,
           completedSegmentCount: replayed.completedSegmentIds.length,
           sourceStatus: "matched",
+          failureSummary: expect.objectContaining({
+            failedSegments: 1,
+          }),
         }),
       ]),
     );
+
+    const persistedDetail = await recoveredService.getTaskDetail({
+      taskId: created.data.taskId,
+    });
+    expect(persistedDetail.ok).toBe(true);
+    if (!persistedDetail.ok) return;
+    expect(persistedDetail.data?.failureSummary).toMatchObject({
+      failedSegments: 1,
+      firstFailure: {
+        errorCode: "http_retryable",
+      },
+    });
 
     server.enqueue({
       body: createChatCompletionBody({
@@ -1365,22 +1405,28 @@ describe("TextTranslationService BE-007 vertical slice", () => {
       "https://example.com/path?q=1",
     );
 
-    server.enqueue({
+    const driftedPlaceholderResponse = {
       body: createChatCompletionBody({
         content: formatMarkdownBilingualTranslationResponse(
           payload.segmentId,
           payload.blocks.map((item) => ({
             blockId: item.blockId,
-            translatedMarkdown: translateMarkdownBlock(item),
+            translatedMarkdown:
+              item.placeholders && item.placeholders.length > 0
+                ? `${translateMarkdownBlock(item)} ⟦FKP:${payload.segmentId}_${item.blockId}:0031⟧`
+                : translateMarkdownBlock(item),
           })),
         ),
       }),
-    });
+    };
+    server.enqueue(driftedPlaceholderResponse);
+    server.enqueue(driftedPlaceholderResponse);
 
     const completed = await service.startTask({ taskId: created.data.taskId });
     expect(completed.ok).toBe(true);
     if (!completed.ok) return;
     expect(completed.data.status).toBe("completed");
+    expect(server.requests).toHaveLength(2);
 
     const output = await readFile(
       path.join(outputDir, "bilingual.zh.md"),

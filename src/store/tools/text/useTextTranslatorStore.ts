@@ -39,6 +39,7 @@ export interface TextTranslatorUiError {
   taskId?: string;
   phase?: TextTranslationTask["phase"];
   field?: string;
+  details?: TextTranslationIpcError["details"];
 }
 
 interface TextTranslatorStore {

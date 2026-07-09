@@ -1,14 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
   buildMarkdownTargetOnlyTranslationPrompt,
-  buildProtectedPlaceholderRetryInstruction,
   formatMarkdownBilingualTranslationResponse,
   formatMarkdownTargetOnlyTranslationResponse,
   formatSequentialTranslationResponse,
   parseMarkdownBilingualTranslationResponse,
   parseMarkdownTargetOnlyTranslationResponse,
   parseSequentialMarkdownTargetOnlyTranslationResponse,
-  TranslationProtocolError,
 } from "../../../electron/main/text-translation/model/translation-response-protocol";
 import {
   applyProtectedPlaceholders,
@@ -231,7 +229,7 @@ describe("Markdown translation response protocol", () => {
     );
   });
 
-  it("rejects missing, duplicated, unknown, and reordered protected placeholders", () => {
+  it("repairs missing, duplicated, unknown, and reordered protected placeholders", () => {
     const placeholders = createPlaceholders("seg_005");
     const expectedUnits = [
       {
@@ -240,18 +238,30 @@ describe("Markdown translation response protocol", () => {
       },
     ];
 
-    expectPlaceholderError("译文删除了占位符", expectedUnits);
-    expectPlaceholderError(
+    expectPlaceholderRepair(
+      "译文删除了占位符",
+      expectedUnits,
+      `译文删除了占位符 ${placeholders[0].token} ${placeholders[1].token}`,
+    );
+    expectPlaceholderRepair(
       `${placeholders[0].token} ${placeholders[0].token} ${placeholders[1].token}`,
       expectedUnits,
+      `${placeholders[0].token} ${placeholders[1].token} `,
     );
-    expectPlaceholderError(
+    expectPlaceholderRepair(
       `${placeholders[0].token} ${placeholders[1].token} ⟦FKP:alien:0001⟧`,
       expectedUnits,
+      `${placeholders[0].token} ${placeholders[1].token} `,
     );
-    expectPlaceholderError(
+    expectPlaceholderRepair(
       `${placeholders[1].token} ${placeholders[0].token}`,
       expectedUnits,
+      `${placeholders[0].token} ${placeholders[1].token}`,
+    );
+    expectPlaceholderRepair(
+      `${placeholders[0].token} [[FKP:wrong_segment:0031]]`,
+      expectedUnits,
+      `${placeholders[0].token} ${placeholders[1].token}`,
     );
   });
 
@@ -299,37 +309,26 @@ function expectMarkdownIdError(
   );
 }
 
-function expectPlaceholderError(
+function expectPlaceholderRepair(
   translatedText: string,
   expectedUnits: { unitId: string; placeholders: ProtectedPlaceholder[] }[],
+  expectedText: string,
 ): void {
   const text = formatMarkdownTargetOnlyTranslationResponse("seg_005", [
     { unitId: "unit_1", translatedText },
   ]);
 
-  expect(() =>
+  expect(
     parseMarkdownTargetOnlyTranslationResponse({
       text,
       protocolId: "seg_005",
       expectedUnits,
-    }),
-  ).toThrowError(TranslationProtocolError);
-
-  try {
-    parseMarkdownTargetOnlyTranslationResponse({
-      text,
-      protocolId: "seg_005",
-      expectedUnits,
-    });
-  } catch (error) {
-    expect(error).toMatchObject({
-      code: "placeholder_mismatch",
-      retryable: true,
-      retryInstruction: buildProtectedPlaceholderRetryInstruction(
-        expectedUnits[0].placeholders,
-      ),
-    });
-  }
+      repairPlaceholders: true,
+    }).results[0],
+  ).toMatchObject({
+    unitId: "unit_1",
+    translatedText: expectedText,
+  });
 }
 
 function createPlaceholders(segmentId: string): ProtectedPlaceholder[] {

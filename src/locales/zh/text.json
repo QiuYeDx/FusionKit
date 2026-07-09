@@ -58,6 +58,7 @@
       "prepare": "准备任务",
       "preparing": "准备中",
       "start": "开始翻译",
+      "continue": "继续翻译",
       "running": "翻译中",
       "cancel": "取消",
       "open_output": "打开输出",
@@ -158,12 +159,20 @@
       "unsupported_file": "仅支持 .txt、.md 和 .markdown 文件。",
       "output_dir_required": "请选择输出目录，或使用源文件目录。",
       "budget_exceeded": "当前 token 预算超过模型上下文窗口。",
-      "output_not_ready": "输出文件尚未就绪。"
+      "output_not_ready": "输出文件尚未就绪。",
+      "view_details": "查看失败原因",
+      "detail_title": "翻译失败原因",
+      "detail_stats": "失败 {{failed}} / {{total}} 分片",
+      "failed_segments": "失败 {{failed}} / {{total}} 分片",
+      "first_failure": "首个失败分片",
+      "failure_list": "失败分片",
+      "no_details": "暂无可用的失败详情。"
     },
     "messages": {
       "prepared": "任务已准备。",
       "prepared_batch": "已准备 {{count}} 个独立任务。",
       "completed": "翻译已完成。",
+      "failed": "翻译任务失败。",
       "cancelled": "任务已取消。",
       "output_path_selected": "已选择输出目录。"
     },

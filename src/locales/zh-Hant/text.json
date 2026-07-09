@@ -58,6 +58,7 @@
       "prepare": "準備任務",
       "preparing": "準備中",
       "start": "開始翻譯",
+      "continue": "繼續翻譯",
       "running": "翻譯中",
       "cancel": "取消",
       "open_output": "開啟輸出",
@@ -158,12 +159,20 @@
       "unsupported_file": "僅支援 .txt、.md 和 .markdown 檔案。",
       "output_dir_required": "請選擇輸出目錄，或使用源檔目錄。",
       "budget_exceeded": "目前 token 預算超過模型上下文視窗。",
-      "output_not_ready": "輸出檔案尚未就緒。"
+      "output_not_ready": "輸出檔案尚未就緒。",
+      "view_details": "查看失敗原因",
+      "detail_title": "翻譯失敗原因",
+      "detail_stats": "失敗 {{failed}} / {{total}} 分片",
+      "failed_segments": "失敗 {{failed}} / {{total}} 分片",
+      "first_failure": "首個失敗分片",
+      "failure_list": "失敗分片",
+      "no_details": "暫無可用的失敗詳情。"
     },
     "messages": {
       "prepared": "任務已準備。",
       "prepared_batch": "已準備 {{count}} 個獨立任務。",
       "completed": "翻譯已完成。",
+      "failed": "翻譯任務失敗。",
       "cancelled": "任務已取消。",
       "output_path_selected": "已選擇輸出目錄。"
     },

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import {
+  AlertTriangle,
   CircleDashed,
   Folder,
   PlayCircle,
@@ -18,11 +19,14 @@ import {
   ScrollableDialogContent,
   ScrollableDialogFooter,
   ScrollableDialogHeader,
+  DialogDescription,
   DialogTitle,
 } from "@/components/qiuye-ui/scrollable-dialog";
 import { ToolDetailLayout } from "@/pages/Tools/_shared/ui";
 import useModelStore from "@/store/useModelStore";
-import useTextTranslatorStore from "@/store/tools/text/useTextTranslatorStore";
+import useTextTranslatorStore, {
+  type TextTranslatorUiError,
+} from "@/store/tools/text/useTextTranslatorStore";
 import {
   DEFAULT_TEXT_TRANSLATION_MODEL_CONTEXT_TOKEN_LIMIT,
   createTextTranslationOptions,
@@ -35,6 +39,7 @@ import {
   type TextTranslationRecoverySummary,
   type TextTranslationRuntimeModelConfig,
   type TextTranslationTask,
+  type TextTranslationTaskFailureSummary,
 } from "@/type/textTranslation";
 import { SUPPORTED_LANGUAGES } from "@/type/subtitle";
 import type { TextTranslationIpcError } from "@/type/textTranslationIpc";
@@ -54,6 +59,7 @@ import {
 } from "@/services/text/textTranslatorExecutionService";
 import { getFilePathFromFile } from "@/utils/filePath";
 import { showToast } from "@/utils/toast";
+import { cn } from "@/lib/utils";
 import ConfigPanel from "./components/ConfigPanel";
 import TaskPanel from "./components/TaskPanel";
 
@@ -68,7 +74,7 @@ type SelectedTextFile = {
 };
 
 function TextTranslator() {
-  const { t, i18n } = useTranslation(["text", "subtitle"]);
+  const { t, i18n } = useTranslation(["text", "subtitle", "common"]);
   const navigate = useNavigate();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const taskProfile = useModelStore((state) => state.getTaskProfile());
@@ -98,6 +104,8 @@ function TextTranslator() {
   const [recoveries, setRecoveries] = useState<TextTranslationRecoverySummary[]>([]);
   const [isLoadingRecoveries, setIsLoadingRecoveries] = useState(false);
   const [recoveryActionTaskId, setRecoveryActionTaskId] = useState<string | null>(null);
+  const [failureDetailTask, setFailureDetailTask] =
+    useState<TextTranslationTask | null>(null);
 
   const meta = TOOL_META.textTranslator;
   const hasUsableTaskModel = Boolean(
@@ -166,6 +174,13 @@ function TextTranslator() {
   const canStart =
     (queuedWaitingTasks.length > 0 ||
       (Boolean(task?.taskId) && currentStatus === "waiting")) &&
+    hasUsableTaskModel &&
+    !isBusy;
+  const canResume =
+    Boolean(task?.taskId) &&
+    ["paused", "cancelled", "failed", "partially_completed"].includes(
+      currentStatus,
+    ) &&
     hasUsableTaskModel &&
     !isBusy;
   const canCancel = Boolean(task?.taskId) && isRunning && !isCancelling;
@@ -305,10 +320,6 @@ function TextTranslator() {
         if (failedTask) {
           upsertQueuedTask(failedTask);
         }
-        if (currentActiveId && event.taskId !== currentActiveId) return;
-        if (failedTask) {
-          setTask(failedTask);
-        }
         setLastError(
           toUiError(
             event.error,
@@ -316,7 +327,11 @@ function TextTranslator() {
             event.taskId,
           ),
         );
-        showToast(event.error.message || "Translation task failed.", "error");
+        showToast(event.error.message || t("translator.messages.failed"), "error");
+        if (currentActiveId && event.taskId !== currentActiveId) return;
+        if (failedTask) {
+          setTask(failedTask);
+        }
       },
       fileCompleted: (event) => {
         const { activeTaskId: currentActiveId } = getStore();
@@ -578,7 +593,37 @@ function TextTranslator() {
             ) {
               setTask(latest.data);
             }
+            applyTaskFailureSummary(latest.data, setLastError);
           }
+        }
+      }
+    } finally {
+      setIsStarting(false);
+    }
+  };
+
+  const handleResumeTask = async () => {
+    if (!task?.taskId || !runtimeModel) return;
+    setIsStarting(true);
+    setLastError(null);
+    try {
+      const result = await resumeTextTranslationTask({
+        taskId: task.taskId,
+        model: runtimeModel,
+      });
+      if (!result.ok) {
+        handleIpcError(result.error, task.phase);
+        return;
+      }
+      setTask(result.data);
+      upsertQueuedTask(result.data);
+      applyTaskFailureSummary(result.data, setLastError);
+      if (result.data.status === "completed") {
+        const revealed = await revealTextTranslationOutput({
+          taskId: result.data.taskId,
+        });
+        if (revealed.ok && revealed.data.path) {
+          setOutputPaths([revealed.data.path]);
         }
       }
     } finally {
@@ -733,6 +778,15 @@ function TextTranslator() {
     }
   };
 
+  const handleShowRecoveryFailureDetails = async (
+    summary: TextTranslationRecoverySummary,
+  ) => {
+    const detail = await getTextTranslationTaskDetail({ taskId: summary.taskId });
+    if (detail.ok && detail.data) {
+      setFailureDetailTask(detail.data);
+    }
+  };
+
   const handleRevealOutput = async () => {
     if (!task?.taskId) return;
     const result = await revealTextTranslationOutput({ taskId: task.taskId });
@@ -747,6 +801,15 @@ function TextTranslator() {
   const handleRevealWorkspace = async () => {
     if (!task?.taskId) return;
     const result = await revealTextTranslationWorkspace({ taskId: task.taskId });
+    if (result.ok && result.data.path) {
+      window.ipcRenderer.invoke("show-item-in-folder", result.data.path);
+    }
+  };
+
+  const handleRevealTaskWorkspace = async (targetTask: TextTranslationTask) => {
+    const result = await revealTextTranslationWorkspace({
+      taskId: targetTask.taskId,
+    });
     if (result.ok && result.data.path) {
       window.ipcRenderer.invoke("show-item-in-folder", result.data.path);
     }
@@ -826,6 +889,7 @@ function TextTranslator() {
         isOrderedProject={isOrderedProject}
         canPrepare={canPrepare}
         canStart={canStart}
+        canResume={canResume}
         canCancel={canCancel}
         canRevealOutput={canRevealOutput}
         visibleLastError={visibleLastError}
@@ -873,8 +937,10 @@ function TextTranslator() {
         onSetActiveTaskId={setActiveTaskId}
         onPrepare={handlePrepare}
         onStart={handleStart}
+        onResume={handleResumeTask}
         onCancel={handleCancel}
         onRevealOutput={handleRevealOutput}
+        onShowFailureDetails={setFailureDetailTask}
         onOpenRecovery={handleOpenRecovery}
         onRevealWorkspace={handleRevealWorkspace}
         onClear={handleClear}
@@ -891,6 +957,14 @@ function TextTranslator() {
         onRestart={handleRestartRecovery}
         onDelete={handleDeleteRecovery}
         onRevealWorkspace={handleRevealRecoveryWorkspace}
+        onShowFailureDetails={handleShowRecoveryFailureDetails}
+      />
+      <FailureDetailsDialog
+        task={failureDetailTask}
+        onOpenChange={(open) => {
+          if (!open) setFailureDetailTask(null);
+        }}
+        onRevealWorkspace={handleRevealTaskWorkspace}
       />
     </ToolDetailLayout>
   );
@@ -907,6 +981,7 @@ function RecoveryDialog({
   onRestart,
   onDelete,
   onRevealWorkspace,
+  onShowFailureDetails,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -918,6 +993,9 @@ function RecoveryDialog({
   onRestart: (summary: TextTranslationRecoverySummary) => Promise<void>;
   onDelete: (summary: TextTranslationRecoverySummary) => Promise<void>;
   onRevealWorkspace: (summary: TextTranslationRecoverySummary) => Promise<void>;
+  onShowFailureDetails: (
+    summary: TextTranslationRecoverySummary,
+  ) => Promise<void>;
 }) {
   const { t } = useTranslation("text");
 
@@ -993,6 +1071,18 @@ function RecoveryDialog({
                       ) : null}
                     </div>
                     <div className="flex flex-wrap gap-2 md:justify-end">
+                      {summary.failureSummary ? (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          onClick={() => onShowFailureDetails(summary)}
+                          disabled={isActing}
+                        >
+                          <AlertTriangle className="h-4 w-4" />
+                          {t("translator.errors.view_details")}
+                        </Button>
+                      ) : null}
                       <Button
                         type="button"
                         size="sm"
@@ -1047,6 +1137,133 @@ function RecoveryDialog({
         </Button>
       </ScrollableDialogFooter>
     </ScrollableDialog>
+  );
+}
+
+function FailureDetailsDialog({
+  task,
+  onOpenChange,
+  onRevealWorkspace,
+}: {
+  task: TextTranslationTask | null;
+  onOpenChange: (open: boolean) => void;
+  onRevealWorkspace: (task: TextTranslationTask) => Promise<void>;
+}) {
+  const { t } = useTranslation(["text", "common"]);
+  const summary = task?.failureSummary;
+  const fileName =
+    task?.files[0]?.relativePath ?? task?.files[0]?.fileName ?? task?.taskId;
+
+  return (
+    <ScrollableDialog
+      open={Boolean(task)}
+      onOpenChange={onOpenChange}
+      maxWidth="sm:max-w-2xl"
+    >
+      <ScrollableDialogHeader>
+        <DialogTitle>{t("translator.errors.detail_title")}</DialogTitle>
+        <DialogDescription>
+          {fileName ?? t("translator.common.empty_value")}
+        </DialogDescription>
+      </ScrollableDialogHeader>
+      <ScrollableDialogContent fadeMasks>
+        {task && summary ? (
+          <div className="space-y-4">
+            <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-3">
+              <div className="flex items-start gap-2">
+                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />
+                <div className="min-w-0">
+                  <div className="text-sm font-medium text-destructive">
+                    {summary.message}
+                  </div>
+                  <div className="mt-1 text-xs text-muted-foreground">
+                    {t("translator.errors.detail_stats", {
+                      failed: summary.failedSegments,
+                      total: summary.totalSegments,
+                    })}
+                    {summary.phase
+                      ? ` · ${t("translator.errors.phase", {
+                          phase: t(`translator.phase.${summary.phase}`),
+                        })}`
+                      : ""}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {summary.firstFailure ? (
+              <FailureDetailBlock
+                title={t("translator.errors.first_failure")}
+                failure={summary.firstFailure}
+              />
+            ) : null}
+
+            <div className="space-y-2">
+              <div className="text-[13px] font-medium">
+                {t("translator.errors.failure_list")}
+              </div>
+              <div className="max-h-64 space-y-2 overflow-y-auto rounded-lg border bg-muted/20 p-2">
+                {summary.failures.map((failure) => (
+                  <FailureDetailBlock
+                    key={`${failure.segmentId}-${failure.errorCode}`}
+                    compact
+                    failure={failure}
+                  />
+                ))}
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="py-8 text-center text-sm text-muted-foreground">
+            {t("translator.errors.no_details")}
+          </div>
+        )}
+      </ScrollableDialogContent>
+      <ScrollableDialogFooter className="flex justify-end gap-2">
+        <Button
+          type="button"
+          variant="outline"
+          onClick={() => task && onRevealWorkspace(task)}
+          disabled={!task}
+        >
+          <Folder className="h-4 w-4" />
+          {t("translator.actions.open_workspace")}
+        </Button>
+        <Button type="button" onClick={() => onOpenChange(false)}>
+          {t("common:action.close")}
+        </Button>
+      </ScrollableDialogFooter>
+    </ScrollableDialog>
+  );
+}
+
+function FailureDetailBlock({
+  title,
+  failure,
+  compact,
+}: {
+  title?: string;
+  failure: NonNullable<TextTranslationTaskFailureSummary["firstFailure"]>;
+  compact?: boolean;
+}) {
+  return (
+    <div className={cn("rounded-lg border bg-background p-3", compact && "p-2")}>
+      {title ? <div className="mb-2 text-[13px] font-medium">{title}</div> : null}
+      <div className="grid gap-1 text-xs">
+        <div className="font-mono text-muted-foreground">
+          {failure.segmentId}
+        </div>
+        <div>
+          <span className="text-muted-foreground">code: </span>
+          <span className="font-mono">{failure.errorCode}</span>
+        </div>
+        {failure.message ? (
+          <div className="whitespace-pre-wrap break-words text-muted-foreground">
+            {failure.message}
+          </div>
+        ) : null}
+      </div>
+    </div>
   );
 }
 
@@ -1140,13 +1357,44 @@ function toUiError(
   error: TextTranslationIpcError,
   phase?: TextTranslationPhase,
   taskId?: string,
-) {
+): TextTranslatorUiError {
   return {
     code: error.code,
     message: error.message,
     taskId,
     phase: error.phase ?? phase,
     field: error.field,
+    details: error.details,
+  };
+}
+
+function applyTaskFailureSummary(
+  task: TextTranslationTask,
+  setLastError: (error: TextTranslatorUiError | null) => void,
+): void {
+  if (
+    !task.failureSummary ||
+    (task.status !== "partially_completed" && task.status !== "failed")
+  ) {
+    return;
+  }
+  setLastError(failureSummaryToUiError(task.failureSummary, task.taskId));
+}
+
+function failureSummaryToUiError(
+  summary: TextTranslationTaskFailureSummary,
+  taskId: string,
+): TextTranslatorUiError {
+  return {
+    code: "internal_error",
+    message: summary.message,
+    taskId,
+    phase: summary.phase,
+    details: {
+      failedSegments: summary.failedSegments,
+      totalSegments: summary.totalSegments,
+      firstFailure: summary.firstFailure,
+    },
   };
 }
 

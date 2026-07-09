@@ -4,6 +4,7 @@ import {
   type SemanticMemoryWarning,
 } from "../memory/memory-patch";
 import {
+  reconcileProtectedPlaceholders,
   validateProtectedPlaceholders,
   type ProtectedPlaceholder,
 } from "../parsing/protected-placeholders";
@@ -188,6 +189,7 @@ export function parseMarkdownTargetOnlyTranslationResponse(input: {
   finishReason?: string;
   protocolId: string;
   expectedUnits: MarkdownExpectedUnitTranslation[];
+  repairPlaceholders?: boolean;
 }): ParsedMarkdownTargetOnlyTranslationResponse {
   validateFinishReason(input.finishReason);
   const markers = createMarkdownTargetOnlyProtocolMarkers(input.protocolId);
@@ -204,6 +206,7 @@ export function parseMarkdownTargetOnlyTranslationResponse(input: {
         id: unit.unitId,
         text: sectionById.get(unit.unitId) ?? "",
         placeholders: unit.placeholders ?? [],
+        repairPlaceholders: input.repairPlaceholders,
       });
       return {
         unitId: unit.unitId,
@@ -219,6 +222,7 @@ export function parseMarkdownBilingualTranslationResponse(input: {
   finishReason?: string;
   protocolId: string;
   expectedBlocks: MarkdownExpectedBlockTranslation[];
+  repairPlaceholders?: boolean;
 }): ParsedMarkdownBilingualTranslationResponse {
   validateFinishReason(input.finishReason);
   const markers = createMarkdownBilingualProtocolMarkers(input.protocolId);
@@ -235,6 +239,7 @@ export function parseMarkdownBilingualTranslationResponse(input: {
         id: block.blockId,
         text: sectionById.get(block.blockId) ?? "",
         placeholders: block.placeholders ?? [],
+        repairPlaceholders: input.repairPlaceholders,
       });
       return {
         blockId: block.blockId,
@@ -253,6 +258,7 @@ export function parseSequentialMarkdownTargetOnlyTranslationResponse(input: {
   sequentialProtocolId: string;
   markdownProtocolId?: string;
   expectedUnits: MarkdownExpectedUnitTranslation[];
+  repairPlaceholders?: boolean;
 }): ParsedSequentialMarkdownTargetOnlyTranslationResponse {
   const sequential = parseSequentialTranslationResponse({
     text: input.text,
@@ -263,6 +269,7 @@ export function parseSequentialMarkdownTargetOnlyTranslationResponse(input: {
     text: sequential.translatedText,
     protocolId: input.markdownProtocolId ?? input.sequentialProtocolId,
     expectedUnits: input.expectedUnits,
+    repairPlaceholders: input.repairPlaceholders,
   });
 
   return {
@@ -280,6 +287,7 @@ export function parseSequentialMarkdownBilingualTranslationResponse(input: {
   sequentialProtocolId: string;
   markdownProtocolId?: string;
   expectedBlocks: MarkdownExpectedBlockTranslation[];
+  repairPlaceholders?: boolean;
 }): ParsedSequentialMarkdownBilingualTranslationResponse {
   const sequential = parseSequentialTranslationResponse({
     text: input.text,
@@ -290,6 +298,7 @@ export function parseSequentialMarkdownBilingualTranslationResponse(input: {
     text: sequential.translatedText,
     protocolId: input.markdownProtocolId ?? input.sequentialProtocolId,
     expectedBlocks: input.expectedBlocks,
+    repairPlaceholders: input.repairPlaceholders,
   });
 
   return {
@@ -722,8 +731,9 @@ function readValidatedMarkdownItemText(input: {
   id: string;
   text: string;
   placeholders: ProtectedPlaceholder[];
+  repairPlaceholders?: boolean;
 }): string {
-  const translatedText = stripMarkdownProtocolLineBreaks(input.text);
+  let translatedText = stripMarkdownProtocolLineBreaks(input.text);
   if (!translatedText.trim()) {
     throw new TranslationProtocolError(
       "response_empty",
@@ -732,10 +742,30 @@ function readValidatedMarkdownItemText(input: {
     );
   }
 
-  const validation = validateProtectedPlaceholders(
+  let validation = validateProtectedPlaceholders(
     translatedText,
     input.placeholders,
   );
+  if (!validation.ok && input.repairPlaceholders) {
+    const reconciled = reconcileProtectedPlaceholders(
+      translatedText,
+      input.placeholders,
+    );
+    translatedText = reconciled.text;
+    validation = validateProtectedPlaceholders(
+      translatedText,
+      input.placeholders,
+    );
+  }
+
+  if (!translatedText.trim()) {
+    throw new TranslationProtocolError(
+      "response_empty",
+      `Markdown translation item is empty after placeholder repair: ${input.id}.`,
+      true,
+    );
+  }
+
   if (!validation.ok) {
     throw new TranslationProtocolError(
       "placeholder_mismatch",

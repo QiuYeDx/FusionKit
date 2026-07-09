@@ -8,6 +8,7 @@ import {
 } from "../../../electron/main/text-translation/parsing/markdown-parser";
 import {
   applyProtectedPlaceholders,
+  reconcileProtectedPlaceholders,
   restoreProtectedPlaceholders,
   validateProtectedPlaceholders,
   type MarkdownProtectedSpan,
@@ -200,6 +201,31 @@ describe("Markdown parser and protected placeholders", () => {
         placeholders,
       ).errors,
     ).toContain("Unknown placeholder ⟦FKP:bad:0001⟧.");
+  });
+
+  it("repairs model-drifted placeholders into the expected sequence", () => {
+    const placeholders = applyProtectedPlaceholders({
+      source: "`a` and `b` then `c`",
+      spans: [
+        protectedSpan("`a` and `b` then `c`", "inline_code", "`a`"),
+        protectedSpan("`a` and `b` then `c`", "inline_code", "`b`"),
+        protectedSpan("`a` and `b` then `c`", "inline_code", "`c`"),
+      ],
+      segmentId: "segment_001",
+    }).placeholders;
+
+    const repaired = reconcileProtectedPlaceholders(
+      `译文 ${placeholders[1].token} [[FKP:wrong_segment:0031]]`,
+      placeholders,
+    );
+
+    expect(repaired.repaired).toBe(true);
+    expect(repaired.text).toBe(
+      `译文 ${placeholders[0].token} ${placeholders[1].token} ${placeholders[2].token}`,
+    );
+    expect(validateProtectedPlaceholders(repaired.text, placeholders).ok).toBe(
+      true,
+    );
   });
 
   it("rejects overlapping protected spans before replacement", () => {

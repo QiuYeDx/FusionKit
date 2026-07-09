@@ -34,6 +34,7 @@ export type TextTranslationWorkspaceEvent =
       type: "segment_failed";
       segmentId: string;
       errorCode: string;
+      message?: string;
     })
   | (TextTranslationWorkspaceEventBase & {
       type: "segment_stale";
@@ -66,6 +67,12 @@ export interface TextTranslationReplayedState {
   phase?: TextTranslationPhase;
   completedSegmentIds: string[];
   failedSegmentIds: string[];
+  segmentFailures: Array<{
+    segmentId: string;
+    errorCode: string;
+    message?: string;
+    occurredAt: string;
+  }>;
   staleSegmentIds: string[];
   segmentResultPaths: Record<string, string>;
   segmentMemoryVersions: Record<
@@ -100,6 +107,7 @@ export function replayTextTranslationEvents(
     lastSequence: -1,
     completedSegmentIds: [],
     failedSegmentIds: [],
+    segmentFailures: [],
     staleSegmentIds: [],
     segmentResultPaths: {},
     segmentMemoryVersions: {},
@@ -110,6 +118,15 @@ export function replayTextTranslationEvents(
 
   const completedSegmentIds = new Set<string>();
   const failedSegmentIds = new Set<string>();
+  const segmentFailures = new Map<
+    string,
+    {
+      segmentId: string;
+      errorCode: string;
+      message?: string;
+      occurredAt: string;
+    }
+  >();
   const staleSegmentIds = new Set<string>();
 
   for (const event of events) {
@@ -128,6 +145,7 @@ export function replayTextTranslationEvents(
       case "segment_completed":
         completedSegmentIds.add(event.segmentId);
         failedSegmentIds.delete(event.segmentId);
+        segmentFailures.delete(event.segmentId);
         staleSegmentIds.delete(event.segmentId);
         state.segmentResultPaths[event.segmentId] = event.resultPath;
         state.segmentMemoryVersions[event.segmentId] = {
@@ -138,11 +156,18 @@ export function replayTextTranslationEvents(
       case "segment_failed":
         if (!completedSegmentIds.has(event.segmentId)) {
           failedSegmentIds.add(event.segmentId);
+          segmentFailures.set(event.segmentId, {
+            segmentId: event.segmentId,
+            errorCode: event.errorCode,
+            message: event.message,
+            occurredAt: event.occurredAt,
+          });
         }
         break;
       case "segment_stale":
         staleSegmentIds.add(event.segmentId);
         completedSegmentIds.delete(event.segmentId);
+        segmentFailures.delete(event.segmentId);
         delete state.segmentResultPaths[event.segmentId];
         delete state.segmentMemoryVersions[event.segmentId];
         break;
@@ -165,6 +190,7 @@ export function replayTextTranslationEvents(
 
   state.completedSegmentIds = [...completedSegmentIds];
   state.failedSegmentIds = [...failedSegmentIds];
+  state.segmentFailures = [...segmentFailures.values()];
   state.staleSegmentIds = [...staleSegmentIds];
 
   return state;

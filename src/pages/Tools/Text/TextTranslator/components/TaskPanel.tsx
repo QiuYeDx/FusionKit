@@ -33,6 +33,7 @@ import {
   type TextFileFormat,
   type TextTranslationPhase,
   type TextTranslationTask,
+  type TextTranslationTaskFailureSummary,
   type TextTranslationTaskStatus,
 } from "@/type/textTranslation";
 import { formatCost, formatTokens } from "@/utils/tokenEstimate";
@@ -53,6 +54,7 @@ type UiError = {
   taskId?: string;
   phase?: TextTranslationPhase;
   field?: string;
+  details?: Record<string, unknown>;
 };
 
 const STATUS_KEYS: Record<TextTranslationTaskStatus, string> = {
@@ -99,6 +101,7 @@ type TaskPanelProps = {
   isOrderedProject: boolean;
   canPrepare: boolean;
   canStart: boolean;
+  canResume: boolean;
   canCancel: boolean;
   canRevealOutput: boolean;
   visibleLastError: UiError | null;
@@ -118,8 +121,10 @@ type TaskPanelProps = {
   onSetActiveTaskId: (id: string) => void;
   onPrepare: () => void;
   onStart: () => void;
+  onResume: () => void;
   onCancel: () => void;
   onRevealOutput: () => void;
+  onShowFailureDetails: (task: TextTranslationTask) => void;
   onOpenRecovery: () => void;
   onRevealWorkspace: () => void;
   onClear: () => void;
@@ -146,6 +151,7 @@ export default function TaskPanel({
   isOrderedProject,
   canPrepare,
   canStart,
+  canResume,
   canCancel,
   canRevealOutput,
   visibleLastError,
@@ -161,8 +167,10 @@ export default function TaskPanel({
   onSetActiveTaskId,
   onPrepare,
   onStart,
+  onResume,
   onCancel,
   onRevealOutput,
+  onShowFailureDetails,
   onOpenRecovery,
   onRevealWorkspace,
   onClear,
@@ -199,7 +207,9 @@ export default function TaskPanel({
       ? "danger"
       : currentStatus === "completed"
         ? "success"
-        : currentStatus === "running" || currentStatus === "preparing"
+        : currentStatus === "running" ||
+            currentStatus === "preparing" ||
+            currentStatus === "partially_completed"
           ? "warning"
           : "default";
   const primaryStatItems: ToolStatBarItem[] = [
@@ -336,13 +346,15 @@ export default function TaskPanel({
             <Button
               type="button"
               size="sm"
-              onClick={onStart}
-              disabled={!canStart}
+              onClick={canResume ? onResume : onStart}
+              disabled={!canStart && !canResume}
             >
               <PlayCircle className="h-3.5 w-3.5" />
               {isStarting
                 ? t("translator.actions.running")
-                : t("translator.actions.start")}
+                : canResume
+                  ? t("translator.actions.continue")
+                  : t("translator.actions.start")}
             </Button>
             <Button
               type="button"
@@ -417,6 +429,18 @@ export default function TaskPanel({
                     phase: t(PHASE_KEYS[visibleLastError.phase]),
                   })}
                 </div>
+              ) : null}
+              {task?.failureSummary ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="mt-2"
+                  onClick={() => onShowFailureDetails(task)}
+                >
+                  <AlertTriangle className="h-3.5 w-3.5" />
+                  {t("translator.errors.view_details")}
+                </Button>
               ) : null}
             </AlertDescription>
           </Alert>
@@ -581,6 +605,7 @@ export default function TaskPanel({
                         completed: qt.progress.completedSegments,
                         total: qt.progress.totalSegments,
                       }),
+                      getFailureMeta(qt.failureSummary, t),
                       t("translator.progress.tokens", {
                         tokens:
                           typeof qt.progress.estimatedInputTokens === "number"
@@ -598,6 +623,24 @@ export default function TaskPanel({
                       onSetTask(qt);
                       onSetActiveTaskId(qt.taskId);
                     }}
+                    actions={
+                      qt.failureSummary ? (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="icon"
+                          className="h-7 w-7"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            onShowFailureDetails(qt);
+                          }}
+                          aria-label={t("translator.errors.view_details")}
+                          title={t("translator.errors.view_details")}
+                        >
+                          <AlertTriangle className="h-3.5 w-3.5" />
+                        </Button>
+                      ) : null
+                    }
                   />
                 );
               })}
@@ -616,6 +659,7 @@ export default function TaskPanel({
                 completed: progress?.completedSegments ?? 0,
                 total: progress?.totalSegments ?? 0,
               }),
+              getFailureMeta(task?.failureSummary, t),
               t("translator.progress.tokens", { tokens: estimatedTokensLabel }),
               t("translator.progress.cost", { cost: estimatedCostLabel }),
             ]}
@@ -623,6 +667,19 @@ export default function TaskPanel({
             progressText={progressText}
             actions={
               <>
+                {task?.failureSummary ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    className="h-7 w-7"
+                    onClick={() => onShowFailureDetails(task)}
+                    aria-label={t("translator.errors.view_details")}
+                    title={t("translator.errors.view_details")}
+                  >
+                    <AlertTriangle className="h-3.5 w-3.5" />
+                  </Button>
+                ) : null}
                 <Button
                   type="button"
                   variant="outline"
@@ -756,7 +813,7 @@ function CompactTaskRow({
     onClick ? "hover:bg-muted/40" : null,
   );
 
-  if (onClick) {
+  if (onClick && !actions) {
     return (
       <button type="button" className={rowClassName} onClick={onClick}>
         {content}
@@ -764,7 +821,37 @@ function CompactTaskRow({
     );
   }
 
+  if (onClick) {
+    return (
+      <div
+        role="button"
+        tabIndex={0}
+        className={rowClassName}
+        onClick={onClick}
+        onKeyDown={(event) => {
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            onClick();
+          }
+        }}
+      >
+        {content}
+      </div>
+    );
+  }
+
   return <div className={rowClassName}>{content}</div>;
+}
+
+function getFailureMeta(
+  failureSummary: TextTranslationTaskFailureSummary | undefined,
+  t: (key: string, options?: Record<string, unknown>) => string,
+): ReactNode | null {
+  if (!failureSummary) return null;
+  return t("translator.errors.failed_segments", {
+    failed: failureSummary.failedSegments,
+    total: failureSummary.totalSegments,
+  });
 }
 
 function getTaskStatusDotClass(status: TextTranslationTaskStatus) {

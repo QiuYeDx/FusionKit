@@ -58,6 +58,7 @@
       "prepare": "Prepare",
       "preparing": "Preparing",
       "start": "Start",
+      "continue": "Continue",
       "running": "Running",
       "cancel": "Cancel",
       "open_output": "Open output",
@@ -158,12 +159,20 @@
       "unsupported_file": "Only .txt, .md, and .markdown files are supported.",
       "output_dir_required": "Select an output folder or use the source folder.",
       "budget_exceeded": "The token budget exceeds the model context window.",
-      "output_not_ready": "Output is not ready yet."
+      "output_not_ready": "Output is not ready yet.",
+      "view_details": "View failure reason",
+      "detail_title": "Translation failure reason",
+      "detail_stats": "{{failed}} / {{total}} segments failed",
+      "failed_segments": "{{failed}} / {{total}} segments failed",
+      "first_failure": "First failed segment",
+      "failure_list": "Failed segments",
+      "no_details": "No failure details are available."
     },
     "messages": {
       "prepared": "Task prepared.",
       "prepared_batch": "{{count}} independent tasks prepared.",
       "completed": "Translation completed.",
+      "failed": "Translation task failed.",
       "cancelled": "Task cancelled.",
       "output_path_selected": "Output folder selected."
     },

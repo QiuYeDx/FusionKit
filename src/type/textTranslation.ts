@@ -138,6 +138,23 @@ export interface TextTranslationProgress {
   percentage: number;
 }
 
+export interface TextTranslationSegmentFailureSummary {
+  segmentId: string;
+  errorCode: string;
+  message?: string;
+  occurredAt?: string;
+}
+
+export interface TextTranslationTaskFailureSummary {
+  message: string;
+  phase?: TextTranslationPhase;
+  failedSegments: number;
+  totalSegments: number;
+  firstFailure?: TextTranslationSegmentFailureSummary;
+  failures: TextTranslationSegmentFailureSummary[];
+  updatedAt: string;
+}
+
 export interface TextTranslationTask {
   taskId: string;
   projectId?: string;
@@ -146,6 +163,7 @@ export interface TextTranslationTask {
   status: TextTranslationTaskStatus;
   phase: TextTranslationPhase;
   progress: TextTranslationProgress;
+  failureSummary?: TextTranslationTaskFailureSummary;
   workspacePath?: string;
   createdAt: string;
   updatedAt: string;
@@ -179,6 +197,7 @@ export interface PersistedTextTranslationTask {
   segmentCount: number;
   completedSegmentCount: number;
   failedSegmentIds: string[];
+  failureSummary?: TextTranslationTaskFailureSummary;
   staleFromSegmentId?: string;
   model?: TextTranslationPersistedModelRef;
   createdAt: string;
@@ -212,6 +231,7 @@ export interface TextTranslationRecoverySummary {
   completedSegmentCount: number;
   totalSegmentCount: number;
   failedSegmentIds: string[];
+  failureSummary?: TextTranslationTaskFailureSummary;
   staleFromSegmentId?: string;
   blockingReason?: string;
   sourceStatus?: "matched" | "changed" | "missing" | "unchecked";
@@ -350,6 +370,7 @@ export function createPersistedTextTranslationTask(params: {
   segmentCount: number;
   completedSegmentCount?: number;
   failedSegmentIds?: string[];
+  failureSummary?: TextTranslationTaskFailureSummary;
   staleFromSegmentId?: string;
   model?: TextTranslationPersistedModelRef;
 }): PersistedTextTranslationTask {
@@ -364,6 +385,7 @@ export function createPersistedTextTranslationTask(params: {
     segmentCount: params.segmentCount,
     completedSegmentCount: params.completedSegmentCount ?? 0,
     failedSegmentIds: params.failedSegmentIds ?? [],
+    failureSummary: params.failureSummary ?? params.task.failureSummary,
     staleFromSegmentId: params.staleFromSegmentId,
     model: params.model,
     createdAt: params.task.createdAt,

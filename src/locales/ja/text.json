@@ -58,6 +58,7 @@
       "prepare": "準備",
       "preparing": "準備中",
       "start": "開始",
+      "continue": "続行",
       "running": "実行中",
       "cancel": "キャンセル",
       "open_output": "出力を開く",
@@ -158,12 +159,20 @@
       "unsupported_file": ".txt、.md、.markdown ファイルのみ対応しています。",
       "output_dir_required": "出力フォルダを選択するか、元ファイルのフォルダを使用してください。",
       "budget_exceeded": "現在の token 予算はモデルコンテキスト枠を超えています。",
-      "output_not_ready": "出力はまだ準備できていません。"
+      "output_not_ready": "出力はまだ準備できていません。",
+      "view_details": "失敗理由を表示",
+      "detail_title": "翻訳失敗の理由",
+      "detail_stats": "{{failed}} / {{total}} セグメント失敗",
+      "failed_segments": "{{failed}} / {{total}} セグメント失敗",
+      "first_failure": "最初の失敗セグメント",
+      "failure_list": "失敗セグメント",
+      "no_details": "利用できる失敗詳細はありません。"
     },
     "messages": {
       "prepared": "タスクを準備しました。",
       "prepared_batch": "{{count}} 件の独立タスクを準備しました。",
       "completed": "翻訳が完了しました。",
+      "failed": "翻訳タスクが失敗しました。",
       "cancelled": "タスクをキャンセルしました。",
       "output_path_selected": "出力フォルダを選択しました。"
     },

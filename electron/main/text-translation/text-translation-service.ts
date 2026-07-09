@@ -31,7 +31,9 @@ import {
   type TextTranslationProgress,
   type TextTranslationRecoverySummary,
   type TextTranslationRuntimeModelConfig,
+  type TextTranslationSegmentFailureSummary,
   type TextTranslationTask,
+  type TextTranslationTaskFailureSummary,
 } from "@/type/textTranslation";
 import {
   sendModelRuntimeText,
@@ -159,6 +161,7 @@ interface RuntimeTaskRecord {
   segments?: TranslationSegment[];
   results?: RuntimeTranslationSegmentResult[];
   failedSegmentIds?: string[];
+  failureSummary?: TextTranslationTaskFailureSummary;
   staleFromSegmentId?: string;
   outputPaths?: string[];
 }
@@ -452,9 +455,15 @@ export class TextTranslationService implements TextTranslationIpcService {
 
       return textTranslationIpcSuccess(record.task);
     } catch (error) {
-      this.patchTask(record, { status: "failed" });
-      await this.persistTask(record, record.segments?.length ?? 0);
       const failure = this.errorToFailure(error);
+      this.patchTask(record, { status: "failed" });
+      this.patchTask(record, {
+        failureSummary: createTaskFailureSummaryFromError({
+          error: failure.error,
+          totalSegments: record.segments?.length ?? 0,
+        }),
+      });
+      await this.persistTask(record, record.segments?.length ?? 0);
       this.emitTaskUpdated(record);
       this.emitTaskFailed(record, failure.error);
       return failure;
@@ -477,11 +486,13 @@ export class TextTranslationService implements TextTranslationIpcService {
     record.abortReason = undefined;
     record.results = [];
     record.failedSegmentIds = [];
+    record.failureSummary = undefined;
 
     try {
       this.patchTask(record, {
         status: "running",
         phase: "translating",
+        failureSummary: undefined,
         progress: this.createProgress(
           "translating",
           record.segments.length,
@@ -506,9 +517,19 @@ export class TextTranslationService implements TextTranslationIpcService {
       if (translated.failures.length > 0) {
         const status =
           translated.results.length > 0 ? "partially_completed" : "failed";
+        const failureSummary = createSegmentFailureSummary({
+          baseMessage:
+            status === "failed"
+              ? "All text translation segments failed."
+              : `${translated.failures.length} of ${record.segments.length} segments failed during translation.`,
+          failures: translated.failures,
+          totalSegments: record.segments.length,
+          phase: "translating",
+        });
         this.patchTask(record, {
           status,
           phase: "translating",
+          failureSummary,
           progress: this.createProgress(
             "translating",
             record.segments.length,
@@ -523,12 +544,7 @@ export class TextTranslationService implements TextTranslationIpcService {
         this.emitProgress(record);
         const failure = this.failure(
           "internal_error",
-          formatSegmentFailureMessage(
-            status === "failed"
-              ? "All text translation segments failed."
-              : `${translated.failures.length} of ${record.segments.length} segments failed during translation.`,
-            translated.failures,
-          ),
+          failureSummary.message,
           {
             phase: record.task.phase,
             details: summarizeSegmentFailures(translated.failures),
@@ -573,6 +589,7 @@ export class TextTranslationService implements TextTranslationIpcService {
     } catch (error) {
       const aborted = controller.signal.aborted;
       const abortReason = record.abortReason;
+      const failure = this.errorToFailure(error);
       this.patchTask(record, {
         status: aborted
           ? abortReason === "pause"
@@ -580,10 +597,16 @@ export class TextTranslationService implements TextTranslationIpcService {
             : "cancelled"
           : "failed",
         phase: "translating",
+        failureSummary: aborted
+          ? undefined
+          : createTaskFailureSummaryFromError({
+              error: failure.error,
+              totalSegments: record.segments.length,
+              phase: "translating",
+            }),
       });
       await this.appendStatusChanged(record);
       await this.persistTask(record, record.segments.length);
-      const failure = this.errorToFailure(error);
       this.emitTaskUpdated(record);
       this.emitTaskFailed(record, failure.error);
       return failure;
@@ -821,6 +844,7 @@ export class TextTranslationService implements TextTranslationIpcService {
       ...record.task,
       status: "not_started",
       phase: "idle",
+      failureSummary: undefined,
       progress: this.createProgress("idle", 0, 0, []),
       workspacePath: this.repository.getTaskWorkspacePath(request.taskId),
       updatedAt: new Date().toISOString(),
@@ -829,6 +853,7 @@ export class TextTranslationService implements TextTranslationIpcService {
     record.segments = undefined;
     record.results = [];
     record.failedSegmentIds = [];
+    record.failureSummary = undefined;
     record.staleFromSegmentId = undefined;
     record.outputPaths = [];
     this.tasks.set(request.taskId, record);
@@ -879,7 +904,11 @@ export class TextTranslationService implements TextTranslationIpcService {
   async getTaskDetail(
     request: GetTextTranslationTaskDetailRequest,
   ): Promise<TextTranslationIpcResult<TextTranslationTask | null>> {
-    return textTranslationIpcSuccess(this.tasks.get(request.taskId)?.task ?? null);
+    const inMemoryTask = this.tasks.get(request.taskId)?.task;
+    if (inMemoryTask) return textTranslationIpcSuccess(inMemoryTask);
+    return textTranslationIpcSuccess(
+      await this.readPersistedTaskDetail(request.taskId),
+    );
   }
 
   async revealOutput(
@@ -989,9 +1018,56 @@ export class TextTranslationService implements TextTranslationIpcService {
       completedSegmentCount: validCompletedSegmentIds.length,
       totalSegmentCount,
       failedSegmentIds: replayed.failedSegmentIds,
+      failureSummary:
+        task.failureSummary ??
+        createReplayedFailureSummary({
+          failures: replayed.segmentFailures,
+          totalSegments: totalSegmentCount,
+          phase: replayed.phase ?? task.phase,
+        }),
       staleFromSegmentId: task.staleFromSegmentId,
       blockingReason,
       sourceStatus,
+    };
+  }
+
+  private async readPersistedTaskDetail(
+    taskId: string,
+  ): Promise<TextTranslationTask | null> {
+    const task = await this.repository.readTask(taskId);
+    if (!task) return null;
+
+    const files = await this.repository.readFilesIndex(taskId);
+    const replayed = await this.repository.replayEvents(taskId);
+    const status = replayed.status ?? task.status;
+    const phase = replayed.phase ?? task.phase;
+    const completedSegmentCount =
+      replayed.completedSegmentIds.length || task.completedSegmentCount;
+    const failureSummary =
+      task.failureSummary ??
+      createReplayedFailureSummary({
+        failures: replayed.segmentFailures,
+        totalSegments: task.segmentCount,
+        phase,
+      });
+
+    return {
+      taskId: task.taskId,
+      projectId: task.projectId,
+      files,
+      options: task.options,
+      status,
+      phase,
+      progress: this.createProgress(
+        phase,
+        task.segmentCount,
+        completedSegmentCount,
+        [],
+      ),
+      failureSummary,
+      workspacePath: this.repository.getTaskWorkspacePath(taskId),
+      createdAt: task.createdAt,
+      updatedAt: task.updatedAt,
     };
   }
 
@@ -1074,6 +1150,13 @@ export class TextTranslationService implements TextTranslationIpcService {
 
     const status = replayed.status ?? task.status;
     const phase = replayed.phase ?? task.phase;
+    const failureSummary =
+      task.failureSummary ??
+      createReplayedFailureSummary({
+        failures: replayed.segmentFailures,
+        totalSegments: task.segmentCount || segments.length,
+        phase,
+      });
     const record: RuntimeTaskRecord = {
       task: {
         taskId: task.taskId,
@@ -1089,6 +1172,7 @@ export class TextTranslationService implements TextTranslationIpcService {
           [],
           sumSourceTokens(segments),
         ),
+        failureSummary,
         workspacePath: this.repository.getTaskWorkspacePath(taskId),
         createdAt: task.createdAt,
         updatedAt: task.updatedAt,
@@ -1098,6 +1182,7 @@ export class TextTranslationService implements TextTranslationIpcService {
       segments,
       results,
       failedSegmentIds: replayed.failedSegmentIds,
+      failureSummary,
       staleFromSegmentId: task.staleFromSegmentId,
       outputPaths: replayed.taskOutputPaths,
     };
@@ -1118,11 +1203,13 @@ export class TextTranslationService implements TextTranslationIpcService {
     record.controller = controller;
     record.abortReason = undefined;
     record.failedSegmentIds = [];
+    record.failureSummary = undefined;
 
     try {
       this.patchTask(record, {
         status: "running",
         phase: "translating",
+        failureSummary: undefined,
         progress: this.createProgress(
           "translating",
           record.segments.length,
@@ -1157,9 +1244,19 @@ export class TextTranslationService implements TextTranslationIpcService {
 
       if (translated.failures.length > 0) {
         const status = allResults.length > 0 ? "partially_completed" : "failed";
+        const failureSummary = createSegmentFailureSummary({
+          baseMessage:
+            status === "failed"
+              ? "All remaining text translation segments failed."
+              : `${translated.failures.length} of ${record.segments.length} segments failed during translation.`,
+          failures: translated.failures,
+          totalSegments: record.segments.length,
+          phase: "translating",
+        });
         this.patchTask(record, {
           status,
           phase: "translating",
+          failureSummary,
           progress: this.createProgress(
             "translating",
             record.segments.length,
@@ -1174,12 +1271,7 @@ export class TextTranslationService implements TextTranslationIpcService {
         this.emitProgress(record);
         const failure = this.failure(
           "internal_error",
-          formatSegmentFailureMessage(
-            status === "failed"
-              ? "All remaining text translation segments failed."
-              : `${translated.failures.length} of ${record.segments.length} segments failed during translation.`,
-            translated.failures,
-          ),
+          failureSummary.message,
           {
             phase: record.task.phase,
             details: summarizeSegmentFailures(translated.failures),
@@ -1241,6 +1333,7 @@ export class TextTranslationService implements TextTranslationIpcService {
     } catch (error) {
       const aborted = controller.signal.aborted;
       const abortReason = record.abortReason;
+      const failure = this.errorToFailure(error);
       this.patchTask(record, {
         status: aborted
           ? abortReason === "pause"
@@ -1248,10 +1341,16 @@ export class TextTranslationService implements TextTranslationIpcService {
             : "cancelled"
           : "failed",
         phase: "translating",
+        failureSummary: aborted
+          ? undefined
+          : createTaskFailureSummaryFromError({
+              error: failure.error,
+              totalSegments: record.segments.length,
+              phase: "translating",
+            }),
       });
       await this.appendStatusChanged(record);
       await this.persistTask(record, record.segments.length);
-      const failure = this.errorToFailure(error);
       this.emitTaskUpdated(record);
       this.emitTaskFailed(record, failure.error);
       return failure;
@@ -1382,6 +1481,7 @@ export class TextTranslationService implements TextTranslationIpcService {
             occurredAt: new Date().toISOString(),
             segmentId: segment.segmentId,
             errorCode: failure.errorCode,
+            message: truncateDiagnostic(failure.message),
           });
         } finally {
           release?.();
@@ -1457,6 +1557,7 @@ export class TextTranslationService implements TextTranslationIpcService {
                   finishReason: response.finishReason,
                   protocolId: payload.segmentId,
                   expectedUnits: payload.units,
+                  repairPlaceholders: protocolAttempt > 0,
                 }).results,
               }
             : {
@@ -1472,6 +1573,7 @@ export class TextTranslationService implements TextTranslationIpcService {
                     sourceText: item.sourceText,
                     placeholders: item.placeholders,
                   })),
+                  repairPlaceholders: protocolAttempt > 0,
                 }).translations,
               };
 
@@ -1713,6 +1815,7 @@ export class TextTranslationService implements TextTranslationIpcService {
           occurredAt: new Date().toISOString(),
           segmentId: segment.segmentId,
           errorCode: failure.errorCode,
+          message: truncateDiagnostic(failure.message),
         });
         break;
       } finally {
@@ -1855,6 +1958,7 @@ export class TextTranslationService implements TextTranslationIpcService {
               finishReason: response.finishReason,
               sequentialProtocolId: input.segment.segmentId,
               expectedUnits: payload.units,
+              repairPlaceholders: protocolAttempt > 0,
             });
           const result: MarkdownTargetOnlySegmentResult = {
             schemaVersion: 1,
@@ -1881,6 +1985,7 @@ export class TextTranslationService implements TextTranslationIpcService {
               sourceText: item.sourceText,
               placeholders: item.placeholders,
             })),
+            repairPlaceholders: protocolAttempt > 0,
           });
         const result: MarkdownBilingualSegmentResult = {
           schemaVersion: 1,
@@ -2082,9 +2187,15 @@ export class TextTranslationService implements TextTranslationIpcService {
   private patchTask(
     record: RuntimeTaskRecord,
     patch: Partial<
-      Pick<TextTranslationTask, "status" | "phase" | "progress" | "workspacePath">
+      Pick<
+        TextTranslationTask,
+        "status" | "phase" | "progress" | "workspacePath" | "failureSummary"
+      >
     >,
   ): void {
+    if ("failureSummary" in patch) {
+      record.failureSummary = patch.failureSummary;
+    }
     record.task = {
       ...record.task,
       ...patch,
@@ -2126,6 +2237,7 @@ export class TextTranslationService implements TextTranslationIpcService {
         segmentCount,
         completedSegmentCount: record.task.progress.completedSegments,
         failedSegmentIds: record.failedSegmentIds ?? [],
+        failureSummary: record.failureSummary ?? record.task.failureSummary,
         staleFromSegmentId: record.staleFromSegmentId,
         model: createPersistedRuntimeModelRef(record.model),
       }),
@@ -2736,6 +2848,98 @@ function toSegmentFailure(
         ? errorWithCode.code
         : "segment_failed",
     message: error instanceof Error ? error.message : "Segment failed.",
+  };
+}
+
+function createSegmentFailureSummary(input: {
+  baseMessage: string;
+  failures: TranslationSegmentFailure[];
+  totalSegments: number;
+  phase?: TextTranslationTask["phase"];
+}): TextTranslationTaskFailureSummary {
+  const updatedAt = new Date().toISOString();
+  const failures = input.failures.map(
+    (failure): TextTranslationSegmentFailureSummary => ({
+      segmentId: failure.segmentId,
+      errorCode: failure.errorCode,
+      message: truncateDiagnostic(failure.message),
+      occurredAt: updatedAt,
+    }),
+  );
+
+  return {
+    message: formatSegmentFailureMessage(input.baseMessage, input.failures),
+    phase: input.phase,
+    failedSegments: input.failures.length,
+    totalSegments: input.totalSegments,
+    firstFailure: failures[0],
+    failures,
+    updatedAt,
+  };
+}
+
+function createTaskFailureSummaryFromError(input: {
+  error: Extract<TextTranslationIpcResult<never>, { ok: false }>["error"];
+  totalSegments: number;
+  phase?: TextTranslationTask["phase"];
+}): TextTranslationTaskFailureSummary {
+  const updatedAt = new Date().toISOString();
+  return {
+    message: truncateDiagnostic(input.error.message),
+    phase: input.error.phase ?? input.phase,
+    failedSegments: input.totalSegments > 0 ? input.totalSegments : 1,
+    totalSegments: input.totalSegments,
+    firstFailure: {
+      segmentId: "task",
+      errorCode: input.error.code,
+      message: truncateDiagnostic(input.error.message),
+      occurredAt: updatedAt,
+    },
+    failures: [
+      {
+        segmentId: "task",
+        errorCode: input.error.code,
+        message: truncateDiagnostic(input.error.message),
+        occurredAt: updatedAt,
+      },
+    ],
+    updatedAt,
+  };
+}
+
+function createReplayedFailureSummary(input: {
+  failures: TextTranslationSegmentFailureSummary[];
+  totalSegments: number;
+  phase?: TextTranslationTask["phase"];
+}): TextTranslationTaskFailureSummary | undefined {
+  if (input.failures.length === 0) return undefined;
+
+  const updatedAt =
+    input.failures[input.failures.length - 1]?.occurredAt ??
+    new Date().toISOString();
+  const failures = input.failures.map((failure) => ({
+    ...failure,
+    message: failure.message
+      ? truncateDiagnostic(failure.message)
+      : `Segment failed with ${failure.errorCode}.`,
+  }));
+  const firstFailure = failures[0];
+
+  return {
+    message: formatSegmentFailureMessage(
+      `${failures.length} of ${input.totalSegments} segments failed during translation.`,
+      failures.map((failure) => ({
+        segmentId: failure.segmentId,
+        errorCode: failure.errorCode,
+        message: failure.message ?? `Segment failed with ${failure.errorCode}.`,
+      })),
+    ),
+    phase: input.phase,
+    failedSegments: failures.length,
+    totalSegments: input.totalSegments,
+    firstFailure,
+    failures,
+    updatedAt,
   };
 }
 
