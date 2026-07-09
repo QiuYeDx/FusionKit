@@ -30,13 +30,13 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
   DialogDescription,
-} from "@/components/ui/dialog";
+  DialogTitle,
+  ScrollableDialog,
+  ScrollableDialogContent,
+  ScrollableDialogFooter,
+  ScrollableDialogHeader,
+} from "@/components/qiuye-ui/scrollable-dialog";
 import {
   OPENAI_MODEL_OPTIONS,
   DEEPSEEK_MODEL_OPTIONS,
@@ -61,6 +61,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import AudioModelConfig from "./AudioModelConfig";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -91,6 +92,7 @@ function ModelConfig() {
     <div className="space-y-4">
       <ModelAssignmentCard />
       <ModelProfilesCard />
+      <AudioModelConfig />
     </div>
   );
 }
@@ -252,7 +254,12 @@ function ModelAssignmentCard() {
 
 function ModelProfilesCard() {
   const { t } = useTranslation();
-  const { profiles, removeProfile, assignment } = useModelStore();
+  const {
+    profiles,
+    removeProfile,
+    assignment,
+    isConnectionProfileReferencedByAudioProfile,
+  } = useModelStore();
   const [editingProfile, setEditingProfile] = useState<ModelProfile | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
@@ -268,6 +275,11 @@ function ModelProfilesCard() {
   };
 
   const handleDelete = (id: string) => {
+    if (isConnectionProfileReferencedByAudioProfile(id)) {
+      toast.error(t("setting:fields.audio.profile.connection_delete_blocked"));
+      return;
+    }
+
     if (confirmDeleteId === id) {
       removeProfile(id);
       setConfirmDeleteId(null);
@@ -278,7 +290,9 @@ function ModelProfilesCard() {
   };
 
   const isInUse = (id: string) =>
-    assignment.agent === id || assignment.taskExecution === id;
+    assignment.agent === id ||
+    assignment.taskExecution === id ||
+    isConnectionProfileReferencedByAudioProfile(id);
 
   return (
     <>
@@ -575,20 +589,24 @@ function ProfileEditDialog({ open, onOpenChange, profile }: ProfileDialogProps) 
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-xl max-h-[85vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>
-            {isNew
-              ? t("setting:fields.profile.dialog_title_add")
-              : t("setting:fields.profile.dialog_title_edit")}
-          </DialogTitle>
-          <DialogDescription>
-            {t("setting:fields.profile.dialog_description")}
-          </DialogDescription>
-        </DialogHeader>
+    <ScrollableDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      maxWidth="sm:max-w-xl"
+    >
+      <ScrollableDialogHeader>
+        <DialogTitle>
+          {isNew
+            ? t("setting:fields.profile.dialog_title_add")
+            : t("setting:fields.profile.dialog_title_edit")}
+        </DialogTitle>
+        <DialogDescription>
+          {t("setting:fields.profile.dialog_description")}
+        </DialogDescription>
+      </ScrollableDialogHeader>
 
-        <div className="space-y-5 py-2">
+      <ScrollableDialogContent fadeMasks>
+        <div className="space-y-5">
           {/* Profile Name */}
           <div className="space-y-2">
             <Label>{t("setting:fields.profile.name")}</Label>
@@ -897,19 +915,19 @@ function ProfileEditDialog({ open, onOpenChange, profile }: ProfileDialogProps) 
             </div>
           </div>
         </div>
+      </ScrollableDialogContent>
 
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            {t("setting:fields.profile.cancel")}
-          </Button>
-          <Button onClick={handleSave}>
-            {isNew
-              ? t("setting:fields.profile.create")
-              : t("setting:fields.profile.save")}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+      <ScrollableDialogFooter className="flex justify-end gap-2">
+        <Button variant="outline" onClick={() => onOpenChange(false)}>
+          {t("setting:fields.profile.cancel")}
+        </Button>
+        <Button onClick={handleSave}>
+          {isNew
+            ? t("setting:fields.profile.create")
+            : t("setting:fields.profile.save")}
+        </Button>
+      </ScrollableDialogFooter>
+    </ScrollableDialog>
   );
 }
 

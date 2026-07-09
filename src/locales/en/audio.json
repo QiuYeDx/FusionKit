@@ -1,0 +1,493 @@
+{
+  "global": {
+    "open_settings": "Open settings",
+    "config_title": "Global audio config",
+    "summary": "Current config",
+    "status": "Status",
+    "profile": "Profile",
+    "dialect": "Protocol",
+    "model": "Model",
+    "connection": "Connection",
+    "capabilities": "Capabilities"
+  },
+  "status": {
+    "ready": "Ready",
+    "profile_not_configured": "Not configured",
+    "connection_missing": "Connection missing",
+    "model_missing": "Model missing",
+    "unsupported_capability": "Capability mismatch"
+  },
+  "workspace": {
+    "ready": {
+      "title": "Config ready",
+      "description": "This page has loaded the global audio configuration from settings."
+    },
+    "profile_not_configured": {
+      "title": "No audio profile selected",
+      "description": "Choose a global audio profile for this audio task in settings."
+    },
+    "connection_missing": {
+      "title": "Connection missing",
+      "description": "The model connection referenced by this audio profile no longer exists."
+    },
+    "model_missing": {
+      "title": "Model ID missing",
+      "description": "This audio profile is missing the model ID required by this task."
+    },
+    "unsupported_capability": {
+      "title": "Capability mismatch",
+      "description": "The selected audio profile does not support this task."
+    }
+  },
+  "pages": {
+    "transcriber": {
+      "title": "Audio to text",
+      "description": "Process local audio with the global ASR configuration.",
+      "workspace": "Transcription task"
+    },
+    "speech": {
+      "title": "Text to audio",
+      "description": "Generate audio with the global TTS configuration.",
+      "workspace": "Synthesis task"
+    },
+    "captions": {
+      "title": "Realtime captions",
+      "description": "Process microphone input with the global realtime caption configuration.",
+      "workspace": "Caption stream"
+    },
+    "voice": {
+      "title": "Duplex voice",
+      "description": "Start a voice session with OpenAI Realtime configuration.",
+      "workspace": "Voice session"
+    }
+  },
+  "transcriber": {
+    "fields": {
+      "language": "Language",
+      "response_format": "Output format",
+      "timestamps": "Timestamps",
+      "prompt": "Prompt",
+      "stream": "Streaming transcription",
+      "output_mode": "Result saving"
+    },
+    "languages": {
+      "auto": "Auto detect",
+      "zh": "Chinese",
+      "en": "English",
+      "ja": "Japanese",
+      "ko": "Korean",
+      "fr": "French",
+      "de": "German",
+      "es": "Spanish"
+    },
+    "response_format": {
+      "json": "JSON",
+      "text": "Plain text",
+      "srt": "SRT subtitles",
+      "verbose_json": "Verbose JSON",
+      "vtt": "VTT subtitles"
+    },
+    "timestamp": {
+      "segment": "Segments",
+      "word": "Words"
+    },
+    "output_mode": {
+      "display_only": "Display only",
+      "source_dir": "Source folder",
+      "custom_dir": "Custom folder"
+    },
+    "hints": {
+      "mimo_response_format": "MiMo ASR supports JSON or plain text output in the first version.",
+      "openai_response_format": "OpenAI Audio supports JSON, plain text, and subtitle formats depending on the model.",
+      "timestamps": "Timestamps are enabled only for OpenAI verbose JSON output; MiMo docs do not expose this capability.",
+      "prompt": "Use this for names, product terms, or domain context. MiMo ASR does not support prompts.",
+      "stream": "File streaming transcription and realtime captions are separate capabilities.",
+      "stream_disabled": "The first file transcription page uses the non-streaming path; use Realtime Captions for microphone captions.",
+      "output_mode": "Source or custom folders write the transcript file when the task completes."
+    },
+    "placeholders": {
+      "prompt": "Names, product terms, glossary, or domain context",
+      "mimo_prompt_disabled": "The current MiMo ASR mode does not support prompts",
+      "output_dir": "No output folder selected"
+    },
+    "dialog": {
+      "select_output_title": "Select transcript output folder",
+      "select_output_confirm": "Select this folder"
+    },
+    "file": {
+      "title": "Choose an audio file",
+      "openai_description": "Supports wav, mp3, m4a, mp4, flac, ogg, and webm. Recommended under 25MB.",
+      "mimo_description": "MiMo ASR only accepts wav / mp3 and must stay under 10MB after Base64 encoding."
+    },
+    "actions": {
+      "select_file": "Choose file",
+      "clear_file": "Remove file",
+      "select_output_dir": "Select output folder",
+      "start": "Start transcription",
+      "running": "Transcribing",
+      "copy": "Copy",
+      "open_output": "Open folder",
+      "save_next_run": "Save next run"
+    },
+    "status": {
+      "idle": "Ready",
+      "running": "Transcribing",
+      "completed": "Completed",
+      "failed": "Failed",
+      "cancelled": "Cancelled"
+    },
+    "empty": {
+      "title": "Waiting for audio",
+      "description": "Choose a file and confirm the settings. The transcript will appear here.",
+      "running": "Transcribing",
+      "running_description": "The request is using the current global audio configuration. Keep this page open."
+    },
+    "result": {
+      "title": "Transcript result"
+    },
+    "messages": {
+      "file_selected": "Audio file selected",
+      "output_path_selected": "Output folder selected",
+      "completed": "Transcription completed",
+      "cancelled": "Transcription cancelled",
+      "copied": "Transcript copied"
+    },
+    "errors": {
+      "title": "Transcription failed",
+      "file_path_unavailable": "Could not read the local path for this file. Choose it again inside the Electron app.",
+      "unsupported_file": "This audio format is not supported.",
+      "unsupported_file_for_mimo": "MiMo ASR currently supports only wav or mp3 files.",
+      "file_too_large": "The audio file exceeds the size limit for the current protocol.",
+      "no_file": "Choose an audio file first.",
+      "output_dir_required": "Select an output folder before using custom folder mode.",
+      "output_dir_select_failed": "Failed to select output folder.",
+      "output_not_ready": "There is no output file to open yet.",
+      "copy_failed": "Copy failed. Please copy the result manually."
+    }
+  },
+  "speech": {
+    "fields": {
+      "voice": "Voice",
+      "response_format": "Output format",
+      "speed": "Speed",
+      "stream": "Streaming playback",
+      "output_mode": "Output location",
+      "mimo_mode": "MiMo mode",
+      "style_instruction": "Style instruction",
+      "voice_design_prompt": "Voice design prompt",
+      "optimize_text_preview": "Let MiMo optimize preview text",
+      "voice_sample": "Reference audio",
+      "audio_tags": "Audio tags",
+      "input": "Text to synthesize",
+      "instructions": "OpenAI instructions"
+    },
+    "response_format": {
+      "mp3": "MP3",
+      "opus": "Opus",
+      "aac": "AAC",
+      "flac": "FLAC",
+      "wav": "WAV",
+      "pcm": "PCM",
+      "pcm16": "PCM16"
+    },
+    "output_mode": {
+      "temp": "Temporary file",
+      "custom_dir": "Custom folder"
+    },
+    "hints": {
+      "mimo_voice": "Preset voice mode uses voice; voice design does not, and voice clone uses reference audio.",
+      "openai_voice": "OpenAI voice can be typed manually; presets are only shortcuts.",
+      "mimo_format": "MiMo non-streaming output is fixed to WAV. Streaming is fixed to PCM16 and saved as WAV when complete.",
+      "openai_format": "OpenAI official TTS supports multiple binary audio formats.",
+      "speed": "OpenAI-only option. It is disabled for MiMo and will not enter the payload.",
+      "stream": "All three MiMo TTS modes use the low-latency PCM16 streaming path.",
+      "stream_disabled": "The current global audio config does not support MiMo streaming TTS.",
+      "stream_on": "Streaming plays PCM16 chunks as they arrive, then switches to the final file.",
+      "stream_off": "Non-streaming waits for the full audio response before playback.",
+      "output_mode": "Temporary files can be played; custom folders write directly to the selected folder.",
+      "mimo_mode": "The mode must match the current global TTS model in settings.",
+      "mimo_model_mismatch": "This mode requires {{model}} in settings.",
+      "voice_design": "Voice design requires a description of the voice you want.",
+      "voice_clone": "Voice clone requires a wav or mp3 reference audio file. File contents are read only in the main process.",
+      "audio_tags": "Audio tags can be enabled for MiMo preset voice mode. Other modes disable them.",
+      "input": "Text to synthesize. MiMo voice design may leave this empty when optimizing preview text."
+    },
+    "placeholders": {
+      "mimo_voice": "mimo_default / 冰糖 / Mia / custom voice id",
+      "openai_voice": "alloy",
+      "output_dir": "No output folder selected",
+      "style_instruction": "For example: softer, narrator-like, natural pacing",
+      "voice_design_prompt": "For example: young, bright, friendly female voice",
+      "input": "Enter text to synthesize",
+      "instructions": "For example: keep a calm tone for podcast narration",
+      "instructions_mimo_disabled": "For MiMo, use the style instruction or voice design prompt on the left"
+    },
+    "dialog": {
+      "select_output_title": "Select speech output folder",
+      "select_output_confirm": "Select this folder"
+    },
+    "mimo": {
+      "title": "MiMo-only configuration",
+      "disabled_badge": "Disabled outside MiMo",
+      "mode": {
+        "preset_voice": "Preset voice",
+        "voice_design": "Voice design",
+        "voice_clone": "Voice clone"
+      },
+      "current_model_mode": "Current model matches: {{mode}}"
+    },
+    "voice_sample": {
+      "title": "Choose reference audio",
+      "description": "Used only for voice clone mode. Supports wav / mp3."
+    },
+    "actions": {
+      "select_output_dir": "Select output folder",
+      "select_voice_sample": "Choose reference audio",
+      "clear_voice_sample": "Remove reference audio",
+      "start": "Generate audio",
+      "start_stream": "Stream generate",
+      "running": "Generating",
+      "open_output": "Open folder",
+      "clear": "Clear"
+    },
+    "status": {
+      "idle": "Ready",
+      "running": "Generating",
+      "streaming": "Streaming",
+      "completed": "Completed",
+      "failed": "Failed",
+      "cancelled": "Cancelled"
+    },
+    "empty": {
+      "title": "Waiting for text",
+      "description": "Enter text and confirm settings. The player will appear when generation completes.",
+      "running": "Generating audio",
+      "running_description": "The request is using the current global audio configuration. Keep this page open."
+    },
+    "result": {
+      "title": "Generated result"
+    },
+    "stream_mode": {
+      "incremental": "Low-latency streaming",
+      "final_only": "Final response only"
+    },
+    "stats": {
+      "chunks": "Chunks",
+      "bytes": "Bytes",
+      "latency": "First chunk"
+    },
+    "messages": {
+      "output_path_selected": "Output folder selected",
+      "voice_sample_selected": "Reference audio selected",
+      "completed": "Audio generation completed",
+      "cancelled": "Audio generation cancelled"
+    },
+    "errors": {
+      "title": "Generation failed",
+      "no_input": "Enter text to synthesize.",
+      "no_voice": "Enter a voice.",
+      "output_dir_required": "Select an output folder before using custom folder mode.",
+      "mimo_model_mismatch": "The current mode does not match the global TTS model. Select {{model}} in settings.",
+      "voice_design_prompt_required": "Voice design mode requires a voice description.",
+      "voice_sample_required": "Voice clone mode requires reference audio.",
+      "output_not_ready": "There is no output file to open yet.",
+      "output_dir_select_failed": "Failed to select output folder.",
+      "voice_sample_path_unavailable": "Could not read the local path for the reference audio. Choose it again inside the Electron app.",
+      "unsupported_voice_sample": "Reference audio supports only wav or mp3.",
+      "voice_sample_too_large": "Reference audio exceeds the MiMo Base64 size limit."
+    }
+  },
+  "captions": {
+    "fields": {
+      "mode": "Caption mode",
+      "language": "Language",
+      "input_audio_format": "Input audio format",
+      "turn_detection": "Turn detection",
+      "output_format": "Save format",
+      "assistant_transcript": "Show assistant captions",
+      "instructions": "Realtime instructions"
+    },
+    "mode": {
+      "openai_realtime": "OpenAI Realtime",
+      "chunked_near_realtime": "Chunked near-realtime",
+      "unsupported": "Unsupported"
+    },
+    "languages": {
+      "auto": "Auto detect",
+      "zh": "Chinese",
+      "en": "English",
+      "ja": "Japanese",
+      "ko": "Korean",
+      "fr": "French",
+      "de": "German",
+      "es": "Spanish"
+    },
+    "input_audio_format": {
+      "pcm16": "PCM16",
+      "opus": "Opus"
+    },
+    "turn_detection": {
+      "server_vad": "Server VAD",
+      "manual": "Manual"
+    },
+    "output_format": {
+      "txt": "TXT",
+      "srt": "SRT"
+    },
+    "hints": {
+      "language": "OpenAI Realtime can receive a language preference. Auto detect omits the language field.",
+      "input_audio_format": "The first version prefers PCM16. Opus depends on the current Realtime model and browser support.",
+      "turn_detection": "Server VAD detects speech turns automatically. Manual mode is useful for later duplex voice controls.",
+      "output_format": "TXT saves plain text. SRT uses local session time to generate a basic timeline.",
+      "assistant_transcript": "Realtime captions show microphone input by default.",
+      "assistant_transcript_detail": "If the model returns assistant-side transcripts, this toggle shows them.",
+      "instructions": "Constrain the realtime caption session, such as transcribe only and do not answer."
+    },
+    "placeholders": {
+      "instructions": "For example: only transcribe user speech, do not generate replies.",
+      "instructions_disabled": "Realtime instructions are unavailable outside OpenAI Realtime mode"
+    },
+    "status": {
+      "idle": "Ready",
+      "requesting": "Requesting mic",
+      "connecting": "Connecting",
+      "listening": "Listening",
+      "stopping": "Stopping",
+      "completed": "Stopped",
+      "failed": "Failed"
+    },
+    "mic_state": {
+      "idle": "Inactive",
+      "requesting": "Requesting",
+      "granted": "Granted",
+      "denied": "Denied",
+      "muted": "Muted"
+    },
+    "stats": {
+      "mode": "Mode",
+      "mic": "Microphone",
+      "lines": "Caption lines",
+      "elapsed": "Elapsed"
+    },
+    "chunked": {
+      "title": "Chunked near-realtime",
+      "description": "This mode encodes microphone input into short WAV chunks and lets the main process transcribe each chunk with the global ASR config. It is not a WebRTC duplex session."
+    },
+    "actions": {
+      "start": "Start captions",
+      "listening": "Listening",
+      "stop": "Stop",
+      "copy": "Copy",
+      "save": "Save",
+      "clear": "Clear"
+    },
+    "empty": {
+      "title": "Waiting for microphone input",
+      "description": "Starting will request microphone permission and show realtime captions here.",
+      "running": "Listening",
+      "running_description": "Start speaking and partial/final captions will appear here."
+    },
+    "role": {
+      "user": "User",
+      "assistant": "Assistant"
+    },
+    "messages": {
+      "copied": "Captions copied",
+      "saved": "Caption file saved"
+    },
+    "errors": {
+      "title": "Realtime captions failed",
+      "unsupported_mode": "The current global audio config does not support realtime captions.",
+      "chunked_unavailable": "The current global audio config cannot start chunked near-realtime captions.",
+      "microphone_failed": "Could not start microphone recording.",
+      "no_transcript": "There are no captions yet.",
+      "copy_failed": "Copy failed. Please copy the captions manually."
+    }
+  },
+  "voice": {
+    "fields": {
+      "voice": "Response voice",
+      "turn_detection": "Turn detection",
+      "input_audio_format": "Input audio format",
+      "output_audio_format": "Output audio format",
+      "instructions": "Session instructions"
+    },
+    "hints": {
+      "voice": "The response voice used by OpenAI Realtime duplex voice.",
+      "turn_detection": "Server VAD detects when the user has finished speaking. Manual mode is for later fine-grained controls.",
+      "input_audio_format": "Audio format sent from the microphone to the Realtime session.",
+      "output_audio_format": "Audio format returned by the model remote track.",
+      "instructions": "Set the assistant speaking style, language, and task boundaries."
+    },
+    "placeholders": {
+      "voice": "marin",
+      "instructions": "For example: answer briefly in Chinese with a natural tone.",
+      "instructions_disabled": "The current config does not support Realtime/WebRTC duplex voice"
+    },
+    "turn_detection": {
+      "server_vad": "Server VAD",
+      "manual": "Manual"
+    },
+    "audio_format": {
+      "pcm16": "PCM16",
+      "opus": "Opus"
+    },
+    "status": {
+      "idle": "Ready",
+      "requesting": "Requesting mic",
+      "connecting": "Connecting",
+      "connected": "Connected",
+      "stopping": "Disconnecting",
+      "completed": "Disconnected",
+      "failed": "Failed"
+    },
+    "mic_state": {
+      "idle": "Inactive",
+      "requesting": "Requesting",
+      "granted": "Granted",
+      "denied": "Denied",
+      "muted": "Muted"
+    },
+    "audio_state": {
+      "idle": "Idle",
+      "speaking": "Model is speaking"
+    },
+    "stats": {
+      "mic": "Microphone",
+      "audio": "Remote audio",
+      "session": "Session",
+      "elapsed": "Elapsed"
+    },
+    "unsupported": {
+      "title": "Current config does not support duplex voice",
+      "description": "Duplex voice requires an OpenAI Realtime profile with realtime_duplex_voice capability. MiMo Chat Audio only exposes chunked captions and streaming TTS in the first version, so it is not labeled as WebRTC duplex."
+    },
+    "actions": {
+      "connect": "Connect voice",
+      "connected": "Connecting",
+      "disconnect": "Disconnect",
+      "mute": "Mute",
+      "unmute": "Unmute",
+      "interrupt": "Interrupt response",
+      "clear": "Clear"
+    },
+    "empty": {
+      "title": "Waiting for a voice session",
+      "description": "Connecting will request microphone permission and show user/assistant realtime transcripts here.",
+      "running": "Session connected",
+      "running_description": "Start speaking and user/assistant partial/final transcripts will appear here."
+    },
+    "role": {
+      "user": "User",
+      "assistant": "Assistant"
+    },
+    "messages": {
+      "interrupted": "Interrupt command sent"
+    },
+    "errors": {
+      "title": "Duplex voice failed",
+      "unsupported_profile": "The current global audio config does not support Realtime/WebRTC duplex voice.",
+      "interrupt_failed": "Could not send the interrupt command. Check that the session is still connected."
+    }
+  }
+}

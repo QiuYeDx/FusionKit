@@ -5,33 +5,51 @@
     "subtitle_tools": "Subtitle Tools",
     "music_tools": "Music Tools",
     "rename_tools": "Rename Tools",
-    "text_tools": "Text Tools"
+    "text_tools": "Text Tools",
+    "audio_tools": "Audio Tools"
   },
   "sub_desc": {
     "subtitle_tools": "AI translation, format conversion, and other subtitle processing features.",
     "music_tools": "Convert paid music to FLAC/MP3 format.",
     "rename_tools": "Easily batch rename multiple files.",
-    "text_tools": "Long-form TXT / Markdown translation workspace."
+    "text_tools": "Long-form TXT / Markdown translation workspace.",
+    "audio_tools": "ASR, TTS, realtime captions, and duplex voice workspace."
   },
   "fields": {
     "subtitle_translator": "AI Translation",
     "subtitle_formatter": "Format Conversion",
     "subtitle_language_extractor": "Language Extraction",
     "name_translator": "Name Translator",
-    "text_translator": "Long Text Translator"
+    "text_translator": "Long Text Translator",
+    "audio_transcriber": "Audio to Text",
+    "speech_synthesizer": "Text to Audio",
+    "realtime_captions": "Realtime Captions",
+    "realtime_voice": "Duplex Voice"
   },
   "field_desc": {
     "subtitle_translator": "Translate subtitle files with AI models",
     "subtitle_formatter": "Convert subtitle formats (SRT, ASS, etc.)",
     "subtitle_language_extractor": "Extract a specific language from bilingual subtitles",
     "name_translator": "Batch translate file and folder names with a safe preview before renaming",
-    "text_translator": "Translate long TXT / Markdown files in a resumable workspace with model execution"
+    "text_translator": "Translate long TXT / Markdown files in a resumable workspace with model execution",
+    "audio_transcriber": "Transcribe local audio files with the global ASR configuration",
+    "speech_synthesizer": "Generate and play speech audio with the global TTS configuration",
+    "realtime_captions": "Create realtime or near-realtime captions from microphone input",
+    "realtime_voice": "Start a duplex voice session through Realtime/WebRTC"
   },
   "chips": {
     "name_translator_files": "Files · Folders",
     "name_translator_safe": "Preview · Journal",
     "text_translator_txt": "TXT",
-    "text_translator_markdown": "Markdown"
+    "text_translator_markdown": "Markdown",
+    "audio_file": "Audio file",
+    "openai_mimo": "OpenAI · MiMo",
+    "tts_stream": "Streaming TTS",
+    "mimo_voice": "MiMo voice",
+    "microphone": "Microphone",
+    "realtime": "Realtime",
+    "webrtc": "WebRTC",
+    "duplex": "Duplex"
   },
   "coming_soon": {
     "title": "Coming Soon",

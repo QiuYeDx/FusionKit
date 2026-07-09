@@ -1,0 +1,493 @@
+{
+  "global": {
+    "open_settings": "前往設定",
+    "config_title": "全域音訊設定",
+    "summary": "目前設定",
+    "status": "狀態",
+    "profile": "Profile",
+    "dialect": "協議",
+    "model": "模型",
+    "connection": "連線",
+    "capabilities": "能力"
+  },
+  "status": {
+    "ready": "就緒",
+    "profile_not_configured": "未設定",
+    "connection_missing": "連線缺失",
+    "model_missing": "模型缺失",
+    "unsupported_capability": "能力不匹配"
+  },
+  "workspace": {
+    "ready": {
+      "title": "設定就緒",
+      "description": "此頁面已讀取設定頁的全域音訊設定。"
+    },
+    "profile_not_configured": {
+      "title": "未選擇音訊設定",
+      "description": "請在設定頁為目前音訊任務選擇一個全域音訊 Profile。"
+    },
+    "connection_missing": {
+      "title": "連線設定缺失",
+      "description": "目前音訊 Profile 引用的模型連線不存在。"
+    },
+    "model_missing": {
+      "title": "模型 ID 缺失",
+      "description": "目前音訊 Profile 缺少此任務需要的模型 ID。"
+    },
+    "unsupported_capability": {
+      "title": "能力不匹配",
+      "description": "目前音訊 Profile 不支援此任務。"
+    }
+  },
+  "pages": {
+    "transcriber": {
+      "title": "音訊轉文字",
+      "description": "使用全域 ASR 設定處理本地音訊。",
+      "workspace": "轉寫任務"
+    },
+    "speech": {
+      "title": "文字轉音訊",
+      "description": "使用全域 TTS 設定產生音訊。",
+      "workspace": "合成任務"
+    },
+    "captions": {
+      "title": "即時字幕",
+      "description": "使用全域即時字幕設定處理麥克風輸入。",
+      "workspace": "字幕流"
+    },
+    "voice": {
+      "title": "雙向語音",
+      "description": "使用 OpenAI Realtime 設定建立語音會話。",
+      "workspace": "語音會話"
+    }
+  },
+  "transcriber": {
+    "fields": {
+      "language": "語言",
+      "response_format": "輸出格式",
+      "timestamps": "時間戳",
+      "prompt": "提示詞",
+      "stream": "串流轉寫",
+      "output_mode": "結果儲存"
+    },
+    "languages": {
+      "auto": "自動偵測",
+      "zh": "中文",
+      "en": "英文",
+      "ja": "日文",
+      "ko": "韓文",
+      "fr": "法文",
+      "de": "德文",
+      "es": "西班牙文"
+    },
+    "response_format": {
+      "json": "JSON",
+      "text": "純文字",
+      "srt": "SRT 字幕",
+      "verbose_json": "詳細 JSON",
+      "vtt": "VTT 字幕"
+    },
+    "timestamp": {
+      "segment": "分段",
+      "word": "逐詞"
+    },
+    "output_mode": {
+      "display_only": "僅顯示",
+      "source_dir": "來源目錄",
+      "custom_dir": "自選目錄"
+    },
+    "hints": {
+      "mimo_response_format": "MiMo ASR 首版僅支援 JSON 或純文字輸出。",
+      "openai_response_format": "OpenAI Audio 支援 JSON、純文字與字幕格式，實際能力取決於模型。",
+      "timestamps": "時間戳僅在 OpenAI 詳細 JSON 輸出下啟用；MiMo 文件未提供此能力。",
+      "prompt": "可補充專有名詞或上下文。MiMo ASR 目前不支援 prompt。",
+      "stream": "檔案串流轉寫與即時字幕是不同能力。",
+      "stream_disabled": "首版檔案轉寫頁面使用非串流路徑；麥克風即時字幕請使用「即時字幕」工具。",
+      "output_mode": "選擇來源目錄或自選目錄時，轉寫完成後會直接寫入結果檔案。"
+    },
+    "placeholders": {
+      "prompt": "例如：人名、產品名、術語表或領域上下文",
+      "mimo_prompt_disabled": "目前 MiMo ASR 不支援提示詞",
+      "output_dir": "尚未選擇輸出目錄"
+    },
+    "dialog": {
+      "select_output_title": "選擇轉寫結果輸出目錄",
+      "select_output_confirm": "選擇此目錄"
+    },
+    "file": {
+      "title": "選擇音訊檔案",
+      "openai_description": "支援 wav、mp3、m4a、mp4、flac、ogg、webm，建議不超過 25MB。",
+      "mimo_description": "MiMo ASR 僅支援 wav / mp3，Base64 後需小於 10MB。"
+    },
+    "actions": {
+      "select_file": "選擇檔案",
+      "clear_file": "移除檔案",
+      "select_output_dir": "選擇輸出目錄",
+      "start": "開始轉寫",
+      "running": "轉寫中",
+      "copy": "複製",
+      "open_output": "開啟目錄",
+      "save_next_run": "下次儲存"
+    },
+    "status": {
+      "idle": "待開始",
+      "running": "轉寫中",
+      "completed": "已完成",
+      "failed": "失敗",
+      "cancelled": "已取消"
+    },
+    "empty": {
+      "title": "等待音訊檔案",
+      "description": "選擇檔案並確認參數後開始轉寫，結果會顯示在這裡。",
+      "running": "正在轉寫",
+      "running_description": "請求已送往目前全域音訊設定，請保持頁面開啟。"
+    },
+    "result": {
+      "title": "轉寫結果"
+    },
+    "messages": {
+      "file_selected": "音訊檔案已選擇",
+      "output_path_selected": "輸出目錄已選擇",
+      "completed": "轉寫完成",
+      "cancelled": "轉寫已取消",
+      "copied": "轉寫結果已複製"
+    },
+    "errors": {
+      "title": "轉寫失敗",
+      "file_path_unavailable": "無法讀取此檔案的本機路徑，請在 Electron 應用內重新選擇檔案。",
+      "unsupported_file": "目前音訊格式不受支援。",
+      "unsupported_file_for_mimo": "MiMo ASR 首版僅支援 wav 或 mp3 檔案。",
+      "file_too_large": "音訊檔案超過目前協議的大小限制。",
+      "no_file": "請先選擇一個音訊檔案。",
+      "output_dir_required": "使用自選目錄時，請先選擇輸出目錄。",
+      "output_dir_select_failed": "選擇輸出目錄失敗。",
+      "output_not_ready": "目前還沒有可開啟的輸出檔案。",
+      "copy_failed": "複製失敗，請手動複製結果。"
+    }
+  },
+  "speech": {
+    "fields": {
+      "voice": "音色",
+      "response_format": "輸出格式",
+      "speed": "語速",
+      "stream": "串流播放",
+      "output_mode": "輸出位置",
+      "mimo_mode": "MiMo 模式",
+      "style_instruction": "風格指令",
+      "voice_design_prompt": "音色設計描述",
+      "optimize_text_preview": "讓 MiMo 優化試聽文字",
+      "voice_sample": "參考音訊",
+      "audio_tags": "音訊標籤",
+      "input": "合成文字",
+      "instructions": "OpenAI 指令"
+    },
+    "response_format": {
+      "mp3": "MP3",
+      "opus": "Opus",
+      "aac": "AAC",
+      "flac": "FLAC",
+      "wav": "WAV",
+      "pcm": "PCM",
+      "pcm16": "PCM16"
+    },
+    "output_mode": {
+      "temp": "暫存檔案",
+      "custom_dir": "自選目錄"
+    },
+    "hints": {
+      "mimo_voice": "預設音色模式會使用 voice；音色設計不使用 voice，音色複刻使用參考音訊。",
+      "openai_voice": "OpenAI voice 支援手動輸入；預設按鈕只是快速入口。",
+      "mimo_format": "MiMo 非串流固定 WAV，串流固定 PCM16，完成後保存為 WAV。",
+      "openai_format": "OpenAI 官方 TTS 支援多種二進位音訊格式。",
+      "speed": "OpenAI 專屬參數；MiMo 模式會停用且不會進入 payload。",
+      "stream": "MiMo 三種 TTS 模式都走低延遲 PCM16 串流路徑。",
+      "stream_disabled": "目前全域音訊設定不支援 MiMo 串流 TTS。",
+      "stream_on": "串流開啟時會邊接收 PCM16 邊播放，完成後切換到最終檔案。",
+      "stream_off": "非串流會等待遠端返回完整音訊後再播放。",
+      "output_mode": "暫存檔案可播放；自選目錄會直接寫入指定目錄。",
+      "mimo_mode": "模式必須與設定頁目前全域 TTS 模型匹配。",
+      "mimo_model_mismatch": "此模式需要在設定頁選擇 {{model}}。",
+      "voice_design": "音色設計需要描述想要的聲音特徵。",
+      "voice_clone": "音色複刻需要 wav 或 mp3 參考音訊，檔案內容只在 main 行程讀取。",
+      "audio_tags": "MiMo 預設音色模式可開啟音訊標籤；其他模式停用。",
+      "input": "要合成為語音的文字。MiMo 音色設計可在優化試聽文字時允許為空。"
+    },
+    "placeholders": {
+      "mimo_voice": "mimo_default / 冰糖 / Mia / 自訂 voice id",
+      "openai_voice": "alloy",
+      "output_dir": "尚未選擇輸出目錄",
+      "style_instruction": "例如：更溫柔、旁白感、語速自然",
+      "voice_design_prompt": "例如：年輕、明亮、親和的女性聲音",
+      "input": "輸入要合成為語音的文字",
+      "instructions": "例如：保持語氣平靜，適合播客旁白",
+      "instructions_mimo_disabled": "MiMo 請使用左側的風格指令或音色設計描述"
+    },
+    "dialog": {
+      "select_output_title": "選擇語音輸出目錄",
+      "select_output_confirm": "選擇此目錄"
+    },
+    "mimo": {
+      "title": "MiMo 專屬設定",
+      "disabled_badge": "非 MiMo 停用",
+      "mode": {
+        "preset_voice": "預設音色",
+        "voice_design": "音色設計",
+        "voice_clone": "音色複刻"
+      },
+      "current_model_mode": "目前模型匹配：{{mode}}"
+    },
+    "voice_sample": {
+      "title": "選擇參考音訊",
+      "description": "僅音色複刻模式使用，支援 wav / mp3。"
+    },
+    "actions": {
+      "select_output_dir": "選擇輸出目錄",
+      "select_voice_sample": "選擇參考音訊",
+      "clear_voice_sample": "移除參考音訊",
+      "start": "產生音訊",
+      "start_stream": "串流產生",
+      "running": "產生中",
+      "open_output": "開啟目錄",
+      "clear": "清空"
+    },
+    "status": {
+      "idle": "待開始",
+      "running": "產生中",
+      "streaming": "串流產生中",
+      "completed": "已完成",
+      "failed": "失敗",
+      "cancelled": "已取消"
+    },
+    "empty": {
+      "title": "等待文字",
+      "description": "輸入文字並確認參數後開始產生，完成後會顯示播放器。",
+      "running": "正在產生音訊",
+      "running_description": "請求已送往目前全域音訊設定，請保持頁面開啟。"
+    },
+    "result": {
+      "title": "產生結果"
+    },
+    "stream_mode": {
+      "incremental": "低延遲串流",
+      "final_only": "最終一次返回"
+    },
+    "stats": {
+      "chunks": "分片",
+      "bytes": "位元組",
+      "latency": "首包"
+    },
+    "messages": {
+      "output_path_selected": "輸出目錄已選擇",
+      "voice_sample_selected": "參考音訊已選擇",
+      "completed": "音訊產生完成",
+      "cancelled": "音訊產生已取消"
+    },
+    "errors": {
+      "title": "產生失敗",
+      "no_input": "請輸入要合成的文字。",
+      "no_voice": "請填寫 voice。",
+      "output_dir_required": "使用自選目錄時，請先選擇輸出目錄。",
+      "mimo_model_mismatch": "目前模式與全域 TTS 模型不匹配，請在設定頁選擇 {{model}}。",
+      "voice_design_prompt_required": "音色設計模式需要填寫音色描述。",
+      "voice_sample_required": "音色複刻模式需要選擇參考音訊。",
+      "output_not_ready": "目前還沒有可開啟的輸出檔案。",
+      "output_dir_select_failed": "選擇輸出目錄失敗。",
+      "voice_sample_path_unavailable": "無法讀取參考音訊的本機路徑，請在 Electron 應用內重新選擇。",
+      "unsupported_voice_sample": "參考音訊僅支援 wav 或 mp3。",
+      "voice_sample_too_large": "參考音訊超過 MiMo Base64 大小限制。"
+    }
+  },
+  "captions": {
+    "fields": {
+      "mode": "字幕模式",
+      "language": "語言",
+      "input_audio_format": "輸入音訊格式",
+      "turn_detection": "說話偵測",
+      "output_format": "儲存格式",
+      "assistant_transcript": "顯示助手字幕",
+      "instructions": "即時指令"
+    },
+    "mode": {
+      "openai_realtime": "OpenAI Realtime",
+      "chunked_near_realtime": "分塊近即時",
+      "unsupported": "不支援"
+    },
+    "languages": {
+      "auto": "自動偵測",
+      "zh": "中文",
+      "en": "英文",
+      "ja": "日文",
+      "ko": "韓文",
+      "fr": "法文",
+      "de": "德文",
+      "es": "西班牙文"
+    },
+    "input_audio_format": {
+      "pcm16": "PCM16",
+      "opus": "Opus"
+    },
+    "turn_detection": {
+      "server_vad": "伺服器 VAD",
+      "manual": "手動"
+    },
+    "output_format": {
+      "txt": "TXT",
+      "srt": "SRT"
+    },
+    "hints": {
+      "language": "OpenAI Realtime 可傳入語言偏好；自動偵測會省略 language 欄位。",
+      "input_audio_format": "首版優先使用 PCM16；Opus 取決於目前 Realtime 模型與瀏覽器支援。",
+      "turn_detection": "伺服器 VAD 會自動辨識說話片段；手動模式適合後續雙向語音控制。",
+      "output_format": "TXT 儲存純文字；SRT 使用本機會話時間產生基礎時間軸。",
+      "assistant_transcript": "即時字幕預設只顯示麥克風輸入。",
+      "assistant_transcript_detail": "如果模型返回助手側 transcript，可在這裡切換顯示。",
+      "instructions": "用於約束即時字幕會話，例如只轉寫、不回答。"
+    },
+    "placeholders": {
+      "instructions": "例如：只轉寫使用者語音，不要產生回覆。",
+      "instructions_disabled": "目前非 OpenAI Realtime 模式不支援即時指令"
+    },
+    "status": {
+      "idle": "待開始",
+      "requesting": "請求麥克風",
+      "connecting": "連線中",
+      "listening": "監聽中",
+      "stopping": "停止中",
+      "completed": "已停止",
+      "failed": "失敗"
+    },
+    "mic_state": {
+      "idle": "未啟用",
+      "requesting": "請求中",
+      "granted": "已授權",
+      "denied": "已拒絕",
+      "muted": "靜音"
+    },
+    "stats": {
+      "mode": "模式",
+      "mic": "麥克風",
+      "lines": "字幕行",
+      "elapsed": "時長"
+    },
+    "chunked": {
+      "title": "分塊近即時",
+      "description": "目前模式會把麥克風輸入編碼為短 WAV 片段，並交給 main 行程依全域 ASR 設定逐段轉寫；它不是 WebRTC 雙工會話。"
+    },
+    "actions": {
+      "start": "開始即時字幕",
+      "listening": "監聽中",
+      "stop": "停止",
+      "copy": "複製",
+      "save": "儲存",
+      "clear": "清空"
+    },
+    "empty": {
+      "title": "等待麥克風輸入",
+      "description": "開始後會請求麥克風權限，並在這裡顯示即時字幕。",
+      "running": "正在監聽",
+      "running_description": "開始說話後，partial 和 final 字幕會出現在這裡。"
+    },
+    "role": {
+      "user": "使用者",
+      "assistant": "助手"
+    },
+    "messages": {
+      "copied": "字幕已複製",
+      "saved": "字幕檔案已儲存"
+    },
+    "errors": {
+      "title": "即時字幕失敗",
+      "unsupported_mode": "目前全域音訊設定不支援即時字幕。",
+      "chunked_unavailable": "目前全域音訊設定無法啟動分塊近即時字幕。",
+      "microphone_failed": "無法啟動麥克風錄音。",
+      "no_transcript": "目前還沒有可用字幕。",
+      "copy_failed": "複製失敗，請手動複製字幕。"
+    }
+  },
+  "voice": {
+    "fields": {
+      "voice": "回覆音色",
+      "turn_detection": "說話偵測",
+      "input_audio_format": "輸入音訊格式",
+      "output_audio_format": "輸出音訊格式",
+      "instructions": "會話指令"
+    },
+    "hints": {
+      "voice": "OpenAI Realtime 雙向語音使用的回覆音色。",
+      "turn_detection": "伺服器 VAD 會自動判斷使用者何時說完；手動模式適合後續精細控制。",
+      "input_audio_format": "麥克風送往 Realtime 會話的音訊格式。",
+      "output_audio_format": "模型返回遠端音軌的音訊格式。",
+      "instructions": "設定助手的說話方式、語言和任務邊界。"
+    },
+    "placeholders": {
+      "voice": "marin",
+      "instructions": "例如：用中文簡短回答，語氣自然。",
+      "instructions_disabled": "目前設定不支援 Realtime/WebRTC 雙向語音"
+    },
+    "turn_detection": {
+      "server_vad": "伺服器 VAD",
+      "manual": "手動"
+    },
+    "audio_format": {
+      "pcm16": "PCM16",
+      "opus": "Opus"
+    },
+    "status": {
+      "idle": "待連線",
+      "requesting": "請求麥克風",
+      "connecting": "連線中",
+      "connected": "已連線",
+      "stopping": "斷開中",
+      "completed": "已斷開",
+      "failed": "失敗"
+    },
+    "mic_state": {
+      "idle": "未啟用",
+      "requesting": "請求中",
+      "granted": "已授權",
+      "denied": "已拒絕",
+      "muted": "靜音"
+    },
+    "audio_state": {
+      "idle": "待播放",
+      "speaking": "模型正在說話"
+    },
+    "stats": {
+      "mic": "麥克風",
+      "audio": "遠端音訊",
+      "session": "會話",
+      "elapsed": "時長"
+    },
+    "unsupported": {
+      "title": "目前設定不支援雙向語音",
+      "description": "雙向語音需要具備 realtime_duplex_voice 能力的 OpenAI Realtime profile。MiMo Chat Audio 首版只提供分塊字幕和 TTS 串流能力，不會被標記為 WebRTC 雙工。"
+    },
+    "actions": {
+      "connect": "連接語音",
+      "connected": "連線中",
+      "disconnect": "斷開",
+      "mute": "靜音",
+      "unmute": "取消靜音",
+      "interrupt": "打斷回覆",
+      "clear": "清空"
+    },
+    "empty": {
+      "title": "等待語音會話",
+      "description": "連接後會請求麥克風權限，並在這裡顯示使用者和助手的即時轉寫。",
+      "running": "會話已連線",
+      "running_description": "開始說話後，使用者和助手的 partial/final 轉寫會出現在這裡。"
+    },
+    "role": {
+      "user": "使用者",
+      "assistant": "助手"
+    },
+    "messages": {
+      "interrupted": "已送出打斷指令"
+    },
+    "errors": {
+      "title": "雙向語音失敗",
+      "unsupported_profile": "目前全域音訊設定不支援 Realtime/WebRTC 雙向語音。",
+      "interrupt_failed": "無法送出打斷指令，請確認會話仍處於連線狀態。"
+    }
+  }
+}

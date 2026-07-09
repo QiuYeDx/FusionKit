@@ -15,6 +15,12 @@
     },
     "text": {
       "translator": "長文本翻譯"
+    },
+    "audio": {
+      "transcriber": "音訊轉文字",
+      "speech_synthesis": "文字轉音訊",
+      "realtime_captions": "即時字幕",
+      "realtime_voice": "雙向語音"
     }
   },
   "start": "開始",

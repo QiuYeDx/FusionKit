@@ -15,6 +15,12 @@
     },
     "text": {
       "translator": "Long Text Translator"
+    },
+    "audio": {
+      "transcriber": "Audio to Text",
+      "speech_synthesis": "Text to Audio",
+      "realtime_captions": "Realtime Captions",
+      "realtime_voice": "Duplex Voice"
     }
   },
   "start": "Start",

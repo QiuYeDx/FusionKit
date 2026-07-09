@@ -2,7 +2,7 @@
 
 本项目的所有重要更改都将记录在此文件中。
 
-## [0.2.11] - 2026-07-08
+## [0.2.11] - 2026-07-09
 
 ### 新增
 
@@ -12,12 +12,23 @@
 - 长文本翻译、字幕翻译和名称翻译支持 Responses API 非流式文本调用，统一处理 `store:false`、usage、截断、空响应、限流和错误分类
 - HomeAgent 新增 Responses API 工具循环支持，可处理流式文本、function call、tool result 回填、多步工具循环、取消和 usage 统计
 - 设置页模型列表拉取改为基于规范化 base URL 派生 `/models`，兼容历史 `/chat/completions` 与 `/responses` endpoint 输入
+- 新增音频工具箱首版，包含音频转文本、文本转音频、实时字幕和 Realtime/WebRTC 双向语音四个工具入口
+- 设置页新增全局音频模型配置，支持创建 OpenAI Audio、OpenAI Realtime、MiMo Chat Audio Profile，并为音频转文本、文本转音频、实时字幕和双向语音分别设置全局生效配置
+- 音频转文本支持 OpenAI 官方 transcriptions 契约和 MiMo `mimo-v2.5-asr` adapter，并按当前 profile 能力禁用不支持的格式、prompt、时间戳等选项
+- 文本转音频支持 OpenAI Audio TTS，以及 MiMo `mimo-v2.5-tts`、`mimo-v2.5-tts-voicedesign`、`mimo-v2.5-tts-voiceclone` 三种模式
+- MiMo TTS 三模式接入非流式保存和 PCM16 低延迟流式播放链路，完成后保存为本地音频文件
+- 实时字幕支持 OpenAI Realtime/WebRTC 麦克风字幕；MiMo 或非 Realtime profile 下提供分块近实时字幕，不伪装为原生 WebRTC
+- 双向语音首版支持 OpenAI Realtime/WebRTC 的连接、断开、静音、打断回复、远端音频播放和 user / assistant 转写 timeline
 
 ### 安全与隐私
 
 - Responses API 请求默认发送 `store:false`，降低模型服务端保存请求内容的风险
 - 任务恢复清单、工作区 manifest 和事件日志不持久化 API Key、Authorization header 或完整模型请求体
 - 模型运行时错误信息增加 API Key 脱敏与统一错误分类，避免敏感凭据泄露到 UI 或日志
+- 音频工具页只读消费设置页全局音频 Profile，不保存独立 provider、API Key、base URL、dialect 或模型 ID
+- OpenAI Realtime 长期 API Key 仅在 Electron 主进程用于创建 ephemeral credentials，Renderer 不接触长期凭据
+- 音频运行时和 IPC 避免把本地音频 Base64、PCM chunk、完整请求体、Authorization 或 `api-key` header 写入 Zustand 持久化、任务恢复或错误详情
+- README 补充音频隐私提示：本地音频文件、录音片段和麦克风内容会发送到用户选择的第三方音频 API 服务
 
 ### 优化
 
@@ -36,6 +47,13 @@
 - 新增 OpenAI 新旧 API 格式兼容设计文档、执行计划、fake server fixture、运行时 adapter 测试和逐工作包实施记录
 - 新增 Chat / Responses 双格式回归测试矩阵，覆盖模型 endpoint normalization、profile v3 迁移、长文本翻译、字幕翻译、名称翻译和 HomeAgent 工具循环
 - 新增模型预设与上下文窗口校准测试和验收修复文档，固定 OpenAI / DeepSeek 关键模型默认上下文窗口断言
+- 新增音频工具箱 final design、execution plan、逐工作包实施记录和 fake audio API server
+- 新增音频契约、音频 profile migration、endpoint normalization、OpenAI/MiMo ASR/TTS、MiMo 流式 TTS、Realtime session、IPC/service facade 和四个音频工具页面的自动化测试
+
+### 限制
+
+- OpenAI/MiMo 真实供应商、Electron 麦克风权限、OpenAI Realtime/WebRTC 远端音轨和 MiMo `voicedesign` / `voiceclone` 低延迟流式状态仍需发布前手工验收
+- MiMo Chat Audio 首版不提供原生 WebRTC 双向语音；双向语音页仅对具备 `realtime_duplex_voice` capability 的 profile 启用
 
 ## [0.2.10] - 2026-07-01
 

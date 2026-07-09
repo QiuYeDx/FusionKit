@@ -18,7 +18,7 @@ type CardItem = {
 };
 
 type Category = {
-  key: "subtitle" | "music" | "rename" | "text";
+  key: "subtitle" | "music" | "rename" | "text" | "audio";
   titleKey: string;
   hintKey: string;
   items: CardItem[];
@@ -90,6 +90,49 @@ const CATEGORIES: Category[] = [
         chipKeys: [
           "tools:chips.text_translator_txt",
           "tools:chips.text_translator_markdown",
+        ],
+      },
+    ],
+  },
+  {
+    key: "audio",
+    titleKey: "tools:subtitle.audio_tools",
+    hintKey: "tools:sub_desc.audio_tools",
+    items: [
+      {
+        id: "audioTranscriber",
+        titleKey: "tools:fields.audio_transcriber",
+        descKey: "tools:field_desc.audio_transcriber",
+        chipKeys: [
+          "tools:chips.audio_file",
+          "tools:chips.openai_mimo",
+        ],
+      },
+      {
+        id: "speechSynthesizer",
+        titleKey: "tools:fields.speech_synthesizer",
+        descKey: "tools:field_desc.speech_synthesizer",
+        chipKeys: [
+          "tools:chips.tts_stream",
+          "tools:chips.mimo_voice",
+        ],
+      },
+      {
+        id: "realtimeCaptions",
+        titleKey: "tools:fields.realtime_captions",
+        descKey: "tools:field_desc.realtime_captions",
+        chipKeys: [
+          "tools:chips.microphone",
+          "tools:chips.realtime",
+        ],
+      },
+      {
+        id: "realtimeVoice",
+        titleKey: "tools:fields.realtime_voice",
+        descKey: "tools:field_desc.realtime_voice",
+        chipKeys: [
+          "tools:chips.webrtc",
+          "tools:chips.duplex",
         ],
       },
     ],

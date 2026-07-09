@@ -9,7 +9,9 @@
     "token_price_config": "Token 價格設定",
     "proxy_config": "代理設定",
     "model_assignment": "模型分配",
-    "model_profiles": "模型設定檔"
+    "model_profiles": "模型設定檔",
+    "audio_assignment": "音訊任務分配",
+    "audio_profiles": "音訊模型設定檔"
   },
   "nav": {
     "general": {
@@ -22,7 +24,7 @@
     },
     "model": {
       "label": "AI 模型",
-      "hint": "模型分配 · 模型設定檔"
+      "hint": "文字 · 音訊 · 分配"
     }
   },
   "fields": {
@@ -132,6 +134,90 @@
       "cancel": "取消",
       "create": "建立",
       "save": "儲存"
+    },
+    "audio": {
+      "assignment": {
+        "description": "為音訊轉文字、文字轉音訊、即時字幕和雙向語音選擇全域音訊設定。工具頁只會讀取這裡的生效選擇。",
+        "transcription": "音訊轉文字",
+        "speechSynthesis": "文字轉音訊",
+        "realtimeCaptions": "即時字幕",
+        "realtimeVoice": "雙向語音",
+        "unsupported": "不可用",
+        "unsupported_select": "此音訊設定不支援目前任務，或缺少對應模型。"
+      },
+      "profile": {
+        "description": "音訊設定引用既有模型連線，只保存音訊協議、模型 ID、預設值和能力狀態。",
+        "add": "新增音訊設定",
+        "empty": "暫無音訊設定，請新增一個。",
+        "add_first": "新增第一個音訊設定",
+        "no_connection_profiles": "請先建立一個模型連線設定，再新增音訊設定。",
+        "connection_missing": "連線缺失",
+        "connection_delete_blocked": "此連線設定正在被音訊設定引用，請先刪除或修改對應音訊設定。",
+        "dialog_title_add": "新增音訊設定",
+        "dialog_title_edit": "編輯音訊設定",
+        "dialog_description": "設定音訊協議、模型 ID、預設語音和任務能力。",
+        "name": "設定名稱",
+        "name_placeholder": "例如：OpenAI Audio、MiMo Audio",
+        "name_required": "請輸入音訊設定名稱。",
+        "connection_required": "請選擇一個連線設定。",
+        "connection_profile": "連線設定",
+        "connection_placeholder": "選擇既有模型連線…",
+        "dialect": "音訊協議",
+        "capabilities": "能力",
+        "model_missing": "缺少模型",
+        "mimo_only_hint": "MiMo 音色設計、音色複刻、音訊標籤和 optimize_text_preview 只會在 MiMo 音訊設定下啟用。",
+        "default_name": {
+          "openai_audio": "OpenAI Audio",
+          "mimo_chat_audio": "MiMo Audio",
+          "openai_realtime": "OpenAI Realtime"
+        }
+      },
+      "dialect": {
+        "openai_audio": "OpenAI Audio",
+        "mimo_chat_audio": "MiMo Chat Audio",
+        "openai_realtime": "OpenAI Realtime"
+      },
+      "dialect_hint": {
+        "openai_audio": "檔案 ASR / TTS",
+        "mimo_chat_audio": "MiMo ASR / TTS / 分塊字幕",
+        "openai_realtime": "WebRTC 即時字幕 / 雙向語音"
+      },
+      "capability": {
+        "file_transcription": "檔案轉寫",
+        "streaming_transcription": "串流轉寫",
+        "speech_synthesis": "語音合成",
+        "streaming_speech_synthesis": "串流合成",
+        "realtime_transcription": "即時字幕",
+        "realtime_duplex_voice": "雙向語音",
+        "mimo_voice_design": "MiMo 音色設計",
+        "mimo_voice_clone": "MiMo 音色複刻"
+      },
+      "model": {
+        "transcription": "ASR 模型",
+        "speechSynthesis": "TTS 模型",
+        "realtime": "Realtime / 字幕模型",
+        "realtime_mimo_hint": "MiMo 即時字幕使用分塊近即時轉寫，不會啟用 WebRTC 雙工。"
+      },
+      "defaults": {
+        "language": "預設語言",
+        "transcriptionResponseFormat": "預設轉寫格式",
+        "ttsVoice": "預設 Voice",
+        "ttsResponseFormat": "預設合成格式",
+        "realtimeVoice": "Realtime Voice",
+        "mimoTtsMode": "MiMo TTS 模式",
+        "streamSpeechByDefault": "預設串流合成",
+        "streamSpeechByDefault_hint": "開啟後，支援的 TTS 工具會優先使用低延遲串流輸出。"
+      },
+      "language": {
+        "auto": "自動偵測",
+        "zh": "中文",
+        "en": "英文"
+      },
+      "mimo_mode": {
+        "preset_voice": "預設音色",
+        "voice_design": "音色設計",
+        "voice_clone": "音色複刻"
+      }
     }
   },
   "placeholder": {

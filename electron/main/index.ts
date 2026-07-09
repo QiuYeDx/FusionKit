@@ -15,6 +15,8 @@ import {
   emitTextTranslationEvent,
   setupTextTranslationIPC,
 } from "./text-translation/ipc";
+import { setupAudioIPC } from "./audio/ipc";
+import { setupAudioRealtimeIPC } from "./audio/realtime-ipc";
 import { TextTranslationService } from "./text-translation/text-translation-service";
 
 const require = createRequire(import.meta.url);
@@ -171,6 +173,8 @@ app.whenReady().then(() => {
   setupFsIPC();
   setupRenameIPC();
   setupTextTranslationIPC(textTranslationService);
+  setupAudioIPC();
+  setupAudioRealtimeIPC();
 });
 
 app.on("window-all-closed", () => {

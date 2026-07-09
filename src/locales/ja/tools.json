@@ -5,33 +5,51 @@
     "subtitle_tools": "字幕ツール",
     "music_tools": "音楽ツール",
     "rename_tools": "名前変更ツール",
-    "text_tools": "テキストツール"
+    "text_tools": "テキストツール",
+    "audio_tools": "音声ツール"
   },
   "sub_desc": {
     "subtitle_tools": "AI翻訳、フォーマット変換などの字幕処理機能。",
     "music_tools": "有料音楽をFLAC/MP3形式に変換。",
     "rename_tools": "複数のファイルを簡単に一括リネーム。",
-    "text_tools": "長文 TXT / Markdown 翻訳ワークスペース。"
+    "text_tools": "長文 TXT / Markdown 翻訳ワークスペース。",
+    "audio_tools": "ASR、TTS、リアルタイム字幕、双方向音声のワークスペース。"
   },
   "fields": {
     "subtitle_translator": "字幕AI翻訳",
     "subtitle_formatter": "字幕フォーマット変換",
     "subtitle_language_extractor": "字幕言語抽出",
     "name_translator": "ファイル/フォルダ名翻訳",
-    "text_translator": "長文翻訳"
+    "text_translator": "長文翻訳",
+    "audio_transcriber": "音声テキスト化",
+    "speech_synthesizer": "テキスト音声化",
+    "realtime_captions": "リアルタイム字幕",
+    "realtime_voice": "双方向音声"
   },
   "field_desc": {
     "subtitle_translator": "AIモデルで字幕ファイルを翻訳",
     "subtitle_formatter": "字幕形式を変換（SRT、ASS など）",
     "subtitle_language_extractor": "バイリンガル字幕から指定言語を抽出",
     "name_translator": "ファイルやフォルダ名を一括翻訳し、プレビュー後に安全にリネームします",
-    "text_translator": "タスク用モデルで長い TXT / Markdown ファイルを翻訳し、復元可能な作業領域を保持します"
+    "text_translator": "タスク用モデルで長い TXT / Markdown ファイルを翻訳し、復元可能な作業領域を保持します",
+    "audio_transcriber": "グローバル ASR 設定でローカル音声ファイルを文字起こしします",
+    "speech_synthesizer": "グローバル TTS 設定で音声を生成して再生します",
+    "realtime_captions": "マイク入力からリアルタイムまたは準リアルタイム字幕を生成します",
+    "realtime_voice": "Realtime/WebRTC で双方向音声セッションを開始します"
   },
   "chips": {
     "name_translator_files": "ファイル · フォルダ",
     "name_translator_safe": "プレビュー · Journal",
     "text_translator_txt": "TXT",
-    "text_translator_markdown": "Markdown"
+    "text_translator_markdown": "Markdown",
+    "audio_file": "音声ファイル",
+    "openai_mimo": "OpenAI · MiMo",
+    "tts_stream": "ストリーミング TTS",
+    "mimo_voice": "MiMo 音色",
+    "microphone": "マイク",
+    "realtime": "リアルタイム",
+    "webrtc": "WebRTC",
+    "duplex": "双方向音声"
   },
   "coming_soon": {
     "title": "近日公開",

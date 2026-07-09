@@ -27,6 +27,15 @@
 
 PS: 使用时可以配合`Faster-Whisper-GUI`音频转文本，然后再用本工具进行 AI 翻译，相关教程[「音频转字幕&人声分离」猴子也能懂的 Faster-Whisper-GUI 使用教程](https://qiuvision.com/notes/1)
 
+## 0.2.11 版本亮点
+
+- **音频工具箱首版**：新增音频转文本、文本转音频、实时字幕和 Realtime/WebRTC 双向语音工具页。
+- **全局音频模型配置**：设置页集中管理音频 Profile、协议、模型和任务分配；工具页只读取全局生效配置，不再各自保存 API 配置。
+- **OpenAI / MiMo 音频 API 兼容**：文件 ASR/TTS 使用 OpenAI 官方音频 API 风格作为内部契约，MiMo ASR/TTS 通过 adapter 接入。
+- **MiMo TTS 三模式**：支持 `mimo-v2.5-tts` 预置音色、`mimo-v2.5-tts-voicedesign` 音色设计和 `mimo-v2.5-tts-voiceclone` 音色复刻，并接入低延迟流式播放链路。
+- **实时音频体验**：实时字幕支持 OpenAI Realtime/WebRTC；MiMo 或非 Realtime 配置下以分块近实时字幕呈现。双向语音首版面向 OpenAI Realtime/WebRTC。
+- **音频隐私边界**：本地音频文件、录音片段和麦克风内容会发送到用户选择的第三方音频 API；API Key、Base64 音频和 PCM chunk 不写入任务恢复、Zustand 持久化或错误详情。
+
 ## 0.2.10 版本亮点
 
 - **长文本翻译 Beta**：新增面向小说、长文档和多 TXT 项目的翻译工具，Renderer 只传递文件路径，正文由主进程读取、分片和落盘。
@@ -94,6 +103,27 @@ PS: 使用时可以配合`Faster-Whisper-GUI`音频转文本，然后再用本�
 - 文件正文会发送到用户配置的 OpenAI Compatible 模型服务；请确认模型服务的隐私和数据保留政策
 - API Key 只用于运行时请求，不写入长文本翻译工作区
 - 串行语义记忆会增加每个分片的输入 token，费用通常高于并发模式
+
+### 音频工具箱
+
+面向音频内容处理和实时语音交互的工具集合，统一使用设置页中的全局音频模型配置。
+
+- 支持在设置页创建 OpenAI Audio、OpenAI Realtime 和 MiMo Chat Audio Profile，并分别分配给音频转文本、文本转音频、实时字幕和双向语音任务
+- 音频转文本支持本地音频文件 ASR；OpenAI 模式兼容官方 transcriptions 字段，MiMo 模式支持 `mimo-v2.5-asr` 并按能力禁用字幕格式、prompt 和时间戳等非支持选项
+- 文本转音频支持 OpenAI Audio TTS，也支持 MiMo `mimo-v2.5-tts`、`mimo-v2.5-tts-voicedesign`、`mimo-v2.5-tts-voiceclone` 三种模式
+- MiMo TTS 支持非流式保存和低延迟流式播放；流式链路使用 PCM16 chunk 播放，完成后保存为本地音频文件
+- 实时字幕支持 OpenAI Realtime/WebRTC 麦克风字幕；MiMo 或非 Realtime 配置下以短录音片段转写的“分块近实时”方式呈现
+- 双向语音首版支持 OpenAI Realtime/WebRTC 的连接、断开、静音、打断回复、远端音频播放和字幕 timeline
+- 工具页只展示当前全局音频 Profile、协议、模型和能力，不提供独立 provider、API Key、base URL 或模型 ID 配置入口
+
+隐私与能力提示：
+
+- 本地音频文件、录音片段和麦克风内容会发送到用户在设置页选择的 OpenAI、MiMo 或其他兼容音频 API 服务；请确认所选服务的隐私和数据保留政策
+- OpenAI Realtime 长期 API Key 仅在 Electron 主进程用于创建临时凭证，Renderer 只接收 ephemeral credentials
+- API Key、Authorization / `api-key` header、Base64 音频、PCM chunk 和完整请求体不会写入任务恢复文件、Zustand 持久化或错误详情
+- MiMo 的音色设计、音色复刻、音频标签和 `optimize_text_preview` 为 MiMo 专属能力；非 MiMo 音频配置下相关控件会禁用
+- MiMo Chat Audio 首版不提供原生 WebRTC 双向语音；双向语音页会要求使用具备 Realtime/WebRTC 能力的 OpenAI Realtime Profile
+- 真实供应商的音频格式、模型和低延迟流式能力可能变化，发布前仍建议用实际 API Key 做一次端到端验收
 
 ### 字幕格式转换
 
@@ -197,6 +227,7 @@ FusionKit/
 │   │   ├── index.ts           # 窗口管理与 IPC 注册
 │   │   ├── translation/       # AI 翻译引擎
 │   │   ├── text-translation/  # 长文本翻译执行、分片、记忆、恢复与输出
+│   │   ├── audio/             # 音频 ASR/TTS、流式音频与 Realtime IPC
 │   │   ├── conversion/        # 字幕格式转换
 │   │   ├── extraction/        # 字幕语言提取
 │   │   ├── rename/            # 文件 / 文件夹重命名扫描、校验、应用与 journal
@@ -209,7 +240,7 @@ FusionKit/
 │   ├── agent/                 # AI 助手核心（orchestrator、工具定义、会话管理）
 │   ├── pages/                 # 页面组件
 │   │   ├── HomeAgent/         # AI 助手主页
-│   │   ├── Tools/             # 工具页（字幕工具 / 重命名工具）
+│   │   ├── Tools/             # 工具页（字幕 / 重命名 / 长文本 / 音频工具箱）
 │   │   ├── Setting/           # 设置页（通用 / 代理 / 模型）
 │   │   └── About/             # 关于页
 │   ├── components/            # UI 组件库
@@ -231,7 +262,7 @@ FusionKit/
 
 ### AI 模型配置
 
-在设置页面可分别配置**字幕翻译**和 **AI 助手**所用的模型参数：
+在设置页面可分别配置**字幕翻译**、**长文本翻译**、**文件名翻译**和 **AI 助手**所用的文本模型参数：
 
 - **API Endpoint** — OpenAI 兼容的 Chat Completions 端点
 - **API Key** — 访问密钥
@@ -239,6 +270,16 @@ FusionKit/
 - **Token 价格** — 输入/输出单价（每百万 token），用于费用预估
 
 可创建多个模型配置，并在“模型分配”中分别指定 **Agent 模型** 与 **任务执行模型**。内置 DeepSeek 和 OpenAI 预设，也支持任意 OpenAI 兼容 API；配置 API Key 后可从接口拉取可用模型列表，或手动填写自定义 Model Key。
+
+### 音频模型配置
+
+音频工具箱使用独立的全局音频 Profile，但复用现有模型连接 Profile 中的 API Key、Base URL 和代理设置。
+
+- 音频协议支持 `openai_audio`、`openai_realtime` 和 `mimo_chat_audio`
+- 可分别配置 ASR、TTS、Realtime 模型 ID、默认 voice、默认语言、默认输出格式和默认流式行为
+- 可为音频转文本、文本转音频、实时字幕和双向语音分别选择全局生效的音频 Profile
+- 工具页会按当前 Profile 的 capability 自动启用或禁用 OpenAI-only、MiMo-only 和 Realtime-only 控件
+- 使用音频工具时，本地音频文件或麦克风内容会发送到当前分配的第三方音频 API 服务
 
 ### 翻译分片策略
 

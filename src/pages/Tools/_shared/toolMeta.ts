@@ -6,6 +6,10 @@ import {
   FileText,
   Music,
   Edit,
+  FileAudio,
+  Volume2,
+  Captions,
+  Radio,
 } from "lucide-react";
 
 export type ToolKey =
@@ -14,14 +18,18 @@ export type ToolKey =
   | "extractor"
   | "music"
   | "nameTranslator"
-  | "textTranslator";
+  | "textTranslator"
+  | "audioTranscriber"
+  | "speechSynthesizer"
+  | "realtimeCaptions"
+  | "realtimeVoice";
 
 export type ToolMeta = {
   id: ToolKey;
   /** CSS variable name (without var()) — defined in index.css */
   toneVar: string;
   icon: LucideIcon;
-  category: "subtitle" | "music" | "rename" | "text";
+  category: "subtitle" | "music" | "rename" | "text" | "audio";
   status: "stable" | "soon";
   route?: string;
 };
@@ -73,6 +81,38 @@ export const TOOL_META: Record<ToolKey, ToolMeta> = {
     category: "text",
     status: "stable",
     route: "/tools/text/translator",
+  },
+  audioTranscriber: {
+    id: "audioTranscriber",
+    toneVar: "--tool-audio-transcriber",
+    icon: FileAudio,
+    category: "audio",
+    status: "stable",
+    route: "/tools/audio/transcriber",
+  },
+  speechSynthesizer: {
+    id: "speechSynthesizer",
+    toneVar: "--tool-speech-synthesizer",
+    icon: Volume2,
+    category: "audio",
+    status: "stable",
+    route: "/tools/audio/speech-synthesis",
+  },
+  realtimeCaptions: {
+    id: "realtimeCaptions",
+    toneVar: "--tool-realtime-captions",
+    icon: Captions,
+    category: "audio",
+    status: "stable",
+    route: "/tools/audio/realtime-captions",
+  },
+  realtimeVoice: {
+    id: "realtimeVoice",
+    toneVar: "--tool-realtime-voice",
+    icon: Radio,
+    category: "audio",
+    status: "stable",
+    route: "/tools/audio/realtime-voice",
   },
 };
 

@@ -1,0 +1,493 @@
+{
+  "global": {
+    "open_settings": "前往设置",
+    "config_title": "全局音频配置",
+    "summary": "当前配置",
+    "status": "状态",
+    "profile": "Profile",
+    "dialect": "协议",
+    "model": "模型",
+    "connection": "连接",
+    "capabilities": "能力"
+  },
+  "status": {
+    "ready": "就绪",
+    "profile_not_configured": "未配置",
+    "connection_missing": "连接缺失",
+    "model_missing": "模型缺失",
+    "unsupported_capability": "能力不匹配"
+  },
+  "workspace": {
+    "ready": {
+      "title": "配置就绪",
+      "description": "该页面已读取设置页的全局音频配置。"
+    },
+    "profile_not_configured": {
+      "title": "未选择音频配置",
+      "description": "请在设置页为当前音频任务选择一个全局音频 Profile。"
+    },
+    "connection_missing": {
+      "title": "连接配置缺失",
+      "description": "当前音频 Profile 引用的模型连接不存在。"
+    },
+    "model_missing": {
+      "title": "模型 ID 缺失",
+      "description": "当前音频 Profile 缺少此任务需要的模型 ID。"
+    },
+    "unsupported_capability": {
+      "title": "能力不匹配",
+      "description": "当前音频 Profile 不支持此任务。"
+    }
+  },
+  "pages": {
+    "transcriber": {
+      "title": "音频转文本",
+      "description": "使用全局 ASR 配置处理本地音频。",
+      "workspace": "转写任务"
+    },
+    "speech": {
+      "title": "文本转音频",
+      "description": "使用全局 TTS 配置生成音频。",
+      "workspace": "合成任务"
+    },
+    "captions": {
+      "title": "实时字幕",
+      "description": "使用全局实时字幕配置处理麦克风输入。",
+      "workspace": "字幕流"
+    },
+    "voice": {
+      "title": "双向语音",
+      "description": "使用 OpenAI Realtime 配置建立语音会话。",
+      "workspace": "语音会话"
+    }
+  },
+  "transcriber": {
+    "fields": {
+      "language": "语言",
+      "response_format": "输出格式",
+      "timestamps": "时间戳",
+      "prompt": "提示词",
+      "stream": "流式转写",
+      "output_mode": "结果保存"
+    },
+    "languages": {
+      "auto": "自动检测",
+      "zh": "中文",
+      "en": "英文",
+      "ja": "日文",
+      "ko": "韩文",
+      "fr": "法文",
+      "de": "德文",
+      "es": "西班牙文"
+    },
+    "response_format": {
+      "json": "JSON",
+      "text": "纯文本",
+      "srt": "SRT 字幕",
+      "verbose_json": "详细 JSON",
+      "vtt": "VTT 字幕"
+    },
+    "timestamp": {
+      "segment": "分段",
+      "word": "逐词"
+    },
+    "output_mode": {
+      "display_only": "仅显示",
+      "source_dir": "源目录",
+      "custom_dir": "自选目录"
+    },
+    "hints": {
+      "mimo_response_format": "MiMo ASR 首版仅支持 JSON 或纯文本输出。",
+      "openai_response_format": "OpenAI Audio 支持 JSON、纯文本和字幕格式，具体能力取决于模型。",
+      "timestamps": "时间戳仅在 OpenAI 详细 JSON 输出下启用；MiMo 文档未提供该能力。",
+      "prompt": "可用于补充专有名词或上下文。MiMo ASR 当前不支持 prompt。",
+      "stream": "文件流式转写与实时字幕是不同能力。",
+      "stream_disabled": "首版文件转写页面使用非流式路径；麦克风实时字幕请使用“实时字幕”工具。",
+      "output_mode": "选择源目录或自选目录时，转写完成后会直接写入结果文件。"
+    },
+    "placeholders": {
+      "prompt": "例如：人名、产品名、术语表或领域上下文",
+      "mimo_prompt_disabled": "当前 MiMo ASR 不支持提示词",
+      "output_dir": "尚未选择输出目录"
+    },
+    "dialog": {
+      "select_output_title": "选择转写结果输出目录",
+      "select_output_confirm": "选择此目录"
+    },
+    "file": {
+      "title": "选择音频文件",
+      "openai_description": "支持 wav、mp3、m4a、mp4、flac、ogg、webm，建议不超过 25MB。",
+      "mimo_description": "MiMo ASR 仅支持 wav / mp3，Base64 后需小于 10MB。"
+    },
+    "actions": {
+      "select_file": "选择文件",
+      "clear_file": "移除文件",
+      "select_output_dir": "选择输出目录",
+      "start": "开始转写",
+      "running": "转写中",
+      "copy": "复制",
+      "open_output": "打开目录",
+      "save_next_run": "下次保存"
+    },
+    "status": {
+      "idle": "待开始",
+      "running": "转写中",
+      "completed": "已完成",
+      "failed": "失败",
+      "cancelled": "已取消"
+    },
+    "empty": {
+      "title": "等待音频文件",
+      "description": "选择文件并确认参数后开始转写，结果会显示在这里。",
+      "running": "正在转写",
+      "running_description": "请求已发送到当前全局音频配置，请保持页面打开。"
+    },
+    "result": {
+      "title": "转写结果"
+    },
+    "messages": {
+      "file_selected": "音频文件已选择",
+      "output_path_selected": "输出目录已选择",
+      "completed": "转写完成",
+      "cancelled": "转写已取消",
+      "copied": "转写结果已复制"
+    },
+    "errors": {
+      "title": "转写失败",
+      "file_path_unavailable": "无法读取此文件的本地路径，请在 Electron 应用内重新选择文件。",
+      "unsupported_file": "当前音频格式不受支持。",
+      "unsupported_file_for_mimo": "MiMo ASR 首版仅支持 wav 或 mp3 文件。",
+      "file_too_large": "音频文件超过当前协议的大小限制。",
+      "no_file": "请先选择一个音频文件。",
+      "output_dir_required": "使用自选目录时，请先选择输出目录。",
+      "output_dir_select_failed": "选择输出目录失败。",
+      "output_not_ready": "当前还没有可打开的输出文件。",
+      "copy_failed": "复制失败，请手动复制结果。"
+    }
+  },
+  "speech": {
+    "fields": {
+      "voice": "音色",
+      "response_format": "输出格式",
+      "speed": "语速",
+      "stream": "流式播放",
+      "output_mode": "输出位置",
+      "mimo_mode": "MiMo 模式",
+      "style_instruction": "风格指令",
+      "voice_design_prompt": "音色设计描述",
+      "optimize_text_preview": "让 MiMo 优化试听文本",
+      "voice_sample": "参考音频",
+      "audio_tags": "音频标签",
+      "input": "合成文本",
+      "instructions": "OpenAI 指令"
+    },
+    "response_format": {
+      "mp3": "MP3",
+      "opus": "Opus",
+      "aac": "AAC",
+      "flac": "FLAC",
+      "wav": "WAV",
+      "pcm": "PCM",
+      "pcm16": "PCM16"
+    },
+    "output_mode": {
+      "temp": "临时文件",
+      "custom_dir": "自选目录"
+    },
+    "hints": {
+      "mimo_voice": "预置音色模式下使用 voice；音色设计不使用 voice，音色复刻使用参考音频。",
+      "openai_voice": "OpenAI voice 支持手输；预设按钮只是便捷入口。",
+      "mimo_format": "MiMo 非流式固定 WAV，流式固定 PCM16 并在完成后保存为 WAV。",
+      "openai_format": "OpenAI 官方 TTS 支持多种二进制音频格式。",
+      "speed": "OpenAI 专属参数；MiMo 模式会禁用且不会进入 payload。",
+      "stream": "MiMo 三种 TTS 模式都走低延迟 PCM16 流式链路。",
+      "stream_disabled": "当前全局音频配置不支持 MiMo 流式 TTS。",
+      "stream_on": "流式开启时会边接收 PCM16 边播放，完成后切换到最终文件。",
+      "stream_off": "非流式会等待远端返回完整音频后再播放。",
+      "output_mode": "临时文件可播放；自选目录会直接写入指定目录。",
+      "mimo_mode": "模式必须与设置页当前全局 TTS 模型匹配。",
+      "mimo_model_mismatch": "此模式需要设置页选择 {{model}}。",
+      "voice_design": "音色设计需要描述想要的声音特征。",
+      "voice_clone": "音色复刻需要 wav 或 mp3 参考音频，文件内容只在 main 进程读取。",
+      "audio_tags": "MiMo 预置音色模式可开启音频标签；其它模式禁用。",
+      "input": "要合成为语音的文本。MiMo 音色设计可在优化试听文本时允许为空。"
+    },
+    "placeholders": {
+      "mimo_voice": "mimo_default / 冰糖 / Mia / 自定义 voice id",
+      "openai_voice": "alloy",
+      "output_dir": "尚未选择输出目录",
+      "style_instruction": "例如：更温柔、旁白感、语速自然",
+      "voice_design_prompt": "例如：年轻、明亮、亲和的女性声音",
+      "input": "输入要合成为语音的文本",
+      "instructions": "例如：保持语气平静，适合播客旁白",
+      "instructions_mimo_disabled": "MiMo 请使用左侧的风格指令或音色设计描述"
+    },
+    "dialog": {
+      "select_output_title": "选择语音输出目录",
+      "select_output_confirm": "选择此目录"
+    },
+    "mimo": {
+      "title": "MiMo 专属配置",
+      "disabled_badge": "非 MiMo 禁用",
+      "mode": {
+        "preset_voice": "预置音色",
+        "voice_design": "音色设计",
+        "voice_clone": "音色复刻"
+      },
+      "current_model_mode": "当前模型匹配：{{mode}}"
+    },
+    "voice_sample": {
+      "title": "选择参考音频",
+      "description": "仅音色复刻模式使用，支持 wav / mp3。"
+    },
+    "actions": {
+      "select_output_dir": "选择输出目录",
+      "select_voice_sample": "选择参考音频",
+      "clear_voice_sample": "移除参考音频",
+      "start": "生成音频",
+      "start_stream": "流式生成",
+      "running": "生成中",
+      "open_output": "打开目录",
+      "clear": "清空"
+    },
+    "status": {
+      "idle": "待开始",
+      "running": "生成中",
+      "streaming": "流式生成中",
+      "completed": "已完成",
+      "failed": "失败",
+      "cancelled": "已取消"
+    },
+    "empty": {
+      "title": "等待文本",
+      "description": "输入文本并确认参数后开始生成，完成后会显示播放器。",
+      "running": "正在生成音频",
+      "running_description": "请求已发送到当前全局音频配置，请保持页面打开。"
+    },
+    "result": {
+      "title": "生成结果"
+    },
+    "stream_mode": {
+      "incremental": "低延迟流式",
+      "final_only": "最终一次返回"
+    },
+    "stats": {
+      "chunks": "分片",
+      "bytes": "字节",
+      "latency": "首包"
+    },
+    "messages": {
+      "output_path_selected": "输出目录已选择",
+      "voice_sample_selected": "参考音频已选择",
+      "completed": "音频生成完成",
+      "cancelled": "音频生成已取消"
+    },
+    "errors": {
+      "title": "生成失败",
+      "no_input": "请输入要合成的文本。",
+      "no_voice": "请填写 voice。",
+      "output_dir_required": "使用自选目录时，请先选择输出目录。",
+      "mimo_model_mismatch": "当前模式与全局 TTS 模型不匹配，请在设置页选择 {{model}}。",
+      "voice_design_prompt_required": "音色设计模式需要填写音色描述。",
+      "voice_sample_required": "音色复刻模式需要选择参考音频。",
+      "output_not_ready": "当前还没有可打开的输出文件。",
+      "output_dir_select_failed": "选择输出目录失败。",
+      "voice_sample_path_unavailable": "无法读取参考音频的本地路径，请在 Electron 应用内重新选择。",
+      "unsupported_voice_sample": "参考音频仅支持 wav 或 mp3。",
+      "voice_sample_too_large": "参考音频超过 MiMo Base64 大小限制。"
+    }
+  },
+  "captions": {
+    "fields": {
+      "mode": "字幕模式",
+      "language": "语言",
+      "input_audio_format": "输入音频格式",
+      "turn_detection": "说话检测",
+      "output_format": "保存格式",
+      "assistant_transcript": "显示助手字幕",
+      "instructions": "实时指令"
+    },
+    "mode": {
+      "openai_realtime": "OpenAI Realtime",
+      "chunked_near_realtime": "分块近实时",
+      "unsupported": "不支持"
+    },
+    "languages": {
+      "auto": "自动检测",
+      "zh": "中文",
+      "en": "英文",
+      "ja": "日文",
+      "ko": "韩文",
+      "fr": "法文",
+      "de": "德文",
+      "es": "西班牙文"
+    },
+    "input_audio_format": {
+      "pcm16": "PCM16",
+      "opus": "Opus"
+    },
+    "turn_detection": {
+      "server_vad": "服务器 VAD",
+      "manual": "手动"
+    },
+    "output_format": {
+      "txt": "TXT",
+      "srt": "SRT"
+    },
+    "hints": {
+      "language": "OpenAI Realtime 可传入语言偏好；自动检测会省略 language 字段。",
+      "input_audio_format": "首版优先使用 PCM16；Opus 取决于当前 Realtime 模型和浏览器支持。",
+      "turn_detection": "服务器 VAD 会自动识别说话片段；手动模式适合后续双向语音控制。",
+      "output_format": "TXT 保存纯文本；SRT 使用本地会话时间生成基础时间轴。",
+      "assistant_transcript": "实时字幕默认只展示麦克风输入。",
+      "assistant_transcript_detail": "如果模型返回助手侧 transcript，可在这里切换显示。",
+      "instructions": "用于约束实时字幕会话，例如只转写、不回答。"
+    },
+    "placeholders": {
+      "instructions": "例如：只转写用户语音，不要生成回复。",
+      "instructions_disabled": "当前非 OpenAI Realtime 模式不支持实时指令"
+    },
+    "status": {
+      "idle": "待开始",
+      "requesting": "请求麦克风",
+      "connecting": "连接中",
+      "listening": "监听中",
+      "stopping": "停止中",
+      "completed": "已停止",
+      "failed": "失败"
+    },
+    "mic_state": {
+      "idle": "未启用",
+      "requesting": "请求中",
+      "granted": "已授权",
+      "denied": "已拒绝",
+      "muted": "静音"
+    },
+    "stats": {
+      "mode": "模式",
+      "mic": "麦克风",
+      "lines": "字幕行",
+      "elapsed": "时长"
+    },
+    "chunked": {
+      "title": "分块近实时",
+      "description": "当前模式会把麦克风输入编码为短 WAV 片段，并交给 main 进程按全局 ASR 配置逐段转写；它不是 WebRTC 双工会话。"
+    },
+    "actions": {
+      "start": "开始实时字幕",
+      "listening": "监听中",
+      "stop": "停止",
+      "copy": "复制",
+      "save": "保存",
+      "clear": "清空"
+    },
+    "empty": {
+      "title": "等待麦克风输入",
+      "description": "开始后会请求麦克风权限，并在这里显示实时字幕。",
+      "running": "正在监听",
+      "running_description": "开始说话后，partial 和 final 字幕会出现在这里。"
+    },
+    "role": {
+      "user": "用户",
+      "assistant": "助手"
+    },
+    "messages": {
+      "copied": "字幕已复制",
+      "saved": "字幕文件已保存"
+    },
+    "errors": {
+      "title": "实时字幕失败",
+      "unsupported_mode": "当前全局音频配置不支持实时字幕。",
+      "chunked_unavailable": "当前全局音频配置无法启动分块近实时字幕。",
+      "microphone_failed": "无法启动麦克风录音。",
+      "no_transcript": "当前还没有可用字幕。",
+      "copy_failed": "复制失败，请手动复制字幕。"
+    }
+  },
+  "voice": {
+    "fields": {
+      "voice": "回复音色",
+      "turn_detection": "说话检测",
+      "input_audio_format": "输入音频格式",
+      "output_audio_format": "输出音频格式",
+      "instructions": "会话指令"
+    },
+    "hints": {
+      "voice": "OpenAI Realtime 双向语音使用的回复音色。",
+      "turn_detection": "服务器 VAD 会自动判断用户何时说完；手动模式适合后续精细控制。",
+      "input_audio_format": "麦克风发送给 Realtime 会话的音频格式。",
+      "output_audio_format": "模型返回远端音轨的音频格式。",
+      "instructions": "设定助手的说话方式、语言和任务边界。"
+    },
+    "placeholders": {
+      "voice": "marin",
+      "instructions": "例如：用中文简短回答，语气自然。",
+      "instructions_disabled": "当前配置不支持 Realtime/WebRTC 双向语音"
+    },
+    "turn_detection": {
+      "server_vad": "服务器 VAD",
+      "manual": "手动"
+    },
+    "audio_format": {
+      "pcm16": "PCM16",
+      "opus": "Opus"
+    },
+    "status": {
+      "idle": "待连接",
+      "requesting": "请求麦克风",
+      "connecting": "连接中",
+      "connected": "已连接",
+      "stopping": "断开中",
+      "completed": "已断开",
+      "failed": "失败"
+    },
+    "mic_state": {
+      "idle": "未启用",
+      "requesting": "请求中",
+      "granted": "已授权",
+      "denied": "已拒绝",
+      "muted": "静音"
+    },
+    "audio_state": {
+      "idle": "待播放",
+      "speaking": "模型正在说话"
+    },
+    "stats": {
+      "mic": "麦克风",
+      "audio": "远端音频",
+      "session": "会话",
+      "elapsed": "时长"
+    },
+    "unsupported": {
+      "title": "当前配置不支持双向语音",
+      "description": "双向语音需要具备 realtime_duplex_voice 能力的 OpenAI Realtime profile。MiMo Chat Audio 首版只提供分块字幕和 TTS 流式能力，不会被标记为 WebRTC 双工。"
+    },
+    "actions": {
+      "connect": "连接语音",
+      "connected": "连接中",
+      "disconnect": "断开",
+      "mute": "静音",
+      "unmute": "取消静音",
+      "interrupt": "打断回复",
+      "clear": "清空"
+    },
+    "empty": {
+      "title": "等待语音会话",
+      "description": "连接后会请求麦克风权限，并在这里显示用户和助手的实时转写。",
+      "running": "会话已连接",
+      "running_description": "开始说话后，用户和助手的 partial/final 转写会出现在这里。"
+    },
+    "role": {
+      "user": "用户",
+      "assistant": "助手"
+    },
+    "messages": {
+      "interrupted": "已发送打断指令"
+    },
+    "errors": {
+      "title": "双向语音失败",
+      "unsupported_profile": "当前全局音频配置不支持 Realtime/WebRTC 双向语音。",
+      "interrupt_failed": "无法发送打断指令，请确认会话仍处于连接状态。"
+    }
+  }
+}

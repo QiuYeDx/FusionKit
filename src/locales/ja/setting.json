@@ -9,7 +9,9 @@
     "token_price_config": "Token 価格設定",
     "proxy_config": "プロキシ設定",
     "model_assignment": "モデル割り当て",
-    "model_profiles": "モデル構成"
+    "model_profiles": "モデル構成",
+    "audio_assignment": "音声タスク割り当て",
+    "audio_profiles": "音声モデル構成"
   },
   "nav": {
     "general": {
@@ -22,7 +24,7 @@
     },
     "model": {
       "label": "AI モデル",
-      "hint": "割り当て · 構成"
+      "hint": "テキスト · 音声 · 割り当て"
     }
   },
   "fields": {
@@ -132,6 +134,90 @@
       "cancel": "キャンセル",
       "create": "作成",
       "save": "保存"
+    },
+    "audio": {
+      "assignment": {
+        "description": "音声文字起こし、音声合成、リアルタイム字幕、双方向音声に使うグローバル音声構成を選択します。ツール画面はここで有効な割り当てだけを参照します。",
+        "transcription": "音声をテキストへ",
+        "speechSynthesis": "テキストを音声へ",
+        "realtimeCaptions": "リアルタイム字幕",
+        "realtimeVoice": "双方向音声",
+        "unsupported": "利用不可",
+        "unsupported_select": "この音声構成は現在のタスクに対応していないか、必要なモデルが不足しています。"
+      },
+      "profile": {
+        "description": "音声構成は既存のモデル接続を参照し、音声プロトコル、モデル ID、既定値、能力状態のみを保存します。",
+        "add": "音声構成を追加",
+        "empty": "音声構成がありません。追加してください。",
+        "add_first": "最初の音声構成を追加",
+        "no_connection_profiles": "音声構成を追加する前に、モデル接続構成を作成してください。",
+        "connection_missing": "接続がありません",
+        "connection_delete_blocked": "この接続構成は音声構成から参照されています。先に該当する音声構成を削除または変更してください。",
+        "dialog_title_add": "音声構成を追加",
+        "dialog_title_edit": "音声構成を編集",
+        "dialog_description": "音声プロトコル、モデル ID、既定の voice、タスク能力を設定します。",
+        "name": "構成名",
+        "name_placeholder": "例：OpenAI Audio、MiMo Audio",
+        "name_required": "音声構成名を入力してください。",
+        "connection_required": "接続構成を選択してください。",
+        "connection_profile": "接続構成",
+        "connection_placeholder": "既存のモデル接続を選択…",
+        "dialect": "音声プロトコル",
+        "capabilities": "能力",
+        "model_missing": "モデル不足",
+        "mimo_only_hint": "MiMo のボイスデザイン、ボイスクローン、音声タグ、optimize_text_preview は MiMo 音声構成でのみ有効です。",
+        "default_name": {
+          "openai_audio": "OpenAI Audio",
+          "mimo_chat_audio": "MiMo Audio",
+          "openai_realtime": "OpenAI Realtime"
+        }
+      },
+      "dialect": {
+        "openai_audio": "OpenAI Audio",
+        "mimo_chat_audio": "MiMo Chat Audio",
+        "openai_realtime": "OpenAI Realtime"
+      },
+      "dialect_hint": {
+        "openai_audio": "ファイル ASR / TTS",
+        "mimo_chat_audio": "MiMo ASR / TTS / 分割字幕",
+        "openai_realtime": "WebRTC 字幕 / 双方向音声"
+      },
+      "capability": {
+        "file_transcription": "ファイル文字起こし",
+        "streaming_transcription": "ストリーミング文字起こし",
+        "speech_synthesis": "音声合成",
+        "streaming_speech_synthesis": "ストリーミング合成",
+        "realtime_transcription": "リアルタイム字幕",
+        "realtime_duplex_voice": "双方向音声",
+        "mimo_voice_design": "MiMo ボイスデザイン",
+        "mimo_voice_clone": "MiMo ボイスクローン"
+      },
+      "model": {
+        "transcription": "ASR モデル",
+        "speechSynthesis": "TTS モデル",
+        "realtime": "Realtime / 字幕モデル",
+        "realtime_mimo_hint": "MiMo のリアルタイム字幕は分割された近リアルタイム文字起こしを使い、WebRTC 双方向音声は有効にしません。"
+      },
+      "defaults": {
+        "language": "既定の言語",
+        "transcriptionResponseFormat": "既定の文字起こし形式",
+        "ttsVoice": "既定の Voice",
+        "ttsResponseFormat": "既定の合成形式",
+        "realtimeVoice": "Realtime Voice",
+        "mimoTtsMode": "MiMo TTS モード",
+        "streamSpeechByDefault": "既定でストリーミング合成",
+        "streamSpeechByDefault_hint": "有効にすると、対応する TTS ツールは低遅延のストリーミング出力を優先します。"
+      },
+      "language": {
+        "auto": "自動検出",
+        "zh": "中国語",
+        "en": "英語"
+      },
+      "mimo_mode": {
+        "preset_voice": "プリセット音色",
+        "voice_design": "音色デザイン",
+        "voice_clone": "音色クローン"
+      }
     }
   },
   "placeholder": {

@@ -3,7 +3,7 @@
 > 日期：2026-07-09
 > Feature Slug：`audio-toolkit`
 > 版本：`v0.2.11`
-> 状态：已按实时音频、全局设置、MiMo 流式要求修订，尚未进入实现
+> 状态：已进入 QA 前收口；`PRE-001`、`CORE-001`、`CORE-002`、`BE-001`、`BE-002`、`BE-003`、`BE-004`、`BE-005`、`FE-001`、`FE-002`、`FE-003`、`FE-004`、`FE-005`、`FE-006`、`DOC-001` 已完成
 > 范围：新增音频转文本、文本转音频、实时字幕、Realtime/WebRTC 双向语音，并在设置页集中管理音频大模型 API 配置。
 
 ---
@@ -533,7 +533,7 @@ MiMo adapter 行为：
 ```ts
 export type SpeechSynthesisStreamEvent =
   | { type: "started"; requestId: string; sampleRate: 24000; channels: 1 }
-  | { type: "audio_delta"; requestId: string; pcmBase64?: string; pcmBytes?: Uint8Array }
+  | { type: "audio_delta"; requestId: string; pcmBytes: Uint8Array }
   | { type: "text_delta"; requestId: string; text: string }
   | { type: "metadata"; requestId: string; stats: Partial<AudioStreamStats> }
   | { type: "completed"; requestId: string; result: SpeechSynthesisResult }
@@ -820,9 +820,12 @@ IPC channel：
 
 ```ts
 export const AUDIO_IPC_CHANNELS = {
+  syncRuntimeConfig: "audio:sync-runtime-config",
   transcribe: "audio:transcribe",
+  cancelTranscription: "audio:cancel-transcription",
   synthesizeSpeech: "audio:synthesize-speech",
   synthesizeSpeechStream: "audio:synthesize-speech-stream",
+  cancelSpeechSynthesisStream: "audio:cancel-speech-synthesis-stream",
   revealOutput: "audio:reveal-output",
   realtimeCreateEphemeralSession: "audio:realtime:create-ephemeral-session",
   realtimeSessionEvent: "audio:realtime:session-event",
@@ -862,6 +865,7 @@ export type AudioIpcErrorCode =
 
 Main 进程职责：
 
+- 接收设置/store 层同步的全局音频配置快照并仅在内存保存；工具页任务请求不得携带 provider、API Key、base URL、dialect 或模型 ID。
 - 通过全局 audio assignment 解析 runtime config。
 - 校验 filePath 是否存在且是文件。
 - 根据扩展名和 MIME 建立 data URI、multipart body 或 streaming body。
@@ -955,7 +959,14 @@ git diff --check
 3. `CORE-002`：实现 endpoint、文件、输出、流式 PCM/WAV 工具。
 4. `BE-001`：实现 OpenAI 文件 ASR/TTS adapter。
 5. `BE-002`：实现 MiMo ASR/TTS 非流式 adapter。
-6. `BE-003`：实现 MiMo 三模型流式 TTS 与流式事件。
-7. `BE-004`：实现 OpenAI Realtime ephemeral session 和 WebRTC/realtime bridge。
-8. `FE-001` 至 `FE-006`：设置页、入口、四个工具页与 i18n。
-9. `QA-001`、`QA-002`、`DOC-001`：自动化、Electron/真实供应商验收和发布文档。
+6. `BE-003`：已实现 MiMo 三模型流式 TTS runtime、SSE parser、PCM16/WAV 输出、final-only 标记与流式事件回调；真实 `voicedesign/voiceclone` 低延迟仍需 QA-002 验证。
+7. `BE-004`：已实现 Audio IPC、全局音频配置同步、stream event、流式取消与 renderer service facade。
+8. `BE-005`：已实现 OpenAI Realtime ephemeral session、main 侧 WebRTC 凭证 IPC、renderer WebRTC/realtime bridge、server event 标准化和 cleanup 幂等测试；真实 Electron/WebRTC 连接仍需 QA-002 验证。
+9. `FE-001`：已实现设置页全局音频模型配置，包括 audio profile 列表/编辑、四类任务 assignment、能力 guard、MiMo/OpenAI/Realtime 默认模型和四语言 i18n。
+10. `FE-002`：已实现工具入口、音频路由、共享全局配置摘要、四个页面占位和 `audio/tools/common` i18n 基线。
+11. `FE-003`：已实现音频转文本页面，包括文件选择、OpenAI/MiMo 能力禁用、结果展示、输出目录、复制、打开目录和 ASR 取消 IPC；文件流式转写控件首版可见但禁用。
+12. `FE-004`：已实现文本转音频页面，包括 OpenAI 非流式合成、MiMo 三模式参数、MiMo 流式 PCM16 播放、最终文件播放器、输出目录、打开目录和非流式/流式取消；真实供应商与 Electron 视觉仍需 QA-002 验证。
+13. `FE-005`：已实现实时字幕页面，包括 OpenAI Realtime/WebRTC 字幕流、麦克风权限、partial/final 展示、复制/下载、页面卸载 cleanup，以及 MiMo/非 Realtime profile 的短 WAV 分块近实时转写契约；真实麦克风与供应商验收仍需 QA-002。
+14. `FE-006`：已实现 Realtime/WebRTC 双向语音页面，包括 OpenAI Realtime 连接/断开、静音、打断回复、远端音轨绑定、user/assistant timeline 和页面卸载 cleanup；真实 Electron/WebRTC 验收仍需 QA-002。
+15. `DOC-001`：已同步 README、CHANGELOG、隐私影响说明和发布文档台账，明确本地音频/麦克风内容会发送到用户选择的第三方音频 API。
+16. `QA-001`、`QA-002`：仍待自动化回归补强和 Electron/真实供应商验收；MiMo `voicedesign/voiceclone` 低延迟实测、OpenAI Realtime/WebRTC 真实连接和麦克风/远端音轨播放必须在 QA 中记录。

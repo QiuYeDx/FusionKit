@@ -45,6 +45,10 @@
   --tool-music: oklch(0.65 0.15 350);
   --tool-rename: oklch(0.60 0.14 290);
   --tool-text: oklch(0.58 0.13 200);
+  --tool-audio-transcriber: oklch(0.58 0.14 175);
+  --tool-speech-synthesizer: oklch(0.64 0.15 25);
+  --tool-realtime-captions: oklch(0.60 0.14 260);
+  --tool-realtime-voice: oklch(0.62 0.14 330);
 }
 
 .dark {
@@ -87,6 +91,10 @@
   --tool-music: oklch(0.74 0.15 350);
   --tool-rename: oklch(0.70 0.14 290);
   --tool-text: oklch(0.72 0.13 200);
+  --tool-audio-transcriber: oklch(0.72 0.14 175);
+  --tool-speech-synthesizer: oklch(0.74 0.15 25);
+  --tool-realtime-captions: oklch(0.72 0.14 260);
+  --tool-realtime-voice: oklch(0.73 0.14 330);
 }
 
 @theme {
