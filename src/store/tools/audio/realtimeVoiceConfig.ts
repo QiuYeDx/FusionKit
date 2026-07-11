@@ -9,8 +9,8 @@ export interface RealtimeVoicePreferences {
   voice: string;
   instructions: string;
   turnDetection: "server_vad" | "manual";
-  inputAudioFormat: "pcm16" | "opus";
-  outputAudioFormat: "pcm16" | "opus";
+  inputAudioFormat: "pcm16" | "pcmu" | "pcma";
+  outputAudioFormat: "pcm16" | "pcmu" | "pcma";
 }
 
 export type RealtimeVoiceSessionStatus =
@@ -76,7 +76,9 @@ export function buildRealtimeVoiceSessionConfig(
     ...(preferences.instructions.trim()
       ? { instructions: preferences.instructions.trim() }
       : {}),
-    turnDetection: preferences.turnDetection,
+    // Manual commit is intentionally unavailable until the UI owns a complete
+    // push-to-talk state machine.
+    turnDetection: "server_vad",
     inputAudioFormat: preferences.inputAudioFormat,
     outputAudioFormat: preferences.outputAudioFormat,
   };

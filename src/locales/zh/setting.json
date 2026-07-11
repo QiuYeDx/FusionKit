@@ -196,6 +196,8 @@
         "transcription": "ASR 模型",
         "speechSynthesis": "TTS 模型",
         "realtime": "Realtime / 字幕模型",
+        "realtimeTranscription": "Realtime 转写模型",
+        "realtimeVoice": "Realtime 语音模型",
         "realtime_mimo_hint": "MiMo 实时字幕使用分块近实时转写，不会启用 WebRTC 双工。"
       },
       "defaults": {

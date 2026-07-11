@@ -1,9 +1,10 @@
-import { useCallback, useMemo } from "react";
+import { useCallback, useEffect, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import {
   AlertTriangle,
   CheckCircle2,
   Clipboard,
+  Download,
   FileAudio,
   FileText,
   FolderOpen,
@@ -37,18 +38,21 @@ import type {
 import {
   cancelAudioTranscription,
   revealAudioOutput,
+  saveAudioTranscriptionResult,
   transcribeAudio,
 } from "@/services/audio/audioTranscriptionService";
 import AudioToolShell, {
   type AudioToolShellContext,
 } from "../shared/AudioToolShell";
 import useAudioTranscriberStore from "@/store/tools/audio/useAudioTranscriberStore";
+import { getAudioErrorMessage } from "../shared/audioErrorMessage";
 import {
   buildAudioTranscriptionRequest,
   getAudioTranscriberAccept,
   getAudioTranscriberLanguages,
   getAudioTranscriberResponseFormats,
   normalizeAudioTranscriberPreferencesForDialect,
+  resolveAudioTranscriberModelMatrix,
   validateAudioTranscriberFile,
   type AudioTranscriberFileIssue,
   type SelectedAudioInput,
@@ -77,19 +81,42 @@ export default function AudioTranscriber() {
 function TranscriberConfig({ context }: { context: AudioToolShellContext }) {
   const { t } = useTranslation(["audio"]);
   const preferences = useAudioTranscriberStore((state) => state.preferences);
+  const status = useAudioTranscriberStore((state) => state.status);
   const updatePreferences = useAudioTranscriberStore(
     (state) => state.updatePreferences,
   );
   const dialect = context.configSummary.audioDialect;
-  const normalized = useMemo(
-    () => normalizeAudioTranscriberPreferencesForDialect(preferences, dialect),
-    [dialect, preferences],
+  const profileContext = useMemo(
+    () => ({
+      audioDialect: dialect,
+      provider: context.configSummary.connectionProfile?.provider,
+      modelKey: context.configSummary.modelKey,
+    }),
+    [
+      context.configSummary.connectionProfile?.provider,
+      context.configSummary.modelKey,
+      dialect,
+    ],
   );
-  const responseFormats = getAudioTranscriberResponseFormats(dialect);
-  const languages = getAudioTranscriberLanguages(dialect);
+  const normalized = useMemo(
+    () =>
+      normalizeAudioTranscriberPreferencesForDialect(
+        preferences,
+        profileContext,
+      ),
+    [preferences, profileContext],
+  );
+  const matrix = useMemo(
+    () => resolveAudioTranscriberModelMatrix(profileContext),
+    [profileContext],
+  );
+  const responseFormats = getAudioTranscriberResponseFormats(profileContext);
+  const languages = getAudioTranscriberLanguages(profileContext);
   const isMimo = dialect === "mimo_chat_audio";
   const timestampDisabled =
-    isMimo || normalized.responseFormat !== "verbose_json";
+    !matrix.supportsTimestampGranularities ||
+    normalized.responseFormat !== "verbose_json";
+  const promptDisabled = !matrix.supportsPrompt;
 
   const handleSelectOutputDir = useCallback(async () => {
     try {
@@ -114,13 +141,13 @@ function TranscriberConfig({ context }: { context: AudioToolShellContext }) {
   }, [t, updatePreferences]);
 
   return (
-    <div className="space-y-4">
-      <ToolField label={t("audio:transcriber.fields.language")}>
+    <fieldset className="space-y-4" disabled={status === "running"}>
+      <ToolField label={t("audio:transcriber.fields.language")} htmlFor="transcriber-language">
         <Select
           value={normalized.language}
           onValueChange={(language) => updatePreferences({ language })}
         >
-          <SelectTrigger size="sm" className="w-full">
+          <SelectTrigger id="transcriber-language" size="sm" className="w-full">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -135,6 +162,7 @@ function TranscriberConfig({ context }: { context: AudioToolShellContext }) {
 
       <ToolField
         label={t("audio:transcriber.fields.response_format")}
+        htmlFor="transcriber-response-format"
         hint={
           isMimo
             ? t("audio:transcriber.hints.mimo_response_format")
@@ -149,7 +177,7 @@ function TranscriberConfig({ context }: { context: AudioToolShellContext }) {
             })
           }
         >
-          <SelectTrigger size="sm" className="w-full">
+          <SelectTrigger id="transcriber-response-format" size="sm" className="w-full">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -203,15 +231,17 @@ function TranscriberConfig({ context }: { context: AudioToolShellContext }) {
 
       <ToolField
         label={t("audio:transcriber.fields.prompt")}
+        htmlFor="transcriber-prompt"
         hint={t("audio:transcriber.hints.prompt")}
       >
         <Textarea
-          value={isMimo ? "" : preferences.prompt}
-          disabled={isMimo}
+          id="transcriber-prompt"
+          value={promptDisabled ? "" : preferences.prompt}
+          disabled={promptDisabled}
           rows={3}
           className="resize-none text-xs"
           placeholder={
-            isMimo
+            promptDisabled
               ? t("audio:transcriber.placeholders.mimo_prompt_disabled")
               : t("audio:transcriber.placeholders.prompt")
           }
@@ -226,14 +256,19 @@ function TranscriberConfig({ context }: { context: AudioToolShellContext }) {
         hint={t("audio:transcriber.hints.stream")}
         action={
           <Switch
-            checked={false}
-            disabled
+            checked={normalized.stream}
+            disabled={!matrix.supportsStream}
             aria-label={t("audio:transcriber.fields.stream")}
+            onCheckedChange={(stream) => updatePreferences({ stream })}
           />
         }
       >
         <p className="text-[11px] leading-relaxed text-muted-foreground">
-          {t("audio:transcriber.hints.stream_disabled")}
+          {t(
+            matrix.supportsStream
+              ? "audio:transcriber.hints.stream_enabled"
+              : "audio:transcriber.hints.stream_disabled",
+          )}
         </p>
       </ToolField>
 
@@ -241,12 +276,14 @@ function TranscriberConfig({ context }: { context: AudioToolShellContext }) {
         label={t("audio:transcriber.fields.output_mode")}
         hint={t("audio:transcriber.hints.output_mode")}
       >
-        <ButtonGroup className="w-full">
+        <ButtonGroup className="w-full" role="radiogroup" aria-label={t("audio:transcriber.fields.output_mode")}>
           {(["display_only", "source_dir", "custom_dir"] as const).map(
             (mode) => (
               <Button
                 key={mode}
                 type="button"
+                role="radio"
+                aria-checked={preferences.outputMode === mode}
                 size="sm"
                 className="flex-1"
                 variant={preferences.outputMode === mode ? "default" : "outline"}
@@ -267,7 +304,7 @@ function TranscriberConfig({ context }: { context: AudioToolShellContext }) {
           />
         ) : null}
       </ToolField>
-    </div>
+    </fieldset>
   );
 }
 
@@ -281,25 +318,56 @@ function TranscriberWorkspace({ context }: { context: AudioToolShellContext }) {
   const activeRequestId = useAudioTranscriberStore(
     (state) => state.activeRequestId,
   );
-  const updatePreferences = useAudioTranscriberStore(
-    (state) => state.updatePreferences,
-  );
   const setSelectedFile = useAudioTranscriberStore(
     (state) => state.setSelectedFile,
   );
   const setResult = useAudioTranscriberStore((state) => state.setResult);
   const setStatus = useAudioTranscriberStore((state) => state.setStatus);
   const setLastError = useAudioTranscriberStore((state) => state.setLastError);
-  const setActiveRequestId = useAudioTranscriberStore(
-    (state) => state.setActiveRequestId,
+  const seedProfileDefaults = useAudioTranscriberStore(
+    (state) => state.seedProfileDefaults,
+  );
+  const beginRequest = useAudioTranscriberStore((state) => state.beginRequest);
+  const invalidateActiveRequest = useAudioTranscriberStore(
+    (state) => state.invalidateActiveRequest,
+  );
+  const isRequestCurrent = useAudioTranscriberStore(
+    (state) => state.isRequestCurrent,
   );
   const resetTaskState = useAudioTranscriberStore(
     (state) => state.resetTaskState,
   );
   const dialect = context.configSummary.audioDialect;
+  const profileContext = useMemo(
+    () => ({
+      audioDialect: dialect,
+      provider: context.configSummary.connectionProfile?.provider,
+      modelKey: context.configSummary.modelKey,
+    }),
+    [
+      context.configSummary.connectionProfile?.provider,
+      context.configSummary.modelKey,
+      dialect,
+    ],
+  );
+  useEffect(() => {
+    if (!context.configSummary.profileId) return;
+    seedProfileDefaults(
+      context.configSummary.profileId,
+      context.configSummary.defaults ?? {},
+    );
+  }, [
+    context.configSummary.defaults,
+    context.configSummary.profileId,
+    seedProfileDefaults,
+  ]);
   const normalized = useMemo(
-    () => normalizeAudioTranscriberPreferencesForDialect(preferences, dialect),
-    [dialect, preferences],
+    () =>
+      normalizeAudioTranscriberPreferencesForDialect(
+        preferences,
+        profileContext,
+      ),
+    [preferences, profileContext],
   );
   const submitIssue = useMemo(
     () => {
@@ -310,21 +378,20 @@ function TranscriberWorkspace({ context }: { context: AudioToolShellContext }) {
   );
   const isRunning = status === "running";
 
+  useEffect(() => {
+    return () => {
+      const invalidated =
+        useAudioTranscriberStore.getState().invalidateActiveRequest("cancelled");
+      if (invalidated) {
+        void cancelAudioTranscription(invalidated.requestId);
+      }
+    };
+  }, []);
+
   const handleFiles = useCallback(
     (files: FileList) => {
       const file = files[0];
       if (!file) return;
-      const filePath = getFilePathFromFile(file);
-      if (!filePath) {
-        const message = t("audio:transcriber.errors.file_path_unavailable");
-        setLastError({
-          code: "renderer_error",
-          message,
-          field: "filePath",
-        });
-        showToast(message, "error");
-        return;
-      }
 
       const validation = validateAudioTranscriberFile(file, dialect);
       if (!validation.ok) {
@@ -339,15 +406,31 @@ function TranscriberWorkspace({ context }: { context: AudioToolShellContext }) {
         return;
       }
 
-      const nextFile: SelectedAudioInput = {
-        fileName: file.name,
-        filePath,
-        mimeType: validation.mimeType,
-        sizeBytes: file.size,
-        modifiedAt: file.lastModified,
-      };
-      setSelectedFile(nextFile);
-      showToast(t("audio:transcriber.messages.file_selected"), "success");
+      void window.audioApi.authorizeInputFile(file).then((authorization) => {
+        if (!authorization.ok) {
+          const message = authorization.error.message ||
+            t("audio:transcriber.errors.file_path_unavailable");
+          setLastError({
+            code: authorization.error.code,
+            message,
+            field: authorization.error.field ?? "file",
+            details: authorization.error.details,
+          });
+          showToast(message, "error");
+          return;
+        }
+
+        const nextFile: SelectedAudioInput = {
+          fileName: authorization.data.fileName || file.name,
+          filePath: getFilePathFromFile(file) || file.name,
+          fileToken: authorization.data.fileToken,
+          mimeType: validation.mimeType,
+          sizeBytes: authorization.data.sizeBytes,
+          modifiedAt: file.lastModified,
+        };
+        setSelectedFile(nextFile);
+        showToast(t("audio:transcriber.messages.file_selected"), "success");
+      });
     },
     [dialect, setLastError, setSelectedFile, t],
   );
@@ -368,18 +451,15 @@ function TranscriberWorkspace({ context }: { context: AudioToolShellContext }) {
       file: selectedFile,
       preferences: normalized,
       dialect,
+      provider: profileContext.provider,
+      modelKey: profileContext.modelKey,
     });
-    setStatus("running");
-    setResult(null);
-    setLastError(null);
-    setActiveRequestId(requestId);
+    const generation = beginRequest(requestId);
 
     const response = await transcribeAudio(request);
-    const currentRequestId =
-      useAudioTranscriberStore.getState().activeRequestId;
-    if (currentRequestId !== requestId) return;
+    if (!isRequestCurrent(requestId, generation)) return;
 
-    setActiveRequestId(null);
+    invalidateActiveRequest("idle");
     if (response.ok) {
       setResult(response.data);
       setStatus("completed");
@@ -397,10 +477,14 @@ function TranscriberWorkspace({ context }: { context: AudioToolShellContext }) {
     showToast(response.error.message, "error");
   }, [
     context,
+    beginRequest,
     dialect,
+    invalidateActiveRequest,
+    isRequestCurrent,
     normalized,
+    profileContext.modelKey,
+    profileContext.provider,
     selectedFile,
-    setActiveRequestId,
     setLastError,
     setResult,
     setStatus,
@@ -409,11 +493,36 @@ function TranscriberWorkspace({ context }: { context: AudioToolShellContext }) {
 
   const handleCancel = useCallback(async () => {
     if (!activeRequestId) return;
-    await cancelAudioTranscription(activeRequestId);
-    setActiveRequestId(null);
-    setStatus("cancelled");
-    showToast(t("audio:transcriber.messages.cancelled"), "success");
-  }, [activeRequestId, setActiveRequestId, setStatus, t]);
+    const invalidated = invalidateActiveRequest("cancelled");
+    if (!invalidated) return;
+    const response = await cancelAudioTranscription(invalidated.requestId);
+    if (
+      useAudioTranscriberStore.getState().requestGeneration !==
+      invalidated.generation
+    ) {
+      return;
+    }
+    if (response.ok && response.data.cancelled) {
+      showToast(t("audio:transcriber.messages.cancelled"), "success");
+      return;
+    }
+    const message = response.ok
+      ? t("audio:transcriber.errors.cancel_failed")
+      : response.error.message;
+    setStatus("failed");
+    setLastError({
+      code: response.ok ? "renderer_error" : response.error.code,
+      message,
+      ...(response.ok ? {} : { field: response.error.field }),
+    });
+    showToast(message, "error");
+  }, [
+    activeRequestId,
+    invalidateActiveRequest,
+    setLastError,
+    setStatus,
+    t,
+  ]);
 
   const handleCopy = useCallback(async () => {
     if (!result) return;
@@ -426,15 +535,33 @@ function TranscriberWorkspace({ context }: { context: AudioToolShellContext }) {
   }, [result, t]);
 
   const handleReveal = useCallback(async () => {
-    if (!result?.outputPath) {
+    if (!result?.outputToken) {
       showToast(t("audio:transcriber.errors.output_not_ready"), "error");
       return;
     }
-    const response = await revealAudioOutput({ outputPath: result.outputPath });
+    const response = await revealAudioOutput({ outputToken: result.outputToken });
     if (!response.ok) {
       showToast(response.error.message, "error");
     }
-  }, [result?.outputPath, t]);
+  }, [result?.outputToken, t]);
+
+  const handleSave = useCallback(async () => {
+    if (!result) return;
+    const response = await saveAudioTranscriptionResult(
+      result,
+      selectedFile?.fileName,
+    );
+    if (response.ok) {
+      if (response.data.saved) {
+        showToast(t("audio:transcriber.messages.saved"), "success");
+      }
+      return;
+    }
+    showToast(
+      response.error.message || t("audio:transcriber.errors.save_failed"),
+      "error",
+    );
+  }, [result, selectedFile?.fileName, t]);
 
   return (
     <ToolPanel
@@ -486,7 +613,7 @@ function TranscriberWorkspace({ context }: { context: AudioToolShellContext }) {
             <AlertTitle>{t("audio:transcriber.errors.title")}</AlertTitle>
             <AlertDescription>
               <div className="space-y-1">
-                <div>{lastError.message}</div>
+                <div>{getAudioErrorMessage(t, lastError, lastError.message)}</div>
                 <div className="font-mono text-[11px]">code: {lastError.code}</div>
               </div>
             </AlertDescription>
@@ -532,7 +659,7 @@ function TranscriberWorkspace({ context }: { context: AudioToolShellContext }) {
           status={status}
           onCopy={handleCopy}
           onReveal={handleReveal}
-          onUseSourceOutput={() => updatePreferences({ outputMode: "source_dir" })}
+          onSave={handleSave}
         />
       </div>
     </ToolPanel>
@@ -581,13 +708,13 @@ function ResultPanel({
   status,
   onCopy,
   onReveal,
-  onUseSourceOutput,
+  onSave,
 }: {
   result: AudioTranscriptionResult | null;
   status: string;
   onCopy: () => void;
   onReveal: () => void;
-  onUseSourceOutput: () => void;
+  onSave: () => void;
 }) {
   const { t } = useTranslation(["audio"]);
   if (!result) {
@@ -644,9 +771,10 @@ function ResultPanel({
               type="button"
               variant="outline"
               size="sm"
-              onClick={onUseSourceOutput}
+              onClick={onSave}
             >
-              {t("audio:transcriber.actions.save_next_run")}
+              <Download className="h-3.5 w-3.5" />
+              {t("audio:transcriber.actions.save_result")}
             </Button>
           )}
         </div>
@@ -691,6 +819,14 @@ function resolveSubmitIssueKey(
 ): string | null {
   if (context.configSummary.status !== "ready") {
     return `audio:workspace.${context.configSummary.status}.title`;
+  }
+  const matrix = resolveAudioTranscriberModelMatrix({
+    audioDialect: context.configSummary.audioDialect,
+    provider: context.configSummary.connectionProfile?.provider,
+    modelKey: context.configSummary.modelKey,
+  });
+  if (!matrix.modelSupported) {
+    return "audio:transcriber.errors.unsupported_model";
   }
   if (!selectedFile) {
     return "audio:transcriber.errors.no_file";

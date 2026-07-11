@@ -13,6 +13,7 @@ describe("audio transcriber config helpers", () => {
   const file: SelectedAudioInput = {
     fileName: "sample.wav",
     filePath: "/tmp/sample.wav",
+    fileToken: "file_token_sample",
     mimeType: "audio/wav",
     sizeBytes: 100,
   };
@@ -70,7 +71,7 @@ describe("audio transcriber config helpers", () => {
       responseFormat: "json",
       prompt: "",
       timestampGranularities: [],
-      stream: false,
+      stream: true,
     });
   });
 
@@ -79,6 +80,7 @@ describe("audio transcriber config helpers", () => {
       requestId: "asr_req_001",
       file,
       dialect: "openai_audio",
+      modelKey: "whisper-1",
       preferences: {
         ...DEFAULT_AUDIO_TRANSCRIBER_PREFERENCES,
         language: "zh",
@@ -93,7 +95,7 @@ describe("audio transcriber config helpers", () => {
     expect(request).toEqual({
       assignmentKey: "transcription",
       requestId: "asr_req_001",
-      filePath: "/tmp/sample.wav",
+      fileToken: "file_token_sample",
       fileName: "sample.wav",
       mimeType: "audio/wav",
       language: "zh",
@@ -127,7 +129,7 @@ describe("audio transcriber config helpers", () => {
     expect(request).toEqual({
       assignmentKey: "transcription",
       requestId: "asr_req_002",
-      filePath: "/tmp/sample.wav",
+      fileToken: "file_token_sample",
       fileName: "sample.wav",
       mimeType: "audio/wav",
       language: "en",

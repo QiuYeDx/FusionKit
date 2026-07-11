@@ -11,6 +11,7 @@ interface ImportMeta {
 interface Window {
   // expose in the `electron/preload/index.ts`
   ipcRenderer: import('electron').IpcRenderer
+  audioApi: import('@/type/audioIpc').AudioRendererApi
   // expose webUtils for file path access (Electron 24+)
   electronUtils: {
     getPathForFile(file: File): string

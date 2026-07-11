@@ -106,7 +106,22 @@ export function createOpenAITranscriptionBody(
 export function createOpenAISpeechBuffer(
   text = "fusionkit-fake-audio",
 ): Buffer {
-  return Buffer.from(text, "utf8");
+  const payload = Buffer.from(text, "utf8");
+  const wav = Buffer.alloc(44 + payload.length);
+  wav.write("RIFF", 0, "ascii");
+  wav.writeUInt32LE(36 + payload.length, 4);
+  wav.write("WAVEfmt ", 8, "ascii");
+  wav.writeUInt32LE(16, 16);
+  wav.writeUInt16LE(1, 20);
+  wav.writeUInt16LE(1, 22);
+  wav.writeUInt32LE(24_000, 24);
+  wav.writeUInt32LE(48_000, 28);
+  wav.writeUInt16LE(2, 32);
+  wav.writeUInt16LE(16, 34);
+  wav.write("data", 36, "ascii");
+  wav.writeUInt32LE(payload.length, 40);
+  payload.copy(wav, 44);
+  return wav;
 }
 
 export function createOpenAIRealtimeClientSecretBody(

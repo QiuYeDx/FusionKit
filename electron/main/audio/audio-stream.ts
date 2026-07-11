@@ -1,5 +1,4 @@
-import { mkdir, writeFile } from "node:fs/promises";
-import path from "node:path";
+import { writeAudioOutputFile } from "./audio-file";
 
 export interface Pcm16WavOptions {
   sampleRate?: number;
@@ -73,12 +72,7 @@ export async function writePcm16WavFile(
   options: Pcm16WavOptions = {},
 ): Promise<{ outputPath: string; sizeBytes: number }> {
   const wav = createPcm16WavBuffer(chunks, options);
-  await mkdir(path.dirname(outputPath), { recursive: true });
-  await writeFile(outputPath, wav);
-  return {
-    outputPath,
-    sizeBytes: wav.byteLength,
-  };
+  return writeAudioOutputFile(outputPath, wav);
 }
 
 export function createAudioStreamStats(

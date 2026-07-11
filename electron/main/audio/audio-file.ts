@@ -1,4 +1,5 @@
-import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
+import { mkdir, open, readFile, readdir, stat, unlink } from "node:fs/promises";
+import { randomUUID } from "node:crypto";
 import os from "node:os";
 import path from "node:path";
 import type { AudioApiDialect, AudioOutputPathMode } from "@/type/audio";
@@ -6,6 +7,7 @@ import { createAudioRuntimeError } from "./audio-errors";
 
 export const AUDIO_MAX_UPLOAD_BYTES = 25 * 1024 * 1024;
 export const MIMO_MAX_BASE64_AUDIO_BYTES = 10 * 1024 * 1024;
+export const AUDIO_FILE_AUTHORIZATION_TTL_MS = 30 * 60 * 1000;
 
 export interface AudioFileInfo {
   filePath: string;
@@ -30,6 +32,19 @@ export interface ResolveAudioOutputPathOptions {
   extension: string;
   now?: Date;
   tempRoot?: string;
+}
+
+export interface AuthorizedAudioFileInfo {
+  fileToken: string;
+  fileName: string;
+  mimeType: AudioMimeType;
+  sizeBytes: number;
+  expiresAt: number;
+}
+
+interface AudioFileAuthorizationEntry extends AuthorizedAudioFileInfo {
+  ownerId: number;
+  filePath: string;
 }
 
 export type AudioMimeType =
@@ -124,20 +139,6 @@ export async function resolveAudioInputFile(
     });
   }
 
-  const mimeType = inferAudioMimeType(options.filePath, options.mimeType);
-  if (!mimeType || !isAudioMimeTypeAllowedForDialect(mimeType, options.dialect)) {
-    throw createAudioRuntimeError({
-      code: "unsupported_audio_format",
-      message: "Audio format is not supported by the selected audio profile.",
-      field: "mimeType",
-      details: {
-        filePath: options.filePath,
-        mimeType: options.mimeType ?? mimeType ?? "",
-        dialect: options.dialect,
-      },
-    });
-  }
-
   const base64EncodedBytes = getBase64EncodedByteLength(fileStat.size);
   if (options.dialect === "mimo_chat_audio") {
     if (base64EncodedBytes > MIMO_MAX_BASE64_AUDIO_BYTES) {
@@ -164,14 +165,186 @@ export async function resolveAudioInputFile(
     });
   }
 
+  const extensionMimeType = inferAudioMimeType(options.filePath);
+  const explicitMimeType = normalizeAudioMimeType(options.mimeType);
+  const detectedMimeType = await detectAudioMimeTypeFromFile(options.filePath);
+  if (
+    !detectedMimeType ||
+    (extensionMimeType &&
+      !areEquivalentAudioMimeTypes(extensionMimeType, detectedMimeType)) ||
+    (explicitMimeType &&
+      !areEquivalentAudioMimeTypes(explicitMimeType, detectedMimeType)) ||
+    !isAudioMimeTypeAllowedForDialect(detectedMimeType, options.dialect)
+  ) {
+    throw createAudioRuntimeError({
+      code: "unsupported_audio_format",
+      message:
+        "Audio file signature does not match a supported format for the selected audio profile.",
+      field: "mimeType",
+      details: {
+        filePath: options.filePath,
+        mimeType: options.mimeType ?? extensionMimeType ?? "",
+        detectedMimeType: detectedMimeType ?? "",
+        dialect: options.dialect,
+      },
+    });
+  }
+
   return {
     filePath: options.filePath,
     fileName: path.basename(options.filePath),
     extension: path.extname(options.filePath).replace(/^\./, "").toLowerCase(),
-    mimeType,
+    mimeType: detectedMimeType,
     sizeBytes: fileStat.size,
     base64EncodedBytes,
   };
+}
+
+export async function detectAudioMimeTypeFromFile(
+  filePath: string,
+): Promise<AudioMimeType | undefined> {
+  const handle = await open(filePath, "r");
+  try {
+    const header = Buffer.alloc(16);
+    const { bytesRead } = await handle.read(header, 0, header.length, 0);
+    return detectAudioMimeTypeFromHeader(header.subarray(0, bytesRead));
+  } finally {
+    await handle.close();
+  }
+}
+
+export function detectAudioMimeTypeFromHeader(
+  header: Uint8Array,
+): AudioMimeType | undefined {
+  const bytes = Buffer.from(header);
+  if (
+    bytes.length >= 12 &&
+    (bytes.subarray(0, 4).toString("ascii") === "RIFF" ||
+      bytes.subarray(0, 4).toString("ascii") === "RF64") &&
+    bytes.subarray(8, 12).toString("ascii") === "WAVE"
+  ) {
+    return "audio/wav";
+  }
+  if (
+    bytes.length >= 3 &&
+    bytes.subarray(0, 3).toString("ascii") === "ID3"
+  ) {
+    return "audio/mpeg";
+  }
+  if (
+    bytes.length >= 2 &&
+    bytes[0] === 0xff &&
+    (bytes[1] & 0xe0) === 0xe0
+  ) {
+    return "audio/mpeg";
+  }
+  if (
+    bytes.length >= 4 &&
+    bytes.subarray(0, 4).toString("ascii") === "fLaC"
+  ) {
+    return "audio/flac";
+  }
+  if (
+    bytes.length >= 4 &&
+    bytes.subarray(0, 4).toString("ascii") === "OggS"
+  ) {
+    return "audio/ogg";
+  }
+  if (
+    bytes.length >= 4 &&
+    bytes[0] === 0x1a &&
+    bytes[1] === 0x45 &&
+    bytes[2] === 0xdf &&
+    bytes[3] === 0xa3
+  ) {
+    return "audio/webm";
+  }
+  if (
+    bytes.length >= 12 &&
+    bytes.subarray(4, 8).toString("ascii") === "ftyp"
+  ) {
+    return "audio/mp4";
+  }
+  return undefined;
+}
+
+export class AudioFileAuthorizationStore {
+  private readonly entries = new Map<string, AudioFileAuthorizationEntry>();
+
+  constructor(
+    private readonly ttlMs = AUDIO_FILE_AUTHORIZATION_TTL_MS,
+    private readonly now: () => number = Date.now,
+  ) {}
+
+  async authorize(
+    ownerId: number,
+    filePath: string,
+    explicitMimeType?: string,
+  ): Promise<AuthorizedAudioFileInfo> {
+    this.removeExpired();
+    const fileInfo = await resolveAudioInputFile({
+      filePath,
+      mimeType: explicitMimeType,
+      dialect: "openai_audio",
+    });
+    const fileToken = randomUUID();
+    const expiresAt = this.now() + this.ttlMs;
+    const entry: AudioFileAuthorizationEntry = {
+      ownerId,
+      fileToken,
+      filePath: fileInfo.filePath,
+      fileName: fileInfo.fileName,
+      mimeType: fileInfo.mimeType,
+      sizeBytes: fileInfo.sizeBytes,
+      expiresAt,
+    };
+    this.entries.set(fileToken, entry);
+    return toPublicAuthorization(entry);
+  }
+
+  async resolve(
+    ownerId: number,
+    fileToken: string,
+    dialect: AudioApiDialect,
+  ): Promise<AudioFileInfo> {
+    this.removeExpired();
+    const entry = this.entries.get(fileToken);
+    if (!entry || entry.ownerId !== ownerId) {
+      throw createAudioRuntimeError({
+        code: "invalid_ipc_request",
+        message: "Audio file authorization is invalid or expired.",
+        field: "fileToken",
+      });
+    }
+
+    const resolved = await resolveAudioInputFile({
+      filePath: entry.filePath,
+      mimeType: entry.mimeType,
+      dialect,
+    });
+    if (resolved.sizeBytes !== entry.sizeBytes) {
+      this.entries.delete(fileToken);
+      throw createAudioRuntimeError({
+        code: "file_read_failed",
+        message: "Authorized audio file changed after it was selected.",
+        field: "fileToken",
+      });
+    }
+    return resolved;
+  }
+
+  releaseOwner(ownerId: number): void {
+    for (const [token, entry] of this.entries) {
+      if (entry.ownerId === ownerId) this.entries.delete(token);
+    }
+  }
+
+  private removeExpired(): void {
+    const now = this.now();
+    for (const [token, entry] of this.entries) {
+      if (entry.expiresAt <= now) this.entries.delete(token);
+    }
+  }
 }
 
 export async function readAudioFileAsDataUri(
@@ -200,12 +373,49 @@ export async function writeAudioOutputFile(
   data: Uint8Array | Buffer | string,
 ): Promise<{ outputPath: string; sizeBytes: number }> {
   await mkdir(path.dirname(outputPath), { recursive: true });
-  await writeFile(outputPath, data);
-  const written = await stat(outputPath);
-  return {
-    outputPath,
-    sizeBytes: written.size,
-  };
+  const parsed = path.parse(outputPath);
+  for (let index = 0; index < 10_000; index += 1) {
+    const candidate = index === 0
+      ? outputPath
+      : path.join(parsed.dir, `${parsed.name}-${index}${parsed.ext}`);
+    let handle;
+    try {
+      handle = await open(candidate, "wx");
+      await handle.writeFile(data);
+      await handle.close();
+      handle = undefined;
+      const written = await stat(candidate);
+      return { outputPath: candidate, sizeBytes: written.size };
+    } catch (error) {
+      await handle?.close().catch(() => undefined);
+      if (isNodeErrorCode(error, "EEXIST")) continue;
+      await unlink(candidate).catch(() => undefined);
+      throw createAudioRuntimeError({
+        code: "output_write_failed",
+        message: "Audio output could not be written.",
+        field: "outputPath",
+        details: { outputPath: candidate },
+        cause: error,
+      });
+    }
+  }
+  throw createAudioRuntimeError({
+    code: "output_write_failed",
+    message: "Audio output path could not be reserved.",
+    field: "outputPath",
+  });
+}
+
+export async function discardAudioOutputIfAborted(
+  outputPath: string,
+  signal?: AbortSignal,
+): Promise<void> {
+  if (!signal?.aborted) return;
+  await unlink(outputPath).catch(() => undefined);
+  throw createAudioRuntimeError({
+    code: "aborted",
+    message: "Audio request was cancelled before the output was committed.",
+  });
 }
 
 export async function ensureUniqueOutputPath(targetPath: string): Promise<string> {
@@ -282,6 +492,65 @@ function isKnownAudioMimeType(value: string): value is AudioMimeType {
   return OPENAI_AUDIO_MIME_TYPES.has(value as AudioMimeType);
 }
 
+export async function cleanupStaleAudioOutputs(options: {
+  maxAgeMs?: number;
+  maxTotalBytes?: number;
+  now?: number;
+} = {}): Promise<void> {
+  const directory = path.join(os.tmpdir(), "fusionkit-audio");
+  const maxAgeMs = options.maxAgeMs ?? 24 * 60 * 60 * 1000;
+  const maxTotalBytes = options.maxTotalBytes ?? 512 * 1024 * 1024;
+  const now = options.now ?? Date.now();
+  let entries;
+  try {
+    entries = await readdir(directory, { withFileTypes: true });
+  } catch {
+    return;
+  }
+  const files: Array<{ path: string; size: number; mtimeMs: number }> = [];
+  for (const entry of entries) {
+    if (!entry.isFile()) continue;
+    const filePath = path.join(directory, entry.name);
+    try {
+      const info = await stat(filePath);
+      if (now - info.mtimeMs >= maxAgeMs) {
+        await unlink(filePath).catch(() => undefined);
+      } else {
+        files.push({ path: filePath, size: info.size, mtimeMs: info.mtimeMs });
+      }
+    } catch {
+      // A concurrent cleanup may already own this path.
+    }
+  }
+  let totalBytes = files.reduce((sum, file) => sum + file.size, 0);
+  for (const file of files.sort((a, b) => a.mtimeMs - b.mtimeMs)) {
+    if (totalBytes <= maxTotalBytes) break;
+    await unlink(file.path).catch(() => undefined);
+    totalBytes -= file.size;
+  }
+}
+
+function areEquivalentAudioMimeTypes(
+  left: AudioMimeType,
+  right: AudioMimeType,
+): boolean {
+  const canonical = (value: AudioMimeType) =>
+    value === "audio/mp3" ? "audio/mpeg" : value;
+  return canonical(left) === canonical(right);
+}
+
+function toPublicAuthorization(
+  entry: AudioFileAuthorizationEntry,
+): AuthorizedAudioFileInfo {
+  return {
+    fileToken: entry.fileToken,
+    fileName: entry.fileName,
+    mimeType: entry.mimeType,
+    sizeBytes: entry.sizeBytes,
+    expiresAt: entry.expiresAt,
+  };
+}
+
 function normalizeExtension(extension: string): string {
   const normalized = extension.replace(/^\./, "").trim().toLowerCase();
   if (!normalized) {
@@ -326,4 +595,10 @@ async function pathExists(filePath: string): Promise<boolean> {
   } catch {
     return false;
   }
+}
+
+function isNodeErrorCode(error: unknown, code: string): boolean {
+  return error instanceof Error &&
+    "code" in error &&
+    (error as NodeJS.ErrnoException).code === code;
 }

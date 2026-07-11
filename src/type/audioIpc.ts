@@ -40,9 +40,16 @@ export const AUDIO_IPC_CHANNELS = {
   synthesizeSpeechStream: "audio:synthesize-speech-stream",
   cancelSpeechSynthesisStream: "audio:cancel-speech-synthesis-stream",
   revealOutput: "audio:reveal-output",
+  readOutput: "audio:read-output",
+  saveTextOutput: "audio:save-text-output",
   realtimeCreateEphemeralSession: "audio:realtime:create-ephemeral-session",
   realtimeSessionEvent: "audio:realtime:session-event",
   realtimeStopSession: "audio:realtime:stop-session",
+} as const;
+
+export const AUDIO_PRELOAD_INTERNAL_CHANNELS = {
+  registerCapability: "audio:internal:register-preload-capability",
+  authorizeInputFile: "audio:internal:authorize-input-file",
 } as const;
 
 export const AUDIO_EVENT_CHANNELS = {
@@ -55,6 +62,12 @@ export type AudioIpcChannel =
 
 export type AudioEventChannel =
   (typeof AUDIO_EVENT_CHANNELS)[keyof typeof AUDIO_EVENT_CHANNELS];
+
+export interface AudioSecureIpcEnvelope<TPayload = unknown> {
+  capability: string;
+  payload: TPayload;
+  configRevision?: string;
+}
 
 export type AudioIpcErrorCode =
   | "invalid_ipc_request"
@@ -92,7 +105,7 @@ export type AudioIpcResult<T> =
   | { ok: false; error: AudioIpcError };
 
 export interface RevealAudioOutputRequest {
-  outputPath: string;
+  outputToken: string;
 }
 
 export interface RevealAudioOutputResult {
@@ -163,11 +176,76 @@ export interface SyncAudioRuntimeConfigRequest {
 export interface SyncAudioRuntimeConfigResult {
   synced: boolean;
   audioProfileCount: number;
+  revision: string;
 }
+
+export interface ReadAudioOutputRequest {
+  outputToken: string;
+}
+
+export interface ReadAudioOutputResult {
+  bytes: Uint8Array;
+  mimeType: string;
+}
+
+export interface SaveAudioTextOutputRequest {
+  defaultName: string;
+  content: string;
+  extension: "txt" | "json" | "srt" | "vtt";
+}
+
+export interface SaveAudioTextOutputResult {
+  saved: boolean;
+  cancelled: boolean;
+  path?: string;
+}
+
+export interface AuthorizedAudioInputFile {
+  fileToken: string;
+  fileName: string;
+  mimeType: string;
+  sizeBytes: number;
+  expiresAt: number;
+}
+
+export type CreateAudioTranscriptionIpcRequest = Omit<
+  CreateAudioTranscriptionRequest,
+  "filePath"
+> & {
+  fileToken: string;
+};
+
+export type MimoSpeechIpcOptions = Omit<MimoSpeechOptions, "voiceSamplePath"> & {
+  voiceSampleToken?: string;
+};
+
+export type CreateSpeechSynthesisIpcRequest = Omit<
+  CreateSpeechSynthesisRequest,
+  "mimoOptions"
+> & {
+  mimoOptions?: MimoSpeechIpcOptions;
+};
 
 export interface CreateSpeechSynthesisStreamIpcRequest {
   requestId: string;
-  payload: CreateSpeechSynthesisRequest;
+  payload: CreateSpeechSynthesisIpcRequest;
+}
+
+export interface AudioRendererApi {
+  invoke<TResponse>(
+    channel: AudioIpcChannel,
+    payload: unknown,
+    options?: { configRevision?: string },
+  ): Promise<AudioIpcResult<TResponse>>;
+  authorizeInputFile(file: File): Promise<AudioIpcResult<AuthorizedAudioInputFile>>;
+  on(
+    channel: AudioEventChannel,
+    listener: (event: unknown, payload: unknown) => void,
+  ): void;
+  off(
+    channel: AudioEventChannel,
+    listener: (event: unknown, payload: unknown) => void,
+  ): void;
 }
 
 export interface CancelSpeechSynthesisStreamRequest {
@@ -216,18 +294,33 @@ export type AudioRealtimeSessionEvent =
       type: "mic_state";
       state: "requesting" | "granted" | "denied" | "muted";
     }
-  | { type: "transcript_delta"; role: AudioRole; text: string }
+  | {
+      type: "transcript_delta";
+      role: AudioRole;
+      text: string;
+      itemId?: string;
+      responseId?: string;
+      contentIndex?: number;
+      outputIndex?: number;
+    }
   | {
       type: "transcript_final";
       role: AudioRole;
       text: string;
       itemId?: string;
+      responseId?: string;
+      contentIndex?: number;
+      outputIndex?: number;
     }
-  | { type: "audio_started"; role: "assistant" }
-  | { type: "audio_stopped"; role: "assistant" }
+  | { type: "audio_started"; role: "assistant"; responseId?: string; itemId?: string }
+  | { type: "audio_stopped"; role: "assistant"; responseId?: string; itemId?: string }
   | { type: "response_started"; responseId: string }
-  | { type: "response_completed"; responseId: string }
-  | { type: "error"; error: AudioIpcError }
+  | {
+      type: "response_completed";
+      responseId: string;
+      status: "completed" | "cancelled" | "failed" | "incomplete";
+    }
+  | { type: "error"; error: AudioIpcError; fatal: boolean }
   | { type: "session_closed"; reason: AudioRealtimeSessionCloseReason };
 
 const FORBIDDEN_RUNTIME_CONFIG_FIELDS = [
@@ -321,7 +414,7 @@ export function validateSyncAudioRuntimeConfigIpcRequest(
 
 export function validateCreateAudioTranscriptionIpcRequest(
   payload: unknown,
-): AudioIpcResult<CreateAudioTranscriptionRequest> {
+): AudioIpcResult<CreateAudioTranscriptionIpcRequest> {
   const commonResult = validateCommonAudioTaskPayload(payload);
   if (!commonResult.ok) return commonResult;
   const record = commonResult.data;
@@ -333,12 +426,18 @@ export function validateCreateAudioTranscriptionIpcRequest(
     );
   }
 
-  for (const key of ["filePath", "fileName", "mimeType"] as const) {
+  if (record.filePath !== undefined) {
+    return invalidRequest(
+      "Renderer audio requests must use an authorized fileToken, not filePath.",
+      "filePath",
+    );
+  }
+  for (const key of ["fileToken", "fileName", "mimeType"] as const) {
     if (!isNonEmptyString(record[key])) {
       return invalidRequest(`${key} must be a non-empty string.`, key);
     }
   }
-  const filePath = record.filePath as string;
+  const fileToken = record.fileToken as string;
   const fileName = record.fileName as string;
   const mimeType = record.mimeType as string;
   const requestId = optionalString(record.requestId, "requestId");
@@ -356,6 +455,9 @@ export function validateCreateAudioTranscriptionIpcRequest(
   if (!language.ok) return language;
   const prompt = optionalString(record.prompt, "prompt");
   if (!prompt.ok) return prompt;
+  if (prompt.data && prompt.data.length > 4096) {
+    return invalidRequest("prompt exceeds 4096 characters.", "prompt");
+  }
   const outputDir = optionalString(record.outputDir, "outputDir");
   if (!outputDir.ok) return outputDir;
   const outputPathMode = optionalOutputPathMode(record.outputPathMode);
@@ -363,10 +465,12 @@ export function validateCreateAudioTranscriptionIpcRequest(
 
   if (
     record.temperature !== undefined &&
-    !isFiniteNumber(record.temperature)
+    (!isFiniteNumber(record.temperature) ||
+      record.temperature < 0 ||
+      record.temperature > 1)
   ) {
     return invalidRequest(
-      "temperature must be a finite number when provided.",
+      "temperature must be between 0 and 1.",
       "temperature",
     );
   }
@@ -382,7 +486,7 @@ export function validateCreateAudioTranscriptionIpcRequest(
   return audioIpcSuccess({
     assignmentKey: "transcription",
     ...(requestId.data ? { requestId: requestId.data } : {}),
-    filePath,
+    fileToken,
     fileName,
     mimeType,
     ...(language.data ? { language: language.data } : {}),
@@ -496,6 +600,24 @@ export function validateTranscribeRecordedAudioChunkIpcRequest(
       "endedAtMs",
     );
   }
+  const startedAtMs = isFiniteNumber(payload.startedAtMs)
+    ? payload.startedAtMs
+    : undefined;
+  const endedAtMs = isFiniteNumber(payload.endedAtMs)
+    ? payload.endedAtMs
+    : undefined;
+  if (
+    (startedAtMs !== undefined && startedAtMs < 0) ||
+    (endedAtMs !== undefined && endedAtMs < 0) ||
+    (startedAtMs !== undefined &&
+      endedAtMs !== undefined &&
+      endedAtMs < startedAtMs)
+  ) {
+    return invalidRequest(
+      "Recorded chunk timestamps are out of range.",
+      "endedAtMs",
+    );
+  }
 
   return audioIpcSuccess({
     assignmentKey: "realtimeCaptions",
@@ -527,7 +649,7 @@ export function validateCancelRecordedAudioChunkTranscriptionIpcRequest(
 
 export function validateCreateSpeechSynthesisIpcRequest(
   payload: unknown,
-): AudioIpcResult<CreateSpeechSynthesisRequest> {
+): AudioIpcResult<CreateSpeechSynthesisIpcRequest> {
   const commonResult = validateCommonAudioTaskPayload(payload);
   if (!commonResult.ok) return commonResult;
   const record = commonResult.data;
@@ -541,6 +663,9 @@ export function validateCreateSpeechSynthesisIpcRequest(
 
   if (typeof record.input !== "string") {
     return invalidRequest("input must be a string.", "input");
+  }
+  if (record.input.length > 4096) {
+    return invalidRequest("input exceeds 4096 characters.", "input");
   }
   const requestId = optionalString(record.requestId, "requestId");
   if (!requestId.ok) return requestId;
@@ -557,6 +682,9 @@ export function validateCreateSpeechSynthesisIpcRequest(
   if (!voice.ok) return voice;
   const instructions = optionalString(record.instructions, "instructions");
   if (!instructions.ok) return instructions;
+  if (instructions.data && instructions.data.length > 4096) {
+    return invalidRequest("instructions exceeds 4096 characters.", "instructions");
+  }
   const outputDir = optionalString(record.outputDir, "outputDir");
   if (!outputDir.ok) return outputDir;
   const fileNameHint = optionalString(record.fileNameHint, "fileNameHint");
@@ -564,8 +692,11 @@ export function validateCreateSpeechSynthesisIpcRequest(
   const outputPathMode = optionalOutputPathMode(record.outputPathMode);
   if (!outputPathMode.ok) return outputPathMode;
 
-  if (record.speed !== undefined && !isFiniteNumber(record.speed)) {
-    return invalidRequest("speed must be a finite number when provided.", "speed");
+  if (
+    record.speed !== undefined &&
+    (!isFiniteNumber(record.speed) || record.speed < 0.25 || record.speed > 4)
+  ) {
+    return invalidRequest("speed must be between 0.25 and 4.", "speed");
   }
 
   const stream = optionalBoolean(record.stream, "stream");
@@ -764,10 +895,38 @@ export function validateRevealAudioOutputIpcRequest(
   if (!isRecord(payload)) {
     return invalidRequest("Request payload must be an object.");
   }
-  if (!isNonEmptyString(payload.outputPath)) {
-    return invalidRequest("outputPath must be a non-empty string.", "outputPath");
+  if (!isNonEmptyString(payload.outputToken)) {
+    return invalidRequest("outputToken must be a non-empty string.", "outputToken");
   }
-  return audioIpcSuccess({ outputPath: payload.outputPath });
+  return audioIpcSuccess({ outputToken: payload.outputToken });
+}
+
+export const validateReadAudioOutputIpcRequest =
+  validateRevealAudioOutputIpcRequest;
+
+export function validateSaveAudioTextOutputIpcRequest(
+  payload: unknown,
+): AudioIpcResult<SaveAudioTextOutputRequest> {
+  if (!isRecord(payload)) return invalidRequest("Request payload must be an object.");
+  if (!isNonEmptyString(payload.defaultName) || payload.defaultName.length > 240) {
+    return invalidRequest("defaultName must be a valid file name.", "defaultName");
+  }
+  if (typeof payload.content !== "string" || payload.content.length > 10 * 1024 * 1024) {
+    return invalidRequest("content exceeds the 10MB text limit.", "content");
+  }
+  if (
+    payload.extension !== "txt" &&
+    payload.extension !== "json" &&
+    payload.extension !== "srt" &&
+    payload.extension !== "vtt"
+  ) {
+    return invalidRequest("extension is not supported.", "extension");
+  }
+  return audioIpcSuccess({
+    defaultName: payload.defaultName,
+    content: payload.content,
+    extension: payload.extension,
+  });
 }
 
 export function isSpeechSynthesisStreamEventPayload(
@@ -819,10 +978,17 @@ export function isAudioRealtimeSessionEventPayload(
     case "audio_stopped":
       return payload.role === "assistant";
     case "response_started":
-    case "response_completed":
       return isNonEmptyString(payload.responseId);
+    case "response_completed":
+      return (
+        isNonEmptyString(payload.responseId) &&
+        (payload.status === "completed" ||
+          payload.status === "cancelled" ||
+          payload.status === "failed" ||
+          payload.status === "incomplete")
+      );
     case "error":
-      return isAudioIpcError(payload.error);
+      return isAudioIpcError(payload.error) && typeof payload.fatal === "boolean";
     case "session_closed":
       return (
         payload.reason === "user" ||
@@ -974,6 +1140,16 @@ function validateAudioModelProfileSnapshot(
   if (!speechSynthesis.ok) return speechSynthesis;
   const realtime = optionalString(value.models.realtime, `${prefix}.models.realtime`);
   if (!realtime.ok) return realtime;
+  const realtimeTranscription = optionalString(
+    value.models.realtimeTranscription,
+    `${prefix}.models.realtimeTranscription`,
+  );
+  if (!realtimeTranscription.ok) return realtimeTranscription;
+  const realtimeVoice = optionalString(
+    value.models.realtimeVoice,
+    `${prefix}.models.realtimeVoice`,
+  );
+  if (!realtimeVoice.ok) return realtimeVoice;
 
   return audioIpcSuccess({
     id: value.id,
@@ -987,6 +1163,10 @@ function validateAudioModelProfileSnapshot(
         ? { speechSynthesis: speechSynthesis.data }
         : {}),
       ...(realtime.data ? { realtime: realtime.data } : {}),
+      ...(realtimeTranscription.data
+        ? { realtimeTranscription: realtimeTranscription.data }
+        : {}),
+      ...(realtimeVoice.data ? { realtimeVoice: realtimeVoice.data } : {}),
     },
     defaults: value.defaults as AudioModelProfile["defaults"],
     ...(isRecord(value.verification)
@@ -1022,7 +1202,7 @@ function validateAudioModelAssignmentSnapshot(
 
 function validateMimoSpeechOptions(
   options: unknown,
-): AudioIpcResult<MimoSpeechOptions | undefined> {
+): AudioIpcResult<MimoSpeechIpcOptions | undefined> {
   if (options === undefined) {
     return audioIpcSuccess(undefined);
   }
@@ -1059,11 +1239,17 @@ function validateMimoSpeechOptions(
     "mimoOptions.voiceDesignPrompt",
   );
   if (!voiceDesignPrompt.ok) return voiceDesignPrompt;
-  const voiceSamplePath = optionalString(
-    options.voiceSamplePath,
-    "mimoOptions.voiceSamplePath",
+  if (options.voiceSamplePath !== undefined) {
+    return invalidRequest(
+      "Renderer audio requests must use an authorized voiceSampleToken, not voiceSamplePath.",
+      "mimoOptions.voiceSamplePath",
+    );
+  }
+  const voiceSampleToken = optionalString(
+    options.voiceSampleToken,
+    "mimoOptions.voiceSampleToken",
   );
-  if (!voiceSamplePath.ok) return voiceSamplePath;
+  if (!voiceSampleToken.ok) return voiceSampleToken;
 
   if (
     options.optimizeTextPreview !== undefined &&
@@ -1106,10 +1292,10 @@ function validateMimoSpeechOptions(
     );
   }
 
-  if (options.mode === "voice_clone" && !voiceSamplePath.data) {
+  if (options.mode === "voice_clone" && !voiceSampleToken.data) {
     return invalidRequest(
-      "voiceSamplePath is required for voice clone.",
-      "mimoOptions.voiceSamplePath",
+      "voiceSampleToken is required for voice clone.",
+      "mimoOptions.voiceSampleToken",
     );
   }
 
@@ -1124,8 +1310,8 @@ function validateMimoSpeechOptions(
     ...(options.optimizeTextPreview !== undefined
       ? { optimizeTextPreview: options.optimizeTextPreview }
       : {}),
-    ...(voiceSamplePath.data !== undefined
-      ? { voiceSamplePath: voiceSamplePath.data }
+    ...(voiceSampleToken.data !== undefined
+      ? { voiceSampleToken: voiceSampleToken.data }
       : {}),
     ...(options.voiceSampleMime !== undefined
       ? { voiceSampleMime: options.voiceSampleMime }
@@ -1179,14 +1365,14 @@ function optionalOutputPathMode(
 function optionalRealtimeAudioFormat(
   value: unknown,
   field: string,
-): AudioIpcResult<"pcm16" | "opus" | undefined> {
+): AudioIpcResult<"pcm16" | "pcmu" | "pcma" | undefined> {
   if (value === undefined) {
     return audioIpcSuccess(undefined);
   }
-  if (value === "pcm16" || value === "opus") {
+  if (value === "pcm16" || value === "pcmu" || value === "pcma") {
     return audioIpcSuccess(value);
   }
-  return invalidRequest(`${field} must be pcm16 or opus.`, field);
+  return invalidRequest(`${field} must be pcm16, pcmu, or pcma.`, field);
 }
 
 function optionalString(

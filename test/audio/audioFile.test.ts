@@ -84,7 +84,8 @@ describe("audio file helpers", () => {
   it("resolves audio file metadata and data URIs without exposing raw bytes", async () => {
     const tempRoot = await createTempRoot();
     const filePath = path.join(tempRoot, "sample.wav");
-    await writeFile(filePath, Buffer.from([1, 2, 3, 4]));
+    const wavBytes = createTestWav([1, 2, 3, 4]);
+    await writeFile(filePath, wavBytes);
 
     const fileInfo = await resolveAudioInputFile({
       filePath,
@@ -96,11 +97,11 @@ describe("audio file helpers", () => {
       fileName: "sample.wav",
       extension: "wav",
       mimeType: "audio/wav",
-      sizeBytes: 4,
-      base64EncodedBytes: getBase64EncodedByteLength(4),
+      sizeBytes: wavBytes.byteLength,
+      base64EncodedBytes: getBase64EncodedByteLength(wavBytes.byteLength),
     });
     await expect(readAudioFileAsDataUri(fileInfo)).resolves.toBe(
-      "data:audio/wav;base64,AQIDBA==",
+      `data:audio/wav;base64,${wavBytes.toString("base64")}`,
     );
   });
 
@@ -226,3 +227,22 @@ describe("audio file helpers", () => {
     await expect(stat(outputPath)).resolves.toMatchObject({ size: 3 });
   });
 });
+
+function createTestWav(payload: number[]): Buffer {
+  const bytes = Buffer.from(payload);
+  const wav = Buffer.alloc(44 + bytes.byteLength);
+  wav.write("RIFF", 0, "ascii");
+  wav.writeUInt32LE(36 + bytes.byteLength, 4);
+  wav.write("WAVEfmt ", 8, "ascii");
+  wav.writeUInt32LE(16, 16);
+  wav.writeUInt16LE(1, 20);
+  wav.writeUInt16LE(1, 22);
+  wav.writeUInt32LE(24_000, 24);
+  wav.writeUInt32LE(48_000, 28);
+  wav.writeUInt16LE(2, 32);
+  wav.writeUInt16LE(16, 34);
+  wav.write("data", 36, "ascii");
+  wav.writeUInt32LE(bytes.byteLength, 40);
+  bytes.copy(wav, 44);
+  return wav;
+}

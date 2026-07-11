@@ -1,28 +1,173 @@
 import { ipcRenderer, contextBridge, webUtils } from 'electron'
 import { animate, motionValue } from 'motion'
+import type {
+  AudioEventChannel,
+  AudioIpcChannel,
+  AudioIpcResult,
+  AudioRendererApi,
+  AuthorizedAudioInputFile,
+} from '@/type/audioIpc'
+
+const AUDIO_CHANNEL_PREFIX = 'audio:'
+const AUDIO_INTERNAL_CHANNEL_PREFIX = 'audio:internal:'
+const AUDIO_REGISTER_CAPABILITY_CHANNEL =
+  'audio:internal:register-preload-capability'
+const AUDIO_AUTHORIZE_INPUT_FILE_CHANNEL = 'audio:internal:authorize-input-file'
+const AUDIO_EVENT_CHANNELS = new Set<AudioEventChannel>([
+  'audio:speech-synthesis-stream',
+  'audio:realtime:session-event',
+])
+const audioPreloadCapability = globalThis.crypto.randomUUID()
+const audioCapabilityRegistered = ipcRenderer.sendSync(
+  AUDIO_REGISTER_CAPABILITY_CHANNEL,
+  audioPreloadCapability,
+) === true
+
+const assertLegacyIpcChannelAllowed = (channel: string) => {
+  if (channel.startsWith(AUDIO_CHANNEL_PREFIX)) {
+    throw new Error(
+      'Audio IPC is restricted. Use the preload audioApi capability instead.',
+    )
+  }
+}
 
 // --------- Expose some API to the Renderer process ---------
 contextBridge.exposeInMainWorld('ipcRenderer', {
   on(...args: Parameters<typeof ipcRenderer.on>) {
     const [channel, listener] = args
+    if (
+      channel.startsWith(AUDIO_CHANNEL_PREFIX) &&
+      !AUDIO_EVENT_CHANNELS.has(channel as AudioEventChannel)
+    ) {
+      assertLegacyIpcChannelAllowed(channel)
+    }
     return ipcRenderer.on(channel, (event, ...args) => listener(event, ...args))
   },
   off(...args: Parameters<typeof ipcRenderer.off>) {
     const [channel, ...omit] = args
+    if (
+      channel.startsWith(AUDIO_CHANNEL_PREFIX) &&
+      !AUDIO_EVENT_CHANNELS.has(channel as AudioEventChannel)
+    ) {
+      assertLegacyIpcChannelAllowed(channel)
+    }
     return ipcRenderer.off(channel, ...omit)
   },
   send(...args: Parameters<typeof ipcRenderer.send>) {
     const [channel, ...omit] = args
+    assertLegacyIpcChannelAllowed(channel)
     return ipcRenderer.send(channel, ...omit)
   },
   invoke(...args: Parameters<typeof ipcRenderer.invoke>) {
     const [channel, ...omit] = args
+    assertLegacyIpcChannelAllowed(channel)
     return ipcRenderer.invoke(channel, ...omit)
   },
 
   // You can expose other APTs you need here.
   // ...
 })
+
+const audioEventListeners = new Map<
+  AudioEventChannel,
+  Map<(...args: unknown[]) => void, (...args: unknown[]) => void>
+>()
+
+const secureAudioInvoke = <TResponse>(
+  channel: string,
+  payload: unknown,
+  options?: { configRevision?: string },
+): Promise<AudioIpcResult<TResponse>> => {
+  if (!audioCapabilityRegistered) {
+    return Promise.resolve({
+      ok: false,
+      error: {
+        code: 'invalid_ipc_request',
+        message: 'Audio preload authorization is unavailable.',
+      },
+    })
+  }
+  if (
+    !channel.startsWith(AUDIO_CHANNEL_PREFIX) ||
+    (channel.startsWith(AUDIO_INTERNAL_CHANNEL_PREFIX) &&
+      channel !== AUDIO_AUTHORIZE_INPUT_FILE_CHANNEL)
+  ) {
+    return Promise.resolve({
+      ok: false,
+      error: {
+        code: 'invalid_ipc_request',
+        message: 'Audio IPC channel is not allowed by the preload bridge.',
+      },
+    })
+  }
+
+  return ipcRenderer.invoke(channel, {
+    capability: audioPreloadCapability,
+    payload,
+    ...(options?.configRevision
+      ? { configRevision: options.configRevision }
+      : {}),
+  }) as Promise<AudioIpcResult<TResponse>>
+}
+
+const audioApi: AudioRendererApi = {
+  invoke<TResponse>(
+    channel: AudioIpcChannel,
+    payload: unknown,
+    options?: { configRevision?: string },
+  ) {
+    return secureAudioInvoke<TResponse>(channel, payload, options)
+  },
+  authorizeInputFile(file: File) {
+    let filePath = ''
+    try {
+      filePath = webUtils.getPathForFile(file)
+    } catch {
+      // Invalid or synthetic File objects do not receive filesystem authority.
+    }
+    if (!filePath) {
+      return Promise.resolve({
+        ok: false,
+        error: {
+          code: 'file_read_failed',
+          message: 'Selected audio file path is unavailable.',
+          field: 'file',
+        },
+      })
+    }
+    return secureAudioInvoke<AuthorizedAudioInputFile>(
+      AUDIO_AUTHORIZE_INPUT_FILE_CHANNEL,
+      {
+        filePath,
+        mimeType: file.type,
+      },
+    )
+  },
+  on(channel, listener) {
+    if (!AUDIO_EVENT_CHANNELS.has(channel)) return
+    const listenersForChannel =
+      audioEventListeners.get(channel) ??
+      new Map<(...args: unknown[]) => void, (...args: unknown[]) => void>()
+    if (listenersForChannel.has(listener)) return
+    const wrapped = (_event: unknown, payload: unknown) =>
+      listener(undefined, payload)
+    listenersForChannel.set(listener, wrapped)
+    audioEventListeners.set(channel, listenersForChannel)
+    ipcRenderer.on(channel, wrapped)
+  },
+  off(channel, listener) {
+    const listenersForChannel = audioEventListeners.get(channel)
+    const wrapped = listenersForChannel?.get(listener)
+    if (!wrapped) return
+    ipcRenderer.off(channel, wrapped)
+    listenersForChannel?.delete(listener)
+    if (listenersForChannel?.size === 0) {
+      audioEventListeners.delete(channel)
+    }
+  },
+}
+
+contextBridge.exposeInMainWorld('audioApi', audioApi)
 
 // --------- Expose webUtils API for file path access ---------
 // From Electron 24+, use webUtils.getPathForFile() instead of File.path

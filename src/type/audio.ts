@@ -1,4 +1,4 @@
-import type { Model, ModelProfile } from "@/type/model";
+import { Model, type ModelProfile } from "@/type/model";
 
 export const AUDIO_API_DIALECTS = [
   "openai_audio",
@@ -41,6 +41,28 @@ export const AUDIO_TRANSCRIPTION_RESPONSE_FORMATS = [
 export type AudioTranscriptionResponseFormat =
   (typeof AUDIO_TRANSCRIPTION_RESPONSE_FORMATS)[number];
 
+export type AudioTranscriptionModelFamily =
+  | "openai_gpt_transcribe"
+  | "openai_whisper"
+  | "mimo_asr"
+  | "openai_compatible_unknown"
+  | "unsupported";
+
+export interface AudioTranscriptionModelMatrix {
+  family: AudioTranscriptionModelFamily;
+  modelSupported: boolean;
+  responseFormats: AudioTranscriptionResponseFormat[];
+  supportsPrompt: boolean;
+  supportsStream: boolean;
+  supportsTimestampGranularities: boolean;
+}
+
+export interface AudioTranscriptionModelContext {
+  audioDialect?: AudioApiDialect;
+  provider?: Model;
+  modelKey?: string;
+}
+
 export const AUDIO_SPEECH_RESPONSE_FORMATS = [
   "mp3",
   "opus",
@@ -78,7 +100,10 @@ export interface AudioModelProfile {
   models: {
     transcription?: string;
     speechSynthesis?: string;
+    /** @deprecated Migrated to the two task-specific Realtime model fields. */
     realtime?: string;
+    realtimeTranscription?: string;
+    realtimeVoice?: string;
   };
   defaults: {
     language?: "auto" | "zh" | "en" | string;
@@ -153,6 +178,7 @@ export interface AudioTranscriptionResult {
   text: string;
   responseFormat: AudioTranscriptionResponseFormat;
   outputPath?: string;
+  outputToken?: string;
   rawJson?: unknown;
   rawText?: string;
   segments?: AudioTranscriptSegment[];
@@ -194,10 +220,12 @@ export interface AudioStreamStats {
   sampleRate?: number;
   channels?: number;
   streamMode?: "incremental" | "final_only";
+  streamEncoding?: "pcm16";
 }
 
 export interface SpeechSynthesisResult {
   outputPath: string;
+  outputToken?: string;
   mimeType: string;
   responseFormat: AudioSpeechResponseFormat;
   sizeBytes: number;
@@ -213,8 +241,8 @@ export interface AudioRealtimeSessionConfig {
   language?: string;
   voice?: string;
   turnDetection?: "server_vad" | "manual";
-  inputAudioFormat?: "pcm16" | "opus";
-  outputAudioFormat?: "pcm16" | "opus";
+  inputAudioFormat?: "pcm16" | "pcmu" | "pcma";
+  outputAudioFormat?: "pcm16" | "pcmu" | "pcma";
 }
 
 export type AudioRealtimeSessionCloseReason = "user" | "page_unload" | "error";
@@ -292,6 +320,71 @@ export function isAudioTranscriptionResponseFormat(
   value: unknown,
 ): value is AudioTranscriptionResponseFormat {
   return isOneOfString(value, AUDIO_TRANSCRIPTION_RESPONSE_FORMATS);
+}
+
+/**
+ * Resolves the file-ASR request matrix before a request reaches an adapter.
+ *
+ * OpenAI's GPT-4o transcription models only accept JSON output and support
+ * SSE streaming. Whisper accepts the legacy output formats and timestamps,
+ * but ignores `stream`. Unknown OpenAI-compatible providers use the smallest
+ * portable contract instead of inheriting Whisper-only fields.
+ */
+export function resolveAudioTranscriptionModelMatrix(
+  context: AudioTranscriptionModelContext,
+): AudioTranscriptionModelMatrix {
+  const audioDialect = context.audioDialect;
+  const modelKey = normalizeOptionalString(context.modelKey)?.toLowerCase();
+
+  if (audioDialect === "mimo_chat_audio") {
+    return {
+      family: modelKey === "mimo-v2.5-asr" ? "mimo_asr" : "unsupported",
+      modelSupported: modelKey === "mimo-v2.5-asr",
+      responseFormats: ["json", "text"],
+      supportsPrompt: false,
+      supportsStream: true,
+      supportsTimestampGranularities: false,
+    };
+  }
+
+  if (audioDialect !== "openai_audio" || !modelKey) {
+    return unsupportedTranscriptionMatrix();
+  }
+
+  if (isOpenAIWhisperTranscriptionModel(modelKey)) {
+    return {
+      family: "openai_whisper",
+      modelSupported: true,
+      responseFormats: ["json", "text", "srt", "verbose_json", "vtt"],
+      supportsPrompt: true,
+      supportsStream: false,
+      supportsTimestampGranularities: true,
+    };
+  }
+
+  if (isOpenAIGptTranscriptionModel(modelKey)) {
+    return {
+      family: "openai_gpt_transcribe",
+      modelSupported: true,
+      responseFormats: ["json"],
+      supportsPrompt: true,
+      supportsStream: true,
+      supportsTimestampGranularities: false,
+    };
+  }
+
+  if (context.provider === Model.OpenAI) {
+    return unsupportedTranscriptionMatrix();
+  }
+
+  return {
+    family: "openai_compatible_unknown",
+    modelSupported: true,
+    responseFormats: ["json"],
+    supportsPrompt: true,
+    supportsStream: false,
+    supportsTimestampGranularities: false,
+  };
 }
 
 export function isAudioSpeechResponseFormat(
@@ -431,9 +524,41 @@ export function getAudioModelKeyForAssignment(
     case "speechSynthesis":
       return normalizeOptionalString(profile.models.speechSynthesis);
     case "realtimeCaptions":
+      return profile.audioDialect === "openai_realtime"
+        ? normalizeOptionalString(
+            profile.models.realtimeTranscription ?? profile.models.realtime,
+          )
+        : normalizeOptionalString(profile.models.transcription);
     case "realtimeVoice":
-      return normalizeOptionalString(profile.models.realtime);
+      return normalizeOptionalString(
+        profile.models.realtimeVoice ?? profile.models.realtime,
+      );
   }
+}
+
+function isOpenAIGptTranscriptionModel(modelKey: string): boolean {
+  if (modelKey.includes("diarize")) return false;
+  return (
+    modelKey === "gpt-4o-transcribe" ||
+    modelKey.startsWith("gpt-4o-transcribe-") ||
+    modelKey === "gpt-4o-mini-transcribe" ||
+    modelKey.startsWith("gpt-4o-mini-transcribe-")
+  );
+}
+
+function isOpenAIWhisperTranscriptionModel(modelKey: string): boolean {
+  return modelKey === "whisper-1" || modelKey.startsWith("whisper-1-");
+}
+
+function unsupportedTranscriptionMatrix(): AudioTranscriptionModelMatrix {
+  return {
+    family: "unsupported",
+    modelSupported: false,
+    responseFormats: ["json"],
+    supportsPrompt: false,
+    supportsStream: false,
+    supportsTimestampGranularities: false,
+  };
 }
 
 function dedupeCapabilities(

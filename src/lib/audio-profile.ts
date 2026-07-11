@@ -47,9 +47,24 @@ export function normalizeAudioModelProfileForRuntime(
     models: {
       transcription: normalizeOptionalString(profile.models?.transcription),
       speechSynthesis: normalizeOptionalString(profile.models?.speechSynthesis),
-      realtime: normalizeOptionalString(profile.models?.realtime),
+      realtime:
+        audioDialect === "openai_realtime"
+          ? normalizeOptionalString(profile.models?.realtime)
+          : undefined,
+      realtimeTranscription:
+        audioDialect === "openai_realtime"
+          ? normalizeOptionalString(
+              profile.models?.realtimeTranscription ?? profile.models?.realtime,
+            )
+          : undefined,
+      realtimeVoice:
+        audioDialect === "openai_realtime"
+          ? normalizeOptionalString(
+              profile.models?.realtimeVoice ?? profile.models?.realtime,
+            )
+          : undefined,
     },
-    defaults: normalizeDefaults(profile.defaults),
+    defaults: normalizeDefaults(profile.defaults, audioDialect),
     ...(profile.verification
       ? { verification: normalizeVerification(profile.verification) }
       : {}),
@@ -180,17 +195,33 @@ function normalizeCapabilities(
 
 function normalizeDefaults(
   defaults: Partial<AudioModelProfile["defaults"]> | undefined,
+  audioDialect: AudioApiDialect,
 ): AudioModelProfile["defaults"] {
   const normalized: AudioModelProfile["defaults"] = {};
 
   const language = normalizeOptionalString(defaults?.language);
-  if (language) normalized.language = language;
+  if (
+    language &&
+    (audioDialect !== "mimo_chat_audio" ||
+      language === "auto" ||
+      language === "zh" ||
+      language === "en")
+  ) {
+    normalized.language = language;
+  }
 
   if (
     isAudioTranscriptionResponseFormat(defaults?.transcriptionResponseFormat)
   ) {
-    normalized.transcriptionResponseFormat =
+    const responseFormat =
       defaults.transcriptionResponseFormat as AudioTranscriptionResponseFormat;
+    if (
+      audioDialect !== "mimo_chat_audio" ||
+      responseFormat === "json" ||
+      responseFormat === "text"
+    ) {
+      normalized.transcriptionResponseFormat = responseFormat;
+    }
   }
 
   const ttsVoice = normalizeOptionalString(defaults?.ttsVoice);

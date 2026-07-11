@@ -4,6 +4,10 @@ import type {
   CreateSpeechSynthesisRequest,
   MimoSpeechSynthesisMode,
 } from "@/type/audio";
+import {
+  isAudioSpeechResponseFormat,
+  isMimoSpeechSynthesisMode,
+} from "@/type/audio";
 
 export type SpeechSynthesizerOutputMode = "temp" | "custom_dir";
 
@@ -71,6 +75,8 @@ export const MIMO_TTS_MODEL_BY_MODE: Record<MimoSpeechSynthesisMode, string> = {
 
 export const MIMO_VOICE_SAMPLE_ACCEPT = ".wav,.wave,.mp3,.mpeg,.mpga";
 export const MIMO_VOICE_SAMPLE_MAX_BASE64_BYTES = 10 * 1024 * 1024;
+export const OPENAI_SPEECH_MAX_INPUT_CHARS = 4096;
+export const OPENAI_SPEECH_MAX_INSTRUCTIONS_CHARS = 4096;
 
 const OPENAI_SPEECH_FORMATS: AudioSpeechResponseFormat[] = [
   "mp3",
@@ -152,6 +158,12 @@ export function normalizeSpeechSynthesizerPreferences(
       stream,
       responseFormat: stream ? "pcm16" : "wav",
       speed: 1,
+      optimizeTextPreview: preferences.mimoMode === "voice_design"
+        ? preferences.optimizeTextPreview
+        : false,
+      // MiMo audio tags are expressed in the assistant text itself. There is
+      // no documented audio_tags_enabled request field.
+      audioTagsEnabled: false,
     };
   }
 
@@ -159,6 +171,7 @@ export function normalizeSpeechSynthesizerPreferences(
   return {
     ...preferences,
     stream: false,
+    speed: clampSpeechSpeed(preferences.speed),
     responseFormat: responseFormats.includes(preferences.responseFormat)
       ? preferences.responseFormat
       : "mp3",
@@ -206,12 +219,15 @@ export function buildSpeechSynthesisRequest(options: {
     const voiceDesignPrompt = preferences.voiceDesignPrompt.trim();
     request.mimoOptions = {
       mode: preferences.mimoMode,
-      ...(styleInstruction ? { styleInstruction } : {}),
-      ...(voiceDesignPrompt ? { voiceDesignPrompt } : {}),
-      ...(preferences.optimizeTextPreview
+      ...(preferences.mimoMode !== "voice_design" && styleInstruction
+        ? { styleInstruction }
+        : {}),
+      ...(preferences.mimoMode === "voice_design" && voiceDesignPrompt
+        ? { voiceDesignPrompt }
+        : {}),
+      ...(preferences.mimoMode === "voice_design" && preferences.optimizeTextPreview
         ? { optimizeTextPreview: true }
         : {}),
-      ...(preferences.audioTagsEnabled ? { audioTagsEnabled: true } : {}),
       ...(preferences.mimoMode === "voice_clone" && options.voiceSample
         ? {
             voiceSamplePath: options.voiceSample.filePath,
@@ -230,6 +246,48 @@ export function buildSpeechSynthesisRequest(options: {
     request.speed = preferences.speed;
   }
   return request;
+}
+
+export function clampSpeechSpeed(value: number): number {
+  if (!Number.isFinite(value)) return 1;
+  return Math.min(4, Math.max(0.25, value));
+}
+
+export function sanitizeSpeechSynthesizerPreferences(
+  value: unknown,
+): SpeechSynthesizerPreferences {
+  if (!isRecord(value)) return { ...DEFAULT_SPEECH_SYNTHESIZER_PREFERENCES };
+  const defaults = DEFAULT_SPEECH_SYNTHESIZER_PREFERENCES;
+  return {
+    input: stringOr(value.input, defaults.input),
+    voice: stringOr(value.voice, defaults.voice),
+    instructions: stringOr(value.instructions, defaults.instructions),
+    responseFormat: isAudioSpeechResponseFormat(value.responseFormat)
+      ? value.responseFormat
+      : defaults.responseFormat,
+    speed: clampSpeechSpeed(numberOr(value.speed, defaults.speed)),
+    stream: booleanOr(value.stream, defaults.stream),
+    outputMode: value.outputMode === "custom_dir" ? "custom_dir" : "temp",
+    outputDir: stringOr(value.outputDir, defaults.outputDir),
+    fileNameHint: stringOr(value.fileNameHint, defaults.fileNameHint),
+    mimoMode: isMimoSpeechSynthesisMode(value.mimoMode)
+      ? value.mimoMode
+      : defaults.mimoMode,
+    mimoStyleInstruction: stringOr(
+      value.mimoStyleInstruction,
+      defaults.mimoStyleInstruction,
+    ),
+    voiceDesignPrompt: stringOr(
+      value.voiceDesignPrompt,
+      defaults.voiceDesignPrompt,
+    ),
+    optimizeTextPreview: booleanOr(
+      value.optimizeTextPreview,
+      defaults.optimizeTextPreview,
+    ),
+    // Deprecated persisted switch: audio tags are authored in text instead.
+    audioTagsEnabled: false,
+  };
 }
 
 export function inferVoiceSampleMimeType(
@@ -276,4 +334,20 @@ function normalizeVoiceSampleMimeType(
   if (!mimeType) return undefined;
   const normalized = mimeType.toLowerCase().split(";")[0].trim();
   return NORMALIZED_VOICE_SAMPLE_MIME[normalized];
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function stringOr(value: unknown, fallback: string): string {
+  return typeof value === "string" ? value : fallback;
+}
+
+function numberOr(value: unknown, fallback: number): number {
+  return typeof value === "number" ? value : fallback;
+}
+
+function booleanOr(value: unknown, fallback: boolean): boolean {
+  return typeof value === "boolean" ? value : fallback;
 }

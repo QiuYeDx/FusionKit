@@ -102,7 +102,8 @@
       "timestamps": "时间戳仅在 OpenAI 详细 JSON 输出下启用；MiMo 文档未提供该能力。",
       "prompt": "可用于补充专有名词或上下文。MiMo ASR 当前不支持 prompt。",
       "stream": "文件流式转写与实时字幕是不同能力。",
-      "stream_disabled": "首版文件转写页面使用非流式路径；麦克风实时字幕请使用“实时字幕”工具。",
+      "stream_enabled": "当前模型支持通过 SSE 流式转写文件，流结束后显示完整结果。",
+      "stream_disabled": "当前选择的转写模型不支持文件流式输出。",
       "output_mode": "选择源目录或自选目录时，转写完成后会直接写入结果文件。"
     },
     "placeholders": {
@@ -127,6 +128,7 @@
       "running": "转写中",
       "copy": "复制",
       "open_output": "打开目录",
+      "save_result": "保存结果",
       "save_next_run": "下次保存"
     },
     "status": {
@@ -150,7 +152,8 @@
       "output_path_selected": "输出目录已选择",
       "completed": "转写完成",
       "cancelled": "转写已取消",
-      "copied": "转写结果已复制"
+      "copied": "转写结果已复制",
+      "saved": "已开始保存转写结果"
     },
     "errors": {
       "title": "转写失败",
@@ -162,7 +165,10 @@
       "output_dir_required": "使用自选目录时，请先选择输出目录。",
       "output_dir_select_failed": "选择输出目录失败。",
       "output_not_ready": "当前还没有可打开的输出文件。",
-      "copy_failed": "复制失败，请手动复制结果。"
+      "copy_failed": "复制失败，请手动复制结果。",
+      "cancel_failed": "无法取消当前转写请求。",
+      "save_failed": "无法保存当前转写结果。",
+      "unsupported_model": "当前协议不支持所选转写模型。"
     }
   },
   "speech": {
@@ -324,7 +330,9 @@
     },
     "input_audio_format": {
       "pcm16": "PCM16",
-      "opus": "Opus"
+      "opus": "Opus",
+      "pcmu": "PCMU（G.711 μ-law）",
+      "pcma": "PCMA（G.711 A-law）"
     },
     "turn_detection": {
       "server_vad": "服务器 VAD",
@@ -367,7 +375,9 @@
       "mode": "模式",
       "mic": "麦克风",
       "lines": "字幕行",
-      "elapsed": "时长"
+      "elapsed": "时长",
+      "input_level": "输入音量",
+      "session": "会话"
     },
     "chunked": {
       "title": "分块近实时",
@@ -377,6 +387,8 @@
       "start": "开始实时字幕",
       "listening": "监听中",
       "stop": "停止",
+      "pause": "暂停",
+      "resume": "继续",
       "copy": "复制",
       "save": "保存",
       "clear": "清空"
@@ -430,7 +442,9 @@
     },
     "audio_format": {
       "pcm16": "PCM16",
-      "opus": "Opus"
+      "opus": "Opus",
+      "pcmu": "PCMU（G.711 μ-law）",
+      "pcma": "PCMA（G.711 A-law）"
     },
     "status": {
       "idle": "待连接",
@@ -489,5 +503,30 @@
       "unsupported_profile": "当前全局音频配置不支持 Realtime/WebRTC 双向语音。",
       "interrupt_failed": "无法发送打断指令，请确认会话仍处于连接状态。"
     }
+  },
+  "runtime_error": {
+    "invalid_request": "音频请求无效。",
+    "profile_not_configured": "请先配置音频档案。",
+    "connection_not_configured": "缺少音频连接配置。",
+    "model_not_configured": "请先配置所需的音频模型。",
+    "unsupported_capability": "当前音频档案不支持此操作。",
+    "unsupported_format": "当前模型不支持所选音频格式。",
+    "microphone_denied": "麦克风权限被拒绝。",
+    "file_too_large": "所选音频文件过大。",
+    "file_read_failed": "无法读取所选音频文件。",
+    "output_write_failed": "无法保存音频输出。",
+    "stream_parse_failed": "无法解析音频流响应。",
+    "realtime_failed": "实时音频会话失败。",
+    "network": "无法连接音频服务。",
+    "timeout": "音频请求超时。",
+    "unauthorized": "音频 API 凭据被拒绝。",
+    "forbidden": "音频 API 不允许此操作。",
+    "rate_limited": "音频服务请求过于频繁，请稍后重试。",
+    "service_unavailable": "音频服务暂时不可用。",
+    "request_rejected": "音频服务拒绝了请求。",
+    "empty_response": "音频服务返回了空响应。",
+    "invalid_response": "音频服务返回了无效响应。",
+    "aborted": "音频操作已取消。",
+    "renderer": "音频页面无法完成此操作。"
   }
 }

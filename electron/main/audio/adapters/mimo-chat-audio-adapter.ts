@@ -10,6 +10,8 @@ import type { AudioIpcError, SpeechSynthesisStreamEvent } from "@/type/audioIpc"
 import {
   createSpeechOutputFileNameHint,
   createTranscriptOutputFileNameHint,
+  detectAudioMimeTypeFromHeader,
+  discardAudioOutputIfAborted,
   readAudioFileAsDataUri,
   resolveAudioInputFile,
   resolveAudioOutputPath,
@@ -42,6 +44,9 @@ const MIMO_TTS_MODEL_BY_MODE: Record<MimoSpeechSynthesisMode, string> = {
 };
 const MIMO_STREAM_SAMPLE_RATE = 24_000;
 const MIMO_STREAM_CHANNELS = 1;
+const MIMO_MAX_SSE_BUFFER_CHARS = 1024 * 1024;
+const MIMO_MAX_STREAM_AUDIO_BYTES = 64 * 1024 * 1024;
+const MIMO_MAX_TRANSCRIPT_CHARS = 2 * 1024 * 1024;
 
 interface BuildMimoSpeechBodyOptions {
   stream: boolean;
@@ -71,6 +76,16 @@ export async function sendMimoAudioTranscription(
 export async function sendMimoSpeechSynthesis(
   request: AudioRuntimeSpeechSynthesisRequest,
 ): Promise<SpeechSynthesisResult> {
+  let emittedOutput = false;
+  const guardedRequest: AudioRuntimeSpeechSynthesisRequest = {
+    ...request,
+    onStreamEvent: async (event) => {
+      if (event.type === "audio_delta" || event.type === "text_delta") {
+        emittedOutput = true;
+      }
+      await request.onStreamEvent?.(event);
+    },
+  };
   try {
     return await runAudioRuntimeRequest(
       {
@@ -79,7 +94,26 @@ export async function sendMimoSpeechSynthesis(
         proxy: request.proxy,
         retry: request.retry,
       },
-      async (attempt) => sendMimoSpeechSynthesisOnce(request, attempt),
+      async (attempt) => {
+        try {
+          return await sendMimoSpeechSynthesisOnce(guardedRequest, attempt);
+        } catch (error) {
+          throwIfAudioRequestAborted(request.signal);
+          if (
+            emittedOutput &&
+            !(error instanceof AudioRuntimeClientError &&
+              (error.code === "aborted" || error.code === "output_write_failed"))
+          ) {
+            throw createAudioRuntimeError({
+              code: "stream_parse_failed",
+              message: "MiMo speech stream failed after output was emitted; the request will not be retried.",
+              details: { attempt },
+              cause: error,
+            });
+          }
+          throw error;
+        }
+      },
     );
   } catch (error) {
     if (request.payload.stream) {
@@ -130,6 +164,7 @@ async function sendMimoAudioTranscriptionOnce(
       asr_options: {
         language: request.payload.language ?? "auto",
       },
+      ...(request.payload.stream ? { stream: true } : {}),
     },
     {
       headers: {
@@ -141,6 +176,7 @@ async function sendMimoAudioTranscriptionOnce(
       validateStatus: () => true,
       maxBodyLength: Infinity,
       maxContentLength: Infinity,
+      ...(request.payload.stream ? { responseType: "stream" as const } : {}),
       ...resolveAudioAxiosProxyConfig(request.proxy),
     },
   );
@@ -148,15 +184,28 @@ async function sendMimoAudioTranscriptionOnce(
   if (response.status < 200 || response.status >= 300) {
     throw createAudioHttpErrorFromResponse({
       status: response.status,
-      body: response.data,
+      body: request.payload.stream
+        ? await readStreamBodyAsText(response.data)
+        : response.data,
       headers: response.headers,
       attempt,
       apiKey: request.model.apiKey,
     });
   }
 
-  const parsed = parseMimoChatCompletion(response.data, attempt);
-  const text = extractMimoMessageText(parsed.message);
+  let text: string;
+  let model: string | undefined;
+  let rawJson: unknown = response.data;
+  if (request.payload.stream) {
+    const streamed = await parseMimoAsrStream(response.data, request, attempt);
+    text = streamed.text;
+    model = streamed.model;
+    rawJson = streamed.rawJson;
+  } else {
+    const parsed = parseMimoChatCompletion(response.data, attempt);
+    text = extractMimoMessageText(parsed.message);
+    model = parsed.model;
+  }
   if (!text.trim()) {
     throw createAudioRuntimeError({
       code: "empty_response",
@@ -168,9 +217,10 @@ async function sendMimoAudioTranscriptionOnce(
   const result: AudioTranscriptionResult = {
     text,
     responseFormat: request.payload.responseFormat,
-    rawJson: response.data,
+    rawJson,
     ...(request.payload.responseFormat === "text" ? { rawText: text } : {}),
-    model: parsed.model ?? request.model.modelKey,
+    model: model ?? request.model.modelKey,
+    ...(request.payload.stream ? { streamMode: "incremental" as const } : {}),
   };
   const outputPath = await maybeWriteMimoTranscriptionOutput(request, result);
   return {
@@ -182,6 +232,14 @@ async function sendMimoAudioTranscriptionOnce(
 function validateMimoAsrPayload(
   request: AudioRuntimeTranscriptionRequest,
 ): void {
+  if (request.model.modelKey !== "mimo-v2.5-asr") {
+    throw createAudioRuntimeError({
+      code: "unsupported_audio_capability",
+      message: "MiMo ASR requires the mimo-v2.5-asr model.",
+      field: "modelKey",
+      details: { modelKey: request.model.modelKey },
+    });
+  }
   const language = request.payload.language ?? "auto";
   if (!MIMO_ASR_LANGUAGES.has(language)) {
     throw createAudioRuntimeError({
@@ -216,13 +274,42 @@ function validateMimoAsrPayload(
       field: "timestampGranularities",
     });
   }
-  if (request.payload.stream) {
-    throw createAudioRuntimeError({
-      code: "unsupported_audio_capability",
-      message: "MiMo ASR streaming is not implemented in the non-stream adapter.",
-      field: "stream",
-    });
+}
+
+async function parseMimoAsrStream(
+  stream: unknown,
+  request: AudioRuntimeTranscriptionRequest,
+  attempt: number,
+): Promise<{
+  text: string;
+  model?: string;
+  rawJson: Record<string, unknown>;
+}> {
+  let text = "";
+  let model: string | undefined;
+  let eventCount = 0;
+
+  for await (const data of iterateSseDataValues(stream, request.signal)) {
+    if (data === "[DONE]") break;
+    const payload = parseMimoSseJson(data, attempt);
+    const chunk = extractMimoStreamChunkPayload(payload);
+    model = model ?? chunk.model;
+    if (chunk.text) text += chunk.text;
+    if (text.length > MIMO_MAX_TRANSCRIPT_CHARS) {
+      throw createAudioRuntimeError({
+        code: "invalid_response",
+        message: "MiMo streaming transcription exceeded the safe text limit.",
+        details: { attempt },
+      });
+    }
+    eventCount += 1;
   }
+
+  return {
+    text,
+    ...(model ? { model } : {}),
+    rawJson: { stream: true, eventCount, text },
+  };
 }
 
 async function maybeWriteMimoTranscriptionOutput(
@@ -242,13 +329,14 @@ async function maybeWriteMimoTranscriptionOutput(
     extension: request.payload.responseFormat === "json" ? "json" : "txt",
     now: request.now,
   });
-  await writeAudioOutputFile(
+  const written = await writeAudioOutputFile(
     outputPath,
     request.payload.responseFormat === "json"
       ? JSON.stringify(result.rawJson ?? { text: result.text }, null, 2)
       : result.text,
   );
-  return outputPath;
+  await discardAudioOutputIfAborted(written.outputPath, request.signal);
+  return written.outputPath;
 }
 
 async function sendMimoSpeechSynthesisOnce(
@@ -312,11 +400,18 @@ async function sendMimoSpeechSynthesisOnce(
     });
   }
 
-  const audioBytes = Buffer.from(stripDataUriPrefix(audioBase64), "base64");
+  const audioBytes = decodeStrictBase64(audioBase64, attempt, "MiMo speech audio");
   if (audioBytes.byteLength === 0) {
     throw createAudioRuntimeError({
       code: "empty_response",
       message: "MiMo speech response audio is empty.",
+      details: { attempt },
+    });
+  }
+  if (detectAudioMimeTypeFromHeader(audioBytes.subarray(0, 16)) !== "audio/wav") {
+    throw createAudioRuntimeError({
+      code: "invalid_response",
+      message: "MiMo speech response is not a valid WAV artifact.",
       details: { attempt },
     });
   }
@@ -331,6 +426,7 @@ async function sendMimoSpeechSynthesisOnce(
     now: request.now,
   });
   const written = await writeAudioOutputFile(outputPath, audioBytes);
+  await discardAudioOutputIfAborted(written.outputPath, request.signal);
 
   return {
     outputPath: written.outputPath,
@@ -385,6 +481,7 @@ async function sendMimoSpeechSynthesisStreamOnce(
   });
 
   const pcmChunks: Uint8Array[] = [];
+  let bufferedPcmBytes = 0;
   let firstChunkAtMs: number | undefined;
   let finalAudioBase64: string | undefined;
   let model: string | undefined;
@@ -409,6 +506,14 @@ async function sendMimoSpeechSynthesisStreamOnce(
     if (chunk.audioBase64) {
       const pcmBytes = decodeMimoStreamPcmChunk(chunk.audioBase64, attempt);
       if (pcmBytes.byteLength > 0) {
+        if (bufferedPcmBytes + pcmBytes.byteLength > MIMO_MAX_STREAM_AUDIO_BYTES) {
+          throw createAudioRuntimeError({
+            code: "stream_parse_failed",
+            message: "MiMo streaming speech exceeded the safe audio limit.",
+            details: { attempt, maxBytes: MIMO_MAX_STREAM_AUDIO_BYTES },
+          });
+        }
+        bufferedPcmBytes += pcmBytes.byteLength;
         firstChunkAtMs = firstChunkAtMs ?? Date.now();
         pcmChunks.push(pcmBytes);
         await emitMimoSpeechStreamEvent(request, {
@@ -428,6 +533,14 @@ async function sendMimoSpeechSynthesisStreamOnce(
   if (pcmChunks.length === 0 && finalAudioBase64) {
     const finalPcmBytes = decodeMimoStreamPcmChunk(finalAudioBase64, attempt);
     if (finalPcmBytes.byteLength > 0) {
+      if (finalPcmBytes.byteLength > MIMO_MAX_STREAM_AUDIO_BYTES) {
+        throw createAudioRuntimeError({
+          code: "stream_parse_failed",
+          message: "MiMo final speech audio exceeded the safe audio limit.",
+          details: { attempt, maxBytes: MIMO_MAX_STREAM_AUDIO_BYTES },
+        });
+      }
+      bufferedPcmBytes = finalPcmBytes.byteLength;
       firstChunkAtMs = firstChunkAtMs ?? Date.now();
       pcmChunks.push(finalPcmBytes);
       await emitMimoSpeechStreamEvent(request, {
@@ -472,15 +585,16 @@ async function sendMimoSpeechSynthesisStreamOnce(
     sampleRate: MIMO_STREAM_SAMPLE_RATE,
     channels: MIMO_STREAM_CHANNELS,
   });
+  await discardAudioOutputIfAborted(written.outputPath, request.signal);
 
   const result: SpeechSynthesisResult = {
     outputPath: written.outputPath,
     sizeBytes: written.sizeBytes,
-    responseFormat: "pcm16",
+    responseFormat: "wav",
     mimeType: "audio/wav",
     model: model ?? request.model.modelKey,
     durationMs: Date.now() - startedAt,
-    streamStats,
+    streamStats: { ...streamStats, streamEncoding: "pcm16" },
   };
 
   await emitMimoSpeechStreamEvent(request, {
@@ -706,9 +820,24 @@ async function* iterateSseDataValues(
   }
 
   let buffer = "";
+  const decoder = new TextDecoder("utf-8", { fatal: true });
   for await (const chunk of stream) {
     throwIfAudioRequestAborted(signal);
-    buffer += toBuffer(chunk).toString("utf8");
+    try {
+      buffer += decoder.decode(toBuffer(chunk), { stream: true });
+    } catch (error) {
+      throw createAudioRuntimeError({
+        code: "stream_parse_failed",
+        message: "MiMo SSE response contained invalid UTF-8.",
+        cause: error,
+      });
+    }
+    if (buffer.length > MIMO_MAX_SSE_BUFFER_CHARS) {
+      throw createAudioRuntimeError({
+        code: "stream_parse_failed",
+        message: "MiMo SSE event exceeded the safe buffer limit.",
+      });
+    }
 
     while (true) {
       const separator = findSseEventSeparator(buffer);
@@ -723,6 +852,8 @@ async function* iterateSseDataValues(
       }
     }
   }
+
+  buffer += decoder.decode();
 
   const remainingData = extractSseDataValue(buffer);
   if (remainingData !== undefined) {
@@ -807,16 +938,7 @@ function decodeMimoStreamPcmChunk(
   audioBase64: string,
   attempt: number,
 ): Uint8Array {
-  try {
-    return Buffer.from(stripDataUriPrefix(audioBase64), "base64");
-  } catch (error) {
-    throw createAudioRuntimeError({
-      code: "stream_parse_failed",
-      message: "MiMo streaming speech audio chunk is not valid Base64.",
-      details: { attempt },
-      cause: error,
-    });
-  }
+  return decodeStrictBase64(audioBase64, attempt, "MiMo streaming speech chunk");
 }
 
 function toBuffer(chunk: unknown): Buffer {
@@ -912,6 +1034,36 @@ function stripDataUriPrefix(value: string): string {
     return value.slice(commaIndex + 1);
   }
   return value;
+}
+
+function decodeStrictBase64(
+  value: string,
+  attempt: number,
+  label: string,
+): Buffer {
+  const normalized = stripDataUriPrefix(value).replace(/\s+/g, "");
+  if (
+    normalized.length === 0 ||
+    normalized.length % 4 !== 0 ||
+    !/^[A-Za-z0-9+/]*={0,2}$/.test(normalized)
+  ) {
+    throw createAudioRuntimeError({
+      code: "stream_parse_failed",
+      message: `${label} is not valid Base64.`,
+      details: { attempt },
+    });
+  }
+  const bytes = Buffer.from(normalized, "base64");
+  const canonicalInput = normalized.replace(/=+$/, "");
+  const canonicalOutput = bytes.toString("base64").replace(/=+$/, "");
+  if (canonicalInput !== canonicalOutput) {
+    throw createAudioRuntimeError({
+      code: "stream_parse_failed",
+      message: `${label} failed Base64 integrity validation.`,
+      details: { attempt },
+    });
+  }
+  return bytes;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

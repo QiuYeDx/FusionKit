@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 import type { AudioIpcError } from "@/type/audioIpc";
-import type { AudioRole } from "@/type/audio";
+import type { AudioModelProfile, AudioRole } from "@/type/audio";
 import {
   DEFAULT_REALTIME_VOICE_PREFERENCES,
   type RealtimeVoiceLine,
@@ -28,9 +28,15 @@ interface RealtimeVoiceStore {
   muted: boolean;
   lastError: RealtimeVoiceUiError | null;
   lines: RealtimeVoiceLine[];
-  partial: Partial<Record<AudioRole, string>>;
+  partial: Record<string, { role: AudioRole; text: string }>;
+  profileSeedKey: string | null;
+  profileVoiceOverridden: boolean;
 
   updatePreferences: (patch: Partial<RealtimeVoicePreferences>) => void;
+  seedProfileDefaults: (
+    profileId: string,
+    defaults: AudioModelProfile["defaults"],
+  ) => void;
   setStatus: (status: RealtimeVoiceSessionStatus) => void;
   setMicState: (state: RealtimeVoiceMicState) => void;
   setSessionId: (sessionId: string | null) => void;
@@ -39,8 +45,8 @@ interface RealtimeVoiceStore {
   setActiveResponseId: (responseId: string | null) => void;
   setMuted: (muted: boolean) => void;
   setLastError: (error: RealtimeVoiceUiError | null) => void;
-  setPartial: (role: AudioRole, text: string) => void;
-  clearPartial: (role?: AudioRole) => void;
+  setPartial: (key: string, role: AudioRole, text: string) => void;
+  clearPartial: (key?: string) => void;
   addLine: (line: RealtimeVoiceLine) => void;
   clearConversation: () => void;
   resetSessionState: () => void;
@@ -60,6 +66,8 @@ const useRealtimeVoiceStore = create<RealtimeVoiceStore>()(
       lastError: null,
       lines: [],
       partial: {},
+      profileSeedKey: null,
+      profileVoiceOverridden: false,
 
       updatePreferences: (patch) =>
         set((state) => ({
@@ -67,7 +75,22 @@ const useRealtimeVoiceStore = create<RealtimeVoiceStore>()(
             ...state.preferences,
             ...patch,
           },
+          ...(Object.prototype.hasOwnProperty.call(patch, "voice")
+            ? { profileVoiceOverridden: true }
+            : {}),
         })),
+      seedProfileDefaults: (profileId, defaults) =>
+        set((state) => {
+          const profileSeedKey = `${profileId}:${defaults.realtimeVoice ?? ""}`;
+          if (profileSeedKey === state.profileSeedKey) return state;
+          return {
+            profileSeedKey,
+            preferences:
+              defaults.realtimeVoice && !state.profileVoiceOverridden
+                ? { ...state.preferences, voice: defaults.realtimeVoice }
+                : state.preferences,
+          };
+        }),
       setStatus: (status) => set({ status }),
       setMicState: (micState) => set({ micState }),
       setSessionId: (sessionId) => set({ sessionId }),
@@ -76,23 +99,23 @@ const useRealtimeVoiceStore = create<RealtimeVoiceStore>()(
       setActiveResponseId: (activeResponseId) => set({ activeResponseId }),
       setMuted: (muted) => set({ muted }),
       setLastError: (lastError) => set({ lastError }),
-      setPartial: (role, text) =>
+      setPartial: (key, role, text) =>
         set((state) => ({
           partial: {
             ...state.partial,
-            [role]: text,
+            [key]: { role, text },
           },
         })),
-      clearPartial: (role) =>
+      clearPartial: (key) =>
         set((state) => {
-          if (!role) return { partial: {} };
+          if (!key) return { partial: {} };
           const next = { ...state.partial };
-          delete next[role];
+          delete next[key];
           return { partial: next };
         }),
       addLine: (line) =>
         set((state) => ({
-          lines: [...state.lines, line],
+          lines: [...state.lines, line].slice(-2000),
         })),
       clearConversation: () =>
         set({
@@ -118,12 +141,72 @@ const useRealtimeVoiceStore = create<RealtimeVoiceStore>()(
     {
       name: "fusionkit-realtime-voice",
       storage: createJSONStorage(() => localStorage),
-      version: 1,
+      version: 3,
+      migrate: (persisted) => {
+        const value = persisted as { preferences?: Partial<RealtimeVoicePreferences> };
+        const preferences = value?.preferences ?? {};
+        return {
+          preferences: {
+            ...DEFAULT_REALTIME_VOICE_PREFERENCES,
+            ...preferences,
+            inputAudioFormat:
+              preferences.inputAudioFormat === "pcmu" ||
+              preferences.inputAudioFormat === "pcma"
+                ? preferences.inputAudioFormat
+                : "pcm16",
+            outputAudioFormat:
+              preferences.outputAudioFormat === "pcmu" ||
+              preferences.outputAudioFormat === "pcma"
+                ? preferences.outputAudioFormat
+                : "pcm16",
+            turnDetection: "server_vad",
+          },
+          profileSeedKey: null,
+          profileVoiceOverridden:
+            preferences.voice !== undefined &&
+            preferences.voice !== DEFAULT_REALTIME_VOICE_PREFERENCES.voice,
+        };
+      },
       partialize: (state) => ({
         preferences: state.preferences,
+        profileSeedKey: state.profileSeedKey,
+        profileVoiceOverridden: state.profileVoiceOverridden,
       }),
+      merge: (persisted, current) => {
+        const saved = isRecord(persisted) ? persisted : {};
+        return {
+          ...current,
+          ...saved,
+          preferences: sanitizeVoicePreferences(saved.preferences),
+          profileSeedKey:
+            typeof saved.profileSeedKey === "string" ? saved.profileSeedKey : null,
+          profileVoiceOverridden: saved.profileVoiceOverridden === true,
+        } as RealtimeVoiceStore;
+      },
     },
   ),
 );
 
 export default useRealtimeVoiceStore;
+
+function sanitizeVoicePreferences(value: unknown): RealtimeVoicePreferences {
+  const saved = isRecord(value) ? value : {};
+  const format = (candidate: unknown) =>
+    candidate === "pcmu" || candidate === "pcma" ? candidate : "pcm16";
+  return {
+    ...DEFAULT_REALTIME_VOICE_PREFERENCES,
+    voice: typeof saved.voice === "string" && saved.voice.trim()
+      ? saved.voice.trim().slice(0, 120)
+      : DEFAULT_REALTIME_VOICE_PREFERENCES.voice,
+    instructions: typeof saved.instructions === "string"
+      ? saved.instructions.slice(0, 4096)
+      : "",
+    turnDetection: "server_vad",
+    inputAudioFormat: format(saved.inputAudioFormat),
+    outputAudioFormat: format(saved.outputAudioFormat),
+  };
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}

@@ -148,12 +148,13 @@ describe("PRE-002 Markdown AST and bilingual output probe", () => {
         replacement: `译文${span.source}`,
       })),
     );
+    const normalizedOutput = output.replace(/\r\n/g, "\n");
 
     expect(output).toContain("title: Original Title");
     expect(output).toContain("`inline code`");
     expect(output).toContain("(https://example.com/path?q=1)");
     expect(output).toContain("(./cover.png)");
-    expect(output).toContain("~~~ts\nconst untouched = \"code\";\n~~~");
+    expect(normalizedOutput).toContain("~~~ts\nconst untouched = \"code\";\n~~~");
     expect(output).toContain(
       '<div data-note="protected">Raw HTML stays untouched.</div>',
     );
@@ -174,7 +175,9 @@ describe("PRE-002 Markdown AST and bilingual output probe", () => {
       buildBilingualInsertions(source, root, translations),
     );
 
-    expect(output).toBe(expectedBilingual);
+    expect(output.replace(/\r\n/g, "\n")).toBe(
+      expectedBilingual.replace(/\r\n/g, "\n"),
+    );
 
     let cursor = 0;
     for (const block of root.children) {

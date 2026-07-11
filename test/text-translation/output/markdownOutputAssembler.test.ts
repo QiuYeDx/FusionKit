@@ -54,6 +54,7 @@ describe("Markdown target-only output assembler", () => {
       units: parsed.units,
       results: createResults(parsed.units),
     });
+    const normalizedOutput = output.replace(/\r\n/g, "\n");
 
     expect(output).toContain("title: Original Title");
     expect(output).toContain("# 第一章");
@@ -64,7 +65,7 @@ describe("Markdown target-only output assembler", () => {
     expect(output).toContain("  - 嵌套项包含 `code`.");
     expect(output).toContain("| 姓名 | 职业 |");
     expect(output).toContain("| 爱丽丝 | 工程师 |");
-    expect(output).toContain("~~~ts\nconst untouched = \"code\";\n~~~");
+    expect(normalizedOutput).toContain("~~~ts\nconst untouched = \"code\";\n~~~");
     expect(output).toContain(
       '<div data-note="protected">Raw HTML stays untouched.</div>',
     );
@@ -217,7 +218,9 @@ describe("Markdown bilingual output assembler", () => {
       ["table", 1],
       ["paragraph", 2],
     ]);
-    expect(output).toBe(expectedBilingual);
+    expect(output.replace(/\r\n/g, "\n")).toBe(
+      expectedBilingual.replace(/\r\n/g, "\n"),
+    );
   });
 
   it("keeps protected top-level blocks from receiving empty translations", () => {

@@ -9,18 +9,23 @@ import type {
   AudioTranscriptionResult,
   SpeechSynthesisResult,
 } from "@/type/audio";
+import { resolveAudioTranscriptionModelMatrix } from "@/type/audio";
 import {
   createSpeechOutputFileNameHint,
   createTranscriptOutputFileNameHint,
+  detectAudioMimeTypeFromHeader,
+  discardAudioOutputIfAborted,
   resolveAudioInputFile,
   resolveAudioOutputPath,
   writeAudioOutputFile,
 } from "../audio-file";
+import { createPcm16WavBuffer } from "../audio-stream";
 import { createAudioRuntimeError } from "../audio-errors";
 import {
   createAudioHttpErrorFromResponse,
   resolveAudioAxiosProxyConfig,
   runAudioRuntimeRequest,
+  throwIfAudioRequestAborted,
 } from "../audio-http";
 import type {
   AudioRuntimeSpeechSynthesisRequest,
@@ -79,6 +84,7 @@ async function sendOpenAIAudioTranscriptionOnce(
       field: "baseUrl",
     });
   }
+  validateOpenAITranscriptionPayload(request);
 
   const fileInfo = await resolveAudioInputFile({
     filePath: request.payload.filePath,
@@ -96,29 +102,160 @@ async function sendOpenAIAudioTranscriptionOnce(
     validateStatus: () => true,
     maxBodyLength: Infinity,
     maxContentLength: Infinity,
+    ...(request.payload.stream ? { responseType: "stream" as const } : {}),
     ...resolveAudioAxiosProxyConfig(request.proxy),
   });
 
   if (response.status < 200 || response.status >= 300) {
     throw createAudioHttpErrorFromResponse({
       status: response.status,
-      body: response.data,
+      body: request.payload.stream
+        ? await readOpenAIStreamBodyAsText(response.data)
+        : response.data,
       headers: response.headers,
       attempt,
       apiKey: request.model.apiKey,
     });
   }
 
-  const result = parseOpenAITranscriptionResponse(
-    response.data,
-    request.payload.responseFormat,
-    attempt,
-  );
+  const transcriptionContentType = readResponseHeader(
+    response.headers,
+    "content-type",
+  )?.toLowerCase();
+  if (transcriptionContentType?.includes("text/html")) {
+    throw createAudioRuntimeError({
+      code: "invalid_response",
+      message: "Audio transcription returned HTML instead of a transcript.",
+      details: { attempt, contentType: transcriptionContentType },
+    });
+  }
+
+  const result = request.payload.stream
+    ? await parseOpenAITranscriptionStream(
+        response.data,
+        request.payload.responseFormat,
+        attempt,
+        request.signal,
+      )
+    : parseOpenAITranscriptionResponse(
+        response.data,
+        request.payload.responseFormat,
+        attempt,
+      );
   const outputPath = await maybeWriteTranscriptionOutput(request, result);
   return {
     ...result,
     ...(outputPath ? { outputPath } : {}),
     model: result.model ?? request.model.modelKey,
+  };
+}
+
+function validateOpenAITranscriptionPayload(
+  request: AudioRuntimeTranscriptionRequest,
+): void {
+  const matrix = resolveAudioTranscriptionModelMatrix(request.model);
+  if (!matrix.modelSupported) {
+    throw createAudioRuntimeError({
+      code: "unsupported_audio_capability",
+      message: "The selected OpenAI transcription model is not supported.",
+      field: "modelKey",
+      details: { modelKey: request.model.modelKey },
+    });
+  }
+  if (!matrix.responseFormats.includes(request.payload.responseFormat)) {
+    throw createAudioRuntimeError({
+      code: "unsupported_audio_format",
+      message: "The selected transcription model does not support this response format.",
+      field: "responseFormat",
+      details: {
+        modelKey: request.model.modelKey,
+        responseFormat: request.payload.responseFormat,
+      },
+    });
+  }
+  if (request.payload.stream && !matrix.supportsStream) {
+    throw createAudioRuntimeError({
+      code: "unsupported_audio_capability",
+      message: "The selected transcription model does not support streaming.",
+      field: "stream",
+      details: { modelKey: request.model.modelKey },
+    });
+  }
+  if (
+    request.payload.timestampGranularities?.length &&
+    (!matrix.supportsTimestampGranularities ||
+      request.payload.responseFormat !== "verbose_json")
+  ) {
+    throw createAudioRuntimeError({
+      code: "unsupported_audio_capability",
+      message:
+        "Timestamp granularities require a model with verbose JSON timestamp support.",
+      field: "timestampGranularities",
+      details: { modelKey: request.model.modelKey },
+    });
+  }
+  if (request.payload.prompt?.trim() && !matrix.supportsPrompt) {
+    throw createAudioRuntimeError({
+      code: "unsupported_audio_capability",
+      message: "The selected transcription model does not support prompts.",
+      field: "prompt",
+      details: { modelKey: request.model.modelKey },
+    });
+  }
+}
+
+async function parseOpenAITranscriptionStream(
+  stream: unknown,
+  responseFormat: AudioTranscriptionResponseFormat,
+  attempt: number,
+  signal?: AbortSignal,
+): Promise<AudioTranscriptionResult> {
+  let text = "";
+  let doneEvent: Record<string, unknown> | undefined;
+
+  for await (const data of iterateOpenAISseDataValues(stream, signal)) {
+    if (data === "[DONE]") break;
+    let event: unknown;
+    try {
+      event = JSON.parse(data);
+    } catch (error) {
+      throw createAudioRuntimeError({
+        code: "stream_parse_failed",
+        message: "OpenAI transcription stream contained invalid SSE JSON.",
+        details: { attempt },
+        cause: error,
+      });
+    }
+    if (!isRecord(event)) continue;
+    if (event.type === "transcript.text.delta" && typeof event.delta === "string") {
+      text += event.delta;
+    }
+    if (event.type === "transcript.text.done") {
+      doneEvent = event;
+      const finalText =
+        typeof event.text === "string"
+          ? event.text
+          : typeof event.transcript === "string"
+            ? event.transcript
+            : undefined;
+      if (finalText !== undefined) text = finalText;
+    }
+  }
+
+  if (!text.trim()) {
+    throw createAudioRuntimeError({
+      code: "empty_response",
+      message: "OpenAI streaming transcription response is empty.",
+      details: { attempt },
+    });
+  }
+
+  return {
+    text,
+    responseFormat,
+    rawText: text,
+    rawJson: doneEvent ?? { text },
+    streamMode: "incremental",
   };
 }
 
@@ -237,11 +374,12 @@ async function maybeWriteTranscriptionOutput(
     extension: getTranscriptionOutputExtension(request.payload.responseFormat),
     now: request.now,
   });
-  await writeAudioOutputFile(
+  const written = await writeAudioOutputFile(
     outputPath,
     serializeTranscriptionOutput(result, request.payload.responseFormat),
   );
-  return outputPath;
+  await discardAudioOutputIfAborted(written.outputPath, request.signal);
+  return written.outputPath;
 }
 
 function getTranscriptionOutputExtension(
@@ -313,12 +451,28 @@ async function sendOpenAISpeechSynthesisOnce(
     });
   }
 
-  const audioBytes = Buffer.from(response.data);
+  let audioBytes = Buffer.from(response.data);
   if (audioBytes.byteLength === 0) {
     throw createAudioRuntimeError({
       code: "empty_response",
       message: "Speech synthesis response audio is empty.",
       details: { attempt },
+    });
+  }
+
+  validateOpenAISpeechResponse(
+    audioBytes,
+    response.headers,
+    request.payload.responseFormat,
+    attempt,
+  );
+  const artifactFormat = request.payload.responseFormat === "pcm"
+    ? "wav"
+    : request.payload.responseFormat;
+  if (request.payload.responseFormat === "pcm") {
+    audioBytes = createPcm16WavBuffer([audioBytes], {
+      sampleRate: 24_000,
+      channels: 1,
     });
   }
 
@@ -328,21 +482,67 @@ async function sendOpenAISpeechSynthesisOnce(
     tempRoot: request.outputTempRoot,
     fileNameHint:
       request.payload.fileNameHint || createSpeechOutputFileNameHint(request.now),
-    extension: getOpenAISpeechOutputExtension(request.payload.responseFormat),
+    extension: getOpenAISpeechOutputExtension(artifactFormat),
     now: request.now,
   });
   const written = await writeAudioOutputFile(outputPath, audioBytes);
+  await discardAudioOutputIfAborted(written.outputPath, request.signal);
 
   return {
     outputPath: written.outputPath,
     sizeBytes: written.sizeBytes,
-    responseFormat: request.payload.responseFormat,
+    responseFormat: artifactFormat,
     mimeType: OPENAI_SPEECH_MIME_BY_FORMAT[
-      request.payload.responseFormat as Exclude<AudioSpeechResponseFormat, "pcm16">
+      artifactFormat as Exclude<AudioSpeechResponseFormat, "pcm16">
     ],
     model: request.model.modelKey,
     durationMs: Date.now() - startedAt,
   };
+}
+
+function validateOpenAISpeechResponse(
+  bytes: Buffer,
+  headers: unknown,
+  format: AudioSpeechResponseFormat,
+  attempt: number,
+): void {
+  const contentType = readResponseHeader(headers, "content-type")?.toLowerCase();
+  if (
+    contentType &&
+    !contentType.startsWith("audio/") &&
+    !contentType.startsWith("application/octet-stream")
+  ) {
+    throw createAudioRuntimeError({
+      code: "invalid_response",
+      message: "Speech synthesis returned a non-audio content type.",
+      details: { attempt, contentType },
+    });
+  }
+  if (format === "pcm") return;
+  const detected = detectAudioMimeTypeFromHeader(bytes.subarray(0, 16));
+  const valid =
+    (format === "wav" && detected === "audio/wav") ||
+    (format === "mp3" && detected === "audio/mpeg") ||
+    (format === "flac" && detected === "audio/flac") ||
+    (format === "opus" && detected === "audio/ogg") ||
+    (format === "aac" && bytes.length >= 2 && bytes[0] === 0xff &&
+      (bytes[1] & 0xf6) === 0xf0);
+  if (!valid) {
+    throw createAudioRuntimeError({
+      code: "invalid_response",
+      message: "Speech synthesis response signature does not match the requested audio format.",
+      details: { attempt, format, detected: detected ?? "unknown" },
+    });
+  }
+}
+
+function readResponseHeader(headers: unknown, name: string): string | undefined {
+  if (!headers || typeof headers !== "object") return undefined;
+  const getter = (headers as { get?: (key: string) => unknown }).get;
+  const value = typeof getter === "function"
+    ? getter.call(headers, name)
+    : (headers as Record<string, unknown>)[name];
+  return typeof value === "string" ? value : undefined;
 }
 
 function validateOpenAISpeechSynthesisPayload(
@@ -446,6 +646,85 @@ function parseJsonStringIfPossible(data: unknown): unknown {
   } catch {
     return data;
   }
+}
+
+async function readOpenAIStreamBodyAsText(
+  stream: unknown,
+): Promise<string | undefined> {
+  if (typeof stream === "string") return stream;
+  if (Buffer.isBuffer(stream)) return stream.toString("utf8");
+  if (stream instanceof Uint8Array) return Buffer.from(stream).toString("utf8");
+  if (!isAsyncIterable(stream)) return undefined;
+  const chunks: Buffer[] = [];
+  for await (const chunk of stream) chunks.push(toBuffer(chunk));
+  return Buffer.concat(chunks).toString("utf8");
+}
+
+async function* iterateOpenAISseDataValues(
+  stream: unknown,
+  signal?: AbortSignal,
+): AsyncGenerator<string> {
+  if (!isAsyncIterable(stream)) {
+    throw createAudioRuntimeError({
+      code: "stream_parse_failed",
+      message: "OpenAI transcription stream is not readable.",
+    });
+  }
+
+  const decoder = new TextDecoder();
+  let buffer = "";
+  for await (const chunk of stream) {
+    throwIfAudioRequestAborted(signal);
+    buffer += decoder.decode(toBuffer(chunk), { stream: true });
+    while (true) {
+      const separator = findSseSeparator(buffer);
+      if (!separator) break;
+      const rawEvent = buffer.slice(0, separator.index);
+      buffer = buffer.slice(separator.index + separator.length);
+      const data = extractSseData(rawEvent);
+      if (data !== undefined) yield data;
+    }
+  }
+  buffer += decoder.decode();
+  const remaining = extractSseData(buffer);
+  if (remaining !== undefined) yield remaining;
+}
+
+function findSseSeparator(
+  value: string,
+): { index: number; length: number } | undefined {
+  const crlfIndex = value.indexOf("\r\n\r\n");
+  const lfIndex = value.indexOf("\n\n");
+  if (crlfIndex < 0 && lfIndex < 0) return undefined;
+  if (crlfIndex >= 0 && (lfIndex < 0 || crlfIndex < lfIndex)) {
+    return { index: crlfIndex, length: 4 };
+  }
+  return { index: lfIndex, length: 2 };
+}
+
+function extractSseData(rawEvent: string): string | undefined {
+  const lines = rawEvent
+    .split(/\r?\n/)
+    .filter((line) => line.startsWith("data:"))
+    .map((line) => line.slice(5).trimStart());
+  if (lines.length === 0) return undefined;
+  const data = lines.join("\n").trimEnd();
+  return data || undefined;
+}
+
+function isAsyncIterable(value: unknown): value is AsyncIterable<unknown> {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    Symbol.asyncIterator in value
+  );
+}
+
+function toBuffer(value: unknown): Buffer {
+  if (Buffer.isBuffer(value)) return value;
+  if (value instanceof Uint8Array) return Buffer.from(value);
+  if (typeof value === "string") return Buffer.from(value, "utf8");
+  return Buffer.from(String(value), "utf8");
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

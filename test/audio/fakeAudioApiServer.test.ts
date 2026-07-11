@@ -77,9 +77,9 @@ describe("fake audio API server", () => {
       });
 
       expect(response.headers.get("content-type")).toContain("audio/wav");
-      expect(Buffer.from(await response.arrayBuffer()).toString("utf8")).toBe(
-        "wav-bytes",
-      );
+      const audio = Buffer.from(await response.arrayBuffer());
+      expect(audio.subarray(0, 4).toString("ascii")).toBe("RIFF");
+      expect(audio.subarray(8, 12).toString("ascii")).toBe("WAVE");
       expect(server.requests[0].route).toBe("openai_speech");
     } finally {
       await server.close();

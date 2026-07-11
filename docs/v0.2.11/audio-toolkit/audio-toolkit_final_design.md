@@ -3,7 +3,7 @@
 > 日期：2026-07-09
 > Feature Slug：`audio-toolkit`
 > 版本：`v0.2.11`
-> 状态：已进入 QA 前收口；`PRE-001`、`CORE-001`、`CORE-002`、`BE-001`、`BE-002`、`BE-003`、`BE-004`、`BE-005`、`FE-001`、`FE-002`、`FE-003`、`FE-004`、`FE-005`、`FE-006`、`DOC-001` 已完成
+> 状态：2026-07-11 已完成 `FIX-001`～`FIX-007`、`AUDIT-001` 与 `QA-001`；IPC 信任边界、生命周期、Realtime GA 契约、TTS/ASR 正确性和四页 UX 已闭环并通过完整自动化、构建及 Electron 32 组合矩阵，当前仅剩 `QA-002` 真实供应商与真实设备验收
 > 范围：新增音频转文本、文本转音频、实时字幕、Realtime/WebRTC 双向语音，并在设置页集中管理音频大模型 API 配置。
 
 ---
@@ -381,7 +381,7 @@ export interface AudioRuntimeModelConfig {
 }
 ```
 
-`modelKey` 来自全局音频 profile 的 `models.transcription`、`models.speechSynthesis` 或 `models.realtime`，不来自工具页本地状态。工具页只读显示当前值。
+`modelKey` 来自全局音频 profile 的 `models.transcription`、`models.speechSynthesis`、`models.realtimeTranscription` 或 `models.realtimeVoice`，不来自工具页本地状态。旧 `models.realtime` 只用于迁移并同时播种两个 Realtime 字段；工具页只读显示当前值。
 
 默认推断：
 
@@ -440,9 +440,9 @@ export type AudioTranscriptionResponseFormat =
   | "verbose_json"
   | "vtt";
 
-export interface CreateAudioTranscriptionRequest {
+export interface CreateAudioTranscriptionIpcRequest {
   assignmentKey: "transcription";
-  filePath: string;
+  fileToken: string;
   fileName: string;
   mimeType: string;
   language?: "auto" | "zh" | "en" | string;
@@ -563,20 +563,20 @@ export interface AudioRealtimeSessionConfig {
   language?: string;
   voice?: string;
   turnDetection?: "server_vad" | "manual";
-  inputAudioFormat?: "pcm16" | "opus";
-  outputAudioFormat?: "pcm16" | "opus";
+  inputAudioFormat?: "pcm16" | "pcmu" | "pcma";
+  outputAudioFormat?: "pcm16" | "pcmu" | "pcma";
 }
 
 export type AudioRealtimeSessionEvent =
   | { type: "session_started"; sessionId: string }
   | { type: "mic_state"; state: "requesting" | "granted" | "denied" | "muted" }
-  | { type: "transcript_delta"; role: "user" | "assistant"; text: string }
-  | { type: "transcript_final"; role: "user" | "assistant"; text: string; itemId?: string }
+  | { type: "transcript_delta"; role: "user" | "assistant"; text: string; itemId?: string; responseId?: string; contentIndex?: number }
+  | { type: "transcript_final"; role: "user" | "assistant"; text: string; itemId?: string; responseId?: string; contentIndex?: number }
   | { type: "audio_started"; role: "assistant" }
   | { type: "audio_stopped"; role: "assistant" }
   | { type: "response_started"; responseId: string }
-  | { type: "response_completed"; responseId: string }
-  | { type: "error"; error: AudioIpcError }
+  | { type: "response_completed"; responseId: string; status: "completed" | "cancelled" | "failed" | "incomplete" }
+  | { type: "error"; error: AudioIpcError; fatal: boolean }
   | { type: "session_closed"; reason: "user" | "page_unload" | "error" };
 ```
 
@@ -588,6 +588,8 @@ Session lifecycle：
 4. Renderer establishes WebRTC peer connection and binds local/remote audio tracks.
 5. Renderer and main exchange normalized realtime events for subtitles, status and cleanup.
 6. Stop/page leave/error path must close peer connection, stop media tracks, revoke object URLs and clear session state.
+
+首版 UI 只开放 `server_vad`。`manual` 保留在线协议类型中用于后续 push-to-talk，但在完整实现 `input_audio_buffer.commit`（Voice 还需 `response.create`）前必须禁用。
 
 MiMo profile behavior：
 
@@ -867,7 +869,7 @@ Main 进程职责：
 
 - 接收设置/store 层同步的全局音频配置快照并仅在内存保存；工具页任务请求不得携带 provider、API Key、base URL、dialect 或模型 ID。
 - 通过全局 audio assignment 解析 runtime config。
-- 校验 filePath 是否存在且是文件。
+- 只接受 preload 从真实 `File` 选择结果换取的、绑定 sender 且有 TTL 的 `fileToken`；main 解析后再校验路径、文件头、大小和 dialect。
 - 根据扩展名和 MIME 建立 data URI、multipart body 或 streaming body。
 - 按 dialect 选择 endpoint 和鉴权 header。
 - 统一 timeout、AbortSignal、proxy、Retry-After、错误脱敏。
@@ -970,3 +972,18 @@ git diff --check
 14. `FE-006`：已实现 Realtime/WebRTC 双向语音页面，包括 OpenAI Realtime 连接/断开、静音、打断回复、远端音轨绑定、user/assistant timeline 和页面卸载 cleanup；真实 Electron/WebRTC 验收仍需 QA-002。
 15. `DOC-001`：已同步 README、CHANGELOG、隐私影响说明和发布文档台账，明确本地音频/麦克风内容会发送到用户选择的第三方音频 API。
 16. `QA-001`、`QA-002`：仍待自动化回归补强和 Electron/真实供应商验收；MiMo `voicedesign/voiceclone` 低延迟实测、OpenAI Realtime/WebRTC 真实连接和麦克风/远端音轨播放必须在 QA 中记录。
+
+## 16. 2026-07-10 审计后发布门禁
+
+四个音频工具页初版实现完成后，`AUDIT-001` 对 renderer、共享 store、service、Electron IPC/runtime、供应商 adapter 与测试做了全链路复核。白屏问题已由 `FIX-001` 修复，但审计确认当前实现仍不能作为发布候选。
+
+发布前按以下顺序收口：
+
+1. `FIX-002`：收紧 preload / IPC 信任边界，main 持有运行时配置与文件授权，校验 sender、文件 token 和真实文件类型。
+2. `FIX-003`：统一录音、WebRTC、请求控制器和上传队列的 ownership；错误、取消、断开和卸载都必须释放资源。
+3. `FIX-004`：对齐 OpenAI Realtime GA 事件、voice/transcription 模型拆分、音频格式、manual commit/response 与 WebRTC buffer clear。
+4. `FIX-005`：修复 TTS 流式播放、首尾帧、取消、状态与输出文件正确性。
+5. `FIX-006`：修复 ASR/provider 参数矩阵和全局 Profile 默认值、保存与取消一致性。
+6. `FIX-007`：完成四页 UX、可访问性、i18n、持久化迁移和响应式视觉 QA。
+
+完整问题、证据、优先级和逐包验收口径见 `docs/v0.2.11/audio-toolkit/fix/2026-07-10_audio-toolkit-four-page-release-audit.md`。`FIX-002`～`FIX-007` 与 `QA-001` 已在 2026-07-11 闭环；仍不得把 fixture 或 Electron 路由矩阵解释为 `QA-002` 真实供应商/真实设备发布通过。

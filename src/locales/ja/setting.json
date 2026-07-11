@@ -196,6 +196,8 @@
         "transcription": "ASR モデル",
         "speechSynthesis": "TTS モデル",
         "realtime": "Realtime / 字幕モデル",
+        "realtimeTranscription": "Realtime 文字起こしモデル",
+        "realtimeVoice": "Realtime 音声モデル",
         "realtime_mimo_hint": "MiMo のリアルタイム字幕は分割された近リアルタイム文字起こしを使い、WebRTC 双方向音声は有効にしません。"
       },
       "defaults": {

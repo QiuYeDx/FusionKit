@@ -16,7 +16,7 @@ describe("realtime captions config helpers", () => {
         ...DEFAULT_REALTIME_CAPTIONS_PREFERENCES,
         language: "zh",
         instructions: "Only transcribe user speech.",
-        inputAudioFormat: "opus",
+        inputAudioFormat: "pcmu",
         turnDetection: "manual",
       },
       "openai_realtime",
@@ -26,9 +26,8 @@ describe("realtime captions config helpers", () => {
       assignmentKey: "realtimeCaptions",
       mode: "caption",
       language: "zh",
-      instructions: "Only transcribe user speech.",
-      inputAudioFormat: "opus",
-      turnDetection: "manual",
+      inputAudioFormat: "pcmu",
+      turnDetection: "server_vad",
     });
     expect(request).not.toHaveProperty("apiKey");
     expect(request).not.toHaveProperty("modelKey");
@@ -55,7 +54,7 @@ describe("realtime captions config helpers", () => {
       normalizeRealtimeCaptionsPreferences(
         {
           ...DEFAULT_REALTIME_CAPTIONS_PREFERENCES,
-          inputAudioFormat: "opus",
+          inputAudioFormat: "pcmu",
           turnDetection: "manual",
           showAssistantTranscript: true,
         },

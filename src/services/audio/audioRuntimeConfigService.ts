@@ -5,11 +5,15 @@ import {
   audioIpcFailure,
   type AudioIpcChannel,
   type AudioIpcResult,
+  type AuthorizedAudioInputFile,
   type SyncAudioRuntimeConfigRequest,
   type SyncAudioRuntimeConfigResult,
 } from "@/type/audioIpc";
 
 type ModelStoreSnapshot = ReturnType<typeof useModelStore.getState>;
+let currentAudioRuntimeRevision: string | undefined;
+let currentAudioRuntimeSnapshotKey: string | undefined;
+let currentAudioRuntimeSyncResult: AudioIpcResult<SyncAudioRuntimeConfigResult> | undefined;
 
 export function createAudioRuntimeConfigSnapshotFromStore(
   state: Pick<ModelStoreSnapshot, "profiles" | "audioProfiles" | "audioAssignment">,
@@ -21,16 +25,31 @@ export function createAudioRuntimeConfigSnapshotFromStore(
   };
 }
 
-export function syncAudioRuntimeConfigFromStore(): Promise<
+export async function syncAudioRuntimeConfigFromStore(): Promise<
   AudioIpcResult<SyncAudioRuntimeConfigResult>
 > {
   const snapshot = createAudioRuntimeConfigSnapshotFromStore(
     useModelStore.getState(),
   );
-  return invokeAudioIpc<SyncAudioRuntimeConfigResult>(
+  const snapshotKey = JSON.stringify(snapshot);
+  if (
+    snapshotKey === currentAudioRuntimeSnapshotKey &&
+    currentAudioRuntimeSyncResult?.ok
+  ) {
+    return currentAudioRuntimeSyncResult;
+  }
+  const result = await getAudioApi().invoke<SyncAudioRuntimeConfigResult>(
     AUDIO_IPC_CHANNELS.syncRuntimeConfig,
     snapshot,
   );
+  if (result.ok) {
+    currentAudioRuntimeRevision = result.data.revision;
+    currentAudioRuntimeSnapshotKey = snapshotKey;
+    currentAudioRuntimeSyncResult = result;
+  } else {
+    currentAudioRuntimeSyncResult = undefined;
+  }
+  return result;
 }
 
 export async function syncAudioRuntimeConfigBeforeTask(): Promise<
@@ -42,9 +61,19 @@ export async function syncAudioRuntimeConfigBeforeTask(): Promise<
 export function invokeAudioIpc<TResponse>(
   channel: AudioIpcChannel,
   request: unknown,
+  configRevision = currentAudioRuntimeRevision,
 ): Promise<AudioIpcResult<TResponse>> {
-  const ipcRenderer = getIpcRenderer();
-  return ipcRenderer.invoke(channel, request) as Promise<AudioIpcResult<TResponse>>;
+  return getAudioApi().invoke<TResponse>(channel, request, {
+    ...(configRevision
+      ? { configRevision }
+      : {}),
+  });
+}
+
+export function authorizeAudioInputFile(
+  file: File,
+): Promise<AudioIpcResult<AuthorizedAudioInputFile>> {
+  return getAudioApi().authorizeInputFile(file);
 }
 
 function toRuntimeConnectionProfileSnapshot(profile: ModelProfile) {
@@ -56,11 +85,17 @@ function toRuntimeConnectionProfileSnapshot(profile: ModelProfile) {
   };
 }
 
-function getIpcRenderer(): Window["ipcRenderer"] {
-  if (typeof window === "undefined" || !window.ipcRenderer) {
+function getAudioApi(): Window["audioApi"] {
+  if (typeof window === "undefined" || !window.audioApi) {
     throw new Error("Audio IPC is only available in the Electron renderer.");
   }
-  return window.ipcRenderer;
+  return window.audioApi;
+}
+
+export function resetAudioRuntimeConfigCacheForTests(): void {
+  currentAudioRuntimeRevision = undefined;
+  currentAudioRuntimeSnapshotKey = undefined;
+  currentAudioRuntimeSyncResult = undefined;
 }
 
 export function audioIpcUnavailableResult<TResponse>(

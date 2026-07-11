@@ -103,14 +103,14 @@ describe("audio realtime session runtime", () => {
           audio: {
             input: {
               transcription: {
-                model: "gpt-realtime",
+                model: "gpt-realtime-whisper",
                 language: "en",
               },
               format: {
                 type: "audio/pcm",
                 rate: 24000,
               },
-              turn_detection: null,
+              turn_detection: { type: "server_vad" },
             },
           },
         },
@@ -130,7 +130,7 @@ describe("audio realtime session runtime", () => {
       assignmentKey: "realtimeCaptions",
       mode: "caption",
       language: "en",
-      turnDetection: "manual",
+      turnDetection: "server_vad",
       inputAudioFormat: "pcm16",
     });
 
@@ -218,7 +218,8 @@ function createRealtimeRuntimeConfig(baseUrl: string): SyncAudioRuntimeConfigReq
           "realtime_duplex_voice",
         ],
         models: {
-          realtime: "gpt-realtime",
+          realtimeTranscription: "gpt-realtime-whisper",
+          realtimeVoice: "gpt-realtime",
         },
         defaults: {},
       },

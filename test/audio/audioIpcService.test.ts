@@ -4,10 +4,10 @@ import { AudioIpcService, type AudioRuntimeInvoker } from "../../electron/main/a
 import { createAudioRuntimeError } from "../../electron/main/audio/audio-errors";
 import { Model } from "@/type/model";
 import type {
-  CreateAudioTranscriptionRequest,
   CreateSpeechSynthesisRequest,
 } from "@/type/audio";
 import type { SyncAudioRuntimeConfigRequest } from "@/type/audioIpc";
+import type { CreateAudioTranscriptionIpcRequest } from "@/type/audioIpc";
 
 const electronMock = vi.hoisted(() => ({
   shell: { showItemInFolder: vi.fn() },
@@ -18,9 +18,7 @@ vi.mock("electron", () => electronMock);
 
 describe("AudioIpcService", () => {
   it("returns a not-configured error before global audio config is synced", async () => {
-    const service = new AudioIpcService({
-      runtime: createRuntimeInvoker(),
-    });
+    const service = createService(createRuntimeInvoker());
 
     const result = await service.transcribe(createTranscriptionPayload());
 
@@ -34,7 +32,7 @@ describe("AudioIpcService", () => {
 
   it("resolves synced global audio config and does not return API keys", async () => {
     const runtime = createRuntimeInvoker();
-    const service = new AudioIpcService({ runtime });
+    const service = createService(runtime);
     await service.syncRuntimeConfig(createRuntimeConfigSnapshot());
 
     const result = await service.transcribe(createTranscriptionPayload());
@@ -92,7 +90,7 @@ describe("AudioIpcService", () => {
         });
       }),
     };
-    const service = new AudioIpcService({ runtime });
+    const service = createService(runtime);
     await service.syncRuntimeConfig(createRuntimeConfigSnapshot());
     const webContents = createWebContentsMock();
 
@@ -150,7 +148,7 @@ describe("AudioIpcService", () => {
       }),
       synthesize: vi.fn(),
     };
-    const service = new AudioIpcService({ runtime });
+    const service = createService(runtime);
     await service.syncRuntimeConfig(createRuntimeConfigSnapshot());
 
     const transcriptionPromise = service.transcribe(
@@ -174,7 +172,7 @@ describe("AudioIpcService", () => {
 
   it("transcribes recorded chunks through the realtime captions assignment", async () => {
     const runtime = createRuntimeInvoker();
-    const service = new AudioIpcService({ runtime });
+    const service = createService(runtime);
     await service.syncRuntimeConfig(createRuntimeConfigSnapshot());
 
     const result = await service.transcribeRecordedChunk({
@@ -239,7 +237,7 @@ describe("AudioIpcService", () => {
       }),
       synthesize: vi.fn(),
     };
-    const service = new AudioIpcService({ runtime });
+    const service = createService(runtime);
     await service.syncRuntimeConfig(createRuntimeConfigSnapshot());
 
     const chunkPromise = service.transcribeRecordedChunk({
@@ -291,7 +289,7 @@ describe("AudioIpcService", () => {
         });
       }),
     };
-    const service = new AudioIpcService({ runtime });
+    const service = createService(runtime);
     await service.syncRuntimeConfig(createRuntimeConfigSnapshot());
 
     const speechPromise = service.synthesizeSpeech(
@@ -371,16 +369,34 @@ function createRuntimeConfigSnapshot(): SyncAudioRuntimeConfigRequest {
 }
 
 function createTranscriptionPayload(
-  overrides: Partial<CreateAudioTranscriptionRequest> = {},
-): CreateAudioTranscriptionRequest {
+  overrides: Partial<CreateAudioTranscriptionIpcRequest> = {},
+): CreateAudioTranscriptionIpcRequest {
   return {
     assignmentKey: "transcription",
-    filePath: "/tmp/speech.wav",
+    fileToken: "file_token_test",
     fileName: "speech.wav",
     mimeType: "audio/wav",
     responseFormat: "json",
     ...overrides,
   };
+}
+
+function createService(runtime: AudioRuntimeInvoker): AudioIpcService {
+  return new AudioIpcService({
+    runtime,
+    fileAuthorizations: {
+      authorize: vi.fn(),
+      resolve: vi.fn(async () => ({
+        filePath: "/tmp/speech.wav",
+        fileName: "speech.wav",
+        extension: "wav",
+        mimeType: "audio/wav" as const,
+        sizeBytes: 128,
+        base64EncodedBytes: 172,
+      })),
+      releaseOwner: vi.fn(),
+    },
+  });
 }
 
 function createSpeechPayload(

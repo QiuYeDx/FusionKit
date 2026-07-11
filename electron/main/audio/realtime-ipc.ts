@@ -25,6 +25,8 @@ import {
 import {
   createOpenAIRealtimeEphemeralSession,
 } from "./realtime/openai-realtime-adapter";
+import type { AudioIpcClientContext } from "./ipc";
+import { sharedAudioPreloadCapabilityRegistry } from "./audio-ipc-security";
 
 type Validator<TRequest> = (payload: unknown) => AudioIpcResult<TRequest>;
 
@@ -48,7 +50,10 @@ export interface AudioRealtimeIpcServiceOptions {
 export class AudioRealtimeIpcService {
   private readonly runtime: AudioRealtimeRuntimeInvoker;
   private readonly configStore: AudioRuntimeConfigStore;
-  private readonly activeSessions = new Map<string, RealtimeEphemeralSessionResult>();
+  private readonly activeSessions = new Map<
+    string,
+    { ownerId: number | "default"; expiresAtMs: number }
+  >();
 
   constructor(options: AudioRealtimeIpcServiceOptions = {}) {
     this.runtime = options.runtime ?? {
@@ -60,8 +65,25 @@ export class AudioRealtimeIpcService {
 
   async createEphemeralSession(
     payload: AudioRealtimeSessionConfig,
+    context?: AudioIpcClientContext,
   ): Promise<AudioIpcResult<RealtimeEphemeralSessionResult>> {
-    const modelResult = this.configStore.resolveModel(payload.assignmentKey);
+    const ownerId = context?.senderId ?? "default";
+    this.pruneExpiredSessions();
+    if (
+      context?.requireConfigRevision &&
+      !this.configStore.isRevisionCurrent(ownerId, context.configRevision)
+    ) {
+      return audioIpcFailure({
+        code: "invalid_ipc_request",
+        message:
+          "Audio runtime configuration revision is missing, stale, or belongs to another renderer.",
+        field: "configRevision",
+      });
+    }
+    const modelResult = this.configStore.resolveModel(
+      payload.assignmentKey,
+      ownerId,
+    );
     if (!modelResult.ok) {
       return audioIpcFailure(audioCapabilityIssueToIpcError(modelResult.issue));
     }
@@ -79,7 +101,13 @@ export class AudioRealtimeIpcService {
         model: modelResult.config,
       });
       if (result.sessionId) {
-        this.activeSessions.set(result.sessionId, result);
+        this.activeSessions.set(
+          createSessionKey(ownerId, result.sessionId),
+          {
+            ownerId,
+            expiresAtMs: parseSessionExpiry(result.expiresAt),
+          },
+        );
       }
       return audioIpcSuccess(result);
     } catch (error) {
@@ -89,13 +117,31 @@ export class AudioRealtimeIpcService {
 
   async stopSession(
     request: StopAudioRealtimeSessionRequest,
+    context?: AudioIpcClientContext,
   ): Promise<AudioIpcResult<StopAudioRealtimeSessionResult>> {
-    const stopped = this.activeSessions.delete(request.sessionId);
+    const ownerId = context?.senderId ?? "default";
+    this.pruneExpiredSessions();
+    const stopped = this.activeSessions.delete(
+      createSessionKey(ownerId, request.sessionId),
+    );
     return audioIpcSuccess({
       stopped,
       sessionId: request.sessionId,
       reason: request.reason ?? "user",
     });
+  }
+
+  releaseOwner(ownerId: number): void {
+    for (const [key, session] of this.activeSessions) {
+      if (session.ownerId === ownerId) this.activeSessions.delete(key);
+    }
+  }
+
+  private pruneExpiredSessions(): void {
+    const now = Date.now();
+    for (const [key, session] of this.activeSessions) {
+      if (session.expiresAtMs <= now) this.activeSessions.delete(key);
+    }
   }
 }
 
@@ -104,10 +150,15 @@ export function setupAudioRealtimeIPC(
     configStore: sharedAudioRuntimeConfigStore,
   }),
 ): void {
+  sharedAudioPreloadCapabilityRegistry.onOwnerReleased((senderId) => {
+    service.releaseOwner(senderId);
+  });
   handleValidatedRequest<AudioRealtimeSessionConfig, RealtimeEphemeralSessionResult>(
     AUDIO_IPC_CHANNELS.realtimeCreateEphemeralSession,
     validateAudioRealtimeSessionIpcRequest,
-    (request) => service.createEphemeralSession(request),
+    (request, _event, context) =>
+      service.createEphemeralSession(request, context),
+    { requireConfigRevision: true },
   );
 
   handleValidatedRequest<
@@ -116,7 +167,7 @@ export function setupAudioRealtimeIPC(
   >(
     AUDIO_IPC_CHANNELS.realtimeStopSession,
     validateStopAudioRealtimeSessionIpcRequest,
-    (request) => service.stopSession(request),
+    (request, _event, context) => service.stopSession(request, context),
   );
 }
 
@@ -126,16 +177,45 @@ function handleValidatedRequest<TRequest, TResponse>(
   run: (
     request: TRequest,
     event: IpcMainInvokeEvent,
+    context: AudioIpcClientContext,
   ) => Promise<AudioIpcResult<TResponse>>,
+  options: { requireConfigRevision?: boolean } = {},
 ): void {
-  ipcMain.handle(channel, async (event, payload: unknown) => {
-    const validation = validate(payload);
+  ipcMain.handle(channel, async (event, envelope: unknown) => {
+    const authorization =
+      sharedAudioPreloadCapabilityRegistry.authorize<unknown>(event, envelope);
+    if (!authorization.ok) return authorization;
+    const validation = validate(authorization.data.payload);
     if (!validation.ok) return validation;
 
+    const context: AudioIpcClientContext = {
+      senderId: authorization.data.senderId,
+      ...(authorization.data.configRevision
+        ? { configRevision: authorization.data.configRevision }
+        : {}),
+      ...(options.requireConfigRevision
+        ? { requireConfigRevision: true }
+        : {}),
+    };
+
     try {
-      return await run(validation.data, event);
+      return await run(validation.data, event, context);
     } catch (error) {
       return audioIpcFailure(toAudioIpcError(error));
     }
   });
+}
+
+function parseSessionExpiry(expiresAt: string | undefined): number {
+  const parsed = expiresAt ? Date.parse(expiresAt) : Number.NaN;
+  return Number.isFinite(parsed) && parsed > Date.now()
+    ? parsed
+    : Date.now() + 10 * 60 * 1000;
+}
+
+function createSessionKey(
+  ownerId: number | "default",
+  sessionId: string,
+): string {
+  return `${ownerId}:${sessionId}`;
 }

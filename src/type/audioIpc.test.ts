@@ -31,10 +31,10 @@ describe("audio IPC contract", () => {
     expect(channels).not.toContain("session-event");
   });
 
-  it("accepts transcription requests that only pass task parameters and paths", () => {
+  it("accepts transcription requests that only pass task parameters and an authorized file token", () => {
     const result = validateCreateAudioTranscriptionIpcRequest({
       assignmentKey: "transcription",
-      filePath: "/audio/sample.wav",
+      fileToken: "authorized-file-token",
       fileName: "sample.wav",
       mimeType: "audio/wav",
       language: "zh",
@@ -50,7 +50,7 @@ describe("audio IPC contract", () => {
     if (result.ok) {
       expect(result.data).toMatchObject({
         assignmentKey: "transcription",
-        filePath: "/audio/sample.wav",
+        fileToken: "authorized-file-token",
         requestId: "asr_req_001",
         responseFormat: "json",
         stream: true,
@@ -159,7 +159,7 @@ describe("audio IPC contract", () => {
     ).toBe(true);
   });
 
-  it("accepts MiMo voice clone by sample path and rejects sample base64", () => {
+  it("accepts MiMo voice clone by sample token and rejects sample base64", () => {
     const valid = validateCreateSpeechSynthesisIpcRequest({
       assignmentKey: "speechSynthesis",
       requestId: "speech_req_001",
@@ -168,7 +168,7 @@ describe("audio IPC contract", () => {
       stream: true,
       mimoOptions: {
         mode: "voice_clone",
-        voiceSamplePath: "/audio/reference.wav",
+        voiceSampleToken: "authorized-voice-sample-token",
         voiceSampleMime: "audio/wav",
       },
     });
@@ -333,7 +333,7 @@ describe("audio IPC contract", () => {
     }
 
     expect(
-      validateRevealAudioOutputIpcRequest({ outputPath: "/audio/out.wav" }).ok,
+      validateRevealAudioOutputIpcRequest({ outputToken: "authorized-output-token" }).ok,
     ).toBe(true);
   });
 

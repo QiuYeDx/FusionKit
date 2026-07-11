@@ -102,7 +102,8 @@
       "timestamps": "Timestamps are enabled only for OpenAI verbose JSON output; MiMo docs do not expose this capability.",
       "prompt": "Use this for names, product terms, or domain context. MiMo ASR does not support prompts.",
       "stream": "File streaming transcription and realtime captions are separate capabilities.",
-      "stream_disabled": "The first file transcription page uses the non-streaming path; use Realtime Captions for microphone captions.",
+      "stream_enabled": "This model supports file transcription over SSE. The completed transcript is shown after the stream ends.",
+      "stream_disabled": "The selected transcription model does not support file streaming.",
       "output_mode": "Source or custom folders write the transcript file when the task completes."
     },
     "placeholders": {
@@ -127,6 +128,7 @@
       "running": "Transcribing",
       "copy": "Copy",
       "open_output": "Open folder",
+      "save_result": "Save result",
       "save_next_run": "Save next run"
     },
     "status": {
@@ -150,7 +152,8 @@
       "output_path_selected": "Output folder selected",
       "completed": "Transcription completed",
       "cancelled": "Transcription cancelled",
-      "copied": "Transcript copied"
+      "copied": "Transcript copied",
+      "saved": "Transcript save started"
     },
     "errors": {
       "title": "Transcription failed",
@@ -162,7 +165,10 @@
       "output_dir_required": "Select an output folder before using custom folder mode.",
       "output_dir_select_failed": "Failed to select output folder.",
       "output_not_ready": "There is no output file to open yet.",
-      "copy_failed": "Copy failed. Please copy the result manually."
+      "copy_failed": "Copy failed. Please copy the result manually.",
+      "cancel_failed": "The transcription request could not be cancelled.",
+      "save_failed": "The current transcript could not be saved.",
+      "unsupported_model": "The selected model is not supported by the current transcription protocol."
     }
   },
   "speech": {
@@ -324,7 +330,9 @@
     },
     "input_audio_format": {
       "pcm16": "PCM16",
-      "opus": "Opus"
+      "opus": "Opus",
+      "pcmu": "PCMU (G.711 μ-law)",
+      "pcma": "PCMA (G.711 A-law)"
     },
     "turn_detection": {
       "server_vad": "Server VAD",
@@ -336,12 +344,12 @@
     },
     "hints": {
       "language": "OpenAI Realtime can receive a language preference. Auto detect omits the language field.",
-      "input_audio_format": "The first version prefers PCM16. Opus depends on the current Realtime model and browser support.",
-      "turn_detection": "Server VAD detects speech turns automatically. Manual mode is useful for later duplex voice controls.",
+      "input_audio_format": "Realtime supports PCM16, PCMU, and PCMA. PCM16 is the recommended default.",
+      "turn_detection": "Server VAD detects speech turns automatically. Manual mode remains disabled until push-to-talk is complete.",
       "output_format": "TXT saves plain text. SRT uses local session time to generate a basic timeline.",
       "assistant_transcript": "Realtime captions show microphone input by default.",
       "assistant_transcript_detail": "If the model returns assistant-side transcripts, this toggle shows them.",
-      "instructions": "Constrain the realtime caption session, such as transcribe only and do not answer."
+      "instructions": "The current realtime transcription model does not support prompts."
     },
     "placeholders": {
       "instructions": "For example: only transcribe user speech, do not generate replies.",
@@ -367,7 +375,9 @@
       "mode": "Mode",
       "mic": "Microphone",
       "lines": "Caption lines",
-      "elapsed": "Elapsed"
+      "elapsed": "Elapsed",
+      "input_level": "Input level",
+      "session": "Session"
     },
     "chunked": {
       "title": "Chunked near-realtime",
@@ -377,6 +387,8 @@
       "start": "Start captions",
       "listening": "Listening",
       "stop": "Stop",
+      "pause": "Pause",
+      "resume": "Resume",
       "copy": "Copy",
       "save": "Save",
       "clear": "Clear"
@@ -430,7 +442,9 @@
     },
     "audio_format": {
       "pcm16": "PCM16",
-      "opus": "Opus"
+      "opus": "Opus",
+      "pcmu": "PCMU (G.711 μ-law)",
+      "pcma": "PCMA (G.711 A-law)"
     },
     "status": {
       "idle": "Ready",
@@ -489,5 +503,30 @@
       "unsupported_profile": "The current global audio config does not support Realtime/WebRTC duplex voice.",
       "interrupt_failed": "Could not send the interrupt command. Check that the session is still connected."
     }
+  },
+  "runtime_error": {
+    "invalid_request": "The audio request is invalid.",
+    "profile_not_configured": "Configure an audio profile first.",
+    "connection_not_configured": "The audio connection profile is missing.",
+    "model_not_configured": "Configure the required audio model first.",
+    "unsupported_capability": "This audio profile does not support that operation.",
+    "unsupported_format": "This model does not support the selected audio format.",
+    "microphone_denied": "Microphone access was denied.",
+    "file_too_large": "The selected audio file is too large.",
+    "file_read_failed": "The selected audio file could not be read.",
+    "output_write_failed": "The audio output could not be saved.",
+    "stream_parse_failed": "The audio stream response could not be parsed.",
+    "realtime_failed": "The realtime audio session failed.",
+    "network": "The audio service could not be reached.",
+    "timeout": "The audio request timed out.",
+    "unauthorized": "The audio API credentials were rejected.",
+    "forbidden": "The audio API does not permit this operation.",
+    "rate_limited": "The audio service is rate limited. Try again later.",
+    "service_unavailable": "The audio service is temporarily unavailable.",
+    "request_rejected": "The audio service rejected the request.",
+    "empty_response": "The audio service returned an empty response.",
+    "invalid_response": "The audio service returned an invalid response.",
+    "aborted": "The audio operation was cancelled.",
+    "renderer": "The audio page could not complete the operation."
   }
 }

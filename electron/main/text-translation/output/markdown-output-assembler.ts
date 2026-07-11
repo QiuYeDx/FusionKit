@@ -93,6 +93,7 @@ interface MarkdownInsertion {
 export function assembleMarkdownTargetOnlyContent(
   options: AssembleMarkdownTargetOnlyOptions,
 ): string {
+  const lineEnding = detectPreferredLineEnding(options.sourceText);
   const resultByUnitId = new Map(
     options.results.map((result) => [result.unitId, result]),
   );
@@ -110,9 +111,12 @@ export function assembleMarkdownTargetOnlyContent(
         unitId: unit.unitId,
         start: unit.sourceStart,
         end: unit.sourceEnd,
-        text: restoreProtectedPlaceholders(
-          result.translatedText,
-          result.placeholders ?? [],
+        text: normalizeLineEndings(
+          restoreProtectedPlaceholders(
+            result.translatedText,
+            result.placeholders ?? [],
+          ),
+          lineEnding,
         ),
       };
     });
@@ -128,7 +132,7 @@ export function assembleMarkdownTargetOnlyContent(
       replacement.text +
       output.slice(replacement.end);
   }
-  return output;
+  return normalizeLineEndings(output, lineEnding);
 }
 
 export async function writeMarkdownTargetOnlyOutput(
@@ -173,6 +177,7 @@ export function collectMarkdownBilingualBlocks(
 export function assembleMarkdownBilingualContent(
   options: AssembleMarkdownBilingualOptions,
 ): string {
+  const lineEnding = detectPreferredLineEnding(options.sourceText);
   const blocks =
     options.blocks ??
     collectMarkdownBilingualBlocks(
@@ -193,15 +198,22 @@ export function assembleMarkdownBilingualContent(
           `Stale Markdown block translation cannot be assembled: ${block.blockId}`,
         );
       }
-      const translatedMarkdown = restoreProtectedPlaceholders(
-        translation.translatedMarkdown,
-        translation.placeholders ?? [],
+      const translatedMarkdown = normalizeLineEndings(
+        restoreProtectedPlaceholders(
+          translation.translatedMarkdown,
+          translation.placeholders ?? [],
+        ),
+        lineEnding,
       );
       if (!translatedMarkdown.trim()) return null;
       return {
         blockId: block.blockId,
         offset: block.end,
-        text: `\n\n${quoteMarkdown(translatedMarkdown, block.quoteDepth)}`,
+        text: `${lineEnding}${lineEnding}${quoteMarkdown(
+          translatedMarkdown,
+          block.quoteDepth,
+          lineEnding,
+        )}`,
       };
     })
     .filter((insertion): insertion is MarkdownInsertion => Boolean(insertion));
@@ -217,7 +229,7 @@ export function assembleMarkdownBilingualContent(
       insertion.text +
       output.slice(insertion.offset);
   }
-  return output;
+  return normalizeLineEndings(output, lineEnding);
 }
 
 export async function writeMarkdownBilingualOutput(
@@ -298,7 +310,7 @@ function isTranslatableBlock(sourceText: string, node: RootContent): boolean {
 
 function detectQuoteDepth(markdown: string): number {
   const quotedLine = markdown
-    .split("\n")
+    .split(/\r?\n/)
     .map((line) => line.match(/^(\s*(?:>\s*)+)/)?.[1] ?? "")
     .filter(Boolean)
     .sort((left, right) => left.length - right.length)[0];
@@ -307,12 +319,27 @@ function detectQuoteDepth(markdown: string): number {
   return quotedLine.split(">").length - 1;
 }
 
-function quoteMarkdown(markdown: string, depth: number): string {
+function quoteMarkdown(
+  markdown: string,
+  depth: number,
+  lineEnding: "\n" | "\r\n",
+): string {
   const prefix = Array.from({ length: depth }, () => ">").join(" ");
   return markdown
-    .split("\n")
+    .split(/\r?\n/)
     .map((line) => (line.length > 0 ? `${prefix} ${line}` : prefix))
-    .join("\n");
+    .join(lineEnding);
+}
+
+function detectPreferredLineEnding(value: string): "\n" | "\r\n" {
+  return value.includes("\r\n") ? "\r\n" : "\n";
+}
+
+function normalizeLineEndings(
+  value: string,
+  lineEnding: "\n" | "\r\n",
+): string {
+  return value.replace(/\r\n|\r|\n/g, lineEnding);
 }
 
 function assertInsertionRanges(

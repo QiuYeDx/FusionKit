@@ -24,7 +24,7 @@ import { ToolField, ToolPanel } from "@/pages/Tools/_shared/ui";
 import { cn } from "@/lib/utils";
 import { showToast } from "@/utils/toast";
 import type { AudioRole } from "@/type/audio";
-import type { AudioIpcError } from "@/type/audioIpc";
+import type { AudioIpcError, AudioRealtimeSessionEvent } from "@/type/audioIpc";
 import {
   startOpenAIRealtimeWebRtcSession,
   type AudioRealtimeSessionHandle,
@@ -40,6 +40,8 @@ import {
   getRealtimeVoiceCloseStatus,
 } from "@/store/tools/audio/realtimeVoiceConfig";
 import useRealtimeVoiceStore from "@/store/tools/audio/useRealtimeVoiceStore";
+import { useElapsedMs } from "../shared/useElapsedMs";
+import { getAudioErrorMessage } from "../shared/audioErrorMessage";
 
 export default function RealtimeVoice() {
   return (
@@ -59,21 +61,24 @@ export default function RealtimeVoice() {
 function RealtimeVoiceConfig({ context }: { context: AudioToolShellContext }) {
   const { t } = useTranslation(["audio"]);
   const preferences = useRealtimeVoiceStore((state) => state.preferences);
+  const status = useRealtimeVoiceStore((state) => state.status);
   const updatePreferences = useRealtimeVoiceStore(
     (state) => state.updatePreferences,
   );
   const enabled = canStartRealtimeVoice(
     context.configSummary.audioDialect,
     context.configSummary.capabilities,
-  );
+  ) && !["requesting", "connecting", "connected", "stopping"].includes(status);
 
   return (
-    <div className="space-y-4">
+    <fieldset className="space-y-4" disabled={!enabled}>
       <ToolField
         label={t("audio:voice.fields.voice")}
+        htmlFor="realtime-voice-name"
         hint={t("audio:voice.hints.voice")}
       >
         <Input
+          id="realtime-voice-name"
           value={preferences.voice}
           disabled={!enabled}
           className="h-8 text-xs"
@@ -103,14 +108,16 @@ function RealtimeVoiceConfig({ context }: { context: AudioToolShellContext }) {
         label={t("audio:voice.fields.turn_detection")}
         hint={t("audio:voice.hints.turn_detection")}
       >
-        <ButtonGroup className="w-full">
+        <ButtonGroup className="w-full" role="radiogroup" aria-label={t("audio:voice.fields.turn_detection")}>
           {(["server_vad", "manual"] as const).map((turnDetection) => (
             <Button
               key={turnDetection}
               type="button"
+              role="radio"
+              aria-checked={preferences.turnDetection === turnDetection}
               size="sm"
               className="flex-1"
-              disabled={!enabled}
+              disabled={!enabled || turnDetection === "manual"}
               variant={preferences.turnDetection === turnDetection ? "default" : "outline"}
               onClick={() => updatePreferences({ turnDetection })}
             >
@@ -124,11 +131,13 @@ function RealtimeVoiceConfig({ context }: { context: AudioToolShellContext }) {
         label={t("audio:voice.fields.input_audio_format")}
         hint={t("audio:voice.hints.input_audio_format")}
       >
-        <ButtonGroup className="w-full">
-          {(["pcm16", "opus"] as const).map((format) => (
+        <ButtonGroup className="w-full" role="radiogroup" aria-label={t("audio:voice.fields.input_audio_format")}>
+          {(["pcm16", "pcmu", "pcma"] as const).map((format) => (
             <Button
               key={format}
               type="button"
+              role="radio"
+              aria-checked={preferences.inputAudioFormat === format}
               size="sm"
               className="flex-1"
               disabled={!enabled}
@@ -145,11 +154,13 @@ function RealtimeVoiceConfig({ context }: { context: AudioToolShellContext }) {
         label={t("audio:voice.fields.output_audio_format")}
         hint={t("audio:voice.hints.output_audio_format")}
       >
-        <ButtonGroup className="w-full">
-          {(["pcm16", "opus"] as const).map((format) => (
+        <ButtonGroup className="w-full" role="radiogroup" aria-label={t("audio:voice.fields.output_audio_format")}>
+          {(["pcm16", "pcmu", "pcma"] as const).map((format) => (
             <Button
               key={format}
               type="button"
+              role="radio"
+              aria-checked={preferences.outputAudioFormat === format}
               size="sm"
               className="flex-1"
               disabled={!enabled}
@@ -164,9 +175,11 @@ function RealtimeVoiceConfig({ context }: { context: AudioToolShellContext }) {
 
       <ToolField
         label={t("audio:voice.fields.instructions")}
+        htmlFor="realtime-voice-instructions"
         hint={t("audio:voice.hints.instructions")}
       >
         <Textarea
+          id="realtime-voice-instructions"
           value={enabled ? preferences.instructions : ""}
           disabled={!enabled}
           rows={4}
@@ -181,7 +194,7 @@ function RealtimeVoiceConfig({ context }: { context: AudioToolShellContext }) {
           }
         />
       </ToolField>
-    </div>
+    </fieldset>
   );
 }
 
@@ -194,6 +207,9 @@ function RealtimeVoiceWorkspace({
   const remoteAudioRef = useRef<HTMLAudioElement | null>(null);
   const sessionHandleRef = useRef<AudioRealtimeSessionHandle | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
+  const sessionGenerationRef = useRef(0);
+  const interruptPendingRef = useRef(false);
+  const interruptTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const preferences = useRealtimeVoiceStore((state) => state.preferences);
   const status = useRealtimeVoiceStore((state) => state.status);
   const micState = useRealtimeVoiceStore((state) => state.micState);
@@ -230,6 +246,9 @@ function RealtimeVoiceWorkspace({
   const resetSessionState = useRealtimeVoiceStore(
     (state) => state.resetSessionState,
   );
+  const seedProfileDefaults = useRealtimeVoiceStore(
+    (state) => state.seedProfileDefaults,
+  );
   const canStart =
     context.configSummary.status === "ready" &&
     canStartRealtimeVoice(
@@ -239,21 +258,77 @@ function RealtimeVoiceWorkspace({
   const isRunning = ["requesting", "connecting", "connected", "stopping"].includes(
     status,
   );
-  const elapsedMs = startedAtMs ? Date.now() - startedAtMs : 0;
+  const canStop = isRunning || status === "failed";
+  const elapsedMs = useElapsedMs(startedAtMs, isRunning);
+
+  useEffect(() => {
+    if (!context.configSummary.profileId) return;
+    seedProfileDefaults(
+      context.configSummary.profileId,
+      context.configSummary.defaults ?? {},
+    );
+  }, [
+    context.configSummary.defaults,
+    context.configSummary.profileId,
+    seedProfileDefaults,
+  ]);
+
+  const clearRemoteAudio = useCallback(() => {
+    if (remoteAudioRef.current) {
+      remoteAudioRef.current.srcObject = null;
+    }
+  }, []);
+
+  const releaseOwnedSession = useCallback(async (
+    reason: "user" | "error" | "page_unload",
+  ) => {
+    abortControllerRef.current?.abort();
+    abortControllerRef.current = null;
+    const handle = sessionHandleRef.current;
+    sessionHandleRef.current = null;
+    clearRemoteAudio();
+    interruptPendingRef.current = false;
+    if (interruptTimeoutRef.current) {
+      clearTimeout(interruptTimeoutRef.current);
+      interruptTimeoutRef.current = null;
+    }
+    if (handle && !handle.closed) {
+      await handle.stop(reason);
+    }
+  }, [clearRemoteAudio]);
+
+  const failSession = useCallback((
+    error: AudioIpcError,
+    generation: number,
+  ) => {
+    if (sessionGenerationRef.current !== generation) return;
+    sessionGenerationRef.current += 1;
+    setLastError(toRealtimeVoiceUiError(error));
+    setStatus("failed");
+    setMicState(error.code === "microphone_permission_denied" ? "denied" : "idle");
+    setSessionId(null);
+    setActiveResponseId(null);
+    setAssistantSpeaking(false);
+    setMuted(false);
+    void releaseOwnedSession("error");
+  }, [
+    releaseOwnedSession,
+    setActiveResponseId,
+    setAssistantSpeaking,
+    setLastError,
+    setMicState,
+    setMuted,
+    setSessionId,
+    setStatus,
+  ]);
 
   useEffect(() => {
     return () => {
-      abortControllerRef.current?.abort();
-      const handle = sessionHandleRef.current;
-      sessionHandleRef.current = null;
-      if (handle && !handle.closed) {
-        void handle.stop("page_unload");
-      }
-      if (remoteAudioRef.current) {
-        remoteAudioRef.current.srcObject = null;
-      }
+      sessionGenerationRef.current += 1;
+      void releaseOwnedSession("page_unload");
+      useRealtimeVoiceStore.getState().resetSessionState();
     };
-  }, []);
+  }, [releaseOwnedSession]);
 
   const handleConnect = useCallback(async () => {
     if (!canStart) {
@@ -265,8 +340,12 @@ function RealtimeVoiceWorkspace({
       return;
     }
 
-    abortControllerRef.current?.abort();
-    abortControllerRef.current = new AbortController();
+    const generation = sessionGenerationRef.current + 1;
+    sessionGenerationRef.current = generation;
+    await releaseOwnedSession("user");
+    if (sessionGenerationRef.current !== generation) return;
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
     resetSessionState();
     setStatus("requesting");
     setMicState("requesting");
@@ -276,23 +355,28 @@ function RealtimeVoiceWorkspace({
     const request = buildRealtimeVoiceSessionConfig(preferences);
     setStatus("connecting");
     const result = await startOpenAIRealtimeWebRtcSession(request, {
-      signal: abortControllerRef.current.signal,
+      signal: controller.signal,
       remoteAudioElement: remoteAudioRef.current ?? undefined,
       handlers: {
         sessionStarted: (event) => {
+          if (sessionGenerationRef.current !== generation) return;
           setSessionId(event.sessionId);
           setStatus("connected");
         },
         micState: (event) => {
+          if (sessionGenerationRef.current !== generation) return;
           setMicState(event.state);
           setMuted(event.state === "muted");
         },
         transcriptDelta: (event) => {
+          if (sessionGenerationRef.current !== generation) return;
+          const partialKey = getRealtimePartialKey(event);
           const current =
-            useRealtimeVoiceStore.getState().partial[event.role] ?? "";
-          setPartial(event.role, `${current}${event.text}`);
+            useRealtimeVoiceStore.getState().partial[partialKey]?.text ?? "";
+          setPartial(partialKey, event.role, `${current}${event.text}`);
         },
         transcriptFinal: (event) => {
+          if (sessionGenerationRef.current !== generation) return;
           addLine(
             createRealtimeVoiceLine({
               id: event.itemId,
@@ -301,26 +385,42 @@ function RealtimeVoiceWorkspace({
               final: true,
             }),
           );
-          clearPartial(event.role);
+          clearPartial(getRealtimePartialKey(event));
         },
         audioStarted: () => {
+          if (sessionGenerationRef.current !== generation) return;
           setAssistantSpeaking(true);
         },
         audioStopped: () => {
+          if (sessionGenerationRef.current !== generation) return;
           setAssistantSpeaking(false);
+          if (interruptPendingRef.current) {
+            interruptPendingRef.current = false;
+            if (interruptTimeoutRef.current) {
+              clearTimeout(interruptTimeoutRef.current);
+              interruptTimeoutRef.current = null;
+            }
+            showToast(t("audio:voice.messages.interrupted"), "success");
+          }
         },
         responseStarted: (event) => {
+          if (sessionGenerationRef.current !== generation) return;
           setActiveResponseId(event.responseId);
         },
         responseCompleted: () => {
+          if (sessionGenerationRef.current !== generation) return;
           setActiveResponseId(null);
           setAssistantSpeaking(false);
         },
         error: (event) => {
-          setLastError(toRealtimeVoiceUiError(event.error));
-          setStatus("failed");
+          if (event.fatal) {
+            failSession(event.error, generation);
+          } else if (sessionGenerationRef.current === generation) {
+            setLastError(toRealtimeVoiceUiError(event.error));
+          }
         },
         sessionClosed: (event) => {
+          if (sessionGenerationRef.current !== generation) return;
           setStatus(getRealtimeVoiceCloseStatus(event.reason));
           setMicState("idle");
           setSessionId(null);
@@ -330,10 +430,20 @@ function RealtimeVoiceWorkspace({
       },
     });
 
+    if (
+      sessionGenerationRef.current !== generation
+      || controller.signal.aborted
+    ) {
+      if (result.ok && !result.data.closed) {
+        await result.data.stop("page_unload");
+      }
+      return;
+    }
+    abortControllerRef.current = null;
     if (!result.ok) {
-      setLastError(toRealtimeVoiceUiError(result.error));
-      setStatus("failed");
-      setMicState(result.error.code === "microphone_permission_denied" ? "denied" : "idle");
+      if (result.error.code !== "aborted") {
+        failSession(result.error, generation);
+      }
       return;
     }
 
@@ -344,7 +454,9 @@ function RealtimeVoiceWorkspace({
     addLine,
     canStart,
     clearPartial,
+    failSession,
     preferences,
+    releaseOwnedSession,
     resetSessionState,
     setActiveResponseId,
     setAssistantSpeaking,
@@ -359,21 +471,24 @@ function RealtimeVoiceWorkspace({
   ]);
 
   const handleDisconnect = useCallback(async () => {
+    sessionGenerationRef.current += 1;
     setStatus("stopping");
-    abortControllerRef.current?.abort();
-    abortControllerRef.current = null;
-    const handle = sessionHandleRef.current;
-    sessionHandleRef.current = null;
-    if (handle && !handle.closed) {
-      await handle.stop("user");
-    } else {
-      setStatus("completed");
-      setMicState("idle");
-    }
-    if (remoteAudioRef.current) {
-      remoteAudioRef.current.srcObject = null;
-    }
-  }, [setMicState, setStatus]);
+    await releaseOwnedSession("user");
+    setStatus("completed");
+    setMicState("idle");
+    setSessionId(null);
+    setActiveResponseId(null);
+    setAssistantSpeaking(false);
+    setMuted(false);
+  }, [
+    releaseOwnedSession,
+    setActiveResponseId,
+    setAssistantSpeaking,
+    setMicState,
+    setMuted,
+    setSessionId,
+    setStatus,
+  ]);
 
   const handleMute = useCallback(() => {
     const nextMuted = !muted;
@@ -385,13 +500,23 @@ function RealtimeVoiceWorkspace({
   }, [muted, setMicState, setMuted]);
 
   const handleInterrupt = useCallback(() => {
-    const sent = sessionHandleRef.current?.sendClientEvent({
+    const handle = sessionHandleRef.current;
+    const cancelSent = handle?.sendClientEvent({
       type: "response.cancel",
     });
-    if (sent) {
+    const clearSent = cancelSent && handle?.sendClientEvent({
+      type: "output_audio_buffer.clear",
+    });
+    if (cancelSent && clearSent) {
+      interruptPendingRef.current = true;
+      if (interruptTimeoutRef.current) clearTimeout(interruptTimeoutRef.current);
+      interruptTimeoutRef.current = setTimeout(() => {
+        if (!interruptPendingRef.current) return;
+        interruptPendingRef.current = false;
+        showToast(t("audio:voice.errors.interrupt_failed"), "error");
+      }, 2000);
       setActiveResponseId(null);
       setAssistantSpeaking(false);
-      showToast(t("audio:voice.messages.interrupted"), "success");
     } else {
       showToast(t("audio:voice.errors.interrupt_failed"), "error");
     }
@@ -447,7 +572,9 @@ function RealtimeVoiceWorkspace({
         <Alert variant="destructive">
           <AlertTriangle className="h-4 w-4" />
           <AlertTitle>{t("audio:voice.errors.title")}</AlertTitle>
-          <AlertDescription>{lastError.message}</AlertDescription>
+          <AlertDescription>
+            {getAudioErrorMessage(t, lastError, lastError.message)}
+          </AlertDescription>
         </Alert>
       ) : null}
 
@@ -471,7 +598,7 @@ function RealtimeVoiceWorkspace({
           type="button"
           variant="outline"
           className="gap-2"
-          disabled={!isRunning}
+          disabled={!canStop}
           onClick={handleDisconnect}
         >
           <PhoneOff className="h-4 w-4" />
@@ -501,7 +628,7 @@ function RealtimeVoiceWorkspace({
           type="button"
           variant="ghost"
           className="gap-2"
-          disabled={lines.length === 0 && !partial.user && !partial.assistant}
+          disabled={lines.length === 0 && Object.keys(partial).length === 0}
           onClick={clearConversation}
         >
           <Trash2 className="h-4 w-4" />
@@ -510,7 +637,7 @@ function RealtimeVoiceWorkspace({
       </div>
 
       <VoiceTimeline
-        lines={lines}
+        lines={lines.slice(-300)}
         partial={partial}
         isRunning={isRunning}
         assistantSpeaking={assistantSpeaking}
@@ -531,8 +658,7 @@ function VoiceTimeline({
   assistantSpeaking: boolean;
 }) {
   const { t } = useTranslation(["audio"]);
-  const partialEntries = Object.entries(partial) as Array<[AudioRole, string]>;
-  const visiblePartial = partialEntries.filter(([, text]) => text);
+  const visiblePartial = Object.entries(partial).filter(([, value]) => value.text);
 
   if (lines.length === 0 && visiblePartial.length === 0) {
     return (
@@ -561,7 +687,12 @@ function VoiceTimeline({
   }
 
   return (
-    <div className="min-h-[300px] space-y-3 rounded-lg border bg-background p-3">
+    <div
+      className="min-h-[300px] space-y-3 rounded-lg border bg-background p-3"
+      role="log"
+      aria-live="polite"
+      aria-relevant="additions text"
+    >
       {lines.map((line) => (
         <VoiceLine
           key={line.id}
@@ -570,8 +701,8 @@ function VoiceTimeline({
           final={line.final}
         />
       ))}
-      {visiblePartial.map(([role, text]) => (
-        <VoiceLine key={role} role={role} text={text} final={false} />
+      {visiblePartial.map(([key, value]) => (
+        <VoiceLine key={key} role={value.role} text={value.text} final={false} />
       ))}
       {assistantSpeaking ? (
         <div className="flex items-center gap-2 rounded-md border border-dashed bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
@@ -612,6 +743,20 @@ function VoiceLine({
       <div>{text}</div>
     </div>
   );
+}
+
+function getRealtimePartialKey(
+  event: Extract<
+    AudioRealtimeSessionEvent,
+    { type: "transcript_delta" | "transcript_final" }
+  >,
+): string {
+  return event.itemId ?? [
+    event.role,
+    event.responseId ?? "input",
+    event.outputIndex ?? 0,
+    event.contentIndex ?? 0,
+  ].join(":");
 }
 
 function VoiceStat({ label, value }: { label: string; value: string }) {

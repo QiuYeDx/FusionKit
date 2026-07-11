@@ -36,6 +36,7 @@ import {
   createAudioRealtimeSessionHandle,
   createRealtimeEphemeralSession,
   mapOpenAIRealtimeServerEvent,
+  startOpenAIRealtimeWebRtcSession,
   transcribeRecordedAudioChunk,
 } from "./audioRealtimeService";
 import {
@@ -45,6 +46,7 @@ import {
   cancelSpeechSynthesisStream,
   synthesizeSpeechStream,
 } from "./speechSynthesisService";
+import { resetAudioRuntimeConfigCacheForTests } from "./audioRuntimeConfigService";
 
 describe("audio renderer services", () => {
   let invoke: ReturnType<typeof vi.fn>;
@@ -53,6 +55,7 @@ describe("audio renderer services", () => {
   let streamListener: ((event: unknown, payload: unknown) => void) | undefined;
 
   beforeEach(() => {
+    resetAudioRuntimeConfigCacheForTests();
     localStorageItems.clear();
     useModelStore.setState({
       profiles: [
@@ -111,7 +114,14 @@ describe("audio renderer services", () => {
     streamListener = undefined;
     invoke = vi.fn(async (channel: string) => {
       if (channel === AUDIO_IPC_CHANNELS.syncRuntimeConfig) {
-        return { ok: true, data: { synced: true, audioProfileCount: 1 } };
+        return {
+          ok: true,
+          data: {
+            synced: true,
+            audioProfileCount: 1,
+            revision: "runtime_revision_test",
+          },
+        };
       }
       if (channel === AUDIO_IPC_CHANNELS.transcribe) {
         return {
@@ -213,13 +223,20 @@ describe("audio renderer services", () => {
       streamListener = listener;
     });
     off = vi.fn();
-    vi.stubGlobal("window", { ipcRenderer: { invoke, on, off } });
+    vi.stubGlobal("window", {
+      audioApi: {
+        invoke: (channel: string, payload: unknown) => invoke(channel, payload),
+        authorizeInputFile: vi.fn(),
+        on,
+        off,
+      },
+    });
   });
 
   it("syncs global audio config before transcription without putting API config in task payload", async () => {
     const result = await transcribeAudio({
       assignmentKey: "transcription",
-      filePath: "/tmp/speech.wav",
+      fileToken: "file_token_speech",
       fileName: "speech.wav",
       mimeType: "audio/wav",
       responseFormat: "json",
@@ -365,13 +382,13 @@ describe("audio renderer services", () => {
       expect.anything(),
     );
 
-    await expect(revealSpeechOutput({ outputPath: "/tmp/speech.mp3" }))
+    await expect(revealSpeechOutput({ outputToken: "output_token_speech" }))
       .resolves.toMatchObject({
         ok: true,
         data: { revealed: true, path: "/tmp/speech.mp3" },
       });
     expect(invoke).toHaveBeenCalledWith(AUDIO_IPC_CHANNELS.revealOutput, {
-      outputPath: "/tmp/speech.mp3",
+      outputToken: "output_token_speech",
     });
   });
 
@@ -477,10 +494,20 @@ describe("audio renderer services", () => {
       { type: "response_started", responseId: "resp_001" },
     ]);
     expect(mapOpenAIRealtimeServerEvent({
-      type: "response.audio_transcript.done",
+      type: "response.output_audio_transcript.done",
+      item_id: "item_001",
+      response_id: "resp_001",
+      content_index: 0,
       transcript: "hi there",
     })).toEqual([
-      { type: "transcript_final", role: "assistant", text: "hi there" },
+      {
+        type: "transcript_final",
+        role: "assistant",
+        text: "hi there",
+        itemId: "item_001",
+        responseId: "resp_001",
+        contentIndex: 0,
+      },
     ]);
     expect(mapOpenAIRealtimeServerEvent({
       type: "error",
@@ -488,6 +515,7 @@ describe("audio renderer services", () => {
     })).toEqual([
       {
         type: "error",
+        fatal: false,
         error: {
           code: "realtime_session_failed",
           message: "session failed",
@@ -531,5 +559,113 @@ describe("audio renderer services", () => {
     expect(events).toEqual([
       { type: "session_closed", reason: "page_unload" },
     ]);
+    expect(mapOpenAIRealtimeServerEvent({
+      type: "response.done",
+      response: { id: "resp_failed", status: "failed" },
+    })).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        type: "response_completed",
+        responseId: "resp_failed",
+        status: "failed",
+      }),
+      expect.objectContaining({ type: "error", fatal: false }),
+    ]));
+  });
+
+  it("releases a late microphone stream when realtime start was aborted", async () => {
+    let resolveStream!: (stream: MediaStream) => void;
+    const trackStop = vi.fn();
+    const getUserMedia = vi.fn(() => new Promise<MediaStream>((resolve) => {
+      resolveStream = resolve;
+    }));
+    const peerConnectionFactory = vi.fn();
+    const controller = new AbortController();
+    const startPromise = startOpenAIRealtimeWebRtcSession(
+      { assignmentKey: "realtimeVoice", mode: "duplex_voice" },
+      { signal: controller.signal, getUserMedia, peerConnectionFactory },
+    );
+
+    await vi.waitFor(() => expect(getUserMedia).toHaveBeenCalledTimes(1));
+    controller.abort();
+    resolveStream({
+      getTracks: () => [{ stop: trackStop } as unknown as MediaStreamTrack],
+    } as MediaStream);
+
+    await expect(startPromise).resolves.toMatchObject({
+      ok: false,
+      error: { code: "aborted" },
+    });
+    expect(trackStop).toHaveBeenCalledTimes(1);
+    expect(peerConnectionFactory).not.toHaveBeenCalled();
+    expect(invoke).toHaveBeenCalledWith(
+      AUDIO_IPC_CHANNELS.realtimeStopSession,
+      expect.objectContaining({
+        sessionId: "sess_renderer_realtime",
+        reason: "page_unload",
+      }),
+    );
+  });
+
+  it("tears down realtime media when the data channel fails", async () => {
+    const dataChannelListeners = new Map<string, EventListener>();
+    const peerConnectionListeners = new Map<string, EventListener>();
+    const dataChannelClose = vi.fn();
+    const peerConnectionClose = vi.fn();
+    const trackStop = vi.fn();
+    const error = vi.fn();
+    const sessionClosed = vi.fn();
+    const dataChannel = {
+      addEventListener: vi.fn((type: string, listener: EventListener) => {
+        dataChannelListeners.set(type, listener);
+      }),
+      close: dataChannelClose,
+      send: vi.fn(),
+    };
+    const peerConnection = {
+      connectionState: "connected",
+      iceConnectionState: "connected",
+      createDataChannel: vi.fn(() => dataChannel),
+      addEventListener: vi.fn((type: string, listener: EventListener) => {
+        peerConnectionListeners.set(type, listener);
+      }),
+      addTrack: vi.fn(),
+      createOffer: vi.fn(async () => ({ type: "offer", sdp: "offer-sdp" })),
+      setLocalDescription: vi.fn(async () => undefined),
+      setRemoteDescription: vi.fn(async () => undefined),
+      close: peerConnectionClose,
+    };
+    const stream = {
+      getAudioTracks: () => [{ stop: trackStop } as unknown as MediaStreamTrack],
+      getTracks: () => [{ stop: trackStop } as unknown as MediaStreamTrack],
+    } as MediaStream;
+
+    const result = await startOpenAIRealtimeWebRtcSession(
+      { assignmentKey: "realtimeVoice", mode: "duplex_voice" },
+      {
+        getUserMedia: async () => stream,
+        peerConnectionFactory: () => peerConnection as unknown as RTCPeerConnection,
+        fetchSdp: async () => ({
+          ok: true,
+          status: 200,
+          text: async () => "answer-sdp",
+        }),
+        handlers: { error, sessionClosed },
+      },
+    );
+    expect(result.ok).toBe(true);
+
+    dataChannelListeners.get("error")?.(new Event("error"));
+    await vi.waitFor(() => {
+      expect(result.ok && result.data.closed).toBe(true);
+    });
+    expect(error).toHaveBeenCalledTimes(1);
+    expect(sessionClosed).toHaveBeenCalledWith(
+      expect.objectContaining({ reason: "error" }),
+    );
+    expect(dataChannelClose).toHaveBeenCalledTimes(1);
+    expect(peerConnectionClose).toHaveBeenCalledTimes(1);
+    expect(trackStop).toHaveBeenCalledTimes(1);
+    expect(peerConnectionListeners.has("connectionstatechange")).toBe(true);
+    expect(peerConnectionListeners.has("iceconnectionstatechange")).toBe(true);
   });
 });

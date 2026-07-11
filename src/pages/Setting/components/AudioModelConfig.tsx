@@ -40,7 +40,9 @@ import { cn } from "@/lib/utils";
 import useModelStore from "@/store/useModelStore";
 import {
   AUDIO_ASSIGNMENT_KEYS,
+  getAudioModelKeyForAssignment,
   getDefaultAudioCapabilities,
+  resolveAudioTranscriptionModelMatrix,
   type AudioApiDialect,
   type AudioAssignmentKey,
   type AudioCapability,
@@ -49,6 +51,7 @@ import {
   type AudioTranscriptionResponseFormat,
   type MimoSpeechSynthesisMode,
 } from "@/type/audio";
+import type { Model } from "@/type/model";
 
 const NONE_VALUE = "__none__";
 
@@ -337,7 +340,7 @@ function AudioProfilesCard() {
                           </Badge>
                         )}
                       </div>
-                      <div className="grid gap-1 text-xs text-muted-foreground md:grid-cols-3">
+                      <div className="grid gap-1 text-xs text-muted-foreground md:grid-cols-4">
                         <ModelLine
                           label={t("setting:fields.audio.model.transcription")}
                           value={profile.models.transcription}
@@ -347,8 +350,12 @@ function AudioProfilesCard() {
                           value={profile.models.speechSynthesis}
                         />
                         <ModelLine
-                          label={t("setting:fields.audio.model.realtime")}
-                          value={profile.models.realtime}
+                          label={t("setting:fields.audio.model.realtimeTranscription")}
+                          value={profile.models.realtimeTranscription ?? profile.models.realtime}
+                        />
+                        <ModelLine
+                          label={t("setting:fields.audio.model.realtimeVoice")}
+                          value={profile.models.realtimeVoice ?? profile.models.realtime}
                         />
                       </div>
                       <div className="flex flex-wrap gap-1.5">
@@ -429,6 +436,7 @@ function AudioProfileDialog({
   const [transcriptionModel, setTranscriptionModel] = useState("");
   const [speechSynthesisModel, setSpeechSynthesisModel] = useState("");
   const [realtimeModel, setRealtimeModel] = useState("");
+  const [realtimeTranscriptionModel, setRealtimeTranscriptionModel] = useState("");
   const [language, setLanguage] = useState("auto");
   const [transcriptionResponseFormat, setTranscriptionResponseFormat] =
     useState<AudioTranscriptionResponseFormat>("json");
@@ -449,7 +457,10 @@ function AudioProfileDialog({
       setAudioDialect(profile.audioDialect);
       setTranscriptionModel(profile.models.transcription ?? "");
       setSpeechSynthesisModel(profile.models.speechSynthesis ?? "");
-      setRealtimeModel(profile.models.realtime ?? "");
+      setRealtimeModel(profile.models.realtimeVoice ?? profile.models.realtime ?? "");
+      setRealtimeTranscriptionModel(
+        profile.models.realtimeTranscription ?? profile.models.realtime ?? "",
+      );
       setLanguage(profile.defaults.language ?? "auto");
       setTranscriptionResponseFormat(
         profile.defaults.transcriptionResponseFormat ?? "json",
@@ -475,6 +486,34 @@ function AudioProfileDialog({
     () => getDefaultAudioCapabilities(audioDialect),
     [audioDialect],
   );
+  const connectionProvider = useMemo(
+    () => profiles.find((item) => item.id === connectionProfileId)?.provider,
+    [connectionProfileId, profiles],
+  );
+  const transcriptionMatrix = useMemo(
+    () =>
+      resolveAudioTranscriptionModelMatrix({
+        audioDialect,
+        provider: connectionProvider,
+        modelKey: transcriptionModel,
+      }),
+    [audioDialect, connectionProvider, transcriptionModel],
+  );
+
+  useEffect(() => {
+    if (
+      open &&
+      audioDialect !== "openai_realtime" &&
+      !transcriptionMatrix.responseFormats.includes(transcriptionResponseFormat)
+    ) {
+      setTranscriptionResponseFormat(transcriptionMatrix.responseFormats[0]);
+    }
+  }, [
+    audioDialect,
+    open,
+    transcriptionMatrix,
+    transcriptionResponseFormat,
+  ]);
 
   const handleDialectChange = (value: string) => {
     const nextDialect = value as AudioApiDialect;
@@ -498,6 +537,7 @@ function AudioProfileDialog({
       setTranscriptionModel("gpt-4o-transcribe");
       setSpeechSynthesisModel("gpt-4o-mini-tts");
       setRealtimeModel("");
+      setRealtimeTranscriptionModel("");
       setLanguage("auto");
       setTranscriptionResponseFormat("json");
       setTtsVoice("alloy");
@@ -512,6 +552,7 @@ function AudioProfileDialog({
       setTranscriptionModel("mimo-v2.5-asr");
       setSpeechSynthesisModel("mimo-v2.5-tts");
       setRealtimeModel("mimo-v2.5-asr");
+      setRealtimeTranscriptionModel("");
       setLanguage("auto");
       setTranscriptionResponseFormat("json");
       setTtsVoice("mimo_default");
@@ -525,6 +566,7 @@ function AudioProfileDialog({
     setTranscriptionModel("");
     setSpeechSynthesisModel("");
     setRealtimeModel("gpt-realtime");
+    setRealtimeTranscriptionModel("gpt-realtime-whisper");
     setLanguage("auto");
     setTranscriptionResponseFormat("json");
     setTtsVoice("");
@@ -544,14 +586,20 @@ function AudioProfileDialog({
       toast.error(t("setting:fields.audio.profile.connection_required"));
       return;
     }
+    if (!connectionProvider) {
+      toast.error(t("setting:fields.audio.profile.connection_required"));
+      return;
+    }
 
     const data = createAudioProfileInput({
       name: trimmedName,
       connectionProfileId,
+      provider: connectionProvider,
       audioDialect,
       transcriptionModel,
       speechSynthesisModel,
       realtimeModel,
+      realtimeTranscriptionModel,
       language,
       transcriptionResponseFormat,
       ttsVoice,
@@ -757,24 +805,21 @@ function AudioProfileDialog({
                   placeholder="mimo_default"
                 />
               </div>
-              <div className="space-y-2">
-                <Label>{t("setting:fields.audio.model.realtime")}</Label>
-                <Input
-                  value={realtimeModel}
-                  onChange={(event) => setRealtimeModel(event.target.value)}
-                  placeholder="mimo-v2.5-asr"
-                />
-                <p className="text-xs text-muted-foreground">
-                  {t("setting:fields.audio.model.realtime_mimo_hint")}
-                </p>
-              </div>
             </div>
           )}
 
           {audioDialect === "openai_realtime" && (
-            <div className="grid gap-4 md:grid-cols-2">
+            <div className="grid gap-4 md:grid-cols-3">
               <div className="space-y-2">
-                <Label>{t("setting:fields.audio.model.realtime")}</Label>
+                <Label>{t("setting:fields.audio.model.realtimeTranscription")}</Label>
+                <Input
+                  value={realtimeTranscriptionModel}
+                  onChange={(event) => setRealtimeTranscriptionModel(event.target.value)}
+                  placeholder="gpt-realtime-whisper"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>{t("setting:fields.audio.model.realtimeVoice")}</Label>
                 <Input
                   value={realtimeModel}
                   onChange={(event) => setRealtimeModel(event.target.value)}
@@ -815,9 +860,7 @@ function AudioProfileDialog({
                         key={format}
                         value={format}
                         disabled={
-                          audioDialect === "mimo_chat_audio" &&
-                          format !== "json" &&
-                          format !== "text"
+                          !transcriptionMatrix.responseFormats.includes(format)
                         }
                       >
                         {format}
@@ -899,10 +942,12 @@ function AudioProfileDialog({
 function createAudioProfileInput(args: {
   name: string;
   connectionProfileId: string;
+  provider: Model;
   audioDialect: AudioApiDialect;
   transcriptionModel: string;
   speechSynthesisModel: string;
   realtimeModel: string;
+  realtimeTranscriptionModel: string;
   language: string;
   transcriptionResponseFormat: AudioTranscriptionResponseFormat;
   ttsVoice: string;
@@ -918,11 +963,18 @@ function createAudioProfileInput(args: {
   if (args.audioDialect === "openai_audio" || args.audioDialect === "mimo_chat_audio") {
     models.speechSynthesis = normalizeOptional(args.speechSynthesisModel);
   }
-  if (args.audioDialect === "openai_realtime" || args.audioDialect === "mimo_chat_audio") {
-    models.realtime = normalizeOptional(
-      args.realtimeModel || args.transcriptionModel,
+  if (args.audioDialect === "openai_realtime") {
+    models.realtimeTranscription = normalizeOptional(
+      args.realtimeTranscriptionModel,
     );
+    models.realtimeVoice = normalizeOptional(args.realtimeModel);
   }
+
+  const transcriptionMatrix = resolveAudioTranscriptionModelMatrix({
+    audioDialect: args.audioDialect,
+    provider: args.provider,
+    modelKey: models.transcription,
+  });
 
   return {
     name: args.name,
@@ -931,12 +983,11 @@ function createAudioProfileInput(args: {
     models,
     defaults: {
       language: args.language,
-      transcriptionResponseFormat:
-        args.audioDialect === "mimo_chat_audio" &&
-        args.transcriptionResponseFormat !== "json" &&
-        args.transcriptionResponseFormat !== "text"
-          ? "json"
-          : args.transcriptionResponseFormat,
+      transcriptionResponseFormat: transcriptionMatrix.responseFormats.includes(
+        args.transcriptionResponseFormat,
+      )
+        ? args.transcriptionResponseFormat
+        : transcriptionMatrix.responseFormats[0],
       ttsVoice: normalizeOptional(args.ttsVoice),
       ttsResponseFormat:
         args.audioDialect === "mimo_chat_audio" &&
@@ -975,15 +1026,7 @@ function getProfileModelKey(
   profile: AudioModelProfile,
   assignmentKey: AudioAssignmentKey,
 ): string | undefined {
-  switch (assignmentKey) {
-    case "transcription":
-      return profile.models.transcription;
-    case "speechSynthesis":
-      return profile.models.speechSynthesis;
-    case "realtimeCaptions":
-    case "realtimeVoice":
-      return profile.models.realtime;
-  }
+  return getAudioModelKeyForAssignment(profile, assignmentKey);
 }
 
 function resolveProfileCapabilities(profile: AudioModelProfile): AudioCapability[] {

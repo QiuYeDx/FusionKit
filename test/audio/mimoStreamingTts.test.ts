@@ -81,7 +81,7 @@ describe("MiMo streaming TTS runtime", () => {
     expect(result).toMatchObject({
       outputPath: path.join(activeTempRoot, "mimo-stream-preset.wav"),
       mimeType: "audio/wav",
-      responseFormat: "pcm16",
+      responseFormat: "wav",
       sizeBytes: 44 + Buffer.concat(pcmChunks).byteLength,
       model: "mimo-v2.5-tts",
       streamStats: {
@@ -181,7 +181,7 @@ describe("MiMo streaming TTS runtime", () => {
     expect(result).toMatchObject({
       outputPath: path.join(activeTempRoot, "mimo-stream-design.wav"),
       model: "mimo-v2.5-tts-voicedesign",
-      responseFormat: "pcm16",
+      responseFormat: "wav",
       streamStats: { chunkCount: 1, streamMode: "incremental" },
     });
     expect(activeServer.requests[0].body).toMatchObject({
@@ -204,7 +204,11 @@ describe("MiMo streaming TTS runtime", () => {
     const activeServer = requireServer(server);
     const activeTempRoot = requireTempRoot(tempRoot);
     const referencePath = path.join(activeTempRoot, "reference.mp3");
-    await writeFile(referencePath, Buffer.from([9, 10, 11, 12]));
+    const referenceBytes = Buffer.concat([
+      Buffer.from("ID3", "ascii"),
+      Buffer.from([9, 10, 11, 12]),
+    ]);
+    await writeFile(referencePath, referenceBytes);
     activeServer.enqueueRoute("mimo_chat_completions", {
       sseEvents: createMimoStreamingSpeechEvents({
         audioBase64Chunks: [createPcm16Chunk([7, 8]).toString("base64")],
@@ -237,7 +241,7 @@ describe("MiMo streaming TTS runtime", () => {
     expect(result).toMatchObject({
       outputPath: path.join(activeTempRoot, "mimo-stream-clone.wav"),
       model: "mimo-v2.5-tts-voiceclone",
-      responseFormat: "pcm16",
+      responseFormat: "wav",
       streamStats: { chunkCount: 1, streamMode: "incremental" },
     });
     expect(activeServer.requests[0].body).toMatchObject({
@@ -247,7 +251,7 @@ describe("MiMo streaming TTS runtime", () => {
         { role: "assistant", content: "hello from FusionKit" },
       ],
       audio: {
-        voice: "data:audio/mpeg;base64,CQoLDA==",
+        voice: `data:audio/mpeg;base64,${referenceBytes.toString("base64")}`,
         format: "pcm16",
       },
     });

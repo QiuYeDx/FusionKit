@@ -102,7 +102,8 @@
       "timestamps": "タイムスタンプは OpenAI の詳細 JSON 出力でのみ有効です。MiMo のドキュメントにはこの能力はありません。",
       "prompt": "固有名詞や文脈の補足に使えます。MiMo ASR は現在 prompt に対応していません。",
       "stream": "ファイルのストリーミング文字起こしとリアルタイム字幕は別の能力です。",
-      "stream_disabled": "初版のファイル文字起こし画面は非ストリーミング経路を使います。マイク字幕には「リアルタイム字幕」を使ってください。",
+      "stream_enabled": "このモデルは SSE によるファイル文字起こしに対応します。ストリーム完了後に最終結果を表示します。",
+      "stream_disabled": "選択した文字起こしモデルはファイルストリーミングに対応していません。",
       "output_mode": "元フォルダまたは任意フォルダを選ぶと、完了時に文字起こしファイルを書き出します。"
     },
     "placeholders": {
@@ -127,6 +128,7 @@
       "running": "文字起こし中",
       "copy": "コピー",
       "open_output": "フォルダを開く",
+      "save_result": "結果を保存",
       "save_next_run": "次回保存"
     },
     "status": {
@@ -150,7 +152,8 @@
       "output_path_selected": "出力フォルダを選択しました",
       "completed": "文字起こしが完了しました",
       "cancelled": "文字起こしをキャンセルしました",
-      "copied": "文字起こし結果をコピーしました"
+      "copied": "文字起こし結果をコピーしました",
+      "saved": "文字起こし結果の保存を開始しました"
     },
     "errors": {
       "title": "文字起こしに失敗しました",
@@ -162,7 +165,10 @@
       "output_dir_required": "任意フォルダモードを使う前に出力フォルダを選択してください。",
       "output_dir_select_failed": "出力フォルダの選択に失敗しました。",
       "output_not_ready": "開ける出力ファイルはまだありません。",
-      "copy_failed": "コピーに失敗しました。手動で結果をコピーしてください。"
+      "copy_failed": "コピーに失敗しました。手動で結果をコピーしてください。",
+      "cancel_failed": "文字起こしリクエストをキャンセルできませんでした。",
+      "save_failed": "現在の文字起こし結果を保存できませんでした。",
+      "unsupported_model": "選択したモデルは現在の文字起こしプロトコルに対応していません。"
     }
   },
   "speech": {
@@ -324,7 +330,9 @@
     },
     "input_audio_format": {
       "pcm16": "PCM16",
-      "opus": "Opus"
+      "opus": "Opus",
+      "pcmu": "PCMU（G.711 μ-law）",
+      "pcma": "PCMA（G.711 A-law）"
     },
     "turn_detection": {
       "server_vad": "サーバー VAD",
@@ -367,7 +375,9 @@
       "mode": "モード",
       "mic": "マイク",
       "lines": "字幕行",
-      "elapsed": "経過"
+      "elapsed": "経過",
+      "input_level": "入力レベル",
+      "session": "セッション"
     },
     "chunked": {
       "title": "分割ニアリアルタイム",
@@ -377,6 +387,8 @@
       "start": "リアルタイム字幕を開始",
       "listening": "リスニング中",
       "stop": "停止",
+      "pause": "一時停止",
+      "resume": "再開",
       "copy": "コピー",
       "save": "保存",
       "clear": "クリア"
@@ -430,7 +442,9 @@
     },
     "audio_format": {
       "pcm16": "PCM16",
-      "opus": "Opus"
+      "opus": "Opus",
+      "pcmu": "PCMU（G.711 μ-law）",
+      "pcma": "PCMA（G.711 A-law）"
     },
     "status": {
       "idle": "未接続",
@@ -489,5 +503,30 @@
       "unsupported_profile": "現在のグローバル音声設定は Realtime/WebRTC 双方向音声に対応していません。",
       "interrupt_failed": "中断コマンドを送信できません。セッションが接続中か確認してください。"
     }
+  },
+  "runtime_error": {
+    "invalid_request": "音声リクエストが無効です。",
+    "profile_not_configured": "先に音声プロファイルを設定してください。",
+    "connection_not_configured": "音声接続プロファイルがありません。",
+    "model_not_configured": "必要な音声モデルを設定してください。",
+    "unsupported_capability": "この音声プロファイルは操作をサポートしていません。",
+    "unsupported_format": "このモデルは選択した音声形式をサポートしていません。",
+    "microphone_denied": "マイクへのアクセスが拒否されました。",
+    "file_too_large": "選択した音声ファイルが大きすぎます。",
+    "file_read_failed": "選択した音声ファイルを読み取れません。",
+    "output_write_failed": "音声出力を保存できません。",
+    "stream_parse_failed": "音声ストリームを解析できません。",
+    "realtime_failed": "リアルタイム音声セッションに失敗しました。",
+    "network": "音声サービスに接続できません。",
+    "timeout": "音声リクエストがタイムアウトしました。",
+    "unauthorized": "音声 API 認証情報が拒否されました。",
+    "forbidden": "音声 API ではこの操作が許可されていません。",
+    "rate_limited": "音声サービスの利用制限中です。後で再試行してください。",
+    "service_unavailable": "音声サービスは一時的に利用できません。",
+    "request_rejected": "音声サービスがリクエストを拒否しました。",
+    "empty_response": "音声サービスから空の応答が返されました。",
+    "invalid_response": "音声サービスから無効な応答が返されました。",
+    "aborted": "音声操作はキャンセルされました。",
+    "renderer": "音声ページで操作を完了できませんでした。"
   }
 }

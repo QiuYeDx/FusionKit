@@ -1,10 +1,15 @@
 import type {
   AudioApiDialect,
+  AudioModelProfile,
   AudioOutputPathMode,
   AudioTimestampGranularity,
+  AudioTranscriptionModelContext,
+  AudioTranscriptionModelMatrix,
   AudioTranscriptionResponseFormat,
-  CreateAudioTranscriptionRequest,
 } from "@/type/audio";
+import { resolveAudioTranscriptionModelMatrix } from "@/type/audio";
+import type { CreateAudioTranscriptionIpcRequest } from "@/type/audioIpc";
+import type { Model } from "@/type/model";
 
 export type AudioTranscriberOutputMode = "display_only" | Extract<
   AudioOutputPathMode,
@@ -14,6 +19,7 @@ export type AudioTranscriberOutputMode = "display_only" | Extract<
 export interface SelectedAudioInput {
   fileName: string;
   filePath: string;
+  fileToken: string;
   mimeType: AudioTranscriberMimeType;
   sizeBytes: number;
   modifiedAt?: number;
@@ -28,6 +34,15 @@ export interface AudioTranscriberPreferences {
   outputMode: AudioTranscriberOutputMode;
   outputDir: string;
 }
+
+export type AudioTranscriberProfileDefaultKey = "language" | "responseFormat";
+
+export type AudioTranscriberProfileDefaultOverrides = Partial<
+  Record<AudioTranscriberProfileDefaultKey, true>
+>;
+
+export interface AudioTranscriberProfileContext
+  extends AudioTranscriptionModelContext {}
 
 export type AudioTranscriberMimeType =
   | "audio/wav"
@@ -127,17 +142,15 @@ export function getAudioTranscriberAccept(
 }
 
 export function getAudioTranscriberResponseFormats(
-  dialect?: AudioApiDialect,
+  context?: AudioApiDialect | AudioTranscriberProfileContext,
 ): AudioTranscriptionResponseFormat[] {
-  if (dialect === "mimo_chat_audio") {
-    return ["json", "text"];
-  }
-  return ["json", "text", "srt", "verbose_json", "vtt"];
+  return resolveAudioTranscriberModelMatrix(context).responseFormats;
 }
 
 export function getAudioTranscriberLanguages(
-  dialect?: AudioApiDialect,
+  context?: AudioApiDialect | AudioTranscriberProfileContext,
 ): string[] {
+  const dialect = resolveAudioTranscriberProfileContext(context).audioDialect;
   if (dialect === "mimo_chat_audio") {
     return ["auto", "zh", "en"];
   }
@@ -223,10 +236,13 @@ export function validateAudioTranscriberFile(
 
 export function normalizeAudioTranscriberPreferencesForDialect(
   preferences: AudioTranscriberPreferences,
-  dialect?: AudioApiDialect,
+  context?: AudioApiDialect | AudioTranscriberProfileContext,
 ): AudioTranscriberPreferences {
-  const responseFormats = getAudioTranscriberResponseFormats(dialect);
-  const languages = getAudioTranscriberLanguages(dialect);
+  const profileContext = resolveAudioTranscriberProfileContext(context);
+  const dialect = profileContext.audioDialect;
+  const matrix = resolveAudioTranscriptionModelMatrix(profileContext);
+  const responseFormats = matrix.responseFormats;
+  const languages = getAudioTranscriberLanguages(profileContext);
   const responseFormat = responseFormats.includes(preferences.responseFormat)
     ? preferences.responseFormat
     : responseFormats[0];
@@ -243,7 +259,7 @@ export function normalizeAudioTranscriberPreferencesForDialect(
       responseFormat,
       timestampGranularities: [],
       prompt: "",
-      stream: false,
+      stream: matrix.supportsStream && preferences.stream,
     };
   }
 
@@ -251,12 +267,48 @@ export function normalizeAudioTranscriberPreferencesForDialect(
     ...preferences,
     language,
     responseFormat,
-    stream: false,
+    prompt: matrix.supportsPrompt ? preferences.prompt : "",
+    stream: matrix.supportsStream && preferences.stream,
     timestampGranularities:
-      responseFormat === "verbose_json"
+      matrix.supportsTimestampGranularities && responseFormat === "verbose_json"
         ? preferences.timestampGranularities
         : [],
   };
+}
+
+export function resolveAudioTranscriberModelMatrix(
+  context?: AudioApiDialect | AudioTranscriberProfileContext,
+): AudioTranscriptionModelMatrix {
+  return resolveAudioTranscriptionModelMatrix(
+    resolveAudioTranscriberProfileContext(context),
+  );
+}
+
+export function seedAudioTranscriberPreferencesFromProfile(
+  preferences: AudioTranscriberPreferences,
+  defaults: AudioModelProfile["defaults"],
+  overrides: AudioTranscriberProfileDefaultOverrides,
+): AudioTranscriberPreferences {
+  return {
+    ...preferences,
+    ...(!overrides.language && defaults.language
+      ? { language: defaults.language }
+      : {}),
+    ...(!overrides.responseFormat && defaults.transcriptionResponseFormat
+      ? { responseFormat: defaults.transcriptionResponseFormat }
+      : {}),
+  };
+}
+
+export function createAudioTranscriberProfileSeedKey(
+  profileId: string,
+  defaults: AudioModelProfile["defaults"],
+): string {
+  return JSON.stringify([
+    profileId,
+    defaults.language ?? null,
+    defaults.transcriptionResponseFormat ?? null,
+  ]);
 }
 
 export function buildAudioTranscriptionRequest(options: {
@@ -264,15 +316,23 @@ export function buildAudioTranscriptionRequest(options: {
   file: SelectedAudioInput;
   preferences: AudioTranscriberPreferences;
   dialect?: AudioApiDialect;
-}): CreateAudioTranscriptionRequest {
+  provider?: Model;
+  modelKey?: string;
+}): CreateAudioTranscriptionIpcRequest {
+  const profileContext: AudioTranscriberProfileContext = {
+    audioDialect: options.dialect,
+    provider: options.provider,
+    modelKey: options.modelKey,
+  };
+  const matrix = resolveAudioTranscriptionModelMatrix(profileContext);
   const preferences = normalizeAudioTranscriberPreferencesForDialect(
     options.preferences,
-    options.dialect,
+    profileContext,
   );
-  const request: CreateAudioTranscriptionRequest = {
+  const request: CreateAudioTranscriptionIpcRequest = {
     assignmentKey: "transcription",
     requestId: options.requestId,
-    filePath: options.file.filePath,
+    fileToken: options.file.fileToken,
     fileName: options.file.fileName,
     mimeType: options.file.mimeType,
     responseFormat: preferences.responseFormat,
@@ -284,17 +344,17 @@ export function buildAudioTranscriptionRequest(options: {
   ) {
     request.language = preferences.language;
   }
-  if (options.dialect !== "mimo_chat_audio" && preferences.prompt.trim()) {
+  if (matrix.supportsPrompt && preferences.prompt.trim()) {
     request.prompt = preferences.prompt.trim();
   }
   if (
-    options.dialect !== "mimo_chat_audio" &&
+    matrix.supportsTimestampGranularities &&
     preferences.responseFormat === "verbose_json" &&
     preferences.timestampGranularities.length > 0
   ) {
     request.timestampGranularities = preferences.timestampGranularities;
   }
-  if (options.dialect !== "mimo_chat_audio" && preferences.stream) {
+  if (matrix.supportsStream && preferences.stream) {
     request.stream = true;
   }
   if (preferences.outputMode !== "display_only") {
@@ -305,6 +365,12 @@ export function buildAudioTranscriptionRequest(options: {
   }
 
   return request;
+}
+
+function resolveAudioTranscriberProfileContext(
+  context?: AudioApiDialect | AudioTranscriberProfileContext,
+): AudioTranscriberProfileContext {
+  return typeof context === "string" ? { audioDialect: context } : context ?? {};
 }
 
 function normalizeAudioTranscriberMimeType(

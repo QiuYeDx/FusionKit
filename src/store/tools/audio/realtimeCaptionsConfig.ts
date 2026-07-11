@@ -25,7 +25,7 @@ export type RealtimeCaptionsMode =
 export interface RealtimeCaptionsPreferences {
   language: RealtimeCaptionsLanguage;
   instructions: string;
-  inputAudioFormat: "pcm16" | "opus";
+  inputAudioFormat: "pcm16" | "pcmu" | "pcma";
   turnDetection: "server_vad" | "manual";
   outputFormat: RealtimeCaptionsOutputFormat;
   showAssistantTranscript: boolean;
@@ -119,7 +119,14 @@ export function normalizeRealtimeCaptionsPreferences(
       showAssistantTranscript: false,
     };
   }
-  return preferences;
+  return {
+    ...preferences,
+    // Realtime transcription sessions do not produce assistant responses, and
+    // gpt-realtime-whisper does not accept a prompt today.
+    instructions: "",
+    showAssistantTranscript: false,
+    turnDetection: "server_vad",
+  };
 }
 
 export function buildRealtimeCaptionsSessionConfig(

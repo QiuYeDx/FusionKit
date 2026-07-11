@@ -20,7 +20,7 @@ import {
 import { TOOL_META, type ToolKey } from "@/pages/Tools/_shared/toolMeta";
 import useModelStore from "@/store/useModelStore";
 import {
-  resolveAudioToolConfigSummary,
+  createAudioToolConfigSummarySelector,
   type AudioToolConfigStatus,
   type AudioToolConfigSummary,
 } from "@/store/tools/audio/audioToolConfig";
@@ -61,9 +61,11 @@ export function AudioToolShell({
   const { t } = useTranslation(["audio", "common", "setting"]);
   const navigate = useNavigate();
   const meta = TOOL_META[toolKey];
-  const configSummary = useModelStore((state) =>
-    resolveAudioToolConfigSummary(state, assignmentKey),
+  const configSummarySelector = useMemo(
+    () => createAudioToolConfigSummarySelector(assignmentKey),
+    [assignmentKey],
   );
+  const configSummary = useModelStore(configSummarySelector);
   const statusTone = resolveStatusTone(configSummary.status);
   const modelValue = configSummary.modelKey ?? "-";
   const dialectValue = configSummary.audioDialect

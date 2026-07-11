@@ -3,7 +3,7 @@
 > 日期：2026-07-09
 > Feature Slug：`audio-toolkit`
 > 对应设计文档：`docs/v0.2.11/audio-toolkit/audio-toolkit_final_design.md`
-> 当前状态：`PRE-001`、`CORE-001`、`CORE-002`、`BE-001`、`BE-002`、`BE-003`、`BE-004`、`BE-005`、`FE-001`、`FE-002`、`FE-003`、`FE-004`、`FE-005`、`FE-006`、`DOC-001` 已完成；开发与发布文档工作包已闭环，后续进入 QA
+> 当前状态：`FIX-001`～`FIX-007`、`AUDIT-001`、`QA-001` 已完成。TypeScript、四语言 1410 keys、全量 73 files / 560 tests、Vite test build，以及四路由×四语言×1280×800/786×540 Electron 矩阵均通过；真实 API、麦克风、扬声器和 WebRTC 会话仍由 `QA-002` 验收，完成前不进入发布。
 
 ---
 
@@ -110,8 +110,9 @@
 | M1 全局设置可用 | `CORE-001`、`FE-001` 完成，设置页能创建音频 profile 并设置四类 assignment |
 | M2 共享基础闭环 | `CORE-002` 完成，endpoint、文件读写、输出命名、流式 PCM/WAV 和错误类型稳定 |
 | M3 文件 ASR/TTS 闭环 | `BE-001`、`BE-002`、`FE-003`、`FE-004` 完成，OpenAI/MiMo 文件 ASR/TTS 可用 |
-| M4 流式与实时闭环 | `BE-003`、`BE-004`、`BE-005`、`FE-005`、`FE-006` 完成，MiMo 流式 TTS、实时字幕、双向语音可用 |
-| M5 发布候选 | `QA-001`、`QA-002`、`DOC-001` 完成，自动化、Electron 手工验收、真实供应商验收和文档同步闭环 |
+| M4 流式与实时实现完成 | `BE-003`、`BE-004`、`BE-005`、`FE-005`、`FE-006` 已完成初版实现；`AUDIT-001` 已确认仍需协议、资源生命周期和安全修复，尚不能视为发布可用 |
+| M4.5 审计阻断清零 | `FIX-001` 至 `FIX-004` 完成，白屏、IPC 信任边界、资源生命周期和 OpenAI Realtime GA 契约均闭环 |
+| M5 发布候选 | `FIX-005` 至 `FIX-007`、`QA-001`、`QA-002`、`DOC-001` 完成，自动化、Electron 手工验收、真实供应商验收和文档同步闭环 |
 
 ## 5. 进度台账
 
@@ -131,7 +132,15 @@
 | FE-004 | 已完成 | 2026-07-09 | 文本转音频页面与流式播放 | `src/pages/Tools/Audio/SpeechSynthesizer/index.tsx`、`src/pages/Tools/Audio/shared/pcm16StreamPlayer.ts`、`src/store/tools/audio/useSpeechSynthesizerStore.ts`、`src/store/tools/audio/speechSynthesizerConfig.ts`、`src/store/tools/audio/speechSynthesizerConfig.test.ts`、`src/locales/*/audio.json`、`src/type/audio.ts`、`src/type/audioIpc.ts`、`electron/main/audio/ipc.ts`、`src/services/audio/speechSynthesisService.ts` | `node -e` JSON 解析通过；`node_modules/.bin/vitest run src/store/tools/audio/speechSynthesizerConfig.test.ts src/type/audioIpc.test.ts test/audio/audioIpcService.test.ts src/services/audio/audioServices.test.ts` 通过，4 files / 30 tests；`node_modules/.bin/tsc --noEmit` 通过；`node scripts/check-i18n.mjs` 通过，audio 204 keys x 4 locales；`node_modules/.bin/vitest run test/audio src/type/audioIpc.test.ts src/store/useModelStore.test.ts src/lib/audio-profile.test.ts src/lib/audio-endpoint.test.ts src/services/audio/audioServices.test.ts src/store/tools/audio/audioToolConfig.test.ts src/store/tools/audio/audioTranscriberConfig.test.ts src/store/tools/audio/speechSynthesizerConfig.test.ts` 通过，17 files / 99 tests；`git diff --check` 通过 | `docs/v0.2.11/audio-toolkit/audio-toolkit_implementation_records/2026-07-09_FE-004_speech-synthesizer-page.md` | 未启动 Electron 做视觉验收；OpenAI/MiMo 真实 TTS 与三模式低延迟流式仍需 QA-002 验证 |
 | FE-005 | 已完成 | 2026-07-09 | 实时字幕页面 | `src/pages/Tools/Audio/RealtimeCaptions/index.tsx`、`src/pages/Tools/Audio/shared/wavChunkRecorder.ts`、`src/store/tools/audio/useRealtimeCaptionsStore.ts`、`src/store/tools/audio/realtimeCaptionsConfig.ts`、`src/store/tools/audio/realtimeCaptionsConfig.test.ts`、`src/services/audio/audioRealtimeService.ts`、`src/type/audioIpc.ts`、`electron/main/audio/ipc.ts`、`src/locales/*/audio.json` | `node -e` JSON 解析通过；`node_modules/.bin/vitest run src/type/audioIpc.test.ts test/audio/audioIpcService.test.ts src/services/audio/audioServices.test.ts src/store/tools/audio/realtimeCaptionsConfig.test.ts` 通过，4 files / 33 tests；`node_modules/.bin/tsc --noEmit` 通过；`node scripts/check-i18n.mjs` 通过，audio 275 keys x 4 locales；`node_modules/.bin/vitest run test/audio src/type/audioIpc.test.ts src/store/useModelStore.test.ts src/lib/audio-profile.test.ts src/lib/audio-endpoint.test.ts src/services/audio/audioServices.test.ts src/store/tools/audio/audioToolConfig.test.ts src/store/tools/audio/audioTranscriberConfig.test.ts src/store/tools/audio/speechSynthesizerConfig.test.ts src/store/tools/audio/realtimeCaptionsConfig.test.ts` 通过，18 files / 107 tests；`git diff --check` 通过 | `docs/v0.2.11/audio-toolkit/audio-toolkit_implementation_records/2026-07-09_FE-005_realtime-captions-page.md` | 未启动 Electron 做麦克风/WebRTC 视觉验收；OpenAI Realtime 与 MiMo/分块近实时真实供应商验收仍需 QA-002 |
 | FE-006 | 已完成 | 2026-07-09 | Realtime/WebRTC 双向语音页面 | `src/pages/Tools/Audio/RealtimeVoice/index.tsx`、`src/store/tools/audio/useRealtimeVoiceStore.ts`、`src/store/tools/audio/realtimeVoiceConfig.ts`、`src/store/tools/audio/realtimeVoiceConfig.test.ts`、`src/services/audio/audioRealtimeService.ts`、`src/locales/*/audio.json` | `node -e` JSON 解析通过；`node_modules/.bin/vitest run src/store/tools/audio/realtimeVoiceConfig.test.ts src/services/audio/audioServices.test.ts test/audio/audioRealtimeSession.test.ts` 通过，3 files / 17 tests；`node_modules/.bin/tsc --noEmit` 通过；`node scripts/check-i18n.mjs` 通过，audio 329 keys x 4 locales；`node_modules/.bin/vitest run test/audio src/type/audioIpc.test.ts src/store/useModelStore.test.ts src/lib/audio-profile.test.ts src/lib/audio-endpoint.test.ts src/services/audio/audioServices.test.ts src/store/tools/audio/audioToolConfig.test.ts src/store/tools/audio/audioTranscriberConfig.test.ts src/store/tools/audio/speechSynthesizerConfig.test.ts src/store/tools/audio/realtimeCaptionsConfig.test.ts src/store/tools/audio/realtimeVoiceConfig.test.ts` 通过，19 files / 110 tests；`git diff --check` 通过 | `docs/v0.2.11/audio-toolkit/audio-toolkit_implementation_records/2026-07-09_FE-006_realtime-voice-page.md` | 未启动 Electron 做真实 WebRTC/麦克风/远端音轨验收；仍需 QA-002 |
-| QA-001 | 未开始 | — | 自动化回归矩阵 | `test/audio/*`、`src/type/audioIpc.test.ts`、`src/store/useModelStore.test.ts`、必要的页面纯函数测试 | `node_modules/.bin/vitest run test/audio src/type/audioIpc.test.ts src/store/useModelStore.test.ts`；`node_modules/.bin/tsc --noEmit`；`node scripts/check-i18n.mjs`；`git diff --check` | — | 覆盖成功、空响应、鉴权失败、限流、重试、超时、取消、文件过大、stream final-only |
+| FIX-001 | 已完成 | 2026-07-10 | 修复四个音频页 React 19 / Zustand snapshot 无限更新白屏 | `src/store/tools/audio/audioToolConfig.ts`、`src/store/tools/audio/audioToolConfig.test.ts`、`src/pages/Tools/Audio/shared/AudioToolShell.tsx`、`docs/v0.2.11/audio-toolkit/fix/2026-07-10_audio-toolkit-react19-zustand-snapshot-white-screen.md` | selector 回归 1 file / 4 tests；音频回归 19 files / 111 tests；`tsc --noEmit`、i18n、Vite test build 通过；Electron 等待全局 loading 退出后四路由真实挂载，无 console error / pageerror | `docs/v0.2.11/audio-toolkit/audio-toolkit_implementation_records/2026-07-10_FIX-001_AUDIT-001_audio-pages-stability-audit.md` | 无；白屏已闭环 |
+| AUDIT-001 | 已完成 | 2026-07-10 | 四个音频工具页发布前缺陷审计 | `docs/v0.2.11/audio-toolkit/fix/2026-07-10_audio-toolkit-four-page-release-audit.md`、音频 renderer/service/IPC/runtime/adapter/test 全链路 | 静态审计；19 files / 111 tests；`tsc --noEmit`、i18n、Vite test build；Electron 四路由 smoke | `docs/v0.2.11/audio-toolkit/audio-toolkit_implementation_records/2026-07-10_FIX-001_AUDIT-001_audio-pages-stability-audit.md` | 6 个 P0、23 个 P1、14 个 P2；先处理 `FIX-002`～`FIX-004` |
+| FIX-002 | 已完成 | 2026-07-11 | 音频 IPC 信任边界与文件 ownership | 窄 audioApi、sender capability、file/output token、revision、controller ownership、TTL | 全量 Vitest、TypeScript、Vite test build 与 Electron matrix 通过 | `2026-07-11_FIX-002-FIX-007_audio-audit-fix-closure.md` | 无 |
+| FIX-003 | 已完成 | 2026-07-11 | Realtime/录音生命周期与上传队列背压 | generation/abort/failSession、PC/DC/ICE teardown、recorder finally、bounded queue | recorder/queue/service 与全量回归通过；补充流式 abort 语义回归 | 同上 | 无 |
+| FIX-004 | 已完成 | 2026-07-11 | OpenAI Realtime GA 协议与模型合同 | GA/legacy mapper、模型拆分、PCM/PCMU/PCMA、manual 禁用、identity/status/clear | GA fixture、全量 Vitest 与 Electron route matrix 通过 | 同上 | 真实 WebRTC 会话归 QA-002 |
+| FIX-005 | 已完成 | 2026-07-11 | TTS 流式播放、输出与任务状态正确性 | player drain、generation、SSE decoder/cap、strict response、atomic output、token media | streaming/runtime/player 与全量回归通过 | 同上 | 真实供应商音质/延迟归 QA-002 |
+| FIX-006 | 已完成 | 2026-07-11 | ASR 供应商矩阵与全局 Profile 默认值 | OpenAI/MiMo matrix、save/cancel、chunk model、defaults seed/migration | config/runtime/file fixture 与全量回归通过 | 同上 | 真实供应商识别质量归 QA-002 |
+| FIX-007 | 已完成 | 2026-07-11 | 四页 UX、可访问性、i18n 与视觉 QA 收口 | elapsed/pause/volume/timestamp、a11y、四语言、原生保存、migration/cleanup | 四语言 1410 keys；Electron 4 路由×4 语言×2 尺寸矩阵通过 | 同上 | 真实麦克风/扬声器归 QA-002 |
+| QA-001 | 已完成 | 2026-07-11 | 自动化回归矩阵 | `test/audio/*`、`src/type/audioIpc.test.ts`、store/service/page shared tests、Electron e2e | TypeScript、i18n、Vite test build、全量 73 files / 560 tests、Electron 32 组合矩阵、`git diff --check` | `2026-07-11_FIX-002-FIX-007_audio-audit-fix-closure.md` | 无 |
 | QA-002 | 未开始 | — | Electron 与真实供应商手工验收 | 验收记录、必要时 `docs/v0.2.11/audio-toolkit/fix/*` | OpenAI ASR/TTS、MiMo ASR、MiMo TTS 三模式非流式/流式、实时字幕、OpenAI Realtime 双向语音；如启动服务需结束前清理 | — | 真实 API Key 不得写入日志或文档 |
 | DOC-001 | 已完成 | 2026-07-09 | README、CHANGELOG、隐私说明与发布文档同步 | `README.md`、`CHANGELOG.md`、`docs/v0.2.11/README.md`、`docs/v0.2.11/v0.2.11_iteration_execution_plan.md`、`docs/v0.2.11/audio-toolkit/audio-toolkit_execution_plan.md`、`docs/v0.2.11/audio-toolkit/audio-toolkit_final_design.md` | `node_modules/.bin/tsc --noEmit` 通过；`node scripts/check-i18n.mjs` 通过；`node_modules/.bin/vitest run test/audio src/type/audioIpc.test.ts src/store/useModelStore.test.ts src/lib/audio-profile.test.ts src/lib/audio-endpoint.test.ts src/services/audio/audioServices.test.ts src/store/tools/audio/audioToolConfig.test.ts src/store/tools/audio/audioTranscriberConfig.test.ts src/store/tools/audio/speechSynthesizerConfig.test.ts src/store/tools/audio/realtimeCaptionsConfig.test.ts src/store/tools/audio/realtimeVoiceConfig.test.ts` 通过，19 files / 110 tests；`git diff --check` 通过 | `docs/v0.2.11/audio-toolkit/audio-toolkit_implementation_records/2026-07-09_DOC-001_audio-release-docs.md` | 无；README/CHANGELOG 已说明本地音频文件、录音片段和麦克风内容会发送到用户选择的第三方音频 API，真实供应商验收仍归 QA-002 |
 
@@ -412,6 +421,21 @@
 - MiMo Chat Audio profile 下禁用启动按钮，并提示当前 profile 不支持双向语音。
 - 页面离开必须释放 mic tracks、peer connection、remote audio、AudioContext。
 
+### FIX-002～FIX-007：审计后修复序列
+
+`AUDIT-001` 已把四页共享问题按风险和依赖拆为六个后续工作包，完整证据、触发方式和验收项见 `fix/2026-07-10_audio-toolkit-four-page-release-audit.md`。
+
+执行顺序：
+
+1. `FIX-002` 先收紧 preload / IPC 信任边界、配置 ownership 和文件选择授权，避免 renderer 可以组合任意 endpoint 与本地文件路径。
+2. `FIX-003` 修复录音、WebRTC、请求控制器和分块队列的生命周期；任何错误、取消或路由离开都必须可停止并释放资源。
+3. `FIX-004` 对齐 OpenAI Realtime GA 事件、模型拆分、音频格式、manual commit/response 和 WebRTC buffer clear。
+4. `FIX-005` 收口 TTS 流式首尾帧、背压、取消、任务状态、播放器与落盘格式。
+5. `FIX-006` 收口 ASR provider/model/format 矩阵、全局 Profile 默认值和保存/取消一致性。
+6. `FIX-007` 最后处理四页 UX、可访问性、i18n、持久化迁移和响应式视觉。
+
+前三项是发布阻断；未全部完成前，`QA-001` 只能补局部回归，`QA-002` 不能作为发布通过依据。每个工作包必须新增独立 fix 文档、实施记录和针对性自动化测试。
+
 ### QA-001：自动化回归矩阵
 
 目标：补齐音频工具的自动化回归，避免供应商协议差异被 UI 或 IPC 绕过。
@@ -524,4 +548,4 @@ YYYY-MM-DD_<work-package-id>_<short-title>.md
 
 ## 8. 下一步建议
 
-开发类工作包 `PRE`、`CORE`、`BE`、`FE` 和发布文档工作包 `DOC-001` 已完成。下一次建议进入 `QA-001` 自动化回归补强；如可以使用真实 API Key 和麦克风/扬声器环境，再进入 `QA-002` Electron 与真实供应商手工验收。
+`FIX-002`～`FIX-007` 与 `QA-001` 已闭环。下一步只进入 `QA-002`：使用测试专用真实 Key、麦克风和扬声器，验收 OpenAI/MiMo ASR/TTS、MiMo 三种 TTS 模式的真实流式延迟，以及 OpenAI Realtime/WebRTC 双向语音；不得把 fixture 或 Electron 路由矩阵替代真实供应商结果。

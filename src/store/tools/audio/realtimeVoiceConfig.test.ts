@@ -13,7 +13,7 @@ describe("realtime voice config helpers", () => {
       ...DEFAULT_REALTIME_VOICE_PREFERENCES,
       voice: "marin",
       instructions: "Answer briefly.",
-      inputAudioFormat: "opus",
+      inputAudioFormat: "pcmu",
       outputAudioFormat: "pcm16",
     });
 
@@ -23,7 +23,7 @@ describe("realtime voice config helpers", () => {
       voice: "marin",
       instructions: "Answer briefly.",
       turnDetection: "server_vad",
-      inputAudioFormat: "opus",
+      inputAudioFormat: "pcmu",
       outputAudioFormat: "pcm16",
     });
     expect(request).not.toHaveProperty("apiKey");

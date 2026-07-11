@@ -11,9 +11,14 @@ export interface WavChunkRecorderOptions {
   minFinalChunkMs?: number;
   onChunk: (chunk: RecordedWavChunk) => void | Promise<void>;
   onError?: (error: Error) => void;
+  onVolume?: (level: number) => void;
   getUserMedia?: (
     constraints: MediaStreamConstraints,
   ) => Promise<MediaStream>;
+}
+
+export interface StopWavChunkRecorderOptions {
+  flushFinalChunk?: boolean;
 }
 
 export class WavChunkRecorder {
@@ -21,6 +26,7 @@ export class WavChunkRecorder {
   private readonly minFinalChunkMs: number;
   private readonly onChunk: WavChunkRecorderOptions["onChunk"];
   private readonly onError?: WavChunkRecorderOptions["onError"];
+  private readonly onVolume?: WavChunkRecorderOptions["onVolume"];
   private readonly getUserMedia?: WavChunkRecorderOptions["getUserMedia"];
   private audioContext: AudioContext | null = null;
   private stream: MediaStream | null = null;
@@ -31,78 +37,111 @@ export class WavChunkRecorder {
   private queuedSampleCount = 0;
   private chunkStartedAtMs = 0;
   private stopped = true;
+  private lifecycleGeneration = 0;
+  private stopPromise: Promise<void> | null = null;
+  private fatalErrorReported = false;
+  private paused = false;
 
   constructor(options: WavChunkRecorderOptions) {
     this.chunkDurationMs = options.chunkDurationMs ?? 5000;
     this.minFinalChunkMs = options.minFinalChunkMs ?? 800;
     this.onChunk = options.onChunk;
     this.onError = options.onError;
+    this.onVolume = options.onVolume;
     this.getUserMedia = options.getUserMedia;
   }
 
   async start(): Promise<void> {
     if (!this.stopped) return;
+    if (this.stopPromise) {
+      await this.stopPromise;
+    }
+    const generation = ++this.lifecycleGeneration;
     this.stopped = false;
+    this.fatalErrorReported = false;
     this.sampleQueue = [];
     this.queuedSampleCount = 0;
     this.chunkStartedAtMs = 0;
+    this.paused = false;
 
     const AudioContextCtor =
       window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
     if (!AudioContextCtor) {
+      this.stopped = true;
       throw new Error("Web Audio API is not available.");
     }
 
-    this.stream = await (this.getUserMedia ?? navigator.mediaDevices.getUserMedia)({
-      audio: {
-        channelCount: 1,
-        echoCancellation: true,
-        noiseSuppression: true,
-      },
-    });
-    this.audioContext = new AudioContextCtor();
-    this.source = this.audioContext.createMediaStreamSource(this.stream);
-    this.processor = this.audioContext.createScriptProcessor(4096, 1, 1);
-    this.silentGain = this.audioContext.createGain();
-    this.silentGain.gain.value = 0;
-
-    this.processor.onaudioprocess = (event) => {
-      if (this.stopped || !this.audioContext) return;
-      try {
-        this.enqueueInputBuffer(event.inputBuffer);
-        this.flushFullChunks();
-      } catch (error) {
-        this.onError?.(
-          error instanceof Error
-            ? error
-            : new Error("Failed to process recorded audio chunk."),
-        );
+    try {
+      const constraints: MediaStreamConstraints = {
+        audio: {
+          channelCount: 1,
+          echoCancellation: true,
+          noiseSuppression: true,
+        },
+      };
+      const stream = this.getUserMedia
+        ? await this.getUserMedia(constraints)
+        : await navigator.mediaDevices.getUserMedia(constraints);
+      if (generation !== this.lifecycleGeneration || this.stopped) {
+        stopTracks(stream);
+        throw createRecorderAbortError();
       }
-    };
+      this.stream = stream;
+      this.audioContext = new AudioContextCtor();
+      this.source = this.audioContext.createMediaStreamSource(this.stream);
+      this.processor = this.audioContext.createScriptProcessor(4096, 1, 1);
+      this.silentGain = this.audioContext.createGain();
+      this.silentGain.gain.value = 0;
 
-    this.source.connect(this.processor);
-    this.processor.connect(this.silentGain);
-    this.silentGain.connect(this.audioContext.destination);
+      this.processor.onaudioprocess = (event) => {
+        if (this.stopped || !this.audioContext) return;
+        try {
+          this.onVolume?.(calculateInputLevel(event.inputBuffer));
+          if (this.paused) return;
+          this.enqueueInputBuffer(event.inputBuffer);
+          this.flushFullChunks();
+        } catch (error) {
+          this.handleFatalError(error);
+        }
+      };
+
+      this.source.connect(this.processor);
+      this.processor.connect(this.silentGain);
+      this.silentGain.connect(this.audioContext.destination);
+    } catch (error) {
+      this.stopped = true;
+      await this.releaseResources();
+      throw error;
+    }
   }
 
-  async stop(): Promise<void> {
-    if (this.stopped) return;
+  setPaused(paused: boolean): void {
+    this.paused = paused;
+  }
+
+  async stop(options: StopWavChunkRecorderOptions = {}): Promise<void> {
+    if (this.stopPromise) return this.stopPromise;
+    if (this.stopped && !this.hasResources()) return;
+    this.lifecycleGeneration += 1;
     this.stopped = true;
-    await this.flushFinalChunk();
-    this.processor?.disconnect();
-    this.source?.disconnect();
-    this.silentGain?.disconnect();
-    this.processor = null;
-    this.source = null;
-    this.silentGain = null;
-    for (const track of this.stream?.getTracks() ?? []) {
-      track.stop();
+    const flushFinalChunk = options.flushFinalChunk ?? true;
+    const stopPromise = (async () => {
+      try {
+        if (flushFinalChunk) {
+          await this.flushFinalChunk();
+        }
+      } finally {
+        await this.releaseResources();
+      }
+    })();
+    this.stopPromise = stopPromise;
+    try {
+      await stopPromise;
+    } finally {
+      if (this.stopPromise === stopPromise) {
+        this.stopPromise = null;
+      }
     }
-    this.stream = null;
-    await this.audioContext?.close();
-    this.audioContext = null;
-    this.sampleQueue = [];
-    this.queuedSampleCount = 0;
   }
 
   private enqueueInputBuffer(buffer: AudioBuffer): void {
@@ -130,7 +169,9 @@ export class WavChunkRecorder {
       const endedAtMs = startedAtMs + this.chunkDurationMs;
       const samples = this.drainSamples(targetSamples);
       this.chunkStartedAtMs = endedAtMs;
-      void this.emitChunk(samples, startedAtMs, endedAtMs);
+      void this.emitChunk(samples, startedAtMs, endedAtMs).catch((error) => {
+        this.handleFatalError(error);
+      });
     }
   }
 
@@ -186,6 +227,87 @@ export class WavChunkRecorder {
       sampleRate: this.audioContext.sampleRate,
     });
   }
+
+  private handleFatalError(error: unknown): void {
+    if (this.fatalErrorReported || this.stopped) return;
+    this.fatalErrorReported = true;
+    const normalizedError = error instanceof Error
+      ? error
+      : new Error("Failed to process recorded audio chunk.");
+    try {
+      this.onError?.(normalizedError);
+    } catch {
+      // Error reporting must not prevent media teardown.
+    }
+    void this.stop({ flushFinalChunk: false }).catch(() => undefined);
+  }
+
+  private hasResources(): boolean {
+    return Boolean(
+      this.audioContext
+      || this.stream
+      || this.source
+      || this.processor
+      || this.silentGain,
+    );
+  }
+
+  private async releaseResources(): Promise<void> {
+    if (this.processor) {
+      this.processor.onaudioprocess = null;
+    }
+    safeDisconnect(this.processor);
+    safeDisconnect(this.source);
+    safeDisconnect(this.silentGain);
+    this.processor = null;
+    this.source = null;
+    this.silentGain = null;
+    stopTracks(this.stream);
+    this.stream = null;
+    const context = this.audioContext;
+    this.audioContext = null;
+    if (context) {
+      try {
+        await context.close();
+      } catch {
+        // The browser may already have closed the context.
+      }
+    }
+    this.sampleQueue = [];
+    this.queuedSampleCount = 0;
+  }
+}
+
+function calculateInputLevel(buffer: AudioBuffer): number {
+  if (buffer.length === 0 || buffer.numberOfChannels === 0) return 0;
+  const samples = buffer.getChannelData(0);
+  let sumSquares = 0;
+  for (const sample of samples) sumSquares += sample * sample;
+  return Math.min(1, Math.sqrt(sumSquares / samples.length) * 3);
+}
+
+function safeDisconnect(node: { disconnect: () => void } | null): void {
+  try {
+    node?.disconnect();
+  } catch {
+    // Nodes may already be disconnected by the browser.
+  }
+}
+
+function stopTracks(stream: Pick<MediaStream, "getTracks"> | null): void {
+  for (const track of stream?.getTracks() ?? []) {
+    try {
+      track.stop();
+    } catch {
+      // Tracks may already be stopped by another teardown path.
+    }
+  }
+}
+
+function createRecorderAbortError(): Error {
+  const error = new Error("Audio recording start was cancelled.");
+  error.name = "AbortError";
+  return error;
 }
 
 function encodeWavPcm16(samples: Float32Array, sampleRate: number): Uint8Array {

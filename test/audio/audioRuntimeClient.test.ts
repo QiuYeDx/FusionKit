@@ -47,18 +47,18 @@ describe("AudioRuntimeClient OpenAI adapter", () => {
     const activeServer = requireServer(server);
     const activeTempRoot = requireTempRoot(tempRoot);
     const filePath = path.join(activeTempRoot, "speech.wav");
-    await writeFile(filePath, Buffer.from([1, 2, 3, 4]));
+    await writeFile(filePath, createOpenAISpeechBuffer("transcription"));
     activeServer.enqueueRoute("openai_transcriptions", {
       body: createOpenAITranscriptionBody({
         text: "hello audio",
-        model: "gpt-4o-transcribe",
+        model: "whisper-1",
         segments: [{ id: 1, start: 0, end: 1.5, text: "hello audio" }],
         words: [{ word: "hello", start: 0, end: 0.5 }],
       }),
     });
 
     const result = await sendAudioTranscription({
-      model: createOpenAIModel(activeServer.baseUrl, "gpt-4o-transcribe"),
+      model: createOpenAIModel(activeServer.baseUrl, "whisper-1"),
       payload: createTranscriptionPayload(filePath, {
         responseFormat: "verbose_json",
         prompt: "product names",
@@ -70,7 +70,7 @@ describe("AudioRuntimeClient OpenAI adapter", () => {
     expect(result).toMatchObject({
       text: "hello audio",
       responseFormat: "verbose_json",
-      model: "gpt-4o-transcribe",
+      model: "whisper-1",
       segments: [{ id: 1, start: 0, end: 1.5, text: "hello audio" }],
       words: [{ word: "hello", start: 0, end: 0.5 }],
     });
@@ -84,7 +84,7 @@ describe("AudioRuntimeClient OpenAI adapter", () => {
     });
     const multipart = activeServer.requests[0].rawBody.toString("utf8");
     expect(multipart).toContain('name="model"');
-    expect(multipart).toContain("gpt-4o-transcribe");
+    expect(multipart).toContain("whisper-1");
     expect(multipart).toContain('name="response_format"');
     expect(multipart).toContain("verbose_json");
     expect(multipart).toContain('name="timestamp_granularities[]"');
@@ -95,7 +95,10 @@ describe("AudioRuntimeClient OpenAI adapter", () => {
     const activeServer = requireServer(server);
     const activeTempRoot = requireTempRoot(tempRoot);
     const filePath = path.join(activeTempRoot, "lecture.mp3");
-    await writeFile(filePath, "audio");
+    await writeFile(filePath, Buffer.concat([
+      Buffer.from("ID3", "ascii"),
+      Buffer.from("audio", "utf8"),
+    ]));
     activeServer.enqueueRoute("openai_transcriptions", {
       headers: { "Content-Type": "text/plain; charset=utf-8" },
       rawBody: "plain transcript",
@@ -104,6 +107,7 @@ describe("AudioRuntimeClient OpenAI adapter", () => {
     const result = await sendAudioTranscription({
       model: createOpenAIModel(activeServer.audioTranscriptionsUrl, "whisper-1"),
       payload: createTranscriptionPayload(filePath, {
+        mimeType: "audio/mpeg",
         responseFormat: "text",
         outputPathMode: "custom_dir",
         outputDir: activeTempRoot,
@@ -125,9 +129,10 @@ describe("AudioRuntimeClient OpenAI adapter", () => {
   it("sends OpenAI speech synthesis JSON and stores binary audio output", async () => {
     const activeServer = requireServer(server);
     const activeTempRoot = requireTempRoot(tempRoot);
+    const speechBytes = createOpenAISpeechBuffer("wav-bytes");
     activeServer.enqueueRoute("openai_speech", {
       headers: { "Content-Type": "audio/wav" },
-      rawBody: createOpenAISpeechBuffer("wav-bytes"),
+      rawBody: speechBytes,
     });
 
     const result = await sendSpeechSynthesis({
@@ -144,12 +149,12 @@ describe("AudioRuntimeClient OpenAI adapter", () => {
       outputPath: path.join(activeTempRoot, "spoken.wav"),
       mimeType: "audio/wav",
       responseFormat: "wav",
-      sizeBytes: "wav-bytes".length,
+      sizeBytes: speechBytes.length,
       model: "gpt-4o-mini-tts",
     });
     expect(result).not.toHaveProperty("audioBase64");
     await expect(stat(result.outputPath)).resolves.toMatchObject({
-      size: "wav-bytes".length,
+      size: speechBytes.length,
     });
     expect(activeServer.requests[0]).toMatchObject({
       method: "POST",
@@ -189,7 +194,7 @@ describe("AudioRuntimeClient OpenAI adapter", () => {
       retry: { maxRetries: 1, baseDelayMs: 1, jitterRatio: 0 },
     });
 
-    expect(result.sizeBytes).toBe("recovered".length);
+    expect(result.sizeBytes).toBe(createOpenAISpeechBuffer("recovered").length);
     expect(activeServer.requests).toHaveLength(2);
   });
 
@@ -227,7 +232,7 @@ describe("AudioRuntimeClient OpenAI adapter", () => {
     }
   });
 
-  it("maps timeout, abort, empty audio, and unsupported OpenAI payloads", async () => {
+  it("maps OpenAI speech timeouts", async () => {
     const activeServer = requireServer(server);
     const activeTempRoot = requireTempRoot(tempRoot);
     activeServer.enqueueRoute(
@@ -249,7 +254,11 @@ describe("AudioRuntimeClient OpenAI adapter", () => {
         retry: { maxRetries: 0 },
       }),
     ).rejects.toMatchObject({ code: "request_timeout" });
+  });
 
+  it("maps pre-aborted OpenAI speech requests", async () => {
+    const activeServer = requireServer(server);
+    const activeTempRoot = requireTempRoot(tempRoot);
     const controller = new AbortController();
     controller.abort();
     await expect(
@@ -262,7 +271,11 @@ describe("AudioRuntimeClient OpenAI adapter", () => {
         signal: controller.signal,
       }),
     ).rejects.toMatchObject({ code: "aborted" });
+  });
 
+  it("rejects empty OpenAI speech responses", async () => {
+    const activeServer = requireServer(server);
+    const activeTempRoot = requireTempRoot(tempRoot);
     activeServer.enqueueRoute("openai_speech", {
       rawBody: Buffer.alloc(0),
     });
@@ -276,7 +289,11 @@ describe("AudioRuntimeClient OpenAI adapter", () => {
         retry: { maxRetries: 0 },
       }),
     ).rejects.toMatchObject({ code: "empty_response" });
+  });
 
+  it("rejects unsupported OpenAI speech payloads", async () => {
+    const activeServer = requireServer(server);
+    const activeTempRoot = requireTempRoot(tempRoot);
     await expect(
       sendSpeechSynthesis({
         model: createOpenAIModel(activeServer.baseUrl, "gpt-4o-mini-tts"),
@@ -318,7 +335,8 @@ describe("AudioRuntimeClient MiMo non-stream adapter", () => {
     const activeServer = requireServer(server);
     const activeTempRoot = requireTempRoot(tempRoot);
     const filePath = path.join(activeTempRoot, "sample.wav");
-    await writeFile(filePath, Buffer.from([1, 2, 3, 4]));
+    const sampleWav = createOpenAISpeechBuffer("mimo-asr");
+    await writeFile(filePath, sampleWav);
     activeServer.enqueueRoute("mimo_chat_completions", {
       body: createMimoAsrBody({
         text: "小米语音识别结果",
@@ -362,7 +380,7 @@ describe("AudioRuntimeClient MiMo non-stream adapter", () => {
     expect(content[0]).toMatchObject({
       type: "input_audio",
       input_audio: {
-        data: "data:audio/wav;base64,AQIDBA==",
+        data: `data:audio/wav;base64,${sampleWav.toString("base64")}`,
       },
     });
   });
@@ -372,7 +390,7 @@ describe("AudioRuntimeClient MiMo non-stream adapter", () => {
     const activeTempRoot = requireTempRoot(tempRoot);
     activeServer.enqueueRoute("mimo_chat_completions", {
       body: createMimoSpeechBody({
-        audioBase64: Buffer.from("mimo-wav").toString("base64"),
+        audioBase64: createOpenAISpeechBuffer("mimo-wav").toString("base64"),
         model: "mimo-v2.5-tts",
       }),
     });
@@ -400,12 +418,12 @@ describe("AudioRuntimeClient MiMo non-stream adapter", () => {
       outputPath: path.join(activeTempRoot, "mimo-preset.wav"),
       mimeType: "audio/wav",
       responseFormat: "wav",
-      sizeBytes: "mimo-wav".length,
+      sizeBytes: createOpenAISpeechBuffer("mimo-wav").length,
       model: "mimo-v2.5-tts",
     });
     expect(result).not.toHaveProperty("audioBase64");
     await expect(stat(result.outputPath)).resolves.toMatchObject({
-      size: "mimo-wav".length,
+      size: createOpenAISpeechBuffer("mimo-wav").length,
     });
     expect(activeServer.requests[0].body).toMatchObject({
       model: "mimo-v2.5-tts",
@@ -416,7 +434,6 @@ describe("AudioRuntimeClient MiMo non-stream adapter", () => {
       audio: {
         voice: "Mia",
         format: "wav",
-        audio_tags_enabled: true,
       },
     });
   });
@@ -426,7 +443,7 @@ describe("AudioRuntimeClient MiMo non-stream adapter", () => {
     const activeTempRoot = requireTempRoot(tempRoot);
     activeServer.enqueueRoute("mimo_chat_completions", {
       body: createMimoSpeechBody({
-        audioBase64: Buffer.from("voice-design-wav").toString("base64"),
+        audioBase64: createOpenAISpeechBuffer("voice-design-wav").toString("base64"),
         model: "mimo-v2.5-tts-voicedesign",
       }),
     });
@@ -452,7 +469,9 @@ describe("AudioRuntimeClient MiMo non-stream adapter", () => {
       retry: { maxRetries: 0 },
     });
 
-    expect(result.sizeBytes).toBe("voice-design-wav".length);
+    expect(result.sizeBytes).toBe(
+      createOpenAISpeechBuffer("voice-design-wav").length,
+    );
     expect(activeServer.requests[0].body).toMatchObject({
       model: "mimo-v2.5-tts-voicedesign",
       messages: [
@@ -470,10 +489,14 @@ describe("AudioRuntimeClient MiMo non-stream adapter", () => {
     const activeServer = requireServer(server);
     const activeTempRoot = requireTempRoot(tempRoot);
     const referencePath = path.join(activeTempRoot, "reference.mp3");
-    await writeFile(referencePath, Buffer.from([5, 6, 7, 8]));
+    const referenceBytes = Buffer.concat([
+      Buffer.from("ID3", "ascii"),
+      Buffer.from([5, 6, 7, 8]),
+    ]);
+    await writeFile(referencePath, referenceBytes);
     activeServer.enqueueRoute("mimo_chat_completions", {
       body: createMimoSpeechBody({
-        audioBase64: `data:audio/wav;base64,${Buffer.from("clone-wav").toString("base64")}`,
+        audioBase64: `data:audio/wav;base64,${createOpenAISpeechBuffer("clone-wav").toString("base64")}`,
         model: "mimo-v2.5-tts-voiceclone",
       }),
     });
@@ -500,13 +523,13 @@ describe("AudioRuntimeClient MiMo non-stream adapter", () => {
 
     expect(result).toMatchObject({
       outputPath: path.join(activeTempRoot, "mimo-clone.wav"),
-      sizeBytes: "clone-wav".length,
+      sizeBytes: createOpenAISpeechBuffer("clone-wav").length,
       model: "mimo-v2.5-tts-voiceclone",
     });
     expect(activeServer.requests[0].body).toMatchObject({
       model: "mimo-v2.5-tts-voiceclone",
       audio: {
-        voice: "data:audio/mpeg;base64,BQYHCA==",
+        voice: `data:audio/mpeg;base64,${referenceBytes.toString("base64")}`,
         format: "wav",
       },
     });

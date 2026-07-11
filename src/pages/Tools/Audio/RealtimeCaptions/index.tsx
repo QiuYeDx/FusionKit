@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   AlertTriangle,
@@ -8,6 +8,8 @@ import {
   Loader2,
   Mic,
   MicOff,
+  Pause,
+  Play,
   Radio,
   Save,
   Square,
@@ -30,7 +32,7 @@ import { ToolField, ToolPanel } from "@/pages/Tools/_shared/ui";
 import { cn } from "@/lib/utils";
 import { showToast } from "@/utils/toast";
 import type { AudioRole } from "@/type/audio";
-import type { AudioIpcError } from "@/type/audioIpc";
+import type { AudioIpcError, AudioRealtimeSessionEvent } from "@/type/audioIpc";
 import {
   cancelRecordedAudioChunkTranscription,
   startOpenAIRealtimeWebRtcSession,
@@ -52,11 +54,18 @@ import {
   resolveRealtimeCaptionsMode,
   type RealtimeCaptionsMode,
 } from "@/store/tools/audio/realtimeCaptionsConfig";
-import useRealtimeCaptionsStore from "@/store/tools/audio/useRealtimeCaptionsStore";
-import {
-  WavChunkRecorder,
-  type RecordedWavChunk,
-} from "../shared/wavChunkRecorder";
+import useRealtimeCaptionsStore, {
+  type RealtimeCaptionsUiError,
+} from "@/store/tools/audio/useRealtimeCaptionsStore";
+import { BoundedAsyncQueue } from "../shared/boundedAsyncQueue";
+import { WavChunkRecorder } from "../shared/wavChunkRecorder";
+import { useElapsedMs } from "../shared/useElapsedMs";
+import { saveAudioTextOutput } from "@/services/audio/audioTranscriptionService";
+import { getAudioErrorMessage } from "../shared/audioErrorMessage";
+
+const CHUNK_QUEUE_MAX_PENDING_ITEMS = 4;
+const CHUNK_QUEUE_MAX_PENDING_BYTES = 4 * 1024 * 1024;
+const CHUNK_QUEUE_MAX_AGE_MS = 30_000;
 
 export default function RealtimeCaptions() {
   return (
@@ -80,6 +89,7 @@ function RealtimeCaptionsConfig({
 }) {
   const { t } = useTranslation(["audio"]);
   const preferences = useRealtimeCaptionsStore((state) => state.preferences);
+  const status = useRealtimeCaptionsStore((state) => state.status);
   const updatePreferences = useRealtimeCaptionsStore(
     (state) => state.updatePreferences,
   );
@@ -96,9 +106,10 @@ function RealtimeCaptionsConfig({
     [context.configSummary.audioDialect, preferences],
   );
   const isOpenAIRealtime = mode === "openai_realtime";
+  const configLocked = ["requesting", "connecting", "listening", "stopping"].includes(status);
 
   return (
-    <div className="space-y-4">
+    <fieldset className="space-y-4" disabled={configLocked}>
       <div className="flex items-center justify-between gap-3 rounded-lg border px-3 py-2">
         <span className="text-xs text-muted-foreground">
           {t("audio:captions.fields.mode")}
@@ -110,6 +121,7 @@ function RealtimeCaptionsConfig({
 
       <ToolField
         label={t("audio:captions.fields.language")}
+        htmlFor="captions-language"
         hint={t("audio:captions.hints.language")}
       >
         <Select
@@ -118,7 +130,7 @@ function RealtimeCaptionsConfig({
             updatePreferences({ language: language as typeof normalized.language })
           }
         >
-          <SelectTrigger size="sm" className="w-full">
+          <SelectTrigger id="captions-language" size="sm" className="w-full">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -135,11 +147,13 @@ function RealtimeCaptionsConfig({
         label={t("audio:captions.fields.input_audio_format")}
         hint={t("audio:captions.hints.input_audio_format")}
       >
-        <ButtonGroup className="w-full">
-          {(["pcm16", "opus"] as const).map((format) => (
+        <ButtonGroup className="w-full" role="radiogroup" aria-label={t("audio:captions.fields.input_audio_format")}>
+          {(["pcm16", "pcmu", "pcma"] as const).map((format) => (
             <Button
               key={format}
               type="button"
+              role="radio"
+              aria-checked={normalized.inputAudioFormat === format}
               size="sm"
               className="flex-1"
               disabled={!isOpenAIRealtime}
@@ -156,14 +170,16 @@ function RealtimeCaptionsConfig({
         label={t("audio:captions.fields.turn_detection")}
         hint={t("audio:captions.hints.turn_detection")}
       >
-        <ButtonGroup className="w-full">
+        <ButtonGroup className="w-full" role="radiogroup" aria-label={t("audio:captions.fields.turn_detection")}>
           {(["server_vad", "manual"] as const).map((turnDetection) => (
             <Button
               key={turnDetection}
               type="button"
+              role="radio"
+              aria-checked={normalized.turnDetection === turnDetection}
               size="sm"
               className="flex-1"
-              disabled={!isOpenAIRealtime}
+              disabled={!isOpenAIRealtime || turnDetection === "manual"}
               variant={normalized.turnDetection === turnDetection ? "default" : "outline"}
               onClick={() => updatePreferences({ turnDetection })}
             >
@@ -175,6 +191,7 @@ function RealtimeCaptionsConfig({
 
       <ToolField
         label={t("audio:captions.fields.output_format")}
+        htmlFor="captions-output-format"
         hint={t("audio:captions.hints.output_format")}
       >
         <Select
@@ -185,7 +202,7 @@ function RealtimeCaptionsConfig({
             })
           }
         >
-          <SelectTrigger size="sm" className="w-full">
+          <SelectTrigger id="captions-output-format" size="sm" className="w-full">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -204,7 +221,7 @@ function RealtimeCaptionsConfig({
         action={
           <Switch
             checked={normalized.showAssistantTranscript}
-            disabled={!isOpenAIRealtime}
+            disabled
             aria-label={t("audio:captions.fields.assistant_transcript")}
             onCheckedChange={(checked) =>
               updatePreferences({ showAssistantTranscript: Boolean(checked) })
@@ -219,11 +236,13 @@ function RealtimeCaptionsConfig({
 
       <ToolField
         label={t("audio:captions.fields.instructions")}
+        htmlFor="captions-instructions"
         hint={t("audio:captions.hints.instructions")}
       >
         <Textarea
-          value={isOpenAIRealtime ? preferences.instructions : ""}
-          disabled={!isOpenAIRealtime}
+          id="captions-instructions"
+          value=""
+          disabled
           rows={3}
           className="resize-none text-xs"
           placeholder={
@@ -236,7 +255,7 @@ function RealtimeCaptionsConfig({
           }
         />
       </ToolField>
-    </div>
+    </fieldset>
   );
 }
 
@@ -248,10 +267,12 @@ function RealtimeCaptionsWorkspace({
   const { t } = useTranslation(["audio"]);
   const sessionHandleRef = useRef<AudioRealtimeSessionHandle | null>(null);
   const chunkRecorderRef = useRef<WavChunkRecorder | null>(null);
-  const chunkQueueRef = useRef<Promise<void>>(Promise.resolve());
-  const activeChunkRequestIdsRef = useRef<Set<string>>(new Set());
+  const chunkQueueRef = useRef<BoundedAsyncQueue | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
-  const partialStartedAtRef = useRef<Partial<Record<AudioRole, number>>>({});
+  const sessionGenerationRef = useRef(0);
+  const [paused, setPaused] = useState(false);
+  const [inputLevel, setInputLevel] = useState(0);
+  const partialStartedAtRef = useRef<Record<string, number>>({});
   const preferences = useRealtimeCaptionsStore((state) => state.preferences);
   const status = useRealtimeCaptionsStore((state) => state.status);
   const micState = useRealtimeCaptionsStore((state) => state.micState);
@@ -272,6 +293,9 @@ function RealtimeCaptionsWorkspace({
   const resetSessionState = useRealtimeCaptionsStore(
     (state) => state.resetSessionState,
   );
+  const seedProfileDefaults = useRealtimeCaptionsStore(
+    (state) => state.seedProfileDefaults,
+  );
   const mode = resolveRealtimeCaptionsMode(
     context.configSummary.audioDialect,
     context.configSummary.capabilities,
@@ -289,27 +313,79 @@ function RealtimeCaptionsWorkspace({
   const isRunning = ["requesting", "connecting", "listening", "stopping"].includes(
     status,
   );
-  const displayLines = preferences.showAssistantTranscript
-    ? lines
-    : lines.filter((line) => line.role === "user");
-  const elapsedMs = startedAtMs ? Date.now() - startedAtMs : 0;
+  const canStop = isRunning || status === "failed";
+  const displayLines = lines.filter((line) => line.role === "user");
+  const visibleLines = displayLines.slice(-300);
+  const elapsedMs = useElapsedMs(startedAtMs, isRunning);
+
+  useEffect(() => {
+    if (!context.configSummary.profileId) return;
+    seedProfileDefaults(
+      context.configSummary.profileId,
+      context.configSummary.defaults ?? {},
+    );
+  }, [
+    context.configSummary.defaults,
+    context.configSummary.profileId,
+    seedProfileDefaults,
+  ]);
+
+  const releaseOwnedResources = useCallback(async (
+    reason: "user" | "error" | "page_unload",
+    options: { flushFinalChunk?: boolean } = {},
+  ) => {
+    abortControllerRef.current?.abort();
+    abortControllerRef.current = null;
+    const recorder = chunkRecorderRef.current;
+    const queue = chunkQueueRef.current;
+    const handle = sessionHandleRef.current;
+    chunkRecorderRef.current = null;
+    chunkQueueRef.current = null;
+    sessionHandleRef.current = null;
+
+    const flushFinalChunk = options.flushFinalChunk ?? false;
+    if (!flushFinalChunk) {
+      await queue?.abort();
+    }
+    try {
+      await recorder?.stop({ flushFinalChunk });
+    } catch {
+      // Recorder teardown still releases tracks in finally.
+    }
+    if (flushFinalChunk) {
+      await queue?.seal();
+    }
+    if (handle && !handle.closed) {
+      await handle.stop(reason);
+    }
+  }, []);
+
+  const failSession = useCallback((
+    error: RealtimeCaptionsUiError,
+    generation: number,
+  ) => {
+    if (sessionGenerationRef.current !== generation) return;
+    sessionGenerationRef.current += 1;
+    setLastError(error);
+    setStatus("failed");
+    setMicState(error.code === "microphone_permission_denied" ? "denied" : "idle");
+    setSessionId(null);
+    void releaseOwnedResources("error");
+  }, [
+    releaseOwnedResources,
+    setLastError,
+    setMicState,
+    setSessionId,
+    setStatus,
+  ]);
 
   useEffect(() => {
     return () => {
-      abortControllerRef.current?.abort();
-      void chunkRecorderRef.current?.stop();
-      chunkRecorderRef.current = null;
-      for (const requestId of activeChunkRequestIdsRef.current) {
-        void cancelRecordedAudioChunkTranscription(requestId);
-      }
-      activeChunkRequestIdsRef.current.clear();
-      const handle = sessionHandleRef.current;
-      sessionHandleRef.current = null;
-      if (handle && !handle.closed) {
-        void handle.stop("page_unload");
-      }
+      sessionGenerationRef.current += 1;
+      void releaseOwnedResources("page_unload");
+      useRealtimeCaptionsStore.getState().resetSessionState();
     };
-  }, []);
+  }, [releaseOwnedResources]);
 
   const getElapsedMs = useCallback(() => {
     const state = useRealtimeCaptionsStore.getState();
@@ -329,9 +405,15 @@ function RealtimeCaptionsWorkspace({
       return;
     }
 
-    abortControllerRef.current?.abort();
-    abortControllerRef.current = new AbortController();
+    const generation = sessionGenerationRef.current + 1;
+    sessionGenerationRef.current = generation;
+    await releaseOwnedResources("user");
+    if (sessionGenerationRef.current !== generation) return;
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
     resetSessionState();
+    setPaused(false);
+    setInputLevel(0);
     clearPartial();
     partialStartedAtRef.current = {};
     setStatus("requesting");
@@ -344,49 +426,104 @@ function RealtimeCaptionsWorkspace({
       context.configSummary.audioDialect,
     );
     if (mode === "chunked_near_realtime") {
-      chunkQueueRef.current = Promise.resolve();
+      const queue = new BoundedAsyncQueue({
+        maxPendingItems: CHUNK_QUEUE_MAX_PENDING_ITEMS,
+        maxPendingBytes: CHUNK_QUEUE_MAX_PENDING_BYTES,
+        maxQueueAgeMs: CHUNK_QUEUE_MAX_AGE_MS,
+        onDrop: (_task, reason) => {
+          if (reason === "stopped") return;
+          failSession({
+            code: "renderer_error",
+            message: `Realtime caption chunk queue stopped (${reason}).`,
+          }, generation);
+        },
+        onTaskError: (_task, error) => {
+          failSession(toRealtimeCaptionsFailure(error), generation);
+        },
+      });
       const recorder = new WavChunkRecorder({
         chunkDurationMs: 5000,
+        onVolume: setInputLevel,
         onChunk: (chunk) => {
-          queueRecordedChunkTranscription({
-            chunk,
-            language: normalized.language,
-            activeChunkRequestIds: activeChunkRequestIdsRef.current,
-            enqueue: (task) => {
-              chunkQueueRef.current = chunkQueueRef.current
-                .catch(() => undefined)
-                .then(task);
+          if (sessionGenerationRef.current !== generation) return;
+          queue.enqueue({
+            id: chunk.requestId,
+            sizeBytes: chunk.bytes.byteLength,
+            run: async (signal) => {
+              if (signal.aborted || sessionGenerationRef.current !== generation) {
+                return;
+              }
+              const result = await transcribeRecordedAudioChunk({
+                assignmentKey: "realtimeCaptions",
+                requestId: chunk.requestId,
+                audioBytes: chunk.bytes,
+                mimeType: "audio/wav",
+                responseFormat: "text",
+                ...(normalized.language !== "auto"
+                  ? { language: normalized.language }
+                  : {}),
+                startedAtMs: chunk.startedAtMs,
+                endedAtMs: chunk.endedAtMs,
+              });
+              if (signal.aborted || sessionGenerationRef.current !== generation) {
+                return;
+              }
+              if (!result.ok) {
+                if (result.error.code === "aborted") return;
+                throw result.error;
+              }
+              const text = result.data.text.trim();
+              if (!text) return;
+              addLine(
+                createRealtimeCaptionLine({
+                  id: result.data.requestId,
+                  role: "user",
+                  text,
+                  startedAtMs: result.data.startedAtMs ?? chunk.startedAtMs,
+                  endedAtMs: result.data.endedAtMs ?? chunk.endedAtMs,
+                }),
+              );
             },
-            addLine,
-            setLastError,
-            setStatus,
+            cancel: async () => {
+              await cancelRecordedAudioChunkTranscription(chunk.requestId);
+            },
           });
         },
         onError: (error) => {
-          setLastError({
+          failSession({
             code: "renderer_error",
             message: error.message,
-          });
-          setStatus("failed");
+          }, generation);
         },
       });
 
       try {
+        chunkQueueRef.current = queue;
         chunkRecorderRef.current = recorder;
         await recorder.start();
+        if (
+          sessionGenerationRef.current !== generation
+          || controller.signal.aborted
+        ) {
+          await recorder.stop({ flushFinalChunk: false });
+          await queue.abort();
+          return;
+        }
+        abortControllerRef.current = null;
         setMicState("granted");
         setStatus("listening");
       } catch (error) {
-        chunkRecorderRef.current = null;
-        setMicState("denied");
-        setLastError({
-          code: "microphone_permission_denied",
-          message:
-            error instanceof Error
-              ? error.message
-              : t("audio:captions.errors.microphone_failed"),
-        });
-        setStatus("failed");
+        await recorder.stop({ flushFinalChunk: false }).catch(() => undefined);
+        await queue.abort();
+        if (sessionGenerationRef.current !== generation) return;
+        failSession({
+          code: isMicrophonePermissionError(error)
+            ? "microphone_permission_denied"
+            : "renderer_error",
+          message: error instanceof Error
+            ? error.message
+            : t("audio:captions.errors.microphone_failed"),
+        }, generation);
       }
       return;
     }
@@ -398,35 +535,42 @@ function RealtimeCaptionsWorkspace({
     setStatus("connecting");
 
     const result = await startOpenAIRealtimeWebRtcSession(request, {
-      signal: abortControllerRef.current.signal,
+      signal: controller.signal,
+      onInputLevel: setInputLevel,
       handlers: {
         sessionStarted: (event) => {
+          if (sessionGenerationRef.current !== generation) return;
           setSessionId(event.sessionId);
           setStatus("listening");
         },
         micState: (event) => {
+          if (sessionGenerationRef.current !== generation) return;
           setMicState(event.state);
         },
         transcriptDelta: (event) => {
+          if (sessionGenerationRef.current !== generation) return;
           if (event.role === "assistant" && !normalized.showAssistantTranscript) {
             return;
           }
+          const partialKey = getRealtimePartialKey(event);
           const elapsed = getElapsedMs();
-          if (partialStartedAtRef.current[event.role] === undefined) {
-            partialStartedAtRef.current[event.role] = elapsed;
+          if (partialStartedAtRef.current[partialKey] === undefined) {
+            partialStartedAtRef.current[partialKey] = elapsed;
           }
           const current =
-            useRealtimeCaptionsStore.getState().partial[event.role] ?? "";
-          setPartial(event.role, `${current}${event.text}`);
+            useRealtimeCaptionsStore.getState().partial[partialKey]?.text ?? "";
+          setPartial(partialKey, event.role, `${current}${event.text}`);
         },
         transcriptFinal: (event) => {
+          if (sessionGenerationRef.current !== generation) return;
           if (event.role === "assistant" && !normalized.showAssistantTranscript) {
-            clearPartial(event.role);
+            clearPartial(getRealtimePartialKey(event));
             return;
           }
           const endedAtMs = getElapsedMs();
+          const partialKey = getRealtimePartialKey(event);
           const startedAtMsForLine =
-            partialStartedAtRef.current[event.role] ?? Math.max(0, endedAtMs - 1000);
+            partialStartedAtRef.current[partialKey] ?? Math.max(0, endedAtMs - 1000);
           addLine(
             createRealtimeCaptionLine({
               id: event.itemId,
@@ -436,14 +580,20 @@ function RealtimeCaptionsWorkspace({
               endedAtMs,
             }),
           );
-          partialStartedAtRef.current[event.role] = undefined;
-          clearPartial(event.role);
+          delete partialStartedAtRef.current[partialKey];
+          clearPartial(partialKey);
         },
         error: (event) => {
-          setLastError(toRealtimeCaptionsUiError(event.error));
-          setStatus("failed");
+          if (event.fatal) {
+            failSession(toRealtimeCaptionsUiError(event.error), generation);
+          } else if (sessionGenerationRef.current === generation) {
+            setLastError(toRealtimeCaptionsUiError(event.error));
+          }
         },
         sessionClosed: (event) => {
+          if (sessionGenerationRef.current !== generation) return;
+          sessionHandleRef.current = null;
+          abortControllerRef.current = null;
           setStatus(getRealtimeSessionCloseStatus(event.reason));
           setMicState("idle");
           setSessionId(null);
@@ -451,10 +601,20 @@ function RealtimeCaptionsWorkspace({
       },
     });
 
+    if (
+      sessionGenerationRef.current !== generation
+      || controller.signal.aborted
+    ) {
+      if (result.ok && !result.data.closed) {
+        await result.data.stop("page_unload");
+      }
+      return;
+    }
+    abortControllerRef.current = null;
     if (!result.ok) {
-      setLastError(toRealtimeCaptionsUiError(result.error));
-      setStatus("failed");
-      setMicState(result.error.code === "microphone_permission_denied" ? "denied" : "idle");
+      if (result.error.code !== "aborted") {
+        failSession(toRealtimeCaptionsUiError(result.error), generation);
+      }
       return;
     }
 
@@ -466,9 +626,11 @@ function RealtimeCaptionsWorkspace({
     canStart,
     clearPartial,
     context.configSummary.audioDialect,
+    failSession,
     getElapsedMs,
     mode,
     preferences,
+    releaseOwnedResources,
     resetSessionState,
     setLastError,
     setMicState,
@@ -480,31 +642,47 @@ function RealtimeCaptionsWorkspace({
   ]);
 
   const handleStop = useCallback(async () => {
+    const generation = sessionGenerationRef.current;
+    const flushFinalChunk = Boolean(chunkRecorderRef.current);
+    if (!flushFinalChunk) {
+      sessionGenerationRef.current += 1;
+    }
     setStatus("stopping");
-    abortControllerRef.current?.abort();
-    abortControllerRef.current = null;
-    const recorder = chunkRecorderRef.current;
-    chunkRecorderRef.current = null;
-    if (recorder) {
-      await recorder.stop();
-      await chunkQueueRef.current.catch(() => undefined);
-      setStatus("completed");
-      setMicState("idle");
-      return;
+    await releaseOwnedResources("user", { flushFinalChunk });
+    if (flushFinalChunk) {
+      if (sessionGenerationRef.current !== generation) return;
+      sessionGenerationRef.current += 1;
     }
-    const handle = sessionHandleRef.current;
-    sessionHandleRef.current = null;
-    if (handle && !handle.closed) {
-      await handle.stop("user");
-    } else {
-      setStatus("completed");
-      setMicState("idle");
-    }
-  }, [setMicState, setStatus]);
+    setStatus("completed");
+    setMicState("idle");
+    setSessionId(null);
+  }, [releaseOwnedResources, setMicState, setSessionId, setStatus]);
+
+  const handlePause = useCallback(() => {
+    const nextPaused = !paused;
+    chunkRecorderRef.current?.setPaused(nextPaused);
+    sessionHandleRef.current?.setMuted(nextPaused);
+    setPaused(nextPaused);
+    setMicState(nextPaused ? "muted" : "granted");
+  }, [paused, setMicState]);
 
   const transcriptText = useMemo(
-    () => formatRealtimeCaptionLines(displayLines, preferences.outputFormat),
-    [displayLines, preferences.outputFormat],
+    () => formatRealtimeCaptionLines(
+      [
+        ...displayLines,
+        ...Object.entries(partial)
+          .filter(([, value]) => value.role === "user" && value.text.trim())
+          .map(([key, value]) => ({
+            id: `partial-${key}`,
+            role: value.role,
+            text: value.text,
+            startedAtMs: partialStartedAtRef.current[key] ?? elapsedMs,
+            endedAtMs: elapsedMs,
+          })),
+      ],
+      preferences.outputFormat,
+    ),
+    [displayLines, elapsedMs, partial, preferences.outputFormat],
   );
 
   const handleCopy = useCallback(async () => {
@@ -520,13 +698,24 @@ function RealtimeCaptionsWorkspace({
     }
   }, [t, transcriptText]);
 
-  const handleSave = useCallback(() => {
+  const handleSave = useCallback(async () => {
     if (!transcriptText.trim()) {
       showToast(t("audio:captions.errors.no_transcript"), "error");
       return;
     }
-    downloadTranscript(transcriptText, preferences.outputFormat);
-    showToast(t("audio:captions.messages.saved"), "success");
+    const extension = preferences.outputFormat;
+    const response = await saveAudioTextOutput({
+      defaultName: `fusionkit-realtime-captions-${new Date()
+        .toISOString()
+        .replace(/[:.]/g, "-")}.${extension}`,
+      content: transcriptText,
+      extension,
+    });
+    if (!response.ok) {
+      showToast(response.error.message, "error");
+    } else if (response.data.saved) {
+      showToast(t("audio:captions.messages.saved"), "success");
+    }
   }, [preferences.outputFormat, t, transcriptText]);
 
   return (
@@ -540,7 +729,7 @@ function RealtimeCaptionsWorkspace({
       }
       bodyClassName="space-y-4 p-4"
     >
-      <div className="grid gap-3 md:grid-cols-4">
+      <div className="grid gap-3 md:grid-cols-5">
         <CaptionStat
           label={t("audio:captions.stats.mode")}
           value={t(`audio:captions.mode.${mode}`)}
@@ -556,6 +745,23 @@ function RealtimeCaptionsWorkspace({
         <CaptionStat
           label={t("audio:captions.stats.elapsed")}
           value={formatDuration(elapsedMs)}
+        />
+        <CaptionStat
+          label={t("audio:captions.stats.session")}
+          value={sessionId ?? "-"}
+        />
+      </div>
+      <div
+        className="h-1.5 overflow-hidden rounded-full bg-muted"
+        role="meter"
+        aria-label={t("audio:captions.stats.input_level")}
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={Math.round(inputLevel * 100)}
+      >
+        <div
+          className="h-full bg-emerald-500 transition-[width] duration-100"
+          style={{ width: `${Math.round(inputLevel * 100)}%` }}
         />
       </div>
 
@@ -573,7 +779,9 @@ function RealtimeCaptionsWorkspace({
         <Alert variant="destructive">
           <AlertTriangle className="h-4 w-4" />
           <AlertTitle>{t("audio:captions.errors.title")}</AlertTitle>
-          <AlertDescription>{lastError.message}</AlertDescription>
+          <AlertDescription>
+            {getAudioErrorMessage(t, lastError, lastError.message)}
+          </AlertDescription>
         </Alert>
       ) : null}
 
@@ -597,11 +805,22 @@ function RealtimeCaptionsWorkspace({
           type="button"
           variant="outline"
           className="gap-2"
-          disabled={!isRunning}
+          disabled={!canStop}
           onClick={handleStop}
         >
           <Square className="h-4 w-4" />
           {t("audio:captions.actions.stop")}
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          className="gap-2"
+          disabled={!isRunning || status === "stopping"}
+          onClick={handlePause}
+          aria-pressed={paused}
+        >
+          {paused ? <Play className="h-4 w-4" /> : <Pause className="h-4 w-4" />}
+          {t(`audio:captions.actions.${paused ? "resume" : "pause"}`)}
         </Button>
         <Button
           type="button"
@@ -627,7 +846,7 @@ function RealtimeCaptionsWorkspace({
           type="button"
           variant="ghost"
           className="gap-2"
-          disabled={displayLines.length === 0 && !partial.user && !partial.assistant}
+          disabled={displayLines.length === 0 && Object.keys(partial).length === 0}
           onClick={clearTranscript}
         >
           <Trash2 className="h-4 w-4" />
@@ -636,9 +855,9 @@ function RealtimeCaptionsWorkspace({
       </div>
 
       <TranscriptStream
-        lines={displayLines}
+        lines={visibleLines}
         partial={partial}
-        showAssistant={preferences.showAssistantTranscript}
+        showAssistant={false}
         isRunning={isRunning}
       />
     </ToolPanel>
@@ -657,8 +876,8 @@ function TranscriptStream({
   isRunning: boolean;
 }) {
   const { t } = useTranslation(["audio"]);
-  const partialEntries = (Object.entries(partial) as Array<[AudioRole, string]>)
-    .filter(([role, text]) => text && (showAssistant || role === "user"));
+  const partialEntries = Object.entries(partial)
+    .filter(([, value]) => value.text && (showAssistant || value.role === "user"));
 
   if (lines.length === 0 && partialEntries.length === 0) {
     return (
@@ -687,12 +906,24 @@ function TranscriptStream({
   }
 
   return (
-    <div className="min-h-[280px] space-y-3 rounded-lg border bg-background p-3">
+    <div
+      className="min-h-[280px] space-y-3 rounded-lg border bg-background p-3"
+      role="log"
+      aria-live="polite"
+      aria-relevant="additions text"
+    >
       {lines.map((line) => (
-        <TranscriptLine key={line.id} role={line.role} text={line.text} final />
+        <TranscriptLine
+          key={line.id}
+          role={line.role}
+          text={line.text}
+          startedAtMs={line.startedAtMs}
+          endedAtMs={line.endedAtMs}
+          final
+        />
       ))}
-      {partialEntries.map(([role, text]) => (
-        <TranscriptLine key={role} role={role} text={text} />
+      {partialEntries.map(([key, value]) => (
+        <TranscriptLine key={key} role={value.role} text={value.text} />
       ))}
     </div>
   );
@@ -702,10 +933,14 @@ function TranscriptLine({
   role,
   text,
   final,
+  startedAtMs,
+  endedAtMs,
 }: {
   role: AudioRole;
   text: string;
   final?: boolean;
+  startedAtMs?: number;
+  endedAtMs?: number;
 }) {
   const { t } = useTranslation(["audio"]);
   return (
@@ -722,6 +957,11 @@ function TranscriptLine({
           <Loader2 className="h-3 w-3 animate-spin" />
         )}
         {t(`audio:captions.role.${role}`)}
+        {startedAtMs !== undefined && endedAtMs !== undefined ? (
+          <span className="font-mono font-normal normal-case">
+            {formatDuration(startedAtMs)}–{formatDuration(endedAtMs)}
+          </span>
+        ) : null}
       </div>
       <div>{text}</div>
     </div>
@@ -735,53 +975,6 @@ function CaptionStat({ label, value }: { label: string; value: string }) {
       <div className="mt-1 truncate text-sm font-medium">{value}</div>
     </div>
   );
-}
-
-function queueRecordedChunkTranscription(args: {
-  chunk: RecordedWavChunk;
-  language: string;
-  activeChunkRequestIds: Set<string>;
-  enqueue: (task: () => Promise<void>) => void;
-  addLine: ReturnType<typeof useRealtimeCaptionsStore.getState>["addLine"];
-  setLastError: ReturnType<typeof useRealtimeCaptionsStore.getState>["setLastError"];
-  setStatus: ReturnType<typeof useRealtimeCaptionsStore.getState>["setStatus"];
-}) {
-  args.activeChunkRequestIds.add(args.chunk.requestId);
-  args.enqueue(async () => {
-    try {
-      const result = await transcribeRecordedAudioChunk({
-        assignmentKey: "realtimeCaptions",
-        requestId: args.chunk.requestId,
-        audioBytes: args.chunk.bytes,
-        mimeType: "audio/wav",
-        responseFormat: "text",
-        ...(args.language !== "auto" ? { language: args.language } : {}),
-        startedAtMs: args.chunk.startedAtMs,
-        endedAtMs: args.chunk.endedAtMs,
-      });
-      if (!result.ok) {
-        if (result.error.code !== "aborted") {
-          args.setLastError(toRealtimeCaptionsUiError(result.error));
-          args.setStatus("failed");
-        }
-        return;
-      }
-
-      const text = result.data.text.trim();
-      if (!text) return;
-      args.addLine(
-        createRealtimeCaptionLine({
-          id: result.data.requestId,
-          role: "user",
-          text,
-          startedAtMs: result.data.startedAtMs ?? args.chunk.startedAtMs,
-          endedAtMs: result.data.endedAtMs ?? args.chunk.endedAtMs,
-        }),
-      );
-    } finally {
-      args.activeChunkRequestIds.delete(args.chunk.requestId);
-    }
-  });
 }
 
 function resolveModeBadgeClass(mode: RealtimeCaptionsMode): string {
@@ -813,23 +1006,44 @@ function toRealtimeCaptionsUiError(error: AudioIpcError) {
   };
 }
 
-function downloadTranscript(
-  text: string,
-  format: "txt" | "srt",
-): void {
-  const blob = new Blob([text], {
-    type: format === "srt" ? "application/x-subrip" : "text/plain;charset=utf-8",
-  });
-  const url = URL.createObjectURL(blob);
-  const anchor = document.createElement("a");
-  anchor.href = url;
-  anchor.download = `fusionkit-realtime-captions-${new Date()
-    .toISOString()
-    .replace(/[:.]/g, "-")}.${format}`;
-  document.body.appendChild(anchor);
-  anchor.click();
-  anchor.remove();
-  URL.revokeObjectURL(url);
+function getRealtimePartialKey(
+  event: Extract<
+    AudioRealtimeSessionEvent,
+    { type: "transcript_delta" | "transcript_final" }
+  >,
+): string {
+  return event.itemId ?? [
+    event.role,
+    event.responseId ?? "input",
+    event.outputIndex ?? 0,
+    event.contentIndex ?? 0,
+  ].join(":");
+}
+
+function toRealtimeCaptionsFailure(error: unknown): RealtimeCaptionsUiError {
+  if (
+    typeof error === "object"
+    && error !== null
+    && "code" in error
+    && "message" in error
+    && typeof error.code === "string"
+    && typeof error.message === "string"
+  ) {
+    return error as RealtimeCaptionsUiError;
+  }
+  return {
+    code: "renderer_error",
+    message: error instanceof Error
+      ? error.message
+      : "Realtime caption chunk processing failed.",
+  };
+}
+
+function isMicrophonePermissionError(error: unknown): boolean {
+  return error instanceof DOMException
+    ? error.name === "NotAllowedError" || error.name === "SecurityError"
+    : error instanceof Error
+      && (error.name === "NotAllowedError" || error.name === "SecurityError");
 }
 
 function formatDuration(ms: number): string {

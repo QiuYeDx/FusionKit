@@ -196,6 +196,8 @@
         "transcription": "ASR model",
         "speechSynthesis": "TTS model",
         "realtime": "Realtime / caption model",
+        "realtimeTranscription": "Realtime transcription model",
+        "realtimeVoice": "Realtime voice model",
         "realtime_mimo_hint": "MiMo realtime captions use chunked near-realtime transcription and do not enable WebRTC duplex."
       },
       "defaults": {

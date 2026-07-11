@@ -6,6 +6,7 @@ import type {
 } from "@/type/audio";
 import type { ModelProfile } from "@/type/model";
 import {
+  createAudioToolConfigSummarySelector,
   MIMO_VOICE_PRESETS,
   resolveAudioToolConfigSummary,
 } from "./audioToolConfig";
@@ -128,6 +129,36 @@ describe("audioToolConfig", () => {
         "Dean",
       ]),
     );
+  });
+
+  it("returns a cached summary for the same external-store snapshot", () => {
+    const state = createState({
+      audioProfiles: [],
+      audioAssignment: {
+        transcription: null,
+        speechSynthesis: null,
+        realtimeCaptions: null,
+        realtimeVoice: null,
+      },
+    });
+    const selector = createAudioToolConfigSummarySelector("transcription");
+
+    const firstSummary = selector(state);
+
+    expect(selector(state)).toBe(firstSummary);
+    expect(selector({ ...state })).toBe(firstSummary);
+
+    const changedState = {
+      ...state,
+      audioAssignment: {
+        ...state.audioAssignment,
+        transcription: "missing-profile",
+      },
+    };
+    const changedSummary = selector(changedState);
+
+    expect(changedSummary).not.toBe(firstSummary);
+    expect(selector(changedState)).toBe(changedSummary);
   });
 });
 

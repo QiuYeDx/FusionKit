@@ -1,5 +1,4 @@
 import type {
-  CreateSpeechSynthesisRequest,
   SpeechSynthesisResult,
 } from "@/type/audio";
 import {
@@ -10,8 +9,10 @@ import {
   type AudioIpcResult,
   type CancelSpeechSynthesisResult,
   type CancelSpeechSynthesisStreamResult,
+  type CreateSpeechSynthesisIpcRequest,
   type RevealAudioOutputRequest,
   type RevealAudioOutputResult,
+  type ReadAudioOutputResult,
   type SpeechSynthesisStreamEvent,
 } from "@/type/audioIpc";
 import {
@@ -50,7 +51,7 @@ export interface SpeechSynthesisStreamHandle {
 }
 
 export async function synthesizeSpeech(
-  request: CreateSpeechSynthesisRequest,
+  request: CreateSpeechSynthesisIpcRequest,
 ): Promise<AudioIpcResult<SpeechSynthesisResult>> {
   try {
     const synced = await syncAudioRuntimeConfigBeforeTask();
@@ -59,6 +60,7 @@ export async function synthesizeSpeech(
     return invokeAudioIpc<SpeechSynthesisResult>(
       AUDIO_IPC_CHANNELS.synthesizeSpeech,
       request,
+      synced.data.revision,
     );
   } catch (error) {
     return audioIpcUnavailableResult(error);
@@ -79,12 +81,18 @@ export async function cancelSpeechSynthesis(
 }
 
 export function synthesizeSpeechStream(
-  request: CreateSpeechSynthesisRequest,
+  request: CreateSpeechSynthesisIpcRequest,
   handlers: SpeechSynthesisStreamHandlers = {},
   options: { requestId?: string } = {},
 ): SpeechSynthesisStreamHandle {
   const requestId = options.requestId ?? createAudioRequestId();
-  const unsubscribe = subscribeSpeechSynthesisStreamEvents(requestId, handlers);
+  const removeListener = subscribeSpeechSynthesisStreamEvents(requestId, handlers);
+  let subscribed = true;
+  const unsubscribe = () => {
+    if (!subscribed) return;
+    subscribed = false;
+    removeListener();
+  };
   const payload = {
     requestId,
     payload: {
@@ -101,11 +109,12 @@ export function synthesizeSpeechStream(
       return await invokeAudioIpc<SpeechSynthesisResult>(
         AUDIO_IPC_CHANNELS.synthesizeSpeechStream,
         payload,
+        synced.data.revision,
       );
     } catch (error) {
       return audioIpcUnavailableResult<SpeechSynthesisResult>(error);
     }
-  })();
+  })().finally(unsubscribe);
 
   return {
     requestId,
@@ -155,10 +164,22 @@ export function subscribeSpeechSynthesisStreamEvents(
     dispatchSpeechSynthesisStreamEvent(handlers, payload);
   };
 
-  window.ipcRenderer.on(AUDIO_EVENT_CHANNELS.speechSynthesisStream, listener);
+  window.audioApi.on(AUDIO_EVENT_CHANNELS.speechSynthesisStream, listener);
   return () => {
-    window.ipcRenderer.off(AUDIO_EVENT_CHANNELS.speechSynthesisStream, listener);
+    window.audioApi.off(AUDIO_EVENT_CHANNELS.speechSynthesisStream, listener);
   };
+}
+
+export async function readSpeechOutput(
+  outputToken: string,
+): Promise<AudioIpcResult<ReadAudioOutputResult>> {
+  try {
+    return invokeAudioIpc<ReadAudioOutputResult>(AUDIO_IPC_CHANNELS.readOutput, {
+      outputToken,
+    });
+  } catch (error) {
+    return audioIpcUnavailableResult(error);
+  }
 }
 
 function dispatchSpeechSynthesisStreamEvent(

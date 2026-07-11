@@ -176,8 +176,11 @@ function createRealtimeAudioFormat(
   if (format === "pcm16") {
     return { type: "audio/pcm", rate: 24000 };
   }
-  if (format === "opus") {
-    return { type: "audio/opus" };
+  if (format === "pcmu") {
+    return { type: "audio/pcmu" };
+  }
+  if (format === "pcma") {
+    return { type: "audio/pcma" };
   }
   return undefined;
 }

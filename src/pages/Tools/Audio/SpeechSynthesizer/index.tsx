@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   AlertTriangle,
@@ -41,6 +41,7 @@ import type { SpeechSynthesisStreamHandle } from "@/services/audio/speechSynthes
 import {
   cancelSpeechSynthesis,
   revealSpeechOutput,
+  readSpeechOutput,
   synthesizeSpeech,
   synthesizeSpeechStream,
 } from "@/services/audio/speechSynthesisService";
@@ -49,14 +50,18 @@ import AudioToolShell, {
   type AudioToolShellContext,
 } from "../shared/AudioToolShell";
 import { Pcm16StreamPlayer } from "../shared/pcm16StreamPlayer";
+import { getAudioErrorMessage } from "../shared/audioErrorMessage";
 import {
   MIMO_VOICE_PRESETS,
 } from "@/store/tools/audio/audioToolConfig";
 import {
   MIMO_TTS_MODEL_BY_MODE,
   MIMO_VOICE_SAMPLE_ACCEPT,
+  OPENAI_SPEECH_MAX_INPUT_CHARS,
+  OPENAI_SPEECH_MAX_INSTRUCTIONS_CHARS,
   buildSpeechSynthesisRequest,
   canStreamSpeechSynthesis,
+  clampSpeechSpeed,
   getMimoModeForModel,
   getSpeechSynthesizerResponseFormats,
   isMimoModeCompatibleWithModel,
@@ -88,18 +93,32 @@ export default function SpeechSynthesizer() {
     </AudioToolShell>
   );
 }
-
 function SpeechConfig({ context }: { context: AudioToolShellContext }) {
   const { t } = useTranslation(["audio"]);
   const preferences = useSpeechSynthesizerStore((state) => state.preferences);
+  const status = useSpeechSynthesizerStore((state) => state.status);
   const voiceSample = useSpeechSynthesizerStore((state) => state.voiceSample);
   const updatePreferences = useSpeechSynthesizerStore(
     (state) => state.updatePreferences,
+  );
+  const seedProfileDefaults = useSpeechSynthesizerStore(
+    (state) => state.seedProfileDefaults,
   );
   const setVoiceSample = useSpeechSynthesizerStore(
     (state) => state.setVoiceSample,
   );
   const dialect = context.configSummary.audioDialect;
+  useEffect(() => {
+    if (!context.configSummary.profileId) return;
+    seedProfileDefaults(
+      context.configSummary.profileId,
+      context.configSummary.defaults ?? {},
+    );
+  }, [
+    context.configSummary.defaults,
+    context.configSummary.profileId,
+    seedProfileDefaults,
+  ]);
   const isMimo = dialect === "mimo_chat_audio";
   const streamSupported = canStreamSpeechSynthesis(
     dialect,
@@ -119,6 +138,7 @@ function SpeechConfig({ context }: { context: AudioToolShellContext }) {
     normalized.stream,
   );
   const modeForModel = getMimoModeForModel(context.configSummary.modelKey);
+  const isRunning = status === "running" || status === "streaming";
 
   const handleSelectOutputDir = useCallback(async () => {
     try {
@@ -170,9 +190,11 @@ function SpeechConfig({ context }: { context: AudioToolShellContext }) {
   );
 
   return (
-    <div className="space-y-4">
+    <fieldset disabled={isRunning} className="min-w-0 space-y-4">
+      <legend className="sr-only">{t("audio:pages.speech.config")}</legend>
       <ToolField
         label={t("audio:speech.fields.voice")}
+        htmlFor="speech-voice"
         hint={
           isMimo
             ? t("audio:speech.hints.mimo_voice")
@@ -180,8 +202,9 @@ function SpeechConfig({ context }: { context: AudioToolShellContext }) {
         }
       >
         <Input
+          id="speech-voice"
           value={preferences.voice}
-          disabled={isMimo && normalized.mimoMode === "voice_design"}
+          disabled={isMimo && normalized.mimoMode !== "preset_voice"}
           className="h-8 text-xs"
           placeholder={
             isMimo
@@ -201,6 +224,7 @@ function SpeechConfig({ context }: { context: AudioToolShellContext }) {
                 variant={preferences.voice === preset.id ? "default" : "outline"}
                 size="sm"
                 className="h-7 px-2 text-[11px]"
+                aria-pressed={preferences.voice === preset.id}
                 onClick={() => updatePreferences({ voice: preset.id })}
               >
                 {preset.label}
@@ -217,6 +241,7 @@ function SpeechConfig({ context }: { context: AudioToolShellContext }) {
                 variant={preferences.voice === voice ? "default" : "outline"}
                 size="sm"
                 className="h-7 px-2 text-[11px]"
+                aria-pressed={preferences.voice === voice}
                 onClick={() => updatePreferences({ voice })}
               >
                 {voice}
@@ -228,6 +253,7 @@ function SpeechConfig({ context }: { context: AudioToolShellContext }) {
 
       <ToolField
         label={t("audio:speech.fields.response_format")}
+        htmlFor="speech-response-format"
         hint={
           isMimo
             ? t("audio:speech.hints.mimo_format")
@@ -243,7 +269,7 @@ function SpeechConfig({ context }: { context: AudioToolShellContext }) {
           }
           disabled={isMimo}
         >
-          <SelectTrigger size="sm" className="w-full">
+          <SelectTrigger id="speech-response-format" size="sm" className="w-full">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -259,18 +285,20 @@ function SpeechConfig({ context }: { context: AudioToolShellContext }) {
       <ToolField
         label={t("audio:speech.fields.speed")}
         hint={t("audio:speech.hints.speed")}
+        htmlFor="speech-speed"
       >
         <Input
+          id="speech-speed"
           type="number"
           min={0.25}
           max={4}
           step={0.05}
           disabled={isMimo}
-          value={isMimo ? 1 : preferences.speed}
+          value={isMimo ? 1 : normalized.speed}
           className="h-8 text-xs"
           onChange={(event) =>
             updatePreferences({
-              speed: Number(event.currentTarget.value) || 1,
+              speed: clampSpeechSpeed(Number(event.currentTarget.value)),
             })
           }
         />
@@ -303,13 +331,19 @@ function SpeechConfig({ context }: { context: AudioToolShellContext }) {
         label={t("audio:speech.fields.output_mode")}
         hint={t("audio:speech.hints.output_mode")}
       >
-        <ButtonGroup className="w-full">
+        <ButtonGroup
+          className="w-full"
+          role="radiogroup"
+          aria-label={t("audio:speech.fields.output_mode")}
+        >
           {(["temp", "custom_dir"] as const).map((mode) => (
             <Button
               key={mode}
               type="button"
               size="sm"
               className="flex-1"
+              role="radio"
+              aria-checked={preferences.outputMode === mode}
               variant={preferences.outputMode === mode ? "default" : "outline"}
               onClick={() => updatePreferences({ outputMode: mode })}
             >
@@ -328,6 +362,23 @@ function SpeechConfig({ context }: { context: AudioToolShellContext }) {
         ) : null}
       </ToolField>
 
+      <ToolField
+        label={t("audio:speech.fields.file_name_hint")}
+        hint={t("audio:speech.hints.file_name_hint")}
+        htmlFor="speech-file-name-hint"
+      >
+        <Input
+          id="speech-file-name-hint"
+          value={preferences.fileNameHint}
+          maxLength={120}
+          className="h-8 text-xs"
+          placeholder={t("audio:speech.placeholders.file_name_hint")}
+          onChange={(event) =>
+            updatePreferences({ fileNameHint: event.currentTarget.value })
+          }
+        />
+      </ToolField>
+
       <div className={cn("space-y-4", !isMimo && "opacity-60")}>
         <div className="flex items-center justify-between gap-2">
           <div className="text-[11px] font-medium text-muted-foreground">
@@ -344,7 +395,11 @@ function SpeechConfig({ context }: { context: AudioToolShellContext }) {
           label={t("audio:speech.fields.mimo_mode")}
           hint={t("audio:speech.hints.mimo_mode")}
         >
-          <ButtonGroup className="w-full">
+          <ButtonGroup
+            className="w-full"
+            role="radiogroup"
+            aria-label={t("audio:speech.fields.mimo_mode")}
+          >
             {MIMO_MODES.map((mode) => {
               const compatible = isMimoModeCompatibleWithModel(
                 mode,
@@ -356,6 +411,8 @@ function SpeechConfig({ context }: { context: AudioToolShellContext }) {
                   type="button"
                   size="sm"
                   className="flex-1"
+                  role="radio"
+                  aria-checked={preferences.mimoMode === mode}
                   disabled={!isMimo}
                   variant={preferences.mimoMode === mode ? "default" : "outline"}
                   onClick={() => updatePreferences({ mimoMode: mode })}
@@ -381,8 +438,12 @@ function SpeechConfig({ context }: { context: AudioToolShellContext }) {
           ) : null}
         </ToolField>
 
-        <ToolField label={t("audio:speech.fields.style_instruction")}>
+        <ToolField
+          label={t("audio:speech.fields.style_instruction")}
+          htmlFor="speech-mimo-style"
+        >
           <Textarea
+            id="speech-mimo-style"
             disabled={!isMimo}
             rows={2}
             className="resize-none text-xs"
@@ -399,8 +460,10 @@ function SpeechConfig({ context }: { context: AudioToolShellContext }) {
         <ToolField
           label={t("audio:speech.fields.voice_design_prompt")}
           hint={t("audio:speech.hints.voice_design")}
+          htmlFor="speech-voice-design-prompt"
         >
           <Textarea
+            id="speech-voice-design-prompt"
             disabled={!isMimo || normalized.mimoMode !== "voice_design"}
             rows={3}
             className="resize-none text-xs"
@@ -461,20 +524,8 @@ function SpeechConfig({ context }: { context: AudioToolShellContext }) {
           ) : null}
         </ToolField>
 
-        <ToolField label={t("audio:speech.fields.audio_tags")}>
-          <label className="flex items-center gap-2 text-xs text-muted-foreground">
-            <Checkbox
-              checked={isMimo && preferences.audioTagsEnabled}
-              disabled={!isMimo || normalized.mimoMode !== "preset_voice"}
-              onCheckedChange={(checked) =>
-                updatePreferences({ audioTagsEnabled: Boolean(checked) })
-              }
-            />
-            {t("audio:speech.hints.audio_tags")}
-          </label>
-        </ToolField>
       </div>
-    </div>
+    </fieldset>
   );
 }
 
@@ -499,6 +550,10 @@ function SpeechWorkspace({ context }: { context: AudioToolShellContext }) {
   const setLastError = useSpeechSynthesizerStore((state) => state.setLastError);
   const setActiveRequest = useSpeechSynthesizerStore(
     (state) => state.setActiveRequest,
+  );
+  const beginTask = useSpeechSynthesizerStore((state) => state.beginTask);
+  const invalidateTask = useSpeechSynthesizerStore(
+    (state) => state.invalidateTask,
   );
   const appendStreamText = useSpeechSynthesizerStore(
     (state) => state.appendStreamText,
@@ -538,20 +593,38 @@ function SpeechWorkspace({ context }: { context: AudioToolShellContext }) {
 
   const handleCancel = useCallback(async () => {
     if (!activeRequestId) return;
-    if (activeMode === "stream") {
-      await streamHandleRef.current?.cancel();
+    const requestId = activeRequestId;
+    const mode = activeMode;
+    // Invalidate callbacks before awaiting IPC so a completion racing with
+    // cancellation cannot resurrect stale task state.
+    invalidateTask(requestId);
+    const response = mode === "stream"
+      ? await streamHandleRef.current?.cancel()
+      : await cancelSpeechSynthesis(requestId);
+    if (mode === "stream") {
       cleanupStreamResources();
-    } else {
-      await cancelSpeechSynthesis(activeRequestId);
     }
-    setActiveRequest(null, null);
-    setStatus("cancelled");
-    showToast(t("audio:speech.messages.cancelled"), "success");
+    if (response?.ok && response.data.cancelled) {
+      setStatus("cancelled");
+      showToast(t("audio:speech.messages.cancelled"), "success");
+      return;
+    }
+
+    const error = response && !response.ok
+      ? response.error
+      : {
+          code: "renderer_error" as const,
+          message: t("audio:speech.errors.cancel_not_confirmed"),
+        };
+    setLastError(error);
+    setStatus("failed");
+    showToast(t("audio:speech.errors.cancel_not_confirmed"), "error");
   }, [
     activeMode,
     activeRequestId,
     cleanupStreamResources,
-    setActiveRequest,
+    invalidateTask,
+    setLastError,
     setStatus,
     t,
   ]);
@@ -560,6 +633,7 @@ function SpeechWorkspace({ context }: { context: AudioToolShellContext }) {
     return () => {
       const state = useSpeechSynthesizerStore.getState();
       if (state.activeRequestId) {
+        state.invalidateTask(state.activeRequestId);
         if (state.activeMode === "stream") {
           void streamHandleRef.current?.cancel();
         } else {
@@ -590,44 +664,43 @@ function SpeechWorkspace({ context }: { context: AudioToolShellContext }) {
       voiceSample,
     });
 
-    setResult(null);
-    setLastError(null);
-    updateStreamStats({ chunkCount: 0, totalBytes: 0, firstChunkLatencyMs: undefined, streamMode: undefined });
-
     if (normalized.stream) {
-      setStatus("streaming");
-      setActiveRequest(requestId, "stream");
-      playerRef.current = new Pcm16StreamPlayer();
+      beginTask(requestId, "stream");
+      const player = new Pcm16StreamPlayer();
+      playerRef.current = player;
+      let playerReady: Promise<void> = Promise.resolve();
+      let playerStartError: unknown;
       const handle = synthesizeSpeechStream(
         request,
         {
           started: (event) => {
-            void playerRef.current?.start(event.sampleRate, event.channels);
+            if (useSpeechSynthesizerStore.getState().activeRequestId !== requestId) {
+              return;
+            }
+            playerReady = player.start(event.sampleRate, event.channels).catch((error) => {
+              playerStartError = error;
+            });
           },
           audioDelta: (event) => {
-            playerRef.current?.push(event.pcmBytes);
+            if (useSpeechSynthesizerStore.getState().activeRequestId !== requestId) {
+              return;
+            }
+            player.push(event.pcmBytes);
             const current = useSpeechSynthesizerStore.getState().streamStats;
             updateStreamStats({
               chunkCount: current.chunkCount + 1,
               totalBytes: current.totalBytes + event.pcmBytes.byteLength,
             });
           },
-          textDelta: (event) => appendStreamText(event.text),
-          metadata: (event) => updateStreamStats(event.stats),
-          completed: (event) => {
-            if (useSpeechSynthesizerStore.getState().activeRequestId !== requestId) {
-              return;
+          textDelta: (event) => {
+            if (useSpeechSynthesizerStore.getState().activeRequestId === requestId) {
+              appendStreamText(event.text);
             }
-            setResult(event.result);
-            setStatus("completed");
-            setActiveRequest(null, null);
-            cleanupStreamResources();
           },
-          error: (event) => {
-            setLastError(event.error);
-            setStatus("failed");
-            setActiveRequest(null, null);
-            cleanupStreamResources();
+          metadata: (event) => {
+            if (useSpeechSynthesizerStore.getState().activeRequestId === requestId) {
+              updateStreamStats(event.stats);
+            }
           },
         },
         { requestId },
@@ -637,22 +710,45 @@ function SpeechWorkspace({ context }: { context: AudioToolShellContext }) {
       if (useSpeechSynthesizerStore.getState().activeRequestId !== requestId) {
         return;
       }
-      setActiveRequest(null, null);
-      cleanupStreamResources();
       if (response.ok) {
+        try {
+          await playerReady;
+          if (playerStartError) throw playerStartError;
+          await player.drain();
+        } catch (error) {
+          if (useSpeechSynthesizerStore.getState().activeRequestId !== requestId) {
+            return;
+          }
+          setActiveRequest(null, null);
+          cleanupStreamResources();
+          const message = error instanceof Error
+            ? error.message
+            : t("audio:speech.errors.playback_failed");
+          setLastError({ code: "renderer_error", message });
+          setStatus("failed");
+          showToast(t("audio:speech.errors.playback_failed"), "error");
+          return;
+        }
+        if (useSpeechSynthesizerStore.getState().activeRequestId !== requestId) {
+          return;
+        }
+        streamHandleRef.current = null;
+        playerRef.current = null;
+        setActiveRequest(null, null);
         setResult(response.data);
         setStatus("completed");
         showToast(t("audio:speech.messages.completed"), "success");
       } else {
+        setActiveRequest(null, null);
+        cleanupStreamResources();
         setStatus("failed");
         setLastError(response.error);
-        showToast(response.error.message, "error");
+        showToast(t("audio:speech.errors.runtime_failed"), "error");
       }
       return;
     }
 
-    setStatus("running");
-    setActiveRequest(requestId, "non_stream");
+    beginTask(requestId, "non_stream");
     const response = await synthesizeSpeech(request);
     if (useSpeechSynthesizerStore.getState().activeRequestId !== requestId) {
       return;
@@ -665,10 +761,11 @@ function SpeechWorkspace({ context }: { context: AudioToolShellContext }) {
     } else {
       setStatus("failed");
       setLastError(response.error);
-      showToast(response.error.message, "error");
+      showToast(t("audio:speech.errors.runtime_failed"), "error");
     }
   }, [
     appendStreamText,
+    beginTask,
     cleanupStreamResources,
     context,
     dialect,
@@ -683,15 +780,15 @@ function SpeechWorkspace({ context }: { context: AudioToolShellContext }) {
   ]);
 
   const handleReveal = useCallback(async () => {
-    if (!result?.outputPath) {
+    if (!result?.outputToken) {
       showToast(t("audio:speech.errors.output_not_ready"), "error");
       return;
     }
-    const response = await revealSpeechOutput({ outputPath: result.outputPath });
+    const response = await revealSpeechOutput({ outputToken: result.outputToken });
     if (!response.ok) {
       showToast(response.error.message, "error");
     }
-  }, [result?.outputPath, t]);
+  }, [result?.outputToken, t]);
 
   return (
     <ToolPanel
@@ -715,6 +812,7 @@ function SpeechWorkspace({ context }: { context: AudioToolShellContext }) {
 
         <ToolField
           label={t("audio:speech.fields.input")}
+          htmlFor="speech-input"
           required={!(
             dialect === "mimo_chat_audio" &&
             normalized.mimoMode === "voice_design" &&
@@ -723,7 +821,13 @@ function SpeechWorkspace({ context }: { context: AudioToolShellContext }) {
           hint={t("audio:speech.hints.input")}
         >
           <Textarea
+            id="speech-input"
             value={preferences.input}
+            maxLength={
+              dialect === "openai_audio"
+                ? OPENAI_SPEECH_MAX_INPUT_CHARS
+                : undefined
+            }
             disabled={isRunning}
             rows={8}
             className="min-h-[180px] resize-y text-sm leading-relaxed"
@@ -734,9 +838,14 @@ function SpeechWorkspace({ context }: { context: AudioToolShellContext }) {
           />
         </ToolField>
 
-        <ToolField label={t("audio:speech.fields.instructions")}>
+        <ToolField
+          label={t("audio:speech.fields.instructions")}
+          htmlFor="speech-instructions"
+        >
           <Textarea
+            id="speech-instructions"
             value={preferences.instructions}
+            maxLength={OPENAI_SPEECH_MAX_INSTRUCTIONS_CHARS}
             disabled={isRunning || dialect === "mimo_chat_audio"}
             rows={3}
             className="resize-y text-xs"
@@ -757,8 +866,18 @@ function SpeechWorkspace({ context }: { context: AudioToolShellContext }) {
             <AlertTitle>{t("audio:speech.errors.title")}</AlertTitle>
             <AlertDescription>
               <div className="space-y-1">
-                <div>{lastError.message}</div>
+                <div>{getAudioErrorMessage(t, lastError, lastError.message)}</div>
                 <div className="font-mono text-[11px]">code: {lastError.code}</div>
+                {lastError.code !== "renderer_error" ? (
+                  <details className="text-[11px] text-muted-foreground">
+                    <summary className="cursor-pointer">
+                      {t("audio:runtime_error.technical_details")}
+                    </summary>
+                    <div className="mt-1 break-words font-mono">
+                      {lastError.message}
+                    </div>
+                  </details>
+                ) : null}
               </div>
             </AlertDescription>
           </Alert>
@@ -838,9 +957,35 @@ function SpeechResultPanel({
   onReveal: () => void;
 }) {
   const { t } = useTranslation(["audio"]);
+  const [audioUrl, setAudioUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    let objectUrl: string | undefined;
+    setAudioUrl(null);
+    if (!result?.outputToken) return;
+    void readSpeechOutput(result.outputToken).then((response) => {
+      if (!active || !response.ok) return;
+      objectUrl = URL.createObjectURL(
+        new Blob([Uint8Array.from(response.data.bytes).buffer], {
+          type: response.data.mimeType,
+        }),
+      );
+      setAudioUrl(objectUrl);
+    });
+    return () => {
+      active = false;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [result?.outputToken]);
+
   if (!result) {
     return (
-      <div className="flex min-h-[220px] items-center justify-center rounded-lg border border-dashed bg-muted/20 px-4 py-8 text-center">
+      <div
+        className="flex min-h-[220px] items-center justify-center rounded-lg border border-dashed bg-muted/20 px-4 py-8 text-center"
+        role="status"
+        aria-live="polite"
+      >
         <div className="max-w-md space-y-3">
           <div className="mx-auto flex size-10 items-center justify-center rounded-full border bg-background text-muted-foreground">
             {status === "running" || status === "streaming" ? (
@@ -874,7 +1019,11 @@ function SpeechResultPanel({
   }
 
   return (
-    <div className="space-y-3 rounded-lg border bg-background p-4">
+    <div
+      className="space-y-3 rounded-lg border bg-background p-4"
+      role="status"
+      aria-live="polite"
+    >
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="min-w-0">
           <div className="text-sm font-medium">
@@ -897,7 +1046,7 @@ function SpeechResultPanel({
       <audio
         controls
         className="w-full"
-        src={toFileAudioSrc(result.outputPath)}
+        src={audioUrl ?? undefined}
       />
       <div className="truncate font-mono text-[11px] text-muted-foreground">
         {result.outputPath}
@@ -1001,6 +1150,18 @@ function resolveSubmitIssueKey(
   if (!isMimo && !preferences.voice.trim()) {
     return "audio:speech.errors.no_voice";
   }
+  if (
+    !isMimo &&
+    preferences.input.length > OPENAI_SPEECH_MAX_INPUT_CHARS
+  ) {
+    return "audio:speech.errors.input_too_long";
+  }
+  if (
+    !isMimo &&
+    preferences.instructions.length > OPENAI_SPEECH_MAX_INSTRUCTIONS_CHARS
+  ) {
+    return "audio:speech.errors.instructions_too_long";
+  }
   if (preferences.outputMode === "custom_dir" && !preferences.outputDir.trim()) {
     return "audio:speech.errors.output_dir_required";
   }
@@ -1047,13 +1208,4 @@ function formatBytes(bytes: number): string {
     unitIndex += 1;
   }
   return `${size.toFixed(size >= 10 ? 1 : 2)} ${units[unitIndex]}`;
-}
-
-function toFileAudioSrc(filePath: string): string {
-  if (filePath.startsWith("file://")) return filePath;
-  const normalized = filePath.replace(/\\/g, "/");
-  if (/^[A-Za-z]:\//.test(normalized)) {
-    return encodeURI(`file:///${normalized}`);
-  }
-  return encodeURI(`file://${normalized.startsWith("/") ? "" : "/"}${normalized}`);
 }

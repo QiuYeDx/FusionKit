@@ -415,7 +415,7 @@ const useModelStore = create<ModelStore>()(
     {
       name: "fusionkit-model",
       storage: createJSONStorage(() => localStorage),
-      version: 4,
+      version: 5,
       partialize: (state) => ({
         profiles: state.profiles,
         assignment: state.assignment,
@@ -423,7 +423,7 @@ const useModelStore = create<ModelStore>()(
         audioAssignment: state.audioAssignment,
       }),
       migrate: (persisted: any, version: number) => {
-        // v1 (flat model/apiKeyMap) -> v4 (profiles + assignment + audio config)
+        // v1 (flat model/apiKeyMap) -> v5 (profiles + normalized audio config)
         if (version < 2) {
           if (persisted && (persisted.model || persisted.apiKeyMap)) {
             return migrateModelConfigToV4(migrateFromV1(persisted));
@@ -441,13 +441,13 @@ const useModelStore = create<ModelStore>()(
             const raw = JSON.parse(localStorage.getItem(LEGACY_KEY)!);
 
             if (raw.version === 2 && Array.isArray(raw.profiles)) {
-              // 已经是 v2 格式，补齐 v4 字段后迁移
+              // 已经是 v2 格式，补齐 v5 字段后迁移
               const migrated = migrateModelConfigToV4(raw);
               localStorage.setItem(
                 "fusionkit-model",
                 JSON.stringify({
                   state: migrated,
-                  version: 4,
+                  version: 5,
                 })
               );
             } else if (raw.model || raw.apiKeyMap) {
@@ -455,7 +455,7 @@ const useModelStore = create<ModelStore>()(
               const migrated = migrateModelConfigToV4(migrateFromV1(raw));
               localStorage.setItem(
                 "fusionkit-model",
-                JSON.stringify({ state: migrated, version: 4 })
+                JSON.stringify({ state: migrated, version: 5 })
               );
             }
           } catch { /* silent */ }

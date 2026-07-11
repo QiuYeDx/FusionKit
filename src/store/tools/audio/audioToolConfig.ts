@@ -32,6 +32,7 @@ export interface AudioToolConfigSummary {
   audioDialect?: AudioApiDialect;
   modelKey?: string;
   capabilities: AudioCapability[];
+  defaults?: AudioModelProfile["defaults"];
   connectionProfile?: AudioToolConnectionSummary;
   missingCapabilities?: AudioCapability[];
 }
@@ -41,6 +42,10 @@ export interface AudioToolConfigState {
   audioProfiles: AudioModelProfile[];
   audioAssignment: AudioModelAssignment;
 }
+
+export type AudioToolConfigSummarySelector = (
+  state: AudioToolConfigState,
+) => AudioToolConfigSummary;
 
 export interface MimoVoicePreset {
   id: string;
@@ -123,17 +128,53 @@ export function resolveAudioToolConfigSummary(
   };
 }
 
+/**
+ * Keeps useSyncExternalStore snapshots referentially stable while none of the
+ * model slices used by the summary changed. React 19 requires a selector to
+ * return the same reference for the same external-store snapshot.
+ */
+export function createAudioToolConfigSummarySelector(
+  assignmentKey: AudioAssignmentKey,
+): AudioToolConfigSummarySelector {
+  let cachedProfiles: ModelProfile[] | undefined;
+  let cachedAudioProfiles: AudioModelProfile[] | undefined;
+  let cachedAudioAssignment: AudioModelAssignment | undefined;
+  let cachedSummary: AudioToolConfigSummary | undefined;
+
+  return (state) => {
+    if (
+      cachedSummary
+      && cachedProfiles === state.profiles
+      && cachedAudioProfiles === state.audioProfiles
+      && cachedAudioAssignment === state.audioAssignment
+    ) {
+      return cachedSummary;
+    }
+
+    cachedProfiles = state.profiles;
+    cachedAudioProfiles = state.audioProfiles;
+    cachedAudioAssignment = state.audioAssignment;
+    cachedSummary = resolveAudioToolConfigSummary(state, assignmentKey);
+    return cachedSummary;
+  };
+}
+
 function createProfileSummary(
   profile: AudioModelProfile,
   capabilities: AudioCapability[],
 ): Pick<
   AudioToolConfigSummary,
-  "profileId" | "profileName" | "audioDialect" | "capabilities"
+  | "profileId"
+  | "profileName"
+  | "audioDialect"
+  | "capabilities"
+  | "defaults"
 > {
   return {
     profileId: profile.id,
     profileName: profile.name,
     audioDialect: profile.audioDialect,
     capabilities,
+    defaults: profile.defaults,
   };
 }

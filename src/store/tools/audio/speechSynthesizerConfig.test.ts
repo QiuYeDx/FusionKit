@@ -4,9 +4,11 @@ import {
   MIMO_TTS_MODEL_BY_MODE,
   buildSpeechSynthesisRequest,
   canStreamSpeechSynthesis,
+  clampSpeechSpeed,
   getMimoModeForModel,
   isMimoModeCompatibleWithModel,
   normalizeSpeechSynthesizerPreferences,
+  sanitizeSpeechSynthesizerPreferences,
   validateVoiceSampleFile,
   type SelectedVoiceSample,
 } from "./speechSynthesizerConfig";
@@ -104,7 +106,38 @@ describe("speech synthesizer config helpers", () => {
       expect(request.stream).toBe(true);
       expect(request.responseFormat).toBe("pcm16");
       expect(request.mimoOptions?.mode).toBe(mode);
+      if (mode !== "voice_design") {
+        expect(request.mimoOptions).not.toHaveProperty("optimizeTextPreview");
+        expect(request.mimoOptions).not.toHaveProperty("voiceDesignPrompt");
+      }
+      expect(request.mimoOptions).not.toHaveProperty("audioTagsEnabled");
     }
+  });
+
+  it("whitelists MiMo fields by mode and clamps OpenAI speed", () => {
+    const clone = buildSpeechSynthesisRequest({
+      requestId: "speech_clone",
+      dialect: "mimo_chat_audio",
+      capabilities: ["streaming_speech_synthesis"],
+      voiceSample,
+      preferences: {
+        ...DEFAULT_SPEECH_SYNTHESIZER_PREFERENCES,
+        input: "Hello",
+        mimoMode: "voice_clone",
+        voiceDesignPrompt: "must not leak",
+        optimizeTextPreview: true,
+        audioTagsEnabled: true,
+      },
+    });
+
+    expect(clone.mimoOptions).toEqual({
+      mode: "voice_clone",
+      voiceSamplePath: "/tmp/voice.wav",
+      voiceSampleMime: "audio/wav",
+    });
+    expect(clampSpeechSpeed(-2)).toBe(0.25);
+    expect(clampSpeechSpeed(99)).toBe(4);
+    expect(clampSpeechSpeed(Number.NaN)).toBe(1);
   });
 
   it("detects MiMo mode/model compatibility", () => {
@@ -140,6 +173,23 @@ describe("speech synthesizer config helpers", () => {
     ).toMatchObject({
       ok: false,
       issue: { code: "unsupported_voice_sample" },
+    });
+  });
+
+  it("sanitizes persisted preferences and deep-fills new defaults", () => {
+    expect(sanitizeSpeechSynthesizerPreferences({
+      input: "kept",
+      responseFormat: "not-a-format",
+      speed: 99,
+      mimoMode: "not-a-mode",
+      audioTagsEnabled: true,
+    })).toMatchObject({
+      input: "kept",
+      responseFormat: "mp3",
+      speed: 4,
+      mimoMode: "preset_voice",
+      audioTagsEnabled: false,
+      outputDir: "",
     });
   });
 });
