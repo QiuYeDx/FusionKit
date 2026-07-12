@@ -1,5 +1,8 @@
 # 音频工具箱 Final Design
 
+> [!IMPORTANT]
+> 2026-07-12 起，本文的音频配置模型、TTS 模式/模型关系、字段禁用规则和相关验收口径，已由 [音频 API 配置与语音合成 UX 重构 Final Design](audio-toolkit-config-ux-refactor_final_design.md) 正式替代。本文其余 adapter、IPC 安全、文件、流式和 Realtime 合同继续有效；历史实施记录不倒改。
+
 > 日期：2026-07-09
 > Feature Slug：`audio-toolkit`
 > 版本：`v0.2.11`

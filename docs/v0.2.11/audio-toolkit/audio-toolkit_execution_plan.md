@@ -1,5 +1,8 @@
 # 音频工具箱 Execution Plan
 
+> [!IMPORTANT]
+> 本台账记录的是原音频工具箱历史实施状态。2026-07-12 之后的独立音频 API 配置与 TTS UX 重构，以 [新 Final Design](audio-toolkit-config-ux-refactor_final_design.md) 及后续独立 execution plan 为准；原工作包完成状态不代表新产品链路已验收。
+
 > 日期：2026-07-09
 > Feature Slug：`audio-toolkit`
 > 对应设计文档：`docs/v0.2.11/audio-toolkit/audio-toolkit_final_design.md`
