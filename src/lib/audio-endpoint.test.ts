@@ -27,6 +27,18 @@ describe("normalizeAudioEndpoint", () => {
     });
   });
 
+  it("canonicalizes Responses endpoints without deriving nested audio paths", () => {
+    expect(
+      normalizeAudioEndpoint(
+        "https://api.openai.com/v1/responses?trace=1#request",
+      ),
+    ).toMatchObject({
+      baseUrl: "https://api.openai.com/v1",
+      audioSpeechUrl: "https://api.openai.com/v1/audio/speech",
+      detectedInputKind: "responses_endpoint",
+    });
+  });
+
   it("normalizes OpenAI audio transcription full endpoint input", () => {
     expect(
       normalizeAudioEndpoint(
@@ -72,6 +84,19 @@ describe("normalizeAudioEndpoint", () => {
       baseUrl: "https://api.openai.com/v1",
       modelsUrl: "https://api.openai.com/v1/models",
       detectedInputKind: "models_endpoint",
+    });
+  });
+
+  it("removes query and hash data from a full audio endpoint", () => {
+    expect(
+      normalizeAudioEndpoint(
+        "https://provider.example/v1/audio/transcriptions?api-version=1#top",
+      ),
+    ).toMatchObject({
+      baseUrl: "https://provider.example/v1",
+      audioTranscriptionsUrl:
+        "https://provider.example/v1/audio/transcriptions",
+      detectedInputKind: "audio_transcriptions_endpoint",
     });
   });
 

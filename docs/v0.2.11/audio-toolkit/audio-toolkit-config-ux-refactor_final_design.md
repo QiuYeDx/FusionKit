@@ -1,9 +1,10 @@
 # 音频 API 配置与语音合成 UX 重构 Final Design
 
 > 日期：2026-07-12
-> 状态：待实施
+> 状态：实施中（`PRE-R01`、`CORE-R01`、`BE-R01`、`FE-R01` 已完成，下一步 `FE-R02`）
 > 范围：独立音频 API 配置、音频任务默认分配、音频运行时路由、文本转音频页面、i18n 与迁移兼容
 > 关系：本设计继承原音频工具箱的 adapter、IPC 安全、文件、流式与 Realtime 合同，但正式替代原设计中的配置模型、TTS 模式/模型关系、字段禁用规则和相关验收口径。
+> 执行计划：[音频 API 配置与语音合成 UX 重构 Execution Plan](audio-toolkit-config-ux-refactor_execution_plan.md)
 
 ## 0. 评审结论
 
@@ -242,7 +243,10 @@ renderer 同步运行时快照时，只从通用 profile 取 `id/provider/apiKey
 “保存并返回工具”
 ```
 
-第一条 API 的自动分配必须在保存结果中明确列出，并提供撤销；不能让用户保存后还猜测为什么工具仍不可用。
+第一条 API 的自动分配必须在保存结果中明确列出，并提供撤销；撤销必须采用
+compare-and-clear，只清理仍指向该新 API 的自动分配，不能覆盖用户随后手选的结果。
+`returnTo` 只接受四条精确的音频工具路径；普通“保存”留在设置页展示持久反馈，
+“保存并返回”才导航回白名单内的来源工具。
 
 ### 4.4 添加/编辑音频 API
 
@@ -263,6 +267,9 @@ renderer 同步运行时快照时，只从通用 profile 取 `id/provider/apiKey
    - OpenAI 可在同一 API 配置中同时准备 file audio 与 realtime route，不再因 dialect 单选而创建两份 profile
    - 自定义供应商才展开 route/model 映射
 
+跨供应商切换必须清空上一供应商的 API Key，并重置 Base URL 与 routes；重复选择
+当前供应商保持表单不变，避免误清用户正在填写的凭证。
+
 表单中明确禁止出现：
 
 - “连接 Profile”
@@ -277,9 +284,13 @@ renderer 同步运行时快照时，只从通用 profile 取 `id/provider/apiKey
 ### 4.5 编辑与删除
 
 - 修改凭证或路由不应清空工具草稿。
+- 编辑 routes 后必须在同一次 Store 提交中重验当前 assignment，并清空不再兼容的
+  任务；若“保存并返回”，清理结果仍需通过带任务清单的全局反馈明确告知用户。
 - 路由变更后，工具页重新计算可用模式；如果当前模式消失，按“预置音色优先，否则第一条可用 route”回退，并显示一次非阻断提示。
 - 删除未使用 API：二次确认。
-- 删除正在被 assignment 使用的 API：对话框列出受影响任务，要求选择替代 API或确认将这些任务置为未配置；不能静默清空。
+- 删除正在被 assignment 使用的 API：对话框列出受影响任务，要求选择替代 API
+  或确认将这些任务置为未配置；替换 map 全量校验通过后，assignment 更新与 profile
+  删除必须在同一次 Store 提交中完成，任一项无效时零写入。
 - 文本模型档案与音频 API 生命周期完全解耦，删除任一方不再阻止另一方。
 
 ## 5. 目标领域模型
@@ -402,14 +413,14 @@ speechSynthesis: {
 
 ### 6.1 从 resolveModel 改为 resolveRoute
 
-当前 main 只按 assignment 解析一个固定模型：
+`BE-R01` 前 main 只按 assignment 解析一个固定模型：
 
 ```text
 speechSynthesis assignment
   → AudioModelProfile.models.speechSynthesis
 ```
 
-重构后：
+`BE-R01` 已实现：
 
 ```text
 speechSynthesis assignment
@@ -431,7 +442,7 @@ main 侧解析顺序：
 
 ### 6.2 Provider-neutral TTS 请求
 
-建议把 `mimoOptions` 改为可判别的任务意图：
+IPC 合同采用可判别的 provider-neutral 任务意图：
 
 ```ts
 export type SpeechSynthesisIntent =
@@ -442,7 +453,7 @@ export type SpeechSynthesisIntent =
     }
   | {
       mode: "voice_design";
-      voiceDesignPrompt?: string;
+      voiceDesignPrompt: string;
       optimizeTextPreview?: boolean;
     }
   | {
@@ -451,12 +462,12 @@ export type SpeechSynthesisIntent =
       styleInstruction?: string;
     };
 
-export interface CreateSpeechSynthesisRequest {
+export interface CreateSpeechSynthesisIpcRequest {
   assignmentKey: "speechSynthesis";
   requestId?: string;
   input: string;
   intent: SpeechSynthesisIntent;
-  responseFormat?: AudioSpeechResponseFormat;
+  responseFormat: AudioSpeechResponseFormat;
   instructions?: string;
   speed?: number;
   stream?: boolean;
@@ -469,6 +480,12 @@ export interface CreateSpeechSynthesisRequest {
 renderer 提交 `mode` 是提交用户任务意图，不是提交模型选择。main 根据可信 profile routes 选择模型。
 
 OpenAI 标准 TTS 也可使用 `preset_voice` intent；provider constraints 决定它是否接受 instructions、speed、格式或 stream。
+
+`CreateSpeechSynthesisRequest` 继续作为 main → adapter 的可信内部 DTO：main
+在完成 revision、assignment、intent route、字段约束和文件/目录 token 解析后，
+才把可信 `voice`、`mimoOptions.voiceSamplePath`、`outputDir` 与 adapter model
+写入该 DTO。renderer 侧 legacy builder 仅作为 `FE-R02` 迁移期输入保留，
+无法通过 public IPC 直接提交路径或模型配置。
 
 ### 6.3 错误合同
 
@@ -687,6 +704,12 @@ node scripts/check-i18n-usage.mjs
 
 音频重构不能改变文本模型迁移结果。
 
+`CORE-R01` 已完成独立 Store 与迁移基础设施，`BE-R01` 已把 runtime snapshot、
+main route resolver、ASR/TTS/Realtime IPC 消费者切到独立配置，`FE-R01` 已让设置页
+停止挂载和写入 legacy audio UI。当前仍不可单独发布：`FE-R02`、`FE-R03` 还需迁移
+四个工具消费者；最后由 `FE-R03` 移除旧 CRUD/selectors 与文本删除保护。legacy
+字段只作为一个版本的只读备份继续持久化，不建立新旧 Store 双写。
+
 ### 10.2 Legacy audio profile 迁移
 
 迁移按旧 `AudioModelProfile` 一条对一条物化新的 `AudioApiProfile`，优先保证无损和 assignment 稳定，不先做激进去重：
@@ -847,7 +870,7 @@ Electron 视觉/交互验收必须等待 FusionKit preload loading 完全退出�
 
 ## 13. 实施顺序建议
 
-本轮只冻结设计，不直接实现。后续 execution plan 建议拆分：
+实施已按下列顺序推进；各工作包完成状态与下一步以 Execution Plan 为准：
 
 1. `PRE-R01`：冻结新类型、provider registry、route constraints 和迁移 fixture。
 2. `CORE-R01`：独立 audio store、legacy migration、文本 store 解耦。

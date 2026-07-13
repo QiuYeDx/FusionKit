@@ -307,16 +307,44 @@ export class AudioFileAuthorizationStore {
     fileToken: string,
     dialect: AudioApiDialect,
   ): Promise<AudioFileInfo> {
+    const entry = this.requireEntry(ownerId, fileToken);
+    return this.resolveEntry(entry, dialect, fileToken);
+  }
+
+  async consume(
+    ownerId: number,
+    fileToken: string,
+    dialect: AudioApiDialect,
+  ): Promise<AudioFileInfo> {
+    const entry = this.requireEntry(ownerId, fileToken);
+    this.entries.delete(fileToken);
+    return this.resolveEntry(entry, dialect, fileToken);
+  }
+
+  revoke(ownerId: number, fileToken: string): void {
+    const entry = this.entries.get(fileToken);
+    if (entry?.ownerId === ownerId) this.entries.delete(fileToken);
+  }
+
+  private requireEntry(
+    ownerId: number,
+    fileToken: string,
+  ): AudioFileAuthorizationEntry {
     this.removeExpired();
     const entry = this.entries.get(fileToken);
-    if (!entry || entry.ownerId !== ownerId) {
-      throw createAudioRuntimeError({
-        code: "invalid_ipc_request",
-        message: "Audio file authorization is invalid or expired.",
-        field: "fileToken",
-      });
-    }
+    if (entry && entry.ownerId === ownerId) return entry;
+    throw createAudioRuntimeError({
+      code: "invalid_ipc_request",
+      message: "Audio file authorization is invalid or expired.",
+      field: "fileToken",
+    });
+  }
 
+  private async resolveEntry(
+    entry: AudioFileAuthorizationEntry,
+    dialect: AudioApiDialect,
+    fileToken: string,
+  ): Promise<AudioFileInfo> {
     const resolved = await resolveAudioInputFile({
       filePath: entry.filePath,
       mimeType: entry.mimeType,

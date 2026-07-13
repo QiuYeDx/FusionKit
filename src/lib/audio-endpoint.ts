@@ -1,6 +1,7 @@
 export type AudioEndpointInputKind =
   | "base_url"
   | "chat_completions_endpoint"
+  | "responses_endpoint"
   | "audio_speech_endpoint"
   | "audio_transcriptions_endpoint"
   | "realtime_client_secrets_endpoint"
@@ -20,6 +21,7 @@ export interface NormalizedAudioEndpoint {
 }
 
 const CHAT_COMPLETIONS_SUFFIX = "/chat/completions";
+const RESPONSES_SUFFIX = "/responses";
 const AUDIO_SPEECH_SUFFIX = "/audio/speech";
 const AUDIO_TRANSCRIPTIONS_SUFFIX = "/audio/transcriptions";
 const REALTIME_CLIENT_SECRETS_SUFFIX = "/realtime/client_secrets";
@@ -43,6 +45,10 @@ const KNOWN_SUFFIXES: Array<{
     kind: "chat_completions_endpoint",
   },
   {
+    suffix: RESPONSES_SUFFIX,
+    kind: "responses_endpoint",
+  },
+  {
     suffix: AUDIO_SPEECH_SUFFIX,
     kind: "audio_speech_endpoint",
   },
@@ -58,7 +64,7 @@ const KNOWN_SUFFIXES: Array<{
 
 export function normalizeAudioEndpoint(input: string): NormalizedAudioEndpoint {
   const originalInput = input;
-  const trimmed = input.trim().replace(/\/+$/, "");
+  const trimmed = canonicalizeEndpointInput(input);
 
   if (!trimmed) {
     return createNormalizedEndpoint("", originalInput, "base_url");
@@ -81,6 +87,20 @@ export function normalizeAudioEndpoint(input: string): NormalizedAudioEndpoint {
     originalInput,
     detectedInputKind,
   );
+}
+
+function canonicalizeEndpointInput(input: string): string {
+  const trimmed = input.trim();
+  if (!trimmed) return "";
+
+  try {
+    const url = new URL(trimmed);
+    url.search = "";
+    url.hash = "";
+    return url.toString().replace(/\/+$/, "");
+  } catch {
+    return trimmed.replace(/[?#].*$/, "").replace(/\/+$/, "");
+  }
 }
 
 function createNormalizedEndpoint(

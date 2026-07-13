@@ -16,7 +16,7 @@ import {
   validateSyncAudioRuntimeConfigIpcRequest,
   validateTranscribeRecordedAudioChunkIpcRequest,
 } from "@/type/audioIpc";
-import { Model } from "@/type/model";
+import type { SpeechSynthesisIntent } from "@/type/audio";
 
 describe("audio IPC contract", () => {
   it("keeps every command and event under the audio namespace", () => {
@@ -31,7 +31,194 @@ describe("audio IPC contract", () => {
     expect(channels).not.toContain("session-event");
   });
 
-  it("accepts transcription requests that only pass task parameters and an authorized file token", () => {
+  it("accepts standalone profiles, routes, verification, and assignment", () => {
+    const result = validateSyncAudioRuntimeConfigIpcRequest(
+      createRuntimeSnapshot(),
+    );
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.data).toEqual({
+      profiles: [
+        {
+          id: "audio_mimo",
+          providerPreset: "mimo",
+          apiKey: "mimo-secret-key",
+          baseUrl: "https://api.xiaomimimo.com/v1",
+          routes: {
+            transcription: enabledRoute(
+              "mimo_chat_audio",
+              "mimo-v2.5-asr",
+            ),
+            speechSynthesis: {
+              preset_voice: enabledRoute(
+                "mimo_chat_audio",
+                "mimo-v2.5-tts",
+              ),
+              voice_design: enabledRoute(
+                "mimo_chat_audio",
+                "mimo-v2.5-tts-voicedesign",
+              ),
+              voice_clone: enabledRoute(
+                "mimo_chat_audio",
+                "mimo-v2.5-tts-voiceclone",
+              ),
+            },
+            realtimeCaptions: enabledRoute(
+              "mimo_chat_audio",
+              "mimo-v2.5-asr",
+            ),
+          },
+          verification: {
+            transcription: {
+              status: "verified",
+              updatedAt: "2026-07-13T00:00:00.000Z",
+            },
+            "speechSynthesis.voice_design": { status: "degraded" },
+          },
+        },
+      ],
+      assignment: {
+        transcription: "audio_mimo",
+        speechSynthesis: "audio_mimo",
+        realtimeCaptions: "audio_mimo",
+        realtimeVoice: null,
+      },
+    });
+  });
+
+  it("rejects legacy snapshot fields and text-model coupling", () => {
+    const legacyRoot = validateSyncAudioRuntimeConfigIpcRequest({
+      ...createRuntimeSnapshot(),
+      connectionProfiles: [],
+    });
+    expectFailureField(legacyRoot, "connectionProfiles");
+
+    const legacyProfile = createRuntimeSnapshot();
+    Object.assign(legacyProfile.profiles[0], {
+      connectionProfileId: "text-profile",
+    });
+    expectFailureField(
+      validateSyncAudioRuntimeConfigIpcRequest(legacyProfile),
+      "profiles.0.connectionProfileId",
+    );
+  });
+
+  it("rejects duplicate profile ids and unknown assignment keys", () => {
+    const duplicate = createRuntimeSnapshot();
+    duplicate.profiles.push({
+      ...duplicate.profiles[0],
+      id: " audio_mimo ",
+    });
+    expectFailureField(
+      validateSyncAudioRuntimeConfigIpcRequest(duplicate),
+      "profiles.1.id",
+    );
+
+    const unknownAssignment = createRuntimeSnapshot();
+    Object.assign(unknownAssignment.assignment, { unknownTask: "audio_mimo" });
+    expectFailureField(
+      validateSyncAudioRuntimeConfigIpcRequest(unknownAssignment),
+      "assignment.unknownTask",
+    );
+  });
+
+  it("strictly validates route keys, transports, models, and enabled flags", () => {
+    const invalidCases: Array<{
+      mutate: (snapshot: ReturnType<typeof createRuntimeSnapshot>) => void;
+      field: string;
+    }> = [
+      {
+        mutate: (snapshot) => {
+          Object.assign(snapshot.profiles[0].routes, { unknownTask: {} });
+        },
+        field: "profiles.0.routes.unknownTask",
+      },
+      {
+        mutate: (snapshot) => {
+          Object.assign(snapshot.profiles[0].routes.speechSynthesis, {
+            unknown_mode: enabledRoute("mimo_chat_audio", "mimo-unknown"),
+          });
+        },
+        field: "profiles.0.routes.speechSynthesis.unknown_mode",
+      },
+      {
+        mutate: (snapshot) => {
+          snapshot.profiles[0].routes.transcription.transport = "invalid";
+        },
+        field: "profiles.0.routes.transcription.transport",
+      },
+      {
+        mutate: (snapshot) => {
+          snapshot.profiles[0].routes.transcription.model = "   ";
+        },
+        field: "profiles.0.routes.transcription.model",
+      },
+      {
+        mutate: (snapshot) => {
+          snapshot.profiles[0].routes.transcription.enabled = "yes";
+        },
+        field: "profiles.0.routes.transcription.enabled",
+      },
+      {
+        mutate: (snapshot) => {
+          Object.assign(snapshot.profiles[0].routes.transcription, {
+            endpoint: "https://should-not-cross.example",
+          });
+        },
+        field: "profiles.0.routes.transcription.endpoint",
+      },
+    ];
+
+    for (const testCase of invalidCases) {
+      const snapshot = createRuntimeSnapshot();
+      testCase.mutate(snapshot);
+      expectFailureField(
+        validateSyncAudioRuntimeConfigIpcRequest(snapshot),
+        testCase.field,
+      );
+    }
+  });
+
+  it("strictly validates route verification keys, values, and fields", () => {
+    const invalidCases: Array<{
+      verification: Record<string, unknown>;
+      field: string;
+    }> = [
+      {
+        verification: { "speechSynthesis.unknown": { status: "verified" } },
+        field: "profiles.0.verification.speechSynthesis.unknown",
+      },
+      {
+        verification: { transcription: { status: "unknown" } },
+        field: "profiles.0.verification.transcription.status",
+      },
+      {
+        verification: {
+          transcription: { status: "verified", updatedAt: 123 },
+        },
+        field: "profiles.0.verification.transcription.updatedAt",
+      },
+      {
+        verification: {
+          transcription: { status: "verified", apiKey: "must-not-hide-here" },
+        },
+        field: "profiles.0.verification.transcription.apiKey",
+      },
+    ];
+
+    for (const testCase of invalidCases) {
+      const snapshot = createRuntimeSnapshot();
+      snapshot.profiles[0].verification = testCase.verification;
+      const result = validateSyncAudioRuntimeConfigIpcRequest(snapshot);
+      expectFailureField(result, testCase.field);
+      if (!result.ok) {
+        expect(JSON.stringify(result.error)).not.toContain("must-not-hide-here");
+      }
+    }
+  });
+
+  it("accepts transcription requests with task parameters and a file token", () => {
     const result = validateCreateAudioTranscriptionIpcRequest({
       assignmentKey: "transcription",
       fileToken: "authorized-file-token",
@@ -43,7 +230,7 @@ describe("audio IPC contract", () => {
       stream: true,
       requestId: "asr_req_001",
       outputPathMode: "custom_dir",
-      outputDir: "/audio/out",
+      outputDirToken: "authorized-output-directory-token",
     });
 
     expect(result.ok).toBe(true);
@@ -54,60 +241,307 @@ describe("audio IPC contract", () => {
         requestId: "asr_req_001",
         responseFormat: "json",
         stream: true,
+        outputDirToken: "authorized-output-directory-token",
       });
     }
   });
 
-  it("validates transcription cancellation requests", () => {
+  it("requires directory tokens only for custom output and rejects raw paths", () => {
+    const transcription = {
+      assignmentKey: "transcription",
+      fileToken: "authorized-file-token",
+      fileName: "sample.wav",
+      mimeType: "audio/wav",
+      responseFormat: "json",
+    };
+    expectFailureField(
+      validateCreateAudioTranscriptionIpcRequest({
+        ...transcription,
+        outputPathMode: "custom_dir",
+        outputDir: "/private/output",
+      }),
+      "outputDir",
+    );
+    expectFailureField(
+      validateCreateAudioTranscriptionIpcRequest({
+        ...transcription,
+        outputPathMode: "custom_dir",
+      }),
+      "outputDirToken",
+    );
+    expectFailureField(
+      validateCreateAudioTranscriptionIpcRequest({
+        ...transcription,
+        outputPathMode: "source_dir",
+        outputDirToken: "unexpected-token",
+      }),
+      "outputDirToken",
+    );
+
+    const speech = createSpeechRequest({ mode: "preset_voice", voice: "alloy" });
+    expectFailureField(
+      validateCreateSpeechSynthesisIpcRequest({
+        ...speech,
+        outputPathMode: "custom_dir",
+        outputDir: "/private/output",
+      }),
+      "outputDir",
+    );
+    expectFailureField(
+      validateCreateSpeechSynthesisIpcRequest({
+        ...speech,
+        outputPathMode: "custom_dir",
+      }),
+      "outputDirToken",
+    );
+    expectFailureField(
+      validateCreateSpeechSynthesisIpcRequest({
+        ...speech,
+        outputPathMode: "temp",
+        outputDirToken: "unexpected-token",
+      }),
+      "outputDirToken",
+    );
+  });
+
+  it("rejects runtime route and profile overrides in task payloads", () => {
+    const forbiddenFields: Array<[string, unknown]> = [
+      ["apiKey", "sk-must-not-cross-ipc"],
+      ["baseUrl", "https://override.example/v1"],
+      ["provider", "OpenAI"],
+      ["providerPreset", "openai"],
+      ["transport", "openai_audio"],
+      ["model", "attacker-model"],
+      ["modelKey", "attacker-model"],
+      ["route", enabledRoute("openai_audio", "attacker-model")],
+      ["routes", { speechSynthesis: {} }],
+      ["profileId", "attacker-profile"],
+      ["audioProfileId", "attacker-profile"],
+      ["connectionProfileId", "attacker-connection"],
+    ];
+
+    for (const [field, value] of forbiddenFields) {
+      const result = validateCreateSpeechSynthesisIpcRequest({
+        ...createSpeechRequest({ mode: "preset_voice", voice: "alloy" }),
+        [field]: value,
+      });
+      expectFailureField(result, field);
+      if (!result.ok) {
+        expect(JSON.stringify(result.error)).not.toContain("sk-must-not-cross-ipc");
+        expect(JSON.stringify(result.error)).not.toContain("attacker-model");
+      }
+    }
+
+    const nested = validateCreateSpeechSynthesisIpcRequest({
+      ...createSpeechRequest({ mode: "preset_voice", voice: "alloy" }),
+      metadata: { route: enabledRoute("openai_audio", "nested-model") },
+    });
+    expectFailureField(nested, "metadata.route");
+  });
+
+  it("accepts and canonicalizes every speech synthesis intent", () => {
+    const cases: Array<{
+      intent: SpeechSynthesisIntent;
+      input?: string;
+      expected: SpeechSynthesisIntent;
+    }> = [
+      {
+        intent: {
+          mode: "preset_voice",
+          voice: " alloy ",
+          styleInstruction: " calm ",
+        },
+        expected: {
+          mode: "preset_voice",
+          voice: "alloy",
+          styleInstruction: " calm ",
+        },
+      },
+      {
+        intent: {
+          mode: "voice_design",
+          voiceDesignPrompt: " warm narrator ",
+          optimizeTextPreview: true,
+        },
+        input: "",
+        expected: {
+          mode: "voice_design",
+          voiceDesignPrompt: "warm narrator",
+          optimizeTextPreview: true,
+        },
+      },
+      {
+        intent: {
+          mode: "voice_clone",
+          voiceSampleToken: "authorized-voice-token",
+          styleInstruction: " restrained ",
+        },
+        expected: {
+          mode: "voice_clone",
+          voiceSampleToken: "authorized-voice-token",
+          styleInstruction: " restrained ",
+        },
+      },
+    ];
+
+    for (const testCase of cases) {
+      const result = validateCreateSpeechSynthesisIpcRequest(
+        createSpeechRequest(
+          testCase.intent,
+          testCase.input === undefined ? {} : { input: testCase.input },
+        ),
+      );
+      expect(result.ok).toBe(true);
+      if (result.ok) expect(result.data.intent).toEqual(testCase.expected);
+    }
+  });
+
+  it("requires each intent mode's own fields", () => {
+    const cases: Array<{ intent: Record<string, unknown>; field: string }> = [
+      { intent: { mode: "preset_voice" }, field: "intent.voice" },
+      {
+        intent: { mode: "voice_design", optimizeTextPreview: true },
+        field: "intent.voiceDesignPrompt",
+      },
+      { intent: { mode: "voice_clone" }, field: "intent.voiceSampleToken" },
+      { intent: { mode: "unknown" }, field: "intent.mode" },
+    ];
+
+    for (const testCase of cases) {
+      expectFailureField(
+        validateCreateSpeechSynthesisIpcRequest(
+          createSpeechRequest(testCase.intent),
+        ),
+        testCase.field,
+      );
+    }
+  });
+
+  it("rejects fields belonging to a different intent mode", () => {
+    const cases: Array<{ intent: Record<string, unknown>; field: string }> = [
+      {
+        intent: {
+          mode: "preset_voice",
+          voice: "alloy",
+          voiceDesignPrompt: "wrong",
+        },
+        field: "intent.voiceDesignPrompt",
+      },
+      {
+        intent: {
+          mode: "voice_design",
+          voiceDesignPrompt: "warm",
+          styleInstruction: "wrong",
+        },
+        field: "intent.styleInstruction",
+      },
+      {
+        intent: {
+          mode: "voice_clone",
+          voiceSampleToken: "authorized-token",
+          voice: "wrong",
+        },
+        field: "intent.voice",
+      },
+      {
+        intent: {
+          mode: "voice_clone",
+          voiceSampleToken: "authorized-token",
+          voiceSamplePath: "/private/reference.wav",
+        },
+        field: "intent.voiceSamplePath",
+      },
+      {
+        intent: {
+          mode: "voice_clone",
+          voiceSampleToken: "authorized-token",
+          voiceSampleBase64: "UklGRg==",
+        },
+        field: "intent.voiceSampleBase64",
+      },
+    ];
+
+    for (const testCase of cases) {
+      const result = validateCreateSpeechSynthesisIpcRequest(
+        createSpeechRequest(testCase.intent),
+      );
+      expectFailureField(result, testCase.field);
+      if (!result.ok) {
+        expect(JSON.stringify(result.error)).not.toContain("/private/reference.wav");
+        expect(JSON.stringify(result.error)).not.toContain("UklGRg==");
+      }
+    }
+  });
+
+  it("allows empty input only for optimized voice design with a prompt", () => {
+    const optimized = validateCreateSpeechSynthesisIpcRequest(
+      createSpeechRequest(
+        {
+          mode: "voice_design",
+          voiceDesignPrompt: "warm narrator",
+          optimizeTextPreview: true,
+        },
+        { input: "" },
+      ),
+    );
+    expect(optimized.ok).toBe(true);
+
+    const preset = validateCreateSpeechSynthesisIpcRequest(
+      createSpeechRequest(
+        { mode: "preset_voice", voice: "alloy" },
+        { input: "" },
+      ),
+    );
+    expectFailureField(preset, "input");
+
+    const designWithoutOptimization = validateCreateSpeechSynthesisIpcRequest(
+      createSpeechRequest(
+        { mode: "voice_design", voiceDesignPrompt: "warm narrator" },
+        { input: "" },
+      ),
+    );
+    expectFailureField(designWithoutOptimization, "input");
+  });
+
+  it("validates speech stream wrappers and cancellation requests", () => {
+    const streamRequest = validateCreateSpeechSynthesisStreamIpcRequest({
+      requestId: "speech_req_001",
+      payload: createSpeechRequest(
+        { mode: "preset_voice", voice: "alloy" },
+        { stream: true },
+      ),
+    });
+    expect(streamRequest.ok).toBe(true);
+
+    const missingStream = validateCreateSpeechSynthesisStreamIpcRequest({
+      requestId: "speech_req_002",
+      payload: createSpeechRequest({ mode: "preset_voice", voice: "alloy" }),
+    });
+    expectFailureField(missingStream, "payload.stream");
+
+    expect(
+      validateCancelSpeechSynthesisStreamIpcRequest({
+        requestId: "speech_req_001",
+      }).ok,
+    ).toBe(true);
+    expect(
+      validateCancelSpeechSynthesisIpcRequest({
+        requestId: "speech_req_001",
+      }).ok,
+    ).toBe(true);
+  });
+
+  it("validates transcription cancellation and recorded binary chunks", () => {
     expect(
       validateCancelAudioTranscriptionIpcRequest({
         requestId: "asr_req_001",
       }).ok,
     ).toBe(true);
+    expectFailureField(
+      validateCancelAudioTranscriptionIpcRequest({}),
+      "requestId",
+    );
 
-    const invalid = validateCancelAudioTranscriptionIpcRequest({});
-    expect(invalid.ok).toBe(false);
-    if (!invalid.ok) {
-      expect(invalid.error.field).toBe("requestId");
-    }
-  });
-
-  it("rejects transcription requests that try to pass local API config", () => {
-    const result = validateCreateAudioTranscriptionIpcRequest({
-      assignmentKey: "transcription",
-      filePath: "/audio/sample.wav",
-      fileName: "sample.wav",
-      mimeType: "audio/wav",
-      responseFormat: "json",
-      apiKey: "sk-must-not-cross-ipc",
-    });
-
-    expect(result.ok).toBe(false);
-    if (!result.ok) {
-      expect(result.error.code).toBe("invalid_ipc_request");
-      expect(result.error.field).toBe("apiKey");
-      expect(JSON.stringify(result.error)).not.toContain("sk-must-not-cross-ipc");
-    }
-  });
-
-  it("rejects requests that send raw audio instead of file paths", () => {
-    const result = validateCreateAudioTranscriptionIpcRequest({
-      assignmentKey: "transcription",
-      filePath: "/audio/sample.wav",
-      fileName: "sample.wav",
-      mimeType: "audio/wav",
-      responseFormat: "json",
-      audioBase64: "UklGRg==",
-    });
-
-    expect(result.ok).toBe(false);
-    if (!result.ok) {
-      expect(result.error.field).toBe("audioBase64");
-      expect(JSON.stringify(result.error)).not.toContain("UklGRg==");
-    }
-  });
-
-  it("accepts recorded chunk transcription through the dedicated binary chunk channel", () => {
     const valid = validateTranscribeRecordedAudioChunkIpcRequest({
       assignmentKey: "realtimeCaptions",
       requestId: "chunk_req_001",
@@ -118,12 +552,7 @@ describe("audio IPC contract", () => {
       startedAtMs: 0,
       endedAtMs: 5000,
     });
-
     expect(valid.ok).toBe(true);
-    if (valid.ok) {
-      expect(valid.data.audioBytes.byteLength).toBe(4);
-      expect(valid.data.language).toBe("zh");
-    }
 
     const base64 = validateTranscribeRecordedAudioChunkIpcRequest({
       assignmentKey: "realtimeCaptions",
@@ -132,24 +561,9 @@ describe("audio IPC contract", () => {
       mimeType: "audio/wav",
       responseFormat: "text",
     });
-    expect(base64.ok).toBe(false);
+    expectFailureField(base64, "audioBytes");
     if (!base64.ok) {
-      expect(base64.error.field).toBe("audioBytes");
       expect(JSON.stringify(base64.error)).not.toContain("UklGRg==");
-    }
-
-    const leakedConfig = validateTranscribeRecordedAudioChunkIpcRequest({
-      assignmentKey: "realtimeCaptions",
-      requestId: "chunk_req_003",
-      audioBytes: new Uint8Array([1]),
-      mimeType: "audio/wav",
-      responseFormat: "text",
-      apiKey: "sk-nope",
-    });
-    expect(leakedConfig.ok).toBe(false);
-    if (!leakedConfig.ok) {
-      expect(leakedConfig.error.field).toBe("apiKey");
-      expect(JSON.stringify(leakedConfig.error)).not.toContain("sk-nope");
     }
 
     expect(
@@ -159,181 +573,26 @@ describe("audio IPC contract", () => {
     ).toBe(true);
   });
 
-  it("accepts MiMo voice clone by sample token and rejects sample base64", () => {
-    const valid = validateCreateSpeechSynthesisIpcRequest({
-      assignmentKey: "speechSynthesis",
-      requestId: "speech_req_001",
-      input: "你好，FusionKit。",
-      responseFormat: "pcm16",
-      stream: true,
-      mimoOptions: {
-        mode: "voice_clone",
-        voiceSampleToken: "authorized-voice-sample-token",
-        voiceSampleMime: "audio/wav",
-      },
-    });
-
-    expect(valid.ok).toBe(true);
-    if (valid.ok) {
-      expect(valid.data.requestId).toBe("speech_req_001");
-    }
-
-    const invalid = validateCreateSpeechSynthesisIpcRequest({
-      assignmentKey: "speechSynthesis",
-      input: "你好，FusionKit。",
-      responseFormat: "pcm16",
-      mimoOptions: {
-        mode: "voice_clone",
-        voiceSampleBase64: "UklGRg==",
-      },
-    });
-
-    expect(invalid.ok).toBe(false);
-    if (!invalid.ok) {
-      expect(invalid.error.field).toBe("mimoOptions.voiceSampleBase64");
-    }
-  });
-
-  it("validates global runtime config sync separately from task payloads", () => {
-    const result = validateSyncAudioRuntimeConfigIpcRequest({
-      connectionProfiles: [
-        {
-          id: "profile_mimo",
-          provider: Model.Other,
-          apiKey: "mimo-secret-key",
-          baseUrl: "https://api.xiaomimimo.com/v1",
-        },
-      ],
-      audioProfiles: [
-        {
-          id: "audio_mimo_speech",
-          name: "MiMo Speech",
-          connectionProfileId: "profile_mimo",
-          audioDialect: "mimo_chat_audio",
-          capabilities: ["speech_synthesis", "streaming_speech_synthesis"],
-          models: { speechSynthesis: "mimo-v2.5-tts" },
-          defaults: {},
-        },
-      ],
-      audioAssignment: {
-        transcription: null,
-        speechSynthesis: "audio_mimo_speech",
-        realtimeCaptions: null,
-        realtimeVoice: null,
-      },
-    });
-
-    expect(result.ok).toBe(true);
-    if (result.ok) {
-      expect(result.data.connectionProfiles[0].apiKey).toBe("mimo-secret-key");
-    }
-
-    const taskPayload = validateCreateSpeechSynthesisIpcRequest({
-      assignmentKey: "speechSynthesis",
-      input: "hello",
-      responseFormat: "wav",
-      apiKey: "mimo-secret-key",
-    });
-    expect(taskPayload.ok).toBe(false);
-    if (!taskPayload.ok) {
-      expect(taskPayload.error.field).toBe("apiKey");
-    }
-  });
-
-  it("validates stream wrapper requests and cancellation requests", () => {
-    const streamRequest = validateCreateSpeechSynthesisStreamIpcRequest({
-      requestId: "speech_req_001",
-      payload: {
-        assignmentKey: "speechSynthesis",
-        input: "你好，FusionKit。",
-        responseFormat: "pcm16",
-        stream: true,
-      },
-    });
-    expect(streamRequest.ok).toBe(true);
-
-    const missingStream = validateCreateSpeechSynthesisStreamIpcRequest({
-      requestId: "speech_req_002",
-      payload: {
-        assignmentKey: "speechSynthesis",
-        input: "你好，FusionKit。",
-        responseFormat: "pcm16",
-      },
-    });
-    expect(missingStream.ok).toBe(false);
-    if (!missingStream.ok) {
-      expect(missingStream.error.field).toBe("payload.stream");
-    }
-
+  it("validates realtime sessions and reveal-output requests", () => {
     expect(
-      validateCancelSpeechSynthesisStreamIpcRequest({
-        requestId: "speech_req_001",
+      validateAudioRealtimeSessionIpcRequest({
+        assignmentKey: "realtimeCaptions",
+        mode: "caption",
+        language: "zh",
+        inputAudioFormat: "pcm16",
       }).ok,
     ).toBe(true);
-  });
-
-  it("validates non-stream speech cancellation requests", () => {
-    expect(
-      validateCancelSpeechSynthesisIpcRequest({
-        requestId: "speech_req_001",
-      }).ok,
-    ).toBe(true);
-
-    const invalid = validateCancelSpeechSynthesisIpcRequest({});
-    expect(invalid.ok).toBe(false);
-    if (!invalid.ok) {
-      expect(invalid.error.field).toBe("requestId");
-    }
-  });
-
-  it("requires a voice design prompt unless optimized preview is enabled", () => {
-    const missingPrompt = validateCreateSpeechSynthesisIpcRequest({
-      assignmentKey: "speechSynthesis",
-      input: "这是一段试听文本。",
-      responseFormat: "wav",
-      mimoOptions: {
-        mode: "voice_design",
-      },
-    });
-
-    expect(missingPrompt.ok).toBe(false);
-    if (!missingPrompt.ok) {
-      expect(missingPrompt.error.field).toBe("mimoOptions.voiceDesignPrompt");
-    }
-
-    const optimized = validateCreateSpeechSynthesisIpcRequest({
-      assignmentKey: "speechSynthesis",
-      input: "",
-      responseFormat: "wav",
-      mimoOptions: {
-        mode: "voice_design",
-        optimizeTextPreview: true,
-      },
-    });
-
-    expect(optimized.ok).toBe(true);
-  });
-
-  it("validates realtime session requests and reveal-output requests", () => {
-    const captions = validateAudioRealtimeSessionIpcRequest({
-      assignmentKey: "realtimeCaptions",
-      mode: "caption",
-      language: "zh",
-      inputAudioFormat: "pcm16",
-    });
-    expect(captions.ok).toBe(true);
 
     const invalidVoice = validateAudioRealtimeSessionIpcRequest({
       assignmentKey: "realtimeVoice",
       mode: "caption",
     });
-    expect(invalidVoice.ok).toBe(false);
-    if (!invalidVoice.ok) {
-      expect(invalidVoice.error.field).toBe("mode");
-    }
+    expectFailureField(invalidVoice, "mode");
 
     expect(
-      validateRevealAudioOutputIpcRequest({ outputToken: "authorized-output-token" }).ok,
+      validateRevealAudioOutputIpcRequest({
+        outputToken: "authorized-output-token",
+      }).ok,
     ).toBe(true);
   });
 
@@ -352,12 +611,36 @@ describe("audio IPC contract", () => {
         pcmBase64: "AQID",
       }),
     ).toBe(false);
+    expect(
+      isSpeechSynthesisStreamEventPayload({
+        type: "completed",
+        requestId: "req_001",
+        result: {
+          outputToken: "authorized-output-token",
+          mimeType: "audio/wav",
+          responseFormat: "wav",
+          sizeBytes: 42,
+        },
+      }),
+    ).toBe(true);
+    expect(
+      isSpeechSynthesisStreamEventPayload({
+        type: "completed",
+        requestId: "req_001",
+        result: {
+          outputPath: "/private/output.wav",
+          mimeType: "audio/wav",
+          responseFormat: "wav",
+          sizeBytes: 42,
+        },
+      }),
+    ).toBe(false);
 
     expect(
       isAudioRealtimeSessionEventPayload({
         type: "transcript_final",
         role: "assistant",
-        text: "你好。",
+        text: "hello",
       }),
     ).toBe(true);
     expect(
@@ -368,3 +651,79 @@ describe("audio IPC contract", () => {
     ).toBe(false);
   });
 });
+
+function createRuntimeSnapshot() {
+  return {
+    profiles: [
+      {
+        id: "audio_mimo",
+        providerPreset: "mimo",
+        apiKey: "mimo-secret-key",
+        baseUrl: "https://api.xiaomimimo.com/v1",
+        routes: {
+          transcription: enabledRoute(
+            "mimo_chat_audio",
+            "mimo-v2.5-asr",
+          ),
+          speechSynthesis: {
+            preset_voice: enabledRoute(
+              "mimo_chat_audio",
+              "mimo-v2.5-tts",
+            ),
+            voice_design: enabledRoute(
+              "mimo_chat_audio",
+              "mimo-v2.5-tts-voicedesign",
+            ),
+            voice_clone: enabledRoute(
+              "mimo_chat_audio",
+              "mimo-v2.5-tts-voiceclone",
+            ),
+          },
+          realtimeCaptions: enabledRoute(
+            "mimo_chat_audio",
+            "mimo-v2.5-asr",
+          ),
+        },
+        verification: {
+          transcription: {
+            status: "verified",
+            updatedAt: "2026-07-13T00:00:00.000Z",
+          },
+          "speechSynthesis.voice_design": { status: "degraded" },
+        } as Record<string, unknown>,
+      },
+    ],
+    assignment: {
+      transcription: "audio_mimo",
+      speechSynthesis: "audio_mimo",
+      realtimeCaptions: "audio_mimo",
+      realtimeVoice: null,
+    } as Record<string, string | null>,
+  };
+}
+
+function enabledRoute(transport: string, model: string) {
+  return { transport, model, enabled: true as boolean | string };
+}
+
+function createSpeechRequest(
+  intent: SpeechSynthesisIntent | Record<string, unknown>,
+  overrides: Record<string, unknown> = {},
+) {
+  return {
+    assignmentKey: "speechSynthesis",
+    requestId: "speech_req_001",
+    input: "Hello, FusionKit.",
+    intent,
+    responseFormat: "wav",
+    ...overrides,
+  };
+}
+
+function expectFailureField(
+  result: { ok: true } | { ok: false; error: { field?: string } },
+  field: string,
+): void {
+  expect(result.ok).toBe(false);
+  if (!result.ok) expect(result.error.field).toBe(field);
+}

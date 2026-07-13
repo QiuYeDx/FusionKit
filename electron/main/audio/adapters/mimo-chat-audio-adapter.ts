@@ -3,10 +3,12 @@ import { normalizeAudioEndpoint } from "@/lib/audio-endpoint";
 import type {
   AudioTranscriptionResult,
   MimoSpeechOptions,
-  MimoSpeechSynthesisMode,
   SpeechSynthesisResult,
 } from "@/type/audio";
-import type { AudioIpcError, SpeechSynthesisStreamEvent } from "@/type/audioIpc";
+import type {
+  AudioIpcError,
+  SpeechSynthesisRuntimeStreamEvent,
+} from "@/type/audioIpc";
 import {
   createSpeechOutputFileNameHint,
   createTranscriptOutputFileNameHint,
@@ -37,11 +39,6 @@ import type {
 } from "../audio-runtime-client";
 
 const MIMO_ASR_LANGUAGES = new Set(["auto", "zh", "en"]);
-const MIMO_TTS_MODEL_BY_MODE: Record<MimoSpeechSynthesisMode, string> = {
-  preset_voice: "mimo-v2.5-tts",
-  voice_design: "mimo-v2.5-tts-voicedesign",
-  voice_clone: "mimo-v2.5-tts-voiceclone",
-};
 const MIMO_STREAM_SAMPLE_RATE = 24_000;
 const MIMO_STREAM_CHANNELS = 1;
 const MIMO_MAX_SSE_BUFFER_CHARS = 1024 * 1024;
@@ -615,15 +612,6 @@ async function validateMimoSpeechPayload(
   request: AudioRuntimeSpeechSynthesisRequest,
 ): Promise<void> {
   const options = getMimoSpeechOptions(request);
-  const expectedModel = MIMO_TTS_MODEL_BY_MODE[options.mode];
-  if (request.model.modelKey !== expectedModel) {
-    throw createAudioRuntimeError({
-      code: "unsupported_audio_capability",
-      message: "MiMo TTS mode does not match the selected model.",
-      field: "mimoOptions.mode",
-      details: { mode: options.mode, model: request.model.modelKey },
-    });
-  }
   if (request.payload.stream && request.payload.responseFormat !== "pcm16") {
     throw createAudioRuntimeError({
       code: "unsupported_audio_format",
@@ -751,7 +739,7 @@ async function resolveMimoSpeechVoice(
 
 async function emitMimoSpeechStreamEvent(
   request: AudioRuntimeSpeechSynthesisRequest,
-  event: SpeechSynthesisStreamEvent,
+  event: SpeechSynthesisRuntimeStreamEvent,
 ): Promise<void> {
   await request.onStreamEvent?.(event);
 }
@@ -789,9 +777,7 @@ function toAudioIpcError(error: unknown): AudioIpcError {
 
   return {
     code: "network_error",
-    message: error instanceof Error
-      ? error.message
-      : "Unknown MiMo streaming speech error.",
+    message: "MiMo streaming speech failed.",
   };
 }
 

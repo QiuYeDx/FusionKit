@@ -48,6 +48,7 @@
     "speech": {
       "title": "文字轉音訊",
       "description": "使用全域 TTS 設定產生音訊。",
+      "config": "語音合成設定",
       "workspace": "合成任務"
     },
     "captions": {
@@ -185,7 +186,8 @@
       "voice_sample": "參考音訊",
       "audio_tags": "音訊標籤",
       "input": "合成文字",
-      "instructions": "OpenAI 指令"
+      "instructions": "OpenAI 指令",
+      "file_name_hint": "檔案名稱（選填）"
     },
     "response_format": {
       "mp3": "MP3",
@@ -216,7 +218,8 @@
       "voice_design": "音色設計需要描述想要的聲音特徵。",
       "voice_clone": "音色複刻需要 wav 或 mp3 參考音訊，檔案內容只在 main 行程讀取。",
       "audio_tags": "MiMo 預設音色模式可開啟音訊標籤；其他模式停用。",
-      "input": "要合成為語音的文字。MiMo 音色設計可在優化試聽文字時允許為空。"
+      "input": "要合成為語音的文字。MiMo 音色設計可在優化試聽文字時允許為空。",
+      "file_name_hint": "不需填寫副檔名，系統會依輸出格式補上。"
     },
     "placeholders": {
       "mimo_voice": "mimo_default / 冰糖 / Mia / 自訂 voice id",
@@ -226,7 +229,8 @@
       "voice_design_prompt": "例如：年輕、明亮、親和的女性聲音",
       "input": "輸入要合成為語音的文字",
       "instructions": "例如：保持語氣平靜，適合播客旁白",
-      "instructions_mimo_disabled": "MiMo 請使用左側的風格指令或音色設計描述"
+      "instructions_mimo_disabled": "MiMo 請使用左側的風格指令或音色設計描述",
+      "file_name_hint": "例如：產品介紹旁白"
     },
     "dialog": {
       "select_output_title": "選擇語音輸出目錄",
@@ -300,7 +304,12 @@
       "output_dir_select_failed": "選擇輸出目錄失敗。",
       "voice_sample_path_unavailable": "無法讀取參考音訊的本機路徑，請在 Electron 應用內重新選擇。",
       "unsupported_voice_sample": "參考音訊僅支援 wav 或 mp3。",
-      "voice_sample_too_large": "參考音訊超過 MiMo Base64 大小限制。"
+      "voice_sample_too_large": "參考音訊超過 MiMo Base64 大小限制。",
+      "cancel_not_confirmed": "無法確認取消，請稍後再試。",
+      "playback_failed": "音訊播放失敗。",
+      "runtime_failed": "音訊產生失敗，請檢查音訊 API 設定或稍後再試。",
+      "input_too_long": "合成文字超出目前 API 支援的長度。",
+      "instructions_too_long": "產生指令超出目前 API 支援的長度。"
     }
   },
   "captions": {
@@ -506,6 +515,11 @@
   },
   "runtime_error": {
     "invalid_request": "音訊請求無效。",
+    "stale_config": "音訊設定已發生變更，請重試此操作。",
+    "api_not_configured": "請先為此工具設定音訊 API。",
+    "route_not_configured": "目前指派的音訊 API 不支援所要求的操作或模式。",
+    "route_unverified": "此音訊 API 路由驗證失敗，請前往設定檢查。",
+    "invalid_parameters": "請檢查音訊工作參數後重試。",
     "profile_not_configured": "請先設定音訊設定檔。",
     "connection_not_configured": "缺少音訊連線設定。",
     "model_not_configured": "請先設定所需的音訊模型。",
@@ -527,6 +541,7 @@
     "empty_response": "音訊服務傳回空白回應。",
     "invalid_response": "音訊服務傳回無效回應。",
     "aborted": "音訊操作已取消。",
-    "renderer": "音訊頁面無法完成此操作。"
+    "renderer": "音訊頁面無法完成此操作。",
+    "technical_details": "技術詳細資料"
   }
 }

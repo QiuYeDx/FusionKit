@@ -1,17 +1,29 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { motion, AnimatePresence } from "motion/react";
-import { Settings as SettingsIcon, Globe, Cpu, LucideIcon } from "lucide-react";
+import {
+  AudioLines,
+  Settings as SettingsIcon,
+  Globe,
+  Cpu,
+  LucideIcon,
+} from "lucide-react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import GeneralConfig from "./components/GeneralConfig";
 import ModelConfig from "./components/ModelConfig";
 import ProxyConfig from "./components/ProxyConfig";
-
-type TabKey = "general" | "proxy" | "model";
+import AudioApiConfig from "./components/AudioApiConfig";
+import {
+  createSettingSearchParams,
+  resolveAudioSettingsReturnTo,
+  resolveSettingTab,
+  type SettingTabKey,
+} from "./settingNavigation";
 
 interface NavItem {
-  key: TabKey;
+  key: SettingTabKey;
   labelKey: string;
   hintKey: string;
   icon: LucideIcon;
@@ -21,6 +33,7 @@ const NAV: NavItem[] = [
   { key: "general", labelKey: "setting:nav.general.label", hintKey: "setting:nav.general.hint", icon: SettingsIcon },
   { key: "proxy",   labelKey: "setting:nav.proxy.label",   hintKey: "setting:nav.proxy.hint",   icon: Globe },
   { key: "model",   labelKey: "setting:nav.model.label",   hintKey: "setting:nav.model.hint",   icon: Cpu },
+  { key: "audio",   labelKey: "setting:nav.audio.label",   hintKey: "setting:nav.audio.hint",   icon: AudioLines },
 ];
 
 const EASE_OUT_QUAD = [0.25, 0.46, 0.45, 0.94] as const;
@@ -41,15 +54,26 @@ const contentVariants = {
 
 const Setting: React.FC = () => {
   const { t } = useTranslation();
-  const [tab, setTab] = useState<TabKey>("general");
-  const [direction, setDirection] = useState(0);
+  const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tab = resolveSettingTab(searchParams.get("tab"));
+  const returnTo = resolveAudioSettingsReturnTo(searchParams.get("returnTo"));
+  const previousTabRef = useRef<SettingTabKey>(tab);
+  const directionRef = useRef(0);
 
-  const handleTabChange = useCallback((newTab: TabKey) => {
-    const oldIdx = NAV.findIndex((n) => n.key === tab);
-    const newIdx = NAV.findIndex((n) => n.key === newTab);
-    setDirection(newIdx > oldIdx ? 1 : -1);
-    setTab(newTab);
-  }, [tab]);
+  if (previousTabRef.current !== tab) {
+    const oldIdx = NAV.findIndex((item) => item.key === previousTabRef.current);
+    const newIdx = NAV.findIndex((item) => item.key === tab);
+    directionRef.current = newIdx > oldIdx ? 1 : -1;
+    previousTabRef.current = tab;
+  }
+
+  const handleTabChange = useCallback((newTab: SettingTabKey) => {
+    setSearchParams(
+      createSettingSearchParams(searchParams, newTab),
+      { replace: true },
+    );
+  }, [searchParams, setSearchParams]);
 
   const scrollRootRef = useRef<HTMLDivElement>(null);
   const viewportRef = useRef<HTMLDivElement | null>(null);
@@ -117,7 +141,10 @@ const Setting: React.FC = () => {
             return (
               <button
                 key={item.key}
+                type="button"
                 onClick={() => handleTabChange(item.key)}
+                aria-current={active ? "page" : undefined}
+                data-testid={`setting-tab-${item.key}`}
                 className={cn(
                   "group relative flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-left transition-colors cursor-pointer",
                   "max-md:shrink-0 max-md:min-w-[160px]",
@@ -161,10 +188,10 @@ const Setting: React.FC = () => {
           className="relative min-w-0 min-h-0"
         >
           <ScrollArea className="h-full">
-            <AnimatePresence mode="wait" custom={direction}>
+            <AnimatePresence mode="wait" custom={directionRef.current}>
               <motion.div
                 key={tab}
-                custom={direction}
+                custom={directionRef.current}
                 variants={contentVariants}
                 initial="initial"
                 animate="animate"
@@ -177,6 +204,15 @@ const Setting: React.FC = () => {
                 {tab === "general" && <GeneralConfig />}
                 {tab === "proxy" && <ProxyConfig />}
                 {tab === "model" && <ModelConfig />}
+                {tab === "audio" && (
+                  <AudioApiConfig
+                    returnTo={returnTo}
+                    onReturn={returnTo
+                      ? () => navigate(returnTo, { replace: true })
+                      : undefined}
+                    onNavigateProxy={() => handleTabChange("proxy")}
+                  />
+                )}
               </motion.div>
             </AnimatePresence>
           </ScrollArea>

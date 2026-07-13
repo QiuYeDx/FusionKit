@@ -1,13 +1,17 @@
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
-import type { AudioModelProfile, SpeechSynthesisResult } from "@/type/audio";
-import type { AudioIpcError } from "@/type/audioIpc";
+import type { AudioModelProfile } from "@/type/audio";
+import type {
+  AudioIpcError,
+  AuthorizedSpeechSynthesisResult,
+} from "@/type/audioIpc";
 import {
   DEFAULT_SPEECH_SYNTHESIZER_PREFERENCES,
   sanitizeSpeechSynthesizerPreferences,
   type SelectedVoiceSample,
   type SpeechSynthesizerPreferences,
 } from "./speechSynthesizerConfig";
+import type { AudioOutputDirectoryAuthorization } from "./audioOutputDirectory";
 
 export type SpeechSynthesizerStatus =
   | "idle"
@@ -33,8 +37,9 @@ export interface SpeechSynthesisStreamUiStats {
 
 interface SpeechSynthesizerStore {
   preferences: SpeechSynthesizerPreferences;
+  outputDirectoryAuthorization: AudioOutputDirectoryAuthorization | null;
   voiceSample: SelectedVoiceSample | null;
-  result: SpeechSynthesisResult | null;
+  result: AuthorizedSpeechSynthesisResult | null;
   status: SpeechSynthesizerStatus;
   lastError: SpeechSynthesizerUiError | null;
   activeRequestId: string | null;
@@ -45,9 +50,12 @@ interface SpeechSynthesizerStore {
   profileDefaultOverrides: Partial<Record<"voice" | "responseFormat" | "mimoMode" | "stream", true>>;
 
   updatePreferences: (patch: Partial<SpeechSynthesizerPreferences>) => void;
+  setOutputDirectoryAuthorization: (
+    authorization: AudioOutputDirectoryAuthorization | null,
+  ) => void;
   seedProfileDefaults: (profileId: string, defaults: AudioModelProfile["defaults"]) => void;
   setVoiceSample: (sample: SelectedVoiceSample | null) => void;
-  setResult: (result: SpeechSynthesisResult | null) => void;
+  setResult: (result: AuthorizedSpeechSynthesisResult | null) => void;
   setStatus: (status: SpeechSynthesizerStatus) => void;
   setLastError: (error: SpeechSynthesizerUiError | null) => void;
   setActiveRequest: (
@@ -73,6 +81,7 @@ const useSpeechSynthesizerStore = create<SpeechSynthesizerStore>()(
   persist(
     (set) => ({
       preferences: DEFAULT_SPEECH_SYNTHESIZER_PREFERENCES,
+      outputDirectoryAuthorization: null,
       voiceSample: null,
       result: null,
       status: "idle",
@@ -87,6 +96,10 @@ const useSpeechSynthesizerStore = create<SpeechSynthesizerStore>()(
       updatePreferences: (patch) =>
         set((state) => ({
           preferences: { ...state.preferences, ...patch },
+          ...(Object.prototype.hasOwnProperty.call(patch, "outputDir") &&
+          patch.outputDir !== state.preferences.outputDir
+            ? { outputDirectoryAuthorization: null }
+            : {}),
           profileDefaultOverrides: {
             ...state.profileDefaultOverrides,
             ...(Object.prototype.hasOwnProperty.call(patch, "voice") ? { voice: true as const } : {}),
@@ -95,6 +108,8 @@ const useSpeechSynthesizerStore = create<SpeechSynthesizerStore>()(
             ...(Object.prototype.hasOwnProperty.call(patch, "stream") ? { stream: true as const } : {}),
           },
         })),
+      setOutputDirectoryAuthorization: (outputDirectoryAuthorization) =>
+        set({ outputDirectoryAuthorization }),
       seedProfileDefaults: (profileId, defaults) =>
         set((state) => {
           const profileSeedKey = `${profileId}:${JSON.stringify(defaults)}`;
@@ -164,27 +179,15 @@ const useSpeechSynthesizerStore = create<SpeechSynthesizerStore>()(
           activeMode: null,
           streamText: "",
           streamStats: DEFAULT_STREAM_STATS,
+          outputDirectoryAuthorization: null,
         }),
     }),
     {
       name: "fusionkit-speech-synthesizer",
       storage: createJSONStorage(() => localStorage),
-      version: 3,
-      migrate: (persistedState, version) => {
-        const persisted = (persistedState ?? {}) as Record<string, unknown>;
-        if (version >= 3) return persisted;
-        const preferences = (persisted.preferences ?? {}) as Record<string, unknown>;
-        return {
-          ...persisted,
-          profileSeedKey: null,
-          profileDefaultOverrides: {
-            ...(Object.prototype.hasOwnProperty.call(preferences, "voice") ? { voice: true } : {}),
-            ...(Object.prototype.hasOwnProperty.call(preferences, "responseFormat") ? { responseFormat: true } : {}),
-            ...(Object.prototype.hasOwnProperty.call(preferences, "mimoMode") ? { mimoMode: true } : {}),
-            ...(Object.prototype.hasOwnProperty.call(preferences, "stream") ? { stream: true } : {}),
-          },
-        };
-      },
+      version: 4,
+      migrate: (persistedState, version) =>
+        migrateSpeechSynthesizerPersistedState(persistedState, version),
       partialize: (state) => ({
         preferences: state.preferences,
         profileSeedKey: state.profileSeedKey,
@@ -206,11 +209,50 @@ const useSpeechSynthesizerStore = create<SpeechSynthesizerStore>()(
           activeMode: null,
           streamText: "",
           streamStats: DEFAULT_STREAM_STATS,
+          outputDirectoryAuthorization: null,
           profileDefaultOverrides: persisted.profileDefaultOverrides ?? {},
         };
       },
     },
   ),
 );
+
+export function migrateSpeechSynthesizerPersistedState(
+  persistedState: unknown,
+  version: number,
+): Record<string, unknown> {
+  const persisted = isRecord(persistedState) ? persistedState : {};
+  const preferences = isRecord(persisted.preferences)
+    ? persisted.preferences
+    : {};
+  const normalized = {
+    ...persisted,
+    preferences: sanitizeSpeechSynthesizerPreferences(preferences),
+    outputDirectoryAuthorization: null,
+  };
+  if (version >= 3) return normalized;
+  return {
+    ...normalized,
+    profileSeedKey: null,
+    profileDefaultOverrides: {
+      ...(Object.prototype.hasOwnProperty.call(preferences, "voice")
+        ? { voice: true }
+        : {}),
+      ...(Object.prototype.hasOwnProperty.call(preferences, "responseFormat")
+        ? { responseFormat: true }
+        : {}),
+      ...(Object.prototype.hasOwnProperty.call(preferences, "mimoMode")
+        ? { mimoMode: true }
+        : {}),
+      ...(Object.prototype.hasOwnProperty.call(preferences, "stream")
+        ? { stream: true }
+        : {}),
+    },
+  };
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
 
 export default useSpeechSynthesizerStore;

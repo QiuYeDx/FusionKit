@@ -13,6 +13,20 @@ describe("getAudioErrorMessage", () => {
     );
   });
 
+  it.each([
+    ["stale_audio_config", "stale_config"],
+    ["audio_api_not_configured", "api_not_configured"],
+    ["audio_route_not_configured", "route_not_configured"],
+    ["audio_route_unverified", "route_unverified"],
+    ["invalid_task_parameters", "invalid_parameters"],
+  ] as const)("maps %s to its user-facing message", (code, key) => {
+    const t = (translationKey: string) => translationKey;
+
+    expect(getAudioErrorMessage(t, { code })).toBe(
+      `audio:runtime_error.${key}`,
+    );
+  });
+
   it("keeps already-localized renderer errors", () => {
     const t = (key: string) => key;
     expect(getAudioErrorMessage(t, { code: "renderer_error" }, "本地校验失败"))

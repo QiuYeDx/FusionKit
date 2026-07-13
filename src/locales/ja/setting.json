@@ -11,7 +11,8 @@
     "model_assignment": "モデル割り当て",
     "model_profiles": "モデル構成",
     "audio_assignment": "音声タスク割り当て",
-    "audio_profiles": "音声モデル構成"
+    "audio_profiles": "音声モデル構成",
+    "audio_apis": "音声 API"
   },
   "nav": {
     "general": {
@@ -24,7 +25,11 @@
     },
     "model": {
       "label": "AI モデル",
-      "hint": "テキスト · 音声 · 割り当て"
+      "hint": "テキスト · Agent · 割り当て"
+    },
+    "audio": {
+      "label": "音声",
+      "hint": "API · ルート · 割り当て"
     }
   },
   "fields": {
@@ -137,13 +142,106 @@
     },
     "audio": {
       "assignment": {
-        "description": "音声文字起こし、音声合成、リアルタイム字幕、双方向音声に使うグローバル音声構成を選択します。ツール画面はここで有効な割り当てだけを参照します。",
+        "description": "各音声タスクで既定に使う音声 API を選択します。ここでは接続だけを割り当て、言語・音色・出力設定は各ツールで管理します。",
         "transcription": "音声をテキストへ",
         "speechSynthesis": "テキストを音声へ",
         "realtimeCaptions": "リアルタイム字幕",
         "realtimeVoice": "双方向音声",
+        "not_configured": "未設定",
+        "no_compatible_api": "このタスクに対応する音声 API がありません。",
         "unsupported": "利用不可",
         "unsupported_select": "この音声構成は現在のタスクに対応していないか、必要なモデルが不足しています。"
+      },
+      "provider": {
+        "openai": "OpenAI",
+        "openai_hint": "ファイル音声と Realtime",
+        "mimo": "MiMo",
+        "mimo_hint": "ASR と 3 種類の音声合成モード",
+        "custom_openai_compatible": "カスタム互換 API",
+        "custom_openai_compatible_hint": "タスクルートを手動設定"
+      },
+      "api": {
+        "description": "テキストモデル構成とは独立して、音声サービスの認証情報、接続先、タスクルートを管理します。",
+        "add": "音声 API を追加",
+        "empty": "音声 API がありません",
+        "empty_description": "OpenAI、MiMo、または互換サービスを追加すると音声タスクを割り当てられます。",
+        "add_first": "最初の音声 API を追加",
+        "in_use": "使用中",
+        "edit": "音声 API を編集",
+        "delete": "音声 API を削除",
+        "assigned_to": "使用先：{{tasks}}",
+        "migration_needs_attention": "設定の補完が必要",
+        "base_url_missing": "Base URL 未設定",
+        "no_routes": "利用可能なタスクルートが未設定です",
+        "dialog_title_add": "音声 API を追加",
+        "dialog_title_edit": "音声 API を編集",
+        "dialog_description": "音声サービスの接続と利用可能なタスクルートを設定します。",
+        "service_section": "サービス",
+        "connection_section": "接続",
+        "capabilities_section": "タスクルート",
+        "name": "構成名",
+        "name_placeholder": "例：Team MiMo Audio",
+        "base_url": "Base URL",
+        "base_url_placeholder": "例：https://api.example.com/v1",
+        "api_key": "API Key",
+        "api_key_placeholder": "音声サービスの API Key を入力",
+        "proxy_summary": "グローバルプロキシ",
+        "open_proxy_settings": "プロキシ設定を開く",
+        "advanced_routes_hint": "必要なタスクを有効にし、対応する Model ID を入力してください。",
+        "mimo_modes_ready": "{{count}} 件の音声合成ルートを準備済みです。",
+        "leave_dialog_title": "編集中の内容を破棄しますか？",
+        "leave_dialog_description": "保存していない音声 API の変更は失われます。",
+        "default_name": {
+          "openai": "OpenAI Audio",
+          "mimo": "MiMo Audio",
+          "custom_openai_compatible": "互換 Audio API"
+        },
+        "errors": {
+          "name_required": "構成名を入力してください。",
+          "base_url_required": "Base URL を入力してください。",
+          "base_url_invalid": "有効な HTTP または HTTPS の Base URL を入力してください。",
+          "api_key_required": "API Key を入力してください。",
+          "route_required": "少なくとも 1 つのタスクルートを設定してください。",
+          "route_model_required": "このルートの Model ID を入力してください。",
+          "route_transport_invalid": "このルートは選択したサービスと互換性がありません。"
+        }
+      },
+      "route": {
+        "transcription": "音声をテキストへ",
+        "preset_voice": "テキストを音声へ",
+        "realtimeCaptions": "リアルタイム字幕",
+        "realtimeVoice": "双方向音声",
+        "model": "Model ID"
+      },
+      "verification": {
+        "untested": "未検証",
+        "verified": "検証済み",
+        "degraded": "一部利用可能",
+        "failed": "検証失敗"
+      },
+      "delete": {
+        "title": "音声 API を削除",
+        "unused_description": "「{{name}}」を削除しますか？",
+        "in_use_description": "「{{name}}」はタスクに割り当てられています。影響を受ける各タスクで代替 API を選ぶか、割り当て解除を明示してください。",
+        "select_replacement": "処理を選択…",
+        "unassign": "割り当てを解除",
+        "required": "代替 API を選ぶか、割り当てを解除してください。",
+        "failed": "音声 API を削除できませんでした。タスクの代替設定を確認してください。",
+        "confirm": "削除"
+      },
+      "feedback": {
+        "created": "音声 API を作成しました。",
+        "updated": "音声 API を更新しました。",
+        "deleted": "音声 API を削除しました。",
+        "save_failed": "音声 API を保存できませんでした。",
+        "auto_assigned_title": "初回の既定割り当てを設定しました",
+        "auto_assigned_description": "新しい API を次の対応タスクに割り当てました：{{tasks}}",
+        "undo": "自動割り当てを元に戻す",
+        "undo_success": "{{count}} 件の自動割り当てを元に戻しました。",
+        "assignments_cleared": "更新後のルートに対応しないタスク割り当てを解除しました",
+        "return_to_tool": "音声ツールに戻る",
+        "save_and_return": "保存して戻る",
+        "task_separator": "、"
       },
       "profile": {
         "description": "音声構成は既存のモデル接続を参照し、音声プロトコル、モデル ID、既定値、能力状態のみを保存します。",

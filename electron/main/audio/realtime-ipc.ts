@@ -1,26 +1,30 @@
 import { ipcMain, type IpcMainInvokeEvent } from "electron";
 import type {
   AudioRealtimeSessionConfig,
-  AudioRuntimeModelConfig,
+  AudioRuntimeAdapterModelConfig,
+  ResolvedAudioRouteConfig,
 } from "@/type/audio";
+import { getRealtimeRouteConstraints } from "@/lib/audio-provider-registry";
 import {
   AUDIO_IPC_CHANNELS,
   audioIpcFailure,
   audioIpcSuccess,
   validateAudioRealtimeSessionIpcRequest,
   validateStopAudioRealtimeSessionIpcRequest,
+  type AudioIpcError,
   type AudioIpcResult,
   type RealtimeEphemeralSessionResult,
   type StopAudioRealtimeSessionRequest,
   type StopAudioRealtimeSessionResult,
 } from "@/type/audioIpc";
 import {
-  audioCapabilityIssueToIpcError,
+  audioRouteIssueToIpcError,
   toAudioIpcError,
 } from "./audio-ipc-errors";
 import {
   AudioRuntimeConfigStore,
   sharedAudioRuntimeConfigStore,
+  toAudioRuntimeAdapterModelConfig,
 } from "./audio-runtime-config";
 import {
   createOpenAIRealtimeEphemeralSession,
@@ -31,7 +35,7 @@ import { sharedAudioPreloadCapabilityRegistry } from "./audio-ipc-security";
 type Validator<TRequest> = (payload: unknown) => AudioIpcResult<TRequest>;
 
 export interface AudioRealtimeRuntimeInvokerOptions {
-  model: AudioRuntimeModelConfig;
+  model: AudioRuntimeAdapterModelConfig;
   signal?: AbortSignal;
 }
 
@@ -54,6 +58,10 @@ export class AudioRealtimeIpcService {
     string,
     { ownerId: number | "default"; expiresAtMs: number }
   >();
+  private readonly pendingCreations = new Set<{
+    ownerId: number;
+    controller: AbortController;
+  }>();
 
   constructor(options: AudioRealtimeIpcServiceOptions = {}) {
     this.runtime = options.runtime ?? {
@@ -69,37 +77,51 @@ export class AudioRealtimeIpcService {
   ): Promise<AudioIpcResult<RealtimeEphemeralSessionResult>> {
     const ownerId = context?.senderId ?? "default";
     this.pruneExpiredSessions();
-    if (
-      context?.requireConfigRevision &&
-      !this.configStore.isRevisionCurrent(ownerId, context.configRevision)
-    ) {
+    if (ownerId === "default") {
       return audioIpcFailure({
-        code: "invalid_ipc_request",
-        message:
-          "Audio runtime configuration revision is missing, stale, or belongs to another renderer.",
+        code: "stale_audio_config",
+        message: "Audio runtime configuration owner is unavailable.",
         field: "configRevision",
       });
     }
-    const modelResult = this.configStore.resolveModel(
-      payload.assignmentKey,
+    const routeResult = this.configStore.resolveRoute(
+      { assignmentKey: payload.assignmentKey },
       ownerId,
+      context?.configRevision,
     );
-    if (!modelResult.ok) {
-      return audioIpcFailure(audioCapabilityIssueToIpcError(modelResult.issue));
+    if (!routeResult.ok) {
+      return audioIpcFailure(audioRouteIssueToIpcError(routeResult.issue));
     }
-    if (modelResult.config.audioDialect !== "openai_realtime") {
+    if (routeResult.config.transport !== "openai_realtime") {
       return audioIpcFailure({
-        code: "unsupported_audio_capability",
+        code: "audio_route_not_configured",
         message: "Realtime WebRTC sessions require an OpenAI Realtime audio profile.",
-        field: "audioDialect",
-        details: { audioDialect: modelResult.config.audioDialect },
+        field: "transport",
       });
     }
+    const parameterError = validateRealtimeTaskParameters(
+      payload,
+      routeResult.config,
+    );
+    if (parameterError) return audioIpcFailure(parameterError);
+    const model = toAudioRuntimeAdapterModelConfig(routeResult.config);
+    const pendingCreation = {
+      ownerId,
+      controller: new AbortController(),
+    };
+    this.pendingCreations.add(pendingCreation);
 
     try {
       const result = await this.runtime.createEphemeralSession(payload, {
-        model: modelResult.config,
+        model,
+        signal: pendingCreation.controller.signal,
       });
+      if (pendingCreation.controller.signal.aborted) {
+        return audioIpcFailure({
+          code: "aborted",
+          message: "Audio realtime session owner was released.",
+        });
+      }
       if (result.sessionId) {
         this.activeSessions.set(
           createSessionKey(ownerId, result.sessionId),
@@ -111,7 +133,15 @@ export class AudioRealtimeIpcService {
       }
       return audioIpcSuccess(result);
     } catch (error) {
+      if (pendingCreation.controller.signal.aborted) {
+        return audioIpcFailure({
+          code: "aborted",
+          message: "Audio realtime session owner was released.",
+        });
+      }
       return audioIpcFailure(toAudioIpcError(error));
+    } finally {
+      this.pendingCreations.delete(pendingCreation);
     }
   }
 
@@ -132,6 +162,11 @@ export class AudioRealtimeIpcService {
   }
 
   releaseOwner(ownerId: number): void {
+    for (const pending of this.pendingCreations) {
+      if (pending.ownerId !== ownerId) continue;
+      this.pendingCreations.delete(pending);
+      pending.controller.abort();
+    }
     for (const [key, session] of this.activeSessions) {
       if (session.ownerId === ownerId) this.activeSessions.delete(key);
     }
@@ -143,6 +178,54 @@ export class AudioRealtimeIpcService {
       if (session.expiresAtMs <= now) this.activeSessions.delete(key);
     }
   }
+}
+
+function validateRealtimeTaskParameters(
+  payload: AudioRealtimeSessionConfig,
+  route: ResolvedAudioRouteConfig,
+): AudioIpcError | undefined {
+  const constraints = getRealtimeRouteConstraints(
+    route.providerPreset,
+    payload.assignmentKey,
+  );
+  if (!constraints) {
+    return invalidRealtimeTaskParameter(
+      "assignmentKey",
+      "The selected audio API does not define realtime constraints.",
+    );
+  }
+  if (constraints.mode !== payload.mode) {
+    return invalidRealtimeTaskParameter(
+      "mode",
+      "The selected audio route does not support this realtime mode.",
+    );
+  }
+  if (payload.instructions !== undefined && !constraints.supportsInstructions) {
+    return invalidRealtimeTaskParameter(
+      "instructions",
+      "The selected audio route does not support instructions.",
+    );
+  }
+  if (payload.language !== undefined && !constraints.supportsLanguage) {
+    return invalidRealtimeTaskParameter(
+      "language",
+      "The selected audio route does not support language selection.",
+    );
+  }
+  if (payload.voice !== undefined && !constraints.supportsVoice) {
+    return invalidRealtimeTaskParameter(
+      "voice",
+      "The selected audio route does not support voice selection.",
+    );
+  }
+  return undefined;
+}
+
+function invalidRealtimeTaskParameter(
+  field: string,
+  message: string,
+): AudioIpcError {
+  return { code: "invalid_task_parameters", message, field };
 }
 
 export function setupAudioRealtimeIPC(

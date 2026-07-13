@@ -8,6 +8,9 @@ import {
   DEFAULT_TOKEN_PRICING_MAP,
 } from "@/constants/model";
 import {
+  bootstrapLegacyAudioSettingsFromGlobalStorage,
+} from "@/lib/audio-api-migration";
+import {
   DEFAULT_AUDIO_MODEL_ASSIGNMENT,
   canAssignAudioProfileToTask,
   clearAudioProfileFromAssignment,
@@ -36,7 +39,9 @@ import { persist, createJSONStorage } from "zustand/middleware";
 interface ModelStore {
   profiles: ModelProfile[];
   assignment: ModelAssignment;
+  /** @deprecated Compatibility backup until BE/FE consumers use useAudioApiStore. */
   audioProfiles: AudioModelProfile[];
+  /** @deprecated Compatibility backup until BE/FE consumers use useAudioApiStore. */
   audioAssignment: AudioModelAssignment;
 
   addProfile: (profile: ModelProfileInput) => string;
@@ -209,6 +214,47 @@ function migrateFromV1(raw: Record<string, any>): {
 }
 
 const LEGACY_KEY = "modelConfig";
+const MODEL_STORAGE_KEY = "fusionkit-model";
+
+export interface LegacyModelStorage {
+  getItem(key: string): string | null;
+  setItem(key: string, value: string): void;
+  removeItem(key: string): void;
+}
+
+export function migrateLegacyModelStorage(
+  storage: LegacyModelStorage,
+): boolean {
+  try {
+    const legacyRaw = storage.getItem(LEGACY_KEY);
+    if (!legacyRaw || storage.getItem(MODEL_STORAGE_KEY) !== null) {
+      return false;
+    }
+
+    const raw: unknown = JSON.parse(legacyRaw);
+    if (!isRecord(raw)) return false;
+
+    let migrated;
+    if (raw.version === 2 && Array.isArray(raw.profiles)) {
+      migrated = migrateModelConfigToV4(raw);
+    } else if (raw.model || raw.apiKeyMap) {
+      migrated = migrateModelConfigToV4(migrateFromV1(raw));
+    } else {
+      return false;
+    }
+
+    const serialized = JSON.stringify({ state: migrated, version: 5 });
+    storage.setItem(MODEL_STORAGE_KEY, serialized);
+    if (storage.getItem(MODEL_STORAGE_KEY) !== serialized) return false;
+    storage.removeItem(LEGACY_KEY);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// Must run before Zustand hydrates v4/v5 and filters dangling audio connections.
+bootstrapLegacyAudioSettingsFromGlobalStorage();
 
 const useModelStore = create<ModelStore>()(
   persist(
@@ -413,12 +459,13 @@ const useModelStore = create<ModelStore>()(
       },
     }),
     {
-      name: "fusionkit-model",
+      name: MODEL_STORAGE_KEY,
       storage: createJSONStorage(() => localStorage),
       version: 5,
       partialize: (state) => ({
         profiles: state.profiles,
         assignment: state.assignment,
+        // Keep one read-compatible backup version; new code must not use it.
         audioProfiles: state.audioProfiles,
         audioAssignment: state.audioAssignment,
       }),
@@ -432,34 +479,10 @@ const useModelStore = create<ModelStore>()(
         return migrateModelConfigToV4(persisted);
       },
       onRehydrateStorage: () => {
-        // 一次性迁移：旧 key → 新 key
-        if (
-          localStorage.getItem(LEGACY_KEY) !== null &&
-          localStorage.getItem("fusionkit-model") === null
-        ) {
-          try {
-            const raw = JSON.parse(localStorage.getItem(LEGACY_KEY)!);
-
-            if (raw.version === 2 && Array.isArray(raw.profiles)) {
-              // 已经是 v2 格式，补齐 v5 字段后迁移
-              const migrated = migrateModelConfigToV4(raw);
-              localStorage.setItem(
-                "fusionkit-model",
-                JSON.stringify({
-                  state: migrated,
-                  version: 5,
-                })
-              );
-            } else if (raw.model || raw.apiKeyMap) {
-              // v1 格式，需要 migrate 并补齐 v4 字段
-              const migrated = migrateModelConfigToV4(migrateFromV1(raw));
-              localStorage.setItem(
-                "fusionkit-model",
-                JSON.stringify({ state: migrated, version: 5 })
-              );
-            }
-          } catch { /* silent */ }
-          localStorage.removeItem(LEGACY_KEY);
+        try {
+          migrateLegacyModelStorage(globalThis.localStorage);
+        } catch {
+          // Storage access can be disabled by browser policy.
         }
       },
     }

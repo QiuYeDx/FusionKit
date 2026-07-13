@@ -61,7 +61,6 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import AudioModelConfig from "./AudioModelConfig";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -92,7 +91,6 @@ function ModelConfig() {
     <div className="space-y-4">
       <ModelAssignmentCard />
       <ModelProfilesCard />
-      <AudioModelConfig />
     </div>
   );
 }

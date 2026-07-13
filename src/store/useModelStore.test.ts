@@ -25,9 +25,11 @@ const localStorageItems = vi.hoisted(() => {
 });
 
 import {
+  migrateLegacyModelStorage,
   migrateModelConfigToV4,
   migrateModelProfilesToV3,
   normalizeModelProfileForRuntime,
+  type LegacyModelStorage,
 } from "./useModelStore";
 import useModelStore from "./useModelStore";
 import { DEFAULT_AUDIO_MODEL_ASSIGNMENT } from "@/type/audio";
@@ -264,4 +266,173 @@ describe("model store profile migration", () => {
       taskExecution: null,
     });
   });
+
+  it("keeps text CRUD isolated from standalone audio settings", () => {
+    const legacyAudioProfile = {
+      id: "audio_backup",
+      name: "Legacy audio backup",
+      connectionProfileId: "profile_connection",
+      audioDialect: "openai_audio" as const,
+      capabilities: ["speech_synthesis" as const],
+      models: { speechSynthesis: "gpt-4o-mini-tts" },
+      defaults: {},
+    };
+    useModelStore.setState({
+      profiles: [
+        {
+          id: "profile_connection",
+          name: "Connection",
+          provider: Model.OpenAI,
+          apiKey: "connection-key",
+          baseUrl: "https://api.openai.com/v1",
+          modelKey: "gpt-5",
+          tokenPricing: {
+            inputTokensPerMillion: 1,
+            outputTokensPerMillion: 2,
+          },
+          apiFormat: "responses",
+        },
+      ],
+      assignment: { agent: null, taskExecution: null },
+      audioProfiles: [legacyAudioProfile],
+      audioAssignment: {
+        ...DEFAULT_AUDIO_MODEL_ASSIGNMENT,
+        speechSynthesis: legacyAudioProfile.id,
+      },
+    });
+    const standaloneAudioRaw = JSON.stringify({
+      version: 1,
+      state: {
+        profiles: [{ id: "standalone-audio" }],
+        assignment: { speechSynthesis: "standalone-audio" },
+      },
+    });
+    localStorage.setItem("fusionkit-audio-settings", standaloneAudioRaw);
+
+    const profileId = useModelStore.getState().addProfile({
+      name: "Temporary text model",
+      provider: Model.OpenAI,
+      apiKey: "text-key",
+      baseUrl: "https://api.openai.com/v1",
+      modelKey: "gpt-5-mini",
+      tokenPricing: {
+        inputTokensPerMillion: 1,
+        outputTokensPerMillion: 2,
+      },
+    });
+    useModelStore.getState().updateProfile(profileId, { name: "Updated" });
+    useModelStore.getState().setAssignment("agent", profileId);
+    useModelStore.getState().removeProfile(profileId);
+
+    expect(localStorage.getItem("fusionkit-audio-settings")).toBe(
+      standaloneAudioRaw,
+    );
+    const modelEnvelope = JSON.parse(
+      localStorage.getItem("fusionkit-model")!,
+    ) as {
+      state: {
+        audioProfiles: unknown[];
+        audioAssignment: Record<string, string | null>;
+      };
+    };
+    expect(modelEnvelope.state.audioProfiles).toEqual([legacyAudioProfile]);
+    expect(modelEnvelope.state.audioAssignment.speechSynthesis).toBe(
+      legacyAudioProfile.id,
+    );
+  });
+
+  it("removes legacy model storage only after an exact verified write", () => {
+    const storage = new LegacyModelStorageHarness({
+      modelConfig: legacyV2ModelConfig(),
+    });
+
+    expect(migrateLegacyModelStorage(storage)).toBe(true);
+    expect(storage.getItem("modelConfig")).toBeNull();
+    const target = storage.getItem("fusionkit-model");
+    expect(target).not.toBeNull();
+    expect(JSON.parse(target!)).toMatchObject({
+      version: 5,
+      state: { profiles: [{ id: "profile_legacy" }] },
+    });
+  });
+
+  it("retains legacy model storage when target persistence fails", () => {
+    const legacy = legacyV2ModelConfig();
+    const storage = new LegacyModelStorageHarness(
+      { modelConfig: legacy },
+      true,
+    );
+
+    expect(migrateLegacyModelStorage(storage)).toBe(false);
+    expect(storage.getItem("modelConfig")).toBe(legacy);
+    expect(storage.getItem("fusionkit-model")).toBeNull();
+  });
+
+  it("retains legacy model storage when target readback differs", () => {
+    const legacy = legacyV2ModelConfig();
+    const storage = new LegacyModelStorageHarness(
+      { modelConfig: legacy },
+      false,
+      true,
+    );
+
+    expect(migrateLegacyModelStorage(storage)).toBe(false);
+    expect(storage.getItem("modelConfig")).toBe(legacy);
+    expect(storage.getItem("fusionkit-model")).toBe("corrupt-target");
+  });
 });
+
+function legacyV2ModelConfig(): string {
+  return JSON.stringify({
+    version: 2,
+    profiles: [
+      {
+        id: "profile_legacy",
+        name: "Legacy",
+        provider: Model.OpenAI,
+        apiKey: "legacy-key",
+        baseUrl: "https://api.openai.com/v1",
+        modelKey: "gpt-4o",
+        tokenPricing: {
+          inputTokensPerMillion: 1,
+          outputTokensPerMillion: 2,
+        },
+      },
+    ],
+    assignment: { agent: "profile_legacy", taskExecution: null },
+  });
+}
+
+class LegacyModelStorageHarness implements LegacyModelStorage {
+  private readonly values = new Map<string, string>();
+
+  constructor(
+    initial: Record<string, string>,
+    private readonly failTargetWrites = false,
+    private readonly corruptTargetWrites = false,
+  ) {
+    for (const [key, value] of Object.entries(initial)) {
+      this.values.set(key, value);
+    }
+  }
+
+  getItem(key: string): string | null {
+    return this.values.get(key) ?? null;
+  }
+
+  setItem(key: string, value: string): void {
+    if (this.failTargetWrites && key === "fusionkit-model") {
+      throw new Error("simulated target write failure");
+    }
+    this.values.set(
+      key,
+      this.corruptTargetWrites && key === "fusionkit-model"
+        ? "corrupt-target"
+        : value,
+    );
+  }
+
+  removeItem(key: string): void {
+    this.values.delete(key);
+  }
+}

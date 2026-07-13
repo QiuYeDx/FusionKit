@@ -14,10 +14,10 @@ import type {
   AudioRuntimeModelConfig,
   CreateSpeechSynthesisRequest,
 } from "@/type/audio";
-import type { SpeechSynthesisStreamEvent } from "@/type/audioIpc";
+import type { SpeechSynthesisRuntimeStreamEvent } from "@/type/audioIpc";
 
 type AudioDeltaEvent = Extract<
-  SpeechSynthesisStreamEvent,
+  SpeechSynthesisRuntimeStreamEvent,
   { type: "audio_delta" }
 >;
 
@@ -54,7 +54,7 @@ describe("MiMo streaming TTS runtime", () => {
       }),
     });
 
-    const events: SpeechSynthesisStreamEvent[] = [];
+    const events: SpeechSynthesisRuntimeStreamEvent[] = [];
     const result = await sendSpeechSynthesis({
       model: createMimoModel(activeServer.baseUrl, "mimo-v2.5-tts"),
       payload: createSpeechPayload({
@@ -283,7 +283,7 @@ describe("MiMo streaming TTS runtime", () => {
       ],
     });
 
-    const events: SpeechSynthesisStreamEvent[] = [];
+    const events: SpeechSynthesisRuntimeStreamEvent[] = [];
     const result = await sendSpeechSynthesis({
       model: createMimoModel(activeServer.baseUrl, "mimo-v2.5-tts"),
       payload: createSpeechPayload({
@@ -325,7 +325,7 @@ describe("MiMo streaming TTS runtime", () => {
     });
 
     const controller = new AbortController();
-    const events: SpeechSynthesisStreamEvent[] = [];
+    const events: SpeechSynthesisRuntimeStreamEvent[] = [];
     await expect(
       sendSpeechSynthesis({
         model: createMimoModel(activeServer.baseUrl, "mimo-v2.5-tts"),
@@ -407,7 +407,7 @@ function createPcm16Chunk(samples: number[]): Buffer {
 }
 
 function getAudioDeltaEvents(
-  events: SpeechSynthesisStreamEvent[],
+  events: SpeechSynthesisRuntimeStreamEvent[],
 ): AudioDeltaEvent[] {
   return events.filter(
     (event): event is AudioDeltaEvent => event.type === "audio_delta",

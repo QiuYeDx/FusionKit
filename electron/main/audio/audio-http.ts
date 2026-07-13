@@ -160,7 +160,7 @@ function toAudioRuntimeError(
   if (error instanceof Error) {
     return createAudioRuntimeError({
       code: "network_error",
-      message: sanitizeAudioErrorMessage(error.message, apiKey),
+      message: "Audio request failed.",
       details: { attempt },
       cause: error,
     });

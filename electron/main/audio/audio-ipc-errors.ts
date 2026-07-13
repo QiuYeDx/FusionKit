@@ -1,20 +1,24 @@
-import type { AudioCapabilityValidationIssue } from "@/type/audio";
+import type { AudioRouteResolutionIssue } from "@/type/audio";
 import type { AudioIpcError } from "@/type/audioIpc";
 import {
   AudioRuntimeClientError,
   createAudioRuntimeError,
 } from "./audio-errors";
 
-export function audioCapabilityIssueToIpcError(
-  issue: AudioCapabilityValidationIssue,
+export function audioRouteIssueToIpcError(
+  issue: AudioRouteResolutionIssue,
 ): AudioIpcError {
   return {
     code: issue.code,
     message: issue.message,
+    ...(issue.code === "stale_audio_config"
+      ? { field: "configRevision" }
+      : {}),
     details: {
-      ...(issue.assignmentKey ? { assignmentKey: issue.assignmentKey } : {}),
-      ...(issue.missingCapabilities
-        ? { missingCapabilities: issue.missingCapabilities }
+      assignmentKey: issue.assignmentKey,
+      ...(issue.mode ? { mode: issue.mode } : {}),
+      ...(issue.verificationStatus
+        ? { verificationStatus: issue.verificationStatus }
         : {}),
     },
   };
@@ -32,9 +36,7 @@ export function toAudioIpcError(error: unknown): AudioIpcError {
 
   const wrapped = createAudioRuntimeError({
     code: "network_error",
-    message: error instanceof Error
-      ? error.message
-      : "Audio IPC handler failed.",
+    message: "Audio IPC handler failed.",
     cause: error,
   });
   return {

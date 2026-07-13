@@ -5,14 +5,18 @@ import type {
   AudioIpcChannel,
   AudioIpcResult,
   AudioRendererApi,
+  AudioOutputDirectorySelection,
   AuthorizedAudioInputFile,
+  SelectAudioOutputDirectoryRequest,
 } from '@/type/audioIpc'
+import { isPublicAudioIpcChannel } from './audio-channel-policy'
 
 const AUDIO_CHANNEL_PREFIX = 'audio:'
-const AUDIO_INTERNAL_CHANNEL_PREFIX = 'audio:internal:'
 const AUDIO_REGISTER_CAPABILITY_CHANNEL =
   'audio:internal:register-preload-capability'
 const AUDIO_AUTHORIZE_INPUT_FILE_CHANNEL = 'audio:internal:authorize-input-file'
+const AUDIO_SELECT_OUTPUT_DIRECTORY_CHANNEL =
+  'audio:internal:select-output-directory'
 const AUDIO_EVENT_CHANNELS = new Set<AudioEventChannel>([
   'audio:speech-synthesis-stream',
   'audio:realtime:session-event',
@@ -73,7 +77,7 @@ const audioEventListeners = new Map<
   Map<(...args: unknown[]) => void, (...args: unknown[]) => void>
 >()
 
-const secureAudioInvoke = <TResponse>(
+const invokeAuthorizedAudioChannel = <TResponse>(
   channel: string,
   payload: unknown,
   options?: { configRevision?: string },
@@ -87,11 +91,21 @@ const secureAudioInvoke = <TResponse>(
       },
     })
   }
-  if (
-    !channel.startsWith(AUDIO_CHANNEL_PREFIX) ||
-    (channel.startsWith(AUDIO_INTERNAL_CHANNEL_PREFIX) &&
-      channel !== AUDIO_AUTHORIZE_INPUT_FILE_CHANNEL)
-  ) {
+  return ipcRenderer.invoke(channel, {
+    capability: audioPreloadCapability,
+    payload,
+    ...(options?.configRevision
+      ? { configRevision: options.configRevision }
+      : {}),
+  }) as Promise<AudioIpcResult<TResponse>>
+}
+
+const secureAudioInvoke = <TResponse>(
+  channel: string,
+  payload: unknown,
+  options?: { configRevision?: string },
+): Promise<AudioIpcResult<TResponse>> => {
+  if (!isPublicAudioIpcChannel(channel)) {
     return Promise.resolve({
       ok: false,
       error: {
@@ -100,14 +114,7 @@ const secureAudioInvoke = <TResponse>(
       },
     })
   }
-
-  return ipcRenderer.invoke(channel, {
-    capability: audioPreloadCapability,
-    payload,
-    ...(options?.configRevision
-      ? { configRevision: options.configRevision }
-      : {}),
-  }) as Promise<AudioIpcResult<TResponse>>
+  return invokeAuthorizedAudioChannel<TResponse>(channel, payload, options)
 }
 
 const audioApi: AudioRendererApi = {
@@ -135,12 +142,18 @@ const audioApi: AudioRendererApi = {
         },
       })
     }
-    return secureAudioInvoke<AuthorizedAudioInputFile>(
+    return invokeAuthorizedAudioChannel<AuthorizedAudioInputFile>(
       AUDIO_AUTHORIZE_INPUT_FILE_CHANNEL,
       {
         filePath,
         mimeType: file.type,
       },
+    )
+  },
+  selectOutputDirectory(request: SelectAudioOutputDirectoryRequest = {}) {
+    return invokeAuthorizedAudioChannel<AudioOutputDirectorySelection>(
+      AUDIO_SELECT_OUTPUT_DIRECTORY_CHANNEL,
+      request,
     )
   },
   on(channel, listener) {

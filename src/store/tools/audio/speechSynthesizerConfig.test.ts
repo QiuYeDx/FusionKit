@@ -24,6 +24,7 @@ describe("speech synthesizer config helpers", () => {
   it("builds OpenAI speech requests without MiMo-only fields", () => {
     const request = buildSpeechSynthesisRequest({
       requestId: "speech_req_001",
+      outputDirectoryAuthorization: null,
       dialect: "openai_audio",
       preferences: {
         ...DEFAULT_SPEECH_SYNTHESIZER_PREFERENCES,
@@ -53,6 +54,7 @@ describe("speech synthesizer config helpers", () => {
   it("builds MiMo preset voice requests without OpenAI speed", () => {
     const request = buildSpeechSynthesisRequest({
       requestId: "speech_req_002",
+      outputDirectoryAuthorization: null,
       dialect: "mimo_chat_audio",
       capabilities: ["streaming_speech_synthesis"],
       preferences: {
@@ -89,6 +91,7 @@ describe("speech synthesizer config helpers", () => {
     >) {
       const request = buildSpeechSynthesisRequest({
         requestId: `speech_${mode}`,
+        outputDirectoryAuthorization: null,
         dialect: "mimo_chat_audio",
         capabilities: ["streaming_speech_synthesis"],
         voiceSample,
@@ -117,6 +120,7 @@ describe("speech synthesizer config helpers", () => {
   it("whitelists MiMo fields by mode and clamps OpenAI speed", () => {
     const clone = buildSpeechSynthesisRequest({
       requestId: "speech_clone",
+      outputDirectoryAuthorization: null,
       dialect: "mimo_chat_audio",
       capabilities: ["streaming_speech_synthesis"],
       voiceSample,
@@ -191,5 +195,29 @@ describe("speech synthesizer config helpers", () => {
       audioTagsEnabled: false,
       outputDir: "",
     });
+  });
+
+  it("builds custom-directory requests with a token and no raw path", () => {
+    const request = buildSpeechSynthesisRequest({
+      requestId: "speech_custom_dir",
+      outputDirectoryAuthorization: {
+        outputDirToken: "output_dir_token_speech",
+        directoryName: "Exports",
+        expiresAt: Date.now() + 60_000,
+      },
+      dialect: "openai_audio",
+      preferences: {
+        ...DEFAULT_SPEECH_SYNTHESIZER_PREFERENCES,
+        input: "Hello",
+        outputMode: "custom_dir",
+        outputDir: "/Users/example/Exports",
+      },
+    });
+
+    expect(request).toMatchObject({
+      outputPathMode: "custom_dir",
+      outputDirToken: "output_dir_token_speech",
+    });
+    expect(request).not.toHaveProperty("outputDir");
   });
 });

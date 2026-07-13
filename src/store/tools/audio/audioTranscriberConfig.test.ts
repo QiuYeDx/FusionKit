@@ -79,6 +79,7 @@ describe("audio transcriber config helpers", () => {
     const request = buildAudioTranscriptionRequest({
       requestId: "asr_req_001",
       file,
+      outputDirectoryAuthorization: null,
       dialect: "openai_audio",
       modelKey: "whisper-1",
       preferences: {
@@ -114,6 +115,11 @@ describe("audio transcriber config helpers", () => {
     const request = buildAudioTranscriptionRequest({
       requestId: "asr_req_002",
       file,
+      outputDirectoryAuthorization: {
+        outputDirToken: "output_dir_token_mimo",
+        directoryName: "out",
+        expiresAt: Date.now() + 60_000,
+      },
       dialect: "mimo_chat_audio",
       preferences: {
         ...DEFAULT_AUDIO_TRANSCRIBER_PREFERENCES,
@@ -135,7 +141,8 @@ describe("audio transcriber config helpers", () => {
       language: "en",
       responseFormat: "json",
       outputPathMode: "custom_dir",
-      outputDir: "/tmp/out",
+      outputDirToken: "output_dir_token_mimo",
     });
+    expect(request).not.toHaveProperty("outputDir");
   });
 });

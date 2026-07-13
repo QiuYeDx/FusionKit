@@ -3,7 +3,7 @@ import type { AxiosProxyConfig } from "axios";
 import { normalizeAudioEndpoint } from "@/lib/audio-endpoint";
 import type {
   AudioRealtimeSessionConfig,
-  AudioRuntimeModelConfig,
+  AudioRuntimeAdapterModelConfig,
 } from "@/type/audio";
 import type { RealtimeEphemeralSessionResult } from "@/type/audioIpc";
 import { createAudioRuntimeError } from "../audio-errors";
@@ -15,7 +15,7 @@ import {
 } from "../audio-http";
 
 export interface OpenAIRealtimeEphemeralSessionRequest {
-  model: AudioRuntimeModelConfig;
+  model: AudioRuntimeAdapterModelConfig;
   payload: AudioRealtimeSessionConfig;
   timeoutMs?: number;
   signal?: AbortSignal;

@@ -48,6 +48,7 @@
     "speech": {
       "title": "テキストを音声へ",
       "description": "グローバル TTS 設定で音声を生成します。",
+      "config": "音声合成設定",
       "workspace": "合成タスク"
     },
     "captions": {
@@ -185,7 +186,8 @@
       "voice_sample": "参照音声",
       "audio_tags": "音声タグ",
       "input": "合成テキスト",
-      "instructions": "OpenAI 指示"
+      "instructions": "OpenAI 指示",
+      "file_name_hint": "ファイル名（任意）"
     },
     "response_format": {
       "mp3": "MP3",
@@ -216,7 +218,8 @@
       "voice_design": "音色設計には、作りたい声の特徴説明が必要です。",
       "voice_clone": "音色クローンには wav または mp3 の参照音声が必要です。ファイル内容は main プロセスだけで読み取ります。",
       "audio_tags": "MiMo プリセット音色モードでは音声タグを有効にできます。他のモードでは無効です。",
-      "input": "音声へ合成するテキストです。MiMo 音色設計でプレビューテキストを最適化する場合は空でも構いません。"
+      "input": "音声へ合成するテキストです。MiMo 音色設計でプレビューテキストを最適化する場合は空でも構いません。",
+      "file_name_hint": "拡張子は入力不要です。出力形式に応じて自動で追加されます。"
     },
     "placeholders": {
       "mimo_voice": "mimo_default / 冰糖 / Mia / カスタム voice id",
@@ -226,7 +229,8 @@
       "voice_design_prompt": "例：若く、明るく、親しみやすい女性の声",
       "input": "音声へ合成するテキストを入力",
       "instructions": "例：ポッドキャストのナレーション向けに落ち着いた口調を保つ",
-      "instructions_mimo_disabled": "MiMo では左側のスタイル指示または音色設計の説明を使ってください"
+      "instructions_mimo_disabled": "MiMo では左側のスタイル指示または音色設計の説明を使ってください",
+      "file_name_hint": "例：製品紹介ナレーション"
     },
     "dialog": {
       "select_output_title": "音声出力フォルダを選択",
@@ -300,7 +304,12 @@
       "output_dir_select_failed": "出力フォルダの選択に失敗しました。",
       "voice_sample_path_unavailable": "参照音声のローカルパスを取得できません。Electron アプリ内で再度選択してください。",
       "unsupported_voice_sample": "参照音声は wav または mp3 のみ対応します。",
-      "voice_sample_too_large": "参照音声が MiMo Base64 サイズ制限を超えています。"
+      "voice_sample_too_large": "参照音声が MiMo Base64 サイズ制限を超えています。",
+      "cancel_not_confirmed": "キャンセルを確認できませんでした。もう一度お試しください。",
+      "playback_failed": "音声の再生に失敗しました。",
+      "runtime_failed": "音声生成に失敗しました。音声 API 設定を確認するか、後でもう一度お試しください。",
+      "input_too_long": "合成テキストが現在の API の上限を超えています。",
+      "instructions_too_long": "生成指示が現在の API の上限を超えています。"
     }
   },
   "captions": {
@@ -506,6 +515,11 @@
   },
   "runtime_error": {
     "invalid_request": "音声リクエストが無効です。",
+    "stale_config": "音声設定が変更されました。操作を再試行してください。",
+    "api_not_configured": "このツールで使用する音声 API を先に設定してください。",
+    "route_not_configured": "割り当てられた音声 API は、要求された操作またはモードに対応していません。",
+    "route_unverified": "この音声 API ルートの検証に失敗しました。設定を確認してください。",
+    "invalid_parameters": "音声タスクの設定を確認して、もう一度お試しください。",
     "profile_not_configured": "先に音声プロファイルを設定してください。",
     "connection_not_configured": "音声接続プロファイルがありません。",
     "model_not_configured": "必要な音声モデルを設定してください。",
@@ -527,6 +541,7 @@
     "empty_response": "音声サービスから空の応答が返されました。",
     "invalid_response": "音声サービスから無効な応答が返されました。",
     "aborted": "音声操作はキャンセルされました。",
-    "renderer": "音声ページで操作を完了できませんでした。"
+    "renderer": "音声ページで操作を完了できませんでした。",
+    "technical_details": "技術的な詳細"
   }
 }

@@ -19,8 +19,8 @@ import {
 } from "@/type/audioIpc";
 import {
   audioIpcUnavailableResult,
+  invokeAudioTaskIpc,
   invokeAudioIpc,
-  syncAudioRuntimeConfigBeforeTask,
 } from "./audioRuntimeConfigService";
 
 export interface AudioRealtimeSessionHandlers {
@@ -94,13 +94,9 @@ export async function createRealtimeEphemeralSession(
   request: AudioRealtimeSessionConfig,
 ): Promise<AudioIpcResult<RealtimeEphemeralSessionResult>> {
   try {
-    const synced = await syncAudioRuntimeConfigBeforeTask();
-    if (!synced.ok) return audioIpcFailure(synced.error);
-
-    return invokeAudioIpc<RealtimeEphemeralSessionResult>(
+    return await invokeAudioTaskIpc<RealtimeEphemeralSessionResult>(
       AUDIO_IPC_CHANNELS.realtimeCreateEphemeralSession,
       request,
-      synced.data.revision,
     );
   } catch (error) {
     return audioIpcUnavailableResult(error);
@@ -111,7 +107,7 @@ export async function stopRealtimeSession(
   request: StopAudioRealtimeSessionRequest,
 ): Promise<AudioIpcResult<StopAudioRealtimeSessionResult>> {
   try {
-    return invokeAudioIpc<StopAudioRealtimeSessionResult>(
+    return await invokeAudioIpc<StopAudioRealtimeSessionResult>(
       AUDIO_IPC_CHANNELS.realtimeStopSession,
       request,
     );
@@ -124,13 +120,9 @@ export async function transcribeRecordedAudioChunk(
   request: TranscribeRecordedAudioChunkRequest,
 ): Promise<AudioIpcResult<TranscribeRecordedAudioChunkResult>> {
   try {
-    const synced = await syncAudioRuntimeConfigBeforeTask();
-    if (!synced.ok) return audioIpcFailure(synced.error);
-
-    return invokeAudioIpc<TranscribeRecordedAudioChunkResult>(
+    return await invokeAudioTaskIpc<TranscribeRecordedAudioChunkResult>(
       AUDIO_IPC_CHANNELS.transcribeRecordedChunk,
       request,
-      synced.data.revision,
     );
   } catch (error) {
     return audioIpcUnavailableResult(error);
@@ -141,7 +133,7 @@ export async function cancelRecordedAudioChunkTranscription(
   requestId: string,
 ): Promise<AudioIpcResult<CancelRecordedAudioChunkTranscriptionResult>> {
   try {
-    return invokeAudioIpc<CancelRecordedAudioChunkTranscriptionResult>(
+    return await invokeAudioIpc<CancelRecordedAudioChunkTranscriptionResult>(
       AUDIO_IPC_CHANNELS.cancelRecordedChunkTranscription,
       { requestId },
     );

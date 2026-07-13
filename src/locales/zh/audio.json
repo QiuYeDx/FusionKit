@@ -48,6 +48,7 @@
     "speech": {
       "title": "文本转音频",
       "description": "使用全局 TTS 配置生成音频。",
+      "config": "语音合成设置",
       "workspace": "合成任务"
     },
     "captions": {
@@ -185,7 +186,8 @@
       "voice_sample": "参考音频",
       "audio_tags": "音频标签",
       "input": "合成文本",
-      "instructions": "OpenAI 指令"
+      "instructions": "OpenAI 指令",
+      "file_name_hint": "文件名（可选）"
     },
     "response_format": {
       "mp3": "MP3",
@@ -216,7 +218,8 @@
       "voice_design": "音色设计需要描述想要的声音特征。",
       "voice_clone": "音色复刻需要 wav 或 mp3 参考音频，文件内容只在 main 进程读取。",
       "audio_tags": "MiMo 预置音色模式可开启音频标签；其它模式禁用。",
-      "input": "要合成为语音的文本。MiMo 音色设计可在优化试听文本时允许为空。"
+      "input": "要合成为语音的文本。MiMo 音色设计可在优化试听文本时允许为空。",
+      "file_name_hint": "无需填写扩展名，系统会根据输出格式补全。"
     },
     "placeholders": {
       "mimo_voice": "mimo_default / 冰糖 / Mia / 自定义 voice id",
@@ -226,7 +229,8 @@
       "voice_design_prompt": "例如：年轻、明亮、亲和的女性声音",
       "input": "输入要合成为语音的文本",
       "instructions": "例如：保持语气平静，适合播客旁白",
-      "instructions_mimo_disabled": "MiMo 请使用左侧的风格指令或音色设计描述"
+      "instructions_mimo_disabled": "MiMo 请使用左侧的风格指令或音色设计描述",
+      "file_name_hint": "例如：产品介绍旁白"
     },
     "dialog": {
       "select_output_title": "选择语音输出目录",
@@ -300,7 +304,12 @@
       "output_dir_select_failed": "选择输出目录失败。",
       "voice_sample_path_unavailable": "无法读取参考音频的本地路径，请在 Electron 应用内重新选择。",
       "unsupported_voice_sample": "参考音频仅支持 wav 或 mp3。",
-      "voice_sample_too_large": "参考音频超过 MiMo Base64 大小限制。"
+      "voice_sample_too_large": "参考音频超过 MiMo Base64 大小限制。",
+      "cancel_not_confirmed": "未能确认取消，请稍后重试。",
+      "playback_failed": "音频播放失败。",
+      "runtime_failed": "音频生成失败，请检查音频 API 配置或稍后重试。",
+      "input_too_long": "合成文本超出当前 API 支持的长度。",
+      "instructions_too_long": "生成指令超出当前 API 支持的长度。"
     }
   },
   "captions": {
@@ -506,6 +515,11 @@
   },
   "runtime_error": {
     "invalid_request": "音频请求无效。",
+    "stale_config": "音频设置已发生变化，请重试此操作。",
+    "api_not_configured": "请先为此工具配置音频 API。",
+    "route_not_configured": "当前分配的音频 API 不支持所请求的操作或模式。",
+    "route_unverified": "此音频 API 路由验证失败，请前往设置检查。",
+    "invalid_parameters": "请检查音频任务参数后重试。",
     "profile_not_configured": "请先配置音频档案。",
     "connection_not_configured": "缺少音频连接配置。",
     "model_not_configured": "请先配置所需的音频模型。",
@@ -527,6 +541,7 @@
     "empty_response": "音频服务返回了空响应。",
     "invalid_response": "音频服务返回了无效响应。",
     "aborted": "音频操作已取消。",
-    "renderer": "音频页面无法完成此操作。"
+    "renderer": "音频页面无法完成此操作。",
+    "technical_details": "技术详情"
   }
 }

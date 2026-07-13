@@ -4,6 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import {
   AUDIO_MAX_UPLOAD_BYTES,
+  AudioFileAuthorizationStore,
   MIMO_MAX_BASE64_AUDIO_BYTES,
   createRealtimeCaptionsFileNameHint,
   createSpeechOutputFileNameHint,
@@ -103,6 +104,30 @@ describe("audio file helpers", () => {
     await expect(readAudioFileAsDataUri(fileInfo)).resolves.toBe(
       `data:audio/wav;base64,${wavBytes.toString("base64")}`,
     );
+  });
+
+  it("consumes voice-reference tokens once without allowing another owner to revoke them", async () => {
+    const tempRoot = await createTempRoot();
+    const filePath = path.join(tempRoot, "reference.wav");
+    await writeFile(filePath, createTestWav([1, 2, 3, 4]));
+    const store = new AudioFileAuthorizationStore();
+    const authorization = await store.authorize(11, filePath, "audio/wav");
+
+    await expect(
+      store.consume(12, authorization.fileToken, "mimo_chat_audio"),
+    ).rejects.toMatchObject({
+      code: "invalid_ipc_request",
+      field: "fileToken",
+    });
+    await expect(
+      store.consume(11, authorization.fileToken, "mimo_chat_audio"),
+    ).resolves.toMatchObject({ filePath, mimeType: "audio/wav" });
+    await expect(
+      store.consume(11, authorization.fileToken, "mimo_chat_audio"),
+    ).rejects.toMatchObject({
+      code: "invalid_ipc_request",
+      field: "fileToken",
+    });
   });
 
   it("rejects unsupported formats and dialect-specific size limits", async () => {

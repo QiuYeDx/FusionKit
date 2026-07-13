@@ -24,8 +24,7 @@ const localStorageItems = vi.hoisted(() => {
   return storage;
 });
 
-import useModelStore from "@/store/useModelStore";
-import { Model } from "@/type/model";
+import useAudioApiStore from "@/store/useAudioApiStore";
 import { AUDIO_EVENT_CHANNELS, AUDIO_IPC_CHANNELS } from "@/type/audioIpc";
 import {
   cancelAudioTranscription,
@@ -57,57 +56,45 @@ describe("audio renderer services", () => {
   beforeEach(() => {
     resetAudioRuntimeConfigCacheForTests();
     localStorageItems.clear();
-    useModelStore.setState({
+    useAudioApiStore.setState({
       profiles: [
-        {
-          id: "profile_audio",
-          name: "Audio Profile",
-          provider: Model.OpenAI,
-          apiKey: "sk-renderer-audio",
-          baseUrl: "https://api.openai.com/v1",
-          modelKey: "unused",
-          tokenPricing: { inputTokensPerMillion: 0, outputTokensPerMillion: 0 },
-          apiFormat: "chat_completions",
-          outputTokenParameter: "max_tokens",
-        },
-      ],
-      audioProfiles: [
         {
           id: "audio_openai",
           name: "OpenAI Audio",
-          connectionProfileId: "profile_audio",
-          audioDialect: "openai_audio",
-          capabilities: [
-            "file_transcription",
-            "speech_synthesis",
-            "streaming_speech_synthesis",
-          ],
-          models: {
-            transcription: "gpt-4o-transcribe",
-            speechSynthesis: "gpt-4o-mini-tts",
+          providerPreset: "openai",
+          apiKey: "sk-renderer-audio",
+          baseUrl: "https://api.openai.com/v1",
+          routes: {
+            transcription: {
+              transport: "openai_audio",
+              model: "gpt-4o-transcribe",
+              enabled: true,
+            },
+            speechSynthesis: {
+              preset_voice: {
+                transport: "openai_audio",
+                model: "gpt-4o-mini-tts",
+                enabled: true,
+              },
+            },
+            realtimeCaptions: {
+              transport: "openai_realtime",
+              model: "gpt-realtime-whisper",
+              enabled: true,
+            },
+            realtimeVoice: {
+              transport: "openai_realtime",
+              model: "gpt-realtime",
+              enabled: true,
+            },
           },
-          defaults: {},
-        },
-        {
-          id: "audio_realtime",
-          name: "OpenAI Realtime",
-          connectionProfileId: "profile_audio",
-          audioDialect: "openai_realtime",
-          capabilities: [
-            "realtime_transcription",
-            "realtime_duplex_voice",
-          ],
-          models: {
-            realtime: "gpt-realtime",
-          },
-          defaults: {},
         },
       ],
-      audioAssignment: {
+      assignment: {
         transcription: "audio_openai",
         speechSynthesis: "audio_openai",
         realtimeCaptions: "audio_openai",
-        realtimeVoice: "audio_realtime",
+        realtimeVoice: "audio_openai",
       },
     });
 
@@ -161,7 +148,7 @@ describe("audio renderer services", () => {
         return {
           ok: true,
           data: {
-            outputPath: "/tmp/speech.mp3",
+            outputToken: "output_token_speech",
             mimeType: "audio/mpeg",
             responseFormat: "mp3",
             sizeBytes: 32,
@@ -178,7 +165,7 @@ describe("audio renderer services", () => {
         return {
           ok: true,
           data: {
-            outputPath: "/tmp/speech.wav",
+            outputToken: "output_token_stream",
             mimeType: "audio/wav",
             responseFormat: "pcm16",
             sizeBytes: 44,
@@ -214,7 +201,7 @@ describe("audio renderer services", () => {
       if (channel === AUDIO_IPC_CHANNELS.revealOutput) {
         return {
           ok: true,
-          data: { revealed: true, path: "/tmp/speech.mp3" },
+          data: { revealed: true },
         };
       }
       return { ok: false, error: { code: "invalid_ipc_request", message: "bad" } };
@@ -225,7 +212,13 @@ describe("audio renderer services", () => {
     off = vi.fn();
     vi.stubGlobal("window", {
       audioApi: {
-        invoke: (channel: string, payload: unknown) => invoke(channel, payload),
+        invoke: (
+          channel: string,
+          payload: unknown,
+          options?: { configRevision?: string },
+        ) => options === undefined
+          ? invoke(channel, payload)
+          : invoke(channel, payload, options),
         authorizeInputFile: vi.fn(),
         on,
         off,
@@ -246,24 +239,285 @@ describe("audio renderer services", () => {
       ok: true,
       data: { text: "hello audio" },
     });
-    expect(invoke).toHaveBeenNthCalledWith(
-      1,
-      AUDIO_IPC_CHANNELS.syncRuntimeConfig,
-      expect.objectContaining({
-        connectionProfiles: [
-          expect.objectContaining({ apiKey: "sk-renderer-audio" }),
-        ],
-      }),
-    );
-    expect(invoke).toHaveBeenNthCalledWith(
+    expectRuntimeSyncCall(invoke, 1);
+    expectAudioTaskCall(
+      invoke,
       2,
       AUDIO_IPC_CHANNELS.transcribe,
-      expect.not.objectContaining({
-        apiKey: expect.anything(),
-        baseUrl: expect.anything(),
-        modelKey: expect.anything(),
-      }),
+      "runtime_revision_test",
     );
+  });
+
+  it("maps runtime sync and task IPC rejections to structured network errors", async () => {
+    invoke.mockRejectedValueOnce(new Error("sync IPC disconnected"));
+    await expect(
+      transcribeAudio(createTranscriptionRequest("asr_sync_reject")),
+    ).resolves.toMatchObject({
+      ok: false,
+      error: { code: "network_error", message: "sync IPC disconnected" },
+    });
+
+    resetAudioRuntimeConfigCacheForTests();
+    invoke
+      .mockResolvedValueOnce({
+        ok: true,
+        data: {
+          synced: true,
+          audioProfileCount: 1,
+          revision: "runtime_revision_task_reject",
+        },
+      })
+      .mockRejectedValueOnce(new Error("task IPC disconnected"));
+    await expect(
+      transcribeAudio(createTranscriptionRequest("asr_task_reject")),
+    ).resolves.toMatchObject({
+      ok: false,
+      error: { code: "network_error", message: "task IPC disconnected" },
+    });
+  });
+
+  it("maps direct cancellation IPC rejection to a structured network error", async () => {
+    invoke.mockRejectedValueOnce(new Error("cancel IPC disconnected"));
+
+    await expect(cancelAudioTranscription("asr_cancel_reject"))
+      .resolves.toMatchObject({
+        ok: false,
+        error: { code: "network_error", message: "cancel IPC disconnected" },
+      });
+  });
+
+  it("invalidates, resyncs, and retries a stale audio task exactly once", async () => {
+    let syncCount = 0;
+    let taskCount = 0;
+    invoke.mockImplementation(async (channel: string) => {
+      if (channel === AUDIO_IPC_CHANNELS.syncRuntimeConfig) {
+        syncCount += 1;
+        return {
+          ok: true,
+          data: {
+            synced: true,
+            audioProfileCount: 1,
+            revision: `runtime_revision_${syncCount}`,
+          },
+        };
+      }
+      if (channel === AUDIO_IPC_CHANNELS.transcribe) {
+        taskCount += 1;
+        if (taskCount === 1) {
+          return {
+            ok: false,
+            error: {
+              code: "stale_audio_config",
+              message: "stale",
+            },
+          };
+        }
+        return {
+          ok: true,
+          data: {
+            text: "retried transcript",
+            responseFormat: "json",
+          },
+        };
+      }
+      throw new Error(`Unexpected channel: ${channel}`);
+    });
+
+    const result = await transcribeAudio(createTranscriptionRequest());
+
+    expect(result).toMatchObject({
+      ok: true,
+      data: { text: "retried transcript" },
+    });
+    expect(invoke).toHaveBeenCalledTimes(4);
+    expectRuntimeSyncCall(invoke, 1);
+    expectAudioTaskCall(
+      invoke,
+      2,
+      AUDIO_IPC_CHANNELS.transcribe,
+      "runtime_revision_1",
+    );
+    expectRuntimeSyncCall(invoke, 3);
+    expectAudioTaskCall(
+      invoke,
+      4,
+      AUDIO_IPC_CHANNELS.transcribe,
+      "runtime_revision_2",
+    );
+  });
+
+  it("returns a second stale error without retrying the task again", async () => {
+    let syncCount = 0;
+    let taskCount = 0;
+    invoke.mockImplementation(async (channel: string) => {
+      if (channel === AUDIO_IPC_CHANNELS.syncRuntimeConfig) {
+        syncCount += 1;
+        return {
+          ok: true,
+          data: {
+            synced: true,
+            audioProfileCount: 1,
+            revision: `runtime_revision_${syncCount}`,
+          },
+        };
+      }
+      if (channel === AUDIO_IPC_CHANNELS.transcribe) {
+        taskCount += 1;
+        return {
+          ok: false,
+          error: {
+            code: "stale_audio_config",
+            message: `stale ${taskCount}`,
+          },
+        };
+      }
+      throw new Error(`Unexpected channel: ${channel}`);
+    });
+
+    const result = await transcribeAudio(createTranscriptionRequest());
+
+    expect(result).toMatchObject({
+      ok: false,
+      error: { code: "stale_audio_config", message: "stale 2" },
+    });
+    expect(taskCount).toBe(2);
+    expect(syncCount).toBe(2);
+    expect(invoke).toHaveBeenCalledTimes(4);
+    expectAudioTaskCall(
+      invoke,
+      2,
+      AUDIO_IPC_CHANNELS.transcribe,
+      "runtime_revision_1",
+    );
+    expectAudioTaskCall(
+      invoke,
+      4,
+      AUDIO_IPC_CHANNELS.transcribe,
+      "runtime_revision_2",
+    );
+  });
+
+  it("deduplicates concurrent syncs for the same snapshot and shares the revision", async () => {
+    let resolveSync: ((value: unknown) => void) | undefined;
+    const pendingSync = new Promise((resolve) => {
+      resolveSync = resolve;
+    });
+    invoke.mockImplementation(async (channel: string, payload: unknown) => {
+      if (channel === AUDIO_IPC_CHANNELS.syncRuntimeConfig) {
+        return pendingSync;
+      }
+      if (channel === AUDIO_IPC_CHANNELS.transcribe) {
+        return {
+          ok: true,
+          data: {
+            text: `transcript:${String((payload as { requestId?: string }).requestId)}`,
+            responseFormat: "json",
+          },
+        };
+      }
+      throw new Error(`Unexpected channel: ${channel}`);
+    });
+
+    const first = transcribeAudio(createTranscriptionRequest("asr_concurrent_1"));
+    const second = transcribeAudio(createTranscriptionRequest("asr_concurrent_2"));
+    await vi.waitFor(() => {
+      expect(
+        invoke.mock.calls.filter(
+          ([channel]) => channel === AUDIO_IPC_CHANNELS.syncRuntimeConfig,
+        ),
+      ).toHaveLength(1);
+    });
+
+    resolveSync?.({
+      ok: true,
+      data: {
+        synced: true,
+        audioProfileCount: 1,
+        revision: "runtime_revision_shared",
+      },
+    });
+
+    await expect(Promise.all([first, second])).resolves.toEqual([
+      expect.objectContaining({ ok: true }),
+      expect.objectContaining({ ok: true }),
+    ]);
+    expect(invoke).toHaveBeenCalledTimes(3);
+    expectRuntimeSyncCall(invoke, 1);
+    expectAudioTaskCall(
+      invoke,
+      2,
+      AUDIO_IPC_CHANNELS.transcribe,
+      "runtime_revision_shared",
+    );
+    expectAudioTaskCall(
+      invoke,
+      3,
+      AUDIO_IPC_CHANNELS.transcribe,
+      "runtime_revision_shared",
+    );
+  });
+
+  it("syncs the latest store snapshot before invoking a task when settings change in flight", async () => {
+    let resolveFirstSync: ((value: unknown) => void) | undefined;
+    const firstSync = new Promise((resolve) => {
+      resolveFirstSync = resolve;
+    });
+    let syncCount = 0;
+    invoke.mockImplementation(async (channel: string) => {
+      if (channel === AUDIO_IPC_CHANNELS.syncRuntimeConfig) {
+        syncCount += 1;
+        if (syncCount === 1) return firstSync;
+        return {
+          ok: true,
+          data: {
+            synced: true,
+            audioProfileCount: 1,
+            revision: "runtime_revision_latest",
+          },
+        };
+      }
+      if (channel === AUDIO_IPC_CHANNELS.transcribe) {
+        return {
+          ok: true,
+          data: { text: "latest transcript", responseFormat: "json" },
+        };
+      }
+      throw new Error(`Unexpected channel: ${channel}`);
+    });
+
+    const pending = transcribeAudio(createTranscriptionRequest("asr_latest"));
+    await vi.waitFor(() => expect(syncCount).toBe(1));
+    useAudioApiStore.setState((state) => ({
+      profiles: state.profiles.map((profile) => ({
+        ...profile,
+        baseUrl: "https://latest.example.com/v1",
+      })),
+    }));
+    resolveFirstSync?.({
+      ok: true,
+      data: {
+        synced: true,
+        audioProfileCount: 1,
+        revision: "runtime_revision_superseded",
+      },
+    });
+
+    await expect(pending).resolves.toMatchObject({ ok: true });
+    expect(syncCount).toBe(2);
+    expect(invoke).toHaveBeenCalledTimes(3);
+    expect(invoke.mock.calls[1]?.[0]).toBe(AUDIO_IPC_CHANNELS.syncRuntimeConfig);
+    expect(invoke.mock.calls[1]?.[1]).toMatchObject({
+      profiles: [{ baseUrl: "https://latest.example.com/v1" }],
+    });
+    expectAudioTaskCall(
+      invoke,
+      3,
+      AUDIO_IPC_CHANNELS.transcribe,
+      "runtime_revision_latest",
+    );
+    expect(invoke.mock.calls[2]?.[2]).not.toEqual({
+      configRevision: "runtime_revision_superseded",
+    });
   });
 
   it("exposes transcription cancellation without syncing runtime config again", async () => {
@@ -276,6 +530,7 @@ describe("audio renderer services", () => {
     expect(invoke).toHaveBeenCalledWith(
       AUDIO_IPC_CHANNELS.cancelTranscription,
       { requestId: "asr_req_001" },
+      {},
     );
     expect(invoke).not.toHaveBeenCalledWith(
       AUDIO_IPC_CHANNELS.syncRuntimeConfig,
@@ -298,23 +553,12 @@ describe("audio renderer services", () => {
       ok: true,
       data: { text: "chunk transcript" },
     });
-    expect(invoke).toHaveBeenNthCalledWith(
-      1,
-      AUDIO_IPC_CHANNELS.syncRuntimeConfig,
-      expect.objectContaining({
-        connectionProfiles: [
-          expect.objectContaining({ apiKey: "sk-renderer-audio" }),
-        ],
-      }),
-    );
-    expect(invoke).toHaveBeenNthCalledWith(
+    expectRuntimeSyncCall(invoke, 1);
+    expectAudioTaskCall(
+      invoke,
       2,
       AUDIO_IPC_CHANNELS.transcribeRecordedChunk,
-      expect.not.objectContaining({
-        apiKey: expect.anything(),
-        baseUrl: expect.anything(),
-        modelKey: expect.anything(),
-      }),
+      "runtime_revision_test",
     );
   });
 
@@ -327,6 +571,7 @@ describe("audio renderer services", () => {
     expect(invoke).toHaveBeenCalledWith(
       AUDIO_IPC_CHANNELS.cancelRecordedChunkTranscription,
       { requestId: "chunk_req_001" },
+      {},
     );
     expect(invoke).not.toHaveBeenCalledWith(
       AUDIO_IPC_CHANNELS.syncRuntimeConfig,
@@ -345,25 +590,14 @@ describe("audio renderer services", () => {
 
     expect(result).toMatchObject({
       ok: true,
-      data: { outputPath: "/tmp/speech.mp3" },
+      data: { outputToken: "output_token_speech" },
     });
-    expect(invoke).toHaveBeenNthCalledWith(
-      1,
-      AUDIO_IPC_CHANNELS.syncRuntimeConfig,
-      expect.objectContaining({
-        connectionProfiles: [
-          expect.objectContaining({ apiKey: "sk-renderer-audio" }),
-        ],
-      }),
-    );
-    expect(invoke).toHaveBeenNthCalledWith(
+    expectRuntimeSyncCall(invoke, 1);
+    expectAudioTaskCall(
+      invoke,
       2,
       AUDIO_IPC_CHANNELS.synthesizeSpeech,
-      expect.not.objectContaining({
-        apiKey: expect.anything(),
-        baseUrl: expect.anything(),
-        modelKey: expect.anything(),
-      }),
+      "runtime_revision_test",
     );
   });
 
@@ -376,6 +610,7 @@ describe("audio renderer services", () => {
     expect(invoke).toHaveBeenCalledWith(
       AUDIO_IPC_CHANNELS.cancelSpeechSynthesis,
       { requestId: "speech_req_001" },
+      {},
     );
     expect(invoke).not.toHaveBeenCalledWith(
       AUDIO_IPC_CHANNELS.syncRuntimeConfig,
@@ -385,11 +620,13 @@ describe("audio renderer services", () => {
     await expect(revealSpeechOutput({ outputToken: "output_token_speech" }))
       .resolves.toMatchObject({
         ok: true,
-        data: { revealed: true, path: "/tmp/speech.mp3" },
+        data: { revealed: true },
       });
-    expect(invoke).toHaveBeenCalledWith(AUDIO_IPC_CHANNELS.revealOutput, {
-      outputToken: "output_token_speech",
-    });
+    expect(invoke).toHaveBeenCalledWith(
+      AUDIO_IPC_CHANNELS.revealOutput,
+      { outputToken: "output_token_speech" },
+      {},
+    );
   });
 
   it("subscribes to matching speech stream events and exposes cancellation", async () => {
@@ -424,16 +661,19 @@ describe("audio renderer services", () => {
     expect(audioDelta).toHaveBeenCalledTimes(1);
     expect(any).toHaveBeenCalledTimes(1);
     await expect(handle.result).resolves.toMatchObject({ ok: true });
-    expect(invoke).toHaveBeenCalledWith(
+    expectAudioTaskCall(
+      invoke,
+      2,
       AUDIO_IPC_CHANNELS.synthesizeSpeechStream,
-      {
-        requestId: "speech_req_001",
-        payload: expect.objectContaining({
-          assignmentKey: "speechSynthesis",
-          stream: true,
-        }),
-      },
+      "runtime_revision_test",
     );
+    expect(invoke.mock.calls[1]?.[1]).toMatchObject({
+      requestId: "speech_req_001",
+      payload: {
+        assignmentKey: "speechSynthesis",
+        stream: true,
+      },
+    });
 
     await expect(cancelSpeechSynthesisStream({ requestId: "speech_req_001" }))
       .resolves.toMatchObject({
@@ -458,25 +698,12 @@ describe("audio renderer services", () => {
       ok: true,
       data: { sessionId: "sess_renderer_realtime" },
     });
-    expect(invoke).toHaveBeenNthCalledWith(
-      1,
-      AUDIO_IPC_CHANNELS.syncRuntimeConfig,
-      expect.objectContaining({
-        connectionProfiles: [
-          expect.objectContaining({ apiKey: "sk-renderer-audio" }),
-        ],
-      }),
-    );
-    expect(invoke).toHaveBeenNthCalledWith(
+    expectRuntimeSyncCall(invoke, 1);
+    expectAudioTaskCall(
+      invoke,
       2,
       AUDIO_IPC_CHANNELS.realtimeCreateEphemeralSession,
-      expect.not.objectContaining({
-        apiKey: expect.anything(),
-        baseUrl: expect.anything(),
-        modelKey: expect.anything(),
-        provider: expect.anything(),
-        audioDialect: expect.anything(),
-      }),
+      "runtime_revision_test",
     );
   });
 
@@ -603,6 +830,7 @@ describe("audio renderer services", () => {
         sessionId: "sess_renderer_realtime",
         reason: "page_unload",
       }),
+      { configRevision: "runtime_revision_test" },
     );
   });
 
@@ -669,3 +897,91 @@ describe("audio renderer services", () => {
     expect(peerConnectionListeners.has("iceconnectionstatechange")).toBe(true);
   });
 });
+
+function createTranscriptionRequest(requestId = "asr_req_001") {
+  return {
+    assignmentKey: "transcription" as const,
+    requestId,
+    fileToken: "file_token_speech",
+    fileName: "speech.wav",
+    mimeType: "audio/wav",
+    responseFormat: "json" as const,
+  };
+}
+
+function expectRuntimeSyncCall(
+  invoke: ReturnType<typeof vi.fn>,
+  callNumber: number,
+): void {
+  const call = invoke.mock.calls[callNumber - 1];
+  expect(call?.[0]).toBe(AUDIO_IPC_CHANNELS.syncRuntimeConfig);
+  expect(call?.[2]).toBeUndefined();
+  expect(call?.[1]).toMatchObject({
+    profiles: [
+      {
+        id: "audio_openai",
+        providerPreset: "openai",
+        apiKey: "sk-renderer-audio",
+        baseUrl: "https://api.openai.com/v1",
+        routes: {
+          transcription: {
+            transport: "openai_audio",
+            model: "gpt-4o-transcribe",
+            enabled: true,
+          },
+          speechSynthesis: {
+            preset_voice: {
+              transport: "openai_audio",
+              model: "gpt-4o-mini-tts",
+              enabled: true,
+            },
+          },
+        },
+      },
+    ],
+    assignment: {
+      transcription: "audio_openai",
+      speechSynthesis: "audio_openai",
+      realtimeCaptions: "audio_openai",
+      realtimeVoice: "audio_openai",
+    },
+  });
+  expect(call?.[1]).not.toHaveProperty("connectionProfiles");
+  expect(call?.[1]).not.toHaveProperty("audioProfiles");
+  expect(call?.[1]).not.toHaveProperty("audioAssignment");
+}
+
+function expectAudioTaskCall(
+  invoke: ReturnType<typeof vi.fn>,
+  callNumber: number,
+  channel: string,
+  revision: string,
+): void {
+  const call = invoke.mock.calls[callNumber - 1];
+  expect(call?.[0]).toBe(channel);
+  expect(call?.[2]).toEqual({ configRevision: revision });
+  expectTaskPayloadWithoutRuntimeConfig(call?.[1]);
+}
+
+function expectTaskPayloadWithoutRuntimeConfig(payload: unknown): void {
+  const forbiddenFields = new Set([
+    "apiKey",
+    "baseUrl",
+    "providerPreset",
+    "transport",
+    "model",
+    "modelKey",
+    "profileId",
+    "audioProfileId",
+  ]);
+
+  const visit = (value: unknown): void => {
+    if (!value || typeof value !== "object") return;
+    for (const [key, child] of Object.entries(value)) {
+      expect(forbiddenFields.has(key), `task payload contains ${key}`).toBe(false);
+      visit(child);
+    }
+  };
+
+  visit(payload);
+}

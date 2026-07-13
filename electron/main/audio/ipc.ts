@@ -10,13 +10,17 @@ import {
   type WebContents,
 } from "electron";
 import type {
-  AudioAssignmentKey,
-  AudioRuntimeModelConfig,
+  AudioRuntimeAdapterModelConfig,
+  ResolvedAudioRouteConfig,
   AudioTranscriptionResult,
   CreateAudioTranscriptionRequest,
   CreateSpeechSynthesisRequest,
   SpeechSynthesisResult,
 } from "@/type/audio";
+import {
+  getSpeechRouteConstraints,
+  getTranscriptionRouteConstraints,
+} from "@/lib/audio-provider-registry";
 import {
   AUDIO_EVENT_CHANNELS,
   AUDIO_IPC_CHANNELS,
@@ -35,8 +39,12 @@ import {
   validateSaveAudioTextOutputIpcRequest,
   validateSyncAudioRuntimeConfigIpcRequest,
   validateTranscribeRecordedAudioChunkIpcRequest,
+  type AudioIpcError,
   type AudioIpcResult,
+  type AudioOutputDirectorySelection,
+  type AuthorizedAudioTranscriptionResult,
   type AuthorizedAudioInputFile,
+  type AuthorizedSpeechSynthesisResult,
   type CancelAudioTranscriptionRequest,
   type CancelAudioTranscriptionResult,
   type CancelRecordedAudioChunkTranscriptionRequest,
@@ -54,20 +62,23 @@ import {
   type ReadAudioOutputResult,
   type SaveAudioTextOutputRequest,
   type SaveAudioTextOutputResult,
+  type SelectAudioOutputDirectoryRequest,
   type SpeechSynthesisStreamEvent,
+  type SpeechSynthesisRuntimeStreamEvent,
   type SyncAudioRuntimeConfigRequest,
   type SyncAudioRuntimeConfigResult,
   type TranscribeRecordedAudioChunkRequest,
   type TranscribeRecordedAudioChunkResult,
 } from "@/type/audioIpc";
 import {
-  audioCapabilityIssueToIpcError,
+  audioRouteIssueToIpcError,
   toAudioIpcError,
 } from "./audio-ipc-errors";
 import { createAudioRuntimeError } from "./audio-errors";
 import {
   AudioRuntimeConfigStore,
   sharedAudioRuntimeConfigStore,
+  toAudioRuntimeAdapterModelConfig,
 } from "./audio-runtime-config";
 import {
   AudioFileAuthorizationStore,
@@ -75,6 +86,10 @@ import {
   type AudioFileInfo,
   type AuthorizedAudioFileInfo,
 } from "./audio-file";
+import {
+  AudioOutputDirectoryAuthorizationStore,
+  type AuthorizedAudioOutputDirectory,
+} from "./audio-output-directory";
 import {
   registerAudioPreloadCapability,
   sharedAudioPreloadCapabilityRegistry,
@@ -86,10 +101,12 @@ import {
 
 type Validator<TRequest> = (payload: unknown) => AudioIpcResult<TRequest>;
 type AudioRuntimeInvokerOptions = {
-  model: AudioRuntimeModelConfig;
+  model: AudioRuntimeAdapterModelConfig;
   signal?: AbortSignal;
   requestId?: string;
-  onStreamEvent?: (event: SpeechSynthesisStreamEvent) => void | Promise<void>;
+  onStreamEvent?: (
+    event: SpeechSynthesisRuntimeStreamEvent,
+  ) => void | Promise<void>;
 };
 
 export interface AudioIpcClientContext {
@@ -101,6 +118,11 @@ export interface AudioIpcClientContext {
 interface ActiveAudioRequest {
   ownerId: number;
   requestId: string;
+  controller: AbortController;
+}
+
+interface PendingAudioRequest {
+  ownerGeneration: number;
   controller: AbortController;
 }
 
@@ -120,10 +142,30 @@ export interface AudioInputFileAuthorizations {
   resolve(
     ownerId: number,
     fileToken: string,
-    dialect: AudioRuntimeModelConfig["audioDialect"],
+    dialect: AudioRuntimeAdapterModelConfig["audioDialect"],
   ): Promise<AudioFileInfo>;
+  consume(
+    ownerId: number,
+    fileToken: string,
+    dialect: AudioRuntimeAdapterModelConfig["audioDialect"],
+  ): Promise<AudioFileInfo>;
+  revoke(ownerId: number, fileToken: string): void;
   releaseOwner(ownerId: number): void;
 }
+
+export interface AudioOutputDirectoryAuthorizations {
+  authorize(
+    ownerId: number,
+    directoryPath: string,
+  ): Promise<AuthorizedAudioOutputDirectory>;
+  resolve(ownerId: number, outputDirToken: string): Promise<string>;
+  revoke(ownerId: number, outputDirToken: string): void;
+  releaseOwner(ownerId: number): void;
+}
+
+export type AudioOutputDirectorySelector = (
+  request: SelectAudioOutputDirectoryRequest,
+) => Promise<{ canceled: boolean; filePaths: string[] }>;
 
 export interface AudioRuntimeInvoker {
   transcribe(
@@ -141,6 +183,8 @@ export interface AudioIpcServiceOptions {
   configStore?: AudioRuntimeConfigStore;
   revealOutput?: (outputPath: string) => void;
   fileAuthorizations?: AudioInputFileAuthorizations;
+  outputDirectoryAuthorizations?: AudioOutputDirectoryAuthorizations;
+  selectOutputDirectory?: AudioOutputDirectorySelector;
 }
 
 export class AudioIpcService {
@@ -148,11 +192,20 @@ export class AudioIpcService {
   private readonly configStore: AudioRuntimeConfigStore;
   private readonly revealOutputImpl: (outputPath: string) => void;
   private readonly fileAuthorizations: AudioInputFileAuthorizations;
+  private readonly outputDirectoryAuthorizations: AudioOutputDirectoryAuthorizations;
+  private readonly selectOutputDirectoryImpl: AudioOutputDirectorySelector;
   private readonly transcriptionControllers = new Map<string, ActiveAudioRequest>();
   private readonly chunkTranscriptionControllers = new Map<string, ActiveAudioRequest>();
   private readonly speechControllers = new Map<string, ActiveAudioRequest>();
   private readonly streamControllers = new Map<string, ActiveAudioRequest>();
+  private readonly pendingTranscriptionRequestIds =
+    new Map<string, PendingAudioRequest>();
+  private readonly pendingSpeechRequestIds =
+    new Map<string, PendingAudioRequest>();
+  private readonly pendingStreamRequestIds =
+    new Map<string, PendingAudioRequest>();
   private readonly outputAuthorizations = new Map<string, AuthorizedAudioOutput>();
+  private readonly ownerGenerations = new Map<number, number>();
 
   constructor(options: AudioIpcServiceOptions = {}) {
     this.runtime = options.runtime ?? {
@@ -166,6 +219,17 @@ export class AudioIpcService {
       options.revealOutput ?? ((outputPath) => shell.showItemInFolder(outputPath));
     this.fileAuthorizations =
       options.fileAuthorizations ?? new AudioFileAuthorizationStore();
+    this.outputDirectoryAuthorizations =
+      options.outputDirectoryAuthorizations ??
+      new AudioOutputDirectoryAuthorizationStore();
+    this.selectOutputDirectoryImpl =
+      options.selectOutputDirectory ??
+      ((request) =>
+        dialog.showOpenDialog({
+          ...(request.title ? { title: request.title } : {}),
+          ...(request.buttonLabel ? { buttonLabel: request.buttonLabel } : {}),
+          properties: ["openDirectory", "createDirectory"],
+        }));
   }
 
   async syncRuntimeConfig(
@@ -179,14 +243,52 @@ export class AudioIpcService {
     request: { filePath: string; mimeType?: string },
     context: AudioIpcClientContext,
   ): Promise<AudioIpcResult<AuthorizedAudioInputFile>> {
+    const ownerGeneration = this.getOwnerGeneration(context.senderId);
     try {
-      return audioIpcSuccess(
-        await this.fileAuthorizations.authorize(
-          context.senderId,
-          request.filePath,
-          request.mimeType,
-        ),
+      const authorization = await this.fileAuthorizations.authorize(
+        context.senderId,
+        request.filePath,
+        request.mimeType,
       );
+      if (!this.isOwnerGenerationCurrent(context.senderId, ownerGeneration)) {
+        this.fileAuthorizations.revoke(
+          context.senderId,
+          authorization.fileToken,
+        );
+        return ownerReleasedFailure();
+      }
+      return audioIpcSuccess(authorization);
+    } catch (error) {
+      return audioIpcFailure(toAudioIpcError(error));
+    }
+  }
+
+  async selectOutputDirectory(
+    request: SelectAudioOutputDirectoryRequest,
+    context: AudioIpcClientContext,
+  ): Promise<AudioIpcResult<AudioOutputDirectorySelection>> {
+    const ownerGeneration = this.getOwnerGeneration(context.senderId);
+    try {
+      const selected = await this.selectOutputDirectoryImpl(request);
+      const directoryPath = selected.filePaths[0];
+      if (selected.canceled || !directoryPath) {
+        return audioIpcSuccess({ cancelled: true });
+      }
+      if (!this.isOwnerGenerationCurrent(context.senderId, ownerGeneration)) {
+        return ownerReleasedFailure();
+      }
+      const authorization = await this.outputDirectoryAuthorizations.authorize(
+        context.senderId,
+        directoryPath,
+      );
+      if (!this.isOwnerGenerationCurrent(context.senderId, ownerGeneration)) {
+        this.outputDirectoryAuthorizations.revoke(
+          context.senderId,
+          authorization.outputDirToken,
+        );
+        return ownerReleasedFailure();
+      }
+      return audioIpcSuccess({ cancelled: false, ...authorization });
     } catch (error) {
       return audioIpcFailure(toAudioIpcError(error));
     }
@@ -195,63 +297,125 @@ export class AudioIpcService {
   async transcribe(
     payload: CreateAudioTranscriptionIpcRequest,
     context: AudioIpcClientContext = { senderId: 0 },
-  ): Promise<AudioIpcResult<AudioTranscriptionResult>> {
-    const revisionError = this.validateConfigRevision(context);
-    if (revisionError) return audioIpcFailure(revisionError);
-    const modelResult = this.resolveModel(payload.assignmentKey, context.senderId);
-    if (!modelResult.ok) {
-      return audioIpcFailure(audioCapabilityIssueToIpcError(modelResult.issue));
+  ): Promise<AudioIpcResult<AuthorizedAudioTranscriptionResult>> {
+    const ownerGeneration = this.getOwnerGeneration(context.senderId);
+    const routeResult = this.configStore.resolveRoute(
+      { assignmentKey: payload.assignmentKey },
+      context.senderId,
+      context.configRevision,
+    );
+    if (!routeResult.ok) {
+      return audioIpcFailure(audioRouteIssueToIpcError(routeResult.issue));
     }
+    const parameterError = validateTranscriptionTaskParameters(
+      payload,
+      routeResult.config,
+    );
+    if (parameterError) return audioIpcFailure(parameterError);
+    const model = toAudioRuntimeAdapterModelConfig(routeResult.config);
+    const controllerKey = createControllerKey(
+      context.senderId,
+      payload.requestId ?? `internal-transcription-${randomUUID()}`,
+    );
+    const pendingRequest = payload.requestId
+      ? this.reserveRequestId(
+        this.pendingTranscriptionRequestIds,
+        this.transcriptionControllers,
+        controllerKey,
+        ownerGeneration,
+      )
+      : undefined;
+    if (payload.requestId && !pendingRequest) {
+      return audioIpcFailure({
+        code: "invalid_ipc_request",
+        message: "Transcription requestId is already active.",
+        field: "requestId",
+      });
+    }
+    const controller = pendingRequest?.controller ?? new AbortController();
 
     let trustedPayload: CreateAudioTranscriptionRequest;
     try {
       const fileInfo = await this.fileAuthorizations.resolve(
         context.senderId,
         payload.fileToken,
-        modelResult.config.audioDialect,
+        routeResult.config.transport,
       );
-      const { fileToken: _fileToken, ...rendererPayload } = payload;
+      this.assertRequestCanContinue(
+        context.senderId,
+        ownerGeneration,
+        controller.signal,
+      );
+      const {
+        fileToken: _fileToken,
+        outputDirToken,
+        ...rendererPayload
+      } = payload;
+      const outputDir = await this.resolveTaskOutputDirectory(
+        context.senderId,
+        rendererPayload.outputPathMode,
+        outputDirToken,
+      );
+      this.assertRequestCanContinue(
+        context.senderId,
+        ownerGeneration,
+        controller.signal,
+      );
       trustedPayload = {
         ...rendererPayload,
         filePath: fileInfo.filePath,
         fileName: fileInfo.fileName,
         mimeType: fileInfo.mimeType,
+        ...(outputDir ? { outputDir } : {}),
       };
     } catch (error) {
+      if (controller.signal.aborted) return audioRequestAbortedFailure();
+      if (!this.isOwnerGenerationCurrent(context.senderId, ownerGeneration)) {
+        return ownerReleasedFailure();
+      }
       return audioIpcFailure(toAudioIpcError(error));
+    } finally {
+      if (pendingRequest) {
+        this.releasePendingRequestId(
+          this.pendingTranscriptionRequestIds,
+          controllerKey,
+          pendingRequest,
+        );
+      }
+    }
+    if (controller.signal.aborted) return audioRequestAbortedFailure();
+    if (!this.isOwnerGenerationCurrent(context.senderId, ownerGeneration)) {
+      return ownerReleasedFailure();
     }
 
-    const controller = payload.requestId ? new AbortController() : undefined;
-    const controllerKey = payload.requestId
-      ? createControllerKey(context.senderId, payload.requestId)
-      : undefined;
-    if (payload.requestId) {
-      if (this.transcriptionControllers.has(controllerKey!)) {
-        return audioIpcFailure({
-          code: "invalid_ipc_request",
-          message: "Transcription requestId is already active.",
-          field: "requestId",
-        });
-      }
-      this.transcriptionControllers.set(controllerKey!, {
-        ownerId: context.senderId,
-        requestId: payload.requestId,
-        controller: controller!,
-      });
-    }
+    this.transcriptionControllers.set(controllerKey, {
+      ownerId: context.senderId,
+      requestId: payload.requestId ?? controllerKey,
+      controller,
+    });
 
     try {
       const result = await this.runtime.transcribe(trustedPayload, {
-          model: modelResult.config,
-          signal: controller?.signal,
-          requestId: payload.requestId,
-        });
+        model,
+        signal: controller.signal,
+        requestId: payload.requestId,
+      });
+      if (
+        controller.signal.aborted ||
+        !this.isOwnerGenerationCurrent(context.senderId, ownerGeneration)
+      ) {
+        if (result.outputPath) await this.discardOutputPath(result.outputPath);
+        return audioRequestAbortedFailure();
+      }
       return audioIpcSuccess(this.authorizeOutput(context.senderId, result));
     } catch (error) {
+      if (controller.signal.aborted) return audioRequestAbortedFailure();
+      if (!this.isOwnerGenerationCurrent(context.senderId, ownerGeneration)) {
+        return ownerReleasedFailure();
+      }
       return audioIpcFailure(toAudioIpcError(error));
     } finally {
       if (
-        controllerKey &&
         this.transcriptionControllers.get(controllerKey)?.controller === controller
       ) {
         this.transcriptionControllers.delete(controllerKey);
@@ -264,15 +428,17 @@ export class AudioIpcService {
     context: AudioIpcClientContext = { senderId: 0 },
   ): Promise<AudioIpcResult<CancelAudioTranscriptionResult>> {
     const controllerKey = createControllerKey(context.senderId, request.requestId);
-    const active = this.transcriptionControllers.get(controllerKey);
-    if (!active) {
+    if (!this.abortRequest(
+      this.pendingTranscriptionRequestIds,
+      this.transcriptionControllers,
+      controllerKey,
+    )) {
       return audioIpcSuccess({
         cancelled: false,
         requestId: request.requestId,
       });
     }
 
-    active.controller.abort();
     return audioIpcSuccess({
       cancelled: true,
       requestId: request.requestId,
@@ -283,20 +449,29 @@ export class AudioIpcService {
     request: TranscribeRecordedAudioChunkRequest,
     context: AudioIpcClientContext = { senderId: 0 },
   ): Promise<AudioIpcResult<TranscribeRecordedAudioChunkResult>> {
-    const revisionError = this.validateConfigRevision(context);
-    if (revisionError) return audioIpcFailure(revisionError);
-    const modelResult = this.resolveModel(request.assignmentKey, context.senderId);
-    if (!modelResult.ok) {
-      return audioIpcFailure(audioCapabilityIssueToIpcError(modelResult.issue));
+    const ownerGeneration = this.getOwnerGeneration(context.senderId);
+    const routeResult = this.configStore.resolveRoute(
+      { assignmentKey: request.assignmentKey },
+      context.senderId,
+      context.configRevision,
+    );
+    if (!routeResult.ok) {
+      return audioIpcFailure(audioRouteIssueToIpcError(routeResult.issue));
     }
-    if (modelResult.config.audioDialect === "openai_realtime") {
+    if (routeResult.config.transport === "openai_realtime") {
       return audioIpcFailure({
-        code: "unsupported_audio_capability",
+        code: "audio_route_not_configured",
         message:
-          "OpenAI Realtime profiles should use the realtime WebRTC caption path, not recorded chunk transcription.",
-        field: "audioDialect",
+          "OpenAI Realtime routes must use the WebRTC caption path, not recorded chunk transcription.",
+        field: "transport",
       });
     }
+    const parameterError = validateTranscriptionTaskParameters(
+      request,
+      routeResult.config,
+    );
+    if (parameterError) return audioIpcFailure(parameterError);
+    const model = toAudioRuntimeAdapterModelConfig(routeResult.config);
     const controllerKey = createControllerKey(context.senderId, request.requestId);
     if (this.chunkTranscriptionControllers.has(controllerKey)) {
       return audioIpcFailure({
@@ -336,11 +511,17 @@ export class AudioIpcService {
           ...(request.language ? { language: request.language } : {}),
         },
         {
-          model: modelResult.config,
+          model,
           signal: controller.signal,
           requestId: request.requestId,
         },
       );
+      if (
+        controller.signal.aborted ||
+        !this.isOwnerGenerationCurrent(context.senderId, ownerGeneration)
+      ) {
+        return audioRequestAbortedFailure();
+      }
 
       return audioIpcSuccess({
         requestId: request.requestId,
@@ -355,6 +536,10 @@ export class AudioIpcService {
           : {}),
       });
     } catch (error) {
+      if (controller.signal.aborted) return audioRequestAbortedFailure();
+      if (!this.isOwnerGenerationCurrent(context.senderId, ownerGeneration)) {
+        return ownerReleasedFailure();
+      }
       return audioIpcFailure(toAudioIpcError(error));
     } finally {
       if (
@@ -390,56 +575,100 @@ export class AudioIpcService {
   async synthesizeSpeech(
     payload: CreateSpeechSynthesisIpcRequest,
     context: AudioIpcClientContext = { senderId: 0 },
-  ): Promise<AudioIpcResult<SpeechSynthesisResult>> {
-    const revisionError = this.validateConfigRevision(context);
-    if (revisionError) return audioIpcFailure(revisionError);
-    const modelResult = this.resolveModel(payload.assignmentKey, context.senderId);
-    if (!modelResult.ok) {
-      return audioIpcFailure(audioCapabilityIssueToIpcError(modelResult.issue));
+  ): Promise<AudioIpcResult<AuthorizedSpeechSynthesisResult>> {
+    const ownerGeneration = this.getOwnerGeneration(context.senderId);
+    const routeResult = this.configStore.resolveRoute(
+      { assignmentKey: payload.assignmentKey, mode: payload.intent.mode },
+      context.senderId,
+      context.configRevision,
+    );
+    if (!routeResult.ok) {
+      return audioIpcFailure(audioRouteIssueToIpcError(routeResult.issue));
     }
+    const parameterError = validateSpeechTaskParameters(
+      payload,
+      routeResult.config,
+    );
+    if (parameterError) return audioIpcFailure(parameterError);
+    const model = toAudioRuntimeAdapterModelConfig(routeResult.config);
+    const controllerKey = createControllerKey(
+      context.senderId,
+      payload.requestId ?? `internal-speech-${randomUUID()}`,
+    );
+    const pendingRequest = payload.requestId
+      ? this.reserveRequestId(
+        this.pendingSpeechRequestIds,
+        this.speechControllers,
+        controllerKey,
+        ownerGeneration,
+      )
+      : undefined;
+    if (payload.requestId && !pendingRequest) {
+      return audioIpcFailure({
+        code: "invalid_ipc_request",
+        message: "Speech synthesis requestId is already active.",
+        field: "requestId",
+      });
+    }
+    const controller = pendingRequest?.controller ?? new AbortController();
 
     let trustedPayload: CreateSpeechSynthesisRequest;
     try {
-      trustedPayload = await this.resolveSpeechInputFiles(
+      trustedPayload = await this.createTrustedSpeechPayload(
         payload,
         context.senderId,
-        modelResult.config.audioDialect,
+        routeResult.config,
+        ownerGeneration,
+        controller.signal,
       );
     } catch (error) {
+      if (controller.signal.aborted) return audioRequestAbortedFailure();
+      if (!this.isOwnerGenerationCurrent(context.senderId, ownerGeneration)) {
+        return ownerReleasedFailure();
+      }
       return audioIpcFailure(toAudioIpcError(error));
+    } finally {
+      if (pendingRequest) {
+        this.releasePendingRequestId(
+          this.pendingSpeechRequestIds,
+          controllerKey,
+          pendingRequest,
+        );
+      }
+    }
+    if (controller.signal.aborted) return audioRequestAbortedFailure();
+    if (!this.isOwnerGenerationCurrent(context.senderId, ownerGeneration)) {
+      return ownerReleasedFailure();
     }
 
-    const controller = payload.requestId ? new AbortController() : undefined;
-    const controllerKey = payload.requestId
-      ? createControllerKey(context.senderId, payload.requestId)
-      : undefined;
-    if (payload.requestId) {
-      if (this.speechControllers.has(controllerKey!)) {
-        return audioIpcFailure({
-          code: "invalid_ipc_request",
-          message: "Speech synthesis requestId is already active.",
-          field: "requestId",
-        });
-      }
-      this.speechControllers.set(controllerKey!, {
-        ownerId: context.senderId,
-        requestId: payload.requestId,
-        controller: controller!,
-      });
-    }
+    this.speechControllers.set(controllerKey, {
+      ownerId: context.senderId,
+      requestId: payload.requestId ?? controllerKey,
+      controller,
+    });
 
     try {
       const result = await this.runtime.synthesize(trustedPayload, {
-          model: modelResult.config,
-          signal: controller?.signal,
-          requestId: payload.requestId,
-        });
+        model,
+        signal: controller.signal,
+        requestId: payload.requestId,
+      });
+      if (
+        controller.signal.aborted ||
+        !this.isOwnerGenerationCurrent(context.senderId, ownerGeneration)
+      ) {
+        await this.discardOutputPath(result.outputPath);
+        return audioRequestAbortedFailure();
+      }
       return audioIpcSuccess(this.authorizeOutput(context.senderId, result));
     } catch (error) {
+      if (controller.signal.aborted) return audioRequestAbortedFailure();
+      if (!this.isOwnerGenerationCurrent(context.senderId, ownerGeneration)) {
+        return ownerReleasedFailure();
+      }
       return audioIpcFailure(toAudioIpcError(error));
     } finally {
       if (
-        controllerKey &&
         this.speechControllers.get(controllerKey)?.controller === controller
       ) {
         this.speechControllers.delete(controllerKey);
@@ -452,15 +681,17 @@ export class AudioIpcService {
     context: AudioIpcClientContext = { senderId: 0 },
   ): Promise<AudioIpcResult<CancelSpeechSynthesisResult>> {
     const controllerKey = createControllerKey(context.senderId, request.requestId);
-    const active = this.speechControllers.get(controllerKey);
-    if (!active) {
+    if (!this.abortRequest(
+      this.pendingSpeechRequestIds,
+      this.speechControllers,
+      controllerKey,
+    )) {
       return audioIpcSuccess({
         cancelled: false,
         requestId: request.requestId,
       });
     }
 
-    active.controller.abort();
     return audioIpcSuccess({
       cancelled: true,
       requestId: request.requestId,
@@ -471,50 +702,130 @@ export class AudioIpcService {
     request: CreateSpeechSynthesisStreamIpcRequest,
     webContents: WebContents,
     context: AudioIpcClientContext = { senderId: 0 },
-  ): Promise<AudioIpcResult<SpeechSynthesisResult>> {
-    const revisionError = this.validateConfigRevision(context);
-    if (revisionError) return audioIpcFailure(revisionError);
-    const modelResult = this.resolveModel(
-      request.payload.assignmentKey,
+  ): Promise<AudioIpcResult<AuthorizedSpeechSynthesisResult>> {
+    const ownerGeneration = this.getOwnerGeneration(context.senderId);
+    const routeResult = this.configStore.resolveRoute(
+      {
+        assignmentKey: request.payload.assignmentKey,
+        mode: request.payload.intent.mode,
+      },
       context.senderId,
+      context.configRevision,
     );
-    if (!modelResult.ok) {
-      return audioIpcFailure(audioCapabilityIssueToIpcError(modelResult.issue));
+    if (!routeResult.ok) {
+      return audioIpcFailure(audioRouteIssueToIpcError(routeResult.issue));
     }
+    const parameterError = validateSpeechTaskParameters(
+      request.payload,
+      routeResult.config,
+    );
+    if (parameterError) return audioIpcFailure(parameterError);
+    const model = toAudioRuntimeAdapterModelConfig(routeResult.config);
     const controllerKey = createControllerKey(context.senderId, request.requestId);
-    if (this.streamControllers.has(controllerKey)) {
+    const pendingRequest = this.reserveRequestId(
+      this.pendingStreamRequestIds,
+      this.streamControllers,
+      controllerKey,
+      ownerGeneration,
+    );
+    if (!pendingRequest) {
       return audioIpcFailure({
         code: "invalid_ipc_request",
         message: "Speech synthesis stream requestId is already active.",
         field: "requestId",
       });
     }
+    const controller = pendingRequest.controller;
 
-    const controller = new AbortController();
+    let trustedPayload: CreateSpeechSynthesisRequest;
+    try {
+      trustedPayload = await this.createTrustedSpeechPayload(
+        request.payload,
+        context.senderId,
+        routeResult.config,
+        ownerGeneration,
+        controller.signal,
+      );
+    } catch (error) {
+      if (controller.signal.aborted) return audioRequestAbortedFailure();
+      if (!this.isOwnerGenerationCurrent(context.senderId, ownerGeneration)) {
+        return ownerReleasedFailure();
+      }
+      return audioIpcFailure(toAudioIpcError(error));
+    } finally {
+      this.releasePendingRequestId(
+        this.pendingStreamRequestIds,
+        controllerKey,
+        pendingRequest,
+      );
+    }
+    if (controller.signal.aborted) return audioRequestAbortedFailure();
+    if (!this.isOwnerGenerationCurrent(context.senderId, ownerGeneration)) {
+      return ownerReleasedFailure();
+    }
     this.streamControllers.set(controllerKey, {
       ownerId: context.senderId,
       requestId: request.requestId,
       controller,
     });
 
+    let streamedCompletion:
+      | {
+          outputPath: string;
+          result: AuthorizedSpeechSynthesisResult;
+        }
+      | undefined;
     try {
-      const trustedPayload = await this.resolveSpeechInputFiles(
-        request.payload,
-        context.senderId,
-        modelResult.config.audioDialect,
-      );
       const result = await this.runtime.synthesize(trustedPayload, {
-        model: modelResult.config,
+        model,
         signal: controller.signal,
         requestId: request.requestId,
         onStreamEvent: (event) => {
+          if (
+            controller.signal.aborted ||
+            !this.isOwnerGenerationCurrent(context.senderId, ownerGeneration)
+          ) {
+            return;
+          }
+          let publicEvent: SpeechSynthesisStreamEvent;
+          if (event.type === "completed") {
+            const authorizedResult = this.authorizeOutput(
+              context.senderId,
+              event.result,
+            );
+            streamedCompletion = {
+              outputPath: event.result.outputPath,
+              result: authorizedResult,
+            };
+            publicEvent = { ...event, result: authorizedResult };
+          } else {
+            publicEvent = event;
+          }
           if (!webContents.isDestroyed()) {
-            webContents.send(AUDIO_EVENT_CHANNELS.speechSynthesisStream, event);
+            webContents.send(
+              AUDIO_EVENT_CHANNELS.speechSynthesisStream,
+              publicEvent,
+            );
           }
         },
       });
-      return audioIpcSuccess(this.authorizeOutput(context.senderId, result));
+      if (
+        controller.signal.aborted ||
+        !this.isOwnerGenerationCurrent(context.senderId, ownerGeneration)
+      ) {
+        await this.discardOutputPath(result.outputPath);
+        return audioRequestAbortedFailure();
+      }
+      return audioIpcSuccess(
+        streamedCompletion?.outputPath === result.outputPath
+          ? streamedCompletion.result
+          : this.authorizeOutput(context.senderId, result),
+      );
     } catch (error) {
+      if (controller.signal.aborted) return audioRequestAbortedFailure();
+      if (!this.isOwnerGenerationCurrent(context.senderId, ownerGeneration)) {
+        return ownerReleasedFailure();
+      }
       return audioIpcFailure(toAudioIpcError(error));
     } finally {
       if (
@@ -530,15 +841,17 @@ export class AudioIpcService {
     context: AudioIpcClientContext = { senderId: 0 },
   ): Promise<AudioIpcResult<CancelSpeechSynthesisStreamResult>> {
     const controllerKey = createControllerKey(context.senderId, request.requestId);
-    const active = this.streamControllers.get(controllerKey);
-    if (!active) {
+    if (!this.abortRequest(
+      this.pendingStreamRequestIds,
+      this.streamControllers,
+      controllerKey,
+    )) {
       return audioIpcSuccess({
         cancelled: false,
         requestId: request.requestId,
       });
     }
 
-    active.controller.abort();
     return audioIpcSuccess({
       cancelled: true,
       requestId: request.requestId,
@@ -552,10 +865,7 @@ export class AudioIpcService {
     try {
       const output = this.resolveOutput(context.senderId, request.outputToken);
       this.revealOutputImpl(output.outputPath);
-      return audioIpcSuccess({
-        revealed: true,
-        path: output.outputPath,
-      });
+      return audioIpcSuccess({ revealed: true });
     } catch (error) {
       return audioIpcFailure(toAudioIpcError(error));
     }
@@ -577,6 +887,19 @@ export class AudioIpcService {
   }
 
   releaseOwner(ownerId: number): void {
+    this.ownerGenerations.set(ownerId, this.getOwnerGeneration(ownerId) + 1);
+    const ownerPrefix = `${ownerId}:`;
+    for (const pending of [
+      this.pendingTranscriptionRequestIds,
+      this.pendingSpeechRequestIds,
+      this.pendingStreamRequestIds,
+    ]) {
+      for (const [key, request] of pending) {
+        if (!key.startsWith(ownerPrefix)) continue;
+        pending.delete(key);
+        request.controller.abort();
+      }
+    }
     for (const controllers of [
       this.transcriptionControllers,
       this.chunkTranscriptionControllers,
@@ -591,51 +914,140 @@ export class AudioIpcService {
     }
     this.configStore.clearOwner(ownerId);
     this.fileAuthorizations.releaseOwner(ownerId);
+    this.outputDirectoryAuthorizations.releaseOwner(ownerId);
     for (const [token, output] of this.outputAuthorizations) {
       if (output.ownerId === ownerId) this.outputAuthorizations.delete(token);
     }
   }
 
-  private validateConfigRevision(context: AudioIpcClientContext) {
-    if (!context.requireConfigRevision) return undefined;
-    if (
-      this.configStore.isRevisionCurrent(
-        context.senderId,
-        context.configRevision,
-      )
-    ) {
-      return undefined;
-    }
-    return {
-      code: "invalid_ipc_request" as const,
-      message:
-        "Audio runtime configuration revision is missing, stale, or belongs to another renderer.",
-      field: "configRevision",
-    };
+  private getOwnerGeneration(ownerId: number): number {
+    return this.ownerGenerations.get(ownerId) ?? 0;
   }
 
-  private async resolveSpeechInputFiles(
+  private isOwnerGenerationCurrent(
+    ownerId: number,
+    generation: number,
+  ): boolean {
+    return this.getOwnerGeneration(ownerId) === generation;
+  }
+
+  private reserveRequestId(
+    pending: Map<string, PendingAudioRequest>,
+    active: Map<string, ActiveAudioRequest>,
+    controllerKey: string,
+    ownerGeneration: number,
+  ): PendingAudioRequest | undefined {
+    if (pending.has(controllerKey) || active.has(controllerKey)) return undefined;
+    const request = {
+      ownerGeneration,
+      controller: new AbortController(),
+    };
+    pending.set(controllerKey, request);
+    return request;
+  }
+
+  private releasePendingRequestId(
+    pending: Map<string, PendingAudioRequest>,
+    controllerKey: string,
+    request: PendingAudioRequest,
+  ): void {
+    if (pending.get(controllerKey) === request) {
+      pending.delete(controllerKey);
+    }
+  }
+
+  private abortRequest(
+    pending: Map<string, PendingAudioRequest>,
+    active: Map<string, ActiveAudioRequest>,
+    controllerKey: string,
+  ): boolean {
+    const controller = pending.get(controllerKey)?.controller
+      ?? active.get(controllerKey)?.controller;
+    if (!controller) return false;
+    controller.abort();
+    return true;
+  }
+
+  private assertRequestCanContinue(
+    ownerId: number,
+    ownerGeneration: number,
+    signal: AbortSignal,
+  ): void {
+    if (
+      signal.aborted ||
+      !this.isOwnerGenerationCurrent(ownerId, ownerGeneration)
+    ) {
+      throw createAudioRuntimeError({
+        code: "aborted",
+        message: "Audio request was aborted.",
+      });
+    }
+  }
+
+  private async createTrustedSpeechPayload(
     payload: CreateSpeechSynthesisIpcRequest,
     ownerId: number,
-    dialect: AudioRuntimeModelConfig["audioDialect"],
+    route: ResolvedAudioRouteConfig,
+    ownerGeneration: number,
+    signal: AbortSignal,
   ): Promise<CreateSpeechSynthesisRequest> {
-    if (!payload.mimoOptions) {
-      return payload as CreateSpeechSynthesisRequest;
-    }
-
-    const { voiceSampleToken, ...mimoOptions } = payload.mimoOptions;
-    if (!voiceSampleToken) {
-      return {
-        ...payload,
-        mimoOptions,
-      } as CreateSpeechSynthesisRequest;
-    }
-
-    const fileInfo = await this.fileAuthorizations.resolve(
+    const { intent, outputDirToken, ...rendererPayload } = payload;
+    const outputDir = await this.resolveTaskOutputDirectory(
       ownerId,
-      voiceSampleToken,
-      dialect,
+      rendererPayload.outputPathMode,
+      outputDirToken,
     );
+    this.assertRequestCanContinue(ownerId, ownerGeneration, signal);
+    const commonPayload = {
+      ...rendererPayload,
+      ...(outputDir ? { outputDir } : {}),
+    };
+    if (route.transport !== "mimo_chat_audio") {
+      if (intent.mode !== "preset_voice") {
+        throw createAudioRuntimeError({
+          code: "invalid_task_parameters",
+          message: "This audio route only supports preset voice synthesis.",
+          field: "intent.mode",
+        });
+      }
+      return {
+        ...commonPayload,
+        voice: intent.voice,
+      };
+    }
+
+    if (intent.mode === "preset_voice") {
+      return {
+        ...commonPayload,
+        voice: intent.voice,
+        mimoOptions: {
+          mode: intent.mode,
+          ...(intent.styleInstruction
+            ? { styleInstruction: intent.styleInstruction }
+            : {}),
+        },
+      };
+    }
+
+    if (intent.mode === "voice_design") {
+      return {
+        ...commonPayload,
+        mimoOptions: {
+          mode: intent.mode,
+          voiceDesignPrompt: intent.voiceDesignPrompt,
+          ...(intent.optimizeTextPreview !== undefined
+            ? { optimizeTextPreview: intent.optimizeTextPreview }
+            : {}),
+        },
+      };
+    }
+
+    const fileInfo = await this.fileAuthorizations.consume(
+      ownerId,
+      intent.voiceSampleToken,
+      route.transport,
+    );
+    this.assertRequestCanContinue(ownerId, ownerGeneration, signal);
     if (
       fileInfo.mimeType !== "audio/wav" &&
       fileInfo.mimeType !== "audio/mpeg" &&
@@ -644,29 +1056,71 @@ export class AudioIpcService {
       throw createAudioRuntimeError({
         code: "unsupported_audio_format",
         message: "MiMo voice clone reference must be WAV or MP3 audio.",
-        field: "mimoOptions.voiceSampleToken",
+        field: "intent.voiceSampleToken",
       });
     }
 
     return {
-      ...payload,
+      ...commonPayload,
       mimoOptions: {
-        ...mimoOptions,
+        mode: intent.mode,
+        ...(intent.styleInstruction
+          ? { styleInstruction: intent.styleInstruction }
+          : {}),
         voiceSamplePath: fileInfo.filePath,
         voiceSampleMime: fileInfo.mimeType,
       },
-    } as CreateSpeechSynthesisRequest;
+    };
   }
 
-  private resolveModel(assignmentKey: AudioAssignmentKey, ownerId: number) {
-    return this.configStore.resolveModel(assignmentKey, ownerId);
+  private async discardOutputPath(outputPath: string): Promise<void> {
+    for (const [token, output] of this.outputAuthorizations) {
+      if (output.outputPath === outputPath) this.outputAuthorizations.delete(token);
+    }
+    await safeUnlink(outputPath);
   }
 
-  private authorizeOutput<T extends AudioTranscriptionResult | SpeechSynthesisResult>(
+  private resolveTaskOutputDirectory(
     ownerId: number,
-    result: T,
-  ): T {
-    if (!result.outputPath) return result;
+    outputPathMode: CreateSpeechSynthesisRequest["outputPathMode"],
+    outputDirToken: string | undefined,
+  ): Promise<string | undefined> {
+    if (outputPathMode !== "custom_dir" || !outputDirToken) {
+      return Promise.resolve(undefined);
+    }
+    return this.outputDirectoryAuthorizations.resolve(ownerId, outputDirToken);
+  }
+
+  private authorizeOutput(
+    ownerId: number,
+    result: AudioTranscriptionResult,
+  ): AuthorizedAudioTranscriptionResult;
+  private authorizeOutput(
+    ownerId: number,
+    result: SpeechSynthesisResult,
+  ): AuthorizedSpeechSynthesisResult;
+  private authorizeOutput(
+    ownerId: number,
+    result: AudioTranscriptionResult | SpeechSynthesisResult,
+  ): AuthorizedAudioTranscriptionResult | AuthorizedSpeechSynthesisResult {
+    const { outputPath, ...rawPublicResult } = result;
+    const publicResult = "rawJson" in rawPublicResult &&
+        rawPublicResult.rawJson !== undefined
+      ? {
+          ...rawPublicResult,
+          rawJson: sanitizePublicAudioProviderValue(rawPublicResult.rawJson),
+        }
+      : rawPublicResult;
+    if (!outputPath) {
+      if ("mimeType" in result) {
+        throw createAudioRuntimeError({
+          code: "invalid_response",
+          message: "Speech synthesis completed without an output file.",
+          field: "outputToken",
+        });
+      }
+      return publicResult as AuthorizedAudioTranscriptionResult;
+    }
     const now = Date.now();
     for (const [token, output] of this.outputAuthorizations) {
       if (output.expiresAt <= now) this.outputAuthorizations.delete(token);
@@ -674,16 +1128,25 @@ export class AudioIpcService {
     const outputToken = randomUUID();
     this.outputAuthorizations.set(outputToken, {
       ownerId,
-      outputPath: result.outputPath,
+      outputPath,
       mimeType: "mimeType" in result ? result.mimeType : "application/octet-stream",
       expiresAt: now + 24 * 60 * 60 * 1000,
     });
-    return { ...result, outputToken };
+    return "mimeType" in result
+      ? ({ ...publicResult, outputToken } as AuthorizedSpeechSynthesisResult)
+      : ({ ...publicResult, outputToken } as AuthorizedAudioTranscriptionResult);
   }
 
   private resolveOutput(ownerId: number, outputToken: string): AuthorizedAudioOutput {
     const output = this.outputAuthorizations.get(outputToken);
-    if (!output || output.ownerId !== ownerId || output.expiresAt <= Date.now()) {
+    if (!output || output.ownerId !== ownerId) {
+      throw createAudioRuntimeError({
+        code: "invalid_ipc_request",
+        message: "Audio output authorization is invalid or expired.",
+        field: "outputToken",
+      });
+    }
+    if (output.expiresAt <= Date.now()) {
       this.outputAuthorizations.delete(outputToken);
       throw createAudioRuntimeError({
         code: "invalid_ipc_request",
@@ -693,6 +1156,267 @@ export class AudioIpcService {
     }
     return output;
   }
+}
+
+const SENSITIVE_PUBLIC_AUDIO_RESULT_KEYS = new Set([
+  "apikey",
+  "authorization",
+  "token",
+  "accesstoken",
+  "refreshtoken",
+  "secret",
+  "clientsecret",
+  "path",
+  "filepath",
+  "outputpath",
+  "directory",
+  "base64",
+  "audiodata",
+  "pcmbytes",
+  "buffer",
+  "bytes",
+  "requestbody",
+]);
+
+function sanitizePublicAudioProviderValue(
+  value: unknown,
+  seen = new WeakSet<object>(),
+): unknown {
+  if (
+    Buffer.isBuffer(value) ||
+    value instanceof Uint8Array ||
+    value instanceof ArrayBuffer
+  ) {
+    return "[redacted]";
+  }
+  if (Array.isArray(value)) {
+    if (seen.has(value)) return "[redacted]";
+    seen.add(value);
+    return value.map((item) => sanitizePublicAudioProviderValue(item, seen));
+  }
+  if (typeof value === "string" && isSensitivePublicAudioString(value)) {
+    return "[redacted]";
+  }
+  if (!isRecord(value)) return value;
+  if (seen.has(value)) return "[redacted]";
+  seen.add(value);
+
+  const sanitized: Record<string, unknown> = {};
+  for (const [key, child] of Object.entries(value)) {
+    const normalizedKey = key.toLowerCase().replace(/[^a-z0-9]/g, "");
+    if (SENSITIVE_PUBLIC_AUDIO_RESULT_KEYS.has(normalizedKey)) continue;
+    sanitized[key] = sanitizePublicAudioProviderValue(child, seen);
+  }
+  return sanitized;
+}
+
+function isSensitivePublicAudioString(value: string): boolean {
+  return (
+    /\bBearer\s+[A-Za-z0-9._~-]+/i.test(value) ||
+    /\b(?:sk|ek|mimo)-[A-Za-z0-9_-]{12,}\b/i.test(value) ||
+    /data:audio\/[a-z0-9.+-]+;base64,/i.test(value) ||
+    /(?:^|[\s'"(])\/(?:[^/\s'"`]+\/)+[^\s'"`]*/.test(value) ||
+    /\b[A-Za-z]:\\[^\r\n]+/.test(value) ||
+    /\\\\[^\\\s]+\\[^\r\n]+/.test(value) ||
+    /^[A-Za-z0-9+/]{80,}={0,2}$/.test(value)
+  );
+}
+
+function validateSpeechTaskParameters(
+  payload: CreateSpeechSynthesisIpcRequest,
+  route: ResolvedAudioRouteConfig,
+): AudioIpcError | undefined {
+  const constraints = getSpeechRouteConstraints(
+    route.providerPreset,
+    payload.intent.mode,
+  );
+  if (!constraints) {
+    return invalidTaskParameter(
+      "intent.mode",
+      "The selected audio API does not support this speech mode.",
+    );
+  }
+  if (!constraints.responseFormats.includes(payload.responseFormat)) {
+    return invalidTaskParameter(
+      "responseFormat",
+      "The selected audio route does not support this response format.",
+    );
+  }
+  if (payload.stream === true && !constraints.supportsStreaming) {
+    return invalidTaskParameter(
+      "stream",
+      "The selected audio route does not support streaming.",
+    );
+  }
+  const requiredResponseFormat = payload.stream === true
+    ? constraints.streamResponseFormat
+    : constraints.finalResponseFormat;
+  if (
+    requiredResponseFormat &&
+    payload.responseFormat !== requiredResponseFormat
+  ) {
+    return invalidTaskParameter(
+      "responseFormat",
+      payload.stream === true
+        ? "The selected audio route requires its streaming response format."
+        : "The selected audio route requires its final response format.",
+    );
+  }
+  if (payload.instructions && constraints.fields.instructions === "unsupported") {
+    return invalidTaskParameter(
+      "instructions",
+      "The selected audio route does not support instructions.",
+    );
+  }
+  if (payload.speed !== undefined && constraints.fields.speed === "unsupported") {
+    return invalidTaskParameter(
+      "speed",
+      "The selected audio route does not support speed control.",
+    );
+  }
+
+  const emptyInputAllowed =
+    payload.intent.mode === "voice_design" &&
+    payload.intent.optimizeTextPreview === true &&
+    constraints.allowEmptyInputWhenOptimizeTextPreview;
+  if (
+    constraints.inputRequired &&
+    !payload.input.trim() &&
+    !emptyInputAllowed
+  ) {
+    return invalidTaskParameter(
+      "input",
+      "The selected audio route requires synthesis input.",
+    );
+  }
+
+  if (
+    payload.intent.mode === "preset_voice" &&
+    constraints.fields.voice === "unsupported"
+  ) {
+    return invalidTaskParameter(
+      "intent.voice",
+      "The selected audio route does not support preset voices.",
+    );
+  }
+  if (
+    payload.intent.mode === "voice_design" &&
+    constraints.fields.voiceDesignPrompt === "unsupported"
+  ) {
+    return invalidTaskParameter(
+      "intent.voiceDesignPrompt",
+      "The selected audio route does not support voice design.",
+    );
+  }
+  if (
+    payload.intent.mode === "voice_design" &&
+    payload.intent.optimizeTextPreview !== undefined &&
+    constraints.fields.optimizeTextPreview === "unsupported"
+  ) {
+    return invalidTaskParameter(
+      "intent.optimizeTextPreview",
+      "The selected audio route does not support optimized text preview.",
+    );
+  }
+  if (
+    payload.intent.mode === "voice_clone" &&
+    constraints.fields.referenceAudio === "unsupported"
+  ) {
+    return invalidTaskParameter(
+      "intent.voiceSampleToken",
+      "The selected audio route does not support voice cloning.",
+    );
+  }
+  if (
+    (payload.intent.mode === "preset_voice" ||
+      payload.intent.mode === "voice_clone") &&
+    payload.intent.styleInstruction &&
+    constraints.fields.styleInstruction === "unsupported"
+  ) {
+    return invalidTaskParameter(
+      "intent.styleInstruction",
+      "The selected audio route does not support style instructions.",
+    );
+  }
+  return undefined;
+}
+
+function validateTranscriptionTaskParameters(
+  payload: {
+    responseFormat: CreateAudioTranscriptionIpcRequest["responseFormat"];
+    language?: string;
+    prompt?: string;
+    stream?: boolean;
+    timestampGranularities?: CreateAudioTranscriptionIpcRequest["timestampGranularities"];
+  },
+  route: ResolvedAudioRouteConfig,
+): AudioIpcError | undefined {
+  const constraints = getTranscriptionRouteConstraints(route.providerPreset);
+  if (!constraints) {
+    return invalidTaskParameter(
+      "assignmentKey",
+      "The selected audio API does not define transcription constraints.",
+    );
+  }
+  if (!constraints.responseFormats.includes(payload.responseFormat)) {
+    return invalidTaskParameter(
+      "responseFormat",
+      "The selected audio route does not support this transcription response format.",
+    );
+  }
+  if (
+    constraints.languages &&
+    payload.language !== undefined &&
+    !constraints.languages.includes(payload.language)
+  ) {
+    return invalidTaskParameter(
+      "language",
+      "The selected audio route does not support this transcription language.",
+    );
+  }
+  if (payload.prompt !== undefined && !constraints.supportsPrompt) {
+    return invalidTaskParameter(
+      "prompt",
+      "The selected audio route does not support transcription prompts.",
+    );
+  }
+  if (payload.stream === true && !constraints.supportsStreaming) {
+    return invalidTaskParameter(
+      "stream",
+      "The selected audio route does not support streaming transcription.",
+    );
+  }
+  if (
+    payload.timestampGranularities !== undefined &&
+    !constraints.supportsTimestampGranularities
+  ) {
+    return invalidTaskParameter(
+      "timestampGranularities",
+      "The selected audio route does not support transcription timestamps.",
+    );
+  }
+  return undefined;
+}
+
+function invalidTaskParameter(
+  field: string,
+  message: string,
+): AudioIpcError {
+  return { code: "invalid_task_parameters", message, field };
+}
+
+function ownerReleasedFailure<T>(): AudioIpcResult<T> {
+  return audioIpcFailure({
+    code: "aborted",
+    message: "Audio request owner was released.",
+  });
+}
+
+function audioRequestAbortedFailure<T>(): AudioIpcResult<T> {
+  return audioIpcFailure({
+    code: "aborted",
+    message: "Audio request was aborted.",
+  });
 }
 
 export function setupAudioIPC(
@@ -721,6 +1445,21 @@ export function setupAudioIPC(
       });
     },
   );
+  ipcMain.handle(
+    AUDIO_PRELOAD_INTERNAL_CHANNELS.selectOutputDirectory,
+    async (event, envelope: unknown) => {
+      const authorization =
+        sharedAudioPreloadCapabilityRegistry.authorize<unknown>(event, envelope);
+      if (!authorization.ok) return authorization;
+      const validation = validateSelectAudioOutputDirectoryRequest(
+        authorization.data.payload,
+      );
+      if (!validation.ok) return validation;
+      return service.selectOutputDirectory(validation.data, {
+        senderId: authorization.data.senderId,
+      });
+    },
+  );
   sharedAudioPreloadCapabilityRegistry.onOwnerReleased((senderId) => {
     service.releaseOwner(senderId);
   });
@@ -738,7 +1477,7 @@ export function setupAudioIPC(
 
   handleValidatedRequest<
     CreateAudioTranscriptionIpcRequest,
-    AudioTranscriptionResult
+    AuthorizedAudioTranscriptionResult
   >(
     AUDIO_IPC_CHANNELS.transcribe,
     validateCreateAudioTranscriptionIpcRequest,
@@ -776,7 +1515,10 @@ export function setupAudioIPC(
       service.cancelRecordedChunkTranscription(request, context),
   );
 
-  handleValidatedRequest<CreateSpeechSynthesisIpcRequest, SpeechSynthesisResult>(
+  handleValidatedRequest<
+    CreateSpeechSynthesisIpcRequest,
+    AuthorizedSpeechSynthesisResult
+  >(
     AUDIO_IPC_CHANNELS.synthesizeSpeech,
     validateCreateSpeechSynthesisIpcRequest,
     (request, _event, context) => service.synthesizeSpeech(request, context),
@@ -795,7 +1537,7 @@ export function setupAudioIPC(
 
   handleValidatedRequest<
     CreateSpeechSynthesisStreamIpcRequest,
-    SpeechSynthesisResult
+    AuthorizedSpeechSynthesisResult
   >(
     AUDIO_IPC_CHANNELS.synthesizeSpeechStream,
     validateCreateSpeechSynthesisStreamIpcRequest,
@@ -852,14 +1594,12 @@ async function saveAudioTextOutput(
     return audioIpcSuccess({
       saved: true,
       cancelled: false,
-      path: selected.filePath,
     });
   } catch (error) {
     return audioIpcFailure({
       code: "output_write_failed",
       message: "Audio text output could not be saved.",
-      field: "path",
-      details: { path: selected.filePath },
+      field: "output",
     });
   }
 }
@@ -919,6 +1659,48 @@ function validateAuthorizeInputFileRequest(
   return audioIpcSuccess({
     filePath: payload.filePath,
     ...(payload.mimeType ? { mimeType: payload.mimeType } : {}),
+  });
+}
+
+function validateSelectAudioOutputDirectoryRequest(
+  payload: unknown,
+): AudioIpcResult<SelectAudioOutputDirectoryRequest> {
+  if (!isRecord(payload)) {
+    return audioIpcFailure({
+      code: "invalid_ipc_request",
+      message: "Output directory selection options must be an object.",
+    });
+  }
+  const unexpectedField = Object.keys(payload).find(
+    (key) => key !== "title" && key !== "buttonLabel",
+  );
+  if (unexpectedField) {
+    return audioIpcFailure({
+      code: "invalid_ipc_request",
+      message: "Output directory selection contains an unsupported field.",
+      field: unexpectedField,
+    });
+  }
+  for (const field of ["title", "buttonLabel"] as const) {
+    const value = payload[field];
+    if (
+      value !== undefined &&
+      (typeof value !== "string" || value.length > 200)
+    ) {
+      return audioIpcFailure({
+        code: "invalid_ipc_request",
+        message: `${field} must be a string of at most 200 characters.`,
+        field,
+      });
+    }
+  }
+  return audioIpcSuccess({
+    ...(typeof payload.title === "string" && payload.title.trim()
+      ? { title: payload.title.trim() }
+      : {}),
+    ...(typeof payload.buttonLabel === "string" && payload.buttonLabel.trim()
+      ? { buttonLabel: payload.buttonLabel.trim() }
+      : {}),
   });
 }
 

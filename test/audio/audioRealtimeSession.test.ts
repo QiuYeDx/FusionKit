@@ -1,8 +1,11 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { Model } from "@/type/model";
+import type { AudioRealtimeSessionConfig } from "@/type/audio";
 import type { SyncAudioRuntimeConfigRequest } from "@/type/audioIpc";
 import { AudioRuntimeConfigStore } from "../../electron/main/audio/audio-runtime-config";
-import { AudioRealtimeIpcService } from "../../electron/main/audio/realtime-ipc";
+import {
+  AudioRealtimeIpcService,
+  type AudioRealtimeRuntimeInvoker,
+} from "../../electron/main/audio/realtime-ipc";
 import {
   createAudioErrorBody,
   createOpenAIRealtimeClientSecretBody,
@@ -48,17 +51,20 @@ describe("audio realtime session runtime", () => {
         }),
       };
     });
-    const service = createServiceWithConfig(
+    const { service, context } = createServiceWithConfig(
       createRealtimeRuntimeConfig(server.baseUrl),
     );
 
-    const result = await service.createEphemeralSession({
-      assignmentKey: "realtimeVoice",
-      mode: "duplex_voice",
-      instructions: "Speak concisely.",
-      voice: "marin",
-      turnDetection: "server_vad",
-    });
+    const result = await service.createEphemeralSession(
+      {
+        assignmentKey: "realtimeVoice",
+        mode: "duplex_voice",
+        instructions: "Speak concisely.",
+        voice: "marin",
+        turnDetection: "server_vad",
+      },
+      context,
+    );
 
     expect(result).toMatchObject({
       ok: true,
@@ -74,7 +80,7 @@ describe("audio realtime session runtime", () => {
     await expect(service.stopSession({
       sessionId: "sess_realtime_voice_001",
       reason: "user",
-    })).resolves.toMatchObject({
+    }, context)).resolves.toMatchObject({
       ok: true,
       data: {
         stopped: true,
@@ -85,7 +91,7 @@ describe("audio realtime session runtime", () => {
     await expect(service.stopSession({
       sessionId: "sess_realtime_voice_001",
       reason: "page_unload",
-    })).resolves.toMatchObject({
+    }, context)).resolves.toMatchObject({
       ok: true,
       data: {
         stopped: false,
@@ -122,17 +128,20 @@ describe("audio realtime session runtime", () => {
         },
       };
     });
-    const service = createServiceWithConfig(
+    const { service, context } = createServiceWithConfig(
       createRealtimeRuntimeConfig(server.baseUrl),
     );
 
-    const result = await service.createEphemeralSession({
-      assignmentKey: "realtimeCaptions",
-      mode: "caption",
-      language: "en",
-      turnDetection: "server_vad",
-      inputAudioFormat: "pcm16",
-    });
+    const result = await service.createEphemeralSession(
+      {
+        assignmentKey: "realtimeCaptions",
+        mode: "caption",
+        language: "en",
+        turnDetection: "server_vad",
+        inputAudioFormat: "pcm16",
+      },
+      context,
+    );
 
     expect(result).toMatchObject({
       ok: true,
@@ -144,21 +153,83 @@ describe("audio realtime session runtime", () => {
   });
 
   it("rejects MiMo profiles for native WebRTC session creation", async () => {
-    const service = createServiceWithConfig(createMimoStreamingRuntimeConfig());
+    const { service, context } = createServiceWithConfig(
+      createMimoStreamingRuntimeConfig(),
+    );
 
-    const result = await service.createEphemeralSession({
-      assignmentKey: "realtimeCaptions",
-      mode: "caption",
-      language: "zh",
-    });
+    const result = await service.createEphemeralSession(
+      {
+        assignmentKey: "realtimeCaptions",
+        mode: "caption",
+        language: "zh",
+      },
+      context,
+    );
 
     expect(result).toMatchObject({
       ok: false,
       error: {
-        code: "unsupported_audio_capability",
-        field: "audioDialect",
+        code: "audio_route_not_configured",
+        field: "transport",
       },
     });
+  });
+
+  it.each([
+    {
+      name: "caption mode mismatch",
+      payload: {
+        assignmentKey: "realtimeCaptions",
+        mode: "duplex_voice",
+      } as AudioRealtimeSessionConfig,
+      field: "mode",
+    },
+    {
+      name: "caption instructions",
+      payload: {
+        assignmentKey: "realtimeCaptions",
+        mode: "caption",
+        instructions: "Transcribe carefully.",
+      } as AudioRealtimeSessionConfig,
+      field: "instructions",
+    },
+    {
+      name: "caption voice",
+      payload: {
+        assignmentKey: "realtimeCaptions",
+        mode: "caption",
+        voice: "marin",
+      } as AudioRealtimeSessionConfig,
+      field: "voice",
+    },
+    {
+      name: "voice language",
+      payload: {
+        assignmentKey: "realtimeVoice",
+        mode: "duplex_voice",
+        language: "en",
+      } as AudioRealtimeSessionConfig,
+      field: "language",
+    },
+  ])("rejects unsupported realtime $name before adapter invocation", async ({
+    payload,
+    field,
+  }) => {
+    const runtime: AudioRealtimeRuntimeInvoker = {
+      createEphemeralSession: vi.fn(async () => ({ clientSecret: "unused" })),
+    };
+    const { service, context } = createServiceWithConfig(
+      createRealtimeRuntimeConfig("https://api.openai.com/v1"),
+      runtime,
+    );
+
+    const result = await service.createEphemeralSession(payload, context);
+
+    expect(result).toMatchObject({
+      ok: false,
+      error: { code: "invalid_task_parameters", field },
+    });
+    expect(runtime.createEphemeralSession).not.toHaveBeenCalled();
   });
 
   it("maps OpenAI realtime HTTP errors without leaking API keys", async () => {
@@ -170,14 +241,17 @@ describe("audio realtime session runtime", () => {
         "invalid_api_key",
       ),
     });
-    const service = createServiceWithConfig(
+    const { service, context } = createServiceWithConfig(
       createRealtimeRuntimeConfig(server.baseUrl),
     );
 
-    const result = await service.createEphemeralSession({
-      assignmentKey: "realtimeVoice",
-      mode: "duplex_voice",
-    });
+    const result = await service.createEphemeralSession(
+      {
+        assignmentKey: "realtimeVoice",
+        mode: "duplex_voice",
+      },
+      context,
+    );
 
     expect(result).toMatchObject({
       ok: false,
@@ -187,44 +261,101 @@ describe("audio realtime session runtime", () => {
     });
     expect(JSON.stringify(result)).not.toContain("sk-realtime-ipc");
   });
+
+  it("aborts pending ephemeral creation when its renderer owner is released", async () => {
+    const deferred = createDeferred<{
+      sessionId: string;
+      clientSecret: string;
+    }>();
+    let signal: AbortSignal | undefined;
+    const runtime: AudioRealtimeRuntimeInvoker = {
+      createEphemeralSession: vi.fn((_payload, options) => {
+        signal = options.signal;
+        return deferred.promise;
+      }),
+    };
+    const { service, context } = createServiceWithConfig(
+      createRealtimeRuntimeConfig("https://api.openai.com/v1"),
+      runtime,
+    );
+
+    const pending = service.createEphemeralSession(
+      { assignmentKey: "realtimeVoice", mode: "duplex_voice" },
+      context,
+    );
+    await vi.waitFor(() => expect(signal).toBeDefined());
+    service.releaseOwner(context.senderId);
+    expect(signal?.aborted).toBe(true);
+    deferred.resolve({
+      sessionId: "late_session",
+      clientSecret: "late_secret",
+    });
+
+    await expect(pending).resolves.toMatchObject({
+      ok: false,
+      error: { code: "aborted" },
+    });
+    await expect(service.stopSession(
+      { sessionId: "late_session", reason: "user" },
+      context,
+    )).resolves.toMatchObject({
+      ok: true,
+      data: { stopped: false },
+    });
+  });
 });
 
 function createServiceWithConfig(
   snapshot: SyncAudioRuntimeConfigRequest,
-): AudioRealtimeIpcService {
+  runtime?: AudioRealtimeRuntimeInvoker,
+): {
+  service: AudioRealtimeIpcService;
+  context: {
+    senderId: number;
+    configRevision: string;
+    requireConfigRevision: true;
+  };
+} {
   const configStore = new AudioRuntimeConfigStore();
-  configStore.sync(snapshot);
-  return new AudioRealtimeIpcService({ configStore });
+  const senderId = 77;
+  const synced = configStore.sync(snapshot, senderId);
+  return {
+    service: new AudioRealtimeIpcService({
+      configStore,
+      ...(runtime ? { runtime } : {}),
+    }),
+    context: {
+      senderId,
+      configRevision: synced.revision,
+      requireConfigRevision: true,
+    },
+  };
 }
 
 function createRealtimeRuntimeConfig(baseUrl: string): SyncAudioRuntimeConfigRequest {
   return {
-    connectionProfiles: [
-      {
-        id: "profile_realtime",
-        provider: Model.OpenAI,
-        apiKey: "sk-realtime-ipc",
-        baseUrl,
-      },
-    ],
-    audioProfiles: [
+    profiles: [
       {
         id: "audio_realtime",
-        name: "OpenAI Realtime",
-        connectionProfileId: "profile_realtime",
-        audioDialect: "openai_realtime",
-        capabilities: [
-          "realtime_transcription",
-          "realtime_duplex_voice",
-        ],
-        models: {
-          realtimeTranscription: "gpt-realtime-whisper",
-          realtimeVoice: "gpt-realtime",
+        providerPreset: "openai",
+        apiKey: "sk-realtime-ipc",
+        baseUrl,
+        routes: {
+          speechSynthesis: {},
+          realtimeCaptions: {
+            transport: "openai_realtime",
+            model: "gpt-realtime-whisper",
+            enabled: true,
+          },
+          realtimeVoice: {
+            transport: "openai_realtime",
+            model: "gpt-realtime",
+            enabled: true,
+          },
         },
-        defaults: {},
       },
     ],
-    audioAssignment: {
+    assignment: {
       transcription: null,
       speechSynthesis: null,
       realtimeCaptions: "audio_realtime",
@@ -235,35 +366,38 @@ function createRealtimeRuntimeConfig(baseUrl: string): SyncAudioRuntimeConfigReq
 
 function createMimoStreamingRuntimeConfig(): SyncAudioRuntimeConfigRequest {
   return {
-    connectionProfiles: [
-      {
-        id: "profile_mimo_audio",
-        provider: Model.OpenAI,
-        apiKey: "mimo-secret-key",
-        baseUrl: "https://api.xiaomimimo.com/v1",
-      },
-    ],
-    audioProfiles: [
+    profiles: [
       {
         id: "audio_mimo",
-        name: "MiMo Audio",
-        connectionProfileId: "profile_mimo_audio",
-        audioDialect: "mimo_chat_audio",
-        capabilities: [
-          "streaming_transcription",
-        ],
-        models: {
-          transcription: "mimo-v2.5-asr",
-          realtime: "mimo-v2.5-asr",
+        providerPreset: "mimo",
+        apiKey: "mimo-secret-key",
+        baseUrl: "https://api.xiaomimimo.com/v1",
+        routes: {
+          speechSynthesis: {},
+          realtimeCaptions: {
+            transport: "mimo_chat_audio",
+            model: "mimo-v2.5-asr",
+            enabled: true,
+          },
         },
-        defaults: {},
       },
     ],
-    audioAssignment: {
+    assignment: {
       transcription: null,
       speechSynthesis: null,
       realtimeCaptions: "audio_mimo",
       realtimeVoice: null,
     },
   };
+}
+
+function createDeferred<T>(): {
+  promise: Promise<T>;
+  resolve: (value: T) => void;
+} {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((nextResolve) => {
+    resolve = nextResolve;
+  });
+  return { promise, resolve };
 }

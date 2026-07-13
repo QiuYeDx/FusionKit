@@ -36,6 +36,7 @@ import {
   DialogTitle,
 } from "@/components/qiuye-ui/scrollable-dialog";
 import { canAssignAudioProfileToTask } from "@/lib/audio-profile";
+import { MIMO_TTS_MODEL_BY_MODE } from "@/lib/audio-provider-registry";
 import { cn } from "@/lib/utils";
 import useModelStore from "@/store/useModelStore";
 import {
@@ -84,12 +85,6 @@ const MIMO_TTS_MODES: MimoSpeechSynthesisMode[] = [
   "voice_design",
   "voice_clone",
 ];
-
-const MIMO_TTS_MODE_MODEL: Record<MimoSpeechSynthesisMode, string> = {
-  preset_voice: "mimo-v2.5-tts",
-  voice_design: "mimo-v2.5-tts-voicedesign",
-  voice_clone: "mimo-v2.5-tts-voiceclone",
-};
 
 const AUDIO_ASSIGNMENT_ICONS: Record<AudioAssignmentKey, typeof Mic2> = {
   transcription: Mic2,
@@ -529,7 +524,7 @@ function AudioProfileDialog({
   const handleMimoModeChange = (value: string) => {
     const nextMode = value as MimoSpeechSynthesisMode;
     setMimoTtsMode(nextMode);
-    setSpeechSynthesisModel(MIMO_TTS_MODE_MODEL[nextMode]);
+    setSpeechSynthesisModel(MIMO_TTS_MODEL_BY_MODE[nextMode]);
   };
 
   const applyDialectDefaults = (dialect: AudioApiDialect) => {
@@ -550,7 +545,7 @@ function AudioProfileDialog({
 
     if (dialect === "mimo_chat_audio") {
       setTranscriptionModel("mimo-v2.5-asr");
-      setSpeechSynthesisModel("mimo-v2.5-tts");
+      setSpeechSynthesisModel(MIMO_TTS_MODEL_BY_MODE.preset_voice);
       setRealtimeModel("mimo-v2.5-asr");
       setRealtimeTranscriptionModel("");
       setLanguage("auto");
@@ -781,7 +776,7 @@ function AudioProfileDialog({
                         <span className="flex items-center gap-2">
                           <span>{t(`setting:fields.audio.mimo_mode.${mode}`)}</span>
                           <span className="font-mono text-xs text-muted-foreground">
-                            {MIMO_TTS_MODE_MODEL[mode]}
+                            {MIMO_TTS_MODEL_BY_MODE[mode]}
                           </span>
                         </span>
                       </SelectItem>
@@ -794,7 +789,7 @@ function AudioProfileDialog({
                 <Input
                   value={speechSynthesisModel}
                   onChange={(event) => setSpeechSynthesisModel(event.target.value)}
-                  placeholder={MIMO_TTS_MODE_MODEL[mimoTtsMode]}
+                  placeholder={MIMO_TTS_MODEL_BY_MODE[mimoTtsMode]}
                 />
               </div>
               <div className="space-y-2">

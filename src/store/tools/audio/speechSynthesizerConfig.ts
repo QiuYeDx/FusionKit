@@ -1,13 +1,20 @@
 import type {
   AudioApiDialect,
   AudioSpeechResponseFormat,
-  CreateSpeechSynthesisRequest,
   MimoSpeechSynthesisMode,
 } from "@/type/audio";
 import {
   isAudioSpeechResponseFormat,
   isMimoSpeechSynthesisMode,
 } from "@/type/audio";
+import type { LegacyCreateSpeechSynthesisIpcRequest } from "@/type/audioIpc";
+import { MIMO_TTS_MODEL_BY_MODE } from "@/lib/audio-provider-registry";
+import {
+  normalizeAudioOutputDirectoryLabel,
+  type AudioOutputDirectoryAuthorization,
+} from "./audioOutputDirectory";
+
+export { MIMO_TTS_MODEL_BY_MODE } from "@/lib/audio-provider-registry";
 
 export type SpeechSynthesizerOutputMode = "temp" | "custom_dir";
 
@@ -65,12 +72,6 @@ export const DEFAULT_SPEECH_SYNTHESIZER_PREFERENCES: SpeechSynthesizerPreference
   voiceDesignPrompt: "",
   optimizeTextPreview: false,
   audioTagsEnabled: false,
-};
-
-export const MIMO_TTS_MODEL_BY_MODE: Record<MimoSpeechSynthesisMode, string> = {
-  preset_voice: "mimo-v2.5-tts",
-  voice_design: "mimo-v2.5-tts-voicedesign",
-  voice_clone: "mimo-v2.5-tts-voiceclone",
 };
 
 export const MIMO_VOICE_SAMPLE_ACCEPT = ".wav,.wave,.mp3,.mpeg,.mpga";
@@ -185,16 +186,17 @@ export function normalizeSpeechSynthesizerPreferences(
 export function buildSpeechSynthesisRequest(options: {
   requestId: string;
   preferences: SpeechSynthesizerPreferences;
+  outputDirectoryAuthorization: AudioOutputDirectoryAuthorization | null;
   dialect?: AudioApiDialect;
   capabilities?: string[];
   voiceSample?: SelectedVoiceSample | null;
-}): CreateSpeechSynthesisRequest {
+}): LegacyCreateSpeechSynthesisIpcRequest {
   const preferences = normalizeSpeechSynthesizerPreferences(
     options.preferences,
     options.dialect,
     options.capabilities ?? [],
   );
-  const request: CreateSpeechSynthesisRequest = {
+  const request: LegacyCreateSpeechSynthesisIpcRequest = {
     assignmentKey: "speechSynthesis",
     requestId: options.requestId,
     input: preferences.input,
@@ -202,7 +204,12 @@ export function buildSpeechSynthesisRequest(options: {
     ...(preferences.outputMode === "custom_dir"
       ? {
           outputPathMode: "custom_dir",
-          outputDir: preferences.outputDir,
+          ...(options.outputDirectoryAuthorization
+            ? {
+                outputDirToken:
+                  options.outputDirectoryAuthorization.outputDirToken,
+              }
+            : {}),
         }
       : { outputPathMode: "temp" }),
     ...(preferences.fileNameHint.trim()
@@ -268,7 +275,9 @@ export function sanitizeSpeechSynthesizerPreferences(
     speed: clampSpeechSpeed(numberOr(value.speed, defaults.speed)),
     stream: booleanOr(value.stream, defaults.stream),
     outputMode: value.outputMode === "custom_dir" ? "custom_dir" : "temp",
-    outputDir: stringOr(value.outputDir, defaults.outputDir),
+    outputDir: normalizeAudioOutputDirectoryLabel(
+      stringOr(value.outputDir, defaults.outputDir),
+    ),
     fileNameHint: stringOr(value.fileNameHint, defaults.fileNameHint),
     mimoMode: isMimoSpeechSynthesisMode(value.mimoMode)
       ? value.mimoMode

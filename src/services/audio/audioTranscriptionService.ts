@@ -1,10 +1,10 @@
 import type {
-  AudioTranscriptionResult,
   AudioTranscriptionResponseFormat,
 } from "@/type/audio";
 import {
   AUDIO_IPC_CHANNELS,
   audioIpcFailure,
+  type AuthorizedAudioTranscriptionResult,
   type AudioIpcResult,
   type CancelAudioTranscriptionResult,
   type CreateAudioTranscriptionIpcRequest,
@@ -14,8 +14,8 @@ import {
 } from "@/type/audioIpc";
 import {
   audioIpcUnavailableResult,
+  invokeAudioTaskIpc,
   invokeAudioIpc,
-  syncAudioRuntimeConfigBeforeTask,
 } from "./audioRuntimeConfigService";
 
 export interface AudioTranscriptionSaveArtifact {
@@ -40,15 +40,11 @@ export interface SaveAudioTranscriptionResult {
 
 export async function transcribeAudio(
   request: CreateAudioTranscriptionIpcRequest,
-): Promise<AudioIpcResult<AudioTranscriptionResult>> {
+): Promise<AudioIpcResult<AuthorizedAudioTranscriptionResult>> {
   try {
-    const synced = await syncAudioRuntimeConfigBeforeTask();
-    if (!synced.ok) return audioIpcFailure(synced.error);
-
-    return invokeAudioIpc<AudioTranscriptionResult>(
+    return await invokeAudioTaskIpc<AuthorizedAudioTranscriptionResult>(
       AUDIO_IPC_CHANNELS.transcribe,
       request,
-      synced.data.revision,
     );
   } catch (error) {
     return audioIpcUnavailableResult(error);
@@ -59,7 +55,7 @@ export async function cancelAudioTranscription(
   requestId: string,
 ): Promise<AudioIpcResult<CancelAudioTranscriptionResult>> {
   try {
-    return invokeAudioIpc<CancelAudioTranscriptionResult>(
+    return await invokeAudioIpc<CancelAudioTranscriptionResult>(
       AUDIO_IPC_CHANNELS.cancelTranscription,
       { requestId },
     );
@@ -69,7 +65,7 @@ export async function cancelAudioTranscription(
 }
 
 export function createAudioTranscriptionSaveArtifact(
-  result: AudioTranscriptionResult,
+  result: AuthorizedAudioTranscriptionResult,
   sourceFileName?: string,
 ): AudioTranscriptionSaveArtifact {
   const extension = getTranscriptionSaveExtension(result.responseFormat);
@@ -82,7 +78,7 @@ export function createAudioTranscriptionSaveArtifact(
 }
 
 export async function saveAudioTranscriptionResult(
-  result: AudioTranscriptionResult,
+  result: AuthorizedAudioTranscriptionResult,
   sourceFileName?: string,
   port: AudioTranscriptionSavePort = electronSavePort,
 ): Promise<AudioIpcResult<SaveAudioTranscriptionResult>> {
@@ -112,7 +108,7 @@ export async function revealAudioOutput(
   request: RevealAudioOutputRequest,
 ): Promise<AudioIpcResult<RevealAudioOutputResult>> {
   try {
-    return invokeAudioIpc<RevealAudioOutputResult>(
+    return await invokeAudioIpc<RevealAudioOutputResult>(
       AUDIO_IPC_CHANNELS.revealOutput,
       request,
     );
@@ -121,18 +117,18 @@ export async function revealAudioOutput(
   }
 }
 
-export function saveAudioTextOutput(request: {
+export async function saveAudioTextOutput(request: {
   defaultName: string;
   content: string;
   extension: "txt" | "json" | "srt" | "vtt";
 }): Promise<AudioIpcResult<SaveAudioTextOutputResult>> {
   try {
-    return invokeAudioIpc<SaveAudioTextOutputResult>(
+    return await invokeAudioIpc<SaveAudioTextOutputResult>(
       AUDIO_IPC_CHANNELS.saveTextOutput,
       request,
     );
   } catch (error) {
-    return Promise.resolve(audioIpcUnavailableResult(error));
+    return audioIpcUnavailableResult(error);
   }
 }
 
@@ -155,7 +151,9 @@ const electronSavePort: AudioTranscriptionSavePort = {
   },
 };
 
-function serializeTranscriptionResult(result: AudioTranscriptionResult): string {
+function serializeTranscriptionResult(
+  result: AuthorizedAudioTranscriptionResult,
+): string {
   if (
     (result.responseFormat === "json" ||
       result.responseFormat === "verbose_json") &&

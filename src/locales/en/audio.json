@@ -48,6 +48,7 @@
     "speech": {
       "title": "Text to audio",
       "description": "Generate audio with the global TTS configuration.",
+      "config": "Speech synthesis settings",
       "workspace": "Synthesis task"
     },
     "captions": {
@@ -185,7 +186,8 @@
       "voice_sample": "Reference audio",
       "audio_tags": "Audio tags",
       "input": "Text to synthesize",
-      "instructions": "OpenAI instructions"
+      "instructions": "OpenAI instructions",
+      "file_name_hint": "File name (optional)"
     },
     "response_format": {
       "mp3": "MP3",
@@ -216,7 +218,8 @@
       "voice_design": "Voice design requires a description of the voice you want.",
       "voice_clone": "Voice clone requires a wav or mp3 reference audio file. File contents are read only in the main process.",
       "audio_tags": "Audio tags can be enabled for MiMo preset voice mode. Other modes disable them.",
-      "input": "Text to synthesize. MiMo voice design may leave this empty when optimizing preview text."
+      "input": "Text to synthesize. MiMo voice design may leave this empty when optimizing preview text.",
+      "file_name_hint": "Leave off the extension; it will be added from the output format."
     },
     "placeholders": {
       "mimo_voice": "mimo_default / 冰糖 / Mia / custom voice id",
@@ -226,7 +229,8 @@
       "voice_design_prompt": "For example: young, bright, friendly female voice",
       "input": "Enter text to synthesize",
       "instructions": "For example: keep a calm tone for podcast narration",
-      "instructions_mimo_disabled": "For MiMo, use the style instruction or voice design prompt on the left"
+      "instructions_mimo_disabled": "For MiMo, use the style instruction or voice design prompt on the left",
+      "file_name_hint": "For example: product-introduction-narration"
     },
     "dialog": {
       "select_output_title": "Select speech output folder",
@@ -300,7 +304,12 @@
       "output_dir_select_failed": "Failed to select output folder.",
       "voice_sample_path_unavailable": "Could not read the local path for the reference audio. Choose it again inside the Electron app.",
       "unsupported_voice_sample": "Reference audio supports only wav or mp3.",
-      "voice_sample_too_large": "Reference audio exceeds the MiMo Base64 size limit."
+      "voice_sample_too_large": "Reference audio exceeds the MiMo Base64 size limit.",
+      "cancel_not_confirmed": "Cancellation could not be confirmed. Try again.",
+      "playback_failed": "Audio playback failed.",
+      "runtime_failed": "Audio generation failed. Check the audio API configuration or try again.",
+      "input_too_long": "The synthesis text exceeds the current API limit.",
+      "instructions_too_long": "The generation instructions exceed the current API limit."
     }
   },
   "captions": {
@@ -506,6 +515,11 @@
   },
   "runtime_error": {
     "invalid_request": "The audio request is invalid.",
+    "stale_config": "Audio settings changed. Retry the operation.",
+    "api_not_configured": "Configure an audio API for this tool first.",
+    "route_not_configured": "The assigned audio API does not provide the requested operation or mode.",
+    "route_unverified": "This audio API route failed verification. Review it in settings.",
+    "invalid_parameters": "Check the audio task settings and try again.",
     "profile_not_configured": "Configure an audio profile first.",
     "connection_not_configured": "The audio connection profile is missing.",
     "model_not_configured": "Configure the required audio model first.",
@@ -527,6 +541,7 @@
     "empty_response": "The audio service returned an empty response.",
     "invalid_response": "The audio service returned an invalid response.",
     "aborted": "The audio operation was cancelled.",
-    "renderer": "The audio page could not complete the operation."
+    "renderer": "The audio page could not complete the operation.",
+    "technical_details": "Technical details"
   }
 }

@@ -71,6 +71,10 @@ import {
   type VoiceSampleIssue,
 } from "@/store/tools/audio/speechSynthesizerConfig";
 import useSpeechSynthesizerStore from "@/store/tools/audio/useSpeechSynthesizerStore";
+import {
+  isAudioOutputDirectoryAuthorizationValid,
+  type AudioOutputDirectoryAuthorization,
+} from "@/store/tools/audio/audioOutputDirectory";
 
 const OPENAI_VOICE_HINTS = ["alloy", "ash", "coral", "echo", "fable", "nova", "sage", "shimmer"];
 const MIMO_MODES: MimoSpeechSynthesisMode[] = [
@@ -100,6 +104,9 @@ function SpeechConfig({ context }: { context: AudioToolShellContext }) {
   const voiceSample = useSpeechSynthesizerStore((state) => state.voiceSample);
   const updatePreferences = useSpeechSynthesizerStore(
     (state) => state.updatePreferences,
+  );
+  const setOutputDirectoryAuthorization = useSpeechSynthesizerStore(
+    (state) => state.setOutputDirectoryAuthorization,
   );
   const seedProfileDefaults = useSpeechSynthesizerStore(
     (state) => state.seedProfileDefaults,
@@ -142,14 +149,26 @@ function SpeechConfig({ context }: { context: AudioToolShellContext }) {
 
   const handleSelectOutputDir = useCallback(async () => {
     try {
-      const result = await window.ipcRenderer.invoke("select-output-directory", {
+      const response = await window.audioApi.selectOutputDirectory({
         title: t("audio:speech.dialog.select_output_title"),
         buttonLabel: t("audio:speech.dialog.select_output_confirm"),
       });
-      if (result?.canceled || !result?.filePaths?.[0]) return;
+      if (!response.ok) {
+        showToast(
+          getAudioErrorMessage(t, response.error, response.error.message),
+          "error",
+        );
+        return;
+      }
+      if (response.data.cancelled) return;
       updatePreferences({
         outputMode: "custom_dir",
-        outputDir: result.filePaths[0],
+        outputDir: response.data.directoryName,
+      });
+      setOutputDirectoryAuthorization({
+        outputDirToken: response.data.outputDirToken,
+        directoryName: response.data.directoryName,
+        expiresAt: response.data.expiresAt,
       });
       showToast(t("audio:speech.messages.output_path_selected"), "success");
     } catch (error) {
@@ -160,7 +179,7 @@ function SpeechConfig({ context }: { context: AudioToolShellContext }) {
         "error",
       );
     }
-  }, [t, updatePreferences]);
+  }, [setOutputDirectoryAuthorization, t, updatePreferences]);
 
   const handleVoiceSample = useCallback(
     (files: FileList) => {
@@ -533,6 +552,9 @@ function SpeechWorkspace({ context }: { context: AudioToolShellContext }) {
   const { t } = useTranslation(["audio", "common"]);
   const preferences = useSpeechSynthesizerStore((state) => state.preferences);
   const voiceSample = useSpeechSynthesizerStore((state) => state.voiceSample);
+  const outputDirectoryAuthorization = useSpeechSynthesizerStore(
+    (state) => state.outputDirectoryAuthorization,
+  );
   const result = useSpeechSynthesizerStore((state) => state.result);
   const status = useSpeechSynthesizerStore((state) => state.status);
   const lastError = useSpeechSynthesizerStore((state) => state.lastError);
@@ -577,11 +599,16 @@ function SpeechWorkspace({ context }: { context: AudioToolShellContext }) {
     [context.configSummary.capabilities, dialect, preferences],
   );
   const submitIssue = useMemo(() => {
-    const issueKey = resolveSubmitIssueKey(context, normalized, voiceSample);
+    const issueKey = resolveSubmitIssueKey(
+      context,
+      normalized,
+      voiceSample,
+      outputDirectoryAuthorization,
+    );
     return issueKey ? t(issueKey, {
       model: MIMO_TTS_MODEL_BY_MODE[normalized.mimoMode],
     }) : null;
-  }, [context, normalized, t, voiceSample]);
+  }, [context, normalized, outputDirectoryAuthorization, t, voiceSample]);
   const isRunning = status === "running" || status === "streaming";
 
   const cleanupStreamResources = useCallback(() => {
@@ -645,7 +672,12 @@ function SpeechWorkspace({ context }: { context: AudioToolShellContext }) {
   }, [cleanupStreamResources]);
 
   const handleStart = useCallback(async () => {
-    const issueKey = resolveSubmitIssueKey(context, normalized, voiceSample);
+    const issueKey = resolveSubmitIssueKey(
+      context,
+      normalized,
+      voiceSample,
+      outputDirectoryAuthorization,
+    );
     if (issueKey) {
       const message = t(issueKey, {
         model: MIMO_TTS_MODEL_BY_MODE[normalized.mimoMode],
@@ -659,6 +691,7 @@ function SpeechWorkspace({ context }: { context: AudioToolShellContext }) {
     const request = buildSpeechSynthesisRequest({
       requestId,
       preferences: normalized,
+      outputDirectoryAuthorization,
       dialect,
       capabilities: context.configSummary.capabilities,
       voiceSample,
@@ -770,6 +803,7 @@ function SpeechWorkspace({ context }: { context: AudioToolShellContext }) {
     context,
     dialect,
     normalized,
+    outputDirectoryAuthorization,
     setActiveRequest,
     setLastError,
     setResult,
@@ -1048,9 +1082,6 @@ function SpeechResultPanel({
         className="w-full"
         src={audioUrl ?? undefined}
       />
-      <div className="truncate font-mono text-[11px] text-muted-foreground">
-        {result.outputPath}
-      </div>
       {result.streamStats ? (
         <StreamStats stats={{
           chunkCount: result.streamStats.chunkCount ?? 0,
@@ -1136,6 +1167,7 @@ function resolveSubmitIssueKey(
   context: AudioToolShellContext,
   preferences: ReturnType<typeof normalizeSpeechSynthesizerPreferences>,
   voiceSample: SelectedVoiceSample | null,
+  outputDirectoryAuthorization: AudioOutputDirectoryAuthorization | null,
 ): string | null {
   if (context.configSummary.status !== "ready") {
     return `audio:workspace.${context.configSummary.status}.title`;
@@ -1162,7 +1194,13 @@ function resolveSubmitIssueKey(
   ) {
     return "audio:speech.errors.instructions_too_long";
   }
-  if (preferences.outputMode === "custom_dir" && !preferences.outputDir.trim()) {
+  if (
+    preferences.outputMode === "custom_dir" &&
+    !isAudioOutputDirectoryAuthorizationValid(
+      outputDirectoryAuthorization,
+      preferences.outputDir,
+    )
+  ) {
     return "audio:speech.errors.output_dir_required";
   }
   if (isMimo) {

@@ -1,12 +1,26 @@
 import { Model, type ModelProfile } from "@/type/model";
 
-export const AUDIO_API_DIALECTS = [
+export const AUDIO_TRANSPORTS = [
   "openai_audio",
   "mimo_chat_audio",
   "openai_realtime",
 ] as const;
 
-export type AudioApiDialect = (typeof AUDIO_API_DIALECTS)[number];
+export type AudioTransport = (typeof AUDIO_TRANSPORTS)[number];
+
+/** @deprecated Use AudioTransport for standalone audio API routes. */
+export const AUDIO_API_DIALECTS = AUDIO_TRANSPORTS;
+
+/** @deprecated Use AudioTransport for standalone audio API routes. */
+export type AudioApiDialect = AudioTransport;
+
+export const AUDIO_PROVIDER_PRESETS = [
+  "openai",
+  "mimo",
+  "custom_openai_compatible",
+] as const;
+
+export type AudioProviderPreset = (typeof AUDIO_PROVIDER_PRESETS)[number];
 
 export const AUDIO_CAPABILITIES = [
   "file_transcription",
@@ -76,20 +90,105 @@ export const AUDIO_SPEECH_RESPONSE_FORMATS = [
 export type AudioSpeechResponseFormat =
   (typeof AUDIO_SPEECH_RESPONSE_FORMATS)[number];
 
-export const MIMO_SPEECH_SYNTHESIS_MODES = [
+export const SPEECH_SYNTHESIS_MODES = [
   "preset_voice",
   "voice_design",
   "voice_clone",
 ] as const;
 
-export type MimoSpeechSynthesisMode =
-  (typeof MIMO_SPEECH_SYNTHESIS_MODES)[number];
+export type SpeechSynthesisMode = (typeof SPEECH_SYNTHESIS_MODES)[number];
 
-export type AudioModelVerificationStatus =
+/** @deprecated Use SPEECH_SYNTHESIS_MODES. */
+export const MIMO_SPEECH_SYNTHESIS_MODES = SPEECH_SYNTHESIS_MODES;
+
+/** @deprecated Use SpeechSynthesisMode. */
+export type MimoSpeechSynthesisMode = SpeechSynthesisMode;
+
+export type AudioRouteVerificationStatus =
   | "untested"
   | "verified"
   | "degraded"
   | "failed";
+
+export interface AudioRoute {
+  transport: AudioTransport;
+  model: string;
+  enabled: boolean;
+}
+
+export interface AudioApiRoutes {
+  transcription?: AudioRoute;
+  speechSynthesis: Partial<Record<SpeechSynthesisMode, AudioRoute>>;
+  realtimeCaptions?: AudioRoute;
+  realtimeVoice?: AudioRoute;
+}
+
+export interface AudioRouteVerification {
+  status: AudioRouteVerificationStatus;
+  updatedAt?: string;
+}
+
+export interface AudioApiProfile {
+  id: string;
+  name: string;
+  providerPreset: AudioProviderPreset;
+  baseUrl: string;
+  apiKey: string;
+  routes: AudioApiRoutes;
+  verification?: Partial<Record<string, AudioRouteVerification>>;
+  migration?: {
+    source: "legacy_audio_profile";
+    sourceId: string;
+    needsAttention?: boolean;
+  };
+}
+
+export type AudioTaskRouteIntent =
+  | { assignmentKey: "transcription" }
+  | {
+      assignmentKey: "speechSynthesis";
+      mode: SpeechSynthesisMode;
+    }
+  | { assignmentKey: "realtimeCaptions" }
+  | { assignmentKey: "realtimeVoice" };
+
+export type AudioRouteKey =
+  | "transcription"
+  | `speechSynthesis.${SpeechSynthesisMode}`
+  | "realtimeCaptions"
+  | "realtimeVoice";
+
+export interface ResolvedAudioRouteConfig {
+  audioProfileId: string;
+  providerPreset: AudioProviderPreset;
+  assignmentKey: AudioAssignmentKey;
+  routeKey: AudioRouteKey;
+  apiKey: string;
+  baseUrl: string;
+  transport: AudioTransport;
+  model: string;
+  verificationStatus: AudioRouteVerificationStatus | "unverified";
+}
+
+export interface AudioRouteResolutionIssue {
+  code:
+    | "stale_audio_config"
+    | "audio_api_not_configured"
+    | "audio_route_not_configured"
+    | "audio_route_unverified"
+    | "invalid_task_parameters";
+  message: string;
+  assignmentKey: AudioAssignmentKey;
+  mode?: SpeechSynthesisMode;
+  verificationStatus?: AudioRouteVerificationStatus | "unverified";
+}
+
+export type AudioRouteResolutionResult =
+  | { ok: true; config: ResolvedAudioRouteConfig }
+  | { ok: false; issue: AudioRouteResolutionIssue };
+
+/** @deprecated Use AudioRouteVerificationStatus. */
+export type AudioModelVerificationStatus = AudioRouteVerificationStatus;
 
 export interface AudioModelProfile {
   id: string;
@@ -121,14 +220,20 @@ export interface AudioModelProfile {
   };
 }
 
-export type AudioModelAssignment = Record<AudioAssignmentKey, string | null>;
+export type AudioTaskAssignment = Record<AudioAssignmentKey, string | null>;
 
-export const DEFAULT_AUDIO_MODEL_ASSIGNMENT: AudioModelAssignment = {
+export const DEFAULT_AUDIO_TASK_ASSIGNMENT: AudioTaskAssignment = {
   transcription: null,
   speechSynthesis: null,
   realtimeCaptions: null,
   realtimeVoice: null,
 };
+
+/** @deprecated Use AudioTaskAssignment. */
+export type AudioModelAssignment = AudioTaskAssignment;
+
+/** @deprecated Use DEFAULT_AUDIO_TASK_ASSIGNMENT. */
+export const DEFAULT_AUDIO_MODEL_ASSIGNMENT = DEFAULT_AUDIO_TASK_ASSIGNMENT;
 
 export interface AudioRuntimeModelConfig {
   audioProfileId: string;
@@ -139,6 +244,20 @@ export interface AudioRuntimeModelConfig {
   audioDialect: AudioApiDialect;
   modelKey: string;
   capabilities: AudioCapability[];
+}
+
+/**
+ * Transitional main-to-adapter DTO. Public IPC and trusted route resolution
+ * use providerPreset/transport/model instead of these legacy field names.
+ */
+export interface AudioRuntimeAdapterModelConfig {
+  audioProfileId: string;
+  provider: Model;
+  providerPreset?: AudioProviderPreset;
+  apiKey: string;
+  baseUrl: string;
+  audioDialect: AudioTransport;
+  modelKey: string;
 }
 
 export type AudioOutputPathMode = "temp" | "source_dir" | "custom_dir";
@@ -197,6 +316,23 @@ export interface MimoSpeechOptions {
   voiceSampleMime?: "audio/mpeg" | "audio/mp3" | "audio/wav";
   audioTagsEnabled?: boolean;
 }
+
+export type SpeechSynthesisIntent =
+  | {
+      mode: "preset_voice";
+      voice: string;
+      styleInstruction?: string;
+    }
+  | {
+      mode: "voice_design";
+      voiceDesignPrompt: string;
+      optimizeTextPreview?: boolean;
+    }
+  | {
+      mode: "voice_clone";
+      voiceSampleToken: string;
+      styleInstruction?: string;
+    };
 
 export interface CreateSpeechSynthesisRequest {
   assignmentKey: "speechSynthesis";
@@ -303,7 +439,17 @@ export type AudioRuntimeModelConfigResult =
   | { ok: false; issue: AudioCapabilityValidationIssue };
 
 export function isAudioApiDialect(value: unknown): value is AudioApiDialect {
-  return isOneOfString(value, AUDIO_API_DIALECTS);
+  return isAudioTransport(value);
+}
+
+export function isAudioTransport(value: unknown): value is AudioTransport {
+  return isOneOfString(value, AUDIO_TRANSPORTS);
+}
+
+export function isAudioProviderPreset(
+  value: unknown,
+): value is AudioProviderPreset {
+  return isOneOfString(value, AUDIO_PROVIDER_PRESETS);
 }
 
 export function isAudioCapability(value: unknown): value is AudioCapability {
@@ -396,7 +542,13 @@ export function isAudioSpeechResponseFormat(
 export function isMimoSpeechSynthesisMode(
   value: unknown,
 ): value is MimoSpeechSynthesisMode {
-  return isOneOfString(value, MIMO_SPEECH_SYNTHESIS_MODES);
+  return isSpeechSynthesisMode(value);
+}
+
+export function isSpeechSynthesisMode(
+  value: unknown,
+): value is SpeechSynthesisMode {
+  return isOneOfString(value, SPEECH_SYNTHESIS_MODES);
 }
 
 export function getDefaultAudioCapabilities(

@@ -1,12 +1,12 @@
 import type { AxiosProxyConfig } from "axios";
 import type {
-  AudioRuntimeModelConfig,
+  AudioRuntimeAdapterModelConfig,
   AudioTranscriptionResult,
   CreateAudioTranscriptionRequest,
   CreateSpeechSynthesisRequest,
   SpeechSynthesisResult,
 } from "@/type/audio";
-import type { SpeechSynthesisStreamEvent } from "@/type/audioIpc";
+import type { SpeechSynthesisRuntimeStreamEvent } from "@/type/audioIpc";
 import { createAudioRuntimeError } from "./audio-errors";
 import type { AudioRuntimeRetryOptions } from "./audio-http";
 import {
@@ -19,7 +19,7 @@ import {
 } from "./adapters/mimo-chat-audio-adapter";
 
 export interface AudioRuntimeRequestOptions {
-  model: AudioRuntimeModelConfig;
+  model: AudioRuntimeAdapterModelConfig;
   timeoutMs?: number;
   signal?: AbortSignal;
   proxy?: AxiosProxyConfig | false;
@@ -28,7 +28,7 @@ export interface AudioRuntimeRequestOptions {
   now?: Date;
   requestId?: string;
   onStreamEvent?: (
-    event: SpeechSynthesisStreamEvent,
+    event: SpeechSynthesisRuntimeStreamEvent,
   ) => void | Promise<void>;
 }
 

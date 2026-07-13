@@ -4,15 +4,20 @@ import {
   createAudioRuntimeError,
   sanitizeAudioErrorDetails,
 } from "../../electron/main/audio/audio-errors";
+import { runAudioRuntimeRequest } from "../../electron/main/audio/audio-http";
 
 describe("audio runtime errors", () => {
-  it("redacts API keys, request bodies, audio payloads, and binary chunks", () => {
+  it("redacts credentials, payloads, filesystem paths, and binary chunks", () => {
     const sanitized = sanitizeAudioErrorDetails({
       apiKey: "sk-test-12345678901234567890",
       authorization: "Bearer sk-test-12345678901234567890",
       safeMessage: "format is unsupported",
       sizeBytes: 1234,
       base64EncodedBytes: 5678,
+      path: "/Users/private/audio.wav",
+      filePath: "/Users/private/input.wav",
+      outputPath: "/Users/private/output.wav",
+      directory: "/Users/private",
       nested: {
         audioDataUri: "data:audio/wav;base64,UklGRg==",
         requestBody: {
@@ -31,6 +36,10 @@ describe("audio runtime errors", () => {
       safeMessage: "format is unsupported",
       sizeBytes: 1234,
       base64EncodedBytes: 5678,
+      path: "[redacted]",
+      filePath: "[redacted]",
+      outputPath: "[redacted]",
+      directory: "[redacted]",
       nested: {
         audioDataUri: "[redacted]",
         requestBody: "[redacted]",
@@ -75,5 +84,33 @@ describe("audio runtime errors", () => {
       },
     });
     expect(error.cause).toBe(cause);
+  });
+
+  it("does not promote unknown filesystem error messages into public runtime errors", async () => {
+    const privatePath = "/private/audio/output.wav";
+
+    await expect(runAudioRuntimeRequest(
+      {
+        apiKey: "sk-test-12345678901234567890",
+        retry: { maxRetries: 0 },
+      },
+      async () => {
+        throw new Error(`ENOENT: no such file, open '${privatePath}'`);
+      },
+    )).rejects.toMatchObject({
+      code: "network_error",
+      message: "Audio request failed.",
+    });
+
+    try {
+      await runAudioRuntimeRequest(
+        { apiKey: "test", retry: { maxRetries: 0 } },
+        async () => {
+          throw new Error(`EACCES: '${privatePath}'`);
+        },
+      );
+    } catch (error) {
+      expect(String(error)).not.toContain(privatePath);
+    }
   });
 });

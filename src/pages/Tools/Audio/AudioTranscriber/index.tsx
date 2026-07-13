@@ -31,10 +31,8 @@ import {
 import { cn } from "@/lib/utils";
 import { getFilePathFromFile } from "@/utils/filePath";
 import { showToast } from "@/utils/toast";
-import type {
-  AudioTimestampGranularity,
-  AudioTranscriptionResult,
-} from "@/type/audio";
+import type { AudioTimestampGranularity } from "@/type/audio";
+import type { AuthorizedAudioTranscriptionResult } from "@/type/audioIpc";
 import {
   cancelAudioTranscription,
   revealAudioOutput,
@@ -45,6 +43,10 @@ import AudioToolShell, {
   type AudioToolShellContext,
 } from "../shared/AudioToolShell";
 import useAudioTranscriberStore from "@/store/tools/audio/useAudioTranscriberStore";
+import {
+  isAudioOutputDirectoryAuthorizationValid,
+  type AudioOutputDirectoryAuthorization,
+} from "@/store/tools/audio/audioOutputDirectory";
 import { getAudioErrorMessage } from "../shared/audioErrorMessage";
 import {
   buildAudioTranscriptionRequest,
@@ -85,6 +87,9 @@ function TranscriberConfig({ context }: { context: AudioToolShellContext }) {
   const updatePreferences = useAudioTranscriberStore(
     (state) => state.updatePreferences,
   );
+  const setOutputDirectoryAuthorization = useAudioTranscriberStore(
+    (state) => state.setOutputDirectoryAuthorization,
+  );
   const dialect = context.configSummary.audioDialect;
   const profileContext = useMemo(
     () => ({
@@ -120,14 +125,26 @@ function TranscriberConfig({ context }: { context: AudioToolShellContext }) {
 
   const handleSelectOutputDir = useCallback(async () => {
     try {
-      const result = await window.ipcRenderer.invoke("select-output-directory", {
+      const response = await window.audioApi.selectOutputDirectory({
         title: t("audio:transcriber.dialog.select_output_title"),
         buttonLabel: t("audio:transcriber.dialog.select_output_confirm"),
       });
-      if (result?.canceled || !result?.filePaths?.[0]) return;
+      if (!response.ok) {
+        showToast(
+          getAudioErrorMessage(t, response.error, response.error.message),
+          "error",
+        );
+        return;
+      }
+      if (response.data.cancelled) return;
       updatePreferences({
         outputMode: "custom_dir",
-        outputDir: result.filePaths[0],
+        outputDir: response.data.directoryName,
+      });
+      setOutputDirectoryAuthorization({
+        outputDirToken: response.data.outputDirToken,
+        directoryName: response.data.directoryName,
+        expiresAt: response.data.expiresAt,
       });
       showToast(t("audio:transcriber.messages.output_path_selected"), "success");
     } catch (error) {
@@ -138,7 +155,7 @@ function TranscriberConfig({ context }: { context: AudioToolShellContext }) {
         "error",
       );
     }
-  }, [t, updatePreferences]);
+  }, [setOutputDirectoryAuthorization, t, updatePreferences]);
 
   return (
     <fieldset className="space-y-4" disabled={status === "running"}>
@@ -312,6 +329,9 @@ function TranscriberWorkspace({ context }: { context: AudioToolShellContext }) {
   const { t } = useTranslation(["audio", "common"]);
   const preferences = useAudioTranscriberStore((state) => state.preferences);
   const selectedFile = useAudioTranscriberStore((state) => state.selectedFile);
+  const outputDirectoryAuthorization = useAudioTranscriberStore(
+    (state) => state.outputDirectoryAuthorization,
+  );
   const result = useAudioTranscriberStore((state) => state.result);
   const status = useAudioTranscriberStore((state) => state.status);
   const lastError = useAudioTranscriberStore((state) => state.lastError);
@@ -371,10 +391,15 @@ function TranscriberWorkspace({ context }: { context: AudioToolShellContext }) {
   );
   const submitIssue = useMemo(
     () => {
-      const issueKey = resolveSubmitIssueKey(context, selectedFile, normalized);
+      const issueKey = resolveSubmitIssueKey(
+        context,
+        selectedFile,
+        normalized,
+        outputDirectoryAuthorization,
+      );
       return issueKey ? t(issueKey) : null;
     },
-    [context, normalized, selectedFile, t],
+    [context, normalized, outputDirectoryAuthorization, selectedFile, t],
   );
   const isRunning = status === "running";
 
@@ -406,37 +431,50 @@ function TranscriberWorkspace({ context }: { context: AudioToolShellContext }) {
         return;
       }
 
-      void window.audioApi.authorizeInputFile(file).then((authorization) => {
-        if (!authorization.ok) {
-          const message = authorization.error.message ||
-            t("audio:transcriber.errors.file_path_unavailable");
-          setLastError({
-            code: authorization.error.code,
-            message,
-            field: authorization.error.field ?? "file",
-            details: authorization.error.details,
-          });
-          showToast(message, "error");
-          return;
-        }
+      void window.audioApi.authorizeInputFile(file)
+        .then((authorization) => {
+          if (!authorization.ok) {
+            const message = authorization.error.message ||
+              t("audio:transcriber.errors.file_path_unavailable");
+            setLastError({
+              code: authorization.error.code,
+              message,
+              field: authorization.error.field ?? "file",
+              details: authorization.error.details,
+            });
+            showToast(message, "error");
+            return;
+          }
 
-        const nextFile: SelectedAudioInput = {
-          fileName: authorization.data.fileName || file.name,
-          filePath: getFilePathFromFile(file) || file.name,
-          fileToken: authorization.data.fileToken,
-          mimeType: validation.mimeType,
-          sizeBytes: authorization.data.sizeBytes,
-          modifiedAt: file.lastModified,
-        };
-        setSelectedFile(nextFile);
-        showToast(t("audio:transcriber.messages.file_selected"), "success");
-      });
+          const nextFile: SelectedAudioInput = {
+            fileName: authorization.data.fileName || file.name,
+            filePath: getFilePathFromFile(file) || file.name,
+            fileToken: authorization.data.fileToken,
+            mimeType: validation.mimeType,
+            sizeBytes: authorization.data.sizeBytes,
+            modifiedAt: file.lastModified,
+          };
+          setSelectedFile(nextFile);
+          showToast(t("audio:transcriber.messages.file_selected"), "success");
+        })
+        .catch((error: unknown) => {
+          const message = error instanceof Error
+            ? error.message
+            : t("audio:transcriber.errors.file_path_unavailable");
+          setLastError({ code: "network_error", message, field: "file" });
+          showToast(message, "error");
+        });
     },
     [dialect, setLastError, setSelectedFile, t],
   );
 
   const handleStart = useCallback(async () => {
-    const issueKey = resolveSubmitIssueKey(context, selectedFile, normalized);
+    const issueKey = resolveSubmitIssueKey(
+      context,
+      selectedFile,
+      normalized,
+      outputDirectoryAuthorization,
+    );
     if (issueKey) {
       const message = t(issueKey);
       showToast(message, "error");
@@ -450,6 +488,7 @@ function TranscriberWorkspace({ context }: { context: AudioToolShellContext }) {
       requestId,
       file: selectedFile,
       preferences: normalized,
+      outputDirectoryAuthorization,
       dialect,
       provider: profileContext.provider,
       modelKey: profileContext.modelKey,
@@ -482,6 +521,7 @@ function TranscriberWorkspace({ context }: { context: AudioToolShellContext }) {
     invalidateActiveRequest,
     isRequestCurrent,
     normalized,
+    outputDirectoryAuthorization,
     profileContext.modelKey,
     profileContext.provider,
     selectedFile,
@@ -710,7 +750,7 @@ function ResultPanel({
   onReveal,
   onSave,
 }: {
-  result: AudioTranscriptionResult | null;
+  result: AuthorizedAudioTranscriptionResult | null;
   status: string;
   onCopy: () => void;
   onReveal: () => void;
@@ -751,9 +791,6 @@ function ResultPanel({
           <div className="mt-0.5 flex flex-wrap gap-2 text-[11px] text-muted-foreground">
             <span>{t(`audio:transcriber.response_format.${result.responseFormat}`)}</span>
             {result.model ? <span>{result.model}</span> : null}
-            {result.outputPath ? (
-              <span className="truncate">{result.outputPath}</span>
-            ) : null}
           </div>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -761,7 +798,7 @@ function ResultPanel({
             <Clipboard className="h-3.5 w-3.5" />
             {t("audio:transcriber.actions.copy")}
           </Button>
-          {result.outputPath ? (
+          {result.outputToken ? (
             <Button type="button" variant="outline" size="sm" onClick={onReveal}>
               <FolderOpen className="h-3.5 w-3.5" />
               {t("audio:transcriber.actions.open_output")}
@@ -816,6 +853,7 @@ function resolveSubmitIssueKey(
   context: AudioToolShellContext,
   selectedFile: SelectedAudioInput | null,
   preferences: ReturnType<typeof normalizeAudioTranscriberPreferencesForDialect>,
+  outputDirectoryAuthorization: AudioOutputDirectoryAuthorization | null,
 ): string | null {
   if (context.configSummary.status !== "ready") {
     return `audio:workspace.${context.configSummary.status}.title`;
@@ -842,7 +880,13 @@ function resolveSubmitIssueKey(
   if (!validation.ok) {
     return `audio:transcriber.errors.${validation.issue.code}`;
   }
-  if (preferences.outputMode === "custom_dir" && !preferences.outputDir.trim()) {
+  if (
+    preferences.outputMode === "custom_dir" &&
+    !isAudioOutputDirectoryAuthorizationValid(
+      outputDirectoryAuthorization,
+      preferences.outputDir,
+    )
+  ) {
     return "audio:transcriber.errors.output_dir_required";
   }
   return null;
@@ -855,7 +899,9 @@ function getFileIssueMessage(
   return t(`audio:transcriber.errors.${issue.code}`);
 }
 
-function getResultDisplayText(result: AudioTranscriptionResult): string {
+function getResultDisplayText(
+  result: AuthorizedAudioTranscriptionResult,
+): string {
   if (
     (result.responseFormat === "json" ||
       result.responseFormat === "verbose_json") &&

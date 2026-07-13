@@ -11,7 +11,8 @@
     "model_assignment": "模型分配",
     "model_profiles": "模型設定檔",
     "audio_assignment": "音訊任務分配",
-    "audio_profiles": "音訊模型設定檔"
+    "audio_profiles": "音訊模型設定檔",
+    "audio_apis": "音訊 API"
   },
   "nav": {
     "general": {
@@ -24,7 +25,11 @@
     },
     "model": {
       "label": "AI 模型",
-      "hint": "文字 · 音訊 · 分配"
+      "hint": "文字 · Agent · 分配"
+    },
+    "audio": {
+      "label": "音訊",
+      "hint": "API · 路由 · 分配"
     }
   },
   "fields": {
@@ -137,13 +142,106 @@
     },
     "audio": {
       "assignment": {
-        "description": "為音訊轉文字、文字轉音訊、即時字幕和雙向語音選擇全域音訊設定。工具頁只會讀取這裡的生效選擇。",
+        "description": "為每類音訊任務選擇預設使用的音訊 API。這裡只管理連線分配，語言、音色和輸出偏好仍由工具管理。",
         "transcription": "音訊轉文字",
         "speechSynthesis": "文字轉音訊",
         "realtimeCaptions": "即時字幕",
         "realtimeVoice": "雙向語音",
+        "not_configured": "未設定",
+        "no_compatible_api": "暫無支援此任務的音訊 API。",
         "unsupported": "不可用",
         "unsupported_select": "此音訊設定不支援目前任務，或缺少對應模型。"
+      },
+      "provider": {
+        "openai": "OpenAI",
+        "openai_hint": "檔案音訊與 Realtime",
+        "mimo": "MiMo",
+        "mimo_hint": "ASR 與三種語音合成模式",
+        "custom_openai_compatible": "自訂相容 API",
+        "custom_openai_compatible_hint": "手動設定任務路由"
+      },
+      "api": {
+        "description": "獨立管理音訊服務的憑證、位址與任務路由，不依賴文字模型設定。",
+        "add": "新增音訊 API",
+        "empty": "暫無音訊 API",
+        "empty_description": "新增 OpenAI、MiMo 或相容服務連線後即可分配音訊任務。",
+        "add_first": "新增第一個音訊 API",
+        "in_use": "使用中",
+        "edit": "編輯音訊 API",
+        "delete": "刪除音訊 API",
+        "assigned_to": "用於：{{tasks}}",
+        "migration_needs_attention": "需要補充設定",
+        "base_url_missing": "未設定 Base URL",
+        "no_routes": "尚未設定可用任務路由",
+        "dialog_title_add": "新增音訊 API",
+        "dialog_title_edit": "編輯音訊 API",
+        "dialog_description": "設定音訊服務連線與可用任務路由。",
+        "service_section": "服務",
+        "connection_section": "連線",
+        "capabilities_section": "任務路由",
+        "name": "設定名稱",
+        "name_placeholder": "例如：團隊 MiMo Audio",
+        "base_url": "Base URL",
+        "base_url_placeholder": "例如：https://api.example.com/v1",
+        "api_key": "API Key",
+        "api_key_placeholder": "輸入音訊服務 API Key",
+        "proxy_summary": "全域代理",
+        "open_proxy_settings": "開啟代理設定",
+        "advanced_routes_hint": "為需要使用的任務開啟路由並填寫對應 Model ID。",
+        "mimo_modes_ready": "已準備 {{count}} 種語音合成路由。",
+        "leave_dialog_title": "離開目前編輯？",
+        "leave_dialog_description": "尚未儲存的音訊 API 修改將會遺失。",
+        "default_name": {
+          "openai": "OpenAI Audio",
+          "mimo": "MiMo Audio",
+          "custom_openai_compatible": "相容音訊 API"
+        },
+        "errors": {
+          "name_required": "請輸入設定名稱。",
+          "base_url_required": "請輸入 Base URL。",
+          "base_url_invalid": "請輸入有效的 HTTP 或 HTTPS Base URL。",
+          "api_key_required": "請輸入 API Key。",
+          "route_required": "請至少設定一條任務路由。",
+          "route_model_required": "請輸入此路由的 Model ID。",
+          "route_transport_invalid": "此路由與目前服務不相容。"
+        }
+      },
+      "route": {
+        "transcription": "音訊轉文字",
+        "preset_voice": "文字轉音訊",
+        "realtimeCaptions": "即時字幕",
+        "realtimeVoice": "雙向語音",
+        "model": "Model ID"
+      },
+      "verification": {
+        "untested": "未驗證",
+        "verified": "已驗證",
+        "degraded": "部分可用",
+        "failed": "驗證失敗"
+      },
+      "delete": {
+        "title": "刪除音訊 API",
+        "unused_description": "確定刪除「{{name}}」嗎？",
+        "in_use_description": "「{{name}}」正在被任務使用。請為每個受影響任務選擇替代 API，或明確取消分配。",
+        "select_replacement": "選擇處理方式…",
+        "unassign": "取消分配",
+        "required": "請選擇替代 API 或取消分配。",
+        "failed": "未能刪除音訊 API，請檢查任務替代選擇。",
+        "confirm": "刪除"
+      },
+      "feedback": {
+        "created": "音訊 API 已建立。",
+        "updated": "音訊 API 已更新。",
+        "deleted": "音訊 API 已刪除。",
+        "save_failed": "未能儲存音訊 API。",
+        "auto_assigned_title": "已設定首次預設分配",
+        "auto_assigned_description": "已將以下相容任務分配到新 API：{{tasks}}",
+        "undo": "復原自動分配",
+        "undo_success": "已復原 {{count}} 項自動分配。",
+        "assignments_cleared": "路由變更後已取消不再相容的任務分配",
+        "return_to_tool": "返回音訊工具",
+        "save_and_return": "儲存並返回工具",
+        "task_separator": "、"
       },
       "profile": {
         "description": "音訊設定引用既有模型連線，只保存音訊協議、模型 ID、預設值和能力狀態。",

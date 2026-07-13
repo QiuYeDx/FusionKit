@@ -10,6 +10,7 @@ import type {
 import { resolveAudioTranscriptionModelMatrix } from "@/type/audio";
 import type { CreateAudioTranscriptionIpcRequest } from "@/type/audioIpc";
 import type { Model } from "@/type/model";
+import type { AudioOutputDirectoryAuthorization } from "./audioOutputDirectory";
 
 export type AudioTranscriberOutputMode = "display_only" | Extract<
   AudioOutputPathMode,
@@ -315,6 +316,7 @@ export function buildAudioTranscriptionRequest(options: {
   requestId: string;
   file: SelectedAudioInput;
   preferences: AudioTranscriberPreferences;
+  outputDirectoryAuthorization: AudioOutputDirectoryAuthorization | null;
   dialect?: AudioApiDialect;
   provider?: Model;
   modelKey?: string;
@@ -359,8 +361,12 @@ export function buildAudioTranscriptionRequest(options: {
   }
   if (preferences.outputMode !== "display_only") {
     request.outputPathMode = preferences.outputMode;
-    if (preferences.outputMode === "custom_dir") {
-      request.outputDir = preferences.outputDir;
+    if (
+      preferences.outputMode === "custom_dir" &&
+      options.outputDirectoryAuthorization
+    ) {
+      request.outputDirToken =
+        options.outputDirectoryAuthorization.outputDirToken;
     }
   }
 

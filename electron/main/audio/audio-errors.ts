@@ -9,7 +9,7 @@ export interface AudioRuntimeClientErrorOptions {
 }
 
 const SENSITIVE_KEY_PATTERN =
-  /(api[-_ ]?key|authorization|token|secret|base64|audio|pcm|buffer|bytes|requestbody|body)/i;
+  /(api[-_ ]?key|authorization|token|secret|base64|audio|pcm|buffer|bytes|requestbody|body|path$|directory)/i;
 
 export class AudioRuntimeClientError extends Error {
   readonly code: AudioIpcErrorCode;

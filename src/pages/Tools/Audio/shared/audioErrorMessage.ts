@@ -1,4 +1,4 @@
-import type { AudioIpcError, AudioIpcErrorCode } from "@/type/audioIpc";
+import type { AudioIpcErrorCode } from "@/type/audioIpc";
 
 type Translate = (
   key: string,
@@ -7,6 +7,11 @@ type Translate = (
 
 const ERROR_KEY_BY_CODE: Record<AudioIpcErrorCode, string> = {
   invalid_ipc_request: "audio:runtime_error.invalid_request",
+  stale_audio_config: "audio:runtime_error.stale_config",
+  audio_api_not_configured: "audio:runtime_error.api_not_configured",
+  audio_route_not_configured: "audio:runtime_error.route_not_configured",
+  audio_route_unverified: "audio:runtime_error.route_unverified",
+  invalid_task_parameters: "audio:runtime_error.invalid_parameters",
   audio_profile_not_configured: "audio:runtime_error.profile_not_configured",
   connection_profile_not_configured: "audio:runtime_error.connection_not_configured",
   audio_model_not_configured: "audio:runtime_error.model_not_configured",
@@ -32,7 +37,10 @@ const ERROR_KEY_BY_CODE: Record<AudioIpcErrorCode, string> = {
 
 export function getAudioErrorMessage(
   t: Translate,
-  error: Pick<AudioIpcError, "code" | "field"> | { code: "renderer_error"; field?: string },
+  error: {
+    code: AudioIpcErrorCode | "renderer_error";
+    field?: string;
+  },
   fallback?: string,
 ): string {
   if (error.code === "renderer_error") {

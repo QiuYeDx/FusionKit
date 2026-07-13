@@ -1,14 +1,14 @@
-import type {
-  SpeechSynthesisResult,
-} from "@/type/audio";
 import {
   AUDIO_EVENT_CHANNELS,
   AUDIO_IPC_CHANNELS,
   audioIpcFailure,
+  audioIpcSuccess,
+  type AuthorizedSpeechSynthesisResult,
   isSpeechSynthesisStreamEventPayload,
   type AudioIpcResult,
   type CancelSpeechSynthesisResult,
   type CancelSpeechSynthesisStreamResult,
+  type CreateSpeechSynthesisIpcInput,
   type CreateSpeechSynthesisIpcRequest,
   type RevealAudioOutputRequest,
   type RevealAudioOutputResult,
@@ -17,8 +17,8 @@ import {
 } from "@/type/audioIpc";
 import {
   audioIpcUnavailableResult,
+  invokeAudioTaskIpc,
   invokeAudioIpc,
-  syncAudioRuntimeConfigBeforeTask,
 } from "./audioRuntimeConfigService";
 
 export interface SpeechSynthesisStreamHandlers {
@@ -45,22 +45,89 @@ export interface SpeechSynthesisStreamHandlers {
 
 export interface SpeechSynthesisStreamHandle {
   requestId: string;
-  result: Promise<AudioIpcResult<SpeechSynthesisResult>>;
+  result: Promise<AudioIpcResult<AuthorizedSpeechSynthesisResult>>;
   cancel: () => Promise<AudioIpcResult<CancelSpeechSynthesisStreamResult>>;
   unsubscribe: () => void;
 }
 
-export async function synthesizeSpeech(
-  request: CreateSpeechSynthesisIpcRequest,
-): Promise<AudioIpcResult<SpeechSynthesisResult>> {
-  try {
-    const synced = await syncAudioRuntimeConfigBeforeTask();
-    if (!synced.ok) return audioIpcFailure(synced.error);
+export function toSpeechSynthesisIpcRequest(
+  request: CreateSpeechSynthesisIpcInput,
+): AudioIpcResult<CreateSpeechSynthesisIpcRequest> {
+  if ("intent" in request) return audioIpcSuccess(request);
 
-    return invokeAudioIpc<SpeechSynthesisResult>(
+  const { voice, mimoOptions, ...common } = request;
+  if (!mimoOptions) {
+    if (!voice?.trim()) {
+      return audioIpcFailure({
+        code: "invalid_task_parameters",
+        message: "A preset voice is required for speech synthesis.",
+        field: "intent.voice",
+      });
+    }
+    return audioIpcSuccess({
+      ...common,
+      intent: { mode: "preset_voice", voice: voice.trim() },
+    });
+  }
+
+  if (mimoOptions.mode === "preset_voice") {
+    if (!voice?.trim()) {
+      return audioIpcFailure({
+        code: "invalid_task_parameters",
+        message: "A preset voice is required for MiMo speech synthesis.",
+        field: "intent.voice",
+      });
+    }
+    return audioIpcSuccess({
+      ...common,
+      intent: {
+        mode: "preset_voice",
+        voice: voice.trim(),
+        ...(mimoOptions.styleInstruction?.trim()
+          ? { styleInstruction: mimoOptions.styleInstruction.trim() }
+          : {}),
+      },
+    });
+  }
+
+  if (mimoOptions.mode === "voice_design") {
+    if (!mimoOptions.voiceDesignPrompt?.trim()) {
+      return audioIpcFailure({
+        code: "invalid_task_parameters",
+        message: "A voice design prompt is required.",
+        field: "intent.voiceDesignPrompt",
+      });
+    }
+    return audioIpcSuccess({
+      ...common,
+      intent: {
+        mode: "voice_design",
+        voiceDesignPrompt: mimoOptions.voiceDesignPrompt.trim(),
+        ...(mimoOptions.optimizeTextPreview !== undefined
+          ? { optimizeTextPreview: mimoOptions.optimizeTextPreview }
+          : {}),
+      },
+    });
+  }
+
+  return audioIpcFailure({
+    code: "invalid_task_parameters",
+    message:
+      "Voice clone requires an authorized voiceSampleToken. FE-R02 must authorize the selected File before invoking audio IPC.",
+    field: "intent.voiceSampleToken",
+  });
+}
+
+export async function synthesizeSpeech(
+  request: CreateSpeechSynthesisIpcInput,
+): Promise<AudioIpcResult<AuthorizedSpeechSynthesisResult>> {
+  try {
+    const normalized = toSpeechSynthesisIpcRequest(request);
+    if (!normalized.ok) return normalized;
+
+    return await invokeAudioTaskIpc<AuthorizedSpeechSynthesisResult>(
       AUDIO_IPC_CHANNELS.synthesizeSpeech,
-      request,
-      synced.data.revision,
+      normalized.data,
     );
   } catch (error) {
     return audioIpcUnavailableResult(error);
@@ -71,7 +138,7 @@ export async function cancelSpeechSynthesis(
   requestId: string,
 ): Promise<AudioIpcResult<CancelSpeechSynthesisResult>> {
   try {
-    return invokeAudioIpc<CancelSpeechSynthesisResult>(
+    return await invokeAudioIpc<CancelSpeechSynthesisResult>(
       AUDIO_IPC_CHANNELS.cancelSpeechSynthesis,
       { requestId },
     );
@@ -81,11 +148,20 @@ export async function cancelSpeechSynthesis(
 }
 
 export function synthesizeSpeechStream(
-  request: CreateSpeechSynthesisIpcRequest,
+  request: CreateSpeechSynthesisIpcInput,
   handlers: SpeechSynthesisStreamHandlers = {},
   options: { requestId?: string } = {},
 ): SpeechSynthesisStreamHandle {
   const requestId = options.requestId ?? createAudioRequestId();
+  const normalized = toSpeechSynthesisIpcRequest(request);
+  if (!normalized.ok) {
+    return {
+      requestId,
+      result: Promise.resolve(normalized),
+      cancel: () => cancelSpeechSynthesisStream({ requestId }),
+      unsubscribe: () => undefined,
+    };
+  }
   const removeListener = subscribeSpeechSynthesisStreamEvents(requestId, handlers);
   let subscribed = true;
   const unsubscribe = () => {
@@ -96,23 +172,19 @@ export function synthesizeSpeechStream(
   const payload = {
     requestId,
     payload: {
-      ...request,
+      ...normalized.data,
       stream: true,
     },
   };
 
   const result = (async () => {
     try {
-      const synced = await syncAudioRuntimeConfigBeforeTask();
-      if (!synced.ok) return audioIpcFailure(synced.error);
-
-      return await invokeAudioIpc<SpeechSynthesisResult>(
+      return await invokeAudioTaskIpc<AuthorizedSpeechSynthesisResult>(
         AUDIO_IPC_CHANNELS.synthesizeSpeechStream,
         payload,
-        synced.data.revision,
       );
     } catch (error) {
-      return audioIpcUnavailableResult<SpeechSynthesisResult>(error);
+      return audioIpcUnavailableResult<AuthorizedSpeechSynthesisResult>(error);
     }
   })().finally(unsubscribe);
 
@@ -128,7 +200,7 @@ export async function revealSpeechOutput(
   request: RevealAudioOutputRequest,
 ): Promise<AudioIpcResult<RevealAudioOutputResult>> {
   try {
-    return invokeAudioIpc<RevealAudioOutputResult>(
+    return await invokeAudioIpc<RevealAudioOutputResult>(
       AUDIO_IPC_CHANNELS.revealOutput,
       request,
     );
@@ -137,18 +209,16 @@ export async function revealSpeechOutput(
   }
 }
 
-export function cancelSpeechSynthesisStream(request: {
+export async function cancelSpeechSynthesisStream(request: {
   requestId: string;
 }): Promise<AudioIpcResult<CancelSpeechSynthesisStreamResult>> {
   try {
-    return invokeAudioIpc<CancelSpeechSynthesisStreamResult>(
+    return await invokeAudioIpc<CancelSpeechSynthesisStreamResult>(
       AUDIO_IPC_CHANNELS.cancelSpeechSynthesisStream,
       request,
     );
   } catch (error) {
-    return Promise.resolve(
-      audioIpcUnavailableResult<CancelSpeechSynthesisStreamResult>(error),
-    );
+    return audioIpcUnavailableResult<CancelSpeechSynthesisStreamResult>(error);
   }
 }
 
@@ -174,7 +244,7 @@ export async function readSpeechOutput(
   outputToken: string,
 ): Promise<AudioIpcResult<ReadAudioOutputResult>> {
   try {
-    return invokeAudioIpc<ReadAudioOutputResult>(AUDIO_IPC_CHANNELS.readOutput, {
+    return await invokeAudioIpc<ReadAudioOutputResult>(AUDIO_IPC_CHANNELS.readOutput, {
       outputToken,
     });
   } catch (error) {

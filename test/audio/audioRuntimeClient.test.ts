@@ -438,6 +438,45 @@ describe("AudioRuntimeClient MiMo non-stream adapter", () => {
     });
   });
 
+  it("uses the trusted MiMo route model without comparing it to mode defaults", async () => {
+    const activeServer = requireServer(server);
+    const activeTempRoot = requireTempRoot(tempRoot);
+    const routeModel = "mimo-custom-voice-design";
+    activeServer.enqueueRoute("mimo_chat_completions", {
+      body: createMimoSpeechBody({
+        audioBase64: createOpenAISpeechBuffer("custom-route-wav").toString(
+          "base64",
+        ),
+        model: routeModel,
+      }),
+    });
+
+    const result = await sendSpeechSynthesis({
+      model: createMimoModel(activeServer.baseUrl, routeModel),
+      payload: createSpeechPayload({
+        responseFormat: "wav",
+        speed: undefined,
+        outputPathMode: "custom_dir",
+        outputDir: activeTempRoot,
+        fileNameHint: "mimo-custom-route",
+        mimoOptions: {
+          mode: "voice_design",
+          voiceDesignPrompt: "clear custom voice",
+        },
+      }),
+      retry: { maxRetries: 0 },
+    });
+
+    expect(result.model).toBe(routeModel);
+    expect(activeServer.requests[0].body).toMatchObject({
+      model: routeModel,
+      messages: [
+        { role: "user", content: "clear custom voice" },
+        { role: "assistant", content: "hello from FusionKit" },
+      ],
+    });
+  });
+
   it("MiMo non-stream voice design maps prompt and optimizeTextPreview", async () => {
     const activeServer = requireServer(server);
     const activeTempRoot = requireTempRoot(tempRoot);
@@ -647,21 +686,6 @@ describe("AudioRuntimeClient MiMo non-stream adapter", () => {
     ).rejects.toMatchObject({
       code: "unsupported_audio_format",
       field: "responseFormat",
-    });
-
-    await expect(
-      sendSpeechSynthesis({
-        model: createMimoModel(activeServer.baseUrl, "mimo-v2.5-tts"),
-        payload: createSpeechPayload({
-          speed: undefined,
-          responseFormat: "wav",
-          mimoOptions: { mode: "voice_design", voiceDesignPrompt: "voice" },
-        }),
-        retry: { maxRetries: 0 },
-      }),
-    ).rejects.toMatchObject({
-      code: "unsupported_audio_capability",
-      field: "mimoOptions.mode",
     });
 
     await expect(
