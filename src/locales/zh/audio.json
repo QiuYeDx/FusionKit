@@ -71,7 +71,7 @@
     },
     "captions": {
       "title": "实时字幕",
-      "description": "使用全局实时字幕配置处理麦克风输入。",
+      "description": "使用当前音频 API 将麦克风输入转换为实时字幕。",
       "workspace": "字幕流"
     },
     "voice": {
@@ -363,8 +363,8 @@
       "srt": "SRT"
     },
     "hints": {
-      "language": "OpenAI Realtime 可传入语言偏好；自动检测会省略 language 字段。",
-      "input_audio_format": "首版优先使用 PCM16；Opus 取决于当前 Realtime 模型和浏览器支持。",
+      "language": "这里只显示当前音频 API 路由支持的语言；自动检测会省略 language 字段。",
+      "input_audio_format": "Realtime 支持 PCM16、PCMU 和 PCMA，推荐优先使用 PCM16。",
       "turn_detection": "服务器 VAD 会自动识别说话片段；手动模式适合后续双向语音控制。",
       "output_format": "TXT 保存纯文本；SRT 使用本地会话时间生成基础时间轴。",
       "assistant_transcript": "实时字幕默认只展示麦克风输入。",
@@ -401,7 +401,7 @@
     },
     "chunked": {
       "title": "分块近实时",
-      "description": "当前模式会把麦克风输入编码为短 WAV 片段，并交给 main 进程按全局 ASR 配置逐段转写；它不是 WebRTC 双工会话。"
+      "description": "当前模式会把麦克风输入编码为短 WAV 片段，并交给 main 进程按当前音频 API 路由逐段转写；它不是 WebRTC 双工会话。"
     },
     "actions": {
       "start": "开始实时字幕",
@@ -429,8 +429,8 @@
     },
     "errors": {
       "title": "实时字幕失败",
-      "unsupported_mode": "当前全局音频配置不支持实时字幕。",
-      "chunked_unavailable": "当前全局音频配置无法启动分块近实时字幕。",
+      "unsupported_mode": "当前音频 API 不支持实时字幕。",
+      "chunked_unavailable": "当前音频 API 无法启动分块近实时字幕。",
       "microphone_failed": "无法启动麦克风录音。",
       "no_transcript": "当前还没有可用字幕。",
       "copy_failed": "复制失败，请手动复制字幕。"

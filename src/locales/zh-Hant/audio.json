@@ -71,7 +71,7 @@
     },
     "captions": {
       "title": "即時字幕",
-      "description": "使用全域即時字幕設定處理麥克風輸入。",
+      "description": "使用目前音訊 API 將麥克風輸入轉換為即時字幕。",
       "workspace": "字幕流"
     },
     "voice": {
@@ -363,8 +363,8 @@
       "srt": "SRT"
     },
     "hints": {
-      "language": "OpenAI Realtime 可傳入語言偏好；自動偵測會省略 language 欄位。",
-      "input_audio_format": "首版優先使用 PCM16；Opus 取決於目前 Realtime 模型與瀏覽器支援。",
+      "language": "這裡只顯示目前音訊 API 路由支援的語言；自動偵測會省略 language 欄位。",
+      "input_audio_format": "Realtime 支援 PCM16、PCMU 與 PCMA，建議優先使用 PCM16。",
       "turn_detection": "伺服器 VAD 會自動辨識說話片段；手動模式適合後續雙向語音控制。",
       "output_format": "TXT 儲存純文字；SRT 使用本機會話時間產生基礎時間軸。",
       "assistant_transcript": "即時字幕預設只顯示麥克風輸入。",
@@ -401,7 +401,7 @@
     },
     "chunked": {
       "title": "分塊近即時",
-      "description": "目前模式會把麥克風輸入編碼為短 WAV 片段，並交給 main 行程依全域 ASR 設定逐段轉寫；它不是 WebRTC 雙工會話。"
+      "description": "目前模式會把麥克風輸入編碼為短 WAV 片段，並交給 main 行程依目前音訊 API 路由逐段轉寫；它不是 WebRTC 雙工會話。"
     },
     "actions": {
       "start": "開始即時字幕",
@@ -429,8 +429,8 @@
     },
     "errors": {
       "title": "即時字幕失敗",
-      "unsupported_mode": "目前全域音訊設定不支援即時字幕。",
-      "chunked_unavailable": "目前全域音訊設定無法啟動分塊近即時字幕。",
+      "unsupported_mode": "目前音訊 API 不支援即時字幕。",
+      "chunked_unavailable": "目前音訊 API 無法啟動分塊近即時字幕。",
       "microphone_failed": "無法啟動麥克風錄音。",
       "no_transcript": "目前還沒有可用字幕。",
       "copy_failed": "複製失敗，請手動複製字幕。"

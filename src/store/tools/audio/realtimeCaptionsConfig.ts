@@ -1,9 +1,17 @@
 import type {
-  AudioApiDialect,
   AudioRealtimeSessionConfig,
   AudioRealtimeSessionCloseReason,
   AudioRole,
 } from "@/type/audio";
+import {
+  resolveRealtimeRouteDefinition,
+  type AudioRealtimeRouteConstraints,
+} from "@/lib/audio-provider-registry";
+import {
+  resolveStandaloneAudioToolConfigSummary,
+  type AudioToolConfigSummary,
+  type StandaloneAudioToolConfigState,
+} from "./audioToolConfig";
 
 export type RealtimeCaptionsLanguage =
   | "auto"
@@ -16,6 +24,7 @@ export type RealtimeCaptionsLanguage =
   | "es";
 
 export type RealtimeCaptionsOutputFormat = "txt" | "srt";
+export type RealtimeCaptionsInputAudioFormat = "pcm16" | "pcmu" | "pcma";
 
 export type RealtimeCaptionsMode =
   | "openai_realtime"
@@ -25,7 +34,7 @@ export type RealtimeCaptionsMode =
 export interface RealtimeCaptionsPreferences {
   language: RealtimeCaptionsLanguage;
   instructions: string;
-  inputAudioFormat: "pcm16" | "pcmu" | "pcma";
+  inputAudioFormat: RealtimeCaptionsInputAudioFormat;
   turnDetection: "server_vad" | "manual";
   outputFormat: RealtimeCaptionsOutputFormat;
   showAssistantTranscript: boolean;
@@ -55,6 +64,14 @@ export type RealtimeCaptionsSessionStatus =
   | "completed"
   | "failed";
 
+export interface RealtimeCaptionsConfigSummary
+  extends AudioToolConfigSummary {
+  mode: RealtimeCaptionsMode;
+  constraints?: AudioRealtimeRouteConstraints;
+  languages: RealtimeCaptionsLanguage[];
+  inputAudioFormats: RealtimeCaptionsInputAudioFormat[];
+}
+
 export const DEFAULT_REALTIME_CAPTIONS_PREFERENCES: RealtimeCaptionsPreferences = {
   language: "auto",
   instructions: "",
@@ -80,50 +97,109 @@ export const REALTIME_CAPTIONS_OUTPUT_FORMATS: RealtimeCaptionsOutputFormat[] = 
   "srt",
 ];
 
-export function resolveRealtimeCaptionsMode(
-  dialect: AudioApiDialect | undefined,
-  capabilities: string[] = [],
-): RealtimeCaptionsMode {
-  if (dialect === "openai_realtime") {
-    return capabilities.includes("realtime_transcription")
-      ? "openai_realtime"
-      : "unsupported";
-  }
+export const REALTIME_CAPTIONS_INPUT_AUDIO_FORMATS:
+  RealtimeCaptionsInputAudioFormat[] = ["pcm16", "pcmu", "pcma"];
 
+export function resolveRealtimeCaptionsConfigSummary(
+  state: StandaloneAudioToolConfigState,
+): RealtimeCaptionsConfigSummary {
+  const base = resolveStandaloneAudioToolConfigSummary(
+    state,
+    "realtimeCaptions",
+  );
+  const fallback: RealtimeCaptionsConfigSummary = {
+    ...base,
+    mode: "unsupported",
+    languages: [],
+    inputAudioFormats: [],
+  };
   if (
-    (dialect === "mimo_chat_audio" || dialect === "openai_audio") &&
-    capabilities.includes("streaming_transcription")
+    base.status !== "ready" ||
+    !base.providerPreset ||
+    !base.route
   ) {
-    return "chunked_near_realtime";
+    return fallback;
   }
 
-  return "unsupported";
+  const definition = resolveRealtimeRouteDefinition({
+    providerPreset: base.providerPreset,
+    assignmentKey: "realtimeCaptions",
+    transport: base.route.transport,
+    model: base.route.model,
+  });
+  if (!definition) {
+    return {
+      ...fallback,
+      status: "audio_route_not_configured",
+      capabilities: [],
+    };
+  }
+
+  const mode = definition.constraints.mode === "caption"
+    ? "openai_realtime"
+    : definition.constraints.mode === "chunked_near_realtime"
+      ? "chunked_near_realtime"
+      : "unsupported";
+  if (mode === "unsupported") {
+    return {
+      ...fallback,
+      status: "audio_route_not_configured",
+      capabilities: [],
+    };
+  }
+
+  return {
+    ...base,
+    mode,
+    constraints: definition.constraints,
+    languages: normalizeRealtimeCaptionLanguages(
+      definition.constraints.languages,
+    ),
+    inputAudioFormats: normalizeRealtimeInputAudioFormats(
+      definition.constraints.inputAudioFormats,
+    ),
+  };
 }
 
-export function canStartOpenAIRealtimeCaptions(
-  dialect: AudioApiDialect | undefined,
-  capabilities: string[] = [],
-): boolean {
-  return resolveRealtimeCaptionsMode(dialect, capabilities) === "openai_realtime";
+export function getRealtimeCaptionsRouteIdentity(
+  summary: RealtimeCaptionsConfigSummary,
+): string {
+  return [
+    summary.status,
+    summary.profileId ?? "",
+    summary.providerPreset ?? "",
+    summary.route?.transport ?? "",
+    summary.route?.model ?? "",
+    summary.route?.enabled === true ? "enabled" : "disabled",
+    summary.mode,
+  ].join(":");
 }
 
 export function normalizeRealtimeCaptionsPreferences(
   preferences: RealtimeCaptionsPreferences,
-  dialect?: AudioApiDialect,
+  constraints?: AudioRealtimeRouteConstraints,
 ): RealtimeCaptionsPreferences {
-  if (dialect !== "openai_realtime") {
-    return {
-      ...preferences,
-      inputAudioFormat: "pcm16",
-      turnDetection: "server_vad",
-      showAssistantTranscript: false,
-    };
-  }
+  const languages = normalizeRealtimeCaptionLanguages(constraints?.languages);
+  const inputAudioFormats = normalizeRealtimeInputAudioFormats(
+    constraints?.inputAudioFormats,
+  );
+  const language = languages.includes(preferences.language)
+    ? preferences.language
+    : languages.includes("auto")
+      ? "auto"
+      : languages[0] ?? "auto";
+  const inputAudioFormat = inputAudioFormats.includes(
+    preferences.inputAudioFormat,
+  )
+    ? preferences.inputAudioFormat
+    : inputAudioFormats[0] ?? "pcm16";
   return {
     ...preferences,
-    // Realtime transcription sessions do not produce assistant responses, and
-    // gpt-realtime-whisper does not accept a prompt today.
-    instructions: "",
+    language,
+    inputAudioFormat,
+    instructions: constraints?.supportsInstructions
+      ? preferences.instructions
+      : "",
     showAssistantTranscript: false,
     turnDetection: "server_vad",
   };
@@ -131,9 +207,12 @@ export function normalizeRealtimeCaptionsPreferences(
 
 export function buildRealtimeCaptionsSessionConfig(
   preferences: RealtimeCaptionsPreferences,
-  dialect?: AudioApiDialect,
+  constraints: AudioRealtimeRouteConstraints,
 ): AudioRealtimeSessionConfig {
-  const normalized = normalizeRealtimeCaptionsPreferences(preferences, dialect);
+  const normalized = normalizeRealtimeCaptionsPreferences(
+    preferences,
+    constraints,
+  );
   return {
     assignmentKey: "realtimeCaptions",
     mode: "caption",
@@ -146,6 +225,36 @@ export function buildRealtimeCaptionsSessionConfig(
     inputAudioFormat: normalized.inputAudioFormat,
     turnDetection: normalized.turnDetection,
   };
+}
+
+function normalizeRealtimeCaptionLanguages(
+  values: readonly string[] | undefined,
+): RealtimeCaptionsLanguage[] {
+  if (!values) return [...REALTIME_CAPTIONS_LANGUAGES];
+  return values.filter(isRealtimeCaptionsLanguage);
+}
+
+function normalizeRealtimeInputAudioFormats(
+  values: readonly string[] | undefined,
+): RealtimeCaptionsInputAudioFormat[] {
+  if (!values) return [];
+  return values.filter(isRealtimeCaptionsInputAudioFormat);
+}
+
+function isRealtimeCaptionsLanguage(
+  value: string,
+): value is RealtimeCaptionsLanguage {
+  return REALTIME_CAPTIONS_LANGUAGES.includes(
+    value as RealtimeCaptionsLanguage,
+  );
+}
+
+function isRealtimeCaptionsInputAudioFormat(
+  value: string,
+): value is RealtimeCaptionsInputAudioFormat {
+  return REALTIME_CAPTIONS_INPUT_AUDIO_FORMATS.includes(
+    value as RealtimeCaptionsInputAudioFormat,
+  );
 }
 
 export function formatRealtimeCaptionLines(

@@ -65,6 +65,12 @@ export interface AudioRealtimeRouteConstraints {
   supportsInstructions: boolean;
   supportsLanguage: boolean;
   supportsVoice: boolean;
+  languages?: readonly string[];
+  inputAudioFormats?: readonly ("pcm16" | "pcmu" | "pcma")[];
+}
+
+export interface AudioRealtimeRouteDefinition {
+  constraints: AudioRealtimeRouteConstraints;
 }
 
 export interface AudioProviderDefinition {
@@ -103,6 +109,23 @@ const MIMO_SPEECH_FORMATS = [
   "wav",
   "pcm16",
 ] as const satisfies readonly AudioSpeechResponseFormat[];
+
+const OPENAI_REALTIME_CAPTION_LANGUAGES = [
+  "auto",
+  "zh",
+  "en",
+  "ja",
+  "ko",
+  "fr",
+  "de",
+  "es",
+] as const;
+
+const OPENAI_REALTIME_INPUT_AUDIO_FORMATS = [
+  "pcm16",
+  "pcmu",
+  "pcma",
+] as const;
 
 const OPENAI_WHISPER_TRANSCRIPTION_CONSTRAINTS = {
   responseFormats: ["json", "text", "srt", "verbose_json", "vtt"],
@@ -152,6 +175,8 @@ const AUDIO_PROVIDER_REGISTRY: Record<
         supportsInstructions: false,
         supportsLanguage: true,
         supportsVoice: false,
+        languages: OPENAI_REALTIME_CAPTION_LANGUAGES,
+        inputAudioFormats: OPENAI_REALTIME_INPUT_AUDIO_FORMATS,
       },
       realtimeVoice: {
         mode: "duplex_voice",
@@ -257,6 +282,8 @@ const AUDIO_PROVIDER_REGISTRY: Record<
         supportsInstructions: false,
         supportsLanguage: true,
         supportsVoice: false,
+        languages: OPENAI_REALTIME_CAPTION_LANGUAGES,
+        inputAudioFormats: OPENAI_REALTIME_INPUT_AUDIO_FORMATS,
       },
       realtimeVoice: {
         mode: "duplex_voice",
@@ -356,7 +383,63 @@ export function getRealtimeRouteConstraints(
   assignmentKey: "realtimeCaptions" | "realtimeVoice",
 ): AudioRealtimeRouteConstraints | undefined {
   const constraints = AUDIO_PROVIDER_REGISTRY[preset].constraints[assignmentKey];
-  return constraints ? { ...constraints } : undefined;
+  return constraints ? cloneRealtimeConstraints(constraints) : undefined;
+}
+
+export function resolveRealtimeRouteDefinition(options: {
+  providerPreset: AudioProviderPreset;
+  assignmentKey: "realtimeCaptions" | "realtimeVoice";
+  transport: AudioTransport;
+  model: string;
+}): AudioRealtimeRouteDefinition | undefined {
+  const model = options.model.trim().toLowerCase();
+  if (
+    !model ||
+    !isAudioRouteTransportSupported({
+      preset: options.providerPreset,
+      assignmentKey: options.assignmentKey,
+      transport: options.transport,
+    })
+  ) {
+    return undefined;
+  }
+
+  if (options.providerPreset === "mimo") {
+    if (
+      options.assignmentKey !== "realtimeCaptions" ||
+      model !== "mimo-v2.5-asr"
+    ) {
+      return undefined;
+    }
+  } else if (options.providerPreset === "openai") {
+    const knownModel = options.assignmentKey === "realtimeCaptions"
+      ? isOpenAIRealtimeCaptionModel(model)
+      : isOpenAIRealtimeVoiceModel(model);
+    if (!knownModel) return undefined;
+  }
+
+  const constraints = getRealtimeRouteConstraints(
+    options.providerPreset,
+    options.assignmentKey,
+  );
+  if (!constraints) return undefined;
+
+  if (
+    options.providerPreset === "mimo" &&
+    options.assignmentKey === "realtimeCaptions"
+  ) {
+    const transcription = resolveTranscriptionRouteDefinition({
+      providerPreset: options.providerPreset,
+      transport: options.transport,
+      model: options.model,
+    });
+    if (!transcription) return undefined;
+    constraints.languages = transcription.constraints.languages
+      ? [...transcription.constraints.languages]
+      : undefined;
+  }
+
+  return { constraints };
 }
 
 export function getAvailableSpeechSynthesisModes(
@@ -531,6 +614,18 @@ function isOpenAIWhisperTranscriptionModel(model: string): boolean {
   return model === "whisper-1" || model.startsWith("whisper-1-");
 }
 
+function isOpenAIRealtimeCaptionModel(model: string): boolean {
+  return model === "gpt-realtime-whisper" ||
+    model.startsWith("gpt-realtime-whisper-");
+}
+
+function isOpenAIRealtimeVoiceModel(model: string): boolean {
+  return (
+    model === "gpt-realtime" ||
+    model.startsWith("gpt-realtime-")
+  ) && !model.includes("whisper") && !model.includes("transcrib");
+}
+
 function isConfiguredRoute(
   routeValue: AudioRoute | null | undefined,
 ): routeValue is AudioRoute {
@@ -567,14 +662,16 @@ function cloneDefinition(
       ),
       ...(definition.constraints.realtimeCaptions
         ? {
-            realtimeCaptions: {
-              ...definition.constraints.realtimeCaptions,
-            },
+            realtimeCaptions: cloneRealtimeConstraints(
+              definition.constraints.realtimeCaptions,
+            ),
           }
         : {}),
       ...(definition.constraints.realtimeVoice
         ? {
-            realtimeVoice: { ...definition.constraints.realtimeVoice },
+            realtimeVoice: cloneRealtimeConstraints(
+              definition.constraints.realtimeVoice,
+            ),
           }
         : {}),
     },
@@ -619,6 +716,20 @@ function cloneTranscriptionConstraints(
     responseFormats: [...constraints.responseFormats],
     ...(constraints.languages
       ? { languages: [...constraints.languages] }
+      : {}),
+  };
+}
+
+function cloneRealtimeConstraints(
+  constraints: AudioRealtimeRouteConstraints,
+): AudioRealtimeRouteConstraints {
+  return {
+    ...constraints,
+    ...(constraints.languages
+      ? { languages: [...constraints.languages] }
+      : {}),
+    ...(constraints.inputAudioFormats
+      ? { inputAudioFormats: [...constraints.inputAudioFormats] }
       : {}),
   };
 }

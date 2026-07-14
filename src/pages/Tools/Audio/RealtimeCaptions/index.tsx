@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { useNavigate } from "react-router-dom";
 import {
   AlertTriangle,
   Captions,
@@ -12,13 +13,14 @@ import {
   Play,
   Radio,
   Save,
+  Settings2,
   Square,
   Trash2,
 } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { ButtonGroup } from "@/components/ui/button-group";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import {
   Select,
   SelectContent,
@@ -26,32 +28,31 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Switch } from "@/components/ui/switch";
-import { Textarea } from "@/components/ui/textarea";
 import { ToolField, ToolPanel } from "@/pages/Tools/_shared/ui";
 import { cn } from "@/lib/utils";
 import { showToast } from "@/utils/toast";
-import type { AudioRole } from "@/type/audio";
+import type { AudioApiProfile, AudioRole } from "@/type/audio";
 import type { AudioIpcError, AudioRealtimeSessionEvent } from "@/type/audioIpc";
 import {
-  cancelRecordedAudioChunkTranscription,
+  flushPendingAudioRealtimeSessionStops,
+  flushPendingRecordedAudioChunkTranscriptionCancellations,
+  queueRecordedAudioChunkTranscriptionCancellation,
+  settleRecordedAudioChunkTranscriptionCancellation,
   startOpenAIRealtimeWebRtcSession,
   transcribeRecordedAudioChunk,
   type AudioRealtimeSessionHandle,
 } from "@/services/audio/audioRealtimeService";
-import AudioToolShell, {
-  type AudioToolShellContext,
-} from "../shared/AudioToolShell";
+import AudioToolShell from "../shared/AudioToolShell";
 import {
-  REALTIME_CAPTIONS_LANGUAGES,
   REALTIME_CAPTIONS_OUTPUT_FORMATS,
   buildRealtimeCaptionsSessionConfig,
-  canStartOpenAIRealtimeCaptions,
   createRealtimeCaptionLine,
   formatRealtimeCaptionLines,
+  getRealtimeCaptionsRouteIdentity,
   getRealtimeSessionCloseStatus,
   normalizeRealtimeCaptionsPreferences,
-  resolveRealtimeCaptionsMode,
+  resolveRealtimeCaptionsConfigSummary,
+  type RealtimeCaptionsConfigSummary,
   type RealtimeCaptionsMode,
 } from "@/store/tools/audio/realtimeCaptionsConfig";
 import useRealtimeCaptionsStore, {
@@ -62,30 +63,60 @@ import { WavChunkRecorder } from "../shared/wavChunkRecorder";
 import { useElapsedMs } from "../shared/useElapsedMs";
 import { saveAudioTextOutput } from "@/services/audio/audioTranscriptionService";
 import { getAudioErrorMessage } from "../shared/audioErrorMessage";
+import useAudioApiStore from "@/store/useAudioApiStore";
 
 const CHUNK_QUEUE_MAX_PENDING_ITEMS = 4;
 const CHUNK_QUEUE_MAX_PENDING_BYTES = 4 * 1024 * 1024;
 const CHUNK_QUEUE_MAX_AGE_MS = 30_000;
+const CHUNK_FINAL_DRAIN_TIMEOUT_MS = 15_000;
+const CAPTIONS_SETTINGS_PATH =
+  "/setting?tab=audio&returnTo=%2Ftools%2Faudio%2Frealtime-captions";
 
 export default function RealtimeCaptions() {
+  const profiles = useAudioApiStore((state) => state.profiles);
+  const assignment = useAudioApiStore((state) => state.assignment);
+  const summary = useMemo(
+    () => resolveRealtimeCaptionsConfigSummary({ profiles, assignment }),
+    [assignment, profiles],
+  );
+  const routeIdentity = getRealtimeCaptionsRouteIdentity(summary);
+  const assignedProfile = useMemo(
+    () => profiles.find((profile) => profile.id === summary.profileId),
+    [profiles, summary.profileId],
+  );
+
   return (
-    <AudioToolShell
-      toolKey="realtimeCaptions"
-      assignmentKey="realtimeCaptions"
-      titleKey="audio:pages.captions.title"
-      descriptionKey="audio:pages.captions.description"
-      workspaceTitleKey="audio:pages.captions.workspace"
-      asideExtra={(context) => <RealtimeCaptionsConfig context={context} />}
-    >
-      {(context) => <RealtimeCaptionsWorkspace context={context} />}
-    </AudioToolShell>
+    <div data-testid="realtime-captions">
+      <AudioToolShell
+        toolKey="realtimeCaptions"
+        assignmentKey="realtimeCaptions"
+        titleKey="audio:pages.captions.title"
+        descriptionKey="audio:pages.captions.description"
+        workspaceTitleKey="audio:pages.captions.workspace"
+        configSummaryOverride={summary}
+        settingsPath={CAPTIONS_SETTINGS_PATH}
+        asideExtra={() =>
+          summary.status === "ready" && summary.constraints ? (
+            <RealtimeCaptionsConfig summary={summary} />
+          ) : null
+        }
+      >
+        {() => (
+          <RealtimeCaptionsWorkspace
+            summary={summary}
+            assignedProfile={assignedProfile}
+            routeIdentity={routeIdentity}
+          />
+        )}
+      </AudioToolShell>
+    </div>
   );
 }
 
 function RealtimeCaptionsConfig({
-  context,
+  summary,
 }: {
-  context: AudioToolShellContext;
+  summary: RealtimeCaptionsConfigSummary;
 }) {
   const { t } = useTranslation(["audio"]);
   const preferences = useRealtimeCaptionsStore((state) => state.preferences);
@@ -93,23 +124,24 @@ function RealtimeCaptionsConfig({
   const updatePreferences = useRealtimeCaptionsStore(
     (state) => state.updatePreferences,
   );
-  const mode = resolveRealtimeCaptionsMode(
-    context.configSummary.audioDialect,
-    context.configSummary.capabilities,
-  );
+  const mode = summary.mode;
   const normalized = useMemo(
     () =>
       normalizeRealtimeCaptionsPreferences(
         preferences,
-        context.configSummary.audioDialect,
+        summary.constraints,
       ),
-    [context.configSummary.audioDialect, preferences],
+    [preferences, summary.constraints],
   );
   const isOpenAIRealtime = mode === "openai_realtime";
   const configLocked = ["requesting", "connecting", "listening", "stopping"].includes(status);
 
   return (
-    <fieldset className="space-y-4" disabled={configLocked}>
+    <fieldset
+      data-testid="captions-config"
+      className="space-y-4"
+      disabled={configLocked}
+    >
       <div className="flex items-center justify-between gap-3 rounded-lg border px-3 py-2">
         <span className="text-xs text-muted-foreground">
           {t("audio:captions.fields.mode")}
@@ -134,7 +166,7 @@ function RealtimeCaptionsConfig({
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            {REALTIME_CAPTIONS_LANGUAGES.map((language) => (
+            {summary.languages.map((language) => (
               <SelectItem key={language} value={language}>
                 {t(`audio:captions.languages.${language}`)}
               </SelectItem>
@@ -143,53 +175,57 @@ function RealtimeCaptionsConfig({
         </Select>
       </ToolField>
 
-      <ToolField
-        label={t("audio:captions.fields.input_audio_format")}
-        hint={t("audio:captions.hints.input_audio_format")}
-      >
-        <ButtonGroup className="w-full" role="radiogroup" aria-label={t("audio:captions.fields.input_audio_format")}>
-          {(["pcm16", "pcmu", "pcma"] as const).map((format) => (
-            <Button
-              key={format}
-              type="button"
-              role="radio"
-              aria-checked={normalized.inputAudioFormat === format}
-              size="sm"
-              className="flex-1"
-              disabled={!isOpenAIRealtime}
-              variant={normalized.inputAudioFormat === format ? "default" : "outline"}
-              onClick={() => updatePreferences({ inputAudioFormat: format })}
-            >
-              {t(`audio:captions.input_audio_format.${format}`)}
-            </Button>
-          ))}
-        </ButtonGroup>
-      </ToolField>
+      {isOpenAIRealtime && summary.inputAudioFormats.length > 0 ? (
+        <ToolField
+          testId="captions-input-audio-format"
+          label={t("audio:captions.fields.input_audio_format")}
+          hint={t("audio:captions.hints.input_audio_format")}
+        >
+          <RadioGroup
+            className="grid w-full grid-cols-3 gap-0"
+            value={normalized.inputAudioFormat}
+            aria-label={t("audio:captions.fields.input_audio_format")}
+            onValueChange={(inputAudioFormat) =>
+              updatePreferences({
+                inputAudioFormat: inputAudioFormat as typeof normalized.inputAudioFormat,
+              })
+            }
+            onKeyDownCapture={(event) => {
+              if (event.key !== "Home" && event.key !== "End") return;
+              event.preventDefault();
+              const inputAudioFormat = event.key === "Home"
+                ? summary.inputAudioFormats[0]
+                : summary.inputAudioFormats.at(-1)!;
+              updatePreferences({ inputAudioFormat });
+              event.currentTarget
+                .querySelector<HTMLElement>(
+                  `[data-testid="captions-input-format-${inputAudioFormat}"]`,
+                )
+                ?.focus();
+            }}
+          >
+            {summary.inputAudioFormats.map((format) => (
+              <RadioGroupItem
+                key={format}
+                value={format}
+                data-testid={`captions-input-format-${format}`}
+                className={cn(
+                  "h-auto min-h-9 min-w-0 w-full aspect-auto rounded-none px-1.5 py-1.5 text-center text-[11px] font-medium first:rounded-l-md last:rounded-r-md [&:not(:first-child)]:border-l-0",
+                  "whitespace-normal data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground data-[state=unchecked]:bg-background data-[state=unchecked]:hover:bg-accent data-[state=unchecked]:hover:text-accent-foreground",
+                  "[&>[data-slot=radio-group-indicator]]:hidden",
+                )}
+              >
+                <span className="pointer-events-none min-w-0 break-words leading-tight">
+                  {t(`audio:captions.input_audio_format.${format}`)}
+                </span>
+              </RadioGroupItem>
+            ))}
+          </RadioGroup>
+        </ToolField>
+      ) : null}
 
       <ToolField
-        label={t("audio:captions.fields.turn_detection")}
-        hint={t("audio:captions.hints.turn_detection")}
-      >
-        <ButtonGroup className="w-full" role="radiogroup" aria-label={t("audio:captions.fields.turn_detection")}>
-          {(["server_vad", "manual"] as const).map((turnDetection) => (
-            <Button
-              key={turnDetection}
-              type="button"
-              role="radio"
-              aria-checked={normalized.turnDetection === turnDetection}
-              size="sm"
-              className="flex-1"
-              disabled={!isOpenAIRealtime || turnDetection === "manual"}
-              variant={normalized.turnDetection === turnDetection ? "default" : "outline"}
-              onClick={() => updatePreferences({ turnDetection })}
-            >
-              {t(`audio:captions.turn_detection.${turnDetection}`)}
-            </Button>
-          ))}
-        </ButtonGroup>
-      </ToolField>
-
-      <ToolField
+        testId="captions-output-format"
         label={t("audio:captions.fields.output_format")}
         htmlFor="captions-output-format"
         hint={t("audio:captions.hints.output_format")}
@@ -214,62 +250,30 @@ function RealtimeCaptionsConfig({
           </SelectContent>
         </Select>
       </ToolField>
-
-      <ToolField
-        label={t("audio:captions.fields.assistant_transcript")}
-        hint={t("audio:captions.hints.assistant_transcript")}
-        action={
-          <Switch
-            checked={normalized.showAssistantTranscript}
-            disabled
-            aria-label={t("audio:captions.fields.assistant_transcript")}
-            onCheckedChange={(checked) =>
-              updatePreferences({ showAssistantTranscript: Boolean(checked) })
-            }
-          />
-        }
-      >
-        <p className="text-[11px] leading-relaxed text-muted-foreground">
-          {t("audio:captions.hints.assistant_transcript_detail")}
-        </p>
-      </ToolField>
-
-      <ToolField
-        label={t("audio:captions.fields.instructions")}
-        htmlFor="captions-instructions"
-        hint={t("audio:captions.hints.instructions")}
-      >
-        <Textarea
-          id="captions-instructions"
-          value=""
-          disabled
-          rows={3}
-          className="resize-none text-xs"
-          placeholder={
-            isOpenAIRealtime
-              ? t("audio:captions.placeholders.instructions")
-              : t("audio:captions.placeholders.instructions_disabled")
-          }
-          onChange={(event) =>
-            updatePreferences({ instructions: event.currentTarget.value })
-          }
-        />
-      </ToolField>
     </fieldset>
   );
 }
 
 function RealtimeCaptionsWorkspace({
-  context,
+  summary,
+  assignedProfile,
+  routeIdentity,
 }: {
-  context: AudioToolShellContext;
+  summary: RealtimeCaptionsConfigSummary;
+  assignedProfile: AudioApiProfile | undefined;
+  routeIdentity: string;
 }) {
   const { t } = useTranslation(["audio"]);
+  const navigate = useNavigate();
   const sessionHandleRef = useRef<AudioRealtimeSessionHandle | null>(null);
   const chunkRecorderRef = useRef<WavChunkRecorder | null>(null);
   const chunkQueueRef = useRef<BoundedAsyncQueue | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const sessionGenerationRef = useRef(0);
+  const startLockRef = useRef(false);
+  const stopLockRef = useRef(false);
+  const previousAssignedProfileRef = useRef(assignedProfile);
+  const previousRouteIdentityRef = useRef(routeIdentity);
   const [paused, setPaused] = useState(false);
   const [inputLevel, setInputLevel] = useState(0);
   const partialStartedAtRef = useRef<Record<string, number>>({});
@@ -293,42 +297,15 @@ function RealtimeCaptionsWorkspace({
   const resetSessionState = useRealtimeCaptionsStore(
     (state) => state.resetSessionState,
   );
-  const seedProfileDefaults = useRealtimeCaptionsStore(
-    (state) => state.seedProfileDefaults,
-  );
-  const mode = resolveRealtimeCaptionsMode(
-    context.configSummary.audioDialect,
-    context.configSummary.capabilities,
-  );
-  const canStartOpenAI =
-    context.configSummary.status === "ready" &&
-    canStartOpenAIRealtimeCaptions(
-      context.configSummary.audioDialect,
-      context.configSummary.capabilities,
-    );
-  const canStartChunked =
-    context.configSummary.status === "ready" &&
-    mode === "chunked_near_realtime";
-  const canStart = canStartOpenAI || canStartChunked;
+  const mode = summary.mode;
+  const canStart = summary.status === "ready" && Boolean(summary.constraints);
   const isRunning = ["requesting", "connecting", "listening", "stopping"].includes(
     status,
   );
-  const canStop = isRunning || status === "failed";
+  const canStop = ["requesting", "connecting", "listening"].includes(status);
   const displayLines = lines.filter((line) => line.role === "user");
   const visibleLines = displayLines.slice(-300);
   const elapsedMs = useElapsedMs(startedAtMs, isRunning);
-
-  useEffect(() => {
-    if (!context.configSummary.profileId) return;
-    seedProfileDefaults(
-      context.configSummary.profileId,
-      context.configSummary.defaults ?? {},
-    );
-  }, [
-    context.configSummary.defaults,
-    context.configSummary.profileId,
-    seedProfileDefaults,
-  ]);
 
   const releaseOwnedResources = useCallback(async (
     reason: "user" | "error" | "page_unload",
@@ -344,8 +321,8 @@ function RealtimeCaptionsWorkspace({
     sessionHandleRef.current = null;
 
     const flushFinalChunk = options.flushFinalChunk ?? false;
-    if (!flushFinalChunk) {
-      await queue?.abort();
+    if (handle && !handle.closed) {
+      void handle.stop(reason);
     }
     try {
       await recorder?.stop({ flushFinalChunk });
@@ -353,10 +330,10 @@ function RealtimeCaptionsWorkspace({
       // Recorder teardown still releases tracks in finally.
     }
     if (flushFinalChunk) {
-      await queue?.seal();
-    }
-    if (handle && !handle.closed) {
-      await handle.stop(reason);
+      const drained = await waitForPromise(queue?.seal(), CHUNK_FINAL_DRAIN_TIMEOUT_MS);
+      if (!drained) void queue?.abort();
+    } else {
+      void queue?.abort();
     }
   }, []);
 
@@ -380,6 +357,8 @@ function RealtimeCaptionsWorkspace({
   ]);
 
   useEffect(() => {
+    void flushPendingRecordedAudioChunkTranscriptionCancellations();
+    void flushPendingAudioRealtimeSessionStops();
     return () => {
       sessionGenerationRef.current += 1;
       void releaseOwnedResources("page_unload");
@@ -387,13 +366,48 @@ function RealtimeCaptionsWorkspace({
     };
   }, [releaseOwnedResources]);
 
+  useEffect(() => {
+    if (
+      previousAssignedProfileRef.current === assignedProfile &&
+      previousRouteIdentityRef.current === routeIdentity
+    ) {
+      return;
+    }
+    previousAssignedProfileRef.current = assignedProfile;
+    previousRouteIdentityRef.current = routeIdentity;
+    sessionGenerationRef.current += 1;
+    void releaseOwnedResources("page_unload");
+    resetSessionState();
+    setPaused(false);
+    setInputLevel(0);
+    partialStartedAtRef.current = {};
+  }, [
+    assignedProfile,
+    releaseOwnedResources,
+    resetSessionState,
+    routeIdentity,
+  ]);
+
+  const isRouteSnapshotCurrent = useCallback(() => {
+    const latestState = useAudioApiStore.getState();
+    const latestSummary = resolveRealtimeCaptionsConfigSummary(latestState);
+    const latestProfile = latestState.profiles.find(
+      (profile) => profile.id === latestSummary.profileId,
+    );
+    return (
+      latestProfile === assignedProfile &&
+      getRealtimeCaptionsRouteIdentity(latestSummary) === routeIdentity
+    );
+  }, [assignedProfile, routeIdentity]);
+
   const getElapsedMs = useCallback(() => {
     const state = useRealtimeCaptionsStore.getState();
     return Math.max(0, Date.now() - (state.startedAtMs ?? Date.now()));
   }, []);
 
-  const handleStart = useCallback(async () => {
-    if (!canStart) {
+  const runStart = useCallback(async () => {
+    const constraints = summary.constraints;
+    if (!canStart || !constraints) {
       setLastError({
         code: "renderer_error",
         message:
@@ -408,7 +422,10 @@ function RealtimeCaptionsWorkspace({
     const generation = sessionGenerationRef.current + 1;
     sessionGenerationRef.current = generation;
     await releaseOwnedResources("user");
-    if (sessionGenerationRef.current !== generation) return;
+    if (
+      sessionGenerationRef.current !== generation ||
+      !isRouteSnapshotCurrent()
+    ) return;
     const controller = new AbortController();
     abortControllerRef.current = controller;
     resetSessionState();
@@ -423,8 +440,11 @@ function RealtimeCaptionsWorkspace({
 
     const normalized = normalizeRealtimeCaptionsPreferences(
       preferences,
-      context.configSummary.audioDialect,
+      constraints,
     );
+    const isCurrentSession = () =>
+      sessionGenerationRef.current === generation &&
+      isRouteSnapshotCurrent();
     if (mode === "chunked_near_realtime") {
       const queue = new BoundedAsyncQueue({
         maxPendingItems: CHUNK_QUEUE_MAX_PENDING_ITEMS,
@@ -445,7 +465,8 @@ function RealtimeCaptionsWorkspace({
         chunkDurationMs: 5000,
         onVolume: setInputLevel,
         onChunk: (chunk) => {
-          if (sessionGenerationRef.current !== generation) return;
+          if (!isCurrentSession()) return;
+          let dispatched = false;
           queue.enqueue({
             id: chunk.requestId,
             sizeBytes: chunk.bytes.byteLength,
@@ -453,39 +474,60 @@ function RealtimeCaptionsWorkspace({
               if (signal.aborted || sessionGenerationRef.current !== generation) {
                 return;
               }
-              const result = await transcribeRecordedAudioChunk({
-                assignmentKey: "realtimeCaptions",
-                requestId: chunk.requestId,
-                audioBytes: chunk.bytes,
-                mimeType: "audio/wav",
-                responseFormat: "text",
-                ...(normalized.language !== "auto"
-                  ? { language: normalized.language }
-                  : {}),
-                startedAtMs: chunk.startedAtMs,
-                endedAtMs: chunk.endedAtMs,
-              });
-              if (signal.aborted || sessionGenerationRef.current !== generation) {
-                return;
+              try {
+                const result = await transcribeRecordedAudioChunk({
+                  assignmentKey: "realtimeCaptions",
+                  requestId: chunk.requestId,
+                  audioBytes: chunk.bytes,
+                  mimeType: "audio/wav",
+                  responseFormat: "text",
+                  ...(normalized.language !== "auto"
+                    ? { language: normalized.language }
+                    : {}),
+                  startedAtMs: chunk.startedAtMs,
+                  endedAtMs: chunk.endedAtMs,
+                }, {
+                  signal,
+                  onDispatch: () => {
+                    dispatched = true;
+                  },
+                });
+                if (
+                  signal.aborted ||
+                  sessionGenerationRef.current !== generation ||
+                  !isRouteSnapshotCurrent()
+                ) {
+                  return;
+                }
+                if (!result.ok) {
+                  if (result.error.code === "aborted") return;
+                  throw result.error;
+                }
+                const text = result.data.text.trim();
+                if (!text) return;
+                addLine(
+                  createRealtimeCaptionLine({
+                    id: result.data.requestId,
+                    role: "user",
+                    text,
+                    startedAtMs: result.data.startedAtMs ?? chunk.startedAtMs,
+                    endedAtMs: result.data.endedAtMs ?? chunk.endedAtMs,
+                  }),
+                );
+              } finally {
+                // After dispatch, invokeAudioTaskIpc resolves only when main has
+                // settled the request. Renderer abort alone does not resolve it.
+                settleRecordedAudioChunkTranscriptionCancellation(
+                  chunk.requestId,
+                );
               }
-              if (!result.ok) {
-                if (result.error.code === "aborted") return;
-                throw result.error;
-              }
-              const text = result.data.text.trim();
-              if (!text) return;
-              addLine(
-                createRealtimeCaptionLine({
-                  id: result.data.requestId,
-                  role: "user",
-                  text,
-                  startedAtMs: result.data.startedAtMs ?? chunk.startedAtMs,
-                  endedAtMs: result.data.endedAtMs ?? chunk.endedAtMs,
-                }),
-              );
             },
-            cancel: async () => {
-              await cancelRecordedAudioChunkTranscription(chunk.requestId);
+            cancel: () => {
+              if (dispatched) {
+                void queueRecordedAudioChunkTranscriptionCancellation(
+                  chunk.requestId,
+                );
+              }
             },
           });
         },
@@ -502,8 +544,8 @@ function RealtimeCaptionsWorkspace({
         chunkRecorderRef.current = recorder;
         await recorder.start();
         if (
-          sessionGenerationRef.current !== generation
-          || controller.signal.aborted
+          !isCurrentSession() ||
+          controller.signal.aborted
         ) {
           await recorder.stop({ flushFinalChunk: false });
           await queue.abort();
@@ -515,7 +557,7 @@ function RealtimeCaptionsWorkspace({
       } catch (error) {
         await recorder.stop({ flushFinalChunk: false }).catch(() => undefined);
         await queue.abort();
-        if (sessionGenerationRef.current !== generation) return;
+        if (!isCurrentSession()) return;
         failSession({
           code: isMicrophonePermissionError(error)
             ? "microphone_permission_denied"
@@ -530,7 +572,7 @@ function RealtimeCaptionsWorkspace({
 
     const request = buildRealtimeCaptionsSessionConfig(
       normalized,
-      context.configSummary.audioDialect,
+      constraints,
     );
     setStatus("connecting");
 
@@ -539,16 +581,16 @@ function RealtimeCaptionsWorkspace({
       onInputLevel: setInputLevel,
       handlers: {
         sessionStarted: (event) => {
-          if (sessionGenerationRef.current !== generation) return;
+          if (!isCurrentSession()) return;
           setSessionId(event.sessionId);
           setStatus("listening");
         },
         micState: (event) => {
-          if (sessionGenerationRef.current !== generation) return;
+          if (!isCurrentSession()) return;
           setMicState(event.state);
         },
         transcriptDelta: (event) => {
-          if (sessionGenerationRef.current !== generation) return;
+          if (!isCurrentSession()) return;
           if (event.role === "assistant" && !normalized.showAssistantTranscript) {
             return;
           }
@@ -562,7 +604,7 @@ function RealtimeCaptionsWorkspace({
           setPartial(partialKey, event.role, `${current}${event.text}`);
         },
         transcriptFinal: (event) => {
-          if (sessionGenerationRef.current !== generation) return;
+          if (!isCurrentSession()) return;
           if (event.role === "assistant" && !normalized.showAssistantTranscript) {
             clearPartial(getRealtimePartialKey(event));
             return;
@@ -586,12 +628,12 @@ function RealtimeCaptionsWorkspace({
         error: (event) => {
           if (event.fatal) {
             failSession(toRealtimeCaptionsUiError(event.error), generation);
-          } else if (sessionGenerationRef.current === generation) {
+          } else if (isCurrentSession()) {
             setLastError(toRealtimeCaptionsUiError(event.error));
           }
         },
         sessionClosed: (event) => {
-          if (sessionGenerationRef.current !== generation) return;
+          if (!isCurrentSession()) return;
           sessionHandleRef.current = null;
           abortControllerRef.current = null;
           setStatus(getRealtimeSessionCloseStatus(event.reason));
@@ -602,8 +644,8 @@ function RealtimeCaptionsWorkspace({
     });
 
     if (
-      sessionGenerationRef.current !== generation
-      || controller.signal.aborted
+      !isCurrentSession() ||
+      controller.signal.aborted
     ) {
       if (result.ok && !result.data.closed) {
         await result.data.stop("page_unload");
@@ -625,9 +667,9 @@ function RealtimeCaptionsWorkspace({
     addLine,
     canStart,
     clearPartial,
-    context.configSummary.audioDialect,
     failSession,
     getElapsedMs,
+    isRouteSnapshotCurrent,
     mode,
     preferences,
     releaseOwnedResources,
@@ -638,25 +680,46 @@ function RealtimeCaptionsWorkspace({
     setSessionId,
     setStartedAtMs,
     setStatus,
+    summary.constraints,
     t,
   ]);
 
-  const handleStop = useCallback(async () => {
+  const handleStart = useCallback(() => {
+    if (startLockRef.current) return;
+    startLockRef.current = true;
+    void runStart().finally(() => {
+      startLockRef.current = false;
+    });
+  }, [runStart]);
+
+  const runStop = useCallback(async () => {
     const generation = sessionGenerationRef.current;
     const flushFinalChunk = Boolean(chunkRecorderRef.current);
+    let completionGeneration = generation;
     if (!flushFinalChunk) {
-      sessionGenerationRef.current += 1;
+      completionGeneration = generation + 1;
+      sessionGenerationRef.current = completionGeneration;
     }
     setStatus("stopping");
     await releaseOwnedResources("user", { flushFinalChunk });
     if (flushFinalChunk) {
       if (sessionGenerationRef.current !== generation) return;
       sessionGenerationRef.current += 1;
+    } else if (sessionGenerationRef.current !== completionGeneration) {
+      return;
     }
     setStatus("completed");
     setMicState("idle");
     setSessionId(null);
   }, [releaseOwnedResources, setMicState, setSessionId, setStatus]);
+
+  const handleStop = useCallback(() => {
+    if (stopLockRef.current) return;
+    stopLockRef.current = true;
+    void runStop().finally(() => {
+      stopLockRef.current = false;
+    });
+  }, [runStop]);
 
   const handlePause = useCallback(() => {
     const nextPaused = !paused;
@@ -718,6 +781,46 @@ function RealtimeCaptionsWorkspace({
     }
   }, [preferences.outputFormat, t, transcriptText]);
 
+  if (summary.status !== "ready" || !summary.constraints) {
+    return (
+      <ToolPanel
+        icon={Captions}
+        title={t("audio:pages.captions.workspace")}
+        badge={
+          <Badge variant="outline" className={resolveStatusBadgeClass("idle")}>
+            {t("audio:captions.status.idle")}
+          </Badge>
+        }
+        bodyClassName="p-5"
+      >
+        <div className="flex min-h-[280px] items-center justify-center rounded-lg border border-dashed bg-muted/20 px-4 py-8 text-center">
+          <div className="max-w-md space-y-4">
+            <div className="mx-auto flex size-10 items-center justify-center rounded-full border bg-background text-amber-600 dark:text-amber-300">
+              <Settings2 className="h-4 w-4" />
+            </div>
+            <div className="space-y-1.5">
+              <div className="text-sm font-medium">
+                {t(`audio:workspace.${summary.status}.title`)}
+              </div>
+              <div className="text-xs leading-relaxed text-muted-foreground">
+                {t(`audio:workspace.${summary.status}.description`)}
+              </div>
+            </div>
+            <Button
+              data-testid="captions-config-cta"
+              type="button"
+              className="gap-1.5"
+              onClick={() => navigate(CAPTIONS_SETTINGS_PATH)}
+            >
+              <Settings2 className="h-4 w-4" />
+              {t("audio:global.configure_audio_api")}
+            </Button>
+          </div>
+        </div>
+      </ToolPanel>
+    );
+  }
+
   return (
     <ToolPanel
       icon={Captions}
@@ -729,7 +832,11 @@ function RealtimeCaptionsWorkspace({
       }
       bodyClassName="space-y-4 p-4"
     >
-      <div className="grid gap-3 md:grid-cols-5">
+      <div
+        data-testid="captions-workspace"
+        className="scroll-mt-20 space-y-4"
+      >
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
         <CaptionStat
           label={t("audio:captions.stats.mode")}
           value={t(`audio:captions.mode.${mode}`)}
@@ -750,7 +857,7 @@ function RealtimeCaptionsWorkspace({
           label={t("audio:captions.stats.session")}
           value={sessionId ?? "-"}
         />
-      </div>
+        </div>
       <div
         className="h-1.5 overflow-hidden rounded-full bg-muted"
         role="meter"
@@ -766,7 +873,10 @@ function RealtimeCaptionsWorkspace({
       </div>
 
       {mode === "chunked_near_realtime" ? (
-        <Alert className="border-sky-500/30 bg-sky-500/5">
+        <Alert
+          data-testid="captions-chunked-notice"
+          className="border-sky-500/30 bg-sky-500/5"
+        >
           <AlertTriangle className="h-4 w-4" />
           <AlertTitle>{t("audio:captions.chunked.title")}</AlertTitle>
           <AlertDescription>
@@ -787,6 +897,7 @@ function RealtimeCaptionsWorkspace({
 
       <div className="flex flex-wrap items-center gap-2">
         <Button
+          data-testid="captions-start"
           type="button"
           className="gap-2"
           disabled={isRunning || !canStart}
@@ -802,6 +913,7 @@ function RealtimeCaptionsWorkspace({
             : t("audio:captions.actions.start")}
         </Button>
         <Button
+          data-testid="captions-stop"
           type="button"
           variant="outline"
           className="gap-2"
@@ -812,6 +924,7 @@ function RealtimeCaptionsWorkspace({
           {t("audio:captions.actions.stop")}
         </Button>
         <Button
+          data-testid="captions-pause"
           type="button"
           variant="outline"
           className="gap-2"
@@ -860,6 +973,7 @@ function RealtimeCaptionsWorkspace({
         showAssistant={false}
         isRunning={isRunning}
       />
+      </div>
     </ToolPanel>
   );
 }
@@ -970,7 +1084,7 @@ function TranscriptLine({
 
 function CaptionStat({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-lg border bg-muted/10 px-3 py-2">
+    <div className="min-w-0 rounded-lg border bg-muted/10 px-3 py-2">
       <div className="text-[11px] text-muted-foreground">{label}</div>
       <div className="mt-1 truncate text-sm font-medium">{value}</div>
     </div>
@@ -1044,6 +1158,24 @@ function isMicrophonePermissionError(error: unknown): boolean {
     ? error.name === "NotAllowedError" || error.name === "SecurityError"
     : error instanceof Error
       && (error.name === "NotAllowedError" || error.name === "SecurityError");
+}
+
+async function waitForPromise(
+  promise: Promise<void> | undefined,
+  timeoutMs: number,
+): Promise<boolean> {
+  if (!promise) return true;
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      promise.then(() => true, () => false),
+      new Promise<false>((resolve) => {
+        timeout = setTimeout(() => resolve(false), timeoutMs);
+      }),
+    ]);
+  } finally {
+    if (timeout !== undefined) clearTimeout(timeout);
+  }
 }
 
 function formatDuration(ms: number): string {

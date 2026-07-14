@@ -4,7 +4,7 @@ import type {
   AudioRuntimeAdapterModelConfig,
   ResolvedAudioRouteConfig,
 } from "@/type/audio";
-import { getRealtimeRouteConstraints } from "@/lib/audio-provider-registry";
+import { resolveRealtimeRouteDefinition } from "@/lib/audio-provider-registry";
 import {
   AUDIO_IPC_CHANNELS,
   audioIpcFailure,
@@ -184,16 +184,19 @@ function validateRealtimeTaskParameters(
   payload: AudioRealtimeSessionConfig,
   route: ResolvedAudioRouteConfig,
 ): AudioIpcError | undefined {
-  const constraints = getRealtimeRouteConstraints(
-    route.providerPreset,
-    payload.assignmentKey,
-  );
-  if (!constraints) {
+  const definition = resolveRealtimeRouteDefinition({
+    providerPreset: route.providerPreset,
+    assignmentKey: payload.assignmentKey,
+    transport: route.transport,
+    model: route.model,
+  });
+  if (!definition) {
     return invalidRealtimeTaskParameter(
       "assignmentKey",
       "The selected audio API does not define realtime constraints.",
     );
   }
+  const constraints = definition.constraints;
   if (constraints.mode !== payload.mode) {
     return invalidRealtimeTaskParameter(
       "mode",
@@ -210,6 +213,26 @@ function validateRealtimeTaskParameters(
     return invalidRealtimeTaskParameter(
       "language",
       "The selected audio route does not support language selection.",
+    );
+  }
+  if (
+    payload.language !== undefined &&
+    constraints.languages &&
+    !constraints.languages.includes(payload.language)
+  ) {
+    return invalidRealtimeTaskParameter(
+      "language",
+      "The selected audio route does not support the requested language.",
+    );
+  }
+  if (
+    payload.inputAudioFormat !== undefined &&
+    constraints.inputAudioFormats &&
+    !constraints.inputAudioFormats.includes(payload.inputAudioFormat)
+  ) {
+    return invalidRealtimeTaskParameter(
+      "inputAudioFormat",
+      "The selected audio route does not support the requested input format.",
     );
   }
   if (payload.voice !== undefined && !constraints.supportsVoice) {

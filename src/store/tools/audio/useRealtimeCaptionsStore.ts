@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 import type { AudioIpcError } from "@/type/audioIpc";
-import type { AudioModelProfile, AudioRole } from "@/type/audio";
+import type { AudioRole } from "@/type/audio";
 import {
   DEFAULT_REALTIME_CAPTIONS_PREFERENCES,
   REALTIME_CAPTIONS_LANGUAGES,
@@ -27,14 +27,8 @@ interface RealtimeCaptionsStore {
   lastError: RealtimeCaptionsUiError | null;
   lines: RealtimeCaptionLine[];
   partial: Record<string, { role: AudioRole; text: string }>;
-  profileSeedKey: string | null;
-  profileLanguageOverridden: boolean;
 
   updatePreferences: (patch: Partial<RealtimeCaptionsPreferences>) => void;
-  seedProfileDefaults: (
-    profileId: string,
-    defaults: AudioModelProfile["defaults"],
-  ) => void;
   setStatus: (status: RealtimeCaptionsSessionStatus) => void;
   setMicState: (state: RealtimeCaptionsMicState) => void;
   setSessionId: (sessionId: string | null) => void;
@@ -47,10 +41,12 @@ interface RealtimeCaptionsStore {
   resetSessionState: () => void;
 }
 
+export const REALTIME_CAPTIONS_STORE_VERSION = 4;
+
 const useRealtimeCaptionsStore = create<RealtimeCaptionsStore>()(
   persist(
     (set) => ({
-      preferences: DEFAULT_REALTIME_CAPTIONS_PREFERENCES,
+      preferences: { ...DEFAULT_REALTIME_CAPTIONS_PREFERENCES },
       status: "idle",
       micState: "idle",
       sessionId: null,
@@ -58,35 +54,13 @@ const useRealtimeCaptionsStore = create<RealtimeCaptionsStore>()(
       lastError: null,
       lines: [],
       partial: {},
-      profileSeedKey: null,
-      profileLanguageOverridden: false,
-
       updatePreferences: (patch) =>
         set((state) => ({
           preferences: {
             ...state.preferences,
             ...patch,
           },
-          ...(Object.prototype.hasOwnProperty.call(patch, "language")
-            ? { profileLanguageOverridden: true }
-            : {}),
         })),
-      seedProfileDefaults: (profileId, defaults) =>
-        set((state) => {
-          const profileSeedKey = `${profileId}:${defaults.language ?? ""}`;
-          if (profileSeedKey === state.profileSeedKey) return state;
-          const candidate = defaults.language as RealtimeCaptionsPreferences["language"];
-          const language = REALTIME_CAPTIONS_LANGUAGES.includes(candidate)
-            ? candidate
-            : undefined;
-          return {
-            profileSeedKey,
-            preferences:
-              language && !state.profileLanguageOverridden
-                ? { ...state.preferences, language }
-                : state.preferences,
-          };
-        }),
       setStatus: (status) => set({ status }),
       setMicState: (micState) => set({ micState }),
       setSessionId: (sessionId) => set({ sessionId }),
@@ -129,42 +103,16 @@ const useRealtimeCaptionsStore = create<RealtimeCaptionsStore>()(
     {
       name: "fusionkit-realtime-captions",
       storage: createJSONStorage(() => localStorage),
-      version: 3,
-      migrate: (persisted) => {
-        const value = persisted as { preferences?: Partial<RealtimeCaptionsPreferences> };
-        return {
-          preferences: {
-            ...DEFAULT_REALTIME_CAPTIONS_PREFERENCES,
-            ...(value?.preferences ?? {}),
-            inputAudioFormat:
-              value?.preferences?.inputAudioFormat === "pcmu" ||
-              value?.preferences?.inputAudioFormat === "pcma"
-                ? value.preferences.inputAudioFormat
-                : "pcm16",
-            turnDetection: "server_vad",
-            instructions: "",
-            showAssistantTranscript: false,
-          },
-          profileSeedKey: null,
-          profileLanguageOverridden:
-            value?.preferences?.language !== undefined &&
-            value.preferences.language !== "auto",
-        };
-      },
+      version: REALTIME_CAPTIONS_STORE_VERSION,
+      migrate: migrateRealtimeCaptionsPersistedState,
       partialize: (state) => ({
         preferences: state.preferences,
-        profileSeedKey: state.profileSeedKey,
-        profileLanguageOverridden: state.profileLanguageOverridden,
       }),
       merge: (persisted, current) => {
         const saved = isRecord(persisted) ? persisted : {};
         return {
           ...current,
-          ...saved,
-          preferences: sanitizeCaptionsPreferences(saved.preferences),
-          profileSeedKey:
-            typeof saved.profileSeedKey === "string" ? saved.profileSeedKey : null,
-          profileLanguageOverridden: saved.profileLanguageOverridden === true,
+          preferences: sanitizeRealtimeCaptionsPreferences(saved.preferences),
         } as RealtimeCaptionsStore;
       },
     },
@@ -173,7 +121,19 @@ const useRealtimeCaptionsStore = create<RealtimeCaptionsStore>()(
 
 export default useRealtimeCaptionsStore;
 
-function sanitizeCaptionsPreferences(value: unknown): RealtimeCaptionsPreferences {
+export function migrateRealtimeCaptionsPersistedState(
+  persisted: unknown,
+  _version: number,
+): Pick<RealtimeCaptionsStore, "preferences"> {
+  const saved = isRecord(persisted) ? persisted : {};
+  return {
+    preferences: sanitizeRealtimeCaptionsPreferences(saved.preferences),
+  };
+}
+
+export function sanitizeRealtimeCaptionsPreferences(
+  value: unknown,
+): RealtimeCaptionsPreferences {
   const saved = isRecord(value) ? value : {};
   const language = saved.language as RealtimeCaptionsPreferences["language"];
   return {

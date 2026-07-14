@@ -21,7 +21,58 @@ import {
   audioIpcUnavailableResult,
   invokeAudioTaskIpc,
   invokeAudioIpc,
+  type AudioTaskInvocationOptions,
 } from "./audioRuntimeConfigService";
+import {
+  BoundedCleanupRetryQueue,
+  runBoundedCleanupAttempt,
+} from "./boundedCleanupRetryQueue";
+
+const AUDIO_REALTIME_CLEANUP_RETRY_DELAYS_MS = [
+  25,
+  75,
+  150,
+  500,
+  1_000,
+  5_000,
+] as const;
+const AUDIO_REALTIME_CLEANUP_TTL_MS = 2 * 60 * 1_000;
+const AUDIO_REALTIME_CLEANUP_ATTEMPT_TIMEOUT_MS = 5_000;
+
+type StopAudioRealtimeSessionInvoker = (
+  request: StopAudioRealtimeSessionRequest,
+) => Promise<AudioIpcResult<StopAudioRealtimeSessionResult>>;
+
+interface AudioRealtimeSessionStopAttempt {
+  request: StopAudioRealtimeSessionRequest;
+  stopRemoteSession: StopAudioRealtimeSessionInvoker;
+}
+
+export interface AudioRealtimeSessionStopQueueOptions {
+  stopRemoteSession?: StopAudioRealtimeSessionInvoker;
+  expiresAt?: number;
+}
+
+const recordedAudioChunkCancellationQueue = new BoundedCleanupRetryQueue<string>({
+  retryDelaysMs: AUDIO_REALTIME_CLEANUP_RETRY_DELAYS_MS,
+  ttlMs: AUDIO_REALTIME_CLEANUP_TTL_MS,
+  attemptTimeoutMs: AUDIO_REALTIME_CLEANUP_ATTEMPT_TIMEOUT_MS,
+  operation: async (requestId) => {
+    const response = await cancelRecordedAudioChunkTranscription(requestId);
+    return response.ok && response.data.cancelled;
+  },
+});
+const audioRealtimeSessionStopQueue = new BoundedCleanupRetryQueue<
+  AudioRealtimeSessionStopAttempt
+>({
+  retryDelaysMs: AUDIO_REALTIME_CLEANUP_RETRY_DELAYS_MS,
+  ttlMs: AUDIO_REALTIME_CLEANUP_TTL_MS,
+  attemptTimeoutMs: AUDIO_REALTIME_CLEANUP_ATTEMPT_TIMEOUT_MS,
+  operation: async ({ request, stopRemoteSession }) => {
+    const response = await stopRemoteSession(request);
+    return response.ok;
+  },
+});
 
 export interface AudioRealtimeSessionHandlers {
   sessionStarted?: (
@@ -92,11 +143,13 @@ interface AudioRealtimeSessionResources {
 
 export async function createRealtimeEphemeralSession(
   request: AudioRealtimeSessionConfig,
+  options: AudioTaskInvocationOptions = {},
 ): Promise<AudioIpcResult<RealtimeEphemeralSessionResult>> {
   try {
     return await invokeAudioTaskIpc<RealtimeEphemeralSessionResult>(
       AUDIO_IPC_CHANNELS.realtimeCreateEphemeralSession,
       request,
+      options,
     );
   } catch (error) {
     return audioIpcUnavailableResult(error);
@@ -118,11 +171,13 @@ export async function stopRealtimeSession(
 
 export async function transcribeRecordedAudioChunk(
   request: TranscribeRecordedAudioChunkRequest,
+  options: AudioTaskInvocationOptions = {},
 ): Promise<AudioIpcResult<TranscribeRecordedAudioChunkResult>> {
   try {
     return await invokeAudioTaskIpc<TranscribeRecordedAudioChunkResult>(
       AUDIO_IPC_CHANNELS.transcribeRecordedChunk,
       request,
+      options,
     );
   } catch (error) {
     return audioIpcUnavailableResult(error);
@@ -142,6 +197,71 @@ export async function cancelRecordedAudioChunkTranscription(
   }
 }
 
+export function queueRecordedAudioChunkTranscriptionCancellation(
+  requestId: string,
+  expiresAt = Date.now() + AUDIO_REALTIME_CLEANUP_TTL_MS,
+): Promise<boolean> {
+  return recordedAudioChunkCancellationQueue.queue(
+    requestId,
+    requestId,
+    expiresAt,
+  );
+}
+
+export async function flushPendingRecordedAudioChunkTranscriptionCancellations(): Promise<void> {
+  await recordedAudioChunkCancellationQueue.flush();
+}
+
+export function settleRecordedAudioChunkTranscriptionCancellation(
+  requestId: string,
+): void {
+  recordedAudioChunkCancellationQueue.settle(requestId);
+}
+
+export async function cancelRecordedAudioChunkTranscriptionBounded(
+  requestId: string,
+  timeoutMs = AUDIO_REALTIME_CLEANUP_ATTEMPT_TIMEOUT_MS,
+): Promise<AudioIpcResult<CancelRecordedAudioChunkTranscriptionResult> | undefined> {
+  return runBoundedCleanupAttempt(
+    () => cancelRecordedAudioChunkTranscription(requestId),
+    timeoutMs,
+  );
+}
+
+export function queueAudioRealtimeSessionStop(
+  request: StopAudioRealtimeSessionRequest,
+  options: AudioRealtimeSessionStopQueueOptions = {},
+): Promise<boolean> {
+  return audioRealtimeSessionStopQueue.queue(
+    request.sessionId,
+    {
+      request,
+      stopRemoteSession: options.stopRemoteSession ?? stopRealtimeSession,
+    },
+    options.expiresAt,
+  );
+}
+
+export async function flushPendingAudioRealtimeSessionStops(): Promise<void> {
+  await audioRealtimeSessionStopQueue.flush();
+}
+
+export async function stopRealtimeSessionBounded(
+  request: StopAudioRealtimeSessionRequest,
+  stopRemoteSession: StopAudioRealtimeSessionInvoker = stopRealtimeSession,
+  timeoutMs = AUDIO_REALTIME_CLEANUP_ATTEMPT_TIMEOUT_MS,
+): Promise<AudioIpcResult<StopAudioRealtimeSessionResult> | undefined> {
+  return runBoundedCleanupAttempt(
+    () => stopRemoteSession(request),
+    timeoutMs,
+  );
+}
+
+export function resetAudioRealtimeCleanupQueuesForTests(): void {
+  recordedAudioChunkCancellationQueue.reset();
+  audioRealtimeSessionStopQueue.reset();
+}
+
 export async function startOpenAIRealtimeWebRtcSession(
   config: AudioRealtimeSessionConfig,
   options: OpenAIRealtimeWebRtcSessionOptions = {},
@@ -156,7 +276,9 @@ export async function startOpenAIRealtimeWebRtcSession(
   }
   emit({ type: "mic_state", state: "requesting" });
 
-  const credentialResult = await createRealtimeEphemeralSession(config);
+  const credentialResult = await createRealtimeEphemeralSession(config, {
+    signal: options.signal,
+  });
   if (!credentialResult.ok) {
     if (options.signal?.aborted) {
       return abortedRealtimeSessionResult();
@@ -165,15 +287,19 @@ export async function startOpenAIRealtimeWebRtcSession(
   }
   const credentials = credentialResult.data;
   if (options.signal?.aborted) {
-    await stopPendingRealtimeSession(credentials.sessionId);
+    stopPendingRealtimeSession(credentials.sessionId);
     return abortedRealtimeSessionResult();
   }
 
   let stream: MediaStream;
   try {
-    stream = await resolveGetUserMedia(options)({ audio: true });
+    stream = await getUserMediaWithAbort(
+      resolveGetUserMedia(options),
+      { audio: true },
+      options.signal,
+    );
   } catch (error) {
-    await stopPendingRealtimeSession(credentials.sessionId);
+    stopPendingRealtimeSession(credentials.sessionId);
     if (options.signal?.aborted || isAbortError(error)) {
       return abortedRealtimeSessionResult();
     }
@@ -190,81 +316,87 @@ export async function startOpenAIRealtimeWebRtcSession(
 
   if (options.signal?.aborted) {
     stopMediaStream(stream);
-    await stopPendingRealtimeSession(credentials.sessionId);
+    stopPendingRealtimeSession(credentials.sessionId);
     return abortedRealtimeSessionResult();
   }
   emit({ type: "mic_state", state: "granted" });
 
-  const peerConnection = resolvePeerConnectionFactory(options)();
-  const dataChannel = peerConnection.createDataChannel("oai-events");
-  const stopInputLevelMonitor = createInputLevelMonitor(
-    stream,
-    options.onInputLevel,
-  );
-  const handle = createAudioRealtimeSessionHandle({
-    sessionId: credentials.sessionId,
-    peerConnection,
-    dataChannel,
-    mediaStream: stream,
-    onEvent: emit,
-    stopInputLevelMonitor,
-  });
+  let handle: AudioRealtimeSessionHandle | undefined;
+  let peerConnectionResource: Pick<RTCPeerConnection, "close"> | undefined;
+  let dataChannelResource: Pick<RTCDataChannel, "close"> | undefined;
   let failureStarted = false;
   let failureMessage: string | undefined;
-  const failSession = (message: string) => {
-    if (failureStarted || handle.closed) return;
-    failureStarted = true;
-    failureMessage = message;
-    emit({
-      type: "error",
-      fatal: true,
-      error: {
-        code: "realtime_session_failed",
-        message,
-      },
-    });
-    void handle.stop("error");
-  };
-
-  dataChannel.addEventListener("message", (event) => {
-    if (handle.closed) return;
-    for (const mappedEvent of mapOpenAIRealtimeServerEvent(event.data)) {
-      emit(mappedEvent);
-    }
-  });
-  dataChannel.addEventListener("error", () => {
-    failSession("OpenAI Realtime data channel failed.");
-  });
-  dataChannel.addEventListener("close", () => {
-    failSession("OpenAI Realtime data channel closed unexpectedly.");
-  });
-  peerConnection.addEventListener("connectionstatechange", () => {
-    if (peerConnection.connectionState === "failed") {
-      failSession("OpenAI Realtime peer connection failed.");
-    } else if (peerConnection.connectionState === "closed") {
-      failSession("OpenAI Realtime peer connection closed unexpectedly.");
-    }
-  });
-  peerConnection.addEventListener("iceconnectionstatechange", () => {
-    if (peerConnection.iceConnectionState === "failed") {
-      failSession("OpenAI Realtime ICE connection failed.");
-    } else if (peerConnection.iceConnectionState === "closed") {
-      failSession("OpenAI Realtime ICE connection closed unexpectedly.");
-    }
-  });
-
-  peerConnection.addEventListener("track", (event) => {
-    if (handle.closed) return;
-    const [remoteStream] = event.streams;
-    if (options.remoteAudioElement && remoteStream) {
-      options.remoteAudioElement.srcObject = remoteStream;
-    }
-  });
-  for (const track of stream.getAudioTracks()) {
-    peerConnection.addTrack(track, stream);
-  }
-
   try {
+    const peerConnection = resolvePeerConnectionFactory(options)();
+    peerConnectionResource = peerConnection;
+    const dataChannel = peerConnection.createDataChannel("oai-events");
+    dataChannelResource = dataChannel;
+    const stopInputLevelMonitor = createInputLevelMonitor(
+      stream,
+      options.onInputLevel,
+    );
+    const activeHandle = createAudioRealtimeSessionHandle({
+      sessionId: credentials.sessionId,
+      peerConnection,
+      dataChannel,
+      mediaStream: stream,
+      onEvent: emit,
+      stopInputLevelMonitor,
+    });
+    handle = activeHandle;
+    const failSession = (message: string) => {
+      if (failureStarted || activeHandle.closed) return;
+      failureStarted = true;
+      failureMessage = message;
+      emit({
+        type: "error",
+        fatal: true,
+        error: {
+          code: "realtime_session_failed",
+          message,
+        },
+      });
+      void activeHandle.stop("error");
+    };
+
+    dataChannel.addEventListener("message", (event) => {
+      if (activeHandle.closed) return;
+      for (const mappedEvent of mapOpenAIRealtimeServerEvent(event.data)) {
+        emit(mappedEvent);
+      }
+    });
+    dataChannel.addEventListener("error", () => {
+      failSession("OpenAI Realtime data channel failed.");
+    });
+    dataChannel.addEventListener("close", () => {
+      failSession("OpenAI Realtime data channel closed unexpectedly.");
+    });
+    peerConnection.addEventListener("connectionstatechange", () => {
+      if (peerConnection.connectionState === "failed") {
+        failSession("OpenAI Realtime peer connection failed.");
+      } else if (peerConnection.connectionState === "closed") {
+        failSession("OpenAI Realtime peer connection closed unexpectedly.");
+      }
+    });
+    peerConnection.addEventListener("iceconnectionstatechange", () => {
+      if (peerConnection.iceConnectionState === "failed") {
+        failSession("OpenAI Realtime ICE connection failed.");
+      } else if (peerConnection.iceConnectionState === "closed") {
+        failSession("OpenAI Realtime ICE connection closed unexpectedly.");
+      }
+    });
+
+    peerConnection.addEventListener("track", (event) => {
+      if (activeHandle.closed) return;
+      const [remoteStream] = event.streams;
+      if (options.remoteAudioElement && remoteStream) {
+        options.remoteAudioElement.srcObject = remoteStream;
+      }
+    });
+    for (const track of stream.getAudioTracks()) {
+      peerConnection.addTrack(track, stream);
+    }
+
     throwIfAborted(options.signal);
     const offer = await peerConnection.createOffer();
     throwIfAborted(options.signal);
@@ -293,7 +425,7 @@ export async function startOpenAIRealtimeWebRtcSession(
       sdp: answerSdp,
     });
     throwIfAborted(options.signal);
-    if (failureStarted || handle.closed) {
+    if (failureStarted || activeHandle.closed) {
       throw new Error(
         failureMessage ?? "OpenAI Realtime session closed during startup.",
       );
@@ -301,10 +433,17 @@ export async function startOpenAIRealtimeWebRtcSession(
     if (credentials.sessionId) {
       emit({ type: "session_started", sessionId: credentials.sessionId });
     }
-    return { ok: true, data: handle };
+    return { ok: true, data: activeHandle };
   } catch (error) {
     const aborted = options.signal?.aborted || isAbortError(error);
-    await handle.stop(aborted ? "page_unload" : "error");
+    if (handle) {
+      await handle.stop(aborted ? "page_unload" : "error");
+    } else {
+      stopMediaStream(stream);
+      safeClose(dataChannelResource);
+      safeClose(peerConnectionResource);
+      stopPendingRealtimeSession(credentials.sessionId);
+    }
     if (aborted) {
       return abortedRealtimeSessionResult();
     }
@@ -359,20 +498,19 @@ export function createAudioRealtimeSessionHandle(
     stop: async (reason = "user") => {
       if (closed) return;
       closed = true;
-      safeClose(resources.dataChannel);
-      safeClose(resources.peerConnection);
       stopMediaStream(resources.mediaStream);
       resources.stopInputLevelMonitor?.();
+      safeClose(resources.dataChannel);
+      safeClose(resources.peerConnection);
       resources.onEvent?.({ type: "session_closed", reason });
       if (resources.sessionId) {
-        try {
-          await (resources.stopRemoteSession ?? stopRealtimeSession)({
+        void queueAudioRealtimeSessionStop(
+          {
             sessionId: resources.sessionId,
             reason,
-          });
-        } catch {
-          // Local media ownership is already released; remote cleanup is best-effort.
-        }
+          },
+          { stopRemoteSession: resources.stopRemoteSession },
+        );
       }
     },
   };
@@ -445,13 +583,9 @@ function stopMediaStream(
   }
 }
 
-async function stopPendingRealtimeSession(sessionId: string | undefined): Promise<void> {
+function stopPendingRealtimeSession(sessionId: string | undefined): void {
   if (!sessionId) return;
-  try {
-    await stopRealtimeSession({ sessionId, reason: "page_unload" });
-  } catch {
-    // The ephemeral session will expire; local media has not been retained.
-  }
+  void queueAudioRealtimeSessionStop({ sessionId, reason: "page_unload" });
 }
 
 export function subscribeAudioRealtimeSessionEvents(
@@ -700,6 +834,53 @@ function resolveGetUserMedia(
   return (constraints) => navigator.mediaDevices.getUserMedia(constraints);
 }
 
+function getUserMediaWithAbort(
+  getUserMedia: (
+    constraints: MediaStreamConstraints,
+  ) => Promise<MediaStream>,
+  constraints: MediaStreamConstraints,
+  signal: AbortSignal | undefined,
+): Promise<MediaStream> {
+  if (signal?.aborted) {
+    return Promise.reject(createRealtimeAbortError());
+  }
+  const pending = getUserMedia(constraints);
+  if (!signal) return pending;
+
+  return new Promise<MediaStream>((resolve, reject) => {
+    let settled = false;
+    const onAbort = () => {
+      if (settled) return;
+      settled = true;
+      void pending.then(
+        (lateStream) => stopMediaStream(lateStream),
+        () => undefined,
+      );
+      reject(createRealtimeAbortError());
+    };
+    signal.addEventListener("abort", onAbort, { once: true });
+    void pending.then(
+      (stream) => {
+        if (settled) return;
+        settled = true;
+        signal.removeEventListener("abort", onAbort);
+        if (signal.aborted) {
+          stopMediaStream(stream);
+          reject(createRealtimeAbortError());
+          return;
+        }
+        resolve(stream);
+      },
+      (error) => {
+        if (settled) return;
+        settled = true;
+        signal.removeEventListener("abort", onAbort);
+        reject(error);
+      },
+    );
+  });
+}
+
 function resolveFetchSdp(
   options: OpenAIRealtimeWebRtcSessionOptions,
 ): (url: string, init: RequestInit) => Promise<Pick<Response, "ok" | "status" | "text">> {
@@ -715,6 +896,13 @@ function parseRealtimeServerEvent(rawEvent: unknown): Record<string, unknown> | 
   } catch {
     return null;
   }
+}
+
+function createRealtimeAbortError(): DOMException {
+  return new DOMException(
+    "OpenAI Realtime session start was aborted.",
+    "AbortError",
+  );
 }
 
 function safeClose(target: { close: () => void } | undefined): void {

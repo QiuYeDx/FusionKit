@@ -9,6 +9,7 @@ import {
   getSpeechRouteConstraints,
   inferAudioProviderPresetFromLegacy,
   resolveAudioApiRoute,
+  resolveRealtimeRouteDefinition,
   resolveTranscriptionRouteDefinition,
 } from "./audio-provider-registry";
 import {
@@ -138,6 +139,50 @@ describe("audio provider registry", () => {
       supportsLanguage: true,
       supportsVoice: false,
     });
+  });
+
+  it("resolves realtime execution constraints from the complete route", () => {
+    expect(resolveRealtimeRouteDefinition({
+      providerPreset: "openai",
+      assignmentKey: "realtimeCaptions",
+      transport: "openai_realtime",
+      model: "gpt-realtime-whisper",
+    })).toMatchObject({
+      constraints: {
+        mode: "caption",
+        languages: ["auto", "zh", "en", "ja", "ko", "fr", "de", "es"],
+        inputAudioFormats: ["pcm16", "pcmu", "pcma"],
+      },
+    });
+    expect(resolveRealtimeRouteDefinition({
+      providerPreset: "mimo",
+      assignmentKey: "realtimeCaptions",
+      transport: "mimo_chat_audio",
+      model: "mimo-v2.5-asr",
+    })).toMatchObject({
+      constraints: {
+        mode: "chunked_near_realtime",
+        languages: ["auto", "zh", "en"],
+      },
+    });
+    expect(resolveRealtimeRouteDefinition({
+      providerPreset: "custom_openai_compatible",
+      assignmentKey: "realtimeCaptions",
+      transport: "openai_realtime",
+      model: "vendor-live-transcriber",
+    })?.constraints.mode).toBe("caption");
+    expect(resolveRealtimeRouteDefinition({
+      providerPreset: "openai",
+      assignmentKey: "realtimeCaptions",
+      transport: "openai_realtime",
+      model: "gpt-realtime-unknown",
+    })).toBeUndefined();
+    expect(resolveRealtimeRouteDefinition({
+      providerPreset: "openai",
+      assignmentKey: "realtimeVoice",
+      transport: "openai_realtime",
+      model: "gpt-realtime-whisper",
+    })).toBeUndefined();
   });
 
   it("resolves transcription constraints from preset, transport, and model", () => {

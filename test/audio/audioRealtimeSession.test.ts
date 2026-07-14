@@ -203,6 +203,24 @@ describe("audio realtime session runtime", () => {
       field: "voice",
     },
     {
+      name: "caption language outside the route allowlist",
+      payload: {
+        assignmentKey: "realtimeCaptions",
+        mode: "caption",
+        language: "it",
+      } as AudioRealtimeSessionConfig,
+      field: "language",
+    },
+    {
+      name: "caption input format outside the route allowlist",
+      payload: {
+        assignmentKey: "realtimeCaptions",
+        mode: "caption",
+        inputAudioFormat: "opus",
+      } as unknown as AudioRealtimeSessionConfig,
+      field: "inputAudioFormat",
+    },
+    {
       name: "voice language",
       payload: {
         assignmentKey: "realtimeVoice",
@@ -230,6 +248,69 @@ describe("audio realtime session runtime", () => {
       error: { code: "invalid_task_parameters", field },
     });
     expect(runtime.createEphemeralSession).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["realtimeCaptions", "gpt-realtime-unknown"],
+    ["realtimeVoice", "gpt-realtime-whisper"],
+  ] as const)(
+    "rejects an incompatible %s model before adapter invocation",
+    async (assignmentKey, model) => {
+      const runtime: AudioRealtimeRuntimeInvoker = {
+        createEphemeralSession: vi.fn(async () => ({ clientSecret: "unused" })),
+      };
+      const snapshot = createRealtimeRuntimeConfig("https://api.openai.com/v1");
+      const route = snapshot.profiles[0].routes[assignmentKey];
+      if (!route || Array.isArray(route)) {
+        throw new Error(`Missing ${assignmentKey} route fixture.`);
+      }
+      route.model = model;
+      const { service, context } = createServiceWithConfig(snapshot, runtime);
+
+      const result = await service.createEphemeralSession(
+        assignmentKey === "realtimeCaptions"
+          ? { assignmentKey, mode: "caption" }
+          : { assignmentKey, mode: "duplex_voice" },
+        context,
+      );
+
+      expect(result).toMatchObject({
+        ok: false,
+        error: { code: "invalid_task_parameters", field: "assignmentKey" },
+      });
+      expect(runtime.createEphemeralSession).not.toHaveBeenCalled();
+    },
+  );
+
+  it("allows a custom OpenAI-compatible realtime caption model", async () => {
+    const runtime: AudioRealtimeRuntimeInvoker = {
+      createEphemeralSession: vi.fn(async () => ({
+        sessionId: "sess_custom_caption",
+        clientSecret: "custom-secret",
+      })),
+    };
+    const snapshot = createRealtimeRuntimeConfig("https://vendor.example/v1");
+    snapshot.profiles[0].providerPreset = "custom_openai_compatible";
+    snapshot.profiles[0].routes.realtimeCaptions!.model =
+      "vendor-live-transcriber";
+    const { service, context } = createServiceWithConfig(snapshot, runtime);
+
+    await expect(service.createEphemeralSession(
+      { assignmentKey: "realtimeCaptions", mode: "caption", language: "en" },
+      context,
+    )).resolves.toMatchObject({
+      ok: true,
+      data: { sessionId: "sess_custom_caption" },
+    });
+    expect(runtime.createEphemeralSession).toHaveBeenCalledWith(
+      expect.objectContaining({ assignmentKey: "realtimeCaptions" }),
+      expect.objectContaining({
+        model: expect.objectContaining({
+          providerPreset: "custom_openai_compatible",
+          modelKey: "vendor-live-transcriber",
+        }),
+      }),
+    );
   });
 
   it("maps OpenAI realtime HTTP errors without leaking API keys", async () => {

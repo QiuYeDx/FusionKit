@@ -71,7 +71,7 @@
     },
     "captions": {
       "title": "リアルタイム字幕",
-      "description": "グローバルのリアルタイム字幕設定でマイク入力を処理します。",
+      "description": "現在の音声 API でマイク入力をリアルタイム字幕に変換します。",
       "workspace": "字幕ストリーム"
     },
     "voice": {
@@ -363,8 +363,8 @@
       "srt": "SRT"
     },
     "hints": {
-      "language": "OpenAI Realtime には言語の希望を渡せます。自動検出では language フィールドを省略します。",
-      "input_audio_format": "初版は PCM16 を優先します。Opus は現在の Realtime モデルとブラウザ対応に依存します。",
+      "language": "現在の音声 API ルートが対応する言語だけを表示します。自動検出では language フィールドを省略します。",
+      "input_audio_format": "Realtime は PCM16、PCMU、PCMA に対応し、PCM16 を推奨します。",
       "turn_detection": "サーバー VAD は発話区間を自動検出します。手動モードは今後の双方向音声制御に向いています。",
       "output_format": "TXT はプレーンテキストを保存します。SRT はローカルのセッション時間で簡易タイムラインを生成します。",
       "assistant_transcript": "リアルタイム字幕は既定でマイク入力のみ表示します。",
@@ -401,7 +401,7 @@
     },
     "chunked": {
       "title": "分割ニアリアルタイム",
-      "description": "このモードはマイク入力を短い WAV チャンクにエンコードし、main プロセスがグローバル ASR 設定で各チャンクを文字起こしします。WebRTC 双方向セッションではありません。"
+      "description": "このモードはマイク入力を短い WAV チャンクにエンコードし、main プロセスが現在の音声 API ルートで各チャンクを文字起こしします。WebRTC 双方向セッションではありません。"
     },
     "actions": {
       "start": "リアルタイム字幕を開始",
@@ -429,8 +429,8 @@
     },
     "errors": {
       "title": "リアルタイム字幕に失敗しました",
-      "unsupported_mode": "現在のグローバル音声設定はリアルタイム字幕に対応していません。",
-      "chunked_unavailable": "現在のグローバル音声設定では分割ニアリアルタイム字幕を開始できません。",
+      "unsupported_mode": "現在の音声 API はリアルタイム字幕に対応していません。",
+      "chunked_unavailable": "現在の音声 API では分割ニアリアルタイム字幕を開始できません。",
       "microphone_failed": "マイク録音を開始できません。",
       "no_transcript": "利用できる字幕はまだありません。",
       "copy_failed": "コピーに失敗しました。手動で字幕をコピーしてください。"

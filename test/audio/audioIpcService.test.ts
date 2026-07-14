@@ -18,10 +18,11 @@ import {
   type AudioTranscriptionResult,
   type SpeechSynthesisResult,
 } from "@/type/audio";
-import type {
-  CreateAudioTranscriptionIpcRequest,
-  CreateSpeechSynthesisIpcRequest,
-  SyncAudioRuntimeConfigRequest,
+import {
+  validateTranscribeRecordedAudioChunkIpcRequest,
+  type CreateAudioTranscriptionIpcRequest,
+  type CreateSpeechSynthesisIpcRequest,
+  type SyncAudioRuntimeConfigRequest,
 } from "@/type/audioIpc";
 
 const TEST_OWNER_ID = 17;
@@ -1682,75 +1683,157 @@ describe("AudioIpcService", () => {
     });
   });
 
-  it("transcribes recorded chunks through the realtime captions assignment", async () => {
+  it.each(["auto", "zh", "en"] as const)(
+    "transcribes MiMo recorded chunks with language=%s through the trusted route",
+    async (language) => {
+      const runtime = createRuntimeInvoker();
+      const service = createService(runtime);
+      const context = await syncService(service);
+      const requestId = `chunk_${language}`;
+
+      const result = await service.transcribeRecordedChunk(
+        {
+          assignmentKey: "realtimeCaptions",
+          requestId,
+          audioBytes: new Uint8Array([82, 73, 70, 70]),
+          mimeType: "audio/wav",
+          responseFormat: "text",
+          language,
+          startedAtMs: 0,
+          endedAtMs: 5000,
+        },
+        context,
+      );
+
+      expect(result).toMatchObject({
+        ok: true,
+        data: {
+          requestId,
+          text: "transcribed",
+          responseFormat: "text",
+          startedAtMs: 0,
+          endedAtMs: 5000,
+        },
+      });
+      expect(runtime.transcribe).toHaveBeenCalledWith(
+        expect.objectContaining({
+          assignmentKey: "transcription",
+          requestId,
+          mimeType: "audio/wav",
+          responseFormat: "text",
+          language,
+        }),
+        expect.objectContaining({
+          model: expect.objectContaining({
+            apiKey: "sk-mimo-ipc",
+            providerPreset: "mimo",
+            modelKey: "mimo-v2.5-asr",
+            audioDialect: "mimo_chat_audio",
+          }),
+        }),
+      );
+      expect(JSON.stringify(result)).not.toContain("sk-mimo-ipc");
+    },
+  );
+
+  it("rejects unsupported recorded chunk language before temp-file or adapter work", async () => {
     const runtime = createRuntimeInvoker();
     const service = createService(runtime);
     const context = await syncService(service);
-
-    const result = await service.transcribeRecordedChunk(
-      {
-        assignmentKey: "realtimeCaptions",
-        requestId: "chunk_req_001",
-        audioBytes: new Uint8Array([82, 73, 70, 70]),
-        mimeType: "audio/wav",
-        responseFormat: "text",
-        language: "zh",
-        startedAtMs: 0,
-        endedAtMs: 5000,
-      },
-      context,
+    const isolatedTempRoot = await mkdtemp(
+      path.join(os.tmpdir(), "fusionkit-invalid-caption-chunk-"),
     );
-
-    expect(result).toMatchObject({
-      ok: true,
-      data: {
-        requestId: "chunk_req_001",
-        text: "transcribed",
-        responseFormat: "text",
-        startedAtMs: 0,
-        endedAtMs: 5000,
-      },
-    });
-    expect(runtime.transcribe).toHaveBeenCalledWith(
-      expect.objectContaining({
-        assignmentKey: "transcription",
-        requestId: "chunk_req_001",
-        mimeType: "audio/wav",
-        responseFormat: "text",
-        language: "zh",
-      }),
-      expect.objectContaining({
-        model: expect.objectContaining({
-          modelKey: "mimo-v2.5-asr",
-          audioDialect: "mimo_chat_audio",
-        }),
-      }),
+    const recordedChunkDirectory = path.join(
+      isolatedTempRoot,
+      "fusionkit-audio",
+      "recorded-chunks",
     );
-    expect(JSON.stringify(result)).not.toContain("sk-audio-ipc");
+    const previousTmpdir = process.env.TMPDIR;
+    process.env.TMPDIR = isolatedTempRoot;
+
+    try {
+      const result = await service.transcribeRecordedChunk(
+        {
+          assignmentKey: "realtimeCaptions",
+          requestId: "chunk_invalid_language",
+          audioBytes: new Uint8Array([82, 73, 70, 70]),
+          mimeType: "audio/wav",
+          responseFormat: "text",
+          language: "fr",
+        },
+        context,
+      );
+
+      expect(result).toMatchObject({
+        ok: false,
+        error: { code: "invalid_task_parameters", field: "language" },
+      });
+      await expect(stat(recordedChunkDirectory)).rejects.toMatchObject({
+        code: "ENOENT",
+      });
+      expect(runtime.transcribe).not.toHaveBeenCalled();
+    } finally {
+      if (previousTmpdir === undefined) delete process.env.TMPDIR;
+      else process.env.TMPDIR = previousTmpdir;
+      await rm(isolatedTempRoot, { recursive: true, force: true });
+    }
   });
 
-  it("rejects unsupported recorded chunk language before runtime work", async () => {
+  it("rejects recorded chunks for OpenAI Realtime caption routes", async () => {
     const runtime = createRuntimeInvoker();
     const service = createService(runtime);
-    const context = await syncService(service);
+    const snapshot = createRuntimeConfigSnapshot();
+    snapshot.profiles[0]!.routes.realtimeCaptions = {
+      transport: "openai_realtime",
+      model: "gpt-realtime-whisper",
+      enabled: true,
+    };
+    snapshot.assignment.realtimeCaptions = "audio_openai";
+    const context = await syncService(service, snapshot);
 
     const result = await service.transcribeRecordedChunk(
       {
         assignmentKey: "realtimeCaptions",
-        requestId: "chunk_invalid_language",
+        requestId: "chunk_openai_realtime",
         audioBytes: new Uint8Array([82, 73, 70, 70]),
         mimeType: "audio/wav",
         responseFormat: "text",
-        language: "fr",
+        language: "en",
       },
       context,
     );
 
     expect(result).toMatchObject({
       ok: false,
-      error: { code: "invalid_task_parameters", field: "language" },
+      error: { code: "audio_route_not_configured", field: "transport" },
     });
     expect(runtime.transcribe).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    { field: "model", value: "renderer-model" },
+    { field: "transport", value: "openai_realtime" },
+    {
+      field: "route",
+      value: { transport: "openai_realtime", model: "renderer-route-model" },
+    },
+  ])("rejects renderer overrides of trusted recorded-chunk $field", ({
+    field,
+    value,
+  }) => {
+    const result = validateTranscribeRecordedAudioChunkIpcRequest({
+      assignmentKey: "realtimeCaptions",
+      requestId: `chunk_forged_${field}`,
+      audioBytes: new Uint8Array([82, 73, 70, 70]),
+      mimeType: "audio/wav",
+      responseFormat: "text",
+      [field]: value,
+    });
+
+    expect(result).toMatchObject({
+      ok: false,
+      error: { code: "invalid_ipc_request", field },
+    });
   });
 
   it("supports cancelling active recorded chunk transcription requests", async () => {

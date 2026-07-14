@@ -71,7 +71,7 @@
     },
     "captions": {
       "title": "Realtime captions",
-      "description": "Process microphone input with the global realtime caption configuration.",
+      "description": "Turn microphone input into live captions with the current audio API.",
       "workspace": "Caption stream"
     },
     "voice": {
@@ -363,7 +363,7 @@
       "srt": "SRT"
     },
     "hints": {
-      "language": "OpenAI Realtime can receive a language preference. Auto detect omits the language field.",
+      "language": "Only languages supported by the current audio API route are shown. Auto detect omits the language field.",
       "input_audio_format": "Realtime supports PCM16, PCMU, and PCMA. PCM16 is the recommended default.",
       "turn_detection": "Server VAD detects speech turns automatically. Manual mode remains disabled until push-to-talk is complete.",
       "output_format": "TXT saves plain text. SRT uses local session time to generate a basic timeline.",
@@ -401,7 +401,7 @@
     },
     "chunked": {
       "title": "Chunked near-realtime",
-      "description": "This mode encodes microphone input into short WAV chunks and lets the main process transcribe each chunk with the global ASR config. It is not a WebRTC duplex session."
+      "description": "This mode encodes microphone input into short WAV chunks and lets the main process transcribe each chunk with the current audio API route. It is not a WebRTC duplex session."
     },
     "actions": {
       "start": "Start captions",
@@ -429,8 +429,8 @@
     },
     "errors": {
       "title": "Realtime captions failed",
-      "unsupported_mode": "The current global audio config does not support realtime captions.",
-      "chunked_unavailable": "The current global audio config cannot start chunked near-realtime captions.",
+      "unsupported_mode": "The current audio API does not support realtime captions.",
+      "chunked_unavailable": "The current audio API cannot start chunked near-realtime captions.",
       "microphone_failed": "Could not start microphone recording.",
       "no_transcript": "There are no captions yet.",
       "copy_failed": "Copy failed. Please copy the captions manually."

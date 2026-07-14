@@ -36,10 +36,15 @@ import {
   transcribeAudio,
 } from "./audioTranscriptionService";
 import {
+  cancelRecordedAudioChunkTranscriptionBounded,
   cancelRecordedAudioChunkTranscription,
   createAudioRealtimeSessionHandle,
   createRealtimeEphemeralSession,
+  queueAudioRealtimeSessionStop,
+  queueRecordedAudioChunkTranscriptionCancellation,
   mapOpenAIRealtimeServerEvent,
+  resetAudioRealtimeCleanupQueuesForTests,
+  settleRecordedAudioChunkTranscriptionCancellation,
   startOpenAIRealtimeWebRtcSession,
   transcribeRecordedAudioChunk,
 } from "./audioRealtimeService";
@@ -69,6 +74,7 @@ describe("audio renderer services", () => {
   beforeEach(() => {
     resetAudioRuntimeConfigCacheForTests();
     resetAudioTranscriptionCancellationQueueForTests();
+    resetAudioRealtimeCleanupQueuesForTests();
     localStorageItems.clear();
     useAudioApiStore.setState({
       profiles: [
@@ -248,6 +254,7 @@ describe("audio renderer services", () => {
   afterEach(() => {
     resetAudioRuntimeConfigCacheForTests();
     resetAudioTranscriptionCancellationQueueForTests();
+    resetAudioRealtimeCleanupQueuesForTests();
     vi.useRealTimers();
   });
 
@@ -807,15 +814,9 @@ describe("audio renderer services", () => {
   });
 
   it("syncs global audio config before transcribing recorded chunks", async () => {
-    const result = await transcribeRecordedAudioChunk({
-      assignmentKey: "realtimeCaptions",
-      requestId: "chunk_req_001",
-      audioBytes: new Uint8Array([82, 73, 70, 70]),
-      mimeType: "audio/wav",
-      responseFormat: "text",
-      startedAtMs: 0,
-      endedAtMs: 5000,
-    });
+    const result = await transcribeRecordedAudioChunk(
+      createRecordedAudioChunkRequest(),
+    );
 
     expect(result).toMatchObject({
       ok: true,
@@ -828,6 +829,41 @@ describe("audio renderer services", () => {
       AUDIO_IPC_CHANNELS.transcribeRecordedChunk,
       "runtime_revision_test",
     );
+  });
+
+  it("does not dispatch a recorded chunk after its initial runtime sync is aborted", async () => {
+    let resolveSync: ((value: unknown) => void) | undefined;
+    const sync = new Promise((resolve) => {
+      resolveSync = resolve;
+    });
+    invoke.mockImplementation(async (channel: string) => {
+      if (channel === AUDIO_IPC_CHANNELS.syncRuntimeConfig) return sync;
+      throw new Error(`Unexpected task dispatch: ${channel}`);
+    });
+    const controller = new AbortController();
+    const onDispatch = vi.fn();
+
+    const pending = transcribeRecordedAudioChunk(
+      createRecordedAudioChunkRequest("chunk_initial_sync_abort"),
+      { signal: controller.signal, onDispatch },
+    );
+    await vi.waitFor(() => expect(invoke).toHaveBeenCalledTimes(1));
+    controller.abort();
+    resolveSync?.({
+      ok: true,
+      data: {
+        synced: true,
+        audioProfileCount: 1,
+        revision: "runtime_revision_chunk_aborted",
+      },
+    });
+
+    await expect(pending).resolves.toMatchObject({
+      ok: false,
+      error: { code: "aborted" },
+    });
+    expect(onDispatch).not.toHaveBeenCalled();
+    expect(invoke).toHaveBeenCalledTimes(1);
   });
 
   it("exposes recorded chunk cancellation without syncing runtime config again", async () => {
@@ -845,6 +881,84 @@ describe("audio renderer services", () => {
       AUDIO_IPC_CHANNELS.syncRuntimeConfig,
       expect.anything(),
     );
+  });
+
+  it("retries recorded chunk cancellation failures until main confirms cancellation", async () => {
+    vi.useFakeTimers();
+    invoke
+      .mockResolvedValueOnce({
+        ok: false,
+        error: { code: "network_error", message: "cancel disconnected" },
+      })
+      .mockRejectedValueOnce(new Error("cancel IPC rejected"))
+      .mockResolvedValueOnce({
+        ok: true,
+        data: { cancelled: false, requestId: "chunk_cleanup_retry" },
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        data: { cancelled: true, requestId: "chunk_cleanup_retry" },
+      });
+
+    await expect(
+      queueRecordedAudioChunkTranscriptionCancellation("chunk_cleanup_retry"),
+    ).resolves.toBe(false);
+    await vi.advanceTimersByTimeAsync(25);
+    await vi.advanceTimersByTimeAsync(75);
+    await vi.advanceTimersByTimeAsync(150);
+
+    expect(invoke).toHaveBeenCalledTimes(4);
+    expect(invoke.mock.calls.every(
+      ([channel]) => channel === AUDIO_IPC_CHANNELS.cancelRecordedChunkTranscription,
+    )).toBe(true);
+  });
+
+  it("bounds a hung recorded chunk cancellation and retries it", async () => {
+    vi.useFakeTimers();
+    invoke
+      .mockReturnValueOnce(new Promise(() => undefined))
+      .mockResolvedValueOnce({
+        ok: true,
+        data: { cancelled: true, requestId: "chunk_cleanup_hung" },
+      });
+
+    const firstAttempt = queueRecordedAudioChunkTranscriptionCancellation(
+      "chunk_cleanup_hung",
+    );
+    await vi.advanceTimersByTimeAsync(5_000);
+    await expect(firstAttempt).resolves.toBe(false);
+    await vi.advanceTimersByTimeAsync(25);
+
+    expect(invoke).toHaveBeenCalledTimes(2);
+  });
+
+  it("stops retrying recorded chunk cancellation after the task settles", async () => {
+    vi.useFakeTimers();
+    invoke.mockResolvedValue({
+      ok: true,
+      data: { cancelled: false, requestId: "chunk_cleanup_settled" },
+    });
+
+    await expect(
+      queueRecordedAudioChunkTranscriptionCancellation("chunk_cleanup_settled"),
+    ).resolves.toBe(false);
+    settleRecordedAudioChunkTranscriptionCancellation("chunk_cleanup_settled");
+    await vi.advanceTimersByTimeAsync(10_000);
+
+    expect(invoke).toHaveBeenCalledTimes(1);
+  });
+
+  it("bounds a foreground recorded chunk cancellation", async () => {
+    vi.useFakeTimers();
+    invoke.mockReturnValue(new Promise(() => undefined));
+
+    const pending = cancelRecordedAudioChunkTranscriptionBounded(
+      "chunk_cancel_hung",
+      100,
+    );
+    await vi.advanceTimersByTimeAsync(100);
+
+    await expect(pending).resolves.toBeUndefined();
   });
 
   it("syncs global audio config before non-stream speech synthesis", async () => {
@@ -975,6 +1089,61 @@ describe("audio renderer services", () => {
     );
   });
 
+  it("does not redispatch an ephemeral session after stale-config resync is aborted", async () => {
+    let resolveResync: ((value: unknown) => void) | undefined;
+    const resync = new Promise((resolve) => {
+      resolveResync = resolve;
+    });
+    let syncCount = 0;
+    let taskCount = 0;
+    invoke.mockImplementation(async (channel: string) => {
+      if (channel === AUDIO_IPC_CHANNELS.syncRuntimeConfig) {
+        syncCount += 1;
+        if (syncCount === 2) return resync;
+        return {
+          ok: true,
+          data: {
+            synced: true,
+            audioProfileCount: 1,
+            revision: "runtime_revision_realtime_initial",
+          },
+        };
+      }
+      if (channel === AUDIO_IPC_CHANNELS.realtimeCreateEphemeralSession) {
+        taskCount += 1;
+        return {
+          ok: false,
+          error: { code: "stale_audio_config", message: "stale" },
+        };
+      }
+      throw new Error(`Unexpected channel: ${channel}`);
+    });
+    const controller = new AbortController();
+    const onDispatch = vi.fn();
+
+    const pending = createRealtimeEphemeralSession(
+      { assignmentKey: "realtimeVoice", mode: "duplex_voice" },
+      { signal: controller.signal, onDispatch },
+    );
+    await vi.waitFor(() => expect(syncCount).toBe(2));
+    controller.abort();
+    resolveResync?.({
+      ok: true,
+      data: {
+        synced: true,
+        audioProfileCount: 1,
+        revision: "runtime_revision_realtime_resynced",
+      },
+    });
+
+    await expect(pending).resolves.toMatchObject({
+      ok: false,
+      error: { code: "aborted" },
+    });
+    expect(taskCount).toBe(1);
+    expect(onDispatch).toHaveBeenCalledTimes(1);
+  });
+
   it("maps OpenAI Realtime server events into FusionKit realtime events", () => {
     expect(mapOpenAIRealtimeServerEvent(JSON.stringify({
       type: "conversation.item.input_audio_transcription.delta",
@@ -1067,6 +1236,91 @@ describe("audio renderer services", () => {
     ]));
   });
 
+  it("treats an already-stopped realtime session as successful cleanup", async () => {
+    vi.useFakeTimers();
+    const stopRemoteSession = vi.fn(async () => ({
+      ok: true as const,
+      data: {
+        stopped: false,
+        sessionId: "sess_already_stopped",
+        reason: "page_unload" as const,
+      },
+    }));
+
+    await expect(queueAudioRealtimeSessionStop(
+      {
+        sessionId: "sess_already_stopped",
+        reason: "page_unload",
+      },
+      { stopRemoteSession },
+    )).resolves.toBe(true);
+    await vi.advanceTimersByTimeAsync(10_000);
+
+    expect(stopRemoteSession).toHaveBeenCalledTimes(1);
+  });
+
+  it("retries failed, rejected, and hung realtime session stops", async () => {
+    vi.useFakeTimers();
+    const stopRemoteSession = vi.fn()
+      .mockResolvedValueOnce({
+        ok: false,
+        error: { code: "network_error", message: "stop disconnected" },
+      })
+      .mockRejectedValueOnce(new Error("stop IPC rejected"))
+      .mockReturnValueOnce(new Promise(() => undefined))
+      .mockResolvedValueOnce({
+        ok: true,
+        data: {
+          stopped: false,
+          sessionId: "sess_stop_retry",
+          reason: "page_unload",
+        },
+      });
+
+    await expect(queueAudioRealtimeSessionStop(
+      { sessionId: "sess_stop_retry", reason: "page_unload" },
+      { stopRemoteSession },
+    )).resolves.toBe(false);
+    await vi.advanceTimersByTimeAsync(25);
+    await vi.advanceTimersByTimeAsync(75);
+    await vi.advanceTimersByTimeAsync(5_000);
+    await vi.advanceTimersByTimeAsync(150);
+
+    expect(stopRemoteSession).toHaveBeenCalledTimes(4);
+  });
+
+  it("releases realtime browser resources without waiting for a hung remote stop", async () => {
+    const dataChannelClose = vi.fn();
+    const peerConnectionClose = vi.fn();
+    const trackStop = vi.fn();
+    const stopInputLevelMonitor = vi.fn();
+    const stopRemoteSession = vi.fn(() => new Promise<never>(() => undefined));
+    const handle = createAudioRealtimeSessionHandle({
+      sessionId: "sess_hung_stop",
+      dataChannel: { close: dataChannelClose },
+      peerConnection: { close: peerConnectionClose },
+      mediaStream: {
+        getTracks: () => [{ stop: trackStop } as unknown as MediaStreamTrack],
+      },
+      stopInputLevelMonitor,
+      stopRemoteSession,
+    });
+    let stopResolved = false;
+
+    void handle.stop("page_unload").then(() => {
+      stopResolved = true;
+    });
+    await Promise.resolve();
+
+    expect(stopResolved).toBe(true);
+    expect(handle.closed).toBe(true);
+    expect(dataChannelClose).toHaveBeenCalledTimes(1);
+    expect(peerConnectionClose).toHaveBeenCalledTimes(1);
+    expect(trackStop).toHaveBeenCalledTimes(1);
+    expect(stopInputLevelMonitor).toHaveBeenCalledTimes(1);
+    expect(stopRemoteSession).toHaveBeenCalledTimes(1);
+  });
+
   it("releases a late microphone stream when realtime start was aborted", async () => {
     let resolveStream!: (stream: MediaStream) => void;
     const trackStop = vi.fn();
@@ -1082,16 +1336,56 @@ describe("audio renderer services", () => {
 
     await vi.waitFor(() => expect(getUserMedia).toHaveBeenCalledTimes(1));
     controller.abort();
-    resolveStream({
-      getTracks: () => [{ stop: trackStop } as unknown as MediaStreamTrack],
-    } as MediaStream);
-
     await expect(startPromise).resolves.toMatchObject({
       ok: false,
       error: { code: "aborted" },
     });
-    expect(trackStop).toHaveBeenCalledTimes(1);
+    expect(trackStop).not.toHaveBeenCalled();
     expect(peerConnectionFactory).not.toHaveBeenCalled();
+    expect(invoke).toHaveBeenCalledWith(
+      AUDIO_IPC_CHANNELS.realtimeStopSession,
+      expect.objectContaining({
+        sessionId: "sess_renderer_realtime",
+        reason: "page_unload",
+      }),
+      { configRevision: "runtime_revision_test" },
+    );
+
+    resolveStream({
+      getTracks: () => [{ stop: trackStop } as unknown as MediaStreamTrack],
+    } as MediaStream);
+    await vi.waitFor(() => expect(trackStop).toHaveBeenCalledTimes(1));
+  });
+
+  it("cleans up media and the pending session when WebRTC construction throws", async () => {
+    const trackStop = vi.fn();
+    const peerConnectionClose = vi.fn();
+    const stream = {
+      getTracks: () => [{ stop: trackStop } as unknown as MediaStreamTrack],
+      getAudioTracks: () => [{ stop: trackStop } as unknown as MediaStreamTrack],
+    } as MediaStream;
+    const peerConnection = {
+      createDataChannel: vi.fn(() => {
+        throw new Error("data channel construction failed");
+      }),
+      close: peerConnectionClose,
+    } as unknown as RTCPeerConnection;
+
+    await expect(startOpenAIRealtimeWebRtcSession(
+      { assignmentKey: "realtimeVoice", mode: "duplex_voice" },
+      {
+        getUserMedia: async () => stream,
+        peerConnectionFactory: () => peerConnection,
+      },
+    )).resolves.toMatchObject({
+      ok: false,
+      error: {
+        code: "realtime_session_failed",
+        message: "data channel construction failed",
+      },
+    });
+    expect(trackStop).toHaveBeenCalledTimes(1);
+    expect(peerConnectionClose).toHaveBeenCalledTimes(1);
     expect(invoke).toHaveBeenCalledWith(
       AUDIO_IPC_CHANNELS.realtimeStopSession,
       expect.objectContaining({
@@ -1174,6 +1468,18 @@ function createTranscriptionRequest(requestId = "asr_req_001") {
     fileName: "speech.wav",
     mimeType: "audio/wav",
     responseFormat: "json" as const,
+  };
+}
+
+function createRecordedAudioChunkRequest(requestId = "chunk_req_001") {
+  return {
+    assignmentKey: "realtimeCaptions" as const,
+    requestId,
+    audioBytes: new Uint8Array([82, 73, 70, 70]),
+    mimeType: "audio/wav" as const,
+    responseFormat: "text" as const,
+    startedAtMs: 0,
+    endedAtMs: 5000,
   };
 }
 

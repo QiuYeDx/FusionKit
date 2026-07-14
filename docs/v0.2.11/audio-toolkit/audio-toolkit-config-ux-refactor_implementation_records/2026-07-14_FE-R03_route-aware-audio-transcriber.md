@@ -1,4 +1,4 @@
-# 工作包 FE-R03：Route-aware 音频转文本竖切
+# 工作包 FE-R03：Route-aware ASR 与实时字幕竖切
 
 ## 基本信息
 
@@ -24,20 +24,39 @@
   generation/mounted/route snapshot 和带超时的撤销重试队列。
 - 输出模式迁移到完整 Radix RadioGroup primitive，覆盖单一 roving tabindex、方向键、
   Home/End 和窄屏换行。
-- 四语言通用未配置文案改为任务中性；新增 `FK-PIT-0011`、`FK-PIT-0012`。
+- 将 RealtimeCaptions 切到 standalone `realtimeCaptions` assignment/route；共享 registry
+  按完整 route 区分 OpenAI 原生 WebRTC 和 MiMo 分块近实时，MiMo 语言精确收窄为
+  `auto/zh/en`，main 与 renderer 使用同一 route definition。
+- captions store 升至 v4，仅持久化 sanitized preferences；移除 profile defaults 播种，
+  v3 和同版本污染 envelope 均不 hydration runtime session/transcript/error 状态。
+- OpenAI 才渲染输入格式 RadioGroup；MiMo 隐藏 WebRTC-only 控件；永久不可用的
+  turn detection、assistant transcript 和 instructions 不再进入 DOM；零配置改为精确 CTA。
+- route/profile 变化与离页会先使 generation 失效并释放麦克风；chunk task 接入
+  sync→dispatch abort gate，已 dispatch 取消和 Realtime session stop 使用跨路由
+  timeout/backoff/TTL 清理队列，本地资源释放不等待远端 IPC。
+- 四语言通用未配置文案改为任务中性；新增 `FK-PIT-0011`、`FK-PIT-0012`、
+  `FK-PIT-0013`。
+- 实时字幕终审与修复背景记录在
+  `fix/2026-07-14_FIX-R03_realtime-captions-routing-lifecycle.md`。
 
 ## 修改文件
 
 - `src/pages/Tools/Audio/AudioTranscriber/index.tsx`
+- `src/pages/Tools/Audio/RealtimeCaptions/index.tsx`
 - `src/store/tools/audio/audioTranscriberConfig.ts`
 - `src/store/tools/audio/useAudioTranscriberStore.ts`
+- `src/store/tools/audio/realtimeCaptionsConfig.ts`
+- `src/store/tools/audio/useRealtimeCaptionsStore.ts`
 - `src/store/tools/audio/audioToolConfig.ts`
 - `src/pages/Tools/Audio/shared/AudioToolShell.tsx`
 - `src/lib/audio-provider-registry.ts`
 - `src/services/audio/audioRuntimeConfigService.ts`
 - `src/services/audio/audioTranscriptionService.ts`
+- `src/services/audio/audioRealtimeService.ts`
+- `src/services/audio/boundedCleanupRetryQueue.ts`
 - `src/type/audioIpc.ts`
 - `electron/main/audio/ipc.ts`
+- `electron/main/audio/realtime-ipc.ts`
 - `electron/main/audio/audio-output-directory.ts`
 - `electron/main/audio/adapters/openai-audio-adapter.ts`
 - `electron/preload/index.ts`
@@ -54,6 +73,12 @@
 - `useAudioTranscriberStore` 版本升至 v4，持久化结构仅含 sanitized preferences。
 - provider-only ASR constraints helper 被移除；renderer、main、adapter 共用 route-aware
   resolver，未知内置 model fail closed，自定义未知 model 使用 portable minimum。
+- `resolveRealtimeRouteDefinition()` 以 provider/assignment/transport/model 解析 Realtime
+  执行策略与字段约束；generic capability 不再决定 WebRTC/分块模式。
+- `useRealtimeCaptionsStore` 升至 v4，只持久化 preferences；profile seed/session/runtime
+  字段从 state persistence contract 移除。
+- Realtime task service 接受 `AudioTaskInvocationOptions`；新增 recorded chunk cancel 与
+  session stop 的 bounded cleanup queue，`stopped:false` 按幂等成功处理。
 
 ## 验证结果
 
@@ -61,11 +86,13 @@
 
 ```text
 node_modules/.bin/vitest run <10 focused ASR/capability files> --reporter=dot
+node_modules/.bin/vitest run <7 focused captions/cleanup/main files> --reporter=dot
 node_modules/.bin/vitest run --exclude test/e2e.spec.ts --reporter=dot
 node_modules/.bin/tsc --noEmit
 node scripts/check-i18n.mjs
 node_modules/.bin/vite build --mode=test
 node_modules/.bin/vitest run test/e2e.spec.ts -t 'route-aware audio transcription renders usable fields and reauthorizes consumed input files' --reporter=dot
+node_modules/.bin/vitest run test/e2e.spec.ts -t 'route-aware realtime captions expose only usable controls' --reporter=dot
 git diff --check
 ps -axo pid,ppid,command | rg '<FusionKit Vite/Electron patterns>'
 ```
@@ -73,24 +100,31 @@ ps -axo pid,ppid,command | rg '<FusionKit Vite/Electron patterns>'
 结果：
 
 - focused ASR/capability：10 files / 138 tests 通过。
-- 全量非 Electron：86 files / 759 tests 通过。
+- focused captions/cleanup/main：7 files / 136 tests 通过。
+- 全量非 Electron：87 files / 788 tests 通过。
 - TypeScript、四语言 i18n、`git diff --check` 通过；四语言各 1514 keys，audio 各 390。
 - renderer/main/preload test build 通过，仅有既有 dynamic-import/chunk-size warnings。
 - 聚焦 Electron E2E 1 test 通过；实际覆盖零配置、GPT/Whisper/MiMo 字段、双击防重、
   文件二次授权、RadioGroup 键盘链路、两次 provider 请求。
+- 实时字幕聚焦 Electron E2E 1 test 通过；覆盖 none/OpenAI/MiMo 三态、精确 deep link、
+  字段 DOM 显隐、MiMo 语言集合、RadioGroup 键盘链路、store v4 envelope 与宽窄布局。
 - 审查 `fe-r03-transcriber-1280x800.png` 与 `fe-r03-transcriber-786x540.png`：loading
   已退出，无横向溢出或固定底栏遮挡，宽窄截图目标不同。
+- 审查 `fe-r03-captions-mimo-1280x800.png`、`fe-r03-captions-openai-786x540.png` 与
+  `fe-r03-captions-workspace-786x540.png`：loading 已退出，条件字段、分块提示、长格式
+  label 与单列工作区无横向溢出。
 - 未运行 pnpm，`package.json`、`pnpm-lock.yaml` 未修改；Electron/fake server 已关闭，
   最终进程检查为空。
 
 ## 未完成事项
 
-- `FE-R03` 的实时字幕、双向语音迁移。
+- `FE-R03` 的双向语音迁移。
 - 最后 standalone 消费者切换后移除 `useModelStore` legacy audio CRUD/selectors、文本
   connection 删除 guard；legacy 字段仍按设计保留只读备份。
 - `I18N-R01` source-usage checker、`TEST-R01` 完整组件矩阵、`QA-R01/QA-R02` 保持独立。
 
 ## 下一步建议
 
-- 继续实时字幕：先区分 OpenAI Realtime route 与 MiMo transcription chunk route，复用
-  standalone summary、route constraints、runtime sync 和 cancellation queue，再迁移双向语音。
+- 继续双向语音：切到 standalone `realtimeVoice` assignment/route，复用 route identity、
+  sync preflight、session stop cleanup 和零配置 CTA；完成最后消费者迁移后再移除 legacy
+  audio CRUD/selectors 与文本 connection 删除 guard。

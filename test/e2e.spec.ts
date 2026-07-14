@@ -891,6 +891,146 @@ if (shouldSkipElectronE2E) {
       expect(rendererErrors).toEqual([])
     }, 180_000)
 
+    test('route-aware realtime captions expose only usable controls', async () => {
+      const server = fakeAudioApiServer
+      if (!server) {
+        throw new Error('FE-R03 realtime captions fixtures were not initialized')
+      }
+
+      await setWindowSize(mainWin, page, { width: 1280, height: 800 })
+      await seedRealtimeCaptionsAudioSettings(page, 'none', server.baseUrl)
+      expect(await page.getByTestId('captions-config-cta').isVisible()).toBe(true)
+      expect(await page.getByTestId('captions-config').count()).toBe(0)
+      expect(await page.getByTestId('captions-start').count()).toBe(0)
+      expect(await hasHorizontalOverflow(page)).toBe(false)
+      await page.getByTestId('captions-config-cta').click()
+      await page.waitForFunction(() =>
+        window.location.hash ===
+          '#/setting?tab=audio&returnTo=%2Ftools%2Faudio%2Frealtime-captions',
+      )
+
+      await seedRealtimeCaptionsAudioSettings(
+        page,
+        'openai_realtime',
+        server.baseUrl,
+      )
+      expect(
+        await page.getByTestId('captions-config-summary').textContent(),
+      ).toContain('FE-R03 OpenAI Realtime audio')
+      expect(await page.getByTestId('captions-config').isVisible()).toBe(true)
+      expect(await page.locator('#captions-language').isVisible()).toBe(true)
+      expect(
+        await page.getByTestId('captions-input-audio-format').isVisible(),
+      ).toBe(true)
+      expect(await page.locator('#captions-turn-detection').count()).toBe(0)
+      expect(await page.locator('#captions-assistant-transcript').count()).toBe(0)
+      expect(await page.locator('#captions-instructions').count()).toBe(0)
+
+      const pcm16 = page.getByTestId('captions-input-format-pcm16')
+      const pcmu = page.getByTestId('captions-input-format-pcmu')
+      const pcma = page.getByTestId('captions-input-format-pcma')
+      await pcm16.click()
+      await pcm16.focus()
+      expect(
+        await Promise.all([
+          pcm16.getAttribute('tabindex'),
+          pcmu.getAttribute('tabindex'),
+          pcma.getAttribute('tabindex'),
+        ]),
+      ).toEqual(['0', '-1', '-1'])
+      await page.keyboard.press('ArrowRight')
+      expect(await pcmu.getAttribute('data-state')).toBe('checked')
+      expect(await pcmu.evaluate((element) => document.activeElement === element))
+        .toBe(true)
+      await page.keyboard.press('End')
+      expect(await pcma.getAttribute('data-state')).toBe('checked')
+      await page.keyboard.press('Home')
+      expect(await pcm16.getAttribute('data-state')).toBe('checked')
+      expect(await pcm16.evaluate((element) => document.activeElement === element))
+        .toBe(true)
+
+      await expect.poll(async () => {
+        return await page.evaluate(() => {
+          const raw = localStorage.getItem('fusionkit-realtime-captions')
+          if (!raw) return []
+          try {
+            const envelope = JSON.parse(raw) as {
+              version?: unknown
+              state?: Record<string, unknown>
+            }
+            return [envelope.version, ...Object.keys(envelope.state ?? {}).sort()]
+          } catch {
+            return ['invalid-json']
+          }
+        })
+      }).toEqual([4, 'preferences'])
+
+      await seedRealtimeCaptionsAudioSettings(page, 'mimo_chunked', server.baseUrl)
+      expect(
+        await page.getByTestId('captions-config-summary').textContent(),
+      ).toContain('FE-R03 MiMo captions audio')
+      expect(await page.getByTestId('captions-input-audio-format').count()).toBe(0)
+      expect(await page.locator('#captions-turn-detection').count()).toBe(0)
+      expect(await page.locator('#captions-assistant-transcript').count()).toBe(0)
+      expect(await page.locator('#captions-instructions').count()).toBe(0)
+      expect(await page.getByTestId('captions-chunked-notice').isVisible()).toBe(true)
+      expect(
+        (await page.getByTestId('captions-chunked-notice').textContent())?.toLowerCase(),
+      ).toContain('not a webrtc')
+      expect(await page.getByTestId('captions-start').isEnabled()).toBe(true)
+
+      const languageTrigger = page.locator('#captions-language')
+      expect(await languageTrigger.textContent()).toContain('Auto detect')
+      await languageTrigger.click()
+      expect(
+        (await page.getByRole('option').allTextContents()).map((value) =>
+          value.trim(),
+        ),
+      ).toEqual(['Auto detect', 'Chinese', 'English'])
+      await page.keyboard.press('Escape')
+
+      await scrollTestTargetIntoView(page, 'realtime-captions', 'start')
+      const wideLayout = await readCaptionsLayout(page)
+      expect(wideLayout.hasHorizontalOverflow).toBe(false)
+      expect(wideLayout.asideRight).toBeLessThanOrEqual(wideLayout.mainLeft + 1)
+      await page.screenshot({
+        path: path.join(testResultsDir, 'fe-r03-captions-mimo-1280x800.png'),
+        animations: 'disabled',
+      })
+
+      await seedRealtimeCaptionsAudioSettings(
+        page,
+        'openai_realtime',
+        server.baseUrl,
+      )
+      await setWindowSize(mainWin, page, { width: 786, height: 540 })
+      await scrollTestTargetIntoView(page, 'captions-input-audio-format', 'center')
+      const narrowLayout = await readCaptionsLayout(page)
+      expect(narrowLayout.hasHorizontalOverflow).toBe(false)
+      expect(narrowLayout.mainTop).toBeGreaterThanOrEqual(
+        narrowLayout.asideBottom - 1,
+      )
+      expect(await captionsInputFormatItemsFit(page)).toBe(true)
+      await page.screenshot({
+        path: path.join(testResultsDir, 'fe-r03-captions-openai-786x540.png'),
+        animations: 'disabled',
+      })
+      await scrollTestTargetIntoView(page, 'captions-workspace', 'start')
+      expect(await hasHorizontalOverflow(page)).toBe(false)
+      await page.screenshot({
+        path: path.join(
+          testResultsDir,
+          'fe-r03-captions-workspace-786x540.png',
+        ),
+        animations: 'disabled',
+      })
+
+      expect(await page.locator('body').innerText()).not.toMatch(
+        /\baudio:[a-z0-9_.-]+/i,
+      )
+      expect(rendererErrors).toEqual([])
+    }, 180_000)
+
     test('audio pages render across languages and window sizes without white-screen regressions', async () => {
       const routes = [
         '/tools/audio/transcriber',
@@ -1239,6 +1379,84 @@ async function seedTranscriberAudioSettings(
     .waitFor({ state: 'visible' })
 }
 
+type RealtimeCaptionsAudioSeed = 'none' | 'openai_realtime' | 'mimo_chunked'
+
+async function seedRealtimeCaptionsAudioSettings(
+  targetPage: Page,
+  seed: RealtimeCaptionsAudioSeed,
+  baseUrl: string,
+): Promise<void> {
+  await targetPage.evaluate(({ nextSeed, nextBaseUrl }) => {
+    localStorage.clear()
+    localStorage.setItem('lang', 'en')
+    if (nextSeed !== 'none') {
+      const isMimo = nextSeed === 'mimo_chunked'
+      const profileId = `fe_r03_captions_${nextSeed}`
+      if (isMimo) {
+        localStorage.setItem(
+          'fusionkit-realtime-captions',
+          JSON.stringify({
+            version: 4,
+            state: {
+              preferences: {
+                language: 'ja',
+                outputFormat: 'txt',
+                inputAudioFormat: 'pcma',
+              },
+              status: 'listening',
+              sessionId: 'must-not-hydrate',
+              lines: [{ id: 'must-not-hydrate' }],
+            },
+          }),
+        )
+      }
+      localStorage.setItem(
+        'fusionkit-audio-settings',
+        JSON.stringify({
+          version: 1,
+          state: {
+            profiles: [
+              {
+                id: profileId,
+                name: isMimo
+                  ? 'FE-R03 MiMo captions audio'
+                  : 'FE-R03 OpenAI Realtime audio',
+                providerPreset: isMimo ? 'mimo' : 'openai',
+                baseUrl: nextBaseUrl,
+                apiKey: 'fe-r03-captions-e2e-key',
+                routes: {
+                  speechSynthesis: {},
+                  realtimeCaptions: {
+                    transport: isMimo ? 'mimo_chat_audio' : 'openai_realtime',
+                    model: isMimo ? 'mimo-v2.5-asr' : 'gpt-realtime-whisper',
+                    enabled: true,
+                  },
+                },
+              },
+            ],
+            assignment: {
+              transcription: null,
+              speechSynthesis: null,
+              realtimeCaptions: profileId,
+              realtimeVoice: null,
+            },
+            migration: {
+              legacyModelStore: { status: 'not_needed' },
+            },
+          },
+        }),
+      )
+    }
+    window.location.hash = '#/tools/audio/realtime-captions'
+  }, { nextSeed: seed, nextBaseUrl: baseUrl })
+  await targetPage.reload({ waitUntil: 'domcontentloaded' })
+  await waitForFusionKitLoadingToExit(targetPage)
+  await targetPage.getByTestId('realtime-captions').waitFor({ state: 'visible' })
+  await targetPage
+    .getByTestId(seed === 'none' ? 'captions-config-cta' : 'captions-workspace')
+    .waitFor({ state: 'visible' })
+}
+
 async function waitForFakeAudioRequestCount(
   server: FakeAudioApiServer,
   expectedCount: number,
@@ -1347,6 +1565,49 @@ async function readSpeechLayout(targetPage: Page): Promise<SpeechLayoutSnapshot>
         document.documentElement.clientWidth + 1,
     }
   })
+}
+
+async function readCaptionsLayout(
+  targetPage: Page,
+): Promise<SpeechLayoutSnapshot> {
+  return await targetPage.getByTestId('realtime-captions').evaluate((root) => {
+    const aside = root.querySelector('aside')
+    const main = root.querySelector('main')
+    if (!aside || !main) throw new Error('Captions layout columns are missing')
+    const asideRect = aside.getBoundingClientRect()
+    const mainRect = main.getBoundingClientRect()
+    return {
+      asideRight: asideRect.right,
+      asideBottom: asideRect.bottom,
+      mainLeft: mainRect.left,
+      mainTop: mainRect.top,
+      hasHorizontalOverflow:
+        document.documentElement.scrollWidth >
+        document.documentElement.clientWidth + 1,
+    }
+  })
+}
+
+async function captionsInputFormatItemsFit(targetPage: Page): Promise<boolean> {
+  return await targetPage
+    .getByTestId('captions-input-audio-format')
+    .evaluate((group) => {
+      const groupRect = group.getBoundingClientRect()
+      const items = Array.from(group.querySelectorAll<HTMLElement>(
+        '[role="radio"]',
+      ))
+      return (
+        items.length === 3 &&
+        items.every((item) => {
+          const rect = item.getBoundingClientRect()
+          return (
+            rect.left >= groupRect.left - 1 &&
+            rect.right <= groupRect.right + 1 &&
+            item.scrollWidth <= item.clientWidth + 1
+          )
+        })
+      )
+    })
 }
 
 async function speechModeButtonsFit(targetPage: Page): Promise<boolean> {
