@@ -5,18 +5,14 @@ import type {
   AuthorizedAudioTranscriptionResult,
 } from "@/type/audioIpc";
 import {
-  createAudioTranscriberProfileSeedKey,
   DEFAULT_AUDIO_TRANSCRIBER_PREFERENCES,
-  seedAudioTranscriberPreferencesFromProfile,
-  type AudioTranscriberProfileDefaultOverrides,
+  sanitizeAudioTranscriberPreferences,
   type AudioTranscriberPreferences,
   type SelectedAudioInput,
 } from "./audioTranscriberConfig";
-import type { AudioModelProfile } from "@/type/audio";
-import {
-  normalizeAudioOutputDirectoryLabel,
-  type AudioOutputDirectoryAuthorization,
-} from "./audioOutputDirectory";
+import type { AudioOutputDirectoryAuthorization } from "./audioOutputDirectory";
+
+export const AUDIO_TRANSCRIBER_STORE_VERSION = 4;
 
 export type AudioTranscriberStatus =
   | "idle"
@@ -36,23 +32,19 @@ interface AudioTranscriberStore {
   preferences: AudioTranscriberPreferences;
   outputDirectoryAuthorization: AudioOutputDirectoryAuthorization | null;
   selectedFile: SelectedAudioInput | null;
+  fileAuthorizationPending: boolean;
   result: AuthorizedAudioTranscriptionResult | null;
   status: AudioTranscriberStatus;
   lastError: AudioTranscriberUiError | null;
   activeRequestId: string | null;
   requestGeneration: number;
-  profileSeedKey: string | null;
-  profileDefaultOverrides: AudioTranscriberProfileDefaultOverrides;
 
   updatePreferences: (patch: Partial<AudioTranscriberPreferences>) => void;
   setOutputDirectoryAuthorization: (
     authorization: AudioOutputDirectoryAuthorization | null,
   ) => void;
-  seedProfileDefaults: (
-    profileId: string,
-    defaults: AudioModelProfile["defaults"],
-  ) => void;
   setSelectedFile: (file: SelectedAudioInput | null) => void;
+  setFileAuthorizationPending: (pending: boolean) => void;
   setResult: (result: AuthorizedAudioTranscriptionResult | null) => void;
   setStatus: (status: AudioTranscriberStatus) => void;
   setLastError: (error: AudioTranscriberUiError | null) => void;
@@ -67,67 +59,45 @@ interface AudioTranscriberStore {
 const useAudioTranscriberStore = create<AudioTranscriberStore>()(
   persist(
     (set, get) => ({
-      preferences: DEFAULT_AUDIO_TRANSCRIBER_PREFERENCES,
+      preferences: sanitizeAudioTranscriberPreferences(
+        DEFAULT_AUDIO_TRANSCRIBER_PREFERENCES,
+      ),
       outputDirectoryAuthorization: null,
       selectedFile: null,
+      fileAuthorizationPending: false,
       result: null,
       status: "idle",
       lastError: null,
       activeRequestId: null,
       requestGeneration: 0,
-      profileSeedKey: null,
-      profileDefaultOverrides: {},
 
       updatePreferences: (patch) =>
         set((state) => {
-          const profileDefaultOverrides = {
-            ...state.profileDefaultOverrides,
-            ...(Object.prototype.hasOwnProperty.call(patch, "language")
-              ? { language: true as const }
-              : {}),
-            ...(Object.prototype.hasOwnProperty.call(patch, "responseFormat")
-              ? { responseFormat: true as const }
-              : {}),
-          };
           return {
-            preferences: {
+            preferences: sanitizeAudioTranscriberPreferences({
               ...state.preferences,
               ...patch,
-            },
+            }),
             ...(Object.prototype.hasOwnProperty.call(patch, "outputDir") &&
             patch.outputDir !== state.preferences.outputDir
               ? { outputDirectoryAuthorization: null }
               : {}),
-            profileDefaultOverrides,
           };
         }),
       setOutputDirectoryAuthorization: (outputDirectoryAuthorization) =>
         set({ outputDirectoryAuthorization }),
-      seedProfileDefaults: (profileId, defaults) =>
-        set((state) => {
-          const profileSeedKey = createAudioTranscriberProfileSeedKey(
-            profileId,
-            defaults,
-          );
-          if (state.profileSeedKey === profileSeedKey) return state;
-          return {
-            profileSeedKey,
-            preferences: seedAudioTranscriberPreferencesFromProfile(
-              state.preferences,
-              defaults,
-              state.profileDefaultOverrides,
-            ),
-          };
-        }),
       setSelectedFile: (file) =>
         set((state) => ({
           selectedFile: file,
+          fileAuthorizationPending: false,
           result: null,
           status: "idle",
           lastError: null,
           activeRequestId: null,
           requestGeneration: state.requestGeneration + 1,
         })),
+      setFileAuthorizationPending: (fileAuthorizationPending) =>
+        set({ fileAuthorizationPending }),
       setResult: (result) => set({ result }),
       setStatus: (status) => set({ status }),
       setLastError: (error) => set({ lastError: error }),
@@ -180,34 +150,24 @@ const useAudioTranscriberStore = create<AudioTranscriberStore>()(
     {
       name: "fusionkit-audio-transcriber",
       storage: createJSONStorage(() => localStorage),
-      version: 3,
-      partialize: (state) => ({
-        preferences: state.preferences,
-        profileSeedKey: state.profileSeedKey,
-        profileDefaultOverrides: state.profileDefaultOverrides,
-      }),
+      version: AUDIO_TRANSCRIBER_STORE_VERSION,
+      partialize: (state) => ({ preferences: state.preferences }),
       migrate: (persisted, version) =>
         migrateAudioTranscriberPersistedState(persisted, version),
       merge: (persisted, current) => {
         const saved = isRecord(persisted) ? persisted : {};
-        const savedPreferences = isRecord(saved.preferences)
-          ? saved.preferences
-          : {};
         return {
           ...current,
-          ...saved,
-          preferences: {
-            ...DEFAULT_AUDIO_TRANSCRIBER_PREFERENCES,
-            ...savedPreferences,
-            outputDir: normalizeAudioOutputDirectoryLabel(
-              savedPreferences.outputDir,
-            ),
-          },
+          preferences: sanitizeAudioTranscriberPreferences(saved.preferences),
           outputDirectoryAuthorization: null,
-          profileDefaultOverrides: isRecord(saved.profileDefaultOverrides)
-            ? saved.profileDefaultOverrides
-            : {},
-        } as AudioTranscriberStore;
+          selectedFile: null,
+          fileAuthorizationPending: false,
+          result: null,
+          status: "idle",
+          lastError: null,
+          activeRequestId: null,
+          requestGeneration: 0,
+        };
       },
     },
   ),
@@ -215,31 +175,11 @@ const useAudioTranscriberStore = create<AudioTranscriberStore>()(
 
 export function migrateAudioTranscriberPersistedState(
   persisted: unknown,
-  version: number,
+  _version: number,
 ): Record<string, unknown> {
   const saved = isRecord(persisted) ? persisted : {};
-  const preferences = isRecord(saved.preferences) ? saved.preferences : {};
-  const normalized = {
-    ...saved,
-    preferences: {
-      ...preferences,
-      outputDir: normalizeAudioOutputDirectoryLabel(preferences.outputDir),
-    },
-    outputDirectoryAuthorization: null,
-  };
-  if (version >= 2) return normalized;
-
   return {
-    ...normalized,
-    profileSeedKey: null,
-    profileDefaultOverrides: {
-      ...(Object.prototype.hasOwnProperty.call(preferences, "language")
-        ? { language: true }
-        : {}),
-      ...(Object.prototype.hasOwnProperty.call(preferences, "responseFormat")
-        ? { responseFormat: true }
-        : {}),
-    },
+    preferences: sanitizeAudioTranscriberPreferences(saved.preferences),
   };
 }
 

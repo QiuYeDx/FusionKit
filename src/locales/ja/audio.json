@@ -30,15 +30,15 @@
   "workspace": {
     "ready": {
       "title": "設定準備完了",
-      "description": "このページは設定画面のグローバル音声設定を読み込みました。"
+      "description": "このページは現在のタスクに割り当てられた音声 API を使用しています。"
     },
     "audio_api_not_configured": {
       "title": "音声 API が設定されていません",
-      "description": "設定で音声 API を追加し、テキストから音声へのタスクに割り当ててください。"
+      "description": "設定で音声 API を追加し、現在の音声タスクに割り当ててください。"
     },
     "audio_route_not_configured": {
-      "title": "この音声 API には利用可能な音声生成モードがありません",
-      "description": "音声設定でテキストから音声へのルートを 1 つ以上有効にしてください。"
+      "title": "現在の音声 API にこのタスクで使えるルートがありません",
+      "description": "音声設定で現在のタスクに対応するルートを有効にしてください。"
     },
     "profile_not_configured": {
       "title": "音声構成が未選択",
@@ -60,7 +60,7 @@
   "pages": {
     "transcriber": {
       "title": "音声をテキストへ",
-      "description": "グローバル ASR 設定でローカル音声を処理します。",
+      "description": "現在割り当てられている音声 API でローカル音声を文字起こしします。",
       "workspace": "文字起こしタスク"
     },
     "speech": {
@@ -122,12 +122,10 @@
       "prompt": "固有名詞や文脈の補足に使えます。MiMo ASR は現在 prompt に対応していません。",
       "stream": "ファイルのストリーミング文字起こしとリアルタイム字幕は別の能力です。",
       "stream_enabled": "このモデルは SSE によるファイル文字起こしに対応します。ストリーム完了後に最終結果を表示します。",
-      "stream_disabled": "選択した文字起こしモデルはファイルストリーミングに対応していません。",
       "output_mode": "元フォルダまたは任意フォルダを選ぶと、完了時に文字起こしファイルを書き出します。"
     },
     "placeholders": {
       "prompt": "例：人名、製品名、用語集、分野の文脈",
-      "mimo_prompt_disabled": "現在の MiMo ASR はプロンプトに対応していません",
       "output_dir": "出力フォルダ未選択"
     },
     "dialog": {
@@ -136,6 +134,7 @@
     },
     "file": {
       "title": "音声ファイルを選択",
+      "authorizing": "音声ファイルを認証中",
       "openai_description": "wav、mp3、m4a、mp4、flac、ogg、webm に対応。25MB 未満を推奨します。",
       "mimo_description": "MiMo ASR は wav / mp3 のみ対応し、Base64 後に 10MB 未満である必要があります。"
     },
@@ -161,7 +160,7 @@
       "title": "音声ファイル待ち",
       "description": "ファイルを選び、設定を確認してから開始してください。結果はここに表示されます。",
       "running": "文字起こし中",
-      "running_description": "現在のグローバル音声設定へリクエストを送信しました。このページを開いたままにしてください。"
+      "running_description": "現在割り当てられている音声 API で処理しています。このページを開いたままにしてください。"
     },
     "result": {
       "title": "文字起こし結果"
@@ -176,7 +175,8 @@
     },
     "errors": {
       "title": "文字起こしに失敗しました",
-      "file_path_unavailable": "このファイルのローカルパスを取得できません。Electron アプリ内で再度選択してください。",
+      "file_path_unavailable": "FusionKit が main プロセスにこのファイルを認証できませんでした。Electron アプリ内で再度選択してください。",
+      "file_authorizing": "ファイルの認証が完了するまでお待ちください。",
       "unsupported_file": "この音声形式は対応していません。",
       "unsupported_file_for_mimo": "MiMo ASR の初版は wav または mp3 ファイルのみ対応します。",
       "file_too_large": "音声ファイルが現在のプロトコルのサイズ制限を超えています。",

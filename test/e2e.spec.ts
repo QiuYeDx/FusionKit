@@ -18,6 +18,7 @@ import {
 import {
   createMimoSpeechBody,
   createMimoStreamingSpeechEvents,
+  createOpenAITranscriptionBody,
   createOpenAISpeechBuffer,
   startFakeAudioApiServer,
   type FakeAudioApiServer,
@@ -694,6 +695,202 @@ if (shouldSkipElectronE2E) {
       expect(rendererErrors).toEqual([])
     }, 180_000)
 
+    test('route-aware audio transcription renders usable fields and reauthorizes consumed input files', async () => {
+      const server = fakeAudioApiServer
+      const samplePath = voiceSamplePath
+      if (!server || !samplePath) {
+        throw new Error('FE-R03 E2E fixtures were not initialized')
+      }
+
+      await setWindowSize(mainWin, page, { width: 1280, height: 800 })
+      await seedTranscriberAudioSettings(page, 'none', server.baseUrl)
+      expect(
+        await page.getByTestId('transcriber-config-cta').isVisible(),
+      ).toBe(true)
+      expect(await page.getByTestId('transcriber-file-input').count()).toBe(0)
+      expect(await page.getByTestId('transcriber-start').count()).toBe(0)
+      expect(await hasHorizontalOverflow(page)).toBe(false)
+      await page.getByTestId('transcriber-config-cta').click()
+      await page.waitForFunction(() =>
+        window.location.hash ===
+          '#/setting?tab=audio&returnTo=%2Ftools%2Faudio%2Ftranscriber',
+      )
+
+      await seedTranscriberAudioSettings(page, 'openai_gpt', server.baseUrl)
+      expect(
+        await page.getByTestId('transcriber-field-prompt').isVisible(),
+      ).toBe(true)
+      expect(await page.getByTestId('transcriber-stream').isVisible()).toBe(true)
+      expect(await page.getByTestId('transcriber-field-timestamps').count()).toBe(0)
+      expect(
+        await page
+          .getByTestId('transcriber-output-format')
+          .locator('[data-slot="select-trigger"]')
+          .count(),
+      ).toBe(0)
+      const gptFormatSummary = page.getByTestId(
+        'transcriber-output-format-summary',
+      )
+      expect(await gptFormatSummary.count()).toBe(1)
+      expect((await gptFormatSummary.textContent())?.trim()).toBe('JSON')
+      expect(
+        await page
+          .getByTestId('audio-transcriber')
+          .getByText('Generation mode', { exact: true })
+          .count(),
+      ).toBe(0)
+
+      await seedTranscriberAudioSettings(page, 'openai_whisper', server.baseUrl)
+      expect(await page.getByTestId('transcriber-stream').count()).toBe(0)
+      expect(
+        await page
+          .getByTestId('transcriber-output-format')
+          .locator('[data-slot="select-trigger"]')
+          .count(),
+      ).toBe(1)
+      expect(await page.getByTestId('transcriber-field-timestamps').count()).toBe(0)
+      await page.locator('#transcriber-response-format').click()
+      await page.getByRole('option', {
+        name: 'Verbose JSON',
+        exact: true,
+      }).click()
+      await page.getByTestId('transcriber-field-timestamps').waitFor({
+        state: 'visible',
+      })
+
+      await seedTranscriberAudioSettings(page, 'mimo', server.baseUrl)
+      expect(await page.getByTestId('transcriber-field-prompt').count()).toBe(0)
+      expect(await page.getByTestId('transcriber-field-timestamps').count()).toBe(0)
+      expect(await page.getByTestId('transcriber-stream').isVisible()).toBe(true)
+      const mimoFormatSelect = page.locator('#transcriber-response-format')
+      expect(await mimoFormatSelect.isVisible()).toBe(true)
+      await mimoFormatSelect.click()
+      expect(
+        (await page.getByRole('option').allTextContents()).map((value) =>
+          value.trim(),
+        ),
+      ).toEqual(['JSON', 'Plain text'])
+      await page.keyboard.press('Escape')
+
+      await seedTranscriberAudioSettings(page, 'openai_gpt', server.baseUrl)
+      const displayOnlyMode = page.getByTestId(
+        'transcriber-output-mode-display_only',
+      )
+      const sourceDirectoryMode = page.getByTestId(
+        'transcriber-output-mode-source_dir',
+      )
+      const customDirectoryMode = page.getByTestId(
+        'transcriber-output-mode-custom_dir',
+      )
+      await displayOnlyMode.click()
+      await displayOnlyMode.focus()
+      expect(
+        await Promise.all([
+          displayOnlyMode.getAttribute('tabindex'),
+          sourceDirectoryMode.getAttribute('tabindex'),
+          customDirectoryMode.getAttribute('tabindex'),
+        ]),
+      ).toEqual(['0', '-1', '-1'])
+      await page.keyboard.press('ArrowRight')
+      expect(await sourceDirectoryMode.getAttribute('data-state')).toBe('checked')
+      expect(await sourceDirectoryMode.evaluate((element) =>
+        document.activeElement === element,
+      )).toBe(true)
+      await page.keyboard.press('End')
+      expect(await customDirectoryMode.getAttribute('data-state')).toBe('checked')
+      await page.keyboard.press('Home')
+      expect(await displayOnlyMode.getAttribute('data-state')).toBe('checked')
+      expect(await displayOnlyMode.evaluate((element) =>
+        document.activeElement === element,
+      )).toBe(true)
+
+      await page
+        .getByTestId('transcriber-file-input')
+        .setInputFiles(samplePath)
+      await page.getByTestId('transcriber-file-selected').waitFor({
+        state: 'visible',
+      })
+      expect(await page.getByTestId('transcriber-start').isEnabled()).toBe(true)
+
+      const requestCountBefore = server.requests.length
+      server.enqueueRoute('openai_transcriptions', {
+        body: createOpenAITranscriptionBody({
+          text: 'First route-aware transcript',
+          model: 'gpt-4o-transcribe',
+        }),
+      })
+      await page.getByTestId('transcriber-start').evaluate((button) => {
+        const start = button as HTMLButtonElement
+        start.click()
+        start.click()
+      })
+      await waitForFakeAudioRequestCount(server, requestCountBefore + 1)
+      await waitForTranscriptionReady(page, 'First route-aware transcript')
+      await page.waitForTimeout(100)
+      expect(server.requests).toHaveLength(requestCountBefore + 1)
+
+      server.enqueueRoute('openai_transcriptions', {
+        body: createOpenAITranscriptionBody({
+          text: 'Second route-aware transcript',
+          model: 'gpt-4o-transcribe',
+        }),
+      })
+      await page.getByTestId('transcriber-start').click()
+      await waitForFakeAudioRequestCount(server, requestCountBefore + 2)
+      await waitForTranscriptionReady(page, 'Second route-aware transcript')
+      expect(
+        server.requests
+          .slice(requestCountBefore)
+          .map((request) => request.route),
+      ).toEqual(['openai_transcriptions', 'openai_transcriptions'])
+
+      const persistedTranscriber = await page.evaluate(() => {
+        const raw = localStorage.getItem('fusionkit-audio-transcriber') ?? ''
+        try {
+          const envelope = JSON.parse(raw) as { state?: Record<string, unknown> }
+          return {
+            raw,
+            stateKeys: Object.keys(envelope.state ?? {}).sort(),
+          }
+        } catch {
+          return { raw, stateKeys: ['invalid-json'] }
+        }
+      })
+      expect(persistedTranscriber.stateKeys).toEqual(['preferences'])
+      expect(persistedTranscriber.raw).not.toContain(path.basename(samplePath))
+      expect(persistedTranscriber.raw).not.toContain(samplePath)
+      expect(persistedTranscriber.raw).not.toContain('fileName')
+      expect(persistedTranscriber.raw).not.toContain('filePath')
+      expect(persistedTranscriber.raw).not.toContain('fileToken')
+      expect(persistedTranscriber.raw).not.toContain('sourceFile')
+
+      await page.waitForFunction(
+        () => !document.querySelector('[data-sonner-toast]'),
+        undefined,
+        { timeout: 15_000 },
+      )
+      await setWindowSize(mainWin, page, { width: 1280, height: 800 })
+      await scrollTestTargetIntoView(page, 'audio-transcriber', 'start')
+      expect(await hasHorizontalOverflow(page)).toBe(false)
+      await page.screenshot({
+        path: path.join(testResultsDir, 'fe-r03-transcriber-1280x800.png'),
+        animations: 'disabled',
+      })
+
+      await setWindowSize(mainWin, page, { width: 786, height: 540 })
+      await scrollTestTargetIntoView(page, 'transcriber-result', 'center')
+      expect(await hasHorizontalOverflow(page)).toBe(false)
+      await page.screenshot({
+        path: path.join(testResultsDir, 'fe-r03-transcriber-786x540.png'),
+        animations: 'disabled',
+      })
+
+      expect(await page.locator('body').innerText()).not.toMatch(
+        /\baudio:[a-z0-9_.-]+/i,
+      )
+      expect(rendererErrors).toEqual([])
+    }, 180_000)
+
     test('audio pages render across languages and window sizes without white-screen regressions', async () => {
       const routes = [
         '/tools/audio/transcriber',
@@ -971,6 +1168,77 @@ async function seedSpeechAudioSettings(
     .waitFor({ state: 'visible' })
 }
 
+type TranscriberAudioSeed =
+  | 'none'
+  | 'openai_gpt'
+  | 'openai_whisper'
+  | 'mimo'
+
+async function seedTranscriberAudioSettings(
+  targetPage: Page,
+  seed: TranscriberAudioSeed,
+  baseUrl: string,
+): Promise<void> {
+  await targetPage.evaluate(({ nextSeed, nextBaseUrl }) => {
+    localStorage.clear()
+    localStorage.setItem('lang', 'en')
+    if (nextSeed !== 'none') {
+      const isMimo = nextSeed === 'mimo'
+      const profileId = `fe_r03_${nextSeed}`
+      const model = nextSeed === 'openai_whisper'
+        ? 'whisper-1'
+        : isMimo
+          ? 'mimo-v2.5-asr'
+          : 'gpt-4o-transcribe'
+      localStorage.setItem(
+        'fusionkit-audio-settings',
+        JSON.stringify({
+          version: 1,
+          state: {
+            profiles: [
+              {
+                id: profileId,
+                name: isMimo
+                  ? 'FE-R03 MiMo audio'
+                  : 'FE-R03 OpenAI audio',
+                providerPreset: isMimo ? 'mimo' : 'openai',
+                baseUrl: nextBaseUrl,
+                apiKey: 'fe-r03-e2e-key',
+                routes: {
+                  transcription: {
+                    transport: isMimo ? 'mimo_chat_audio' : 'openai_audio',
+                    model,
+                    enabled: true,
+                  },
+                  speechSynthesis: {},
+                },
+              },
+            ],
+            assignment: {
+              transcription: profileId,
+              speechSynthesis: null,
+              realtimeCaptions: null,
+              realtimeVoice: null,
+            },
+            migration: {
+              legacyModelStore: { status: 'not_needed' },
+            },
+          },
+        }),
+      )
+    }
+    window.location.hash = '#/tools/audio/transcriber'
+  }, { nextSeed: seed, nextBaseUrl: baseUrl })
+  await targetPage.reload({ waitUntil: 'domcontentloaded' })
+  await waitForFusionKitLoadingToExit(targetPage)
+  await targetPage.getByTestId('audio-transcriber').waitFor({ state: 'visible' })
+  await targetPage
+    .getByTestId(
+      seed === 'none' ? 'transcriber-config-cta' : 'transcriber-workspace',
+    )
+    .waitFor({ state: 'visible' })
+}
+
 async function waitForFakeAudioRequestCount(
   server: FakeAudioApiServer,
   expectedCount: number,
@@ -983,6 +1251,41 @@ async function waitForFakeAudioRequestCount(
   throw new Error(
     `Timed out waiting for ${expectedCount} fake audio API requests; received ${server.requests.length}.`,
   )
+}
+
+async function waitForTranscriptionReady(
+  targetPage: Page,
+  expectedText: string,
+): Promise<void> {
+  await targetPage.waitForFunction((text) => {
+    const start = document.querySelector<HTMLButtonElement>(
+      '[data-testid="transcriber-start"]',
+    )
+    const result = document.querySelector('[data-testid="transcriber-result"]')
+    const output = result?.querySelector<HTMLTextAreaElement>('textarea')
+    return Boolean(start && !start.disabled && output?.value.includes(text))
+  }, expectedText)
+  const resultText = await targetPage
+    .getByTestId('transcriber-result')
+    .locator('textarea')
+    .inputValue()
+  if (!resultText.includes(expectedText)) {
+    const bodyText = await targetPage.locator('body').innerText()
+    throw new Error(`Audio transcription failed:\n${bodyText}`)
+  }
+}
+
+async function scrollTestTargetIntoView(
+  targetPage: Page,
+  testId: string,
+  block: ScrollLogicalPosition,
+): Promise<void> {
+  await targetPage.getByTestId(testId).evaluate((element, targetBlock) => {
+    element.scrollIntoView({ block: targetBlock })
+  }, block)
+  await targetPage.evaluate(() => new Promise<void>((resolve) => {
+    requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
+  }))
 }
 
 async function waitForSpeechGenerateReady(targetPage: Page): Promise<void> {

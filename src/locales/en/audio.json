@@ -30,15 +30,15 @@
   "workspace": {
     "ready": {
       "title": "Config ready",
-      "description": "This page has loaded the global audio configuration from settings."
+      "description": "This page is using the audio API assigned to the current task."
     },
     "audio_api_not_configured": {
       "title": "No audio API is configured",
-      "description": "Add an audio API in settings and assign it to text-to-audio."
+      "description": "Add an audio API in settings and assign it to the current audio task."
     },
     "audio_route_not_configured": {
-      "title": "This audio API has no available speech mode",
-      "description": "Enable at least one text-to-audio route in audio settings."
+      "title": "This audio API has no usable route for the current task",
+      "description": "Enable a compatible route for this task in audio settings."
     },
     "profile_not_configured": {
       "title": "No audio profile selected",
@@ -60,7 +60,7 @@
   "pages": {
     "transcriber": {
       "title": "Audio to text",
-      "description": "Process local audio with the global ASR configuration.",
+      "description": "Transcribe local audio with the currently assigned audio API.",
       "workspace": "Transcription task"
     },
     "speech": {
@@ -122,12 +122,10 @@
       "prompt": "Use this for names, product terms, or domain context. MiMo ASR does not support prompts.",
       "stream": "File streaming transcription and realtime captions are separate capabilities.",
       "stream_enabled": "This model supports file transcription over SSE. The completed transcript is shown after the stream ends.",
-      "stream_disabled": "The selected transcription model does not support file streaming.",
       "output_mode": "Source or custom folders write the transcript file when the task completes."
     },
     "placeholders": {
       "prompt": "Names, product terms, glossary, or domain context",
-      "mimo_prompt_disabled": "The current MiMo ASR mode does not support prompts",
       "output_dir": "No output folder selected"
     },
     "dialog": {
@@ -136,6 +134,7 @@
     },
     "file": {
       "title": "Choose an audio file",
+      "authorizing": "Authorizing audio file",
       "openai_description": "Supports wav, mp3, m4a, mp4, flac, ogg, and webm. Recommended under 25MB.",
       "mimo_description": "MiMo ASR only accepts wav / mp3 and must stay under 10MB after Base64 encoding."
     },
@@ -161,7 +160,7 @@
       "title": "Waiting for audio",
       "description": "Choose a file and confirm the settings. The transcript will appear here.",
       "running": "Transcribing",
-      "running_description": "The request is using the current global audio configuration. Keep this page open."
+      "running_description": "The request is using the currently assigned audio API. Keep this page open."
     },
     "result": {
       "title": "Transcript result"
@@ -176,7 +175,8 @@
     },
     "errors": {
       "title": "Transcription failed",
-      "file_path_unavailable": "Could not read the local path for this file. Choose it again inside the Electron app.",
+      "file_path_unavailable": "FusionKit could not authorize this file for the main process. Choose it again inside the Electron app.",
+      "file_authorizing": "Wait for file authorization to finish.",
       "unsupported_file": "This audio format is not supported.",
       "unsupported_file_for_mimo": "MiMo ASR currently supports only wav or mp3 files.",
       "file_too_large": "The audio file exceeds the size limit for the current protocol.",

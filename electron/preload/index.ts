@@ -8,6 +8,7 @@ import type {
   AudioOutputDirectorySelection,
   AuthorizedAudioInputFile,
   RevokeAudioInputFileResult,
+  RevokeAudioOutputDirectoryResult,
   SelectAudioOutputDirectoryRequest,
 } from '@/type/audioIpc'
 import { isPublicAudioIpcChannel } from './audio-channel-policy'
@@ -19,6 +20,8 @@ const AUDIO_AUTHORIZE_INPUT_FILE_CHANNEL = 'audio:internal:authorize-input-file'
 const AUDIO_REVOKE_INPUT_FILE_CHANNEL = 'audio:internal:revoke-input-file'
 const AUDIO_SELECT_OUTPUT_DIRECTORY_CHANNEL =
   'audio:internal:select-output-directory'
+const AUDIO_REVOKE_OUTPUT_DIRECTORY_CHANNEL =
+  'audio:internal:revoke-output-directory'
 const AUDIO_EVENT_CHANNELS = new Set<AudioEventChannel>([
   'audio:speech-synthesis-stream',
   'audio:realtime:session-event',
@@ -162,6 +165,12 @@ const audioApi: AudioRendererApi = {
     return invokeAuthorizedAudioChannel<AudioOutputDirectorySelection>(
       AUDIO_SELECT_OUTPUT_DIRECTORY_CHANNEL,
       request,
+    )
+  },
+  revokeOutputDirectory(outputDirToken: string) {
+    return invokeAuthorizedAudioChannel<RevokeAudioOutputDirectoryResult>(
+      AUDIO_REVOKE_OUTPUT_DIRECTORY_CHANNEL,
+      { outputDirToken },
     )
   },
   on(channel, listener) {

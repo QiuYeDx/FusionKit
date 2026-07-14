@@ -30,15 +30,15 @@
   "workspace": {
     "ready": {
       "title": "設定就緒",
-      "description": "此頁面已讀取設定頁的全域音訊設定。"
+      "description": "此頁面正在使用設定中分配給目前任務的音訊 API。"
     },
     "audio_api_not_configured": {
       "title": "尚未設定音訊 API",
-      "description": "請先在設定中新增音訊 API，並將其分配給文字轉音訊。"
+      "description": "請先在設定中新增音訊 API，並將其分配給目前音訊任務。"
     },
     "audio_route_not_configured": {
-      "title": "目前音訊 API 沒有可用的語音產生模式",
-      "description": "請在音訊設定中啟用至少一條文字轉音訊路由。"
+      "title": "目前音訊 API 沒有適用於此任務的路由",
+      "description": "請在音訊設定中為目前任務啟用相容路由。"
     },
     "profile_not_configured": {
       "title": "未選擇音訊設定",
@@ -60,7 +60,7 @@
   "pages": {
     "transcriber": {
       "title": "音訊轉文字",
-      "description": "使用全域 ASR 設定處理本地音訊。",
+      "description": "使用目前分配的音訊 API 轉寫本地音訊。",
       "workspace": "轉寫任務"
     },
     "speech": {
@@ -122,12 +122,10 @@
       "prompt": "可補充專有名詞或上下文。MiMo ASR 目前不支援 prompt。",
       "stream": "檔案串流轉寫與即時字幕是不同能力。",
       "stream_enabled": "目前模型支援透過 SSE 串流轉寫檔案，串流結束後顯示完整結果。",
-      "stream_disabled": "目前選擇的轉寫模型不支援檔案串流輸出。",
       "output_mode": "選擇來源目錄或自選目錄時，轉寫完成後會直接寫入結果檔案。"
     },
     "placeholders": {
       "prompt": "例如：人名、產品名、術語表或領域上下文",
-      "mimo_prompt_disabled": "目前 MiMo ASR 不支援提示詞",
       "output_dir": "尚未選擇輸出目錄"
     },
     "dialog": {
@@ -136,6 +134,7 @@
     },
     "file": {
       "title": "選擇音訊檔案",
+      "authorizing": "正在授權音訊檔案",
       "openai_description": "支援 wav、mp3、m4a、mp4、flac、ogg、webm，建議不超過 25MB。",
       "mimo_description": "MiMo ASR 僅支援 wav / mp3，Base64 後需小於 10MB。"
     },
@@ -161,7 +160,7 @@
       "title": "等待音訊檔案",
       "description": "選擇檔案並確認參數後開始轉寫，結果會顯示在這裡。",
       "running": "正在轉寫",
-      "running_description": "請求已送往目前全域音訊設定，請保持頁面開啟。"
+      "running_description": "請求正在使用目前分配的音訊 API，請保持頁面開啟。"
     },
     "result": {
       "title": "轉寫結果"
@@ -176,7 +175,8 @@
     },
     "errors": {
       "title": "轉寫失敗",
-      "file_path_unavailable": "無法讀取此檔案的本機路徑，請在 Electron 應用內重新選擇檔案。",
+      "file_path_unavailable": "FusionKit 無法授權主行程讀取此檔案，請在 Electron 應用內重新選擇。",
+      "file_authorizing": "請等待檔案授權完成。",
       "unsupported_file": "目前音訊格式不受支援。",
       "unsupported_file_for_mimo": "MiMo ASR 首版僅支援 wav 或 mp3 檔案。",
       "file_too_large": "音訊檔案超過目前協議的大小限制。",

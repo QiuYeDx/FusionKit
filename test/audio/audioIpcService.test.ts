@@ -156,6 +156,50 @@ describe("AudioIpcService", () => {
     expect(JSON.stringify(result)).not.toContain(privateDirectory);
   });
 
+  it("revokes output directory tokens only for their renderer owner", async () => {
+    const outputDirectoryAuthorizations =
+      createOutputDirectoryAuthorizations();
+    outputDirectoryAuthorizations.seed(
+      TEST_OWNER_ID,
+      "output_dir_token_revoke",
+      "/private/audio/exports",
+    );
+    const service = createService(createRuntimeInvoker(), {
+      outputDirectoryAuthorizations,
+    });
+
+    const wrongOwner = service.revokeOutputDirectory(
+      { outputDirToken: "output_dir_token_revoke" },
+      { senderId: TEST_OWNER_ID + 1 },
+    );
+    const owner = service.revokeOutputDirectory(
+      { outputDirToken: "output_dir_token_revoke" },
+      { senderId: TEST_OWNER_ID },
+    );
+    const repeated = service.revokeOutputDirectory(
+      { outputDirToken: "output_dir_token_revoke" },
+      { senderId: TEST_OWNER_ID },
+    );
+
+    expect(wrongOwner).toEqual({ ok: true, data: { revoked: false } });
+    expect(owner).toEqual({ ok: true, data: { revoked: true } });
+    expect(repeated).toEqual({ ok: true, data: { revoked: false } });
+    expect(outputDirectoryAuthorizations.revoke).toHaveBeenNthCalledWith(
+      1,
+      TEST_OWNER_ID + 1,
+      "output_dir_token_revoke",
+    );
+    expect(outputDirectoryAuthorizations.revoke).toHaveBeenNthCalledWith(
+      2,
+      TEST_OWNER_ID,
+      "output_dir_token_revoke",
+    );
+    expectNoPathKeys([wrongOwner, owner, repeated]);
+    expect(JSON.stringify([wrongOwner, owner, repeated])).not.toContain(
+      "/private/audio/exports",
+    );
+  });
+
   it("does not mint a file token after the selecting renderer is released", async () => {
     const pendingAuthorization = createDeferred<{
       fileToken: string;
@@ -678,7 +722,7 @@ describe("AudioIpcService", () => {
       });
     }
 
-    expect(fileAuthorizations.resolve).not.toHaveBeenCalled();
+    expect(fileAuthorizations.consume).not.toHaveBeenCalled();
     expect(runtime.transcribe).not.toHaveBeenCalled();
   });
 
@@ -700,7 +744,7 @@ describe("AudioIpcService", () => {
       });
     }
 
-    expect(fileAuthorizations.resolve).not.toHaveBeenCalled();
+    expect(fileAuthorizations.consume).not.toHaveBeenCalled();
     expect(runtime.transcribe).not.toHaveBeenCalled();
   });
 
@@ -710,6 +754,7 @@ describe("AudioIpcService", () => {
     const service = createService(runtime, { fileAuthorizations });
     const snapshot = createRuntimeConfigSnapshot();
     snapshot.profiles[0]!.providerPreset = "custom_openai_compatible";
+    snapshot.profiles[0]!.routes.transcription!.model = "vendor-asr-v3";
     const context = await syncService(service, snapshot);
 
     const result = await service.transcribe(
@@ -721,8 +766,196 @@ describe("AudioIpcService", () => {
       ok: false,
       error: { code: "invalid_task_parameters", field: "stream" },
     });
-    expect(fileAuthorizations.resolve).not.toHaveBeenCalled();
+    expect(fileAuthorizations.consume).not.toHaveBeenCalled();
     expect(runtime.transcribe).not.toHaveBeenCalled();
+  });
+
+  it("accepts Whisper transcription fields from the trusted route model", async () => {
+    const runtime = createRuntimeInvoker();
+    const fileAuthorizations = createFileAuthorizations();
+    const service = createService(runtime, { fileAuthorizations });
+    const snapshot = createRuntimeConfigSnapshot();
+    snapshot.profiles[0]!.routes.transcription!.model = "whisper-1";
+    const context = await syncService(service, snapshot);
+
+    const result = await service.transcribe(
+      createTranscriptionPayload({
+        responseFormat: "verbose_json",
+        prompt: "Product names",
+        timestampGranularities: ["word", "segment"],
+      }),
+      context,
+    );
+
+    expect(result).toMatchObject({ ok: true });
+    expect(fileAuthorizations.consume).toHaveBeenCalledWith(
+      TEST_OWNER_ID,
+      "file_token_test",
+      "openai_audio",
+    );
+    expect(runtime.transcribe).toHaveBeenCalledWith(
+      expect.objectContaining({
+        responseFormat: "verbose_json",
+        timestampGranularities: ["word", "segment"],
+      }),
+      expect.objectContaining({
+        model: expect.objectContaining({ modelKey: "whisper-1" }),
+      }),
+    );
+  });
+
+  it("accepts MiMo transcription fields from the trusted route model", async () => {
+    const runtime = createRuntimeInvoker();
+    const fileAuthorizations = createFileAuthorizations();
+    const service = createService(runtime, { fileAuthorizations });
+    const snapshot = createRuntimeConfigSnapshot();
+    snapshot.assignment.transcription = "audio_mimo";
+    const context = await syncService(service, snapshot);
+
+    const result = await service.transcribe(
+      createTranscriptionPayload({
+        responseFormat: "text",
+        language: "en",
+        stream: true,
+      }),
+      context,
+    );
+
+    expect(result).toMatchObject({ ok: true });
+    expect(fileAuthorizations.consume).toHaveBeenCalledWith(
+      TEST_OWNER_ID,
+      "file_token_test",
+      "mimo_chat_audio",
+    );
+    expect(runtime.transcribe).toHaveBeenCalledWith(
+      expect.objectContaining({
+        responseFormat: "text",
+        language: "en",
+        stream: true,
+      }),
+      expect.objectContaining({
+        model: expect.objectContaining({ modelKey: "mimo-v2.5-asr" }),
+      }),
+    );
+  });
+
+  it("keeps unknown custom transcription models on the conservative contract", async () => {
+    const runtime = createRuntimeInvoker();
+    const fileAuthorizations = createFileAuthorizations();
+    const service = createService(runtime, { fileAuthorizations });
+    const snapshot = createRuntimeConfigSnapshot();
+    snapshot.profiles[0]!.providerPreset = "custom_openai_compatible";
+    snapshot.profiles[0]!.routes.transcription!.model = "vendor-asr-v3";
+    const context = await syncService(service, snapshot);
+
+    const result = await service.transcribe(
+      createTranscriptionPayload({
+        responseFormat: "json",
+        prompt: "Product names",
+      }),
+      context,
+    );
+
+    expect(result).toMatchObject({ ok: true });
+    expect(fileAuthorizations.consume).toHaveBeenCalledTimes(1);
+    expect(runtime.transcribe).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    {
+      profileId: "audio_openai",
+      model: "unknown-openai-asr",
+    },
+    {
+      profileId: "audio_mimo",
+      model: "unknown-mimo-asr",
+    },
+  ])(
+    "fails closed for unknown built-in transcription model $model",
+    async ({ profileId, model }) => {
+      const runtime = createRuntimeInvoker();
+      const fileAuthorizations = createFileAuthorizations();
+      const service = createService(runtime, { fileAuthorizations });
+      const snapshot = createRuntimeConfigSnapshot();
+      snapshot.assignment.transcription = profileId;
+      const profile = snapshot.profiles.find((item) => item.id === profileId)!;
+      profile.routes.transcription!.model = model;
+      const context = await syncService(service, snapshot);
+
+      const result = await service.transcribe(
+        createTranscriptionPayload(),
+        context,
+      );
+
+      expect(result).toMatchObject({
+        ok: false,
+        error: {
+          code: "invalid_task_parameters",
+          field: "assignmentKey",
+        },
+      });
+      expect(fileAuthorizations.consume).not.toHaveBeenCalled();
+      expect(runtime.transcribe).not.toHaveBeenCalled();
+    },
+  );
+
+  it("consumes a transcription input token once and rejects replay", async () => {
+    const runtime = createRuntimeInvoker();
+    const fileAuthorizations = createFileAuthorizations();
+    const service = createService(runtime, { fileAuthorizations });
+    const context = await syncService(service);
+    const payload = createTranscriptionPayload();
+
+    await expect(service.transcribe(payload, context)).resolves.toMatchObject({
+      ok: true,
+    });
+    await expect(service.transcribe(payload, context)).resolves.toMatchObject({
+      ok: false,
+      error: { code: "invalid_ipc_request", field: "fileToken" },
+    });
+
+    expect(fileAuthorizations.consume).toHaveBeenCalledTimes(2);
+    expect(runtime.transcribe).toHaveBeenCalledTimes(1);
+  });
+
+  it("rejects a duplicate transcription requestId before consuming another token", async () => {
+    const runtime: AudioRuntimeInvoker = {
+      transcribe: vi.fn((_payload, options) =>
+        new Promise((_resolve, reject) => {
+          options.signal?.addEventListener("abort", () => {
+            reject(createAudioRuntimeError({
+              code: "aborted",
+              message: "Audio transcription was aborted.",
+            }));
+          });
+        })),
+      synthesize: vi.fn(),
+    };
+    const fileAuthorizations = createFileAuthorizations();
+    const service = createService(runtime, { fileAuthorizations });
+    const context = await syncService(service);
+    const requestId = "duplicate_asr_request";
+
+    const first = service.transcribe(
+      createTranscriptionPayload({ requestId, fileToken: "first_asr_token" }),
+      context,
+    );
+    await waitFor(() => expect(runtime.transcribe).toHaveBeenCalledTimes(1));
+    const duplicate = await service.transcribe(
+      createTranscriptionPayload({ requestId, fileToken: "second_asr_token" }),
+      context,
+    );
+
+    expect(duplicate).toMatchObject({
+      ok: false,
+      error: { code: "invalid_ipc_request", field: "requestId" },
+    });
+    expect(fileAuthorizations.consume).toHaveBeenCalledTimes(1);
+    service.releaseOwner(TEST_OWNER_ID);
+    await expect(first).resolves.toMatchObject({
+      ok: false,
+      error: { code: "aborted" },
+    });
   });
 
   it.each([
@@ -968,7 +1201,7 @@ describe("AudioIpcService", () => {
       base64EncodedBytes: number;
     }>();
     const fileAuthorizations = createFileAuthorizations();
-    vi.mocked(fileAuthorizations.resolve).mockImplementationOnce(
+    vi.mocked(fileAuthorizations.consume).mockImplementationOnce(
       () => fileAuthorization.promise,
     );
     const runtime = createRuntimeInvoker();
@@ -976,7 +1209,7 @@ describe("AudioIpcService", () => {
     const context = await syncService(service);
 
     const pending = service.transcribe(createTranscriptionPayload(), context);
-    await waitFor(() => expect(fileAuthorizations.resolve).toHaveBeenCalled());
+    await waitFor(() => expect(fileAuthorizations.consume).toHaveBeenCalled());
     service.releaseOwner(TEST_OWNER_ID);
     fileAuthorization.resolve({
       filePath: "/private/audio/input.wav",
@@ -1048,7 +1281,7 @@ describe("AudioIpcService", () => {
       base64EncodedBytes: number;
     }>();
     const fileAuthorizations = createFileAuthorizations();
-    vi.mocked(fileAuthorizations.resolve).mockImplementationOnce(
+    vi.mocked(fileAuthorizations.consume).mockImplementationOnce(
       () => fileAuthorization.promise,
     );
     const runtime = createRuntimeInvoker();
@@ -1059,7 +1292,7 @@ describe("AudioIpcService", () => {
       createTranscriptionPayload({ requestId: "pending_asr_cancel" }),
       context,
     );
-    await waitFor(() => expect(fileAuthorizations.resolve).toHaveBeenCalled());
+    await waitFor(() => expect(fileAuthorizations.consume).toHaveBeenCalled());
 
     await expect(service.cancelTranscription(
       { requestId: "pending_asr_cancel" },
@@ -1148,7 +1381,7 @@ describe("AudioIpcService", () => {
       base64EncodedBytes: number;
     }>();
     const fileAuthorizations = createFileAuthorizations();
-    vi.mocked(fileAuthorizations.resolve).mockImplementationOnce(
+    vi.mocked(fileAuthorizations.consume).mockImplementationOnce(
       () => fileAuthorization.promise,
     );
     const runtime = createRuntimeInvoker();
@@ -1160,7 +1393,7 @@ describe("AudioIpcService", () => {
       createTranscriptionPayload({ requestId }),
       context,
     );
-    await waitFor(() => expect(fileAuthorizations.resolve).toHaveBeenCalled());
+    await waitFor(() => expect(fileAuthorizations.consume).toHaveBeenCalled());
     await service.cancelTranscription({ requestId }, context);
     fileAuthorization.reject(createAudioRuntimeError({
       code: "invalid_ipc_request",
@@ -1744,11 +1977,22 @@ function createFileAuthorizations(): AudioInputFileAuthorizations {
     sizeBytes: 128,
     base64EncodedBytes: 172,
   }));
+  const consumedTokens = new Set<string>();
   return {
     authorize: vi.fn(),
     resolve,
-    consume: vi.fn((ownerId, fileToken, dialect) =>
-      resolve(ownerId, fileToken, dialect)),
+    consume: vi.fn((ownerId, fileToken, dialect) => {
+      const key = `${ownerId}:${fileToken}`;
+      if (consumedTokens.has(key)) {
+        throw createAudioRuntimeError({
+          code: "invalid_ipc_request",
+          message: "Audio file authorization is invalid or expired.",
+          field: "fileToken",
+        });
+      }
+      consumedTokens.add(key);
+      return resolve(ownerId, fileToken, dialect);
+    }),
     revoke: vi.fn(() => false),
     releaseOwner: vi.fn(),
   };
@@ -1785,7 +2029,9 @@ function createOutputDirectoryAuthorizations() {
     }),
     revoke: vi.fn((ownerId: number, outputDirToken: string) => {
       const entry = entries.get(outputDirToken);
-      if (entry?.ownerId === ownerId) entries.delete(outputDirToken);
+      if (entry?.ownerId !== ownerId) return false;
+      entries.delete(outputDirToken);
+      return true;
     }),
     releaseOwner: vi.fn((ownerId: number) => {
       for (const [token, entry] of entries) {

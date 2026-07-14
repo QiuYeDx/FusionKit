@@ -1,7 +1,7 @@
 # 音频 API 配置与语音合成 UX 重构 Final Design
 
 > 日期：2026-07-12
-> 状态：实施中（`PRE-R01`、`CORE-R01`、`BE-R01`、`FE-R01`、`FE-R02` 已完成，下一步 `FE-R03`）
+> 状态：实施中（`PRE-R01`、`CORE-R01`、`BE-R01`、`FE-R01`、`FE-R02` 已完成；`FE-R03` 已完成 standalone ASR 竖切，下一步实时字幕）
 > 范围：独立音频 API 配置、音频任务默认分配、音频运行时路由、文本转音频页面、i18n 与迁移兼容
 > 关系：本设计继承原音频工具箱的 adapter、IPC 安全、文件、流式与 Realtime 合同，但正式替代原设计中的配置模型、TTS 模式/模型关系、字段禁用规则和相关验收口径。
 > 执行计划：[音频 API 配置与语音合成 UX 重构 Execution Plan](audio-toolkit-config-ux-refactor_execution_plan.md)
@@ -713,8 +713,8 @@ node scripts/check-i18n-usage.mjs
 
 `CORE-R01` 已完成独立 Store 与迁移基础设施，`BE-R01` 已把 runtime snapshot、
 main route resolver、ASR/TTS/Realtime IPC 消费者切到独立配置，`FE-R01` 已让设置页
-停止挂载和写入 legacy audio UI，`FE-R02` 已迁移 TTS。当前仍不可单独发布：
-`FE-R03` 还需迁移其余三个工具消费者，并移除旧 CRUD/selectors 与文本删除保护。legacy
+停止挂载和写入 legacy audio UI，`FE-R02` 已迁移 TTS，`FE-R03` 已迁移 ASR。当前仍不可单独发布：
+`FE-R03` 还需迁移实时字幕和双向语音，并移除旧 CRUD/selectors 与文本删除保护。legacy
 字段只作为一个版本的只读备份继续持久化，不建立新旧 Store 双写。
 
 ### 10.2 Legacy audio profile 迁移
@@ -884,7 +884,7 @@ Electron 视觉/交互验收必须等待 FusionKit preload loading 完全退出�
 3. `BE-R01`：runtime snapshot 与 `resolveRoute`，保留 IPC 安全边界。
 4. `FE-R01`：独立“设置 → 音频”页面、首次配置与 deep link。
 5. `FE-R02`：SpeechSynthesizer 条件渲染、provider-neutral intent、CTA。
-6. `FE-R03`：其余三个音频工具迁移到独立配置并清理 legacy facade。
+6. `FE-R03`：其余三个音频工具迁移到独立配置并清理 legacy facade；standalone ASR 竖切已完成，下一步实时字幕。
 7. `I18N-R01`：补齐 10 个 key、清理旧文案、增加 usage check。
 8. `TEST-R01`：迁移/registry/runtime/component 自动化。
 9. `QA-R01`：Electron 四语言两尺寸交互矩阵。

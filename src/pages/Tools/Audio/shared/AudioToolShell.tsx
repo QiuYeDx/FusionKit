@@ -72,6 +72,11 @@ export function AudioToolShell({
   const legacyConfigSummary = useModelStore(configSummarySelector);
   const configSummary = configSummaryOverride ?? legacyConfigSummary;
   const usesStandaloneAudioConfig = configSummaryOverride !== undefined;
+  const testIdPrefix = toolKey === "speechSynthesizer"
+    ? "speech"
+    : toolKey === "audioTranscriber"
+      ? "transcriber"
+      : undefined;
   const statusTone = resolveStatusTone(configSummary.status);
   const modelValue = configSummary.modelKey ?? "-";
   const dialectValue = configSummary.audioDialect
@@ -89,6 +94,9 @@ export function AudioToolShell({
     : configSummary.connectionProfile?.name ?? "-";
   const modeValue = configSummary.activeMode
     ? t(`audio:speech.mode.${configSummary.activeMode}`)
+    : "-";
+  const capabilityValue = configSummary.capabilities[0]
+    ? t(`setting:fields.audio.capability.${configSummary.capabilities[0]}`)
     : "-";
   const statItems = useMemo(
     () => usesStandaloneAudioConfig
@@ -112,8 +120,12 @@ export function AudioToolShell({
             value: providerValue,
           },
           {
-            label: t("audio:global.mode"),
-            value: modeValue,
+            label: t(
+              configSummary.activeMode
+                ? "audio:global.mode"
+                : "audio:global.capabilities",
+            ),
+            value: configSummary.activeMode ? modeValue : capabilityValue,
           },
         ]
       : [
@@ -140,6 +152,7 @@ export function AudioToolShell({
     [
       configSummary.profileName,
       configSummary.status,
+      capabilityValue,
       dialectValue,
       modeValue,
       modelValue,
@@ -156,9 +169,7 @@ export function AudioToolShell({
       description={t(descriptionKey)}
       right={
         <Button
-          data-testid={
-            toolKey === "speechSynthesizer" ? "speech-change-api" : undefined
-          }
+          data-testid={testIdPrefix ? `${testIdPrefix}-change-api` : undefined}
           variant="outline"
           size="sm"
           className="gap-1.5"
@@ -177,9 +188,7 @@ export function AudioToolShell({
 
   const aside = (
     <div
-      data-testid={
-        toolKey === "speechSynthesizer" ? "speech-config-summary" : undefined
-      }
+      data-testid={testIdPrefix ? `${testIdPrefix}-config-summary` : undefined}
     >
       <ToolConfigPanel
         icon={SlidersHorizontal}

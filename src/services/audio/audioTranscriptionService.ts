@@ -16,6 +16,7 @@ import {
   audioIpcUnavailableResult,
   invokeAudioTaskIpc,
   invokeAudioIpc,
+  type AudioTaskInvocationOptions,
 } from "./audioRuntimeConfigService";
 
 export interface AudioTranscriptionSaveArtifact {
@@ -38,13 +39,39 @@ export interface SaveAudioTranscriptionResult {
   fileName: string;
 }
 
+const AUDIO_TRANSCRIPTION_CANCEL_RETRY_DELAYS_MS = [
+  25,
+  75,
+  150,
+  500,
+  1_000,
+  5_000,
+] as const;
+const AUDIO_TRANSCRIPTION_CANCEL_TTL_MS = 2 * 60 * 1_000;
+const AUDIO_TRANSCRIPTION_CANCEL_ATTEMPT_TIMEOUT_MS = 5_000;
+
+interface PendingAudioTranscriptionCancellation {
+  requestId: string;
+  expiresAt: number;
+  attemptCount: number;
+  inFlight?: Promise<boolean>;
+  retryTimer?: ReturnType<typeof setTimeout>;
+}
+
+const pendingAudioTranscriptionCancellations = new Map<
+  string,
+  PendingAudioTranscriptionCancellation
+>();
+
 export async function transcribeAudio(
   request: CreateAudioTranscriptionIpcRequest,
+  options: AudioTaskInvocationOptions = {},
 ): Promise<AudioIpcResult<AuthorizedAudioTranscriptionResult>> {
   try {
     return await invokeAudioTaskIpc<AuthorizedAudioTranscriptionResult>(
       AUDIO_IPC_CHANNELS.transcribe,
       request,
+      options,
     );
   } catch (error) {
     return audioIpcUnavailableResult(error);
@@ -62,6 +89,128 @@ export async function cancelAudioTranscription(
   } catch (error) {
     return audioIpcUnavailableResult(error);
   }
+}
+
+export function queueAudioTranscriptionCancellation(
+  requestId: string,
+  expiresAt = Date.now() + AUDIO_TRANSCRIPTION_CANCEL_TTL_MS,
+): Promise<boolean> {
+  const existing = pendingAudioTranscriptionCancellations.get(requestId);
+  const pending = existing ?? {
+    requestId,
+    expiresAt,
+    attemptCount: 0,
+  };
+  pending.expiresAt = Math.max(pending.expiresAt, expiresAt);
+  pendingAudioTranscriptionCancellations.set(requestId, pending);
+  clearAudioTranscriptionCancellationRetry(pending);
+  return attemptAudioTranscriptionCancellation(pending);
+}
+
+export async function flushPendingAudioTranscriptionCancellations(): Promise<void> {
+  await Promise.all(
+    Array.from(pendingAudioTranscriptionCancellations.values(), (pending) => {
+      clearAudioTranscriptionCancellationRetry(pending);
+      return attemptAudioTranscriptionCancellation(pending);
+    }),
+  );
+}
+
+export function settleAudioTranscriptionCancellation(requestId: string): void {
+  const pending = pendingAudioTranscriptionCancellations.get(requestId);
+  if (!pending) return;
+  pendingAudioTranscriptionCancellations.delete(requestId);
+  clearAudioTranscriptionCancellationRetry(pending);
+}
+
+export function resetAudioTranscriptionCancellationQueueForTests(): void {
+  for (const pending of pendingAudioTranscriptionCancellations.values()) {
+    clearAudioTranscriptionCancellationRetry(pending);
+  }
+  pendingAudioTranscriptionCancellations.clear();
+}
+
+function attemptAudioTranscriptionCancellation(
+  pending: PendingAudioTranscriptionCancellation,
+): Promise<boolean> {
+  if (pending.inFlight) return pending.inFlight;
+  if (Date.now() >= pending.expiresAt) {
+    pendingAudioTranscriptionCancellations.delete(pending.requestId);
+    return Promise.resolve(false);
+  }
+
+  pending.attemptCount += 1;
+  const attempt = (async () => {
+    const response = await cancelAudioTranscriptionBounded(
+      pending.requestId,
+    );
+    if (response?.ok && response.data.cancelled) {
+      pendingAudioTranscriptionCancellations.delete(pending.requestId);
+      clearAudioTranscriptionCancellationRetry(pending);
+      return true;
+    }
+    scheduleAudioTranscriptionCancellationRetry(pending);
+    return false;
+  })();
+  pending.inFlight = attempt;
+  void attempt.finally(() => {
+    if (pending.inFlight === attempt) pending.inFlight = undefined;
+  });
+  return attempt;
+}
+
+export async function cancelAudioTranscriptionBounded(
+  requestId: string,
+  timeoutMs = AUDIO_TRANSCRIPTION_CANCEL_ATTEMPT_TIMEOUT_MS,
+): Promise<AudioIpcResult<CancelAudioTranscriptionResult> | undefined> {
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      cancelAudioTranscription(requestId),
+      new Promise<undefined>((resolve) => {
+        timeout = setTimeout(
+          () => resolve(undefined),
+          timeoutMs,
+        );
+      }),
+    ]);
+  } finally {
+    if (timeout !== undefined) clearTimeout(timeout);
+  }
+}
+
+function scheduleAudioTranscriptionCancellationRetry(
+  pending: PendingAudioTranscriptionCancellation,
+): void {
+  if (
+    pendingAudioTranscriptionCancellations.get(pending.requestId) !== pending
+  ) {
+    return;
+  }
+  if (Date.now() >= pending.expiresAt) {
+    pendingAudioTranscriptionCancellations.delete(pending.requestId);
+    return;
+  }
+  const delayIndex = Math.min(
+    pending.attemptCount - 1,
+    AUDIO_TRANSCRIPTION_CANCEL_RETRY_DELAYS_MS.length - 1,
+  );
+  const delay = Math.min(
+    AUDIO_TRANSCRIPTION_CANCEL_RETRY_DELAYS_MS[delayIndex],
+    Math.max(0, pending.expiresAt - Date.now()),
+  );
+  pending.retryTimer = setTimeout(() => {
+    pending.retryTimer = undefined;
+    void attemptAudioTranscriptionCancellation(pending);
+  }, delay);
+}
+
+function clearAudioTranscriptionCancellationRetry(
+  pending: PendingAudioTranscriptionCancellation,
+): void {
+  if (pending.retryTimer === undefined) return;
+  clearTimeout(pending.retryTimer);
+  pending.retryTimer = undefined;
 }
 
 export function createAudioTranscriptionSaveArtifact(

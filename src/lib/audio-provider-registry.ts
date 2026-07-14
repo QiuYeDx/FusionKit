@@ -9,6 +9,7 @@ import {
   type AudioRoute,
   type AudioSpeechResponseFormat,
   type AudioProviderPreset,
+  type AudioTranscriptionModelFamily,
   type AudioTranscriptionResponseFormat,
   type AudioTransport,
   type SpeechSynthesisMode,
@@ -30,6 +31,11 @@ export interface AudioTranscriptionRouteConstraints {
   supportsPrompt: boolean;
   supportsStreaming: boolean;
   supportsTimestampGranularities: boolean;
+}
+
+export interface AudioTranscriptionRouteDefinition {
+  family: AudioTranscriptionModelFamily;
+  constraints: AudioTranscriptionRouteConstraints;
 }
 
 export interface AudioSpeechRouteConstraints {
@@ -97,6 +103,13 @@ const MIMO_SPEECH_FORMATS = [
   "wav",
   "pcm16",
 ] as const satisfies readonly AudioSpeechResponseFormat[];
+
+const OPENAI_WHISPER_TRANSCRIPTION_CONSTRAINTS = {
+  responseFormats: ["json", "text", "srt", "verbose_json", "vtt"],
+  supportsPrompt: true,
+  supportsStreaming: false,
+  supportsTimestampGranularities: true,
+} as const satisfies AudioTranscriptionRouteConstraints;
 
 const AUDIO_PROVIDER_REGISTRY: Record<
   AudioProviderPreset,
@@ -289,12 +302,53 @@ export function getSpeechRouteConstraints(
   return constraints ? cloneSpeechConstraints(constraints) : undefined;
 }
 
-export function getTranscriptionRouteConstraints(
-  preset: AudioProviderPreset,
-): AudioTranscriptionRouteConstraints | undefined {
-  const constraints =
-    AUDIO_PROVIDER_REGISTRY[preset].constraints.transcription;
-  return constraints ? cloneTranscriptionConstraints(constraints) : undefined;
+export function resolveTranscriptionRouteDefinition(options: {
+  providerPreset: AudioProviderPreset;
+  transport: AudioTransport;
+  model: string;
+}): AudioTranscriptionRouteDefinition | undefined {
+  const model = options.model.trim().toLowerCase();
+  if (
+    !model ||
+    !isAudioRouteTransportSupported({
+      preset: options.providerPreset,
+      assignmentKey: "transcription",
+      transport: options.transport,
+    })
+  ) {
+    return undefined;
+  }
+
+  if (options.providerPreset === "mimo") {
+    if (model !== "mimo-v2.5-asr") return undefined;
+    return transcriptionDefinition(
+      "mimo_asr",
+      AUDIO_PROVIDER_REGISTRY.mimo.constraints.transcription,
+    );
+  }
+
+  if (isOpenAIWhisperTranscriptionModel(model)) {
+    return transcriptionDefinition(
+      "openai_whisper",
+      OPENAI_WHISPER_TRANSCRIPTION_CONSTRAINTS,
+    );
+  }
+
+  if (isOpenAIGptTranscriptionModel(model)) {
+    return transcriptionDefinition(
+      "openai_gpt_transcribe",
+      AUDIO_PROVIDER_REGISTRY.openai.constraints.transcription,
+    );
+  }
+
+  if (options.providerPreset === "custom_openai_compatible") {
+    return transcriptionDefinition(
+      "openai_compatible_unknown",
+      AUDIO_PROVIDER_REGISTRY.custom_openai_compatible.constraints.transcription,
+    );
+  }
+
+  return undefined;
 }
 
 export function getRealtimeRouteConstraints(
@@ -452,6 +506,29 @@ function speechConstraints(options: {
       ...options.fields,
     },
   };
+}
+
+function transcriptionDefinition(
+  family: AudioTranscriptionModelFamily,
+  constraints: AudioTranscriptionRouteConstraints | undefined,
+): AudioTranscriptionRouteDefinition | undefined {
+  return constraints
+    ? { family, constraints: cloneTranscriptionConstraints(constraints) }
+    : undefined;
+}
+
+function isOpenAIGptTranscriptionModel(model: string): boolean {
+  if (model.includes("diarize")) return false;
+  return (
+    model === "gpt-4o-transcribe" ||
+    model.startsWith("gpt-4o-transcribe-") ||
+    model === "gpt-4o-mini-transcribe" ||
+    model.startsWith("gpt-4o-mini-transcribe-")
+  );
+}
+
+function isOpenAIWhisperTranscriptionModel(model: string): boolean {
+  return model === "whisper-1" || model.startsWith("whisper-1-");
 }
 
 function isConfiguredRoute(

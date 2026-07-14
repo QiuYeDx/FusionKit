@@ -117,11 +117,12 @@ describe("AudioOutputDirectoryAuthorizationStore", () => {
     const first = await store.authorize(33, firstDirectory);
     const second = await store.authorize(33, secondDirectory);
 
-    store.revoke(34, first.outputDirToken);
+    expect(store.revoke(34, first.outputDirToken)).toBe(false);
     await expect(store.resolve(33, first.outputDirToken)).resolves.toBe(
       firstDirectory,
     );
-    store.revoke(33, first.outputDirToken);
+    expect(store.revoke(33, first.outputDirToken)).toBe(true);
+    expect(store.revoke(33, first.outputDirToken)).toBe(false);
 
     await expect(store.resolve(33, first.outputDirToken)).rejects.toMatchObject({
       code: "invalid_ipc_request",

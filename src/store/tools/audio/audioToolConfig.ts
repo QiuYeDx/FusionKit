@@ -3,14 +3,22 @@ import {
   resolveAudioCapabilities,
   validateAudioCapability,
   type AudioApiDialect,
+  type AudioApiProfile,
   type AudioAssignmentKey,
   type AudioCapability,
   type AudioModelAssignment,
   type AudioModelProfile,
   type AudioProviderPreset,
+  type AudioRoute,
   type AudioRouteVerificationStatus,
+  type AudioTaskAssignment,
   type SpeechSynthesisMode,
 } from "@/type/audio";
+import {
+  getAudioRouteKey,
+  isAudioRouteTransportSupported,
+  resolveAudioApiRoute,
+} from "@/lib/audio-provider-registry";
 import type { Model, ModelProfile } from "@/type/model";
 
 export type AudioToolConfigStatus =
@@ -45,6 +53,7 @@ export interface AudioToolConfigSummary {
   activeMode?: SpeechSynthesisMode;
   verificationStatus?: AudioRouteVerificationStatus | "unverified";
   migrationNeedsAttention?: boolean;
+  route?: AudioRoute;
 }
 
 export interface AudioToolConfigState {
@@ -55,6 +64,15 @@ export interface AudioToolConfigState {
 
 export type AudioToolConfigSummarySelector = (
   state: AudioToolConfigState,
+) => AudioToolConfigSummary;
+
+export interface StandaloneAudioToolConfigState {
+  profiles: AudioApiProfile[];
+  assignment: AudioTaskAssignment;
+}
+
+export type StandaloneAudioToolConfigSummarySelector = (
+  state: StandaloneAudioToolConfigState,
 ) => AudioToolConfigSummary;
 
 export interface MimoVoicePreset {
@@ -138,6 +156,69 @@ export function resolveAudioToolConfigSummary(
   };
 }
 
+export function resolveStandaloneAudioToolConfigSummary(
+  state: StandaloneAudioToolConfigState,
+  assignmentKey: AudioAssignmentKey,
+): AudioToolConfigSummary {
+  const profileId = state.assignment[assignmentKey];
+  const profile = profileId
+    ? state.profiles.find((candidate) => candidate.id === profileId)
+    : undefined;
+  if (!profile) {
+    return {
+      assignmentKey,
+      status: "audio_api_not_configured",
+      capabilities: [],
+    };
+  }
+
+  const baseSummary = {
+    assignmentKey,
+    profileId: profile.id,
+    profileName: profile.name,
+    providerPreset: profile.providerPreset,
+    migrationNeedsAttention: profile.migration?.needsAttention,
+  };
+  if (!profile.apiKey.trim() || !profile.baseUrl.trim()) {
+    return {
+      ...baseSummary,
+      status: "audio_api_not_configured",
+      capabilities: [],
+    };
+  }
+
+  const route = assignmentKey === "speechSynthesis"
+    ? undefined
+    : resolveAudioApiRoute(profile, assignmentKey);
+  if (
+    !route ||
+    !isAudioRouteTransportSupported({
+      preset: profile.providerPreset,
+      assignmentKey,
+      transport: route.transport,
+    })
+  ) {
+    return {
+      ...baseSummary,
+      status: "audio_route_not_configured",
+      capabilities: [],
+    };
+  }
+
+  const routeKey = getAudioRouteKey(assignmentKey);
+  return {
+    ...baseSummary,
+    status: "ready",
+    audioDialect: route.transport,
+    modelKey: route.model,
+    route,
+    capabilities: getStandaloneAudioCapabilities(assignmentKey),
+    verificationStatus: routeKey
+      ? profile.verification?.[routeKey]?.status ?? "unverified"
+      : "unverified",
+  };
+}
+
 /**
  * Keeps useSyncExternalStore snapshots referentially stable while none of the
  * model slices used by the summary changed. React 19 requires a selector to
@@ -167,6 +248,47 @@ export function createAudioToolConfigSummarySelector(
     cachedSummary = resolveAudioToolConfigSummary(state, assignmentKey);
     return cachedSummary;
   };
+}
+
+export function createStandaloneAudioToolConfigSummarySelector(
+  assignmentKey: AudioAssignmentKey,
+): StandaloneAudioToolConfigSummarySelector {
+  let cachedProfiles: AudioApiProfile[] | undefined;
+  let cachedAssignment: AudioTaskAssignment | undefined;
+  let cachedSummary: AudioToolConfigSummary | undefined;
+
+  return (state) => {
+    if (
+      cachedSummary &&
+      cachedProfiles === state.profiles &&
+      cachedAssignment === state.assignment
+    ) {
+      return cachedSummary;
+    }
+
+    cachedProfiles = state.profiles;
+    cachedAssignment = state.assignment;
+    cachedSummary = resolveStandaloneAudioToolConfigSummary(
+      state,
+      assignmentKey,
+    );
+    return cachedSummary;
+  };
+}
+
+function getStandaloneAudioCapabilities(
+  assignmentKey: AudioAssignmentKey,
+): AudioCapability[] {
+  switch (assignmentKey) {
+    case "transcription":
+      return ["file_transcription"];
+    case "speechSynthesis":
+      return ["speech_synthesis"];
+    case "realtimeCaptions":
+      return ["realtime_transcription"];
+    case "realtimeVoice":
+      return ["realtime_duplex_voice"];
+  }
 }
 
 function createProfileSummary(

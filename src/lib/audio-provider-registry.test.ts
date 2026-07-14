@@ -7,9 +7,9 @@ import {
   getAvailableSpeechSynthesisModes,
   getRealtimeRouteConstraints,
   getSpeechRouteConstraints,
-  getTranscriptionRouteConstraints,
   inferAudioProviderPresetFromLegacy,
   resolveAudioApiRoute,
+  resolveTranscriptionRouteDefinition,
 } from "./audio-provider-registry";
 import {
   AUDIO_SPEECH_MAX_INPUT_CHARS,
@@ -109,19 +109,27 @@ describe("audio provider registry", () => {
   });
 
   it("exposes cloned transcription and realtime constraints", () => {
-    const transcription = getTranscriptionRouteConstraints("mimo")!;
+    const transcription = resolveTranscriptionRouteDefinition({
+      providerPreset: "mimo",
+      transport: "mimo_chat_audio",
+      model: "mimo-v2.5-asr",
+    })!.constraints;
     const realtime = getRealtimeRouteConstraints("openai", "realtimeCaptions")!;
 
     (transcription.responseFormats as string[])[0] = "text";
     (transcription.languages as string[])[0] = "fr";
     realtime.supportsLanguage = false;
 
-    expect(getTranscriptionRouteConstraints("mimo")).toMatchObject({
-      responseFormats: ["json", "text"],
-      languages: ["auto", "zh", "en"],
-      supportsPrompt: false,
-      supportsStreaming: true,
-    });
+    expect(resolveTranscriptionRouteDefinition({
+      providerPreset: "mimo",
+      transport: "mimo_chat_audio",
+      model: "mimo-v2.5-asr",
+    })?.constraints).toMatchObject({
+        responseFormats: ["json", "text"],
+        languages: ["auto", "zh", "en"],
+        supportsPrompt: false,
+        supportsStreaming: true,
+      });
     expect(
       getRealtimeRouteConstraints("openai", "realtimeCaptions"),
     ).toMatchObject({
@@ -130,6 +138,84 @@ describe("audio provider registry", () => {
       supportsLanguage: true,
       supportsVoice: false,
     });
+  });
+
+  it("resolves transcription constraints from preset, transport, and model", () => {
+    expect(resolveTranscriptionRouteDefinition({
+      providerPreset: "openai",
+      transport: "openai_audio",
+      model: "gpt-4o-mini-transcribe-2026-01-01",
+    })).toMatchObject({
+      family: "openai_gpt_transcribe",
+      constraints: {
+        responseFormats: ["json"],
+        supportsPrompt: true,
+        supportsStreaming: true,
+        supportsTimestampGranularities: false,
+      },
+    });
+    expect(resolveTranscriptionRouteDefinition({
+      providerPreset: "openai",
+      transport: "openai_audio",
+      model: "whisper-1-2026-01-01",
+    })).toMatchObject({
+      family: "openai_whisper",
+      constraints: {
+        responseFormats: ["json", "text", "srt", "verbose_json", "vtt"],
+        supportsPrompt: true,
+        supportsStreaming: false,
+        supportsTimestampGranularities: true,
+      },
+    });
+    expect(resolveTranscriptionRouteDefinition({
+      providerPreset: "mimo",
+      transport: "mimo_chat_audio",
+      model: "mimo-v2.5-asr",
+    })).toMatchObject({
+      family: "mimo_asr",
+      constraints: {
+        responseFormats: ["json", "text"],
+        languages: ["auto", "zh", "en"],
+        supportsPrompt: false,
+        supportsStreaming: true,
+      },
+    });
+    expect(resolveTranscriptionRouteDefinition({
+      providerPreset: "custom_openai_compatible",
+      transport: "openai_audio",
+      model: "vendor-asr-v3",
+    })).toMatchObject({
+      family: "openai_compatible_unknown",
+      constraints: {
+        responseFormats: ["json"],
+        supportsPrompt: true,
+        supportsStreaming: false,
+        supportsTimestampGranularities: false,
+      },
+    });
+  });
+
+  it("fails closed for unknown built-in models and transport mismatches", () => {
+    expect(resolveTranscriptionRouteDefinition({
+      providerPreset: "openai",
+      transport: "openai_audio",
+      model: "unknown-openai-asr",
+    })).toBeUndefined();
+    expect(resolveTranscriptionRouteDefinition({
+      providerPreset: "mimo",
+      transport: "mimo_chat_audio",
+      model: "unknown-mimo-asr",
+    })).toBeUndefined();
+    expect(resolveTranscriptionRouteDefinition({
+      providerPreset: "openai",
+      transport: "openai_realtime",
+      model: "gpt-4o-transcribe",
+    })).toBeUndefined();
+    expect(resolveTranscriptionRouteDefinition({
+      providerPreset: "custom_openai_compatible",
+      transport: "mimo_chat_audio",
+      model: "vendor-asr-v3",
+    })).toBeUndefined();
   });
 
   it("keeps custom presets conservative until routes are configured", () => {

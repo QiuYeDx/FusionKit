@@ -27,7 +27,12 @@ const localStorageItems = vi.hoisted(() => {
 import useAudioApiStore from "@/store/useAudioApiStore";
 import { AUDIO_EVENT_CHANNELS, AUDIO_IPC_CHANNELS } from "@/type/audioIpc";
 import {
+  cancelAudioTranscriptionBounded,
   cancelAudioTranscription,
+  flushPendingAudioTranscriptionCancellations,
+  queueAudioTranscriptionCancellation,
+  resetAudioTranscriptionCancellationQueueForTests,
+  settleAudioTranscriptionCancellation,
   transcribeAudio,
 } from "./audioTranscriptionService";
 import {
@@ -47,7 +52,9 @@ import {
 } from "./speechSynthesisService";
 import {
   flushPendingAudioInputFileRevocations,
+  flushPendingAudioOutputDirectoryRevocations,
   queueAudioInputFileRevocation,
+  queueAudioOutputDirectoryRevocation,
   resetAudioRuntimeConfigCacheForTests,
 } from "./audioRuntimeConfigService";
 
@@ -56,10 +63,12 @@ describe("audio renderer services", () => {
   let on: ReturnType<typeof vi.fn>;
   let off: ReturnType<typeof vi.fn>;
   let revokeInputFile: ReturnType<typeof vi.fn>;
+  let revokeOutputDirectory: ReturnType<typeof vi.fn>;
   let streamListener: ((event: unknown, payload: unknown) => void) | undefined;
 
   beforeEach(() => {
     resetAudioRuntimeConfigCacheForTests();
+    resetAudioTranscriptionCancellationQueueForTests();
     localStorageItems.clear();
     useAudioApiStore.setState({
       profiles: [
@@ -216,6 +225,7 @@ describe("audio renderer services", () => {
     });
     off = vi.fn();
     revokeInputFile = vi.fn();
+    revokeOutputDirectory = vi.fn();
     vi.stubGlobal("window", {
       audioApi: {
         invoke: (
@@ -228,6 +238,7 @@ describe("audio renderer services", () => {
         authorizeInputFile: vi.fn(),
         revokeInputFile,
         selectOutputDirectory: vi.fn(),
+        revokeOutputDirectory,
         on,
         off,
       },
@@ -236,6 +247,8 @@ describe("audio renderer services", () => {
 
   afterEach(() => {
     resetAudioRuntimeConfigCacheForTests();
+    resetAudioTranscriptionCancellationQueueForTests();
+    vi.useRealTimers();
   });
 
   it("syncs global audio config before transcription without putting API config in task payload", async () => {
@@ -298,6 +311,153 @@ describe("audio renderer services", () => {
       });
   });
 
+  it("bounds a hung foreground transcription cancellation", async () => {
+    vi.useFakeTimers();
+    invoke.mockReturnValue(new Promise(() => undefined));
+
+    const pending = cancelAudioTranscriptionBounded("asr_cancel_hung", 100);
+    await vi.advanceTimersByTimeAsync(100);
+
+    await expect(pending).resolves.toBeUndefined();
+  });
+
+  it("stops an audio task after runtime sync when its preflight is cancelled", async () => {
+    let resolveSync: ((value: unknown) => void) | undefined;
+    const sync = new Promise((resolve) => {
+      resolveSync = resolve;
+    });
+    invoke.mockImplementation(async (channel: string) => {
+      if (channel === AUDIO_IPC_CHANNELS.syncRuntimeConfig) return sync;
+      throw new Error(`Unexpected task dispatch: ${channel}`);
+    });
+    const abortController = new AbortController();
+    const onDispatch = vi.fn();
+
+    const pending = transcribeAudio(
+      createTranscriptionRequest("asr_preflight_cancelled"),
+      { signal: abortController.signal, onDispatch },
+    );
+    await vi.waitFor(() => expect(invoke).toHaveBeenCalledTimes(1));
+    abortController.abort();
+    resolveSync?.({
+      ok: true,
+      data: {
+        synced: true,
+        audioProfileCount: 1,
+        revision: "runtime_revision_cancelled",
+      },
+    });
+
+    await expect(pending).resolves.toMatchObject({
+      ok: false,
+      error: { code: "aborted" },
+    });
+    expect(onDispatch).not.toHaveBeenCalled();
+    expect(invoke).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not redispatch a stale task when cancellation arrives during resync", async () => {
+    let resolveResync: ((value: unknown) => void) | undefined;
+    const resync = new Promise((resolve) => {
+      resolveResync = resolve;
+    });
+    let syncCount = 0;
+    let taskCount = 0;
+    invoke.mockImplementation(async (channel: string) => {
+      if (channel === AUDIO_IPC_CHANNELS.syncRuntimeConfig) {
+        syncCount += 1;
+        if (syncCount === 2) return resync;
+        return {
+          ok: true,
+          data: {
+            synced: true,
+            audioProfileCount: 1,
+            revision: "runtime_revision_initial",
+          },
+        };
+      }
+      if (channel === AUDIO_IPC_CHANNELS.transcribe) {
+        taskCount += 1;
+        return {
+          ok: false,
+          error: { code: "stale_audio_config", message: "stale" },
+        };
+      }
+      throw new Error(`Unexpected channel: ${channel}`);
+    });
+    const abortController = new AbortController();
+    const onDispatch = vi.fn();
+
+    const pending = transcribeAudio(
+      createTranscriptionRequest("asr_resync_cancelled"),
+      { signal: abortController.signal, onDispatch },
+    );
+    await vi.waitFor(() => expect(syncCount).toBe(2));
+    abortController.abort();
+    resolveResync?.({
+      ok: true,
+      data: {
+        synced: true,
+        audioProfileCount: 1,
+        revision: "runtime_revision_resynced",
+      },
+    });
+
+    await expect(pending).resolves.toMatchObject({
+      ok: false,
+      error: { code: "aborted" },
+    });
+    expect(taskCount).toBe(1);
+    expect(onDispatch).toHaveBeenCalledTimes(1);
+  });
+
+  it("retains lifecycle cancellation until main confirms it", async () => {
+    invoke
+      .mockResolvedValueOnce({
+        ok: false,
+        error: { code: "network_error", message: "cancel disconnected" },
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        data: { cancelled: false, requestId: "asr_cleanup_retry" },
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        data: { cancelled: true, requestId: "asr_cleanup_retry" },
+      });
+
+    await expect(
+      queueAudioTranscriptionCancellation("asr_cleanup_retry"),
+    ).resolves.toBe(false);
+    await flushPendingAudioTranscriptionCancellations();
+    await flushPendingAudioTranscriptionCancellations();
+
+    expect(invoke).toHaveBeenCalledTimes(3);
+    expect(invoke).toHaveBeenNthCalledWith(
+      3,
+      AUDIO_IPC_CHANNELS.cancelTranscription,
+      { requestId: "asr_cleanup_retry" },
+      {},
+    );
+    await flushPendingAudioTranscriptionCancellations();
+    expect(invoke).toHaveBeenCalledTimes(3);
+  });
+
+  it("stops retrying a lifecycle cancellation when the task settles", async () => {
+    invoke.mockResolvedValue({
+      ok: true,
+      data: { cancelled: false, requestId: "asr_cleanup_settled" },
+    });
+
+    await expect(
+      queueAudioTranscriptionCancellation("asr_cleanup_settled"),
+    ).resolves.toBe(false);
+    settleAudioTranscriptionCancellation("asr_cleanup_settled");
+    await flushPendingAudioTranscriptionCancellations();
+
+    expect(invoke).toHaveBeenCalledTimes(1);
+  });
+
   it("retains failed input-file revocations and accepts idempotent retry success", async () => {
     revokeInputFile
       .mockResolvedValueOnce({
@@ -338,6 +498,60 @@ describe("audio renderer services", () => {
     await flushPendingAudioInputFileRevocations();
 
     expect(revokeInputFile).toHaveBeenCalledTimes(2);
+  });
+
+  it("retains failed output-directory revocations until idempotent success", async () => {
+    revokeOutputDirectory
+      .mockResolvedValueOnce({
+        ok: false,
+        error: { code: "network_error", message: "revoke disconnected" },
+      })
+      .mockResolvedValueOnce({ ok: true, data: { revoked: false } });
+
+    await expect(
+      queueAudioOutputDirectoryRevocation(
+        "output_dir_token_pending_revoke",
+        Date.now() + 60_000,
+      ),
+    ).resolves.toBe(false);
+    await flushPendingAudioOutputDirectoryRevocations();
+
+    expect(revokeOutputDirectory).toHaveBeenCalledTimes(2);
+    expect(revokeOutputDirectory).toHaveBeenLastCalledWith(
+      "output_dir_token_pending_revoke",
+    );
+    await flushPendingAudioOutputDirectoryRevocations();
+    expect(revokeOutputDirectory).toHaveBeenCalledTimes(2);
+  });
+
+  it("retries output-directory revocation after a rejected preload call", async () => {
+    revokeOutputDirectory
+      .mockRejectedValueOnce(new Error("preload unavailable"))
+      .mockResolvedValueOnce({ ok: true, data: { revoked: true } });
+
+    await expect(
+      queueAudioOutputDirectoryRevocation(
+        "output_dir_token_rejected_revoke",
+        Date.now() + 60_000,
+      ),
+    ).resolves.toBe(false);
+    await flushPendingAudioOutputDirectoryRevocations();
+
+    expect(revokeOutputDirectory).toHaveBeenCalledTimes(2);
+  });
+
+  it("bounds a hung capability revocation attempt before scheduling retry", async () => {
+    vi.useFakeTimers();
+    revokeInputFile.mockReturnValue(new Promise(() => undefined));
+    const pending = queueAudioInputFileRevocation(
+      "file_token_hung_revoke",
+      Date.now() + 60_000,
+    );
+
+    await vi.advanceTimersByTimeAsync(5_000);
+    await expect(pending).resolves.toBe(false);
+    resetAudioRuntimeConfigCacheForTests();
+    vi.useRealTimers();
   });
 
   it("invalidates, resyncs, and retries a stale audio task exactly once", async () => {

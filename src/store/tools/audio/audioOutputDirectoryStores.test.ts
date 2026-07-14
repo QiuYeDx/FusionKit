@@ -92,18 +92,19 @@ describe("audio output directory store state", () => {
   });
 
   it("normalizes legacy paths and discards persisted authorizations", () => {
-    expect(
-      migrateAudioTranscriberPersistedState(
-        {
-          preferences: { outputDir: "/Users/qiuye/Exports/" },
-          outputDirectoryAuthorization: authorization,
-        },
-        2,
-      ),
-    ).toMatchObject({
+    const migratedTranscriber = migrateAudioTranscriberPersistedState(
+      {
+        preferences: { outputDir: "/Users/qiuye/Exports/" },
+        outputDirectoryAuthorization: authorization,
+      },
+      2,
+    );
+    expect(migratedTranscriber).toMatchObject({
       preferences: { outputDir: "Exports" },
-      outputDirectoryAuthorization: null,
     });
+    expect(migratedTranscriber).not.toHaveProperty(
+      "outputDirectoryAuthorization",
+    );
     expect(
       migrateSpeechSynthesizerPersistedState(
         {

@@ -130,6 +130,30 @@ describe("audio file helpers", () => {
     });
   });
 
+  it("does not allow replay when consume-time validation fails", async () => {
+    const tempRoot = await createTempRoot();
+    const filePath = path.join(tempRoot, "openai-only.m4a");
+    await writeFile(
+      filePath,
+      Buffer.from([0, 0, 0, 12, 0x66, 0x74, 0x79, 0x70, 0, 0, 0, 0]),
+    );
+    const store = new AudioFileAuthorizationStore();
+    const authorization = await store.authorize(15, filePath, "audio/mp4");
+
+    await expect(
+      store.consume(15, authorization.fileToken, "mimo_chat_audio"),
+    ).rejects.toMatchObject({
+      code: "unsupported_audio_format",
+      field: "mimeType",
+    });
+    await expect(
+      store.consume(15, authorization.fileToken, "openai_audio"),
+    ).rejects.toMatchObject({
+      code: "invalid_ipc_request",
+      field: "fileToken",
+    });
+  });
+
   it("revokes only the legitimate owner's unused token and remains idempotent", async () => {
     const tempRoot = await createTempRoot();
     const filePath = path.join(tempRoot, "unused-reference.wav");

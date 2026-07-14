@@ -30,15 +30,15 @@
   "workspace": {
     "ready": {
       "title": "配置就绪",
-      "description": "该页面已读取设置页的全局音频配置。"
+      "description": "该页面正在使用设置中为当前任务分配的音频 API。"
     },
     "audio_api_not_configured": {
       "title": "尚未配置音频 API",
-      "description": "请先在设置中添加音频 API，并将其分配给文本转音频。"
+      "description": "请先在设置中添加音频 API，并将其分配给当前音频任务。"
     },
     "audio_route_not_configured": {
-      "title": "当前音频 API 没有可用的语音生成模式",
-      "description": "请在音频设置中启用至少一条文本转音频路由。"
+      "title": "当前音频 API 没有适用于此任务的路由",
+      "description": "请在音频设置中为当前任务启用兼容路由。"
     },
     "profile_not_configured": {
       "title": "未选择音频配置",
@@ -60,7 +60,7 @@
   "pages": {
     "transcriber": {
       "title": "音频转文本",
-      "description": "使用全局 ASR 配置处理本地音频。",
+      "description": "使用当前分配的音频 API 转写本地音频。",
       "workspace": "转写任务"
     },
     "speech": {
@@ -122,12 +122,10 @@
       "prompt": "可用于补充专有名词或上下文。MiMo ASR 当前不支持 prompt。",
       "stream": "文件流式转写与实时字幕是不同能力。",
       "stream_enabled": "当前模型支持通过 SSE 流式转写文件，流结束后显示完整结果。",
-      "stream_disabled": "当前选择的转写模型不支持文件流式输出。",
       "output_mode": "选择源目录或自选目录时，转写完成后会直接写入结果文件。"
     },
     "placeholders": {
       "prompt": "例如：人名、产品名、术语表或领域上下文",
-      "mimo_prompt_disabled": "当前 MiMo ASR 不支持提示词",
       "output_dir": "尚未选择输出目录"
     },
     "dialog": {
@@ -136,6 +134,7 @@
     },
     "file": {
       "title": "选择音频文件",
+      "authorizing": "正在授权音频文件",
       "openai_description": "支持 wav、mp3、m4a、mp4、flac、ogg、webm，建议不超过 25MB。",
       "mimo_description": "MiMo ASR 仅支持 wav / mp3，Base64 后需小于 10MB。"
     },
@@ -161,7 +160,7 @@
       "title": "等待音频文件",
       "description": "选择文件并确认参数后开始转写，结果会显示在这里。",
       "running": "正在转写",
-      "running_description": "请求已发送到当前全局音频配置，请保持页面打开。"
+      "running_description": "请求正在使用当前分配的音频 API，请保持页面打开。"
     },
     "result": {
       "title": "转写结果"
@@ -176,7 +175,8 @@
     },
     "errors": {
       "title": "转写失败",
-      "file_path_unavailable": "无法读取此文件的本地路径，请在 Electron 应用内重新选择文件。",
+      "file_path_unavailable": "FusionKit 无法授权主进程读取此文件，请在 Electron 应用内重新选择。",
+      "file_authorizing": "请等待文件授权完成。",
       "unsupported_file": "当前音频格式不受支持。",
       "unsupported_file_for_mimo": "MiMo ASR 首版仅支持 wav 或 mp3 文件。",
       "file_too_large": "音频文件超过当前协议的大小限制。",

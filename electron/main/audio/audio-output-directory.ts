@@ -74,9 +74,11 @@ export class AudioOutputDirectoryAuthorizationStore {
     return entry.directoryPath;
   }
 
-  revoke(ownerId: number, outputDirToken: string): void {
+  revoke(ownerId: number, outputDirToken: string): boolean {
     const entry = this.entries.get(outputDirToken);
-    if (entry?.ownerId === ownerId) this.entries.delete(outputDirToken);
+    if (entry?.ownerId !== ownerId) return false;
+    this.entries.delete(outputDirToken);
+    return true;
   }
 
   releaseOwner(ownerId: number): void {

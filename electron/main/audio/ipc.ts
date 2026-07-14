@@ -19,7 +19,7 @@ import type {
 } from "@/type/audio";
 import {
   getSpeechRouteConstraints,
-  getTranscriptionRouteConstraints,
+  resolveTranscriptionRouteDefinition,
 } from "@/lib/audio-provider-registry";
 import {
   AUDIO_EVENT_CHANNELS,
@@ -61,6 +61,7 @@ import {
   type ReadAudioOutputRequest,
   type ReadAudioOutputResult,
   type RevokeAudioInputFileResult,
+  type RevokeAudioOutputDirectoryResult,
   type SaveAudioTextOutputRequest,
   type SaveAudioTextOutputResult,
   type SelectAudioOutputDirectoryRequest,
@@ -160,7 +161,7 @@ export interface AudioOutputDirectoryAuthorizations {
     directoryPath: string,
   ): Promise<AuthorizedAudioOutputDirectory>;
   resolve(ownerId: number, outputDirToken: string): Promise<string>;
-  revoke(ownerId: number, outputDirToken: string): void;
+  revoke(ownerId: number, outputDirToken: string): boolean;
   releaseOwner(ownerId: number): void;
 }
 
@@ -307,6 +308,18 @@ export class AudioIpcService {
     }
   }
 
+  revokeOutputDirectory(
+    request: { outputDirToken: string },
+    context: AudioIpcClientContext,
+  ): AudioIpcResult<RevokeAudioOutputDirectoryResult> {
+    return audioIpcSuccess({
+      revoked: this.outputDirectoryAuthorizations.revoke(
+        context.senderId,
+        request.outputDirToken,
+      ),
+    });
+  }
+
   async transcribe(
     payload: CreateAudioTranscriptionIpcRequest,
     context: AudioIpcClientContext = { senderId: 0 },
@@ -349,7 +362,7 @@ export class AudioIpcService {
 
     let trustedPayload: CreateAudioTranscriptionRequest;
     try {
-      const fileInfo = await this.fileAuthorizations.resolve(
+      const fileInfo = await this.fileAuthorizations.consume(
         context.senderId,
         payload.fileToken,
         routeResult.config.transport,
@@ -1380,13 +1393,18 @@ function validateTranscriptionTaskParameters(
   },
   route: ResolvedAudioRouteConfig,
 ): AudioIpcError | undefined {
-  const constraints = getTranscriptionRouteConstraints(route.providerPreset);
-  if (!constraints) {
+  const definition = resolveTranscriptionRouteDefinition({
+    providerPreset: route.providerPreset,
+    transport: route.transport,
+    model: route.model,
+  });
+  if (!definition) {
     return invalidTaskParameter(
       "assignmentKey",
       "The selected audio API does not define transcription constraints.",
     );
   }
+  const { constraints } = definition;
   if (!constraints.responseFormats.includes(payload.responseFormat)) {
     return invalidTaskParameter(
       "responseFormat",
@@ -1417,7 +1435,10 @@ function validateTranscriptionTaskParameters(
   }
   if (
     payload.timestampGranularities !== undefined &&
-    !constraints.supportsTimestampGranularities
+    (
+      !constraints.supportsTimestampGranularities ||
+      payload.responseFormat !== "verbose_json"
+    )
   ) {
     return invalidTaskParameter(
       "timestampGranularities",
@@ -1500,6 +1521,21 @@ export function setupAudioIPC(
       );
       if (!validation.ok) return validation;
       return service.selectOutputDirectory(validation.data, {
+        senderId: authorization.data.senderId,
+      });
+    },
+  );
+  ipcMain.handle(
+    AUDIO_PRELOAD_INTERNAL_CHANNELS.revokeOutputDirectory,
+    (event, envelope: unknown) => {
+      const authorization =
+        sharedAudioPreloadCapabilityRegistry.authorize<unknown>(event, envelope);
+      if (!authorization.ok) return authorization;
+      const validation = validateRevokeOutputDirectoryRequest(
+        authorization.data.payload,
+      );
+      if (!validation.ok) return validation;
+      return service.revokeOutputDirectory(validation.data, {
         senderId: authorization.data.senderId,
       });
     },
@@ -1721,6 +1757,23 @@ function validateRevokeInputFileRequest(
     });
   }
   return audioIpcSuccess({ fileToken: payload.fileToken });
+}
+
+function validateRevokeOutputDirectoryRequest(
+  payload: unknown,
+): AudioIpcResult<{ outputDirToken: string }> {
+  if (
+    !isRecord(payload) ||
+    !isNonEmptyString(payload.outputDirToken) ||
+    Object.keys(payload).some((key) => key !== "outputDirToken")
+  ) {
+    return audioIpcFailure({
+      code: "invalid_ipc_request",
+      message: "Output directory revocation must contain only an authorization token.",
+      field: "outputDirToken",
+    });
+  }
+  return audioIpcSuccess({ outputDirToken: payload.outputDirToken });
 }
 
 function validateSelectAudioOutputDirectoryRequest(

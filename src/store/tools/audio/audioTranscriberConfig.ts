@@ -1,16 +1,24 @@
 import type {
   AudioApiDialect,
-  AudioModelProfile,
   AudioOutputPathMode,
   AudioTimestampGranularity,
-  AudioTranscriptionModelContext,
-  AudioTranscriptionModelMatrix,
   AudioTranscriptionResponseFormat,
 } from "@/type/audio";
-import { resolveAudioTranscriptionModelMatrix } from "@/type/audio";
+import { isAudioTranscriptionResponseFormat } from "@/type/audio";
+import {
+  resolveTranscriptionRouteDefinition,
+  type AudioTranscriptionRouteConstraints,
+} from "@/lib/audio-provider-registry";
 import type { CreateAudioTranscriptionIpcRequest } from "@/type/audioIpc";
-import type { Model } from "@/type/model";
-import type { AudioOutputDirectoryAuthorization } from "./audioOutputDirectory";
+import {
+  normalizeAudioOutputDirectoryLabel,
+  type AudioOutputDirectoryAuthorization,
+} from "./audioOutputDirectory";
+import {
+  resolveStandaloneAudioToolConfigSummary,
+  type AudioToolConfigSummary,
+  type StandaloneAudioToolConfigState,
+} from "./audioToolConfig";
 
 export type AudioTranscriberOutputMode = "display_only" | Extract<
   AudioOutputPathMode,
@@ -18,11 +26,12 @@ export type AudioTranscriberOutputMode = "display_only" | Extract<
 >;
 
 export interface SelectedAudioInput {
+  sourceFile: File;
   fileName: string;
-  filePath: string;
-  fileToken: string;
+  fileToken: string | null;
   mimeType: AudioTranscriberMimeType;
   sizeBytes: number;
+  expiresAt?: number;
   modifiedAt?: number;
 }
 
@@ -36,14 +45,22 @@ export interface AudioTranscriberPreferences {
   outputDir: string;
 }
 
-export type AudioTranscriberProfileDefaultKey = "language" | "responseFormat";
+export interface AudioTranscriptionConfigSummary extends AudioToolConfigSummary {
+  assignmentKey: "transcription";
+  routeFamily?: NonNullable<
+    ReturnType<typeof resolveTranscriptionRouteDefinition>
+  >["family"];
+  constraints?: AudioTranscriptionRouteConstraints;
+}
 
-export type AudioTranscriberProfileDefaultOverrides = Partial<
-  Record<AudioTranscriberProfileDefaultKey, true>
->;
-
-export interface AudioTranscriberProfileContext
-  extends AudioTranscriptionModelContext {}
+export interface AudioTranscriberFieldVisibility {
+  language: boolean;
+  prompt: boolean;
+  timestampGranularities: boolean;
+  stream: boolean;
+  responseFormatSelect: boolean;
+  responseFormatSummary: boolean;
+}
 
 export type AudioTranscriberMimeType =
   | "audio/wav"
@@ -87,7 +104,16 @@ export const MIMO_AUDIO_TRANSCRIBER_ACCEPT = ".wav,.wave,.mp3,.mpeg,.mpga";
 export const OPENAI_AUDIO_TRANSCRIBER_MAX_BYTES = 25 * 1024 * 1024;
 export const MIMO_AUDIO_TRANSCRIBER_MAX_BASE64_BYTES = 10 * 1024 * 1024;
 
-const MIMO_AUDIO_TRANSCRIBER_LANGUAGES = new Set(["auto", "zh", "en"]);
+const DEFAULT_AUDIO_TRANSCRIBER_LANGUAGES = [
+  "auto",
+  "zh",
+  "en",
+  "ja",
+  "ko",
+  "fr",
+  "de",
+  "es",
+] as const;
 
 const AUDIO_MIME_BY_EXTENSION: Record<string, AudioTranscriberMimeType> = {
   wav: "audio/wav",
@@ -143,19 +169,17 @@ export function getAudioTranscriberAccept(
 }
 
 export function getAudioTranscriberResponseFormats(
-  context?: AudioApiDialect | AudioTranscriberProfileContext,
+  constraints: AudioTranscriptionRouteConstraints,
 ): AudioTranscriptionResponseFormat[] {
-  return resolveAudioTranscriberModelMatrix(context).responseFormats;
+  return [...constraints.responseFormats];
 }
 
 export function getAudioTranscriberLanguages(
-  context?: AudioApiDialect | AudioTranscriberProfileContext,
+  constraints: AudioTranscriptionRouteConstraints,
 ): string[] {
-  const dialect = resolveAudioTranscriberProfileContext(context).audioDialect;
-  if (dialect === "mimo_chat_audio") {
-    return ["auto", "zh", "en"];
-  }
-  return ["auto", "zh", "en", "ja", "ko", "fr", "de", "es"];
+  return constraints.languages
+    ? [...constraints.languages]
+    : [...DEFAULT_AUDIO_TRANSCRIBER_LANGUAGES];
 }
 
 export function inferAudioTranscriberMimeType(
@@ -235,101 +259,126 @@ export function validateAudioTranscriberFile(
   return { ok: true, mimeType };
 }
 
-export function normalizeAudioTranscriberPreferencesForDialect(
-  preferences: AudioTranscriberPreferences,
-  context?: AudioApiDialect | AudioTranscriberProfileContext,
-): AudioTranscriberPreferences {
-  const profileContext = resolveAudioTranscriberProfileContext(context);
-  const dialect = profileContext.audioDialect;
-  const matrix = resolveAudioTranscriptionModelMatrix(profileContext);
-  const responseFormats = matrix.responseFormats;
-  const languages = getAudioTranscriberLanguages(profileContext);
-  const responseFormat = responseFormats.includes(preferences.responseFormat)
-    ? preferences.responseFormat
-    : responseFormats[0];
-  const language = languages.includes(preferences.language)
-    ? preferences.language
-    : "auto";
+export function resolveAudioTranscriptionConfigSummary(
+  state: StandaloneAudioToolConfigState,
+): AudioTranscriptionConfigSummary {
+  const base = resolveStandaloneAudioToolConfigSummary(state, "transcription");
+  if (base.status !== "ready" || !base.route || !base.profileId) {
+    return { ...base, assignmentKey: "transcription" };
+  }
 
-  if (dialect === "mimo_chat_audio") {
+  const profile = state.profiles.find(
+    (candidate) => candidate.id === base.profileId,
+  );
+  const definition = profile
+    ? resolveTranscriptionRouteDefinition({
+        providerPreset: profile.providerPreset,
+        transport: base.route.transport,
+        model: base.route.model,
+      })
+    : undefined;
+  if (!definition) {
     return {
-      ...preferences,
-      language: MIMO_AUDIO_TRANSCRIBER_LANGUAGES.has(language)
-        ? language
-        : "auto",
-      responseFormat,
-      timestampGranularities: [],
-      prompt: "",
-      stream: matrix.supportsStream && preferences.stream,
+      ...base,
+      assignmentKey: "transcription",
+      status: "audio_route_not_configured",
+      capabilities: [],
     };
   }
+
+  return {
+    ...base,
+    assignmentKey: "transcription",
+    capabilities: [
+      "file_transcription",
+      ...(definition.constraints.supportsStreaming
+        ? ["streaming_transcription" as const]
+        : []),
+    ],
+    routeFamily: definition.family,
+    constraints: definition.constraints,
+  };
+}
+
+export function resolveAudioTranscriberFieldVisibility(
+  constraints: AudioTranscriptionRouteConstraints,
+  responseFormat: AudioTranscriptionResponseFormat,
+): AudioTranscriberFieldVisibility {
+  return {
+    language:
+      constraints.languages === undefined || constraints.languages.length > 0,
+    prompt: constraints.supportsPrompt,
+    timestampGranularities:
+      constraints.supportsTimestampGranularities &&
+      responseFormat === "verbose_json",
+    stream: constraints.supportsStreaming,
+    responseFormatSelect: constraints.responseFormats.length > 1,
+    responseFormatSummary: constraints.responseFormats.length === 1,
+  };
+}
+
+export function normalizeAudioTranscriberPreferences(
+  preferences: AudioTranscriberPreferences,
+  constraints: AudioTranscriptionRouteConstraints,
+): AudioTranscriberPreferences {
+  const responseFormats = getAudioTranscriberResponseFormats(constraints);
+  const languages = getAudioTranscriberLanguages(constraints);
+  const responseFormat = responseFormats.includes(preferences.responseFormat)
+    ? preferences.responseFormat
+    : responseFormats[0] ?? "json";
+  const language = languages.includes(preferences.language)
+    ? preferences.language
+    : languages[0] ?? "auto";
 
   return {
     ...preferences,
     language,
     responseFormat,
-    prompt: matrix.supportsPrompt ? preferences.prompt : "",
-    stream: matrix.supportsStream && preferences.stream,
+    prompt: constraints.supportsPrompt ? preferences.prompt : "",
+    stream: constraints.supportsStreaming && preferences.stream,
     timestampGranularities:
-      matrix.supportsTimestampGranularities && responseFormat === "verbose_json"
+      constraints.supportsTimestampGranularities &&
+      responseFormat === "verbose_json"
         ? preferences.timestampGranularities
         : [],
   };
 }
 
-export function resolveAudioTranscriberModelMatrix(
-  context?: AudioApiDialect | AudioTranscriberProfileContext,
-): AudioTranscriptionModelMatrix {
-  return resolveAudioTranscriptionModelMatrix(
-    resolveAudioTranscriberProfileContext(context),
-  );
-}
-
-export function seedAudioTranscriberPreferencesFromProfile(
-  preferences: AudioTranscriberPreferences,
-  defaults: AudioModelProfile["defaults"],
-  overrides: AudioTranscriberProfileDefaultOverrides,
+export function sanitizeAudioTranscriberPreferences(
+  value: unknown,
 ): AudioTranscriberPreferences {
+  const record = isRecord(value) ? value : {};
+  const timestampGranularities = Array.isArray(record.timestampGranularities)
+    ? record.timestampGranularities.filter(isAudioTimestampGranularity)
+    : DEFAULT_AUDIO_TRANSCRIBER_PREFERENCES.timestampGranularities;
   return {
-    ...preferences,
-    ...(!overrides.language && defaults.language
-      ? { language: defaults.language }
-      : {}),
-    ...(!overrides.responseFormat && defaults.transcriptionResponseFormat
-      ? { responseFormat: defaults.transcriptionResponseFormat }
-      : {}),
+    language: stringOr(
+      record.language,
+      DEFAULT_AUDIO_TRANSCRIBER_PREFERENCES.language,
+    ),
+    responseFormat: isAudioTranscriptionResponseFormat(record.responseFormat)
+      ? record.responseFormat
+      : DEFAULT_AUDIO_TRANSCRIBER_PREFERENCES.responseFormat,
+    timestampGranularities,
+    prompt: stringOr(record.prompt, DEFAULT_AUDIO_TRANSCRIBER_PREFERENCES.prompt),
+    stream: booleanOr(record.stream, DEFAULT_AUDIO_TRANSCRIBER_PREFERENCES.stream),
+    outputMode: isAudioTranscriberOutputMode(record.outputMode)
+      ? record.outputMode
+      : DEFAULT_AUDIO_TRANSCRIBER_PREFERENCES.outputMode,
+    outputDir: normalizeAudioOutputDirectoryLabel(record.outputDir),
   };
-}
-
-export function createAudioTranscriberProfileSeedKey(
-  profileId: string,
-  defaults: AudioModelProfile["defaults"],
-): string {
-  return JSON.stringify([
-    profileId,
-    defaults.language ?? null,
-    defaults.transcriptionResponseFormat ?? null,
-  ]);
 }
 
 export function buildAudioTranscriptionRequest(options: {
   requestId: string;
-  file: SelectedAudioInput;
+  file: SelectedAudioInput & { fileToken: string };
   preferences: AudioTranscriberPreferences;
   outputDirectoryAuthorization: AudioOutputDirectoryAuthorization | null;
-  dialect?: AudioApiDialect;
-  provider?: Model;
-  modelKey?: string;
+  constraints: AudioTranscriptionRouteConstraints;
 }): CreateAudioTranscriptionIpcRequest {
-  const profileContext: AudioTranscriberProfileContext = {
-    audioDialect: options.dialect,
-    provider: options.provider,
-    modelKey: options.modelKey,
-  };
-  const matrix = resolveAudioTranscriptionModelMatrix(profileContext);
-  const preferences = normalizeAudioTranscriberPreferencesForDialect(
+  const preferences = normalizeAudioTranscriberPreferences(
     options.preferences,
-    profileContext,
+    options.constraints,
   );
   const request: CreateAudioTranscriptionIpcRequest = {
     assignmentKey: "transcription",
@@ -342,21 +391,22 @@ export function buildAudioTranscriptionRequest(options: {
 
   if (
     preferences.language &&
-    (options.dialect === "mimo_chat_audio" || preferences.language !== "auto")
+    ((options.constraints.languages?.length ?? 0) > 0 ||
+      preferences.language !== "auto")
   ) {
     request.language = preferences.language;
   }
-  if (matrix.supportsPrompt && preferences.prompt.trim()) {
+  if (options.constraints.supportsPrompt && preferences.prompt.trim()) {
     request.prompt = preferences.prompt.trim();
   }
   if (
-    matrix.supportsTimestampGranularities &&
+    options.constraints.supportsTimestampGranularities &&
     preferences.responseFormat === "verbose_json" &&
     preferences.timestampGranularities.length > 0
   ) {
     request.timestampGranularities = preferences.timestampGranularities;
   }
-  if (matrix.supportsStream && preferences.stream) {
+  if (options.constraints.supportsStreaming && preferences.stream) {
     request.stream = true;
   }
   if (preferences.outputMode !== "display_only") {
@@ -373,16 +423,38 @@ export function buildAudioTranscriptionRequest(options: {
   return request;
 }
 
-function resolveAudioTranscriberProfileContext(
-  context?: AudioApiDialect | AudioTranscriberProfileContext,
-): AudioTranscriberProfileContext {
-  return typeof context === "string" ? { audioDialect: context } : context ?? {};
-}
-
 function normalizeAudioTranscriberMimeType(
   mimeType: string | undefined,
 ): AudioTranscriberMimeType | undefined {
   if (!mimeType) return undefined;
   const normalized = mimeType.toLowerCase().split(";")[0].trim();
   return NORMALIZED_AUDIO_MIME[normalized];
+}
+
+function isAudioTimestampGranularity(
+  value: unknown,
+): value is AudioTimestampGranularity {
+  return value === "segment" || value === "word";
+}
+
+function isAudioTranscriberOutputMode(
+  value: unknown,
+): value is AudioTranscriberOutputMode {
+  return (
+    value === "display_only" ||
+    value === "source_dir" ||
+    value === "custom_dir"
+  );
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function stringOr(value: unknown, fallback: string): string {
+  return typeof value === "string" ? value : fallback;
+}
+
+function booleanOr(value: unknown, fallback: boolean): boolean {
+  return typeof value === "boolean" ? value : fallback;
 }

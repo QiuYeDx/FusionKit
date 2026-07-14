@@ -1,6 +1,10 @@
 import axios from "axios";
 import { readFile } from "node:fs/promises";
 import { normalizeAudioEndpoint } from "@/lib/audio-endpoint";
+import {
+  inferAudioProviderPresetFromLegacy,
+  resolveTranscriptionRouteDefinition,
+} from "@/lib/audio-provider-registry";
 import type {
   AudioSpeechResponseFormat,
   AudioTranscriptSegment,
@@ -9,7 +13,6 @@ import type {
   AudioTranscriptionResult,
   SpeechSynthesisResult,
 } from "@/type/audio";
-import { resolveAudioTranscriptionModelMatrix } from "@/type/audio";
 import {
   createSpeechOutputFileNameHint,
   createTranscriptOutputFileNameHint,
@@ -153,8 +156,17 @@ async function sendOpenAIAudioTranscriptionOnce(
 function validateOpenAITranscriptionPayload(
   request: AudioRuntimeTranscriptionRequest,
 ): void {
-  const matrix = resolveAudioTranscriptionModelMatrix(request.model);
-  if (!matrix.modelSupported) {
+  const providerPreset = request.model.providerPreset ??
+    inferAudioProviderPresetFromLegacy({
+      transport: request.model.audioDialect,
+      connectionProvider: request.model.provider,
+    }).preset;
+  const definition = resolveTranscriptionRouteDefinition({
+    providerPreset,
+    transport: request.model.audioDialect,
+    model: request.model.modelKey,
+  });
+  if (!definition) {
     throw createAudioRuntimeError({
       code: "unsupported_audio_capability",
       message: "The selected OpenAI transcription model is not supported.",
@@ -162,7 +174,8 @@ function validateOpenAITranscriptionPayload(
       details: { modelKey: request.model.modelKey },
     });
   }
-  if (!matrix.responseFormats.includes(request.payload.responseFormat)) {
+  const { constraints } = definition;
+  if (!constraints.responseFormats.includes(request.payload.responseFormat)) {
     throw createAudioRuntimeError({
       code: "unsupported_audio_format",
       message: "The selected transcription model does not support this response format.",
@@ -173,7 +186,7 @@ function validateOpenAITranscriptionPayload(
       },
     });
   }
-  if (request.payload.stream && !matrix.supportsStream) {
+  if (request.payload.stream && !constraints.supportsStreaming) {
     throw createAudioRuntimeError({
       code: "unsupported_audio_capability",
       message: "The selected transcription model does not support streaming.",
@@ -183,7 +196,7 @@ function validateOpenAITranscriptionPayload(
   }
   if (
     request.payload.timestampGranularities?.length &&
-    (!matrix.supportsTimestampGranularities ||
+    (!constraints.supportsTimestampGranularities ||
       request.payload.responseFormat !== "verbose_json")
   ) {
     throw createAudioRuntimeError({
@@ -194,7 +207,7 @@ function validateOpenAITranscriptionPayload(
       details: { modelKey: request.model.modelKey },
     });
   }
-  if (request.payload.prompt?.trim() && !matrix.supportsPrompt) {
+  if (request.payload.prompt?.trim() && !constraints.supportsPrompt) {
     throw createAudioRuntimeError({
       code: "unsupported_audio_capability",
       message: "The selected transcription model does not support prompts.",

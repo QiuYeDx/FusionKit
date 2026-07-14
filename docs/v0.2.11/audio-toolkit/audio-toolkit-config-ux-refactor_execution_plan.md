@@ -3,7 +3,7 @@
 > 日期：2026-07-13
 > Feature Slug：`audio-toolkit-config-ux-refactor`
 > 对应设计文档：`docs/v0.2.11/audio-toolkit/audio-toolkit-config-ux-refactor_final_design.md`
-> 当前状态：`PRE-R01`、`CORE-R01`、`BE-R01`、`FE-R01`、`FE-R02` 已完成；M2 已达成，下一步 `FE-R03`
+> 当前状态：`PRE-R01`、`CORE-R01`、`BE-R01`、`FE-R01`、`FE-R02` 已完成；`FE-R03` 进行中，standalone ASR 竖切已完成，下一步实时字幕
 
 ## 1. 每次开发会话的使用方式
 
@@ -66,7 +66,7 @@
 | BE-R01 | 已完成 | 2026-07-13 | standalone runtime snapshot、provider-neutral intent 与可信 `resolveRoute` | `src/type/audioIpc.ts`、`electron/main/audio/audio-runtime-config.ts`、`electron/main/audio/ipc.ts`、`electron/main/audio/realtime-ipc.ts`、`electron/main/audio/audio-output-directory.ts`、`electron/preload/index.ts`、`electron/preload/audio-channel-policy.ts`、audio services/adapters/tests | IPC 1 file / 42 tests；音频 29 files / 244 tests；全量 83 files / 691 tests；`tsc --noEmit`；四语言 1425 keys；Vite test build；Electron 2 tests（4 routes × 4 locales × 2 sizes）；`git diff --check` | `audio-toolkit-config-ux-refactor_implementation_records/2026-07-13_BE-R01_standalone-audio-runtime-routing.md` | `FE-R01` 已停止设置页 legacy 写入，`FE-R02` 已移除 legacy speech input；`FE-R03` 迁移其余工具消费者 |
 | FE-R01 | 已完成 | 2026-07-13 | 独立“设置 -> 音频”页面与首次配置链路 | `src/pages/Setting/index.tsx`、`settingNavigation.ts`、`AudioApiConfig.tsx`、`audioApiConfigModel.ts`、`useAudioApiStore.ts`、`src/locales/*/setting.json`、`test/e2e.spec.ts` | 设置/Store 3 files / 27 tests；音频 31 files / 261 tests；全量 85 files / 709 tests；TypeScript；四语言 1505 keys；Vite test build；Electron E2E 3 tests；截图审查；`git diff --check` | `audio-toolkit-config-ux-refactor_implementation_records/2026-07-13_FE-R01_standalone-audio-settings.md` | M1 已达成；`FE-R02` 已迁移 TTS store/UI，`FE-R03` 再清理 legacy audio CRUD/selectors |
 | FE-R02 | 已完成 | 2026-07-14 | TTS store v5、route-aware 条件渲染、三模式 intent、配置 CTA 与 voice token 生命周期 | `SpeechSynthesizer/index.tsx`、`AudioToolShell.tsx`、speech store/config、provider registry、audio IPC/preload/service、四语言 audio locale、`test/e2e.spec.ts` | 定向 6 files / 113 tests；全量非 Electron 85 files / 727 tests；TypeScript；四语言各 1514 keys；Vite test build；Electron E2E 4 tests；4 张宽窄/clone 截图；`git diff --check` | `audio-toolkit-config-ux-refactor_implementation_records/2026-07-14_FE-R02_route-aware-speech-synthesizer.md` | M2 已达成；终审竞态/撤销/长度/UI/离页任务态闭环见 `fix/2026-07-14_FIX-R02_tts-preflight-capability-contract.md`；`FE-R03` 迁移其余三个工具 |
-| FE-R03 | 未开始 | — | ASR、实时字幕、双向语音迁移到独立配置 | 其余三工具、shared shell/config、`useModelStore` legacy facade cleanup | audio tool tests、Electron、文本/音频生命周期隔离 tests | — | 依赖 CORE-R01、BE-R01；最后消费者切换后移除旧 audio CRUD/selectors、connection 删除 guard，legacy 字段仅留只读备份 |
+| FE-R03 | 进行中 | — | ASR、实时字幕、双向语音迁移到独立配置 | ASR page/config/store、shared shell、provider registry、audio IPC/preload/service、四语言 audio locale、`test/e2e.spec.ts`；实时工具与 legacy cleanup 待继续 | ASR/capability 10 files / 138 tests；全量非 Electron 86 files / 759 tests；TypeScript；四语言各 1514 keys；Vite test build；聚焦 Electron E2E 1 test + 2 screenshots；`git diff --check` | `audio-toolkit-config-ux-refactor_implementation_records/2026-07-14_FE-R03_route-aware-audio-transcriber.md` | standalone ASR 竖切完成；下一步迁移实时字幕、双向语音，最后移除 legacy audio CRUD/selectors 与 connection 删除 guard |
 | I18N-R01 | 未开始 | — | 清理旧语义并增加源码翻译 key 门禁 | `scripts/check-i18n-usage.mjs`、`src/locales/*` | 两个 i18n scripts、raw-key smoke | — | 10 个已知缺失 key 先随 PRE-R01 补齐 |
 | TEST-R01 | 未开始 | — | 迁移、registry、runtime、builder 与组件自动化矩阵 | audio tests/fake server | targeted + full vitest、tsc | — | 依赖实现包 |
 | QA-R01 | 未开始 | — | Electron 四语言两尺寸交互矩阵 | e2e/验收记录 | 4 locales x 2 sizes；等待 loading 退出 | — | 依赖 FE/I18N/TEST |
@@ -114,7 +114,25 @@
 - `I18N-R01` 的源码 key usage checker、`TEST-R01`/`QA-R01` 完整门禁及 `QA-R02`
   真实供应商/设备验收保持未完成。
 
-## 7. 实施记录模板
+## 7. 当前进行中工作包：FE-R03
+
+已完成首段：让音频转文本完全消费 standalone audio assignment/route，并按
+`providerPreset + transport + route.model` 解析 GPT Transcribe、Whisper、MiMo 和
+custom-compatible 的字段/校验矩阵。
+
+本段同时闭环：
+
+- transcriber store v4 只持久化 preferences，文件、token、结果和任务态不 hydration；
+- 输入文件 token 一次消费、二次提交重新授权、替换/清除/离页撤销；
+- runtime sync 到 main dispatch 的可取消预检、route/unmount 跨路由取消重试；
+- 输出目录选择 generation/mounted guard、owner-bound revoke IPC 和 bounded retry；
+- 输出模式使用完整 Radix radio 交互面，覆盖 roving tabindex、方向键、Home/End；
+- Electron 实际完成 GPT/Whisper/MiMo 字段切换、双击防重、两次提交与宽窄截图。
+
+状态保持 `进行中`：实时字幕、双向语音和 legacy facade cleanup 尚未实施。
+本段终审修复见 `fix/2026-07-14_FIX-R03_asr-lifecycle-accessibility.md`。
+
+## 8. 实施记录模板
 
 ````markdown
 # 工作包 <ID>：<标题>

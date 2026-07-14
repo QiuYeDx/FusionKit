@@ -57,6 +57,7 @@ export const AUDIO_PRELOAD_INTERNAL_CHANNELS = {
   authorizeInputFile: "audio:internal:authorize-input-file",
   revokeInputFile: "audio:internal:revoke-input-file",
   selectOutputDirectory: "audio:internal:select-output-directory",
+  revokeOutputDirectory: "audio:internal:revoke-output-directory",
 } as const;
 
 export const AUDIO_EVENT_CHANNELS = {
@@ -223,6 +224,10 @@ export interface RevokeAudioInputFileResult {
   revoked: boolean;
 }
 
+export interface RevokeAudioOutputDirectoryResult {
+  revoked: boolean;
+}
+
 export interface SelectAudioOutputDirectoryRequest {
   title?: string;
   buttonLabel?: string;
@@ -277,6 +282,9 @@ export interface AudioRendererApi {
   selectOutputDirectory(
     request?: SelectAudioOutputDirectoryRequest,
   ): Promise<AudioIpcResult<AudioOutputDirectorySelection>>;
+  revokeOutputDirectory(
+    outputDirToken: string,
+  ): Promise<AudioIpcResult<RevokeAudioOutputDirectoryResult>>;
   on(
     channel: AudioEventChannel,
     listener: (event: unknown, payload: unknown) => void,
