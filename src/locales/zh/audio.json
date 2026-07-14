@@ -1,10 +1,18 @@
 {
   "global": {
     "open_settings": "前往设置",
+    "change_audio_api": "更改音频 API",
+    "configure_audio_api": "配置音频 API",
+    "api_config_title": "音频 API 与输出",
     "config_title": "全局音频配置",
     "summary": "当前配置",
     "status": "状态",
     "profile": "Profile",
+    "audio_api": "音频 API",
+    "provider": "供应商",
+    "mode": "生成模式",
+    "verification": "验证状态",
+    "technical_details": "技术详情",
     "dialect": "协议",
     "model": "模型",
     "connection": "连接",
@@ -12,6 +20,8 @@
   },
   "status": {
     "ready": "就绪",
+    "audio_api_not_configured": "未配置音频 API",
+    "audio_route_not_configured": "未配置可用路由",
     "profile_not_configured": "未配置",
     "connection_missing": "连接缺失",
     "model_missing": "模型缺失",
@@ -21,6 +31,14 @@
     "ready": {
       "title": "配置就绪",
       "description": "该页面已读取设置页的全局音频配置。"
+    },
+    "audio_api_not_configured": {
+      "title": "尚未配置音频 API",
+      "description": "请先在设置中添加音频 API，并将其分配给文本转音频。"
+    },
+    "audio_route_not_configured": {
+      "title": "当前音频 API 没有可用的语音生成模式",
+      "description": "请在音频设置中启用至少一条文本转音频路由。"
     },
     "profile_not_configured": {
       "title": "未选择音频配置",
@@ -47,7 +65,7 @@
     },
     "speech": {
       "title": "文本转音频",
-      "description": "使用全局 TTS 配置生成音频。",
+      "description": "使用当前分配的音频 API 生成音频。",
       "config": "语音合成设置",
       "workspace": "合成任务"
     },
@@ -179,12 +197,11 @@
       "speed": "语速",
       "stream": "流式播放",
       "output_mode": "输出位置",
-      "mimo_mode": "MiMo 模式",
+      "mode": "生成模式",
       "style_instruction": "风格指令",
       "voice_design_prompt": "音色设计描述",
       "optimize_text_preview": "让 MiMo 优化试听文本",
       "voice_sample": "参考音频",
-      "audio_tags": "音频标签",
       "input": "合成文本",
       "instructions": "OpenAI 指令",
       "file_name_hint": "文件名（可选）"
@@ -203,21 +220,18 @@
       "custom_dir": "自选目录"
     },
     "hints": {
+      "mode": "这里只显示当前音频 API 已配置且可用的生成模式。",
       "mimo_voice": "预置音色模式下使用 voice；音色设计不使用 voice，音色复刻使用参考音频。",
       "openai_voice": "OpenAI voice 支持手输；预设按钮只是便捷入口。",
       "mimo_format": "MiMo 非流式固定 WAV，流式固定 PCM16 并在完成后保存为 WAV。",
       "openai_format": "OpenAI 官方 TTS 支持多种二进制音频格式。",
-      "speed": "OpenAI 专属参数；MiMo 模式会禁用且不会进入 payload。",
-      "stream": "MiMo 三种 TTS 模式都走低延迟 PCM16 流式链路。",
-      "stream_disabled": "当前全局音频配置不支持 MiMo 流式 TTS。",
+      "speed": "当前音频 API 支持语速控制时才会显示此参数。",
+      "stream": "开启后会边接收音频边播放；具体格式由当前音频 API 决定。",
       "stream_on": "流式开启时会边接收 PCM16 边播放，完成后切换到最终文件。",
       "stream_off": "非流式会等待远端返回完整音频后再播放。",
       "output_mode": "临时文件可播放；自选目录会直接写入指定目录。",
-      "mimo_mode": "模式必须与设置页当前全局 TTS 模型匹配。",
-      "mimo_model_mismatch": "此模式需要设置页选择 {{model}}。",
       "voice_design": "音色设计需要描述想要的声音特征。",
-      "voice_clone": "音色复刻需要 wav 或 mp3 参考音频，文件内容只在 main 进程读取。",
-      "audio_tags": "MiMo 预置音色模式可开启音频标签；其它模式禁用。",
+      "voice_clone": "音色复刻需要 wav 或 mp3 参考音频，文件通过一次性授权交给 main 进程读取。",
       "input": "要合成为语音的文本。MiMo 音色设计可在优化试听文本时允许为空。",
       "file_name_hint": "无需填写扩展名，系统会根据输出格式补全。"
     },
@@ -229,25 +243,20 @@
       "voice_design_prompt": "例如：年轻、明亮、亲和的女性声音",
       "input": "输入要合成为语音的文本",
       "instructions": "例如：保持语气平静，适合播客旁白",
-      "instructions_mimo_disabled": "MiMo 请使用左侧的风格指令或音色设计描述",
       "file_name_hint": "例如：产品介绍旁白"
     },
     "dialog": {
       "select_output_title": "选择语音输出目录",
       "select_output_confirm": "选择此目录"
     },
-    "mimo": {
-      "title": "MiMo 专属配置",
-      "disabled_badge": "非 MiMo 禁用",
-      "mode": {
-        "preset_voice": "预置音色",
-        "voice_design": "音色设计",
-        "voice_clone": "音色复刻"
-      },
-      "current_model_mode": "当前模型匹配：{{mode}}"
+    "mode": {
+      "preset_voice": "预置音色",
+      "voice_design": "音色设计",
+      "voice_clone": "音色复刻"
     },
     "voice_sample": {
       "title": "选择参考音频",
+      "authorizing": "正在授权参考音频",
       "description": "仅音色复刻模式使用，支持 wav / mp3。"
     },
     "actions": {
@@ -289,6 +298,7 @@
     "messages": {
       "output_path_selected": "输出目录已选择",
       "voice_sample_selected": "参考音频已选择",
+      "mode_fallback": "已根据新的音频 API 切换生成模式。",
       "completed": "音频生成完成",
       "cancelled": "音频生成已取消"
     },
@@ -297,9 +307,10 @@
       "no_input": "请输入要合成的文本。",
       "no_voice": "请填写 voice。",
       "output_dir_required": "使用自选目录时，请先选择输出目录。",
-      "mimo_model_mismatch": "当前模式与全局 TTS 模型不匹配，请在设置页选择 {{model}}。",
       "voice_design_prompt_required": "音色设计模式需要填写音色描述。",
       "voice_sample_required": "音色复刻模式需要选择参考音频。",
+      "voice_sample_authorizing": "参考音频仍在授权，请稍候。",
+      "voice_sample_authorization_failed": "参考音频授权失败，请重新选择文件。",
       "output_not_ready": "当前还没有可打开的输出文件。",
       "output_dir_select_failed": "选择输出目录失败。",
       "voice_sample_path_unavailable": "无法读取参考音频的本地路径，请在 Electron 应用内重新选择。",

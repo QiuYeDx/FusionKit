@@ -1,10 +1,18 @@
 {
   "global": {
     "open_settings": "設定を開く",
+    "change_audio_api": "音声 API を変更",
+    "configure_audio_api": "音声 API を設定",
+    "api_config_title": "音声 API と出力",
     "config_title": "グローバル音声設定",
     "summary": "現在の設定",
     "status": "状態",
     "profile": "Profile",
+    "audio_api": "音声 API",
+    "provider": "プロバイダー",
+    "mode": "生成モード",
+    "verification": "検証状態",
+    "technical_details": "技術詳細",
     "dialect": "プロトコル",
     "model": "モデル",
     "connection": "接続",
@@ -12,6 +20,8 @@
   },
   "status": {
     "ready": "準備完了",
+    "audio_api_not_configured": "音声 API 未設定",
+    "audio_route_not_configured": "利用可能なルートなし",
     "profile_not_configured": "未設定",
     "connection_missing": "接続なし",
     "model_missing": "モデルなし",
@@ -21,6 +31,14 @@
     "ready": {
       "title": "設定準備完了",
       "description": "このページは設定画面のグローバル音声設定を読み込みました。"
+    },
+    "audio_api_not_configured": {
+      "title": "音声 API が設定されていません",
+      "description": "設定で音声 API を追加し、テキストから音声へのタスクに割り当ててください。"
+    },
+    "audio_route_not_configured": {
+      "title": "この音声 API には利用可能な音声生成モードがありません",
+      "description": "音声設定でテキストから音声へのルートを 1 つ以上有効にしてください。"
     },
     "profile_not_configured": {
       "title": "音声構成が未選択",
@@ -47,7 +65,7 @@
     },
     "speech": {
       "title": "テキストを音声へ",
-      "description": "グローバル TTS 設定で音声を生成します。",
+      "description": "現在割り当てられている音声 API で音声を生成します。",
       "config": "音声合成設定",
       "workspace": "合成タスク"
     },
@@ -179,12 +197,11 @@
       "speed": "速度",
       "stream": "ストリーミング再生",
       "output_mode": "出力先",
-      "mimo_mode": "MiMo モード",
+      "mode": "生成モード",
       "style_instruction": "スタイル指示",
       "voice_design_prompt": "音色設計の説明",
       "optimize_text_preview": "MiMo にプレビューテキストを最適化させる",
       "voice_sample": "参照音声",
-      "audio_tags": "音声タグ",
       "input": "合成テキスト",
       "instructions": "OpenAI 指示",
       "file_name_hint": "ファイル名（任意）"
@@ -203,21 +220,18 @@
       "custom_dir": "任意フォルダ"
     },
     "hints": {
+      "mode": "現在の音声 API で設定済みかつ利用可能な生成モードだけを表示します。",
       "mimo_voice": "プリセット音色モードでは voice を使います。音色設計では使わず、音色クローンでは参照音声を使います。",
       "openai_voice": "OpenAI voice は手入力できます。プリセットボタンはショートカットです。",
       "mimo_format": "MiMo の非ストリーミング出力は WAV 固定です。ストリーミングは PCM16 固定で、完了後に WAV として保存されます。",
       "openai_format": "OpenAI 公式 TTS は複数のバイナリ音声形式に対応します。",
-      "speed": "OpenAI 専用パラメータです。MiMo では無効になり、payload には入りません。",
-      "stream": "MiMo の 3 つの TTS モードはすべて低遅延 PCM16 ストリーミング経路を使います。",
-      "stream_disabled": "現在のグローバル音声設定は MiMo ストリーミング TTS に対応していません。",
+      "speed": "現在の音声 API が速度調整に対応している場合のみ表示します。",
+      "stream": "音声を受信しながら再生します。転送形式は現在の音声 API が決定します。",
       "stream_on": "ストリーミング有効時は PCM16 チャンクを受信しながら再生し、完了後に最終ファイルへ切り替えます。",
       "stream_off": "非ストリーミングではリモートから完全な音声が返るまで待ってから再生します。",
       "output_mode": "一時ファイルは再生できます。任意フォルダでは選択したフォルダへ直接書き込みます。",
-      "mimo_mode": "モードは設定画面の現在のグローバル TTS モデルと一致する必要があります。",
-      "mimo_model_mismatch": "このモードには設定画面で {{model}} を選ぶ必要があります。",
       "voice_design": "音色設計には、作りたい声の特徴説明が必要です。",
-      "voice_clone": "音色クローンには wav または mp3 の参照音声が必要です。ファイル内容は main プロセスだけで読み取ります。",
-      "audio_tags": "MiMo プリセット音色モードでは音声タグを有効にできます。他のモードでは無効です。",
+      "voice_clone": "音色クローンには wav または mp3 の参照音声が必要です。main プロセスへ一度限りの読み取り権限を渡します。",
       "input": "音声へ合成するテキストです。MiMo 音色設計でプレビューテキストを最適化する場合は空でも構いません。",
       "file_name_hint": "拡張子は入力不要です。出力形式に応じて自動で追加されます。"
     },
@@ -229,25 +243,20 @@
       "voice_design_prompt": "例：若く、明るく、親しみやすい女性の声",
       "input": "音声へ合成するテキストを入力",
       "instructions": "例：ポッドキャストのナレーション向けに落ち着いた口調を保つ",
-      "instructions_mimo_disabled": "MiMo では左側のスタイル指示または音色設計の説明を使ってください",
       "file_name_hint": "例：製品紹介ナレーション"
     },
     "dialog": {
       "select_output_title": "音声出力フォルダを選択",
       "select_output_confirm": "このフォルダを選択"
     },
-    "mimo": {
-      "title": "MiMo 専用設定",
-      "disabled_badge": "MiMo 以外では無効",
-      "mode": {
-        "preset_voice": "プリセット音色",
-        "voice_design": "音色設計",
-        "voice_clone": "音色クローン"
-      },
-      "current_model_mode": "現在のモデル一致：{{mode}}"
+    "mode": {
+      "preset_voice": "プリセット音色",
+      "voice_design": "音色設計",
+      "voice_clone": "音色クローン"
     },
     "voice_sample": {
       "title": "参照音声を選択",
+      "authorizing": "参照音声を認証中",
       "description": "音色クローンモードでのみ使います。wav / mp3 に対応します。"
     },
     "actions": {
@@ -289,6 +298,7 @@
     "messages": {
       "output_path_selected": "出力フォルダを選択しました",
       "voice_sample_selected": "参照音声を選択しました",
+      "mode_fallback": "新しい音声 API に合わせて生成モードを切り替えました。",
       "completed": "音声生成が完了しました",
       "cancelled": "音声生成をキャンセルしました"
     },
@@ -297,9 +307,10 @@
       "no_input": "合成するテキストを入力してください。",
       "no_voice": "voice を入力してください。",
       "output_dir_required": "任意フォルダモードを使う前に出力フォルダを選択してください。",
-      "mimo_model_mismatch": "現在のモードはグローバル TTS モデルと一致しません。設定画面で {{model}} を選択してください。",
       "voice_design_prompt_required": "音色設計モードでは音色説明が必要です。",
       "voice_sample_required": "音色クローンモードでは参照音声が必要です。",
+      "voice_sample_authorizing": "参照音声を認証しています。しばらくお待ちください。",
+      "voice_sample_authorization_failed": "参照音声の認証に失敗しました。ファイルを選び直してください。",
       "output_not_ready": "開ける出力ファイルはまだありません。",
       "output_dir_select_failed": "出力フォルダの選択に失敗しました。",
       "voice_sample_path_unavailable": "参照音声のローカルパスを取得できません。Electron アプリ内で再度選択してください。",

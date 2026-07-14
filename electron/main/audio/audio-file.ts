@@ -321,9 +321,10 @@ export class AudioFileAuthorizationStore {
     return this.resolveEntry(entry, dialect, fileToken);
   }
 
-  revoke(ownerId: number, fileToken: string): void {
+  revoke(ownerId: number, fileToken: string): boolean {
     const entry = this.entries.get(fileToken);
-    if (entry?.ownerId === ownerId) this.entries.delete(fileToken);
+    if (entry?.ownerId !== ownerId) return false;
+    return this.entries.delete(fileToken);
   }
 
   private requireEntry(

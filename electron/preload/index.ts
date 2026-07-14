@@ -7,6 +7,7 @@ import type {
   AudioRendererApi,
   AudioOutputDirectorySelection,
   AuthorizedAudioInputFile,
+  RevokeAudioInputFileResult,
   SelectAudioOutputDirectoryRequest,
 } from '@/type/audioIpc'
 import { isPublicAudioIpcChannel } from './audio-channel-policy'
@@ -15,6 +16,7 @@ const AUDIO_CHANNEL_PREFIX = 'audio:'
 const AUDIO_REGISTER_CAPABILITY_CHANNEL =
   'audio:internal:register-preload-capability'
 const AUDIO_AUTHORIZE_INPUT_FILE_CHANNEL = 'audio:internal:authorize-input-file'
+const AUDIO_REVOKE_INPUT_FILE_CHANNEL = 'audio:internal:revoke-input-file'
 const AUDIO_SELECT_OUTPUT_DIRECTORY_CHANNEL =
   'audio:internal:select-output-directory'
 const AUDIO_EVENT_CHANNELS = new Set<AudioEventChannel>([
@@ -148,6 +150,12 @@ const audioApi: AudioRendererApi = {
         filePath,
         mimeType: file.type,
       },
+    )
+  },
+  revokeInputFile(fileToken: string) {
+    return invokeAuthorizedAudioChannel<RevokeAudioInputFileResult>(
+      AUDIO_REVOKE_INPUT_FILE_CHANNEL,
+      { fileToken },
     )
   },
   selectOutputDirectory(request: SelectAudioOutputDirectoryRequest = {}) {

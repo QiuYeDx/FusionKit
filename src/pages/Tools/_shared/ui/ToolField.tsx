@@ -15,6 +15,7 @@ type ToolFieldProps = {
   action?: React.ReactNode;
   children: React.ReactNode;
   id?: string;
+  testId?: string;
   className?: string;
 };
 
@@ -33,10 +34,15 @@ export function ToolField({
   action,
   children,
   id,
+  testId,
   className,
 }: ToolFieldProps) {
   return (
-    <div id={id} className={cn("space-y-1.5", className)}>
+    <div
+      id={id}
+      data-testid={testId}
+      className={cn("space-y-1.5", className)}
+    >
       <div className="flex min-h-4 items-center justify-between gap-2">
         <div className="flex items-center gap-1.5">
           <Label

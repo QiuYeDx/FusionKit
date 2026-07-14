@@ -88,8 +88,11 @@ ps -axo pid,ppid,command | rg '<FusionKit Vite/Electron process patterns>'
 
 ## 未完成事项
 
-- `FE-R02` 尚未升级 TTS store/UI；三模式条件渲染、配置 CTA 和 voice-clone
-  token 提交链路仍待完成。
+> 以下为本工作包于 2026-07-13 结束时的历史状态；`FE-R02` 已于 2026-07-14
+> 完成，当前后续工作包为 `FE-R03`。
+
+- 截至本工作包结束时，`FE-R02` 尚未升级 TTS store/UI；三模式条件渲染、配置 CTA
+  和 voice-clone token 提交链路仍待完成。
 - `FE-R03` 尚未迁移 ASR、实时字幕、双向语音消费者；legacy audio CRUD/selectors、
   `AudioModelConfig` 与文本 connection 删除保护在最后消费者切换前继续保留。
 - `I18N-R01` 的源码 key 使用检查、`TEST-R01`/`QA-R01` 完整自动化门禁和
@@ -97,8 +100,8 @@ ps -axo pid,ppid,command | rg '<FusionKit Vite/Electron process patterns>'
 
 ## 下一步建议
 
-- 下一会话认领 `FE-R02`：以独立 assignment/route 为唯一配置来源升级 TTS store
-  v4，按 provider/mode 条件渲染字段，完成 provider-neutral intent、配置 CTA 与
+- 本工作包结束时建议下一会话认领 `FE-R02`：以独立 assignment/route 为唯一配置来源升级 TTS store
+  v5，按 provider/mode 条件渲染字段，完成 provider-neutral intent、配置 CTA 与
   voice sample 选择即授权链路。
 - 保持 renderer 不提交 API Key、Base URL、transport 或 model；继续复用
   `BE-R01` 的可信 route resolver 和一次性 token 边界。

@@ -1,10 +1,18 @@
 {
   "global": {
     "open_settings": "Open settings",
+    "change_audio_api": "Change audio API",
+    "configure_audio_api": "Configure audio API",
+    "api_config_title": "Audio API and output",
     "config_title": "Global audio config",
     "summary": "Current config",
     "status": "Status",
     "profile": "Profile",
+    "audio_api": "Audio API",
+    "provider": "Provider",
+    "mode": "Generation mode",
+    "verification": "Verification",
+    "technical_details": "Technical details",
     "dialect": "Protocol",
     "model": "Model",
     "connection": "Connection",
@@ -12,6 +20,8 @@
   },
   "status": {
     "ready": "Ready",
+    "audio_api_not_configured": "Audio API not configured",
+    "audio_route_not_configured": "No usable route",
     "profile_not_configured": "Not configured",
     "connection_missing": "Connection missing",
     "model_missing": "Model missing",
@@ -21,6 +31,14 @@
     "ready": {
       "title": "Config ready",
       "description": "This page has loaded the global audio configuration from settings."
+    },
+    "audio_api_not_configured": {
+      "title": "No audio API is configured",
+      "description": "Add an audio API in settings and assign it to text-to-audio."
+    },
+    "audio_route_not_configured": {
+      "title": "This audio API has no available speech mode",
+      "description": "Enable at least one text-to-audio route in audio settings."
     },
     "profile_not_configured": {
       "title": "No audio profile selected",
@@ -47,7 +65,7 @@
     },
     "speech": {
       "title": "Text to audio",
-      "description": "Generate audio with the global TTS configuration.",
+      "description": "Generate audio with the currently assigned audio API.",
       "config": "Speech synthesis settings",
       "workspace": "Synthesis task"
     },
@@ -179,12 +197,11 @@
       "speed": "Speed",
       "stream": "Streaming playback",
       "output_mode": "Output location",
-      "mimo_mode": "MiMo mode",
+      "mode": "Generation mode",
       "style_instruction": "Style instruction",
       "voice_design_prompt": "Voice design prompt",
       "optimize_text_preview": "Let MiMo optimize preview text",
       "voice_sample": "Reference audio",
-      "audio_tags": "Audio tags",
       "input": "Text to synthesize",
       "instructions": "OpenAI instructions",
       "file_name_hint": "File name (optional)"
@@ -203,21 +220,18 @@
       "custom_dir": "Custom folder"
     },
     "hints": {
+      "mode": "Only modes configured and available on the current audio API are shown.",
       "mimo_voice": "Preset voice mode uses voice; voice design does not, and voice clone uses reference audio.",
       "openai_voice": "OpenAI voice can be typed manually; presets are only shortcuts.",
       "mimo_format": "MiMo non-streaming output is fixed to WAV. Streaming is fixed to PCM16 and saved as WAV when complete.",
       "openai_format": "OpenAI official TTS supports multiple binary audio formats.",
-      "speed": "OpenAI-only option. It is disabled for MiMo and will not enter the payload.",
-      "stream": "All three MiMo TTS modes use the low-latency PCM16 streaming path.",
-      "stream_disabled": "The current global audio config does not support MiMo streaming TTS.",
+      "speed": "This option appears only when the current audio API supports speed control.",
+      "stream": "Play audio as it arrives; the current audio API determines the wire format.",
       "stream_on": "Streaming plays PCM16 chunks as they arrive, then switches to the final file.",
       "stream_off": "Non-streaming waits for the full audio response before playback.",
       "output_mode": "Temporary files can be played; custom folders write directly to the selected folder.",
-      "mimo_mode": "The mode must match the current global TTS model in settings.",
-      "mimo_model_mismatch": "This mode requires {{model}} in settings.",
       "voice_design": "Voice design requires a description of the voice you want.",
-      "voice_clone": "Voice clone requires a wav or mp3 reference audio file. File contents are read only in the main process.",
-      "audio_tags": "Audio tags can be enabled for MiMo preset voice mode. Other modes disable them.",
+      "voice_clone": "Voice clone requires a wav or mp3 reference file, authorized once for the main process to read.",
       "input": "Text to synthesize. MiMo voice design may leave this empty when optimizing preview text.",
       "file_name_hint": "Leave off the extension; it will be added from the output format."
     },
@@ -229,25 +243,20 @@
       "voice_design_prompt": "For example: young, bright, friendly female voice",
       "input": "Enter text to synthesize",
       "instructions": "For example: keep a calm tone for podcast narration",
-      "instructions_mimo_disabled": "For MiMo, use the style instruction or voice design prompt on the left",
       "file_name_hint": "For example: product-introduction-narration"
     },
     "dialog": {
       "select_output_title": "Select speech output folder",
       "select_output_confirm": "Select this folder"
     },
-    "mimo": {
-      "title": "MiMo-only configuration",
-      "disabled_badge": "Disabled outside MiMo",
-      "mode": {
-        "preset_voice": "Preset voice",
-        "voice_design": "Voice design",
-        "voice_clone": "Voice clone"
-      },
-      "current_model_mode": "Current model matches: {{mode}}"
+    "mode": {
+      "preset_voice": "Preset voice",
+      "voice_design": "Voice design",
+      "voice_clone": "Voice clone"
     },
     "voice_sample": {
       "title": "Choose reference audio",
+      "authorizing": "Authorizing reference audio",
       "description": "Used only for voice clone mode. Supports wav / mp3."
     },
     "actions": {
@@ -289,6 +298,7 @@
     "messages": {
       "output_path_selected": "Output folder selected",
       "voice_sample_selected": "Reference audio selected",
+      "mode_fallback": "The generation mode was switched for the new audio API.",
       "completed": "Audio generation completed",
       "cancelled": "Audio generation cancelled"
     },
@@ -297,9 +307,10 @@
       "no_input": "Enter text to synthesize.",
       "no_voice": "Enter a voice.",
       "output_dir_required": "Select an output folder before using custom folder mode.",
-      "mimo_model_mismatch": "The current mode does not match the global TTS model. Select {{model}} in settings.",
       "voice_design_prompt_required": "Voice design mode requires a voice description.",
       "voice_sample_required": "Voice clone mode requires reference audio.",
+      "voice_sample_authorizing": "Reference audio is still being authorized.",
+      "voice_sample_authorization_failed": "Reference audio authorization failed. Choose the file again.",
       "output_not_ready": "There is no output file to open yet.",
       "output_dir_select_failed": "Failed to select output folder.",
       "voice_sample_path_unavailable": "Could not read the local path for the reference audio. Choose it again inside the Electron app.",

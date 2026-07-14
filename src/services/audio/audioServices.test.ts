@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const localStorageItems = vi.hoisted(() => {
   const storage = new Map<string, string>();
@@ -45,12 +45,17 @@ import {
   cancelSpeechSynthesisStream,
   synthesizeSpeechStream,
 } from "./speechSynthesisService";
-import { resetAudioRuntimeConfigCacheForTests } from "./audioRuntimeConfigService";
+import {
+  flushPendingAudioInputFileRevocations,
+  queueAudioInputFileRevocation,
+  resetAudioRuntimeConfigCacheForTests,
+} from "./audioRuntimeConfigService";
 
 describe("audio renderer services", () => {
   let invoke: ReturnType<typeof vi.fn>;
   let on: ReturnType<typeof vi.fn>;
   let off: ReturnType<typeof vi.fn>;
+  let revokeInputFile: ReturnType<typeof vi.fn>;
   let streamListener: ((event: unknown, payload: unknown) => void) | undefined;
 
   beforeEach(() => {
@@ -210,6 +215,7 @@ describe("audio renderer services", () => {
       streamListener = listener;
     });
     off = vi.fn();
+    revokeInputFile = vi.fn();
     vi.stubGlobal("window", {
       audioApi: {
         invoke: (
@@ -220,10 +226,16 @@ describe("audio renderer services", () => {
           ? invoke(channel, payload)
           : invoke(channel, payload, options),
         authorizeInputFile: vi.fn(),
+        revokeInputFile,
+        selectOutputDirectory: vi.fn(),
         on,
         off,
       },
     });
+  });
+
+  afterEach(() => {
+    resetAudioRuntimeConfigCacheForTests();
   });
 
   it("syncs global audio config before transcription without putting API config in task payload", async () => {
@@ -284,6 +296,48 @@ describe("audio renderer services", () => {
         ok: false,
         error: { code: "network_error", message: "cancel IPC disconnected" },
       });
+  });
+
+  it("retains failed input-file revocations and accepts idempotent retry success", async () => {
+    revokeInputFile
+      .mockResolvedValueOnce({
+        ok: false,
+        error: { code: "network_error", message: "revoke disconnected" },
+      })
+      .mockResolvedValueOnce({ ok: true, data: { revoked: false } });
+
+    await expect(
+      queueAudioInputFileRevocation(
+        "file_token_pending_revoke",
+        Date.now() + 60_000,
+      ),
+    ).resolves.toBe(false);
+    expect(revokeInputFile).toHaveBeenCalledTimes(1);
+
+    await flushPendingAudioInputFileRevocations();
+    expect(revokeInputFile).toHaveBeenCalledTimes(2);
+    expect(revokeInputFile).toHaveBeenLastCalledWith(
+      "file_token_pending_revoke",
+    );
+
+    await flushPendingAudioInputFileRevocations();
+    expect(revokeInputFile).toHaveBeenCalledTimes(2);
+  });
+
+  it("retries input-file revocation after a rejected preload call", async () => {
+    revokeInputFile
+      .mockRejectedValueOnce(new Error("preload unavailable"))
+      .mockResolvedValueOnce({ ok: true, data: { revoked: true } });
+
+    await expect(
+      queueAudioInputFileRevocation(
+        "file_token_rejected_revoke",
+        Date.now() + 60_000,
+      ),
+    ).resolves.toBe(false);
+    await flushPendingAudioInputFileRevocations();
+
+    expect(revokeInputFile).toHaveBeenCalledTimes(2);
   });
 
   it("invalidates, resyncs, and retries a stale audio task exactly once", async () => {
@@ -584,7 +638,7 @@ describe("audio renderer services", () => {
       assignmentKey: "speechSynthesis",
       requestId: "speech_req_001",
       input: "hello",
-      voice: "alloy",
+      intent: { mode: "preset_voice", voice: "alloy" },
       responseFormat: "mp3",
     });
 
@@ -636,7 +690,7 @@ describe("audio renderer services", () => {
       {
         assignmentKey: "speechSynthesis",
         input: "hello",
-        voice: "alloy",
+        intent: { mode: "preset_voice", voice: "alloy" },
         responseFormat: "pcm16",
       },
       { audioDelta, any },

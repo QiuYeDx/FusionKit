@@ -1,7 +1,7 @@
 # 音频 API 配置与语音合成 UX 重构 Final Design
 
 > 日期：2026-07-12
-> 状态：实施中（`PRE-R01`、`CORE-R01`、`BE-R01`、`FE-R01` 已完成，下一步 `FE-R02`）
+> 状态：实施中（`PRE-R01`、`CORE-R01`、`BE-R01`、`FE-R01`、`FE-R02` 已完成，下一步 `FE-R03`）
 > 范围：独立音频 API 配置、音频任务默认分配、音频运行时路由、文本转音频页面、i18n 与迁移兼容
 > 关系：本设计继承原音频工具箱的 adapter、IPC 安全、文件、流式与 Realtime 合同，但正式替代原设计中的配置模型、TTS 模式/模型关系、字段禁用规则和相关验收口径。
 > 执行计划：[音频 API 配置与语音合成 UX 重构 Execution Plan](audio-toolkit-config-ux-refactor_execution_plan.md)
@@ -484,8 +484,9 @@ OpenAI 标准 TTS 也可使用 `preset_voice` intent；provider constraints 决�
 `CreateSpeechSynthesisRequest` 继续作为 main → adapter 的可信内部 DTO：main
 在完成 revision、assignment、intent route、字段约束和文件/目录 token 解析后，
 才把可信 `voice`、`mimoOptions.voiceSamplePath`、`outputDir` 与 adapter model
-写入该 DTO。renderer 侧 legacy builder 仅作为 `FE-R02` 迁移期输入保留，
-无法通过 public IPC 直接提交路径或模型配置。
+写入该 DTO。`FE-R02` 已移除 renderer 侧 legacy speech request 输入；public IPC
+只接受 `CreateSpeechSynthesisIpcRequest`，其中 `intent` 是 provider-neutral 用户任务意图，
+renderer 无法提交路径或模型配置。
 
 ### 6.3 错误合同
 
@@ -506,6 +507,8 @@ OpenAI 标准 TTS 也可使用 `preset_voice` intent；provider constraints 决�
 - task payload 不得携带 API Key、Base URL、provider preset、transport 或 model。
 - runtime snapshot 继续绑定 renderer sender，并使用 revision 防止 sync→invoke 竞态。
 - voice clone 参考音频继续使用 main 签发的一次性 token；renderer 不提交可信文件路径。
+- 文件 token 撤销必须同时检查 Promise rejection 与 `{ ok: false }`；renderer 在清空 UI
+  token 前把 handle 放入跨路由重试队列，`revoked: false` 作为幂等成功处理。
 - 输出目录与结果文件继续使用授权 token。
 - adapter 错误、日志和文档不得输出 API Key、Base64 音频或完整敏感 payload。
 - renderer 只能选择 profile 已声明的 mode，不能把自定义 model 夹带进 task payload。
@@ -587,13 +590,15 @@ OpenAI 标准 TTS 也可使用 `preset_voice` intent；provider constraints 决�
 - 隐藏字段不得进入当前请求。
 - voice sample 切离 clone 模式后可在本次页面会话保留，离页或 profile 变化时释放 token。
 - 结果区不因切换模式自动清空；下一次生成开始时再进入新的 task generation。
-- 运行中不允许切换 mode，原因是它会改变本次可信 route；此处 disabled 属于合理暂态。
+- 提交预检、文件重新授权和请求运行中均不允许切换 mode，原因是它会改变本次可信
+  route；提交入口用同步锁防止双击复用一次性 token，授权返回后还必须校验
+  profile/provider/route/mode/sourceFile 快照。
 
 ### 7.5 生成按钮
 
 生成按钮只因以下情况不可用：
 
-- 请求正在运行；
+- 请求正在预检或运行；
 - 当前任务没有音频 API/route；
 - 当前可见必填字段缺失或校验失败；
 - 文件授权/校验仍在进行；
@@ -610,6 +615,8 @@ OpenAI 标准 TTS 也可使用 `preset_voice` intent；provider constraints 决�
 - `optimizeTextPreview = false`：合成文本与 voice design prompt 均按供应商合同校验。
 - `optimizeTextPreview = true`：允许合成文本为空；voice design prompt 是否可空必须由 provider registry 的 route constraints 唯一决定。
 - renderer、IPC validator、main adapter 和测试都读取同一 constraints，不再各自硬编码。
+- 当前公共安全上限为 input 4096 字符；支持 instructions 的 route 同样为 4096。
+  常量、registry、renderer 和 main route validator 必须保持一致。
 
 ### 7.7 响应式与可访问性
 
@@ -700,14 +707,14 @@ node scripts/check-i18n-usage.mjs
 | --- | --- | --- |
 | 文本 profiles / assignment | `fusionkit-model` | 保持不变 |
 | audio profiles / assignment | `fusionkit-model` | `fusionkit-audio-settings` |
-| speech tool preferences | `fusionkit-speech-synthesizer` v3 | 同 key 升版 |
+| speech tool preferences | `fusionkit-speech-synthesizer` v4（兼容读取 v3） | 同 key 升至 v5 |
 
 音频重构不能改变文本模型迁移结果。
 
 `CORE-R01` 已完成独立 Store 与迁移基础设施，`BE-R01` 已把 runtime snapshot、
 main route resolver、ASR/TTS/Realtime IPC 消费者切到独立配置，`FE-R01` 已让设置页
-停止挂载和写入 legacy audio UI。当前仍不可单独发布：`FE-R02`、`FE-R03` 还需迁移
-四个工具消费者；最后由 `FE-R03` 移除旧 CRUD/selectors 与文本删除保护。legacy
+停止挂载和写入 legacy audio UI，`FE-R02` 已迁移 TTS。当前仍不可单独发布：
+`FE-R03` 还需迁移其余三个工具消费者，并移除旧 CRUD/selectors 与文本删除保护。legacy
 字段只作为一个版本的只读备份继续持久化，不建立新旧 Store 双写。
 
 ### 10.2 Legacy audio profile 迁移
@@ -751,7 +758,7 @@ main route resolver、ASR/TTS/Realtime IPC 消费者切到独立配置，`FE-R01
 
 ### 10.6 Speech store 迁移
 
-`fusionkit-speech-synthesizer` 升版：
+`fusionkit-speech-synthesizer` 升至 v5：
 
 - `preferences.mimoMode` → `preferences.speechMode`。
 - 删除/忽略 `profileSeedKey`。
@@ -877,11 +884,12 @@ Electron 视觉/交互验收必须等待 FusionKit preload loading 完全退出�
 3. `BE-R01`：runtime snapshot 与 `resolveRoute`，保留 IPC 安全边界。
 4. `FE-R01`：独立“设置 → 音频”页面、首次配置与 deep link。
 5. `FE-R02`：SpeechSynthesizer 条件渲染、provider-neutral intent、CTA。
-6. `I18N-R01`：补齐 10 个 key、清理旧文案、增加 usage check。
-7. `TEST-R01`：迁移/registry/runtime/component 自动化。
-8. `QA-R01`：Electron 四语言两尺寸交互矩阵。
-9. `QA-R02`：真实 OpenAI/MiMo、麦克风/扬声器验收。
-10. `DOC-R01`：同步旧设计 superseded 标记、执行台账和发布说明。
+6. `FE-R03`：其余三个音频工具迁移到独立配置并清理 legacy facade。
+7. `I18N-R01`：补齐 10 个 key、清理旧文案、增加 usage check。
+8. `TEST-R01`：迁移/registry/runtime/component 自动化。
+9. `QA-R01`：Electron 四语言两尺寸交互矩阵。
+10. `QA-R02`：真实 OpenAI/MiMo、麦克风/扬声器验收。
+11. `DOC-R01`：同步旧设计 superseded 标记、执行台账和发布说明。
 
 最小闭环优先级是：
 

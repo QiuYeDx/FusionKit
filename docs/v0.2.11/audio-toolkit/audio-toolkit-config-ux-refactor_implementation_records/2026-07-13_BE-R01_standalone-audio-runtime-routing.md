@@ -105,9 +105,13 @@ git diff --check
 
 ## 未完成事项
 
-- `FE-R01` 尚未把设置页切到独立音频 API CRUD/assignment 与首次配置返回链路。
-- `FE-R02` 尚未升级 TTS store/UI；当前页面 voice clone 仍保留 renderer raw path，
-  必须改成“选择即授权”并提交 `voiceSampleToken` 后才形成三模式 UI 闭环。
+> 以下为本工作包于 2026-07-13 结束时的历史状态；`FE-R01` 已于 2026-07-13
+> 完成，`FE-R02` 已于 2026-07-14 完成，当前后续工作包为 `FE-R03`。
+
+- 截至本工作包结束时，`FE-R01` 尚未把设置页切到独立音频 API CRUD/assignment
+  与首次配置返回链路。
+- 截至本工作包结束时，`FE-R02` 尚未升级 TTS store/UI；当时页面 voice clone 仍保留
+  renderer raw path，必须改成“选择即授权”并提交 `voiceSampleToken` 后才形成三模式 UI 闭环。
 - `FE-R03` 尚未迁移其余三个工具并移除 legacy audio CRUD/selectors 与文本
   connection 删除保护。
 - 当前 Electron E2E 是渲染/白屏回归，不替代 `QA-R01` 的首次配置、三模式 CTA、
@@ -115,7 +119,7 @@ git diff --check
 
 ## 下一步建议
 
-- 下一会话认领 `FE-R01`：新增独立“设置 → 音频”入口和配置页面，停止设置页写
+- 本工作包结束时建议下一会话认领 `FE-R01`：新增独立“设置 → 音频”入口和配置页面，停止设置页写
   legacy audio，并完成第一条兼容 API 的显式自动 assignment 与 returnTo 流程。
 - `FE-R01` 继续复用 `useAudioApiStore` 和 provider registry，不在 UI 重新硬编码
   route/model 映射；长表单对话框使用 `ScrollableDialog`。

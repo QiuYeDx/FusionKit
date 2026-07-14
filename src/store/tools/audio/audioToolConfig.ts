@@ -7,11 +7,16 @@ import {
   type AudioCapability,
   type AudioModelAssignment,
   type AudioModelProfile,
+  type AudioProviderPreset,
+  type AudioRouteVerificationStatus,
+  type SpeechSynthesisMode,
 } from "@/type/audio";
 import type { Model, ModelProfile } from "@/type/model";
 
 export type AudioToolConfigStatus =
   | "ready"
+  | "audio_api_not_configured"
+  | "audio_route_not_configured"
   | "profile_not_configured"
   | "connection_missing"
   | "model_missing"
@@ -35,6 +40,11 @@ export interface AudioToolConfigSummary {
   defaults?: AudioModelProfile["defaults"];
   connectionProfile?: AudioToolConnectionSummary;
   missingCapabilities?: AudioCapability[];
+  providerPreset?: AudioProviderPreset;
+  availableModes?: SpeechSynthesisMode[];
+  activeMode?: SpeechSynthesisMode;
+  verificationStatus?: AudioRouteVerificationStatus | "unverified";
+  migrationNeedsAttention?: boolean;
 }
 
 export interface AudioToolConfigState {

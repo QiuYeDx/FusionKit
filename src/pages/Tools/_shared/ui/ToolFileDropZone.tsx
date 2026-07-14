@@ -6,11 +6,13 @@ import { cn } from "@/lib/utils";
 
 type ToolFileDropZoneProps = {
   id?: string;
+  inputTestId?: string;
   inputRef?: React.Ref<HTMLInputElement>;
   accept: string;
   multiple?: boolean;
   dragging?: boolean;
   disabled?: boolean;
+  layout?: "horizontal" | "stacked";
   title: React.ReactNode;
   description: React.ReactNode;
   actionLabel: React.ReactNode;
@@ -32,11 +34,13 @@ function assignRef<T>(ref: React.Ref<T> | undefined, value: T | null) {
 
 export function ToolFileDropZone({
   id,
+  inputTestId,
   inputRef,
   accept,
   multiple,
   dragging,
   disabled,
+  layout = "horizontal",
   title,
   description,
   actionLabel,
@@ -71,6 +75,7 @@ export function ToolFileDropZone({
       smoothing={0.74}
       className={cn(
         "relative flex items-center gap-4 border-2 border-dashed px-5 py-5 transition-colors",
+        layout === "stacked" && "flex-col items-stretch gap-3 text-center",
         disabled
           ? "cursor-not-allowed border-border/70 opacity-60"
           : "cursor-pointer",
@@ -102,6 +107,7 @@ export function ToolFileDropZone({
     >
       <input
         ref={setInputRef}
+        data-testid={inputTestId}
         type="file"
         multiple={multiple}
         className="hidden"
@@ -114,7 +120,12 @@ export function ToolFileDropZone({
           input.value = "";
         }}
       />
-      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border bg-muted/40 text-foreground/70">
+      <div
+        className={cn(
+          "flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border bg-muted/40 text-foreground/70",
+          layout === "stacked" && "self-center",
+        )}
+      >
         {icon ?? (dragging ? <FolderOpen className="h-5 w-5" /> : <Upload className="h-5 w-5" />)}
       </div>
       <div className="min-w-0 flex-1">
@@ -123,7 +134,12 @@ export function ToolFileDropZone({
           {description}
         </div>
       </div>
-      <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+      <div
+        className={cn(
+          "flex shrink-0 flex-wrap items-center justify-end gap-2",
+          layout === "stacked" && "justify-center",
+        )}
+      >
         {secondaryAction}
         <Button
           variant="outline"

@@ -18,6 +18,8 @@ describe("audio preload channel policy", () => {
     }
     expect(isPublicAudioIpcChannel("audio:internal:authorize-input-file"))
       .toBe(false);
+    expect(isPublicAudioIpcChannel("audio:internal:revoke-input-file"))
+      .toBe(false);
     expect(isPublicAudioIpcChannel("audio:transcribe:unexpected"))
       .toBe(false);
     expect(isPublicAudioIpcChannel("not-audio:transcribe"))

@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, rm } from 'node:fs/promises'
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import {
@@ -15,6 +15,13 @@ import {
   expect,
   test,
 } from 'vitest'
+import {
+  createMimoSpeechBody,
+  createMimoStreamingSpeechEvents,
+  createOpenAISpeechBuffer,
+  startFakeAudioApiServer,
+  type FakeAudioApiServer,
+} from './audio/fakeAudioApiServer'
 
 const root = path.join(__dirname, '..')
 const testResultsDir = path.join(root, 'test-results')
@@ -22,6 +29,8 @@ let electronApp: ElectronApplication
 let page: Page
 let mainWin: JSHandle<BrowserWindow>
 let userDataDir: string | undefined
+let fakeAudioApiServer: FakeAudioApiServer | undefined
+let voiceSamplePath: string | undefined
 const rendererErrors: string[] = []
 const audioPageTitles: Record<string, Record<string, string>> = {
   zh: {
@@ -62,6 +71,12 @@ if (shouldSkipElectronE2E) {
   beforeAll(async () => {
     userDataDir = await mkdtemp(path.join(tmpdir(), 'fusionkit-e2e-'))
     await mkdir(testResultsDir, { recursive: true })
+    fakeAudioApiServer = await startFakeAudioApiServer()
+    voiceSamplePath = path.join(userDataDir, 'fe-r02-voice-sample.wav')
+    await writeFile(
+      voiceSamplePath,
+      createOpenAISpeechBuffer('fe-r02-voice-sample'),
+    )
     electronApp = await electron.launch({
       args: ['.', '--no-sandbox', `--user-data-dir=${userDataDir}`],
       cwd: root,
@@ -103,6 +118,7 @@ if (shouldSkipElectronE2E) {
         await electronApp.close()
       }
     } finally {
+      await fakeAudioApiServer?.close().catch(() => undefined)
       if (userDataDir) {
         await rm(userDataDir, { recursive: true, force: true })
       }
@@ -344,6 +360,340 @@ if (shouldSkipElectronE2E) {
       expect(rendererErrors).toEqual([])
     }, 120_000)
 
+    test('route-aware speech synthesis renders only usable fields and reauthorizes voice clone files', async () => {
+      const server = fakeAudioApiServer
+      const samplePath = voiceSamplePath
+      if (!server || !samplePath) {
+        throw new Error('FE-R02 E2E fixtures were not initialized')
+      }
+
+      await setWindowSize(mainWin, page, { width: 1280, height: 800 })
+      await seedSpeechAudioSettings(page, 'none', server.baseUrl)
+      expect(await page.getByTestId('speech-config-cta').isVisible()).toBe(true)
+      expect(await page.getByTestId('speech-mode-group').count()).toBe(0)
+      expect(await page.getByTestId('speech-generate').count()).toBe(0)
+      await page.getByTestId('speech-config-cta').click()
+      await page.waitForFunction(() =>
+        window.location.hash ===
+          '#/setting?tab=audio&returnTo=%2Ftools%2Faudio%2Fspeech-synthesis',
+      )
+
+      await seedSpeechAudioSettings(page, 'openai', server.baseUrl)
+      expect(await page.getByTestId('speech-mode-group').count()).toBe(0)
+      expect(await page.getByTestId('speech-field-voice').isVisible()).toBe(true)
+      expect(
+        await page.getByTestId('speech-field-instructions').isVisible(),
+      ).toBe(true)
+      expect(await page.getByTestId('speech-field-speed').isVisible()).toBe(true)
+      expect(
+        await page
+          .getByTestId('speech-output-format')
+          .locator('[data-slot="select-trigger"]')
+          .count(),
+      ).toBe(1)
+      expect(
+        await page.getByTestId('speech-field-style-instruction').count(),
+      ).toBe(0)
+      expect(
+        await page.getByTestId('speech-field-voice-design-prompt').count(),
+      ).toBe(0)
+      expect(await page.getByTestId('speech-field-voice-sample').count()).toBe(0)
+      expect(await page.getByTestId('speech-stream').count()).toBe(0)
+
+      await page.locator('#speech-input').fill('OpenAI route input')
+      expect(await page.getByTestId('speech-generate').isEnabled()).toBe(true)
+      const openAiRequestCount = server.requests.length
+      server.enqueueRoute('openai_speech', {
+        headers: { 'Content-Type': 'audio/mpeg' },
+        rawBody: Buffer.concat([
+          Buffer.from('ID3', 'ascii'),
+          Buffer.from('fe-r02-openai-result', 'utf8'),
+        ]),
+      })
+      await page.getByTestId('speech-generate').click()
+      await waitForFakeAudioRequestCount(server, openAiRequestCount + 1)
+      await waitForSpeechGenerateReady(page)
+      expect(server.requests[openAiRequestCount]).toMatchObject({
+        route: 'openai_speech',
+        body: {
+          model: 'gpt-4o-mini-tts',
+          input: 'OpenAI route input',
+          voice: 'alloy',
+        },
+      })
+
+      await seedSpeechAudioSettings(page, 'mimo', server.baseUrl)
+      await page.getByTestId('speech-mode-group').waitFor({ state: 'visible' })
+      expect(await page.getByTestId('speech-field-voice').isVisible()).toBe(true)
+      expect(
+        await page.getByTestId('speech-field-style-instruction').isVisible(),
+      ).toBe(true)
+      expect(
+        await page.getByTestId('speech-field-voice-design-prompt').count(),
+      ).toBe(0)
+      expect(await page.getByTestId('speech-field-voice-sample').count()).toBe(0)
+      expect(await page.getByTestId('speech-field-instructions').count()).toBe(0)
+      expect(await page.getByTestId('speech-field-speed').count()).toBe(0)
+      expect(await page.getByTestId('speech-stream').isVisible()).toBe(true)
+      expect(
+        await page
+          .getByTestId('speech-output-format')
+          .locator('[data-slot="select-trigger"]')
+          .count(),
+      ).toBe(0)
+
+      await page.locator('#speech-input').fill('Preset draft')
+      await page.getByTestId('speech-mode-voice_design').click()
+      await page.waitForFunction(() =>
+        document.activeElement?.id === 'speech-voice-design-prompt',
+      )
+      expect(await page.getByTestId('speech-field-voice').count()).toBe(0)
+      expect(
+        await page.getByTestId('speech-field-style-instruction').count(),
+      ).toBe(0)
+      expect(
+        await page.getByTestId('speech-field-voice-design-prompt').isVisible(),
+      ).toBe(true)
+      expect(await page.getByTestId('speech-field-voice-sample').count()).toBe(0)
+      expect(await page.locator('#speech-input').inputValue()).toBe('')
+      await page.locator('#speech-input').fill('Design draft')
+      await page.locator('#speech-voice-design-prompt').fill('Bright, clear voice')
+
+      await page.getByTestId('speech-mode-voice_design').focus()
+      await page.keyboard.press('ArrowRight')
+      await page.waitForFunction(() =>
+        document.activeElement?.getAttribute('data-testid') ===
+          'speech-mode-voice_clone',
+      )
+      expect(
+        await page.getByTestId('speech-mode-voice_clone').getAttribute('tabindex'),
+      ).toBe('0')
+      expect(await page.getByTestId('speech-field-voice').count()).toBe(0)
+      expect(
+        await page.getByTestId('speech-field-style-instruction').isVisible(),
+      ).toBe(true)
+      expect(
+        await page.getByTestId('speech-field-voice-design-prompt').count(),
+      ).toBe(0)
+      expect(
+        await page.getByTestId('speech-field-voice-sample').isVisible(),
+      ).toBe(true)
+      await page.locator('#speech-input').fill('Clone draft')
+
+      await page
+        .getByTestId('speech-voice-sample-input')
+        .setInputFiles(samplePath)
+      await page
+        .getByTestId('speech-voice-sample-selected')
+        .waitFor({ state: 'visible' })
+      expect(await page.getByTestId('speech-generate').isEnabled()).toBe(true)
+      const persistedSpeechState = await page.evaluate(
+        () => localStorage.getItem('fusionkit-speech-synthesizer') ?? '',
+      )
+      expect(persistedSpeechState).not.toContain('fe-r02-voice-sample.wav')
+      expect(persistedSpeechState).not.toContain('fileToken')
+      expect(persistedSpeechState).not.toContain('filePath')
+
+      const cloneResponseBody = createMimoSpeechBody({
+        audioBase64: createOpenAISpeechBuffer('fe-r02-clone-result').toString(
+          'base64',
+        ),
+        model: 'mimo-v2.5-tts-voiceclone',
+      })
+      const requestCountBefore = server.requests.length
+
+      server.enqueueRoute('mimo_chat_completions', { body: cloneResponseBody })
+      await page.getByTestId('speech-generate').evaluate((button) => {
+        const generate = button as HTMLButtonElement
+        generate.click()
+        generate.click()
+      })
+      await waitForFakeAudioRequestCount(server, requestCountBefore + 1)
+      await waitForSpeechGenerateReady(page)
+      await page.waitForTimeout(100)
+      expect(server.requests).toHaveLength(requestCountBefore + 1)
+      expect(
+        await page.getByTestId('speech-voice-sample-selected').isVisible(),
+      ).toBe(true)
+
+      await setSpeechStreaming(page, true)
+      server.enqueueRoute('mimo_chat_completions', {
+        sseEvents: createMimoStreamingSpeechEvents({
+          audioBase64Chunks: [Buffer.from([0, 0, 1, 0]).toString('base64')],
+          model: 'mimo-v2.5-tts-voiceclone',
+        }),
+      })
+      await page.getByTestId('speech-generate').click()
+      await waitForFakeAudioRequestCount(server, requestCountBefore + 2)
+      await waitForSpeechGenerateReady(page)
+      await page.getByTestId('speech-field-voice-sample').evaluate((element) => {
+        element.scrollIntoView({ block: 'center' })
+      })
+      await page.evaluate(() => new Promise<void>((resolve) => {
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
+      }))
+      expect(await speechVoiceSampleDropZoneFits(page)).toBe(true)
+      await page.screenshot({
+        path: path.join(testResultsDir, 'fe-r02-speech-clone-1280x800.png'),
+        animations: 'disabled',
+      })
+
+      const modeCases = [
+        { mode: 'preset_voice', model: 'mimo-v2.5-tts' },
+        { mode: 'voice_design', model: 'mimo-v2.5-tts-voicedesign' },
+      ] as const
+      let expectedRequestCount = requestCountBefore + 2
+      for (const modeCase of modeCases) {
+        await page.getByTestId(`speech-mode-${modeCase.mode}`).click()
+        await setSpeechStreaming(page, false)
+        server.enqueueRoute('mimo_chat_completions', {
+          body: createMimoSpeechBody({
+            audioBase64: createOpenAISpeechBuffer(
+              `fe-r02-${modeCase.mode}-result`,
+            ).toString('base64'),
+            model: modeCase.model,
+          }),
+        })
+        await page.getByTestId('speech-generate').click()
+        expectedRequestCount += 1
+        await waitForFakeAudioRequestCount(server, expectedRequestCount)
+        await waitForSpeechGenerateReady(page)
+
+        await setSpeechStreaming(page, true)
+        server.enqueueRoute('mimo_chat_completions', {
+          sseEvents: createMimoStreamingSpeechEvents({
+            audioBase64Chunks: [Buffer.from([0, 0, 2, 0]).toString('base64')],
+            model: modeCase.model,
+          }),
+        })
+        await page.getByTestId('speech-generate').click()
+        expectedRequestCount += 1
+        await waitForFakeAudioRequestCount(server, expectedRequestCount)
+        await waitForSpeechGenerateReady(page)
+      }
+
+      expect(
+        server.requests
+          .slice(requestCountBefore)
+          .map((request) => ({
+            route: request.route,
+            model: request.body?.model,
+            stream: request.body?.stream === true,
+          })),
+      ).toEqual([
+        {
+          route: 'mimo_chat_completions',
+          model: 'mimo-v2.5-tts-voiceclone',
+          stream: false,
+        },
+        {
+          route: 'mimo_chat_completions',
+          model: 'mimo-v2.5-tts-voiceclone',
+          stream: true,
+        },
+        {
+          route: 'mimo_chat_completions',
+          model: 'mimo-v2.5-tts',
+          stream: false,
+        },
+        {
+          route: 'mimo_chat_completions',
+          model: 'mimo-v2.5-tts',
+          stream: true,
+        },
+        {
+          route: 'mimo_chat_completions',
+          model: 'mimo-v2.5-tts-voicedesign',
+          stream: false,
+        },
+        {
+          route: 'mimo_chat_completions',
+          model: 'mimo-v2.5-tts-voicedesign',
+          stream: true,
+        },
+      ])
+
+      await setSpeechStreaming(page, false)
+
+      expect(
+        server.requests
+          .slice(requestCountBefore)
+          .every((request) => request.route === 'mimo_chat_completions'),
+      ).toBe(true)
+
+      await page.getByTestId('speech-mode-preset_voice').click()
+      expect(await page.locator('#speech-input').inputValue()).toBe('Preset draft')
+      await page.getByTestId('speech-mode-voice_design').click()
+      expect(await page.locator('#speech-input').inputValue()).toBe('Design draft')
+
+      await page.waitForFunction(
+        () => !document.querySelector('[data-sonner-toast]'),
+        undefined,
+        { timeout: 15_000 },
+      )
+
+      await setWindowSize(mainWin, page, { width: 1280, height: 800 })
+      await page.evaluate(() => window.scrollTo(0, 0))
+      const wideLayout = await readSpeechLayout(page)
+      expect(wideLayout.hasHorizontalOverflow).toBe(false)
+      expect(wideLayout.asideRight).toBeLessThanOrEqual(wideLayout.mainLeft + 1)
+      await page.screenshot({
+        path: path.join(testResultsDir, 'fe-r02-speech-1280x800.png'),
+        animations: 'disabled',
+      })
+
+      await setWindowSize(mainWin, page, { width: 786, height: 540 })
+      await page.getByTestId('speech-mode-group').evaluate((element) => {
+        element.scrollIntoView({ block: 'center' })
+      })
+      await page.evaluate(() => new Promise<void>((resolve) => {
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
+      }))
+      const narrowLayout = await readSpeechLayout(page)
+      expect(narrowLayout.hasHorizontalOverflow).toBe(false)
+      expect(narrowLayout.mainTop).toBeGreaterThanOrEqual(
+        narrowLayout.asideBottom - 1,
+      )
+      expect(await speechModeButtonsFit(page)).toBe(true)
+      await page.screenshot({
+        path: path.join(testResultsDir, 'fe-r02-speech-786x540.png'),
+        animations: 'disabled',
+      })
+      await page.getByText('Generated result', { exact: true }).evaluate(
+        (element) => {
+          element.scrollIntoView({ block: 'start' })
+        },
+      )
+      await page.evaluate(() => new Promise<void>((resolve) => {
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
+      }))
+      await page.screenshot({
+        path: path.join(testResultsDir, 'fe-r02-speech-workspace-786x540.png'),
+        animations: 'disabled',
+      })
+
+      expect(await page.locator('body').innerText()).not.toMatch(
+        /\baudio:[a-z0-9_.-]+/i,
+      )
+      await page.getByTestId('speech-mode-voice_clone').click()
+      await page.getByTestId('speech-voice-sample-clear').click()
+      expect(await page.getByTestId('speech-voice-sample-selected').count()).toBe(0)
+
+      await seedSpeechAudioSettings(
+        page,
+        'mimo_two_routes',
+        server.baseUrl,
+        'voice_clone',
+      )
+      await page.getByTestId('speech-mode-fallback-notice').waitFor({
+        state: 'visible',
+      })
+      expect(await page.getByTestId('speech-mode-preset_voice').count()).toBe(1)
+      expect(await page.getByTestId('speech-mode-voice_design').count()).toBe(1)
+      expect(await page.getByTestId('speech-mode-voice_clone').count()).toBe(0)
+      expect(rendererErrors).toEqual([])
+    }, 180_000)
+
     test('audio pages render across languages and window sizes without white-screen regressions', async () => {
       const routes = [
         '/tools/audio/transcriber',
@@ -386,6 +736,7 @@ if (shouldSkipElectronE2E) {
             expect(await page.locator('h1').count()).toBe(1)
 
             const pageState = await page.evaluate(() => ({
+              bodyText: document.body.innerText,
               bodyTextLength: document.body.innerText.trim().length,
               hasHorizontalOverflow:
                 document.documentElement.scrollWidth >
@@ -393,6 +744,7 @@ if (shouldSkipElectronE2E) {
             }))
             expect(pageState.bodyTextLength).toBeGreaterThan(100)
             expect(pageState.hasHorizontalOverflow).toBe(false)
+            expect(pageState.bodyText).not.toMatch(/\baudio:[a-z0-9_.-]+/i)
           }
         }
       }
@@ -515,4 +867,223 @@ async function waitForAudioSettings(
     await targetPage.waitForTimeout(50)
   }
   throw new Error('Timed out waiting for persisted audio settings state.')
+}
+
+type SpeechAudioSeed = 'none' | 'openai' | 'mimo' | 'mimo_two_routes'
+
+async function seedSpeechAudioSettings(
+  targetPage: Page,
+  seed: SpeechAudioSeed,
+  baseUrl: string,
+  preferredMode?: 'preset_voice' | 'voice_design' | 'voice_clone',
+): Promise<void> {
+  await targetPage.evaluate(({ nextSeed, nextBaseUrl, nextPreferredMode }) => {
+    localStorage.clear()
+    localStorage.setItem('lang', 'en')
+    if (nextPreferredMode) {
+      localStorage.setItem(
+        'fusionkit-speech-synthesizer',
+        JSON.stringify({
+          version: 5,
+          state: {
+            preferences: {
+              speechMode: nextPreferredMode,
+              input: 'Fallback draft',
+              modeInputDrafts: { [nextPreferredMode]: 'Fallback draft' },
+            },
+          },
+        }),
+      )
+    }
+    if (nextSeed !== 'none') {
+      const profileId = `fe_r02_${nextSeed}`
+      const speechSynthesis = nextSeed === 'openai'
+        ? {
+            preset_voice: {
+              transport: 'openai_audio',
+              model: 'gpt-4o-mini-tts',
+              enabled: true,
+            },
+          }
+        : {
+            preset_voice: {
+              transport: 'mimo_chat_audio',
+              model: 'mimo-v2.5-tts',
+              enabled: true,
+            },
+            voice_design: {
+              transport: 'mimo_chat_audio',
+              model: 'mimo-v2.5-tts-voicedesign',
+              enabled: true,
+            },
+            ...(nextSeed === 'mimo_two_routes'
+              ? {}
+              : {
+                  voice_clone: {
+                    transport: 'mimo_chat_audio',
+                    model: 'mimo-v2.5-tts-voiceclone',
+                    enabled: true,
+                  },
+                }),
+          }
+      localStorage.setItem(
+        'fusionkit-audio-settings',
+        JSON.stringify({
+          version: 1,
+          state: {
+            profiles: [
+              {
+                id: profileId,
+                name: nextSeed === 'openai'
+                  ? 'FE-R02 OpenAI audio'
+                  : 'FE-R02 MiMo audio',
+                providerPreset: nextSeed === 'mimo_two_routes'
+                  ? 'mimo'
+                  : nextSeed,
+                baseUrl: nextBaseUrl,
+                apiKey: 'fe-r02-e2e-key',
+                routes: { speechSynthesis },
+              },
+            ],
+            assignment: {
+              transcription: null,
+              speechSynthesis: profileId,
+              realtimeCaptions: null,
+              realtimeVoice: null,
+            },
+            migration: {
+              legacyModelStore: { status: 'not_needed' },
+            },
+          },
+        }),
+      )
+    }
+    window.location.hash = '#/tools/audio/speech-synthesis'
+  }, {
+    nextSeed: seed,
+    nextBaseUrl: baseUrl,
+    nextPreferredMode: preferredMode,
+  })
+  await targetPage.reload({ waitUntil: 'domcontentloaded' })
+  await waitForFusionKitLoadingToExit(targetPage)
+  await targetPage
+    .getByTestId('speech-synthesizer')
+    .waitFor({ state: 'visible' })
+}
+
+async function waitForFakeAudioRequestCount(
+  server: FakeAudioApiServer,
+  expectedCount: number,
+): Promise<void> {
+  const deadline = Date.now() + 10_000
+  while (Date.now() < deadline) {
+    if (server.requests.length >= expectedCount) return
+    await new Promise((resolve) => setTimeout(resolve, 20))
+  }
+  throw new Error(
+    `Timed out waiting for ${expectedCount} fake audio API requests; received ${server.requests.length}.`,
+  )
+}
+
+async function waitForSpeechGenerateReady(targetPage: Page): Promise<void> {
+  await targetPage.waitForFunction(() => {
+    const button = document.querySelector<HTMLButtonElement>(
+      '[data-testid="speech-generate"]',
+    )
+    return Boolean(
+      button &&
+      !button.disabled &&
+      (document.body.innerText.includes('Generated result') ||
+        document.querySelector('[role="alert"]')),
+    )
+  })
+  const bodyText = await targetPage.locator('body').innerText()
+  if (!bodyText.includes('Generated result')) {
+    throw new Error(`Speech generation failed:\n${bodyText}`)
+  }
+}
+
+async function setSpeechStreaming(
+  targetPage: Page,
+  enabled: boolean,
+): Promise<void> {
+  const streamSwitch = targetPage
+    .getByTestId('speech-stream')
+    .getByRole('switch')
+  const current = await streamSwitch.getAttribute('aria-checked')
+  if ((current === 'true') !== enabled) {
+    await streamSwitch.click()
+  }
+  await expect.poll(async () =>
+    (await streamSwitch.getAttribute('aria-checked')) === 'true',
+  ).toBe(enabled)
+}
+
+interface SpeechLayoutSnapshot {
+  asideRight: number
+  asideBottom: number
+  mainLeft: number
+  mainTop: number
+  hasHorizontalOverflow: boolean
+}
+
+async function readSpeechLayout(targetPage: Page): Promise<SpeechLayoutSnapshot> {
+  return await targetPage.getByTestId('speech-synthesizer').evaluate((root) => {
+    const aside = root.querySelector('aside')
+    const main = root.querySelector('main')
+    if (!aside || !main) throw new Error('Speech layout columns are missing')
+    const asideRect = aside.getBoundingClientRect()
+    const mainRect = main.getBoundingClientRect()
+    return {
+      asideRight: asideRect.right,
+      asideBottom: asideRect.bottom,
+      mainLeft: mainRect.left,
+      mainTop: mainRect.top,
+      hasHorizontalOverflow:
+        document.documentElement.scrollWidth >
+        document.documentElement.clientWidth + 1,
+    }
+  })
+}
+
+async function speechModeButtonsFit(targetPage: Page): Promise<boolean> {
+  return await targetPage.getByTestId('speech-mode-group').evaluate((group) => {
+    const groupRect = group.getBoundingClientRect()
+    const buttons = Array.from(group.querySelectorAll<HTMLButtonElement>(
+      '[role="radio"]',
+    ))
+    return (
+      groupRect.left >= -1 &&
+      groupRect.right <= window.innerWidth + 1 &&
+      buttons.length === 3 &&
+      buttons.every((button) => {
+        const rect = button.getBoundingClientRect()
+        return (
+          rect.left >= groupRect.left - 1 &&
+          rect.right <= groupRect.right + 1 &&
+          button.scrollWidth <= button.clientWidth + 1
+        )
+      })
+    )
+  })
+}
+
+async function speechVoiceSampleDropZoneFits(
+  targetPage: Page,
+): Promise<boolean> {
+  return await targetPage.locator('#speech-voice-sample').evaluate((dropZone) => {
+    const aside = dropZone.closest('aside')
+    const action = dropZone.querySelector<HTMLButtonElement>('button')
+    if (!aside || !action) return false
+    const asideRect = aside.getBoundingClientRect()
+    const dropZoneRect = dropZone.getBoundingClientRect()
+    const actionRect = action.getBoundingClientRect()
+    return (
+      dropZoneRect.left >= asideRect.left - 1 &&
+      dropZoneRect.right <= asideRect.right + 1 &&
+      actionRect.left >= dropZoneRect.left - 1 &&
+      actionRect.right <= dropZoneRect.right + 1 &&
+      action.scrollWidth <= action.clientWidth + 1
+    )
+  })
 }

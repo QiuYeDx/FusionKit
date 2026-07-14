@@ -90,6 +90,9 @@ export const AUDIO_SPEECH_RESPONSE_FORMATS = [
 export type AudioSpeechResponseFormat =
   (typeof AUDIO_SPEECH_RESPONSE_FORMATS)[number];
 
+export const AUDIO_SPEECH_MAX_INPUT_CHARS = 4096;
+export const AUDIO_SPEECH_MAX_INSTRUCTIONS_CHARS = 4096;
+
 export const SPEECH_SYNTHESIS_MODES = [
   "preset_voice",
   "voice_design",

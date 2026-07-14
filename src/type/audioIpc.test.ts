@@ -16,7 +16,11 @@ import {
   validateSyncAudioRuntimeConfigIpcRequest,
   validateTranscribeRecordedAudioChunkIpcRequest,
 } from "@/type/audioIpc";
-import type { SpeechSynthesisIntent } from "@/type/audio";
+import {
+  AUDIO_SPEECH_MAX_INPUT_CHARS,
+  AUDIO_SPEECH_MAX_INSTRUCTIONS_CHARS,
+  type SpeechSynthesisIntent,
+} from "@/type/audio";
 
 describe("audio IPC contract", () => {
   it("keeps every command and event under the audio namespace", () => {
@@ -501,6 +505,42 @@ describe("audio IPC contract", () => {
       ),
     );
     expectFailureField(designWithoutOptimization, "input");
+  });
+
+  it("enforces the shared public speech text limits", () => {
+    const boundary = validateCreateSpeechSynthesisIpcRequest(
+      createSpeechRequest(
+        { mode: "preset_voice", voice: "alloy" },
+        {
+          input: "i".repeat(AUDIO_SPEECH_MAX_INPUT_CHARS),
+          instructions: "n".repeat(AUDIO_SPEECH_MAX_INSTRUCTIONS_CHARS),
+        },
+      ),
+    );
+    expect(boundary.ok).toBe(true);
+
+    expectFailureField(
+      validateCreateSpeechSynthesisIpcRequest(
+        createSpeechRequest(
+          { mode: "preset_voice", voice: "alloy" },
+          { input: "i".repeat(AUDIO_SPEECH_MAX_INPUT_CHARS + 1) },
+        ),
+      ),
+      "input",
+    );
+    expectFailureField(
+      validateCreateSpeechSynthesisIpcRequest(
+        createSpeechRequest(
+          { mode: "preset_voice", voice: "alloy" },
+          {
+            instructions: "n".repeat(
+              AUDIO_SPEECH_MAX_INSTRUCTIONS_CHARS + 1,
+            ),
+          },
+        ),
+      ),
+      "instructions",
+    );
   });
 
   it("validates speech stream wrappers and cancellation requests", () => {

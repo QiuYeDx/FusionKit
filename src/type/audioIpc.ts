@@ -23,6 +23,8 @@ import type {
 } from "@/type/audio";
 import {
   AUDIO_ASSIGNMENT_KEYS,
+  AUDIO_SPEECH_MAX_INPUT_CHARS,
+  AUDIO_SPEECH_MAX_INSTRUCTIONS_CHARS,
   DEFAULT_AUDIO_TASK_ASSIGNMENT,
   isAudioAssignmentKey,
   isAudioProviderPreset,
@@ -53,6 +55,7 @@ export const AUDIO_IPC_CHANNELS = {
 export const AUDIO_PRELOAD_INTERNAL_CHANNELS = {
   registerCapability: "audio:internal:register-preload-capability",
   authorizeInputFile: "audio:internal:authorize-input-file",
+  revokeInputFile: "audio:internal:revoke-input-file",
   selectOutputDirectory: "audio:internal:select-output-directory",
 } as const;
 
@@ -216,6 +219,10 @@ export interface AuthorizedAudioInputFile {
   expiresAt: number;
 }
 
+export interface RevokeAudioInputFileResult {
+  revoked: boolean;
+}
+
 export interface SelectAudioOutputDirectoryRequest {
   title?: string;
   buttonLabel?: string;
@@ -252,18 +259,6 @@ export interface CreateSpeechSynthesisIpcRequest {
   fileNameHint?: string;
 }
 
-/** @deprecated FE-R02 converts this renderer-local builder output before IPC. */
-export type LegacyCreateSpeechSynthesisIpcRequest = Omit<
-  CreateSpeechSynthesisRequest,
-  "outputDir"
-> & {
-  outputDirToken?: string;
-};
-
-export type CreateSpeechSynthesisIpcInput =
-  | CreateSpeechSynthesisIpcRequest
-  | LegacyCreateSpeechSynthesisIpcRequest;
-
 export interface CreateSpeechSynthesisStreamIpcRequest {
   requestId: string;
   payload: CreateSpeechSynthesisIpcRequest;
@@ -276,6 +271,9 @@ export interface AudioRendererApi {
     options?: { configRevision?: string },
   ): Promise<AudioIpcResult<TResponse>>;
   authorizeInputFile(file: File): Promise<AudioIpcResult<AuthorizedAudioInputFile>>;
+  revokeInputFile(
+    fileToken: string,
+  ): Promise<AudioIpcResult<RevokeAudioInputFileResult>>;
   selectOutputDirectory(
     request?: SelectAudioOutputDirectoryRequest,
   ): Promise<AudioIpcResult<AudioOutputDirectorySelection>>;
@@ -774,8 +772,11 @@ export function validateCreateSpeechSynthesisIpcRequest(
   if (typeof record.input !== "string") {
     return invalidRequest("input must be a string.", "input");
   }
-  if (record.input.length > 4096) {
-    return invalidRequest("input exceeds 4096 characters.", "input");
+  if (record.input.length > AUDIO_SPEECH_MAX_INPUT_CHARS) {
+    return invalidRequest(
+      `input exceeds ${AUDIO_SPEECH_MAX_INPUT_CHARS} characters.`,
+      "input",
+    );
   }
   const requestId = optionalString(record.requestId, "requestId");
   if (!requestId.ok) return requestId;
@@ -792,8 +793,14 @@ export function validateCreateSpeechSynthesisIpcRequest(
 
   const instructions = optionalString(record.instructions, "instructions");
   if (!instructions.ok) return instructions;
-  if (instructions.data && instructions.data.length > 4096) {
-    return invalidRequest("instructions exceeds 4096 characters.", "instructions");
+  if (
+    instructions.data &&
+    instructions.data.length > AUDIO_SPEECH_MAX_INSTRUCTIONS_CHARS
+  ) {
+    return invalidRequest(
+      `instructions exceeds ${AUDIO_SPEECH_MAX_INSTRUCTIONS_CHARS} characters.`,
+      "instructions",
+    );
   }
   const fileNameHint = optionalString(record.fileNameHint, "fileNameHint");
   if (!fileNameHint.ok) return fileNameHint;

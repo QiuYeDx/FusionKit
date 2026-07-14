@@ -11,7 +11,11 @@ import {
   inferAudioProviderPresetFromLegacy,
   resolveAudioApiRoute,
 } from "./audio-provider-registry";
-import type { AudioApiProfile } from "@/type/audio";
+import {
+  AUDIO_SPEECH_MAX_INPUT_CHARS,
+  AUDIO_SPEECH_MAX_INSTRUCTIONS_CHARS,
+  type AudioApiProfile,
+} from "@/type/audio";
 
 describe("audio provider registry", () => {
   it("defines OpenAI file audio and realtime routes on one API", () => {
@@ -80,6 +84,28 @@ describe("audio provider registry", () => {
         styleInstruction: "optional",
       },
     });
+  });
+
+  it("defines explicit text limits for every speech route", () => {
+    const routes = [
+      ["openai", "preset_voice"],
+      ["mimo", "preset_voice"],
+      ["mimo", "voice_design"],
+      ["mimo", "voice_clone"],
+      ["custom_openai_compatible", "preset_voice"],
+    ] as const;
+
+    for (const [preset, mode] of routes) {
+      const constraints = getSpeechRouteConstraints(preset, mode)!;
+      expect(constraints.maxInputChars).toBe(AUDIO_SPEECH_MAX_INPUT_CHARS);
+      if (constraints.fields.instructions === "unsupported") {
+        expect(constraints.maxInstructionsChars).toBeUndefined();
+      } else {
+        expect(constraints.maxInstructionsChars).toBe(
+          AUDIO_SPEECH_MAX_INSTRUCTIONS_CHARS,
+        );
+      }
+    }
   });
 
   it("exposes cloned transcription and realtime constraints", () => {

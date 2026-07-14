@@ -60,6 +60,7 @@ import {
   type RevealAudioOutputResult,
   type ReadAudioOutputRequest,
   type ReadAudioOutputResult,
+  type RevokeAudioInputFileResult,
   type SaveAudioTextOutputRequest,
   type SaveAudioTextOutputResult,
   type SelectAudioOutputDirectoryRequest,
@@ -149,7 +150,7 @@ export interface AudioInputFileAuthorizations {
     fileToken: string,
     dialect: AudioRuntimeAdapterModelConfig["audioDialect"],
   ): Promise<AudioFileInfo>;
-  revoke(ownerId: number, fileToken: string): void;
+  revoke(ownerId: number, fileToken: string): boolean;
   releaseOwner(ownerId: number): void;
 }
 
@@ -261,6 +262,18 @@ export class AudioIpcService {
     } catch (error) {
       return audioIpcFailure(toAudioIpcError(error));
     }
+  }
+
+  revokeInputFile(
+    request: { fileToken: string },
+    context: AudioIpcClientContext,
+  ): AudioIpcResult<RevokeAudioInputFileResult> {
+    return audioIpcSuccess({
+      revoked: this.fileAuthorizations.revoke(
+        context.senderId,
+        request.fileToken,
+      ),
+    });
   }
 
   async selectOutputDirectory(
@@ -1262,6 +1275,22 @@ function validateSpeechTaskParameters(
         : "The selected audio route requires its final response format.",
     );
   }
+  if (payload.input.length > constraints.maxInputChars) {
+    return invalidTaskParameter(
+      "input",
+      "The synthesis input exceeds the selected audio route limit.",
+    );
+  }
+  if (
+    payload.instructions !== undefined &&
+    constraints.maxInstructionsChars !== undefined &&
+    payload.instructions.length > constraints.maxInstructionsChars
+  ) {
+    return invalidTaskParameter(
+      "instructions",
+      "The synthesis instructions exceed the selected audio route limit.",
+    );
+  }
   if (payload.instructions && constraints.fields.instructions === "unsupported") {
     return invalidTaskParameter(
       "instructions",
@@ -1441,6 +1470,21 @@ export function setupAudioIPC(
       );
       if (!validation.ok) return validation;
       return service.authorizeInputFile(validation.data, {
+        senderId: authorization.data.senderId,
+      });
+    },
+  );
+  ipcMain.handle(
+    AUDIO_PRELOAD_INTERNAL_CHANNELS.revokeInputFile,
+    (event, envelope: unknown) => {
+      const authorization =
+        sharedAudioPreloadCapabilityRegistry.authorize<unknown>(event, envelope);
+      if (!authorization.ok) return authorization;
+      const validation = validateRevokeInputFileRequest(
+        authorization.data.payload,
+      );
+      if (!validation.ok) return validation;
+      return service.revokeInputFile(validation.data, {
         senderId: authorization.data.senderId,
       });
     },
@@ -1660,6 +1704,23 @@ function validateAuthorizeInputFileRequest(
     filePath: payload.filePath,
     ...(payload.mimeType ? { mimeType: payload.mimeType } : {}),
   });
+}
+
+function validateRevokeInputFileRequest(
+  payload: unknown,
+): AudioIpcResult<{ fileToken: string }> {
+  if (
+    !isRecord(payload) ||
+    !isNonEmptyString(payload.fileToken) ||
+    Object.keys(payload).some((key) => key !== "fileToken")
+  ) {
+    return audioIpcFailure({
+      code: "invalid_ipc_request",
+      message: "Audio file revocation must contain only a file token.",
+      field: "fileToken",
+    });
+  }
+  return audioIpcSuccess({ fileToken: payload.fileToken });
 }
 
 function validateSelectAudioOutputDirectoryRequest(

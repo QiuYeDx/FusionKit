@@ -6,6 +6,7 @@ import {
   type AudioIpcChannel,
   type AudioIpcResult,
   type AudioRuntimeApiProfileSnapshot,
+  type RevokeAudioInputFileResult,
   type AuthorizedAudioInputFile,
   type SyncAudioRuntimeConfigRequest,
   type SyncAudioRuntimeConfigResult,
@@ -24,6 +25,22 @@ let pendingAudioRuntimeSync:
       promise: Promise<AudioIpcResult<SyncAudioRuntimeConfigResult>>;
     }
   | undefined;
+
+const AUDIO_INPUT_REVOCATION_RETRY_DELAYS_MS = [250, 1_000, 5_000, 15_000, 60_000] as const;
+const AUDIO_INPUT_REVOCATION_FALLBACK_TTL_MS = 30 * 60 * 1_000;
+
+interface PendingAudioInputFileRevocation {
+  fileToken: string;
+  expiresAt: number;
+  attemptCount: number;
+  inFlight?: Promise<boolean>;
+  retryTimer?: ReturnType<typeof setTimeout>;
+}
+
+const pendingAudioInputFileRevocations = new Map<
+  string,
+  PendingAudioInputFileRevocation
+>();
 
 export function createAudioRuntimeConfigSnapshotFromStore(
   state: Pick<AudioApiStoreSnapshot, "profiles" | "assignment">,
@@ -142,6 +159,41 @@ export function authorizeAudioInputFile(
   return getAudioApi().authorizeInputFile(file);
 }
 
+export function revokeAudioInputFile(
+  fileToken: string,
+): Promise<AudioIpcResult<RevokeAudioInputFileResult>> {
+  return getAudioApi().revokeInputFile(fileToken);
+}
+
+/**
+ * Retains failed revocations across SPA route changes and retries them until
+ * main confirms the idempotent revoke or the capability has expired.
+ */
+export function queueAudioInputFileRevocation(
+  fileToken: string,
+  expiresAt = Date.now() + AUDIO_INPUT_REVOCATION_FALLBACK_TTL_MS,
+): Promise<boolean> {
+  const existing = pendingAudioInputFileRevocations.get(fileToken);
+  const pending = existing ?? {
+    fileToken,
+    expiresAt,
+    attemptCount: 0,
+  };
+  pending.expiresAt = Math.max(pending.expiresAt, expiresAt);
+  pendingAudioInputFileRevocations.set(fileToken, pending);
+  clearAudioInputRevocationRetry(pending);
+  return attemptAudioInputFileRevocation(pending);
+}
+
+export async function flushPendingAudioInputFileRevocations(): Promise<void> {
+  await Promise.all(
+    Array.from(pendingAudioInputFileRevocations.values(), (pending) => {
+      clearAudioInputRevocationRetry(pending);
+      return attemptAudioInputFileRevocation(pending);
+    }),
+  );
+}
+
 function toRuntimeAudioProfileSnapshot(
   profile: AudioApiStoreSnapshot["profiles"][number],
 ): AudioRuntimeApiProfileSnapshot {
@@ -213,6 +265,10 @@ export function invalidateAudioRuntimeConfigCache(): void {
 
 export function resetAudioRuntimeConfigCacheForTests(): void {
   invalidateAudioRuntimeConfigCache();
+  for (const pending of pendingAudioInputFileRevocations.values()) {
+    clearAudioInputRevocationRetry(pending);
+  }
+  pendingAudioInputFileRevocations.clear();
 }
 
 export function audioIpcUnavailableResult<TResponse>(
@@ -223,4 +279,66 @@ export function audioIpcUnavailableResult<TResponse>(
     message:
       error instanceof Error ? error.message : "Audio IPC unavailable.",
   });
+}
+
+function attemptAudioInputFileRevocation(
+  pending: PendingAudioInputFileRevocation,
+): Promise<boolean> {
+  if (pending.inFlight) return pending.inFlight;
+  if (Date.now() >= pending.expiresAt) {
+    pendingAudioInputFileRevocations.delete(pending.fileToken);
+    return Promise.resolve(false);
+  }
+
+  pending.attemptCount += 1;
+  const attempt = (async () => {
+    try {
+      const response = await revokeAudioInputFile(pending.fileToken);
+      if (response.ok) {
+        pendingAudioInputFileRevocations.delete(pending.fileToken);
+        clearAudioInputRevocationRetry(pending);
+        return true;
+      }
+    } catch {
+      // Keep the token in the queue; the retry path handles transient IPC loss.
+    }
+
+    scheduleAudioInputRevocationRetry(pending);
+    return false;
+  })();
+  pending.inFlight = attempt;
+  void attempt.finally(() => {
+    if (pending.inFlight === attempt) pending.inFlight = undefined;
+  });
+  return attempt;
+}
+
+function scheduleAudioInputRevocationRetry(
+  pending: PendingAudioInputFileRevocation,
+): void {
+  if (pendingAudioInputFileRevocations.get(pending.fileToken) !== pending) return;
+  if (Date.now() >= pending.expiresAt) {
+    pendingAudioInputFileRevocations.delete(pending.fileToken);
+    return;
+  }
+  const delayIndex = Math.min(
+    pending.attemptCount - 1,
+    AUDIO_INPUT_REVOCATION_RETRY_DELAYS_MS.length - 1,
+  );
+  const delay = Math.min(
+    AUDIO_INPUT_REVOCATION_RETRY_DELAYS_MS[delayIndex],
+    Math.max(0, pending.expiresAt - Date.now()),
+  );
+  pending.retryTimer = setTimeout(() => {
+    pending.retryTimer = undefined;
+    void attemptAudioInputFileRevocation(pending);
+  }, delay);
+}
+
+function clearAudioInputRevocationRetry(
+  pending: PendingAudioInputFileRevocation,
+): void {
+  if (pending.retryTimer === undefined) return;
+  clearTimeout(pending.retryTimer);
+  pending.retryTimer = undefined;
 }

@@ -130,6 +130,24 @@ describe("audio file helpers", () => {
     });
   });
 
+  it("revokes only the legitimate owner's unused token and remains idempotent", async () => {
+    const tempRoot = await createTempRoot();
+    const filePath = path.join(tempRoot, "unused-reference.wav");
+    await writeFile(filePath, createTestWav([1, 2, 3, 4]));
+    const store = new AudioFileAuthorizationStore();
+    const authorization = await store.authorize(21, filePath, "audio/wav");
+
+    expect(store.revoke(22, authorization.fileToken)).toBe(false);
+    expect(store.revoke(21, authorization.fileToken)).toBe(true);
+    expect(store.revoke(21, authorization.fileToken)).toBe(false);
+    await expect(
+      store.consume(21, authorization.fileToken, "mimo_chat_audio"),
+    ).rejects.toMatchObject({
+      code: "invalid_ipc_request",
+      field: "fileToken",
+    });
+  });
+
   it("rejects unsupported formats and dialect-specific size limits", async () => {
     const tempRoot = await createTempRoot();
     const m4aPath = path.join(tempRoot, "sample.m4a");

@@ -1,14 +1,11 @@
 import {
   AUDIO_EVENT_CHANNELS,
   AUDIO_IPC_CHANNELS,
-  audioIpcFailure,
-  audioIpcSuccess,
   type AuthorizedSpeechSynthesisResult,
   isSpeechSynthesisStreamEventPayload,
   type AudioIpcResult,
   type CancelSpeechSynthesisResult,
   type CancelSpeechSynthesisStreamResult,
-  type CreateSpeechSynthesisIpcInput,
   type CreateSpeechSynthesisIpcRequest,
   type RevealAudioOutputRequest,
   type RevealAudioOutputResult,
@@ -50,84 +47,13 @@ export interface SpeechSynthesisStreamHandle {
   unsubscribe: () => void;
 }
 
-export function toSpeechSynthesisIpcRequest(
-  request: CreateSpeechSynthesisIpcInput,
-): AudioIpcResult<CreateSpeechSynthesisIpcRequest> {
-  if ("intent" in request) return audioIpcSuccess(request);
-
-  const { voice, mimoOptions, ...common } = request;
-  if (!mimoOptions) {
-    if (!voice?.trim()) {
-      return audioIpcFailure({
-        code: "invalid_task_parameters",
-        message: "A preset voice is required for speech synthesis.",
-        field: "intent.voice",
-      });
-    }
-    return audioIpcSuccess({
-      ...common,
-      intent: { mode: "preset_voice", voice: voice.trim() },
-    });
-  }
-
-  if (mimoOptions.mode === "preset_voice") {
-    if (!voice?.trim()) {
-      return audioIpcFailure({
-        code: "invalid_task_parameters",
-        message: "A preset voice is required for MiMo speech synthesis.",
-        field: "intent.voice",
-      });
-    }
-    return audioIpcSuccess({
-      ...common,
-      intent: {
-        mode: "preset_voice",
-        voice: voice.trim(),
-        ...(mimoOptions.styleInstruction?.trim()
-          ? { styleInstruction: mimoOptions.styleInstruction.trim() }
-          : {}),
-      },
-    });
-  }
-
-  if (mimoOptions.mode === "voice_design") {
-    if (!mimoOptions.voiceDesignPrompt?.trim()) {
-      return audioIpcFailure({
-        code: "invalid_task_parameters",
-        message: "A voice design prompt is required.",
-        field: "intent.voiceDesignPrompt",
-      });
-    }
-    return audioIpcSuccess({
-      ...common,
-      intent: {
-        mode: "voice_design",
-        voiceDesignPrompt: mimoOptions.voiceDesignPrompt.trim(),
-        ...(mimoOptions.optimizeTextPreview !== undefined
-          ? { optimizeTextPreview: mimoOptions.optimizeTextPreview }
-          : {}),
-      },
-    });
-  }
-
-  return audioIpcFailure({
-    code: "invalid_task_parameters",
-    message:
-      "Voice clone requires an authorized voiceSampleToken. FE-R02 must authorize the selected File before invoking audio IPC.",
-    field: "intent.voiceSampleToken",
-  });
-}
-
 export async function synthesizeSpeech(
-  request: CreateSpeechSynthesisIpcInput,
+  request: CreateSpeechSynthesisIpcRequest,
 ): Promise<AudioIpcResult<AuthorizedSpeechSynthesisResult>> {
   try {
-    const normalized = toSpeechSynthesisIpcRequest(request);
-    if (!normalized.ok) return normalized;
-
     return await invokeAudioTaskIpc<AuthorizedSpeechSynthesisResult>(
       AUDIO_IPC_CHANNELS.synthesizeSpeech,
-      normalized.data,
+      request,
     );
   } catch (error) {
     return audioIpcUnavailableResult(error);
@@ -148,20 +74,11 @@ export async function cancelSpeechSynthesis(
 }
 
 export function synthesizeSpeechStream(
-  request: CreateSpeechSynthesisIpcInput,
+  request: CreateSpeechSynthesisIpcRequest,
   handlers: SpeechSynthesisStreamHandlers = {},
   options: { requestId?: string } = {},
 ): SpeechSynthesisStreamHandle {
   const requestId = options.requestId ?? createAudioRequestId();
-  const normalized = toSpeechSynthesisIpcRequest(request);
-  if (!normalized.ok) {
-    return {
-      requestId,
-      result: Promise.resolve(normalized),
-      cancel: () => cancelSpeechSynthesisStream({ requestId }),
-      unsubscribe: () => undefined,
-    };
-  }
   const removeListener = subscribeSpeechSynthesisStreamEvents(requestId, handlers);
   let subscribed = true;
   const unsubscribe = () => {
@@ -172,7 +89,7 @@ export function synthesizeSpeechStream(
   const payload = {
     requestId,
     payload: {
-      ...normalized.data,
+      ...request,
       stream: true,
     },
   };

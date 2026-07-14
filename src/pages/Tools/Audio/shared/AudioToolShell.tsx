@@ -38,6 +38,8 @@ interface AudioToolShellProps {
   titleKey: string;
   descriptionKey: string;
   workspaceTitleKey: string;
+  configSummaryOverride?: AudioToolConfigSummary;
+  settingsPath?: string;
   asideExtra?: (context: AudioToolShellContext) => React.ReactNode;
   children?: (context: AudioToolShellContext) => React.ReactNode;
 }
@@ -55,6 +57,8 @@ export function AudioToolShell({
   titleKey,
   descriptionKey,
   workspaceTitleKey,
+  configSummaryOverride,
+  settingsPath,
   asideExtra,
   children,
 }: AudioToolShellProps) {
@@ -65,7 +69,9 @@ export function AudioToolShell({
     () => createAudioToolConfigSummarySelector(assignmentKey),
     [assignmentKey],
   );
-  const configSummary = useModelStore(configSummarySelector);
+  const legacyConfigSummary = useModelStore(configSummarySelector);
+  const configSummary = configSummaryOverride ?? legacyConfigSummary;
+  const usesStandaloneAudioConfig = configSummaryOverride !== undefined;
   const statusTone = resolveStatusTone(configSummary.status);
   const modelValue = configSummary.modelKey ?? "-";
   const dialectValue = configSummary.audioDialect
@@ -78,32 +84,68 @@ export function AudioToolShell({
     modelValue,
   };
 
+  const providerValue = configSummary.providerPreset
+    ? t(`setting:fields.audio.provider.${configSummary.providerPreset}`)
+    : configSummary.connectionProfile?.name ?? "-";
+  const modeValue = configSummary.activeMode
+    ? t(`audio:speech.mode.${configSummary.activeMode}`)
+    : "-";
   const statItems = useMemo(
-    () => [
-      {
-        label: t("audio:global.profile"),
-        value: configSummary.profileName ?? "-",
-        tone: configSummary.profileName ? "default" as const : "warning" as const,
-      },
-      {
-        label: t("audio:global.dialect"),
-        value: dialectValue,
-      },
-      {
-        label: t("audio:global.model"),
-        value: modelValue,
-      },
-      {
-        label: t("audio:global.connection"),
-        value: configSummary.connectionProfile?.name ?? "-",
-      },
-    ],
+    () => usesStandaloneAudioConfig
+      ? [
+          {
+            label: t("audio:global.audio_api"),
+            value: configSummary.profileName ?? "-",
+            tone: configSummary.profileName
+              ? "default" as const
+              : "warning" as const,
+          },
+          {
+            label: t("audio:global.status"),
+            value: t(`audio:status.${configSummary.status}`),
+            tone: configSummary.status === "ready"
+              ? "success" as const
+              : "warning" as const,
+          },
+          {
+            label: t("audio:global.provider"),
+            value: providerValue,
+          },
+          {
+            label: t("audio:global.mode"),
+            value: modeValue,
+          },
+        ]
+      : [
+          {
+            label: t("audio:global.profile"),
+            value: configSummary.profileName ?? "-",
+            tone: configSummary.profileName
+              ? "default" as const
+              : "warning" as const,
+          },
+          {
+            label: t("audio:global.connection"),
+            value: providerValue,
+          },
+          {
+            label: t("audio:global.dialect"),
+            value: dialectValue,
+          },
+          {
+            label: t("audio:global.model"),
+            value: modelValue,
+          },
+        ],
     [
-      configSummary.connectionProfile?.name,
       configSummary.profileName,
+      configSummary.status,
       dialectValue,
+      modeValue,
       modelValue,
+      providerValue,
       t,
+      usesStandaloneAudioConfig,
     ],
   );
 
@@ -114,23 +156,39 @@ export function AudioToolShell({
       description={t(descriptionKey)}
       right={
         <Button
+          data-testid={
+            toolKey === "speechSynthesizer" ? "speech-change-api" : undefined
+          }
           variant="outline"
           size="sm"
           className="gap-1.5"
-          onClick={() => navigate("/setting")}
+          onClick={() => navigate(settingsPath ?? "/setting")}
         >
           <Settings2 className="h-3.5 w-3.5" />
-          {t("audio:global.open_settings")}
+          {t(
+            usesStandaloneAudioConfig
+              ? "audio:global.change_audio_api"
+              : "audio:global.open_settings",
+          )}
         </Button>
       }
     />
   );
 
   const aside = (
-    <ToolConfigPanel
-      icon={SlidersHorizontal}
-      title={t("audio:global.config_title")}
+    <div
+      data-testid={
+        toolKey === "speechSynthesizer" ? "speech-config-summary" : undefined
+      }
     >
+      <ToolConfigPanel
+        icon={SlidersHorizontal}
+        title={t(
+          usesStandaloneAudioConfig
+            ? "audio:global.api_config_title"
+            : "audio:global.config_title",
+        )}
+      >
       <div className="space-y-3">
         <div className="flex items-center justify-between gap-3 rounded-lg border px-3 py-2">
           <span className="text-xs text-muted-foreground">
@@ -141,14 +199,84 @@ export function AudioToolShell({
             {t(`audio:status.${configSummary.status}`)}
           </Badge>
         </div>
-        <ConfigLine label={t("audio:global.profile")} value={configSummary.profileName} />
-        <ConfigLine label={t("audio:global.dialect")} value={dialectValue} />
-        <ConfigLine label={t("audio:global.model")} value={modelValue} mono />
         <ConfigLine
-          label={t("audio:global.connection")}
-          value={configSummary.connectionProfile?.name}
+          label={t(
+            usesStandaloneAudioConfig
+              ? "audio:global.audio_api"
+              : "audio:global.profile",
+          )}
+          value={configSummary.profileName}
         />
-        {configSummary.capabilities.length > 0 ? (
+        {configSummary.providerPreset ? (
+          <ConfigLine label={t("audio:global.provider")} value={providerValue} />
+        ) : null}
+        {configSummary.activeMode ? (
+          <ConfigLine
+            label={t("audio:global.mode")}
+            value={modeValue}
+          />
+        ) : null}
+        {usesStandaloneAudioConfig ? (
+          configSummary.audioDialect || configSummary.modelKey ? (
+            <details className="rounded-md border px-3 py-2 text-xs">
+              <summary className="cursor-pointer font-medium text-muted-foreground">
+                {t("audio:global.technical_details")}
+              </summary>
+              <div className="mt-2 space-y-2">
+                <ConfigLine
+                  label={t("audio:global.dialect")}
+                  value={dialectValue}
+                />
+                <ConfigLine
+                  label={t("audio:global.model")}
+                  value={modelValue}
+                  mono
+                />
+              </div>
+            </details>
+          ) : null
+        ) : (
+          <>
+            <ConfigLine label={t("audio:global.dialect")} value={dialectValue} />
+            <ConfigLine label={t("audio:global.model")} value={modelValue} mono />
+          </>
+        )}
+        {!configSummary.providerPreset ? (
+          <ConfigLine
+            label={t("audio:global.connection")}
+            value={configSummary.connectionProfile?.name}
+          />
+        ) : null}
+        {configSummary.verificationStatus ? (
+          <ConfigLine
+            label={t("audio:global.verification")}
+            value={t(
+              `setting:fields.audio.verification.${
+                configSummary.verificationStatus === "unverified"
+                  ? "untested"
+                  : configSummary.verificationStatus
+              }`,
+            )}
+          />
+        ) : null}
+        {configSummary.availableModes?.length ? (
+          <div className="space-y-1.5">
+            <div className="text-xs text-muted-foreground">
+              {t("audio:global.capabilities")}
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {configSummary.availableModes.map((mode) => (
+                <Badge
+                  key={mode}
+                  variant="outline"
+                  className="px-1.5 py-0 text-[10px] text-muted-foreground"
+                >
+                  {t(`audio:speech.mode.${mode}`)}
+                </Badge>
+              ))}
+            </div>
+          </div>
+        ) : configSummary.capabilities.length > 0 ? (
           <div className="space-y-1.5">
             <div className="text-xs text-muted-foreground">
               {t("audio:global.capabilities")}
@@ -172,7 +300,8 @@ export function AudioToolShell({
           </div>
         ) : null}
       </div>
-    </ToolConfigPanel>
+      </ToolConfigPanel>
+    </div>
   );
 
   return (

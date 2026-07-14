@@ -12,9 +12,11 @@ import {
   type AudioRuntimeInvoker,
 } from "../../electron/main/audio/ipc";
 import { createAudioRuntimeError } from "../../electron/main/audio/audio-errors";
-import type {
-  AudioTranscriptionResult,
-  SpeechSynthesisResult,
+import {
+  AUDIO_SPEECH_MAX_INPUT_CHARS,
+  AUDIO_SPEECH_MAX_INSTRUCTIONS_CHARS,
+  type AudioTranscriptionResult,
+  type SpeechSynthesisResult,
 } from "@/type/audio";
 import type {
   CreateAudioTranscriptionIpcRequest,
@@ -191,6 +193,34 @@ describe("AudioIpcService", () => {
     expect(fileAuthorizations.revoke).toHaveBeenCalledWith(
       TEST_OWNER_ID,
       "late_file_token",
+    );
+  });
+
+  it("revokes an unused input token only through the renderer owner", () => {
+    const fileAuthorizations = createFileAuthorizations();
+    vi.mocked(fileAuthorizations.revoke)
+      .mockReturnValueOnce(true)
+      .mockReturnValueOnce(false);
+    const service = createService(createRuntimeInvoker(), {
+      fileAuthorizations,
+    });
+
+    expect(
+      service.revokeInputFile(
+        { fileToken: "voice_sample_token" },
+        { senderId: TEST_OWNER_ID },
+      ),
+    ).toEqual({ ok: true, data: { revoked: true } });
+    expect(
+      service.revokeInputFile(
+        { fileToken: "voice_sample_token" },
+        { senderId: TEST_OWNER_ID },
+      ),
+    ).toEqual({ ok: true, data: { revoked: false } });
+    expect(fileAuthorizations.revoke).toHaveBeenNthCalledWith(
+      1,
+      TEST_OWNER_ID,
+      "voice_sample_token",
     );
   });
 
@@ -726,6 +756,74 @@ describe("AudioIpcService", () => {
       expect(runtime.synthesize).not.toHaveBeenCalled();
     },
   );
+
+  it.each([
+    { provider: "MiMo", profileId: "audio_mimo" },
+    { provider: "OpenAI", profileId: "audio_openai" },
+  ])(
+    "enforces the $provider speech input boundary before runtime work",
+    async ({ profileId }) => {
+      const runtime = createRuntimeInvoker();
+      const service = createService(runtime);
+      const snapshot = createRuntimeConfigSnapshot();
+      snapshot.assignment.speechSynthesis = profileId;
+      const context = await syncService(service, snapshot);
+
+      await expect(
+        service.synthesizeSpeech(
+          createSpeechPayload({
+            input: "i".repeat(AUDIO_SPEECH_MAX_INPUT_CHARS),
+          }),
+          context,
+        ),
+      ).resolves.toMatchObject({ ok: true });
+
+      await expect(
+        service.synthesizeSpeech(
+          createSpeechPayload({
+            input: "i".repeat(AUDIO_SPEECH_MAX_INPUT_CHARS + 1),
+          }),
+          context,
+        ),
+      ).resolves.toMatchObject({
+        ok: false,
+        error: { code: "invalid_task_parameters", field: "input" },
+      });
+      expect(runtime.synthesize).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  it("enforces the OpenAI instructions boundary before runtime work", async () => {
+    const runtime = createRuntimeInvoker();
+    const service = createService(runtime);
+    const snapshot = createRuntimeConfigSnapshot();
+    snapshot.assignment.speechSynthesis = "audio_openai";
+    const context = await syncService(service, snapshot);
+
+    await expect(
+      service.synthesizeSpeech(
+        createSpeechPayload({
+          instructions: "i".repeat(AUDIO_SPEECH_MAX_INSTRUCTIONS_CHARS),
+        }),
+        context,
+      ),
+    ).resolves.toMatchObject({ ok: true });
+
+    await expect(
+      service.synthesizeSpeech(
+        createSpeechPayload({
+          instructions: "i".repeat(
+            AUDIO_SPEECH_MAX_INSTRUCTIONS_CHARS + 1,
+          ),
+        }),
+        context,
+      ),
+    ).resolves.toMatchObject({
+      ok: false,
+      error: { code: "invalid_task_parameters", field: "instructions" },
+    });
+    expect(runtime.synthesize).toHaveBeenCalledTimes(1);
+  });
 
   it("maps all MiMo speech intents to trusted models and adapter payloads", async () => {
     const cases: Array<{
@@ -1651,7 +1749,7 @@ function createFileAuthorizations(): AudioInputFileAuthorizations {
     resolve,
     consume: vi.fn((ownerId, fileToken, dialect) =>
       resolve(ownerId, fileToken, dialect)),
-    revoke: vi.fn(),
+    revoke: vi.fn(() => false),
     releaseOwner: vi.fn(),
   };
 }

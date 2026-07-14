@@ -114,7 +114,6 @@ describe("audio output directory store state", () => {
       ),
     ).toMatchObject({
       preferences: { outputDir: "Exports" },
-      outputDirectoryAuthorization: null,
     });
   });
 });

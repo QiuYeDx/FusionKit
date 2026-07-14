@@ -1,4 +1,6 @@
 import {
+  AUDIO_SPEECH_MAX_INPUT_CHARS,
+  AUDIO_SPEECH_MAX_INSTRUCTIONS_CHARS,
   SPEECH_SYNTHESIS_MODES,
   type AudioApiProfile,
   type AudioApiRoutes,
@@ -37,6 +39,8 @@ export interface AudioSpeechRouteConstraints {
   streamResponseFormat?: AudioSpeechResponseFormat;
   finalResponseFormat?: AudioSpeechResponseFormat;
   inputRequired: boolean;
+  maxInputChars: number;
+  maxInstructionsChars?: number;
   allowEmptyInputWhenOptimizeTextPreview: boolean;
   fields: {
     voice: AudioRouteFieldAvailability;
@@ -121,6 +125,8 @@ const AUDIO_PROVIDER_REGISTRY: Record<
         preset_voice: speechConstraints({
           mode: "preset_voice",
           responseFormats: OPENAI_SPEECH_FORMATS,
+          maxInputChars: AUDIO_SPEECH_MAX_INPUT_CHARS,
+          maxInstructionsChars: AUDIO_SPEECH_MAX_INSTRUCTIONS_CHARS,
           fields: {
             voice: "required",
             instructions: "optional",
@@ -163,6 +169,7 @@ const AUDIO_PROVIDER_REGISTRY: Record<
         preset_voice: speechConstraints({
           mode: "preset_voice",
           responseFormats: MIMO_SPEECH_FORMATS,
+          maxInputChars: AUDIO_SPEECH_MAX_INPUT_CHARS,
           supportsStreaming: true,
           streamResponseFormat: "pcm16",
           finalResponseFormat: "wav",
@@ -174,6 +181,7 @@ const AUDIO_PROVIDER_REGISTRY: Record<
         voice_design: speechConstraints({
           mode: "voice_design",
           responseFormats: MIMO_SPEECH_FORMATS,
+          maxInputChars: AUDIO_SPEECH_MAX_INPUT_CHARS,
           supportsStreaming: true,
           streamResponseFormat: "pcm16",
           finalResponseFormat: "wav",
@@ -186,6 +194,7 @@ const AUDIO_PROVIDER_REGISTRY: Record<
         voice_clone: speechConstraints({
           mode: "voice_clone",
           responseFormats: MIMO_SPEECH_FORMATS,
+          maxInputChars: AUDIO_SPEECH_MAX_INPUT_CHARS,
           supportsStreaming: true,
           streamResponseFormat: "pcm16",
           finalResponseFormat: "wav",
@@ -221,6 +230,8 @@ const AUDIO_PROVIDER_REGISTRY: Record<
         preset_voice: speechConstraints({
           mode: "preset_voice",
           responseFormats: OPENAI_SPEECH_FORMATS,
+          maxInputChars: AUDIO_SPEECH_MAX_INPUT_CHARS,
+          maxInstructionsChars: AUDIO_SPEECH_MAX_INSTRUCTIONS_CHARS,
           fields: {
             voice: "required",
             instructions: "optional",
@@ -407,6 +418,8 @@ function speechConstraints(options: {
   streamResponseFormat?: AudioSpeechResponseFormat;
   finalResponseFormat?: AudioSpeechResponseFormat;
   inputRequired?: boolean;
+  maxInputChars: number;
+  maxInstructionsChars?: number;
   allowEmptyInputWhenOptimizeTextPreview?: boolean;
   fields?: Partial<AudioSpeechRouteConstraints["fields"]>;
 }): AudioSpeechRouteConstraints {
@@ -421,6 +434,10 @@ function speechConstraints(options: {
       ? { finalResponseFormat: options.finalResponseFormat }
       : {}),
     inputRequired: options.inputRequired ?? true,
+    maxInputChars: options.maxInputChars,
+    ...(options.maxInstructionsChars !== undefined
+      ? { maxInstructionsChars: options.maxInstructionsChars }
+      : {}),
     allowEmptyInputWhenOptimizeTextPreview:
       options.allowEmptyInputWhenOptimizeTextPreview ?? false,
     fields: {

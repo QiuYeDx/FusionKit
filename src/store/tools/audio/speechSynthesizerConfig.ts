@@ -1,33 +1,52 @@
-import type {
-  AudioApiDialect,
-  AudioSpeechResponseFormat,
-  MimoSpeechSynthesisMode,
+import {
+  SPEECH_SYNTHESIS_MODES,
+  type AudioApiProfile,
+  type AudioProviderPreset,
+  type AudioRoute,
+  type AudioRouteVerificationStatus,
+  type AudioSpeechResponseFormat,
+  type AudioTaskAssignment,
+  type SpeechSynthesisMode,
+  type SpeechSynthesisIntent,
 } from "@/type/audio";
 import {
   isAudioSpeechResponseFormat,
-  isMimoSpeechSynthesisMode,
+  isSpeechSynthesisMode,
 } from "@/type/audio";
-import type { LegacyCreateSpeechSynthesisIpcRequest } from "@/type/audioIpc";
-import { MIMO_TTS_MODEL_BY_MODE } from "@/lib/audio-provider-registry";
+import type { CreateSpeechSynthesisIpcRequest } from "@/type/audioIpc";
 import {
+  getAudioRouteKey,
+  getAvailableSpeechSynthesisModes,
+  getSpeechRouteConstraints,
+  isAudioRouteTransportSupported,
+  resolveAudioApiRoute,
+  type AudioSpeechRouteConstraints,
+} from "@/lib/audio-provider-registry";
+import {
+  isAudioOutputDirectoryAuthorizationValid,
   normalizeAudioOutputDirectoryLabel,
   type AudioOutputDirectoryAuthorization,
 } from "./audioOutputDirectory";
-
-export { MIMO_TTS_MODEL_BY_MODE } from "@/lib/audio-provider-registry";
+import type {
+  AudioToolConfigSummary,
+} from "./audioToolConfig";
 
 export type SpeechSynthesizerOutputMode = "temp" | "custom_dir";
 
 export interface SelectedVoiceSample {
+  sourceFile?: File;
+  fileToken: string | null;
   fileName: string;
-  filePath: string;
   mimeType: "audio/wav" | "audio/mpeg" | "audio/mp3";
   sizeBytes: number;
+  expiresAt?: number;
   modifiedAt?: number;
 }
 
 export interface SpeechSynthesizerPreferences {
   input: string;
+  modeInputDrafts: Partial<Record<SpeechSynthesisMode, string>>;
+  speechMode: SpeechSynthesisMode;
   voice: string;
   instructions: string;
   responseFormat: AudioSpeechResponseFormat;
@@ -36,12 +55,59 @@ export interface SpeechSynthesizerPreferences {
   outputMode: SpeechSynthesizerOutputMode;
   outputDir: string;
   fileNameHint: string;
-  mimoMode: MimoSpeechSynthesisMode;
-  mimoStyleInstruction: string;
+  styleInstruction: string;
   voiceDesignPrompt: string;
   optimizeTextPreview: boolean;
-  audioTagsEnabled: boolean;
 }
+
+export interface SpeechSynthesisFieldVisibility {
+  voice: boolean;
+  instructions: boolean;
+  speed: boolean;
+  styleInstruction: boolean;
+  voiceDesignPrompt: boolean;
+  optimizeTextPreview: boolean;
+  referenceAudio: boolean;
+  responseFormatSelect: boolean;
+  responseFormatSummary: boolean;
+  stream: boolean;
+}
+
+export type SpeechSynthesisConfigStatus =
+  | "ready"
+  | "audio_api_not_configured"
+  | "audio_route_not_configured";
+
+export interface SpeechSynthesisConfigSummary extends AudioToolConfigSummary {
+  assignmentKey: "speechSynthesis";
+  status: SpeechSynthesisConfigStatus;
+  providerPreset?: AudioProviderPreset;
+  availableModes: SpeechSynthesisMode[];
+  activeMode?: SpeechSynthesisMode;
+  route?: AudioRoute;
+  constraints?: AudioSpeechRouteConstraints;
+  verificationStatus?: AudioRouteVerificationStatus | "unverified";
+  migrationNeedsAttention?: boolean;
+}
+
+export interface SpeechSynthesisSubmissionSnapshot {
+  profileId?: string;
+  providerPreset?: AudioProviderPreset;
+  mode?: SpeechSynthesisMode;
+  routeTransport?: AudioRoute["transport"];
+  routeModel?: string;
+  sourceFile?: File;
+}
+
+export type SpeechSynthesisSubmitIssueCode =
+  | "no_input"
+  | "no_voice"
+  | "input_too_long"
+  | "instructions_too_long"
+  | "voice_design_prompt_required"
+  | "voice_sample_required"
+  | "voice_sample_authorizing"
+  | "output_dir_required";
 
 export type VoiceSampleIssueCode =
   | "voice_sample_path_unavailable"
@@ -57,8 +123,16 @@ export type VoiceSampleValidationResult =
   | { ok: true; mimeType: SelectedVoiceSample["mimeType"] }
   | { ok: false; issue: VoiceSampleIssue };
 
+const DEFAULT_MODE_INPUT_DRAFTS: Record<SpeechSynthesisMode, string> = {
+  preset_voice: "",
+  voice_design: "",
+  voice_clone: "",
+};
+
 export const DEFAULT_SPEECH_SYNTHESIZER_PREFERENCES: SpeechSynthesizerPreferences = {
   input: "",
+  modeInputDrafts: { ...DEFAULT_MODE_INPUT_DRAFTS },
+  speechMode: "preset_voice",
   voice: "alloy",
   instructions: "",
   responseFormat: "mp3",
@@ -67,26 +141,13 @@ export const DEFAULT_SPEECH_SYNTHESIZER_PREFERENCES: SpeechSynthesizerPreference
   outputMode: "temp",
   outputDir: "",
   fileNameHint: "",
-  mimoMode: "preset_voice",
-  mimoStyleInstruction: "",
+  styleInstruction: "",
   voiceDesignPrompt: "",
   optimizeTextPreview: false,
-  audioTagsEnabled: false,
 };
 
 export const MIMO_VOICE_SAMPLE_ACCEPT = ".wav,.wave,.mp3,.mpeg,.mpga";
 export const MIMO_VOICE_SAMPLE_MAX_BASE64_BYTES = 10 * 1024 * 1024;
-export const OPENAI_SPEECH_MAX_INPUT_CHARS = 4096;
-export const OPENAI_SPEECH_MAX_INSTRUCTIONS_CHARS = 4096;
-
-const OPENAI_SPEECH_FORMATS: AudioSpeechResponseFormat[] = [
-  "mp3",
-  "opus",
-  "aac",
-  "flac",
-  "wav",
-  "pcm",
-];
 
 const VOICE_SAMPLE_MIME_BY_EXTENSION: Record<
   string,
@@ -110,100 +171,229 @@ const NORMALIZED_VOICE_SAMPLE_MIME: Record<
   "audio/mp3": "audio/mp3",
 };
 
-export function getSpeechSynthesizerResponseFormats(
-  dialect?: AudioApiDialect,
-  stream = false,
-): AudioSpeechResponseFormat[] {
-  if (dialect === "mimo_chat_audio") {
-    return stream ? ["pcm16"] : ["wav"];
+export function resolveSpeechSynthesisConfigSummary(
+  state: Pick<{ profiles: AudioApiProfile[]; assignment: AudioTaskAssignment },
+    "profiles" | "assignment">,
+  preferredMode: SpeechSynthesisMode,
+): SpeechSynthesisConfigSummary {
+  const profileId = state.assignment.speechSynthesis;
+  const profile = profileId
+    ? state.profiles.find((candidate) => candidate.id === profileId)
+    : undefined;
+  if (!profile) {
+    return {
+      assignmentKey: "speechSynthesis",
+      status: "audio_api_not_configured",
+      availableModes: [],
+      capabilities: [],
+    };
   }
-  return OPENAI_SPEECH_FORMATS;
+
+  const availableModes = getAvailableSpeechSynthesisModes(profile).filter(
+    (mode) => {
+      const route = resolveAudioApiRoute(profile, "speechSynthesis", mode);
+      return Boolean(
+        route &&
+        getSpeechRouteConstraints(profile.providerPreset, mode) &&
+        isAudioRouteTransportSupported({
+          preset: profile.providerPreset,
+          assignmentKey: "speechSynthesis",
+          transport: route.transport,
+          speechMode: mode,
+        }),
+      );
+    },
+  );
+  const activeMode = resolveAvailableSpeechMode(availableModes, preferredMode);
+  if (!activeMode) {
+    return {
+      assignmentKey: "speechSynthesis",
+      status: "audio_route_not_configured",
+      profileId: profile.id,
+      profileName: profile.name,
+      providerPreset: profile.providerPreset,
+      availableModes,
+      capabilities: [],
+      migrationNeedsAttention: profile.migration?.needsAttention,
+    };
+  }
+
+  const route = resolveAudioApiRoute(profile, "speechSynthesis", activeMode);
+  const constraints = getSpeechRouteConstraints(
+    profile.providerPreset,
+    activeMode,
+  );
+  const routeKey = getAudioRouteKey("speechSynthesis", activeMode);
+  return {
+    assignmentKey: "speechSynthesis",
+    status: route && constraints ? "ready" : "audio_route_not_configured",
+    profileId: profile.id,
+    profileName: profile.name,
+    providerPreset: profile.providerPreset,
+    availableModes,
+    capabilities: [
+      "speech_synthesis",
+      ...(constraints?.supportsStreaming
+        ? ["streaming_speech_synthesis" as const]
+        : []),
+    ],
+    activeMode,
+    ...(route ? { route } : {}),
+    ...(route
+      ? { audioDialect: route.transport, modelKey: route.model }
+      : {}),
+    ...(constraints ? { constraints } : {}),
+    verificationStatus: routeKey
+      ? profile.verification?.[routeKey]?.status ?? "unverified"
+      : "unverified",
+    migrationNeedsAttention: profile.migration?.needsAttention,
+  };
 }
 
-export function canStreamSpeechSynthesis(
-  dialect: AudioApiDialect | undefined,
-  capabilities: string[],
+export function createSpeechSynthesisSubmissionSnapshot(
+  summary: SpeechSynthesisConfigSummary,
+  voiceSample: SelectedVoiceSample | null,
+): SpeechSynthesisSubmissionSnapshot {
+  return {
+    profileId: summary.profileId,
+    providerPreset: summary.providerPreset,
+    mode: summary.activeMode,
+    routeTransport: summary.route?.transport,
+    routeModel: summary.route?.model,
+    sourceFile:
+      summary.constraints?.fields.referenceAudio !== "unsupported"
+        ? voiceSample?.sourceFile
+        : undefined,
+  };
+}
+
+export function isSpeechSynthesisSubmissionSnapshotCurrent(
+  snapshot: SpeechSynthesisSubmissionSnapshot,
+  summary: SpeechSynthesisConfigSummary,
+  voiceSample: SelectedVoiceSample | null,
 ): boolean {
   return (
-    dialect === "mimo_chat_audio" &&
-    capabilities.includes("streaming_speech_synthesis")
+    summary.status === "ready" &&
+    snapshot.profileId === summary.profileId &&
+    snapshot.providerPreset === summary.providerPreset &&
+    snapshot.mode === summary.activeMode &&
+    snapshot.routeTransport === summary.route?.transport &&
+    snapshot.routeModel === summary.route?.model &&
+    (snapshot.sourceFile === undefined ||
+      snapshot.sourceFile === voiceSample?.sourceFile)
   );
 }
 
-export function getMimoModeForModel(
-  modelKey: string | undefined,
-): MimoSpeechSynthesisMode | undefined {
-  const entry = Object.entries(MIMO_TTS_MODEL_BY_MODE).find(
-    ([, model]) => model === modelKey,
-  );
-  return entry?.[0] as MimoSpeechSynthesisMode | undefined;
-}
-
-export function isMimoModeCompatibleWithModel(
-  mode: MimoSpeechSynthesisMode,
-  modelKey: string | undefined,
-): boolean {
-  return MIMO_TTS_MODEL_BY_MODE[mode] === modelKey;
+export function resolveAvailableSpeechMode(
+  availableModes: readonly SpeechSynthesisMode[],
+  preferredMode: SpeechSynthesisMode,
+): SpeechSynthesisMode | undefined {
+  if (availableModes.includes(preferredMode)) return preferredMode;
+  if (availableModes.includes("preset_voice")) return "preset_voice";
+  return SPEECH_SYNTHESIS_MODES.find((mode) => availableModes.includes(mode));
 }
 
 export function normalizeSpeechSynthesizerPreferences(
   preferences: SpeechSynthesizerPreferences,
-  dialect?: AudioApiDialect,
-  capabilities: string[] = [],
+  constraints: AudioSpeechRouteConstraints,
 ): SpeechSynthesizerPreferences {
-  if (dialect === "mimo_chat_audio") {
-    const stream = preferences.stream &&
-      canStreamSpeechSynthesis(dialect, capabilities);
-    return {
-      ...preferences,
-      stream,
-      responseFormat: stream ? "pcm16" : "wav",
-      speed: 1,
-      optimizeTextPreview: preferences.mimoMode === "voice_design"
-        ? preferences.optimizeTextPreview
-        : false,
-      // MiMo audio tags are expressed in the assistant text itself. There is
-      // no documented audio_tags_enabled request field.
-      audioTagsEnabled: false,
-    };
-  }
-
-  const responseFormats = getSpeechSynthesizerResponseFormats(dialect, false);
+  const stream = preferences.stream && constraints.supportsStreaming;
+  const responseFormat = resolveResponseFormat(
+    preferences.responseFormat,
+    constraints,
+    stream,
+  );
   return {
     ...preferences,
-    stream: false,
-    speed: clampSpeechSpeed(preferences.speed),
-    responseFormat: responseFormats.includes(preferences.responseFormat)
-      ? preferences.responseFormat
-      : "mp3",
-    mimoStyleInstruction: "",
-    voiceDesignPrompt: "",
-    optimizeTextPreview: false,
-    audioTagsEnabled: false,
+    speechMode: constraints.mode,
+    stream,
+    responseFormat,
+    speed: constraints.fields.speed === "unsupported"
+      ? 1
+      : clampSpeechSpeed(preferences.speed),
+    optimizeTextPreview:
+      constraints.fields.optimizeTextPreview !== "unsupported"
+        ? preferences.optimizeTextPreview
+        : false,
+  };
+}
+
+export function getSpeechSynthesizerResponseFormats(
+  constraints: AudioSpeechRouteConstraints,
+  stream: boolean,
+): AudioSpeechResponseFormat[] {
+  if (stream && constraints.streamResponseFormat) {
+    return [constraints.streamResponseFormat];
+  }
+  if (constraints.finalResponseFormat) {
+    return [constraints.finalResponseFormat];
+  }
+  return [...constraints.responseFormats];
+}
+
+export function resolveSpeechSynthesisFieldVisibility(
+  constraints: AudioSpeechRouteConstraints,
+  stream: boolean,
+): SpeechSynthesisFieldVisibility {
+  const responseFormats = getSpeechSynthesizerResponseFormats(
+    constraints,
+    stream,
+  );
+  return {
+    voice: constraints.fields.voice !== "unsupported",
+    instructions: constraints.fields.instructions !== "unsupported",
+    speed: constraints.fields.speed !== "unsupported",
+    styleInstruction:
+      constraints.fields.styleInstruction !== "unsupported",
+    voiceDesignPrompt:
+      constraints.fields.voiceDesignPrompt !== "unsupported",
+    optimizeTextPreview:
+      constraints.fields.optimizeTextPreview !== "unsupported",
+    referenceAudio: constraints.fields.referenceAudio !== "unsupported",
+    responseFormatSelect: responseFormats.length > 1,
+    responseFormatSummary: responseFormats.length === 1,
+    stream: constraints.supportsStreaming,
   };
 }
 
 export function buildSpeechSynthesisRequest(options: {
   requestId: string;
   preferences: SpeechSynthesizerPreferences;
+  constraints: AudioSpeechRouteConstraints;
   outputDirectoryAuthorization: AudioOutputDirectoryAuthorization | null;
-  dialect?: AudioApiDialect;
-  capabilities?: string[];
   voiceSample?: SelectedVoiceSample | null;
-}): LegacyCreateSpeechSynthesisIpcRequest {
+}): CreateSpeechSynthesisIpcRequest {
   const preferences = normalizeSpeechSynthesizerPreferences(
     options.preferences,
-    options.dialect,
-    options.capabilities ?? [],
+    options.constraints,
   );
-  const request: LegacyCreateSpeechSynthesisIpcRequest = {
+  const styleInstruction = preferences.styleInstruction.trim();
+  const intent = buildSpeechSynthesisIntent(
+    preferences,
+    options.constraints,
+    options.voiceSample ?? null,
+    styleInstruction,
+  );
+  return {
     assignmentKey: "speechSynthesis",
     requestId: options.requestId,
     input: preferences.input,
+    intent,
     responseFormat: preferences.responseFormat,
+    ...(options.constraints.fields.instructions !== "unsupported" &&
+        preferences.instructions.trim()
+      ? { instructions: preferences.instructions.trim() }
+      : {}),
+    ...(options.constraints.fields.speed !== "unsupported" &&
+        preferences.speed !== 1
+      ? { speed: preferences.speed }
+      : {}),
+    ...(options.constraints.supportsStreaming
+      ? { stream: preferences.stream }
+      : {}),
     ...(preferences.outputMode === "custom_dir"
       ? {
-          outputPathMode: "custom_dir",
+          outputPathMode: "custom_dir" as const,
           ...(options.outputDirectoryAuthorization
             ? {
                 outputDirToken:
@@ -211,48 +401,77 @@ export function buildSpeechSynthesisRequest(options: {
               }
             : {}),
         }
-      : { outputPathMode: "temp" }),
+      : { outputPathMode: "temp" as const }),
     ...(preferences.fileNameHint.trim()
       ? { fileNameHint: preferences.fileNameHint.trim() }
       : {}),
   };
+}
 
-  if (options.dialect === "mimo_chat_audio") {
-    request.stream = preferences.stream;
-    if (preferences.mimoMode === "preset_voice") {
-      request.voice = preferences.voice.trim() || "mimo_default";
-    }
-    const styleInstruction = preferences.mimoStyleInstruction.trim();
-    const voiceDesignPrompt = preferences.voiceDesignPrompt.trim();
-    request.mimoOptions = {
-      mode: preferences.mimoMode,
-      ...(preferences.mimoMode !== "voice_design" && styleInstruction
-        ? { styleInstruction }
-        : {}),
-      ...(preferences.mimoMode === "voice_design" && voiceDesignPrompt
-        ? { voiceDesignPrompt }
-        : {}),
-      ...(preferences.mimoMode === "voice_design" && preferences.optimizeTextPreview
-        ? { optimizeTextPreview: true }
-        : {}),
-      ...(preferences.mimoMode === "voice_clone" && options.voiceSample
-        ? {
-            voiceSamplePath: options.voiceSample.filePath,
-            voiceSampleMime: options.voiceSample.mimeType,
-          }
-        : {}),
-    };
-    return request;
+export function resolveSpeechSynthesisSubmitIssue(options: {
+  preferences: SpeechSynthesizerPreferences;
+  constraints: AudioSpeechRouteConstraints;
+  voiceSample: SelectedVoiceSample | null;
+  voiceSampleAuthorizationPending: boolean;
+  outputDirectoryAuthorization: AudioOutputDirectoryAuthorization | null;
+}): SpeechSynthesisSubmitIssueCode | null {
+  const preferences = normalizeSpeechSynthesizerPreferences(
+    options.preferences,
+    options.constraints,
+  );
+  const fields = options.constraints.fields;
+  const inputCanBeEmpty =
+    options.constraints.allowEmptyInputWhenOptimizeTextPreview &&
+    preferences.optimizeTextPreview;
+  if (
+    options.constraints.inputRequired &&
+    !preferences.input.trim() &&
+    !inputCanBeEmpty
+  ) {
+    return "no_input";
   }
-
-  request.voice = preferences.voice.trim();
-  if (preferences.instructions.trim()) {
-    request.instructions = preferences.instructions.trim();
+  if (fields.voice === "required" && !preferences.voice.trim()) {
+    return "no_voice";
   }
-  if (preferences.speed !== 1) {
-    request.speed = preferences.speed;
+  if (preferences.input.length > options.constraints.maxInputChars) {
+    return "input_too_long";
   }
-  return request;
+  if (
+    fields.instructions !== "unsupported" &&
+    options.constraints.maxInstructionsChars !== undefined &&
+    preferences.instructions.length > options.constraints.maxInstructionsChars
+  ) {
+    return "instructions_too_long";
+  }
+  if (
+    fields.voiceDesignPrompt === "required" &&
+    !preferences.voiceDesignPrompt.trim()
+  ) {
+    return "voice_design_prompt_required";
+  }
+  if (
+    fields.referenceAudio === "required" &&
+    options.voiceSampleAuthorizationPending
+  ) {
+    return "voice_sample_authorizing";
+  }
+  if (
+    fields.referenceAudio === "required" &&
+    (!options.voiceSample ||
+      (!options.voiceSample.fileToken && !options.voiceSample.sourceFile))
+  ) {
+    return "voice_sample_required";
+  }
+  if (
+    preferences.outputMode === "custom_dir" &&
+    !isAudioOutputDirectoryAuthorizationValid(
+      options.outputDirectoryAuthorization,
+      preferences.outputDir,
+    )
+  ) {
+    return "output_dir_required";
+  }
+  return null;
 }
 
 export function clampSpeechSpeed(value: number): number {
@@ -263,10 +482,27 @@ export function clampSpeechSpeed(value: number): number {
 export function sanitizeSpeechSynthesizerPreferences(
   value: unknown,
 ): SpeechSynthesizerPreferences {
-  if (!isRecord(value)) return { ...DEFAULT_SPEECH_SYNTHESIZER_PREFERENCES };
   const defaults = DEFAULT_SPEECH_SYNTHESIZER_PREFERENCES;
+  if (!isRecord(value)) {
+    return {
+      ...defaults,
+      modeInputDrafts: { ...defaults.modeInputDrafts },
+    };
+  }
+  const speechMode = isSpeechSynthesisMode(value.speechMode)
+    ? value.speechMode
+    : isSpeechSynthesisMode(value.mimoMode)
+      ? value.mimoMode
+      : defaults.speechMode;
+  const input = stringOr(value.input, defaults.input);
+  const modeInputDrafts = sanitizeModeInputDrafts(value.modeInputDrafts);
+  if (!Object.prototype.hasOwnProperty.call(modeInputDrafts, speechMode)) {
+    modeInputDrafts[speechMode] = input;
+  }
   return {
-    input: stringOr(value.input, defaults.input),
+    input,
+    modeInputDrafts,
+    speechMode,
     voice: stringOr(value.voice, defaults.voice),
     instructions: stringOr(value.instructions, defaults.instructions),
     responseFormat: isAudioSpeechResponseFormat(value.responseFormat)
@@ -279,12 +515,9 @@ export function sanitizeSpeechSynthesizerPreferences(
       stringOr(value.outputDir, defaults.outputDir),
     ),
     fileNameHint: stringOr(value.fileNameHint, defaults.fileNameHint),
-    mimoMode: isMimoSpeechSynthesisMode(value.mimoMode)
-      ? value.mimoMode
-      : defaults.mimoMode,
-    mimoStyleInstruction: stringOr(
-      value.mimoStyleInstruction,
-      defaults.mimoStyleInstruction,
+    styleInstruction: stringOr(
+      value.styleInstruction,
+      stringOr(value.mimoStyleInstruction, defaults.styleInstruction),
     ),
     voiceDesignPrompt: stringOr(
       value.voiceDesignPrompt,
@@ -294,8 +527,6 @@ export function sanitizeSpeechSynthesizerPreferences(
       value.optimizeTextPreview,
       defaults.optimizeTextPreview,
     ),
-    // Deprecated persisted switch: audio tags are authored in text instead.
-    audioTagsEnabled: false,
   };
 }
 
@@ -335,6 +566,68 @@ export function validateVoiceSampleFile(
 
 export function getBase64ByteLength(rawBytes: number): number {
   return Math.ceil(rawBytes / 3) * 4;
+}
+
+function buildSpeechSynthesisIntent(
+  preferences: SpeechSynthesizerPreferences,
+  constraints: AudioSpeechRouteConstraints,
+  voiceSample: SelectedVoiceSample | null,
+  styleInstruction: string,
+): SpeechSynthesisIntent {
+  if (constraints.mode === "preset_voice") {
+    return {
+      mode: "preset_voice",
+      voice: preferences.voice.trim(),
+      ...(constraints.fields.styleInstruction !== "unsupported" &&
+          styleInstruction
+        ? { styleInstruction }
+        : {}),
+    };
+  }
+  if (constraints.mode === "voice_design") {
+    return {
+      mode: "voice_design",
+      voiceDesignPrompt: preferences.voiceDesignPrompt.trim(),
+      ...(constraints.fields.optimizeTextPreview !== "unsupported"
+        ? { optimizeTextPreview: preferences.optimizeTextPreview }
+        : {}),
+    };
+  }
+  return {
+    mode: "voice_clone",
+    voiceSampleToken: voiceSample?.fileToken ?? "",
+    ...(constraints.fields.styleInstruction !== "unsupported" &&
+        styleInstruction
+      ? { styleInstruction }
+      : {}),
+  };
+}
+
+function resolveResponseFormat(
+  current: AudioSpeechResponseFormat,
+  constraints: AudioSpeechRouteConstraints,
+  stream: boolean,
+): AudioSpeechResponseFormat {
+  if (stream && constraints.streamResponseFormat) {
+    return constraints.streamResponseFormat;
+  }
+  if (constraints.finalResponseFormat) {
+    return constraints.finalResponseFormat;
+  }
+  return constraints.responseFormats.includes(current)
+    ? current
+    : constraints.responseFormats[0] ?? "mp3";
+}
+
+function sanitizeModeInputDrafts(
+  value: unknown,
+): Partial<Record<SpeechSynthesisMode, string>> {
+  const drafts: Partial<Record<SpeechSynthesisMode, string>> = {};
+  if (!isRecord(value)) return drafts;
+  for (const mode of SPEECH_SYNTHESIS_MODES) {
+    if (typeof value[mode] === "string") drafts[mode] = value[mode];
+  }
+  return drafts;
 }
 
 function normalizeVoiceSampleMimeType(
