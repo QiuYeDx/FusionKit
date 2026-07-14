@@ -256,6 +256,7 @@ describe("audio renderer services", () => {
     resetAudioTranscriptionCancellationQueueForTests();
     resetAudioRealtimeCleanupQueuesForTests();
     vi.useRealTimers();
+    vi.unstubAllGlobals();
   });
 
   it("syncs global audio config before transcription without putting API config in task payload", async () => {
@@ -1174,6 +1175,23 @@ describe("audio renderer services", () => {
       },
     ]);
     expect(mapOpenAIRealtimeServerEvent({
+      type: "response.output_audio.done",
+      response_id: "resp_001",
+    })).toEqual([{
+      type: "audio_stopped",
+      role: "assistant",
+      source: "response",
+      responseId: "resp_001",
+    }]);
+    expect(mapOpenAIRealtimeServerEvent({
+      type: "output_audio_buffer.cleared",
+    })).toEqual([{
+      type: "audio_stopped",
+      role: "assistant",
+      source: "output_buffer",
+      cleared: true,
+    }]);
+    expect(mapOpenAIRealtimeServerEvent({
       type: "error",
       error: { message: "session failed" },
     })).toEqual([
@@ -1357,6 +1375,248 @@ describe("audio renderer services", () => {
     await vi.waitFor(() => expect(trackStop).toHaveBeenCalledTimes(1));
   });
 
+  it("releases media when a granted mic-state consumer throws", async () => {
+    const harness = createRealtimeWebRtcHarness();
+
+    const result = await startOpenAIRealtimeWebRtcSession(
+      { assignmentKey: "realtimeVoice", mode: "duplex_voice" },
+      {
+        getUserMedia: async () => harness.localStream,
+        peerConnectionFactory: () => harness.peerConnection,
+        fetchSdp: harness.fetchSdp,
+        handlers: {
+          micState: (event) => {
+            if (event.state === "granted") {
+              throw new Error("consumer failed after media grant");
+            }
+          },
+        },
+      },
+    );
+
+    expect(result).toMatchObject({
+      ok: false,
+      error: {
+        code: "realtime_session_failed",
+        message: "consumer failed after media grant",
+      },
+    });
+    expect(harness.trackStop).toHaveBeenCalledTimes(1);
+    expect(harness.startupSpies.createOffer).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    "createOffer",
+    "setLocalDescription",
+    "fetchSdp",
+    "responseText",
+    "setRemoteDescription",
+  ] as const)("aborts and cleans up while %s remains pending", async (pendingStep) => {
+    const harness = createRealtimeWebRtcHarness(pendingStep);
+    const controller = new AbortController();
+    const startPromise = startOpenAIRealtimeWebRtcSession(
+      { assignmentKey: "realtimeVoice", mode: "duplex_voice" },
+      {
+        signal: controller.signal,
+        getUserMedia: async () => harness.localStream,
+        peerConnectionFactory: () => harness.peerConnection,
+        fetchSdp: harness.fetchSdp,
+      },
+    );
+
+    await vi.waitFor(() => {
+      expect(harness.startupSpies[pendingStep]).toHaveBeenCalledTimes(1);
+    });
+    controller.abort();
+
+    await expect(startPromise).resolves.toMatchObject({
+      ok: false,
+      error: { code: "aborted" },
+    });
+    expect(harness.trackStop).toHaveBeenCalledTimes(1);
+    expect(harness.dataChannelClose).toHaveBeenCalledTimes(1);
+    expect(harness.peerConnectionClose).toHaveBeenCalledTimes(1);
+  });
+
+  it("times out and cleans up a startup step that never settles", async () => {
+    vi.useFakeTimers();
+    const harness = createRealtimeWebRtcHarness("createOffer");
+    const startPromise = startOpenAIRealtimeWebRtcSession(
+      { assignmentKey: "realtimeVoice", mode: "duplex_voice" },
+      {
+        getUserMedia: async () => harness.localStream,
+        peerConnectionFactory: () => harness.peerConnection,
+        fetchSdp: harness.fetchSdp,
+        startupStepTimeoutMs: 100,
+      },
+    );
+
+    await vi.advanceTimersByTimeAsync(0);
+    expect(harness.startupSpies.createOffer).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(100);
+
+    await expect(startPromise).resolves.toMatchObject({
+      ok: false,
+      error: {
+        code: "realtime_session_failed",
+        message: "Creating the OpenAI Realtime SDP offer timed out.",
+      },
+    });
+    expect(harness.trackStop).toHaveBeenCalledTimes(1);
+    expect(harness.dataChannelClose).toHaveBeenCalledTimes(1);
+    expect(harness.peerConnectionClose).toHaveBeenCalledTimes(1);
+  });
+
+  it("binds a streamless remote track and detaches only after stopping", async () => {
+    class TestMediaStream {
+      constructor(readonly tracks: MediaStreamTrack[]) {}
+
+      getTracks() {
+        return this.tracks;
+      }
+    }
+    vi.stubGlobal("MediaStream", TestMediaStream);
+    const harness = createRealtimeWebRtcHarness();
+    const remoteAudioElement = {
+      srcObject: null,
+      play: vi.fn(async () => undefined),
+    } as unknown as HTMLAudioElement;
+    const result = await startOpenAIRealtimeWebRtcSession(
+      { assignmentKey: "realtimeVoice", mode: "duplex_voice" },
+      {
+        getUserMedia: async () => harness.localStream,
+        peerConnectionFactory: () => harness.peerConnection,
+        fetchSdp: harness.fetchSdp,
+        remoteAudioElement,
+      },
+    );
+    expect(result.ok).toBe(true);
+    const remoteTrack = { kind: "audio" } as MediaStreamTrack;
+
+    harness.emitPeerEvent("track", {
+      track: remoteTrack,
+      streams: [],
+    });
+
+    expect(remoteAudioElement.srcObject).toBeInstanceOf(TestMediaStream);
+    expect((remoteAudioElement.srcObject as unknown as TestMediaStream).tracks)
+      .toEqual([remoteTrack]);
+    expect(remoteAudioElement.play).toHaveBeenCalledTimes(1);
+
+    if (result.ok) await result.data.stop("user");
+    expect(remoteAudioElement.srcObject).toBeNull();
+
+    harness.emitPeerEvent("track", {
+      track: { kind: "audio" } as MediaStreamTrack,
+      streams: [],
+    });
+    expect(remoteAudioElement.srcObject).toBeNull();
+    expect(remoteAudioElement.play).toHaveBeenCalledTimes(1);
+  });
+
+  it("ignores tracks after abort and does not detach a replacement audio stream", async () => {
+    const harness = createRealtimeWebRtcHarness();
+    const controller = new AbortController();
+    const remoteAudioElement = {
+      srcObject: null,
+      play: vi.fn(async () => undefined),
+    } as unknown as HTMLAudioElement;
+    const result = await startOpenAIRealtimeWebRtcSession(
+      { assignmentKey: "realtimeVoice", mode: "duplex_voice" },
+      {
+        signal: controller.signal,
+        getUserMedia: async () => harness.localStream,
+        peerConnectionFactory: () => harness.peerConnection,
+        fetchSdp: harness.fetchSdp,
+        remoteAudioElement,
+      },
+    );
+    expect(result.ok).toBe(true);
+    const ownedStream = { id: "owned" } as unknown as MediaStream;
+    harness.emitPeerEvent("track", {
+      track: { kind: "audio" } as MediaStreamTrack,
+      streams: [ownedStream],
+    });
+    expect(remoteAudioElement.srcObject).toBe(ownedStream);
+
+    const replacementStream = { id: "replacement" } as unknown as MediaStream;
+    remoteAudioElement.srcObject = replacementStream;
+    controller.abort();
+    harness.emitPeerEvent("track", {
+      track: { kind: "audio" } as MediaStreamTrack,
+      streams: [{ id: "late" } as unknown as MediaStream],
+    });
+    if (result.ok) await result.data.stop("page_unload");
+
+    expect(remoteAudioElement.srcObject).toBe(replacementStream);
+    expect(remoteAudioElement.play).toHaveBeenCalledTimes(1);
+  });
+
+  it("fails and releases the session when remote audio playback rejects", async () => {
+    const harness = createRealtimeWebRtcHarness();
+    const error = vi.fn();
+    const remoteAudioElement = {
+      srcObject: null,
+      play: vi.fn(async () => {
+        throw new Error("autoplay blocked");
+      }),
+    } as unknown as HTMLAudioElement;
+    const result = await startOpenAIRealtimeWebRtcSession(
+      { assignmentKey: "realtimeVoice", mode: "duplex_voice" },
+      {
+        getUserMedia: async () => harness.localStream,
+        peerConnectionFactory: () => harness.peerConnection,
+        fetchSdp: harness.fetchSdp,
+        remoteAudioElement,
+        handlers: { error },
+      },
+    );
+    expect(result.ok).toBe(true);
+
+    harness.emitPeerEvent("track", {
+      track: { kind: "audio" } as MediaStreamTrack,
+      streams: [{ id: "remote" } as unknown as MediaStream],
+    });
+
+    await vi.waitFor(() => {
+      expect(result.ok && result.data.closed).toBe(true);
+    });
+    expect(error).toHaveBeenCalledWith(expect.objectContaining({
+      fatal: true,
+      error: expect.objectContaining({
+        message: "OpenAI Realtime remote audio playback failed.",
+      }),
+    }));
+    expect(remoteAudioElement.srcObject).toBeNull();
+  });
+
+  it("fails safely when the local microphone track ends", async () => {
+    const harness = createRealtimeWebRtcHarness();
+    const error = vi.fn();
+    const result = await startOpenAIRealtimeWebRtcSession(
+      { assignmentKey: "realtimeVoice", mode: "duplex_voice" },
+      {
+        getUserMedia: async () => harness.localStream,
+        peerConnectionFactory: () => harness.peerConnection,
+        fetchSdp: harness.fetchSdp,
+        handlers: { error },
+      },
+    );
+    expect(result.ok).toBe(true);
+
+    harness.emitLocalTrackEnded();
+
+    await vi.waitFor(() => {
+      expect(result.ok && result.data.closed).toBe(true);
+    });
+    expect(error).toHaveBeenCalledWith(expect.objectContaining({
+      fatal: true,
+      error: expect.objectContaining({
+        message: "OpenAI Realtime microphone track ended unexpectedly.",
+      }),
+    }));
+  });
+
   it("cleans up media and the pending session when WebRTC construction throws", async () => {
     const trackStop = vi.fn();
     const peerConnectionClose = vi.fn();
@@ -1390,7 +1650,7 @@ describe("audio renderer services", () => {
       AUDIO_IPC_CHANNELS.realtimeStopSession,
       expect.objectContaining({
         sessionId: "sess_renderer_realtime",
-        reason: "page_unload",
+        reason: "error",
       }),
       { configRevision: "runtime_revision_test" },
     );
@@ -1480,6 +1740,93 @@ function createRecordedAudioChunkRequest(requestId = "chunk_req_001") {
     responseFormat: "text" as const,
     startedAtMs: 0,
     endedAtMs: 5000,
+  };
+}
+
+type RealtimeStartupStep =
+  | "createOffer"
+  | "setLocalDescription"
+  | "fetchSdp"
+  | "responseText"
+  | "setRemoteDescription";
+
+function createRealtimeWebRtcHarness(pendingStep?: RealtimeStartupStep) {
+  const peerListeners = new Map<string, EventListener>();
+  const localTrackListeners = new Map<string, EventListener>();
+  const never = new Promise<never>(() => undefined);
+  const trackStop = vi.fn();
+  const localTrack = {
+    kind: "audio",
+    enabled: true,
+    stop: trackStop,
+    addEventListener: vi.fn((type: string, listener: EventListener) => {
+      localTrackListeners.set(type, listener);
+    }),
+  } as unknown as MediaStreamTrack;
+  const localStream = {
+    getAudioTracks: () => [localTrack],
+    getTracks: () => [localTrack],
+  } as MediaStream;
+  const dataChannelClose = vi.fn();
+  const dataChannel = {
+    addEventListener: vi.fn(),
+    close: dataChannelClose,
+    send: vi.fn(),
+  } as unknown as RTCDataChannel;
+  const createOffer = vi.fn(() => pendingStep === "createOffer"
+    ? never
+    : Promise.resolve({ type: "offer" as const, sdp: "offer-sdp" }));
+  const setLocalDescription = vi.fn(() => pendingStep === "setLocalDescription"
+    ? never
+    : Promise.resolve());
+  const responseText = vi.fn(() => pendingStep === "responseText"
+    ? never
+    : Promise.resolve("answer-sdp"));
+  const setRemoteDescription = vi.fn(() => pendingStep === "setRemoteDescription"
+    ? never
+    : Promise.resolve());
+  const peerConnectionClose = vi.fn();
+  const peerConnection = {
+    connectionState: "connected",
+    iceConnectionState: "connected",
+    createDataChannel: vi.fn(() => dataChannel),
+    addEventListener: vi.fn((type: string, listener: EventListener) => {
+      peerListeners.set(type, listener);
+    }),
+    addTrack: vi.fn(),
+    createOffer,
+    setLocalDescription,
+    setRemoteDescription,
+    close: peerConnectionClose,
+  } as unknown as RTCPeerConnection;
+  const fetchSdp = vi.fn(() => pendingStep === "fetchSdp"
+    ? never
+    : Promise.resolve({
+        ok: true,
+        status: 200,
+        text: responseText,
+      }));
+
+  return {
+    localStream,
+    peerConnection,
+    fetchSdp,
+    trackStop,
+    dataChannelClose,
+    peerConnectionClose,
+    startupSpies: {
+      createOffer,
+      setLocalDescription,
+      fetchSdp,
+      responseText,
+      setRemoteDescription,
+    },
+    emitPeerEvent: (type: string, event: unknown) => {
+      peerListeners.get(type)?.(event as Event);
+    },
+    emitLocalTrackEnded: () => {
+      localTrackListeners.get("ended")?.(new Event("ended"));
+    },
   };
 }
 

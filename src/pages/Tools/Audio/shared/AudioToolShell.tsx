@@ -78,7 +78,9 @@ export function AudioToolShell({
       ? "transcriber"
       : toolKey === "realtimeCaptions"
         ? "captions"
-        : undefined;
+        : toolKey === "realtimeVoice"
+          ? "voice"
+          : undefined;
   const statusTone = resolveStatusTone(configSummary.status);
   const modelValue = configSummary.modelKey ?? "-";
   const dialectValue = configSummary.audioDialect

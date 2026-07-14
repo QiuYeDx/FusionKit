@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   MIMO_TTS_MODEL_BY_MODE,
+  OPENAI_REALTIME_VOICE_PRESETS,
   canAudioApiHandleTask,
   createDefaultAudioApiRoutes,
   getAudioProviderDefinition,
@@ -116,10 +117,14 @@ describe("audio provider registry", () => {
       model: "mimo-v2.5-asr",
     })!.constraints;
     const realtime = getRealtimeRouteConstraints("openai", "realtimeCaptions")!;
+    const realtimeVoice = getRealtimeRouteConstraints("openai", "realtimeVoice")!;
 
     (transcription.responseFormats as string[])[0] = "text";
     (transcription.languages as string[])[0] = "fr";
     realtime.supportsLanguage = false;
+    (realtimeVoice.inputAudioFormats as string[])[0] = "changed";
+    (realtimeVoice.outputAudioFormats as string[])[0] = "changed";
+    (realtimeVoice.voices as string[])[0] = "changed";
 
     expect(resolveTranscriptionRouteDefinition({
       providerPreset: "mimo",
@@ -138,6 +143,14 @@ describe("audio provider registry", () => {
       supportsInstructions: false,
       supportsLanguage: true,
       supportsVoice: false,
+    });
+    expect(
+      getRealtimeRouteConstraints("openai", "realtimeVoice"),
+    ).toMatchObject({
+      mode: "duplex_voice",
+      inputAudioFormats: ["pcm16", "pcmu", "pcma"],
+      outputAudioFormats: ["pcm16", "pcmu", "pcma"],
+      voices: OPENAI_REALTIME_VOICE_PRESETS,
     });
   });
 
@@ -183,6 +196,32 @@ describe("audio provider registry", () => {
       transport: "openai_realtime",
       model: "gpt-realtime-whisper",
     })).toBeUndefined();
+    expect(resolveRealtimeRouteDefinition({
+      providerPreset: "openai",
+      assignmentKey: "realtimeVoice",
+      transport: "openai_realtime",
+      model: "gpt-realtime",
+    })).toMatchObject({
+      constraints: {
+        mode: "duplex_voice",
+        inputAudioFormats: ["pcm16", "pcmu", "pcma"],
+        outputAudioFormats: ["pcm16", "pcmu", "pcma"],
+        voices: OPENAI_REALTIME_VOICE_PRESETS,
+      },
+    });
+    expect(resolveRealtimeRouteDefinition({
+      providerPreset: "custom_openai_compatible",
+      assignmentKey: "realtimeVoice",
+      transport: "openai_realtime",
+      model: "vendor-live-voice",
+    })).toMatchObject({
+      constraints: {
+        mode: "duplex_voice",
+        inputAudioFormats: ["pcm16", "pcmu", "pcma"],
+        outputAudioFormats: ["pcm16", "pcmu", "pcma"],
+        voices: OPENAI_REALTIME_VOICE_PRESETS,
+      },
+    });
   });
 
   it("resolves transcription constraints from preset, transport, and model", () => {

@@ -11,6 +11,8 @@
 - `response.done` 解析 completed/cancelled/failed/incomplete；API operation error 为 non-fatal，transport error 为 fatal。
 - Realtime 格式改为 PCM16/PCMU/PCMA；首版禁用 incomplete manual push-to-talk。
 - partial 按 item identity reconcile；Voice interrupt 依次发送 `response.cancel` 与 `output_audio_buffer.clear`。
+- `response.done/cancelled` 只确认生成结束，不确认播放停止；Voice interrupt 只有收到
+  `output_audio_buffer.stopped/cleared` 后才确认打断完成。
 
 ## 官方基线
 

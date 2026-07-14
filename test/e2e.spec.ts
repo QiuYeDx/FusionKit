@@ -18,6 +18,7 @@ import {
 import {
   createMimoSpeechBody,
   createMimoStreamingSpeechEvents,
+  createOpenAIRealtimeClientSecretBody,
   createOpenAITranscriptionBody,
   createOpenAISpeechBuffer,
   startFakeAudioApiServer,
@@ -93,7 +94,9 @@ if (shouldSkipElectronE2E) {
     await mainWin.evaluate(async (win) => {
       win.webContents.executeJavaScript('console.log("Execute JavaScript with e2e testing.")')
     })
-    page.on('pageerror', (error) => rendererErrors.push(error.message))
+    page.on('pageerror', (error) =>
+      rendererErrors.push(error.stack ?? error.message),
+    )
     page.on('console', (message) => {
       if (
         message.type() === 'error' &&
@@ -1031,6 +1034,321 @@ if (shouldSkipElectronE2E) {
       expect(rendererErrors).toEqual([])
     }, 180_000)
 
+    test('route-aware realtime voice uses standalone config and accessible controls', async () => {
+      const server = fakeAudioApiServer
+      if (!server) {
+        throw new Error('FE-R03 realtime voice fixtures were not initialized')
+      }
+
+      await setWindowSize(mainWin, page, { width: 1280, height: 800 })
+      await seedRealtimeVoiceAudioSettings(page, 'none', server.baseUrl)
+      expect(await page.getByTestId('voice-config-cta').isVisible()).toBe(true)
+      expect(await page.getByTestId('voice-config').count()).toBe(0)
+      expect(await page.getByTestId('voice-connect').count()).toBe(0)
+      expect(await hasHorizontalOverflow(page)).toBe(false)
+      await page.getByTestId('voice-config-cta').click()
+      await page.waitForFunction(() =>
+        window.location.hash ===
+          '#/setting?tab=audio&returnTo=%2Ftools%2Faudio%2Frealtime-voice',
+      )
+
+      await seedRealtimeVoiceAudioSettings(page, 'openai', server.baseUrl)
+      expect(
+        await page.getByTestId('voice-config-summary').textContent(),
+      ).toContain('FE-R03 OpenAI voice audio')
+      expect(await page.getByTestId('voice-config').isVisible()).toBe(true)
+      expect(await page.getByTestId('voice-select').isVisible()).toBe(true)
+      expect(await page.getByTestId('voice-field-instructions').isVisible()).toBe(true)
+      expect(await page.locator('#realtime-voice-turn-detection').count()).toBe(0)
+      expect(await page.getByText('Manual', { exact: true }).count()).toBe(0)
+      expect(await page.getByTestId('voice-connect').isEnabled()).toBe(true)
+
+      await page.getByTestId('voice-select').click()
+      expect(
+        (await page.getByRole('option').allTextContents()).map((value) =>
+          value.trim(),
+        ),
+      ).toEqual([
+        'alloy',
+        'ash',
+        'ballad',
+        'coral',
+        'echo',
+        'marin',
+        'sage',
+        'verse',
+      ])
+      await page.getByRole('option', { name: 'ash', exact: true }).click()
+
+      const inputPcm16 = page.getByTestId('voice-input-format-pcm16')
+      const inputPcmu = page.getByTestId('voice-input-format-pcmu')
+      const inputPcma = page.getByTestId('voice-input-format-pcma')
+      await inputPcm16.click()
+      await inputPcm16.focus()
+      expect(
+        await Promise.all([
+          inputPcm16.getAttribute('tabindex'),
+          inputPcmu.getAttribute('tabindex'),
+          inputPcma.getAttribute('tabindex'),
+        ]),
+      ).toEqual(['0', '-1', '-1'])
+      await page.keyboard.press('ArrowRight')
+      expect(await inputPcmu.getAttribute('data-state')).toBe('checked')
+      expect(
+        await inputPcmu.evaluate((element) => document.activeElement === element),
+      ).toBe(true)
+      await page.keyboard.press('End')
+      expect(await inputPcma.getAttribute('data-state')).toBe('checked')
+      await page.keyboard.press('Home')
+      expect(await inputPcm16.getAttribute('data-state')).toBe('checked')
+
+      const outputPcmu = page.getByTestId('voice-output-format-pcmu')
+      await outputPcmu.click()
+      expect(await outputPcmu.getAttribute('data-state')).toBe('checked')
+
+      await expect.poll(async () => {
+        return await page.evaluate(() => {
+          const raw = localStorage.getItem('fusionkit-realtime-voice')
+          if (!raw) return []
+          try {
+            const envelope = JSON.parse(raw) as {
+              version?: unknown
+              state?: Record<string, unknown>
+            }
+            return [envelope.version, ...Object.keys(envelope.state ?? {}).sort()]
+          } catch {
+            return ['invalid-json']
+          }
+        })
+      }).toEqual([4, 'preferences'])
+      expect(await page.locator('body').innerText()).not.toContain('must-not-hydrate')
+
+      await scrollTestTargetIntoView(page, 'realtime-voice', 'start')
+      const wideLayout = await readVoiceLayout(page)
+      expect(wideLayout.hasHorizontalOverflow).toBe(false)
+      expect(wideLayout.asideRight).toBeLessThanOrEqual(wideLayout.mainLeft + 1)
+      await page.screenshot({
+        path: path.join(testResultsDir, 'fe-r03-voice-1280x800.png'),
+        animations: 'disabled',
+      })
+
+      await setWindowSize(mainWin, page, { width: 786, height: 540 })
+      await scrollTestTargetIntoView(page, 'voice-input-audio-format', 'center')
+      const narrowLayout = await readVoiceLayout(page)
+      expect(narrowLayout.hasHorizontalOverflow).toBe(false)
+      expect(narrowLayout.mainTop).toBeGreaterThanOrEqual(
+        narrowLayout.asideBottom - 1,
+      )
+      expect(await voiceFormatItemsFit(page)).toBe(true)
+      await page.screenshot({
+        path: path.join(testResultsDir, 'fe-r03-voice-786x540.png'),
+        animations: 'disabled',
+      })
+      await scrollTestTargetIntoView(page, 'voice-workspace', 'start')
+      await page.screenshot({
+        path: path.join(testResultsDir, 'fe-r03-voice-workspace-786x540.png'),
+        animations: 'disabled',
+      })
+
+      await page.evaluate(() => {
+        const testWindow = window as typeof window & {
+          __voiceGetUserMediaCount?: number
+        }
+        testWindow.__voiceGetUserMediaCount = 0
+        Object.defineProperty(navigator, 'mediaDevices', {
+          configurable: true,
+          value: {
+            getUserMedia: () => {
+              testWindow.__voiceGetUserMediaCount =
+                (testWindow.__voiceGetUserMediaCount ?? 0) + 1
+              return new Promise<MediaStream>(() => undefined)
+            },
+          },
+        })
+      })
+      const requestCountBeforeConnect = server.requests.length
+      server.enqueueRoute('openai_realtime_client_secrets', {
+        body: createOpenAIRealtimeClientSecretBody({
+          sessionId: 'sess_fe_r03_voice',
+          model: 'gpt-realtime',
+          expiresAt: 2_000_000_000,
+        }),
+      })
+      await page.getByTestId('voice-connect').evaluate((element) => {
+        const button = element as HTMLButtonElement
+        button.click()
+        button.click()
+      })
+      await waitForFakeAudioRequestCount(server, requestCountBeforeConnect + 1)
+      await expect.poll(async () =>
+        await page.evaluate(() => (
+          window as typeof window & { __voiceGetUserMediaCount?: number }
+        ).__voiceGetUserMediaCount ?? 0),
+      ).toBe(1)
+      expect(server.requests).toHaveLength(requestCountBeforeConnect + 1)
+      await page.getByTestId('voice-disconnect').click()
+      await expect.poll(async () =>
+        await page.getByTestId('voice-connect').isEnabled(),
+      ).toBe(true)
+      expect(server.requests).toHaveLength(requestCountBeforeConnect + 1)
+
+      await installRealtimeVoiceBrowserHarness(page)
+      const requestCountBeforeFullSession = server.requests.length
+      server.enqueueRoute('openai_realtime_client_secrets', {
+        body: createOpenAIRealtimeClientSecretBody({
+          sessionId: 'sess_fe_r03_voice_full',
+          model: 'gpt-realtime',
+          expiresAt: 2_000_000_000,
+        }),
+      })
+      await page.getByTestId('voice-connect').evaluate((element) => {
+        const button = element as HTMLButtonElement
+        button.click()
+        button.click()
+      })
+      await waitForFakeAudioRequestCount(
+        server,
+        requestCountBeforeFullSession + 1,
+      )
+      await expect.poll(async () =>
+        await page.getByTestId('voice-disconnect').isEnabled(),
+      ).toBe(true)
+      expect(await readRealtimeVoiceHarness(page)).toMatchObject({
+        getUserMediaCount: 1,
+        peerConnectionCount: 1,
+        trackStopCount: 0,
+      })
+
+      await emitRealtimeVoiceServerEvent(page, {
+        type: 'response.created',
+        response: { id: 'resp_a' },
+      })
+      await emitRealtimeVoiceServerEvent(page, {
+        type: 'output_audio_buffer.started',
+      })
+      await emitRealtimeVoiceServerEvent(page, {
+        type: 'response.created',
+        response: { id: 'resp_b' },
+      })
+      await emitRealtimeVoiceServerEvent(page, {
+        type: 'response.done',
+        response: { id: 'resp_a', status: 'completed' },
+      })
+      expect(await page.getByTestId('voice-interrupt').isEnabled()).toBe(true)
+
+      await emitRealtimeVoiceServerEvent(page, {
+        type: 'response.output_audio_transcript.done',
+        item_id: 'item_b',
+        response_id: 'resp_b',
+        transcript: 'Buffered response',
+      })
+      await page.getByText('Buffered response', { exact: true }).waitFor()
+      await page.getByTestId('voice-clear').click()
+      expect(await page.getByText('Buffered response', { exact: true }).count())
+        .toBe(0)
+      expect(await page.getByTestId('voice-interrupt').isEnabled()).toBe(true)
+
+      await emitRealtimeVoiceServerEvent(page, {
+        type: 'response.done',
+        response: { id: 'resp_b', status: 'completed' },
+      })
+      expect(await page.getByTestId('voice-interrupt').isEnabled()).toBe(true)
+      await page.getByTestId('voice-interrupt').click()
+      await expect.poll(async () =>
+        (await readRealtimeVoiceHarness(page)).sentEvents,
+      ).toEqual([{ type: 'output_audio_buffer.clear' }])
+
+      await emitRealtimeVoiceServerEvent(page, {
+        type: 'response.output_audio.done',
+        response_id: 'resp_b',
+      })
+      expect(await page.getByTestId('voice-interrupt').isEnabled()).toBe(true)
+      expect(
+        await page
+          .locator('[data-sonner-toast]')
+          .filter({ hasText: 'Interrupt command sent' })
+          .count(),
+      ).toBe(0)
+      await emitRealtimeVoiceServerEvent(page, {
+        type: 'output_audio_buffer.cleared',
+      })
+      await expect.poll(async () =>
+        await page.getByTestId('voice-interrupt').isEnabled(),
+      ).toBe(false)
+      await page
+        .locator('[data-sonner-toast]')
+        .filter({ hasText: 'Interrupt command sent' })
+        .waitFor({ state: 'visible' })
+
+      await emitRealtimeVoiceServerEvent(page, {
+        type: 'response.created',
+        response: { id: 'resp_c' },
+      })
+      await emitRealtimeVoiceServerEvent(page, {
+        type: 'output_audio_buffer.started',
+      })
+      await page.getByTestId('voice-interrupt').click()
+      await expect.poll(async () =>
+        (await readRealtimeVoiceHarness(page)).sentEvents.slice(-2),
+      ).toEqual([
+        { type: 'response.cancel', response_id: 'resp_c' },
+        { type: 'output_audio_buffer.clear' },
+      ])
+      await emitRealtimeVoiceServerEvent(page, {
+        type: 'response.done',
+        response: { id: 'resp_c', status: 'cancelled' },
+      })
+      expect(await page.getByTestId('voice-interrupt').isEnabled()).toBe(true)
+      await emitRealtimeVoiceServerEvent(page, {
+        type: 'output_audio_buffer.cleared',
+      })
+      await expect.poll(async () =>
+        await page.getByTestId('voice-interrupt').isEnabled(),
+      ).toBe(false)
+
+      await page.getByTestId('voice-disconnect').evaluate((element) => {
+        const button = element as HTMLButtonElement
+        button.click()
+        button.click()
+      })
+      await expect.poll(async () =>
+        await page.getByTestId('voice-connect').isEnabled(),
+      ).toBe(true)
+      expect(await readRealtimeVoiceHarness(page)).toMatchObject({
+        dataChannelCloseCount: 1,
+        peerConnectionCloseCount: 1,
+        trackStopCount: 1,
+      })
+
+      server.enqueueRoute('openai_realtime_client_secrets', {
+        body: createOpenAIRealtimeClientSecretBody({
+          sessionId: 'sess_fe_r03_voice_unmount',
+          model: 'gpt-realtime',
+          expiresAt: 2_000_000_000,
+        }),
+      })
+      await page.getByTestId('voice-connect').click()
+      await expect.poll(async () =>
+        (await readRealtimeVoiceHarness(page)).peerConnectionCount,
+      ).toBe(2)
+      await page.evaluate(() => {
+        window.location.hash = '#/tools/audio/realtime-captions'
+      })
+      await page.getByTestId('realtime-captions').waitFor({ state: 'visible' })
+      await expect.poll(async () =>
+        await readRealtimeVoiceHarness(page),
+      ).toMatchObject({
+        dataChannelCloseCount: 2,
+        peerConnectionCloseCount: 2,
+        trackStopCount: 2,
+      })
+
+      expect(await page.locator('body').innerText()).not.toMatch(
+        /\baudio:[a-z0-9_.-]+/i,
+      )
+      expect(rendererErrors).toEqual([])
+    }, 180_000)
+
     test('audio pages render across languages and window sizes without white-screen regressions', async () => {
       const routes = [
         '/tools/audio/transcriber',
@@ -1104,14 +1422,17 @@ if (shouldSkipElectronE2E) {
   })
 }
 
-async function waitForFusionKitLoadingToExit(targetPage: Page): Promise<void> {
+async function waitForFusionKitLoadingToExit(
+  targetPage: Page,
+  timeout = 30_000,
+): Promise<void> {
   await targetPage.waitForFunction(() =>
     Boolean(document.querySelector('#root')?.firstElementChild),
-  )
+  undefined, { timeout })
   await targetPage.waitForFunction(() => {
     return !document.querySelector('.app-loading-wrap') &&
       !document.querySelector('#app-loading-style')
-  })
+  }, undefined, { timeout })
 }
 
 async function setWindowSize(
@@ -1454,6 +1775,142 @@ async function seedRealtimeCaptionsAudioSettings(
   await targetPage.getByTestId('realtime-captions').waitFor({ state: 'visible' })
   await targetPage
     .getByTestId(seed === 'none' ? 'captions-config-cta' : 'captions-workspace')
+      .waitFor({ state: 'visible' })
+}
+
+type RealtimeVoiceAudioSeed = 'none' | 'openai'
+
+async function seedRealtimeVoiceAudioSettings(
+  targetPage: Page,
+  seed: RealtimeVoiceAudioSeed,
+  baseUrl: string,
+): Promise<void> {
+  await targetPage.evaluate(({ nextSeed, nextBaseUrl }) => {
+    localStorage.clear()
+    localStorage.setItem('lang', 'en')
+    localStorage.setItem(
+      'fusionkit-model',
+      JSON.stringify({
+        version: 5,
+        state: {
+          profiles: [
+            {
+              id: 'legacy_voice_connection',
+              name: 'Legacy voice connection must be ignored',
+              provider: 'OpenAI',
+              apiKey: 'legacy-key',
+              baseUrl: nextBaseUrl,
+              modelKey: 'gpt-realtime',
+              apiFormat: 'responses',
+              outputTokenParameter: 'max_output_tokens',
+              tokenPricing: {
+                inputTokensPerMillion: 1,
+                outputTokensPerMillion: 1,
+              },
+            },
+          ],
+          assignment: {},
+          audioProfiles: [
+            {
+              id: 'legacy_voice_profile',
+              name: 'Legacy voice profile must be ignored',
+              connectionProfileId: 'legacy_voice_connection',
+              audioDialect: 'openai_realtime',
+              capabilities: ['realtime_duplex_voice'],
+              models: { realtimeVoice: 'gpt-realtime' },
+              defaults: {},
+            },
+          ],
+          audioAssignment: {
+            transcription: null,
+            speechSynthesis: null,
+            realtimeCaptions: null,
+            realtimeVoice: 'legacy_voice_profile',
+          },
+        },
+      }),
+    )
+    localStorage.setItem(
+      'fusionkit-realtime-voice',
+      JSON.stringify({
+        version: 4,
+        state: {
+          preferences: {
+            voice: 'marin',
+            instructions: 'Answer briefly.',
+            turnDetection: 'manual',
+            inputAudioFormat: 'pcma',
+            outputAudioFormat: 'pcmu',
+          },
+          status: 'connected',
+          micState: 'granted',
+          sessionId: 'must-not-hydrate',
+          startedAtMs: 1,
+          activeResponseId: 'must-not-hydrate',
+          assistantSpeaking: true,
+          lines: [{ id: 'must-not-hydrate' }],
+        },
+      }),
+    )
+    const profileId = nextSeed === 'openai' ? 'fe_r03_voice_openai' : null
+    localStorage.setItem(
+      'fusionkit-audio-settings',
+      JSON.stringify({
+        version: 1,
+        state: {
+          profiles: profileId
+            ? [
+                {
+                  id: profileId,
+                  name: 'FE-R03 OpenAI voice audio',
+                  providerPreset: 'openai',
+                  baseUrl: nextBaseUrl,
+                  apiKey: 'fe-r03-voice-e2e-key',
+                  routes: {
+                    speechSynthesis: {},
+                    realtimeVoice: {
+                      transport: 'openai_realtime',
+                      model: 'gpt-realtime',
+                      enabled: true,
+                    },
+                  },
+                },
+              ]
+            : [],
+          assignment: {
+            transcription: null,
+            speechSynthesis: null,
+            realtimeCaptions: null,
+            realtimeVoice: profileId,
+          },
+          migration: {
+            legacyModelStore: { status: 'completed', sourceVersion: 5 },
+          },
+        },
+      }),
+    )
+    window.location.hash = '#/tools/audio/realtime-voice'
+  }, { nextSeed: seed, nextBaseUrl: baseUrl })
+  await targetPage.reload({ waitUntil: 'domcontentloaded' })
+  try {
+    await waitForFusionKitLoadingToExit(targetPage)
+  } catch (error) {
+    const diagnostics = await targetPage.evaluate(() => ({
+      hash: window.location.hash,
+      bodyText: document.body.innerText,
+      rootHtml: document.querySelector('#root')?.innerHTML ?? null,
+    })).catch(() => null)
+    throw new Error(
+      `Realtime voice page did not mount: ${JSON.stringify({
+        error: error instanceof Error ? error.message : String(error),
+        diagnostics,
+        rendererErrors,
+      })}`,
+    )
+  }
+  await targetPage.getByTestId('realtime-voice').waitFor({ state: 'visible' })
+  await targetPage
+    .getByTestId(seed === 'none' ? 'voice-config-cta' : 'voice-workspace')
     .waitFor({ state: 'visible' })
 }
 
@@ -1469,6 +1926,195 @@ async function waitForFakeAudioRequestCount(
   throw new Error(
     `Timed out waiting for ${expectedCount} fake audio API requests; received ${server.requests.length}.`,
   )
+}
+
+interface RealtimeVoiceBrowserHarnessSnapshot {
+  getUserMediaCount: number
+  peerConnectionCount: number
+  dataChannelCloseCount: number
+  peerConnectionCloseCount: number
+  trackStopCount: number
+  sentEvents: Array<Record<string, unknown>>
+}
+
+async function installRealtimeVoiceBrowserHarness(
+  targetPage: Page,
+): Promise<void> {
+  await targetPage.evaluate(() => {
+    interface HarnessState {
+      getUserMediaCount: number
+      peerConnectionCount: number
+      dataChannelCloseCount: number
+      peerConnectionCloseCount: number
+      trackStopCount: number
+      sentEvents: Array<Record<string, unknown>>
+    }
+    interface Harness {
+      state: HarnessState
+      emit: (event: Record<string, unknown>) => void
+    }
+    type TestWindow = typeof window & { __voiceHarness?: Harness }
+
+    const testWindow = window as TestWindow
+    const state: HarnessState = {
+      getUserMediaCount: 0,
+      peerConnectionCount: 0,
+      dataChannelCloseCount: 0,
+      peerConnectionCloseCount: 0,
+      trackStopCount: 0,
+      sentEvents: [],
+    }
+    const dataChannelListeners = new Map<string, Set<EventListener>>()
+    const addDataChannelListener = (type: string, listener: EventListener) => {
+      const listeners = dataChannelListeners.get(type) ?? new Set<EventListener>()
+      listeners.add(listener)
+      dataChannelListeners.set(type, listeners)
+    }
+
+    class FakeDataChannel {
+      private closed = false
+
+      addEventListener(type: string, listener: EventListener) {
+        addDataChannelListener(type, listener)
+      }
+
+      send(payload: string) {
+        state.sentEvents.push(JSON.parse(payload) as Record<string, unknown>)
+      }
+
+      close() {
+        if (this.closed) return
+        this.closed = true
+        state.dataChannelCloseCount += 1
+        for (const listener of dataChannelListeners.get('close') ?? []) {
+          listener(new Event('close'))
+        }
+      }
+    }
+
+    class FakePeerConnection {
+      connectionState: RTCPeerConnectionState = 'connected'
+      iceConnectionState: RTCIceConnectionState = 'connected'
+      private closed = false
+
+      constructor() {
+        state.peerConnectionCount += 1
+      }
+
+      createDataChannel() {
+        return new FakeDataChannel() as unknown as RTCDataChannel
+      }
+
+      addEventListener() {}
+
+      addTrack() {}
+
+      async createOffer(): Promise<RTCSessionDescriptionInit> {
+        return { type: 'offer', sdp: 'fake-offer-sdp' }
+      }
+
+      async setLocalDescription() {}
+
+      async setRemoteDescription() {}
+
+      close() {
+        if (this.closed) return
+        this.closed = true
+        this.connectionState = 'closed'
+        this.iceConnectionState = 'closed'
+        state.peerConnectionCloseCount += 1
+      }
+    }
+
+    const track = {
+      kind: 'audio',
+      enabled: true,
+      stop: () => {
+        state.trackStopCount += 1
+      },
+      addEventListener: () => undefined,
+    } as unknown as MediaStreamTrack
+    const stream = {
+      getTracks: () => [track],
+      getAudioTracks: () => [track],
+    } as MediaStream
+
+    Object.defineProperty(navigator, 'mediaDevices', {
+      configurable: true,
+      value: {
+        getUserMedia: async () => {
+          state.getUserMediaCount += 1
+          return stream
+        },
+      },
+    })
+    Object.defineProperty(window, 'RTCPeerConnection', {
+      configurable: true,
+      value: FakePeerConnection,
+    })
+    const originalFetch = window.fetch.bind(window)
+    window.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === 'string'
+        ? input
+        : input instanceof URL
+          ? input.href
+          : input.url
+      if (url.endsWith('/realtime/calls')) {
+        return new Response('fake-answer-sdp', {
+          status: 200,
+          headers: { 'Content-Type': 'application/sdp' },
+        })
+      }
+      return await originalFetch(input, init)
+    }) as typeof window.fetch
+
+    testWindow.__voiceHarness = {
+      state,
+      emit: (event) => {
+        const message = new MessageEvent('message', {
+          data: JSON.stringify(event),
+        })
+        for (const listener of dataChannelListeners.get('message') ?? []) {
+          listener(message)
+        }
+      },
+    }
+  })
+}
+
+async function emitRealtimeVoiceServerEvent(
+  targetPage: Page,
+  event: Record<string, unknown>,
+): Promise<void> {
+  await targetPage.evaluate((rawEvent) => {
+    const testWindow = window as typeof window & {
+      __voiceHarness?: {
+        emit: (event: Record<string, unknown>) => void
+      }
+    }
+    if (!testWindow.__voiceHarness) {
+      throw new Error('Realtime voice browser harness is not installed')
+    }
+    testWindow.__voiceHarness.emit(rawEvent)
+  }, event)
+}
+
+async function readRealtimeVoiceHarness(
+  targetPage: Page,
+): Promise<RealtimeVoiceBrowserHarnessSnapshot> {
+  return await targetPage.evaluate(() => {
+    const testWindow = window as typeof window & {
+      __voiceHarness?: {
+        state: RealtimeVoiceBrowserHarnessSnapshot
+      }
+    }
+    if (!testWindow.__voiceHarness) {
+      throw new Error('Realtime voice browser harness is not installed')
+    }
+    return JSON.parse(JSON.stringify(
+      testWindow.__voiceHarness.state,
+    )) as RealtimeVoiceBrowserHarnessSnapshot
+  })
 }
 
 async function waitForTranscriptionReady(
@@ -1588,6 +2234,27 @@ async function readCaptionsLayout(
   })
 }
 
+async function readVoiceLayout(
+  targetPage: Page,
+): Promise<SpeechLayoutSnapshot> {
+  return await targetPage.getByTestId('realtime-voice').evaluate((root) => {
+    const aside = root.querySelector('aside')
+    const main = root.querySelector('main')
+    if (!aside || !main) throw new Error('Voice layout columns are missing')
+    const asideRect = aside.getBoundingClientRect()
+    const mainRect = main.getBoundingClientRect()
+    return {
+      asideRight: asideRect.right,
+      asideBottom: asideRect.bottom,
+      mainLeft: mainRect.left,
+      mainTop: mainRect.top,
+      hasHorizontalOverflow:
+        document.documentElement.scrollWidth >
+        document.documentElement.clientWidth + 1,
+    }
+  })
+}
+
 async function captionsInputFormatItemsFit(targetPage: Page): Promise<boolean> {
   return await targetPage
     .getByTestId('captions-input-audio-format')
@@ -1608,6 +2275,33 @@ async function captionsInputFormatItemsFit(targetPage: Page): Promise<boolean> {
         })
       )
     })
+}
+
+async function voiceFormatItemsFit(targetPage: Page): Promise<boolean> {
+  const testIds = [
+    'voice-input-audio-format',
+    'voice-output-audio-format',
+  ]
+  const results = await Promise.all(testIds.map(async (testId) =>
+    await targetPage.getByTestId(testId).evaluate((group) => {
+      const groupRect = group.getBoundingClientRect()
+      const items = Array.from(group.querySelectorAll<HTMLElement>(
+        '[role="radio"]',
+      ))
+      return (
+        items.length === 3 &&
+        items.every((item) => {
+          const rect = item.getBoundingClientRect()
+          return (
+            rect.left >= groupRect.left - 1 &&
+            rect.right <= groupRect.right + 1 &&
+            item.scrollWidth <= item.clientWidth + 1
+          )
+        })
+      )
+    }),
+  ))
+  return results.every(Boolean)
 }
 
 async function speechModeButtonsFit(targetPage: Page): Promise<boolean> {

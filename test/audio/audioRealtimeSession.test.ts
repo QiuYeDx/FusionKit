@@ -229,6 +229,33 @@ describe("audio realtime session runtime", () => {
       } as AudioRealtimeSessionConfig,
       field: "language",
     },
+    {
+      name: "voice input format outside the route allowlist",
+      payload: {
+        assignmentKey: "realtimeVoice",
+        mode: "duplex_voice",
+        inputAudioFormat: "opus",
+      } as unknown as AudioRealtimeSessionConfig,
+      field: "inputAudioFormat",
+    },
+    {
+      name: "voice output format outside the route allowlist",
+      payload: {
+        assignmentKey: "realtimeVoice",
+        mode: "duplex_voice",
+        outputAudioFormat: "opus",
+      } as unknown as AudioRealtimeSessionConfig,
+      field: "outputAudioFormat",
+    },
+    {
+      name: "voice outside the route allowlist",
+      payload: {
+        assignmentKey: "realtimeVoice",
+        mode: "duplex_voice",
+        voice: "nova",
+      } as AudioRealtimeSessionConfig,
+      field: "voice",
+    },
   ])("rejects unsupported realtime $name before adapter invocation", async ({
     payload,
     field,
@@ -253,6 +280,7 @@ describe("audio realtime session runtime", () => {
   it.each([
     ["realtimeCaptions", "gpt-realtime-unknown"],
     ["realtimeVoice", "gpt-realtime-whisper"],
+    ["realtimeVoice", "gpt-realtime-transcribe"],
   ] as const)(
     "rejects an incompatible %s model before adapter invocation",
     async (assignmentKey, model) => {
@@ -311,6 +339,49 @@ describe("audio realtime session runtime", () => {
         }),
       }),
     );
+  });
+
+  it("applies portable realtime voice allowlists to custom-compatible models", async () => {
+    const runtime: AudioRealtimeRuntimeInvoker = {
+      createEphemeralSession: vi.fn(async () => ({
+        sessionId: "sess_custom_voice",
+        clientSecret: "custom-secret",
+      })),
+    };
+    const snapshot = createRealtimeRuntimeConfig("https://vendor.example/v1");
+    snapshot.profiles[0].providerPreset = "custom_openai_compatible";
+    snapshot.profiles[0].routes.realtimeVoice!.model = "vendor-live-voice";
+    const { service, context } = createServiceWithConfig(snapshot, runtime);
+
+    await expect(service.createEphemeralSession(
+      {
+        assignmentKey: "realtimeVoice",
+        mode: "duplex_voice",
+        voice: "nova",
+        inputAudioFormat: "pcm16",
+        outputAudioFormat: "pcm16",
+      },
+      context,
+    )).resolves.toMatchObject({
+      ok: false,
+      error: { code: "invalid_task_parameters", field: "voice" },
+    });
+    expect(runtime.createEphemeralSession).not.toHaveBeenCalled();
+
+    await expect(service.createEphemeralSession(
+      {
+        assignmentKey: "realtimeVoice",
+        mode: "duplex_voice",
+        voice: "marin",
+        inputAudioFormat: "pcmu",
+        outputAudioFormat: "pcma",
+      },
+      context,
+    )).resolves.toMatchObject({
+      ok: true,
+      data: { sessionId: "sess_custom_voice" },
+    });
+    expect(runtime.createEphemeralSession).toHaveBeenCalledTimes(1);
   });
 
   it("maps OpenAI realtime HTTP errors without leaking API keys", async () => {

@@ -227,18 +227,34 @@ function validateRealtimeTaskParameters(
   }
   if (
     payload.inputAudioFormat !== undefined &&
-    constraints.inputAudioFormats &&
-    !constraints.inputAudioFormats.includes(payload.inputAudioFormat)
+    !constraints.inputAudioFormats?.includes(payload.inputAudioFormat)
   ) {
     return invalidRealtimeTaskParameter(
       "inputAudioFormat",
       "The selected audio route does not support the requested input format.",
     );
   }
-  if (payload.voice !== undefined && !constraints.supportsVoice) {
+  if (
+    payload.outputAudioFormat !== undefined &&
+    !constraints.outputAudioFormats?.includes(payload.outputAudioFormat)
+  ) {
+    return invalidRealtimeTaskParameter(
+      "outputAudioFormat",
+      "The selected audio route does not support the requested output format.",
+    );
+  }
+  const voice = payload.voice?.trim();
+  if (
+    payload.voice !== undefined &&
+    (
+      !constraints.supportsVoice ||
+      !voice ||
+      !constraints.voices?.includes(voice)
+    )
+  ) {
     return invalidRealtimeTaskParameter(
       "voice",
-      "The selected audio route does not support voice selection.",
+      "The selected audio route does not support the requested voice.",
     );
   }
   return undefined;

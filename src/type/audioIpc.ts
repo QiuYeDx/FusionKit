@@ -382,8 +382,21 @@ export type AudioRealtimeSessionEvent =
       contentIndex?: number;
       outputIndex?: number;
     }
-  | { type: "audio_started"; role: "assistant"; responseId?: string; itemId?: string }
-  | { type: "audio_stopped"; role: "assistant"; responseId?: string; itemId?: string }
+  | {
+      type: "audio_started";
+      role: "assistant";
+      responseId?: string;
+      itemId?: string;
+      source?: "response" | "output_buffer";
+    }
+  | {
+      type: "audio_stopped";
+      role: "assistant";
+      responseId?: string;
+      itemId?: string;
+      source?: "response" | "output_buffer";
+      cleared?: boolean;
+    }
   | { type: "response_started"; responseId: string }
   | {
       type: "response_completed";
@@ -1133,8 +1146,20 @@ export function isAudioRealtimeSessionEventPayload(
     case "transcript_final":
       return isAudioRole(payload.role) && typeof payload.text === "string";
     case "audio_started":
+      return (
+        payload.role === "assistant" &&
+        (payload.source === undefined ||
+          payload.source === "response" ||
+          payload.source === "output_buffer")
+      );
     case "audio_stopped":
-      return payload.role === "assistant";
+      return (
+        payload.role === "assistant" &&
+        (payload.source === undefined ||
+          payload.source === "response" ||
+          payload.source === "output_buffer") &&
+        (payload.cleared === undefined || typeof payload.cleared === "boolean")
+      );
     case "response_started":
       return isNonEmptyString(payload.responseId);
     case "response_completed":

@@ -575,8 +575,8 @@ export type AudioRealtimeSessionEvent =
   | { type: "mic_state"; state: "requesting" | "granted" | "denied" | "muted" }
   | { type: "transcript_delta"; role: "user" | "assistant"; text: string; itemId?: string; responseId?: string; contentIndex?: number }
   | { type: "transcript_final"; role: "user" | "assistant"; text: string; itemId?: string; responseId?: string; contentIndex?: number }
-  | { type: "audio_started"; role: "assistant" }
-  | { type: "audio_stopped"; role: "assistant" }
+  | { type: "audio_started"; role: "assistant"; responseId?: string; itemId?: string; source?: "response" | "output_buffer" }
+  | { type: "audio_stopped"; role: "assistant"; responseId?: string; itemId?: string; source?: "response" | "output_buffer"; cleared?: boolean }
   | { type: "response_started"; responseId: string }
   | { type: "response_completed"; responseId: string; status: "completed" | "cancelled" | "failed" | "incomplete" }
   | { type: "error"; error: AudioIpcError; fatal: boolean }
@@ -591,6 +591,10 @@ Session lifecycle：
 4. Renderer establishes WebRTC peer connection and binds local/remote audio tracks.
 5. Renderer and main exchange normalized realtime events for subtitles, status and cleanup.
 6. Stop/page leave/error path must close peer connection, stop media tracks, revoke object URLs and clear session state.
+
+`response_completed` 只表示 response 生成结束，不等价于远端播放结束。双向语音打断需要
+等待 `source: "output_buffer"` 的 `audio_stopped`（包括 `cleared: true`）后，才能确认
+output buffer 已停止并清除 speaking/active response 状态。
 
 首版 UI 只开放 `server_vad`。`manual` 保留在线协议类型中用于后续 push-to-talk，但在完整实现 `input_audio_buffer.commit`（Voice 还需 `response.create`）前必须禁用。
 

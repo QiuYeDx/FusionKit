@@ -67,6 +67,8 @@ export interface AudioRealtimeRouteConstraints {
   supportsVoice: boolean;
   languages?: readonly string[];
   inputAudioFormats?: readonly ("pcm16" | "pcmu" | "pcma")[];
+  outputAudioFormats?: readonly ("pcm16" | "pcmu" | "pcma")[];
+  voices?: readonly string[];
 }
 
 export interface AudioRealtimeRouteDefinition {
@@ -127,6 +129,17 @@ const OPENAI_REALTIME_INPUT_AUDIO_FORMATS = [
   "pcma",
 ] as const;
 
+export const OPENAI_REALTIME_VOICE_PRESETS = [
+  "alloy",
+  "ash",
+  "ballad",
+  "coral",
+  "echo",
+  "marin",
+  "sage",
+  "verse",
+] as const;
+
 const OPENAI_WHISPER_TRANSCRIPTION_CONSTRAINTS = {
   responseFormats: ["json", "text", "srt", "verbose_json", "vtt"],
   supportsPrompt: true,
@@ -183,6 +196,9 @@ const AUDIO_PROVIDER_REGISTRY: Record<
         supportsInstructions: true,
         supportsLanguage: false,
         supportsVoice: true,
+        inputAudioFormats: OPENAI_REALTIME_INPUT_AUDIO_FORMATS,
+        outputAudioFormats: OPENAI_REALTIME_INPUT_AUDIO_FORMATS,
+        voices: OPENAI_REALTIME_VOICE_PRESETS,
       },
     },
   },
@@ -290,6 +306,9 @@ const AUDIO_PROVIDER_REGISTRY: Record<
         supportsInstructions: true,
         supportsLanguage: false,
         supportsVoice: true,
+        inputAudioFormats: OPENAI_REALTIME_INPUT_AUDIO_FORMATS,
+        outputAudioFormats: OPENAI_REALTIME_INPUT_AUDIO_FORMATS,
+        voices: OPENAI_REALTIME_VOICE_PRESETS,
       },
     },
   },
@@ -731,5 +750,9 @@ function cloneRealtimeConstraints(
     ...(constraints.inputAudioFormats
       ? { inputAudioFormats: [...constraints.inputAudioFormats] }
       : {}),
+    ...(constraints.outputAudioFormats
+      ? { outputAudioFormats: [...constraints.outputAudioFormats] }
+      : {}),
+    ...(constraints.voices ? { voices: [...constraints.voices] } : {}),
   };
 }

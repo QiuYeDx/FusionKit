@@ -689,6 +689,21 @@ describe("audio IPC contract", () => {
         role: "user",
       }),
     ).toBe(false);
+    expect(
+      isAudioRealtimeSessionEventPayload({
+        type: "audio_stopped",
+        role: "assistant",
+        source: "output_buffer",
+        cleared: true,
+      }),
+    ).toBe(true);
+    expect(
+      isAudioRealtimeSessionEventPayload({
+        type: "audio_stopped",
+        role: "assistant",
+        source: "unknown",
+      }),
+    ).toBe(false);
   });
 });
 
