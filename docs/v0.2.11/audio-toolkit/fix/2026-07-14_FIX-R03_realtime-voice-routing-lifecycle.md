@@ -90,8 +90,8 @@ git diff --check
 
 ## 后续
 
-- FE-R03 下一段移除 `AudioToolShell` legacy fallback、`useModelStore` legacy audio
-  CRUD/selectors 与文本 connection 删除保护；legacy 字段仍按设计保留一个版本的
-  只读迁移备份。
+- FE-R03 legacy facade cleanup 已完成，见
+  `audio-toolkit-config-ux-refactor_implementation_records/2026-07-14_FE-R03_legacy-audio-facade-cleanup.md`；
+  legacy 字段仍按设计保留一个版本的只读迁移备份。
 - 真实供应商、真实麦克风与扬声器验收仍属于 `QA-R02`，不得在文档或日志记录 Key、
   ephemeral secret 或完整敏感 payload。

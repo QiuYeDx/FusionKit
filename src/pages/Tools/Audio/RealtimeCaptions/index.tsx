@@ -89,11 +89,10 @@ export default function RealtimeCaptions() {
     <div data-testid="realtime-captions">
       <AudioToolShell
         toolKey="realtimeCaptions"
-        assignmentKey="realtimeCaptions"
         titleKey="audio:pages.captions.title"
         descriptionKey="audio:pages.captions.description"
         workspaceTitleKey="audio:pages.captions.workspace"
-        configSummaryOverride={summary}
+        configSummary={summary}
         settingsPath={CAPTIONS_SETTINGS_PATH}
         asideExtra={() =>
           summary.status === "ready" && summary.constraints ? (

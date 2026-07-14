@@ -118,11 +118,10 @@ export default function AudioTranscriber() {
     <div data-testid="audio-transcriber">
       <AudioToolShell
         toolKey="audioTranscriber"
-        assignmentKey="transcription"
         titleKey="audio:pages.transcriber.title"
         descriptionKey="audio:pages.transcriber.description"
         workspaceTitleKey="audio:pages.transcriber.workspace"
-        configSummaryOverride={configSummary}
+        configSummary={configSummary}
         settingsPath={TRANSCRIBER_SETTINGS_PATH}
         asideExtra={() =>
           configSummary.status === "ready" && configSummary.constraints ? (

@@ -1,15 +1,12 @@
 import {
   DEFAULT_AUDIO_MODEL_ASSIGNMENT,
-  getAudioModelKeyForAssignment,
   getDefaultAudioCapabilities,
   isAudioApiDialect,
   isAudioCapability,
   isAudioSpeechResponseFormat,
   isAudioTranscriptionResponseFormat,
   isMimoSpeechSynthesisMode,
-  validateAudioCapability,
   type AudioApiDialect,
-  type AudioAssignmentKey,
   type AudioCapability,
   type AudioModelAssignment,
   type AudioModelProfile,
@@ -19,18 +16,8 @@ import {
   type MimoSpeechSynthesisMode,
 } from "@/type/audio";
 
-export type AudioModelProfileInput = Omit<
-  AudioModelProfile,
-  "id" | "capabilities" | "models" | "defaults"
-> & {
-  capabilities?: AudioCapability[];
-  models?: Partial<AudioModelProfile["models"]>;
-  defaults?: Partial<AudioModelProfile["defaults"]>;
-};
-
-export function normalizeAudioModelProfileForRuntime(
-  profile: AudioModelProfile | AudioModelProfileInput,
-  id?: string,
+function normalizeAudioModelProfileForRuntime(
+  profile: AudioModelProfile,
 ): AudioModelProfile {
   const audioDialect = profile.audioDialect;
   const capabilities = normalizeCapabilities(
@@ -39,7 +26,7 @@ export function normalizeAudioModelProfileForRuntime(
   );
 
   return {
-    id: "id" in profile ? profile.id : requireProfileId(id),
+    id: profile.id,
     name: profile.name,
     connectionProfileId: profile.connectionProfileId,
     audioDialect,
@@ -103,15 +90,6 @@ export function migrateAudioModelProfiles(raw: unknown): AudioModelProfile[] {
   return profiles;
 }
 
-export function filterAudioProfilesByConnectionIds(
-  audioProfiles: AudioModelProfile[],
-  connectionProfileIds: ReadonlySet<string>,
-): AudioModelProfile[] {
-  return audioProfiles.filter((profile) =>
-    connectionProfileIds.has(profile.connectionProfileId),
-  );
-}
-
 export function normalizeAudioModelAssignment(
   raw: unknown,
   validAudioProfileIds: ReadonlySet<string>,
@@ -136,50 +114,6 @@ export function normalizeAudioModelAssignment(
       validAudioProfileIds,
     ),
   };
-}
-
-export function clearAudioProfileFromAssignment(
-  assignment: AudioModelAssignment,
-  audioProfileId: string,
-): AudioModelAssignment {
-  return {
-    transcription:
-      assignment.transcription === audioProfileId
-        ? null
-        : assignment.transcription,
-    speechSynthesis:
-      assignment.speechSynthesis === audioProfileId
-        ? null
-        : assignment.speechSynthesis,
-    realtimeCaptions:
-      assignment.realtimeCaptions === audioProfileId
-        ? null
-        : assignment.realtimeCaptions,
-    realtimeVoice:
-      assignment.realtimeVoice === audioProfileId
-        ? null
-        : assignment.realtimeVoice,
-  };
-}
-
-export function isConnectionProfileReferencedByAudioProfile(
-  audioProfiles: readonly AudioModelProfile[],
-  connectionProfileId: string,
-): boolean {
-  return audioProfiles.some(
-    (profile) => profile.connectionProfileId === connectionProfileId,
-  );
-}
-
-export function canAssignAudioProfileToTask(
-  audioProfile: AudioModelProfile | undefined,
-  assignmentKey: AudioAssignmentKey,
-): boolean {
-  if (!audioProfile) return false;
-  return (
-    validateAudioCapability(audioProfile, assignmentKey).ok &&
-    getAudioModelKeyForAssignment(audioProfile, assignmentKey) !== undefined
-  );
 }
 
 function normalizeCapabilities(
@@ -291,13 +225,6 @@ function isRealtimeVoiceVerificationStatus(
   value: unknown,
 ): value is Exclude<AudioModelVerificationStatus, "degraded"> {
   return value === "untested" || value === "verified" || value === "failed";
-}
-
-function requireProfileId(id: string | undefined): string {
-  if (!id) {
-    throw new Error("Audio model profile id is required.");
-  }
-  return id;
 }
 
 function isNonEmptyString(value: unknown): value is string {

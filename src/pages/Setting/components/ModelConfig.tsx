@@ -256,7 +256,6 @@ function ModelProfilesCard() {
     profiles,
     removeProfile,
     assignment,
-    isConnectionProfileReferencedByAudioProfile,
   } = useModelStore();
   const [editingProfile, setEditingProfile] = useState<ModelProfile | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -273,13 +272,10 @@ function ModelProfilesCard() {
   };
 
   const handleDelete = (id: string) => {
-    if (isConnectionProfileReferencedByAudioProfile(id)) {
-      toast.error(t("setting:fields.audio.profile.connection_delete_blocked"));
-      return;
-    }
-
     if (confirmDeleteId === id) {
-      removeProfile(id);
+      if (!removeProfile(id)) {
+        toast.error(t("setting:fields.audio.profile.connection_delete_blocked"));
+      }
       setConfirmDeleteId(null);
     } else {
       setConfirmDeleteId(id);
@@ -289,8 +285,7 @@ function ModelProfilesCard() {
 
   const isInUse = (id: string) =>
     assignment.agent === id ||
-    assignment.taskExecution === id ||
-    isConnectionProfileReferencedByAudioProfile(id);
+    assignment.taskExecution === id;
 
   return (
     <>

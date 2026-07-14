@@ -1,13 +1,8 @@
 import {
-  getAudioModelKeyForAssignment,
-  resolveAudioCapabilities,
-  validateAudioCapability,
   type AudioApiDialect,
   type AudioApiProfile,
   type AudioAssignmentKey,
   type AudioCapability,
-  type AudioModelAssignment,
-  type AudioModelProfile,
   type AudioProviderPreset,
   type AudioRoute,
   type AudioRouteVerificationStatus,
@@ -19,23 +14,11 @@ import {
   isAudioRouteTransportSupported,
   resolveAudioApiRoute,
 } from "@/lib/audio-provider-registry";
-import type { Model, ModelProfile } from "@/type/model";
 
 export type AudioToolConfigStatus =
   | "ready"
   | "audio_api_not_configured"
-  | "audio_route_not_configured"
-  | "profile_not_configured"
-  | "connection_missing"
-  | "model_missing"
-  | "unsupported_capability";
-
-export interface AudioToolConnectionSummary {
-  id: string;
-  name: string;
-  provider: Model;
-  baseUrl: string;
-}
+  | "audio_route_not_configured";
 
 export interface AudioToolConfigSummary {
   assignmentKey: AudioAssignmentKey;
@@ -45,9 +28,6 @@ export interface AudioToolConfigSummary {
   audioDialect?: AudioApiDialect;
   modelKey?: string;
   capabilities: AudioCapability[];
-  defaults?: AudioModelProfile["defaults"];
-  connectionProfile?: AudioToolConnectionSummary;
-  missingCapabilities?: AudioCapability[];
   providerPreset?: AudioProviderPreset;
   availableModes?: SpeechSynthesisMode[];
   activeMode?: SpeechSynthesisMode;
@@ -55,16 +35,6 @@ export interface AudioToolConfigSummary {
   migrationNeedsAttention?: boolean;
   route?: AudioRoute;
 }
-
-export interface AudioToolConfigState {
-  profiles: ModelProfile[];
-  audioProfiles: AudioModelProfile[];
-  audioAssignment: AudioModelAssignment;
-}
-
-export type AudioToolConfigSummarySelector = (
-  state: AudioToolConfigState,
-) => AudioToolConfigSummary;
 
 export interface StandaloneAudioToolConfigState {
   profiles: AudioApiProfile[];
@@ -92,69 +62,6 @@ export const MIMO_VOICE_PRESETS: MimoVoicePreset[] = [
   { id: "Milo", label: "Milo", localeHint: "en" },
   { id: "Dean", label: "Dean", localeHint: "en" },
 ];
-
-export function resolveAudioToolConfigSummary(
-  state: AudioToolConfigState,
-  assignmentKey: AudioAssignmentKey,
-): AudioToolConfigSummary {
-  const profileId = state.audioAssignment[assignmentKey];
-  const audioProfile = profileId
-    ? state.audioProfiles.find((profile) => profile.id === profileId)
-    : undefined;
-
-  if (!audioProfile) {
-    return {
-      assignmentKey,
-      status: "profile_not_configured",
-      capabilities: [],
-    };
-  }
-
-  const capabilities = resolveAudioCapabilities(audioProfile);
-  const capabilityResult = validateAudioCapability(audioProfile, assignmentKey);
-  if (!capabilityResult.ok) {
-    return {
-      assignmentKey,
-      status: "unsupported_capability",
-      ...createProfileSummary(audioProfile, capabilities),
-      missingCapabilities: capabilityResult.issue.missingCapabilities,
-    };
-  }
-
-  const modelKey = getAudioModelKeyForAssignment(audioProfile, assignmentKey);
-  if (!modelKey) {
-    return {
-      assignmentKey,
-      status: "model_missing",
-      ...createProfileSummary(audioProfile, capabilities),
-    };
-  }
-
-  const connectionProfile = state.profiles.find(
-    (profile) => profile.id === audioProfile.connectionProfileId,
-  );
-  if (!connectionProfile) {
-    return {
-      assignmentKey,
-      status: "connection_missing",
-      ...createProfileSummary(audioProfile, capabilities),
-      modelKey,
-    };
-  }
-
-  return {
-    assignmentKey,
-    status: "ready",
-    ...createProfileSummary(audioProfile, capabilities),
-    modelKey,
-    connectionProfile: {
-      id: connectionProfile.id,
-      name: connectionProfile.name,
-      provider: connectionProfile.provider,
-      baseUrl: connectionProfile.baseUrl,
-    },
-  };
-}
 
 export function resolveStandaloneAudioToolConfigSummary(
   state: StandaloneAudioToolConfigState,
@@ -219,37 +126,7 @@ export function resolveStandaloneAudioToolConfigSummary(
   };
 }
 
-/**
- * Keeps useSyncExternalStore snapshots referentially stable while none of the
- * model slices used by the summary changed. React 19 requires a selector to
- * return the same reference for the same external-store snapshot.
- */
-export function createAudioToolConfigSummarySelector(
-  assignmentKey: AudioAssignmentKey,
-): AudioToolConfigSummarySelector {
-  let cachedProfiles: ModelProfile[] | undefined;
-  let cachedAudioProfiles: AudioModelProfile[] | undefined;
-  let cachedAudioAssignment: AudioModelAssignment | undefined;
-  let cachedSummary: AudioToolConfigSummary | undefined;
-
-  return (state) => {
-    if (
-      cachedSummary
-      && cachedProfiles === state.profiles
-      && cachedAudioProfiles === state.audioProfiles
-      && cachedAudioAssignment === state.audioAssignment
-    ) {
-      return cachedSummary;
-    }
-
-    cachedProfiles = state.profiles;
-    cachedAudioProfiles = state.audioProfiles;
-    cachedAudioAssignment = state.audioAssignment;
-    cachedSummary = resolveAudioToolConfigSummary(state, assignmentKey);
-    return cachedSummary;
-  };
-}
-
+/** Keeps React external-store snapshots stable while relevant slices are unchanged. */
 export function createStandaloneAudioToolConfigSummarySelector(
   assignmentKey: AudioAssignmentKey,
 ): StandaloneAudioToolConfigSummarySelector {
@@ -289,24 +166,4 @@ function getStandaloneAudioCapabilities(
     case "realtimeVoice":
       return ["realtime_duplex_voice"];
   }
-}
-
-function createProfileSummary(
-  profile: AudioModelProfile,
-  capabilities: AudioCapability[],
-): Pick<
-  AudioToolConfigSummary,
-  | "profileId"
-  | "profileName"
-  | "audioDialect"
-  | "capabilities"
-  | "defaults"
-> {
-  return {
-    profileId: profile.id,
-    profileName: profile.name,
-    audioDialect: profile.audioDialect,
-    capabilities,
-    defaults: profile.defaults,
-  };
 }

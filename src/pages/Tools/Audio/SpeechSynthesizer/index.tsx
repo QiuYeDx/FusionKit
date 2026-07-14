@@ -146,11 +146,10 @@ export default function SpeechSynthesizer() {
     <div data-testid="speech-synthesizer">
       <AudioToolShell
         toolKey="speechSynthesizer"
-        assignmentKey="speechSynthesis"
         titleKey="audio:pages.speech.title"
         descriptionKey="audio:pages.speech.description"
         workspaceTitleKey="audio:pages.speech.workspace"
-        configSummaryOverride={configSummary}
+        configSummary={configSummary}
         settingsPath={SPEECH_SETTINGS_PATH}
         asideExtra={() =>
           configSummary.status === "ready" && configSummary.constraints ? (

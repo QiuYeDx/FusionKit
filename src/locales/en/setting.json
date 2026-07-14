@@ -250,7 +250,7 @@
         "add_first": "Add your first audio profile",
         "no_connection_profiles": "Create a model connection profile before adding an audio profile.",
         "connection_missing": "Connection missing",
-        "connection_delete_blocked": "This connection is referenced by an audio profile. Delete or edit that audio profile first.",
+        "connection_delete_blocked": "Legacy audio settings have not been migrated safely, so this connection cannot be deleted yet. Restart the app and try again.",
         "dialog_title_add": "Add Audio Profile",
         "dialog_title_edit": "Edit Audio Profile",
         "dialog_description": "Configure audio protocol, model IDs, default voice, and task capabilities.",

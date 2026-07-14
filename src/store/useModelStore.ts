@@ -12,22 +12,10 @@ import {
 } from "@/lib/audio-api-migration";
 import {
   DEFAULT_AUDIO_MODEL_ASSIGNMENT,
-  canAssignAudioProfileToTask,
-  clearAudioProfileFromAssignment,
-  filterAudioProfilesByConnectionIds,
-  isConnectionProfileReferencedByAudioProfile,
   migrateAudioModelProfiles,
   normalizeAudioModelAssignment,
-  normalizeAudioModelProfileForRuntime,
-  type AudioModelProfileInput,
 } from "@/lib/audio-profile";
-import {
-  resolveAudioRuntimeModelConfig,
-  type AudioAssignmentKey,
-  type AudioModelAssignment,
-  type AudioModelProfile,
-  type AudioRuntimeModelConfigResult,
-} from "@/type/audio";
+import type { AudioModelAssignment, AudioModelProfile } from "@/type/audio";
 import type { Model, ModelProfile, ModelAssignment } from "@/type/model";
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
@@ -39,38 +27,17 @@ import { persist, createJSONStorage } from "zustand/middleware";
 interface ModelStore {
   profiles: ModelProfile[];
   assignment: ModelAssignment;
-  /** @deprecated Compatibility backup until BE/FE consumers use useAudioApiStore. */
-  audioProfiles: AudioModelProfile[];
-  /** @deprecated Compatibility backup until BE/FE consumers use useAudioApiStore. */
-  audioAssignment: AudioModelAssignment;
+  /** @deprecated Read-only migration backup; remove after the compatibility window. */
+  readonly audioProfiles: AudioModelProfile[];
+  /** @deprecated Read-only migration backup; remove after the compatibility window. */
+  readonly audioAssignment: AudioModelAssignment;
 
   addProfile: (profile: ModelProfileInput) => string;
   updateProfile: (id: string, updates: Partial<ModelProfileInput>) => void;
-  removeProfile: (id: string) => void;
+  removeProfile: (id: string) => boolean;
   getProfileById: (id: string) => ModelProfile | undefined;
 
   setAssignment: (module: keyof ModelAssignment, profileId: string | null) => void;
-
-  addAudioProfile: (profile: AudioModelProfileInput) => string;
-  updateAudioProfile: (
-    id: string,
-    updates: Partial<AudioModelProfileInput>,
-  ) => void;
-  removeAudioProfile: (id: string) => void;
-  getAudioProfileById: (id: string) => AudioModelProfile | undefined;
-  setAudioAssignment: (
-    module: AudioAssignmentKey,
-    audioProfileId: string | null,
-  ) => void;
-  getAudioProfileForAssignment: (
-    module: AudioAssignmentKey,
-  ) => AudioModelProfile | null;
-  getAudioRuntimeConfigForAssignment: (
-    module: AudioAssignmentKey,
-  ) => AudioRuntimeModelConfigResult;
-  isConnectionProfileReferencedByAudioProfile: (
-    profileId: string,
-  ) => boolean;
 
   getAgentProfile: () => ModelProfile | null;
   getTaskProfile: () => ModelProfile | null;
@@ -145,13 +112,7 @@ export function migrateModelConfigToV4(raw: unknown): {
 } {
   const persisted = isRecord(raw) ? raw : {};
   const textConfig = migrateModelProfilesToV3(persisted);
-  const connectionProfileIds = new Set(
-    textConfig.profiles.map((profile) => profile.id),
-  );
-  const audioProfiles = filterAudioProfilesByConnectionIds(
-    migrateAudioModelProfiles(persisted.audioProfiles),
-    connectionProfileIds,
-  );
+  const audioProfiles = migrateAudioModelProfiles(persisted.audioProfiles);
   const audioProfileIds = new Set(audioProfiles.map((profile) => profile.id));
 
   return {
@@ -253,8 +214,10 @@ export function migrateLegacyModelStorage(
   }
 }
 
-// Must run before Zustand hydrates v4/v5 and filters dangling audio connections.
-bootstrapLegacyAudioSettingsFromGlobalStorage();
+// Must run before Zustand hydration so cross-key migration never depends on
+// whether the source or target Store module was imported first.
+const legacyAudioBootstrapResult =
+  bootstrapLegacyAudioSettingsFromGlobalStorage();
 
 const useModelStore = create<ModelStore>()(
   persist(
@@ -302,138 +265,23 @@ const useModelStore = create<ModelStore>()(
       },
 
       removeProfile: (id) => {
-        set((s) => {
-          if (
-            isConnectionProfileReferencedByAudioProfile(
-              s.audioProfiles,
-              id,
-            )
-          ) {
-            return s;
-          }
+        const state = get();
+        if (!state.profiles.some((profile) => profile.id === id)) return false;
+        if (
+          hasLegacyAudioConnectionReference(state.audioProfiles, id) &&
+          !isLegacyAudioSourceSafeToDelete()
+        ) {
+          return false;
+        }
 
-          const newAssignment = { ...s.assignment };
-          if (newAssignment.agent === id) newAssignment.agent = null;
-          if (newAssignment.taskExecution === id) newAssignment.taskExecution = null;
-          return {
-            profiles: s.profiles.filter((p) => p.id !== id),
-            assignment: newAssignment,
-          };
+        const newAssignment = { ...state.assignment };
+        if (newAssignment.agent === id) newAssignment.agent = null;
+        if (newAssignment.taskExecution === id) newAssignment.taskExecution = null;
+        set({
+          profiles: state.profiles.filter((profile) => profile.id !== id),
+          assignment: newAssignment,
         });
-      },
-
-      addAudioProfile: (profile) => {
-        const id = generateId();
-        const newProfile = normalizeAudioModelProfileForRuntime(profile, id);
-        set((s) => ({
-          audioProfiles: [...s.audioProfiles, newProfile],
-        }));
-        return id;
-      },
-
-      updateAudioProfile: (id, updates) => {
-        set((s) => ({
-          audioProfiles: s.audioProfiles.map((profile) => {
-            if (profile.id !== id) return profile;
-            const dialectChanged =
-              updates.audioDialect !== undefined &&
-              updates.audioDialect !== profile.audioDialect;
-
-            return normalizeAudioModelProfileForRuntime({
-              ...profile,
-              ...updates,
-              capabilities:
-                updates.capabilities ??
-                (dialectChanged ? [] : profile.capabilities),
-              models: {
-                ...profile.models,
-                ...updates.models,
-              },
-              defaults: {
-                ...profile.defaults,
-                ...updates.defaults,
-              },
-              verification:
-                updates.verification === undefined
-                  ? profile.verification
-                  : updates.verification,
-            });
-          }),
-        }));
-      },
-
-      removeAudioProfile: (id) => {
-        set((s) => ({
-          audioProfiles: s.audioProfiles.filter((profile) => profile.id !== id),
-          audioAssignment: clearAudioProfileFromAssignment(
-            s.audioAssignment,
-            id,
-          ),
-        }));
-      },
-
-      getAudioProfileById: (id) => {
-        return get().audioProfiles.find((profile) => profile.id === id);
-      },
-
-      setAudioAssignment: (module, audioProfileId) => {
-        set((s) => {
-          if (audioProfileId === null) {
-            return {
-              audioAssignment: {
-                ...s.audioAssignment,
-                [module]: null,
-              },
-            };
-          }
-
-          const audioProfile = s.audioProfiles.find(
-            (profile) => profile.id === audioProfileId,
-          );
-          if (!canAssignAudioProfileToTask(audioProfile, module)) {
-            return s;
-          }
-
-          return {
-            audioAssignment: {
-              ...s.audioAssignment,
-              [module]: audioProfileId,
-            },
-          };
-        });
-      },
-
-      getAudioProfileForAssignment: (module) => {
-        const { audioProfiles, audioAssignment } = get();
-        const profileId = audioAssignment[module];
-        if (!profileId) return null;
-        return audioProfiles.find((profile) => profile.id === profileId) ?? null;
-      },
-
-      getAudioRuntimeConfigForAssignment: (module) => {
-        const { audioProfiles, audioAssignment, profiles } = get();
-        const audioProfileId = audioAssignment[module];
-        const audioProfile = audioProfileId
-          ? audioProfiles.find((profile) => profile.id === audioProfileId)
-          : null;
-        const connectionProfile = audioProfile
-          ? profiles.find(
-              (profile) => profile.id === audioProfile.connectionProfileId,
-            )
-          : null;
-
-        return resolveAudioRuntimeModelConfig({
-          audioProfile,
-          connectionProfile,
-          assignmentKey: module,
-        });
-      },
-
-      isConnectionProfileReferencedByAudioProfile: (profileId) => {
-        return isConnectionProfileReferencedByAudioProfile(
-          get().audioProfiles,
-          profileId,
-        );
+        return true;
       },
 
       getProfileById: (id) => {
@@ -491,6 +339,22 @@ const useModelStore = create<ModelStore>()(
 
 function isRecord(value: unknown): value is Record<string, any> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function hasLegacyAudioConnectionReference(
+  audioProfiles: readonly AudioModelProfile[],
+  connectionProfileId: string,
+): boolean {
+  return audioProfiles.some(
+    (profile) => profile.connectionProfileId === connectionProfileId,
+  );
+}
+
+function isLegacyAudioSourceSafeToDelete(): boolean {
+  return (
+    legacyAudioBootstrapResult.status === "migrated" ||
+    legacyAudioBootstrapResult.status === "already_complete"
+  );
 }
 
 export default useModelStore;

@@ -3,7 +3,7 @@
 ## 基本信息
 
 - 日期：2026-07-14
-- 状态：部分完成
+- 状态：已完成
 - 对应执行计划工作包：`FE-R03`
 
 ## 本次实现内容
@@ -81,12 +81,10 @@ git diff --check
 
 ## 未完成事项
 
-- `FE-R03` 的 legacy audio facade cleanup 尚未实施，因此工作包仍为 `进行中`。
+- Legacy audio facade cleanup 已由后续 FE-R03 记录完成。
 - `QA-R02` 真实 OpenAI、真实麦克风与扬声器验收未执行。
 
 ## 下一步建议
 
-- 移除 `AudioToolShell` legacy `useModelStore` fallback。
-- 删除 `useModelStore` legacy audio CRUD/selectors 与文本 connection 删除保护，同时
-  保留 `audioProfiles/audioAssignment` 只读持久化备份供一个兼容版本迁移。
-- 更新对应 Store/设置页测试后，再判断 `FE-R03` 是否可标记完成。
+- FE-R03 最终收口见 `2026-07-14_FE-R03_legacy-audio-facade-cleanup.md`；当前下一工作包为
+  `I18N-R01`。

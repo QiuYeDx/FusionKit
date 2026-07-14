@@ -78,11 +78,10 @@ export default function RealtimeVoice() {
     <div data-testid="realtime-voice">
       <AudioToolShell
         toolKey="realtimeVoice"
-        assignmentKey="realtimeVoice"
         titleKey="audio:pages.voice.title"
         descriptionKey="audio:pages.voice.description"
         workspaceTitleKey="audio:pages.voice.workspace"
-        configSummaryOverride={summary}
+        configSummary={summary}
         settingsPath={VOICE_SETTINGS_PATH}
         asideExtra={() =>
           summary.status === "ready" && summary.constraints ? (

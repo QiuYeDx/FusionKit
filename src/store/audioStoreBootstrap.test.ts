@@ -131,6 +131,82 @@ describe("audio settings bootstrap import ordering", () => {
       retriedStore.getState().migration.legacyModelStore.status,
     ).toBe("completed");
   });
+
+  it("keeps legacy credentials until a clean reload hydrates the retried migration", async () => {
+    const fixture = LEGACY_AUDIO_MIGRATION_FIXTURES.openAiFileAudio;
+    storageHarness.values.set(
+      LEGACY_MODEL_STORAGE_KEY,
+      JSON.stringify(fixture.source),
+    );
+    storageHarness.failAudioSettingsWrites(true);
+
+    const { default: failedAudioStore } = await import("./useAudioApiStore");
+    const { default: failedModelStore } = await import("./useModelStore");
+
+    expect(failedAudioStore.getState().profiles).toEqual([]);
+    expect(
+      failedModelStore.getState().removeProfile("connection_openai"),
+    ).toBe(false);
+    expect(failedModelStore.getState().profiles).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: "connection_openai",
+          apiKey: "fixture-openai-key",
+        }),
+      ]),
+    );
+
+    storageHarness.failAudioSettingsWrites(false);
+    expect(
+      failedModelStore.getState().removeProfile("connection_openai"),
+    ).toBe(false);
+
+    vi.resetModules();
+    const { default: retriedAudioStore } = await import("./useAudioApiStore");
+    const { default: retriedModelStore } = await import("./useModelStore");
+
+    expect(retriedAudioStore.getState().profiles).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: "audio_openai",
+          apiKey: "fixture-openai-key",
+        }),
+      ]),
+    );
+    expect(
+      retriedModelStore.getState().removeProfile("connection_openai"),
+    ).toBe(true);
+    expect(
+      retriedAudioStore.getState().setRouteVerification(
+        "audio_openai",
+        "transcription",
+        { status: "verified" },
+      ),
+    ).toBe(true);
+
+    const persistedTarget = JSON.parse(
+      storageHarness.values.get(AUDIO_API_STORAGE_KEY)!,
+    ) as {
+      state: {
+        profiles: Array<{
+          id: string;
+          apiKey: string;
+          verification?: Record<string, { status: string }>;
+        }>;
+      };
+    };
+    expect(persistedTarget.state.profiles).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: "audio_openai",
+          apiKey: "fixture-openai-key",
+          verification: expect.objectContaining({
+            transcription: { status: "verified" },
+          }),
+        }),
+      ]),
+    );
+  });
 });
 
 function seedMissingConnectionFixture(): void {

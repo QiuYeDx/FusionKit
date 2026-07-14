@@ -250,7 +250,7 @@
         "add_first": "添加第一个音频配置",
         "no_connection_profiles": "请先创建一个模型连接配置，再添加音频配置。",
         "connection_missing": "连接缺失",
-        "connection_delete_blocked": "该连接配置正在被音频配置引用，请先删除或修改对应音频配置。",
+        "connection_delete_blocked": "旧音频配置尚未安全迁移，当前无法删除此连接。请重启应用后重试。",
         "dialog_title_add": "添加音频配置",
         "dialog_title_edit": "编辑音频配置",
         "dialog_description": "配置音频协议、模型 ID、默认语音和任务能力。",

@@ -250,7 +250,7 @@
         "add_first": "最初の音声構成を追加",
         "no_connection_profiles": "音声構成を追加する前に、モデル接続構成を作成してください。",
         "connection_missing": "接続がありません",
-        "connection_delete_blocked": "この接続構成は音声構成から参照されています。先に該当する音声構成を削除または変更してください。",
+        "connection_delete_blocked": "旧音声設定の安全な移行が完了していないため、この接続はまだ削除できません。アプリを再起動して再試行してください。",
         "dialog_title_add": "音声構成を追加",
         "dialog_title_edit": "音声構成を編集",
         "dialog_description": "音声プロトコル、モデル ID、既定の voice、タスク能力を設定します。",

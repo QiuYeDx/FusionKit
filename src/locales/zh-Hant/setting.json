@@ -250,7 +250,7 @@
         "add_first": "新增第一個音訊設定",
         "no_connection_profiles": "請先建立一個模型連線設定，再新增音訊設定。",
         "connection_missing": "連線缺失",
-        "connection_delete_blocked": "此連線設定正在被音訊設定引用，請先刪除或修改對應音訊設定。",
+        "connection_delete_blocked": "舊音訊設定尚未安全遷移，目前無法刪除此連線。請重新啟動應用程式後再試。",
         "dialog_title_add": "新增音訊設定",
         "dialog_title_edit": "編輯音訊設定",
         "dialog_description": "設定音訊協議、模型 ID、預設語音和任務能力。",

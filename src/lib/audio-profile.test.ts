@@ -1,12 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
-  canAssignAudioProfileToTask,
-  clearAudioProfileFromAssignment,
-  filterAudioProfilesByConnectionIds,
-  isConnectionProfileReferencedByAudioProfile,
   migrateAudioModelProfiles,
   normalizeAudioModelAssignment,
-  normalizeAudioModelProfileForRuntime,
 } from "./audio-profile";
 import type { AudioModelProfile } from "@/type/audio";
 
@@ -31,13 +26,13 @@ function createProfile(
 
 describe("audio profile helpers", () => {
   it("normalizes empty capabilities to dialect defaults", () => {
-    const normalized = normalizeAudioModelProfileForRuntime(
+    const [normalized] = migrateAudioModelProfiles([
       createProfile({
         id: "audio_mimo",
         audioDialect: "mimo_chat_audio",
         capabilities: [],
       }),
-    );
+    ]);
 
     expect(normalized.capabilities).toContain("mimo_voice_design");
     expect(normalized.capabilities).toContain("streaming_speech_synthesis");
@@ -82,70 +77,22 @@ describe("audio profile helpers", () => {
     expect(migrated[0].defaults).not.toHaveProperty("mimoTtsMode");
   });
 
-  it("filters profiles by live connection profile ids and normalizes assignments", () => {
-    const live = createProfile({ id: "audio_live", connectionProfileId: "conn_live" });
-    const stale = createProfile({
-      id: "audio_stale",
-      connectionProfileId: "conn_deleted",
-    });
-    const filtered = filterAudioProfilesByConnectionIds(
-      [live, stale],
-      new Set(["conn_live"]),
-    );
-
-    expect(filtered).toEqual([live]);
+  it("normalizes assignments against retained legacy audio profile ids", () => {
     expect(
       normalizeAudioModelAssignment(
         {
           transcription: "audio_live",
           speechSynthesis: "audio_stale",
           realtimeCaptions: 42,
-          realtimeVoice: "audio_live",
+          realtimeVoice: "audio_missing",
         },
-        new Set(["audio_live"]),
+        new Set(["audio_live", "audio_stale"]),
       ),
     ).toEqual({
       transcription: "audio_live",
-      speechSynthesis: null,
-      realtimeCaptions: null,
-      realtimeVoice: "audio_live",
-    });
-  });
-
-  it("clears removed audio profiles from every assignment", () => {
-    expect(
-      clearAudioProfileFromAssignment(
-        {
-          transcription: "audio_old",
-          speechSynthesis: "audio_other",
-          realtimeCaptions: "audio_old",
-          realtimeVoice: "audio_old",
-        },
-        "audio_old",
-      ),
-    ).toEqual({
-      transcription: null,
-      speechSynthesis: "audio_other",
+      speechSynthesis: "audio_stale",
       realtimeCaptions: null,
       realtimeVoice: null,
     });
-  });
-
-  it("detects connection profile references and assignment eligibility", () => {
-    const speechOnly = createProfile({
-      capabilities: ["speech_synthesis"],
-      models: {
-        speechSynthesis: "gpt-4o-mini-tts",
-      },
-    });
-
-    expect(
-      isConnectionProfileReferencedByAudioProfile(
-        [speechOnly],
-        "conn_openai",
-      ),
-    ).toBe(true);
-    expect(canAssignAudioProfileToTask(speechOnly, "speechSynthesis")).toBe(true);
-    expect(canAssignAudioProfileToTask(speechOnly, "transcription")).toBe(false);
   });
 });

@@ -3,7 +3,7 @@
 ## 基本信息
 
 - 日期：2026-07-14
-- 状态：部分完成
+- 状态：已完成
 - 对应执行计划工作包：`FE-R03`
 
 ## 本次实现内容
@@ -118,13 +118,10 @@ ps -axo pid,ppid,command | rg '<FusionKit Vite/Electron patterns>'
 
 ## 未完成事项
 
-- `FE-R03` 的双向语音迁移。
-- 最后 standalone 消费者切换后移除 `useModelStore` legacy audio CRUD/selectors、文本
-  connection 删除 guard；legacy 字段仍按设计保留只读备份。
+- 双向语音与 legacy facade cleanup 已由后续 FE-R03 记录完成。
 - `I18N-R01` source-usage checker、`TEST-R01` 完整组件矩阵、`QA-R01/QA-R02` 保持独立。
 
 ## 下一步建议
 
-- 继续双向语音：切到 standalone `realtimeVoice` assignment/route，复用 route identity、
-  sync preflight、session stop cleanup 和零配置 CTA；完成最后消费者迁移后再移除 legacy
-  audio CRUD/selectors 与文本 connection 删除 guard。
+- FE-R03 后续见 `2026-07-14_FE-R03_route-aware-realtime-voice.md` 与
+  `2026-07-14_FE-R03_legacy-audio-facade-cleanup.md`；当前下一工作包为 `I18N-R01`。
