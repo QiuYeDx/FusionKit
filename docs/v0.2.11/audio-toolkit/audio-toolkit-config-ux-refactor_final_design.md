@@ -1,7 +1,7 @@
 # 音频 API 配置与语音合成 UX 重构 Final Design
 
 > 日期：2026-07-12
-> 状态：实施中（`PRE-R01`、`CORE-R01`、`BE-R01`、`FE-R01`、`FE-R02`、`FE-R03` 已完成；下一步 `I18N-R01`）
+> 状态：实施中（`PRE-R01`、`CORE-R01`、`BE-R01`、`FE-R01`、`FE-R02`、`FE-R03`、`I18N-R01` 已完成；下一步 `TEST-R01`）
 > 范围：独立音频 API 配置、音频任务默认分配、音频运行时路由、文本转音频页面、i18n 与迁移兼容
 > 关系：本设计继承原音频工具箱的 adapter、IPC 安全、文件、流式与 Realtime 合同，但正式替代原设计中的配置模型、TTS 模式/模型关系、字段禁用规则和相关验收口径。
 > 执行计划：[音频 API 配置与语音合成 UX 重构 Execution Plan](audio-toolkit-config-ux-refactor_execution_plan.md)
@@ -678,19 +678,25 @@ renderer 无法提交路径或模型配置。
 
 ### 9.2 新检查机制
 
-保留 `scripts/check-i18n.mjs` 的四语言 parity 检查，并新增 source-usage 检查：
+`I18N-R01` 已保留 `scripts/check-i18n.mjs` 的四语言 parity 检查，并实现
+`scripts/check-i18n-usage.mjs` source-usage 门禁：
 
-1. 扫描 `t("namespace:key")`、`i18n.t("namespace:key")`、传递给翻译函数的静态 key 常量。
-2. 扫描所有形如 `audio:...` 的可疑字面量，覆盖 `resolveSubmitIssueKey` 这种“先返回 key、后调用 t”的间接路径。
-3. 对模板 key 建立显式 manifest，例如 mode、status、response format 的枚举笛卡尔积。
-4. 对每个 key 调用 `i18n.exists`，至少验证 source language。
-5. Electron smoke 增加 raw-key 检测，禁止页面正文出现 namespace:key 形态。
+1. 使用 TypeScript compiler API 绑定 `useTranslation` 返回的 `t`、共享 `i18n.t`、
+   显式 `TFunction`/`Translate` helper 与 `Trans i18nKey`，不把普通回调 `t` 误认成翻译。
+2. 展开字面量、条件分支、有限 string union/template、常量 map 与 metadata key，覆盖
+   `resolveSubmitIssueKey` 这类“先返回 key、后调用 t”的间接路径。
+3. 无法由类型系统有限证明的表达式必须在 `scripts/i18n-usage-manifest.mjs` 以
+   `file#expression` 登记精确 key；未知动态表达式、通配符与过期 selector 均失败。
+   Manifest 列表是需评审的有限运行时合同，不宣称能从列表自身证明每个值均可达。
+4. 按 i18next 实际 namespace 语义 canonicalize 多冒号 key，并验证每个解析 key 在四种
+   locale 中均存在；即使调用提供 `defaultValue` 也不能豁免。
+5. 不全局扫描所有 `audio:*` 字面量，因为它会把 `audioIpc.ts` 的 IPC channel 误报为
+   翻译；只有绑定后的翻译调用进入检查，外部动态 key 还必须在运行时用相同有限白名单校验。
+6. Electron smoke 在 preload loading 退出后检查正文及 `aria-label`、`title`、
+   `placeholder`、`alt`，禁止音频与音频设置页面出现 raw `audio:`/`setting:` key。
 
-新增建议脚本：
-
-```text
-scripts/check-i18n-usage.mjs
-```
+当前基线为 1342 个翻译调用，其中 1310 个静态/类型有限展开，32 次调用由 26 个精确
+manifest selector 覆盖，共验证 1378 个实际引用 key。
 
 发布门禁：
 
@@ -698,6 +704,9 @@ scripts/check-i18n-usage.mjs
 node scripts/check-i18n.mjs
 node scripts/check-i18n-usage.mjs
 ```
+
+`pnpm run i18n:check` 已串联上述两层门禁；排查时可分别使用
+`i18n:check:locales` 与 `i18n:check:usage`。
 
 ## 10. 数据迁移与兼容
 

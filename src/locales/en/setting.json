@@ -11,7 +11,6 @@
     "model_assignment": "Model Assignment",
     "model_profiles": "Model Profiles",
     "audio_assignment": "Audio Task Assignment",
-    "audio_profiles": "Audio Model Profiles",
     "audio_apis": "Audio APIs"
   },
   "nav": {
@@ -149,7 +148,6 @@
         "realtimeVoice": "Duplex voice",
         "not_configured": "Not configured",
         "no_compatible_api": "No audio API supports this task yet.",
-        "unsupported": "Unavailable",
         "unsupported_select": "This audio profile does not support the selected task or is missing the required model."
       },
       "provider": {
@@ -244,41 +242,12 @@
         "task_separator": ", "
       },
       "profile": {
-        "description": "Audio profiles reference existing model connections and store only audio protocol, model IDs, defaults, and capability state.",
-        "add": "Add audio profile",
-        "empty": "No audio profiles yet. Please add one.",
-        "add_first": "Add your first audio profile",
-        "no_connection_profiles": "Create a model connection profile before adding an audio profile.",
-        "connection_missing": "Connection missing",
-        "connection_delete_blocked": "Legacy audio settings have not been migrated safely, so this connection cannot be deleted yet. Restart the app and try again.",
-        "dialog_title_add": "Add Audio Profile",
-        "dialog_title_edit": "Edit Audio Profile",
-        "dialog_description": "Configure audio protocol, model IDs, default voice, and task capabilities.",
-        "name": "Profile name",
-        "name_placeholder": "e.g., OpenAI Audio, MiMo Audio",
-        "name_required": "Enter an audio profile name.",
-        "connection_required": "Choose a connection profile.",
-        "connection_profile": "Connection profile",
-        "connection_placeholder": "Choose an existing model connection…",
-        "dialect": "Audio protocol",
-        "capabilities": "Capabilities",
-        "model_missing": "Missing model",
-        "mimo_only_hint": "MiMo voice design, voice clone, audio tags, and optimize_text_preview are enabled only for MiMo audio profiles.",
-        "default_name": {
-          "openai_audio": "OpenAI Audio",
-          "mimo_chat_audio": "MiMo Audio",
-          "openai_realtime": "OpenAI Realtime"
-        }
+        "connection_delete_blocked": "Legacy audio settings have not been migrated safely, so this connection cannot be deleted yet. Restart the app and try again."
       },
       "dialect": {
         "openai_audio": "OpenAI Audio",
         "mimo_chat_audio": "MiMo Chat Audio",
         "openai_realtime": "OpenAI Realtime"
-      },
-      "dialect_hint": {
-        "openai_audio": "File ASR / TTS",
-        "mimo_chat_audio": "MiMo ASR / TTS / chunked captions",
-        "openai_realtime": "WebRTC captions / duplex voice"
       },
       "capability": {
         "file_transcription": "File transcription",
@@ -289,34 +258,6 @@
         "realtime_duplex_voice": "Duplex voice",
         "mimo_voice_design": "MiMo voice design",
         "mimo_voice_clone": "MiMo voice clone"
-      },
-      "model": {
-        "transcription": "ASR model",
-        "speechSynthesis": "TTS model",
-        "realtime": "Realtime / caption model",
-        "realtimeTranscription": "Realtime transcription model",
-        "realtimeVoice": "Realtime voice model",
-        "realtime_mimo_hint": "MiMo realtime captions use chunked near-realtime transcription and do not enable WebRTC duplex."
-      },
-      "defaults": {
-        "language": "Default language",
-        "transcriptionResponseFormat": "Default transcription format",
-        "ttsVoice": "Default voice",
-        "ttsResponseFormat": "Default speech format",
-        "realtimeVoice": "Realtime voice",
-        "mimoTtsMode": "MiMo TTS mode",
-        "streamSpeechByDefault": "Default streaming synthesis",
-        "streamSpeechByDefault_hint": "When enabled, supported TTS tools prefer low-latency streaming output."
-      },
-      "language": {
-        "auto": "Auto detect",
-        "zh": "Chinese",
-        "en": "English"
-      },
-      "mimo_mode": {
-        "preset_voice": "Preset voice",
-        "voice_design": "Voice design",
-        "voice_clone": "Voice clone"
       }
     }
   },

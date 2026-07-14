@@ -1,13 +1,10 @@
 {
   "global": {
-    "open_settings": "Open settings",
     "change_audio_api": "Change audio API",
     "configure_audio_api": "Configure audio API",
     "api_config_title": "Audio API and output",
-    "config_title": "Global audio config",
     "summary": "Current config",
     "status": "Status",
-    "profile": "Profile",
     "audio_api": "Audio API",
     "provider": "Provider",
     "mode": "Generation mode",
@@ -15,17 +12,12 @@
     "technical_details": "Technical details",
     "dialect": "Protocol",
     "model": "Model",
-    "connection": "Connection",
     "capabilities": "Capabilities"
   },
   "status": {
     "ready": "Ready",
     "audio_api_not_configured": "Audio API not configured",
-    "audio_route_not_configured": "No usable route",
-    "profile_not_configured": "Not configured",
-    "connection_missing": "Connection missing",
-    "model_missing": "Model missing",
-    "unsupported_capability": "Capability mismatch"
+    "audio_route_not_configured": "No usable route"
   },
   "workspace": {
     "ready": {
@@ -40,22 +32,10 @@
       "title": "This audio API has no usable route for the current task",
       "description": "Enable a compatible route for this task in audio settings."
     },
-    "profile_not_configured": {
-      "title": "No audio profile selected",
-      "description": "Choose a global audio profile for this audio task in settings."
-    },
-    "connection_missing": {
-      "title": "Connection missing",
-      "description": "The model connection referenced by this audio profile no longer exists."
-    },
-    "model_missing": {
-      "title": "Model ID missing",
-      "description": "This audio profile is missing the model ID required by this task."
-    },
-    "unsupported_capability": {
-      "title": "Capability mismatch",
-      "description": "The selected audio profile does not support this task."
-    }
+    "profile_not_configured": {},
+    "connection_missing": {},
+    "model_missing": {},
+    "unsupported_capability": {}
   },
   "pages": {
     "transcriber": {
@@ -146,8 +126,7 @@
       "running": "Transcribing",
       "copy": "Copy",
       "open_output": "Open folder",
-      "save_result": "Save result",
-      "save_next_run": "Save next run"
+      "save_result": "Save result"
     },
     "status": {
       "idle": "Ready",
@@ -186,8 +165,7 @@
       "output_not_ready": "There is no output file to open yet.",
       "copy_failed": "Copy failed. Please copy the result manually.",
       "cancel_failed": "The transcription request could not be cancelled.",
-      "save_failed": "The current transcript could not be saved.",
-      "unsupported_model": "The selected model is not supported by the current transcription protocol."
+      "save_failed": "The current transcript could not be saved."
     }
   },
   "speech": {
@@ -328,10 +306,7 @@
       "mode": "Caption mode",
       "language": "Language",
       "input_audio_format": "Input audio format",
-      "turn_detection": "Turn detection",
-      "output_format": "Save format",
-      "assistant_transcript": "Show assistant captions",
-      "instructions": "Realtime instructions"
+      "output_format": "Save format"
     },
     "mode": {
       "openai_realtime": "OpenAI Realtime",
@@ -350,13 +325,8 @@
     },
     "input_audio_format": {
       "pcm16": "PCM16",
-      "opus": "Opus",
       "pcmu": "PCMU (G.711 μ-law)",
       "pcma": "PCMA (G.711 A-law)"
-    },
-    "turn_detection": {
-      "server_vad": "Server VAD",
-      "manual": "Manual"
     },
     "output_format": {
       "txt": "TXT",
@@ -365,16 +335,9 @@
     "hints": {
       "language": "Only languages supported by the current audio API route are shown. Auto detect omits the language field.",
       "input_audio_format": "Realtime supports PCM16, PCMU, and PCMA. PCM16 is the recommended default.",
-      "turn_detection": "Server VAD detects speech turns automatically. Manual mode remains disabled until push-to-talk is complete.",
-      "output_format": "TXT saves plain text. SRT uses local session time to generate a basic timeline.",
-      "assistant_transcript": "Realtime captions show microphone input by default.",
-      "assistant_transcript_detail": "If the model returns assistant-side transcripts, this toggle shows them.",
-      "instructions": "The current realtime transcription model does not support prompts."
+      "output_format": "TXT saves plain text. SRT uses local session time to generate a basic timeline."
     },
-    "placeholders": {
-      "instructions": "For example: only transcribe user speech, do not generate replies.",
-      "instructions_disabled": "Realtime instructions are unavailable outside OpenAI Realtime mode"
-    },
+    "placeholders": {},
     "status": {
       "idle": "Ready",
       "requesting": "Requesting mic",
@@ -439,30 +402,22 @@
   "voice": {
     "fields": {
       "voice": "Response voice",
-      "turn_detection": "Turn detection",
       "input_audio_format": "Input audio format",
       "output_audio_format": "Output audio format",
       "instructions": "Session instructions"
     },
     "hints": {
       "voice": "The response voice used by OpenAI Realtime duplex voice.",
-      "turn_detection": "Server VAD detects when the user has finished speaking. Manual mode is for later fine-grained controls.",
       "input_audio_format": "Audio format sent from the microphone to the Realtime session.",
       "output_audio_format": "Audio format returned by the model remote track.",
       "instructions": "Set the assistant speaking style, language, and task boundaries."
     },
     "placeholders": {
       "voice": "marin",
-      "instructions": "For example: answer briefly in Chinese with a natural tone.",
-      "instructions_disabled": "The current config does not support Realtime/WebRTC duplex voice"
-    },
-    "turn_detection": {
-      "server_vad": "Server VAD",
-      "manual": "Manual"
+      "instructions": "For example: answer briefly in Chinese with a natural tone."
     },
     "audio_format": {
       "pcm16": "PCM16",
-      "opus": "Opus",
       "pcmu": "PCMU (G.711 μ-law)",
       "pcma": "PCMA (G.711 A-law)"
     },
@@ -491,10 +446,6 @@
       "audio": "Remote audio",
       "session": "Session",
       "elapsed": "Elapsed"
-    },
-    "unsupported": {
-      "title": "Current config does not support duplex voice",
-      "description": "Duplex voice requires an OpenAI Realtime profile with realtime_duplex_voice capability. MiMo Chat Audio only exposes chunked captions and streaming TTS in the first version, so it is not labeled as WebRTC duplex."
     },
     "actions": {
       "connect": "Connect voice",

@@ -9,9 +9,22 @@ import type {
   MarkdownWidgetDefinition,
 } from "../markdown-types";
 
+export const PENDING_EXECUTION_STORE_LABEL_KEYS = [
+  "home:store_label_translate",
+  "home:store_label_convert",
+  "home:store_label_extract",
+] as const;
+
+export type PendingExecutionStoreLabelKey =
+  (typeof PENDING_EXECUTION_STORE_LABEL_KEYS)[number];
+
+const pendingExecutionStoreLabelKeySet = new Set<string>(
+  PENDING_EXECUTION_STORE_LABEL_KEYS,
+);
+
 interface PendingExecutionStoreItem {
   name: string;
-  labelKey: string;
+  labelKey: PendingExecutionStoreLabelKey;
   count: number;
   path?: string;
 }
@@ -158,10 +171,16 @@ function parsePendingExecutionProps(
   for (const item of value.stores) {
     if (!item || typeof item !== "object") continue;
     const s = item as Record<string, unknown>;
-    if (typeof s.name !== "string" || typeof s.labelKey !== "string") continue;
+    if (
+      typeof s.name !== "string" ||
+      typeof s.labelKey !== "string" ||
+      !pendingExecutionStoreLabelKeySet.has(s.labelKey)
+    ) {
+      continue;
+    }
     stores.push({
       name: s.name,
-      labelKey: s.labelKey,
+      labelKey: s.labelKey as PendingExecutionStoreLabelKey,
       count: typeof s.count === "number" ? s.count : 0,
       path: typeof s.path === "string" ? s.path : undefined,
     });

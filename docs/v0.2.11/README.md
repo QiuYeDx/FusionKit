@@ -55,6 +55,6 @@ docs/v0.2.11/
 | `qiuye-ui-refresh` | 已完成 `QIUYE-UI-001` | `docs/v0.2.11/qiuye-ui-refresh/qiuye-ui-refresh-execution-plan.md` |
 | `openai-api-format-compatibility` | 已完成 `PRE-001`、`CORE-001`、`CORE-002`、`BE-001`、`BE-002`、`BE-003`、`BE-004`、`BE-005`、`FE-001`、`FE-002`、`AGENT-001`、`AGENT-002`、`FIX-001`；`DOC-001` 发布说明部分完成，下一步 `QA-001` / 补齐 README 与隐私说明 | `docs/v0.2.11/openai-api-format-compatibility/openai-api-format-compatibility_execution_plan.md` |
 | `audio-toolkit` | `FIX-001`～`FIX-007`、`AUDIT-001`、`QA-001` 已完成；TypeScript、四语言 i18n、全量 73 files / 560 tests、Vite test build、四路由×四语言×宽窄窗口 Electron 矩阵通过；真实供应商/设备验收保留在 `QA-002` | `docs/v0.2.11/audio-toolkit/audio-toolkit_execution_plan.md` |
-| `audio-toolkit-config-ux-refactor` | `PRE-R01`～`FE-R03` 已完成；四个工具只消费 standalone 配置，legacy facade 已清理；下一步 `I18N-R01` | `docs/v0.2.11/audio-toolkit/audio-toolkit-config-ux-refactor_execution_plan.md` |
+| `audio-toolkit-config-ux-refactor` | `PRE-R01`～`I18N-R01` 已完成；四工具 standalone 消费、legacy facade 与源码 i18n 门禁闭环，M3 已达成；下一步 `TEST-R01` | `docs/v0.2.11/audio-toolkit/audio-toolkit-config-ux-refactor_execution_plan.md` |
 
 收到新的具体迭代需求后，在本目录下新增 `<feature-slug>/` 并补齐设计文档与执行计划。

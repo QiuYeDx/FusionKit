@@ -216,5 +216,16 @@
     "plan_not_found": "未找到重新命名計畫 {{planId}}，可能已過期或被清理，請重新產生預覽。",
     "plan_loaded_from_agent": "已載入 HomeAgent 中的重新命名預覽。",
     "plan_items_incomplete": "目前預覽不完整（僅包含 {{count}}/{{total}} 項），無法套用。請重新產生完整預覽。"
+  },
+  "tour": {
+    "path_picker_title": "選擇檔案或資料夾",
+    "path_picker_content": "將需要重新命名的檔案或資料夾拖曳至此，或點擊按鈕選擇。支援同時新增多個路徑。",
+    "options_title": "翻譯選項",
+    "options_content": "設定翻譯參數：來源語言、目標語言、命名樣式、翻譯範圍等。不同設定會影響重新命名的結果。",
+    "preview_title": "預覽重新命名計畫",
+    "preview_content": "產生預覽後，所有待重新命名的項目都會顯示在這裡。你可以逐項編輯、還原原始建議或略過某些項目。",
+    "apply_title": "套用重新命名",
+    "apply_content": "確認計畫無誤後點擊套用。系統會自動記錄操作日誌，如需撤銷可一鍵還原。",
+    "trigger": "使用導覽"
   }
 }

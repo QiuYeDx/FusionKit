@@ -321,19 +321,47 @@ t("common:app_name", { defaultValue: "FusionKit" });
 
 ## 8) 完整性检查脚本
 
-项目内置了 i18n 完整性检查脚本 `scripts/check-i18n.mjs`，用于在修改翻译文件后快速验证四种语言的同步状态。
+项目内置两层 i18n 门禁：
+
+- `scripts/check-i18n.mjs` 验证四种语言的 locale 结构与值完整性。
+- `scripts/check-i18n-usage.mjs` 使用 TypeScript AST 验证源码实际引用的 key，并通过
+  `scripts/i18n-usage-manifest.mjs` 显式枚举无法由类型系统有限展开的动态 key。
 
 ```bash
 pnpm run i18n:check
 ```
 
-检查项包括：
+`i18n:check` 会依次执行两层门禁；排查时也可以分别运行：
+
+```bash
+pnpm run i18n:check:locales
+pnpm run i18n:check:usage
+```
+
+locale 检查项包括：
+
 - **文件缺失**：某语言缺少命名空间 JSON 文件
 - **Key 缺失/多余**：对比所有语言的 Key 结构差异
 - **空值**：翻译值为空字符串
 - **疑似未翻译**：值与 zh 源语言完全相同（仅 warning，自动排除中日共用汉字和纯 ASCII 技术术语）
 
-脚本自动扫描 `src/locales/` 目录发现语言和命名空间，新增语言或命名空间后无需修改脚本。检测到 error 时以退出码 1 退出，可集成到 CI 流程。
+源码 usage 检查项包括：
+
+- **静态 key**：`useTranslation` 返回的 `t`、共享 `i18n.t`、`TFunction`/`Translate`
+  helper，以及 `Trans i18nKey`。
+- **间接 key**：静态条件分支、常量 map、metadata key 和有限 string-union template。
+- **动态 key**：无法有限展开的表达式必须使用精确 manifest；任意字符串、通配符和已过期
+  selector 都会失败。Manifest 的有限 key 列表是需评审的运行时合同；工具不会假装能从
+  列表本身证明每个值都实际可达。
+- **实际存在性**：每个解析后的 key 必须存在于全部 locale；即使调用提供
+  `defaultValue`，缺失 key 仍然失败。
+
+不要为了绕过检查扫描或豁免所有 `namespace:*` 字面量：IPC channel、URL 和 CSS variant
+也可能包含冒号。动态翻译必须在调用边界收紧类型，或在 manifest 中列出精确 key；来自
+外部数据的 key 还要在运行时做同一份有限白名单校验。
+
+脚本自动扫描 `src/locales/` 和 `src/`。检测到 error 时以退出码 1 退出，可直接集成到
+CI 或发布流程。
 
 ---
 

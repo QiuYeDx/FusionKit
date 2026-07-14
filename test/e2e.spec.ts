@@ -150,6 +150,10 @@ if (shouldSkipElectronE2E) {
       await page.reload({ waitUntil: 'domcontentloaded' })
       await waitForFusionKitLoadingToExit(page)
       await page.getByTestId('audio-api-settings').waitFor({ state: 'visible' })
+      await expectNoRawAudioOrSettingI18nKeys(
+        page,
+        'standalone audio settings',
+      )
 
       expect(await page.evaluate(() => {
         const [pathname, query = ''] = window.location.hash.slice(1).split('?')
@@ -168,6 +172,10 @@ if (shouldSkipElectronE2E) {
       await page.getByTestId('audio-api-add').click()
       await page.getByRole('dialog').waitFor({ state: 'visible' })
       await page.getByTestId('audio-provider-mimo').click()
+      await expectNoRawAudioOrSettingI18nKeys(
+        page,
+        'standalone audio settings add dialog',
+      )
       await page.getByTestId('audio-api-name').fill(profileName)
       await page.getByTestId('audio-api-base-url').fill(
         'https://api.xiaomimimo.com/v1',
@@ -256,6 +264,10 @@ if (shouldSkipElectronE2E) {
       await editDialog.waitFor({ state: 'visible' })
       await page.getByTestId('audio-api-save').waitFor({ state: 'visible' })
       await page.waitForTimeout(250)
+      await expectNoRawAudioOrSettingI18nKeys(
+        page,
+        'standalone audio settings edit dialog',
+      )
 
       const narrowDialogState = await editDialog.evaluate((dialog) => {
         const dialogRect = dialog.getBoundingClientRect()
@@ -323,6 +335,10 @@ if (shouldSkipElectronE2E) {
       await page.getByTestId('audio-api-edit').first().click()
       await editDialog.waitFor({ state: 'visible' })
       await page.getByTestId('audio-provider-custom_openai_compatible').click()
+      await expectNoRawAudioOrSettingI18nKeys(
+        page,
+        'standalone audio settings custom-provider edit dialog',
+      )
       expect(await page.getByTestId('audio-api-key').inputValue()).toBe('')
       await page.getByTestId('audio-api-base-url').fill(
         'https://audio.example.test/v1',
@@ -676,8 +692,9 @@ if (shouldSkipElectronE2E) {
         animations: 'disabled',
       })
 
-      expect(await page.locator('body').innerText()).not.toMatch(
-        /\baudio:[a-z0-9_.-]+/i,
+      await expectNoRawAudioOrSettingI18nKeys(
+        page,
+        'speech synthesis route',
       )
       await page.getByTestId('speech-mode-voice_clone').click()
       await page.getByTestId('speech-voice-sample-clear').click()
@@ -888,8 +905,9 @@ if (shouldSkipElectronE2E) {
         animations: 'disabled',
       })
 
-      expect(await page.locator('body').innerText()).not.toMatch(
-        /\baudio:[a-z0-9_.-]+/i,
+      await expectNoRawAudioOrSettingI18nKeys(
+        page,
+        'audio transcription route',
       )
       expect(rendererErrors).toEqual([])
     }, 180_000)
@@ -1028,8 +1046,9 @@ if (shouldSkipElectronE2E) {
         animations: 'disabled',
       })
 
-      expect(await page.locator('body').innerText()).not.toMatch(
-        /\baudio:[a-z0-9_.-]+/i,
+      await expectNoRawAudioOrSettingI18nKeys(
+        page,
+        'realtime captions route',
       )
       expect(rendererErrors).toEqual([])
     }, 180_000)
@@ -1149,6 +1168,10 @@ if (shouldSkipElectronE2E) {
         path: path.join(testResultsDir, 'fe-r03-voice-workspace-786x540.png'),
         animations: 'disabled',
       })
+      await expectNoRawAudioOrSettingI18nKeys(
+        page,
+        'realtime voice route',
+      )
 
       await page.evaluate(() => {
         const testWindow = window as typeof window & {
@@ -1343,9 +1366,6 @@ if (shouldSkipElectronE2E) {
         trackStopCount: 2,
       })
 
-      expect(await page.locator('body').innerText()).not.toMatch(
-        /\baudio:[a-z0-9_.-]+/i,
-      )
       expect(rendererErrors).toEqual([])
     }, 180_000)
 
@@ -1391,7 +1411,6 @@ if (shouldSkipElectronE2E) {
             expect(await page.locator('h1').count()).toBe(1)
 
             const pageState = await page.evaluate(() => ({
-              bodyText: document.body.innerText,
               bodyTextLength: document.body.innerText.trim().length,
               hasHorizontalOverflow:
                 document.documentElement.scrollWidth >
@@ -1399,7 +1418,10 @@ if (shouldSkipElectronE2E) {
             }))
             expect(pageState.bodyTextLength).toBeGreaterThan(100)
             expect(pageState.hasHorizontalOverflow).toBe(false)
-            expect(pageState.bodyText).not.toMatch(/\baudio:[a-z0-9_.-]+/i)
+            await expectNoRawAudioOrSettingI18nKeys(
+              page,
+              `${language} ${size.width}x${size.height} ${route}`,
+            )
           }
         }
       }
@@ -1433,6 +1455,62 @@ async function waitForFusionKitLoadingToExit(
     return !document.querySelector('.app-loading-wrap') &&
       !document.querySelector('#app-loading-style')
   }, undefined, { timeout })
+}
+
+async function expectNoRawAudioOrSettingI18nKeys(
+  targetPage: Page,
+  context: string,
+): Promise<void> {
+  const leaks = await targetPage.evaluate(() => {
+    const findRawKeys = (value: string) =>
+      value.match(/\b(?:audio|setting):[a-z0-9_.:-]+/gi) ?? []
+    const results: Array<{
+      location: string
+      keys: string[]
+      value?: string
+    }> = []
+    const bodyKeys = findRawKeys(document.body.innerText)
+    if (bodyKeys.length > 0) {
+      results.push({
+        location: 'body.innerText',
+        keys: bodyKeys,
+      })
+    }
+
+    const attributeNames = ['aria-label', 'title', 'placeholder', 'alt']
+    const elements = document.querySelectorAll(
+      '[aria-label], [title], [placeholder], [alt]',
+    )
+    for (const element of elements) {
+      for (const attributeName of attributeNames) {
+        const value = element.getAttribute(attributeName)
+        if (!value) continue
+        const keys = findRawKeys(value)
+        if (keys.length === 0) continue
+        const testId = element.getAttribute('data-testid')
+        results.push({
+          location: [
+            element.tagName.toLowerCase(),
+            testId ? `[data-testid="${testId}"]` : '',
+            `@${attributeName}`,
+          ].join(''),
+          keys,
+          value,
+        })
+      }
+    }
+    return results
+  })
+
+  if (leaks.length > 0) {
+    throw new Error(
+      `Raw audio/setting i18n keys found in ${context}:\n${JSON.stringify(
+        leaks,
+        null,
+        2,
+      )}`,
+    )
+  }
 }
 
 async function setWindowSize(

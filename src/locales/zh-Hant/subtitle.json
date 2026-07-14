@@ -41,7 +41,8 @@
       "conflict_policy_overwrite": "覆蓋原檔案",
       "conflict_policy_index": "自動加序號",
       "concurrent_slices": "切片並行翻譯",
-      "concurrent_slices_hint": "開啟後單一任務的多個切片將並行請求 API，顯著提升翻譯速度，但會增加瞬時並行數"
+      "concurrent_slices_hint": "開啟後單一任務的多個切片將並行請求 API，顯著提升翻譯速度，但會增加瞬時並行數",
+      "no_model_selected": "未選擇模型"
     },
     "actions": {
       "start": "開始任務",
@@ -193,6 +194,27 @@
       "output_dir": "輸出目錄",
       "confirm_add_from_manifest": "確認使用復原清單加入佇列？",
       "confirm_add_from_manifest_desc": "來源檔案不可用或已變更，將直接使用復原清單中儲存的原始分片資料繼續翻譯。"
+    },
+    "tour": {
+      "config_title": "翻譯設定面板",
+      "config_content": "在左側面板中設定翻譯參數，包括語言、輸出格式、分片模式和輸出路徑等。所有設定會自動儲存，下次開啟時保留。",
+      "lang_title": "選擇翻譯語言",
+      "lang_content": "設定字幕的來源語言和目標語言。系統支援日語、英語、中文等多種語言互譯。",
+      "output_mode_title": "翻譯輸出模式",
+      "output_mode_content": "「雙語」模式保留原文並附加譯文，「僅譯文」模式只輸出翻譯結果。",
+      "slice_title": "字幕分片策略",
+      "slice_content": "字幕會依分片策略拆分後逐片傳送給 AI 翻譯。可選標準、精細或自訂字數分片。",
+      "output_path_title": "輸出路徑",
+      "output_path_content": "選擇翻譯結果的儲存位置：指定自訂資料夾，或儲存至字幕來源檔案所在目錄。",
+      "schedule_title": "定時翻譯",
+      "schedule_content": "可設定定時自動開始翻譯，適合在深夜或閒置時段批次處理任務。",
+      "upload_title": "新增字幕檔案",
+      "upload_content": "將 .lrc 或 .srt 字幕檔案拖曳至此，或點擊選擇檔案。支援同時新增多個檔案。",
+      "queue_title": "任務佇列",
+      "queue_content": "所有新增的翻譯任務都會顯示在這裡。可查看進度、編輯設定、重試失敗任務或刪除任務。",
+      "start_title": "開始翻譯",
+      "start_content": "點擊即可一鍵啟動所有待翻譯任務。翻譯完成後可在輸出路徑找到結果檔案。",
+      "trigger": "使用導覽"
     }
   },
   "extractor": {
@@ -276,6 +298,21 @@
     "dialog": {
       "select_output_title": "選擇輸出目錄",
       "select_output_confirm": "選擇此目錄"
+    },
+    "tour": {
+      "config_title": "擷取設定",
+      "config_content": "在左側面板設定擷取參數：保留語言、輸出路徑和衝突策略。設定會自動儲存。",
+      "keep_title": "保留語言",
+      "keep_content": "選擇要從雙語字幕中保留的語言。工具會自動辨識並擷取對應語言的文字行。",
+      "output_title": "輸出路徑",
+      "output_content": "選擇擷取結果的儲存位置：指定自訂資料夾，或儲存至來源檔案所在目錄。",
+      "upload_title": "新增字幕檔案",
+      "upload_content": "將 .lrc 或 .srt 雙語字幕檔案拖曳至此，或點擊選擇檔案。支援批次新增。",
+      "queue_title": "任務佇列",
+      "queue_content": "新增的擷取任務會顯示在這裡，可查看狀態、編輯設定或刪除任務。",
+      "start_title": "開始擷取",
+      "start_content": "點擊即可一鍵啟動所有待擷取任務，完成後可在輸出路徑找到單語結果檔案。",
+      "trigger": "使用導覽"
     }
   },
   "converter": {
@@ -363,6 +400,21 @@
     "dialog": {
       "select_output_title": "選擇輸出目錄",
       "select_output_confirm": "選擇此目錄"
+    },
+    "tour": {
+      "config_title": "轉換設定",
+      "config_content": "在左側面板設定轉換參數：目標格式、預設時長、輸出路徑等。設定會自動儲存。",
+      "format_title": "目標格式",
+      "format_content": "選擇要轉換的目標字幕格式：LRC（歌詞）、SRT（通用字幕）或 VTT（Web 字幕）。",
+      "output_title": "輸出路徑",
+      "output_content": "選擇轉換結果的儲存位置：指定自訂資料夾，或直接儲存至來源檔案所在目錄。",
+      "upload_title": "新增字幕檔案",
+      "upload_content": "將 .lrc、.srt 或 .vtt 字幕檔案拖曳至此，或點擊選擇檔案。支援批次新增。",
+      "queue_title": "任務佇列",
+      "queue_content": "新增的轉換任務會顯示在這裡，可查看狀態、編輯設定或刪除任務。",
+      "start_title": "開始轉換",
+      "start_content": "點擊即可一鍵啟動所有待轉換任務，完成後可在輸出路徑找到結果檔案。",
+      "trigger": "使用導覽"
     }
   }
 }

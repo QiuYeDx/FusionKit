@@ -41,7 +41,8 @@
       "conflict_policy_overwrite": "Overwrite",
       "conflict_policy_index": "Add index suffix",
       "concurrent_slices": "Concurrent Slice Translation",
-      "concurrent_slices_hint": "When enabled, multiple slices of a single task will request the API concurrently, significantly improving translation speed but increasing burst concurrency"
+      "concurrent_slices_hint": "When enabled, multiple slices of a single task will request the API concurrently, significantly improving translation speed but increasing burst concurrency",
+      "no_model_selected": "No model selected"
     },
     "actions": {
       "start": "Start Task",
@@ -193,6 +194,27 @@
       "output_dir": "Output Directory",
       "confirm_add_from_manifest": "Confirm adding from manifest?",
       "confirm_add_from_manifest_desc": "Source file is unavailable or changed. Translation will continue using original fragment data stored in the recovery manifest."
+    },
+    "tour": {
+      "config_title": "Translation settings",
+      "config_content": "Configure translation parameters in the left panel, including languages, output format, segmentation mode, and output path. All settings are saved automatically and restored the next time you open the tool.",
+      "lang_title": "Choose translation languages",
+      "lang_content": "Set the source and target languages for the subtitles. Translation is available between Japanese, English, Chinese, and many other languages.",
+      "output_mode_title": "Translation output mode",
+      "output_mode_content": "“Bilingual” keeps the original text and appends the translation, while “Target only” outputs only the translation.",
+      "slice_title": "Subtitle segmentation",
+      "slice_content": "Subtitles are split according to the selected strategy and sent to the AI for translation segment by segment. Choose standard, fine-grained, or custom character-count segmentation.",
+      "output_path_title": "Output path",
+      "output_path_content": "Choose where to save translated files: a custom folder or the source subtitle file’s folder.",
+      "schedule_title": "Scheduled translation",
+      "schedule_content": "Set translation to start automatically at a specific time, which is useful for batch processing overnight or during idle periods.",
+      "upload_title": "Add subtitle files",
+      "upload_content": "Drag .lrc or .srt subtitle files here, or click to select files. You can add multiple files at once.",
+      "queue_title": "Task queue",
+      "queue_content": "All added translation tasks appear here. You can check progress, edit settings, retry failed tasks, or delete tasks.",
+      "start_title": "Start translation",
+      "start_content": "Click to start all pending translation tasks. When they finish, you can find the result files in the output path.",
+      "trigger": "Show guide"
     }
   },
   "extractor": {
@@ -276,6 +298,21 @@
     "dialog": {
       "select_output_title": "Select Output Directory",
       "select_output_confirm": "Use This Directory"
+    },
+    "tour": {
+      "config_title": "Extraction settings",
+      "config_content": "Set extraction parameters in the left panel, including the language to keep, output path, and conflict policy. Settings are saved automatically.",
+      "keep_title": "Language to keep",
+      "keep_content": "Choose the language to keep from bilingual subtitles. The tool automatically identifies and extracts the lines in that language.",
+      "output_title": "Output path",
+      "output_content": "Choose where to save extracted files: a custom folder or the source file’s folder.",
+      "upload_title": "Add subtitle files",
+      "upload_content": "Drag bilingual .lrc or .srt subtitle files here, or click to select files. You can add multiple files at once.",
+      "queue_title": "Task queue",
+      "queue_content": "Added extraction tasks appear here. You can check their status, edit settings, or delete tasks.",
+      "start_title": "Start extraction",
+      "start_content": "Click to start all pending extraction tasks. When they finish, you can find the monolingual result files in the output path.",
+      "trigger": "Show guide"
     }
   },
   "converter": {
@@ -363,6 +400,21 @@
     "dialog": {
       "select_output_title": "Select Output Directory",
       "select_output_confirm": "Use This Directory"
+    },
+    "tour": {
+      "config_title": "Conversion settings",
+      "config_content": "Set conversion parameters in the left panel, including target format, default duration, and output path. Settings are saved automatically.",
+      "format_title": "Target format",
+      "format_content": "Choose the target subtitle format: LRC (lyrics), SRT (general-purpose subtitles), or VTT (web subtitles).",
+      "output_title": "Output path",
+      "output_content": "Choose where to save converted files: a custom folder or the source file’s folder.",
+      "upload_title": "Add subtitle files",
+      "upload_content": "Drag .lrc, .srt, or .vtt subtitle files here, or click to select files. You can add multiple files at once.",
+      "queue_title": "Task queue",
+      "queue_content": "Added conversion tasks appear here. You can check their status, edit settings, or delete tasks.",
+      "start_title": "Start conversion",
+      "start_content": "Click to start all pending conversion tasks. When they finish, you can find the result files in the output path.",
+      "trigger": "Show guide"
     }
   }
 }

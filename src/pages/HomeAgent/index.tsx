@@ -40,6 +40,7 @@ import type {
   AgentToolCall,
   ExecutionMode,
   PendingExecution,
+  TaskStoreType,
 } from "@/agent/types";
 import { Button } from "@/components/ui/button";
 import {
@@ -65,7 +66,10 @@ import {
   type MarkdownWidgetContext,
 } from "@/components/qiuye-ui/markdown-renderer";
 import { builtinWidgetRegistry } from "@/components/qiuye-ui/markdown-renderer/widgets/builtin-registry";
-import { pendingExecutionWidget } from "@/components/qiuye-ui/markdown-renderer/widgets/PendingExecutionWidget";
+import {
+  pendingExecutionWidget,
+  type PendingExecutionStoreLabelKey,
+} from "@/components/qiuye-ui/markdown-renderer/widgets/PendingExecutionWidget";
 import {
   nameTranslationApplyResultWidget,
   nameTranslationPlanWidget,
@@ -103,13 +107,13 @@ const EXECUTION_MODE_OPTIONS: {
   },
 ];
 
-const STORE_LABEL_KEYS: Record<string, string> = {
+const STORE_LABEL_KEYS: Record<TaskStoreType, PendingExecutionStoreLabelKey> = {
   translate: "home:store_label_translate",
   convert: "home:store_label_convert",
   extract: "home:store_label_extract",
 };
 
-const STORE_PATH: Record<string, string> = {
+const STORE_PATH: Record<TaskStoreType, string> = {
   translate: "/tools/subtitle/translator",
   convert: "/tools/subtitle/converter",
   extract: "/tools/subtitle/extractor",
@@ -157,7 +161,7 @@ function pendingExecutionToFence(pe: PendingExecution): string {
   const payload = JSON.stringify({
     stores: pe.stores.map((s) => ({
       name: s,
-      labelKey: STORE_LABEL_KEYS[s] ?? s,
+      labelKey: STORE_LABEL_KEYS[s],
       count: pe.taskCounts[s] ?? 0,
       path: STORE_PATH[s],
     })),

@@ -261,7 +261,7 @@ function SubtitleLanguageExtractor() {
   const handleFileUpload = async (files: FileList) => {
     if (outputMode === "custom" && !outputURL) {
       showToast(
-        t("subtitle:extractor:errors.please_select_output_url"),
+        t("subtitle:extractor.errors.please_select_output_url"),
         "error"
       );
       return;
@@ -281,7 +281,7 @@ function SubtitleLanguageExtractor() {
         ![SubtitleFileType.LRC, SubtitleFileType.SRT].includes(ext as any)
       ) {
         showToast(
-          t("subtitle:extractor:errors.invalid_file_type").replace(
+          t("subtitle:extractor.errors.invalid_file_type").replace(
             "{types}",
             ext || "-"
           ),
@@ -291,7 +291,7 @@ function SubtitleLanguageExtractor() {
       }
       if (existingNames.includes(file.name)) {
         showToast(
-          t("subtitle:extractor:errors.duplicate_file").replace(
+          t("subtitle:extractor.errors.duplicate_file").replace(
             "{file}",
             file.name
           ),
@@ -304,7 +304,7 @@ function SubtitleLanguageExtractor() {
         outputMode === "source" ? getSourceDirFromFile(file) : outputURL;
       if (!outputDir) {
         showToast(
-          t("subtitle:extractor:errors.source_path_missing"),
+          t("subtitle:extractor.errors.source_path_missing"),
           "error"
         );
         continue;
@@ -327,7 +327,7 @@ function SubtitleLanguageExtractor() {
         addTask(newTask);
       } catch {
         showToast(
-          t("subtitle:extractor:errors.read_file_failed").replace(
+          t("subtitle:extractor.errors.read_file_failed").replace(
             "{file}",
             file.name
           ),
@@ -357,13 +357,13 @@ function SubtitleLanguageExtractor() {
       header={
         <ToolPageHeader
           meta={TOOL_META.extractor}
-          title={t("subtitle:extractor:title")}
-          description={t("subtitle:extractor:description")}
+          title={t("subtitle:extractor.title")}
+          description={t("subtitle:extractor.description")}
           right={
             <>
               <Badge variant="secondary" className="gap-1.5 font-normal">
                 <span className="font-mono text-[11px]">
-                  {t("subtitle:extractor:fields.keep_language")}:{" "}
+                  {t("subtitle:extractor.fields.keep_language")}:{" "}
                   {getLanguageLabel(keep)}
                 </span>
               </Badge>
@@ -384,12 +384,12 @@ function SubtitleLanguageExtractor() {
         <div id="ext-tour-config">
           <ToolConfigPanel
             icon={Settings}
-            title={t("subtitle:extractor:config_title")}
+            title={t("subtitle:extractor.config_title")}
           >
             {/* Keep language */}
             <ToolField
               id="ext-tour-keep"
-              label={t("subtitle:extractor:fields.keep_language")}
+              label={t("subtitle:extractor.fields.keep_language")}
             >
               <Select
                 value={keep}
@@ -413,7 +413,7 @@ function SubtitleLanguageExtractor() {
             {/* Output mode */}
             <ToolField
               id="ext-tour-output"
-              label={t("subtitle:extractor:fields.output_mode")}
+              label={t("subtitle:extractor.fields.output_mode")}
             >
               <ButtonGroup className="w-full">
                 <Button
@@ -422,7 +422,7 @@ function SubtitleLanguageExtractor() {
                   variant={outputMode === "custom" ? "default" : "outline"}
                   onClick={() => setOutputMode("custom")}
                 >
-                  {t("subtitle:extractor:fields.output_mode_custom")}
+                  {t("subtitle:extractor.fields.output_mode_custom")}
                 </Button>
                 <Button
                   size="sm"
@@ -430,7 +430,7 @@ function SubtitleLanguageExtractor() {
                   variant={outputMode === "source" ? "default" : "outline"}
                   onClick={() => setOutputMode("source")}
                 >
-                  {t("subtitle:extractor:fields.output_mode_source")}
+                  {t("subtitle:extractor.fields.output_mode_source")}
                 </Button>
               </ButtonGroup>
               {outputMode === "custom" ? (
@@ -438,22 +438,22 @@ function SubtitleLanguageExtractor() {
                   className="mt-2"
                   value={outputURL}
                   placeholder={t(
-                    "subtitle:extractor:fields.no_output_path_selected"
+                    "subtitle:extractor.fields.no_output_path_selected"
                   )}
                   selectLabel={t(
-                    "subtitle:extractor:fields.select_output_path"
+                    "subtitle:extractor.fields.select_output_path"
                   )}
                   onSelect={handleSelectOutputPath}
                 />
               ) : (
                 <p className="text-[11px] text-muted-foreground mt-1">
-                  {t("subtitle:extractor:fields.output_mode_source_hint")}
+                  {t("subtitle:extractor.fields.output_mode_source_hint")}
                 </p>
               )}
             </ToolField>
 
             {/* Conflict policy */}
-            <ToolField label={t("subtitle:extractor:fields.conflict_policy")}>
+            <ToolField label={t("subtitle:extractor.fields.conflict_policy")}>
               <ButtonGroup className="w-full">
                 <Button
                   size="sm"
@@ -461,7 +461,7 @@ function SubtitleLanguageExtractor() {
                   variant={conflictPolicy === "index" ? "default" : "outline"}
                   onClick={() => setConflictPolicy("index")}
                 >
-                  {t("subtitle:extractor:fields.conflict_policy_index")}
+                  {t("subtitle:extractor.fields.conflict_policy_index")}
                 </Button>
                 <Button
                   size="sm"
@@ -471,7 +471,7 @@ function SubtitleLanguageExtractor() {
                   }
                   onClick={() => setConflictPolicy("overwrite")}
                 >
-                  {t("subtitle:extractor:fields.conflict_policy_overwrite")}
+                  {t("subtitle:extractor.fields.conflict_policy_overwrite")}
                 </Button>
               </ButtonGroup>
             </ToolField>
@@ -486,25 +486,25 @@ function SubtitleLanguageExtractor() {
         dragging={isDragging}
         onDraggingChange={setIsDragging}
         onFiles={handleFileUpload}
-        title={t("subtitle:extractor:fields.upload_tips")}
-        description={t("subtitle:extractor:fields.files_only")}
-        actionLabel={t("subtitle:extractor:fields.select_file")}
+        title={t("subtitle:extractor.fields.upload_tips")}
+        description={t("subtitle:extractor.fields.files_only")}
+        actionLabel={t("subtitle:extractor.fields.select_file")}
       />
 
       <ToolSummaryLine
         items={[
           <span>
-            {t("subtitle:extractor:fields.keep_language")}:{" "}
+            {t("subtitle:extractor.fields.keep_language")}:{" "}
             <span className="font-mono text-foreground/80">
               {getLanguageLabel(keep)}
             </span>
           </span>,
           <span>
-            {t("subtitle:extractor:fields.conflict_policy")}:{" "}
+            {t("subtitle:extractor.fields.conflict_policy")}:{" "}
             <span className="text-foreground/80">
               {conflictPolicy === "overwrite"
-                ? t("subtitle:extractor:fields.conflict_policy_overwrite")
-                : t("subtitle:extractor:fields.conflict_policy_index")}
+                ? t("subtitle:extractor.fields.conflict_policy_overwrite")
+                : t("subtitle:extractor.fields.conflict_policy_index")}
             </span>
           </span>,
         ]}
@@ -512,7 +512,7 @@ function SubtitleLanguageExtractor() {
 
       <ToolPanel
         id="ext-tour-queue"
-        title={t("subtitle:extractor:task_management")}
+        title={t("subtitle:extractor.task_management")}
         badge={
           <Badge variant="secondary" className="font-mono text-[11px]">
             {allTasks.length}
@@ -527,7 +527,7 @@ function SubtitleLanguageExtractor() {
               disabled={resolvedTasks.length === 0}
             >
               <Trash2 className="h-3.5 w-3.5" />
-              {t("subtitle:extractor:fields.remove_all_resolved_task")}
+              {t("subtitle:extractor.fields.remove_all_resolved_task")}
             </Button>
             <Button
               variant="outline"
@@ -535,7 +535,7 @@ function SubtitleLanguageExtractor() {
               onClick={handleClearAllTasks}
               disabled={allTasks.length === 0}
             >
-              {t("subtitle:extractor:fields.clear_all_tasks")}
+              {t("subtitle:extractor.fields.clear_all_tasks")}
             </Button>
             <Button
               id="ext-tour-start"
@@ -544,7 +544,7 @@ function SubtitleLanguageExtractor() {
               disabled={notStartedTasks.length === 0}
             >
               <PlayCircle className="h-3.5 w-3.5" />
-              {t("subtitle:extractor:fields.start_all")}
+              {t("subtitle:extractor.fields.start_all")}
             </Button>
           </>
         }
@@ -552,7 +552,7 @@ function SubtitleLanguageExtractor() {
       >
         {allTasks.length === 0 ? (
           <div className="text-center py-10 text-sm text-muted-foreground">
-            {t("subtitle:extractor:fields.no_tasks")}
+            {t("subtitle:extractor.fields.no_tasks")}
           </div>
         ) : (
           allTasks.map((task) => (
@@ -574,15 +574,15 @@ function SubtitleLanguageExtractor() {
                       className="text-[10px] h-4 px-1.5 font-normal shrink-0"
                     >
                       {task.status === TaskStatus.NOT_STARTED &&
-                        t("subtitle:extractor:task_status.notstarted")}
+                        t("subtitle:extractor.task_status.notstarted")}
                       {task.status === TaskStatus.PENDING &&
-                        `${t("subtitle:extractor:task_status.pending")} · ${Math.round(
+                        `${t("subtitle:extractor.task_status.pending")} · ${Math.round(
                           task.progress || 0
                         )}%`}
                       {task.status === TaskStatus.RESOLVED &&
-                        t("subtitle:extractor:task_status.resolved")}
+                        t("subtitle:extractor.task_status.resolved")}
                       {task.status === TaskStatus.FAILED &&
-                        t("subtitle:extractor:task_status.failed")}
+                        t("subtitle:extractor.task_status.failed")}
                     </Badge>
                   </div>
                   <div className="mt-1 flex items-center flex-wrap gap-x-2 gap-y-1 text-[11px] text-muted-foreground">

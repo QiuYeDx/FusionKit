@@ -1,13 +1,10 @@
 {
   "global": {
-    "open_settings": "設定を開く",
     "change_audio_api": "音声 API を変更",
     "configure_audio_api": "音声 API を設定",
     "api_config_title": "音声 API と出力",
-    "config_title": "グローバル音声設定",
     "summary": "現在の設定",
     "status": "状態",
-    "profile": "Profile",
     "audio_api": "音声 API",
     "provider": "プロバイダー",
     "mode": "生成モード",
@@ -15,17 +12,12 @@
     "technical_details": "技術詳細",
     "dialect": "プロトコル",
     "model": "モデル",
-    "connection": "接続",
     "capabilities": "能力"
   },
   "status": {
     "ready": "準備完了",
     "audio_api_not_configured": "音声 API 未設定",
-    "audio_route_not_configured": "利用可能なルートなし",
-    "profile_not_configured": "未設定",
-    "connection_missing": "接続なし",
-    "model_missing": "モデルなし",
-    "unsupported_capability": "能力不一致"
+    "audio_route_not_configured": "利用可能なルートなし"
   },
   "workspace": {
     "ready": {
@@ -40,22 +32,10 @@
       "title": "現在の音声 API にこのタスクで使えるルートがありません",
       "description": "音声設定で現在のタスクに対応するルートを有効にしてください。"
     },
-    "profile_not_configured": {
-      "title": "音声構成が未選択",
-      "description": "設定画面でこの音声タスク用のグローバル音声 Profile を選択してください。"
-    },
-    "connection_missing": {
-      "title": "接続構成がありません",
-      "description": "現在の音声 Profile が参照するモデル接続は存在しません。"
-    },
-    "model_missing": {
-      "title": "モデル ID がありません",
-      "description": "現在の音声 Profile には、このタスクに必要なモデル ID がありません。"
-    },
-    "unsupported_capability": {
-      "title": "能力不一致",
-      "description": "現在の音声 Profile はこのタスクに対応していません。"
-    }
+    "profile_not_configured": {},
+    "connection_missing": {},
+    "model_missing": {},
+    "unsupported_capability": {}
   },
   "pages": {
     "transcriber": {
@@ -146,8 +126,7 @@
       "running": "文字起こし中",
       "copy": "コピー",
       "open_output": "フォルダを開く",
-      "save_result": "結果を保存",
-      "save_next_run": "次回保存"
+      "save_result": "結果を保存"
     },
     "status": {
       "idle": "待機中",
@@ -186,8 +165,7 @@
       "output_not_ready": "開ける出力ファイルはまだありません。",
       "copy_failed": "コピーに失敗しました。手動で結果をコピーしてください。",
       "cancel_failed": "文字起こしリクエストをキャンセルできませんでした。",
-      "save_failed": "現在の文字起こし結果を保存できませんでした。",
-      "unsupported_model": "選択したモデルは現在の文字起こしプロトコルに対応していません。"
+      "save_failed": "現在の文字起こし結果を保存できませんでした。"
     }
   },
   "speech": {
@@ -328,10 +306,7 @@
       "mode": "字幕モード",
       "language": "言語",
       "input_audio_format": "入力音声形式",
-      "turn_detection": "発話検出",
-      "output_format": "保存形式",
-      "assistant_transcript": "アシスタント字幕を表示",
-      "instructions": "Realtime 指示"
+      "output_format": "保存形式"
     },
     "mode": {
       "openai_realtime": "OpenAI Realtime",
@@ -350,13 +325,8 @@
     },
     "input_audio_format": {
       "pcm16": "PCM16",
-      "opus": "Opus",
       "pcmu": "PCMU（G.711 μ-law）",
       "pcma": "PCMA（G.711 A-law）"
-    },
-    "turn_detection": {
-      "server_vad": "サーバー VAD",
-      "manual": "手動"
     },
     "output_format": {
       "txt": "TXT",
@@ -365,16 +335,9 @@
     "hints": {
       "language": "現在の音声 API ルートが対応する言語だけを表示します。自動検出では language フィールドを省略します。",
       "input_audio_format": "Realtime は PCM16、PCMU、PCMA に対応し、PCM16 を推奨します。",
-      "turn_detection": "サーバー VAD は発話区間を自動検出します。手動モードは今後の双方向音声制御に向いています。",
-      "output_format": "TXT はプレーンテキストを保存します。SRT はローカルのセッション時間で簡易タイムラインを生成します。",
-      "assistant_transcript": "リアルタイム字幕は既定でマイク入力のみ表示します。",
-      "assistant_transcript_detail": "モデルがアシスタント側 transcript を返す場合、この切替で表示できます。",
-      "instructions": "リアルタイム字幕セッションを制約します。例：文字起こしのみ行い、回答しない。"
+      "output_format": "TXT はプレーンテキストを保存します。SRT はローカルのセッション時間で簡易タイムラインを生成します。"
     },
-    "placeholders": {
-      "instructions": "例：ユーザー音声だけを文字起こしし、返信は生成しない。",
-      "instructions_disabled": "OpenAI Realtime 以外のモードでは Realtime 指示は使えません"
-    },
+    "placeholders": {},
     "status": {
       "idle": "待機中",
       "requesting": "マイク要求中",
@@ -439,30 +402,22 @@
   "voice": {
     "fields": {
       "voice": "応答音色",
-      "turn_detection": "発話検出",
       "input_audio_format": "入力音声形式",
       "output_audio_format": "出力音声形式",
       "instructions": "セッション指示"
     },
     "hints": {
       "voice": "OpenAI Realtime 双方向音声で使う応答音色です。",
-      "turn_detection": "サーバー VAD はユーザーの発話終了を自動判定します。手動モードは今後の細かな制御向けです。",
       "input_audio_format": "マイクから Realtime セッションへ送信する音声形式です。",
       "output_audio_format": "モデルが返すリモート音声トラックの形式です。",
       "instructions": "アシスタントの話し方、言語、タスク範囲を設定します。"
     },
     "placeholders": {
       "voice": "marin",
-      "instructions": "例：中国語で短く自然な口調で答える。",
-      "instructions_disabled": "現在の設定は Realtime/WebRTC 双方向音声に対応していません"
-    },
-    "turn_detection": {
-      "server_vad": "サーバー VAD",
-      "manual": "手動"
+      "instructions": "例：中国語で短く自然な口調で答える。"
     },
     "audio_format": {
       "pcm16": "PCM16",
-      "opus": "Opus",
       "pcmu": "PCMU（G.711 μ-law）",
       "pcma": "PCMA（G.711 A-law）"
     },
@@ -491,10 +446,6 @@
       "audio": "リモート音声",
       "session": "セッション",
       "elapsed": "経過"
-    },
-    "unsupported": {
-      "title": "現在の設定は双方向音声に対応していません",
-      "description": "双方向音声には realtime_duplex_voice 能力を持つ OpenAI Realtime profile が必要です。MiMo Chat Audio の初版は分割字幕と TTS ストリーミングのみ提供するため、WebRTC 双方向としては表示しません。"
     },
     "actions": {
       "connect": "音声を接続",

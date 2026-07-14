@@ -216,5 +216,16 @@
     "plan_not_found": "未找到重命名计划 {{planId}}，可能已过期或被清理，请重新生成预览。",
     "plan_loaded_from_agent": "已加载 HomeAgent 中的重命名预览。",
     "plan_items_incomplete": "当前预览不完整（仅包含 {{count}}/{{total}} 项），无法应用。请重新生成完整预览。"
+  },
+  "tour": {
+    "path_picker_title": "选择文件或文件夹",
+    "path_picker_content": "将需要重命名的文件或文件夹拖拽到此处，或点击按钮选择。支持同时添加多个路径。",
+    "options_title": "翻译选项",
+    "options_content": "配置翻译参数：源语言、目标语言、命名风格、翻译范围等。不同配置会影响重命名的结果。",
+    "preview_title": "预览重命名计划",
+    "preview_content": "生成预览后，所有待重命名的项目会在此展示。你可以逐条编辑、恢复原始建议或跳过某些项。",
+    "apply_title": "应用重命名",
+    "apply_content": "确认计划无误后点击应用。系统会自动记录操作日志，如需撤销可一键回滚。",
+    "trigger": "使用引导"
   }
 }

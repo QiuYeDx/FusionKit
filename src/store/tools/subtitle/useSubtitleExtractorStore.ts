@@ -99,7 +99,7 @@ const useSubtitleExtractorStore = create<SubtitleExtractorStore>()(
         ];
         if (allTasks.some((t) => t.fileName === task.fileName)) {
           showToast(
-            i18n.t("subtitle:extractor:errors.duplicate_file").replace("{file}", task.fileName),
+            i18n.t("subtitle:extractor.errors.duplicate_file").replace("{file}", task.fileName),
             "error"
           );
           return state;
@@ -153,7 +153,7 @@ const useSubtitleExtractorStore = create<SubtitleExtractorStore>()(
           });
           showToast(
             i18n
-              .t("subtitle:extractor:infos.task_extract_done")
+              .t("subtitle:extractor.infos.task_extract_done")
               .replace("{file}", fileName),
             "success"
           );
@@ -186,7 +186,7 @@ const useSubtitleExtractorStore = create<SubtitleExtractorStore>()(
           });
           showToast(
             i18n
-              .t("subtitle:extractor:errors.task_extract_failed")
+              .t("subtitle:extractor.errors.task_extract_failed")
               .replace("{file}", fileName),
             "error"
           );
@@ -258,7 +258,7 @@ const useSubtitleExtractorStore = create<SubtitleExtractorStore>()(
           (t) => t.fileName !== fileName
         ),
       }));
-      showToast(i18n.t("subtitle:extractor:infos.task_deleted"), "success");
+      showToast(i18n.t("subtitle:extractor.infos.task_deleted"), "success");
     },
 
     updateTask: (fileName, updates) =>
@@ -280,7 +280,7 @@ const useSubtitleExtractorStore = create<SubtitleExtractorStore>()(
         resolvedTasks: [],
         failedTasks: [],
       });
-      showToast(i18n.t("subtitle:extractor:infos.all_tasks_cleared"), "success");
+      showToast(i18n.t("subtitle:extractor.infos.all_tasks_cleared"), "success");
     },
 
     initializeStore: () =>

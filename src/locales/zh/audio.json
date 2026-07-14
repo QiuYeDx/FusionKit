@@ -1,13 +1,10 @@
 {
   "global": {
-    "open_settings": "前往设置",
     "change_audio_api": "更改音频 API",
     "configure_audio_api": "配置音频 API",
     "api_config_title": "音频 API 与输出",
-    "config_title": "全局音频配置",
     "summary": "当前配置",
     "status": "状态",
-    "profile": "Profile",
     "audio_api": "音频 API",
     "provider": "供应商",
     "mode": "生成模式",
@@ -15,17 +12,12 @@
     "technical_details": "技术详情",
     "dialect": "协议",
     "model": "模型",
-    "connection": "连接",
     "capabilities": "能力"
   },
   "status": {
     "ready": "就绪",
     "audio_api_not_configured": "未配置音频 API",
-    "audio_route_not_configured": "未配置可用路由",
-    "profile_not_configured": "未配置",
-    "connection_missing": "连接缺失",
-    "model_missing": "模型缺失",
-    "unsupported_capability": "能力不匹配"
+    "audio_route_not_configured": "未配置可用路由"
   },
   "workspace": {
     "ready": {
@@ -40,22 +32,10 @@
       "title": "当前音频 API 没有适用于此任务的路由",
       "description": "请在音频设置中为当前任务启用兼容路由。"
     },
-    "profile_not_configured": {
-      "title": "未选择音频配置",
-      "description": "请在设置页为当前音频任务选择一个全局音频 Profile。"
-    },
-    "connection_missing": {
-      "title": "连接配置缺失",
-      "description": "当前音频 Profile 引用的模型连接不存在。"
-    },
-    "model_missing": {
-      "title": "模型 ID 缺失",
-      "description": "当前音频 Profile 缺少此任务需要的模型 ID。"
-    },
-    "unsupported_capability": {
-      "title": "能力不匹配",
-      "description": "当前音频 Profile 不支持此任务。"
-    }
+    "profile_not_configured": {},
+    "connection_missing": {},
+    "model_missing": {},
+    "unsupported_capability": {}
   },
   "pages": {
     "transcriber": {
@@ -146,8 +126,7 @@
       "running": "转写中",
       "copy": "复制",
       "open_output": "打开目录",
-      "save_result": "保存结果",
-      "save_next_run": "下次保存"
+      "save_result": "保存结果"
     },
     "status": {
       "idle": "待开始",
@@ -186,8 +165,7 @@
       "output_not_ready": "当前还没有可打开的输出文件。",
       "copy_failed": "复制失败，请手动复制结果。",
       "cancel_failed": "无法取消当前转写请求。",
-      "save_failed": "无法保存当前转写结果。",
-      "unsupported_model": "当前协议不支持所选转写模型。"
+      "save_failed": "无法保存当前转写结果。"
     }
   },
   "speech": {
@@ -328,10 +306,7 @@
       "mode": "字幕模式",
       "language": "语言",
       "input_audio_format": "输入音频格式",
-      "turn_detection": "说话检测",
-      "output_format": "保存格式",
-      "assistant_transcript": "显示助手字幕",
-      "instructions": "实时指令"
+      "output_format": "保存格式"
     },
     "mode": {
       "openai_realtime": "OpenAI Realtime",
@@ -350,13 +325,8 @@
     },
     "input_audio_format": {
       "pcm16": "PCM16",
-      "opus": "Opus",
       "pcmu": "PCMU（G.711 μ-law）",
       "pcma": "PCMA（G.711 A-law）"
-    },
-    "turn_detection": {
-      "server_vad": "服务器 VAD",
-      "manual": "手动"
     },
     "output_format": {
       "txt": "TXT",
@@ -365,16 +335,9 @@
     "hints": {
       "language": "这里只显示当前音频 API 路由支持的语言；自动检测会省略 language 字段。",
       "input_audio_format": "Realtime 支持 PCM16、PCMU 和 PCMA，推荐优先使用 PCM16。",
-      "turn_detection": "服务器 VAD 会自动识别说话片段；手动模式适合后续双向语音控制。",
-      "output_format": "TXT 保存纯文本；SRT 使用本地会话时间生成基础时间轴。",
-      "assistant_transcript": "实时字幕默认只展示麦克风输入。",
-      "assistant_transcript_detail": "如果模型返回助手侧 transcript，可在这里切换显示。",
-      "instructions": "用于约束实时字幕会话，例如只转写、不回答。"
+      "output_format": "TXT 保存纯文本；SRT 使用本地会话时间生成基础时间轴。"
     },
-    "placeholders": {
-      "instructions": "例如：只转写用户语音，不要生成回复。",
-      "instructions_disabled": "当前非 OpenAI Realtime 模式不支持实时指令"
-    },
+    "placeholders": {},
     "status": {
       "idle": "待开始",
       "requesting": "请求麦克风",
@@ -439,30 +402,22 @@
   "voice": {
     "fields": {
       "voice": "回复音色",
-      "turn_detection": "说话检测",
       "input_audio_format": "输入音频格式",
       "output_audio_format": "输出音频格式",
       "instructions": "会话指令"
     },
     "hints": {
       "voice": "OpenAI Realtime 双向语音使用的回复音色。",
-      "turn_detection": "服务器 VAD 会自动判断用户何时说完；手动模式适合后续精细控制。",
       "input_audio_format": "麦克风发送给 Realtime 会话的音频格式。",
       "output_audio_format": "模型返回远端音轨的音频格式。",
       "instructions": "设定助手的说话方式、语言和任务边界。"
     },
     "placeholders": {
       "voice": "marin",
-      "instructions": "例如：用中文简短回答，语气自然。",
-      "instructions_disabled": "当前配置不支持 Realtime/WebRTC 双向语音"
-    },
-    "turn_detection": {
-      "server_vad": "服务器 VAD",
-      "manual": "手动"
+      "instructions": "例如：用中文简短回答，语气自然。"
     },
     "audio_format": {
       "pcm16": "PCM16",
-      "opus": "Opus",
       "pcmu": "PCMU（G.711 μ-law）",
       "pcma": "PCMA（G.711 A-law）"
     },
@@ -491,10 +446,6 @@
       "audio": "远端音频",
       "session": "会话",
       "elapsed": "时长"
-    },
-    "unsupported": {
-      "title": "当前配置不支持双向语音",
-      "description": "双向语音需要具备 realtime_duplex_voice 能力的 OpenAI Realtime profile。MiMo Chat Audio 首版只提供分块字幕和 TTS 流式能力，不会被标记为 WebRTC 双工。"
     },
     "actions": {
       "connect": "连接语音",

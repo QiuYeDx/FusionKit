@@ -22,7 +22,9 @@
     "preview": "vite preview",
     "pretest": "vite build --mode=test",
     "test": "vitest run",
-    "i18n:check": "node scripts/check-i18n.mjs"
+    "i18n:check": "node scripts/check-i18n.mjs && node scripts/check-i18n-usage.mjs",
+    "i18n:check:locales": "node scripts/check-i18n.mjs",
+    "i18n:check:usage": "node scripts/check-i18n-usage.mjs"
   },
   "dependencies": {
     "@ai-sdk/openai-compatible": "^1.0.0",

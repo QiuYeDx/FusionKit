@@ -1,13 +1,10 @@
 {
   "global": {
-    "open_settings": "前往設定",
     "change_audio_api": "更改音訊 API",
     "configure_audio_api": "設定音訊 API",
     "api_config_title": "音訊 API 與輸出",
-    "config_title": "全域音訊設定",
     "summary": "目前設定",
     "status": "狀態",
-    "profile": "Profile",
     "audio_api": "音訊 API",
     "provider": "供應商",
     "mode": "產生模式",
@@ -15,17 +12,12 @@
     "technical_details": "技術詳情",
     "dialect": "協議",
     "model": "模型",
-    "connection": "連線",
     "capabilities": "能力"
   },
   "status": {
     "ready": "就緒",
     "audio_api_not_configured": "未設定音訊 API",
-    "audio_route_not_configured": "未設定可用路由",
-    "profile_not_configured": "未設定",
-    "connection_missing": "連線缺失",
-    "model_missing": "模型缺失",
-    "unsupported_capability": "能力不匹配"
+    "audio_route_not_configured": "未設定可用路由"
   },
   "workspace": {
     "ready": {
@@ -40,22 +32,10 @@
       "title": "目前音訊 API 沒有適用於此任務的路由",
       "description": "請在音訊設定中為目前任務啟用相容路由。"
     },
-    "profile_not_configured": {
-      "title": "未選擇音訊設定",
-      "description": "請在設定頁為目前音訊任務選擇一個全域音訊 Profile。"
-    },
-    "connection_missing": {
-      "title": "連線設定缺失",
-      "description": "目前音訊 Profile 引用的模型連線不存在。"
-    },
-    "model_missing": {
-      "title": "模型 ID 缺失",
-      "description": "目前音訊 Profile 缺少此任務需要的模型 ID。"
-    },
-    "unsupported_capability": {
-      "title": "能力不匹配",
-      "description": "目前音訊 Profile 不支援此任務。"
-    }
+    "profile_not_configured": {},
+    "connection_missing": {},
+    "model_missing": {},
+    "unsupported_capability": {}
   },
   "pages": {
     "transcriber": {
@@ -146,8 +126,7 @@
       "running": "轉寫中",
       "copy": "複製",
       "open_output": "開啟目錄",
-      "save_result": "儲存結果",
-      "save_next_run": "下次儲存"
+      "save_result": "儲存結果"
     },
     "status": {
       "idle": "待開始",
@@ -186,8 +165,7 @@
       "output_not_ready": "目前還沒有可開啟的輸出檔案。",
       "copy_failed": "複製失敗，請手動複製結果。",
       "cancel_failed": "無法取消目前的轉寫請求。",
-      "save_failed": "無法儲存目前的轉寫結果。",
-      "unsupported_model": "目前協議不支援所選轉寫模型。"
+      "save_failed": "無法儲存目前的轉寫結果。"
     }
   },
   "speech": {
@@ -328,10 +306,7 @@
       "mode": "字幕模式",
       "language": "語言",
       "input_audio_format": "輸入音訊格式",
-      "turn_detection": "說話偵測",
-      "output_format": "儲存格式",
-      "assistant_transcript": "顯示助手字幕",
-      "instructions": "即時指令"
+      "output_format": "儲存格式"
     },
     "mode": {
       "openai_realtime": "OpenAI Realtime",
@@ -350,13 +325,8 @@
     },
     "input_audio_format": {
       "pcm16": "PCM16",
-      "opus": "Opus",
       "pcmu": "PCMU（G.711 μ-law）",
       "pcma": "PCMA（G.711 A-law）"
-    },
-    "turn_detection": {
-      "server_vad": "伺服器 VAD",
-      "manual": "手動"
     },
     "output_format": {
       "txt": "TXT",
@@ -365,16 +335,9 @@
     "hints": {
       "language": "這裡只顯示目前音訊 API 路由支援的語言；自動偵測會省略 language 欄位。",
       "input_audio_format": "Realtime 支援 PCM16、PCMU 與 PCMA，建議優先使用 PCM16。",
-      "turn_detection": "伺服器 VAD 會自動辨識說話片段；手動模式適合後續雙向語音控制。",
-      "output_format": "TXT 儲存純文字；SRT 使用本機會話時間產生基礎時間軸。",
-      "assistant_transcript": "即時字幕預設只顯示麥克風輸入。",
-      "assistant_transcript_detail": "如果模型返回助手側 transcript，可在這裡切換顯示。",
-      "instructions": "用於約束即時字幕會話，例如只轉寫、不回答。"
+      "output_format": "TXT 儲存純文字；SRT 使用本機會話時間產生基礎時間軸。"
     },
-    "placeholders": {
-      "instructions": "例如：只轉寫使用者語音，不要產生回覆。",
-      "instructions_disabled": "目前非 OpenAI Realtime 模式不支援即時指令"
-    },
+    "placeholders": {},
     "status": {
       "idle": "待開始",
       "requesting": "請求麥克風",
@@ -439,30 +402,22 @@
   "voice": {
     "fields": {
       "voice": "回覆音色",
-      "turn_detection": "說話偵測",
       "input_audio_format": "輸入音訊格式",
       "output_audio_format": "輸出音訊格式",
       "instructions": "會話指令"
     },
     "hints": {
       "voice": "OpenAI Realtime 雙向語音使用的回覆音色。",
-      "turn_detection": "伺服器 VAD 會自動判斷使用者何時說完；手動模式適合後續精細控制。",
       "input_audio_format": "麥克風送往 Realtime 會話的音訊格式。",
       "output_audio_format": "模型返回遠端音軌的音訊格式。",
       "instructions": "設定助手的說話方式、語言和任務邊界。"
     },
     "placeholders": {
       "voice": "marin",
-      "instructions": "例如：用中文簡短回答，語氣自然。",
-      "instructions_disabled": "目前設定不支援 Realtime/WebRTC 雙向語音"
-    },
-    "turn_detection": {
-      "server_vad": "伺服器 VAD",
-      "manual": "手動"
+      "instructions": "例如：用中文簡短回答，語氣自然。"
     },
     "audio_format": {
       "pcm16": "PCM16",
-      "opus": "Opus",
       "pcmu": "PCMU（G.711 μ-law）",
       "pcma": "PCMA（G.711 A-law）"
     },
@@ -491,10 +446,6 @@
       "audio": "遠端音訊",
       "session": "會話",
       "elapsed": "時長"
-    },
-    "unsupported": {
-      "title": "目前設定不支援雙向語音",
-      "description": "雙向語音需要具備 realtime_duplex_voice 能力的 OpenAI Realtime profile。MiMo Chat Audio 首版只提供分塊字幕和 TTS 串流能力，不會被標記為 WebRTC 雙工。"
     },
     "actions": {
       "connect": "連接語音",

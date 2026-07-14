@@ -216,5 +216,16 @@
     "plan_not_found": "Rename plan {{planId}} was not found. It may have expired or been cleared; please generate a new preview.",
     "plan_loaded_from_agent": "Loaded the rename preview from HomeAgent.",
     "plan_items_incomplete": "Preview is incomplete (only {{count}}/{{total}} items). Cannot apply. Please regenerate a full preview."
+  },
+  "tour": {
+    "path_picker_title": "Select files or folders",
+    "path_picker_content": "Drag the files or folders you want to rename here, or click the button to choose them. You can add multiple paths at once.",
+    "options_title": "Translation options",
+    "options_content": "Configure translation parameters such as source language, target language, naming style, and translation scope. Different settings affect the rename results.",
+    "preview_title": "Preview rename plan",
+    "preview_content": "After generating a preview, all items to be renamed appear here. You can edit each item, restore the original suggestion, or skip selected items.",
+    "apply_title": "Apply rename",
+    "apply_content": "Once you have confirmed the plan, click Apply. An operation log is recorded automatically so you can roll it back if needed.",
+    "trigger": "Show guide"
   }
 }

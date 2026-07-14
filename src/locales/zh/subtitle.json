@@ -41,7 +41,8 @@
       "conflict_policy_overwrite": "覆盖原文件",
       "conflict_policy_index": "自动加序号",
       "concurrent_slices": "切片并发翻译",
-      "concurrent_slices_hint": "开启后单个任务的多个切片将并发请求 API，显著提升翻译速度，但会增加瞬时并发数"
+      "concurrent_slices_hint": "开启后单个任务的多个切片将并发请求 API，显著提升翻译速度，但会增加瞬时并发数",
+      "no_model_selected": "未选择模型"
     },
     "actions": {
       "start": "开始任务",
@@ -193,6 +194,27 @@
       "output_dir": "输出目录",
       "confirm_add_from_manifest": "确认使用恢复清单加入队列？",
       "confirm_add_from_manifest_desc": "源文件不可用或已变化，将直接使用恢复清单中保存的原始分片数据继续翻译。"
+    },
+    "tour": {
+      "config_title": "翻译配置面板",
+      "config_content": "在左侧面板中配置翻译参数，包括语言、输出格式、分片模式和输出路径等。所有配置会自动保存，下次打开时保留。",
+      "lang_title": "选择翻译语言",
+      "lang_content": "设置字幕的源语言和目标语言。系统支持日语、英语、中文等多种语言互译。",
+      "output_mode_title": "翻译输出模式",
+      "output_mode_content": "「双语」模式保留原文并附加译文，「仅译文」模式只输出翻译结果。",
+      "slice_title": "字幕分片策略",
+      "slice_content": "字幕会按分片策略拆分后逐片发送给 AI 翻译。可选标准、精细或自定义字数分片。",
+      "output_path_title": "输出路径",
+      "output_path_content": "选择翻译结果的保存位置：指定自定义文件夹，或保存到字幕源文件所在目录。",
+      "schedule_title": "定时翻译",
+      "schedule_content": "可设置定时自动开始翻译，适合在深夜或空闲时段批量处理任务。",
+      "upload_title": "添加字幕文件",
+      "upload_content": "将 .lrc 或 .srt 字幕文件拖拽到此处，或点击选择文件。支持同时添加多个文件。",
+      "queue_title": "任务队列",
+      "queue_content": "所有添加的翻译任务会在这里展示。可以查看进度、编辑配置、重试失败任务或删除任务。",
+      "start_title": "开始翻译",
+      "start_content": "点击即可一键启动所有待翻译任务。翻译完成后可在输出路径找到结果文件。",
+      "trigger": "使用引导"
     }
   },
   "extractor": {
@@ -276,6 +298,21 @@
     "dialog": {
       "select_output_title": "选择输出目录",
       "select_output_confirm": "选择此目录"
+    },
+    "tour": {
+      "config_title": "提取配置",
+      "config_content": "在左侧面板设置提取参数：保留语言、输出路径和冲突策略。配置会自动保存。",
+      "keep_title": "保留语言",
+      "keep_content": "选择从双语字幕中需要保留的语言。工具将自动识别并提取对应语言的行。",
+      "output_title": "输出路径",
+      "output_content": "选择提取结果的保存位置：指定自定义文件夹，或保存到源文件所在目录。",
+      "upload_title": "添加字幕文件",
+      "upload_content": "将 .lrc 或 .srt 双语字幕文件拖拽到此处，或点击选择文件。支持批量添加。",
+      "queue_title": "任务队列",
+      "queue_content": "添加的提取任务会在这里展示，可查看状态、编辑配置或删除任务。",
+      "start_title": "开始提取",
+      "start_content": "点击即可一键启动所有待提取任务，完成后在输出路径找到单语结果文件。",
+      "trigger": "使用引导"
     }
   },
   "converter": {
@@ -363,6 +400,21 @@
     "dialog": {
       "select_output_title": "选择输出目录",
       "select_output_confirm": "选择此目录"
+    },
+    "tour": {
+      "config_title": "转换配置",
+      "config_content": "在左侧面板设置转换参数：目标格式、默认时长、输出路径等。配置会自动保存。",
+      "format_title": "目标格式",
+      "format_content": "选择要转换的目标字幕格式：LRC（歌词）、SRT（通用字幕）或 VTT（Web 字幕）。",
+      "output_title": "输出路径",
+      "output_content": "选择转换结果的保存位置：指定自定义文件夹，或直接保存到源文件所在目录。",
+      "upload_title": "添加字幕文件",
+      "upload_content": "将 .lrc、.srt 或 .vtt 字幕文件拖拽到此处，或点击选择文件。支持批量添加。",
+      "queue_title": "任务队列",
+      "queue_content": "添加的转换任务会在这里展示，可查看状态、编辑配置或删除任务。",
+      "start_title": "开始转换",
+      "start_content": "点击即可一键启动所有待转换任务，完成后在输出路径找到结果文件。",
+      "trigger": "使用引导"
     }
   }
 }
