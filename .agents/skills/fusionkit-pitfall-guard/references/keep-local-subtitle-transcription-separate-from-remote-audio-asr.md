@@ -25,6 +25,7 @@ Both features can be described as “audio to text,” but their product and run
 - Keep the renderer task contract engine-neutral and local-runtime-specific; do not reuse Audio API profiles or assignments.
 - Reuse only infrastructure without audio-provider semantics, such as shared tool layout components and the sender-bound capability pattern.
 - Connect the tools through a narrow generated-subtitle artifact handoff contract, not shared mutable Stores.
+- Let a subtitle-translator-owned import coordinator snapshot current translation settings and optionally start only the task IDs confirmed by the current import receipt.
 - Add tests proving local-subtitle channels and payloads cannot enter `audio:*` runtime routes and vice versa.
 
 ## Avoid
@@ -32,6 +33,7 @@ Both features can be described as “audio to text,” but their product and run
 - Do not add a `local`, `whisper_cpp`, or `faster_whisper` provider preset to the existing remote AudioTranscriber.
 - Do not extend `AudioIpcService.transcribe()` with executable paths, model paths, GPU flags, or batch subtitle fields.
 - Do not share persisted preferences or token registries when their TTL and lifecycle semantics differ.
+- Do not call `startAllTasks()` after an automatic handoff; it can start unrelated tasks that were already waiting in the subtitle translator queue.
 - Do not describe remote API SRT output and local subtitle generation as interchangeable merely because both may produce text with timestamps.
 
 ## Validation
@@ -44,7 +46,7 @@ node scripts/check-i18n-usage.mjs
 git diff --check
 ```
 
-Confirm that the local tool uses its own `/tools/subtitle/local-transcriber` route and `local-subtitle:*` channels, the existing `/tools/audio/transcriber` route remains provider/API-only, and the only cross-tool integration is a typed subtitle artifact handoff.
+Confirm that the local tool uses its own `/tools/subtitle/local-transcriber` route and `local-subtitle:*` channels, the existing `/tools/audio/transcriber` route remains provider/API-only, and the only cross-tool integration is a typed subtitle artifact handoff. If automatic translation is enabled, verify that the translator-owned coordinator captures its own configuration and starts only task IDs returned by that handoff, never the pre-existing queue.
 
 ## Related files
 
