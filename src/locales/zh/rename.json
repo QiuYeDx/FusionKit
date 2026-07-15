@@ -16,6 +16,11 @@
     "large_batch": "超过 100 项",
     "warnings": "包含警告"
   },
+  "warning_details": {
+    "plan_source": "计划级警告",
+    "item_source": "{{kind}} · {{name}}",
+    "more": "另有 {{count}} 条警告，将在高风险确认弹窗中完整显示。"
+  },
   "path": {
     "section_title": "路径",
     "dialog_title": "选择要翻译名称的文件或文件夹",
@@ -186,6 +191,7 @@
   },
   "risk": {
     "title": "确认高风险重命名",
+    "description": "该计划包含需要额外确认的操作。应用前请检查风险原因和警告详情。",
     "metrics": {
       "impacted": "影响项",
       "files": "文件",
@@ -193,6 +199,8 @@
       "warnings": "警告"
     },
     "reasons_title": "风险原因",
+    "warnings_title": "警告详情",
+    "warnings_desc": "以下内容包含计划级诊断，以及具体文件或文件夹的命名警告。请确认这些风险可接受后再应用。",
     "scope": "范围：{{scope}}",
     "journal_hint": "journal 会在执行层写入应用数据目录，可用于尽力回滚，但不是事务保证。",
     "apply_hint": "确认后才会调用 apply-rename-plan。",

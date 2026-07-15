@@ -16,6 +16,11 @@
     "large_batch": "More than 100 items",
     "warnings": "Contains warnings"
   },
+  "warning_details": {
+    "plan_source": "Plan-level warning",
+    "item_source": "{{kind}}: {{name}}",
+    "more": "{{count}} more warnings will be shown in full in the high-risk confirmation dialog."
+  },
   "path": {
     "section_title": "Paths",
     "dialog_title": "Select files or folders whose names should be translated",
@@ -186,6 +191,7 @@
   },
   "risk": {
     "title": "Confirm high-risk rename",
+    "description": "This plan contains operations that need extra confirmation. Review the risk reasons and warning details before applying it.",
     "metrics": {
       "impacted": "Impacted",
       "files": "Files",
@@ -193,6 +199,8 @@
       "warnings": "Warnings"
     },
     "reasons_title": "Risk reasons",
+    "warnings_title": "Warning details",
+    "warnings_desc": "These details include plan-level diagnostics and naming warnings for specific files or folders. Apply only after reviewing them.",
     "scope": "Scope: {{scope}}",
     "journal_hint": "A journal is written under app data and can help with best-effort rollback, but it is not a transaction guarantee.",
     "apply_hint": "apply-rename-plan is called only after confirmation.",

@@ -16,6 +16,11 @@
     "large_batch": "100 件超",
     "warnings": "警告を含む"
   },
+  "warning_details": {
+    "plan_source": "計画レベルの警告",
+    "item_source": "{{kind}}：{{name}}",
+    "more": "残り {{count}} 件の警告は、高リスク確認ダイアログにすべて表示されます。"
+  },
   "path": {
     "section_title": "パス",
     "dialog_title": "名前を翻訳するファイルまたはフォルダを選択",
@@ -186,6 +191,7 @@
   },
   "risk": {
     "title": "高リスクのリネームを確認",
+    "description": "この計画には追加確認が必要な操作があります。適用前にリスク理由と警告の詳細を確認してください。",
     "metrics": {
       "impacted": "影響項目",
       "files": "ファイル",
@@ -193,6 +199,8 @@
       "warnings": "警告"
     },
     "reasons_title": "リスク理由",
+    "warnings_title": "警告の詳細",
+    "warnings_desc": "計画レベルの診断と、個別のファイルまたはフォルダに関する命名警告を表示しています。内容を確認してから適用してください。",
     "scope": "範囲：{{scope}}",
     "journal_hint": "journal はアプリデータに保存され、ベストエフォートのロールバックに利用できますが、トランザクション保証ではありません。",
     "apply_hint": "確認後にのみ apply-rename-plan を呼び出します。",

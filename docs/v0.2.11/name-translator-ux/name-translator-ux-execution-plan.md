@@ -3,7 +3,7 @@
 > 日期：2026-07-02
 > Feature Slug：`name-translator-ux`
 > 对应设计文档：`docs/v0.2.11/name-translator-ux/name-translator-ux-final-design.md`
-> 当前状态：`NT-UX-001` 已完成
+> 当前状态：`NT-UX-001`、`NT-UX-002` 已完成
 
 ---
 
@@ -50,6 +50,7 @@
 | ID | 状态 | 完成日期 | 标题 | 关键变更文件 | 验证 | 实施记录 | 未决问题 |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | NT-UX-001 | 已完成 | 2026-07-02 | 路径选择、清空配置保留、预览表格与路径列表体验修复 | `PathPickerPanel.tsx`、`PlanPreviewTable.tsx`、`NameTranslator/index.tsx`、`useNameTranslatorStore.ts`、rename i18n、测试 | `node_modules/.bin/vitest run test/rename/dialog-options.test.ts src/store/tools/rename/useNameTranslatorStore.test.ts`；`node scripts/check-i18n.mjs`；`node_modules/.bin/tsc --noEmit`；`node_modules/.bin/vite build`；`git diff --check` | `docs/v0.2.11/name-translator-ux/name-translator-ux_implementation_records/2026-07-02_NT-UX-001_name-translator-ux-fixes.md` | Windows 真实弹窗和视觉细节需后续人工复验；本机 Electron/Playwright 与 Chromium 二进制验证未能启动 |
+| NT-UX-002 | 已完成 | 2026-07-15 | 计划警告换行与高风险确认详情 | `PlanWarningsList.tsx`、`riskSummary.ts`、`ApplySummaryPanel.tsx`、`RiskConfirmDialog.tsx`、rename i18n、Electron E2E | rename 回归 14 files / 172 tests；TypeScript；四语言 i18n/usage；Vite test build；暗色 786×540 Electron 场景 | `docs/v0.2.11/name-translator-ux/name-translator-ux_implementation_records/2026-07-15_NT-UX-002_warning-details-and-risk-dialog.md` | 真实计划仍可能包含供应商原始诊断，当前保留完整内容以便用户判断与排障 |
 
 ---
 
@@ -73,6 +74,24 @@
 - 横向滚动预览表时操作列始终可见。
 - 左侧路径很多时列表内部滚动，页面左栏不被无限撑高。
 - i18n、单测、类型检查通过。
+
+### NT-UX-002：计划警告换行与高风险确认详情
+
+实施范围：
+
+- 聚合计划级与可应用条目级警告，统一风险计数和展示来源。
+- 将单行警告 Badge 替换为可换行、可收缩的共享警告列表。
+- 高风险弹窗完整展示警告详情并迁移到 `ScrollableDialog`。
+- 修复 Radix ScrollArea 内部长诊断字符串扩大内容宽度的问题。
+- 更新 zh / zh-Hant / en / ja 文案、i18n usage manifest、单元测试与 Electron E2E。
+
+验收口径：
+
+- 超长、无空格警告不得撑破应用卡片或视口。
+- 高风险弹窗展示风险原因、警告数量、来源和完整内容。
+- 弹窗 Header/Footer 固定，中间内容可滚动且无横向滚动。
+- 取消弹窗不执行真实重命名。
+- 定向测试、TypeScript、i18n、构建和暗色窄窗口 Electron 验证通过。
 
 ---
 

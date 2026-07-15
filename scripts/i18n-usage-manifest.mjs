@@ -186,17 +186,6 @@ export const I18N_USAGE_MANIFEST = [
     ],
   },
   {
-    selector:
-      "src/pages/Tools/Rename/NameTranslator/components/RiskConfirmDialog.tsx#`risk_reasons.${reason}`",
-    keys: [
-      "rename:risk_reasons.directories",
-      "rename:risk_reasons.descendants",
-      "rename:risk_reasons.path_segments",
-      "rename:risk_reasons.large_batch",
-      "rename:risk_reasons.warnings",
-    ],
-  },
-  {
     selector: "src/pages/Tools/Audio/shared/AudioToolShell.tsx#titleKey",
     keys: [
       "audio:pages.transcriber.title",

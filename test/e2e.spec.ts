@@ -25,6 +25,11 @@ import {
   startFakeAudioApiServer,
   type FakeAudioApiServer,
 } from './audio/fakeAudioApiServer'
+import {
+  createResponsesBody,
+  startFakeModelApiServer,
+  type FakeModelApiServer,
+} from './ai/fakeModelApiServer'
 
 const root = path.join(__dirname, '..')
 const testResultsDir = path.join(root, 'test-results')
@@ -33,7 +38,9 @@ let page: Page
 let mainWin: JSHandle<BrowserWindow>
 let userDataDir: string | undefined
 let fakeAudioApiServer: FakeAudioApiServer | undefined
+let fakeModelApiServer: FakeModelApiServer | undefined
 let voiceSamplePath: string | undefined
+let renameWarningPaths: string[] = []
 const rendererErrors: string[] = []
 const audioPageTitles: Record<string, Record<string, string>> = {
   zh: {
@@ -75,10 +82,20 @@ if (shouldSkipElectronE2E) {
     userDataDir = await mkdtemp(path.join(tmpdir(), 'fusionkit-e2e-'))
     await mkdir(testResultsDir, { recursive: true })
     fakeAudioApiServer = await startFakeAudioApiServer()
+    fakeModelApiServer = await startFakeModelApiServer()
     voiceSamplePath = path.join(userDataDir, 'fe-r02-voice-sample.wav')
     await writeFile(
       voiceSamplePath,
       createOpenAISpeechBuffer('fe-r02-voice-sample'),
+    )
+    renameWarningPaths = [
+      path.join(userDataDir, 'A Very Long Episode Title One.srt'),
+      path.join(userDataDir, 'A Very Long Episode Title Two.srt'),
+    ]
+    await Promise.all(
+      renameWarningPaths.map((filePath, index) =>
+        writeFile(filePath, `rename warning fixture ${index + 1}`),
+      ),
     )
     electronApp = await electron.launch({
       args: ['.', '--no-sandbox', `--user-data-dir=${userDataDir}`],
@@ -124,6 +141,7 @@ if (shouldSkipElectronE2E) {
       }
     } finally {
       await fakeAudioApiServer?.close().catch(() => undefined)
+      await fakeModelApiServer?.close().catch(() => undefined)
       if (userDataDir) {
         await rm(userDataDir, { recursive: true, force: true })
       }
@@ -135,6 +153,171 @@ if (shouldSkipElectronE2E) {
       const title = await page.title()
       expect(title).eq('FusionKit')
     })
+
+    test('name translator wraps warning details and explains them before high-risk apply', async () => {
+      const server = fakeModelApiServer
+      if (!server || renameWarningPaths.length !== 2) {
+        throw new Error('NT-UX-002 rename warning fixtures were not initialized')
+      }
+
+      server.enqueueRoute('responses', {
+        body: createResponsesBody({
+          outputText: `not_json_${'x'.repeat(320)}`,
+        }),
+      })
+      for (let index = 0; index < 2; index++) {
+        server.enqueueRoute('responses', (request) => {
+          const prompt = JSON.parse(String(request.body.input ?? '{}')) as {
+            items?: Array<{ id?: unknown }>
+          }
+          const items = Array.isArray(prompt.items) ? prompt.items : []
+          return {
+            body: createResponsesBody({
+              outputText: JSON.stringify({
+                items: items.map((item, itemIndex) => ({
+                  id: String(item.id ?? ''),
+                  translatedStem: `translated_${index}_${itemIndex}`,
+                })),
+              }),
+            }),
+          }
+        })
+      }
+
+      await setWindowSize(mainWin, page, { width: 786, height: 540 })
+      await page.evaluate(({ baseUrl }) => {
+        localStorage.clear()
+        localStorage.setItem('lang', 'zh')
+        localStorage.setItem('name-translator-tour-done', '1')
+        localStorage.setItem(
+          'fusionkit-theme',
+          JSON.stringify({ state: { theme: 'dark' }, version: 0 }),
+        )
+        localStorage.setItem(
+          'fusionkit-model',
+          JSON.stringify({
+            version: 5,
+            state: {
+              profiles: [
+                {
+                  id: 'nt-ux-002-responses',
+                  name: 'NT UX Responses Fixture',
+                  provider: 'Other',
+                  apiKey: 'nt-ux-002-placeholder-key',
+                  baseUrl,
+                  modelKey: 'fake-responses-model',
+                  tokenPricing: {
+                    inputTokensPerMillion: 0,
+                    outputTokensPerMillion: 0,
+                  },
+                  apiFormat: 'responses',
+                  outputTokenParameter: 'max_tokens',
+                },
+              ],
+              assignment: {
+                agent: null,
+                taskExecution: 'nt-ux-002-responses',
+              },
+              audioProfiles: [],
+              audioAssignment: {
+                transcription: null,
+                speechSynthesis: null,
+                realtimeCaptions: null,
+                realtimeVoice: null,
+              },
+            },
+          }),
+        )
+        window.location.hash = '#/tools/rename/name-translator'
+      }, { baseUrl: server.baseUrl })
+      await page.reload({ waitUntil: 'domcontentloaded' })
+      await waitForFusionKitLoadingToExit(page)
+      expect(
+        await page.evaluate(() =>
+          document.documentElement.classList.contains('dark'),
+        ),
+      ).toBe(true)
+
+      await page.evaluate(() => {
+        const input = document.createElement('input')
+        input.type = 'file'
+        input.multiple = true
+        input.dataset.testid = 'rename-e2e-files'
+        input.className = 'sr-only'
+        document.body.append(input)
+      })
+      const fileInput = page.getByTestId('rename-e2e-files')
+      await fileInput.setInputFiles(renameWarningPaths)
+      await page.evaluate(() => {
+        const input = document.querySelector<HTMLInputElement>(
+          '[data-testid="rename-e2e-files"]',
+        )
+        const dropzone = document.querySelector<HTMLElement>(
+          '[data-testid="rename-path-dropzone"]',
+        )
+        if (!input?.files || !dropzone) {
+          throw new Error('Rename E2E file input or dropzone is missing')
+        }
+        const dataTransfer = new DataTransfer()
+        for (const file of input.files) dataTransfer.items.add(file)
+        dropzone.dispatchEvent(
+          new DragEvent('drop', {
+            bubbles: true,
+            cancelable: true,
+            dataTransfer,
+          }),
+        )
+      })
+
+      const createPreview = page.getByTestId('rename-create-preview')
+      await page.waitForFunction(() => {
+        const button = document.querySelector<HTMLButtonElement>(
+          '[data-testid="rename-create-preview"]',
+        )
+        return Boolean(button && !button.disabled)
+      })
+      await createPreview.click()
+
+      const warningSummary = page.getByTestId('rename-warning-summary')
+      await warningSummary.waitFor({ state: 'visible', timeout: 30_000 })
+      await warningSummary.evaluate((element) => {
+        element.scrollIntoView({ block: 'center' })
+      })
+      await page.waitForTimeout(200)
+      expect(await warningSummary.textContent()).toContain('model_batch_failed')
+      expect(await warningSummary.textContent()).toContain('model_batch_retry_split')
+      expect(await elementHasHorizontalOverflow(warningSummary)).toBe(false)
+      expect(await hasHorizontalOverflow(page)).toBe(false)
+      await page
+        .getByText('预览已生成，尚未修改任何文件。', { exact: true })
+        .waitFor({ state: 'hidden', timeout: 10_000 })
+      await page.screenshot({
+        path: path.join(testResultsDir, 'nt-ux-002-warning-summary-786x540.png'),
+        animations: 'disabled',
+      })
+
+      const applyButton = page.getByTestId('rename-apply')
+      expect(await applyButton.isEnabled()).toBe(true)
+      await applyButton.click()
+      const warningDetails = page.getByTestId('rename-risk-warning-details')
+      await warningDetails.waitFor({ state: 'visible' })
+      const riskDialog = page.getByRole('dialog')
+      const riskDialogViewport = riskDialog.locator(
+        '[data-slot="scroll-area-viewport"]',
+      )
+      expect(await warningDetails.textContent()).toContain('计划级警告')
+      expect(await warningDetails.textContent()).toContain('model_batch_failed')
+      expect(await warningDetails.textContent()).toContain('model_batch_retry_split')
+      expect(await elementHasHorizontalOverflow(warningDetails)).toBe(false)
+      expect(await elementHasHorizontalOverflow(riskDialogViewport)).toBe(false)
+      expect(await hasHorizontalOverflow(page)).toBe(false)
+      await page.waitForTimeout(200)
+      await page.screenshot({
+        path: path.join(testResultsDir, 'nt-ux-002-risk-dialog-786x540.png'),
+        animations: 'disabled',
+      })
+      await page.getByRole('button', { name: '取消' }).click()
+    }, 60_000)
 
     test('subtitle and audio radio groups share the same ButtonGroup baseline', async () => {
       const server = fakeAudioApiServer
@@ -1649,6 +1832,14 @@ async function hasHorizontalOverflow(targetPage: Page): Promise<boolean> {
   return await targetPage.evaluate(() =>
     document.documentElement.scrollWidth >
     document.documentElement.clientWidth + 1,
+  )
+}
+
+async function elementHasHorizontalOverflow(
+  target: Locator,
+): Promise<boolean> {
+  return await target.evaluate(
+    (element) => element.scrollWidth > element.clientWidth + 1,
   )
 }
 

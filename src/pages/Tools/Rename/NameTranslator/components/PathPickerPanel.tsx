@@ -110,6 +110,7 @@ export default function PathPickerPanel({
       contentClassName="space-y-4"
     >
         <div
+          data-testid="rename-path-dropzone"
           className={cn(
             "relative flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed px-4 py-5 text-center transition-colors",
             isDragging
@@ -249,6 +250,7 @@ export default function PathPickerPanel({
 
         <div className="grid grid-cols-[1fr_auto] gap-2">
           <Button
+            data-testid="rename-create-preview"
             type="button"
             onClick={onCreatePreview}
             disabled={selectedPaths.length === 0 || isPlanning}

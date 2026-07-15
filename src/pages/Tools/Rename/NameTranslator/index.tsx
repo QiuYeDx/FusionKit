@@ -10,14 +10,12 @@ import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Tour, type TourStep } from "@/components/qiuye-ui/tour";
 import useNameTranslatorStore from "@/store/tools/rename/useNameTranslatorStore";
-import type { NameTranslationPlan } from "@/services/rename/nameTypes";
 import ApplySummaryPanel from "./components/ApplySummaryPanel";
 import OptionsPanel from "./components/OptionsPanel";
 import PathPickerPanel from "./components/PathPickerPanel";
 import PlanPreviewTable from "./components/PlanPreviewTable";
-import RiskConfirmDialog, {
-  type RenameRiskSummary,
-} from "./components/RiskConfirmDialog";
+import RiskConfirmDialog from "./components/RiskConfirmDialog";
+import { getRiskSummary } from "./riskSummary";
 
 export default function NameTranslator() {
   const { t } = useTranslation("rename");
@@ -269,42 +267,6 @@ export default function NameTranslator() {
       />
     </>
   );
-}
-
-function getRiskSummary(plan: NameTranslationPlan | null): RenameRiskSummary {
-  if (!plan) {
-    return {
-      hasRisk: false,
-      reasons: [],
-      readyCount: 0,
-      fileCount: 0,
-      directoryCount: 0,
-      warningCount: 0,
-    };
-  }
-
-  const readyItems = plan.items.filter((item) => item.status === "ready");
-  const directoryCount = readyItems.filter((item) => item.kind === "directory").length;
-  const fileCount = readyItems.filter((item) => item.kind === "file").length;
-  const warningCount =
-    plan.warnings.length +
-    readyItems.reduce((total, item) => total + item.warnings.length, 0);
-  const reasons: string[] = [];
-
-  if (directoryCount > 0) reasons.push("directories");
-  if (plan.options.scope === "descendants") reasons.push("descendants");
-  if (plan.options.scope === "path_segments") reasons.push("path_segments");
-  if (readyItems.length > 100) reasons.push("large_batch");
-  if (warningCount > 0) reasons.push("warnings");
-
-  return {
-    hasRisk: reasons.length > 0,
-    reasons,
-    readyCount: readyItems.length,
-    fileCount,
-    directoryCount,
-    warningCount,
-  };
 }
 
 function shortPlanId(planId: string): string {

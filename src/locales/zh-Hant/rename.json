@@ -16,6 +16,11 @@
     "large_batch": "超過 100 項",
     "warnings": "包含警告"
   },
+  "warning_details": {
+    "plan_source": "計畫層級警告",
+    "item_source": "{{kind}} · {{name}}",
+    "more": "另有 {{count}} 條警告，將在高風險確認彈窗中完整顯示。"
+  },
   "path": {
     "section_title": "路徑",
     "dialog_title": "選擇要翻譯名稱的檔案或資料夾",
@@ -186,6 +191,7 @@
   },
   "risk": {
     "title": "確認高風險重新命名",
+    "description": "此計畫包含需要額外確認的操作。套用前請檢查風險原因和警告詳情。",
     "metrics": {
       "impacted": "影響項",
       "files": "檔案",
@@ -193,6 +199,8 @@
       "warnings": "警告"
     },
     "reasons_title": "風險原因",
+    "warnings_title": "警告詳情",
+    "warnings_desc": "以下內容包含計畫層級診斷，以及具體檔案或資料夾的命名警告。請確認這些風險可接受後再套用。",
     "scope": "範圍：{{scope}}",
     "journal_hint": "journal 會在執行層寫入應用程式資料目錄，可用於盡力回滾，但不是交易保證。",
     "apply_hint": "確認後才會呼叫 apply-rename-plan。",

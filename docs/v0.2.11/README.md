@@ -51,7 +51,7 @@ docs/v0.2.11/
 
 | Feature Slug | 状态 | 入口 |
 | --- | --- | --- |
-| `name-translator-ux` | 已完成 `NT-UX-001` | `docs/v0.2.11/name-translator-ux/name-translator-ux-execution-plan.md` |
+| `name-translator-ux` | 已完成 `NT-UX-001`、`NT-UX-002`；计划警告换行与高风险确认详情已通过暗色窄窗口 Electron 验证 | `docs/v0.2.11/name-translator-ux/name-translator-ux-execution-plan.md` |
 | `qiuye-ui-refresh` | 已完成 `QIUYE-UI-001` | `docs/v0.2.11/qiuye-ui-refresh/qiuye-ui-refresh-execution-plan.md` |
 | `openai-api-format-compatibility` | 已完成 `PRE-001`、`CORE-001`、`CORE-002`、`BE-001`、`BE-002`、`BE-003`、`BE-004`、`BE-005`、`FE-001`、`FE-002`、`AGENT-001`、`AGENT-002`、`FIX-001`；`DOC-001` 发布说明部分完成，下一步 `QA-001` / 补齐 README 与隐私说明 | `docs/v0.2.11/openai-api-format-compatibility/openai-api-format-compatibility_execution_plan.md` |
 | `audio-toolkit` | `FIX-001`～`FIX-007`、`AUDIT-001`、`QA-001` 已完成；TypeScript、四语言 i18n、全量 73 files / 560 tests、Vite test build、四路由×四语言×宽窄窗口 Electron 矩阵通过；真实供应商/设备验收保留在 `QA-002` | `docs/v0.2.11/audio-toolkit/audio-toolkit_execution_plan.md` |

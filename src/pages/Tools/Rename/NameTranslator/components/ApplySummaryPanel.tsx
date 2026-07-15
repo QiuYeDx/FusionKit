@@ -11,7 +11,6 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { isPlanIncomplete } from "@/store/tools/rename/useNameTranslatorStore";
 import type {
@@ -21,6 +20,9 @@ import type {
   RollbackRenameJournalResult,
   ValidateRenamePlanResult,
 } from "@/services/rename/nameTypes";
+import { getRenameWarningDetails } from "../riskSummary";
+import type { RenameWarningDetail } from "../riskSummary";
+import PlanWarningsList from "./PlanWarningsList";
 
 interface ApplySummaryPanelProps {
   plan: NameTranslationPlan | null;
@@ -44,6 +46,7 @@ export default function ApplySummaryPanel({
   onRollback,
 }: ApplySummaryPanelProps) {
   const { t } = useTranslation("rename");
+  const warningDetails = getRenameWarningDetails(plan);
   const canApply =
     Boolean(plan?.applyable) &&
     (lastValidation?.valid ?? true) &&
@@ -93,33 +96,22 @@ export default function ApplySummaryPanel({
         />
       </div>
 
-      {plan?.warnings.length ? (
-        <Alert>
+      {warningDetails.length ? (
+        <Alert
+          data-testid="rename-warning-summary"
+          className="min-w-0 overflow-hidden"
+        >
           <AlertTriangle className="h-4 w-4" />
           <AlertTitle>{t("apply.warnings_title")}</AlertTitle>
-          <AlertDescription>
-            <div className="flex flex-wrap gap-1.5">
-              {plan.warnings.slice(0, 5).map((warning) => (
-                <Tooltip key={warning} disableHoverableContent>
-                  <TooltipTrigger asChild>
-                    <Badge variant="outline" className="max-w-full truncate">
-                      {warning}
-                    </Badge>
-                  </TooltipTrigger>
-                  <TooltipContent
-                    side="bottom"
-                    className="max-w-[min(560px,calc(100vw-2rem))] whitespace-normal text-left text-wrap leading-relaxed wrap-anywhere"
-                  >
-                    {warning}
-                  </TooltipContent>
-                </Tooltip>
-              ))}
-              {plan.warnings.length > 5 ? (
-                <span className="text-xs text-muted-foreground">
-                  +{plan.warnings.length - 5}
-                </span>
-              ) : null}
-            </div>
+          <AlertDescription className="min-w-0 w-full max-w-full">
+            <PlanWarningsList
+              details={warningDetails}
+              getSourceLabel={(detail) => getWarningSourceLabel(detail, t)}
+              maxVisible={5}
+              moreLabel={t("warning_details.more", {
+                count: Math.max(0, warningDetails.length - 5),
+              })}
+            />
           </AlertDescription>
         </Alert>
       ) : null}
@@ -200,6 +192,7 @@ export default function ApplySummaryPanel({
       ) : null}
 
       <Button
+        data-testid="rename-apply"
         type="button"
         className="w-full"
         disabled={!canApply}
@@ -231,6 +224,20 @@ export default function ApplySummaryPanel({
       )}
     </ToolPanel>
   );
+}
+
+function getWarningSourceLabel(
+  detail: RenameWarningDetail,
+  t: ReturnType<typeof useTranslation<"rename">>["t"]
+): string {
+  if (detail.source === "plan") {
+    return t("warning_details.plan_source");
+  }
+
+  return t("warning_details.item_source", {
+    kind: detail.itemKind ? t(`preview.kind.${detail.itemKind}`) : "-",
+    name: detail.itemName ?? "-",
+  });
 }
 
 function Metric({
