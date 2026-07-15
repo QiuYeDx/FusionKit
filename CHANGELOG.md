@@ -2,7 +2,7 @@
 
 本项目的所有重要更改都将记录在此文件中。
 
-## [0.2.11] - 2026-07-09
+## [0.2.11] - 2026-07-15
 
 ### 新增
 
@@ -13,8 +13,9 @@
 - HomeAgent 新增 Responses API 工具循环支持，可处理流式文本、function call、tool result 回填、多步工具循环、取消和 usage 统计
 - 设置页模型列表拉取改为基于规范化 base URL 派生 `/models`，兼容历史 `/chat/completions` 与 `/responses` endpoint 输入
 - 新增音频工具箱首版，包含音频转文本、文本转音频、实时字幕和 Realtime/WebRTC 双向语音四个工具入口
-- 设置页新增全局音频模型配置，支持创建 OpenAI Audio、OpenAI Realtime、MiMo Chat Audio Profile，并为音频转文本、文本转音频、实时字幕和双向语音分别设置全局生效配置
-- 音频转文本支持 OpenAI 官方 transcriptions 契约和 MiMo `mimo-v2.5-asr` adapter，并按当前 profile 能力禁用不支持的格式、prompt、时间戳等选项
+- 设置页新增独立“音频”导航与 `fusionkit-audio-settings` 配置域，支持创建 OpenAI、MiMo 和自定义 OpenAI-compatible 音频 API；音频凭证不再依赖文本模型档案，并可分别为四类音频任务设置默认 API
+- 音频 API 改为按任务和生成模式配置可信 route；同一 OpenAI API 可同时提供文件音频与 Realtime 能力，同一 MiMo API 可同时提供 ASR、预置音色、音色设计和音色复刻能力
+- 音频转文本支持 OpenAI 官方 transcriptions 契约和 MiMo `mimo-v2.5-asr` adapter，并按当前 route 约束仅展示适用的语言、格式、prompt、时间戳和 stream 选项
 - 文本转音频支持 OpenAI Audio TTS，以及 MiMo `mimo-v2.5-tts`、`mimo-v2.5-tts-voicedesign`、`mimo-v2.5-tts-voiceclone` 三种模式
 - MiMo TTS 三模式接入非流式保存和 PCM16 低延迟流式播放链路，完成后保存为本地音频文件
 - 实时字幕支持 OpenAI Realtime/WebRTC 麦克风字幕；MiMo 或非 Realtime profile 下提供分块近实时字幕，不伪装为原生 WebRTC
@@ -25,9 +26,12 @@
 - Responses API 请求默认发送 `store:false`，降低模型服务端保存请求内容的风险
 - 任务恢复清单、工作区 manifest 和事件日志不持久化 API Key、Authorization header 或完整模型请求体
 - 模型运行时错误信息增加 API Key 脱敏与统一错误分类，避免敏感凭据泄露到 UI 或日志
-- 音频工具页只读消费设置页全局音频 Profile，不保存独立 provider、API Key、base URL、dialect 或模型 ID
+- 音频工具页只读消费设置页的独立音频 API 与任务 route，不保存独立 provider、API Key、base URL、transport 或模型 ID
 - OpenAI Realtime 长期 API Key 仅在 Electron 主进程用于创建 ephemeral credentials，Renderer 不接触长期凭据
 - 音频运行时和 IPC 避免把本地音频 Base64、PCM chunk、完整请求体、Authorization 或 `api-key` header 写入 Zustand 持久化、任务恢复或错误详情
+- 音频公开 IPC 改为精确 allowlist；文件、参考音频和输出目录使用绑定 renderer owner、带有效期的 capability token，参考音频 token 单次消费，公开结果仅返回 output token
+- 音频任务通过 sender-bound 配置快照与 revision 解析可信 route，Renderer 无法覆盖凭证、transport、模型 ID 或任意本地路径
+- 音频取消、离页和 renderer 销毁会回收请求、媒体、临时文件及未消费授权；供应商错误详情按敏感字段、Bearer、路径、Data URI 和长 Base64 内容脱敏
 - README 补充音频隐私提示：本地音频文件、录音片段和麦克风内容会发送到用户选择的第三方音频 API 服务
 
 ### 优化
@@ -39,6 +43,26 @@
 - 优化文件名翻译清空当前选择体验，清空路径和预览时保留输出模式、语言、命名风格、冲突策略等用户配置
 - 优化文件名翻译预览表格，左侧显示长文本 Tooltip，加宽新名称列，将操作列固定在右侧，并为固定列左侧增加渐变过渡遮罩
 - 优化文件名翻译左侧已选路径列表，增加最大高度、内部纵向滚动和上下边缘渐变遮罩，并修复长文件名/路径导致的横向溢出
+- 接入 qiuye-ui `ThemeTransitionToggle` 与 `SmoothCorners`，更新底部主题切换、工具卡片、配置面板、统计栏和文件拖拽区的视觉表现，并移除旧截图遮罩主题切换链路
+- 更新 qiuye-ui CodeBlock、ImageViewer、Markdown 表格容器与 Mermaid 渲染适配，改善代码、图片和复杂 Markdown 内容的交互与展示
+- 优化音频 API 首次配置流程：第一条 API 可自动分配尚未配置的兼容任务，支持安全撤销；route 编辑、使用中删除和替换 assignment 采用原子校验，工具页可精确跳转设置并返回
+- 文本转音频按当前 provider 和生成模式只展示有效字段，支持模式草稿恢复、可用 route 自动回退、Voice Clone 文件重新授权，以及 MiMo 三模式直接切换
+- 音频转文本、实时字幕和双向语音全面迁移到独立 assignment 与 route 约束，语言、格式、voice、stream 等选项由共享 Provider Registry 统一决定
+- 四个音频工具和字幕文件翻译复用 `ToolRadioButtonGroup`，统一按钮组视觉、方向键、Home/End、roving tabindex 和窄屏布局
+- 四个音频工具 Store 仅持久化清洗后的用户偏好，不再恢复任务状态、错误、媒体会话、文件授权或转写结果
+
+### 修复
+
+- 修复 React 19 与 Zustand 因派生 selector 快照引用不稳定导致四个音频工具页无限更新并白屏的问题
+- 修复音频任务在配置同步、文件授权、快速双击、取消、route 切换或 SPA 离页期间可能复用一次性 token、迟到派发、遗留运行态或泄漏远端请求的问题
+- 修复 OpenAI Realtime GA 事件、模型与格式合同不一致的问题，区分字幕与双向语音模型，并正确处理 response 完成、播放缓冲结束和打断清理
+- 修复 TTS 首包丢失、尾音未播放完即结束、取消后残留输出、严格 Base64/音频格式校验不足，以及流式输出发出 delta 后错误重试可能重复计费的问题
+- 修复 ASR 在不同 OpenAI/MiMo 模型下响应格式、时间戳、prompt、stream、语言和文件限制不准确的问题，并完善输出保存与临时文件清理
+- 修复长文本 Markdown 翻译因模型遗漏、重复、乱序或改写受保护占位符而导致分片失败的问题；校正重试后可确定性修复占位符漂移，并支持继续部分完成任务和查看失败分片详情
+- 修复音频 API 旧配置跨 Zustand key 迁移可能因 hydration 顺序、损坏数据、重复 ID 或写入失败而静默丢失凭证、route 或 assignment 的问题
+- 修复 MiMo HTTP 402 余额不足仅显示通用拒绝提示的问题；参数错误会在安全白名单内标明具体字段，MiMo 预置音色改用官方 allowlist 并在 Renderer、主进程和 adapter 三层校验
+- 移除没有测试入口支撑的音频 API“未验证”状态和失败门禁；MiMo 分块实时字幕遇到成功但为空的静音片段时继续录音，普通文件空转写仍保持失败语义
+- 修复实时字幕和双向语音在麦克风授权悬置、WebRTC 启动失败、远端 track 无 streams、配置变化、清空对话或播放失败时可能遗留媒体资源或丢失打断入口的问题
 
 ### 测试与文档
 
@@ -49,11 +73,21 @@
 - 新增模型预设与上下文窗口校准测试和验收修复文档，固定 OpenAI / DeepSeek 关键模型默认上下文窗口断言
 - 新增音频工具箱 final design、execution plan、逐工作包实施记录和 fake audio API server
 - 新增音频契约、音频 profile migration、endpoint normalization、OpenAI/MiMo ASR/TTS、MiMo 流式 TTS、Realtime session、IPC/service facade 和四个音频工具页面的自动化测试
+- 新增 qiuye-ui 接入的设计文档、执行计划和实施记录，并完成 TypeScript、生产构建与旧主题截图链路引用检查
+- 新增独立音频 API 配置与 UX 重构的 final design、execution plan、迁移/运行时/四页面实施记录，以及发布审计和逐项修复文档
+- 新增源码翻译 key AST usage checker 与动态 key manifest，并将 `i18n:check` 扩展为 locale parity 和源码引用可解析性双重门禁
+- 补齐音频设置、四个音频工具、OpenAI/MiMo route、三种 MiMo TTS 模式、文件/目录授权、取消与资源清理的单元测试、Electron 交互测试和宽窄窗口视觉回归
+- 完成四个音频页面的发布审计，闭环白屏、IPC 信任边界、Realtime 生命周期、流式输出、供应商约束、可访问性和国际化问题；fixture、构建及多语言 Electron 矩阵通过
+
+### 依赖
+
+- 新增 `@qiuyedx/smooth-corners`，移除旧主题截图遮罩链路使用的 `html-to-image` 与 `@reactuses/core`
 
 ### 限制
 
-- OpenAI/MiMo 真实供应商、Electron 麦克风权限、OpenAI Realtime/WebRTC 远端音轨和 MiMo `voicedesign` / `voiceclone` 低延迟流式状态仍需发布前手工验收
-- MiMo Chat Audio 首版不提供原生 WebRTC 双向语音；双向语音页仅对具备 `realtime_duplex_voice` capability 的 profile 启用
+- OpenAI/MiMo 真实供应商、Electron 麦克风/扬声器权限、OpenAI Realtime/WebRTC 远端音轨和 MiMo `voicedesign` / `voiceclone` 低延迟流式状态仍需发布前手工验收；fixture 与自动化矩阵不能替代真实供应商和设备验证
+- 独立音频 API 配置重构的专项自动化门禁 `TEST-R01` 与真实环境验收 `QA-R02` 仍待完成
+- MiMo Chat Audio 首版不提供原生 WebRTC 双向语音；双向语音页仅对配置了 `realtimeVoice` route 的音频 API 启用
 
 ## [0.2.10] - 2026-07-01
 
