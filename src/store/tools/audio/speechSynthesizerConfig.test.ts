@@ -225,6 +225,7 @@ describe("speech synthesizer config helpers", () => {
   });
 
   it("derives submit issues from visible route constraints", () => {
+    const preset = getSpeechRouteConstraints("mimo", "preset_voice")!;
     const design = getSpeechRouteConstraints("mimo", "voice_design")!;
     const clone = getSpeechRouteConstraints("mimo", "voice_clone")!;
     const baseOptions = {
@@ -232,6 +233,24 @@ describe("speech synthesizer config helpers", () => {
       voiceSampleAuthorizationPending: false,
       outputDirectoryAuthorization: null,
     };
+    expect(resolveSpeechSynthesisSubmitIssue({
+      ...baseOptions,
+      constraints: preset,
+      preferences: {
+        ...DEFAULT_SPEECH_SYNTHESIZER_PREFERENCES,
+        input: "MiMo speech",
+        voice: "alloy",
+      },
+    })).toBe("invalid_voice");
+    expect(resolveSpeechSynthesisSubmitIssue({
+      ...baseOptions,
+      constraints: preset,
+      preferences: {
+        ...DEFAULT_SPEECH_SYNTHESIZER_PREFERENCES,
+        input: "MiMo speech",
+        voice: "mimo_default",
+      },
+    })).toBeNull();
     expect(resolveSpeechSynthesisSubmitIssue({
       ...baseOptions,
       constraints: design,
@@ -298,6 +317,7 @@ describe("speech synthesizer config helpers", () => {
       preferences: {
         ...DEFAULT_SPEECH_SYNTHESIZER_PREFERENCES,
         input: "m".repeat(AUDIO_SPEECH_MAX_INPUT_CHARS),
+        voice: "mimo_default",
       },
     })).toBeNull();
     expect(resolveSpeechSynthesisSubmitIssue({
@@ -306,6 +326,7 @@ describe("speech synthesizer config helpers", () => {
       preferences: {
         ...DEFAULT_SPEECH_SYNTHESIZER_PREFERENCES,
         input: "m".repeat(AUDIO_SPEECH_MAX_INPUT_CHARS + 1),
+        voice: "mimo_default",
       },
     })).toBe("input_too_long");
 

@@ -385,6 +385,73 @@ describe("AudioRuntimeClient MiMo non-stream adapter", () => {
     });
   });
 
+  it("classifies MiMo insufficient balance responses", async () => {
+    const activeServer = requireServer(server);
+    const activeTempRoot = requireTempRoot(tempRoot);
+    const filePath = path.join(activeTempRoot, "sample.wav");
+    await writeFile(filePath, createOpenAISpeechBuffer("mimo-asr"));
+    activeServer.enqueueRoute("mimo_chat_completions", {
+      status: 402,
+      body: createAudioErrorBody(
+        "Insufficient account balance",
+        "402",
+        "insufficient_balance",
+      ),
+    });
+
+    await expect(sendAudioTranscription({
+      model: createMimoModel(activeServer.chatCompletionsUrl, "mimo-v2.5-asr"),
+      payload: createTranscriptionPayload(filePath, {
+        language: "auto",
+        responseFormat: "text",
+      }),
+      retry: { maxRetries: 0 },
+    })).rejects.toMatchObject({
+      code: "http_payment_required",
+      details: {
+        status: 402,
+        attempt: 0,
+      },
+    });
+    expect(activeServer.requests).toHaveLength(1);
+  });
+
+  it("allows empty MiMo ASR only for trusted realtime caption chunks", async () => {
+    const activeServer = requireServer(server);
+    const activeTempRoot = requireTempRoot(tempRoot);
+    const filePath = path.join(activeTempRoot, "silent.wav");
+    await writeFile(filePath, createOpenAISpeechBuffer("silence"));
+    activeServer.enqueueRoute("mimo_chat_completions", {
+      body: createMimoAsrBody({ text: "", model: "mimo-v2.5-asr" }),
+    });
+
+    await expect(sendAudioTranscription({
+      model: createMimoModel(activeServer.chatCompletionsUrl, "mimo-v2.5-asr"),
+      payload: createTranscriptionPayload(filePath, {
+        language: "auto",
+        responseFormat: "text",
+      }),
+      allowEmptyTranscriptionResult: true,
+      retry: { maxRetries: 0 },
+    })).resolves.toMatchObject({
+      text: "",
+      responseFormat: "text",
+      model: "mimo-v2.5-asr",
+    });
+
+    activeServer.enqueueRoute("mimo_chat_completions", {
+      body: createMimoAsrBody({ text: "", model: "mimo-v2.5-asr" }),
+    });
+    await expect(sendAudioTranscription({
+      model: createMimoModel(activeServer.chatCompletionsUrl, "mimo-v2.5-asr"),
+      payload: createTranscriptionPayload(filePath, {
+        language: "auto",
+        responseFormat: "text",
+      }),
+      retry: { maxRetries: 0 },
+    })).rejects.toMatchObject({ code: "empty_response" });
+  });
+
   it("MiMo non-stream preset TTS stores decoded WAV audio", async () => {
     const activeServer = requireServer(server);
     const activeTempRoot = requireTempRoot(tempRoot);
@@ -670,6 +737,22 @@ describe("AudioRuntimeClient MiMo non-stream adapter", () => {
     ).rejects.toMatchObject({
       code: "unsupported_audio_format",
       field: "responseFormat",
+    });
+
+    await expect(
+      sendSpeechSynthesis({
+        model: createMimoModel(activeServer.baseUrl, "mimo-v2.5-tts"),
+        payload: createSpeechPayload({
+          speed: undefined,
+          responseFormat: "wav",
+          voice: "alloy",
+          mimoOptions: { mode: "preset_voice" },
+        }),
+        retry: { maxRetries: 0 },
+      }),
+    ).rejects.toMatchObject({
+      code: "invalid_task_parameters",
+      field: "voice",
     });
 
     await expect(

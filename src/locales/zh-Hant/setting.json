@@ -211,12 +211,6 @@
         "realtimeVoice": "雙向語音",
         "model": "Model ID"
       },
-      "verification": {
-        "untested": "未驗證",
-        "verified": "已驗證",
-        "degraded": "部分可用",
-        "failed": "驗證失敗"
-      },
       "delete": {
         "title": "刪除音訊 API",
         "unused_description": "確定刪除「{{name}}」嗎？",

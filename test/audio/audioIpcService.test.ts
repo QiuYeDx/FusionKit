@@ -1059,6 +1059,26 @@ describe("AudioIpcService", () => {
     expect(runtime.synthesize).toHaveBeenCalledTimes(1);
   });
 
+  it("rejects a preset voice outside the MiMo route allowlist", async () => {
+    const runtime = createRuntimeInvoker();
+    const service = createService(runtime);
+    const context = await syncService(service);
+
+    await expect(service.synthesizeSpeech(
+      createSpeechPayload({
+        intent: { mode: "preset_voice", voice: "alloy" },
+      }),
+      context,
+    )).resolves.toMatchObject({
+      ok: false,
+      error: {
+        code: "invalid_task_parameters",
+        field: "intent.voice",
+      },
+    });
+    expect(runtime.synthesize).not.toHaveBeenCalled();
+  });
+
   it("maps all MiMo speech intents to trusted models and adapter payloads", async () => {
     const cases: Array<{
       intent: CreateSpeechSynthesisIpcRequest["intent"];
@@ -1724,6 +1744,7 @@ describe("AudioIpcService", () => {
           language,
         }),
         expect.objectContaining({
+          allowEmptyTranscriptionResult: true,
           model: expect.objectContaining({
             apiKey: "sk-mimo-ipc",
             providerPreset: "mimo",
@@ -1735,6 +1756,45 @@ describe("AudioIpcService", () => {
       expect(JSON.stringify(result)).not.toContain("sk-mimo-ipc");
     },
   );
+
+  it("returns an empty recorded chunk as a successful silent interval", async () => {
+    const runtime = createRuntimeInvoker();
+    vi.mocked(runtime.transcribe).mockResolvedValueOnce({
+      text: "",
+      responseFormat: "text",
+      model: "mimo-v2.5-asr",
+    });
+    const service = createService(runtime);
+    const context = await syncService(service);
+
+    const result = await service.transcribeRecordedChunk(
+      {
+        assignmentKey: "realtimeCaptions",
+        requestId: "chunk_silent",
+        audioBytes: new Uint8Array([82, 73, 70, 70]),
+        mimeType: "audio/wav",
+        responseFormat: "text",
+        language: "auto",
+        startedAtMs: 5_000,
+        endedAtMs: 10_000,
+      },
+      context,
+    );
+
+    expect(result).toMatchObject({
+      ok: true,
+      data: {
+        requestId: "chunk_silent",
+        text: "",
+        startedAtMs: 5_000,
+        endedAtMs: 10_000,
+      },
+    });
+    expect(runtime.transcribe).toHaveBeenCalledWith(
+      expect.any(Object),
+      expect.objectContaining({ allowEmptyTranscriptionResult: true }),
+    );
+  });
 
   it("rejects unsupported recorded chunk language before temp-file or adapter work", async () => {
     const runtime = createRuntimeInvoker();
@@ -2141,7 +2201,7 @@ function createSpeechPayload(
   return {
     assignmentKey: "speechSynthesis",
     input: "hello",
-    intent: { mode: "preset_voice", voice: "alloy" },
+    intent: { mode: "preset_voice", voice: "mimo_default" },
     responseFormat: "wav",
     ...overrides,
   };

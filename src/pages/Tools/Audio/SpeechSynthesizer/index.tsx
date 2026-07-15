@@ -4,7 +4,6 @@ import {
   useMemo,
   useRef,
   useState,
-  type KeyboardEvent as ReactKeyboardEvent,
 } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
@@ -24,7 +23,6 @@ import {
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { ButtonGroup } from "@/components/ui/button-group";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import {
@@ -42,6 +40,7 @@ import {
   ToolFileDropZone,
   ToolOutputPathPicker,
   ToolPanel,
+  ToolRadioButtonGroup,
 } from "@/pages/Tools/_shared/ui";
 import { cn } from "@/lib/utils";
 import { showToast } from "@/utils/toast";
@@ -62,14 +61,12 @@ import AudioToolShell from "../shared/AudioToolShell";
 import { Pcm16StreamPlayer } from "../shared/pcm16StreamPlayer";
 import { getAudioErrorMessage } from "../shared/audioErrorMessage";
 import {
-  MIMO_VOICE_PRESETS,
-} from "@/store/tools/audio/audioToolConfig";
-import {
   MIMO_VOICE_SAMPLE_ACCEPT,
   buildSpeechSynthesisRequest,
   clampSpeechSpeed,
   createSpeechSynthesisSubmissionSnapshot,
   getSpeechSynthesizerResponseFormats,
+  isSpeechSynthesisVoiceSupported,
   isSpeechSynthesisSubmissionSnapshotCurrent,
   normalizeSpeechSynthesizerPreferences,
   resolveSpeechSynthesisFieldVisibility,
@@ -223,6 +220,12 @@ function SpeechConfig({
     normalized.stream,
   );
   const isMimo = summary.providerPreset === "mimo";
+  const allowedVoices = constraints.voices ?? [];
+  const voiceInvalid = Boolean(
+    fields.voice &&
+    preferences.voice.trim() &&
+    !isSpeechSynthesisVoiceSupported(preferences.voice, constraints),
+  );
   const isRunning = status === "running" || status === "streaming";
   const isConfigLocked =
     isRunning || submissionPending || voiceSampleAuthorizationPending;
@@ -294,37 +297,69 @@ function SpeechConfig({
               : "audio:speech.hints.openai_voice",
           )}
         >
-          <Input
-            id="speech-voice"
-            value={preferences.voice}
-            className="h-8 text-xs"
-            placeholder={t(
-              isMimo
-                ? "audio:speech.placeholders.mimo_voice"
-                : "audio:speech.placeholders.openai_voice",
-            )}
-            onChange={(event) =>
-              updatePreferences({ voice: event.currentTarget.value })
-            }
-          />
-          <div className="mt-2 flex flex-wrap gap-1.5">
-            {(isMimo ? MIMO_VOICE_PRESETS : OPENAI_VOICE_HINTS.map((voice) => ({
-              id: voice,
-              label: voice,
-            }))).map((preset) => (
-              <Button
-                key={preset.id}
-                type="button"
-                variant={preferences.voice === preset.id ? "default" : "outline"}
+          {allowedVoices.length > 0 ? (
+            <Select
+              value={voiceInvalid ? "" : preferences.voice}
+              onValueChange={(voice) => updatePreferences({ voice })}
+            >
+              <SelectTrigger
+                id="speech-voice"
+                data-testid="speech-voice-select"
                 size="sm"
-                className="h-7 px-2 text-[11px]"
-                aria-pressed={preferences.voice === preset.id}
-                onClick={() => updatePreferences({ voice: preset.id })}
+                className="w-full"
+                aria-invalid={voiceInvalid || undefined}
+                aria-describedby={voiceInvalid ? "speech-voice-error" : undefined}
               >
-                {preset.label}
-              </Button>
-            ))}
-          </div>
+                <SelectValue
+                  placeholder={t("audio:speech.placeholders.mimo_voice")}
+                />
+              </SelectTrigger>
+              <SelectContent>
+                {allowedVoices.map((voice) => (
+                  <SelectItem key={voice} value={voice}>
+                    {voice}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          ) : (
+            <>
+              <Input
+                id="speech-voice"
+                value={preferences.voice}
+                className="h-8 text-xs"
+                placeholder={t("audio:speech.placeholders.openai_voice")}
+                onChange={(event) =>
+                  updatePreferences({ voice: event.currentTarget.value })
+                }
+              />
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {OPENAI_VOICE_HINTS.map((voice) => (
+                  <Button
+                    key={voice}
+                    type="button"
+                    variant={preferences.voice === voice ? "default" : "outline"}
+                    size="sm"
+                    className="h-7 px-2 text-[11px]"
+                    aria-pressed={preferences.voice === voice}
+                    onClick={() => updatePreferences({ voice })}
+                  >
+                    {voice}
+                  </Button>
+                ))}
+              </div>
+            </>
+          )}
+          {voiceInvalid ? (
+            <p
+              id="speech-voice-error"
+              data-testid="speech-voice-error"
+              role="alert"
+              className="mt-1.5 text-xs text-destructive"
+            >
+              {t("audio:speech.errors.invalid_voice")}
+            </p>
+          ) : null}
         </ToolField>
       ) : null}
 
@@ -529,29 +564,19 @@ function SpeechConfig({
       ) : null}
 
       <ToolField
+        testId="speech-output-mode"
         label={t("audio:speech.fields.output_mode")}
         hint={t("audio:speech.hints.output_mode")}
       >
-        <ButtonGroup
-          className="w-full"
-          role="radiogroup"
-          aria-label={t("audio:speech.fields.output_mode")}
-        >
-          {(["temp", "custom_dir"] as const).map((mode) => (
-            <Button
-              key={mode}
-              type="button"
-              size="sm"
-              className="flex-1"
-              role="radio"
-              aria-checked={preferences.outputMode === mode}
-              variant={preferences.outputMode === mode ? "default" : "outline"}
-              onClick={() => updatePreferences({ outputMode: mode })}
-            >
-              {t(`audio:speech.output_mode.${mode}`)}
-            </Button>
-          ))}
-        </ButtonGroup>
+        <ToolRadioButtonGroup
+          value={preferences.outputMode}
+          ariaLabel={t("audio:speech.fields.output_mode")}
+          options={(["temp", "custom_dir"] as const).map((mode) => ({
+            value: mode,
+            label: t(`audio:speech.output_mode.${mode}`),
+          }))}
+          onValueChange={(outputMode) => updatePreferences({ outputMode })}
+        />
         {preferences.outputMode === "custom_dir" ? (
           <ToolOutputPathPicker
             className="mt-2"
@@ -595,68 +620,26 @@ function SpeechModeSelector({
   onChange: (mode: SpeechSynthesisMode) => void;
 }) {
   const { t } = useTranslation(["audio"]);
-  const buttonRefs = useRef<
-    Partial<Record<SpeechSynthesisMode, HTMLButtonElement | null>>
-  >({});
-
-  const handleKeyDown = (
-    event: ReactKeyboardEvent<HTMLButtonElement>,
-    mode: SpeechSynthesisMode,
-  ) => {
-    const currentIndex = availableModes.indexOf(mode);
-    let nextIndex: number | undefined;
-    if (event.key === "ArrowRight" || event.key === "ArrowDown") {
-      nextIndex = (currentIndex + 1) % availableModes.length;
-    } else if (event.key === "ArrowLeft" || event.key === "ArrowUp") {
-      nextIndex = (currentIndex - 1 + availableModes.length) % availableModes.length;
-    } else if (event.key === "Home") {
-      nextIndex = 0;
-    } else if (event.key === "End") {
-      nextIndex = availableModes.length - 1;
-    }
-    if (nextIndex === undefined) return;
-    event.preventDefault();
-    const nextMode = availableModes[nextIndex];
-    onChange(nextMode);
-    requestAnimationFrame(() => buttonRefs.current[nextMode]?.focus());
-  };
-
   return (
     <ToolField
       testId="speech-mode-group"
       label={t("audio:speech.fields.mode")}
       hint={t("audio:speech.hints.mode")}
     >
-      <ButtonGroup
-        className="grid w-full grid-cols-1 gap-1 min-[420px]:grid-cols-3"
-        role="radiogroup"
-        aria-label={t("audio:speech.fields.mode")}
-      >
-        {availableModes.map((mode) => (
-          <Button
-            key={mode}
-            ref={(node) => {
-              buttonRefs.current[mode] = node;
-            }}
-            data-testid={`speech-mode-${mode}`}
-            type="button"
-            size="sm"
-            className="min-w-0 px-2 text-[11px]"
-            role="radio"
-            tabIndex={activeMode === mode ? 0 : -1}
-            aria-checked={activeMode === mode}
-            disabled={disabled}
-            variant={activeMode === mode ? "default" : "outline"}
-            onKeyDown={(event) => handleKeyDown(event, mode)}
-            onClick={() => {
-              onChange(mode);
-              requestAnimationFrame(() => focusSpeechModePrimaryField(mode));
-            }}
-          >
-            {t(`audio:speech.mode.${mode}`)}
-          </Button>
-        ))}
-      </ButtonGroup>
+      <ToolRadioButtonGroup
+        value={activeMode}
+        ariaLabel={t("audio:speech.fields.mode")}
+        disabled={disabled}
+        options={availableModes.map((mode) => ({
+          value: mode,
+          label: t(`audio:speech.mode.${mode}`),
+          testId: `speech-mode-${mode}`,
+        }))}
+        onValueChange={onChange}
+        onPointerValueChange={(mode) => {
+          requestAnimationFrame(() => focusSpeechModePrimaryField(mode));
+        }}
+      />
     </ToolField>
   );
 }

@@ -4,7 +4,10 @@ import {
   createAudioRuntimeError,
   sanitizeAudioErrorDetails,
 } from "../../electron/main/audio/audio-errors";
-import { runAudioRuntimeRequest } from "../../electron/main/audio/audio-http";
+import {
+  createAudioHttpErrorFromResponse,
+  runAudioRuntimeRequest,
+} from "../../electron/main/audio/audio-http";
 
 describe("audio runtime errors", () => {
   it("redacts credentials, payloads, filesystem paths, and binary chunks", () => {
@@ -112,5 +115,28 @@ describe("audio runtime errors", () => {
     } catch (error) {
       expect(String(error)).not.toContain(privatePath);
     }
+  });
+
+  it("maps allowlisted provider parameter fields without exposing the body", () => {
+    const error = createAudioHttpErrorFromResponse({
+      status: 400,
+      body: {
+        error: {
+          message: "voice alloy is invalid",
+          type: "invalid_request_error",
+          code: "invalid_value",
+          param: "audio.voice",
+        },
+      },
+      attempt: 0,
+      apiKey: "mimo-secret",
+    });
+
+    expect(error).toMatchObject({
+      code: "invalid_task_parameters",
+      field: "intent.voice",
+      details: { status: 400, attempt: 0 },
+    });
+    expect(error.details).not.toHaveProperty("body");
   });
 });

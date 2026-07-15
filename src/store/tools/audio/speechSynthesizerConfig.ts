@@ -3,7 +3,6 @@ import {
   type AudioApiProfile,
   type AudioProviderPreset,
   type AudioRoute,
-  type AudioRouteVerificationStatus,
   type AudioSpeechResponseFormat,
   type AudioTaskAssignment,
   type SpeechSynthesisMode,
@@ -15,7 +14,6 @@ import {
 } from "@/type/audio";
 import type { CreateSpeechSynthesisIpcRequest } from "@/type/audioIpc";
 import {
-  getAudioRouteKey,
   getAvailableSpeechSynthesisModes,
   getSpeechRouteConstraints,
   isAudioRouteTransportSupported,
@@ -86,7 +84,6 @@ export interface SpeechSynthesisConfigSummary extends AudioToolConfigSummary {
   activeMode?: SpeechSynthesisMode;
   route?: AudioRoute;
   constraints?: AudioSpeechRouteConstraints;
-  verificationStatus?: AudioRouteVerificationStatus | "unverified";
   migrationNeedsAttention?: boolean;
 }
 
@@ -102,6 +99,7 @@ export interface SpeechSynthesisSubmissionSnapshot {
 export type SpeechSynthesisSubmitIssueCode =
   | "no_input"
   | "no_voice"
+  | "invalid_voice"
   | "input_too_long"
   | "instructions_too_long"
   | "voice_design_prompt_required"
@@ -223,7 +221,6 @@ export function resolveSpeechSynthesisConfigSummary(
     profile.providerPreset,
     activeMode,
   );
-  const routeKey = getAudioRouteKey("speechSynthesis", activeMode);
   return {
     assignmentKey: "speechSynthesis",
     status: route && constraints ? "ready" : "audio_route_not_configured",
@@ -243,9 +240,6 @@ export function resolveSpeechSynthesisConfigSummary(
       ? { audioDialect: route.transport, modelKey: route.model }
       : {}),
     ...(constraints ? { constraints } : {}),
-    verificationStatus: routeKey
-      ? profile.verification?.[routeKey]?.status ?? "unverified"
-      : "unverified",
     migrationNeedsAttention: profile.migration?.needsAttention,
   };
 }
@@ -433,6 +427,9 @@ export function resolveSpeechSynthesisSubmitIssue(options: {
   if (fields.voice === "required" && !preferences.voice.trim()) {
     return "no_voice";
   }
+  if (!isSpeechSynthesisVoiceSupported(preferences.voice, options.constraints)) {
+    return "invalid_voice";
+  }
   if (preferences.input.length > options.constraints.maxInputChars) {
     return "input_too_long";
   }
@@ -472,6 +469,14 @@ export function resolveSpeechSynthesisSubmitIssue(options: {
     return "output_dir_required";
   }
   return null;
+}
+
+export function isSpeechSynthesisVoiceSupported(
+  voice: string,
+  constraints: AudioSpeechRouteConstraints,
+): boolean {
+  const normalized = voice.trim();
+  return !constraints.voices || constraints.voices.includes(normalized);
 }
 
 export function clampSpeechSpeed(value: number): number {

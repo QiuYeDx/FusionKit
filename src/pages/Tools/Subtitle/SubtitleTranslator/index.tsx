@@ -39,6 +39,7 @@ import {
   ToolFileDropZone,
   ToolOutputPathPicker,
   ToolPanel,
+  ToolRadioButtonGroup,
   ToolSummaryLine,
 } from "@/pages/Tools/_shared/ui";
 import { Badge } from "@/components/ui/badge";
@@ -995,32 +996,22 @@ function SubtitleTranslator() {
                 id="tour-output-mode"
                 label={t("subtitle:translator.fields.translation_output_mode")}
               >
-                <ButtonGroup className="w-full">
-                  <Button
-                    size="sm"
-                    className="flex-1"
-                    variant={
-                      translationOutputMode === "bilingual"
-                        ? "default"
-                        : "outline"
-                    }
-                    onClick={() => setTranslationOutputMode("bilingual")}
-                  >
-                    {t("subtitle:translator.fields.output_bilingual")}
-                  </Button>
-                  <Button
-                    size="sm"
-                    className="flex-1"
-                    variant={
-                      translationOutputMode === "target_only"
-                        ? "default"
-                        : "outline"
-                    }
-                    onClick={() => setTranslationOutputMode("target_only")}
-                  >
-                    {t("subtitle:translator.fields.output_target_only")}
-                  </Button>
-                </ButtonGroup>
+                <ToolRadioButtonGroup
+                  value={translationOutputMode}
+                  ariaLabel={t("subtitle:translator.fields.translation_output_mode")}
+                  options={([
+                    "bilingual",
+                    "target_only",
+                  ] as const).map((mode) => ({
+                    value: mode,
+                    label: t(
+                      mode === "bilingual"
+                        ? "subtitle:translator.fields.output_bilingual"
+                        : "subtitle:translator.fields.output_target_only",
+                    ),
+                  }))}
+                  onValueChange={setTranslationOutputMode}
+                />
               </ToolField>
 
               {/* Slice */}
@@ -1028,21 +1019,17 @@ function SubtitleTranslator() {
                 id="tour-slice-mode"
                 label={t("subtitle:translator.fields.subtitle_slice_mode")}
               >
-                <ButtonGroup className="w-full">
-                  {Object.values(SubtitleSliceType).map((type) => (
-                    <Button
-                      key={type}
-                      size="sm"
-                      className="flex-1"
-                      variant={sliceType === type ? "default" : "outline"}
-                      onClick={() => setSliceType(type as SubtitleSliceType)}
-                    >
-                      {t(
-                        `subtitle:translator.slice_types.${type.toLowerCase()}`
-                      )}
-                    </Button>
-                  ))}
-                </ButtonGroup>
+                <ToolRadioButtonGroup
+                  value={sliceType}
+                  ariaLabel={t("subtitle:translator.fields.subtitle_slice_mode")}
+                  options={Object.values(SubtitleSliceType).map((type) => ({
+                    value: type,
+                    label: t(
+                      `subtitle:translator.slice_types.${type.toLowerCase()}`,
+                    ),
+                  }))}
+                  onValueChange={setSliceType}
+                />
                 {sliceType === SubtitleSliceType.CUSTOM && (
                   <div className="flex items-center gap-2 pt-1">
                     <Input
@@ -1071,24 +1058,19 @@ function SubtitleTranslator() {
                 id="tour-output-path"
                 label={t("subtitle:translator.fields.output_mode")}
               >
-                <ButtonGroup className="w-full">
-                  <Button
-                    size="sm"
-                    className="flex-1"
-                    variant={outputMode === "custom" ? "default" : "outline"}
-                    onClick={() => setOutputMode("custom")}
-                  >
-                    {t("subtitle:translator.fields.output_mode_custom")}
-                  </Button>
-                  <Button
-                    size="sm"
-                    className="flex-1"
-                    variant={outputMode === "source" ? "default" : "outline"}
-                    onClick={() => setOutputMode("source")}
-                  >
-                    {t("subtitle:translator.fields.output_mode_source")}
-                  </Button>
-                </ButtonGroup>
+                <ToolRadioButtonGroup
+                  value={outputMode}
+                  ariaLabel={t("subtitle:translator.fields.output_mode")}
+                  options={(["custom", "source"] as const).map((mode) => ({
+                    value: mode,
+                    label: t(
+                      mode === "custom"
+                        ? "subtitle:translator.fields.output_mode_custom"
+                        : "subtitle:translator.fields.output_mode_source",
+                    ),
+                  }))}
+                  onValueChange={setOutputMode}
+                />
                 {outputMode === "custom" ? (
                   <ToolOutputPathPicker
                     className="mt-2"
@@ -1110,26 +1092,19 @@ function SubtitleTranslator() {
 
               {/* Conflict policy */}
               <ToolField label={t("subtitle:translator.fields.conflict_policy")}>
-                <ButtonGroup className="w-full">
-                  <Button
-                    size="sm"
-                    className="flex-1"
-                    variant={conflictPolicy === "index" ? "default" : "outline"}
-                    onClick={() => setConflictPolicy("index")}
-                  >
-                    {t("subtitle:translator.fields.conflict_policy_index")}
-                  </Button>
-                  <Button
-                    size="sm"
-                    className="flex-1"
-                    variant={
-                      conflictPolicy === "overwrite" ? "default" : "outline"
-                    }
-                    onClick={() => setConflictPolicy("overwrite")}
-                  >
-                    {t("subtitle:translator.fields.conflict_policy_overwrite")}
-                  </Button>
-                </ButtonGroup>
+                <ToolRadioButtonGroup
+                  value={conflictPolicy}
+                  ariaLabel={t("subtitle:translator.fields.conflict_policy")}
+                  options={(["index", "overwrite"] as const).map((policy) => ({
+                    value: policy,
+                    label: t(
+                      policy === "index"
+                        ? "subtitle:translator.fields.conflict_policy_index"
+                        : "subtitle:translator.fields.conflict_policy_overwrite",
+                    ),
+                  }))}
+                  onValueChange={setConflictPolicy}
+                />
               </ToolField>
 
               <ToolConfigDivider />

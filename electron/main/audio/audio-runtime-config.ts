@@ -104,16 +104,6 @@ export class AudioRuntimeConfigStore {
       });
     }
 
-    const verificationStatus =
-      profile.verification?.[routeKey]?.status ?? "unverified";
-    if (verificationStatus === "failed") {
-      return routeFailure(intent, {
-        code: "audio_route_unverified",
-        message: "The requested audio route failed verification.",
-        verificationStatus,
-      });
-    }
-
     return {
       ok: true,
       config: {
@@ -125,7 +115,6 @@ export class AudioRuntimeConfigStore {
         baseUrl: profile.baseUrl,
         transport: route.transport,
         model: route.model,
-        verificationStatus,
       },
     };
   }

@@ -20,7 +20,6 @@ import {
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import {
   Select,
   SelectContent,
@@ -28,7 +27,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ToolField, ToolPanel } from "@/pages/Tools/_shared/ui";
+import {
+  ToolField,
+  ToolPanel,
+  ToolRadioButtonGroup,
+} from "@/pages/Tools/_shared/ui";
 import { cn } from "@/lib/utils";
 import { showToast } from "@/utils/toast";
 import type { AudioApiProfile, AudioRole } from "@/type/audio";
@@ -180,46 +183,21 @@ function RealtimeCaptionsConfig({
           label={t("audio:captions.fields.input_audio_format")}
           hint={t("audio:captions.hints.input_audio_format")}
         >
-          <RadioGroup
-            className="grid w-full grid-cols-3 gap-0"
+          <ToolRadioButtonGroup
             value={normalized.inputAudioFormat}
-            aria-label={t("audio:captions.fields.input_audio_format")}
+            ariaLabel={t("audio:captions.fields.input_audio_format")}
+            options={summary.inputAudioFormats.map((format) => ({
+              value: format,
+              label: format.toUpperCase(),
+              ariaLabel: t(`audio:captions.input_audio_format.${format}`),
+              testId: `captions-input-format-${format}`,
+            }))}
             onValueChange={(inputAudioFormat) =>
               updatePreferences({
-                inputAudioFormat: inputAudioFormat as typeof normalized.inputAudioFormat,
+                inputAudioFormat,
               })
             }
-            onKeyDownCapture={(event) => {
-              if (event.key !== "Home" && event.key !== "End") return;
-              event.preventDefault();
-              const inputAudioFormat = event.key === "Home"
-                ? summary.inputAudioFormats[0]
-                : summary.inputAudioFormats.at(-1)!;
-              updatePreferences({ inputAudioFormat });
-              event.currentTarget
-                .querySelector<HTMLElement>(
-                  `[data-testid="captions-input-format-${inputAudioFormat}"]`,
-                )
-                ?.focus();
-            }}
-          >
-            {summary.inputAudioFormats.map((format) => (
-              <RadioGroupItem
-                key={format}
-                value={format}
-                data-testid={`captions-input-format-${format}`}
-                className={cn(
-                  "h-auto min-h-9 min-w-0 w-full aspect-auto rounded-none px-1.5 py-1.5 text-center text-[11px] font-medium first:rounded-l-md last:rounded-r-md [&:not(:first-child)]:border-l-0",
-                  "whitespace-normal data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground data-[state=unchecked]:bg-background data-[state=unchecked]:hover:bg-accent data-[state=unchecked]:hover:text-accent-foreground",
-                  "[&>[data-slot=radio-group-indicator]]:hidden",
-                )}
-              >
-                <span className="pointer-events-none min-w-0 break-words leading-tight">
-                  {t(`audio:captions.input_audio_format.${format}`)}
-                </span>
-              </RadioGroupItem>
-            ))}
-          </RadioGroup>
+          />
         </ToolField>
       ) : null}
 
@@ -499,7 +477,12 @@ function RealtimeCaptionsWorkspace({
                   return;
                 }
                 if (!result.ok) {
-                  if (result.error.code === "aborted") return;
+                  if (
+                    result.error.code === "aborted"
+                    || result.error.code === "empty_response"
+                  ) {
+                    return;
+                  }
                   throw result.error;
                 }
                 const text = result.data.text.trim();

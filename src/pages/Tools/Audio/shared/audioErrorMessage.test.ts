@@ -19,6 +19,7 @@ describe("getAudioErrorMessage", () => {
     ["audio_route_not_configured", "route_not_configured"],
     ["audio_route_unverified", "route_unverified"],
     ["invalid_task_parameters", "invalid_parameters"],
+    ["http_payment_required", "payment_required"],
   ] as const)("maps %s to its user-facing message", (code, key) => {
     const t = (translationKey: string) => translationKey;
 
@@ -31,5 +32,17 @@ describe("getAudioErrorMessage", () => {
     const t = (key: string) => key;
     expect(getAudioErrorMessage(t, { code: "renderer_error" }, "本地校验失败"))
       .toBe("本地校验失败");
+  });
+
+  it("names allowlisted invalid parameters", () => {
+    const t = (key: string, options?: Record<string, unknown>) =>
+      options?.field ? `${key}:${String(options.field)}` : key;
+
+    expect(getAudioErrorMessage(t, {
+      code: "invalid_task_parameters",
+      field: "intent.voice",
+    })).toBe(
+      "audio:runtime_error.invalid_parameter_named:audio:speech.fields.voice",
+    );
   });
 });

@@ -8,7 +8,6 @@
     "audio_api": "音频 API",
     "provider": "供应商",
     "mode": "生成模式",
-    "verification": "验证状态",
     "technical_details": "技术详情",
     "dialect": "协议",
     "model": "模型",
@@ -199,7 +198,7 @@
     },
     "hints": {
       "mode": "这里只显示当前音频 API 已配置且可用的生成模式。",
-      "mimo_voice": "预置音色模式下使用 voice；音色设计不使用 voice，音色复刻使用参考音频。",
+      "mimo_voice": "MiMo 预置音色必须从当前模型支持的列表中选择；音色设计使用描述，音色复刻使用参考音频。",
       "openai_voice": "OpenAI voice 支持手输；预设按钮只是便捷入口。",
       "mimo_format": "MiMo 非流式固定 WAV，流式固定 PCM16 并在完成后保存为 WAV。",
       "openai_format": "OpenAI 官方 TTS 支持多种二进制音频格式。",
@@ -214,7 +213,7 @@
       "file_name_hint": "无需填写扩展名，系统会根据输出格式补全。"
     },
     "placeholders": {
-      "mimo_voice": "mimo_default / 冰糖 / Mia / 自定义 voice id",
+      "mimo_voice": "请选择 MiMo 预置音色",
       "openai_voice": "alloy",
       "output_dir": "尚未选择输出目录",
       "style_instruction": "例如：更温柔、旁白感、语速自然",
@@ -283,7 +282,8 @@
     "errors": {
       "title": "生成失败",
       "no_input": "请输入要合成的文本。",
-      "no_voice": "请填写 voice。",
+      "no_voice": "请输入或选择音色。",
+      "invalid_voice": "当前音色不受所选音频 API 支持，请在音色列表中重新选择。",
       "output_dir_required": "使用自选目录时，请先选择输出目录。",
       "voice_design_prompt_required": "音色设计模式需要填写音色描述。",
       "voice_sample_required": "音色复刻模式需要选择参考音频。",
@@ -482,6 +482,7 @@
     "route_not_configured": "当前分配的音频 API 不支持所请求的操作或模式。",
     "route_unverified": "此音频 API 路由验证失败，请前往设置检查。",
     "invalid_parameters": "请检查音频任务参数后重试。",
+    "invalid_parameter_named": "参数“{{field}}”无效或不受当前模型支持，请检查后重试。",
     "profile_not_configured": "请先配置音频档案。",
     "connection_not_configured": "缺少音频连接配置。",
     "model_not_configured": "请先配置所需的音频模型。",
@@ -496,6 +497,7 @@
     "network": "无法连接音频服务。",
     "timeout": "音频请求超时。",
     "unauthorized": "音频 API 凭据被拒绝。",
+    "payment_required": "音频 API 账户余额或套餐额度不足，请充值或检查套餐。",
     "forbidden": "音频 API 不允许此操作。",
     "rate_limited": "音频服务请求过于频繁，请稍后重试。",
     "service_unavailable": "音频服务暂时不可用。",

@@ -98,6 +98,7 @@ export type AudioIpcErrorCode =
   | "network_error"
   | "request_timeout"
   | "http_unauthorized"
+  | "http_payment_required"
   | "http_forbidden"
   | "http_rate_limited"
   | "http_retryable"

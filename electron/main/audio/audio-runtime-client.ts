@@ -30,6 +30,8 @@ export interface AudioRuntimeRequestOptions {
   onStreamEvent?: (
     event: SpeechSynthesisRuntimeStreamEvent,
   ) => void | Promise<void>;
+  /** Trusted main-only option for fixed-duration realtime caption chunks. */
+  allowEmptyTranscriptionResult?: boolean;
 }
 
 export interface AudioRuntimeTranscriptionRequest

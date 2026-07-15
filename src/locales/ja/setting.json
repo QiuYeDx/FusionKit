@@ -211,12 +211,6 @@
         "realtimeVoice": "双方向音声",
         "model": "Model ID"
       },
-      "verification": {
-        "untested": "未検証",
-        "verified": "検証済み",
-        "degraded": "一部利用可能",
-        "failed": "検証失敗"
-      },
       "delete": {
         "title": "音声 API を削除",
         "unused_description": "「{{name}}」を削除しますか？",

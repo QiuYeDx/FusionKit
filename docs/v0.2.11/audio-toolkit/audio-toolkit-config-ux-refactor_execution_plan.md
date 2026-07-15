@@ -3,7 +3,7 @@
 > 日期：2026-07-13
 > Feature Slug：`audio-toolkit-config-ux-refactor`
 > 对应设计文档：`docs/v0.2.11/audio-toolkit/audio-toolkit-config-ux-refactor_final_design.md`
-> 当前状态：`PRE-R01`、`CORE-R01`、`BE-R01`、`FE-R01`、`FE-R02`、`FE-R03`、`I18N-R01` 已完成；下一步 `TEST-R01`
+> 当前状态：`PRE-R01`、`CORE-R01`、`BE-R01`、`FE-R01`、`FE-R02`、`FE-R03`、`I18N-R01`、`FIX-R06`、`FIX-R07` 已完成；下一步 `TEST-R01`
 
 ## 1. 每次开发会话的使用方式
 
@@ -68,6 +68,8 @@
 | FE-R02 | 已完成 | 2026-07-14 | TTS store v5、route-aware 条件渲染、三模式 intent、配置 CTA 与 voice token 生命周期 | `SpeechSynthesizer/index.tsx`、`AudioToolShell.tsx`、speech store/config、provider registry、audio IPC/preload/service、四语言 audio locale、`test/e2e.spec.ts` | 定向 6 files / 113 tests；全量非 Electron 85 files / 727 tests；TypeScript；四语言各 1514 keys；Vite test build；Electron E2E 4 tests；4 张宽窄/clone 截图；`git diff --check` | `audio-toolkit-config-ux-refactor_implementation_records/2026-07-14_FE-R02_route-aware-speech-synthesizer.md` | M2 已达成；终审竞态/撤销/长度/UI/离页任务态闭环见 `fix/2026-07-14_FIX-R02_tts-preflight-capability-contract.md`；其余工具迁移已由 `FE-R03` 完成 |
 | FE-R03 | 已完成 | 2026-07-14 | ASR、实时字幕、双向语音迁移及 legacy facade cleanup | 三工具 page/config/store、shared shell、provider registry、audio IPC/service、legacy model store/settings、`test/e2e.spec.ts` | Cleanup focused 7 files / 51 tests；全量非 Electron 88 files / 807 tests；TypeScript；四语言各 1514 keys；Vite test build；route-aware Electron 4 tests；ASR/字幕/Voice 共 8 张宽窄截图；`git diff --check` | `audio-toolkit-config-ux-refactor_implementation_records/2026-07-14_FE-R03_route-aware-audio-transcriber.md`、`audio-toolkit-config-ux-refactor_implementation_records/2026-07-14_FE-R03_route-aware-realtime-voice.md`、`audio-toolkit-config-ux-refactor_implementation_records/2026-07-14_FE-R03_legacy-audio-facade-cleanup.md` | 四工具只消费 standalone 配置；legacy 字段只读保留一个兼容版本；i18n 门禁已由 `I18N-R01` 闭环 |
 | I18N-R01 | 已完成 | 2026-07-14 | 清理旧语义并增加源码翻译 key 门禁 | usage checker/manifest/self-test、四语言 audio/setting/rename/subtitle、字幕提取器 key、PendingExecution 动态 key、`test/e2e.spec.ts`、i18n 规范与 pitfall | checker 7/7；四语言各 1484 keys；1342 calls / 1378 used keys；全量非 Electron 89 files / 808 tests；TypeScript；Vite test build；Electron 4 locales × 2 sizes × 4 routes；`git diff --check` | `audio-toolkit-config-ux-refactor_implementation_records/2026-07-14_I18N-R01_source-key-gate.md` | M3 已达成；下一步 `TEST-R01` |
+| FIX-R06 | 已完成 | 2026-07-15 | 验证状态语义、音频分段控件与分块字幕静音容错 | 音频设置/共享 shell、四工具配置面板、runtime/adapter、测试与文档；当时的 `AudioSegmentedControl.tsx` 已由 `FIX-R07` 替换 | focused 6 files / 108 tests；音频回归 31 files / 342 tests；TypeScript；四语言各 1482 keys；1343 calls / 1376 used keys；Vite test build；Electron 5 routes；宽窄截图；`git diff --check` | `audio-toolkit-config-ux-refactor_implementation_records/2026-07-15_FIX-R06_audio-config-and-caption-resilience.md` | 真实设备需在 `QA-R02` 覆盖连续静音后恢复说话 |
+| FIX-R07 | 已完成 | 2026-07-15 | 音频 Radio 组完全复用字幕文件翻译基线 | `ToolRadioButtonGroup.tsx`、SubtitleTranslator、四个音频工具、组件/Electron tests 与文档 | 组件 1 file / 1 test；TypeScript；四语言各 1482 keys；1344 calls / 1376 resolved keys；Vite test build；Electron 6 passed / 2 skipped；字幕/音频计算样式签名相等；`git diff --check` | `audio-toolkit-config-ux-refactor_implementation_records/2026-07-15_FIX-R07_reuse-subtitle-radio-button-group.md` | 无；继续 `TEST-R01` |
 | TEST-R01 | 未开始 | — | 迁移、registry、runtime、builder 与组件自动化矩阵 | audio tests/fake server | targeted + full vitest、tsc | — | 依赖实现包 |
 | QA-R01 | 未开始 | — | Electron 四语言两尺寸交互矩阵 | e2e/验收记录 | 4 locales x 2 sizes；等待 loading 退出 | — | 依赖 FE/I18N/TEST |
 | QA-R02 | 未开始 | — | 真实 OpenAI/MiMo 与真实设备验收 | 验收记录 | 真实 ASR/TTS/realtime/mic/speaker | — | 不得记录 Key、Base64 或敏感 payload |
@@ -191,7 +193,53 @@ route/lifecycle 闭环见 `fix/2026-07-14_FIX-R03_realtime-captions-routing-life
 `M3 四工具迁移` 已达成。`TEST-R01` 仍需按计划审计并固化迁移、registry、runtime、
 builder 与组件自动化矩阵；本工作包的全量回归通过不等于提前完成该独立测试设计包。
 
-## 9. 实施记录模板
+## 9. 最近完成工作包：FIX-R06
+
+目标：修复验收阶段发现的三项音频体验问题，同时保持独立配置、可信 route 和错误边界不变。
+
+实施范围：
+
+- 移除音频 API 列表及工具摘要中没有验证入口支撑的“未验证”展示；main 不再使用旧
+  `verification.failed` 阻断真实任务，旧字段只保留迁移兼容。
+- 抽取共享 Radix 分段单选控件，迁移 TTS 模式/输出位置、ASR 输出位置、字幕输入格式、
+  Realtime Voice 输入/输出格式，统一无 gap、边框拼接、圆角和键盘行为。
+- 为可信的 recorded-chunk 转写增加内部 `allowEmptyTranscriptionResult` 语义；MiMo 空转写作为静音片段
+  返回成功，renderer 忽略该片段并继续监听。普通文件转写仍拒绝空响应。
+- 补 focused unit/runtime/IPC/Electron 交互验证、fix 文档和本实施记录。
+
+验收口径：
+
+- 设置和四工具页不再显示“未验证”；历史 failed 状态不会阻断实际供应商请求。
+- 所有音频互斥按钮组都是单一 `radiogroup`，组内无间距且 click/Arrow/Home/End 正常。
+- 连续空转写不会结束 MiMo 字幕会话；后续非空片段仍能追加字幕；402/鉴权/网络等错误仍停止。
+- TypeScript、focused/full audio tests、i18n 两层检查、Vite test build、Electron 交互和
+  `git diff --check` 通过；本轮启动的所有前端服务在最终回复前关闭。
+
+完成结果：上述口径全部通过。Electron 首轮发现 Radix 方向键会触发合成 click，导致 TTS
+模式控件把键盘焦点误送到主字段；共享组件已把“聚焦主字段”限定为 pointer 交互，单条 TTS
+复测和最终五链路矩阵均通过。真实 MiMo 麦克风静音恢复仍属于 `QA-R02`，本轮以 adapter、
+IPC 和页面兼容分支自动化覆盖合同。
+
+上述音频私有 Radix 视觉实现是 `FIX-R06` 的历史结果，已由 `FIX-R07` 删除；verification 与
+字幕静音容错合同保持不变。
+
+## 10. 最近完成工作包：FIX-R07
+
+目标：让音频工具 Radio 按钮组与字幕文件翻译不只是“看起来接近”，而是共同使用同一个
+工具级组件和同一套 `ButtonGroup + Button` 设计令牌。
+
+实施范围：
+
+- 抽取 `ToolRadioButtonGroup`，由字幕文件翻译四组配置和四个音频工具共同消费。
+- 删除音频私有 `AudioSegmentedControl` 与所有音频专用 Radio 视觉规则。
+- 在共享组件集中维护 Radio 语义、roving tabindex、Arrow/Home/End 与 pointer-only 回调。
+- Electron 直接读取字幕组的结构和计算样式签名，与音频组精确比较并检查窄屏溢出。
+
+完成结果：TypeScript、组件合同、i18n 两层门禁、test build 和 Electron 六条链路通过；
+字幕/音频组的 slot、size、variant、高度、字体、padding、前景色与背景色签名完全相等。
+实现记录、FIX 文档、Final Design、版本台账与项目 pitfall 已同步。
+
+## 11. 实施记录模板
 
 ````markdown
 # 工作包 <ID>：<标题>

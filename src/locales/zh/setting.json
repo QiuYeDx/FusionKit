@@ -211,12 +211,6 @@
         "realtimeVoice": "双向语音",
         "model": "Model ID"
       },
-      "verification": {
-        "untested": "未验证",
-        "verified": "已验证",
-        "degraded": "部分可用",
-        "failed": "验证失败"
-      },
       "delete": {
         "title": "删除音频 API",
         "unused_description": "确定删除“{{name}}”吗？",

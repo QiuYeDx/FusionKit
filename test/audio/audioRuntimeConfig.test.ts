@@ -135,7 +135,6 @@ describe("AudioRuntimeConfigStore", () => {
         baseUrl: "https://api.xiaomimimo.com/v1",
         transport: "mimo_chat_audio",
         model: originalModel,
-        verificationStatus: "verified",
       },
     });
   });
@@ -160,7 +159,7 @@ describe("AudioRuntimeConfigStore", () => {
     }
   });
 
-  it("blocks only the exact route whose verification failed", () => {
+  it("does not let legacy verification metadata block real requests", () => {
     const store = new AudioRuntimeConfigStore();
     const synced = store.sync(
       createMimoSnapshot({
@@ -172,23 +171,16 @@ describe("AudioRuntimeConfigStore", () => {
       OWNER_A,
     );
 
-    expect(
-      resolveSpeech(store, OWNER_A, synced.revision, "voice_clone"),
-    ).toEqual({
-      ok: false,
-      issue: {
-        code: "audio_route_unverified",
-        message: "The requested audio route failed verification.",
-        assignmentKey: "speechSynthesis",
-        mode: "voice_clone",
-        verificationStatus: "failed",
-      },
-    });
+    expect(resolveSpeech(store, OWNER_A, synced.revision, "voice_clone"))
+      .toMatchObject({
+        ok: true,
+        config: { routeKey: "speechSynthesis.voice_clone" },
+      });
     expect(
       resolveSpeech(store, OWNER_A, synced.revision, "preset_voice"),
     ).toMatchObject({
       ok: true,
-      config: { verificationStatus: "verified" },
+      config: { routeKey: "speechSynthesis.preset_voice" },
     });
   });
 

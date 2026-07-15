@@ -41,6 +41,7 @@ export interface AudioTranscriptionRouteDefinition {
 export interface AudioSpeechRouteConstraints {
   mode: SpeechSynthesisMode;
   responseFormats: readonly AudioSpeechResponseFormat[];
+  voices?: readonly string[];
   supportsStreaming: boolean;
   streamResponseFormat?: AudioSpeechResponseFormat;
   finalResponseFormat?: AudioSpeechResponseFormat;
@@ -97,6 +98,18 @@ export const MIMO_TTS_MODEL_BY_MODE: Readonly<
   voice_design: "mimo-v2.5-tts-voicedesign",
   voice_clone: "mimo-v2.5-tts-voiceclone",
 });
+
+export const MIMO_SPEECH_VOICE_PRESETS = [
+  "mimo_default",
+  "冰糖",
+  "茉莉",
+  "苏打",
+  "白桦",
+  "Mia",
+  "Chloe",
+  "Milo",
+  "Dean",
+] as const;
 
 const OPENAI_SPEECH_FORMATS = [
   "mp3",
@@ -223,6 +236,7 @@ const AUDIO_PROVIDER_REGISTRY: Record<
         preset_voice: speechConstraints({
           mode: "preset_voice",
           responseFormats: MIMO_SPEECH_FORMATS,
+          voices: MIMO_SPEECH_VOICE_PRESETS,
           maxInputChars: AUDIO_SPEECH_MAX_INPUT_CHARS,
           supportsStreaming: true,
           streamResponseFormat: "pcm16",
@@ -570,6 +584,7 @@ function createMimoSpeechRoutes(): AudioApiRoutes["speechSynthesis"] {
 function speechConstraints(options: {
   mode: SpeechSynthesisMode;
   responseFormats: readonly AudioSpeechResponseFormat[];
+  voices?: readonly string[];
   supportsStreaming?: boolean;
   streamResponseFormat?: AudioSpeechResponseFormat;
   finalResponseFormat?: AudioSpeechResponseFormat;
@@ -582,6 +597,7 @@ function speechConstraints(options: {
   return {
     mode: options.mode,
     responseFormats: [...options.responseFormats],
+    ...(options.voices ? { voices: [...options.voices] } : {}),
     supportsStreaming: options.supportsStreaming ?? false,
     ...(options.streamResponseFormat
       ? { streamResponseFormat: options.streamResponseFormat }
@@ -723,6 +739,7 @@ function cloneSpeechConstraints(
   return {
     ...constraints,
     responseFormats: [...constraints.responseFormats],
+    ...(constraints.voices ? { voices: [...constraints.voices] } : {}),
     fields: { ...constraints.fields },
   };
 }

@@ -14,7 +14,6 @@ import {
   type AudioProviderPreset,
   type AudioRoute,
   type AudioRouteKey,
-  type AudioRouteVerificationStatus,
   type SpeechSynthesisMode,
 } from "@/type/audio";
 import type { AudioApiProfileDraft } from "@/store/useAudioApiStore";
@@ -222,23 +221,6 @@ export function getConfiguredAudioTasks(
   return AUDIO_ASSIGNMENT_KEYS.filter((key) =>
     canAudioApiHandleTask(profile, key),
   );
-}
-
-export function getAudioProfileVerificationStatus(
-  profile: AudioApiProfile,
-): AudioRouteVerificationStatus {
-  const routeKeys = listConfiguredRoutes(profile.routes).map(
-    (entry) => entry.routeKey,
-  );
-  const statuses = routeKeys.map(
-    (key) => profile.verification?.[key]?.status ?? "untested",
-  );
-  if (statuses.includes("failed")) return "failed";
-  if (statuses.includes("degraded")) return "degraded";
-  if (statuses.length > 0 && statuses.every((status) => status === "verified")) {
-    return "verified";
-  }
-  return "untested";
 }
 
 function listConfiguredRoutes(routes: AudioApiRoutes): Array<{

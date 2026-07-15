@@ -69,14 +69,12 @@ import {
   type AudioApiProfile,
   type AudioAssignmentKey,
   type AudioProviderPreset,
-  type AudioRouteVerificationStatus,
 } from "@/type/audio";
 import type { AudioToolReturnPath } from "../settingNavigation";
 import {
   CUSTOM_AUDIO_ROUTE_DEFINITIONS,
   applyAudioProviderPreset,
   createAudioApiFormState,
-  getAudioProfileVerificationStatus,
   getConfiguredAudioTasks,
   getCustomAudioRoute,
   setCustomAudioRoute,
@@ -103,16 +101,6 @@ const PROVIDER_BADGE_CLASS: Record<AudioProviderPreset, string> = {
     "border-sky-500/25 bg-sky-500/10 text-sky-700 dark:text-sky-300",
   custom_openai_compatible:
     "border-amber-500/25 bg-amber-500/10 text-amber-700 dark:text-amber-300",
-};
-
-const VERIFICATION_BADGE_CLASS: Record<AudioRouteVerificationStatus, string> = {
-  untested: "border-muted-foreground/25 text-muted-foreground",
-  verified:
-    "border-emerald-500/25 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
-  degraded:
-    "border-amber-500/25 bg-amber-500/10 text-amber-700 dark:text-amber-300",
-  failed:
-    "border-destructive/30 bg-destructive/5 text-destructive",
 };
 
 interface AudioApiConfigProps {
@@ -499,7 +487,6 @@ function AudioApiProfilesCard({
                 (key) => assignment[key] === profile.id,
               );
               const configuredTasks = getConfiguredAudioTasks(profile);
-              const verification = getAudioProfileVerificationStatus(profile);
               return (
                 <div
                   key={profile.id}
@@ -519,15 +506,6 @@ function AudioApiProfilesCard({
                         )}
                       >
                         {t(`setting:fields.audio.provider.${profile.providerPreset}`)}
-                      </Badge>
-                      <Badge
-                        variant="outline"
-                        className={cn(
-                          "px-1.5 py-0 text-[10px]",
-                          VERIFICATION_BADGE_CLASS[verification],
-                        )}
-                      >
-                        {t(`setting:fields.audio.verification.${verification}`)}
                       </Badge>
                       {assignedKeys.length > 0 && (
                         <Badge variant="secondary" className="px-1.5 py-0 text-[10px]">

@@ -2,12 +2,10 @@ import { describe, expect, it } from "vitest";
 import {
   applyAudioProviderPreset,
   createAudioApiFormState,
-  getAudioProfileVerificationStatus,
   getConfiguredAudioTasks,
   setCustomAudioRoute,
   validateAudioApiForm,
 } from "./audioApiConfigModel";
-import type { AudioApiProfile } from "@/type/audio";
 
 describe("audio API config model", () => {
   it("creates a MiMo form with all built-in compatible routes", () => {
@@ -119,27 +117,5 @@ describe("audio API config model", () => {
     expect(validation.routeErrors.realtimeVoice).toBe(
       "route_model_required",
     );
-  });
-
-  it("summarizes route verification conservatively", () => {
-    const base = createAudioApiFormState(null, "openai");
-    const profile: AudioApiProfile = {
-      id: "openai-audio",
-      ...base,
-    };
-    expect(getAudioProfileVerificationStatus(profile)).toBe("untested");
-
-    profile.verification = {
-      transcription: { status: "verified" },
-      "speechSynthesis.preset_voice": { status: "verified" },
-      realtimeCaptions: { status: "verified" },
-      realtimeVoice: { status: "verified" },
-    };
-    expect(getAudioProfileVerificationStatus(profile)).toBe("verified");
-
-    profile.verification.realtimeVoice = { status: "degraded" };
-    expect(getAudioProfileVerificationStatus(profile)).toBe("degraded");
-    profile.verification.transcription = { status: "failed" };
-    expect(getAudioProfileVerificationStatus(profile)).toBe("failed");
   });
 });

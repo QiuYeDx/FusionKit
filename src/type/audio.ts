@@ -170,7 +170,6 @@ export interface ResolvedAudioRouteConfig {
   baseUrl: string;
   transport: AudioTransport;
   model: string;
-  verificationStatus: AudioRouteVerificationStatus | "unverified";
 }
 
 export interface AudioRouteResolutionIssue {
@@ -178,12 +177,10 @@ export interface AudioRouteResolutionIssue {
     | "stale_audio_config"
     | "audio_api_not_configured"
     | "audio_route_not_configured"
-    | "audio_route_unverified"
     | "invalid_task_parameters";
   message: string;
   assignmentKey: AudioAssignmentKey;
   mode?: SpeechSynthesisMode;
-  verificationStatus?: AudioRouteVerificationStatus | "unverified";
 }
 
 export type AudioRouteResolutionResult =

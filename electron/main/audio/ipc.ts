@@ -106,6 +106,7 @@ type AudioRuntimeInvokerOptions = {
   model: AudioRuntimeAdapterModelConfig;
   signal?: AbortSignal;
   requestId?: string;
+  allowEmptyTranscriptionResult?: boolean;
   onStreamEvent?: (
     event: SpeechSynthesisRuntimeStreamEvent,
   ) => void | Promise<void>;
@@ -540,6 +541,7 @@ export class AudioIpcService {
           model,
           signal: controller.signal,
           requestId: request.requestId,
+          allowEmptyTranscriptionResult: true,
         },
       );
       if (
@@ -1339,6 +1341,16 @@ function validateSpeechTaskParameters(
     return invalidTaskParameter(
       "intent.voice",
       "The selected audio route does not support preset voices.",
+    );
+  }
+  if (
+    payload.intent.mode === "preset_voice" &&
+    constraints.voices &&
+    !constraints.voices.includes(payload.intent.voice.trim())
+  ) {
+    return invalidTaskParameter(
+      "intent.voice",
+      "The selected audio route does not support the requested voice.",
     );
   }
   if (

@@ -5,22 +5,10 @@ import type {
 } from "@/type/audio";
 import {
   createStandaloneAudioToolConfigSummarySelector,
-  MIMO_VOICE_PRESETS,
   resolveStandaloneAudioToolConfigSummary,
 } from "./audioToolConfig";
 
 describe("audioToolConfig", () => {
-  it("keeps MiMo voice presets available for speech UI defaults", () => {
-    expect(MIMO_VOICE_PRESETS.map((voice) => voice.id)).toEqual(
-      expect.arrayContaining([
-        "mimo_default",
-        "冰糖",
-        "Mia",
-        "Dean",
-      ]),
-    );
-  });
-
   it("resolves standalone routes without exposing API credentials", () => {
     const state = createStandaloneState();
     const summary = resolveStandaloneAudioToolConfigSummary(
@@ -42,7 +30,6 @@ describe("audioToolConfig", () => {
         enabled: true,
       },
       capabilities: ["file_transcription"],
-      verificationStatus: "verified",
     });
     expect(JSON.stringify(summary)).not.toMatch(/standalone-secret|apiKey/i);
   });

@@ -17,9 +17,6 @@ export function audioRouteIssueToIpcError(
     details: {
       assignmentKey: issue.assignmentKey,
       ...(issue.mode ? { mode: issue.mode } : {}),
-      ...(issue.verificationStatus
-        ? { verificationStatus: issue.verificationStatus }
-        : {}),
     },
   };
 }

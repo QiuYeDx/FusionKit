@@ -26,6 +26,7 @@ const ERROR_KEY_BY_CODE: Record<AudioIpcErrorCode, string> = {
   network_error: "audio:runtime_error.network",
   request_timeout: "audio:runtime_error.timeout",
   http_unauthorized: "audio:runtime_error.unauthorized",
+  http_payment_required: "audio:runtime_error.payment_required",
   http_forbidden: "audio:runtime_error.forbidden",
   http_rate_limited: "audio:runtime_error.rate_limited",
   http_retryable: "audio:runtime_error.service_unavailable",
@@ -34,6 +35,18 @@ const ERROR_KEY_BY_CODE: Record<AudioIpcErrorCode, string> = {
   invalid_response: "audio:runtime_error.invalid_response",
   aborted: "audio:runtime_error.aborted",
 };
+
+const PARAMETER_LABEL_KEY_BY_FIELD = {
+  input: "audio:speech.fields.input",
+  instructions: "audio:speech.fields.instructions",
+  responseFormat: "audio:speech.fields.response_format",
+  speed: "audio:speech.fields.speed",
+  voice: "audio:speech.fields.voice",
+  "intent.voice": "audio:speech.fields.voice",
+  "intent.voiceDesignPrompt": "audio:speech.fields.voice_design_prompt",
+  "intent.optimizeTextPreview": "audio:speech.fields.optimize_text_preview",
+  "intent.voiceSampleToken": "audio:speech.fields.voice_sample",
+} as const;
 
 export function getAudioErrorMessage(
   t: Translate,
@@ -45,6 +58,16 @@ export function getAudioErrorMessage(
 ): string {
   if (error.code === "renderer_error") {
     return fallback ?? t("audio:runtime_error.renderer");
+  }
+  if (error.code === "invalid_task_parameters" && error.field) {
+    if (error.field in PARAMETER_LABEL_KEY_BY_FIELD) {
+      const labelKey = PARAMETER_LABEL_KEY_BY_FIELD[
+        error.field as keyof typeof PARAMETER_LABEL_KEY_BY_FIELD
+      ];
+      return t("audio:runtime_error.invalid_parameter_named", {
+        field: t(labelKey),
+      });
+    }
   }
   return t(ERROR_KEY_BY_CODE[error.code], {
     ...(error.field ? { field: error.field } : {}),

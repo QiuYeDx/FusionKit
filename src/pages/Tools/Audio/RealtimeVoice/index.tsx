@@ -20,7 +20,6 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import {
   Select,
   SelectContent,
@@ -29,7 +28,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { ToolField, ToolPanel } from "@/pages/Tools/_shared/ui";
+import {
+  ToolField,
+  ToolPanel,
+  ToolRadioButtonGroup,
+} from "@/pages/Tools/_shared/ui";
 import { cn } from "@/lib/utils";
 import { showToast } from "@/utils/toast";
 import type { AudioApiProfile, AudioRole } from "@/type/audio";
@@ -238,43 +241,19 @@ function RealtimeAudioFormatGroup({
 }) {
   const { t } = useTranslation(["audio"]);
   return (
-    <RadioGroup
-      className="grid w-full grid-cols-3 gap-0"
+    <ToolRadioButtonGroup
       value={value}
-      aria-label={label}
+      ariaLabel={label}
+      options={formats.map((format) => ({
+        value: format,
+        label: format.toUpperCase(),
+        ariaLabel: t(`audio:voice.audio_format.${format}`),
+        testId: `${testIdPrefix}-${format}`,
+      }))}
       onValueChange={(nextValue) =>
-        onValueChange(
-          nextValue as RealtimeVoiceConfigSummary["inputAudioFormats"][number],
-        )
+        onValueChange(nextValue)
       }
-      onKeyDownCapture={(event) => {
-        if (event.key !== "Home" && event.key !== "End") return;
-        event.preventDefault();
-        const format = event.key === "Home" ? formats[0] : formats.at(-1);
-        if (!format) return;
-        onValueChange(format);
-        event.currentTarget
-          .querySelector<HTMLElement>(`[data-testid="${testIdPrefix}-${format}"]`)
-          ?.focus();
-      }}
-    >
-      {formats.map((format) => (
-        <RadioGroupItem
-          key={format}
-          value={format}
-          data-testid={`${testIdPrefix}-${format}`}
-          className={cn(
-            "h-auto min-h-9 min-w-0 w-full aspect-auto rounded-none px-1.5 py-1.5 text-center text-[11px] font-medium first:rounded-l-md last:rounded-r-md [&:not(:first-child)]:border-l-0",
-            "whitespace-normal data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground data-[state=unchecked]:bg-background data-[state=unchecked]:hover:bg-accent data-[state=unchecked]:hover:text-accent-foreground",
-            "[&>[data-slot=radio-group-indicator]]:hidden",
-          )}
-        >
-          <span className="pointer-events-none min-w-0 break-words leading-tight">
-            {t(`audio:voice.audio_format.${format}`)}
-          </span>
-        </RadioGroupItem>
-      ))}
-    </RadioGroup>
+    />
   );
 }
 

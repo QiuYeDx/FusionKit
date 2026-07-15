@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 import {
   type ElectronApplication,
+  type Locator,
   type Page,
   type JSHandle,
   _electron as electron,
@@ -135,6 +136,54 @@ if (shouldSkipElectronE2E) {
       expect(title).eq('FusionKit')
     })
 
+    test('subtitle and audio radio groups share the same ButtonGroup baseline', async () => {
+      const server = fakeAudioApiServer
+      if (!server) {
+        throw new Error('FIX-R07 radio baseline fixtures were not initialized')
+      }
+
+      await setWindowSize(mainWin, page, { width: 1280, height: 800 })
+      await page.evaluate(() => {
+        localStorage.clear()
+        localStorage.setItem('lang', 'en')
+        localStorage.setItem('subtitle-translator-tour-done', '1')
+        window.location.hash = '#/tools/subtitle/translator'
+      })
+      await page.reload({ waitUntil: 'domcontentloaded' })
+      await waitForFusionKitLoadingToExit(page)
+      const subtitleField = page.locator('#tour-output-mode')
+      await subtitleField.waitFor({ state: 'visible' })
+      await subtitleField.evaluate((element) => {
+        element.scrollIntoView({ block: 'center' })
+      })
+      const subtitleGroup = subtitleField.locator('[data-slot="button-group"]')
+      expect(await radioButtonGroupUsesSubtitleBaseline(subtitleGroup)).toBe(true)
+      const subtitleSignature = await readRadioButtonGroupVisualSignature(
+        subtitleGroup,
+      )
+      await page.screenshot({
+        path: path.join(testResultsDir, 'fix-r07-subtitle-radio-baseline.png'),
+        animations: 'disabled',
+      })
+
+      await seedSpeechAudioSettings(page, 'mimo', server.baseUrl)
+      const audioField = page.getByTestId('speech-mode-group')
+      await audioField.waitFor({ state: 'visible' })
+      await audioField.evaluate((element) => {
+        element.scrollIntoView({ block: 'center' })
+      })
+      const audioGroup = audioField.locator('[data-slot="button-group"]')
+      expect(await radioButtonGroupUsesSubtitleBaseline(audioGroup)).toBe(true)
+      expect(await readRadioButtonGroupVisualSignature(audioGroup)).toEqual(
+        subtitleSignature,
+      )
+      await page.screenshot({
+        path: path.join(testResultsDir, 'fix-r07-audio-radio-baseline.png'),
+        animations: 'disabled',
+      })
+      expect(await hasHorizontalOverflow(page)).toBe(false)
+    }, 60_000)
+
     test('standalone audio settings support first MiMo setup, assignment undo, reassignment, and returnTo', async () => {
       const returnTo = '/tools/audio/speech-synthesis'
       const settingsHash = `#/setting?tab=audio&returnTo=${encodeURIComponent(returnTo)}`
@@ -219,6 +268,9 @@ if (shouldSkipElectronE2E) {
         realtimeCaptions: created?.profiles[0].id,
         realtimeVoice: null,
       })
+      expect(
+        await page.getByTestId('audio-api-profile').first().textContent(),
+      ).not.toMatch(/Untested|Verified|Verification failed/)
 
       for (const key of [
         'transcription',
@@ -444,6 +496,19 @@ if (shouldSkipElectronE2E) {
 
       await seedSpeechAudioSettings(page, 'mimo', server.baseUrl)
       await page.getByTestId('speech-mode-group').waitFor({ state: 'visible' })
+      expect(await radioButtonGroupUsesSubtitleBaseline(
+        page
+          .getByTestId('speech-mode-group')
+          .locator('[data-slot="button-group"]'),
+      )).toBe(true)
+      expect(await radioButtonGroupUsesSubtitleBaseline(
+        page
+          .getByTestId('speech-output-mode')
+          .locator('[data-slot="button-group"]'),
+      )).toBe(true)
+      expect(
+        await page.getByTestId('speech-config-summary').textContent(),
+      ).not.toMatch(/Untested|Verified|Verification failed/)
       expect(await page.getByTestId('speech-field-voice').isVisible()).toBe(true)
       expect(
         await page.getByTestId('speech-field-style-instruction').isVisible(),
@@ -463,6 +528,35 @@ if (shouldSkipElectronE2E) {
       ).toBe(0)
 
       await page.locator('#speech-input').fill('Preset draft')
+      expect(await page.getByTestId('speech-voice-error').isVisible()).toBe(true)
+      expect(
+        (await page.getByTestId('speech-voice-error').textContent())?.trim(),
+      ).toBe(
+        'The current voice is not supported by the selected audio API. Choose a voice from the list.',
+      )
+      expect(await page.getByTestId('speech-generate').isDisabled()).toBe(true)
+      expect(await hasHorizontalOverflow(page)).toBe(false)
+      await page.screenshot({
+        path: path.join(testResultsDir, 'fix-r05-speech-invalid-voice-1280x800.png'),
+        animations: 'disabled',
+      })
+      await setWindowSize(mainWin, page, { width: 786, height: 540 })
+      await page.getByTestId('speech-field-voice').evaluate((element) => {
+        element.scrollIntoView({ block: 'center' })
+      })
+      expect(await hasHorizontalOverflow(page)).toBe(false)
+      await page.screenshot({
+        path: path.join(testResultsDir, 'fix-r05-speech-invalid-voice-786x540.png'),
+        animations: 'disabled',
+      })
+      await setWindowSize(mainWin, page, { width: 1280, height: 800 })
+      await page.getByTestId('speech-voice-select').click()
+      await page.getByRole('option', {
+        name: 'mimo_default',
+        exact: true,
+      }).click()
+      expect(await page.getByTestId('speech-voice-error').count()).toBe(0)
+      expect(await page.getByTestId('speech-generate').isEnabled()).toBe(true)
       await page.getByTestId('speech-mode-voice_design').click()
       await page.waitForFunction(() =>
         document.activeElement?.id === 'speech-voice-design-prompt',
@@ -632,6 +726,11 @@ if (shouldSkipElectronE2E) {
           stream: true,
         },
       ])
+      expect(
+        server.requests[requestCountBefore + 2].body,
+      ).toMatchObject({
+        audio: { voice: 'mimo_default' },
+      })
 
       await setSpeechStreaming(page, false)
 
@@ -802,6 +901,11 @@ if (shouldSkipElectronE2E) {
       const customDirectoryMode = page.getByTestId(
         'transcriber-output-mode-custom_dir',
       )
+      expect(await radioButtonGroupUsesSubtitleBaseline(
+        page
+          .getByTestId('transcriber-output-mode')
+          .locator('[data-slot="button-group"]'),
+      )).toBe(true)
       await displayOnlyMode.click()
       await displayOnlyMode.focus()
       expect(
@@ -943,6 +1047,11 @@ if (shouldSkipElectronE2E) {
       expect(
         await page.getByTestId('captions-input-audio-format').isVisible(),
       ).toBe(true)
+      expect(await radioButtonGroupUsesSubtitleBaseline(
+        page
+          .getByTestId('captions-input-audio-format')
+          .locator('[data-slot="button-group"]'),
+      )).toBe(true)
       expect(await page.locator('#captions-turn-detection').count()).toBe(0)
       expect(await page.locator('#captions-assistant-transcript').count()).toBe(0)
       expect(await page.locator('#captions-instructions').count()).toBe(0)
@@ -1102,6 +1211,16 @@ if (shouldSkipElectronE2E) {
       const inputPcm16 = page.getByTestId('voice-input-format-pcm16')
       const inputPcmu = page.getByTestId('voice-input-format-pcmu')
       const inputPcma = page.getByTestId('voice-input-format-pcma')
+      expect(await radioButtonGroupUsesSubtitleBaseline(
+        page
+          .getByTestId('voice-input-audio-format')
+          .locator('[data-slot="button-group"]'),
+      )).toBe(true)
+      expect(await radioButtonGroupUsesSubtitleBaseline(
+        page
+          .getByTestId('voice-output-audio-format')
+          .locator('[data-slot="button-group"]'),
+      )).toBe(true)
       await inputPcm16.click()
       await inputPcm16.focus()
       expect(
@@ -1679,6 +1798,9 @@ async function seedSpeechAudioSettings(
                 baseUrl: nextBaseUrl,
                 apiKey: 'fe-r02-e2e-key',
                 routes: { speechSynthesis },
+                verification: {
+                  'speechSynthesis.preset_voice': { status: 'failed' },
+                },
               },
             ],
             assignment: {
@@ -2401,6 +2523,72 @@ async function speechModeButtonsFit(targetPage: Page): Promise<boolean> {
         )
       })
     )
+  })
+}
+
+async function radioButtonGroupUsesSubtitleBaseline(
+  group: Locator,
+): Promise<boolean> {
+  return await group.evaluate((root) => {
+    const items = Array.from(root.querySelectorAll<HTMLElement>('[role="radio"]'))
+    if (
+      root.getAttribute('data-slot') !== 'button-group' ||
+      items.length < 2 ||
+      items.some((item) =>
+        item.getAttribute('data-slot') !== 'button' ||
+        item.getAttribute('data-size') !== 'sm'
+      )
+    ) {
+      return false
+    }
+
+    const rects = items.map((item) => item.getBoundingClientRect())
+    const connected = rects.slice(1).every((rect, index) =>
+      Math.abs(rect.left - rects[index].right) <= 1,
+    )
+    const firstStyle = getComputedStyle(items[0])
+    const lastStyle = getComputedStyle(items.at(-1)!)
+    return connected &&
+      root.scrollWidth <= root.clientWidth + 1 &&
+      items.every((item) => item.scrollWidth <= item.clientWidth + 1) &&
+      rects.every((rect) => Math.abs(rect.height - 32) <= 1) &&
+      items.every((item) => getComputedStyle(item).fontSize === '14px') &&
+      Number.parseFloat(firstStyle.borderTopLeftRadius) > 0 &&
+      Number.parseFloat(firstStyle.borderTopRightRadius) === 0 &&
+      Number.parseFloat(lastStyle.borderTopLeftRadius) === 0 &&
+      Number.parseFloat(lastStyle.borderTopRightRadius) > 0
+  })
+}
+
+async function readRadioButtonGroupVisualSignature(group: Locator) {
+  return await group.evaluate((root) => {
+    const rootStyle = getComputedStyle(root)
+    const items = Array.from(root.querySelectorAll<HTMLElement>('[role="radio"]'))
+    const selected = items.find((item) => item.getAttribute('aria-checked') === 'true')
+    const unselected = items.find((item) => item.getAttribute('aria-checked') === 'false')
+    const readButton = (item: HTMLElement | undefined) => {
+      if (!item) return null
+      const style = getComputedStyle(item)
+      const rect = item.getBoundingClientRect()
+      return {
+        slot: item.getAttribute('data-slot'),
+        size: item.getAttribute('data-size'),
+        variant: item.getAttribute('data-variant'),
+        height: Math.round(rect.height),
+        fontSize: style.fontSize,
+        fontWeight: style.fontWeight,
+        paddingInline: `${style.paddingLeft}/${style.paddingRight}`,
+        backgroundColor: style.backgroundColor,
+        color: style.color,
+      }
+    }
+    return {
+      slot: root.getAttribute('data-slot'),
+      display: rootStyle.display,
+      alignItems: rootStyle.alignItems,
+      selected: readButton(selected),
+      unselected: readButton(unselected),
+    }
   })
 }
 

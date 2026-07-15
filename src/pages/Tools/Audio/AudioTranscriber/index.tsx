@@ -25,7 +25,6 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
@@ -35,6 +34,7 @@ import {
   ToolFileDropZone,
   ToolOutputPathPicker,
   ToolPanel,
+  ToolRadioButtonGroup,
 } from "@/pages/Tools/_shared/ui";
 import { cn } from "@/lib/utils";
 import { showToast } from "@/utils/toast";
@@ -365,48 +365,18 @@ function TranscriberConfig({
         label={t("audio:transcriber.fields.output_mode")}
         hint={t("audio:transcriber.hints.output_mode")}
       >
-        <RadioGroup
-          className="grid w-full grid-cols-3 gap-0"
+        <ToolRadioButtonGroup
           value={preferences.outputMode}
-          aria-label={t("audio:transcriber.fields.output_mode")}
+          ariaLabel={t("audio:transcriber.fields.output_mode")}
+          options={TRANSCRIBER_OUTPUT_MODES.map((mode) => ({
+            value: mode,
+            label: t(`audio:transcriber.output_mode.${mode}`),
+            testId: `transcriber-output-mode-${mode}`,
+          }))}
           onValueChange={(outputMode) =>
-            outputDirectoryController.setOutputMode(
-              outputMode as AudioTranscriberPreferences["outputMode"],
-            )
+            outputDirectoryController.setOutputMode(outputMode)
           }
-          onKeyDownCapture={(event) => {
-            if (event.key !== "Home" && event.key !== "End") return;
-            event.preventDefault();
-            const outputMode = event.key === "Home"
-              ? TRANSCRIBER_OUTPUT_MODES[0]
-              : TRANSCRIBER_OUTPUT_MODES.at(-1)!;
-            outputDirectoryController.setOutputMode(outputMode);
-            event.currentTarget
-              .querySelector<HTMLElement>(
-                `[data-testid="transcriber-output-mode-${outputMode}"]`,
-              )
-              ?.focus();
-          }}
-        >
-          {TRANSCRIBER_OUTPUT_MODES.map(
-            (mode) => (
-              <RadioGroupItem
-                key={mode}
-                value={mode}
-                data-testid={`transcriber-output-mode-${mode}`}
-                className={cn(
-                  "h-8 min-w-0 w-full aspect-auto rounded-none px-2 text-center text-xs font-medium first:rounded-l-md last:rounded-r-md [&:not(:first-child)]:border-l-0",
-                  "data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground data-[state=unchecked]:bg-background data-[state=unchecked]:hover:bg-accent data-[state=unchecked]:hover:text-accent-foreground",
-                  "[&>[data-slot=radio-group-indicator]]:hidden",
-                )}
-              >
-                <span className="pointer-events-none min-w-0 leading-tight">
-                  {t(`audio:transcriber.output_mode.${mode}`)}
-                </span>
-              </RadioGroupItem>
-            ),
-          )}
-        </RadioGroup>
+        />
         {preferences.outputMode === "custom_dir" ? (
           <ToolOutputPathPicker
             className="mt-2"

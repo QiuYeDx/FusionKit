@@ -1,7 +1,7 @@
 # 音频 API 配置与语音合成 UX 重构 Final Design
 
 > 日期：2026-07-12
-> 状态：实施中（`PRE-R01`、`CORE-R01`、`BE-R01`、`FE-R01`、`FE-R02`、`FE-R03`、`I18N-R01` 已完成；下一步 `TEST-R01`）
+> 状态：实施中（`PRE-R01`、`CORE-R01`、`BE-R01`、`FE-R01`、`FE-R02`、`FE-R03`、`I18N-R01`、`FIX-R06`、`FIX-R07` 已完成；下一步 `TEST-R01`）
 > 范围：独立音频 API 配置、音频任务默认分配、音频运行时路由、文本转音频页面、i18n 与迁移兼容
 > 关系：本设计继承原音频工具箱的 adapter、IPC 安全、文件、流式与 Realtime 合同，但正式替代原设计中的配置模型、TTS 模式/模型关系、字段禁用规则和相关验收口径。
 > 执行计划：[音频 API 配置与语音合成 UX 重构 Execution Plan](audio-toolkit-config-ux-refactor_execution_plan.md)
@@ -218,7 +218,7 @@ renderer 同步运行时快照时，只从通用 profile 取 `id/provider/apiKey
    - Base URL 摘要
    - 已配置任务能力
    - 当前被哪些任务使用
-   - 验证状态
+   - 迁移提醒；连接可用性由工具中的真实请求结果反馈，不展示没有检测入口的“未验证”状态
    - 编辑/删除
 
 模型 ID 和 transport 属于“技术详情/高级设置”，不在列表主视觉中抢占用户注意力。
@@ -335,6 +335,7 @@ export interface AudioApiProfile {
     realtimeCaptions?: AudioRoute;
     realtimeVoice?: AudioRoute;
   };
+  // 仅用于兼容旧配置迁移，不作为当前版本的 UI 状态或请求门禁。
   verification?: Partial<
     Record<string, {
       status: "untested" | "verified" | "degraded" | "failed";
@@ -496,11 +497,19 @@ renderer 无法提交路径或模型配置。
 | --- | --- | --- |
 | `audio_api_not_configured` | 当前任务没有 assignment | 设置 CTA |
 | `audio_route_not_configured` | API 不再提供当前任务/模式 route | 自动回退；无可回退时设置 CTA |
-| `audio_route_unverified` | route 未真实验收 | 可继续时 warning，不伪装为不支持 |
 | `invalid_task_parameters` | 当前可见字段不满足约束 | 字段就近提示 |
 | `stale_audio_config` | revision 过期 | 自动重同步一次，失败再提示 |
 
 模式与模型的内部映射错误属于开发/迁移错误，应记录脱敏技术详情，不能让普通用户通过正常 UI 进入这种状态。
+
+`FIX-R06` 明确取消没有实际验证动作支撑的 route verification 产品语义：
+
+- 音频 API 列表和工具摘要不默认展示“未验证”，也不提供无法完成的假状态。
+- 旧持久化数据中的 `verification` 只读保留以兼容迁移，不再阻断真实请求。
+- API Key、余额、权限、模型和参数是否可用，以用户发起任务后供应商返回的真实结果为准；
+  失败继续走字段级或供应商级错误提示。
+- 未来若重新引入“测试连接”，必须有可执行、可取消、按 route 更新且不会伪造成功的
+  验证 IPC 合同，再恢复可见状态和请求门禁。
 
 ### 6.4 必须保留的安全边界
 
@@ -621,7 +630,11 @@ renderer 无法提交路径或模型配置。
 ### 7.7 响应式与可访问性
 
 - 1280×800 保持双栏；786×540 使用单栏，不产生横向滚动。
-- 三模式 segmented control 在窄宽下等宽换行或切换为 Select，但语义保持 radiogroup。
+- 工具详情页中的互斥按钮组统一复用字幕文件翻译基线组件 `ToolRadioButtonGroup`；其视觉结构
+  必须直接建立在现有 `ButtonGroup + Button(size="sm", className="flex-1")` 上，音频工具
+  不得另建一套 segmented/radio 样式。
+- 共享组件保留 `radiogroup/radio`、roving tabindex、方向键与 Home/End；三模式控件在窄宽下
+  保持等宽且不溢出，不能通过音频私有字体、尺寸、边框或圆角规则改变字幕工具基线。
 - 条件渲染后焦点移动到新模式首个主要字段。
 - 所有模式按钮提供可读 label、选中态和键盘切换。
 - 错误使用 `aria-describedby` 绑定字段，运行/完成状态使用适度 live region。
@@ -640,6 +653,9 @@ renderer 无法提交路径或模型配置。
 
 - 同一 OpenAI 音频 API 可提供 realtime route；无需为同一 Key 再建一个“OpenAI Realtime 音频档案”。
 - MiMo 分块字幕使用 transcription route，UI 继续明确标注“分块近实时”，不得显示为 WebRTC。
+- MiMo 分块字幕中的空转写表示该 5 秒音频片段没有可识别语音，是正常静音状态：不新增字幕、
+  不显示失败、不停止录音，并继续处理后续片段。鉴权、余额、限流、网络、参数和响应格式错误
+  仍属于致命会话错误，必须停止并显示可操作提示。
 
 ### 8.3 双向语音
 
@@ -652,7 +668,7 @@ renderer 无法提交路径或模型配置。
 
 - 主信息：音频 API 名称、就绪状态。
 - 次信息：供应商、当前任务能力。
-- 技术详情：transport、实际 model、验证状态。
+- 技术详情：transport、实际 model。
 - 设置入口：精确 deep link 到音频设置，不再只跳到 `/setting`。
 
 ## 9. i18n 设计与发布门禁
@@ -921,7 +937,8 @@ Electron 视觉/交互验收必须等待 FusionKit preload loading 完全退出�
 | 风险 | 决策 |
 | --- | --- |
 | 自定义兼容 API 的能力无法自动判断 | 只在高级区显式配置 routes；普通用户使用 provider preset |
-| Provider 模型未来变化 | preset 可随版本迁移；允许高级 override；真实验证状态按 route 记录 |
+| Provider 模型未来变化 | preset 可随版本迁移；允许高级 override；实际任务失败返回可操作的供应商/字段错误 |
+| 静音片段与服务异常都表现为空文本 | 只在可信的分块字幕路径允许空转写继续；普通文件转写仍把空响应视为错误 |
 | 同一 OpenAI Key 同时用于 file/realtime | profile 允许多 transport route，不再把 dialect 作为 profile 单选 |
 | 旧配置引用已丢失 | 保留 needsAttention，不静默删除 |
 | 工具草稿与 API 切换冲突 | 草稿保留；仅回退当前不可用 mode；payload 严格白名单 |
@@ -937,6 +954,10 @@ Electron 视觉/交互验收必须等待 FusionKit preload loading 完全退出�
 - 不得把一条 MiMo API 再拆成三个需要用户手动 assignment 的 TTS profile。
 - 不得保留“所有模式字段常驻，仅 disabled/opacity”的结构。
 - 不得用 dialect 的笼统默认 capability 代替 route 真实可用性。
+- 不得展示或阻断于没有实际验证动作支撑的“未验证/验证失败”状态。
+- 不得把分块字幕的正常静音空转写升级为会话失败，也不得吞掉鉴权、余额、网络或格式错误。
+- 不得在音频目录内维护私有 segmented/radio 视觉组件；字幕文件翻译与音频工具必须直接复用
+  工具级 `ToolRadioButtonGroup`，其外观由通用 `ButtonGroup` 和 `Button` 唯一决定。
 - 不得静默丢弃旧 profile、assignment 或模式字段。
 - 不得把 locale parity 通过等同于源码翻译 key 完整。
 - 不得用只挂载页面的 Electron smoke 替代可执行产品链路。

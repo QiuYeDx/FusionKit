@@ -390,7 +390,7 @@ function createSpeechPayload(
   return {
     assignmentKey: "speechSynthesis",
     input: "hello from FusionKit",
-    voice: "alloy",
+    voice: "mimo_default",
     instructions: "Warm and clear.",
     responseFormat: "wav",
     speed: 1.1,

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  MIMO_SPEECH_VOICE_PRESETS,
   MIMO_TTS_MODEL_BY_MODE,
   OPENAI_REALTIME_VOICE_PRESETS,
   canAudioApiHandleTask,
@@ -63,6 +64,7 @@ describe("audio provider registry", () => {
 
   it("describes mode-specific fields and streaming constraints", () => {
     expect(getSpeechRouteConstraints("mimo", "preset_voice")).toMatchObject({
+      voices: MIMO_SPEECH_VOICE_PRESETS,
       supportsStreaming: true,
       streamResponseFormat: "pcm16",
       finalResponseFormat: "wav",

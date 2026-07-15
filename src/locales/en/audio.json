@@ -8,7 +8,6 @@
     "audio_api": "Audio API",
     "provider": "Provider",
     "mode": "Generation mode",
-    "verification": "Verification",
     "technical_details": "Technical details",
     "dialect": "Protocol",
     "model": "Model",
@@ -199,7 +198,7 @@
     },
     "hints": {
       "mode": "Only modes configured and available on the current audio API are shown.",
-      "mimo_voice": "Preset voice mode uses voice; voice design does not, and voice clone uses reference audio.",
+      "mimo_voice": "Choose a MiMo preset voice supported by the current model; voice design uses a description, and voice clone uses reference audio.",
       "openai_voice": "OpenAI voice can be typed manually; presets are only shortcuts.",
       "mimo_format": "MiMo non-streaming output is fixed to WAV. Streaming is fixed to PCM16 and saved as WAV when complete.",
       "openai_format": "OpenAI official TTS supports multiple binary audio formats.",
@@ -214,7 +213,7 @@
       "file_name_hint": "Leave off the extension; it will be added from the output format."
     },
     "placeholders": {
-      "mimo_voice": "mimo_default / 冰糖 / Mia / custom voice id",
+      "mimo_voice": "Select a MiMo preset voice",
       "openai_voice": "alloy",
       "output_dir": "No output folder selected",
       "style_instruction": "For example: softer, narrator-like, natural pacing",
@@ -283,7 +282,8 @@
     "errors": {
       "title": "Generation failed",
       "no_input": "Enter text to synthesize.",
-      "no_voice": "Enter a voice.",
+      "no_voice": "Enter or select a voice.",
+      "invalid_voice": "The current voice is not supported by the selected audio API. Choose a voice from the list.",
       "output_dir_required": "Select an output folder before using custom folder mode.",
       "voice_design_prompt_required": "Voice design mode requires a voice description.",
       "voice_sample_required": "Voice clone mode requires reference audio.",
@@ -482,6 +482,7 @@
     "route_not_configured": "The assigned audio API does not provide the requested operation or mode.",
     "route_unverified": "This audio API route failed verification. Review it in settings.",
     "invalid_parameters": "Check the audio task settings and try again.",
+    "invalid_parameter_named": "The {{field}} parameter is invalid or unsupported by the current model. Check it and try again.",
     "profile_not_configured": "Configure an audio profile first.",
     "connection_not_configured": "The audio connection profile is missing.",
     "model_not_configured": "Configure the required audio model first.",
@@ -496,6 +497,7 @@
     "network": "The audio service could not be reached.",
     "timeout": "The audio request timed out.",
     "unauthorized": "The audio API credentials were rejected.",
+    "payment_required": "The audio API account has insufficient balance or plan quota. Add funds or check the plan.",
     "forbidden": "The audio API does not permit this operation.",
     "rate_limited": "The audio service is rate limited. Try again later.",
     "service_unavailable": "The audio service is temporarily unavailable.",

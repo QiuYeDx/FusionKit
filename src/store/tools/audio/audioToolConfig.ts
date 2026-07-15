@@ -5,12 +5,10 @@ import {
   type AudioCapability,
   type AudioProviderPreset,
   type AudioRoute,
-  type AudioRouteVerificationStatus,
   type AudioTaskAssignment,
   type SpeechSynthesisMode,
 } from "@/type/audio";
 import {
-  getAudioRouteKey,
   isAudioRouteTransportSupported,
   resolveAudioApiRoute,
 } from "@/lib/audio-provider-registry";
@@ -31,7 +29,6 @@ export interface AudioToolConfigSummary {
   providerPreset?: AudioProviderPreset;
   availableModes?: SpeechSynthesisMode[];
   activeMode?: SpeechSynthesisMode;
-  verificationStatus?: AudioRouteVerificationStatus | "unverified";
   migrationNeedsAttention?: boolean;
   route?: AudioRoute;
 }
@@ -44,24 +41,6 @@ export interface StandaloneAudioToolConfigState {
 export type StandaloneAudioToolConfigSummarySelector = (
   state: StandaloneAudioToolConfigState,
 ) => AudioToolConfigSummary;
-
-export interface MimoVoicePreset {
-  id: string;
-  label: string;
-  localeHint: "zh" | "en" | "neutral";
-}
-
-export const MIMO_VOICE_PRESETS: MimoVoicePreset[] = [
-  { id: "mimo_default", label: "mimo_default", localeHint: "neutral" },
-  { id: "冰糖", label: "冰糖", localeHint: "zh" },
-  { id: "茉莉", label: "茉莉", localeHint: "zh" },
-  { id: "苏打", label: "苏打", localeHint: "zh" },
-  { id: "白桦", label: "白桦", localeHint: "zh" },
-  { id: "Mia", label: "Mia", localeHint: "en" },
-  { id: "Chloe", label: "Chloe", localeHint: "en" },
-  { id: "Milo", label: "Milo", localeHint: "en" },
-  { id: "Dean", label: "Dean", localeHint: "en" },
-];
 
 export function resolveStandaloneAudioToolConfigSummary(
   state: StandaloneAudioToolConfigState,
@@ -112,7 +91,6 @@ export function resolveStandaloneAudioToolConfigSummary(
     };
   }
 
-  const routeKey = getAudioRouteKey(assignmentKey);
   return {
     ...baseSummary,
     status: "ready",
@@ -120,9 +98,6 @@ export function resolveStandaloneAudioToolConfigSummary(
     modelKey: route.model,
     route,
     capabilities: getStandaloneAudioCapabilities(assignmentKey),
-    verificationStatus: routeKey
-      ? profile.verification?.[routeKey]?.status ?? "unverified"
-      : "unverified",
   };
 }
 

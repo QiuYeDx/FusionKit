@@ -1,5 +1,6 @@
 import axios from "axios";
 import { normalizeAudioEndpoint } from "@/lib/audio-endpoint";
+import { MIMO_SPEECH_VOICE_PRESETS } from "@/lib/audio-provider-registry";
 import type {
   AudioTranscriptionResult,
   MimoSpeechOptions,
@@ -203,7 +204,7 @@ async function sendMimoAudioTranscriptionOnce(
     text = extractMimoMessageText(parsed.message);
     model = parsed.model;
   }
-  if (!text.trim()) {
+  if (!text.trim() && !request.allowEmptyTranscriptionResult) {
     throw createAudioRuntimeError({
       code: "empty_response",
       message: "MiMo ASR response text is empty.",
@@ -651,6 +652,18 @@ async function validateMimoSpeechPayload(
       code: "invalid_ipc_request",
       message: "MiMo voice design requires a voice design prompt.",
       field: "mimoOptions.voiceDesignPrompt",
+    });
+  }
+  if (
+    options.mode === "preset_voice" &&
+    !MIMO_SPEECH_VOICE_PRESETS.some(
+      (voice) => voice === (request.payload.voice?.trim() || "mimo_default"),
+    )
+  ) {
+    throw createAudioRuntimeError({
+      code: "invalid_task_parameters",
+      message: "MiMo preset voice is not supported by the selected model.",
+      field: "voice",
     });
   }
   if (options.mode === "voice_clone") {

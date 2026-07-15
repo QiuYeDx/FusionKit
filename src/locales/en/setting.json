@@ -211,12 +211,6 @@
         "realtimeVoice": "Duplex voice",
         "model": "Model ID"
       },
-      "verification": {
-        "untested": "Untested",
-        "verified": "Verified",
-        "degraded": "Degraded",
-        "failed": "Verification failed"
-      },
       "delete": {
         "title": "Delete audio API",
         "unused_description": "Delete “{{name}}”?",

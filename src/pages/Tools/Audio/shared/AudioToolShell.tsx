@@ -198,18 +198,6 @@ export function AudioToolShell({
             </div>
           </details>
         ) : null}
-        {configSummary.verificationStatus ? (
-          <ConfigLine
-            label={t("audio:global.verification")}
-            value={t(
-              `setting:fields.audio.verification.${
-                configSummary.verificationStatus === "unverified"
-                  ? "untested"
-                  : configSummary.verificationStatus
-              }`,
-            )}
-          />
-        ) : null}
         {configSummary.availableModes?.length ? (
           <div className="space-y-1.5">
             <div className="text-xs text-muted-foreground">

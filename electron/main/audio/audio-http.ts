@@ -62,10 +62,27 @@ export function createAudioHttpErrorFromResponse(args: {
     extractHttpErrorMessage(args.body, args.status),
     args.apiKey,
   );
+  const providerField = resolveAudioHttpErrorField(args.body);
+
+  if ((args.status === 400 || args.status === 422) && providerField) {
+    return createAudioRuntimeError({
+      code: "invalid_task_parameters",
+      message,
+      field: providerField,
+      details: { status: args.status, attempt: args.attempt },
+    });
+  }
 
   if (args.status === 401) {
     return createAudioRuntimeError({
       code: "http_unauthorized",
+      message,
+      details: { status: args.status, attempt: args.attempt },
+    });
+  }
+  if (args.status === 402) {
+    return createAudioRuntimeError({
+      code: "http_payment_required",
       message,
       details: { status: args.status, attempt: args.attempt },
     });
@@ -261,6 +278,56 @@ function extractHttpErrorMessage(body: unknown, status: number): string {
     }
   }
   return `Audio request failed with HTTP ${status}.`;
+}
+
+function resolveAudioHttpErrorField(body: unknown): string | undefined {
+  const normalized = normalizeErrorBody(body);
+  if (!isRecord(normalized)) return undefined;
+  const error = isRecord(normalized.error) ? normalized.error : undefined;
+  for (const candidate of [
+    error?.param,
+    error?.field,
+    normalized.param,
+    normalized.field,
+  ]) {
+    if (typeof candidate !== "string") continue;
+    const mapped = mapAudioProviderField(candidate);
+    if (mapped) return mapped;
+  }
+
+  const providerCode = typeof error?.code === "string"
+    ? error.code.trim().toLowerCase()
+    : "";
+  if (["invalid_voice", "unsupported_voice", "voice_not_found"].includes(
+    providerCode,
+  )) {
+    return "intent.voice";
+  }
+  return undefined;
+}
+
+function mapAudioProviderField(field: string): string | undefined {
+  const normalized = field
+    .trim()
+    .toLowerCase()
+    .replace(/\[['"]?([^'"\]]+)['"]?\]/g, ".$1")
+    .replace(/^(body|request)\./, "");
+  const fields: Record<string, string> = {
+    voice: "intent.voice",
+    voice_id: "intent.voice",
+    "audio.voice": "intent.voice",
+    "audio.voice_id": "intent.voice",
+    "intent.voice": "intent.voice",
+    input: "input",
+    instructions: "instructions",
+    speed: "speed",
+    format: "responseFormat",
+    response_format: "responseFormat",
+    "audio.format": "responseFormat",
+    language: "language",
+    "asr_options.language": "language",
+  };
+  return fields[normalized];
 }
 
 function normalizeErrorBody(body: unknown): unknown {
