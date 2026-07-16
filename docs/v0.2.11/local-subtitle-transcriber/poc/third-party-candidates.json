@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "observedAt": "2026-07-16",
+  "observedAt": "2026-07-17",
   "legalNotice": "This inventory is engineering evidence, not legal advice. Every shipped artifact still requires PRE-006 and QA-005 review.",
   "candidates": [
     {
@@ -10,8 +10,8 @@
       "candidateCommit": "f049fff95a089aa9969deb009cdd4892b3e74916",
       "sourceUrl": "https://github.com/ggml-org/whisper.cpp/releases/tag/v1.9.1",
       "declaredLicense": "MIT",
-      "decisionStatus": "research_candidate",
-      "nextDecisionWorkPackage": "PRE-002/PRE-006",
+      "decisionStatus": "pre002_cpu_server_verified",
+      "nextDecisionWorkPackage": "PRE-003/PRE-004/PRE-006",
       "pre001WindowsReleaseAssets": [
         {
           "targetProfile": "windows-x64-cpu",
@@ -33,10 +33,23 @@
         }
       ],
       "releaseDigestEvidence": "https://api.github.com/repos/ggml-org/whisper.cpp/releases/341768502",
+      "pre002WindowsCpuServerEvidence": {
+        "runtime": "whisper-server.exe",
+        "transport": "node-owned-loopback-http",
+        "model": "ggml-base.bin",
+        "modelLoadCount": 1,
+        "completedRealSamples": 3,
+        "realtimeFactorRange": [0.0318, 0.0512],
+        "abortObservedMs": 5006,
+        "abortLatencyMs": 6,
+        "healthyAfterAbort": true,
+        "processReused": true,
+        "cleanupVerified": true
+      },
       "openQuestions": [
-        "Use the pinned official Windows assets only for PRE-001/PRE-003 PoC evidence; freeze a separate reproducible source-build strategy for the FusionKit runner.",
-        "Verify progress, segment, abort, model reuse, Metal and CUDA behavior on target machines.",
-        "Retain the upstream MIT notice in every distributed runner artifact."
+        "Verify the official CUDA and macOS server artifacts, target backend evidence, RAM/VRAM and distribution behavior.",
+        "Decide in PRE-006 whether phase-only progress is sufficient; introduce a native bridge only for a demonstrated hard requirement.",
+        "Retain the upstream MIT notice in every distributed server artifact."
       ]
     },
     {
@@ -63,7 +76,7 @@
       "sourceUrl": "https://github.com/snakers4/silero-vad/releases/tag/v6.2.1",
       "declaredLicense": "MIT",
       "decisionStatus": "research_candidate",
-      "nextDecisionWorkPackage": "PRE-002/PRE-006",
+      "nextDecisionWorkPackage": "PRE-003/PRE-004/PRE-006",
       "openQuestions": [
         "Confirm whisper.cpp compatibility and the exact model artifact hash.",
         "Verify model-weight redistribution terms and notice requirements."

@@ -1,5 +1,8 @@
 # 工作包 PRE-001：真实语料证据与 Windows 预编译就绪修正
 
+> 2026-07-17 后续：PRE-002 已直接使用官方预编译 `whisper-server.exe` 完成，
+> 因此下文关于“自有 runner 构建环境尚未 ready”的历史状态不再是当前 blocker。
+
 > 最终收口（2026-07-16）：本记录中把独立真值、样本权利证据、额外场景和
 > FasterWhisperGUI/CTranslate2 baseline 视为 blocker 的结论已废弃。当前有效结论
 > 见 `2026-07-16_PRE-001_scope-reduction-and-completion.md`：现有 3 个样本足够，

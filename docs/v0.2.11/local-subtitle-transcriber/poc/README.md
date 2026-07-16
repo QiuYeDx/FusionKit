@@ -79,13 +79,15 @@ launch. The CUDA asset is pinned from official release metadata; actual CUDA
 inference belongs to PRE-003.
 
 CMake, MSVC and `nvcc` describe a possible source-build environment. They are
-not required to consume the official Windows prebuilt PoC assets and are not
-PRE-001 or end-user prerequisites. PRE-002 will choose between installing a
-local source toolchain and using a controlled build machine.
+not required to consume the official Windows prebuilt assets and are not
+PRE-001, PRE-002 or end-user prerequisites. PRE-002 proved that Node can manage
+the prebuilt `whisper-server.exe`; a source toolchain is required only if a
+later target artifact truly must be compiled or patched.
 
 System FFmpeg/ffprobe are development probes only. The eventual product must
 ship its selected binaries outside asar; redistribution, signing and notices
 remain later release work and are not sample-corpus blockers.
 
-PRE-001 is complete. The next work package is PRE-002, the minimal persistent
-CPU runner and JSONL protocol PoC.
+PRE-001 and PRE-002 are complete. The next work package is PRE-003: reuse the
+Node-managed official server contract to validate Windows x64 CPU/CUDA with the
+target model and the same three Chinese/Japanese samples.

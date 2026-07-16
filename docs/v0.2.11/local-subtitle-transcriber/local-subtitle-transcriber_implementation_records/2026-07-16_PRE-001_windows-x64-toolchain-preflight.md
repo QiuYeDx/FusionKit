@@ -1,5 +1,8 @@
 # 工作包 PRE-001：Windows x64 工具链预检
 
+> 2026-07-17 后续：PRE-002 已证明 Node 可管理官方预编译
+> `whisper-server.exe`，当前 Windows 路径无需 CMake/MSVC 或自写 C++ runner。
+
 > 最终收口（2026-07-16）：当前 PRE-001 已完成；本记录中的后续样本/baseline
 > blocker 说明也已被 `2026-07-16_PRE-001_scope-reduction-and-completion.md` 取代。
 >

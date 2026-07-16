@@ -1,5 +1,8 @@
 # 工作包 PRE-001：范围收口与完成
 
+> 2026-07-17 后续：下文的 PRE-002 建议已由 Node-managed official
+> `whisper-server` 方案完成，自写 C++/JSONL runner 与 CMake/MSVC 不再是首版前置。
+
 ## 基本信息
 
 - 日期：2026-07-16

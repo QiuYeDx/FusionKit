@@ -1,5 +1,8 @@
 # 工作包 PRE-001：基准语料、工具链与 clean-room 证据基线
 
+> 2026-07-17 后续：PRE-002 已完成，首版候选改为 Node-managed official
+> `whisper-server`；下一工作包为 PRE-003。
+
 > 最终收口（2026-07-16）：本记录保存首次方案的历史过程，其中关于广泛语料、
 > 独立真值、FasterWhisperGUI/CTranslate2 baseline 和严格失败门禁的要求已废弃。
 > 当前有效结论见 `2026-07-16_PRE-001_scope-reduction-and-completion.md`：PRE-001

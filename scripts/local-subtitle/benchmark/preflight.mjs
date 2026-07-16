@@ -298,7 +298,7 @@ export function buildToolchainReport(options = {}) {
     warnings.push({
       code: "source_build_toolchain_incomplete",
       detail:
-        "CMake/compiler probes are incomplete; they are tracked for the PRE-002 custom runner build and do not block this PRE-001 official-prebuilt PoC profile.",
+        "CMake/compiler probes are incomplete; they are required only if a later work package explicitly selects a source-build artifact and do not block official-prebuilt PoC/runtime profiles.",
     });
   }
 

@@ -32,7 +32,7 @@
       "id": "peak_ram_bytes",
       "unit": "bytes",
       "scope": "run",
-      "formula": "maximum resident set size observed for runner and its owned children",
+      "formula": "maximum resident set size observed for the official server process and its owned children",
       "lowerIsBetter": true
     },
     {
@@ -46,28 +46,28 @@
       "id": "model_load_first_ms",
       "unit": "milliseconds",
       "scope": "run",
-      "formula": "first successful model load terminal time minus load request time",
+      "formula": "first successful private health-ready time minus server spawn time",
       "lowerIsBetter": true
     },
     {
       "id": "model_load_reuse_ms",
       "unit": "milliseconds",
       "scope": "run",
-      "formula": "second compatible task ready time minus task request time without a model reload command",
+      "formula": "second compatible task start time minus task request time while reusing the same healthy server PID and model",
       "lowerIsBetter": true
     },
     {
       "id": "cancel_latency_ms",
       "unit": "milliseconds",
       "scope": "run",
-      "formula": "cancelled terminal time minus cancel request time",
+      "formula": "aborted request settlement time minus AbortController abort time",
       "lowerIsBetter": true
     },
     {
       "id": "package_bytes",
       "unit": "bytes",
       "scope": "artifact",
-      "formula": "sum of distributable runner, dynamic dependencies, FFmpeg and optional accelerator pack bytes by manifest",
+      "formula": "sum of distributable official server, dynamic dependencies, FFmpeg and optional accelerator pack bytes by manifest",
       "lowerIsBetter": true
     },
     {
@@ -91,7 +91,7 @@
       "target_id",
       "sample_id",
       "engine_commit",
-      "runner_build_hash",
+      "server_build_hash",
       "model_id",
       "started_at",
       "completed_at"

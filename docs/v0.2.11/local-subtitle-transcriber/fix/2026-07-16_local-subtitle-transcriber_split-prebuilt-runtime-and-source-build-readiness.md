@@ -1,5 +1,10 @@
 # PRE-001 修正：拆分官方预编译 PoC 与源码构建就绪
 
+> 2026-07-17 后续决策：本文拆分 runtime/sourceBuild readiness 的原则继续有效，
+> 但“PRE-002 必须自建 C++/JSONL runner”的假设已被实测推翻。当前首版候选为
+> Node 管理官方预编译 `whisper-server`；详见
+> `2026-07-17_local-subtitle-transcriber_use-node-managed-official-server.md`。
+>
 > 后续收口：本文关于拆分 CMake/MSVC readiness 的结论仍有效；但文中所述
 > 样本许可、独立参考和 FasterWhisperGUI/CTranslate2 严格门禁已于同日废弃，
 > PRE-001 现已完成。最终结论见
