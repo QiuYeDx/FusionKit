@@ -658,9 +658,11 @@ runner 使用 `whisper_full_params.abort_callback` 或同版本等价机制检�
   temp/
 ```
 
-模型不进入 `localStorage`、asar 或 Git；Store 只保存 `modelId`。
+模型不进入 `localStorage`、asar 或 Git；renderer Store 只保存 `modelId`。`modelId` 由 main 通过受信 manifest 解析到 managed models 目录中的文件，不保存用户最初选择的外部 `.bin` 绝对路径，也不允许 renderer 在运行时传入任意模型路径。
 
-### 11.2 安装流程
+### 11.2 内置清单下载与安装流程
+
+模型管理页提供单次用户操作即可开始的下载 CTA；安装 FusionKit、首次启动应用或只是打开工具页都不得自动下载模型。用户发起下载后，应用在后台完成以下受控流程：
 
 1. 从 FusionKit 内置的、版本化的模型 manifest 选择下载源、期望大小和 SHA-256。
 2. 下载到 `.part`，支持 HTTP Range；服务端不支持 Range 时从头重新下载。
@@ -675,7 +677,8 @@ runner 使用 `whisper_full_params.abort_callback` 或同版本等价机制检�
 
 - 支持用户导入已有 GGML Whisper `.bin`。
 - main 检查文件头、模型架构、模型大小、语言能力和 runner 可加载性。
-- 导入后复制或移动到 managed models 目录，默认复制，避免原文件移动造成惊讶。
+- 导入后复制或移动到 managed models 目录，默认复制，避免原文件移动造成惊讶；选择移动必须显式确认，且仍先完成受管临时复制、校验和原子提交，只有提交成功后才删除源文件，任一步失败都保留源文件。
+- 原子提交后，运行时只依赖 managed file，不继续引用原始外部路径。默认复制会同时占用原文件和 managed copy 的磁盘空间，导入前必须展示空间预检与预计新增占用。
 - 不支持把 faster-whisper/CTranslate2 模型目录误识别为 GGML。
 
 ### 11.4 平台加速包
@@ -689,6 +692,30 @@ runner 使用 `whisper_full_params.abort_callback` 或同版本等价机制检�
 | macOS x64 | CPU runner 随应用 | 不承诺 GPU 加速 |
 
 Windows CUDA runtime/DLL 的可再分发范围、包体和签名需要在 PRE PoC 中单独确认。不能把“开发机安装了 CUDA 所以可用”当作发行方案。
+
+### 11.5 模型支持范围与加载生命周期
+
+内置下载能力使用版本化 allowlisted manifest，不把“whisper.cpp 上游存在某个模型”直接等同于“FusionKit 已支持一键下载”。首版计划验证并提供以下候选：
+
+| 模型 | 定位 | 首版文档口径 |
+| --- | --- | --- |
+| `large-v3` | 质量优先基准 | 计划内 |
+| `large-v3-q5_0` | 较低磁盘与内存占用 | 计划内，必须说明量化取舍 |
+| `large-v3-turbo` | 速度优先 | 计划内，性能与质量需 PoC 固化 |
+| `large-v3-turbo-q5_0` | 轻量快速预览 | 候选，需 PoC 后决定是否进入首发下载清单 |
+
+`tiny`、`base`、`small`、`medium` 等其他 Whisper GGML 模型可在 runner 兼容、manifest 来源/哈希和真实质量验收完成后加入；在此之前不得笼统宣称支持所有 Whisper 或 whisper.cpp 模型。用户导入的兼容 GGML 模型通过 header、架构、大小、语言能力和 load smoke 后可以形成 managed model，但“允许自定义导入”不等于该型号自动进入 FusionKit 内置下载清单。
+
+模型生命周期固定为：
+
+1. 安装、更新或启动应用时不把数 GB 模型打进安装包，也不急切加载推理模型；启动阶段只做 schema/manifest 兼容检查与孤儿资源清理。
+2. 打开本地字幕转写页时只探测 runner/backend、FFmpeg、已安装模型状态与磁盘占用；不得仅因进入页面就发送 `load_model`。
+3. 下载或导入完成时允许 runner 做一次受控 load smoke 来判定 ready，校验结束后立即释放，不把它当成会话推理模型驻留。
+4. 用户开始批次时，main 根据冻结的 `modelId` + manifest/hash 解析 managed file，并向 runner 发送 `load_model`；同一 model/backend 已驻留时跳过装载阶段。
+5. 同一 runner 跨本批及后续兼容任务复用已加载模型。切换 model/backend、空闲超时、显存不足、窗口销毁、应用退出或进入更新时显式卸载/关闭。
+6. 应用重启后内存中的模型 context 不存在；只恢复最近 `modelId` 偏好，下一次真正开始任务时重新加载。
+
+因此产品语义是“managed model + 持久化 `modelId` + 按任务加载并跨任务复用”，不是“只记录用户原始 `.bin` 路径并在每次打开应用或工具页时自动加载”。
 
 ## 12. 媒体预处理
 

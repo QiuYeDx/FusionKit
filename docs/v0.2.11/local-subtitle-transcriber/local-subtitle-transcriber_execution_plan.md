@@ -101,16 +101,19 @@
 7. GPU 队列首版并发固定为 1，同批次复用模型；不得每个文件重新启动并加载 `large-v3`。
 8. 时间轴只使用整数毫秒；SRT/LRC 必须由自有 formatter 生成、parse-back 验证并原子提交。
 9. 模型不进安装包，必须下载或导入到 `userData`，经过大小、SHA-256 和 runner load smoke 后才是 ready。
-10. packaged app 只能使用 manifest 声明且校验过的 runner、FFmpeg 和 accelerator pack；不能回退到开发机 PATH 后假装发行包可用。
-11. 推理默认离线；除模型/加速包下载外不发网络请求，不记录媒体内容、完整路径、API Key、下载 header 或完整命令行。
-12. 参考 AGPL 项目只做 clean-room 行为研究，不复制其 GUI、输出器、字幕切分器、WhisperX 或配置代码。
-13. 自动翻译默认关闭；只有当前批次明确选择 `enqueue_and_start_translation` 才可产生 API 费用。
-14. 自动翻译只能启动本次 `SubtitleTranslationImportReceipt.addedTaskIds`；`fileName` 只用于展示，幂等去重使用 main 签发的 opaque `handoffKey`，禁止调用 `startAllTasks()` 影响旧队列。
-15. 翻译配置、导入或执行失败不得回滚已导出的字幕，也不得把本地转写 `completed` 改成 `failed`。
-16. 生成任务的 artifact、导入和输出目录 capability 必须在翻译运行时保持不透明；不得为了填充旧 `originFileURL`/`targetFileURL` 而在 renderer 解包为 raw path。
-17. 用户可见长诊断必须可换行并约束内部 ScrollArea；含长内容的弹窗使用 `ScrollableDialog`。
-18. Electron 视觉证据必须等待 preload loading 完全退出，并检查 1080×786、786×540、明暗主题和四语言。
-19. 工作包结束不得遗留 Vite/Electron/runner/FFmpeg/下载进程、`.partial`、临时 WAV 或未撤销 capability。
+10. renderer 只持久化 `modelId`；main 把它解析为 managed file。已有 GGML `.bin` 必须经校验后复制或显式移动到 managed models 目录，不得把任意外部绝对路径登记为运行时模型。
+11. 安装、应用启动和打开工具页不得急切下载或加载推理模型；只有下载/导入 load smoke 或批次开始可触发 `load_model`，smoke 后释放，任务模型按 model/backend 跨任务驻留并在切换、空闲、资源不足、窗口/应用退出或更新时卸载。
+12. 内置下载清单由版本化 allowlisted manifest 控制。首版计划验证 `large-v3`、`large-v3-q5_0`、`large-v3-turbo`，`large-v3-turbo-q5_0` 为 PoC 候选；其他型号在进入 manifest 和真实验收前不得宣称受支持或可一键下载。
+13. packaged app 只能使用 manifest 声明且校验过的 runner、FFmpeg 和 accelerator pack；不能回退到开发机 PATH 后假装发行包可用。
+14. 推理默认离线；除模型/加速包下载外不发网络请求，不记录媒体内容、完整路径、API Key、下载 header 或完整命令行。
+15. 参考 AGPL 项目只做 clean-room 行为研究，不复制其 GUI、输出器、字幕切分器、WhisperX 或配置代码。
+16. 自动翻译默认关闭；只有当前批次明确选择 `enqueue_and_start_translation` 才可产生 API 费用。
+17. 自动翻译只能启动本次 `SubtitleTranslationImportReceipt.addedTaskIds`；`fileName` 只用于展示，幂等去重使用 main 签发的 opaque `handoffKey`，禁止调用 `startAllTasks()` 影响旧队列。
+18. 翻译配置、导入或执行失败不得回滚已导出的字幕，也不得把本地转写 `completed` 改成 `failed`。
+19. 生成任务的 artifact、导入和输出目录 capability 必须在翻译运行时保持不透明；不得为了填充旧 `originFileURL`/`targetFileURL` 而在 renderer 解包为 raw path。
+20. 用户可见长诊断必须可换行并约束内部 ScrollArea；含长内容的弹窗使用 `ScrollableDialog`。
+21. Electron 视觉证据必须等待 preload loading 完全退出，并检查 1080×786、786×540、明暗主题和四语言。
+22. 工作包结束不得遗留 Vite/Electron/runner/FFmpeg/下载进程、`.partial`、临时 WAV 或未撤销 capability。
 
 ---
 
@@ -466,11 +469,11 @@ flowchart TD
 
 - 直接 `spawn()`，不经 shell；完成 handshake 后才接受任务。
 - 解析任意 chunk 边界的 JSONL，按 request id 分发；未知/迟到/超大消息进入稳定错误。
-- 管理 loaded model/backend、空闲卸载、模型切换、graceful cancel → kill fallback 和 crash restart。
+- 管理 loaded model/backend、空闲卸载、模型切换、graceful cancel → kill fallback 和 crash restart；应用启动与只打开工具页时保持 unloaded，直到受控 load smoke 或批次实际需要模型。
 - batch commit 前按 signed manifest + runner probe 解析 actual backend；显式 CUDA/Metal 不降级，auto commit 后的 GPU load/OOM/crash 也不静默切 CPU，只返回可由用户确认的新 CPU generation CTA。
 - 应用退出、窗口销毁、更新安装前统一 shutdown；技术详情脱敏且有界。
 
-验收口径：fake runner 覆盖卡死、乱码、stdout 污染、协议错、late event、crash、probe/执行 backend mismatch 和禁止静默 fallback；真实 runner smoke 通过。
+验收口径：fake runner 覆盖卡死、乱码、stdout 污染、协议错、late event、crash、probe/执行 backend mismatch 和禁止静默 fallback；另覆盖冷启动/打开页面不触发 `load_model`、首任务加载、相同 model/backend 后续任务不重载、切换/空闲/窗口与应用退出卸载；真实 runner smoke 通过。
 
 ### MEDIA-001：FFprobe/FFmpeg 媒体规范化
 
@@ -518,11 +521,12 @@ flowchart TD
 实施范围：
 
 - 定义 model manifest version、engine compatibility、size/hash、语言能力、量化说明和 VAD 依赖。
-- 本地导入 GGML 时检查 header/架构/大小/磁盘，复制到临时位置、SHA 校验、runner load smoke 后原子提交。
+- 本地导入 GGML 时检查 header/架构/大小/磁盘；默认复制，选择移动需显式确认，但仍先受管临时复制、SHA 校验、runner load smoke 并释放、原子提交，全部成功后才删除源文件，失败保留源文件。
+- 原子提交后只持久化 `modelId` 并只从 managed file 运行；导入前展示默认复制造成的预计新增磁盘占用，原始外部路径不进入 Store、任务 snapshot 或运行时合同。
 - 明确拒绝 faster-whisper/CTranslate2 目录、损坏模型、未知架构和任意运行时路径。
 - list/probe 不能仅凭文件存在返回 ready。
 
-验收口径：成功、损坏、hash 错、空间不足、取消、同名冲突和 CTranslate2 误选测试通过。
+验收口径：成功复制、显式移动、移动提交前任一失败仍保留源文件、原文件在成功复制导入后移动/删除、损坏、hash 错、空间不足、取消、同名冲突和 CTranslate2 误选测试通过；renderer/persisted state 只出现 `modelId`，load smoke 后无驻留模型。
 
 ### MODEL-002：下载、VAD、删除与 accelerator pack
 
@@ -530,12 +534,14 @@ flowchart TD
 
 实施范围：
 
-- HTTPS allowlisted manifest、每跳 redirect 重新校验 scheme/host/上限且不跨 host 转发敏感 header；Range 续传绑定 URL + ETag/Last-Modified/expected size，validator 变化或不支持 Range 时丢弃旧 `.part` 安全重头开始；完成后做大小、SHA、load smoke、原子提交。
+- 提供由用户单次操作发起的内置模型下载 CTA；安装、首次启动和只打开工具页不得自动下载。
+- HTTPS allowlisted manifest、每跳 redirect 重新校验 scheme/host/上限且不跨 host 转发敏感 header；Range 续传绑定 URL + ETag/Last-Modified/expected size，validator 变化或不支持 Range 时丢弃旧 `.part` 安全重头开始；完成后做大小、SHA、load smoke、释放模型、原子提交。
+- manifest 首版计划验证 `large-v3`、`large-v3-q5_0`、`large-v3-turbo`；`large-v3-turbo-q5_0` 是否进入首发清单由 PoC 决定。其他 Whisper GGML 型号只有在 manifest 来源/哈希、runner 兼容和质量验收完成后才能显示为内置支持。
 - 下载并发锁、进度、取消、重试、磁盘预检和启动时孤儿 `.part` 清理。
 - VAD 与 accelerator pack 使用独立资源类型/manifest；可执行 pack 还需签名/来源校验。
 - busy model 不可删除；删除失败不把 manifest 标记为已删除；不静默删除更新后仍兼容的模型。
 
-验收口径：Range/no-Range、ETag/size 变化、恶意/循环 redirect、断网、篡改、并发、磁盘不足、busy delete、pack 签名失败测试通过。
+验收口径：冷安装/首次启动/打开页面无隐式下载；用户发起后 Range/no-Range、ETag/size 变化、恶意/循环 redirect、断网、篡改、并发、磁盘不足、busy delete、pack 签名失败测试通过；下载 UI 只展示当前发布 manifest 的型号且准确说明量化/速度取舍。
 
 ### BE-002：Job Manager、批量队列与失败隔离
 
@@ -587,11 +593,11 @@ flowchart TD
 
 - 展示 runner/protocol/FFmpeg/platform/arch/backend probe；区分 CUDA/Metal/CPU 与 fallback 原因。
 - 开始前展示 auto 的 `resolvedBackend`；GPU commit 后失败只提供用户确认的 CPU 新 generation，不把失败任务静默显示为 CPU 成功。
-- 模型下载/导入/校验/取消/删除/磁盘占用；错误 CTA 可操作。
+- 模型下载/导入/校验/取消/删除/磁盘占用；下载由用户单次操作发起，默认复制导入前展示预计新增占用，错误 CTA 可操作。
 - 质量预设、模型说明和量化取舍不夸大；CTranslate2 目录给明确格式提示。
 - 长 hash/path/error 在 block surface 换行；长内容弹窗使用 ScrollableDialog。
 
-验收口径：真实 probe 驱动 UI；所有异步状态可取消/重试；长诊断不撑破 Radix ScrollArea。
+验收口径：真实 probe 驱动 UI；打开/离开页面只 probe、不下载且不触发 `load_model`；所有异步状态可取消/重试；内置型号与 manifest 一致，自定义导入不被误标为内置支持；长诊断不撑破 Radix ScrollArea。
 
 ### FE-003：文件授权、批量队列、进度与取消 UI
 
