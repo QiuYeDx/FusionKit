@@ -1,9 +1,20 @@
 # 工作包 PRE-001：基准语料、工具链与 clean-room 证据基线
 
+> 最终收口（2026-07-16）：本记录保存首次方案的历史过程，其中关于广泛语料、
+> 独立真值、FasterWhisperGUI/CTranslate2 baseline 和严格失败门禁的要求已废弃。
+> 当前有效结论见 `2026-07-16_PRE-001_scope-reduction-and-completion.md`：PRE-001
+> 已完成，下一步为 PRE-002。
+>
+> 后续进展（2026-07-16）：Windows CPU/CUDA scoped reports、3 段真实媒体、
+> 3 份 FasterWhisperGUI baseline output 和 `.local` inventory 已补入；详情见
+> `2026-07-16_PRE-001_real-corpus-and-prebuilt-readiness.md`。本记录下方的
+> “Windows 尚未验证 / 5 个真实语料全 pending”是首次建立基线时的历史事实，
+> 不代表当前台账。
+
 ## 基本信息
 
 - 日期：2026-07-16
-- 状态：进行中
+- 状态：已完成（历史阶段记录；最终结论见范围收口记录）
 - 对应执行计划工作包：`local-subtitle-transcriber_execution_plan.md` / `PRE-001`
 - 目标平台/硬件：本次仅生成 macOS arm64 主机报告；macOS x64 已从支持范围移除，Windows x64 CPU/CUDA 和真实 NVIDIA 硬件尚未验证
 
@@ -83,15 +94,13 @@ git diff --check
 - benchmark/fixture/截图/日志摘要路径：`docs/v0.2.11/local-subtitle-transcriber/poc/`；本机报告位于 `poc/reports/2026-07-16_mac-arm64-metal.json`。
 - 不应提交的本地产物位置与清理结果：只在系统临时目录生成过 deterministic silence WAV，验证后已删除；未下载模型、runner、FFmpeg，未留下媒体、临时 WAV、`.partial` 或测试服务器产物。
 
-## 未完成事项与风险
+## 当时未完成事项与风险（已被最终收口取代）
 
-- 需要选择有明确使用/许可依据的真实语料，记录 duration/size/SHA-256/reference hash，并让 strict inventory 校验通过。
-- 需要采集本地参考应用快照和 baseline CTranslate2 `large-v3` 哈希；不得记录本机绝对路径或配置中的 token。
+- 当时计划补独立参考、样本权利证据和 baseline hash；最终产品范围评审确认这些不是 PRE-001 必需证据，已删除对应门禁。
 - 当前 macOS arm64 PRE-001 工具链已 ready，不需要用户继续安装 CMake、Xcode/Metal 或 FFmpeg。当前 Homebrew GPL/full FFmpeg 仅可作开发 PoC，不能直接进入发行包。
-- 仍需真实 Windows x64 CPU/CUDA 目标机报告；mock 或当前 arm64 主机不能替代。用户已说明后续会提供 Windows x64 NVIDIA 环境。
+- Windows x64 CPU/CUDA 目标机报告已在后续会话补齐并 ready；真实推理仍留给 PRE-003，不能由环境 probe 代替。
 - `package.json` 尚未声明 `packageManager`；本次只记录 warning，未借机修改依赖元数据。
 
-## 下一步建议
+## 最终交接
 
-- 下一会话继续且只继续 `PRE-001`，先补真实样本与 baseline hash；Windows 环境到位后再运行 CPU/CUDA 两个 profile 的同一预检。
-- strict 清单和三个目标 profile 报告均闭环后才把 PRE-001 标记为完成并进入 PRE-002。
+- 当前 3 样本 strict inventory 与三个目标 profile 报告均已闭环，PRE-001 已完成；下一步进入 PRE-002。

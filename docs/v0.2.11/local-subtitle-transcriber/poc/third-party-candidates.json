@@ -12,23 +12,31 @@
       "declaredLicense": "MIT",
       "decisionStatus": "research_candidate",
       "nextDecisionWorkPackage": "PRE-002/PRE-006",
+      "pre001WindowsReleaseAssets": [
+        {
+          "targetProfile": "windows-x64-cpu",
+          "fileName": "whisper-bin-x64.zip",
+          "byteSize": 7982101,
+          "sha256": "7d8be46ecd31828e1eb7a2ecdd0d6b314feafd82163038ab6092594b0a063539",
+          "downloadUrl": "https://github.com/ggml-org/whisper.cpp/releases/download/v1.9.1/whisper-bin-x64.zip",
+          "localEvidenceStatus": "sha256_and_help_launch_verified",
+          "localEvidenceObservedAt": "2026-07-16",
+          "launchExitCode": 0
+        },
+        {
+          "targetProfile": "windows-x64-cuda",
+          "fileName": "whisper-cublas-12.4.0-bin-x64.zip",
+          "byteSize": 677887125,
+          "sha256": "106a2030eff8998e4ef320fe72e263a78449e9040386ee27c41ea80b001b601b",
+          "downloadUrl": "https://github.com/ggml-org/whisper.cpp/releases/download/v1.9.1/whisper-cublas-12.4.0-bin-x64.zip",
+          "localEvidenceStatus": "upstream_metadata_only_not_downloaded"
+        }
+      ],
+      "releaseDigestEvidence": "https://api.github.com/repos/ggml-org/whisper.cpp/releases/341768502",
       "openQuestions": [
-        "Confirm the exact source acquisition and reproducible build strategy.",
+        "Use the pinned official Windows assets only for PRE-001/PRE-003 PoC evidence; freeze a separate reproducible source-build strategy for the FusionKit runner.",
         "Verify progress, segment, abort, model reuse, Metal and CUDA behavior on target machines.",
         "Retain the upstream MIT notice in every distributed runner artifact."
-      ]
-    },
-    {
-      "id": "faster-whisper-gui-local-snapshot",
-      "category": "reference",
-      "candidateVersion": "faster-whisper==0.10.0 observable baseline",
-      "candidateCommit": null,
-      "sourceUrl": "https://github.com/CheshireCC/faster-whisper-GUI",
-      "declaredLicense": "AGPL-3.0-only",
-      "decisionStatus": "reference_only",
-      "nextDecisionWorkPackage": "PRE-001",
-      "openQuestions": [
-        "Capture a stable local snapshot hash without recording its machine path or credentials."
       ]
     },
     {
@@ -41,9 +49,10 @@
       "decisionStatus": "research_candidate",
       "nextDecisionWorkPackage": "PRE-003/PRE-004/PRE-006",
       "openQuestions": [
-        "Freeze exact artifact URLs, byte sizes and FusionKit-owned SHA-256 values.",
+        "Choose the default public GGML artifact and download URL during runtime implementation.",
+        "Use SHA-256 only to detect a corrupt or substituted download, not to reproduce another application's baseline.",
         "Confirm weight redistribution terms and required notices independently of repository code.",
-        "Decide whether large-v3-turbo-q5_0 meets the launch quality threshold."
+        "Let the user perform final quality acceptance on the implemented product with the three PRE-001 samples."
       ]
     },
     {

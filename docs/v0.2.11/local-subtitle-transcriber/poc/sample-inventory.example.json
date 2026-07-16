@@ -3,29 +3,19 @@
   "manifestId": "local-subtitle-poc-v1",
   "files": [
     {
-      "sampleId": "ja-animation-bgm-short",
+      "sampleId": "ja-character-pv-bgm-medium",
       "mediaPath": "REPLACE_WITH_ABSOLUTE_MEDIA_PATH",
-      "referenceTranscriptPath": "REPLACE_WITH_ABSOLUTE_REFERENCE_PATH"
+      "subtitlePath": "REPLACE_WITH_ABSOLUTE_SUBTITLE_PATH"
     },
     {
-      "sampleId": "ja-interview-silence-medium",
+      "sampleId": "ja-audio-drama-frequent-silence-medium",
       "mediaPath": "REPLACE_WITH_ABSOLUTE_MEDIA_PATH",
-      "referenceTranscriptPath": "REPLACE_WITH_ABSOLUTE_REFERENCE_PATH"
+      "subtitlePath": "REPLACE_WITH_ABSOLUTE_SUBTITLE_PATH"
     },
     {
-      "sampleId": "en-podcast-long",
+      "sampleId": "zh-character-pv-bgm-medium",
       "mediaPath": "REPLACE_WITH_ABSOLUTE_MEDIA_PATH",
-      "referenceTranscriptPath": "REPLACE_WITH_ABSOLUTE_REFERENCE_PATH"
-    },
-    {
-      "sampleId": "zh-dialogue-noise-medium",
-      "mediaPath": "REPLACE_WITH_ABSOLUTE_MEDIA_PATH",
-      "referenceTranscriptPath": "REPLACE_WITH_ABSOLUTE_REFERENCE_PATH"
-    },
-    {
-      "sampleId": "multilingual-low-volume-short",
-      "mediaPath": "REPLACE_WITH_ABSOLUTE_MEDIA_PATH",
-      "referenceTranscriptPath": "REPLACE_WITH_ABSOLUTE_REFERENCE_PATH"
+      "subtitlePath": "REPLACE_WITH_ABSOLUTE_SUBTITLE_PATH"
     },
     {
       "sampleId": "synthetic-silence-short",

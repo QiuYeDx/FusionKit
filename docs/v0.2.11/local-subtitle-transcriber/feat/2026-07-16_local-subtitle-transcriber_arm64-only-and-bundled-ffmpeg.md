@@ -1,5 +1,10 @@
 # 需求变更：macOS arm64-only 与 bundled FFmpeg
 
+> 后续收口：arm64-only 与 bundled FFmpeg 产品结论保持有效；文末关于补独立
+> 参考、额外场景和 FasterWhisperGUI/CTranslate2 baseline 的 PRE-001 要求已废弃。
+> PRE-001 已按 3 个现有样本完成，见
+> `../fix/2026-07-16_local-subtitle-transcriber_reduce-pre001-to-product-readiness.md`。
+
 ## 背景
 
 2026-07-16 明确首发 macOS 不需要 x64 支持，只覆盖当前 macOS arm64 环境；后续另行提供 Windows x64 NVIDIA 环境。同时需要回答用户电脑未安装 FFmpeg 时的产品行为。
@@ -66,9 +71,11 @@ git diff --check
 
 结果：脚本语法与 16 个 Node tests 通过；macOS arm64 工具链报告 ready；结构校验为 0 error / 8 warning；strict 因尚缺真实证据按预期为 9 errors；无 macOS x64 profile 或发行产物。
 
+后续更新（2026-07-16）：Windows CPU/CUDA 官方预编译 scoped reports 已 ready，3 段真实语料 inventory 已通过；最终收口后 Node tests 19/19，结构与 strict 均为 0 error / 0 warning。上段数字保留为本 feat 首次验收时的历史结果。
+
 ## 后续
 
-- 用户选择/授权 5 个真实测试语料和参考文本，并提供 baseline 参考应用与 `large-v3` 模型文件用于本机 hash 固定。
+- 3 段现有真实语料已满足 PRE-001；不再补独立参考、权利证据、额外场景或 baseline 应用/模型 hash。
 - macOS arm64 PRE-001 工具链已 ready；后续只需在 PRE-004 使用真实 runner/model、签名身份和 packaged-like bundle 验证 Metal/CPU。
-- Windows x64 NVIDIA 环境可用后生成 CPU/CUDA 两份真实报告。
+- Windows x64 CPU/CUDA PRE-001 报告已 ready；真实 inference、CUDA ZIP/DLL 和分发仍由 PRE-003/PRE-005/PRE-006 验证。
 - PRE-005 选择并审计可再分发 FFmpeg/ffprobe，完成无系统 FFmpeg 的 packaged smoke 与损坏/修复矩阵。

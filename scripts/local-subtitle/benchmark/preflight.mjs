@@ -9,10 +9,17 @@ import { fileURLToPath } from "node:url";
 const SCRIPT_PATH = fileURLToPath(import.meta.url);
 const PROJECT_ROOT = path.resolve(path.dirname(SCRIPT_PATH), "../../..");
 
+const WHISPER_CPP_RELEASE = Object.freeze({
+  version: "v1.9.1",
+  sourceUrl: "https://github.com/ggml-org/whisper.cpp/releases/tag/v1.9.1",
+});
+
 export const TARGET_PROFILES = Object.freeze({
   "mac-arm64-metal": {
     platform: "darwin",
     arch: "arm64",
+    readinessScope: "source_build_poc",
+    sourceBuildRequiredForPoc: true,
     requiredTools: [
       "cmake",
       "cxx",
@@ -21,23 +28,39 @@ export const TARGET_PROFILES = Object.freeze({
       "ffmpeg",
       "ffprobe",
     ],
+    sourceBuildTools: ["cmake", "cxx", "xcodebuild", "metalCompiler"],
   },
   "windows-x64-cpu": {
     platform: "win32",
     arch: "x64",
-    requiredTools: ["cmake", "msvc", "ffmpeg", "ffprobe"],
+    readinessScope: "official_prebuilt_release_asset",
+    sourceBuildRequiredForPoc: false,
+    requiredTools: ["ffmpeg", "ffprobe"],
+    sourceBuildTools: ["cmake", "msvc"],
+    pocArtifact: {
+      ...WHISPER_CPP_RELEASE,
+      fileName: "whisper-bin-x64.zip",
+      byteSize: 7_982_101,
+      sha256: "7d8be46ecd31828e1eb7a2ecdd0d6b314feafd82163038ab6092594b0a063539",
+      downloadUrl:
+        "https://github.com/ggml-org/whisper.cpp/releases/download/v1.9.1/whisper-bin-x64.zip",
+    },
   },
   "windows-x64-cuda": {
     platform: "win32",
     arch: "x64",
-    requiredTools: [
-      "cmake",
-      "msvc",
-      "ffmpeg",
-      "ffprobe",
-      "nvcc",
-      "nvidiaSmi",
-    ],
+    readinessScope: "official_prebuilt_release_asset",
+    sourceBuildRequiredForPoc: false,
+    requiredTools: ["ffmpeg", "ffprobe", "nvidiaSmi"],
+    sourceBuildTools: ["cmake", "msvc", "nvcc"],
+    pocArtifact: {
+      ...WHISPER_CPP_RELEASE,
+      fileName: "whisper-cublas-12.4.0-bin-x64.zip",
+      byteSize: 677_887_125,
+      sha256: "106a2030eff8998e4ef320fe72e263a78449e9040386ee27c41ea80b001b601b",
+      downloadUrl:
+        "https://github.com/ggml-org/whisper.cpp/releases/download/v1.9.1/whisper-cublas-12.4.0-bin-x64.zip",
+    },
   },
 });
 
@@ -62,15 +85,22 @@ const TOOL_SPECS = Object.freeze({
     command: "nvidia-smi",
     args: ["--query-gpu=driver_version", "--format=csv,noheader"],
   },
-  pnpm: { command: "pnpm", args: ["--version"] },
+  pnpm: {
+    command: "pnpm",
+    windowsCommand: "cmd.exe",
+    windowsArgs: ["/d", "/s", "/c", "pnpm.cmd --version"],
+    args: ["--version"],
+  },
 });
 
-function minimalProbeEnvironment(environment = process.env) {
+export function minimalProbeEnvironment(environment = process.env) {
   const allowedKeys = [
     "PATH",
     "PATHEXT",
     "SystemRoot",
     "WINDIR",
+    "ProgramFiles",
+    "ProgramW6432",
     "LANG",
     "LC_ALL",
     "TMPDIR",
@@ -123,9 +153,15 @@ function extractVersion(toolId, stdout, stderr) {
   return toolId === "pnpm" ? match[2] : match[1];
 }
 
-function probeTool(toolId, runner) {
+function probeTool(toolId, runner, platform = process.platform) {
   const spec = TOOL_SPECS[toolId];
-  const result = runner(spec.command, spec.args, {
+  const command =
+    platform === "win32" && spec.windowsCommand
+      ? spec.windowsCommand
+      : spec.command;
+  const args =
+    platform === "win32" && spec.windowsArgs ? spec.windowsArgs : spec.args;
+  const result = runner(command, args, {
     timeoutMs: spec.timeoutMs,
   });
   const version = extractVersion(toolId, result.stdout, result.stderr);
@@ -192,8 +228,12 @@ export function buildToolchainReport(options = {}) {
     options.repositoryMetadata ?? readRepositoryMetadata(options.projectRoot);
   const nodeVersion = options.nodeVersion ?? process.version;
   const tools = {};
-  for (const toolId of new Set([...target.requiredTools, "pnpm"])) {
-    tools[toolId] = probeTool(toolId, runner);
+  for (const toolId of new Set([
+    ...target.requiredTools,
+    ...(target.sourceBuildTools ?? []),
+    "pnpm",
+  ])) {
+    tools[toolId] = probeTool(toolId, runner, platform);
   }
 
   const checks = [
@@ -226,6 +266,16 @@ export function buildToolchainReport(options = {}) {
       ),
     ),
   ];
+  const sourceBuildChecks = (target.sourceBuildTools ?? []).map((toolId) =>
+    check(
+      `tool_${toolId}`,
+      tools[toolId].status === "available",
+      tools[toolId].version ?? tools[toolId].status,
+    ),
+  );
+  const sourceBuildBlockers = sourceBuildChecks
+    .filter((item) => !item.passed)
+    .map((item) => ({ code: item.id, detail: item.detail }));
 
   const warnings = [];
   if (!repository.packageManager) {
@@ -244,6 +294,13 @@ export function buildToolchainReport(options = {}) {
       detail: "Available disk space could not be measured.",
     });
   }
+  if (!target.sourceBuildRequiredForPoc && sourceBuildBlockers.length > 0) {
+    warnings.push({
+      code: "source_build_toolchain_incomplete",
+      detail:
+        "CMake/compiler probes are incomplete; they are tracked for the PRE-002 custom runner build and do not block this PRE-001 official-prebuilt PoC profile.",
+    });
+  }
 
   const blockers = checks
     .filter((item) => !item.passed)
@@ -258,6 +315,8 @@ export function buildToolchainReport(options = {}) {
       expectedPlatform: target.platform,
       expectedArch: target.arch,
     },
+    readinessScope: target.readinessScope,
+    ...(target.pocArtifact ? { pocArtifact: target.pocArtifact } : {}),
     host: {
       platform,
       arch,
@@ -267,6 +326,12 @@ export function buildToolchainReport(options = {}) {
     repository,
     tools,
     checks,
+    sourceBuild: {
+      requiredForPoc: target.sourceBuildRequiredForPoc,
+      checks: sourceBuildChecks,
+      blockers: sourceBuildBlockers,
+      ready: sourceBuildBlockers.length === 0,
+    },
     warnings,
     blockers,
     ready: blockers.length === 0,

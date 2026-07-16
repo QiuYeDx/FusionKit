@@ -6,13 +6,17 @@
 >
 > 对应设计文档：`docs/v0.2.11/local-subtitle-transcriber/local-subtitle-transcriber_final_design.md`
 >
-> 当前状态：`PRE-001` 进行中；清单/指标/clean-room 合同与只读工具链预检已建立，macOS arm64 报告 ready，真实样本、baseline 和 Windows 目标机证据待补齐
+> 当前状态：`PRE-001` 已完成；3 段中/日真实媒体与对应 SRT/LRC 的本机 inventory、三份目标环境报告和严格校验均已通过；下一工作包为 `PRE-002`
 >
 > 发布门禁：`PRE-001`～`PRE-006` 未全部通过前，不得开始正式 native/runtime/UI 大规模实现
 >
 > 2026-07-16 审查修订：补齐部分导出、会话 revision 重同步、resource job、runner 取消、无模型入队与 Agent/恢复消费者迁移；修正 pnpm/工具链事实，并把过大的 LINK 包拆为 8 个、总计 38 个工作包
 >
 > 2026-07-16 范围变更：macOS 只支持 arm64，删除 x64 产物/验收；FFmpeg/ffprobe 作为安装包内置运行时，系统 PATH 仅用于 PRE/开发 PoC
+>
+> 2026-07-16 证据修正：Windows PRE-001 改用固定官方预编译资产；CMake/MSVC/`nvcc` 独立记录为 PRE-002 `sourceBuild` 能力，不再误作 PRE-001 或最终用户运行前置
+>
+> 2026-07-16 范围收口：PRE-001 是产品开发启动门禁，不是科研 benchmark；现有 3 个真实样本即为完整范围，不要求独立真值、语料权利审计、FasterWhisperGUI 快照/配置、CTranslate2 模型 hash、英文或额外声学场景
 
 ---
 
@@ -28,7 +32,7 @@
 4. 检查第 7 节进度台账，只认领一个可在单次会话闭环的工作包；跨两个包时必须说明它们为何不可拆分。
 5. 运行 `git status --short`，确认用户已有改动并限定本次文件范围；不得用 `git add -A` 混入无关修改。
 6. 在编辑前明确本次工作包、预期改动文件、验证命令、不涉及范围和已知外部依赖。
-7. 原生相关工作先执行工具链预检；缺少 CMake、编译器、CUDA、Xcode、签名身份或目标机器时，只记录事实，不伪造验证结果。
+7. 原生相关工作先执行与工作包匹配的预检 scope：官方预编译 PoC 只以固定资产、运行依赖和目标驱动为 blocker，CMake/编译器/`nvcc` 另记 `sourceBuild`；进入 PRE-002/NATIVE 源码构建、签名或目标硬件验收时仍须真实证据，不得用另一 scope 的 ready 代替。
 8. 若需要变更 JS 依赖或 lockfile，必须先确认 `pnpm --version`；本仓库当前兼容基线为 pnpm `8.7.0`、lockfile v6。优先直接使用 `node_modules/.bin/*` 做验证；版本不是 8.x 时使用 `corepack pnpm@8.7.0 ...`，不得让新 pnpm 改写 `pnpm-lock.yaml`。
 
 ### 1.2 实施中
@@ -82,8 +86,9 @@
 | --- | --- | --- |
 | Electron 打包 | `electron-builder.json` 仅包含 `dist-electron`、`dist`，无 `extraResources` | 必须先设计 sidecar/FFmpeg staging 和 packaged path resolver |
 | 原生源码 | 仓库当前无 CMake/native runner 目录 | PRE 阶段先验证工具链和上游 pin，再建立正式目录 |
-| 当前审查工作站 | macOS arm64；Node 20.19.5、pnpm 8.7.0、CMake 4.4.0、Apple Clang 21.0.0、Xcode 26.6/Metal compiler、FFmpeg/ffprobe 8.1.2 均通过预检 | macOS arm64 PRE-001 工具链报告已 ready；Homebrew GPL/full FFmpeg 只作开发 PoC，不能替代未来 bundled 资源、许可、签名、公证或真实 runner/Metal 证据 |
-| Windows/CUDA 工具链 | 当前工作站不是 Windows，未安装/验证 MSVC、CUDA 或 NVIDIA 目标硬件 | PRE-003 必须在合格 Windows x64 NVIDIA 环境独立验收，不能沿用 macOS 报告 |
+| 已采集工作站 | macOS arm64：Node 20.19.5、pnpm 8.7.0、CMake 4.4.0、Apple Clang 21.0.0、Xcode 26.6/Metal compiler、FFmpeg/ffprobe 8.1.2 均通过；Windows 11 x64：Node 20.19.4、pnpm 8.7.0、lockfile v6、FFmpeg/ffprobe、CUDA 12.4 与 NVIDIA driver 610.62 可探测 | macOS arm64 `source_build_poc` 与 Windows CPU/CUDA `official_prebuilt_release_asset` 三份 PRE-001 报告均 ready；两台机器的系统 FFmpeg 都只作开发 PoC，不能替代未来 bundled 资源、许可、签名、公证或真实 runner/backend 证据 |
+| Windows/CUDA 工具链 | 当前 Windows x64 目标机为 i5-13600KF + RTX 4070 Ti SUPER 16 GB；CPU 固定官方 `whisper-bin-x64.zip`，CUDA 固定官方 `whisper-cublas-12.4.0-bin-x64.zip`；两份报告顶层 ready，但因 CMake/MSVC 缺失均保留 `sourceBuild.ready=false` | CPU 官方 ZIP 已完成 SHA-256 与 `whisper-cli.exe --help` smoke；CUDA ZIP 仅固定上游 metadata、未下载。CMake/MSVC 留给 PRE-002 本机或受控构建机，不是 PRE-001/最终用户前置；PRE-003 仍必须等待 PRE-002 runner 并做真实 CPU/CUDA 推理与分发验收 |
+| PRE-001 真实语料 | 3 段用户提供的本机语料均为 medium：日文/中文视频各一段、日文 WAV 一段；FFprobe、完整音轨解码、size/SHA-256、非 ASCII 路径和对应 SRT/LRC 时间轴检查通过 | 这 3 个样本就是开发启动的完整范围；媒体、字幕和绝对路径只在 `.local` inventory，SRT/LRC 只作格式、时间轴与后续人工对照，不要求独立真值、权利审计或复刻其生成应用 |
 | 发布版媒体运行时 | 尚未选择可再分发 FFmpeg/ffprobe 构建，也未接入 `extraResources`/runtime manifest | PRE-005/PRE-006 冻结来源、许可与 staging；CORE-002/NATIVE-002 实现打包门禁；packaged 模式禁止 PATH/用户 executable fallback |
 | 包管理器 | 当前 `pnpm --version` 为 `8.7.0`，lockfile 为 v6；`package.json` 尚未声明 `packageManager` | 依赖变更固定使用 pnpm 8.7.0；普通验证优先使用 `node_modules/.bin/*`，PRE-001 记录是否需要单独工作包固化 Corepack 元数据 |
 | CI | 当前没有 `.github/workflows/` | native 构建矩阵需在 PRE-006 决定使用 GitHub Actions 还是受控本地发布脚本 |
@@ -279,9 +284,9 @@ flowchart TD
 
 | ID | 状态 | 完成日期 | 依赖 | 标题 | 关键变更文件 | 验证 | 实施记录 | 未决问题 |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| PRE-001 | 进行中 | — | — | 基准语料、工具链与 clean-room 证据基线 | `docs/v0.2.11/local-subtitle-transcriber/poc/*`、`scripts/local-subtitle/benchmark/*` | Node tests 16/16；结构校验 0 error/8 pending warning；严格门禁按预期 9 errors；macOS arm64 报告 ready；macOS x64 稳定拒绝 | `docs/v0.2.11/local-subtitle-transcriber/local-subtitle-transcriber_implementation_records/2026-07-16_PRE-001_evidence-baseline.md` | 需选择并审计 5 个真实语料、补 reference/model hash；仍需 Windows CPU/CUDA 目标机报告 |
+| PRE-001 | 已完成 | 2026-07-16 | — | 3 样本开发启动基线与目标环境就绪 | `docs/v0.2.11/local-subtitle-transcriber/poc/*`、`scripts/local-subtitle/benchmark/*` | 三份 scoped target report ready；3 段 real media + SRT/LRC inventory 通过；CPU 官方预编译包 SHA/help smoke 通过；Node tests 19/19；结构与严格清单均 0 error/0 warning | `docs/v0.2.11/local-subtitle-transcriber/local-subtitle-transcriber_implementation_records/2026-07-16_PRE-001_evidence-baseline.md`、`2026-07-16_PRE-001_windows-x64-toolchain-preflight.md`、`2026-07-16_PRE-001_real-corpus-and-prebuilt-readiness.md`、`2026-07-16_PRE-001_scope-reduction-and-completion.md` | 无；`PRE-002` 已解锁，CMake/MSVC 由该包按实际构建路径决定 |
 | PRE-002 | 未开始 | — | PRE-001 | CPU persistent runner 与 JSONL PoC | `native/local-subtitle-runner/*`、PoC tests | CMake build/ctest、重复 load/transcribe/abort、协议日志 | — | `whisper.cpp` commit 尚未冻结 |
-| PRE-003 | 未开始 | — | PRE-002 | Windows x64 CPU/CUDA 准确度与性能 PoC | benchmark records、Windows build scripts | CER/WER、RTF、RAM/VRAM、重复加载、取消 | — | 需要目标 NVIDIA 机器和 CUDA 分发结论 |
+| PRE-003 | 未开始 | — | PRE-002 | Windows x64 CPU/CUDA 功能与性能 PoC | PoC records、Windows build scripts | 中/日样本可用输出、RTF、RAM/VRAM、重复加载、取消、SRT/LRC parse-back 与人工验收 | — | NVIDIA 目标机已具备；仍需 PRE-002 runner 的真实构建产物、公开 GGML 模型与 CUDA 分发结论 |
 | PRE-004 | 未开始 | — | PRE-002 | macOS arm64 Metal/CPU fallback PoC | benchmark records、mac build scripts | arm64 Metal/CPU backend、RTF、内存、签名后执行、x64 稳定拒绝 | — | 工具链已 ready；仍需 runner/model、签名/公证身份与 packaged-like PoC |
 | PRE-005 | 未开始 | — | PRE-002 | Bundled FFmpeg、sidecar staging、签名/公证与许可证 PoC | `electron-builder.json` spike、runtime/license manifest | packaged no-PATH smoke、缺失/损坏/错误架构/启动失败、非 ASCII/长路径、二进制来源审计 | — | 尚未选定可再分发构建；当前系统 GPL/full FFmpeg 不能作为发行结论 |
 | PRE-006 | 未开始 | — | PRE-003/004/005 | PoC 评审与 production 技术冻结 | Final Design、PoC decision record、pinned manifests | 五项设计问题全部有证据与 go/no-go 结论 | — | 任一核心目标失败则阻塞后续，不静默换 Python 引擎 |
@@ -322,20 +327,20 @@ flowchart TD
 
 ## 8. 工作包详情
 
-### PRE-001：基准语料、工具链与 clean-room 证据基线
+### PRE-001：3 样本开发启动基线与目标环境就绪
 
-目标：先建立可重复、可审计的比较方法，不让后续 PoC 各用不同媒体、参数或统计口径。
+目标：用当前 3 个真实样本和目标环境事实确认后续 runner 开发可以启动。
 
 实施范围：
 
-- 建立脱敏样本 manifest：日/英/中、BGM、静音、噪声、非 ASCII 路径、短文件和 1 小时以上长文件；不能提交的真实媒体只记录稳定 hash、时长、许可/来源和本地保管说明。
-- 固定 faster-whisper-GUI 基线参数、目标语言、模型标识和输出；只记录可观察结果，不复制代码或明文 token。
-- 定义 CER/WER、cue 边界偏差、RTF、RAM/VRAM、首次/再次加载、取消延迟、包体的采集 schema。
+- 建立 3 段中/日真实样本的脱敏 manifest；媒体、字幕和绝对路径不提交，只记录稳定 hash、大小、时长、探测摘要和字幕时间轴摘要。
+- 将现有 SRT/LRC 作为格式/时间轴 smoke 与后续人工对照材料，不复刻 FasterWhisperGUI，也不建立独立真值或文本准确率门禁。
+- 定义语言检测、RTF、RAM/VRAM、首次/再次加载、取消延迟、包体和 SRT/LRC parse-back 的轻量采集 schema。
 - 新增工具链预检脚本，报告 CMake、编译器、CUDA、Xcode/Metal、FFmpeg、架构和可用磁盘，不自动安装或修改系统。
 - 预检同时记录 Node、`pnpm --version`、lockfileVersion 和 `package.json.packageManager`；当前兼容基线为 pnpm 8.7.0 + lockfile v6，检查脚本不得运行 install 或改写 lockfile。
 - 建立第三方候选清单：whisper.cpp、模型、VAD、FFmpeg、CUDA runtime；每项记录来源、版本候选、许可证和待确认问题。
 
-验收口径：同一 manifest 可在 macOS arm64、Windows x64 CPU/CUDA 运行；macOS x64 返回稳定 `unsupported_architecture`；缺失工具/样本会明确失败；仓库不含受限媒体、模型、二进制或凭据。
+验收口径：3 个真实样本及其 SRT/LRC inventory 通过；macOS arm64、Windows x64 CPU/CUDA 报告 ready；macOS x64 返回稳定 `unsupported_architecture`；仓库不含媒体、字幕正文、模型、二进制、绝对路径或凭据。该口径已于 2026-07-16 完成。
 
 ### PRE-002：CPU persistent runner 与 JSONL PoC
 
@@ -357,11 +362,11 @@ flowchart TD
 实施范围：
 
 - 同一 runner protocol 下构建 CPU/CUDA 候选，使用同一完整 `large-v3` 和样本 manifest。
-- 记录 GPU 型号、驱动、CUDA 依赖、实际 backend、RTF、RAM/VRAM、准确度、加载时间和取消。
+- 记录 GPU 型号、驱动、CUDA 依赖、实际 backend、RTF、RAM/VRAM、语言检测、加载时间和取消，并保留中/日输出供人工验收。
 - 验证 CUDA 不可用、DLL 缺失、显存不足时的可识别错误与显式 CPU fallback，不允许假 GPU 成功。
 - 比较 CUDA runtime 随包、可选 accelerator pack、系统前置依赖三种路径的包体、许可、签名和失败面。
 
-验收口径：声明支持的 NVIDIA 机器 RTF < 1；CER/WER 相对基线不恶化超过 2 个百分点；形成明确分发建议。
+验收口径：声明支持的 NVIDIA 机器 RTF < 1；中/日样本可生成可回读字幕并通过人工可用性验收；形成明确分发建议。
 
 ### PRE-004：macOS arm64 Metal 与 CPU fallback PoC
 
@@ -884,11 +889,11 @@ git diff --check
 | Translation link | snapshot、ready/needs_configuration、one-shot token、path-free generated source、opaque target/checkpoint ref、Agent/恢复消费者、main-only path resolve、receipt、exact start、failure isolation | 手动 `addTask()` 或把 token 换成 renderer raw path 后适配旧字段 |
 | UI | 四语言、主题、宽窄、键盘、长诊断、loading 后截图 | plain browser |
 | Packaged | asar 外资源、签名/公证、无系统依赖、更新 | dev server |
-| Performance | CER/WER、RTF、RAM/VRAM、load/cancel、1h+ soak | 短 synthetic fixture |
+| Performance | RTF、RAM/VRAM、load/cancel、1h+ soak | 短 synthetic fixture |
 | Security/privacy | 路径逃逸、跨 owner/document session、reload 重放、日志/持久化扫描、下载篡改 | happy path |
 | License | 每个实际发布 artifact 的来源、版本、flags、SHA、notice | 上游项目首页许可证 |
 
-性能门槛沿用 Final Design：完整 `large-v3` 的 CER/WER 相对当前 faster-whisper-GUI 基线不恶化超过 2 个百分点；声明支持的 GPU 目标机 RTF < 1；SRT/LRC 100% parse-back。若 PoC 证明门槛不合理，只能通过设计评审调整，不能在实施记录中悄悄放宽。
+性能与质量口径：声明支持的 GPU 目标机 RTF < 1；SRT/LRC 100% parse-back；中文和日文输出在实际产品中由用户人工确认可用。没有 FasterWhisperGUI 一致性、独立真值或 CER/WER 前置门槛。
 
 ---
 
@@ -992,6 +997,6 @@ git diff --check
 
 ## 12. 下一步建议
 
-下一次实现会话继续 `PRE-001`：使用已建立的严格门禁补齐样本/参考 baseline 哈希、许可证据和 Windows CPU/CUDA 目标机报告；macOS arm64 工具链报告已经 ready，无需再安装 PRE-001 工具。
+下一次实现会话进入 `PRE-002`：实现最小 CPU persistent runner 与 JSONL 协议 PoC，并至少连续处理两个现有样本。PRE-001 已完成，不再补语料、独立参考、FasterWhisperGUI/CTranslate2 证据或额外覆盖场景。
 
-不要直接下载并提交模型，不要先画完整页面，也不要把当前系统 PATH 中的 GPL/full FFmpeg 当作发行资源或未来用户前置条件。严格清单和三个目标 profile 预检全部通过、`PRE-001` 标记完成后，再进入 `PRE-002` 的 CPU persistent runner PoC。
+模型可从公开 GGML 来源按需下载到 Git 忽略目录，不能提交进仓库；下载 hash 仅用于完整性校验。`PRE-002` 再决定使用本机 CMake/MSVC 还是受控构建机。当前系统 PATH 中的 FFmpeg 仍只作开发工具，不是发行资源或最终用户前置条件。

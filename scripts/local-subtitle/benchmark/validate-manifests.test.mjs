@@ -16,18 +16,48 @@ function clone(value) {
   return JSON.parse(JSON.stringify(value));
 }
 
-test("repository PRE-001 manifests are structurally valid while evidence remains pending", () => {
-  const result = validateDocuments(loadDocuments());
+test("repository PRE-001 manifests are ready for development", () => {
+  const result = validateDocuments(loadDocuments(), { strict: true });
   assert.equal(result.ok, true, JSON.stringify(result.errors, null, 2));
-  assert.ok(result.warnings.some((warning) => warning.code === "sample_pending_evidence"));
-  assert.ok(result.warnings.some((warning) => warning.code === "baseline_pending_evidence"));
+  assert.equal(result.errors.length, 0);
+  assert.equal(result.warnings.length, 0);
 });
 
-test("strict readiness fails pending sample and baseline evidence", () => {
-  const result = validateDocuments(loadDocuments(), { strict: true });
+test("PRE-001 acceptance scope is exactly the three current ja/zh real samples", () => {
+  const { benchmark } = loadDocuments();
+  const realSamples = benchmark.samples.filter((sample) => sample.sampleKind === "real");
+  assert.equal(benchmark.status, "ready_for_development");
+  assert.equal(realSamples.length, 3);
+  assert.deepEqual([...new Set(realSamples.map((sample) => sample.language))].sort(), [
+    "ja",
+    "zh",
+  ]);
+  assert.deepEqual(
+    [...new Set(realSamples.map((sample) => sample.containerKind))].sort(),
+    ["audio", "video"],
+  );
+  assert.deepEqual(
+    [...new Set(realSamples.map((sample) => sample.comparisonSubtitle.format))].sort(),
+    ["lrc", "srt"],
+  );
+  assert.equal(benchmark.acceptanceScope.textAccuracyGate, false);
+});
+
+test("sample subtitle timelines must stay within the media duration", () => {
+  const documents = clone(loadDocuments());
+  documents.benchmark.samples[0].comparisonSubtitle.lastEndMs =
+    documents.benchmark.samples[0].durationMs + 1;
+  const result = validateDocuments(documents);
   assert.equal(result.ok, false);
-  assert.ok(result.errors.some((error) => error.code === "sample_pending_evidence"));
-  assert.ok(result.errors.some((error) => error.code === "baseline_pending_evidence"));
+  assert.ok(result.errors.some((error) => error.code === "comparison_subtitle"));
+});
+
+test("ready evidence must satisfy the declared duration class", () => {
+  const documents = clone(loadDocuments());
+  documents.benchmark.samples[0].durationMs = 3_600_000;
+  const result = validateDocuments(documents);
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some((error) => error.code === "duration_class_mismatch"));
 });
 
 test("target matrix supports macOS arm64 but rejects a stale macOS x64 profile", () => {
@@ -43,77 +73,39 @@ test("target matrix supports macOS arm64 but rejects a stale macOS x64 profile",
   assert.ok(result.errors.some((error) => error.code === "target_profiles"));
 });
 
-test("coverage validation catches a removed required scenario", () => {
-  const documents = clone(loadDocuments());
-  documents.benchmark.samples = documents.benchmark.samples.map((sample) => ({
-    ...sample,
-    acousticConditions: sample.acousticConditions.filter(
-      (condition) => condition !== "low_volume",
-    ),
-  }));
-  const result = validateDocuments(documents);
-  assert.equal(result.ok, false);
-  assert.ok(
-    result.errors.some(
-      (error) =>
-        error.code === "coverage_missing" &&
-        error.detail === "acousticConditions:low_volume",
-    ),
-  );
-});
-
-test("ready evidence must satisfy the declared duration class", () => {
-  const documents = clone(loadDocuments());
-  documents.benchmark.samples[0] = {
-    ...documents.benchmark.samples[0],
-    evidenceStatus: "ready",
-    durationMs: 3_600_000,
-    byteSize: 10,
-    sha256: "a".repeat(64),
-    referenceTranscript: {
-      ...documents.benchmark.samples[0].referenceTranscript,
-      sha256: "b".repeat(64),
-    },
-    license: {
-      evidenceStatus: "verified",
-      classification: "user_owned_or_licensed",
-      sourceDescription: "licensed test corpus",
-      redistribution: "not_committed",
-      evidenceRef: "license-record-v1",
-    },
-  };
-  const result = validateDocuments(documents);
-  assert.equal(result.ok, false);
-  assert.ok(result.errors.some((error) => error.code === "duration_class_mismatch"));
-});
-
-test("toolchain report matrix accepts macOS arm64 and exposes both missing Windows targets", () => {
+test("toolchain report matrix accepts every PRE-001 target in its declared scope", () => {
   const documents = loadDocuments();
+  const reports = loadToolchainReports();
   const result = validateToolchainReports(
-    loadToolchainReports(),
-    documents.benchmark.requiredTargetProfiles,
-  );
-  assert.equal(result.ok, true, JSON.stringify(result.errors, null, 2));
-  assert.equal(result.warnings.length, 2);
-  assert.equal(
-    result.warnings.some((warning) => warning.detail === "mac-arm64-metal"),
-    false,
-  );
-  assert.equal(
-    result.warnings.filter((warning) => warning.code === "target_report_missing").length,
-    2,
-  );
-});
-
-test("strict report matrix requires a ready report for every target", () => {
-  const documents = loadDocuments();
-  const result = validateToolchainReports(
-    loadToolchainReports(),
+    reports,
     documents.benchmark.requiredTargetProfiles,
     { strict: true },
   );
+  assert.equal(result.ok, true, JSON.stringify(result.errors, null, 2));
+  assert.equal(result.warnings.length, 0);
+  const windowsReports = reports.filter(({ report }) =>
+    report.target.id.startsWith("windows-"),
+  );
+  assert.equal(windowsReports.every(({ report }) => report.ready), true);
+  assert.equal(
+    windowsReports.every(({ report }) => report.sourceBuild.requiredForPoc === false),
+    true,
+  );
+});
+
+test("Windows reports reject a changed official prebuilt artifact digest", () => {
+  const documents = loadDocuments();
+  const reports = clone(loadToolchainReports());
+  const windowsCpu = reports.find(
+    ({ report }) => report.target.id === "windows-x64-cpu",
+  );
+  windowsCpu.report.pocArtifact.sha256 = "0".repeat(64);
+  const result = validateToolchainReports(
+    reports,
+    documents.benchmark.requiredTargetProfiles,
+  );
   assert.equal(result.ok, false);
-  assert.equal(result.errors.length, 2);
+  assert.ok(result.errors.some((error) => error.code === "report_poc_artifact"));
 });
 
 test("toolchain reports reject private path fields even when privacy flags claim safety", () => {
@@ -128,31 +120,38 @@ test("toolchain reports reject private path fields even when privacy flags claim
   assert.ok(result.errors.some((error) => error.code === "report_privacy"));
 });
 
-test("local inventory verification checks physical files without returning their paths", async () => {
+test("metrics contract does not require research baseline or independent ground truth", () => {
+  const { metrics } = loadDocuments();
+  const metricIds = new Set(metrics.requiredMetricIds);
+  assert.equal(metricIds.has("cer"), false);
+  assert.equal(metricIds.has("wer"), false);
+  assert.equal(metricIds.has("cue_boundary_mae_ms"), false);
+  assert.equal(metrics.runRecord.requiredIdentityFields.includes("baseline_profile_id"), false);
+  assert.equal(metrics.runRecord.requiredIdentityFields.includes("model_sha256"), false);
+});
+
+test("local inventory verifies media and sample subtitle without exposing their paths", async () => {
   const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), "fusionkit-local-subtitle-samples-"));
   try {
-    const mediaPath = path.join(tmpRoot, "sample-\u6837\u672c.wav");
-    const transcriptPath = path.join(tmpRoot, "sample.txt");
+    const mediaPath = path.join(tmpRoot, "sample-样本.wav");
+    const subtitlePath = path.join(tmpRoot, "sample.srt");
     fs.writeFileSync(mediaPath, "media-fixture");
-    fs.writeFileSync(transcriptPath, "reference fixture");
+    fs.writeFileSync(subtitlePath, "subtitle fixture");
 
     const benchmark = clone(loadDocuments().benchmark);
     benchmark.samples = [
       {
         ...benchmark.samples[0],
-        evidenceStatus: "ready",
         durationMs: 1_000,
+        durationClass: "short",
         byteSize: fs.statSync(mediaPath).size,
         sha256: sha256("media-fixture"),
-        license: {
-          ...benchmark.samples[0].license,
-          evidenceStatus: "verified",
-          sourceDescription: "deterministic test fixture",
-          evidenceRef: "test-fixture-license-v1",
-        },
-        referenceTranscript: {
-          ...benchmark.samples[0].referenceTranscript,
-          sha256: sha256("reference fixture"),
+        comparisonSubtitle: {
+          ...benchmark.samples[0].comparisonSubtitle,
+          byteSize: fs.statSync(subtitlePath).size,
+          sha256: sha256("subtitle fixture"),
+          firstStartMs: 0,
+          lastEndMs: 1_000,
         },
       },
     ];
@@ -163,7 +162,7 @@ test("local inventory verification checks physical files without returning their
         {
           sampleId: benchmark.samples[0].sampleId,
           mediaPath,
-          referenceTranscriptPath: transcriptPath,
+          subtitlePath,
         },
       ],
     };

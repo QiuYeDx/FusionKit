@@ -7,6 +7,7 @@
     "expectedPlatform": "darwin",
     "expectedArch": "arm64"
   },
+  "readinessScope": "source_build_poc",
   "host": {
     "platform": "darwin",
     "arch": "arm64",
@@ -104,6 +105,33 @@
       "detail": "8.1.2"
     }
   ],
+  "sourceBuild": {
+    "requiredForPoc": true,
+    "checks": [
+      {
+        "id": "tool_cmake",
+        "passed": true,
+        "detail": "4.4.0"
+      },
+      {
+        "id": "tool_cxx",
+        "passed": true,
+        "detail": "Apple clang version 21.0.0"
+      },
+      {
+        "id": "tool_xcodebuild",
+        "passed": true,
+        "detail": "26.6"
+      },
+      {
+        "id": "tool_metalCompiler",
+        "passed": true,
+        "detail": "available"
+      }
+    ],
+    "blockers": [],
+    "ready": true
+  },
   "warnings": [
     {
       "code": "package_manager_field_missing",

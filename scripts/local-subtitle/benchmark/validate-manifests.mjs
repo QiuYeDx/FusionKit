@@ -14,19 +14,52 @@ const POC_ROOT = path.join(
 
 const DOCUMENTS = Object.freeze({
   benchmark: "benchmark-manifest.json",
-  baseline: "baseline-profile.json",
   metrics: "metrics-contract.json",
   thirdParty: "third-party-candidates.json",
 });
 const TARGET_PROFILE_FACTS = Object.freeze({
-  "mac-arm64-metal": { platform: "darwin", arch: "arm64" },
-  "windows-x64-cpu": { platform: "win32", arch: "x64" },
-  "windows-x64-cuda": { platform: "win32", arch: "x64" },
+  "mac-arm64-metal": {
+    platform: "darwin",
+    arch: "arm64",
+    readinessScope: "source_build_poc",
+    sourceBuildRequiredForPoc: true,
+  },
+  "windows-x64-cpu": {
+    platform: "win32",
+    arch: "x64",
+    readinessScope: "official_prebuilt_release_asset",
+    sourceBuildRequiredForPoc: false,
+    pocArtifact: {
+      version: "v1.9.1",
+      sourceUrl: "https://github.com/ggml-org/whisper.cpp/releases/tag/v1.9.1",
+      fileName: "whisper-bin-x64.zip",
+      byteSize: 7_982_101,
+      sha256: "7d8be46ecd31828e1eb7a2ecdd0d6b314feafd82163038ab6092594b0a063539",
+      downloadUrl:
+        "https://github.com/ggml-org/whisper.cpp/releases/download/v1.9.1/whisper-bin-x64.zip",
+    },
+  },
+  "windows-x64-cuda": {
+    platform: "win32",
+    arch: "x64",
+    readinessScope: "official_prebuilt_release_asset",
+    sourceBuildRequiredForPoc: false,
+    pocArtifact: {
+      version: "v1.9.1",
+      sourceUrl: "https://github.com/ggml-org/whisper.cpp/releases/tag/v1.9.1",
+      fileName: "whisper-cublas-12.4.0-bin-x64.zip",
+      byteSize: 677_887_125,
+      sha256: "106a2030eff8998e4ef320fe72e263a78449e9040386ee27c41ea80b001b601b",
+      downloadUrl:
+        "https://github.com/ggml-org/whisper.cpp/releases/download/v1.9.1/whisper-cublas-12.4.0-bin-x64.zip",
+    },
+  },
 });
 const REQUIRED_TARGET_PROFILES = new Set(Object.keys(TARGET_PROFILE_FACTS));
 
 const SHA256_PATTERN = /^[a-f0-9]{64}$/;
-const ALLOWED_SAMPLE_STATUS = new Set(["pending_evidence", "ready"]);
+const ALLOWED_SAMPLE_STATUS = new Set(["ready"]);
+const ALLOWED_SAMPLE_KINDS = new Set(["real", "synthetic"]);
 const ALLOWED_DURATION_CLASSES = new Set(["short", "medium", "long"]);
 const ALLOWED_CONTAINER_KINDS = new Set(["audio", "video"]);
 const ALLOWED_PATH_CASES = new Set(["ascii", "non_ascii"]);
@@ -51,12 +84,20 @@ function requireString(collection, document, code, value) {
   return true;
 }
 
-function validateBenchmarkManifest(document, strict, errors, warnings) {
+function validateBenchmarkManifest(document, _strict, errors, _warnings) {
   const name = DOCUMENTS.benchmark;
   if (document.schemaVersion !== 1) {
     addIssue(errors, name, "schema_version", "schemaVersion must be 1.");
   }
   requireString(errors, name, "manifest_id", document.manifestId);
+  if (document.status !== "ready_for_development") {
+    addIssue(
+      errors,
+      name,
+      "manifest_status",
+      "PRE-001 must be marked ready_for_development.",
+    );
+  }
   if (
     !Array.isArray(document.requiredTargetProfiles) ||
     document.requiredTargetProfiles.length !== REQUIRED_TARGET_PROFILES.size ||
@@ -72,9 +113,25 @@ function validateBenchmarkManifest(document, strict, errors, warnings) {
       "The three PRE-001 target profiles must be present exactly once.",
     );
   }
-  if (!isObject(document.requiredCoverage)) {
-    addIssue(errors, name, "required_coverage", "requiredCoverage must be an object.");
+  const scope = document.acceptanceScope;
+  if (!isObject(scope)) {
+    addIssue(errors, name, "acceptance_scope", "acceptanceScope must be an object.");
     return;
+  }
+  if (
+    scope.realSampleCount !== 3 ||
+    !hasExactMembers(scope.languages, ["ja", "zh"]) ||
+    !hasExactMembers(scope.containerKinds, ["audio", "video"]) ||
+    !hasExactMembers(scope.subtitleFormats, ["srt", "lrc"]) ||
+    scope.validationMode !== "development_smoke_and_manual_acceptance" ||
+    scope.textAccuracyGate !== false
+  ) {
+    addIssue(
+      errors,
+      name,
+      "acceptance_scope",
+      "PRE-001 is limited to three real ja/zh audio/video samples with SRT/LRC smoke evidence and no text-accuracy gate.",
+    );
   }
   if (!Array.isArray(document.samples) || document.samples.length === 0) {
     addIssue(errors, name, "samples", "At least one sample definition is required.");
@@ -85,13 +142,7 @@ function validateBenchmarkManifest(document, strict, errors, warnings) {
   }
 
   const sampleIds = new Set();
-  const observed = {
-    languages: new Set(),
-    acousticConditions: new Set(),
-    containerKinds: new Set(),
-    durationClasses: new Set(),
-    pathCases: new Set(),
-  };
+  const realSamples = [];
 
   for (const sample of document.samples) {
     const sampleId = sample?.sampleId;
@@ -102,7 +153,10 @@ function validateBenchmarkManifest(document, strict, errors, warnings) {
     sampleIds.add(sampleId);
 
     if (!ALLOWED_SAMPLE_STATUS.has(sample.evidenceStatus)) {
-      addIssue(errors, name, "sample_status", `${sampleId}: invalid evidenceStatus.`);
+      addIssue(errors, name, "sample_status", `${sampleId}: evidenceStatus must be ready.`);
+    }
+    if (!ALLOWED_SAMPLE_KINDS.has(sample.sampleKind)) {
+      addIssue(errors, name, "sample_kind", `${sampleId}: invalid sampleKind.`);
     }
     if (!ALLOWED_CONTAINER_KINDS.has(sample.containerKind)) {
       addIssue(errors, name, "container_kind", `${sampleId}: invalid containerKind.`);
@@ -113,39 +167,18 @@ function validateBenchmarkManifest(document, strict, errors, warnings) {
     if (!ALLOWED_PATH_CASES.has(sample.pathCase)) {
       addIssue(errors, name, "path_case", `${sampleId}: invalid pathCase.`);
     }
-    if (!Array.isArray(sample.acousticConditions) || sample.acousticConditions.length === 0) {
-      addIssue(errors, name, "acoustic_conditions", `${sampleId}: conditions are required.`);
-    }
     requireString(errors, name, "language", sample.language);
     requireString(errors, name, "local_storage_key", sample.localStorageKey);
 
-    observed.languages.add(sample.language);
-    observed.containerKinds.add(sample.containerKind);
-    observed.durationClasses.add(sample.durationClass);
-    observed.pathCases.add(sample.pathCase);
-    for (const condition of sample.acousticConditions ?? []) {
-      observed.acousticConditions.add(condition);
-    }
-
-    const licenseReady =
-      isObject(sample.license) &&
-      sample.license.evidenceStatus === "verified" &&
-      sample.license.redistribution === "not_committed" &&
-      typeof sample.license.sourceDescription === "string" &&
-      sample.license.sourceDescription.trim() !== "" &&
-      !/^pending\b/i.test(sample.license.sourceDescription) &&
-      typeof sample.license.evidenceRef === "string" &&
-      sample.license.evidenceRef.trim() !== "" &&
-      !/^pending\b/i.test(sample.license.evidenceRef);
-    const readyEvidence =
+    const mediaReady =
       Number.isInteger(sample.durationMs) &&
       sample.durationMs > 0 &&
       Number.isInteger(sample.byteSize) &&
       sample.byteSize > 0 &&
-      SHA256_PATTERN.test(sample.sha256 ?? "") &&
-      licenseReady;
-
-    if (sample.evidenceStatus === "ready") {
+      SHA256_PATTERN.test(sample.sha256 ?? "");
+    if (!mediaReady) {
+      addIssue(errors, name, "ready_evidence", `${sampleId}: media evidence is incomplete.`);
+    } else {
       const durationRule = document.durationClassRules?.[sample.durationClass];
       if (!isObject(durationRule) || !durationMatches(sample.durationMs, durationRule)) {
         addIssue(
@@ -157,43 +190,92 @@ function validateBenchmarkManifest(document, strict, errors, warnings) {
       }
     }
 
-    if (sample.referenceTranscript?.required) {
-      if (!SHA256_PATTERN.test(sample.referenceTranscript.sha256 ?? "")) {
-        if (sample.evidenceStatus === "ready") {
-          addIssue(errors, name, "reference_hash", `${sampleId}: transcript hash is required.`);
-        }
-      }
-    }
-
-    if (sample.evidenceStatus === "ready" && !readyEvidence) {
-      addIssue(errors, name, "ready_evidence", `${sampleId}: ready evidence is incomplete.`);
-    }
-    if (sample.evidenceStatus !== "ready") {
-      const issue = {
-        document: name,
-        code: "sample_pending_evidence",
-        detail: sampleId,
-      };
-      (strict ? errors : warnings).push(issue);
-    }
-  }
-
-  for (const [coverageKey, requiredValues] of Object.entries(document.requiredCoverage)) {
-    if (!Array.isArray(requiredValues) || !observed[coverageKey]) {
-      addIssue(errors, name, "coverage_contract", `${coverageKey}: invalid coverage dimension.`);
-      continue;
-    }
-    for (const requiredValue of requiredValues) {
-      if (!observed[coverageKey].has(requiredValue)) {
+    if (sample.sampleKind === "real") {
+      realSamples.push(sample);
+      if (sample.mediaEvidence?.status !== "verified") {
         addIssue(
           errors,
           name,
-          "coverage_missing",
-          `${coverageKey}:${requiredValue}`,
+          "media_probe_evidence",
+          `${sampleId}: verified media probe evidence is required.`,
         );
       }
+      validateComparisonSubtitle(sample.comparisonSubtitle, name, sample, errors);
+    } else if (!isObject(sample.generator)) {
+      addIssue(errors, name, "synthetic_generator", `${sampleId}: generator metadata is required.`);
     }
   }
+
+  if (realSamples.length !== scope.realSampleCount) {
+    addIssue(
+      errors,
+      name,
+      "real_sample_count",
+      `Expected ${scope.realSampleCount} real samples, found ${realSamples.length}.`,
+    );
+  }
+  if (!covers(realSamples.map((sample) => sample.language), scope.languages)) {
+    addIssue(errors, name, "scope_missing", "The real samples must cover Japanese and Chinese.");
+  }
+  if (!covers(realSamples.map((sample) => sample.containerKind), scope.containerKinds)) {
+    addIssue(errors, name, "scope_missing", "The real samples must cover audio and video.");
+  }
+  if (
+    !covers(
+      realSamples.map((sample) => sample.comparisonSubtitle?.format),
+      scope.subtitleFormats,
+    )
+  ) {
+    addIssue(errors, name, "scope_missing", "The sample subtitles must cover SRT and LRC.");
+  }
+}
+
+function validateComparisonSubtitle(output, document, sample, errors) {
+  const sampleId = sample.sampleId;
+  const cueCount =
+    output?.format === "srt" ? output.cueCount : output?.timestampCount;
+  const firstTimestamp =
+    output?.format === "srt" ? output.firstStartMs : output?.firstTimestampMs;
+  const lastTimestamp =
+    output?.format === "srt" ? output.lastEndMs : output?.lastTimestampMs;
+  if (
+    !isObject(output) ||
+    !Number.isInteger(output.byteSize) ||
+    output.byteSize <= 0 ||
+    !SHA256_PATTERN.test(output.sha256 ?? "") ||
+    !["srt", "lrc"].includes(output.format) ||
+    output.source !== "user_provided_existing_output" ||
+    output.purpose !== "manual_smoke_reference_only" ||
+    output.textAccuracyGate !== false ||
+    !Number.isInteger(cueCount) ||
+    cueCount <= 0 ||
+    !Number.isInteger(firstTimestamp) ||
+    firstTimestamp < 0 ||
+    !Number.isInteger(lastTimestamp) ||
+    lastTimestamp < firstTimestamp ||
+    lastTimestamp > sample.durationMs ||
+    output.timelineValid !== true
+  ) {
+    addIssue(
+      errors,
+      document,
+      "comparison_subtitle",
+      `${sampleId}: sample subtitle integrity or timeline evidence is invalid.`,
+    );
+  }
+}
+
+function hasExactMembers(actual, expected) {
+  return (
+    Array.isArray(actual) &&
+    actual.length === expected.length &&
+    new Set(actual).size === expected.length &&
+    expected.every((value) => actual.includes(value))
+  );
+}
+
+function covers(actual, required) {
+  return Array.isArray(required) && required.every((value) => actual.includes(value));
 }
 
 function durationMatches(durationMs, rule) {
@@ -205,51 +287,6 @@ function durationMatches(durationMs, rule) {
     return false;
   }
   return true;
-}
-
-function validateBaselineProfile(document, strict, errors, warnings) {
-  const name = DOCUMENTS.baseline;
-  if (document.schemaVersion !== 1) {
-    addIssue(errors, name, "schema_version", "schemaVersion must be 1.");
-  }
-  requireString(errors, name, "profile_id", document.profileId);
-  if (!isObject(document.engine) || document.engine.id !== "faster_whisper") {
-    addIssue(errors, name, "engine", "The reference engine must be faster_whisper.");
-  }
-  if (document.model?.id !== "large-v3") {
-    addIssue(errors, name, "model", "The PRE-001 reference model must be large-v3.");
-  }
-  if (!isObject(document.inference)) {
-    addIssue(errors, name, "inference", "A fixed inference object is required.");
-  } else {
-    const fixedFields = [
-      "task",
-      "languageSource",
-      "beamSize",
-      "temperature",
-      "wordTimestamps",
-      "vadFilter",
-      "conditionOnPreviousText",
-    ];
-    for (const field of fixedFields) {
-      if (!(field in document.inference)) {
-        addIssue(errors, name, "inference_field", `Missing inference.${field}.`);
-      }
-    }
-  }
-
-  const frozen =
-    document.status === "frozen" &&
-    SHA256_PATTERN.test(document.model?.sha256 ?? "") &&
-    SHA256_PATTERN.test(document.referenceApplication?.snapshotSha256 ?? "");
-  if (!frozen) {
-    const issue = {
-      document: name,
-      code: "baseline_pending_evidence",
-      detail: "Model and reference application hashes must be captured before benchmark runs.",
-    };
-    (strict ? errors : warnings).push(issue);
-  }
 }
 
 function validateMetricsContract(document, errors) {
@@ -308,14 +345,11 @@ function validateThirdPartyCandidates(document, errors) {
     if (!String(candidate.sourceUrl ?? "").startsWith("https://")) {
       addIssue(errors, name, "candidate_source_scheme", candidate.id);
     }
-    if (
-      candidate.decisionStatus !== "reference_only" &&
-      (!Array.isArray(candidate.openQuestions) || candidate.openQuestions.length === 0)
-    ) {
+    if (!Array.isArray(candidate.openQuestions) || candidate.openQuestions.length === 0) {
       addIssue(errors, name, "candidate_open_questions", candidate.id);
     }
   }
-  for (const category of ["engine", "reference", "model", "vad", "media", "gpu_runtime"]) {
+  for (const category of ["engine", "model", "vad", "media", "gpu_runtime"]) {
     if (!categories.has(category)) {
       addIssue(errors, name, "candidate_category_missing", category);
     }
@@ -327,7 +361,6 @@ export function validateDocuments(documents, options = {}) {
   const warnings = [];
   const strict = options.strict ?? false;
   validateBenchmarkManifest(documents.benchmark, strict, errors, warnings);
-  validateBaselineProfile(documents.baseline, strict, errors, warnings);
   validateMetricsContract(documents.metrics, errors);
   validateThirdPartyCandidates(documents.thirdParty, errors);
   return { ok: errors.length === 0, errors, warnings };
@@ -386,6 +419,36 @@ export function validateToolchainReports(reports, requiredTargetProfiles, option
       addIssue(errors, document, "report_target", "Target platform/architecture is inconsistent.");
       valid = false;
     }
+    if (targetFacts && report?.readinessScope !== targetFacts.readinessScope) {
+      addIssue(errors, document, "report_scope", "Target readiness scope is inconsistent.");
+      valid = false;
+    }
+    if (
+      targetFacts &&
+      (!isObject(report?.sourceBuild) ||
+        report.sourceBuild.requiredForPoc !== targetFacts.sourceBuildRequiredForPoc ||
+        typeof report.sourceBuild.ready !== "boolean" ||
+        !Array.isArray(report.sourceBuild.checks) ||
+        !Array.isArray(report.sourceBuild.blockers))
+    ) {
+      addIssue(errors, document, "report_source_build", "Source-build status is invalid.");
+      valid = false;
+    } else if (
+      targetFacts &&
+      report.sourceBuild.ready !==
+        (report.sourceBuild.blockers.length === 0 &&
+          report.sourceBuild.checks.every((item) => item?.passed === true))
+    ) {
+      addIssue(errors, document, "report_source_build", "Source-build readiness is inconsistent.");
+      valid = false;
+    }
+    if (
+      targetFacts?.pocArtifact &&
+      !matchesExpectedArtifact(report?.pocArtifact, targetFacts.pocArtifact)
+    ) {
+      addIssue(errors, document, "report_poc_artifact", "Pinned PoC artifact is inconsistent.");
+      valid = false;
+    }
     if (
       report?.privacy?.hostnameRecorded !== false ||
       report?.privacy?.usernameRecorded !== false ||
@@ -439,6 +502,18 @@ export function validateToolchainReports(reports, requiredTargetProfiles, option
   return { ok: errors.length === 0, errors, warnings };
 }
 
+function matchesExpectedArtifact(actual, expected) {
+  return (
+    isObject(actual) &&
+    actual.version === expected.version &&
+    actual.sourceUrl === expected.sourceUrl &&
+    actual.fileName === expected.fileName &&
+    actual.byteSize === expected.byteSize &&
+    actual.sha256 === expected.sha256 &&
+    actual.downloadUrl === expected.downloadUrl
+  );
+}
+
 function containsForbiddenReportData(value, key = "") {
   if (/^(hostname|username|cwd|home)$/i.test(key) || /path$/i.test(key)) {
     return true;
@@ -479,13 +554,10 @@ export async function verifySampleInventory(benchmark, inventory) {
   );
 
   for (const sample of benchmark.samples) {
+    if (sample.evidenceStatus !== "ready") continue;
     const entry = entries.get(sample.sampleId);
     if (!entry) {
       addIssue(errors, "sample-inventory", "sample_missing", sample.sampleId);
-      continue;
-    }
-    if (sample.evidenceStatus !== "ready") {
-      addIssue(errors, "sample-inventory", "sample_evidence_incomplete", sample.sampleId);
       continue;
     }
     await verifyInventoryFile({
@@ -497,13 +569,14 @@ export async function verifySampleInventory(benchmark, inventory) {
       expectedHash: sample.sha256,
       expectedPathCase: sample.pathCase,
     });
-    if (sample.referenceTranscript?.required) {
+    if (sample.comparisonSubtitle !== undefined) {
       await verifyInventoryFile({
         errors,
         sampleId: sample.sampleId,
-        field: "reference",
-        filePath: entry.referenceTranscriptPath,
-        expectedHash: sample.referenceTranscript.sha256,
+        field: "subtitle",
+        filePath: entry.subtitlePath,
+        expectedBytes: sample.comparisonSubtitle.byteSize,
+        expectedHash: sample.comparisonSubtitle.sha256,
       });
     }
   }

@@ -1,91 +1,91 @@
-# Local Subtitle PRE-001 Evidence Baseline
+# Local Subtitle PRE-001 Development Baseline
 
-> Status: tooling and contracts are implemented and the macOS arm64 report is
-> ready; real sample custody, baseline hashes and Windows evidence are pending.
+> Status: completed on 2026-07-16. The three current real samples and all three
+> target-environment reports satisfy the deliberately small PRE-001 gate.
 
-This directory defines the repeatable evidence boundary for PRE-001. It does
-not contain media, transcripts, models, native binaries or credentials.
+This directory records only the engineering facts needed to start the local
+subtitle implementation. Media, subtitle text, models, native binaries,
+machine paths and credentials stay outside Git; machine-local paths live only
+in the ignored `sample-inventory.json.local` file.
+
+## Completion decision
+
+PRE-001 uses the three user-provided samples already available locally:
+
+- one Japanese video with SRT;
+- one Japanese WAV with LRC;
+- one Chinese video with SRT.
+
+Their media can be decoded, their size and SHA-256 values are stable, and the
+subtitle timestamps are valid and remain within the media duration. This is a
+development smoke corpus, not a research benchmark. English is not a separate
+PRE-001 requirement, and there is no independent transcript, CER/WER,
+FasterWhisperGUI snapshot/configuration, CTranslate2 model hash, sample-rights
+audit or exact baseline-output matching gate.
+
+The supplied SRT/LRC files are retained only as user-provided sample subtitle
+artifacts for format/timeline smoke checks and later manual comparison. Their
+text is not treated as ground truth.
 
 ## Files
 
 | File | Purpose |
 | --- | --- |
-| `benchmark-manifest.json` | Required languages, acoustic cases, duration classes and path cases. Evidence fields remain pending until licensed local samples are selected. |
-| `baseline-profile.json` | Fixed neutral `faster-whisper-GUI` comparison parameters. The local application and model hashes must be captured before a benchmark is valid. |
-| `metrics-contract.json` | CER/WER, cue timing, RTF, memory, load/reuse, cancellation, package-size and parse-back definitions. |
-| `third-party-candidates.json` | Candidate upstream versions, declared licenses, decision state and unresolved distribution questions. |
-| `sample-inventory.example.json` | Shape of the machine-local path inventory. An actual inventory must end in `.local` so the repository ignore rule applies. |
-| `clean-room-protocol.md` | Allowed observations and the no-copy/no-credential review gate. |
-| `poc-record-template.md` | Sanitized per-target PoC evidence record. |
-| `reports/` | Committed sanitized toolchain reports; reports never include hostname, username or absolute path. |
+| `benchmark-manifest.json` | Three-sample ja/zh development scope, media integrity and subtitle timeline summaries. |
+| `metrics-contract.json` | Product-oriented runtime, resource, cancellation and SRT/LRC parse-back measurements. |
+| `third-party-candidates.json` | Candidate engine/model/media dependencies and later implementation/distribution decisions. |
+| `sample-inventory.example.json` | Shape of the ignored machine-local media/subtitle path inventory. |
+| `clean-room-protocol.md` | Minimal rule that FusionKit is implemented from its design and public upstream APIs, without copying third-party GUI code. |
+| `poc-record-template.md` | Sanitized runtime PoC evidence template for later PRE work. |
+| `reports/` | Sanitized target reports without hostname, username or absolute paths. |
 
-The deterministic silence sample is generated outside Git and has a committed
-size/hash contract:
+The deterministic silence fixture is generated outside Git:
 
 ```text
 node scripts/local-subtitle/benchmark/generate-synthetic-fixtures.mjs --output <local-directory>
 ```
 
-## Validation levels
+## Validation
 
-Structural validation checks that the committed contracts are internally
-consistent and cover every required scenario. Pending evidence is reported as a
-warning:
+Committed contracts and target reports:
 
 ```text
 node scripts/local-subtitle/benchmark/validate-manifests.mjs
-node --test scripts/local-subtitle/benchmark/generate-synthetic-fixtures.test.mjs scripts/local-subtitle/benchmark/preflight.test.mjs scripts/local-subtitle/benchmark/validate-manifests.test.mjs
 ```
 
-Strict readiness additionally requires every sample to have real duration,
-byte size, SHA-256, license evidence and reference-transcript hash, plus a
-machine-local inventory whose files match those hashes:
+Completed PRE-001 readiness, including physical files from the ignored local
+inventory:
 
 ```text
 node scripts/local-subtitle/benchmark/validate-manifests.mjs --strict --inventory docs/v0.2.11/local-subtitle-transcriber/poc/sample-inventory.json.local
 ```
 
-Strict readiness is expected to fail until the user-owned/licensed corpus is
-selected. Errors only name stable sample IDs; they do not print local paths.
-
-## Toolchain reports
-
-Run the read-only preflight separately on every target profile:
+Tests:
 
 ```text
-node scripts/local-subtitle/benchmark/preflight.mjs --target mac-arm64-metal --output docs/v0.2.11/local-subtitle-transcriber/poc/reports/YYYY-MM-DD_mac-arm64-metal.json
-node scripts/local-subtitle/benchmark/preflight.mjs --target windows-x64-cpu --output docs/v0.2.11/local-subtitle-transcriber/poc/reports/YYYY-MM-DD_windows-x64-cpu.json
-node scripts/local-subtitle/benchmark/preflight.mjs --target windows-x64-cuda --output docs/v0.2.11/local-subtitle-transcriber/poc/reports/YYYY-MM-DD_windows-x64-cuda.json
+node --test scripts/local-subtitle/benchmark/generate-synthetic-fixtures.test.mjs scripts/local-subtitle/benchmark/preflight.test.mjs scripts/local-subtitle/benchmark/validate-manifests.test.mjs
 ```
 
-macOS x64 is intentionally outside the release matrix. Running the preflight
-on that architecture fails with `unsupported_architecture`; there is no macOS
-x64 CPU artifact or Rosetta fallback evidence requirement.
+Validation errors use stable sample IDs and never print local paths.
 
-The script only executes version/probe commands. It does not install software,
-download resources, run pnpm install or modify the lockfile. A missing required
-tool, wrong platform/architecture, pnpm other than 8.7.0 or lockfile other than
-v6 produces a non-zero exit after the report is written.
+## Target reports
 
-The `ffmpeg` and `ffprobe` PATH probes above are development/PRE evidence only.
-They let a PoC workstation exercise media cases before packaged resources
-exist. They are not end-user prerequisites and do not prove release readiness.
-The production app must package audited platform binaries outside asar, resolve
-them from a versioned manifest, and must never fall back to system PATH or a
-user-selected executable.
+The PRE-001 matrix is macOS arm64 Metal, Windows x64 CPU and Windows x64 CUDA.
+macOS x64 is intentionally unsupported.
 
-`package.json` currently has no `packageManager` field. PRE-001 records that as
-a warning; adding `pnpm@8.7.0` metadata should be handled as an explicit
-repository-maintenance change rather than hidden inside native PoC work.
+Windows PRE-001 uses the pinned official `whisper.cpp v1.9.1` release assets.
+The CPU ZIP has a verified SHA-256 and successful `whisper-cli.exe --help`
+launch. The CUDA asset is pinned from official release metadata; actual CUDA
+inference belongs to PRE-003.
 
-## Evidence completion gate
+CMake, MSVC and `nvcc` describe a possible source-build environment. They are
+not required to consume the official Windows prebuilt PoC assets and are not
+PRE-001 or end-user prerequisites. PRE-002 will choose between installing a
+local source toolchain and using a controlled build machine.
 
-PRE-001 remains `进行中` until all of the following are true:
+System FFmpeg/ffprobe are development probes only. The eventual product must
+ship its selected binaries outside asar; redistribution, signing and notices
+remain later release work and are not sample-corpus blockers.
 
-1. Every sample entry is `ready` and strict inventory/hash validation passes.
-2. The reference application snapshot and CTranslate2 `large-v3` hashes are
-   recorded without storing their paths.
-3. Sanitized ready reports exist for macOS arm64, Windows x64 CPU and Windows
-   x64 CUDA; unavailable target machines are not replaced by mocks.
-4. Sample license/source evidence is reviewed and all media stays outside Git.
-5. The structural checks, script tests and `git diff --check` pass.
+PRE-001 is complete. The next work package is PRE-002, the minimal persistent
+CPU runner and JSONL protocol PoC.

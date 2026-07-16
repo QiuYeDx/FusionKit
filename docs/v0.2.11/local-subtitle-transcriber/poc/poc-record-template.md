@@ -8,9 +8,8 @@
 - Target profile:
 - Runner/engine commit:
 - Runner build hash:
-- Model ID and SHA-256:
+- Model ID:
 - Benchmark manifest ID:
-- Baseline profile ID:
 
 ## Sanitized environment
 
@@ -24,9 +23,9 @@ environment dumps.
 
 ## Results
 
-| Sample ID | Outcome | CER | WER | RTF | Cue boundary MAE | Peak RAM | Peak VRAM | Parse-back |
-| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | --- |
-|  |  |  |  |  |  |  |  |  |
+| Sample ID | Outcome | Detected language | RTF | Peak RAM | Peak VRAM | SRT/LRC parse-back | Manual note |
+| --- | --- | --- | ---: | ---: | ---: | --- | --- |
+|  |  |  |  |  |  |  |  |
 
 ## Lifecycle evidence
 
@@ -36,15 +35,14 @@ environment dumps.
 - Runner shutdown and child-process cleanup:
 - Temporary file cleanup:
 
-## Packaging and license evidence
+## Packaging evidence
 
 - Runner/dependency bytes:
-- FFmpeg bytes and configure/license record:
+- FFmpeg bytes and build record:
 - Optional accelerator bytes:
-- Notice/source-offer record:
 
 ## Decision
 
-- Go / No-Go / More evidence required:
-- Failed thresholds:
-- Open questions for PRE-006:
+- Go / No-Go / More implementation required:
+- Failed product checks:
+- Open questions for later PRE work:

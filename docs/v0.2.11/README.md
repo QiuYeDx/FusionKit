@@ -56,6 +56,6 @@ docs/v0.2.11/
 | `openai-api-format-compatibility` | 已完成 `PRE-001`、`CORE-001`、`CORE-002`、`BE-001`、`BE-002`、`BE-003`、`BE-004`、`BE-005`、`FE-001`、`FE-002`、`AGENT-001`、`AGENT-002`、`FIX-001`；`DOC-001` 发布说明部分完成，下一步 `QA-001` / 补齐 README 与隐私说明 | `docs/v0.2.11/openai-api-format-compatibility/openai-api-format-compatibility_execution_plan.md` |
 | `audio-toolkit` | `FIX-001`～`FIX-007`、`AUDIT-001`、`QA-001` 已完成；TypeScript、四语言 i18n、全量 73 files / 560 tests、Vite test build、四路由×四语言×宽窄窗口 Electron 矩阵通过；真实供应商/设备验收保留在 `QA-002` | `docs/v0.2.11/audio-toolkit/audio-toolkit_execution_plan.md` |
 | `audio-toolkit-config-ux-refactor` | `PRE-R01`～`I18N-R01`、`FIX-R06`、`FIX-R07` 已完成；字幕文件翻译与音频 Radio 组共用 `ToolRadioButtonGroup`，跨页计算样式签名验证通过；下一步 `TEST-R01` | `docs/v0.2.11/audio-toolkit/audio-toolkit-config-ux-refactor_execution_plan.md` |
-| `local-subtitle-transcriber` | `PRE-001` 进行中：macOS 仅支持 arm64，且本机工具链报告已 ready；Windows 保留 x64 CPU/CUDA，发布版 FFmpeg 固定内置；真实样本、baseline hash 和 Windows 目标机证据待补齐 | `docs/v0.2.11/local-subtitle-transcriber/local-subtitle-transcriber_execution_plan.md` |
+| `local-subtitle-transcriber` | `PRE-001` 已完成：现有 3 段中/日真实媒体与 SRT/LRC inventory、三份目标环境报告和严格校验均通过；不再要求独立真值、FasterWhisperGUI/CTranslate2 基线或额外场景，下一步 `PRE-002` CPU persistent runner PoC；发布版 FFmpeg 固定内置 | `docs/v0.2.11/local-subtitle-transcriber/local-subtitle-transcriber_execution_plan.md` |
 
 收到新的具体迭代需求后，在本目录下新增 `<feature-slug>/` 并补齐设计文档与执行计划。

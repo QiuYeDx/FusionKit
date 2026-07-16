@@ -4,11 +4,11 @@
 >
 > Feature Slug：`local-subtitle-transcriber`
 >
-> 状态：调研与 Final Design 已完成；`PRE-001` 证据基线实施中，尚未进入 native/runtime/UI 实现
+> 状态：调研与 Final Design 已完成；`PRE-001` 已完成，下一步进入 `PRE-002` CPU persistent runner PoC
 >
 > 产品定位：使用本地算力把批量音频/视频转成可直接翻译的 SRT/LRC 字幕
 >
-> 参考项目：本地只读快照 `faster-whisper-GUI-main`（机器绝对路径不写入仓库）
+> 历史调研输入：`faster-whisper-GUI-main`；FusionKit 不复刻该应用，也不依赖其快照、配置、模型或输出一致性
 >
 > 2026-07-16 修订：补充“仅导出 / 自动加入字幕翻译队列 / 自动加入并开始翻译”三种后处理模式及配置快照边界
 >
@@ -16,9 +16,11 @@
 >
 > 2026-07-16 审查修订：补齐部分导出、会话重同步、资源任务、协议取消、无模型入队和 Agent/恢复消费者迁移合同；修正实际共享组件名与打包边界
 >
-> 2026-07-16 实施进展：已建立 PRE-001 清单合同、只读工具链预检与严格样本哈希门禁，本机 macOS arm64 报告已 ready；真实样本、baseline 哈希和 Windows 目标机证据仍待补齐
+> 2026-07-16 实施进展：PRE-001 已按产品开发目标收口并完成；macOS arm64 source-build 与 Windows x64 CPU/CUDA 官方预编译三份 scoped 报告均 ready，3 段中/日真实语料及对应 SRT/LRC 的本机 integrity/timeline inventory 和严格校验通过
 >
 > 2026-07-16 范围变更：macOS 仅支持 arm64；删除 macOS x64 产物与验收。发布版 FFmpeg/ffprobe 固定随应用打包，用户无需安装系统 FFmpeg
+>
+> 2026-07-16 PRE-001 收口：现有 3 个样本即为开发启动范围；不要求英文/额外声学场景、独立校对真值、样本权利审计、FasterWhisperGUI 快照/配置、CTranslate2 `large-v3` hash 或输出一致性
 
 ---
 
@@ -39,7 +41,7 @@ FusionKit 应新增一个独立的“本地字幕转写”工具，而不是扩�
 6. 首版核心产物是标准 SRT 和标准行级 LRC；VTT、TXT、详细 JSON 可作为扩展导出。增强型逐词 LRC 单独标记，不直接送入现有字幕翻译器。
 7. 转写完成后既可只导出 SRT/LRC，也可选择自动加入字幕翻译任务列表，并进一步选择是否自动开始翻译。交接必须通过会话级 `artifactRef`、一次性 `translationImportToken` 和字幕翻译模块自有的导入协调器完成；本地转写工具不得直接读写字幕翻译器 Store。自动执行默认关闭，只有用户显式选择“自动加入并开始翻译”时才允许产生外部 API 费用。
 8. 模型不放进安装包。模型、VAD 模型和可选 Windows 加速包按需下载到 `app.getPath("userData")` 下，支持断点续传、校验、删除和导入本地模型；平台 runner 与经审计的 FFmpeg/ffprobe 则作为安装包内、asar 外的受控资源发布，最终来源与构建方式由 PRE-006 冻结。
-9. `faster-whisper-GUI-main` 仅作为行为与参数研究来源，不复制代码。该参考项目为 AGPL-3.0，而 FusionKit 当前为 PolyForm-Noncommercial-1.0.0；直接复制或改造其代码会引入明显的许可证风险。
+9. `faster-whisper-GUI-main` 只保留为历史调研背景，不复制代码，也不作为运行时、模型格式、参数或验收基线。FusionKit 按自己的产品目标和 whisper.cpp 公开接口独立实现。
 
 ## 1. 背景、目标与边界
 
@@ -258,6 +260,11 @@ LoadModelWorker
 ### 5.3 首版不直接使用 stock whisper-cli
 
 PoC 可以用 `whisper-cli` 验证模型、GPU和输出，但正式产品不应依赖：
+
+Windows PRE-001/PRE-003 的 stock CLI PoC 固定使用 `whisper.cpp v1.9.1`
+官方 x64 预编译资产并校验 filename/size/SHA-256。该路径不要求本机 CMake、
+MSVC 或 `nvcc`；这些只属于 PRE-002/FusionKit 自有 runner 的 source-build
+能力，可由本机或后续冻结的受控构建机提供，也不得成为最终用户前置。
 
 - 控制台文案和 stderr 格式不是稳定协议。
 - CLI 每个进程通常重新加载模型，不适合批处理复用 `large-v3`。
@@ -1235,20 +1242,19 @@ resources/local-subtitle/
 
 ## 18. 分期实施建议（高层阶段）
 
-本节保留架构层面的阶段划分；可认领的工作包、依赖、状态、验证和实施记录以 `local-subtitle-transcriber_execution_plan.md` 为唯一执行台账。Execution Plan 已于 2026-07-16 建立，当前 `PRE-001` 为 `进行中`，其余工作包仍为 `未开始`。
+本节保留架构层面的阶段划分；可认领的工作包、依赖、状态、验证和实施记录以 `local-subtitle-transcriber_execution_plan.md` 为唯一执行台账。Execution Plan 已于 2026-07-16 建立，当前 `PRE-001` 已完成，`PRE-002` 为下一工作包。
 
 其中本节原先汇总为一个 `PRE-001` 的跨平台 PoC，在 Execution Plan 中拆为 `PRE-001`～`PRE-006`，以避免把基准、CPU runner、Windows CUDA、macOS Metal、FFmpeg/打包许可和最终技术冻结塞进一个无法单会话闭环的工作包。其余高层包也在执行计划中按安全边界和可验证纵向切片进一步拆分。
 
-### PRE-001：跨平台技术 PoC
+### PRE-001：开发启动基线（已完成）
 
-- 固定 `whisper.cpp` 版本/commit。
-- 在 Windows x64 NVIDIA/CPU 与 macOS arm64 Metal/CPU fallback 上运行同一批样本。
-- 验证 `large-v3`、VAD、词时间戳、progress、abort 和模型重复使用。
-- 验证 FFmpeg 音频/视频转码、中文/日文路径和长路径。
-- 产出真实 RTF、峰值内存/显存、启动时间、准确度和包体数据。
-- 决定 Windows CUDA runtime 是随包、可选 pack 还是要求系统环境。
+- 固定 3 段中/日真实样本的媒体 integrity 和 SRT/LRC 时间轴摘要。
+- 验证 macOS arm64、Windows x64 CPU/CUDA 三个目标环境在各自声明 scope 下 ready。
+- 固定 Windows 官方 `whisper.cpp v1.9.1` CPU/CUDA PoC 资产；CPU ZIP 完成 hash/help launch smoke。
+- 明确 CMake/MSVC 不是 PRE-001 或最终用户前置，是否本机构建由 PRE-002 决定。
+- 明确现有字幕只用于格式/时间轴 smoke 与人工对照，不做 FasterWhisperGUI 一致性或文本准确率基线。
 
-只有 PRE-001 通过后才冻结正式架构中的 runner build 和模型清单。
+PRE-001 已解锁 runner 开发；正式 runner build、模型清单和分发结论仍在 PRE-002～PRE-006 用实际产物逐步确定，并由 PRE-006 冻结。
 
 ### CORE-001：类型、协议与安全边界
 
@@ -1308,26 +1314,25 @@ resources/local-subtitle/
 
 ## 19. 验证与验收策略
 
-### 19.1 PoC 对比语料
+### 19.1 PoC 开发语料
 
-使用用户实际“烤肉”场景构建脱敏样本集：
+使用用户当前提供的 3 段实际“烤肉”场景作为开发样本集：
 
-- 日语动画/访谈。
-- 英语播客/演讲。
-- 中文对话。
-- 含 BGM、长静音、多人抢话、专有名词、低音量和噪声的样本。
-- 短文件、1 小时以上长文件、视频容器和非 ASCII 路径。
+- 日文视频与 SRT。
+- 日文 WAV 与 LRC。
+- 中文视频与 SRT。
+- 三者均以非 ASCII 文件名验证路径处理；媒体和字幕正文不进入 Git。
 
-同一 `large-v3`、尽量等价参数下对比现有 faster-whisper-GUI 基线：
+在后续真实 runner 上记录产品需要的事实：
 
-- CER/WER。
 - 语言检测。
-- cue 数量、边界偏差、时间轴单调性。
+- SRT/LRC 可回读和时间轴单调性。
 - 实时系数 RTF。
 - 峰值 RAM/VRAM。
 - 模型首次/再次加载时间。
+- 中文、日文输出供用户人工确认是否可用。
 
-建议初始门槛：完整 `large-v3` 的 CER/WER 不比现有基线恶化超过 2 个百分点；所有输出格式 100% 可回读；声明支持的 GPU 目标机 RTF 小于 1。若硬件不满足速度门槛，UI 必须如实标记 CPU/低性能 fallback，不伪装成 GPU 成功。
+初始门槛：所有输出格式 100% 可回读；声明支持的 GPU 目标机 RTF 小于 1；中文和日文结果由用户在实际产品中人工确认可用。若硬件不满足速度门槛，UI 必须如实标记 CPU/低性能 fallback，不伪装成 GPU 成功。
 
 ### 19.2 单元与合同测试
 
@@ -1371,7 +1376,7 @@ Electron 视觉/交互验证必须等待 preload loading 完全退出。若启�
 | --- | --- |
 | 把新工具做成 AudioTranscriber 的 local provider | 禁止；独立 route、Store、IPC、runtime、队列和配置 |
 | macOS faster-whisper 无 GPU | 首版统一使用 whisper.cpp；Apple Silicon 用 Metal |
-| Windows CUDA 运行库导致包体和安装失败 | PRE-001 验证签名可选 accelerator pack；CPU runner 保底 |
+| Windows CUDA 运行库导致包体和安装失败 | PRE-003/PRE-005 验证签名可选 accelerator pack；CPU runner 保底，PRE-006 冻结结论 |
 | 每个文件重载 large-v3 太慢 | 持久 runner，批次内模型驻留 |
 | 解析 stock CLI 日志随上游变化 | 自有 JSONL runner 协议，固定 engine commit |
 | 模型数 GB 拉大安装包 | 按需下载、续传、SHA-256、用户可删除/导入 |
@@ -1417,12 +1422,12 @@ Electron 视觉/交互验证必须等待 preload loading 完全退出。若启�
 
 ## 22. 推荐下一步
 
-先做 `PRE-001`，不要直接展开完整页面开发。PoC 最少回答五个问题：
+`PRE-001` 已完成。接下来从 `PRE-002` 开始用真实 runner 逐步回答五个问题：
 
-1. 同一份 `large-v3` GGML 模型在目标 Windows NVIDIA 和 macOS Apple Silicon 上的准确度、RTF、RAM/VRAM 是否满足预期。
+1. 公开 GGML 模型在目标 Windows NVIDIA 和 macOS Apple Silicon 上能否输出可用中/日字幕，RTF、RAM/VRAM 是否满足预期。
 2. Metal/CUDA runner 如何进入签名后的 Electron 安装包，Windows CUDA runtime 最终采用哪种分发方式。
 3. persistent runner 的 progress、segment、abort 和模型复用是否稳定。
 4. 内置 FFmpeg 处理目标视频格式、中文/日文路径和长媒体是否稳定，许可证方案是否可发布，并且在系统 FFmpeg 隔离时仍可运行、内置资源损坏时能在入队前阻断并引导修复。
 5. 标准 SRT/LRC 是否能通过 session `artifactRef` + one-shot `translationImportToken` 按三种模式完成交接，正确冻结字幕翻译当前配置，并在自动模式下只启动本次成功导入的任务。
 
-具体下一步以 Execution Plan 为准：继续 `PRE-001`，补齐真实样本/参考 baseline 哈希与 Windows CPU/CUDA 目标机报告，并完善本机 macOS arm64 工具链；严格清单和目标工具链门禁全部通过前不得进入 `PRE-002`。`PRE-001`～`PRE-006` 全部通过并完成技术冻结后，才进入正式 CORE/NATIVE/runtime/UI 实现。
+具体下一步以 Execution Plan 为准：进入 `PRE-002`，实现最小 CPU persistent runner 和 JSONL 协议，并连续处理至少两个现有样本。可从公开模型站点取得 GGML 模型；文件 hash 只用于下载完整性，不是复刻基线。PRE-002 再按实现需要选择本机 CMake/MSVC 或受控构建机。`PRE-002`～`PRE-006` 完成技术冻结后，再进入正式 CORE/NATIVE/runtime/UI 实现。

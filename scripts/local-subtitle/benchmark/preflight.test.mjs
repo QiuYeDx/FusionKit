@@ -4,6 +4,7 @@ import {
   TARGET_PROFILES,
   buildToolchainReport,
   inferTargetId,
+  minimalProbeEnvironment,
 } from "./preflight.mjs";
 
 const REPOSITORY = {
@@ -57,6 +58,9 @@ test("accepts a complete macOS arm64 Metal toolchain without recording command p
 
   assert.equal(report.ready, true);
   assert.equal(report.blockers.length, 0);
+  assert.equal(report.readinessScope, "source_build_poc");
+  assert.equal(report.sourceBuild.requiredForPoc, true);
+  assert.equal(report.sourceBuild.ready, true);
   assert.equal(report.tools.metalCompiler.status, "available");
   assert.equal(probeOptions.get("ffmpeg").timeoutMs, 15_000);
   assert.equal(probeOptions.get("ffprobe").timeoutMs, 15_000);
@@ -89,9 +93,9 @@ test("reports every missing required tool as an explicit blocker", () => {
   }
 });
 
-test("keeps Windows CUDA requirements separate from the macOS profile", () => {
+test("pins the official Windows CUDA asset separately from the macOS profile", () => {
   const windowsTools = {
-    "pnpm --version": success("8.7.0"),
+    "cmd.exe /d /s /c pnpm.cmd --version": success("8.7.0"),
     "cmake --version": success("cmake version 4.1.0"),
     "cl ": {
       exitCode: 2,
@@ -114,8 +118,66 @@ test("keeps Windows CUDA requirements separate from the macOS profile", () => {
   });
 
   assert.equal(report.ready, true);
+  assert.equal(report.readinessScope, "official_prebuilt_release_asset");
+  assert.equal(report.sourceBuild.requiredForPoc, false);
+  assert.equal(report.sourceBuild.ready, true);
   assert.equal("xcodebuild" in report.tools, false);
   assert.equal(report.tools.nvcc.version, "13.0");
+  assert.equal(report.tools.pnpm.version, "8.7.0");
+  assert.equal(report.pocArtifact.fileName, "whisper-cublas-12.4.0-bin-x64.zip");
+  assert.equal(
+    report.pocArtifact.sha256,
+    "106a2030eff8998e4ef320fe72e263a78449e9040386ee27c41ea80b001b601b",
+  );
+});
+
+test("does not block a Windows prebuilt PoC on missing source-build tools", () => {
+  const report = buildToolchainReport({
+    targetId: "windows-x64-cuda",
+    platform: "win32",
+    arch: "x64",
+    nodeVersion: "v20.19.5",
+    repositoryMetadata: REPOSITORY,
+    availableDiskBytes: 100_000_000_000,
+    runner: fakeRunner({
+      "cmd.exe /d /s /c pnpm.cmd --version": success("8.7.0"),
+      "ffmpeg -hide_banner -version": success("ffmpeg version 8.1.2"),
+      "ffprobe -hide_banner -version": success("ffprobe version 8.1.2"),
+      "nvidia-smi --query-gpu=driver_version --format=csv,noheader":
+        success("610.62"),
+    }),
+  });
+
+  assert.equal(report.ready, true);
+  assert.equal(report.blockers.length, 0);
+  assert.equal(report.sourceBuild.ready, false);
+  assert.deepEqual(
+    report.sourceBuild.blockers.map((blocker) => blocker.code),
+    ["tool_cmake", "tool_msvc", "tool_nvcc"],
+  );
+  assert.equal(report.checks.some((check) => check.id === "tool_cmake"), false);
+  assert.ok(
+    report.warnings.some(
+      (warning) => warning.code === "source_build_toolchain_incomplete",
+    ),
+  );
+});
+
+test("keeps only the Windows system locations required by native probes", () => {
+  const environment = minimalProbeEnvironment({
+    PATH: "safe-path",
+    PATHEXT: ".EXE;.CMD",
+    SystemRoot: "C:\\Windows",
+    ProgramFiles: "C:\\Program Files",
+    ProgramW6432: "C:\\Program Files",
+    USERPROFILE: "C:\\Users\\private",
+    OPENAI_API_KEY: "must-not-leak",
+  });
+
+  assert.equal(environment.ProgramFiles, "C:\\Program Files");
+  assert.equal(environment.ProgramW6432, "C:\\Program Files");
+  assert.equal("USERPROFILE" in environment, false);
+  assert.equal("OPENAI_API_KEY" in environment, false);
 });
 
 test("rejects a pnpm version that could rewrite the v6 lockfile", () => {

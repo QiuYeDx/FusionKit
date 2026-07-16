@@ -2,10 +2,7 @@
   "schemaVersion": 1,
   "contractId": "local-subtitle-poc-metrics-v1",
   "requiredMetricIds": [
-    "cer",
-    "wer",
     "language_detection_match",
-    "cue_boundary_mae_ms",
     "rtf",
     "peak_ram_bytes",
     "peak_vram_bytes",
@@ -18,32 +15,11 @@
   ],
   "metrics": [
     {
-      "id": "cer",
-      "unit": "ratio",
-      "scope": "sample",
-      "formula": "levenshtein(normalized_reference_characters, normalized_hypothesis_characters) / reference_character_count",
-      "lowerIsBetter": true
-    },
-    {
-      "id": "wer",
-      "unit": "ratio",
-      "scope": "sample",
-      "formula": "levenshtein(normalized_reference_words, normalized_hypothesis_words) / reference_word_count",
-      "lowerIsBetter": true
-    },
-    {
       "id": "language_detection_match",
       "unit": "boolean",
       "scope": "sample",
-      "formula": "detected_language equals manifest language when the manifest language is not und or multilingual",
+      "formula": "detected_language equals manifest language when the manifest language is not und",
       "lowerIsBetter": false
-    },
-    {
-      "id": "cue_boundary_mae_ms",
-      "unit": "milliseconds",
-      "scope": "sample",
-      "formula": "mean absolute error across aligned cue start and end boundaries",
-      "lowerIsBetter": true
     },
     {
       "id": "rtf",
@@ -84,7 +60,7 @@
       "id": "cancel_latency_ms",
       "unit": "milliseconds",
       "scope": "run",
-      "formula": "target transcribe cancelled terminal time minus cancel request time",
+      "formula": "cancelled terminal time minus cancel request time",
       "lowerIsBetter": true
     },
     {
@@ -116,8 +92,7 @@
       "sample_id",
       "engine_commit",
       "runner_build_hash",
-      "model_sha256",
-      "baseline_profile_id",
+      "model_id",
       "started_at",
       "completed_at"
     ],
