@@ -1,0 +1,207 @@
+{
+  "schemaVersion": 1,
+  "manifestId": "local-subtitle-poc-v1",
+  "status": "pending_local_evidence",
+  "requiredTargetProfiles": [
+    "mac-arm64-metal",
+    "windows-x64-cpu",
+    "windows-x64-cuda"
+  ],
+  "mediaPolicy": {
+    "commitMediaToRepository": false,
+    "commitReferenceTranscriptsToRepository": false,
+    "recordOnly": [
+      "stable_sha256",
+      "byte_size",
+      "duration_ms",
+      "license_evidence",
+      "source_description",
+      "local_storage_key"
+    ]
+  },
+  "requiredCoverage": {
+    "languages": ["ja", "en", "zh"],
+    "acousticConditions": [
+      "bgm",
+      "long_silence",
+      "noise",
+      "overlapping_speech",
+      "low_volume",
+      "silence_only"
+    ],
+    "containerKinds": ["audio", "video"],
+    "durationClasses": ["short", "medium", "long"],
+    "pathCases": ["ascii", "non_ascii"]
+  },
+  "durationClassRules": {
+    "short": {
+      "minInclusiveMs": 1,
+      "maxExclusiveMs": 120000
+    },
+    "medium": {
+      "minInclusiveMs": 120000,
+      "maxExclusiveMs": 3600000
+    },
+    "long": {
+      "minInclusiveMs": 3600000,
+      "maxExclusiveMs": null
+    }
+  },
+  "samples": [
+    {
+      "sampleId": "ja-animation-bgm-short",
+      "evidenceStatus": "pending_evidence",
+      "language": "ja",
+      "containerKind": "video",
+      "durationClass": "short",
+      "pathCase": "non_ascii",
+      "acousticConditions": ["bgm"],
+      "durationMs": null,
+      "byteSize": null,
+      "sha256": null,
+      "localStorageKey": "LOCAL_SUBTITLE_SAMPLE_ROOT/ja-animation-bgm-short",
+      "referenceTranscript": {
+        "required": true,
+        "sha256": null,
+        "normalization": "unicode_nfc_lf_trimmed_lines"
+      },
+      "license": {
+        "evidenceStatus": "pending",
+        "classification": "user_owned_or_licensed",
+        "sourceDescription": "pending local evidence",
+        "redistribution": "not_committed",
+        "evidenceRef": "pending"
+      }
+    },
+    {
+      "sampleId": "ja-interview-silence-medium",
+      "evidenceStatus": "pending_evidence",
+      "language": "ja",
+      "containerKind": "audio",
+      "durationClass": "medium",
+      "pathCase": "ascii",
+      "acousticConditions": ["long_silence"],
+      "durationMs": null,
+      "byteSize": null,
+      "sha256": null,
+      "localStorageKey": "LOCAL_SUBTITLE_SAMPLE_ROOT/ja-interview-silence-medium",
+      "referenceTranscript": {
+        "required": true,
+        "sha256": null,
+        "normalization": "unicode_nfc_lf_trimmed_lines"
+      },
+      "license": {
+        "evidenceStatus": "pending",
+        "classification": "user_owned_or_licensed",
+        "sourceDescription": "pending local evidence",
+        "redistribution": "not_committed",
+        "evidenceRef": "pending"
+      }
+    },
+    {
+      "sampleId": "en-podcast-long",
+      "evidenceStatus": "pending_evidence",
+      "language": "en",
+      "containerKind": "audio",
+      "durationClass": "long",
+      "pathCase": "ascii",
+      "acousticConditions": ["long_silence"],
+      "durationMs": null,
+      "byteSize": null,
+      "sha256": null,
+      "localStorageKey": "LOCAL_SUBTITLE_SAMPLE_ROOT/en-podcast-long",
+      "referenceTranscript": {
+        "required": true,
+        "sha256": null,
+        "normalization": "unicode_nfc_lf_trimmed_lines"
+      },
+      "license": {
+        "evidenceStatus": "pending",
+        "classification": "user_owned_or_licensed",
+        "sourceDescription": "pending local evidence",
+        "redistribution": "not_committed",
+        "evidenceRef": "pending"
+      }
+    },
+    {
+      "sampleId": "zh-dialogue-noise-medium",
+      "evidenceStatus": "pending_evidence",
+      "language": "zh",
+      "containerKind": "video",
+      "durationClass": "medium",
+      "pathCase": "non_ascii",
+      "acousticConditions": ["noise", "overlapping_speech"],
+      "durationMs": null,
+      "byteSize": null,
+      "sha256": null,
+      "localStorageKey": "LOCAL_SUBTITLE_SAMPLE_ROOT/zh-dialogue-noise-medium",
+      "referenceTranscript": {
+        "required": true,
+        "sha256": null,
+        "normalization": "unicode_nfc_lf_trimmed_lines"
+      },
+      "license": {
+        "evidenceStatus": "pending",
+        "classification": "user_owned_or_licensed",
+        "sourceDescription": "pending local evidence",
+        "redistribution": "not_committed",
+        "evidenceRef": "pending"
+      }
+    },
+    {
+      "sampleId": "multilingual-low-volume-short",
+      "evidenceStatus": "pending_evidence",
+      "language": "multilingual",
+      "containerKind": "audio",
+      "durationClass": "short",
+      "pathCase": "ascii",
+      "acousticConditions": ["low_volume"],
+      "durationMs": null,
+      "byteSize": null,
+      "sha256": null,
+      "localStorageKey": "LOCAL_SUBTITLE_SAMPLE_ROOT/multilingual-low-volume-short",
+      "referenceTranscript": {
+        "required": true,
+        "sha256": null,
+        "normalization": "unicode_nfc_lf_trimmed_lines"
+      },
+      "license": {
+        "evidenceStatus": "pending",
+        "classification": "user_owned_or_licensed",
+        "sourceDescription": "pending local evidence",
+        "redistribution": "not_committed",
+        "evidenceRef": "pending"
+      }
+    },
+    {
+      "sampleId": "synthetic-silence-short",
+      "evidenceStatus": "ready",
+      "language": "und",
+      "containerKind": "audio",
+      "durationClass": "short",
+      "pathCase": "non_ascii",
+      "acousticConditions": ["silence_only"],
+      "durationMs": 10000,
+      "byteSize": 320044,
+      "sha256": "ee7bea4232762775f8fce9b3e27e4d3948c8ac6a45a87ca769f703d6eed0b448",
+      "localStorageKey": "LOCAL_SUBTITLE_SAMPLE_ROOT/synthetic-silence-short",
+      "generator": {
+        "script": "scripts/local-subtitle/benchmark/generate-synthetic-fixtures.mjs",
+        "fixtureVersion": 1,
+        "relativeFileName": "synthetic-\u9759\u97f3-10s.wav"
+      },
+      "referenceTranscript": {
+        "required": false,
+        "sha256": null,
+        "normalization": "not_applicable"
+      },
+      "license": {
+        "evidenceStatus": "verified",
+        "classification": "deterministic_synthetic",
+        "sourceDescription": "Original deterministic PCM silence generated by the FusionKit PRE-001 script.",
+        "redistribution": "not_committed",
+        "evidenceRef": "generate-synthetic-fixtures.mjs#fixture-v1"
+      }
+    }
+  ]
+}

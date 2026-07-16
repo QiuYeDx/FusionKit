@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "manifestId": "local-subtitle-poc-v1",
+  "files": [
+    {
+      "sampleId": "ja-animation-bgm-short",
+      "mediaPath": "REPLACE_WITH_ABSOLUTE_MEDIA_PATH",
+      "referenceTranscriptPath": "REPLACE_WITH_ABSOLUTE_REFERENCE_PATH"
+    },
+    {
+      "sampleId": "ja-interview-silence-medium",
+      "mediaPath": "REPLACE_WITH_ABSOLUTE_MEDIA_PATH",
+      "referenceTranscriptPath": "REPLACE_WITH_ABSOLUTE_REFERENCE_PATH"
+    },
+    {
+      "sampleId": "en-podcast-long",
+      "mediaPath": "REPLACE_WITH_ABSOLUTE_MEDIA_PATH",
+      "referenceTranscriptPath": "REPLACE_WITH_ABSOLUTE_REFERENCE_PATH"
+    },
+    {
+      "sampleId": "zh-dialogue-noise-medium",
+      "mediaPath": "REPLACE_WITH_ABSOLUTE_MEDIA_PATH",
+      "referenceTranscriptPath": "REPLACE_WITH_ABSOLUTE_REFERENCE_PATH"
+    },
+    {
+      "sampleId": "multilingual-low-volume-short",
+      "mediaPath": "REPLACE_WITH_ABSOLUTE_MEDIA_PATH",
+      "referenceTranscriptPath": "REPLACE_WITH_ABSOLUTE_REFERENCE_PATH"
+    },
+    {
+      "sampleId": "synthetic-silence-short",
+      "mediaPath": "REPLACE_WITH_ABSOLUTE_MEDIA_PATH"
+    }
+  ]
+}

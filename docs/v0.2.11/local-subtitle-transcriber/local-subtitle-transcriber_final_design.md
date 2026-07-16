@@ -4,7 +4,7 @@
 >
 > Feature Slug：`local-subtitle-transcriber`
 >
-> 状态：调研与 Final Design 已完成，Execution Plan 已建立；尚未进入代码实现
+> 状态：调研与 Final Design 已完成；`PRE-001` 证据基线实施中，尚未进入 native/runtime/UI 实现
 >
 > 产品定位：使用本地算力把批量音频/视频转成可直接翻译的 SRT/LRC 字幕
 >
@@ -15,6 +15,10 @@
 > 2026-07-16 计划：已创建 `local-subtitle-transcriber_execution_plan.md`；审查后拆分为 38 个实现/验收工作包
 >
 > 2026-07-16 审查修订：补齐部分导出、会话重同步、资源任务、协议取消、无模型入队和 Agent/恢复消费者迁移合同；修正实际共享组件名与打包边界
+>
+> 2026-07-16 实施进展：已建立 PRE-001 清单合同、只读工具链预检与严格样本哈希门禁，本机 macOS arm64 报告已 ready；真实样本、baseline 哈希和 Windows 目标机证据仍待补齐
+>
+> 2026-07-16 范围变更：macOS 仅支持 arm64；删除 macOS x64 产物与验收。发布版 FFmpeg/ffprobe 固定随应用打包，用户无需安装系统 FFmpeg
 
 ---
 
@@ -29,7 +33,7 @@ FusionKit 应新增一个独立的“本地字幕转写”工具，而不是扩�
 3. 新工具拥有独立页面、Store、类型、preload bridge、IPC 命名空间、任务队列、模型管理器、本地运行时和导出器。两者只复用无业务语义的基础设施与实现经验，例如工具页布局、文件授权模式、输出目录授权模式、按钮组和错误展示组件。
 4. 首版统一推理后端推荐 `whisper.cpp`，而不是把 Python `faster-whisper` 直接嵌入 FusionKit：
    - Windows x64 可使用 NVIDIA CUDA，并保留 CPU fallback。
-   - macOS Apple Silicon 可使用 Metal；Intel Mac 提供 CPU fallback，但不承诺与 Apple Silicon 相同的速度。
+   - macOS 仅发布 arm64 runner，优先使用 Metal；同一 arm64 产物保留可见、可确认的 CPU fallback。macOS x64 直接返回 `unsupported_architecture`。
    - 同一后端可运行 Whisper `large-v3`，并支持量化模型、VAD、进度回调、段/词时间戳。
 5. 不把上游 `whisper-cli` 的控制台文本当作正式协议。FusionKit 应维护一个很薄的原生 sidecar runner，固定链接经过验证的 `whisper.cpp` 版本，通过 JSONL 与 Electron main 通信。
 6. 首版核心产物是标准 SRT 和标准行级 LRC；VTT、TXT、详细 JSON 可作为扩展导出。增强型逐词 LRC 单独标记，不直接送入现有字幕翻译器。
@@ -56,7 +60,7 @@ FusionKit 应新增一个独立的“本地字幕转写”工具，而不是扩�
 ### 1.2 目标
 
 1. 在 FusionKit 内选择多个本地音频/视频文件，使用本地 Whisper 模型批量转写。
-2. Windows 优先使用 NVIDIA GPU，macOS Apple Silicon 使用 Metal，同时保留 CPU fallback。
+2. Windows x64 优先使用 NVIDIA GPU并保留 CPU fallback；macOS arm64 优先使用 Metal，并在同一架构内保留 CPU fallback。
 3. 支持 Whisper `large-v3`，并允许用户显式选择资源占用更低的量化或 turbo 变体。
 4. 生成带稳定时间轴的 SRT/LRC，可直接进入 FusionKit 字幕翻译。
 5. 支持语言自动检测、初始提示词、VAD、段级/词级时间戳、字幕整形、取消和逐文件失败隔离。
@@ -73,7 +77,7 @@ FusionKit 应新增一个独立的“本地字幕转写”工具，而不是扩�
 4. 首版不支持任务在单个文件中间断点续跑；应用重启后可保留已完成产物，但未完成文件从头开始。
 5. 首版不默认自动启动字幕翻译；只有用户在本地转写批次中显式启用“自动加入并开始翻译”后，才可按字幕翻译工具的配置调用外部模型 API。
 6. 不承诺所有 Windows AMD/Intel GPU 在首版都获得稳定加速；首版保证 CPU fallback，Vulkan 可作为后续加速包。
-7. 首版不支持 Linux、Windows arm64 或 macOS 以外的平台/架构；探测到不在发布矩阵内的环境时返回稳定的 `unsupported_platform` / `unsupported_architecture`，不能尝试加载相近架构资源。
+7. 首版发布矩阵仅包含 Windows x64 与 macOS arm64；不支持 Linux、Windows arm64、macOS x64 或其他平台/架构。探测到矩阵外环境时返回稳定的 `unsupported_platform` / `unsupported_architecture`，不能尝试加载相近架构资源或通过 Rosetta 兜底。
 
 ## 2. 与现有远端 ASR 的强制隔离边界
 
@@ -224,7 +228,7 @@ LoadModelWorker
 
 ### 5.2 为什么推荐 whisper.cpp
 
-`whisper.cpp` 官方 README 明确列出 Windows、macOS Intel/Arm、CPU、NVIDIA GPU、Vulkan，以及 Apple Silicon 的 Metal/Core ML 优化。它的 C API 提供 progress callback、new segment callback 和 abort callback，适合建立稳定的 FusionKit runner，而不是解析 CLI 日志。
+`whisper.cpp` 官方 README 明确列出 Windows、macOS、CPU、NVIDIA GPU、Vulkan，以及 Apple Silicon 的 Metal/Core ML 优化。FusionKit 的首发子集只取 Windows x64 与 macOS arm64。它的 C API 提供 progress callback、new segment callback 和 abort callback，适合建立稳定的 FusionKit runner，而不是解析 CLI 日志。
 
 当前上游还提供：
 
@@ -345,7 +349,7 @@ interface LocalSubtitleEngineAdapter {
 2. 当前平台和架构。
 3. 可用 backend：CUDA、Metal、CPU；Vulkan 如未发布则不显示。
 4. 已安装模型、模型校验状态和磁盘占用。
-5. FFmpeg 是否可用。
+5. 随应用打包的 FFmpeg/ffprobe 是否完整、架构匹配、哈希正确且可启动。
 
 状态必须是可执行探测的结果，不展示无法更新的“未验证”徽标。
 
@@ -607,6 +611,9 @@ type LocalSubtitleErrorCode =
   | "runtime_protocol_mismatch"
   | "runtime_crashed"
   | "runtime_unresponsive"
+  | "media_runtime_missing"
+  | "media_runtime_invalid"
+  | "media_runtime_launch_failed"
   | "accelerator_unavailable"
   | "backend_mismatch"
   | "model_missing"
@@ -644,6 +651,8 @@ type LocalSubtitleErrorCode =
   | "estimate_failed"
   | "start_rejected";
 ```
+
+`runtime_*` 指 runner；`media_runtime_*` 专指随应用发布的 FFmpeg/ffprobe。`media_runtime_missing` 表示必需文件或 manifest 项缺失，`media_runtime_invalid` 表示 manifest、平台/架构、大小、SHA-256 或签名校验失败，`media_runtime_launch_failed` 表示文件通过静态校验但进程无法启动或版本探测失败。这三类错误都必须在任务入队前阻断转写，不能到媒体处理阶段才让一批任务逐个失败。
 
 错误 envelope 还必须包含 `stage`、`retryable`、受控 `details` 和可选 `causeCode`，并对未知 runner/FFmpeg 诊断映射为最近的稳定 code。主错误文案可操作；stderr、退出码、backend 和阶段进入折叠技术详情。不得把完整命令行、用户路径、媒体内容、API Key 或下载授权 header 直接显示或写日志；diagnostics 有固定字节/行数上限，截断必须显式标记。
 
@@ -792,10 +801,11 @@ Resource manager 是 app-scoped，但 job/event 仍 owner-bound。同一 `resour
 | 平台 | 基础 runner | 加速策略 |
 | --- | --- | --- |
 | Windows x64 | CPU runner 随应用 | 签名且校验的 CUDA accelerator pack 按需安装；后续 Vulkan |
-| macOS arm64 | Metal runner 随应用 | 首版 Metal；Core ML encoder 作为后续可选模型资源 |
-| macOS x64 | CPU runner 随应用 | 不承诺 GPU 加速 |
+| macOS arm64 | Metal-enabled runner 随应用 | 首版 Metal；同一 arm64 build 可显式回退 CPU，Core ML encoder 作为后续可选模型资源 |
 
 Windows CUDA runtime/DLL 的可再分发范围、包体和签名需要在 PRE PoC 中单独确认。不能把“开发机安装了 CUDA 所以可用”当作发行方案。
+
+macOS x64 不生成 runner、模型加速包或安装产物；平台探测必须在资源解析前返回 `unsupported_architecture`。
 
 accelerator pack 若使用 archive，必须先下载到不可执行 staging，完成来源/签名/SHA/大小验证后再按内置文件 manifest 解包；拒绝绝对路径、`..`、路径分隔符逃逸、symlink/junction/reparse entry、重复 leaf、未知文件和超过单文件/总量上限的内容。每个解包文件再次校验 hash，runner `probe` smoke 成功后才原子提交版本目录；验证完成前不得把下载目录加入 DLL search path 或执行其中任何文件。失败/取消保留旧 pack 可用并清理 staging。
 
@@ -837,6 +847,10 @@ source media
   → runner
 ```
 
+FFmpeg/ffprobe 是产品运行时组成，不是用户环境前置条件。正式发布必须为 macOS arm64 和 Windows x64 固定可再分发构建，并通过 `extraResources` 放在 asar 外。每个文件由版本化 runtime manifest 记录 `kind`、`platform`、`arch`、相对路径、字节数、SHA-256、版本和 `licenseRef`；manifest 随已签名应用发布，可选下载资源另有独立签名。packaged 模式只接受这份 manifest 解析出的文件，禁止回退 `PATH`、Homebrew、Chocolatey、注册表、用户配置路径或文件选择器。
+
+系统 FFmpeg 只用于 PRE/开发阶段在正式 staging 尚未建立前执行转码 PoC。开发机探测成功不构成发布证据，开发机探测失败也不意味着未来用户需要自行安装 FFmpeg。
+
 ### 12.2 音轨选择
 
 - ffprobe 只向 renderer 返回脱敏的音轨摘要：受控 `streamId`、default disposition、语言、标题、codec、声道和采样率，不返回媒体路径或可注入的 FFmpeg selector。
@@ -847,6 +861,7 @@ source media
 
 ### 12.3 进程规则
 
+- packaged 模式先完成 manifest identity、平台/架构、size、SHA-256 和签名覆盖校验，再从受控绝对路径启动；校验失败不得尝试同名 PATH 命令。
 - 使用 `spawn(executable, args)`，不拼 shell 字符串。
 - 使用与 runner 相同的最小环境策略，不把 API Key、下载 header 或代理凭据传给 FFmpeg/ffprobe；cwd 固定在受控 temp 根。
 - 使用 FFmpeg `-progress` 机器可读输出计算媒体准备进度。
@@ -857,7 +872,18 @@ source media
 
 ### 12.4 FFmpeg 许可证
 
-FFmpeg 二进制必须固定来源、构建选项、许可证文本和源码获取方式。优先使用独立进程方式和经过法务/许可证清单确认的构建，不随意采用未知来源的“静态包”。本文不是法律意见；发布前必须完成依赖许可证审计。
+FFmpeg 二进制必须固定来源、构建选项、许可证文本和源码获取方式。优先使用独立进程方式和经过法务/许可证清单确认的构建，不随意采用未知来源的“静态包”。打包前置脚本必须验证 ffmpeg、ffprobe、runtime manifest 与对应 license/source-offer 证据同时存在，否则构建失败，不能产出“安装成功但无法转写”的发行包。本文不是法律意见；发布前必须完成依赖许可证审计。
+
+### 12.5 用户机器缺失或损坏时的处理
+
+用户无需也不应自行安装或选择 FFmpeg。应用启动或首次进入工具页时做轻量 runtime probe，并在每次 batch commit 前复核当前 runtime generation：
+
+1. 必需文件/manifest 项缺失时返回 `media_runtime_missing`。
+2. 平台、架构、大小、SHA-256、签名覆盖或版本不匹配时返回 `media_runtime_invalid`。
+3. 静态校验通过但 `ffmpeg -version` / `ffprobe -version` 无法受控启动时返回 `media_runtime_launch_failed`。
+4. 任一失败都禁用新任务入队，不修改或删除原始媒体；当前窗口仍存活时保留已选文件的内存草稿，不删除安全偏好、`<userData>` 模型或已导出字幕。
+5. UI 只提供“检查更新 / 修复或重新安装应用 / 查看脱敏详情”操作；若当前发行渠道不支持原地 repair，就明确引导重新安装同版本或更新版本。重启/重装后不恢复文件 capability，用户需重新选择输入文件，但安全偏好、模型和用户产物仍保留。不得让用户浏览到任意 executable，也不得建议修改 PATH。
+6. packaged QA 必须在系统 FFmpeg 被移除或 PATH 隔离的环境中覆盖正常启动、文件缺失、hash 损坏、错误架构和不可执行四类场景。
 
 ## 13. 字幕整形与导出
 
@@ -1163,22 +1189,27 @@ Agent 迁移不能把任意模型参数中的 `roots`/`checkpointPaths` 直接�
 
 ```text
 resources/local-subtitle/
+  manifests/local-subtitle-runtime.v1.json
   win-x64/cpu/fusionkit-local-subtitle-runner.exe
   win-x64/cpu/*.dll
+  win-x64/cuda/fusionkit-local-subtitle-runner.exe
+  win-x64/media/ffmpeg.exe
+  win-x64/media/ffprobe.exe
   mac-arm64/metal/fusionkit-local-subtitle-runner
-  mac-x64/cpu/fusionkit-local-subtitle-runner
-  ffmpeg/<platform>-<arch>/...
+  mac-arm64/media/ffmpeg
+  mac-arm64/media/ffprobe
   licenses/...
 ```
 
-开发环境和 packaged 环境统一通过一个 `resolveLocalSubtitleResourcePath()` 解析，不在业务代码散落 `process.cwd()` 或相对路径。
+开发环境和 packaged 环境统一通过一个 `resolveLocalSubtitleResourcePath()` 解析，不在业务代码散落 `process.cwd()` 或相对路径。runtime manifest 必须覆盖每个 runner、动态依赖、FFmpeg/ffprobe 的平台、架构、backend、相对路径、size、SHA-256、版本和许可证引用；packaged resolver 从 `process.resourcesPath` 开始并拒绝目录逃逸。
 
 ### 16.2 electron-builder
 
 - 使用 `extraResources` 放到 asar 外。
 - macOS 保留可执行位，并在签名/公证前放入最终 app bundle。
 - Windows runner、DLL、FFmpeg 和许可证一起进入资源清单。
-- 多架构产物名增加 `${arch}`，避免 mac-arm64/mac-x64 或不同 runner 资源互相覆盖。
+- 平台产物名保留 `${arch}`，避免 Windows/macOS 或不同 runner 资源互相覆盖；macOS 只生成 arm64 产物。
+- `beforePack`/staging 门禁验证目标平台所需 runner、FFmpeg、ffprobe、manifest 和 license/source-offer 证据；任一缺失、hash 不符或架构错误都必须让打包失败。
 - 不构建一个同时塞入所有平台二进制的超大通用安装包。
 
 ### 16.3 更新兼容
@@ -1204,14 +1235,14 @@ resources/local-subtitle/
 
 ## 18. 分期实施建议（高层阶段）
 
-本节保留架构层面的阶段划分；可认领的工作包、依赖、状态、验证和实施记录以 `local-subtitle-transcriber_execution_plan.md` 为唯一执行台账。Execution Plan 已于 2026-07-16 建立，当前所有实现工作包仍为 `未开始`。
+本节保留架构层面的阶段划分；可认领的工作包、依赖、状态、验证和实施记录以 `local-subtitle-transcriber_execution_plan.md` 为唯一执行台账。Execution Plan 已于 2026-07-16 建立，当前 `PRE-001` 为 `进行中`，其余工作包仍为 `未开始`。
 
 其中本节原先汇总为一个 `PRE-001` 的跨平台 PoC，在 Execution Plan 中拆为 `PRE-001`～`PRE-006`，以避免把基准、CPU runner、Windows CUDA、macOS Metal、FFmpeg/打包许可和最终技术冻结塞进一个无法单会话闭环的工作包。其余高层包也在执行计划中按安全边界和可验证纵向切片进一步拆分。
 
 ### PRE-001：跨平台技术 PoC
 
 - 固定 `whisper.cpp` 版本/commit。
-- 在 Windows x64 NVIDIA、macOS arm64 Metal、CPU fallback 上运行同一批样本。
+- 在 Windows x64 NVIDIA/CPU 与 macOS arm64 Metal/CPU fallback 上运行同一批样本。
 - 验证 `large-v3`、VAD、词时间戳、progress、abort 和模型重复使用。
 - 验证 FFmpeg 音频/视频转码、中文/日文路径和长路径。
 - 产出真实 RTF、峰值内存/显存、启动时间、准确度和包体数据。
@@ -1270,8 +1301,9 @@ resources/local-subtitle/
 
 ### QA-001：真实发布矩阵
 
-- Windows installer、macOS arm64、macOS x64 fallback。
+- Windows x64 installer、macOS arm64 DMG/ZIP；macOS x64 必须稳定拒绝且不生成产物。
 - 签名、公证、asar 外资源、更新后模型保留。
+- 在隔离系统 FFmpeg 的环境验证 bundled ffmpeg/ffprobe，并覆盖缺失、损坏、错误架构、启动失败和修复指引。
 - 真实长音频/视频、取消、OOM、磁盘不足、runner crash、批量部分失败。
 
 ## 19. 验证与验收策略
@@ -1351,7 +1383,9 @@ Electron 视觉/交互验证必须等待 preload loading 完全退出。若启�
 | renderer 注入任意路径/参数 | fixed preload methods、private channels、sender-bound token、拒绝未知字段 |
 | AGPL 参考代码污染 | 只参考行为和参数，独立实现与测试，不复制代码 |
 | FFmpeg/CUDA/model 许可证遗漏 | 发布前完整第三方清单和许可证审计 |
-| Intel Mac 性能不足 | 提供 CPU fallback并明确性能边界，不承诺 GPU 等价体验 |
+| 用户机器没有系统 FFmpeg | 无影响；发行包内置并校验 ffmpeg/ffprobe，packaged QA 隔离 PATH |
+| 内置 FFmpeg 缺失、损坏或无法启动 | 打包阶段先失败；运行时入队前禁用转写并提供更新/修复/重装指引，保留草稿、模型和设置 |
+| macOS x64 被误判为可运行 | 资源解析前返回 `unsupported_architecture`，不提供 Rosetta 或用户自备 runner fallback |
 
 ## 21. 不得违反的实现约束
 
@@ -1359,7 +1393,7 @@ Electron 视觉/交互验证必须等待 preload loading 完全退出。若启�
 2. 不得复用 Audio API profile、assignment、provider route 或 route constraints 表达本地模型。
 3. 不得让 renderer 提交真实路径、任意 executable、任意模型路径或任意 backend flags。
 4. 不得在公开 preload bridge 暴露可调用内部 channel 的 generic invoke。
-5. 不得把模型、VAD、可选 CUDA pack 或临时 WAV 放进 localStorage、asar 或默认安装包；平台 runner 与经 PRE-006 审计的 FFmpeg/ffprobe 必须作为安装包内、asar 外的 `extraResources`，并由签名 manifest 解析，不能回退系统 PATH。
+5. 不得把模型、VAD、可选 CUDA pack 或临时 WAV 放进 localStorage、asar 或默认安装包；平台 runner 与经 PRE-006 审计的 FFmpeg/ffprobe 必须作为安装包内、asar 外的 `extraResources`，并由版本化、签名覆盖且含 size/SHA-256/licenseRef 的 manifest 解析。packaged 模式不能回退系统 PATH，也不能接受用户选择的 executable。
 6. 不得每个文件启动一个会重新加载 `large-v3` 的独立 CLI 进程作为正式批处理架构。
 7. 不得解析上游人类可读日志作为唯一进度和结果合同。
 8. 不得用浮点字符串作为字幕时间轴事实来源；统一使用整数毫秒。
@@ -1378,6 +1412,8 @@ Electron 视觉/交互验证必须等待 preload loading 完全退出。若启�
 21. 不得让 resource install IPC 接收任意 URL、路径或下载参数；renderer 只能提交内置 manifest 的 `resourceId`，并能查询、取消和重同步 resource job。
 22. 不得用空 `apiKey/apiModel/endPoint` 表示“加入队列后再配置”；未绑定模型的 enqueue-only 任务必须使用显式 `needs_configuration` execution binding，所有 start 入口统一拒绝。
 23. 不得在 Agent、RecoveryDialog、recovery scanner、renderer event 和 main translation 消费者仍读取旧路径字段时提前删除 `outputURL`/`checkpointPath`；兼容值只能在全部消费者切换且回滚验证通过后清理。
+24. 不得生成、发布或加载 macOS x64 runner；macOS 非 arm64 必须在资源探测前返回 `unsupported_architecture`。
+25. 不得让 bundled media runtime 缺失/损坏的任务进入队列；`media_runtime_missing`、`media_runtime_invalid`、`media_runtime_launch_failed` 必须提供可操作修复指引并保留用户数据。
 
 ## 22. 推荐下一步
 
@@ -1386,7 +1422,7 @@ Electron 视觉/交互验证必须等待 preload loading 完全退出。若启�
 1. 同一份 `large-v3` GGML 模型在目标 Windows NVIDIA 和 macOS Apple Silicon 上的准确度、RTF、RAM/VRAM 是否满足预期。
 2. Metal/CUDA runner 如何进入签名后的 Electron 安装包，Windows CUDA runtime 最终采用哪种分发方式。
 3. persistent runner 的 progress、segment、abort 和模型复用是否稳定。
-4. FFmpeg 处理目标视频格式、中文/日文路径和长媒体是否稳定，许可证方案是否可发布。
+4. 内置 FFmpeg 处理目标视频格式、中文/日文路径和长媒体是否稳定，许可证方案是否可发布，并且在系统 FFmpeg 隔离时仍可运行、内置资源损坏时能在入队前阻断并引导修复。
 5. 标准 SRT/LRC 是否能通过 session `artifactRef` + one-shot `translationImportToken` 按三种模式完成交接，正确冻结字幕翻译当前配置，并在自动模式下只启动本次成功导入的任务。
 
-具体下一步以 Execution Plan 为准：先认领 `PRE-001` 建立基准语料、指标、工具链和 clean-room/许可证证据；`PRE-001`～`PRE-006` 全部通过并完成技术冻结后，才进入正式 CORE/NATIVE/runtime/UI 实现。
+具体下一步以 Execution Plan 为准：继续 `PRE-001`，补齐真实样本/参考 baseline 哈希与 Windows CPU/CUDA 目标机报告，并完善本机 macOS arm64 工具链；严格清单和目标工具链门禁全部通过前不得进入 `PRE-002`。`PRE-001`～`PRE-006` 全部通过并完成技术冻结后，才进入正式 CORE/NATIVE/runtime/UI 实现。

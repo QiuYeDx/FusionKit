@@ -1,0 +1,95 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-07-16",
+  "legalNotice": "This inventory is engineering evidence, not legal advice. Every shipped artifact still requires PRE-006 and QA-005 review.",
+  "candidates": [
+    {
+      "id": "whisper-cpp-v1.9.1",
+      "category": "engine",
+      "candidateVersion": "v1.9.1",
+      "candidateCommit": "f049fff95a089aa9969deb009cdd4892b3e74916",
+      "sourceUrl": "https://github.com/ggml-org/whisper.cpp/releases/tag/v1.9.1",
+      "declaredLicense": "MIT",
+      "decisionStatus": "research_candidate",
+      "nextDecisionWorkPackage": "PRE-002/PRE-006",
+      "openQuestions": [
+        "Confirm the exact source acquisition and reproducible build strategy.",
+        "Verify progress, segment, abort, model reuse, Metal and CUDA behavior on target machines.",
+        "Retain the upstream MIT notice in every distributed runner artifact."
+      ]
+    },
+    {
+      "id": "faster-whisper-gui-local-snapshot",
+      "category": "reference",
+      "candidateVersion": "faster-whisper==0.10.0 observable baseline",
+      "candidateCommit": null,
+      "sourceUrl": "https://github.com/CheshireCC/faster-whisper-GUI",
+      "declaredLicense": "AGPL-3.0-only",
+      "decisionStatus": "reference_only",
+      "nextDecisionWorkPackage": "PRE-001",
+      "openQuestions": [
+        "Capture a stable local snapshot hash without recording its machine path or credentials."
+      ]
+    },
+    {
+      "id": "whisper-large-v3-ggml-family",
+      "category": "model",
+      "candidateVersion": "large-v3, large-v3-q5_0, large-v3-turbo",
+      "candidateCommit": null,
+      "sourceUrl": "https://huggingface.co/ggerganov/whisper.cpp",
+      "declaredLicense": "MIT candidate; artifact-specific verification pending",
+      "decisionStatus": "research_candidate",
+      "nextDecisionWorkPackage": "PRE-003/PRE-004/PRE-006",
+      "openQuestions": [
+        "Freeze exact artifact URLs, byte sizes and FusionKit-owned SHA-256 values.",
+        "Confirm weight redistribution terms and required notices independently of repository code.",
+        "Decide whether large-v3-turbo-q5_0 meets the launch quality threshold."
+      ]
+    },
+    {
+      "id": "silero-vad-v6.2.1",
+      "category": "vad",
+      "candidateVersion": "v6.2.1",
+      "candidateCommit": null,
+      "sourceUrl": "https://github.com/snakers4/silero-vad/releases/tag/v6.2.1",
+      "declaredLicense": "MIT",
+      "decisionStatus": "research_candidate",
+      "nextDecisionWorkPackage": "PRE-002/PRE-006",
+      "openQuestions": [
+        "Confirm whisper.cpp compatibility and the exact model artifact hash.",
+        "Verify model-weight redistribution terms and notice requirements."
+      ]
+    },
+    {
+      "id": "ffmpeg-n8.1.2-source",
+      "category": "media",
+      "candidateVersion": "n8.1.2",
+      "candidateCommit": "38b88335f99e76ed89ff3c93f877fdefce736c13",
+      "sourceUrl": "https://github.com/FFmpeg/FFmpeg/tree/n8.1.2",
+      "declaredLicense": "LGPL-2.1-or-later or GPL-2.0-or-later depending on build flags",
+      "decisionStatus": "research_candidate",
+      "nextDecisionWorkPackage": "PRE-005/PRE-006",
+      "openQuestions": [
+        "Choose a reproducible redistributable build and freeze configure flags.",
+        "Record source-offer, notice, codec patent and platform signing obligations.",
+        "Freeze bundled macOS arm64 and Windows x64 binary hashes in the signed runtime manifest.",
+        "Do not treat a developer-machine GPL/full FFmpeg as release evidence or an end-user prerequisite."
+      ]
+    },
+    {
+      "id": "nvidia-cuda-runtime",
+      "category": "gpu_runtime",
+      "candidateVersion": "pending PRE-003 target-machine evidence",
+      "candidateCommit": null,
+      "sourceUrl": "https://docs.nvidia.com/cuda/eula/",
+      "declaredLicense": "NVIDIA CUDA Toolkit EULA",
+      "decisionStatus": "research_candidate",
+      "nextDecisionWorkPackage": "PRE-003/PRE-006",
+      "openQuestions": [
+        "Compare bundled runtime, signed optional accelerator pack and system prerequisite strategies.",
+        "Freeze the minimum driver and exact redistributable library list.",
+        "Validate installer size, signing, update and rollback behavior."
+      ]
+    }
+  ]
+}

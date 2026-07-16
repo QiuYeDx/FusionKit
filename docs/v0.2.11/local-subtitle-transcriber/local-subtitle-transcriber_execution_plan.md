@@ -6,11 +6,13 @@
 >
 > 对应设计文档：`docs/v0.2.11/local-subtitle-transcriber/local-subtitle-transcriber_final_design.md`
 >
-> 当前状态：实施计划已建立，所有实现工作包均为 `未开始`；下一步只认领 `PRE-001`
+> 当前状态：`PRE-001` 进行中；清单/指标/clean-room 合同与只读工具链预检已建立，macOS arm64 报告 ready，真实样本、baseline 和 Windows 目标机证据待补齐
 >
 > 发布门禁：`PRE-001`～`PRE-006` 未全部通过前，不得开始正式 native/runtime/UI 大规模实现
 >
 > 2026-07-16 审查修订：补齐部分导出、会话 revision 重同步、resource job、runner 取消、无模型入队与 Agent/恢复消费者迁移；修正 pnpm/工具链事实，并把过大的 LINK 包拆为 8 个、总计 38 个工作包
+>
+> 2026-07-16 范围变更：macOS 只支持 arm64，删除 x64 产物/验收；FFmpeg/ffprobe 作为安装包内置运行时，系统 PATH 仅用于 PRE/开发 PoC
 
 ---
 
@@ -22,7 +24,7 @@
 
 1. 阅读 `docs/v0.2.11/README.md` 和 `docs/v0.2.11/v0.2.11_iteration_execution_plan.md`。
 2. 完整阅读 Final Design 和本 Execution Plan，不能只依赖聊天摘要。
-3. 阅读 `.agents/skills/fusionkit-pitfall-guard/references/index.md`，至少检查 `FK-PIT-0021` 与 `FK-PIT-0022`；涉及持久化、preload、capability、i18n、Electron 视觉验证时，再读取对应条目。
+3. 阅读 `.agents/skills/fusionkit-pitfall-guard/references/index.md`，至少检查 `FK-PIT-0021`、`FK-PIT-0022` 与 `FK-PIT-0023`；涉及持久化、preload、capability、i18n、Electron 视觉验证时，再读取对应条目。
 4. 检查第 7 节进度台账，只认领一个可在单次会话闭环的工作包；跨两个包时必须说明它们为何不可拆分。
 5. 运行 `git status --short`，确认用户已有改动并限定本次文件范围；不得用 `git add -A` 混入无关修改。
 6. 在编辑前明确本次工作包、预期改动文件、验证命令、不涉及范围和已知外部依赖。
@@ -80,8 +82,9 @@
 | --- | --- | --- |
 | Electron 打包 | `electron-builder.json` 仅包含 `dist-electron`、`dist`，无 `extraResources` | 必须先设计 sidecar/FFmpeg staging 和 packaged path resolver |
 | 原生源码 | 仓库当前无 CMake/native runner 目录 | PRE 阶段先验证工具链和上游 pin，再建立正式目录 |
-| 当前审查工作站 | macOS arm64；有 Apple Clang/Command Line Tools；无 CMake、FFmpeg/ffprobe，且 `xcodebuild` 因未选择完整 Xcode 不可用 | 当前机器只能做 TS/文档与有限编译器预检，不能声称完成 Metal、packaged、FFmpeg 或签名 PoC；PRE-001 必须逐目标机生成报告 |
+| 当前审查工作站 | macOS arm64；Node 20.19.5、pnpm 8.7.0、CMake 4.4.0、Apple Clang 21.0.0、Xcode 26.6/Metal compiler、FFmpeg/ffprobe 8.1.2 均通过预检 | macOS arm64 PRE-001 工具链报告已 ready；Homebrew GPL/full FFmpeg 只作开发 PoC，不能替代未来 bundled 资源、许可、签名、公证或真实 runner/Metal 证据 |
 | Windows/CUDA 工具链 | 当前工作站不是 Windows，未安装/验证 MSVC、CUDA 或 NVIDIA 目标硬件 | PRE-003 必须在合格 Windows x64 NVIDIA 环境独立验收，不能沿用 macOS 报告 |
+| 发布版媒体运行时 | 尚未选择可再分发 FFmpeg/ffprobe 构建，也未接入 `extraResources`/runtime manifest | PRE-005/PRE-006 冻结来源、许可与 staging；CORE-002/NATIVE-002 实现打包门禁；packaged 模式禁止 PATH/用户 executable fallback |
 | 包管理器 | 当前 `pnpm --version` 为 `8.7.0`，lockfile 为 v6；`package.json` 尚未声明 `packageManager` | 依赖变更固定使用 pnpm 8.7.0；普通验证优先使用 `node_modules/.bin/*`，PRE-001 记录是否需要单独工作包固化 Corepack 元数据 |
 | CI | 当前没有 `.github/workflows/` | native 构建矩阵需在 PRE-006 决定使用 GitHub Actions 还是受控本地发布脚本 |
 | Electron 实例模型 | `electron/main/index.ts` 已持有 single-instance lock，但同一进程可创建多个 `BrowserWindow/webContents` | ResourceJob/model/runner/GPU queue 使用 app 级单例和全局锁；task/capability/event 仍须按 owner session 隔离 |
@@ -108,7 +111,7 @@
 10. renderer 只持久化 `modelId`；main 把它解析为 managed file。已有 GGML `.bin` 必须经校验后复制或显式移动到 managed models 目录，不得把任意外部绝对路径登记为运行时模型。
 11. 安装、应用启动和打开工具页不得急切下载或加载推理模型；只有下载/导入 load smoke 或批次开始可触发 `load_model`，smoke 后释放，任务模型按 model/backend 跨任务驻留并在切换、空闲、资源不足、最后一个活动 owner 结束、应用退出或更新时卸载。单窗口结束不得误杀其他 owner 的任务。
 12. 内置下载清单由版本化 allowlisted manifest 控制。首版计划验证 `large-v3`、`large-v3-q5_0`、`large-v3-turbo`，`large-v3-turbo-q5_0` 为 PoC 候选；其他型号在进入 manifest 和真实验收前不得宣称受支持或可一键下载。
-13. 模型、VAD 与可选 accelerator pack 不进默认安装包；packaged app 内的 runner 和经 PRE-006 审计的 FFmpeg/ffprobe 必须位于 asar 外、由 manifest 校验，不能回退到开发机 PATH 后假装发行包可用。
+13. 模型、VAD 与可选 accelerator pack 不进默认安装包；packaged app 内的 runner 和经 PRE-006 审计的 FFmpeg/ffprobe 必须位于 asar 外，由版本化、签名覆盖且含 platform/arch/size/SHA-256/licenseRef 的 manifest 校验。packaged 模式不能回退 PATH、Homebrew、Chocolatey、注册表或用户选择的 executable。
 14. 推理默认离线；除模型/加速包下载外不发网络请求，普通 Store/session/log/crash artifact 不记录媒体/字幕内容、完整路径、API Key、下载 header 或完整命令行；翻译恢复内容的唯一例外严格按第 29 条处理。
 15. 参考 AGPL 项目只做 clean-room 行为研究，不复制其 GUI、输出器、字幕切分器、WhisperX 或配置代码。
 16. 自动翻译默认关闭；只有当前批次明确选择 `enqueue_and_start_translation` 才可产生 API 费用。
@@ -126,6 +129,8 @@
 28. 不得因 `requestSingleInstanceLock()` 已存在就省略 owner 校验或资源并发锁；同一 app 内多个 webContents 共享 app-scoped model/download/runner manager，但 task、token、snapshot 和 event 必须 owner-bound。
 29. 本地转写 Store/session/log/crash artifact 不得保存字幕正文；已显式启动翻译的 v2 `manifest_fragments` 是唯一内容持久化例外，只保存恢复所需字幕分片且不得含媒体字节、raw path、token/capability 或密钥。enqueue-only 不创建 checkpoint。
 30. runner/FFmpeg/ffprobe 必须使用 allowlisted 最小 environment 与受控 cwd，不继承 Electron/Agent 的 API Key、authorization header、代理凭据或其他 secret；自定义模型 load smoke 使用短生命周期验证 runner。
+31. macOS 只生成和加载 arm64 runtime；macOS x64 在资源解析前返回 `unsupported_architecture`，不提供 Rosetta、CPU artifact 或用户自备 runner fallback。
+32. builder staging 缺 runner、FFmpeg、ffprobe、manifest 或 license/source-offer 证据时必须失败；运行时缺失、损坏或启动失败分别返回 `media_runtime_missing` / `media_runtime_invalid` / `media_runtime_launch_failed`，在 batch commit 前禁用入队并保留草稿、设置、模型与已导出字幕。
 
 ---
 
@@ -261,7 +266,7 @@ flowchart TD
 
 首版发布必须额外具备：
 
-- Windows x64 NVIDIA CUDA、Windows CPU fallback、macOS arm64 Metal、macOS x64 CPU fallback 的真实 packaged 验收。
+- Windows x64 NVIDIA CUDA/CPU fallback 与 macOS arm64 Metal/CPU fallback 的真实 packaged 验收；macOS x64 只验证稳定拒绝，不生成发布产物。
 - `large-v3`、至少一个量化/快速模型、VAD 模型的下载/续传/校验/删除和本地 GGML 导入。
 - 音频与视频批量处理、模型复用、取消、runner crash、OOM、磁盘不足和逐文件失败隔离。
 - 标准 SRT、标准行级 LRC、parse-back、原子写与冲突策略。
@@ -274,18 +279,18 @@ flowchart TD
 
 | ID | 状态 | 完成日期 | 依赖 | 标题 | 关键变更文件 | 验证 | 实施记录 | 未决问题 |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| PRE-001 | 未开始 | — | — | 基准语料、工具链与 clean-room 证据基线 | `docs/v0.2.11/local-subtitle-transcriber/poc/*`、`scripts/local-subtitle/benchmark/*` | fixture/manifest 校验、逐机工具链报告、`git diff --check` | — | 当前 macOS arm64 工作站缺 CMake/FFmpeg/完整 Xcode；Windows/CUDA 另需目标机；测试媒体许可需确认 |
+| PRE-001 | 进行中 | — | — | 基准语料、工具链与 clean-room 证据基线 | `docs/v0.2.11/local-subtitle-transcriber/poc/*`、`scripts/local-subtitle/benchmark/*` | Node tests 16/16；结构校验 0 error/8 pending warning；严格门禁按预期 9 errors；macOS arm64 报告 ready；macOS x64 稳定拒绝 | `docs/v0.2.11/local-subtitle-transcriber/local-subtitle-transcriber_implementation_records/2026-07-16_PRE-001_evidence-baseline.md` | 需选择并审计 5 个真实语料、补 reference/model hash；仍需 Windows CPU/CUDA 目标机报告 |
 | PRE-002 | 未开始 | — | PRE-001 | CPU persistent runner 与 JSONL PoC | `native/local-subtitle-runner/*`、PoC tests | CMake build/ctest、重复 load/transcribe/abort、协议日志 | — | `whisper.cpp` commit 尚未冻结 |
 | PRE-003 | 未开始 | — | PRE-002 | Windows x64 CPU/CUDA 准确度与性能 PoC | benchmark records、Windows build scripts | CER/WER、RTF、RAM/VRAM、重复加载、取消 | — | 需要目标 NVIDIA 机器和 CUDA 分发结论 |
-| PRE-004 | 未开始 | — | PRE-002 | macOS arm64 Metal 与 x64 CPU PoC | benchmark records、mac build scripts | Metal/CPU backend、RTF、内存、签名后执行 | — | 需要 Apple Silicon 与 Intel/等价 x64 目标机 |
-| PRE-005 | 未开始 | — | PRE-002 | FFmpeg、sidecar staging、签名/公证与许可证 PoC | `electron-builder.json` spike、license inventory | packaged smoke、非 ASCII/长路径、二进制来源审计 | — | 当前系统 GPL/full FFmpeg 不能直接作为发行结论 |
+| PRE-004 | 未开始 | — | PRE-002 | macOS arm64 Metal/CPU fallback PoC | benchmark records、mac build scripts | arm64 Metal/CPU backend、RTF、内存、签名后执行、x64 稳定拒绝 | — | 工具链已 ready；仍需 runner/model、签名/公证身份与 packaged-like PoC |
+| PRE-005 | 未开始 | — | PRE-002 | Bundled FFmpeg、sidecar staging、签名/公证与许可证 PoC | `electron-builder.json` spike、runtime/license manifest | packaged no-PATH smoke、缺失/损坏/错误架构/启动失败、非 ASCII/长路径、二进制来源审计 | — | 尚未选定可再分发构建；当前系统 GPL/full FFmpeg 不能作为发行结论 |
 | PRE-006 | 未开始 | — | PRE-003/004/005 | PoC 评审与 production 技术冻结 | Final Design、PoC decision record、pinned manifests | 五项设计问题全部有证据与 go/no-go 结论 | — | 任一核心目标失败则阻塞后续，不静默换 Python 引擎 |
 | CORE-001 | 未开始 | — | PRE-006 | domain、状态机、事件、错误与 runtime schema | `src/type/localSubtitle.ts`、`src/type/localSubtitleIpc.ts`、tests | full/partial outcome、error manifest、revision/generation、state/schema round-trip、tsc | — | 需冻结 protocol/model manifest version 与上限 |
 | CORE-002 | 未开始 | — | PRE-006 | 资源 manifest、路径 resolver 与构建 staging 合同 | `electron/main/local-subtitle/resource-path.ts`、resource manifest、staging scripts、`.gitignore` | dev/packaged path tests、manifest hash smoke | — | 只冻结 staging 合同；正式 `extraResources` 接线延后到 NATIVE-002 |
 | CORE-003 | 未开始 | — | CORE-001 | preload、IPC、文件/目录 capability 安全边界 | preload policy、`electron/main/local-subtitle/ipc.ts`、authorization tests | complete fixed API、public/internal channel、owner、TTL、draft→task lease、revoke、path containment | — | 不复用 audio registry；禁止 resource URL/path 输入 |
 | CORE-004 | 未开始 | — | CORE-001/003 | Renderer 偏好 Store、事件 reducer 与 cleanup retry | `src/store/tools/subtitle/useLocalSubtitleTranscriberStore.ts`、runtime service/tests | persist partialize、subscribe→snapshot revision reconcile、stale generation、revoke retry、SPA remount | — | token/任务不得持久化，listener 不归页面组件独占 |
 | NATIVE-001 | 未开始 | — | PRE-006/CORE-001 | 正式 whisper.cpp runner 与版本化 JSONL 协议 | `native/local-subtitle-runner/*` | ctest、partial frame、唯一 id/target cancel、seq/terminal、backpressure、模型复用、abort、stdout purity | — | 上游引入方式必须可复现并保留 MIT notice |
-| NATIVE-002 | 未开始 | — | NATIVE-001/CORE-002 | Windows/macOS 原生构建矩阵、artifact manifest 与 builder 接线 | native build scripts、resource manifests、`electron-builder.json`、可选 workflow | CPU/CUDA/Metal build + packaged smoke + SHA manifest | — | 签名凭据不得进入仓库；staging 缺失必须在打包前明确失败 |
+| NATIVE-002 | 未开始 | — | NATIVE-001/CORE-002 | 三类原生 artifact、runtime manifest 与 builder 接线 | native build scripts、resource manifests、`electron-builder.json`、可选 workflow | win-x64 CPU/CUDA、mac-arm64 Metal/CPU build + packaged smoke + SHA manifest | — | 签名凭据不得进入仓库；staging 缺失必须在打包前明确失败 |
 | BE-001 | 未开始 | — | NATIVE-001/CORE-001/002 | Runner Supervisor、握手、模型驻留与崩溃恢复 | `electron/main/local-subtitle/runner-supervisor.ts`、tests | fake/real runner、timeout、crash、late event、kill fallback | — | stderr 需脱敏且有界 |
 | MEDIA-001 | 未开始 | — | CORE-001/002 | FFprobe/FFmpeg 媒体规范化 | `electron/main/local-subtitle/media-normalizer.ts`、tests | 格式矩阵、进度、音轨、取消、损坏输入、临时清理 | — | packaged 模式不得回退 PATH |
 | SUB-001 | 未开始 | — | CORE-001 | Canonical transcript 与字幕整形 | `electron/main/local-subtitle/subtitle-post-processor.ts`、fixtures | CJK/Latin、重叠、空文本、长 cue、整数毫秒 golden tests | — | 不复制 AGPL 切分算法 |
@@ -309,7 +314,7 @@ flowchart TD
 | QA-001 | 未开始 | — | NATIVE-002/BE-003/FE-001～004/LINK-008 | 自动化、边界与现有 Audio/Subtitle/Agent 回归矩阵 | `test/local-subtitle/*`、现有 audio/subtitle/translation/agent tests | tsc、i18n、目标回归与全量 vitest、Vite test build、native ctest | — | 依赖链隐含全部 CORE/MEDIA/SUB/MODEL/LINK 包；fake runner 不能替代 packaged 验收 |
 | QA-002 | 未开始 | — | QA-001 | Electron 四语言/主题/宽窄窗口/a11y 验收 | e2e、截图与验收记录 | loading 完全退出、无 overflow、radio/keyboard/dialog/diagnostics | — | 结束前清理所有进程 |
 | QA-003 | 未开始 | — | QA-001/NATIVE-002/MODEL-002 | Windows x64 packaged CUDA/CPU 验收 | Windows release artifacts、验收记录 | 无系统依赖 smoke、auto 预解析 CPU/禁止静默 fallback、长任务、安装/卸载/更新 | — | 需要目标 NVIDIA 硬件与签名 installer |
-| QA-004 | 未开始 | — | QA-001/NATIVE-002/MODEL-002 | macOS arm64 Metal 与 x64 CPU packaged 验收 | mac release artifacts、验收记录 | 签名、公证、Gatekeeper、Metal/CPU、可执行位、更新 | — | 需要 arm64/x64 目标机和签名身份 |
+| QA-004 | 未开始 | — | QA-001/NATIVE-002/MODEL-002 | macOS arm64 Metal/CPU packaged 验收 | mac arm64 release artifacts、验收记录 | 签名、公证、Gatekeeper、Metal/CPU、bundled FFmpeg、可执行位、更新、x64 稳定拒绝 | — | 需要 arm64 签名/公证身份；不再需要 x64 目标机 |
 | QA-005 | 未开始 | — | QA-002/003/004 | 稳定性、隐私、许可、更新与回滚审计 | soak reports、license notices、privacy/update docs | 1h+ 媒体、批量 crash/OOM/disk、资源清理、日志扫描、升级降级 | — | 所有第三方二进制必须有来源/版本/哈希/许可 |
 | DOC-001 | 未开始 | — | QA-005 | README、CHANGELOG、隐私、第三方清单与发布说明 | docs、README、CHANGELOG、notices | links、版本/能力声明与真实 QA 一致、`git diff --check` | — | 不把未验收 backend 写成已支持 |
 
@@ -330,7 +335,7 @@ flowchart TD
 - 预检同时记录 Node、`pnpm --version`、lockfileVersion 和 `package.json.packageManager`；当前兼容基线为 pnpm 8.7.0 + lockfile v6，检查脚本不得运行 install 或改写 lockfile。
 - 建立第三方候选清单：whisper.cpp、模型、VAD、FFmpeg、CUDA runtime；每项记录来源、版本候选、许可证和待确认问题。
 
-验收口径：同一 manifest 可在 Windows/macOS 运行；缺失工具/样本会明确失败；仓库不含受限媒体、模型、二进制或凭据。
+验收口径：同一 manifest 可在 macOS arm64、Windows x64 CPU/CUDA 运行；macOS x64 返回稳定 `unsupported_architecture`；缺失工具/样本会明确失败；仓库不含受限媒体、模型、二进制或凭据。
 
 ### PRE-002：CPU persistent runner 与 JSONL PoC
 
@@ -358,31 +363,35 @@ flowchart TD
 
 验收口径：声明支持的 NVIDIA 机器 RTF < 1；CER/WER 相对基线不恶化超过 2 个百分点；形成明确分发建议。
 
-### PRE-004：macOS arm64 Metal 与 x64 CPU PoC
+### PRE-004：macOS arm64 Metal 与 CPU fallback PoC
 
-目标：证明 Apple Silicon 使用 Metal，并给 Intel Mac 定义诚实的 CPU 边界。
+目标：证明 macOS arm64 优先使用 Metal，并在同一架构内给 CPU fallback 定义诚实边界。
 
 实施范围：
 
 - 在 arm64 packaged-like bundle 中验证 Metal backend、模型加载、转写、取消和模型复用。
-- 在 x64 目标机或合格等价环境验证 CPU runner；不得把 Rosetta/arm64 CPU 结果当作 Intel 实机结论。
+- 在同一 arm64 runner 中禁用/不可用 Metal 后验证显式 CPU fallback、性能提示和 backend 证据；显式 Metal 或 commit 后故障不得静默回退。
 - 验证签名后 runner 的可执行位、动态库解析、Gatekeeper 行为和资源路径。
+- 验证 macOS x64 在资源解析前返回 `unsupported_architecture`，且构建目录和发行清单均不存在 x64 artifact。
 - 使用与 Windows 相同的样本与指标 schema。
 
-验收口径：arm64 日志和 probe 明确显示 Metal；x64 只声明真实验证过的 CPU 能力；性能不足必须进入产品提示。
+验收口径：arm64 日志和 probe 明确显示实际 Metal/CPU backend；Metal 不可用时 auto 在 commit 前可见地解析 CPU，显式 Metal 不降级；macOS x64 稳定拒绝且无发布产物；性能不足必须进入产品提示。
 
-### PRE-005：FFmpeg、sidecar staging、签名与许可证 PoC
+### PRE-005：Bundled FFmpeg、sidecar staging、签名与许可证 PoC
 
 目标：证明开发态与 packaged app 都能使用受控资源，而不是偶然调用系统 PATH。
 
 实施范围：
 
 - 筛选可再分发 FFmpeg/ffprobe 构建，记录 configure flags、许可证、源码获取方式、版本和 SHA-256。
-- 用 `extraResources` spike 验证 Windows/macOS 资源布局、`${arch}` 产物名、可执行位、签名/公证顺序。
+- 用 `extraResources` spike 验证 Windows x64/macOS arm64 资源布局、`${arch}` 产物名、可执行位、签名/公证顺序。
+- 定义版本化 runtime manifest，覆盖 runner/动态依赖/ffmpeg/ffprobe 的 `kind`、platform、arch、backend、相对路径、size、SHA-256、版本和 licenseRef；manifest 随签名应用发布。
+- builder 前置门禁验证目标平台的 runner、ffmpeg、ffprobe、manifest、许可证与源码获取证据，缺一项即失败，不生成残缺安装包。
 - 覆盖 mp3/wav/flac/aac/m4a/mp4/mkv/mov/webm、多个音轨、非 ASCII/长路径、损坏/零时长输入。
-- packaged smoke 临时移除/隔离系统 FFmpeg/CUDA PATH，证明资源解析没有隐式依赖。
+- packaged smoke 临时移除/隔离系统 FFmpeg/CUDA PATH，证明资源解析没有隐式依赖；再分别模拟缺文件、错 hash、错架构和无法启动，验证入队前返回三个稳定 `media_runtime_*` error。
+- 错误 UI/合同只允许检查更新、repair/reinstall 和脱敏详情，保留草稿、设置、模型与已导出字幕；禁止 PATH 修改指引和任意 executable picker。
 
-验收口径：能从安装产物内启动 runner 与 FFmpeg；许可清单可审计；当前 GPL/full 系统 FFmpeg 不被直接当作发行资源。
+验收口径：能在没有系统 FFmpeg 的机器从安装产物内启动 runner、ffmpeg 与 ffprobe；build-time 缺件会失败，runtime 损坏在 batch commit 前被阻断且修复行为可操作；许可清单可审计；当前 GPL/full 系统 FFmpeg 不被直接当作发行资源或用户前置条件。
 
 ### PRE-006：PoC 评审与 production 技术冻结
 
@@ -391,7 +400,7 @@ flowchart TD
 实施范围：
 
 - whisper.cpp commit/获取方式、runner protocol v1、编译器和平台 build flags。
-- Windows CUDA/CPU、macOS Metal/CPU 的支持矩阵和 fallback 文案。
+- Windows x64 CUDA/CPU、macOS arm64 Metal/CPU 的支持矩阵和 fallback 文案；macOS x64 固定为 unsupported。
 - FFmpeg 来源/许可、资源 staging、签名/公证和 artifact naming。
 - 模型/VAD manifest schema、首发模型集合、下载源、大小和 SHA-256 获取流程。
 - 性能/准确度/包体结果，以及未达门槛时的 go/no-go 或设计变更。
@@ -407,6 +416,7 @@ flowchart TD
 - 定义 immutable local batch config snapshot、model/backend、batch/task、canonical transcript、分离的 import/start post-action 状态、artifact、错误、进度事件和 IPC result。
 - 定义 `completed + full|partial` 及逐格式 artifact result：至少一个格式 commit 为 completed，全部失败才 failed，首个 commit 后取消不得回滚产物。
 - 事件 envelope 固定 `batchId/taskId/generation/revision`，session snapshot 与事件来自同一权威状态；错误 code 使用一个版本化 manifest，至少收敛 backend/media/artifact/configuration 等文档中已出现的 code。
+- 区分 runner `runtime_*` 与 bundled FFmpeg/ffprobe `media_runtime_missing`、`media_runtime_invalid`、`media_runtime_launch_failed`；media runtime 错误必须在 batch commit 前返回并阻止入队。
 - 为 request/event 建立运行时 schema，拒绝未知字段、任意 path、任意 executable 和未知 backend flag。
 - 冻结 IPC frame、媒体/字幕 artifact 字节数、cue/segment 数、diagnostics 长度和 batch 文件数上限；首版单文件 duration/cue end 上限固定为 `99:59:59.999`，更长输入返回 `limit_exceeded`。错误返回稳定 code，UI 在选择/启动前展示可操作限制。
 - 状态机以纯函数实现并测试全部允许/拒绝迁移；事件携带 task generation，旧事件必须丢弃。
@@ -420,12 +430,13 @@ flowchart TD
 
 实施范围：
 
-- 建立 `resolveLocalSubtitleResourcePath()` 和只读 runtime artifact manifest。
+- 建立 `resolveLocalSubtitleResourcePath()` 和只读、版本化 runtime artifact manifest；manifest 覆盖 kind/platform/arch/backend/relativePath/byteSize/SHA-256/version/licenseRef，并处于应用签名覆盖内。
 - 设计 `build/local-subtitle-resources/` 临时 staging；`.gitignore` 精确忽略构建/下载产物，保留 manifest 与许可证源码。
 - 冻结未来 `electron-builder.extraResources` 的 staging 输入和 `${arch}` artifact naming，但本包不启用依赖尚不存在二进制的正式映射；实际 builder 接线由 NATIVE-002 在 artifact 可生成后完成。
-- 验证 manifest version、protocol、platform/arch/backend、文件大小、SHA 与可执行位。
+- 验证 manifest version、protocol、platform/arch/backend、文件大小、SHA、签名覆盖、licenseRef 与可执行位；packaged resolver 只能从 `process.resourcesPath` 解析，禁止 PATH 和任意 executable fallback。
+- staging/build preflight 要求目标平台 runner、ffmpeg、ffprobe、manifest 和许可证/源码获取证据齐全，缺失、错误架构或 hash 不符时让打包命令失败。
 
-验收口径：dev/packaged resolver 单测通过；缺失/错架构/错 hash 立即失败；业务代码无散落 `process.cwd()` 或相对资源路径。
+验收口径：dev/packaged resolver 单测通过；缺失/错架构/错 hash/无许可引用立即失败；macOS x64 返回 `unsupported_architecture`；系统安装或用户选择的同名工具无法绕过校验；业务代码无散落 `process.cwd()` 或相对资源路径。
 
 ### CORE-003：preload、IPC 与 capability 安全边界
 
@@ -470,17 +481,17 @@ flowchart TD
 
 ### NATIVE-002：原生构建矩阵与 artifact manifest
 
-目标：生成可重复的 win-x64 CPU/CUDA、mac-arm64 Metal、mac-x64 CPU artifact。
+目标：生成可重复的 win-x64 CPU、win-x64 CUDA、mac-arm64 Metal/CPU 三类 artifact。
 
 实施范围：
 
 - build script 固定 toolchain、flags、engine commit 和输出目录；禁止从开发机随机复制 DLL。
-- 每个 artifact 生成版本、平台、架构、backend、依赖、大小、SHA-256 和 license manifest。
+- 每个 artifact 生成版本、平台、架构、backend、依赖、大小、SHA-256 和 license manifest；macOS arm64 artifact 明确声明 Metal 与 CPU capability，不生成 x64 artifact。
 - 若采用 CI，新建最小权限 workflow，签名凭据只来自 secrets；否则提供可审计本地 release script 和双人复核清单。
 - 在 staging 后执行 runner `hello/probe` smoke，再交给 electron-builder。
-- 在 staging 流程稳定后才更新 `electron-builder.json` 的 `extraResources` 和 `${arch}` artifact name；打包前置脚本必须对缺失 manifest/二进制给出明确错误，不能生成缺 runtime 的“成功安装包”。
+- 在 staging 流程稳定后才更新 `electron-builder.json` 的 `extraResources` 和 `${arch}` artifact name；打包前置脚本必须同时检查 runner、FFmpeg/ffprobe、manifest 和 license/source-offer 证据，不能生成缺 runtime 的“成功安装包”。
 
-验收口径：四种 artifact 均可复现并与 manifest 匹配；错误架构不会被打包或加载。
+验收口径：三类 artifact 均可复现并与 manifest 匹配；macOS x64 和其他错误架构不会被打包或加载。
 
 ### BE-001：Runner Supervisor
 
@@ -503,11 +514,12 @@ flowchart TD
 实施范围：
 
 - 使用 manifest 解析的 ffprobe/FFmpeg；禁止 packaged 模式回退 PATH。
+- 工具页 probe 与 batch commit 前验证 bundled media runtime generation；缺失、manifest/arch/hash/signature 无效、启动失败分别映射三个稳定 `media_runtime_*` code，阻止新任务入队并保留草稿与用户数据。
 - probe 时长/音轨/codec，返回受控 streamId + default/language/title/codec/channels 摘要；容器字符串去控制字符并限制字段/总长度，不返回原始 selector。`auto` 优先唯一 default，否则首轨并提示，用户可逐文件覆盖。main 在执行前把 streamId 与同一 authorized file identity/最新流表重新校验，再转 16 kHz mono PCM16 WAV。
 - 解析 `-progress`，关闭 stdin；使用 UUID 临时名、超时、取消、输出 WAV header/采样率/通道/时长校验。
 - 失败/取消/启动清理删除 temp；错误区分 probe/decode/unsupported/disk/cancel。
 
-验收口径：格式矩阵、无音轨、唯一/多个/无 default、多音轨逐文件覆盖、超长/控制字符 metadata、伪造/陈旧 streamId、文件替换、损坏输入、非 ASCII/长路径、取消和超期 temp 清理全部通过。
+验收口径：在隔离系统 FFmpeg 的 packaged app 中，格式矩阵、无音轨、唯一/多个/无 default、多音轨逐文件覆盖、超长/控制字符 metadata、伪造/陈旧 streamId、文件替换、损坏输入、非 ASCII/长路径、取消和超期 temp 清理全部通过；内置资源缺失/损坏/错架构/不可启动在入队前失败，用户不能通过选择 executable 绕过。
 
 ### SUB-001：Canonical transcript 与字幕整形
 
@@ -823,19 +835,19 @@ git diff --check
 
 实施范围：
 
-验收范围：安装路径含空格/非 ASCII、无系统 FFmpeg、CUDA pack 缺失/损坏、CPU fallback、large-v3 长媒体、批量取消、OOM、更新后模型保留、卸载策略、签名和 artifact arch 命名。
+验收范围：安装路径含空格/非 ASCII、系统 FFmpeg 未安装或 PATH 隔离、bundled ffmpeg/ffprobe 缺失/损坏/无法启动、CUDA pack 缺失/损坏、CPU fallback、large-v3 长媒体、批量取消、OOM、更新后模型保留、卸载策略、签名和 artifact arch 命名。
 
 验收口径：签名 packaged app 在目标 NVIDIA 机器显示真实 CUDA backend 且达到准确度/RTF 门槛；`auto` 在无 GPU/CUDA pack 时于 commit 前明确解析为 CPU，显式 CUDA 或 commit 后 GPU 故障不静默降级。安装、更新、取消、资源清理和无系统依赖 smoke 全部通过后，才可声明 Windows GPU 支持。
 
-### QA-004：macOS packaged Metal/CPU 验收
+### QA-004：macOS arm64 packaged Metal/CPU 验收
 
-目标：在签名/公证后的 DMG/ZIP 验证 Apple Silicon Metal 和 Intel CPU fallback。
+目标：在签名/公证后的 arm64 DMG/ZIP 验证 Metal 和同架构 CPU fallback。
 
 实施范围：
 
-验收范围：Gatekeeper、可执行位、arm64/x64 artifact 不覆盖、无 Homebrew FFmpeg、Metal probe、长媒体、取消、模型保留、更新兼容和 crash cleanup。
+验收范围：Gatekeeper、可执行位、只含 arm64 artifact、Homebrew FFmpeg 未安装或 PATH 隔离、bundled ffmpeg/ffprobe 缺失/损坏/无法启动、Metal/CPU probe、长媒体、取消、模型保留、更新兼容、macOS x64 稳定拒绝和 crash cleanup。
 
-验收口径：公证后的 arm64 packaged app 通过 Gatekeeper、显示真实 Metal backend 并达到准确度/RTF 门槛；`auto` 在 Metal 不可用时于 commit 前明确解析为 CPU，显式 Metal 或 commit 后故障不静默降级。x64 packaged app 完成 CPU 与更新矩阵；签名、可执行位、取消和 cleanup 全部通过后才可声明 Metal，x64 不声明未验证的 GPU。
+验收口径：公证后的 arm64 packaged app 在没有系统 FFmpeg 时通过 Gatekeeper、显示真实 Metal backend 并达到准确度/RTF 门槛；`auto` 在 Metal 不可用时于 commit 前明确解析为 CPU，显式 Metal 或 commit 后故障不静默降级。内置媒体运行时异常在入队前给出 repair/update/reinstall CTA 并保留用户数据；macOS x64 不生成包且返回 `unsupported_architecture`。签名、可执行位、取消和 cleanup 全部通过后才可声明 macOS 支持。
 
 ### QA-005：稳定性、隐私、许可、更新与回滚审计
 
@@ -845,7 +857,7 @@ git diff --check
 
 - 1h+ 媒体、混合格式批次、连续模型切换、runner crash、强制退出、断网下载、磁盘不足和多次取消 soak。
 - 扫描新本地字幕 Store/session manifest、生成字幕翻译任务/checkpoint、相关日志和 crash artifacts：本地转写侧不得出现字幕正文或媒体字节；已启动翻译的 v2 `manifest_fragments` 只允许出现恢复所需字幕文本，且不得含完整路径、capability/token、密钥/header/模型 token。验证 enqueue-only 不创建 checkpoint、任务终态/删除的保留清理策略，并确认 LINK-005 全消费者 cutover 成功后 legacy `outputURL` 已从持久化移除。历史手动翻译恢复清单的 path 兼容分支单独列入已有行为审计，不能被误报为本功能生成的新数据。
-- 核对 runner/whisper.cpp/model/VAD/FFmpeg/CUDA/构建工具的来源、版本、SHA、许可证、notice 和源码获取说明。
+- 核对 runner/whisper.cpp/model/VAD/FFmpeg/CUDA/构建工具的来源、版本、SHA、许可证、notice 和源码获取说明；确认 repair/update/reinstall 不删除 `<userData>` 草稿偏好、模型或已导出字幕。
 - 从无功能版本升级、同版本更新、再降级：旧版忽略新 userData，不删除数 GB 模型；协议不兼容时阻止任务并给迁移 CTA。
 
 验收口径：数据损坏/丢失、路径或凭据泄漏、越权访问、错误调用外部 API、跨任务误启动、不可取消的资源泄漏、目标平台无法启动等发布阻断问题全部清零；非阻断限制进入产品文案和 release notes，不以“已知问题”掩盖数据或安全风险。
@@ -854,7 +866,7 @@ git diff --check
 
 目标：让文档只声明真实验收过的能力。
 
-实施范围：README、CHANGELOG、隐私说明、第三方 notices、模型/加速包下载说明、硬件矩阵、磁盘需求、错误恢复、卸载/模型保留和 Final Design/Execution Plan 台账。
+实施范围：README、CHANGELOG、隐私说明、第三方 notices、模型/加速包下载说明、硬件矩阵、磁盘需求、错误恢复、卸载/模型保留和 Final Design/Execution Plan 台账；明确用户无需安装 FFmpeg，且不要提供任意 executable/path 配置入口。
 
 验收口径：所有链接存在；版本/平台/模型/性能声明与 QA 记录一致；不记录本地路径、真实样本内容、凭据或未发布下载 URL。
 
@@ -980,6 +992,6 @@ git diff --check
 
 ## 12. 下一步建议
 
-下一次实现会话只认领 `PRE-001`：建立样本/指标 manifest、clean-room 与许可证候选清单、工具链预检脚本和 PoC 记录模板。
+下一次实现会话继续 `PRE-001`：使用已建立的严格门禁补齐样本/参考 baseline 哈希、许可证据和 Windows CPU/CUDA 目标机报告；macOS arm64 工具链报告已经 ready，无需再安装 PRE-001 工具。
 
-不要直接下载并提交模型，不要先画完整页面，也不要把当前系统 PATH 中的 GPL/full FFmpeg 当作发行资源。`PRE-001` 完成后再进入 `PRE-002` 的 CPU persistent runner PoC。
+不要直接下载并提交模型，不要先画完整页面，也不要把当前系统 PATH 中的 GPL/full FFmpeg 当作发行资源或未来用户前置条件。严格清单和三个目标 profile 预检全部通过、`PRE-001` 标记完成后，再进入 `PRE-002` 的 CPU persistent runner PoC。

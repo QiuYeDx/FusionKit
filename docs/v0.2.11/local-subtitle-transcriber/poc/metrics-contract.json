@@ -1,0 +1,137 @@
+{
+  "schemaVersion": 1,
+  "contractId": "local-subtitle-poc-metrics-v1",
+  "requiredMetricIds": [
+    "cer",
+    "wer",
+    "language_detection_match",
+    "cue_boundary_mae_ms",
+    "rtf",
+    "peak_ram_bytes",
+    "peak_vram_bytes",
+    "model_load_first_ms",
+    "model_load_reuse_ms",
+    "cancel_latency_ms",
+    "package_bytes",
+    "srt_parse_back",
+    "lrc_parse_back"
+  ],
+  "metrics": [
+    {
+      "id": "cer",
+      "unit": "ratio",
+      "scope": "sample",
+      "formula": "levenshtein(normalized_reference_characters, normalized_hypothesis_characters) / reference_character_count",
+      "lowerIsBetter": true
+    },
+    {
+      "id": "wer",
+      "unit": "ratio",
+      "scope": "sample",
+      "formula": "levenshtein(normalized_reference_words, normalized_hypothesis_words) / reference_word_count",
+      "lowerIsBetter": true
+    },
+    {
+      "id": "language_detection_match",
+      "unit": "boolean",
+      "scope": "sample",
+      "formula": "detected_language equals manifest language when the manifest language is not und or multilingual",
+      "lowerIsBetter": false
+    },
+    {
+      "id": "cue_boundary_mae_ms",
+      "unit": "milliseconds",
+      "scope": "sample",
+      "formula": "mean absolute error across aligned cue start and end boundaries",
+      "lowerIsBetter": true
+    },
+    {
+      "id": "rtf",
+      "unit": "ratio",
+      "scope": "sample",
+      "formula": "transcription_wall_clock_ms / source_duration_ms",
+      "lowerIsBetter": true
+    },
+    {
+      "id": "peak_ram_bytes",
+      "unit": "bytes",
+      "scope": "run",
+      "formula": "maximum resident set size observed for runner and its owned children",
+      "lowerIsBetter": true
+    },
+    {
+      "id": "peak_vram_bytes",
+      "unit": "bytes_or_null",
+      "scope": "run",
+      "formula": "maximum device memory observed; null only for a declared CPU run",
+      "lowerIsBetter": true
+    },
+    {
+      "id": "model_load_first_ms",
+      "unit": "milliseconds",
+      "scope": "run",
+      "formula": "first successful model load terminal time minus load request time",
+      "lowerIsBetter": true
+    },
+    {
+      "id": "model_load_reuse_ms",
+      "unit": "milliseconds",
+      "scope": "run",
+      "formula": "second compatible task ready time minus task request time without a model reload command",
+      "lowerIsBetter": true
+    },
+    {
+      "id": "cancel_latency_ms",
+      "unit": "milliseconds",
+      "scope": "run",
+      "formula": "target transcribe cancelled terminal time minus cancel request time",
+      "lowerIsBetter": true
+    },
+    {
+      "id": "package_bytes",
+      "unit": "bytes",
+      "scope": "artifact",
+      "formula": "sum of distributable runner, dynamic dependencies, FFmpeg and optional accelerator pack bytes by manifest",
+      "lowerIsBetter": true
+    },
+    {
+      "id": "srt_parse_back",
+      "unit": "boolean",
+      "scope": "sample",
+      "formula": "independent SRT parser reproduces cue count, order and integer millisecond timestamps",
+      "lowerIsBetter": false
+    },
+    {
+      "id": "lrc_parse_back",
+      "unit": "boolean",
+      "scope": "sample",
+      "formula": "independent LRC parser reproduces line count, order and floor(start_ms / 10) timestamps",
+      "lowerIsBetter": false
+    }
+  ],
+  "runRecord": {
+    "requiredIdentityFields": [
+      "run_id",
+      "target_id",
+      "sample_id",
+      "engine_commit",
+      "runner_build_hash",
+      "model_sha256",
+      "baseline_profile_id",
+      "started_at",
+      "completed_at"
+    ],
+    "terminalOutcomes": ["completed", "cancelled", "failed"]
+  },
+  "privacy": {
+    "prohibitedFields": [
+      "absolutePath",
+      "mediaContent",
+      "subtitleContent",
+      "apiKey",
+      "authorizationHeader",
+      "commandLine"
+    ],
+    "allowedFileIdentity": ["sample_id", "sha256", "byte_size", "duration_ms"]
+  }
+}
