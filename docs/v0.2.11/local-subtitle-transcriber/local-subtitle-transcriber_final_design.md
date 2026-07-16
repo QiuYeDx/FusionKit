@@ -8,11 +8,13 @@
 >
 > 产品定位：使用本地算力把批量音频/视频转成可直接翻译的 SRT/LRC 字幕
 >
-> 参考项目：`C:\Users\Administrator\Documents\GitHub\temp\faster-whisper-GUI-main`
+> 参考项目：本地只读快照 `faster-whisper-GUI-main`（机器绝对路径不写入仓库）
 >
 > 2026-07-16 修订：补充“仅导出 / 自动加入字幕翻译队列 / 自动加入并开始翻译”三种后处理模式及配置快照边界
 >
-> 2026-07-16 计划：已创建 `local-subtitle-transcriber_execution_plan.md`，细化为 36 个实现/验收工作包
+> 2026-07-16 计划：已创建 `local-subtitle-transcriber_execution_plan.md`；审查后拆分为 38 个实现/验收工作包
+>
+> 2026-07-16 审查修订：补齐部分导出、会话重同步、资源任务、协议取消、无模型入队和 Agent/恢复消费者迁移合同；修正实际共享组件名与打包边界
 
 ---
 
@@ -32,7 +34,7 @@ FusionKit 应新增一个独立的“本地字幕转写”工具，而不是扩�
 5. 不把上游 `whisper-cli` 的控制台文本当作正式协议。FusionKit 应维护一个很薄的原生 sidecar runner，固定链接经过验证的 `whisper.cpp` 版本，通过 JSONL 与 Electron main 通信。
 6. 首版核心产物是标准 SRT 和标准行级 LRC；VTT、TXT、详细 JSON 可作为扩展导出。增强型逐词 LRC 单独标记，不直接送入现有字幕翻译器。
 7. 转写完成后既可只导出 SRT/LRC，也可选择自动加入字幕翻译任务列表，并进一步选择是否自动开始翻译。交接必须通过会话级 `artifactRef`、一次性 `translationImportToken` 和字幕翻译模块自有的导入协调器完成；本地转写工具不得直接读写字幕翻译器 Store。自动执行默认关闭，只有用户显式选择“自动加入并开始翻译”时才允许产生外部 API 费用。
-8. 模型不放进安装包。模型、VAD 模型和可选 Windows 加速包按需下载到 `app.getPath("userData")` 下，支持断点续传、校验、删除和导入本地模型。
+8. 模型不放进安装包。模型、VAD 模型和可选 Windows 加速包按需下载到 `app.getPath("userData")` 下，支持断点续传、校验、删除和导入本地模型；平台 runner 与经审计的 FFmpeg/ffprobe 则作为安装包内、asar 外的受控资源发布，最终来源与构建方式由 PRE-006 冻结。
 9. `faster-whisper-GUI-main` 仅作为行为与参数研究来源，不复制代码。该参考项目为 AGPL-3.0，而 FusionKit 当前为 PolyForm-Noncommercial-1.0.0；直接复制或改造其代码会引入明显的许可证风险。
 
 ## 1. 背景、目标与边界
@@ -71,6 +73,7 @@ FusionKit 应新增一个独立的“本地字幕转写”工具，而不是扩�
 4. 首版不支持任务在单个文件中间断点续跑；应用重启后可保留已完成产物，但未完成文件从头开始。
 5. 首版不默认自动启动字幕翻译；只有用户在本地转写批次中显式启用“自动加入并开始翻译”后，才可按字幕翻译工具的配置调用外部模型 API。
 6. 不承诺所有 Windows AMD/Intel GPU 在首版都获得稳定加速；首版保证 CPU fallback，Vulkan 可作为后续加速包。
+7. 首版不支持 Linux、Windows arm64 或 macOS 以外的平台/架构；探测到不在发布矩阵内的环境时返回稳定的 `unsupported_platform` / `unsupported_architecture`，不能尝试加载相近架构资源。
 
 ## 2. 与现有远端 ASR 的强制隔离边界
 
@@ -95,7 +98,7 @@ FusionKit 应新增一个独立的“本地字幕转写”工具，而不是扩�
 
 ### 2.2 可以复用的内容
 
-- `ToolDetailLayout`、`ToolConfigSection`、`ToolFileDropZone`、`ToolRadioButtonGroup` 等通用 UI。
+- `ToolDetailLayout`、`ToolConfigPanel`、`ToolField`、`ToolFileDropZone`、`ToolRadioButtonGroup` 等现有通用 UI；目录选择器只复用 `ToolOutputPathPicker` 的视觉壳，授权行为仍由新工具自己的 fixed preload API 提供。
 - sender-bound 文件 token、输出目录 token、过期与撤销重试的设计经验。
 - 不经 renderer 传递真实路径的安全原则。
 - i18n、错误卡片、toast、Electron 视觉验收和前端服务清理规范。
@@ -132,6 +135,8 @@ FusionKit 应新增一个独立的“本地字幕转写”工具，而不是扩�
 ### 3.3 打包现状
 
 当前 `electron-builder.json` 只打包 `dist-electron` 和 `dist`，还没有 native sidecar、FFmpeg 或多架构资源。macOS 产物名也未包含 `${arch}`。新增本地运行时时必须同步设计 `extraResources`、可执行权限、签名、公证、Windows DLL 和多架构产物命名，不能只让开发目录中的二进制“恰好可运行”。
+
+`electron/main/index.ts` 已调用 `app.requestSingleInstanceLock()`，因此不同 Electron 进程不应同时修改同一 `userData`；但同一 app 进程仍可存在多个 `BrowserWindow/webContents`。Model/ResourceJob/Runner managers 应为 app 级单例并对模型、下载和 GPU 队列加全局锁，task/capability/event 则继续绑定各自 owner session。不能用“应用单实例”替代跨 webContents owner 校验。
 
 ## 4. 参考项目审计
 
@@ -298,6 +303,7 @@ userData/local-subtitle/
 | --- | --- |
 | Page | 配置、批量添加、队列、进度、结果预览和产物操作 |
 | Renderer Store | 只持久化无敏感偏好；当前任务、token、路径和 segment 不持久化 |
+| Renderer Runtime Service | 在页面组件之外维护事件订阅、revision reducer、会话快照重同步和 capability cleanup retry；SPA 路由切换不能丢失已提交任务状态 |
 | IPC Service | 验证请求、owner、token、状态迁移与错误白名单 |
 | Job Manager | 串行 GPU 队列、逐文件失败隔离、取消、重试和应用退出清理 |
 | Model Manager | 下载、续传、哈希校验、导入、删除、兼容性与占用状态 |
@@ -358,6 +364,8 @@ interface LocalSubtitleEngineAdapter {
 - 左侧配置：模型、设备、语言、质量预设、VAD、输出格式、输出目录。
 - 右侧工作区：批量拖拽、任务队列、当前进度、识别片段预览和结果操作。
 
+布局直接使用现有 `ToolDetailLayout`：`lg` 以上为 320px 配置栏 + `minmax(0,1fr)` 工作区，窄窗口为单列且配置在前、工作区在后。不得复制一套本地 grid/CSS；786×540 验收需分别覆盖首屏配置和滚动后的任务区，并检查主 ScrollArea 而不是假设 document 在滚动。
+
 核心字段：
 
 | 字段 | 默认/规则 |
@@ -391,6 +399,14 @@ interface LocalSubtitleEngineAdapter {
 点击“开始批次”时必须同时冻结成员列表和独立的 `LocalSubtitleBatchConfigSnapshot`：managed `modelId` + manifest/hash、device preference、语言、质量预设展开值、VAD/词时间戳/整形参数、输出格式、输出模式、冲突策略、`handoffFormat` 和 post-action mode。等待任务全部引用该不可变 snapshot；页面中途改模型、语言或预设只影响下一个批次，不能让同批文件悄悄使用不同参数。首版运行中新增的文件进入新的 draft batch，不加入 active batch；移除等待任务只做取消/释放，不改变其余成员的 snapshot。
 
 `custom` 本地输出目录在 main 派生 batch-scoped write lease，和翻译目录 lease 分 registry、分权限、分生命周期；仅在同 owner/document session、批次 active 时有界续期。`source` 输出模式不伪造一个全局 lease，而是在每个文件开始前从其 authorized file identity 私下派生父目录写入目标并做权限/containment 检查；某一父目录不可写只失败该文件并给“选择自定义目录”CTA，不影响其他目录的文件。模型删除/替换、custom lease 过期或 snapshot 对应 manifest 改变属于批次级阻塞，停止启动新的等待项并给出重选/重新校验 CTA，不能切到其他模型或目录继续。失败任务默认按原 snapshot 重试；用户若要采用当前新配置，必须显式“用当前配置新建任务”，产生新 task generation。
+
+#### 7.3.2 路由、会话与授权所有权
+
+- SPA 路由离开本工具页不取消已经 commit 的批次。Job Manager、事件订阅和 cleanup retry 属于会话级 service，不由页面组件的 mount/unmount 决定；返回页面时必须先订阅事件，再读取带单调 `revision` 的 main 会话快照，reducer 丢弃重复/旧 revision，补齐离页期间的状态变化。
+- draft 阶段的 input/output capability 由 renderer draft 持有。批次 commit 时，main 在同一事务内重新校验 identity/TTL，并把所需权限原子转移为绑定 `batchId`/`taskId` 的 task lease；commit 成功后 renderer 只保留展示摘要，不能再撤销 active task lease。
+- 页面卸载只把仍属于 draft 的 capability 放进 renderer 级 pending-revocation queue；已转移 task lease 由 main 在任务终态、删除、owner session 结束或 TTL 到期时释放。revoke 的 Promise rejection、`ok:false` 与幂等 `revoked:false` 必须分别处理。
+- renderer reload、主框架导航、窗口销毁、render process crash、应用退出或更新会使 `ownerSessionId` 失效，并取消该 owner 尚未终态的本地任务；首版不跨 reload 继续推理。已原子提交的字幕仍保留，重启后只恢复脱敏诊断摘要。
+- 会话快照与事件都必须包含 `batchId`、`taskId`、`generation` 和 `revision`。页面不得仅依赖“刚好没漏”的增量事件推导权威状态。
 
 ### 7.4 完成操作
 
@@ -434,6 +450,25 @@ type LocalSubtitleTaskStatus =
   | "failed";
 ```
 
+`completed` 只表示本地流水线已经终止且至少一个用户请求的标准产物完成原子提交；它不等于“所有格式都成功”。多格式结果必须另用结构化完成合同表达，不能靠错误文案或新增一个未进入状态机的“部分完成”字符串猜测：
+
+```ts
+type LocalSubtitleArtifactStatus = "committed" | "failed" | "skipped";
+
+interface LocalSubtitleArtifactResult {
+  format: "SRT" | "LRC";
+  status: LocalSubtitleArtifactStatus;
+  artifact?: GeneratedSubtitleArtifactSummary;
+  errorCode?: LocalSubtitleErrorCode;
+}
+
+interface LocalSubtitleCompletionResult {
+  outcome: "full" | "partial";
+  artifacts: LocalSubtitleArtifactResult[];
+  warnings: LocalSubtitleErrorCode[];
+}
+```
+
 允许的核心迁移：
 
 ```text
@@ -446,10 +481,32 @@ queued
   → completed
 
 任意运行阶段 → cancelling → cancelled
-任意阶段 → failed
+exporting 且已有 commit → cancelling → completed（partial）
+首个 artifact commit 前任意阶段 → failed
+exporting 且已有 commit 后发生错误 → completed（partial）
 ```
 
-任务阶段和百分比分开表示，不能把 FFmpeg 30% 与 Whisper 30% 当作同一进度。建议总进度权重仅用于 UI：媒体准备 0–10%、模型装载 10–20%、转写 20–90%、后处理与导出 90–100%。实际事件同时携带 `stage` 和 `stageProgress`。
+终态判定固定为：全部请求格式提交成功则 `completed + full`；至少一个成功、至少一个失败或被取消跳过则 `completed + partial`；没有任何请求格式成功才是 `failed`。取消在第一个 artifact commit 前生效时进入 `cancelled`；一旦已有 artifact 原子提交，后续取消不得删除它，当前原子写完成后跳过尚未开始的格式，并以 `completed + partial` 加 `cancelled_after_partial_commit` warning 结束。翻译交接只能选择 `status = "committed"` 的标准 SRT/LRC。
+
+任务阶段和百分比分开表示，不能把 FFmpeg 30% 与 Whisper 30% 当作同一进度。建议总进度权重仅用于 UI：媒体准备 0–10%、模型装载 10–20%、转写 20–90%、后处理与导出 90–100%。实际事件同时携带 `stage` 和 `stageProgress`，并使用可重同步的事件 envelope：
+
+```ts
+interface LocalSubtitleTaskEventEnvelope {
+  batchId: string;
+  taskId: string;
+  generation: number;
+  revision: number;
+  event: LocalSubtitleTaskEvent;
+}
+
+interface LocalSubtitleSessionSnapshot {
+  revision: number;
+  batches: LocalSubtitleBatchSummary[];
+  resourceJobs: ResourceJobSummary[];
+}
+```
+
+同一 owner session 的 `revision` 单调递增。renderer service 先注册 listener，再读取 snapshot，以 revision 合并两者；重复、倒序或旧 generation 事件不得覆盖新状态。
 
 字幕翻译交接不是本地转写状态机的运行阶段。导出成功后本地任务即为 `completed`，交接另行记录，避免外部 API 配置或网络错误把已经成功的本地转写误标为失败：
 
@@ -481,13 +538,10 @@ interface LocalSubtitlePostActionState {
   startStatus: SubtitleTranslationStartStatus;
   importReceiptId?: string;
   translationTaskId?: string;
-  importErrorCode?:
-    | "config_invalid"
-    | "artifact_expired"
-    | "duplicate"
-    | "import_failed";
+  importErrorCode?: LocalSubtitleErrorCode;
   startFailureReason?:
     | "estimate_failed"
+    | "configuration_required"
     | "profile_unavailable"
     | "authorization_expired"
     | "start_rejected";
@@ -540,28 +594,58 @@ interface LocalSubtitleTranscript {
 
 ### 8.3 错误合同
 
-错误按稳定 code 分类：
+所有 runtime、resource、artifact 和 translation handoff 错误从一个版本化 manifest 导出稳定 code，禁止各层临时拼接只在本层存在的字符串。首版至少覆盖：
 
-- `runtime_missing`
-- `runtime_protocol_mismatch`
-- `runtime_crashed`
-- `accelerator_unavailable`
-- `model_missing`
-- `model_incompatible`
-- `model_corrupt`
-- `model_download_failed`
-- `model_disk_full`
-- `media_probe_failed`
-- `media_decode_failed`
-- `unsupported_media`
-- `transcription_failed`
-- `out_of_memory`
-- `output_conflict`
-- `output_write_failed`
-- `cancel_failed`
-- `artifact_expired`
+```ts
+type LocalSubtitleErrorCode =
+  | "invalid_ipc_request"
+  | "owner_released"
+  | "authorization_expired"
+  | "unsupported_platform"
+  | "unsupported_architecture"
+  | "runtime_missing"
+  | "runtime_protocol_mismatch"
+  | "runtime_crashed"
+  | "runtime_unresponsive"
+  | "accelerator_unavailable"
+  | "backend_mismatch"
+  | "model_missing"
+  | "model_incompatible"
+  | "model_corrupt"
+  | "model_download_failed"
+  | "model_disk_full"
+  | "resource_not_allowed"
+  | "resource_busy"
+  | "resource_signature_invalid"
+  | "limit_exceeded"
+  | "insufficient_disk"
+  | "media_probe_failed"
+  | "no_audio_stream"
+  | "media_changed"
+  | "media_decode_failed"
+  | "unsupported_media"
+  | "no_speech_detected"
+  | "transcription_failed"
+  | "out_of_memory"
+  | "output_conflict"
+  | "output_write_failed"
+  | "cancel_failed"
+  | "cancelled_after_partial_commit"
+  | "artifact_expired"
+  | "artifact_changed"
+  | "content_too_large"
+  | "invalid_content"
+  | "configuration_not_ready"
+  | "configuration_required"
+  | "directory_authorization_required"
+  | "profile_required"
+  | "duplicate"
+  | "import_failed"
+  | "estimate_failed"
+  | "start_rejected";
+```
 
-主错误文案可操作；stderr、退出码、backend 和阶段进入折叠技术详情。不得把完整命令行、用户路径、媒体内容或下载授权 header直接显示或写日志。
+错误 envelope 还必须包含 `stage`、`retryable`、受控 `details` 和可选 `causeCode`，并对未知 runner/FFmpeg 诊断映射为最近的稳定 code。主错误文案可操作；stderr、退出码、backend 和阶段进入折叠技术详情。不得把完整命令行、用户路径、媒体内容、API Key 或下载授权 header 直接显示或写日志；diagnostics 有固定字节/行数上限，截断必须显式标记。
 
 ## 9. Preload、IPC 与权限边界
 
@@ -572,30 +656,42 @@ interface LocalSubtitleTranscript {
 ```ts
 interface LocalSubtitleApi {
   authorizeInputFiles(files: File[]): Promise<LocalSubtitleIpcResult<AuthorizedMedia[]>>;
+  probeMedia(fileToken: string): Promise<LocalSubtitleIpcResult<MediaProbeSummary>>;
   revokeInputFile(fileToken: string): Promise<LocalSubtitleIpcResult<{ revoked: boolean }>>;
   selectOutputDirectory(): Promise<LocalSubtitleIpcResult<AuthorizedOutputDirectory>>;
+  revokeOutputDirectory(outputDirToken: string): Promise<LocalSubtitleIpcResult<{ revoked: boolean }>>;
   probeRuntime(): Promise<LocalSubtitleIpcResult<LocalSubtitleRuntimeSummary>>;
-  listModels(): Promise<LocalSubtitleIpcResult<LocalSubtitleModelSummary[]>>;
-  installModel(request: InstallLocalSubtitleModelRequest): Promise<LocalSubtitleIpcResult<ModelJob>>;
-  importModel(file: File): Promise<LocalSubtitleIpcResult<LocalSubtitleModelSummary>>;
-  deleteModel(modelId: string): Promise<LocalSubtitleIpcResult<{ deleted: boolean }>>;
+  listManagedResources(): Promise<LocalSubtitleIpcResult<ManagedResourceSummary[]>>;
+  startResourceInstall(request: { resourceId: string }): Promise<LocalSubtitleIpcResult<ResourceJob>>;
+  cancelResourceJob(jobId: string): Promise<LocalSubtitleIpcResult<{ cancelled: boolean }>>;
+  importModel(file: File, options: { mode: "copy" | "move" }): Promise<LocalSubtitleIpcResult<ResourceJob>>;
+  deleteManagedResource(resourceId: string): Promise<LocalSubtitleIpcResult<{ deleted: boolean }>>;
+  getSessionSnapshot(): Promise<LocalSubtitleIpcResult<LocalSubtitleSessionSnapshot>>;
   enqueue(request: EnqueueLocalSubtitleBatchRequest): Promise<LocalSubtitleIpcResult<BatchSummary>>;
+  retryTask(taskId: string): Promise<LocalSubtitleIpcResult<TaskSummary>>;
+  cancelBatch(batchId: string): Promise<LocalSubtitleIpcResult<{ cancelledTaskIds: string[] }>>;
   cancelTask(taskId: string): Promise<LocalSubtitleIpcResult<{ cancelled: boolean }>>;
+  removeTask(taskId: string): Promise<LocalSubtitleIpcResult<{ removed: boolean }>>;
+  readArtifactText(artifactRef: string): Promise<LocalSubtitleIpcResult<ArtifactTextResult>>;
   revealArtifact(artifactRef: string): Promise<LocalSubtitleIpcResult<void>>;
   handoffArtifact(artifactRef: string): Promise<LocalSubtitleIpcResult<SubtitleHandoff>>;
-  onTaskEvent(listener: (event: LocalSubtitleTaskEvent) => void): () => void;
+  onTaskEvent(listener: (event: LocalSubtitleTaskEventEnvelope) => void): () => void;
+  onResourceEvent(listener: (event: LocalSubtitleResourceEventEnvelope) => void): () => void;
 }
 ```
 
-文件路径只能由 preload 固定方法使用 `webUtils.getPathForFile()` 取得，再通过 preload-private channel 授权。TypeScript union 不是运行时安全边界。
+该接口是首版 UI 行为所需的最小完整面，不是随实现临时补方法的示意列表：`probeMedia` 支撑启动前音轨选择，`readArtifactText` 支撑预览/复制，`retryTask`/`removeTask` 支撑结果操作，`cancelBatch` 支撑停止等待项与未来交接，resource job API 支撑模型/VAD/accelerator 下载的进度与取消，`getSessionSnapshot` 支撑 SPA 返回后的重同步。`removeTask` 对运行中任务必须拒绝并要求先取消；`readArtifactText` 只返回经过格式/UTF-8/大小上限复核的 `{ format, rawText, plainText, cueCount }`，不返回路径。`plainText` 必须由共享 SRT/LRC parser 从已验证 cue 生成，不能在组件里用正则临时剥时间标签。
+
+文件路径只能由 preload 固定方法使用 `webUtils.getPathForFile()` 取得，再通过 preload-private channel 授权。`startResourceInstall` 只接收内置 manifest 中的 `resourceId`，不能接收 URL、保存路径或可执行参数。TypeScript union 不是运行时安全边界。
 
 ### 9.2 Main 校验
 
 - 每个 token 绑定 `webContents.id`、main 为当前 document/frame 签发的 `ownerSessionId`、资源类型、过期时间和允许操作。`ownerSessionId` 只保存在 preload 私有闭包，由固定 API 隐式附加，renderer 不能自填；reload、主框架导航、frame/window 销毁时立即失效，不能仅靠 `webContents.id` 区分新旧文档。
 - 输入 token 支持批处理，但每个 task 开始时再次校验文件 identity、存在性和大小。
+- batch commit 必须把 renderer draft capability 原子转换为 task lease；成功后普通 renderer cleanup 不得撤销 active task 依赖，失败时全部权限仍归 draft 或按逆序释放，不能半转移。
 - 输出目录 token 只允许写入目录内部；最终路径必须 `resolve` 后检查仍在根目录下。
 - `modelId` 只从 main 的已验证 manifest 解析，renderer 不能提交任意模型路径。
-- 事件只发给任务 owner；窗口销毁时释放 token、取消任务并关闭 runner。
+- 事件只发给任务 owner，并带单调 revision；snapshot 与事件由同一权威状态生成。窗口销毁时释放该 owner 的 token/job/task；app-scoped runner 只有在没有其他 owner 的活动任务后才进入卸载/关闭，不能误杀其他窗口工作。
 - 所有 request 使用运行时 schema 校验，拒绝未知字段，避免 renderer 偷渡 executable、path、backend flags 或任意 runner 参数。
 
 ## 10. Sidecar runner 协议
@@ -603,8 +699,11 @@ interface LocalSubtitleApi {
 ### 10.1 进程模型
 
 - main 直接 `spawn()` runner，不经过 shell。
+- spawn 使用 allowlisted 最小环境与受控 cwd，只保留运行所需系统变量/动态库路径；不得继承 API Key、authorization header、代理凭据或任意 Electron/Agent secret。runner 不包含网络客户端、不监听端口。
 - runner 通过 stdin 接收 JSONL，通过 stdout 只输出 JSONL；stderr 只用于受控诊断。
 - 一个 runner 同时只执行一个转写，但可跨多个任务保留同一模型 context。
+- inference 运行时必须保留独立的控制读取线程/事件循环，持续消费 `cancel`/`shutdown`；如果 stdin 读取与 `whisper_full` 在同一阻塞线程，abort callback 永远看不到取消请求，PoC 不得通过。
+- stdin/stdout 使用有界队列和 backpressure；segment/diagnostic frame 有固定最大字节数，stdout 写阻塞不能无限堆积内存。每条 command `id` 全局唯一，每个 transcribe event 带该请求内单调 `seq`，每个 command 恰好一个 terminal response。
 - model/backend 变化时显式 unload/reload。
 - main 与 runner 先完成 protocol handshake，版本不匹配立即失败，不尝试“凑合解析”。
 
@@ -614,7 +713,7 @@ interface LocalSubtitleApi {
 {"protocol":1,"id":"cmd-1","type":"hello","client":"fusionkit","clientVersion":"0.2.11"}
 {"protocol":1,"id":"cmd-2","type":"load_model","modelPath":"<main-private-path>","backend":"auto"}
 {"protocol":1,"id":"cmd-3","type":"transcribe","inputPath":"<main-private-temp-wav>","options":{"language":"auto","vad":true,"wordTimestamps":true}}
-{"protocol":1,"id":"cmd-3","type":"cancel"}
+{"protocol":1,"id":"cmd-4","type":"cancel","targetRequestId":"cmd-3"}
 ```
 
 事件：
@@ -622,19 +721,20 @@ interface LocalSubtitleApi {
 ```json
 {"protocol":1,"replyTo":"cmd-1","type":"hello_ok","runnerVersion":"1.0.0","engineVersion":"pinned-commit","capabilities":["metal","cpu","vad","word_timestamps"]}
 {"protocol":1,"replyTo":"cmd-2","type":"model_loaded","backend":"metal"}
-{"protocol":1,"replyTo":"cmd-3","type":"progress","value":42}
-{"protocol":1,"replyTo":"cmd-3","type":"segment","segment":{"startMs":1200,"endMs":4380,"text":"..."}}
-{"protocol":1,"replyTo":"cmd-3","type":"completed","detectedLanguage":"ja"}
+{"protocol":1,"replyTo":"cmd-3","seq":1,"type":"progress","value":42}
+{"protocol":1,"replyTo":"cmd-3","seq":2,"type":"segment","segment":{"startMs":1200,"endMs":4380,"text":"..."}}
+{"protocol":1,"replyTo":"cmd-4","type":"cancel_accepted","targetRequestId":"cmd-3"}
+{"protocol":1,"replyTo":"cmd-3","seq":3,"type":"cancelled"}
 ```
 
 ### 10.3 取消与崩溃
 
-runner 使用 `whisper_full_params.abort_callback` 或同版本等价机制检查原子取消标志。取消有两级：
+runner 使用 `whisper_full_params.abort_callback` 或同版本等价机制检查原子取消标志。`cancel_accepted` 只表示控制线程已设置标志，不是 transcribe 已终止；main 必须等待目标请求自己的 `cancelled` terminal event。取消有两级：
 
-1. 发送 `cancel`，等待短超时内返回 `cancelled`。
+1. 发送带唯一 command id 和 `targetRequestId` 的 `cancel`，等待目标 transcribe 在短超时内返回唯一 `cancelled` terminal event。
 2. 未确认则终止 runner 进程，清理临时文件并在下一任务前重启；此时模型需要重新加载。
 
-主进程维护 child handle，不使用参考 GUI 的“只改布尔标志”方案。应用退出、窗口销毁、renderer 崩溃和 update 安装前都执行同一 cleanup。
+主进程维护 child handle，不使用参考 GUI 的“只改布尔标志”方案。窗口销毁/renderer 崩溃执行 owner-scoped cleanup；应用退出和 update 安装执行 app-scoped cleanup。两者复用同一可重入机制，但 owner cleanup 不能关闭仍被其他 owner 使用的 runner。
 
 ### 10.4 Backend 解析与 fallback
 
@@ -673,6 +773,10 @@ runner 使用 `whisper_full_params.abort_callback` 或同版本等价机制检�
 
 上游模型表提供的是其发布校验值；FusionKit 发布 manifest 仍应使用自己的 SHA-256 并锁定具体文件 URL，不以“同名模型”作为信任依据。
 
+模型下载/导入、VAD 与 accelerator pack 共用受控 `ResourceJob` 生命周期：`queued → acquiring(download|copy) → verifying → load_smoke/signature_check → committing → completed`，任意阶段可进入 `failed`，acquiring/校验阶段可取消。resource event 与会话 snapshot 同样携带单调 revision；SPA 离页不丢失进度，renderer reload/window destroy 时由产品策略明确选择取消或让 main 完成安全 commit，不能留下无人持有的 `.part`。首版采用保守规则：owner session 结束即取消未进入原子 commit 的 job，commit 已开始则完成或回滚后再释放。
+
+Resource manager 是 app-scoped，但 job/event 仍 owner-bound。同一 `resourceId` 已被另一个 owner 安装时，首版返回脱敏 `resource_busy`，不把对方 jobId、URL、路径或进度暴露给当前 owner；安装完成后所有 owner 通过 `listManagedResources()` 只能看到全局 ready 状态。GPU task queue 同样是 app-scoped FIFO，每个事件只发给所属 owner；owner 结束只移除自己的 queued/running task，不清空其他窗口队列。
+
 ### 11.3 自定义导入
 
 - 支持用户导入已有 GGML Whisper `.bin`。
@@ -693,6 +797,8 @@ runner 使用 `whisper_full_params.abort_callback` 或同版本等价机制检�
 
 Windows CUDA runtime/DLL 的可再分发范围、包体和签名需要在 PRE PoC 中单独确认。不能把“开发机安装了 CUDA 所以可用”当作发行方案。
 
+accelerator pack 若使用 archive，必须先下载到不可执行 staging，完成来源/签名/SHA/大小验证后再按内置文件 manifest 解包；拒绝绝对路径、`..`、路径分隔符逃逸、symlink/junction/reparse entry、重复 leaf、未知文件和超过单文件/总量上限的内容。每个解包文件再次校验 hash，runner `probe` smoke 成功后才原子提交版本目录；验证完成前不得把下载目录加入 DLL search path 或执行其中任何文件。失败/取消保留旧 pack 可用并清理 staging。
+
 ### 11.5 模型支持范围与加载生命周期
 
 内置下载能力使用版本化 allowlisted manifest，不把“whisper.cpp 上游存在某个模型”直接等同于“FusionKit 已支持一键下载”。首版计划验证并提供以下候选：
@@ -712,7 +818,7 @@ Windows CUDA runtime/DLL 的可再分发范围、包体和签名需要在 PRE Po
 2. 打开本地字幕转写页时只探测 runner/backend、FFmpeg、已安装模型状态与磁盘占用；不得仅因进入页面就发送 `load_model`。
 3. 下载或导入完成时允许 runner 做一次受控 load smoke 来判定 ready，校验结束后立即释放，不把它当成会话推理模型驻留。
 4. 用户开始批次时，main 根据冻结的 `modelId` + manifest/hash 解析 managed file，并向 runner 发送 `load_model`；同一 model/backend 已驻留时跳过装载阶段。
-5. 同一 runner 跨本批及后续兼容任务复用已加载模型。切换 model/backend、空闲超时、显存不足、窗口销毁、应用退出或进入更新时显式卸载/关闭。
+5. 同一 runner 跨本批及后续兼容任务复用已加载模型。切换 model/backend、空闲超时、显存不足、最后一个活动 owner 结束、应用退出或进入更新时显式卸载/关闭；单个窗口销毁只释放其 owner 资源，不能影响其他窗口。
 6. 应用重启后内存中的模型 context 不存在；只恢复最近 `modelId` 偏好，下一次真正开始任务时重新加载。
 
 因此产品语义是“managed model + 持久化 `modelId` + 按任务加载并跨任务复用”，不是“只记录用户原始 `.bin` 路径并在每次打开应用或工具页时自动加载”。
@@ -734,6 +840,7 @@ source media
 ### 12.2 音轨选择
 
 - ffprobe 只向 renderer 返回脱敏的音轨摘要：受控 `streamId`、default disposition、语言、标题、codec、声道和采样率，不返回媒体路径或可注入的 FFmpeg selector。
+- 语言/标题/codec 等容器元数据属于不可信输入：main 去除控制字符、限制每字段与总 payload 长度，并保留原始 stream index 仅作私有映射；UI 使用可换行 block surface，不把长标题塞进不换行 Badge。
 - 默认 `auto`：优先容器中唯一标记为 default 的音轨；没有或存在多个 default 时选第一条音轨，并在任务启动前显示“自动选择了第 N 轨”。无音轨直接返回 `no_audio_stream`。
 - 多音轨文件允许用户在启动前按文件覆盖；renderer 只提交 probe 返回的 `streamId`，main 必须校验它仍属于同一 authorized file identity。批量偏好只保存 `auto`，不能把某个文件的 stream index 持久化给其他文件。
 - probe 与 ffmpeg 启动之间若文件 identity 或流表变化，拒绝执行并要求重新 probe，不能让旧 streamId 指向新内容。
@@ -741,6 +848,7 @@ source media
 ### 12.3 进程规则
 
 - 使用 `spawn(executable, args)`，不拼 shell 字符串。
+- 使用与 runner 相同的最小环境策略，不把 API Key、下载 header 或代理凭据传给 FFmpeg/ffprobe；cwd 固定在受控 temp 根。
 - 使用 FFmpeg `-progress` 机器可读输出计算媒体准备进度。
 - 关闭 stdin，避免隐藏式交互等待。
 - 临时文件名使用 task UUID，不使用原文件名直接拼接。
@@ -774,7 +882,10 @@ engine segments
 
 - 不复制参考项目 `SubtitlesProcessor.py` 的 AGPL 实现。
 - 使用全新的规则与测试：按语言选择 CJK/空格分词策略，在标点和词边界处分割。
+- 文本统一把 CRLF/CR 规范为 LF，拒绝 NUL 和会破坏字幕结构的控制字符；保留合法 Unicode，不用 lossy ASCII 清洗。每 cue 内部换行数量和总字符数受 CORE 上限约束。
 - cue 的 `startMs >= 0`、`endMs > startMs`、整体单调不倒退。
+- cue 必须落在已校验的 `source.durationMs` 内。whisper/chunk rounding 允许的尾部误差阈值由 PRE 样本冻结：阈值内可 clamp 到 duration 并记录 warning，超过阈值或 clamp 后无正时长则结构化失败，不能静默输出越界时间轴。
+- trim 后的空 segment/cue 不导出；整个文件没有任何非空 cue 时返回 `no_speech_detected`，不生成空 SRT/LRC，也不进入翻译交接。
 - 相邻 cue 的轻微重叠按策略裁剪；不能静默制造负时长。
 - 默认限制单 cue 时长和文本长度；短 cue 合并需同时满足间隔和阅读长度。
 - 有词时间戳时在真实词边界分割；无词时间戳时按字符比例估时只作为 fallback，并在详细 JSON 标记 `estimatedTiming=true`。
@@ -783,6 +894,7 @@ engine segments
 ### 13.3 SRT
 
 - 使用 `HH:MM:SS,mmm`。
+- 为保证现有字幕翻译 parser 与常见播放器兼容，首版单文件 duration/cue end 上限为 `99:59:59.999`；ffprobe 或 canonical transcript 超过该值时在开始/导出前返回 `limit_exceeded`，不生成三位小时的非基线 SRT。未来放宽必须先做 parse-back/播放器矩阵并升级合同。
 - 序号从 1 开始。
 - UTF-8，无 BOM 为默认；如以后支持 BOM，作为显式选项。
 - 导出后由独立 parser 回读，验证块数、时间格式和顺序。
@@ -797,6 +909,8 @@ engine segments
 ```
 
 这与现有 `LRCTranslator` 的逐行翻译和双语同时间标签输出最兼容。
+
+canonical `startMs` 到标准 LRC 百分之一秒标签的投影固定为 `floor(startMs / 10)`，最多提前 9ms、绝不向后移动 cue。分钟字段至少两位但允许随时长增长，秒/百分秒固定两位。两个相邻 cue 量化到同一标签时保留原顺序并输出两行相同时间标签，不能仅因碰撞合并或丢弃文本；parse-back 对比量化后的 centisecond、行数和顺序，不拿 LRC 反推原始毫秒精度。测试覆盖 9/10/11ms、分钟进位、1h+ 和重复标签。
 
 增强逐词 LRC 可作为显式高级格式：
 
@@ -814,7 +928,9 @@ engine segments
 4. 根据冲突策略覆盖或生成带序号文件名。
 5. 原子 rename 为最终产物。
 
-多格式输出应以一个 transcript 为源，各格式独立提交；一个格式失败不能删除已经成功的另一个格式，但任务需显示“部分完成”。
+索引命名和 overwrite 都必须在 main 的目录级 reservation/mutex 下于 commit 前重新判定，防止两个任务同时选择同一 leaf；不能先删除旧文件再移动 `.partial`。overwrite 使用平台验证过的原子 replace/rename 方案，失败时旧文件仍可用。最终 leaf 仍需 no-follow、containment 和文件类型检查。
+
+多格式输出应以一个 transcript 为源，各格式独立提交；一个格式失败不能删除已经成功的另一个格式，任务按 8.1 的 `completed + partial` 合同展示，不产生第二套隐式状态。
 
 ## 14. 与字幕翻译器的可选自动衔接
 
@@ -843,7 +959,9 @@ interface GeneratedSubtitleArtifactSummary {
 }
 ```
 
-main 只把 `GeneratedSubtitleArtifactSummary` 返回 renderer，record 的 owner、路径、size/hash 不跨信任边界。`artifactRef` 是 owner-bound、operation-checked、可撤销的会话级引用，可供结果卡 reveal 或请求交接，但不包含路径且不持久化；清除结果、窗口销毁、应用退出或 TTL 到期即失效。每次 `handoffArtifact(artifactRef)` 都由 main 以 no-follow/containment 方式重新打开文件，核对 identity、大小、SHA-256、格式、UTF-8、cue 数和固定最大字节数；不一致返回 `artifact_changed`/`content_too_large`，不得导入被替换内容。校验成功后把不可变字幕文本快照放进短 TTL、one-shot `translationImportToken` 对应的 main 内存记录，不再让 token 消费阶段重读路径。消费成功或失败后 token 都不能复用；自动/手动重试必须在 artifactRef 仍有效时重新校验并申请新 token。这样既允许完成卡重试，又不把可重放的跨工具 token 长期留在 renderer。
+main 只把 `GeneratedSubtitleArtifactSummary` 返回 renderer，record 的 owner、路径、size/hash 不跨信任边界。`artifactRef` 是 owner-bound、operation-checked、可撤销的会话级引用，可供结果卡 preview/reveal 或请求交接，但不包含路径且不持久化；清除结果、窗口销毁、应用退出或 TTL 到期即失效。`getSessionSnapshot()` 复用仍有效的 ref；只有 ref 已过期且 completed task 仍保留在同一 main session 时，才在重新核对 identity/size/hash 后清理旧 entry 并签发新 ref。renderer 不能自行 refresh，文件不一致时只返回 `artifact_changed` 摘要。任务移除或 owner session 结束后不再补发 ref。
+
+每次 `handoffArtifact(artifactRef)` 都由 main 以 no-follow/containment 方式重新打开文件，核对 identity、大小、SHA-256、格式、UTF-8、cue 数和固定最大字节数；不一致返回 `artifact_changed`/`content_too_large`，不得导入被替换内容。校验成功后把不可变字幕文本快照放进短 TTL、one-shot `translationImportToken` 对应的 main 内存记录，不再让 token 消费阶段重读路径。消费成功或失败后 token 都不能复用；自动/手动重试必须在 artifactRef 仍有效时重新校验并申请新 token。这样既允许完成卡重试，又不把可重放的跨工具 token 长期留在 renderer。
 
 `displayName` 必须由 main 对最终 `outputPath` 取安全 leaf 后生成，拒绝路径分隔符、`.`/`..`、控制字符、设备名和超长名称；renderer 传回的 fileName 只用于显示，不能参与路径拼接。字幕翻译写入器使用 registry 中的安全 stem，在 target directory 下重新 `resolve` 并做 containment/symlink 检查后再原子写入。
 
@@ -860,8 +978,9 @@ interface SubtitleTranslationImportConfigSummary {
   snapshotId: string;
   createdAt: number;
   handoffMode: Exclude<SubtitleTranslationHandoffMode, "export_only">;
-  taskProfileId?: string;
-  taskProfileLabel?: string;
+  executionBinding:
+    | { status: "ready"; taskProfileId: string; taskProfileLabel: string }
+    | { status: "needs_configuration" };
   sourceLang: TranslationLanguage;
   targetLang: TranslationLanguage;
   translationOutputMode: TranslationOutputMode;
@@ -875,12 +994,13 @@ interface SubtitleTranslationImportConfigSummary {
 ```
 
 - `outputMode === "source"` 时，由 main 根据私有 artifact 的父目录派生任务级输出目录 capability；`custom` 时使用字幕翻译工具通过修复后的目录选择器取得、当前仍有效的 translator-owned capability。公开摘要只包含 `outputDirectoryLabel`，不得包含 token 或真实路径。
-- 现有持久化 `outputURL` 在分阶段迁移中只用于保持旧版/手动任务行为，不能被自动提升为目录 capability，也不能复制进新配置 Store。先把脱敏 label 和 `needsDirectoryAuthorization` 安全写入新 Store，待新目录 picker、task target ref 和回滚测试全部通过后，再从旧 Store/localStorage 删除 raw path；任一步失败都保留 legacy 源值并禁用自动 `custom`，不得处于“旧值已删、新值不可用”的半迁移状态。应用重启、capability 过期或授权被撤销后，`custom` 自动交接必须要求用户重新选择目录；不得把旧 raw path 发送到内部授权 channel 重新换取权限。
-- 创建快照时，字幕翻译模块从当前 `taskExecution` profile 解析任务执行模型，并沿用现有 `createSubtitleTaskModelFields()` 逻辑生成私有模型字段。私有快照可在协调器内存中包含执行所需密钥，但不得持久化、不得返回本地转写模块；本地转写 Store 只持有上面的脱敏摘要和不透明 `snapshotId`。
+- 现有持久化 `outputURL` 在分阶段迁移中只用于保持旧版/手动/Agent 恢复扫描行为，不能被自动提升为目录 capability，也不能复制进新配置 Store。先把脱敏 label 和 `needsDirectoryAuthorization` 安全写入新 Store；只有新目录 picker、task target ref、checkpointRef、Agent/RecoveryDialog/tool-executor 等全部消费者和回滚测试都通过后，才能在 `LINK-005` 从旧 Store/localStorage 删除 raw path。任一步失败都保留 legacy 源值并禁用自动 `custom`，不得处于“旧值已删、新值不可用”的半迁移状态。应用重启、capability 过期或授权被撤销后，`custom` 自动交接必须要求用户重新选择目录；不得把旧 raw path 发送到内部授权 channel 重新换取权限。
+- 创建快照时，字幕翻译模块尝试从当前 `taskExecution` profile 解析任务执行模型。`enqueue_and_start_translation` 必须得到 `executionBinding.status = "ready"`，并沿用现有 `createSubtitleTaskModelFields()` 逻辑生成私有模型字段；`enqueue_translation` 可以得到 `needs_configuration`，此时导入任务仍可进入 `NOT_STARTED`，但必须带显式“待配置执行模型”绑定，不能用空字符串伪造当前必填的 `apiKey/apiModel/endPoint`。用户在字幕翻译页显式配置/编辑后才可启动。
+- 私有快照可在协调器内存中包含执行所需密钥，但不得持久化、不得返回本地转写模块；本地转写 Store 只持有上面的脱敏摘要和不透明 `snapshotId`。`SubtitleTranslatorTask` 在 LINK 阶段需迁移为 `ready | needs_configuration` 的 discriminated execution binding，所有 start 入口先验证为 `ready`。
 - Whisper 检测到的语言只作为差异提示，不静默覆盖字幕翻译工具配置的 `sourceLang`。用户选择的翻译配置始终优先。
 - 页面需要把当前分散的安全偏好迁移到字幕翻译模块自有的 `useSubtitleTranslatorConfigStore`（或等价读取服务）；API Key 仍归 `useModelStore`，不得复制进该持久化配置 Store。
 - `prepareBatch` 必须显式等待字幕配置 Store 和 `useModelStore` 完成 hydrate/migration，再读取一次原子快照；超时或迁移失败返回 `configuration_not_ready` 并阻止批次进入自动交接模式，不能把初始化默认值误当成用户“当前配置”。
-- 快照摘要至少展示模型名称、源语言→目标语言、双语/仅译文、切片模式和输出位置。若自动执行所需配置不完整，`enqueue_and_start_translation` 不可启用，并提供前往字幕翻译/模型设置的 CTA。
+- 快照摘要至少展示模型名称或“待配置”、源语言→目标语言、双语/仅译文、切片模式和输出位置。若自动执行所需配置不完整，`enqueue_and_start_translation` 不可启用，并提供前往字幕翻译/模型设置的 CTA；`enqueue_translation` 保持可用但必须明确任务不会自动执行。
 - `custom` 模式在 `prepareBatch` 时从当前目录 capability 派生 snapshot-bound batch lease；用户随后修改字幕翻译页目录不会改变已启动批次。lease 只能在同 owner、窗口存活且批次仍 active 时由 main 有界续期，并设最大墙钟寿命；过期后后续文件交接失败并要求重新授权，不能从 label/旧路径续权。
 - 私有快照生命周期绑定本地转写批次，批次结束、取消、窗口销毁或超时即释放；它不能放进 localStorage。当前首版不续跑未完成文件，因此应用重启后不得尝试使用已经失效的快照静默自动翻译。
 
@@ -890,7 +1010,7 @@ interface SubtitleTranslationImportConfigSummary {
 2. 每个文件完成标准 SRT/LRC 原子导出后，main 在 `SubtitleArtifactRegistry` 注册产物并校验 owner、文件存在、扩展名和内容格式。
 3. `handoffArtifact()` 创建一次性 `translationImportToken`；协调器以该 token 和 `snapshotId` 消费产物。
 4. main 消费 token 后生成候选 `taskId`/`handoffKey`，只向协调器返回已校验的字幕内容、展示名、无路径 source 标记和不透明 target 引用，不返回真实路径；协调器必须使用该 `taskId` 构造字幕翻译任务、尝试计算初始费用估算并通过字幕翻译队列的批量导入 API 入队，最后返回包含新增、未启动、等待、已启动及失败明细的 `SubtitleTranslationImportReceipt`。
-5. `enqueue_translation` 到此结束，任务保持 `NOT_STARTED`，用户可稍后在字幕翻译页检查、编辑和开始。
+5. `enqueue_translation` 到此结束，任务保持 `NOT_STARTED`。若 snapshot 为 `needs_configuration`，任务卡必须显示待配置状态，所有 start 入口返回 `configuration_required`，直到用户显式绑定有效 profile 后才可执行。
 6. `enqueue_and_start_translation` 只能调用新的 `startImportedTasks(addedTaskIds)`（或逐一调用等价精确 API），沿用现有最大并发与 `WAITING` 队列；不得调用 `startAllTasks()`，否则会意外启动用户此前手动放在列表中的任务。
 7. import token 消费后立即失效。只有 `addedTaskIds` 对应的 target handle 才把所有权转给字幕翻译器；duplicate、校验失败、add 失败或协调器异常的候选 handle 必须立即撤销，不能等待 TTL。导入不要求自动跳转页面，但完成卡片应提供“查看翻译任务”。
 
@@ -944,6 +1064,7 @@ interface SubtitleTranslationImportReceipt {
     taskId: string;
     reason:
       | "estimate_failed"
+      | "configuration_required"
       | "profile_unavailable"
       | "authorization_expired"
       | "start_rejected";
@@ -977,17 +1098,23 @@ interface GeneratedSubtitleTranslationTaskRefs {
 
 `export_only` 不创建翻译快照。其余两种模式只在 `prepareBatch` 成功时获得 snapshot，且 `handoffMode` 在 snapshot 内冻结；`importArtifact` 故意不接收 `autoStart`，调用方不能把 enqueue-only 快照临时升级为付费执行。预检失败时 UI 可让用户修复配置，或明确改选较低权限模式并重新 prepare；不能静默降级后继续显示原模式。`releaseBatch` 必须 await，失败时沿用 capability cleanup 的有界重试；它撤销 snapshot、batch lease 和未转移候选 handle，但不得撤销已经出现在 `addedTaskIds`、所有权已转给字幕任务的 target handle。
 
+`profile_required` 只允许由 `enqueue_and_start_translation` 的 prepare 返回；`enqueue_translation` 缺少 profile 时必须成功生成 `needs_configuration` snapshot，而不是走失败分支。`directory_authorization_required` 只在当前 snapshot 确实需要 `custom` target 且无有效 translator-owned capability 时返回。
+
 回执必须满足集合不变量：`startedTaskIds`、`waitingTaskIds`、`notStartedTaskIds` 两两不交且并集恰好等于 `addedTaskIds`；`startFailures[].taskId` 只能出现在 `notStartedTaskIds`，`skipped` 项不能伪造 taskId。`enqueue_translation` 的全部新增任务进入 `notStartedTaskIds`；`enqueue_and_start_translation` 才允许出现 started/waiting，任何竞态或部分失败都通过同一不可变回执表达，不能靠 UI 猜测队列状态。`started` 只表示执行请求已被接受，不表示翻译成功；请求接受后的 API/解析/写入失败走原有任务失败状态，不回写或篡改导入回执。
 
 `taskId`、`handoffKey` 和 target handle 都由 main 在消费 import token 后一次性生成，协调器不得替换 ID 或把 handle 绑定到另一个任务。生成任务的 `source` 只是“内容来自已校验生成产物”的无路径标记；字幕文本已在消费一次性 `translationImportToken` 时读入会话级任务，后续执行不再需要 source path 或第二个 source token。`target.token` 才是 main 随导入签发的 task-scoped directory handle，和一次性 import token 不是同一个 token。它绑定 owner、`taskId`、写操作和有界会话租约；任务未入队、终态、删除、窗口销毁或租约超时即撤销，写入前仍要重新校验目录和 owner。租约过期后启动任务必须返回 `authorization_expired`；字幕翻译页提供固定的“重新授权输出目录”，main 只允许为同 owner、仍在队列且未终态的同一 `taskId` 原子轮换 target handle，成功后立即撤销旧 handle。不得用显示名、历史路径或快照静默续权，也不得借重授权改变 `taskId`/`handoffKey`。
 
 生成字幕任务在 renderer/Store 中只保存上述无路径 source 标记和不透明 target 引用；真实 target path 只在 main 的翻译执行适配层解析，source path 从不进入任务。现有手动/历史恢复任务可在兼容期继续使用 path 字段，但 schema 必须禁止 generated source 或 authorized target 同时携带 path 和 token，且自动交接不得通过“先换出 raw path、再填旧字段”绕过该边界。生成任务的恢复清单不得持久化 artifact path 或 capability token；已启动任务一律使用自包含的 `manifest_fragments` 保存恢复输入，renderer 侧的 `checkpointPath` 替换为 main 签发的 owner/session-bound `checkpointRef`。跨重启时用户通过固定恢复文件选择/扫描入口重新取得 ref，并重新授权目标目录；main 只返回展示信息和恢复摘要，不返回 manifest/output path。尚未启动的 `enqueue_translation` 任务沿用现有字幕翻译队列的会话级语义：应用重启后不恢复该队列，已导出的 SRT/LRC 仍保留，用户可重新手动导入。缺少自包含分片或新目录授权时，把任务标记为需要重新导入/授权，而不是猜测路径或静默扩权。
 
+这次类型迁移不能只改 SubtitleTranslator 页面。当前 `src/agent/tool-executor.ts`、`src/agent/recovery-batch.ts`、`src/agent/tool-schemas.ts`、`src/pages/Tools/Subtitle/SubtitleTranslator/components/RecoveryDialog.tsx`、`src/renderer/subtitle.ts` 以及 `electron/main/translation/*` 都直接消费 `originFileURL`、`targetFileURL`、`checkpointPath` 或 `outputURL`。`LINK-003` 先引入 target ref 与显式 legacy adapter，`LINK-004` 迁移普通/Agent 新建任务生产者，`LINK-005` 再迁移恢复扫描、事件 payload 和 checkpoint 合同；完成所有消费者回归后才删除 `outputURL`。兼容期的 `legacy_path_v1` discriminant 只能进入既有历史恢复入口，main 已登记的 generated `taskId` 一律拒绝该分支，避免本地字幕交接借兼容层回退为 renderer raw path。
+
+Agent 迁移不能把任意模型参数中的 `roots`/`checkpointPaths` 直接换成“内部授权”。新建/恢复任务必须消费 main 固定 picker、用户确认的扫描动作或既有 main-owned scan receipt 签发的 opaque `subtitleSelectionRef` / `recoveryScanId` / `checkpointRef`；工具 schema、Agent 提示与确认 UI 同步更新。未经过用户确认或 main receipt 的 renderer raw path 明确拒绝，不能为了保留旧 Agent 参数静默扩权。
+
 ### 14.4 用户费用、失败与重试
 
 - 默认始终是 `export_only`；记住自动执行偏好时仍应在每个新批次开始前展示模式，不得把一次授权升级为全局静默调用外部 API。
 - `enqueue_and_start_translation` 是对当前批次的明确授权。启动前展示配置摘要和费用提示；得到字幕内容后的精确预计费用写入字幕翻译任务并可在翻译页查看。
-- `enqueue_translation` 可以在未配置任务执行模型时使用，但摘要需提示“加入后需配置模型”；`enqueue_and_start_translation` 必须有可用的任务执行 profile 和 API Key。
+- `enqueue_translation` 可以在未配置任务执行模型时使用，但任务必须使用显式 `needs_configuration` execution binding，摘要提示“加入后需配置模型”；`enqueue_and_start_translation` 必须有可用的任务执行 profile 和 API Key，禁止把空字段任务当作 ready。
 - `enqueue_translation` 的费用估算失败不阻止入队，任务保留 `costEstimate.loading = false` 和可重试提示。`enqueue_and_start_translation` 若精确估算或启动前校验失败，任务仍保留在 `NOT_STARTED`，写入 `notStartedTaskIds`/`startFailures`，不得调用外部 API，也不得撤销已入队任务仍持有的 target handle。
 - 导入失败、token 过期、重复项、翻译启动失败或后续翻译失败，都不回滚、不删除已导出的 SRT/LRC，也不把本地转写任务从 `completed` 改为 `failed`。
 - 自动导入失败时保留完成卡片和有效 `artifactRef` 的可重试路径；用户可修复字幕翻译配置后，按当时的当前配置重新 prepare，并申请新的 one-shot import token 执行手动交接。
@@ -1008,6 +1135,7 @@ interface GeneratedSubtitleTranslationTaskRefs {
 不保存：
 
 - `File`、真实路径、输入 token、输出 token。
+- 初始提示词和其他可能包含用户内容的自由文本推理参数。
 - segment/word 全量结果。
 - runner stderr、临时 WAV 路径。
 
@@ -1019,6 +1147,8 @@ interface GeneratedSubtitleTranslationTaskRefs {
 - `.partial` 与临时 WAV 在下次启动清理。
 - 未完成任务显示为上一会话中断的诊断摘要，用户需重新选择/授权源文件后从头重试。
 - 不声称支持文件中间断点续跑。
+
+写入磁盘的 session diagnostic manifest 只保存 schema version、task/batch id、脱敏 display name、阶段/终态、格式、backend/build id、时间与稳定错误 code；不得保存 source/output/model/temp 绝对路径、capability/token、字幕文本、segment/word、命令行或 API Key。内部 temp 清理只扫描受控 `<userData>/local-subtitle/temp` 根下符合 UUID/age/schema 的条目，不依赖持久化任意路径。由于 artifact registry 不跨重启，重启后的摘要不提供 reveal/自动交接；用户重新选择已生成字幕后再导入。
 
 ### 15.3 内存与显存
 
@@ -1066,9 +1196,11 @@ resources/local-subtitle/
 4. 诊断日志对用户路径只显示 basename 或稳定 hash；不记录媒体内容。
 5. runner 不监听 TCP 端口，使用父子进程 stdio。
 6. sidecar 只接收 main 生成的私有路径；renderer 无法让它执行任意 binary 或参数。
-7. `faster-whisper-GUI-main` 为 AGPL-3.0，只做 clean-room 行为参考。
-8. `whisper.cpp` 与 `faster-whisper` 上游为 MIT；模型、FFmpeg、CUDA runtime、VAD 模型和发布二进制仍需逐项进入 `THIRD_PARTY_NOTICES` 与许可证审计。
-9. 参考项目本地配置中出现的明文 token 不得复制到文档、测试 fixture 或提交历史。
+7. runner/FFmpeg 使用最小 allowlisted environment 和受控 cwd，不继承 Electron/Agent 的 API Key、header 或其他 secret；自定义模型 load smoke 使用短生命周期验证 runner，崩溃只得到脱敏错误。
+8. `faster-whisper-GUI-main` 为 AGPL-3.0，只做 clean-room 行为参考。
+9. `whisper.cpp` 与 `faster-whisper` 上游为 MIT；模型、FFmpeg、CUDA runtime、VAD 模型和发布二进制仍需逐项进入 `THIRD_PARTY_NOTICES` 与许可证审计。
+10. 参考项目本地配置中出现的明文 token 不得复制到文档、测试 fixture 或提交历史。
+11. 本地转写自己的 Store/session manifest/log/crash artifact 不保存字幕正文或 segment/word。唯一明确例外是用户已经启动字幕翻译后，为无路径恢复而写入的 v2 `manifest_fragments` checkpoint：它可以包含完成/待处理的字幕文本分片，但不得包含原始音视频字节、source/target/checkpoint 绝对路径、capability/token、API Key/header 或模型凭据。产品需明确这是本地恢复数据；首版在最终译文原子提交成功后删除内容 checkpoint、只留脱敏完成摘要，失败/取消时保留以便恢复，用户删除任务时一并清理。尚未启动的 enqueue-only 任务不创建 checkpoint。
 
 ## 18. 分期实施建议（高层阶段）
 
@@ -1128,7 +1260,9 @@ resources/local-subtitle/
 
 - `SubtitleArtifactRegistry`、一次性 import token、字幕翻译模块自有的导入协调器。
 - 收敛字幕翻译当前偏好并生成批次级配置快照；本地转写侧只持有脱敏摘要和不透明 `snapshotId`。
+- 为无模型 enqueue-only 任务引入显式 `needs_configuration` execution binding，所有启动入口只接受 ready binding。
 - 生成任务使用无路径 source 标记和 main-only 解析的不透明 target 引用；旧 `outputURL` 不得自动升级为目录授权，恢复清单不持久化路径或 capability。
+- 按 `LINK-003`～`LINK-005` 顺序迁移页面、Agent、RecoveryDialog、renderer event 与 main translation 消费者；全部切换前保留可回滚 legacy adapter，不提前删除旧路径值。
 - 实现 `export_only`、`enqueue_translation`、`enqueue_and_start_translation` 三种模式。
 - 自动执行只启动当前 import receipt 实际新增的 `taskId`，不调用 `startAllTasks()`。
 - 批量导入返回稳定任务 ID；自动模式只启动本次成功导入任务，不触碰原有待执行队列。
@@ -1169,11 +1303,17 @@ resources/local-subtitle/
 - SRT/LRC golden fixtures 与 parse-back。
 - CJK/Latin 分句、标点、空文本、超长词、重叠和缺失词时间戳。
 - 状态机非法迁移。
+- 多格式 full/partial/none-success、首个 artifact commit 前后取消，以及 committed 产物不回滚。
 - task cancellation race、runner late event、旧 generation 事件丢弃。
+- runner command id 唯一性、`cancel.targetRequestId`、控制线程响应、event seq、terminal exactly-once、stdout backpressure。
 - token owner、过期、重复消费、路径越界。
+- draft capability → task lease 原子转移、SPA 离页/返回 snapshot revision 重同步、reload/window owner 结束清理。
+- 本地转写 Store/session/log 无字幕正文；已启动翻译的 v2 checkpoint 只含恢复所需 fragments，且无媒体字节、path/token/key，终态/删除清理策略可测。
 - 三种翻译衔接模式、批次配置快照、配置中途修改不影响已开始批次。
 - 自动执行只启动 import receipt 中的任务；原有 `NOT_STARTED` 任务、重复同名任务不得被误启动。
 - 翻译配置无效、导入部分失败和启动失败不影响本地任务 `completed` 与已导出产物。
+- enqueue-only 无 profile 生成 `needs_configuration`，所有 start 入口拒绝；绑定 profile 后才能启动。
+- SubtitleTranslator 页面、Agent queue/recovery、RecoveryDialog、renderer event 与 main translation 的 path/ref 双分支迁移回归。
 - 模型 `.part`、断点续传、哈希失败、磁盘不足。
 - FFmpeg progress parser 和错误分类。
 - fake runner protocol mismatch、乱码、非 JSON、崩溃和超时。
@@ -1184,7 +1324,7 @@ resources/local-subtitle/
 node_modules/.bin/tsc --noEmit
 node scripts/check-i18n.mjs
 node scripts/check-i18n-usage.mjs
-node_modules/.bin/vitest run test/local-subtitle src/store/tools/subtitle
+node_modules/.bin/vitest run test/local-subtitle src/store/tools/subtitle src/services/subtitle src/agent test/translation test/audio
 node_modules/.bin/vite build --mode=test
 git diff --check
 ```
@@ -1219,7 +1359,7 @@ Electron 视觉/交互验证必须等待 preload loading 完全退出。若启�
 2. 不得复用 Audio API profile、assignment、provider route 或 route constraints 表达本地模型。
 3. 不得让 renderer 提交真实路径、任意 executable、任意模型路径或任意 backend flags。
 4. 不得在公开 preload bridge 暴露可调用内部 channel 的 generic invoke。
-5. 不得把模型、CUDA 包、FFmpeg 或临时 WAV 放进 localStorage、asar 或默认安装包主体。
+5. 不得把模型、VAD、可选 CUDA pack 或临时 WAV 放进 localStorage、asar 或默认安装包；平台 runner 与经 PRE-006 审计的 FFmpeg/ffprobe 必须作为安装包内、asar 外的 `extraResources`，并由签名 manifest 解析，不能回退系统 PATH。
 6. 不得每个文件启动一个会重新加载 `large-v3` 的独立 CLI 进程作为正式批处理架构。
 7. 不得解析上游人类可读日志作为唯一进度和结果合同。
 8. 不得用浮点字符串作为字幕时间轴事实来源；统一使用整数毫秒。
@@ -1233,6 +1373,11 @@ Electron 视觉/交互验证必须等待 preload loading 完全退出。若启�
 16. 不得把 artifact/目录/checkpoint capability 解包成 renderer raw path 以适配旧 `originFileURL`、`targetFileURL` 或 `checkpointPath`；旧 `outputURL` 也不是新授权来源。
 17. 不得让 `importArtifact` 调用方临时传入或修改 auto-start；是否调用外部 API 只能来自当前批次成功 prepare 后冻结的 `handoffMode`。
 18. 不得把可重试的 session `artifactRef` 当成 one-shot import token；跨工具的 `translationImportToken` 必须短 TTL、消费即失效且内容快照在 main 清零。
+19. 不得让页面组件拥有已提交任务的唯一事件 listener 或 capability；SPA 离页后任务继续，返回时必须通过 revision snapshot 重同步，reload/window owner 结束才按合同取消。
+20. 不得复用 runner command id 取消任务；`cancel` 必须有自己的唯一 id 和 `targetRequestId`，runner 控制读取必须在 inference 阻塞期间保持可响应。
+21. 不得让 resource install IPC 接收任意 URL、路径或下载参数；renderer 只能提交内置 manifest 的 `resourceId`，并能查询、取消和重同步 resource job。
+22. 不得用空 `apiKey/apiModel/endPoint` 表示“加入队列后再配置”；未绑定模型的 enqueue-only 任务必须使用显式 `needs_configuration` execution binding，所有 start 入口统一拒绝。
+23. 不得在 Agent、RecoveryDialog、recovery scanner、renderer event 和 main translation 消费者仍读取旧路径字段时提前删除 `outputURL`/`checkpointPath`；兼容值只能在全部消费者切换且回滚验证通过后清理。
 
 ## 22. 推荐下一步
 
