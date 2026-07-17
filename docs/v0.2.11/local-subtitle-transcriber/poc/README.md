@@ -1,10 +1,11 @@
 # Local Subtitle PRE Development Baseline
 
-> Status: PRE-001 through PRE-004 completed on 2026-07-17. PRE-004 macOS arm64
-> passed Metal/CPU backend, bounded-window raw transcript validity, performance,
-> cancellation, reuse and packaged-like evidence. Whole-file inference remains
-> prohibited because its historical raw results contained decoder loops.
-> Developer ID and Gatekeeper are deferred to QA-004 and are not a PRE-004 gate.
+> Status: PRE-001 through PRE-004 completed on 2026-07-17. PRE-005 is in
+> progress: macOS arm64 passed the reproducible LGPL FFmpeg build, signed
+> runtime staging, electron-builder `beforePack`, packaged no-PATH media/fault
+> matrix and outer ad-hoc signature checks. Windows x64 packaged/AuthentiCode
+> evidence and FFmpeg detached-signature verification remain. Developer ID,
+> notarization and Gatekeeper acceptance stay deferred to QA-004.
 
 This directory records only the engineering facts needed to start the local
 subtitle implementation. Media, subtitle text, models, native binaries,
@@ -40,6 +41,9 @@ text is not treated as ground truth.
 | `sample-inventory.example.json` | Shape of the ignored machine-local media/subtitle path inventory. |
 | `clean-room-protocol.md` | Minimal rule that FusionKit is implemented from its design and public upstream APIs, without copying third-party GUI code. |
 | `poc-record-template.md` | Sanitized runtime PoC evidence template for later PRE work. |
+| `pre003-windows-x64-results.json` | Sanitized Windows CPU/CUDA functional and performance result. |
+| `pre004-macos-arm64-results.json` | Sanitized macOS Metal/CPU bounded-window and packaged-like result. |
+| `pre005-macos-arm64-results.json` | Sanitized macOS bundled media runtime, builder gate, signing and no-PATH result. |
 | `reports/` | Sanitized target reports without hostname, username or absolute paths. |
 
 The deterministic silence fixture is generated outside Git:
@@ -87,14 +91,19 @@ PRE-001, PRE-002 or end-user prerequisites. PRE-002 proved that Node can manage
 the prebuilt `whisper-server.exe`; a source toolchain is required only if a
 later target artifact truly must be compiled or patched.
 
-System FFmpeg/ffprobe are development probes only. The eventual product must
-ship its selected binaries outside asar; redistribution, signing and notices
-remain later release work and are not sample-corpus blockers.
+System FFmpeg/ffprobe are development probes and fixture generators only.
+PRE-005 now has a reproducible macOS arm64 FFmpeg 8.1.2 candidate outside asar:
+LGPL-2.1-or-later, GPL/nonfree/version3/network/external libraries disabled,
+macOS 11 deployment target, system-only dynamic dependencies and a stable
+logical configure prefix. Windows selection and final cross-platform freeze
+remain open; packaged mode never falls back to system PATH.
 
-PRE-001 through PRE-004 are complete. PRE-005 continues with bundled FFmpeg,
-sidecar staging and license evidence, followed by PRE-006 production technology
-freeze. Developer ID, notarization and Gatekeeper accepted are future QA-004
-public-distribution evidence, not a PRE-004 gate.
+PRE-001 through PRE-004 are complete. PRE-005 macOS evidence is complete in the
+current environment, but the work package remains in progress until Windows
+x64 packaged/AuthentiCode validation and pinned-fingerprint FFmpeg detached
+signature verification are recorded. PRE-006 then performs the production
+technology freeze. Developer ID, notarization and Gatekeeper acceptance are
+future QA-004 public-distribution evidence, not a PRE-005 blocker.
 
 ## PRE-003 Windows CPU/CUDA runner
 
@@ -217,3 +226,51 @@ source clone, build tree, staged binary, model, native results and generated
 subtitles remain under ignored local storage. The bounded-window Metal/CPU rerun
 passed raw transcript validity and structural parse-back together, completing
 PRE-004.
+
+## PRE-005 macOS bundled runtime and packaging
+
+The macOS media candidate is built reproducibly from the pinned FFmpeg 8.1.2
+source archive (`464beb5e...b524c`). The build recipe disables GPL, nonfree,
+version3, network, autodetection and external libraries; enables only the
+protocols, demuxers, decoders, filters and WAV output needed by the product;
+targets thin arm64 with a macOS 11 minimum; and records a stable logical prefix
+instead of embedding a developer output path. Both binaries contain only system
+dynamic dependencies and pass private-path scans. The detached signature and
+release key files match their pinned hashes, but this machine has no OpenPGP
+verification tool, so verification against full fingerprint
+`FCF986EA15E6E293A5644F10B4322F04D67658D8` remains required.
+
+The staging script signs `whisper-server`, `ffmpeg` and `ffprobe` before freezing
+their byte sizes and SHA-256 values. It then creates a versioned manifest with
+license/source references and verifies all artifacts from manifest-relative
+paths under a sanitized environment. The signed hashes are:
+
+- `whisper-server`: `159a1f8c79e27c741be6f4f7240b472663e7d45465ae24a49d86f7d87b7f6681`
+- `ffmpeg`: `55f36865bfedfef597c1c6462ec92fcab1392bf418815e66b416195493bacc53`
+- `ffprobe`: `8dfe0a7aba414a65a284eca637b04713c0ad0cabaf290f9b5f2679664fb60d09`
+- runtime manifest: `fa82588f3e272db2031af3ed263ba5104596295260dbe0b30c529fef283e8320`
+
+The ignored electron-builder spike places the runtime in
+`Contents/Resources/local-subtitle` outside asar and uses architecture-bearing
+artifact names. A valid `beforePack` run produced the arm64 app; after a copied
+staging directory had `ffmpeg` removed, the same hook failed with
+`media_runtime_missing` before creating any app. Outer ad-hoc signing passed
+independent deep/strict verification and did not change any frozen runtime hash.
+Developer ID and Gatekeeper acceptance are still QA-004 release evidence, not a
+PRE-005 functional gate.
+
+The packaged no-PATH smoke launched all three manifest artifacts and normalized
+mp3, wav, flac, aac, m4a, mp4, mkv, mov and webm. The video fixtures contained
+real video tracks; multi-audio selection, non-ASCII and 225-character paths,
+corrupt input, zero-duration input and FFmpeg progress were covered. Missing
+manifest/tool/license/source evidence maps to `media_runtime_missing`; changed
+hash, wrong architecture or non-executable media tools map to
+`media_runtime_invalid`; a statically valid wrong executable maps to
+`media_runtime_launch_failed`; and a missing server remains `runtime_missing`.
+Every fault was blocked before enqueue.
+
+The sanitized committed result is `pre005-macos-arm64-results.json`; native
+sources, binaries, packaged apps, generated media and machine paths remain under
+ignored local storage. PRE-005 stays `in_progress` until Windows x64 packaged
+no-PATH/AuthentiCode/fault evidence and detached-signature verification are
+available.

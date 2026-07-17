@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "component": "whisper.cpp",
+  "version": "v1.9.1",
+  "upstreamTag": "v1.9.1",
+  "upstreamCommit": "f049fff95a089aa9969deb009cdd4892b3e74916",
+  "sourceUrl": "https://github.com/ggml-org/whisper.cpp/tree/f049fff95a089aa9969deb009cdd4892b3e74916",
+  "license": {
+    "spdxExpression": "MIT",
+    "licenseFile": "whisper.cpp-MIT.txt"
+  },
+  "macosArm64Build": {
+    "sourceKind": "exact_upstream_git_clone",
+    "cmakeFlags": [
+      "CMAKE_OSX_ARCHITECTURES=arm64",
+      "BUILD_SHARED_LIBS=OFF",
+      "GGML_NATIVE=OFF",
+      "GGML_METAL=ON",
+      "GGML_METAL_EMBED_LIBRARY=ON",
+      "WHISPER_BUILD_SERVER=ON"
+    ],
+    "implementationRecord": "docs/v0.2.11/local-subtitle-transcriber/local-subtitle-transcriber_implementation_records/2026-07-17_PRE-004_macos-arm64-metal-cpu.md"
+  },
+  "releaseRequirement": "PRE-006 must freeze the reproducible artifact acquisition/build path before production packaging."
+}

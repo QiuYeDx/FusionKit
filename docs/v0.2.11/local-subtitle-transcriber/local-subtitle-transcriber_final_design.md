@@ -4,7 +4,7 @@
 >
 > Feature Slug：`local-subtitle-transcriber`
 >
-> 状态：调研与 Final Design 已完成；`PRE-001`～`PRE-004` 已完成，macOS arm64 最终有界窗口/VAD segment 原时间轴策略已通过 3 样本 Metal/CPU 全矩阵；下一步 `PRE-005`，Developer ID/Gatekeeper 延后到 `QA-004`
+> 状态：调研与 Final Design 已完成；`PRE-001`～`PRE-004` 已完成，`PRE-005` 进行中；macOS arm64 已通过可复现 LGPL FFmpeg、signed staging、builder/no-PATH/fault matrix，尚缺 Windows x64 packaged/AuthentiCode 与 FFmpeg 固定指纹验签；Developer ID/Gatekeeper 延后到 `QA-004`
 >
 > 产品定位：使用本地算力把批量音频/视频转成可直接翻译的 SRT/LRC 字幕
 >
@@ -29,6 +29,8 @@
 > 2026-07-17 PRE-004 证据修正：精确 `whisper.cpp v1.9.1 / f049fff` 源码构建的 thin arm64、内嵌 Metal server 已在 Apple M5 通过 Metal/CPU backend、RTF/RSS、复用、取消和 packaged-like 检查；但原始 `verbose_json` 已出现最长 347 段连续重复、零时长和媒体越界，SRT/LRC parse-back 只证明序列化结构。故障区间用相同 greedy backend 独立推理约 30 秒窗口可恢复实际内容，因此 PRE-004 因整段字幕有效性失败而保持进行中；Developer ID、公证与 Gatekeeper accepted 属于未来 `QA-004`，不阻塞本工作包
 >
 > 2026-07-17 PRE-004 完成：最终采用一次性 PCM16 规范化、30 秒独立窗口/5 秒 overlap、owned-core 合并、raw quality gate、有界拆短和 VAD。v1.9.1 VAD 只消费映射回原媒体的 segment 时间，禁止压缩时间轴 token/word；3 样本 Metal/CPU 的最长连续重复最多 2 cue、raw 时间轴错误 0，RTF 均 < 1。Gatekeeper rejected 继续仅归未来 `QA-004`
+>
+> 2026-07-17 PRE-005 macOS 进展：固定 FFmpeg 8.1.2 最小 LGPL arm64 构建与 macOS 11 target；nested 签名后冻结 manifest hash，`extraResources`、`beforePack` 缺件失败、外层 ad-hoc deep/strict 签名、9 格式/多音轨/长路径/no-PATH/fault matrix 均通过。PRE-005 保持进行中，等待 Windows x64 packaged/AuthentiCode 与 FFmpeg detached signature 固定指纹验证；Developer ID/公证/Gatekeeper accepted 仍只归 `QA-004`
 
 ---
 
@@ -149,7 +151,7 @@ FusionKit 应新增一个独立的“本地字幕转写”工具，而不是扩�
 
 ### 3.3 打包现状
 
-当前 `electron-builder.json` 只打包 `dist-electron` 和 `dist`，还没有 native sidecar、FFmpeg 或多架构资源。macOS 产物名也未包含 `${arch}`。新增本地运行时时必须同步设计 `extraResources`、可执行权限、签名、公证、Windows DLL 和多架构产物命名，不能只让开发目录中的二进制“恰好可运行”。
+当前正式 `electron-builder.json` 仍只打包 `dist-electron` 和 `dist`，尚未接入 production native sidecar/FFmpeg；但产物名已加入 `${arch}`。PRE-005 的 ignored builder spike 已验证 `extraResources`、可执行权限、嵌套/外层签名顺序和 build-time 缺件门禁。正式接线仍必须等待 PRE-006 冻结跨平台 artifact，不能把本机 spike 或开发目录中的二进制直接当作发布配置。
 
 `electron/main/index.ts` 已调用 `app.requestSingleInstanceLock()`，因此不同 Electron 进程不应同时修改同一 `userData`；但同一 app 进程仍可存在多个 `BrowserWindow/webContents`。Model/ResourceJob/Runner managers 应为 app 级单例并对模型、下载和 GPU 队列加全局锁，task/capability/event 则继续绑定各自 owner session。不能用“应用单实例”替代跨 webContents owner 校验。
 
@@ -892,7 +894,7 @@ source media
 
 FFmpeg/ffprobe 是产品运行时组成，不是用户环境前置条件。正式发布必须为 macOS arm64 和 Windows x64 固定可再分发构建，并通过 `extraResources` 放在 asar 外。每个文件由版本化 runtime manifest 记录 `kind`、`platform`、`arch`、相对路径、字节数、SHA-256、版本和 `licenseRef`；manifest 随已签名应用发布，可选下载资源另有独立签名。packaged 模式只接受这份 manifest 解析出的文件，禁止回退 `PATH`、Homebrew、Chocolatey、注册表、用户配置路径或文件选择器。
 
-系统 FFmpeg 只用于 PRE/开发阶段在正式 staging 尚未建立前执行转码 PoC。开发机探测成功不构成发布证据，开发机探测失败也不意味着未来用户需要自行安装 FFmpeg。
+系统 FFmpeg 只用于 PRE/开发阶段生成测试媒体或在正式 staging 尚未建立前执行转码 PoC。PRE-005 packaged smoke 已只从 manifest 路径启动随包 FFmpeg/ffprobe；开发机探测成功不构成发布证据，开发机探测失败也不意味着未来用户需要自行安装 FFmpeg。
 
 ### 12.2 音轨选择
 
@@ -916,7 +918,9 @@ FFmpeg/ffprobe 是产品运行时组成，不是用户环境前置条件。正�
 
 ### 12.4 FFmpeg 许可证
 
-FFmpeg 二进制必须固定来源、构建选项、许可证文本和源码获取方式。优先使用独立进程方式和经过法务/许可证清单确认的构建，不随意采用未知来源的“静态包”。打包前置脚本必须验证 ffmpeg、ffprobe、runtime manifest 与对应 license/source-offer 证据同时存在，否则构建失败，不能产出“安装成功但无法转写”的发行包。本文不是法律意见；发布前必须完成依赖许可证审计。
+FFmpeg 二进制必须固定来源、构建选项、许可证文本和源码获取方式。优先使用独立进程方式和经过法务/许可证清单确认的构建，不随意采用未知来源的“静态包”。macOS PRE-005 候选固定为 FFmpeg 8.1.2 source archive：关闭 GPL、nonfree、version3、network、autodetect 与外部库，只启用首版格式所需能力，使用 macOS 11 target 和稳定逻辑 prefix；最终二进制必须只有系统动态依赖且不含 host/private build path。其 source archive、detached signature、release key、license、notice、source offer 与构建 recipe 一并固定；release 前仍须用固定完整 fingerprint 完成 detached signature 验证。
+
+打包前置脚本必须验证 ffmpeg、ffprobe、runtime manifest 与对应 license/source-offer 证据同时存在，否则构建失败，不能产出“安装成功但无法转写”的发行包。本文不是法律意见；发布前必须完成依赖许可证审计，Windows x64 构建也必须独立给出相同级别的来源、许可和签名证据。
 
 ### 12.5 用户机器缺失或损坏时的处理
 
@@ -1255,6 +1259,7 @@ resources/local-subtitle/
 
 - 使用 `extraResources` 放到 asar 外。
 - macOS 保留可执行位，并在签名/公证前放入最终 app bundle。
+- macOS 先对最终 staging 中的 nested executable 完成签名和严格验证，再计算 size/SHA-256 并生成 manifest；外层 app 签名必须排除这份已冻结 runtime，签名后重新比对全部 hash 并执行独立 deep/strict 验证。
 - Windows runner、DLL、FFmpeg 和许可证一起进入资源清单。
 - 平台产物名保留 `${arch}`，避免 Windows/macOS 或不同 runner 资源互相覆盖；macOS 只生成 arm64 产物。
 - `beforePack`/staging 门禁验证目标平台所需 runner、FFmpeg、ffprobe、manifest 和 license/source-offer 证据；任一缺失、hash 不符或架构错误都必须让打包失败。
@@ -1283,7 +1288,7 @@ resources/local-subtitle/
 
 ## 18. 分期实施建议（高层阶段）
 
-本节保留架构层面的阶段划分；可认领的工作包、依赖、状态、验证和实施记录以 `local-subtitle-transcriber_execution_plan.md` 为唯一执行台账。Execution Plan 已于 2026-07-16 建立，当前 `PRE-001`～`PRE-004` 已完成，下一工作包为 `PRE-005`。Developer ID、公证和 Gatekeeper accepted 不属于 PRE-004 门禁，由未来 `QA-004` 验收。
+本节保留架构层面的阶段划分；可认领的工作包、依赖、状态、验证和实施记录以 `local-subtitle-transcriber_execution_plan.md` 为唯一执行台账。Execution Plan 已于 2026-07-16 建立，当前 `PRE-001`～`PRE-004` 已完成，`PRE-005` 进行中且 macOS arm64 子矩阵已通过。Developer ID、公证和 Gatekeeper accepted 不属于 PRE-005 门禁，由未来 `QA-004` 验收。
 
 其中本节原先汇总为一个 `PRE-001` 的跨平台 PoC，在 Execution Plan 中拆为 `PRE-001`～`PRE-006`，以避免把基准、CPU runner、Windows CUDA、macOS Metal、FFmpeg/打包许可和最终技术冻结塞进一个无法单会话闭环的工作包。其余高层包也在执行计划中按安全边界和可验证纵向切片进一步拆分。
 
@@ -1323,6 +1328,14 @@ PRE-001 已解锁 runtime 开发，PRE-003 已确定 Windows CPU/CUDA 候选，P
 - raw `verbose_json` 证明整段策略不可用：Metal 日文长音频曾从 405.52 s 起连续重复 347 段，Metal/CPU 中文分别重复 77/43 段，CPU 长音频曾越界约 27.89 s。最终方案先一次性规范化 PCM16，再按 30 秒窗口/5 秒 overlap 做独立请求、owned-core 合并、raw gate 和最多 3 层有界拆短重试；不通过删除重复行、beam 或参数碰运气掩盖丢失语音。
 - VAD 消除了纯静音窗口的短幻觉，但 v1.9.1 只有 segment 时间被映射回原媒体，token/word 时间仍处于去静音后的压缩时间轴。VAD 请求因此强制 `token_timestamps=false` 并仅消费 segment 时间；merge 层还会拒绝越出 parent segment 的 word 时间。最终矩阵 raw 时间轴错误为 0、最长连续重复最多 2 cue，长音频 `600～630 s` 为空且后续台词和媒体尾部恢复。
 - staged runner 的资源路径、可执行位、thin arm64 和系统动态依赖通过；ad-hoc 签名/Gatekeeper rejected 只记录当前未采用的公开无警告分发能力。Developer ID、公证和 Gatekeeper accepted 由 `QA-004` 对真实发布产物验收，不阻塞 PRE-004。
+
+### PRE-005：Bundled FFmpeg、runtime staging 与许可（进行中）
+
+- macOS arm64 已固定 FFmpeg 8.1.2 最小 LGPL build recipe、源码 archive/hash、detached signature/key hash、完整 fingerprint、macOS 11 target、稳定逻辑 prefix 与 source-offer/notice；当前机器没有 OpenPGP 工具，因此 detached signature 的真实验签仍未完成。
+- `whisper-server`、`ffmpeg`、`ffprobe` 在最终 staging 中先完成 nested ad-hoc signing，再冻结 size/SHA-256 和 versioned runtime manifest；外层 app 签名排除 frozen runtime，签名后全部 hash 不变且独立 deep/strict 校验通过。
+- ignored electron-builder spike 通过 `extraResources` 把 runtime 放在 asar 外；正向 arm64 build 成功，配置生成后删除 `ffmpeg` 的反向 build 在 `beforePack` 返回 `media_runtime_missing`，没有产生 `.app`。
+- packaged no-PATH smoke 通过 mp3/wav/flac/aac/m4a/mp4/mkv/mov/webm、真实视频轨、多音轨、非 ASCII/225 字符路径、损坏/零时长输入和机器可读进度；缺失/损坏/错架构/无执行位/启动身份错误均在 enqueue 前映射为稳定 runtime error。
+- PRE-005 整体仍等待 Windows x64 packaged no-PATH、AuthentiCode、runtime fault matrix 与 FFmpeg detached-signature 固定指纹验证。Developer ID、公证和 Gatekeeper accepted 是 `QA-004` 的可选公开无警告分发验收，不是本工作包 blocker。
 
 ### CORE-001：类型、协议与安全边界
 
@@ -1499,9 +1512,9 @@ Electron 视觉/交互验证必须等待 preload loading 完全退出。若启�
 
 ## 22. 推荐下一步
 
-`PRE-001`～`PRE-004` 已完成。PRE-004 已证明 macOS arm64 runner 的 Metal/CPU backend、模型复用、取消、最终窗口策略 RTF/RSS、raw transcript validity 和 packaged-like 资源形态可行；整段单请求被明确禁止，VAD segment/word 时间轴差异已进入实现约束与测试。
+`PRE-001`～`PRE-004` 已完成，`PRE-005` 进行中。PRE-004 已证明 macOS arm64 runner 的 Metal/CPU backend、模型复用、取消、最终窗口策略 RTF/RSS、raw transcript validity 和 packaged-like 资源形态可行；PRE-005 已补齐当前 macOS 环境的 bundled media build、staging、许可、builder 和 no-PATH/fault 证据。
 
-1. 执行 `PRE-005`，冻结 bundled FFmpeg/ffprobe、native sidecar staging、许可、资源 manifest 与 packaged no-PATH 证据。
-2. `PRE-005` 完成后由 `PRE-006` 冻结 official server/source-build artifact、最终 runtime contract、模型/VAD manifest 和支持矩阵，再进入正式 CORE/NATIVE/runtime/UI 实现。
+1. 在 Windows x64 完成 `PRE-005` packaged no-PATH/AuthentiCode/fault matrix，并在具备 OpenPGP 工具的受控环境用固定 fingerprint 验证 FFmpeg detached signature。
+2. `PRE-005` 完成后由 `PRE-006` 冻结 official server/source-build artifact、最终 runtime contract、模型/VAD manifest、FFmpeg 获取策略和支持矩阵，再进入正式 CORE/NATIVE/runtime/UI 实现。
 3. Developer ID、公证和 Gatekeeper accepted 仅在未来采用公开无警告分发时由 `QA-004` 验收，不回溯阻塞 PRE-004。
 4. 仍无需 FusionKit 自写 C++ runner；只有 official server 出现产品必需能力的真实硬缺口才重新评估 native bridge。

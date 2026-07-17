@@ -1,0 +1,194 @@
+{
+  "schemaVersion": 1,
+  "reportType": "local-subtitle-pre005-macos-arm64",
+  "observedAt": "2026-07-17",
+  "status": "in_progress",
+  "currentEnvironmentStatus": "passed",
+  "remainingPre005Evidence": [
+    "windows_x64_packaged_no_path_authenticode_and_runtime_fault_matrix",
+    "ffmpeg_detached_signature_verification_with_pinned_full_fingerprint"
+  ],
+  "deferredReleaseEvidence": [
+    "developer_id_notarization_and_gatekeeper_acceptance_QA_004"
+  ],
+  "scope": {
+    "platform": "macos",
+    "osVersion": "26.2",
+    "architecture": "arm64",
+    "chip": "Apple M5",
+    "nodeVersion": "20.19.5",
+    "electronBuilderVersion": "24.13.3"
+  },
+  "ffmpegBuild": {
+    "version": "8.1.2",
+    "upstreamTag": "n8.1.2",
+    "upstreamCommit": "38b88335f99e76ed89ff3c93f877fdefce736c13",
+    "sourceArchiveFileName": "ffmpeg-8.1.2.tar.xz",
+    "sourceArchiveSizeBytes": 11710924,
+    "sourceArchiveSha256": "464beb5e7bf0c311e68b45ae2f04e9cc2af88851abb4082231742a74d97b524c",
+    "detachedSignatureSha256": "0a0963fccd70597838073f3e31b20f4a4d8cc2b5e577472c9a5a1f22624246f8",
+    "releaseKeySha256": "397b3becedcd5a98769967ff1ff8501ddc89f8368b8f766e4701377d7dbaabe5",
+    "expectedSigningKeyFingerprint": "FCF986EA15E6E293A5644F10B4322F04D67658D8",
+    "detachedSignatureVerification": "not_run_tool_unavailable",
+    "license": "LGPL-2.1-or-later",
+    "gplEnabled": false,
+    "nonfreeEnabled": false,
+    "version3Enabled": false,
+    "networkEnabled": false,
+    "externalLibraries": [],
+    "logicalPrefix": "/opt/fusionkit/local-subtitle/ffmpeg/8.1.2",
+    "macosDeploymentTarget": "11.0",
+    "ancestorGitMetadataIsolated": true,
+    "privateBuildPathScanPassed": true,
+    "systemOnlyDynamicDependencies": true,
+    "unsignedArtifacts": [
+      {
+        "kind": "ffmpeg",
+        "sizeBytes": 2773304,
+        "sha256": "0d539f3ece488146ba5a04d17e4943266bcd750c0b7264ba4e38811fa82e0a14"
+      },
+      {
+        "kind": "ffprobe",
+        "sizeBytes": 2580504,
+        "sha256": "1defb985cea907854e4f349c267b85ccdf32a4e4fa4d76a140b561d94a913e8b"
+      }
+    ]
+  },
+  "stagedRuntime": {
+    "layout": "local-subtitle/mac-arm64/{metal,media}",
+    "manifestRelativePath": "manifests/local-subtitle-runtime.v1.json",
+    "manifestSha256": "fa82588f3e272db2031af3ed263ba5104596295260dbe0b30c529fef283e8320",
+    "binaryHashPhase": "after_nested_code_signing_before_outer_bundle_signing",
+    "licenseAndSourceEvidenceFileCount": 6,
+    "artifacts": [
+      {
+        "id": "whisper-server-mac-arm64",
+        "kind": "server",
+        "relativePath": "mac-arm64/metal/whisper-server",
+        "sizeBytes": 3611392,
+        "sha256": "159a1f8c79e27c741be6f4f7240b472663e7d45465ae24a49d86f7d87b7f6681",
+        "architecture": "arm64",
+        "signatureKind": "adhoc"
+      },
+      {
+        "id": "ffmpeg-mac-arm64",
+        "kind": "ffmpeg",
+        "relativePath": "mac-arm64/media/ffmpeg",
+        "sizeBytes": 2775312,
+        "sha256": "55f36865bfedfef597c1c6462ec92fcab1392bf418815e66b416195493bacc53",
+        "architecture": "arm64",
+        "signatureKind": "adhoc"
+      },
+      {
+        "id": "ffprobe-mac-arm64",
+        "kind": "ffprobe",
+        "relativePath": "mac-arm64/media/ffprobe",
+        "sizeBytes": 2583632,
+        "sha256": "8dfe0a7aba414a65a284eca637b04713c0ad0cabaf290f9b5f2679664fb60d09",
+        "architecture": "arm64",
+        "signatureKind": "adhoc"
+      }
+    ],
+    "allArtifactsLaunchedFromManifestPaths": true,
+    "pathFallbackAllowed": false
+  },
+  "builderSpike": {
+    "extraResourcesOutsideAsar": true,
+    "artifactNameIncludesArchitecture": true,
+    "beforePackConfigured": true,
+    "positiveBuildPassed": true,
+    "negativeBuild": {
+      "removedAfterConfigGeneration": "ffmpeg",
+      "errorCode": "media_runtime_missing",
+      "buildFailed": true,
+      "appProduced": false
+    },
+    "outerAppSignatureKind": "adhoc",
+    "deepStrictSignatureVerificationPassed": true,
+    "runtimeHashesUnchangedByOuterSigning": true,
+    "gatekeeper": {
+      "status": "unavailable_for_adhoc_build",
+      "pre005Gate": false,
+      "releaseGateOwner": "QA-004"
+    }
+  },
+  "packagedNoPathSmoke": {
+    "noPathFallback": true,
+    "runtimeLaunchCount": 3,
+    "runtimeLaunchesPassed": 3,
+    "formats": [
+      "mp3",
+      "wav",
+      "flac",
+      "aac",
+      "m4a",
+      "mp4",
+      "mkv",
+      "mov",
+      "webm"
+    ],
+    "formatsNormalizedToPcm16": 9,
+    "ffmpegProgressEndObservedForAllFormats": true,
+    "videoTrackFormats": ["mp4", "mkv", "mov", "webm"],
+    "twoAudioTracksDetected": true,
+    "explicitSecondAudioTrackNormalized": true,
+    "nonAsciiPathPassed": true,
+    "longPathPassed": true,
+    "longPathCharacterCount": 225,
+    "corruptInputRejected": true,
+    "zeroDurationInputRejectedBeforeEnqueue": true
+  },
+  "runtimeFaultMatrix": [
+    {
+      "fault": "manifest_missing",
+      "errorCode": "media_runtime_missing",
+      "blockedBeforeEnqueue": true
+    },
+    {
+      "fault": "ffmpeg_missing",
+      "errorCode": "media_runtime_missing",
+      "blockedBeforeEnqueue": true
+    },
+    {
+      "fault": "license_missing",
+      "errorCode": "media_runtime_missing",
+      "blockedBeforeEnqueue": true
+    },
+    {
+      "fault": "source_offer_missing",
+      "errorCode": "media_runtime_missing",
+      "blockedBeforeEnqueue": true
+    },
+    {
+      "fault": "ffmpeg_hash_changed",
+      "errorCode": "media_runtime_invalid",
+      "blockedBeforeEnqueue": true
+    },
+    {
+      "fault": "ffmpeg_wrong_architecture",
+      "errorCode": "media_runtime_invalid",
+      "blockedBeforeEnqueue": true
+    },
+    {
+      "fault": "ffmpeg_not_executable",
+      "errorCode": "media_runtime_invalid",
+      "blockedBeforeEnqueue": true
+    },
+    {
+      "fault": "ffmpeg_launch_identity_failed",
+      "errorCode": "media_runtime_launch_failed",
+      "blockedBeforeEnqueue": true
+    },
+    {
+      "fault": "server_missing",
+      "errorCode": "runtime_missing",
+      "blockedBeforeEnqueue": true
+    }
+  ],
+  "privacy": {
+    "containsAbsolutePaths": false,
+    "containsMediaOrSubtitleText": false,
+    "containsNativeBinariesOrModelBytes": false,
+    "containsSigningIdentity": false
+  }
+}
