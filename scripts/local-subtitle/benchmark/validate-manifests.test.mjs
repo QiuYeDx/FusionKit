@@ -123,11 +123,42 @@ test("toolchain reports reject private path fields even when privacy flags claim
 test("metrics contract does not require research baseline or independent ground truth", () => {
   const { metrics } = loadDocuments();
   const metricIds = new Set(metrics.requiredMetricIds);
+  assert.equal(metricIds.has("raw_transcript_validity"), true);
+  assert.equal(metricIds.has("longest_consecutive_repeat_cue_count"), true);
+  assert.equal(metricIds.has("invalid_raw_timeline_segment_count"), true);
+  assert.equal(metricIds.has("word_timeline_fallback_count"), true);
+  assert.equal(metricIds.has("window_execution_coverage"), true);
   assert.equal(metricIds.has("cer"), false);
   assert.equal(metricIds.has("wer"), false);
   assert.equal(metricIds.has("cue_boundary_mae_ms"), false);
   assert.equal(metrics.runRecord.requiredIdentityFields.includes("baseline_profile_id"), false);
   assert.equal(metrics.runRecord.requiredIdentityFields.includes("model_sha256"), false);
+});
+
+test("PRE-004 keeps the whole-file failure while accepting the bounded strategy", () => {
+  const report = JSON.parse(fs.readFileSync(path.resolve(
+    "docs/v0.2.11/local-subtitle-transcriber/poc/pre004-macos-arm64-results.json",
+  ), "utf8"));
+  assert.equal(report.status, "completed");
+  assert.equal(report.wholeFileTranscriptValidityStatus, "failed");
+  assert.equal(report.boundedWindowTranscriptValidityStatus, "passed");
+  assert.equal(report.outputValidation.rawTranscriptValidityPassed, true);
+  assert.equal(report.remainingBlockers.length, 0);
+  assert.equal(report.transcriptStrategy.vadTimelinePolicy,
+    "mapped-segment-timestamps-only");
+  assert.equal(report.transcriptStrategy.tokenTimestampsEnabledWithVad, false);
+
+  for (const backend of [report.metalResult, report.cpuResult]) {
+    assert.equal(backend.backendVerified, true);
+    assert.equal(backend.realtimeFactorRange.every((value) => value < 1), true);
+    assert.equal(backend.samples.every(
+      (sample) => sample.invalidRawTimelineSegmentCount === 0 &&
+        sample.longestConsecutiveRepeatCueCount <= 2,
+    ), true);
+  }
+  assert.equal(report.packagedLikeRuntime.packagedLikeReady, true);
+  assert.equal(report.packagedLikeRuntime.gatekeeper.pre004Gate, false);
+  assert.equal(report.deferredReleaseGate, "QA-004");
 });
 
 test("local inventory verifies media and sample subtitle without exposing their paths", async () => {

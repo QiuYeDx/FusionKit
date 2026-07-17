@@ -10,8 +10,8 @@
       "candidateCommit": "f049fff95a089aa9969deb009cdd4892b3e74916",
       "sourceUrl": "https://github.com/ggml-org/whisper.cpp/releases/tag/v1.9.1",
       "declaredLicense": "MIT",
-      "decisionStatus": "pre003_windows_cpu_cuda_verified",
-      "nextDecisionWorkPackage": "PRE-004/PRE-005/PRE-006",
+      "decisionStatus": "pre004_macos_bounded_window_vad_segment_timeline_verified",
+      "nextDecisionWorkPackage": "PRE-005/PRE-006",
       "pre001WindowsReleaseAssets": [
         {
           "targetProfile": "windows-x64-cpu",
@@ -81,8 +81,40 @@
         "backendVerified": false,
         "stableProductCode": "backend_unverified"
       },
+      "pre004MacosArm64Evidence": {
+        "artifactSource": "exact_v1.9.1_commit_source_build",
+        "artifactSha256": "4a27a3058d43dff4f763aaf4fc8cb3726460dee145f55a4e520dc4e5a7354f1a",
+        "architectures": ["arm64"],
+        "metalLibraryEmbedded": true,
+        "systemOnlyDynamicDependencies": true,
+        "completedRealSamplesPerBackend": 3,
+        "metalRealtimeFactorRange": [0.0698, 0.0821],
+        "cpuRealtimeFactorRange": [0.1954, 0.2811],
+        "metalPeakRamBytes": 1870495744,
+        "cpuPeakRamBytes": 2034991104,
+        "backendEvidence": "metal_initialization_and_device_diagnostics_plus_explicit_no_gpu_cpu_flag",
+        "processReusedForNormalTasks": true,
+        "srtAndLrcStructuralParseBack": true,
+        "wholeFileTranscriptValidity": false,
+        "boundedWindowTranscriptValidity": true,
+        "historicalMetalLongestConsecutiveRepeatCount": 347,
+        "historicalCpuLongestConsecutiveRepeatCount": 43,
+        "finalLongestConsecutiveRepeatCount": 2,
+        "finalInvalidRawTimelineSegmentCount": 0,
+        "boundedWindowReplayRecoveredExpectedContent": true,
+        "finalTranscriptStrategy": "30s_pcm_windows_5s_overlap_vad_mapped_segment_timeline_raw_gate_and_bounded_retry",
+        "vadTokenTimestampsAllowed": false,
+        "packagedLikeReady": true,
+        "releaseReady": false,
+        "releaseReadinessPre004Gate": false,
+        "releaseOwningWorkPackage": "QA-004",
+        "unadoptedReleaseCapabilities": [
+          "developer_id_signature_missing",
+          "gatekeeper_not_accepted"
+        ]
+      },
       "openQuestions": [
-        "Verify the macOS arm64 server artifact and Metal backend in PRE-004.",
+        "Validate Developer ID, notarization and Gatekeeper only when public no-warning distribution is adopted in QA-004.",
         "Freeze signing, update and rollback rules for the recommended optional Windows CUDA accelerator pack in PRE-005/PRE-006.",
         "Decide in PRE-006 whether phase-only progress is sufficient; introduce a native bridge only for a demonstrated hard requirement.",
         "Retain the upstream MIT notice in every distributed server artifact."
@@ -91,38 +123,44 @@
     {
       "id": "whisper-large-v3-ggml-family",
       "category": "model",
-      "candidateVersion": "large-v3-q5_0 selected for PRE-003; large-v3 and large-v3-turbo remain candidates",
+      "candidateVersion": "large-v3-q5_0 selected for PRE-003/PRE-004; large-v3 and large-v3-turbo remain candidates",
       "candidateCommit": "c521a4b02f422512d734391fdf08bb08c0862f68",
       "sourceUrl": "https://huggingface.co/ggerganov/whisper.cpp",
       "declaredLicense": "MIT on the official model repository; release notice review remains PRE-006",
-      "decisionStatus": "pre003_large_v3_q5_0_windows_cpu_cuda_verified",
-      "nextDecisionWorkPackage": "PRE-004/PRE-006",
+      "decisionStatus": "pre004_cross_platform_bounded_window_output_verified",
+      "nextDecisionWorkPackage": "PRE-006",
       "pre003SelectedArtifact": {
         "modelId": "large-v3-q5_0",
         "fileName": "ggml-large-v3-q5_0.bin",
         "byteSize": 1081140203,
         "sha256": "d75795ecff3f83b5faa89d1900604ad8c780abd5739fae406de19f23ecd98ad1",
         "downloadUrl": "https://huggingface.co/ggerganov/whisper.cpp/resolve/c521a4b02f422512d734391fdf08bb08c0862f68/ggml-large-v3-q5_0.bin?download=true",
-        "localEvidenceStatus": "windows_cpu_cuda_three_sample_verified"
+        "localEvidenceStatus": "backend_integrity_and_macos_bounded_window_transcript_validity_verified"
       },
       "openQuestions": [
         "Decide in PRE-006 whether large-v3-q5_0 is the default or an explicit lower-resource option beside full large-v3.",
         "Use SHA-256 only to detect a corrupt or substituted download, not to reproduce another application's baseline.",
-        "Confirm weight redistribution terms and required notices independently of repository code.",
-        "Let the user perform final quality acceptance on the implemented product with the three PRE-001 samples."
+        "Confirm weight redistribution terms and required notices independently of repository code."
       ]
     },
     {
-      "id": "silero-vad-v6.2.1",
+      "id": "silero-vad-v6.2.0-ggml",
       "category": "vad",
-      "candidateVersion": "v6.2.1",
+      "candidateVersion": "v6.2.0 GGML test model used by whisper.cpp v1.9.1",
       "candidateCommit": null,
-      "sourceUrl": "https://github.com/snakers4/silero-vad/releases/tag/v6.2.1",
+      "sourceUrl": "https://github.com/ggml-org/whisper.cpp/blob/f049fff95a089aa9969deb009cdd4892b3e74916/models/for-tests-silero-v6.2.0-ggml.bin",
       "declaredLicense": "MIT",
-      "decisionStatus": "research_candidate",
-      "nextDecisionWorkPackage": "PRE-004/PRE-006",
+      "decisionStatus": "pre004_macos_vad_segment_timeline_verified",
+      "nextDecisionWorkPackage": "PRE-006",
+      "pre004Evidence": {
+        "byteSize": 885098,
+        "sha256": "2aa269b785eeb53a82983a20501ddf7c1d9c48e33ab63a41391ac6c9f7fb6987",
+        "silentWindowHallucinationSuppressed": true,
+        "segmentTimestampsMappedToOriginalTimeline": true,
+        "tokenTimestampsRemainSilenceCompressed": true,
+        "tokenTimestampsAllowedWithVad": false
+      },
       "openQuestions": [
-        "Confirm whisper.cpp compatibility and the exact model artifact hash.",
         "Verify model-weight redistribution terms and notice requirements."
       ]
     },

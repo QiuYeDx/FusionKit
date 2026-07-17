@@ -7,6 +7,7 @@ import path from "node:path";
 import {
   WhisperServerError,
   buildWhisperServerEnvironment,
+  createWhisperInferenceFields,
   createWhisperServerLaunch,
   parseWhisperVerboseJson,
   postMultipartFile,
@@ -14,49 +15,57 @@ import {
 import {
   languageForSample,
   languageMatches,
+  parseBackend,
   selectRequestedSamples,
   selectRealSamples,
 } from "./run-poc.mjs";
 
 test("builds a minimal child environment without application secrets", () => {
+  const root = path.parse(process.cwd()).root;
+  const runtimeDirectory = path.join(root, "runtime");
+  const mediaDirectory = path.join(runtimeDirectory, "media");
+  const systemRoot = path.join(root, "system-root");
   const environment = buildWhisperServerEnvironment({
-    serverPath: "C:\\runtime\\whisper-server.exe",
-    ffmpegPath: "C:\\runtime\\media\\ffmpeg.exe",
-    tempDirectory: "C:\\temp\\fusionkit-whisper",
+    serverPath: path.join(runtimeDirectory, "whisper-server"),
+    ffmpegPath: path.join(mediaDirectory, "ffmpeg"),
+    tempDirectory: path.join(root, "temp", "fusionkit-whisper"),
     sourceEnvironment: {
-      SystemRoot: "C:\\Windows",
-      WINDIR: "C:\\Windows",
-      COMSPEC: "C:\\Windows\\System32\\cmd.exe",
+      SystemRoot: systemRoot,
+      WINDIR: systemRoot,
+      COMSPEC: path.join(systemRoot, "System32", "cmd.exe"),
       PATHEXT: ".EXE;.CMD",
       PATH: "C:\\untrusted",
       OPENAI_API_KEY: "must-not-leak",
       HTTPS_PROXY: "http://secret-proxy",
-      ProgramFiles: "C:\\Program Files",
-      ProgramW6432: "C:\\Program Files",
+      ProgramFiles: path.join(root, "Program Files"),
+      ProgramW6432: path.join(root, "Program Files"),
     },
   });
 
   assert.equal(environment.OPENAI_API_KEY, undefined);
   assert.equal(environment.HTTPS_PROXY, undefined);
   assert.equal(environment.PATH.includes("untrusted"), false);
-  assert.equal(environment.PATH.includes("C:\\runtime"), true);
-  assert.equal(environment.TEMP, "C:\\temp\\fusionkit-whisper");
-  assert.equal(environment.ProgramFiles, "C:\\Program Files");
+  assert.equal(environment.PATH.includes(runtimeDirectory), true);
+  assert.equal(environment.TEMP, path.join(root, "temp", "fusionkit-whisper"));
+  assert.equal(environment.ProgramFiles, path.join(root, "Program Files"));
 });
 
 test("launches the official server on loopback with a private request path", () => {
+  const root = path.parse(process.cwd()).root;
+  const runtimeDirectory = path.join(root, "runtime");
   const launch = createWhisperServerLaunch({
-    serverPath: "C:\\runtime\\whisper-server.exe",
-    modelPath: "C:\\models\\ggml-base.bin",
-    ffmpegPath: "C:\\runtime\\ffmpeg.exe",
+    serverPath: path.join(runtimeDirectory, "whisper-server"),
+    modelPath: path.join(root, "models", "ggml-base.bin"),
+    vadModelPath: path.join(root, "models", "ggml-silero-v6.2.0.bin"),
+    ffmpegPath: path.join(runtimeDirectory, "ffmpeg"),
     port: 43123,
     requestPath: "/fusionkit-private-token",
-    publicDirectory: "C:\\temp\\empty-public",
-    mediaTempDirectory: "C:\\temp\\media",
+    publicDirectory: path.join(root, "temp", "empty-public"),
+    mediaTempDirectory: path.join(root, "temp", "media"),
     threads: 6,
     useGpu: false,
     convertWithFfmpeg: true,
-    sourceEnvironment: { SystemRoot: "C:\\Windows" },
+    sourceEnvironment: {},
   });
 
   assert.deepEqual(launch.args.slice(0, 4), [
@@ -68,21 +77,25 @@ test("launches the official server on loopback with a private request path", () 
   assert.ok(launch.args.includes("/fusionkit-private-token"));
   assert.ok(launch.args.includes("--no-gpu"));
   assert.ok(launch.args.includes("--convert"));
+  assert.deepEqual(launch.args.slice(-2), [
+    "--vad-model",
+    path.join(root, "models", "ggml-silero-v6.2.0.bin"),
+  ]);
   assert.equal(launch.spawnOptions.shell, false);
   assert.equal(launch.spawnOptions.windowsHide, true);
-  assert.equal(launch.spawnOptions.cwd, "C:\\runtime");
+  assert.equal(launch.spawnOptions.cwd, runtimeDirectory);
 
   const cudaLaunch = createWhisperServerLaunch({
-    serverPath: "C:\\runtime\\whisper-server.exe",
-    modelPath: "C:\\models\\ggml-large-v3-q5_0.bin",
+    serverPath: path.join(runtimeDirectory, "whisper-server"),
+    modelPath: path.join(root, "models", "ggml-large-v3-q5_0.bin"),
     port: 43124,
     requestPath: "/fusionkit-private-cuda",
-    publicDirectory: "C:\\temp\\empty-public",
-    mediaTempDirectory: "C:\\temp\\media",
+    publicDirectory: path.join(root, "temp", "empty-public"),
+    mediaTempDirectory: path.join(root, "temp", "media"),
     threads: 6,
     useGpu: true,
     convertWithFfmpeg: false,
-    sourceEnvironment: { SystemRoot: "C:\\Windows" },
+    sourceEnvironment: {},
   });
   assert.equal(cudaLaunch.args.includes("--no-gpu"), false);
 });
@@ -121,6 +134,43 @@ test("normalizes official verbose JSON into millisecond segments", () => {
       },
     ],
   });
+});
+
+test("VAD forces token timestamps off and ignores compressed word timestamps", () => {
+  const fields = createWhisperInferenceFields({
+    language: "ja",
+    vad: true,
+    tokenTimestamps: true,
+  });
+  assert.equal(fields.vad, "true");
+  assert.equal(fields.token_timestamps, "false");
+  assert.throws(
+    () => createWhisperInferenceFields({ vad: "false" }),
+    (error) =>
+      error instanceof WhisperServerError && error.code === "invalid_request",
+  );
+
+  const result = parseWhisperVerboseJson({
+    language: "Japanese",
+    duration: 30,
+    text: "そういえばさ、お風呂どうする?",
+    segments: [{
+      id: 0,
+      start: 13.7,
+      end: 17.28,
+      text: "そういえばさ、お風呂どうする?",
+      words: [{
+        word: "そう",
+        start: 0,
+        end: 0.44,
+        probability: 0.67,
+      }],
+    }],
+  }, { includeWords: false });
+
+  assert.equal(result.segments[0].startMs, 13_700);
+  assert.equal(result.segments[0].endMs, 17_280);
+  assert.equal(result.segments[0].words, undefined);
 });
 
 test("rejects malformed verbose JSON instead of parsing human logs", () => {
@@ -215,6 +265,8 @@ test("selects only the three real Chinese and Japanese inventory samples", () =>
   assert.equal(languageMatches("zh", "chinese"), true);
   assert.equal(languageMatches("ja", "Japanese"), true);
   assert.equal(languageMatches("zh", "japanese"), false);
+  assert.equal(parseBackend("metal"), "metal");
+  assert.throws(() => parseBackend("vulkan"), /cpu, cuda, or metal/u);
   assert.deepEqual(
     selectRequestedSamples(absoluteSamples, ["ja-one", "ja-one"])
       .map((sample) => sample.sampleId),

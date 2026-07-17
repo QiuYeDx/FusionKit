@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  mergeMetalBackendEvidence,
+  parseMetalBackendDiagnostics,
   parseNvidiaComputeApps,
+  parsePosixProcessRssBytes,
   parseWindowsProcessMetrics,
 } from "./process-metrics.mjs";
 import {
@@ -32,6 +35,53 @@ test("parses only the target whisper-server VRAM entry", () => {
     ramBytes: 1_024,
     vramBytes: undefined,
   });
+});
+
+test("parses macOS RSS and requires positive Metal initialization evidence", () => {
+  assert.equal(parsePosixProcessRssBytes(" 1048576\n"), 1_073_741_824);
+  assert.equal(parsePosixProcessRssBytes("not-a-number"), undefined);
+  assert.deepEqual(
+    parseMetalBackendDiagnostics({
+      stderr:
+        "ggml_metal_init: found device: Apple M4 Max\n" +
+        "whisper_backend_init_gpu: using Metal backend\n",
+    }),
+    {
+      initializationObserved: true,
+      deviceObserved: true,
+      failureObserved: false,
+      backendVerified: true,
+    },
+  );
+  assert.equal(
+    parseMetalBackendDiagnostics(
+      "ggml_metal_init: Metal backend unavailable",
+    ).backendVerified,
+    false,
+  );
+  assert.equal(
+    parseMetalBackendDiagnostics("whisper-server ready on CPU").backendVerified,
+    false,
+  );
+  const verified = parseMetalBackendDiagnostics(
+    "ggml_metal_init: found device: Apple M4 Max",
+  );
+  assert.deepEqual(
+    mergeMetalBackendEvidence(
+      verified,
+      parseMetalBackendDiagnostics(
+        "later bounded diagnostics without startup",
+      ),
+    ),
+    verified,
+  );
+  assert.equal(
+    mergeMetalBackendEvidence(
+      verified,
+      parseMetalBackendDiagnostics("Metal backend unavailable"),
+    ).backendVerified,
+    false,
+  );
 });
 
 test("formats and independently parses SRT and standard LRC smoke output", () => {

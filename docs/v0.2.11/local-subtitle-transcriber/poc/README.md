@@ -1,8 +1,10 @@
-# Local Subtitle PRE-001–PRE-003 Development Baseline
+# Local Subtitle PRE Development Baseline
 
-> Status: PRE-001 through PRE-003 completed on 2026-07-17. The three current
-> real samples now cover the Windows CPU/CUDA development gate as well as the
-> original environment baseline.
+> Status: PRE-001 through PRE-004 completed on 2026-07-17. PRE-004 macOS arm64
+> passed Metal/CPU backend, bounded-window raw transcript validity, performance,
+> cancellation, reuse and packaged-like evidence. Whole-file inference remains
+> prohibited because its historical raw results contained decoder loops.
+> Developer ID and Gatekeeper are deferred to QA-004 and are not a PRE-004 gate.
 
 This directory records only the engineering facts needed to start the local
 subtitle implementation. Media, subtitle text, models, native binaries,
@@ -33,7 +35,7 @@ text is not treated as ground truth.
 | File | Purpose |
 | --- | --- |
 | `benchmark-manifest.json` | Three-sample ja/zh development scope, media integrity and subtitle timeline summaries. |
-| `metrics-contract.json` | Product-oriented runtime, resource, cancellation and SRT/LRC parse-back measurements. |
+| `metrics-contract.json` | Product-oriented runtime, resource, cancellation, raw transcript validity and SRT/LRC parse-back measurements. |
 | `third-party-candidates.json` | Candidate engine/model/media dependencies and later implementation/distribution decisions. |
 | `sample-inventory.example.json` | Shape of the ignored machine-local media/subtitle path inventory. |
 | `clean-room-protocol.md` | Minimal rule that FusionKit is implemented from its design and public upstream APIs, without copying third-party GUI code. |
@@ -89,9 +91,10 @@ System FFmpeg/ffprobe are development probes only. The eventual product must
 ship its selected binaries outside asar; redistribution, signing and notices
 remain later release work and are not sample-corpus blockers.
 
-PRE-001 through PRE-003 are complete. The next target-specific work is PRE-004
-on macOS arm64; the current Windows environment can continue with PRE-005
-bundled FFmpeg, sidecar staging, signing and license evidence.
+PRE-001 through PRE-004 are complete. PRE-005 continues with bundled FFmpeg,
+sidecar staging and license evidence, followed by PRE-006 production technology
+freeze. Developer ID, notarization and Gatekeeper accepted are future QA-004
+public-distribution evidence, not a PRE-004 gate.
 
 ## PRE-003 Windows CPU/CUDA runner
 
@@ -152,3 +155,65 @@ next task. Normal, non-cancelled tasks continue to reuse one model process.
 The sanitized committed result is `pre003-windows-x64-results.json`. Media,
 subtitle text, native archives, models, generated subtitles and machine paths
 remain under ignored local storage.
+
+## PRE-004 macOS arm64 Metal/CPU runner
+
+The macOS candidate is built from the exact `whisper.cpp v1.9.1` commit
+`f049fff95a089aa9969deb009cdd4892b3e74916`, not from an unversioned extracted
+source directory. The build is thin arm64, static, non-native-tuned, and embeds
+the Metal library. Its staged `whisper-server` keeps the executable bit, has
+only system framework or `/usr/lib` dependencies, and shares one artifact for
+Metal and explicit `--no-gpu` CPU fallback. No macOS x64 artifact is staged.
+
+The final strategy normalizes media once to 16 kHz mono PCM16 and uses 30-second
+independent decoder windows with 5-second overlap, owned-core merge, a raw
+transcript quality gate and bounded shorter-window retries. Both backends
+returned all three current real samples with one model load and one server PID.
+Metal RTF was 0.0698–0.0821 with about 1.87 GB peak RSS; CPU RTF was
+0.1954–0.2811 with about 2.03 GB peak RSS. All language checks, raw validity and
+SRT/standard-LRC parse-back checks passed. Cancellation settled as `aborted` in
+2 ms on Metal and 6 ms on CPU; the next-task policy remains to restart the
+server after any cancelled inference.
+
+Metal is accepted only when bounded native diagnostics contain both Metal
+initialization and a device observation with no failure marker. A successful
+health endpoint is not sufficient. CPU is selected explicitly through
+`--no-gpu`; an automatic fallback must be resolved and shown before batch
+commit, while an explicit Metal request must fail as `backend_unverified`
+instead of silently using CPU. On this Apple M5 sample, CPU was about
+1.81–2.26× slower than Metal, which becomes the initial performance-warning
+range rather than a universal hardware promise.
+
+Historical whole-file `verbose_json` already contained the failure. Metal repeated one sentence
+for 347 consecutive segments from 405.52 seconds to the end of the long
+Japanese sample; Metal/CPU Chinese runs repeated for 77/43 segments, and the
+CPU long-sample result extended about 27.89 seconds past the media. Disabling
+token timestamps or flash attention and increasing max length did not fix it.
+Beam search reduced the loop but introduced a different opening hallucination.
+Independent greedy windows for the affected Chinese and Japanese intervals
+recovered the actual changing speech, isolating the failure to decoder state in
+one whole-file request. Output deduplication cannot recover the missing speech,
+so whole-file inference is prohibited.
+
+Silero VAD removes short hallucinations from silent windows. In v1.9.1 the VAD
+segment timestamps are mapped back to the original media timeline, but token/
+word timestamps remain on the silence-compressed timeline. VAD requests
+therefore force `token_timestamps=false` and consume mapped segment time only;
+the merge layer also rejects word time outside its parent segment. The final
+Metal/CPU matrix had zero invalid raw timeline segments and at most two
+consecutive equal cues. The long Japanese sample's silent `600–630 s` window
+was empty, subsequent speech resumed near 638.70 s and the media tail remained
+recognized through 738.84 s.
+
+The packaged-like runner passes containment, arm64-only, executable-bit,
+dependency and ad-hoc integrity checks. Gatekeeper rejected it because this
+machine has no Developer ID identity. That records a currently unadopted
+public no-warning distribution capability; it does not block PRE-004. A real
+Developer ID/notarized artifact is checked only if that distribution mode is
+adopted in QA-004.
+
+The sanitized committed result is `pre004-macos-arm64-results.json`. The exact
+source clone, build tree, staged binary, model, native results and generated
+subtitles remain under ignored local storage. The bounded-window Metal/CPU rerun
+passed raw transcript validity and structural parse-back together, completing
+PRE-004.

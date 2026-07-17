@@ -73,9 +73,20 @@ git diff --check
 
 后续更新（2026-07-16）：Windows CPU/CUDA 官方预编译 scoped reports 已 ready，3 段真实语料 inventory 已通过；最终收口后 Node tests 19/19，结构与 strict 均为 0 error / 0 warning。上段数字保留为本 feat 首次验收时的历史结果。
 
+后续更新（2026-07-17）：PRE-003 Windows CPU/CUDA 已完成；PRE-004 macOS
+arm64 Metal/CPU backend、packaged-like 路径、架构、依赖与可执行位检查已通过，但
+整段单请求 raw transcript 存在连续重复、越界和后续语音丢失，故 PRE-004 因字幕
+有效性失败而保持进行中。Developer ID、公证与 Gatekeeper accepted 归未来
+`QA-004` 公开无警告分发验收，不阻塞 PRE-004。
+
+PRE-004 最终更新（2026-07-17）：30 秒有界 PCM 窗口、5 秒 overlap、VAD mapped
+segment timeline、raw gate 与有界拆短已在 3 样本 Metal/CPU 矩阵通过，最长连续重复
+最多 2 cue、raw 时间轴错误为 0，PRE-004 已完成。上段保留诊断阶段的历史状态；
+Developer ID/Gatekeeper 仍只归未来 `QA-004`。
+
 ## 后续
 
 - 3 段现有真实语料已满足 PRE-001；不再补独立参考、权利证据、额外场景或 baseline 应用/模型 hash。
-- macOS arm64 PRE-001 工具链已 ready；后续只需在 PRE-004 使用真实 runner/model、签名身份和 packaged-like bundle 验证 Metal/CPU。
-- Windows x64 CPU/CUDA PRE-001 报告已 ready；真实 inference、CUDA ZIP/DLL 和分发仍由 PRE-003/PRE-005/PRE-006 验证。
+- macOS arm64 真实 runner/model 的 backend、packaged-like 与最终有界窗口字幕有效性已由 PRE-004 验证；禁止回退整段请求或使用 VAD 压缩时间轴 word。
+- Windows x64 CPU/CUDA 真实 inference 与 CUDA DLL 失败面已由 PRE-003 验证；最终分发仍由 PRE-005/PRE-006 冻结。
 - PRE-005 选择并审计可再分发 FFmpeg/ffprobe，完成无系统 FFmpeg 的 packaged smoke 与损坏/修复矩阵。

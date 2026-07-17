@@ -4,7 +4,7 @@
 >
 > Feature Slug：`local-subtitle-transcriber`
 >
-> 状态：调研与 Final Design 已完成；`PRE-001`～`PRE-003` 已完成，下一步进入 `PRE-004` macOS arm64 PoC 与 `PRE-005` 打包资源 PoC
+> 状态：调研与 Final Design 已完成；`PRE-001`～`PRE-004` 已完成，macOS arm64 最终有界窗口/VAD segment 原时间轴策略已通过 3 样本 Metal/CPU 全矩阵；下一步 `PRE-005`，Developer ID/Gatekeeper 延后到 `QA-004`
 >
 > 产品定位：使用本地算力把批量音频/视频转成可直接翻译的 SRT/LRC 字幕
 >
@@ -25,6 +25,10 @@
 > 2026-07-17 PRE-002 架构修正：官方预编译 `whisper-server` 已实测覆盖模型驻留、结构化 JSON、取消与健康检查；首版改为 Node 管理官方 server，不再预设 FusionKit C++/JSONL runner 或 Windows 本地 CMake/MSVC
 >
 > 2026-07-17 PRE-003 收口：官方 Windows CPU/CUDA server 与 `large-v3-q5_0` 已跑通现有 3 段中/日媒体；CUDA RTF 0.0509～0.0735、峰值显存约 2.12 GB，CPU RTF 0.5063～0.592、峰值 RAM 约 2.50 GB；SRT/LRC 回读、模型复用、取消与静默 CPU 降级门禁均通过
+>
+> 2026-07-17 PRE-004 证据修正：精确 `whisper.cpp v1.9.1 / f049fff` 源码构建的 thin arm64、内嵌 Metal server 已在 Apple M5 通过 Metal/CPU backend、RTF/RSS、复用、取消和 packaged-like 检查；但原始 `verbose_json` 已出现最长 347 段连续重复、零时长和媒体越界，SRT/LRC parse-back 只证明序列化结构。故障区间用相同 greedy backend 独立推理约 30 秒窗口可恢复实际内容，因此 PRE-004 因整段字幕有效性失败而保持进行中；Developer ID、公证与 Gatekeeper accepted 属于未来 `QA-004`，不阻塞本工作包
+>
+> 2026-07-17 PRE-004 完成：最终采用一次性 PCM16 规范化、30 秒独立窗口/5 秒 overlap、owned-core 合并、raw quality gate、有界拆短和 VAD。v1.9.1 VAD 只消费映射回原媒体的 segment 时间，禁止压缩时间轴 token/word；3 样本 Metal/CPU 的最长连续重复最多 2 cue、raw 时间轴错误 0，RTF 均 < 1。Gatekeeper rejected 继续仅归未来 `QA-004`
 
 ---
 
@@ -40,12 +44,13 @@ FusionKit 应新增一个独立的“本地字幕转写”工具，而不是扩�
 4. 首版统一推理后端推荐 `whisper.cpp`，而不是把 Python `faster-whisper` 直接嵌入 FusionKit：
    - Windows x64 可使用 NVIDIA CUDA，并保留 CPU fallback。
    - macOS 仅发布 arm64 runner，优先使用 Metal；同一 arm64 产物保留可见、可确认的 CPU fallback。macOS x64 直接返回 `unsupported_architecture`。
-   - 同一后端可运行 Whisper `large-v3`，并支持量化模型、VAD、进度回调、段/词时间戳。
-5. 不把上游 `whisper-cli` 的控制台文本当作正式协议。首版由 Electron main/Node 管理固定版本的官方预编译 `whisper-server`，通过私有 loopback HTTP 和 `verbose_json` 获取结构化结果；只有该 API 经真实验收仍缺少必要能力时，才重新评估 native bridge。
-6. 首版核心产物是标准 SRT 和标准行级 LRC；VTT、TXT、详细 JSON 可作为扩展导出。增强型逐词 LRC 单独标记，不直接送入现有字幕翻译器。
-7. 转写完成后既可只导出 SRT/LRC，也可选择自动加入字幕翻译任务列表，并进一步选择是否自动开始翻译。交接必须通过会话级 `artifactRef`、一次性 `translationImportToken` 和字幕翻译模块自有的导入协调器完成；本地转写工具不得直接读写字幕翻译器 Store。自动执行默认关闭，只有用户显式选择“自动加入并开始翻译”时才允许产生外部 API 费用。
-8. 模型不放进安装包。模型、VAD 模型和可选 Windows 加速包按需下载到 `app.getPath("userData")` 下，支持断点续传、校验、删除和导入本地模型；平台 runner 与经审计的 FFmpeg/ffprobe 则作为安装包内、asar 外的受控资源发布，最终来源与构建方式由 PRE-006 冻结。
-9. `faster-whisper-GUI-main` 只保留为历史调研背景，不复制代码，也不作为运行时、模型格式、参数或验收基线。FusionKit 按自己的产品目标和 whisper.cpp 公开接口独立实现。
+   - 同一后端可运行 Whisper `large-v3`，并支持量化模型、VAD、进度回调和段级时间戳；逐词时间戳只有在与当前 VAD 模式兼容并通过原时间轴验收后才开放。
+5. 不把上游 `whisper-cli` 的控制台文本当作正式协议。首版由 Electron main/Node 管理固定版本的官方 `whisper-server`，通过私有 loopback HTTP 和 `verbose_json` 获取结构化结果；只有该 API 经真实验收仍缺少必要能力时，才重新评估 native bridge。
+6. 长媒体不以一个整段 decoder 请求直接产出字幕。规范化 PCM 按约 30 秒有界窗口和小幅 overlap 独立推理，server/model 进程继续驻留；raw segment 先通过时间轴、连续重复、窗口覆盖和媒体边界门禁，再按绝对整数毫秒合并。不得用删除重复行代替重试，因为锁死期间未识别的语音无法从结果中恢复。
+7. 首版核心产物是标准 SRT 和标准行级 LRC；VTT、TXT、详细 JSON 可作为扩展导出。增强型逐词 LRC 单独标记，不直接送入现有字幕翻译器。
+8. 转写完成后既可只导出 SRT/LRC，也可选择自动加入字幕翻译任务列表，并进一步选择是否自动开始翻译。交接必须通过会话级 `artifactRef`、一次性 `translationImportToken` 和字幕翻译模块自有的导入协调器完成；本地转写工具不得直接读写字幕翻译器 Store。自动执行默认关闭，只有用户显式选择“自动加入并开始翻译”时才允许产生外部 API 费用。
+9. 模型不放进安装包。模型、VAD 模型和可选 Windows 加速包按需下载到 `app.getPath("userData")` 下，支持断点续传、校验、删除和导入本地模型；平台 runner 与经审计的 FFmpeg/ffprobe 则作为安装包内、asar 外的受控资源发布，最终来源与构建方式由 PRE-006 冻结。
+10. `faster-whisper-GUI-main` 只保留为历史调研背景，不复制代码，也不作为运行时、模型格式、参数或验收基线。FusionKit 按自己的产品目标和 whisper.cpp 公开接口独立实现。
 
 ## 1. 背景、目标与边界
 
@@ -69,7 +74,7 @@ FusionKit 应新增一个独立的“本地字幕转写”工具，而不是扩�
 2. Windows x64 优先使用 NVIDIA GPU并保留 CPU fallback；macOS arm64 优先使用 Metal，并在同一架构内保留 CPU fallback。
 3. 支持 Whisper `large-v3`，并允许用户显式选择资源占用更低的量化或 turbo 变体。
 4. 生成带稳定时间轴的 SRT/LRC，可直接进入 FusionKit 字幕翻译。
-5. 支持语言自动检测、初始提示词、VAD、段级/词级时间戳、字幕整形、取消和逐文件失败隔离。
+5. 支持语言自动检测、初始提示词、VAD、稳定段级时间戳、字幕整形、取消和逐文件失败隔离；逐词时间戳是受 runtime capability 约束的可选能力，不能与已知错轴的 v1.9.1 VAD token timestamps 组合。
 6. 模型只下载一次；同一批任务复用已加载模型，避免每个文件重复装载 `large-v3`。
 7. 本地媒体内容、模型路径、真实文件路径和转写中间数据不进入 renderer 持久化或普通日志。
 8. 让未来增加 Windows `faster-whisper`、Apple MLX 或其他本地引擎成为可控扩展，而不是重写页面和任务合同。
@@ -391,14 +396,14 @@ interface LocalSubtitleEngineAdapter {
 | 任务 | `transcribe`；“翻译为英语”放高级区，避免与 FusionKit 字幕翻译混淆 |
 | 质量预设 | `字幕质量优先`、`平衡`、`快速`；具体底层值由 PoC 固化 |
 | VAD | 建议默认开启保守预设，最终阈值由真实样本验收确定 |
-| 词时间戳 | 标准 SRT/LRC 不强制；启用“智能分句/逐词 LRC”时自动开启 |
+| 词时间戳 | v1.9.1 VAD 模式固定关闭；标准 SRT/LRC 使用 mapped segment 时间。只有 PRE-006 冻结并真实验收原时间轴方案后，才显示“智能分句/逐词 LRC”能力 |
 | 输出格式 | SRT 默认；可多选 LRC |
 | 输出目录 | 源文件目录或自定义目录 |
 | 冲突策略 | 默认自动加序号，避免覆盖已有人工字幕 |
 | 翻译衔接 | 默认“仅导出”；可选“自动加入翻译队列”或“自动加入并开始翻译” |
 | 送翻译格式 | 只生成一种标准字幕时使用该格式；同时生成 SRT/LRC 时默认 SRT，可改为标准 LRC |
 
-高级区只暴露有稳定产品意义的参数：初始提示词、beam size、temperature、VAD 最短静音、最大 cue 长度、每行最大字符、是否使用词时间戳。其余参数保留在内部预设，不复制参考 GUI 的全量参数墙。
+高级区只暴露有稳定产品意义的参数：初始提示词、beam size、temperature、VAD 最短静音、最大 cue 长度和每行最大字符。v1.9.1 VAD 模式不暴露词时间戳开关；若 PRE-006 后增加兼容 runtime capability，才按 route constraint 显示该控制。其余参数保留在内部预设，不复制参考 GUI 的全量参数墙。
 
 ### 7.3 批量队列
 
@@ -644,6 +649,7 @@ type LocalSubtitleErrorCode =
   | "unsupported_media"
   | "no_speech_detected"
   | "transcription_failed"
+  | "transcript_quality_failed"
   | "out_of_memory"
   | "output_conflict"
   | "output_write_failed"
@@ -663,7 +669,7 @@ type LocalSubtitleErrorCode =
   | "start_rejected";
 ```
 
-`runtime_*` 指 runner；`media_runtime_*` 专指随应用发布的 FFmpeg/ffprobe。`media_runtime_missing` 表示必需文件或 manifest 项缺失，`media_runtime_invalid` 表示 manifest、平台/架构、大小、SHA-256 或签名校验失败，`media_runtime_launch_failed` 表示文件通过静态校验但进程无法启动或版本探测失败。这三类错误都必须在任务入队前阻断转写，不能到媒体处理阶段才让一批任务逐个失败。
+`runtime_*` 指 runner；`media_runtime_*` 专指随应用发布的 FFmpeg/ffprobe。`media_runtime_missing` 表示必需文件或 manifest 项缺失，`media_runtime_invalid` 表示 manifest、平台/架构、大小、SHA-256 或签名校验失败，`media_runtime_launch_failed` 表示文件通过静态校验但进程无法启动或版本探测失败。这三类错误都必须在任务入队前阻断转写，不能到媒体处理阶段才让一批任务逐个失败。`transcript_quality_failed` 表示 raw segment 在有界重试后仍命中连续重复、非法时间轴、窗口/媒体越界或窗口执行覆盖缺口；它不得被 formatter、去重或 parse-back 转成成功。
 
 错误 envelope 还必须包含 `stage`、`retryable`、受控 `details` 和可选 `causeCode`，并对未知 runner/FFmpeg 诊断映射为最近的稳定 code。主错误文案可操作；stderr、退出码、backend 和阶段进入折叠技术详情。不得把完整命令行、用户路径、媒体内容、API Key 或下载授权 header 直接显示或写日志；diagnostics 有固定字节/行数上限，截断必须显式标记。
 
@@ -728,24 +734,41 @@ interface LocalSubtitleApi {
 
 ### 10.2 请求与结果归一化
 
-正式媒体管线先由 FusionKit 的 Media Normalizer 生成受控 16 kHz mono PCM16 WAV，再以 multipart `file` 发送给私有 `/inference`。产品 runtime 不启用官方 server 的 `--convert`，避免其内部 shell FFmpeg；PRE-002 为快速验证现有 MP4 临时启用系统 FFmpeg，不形成发行合同。
+正式媒体管线先由 FusionKit 的 Media Normalizer 生成受控 16 kHz mono PCM16 WAV，再从该 PCM 按精确 frame 边界切出约 30 秒、有小幅 overlap 的私有窗口 WAV，以独立 multipart `file` 请求发送给 `/inference`。原始音视频只规范化一次，不为每个窗口重新解码；产品 runtime 不启用官方 server 的 `--convert`，避免其内部 shell FFmpeg。PRE-002 为快速验证现有 MP4 临时启用系统 FFmpeg，不形成发行合同。
 
 请求字段只由 main 从已校验 task snapshot 生成：
 
 ```text
-file=<main-private-temp-wav>
+file=<main-private-window-wav>
 response_format=verbose_json
 language=auto|zh|ja|...
 translate=false
-token_timestamps=true
+vad=true
+token_timestamps=false
 no_language_probabilities=true
 ```
 
-Node adapter 对 response schema 做运行时校验，把 segment/word 的秒值立即转换为整数毫秒，再交给 canonical transcript/post processor。不得直接采用上游 SRT/LRC 输出，也不得在 renderer 解析 server JSON。
+只有明确关闭 VAD 且对应逐词模式已单独通过
+原时间轴/静音幻觉矩阵时，main 才可发送 `token_timestamps=true`；renderer 不能直接
+控制这两个上游字段。
 
-官方 v1.9.1 server 不提供稳定的结构化增量 progress/segment 流。首版 UI 只显示 `loading_model → normalizing_media → transcribing → postprocessing → exporting` 阶段和已完成文件数；不解析 `--print-progress` stderr 伪造百分比。PRE-006 只有在真实 UX 验收证明阶段进度不足时，才评估升级官方 API或引入最小 native bridge。
+窗口索引、绝对 `startMs/endMs`、overlap 和 retry generation 只保存在 main 的任务上下文，不作为可由 renderer 或上游响应覆盖的字段。Node adapter 对 response schema 做运行时校验，把 segment/word 的相对秒值立即转换为整数毫秒；VAD 模式丢弃 words，只保留已映射回原媒体的 segment。非 VAD words 也必须全部位于 parent segment 时间范围内，否则 merge 回退到 segment 并记录诊断。raw quality gate 通过后再加窗口绝对偏移并交给 overlap merger/canonical post processor。不得直接采用上游 SRT/LRC 输出，也不得在 renderer 解析 server JSON。
 
-### 10.3 取消与崩溃
+官方 v1.9.1 server 不提供稳定的结构化增量 progress/segment 流。首版 UI 只显示 `loading_model → normalizing_media → transcribing → postprocessing → exporting` 阶段和已完成文件数；不解析 `--print-progress` stderr 伪造百分比。PRE-006 只有在真实 UX 验收证明阶段进度不足时，才评估升级官方 API 或引入最小 native bridge。
+
+### 10.3 有界窗口、合并与 raw quality gate
+
+PRE-004 已证明同一模型/backend 对故障区间的独立约 30 秒请求能恢复实际内容，而整段单请求会在后续内部窗口进入重复 decoder 状态。首版因此采用以下合同：
+
+1. Window planner 覆盖 `[0, source.durationMs]`，按 PCM frame 生成单调、连续、有界的窗口计划；最后一窗可缩短。每个计划项必须终结为 `succeeded`、经语音判定的 `no_speech` 或显式失败，不能因请求漏发而留下静默覆盖缺口。
+2. 每个窗口是独立 inference 请求和 decoder context，但继续复用同一已加载 model/backend 的 server 进程。取消仍作用于当前请求并使下一任务重启 server；普通窗口成功不触发模型重载。
+3. 在任何 trim/split/formatter 之前，逐窗检查 raw segment 的正时长、单调/重叠、窗口及媒体边界、15 秒单段上限、规范化同文连续 8 cue 且覆盖 15 秒的退化，以及 window plan 执行覆盖；`parseBack=true`、HTTP 200 或尾时间戳接近媒体末尾都不能替代该检查。
+4. overlap 合并使用绝对时间、窗口核心区所有权和边界 token/text 相似度做确定性仲裁；只处理同一边界的重复观测，不做全文件字符串去重，也不因合法重复台词直接丢 cue。
+5. 命中退化门禁时用新 retry generation 最多拆短 3 层，并完整记录 parent/children、窗口长度和 overlap；不得在重试中静默更换 backend、sampling strategy 或 VAD 合同。预算耗尽后返回 `transcript_quality_failed`，不进入 canonical formatter 或 artifact commit。
+
+质量门禁证明的是输出没有已知 decoder loop/时间轴退化，不是 CER/WER 准确率声明。最终中日内容仍需真实样本人工 smoke，但不能再只抽查开头几段。
+
+### 10.4 取消与崩溃
 
 Node 对当前 inference request 使用 `AbortController`。请求连接关闭后，官方 v1.9.1 server 的 `abort_callback` 检测 client disconnect 并终止推理：
 
@@ -755,7 +778,7 @@ Node 对当前 inference request 使用 `AbortController`。请求连接关闭�
 
 主进程始终维护 child handle，不使用参考 GUI 的“只改布尔标志”方案。窗口销毁/renderer 崩溃执行 owner-scoped cleanup；应用退出和 update 安装执行 app-scoped cleanup。两者复用同一可重入机制，但 owner cleanup 不能关闭仍被其他 owner 使用的 server。
 
-### 10.4 Backend 解析与 fallback
+### 10.5 Backend 解析与 fallback
 
 - `devicePreference = "auto"` 在批次 commit 前根据签名 artifact manifest、真实 runner probe、accelerator pack 和模型兼容性解析为 CUDA/Metal/CPU，并把 `resolvedBackend` 明确展示并写入批次 snapshot；没有可用加速时可解析为 CPU，但用户在点击开始前必须看得到。
 - 用户显式选择 CUDA/Metal 时不可回退 CPU。auto 已 commit 后若 GPU load/OOM/driver/crash，批次暂停且不启动后续文件；UI 提供“以 CPU 新 generation 重试”，需要用户确认预期性能变化，不能在后台把长任务静默改跑 CPU。
@@ -888,6 +911,7 @@ FFmpeg/ffprobe 是产品运行时组成，不是用户环境前置条件。正�
 - 关闭 stdin，避免隐藏式交互等待。
 - 临时文件名使用 task UUID，不使用原文件名直接拼接。
 - 转码成功后校验 WAV 头、采样率、通道数和非零时长。
+- 从已验证 PCM 按 frame 边界生成有界窗口，记录每窗绝对范围与 overlap；不得为每窗重新读取/转换原始容器，也不得让累计取整产生尾部覆盖缺口。
 - 取消、失败和下次启动时清理超期 temp。
 
 ### 12.4 FFmpeg 许可证
@@ -912,8 +936,11 @@ FFmpeg 二进制必须固定来源、构建选项、许可证文本和源码获�
 runner 输出结构化段/词，不直接把上游生成的 `.srt/.lrc` 当最终产物：
 
 ```text
-engine segments
-  → normalize integer timestamps
+normalized PCM window plan
+  → independent engine request per bounded window
+  → raw segment validity gate
+  → relative-to-absolute integer timestamps
+  → deterministic overlap merge
   → trim/merge whitespace
   → punctuation-aware split/merge
   → enforce monotonic cues
@@ -922,7 +949,7 @@ engine segments
   → atomic commit
 ```
 
-这样可以让 Windows/macOS 和未来不同引擎生成一致格式，也方便测试时间边界。
+raw validity gate 必须位于任何删除、合并或 formatter 之前；否则后处理可能掩盖 decoder loop，却无法恢复锁死期间漏掉的语音。parse-back 仅证明最终序列化结构与 canonical cue 一致，不证明 raw transcript 内容有效。该 pipeline 让 Windows/macOS 和未来不同引擎生成一致格式，也能单独测试窗口覆盖、边界合并和输出时间轴。
 
 ### 13.2 字幕整形原则
 
@@ -931,6 +958,7 @@ engine segments
 - 文本统一把 CRLF/CR 规范为 LF，拒绝 NUL 和会破坏字幕结构的控制字符；保留合法 Unicode，不用 lossy ASCII 清洗。每 cue 内部换行数量和总字符数受 CORE 上限约束。
 - cue 的 `startMs >= 0`、`endMs > startMs`、整体单调不倒退。
 - cue 必须落在已校验的 `source.durationMs` 内。whisper/chunk rounding 允许的尾部误差阈值由 PRE 样本冻结：阈值内可 clamp 到 duration 并记录 warning，超过阈值或 clamp 后无正时长则结构化失败，不能静默输出越界时间轴。
+- 连续相同文本只允许在窗口 overlap 边界按确定性规则仲裁；超出阈值的同文 run 必须在 raw 层触发检查/重试，不能在整形阶段直接去重。
 - trim 后的空 segment/cue 不导出；整个文件没有任何非空 cue 时返回 `no_speech_detected`，不生成空 SRT/LRC，也不进入翻译交接。
 - 相邻 cue 的轻微重叠按策略裁剪；不能静默制造负时长。
 - 默认限制单 cue 时长和文本长度；短 cue 合并需同时满足间隔和阅读长度。
@@ -1255,7 +1283,7 @@ resources/local-subtitle/
 
 ## 18. 分期实施建议（高层阶段）
 
-本节保留架构层面的阶段划分；可认领的工作包、依赖、状态、验证和实施记录以 `local-subtitle-transcriber_execution_plan.md` 为唯一执行台账。Execution Plan 已于 2026-07-16 建立，当前 `PRE-001`～`PRE-003` 已完成；`PRE-004` 与 `PRE-005` 可按目标环境并行推进。
+本节保留架构层面的阶段划分；可认领的工作包、依赖、状态、验证和实施记录以 `local-subtitle-transcriber_execution_plan.md` 为唯一执行台账。Execution Plan 已于 2026-07-16 建立，当前 `PRE-001`～`PRE-004` 已完成，下一工作包为 `PRE-005`。Developer ID、公证和 Gatekeeper accepted 不属于 PRE-004 门禁，由未来 `QA-004` 验收。
 
 其中本节原先汇总为一个 `PRE-001` 的跨平台 PoC，在 Execution Plan 中拆为 `PRE-001`～`PRE-006`，以避免把基准、CPU runner、Windows CUDA、macOS Metal、FFmpeg/打包许可和最终技术冻结塞进一个无法单会话闭环的工作包。其余高层包也在执行计划中按安全边界和可验证纵向切片进一步拆分。
 
@@ -1267,7 +1295,7 @@ resources/local-subtitle/
 - 明确 CMake/MSVC 不是 PRE-001、PRE-002 或最终用户前置；只有实际选择 source-build artifact 时才由构建机/CI 提供。
 - 明确现有字幕只用于格式/时间轴 smoke 与人工对照，不做 FasterWhisperGUI 一致性或文本准确率基线。
 
-PRE-001 已解锁 runtime 开发，PRE-003 已确定 Windows CPU/CUDA 候选；macOS、bundled media 与最终发布清单继续在 PRE-004～PRE-006 用实际产物确定，并由 PRE-006 冻结。
+PRE-001 已解锁 runtime 开发，PRE-003 已确定 Windows CPU/CUDA 候选，PRE-004 已确定 macOS arm64 Metal/CPU 与最终窗口/VAD 时间轴策略；bundled media 与最终发布清单继续在 PRE-005～PRE-006 用实际产物确定，并由 PRE-006 冻结。
 
 ### PRE-002：Node-managed official server（已完成）
 
@@ -1284,6 +1312,17 @@ PRE-001 已解锁 runtime 开发，PRE-003 已确定 Windows CPU/CUDA 候选；m
 - SRT 和标准 LRC 均由独立 parser 回读；开发阶段内容抽查可读，最终产品质量由用户在实现完成后实际使用验收，不作为后续开发阻塞项。
 - Windows 默认安装包采用小体积 CPU runtime；约 1.2 GB 解压占用的 CUDA runtime 作为签名、校验、按需安装的 accelerator pack 候选，许可与签名在 PRE-005/PRE-006 冻结。
 - 通过缺失 `cublas64_12.dll` 探针证明官方 server 可能静默使用 CPU；产品必须以 exact-PID GPU 证据判定 backend，未验证时显式 fallback，不得宣称 CUDA。
+
+### PRE-004：macOS arm64 Metal/CPU（已完成）
+
+- macOS 无官方预编译 server，候选固定为精确 `whisper.cpp v1.9.1 / f049fff` 源码构建；`arm64`、`BUILD_SHARED_LIBS=OFF`、`GGML_NATIVE=OFF`、`GGML_METAL=ON`、`GGML_METAL_EMBED_LIBRARY=ON`，不预设 FusionKit 自写 C++ runner。
+- thin arm64 runner 只有 8 个系统 Framework/`/usr/lib` 动态依赖，Metal library 内嵌、可执行位保留，staged resource 中无 macOS x64 artifact。源码必须来自自身 Git clone/worktree；无 `.git` 的 tar 解压目录会错误继承祖先 FusionKit commit，不能作为 provenance 证据。
+- 相同 `large-v3-q5_0` 与 3 个真实样本在最终有界窗口策略下全部完成：Metal RTF 0.0698～0.0821，显式 `--no-gpu` CPU RTF 0.1954～0.2811。正常请求各自复用一个 PID/一次模型加载，语言检测、raw validity 和 SRT/标准 LRC 结构回读通过；取消快速返回 `aborted`，后续任务仍固定重启 server。
+- Metal 只有同时观察到有界初始化与 device 诊断、且无失败标志才是 verified；`/health` 或文件名不构成证据。显式 Metal 未验证时返回 `backend_unverified`，auto 只能在 batch commit 前解析为 CPU 并显示性能提示。
+- Apple M5 最终策略上 CPU 比 Metal 慢约 2.57～3.42 倍；这是首个提示范围，不外推为所有 Apple Silicon 的固定承诺。
+- raw `verbose_json` 证明整段策略不可用：Metal 日文长音频曾从 405.52 s 起连续重复 347 段，Metal/CPU 中文分别重复 77/43 段，CPU 长音频曾越界约 27.89 s。最终方案先一次性规范化 PCM16，再按 30 秒窗口/5 秒 overlap 做独立请求、owned-core 合并、raw gate 和最多 3 层有界拆短重试；不通过删除重复行、beam 或参数碰运气掩盖丢失语音。
+- VAD 消除了纯静音窗口的短幻觉，但 v1.9.1 只有 segment 时间被映射回原媒体，token/word 时间仍处于去静音后的压缩时间轴。VAD 请求因此强制 `token_timestamps=false` 并仅消费 segment 时间；merge 层还会拒绝越出 parent segment 的 word 时间。最终矩阵 raw 时间轴错误为 0、最长连续重复最多 2 cue，长音频 `600～630 s` 为空且后续台词和媒体尾部恢复。
+- staged runner 的资源路径、可执行位、thin arm64 和系统动态依赖通过；ad-hoc 签名/Gatekeeper rejected 只记录当前未采用的公开无警告分发能力。Developer ID、公证和 Gatekeeper accepted 由 `QA-004` 对真实发布产物验收，不阻塞 PRE-004。
 
 ### CORE-001：类型、协议与安全边界
 
@@ -1359,13 +1398,17 @@ PRE-001 已解锁 runtime 开发，PRE-003 已确定 Windows CPU/CUDA 候选；m
 - 实时系数 RTF。
 - 峰值 RAM/VRAM。
 - 模型首次/再次加载时间。
+- raw segment 数/规范化 unique text 数、最长连续重复 run 的 cue 数与时长、零/负时长/重叠/越界数量，以及每个计划窗口的执行覆盖状态。
 - 中文、日文输出供用户人工确认是否可用。
 
-初始门槛：所有输出格式 100% 可回读；声明支持的 GPU 目标机 RTF 小于 1；中文和日文结果由用户在实际产品中人工确认可用。若硬件不满足速度门槛，UI 必须如实标记 CPU/低性能 fallback，不伪装成 GPU 成功。
+初始门槛：所有计划窗口都有明确终态，raw transcript validity 与所有输出格式 parse-back 同时通过；声明支持的 GPU 目标机 RTF 小于 1；中文和日文结果由用户在实际产品中人工确认可用。若硬件不满足速度门槛，UI 必须如实标记 CPU/低性能 fallback，不伪装成 GPU 成功。parse-back、HTTP 200、语言匹配或尾时间戳到达媒体末尾均不能单独构成内容通过。
 
 ### 19.2 单元与合同测试
 
 - 时间戳毫秒转换：0、59.999、1 小时以上、浮点边界。
+- PCM frame 对齐的窗口计划：首窗/中间窗/短尾窗、overlap、取整、完整覆盖和取消后的未执行窗口。
+- raw segment quality gate：数十段同文重复、合法短重复、零/负时长、倒退/重叠、窗口与媒体越界、遗漏窗口和有界 retry 耗尽。
+- overlap merge：边界半句、相同 token 的双窗观测、合法重复台词、无词时间戳 fallback；不得全局字符串去重。
 - SRT/LRC golden fixtures 与 parse-back。
 - CJK/Latin 分句、标点、空文本、超长词、重叠和缺失词时间戳。
 - 状态机非法迁移。
@@ -1408,6 +1451,8 @@ Electron 视觉/交互验证必须等待 preload loading 完全退出。若启�
 | Windows CUDA 运行库导致包体和安装失败 | PRE-003 已推荐签名可选 accelerator pack、CPU runner 保底；PRE-005/PRE-006 冻结许可、签名和更新结论 |
 | 每个文件重载 large-v3 太慢 | Node 管理 persistent official server，批次内模型驻留 |
 | 解析 stock CLI 日志随上游变化 | 不用 CLI 日志；固定 official server release，以 `/health` + `verbose_json` 为合同 |
+| 整段请求进入重复 decoder 状态但仍返回 HTTP 200 | 规范化后做有界独立窗口；raw gate 检查重复/时间轴/窗口覆盖，失败受控重试且不得进入 formatter |
+| VAD segment 时间正确但 word 时间仍是压缩时间轴 | VAD 请求强制关闭 token timestamps，只用映射后的 segment 时间；merge 校验 word 必须位于 parent segment 内，否则回退并记录诊断 |
 | 模型数 GB 拉大安装包 | 按需下载、续传、SHA-256、用户可删除/导入 |
 | 视频格式复杂 | FFmpeg 统一转 16 kHz mono PCM16，保留机器可读进度 |
 | 字幕分句效果不稳定 | canonical segment/word + 独立整形预设 + 真实语料 golden tests |
@@ -1448,15 +1493,15 @@ Electron 视觉/交互验证必须等待 preload loading 完全退出。若启�
 23. 不得在 Agent、RecoveryDialog、recovery scanner、renderer event 和 main translation 消费者仍读取旧路径字段时提前删除 `outputURL`/`checkpointPath`；兼容值只能在全部消费者切换且回滚验证通过后清理。
 24. 不得生成、发布或加载 macOS x64 runner；macOS 非 arm64 必须在资源探测前返回 `unsupported_architecture`。
 25. 不得让 bundled media runtime 缺失/损坏的任务进入队列；`media_runtime_missing`、`media_runtime_invalid`、`media_runtime_launch_failed` 必须提供可操作修复指引并保留用户数据。
+26. 不得把 HTTP 200、`verbose_json` schema 通过、SRT/LRC parse-back 或开头几段抽查当作整段字幕有效性；raw segment quality gate 必须先于任何整形与导出。
+27. 不得通过删除连续重复行掩盖 decoder loop；只能在 overlap 边界按时间和内容仲裁重复观测，无法恢复的窗口必须重试或以 `transcript_quality_failed` 失败。
+28. 不得在 `whisper.cpp v1.9.1` VAD 结果中使用 token/word 时间轴；VAD 请求必须强制 `token_timestamps=false`，canonical merge 必须拒绝越出 parent segment 的 word 时间并回退到映射后的 segment 时间。
 
 ## 22. 推荐下一步
 
-`PRE-001`～`PRE-003` 已完成。Windows CPU/CUDA、Node-managed official server、目标量化模型和现有中/日样本已经给出可继续开发的正向结论；剩余 PRE 工作回答以下跨平台与发布问题：
+`PRE-001`～`PRE-004` 已完成。PRE-004 已证明 macOS arm64 runner 的 Metal/CPU backend、模型复用、取消、最终窗口策略 RTF/RSS、raw transcript validity 和 packaged-like 资源形态可行；整段单请求被明确禁止，VAD segment/word 时间轴差异已进入实现约束与测试。
 
-1. 同一公开 GGML 模型在 macOS Apple Silicon 上能否输出可用中/日字幕，Metal/CPU 的 RTF 与 RAM 是否满足预期；Windows 已由 PRE-003 通过。
-2. Metal/CUDA runner 如何进入签名后的 Electron 安装包，Windows CUDA runtime 最终采用哪种分发方式。
-3. persistent official server 的阶段进度、结构化 segment、abort 和模型复用是否稳定；是否真的需要增量进度扩展。
-4. 内置 FFmpeg 处理目标视频格式、中文/日文路径和长媒体是否稳定，许可证方案是否可发布，并且在系统 FFmpeg 隔离时仍可运行、内置资源损坏时能在入队前阻断并引导修复。
-5. 标准 SRT/LRC 是否能通过 session `artifactRef` + one-shot `translationImportToken` 按三种模式完成交接，正确冻结字幕翻译当前配置，并在自动模式下只启动本次成功导入的任务。
-
-具体下一步以 Execution Plan 为准：有 macOS arm64 环境时进入 `PRE-004`；当前 Windows 环境可直接推进 `PRE-005` 的 bundled FFmpeg、sidecar staging、签名与许可证 PoC。两者完成后由 `PRE-006` 冻结技术选型，再进入正式 CORE/NATIVE/runtime/UI 实现。当前仍无需 C++、CMake 或 MSVC；只有 official server 出现产品必需能力的真实硬缺口，才在 PRE-006 重新评估 native bridge。
+1. 执行 `PRE-005`，冻结 bundled FFmpeg/ffprobe、native sidecar staging、许可、资源 manifest 与 packaged no-PATH 证据。
+2. `PRE-005` 完成后由 `PRE-006` 冻结 official server/source-build artifact、最终 runtime contract、模型/VAD manifest 和支持矩阵，再进入正式 CORE/NATIVE/runtime/UI 实现。
+3. Developer ID、公证和 Gatekeeper accepted 仅在未来采用公开无警告分发时由 `QA-004` 验收，不回溯阻塞 PRE-004。
+4. 仍无需 FusionKit 自写 C++ runner；只有 official server 出现产品必需能力的真实硬缺口才重新评估 native bridge。

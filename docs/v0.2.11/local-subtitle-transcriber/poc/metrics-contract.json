@@ -10,6 +10,12 @@
     "model_load_reuse_ms",
     "cancel_latency_ms",
     "package_bytes",
+    "raw_transcript_validity",
+    "longest_consecutive_repeat_cue_count",
+    "longest_consecutive_repeat_duration_ms",
+    "invalid_raw_timeline_segment_count",
+    "word_timeline_fallback_count",
+    "window_execution_coverage",
     "srt_parse_back",
     "lrc_parse_back"
   ],
@@ -69,6 +75,48 @@
       "scope": "artifact",
       "formula": "sum of distributable official server, dynamic dependencies, FFmpeg and optional accelerator pack bytes by manifest",
       "lowerIsBetter": true
+    },
+    {
+      "id": "raw_transcript_validity",
+      "unit": "boolean",
+      "scope": "sample",
+      "formula": "all planned windows have an explicit terminal outcome and raw segments pass repetition, positive-duration, monotonic, overlap, window-bound and media-bound checks before formatting",
+      "lowerIsBetter": false
+    },
+    {
+      "id": "longest_consecutive_repeat_cue_count",
+      "unit": "count",
+      "scope": "sample",
+      "formula": "maximum consecutive raw segment count after Unicode whitespace and punctuation normalization where normalized text is identical",
+      "lowerIsBetter": true
+    },
+    {
+      "id": "longest_consecutive_repeat_duration_ms",
+      "unit": "milliseconds",
+      "scope": "sample",
+      "formula": "absolute end minus start covered by the longest consecutive normalized-identical raw segment run",
+      "lowerIsBetter": true
+    },
+    {
+      "id": "invalid_raw_timeline_segment_count",
+      "unit": "count",
+      "scope": "sample",
+      "formula": "raw segments with zero or negative duration, reverse order, disallowed overlap, or timestamps outside their planned window or probed media duration",
+      "lowerIsBetter": true
+    },
+    {
+      "id": "word_timeline_fallback_count",
+      "unit": "count",
+      "scope": "sample",
+      "formula": "segments whose word timestamps are invalid, unordered or outside their parent segment and therefore use the parent segment timeline",
+      "lowerIsBetter": true
+    },
+    {
+      "id": "window_execution_coverage",
+      "unit": "ratio",
+      "scope": "sample",
+      "formula": "planned bounded windows with an explicit succeeded, verified-no-speech or failed outcome divided by all planned windows",
+      "lowerIsBetter": false
     },
     {
       "id": "srt_parse_back",

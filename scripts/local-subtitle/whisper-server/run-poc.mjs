@@ -1,5 +1,12 @@
 import { createReadStream } from "node:fs";
-import { readFile, writeFile, mkdir, stat } from "node:fs/promises";
+import {
+  readFile,
+  writeFile,
+  mkdir,
+  mkdtemp,
+  rm,
+  stat,
+} from "node:fs/promises";
 import { createHash } from "node:crypto";
 import path from "node:path";
 import { parseArgs } from "node:util";
@@ -9,6 +16,9 @@ import {
   WhisperServerSupervisor,
 } from "./supervisor.mjs";
 import { ProcessMetricsMonitor } from "./process-metrics.mjs";
+import { normalizeMediaToPcm16Wav } from "./pcm-windowing.mjs";
+import { TranscriptQualityError } from "./transcript-quality.mjs";
+import { transcribePcmInWindows } from "./windowed-transcription.mjs";
 import {
   createSmokeCues,
   formatSmokeLrc,
@@ -23,6 +33,7 @@ export async function runPoc(argv = process.argv.slice(2)) {
     options: {
       server: { type: "string" },
       model: { type: "string" },
+      "vad-model": { type: "string" },
       ffmpeg: { type: "string" },
       inventory: { type: "string" },
       output: { type: "string" },
@@ -30,21 +41,35 @@ export async function runPoc(argv = process.argv.slice(2)) {
       backend: { type: "string", default: "cpu" },
       "nvidia-smi": { type: "string" },
       "metrics-interval-ms": { type: "string", default: "1000" },
+      "window-ms": { type: "string", default: "30000" },
+      "overlap-ms": { type: "string", default: "5000" },
+      "quality-repeat-cues": { type: "string", default: "8" },
+      "quality-repeat-ms": { type: "string", default: "15000" },
+      "quality-max-segment-ms": { type: "string", default: "15000" },
+      "max-window-retry-depth": { type: "string", default: "3" },
       sample: { type: "string", multiple: true },
       "cancel-sample": { type: "string" },
       "cancel-after-ms": { type: "string", default: "5000" },
     },
     strict: true,
   });
-  for (const required of ["server", "model", "inventory", "output"]) {
+  for (const required of [
+    "server",
+    "model",
+    "vad-model",
+    "ffmpeg",
+    "inventory",
+    "output",
+  ]) {
     if (!values[required]) throw new Error(`Missing --${required}.`);
   }
 
   const serverPath = path.resolve(values.server);
   const modelPath = path.resolve(values.model);
+  const vadModelPath = path.resolve(values["vad-model"]);
   const inventoryPath = path.resolve(values.inventory);
   const outputDirectory = path.resolve(values.output);
-  const ffmpegPath = values.ffmpeg ? path.resolve(values.ffmpeg) : undefined;
+  const ffmpegPath = path.resolve(values.ffmpeg);
   const threads = parsePositiveInteger(values.threads, "--threads");
   const backend = parseBackend(values.backend);
   const metricsIntervalMs = parsePositiveInteger(
@@ -55,30 +80,65 @@ export async function runPoc(argv = process.argv.slice(2)) {
     values["cancel-after-ms"],
     "--cancel-after-ms",
   );
+  const windowMs = parsePositiveInteger(values["window-ms"], "--window-ms");
+  const overlapMs = parseNonNegativeInteger(
+    values["overlap-ms"],
+    "--overlap-ms",
+  );
+  if (overlapMs >= windowMs) {
+    throw new Error("--overlap-ms must be smaller than --window-ms.");
+  }
+  const repeatCueThreshold = parsePositiveInteger(
+    values["quality-repeat-cues"],
+    "--quality-repeat-cues",
+  );
+  const repeatDurationMs = parsePositiveInteger(
+    values["quality-repeat-ms"],
+    "--quality-repeat-ms",
+  );
+  const maxSegmentDurationMs = parsePositiveInteger(
+    values["quality-max-segment-ms"],
+    "--quality-max-segment-ms",
+  );
+  const maxRetryDepth = parseNonNegativeInteger(
+    values["max-window-retry-depth"],
+    "--max-window-retry-depth",
+  );
   const inventory = JSON.parse(await readFile(inventoryPath, "utf8"));
   const samples = selectRequestedSamples(
     selectRealSamples(inventory),
     values.sample ?? [],
   );
   await mkdir(outputDirectory, { recursive: true });
+  const workingRoot = await mkdtemp(path.join(outputDirectory, ".windowed-"));
 
-  const [modelStat, serverStat, modelSha256, serverSha256] = await Promise.all([
+  const [
+    modelStat,
+    vadModelStat,
+    serverStat,
+    modelSha256,
+    vadModelSha256,
+    serverSha256,
+  ] = await Promise.all([
     stat(modelPath),
+    stat(vadModelPath),
     stat(serverPath),
     sha256File(modelPath),
+    sha256File(vadModelPath),
     sha256File(serverPath),
   ]);
   const supervisor = new WhisperServerSupervisor({
     serverPath,
     modelPath,
-    ffmpegPath,
-    convertWithFfmpeg: Boolean(ffmpegPath),
-    useGpu: backend === "cuda",
+    vadModelPath,
+    convertWithFfmpeg: false,
+    useGpu: backend !== "cpu",
     threads,
     startupTimeoutMs: 180_000,
   });
   const monitor = new ProcessMetricsMonitor({
     processIdProvider: () => supervisor.processId,
+    diagnosticsProvider: () => supervisor.safeDiagnostics(),
     backend,
     intervalMs: metricsIntervalMs,
     ...(values["nvidia-smi"]
@@ -86,7 +146,7 @@ export async function runPoc(argv = process.argv.slice(2)) {
       : {}),
   });
   const summary = {
-    schemaVersion: 2,
+    schemaVersion: 4,
     engine: "whisper.cpp",
     engineVersion: "v1.9.1",
     transport: "node-owned-loopback-http",
@@ -99,9 +159,26 @@ export async function runPoc(argv = process.argv.slice(2)) {
     modelFileName: path.basename(modelPath),
     modelSizeBytes: modelStat.size,
     modelSha256,
+    vadModelFileName: path.basename(vadModelPath),
+    vadModelSizeBytes: vadModelStat.size,
+    vadModelSha256,
     modelLoadCount: 1,
     modelLoadReuseMs: 0,
     modelLoadReuseEvidence: "same-pid-no-restart-between-normal-requests",
+    transcriptStrategy: {
+      id: "bounded-pcm-windows-vad-mapped-segment-timeline",
+      windowMs,
+      overlapMs,
+      repeatCueThreshold,
+      repeatDurationMs,
+      maxSegmentDurationMs,
+      maxRetryDepth,
+      rawQualityGateBeforeFormatting: true,
+      wholeFileSingleRequestForArtifacts: false,
+      vadEnabled: true,
+      vadTimelinePolicy: "mapped_segment_timestamps_only",
+      tokenTimestampsEnabled: false,
+    },
     startedAt: new Date().toISOString(),
     cancellation: undefined,
     samples: [],
@@ -115,11 +192,45 @@ export async function runPoc(argv = process.argv.slice(2)) {
     const processId = supervisor.processId;
     process.stdout.write(`whisper-server ready (pid ${processId})\n`);
 
+    const normalizedSamples = new Map();
     for (const sample of samples) {
       const started = performance.now();
-      const result = await supervisor.transcribe(sample.mediaPath, {
-        language: languageForSample(sample.sampleId),
+      const sampleDirectory = path.join(workingRoot, sample.sampleId);
+      await mkdir(sampleDirectory, { recursive: true });
+      const normalizedPath = path.join(sampleDirectory, "normalized.wav");
+      const normalization = await normalizeMediaToPcm16Wav({
+        ffmpegPath,
+        inputPath: sample.mediaPath,
+        outputPath: normalizedPath,
       });
+      normalizedSamples.set(sample.sampleId, {
+        sampleId: sample.sampleId,
+        mediaPath: normalizedPath,
+      });
+      const inferenceStarted = performance.now();
+      const windowed = await transcribePcmInWindows({
+        wavPath: normalizedPath,
+        metadata: normalization,
+        workingDirectory: path.join(sampleDirectory, "windows"),
+        windowMs,
+        overlapMs,
+        repeatCueThreshold,
+        repeatDurationMs,
+        maxSegmentDurationMs,
+        maxRetryDepth,
+        transcribeFile: (filePath) => supervisor.transcribe(filePath, {
+          language: languageForSample(sample.sampleId),
+          vad: true,
+        }),
+        onWindowComplete: (attempt) => {
+          process.stdout.write(
+            `${sample.sampleId}/${attempt.key}: ${attempt.segmentCount} raw segments, ` +
+            `${attempt.elapsedMs} ms, quality ${attempt.valid ? "passed" : "retry"}\n`,
+          );
+        },
+      });
+      const inferenceElapsedMs = Math.round(performance.now() - inferenceStarted);
+      const result = windowed.result;
       const elapsedMs = Math.round(performance.now() - started);
       const cues = createSmokeCues(result.segments);
       const srt = formatSmokeSrt(cues);
@@ -141,27 +252,50 @@ export async function runPoc(argv = process.argv.slice(2)) {
           result.language,
         ),
         elapsedMs,
+        normalizationMs: normalization.elapsedMs,
+        inferenceElapsedMs,
         audioDurationMs: result.durationMs,
         realtimeFactor: result.durationMs
           ? Number((elapsedMs / result.durationMs).toFixed(4))
           : undefined,
         segmentCount: result.segments.length,
+        rawSegmentCount: windowed.quality.rawSegmentCount,
         cueCount: cues.length,
+        rawTranscriptValidity: windowed.quality.valid,
+        quality: windowed.quality,
         srtFile,
         lrcFile,
         srtParseBack,
         lrcParseBack,
         processId: supervisor.processId,
         resultFile: `${sample.sampleId}.result.json`,
+        windowResultFile: `${sample.sampleId}.windows.json`,
       };
-      await writeFile(
-        path.join(outputDirectory, record.resultFile),
-        `${JSON.stringify({ sampleId: sample.sampleId, ...result }, null, 2)}\n`,
-        "utf8",
-      );
+      await Promise.all([
+        writeFile(
+          path.join(outputDirectory, record.resultFile),
+          `${JSON.stringify({
+            sampleId: sample.sampleId,
+            strategy: summary.transcriptStrategy,
+            quality: windowed.quality,
+            ...result,
+          }, null, 2)}\n`,
+          "utf8",
+        ),
+        writeFile(
+          path.join(outputDirectory, record.windowResultFile),
+          `${JSON.stringify({
+            sampleId: sample.sampleId,
+            attempts: windowed.attempts,
+            retryEvents: windowed.retryEvents,
+            windows: windowed.windows,
+          }, null, 2)}\n`,
+          "utf8",
+        ),
+      ]);
       summary.samples.push(record);
       process.stdout.write(
-        `${sample.sampleId}: ${record.segmentCount} segments, ` +
+        `${sample.sampleId}: ${record.segmentCount} merged segments, ` +
         `${elapsedMs} ms, RTF ${record.realtimeFactor ?? "n/a"}\n`,
       );
     }
@@ -169,9 +303,12 @@ export async function runPoc(argv = process.argv.slice(2)) {
       (sample) => sample.sampleId === values["cancel-sample"],
     );
     if (cancellationSample) {
+      const normalizedCancellationSample = normalizedSamples.get(
+        cancellationSample.sampleId,
+      );
       summary.cancellation = await runCancellationProbe({
         supervisor,
-        sample: cancellationSample,
+        sample: normalizedCancellationSample,
         cancelAfterMs,
         expectedProcessId: processId,
       });
@@ -188,6 +325,9 @@ export async function runPoc(argv = process.argv.slice(2)) {
     summary.allSubtitleParseBackPassed = summary.samples.every(
       (sample) => sample.srtParseBack && sample.lrcParseBack,
     );
+    summary.allRawTranscriptValidityPassed = summary.samples.every(
+      (sample) => sample.rawTranscriptValidity,
+    );
     summary.allLanguageDetectionMatched = summary.samples.every(
       (sample) => sample.languageDetectionMatch,
     );
@@ -196,10 +336,10 @@ export async function runPoc(argv = process.argv.slice(2)) {
       `${JSON.stringify(summary, null, 2)}\n`,
       "utf8",
     );
-    if (backend === "cuda" && !summary.resources.backendVerified) {
+    if (backend !== "cpu" && !summary.resources.backendVerified) {
       throw new WhisperServerError(
         "backend_unverified",
-        "CUDA was requested, but no VRAM use was observed for whisper-server.",
+        `${backend.toUpperCase()} was requested, but the backend could not be verified.`,
       );
     }
     if (!summary.allSubtitleParseBackPassed) {
@@ -208,10 +348,17 @@ export async function runPoc(argv = process.argv.slice(2)) {
         "At least one generated SRT or LRC artifact failed parse-back.",
       );
     }
+    if (!summary.allRawTranscriptValidityPassed) {
+      throw new WhisperServerError(
+        "transcript_quality_failed",
+        "At least one sample failed raw transcript validity.",
+      );
+    }
     return summary;
   } finally {
     await monitor.stop();
     await supervisor.stop();
+    await rm(workingRoot, { recursive: true, force: true });
   }
 }
 
@@ -261,6 +408,7 @@ async function runCancellationProbe(options) {
     await options.supervisor.transcribe(options.sample.mediaPath, {
       language: languageForSample(options.sample.sampleId),
       signal: controller.signal,
+      vad: true,
     });
     throw new Error("Cancellation probe completed before it was cancelled.");
   } catch (error) {
@@ -294,9 +442,17 @@ function parsePositiveInteger(value, flag) {
   return parsed;
 }
 
-function parseBackend(value) {
-  if (value !== "cpu" && value !== "cuda") {
-    throw new Error("--backend must be cpu or cuda.");
+function parseNonNegativeInteger(value, flag) {
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed < 0) {
+    throw new Error(`${flag} must be a non-negative integer.`);
+  }
+  return parsed;
+}
+
+export function parseBackend(value) {
+  if (value !== "cpu" && value !== "cuda" && value !== "metal") {
+    throw new Error("--backend must be cpu, cuda, or metal.");
   }
   return value;
 }
@@ -313,8 +469,13 @@ function sha256File(filePath) {
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   runPoc().catch((error) => {
-    const code = error instanceof WhisperServerError ? error.code : "poc_failed";
+    const code = error instanceof WhisperServerError || error instanceof TranscriptQualityError
+      ? error.code
+      : "poc_failed";
     process.stderr.write(`${code}: ${error.message}\n`);
+    if (error instanceof TranscriptQualityError && error.details) {
+      process.stderr.write(`${JSON.stringify(error.details)}\n`);
+    }
     process.exitCode = 1;
   });
 }

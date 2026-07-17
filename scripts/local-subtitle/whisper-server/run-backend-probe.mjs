@@ -23,8 +23,8 @@ export async function runBackendProbe(argv = process.argv.slice(2)) {
   if (!values.server || !values.model) {
     throw new Error("Missing --server or --model.");
   }
-  if (values.backend !== "cpu" && values.backend !== "cuda") {
-    throw new Error("--backend must be cpu or cuda.");
+  if (!["cpu", "cuda", "metal"].includes(values.backend)) {
+    throw new Error("--backend must be cpu, cuda, or metal.");
   }
   const observeMs = parsePositiveInteger(values["observe-ms"], "--observe-ms");
   const metricsIntervalMs = parsePositiveInteger(
@@ -40,11 +40,12 @@ export async function runBackendProbe(argv = process.argv.slice(2)) {
   const supervisor = new WhisperServerSupervisor({
     serverPath,
     modelPath,
-    useGpu: values.backend === "cuda",
+    useGpu: values.backend !== "cpu",
     startupTimeoutMs: 180_000,
   });
   const monitor = new ProcessMetricsMonitor({
     processIdProvider: () => supervisor.processId,
+    diagnosticsProvider: () => supervisor.safeDiagnostics(),
     backend: values.backend,
     intervalMs: metricsIntervalMs,
   });

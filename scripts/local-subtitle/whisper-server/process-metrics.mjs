@@ -10,6 +10,8 @@ export class ProcessMetricsMonitor {
       backend: "cpu",
       intervalMs: 1_000,
       execFileImpl: execFileAsync,
+      platform: process.platform,
+      psPath: "/bin/ps",
       powershellPath: defaultPowerShellPath(),
       nvidiaSmiPath: defaultNvidiaSmiPath(),
       ...options,
@@ -20,6 +22,7 @@ export class ProcessMetricsMonitor {
     this.peakVramBytes = 0;
     this.sampleCount = 0;
     this.lastProcessId = undefined;
+    this.metalEvidence = emptyMetalBackendEvidence();
   }
 
   start() {
@@ -36,6 +39,7 @@ export class ProcessMetricsMonitor {
 
   summary() {
     const isCuda = this.options.backend === "cuda";
+    const isMetal = this.options.backend === "metal";
     return {
       sampleCount: this.sampleCount,
       processIdObserved: this.lastProcessId,
@@ -43,8 +47,15 @@ export class ProcessMetricsMonitor {
       peakVramBytes: isCuda ? this.peakVramBytes : null,
       backendEvidence: isCuda
         ? "windows-gpu-process-memory-counter-with-nvidia-smi-fallback"
-        : "official-server-no-gpu-flag",
-      backendVerified: isCuda ? this.peakVramBytes > 0 : true,
+        : isMetal
+          ? "bounded-whisper-server-metal-initialization-diagnostics"
+          : "official-server-no-gpu-flag",
+      ...(isMetal ? { backendEvidenceDetails: this.metalEvidence } : {}),
+      backendVerified: isCuda
+        ? this.peakVramBytes > 0
+        : isMetal
+          ? this.metalEvidence.backendVerified
+          : true,
     };
   }
 
@@ -62,12 +73,18 @@ export class ProcessMetricsMonitor {
     if (!Number.isInteger(processId) || processId <= 0) return;
     this.lastProcessId = processId;
 
-    const processMetrics = await queryWindowsProcessMetrics({
-      processId,
-      includeGpu: this.options.backend === "cuda",
-      powershellPath: this.options.powershellPath,
-      execFileImpl: this.options.execFileImpl,
-    });
+    const processMetrics = this.options.platform === "win32"
+      ? await queryWindowsProcessMetrics({
+        processId,
+        includeGpu: this.options.backend === "cuda",
+        powershellPath: this.options.powershellPath,
+        execFileImpl: this.options.execFileImpl,
+      })
+      : await queryPosixProcessMetrics({
+        processId,
+        psPath: this.options.psPath,
+        execFileImpl: this.options.execFileImpl,
+      });
     const ramBytes = processMetrics?.ramBytes;
     let vramBytes = processMetrics?.vramBytes;
     if (this.options.backend === "cuda" && vramBytes === undefined) {
@@ -83,8 +100,59 @@ export class ProcessMetricsMonitor {
     if (Number.isFinite(vramBytes)) {
       this.peakVramBytes = Math.max(this.peakVramBytes, vramBytes);
     }
+    if (this.options.backend === "metal") {
+      this.metalEvidence = mergeMetalBackendEvidence(
+        this.metalEvidence,
+        parseMetalBackendDiagnostics(this.options.diagnosticsProvider?.()),
+      );
+    }
     this.sampleCount += 1;
   }
+}
+
+export function parsePosixProcessRssBytes(value) {
+  const rssKiB = Number(String(value).trim());
+  return Number.isFinite(rssKiB) && rssKiB >= 0
+    ? Math.round(rssKiB * 1024)
+    : undefined;
+}
+
+export function parseMetalBackendDiagnostics(value) {
+  const text = typeof value === "string"
+    ? value
+    : `${value?.stdout ?? ""}\n${value?.stderr ?? ""}`;
+  const initializationObserved =
+    /(?:ggml_metal_init|ggml_backend_metal_(?:device_)?init)/iu.test(text);
+  const deviceObserved =
+    /(?:found device|GPU name|using Metal backend|Metal device)/iu.test(text);
+  const failureObserved =
+    /(?:Metal[^\n]*(?:failed|unavailable|disabled)|failed[^\n]*Metal)/iu.test(text);
+  return {
+    initializationObserved,
+    deviceObserved,
+    failureObserved,
+    backendVerified:
+      initializationObserved && deviceObserved && !failureObserved,
+  };
+}
+
+export function mergeMetalBackendEvidence(previous, current) {
+  const initializationObserved = Boolean(
+    previous?.initializationObserved || current?.initializationObserved,
+  );
+  const deviceObserved = Boolean(
+    previous?.deviceObserved || current?.deviceObserved,
+  );
+  const failureObserved = Boolean(
+    previous?.failureObserved || current?.failureObserved,
+  );
+  return {
+    initializationObserved,
+    deviceObserved,
+    failureObserved,
+    backendVerified:
+      initializationObserved && deviceObserved && !failureObserved,
+  };
 }
 
 export function parseNvidiaComputeApps(value, expectedProcessId) {
@@ -157,6 +225,29 @@ async function queryNvidiaProcessVramBytes(options) {
   } catch {
     return undefined;
   }
+}
+
+async function queryPosixProcessMetrics(options) {
+  try {
+    const { stdout } = await options.execFileImpl(
+      options.psPath,
+      ["-o", "rss=", "-p", String(options.processId)],
+      { timeout: 5_000, maxBuffer: 64 * 1024 },
+    );
+    const ramBytes = parsePosixProcessRssBytes(stdout);
+    return Number.isFinite(ramBytes) ? { ramBytes } : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function emptyMetalBackendEvidence() {
+  return {
+    initializationObserved: false,
+    deviceObserved: false,
+    failureObserved: false,
+    backendVerified: false,
+  };
 }
 
 function defaultPowerShellPath() {

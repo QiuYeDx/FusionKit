@@ -1,0 +1,276 @@
+{
+  "schemaVersion": 2,
+  "reportType": "local-subtitle-pre004-macos-arm64",
+  "observedAt": "2026-07-17",
+  "status": "completed",
+  "backendAndPackagedLikePocStatus": "passed",
+  "wholeFileTranscriptValidityStatus": "failed",
+  "boundedWindowTranscriptValidityStatus": "passed",
+  "releaseEvidenceStatus": "deferred_to_qa004_not_a_pre004_gate",
+  "scope": {
+    "platform": "macos",
+    "osVersion": "26.2",
+    "architecture": "arm64",
+    "chip": "Apple M5",
+    "cpuCoreCount": 10,
+    "gpuCoreCount": 10,
+    "memoryGiB": 16,
+    "metalSupported": true,
+    "sampleCount": 3,
+    "sampleLanguages": ["ja", "zh"]
+  },
+  "engine": {
+    "id": "whisper.cpp",
+    "version": "v1.9.1",
+    "commit": "f049fff95a089aa9969deb009cdd4892b3e74916",
+    "runtimeContract": "node-managed-official-whisper-server",
+    "sourceAcquisition": "exact-tagged-shallow-clone",
+    "sourceBuildRequiredForMacosCandidate": true,
+    "cppRunnerRequired": false,
+    "buildConfiguration": {
+      "CMAKE_OSX_ARCHITECTURES": "arm64",
+      "BUILD_SHARED_LIBS": false,
+      "GGML_NATIVE": false,
+      "GGML_METAL": true,
+      "GGML_METAL_EMBED_LIBRARY": true,
+      "WHISPER_BUILD_SERVER": true
+    },
+    "embeddedCommitEvidence": "f049fff"
+  },
+  "runtimeArtifact": {
+    "fileName": "whisper-server",
+    "relativePath": "mac-arm64/metal/whisper-server",
+    "sizeBytes": 3611408,
+    "sha256": "4a27a3058d43dff4f763aaf4fc8cb3726460dee145f55a4e520dc4e5a7354f1a",
+    "architectures": ["arm64"],
+    "executable": true,
+    "metalLibraryEmbedded": true,
+    "dynamicDependencyCount": 8,
+    "systemOnlyDynamicDependencies": true,
+    "macosX64ArtifactCount": 0
+  },
+  "model": {
+    "id": "large-v3-q5_0",
+    "fileName": "ggml-large-v3-q5_0.bin",
+    "sizeBytes": 1081140203,
+    "sha256": "d75795ecff3f83b5faa89d1900604ad8c780abd5739fae406de19f23ecd98ad1",
+    "sourceRevision": "c521a4b02f422512d734391fdf08bb08c0862f68"
+  },
+  "transcriptStrategy": {
+    "id": "bounded-pcm-windows-vad-mapped-segment-timeline",
+    "windowMs": 30000,
+    "overlapMs": 5000,
+    "wholeFileSingleRequest": false,
+    "vadEnabled": true,
+    "vadTimelinePolicy": "mapped-segment-timestamps-only",
+    "tokenTimestampsEnabledWithVad": false,
+    "rawQualityGateBeforeFormatting": true,
+    "controlledShorterWindowRetry": true,
+    "pcmFrameCoveragePassed": true,
+    "wordTimelineRangeFallbackEnabled": true
+  },
+  "performanceMetricScope": "final-bounded-window-vad-segment-timeline-strategy",
+  "metalResult": {
+    "backendVerified": true,
+    "backendEvidence": "bounded-whisper-server-metal-initialization-and-device-diagnostics",
+    "backendEvidenceDetails": {
+      "initializationObserved": true,
+      "deviceObserved": true,
+      "failureObserved": false
+    },
+    "coldBackendProbeModelLoadMs": 7453,
+    "sampleRunModelLoadMs": 879,
+    "modelLoadCount": 1,
+    "modelLoadReuseMs": 0,
+    "processReusedForNormalTasks": true,
+    "peakRamBytes": 1870495744,
+    "peakVramBytes": null,
+    "realtimeFactorRange": [0.0698, 0.0821],
+    "samples": [
+      {
+        "sampleId": "ja-character-pv-bgm-medium",
+        "audioDurationMs": 230229,
+        "elapsedMs": 18907,
+        "realtimeFactor": 0.0821,
+        "rawSegmentCount": 65,
+        "cueCount": 57,
+        "retryCount": 0,
+        "longestConsecutiveRepeatCueCount": 1,
+        "invalidRawTimelineSegmentCount": 0
+      },
+      {
+        "sampleId": "ja-audio-drama-frequent-silence-medium",
+        "audioDurationMs": 753390,
+        "elapsedMs": 52568,
+        "realtimeFactor": 0.0698,
+        "rawSegmentCount": 168,
+        "cueCount": 136,
+        "retryCount": 3,
+        "longestConsecutiveRepeatCueCount": 2,
+        "invalidRawTimelineSegmentCount": 0,
+        "lastCueEndMs": 738840
+      },
+      {
+        "sampleId": "zh-character-pv-bgm-medium",
+        "audioDurationMs": 235221,
+        "elapsedMs": 17861,
+        "realtimeFactor": 0.0759,
+        "rawSegmentCount": 86,
+        "cueCount": 74,
+        "retryCount": 0,
+        "longestConsecutiveRepeatCueCount": 2,
+        "invalidRawTimelineSegmentCount": 0
+      }
+    ],
+    "cancellation": {
+      "cancelAfterMs": 5000,
+      "cancelLatencyMs": 2,
+      "errorCode": "aborted",
+      "healthyAfterAbort": true,
+      "nextTaskPolicy": "restart-server"
+    }
+  },
+  "cpuResult": {
+    "backendVerified": true,
+    "backendEvidence": "official-server-no-gpu-flag",
+    "backendProbeModelLoadMs": 423,
+    "sampleRunModelLoadMs": 747,
+    "modelLoadCount": 1,
+    "modelLoadReuseMs": 0,
+    "processReusedForNormalTasks": true,
+    "peakRamBytes": 2034991104,
+    "peakVramBytes": null,
+    "realtimeFactorRange": [0.1954, 0.2811],
+    "samples": [
+      {
+        "sampleId": "ja-character-pv-bgm-medium",
+        "audioDurationMs": 230229,
+        "elapsedMs": 64715,
+        "realtimeFactor": 0.2811,
+        "rawSegmentCount": 67,
+        "cueCount": 59,
+        "retryCount": 0,
+        "longestConsecutiveRepeatCueCount": 1,
+        "invalidRawTimelineSegmentCount": 0
+      },
+      {
+        "sampleId": "ja-audio-drama-frequent-silence-medium",
+        "audioDurationMs": 753390,
+        "elapsedMs": 160434,
+        "realtimeFactor": 0.2129,
+        "rawSegmentCount": 166,
+        "cueCount": 136,
+        "retryCount": 4,
+        "longestConsecutiveRepeatCueCount": 1,
+        "invalidRawTimelineSegmentCount": 0,
+        "lastCueEndMs": 738840
+      },
+      {
+        "sampleId": "zh-character-pv-bgm-medium",
+        "audioDurationMs": 235221,
+        "elapsedMs": 45953,
+        "realtimeFactor": 0.1954,
+        "rawSegmentCount": 85,
+        "cueCount": 73,
+        "retryCount": 0,
+        "longestConsecutiveRepeatCueCount": 2,
+        "invalidRawTimelineSegmentCount": 0
+      }
+    ],
+    "cancellation": {
+      "cancelAfterMs": 5000,
+      "cancelLatencyMs": 6,
+      "errorCode": "aborted",
+      "healthyAfterAbort": true,
+      "nextTaskPolicy": "restart-server"
+    }
+  },
+  "fallbackContract": {
+    "cpuVsMetalSlowdownRange": [2.57, 3.42],
+    "autoMetalUnavailableResolution": "resolve-to-cpu-before-commit-with-user-visible-performance-warning",
+    "explicitMetalFallbackAllowed": false,
+    "unverifiedExplicitMetalResult": "backend_unverified",
+    "macosX64Result": "unsupported_architecture"
+  },
+  "outputValidation": {
+    "languageDetectionMatchedAllSamplesAndBackends": true,
+    "srtParseBackPassedAllSamplesAndBackends": true,
+    "standardLrcParseBackPassedAllSamplesAndBackends": true,
+    "parseBackScope": "serialization_structure_only",
+    "initialFirstSegmentSpotCheck": "passed_but_insufficient",
+    "rawTranscriptValidityPassed": true,
+    "windowExecutionCoveragePassed": true,
+    "criticalIntervalManualSmokePassed": true,
+    "userAcceptance": "passed-development-smoke-after-windowing-and-vad-timeline-fix",
+    "historicalWholeFileFailureEvidence": {
+      "metalJapaneseLongestConsecutiveRepeatCount": 347,
+      "metalJapaneseRepeatStartMs": 405520,
+      "metalJapaneseRepeatEndMs": 753520,
+      "metalChineseLongestConsecutiveRepeatCount": 77,
+      "metalChineseRepeatStartMs": 63860,
+      "metalChineseRepeatEndMs": 217860,
+      "metalJapanesePvLongestConsecutiveRepeatCount": 14,
+      "cpuChineseLongestConsecutiveRepeatCount": 43,
+      "cpuJapaneseLongestConsecutiveRepeatCount": 11,
+      "cpuJapaneseLastCuePastMediaEndMs": 27890,
+      "zeroDurationSegmentsObserved": true
+    },
+    "diagnosis": {
+      "rawVerboseJsonAlreadyDegenerate": true,
+      "formatterIntroducedRepetition": false,
+      "mediaTruncated": false,
+      "wholeFileTokenTimestampsDisabledFixed": false,
+      "flashAttentionDisabledFixed": false,
+      "maxLengthIncreasedFixed": false,
+      "beamSizeFiveLongestChineseRepeatCount": 3,
+      "beamSizeFiveIntroducedDifferentOpeningHallucination": true,
+      "boundedGreedyChineseWindowsRecoveredExpectedContent": true,
+      "boundedGreedyJapaneseWindowRecoveredExpectedContent": true,
+      "directFailureSurface": "whole_file_single_request_decoder_state"
+    },
+    "resolutionEvidence": {
+      "boundedPcmWindowsPassed": true,
+      "rawQualityGatePassedAllSamplesAndBackends": true,
+      "longestFinalConsecutiveRepeatCueCount": 2,
+      "invalidRawTimelineSegmentCount": 0,
+      "outOfMediaBoundsSegmentCount": 0,
+      "silentWindowReturnedEmpty": true,
+      "longJapaneseCriticalIntervalRecovered": true,
+      "longJapaneseMediaTailRecovered": true,
+      "vadSegmentTimestampsMappedToOriginalTimeline": true,
+      "vadCompressedWordTimestampsIgnored": true,
+      "mergeRejectsWordsOutsideParentSegmentTimeline": true,
+      "finalVadWordTimelineFallbackCount": 0
+    }
+  },
+  "packagedLikeRuntime": {
+    "bundleContainmentPassed": true,
+    "arm64OnlyPassed": true,
+    "executableBitPassed": true,
+    "dynamicDependencyCheckPassed": true,
+    "signature": {
+      "kind": "adhoc",
+      "teamIdentifierPresent": false,
+      "strictValidationPassed": true
+    },
+    "gatekeeper": {
+      "status": "rejected",
+      "exitCode": 3,
+      "pre004Gate": false,
+      "owningReleaseGate": "QA-004"
+    },
+    "packagedLikeReady": true,
+    "releaseReady": false
+  },
+  "remainingBlockers": [],
+  "nextDecisionWorkPackage": "PRE-005",
+  "followingDecisionWorkPackage": "PRE-006",
+  "deferredReleaseGate": "QA-004",
+  "privacy": {
+    "containsAbsolutePaths": false,
+    "containsMediaOrSubtitleText": false,
+    "containsProcessIds": false,
+    "containsSigningIdentity": false,
+    "containsNativeBinariesOrModelBytes": false
+  }
+}

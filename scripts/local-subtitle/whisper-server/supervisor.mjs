@@ -144,17 +144,7 @@ export class WhisperServerSupervisor {
     this.activeRequest = controller;
 
     try {
-      const fields = {
-        response_format: "verbose_json",
-        language: options.language ?? "auto",
-        translate: String(Boolean(options.translate)),
-        no_language_probabilities: "true",
-        token_timestamps: "true",
-      };
-      if (options.prompt) fields.prompt = options.prompt;
-      if (options.maxLength !== undefined) {
-        fields.max_len = String(options.maxLength);
-      }
+      const fields = createWhisperInferenceFields(options);
 
       const response = await postMultipartFile({
         url: `${this.baseUrl}${this.requestPath}/inference`,
@@ -183,7 +173,9 @@ export class WhisperServerSupervisor {
           { cause: error },
         );
       }
-      const result = parseWhisperVerboseJson(body);
+      const result = parseWhisperVerboseJson(body, {
+        includeWords: fields.token_timestamps === "true",
+      });
       this.completedRequests += 1;
       return result;
     } catch (error) {
@@ -261,9 +253,11 @@ export class WhisperServerSupervisor {
   }
 
   safeDiagnostics() {
+    const privatePaths = [this.options.modelPath, this.options.vadModelPath]
+      .filter(Boolean);
     return {
-      stdout: redactDiagnostics(this.diagnostics.stdout, this.options.modelPath),
-      stderr: redactDiagnostics(this.diagnostics.stderr, this.options.modelPath),
+      stdout: redactDiagnostics(this.diagnostics.stdout, privatePaths),
+      stderr: redactDiagnostics(this.diagnostics.stderr, privatePaths),
     };
   }
 
@@ -385,6 +379,7 @@ export function createWhisperServerLaunch(options) {
   ];
   if (!options.useGpu) args.push("--no-gpu");
   if (options.convertWithFfmpeg) args.push("--convert");
+  if (options.vadModelPath) args.push("--vad-model", options.vadModelPath);
 
   return {
     args,
@@ -429,7 +424,37 @@ export function buildWhisperServerEnvironment(options) {
   return environment;
 }
 
-export function parseWhisperVerboseJson(body) {
+export function createWhisperInferenceFields(options = {}) {
+  for (const field of ["vad", "tokenTimestamps"]) {
+    if (options[field] !== undefined && typeof options[field] !== "boolean") {
+      throw new WhisperServerError(
+        "invalid_request",
+        `${field} must be a boolean when provided.`,
+      );
+    }
+  }
+  const vadEnabled = options.vad === true;
+  const tokenTimestamps = vadEnabled
+    ? false
+    : (options.tokenTimestamps ?? true);
+  const fields = {
+    response_format: "verbose_json",
+    language: options.language ?? "auto",
+    translate: String(Boolean(options.translate)),
+    no_language_probabilities: "true",
+    token_timestamps: String(Boolean(tokenTimestamps)),
+  };
+  if (options.prompt) fields.prompt = options.prompt;
+  if (options.maxLength !== undefined) {
+    fields.max_len = String(options.maxLength);
+  }
+  if (options.vad !== undefined) {
+    fields.vad = String(Boolean(options.vad));
+  }
+  return fields;
+}
+
+export function parseWhisperVerboseJson(body, options = {}) {
   if (!isRecord(body) || !Array.isArray(body.segments)) {
     throw new WhisperServerError(
       "invalid_response",
@@ -457,7 +482,9 @@ export function parseWhisperVerboseJson(body) {
       startMs: Math.round(segment.start * 1_000),
       endMs: Math.round(segment.end * 1_000),
       text: segment.text.trim(),
-      words: normalizeWords(segment.words),
+      words: options.includeWords === false
+        ? undefined
+        : normalizeWords(segment.words),
     };
   });
 
@@ -482,6 +509,15 @@ async function validateRuntimePaths(options) {
   }
   await assertRegularFile(options.serverPath, "runtime_missing");
   await assertRegularFile(options.modelPath, "model_missing");
+  if (options.vadModelPath) {
+    if (!path.isAbsolute(options.vadModelPath)) {
+      throw new WhisperServerError(
+        "invalid_path",
+        "The VAD model path must be absolute.",
+      );
+    }
+    await assertRegularFile(options.vadModelPath, "vad_model_missing");
+  }
   if (options.convertWithFfmpeg) {
     if (!options.ffmpegPath || !path.isAbsolute(options.ffmpegPath)) {
       throw new WhisperServerError(
@@ -532,8 +568,11 @@ function appendBounded(existing, next) {
   return `${existing}${next}`.slice(-MAX_DIAGNOSTIC_CHARS);
 }
 
-function redactDiagnostics(value, modelPath) {
-  return value.split(modelPath).join("[model]").slice(-4_000);
+function redactDiagnostics(value, privatePaths) {
+  return privatePaths.reduce(
+    (result, privatePath) => result.split(privatePath).join("[model]"),
+    value,
+  ).slice(-4_000);
 }
 
 function observeChildExit(child) {
