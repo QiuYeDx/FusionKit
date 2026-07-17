@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { constants as fsConstants, openAsBlob } from "node:fs";
+import { constants as fsConstants, createReadStream } from "node:fs";
 import {
   access,
   mkdir,
@@ -8,12 +8,15 @@ import {
   stat,
 } from "node:fs/promises";
 import net from "node:net";
+import { request as httpRequest } from "node:http";
 import os from "node:os";
 import path from "node:path";
 import { randomBytes } from "node:crypto";
 
 const MAX_DIAGNOSTIC_CHARS = 64 * 1024;
+const MAX_RESPONSE_BYTES = 64 * 1024 * 1024;
 const DEFAULT_STARTUP_TIMEOUT_MS = 120_000;
+const DEFAULT_INFERENCE_TIMEOUT_MS = 12 * 60 * 60 * 1_000;
 
 export class WhisperServerError extends Error {
   constructor(code, message, options = {}) {
@@ -32,6 +35,7 @@ export class WhisperServerSupervisor {
   constructor(options) {
     this.options = {
       startupTimeoutMs: DEFAULT_STARTUP_TIMEOUT_MS,
+      inferenceTimeoutMs: DEFAULT_INFERENCE_TIMEOUT_MS,
       threads: Math.max(1, Math.min(8, os.cpus().length || 4)),
       useGpu: false,
       convertWithFfmpeg: Boolean(options.ffmpegPath),
@@ -140,28 +144,27 @@ export class WhisperServerSupervisor {
     this.activeRequest = controller;
 
     try {
-      const form = new FormData();
-      const fileBlob = await openAsBlob(filePath);
-      form.append("file", fileBlob, options.fileName ?? path.basename(filePath));
-      form.append("response_format", "verbose_json");
-      form.append("language", options.language ?? "auto");
-      form.append("translate", String(Boolean(options.translate)));
-      form.append("no_language_probabilities", "true");
-      form.append("token_timestamps", "true");
-      if (options.prompt) form.append("prompt", options.prompt);
+      const fields = {
+        response_format: "verbose_json",
+        language: options.language ?? "auto",
+        translate: String(Boolean(options.translate)),
+        no_language_probabilities: "true",
+        token_timestamps: "true",
+      };
+      if (options.prompt) fields.prompt = options.prompt;
       if (options.maxLength !== undefined) {
-        form.append("max_len", String(options.maxLength));
+        fields.max_len = String(options.maxLength);
       }
 
-      const response = await this.options.fetchImpl(
-        `${this.baseUrl}${this.requestPath}/inference`,
-        {
-          method: "POST",
-          body: form,
-          signal: controller.signal,
-        },
-      );
-      const bodyText = await response.text();
+      const response = await postMultipartFile({
+        url: `${this.baseUrl}${this.requestPath}/inference`,
+        filePath,
+        fileName: options.fileName ?? path.basename(filePath),
+        fields,
+        signal: controller.signal,
+        timeoutMs: this.options.inferenceTimeoutMs,
+      });
+      const bodyText = response.bodyText;
       if (!response.ok) {
         throw new WhisperServerError(
           "inference_failed",
@@ -299,6 +302,70 @@ export class WhisperServerSupervisor {
   }
 }
 
+export async function postMultipartFile(options) {
+  const boundary = `fusionkit-${randomBytes(24).toString("hex")}`;
+  const fileStat = await stat(options.filePath);
+  const fieldParts = Object.entries(options.fields ?? {}).map(
+    ([name, value]) =>
+      `--${boundary}\r\n` +
+      `Content-Disposition: form-data; name="${sanitizeMultipartHeaderValue(name)}"\r\n\r\n` +
+      `${String(value)}\r\n`,
+  );
+  const fileHeader =
+    `--${boundary}\r\n` +
+    "Content-Disposition: form-data; name=\"file\"; " +
+    `filename="${sanitizeMultipartHeaderValue(options.fileName)}"\r\n` +
+    "Content-Type: application/octet-stream\r\n\r\n";
+  const prefix = Buffer.from(`${fieldParts.join("")}${fileHeader}`, "utf8");
+  const suffix = Buffer.from(`\r\n--${boundary}--\r\n`, "utf8");
+  const contentLength = prefix.length + fileStat.size + suffix.length;
+
+  return new Promise((resolve, reject) => {
+    const request = httpRequest(
+      options.url,
+      {
+        method: "POST",
+        signal: options.signal,
+        headers: {
+          "Content-Type": `multipart/form-data; boundary=${boundary}`,
+          "Content-Length": String(contentLength),
+        },
+      },
+      (response) => {
+        const chunks = [];
+        let responseBytes = 0;
+        response.on("data", (chunk) => {
+          responseBytes += chunk.length;
+          if (responseBytes > MAX_RESPONSE_BYTES) {
+            response.destroy(new Error("whisper-server response exceeded the limit."));
+            return;
+          }
+          chunks.push(chunk);
+        });
+        response.once("error", reject);
+        response.once("end", () => {
+          const status = response.statusCode ?? 0;
+          resolve({
+            ok: status >= 200 && status < 300,
+            status,
+            bodyText: Buffer.concat(chunks).toString("utf8"),
+          });
+        });
+      },
+    );
+    request.setTimeout(options.timeoutMs, () => {
+      request.destroy(new Error("whisper-server inference timed out."));
+    });
+    request.once("error", reject);
+    request.write(prefix);
+    const fileStream = createReadStream(options.filePath);
+    fileStream.once("error", (error) => request.destroy(error));
+    request.once("close", () => fileStream.destroy());
+    fileStream.once("end", () => request.end(suffix));
+    fileStream.pipe(request, { end: false });
+  });
+}
+
 export function createWhisperServerLaunch(options) {
   const args = [
     "--host",
@@ -349,7 +416,14 @@ export function buildWhisperServerEnvironment(options) {
     TEMP: options.tempDirectory,
     TMP: options.tempDirectory,
   };
-  for (const key of ["SystemRoot", "WINDIR", "COMSPEC", "PATHEXT"]) {
+  for (const key of [
+    "SystemRoot",
+    "WINDIR",
+    "COMSPEC",
+    "PATHEXT",
+    "ProgramFiles",
+    "ProgramW6432",
+  ]) {
     if (source[key]) environment[key] = source[key];
   }
   return environment;
@@ -444,6 +518,10 @@ function normalizeWords(words) {
     }];
   });
   return normalized.length > 0 ? normalized : undefined;
+}
+
+function sanitizeMultipartHeaderValue(value) {
+  return String(value).replace(/[\r\n"]/gu, "_");
 }
 
 function isRecord(value) {

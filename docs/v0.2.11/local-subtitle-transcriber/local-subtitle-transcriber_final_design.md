@@ -4,7 +4,7 @@
 >
 > Feature Slug：`local-subtitle-transcriber`
 >
-> 状态：调研与 Final Design 已完成；`PRE-001`、`PRE-002` 已完成，下一步进入 `PRE-003` Windows x64 CPU/CUDA PoC
+> 状态：调研与 Final Design 已完成；`PRE-001`～`PRE-003` 已完成，下一步进入 `PRE-004` macOS arm64 PoC 与 `PRE-005` 打包资源 PoC
 >
 > 产品定位：使用本地算力把批量音频/视频转成可直接翻译的 SRT/LRC 字幕
 >
@@ -23,6 +23,8 @@
 > 2026-07-16 PRE-001 收口：现有 3 个样本即为开发启动范围；不要求英文/额外声学场景、独立校对真值、样本权利审计、FasterWhisperGUI 快照/配置、CTranslate2 `large-v3` hash 或输出一致性
 >
 > 2026-07-17 PRE-002 架构修正：官方预编译 `whisper-server` 已实测覆盖模型驻留、结构化 JSON、取消与健康检查；首版改为 Node 管理官方 server，不再预设 FusionKit C++/JSONL runner 或 Windows 本地 CMake/MSVC
+>
+> 2026-07-17 PRE-003 收口：官方 Windows CPU/CUDA server 与 `large-v3-q5_0` 已跑通现有 3 段中/日媒体；CUDA RTF 0.0509～0.0735、峰值显存约 2.12 GB，CPU RTF 0.5063～0.592、峰值 RAM 约 2.50 GB；SRT/LRC 回读、模型复用、取消与静默 CPU 降级门禁均通过
 
 ---
 
@@ -720,6 +722,7 @@ interface LocalSubtitleApi {
 - child 使用 allowlisted 最小环境与受控 cwd，只保留动态库、系统运行和 bundled media runtime 所需变量；不得继承 API Key、authorization header、代理凭据或任意 Electron/Agent secret。
 - server 只绑定 `127.0.0.1` 临时端口；main 为每次进程会话生成至少 192-bit 随机 request path，并把 `--public` 指向空的私有临时目录。端口和私有 path 不进入 renderer、Store 或日志。
 - readiness 只认带私有前缀的 `/health` JSON；推理只认 `/inference` 的 HTTP status 与 `verbose_json`。stdout/stderr 仅作有界脱敏诊断，不解析人类进度或结果文案。
+- inference HTTP 客户端必须流式发送文件并使用独立、显式的长任务 timeout 与 response size 上限；不得依赖 Node 全局 `fetch`/Undici 的默认 response-header timeout。PRE-003 已复现短任务成功、长 CPU 任务约五分钟客户端断开的隐蔽边界。
 - 一个 server 同时只接受一个 FusionKit 推理请求，但在同一 model/backend 的连续任务间保留 context。model/backend 变化、load 失败、crash 或取消超时时由 supervisor 终止并重启进程。
 - 普通推理不访问外网。loopback HTTP 只是 Electron main 与其 child 的本机进程边界，并禁用代理继承；模型/加速包下载仍走单独的 ResourceJob。
 
@@ -747,7 +750,8 @@ Node adapter 对 response schema 做运行时校验，把 segment/word 的秒值
 Node 对当前 inference request 使用 `AbortController`。请求连接关闭后，官方 v1.9.1 server 的 `abort_callback` 检测 client disconnect 并终止推理：
 
 1. 任务取消先 abort 当前 HTTP request，并等待该 Promise 以稳定 `aborted` 结束。
-2. 在有界超时内未结束，或 child 已失去健康状态时，supervisor 终止整个进程、清理临时文件，并在下一任务前重新启动和加载模型。
+2. 无论紧接着的 `/health` 是否返回 ok，supervisor 都在下一任务前终止并重启该 server、重新加载模型；PRE-003 证明 health 只代表 HTTP 进程存活，不能作为底层取消工作已经完全收敛的复用屏障。
+3. 在有界超时内连客户端请求都未结束时，直接进入 kill fallback；旧 generation 的 late response 必须丢弃。
 
 主进程始终维护 child handle，不使用参考 GUI 的“只改布尔标志”方案。窗口销毁/renderer 崩溃执行 owner-scoped cleanup；应用退出和 update 安装执行 app-scoped cleanup。两者复用同一可重入机制，但 owner cleanup 不能关闭仍被其他 owner 使用的 server。
 
@@ -755,7 +759,7 @@ Node 对当前 inference request 使用 `AbortController`。请求连接关闭�
 
 - `devicePreference = "auto"` 在批次 commit 前根据签名 artifact manifest、真实 runner probe、accelerator pack 和模型兼容性解析为 CUDA/Metal/CPU，并把 `resolvedBackend` 明确展示并写入批次 snapshot；没有可用加速时可解析为 CPU，但用户在点击开始前必须看得到。
 - 用户显式选择 CUDA/Metal 时不可回退 CPU。auto 已 commit 后若 GPU load/OOM/driver/crash，批次暂停且不启动后续文件；UI 提供“以 CPU 新 generation 重试”，需要用户确认预期性能变化，不能在后台把长任务静默改跑 CPU。
-- 每个任务 metadata 携带所选签名 artifact/build ID 与 resolved backend。PRE-003 必须用真实 GPU 占用、RTF 和故障注入确认官方 CUDA artifact 不会假成功；若官方 API 无法提供产品所需的 backend 证明，这一事实进入 PRE-006 决策，不得仅靠人类日志在 UI 宣称 GPU。
+- 每个任务 metadata 携带所选签名 artifact/build ID 与 resolved backend。PRE-003 已用真实 GPU 占用、RTF 和故障注入确认官方 CUDA artifact 不会假成功；Windows WDDM 下 `nvidia-smi` 的逐进程显存可能为 `N/A`，可使用按 exact PID 过滤的 `GPU Process Memory` 性能计数器。若官方 API 与目标系统计数器都无法提供产品所需的 backend 证明，这一事实进入 PRE-006 决策，不得仅靠人类日志在 UI 宣称 GPU。
 
 ## 11. 模型与加速包管理
 
@@ -810,6 +814,16 @@ Resource manager 是 app-scoped，但 job/event 仍 owner-bound。同一 `resour
 | macOS arm64 | Metal-enabled runner 随应用 | 首版 Metal；同一 arm64 build 可显式回退 CPU，Core ML encoder 作为后续可选模型资源 |
 
 Windows CUDA runtime/DLL 的可再分发范围、包体和签名需要在 PRE PoC 中单独确认。不能把“开发机安装了 CUDA 所以可用”当作发行方案。
+
+PRE-003 的 Windows 结论是：默认安装包只随 CPU official server；CUDA 使用由用户
+按需安装、签名并逐文件校验的 optional accelerator pack。固定官方 CUDA ZIP 为
+677,887,125 bytes，解压后约 1,209,487,872 bytes；CPU ZIP 为 7,982,101 bytes，
+解压约 20,355,072 bytes。把 CUDA 全量塞进默认安装包会让所有用户承担约 1.2 GB
+额外安装占用；要求用户安装 CUDA Toolkit/PATH DLL 则扩大版本漂移和故障面。
+official pack 已在只含 runtime directory、开发用 FFmpeg directory 与 System32、
+且不含已安装 CUDA Toolkit 的 child PATH 中完成真实 CUDA 推理，因此 Toolkit 不是
+运行前置，兼容 NVIDIA driver 仍是前置。具体 NVIDIA DLL
+再分发条款、notice、签名和更新/回滚仍由 PRE-005/PRE-006 审计，本文不是法律意见。
 
 macOS x64 不生成 runner、模型加速包或安装产物；平台探测必须在资源解析前返回 `unsupported_architecture`。
 
@@ -1241,7 +1255,7 @@ resources/local-subtitle/
 
 ## 18. 分期实施建议（高层阶段）
 
-本节保留架构层面的阶段划分；可认领的工作包、依赖、状态、验证和实施记录以 `local-subtitle-transcriber_execution_plan.md` 为唯一执行台账。Execution Plan 已于 2026-07-16 建立，当前 `PRE-001`、`PRE-002` 已完成，`PRE-003` 为下一工作包。
+本节保留架构层面的阶段划分；可认领的工作包、依赖、状态、验证和实施记录以 `local-subtitle-transcriber_execution_plan.md` 为唯一执行台账。Execution Plan 已于 2026-07-16 建立，当前 `PRE-001`～`PRE-003` 已完成；`PRE-004` 与 `PRE-005` 可按目标环境并行推进。
 
 其中本节原先汇总为一个 `PRE-001` 的跨平台 PoC，在 Execution Plan 中拆为 `PRE-001`～`PRE-006`，以避免把基准、CPU runner、Windows CUDA、macOS Metal、FFmpeg/打包许可和最终技术冻结塞进一个无法单会话闭环的工作包。其余高层包也在执行计划中按安全边界和可验证纵向切片进一步拆分。
 
@@ -1253,7 +1267,7 @@ resources/local-subtitle/
 - 明确 CMake/MSVC 不是 PRE-001、PRE-002 或最终用户前置；只有实际选择 source-build artifact 时才由构建机/CI 提供。
 - 明确现有字幕只用于格式/时间轴 smoke 与人工对照，不做 FasterWhisperGUI 一致性或文本准确率基线。
 
-PRE-001 已解锁 runtime 开发；正式 artifact、模型清单和分发结论仍在 PRE-003～PRE-006 用实际产物逐步确定，并由 PRE-006 冻结。
+PRE-001 已解锁 runtime 开发，PRE-003 已确定 Windows CPU/CUDA 候选；macOS、bundled media 与最终发布清单继续在 PRE-004～PRE-006 用实际产物确定，并由 PRE-006 冻结。
 
 ### PRE-002：Node-managed official server（已完成）
 
@@ -1261,6 +1275,15 @@ PRE-001 已解锁 runtime 开发；正式 artifact、模型清单和分发结论
 - Node supervisor 已验证 loopback/private path、最小环境、`/health`、`verbose_json`、AbortController 与退出清理。
 - 同一 CPU server/model 进程完成 3 个现有中/日样本；模型加载一次，取消后健康且可继续转写。
 - 决定首版不写 FusionKit C++/JSONL runner；增量进度缺口留到 PRE-006 按真实 UX 证据复审。
+
+### PRE-003：Windows x64 CPU/CUDA（已完成）
+
+- 固定官方 `whisper.cpp v1.9.1` CPU/CUDA 预编译资产与公开 `large-v3-q5_0` 模型；模型只按需下载，不进入 Git 或默认安装包。
+- 现有 3 个中/日样本在 CUDA 上全部快于实时，精确 PID 显存证据确认没有假 GPU 成功；CPU fallback 也全部快于实时。
+- 同一模型进程完成多个正常任务；取消请求快速结算，但下一任务固定先重启 server，不能把 `/health` 当作底层推理已收敛的证明。
+- SRT 和标准 LRC 均由独立 parser 回读；开发阶段内容抽查可读，最终产品质量由用户在实现完成后实际使用验收，不作为后续开发阻塞项。
+- Windows 默认安装包采用小体积 CPU runtime；约 1.2 GB 解压占用的 CUDA runtime 作为签名、校验、按需安装的 accelerator pack 候选，许可与签名在 PRE-005/PRE-006 冻结。
+- 通过缺失 `cublas64_12.dll` 探针证明官方 server 可能静默使用 CPU；产品必须以 exact-PID GPU 证据判定 backend，未验证时显式 fallback，不得宣称 CUDA。
 
 ### CORE-001：类型、协议与安全边界
 
@@ -1382,7 +1405,7 @@ Electron 视觉/交互验证必须等待 preload loading 完全退出。若启�
 | --- | --- |
 | 把新工具做成 AudioTranscriber 的 local provider | 禁止；独立 route、Store、IPC、runtime、队列和配置 |
 | macOS faster-whisper 无 GPU | 首版统一使用 whisper.cpp；Apple Silicon 用 Metal |
-| Windows CUDA 运行库导致包体和安装失败 | PRE-003/PRE-005 验证签名可选 accelerator pack；CPU runner 保底，PRE-006 冻结结论 |
+| Windows CUDA 运行库导致包体和安装失败 | PRE-003 已推荐签名可选 accelerator pack、CPU runner 保底；PRE-005/PRE-006 冻结许可、签名和更新结论 |
 | 每个文件重载 large-v3 太慢 | Node 管理 persistent official server，批次内模型驻留 |
 | 解析 stock CLI 日志随上游变化 | 不用 CLI 日志；固定 official server release，以 `/health` + `verbose_json` 为合同 |
 | 模型数 GB 拉大安装包 | 按需下载、续传、SHA-256、用户可删除/导入 |
@@ -1428,12 +1451,12 @@ Electron 视觉/交互验证必须等待 preload loading 完全退出。若启�
 
 ## 22. 推荐下一步
 
-`PRE-001`、`PRE-002` 已完成。接下来从 `PRE-003` 开始用真实目标 artifact 逐步回答五个问题：
+`PRE-001`～`PRE-003` 已完成。Windows CPU/CUDA、Node-managed official server、目标量化模型和现有中/日样本已经给出可继续开发的正向结论；剩余 PRE 工作回答以下跨平台与发布问题：
 
-1. 公开 GGML 模型在目标 Windows NVIDIA 和 macOS Apple Silicon 上能否输出可用中/日字幕，RTF、RAM/VRAM 是否满足预期。
+1. 同一公开 GGML 模型在 macOS Apple Silicon 上能否输出可用中/日字幕，Metal/CPU 的 RTF 与 RAM 是否满足预期；Windows 已由 PRE-003 通过。
 2. Metal/CUDA runner 如何进入签名后的 Electron 安装包，Windows CUDA runtime 最终采用哪种分发方式。
 3. persistent official server 的阶段进度、结构化 segment、abort 和模型复用是否稳定；是否真的需要增量进度扩展。
 4. 内置 FFmpeg 处理目标视频格式、中文/日文路径和长媒体是否稳定，许可证方案是否可发布，并且在系统 FFmpeg 隔离时仍可运行、内置资源损坏时能在入队前阻断并引导修复。
 5. 标准 SRT/LRC 是否能通过 session `artifactRef` + one-shot `translationImportToken` 按三种模式完成交接，正确冻结字幕翻译当前配置，并在自动模式下只启动本次成功导入的任务。
 
-具体下一步以 Execution Plan 为准：进入 `PRE-003`，沿用已跑通的 Node-managed official server contract，在当前 Windows x64 + RTX 4070 Ti SUPER 上验证官方 CPU/CUDA 资产和目标 `large-v3`/量化候选，采集 RTF、RAM/VRAM、取消、模型复用与中/日人工可用输出。无需先写 C++；只有官方 server 的真实硬缺口才进入 PRE-006 备选决策。`PRE-003`～`PRE-006` 完成技术冻结后，再进入正式 CORE/NATIVE/runtime/UI 实现。
+具体下一步以 Execution Plan 为准：有 macOS arm64 环境时进入 `PRE-004`；当前 Windows 环境可直接推进 `PRE-005` 的 bundled FFmpeg、sidecar staging、签名与许可证 PoC。两者完成后由 `PRE-006` 冻结技术选型，再进入正式 CORE/NATIVE/runtime/UI 实现。当前仍无需 C++、CMake 或 MSVC；只有 official server 出现产品必需能力的真实硬缺口，才在 PRE-006 重新评估 native bridge。

@@ -1,13 +1,22 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { createServer } from "node:http";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 import {
   WhisperServerError,
   buildWhisperServerEnvironment,
   createWhisperServerLaunch,
   parseWhisperVerboseJson,
+  postMultipartFile,
 } from "./supervisor.mjs";
-import { languageForSample, selectRealSamples } from "./run-poc.mjs";
+import {
+  languageForSample,
+  languageMatches,
+  selectRequestedSamples,
+  selectRealSamples,
+} from "./run-poc.mjs";
 
 test("builds a minimal child environment without application secrets", () => {
   const environment = buildWhisperServerEnvironment({
@@ -22,6 +31,8 @@ test("builds a minimal child environment without application secrets", () => {
       PATH: "C:\\untrusted",
       OPENAI_API_KEY: "must-not-leak",
       HTTPS_PROXY: "http://secret-proxy",
+      ProgramFiles: "C:\\Program Files",
+      ProgramW6432: "C:\\Program Files",
     },
   });
 
@@ -30,6 +41,7 @@ test("builds a minimal child environment without application secrets", () => {
   assert.equal(environment.PATH.includes("untrusted"), false);
   assert.equal(environment.PATH.includes("C:\\runtime"), true);
   assert.equal(environment.TEMP, "C:\\temp\\fusionkit-whisper");
+  assert.equal(environment.ProgramFiles, "C:\\Program Files");
 });
 
 test("launches the official server on loopback with a private request path", () => {
@@ -59,6 +71,20 @@ test("launches the official server on loopback with a private request path", () 
   assert.equal(launch.spawnOptions.shell, false);
   assert.equal(launch.spawnOptions.windowsHide, true);
   assert.equal(launch.spawnOptions.cwd, "C:\\runtime");
+
+  const cudaLaunch = createWhisperServerLaunch({
+    serverPath: "C:\\runtime\\whisper-server.exe",
+    modelPath: "C:\\models\\ggml-large-v3-q5_0.bin",
+    port: 43124,
+    requestPath: "/fusionkit-private-cuda",
+    publicDirectory: "C:\\temp\\empty-public",
+    mediaTempDirectory: "C:\\temp\\media",
+    threads: 6,
+    useGpu: true,
+    convertWithFfmpeg: false,
+    sourceEnvironment: { SystemRoot: "C:\\Windows" },
+  });
+  assert.equal(cudaLaunch.args.includes("--no-gpu"), false);
 });
 
 test("normalizes official verbose JSON into millisecond segments", () => {
@@ -112,6 +138,44 @@ test("rejects malformed verbose JSON instead of parsing human logs", () => {
   );
 });
 
+test("streams multipart inference without the fetch response-header timeout", async () => {
+  const directory = await mkdtemp(path.join(os.tmpdir(), "fusionkit-multipart-test-"));
+  const filePath = path.join(directory, "sample.bin");
+  await writeFile(filePath, Buffer.from([0, 1, 2, 3, 255]));
+  let requestBody = Buffer.alloc(0);
+  const server = createServer((request, response) => {
+    const chunks = [];
+    request.on("data", (chunk) => chunks.push(chunk));
+    request.on("end", () => {
+      requestBody = Buffer.concat(chunks);
+      response.writeHead(200, { "Content-Type": "application/json" });
+      response.end('{"segments":[]}');
+    });
+  });
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const address = server.address();
+
+  try {
+    const response = await postMultipartFile({
+      url: `http://127.0.0.1:${address.port}/inference`,
+      filePath,
+      fileName: 'sample"\r\n.bin',
+      fields: { response_format: "verbose_json", language: "ja" },
+      timeoutMs: 5_000,
+    });
+    assert.equal(response.ok, true);
+    assert.equal(response.bodyText, '{"segments":[]}');
+    const bodyText = requestBody.toString("latin1");
+    assert.match(bodyText, /name="response_format"/u);
+    assert.match(bodyText, /verbose_json/u);
+    assert.match(bodyText, /filename="sample___\.bin"/u);
+    assert.equal(requestBody.includes(Buffer.from([0, 1, 2, 3, 255])), true);
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
 test("selects only the three real Chinese and Japanese inventory samples", () => {
   const samples = selectRealSamples({
     files: [
@@ -148,4 +212,16 @@ test("selects only the three real Chinese and Japanese inventory samples", () =>
   assert.equal(languageForSample("zh-one"), "zh");
   assert.equal(languageForSample("ja-one"), "ja");
   assert.equal(languageForSample("other"), "auto");
+  assert.equal(languageMatches("zh", "chinese"), true);
+  assert.equal(languageMatches("ja", "Japanese"), true);
+  assert.equal(languageMatches("zh", "japanese"), false);
+  assert.deepEqual(
+    selectRequestedSamples(absoluteSamples, ["ja-one", "ja-one"])
+      .map((sample) => sample.sampleId),
+    ["ja-one"],
+  );
+  assert.throws(
+    () => selectRequestedSamples(absoluteSamples, ["missing"]),
+    /Unknown --sample value/u,
+  );
 });

@@ -10,8 +10,8 @@
       "candidateCommit": "f049fff95a089aa9969deb009cdd4892b3e74916",
       "sourceUrl": "https://github.com/ggml-org/whisper.cpp/releases/tag/v1.9.1",
       "declaredLicense": "MIT",
-      "decisionStatus": "pre002_cpu_server_verified",
-      "nextDecisionWorkPackage": "PRE-003/PRE-004/PRE-006",
+      "decisionStatus": "pre003_windows_cpu_cuda_verified",
+      "nextDecisionWorkPackage": "PRE-004/PRE-005/PRE-006",
       "pre001WindowsReleaseAssets": [
         {
           "targetProfile": "windows-x64-cpu",
@@ -29,7 +29,10 @@
           "byteSize": 677887125,
           "sha256": "106a2030eff8998e4ef320fe72e263a78449e9040386ee27c41ea80b001b601b",
           "downloadUrl": "https://github.com/ggml-org/whisper.cpp/releases/download/v1.9.1/whisper-cublas-12.4.0-bin-x64.zip",
-          "localEvidenceStatus": "upstream_metadata_only_not_downloaded"
+          "localEvidenceStatus": "sha256_and_real_cuda_inference_verified",
+          "localEvidenceObservedAt": "2026-07-17",
+          "extractedByteSize": 1209487872,
+          "serverSha256": "c72f99b75ae4111d6e7ddb62e04d3c0c94fea2ba6536412e517f256b4388dd37"
         }
       ],
       "releaseDigestEvidence": "https://api.github.com/repos/ggml-org/whisper.cpp/releases/341768502",
@@ -46,8 +49,41 @@
         "processReused": true,
         "cleanupVerified": true
       },
+      "pre003WindowsCudaEvidence": {
+        "modelId": "large-v3-q5_0",
+        "completedRealSamples": 3,
+        "realtimeFactorRange": [0.0509, 0.0735],
+        "finalStreamingHttpSmokeRealtimeFactor": 0.0488,
+        "peakRamBytes": 1124974592,
+        "peakVramBytes": 2117439488,
+        "backendEvidence": "exact_pid_windows_gpu_process_memory_counter",
+        "abortLatencyMs": 5,
+        "healthyAfterAbort": true,
+        "processReusedForNormalTasks": true,
+        "srtAndLrcParseBack": true
+      },
+      "pre003WindowsCpuEvidence": {
+        "modelId": "large-v3-q5_0",
+        "completedRealSamples": 3,
+        "realtimeFactorRange": [0.5063, 0.592],
+        "peakRamBytes": 2502635520,
+        "backendEvidence": "official-server-no-gpu-flag",
+        "longRequestElapsedMs": 446026,
+        "longRequestCrossedPreviousFetchHeaderTimeout": true,
+        "processReusedForTwoNormalTasks": true,
+        "abortLatencyMs": 3,
+        "srtAndLrcParseBack": true
+      },
+      "pre003BackendFailureEvidence": {
+        "injectedCondition": "cublas64_12.dll_missing",
+        "serverHealthy": true,
+        "peakVramBytes": 0,
+        "backendVerified": false,
+        "stableProductCode": "backend_unverified"
+      },
       "openQuestions": [
-        "Verify the official CUDA and macOS server artifacts, target backend evidence, RAM/VRAM and distribution behavior.",
+        "Verify the macOS arm64 server artifact and Metal backend in PRE-004.",
+        "Freeze signing, update and rollback rules for the recommended optional Windows CUDA accelerator pack in PRE-005/PRE-006.",
         "Decide in PRE-006 whether phase-only progress is sufficient; introduce a native bridge only for a demonstrated hard requirement.",
         "Retain the upstream MIT notice in every distributed server artifact."
       ]
@@ -55,14 +91,22 @@
     {
       "id": "whisper-large-v3-ggml-family",
       "category": "model",
-      "candidateVersion": "large-v3, large-v3-q5_0, large-v3-turbo",
-      "candidateCommit": null,
+      "candidateVersion": "large-v3-q5_0 selected for PRE-003; large-v3 and large-v3-turbo remain candidates",
+      "candidateCommit": "c521a4b02f422512d734391fdf08bb08c0862f68",
       "sourceUrl": "https://huggingface.co/ggerganov/whisper.cpp",
-      "declaredLicense": "MIT candidate; artifact-specific verification pending",
-      "decisionStatus": "research_candidate",
-      "nextDecisionWorkPackage": "PRE-003/PRE-004/PRE-006",
+      "declaredLicense": "MIT on the official model repository; release notice review remains PRE-006",
+      "decisionStatus": "pre003_large_v3_q5_0_windows_cpu_cuda_verified",
+      "nextDecisionWorkPackage": "PRE-004/PRE-006",
+      "pre003SelectedArtifact": {
+        "modelId": "large-v3-q5_0",
+        "fileName": "ggml-large-v3-q5_0.bin",
+        "byteSize": 1081140203,
+        "sha256": "d75795ecff3f83b5faa89d1900604ad8c780abd5739fae406de19f23ecd98ad1",
+        "downloadUrl": "https://huggingface.co/ggerganov/whisper.cpp/resolve/c521a4b02f422512d734391fdf08bb08c0862f68/ggml-large-v3-q5_0.bin?download=true",
+        "localEvidenceStatus": "windows_cpu_cuda_three_sample_verified"
+      },
       "openQuestions": [
-        "Choose the default public GGML artifact and download URL during runtime implementation.",
+        "Decide in PRE-006 whether large-v3-q5_0 is the default or an explicit lower-resource option beside full large-v3.",
         "Use SHA-256 only to detect a corrupt or substituted download, not to reproduce another application's baseline.",
         "Confirm weight redistribution terms and required notices independently of repository code.",
         "Let the user perform final quality acceptance on the implemented product with the three PRE-001 samples."
@@ -76,7 +120,7 @@
       "sourceUrl": "https://github.com/snakers4/silero-vad/releases/tag/v6.2.1",
       "declaredLicense": "MIT",
       "decisionStatus": "research_candidate",
-      "nextDecisionWorkPackage": "PRE-003/PRE-004/PRE-006",
+      "nextDecisionWorkPackage": "PRE-004/PRE-006",
       "openQuestions": [
         "Confirm whisper.cpp compatibility and the exact model artifact hash.",
         "Verify model-weight redistribution terms and notice requirements."
@@ -101,14 +145,23 @@
     {
       "id": "nvidia-cuda-runtime",
       "category": "gpu_runtime",
-      "candidateVersion": "pending PRE-003 target-machine evidence",
+      "candidateVersion": "CUDA 12.4 user-mode DLL set from whisper.cpp v1.9.1; driver 610.62 target evidence",
       "candidateCommit": null,
       "sourceUrl": "https://docs.nvidia.com/cuda/eula/",
       "declaredLicense": "NVIDIA CUDA Toolkit EULA",
-      "decisionStatus": "research_candidate",
-      "nextDecisionWorkPackage": "PRE-003/PRE-006",
+      "decisionStatus": "pre003_optional_accelerator_pack_recommended",
+      "nextDecisionWorkPackage": "PRE-005/PRE-006",
+      "pre003Evidence": {
+        "archiveByteSize": 677887125,
+        "expandedByteSize": 1209487872,
+        "runtimeDirectoryContainsCudaDependencies": true,
+        "serverEnvironmentUsesRuntimeMediaAndSystemDirectoriesOnly": true,
+        "installedCudaToolkitPathVisible": false,
+        "cudaToolkitPathRequired": false,
+        "driverStillRequired": true
+      },
       "openQuestions": [
-        "Compare bundled runtime, signed optional accelerator pack and system prerequisite strategies.",
+        "Confirm every redistributed NVIDIA DLL and required notice against the current EULA before release; this inventory is not legal advice.",
         "Freeze the minimum driver and exact redistributable library list.",
         "Validate installer size, signing, update and rollback behavior."
       ]

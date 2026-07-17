@@ -6,7 +6,7 @@
 >
 > 对应设计文档：`docs/v0.2.11/local-subtitle-transcriber/local-subtitle-transcriber_final_design.md`
 >
-> 当前状态：`PRE-001`、`PRE-002` 已完成；Node 管理官方 `whisper-server` 已用同一 CPU 模型进程跑完 3 段中/日真实媒体并通过取消/清理验证；下一工作包为 `PRE-003`
+> 当前状态：`PRE-001`～`PRE-003` 已完成；官方 Windows CPU/CUDA server 与 `large-v3-q5_0` 已跑通现有 3 段中/日媒体并通过 backend、资源、取消、复用和 SRT/LRC 回读验证；下一步为 `PRE-004` / `PRE-005`
 >
 > 发布门禁：`PRE-001`～`PRE-006` 未全部通过前，不得开始正式 native/runtime/UI 大规模实现
 >
@@ -89,7 +89,7 @@
 | Electron 打包 | `electron-builder.json` 仅包含 `dist-electron`、`dist`，无 `extraResources` | 必须先设计 official server/FFmpeg staging 和 packaged path resolver |
 | 原生源码 | 仓库当前无 CMake/native runner 目录；PRE-002 已证明 Windows CPU 路径无需新增该目录 | 优先固定和校验官方 server artifact；只有真实能力缺口或目标平台缺产物时才建立 source-build 目录 |
 | 已采集工作站 | macOS arm64：Node 20.19.5、pnpm 8.7.0、CMake 4.4.0、Apple Clang 21.0.0、Xcode 26.6/Metal compiler、FFmpeg/ffprobe 8.1.2 均通过；Windows 11 x64：Node 20.19.4、pnpm 8.7.0、lockfile v6、FFmpeg/ffprobe、CUDA 12.4 与 NVIDIA driver 610.62 可探测 | macOS arm64 `source_build_poc` 与 Windows CPU/CUDA `official_prebuilt_release_asset` 三份 PRE-001 报告均 ready；两台机器的系统 FFmpeg 都只作开发 PoC，不能替代未来 bundled 资源、许可、签名、公证或真实 runner/backend 证据 |
-| Windows/CUDA 工具链 | 当前 Windows x64 目标机为 i5-13600KF + RTX 4070 Ti SUPER 16 GB；CPU 固定官方 `whisper-bin-x64.zip`，CUDA 固定官方 `whisper-cublas-12.4.0-bin-x64.zip`；两份报告顶层 ready，`sourceBuild.ready=false` | PRE-002 已用 CPU ZIP 内 `whisper-server.exe` + `ggml-base.bin` 完成 3 样本、模型复用和取消，无需 CMake/MSVC。PRE-003 下载官方 CUDA asset 并用目标模型做真实 CPU/CUDA、RAM/VRAM、backend 与分发验收；仅在官方 artifact 不足时再决定 source build |
+| Windows/CUDA 工具链 | 当前 Windows x64 目标机为 i5-13600KF + RTX 4070 Ti SUPER 16 GB；CPU 固定官方 `whisper-bin-x64.zip`，CUDA 固定官方 `whisper-cublas-12.4.0-bin-x64.zip`；`large-v3-q5_0` CPU/CUDA 实测完成，`sourceBuild.ready=false` | 官方预编译 server 已满足 PRE-002/PRE-003，无需 CMake/MSVC/C++ runner。默认包保留 CPU runtime，CUDA 作为约 1.2 GB 的可选 accelerator pack 候选；PRE-005/PRE-006 冻结发布细节 |
 | PRE-001 真实语料 | 3 段用户提供的本机语料均为 medium：日文/中文视频各一段、日文 WAV 一段；FFprobe、完整音轨解码、size/SHA-256、非 ASCII 路径和对应 SRT/LRC 时间轴检查通过 | 这 3 个样本就是开发启动的完整范围；媒体、字幕和绝对路径只在 `.local` inventory，SRT/LRC 只作格式、时间轴与后续人工对照，不要求独立真值、权利审计或复刻其生成应用 |
 | 发布版媒体运行时 | 尚未选择可再分发 FFmpeg/ffprobe 构建，也未接入 `extraResources`/runtime manifest | PRE-005/PRE-006 冻结来源、许可与 staging；CORE-002/NATIVE-002 实现打包门禁；packaged 模式禁止 PATH/用户 executable fallback |
 | 包管理器 | 当前 `pnpm --version` 为 `8.7.0`，lockfile 为 v6；`package.json` 尚未声明 `packageManager` | 依赖变更固定使用 pnpm 8.7.0；普通验证优先使用 `node_modules/.bin/*`，PRE-001 记录是否需要单独工作包固化 Corepack 元数据 |
@@ -288,7 +288,7 @@ flowchart TD
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | PRE-001 | 已完成 | 2026-07-16 | — | 3 样本开发启动基线与目标环境就绪 | `docs/v0.2.11/local-subtitle-transcriber/poc/*`、`scripts/local-subtitle/benchmark/*` | 三份 scoped target report ready；3 段 real media + SRT/LRC inventory 通过；CPU 官方预编译包 SHA/help smoke 通过；Node tests 19/19；结构与严格清单均 0 error/0 warning | `docs/v0.2.11/local-subtitle-transcriber/local-subtitle-transcriber_implementation_records/2026-07-16_PRE-001_evidence-baseline.md`、`2026-07-16_PRE-001_windows-x64-toolchain-preflight.md`、`2026-07-16_PRE-001_real-corpus-and-prebuilt-readiness.md`、`2026-07-16_PRE-001_scope-reduction-and-completion.md` | 无；`PRE-002` 已完成且证明不需要 CMake/MSVC/C++ runner |
 | PRE-002 | 已完成 | 2026-07-17 | PRE-001 | Node-managed official CPU server PoC | `scripts/local-subtitle/whisper-server/*`、Final Design/decision record | Node tests 5/5；同一 PID/一次模型加载完成 3 样本；RTF 0.0318～0.0512；5 秒取消返回 `aborted` 后仍健康；无 orphan/temp/partial | `docs/v0.2.11/local-subtitle-transcriber/local-subtitle-transcriber_implementation_records/2026-07-17_PRE-002_node-managed-whisper-server.md` | 无；首版采用官方 server，增量 progress 是否必要留 PRE-006 按 UX 证据复审 |
-| PRE-003 | 未开始 | — | PRE-002 | Windows x64 CPU/CUDA 功能与性能 PoC | PoC records、official artifact staging scripts | 中/日样本可用输出、RTF、RAM/VRAM、进程/模型复用、取消、SRT/LRC parse-back 与人工验收 | — | NVIDIA 目标机已具备；需下载官方 CUDA asset 与目标 `large-v3`/量化模型，并证明 backend/依赖/分发边界 |
+| PRE-003 | 已完成 | 2026-07-17 | PRE-002 | Windows x64 CPU/CUDA 功能与性能 PoC | `scripts/local-subtitle/whisper-server/*`、PoC report、Final Design | 3 个中/日样本 CPU/CUDA RTF < 1；CUDA exact-PID 显存约 2.12 GB；CPU RAM 约 2.50 GB；语言识别、复用、取消、SRT/LRC 回读与缺 DLL backend 门禁通过；Node tests 8/8 | `docs/v0.2.11/local-subtitle-transcriber/local-subtitle-transcriber_implementation_records/2026-07-17_PRE-003_windows-cpu-cuda.md` | 无开发阻塞；用户在产品实现后做最终使用验收；诱发 OOM 留 QA，不作为 PRE 门禁 |
 | PRE-004 | 未开始 | — | PRE-002 | macOS arm64 Metal/CPU fallback PoC | benchmark records、mac staging/build scripts | arm64 Metal/CPU backend、RTF、内存、签名后执行、x64 稳定拒绝 | — | 工具链已 ready；仍需 official server/model、签名/公证身份与 packaged-like PoC |
 | PRE-005 | 未开始 | — | PRE-002 | Bundled FFmpeg、native runtime staging、签名/公证与许可证 PoC | `electron-builder.json` spike、runtime/license manifest | packaged no-PATH smoke、缺失/损坏/错误架构/启动失败、非 ASCII/长路径、二进制来源审计 | — | 尚未选定可再分发构建；当前系统 GPL/full FFmpeg 不能作为发行结论 |
 | PRE-006 | 未开始 | — | PRE-003/004/005 | PoC 评审与 production 技术冻结 | Final Design、PoC decision record、pinned manifests | 五项设计问题全部有证据与 go/no-go 结论 | — | 任一核心目标失败则阻塞后续，不静默换 Python 引擎 |
@@ -366,10 +366,10 @@ flowchart TD
 
 - 沿用同一 Node-managed official server contract，分别 staging 官方 CPU/CUDA 候选，使用同一目标 `large-v3`/量化候选和样本 manifest。
 - 记录 GPU 型号、驱动、CUDA 依赖、实际 backend、RTF、RAM/VRAM、语言检测、加载时间和取消，并保留中/日输出供人工验收。
-- 验证 CUDA 不可用、DLL 缺失、显存不足时的可识别错误与显式 CPU fallback，不允许假 GPU 成功。
+- 用一个缺失 CUDA DLL 的快速探针验证可识别的 `backend_unverified` 与显式 CPU fallback，不允许假 GPU 成功；16 GB 目标卡上量化模型峰值仅约 2.12 GB，人工制造 OOM 留到 QA，不作为本工作包门禁。
 - 比较 CUDA runtime 随包、可选 accelerator pack、系统前置依赖三种路径的包体、许可、签名和失败面。
 
-验收口径：声明支持的 NVIDIA 机器 RTF < 1；中/日样本可生成可回读字幕并通过人工可用性验收；形成明确分发建议。
+验收口径：声明支持的 NVIDIA 机器 RTF < 1；现有中/日样本在 CUDA 与显式 CPU fallback 上可生成可回读字幕；开发阶段抽查内容合理，最终产品质量由用户在实现完成后实际验收；形成明确分发建议。该口径已于 2026-07-17 完成。
 
 ### PRE-004：macOS arm64 Metal 与 CPU fallback PoC
 
@@ -1000,6 +1000,6 @@ git diff --check
 
 ## 12. 下一步建议
 
-下一次实现会话进入 `PRE-003`：沿用 PRE-002 已跑通的 Node-managed official server contract，在当前 Windows x64 + RTX 4070 Ti SUPER 上验证官方 CPU/CUDA 资产与目标 `large-v3`/量化候选。继续只使用现有 3 样本，不再补语料、独立参考、FasterWhisperGUI/CTranslate2 证据或额外覆盖场景。
+`PRE-003` 已完成。下一步有 macOS arm64 环境时执行 `PRE-004` Metal/CPU PoC；当前 Windows 环境可以直接执行 `PRE-005` bundled FFmpeg、sidecar staging、签名与许可证 PoC。继续使用现有 3 个样本，不补科研式语料、独立参考或 FasterWhisperGUI/CTranslate2 一致性证据。
 
-模型和官方 CUDA asset 可从公开来源按需下载到 Git 忽略目录，不能提交进仓库；下载 hash 仅用于完整性校验。PRE-003 不需要先安装 CMake/MSVC 或写 C++；仅在官方 artifact 出现可复现硬缺口时记录并交 PRE-006 决策。当前系统 PATH 中的 FFmpeg 仍只作开发 PoC，不是发行资源或最终用户前置条件。
+模型和官方 runtime 继续只下载到 Git 忽略目录，hash 仅作完整性校验。系统 PATH 中的 FFmpeg 仍只作开发 PoC，不是发行资源或最终用户前置条件。正式开发继续由 Node 直接管理 official server；CMake/MSVC/C++ runner 不是当前方案依赖。

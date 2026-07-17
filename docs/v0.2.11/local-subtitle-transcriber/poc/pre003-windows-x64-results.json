@@ -1,0 +1,159 @@
+{
+  "schemaVersion": 1,
+  "reportType": "local-subtitle-pre003-windows-x64",
+  "observedAt": "2026-07-17",
+  "status": "passed",
+  "scope": {
+    "platform": "windows",
+    "architecture": "x64",
+    "cpu": "Intel Core i5-13600KF",
+    "gpu": "NVIDIA GeForce RTX 4070 Ti SUPER",
+    "gpuMemoryMiB": 16376,
+    "nvidiaDriverVersion": "610.62",
+    "sampleCount": 3,
+    "sampleLanguages": ["ja", "zh"]
+  },
+  "engine": {
+    "id": "whisper.cpp",
+    "version": "v1.9.1",
+    "commit": "f049fff95a089aa9969deb009cdd4892b3e74916",
+    "runtimeContract": "node-managed-official-whisper-server",
+    "sourceBuildRequired": false,
+    "cppRunnerRequired": false
+  },
+  "artifacts": {
+    "cpu": {
+      "fileName": "whisper-bin-x64.zip",
+      "archiveSizeBytes": 7982101,
+      "expandedSizeBytes": 20355072,
+      "sha256": "7d8be46ecd31828e1eb7a2ecdd0d6b314feafd82163038ab6092594b0a063539",
+      "serverSha256": "2c1ef08694756eda280e79b8217da63ee2af33c87ac3d5f27d68f9f3f966fd32"
+    },
+    "cuda": {
+      "fileName": "whisper-cublas-12.4.0-bin-x64.zip",
+      "archiveSizeBytes": 677887125,
+      "expandedSizeBytes": 1209487872,
+      "sha256": "106a2030eff8998e4ef320fe72e263a78449e9040386ee27c41ea80b001b601b",
+      "serverSha256": "c72f99b75ae4111d6e7ddb62e04d3c0c94fea2ba6536412e517f256b4388dd37",
+      "cudaToolkitPathRequired": false,
+      "nvidiaDriverRequired": true
+    }
+  },
+  "model": {
+    "id": "large-v3-q5_0",
+    "fileName": "ggml-large-v3-q5_0.bin",
+    "sizeBytes": 1081140203,
+    "sha256": "d75795ecff3f83b5faa89d1900604ad8c780abd5739fae406de19f23ecd98ad1",
+    "sourceRevision": "c521a4b02f422512d734391fdf08bb08c0862f68"
+  },
+  "cudaResult": {
+    "backendVerified": true,
+    "backendEvidence": "exact-pid-windows-gpu-process-memory-counter",
+    "modelLoadFirstMs": 1019,
+    "modelLoadCount": 1,
+    "modelLoadReuseMs": 0,
+    "processReusedForNormalTasks": true,
+    "peakRamBytes": 1124974592,
+    "peakVramBytes": 2117439488,
+    "realtimeFactorRange": [0.0509, 0.0735],
+    "finalStreamingHttpSmokeRealtimeFactor": 0.0488,
+    "samples": [
+      {
+        "sampleId": "ja-character-pv-bgm-medium",
+        "audioDurationMs": 230229,
+        "elapsedMs": 12871,
+        "realtimeFactor": 0.0559,
+        "cueCount": 73
+      },
+      {
+        "sampleId": "ja-audio-drama-frequent-silence-medium",
+        "audioDurationMs": 753390,
+        "elapsedMs": 55374,
+        "realtimeFactor": 0.0735,
+        "cueCount": 213
+      },
+      {
+        "sampleId": "zh-character-pv-bgm-medium",
+        "audioDurationMs": 235221,
+        "elapsedMs": 11966,
+        "realtimeFactor": 0.0509,
+        "cueCount": 105
+      }
+    ],
+    "cancellation": {
+      "cancelAfterMs": 250,
+      "cancelLatencyMs": 5,
+      "errorCode": "aborted",
+      "healthyAfterAbort": true,
+      "nextTaskPolicy": "restart-server"
+    }
+  },
+  "cpuResult": {
+    "backendVerified": true,
+    "backendEvidence": "official-server-no-gpu-flag",
+    "modelLoadFirstMs": 901,
+    "modelLoadReuseMs": 0,
+    "processReusedForTwoNormalTasks": true,
+    "peakRamBytes": 2502635520,
+    "peakVramBytes": 0,
+    "realtimeFactorRange": [0.5063, 0.592],
+    "samples": [
+      {
+        "sampleId": "ja-character-pv-bgm-medium",
+        "audioDurationMs": 230229,
+        "elapsedMs": 116573,
+        "realtimeFactor": 0.5063,
+        "cueCount": 80
+      },
+      {
+        "sampleId": "ja-audio-drama-frequent-silence-medium",
+        "audioDurationMs": 753390,
+        "elapsedMs": 446026,
+        "realtimeFactor": 0.592,
+        "cueCount": 196,
+        "crossedPreviousFetchHeaderTimeout": true
+      },
+      {
+        "sampleId": "zh-character-pv-bgm-medium",
+        "audioDurationMs": 235221,
+        "elapsedMs": 119861,
+        "realtimeFactor": 0.5096,
+        "cueCount": 107
+      }
+    ],
+    "cancellation": {
+      "cancelAfterMs": 5000,
+      "cancelLatencyMs": 3,
+      "errorCode": "aborted",
+      "healthyAfterAbort": true,
+      "nextTaskPolicy": "restart-server"
+    }
+  },
+  "outputValidation": {
+    "languageDetectionMatchedAllSamples": true,
+    "srtParseBackPassedAllSamples": true,
+    "standardLrcParseBackPassedAllSamples": true,
+    "agentContentSpotCheck": "readable-and-language-appropriate",
+    "userProductAcceptance": "deferred-until-product-is-usable"
+  },
+  "failureInjection": {
+    "condition": "cublas64_12.dll-missing",
+    "serverHealthy": true,
+    "peakVramBytes": 0,
+    "backendVerified": false,
+    "expectedGateResult": "backend_unverified",
+    "explicitCpuFallbackAvailable": true,
+    "inducedOutOfMemory": "deferred-to-qa-not-a-pre003-gate"
+  },
+  "distributionDecision": {
+    "baseInstall": "official-cpu-runtime",
+    "cuda": "optional-signed-hash-verified-accelerator-pack-candidate",
+    "reason": "avoid-adding-about-1.2-gb-expanded-cuda-runtime-to-every-install",
+    "releaseAudit": "PRE-005/PRE-006"
+  },
+  "privacy": {
+    "containsAbsolutePaths": false,
+    "containsMediaOrSubtitleText": false,
+    "containsNativeBinariesOrModelBytes": false
+  }
+}

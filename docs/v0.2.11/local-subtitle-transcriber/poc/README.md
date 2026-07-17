@@ -1,7 +1,8 @@
-# Local Subtitle PRE-001 Development Baseline
+# Local Subtitle PRE-001–PRE-003 Development Baseline
 
-> Status: completed on 2026-07-16. The three current real samples and all three
-> target-environment reports satisfy the deliberately small PRE-001 gate.
+> Status: PRE-001 through PRE-003 completed on 2026-07-17. The three current
+> real samples now cover the Windows CPU/CUDA development gate as well as the
+> original environment baseline.
 
 This directory records only the engineering facts needed to start the local
 subtitle implementation. Media, subtitle text, models, native binaries,
@@ -75,8 +76,8 @@ macOS x64 is intentionally unsupported.
 
 Windows PRE-001 uses the pinned official `whisper.cpp v1.9.1` release assets.
 The CPU ZIP has a verified SHA-256 and successful `whisper-cli.exe --help`
-launch. The CUDA asset is pinned from official release metadata; actual CUDA
-inference belongs to PRE-003.
+launch. The CUDA asset is pinned from official release metadata and completed
+real CUDA inference in PRE-003.
 
 CMake, MSVC and `nvcc` describe a possible source-build environment. They are
 not required to consume the official Windows prebuilt assets and are not
@@ -88,6 +89,66 @@ System FFmpeg/ffprobe are development probes only. The eventual product must
 ship its selected binaries outside asar; redistribution, signing and notices
 remain later release work and are not sample-corpus blockers.
 
-PRE-001 and PRE-002 are complete. The next work package is PRE-003: reuse the
-Node-managed official server contract to validate Windows x64 CPU/CUDA with the
-target model and the same three Chinese/Japanese samples.
+PRE-001 through PRE-003 are complete. The next target-specific work is PRE-004
+on macOS arm64; the current Windows environment can continue with PRE-005
+bundled FFmpeg, sidecar staging, signing and license evidence.
+
+## PRE-003 Windows CPU/CUDA runner
+
+`scripts/local-subtitle/whisper-server/run-poc.mjs` accepts an explicit
+`--backend cpu|cuda`. CPU adds the official `--no-gpu` flag. CUDA omits that
+flag but is considered verified only when the exact server PID has non-zero
+dedicated GPU memory; an asset filename or successful `/health` response is not
+backend evidence.
+
+Windows WDDM commonly reports per-process memory as `N/A` through
+`nvidia-smi --query-compute-apps`. The PoC therefore samples the Windows
+`GPU Process Memory(pid_...)` performance counter first and keeps
+`nvidia-smi` as a fallback. It also samples process working-set memory, records
+model load time, language detection, RTF and cancellation, and writes local SRT
+and standard LRC smoke artifacts that are independently parsed back.
+
+Inference multipart uploads use a streaming `node:http` client with a separate
+long-task timeout and bounded response. Global Node `fetch` is intentionally not
+used here: the server sends response headers only after transcription, so a CPU
+request longer than the default Undici header timeout can fail at roughly five
+minutes while the native child is still healthy.
+
+Example shape; all path arguments must point to ignored local files:
+
+```text
+node scripts/local-subtitle/whisper-server/run-poc.mjs \
+  --server <official-whisper-server> \
+  --model <verified-ggml-model> \
+  --ffmpeg <development-only-ffmpeg> \
+  --inventory <sample-inventory.json.local> \
+  --output <ignored-output-directory> \
+  --backend cuda \
+  --cancel-sample ja-audio-drama-frequent-silence-medium
+```
+
+The cancellation probe runs after the complete sample set. PRE-003 found that
+an immediate `/health` success after an aggressive CPU abort does not guarantee
+the next inference request is reusable; the production policy is therefore to
+restart the official server after a cancelled request before dispatching the
+next task. Normal, non-cancelled tasks continue to reuse one model process.
+
+## PRE-003 completion result
+
+- Official `whisper.cpp v1.9.1` CPU and CUDA Windows x64 packages ran the
+  public `large-v3-q5_0` GGML model without a local build toolchain.
+- All three current Chinese/Japanese samples completed on both backends. CUDA
+  RTF was 0.0509–0.0735 with about 2.12 GB peak exact-PID VRAM; CPU RTF was
+  0.5063–0.592 with about 2.50 GB peak working set.
+- Language detection matched every requested language, and every generated SRT
+  and standard LRC artifact parsed back successfully.
+- A final native-HTTP CUDA smoke completed at RTF 0.0488. A missing
+  `cublas64_12.dll` startup stayed healthy but used zero VRAM, and the probe
+  rejected it as `backend_unverified` instead of falsely reporting CUDA.
+- The Windows distribution recommendation is a small CPU runtime in the base
+  install plus a signed, hash-verified optional CUDA accelerator pack. PRE-005
+  and PRE-006 retain the release-license, signing and update decisions.
+
+The sanitized committed result is `pre003-windows-x64-results.json`. Media,
+subtitle text, native archives, models, generated subtitles and machine paths
+remain under ignored local storage.
