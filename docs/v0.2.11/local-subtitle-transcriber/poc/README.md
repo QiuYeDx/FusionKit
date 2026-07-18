@@ -1,11 +1,12 @@
 # Local Subtitle PRE Development Baseline
 
-> Status: PRE-001 through PRE-005 are complete. macOS arm64 and Windows x64
+> Status: PRE-001 through PRE-006 are complete. macOS arm64 and Windows x64
 > both passed bundled runtime staging, electron-builder positive/negative
 > gates, and packaged no-PATH media/fault matrices. Windows uses the explicit
 > `unsigned_personal_distribution` profile selected for personal/friend
-> sharing; no certificate or trust-store change is required. Production
-> artifact freeze is next in PRE-006.
+> sharing; no certificate or trust-store change is required. The five-item
+> production freeze is recorded in `pre006-production-decision.json`, and the
+> next implementation packages are CORE-001 / CORE-002.
 
 This directory records only the engineering facts needed to start the local
 subtitle implementation. Media, subtitle text, models, native binaries,
@@ -37,7 +38,8 @@ text is not treated as ground truth.
 | --- | --- |
 | `benchmark-manifest.json` | Three-sample ja/zh development scope, media integrity and subtitle timeline summaries. |
 | `metrics-contract.json` | Product-oriented runtime, resource, cancellation, raw transcript validity and SRT/LRC parse-back measurements. |
-| `third-party-candidates.json` | Candidate engine/model/media dependencies and later implementation/distribution decisions. |
+| `third-party-candidates.json` | Selected engine/model/media dependencies plus deferred release gates. |
+| `pre006-production-decision.json` | Machine-checked five-part production freeze and go/no-go result. |
 | `sample-inventory.example.json` | Shape of the ignored machine-local media/subtitle path inventory. |
 | `clean-room-protocol.md` | Minimal rule that FusionKit is implemented from its design and public upstream APIs, without copying third-party GUI code. |
 | `poc-record-template.md` | Sanitized runtime PoC evidence template for later PRE work. |
@@ -93,21 +95,22 @@ the prebuilt `whisper-server.exe`; a source toolchain is required only if a
 later target artifact truly must be compiled or patched.
 
 System FFmpeg/ffprobe are development probes and fixture generators only.
-PRE-005 has a reproducible macOS arm64 FFmpeg 8.1.2 candidate outside asar:
+PRE-006 selects the reproducible macOS arm64 FFmpeg 8.1.2 build outside asar:
 LGPL-2.1-or-later, GPL/nonfree/version3/network/external libraries disabled,
 macOS 11 deployment target, system-only dynamic dependencies and a stable
-logical configure prefix. Windows x64 has an immutable audited LGPLv3
-candidate and an explicit unsigned integrity profile. Production minimization
-and final cross-platform freeze remain PRE-006 work; packaged mode never falls
-back to system PATH.
+logical configure prefix. Windows x64 uses the immutable audited BtbN LGPLv3
+build as the initial personal-distribution baseline with an explicit unsigned
+integrity profile. It does not require a Windows source-build toolchain;
+packaged mode never falls back to system PATH.
 
-PRE-001 through PRE-005 are complete. The FFmpeg 8.1.2 detached signature was
+PRE-001 through PRE-006 are complete. The FFmpeg 8.1.2 detached signature was
 verified on Windows against the pinned full fingerprint; Windows unsigned
 staging, positive/negative builder gates, and packaged media/fault evidence are
-recorded. PRE-006 now performs the production technology freeze. Trusted
-Windows installer signing is optional QA-003 work if low-warning public
-distribution is requested later; Developer ID, notarization and Gatekeeper
-acceptance remain QA-004 work.
+recorded. Trusted Windows installer signing is optional QA-003 work only if
+low-warning public distribution is requested later; Developer ID, notarization
+and Gatekeeper acceptance remain QA-004 work. QA-005 still checks exact notices,
+source offers and the NVIDIA redistributable file list before artifacts are
+shared, without adding a Windows code-signing requirement.
 
 ## PRE-003 Windows CPU/CUDA runner
 
@@ -161,9 +164,12 @@ next task. Normal, non-cancelled tasks continue to reuse one model process.
 - A final native-HTTP CUDA smoke completed at RTF 0.0488. A missing
   `cublas64_12.dll` startup stayed healthy but used zero VRAM, and the probe
   rejected it as `backend_unverified` instead of falsely reporting CUDA.
-- The Windows distribution recommendation is a small CPU runtime in the base
-  install plus a signed, hash-verified optional CUDA accelerator pack. PRE-005
-  and PRE-006 retain the release-license, signing and update decisions.
+- The Windows production decision is a small CPU runtime in the base install
+  plus an official-release, size/SHA-verified optional CUDA accelerator pack.
+  The CUDA Toolkit is not required; PRE-006 conservatively requires Windows
+  NVIDIA driver 551.61 or newer, while the real target evidence used 610.62.
+  The selected personal profile does not require Authenticode; QA-005 retains
+  the exact NVIDIA redistributable/notice review.
 
 The sanitized committed result is `pre003-windows-x64-results.json`. Media,
 subtitle text, native archives, models, generated subtitles and machine paths
@@ -281,5 +287,24 @@ failed before leaving a runnable app, and the same 9-format/9-fault packaged
 matrix passed. The outer `FusionKit.exe` is intentionally `NotSigned`; no
 certificate or trust-store entry was created. Native sources, binaries,
 packaged apps, generated media and machine paths remain under ignored local
-storage. PRE-005 is complete; the broad Windows candidate's size and full
-license closure move to PRE-006.
+storage. PRE-005 supplied the evidence consumed by the completed PRE-006 freeze.
+
+## PRE-006 production freeze
+
+The machine-readable decision record freezes five `go` decisions:
+
+- `whisper.cpp v1.9.1 / f049fff`, Node-managed official server HTTP contract
+  v1, phase-only progress, and no native bridge;
+- Windows x64 CPU base + optional CUDA 12.4 pack, macOS arm64 Metal + explicit
+  CPU fallback, and stable rejection of macOS x64;
+- minimal pinned-source FFmpeg 8.1.2 on macOS and the immutable BtbN LGPLv3
+  baseline on Windows, acquired and audited before offline builder staging;
+- exact `large-v3-q5_0` and Silero v6.2.0 launch resources, with other
+  large-v3/turbo variants deferred until they have equivalent evidence;
+- the 30-second PCM window / 5-second overlap quality contract and observed
+  package/model/accelerator footprint guards.
+
+`validate-manifests.mjs` now loads this record and rejects drift in any selected
+pin, platform/profile, model hash, media source, quality rule or third-party
+candidate decision. PRE blockers are empty, so CORE-001 and CORE-002 are
+unlocked.

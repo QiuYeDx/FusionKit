@@ -4,7 +4,7 @@
 >
 > Feature Slug：`local-subtitle-transcriber`
 >
-> 状态：调研与 Final Design 已完成；`PRE-001`～`PRE-005` 已完成。macOS arm64 与 Windows x64 bundled runtime、builder 正反向门禁及 packaged no-PATH media/fault matrix 均通过；Windows 按本人/朋友分发范围采用显式 unsigned profile，不需要证书或信任库变更。下一步为 `PRE-006`；公开 Windows installer 信任归可选 `QA-003`，Developer ID/Gatekeeper 归 `QA-004`
+> 状态：调研、Final Design 与 `PRE-001`～`PRE-006` 技术冻结已完成。production decision record 固定 `whisper.cpp v1.9.1`、Node-managed HTTP contract v1、`large-v3-q5_0` 首发默认、跨平台 FFmpeg 8.1.2、Windows unsigned personal profile 与目标平台矩阵；下一步可并行执行 `CORE-001` / `CORE-002`
 >
 > 产品定位：使用本地算力把批量音频/视频转成可直接翻译的 SRT/LRC 字幕
 >
@@ -32,7 +32,9 @@
 >
 > 2026-07-17 PRE-005 macOS 阶段记录：固定 FFmpeg 8.1.2 最小 LGPL arm64 构建与 macOS 11 target；nested 签名后冻结 manifest hash，`extraResources`、`beforePack` 缺件失败、外层 ad-hoc deep/strict 签名、9 格式/多音轨/长路径/no-PATH/fault matrix 均通过。当日尚待 Windows 子矩阵，已由下方 2026-07-18 完成记录闭环
 
-> 2026-07-18 PRE-005 完成：固定 BtbN `autobuild-2026-06-30-13-34` LGPLv3 x64 candidate，archive/PE/config/license 审计和官方 FFmpeg 8.1.2 detached-signature 完整 fingerprint `VALIDSIG` 通过；15 个 x64 PE 以 `unsigned_personal_distribution` staging，x64 builder 正反向、9 格式/多音轨/长路径/no-PATH/9 类 fault matrix 全部实跑通过，runtime tests 38/38。未创建证书、未修改信任库；broad candidate 的 production 体积/依赖/许可证 closure 仍由 PRE-006 冻结
+> 2026-07-18 PRE-005 完成：固定 BtbN `autobuild-2026-06-30-13-34` LGPLv3 x64 candidate，archive/PE/config/license 审计和官方 FFmpeg 8.1.2 detached-signature 完整 fingerprint `VALIDSIG` 通过；15 个 x64 PE 以 `unsigned_personal_distribution` staging，x64 builder 正反向、9 格式/多音轨/长路径/no-PATH/9 类 fault matrix 全部实跑通过，runtime tests 38/38。未创建证书、未修改信任库；当时留给 PRE-006 的 production 体积/依赖/许可证策略已由下一条完成记录闭环
+
+> 2026-07-18 PRE-006 完成：`poc/pre006-production-decision.json` 将五项 production 决策全部标记为 `go`。Windows 默认随 CPU runtime、CUDA 12.4 官方包按需安装；macOS arm64 默认 Metal 并保留显式 CPU，macOS x64 固定拒绝。Windows 采用已实跑的 immutable BtbN LGPLv3 baseline，不引入本地 source-build 工具链；个人/朋友分发继续不要求 Windows 代码签名、证书或信任库。阶段式进度已满足 v1，首版不建 native bridge；第三方 notices 与 NVIDIA 精确 DLL 清单仍由 `QA-005` 在分发前复核
 
 ---
 
@@ -48,12 +50,12 @@ FusionKit 应新增一个独立的“本地字幕转写”工具，而不是扩�
 4. 首版统一推理后端推荐 `whisper.cpp`，而不是把 Python `faster-whisper` 直接嵌入 FusionKit：
    - Windows x64 可使用 NVIDIA CUDA，并保留 CPU fallback。
    - macOS 仅发布 arm64 runner，优先使用 Metal；同一 arm64 产物保留可见、可确认的 CPU fallback。macOS x64 直接返回 `unsupported_architecture`。
-   - 同一后端可运行 Whisper `large-v3`，并支持量化模型、VAD、进度回调和段级时间戳；逐词时间戳只有在与当前 VAD 模式兼容并通过原时间轴验收后才开放。
+   - 首发内置清单只包含跨平台真实验证过的 `large-v3-q5_0`；未量化 `large-v3` 与 turbo 变体在取得精确 hash、跨平台质量/性能证据后再加入。VAD 使用映射回原媒体的段级时间戳，首版不开放 VAD 逐词时间戳。
 5. 不把上游 `whisper-cli` 的控制台文本当作正式协议。首版由 Electron main/Node 管理固定版本的官方 `whisper-server`，通过私有 loopback HTTP 和 `verbose_json` 获取结构化结果；只有该 API 经真实验收仍缺少必要能力时，才重新评估 native bridge。
 6. 长媒体不以一个整段 decoder 请求直接产出字幕。规范化 PCM 按约 30 秒有界窗口和小幅 overlap 独立推理，server/model 进程继续驻留；raw segment 先通过时间轴、连续重复、窗口覆盖和媒体边界门禁，再按绝对整数毫秒合并。不得用删除重复行代替重试，因为锁死期间未识别的语音无法从结果中恢复。
 7. 首版核心产物是标准 SRT 和标准行级 LRC；VTT、TXT、详细 JSON 可作为扩展导出。增强型逐词 LRC 单独标记，不直接送入现有字幕翻译器。
 8. 转写完成后既可只导出 SRT/LRC，也可选择自动加入字幕翻译任务列表，并进一步选择是否自动开始翻译。交接必须通过会话级 `artifactRef`、一次性 `translationImportToken` 和字幕翻译模块自有的导入协调器完成；本地转写工具不得直接读写字幕翻译器 Store。自动执行默认关闭，只有用户显式选择“自动加入并开始翻译”时才允许产生外部 API 费用。
-9. 模型不放进安装包。模型、VAD 模型和可选 Windows 加速包按需下载到 `app.getPath("userData")` 下，支持断点续传、校验、删除和导入本地模型；平台 runner 与经审计的 FFmpeg/ffprobe 则作为安装包内、asar 外的受控资源发布，最终来源与构建方式由 PRE-006 冻结。
+9. 模型不放进安装包。模型、VAD 模型和可选 Windows 加速包按需下载到 `app.getPath("userData")` 下，支持断点续传、校验、删除和导入本地模型；平台 runner 与 PRE-006 已冻结来源/构建方式的 FFmpeg/ffprobe 则作为安装包内、asar 外的受控资源发布。
 10. `faster-whisper-GUI-main` 只保留为历史调研背景，不复制代码，也不作为运行时、模型格式、参数或验收基线。FusionKit 按自己的产品目标和 whisper.cpp 公开接口独立实现。
 
 ## 1. 背景、目标与边界
@@ -76,10 +78,10 @@ FusionKit 应新增一个独立的“本地字幕转写”工具，而不是扩�
 
 1. 在 FusionKit 内选择多个本地音频/视频文件，使用本地 Whisper 模型批量转写。
 2. Windows x64 优先使用 NVIDIA GPU并保留 CPU fallback；macOS arm64 优先使用 Metal，并在同一架构内保留 CPU fallback。
-3. 支持 Whisper `large-v3`，并允许用户显式选择资源占用更低的量化或 turbo 变体。
+3. 首发支持 Whisper `large-v3-q5_0`；未量化 `large-v3` 与 turbo 变体只有进入版本化内置清单并通过跨平台验收后才显示。
 4. 生成带稳定时间轴的 SRT/LRC，可直接进入 FusionKit 字幕翻译。
 5. 支持语言自动检测、初始提示词、VAD、稳定段级时间戳、字幕整形、取消和逐文件失败隔离；逐词时间戳是受 runtime capability 约束的可选能力，不能与已知错轴的 v1.9.1 VAD token timestamps 组合。
-6. 模型只下载一次；同一批任务复用已加载模型，避免每个文件重复装载 `large-v3`。
+6. 模型只下载一次；同一批任务复用已加载模型，避免每个文件重复装载约 1.08 GB 的首发模型。
 7. 本地媒体内容、模型路径、真实文件路径和转写中间数据不进入 renderer 持久化或普通日志。
 8. 让未来增加 Windows `faster-whisper`、Apple MLX 或其他本地引擎成为可控扩展，而不是重写页面和任务合同。
 9. 支持把转写、字幕导出、字幕翻译排成可选的连续流水线，同时保证任一翻译交接或执行失败不影响已经成功导出的字幕产物。
@@ -153,7 +155,7 @@ FusionKit 应新增一个独立的“本地字幕转写”工具，而不是扩�
 
 ### 3.3 打包现状
 
-当前正式 `electron-builder.json` 仍只打包 `dist-electron` 和 `dist`，尚未接入 production native sidecar/FFmpeg；但产物名已加入 `${arch}`。PRE-005 的 ignored builder spike 已验证 `extraResources`、可执行权限、macOS 嵌套/外层签名顺序、Windows explicit unsigned integrity profile 和 build-time 缺件门禁。正式接线仍必须等待 PRE-006 冻结跨平台 artifact，不能把本机 spike 或开发目录中的二进制直接当作发布配置。
+当前正式 `electron-builder.json` 仍只打包 `dist-electron` 和 `dist`，尚未接入 production native sidecar/FFmpeg；但产物名已加入 `${arch}`。PRE-005 的 ignored builder spike 已验证 `extraResources`、可执行权限、macOS 嵌套/外层签名顺序、Windows explicit unsigned integrity profile 和 build-time 缺件门禁，PRE-006 已冻结跨平台 acquisition/staging 合同。正式接线由 `CORE-002` / `NATIVE-002` 从版本化 staging 输入实现，不能把本机 spike 或开发目录中的二进制直接当作发布配置。
 
 `electron/main/index.ts` 已调用 `app.requestSingleInstanceLock()`，因此不同 Electron 进程不应同时修改同一 `userData`；但同一 app 进程仍可存在多个 `BrowserWindow/webContents`。Model/ResourceJob/Runner managers 应为 app 级单例并对模型、下载和 GPU 队列加全局锁，task/capability/event 则继续绑定各自 owner session。不能用“应用单实例”替代跨 webContents owner 校验。
 
@@ -256,10 +258,10 @@ LoadModelWorker
 
 | 模型 | 磁盘 | 官方 README 的典型内存说明 | 产品建议 |
 | --- | ---: | ---: | --- |
-| `large-v3` | 2.9 GiB | large 系列约 3.9 GB | 质量优先，满足本需求的基准模型 |
-| `large-v3-q5_0` | 1.1 GiB | 低于完整模型，需实测 | 资源受限设备的显式选项，不冒充无损 |
-| `large-v3-turbo` | 1.5 GiB | 需实测 | 速度优先 |
-| `large-v3-turbo-q5_0` | 547 MiB | 需实测 | 轻量快速预览 |
+| `large-v3` | 2.9 GiB | large 系列约 3.9 GB | 延后；缺精确 artifact hash 与跨平台产品证据 |
+| `large-v3-q5_0` | 1.1 GiB | PRE 实测 Windows/macOS 均可用 | PRE-006 首发默认，明确标注量化取舍 |
+| `large-v3-turbo` | 1.5 GiB | 需实测 | 延后；进入清单前补质量/性能证据 |
+| `large-v3-turbo-q5_0` | 547 MiB | 需实测 | 延后；进入清单前补质量/性能证据 |
 
 官方资料：
 
@@ -284,7 +286,7 @@ MSVC 或 `nvcc`。只有目标 artifact 确实需要源码构建/补丁时，构
 - 取消、错误分类、增量 segment、日志脱敏和协议兼容难以稳定测试。
 - 上游 CLI 的直接 LRC/SRT 输出不包含 FusionKit 自己的字幕整形与产物交接语义。
 
-官方预编译包同时包含 `whisper-server`。PRE-002 已验证它会启动时加载模型、跨请求复用 context、通过 `/health` 和 `/inference` 返回机器可读 JSON，并在客户端断开时触发 abort callback。因此首版由 Node 监管该官方进程；字幕整形与文件导出仍由 TypeScript 独立完成。官方 API 首版没有稳定的增量 segment/progress 流，UI 先展示阶段式进度，不解析控制台日志伪造百分比。
+官方预编译包同时包含 `whisper-server`。PRE-002 已验证它会启动时加载模型、跨请求复用 context、通过 `/health` 和 `/inference` 返回机器可读 JSON，并在客户端断开时触发 abort callback。因此首版由 Node 监管该官方进程；字幕整形与文件导出仍由 TypeScript 独立完成。PRE-006 已接受 v1 阶段式进度，不解析控制台日志伪造百分比，也不为没有真实硬需求的增量流新增 native bridge。
 
 ## 6. 最终架构
 
@@ -375,8 +377,8 @@ interface LocalSubtitleEngineAdapter {
 
 无模型时显示明确 CTA：
 
-- 下载 `large-v3`。
-- 下载较小模型。
+- 下载推荐的 `large-v3-q5_0`（约 1.08 GB）。
+- 只有当前发布 manifest 已收录其他型号时才显示对应下载项。
 - 导入本地 GGML 模型。
 
 参考 GUI 使用的 CTranslate2 模型目录不能直接作为 whisper.cpp GGML 模型使用，UI 必须说明格式不同，不能让用户选择后才得到模糊加载失败。
@@ -394,20 +396,20 @@ interface LocalSubtitleEngineAdapter {
 
 | 字段 | 默认/规则 |
 | --- | --- |
-| 模型 | 已安装的 `large-v3` 优先；不自动改成量化模型 |
+| 模型 | 已安装的 `large-v3-q5_0` 优先；这是 PRE-006 首发默认，UI 明确说明它是量化模型 |
 | 设备 | `auto`；展示实际解析为 CUDA/Metal/CPU |
 | 语言 | `auto`，允许显式指定 |
 | 任务 | `transcribe`；“翻译为英语”放高级区，避免与 FusionKit 字幕翻译混淆 |
 | 质量预设 | `字幕质量优先`、`平衡`、`快速`；具体底层值由 PoC 固化 |
-| VAD | 建议默认开启保守预设，最终阈值由真实样本验收确定 |
-| 词时间戳 | v1.9.1 VAD 模式固定关闭；标准 SRT/LRC 使用 mapped segment 时间。只有 PRE-006 冻结并真实验收原时间轴方案后，才显示“智能分句/逐词 LRC”能力 |
+| VAD | 默认开启固定的 Silero v6.2.0 GGML 资源；阈值继续由质量预设控制 |
+| 词时间戳 | v1.9.1 VAD 模式固定关闭；标准 SRT/LRC 只使用 mapped segment 时间。首版不显示逐词时间戳开关 |
 | 输出格式 | SRT 默认；可多选 LRC |
 | 输出目录 | 源文件目录或自定义目录 |
 | 冲突策略 | 默认自动加序号，避免覆盖已有人工字幕 |
 | 翻译衔接 | 默认“仅导出”；可选“自动加入翻译队列”或“自动加入并开始翻译” |
 | 送翻译格式 | 只生成一种标准字幕时使用该格式；同时生成 SRT/LRC 时默认 SRT，可改为标准 LRC |
 
-高级区只暴露有稳定产品意义的参数：初始提示词、beam size、temperature、VAD 最短静音、最大 cue 长度和每行最大字符。v1.9.1 VAD 模式不暴露词时间戳开关；若 PRE-006 后增加兼容 runtime capability，才按 route constraint 显示该控制。其余参数保留在内部预设，不复制参考 GUI 的全量参数墙。
+高级区只暴露有稳定产品意义的参数：初始提示词、beam size、temperature、VAD 最短静音、最大 cue 长度和每行最大字符。v1.9.1 VAD 模式不暴露词时间戳开关；未来只有新的 runtime capability 取得独立原时间轴证据并进入版本化合同后才显示。其余参数保留在内部预设，不复制参考 GUI 的全量参数墙。
 
 ### 7.3 批量队列
 
@@ -758,7 +760,7 @@ no_language_probabilities=true
 
 窗口索引、绝对 `startMs/endMs`、overlap 和 retry generation 只保存在 main 的任务上下文，不作为可由 renderer 或上游响应覆盖的字段。Node adapter 对 response schema 做运行时校验，把 segment/word 的相对秒值立即转换为整数毫秒；VAD 模式丢弃 words，只保留已映射回原媒体的 segment。非 VAD words 也必须全部位于 parent segment 时间范围内，否则 merge 回退到 segment 并记录诊断。raw quality gate 通过后再加窗口绝对偏移并交给 overlap merger/canonical post processor。不得直接采用上游 SRT/LRC 输出，也不得在 renderer 解析 server JSON。
 
-官方 v1.9.1 server 不提供稳定的结构化增量 progress/segment 流。首版 UI 只显示 `loading_model → normalizing_media → transcribing → postprocessing → exporting` 阶段和已完成文件数；不解析 `--print-progress` stderr 伪造百分比。PRE-006 只有在真实 UX 验收证明阶段进度不足时，才评估升级官方 API 或引入最小 native bridge。
+官方 v1.9.1 server 不提供稳定的结构化增量 progress/segment 流。PRE-006 已冻结首版 UI 只显示 `loading_model → normalizing_media → transcribing → postprocessing → exporting` 阶段、窗口/文件完成数和真实媒体准备进度；不解析 `--print-progress` stderr 伪造百分比。未来若真实 UX 验收证明不足，应新增独立工作包评估上游 API，不能在 NATIVE-001 中暗建 native bridge。
 
 ### 10.3 有界窗口、合并与 raw quality gate
 
@@ -784,9 +786,9 @@ Node 对当前 inference request 使用 `AbortController`。请求连接关闭�
 
 ### 10.5 Backend 解析与 fallback
 
-- `devicePreference = "auto"` 在批次 commit 前根据签名 artifact manifest、真实 runner probe、accelerator pack 和模型兼容性解析为 CUDA/Metal/CPU，并把 `resolvedBackend` 明确展示并写入批次 snapshot；没有可用加速时可解析为 CPU，但用户在点击开始前必须看得到。
+- `devicePreference = "auto"` 在批次 commit 前根据 selected-profile 完整性 manifest、真实 runner probe、accelerator pack 和模型兼容性解析为 CUDA/Metal/CPU，并把 `resolvedBackend` 明确展示并写入批次 snapshot；没有可用加速时可解析为 CPU，但用户在点击开始前必须看得到。
 - 用户显式选择 CUDA/Metal 时不可回退 CPU。auto 已 commit 后若 GPU load/OOM/driver/crash，批次暂停且不启动后续文件；UI 提供“以 CPU 新 generation 重试”，需要用户确认预期性能变化，不能在后台把长任务静默改跑 CPU。
-- 每个任务 metadata 携带所选签名 artifact/build ID 与 resolved backend。PRE-003 已用真实 GPU 占用、RTF 和故障注入确认官方 CUDA artifact 不会假成功；Windows WDDM 下 `nvidia-smi` 的逐进程显存可能为 `N/A`，可使用按 exact PID 过滤的 `GPU Process Memory` 性能计数器。若官方 API 与目标系统计数器都无法提供产品所需的 backend 证明，这一事实进入 PRE-006 决策，不得仅靠人类日志在 UI 宣称 GPU。
+- 每个任务 metadata 携带所选 artifact/build ID 与 resolved backend。PRE-003 已用真实 GPU 占用、RTF 和故障注入确认官方 CUDA artifact 不会假成功；Windows WDDM 下 `nvidia-smi` 的逐进程显存可能为 `N/A`，可使用按 exact PID 过滤的 `GPU Process Memory` 性能计数器。PRE-006 冻结：无法取得实际 backend 证明时返回 `backend_unverified`，不得仅靠人类日志在 UI 宣称 GPU。
 
 ## 11. 模型与加速包管理
 
@@ -837,35 +839,37 @@ Resource manager 是 app-scoped，但 job/event 仍 owner-bound。同一 `resour
 
 | 平台 | 基础 runner | 加速策略 |
 | --- | --- | --- |
-| Windows x64 | CPU runner 随应用 | 签名且校验的 CUDA accelerator pack 按需安装；后续 Vulkan |
+| Windows x64 | CPU runner 随应用 | 固定官方来源、archive size/SHA 与逐文件 manifest 校验的 CUDA accelerator pack 按需安装；personal profile 不要求 Authenticode |
 | macOS arm64 | Metal-enabled runner 随应用 | 首版 Metal；同一 arm64 build 可显式回退 CPU，Core ML encoder 作为后续可选模型资源 |
 
-Windows CUDA runtime/DLL 的可再分发范围、包体和签名需要在 PRE PoC 中单独确认。不能把“开发机安装了 CUDA 所以可用”当作发行方案。
+Windows CUDA runtime/DLL 的来源、包体和运行依赖已由 PRE-003～PRE-006 固定；QA-005 仍需在实际分发前逐项核对 NVIDIA redistributable 与 notice。不能把“开发机安装了 CUDA 所以可用”当作发行方案。
 
-PRE-003 的 Windows 结论是：默认安装包只随 CPU official server；CUDA 使用由用户
-按需安装、签名并逐文件校验的 optional accelerator pack。固定官方 CUDA ZIP 为
+PRE-006 的 Windows 结论是：默认安装包只随 CPU official server；CUDA 使用由用户
+按需安装、按固定官方 archive size/SHA 和逐文件清单校验的 optional accelerator pack。固定官方 CUDA ZIP 为
 677,887,125 bytes，解压后约 1,209,487,872 bytes；CPU ZIP 为 7,982,101 bytes，
 解压约 20,355,072 bytes。把 CUDA 全量塞进默认安装包会让所有用户承担约 1.2 GB
 额外安装占用；要求用户安装 CUDA Toolkit/PATH DLL 则扩大版本漂移和故障面。
 official pack 已在只含 runtime directory、开发用 FFmpeg directory 与 System32、
 且不含已安装 CUDA Toolkit 的 child PATH 中完成真实 CUDA 推理，因此 Toolkit 不是
-运行前置，兼容 NVIDIA driver 仍是前置。具体 NVIDIA DLL
-再分发条款、notice、签名和更新/回滚仍由 PRE-005/PRE-006 审计，本文不是法律意见。
+运行前置，兼容 NVIDIA driver 仍是前置。PRE-006 按 CUDA 12.4 GA 官方表保守冻结 Windows driver `>= 551.61`，当前真实证据为 610.62；若未来要接受更低的 CUDA 12.x minor-compatibility driver，必须在目标机新增明确证据。具体 NVIDIA DLL
+再分发条款与 notice 仍由 QA-005 审计，安装/更新/回滚由 QA-003 验收。`unsigned_personal_distribution` 不要求 Windows 代码签名、证书或信任库变更；本文不是法律意见。
 
 macOS x64 不生成 runner、模型加速包或安装产物；平台探测必须在资源解析前返回 `unsupported_architecture`。
 
-accelerator pack 若使用 archive，必须先下载到不可执行 staging，完成来源/签名/SHA/大小验证后再按内置文件 manifest 解包；拒绝绝对路径、`..`、路径分隔符逃逸、symlink/junction/reparse entry、重复 leaf、未知文件和超过单文件/总量上限的内容。每个解包文件再次校验 hash，runner `probe` smoke 成功后才原子提交版本目录；验证完成前不得把下载目录加入 DLL search path 或执行其中任何文件。失败/取消保留旧 pack 可用并清理 staging。
+accelerator pack 若使用 archive，必须先下载到不可执行 staging，完成固定来源、profile 要求的签名（若有）、SHA 和大小验证后再按内置文件 manifest 解包；拒绝绝对路径、`..`、路径分隔符逃逸、symlink/junction/reparse entry、重复 leaf、未知文件和超过单文件/总量上限的内容。每个解包文件再次校验 hash，runner `probe` smoke 成功后才原子提交版本目录；验证完成前不得把下载目录加入 DLL search path 或执行其中任何文件。失败/取消保留旧 pack 可用并清理 staging。
 
 ### 11.5 模型支持范围与加载生命周期
 
-内置下载能力使用版本化 allowlisted manifest，不把“whisper.cpp 上游存在某个模型”直接等同于“FusionKit 已支持一键下载”。首版计划验证并提供以下候选：
+内置下载能力使用版本化 allowlisted manifest，不把“whisper.cpp 上游存在某个模型”直接等同于“FusionKit 已支持一键下载”。PRE-006 首发清单冻结为：
 
 | 模型 | 定位 | 首版文档口径 |
 | --- | --- | --- |
-| `large-v3` | 质量优先基准 | 计划内 |
-| `large-v3-q5_0` | 较低磁盘与内存占用 | 计划内，必须说明量化取舍 |
-| `large-v3-turbo` | 速度优先 | 计划内，性能与质量需 PoC 固化 |
-| `large-v3-turbo-q5_0` | 轻量快速预览 | 候选，需 PoC 后决定是否进入首发下载清单 |
+| `large-v3-q5_0` | 跨平台验证过的量化 large-v3 | 首发唯一内置下载项与推荐默认；1,081,140,203 bytes，固定 SHA-256 |
+| `large-v3` | 未量化质量优先候选 | 延后；需精确 artifact hash 与跨平台产品证据 |
+| `large-v3-turbo` | 速度优先候选 | 延后；需跨平台质量/性能证据 |
+| `large-v3-turbo-q5_0` | 轻量快速候选 | 延后；需跨平台质量/性能证据 |
+
+model/VAD manifest v1 的每个可下载资源都必须包含 `id`、`resourceType`、`fileName`、`format`、`engineCompatibility`、exact `sourceRevision`/HTTPS URL、`byteSize`、SHA-256、license 和 `bundledInInstaller=false`。model 另含 multilingual/quantization/default/quality label；VAD 另含 default、token-timestamp policy 和 timeline policy。renderer 只提交 `resourceId`，不能覆盖 URL、hash 或目标路径。
 
 `tiny`、`base`、`small`、`medium` 等其他 Whisper GGML 模型可在 runner 兼容、manifest 来源/哈希和真实质量验收完成后加入；在此之前不得笼统宣称支持所有 Whisper 或 whisper.cpp 模型。用户导入的兼容 GGML 模型通过 header、架构、大小、语言能力和 load smoke 后可以形成 managed model，但“允许自定义导入”不等于该型号自动进入 FusionKit 内置下载清单。
 
@@ -920,9 +924,11 @@ FFmpeg/ffprobe 是产品运行时组成，不是用户环境前置条件。正�
 
 ### 12.4 FFmpeg 许可证
 
-FFmpeg 二进制必须固定来源、构建选项、许可证文本和源码获取方式。优先使用独立进程方式和经过法务/许可证清单确认的构建，不随意采用未知来源的“静态包”。macOS PRE-005 候选固定为 FFmpeg 8.1.2 source archive：关闭 GPL、nonfree、version3、network、autodetect 与外部库，只启用首版格式所需能力，使用 macOS 11 target 和稳定逻辑 prefix；最终二进制必须只有系统动态依赖且不含 host/private build path。其 source archive、detached signature、release key、license、notice、source offer 与构建 recipe 一并固定；release 前仍须用固定完整 fingerprint 完成 detached signature 验证。
+FFmpeg 二进制必须固定来源、构建选项、许可证文本和源码获取方式，使用独立进程，不随意采用未知来源的“静态包”。PRE-006 为 macOS arm64 固定 FFmpeg 8.1.2 source build：关闭 GPL、nonfree、version3、network、autodetect 与外部库，只启用首版格式所需能力，使用 macOS 11 target 和稳定逻辑 prefix；最终二进制只有系统动态依赖且不含 host/private build path。source archive、detached signature、release key、license、notice、source offer 与 build recipe 一并固定，完整 fingerprint `FCF986EA15E6E293A5644F10B4322F04D67658D8` 已由 Windows `gpgv` 验证。
 
-打包前置脚本必须验证 ffmpeg、ffprobe、runtime manifest 与对应 license/source-offer 证据同时存在，否则构建失败，不能产出“安装成功但无法转写”的发行包。本文不是法律意见；发布前必须完成依赖许可证审计。Windows x64 构建必须独立给出相同级别的来源、许可、SHA/架构和声明的 integrity-profile 证据；personal distribution 可以明确为 unsigned，不能伪称已签名。
+Windows x64 首版采用 immutable BtbN `autobuild-2026-06-30-13-34` 的 `ffmpeg-n8.1.2-21-gce3c09c101-win64-lgpl-8.1.zip`：archive 为 144,332,533 bytes，SHA-256 `3b9eceb438016b647e0755a51ce3a388cd4ed5679e2427cb83a01e1ae2cd0eba`，配置 hash `942a04ca7fafc83bb5ffaa5e40a4c74682b77e353b5d3e597d77219c54d04dc6`，GPL/nonfree 关闭、LGPL-3.0-or-later、51 个 external-library flags。它是已通过 packaged matrix 的 initial personal-distribution baseline；此阶段不为缩包引入未验证的 Windows source-build 工具链。QA-005 在把 artifact 分享给他人前核对精确 external-library notices/source offers；这不是 Windows 代码签名门禁。
+
+打包前置脚本必须验证 ffmpeg、ffprobe、runtime manifest 与对应 license/source-offer 证据同时存在，否则构建失败，不能产出“安装成功但无法转写”的发行包。本文不是法律意见；发布前必须完成依赖许可证审计。Windows x64 使用 exact archive/version/config/final PE hashes 与 `unsigned-final-bytes-size-sha256` integrity profile，不能伪称已签名；artifact 获取、审计和 hash 在 staging 前完成，electron-builder 期间不得联网或从开发机随机复制二进制。
 
 ### 12.5 用户机器缺失或损坏时的处理
 
@@ -1272,7 +1278,7 @@ resources/local-subtitle/
 - app version、official server release/build、engine commit、runtime contract version、model manifest version 分开记录。
 - 新 app 启动时先检查 runtime manifest、server launch/health 与 response contract，再允许任务。
 - 模型兼容时保留；不兼容时提示重新下载或迁移，不静默删除数 GB 模型。
-- accelerator pack 必须签名并校验，下载后的任意可执行文件不能只靠 SHA 文件名判断可信。
+- accelerator pack 必须按 distribution profile 校验固定来源、archive size/SHA、逐文件 manifest 与安全解包；public profile 采用签名时再验证签名。personal profile 不要求 OS 代码签名，但也不能只靠文件名判断可信。
 
 ## 17. 安全、隐私与许可证
 
@@ -1290,7 +1296,7 @@ resources/local-subtitle/
 
 ## 18. 分期实施建议（高层阶段）
 
-本节保留架构层面的阶段划分；可认领的工作包、依赖、状态、验证和实施记录以 `local-subtitle-transcriber_execution_plan.md` 为唯一执行台账。Execution Plan 已于 2026-07-16 建立，当前 `PRE-001`～`PRE-005` 已完成，下一步为 `PRE-006`。Windows personal distribution 的 unsigned profile 已明确；Developer ID、公证和 Gatekeeper accepted 不属于 PRE-005 门禁，由未来 `QA-004` 验收。
+本节保留架构层面的阶段划分；可认领的工作包、依赖、状态、验证和实施记录以 `local-subtitle-transcriber_execution_plan.md` 为唯一执行台账。Execution Plan 已于 2026-07-16 建立，当前 `PRE-001`～`PRE-006` 已完成，M0 技术可行性门禁已解除；下一步可并行认领 `CORE-001` / `CORE-002`。Windows personal distribution 的 unsigned profile 已明确；Developer ID、公证和 Gatekeeper accepted 只由未来 `QA-004` 验收 macOS 分发产物。
 
 其中本节原先汇总为一个 `PRE-001` 的跨平台 PoC，在 Execution Plan 中拆为 `PRE-001`～`PRE-006`，以避免把基准、CPU runner、Windows CUDA、macOS Metal、FFmpeg/打包许可和最终技术冻结塞进一个无法单会话闭环的工作包。其余高层包也在执行计划中按安全边界和可验证纵向切片进一步拆分。
 
@@ -1302,14 +1308,14 @@ resources/local-subtitle/
 - 明确 CMake/MSVC 不是 PRE-001、PRE-002 或最终用户前置；只有实际选择 source-build artifact 时才由构建机/CI 提供。
 - 明确现有字幕只用于格式/时间轴 smoke 与人工对照，不做 FasterWhisperGUI 一致性或文本准确率基线。
 
-PRE-001 已解锁 runtime 开发，PRE-003 已确定 Windows CPU/CUDA 候选，PRE-004 已确定 macOS arm64 Metal/CPU 与最终窗口/VAD 时间轴策略；bundled media 与最终发布清单继续在 PRE-005～PRE-006 用实际产物确定，并由 PRE-006 冻结。
+PRE-001 已解锁 runtime 开发，PRE-003 已确定 Windows CPU/CUDA，PRE-004 已确定 macOS arm64 Metal/CPU 与最终窗口/VAD 时间轴策略，PRE-005 已形成 bundled media/staging 证据，PRE-006 已将这些结果冻结为唯一 production 基线。
 
 ### PRE-002：Node-managed official server（已完成）
 
 - 固定并检查 `whisper.cpp v1.9.1` 官方 Windows x64 预编译包中的 `whisper-server.exe`。
 - Node supervisor 已验证 loopback/private path、最小环境、`/health`、`verbose_json`、AbortController 与退出清理。
 - 同一 CPU server/model 进程完成 3 个现有中/日样本；模型加载一次，取消后健康且可继续转写。
-- 决定首版不写 FusionKit C++/JSONL runner；增量进度缺口留到 PRE-006 按真实 UX 证据复审。
+- 决定首版不写 FusionKit C++/JSONL runner；PRE-006 已接受阶段式进度为 HTTP contract v1。
 
 ### PRE-003：Windows x64 CPU/CUDA（已完成）
 
@@ -1317,7 +1323,7 @@ PRE-001 已解锁 runtime 开发，PRE-003 已确定 Windows CPU/CUDA 候选，P
 - 现有 3 个中/日样本在 CUDA 上全部快于实时，精确 PID 显存证据确认没有假 GPU 成功；CPU fallback 也全部快于实时。
 - 同一模型进程完成多个正常任务；取消请求快速结算，但下一任务固定先重启 server，不能把 `/health` 当作底层推理已收敛的证明。
 - SRT 和标准 LRC 均由独立 parser 回读；开发阶段内容抽查可读，最终产品质量由用户在实现完成后实际使用验收，不作为后续开发阻塞项。
-- Windows 默认安装包采用小体积 CPU runtime；约 1.2 GB 解压占用的 CUDA runtime 作为签名、校验、按需安装的 accelerator pack 候选，许可与签名在 PRE-005/PRE-006 冻结。
+- Windows 默认安装包采用小体积 CPU runtime；约 1.2 GB 解压占用的 CUDA runtime 已冻结为固定官方来源、archive/逐文件校验、按需安装的 accelerator pack。personal profile 不要求 Authenticode。
 - 通过缺失 `cublas64_12.dll` 探针证明官方 server 可能静默使用 CPU；产品必须以 exact-PID GPU 证据判定 backend，未验证时显式 fallback，不得宣称 CUDA。
 
 ### PRE-004：macOS arm64 Metal/CPU（已完成）
@@ -1340,6 +1346,15 @@ PRE-001 已解锁 runtime 开发，PRE-003 已确定 Windows CPU/CUDA 候选，P
 - Windows x64 已固定 immutable BtbN LGPLv3 candidate；15 个 PE 使用 explicit unsigned profile，在 final bytes 上冻结 size/SHA/manifest。x64 `dir` positive build、missing-ffmpeg negative build、packaged no-PATH 9 格式/多音轨/长路径/9 类 fault matrix 均通过，外层 `FusionKit.exe` 保持 `NotSigned`；未创建证书或修改信任库。
 - PRE-005 已完成。Windows unsigned 包可供本人或朋友安装使用，但可能出现 Unknown Publisher / SmartScreen 提示，受管设备策略或安全软件也可能拦截；若未来要求公开低提示分发，再由可选 `QA-003` 覆盖受信任 installer 签名/timestamp。Developer ID、公证和 Gatekeeper accepted 仍归 `QA-004`。
 
+### PRE-006：Production 技术冻结（已完成）
+
+- `whisper.cpp v1.9.1 / f049fff` 与 Node-managed official server HTTP contract v1 固定；私有 loopback、单活动请求、模型复用、取消后重启和阶段式进度进入后续合同，首版不建 native bridge。
+- Windows x64 默认 CPU、可选 CUDA 12.4 on-demand pack；macOS arm64 默认 Metal、显式 CPU fallback；auto 只在 batch commit 前可见解析，显式 GPU 不静默降级，macOS x64 固定 `unsupported_architecture`。
+- macOS 固定 FFmpeg 8.1.2 最小 LGPL source build；Windows 固定 immutable BtbN LGPLv3 initial personal baseline。两者均先 acquire/audit/hash 后 staging，electron-builder 不联网、不回退 PATH，artifact 名保留架构。
+- 首发内置 model manifest 只包含 `large-v3-q5_0`，VAD 固定 Silero v6.2.0；两者都不进安装包，按 exact revision/URL/size/SHA 下载并在 load smoke 后原子提交。未量化 large-v3 与 turbo 变体延后。
+- Windows/macOS CPU/GPU RTF 均 < 1，30 秒窗口/5 秒 overlap 的 raw quality gate 通过；接受 Windows 789,147,424-byte unpacked baseline、1,209,487,872-byte optional CUDA pack 和 1,081,140,203-byte launch model，并要求 UI 展示磁盘占用。
+- 决策记录为 `poc/pre006-production-decision.json`，五项均为 `go`，无 PRE blocker，解锁 `CORE-001` / `CORE-002`。QA-005 仍是向他人分发前的精确 notices/source-offer/NVIDIA DLL 门禁，但不会引入 Windows 代码签名要求。
+
 ### CORE-001：类型、协议与安全边界
 
 - `localSubtitle.ts`、`localSubtitleIpc.ts`。
@@ -1356,7 +1371,7 @@ PRE-001 已解锁 runtime 开发，PRE-003 已确定 Windows CPU/CUDA 候选，P
 ### MODEL-001：模型管理
 
 - 下载/续传/SHA-256/导入/删除/磁盘空间。
-- `large-v3`、`large-v3-q5_0`、turbo 清单。
+- 首发 `large-v3-q5_0` 清单；其他 large-v3/turbo 型号先保持 deferred。
 - VAD 模型管理。
 
 ### MEDIA-001：媒体规范化
@@ -1464,8 +1479,8 @@ Electron 视觉/交互验证必须等待 preload loading 完全退出。若启�
 | --- | --- |
 | 把新工具做成 AudioTranscriber 的 local provider | 禁止；独立 route、Store、IPC、runtime、队列和配置 |
 | macOS faster-whisper 无 GPU | 首版统一使用 whisper.cpp；Apple Silicon 用 Metal |
-| Windows CUDA 运行库导致包体和安装失败 | PRE-003 已推荐签名可选 accelerator pack、CPU runner 保底；PRE-005/PRE-006 冻结许可、签名和更新结论 |
-| 每个文件重载 large-v3 太慢 | Node 管理 persistent official server，批次内模型驻留 |
+| Windows CUDA 运行库导致包体和安装失败 | PRE-006 固定 CPU runner 保底、CUDA on-demand pack 与 1.25 GB expanded guard；personal profile 用官方来源+hash/逐文件清单，不要求 Authenticode |
+| 每个文件重载大模型太慢 | Node 管理 persistent official server，批次内模型驻留 |
 | 解析 stock CLI 日志随上游变化 | 不用 CLI 日志；固定 official server release，以 `/health` + `verbose_json` 为合同 |
 | 整段请求进入重复 decoder 状态但仍返回 HTTP 200 | 规范化后做有界独立窗口；raw gate 检查重复/时间轴/窗口覆盖，失败受控重试且不得进入 formatter |
 | VAD segment 时间正确但 word 时间仍是压缩时间轴 | VAD 请求强制关闭 token timestamps，只用映射后的 segment 时间；merge 校验 word 必须位于 parent segment 内，否则回退并记录诊断 |
@@ -1489,7 +1504,7 @@ Electron 视觉/交互验证必须等待 preload loading 完全退出。若启�
 3. 不得让 renderer 提交真实路径、任意 executable、任意模型路径或任意 backend flags。
 4. 不得在公开 preload bridge 暴露可调用内部 channel 的 generic invoke。
 5. 不得把模型、VAD、可选 CUDA pack 或临时 WAV 放进 localStorage、asar 或默认安装包；平台 runner 与经 PRE-006 审计的 FFmpeg/ffprobe 必须作为安装包内、asar 外的 `extraResources`，并由版本化、声明签名/unsigned integrity profile 且含 size/SHA-256/licenseRef 的 manifest 解析。packaged 模式不能回退系统 PATH，也不能接受用户选择的 executable。
-6. 不得每个文件启动一个会重新加载 `large-v3` 的独立 CLI 进程作为正式批处理架构。
+6. 不得每个文件启动一个会重新加载大模型的独立 CLI 进程作为正式批处理架构。
 7. 不得解析上游人类可读日志作为唯一进度和结果合同。
 8. 不得用浮点字符串作为字幕时间轴事实来源；统一使用整数毫秒。
 9. 不得直接复制 AGPL 参考项目的输出器、字幕切分器或 GUI 代码。
@@ -1515,9 +1530,9 @@ Electron 视觉/交互验证必须等待 preload loading 完全退出。若启�
 
 ## 22. 推荐下一步
 
-`PRE-001`～`PRE-005` 已完成。PRE-004 已证明 macOS arm64 runner 的 Metal/CPU backend、模型复用、取消、最终窗口策略 RTF/RSS、raw transcript validity 和 packaged-like 资源形态可行；PRE-005 已补齐 macOS/Windows bundled media build/candidate audit、staging、许可、builder 和 no-PATH/fault 证据。
+`PRE-001`～`PRE-006` 已完成，M0 技术可行性已冻结。唯一 production decision record 是 `poc/pre006-production-decision.json`，后续实现不得静默更换引擎、平台矩阵、首发模型或 media acquisition policy。
 
-1. 直接执行 `PRE-006`，冻结 official server/source-build artifact、最终 runtime contract、模型/VAD manifest、Windows FFmpeg 最小化/获取策略、许可证 closure 和支持矩阵，再进入正式 CORE/NATIVE/runtime/UI 实现。
-2. Windows 继续使用 unsigned personal-distribution profile；除非以后明确要求公开低提示分发，否则不引入证书或信任库变更。
-3. 公开 Windows installer 签名/timestamp 归可选 `QA-003`；Developer ID、公证和 Gatekeeper accepted 仅在未来采用公开无警告分发时由 `QA-004` 验收，不回溯阻塞 PRE。
-4. 仍无需 FusionKit 自写 C++ runner；只有 official server 出现产品必需能力的真实硬缺口才重新评估 native bridge。
+1. 下一步认领 `CORE-001`（domain/状态机/事件/error/runtime schema）或 `CORE-002`（资源 manifest/resolver/staging 合同）；两者可并行，但本会话一次只闭环一个。
+2. Windows 继续使用 `unsigned_personal_distribution`；本人/朋友安装不引入证书或信任库变更。若以后明确要求公开低提示分发，受信任 installer 签名/timestamp 才归可选 `QA-003`。
+3. Developer ID、公证和 Gatekeeper accepted 只由 `QA-004` 验收 macOS 分发产物；QA-005 完成分发前第三方 notices/source-offer/NVIDIA DLL 核对。
+4. 仍无需 FusionKit 自写 C++ runner；只有 official server 出现产品必需能力的真实硬缺口，才通过独立工作包重新评估 native bridge。

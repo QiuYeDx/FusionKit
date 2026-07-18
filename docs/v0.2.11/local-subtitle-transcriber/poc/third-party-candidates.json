@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
-  "observedAt": "2026-07-17",
-  "legalNotice": "This inventory is engineering evidence, not legal advice. Every shipped artifact still requires PRE-006 and QA-005 review.",
+  "observedAt": "2026-07-18",
+  "legalNotice": "This inventory records the PRE-006 engineering freeze and is not legal advice. QA-005 still verifies the exact notices, source offers and redistributable file inventory before artifacts are shared.",
   "candidates": [
     {
       "id": "whisper-cpp-v1.9.1",
@@ -10,8 +10,8 @@
       "candidateCommit": "f049fff95a089aa9969deb009cdd4892b3e74916",
       "sourceUrl": "https://github.com/ggml-org/whisper.cpp/releases/tag/v1.9.1",
       "declaredLicense": "MIT",
-      "decisionStatus": "pre004_macos_bounded_window_vad_segment_timeline_verified",
-      "nextDecisionWorkPackage": "PRE-005/PRE-006",
+      "decisionStatus": "production_selected_whisper_cpp_v1_9_1_node_managed_server",
+      "nextDecisionWorkPackage": "NATIVE-001/NATIVE-002",
       "pre001WindowsReleaseAssets": [
         {
           "targetProfile": "windows-x64-cpu",
@@ -113,22 +113,31 @@
           "gatekeeper_not_accepted"
         ]
       },
-      "openQuestions": [
-        "Validate Developer ID, notarization and Gatekeeper only when public no-warning distribution is adopted in QA-004.",
-        "Freeze signing, update and rollback rules for the recommended optional Windows CUDA accelerator pack in PRE-005/PRE-006.",
-        "Decide in PRE-006 whether phase-only progress is sufficient; introduce a native bridge only for a demonstrated hard requirement.",
-        "Retain the upstream MIT notice in every distributed server artifact."
+      "pre006Decision": {
+        "runtimeContractVersion": 1,
+        "adapter": "node-managed-official-server",
+        "progressContract": "phase-only",
+        "nativeBridgeRequired": false,
+        "windowsBaseRuntime": "official-cpu-prebuilt",
+        "windowsCudaRuntime": "official-on-demand-prebuilt-pack",
+        "macosArm64Runtime": "exact-commit-source-build-metal-and-cpu",
+        "macosX64Support": "unsupported"
+      },
+      "openQuestions": [],
+      "releaseGates": [
+        "QA-004 validates Developer ID, notarization and Gatekeeper only for a distributed macOS build.",
+        "QA-005 retains the MIT license text and exact source record beside shipped server artifacts."
       ]
     },
     {
       "id": "whisper-large-v3-ggml-family",
       "category": "model",
-      "candidateVersion": "large-v3-q5_0 selected for PRE-003/PRE-004; large-v3 and large-v3-turbo remain candidates",
+      "candidateVersion": "large-v3-q5_0 selected as the launch default; unquantized large-v3 and turbo variants remain deferred",
       "candidateCommit": "c521a4b02f422512d734391fdf08bb08c0862f68",
-      "sourceUrl": "https://huggingface.co/ggerganov/whisper.cpp",
-      "declaredLicense": "MIT on the official model repository; release notice review remains PRE-006",
-      "decisionStatus": "pre004_cross_platform_bounded_window_output_verified",
-      "nextDecisionWorkPackage": "PRE-006",
+      "sourceUrl": "https://huggingface.co/ggerganov/whisper.cpp/blob/c521a4b02f422512d734391fdf08bb08c0862f68/ggml-large-v3-q5_0.bin",
+      "declaredLicense": "MIT on the exact official model repository revision; final notice review remains QA-005",
+      "decisionStatus": "production_selected_large_v3_q5_0_launch_default",
+      "nextDecisionWorkPackage": "MODEL-001/MODEL-002",
       "pre003SelectedArtifact": {
         "modelId": "large-v3-q5_0",
         "fileName": "ggml-large-v3-q5_0.bin",
@@ -137,10 +146,19 @@
         "downloadUrl": "https://huggingface.co/ggerganov/whisper.cpp/resolve/c521a4b02f422512d734391fdf08bb08c0862f68/ggml-large-v3-q5_0.bin?download=true",
         "localEvidenceStatus": "backend_integrity_and_macos_bounded_window_transcript_validity_verified"
       },
-      "openQuestions": [
-        "Decide in PRE-006 whether large-v3-q5_0 is the default or an explicit lower-resource option beside full large-v3.",
-        "Use SHA-256 only to detect a corrupt or substituted download, not to reproduce another application's baseline.",
-        "Confirm weight redistribution terms and required notices independently of repository code."
+      "pre006Decision": {
+        "launchDefault": "large-v3-q5_0",
+        "soleBuiltInLaunchModel": true,
+        "bundledInInstaller": false,
+        "deferredBuiltInModels": [
+          "large-v3",
+          "large-v3-turbo",
+          "large-v3-turbo-q5_0"
+        ]
+      },
+      "openQuestions": [],
+      "releaseGates": [
+        "QA-005 confirms the exact model-weight notice and redistribution record before the download manifest is released."
       ]
     },
     {
@@ -150,8 +168,8 @@
       "candidateCommit": null,
       "sourceUrl": "https://github.com/ggml-org/whisper.cpp/blob/f049fff95a089aa9969deb009cdd4892b3e74916/models/for-tests-silero-v6.2.0-ggml.bin",
       "declaredLicense": "MIT",
-      "decisionStatus": "pre004_macos_vad_segment_timeline_verified",
-      "nextDecisionWorkPackage": "PRE-006",
+      "decisionStatus": "production_selected_silero_v6_2_0_launch_default",
+      "nextDecisionWorkPackage": "MODEL-002",
       "pre004Evidence": {
         "byteSize": 885098,
         "sha256": "2aa269b785eeb53a82983a20501ddf7c1d9c48e33ab63a41391ac6c9f7fb6987",
@@ -160,26 +178,33 @@
         "tokenTimestampsRemainSilenceCompressed": true,
         "tokenTimestampsAllowedWithVad": false
       },
-      "openQuestions": [
-        "Verify model-weight redistribution terms and notice requirements."
+      "pre006Decision": {
+        "launchDefault": true,
+        "bundledInInstaller": false,
+        "timelinePolicy": "mapped-segment-timestamps-only",
+        "tokenTimestampsAllowed": false
+      },
+      "openQuestions": [],
+      "releaseGates": [
+        "QA-005 confirms the exact VAD model-weight notice and redistribution record before the download manifest is released."
       ]
     },
     {
       "id": "ffmpeg-n8.1.2-source",
       "category": "media",
-      "candidateVersion": "n8.1.2",
+      "candidateVersion": "macOS n8.1.2 pinned source build; Windows n8.1.2-21-gce3c09c101 immutable BtbN build",
       "candidateCommit": "38b88335f99e76ed89ff3c93f877fdefce736c13",
       "sourceUrl": "https://github.com/FFmpeg/FFmpeg/tree/n8.1.2",
       "declaredLicense": "LGPL-2.1-or-later or GPL-2.0-or-later depending on build flags",
-      "decisionStatus": "pre005_macos_arm64_lgpl_build_and_packaged_smoke_verified",
-      "nextDecisionWorkPackage": "PRE-005/PRE-006",
+      "decisionStatus": "production_selected_platform_specific_ffmpeg_8_1_2",
+      "nextDecisionWorkPackage": "NATIVE-002/QA-005",
       "pre005MacosArm64Evidence": {
         "sourceArchiveFileName": "ffmpeg-8.1.2.tar.xz",
         "sourceArchiveByteSize": 11710924,
         "sourceArchiveSha256": "464beb5e7bf0c311e68b45ae2f04e9cc2af88851abb4082231742a74d97b524c",
         "detachedSignatureSha256": "0a0963fccd70597838073f3e31b20f4a4d8cc2b5e577472c9a5a1f22624246f8",
         "expectedSigningKeyFingerprint": "FCF986EA15E6E293A5644F10B4322F04D67658D8",
-        "detachedSignatureVerification": "not_run_tool_unavailable",
+        "detachedSignatureVerification": "verified_on_windows_gpgv_2026-07-18",
         "buildRecipe": "scripts/local-subtitle/runtime/build-ffmpeg-macos-arm64.mjs",
         "logicalPrefix": "/opt/fusionkit/local-subtitle/ffmpeg/8.1.2",
         "deploymentTarget": "11.0",
@@ -210,12 +235,36 @@
         "outerAdhocDeepStrictSignaturePassed": true,
         "developerIdGateOwner": "QA-004"
       },
-      "openQuestions": [
-        "Verify the detached source signature with the pinned full fingerprint before producing release artifacts.",
-        "Select and reproduce the Windows x64 build, then run packaged no-PATH, AuthentiCode and runtime-fault evidence on Windows.",
-        "Complete final source-offer, notice, codec patent and platform-signing review in QA-005.",
-        "Freeze the cross-platform binary hashes and acquisition policy in PRE-006.",
-        "Do not treat a developer-machine GPL/full FFmpeg as release evidence or an end-user prerequisite."
+      "pre005WindowsX64Evidence": {
+        "provider": "BtbN/FFmpeg-Builds",
+        "releaseTag": "autobuild-2026-06-30-13-34",
+        "assetFileName": "ffmpeg-n8.1.2-21-gce3c09c101-win64-lgpl-8.1.zip",
+        "assetByteSize": 144332533,
+        "assetSha256": "3b9eceb438016b647e0755a51ce3a388cd4ed5679e2427cb83a01e1ae2cd0eba",
+        "version": "n8.1.2-21-gce3c09c101-20260630",
+        "ffmpegCommit": "ce3c09c101c83add623774d414a9f9498caf5c25",
+        "configurationSha256": "942a04ca7fafc83bb5ffaa5e40a4c74682b77e353b5d3e597d77219c54d04dc6",
+        "license": "LGPL-3.0-or-later",
+        "gplEnabled": false,
+        "nonfreeEnabled": false,
+        "externalLibraryFlagCount": 51,
+        "ffmpegSha256": "c623359f35e7db4820694b77d0f032f075e783a9c7207b81d908c28f148e8a68",
+        "ffprobeSha256": "35a823fb08470f6a1e91149e6c305ffbc5ee76c9901444c850f302ecee146a37",
+        "packagedNoPathSmokePassed": true,
+        "runtimeFaultMatrixPassed": true,
+        "distributionProfile": "unsigned_personal_distribution"
+      },
+      "pre006Decision": {
+        "macosArm64": "pinned-minimal-lgpl-source-build",
+        "windowsX64": "pinned-immutable-lgpl-prebuilt-initial-baseline",
+        "sourceBuildToolchainRequiredForWindows": false,
+        "networkAccessDuringElectronBuilder": false,
+        "packagedPathFallbackAllowed": false
+      },
+      "openQuestions": [],
+      "releaseGates": [
+        "QA-005 completes the exact Windows external-library notice/source-offer review and codec/patent review.",
+        "QA-004 validates final nested Developer ID signing and notarization only for a distributed macOS build."
       ]
     },
     {
@@ -223,10 +272,10 @@
       "category": "gpu_runtime",
       "candidateVersion": "CUDA 12.4 user-mode DLL set from whisper.cpp v1.9.1; driver 610.62 target evidence",
       "candidateCommit": null,
-      "sourceUrl": "https://docs.nvidia.com/cuda/eula/",
+      "sourceUrl": "https://docs.nvidia.com/cuda/archive/12.4.0/eula/index.html",
       "declaredLicense": "NVIDIA CUDA Toolkit EULA",
-      "decisionStatus": "pre003_optional_accelerator_pack_recommended",
-      "nextDecisionWorkPackage": "PRE-005/PRE-006",
+      "decisionStatus": "production_selected_optional_cuda_12_4_accelerator_pack",
+      "nextDecisionWorkPackage": "MODEL-002/QA-005",
       "pre003Evidence": {
         "archiveByteSize": 677887125,
         "expandedByteSize": 1209487872,
@@ -236,10 +285,20 @@
         "cudaToolkitPathRequired": false,
         "driverStillRequired": true
       },
-      "openQuestions": [
-        "Confirm every redistributed NVIDIA DLL and required notice against the current EULA before release; this inventory is not legal advice.",
-        "Freeze the minimum driver and exact redistributable library list.",
-        "Validate installer size, signing, update and rollback behavior."
+      "pre006Decision": {
+        "delivery": "on-demand-pack",
+        "baseInstallerContainsCudaRuntime": false,
+        "cudaToolkitRequired": false,
+        "nvidiaDriverRequired": true,
+        "minimumWindowsDriverVersion": "551.61",
+        "validatedWindowsDriverVersion": "610.62",
+        "integrityProfile": "official-release-archive-size-sha256-and-per-file-manifest",
+        "operatingSystemCodeSigningRequiredForPersonalProfile": false
+      },
+      "openQuestions": [],
+      "releaseGates": [
+        "QA-005 verifies every redistributed NVIDIA DLL and required notice against the pinned CUDA 12.4 EULA.",
+        "QA-003 validates install, update and rollback behavior on the target NVIDIA machine; trusted signing is optional for the personal profile."
       ]
     }
   ]

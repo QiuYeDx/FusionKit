@@ -1,0 +1,355 @@
+{
+  "schemaVersion": 1,
+  "decisionId": "local-subtitle-production-freeze-v1",
+  "observedAt": "2026-07-18",
+  "status": "go",
+  "evidenceReports": [
+    "pre003-windows-x64-results.json",
+    "pre004-macos-arm64-results.json",
+    "pre005-macos-arm64-results.json",
+    "pre005-windows-x64-results.json"
+  ],
+  "openPreBlockers": [],
+  "nextWorkPackages": [
+    "CORE-001",
+    "CORE-002"
+  ],
+  "decisions": {
+    "engineRuntime": {
+      "status": "go",
+      "engine": {
+        "id": "whisper.cpp",
+        "version": "v1.9.1",
+        "commit": "f049fff95a089aa9969deb009cdd4892b3e74916",
+        "releaseUrl": "https://github.com/ggml-org/whisper.cpp/releases/tag/v1.9.1",
+        "license": "MIT"
+      },
+      "httpContract": {
+        "version": 1,
+        "adapter": "node-managed-official-server",
+        "listenHost": "127.0.0.1",
+        "privatePathEntropyBits": 192,
+        "healthPath": "/health",
+        "inferencePath": "/inference",
+        "responseFormat": "verbose_json",
+        "maxActiveRequests": 1,
+        "modelReusedAcrossNormalTasks": true,
+        "cancelPolicy": "abort-connection-then-restart-before-next-task",
+        "progressContract": "phase-only",
+        "nativeBridgeRequired": false
+      },
+      "artifacts": [
+        {
+          "id": "whisper-server-win-x64-cpu",
+          "acquisition": "official-prebuilt-release-asset",
+          "fileName": "whisper-bin-x64.zip",
+          "archiveByteSize": 7982101,
+          "archiveSha256": "7d8be46ecd31828e1eb7a2ecdd0d6b314feafd82163038ab6092594b0a063539",
+          "serverSha256": "2c1ef08694756eda280e79b8217da63ee2af33c87ac3d5f27d68f9f3f966fd32",
+          "downloadUrl": "https://github.com/ggml-org/whisper.cpp/releases/download/v1.9.1/whisper-bin-x64.zip",
+          "sourceBuildRequired": false
+        },
+        {
+          "id": "whisper-server-win-x64-cuda-12.4",
+          "acquisition": "official-prebuilt-release-asset",
+          "fileName": "whisper-cublas-12.4.0-bin-x64.zip",
+          "archiveByteSize": 677887125,
+          "expandedByteSize": 1209487872,
+          "archiveSha256": "106a2030eff8998e4ef320fe72e263a78449e9040386ee27c41ea80b001b601b",
+          "serverSha256": "c72f99b75ae4111d6e7ddb62e04d3c0c94fea2ba6536412e517f256b4388dd37",
+          "downloadUrl": "https://github.com/ggml-org/whisper.cpp/releases/download/v1.9.1/whisper-cublas-12.4.0-bin-x64.zip",
+          "sourceBuildRequired": false
+        },
+        {
+          "id": "whisper-server-mac-arm64-metal-cpu",
+          "acquisition": "exact-commit-source-build",
+          "candidateFinalByteSize": 3611392,
+          "candidateFinalSha256": "159a1f8c79e27c741be6f4f7240b472663e7d45465ae24a49d86f7d87b7f6681",
+          "sourceBuildRequired": true,
+          "buildFlags": {
+            "CMAKE_OSX_ARCHITECTURES": "arm64",
+            "BUILD_SHARED_LIBS": false,
+            "GGML_NATIVE": false,
+            "GGML_METAL": true,
+            "GGML_METAL_EMBED_LIBRARY": true,
+            "WHISPER_BUILD_SERVER": true
+          },
+          "hashFreezePhase": "after-selected-nested-signing-in-final-staging"
+        }
+      ]
+    },
+    "platformSupport": {
+      "status": "go",
+      "profiles": [
+        {
+          "id": "windows-x64",
+          "support": "supported",
+          "baseBackend": "cpu",
+          "autoPreferenceOrder": [
+            "cuda",
+            "cpu"
+          ],
+          "optionalBackends": [
+            "cuda"
+          ],
+          "baseRuntime": "whisper-server-win-x64-cpu",
+          "acceleratorRuntime": "whisper-server-win-x64-cuda-12.4",
+          "acceleratorDelivery": "on-demand-pack",
+          "cudaToolkitRequired": false,
+          "nvidiaDriverRequired": true,
+          "minimumNvidiaDriverVersion": "551.61",
+          "validatedNvidiaDriverVersion": "610.62",
+          "distributionProfile": "unsigned_personal_distribution",
+          "operatingSystemCodeSigningRequired": false,
+          "trustStoreChangeAllowed": false
+        },
+        {
+          "id": "macos-arm64",
+          "support": "supported",
+          "defaultBackend": "metal",
+          "autoPreferenceOrder": [
+            "metal",
+            "cpu"
+          ],
+          "optionalBackends": [
+            "cpu"
+          ],
+          "baseRuntime": "whisper-server-mac-arm64-metal-cpu",
+          "developerIdAndNotarizationGate": "QA-004"
+        },
+        {
+          "id": "macos-x64",
+          "support": "unsupported",
+          "errorCode": "unsupported_architecture",
+          "artifactCount": 0,
+          "rosettaFallbackAllowed": false
+        }
+      ],
+      "fallbackContract": {
+        "autoResolvesBeforeBatchCommit": true,
+        "resolvedBackendVisibleBeforeStart": true,
+        "explicitGpuFallbackAllowed": false,
+        "postCommitGpuFailureRequiresUserConfirmedCpuGeneration": true,
+        "unverifiedGpuErrorCode": "backend_unverified"
+      }
+    },
+    "mediaRuntime": {
+      "status": "go",
+      "versionFamily": "8.1.2",
+      "macosArm64": {
+        "acquisition": "pinned-source-build",
+        "sourceArchiveFileName": "ffmpeg-8.1.2.tar.xz",
+        "sourceArchiveUrl": "https://ffmpeg.org/releases/ffmpeg-8.1.2.tar.xz",
+        "sourceArchiveByteSize": 11710924,
+        "sourceArchiveSha256": "464beb5e7bf0c311e68b45ae2f04e9cc2af88851abb4082231742a74d97b524c",
+        "detachedSignatureUrl": "https://ffmpeg.org/releases/ffmpeg-8.1.2.tar.xz.asc",
+        "detachedSignatureFingerprint": "FCF986EA15E6E293A5644F10B4322F04D67658D8",
+        "detachedSignatureVerified": true,
+        "license": "LGPL-2.1-or-later",
+        "logicalPrefix": "/opt/fusionkit/local-subtitle/ffmpeg/8.1.2",
+        "deploymentTarget": "11.0",
+        "gplEnabled": false,
+        "nonfreeEnabled": false,
+        "version3Enabled": false,
+        "networkEnabled": false,
+        "externalLibraries": [],
+        "ffmpegCandidateFinalSha256": "55f36865bfedfef597c1c6462ec92fcab1392bf418815e66b416195493bacc53",
+        "ffprobeCandidateFinalSha256": "8dfe0a7aba414a65a284eca637b04713c0ad0cabaf290f9b5f2679664fb60d09"
+      },
+      "windowsX64": {
+        "acquisition": "immutable-prebuilt-release-asset",
+        "provider": "BtbN/FFmpeg-Builds",
+        "releaseTag": "autobuild-2026-06-30-13-34",
+        "releaseUrl": "https://github.com/BtbN/FFmpeg-Builds/releases/tag/autobuild-2026-06-30-13-34",
+        "assetFileName": "ffmpeg-n8.1.2-21-gce3c09c101-win64-lgpl-8.1.zip",
+        "assetUrl": "https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-06-30-13-34/ffmpeg-n8.1.2-21-gce3c09c101-win64-lgpl-8.1.zip",
+        "assetByteSize": 144332533,
+        "assetSha256": "3b9eceb438016b647e0755a51ce3a388cd4ed5679e2427cb83a01e1ae2cd0eba",
+        "version": "n8.1.2-21-gce3c09c101-20260630",
+        "ffmpegCommit": "ce3c09c101c83add623774d414a9f9498caf5c25",
+        "configurationSha256": "942a04ca7fafc83bb5ffaa5e40a4c74682b77e353b5d3e597d77219c54d04dc6",
+        "license": "LGPL-3.0-or-later",
+        "gplEnabled": false,
+        "nonfreeEnabled": false,
+        "version3Enabled": true,
+        "externalLibraryFlagCount": 51,
+        "ffmpegFinalByteSize": 112509440,
+        "ffmpegFinalSha256": "c623359f35e7db4820694b77d0f032f075e783a9c7207b81d908c28f148e8a68",
+        "ffprobeFinalByteSize": 112303104,
+        "ffprobeFinalSha256": "35a823fb08470f6a1e91149e6c305ffbc5ee76c9901444c850f302ecee146a37",
+        "selection": "accepted-initial-personal-distribution-baseline",
+        "sourceBuildToolchainRequired": false,
+        "licenseClosureGate": "QA-005"
+      },
+      "stagingContract": {
+        "outsideAsar": true,
+        "artifactNameIncludesArchitecture": true,
+        "automation": "auditable-local-release-scripts-first",
+        "networkAccessDuringElectronBuilder": false,
+        "acquireAuditAndHashBeforeStaging": true,
+        "manifestRelativePath": "manifests/local-subtitle-runtime.v1.json",
+        "packagedPathFallbackAllowed": false,
+        "beforePackRequiresRuntimeManifestAndLicenseEvidence": true,
+        "macosHashAfterFinalNestedSigning": true,
+        "windowsIntegrityProfile": "unsigned-final-bytes-size-sha256"
+      }
+    },
+    "modelAndVadManifest": {
+      "status": "go",
+      "schemaVersion": 1,
+      "requiredCommonFields": [
+        "id",
+        "resourceType",
+        "fileName",
+        "format",
+        "engineCompatibility",
+        "sourceRevision",
+        "downloadUrl",
+        "byteSize",
+        "sha256",
+        "license",
+        "bundledInInstaller"
+      ],
+      "requiredModelFields": [
+        "multilingual",
+        "quantization",
+        "defaultRecommended",
+        "qualityLabel"
+      ],
+      "requiredVadFields": [
+        "defaultEnabled",
+        "tokenTimestampsAllowed",
+        "timelinePolicy"
+      ],
+      "launchModels": [
+        {
+          "id": "large-v3-q5_0",
+          "resourceType": "model",
+          "fileName": "ggml-large-v3-q5_0.bin",
+          "format": "ggml",
+          "engineCompatibility": "whisper.cpp-v1.9.1",
+          "sourceRevision": "c521a4b02f422512d734391fdf08bb08c0862f68",
+          "downloadUrl": "https://huggingface.co/ggerganov/whisper.cpp/resolve/c521a4b02f422512d734391fdf08bb08c0862f68/ggml-large-v3-q5_0.bin?download=true",
+          "byteSize": 1081140203,
+          "sha256": "d75795ecff3f83b5faa89d1900604ad8c780abd5739fae406de19f23ecd98ad1",
+          "license": "MIT",
+          "multilingual": true,
+          "quantization": "q5_0",
+          "defaultRecommended": true,
+          "bundledInInstaller": false,
+          "qualityLabel": "quantized-large-v3"
+        }
+      ],
+      "deferredBuiltInModels": [
+        {
+          "id": "large-v3",
+          "reason": "requires-exact-artifact-hash-and-cross-platform-product-evidence"
+        },
+        {
+          "id": "large-v3-turbo",
+          "reason": "requires-cross-platform-quality-and-performance-evidence"
+        },
+        {
+          "id": "large-v3-turbo-q5_0",
+          "reason": "requires-cross-platform-quality-and-performance-evidence"
+        }
+      ],
+      "vad": {
+        "id": "silero-vad-v6.2.0-ggml",
+        "resourceType": "vad",
+        "fileName": "for-tests-silero-v6.2.0-ggml.bin",
+        "format": "ggml",
+        "engineCompatibility": "whisper.cpp-v1.9.1",
+        "sourceRevision": "f049fff95a089aa9969deb009cdd4892b3e74916",
+        "downloadUrl": "https://raw.githubusercontent.com/ggml-org/whisper.cpp/f049fff95a089aa9969deb009cdd4892b3e74916/models/for-tests-silero-v6.2.0-ggml.bin",
+        "byteSize": 885098,
+        "sha256": "2aa269b785eeb53a82983a20501ddf7c1d9c48e33ab63a41391ac6c9f7fb6987",
+        "license": "MIT",
+        "defaultEnabled": true,
+        "tokenTimestampsAllowed": false,
+        "timelinePolicy": "mapped-segment-timestamps-only",
+        "bundledInInstaller": false
+      },
+      "installationPolicy": {
+        "automaticDownloadOnInstallOrPageOpen": false,
+        "allowlistedHttpsSourcesOnly": true,
+        "expectedSizeAndSha256Required": true,
+        "loadSmokeBeforeReady": true,
+        "managedUserDataDirectoryOnly": true,
+        "partialDownloadAndAtomicCommitRequired": true
+      }
+    },
+    "qualityPerformanceAndFootprint": {
+      "status": "go",
+      "transcriptStrategy": {
+        "wholeFileSingleRequestAllowed": false,
+        "pcmWindowMs": 30000,
+        "overlapMs": 5000,
+        "vadEnabled": true,
+        "rawQualityGateBeforeFormatting": true,
+        "boundedRetryDepth": 3
+      },
+      "qualityGate": {
+        "allPlannedWindowsNeedTerminalState": true,
+        "rawTranscriptValidityRequired": true,
+        "srtAndLrcParseBackRequired": true,
+        "supportedGpuRealtimeFactorMustBeBelow": 1,
+        "textAccuracyResearchBaselineRequired": false
+      },
+      "observedRealtimeFactorRanges": {
+        "windowsCuda": [
+          0.0509,
+          0.0735
+        ],
+        "windowsCpu": [
+          0.5063,
+          0.592
+        ],
+        "macosMetal": [
+          0.0698,
+          0.0821
+        ],
+        "macosCpu": [
+          0.1954,
+          0.2811
+        ]
+      },
+      "footprintBudgets": {
+        "windowsBasePackageUnpacked": {
+          "observedByteSize": 789147424,
+          "guardByteSize": 850000000
+        },
+        "windowsCudaPackExpanded": {
+          "observedByteSize": 1209487872,
+          "guardByteSize": 1250000000
+        },
+        "launchModelInstalled": {
+          "observedByteSize": 1081140203,
+          "guardByteSize": 1100000000
+        },
+        "macosNativeRuntime": {
+          "observedByteSize": 8970336,
+          "guardByteSize": 10000000
+        }
+      },
+      "decision": "accept-observed-footprint-for-personal-distribution-and-show-disk-requirements"
+    }
+  },
+  "releaseGates": [
+    {
+      "id": "QA-003",
+      "scope": "trusted Windows installer signature and timestamp",
+      "requiredForSelectedPersonalProfile": false
+    },
+    {
+      "id": "QA-004",
+      "scope": "Developer ID, notarization and Gatekeeper acceptance for macOS distribution",
+      "requiredForWindowsPersonalProfile": false
+    },
+    {
+      "id": "QA-005",
+      "scope": "exact third-party notices, source offers and NVIDIA redistributable inventory",
+      "requiredBeforeShippingArtifactsToOthers": true
+    }
+  ]
+}

@@ -16,11 +16,78 @@ function clone(value) {
   return JSON.parse(JSON.stringify(value));
 }
 
-test("repository PRE-001 manifests are ready for development", () => {
+test("repository PRE manifests include the completed PRE-006 production freeze", () => {
   const result = validateDocuments(loadDocuments(), { strict: true });
   assert.equal(result.ok, true, JSON.stringify(result.errors, null, 2));
   assert.equal(result.errors.length, 0);
   assert.equal(result.warnings.length, 0);
+});
+
+test("PRE-006 freezes all five decisions and unlocks the two contract packages", () => {
+  const { pre006 } = loadDocuments();
+  assert.equal(pre006.status, "go");
+  assert.deepEqual(Object.keys(pre006.decisions).sort(), [
+    "engineRuntime",
+    "mediaRuntime",
+    "modelAndVadManifest",
+    "platformSupport",
+    "qualityPerformanceAndFootprint",
+  ]);
+  assert.equal(
+    Object.values(pre006.decisions).every((decision) => decision.status === "go"),
+    true,
+  );
+  assert.deepEqual(pre006.nextWorkPackages, ["CORE-001", "CORE-002"]);
+  assert.deepEqual(pre006.openPreBlockers, []);
+});
+
+test("PRE-006 rejects a changed launch model digest", () => {
+  const documents = clone(loadDocuments());
+  documents.pre006.decisions.modelAndVadManifest.launchModels[0].sha256 =
+    "0".repeat(64);
+  const result = validateDocuments(documents);
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some((error) => error.code === "launch_model"));
+});
+
+test("PRE-006 rejects a changed launch model download source", () => {
+  const documents = clone(loadDocuments());
+  documents.pre006.decisions.modelAndVadManifest.launchModels[0].downloadUrl =
+    "https://example.invalid/model.bin";
+  const result = validateDocuments(documents);
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some((error) => error.code === "launch_model"));
+});
+
+test("PRE-006 keeps Windows personal distribution unsigned and trust-store free", () => {
+  const documents = clone(loadDocuments());
+  const windows = documents.pre006.decisions.platformSupport.profiles.find(
+    (profile) => profile.id === "windows-x64",
+  );
+  windows.operatingSystemCodeSigningRequired = true;
+  const result = validateDocuments(documents);
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some((error) => error.code === "platform_matrix"));
+});
+
+test("PRE-006 and the third-party candidate decisions cannot drift", () => {
+  const documents = clone(loadDocuments());
+  documents.thirdParty.candidates.find(
+    (candidate) => candidate.id === "ffmpeg-n8.1.2-source",
+  ).decisionStatus = "production_selected_different_media_runtime";
+  const result = validateDocuments(documents);
+  assert.equal(result.ok, false);
+  assert.ok(
+    result.errors.some((error) => error.code === "candidate_decision_mismatch"),
+  );
+});
+
+test("PRE-006 footprint observations must match the committed PRE evidence", () => {
+  const documents = clone(loadDocuments());
+  documents.pre005Windows.builderSpike.positivePackage.unpackedSizeBytes += 1;
+  const result = validateDocuments(documents);
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some((error) => error.code === "evidence_mismatch"));
 });
 
 test("PRE-001 acceptance scope is exactly the three current ja/zh real samples", () => {
