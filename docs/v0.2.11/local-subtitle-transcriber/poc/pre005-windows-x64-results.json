@@ -1,115 +1,102 @@
 {
   "schemaVersion": 1,
-  "reportType": "local-subtitle-pre005-macos-arm64",
-  "observedAt": "2026-07-17",
+  "reportType": "local-subtitle-pre005-windows-x64",
+  "observedAt": "2026-07-18",
   "status": "completed",
   "currentEnvironmentStatus": "passed",
   "remainingPre005Evidence": [],
-  "deferredReleaseEvidence": [
-    "developer_id_notarization_and_gatekeeper_acceptance_QA_004"
+  "distributionProfile": "unsigned_personal_distribution",
+  "optionalPublicDistributionHardening": [
+    "trusted_windows_installer_signature_and_timestamp_QA_003"
   ],
   "scope": {
-    "platform": "macos",
-    "osVersion": "26.2",
-    "architecture": "arm64",
-    "chip": "Apple M5",
-    "nodeVersion": "20.19.5",
+    "platform": "win32",
+    "osVersion": "10.0.26200.8875",
+    "architecture": "x64",
+    "nodeVersion": "24.14.0",
+    "electronVersion": "33.4.11",
     "electronBuilderVersion": "24.13.3"
   },
-  "ffmpegBuild": {
-    "version": "8.1.2",
-    "upstreamTag": "n8.1.2",
-    "upstreamCommit": "38b88335f99e76ed89ff3c93f877fdefce736c13",
-    "sourceArchiveFileName": "ffmpeg-8.1.2.tar.xz",
+  "ffmpegSourceVerification": {
+    "releaseVersion": "8.1.2",
     "sourceArchiveSizeBytes": 11710924,
     "sourceArchiveSha256": "464beb5e7bf0c311e68b45ae2f04e9cc2af88851abb4082231742a74d97b524c",
     "detachedSignatureSha256": "0a0963fccd70597838073f3e31b20f4a4d8cc2b5e577472c9a5a1f22624246f8",
     "releaseKeySha256": "397b3becedcd5a98769967ff1ff8501ddc89f8368b8f766e4701377d7dbaabe5",
     "expectedSigningKeyFingerprint": "FCF986EA15E6E293A5644F10B4322F04D67658D8",
-    "detachedSignatureVerification": "verified_on_windows_gpgv_2026-07-18",
-    "license": "LGPL-2.1-or-later",
+    "detachedSignatureVerification": "verified",
+    "observedValidSignatureFingerprint": "FCF986EA15E6E293A5644F10B4322F04D67658D8",
+    "verifier": "gpgv_windows_msys_path_adapter"
+  },
+  "ffmpegCandidate": {
+    "provider": "BtbN/FFmpeg-Builds",
+    "releaseTag": "autobuild-2026-06-30-13-34",
+    "releaseId": 346858151,
+    "assetId": 462189264,
+    "assetFileName": "ffmpeg-n8.1.2-21-gce3c09c101-win64-lgpl-8.1.zip",
+    "assetSizeBytes": 144332533,
+    "assetSha256": "3b9eceb438016b647e0755a51ce3a388cd4ed5679e2427cb83a01e1ae2cd0eba",
+    "version": "n8.1.2-21-gce3c09c101-20260630",
+    "ffmpegCommit": "ce3c09c101c83add623774d414a9f9498caf5c25",
+    "configurationSha256": "942a04ca7fafc83bb5ffaa5e40a4c74682b77e353b5d3e597d77219c54d04dc6",
+    "license": "LGPL-3.0-or-later",
     "gplEnabled": false,
     "nonfreeEnabled": false,
-    "version3Enabled": false,
-    "networkEnabled": false,
-    "externalLibraries": [],
-    "logicalPrefix": "/opt/fusionkit/local-subtitle/ffmpeg/8.1.2",
-    "macosDeploymentTarget": "11.0",
-    "ancestorGitMetadataIsolated": true,
-    "privateBuildPathScanPassed": true,
-    "systemOnlyDynamicDependencies": true,
-    "unsignedArtifacts": [
+    "version3Enabled": true,
+    "externalLibraryFlagCount": 51,
+    "productionFreezeDeferredTo": "PRE-006",
+    "artifacts": [
       {
         "kind": "ffmpeg",
-        "sizeBytes": 2773304,
-        "sha256": "0d539f3ece488146ba5a04d17e4943266bcd750c0b7264ba4e38811fa82e0a14"
+        "sizeBytes": 112509440,
+        "sha256": "c623359f35e7db4820694b77d0f032f075e783a9c7207b81d908c28f148e8a68"
       },
       {
         "kind": "ffprobe",
-        "sizeBytes": 2580504,
-        "sha256": "1defb985cea907854e4f349c267b85ccdf32a4e4fa4d76a140b561d94a913e8b"
+        "sizeBytes": 112303104,
+        "sha256": "35a823fb08470f6a1e91149e6c305ffbc5ee76c9901444c850f302ecee146a37"
       }
     ]
   },
   "stagedRuntime": {
-    "layout": "local-subtitle/mac-arm64/{metal,media}",
+    "layout": "local-subtitle/win-x64/{cpu,media}",
     "manifestRelativePath": "manifests/local-subtitle-runtime.v1.json",
-    "manifestSha256": "fa82588f3e272db2031af3ed263ba5104596295260dbe0b30c529fef283e8320",
-    "binaryHashPhase": "after_nested_code_signing_before_outer_bundle_signing",
+    "manifestSha256": "c4a44b9cb3326639afe9cae5589c25959dc041c8210ed32235f297df3dfeae64",
+    "binaryHashPhase": "unsigned_final_bytes_before_outer_packaging",
+    "outerSignatureCoverage": "not_required_personal_distribution",
+    "signatureKind": "unsigned",
+    "artifactCount": 15,
+    "artifactSizeBytes": 234871296,
+    "serverCount": 1,
+    "serverDependencyCount": 12,
+    "mediaProgramCount": 2,
     "licenseAndSourceEvidenceFileCount": 6,
-    "artifacts": [
-      {
-        "id": "whisper-server-mac-arm64",
-        "kind": "server",
-        "relativePath": "mac-arm64/metal/whisper-server",
-        "sizeBytes": 3611392,
-        "sha256": "159a1f8c79e27c741be6f4f7240b472663e7d45465ae24a49d86f7d87b7f6681",
-        "architecture": "arm64",
-        "signatureKind": "adhoc"
-      },
-      {
-        "id": "ffmpeg-mac-arm64",
-        "kind": "ffmpeg",
-        "relativePath": "mac-arm64/media/ffmpeg",
-        "sizeBytes": 2775312,
-        "sha256": "55f36865bfedfef597c1c6462ec92fcab1392bf418815e66b416195493bacc53",
-        "architecture": "arm64",
-        "signatureKind": "adhoc"
-      },
-      {
-        "id": "ffprobe-mac-arm64",
-        "kind": "ffprobe",
-        "relativePath": "mac-arm64/media/ffprobe",
-        "sizeBytes": 2583632,
-        "sha256": "8dfe0a7aba414a65a284eca637b04713c0ad0cabaf290f9b5f2679664fb60d09",
-        "architecture": "arm64",
-        "signatureKind": "adhoc"
-      }
-    ],
-    "allArtifactsLaunchedFromManifestPaths": true,
+    "allProgramsLaunchedFromManifestPaths": true,
     "pathFallbackAllowed": false
   },
   "builderSpike": {
     "extraResourcesOutsideAsar": true,
     "artifactNameIncludesArchitecture": true,
     "beforePackConfigured": true,
-    "positiveBuildPassed": true,
+    "forceCodeSigning": false,
+    "positiveDirBuildPassed": true,
+    "positivePackage": {
+      "fileCount": 94,
+      "unpackedSizeBytes": 789147424,
+      "appExecutableSizeBytes": 189032448,
+      "appExecutableSha256": "b98a5cc74879e9ad7f81ed9c39300084e0c8322b555252a0216b25ba8151a77e",
+      "appExecutableSignatureStatus": "NotSigned"
+    },
     "negativeBuild": {
-      "removedAfterConfigGeneration": "ffmpeg",
+      "removedAfterConfigGeneration": "ffmpeg.exe",
       "errorCode": "media_runtime_missing",
       "buildFailed": true,
-      "appProduced": false
-    },
-    "outerAppSignatureKind": "adhoc",
-    "deepStrictSignatureVerificationPassed": true,
-    "runtimeHashesUnchangedByOuterSigning": true,
-    "gatekeeper": {
-      "status": "unavailable_for_adhoc_build",
-      "pre005Gate": false,
-      "releaseGateOwner": "QA-004"
+      "runnableAppProduced": false
     }
   },
   "packagedNoPathSmoke": {
+    "status": "passed",
+    "signatureVerification": "not_required_unsigned_personal_distribution",
     "noPathFallback": true,
     "runtimeLaunchCount": 3,
     "runtimeLaunchesPassed": 3,
@@ -167,7 +154,7 @@
       "blockedBeforeEnqueue": true
     },
     {
-      "fault": "ffmpeg_not_executable",
+      "fault": "ffmpeg_signature_policy_invalid",
       "errorCode": "media_runtime_invalid",
       "blockedBeforeEnqueue": true
     },
@@ -182,6 +169,12 @@
       "blockedBeforeEnqueue": true
     }
   ],
+  "personalDistribution": {
+    "runtimeFunctionalityRequiresCodeSigning": false,
+    "unsignedBuildCanBeCopiedAndRun": true,
+    "installerOrFirstRunMayShowUnknownPublisherOrSmartScreenWarning": true,
+    "managedPolicyOrThirdPartyAntivirusMayStillBlock": true
+  },
   "privacy": {
     "containsAbsolutePaths": false,
     "containsMediaOrSubtitleText": false,

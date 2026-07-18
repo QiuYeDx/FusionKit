@@ -23,6 +23,8 @@ test("creates an isolated arm64 extraResources spike without mutating base confi
   const config = createElectronBuilderSpikeConfig(base, {
     runtimeRoot: "/tmp/pre005/local-subtitle",
     releaseOutput: "/tmp/pre005/release",
+    platform: "darwin",
+    arch: "arm64",
   });
 
   assert.deepEqual(base, original);
@@ -46,8 +48,29 @@ test("preserves existing extraResources and signIgnore rules", () => {
     {
       runtimeRoot: "/tmp/pre005/local-subtitle",
       releaseOutput: "/tmp/pre005/release",
+      platform: "darwin",
+      arch: "arm64",
     },
   );
   assert.equal(config.extraResources.length, 2);
   assert.deepEqual(config.mac.signIgnore, ["existing-ignore", PRE005_SIGN_IGNORE]);
+});
+
+test("creates a native Windows x64 directory spike without a macOS sign ignore", () => {
+  const config = createElectronBuilderSpikeConfig(
+    {
+      mac: { target: ["dmg"] },
+      win: { target: [{ target: "nsis", arch: ["x64"] }] },
+    },
+    {
+      runtimeRoot: "C:\\ignored\\pre005\\local-subtitle",
+      releaseOutput: "C:\\ignored\\pre005\\release",
+      platform: "win32",
+      arch: "x64",
+    },
+  );
+  assert.deepEqual(config.win.target, [{ target: "dir", arch: ["x64"] }]);
+  assert.equal(config.forceCodeSigning, false);
+  assert.deepEqual(config.mac.target, ["dmg"]);
+  assert.equal("signIgnore" in config.mac, false);
 });

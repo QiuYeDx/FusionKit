@@ -22,24 +22,25 @@ import {
   inspectNativeBinaryFile,
   sha256File,
 } from "./runtime-manifest.mjs";
+import {
+  FFMPEG_SOURCE_RELEASE,
+  verifyPinnedFfmpegSourceRelease,
+} from "./ffmpeg-source-release.mjs";
 
 const execFileAsync = promisify(execFile);
 const SCRIPT_PATH = fileURLToPath(import.meta.url);
 const PROJECT_ROOT = path.resolve(path.dirname(SCRIPT_PATH), "../../..");
 
 export const FFMPEG_BUILD_CONTRACT = Object.freeze({
-  version: "8.1.2",
-  sourceArchiveFileName: "ffmpeg-8.1.2.tar.xz",
-  sourceArchiveByteSize: 11_710_924,
-  sourceArchiveSha256:
-    "464beb5e7bf0c311e68b45ae2f04e9cc2af88851abb4082231742a74d97b524c",
-  signatureByteSize: 520,
-  signatureSha256:
-    "0a0963fccd70597838073f3e31b20f4a4d8cc2b5e577472c9a5a1f22624246f8",
-  publicKeyByteSize: 1_709,
-  publicKeySha256:
-    "397b3becedcd5a98769967ff1ff8501ddc89f8368b8f766e4701377d7dbaabe5",
-  signingKeyFingerprint: "FCF986EA15E6E293A5644F10B4322F04D67658D8",
+  version: FFMPEG_SOURCE_RELEASE.version,
+  sourceArchiveFileName: FFMPEG_SOURCE_RELEASE.archiveFileName,
+  sourceArchiveByteSize: FFMPEG_SOURCE_RELEASE.archiveByteSize,
+  sourceArchiveSha256: FFMPEG_SOURCE_RELEASE.archiveSha256,
+  signatureByteSize: FFMPEG_SOURCE_RELEASE.signatureByteSize,
+  signatureSha256: FFMPEG_SOURCE_RELEASE.signatureSha256,
+  publicKeyByteSize: FFMPEG_SOURCE_RELEASE.publicKeyByteSize,
+  publicKeySha256: FFMPEG_SOURCE_RELEASE.publicKeySha256,
+  signingKeyFingerprint: FFMPEG_SOURCE_RELEASE.signingKeyFingerprint,
   logicalPrefix: "/opt/fusionkit/local-subtitle/ffmpeg/8.1.2",
   deploymentTarget: "11.0",
   license: "LGPL-2.1-or-later",
@@ -88,27 +89,12 @@ export async function buildFfmpegMacosArm64(options) {
   const outputRoot = path.resolve(requirePath(options.outputRoot, "outputRoot"));
   await assertOutputDoesNotExist(outputRoot);
 
-  await verifyPinnedFile(archivePath, {
-    byteSize: FFMPEG_BUILD_CONTRACT.sourceArchiveByteSize,
-    sha256: FFMPEG_BUILD_CONTRACT.sourceArchiveSha256,
-    label: "source archive",
-  });
-  await verifyPinnedFile(signaturePath, {
-    byteSize: FFMPEG_BUILD_CONTRACT.signatureByteSize,
-    sha256: FFMPEG_BUILD_CONTRACT.signatureSha256,
-    label: "detached signature",
-  });
-  await verifyPinnedFile(publicKeyPath, {
-    byteSize: FFMPEG_BUILD_CONTRACT.publicKeyByteSize,
-    sha256: FFMPEG_BUILD_CONTRACT.publicKeySha256,
-    label: "release signing key",
-  });
-
-  const signatureVerification = await verifyDetachedSignature({
+  const signatureVerification = await verifyPinnedFfmpegSourceRelease({
     archivePath,
     signaturePath,
     publicKeyPath,
     gpgPath: options.gpgPath,
+    platform: "darwin",
   });
   if (options.requireSignature === true && signatureVerification.status !== "verified") {
     throw new Error(
@@ -353,66 +339,6 @@ export function validateVersionOutput(kind, output) {
     throw new Error(`${kind} version output contains a forbidden build setting.`);
   }
   return true;
-}
-
-async function verifyDetachedSignature(options) {
-  if (!options.gpgPath) {
-    return {
-      status: "not_run_tool_unavailable",
-      expectedFingerprint: FFMPEG_BUILD_CONTRACT.signingKeyFingerprint,
-    };
-  }
-  const gpgHome = await mkdtemp(path.join(os.tmpdir(), "fusionkit-ffmpeg-gpg-"));
-  await chmod(gpgHome, 0o700);
-  try {
-    await runCommand(
-      path.resolve(options.gpgPath),
-      ["--homedir", gpgHome, "--batch", "--import", options.publicKeyPath],
-      {
-        cwd: gpgHome,
-        env: buildToolEnvironment(gpgHome),
-        timeoutMs: 30_000,
-      },
-    );
-    const verification = await runCommand(
-      path.resolve(options.gpgPath),
-      [
-        "--homedir",
-        gpgHome,
-        "--batch",
-        "--status-fd",
-        "1",
-        "--verify",
-        options.signaturePath,
-        options.archivePath,
-      ],
-      {
-        cwd: gpgHome,
-        env: buildToolEnvironment(gpgHome),
-        timeoutMs: 30_000,
-      },
-    );
-    const fingerprint = verification.stdout.match(
-      /^\[GNUPG:\] VALIDSIG ([A-F0-9]{40})\b/mu,
-    )?.[1];
-    if (fingerprint !== FFMPEG_BUILD_CONTRACT.signingKeyFingerprint) {
-      throw new Error("FFmpeg detached signature used an unexpected signing key.");
-    }
-    return { status: "verified", fingerprint };
-  } finally {
-    await rm(gpgHome, { recursive: true, force: true });
-  }
-}
-
-async function verifyPinnedFile(filePath, expected) {
-  const fileStat = await stat(filePath);
-  if (
-    !fileStat.isFile() ||
-    fileStat.size !== expected.byteSize ||
-    (await sha256File(filePath)) !== expected.sha256
-  ) {
-    throw new Error(`The pinned ${expected.label} failed its integrity check.`);
-  }
 }
 
 async function inspectMacosDependencies(filePath) {

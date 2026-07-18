@@ -17,6 +17,10 @@ export const RUNTIME_MANIFEST_SCHEMA_VERSION = 1;
 export const RUNTIME_CONTRACT_VERSION = 1;
 export const RUNTIME_HASH_PHASE =
   "after_nested_code_signing_before_outer_bundle_signing";
+export const RUNTIME_UNSIGNED_HASH_PHASE =
+  "unsigned_final_bytes_before_outer_packaging";
+export const PERSONAL_DISTRIBUTION_OUTER_COVERAGE =
+  "not_required_personal_distribution";
 
 const SHA256_PATTERN = /^[a-f0-9]{64}$/u;
 const PRIVATE_PATH_PATTERN =
@@ -148,10 +152,17 @@ export function validateRuntimeManifest(manifest, options = {}) {
     ["algorithm", "binaryHashPhase", "outerSignatureCoverage"],
     "integrity",
   );
+  const signedIntegrity =
+    manifest.integrity.binaryHashPhase === RUNTIME_HASH_PHASE &&
+    manifest.integrity.outerSignatureCoverage === "required";
+  const unsignedPersonalIntegrity =
+    platform === "win32" &&
+    manifest.integrity.binaryHashPhase === RUNTIME_UNSIGNED_HASH_PHASE &&
+    manifest.integrity.outerSignatureCoverage ===
+      PERSONAL_DISTRIBUTION_OUTER_COVERAGE;
   if (
     manifest.integrity.algorithm !== "sha256" ||
-    manifest.integrity.binaryHashPhase !== RUNTIME_HASH_PHASE ||
-    manifest.integrity.outerSignatureCoverage !== "required"
+    (!signedIntegrity && !unsignedPersonalIntegrity)
   ) {
     throw invalidManifest("Runtime integrity policy is not supported.");
   }
@@ -164,6 +175,22 @@ export function validateRuntimeManifest(manifest, options = {}) {
     licenses,
     sources,
   });
+  if (
+    unsignedPersonalIntegrity &&
+    manifest.artifacts.some((artifact) => artifact.signatureKind !== "unsigned")
+  ) {
+    throw invalidManifest(
+      "Unsigned personal distribution artifacts must declare signatureKind unsigned.",
+    );
+  }
+  if (
+    signedIntegrity &&
+    manifest.artifacts.some((artifact) => artifact.signatureKind === "unsigned")
+  ) {
+    throw invalidManifest(
+      "Signed distribution artifacts cannot declare signatureKind unsigned.",
+    );
+  }
   return manifest;
 }
 
@@ -260,7 +287,10 @@ export async function verifyRuntimeBundle(options) {
       invalidCode: media
         ? "media_runtime_invalid"
         : "runtime_protocol_mismatch",
-      requireExecutableBit: artifact.executable && platform !== "win32",
+      // A Windows filesystem cannot represent POSIX execute bits. Cross-host
+      // validation therefore defers this one check to the native macOS gate.
+      requireExecutableBit:
+        artifact.executable && platform !== "win32" && process.platform !== "win32",
       expectedArch: artifact.arch,
       platform,
       signatureKind: artifact.signatureKind,
@@ -301,8 +331,13 @@ export async function verifyRuntimeBundle(options) {
       signatureKind: artifact.signatureKind,
     })),
     evidenceFileCount: evidenceFiles.length,
-    signatureVerification:
-      platform === process.platform ? "verified_on_target_host" : "deferred_to_target_host",
+    signatureVerification: selectedArtifacts.every(
+      (artifact) => artifact.signatureKind === "unsigned",
+    )
+      ? "not_required_unsigned_personal_distribution"
+      : platform === process.platform
+        ? "verified_on_target_host"
+        : "deferred_to_target_host",
     launchResults,
     noPathFallback: true,
     ready: true,
@@ -396,6 +431,13 @@ export function buildSanitizedRuntimeEnvironment(platform, source = process.env)
       WINDIR: systemRoot,
       PATH: `${systemRoot}\\System32`,
       PATHEXT: ".COM;.EXE;.BAT;.CMD",
+      PSModulePath: path.join(
+        systemRoot,
+        "System32",
+        "WindowsPowerShell",
+        "v1.0",
+        "Modules",
+      ),
     };
     for (const key of ["TEMP", "TMP", "ProgramFiles", "ProgramW6432"]) {
       if (typeof source[key] === "string" && source[key] !== "") {
@@ -413,6 +455,17 @@ export function buildSanitizedRuntimeEnvironment(platform, source = process.env)
     environment.TMPDIR = source.TMPDIR;
   }
   return environment;
+}
+
+export function getWindowsPowerShellPath(source = process.env) {
+  const systemRoot = source.SystemRoot ?? source.WINDIR ?? "C:\\Windows";
+  return path.join(
+    systemRoot,
+    "System32",
+    "WindowsPowerShell",
+    "v1.0",
+    "powershell.exe",
+  );
 }
 
 export function sha256File(filePath) {
@@ -512,7 +565,7 @@ async function verifyRegularFile(runtimeRoot, record, policy) {
   return { filePath, inspection };
 }
 
-async function verifyArtifactSignature(filePath, policy) {
+export async function verifyArtifactSignature(filePath, policy) {
   if (policy.platform === "darwin") {
     try {
       await execFileAsync(
@@ -548,19 +601,25 @@ async function verifyArtifactSignature(filePath, policy) {
     }
   }
   if (policy.platform === "win32" && process.platform === "win32") {
+    if (policy.expectedKind !== "authenticode") return false;
     try {
+      const environment = {
+        ...buildSanitizedRuntimeEnvironment("win32"),
+        FUSIONKIT_SIGNATURE_TARGET: filePath,
+      };
       await execFileAsync(
-        "powershell.exe",
+        getWindowsPowerShellPath(environment),
         [
           "-NoProfile",
           "-NonInteractive",
           "-Command",
-          "if ((Get-AuthenticodeSignature -LiteralPath $args[0]).Status -eq 'Valid') { exit 0 } else { exit 1 }",
-          filePath,
+          "$signature = Get-AuthenticodeSignature -LiteralPath $env:FUSIONKIT_SIGNATURE_TARGET; " +
+            "if ($signature.Status -eq [System.Management.Automation.SignatureStatus]::Valid) " +
+            "{ exit 0 } else { exit 1 }",
         ],
         {
           cwd: path.dirname(filePath),
-          env: buildSanitizedRuntimeEnvironment("win32"),
+          env: environment,
           timeout: 30_000,
           maxBuffer: 1024 * 1024,
           windowsHide: true,

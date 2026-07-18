@@ -7,8 +7,11 @@ import test from "node:test";
 import {
   RUNTIME_HASH_PHASE,
   RUNTIME_MANIFEST_RELATIVE_PATH,
+  RUNTIME_UNSIGNED_HASH_PHASE,
+  PERSONAL_DISTRIBUTION_OUTER_COVERAGE,
   assertSupportedRuntimeTarget,
   buildSanitizedRuntimeEnvironment,
+  getWindowsPowerShellPath,
   inspectNativeBinary,
   loadRuntimeManifest,
   validateRuntimeManifest,
@@ -114,9 +117,48 @@ test("sanitized child environments exclude API keys and proxy credentials", () =
   const windows = buildSanitizedRuntimeEnvironment("win32", source);
   assert.equal(windows.SystemRoot, "C:\\Windows");
   assert.equal(windows.ProgramFiles, "C:\\Program Files");
+  assert.equal(
+    windows.PSModulePath,
+    path.join(
+      "C:\\Windows",
+      "System32",
+      "WindowsPowerShell",
+      "v1.0",
+      "Modules",
+    ),
+  );
   assert.equal("OPENAI_API_KEY" in windows, false);
   assert.equal("HTTPS_PROXY" in windows, false);
   assert.equal("AUTHORIZATION" in windows, false);
+  assert.equal(
+    getWindowsPowerShellPath(source),
+    path.join(
+      "C:\\Windows",
+      "System32",
+      "WindowsPowerShell",
+      "v1.0",
+      "powershell.exe",
+    ),
+  );
+});
+
+test("accepts an explicit unsigned Windows personal-distribution integrity profile", () => {
+  const manifest = createManifest({ platform: "win32", arch: "x64" });
+  manifest.integrity.binaryHashPhase = RUNTIME_UNSIGNED_HASH_PHASE;
+  manifest.integrity.outerSignatureCoverage =
+    PERSONAL_DISTRIBUTION_OUTER_COVERAGE;
+  for (const artifact of manifest.artifacts) artifact.signatureKind = "unsigned";
+  assert.equal(
+    validateRuntimeManifest(manifest, { platform: "win32", arch: "x64" }),
+    manifest,
+  );
+
+  const falseClaim = structuredClone(manifest);
+  falseClaim.artifacts[1].signatureKind = "authenticode";
+  assert.throws(
+    () => validateRuntimeManifest(falseClaim, { platform: "win32", arch: "x64" }),
+    /must declare signatureKind unsigned/u,
+  );
 });
 
 test("verifies a complete macOS media bundle and launches only manifest paths", async () => {
@@ -193,19 +235,21 @@ test("classifies missing, changed, wrong-arch, and non-executable media tools", 
     );
   });
 
-  await withRuntimeFixture({ platform: "darwin", arch: "arm64" }, async (fixture) => {
-    fs.chmodSync(fixture.ffmpegPath, 0o644);
-    await assert.rejects(
-      verifyRuntimeBundle({
-        runtimeRoot: fixture.runtimeRoot,
-        platform: "darwin",
-        arch: "arm64",
-        scope: "media",
-        signatureVerifier: acceptSignature,
-      }),
-      (error) => error.code === "media_runtime_invalid",
-    );
-  });
+  if (process.platform !== "win32") {
+    await withRuntimeFixture({ platform: "darwin", arch: "arm64" }, async (fixture) => {
+      fs.chmodSync(fixture.ffmpegPath, 0o644);
+      await assert.rejects(
+        verifyRuntimeBundle({
+          runtimeRoot: fixture.runtimeRoot,
+          platform: "darwin",
+          arch: "arm64",
+          scope: "media",
+          signatureVerifier: acceptSignature,
+        }),
+        (error) => error.code === "media_runtime_invalid",
+      );
+    });
+  }
 });
 
 test("classifies a static-pass identity failure as media_runtime_launch_failed", async () => {
@@ -246,13 +290,71 @@ test("validates Windows PE resources on a non-Windows host without POSIX mode ru
   });
 });
 
-async function withRuntimeFixture(target, callback) {
-  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "fusionkit-runtime-manifest-"));
+test("reports that unsigned Windows personal distribution does not require signing", async () => {
+  await withRuntimeFixture({ platform: "win32", arch: "x64" }, async (fixture) => {
+    fixture.manifest.integrity.binaryHashPhase = RUNTIME_UNSIGNED_HASH_PHASE;
+    fixture.manifest.integrity.outerSignatureCoverage =
+      PERSONAL_DISTRIBUTION_OUTER_COVERAGE;
+    for (const artifact of fixture.manifest.artifacts) {
+      artifact.signatureKind = "unsigned";
+    }
+    fs.writeFileSync(
+      fixture.manifestPath,
+      `${JSON.stringify(fixture.manifest, null, 2)}\n`,
+    );
+    const report = await verifyRuntimeBundle({
+      runtimeRoot: fixture.runtimeRoot,
+      platform: "win32",
+      arch: "x64",
+      scope: "media",
+    });
+    assert.equal(
+      report.signatureVerification,
+      "not_required_unsigned_personal_distribution",
+    );
+  });
+});
+
+test(
+  "uses the absolute Windows PowerShell verifier for a trusted Authenticode PE",
+  { skip: process.platform !== "win32" },
+  async () => {
+    const trustedPePath = path.join(
+      process.env.SystemRoot ?? "C:\\Windows",
+      "System32",
+      "where.exe",
+    );
+    await withRuntimeFixture(
+      { platform: "win32", arch: "x64" },
+      async (fixture) => {
+        const report = await verifyRuntimeBundle({
+          runtimeRoot: fixture.runtimeRoot,
+          platform: "win32",
+          arch: "x64",
+          scope: "media",
+        });
+        assert.equal(report.signatureVerification, "verified_on_target_host");
+        assert.equal(report.ready, true);
+      },
+      {
+        binary: fs.readFileSync(trustedPePath),
+        tempBase: path.join(process.cwd(), "runtime-manifest-test.local"),
+      },
+    );
+  },
+);
+
+async function withRuntimeFixture(target, callback, options = {}) {
+  const tempBase = options.tempBase ?? os.tmpdir();
+  fs.mkdirSync(tempBase, { recursive: true });
+  const tempRoot = fs.mkdtempSync(
+    path.join(tempBase, "fusionkit-runtime-manifest-"),
+  );
   const runtimeRoot = path.join(tempRoot, "local-subtitle");
   const manifest = createManifest(target);
-  const binary = target.platform === "darwin"
+  const binary = options.binary ?? (target.platform === "darwin"
     ? createMachO("arm64", "11.0.0")
-    : createPe("x64");
+    : createPe("x64"));
   const artifactPaths = manifest.artifacts.map((artifact) => {
     const filePath = path.join(runtimeRoot, ...artifact.relativePath.split("/"));
     fs.mkdirSync(path.dirname(filePath), { recursive: true });

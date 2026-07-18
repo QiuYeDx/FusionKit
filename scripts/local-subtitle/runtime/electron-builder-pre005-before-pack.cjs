@@ -15,8 +15,8 @@ async function pre005BeforePack(context) {
   try {
     await verifyRuntimeBundle({
       runtimeRoot,
-      platform: "darwin",
-      arch: "arm64",
+      platform: process.platform,
+      arch: process.arch,
       scope: "all",
       launch: true,
     });

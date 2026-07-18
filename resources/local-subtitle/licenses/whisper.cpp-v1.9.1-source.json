@@ -21,5 +21,14 @@
     ],
     "implementationRecord": "docs/v0.2.11/local-subtitle-transcriber/local-subtitle-transcriber_implementation_records/2026-07-17_PRE-004_macos-arm64-metal-cpu.md"
   },
+  "windowsX64CpuPrebuilt": {
+    "archiveFileName": "whisper-bin-x64.zip",
+    "archiveByteSize": 7982101,
+    "archiveSha256": "7d8be46ecd31828e1eb7a2ecdd0d6b314feafd82163038ab6092594b0a063539",
+    "selectedProgram": "whisper-server.exe",
+    "selectedDependencyCount": 12,
+    "selectionScript": "scripts/local-subtitle/runtime/stage-runtime-windows-x64.mjs",
+    "candidateScope": "PRE-005 packaging and unsigned integrity proof only"
+  },
   "releaseRequirement": "PRE-006 must freeze the reproducible artifact acquisition/build path before production packaging."
 }

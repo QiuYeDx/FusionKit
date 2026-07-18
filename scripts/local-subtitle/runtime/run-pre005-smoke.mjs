@@ -1,7 +1,13 @@
 #!/usr/bin/env node
 
-import { execFile } from "node:child_process";
-import { createHash } from "node:crypto";
+import { spawnSync } from "node:child_process";
+import {
+  closeSync,
+  openSync,
+  readFileSync,
+  statSync,
+  unlinkSync,
+} from "node:fs";
 import {
   appendFile,
   chmod,
@@ -16,7 +22,7 @@ import {
 } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { parseArgs, promisify } from "node:util";
+import { parseArgs } from "node:util";
 import { pathToFileURL } from "node:url";
 import { inspectPcm16Wav } from "../whisper-server/pcm-windowing.mjs";
 import {
@@ -24,10 +30,9 @@ import {
   buildSanitizedRuntimeEnvironment,
   loadRuntimeManifest,
   resolveContainedResourcePath,
+  sha256File,
   verifyRuntimeBundle,
 } from "./runtime-manifest.mjs";
-
-const execFileAsync = promisify(execFile);
 
 export const PRE005_FORMAT_CASES = Object.freeze([
   Object.freeze({ id: "mp3", fileName: "sample.mp3", video: false }),
@@ -41,7 +46,13 @@ export const PRE005_FORMAT_CASES = Object.freeze([
   Object.freeze({ id: "webm", fileName: "sample.webm", video: true }),
 ]);
 
+let commandSequence = 0;
+
 export async function runPre005Smoke(options) {
+  const target = normalizeTarget(
+    options.platform ?? process.platform,
+    options.arch ?? process.arch,
+  );
   const runtimeRoot = path.resolve(requirePath(options.runtimeRoot, "runtimeRoot"));
   const generatorFfmpeg = path.resolve(
     requirePath(options.fixtureGeneratorFfmpeg, "fixtureGeneratorFfmpeg"),
@@ -52,14 +63,14 @@ export async function runPre005Smoke(options) {
 
   const bundleVerification = await verifyRuntimeBundle({
     runtimeRoot,
-    platform: "darwin",
-    arch: "arm64",
+    platform: target.platform,
+    arch: target.arch,
     scope: "all",
     launch: true,
   });
   const loaded = await loadRuntimeManifest(runtimeRoot, {
-    platform: "darwin",
-    arch: "arm64",
+    platform: target.platform,
+    arch: target.arch,
   });
   const ffmpegArtifact = loaded.manifest.artifacts.find(
     (artifact) => artifact.kind === "ffmpeg",
@@ -75,28 +86,31 @@ export async function runPre005Smoke(options) {
     loaded.root,
     ffprobeArtifact.relativePath,
   );
-  const isolatedEnvironment = buildSanitizedRuntimeEnvironment("darwin", {
-    TMPDIR: path.join(workRoot, "tmp"),
-  });
-  await mkdir(isolatedEnvironment.TMPDIR, { recursive: true });
-  const whichProbe = await runCommand(
-    "/usr/bin/which",
-    ["ffmpeg"],
-    {
-      cwd: workRoot,
-      env: isolatedEnvironment,
-      timeoutMs: 10_000,
-      allowFailure: true,
-    },
+  const isolatedTemp = path.join(workRoot, "tmp");
+  const isolatedEnvironment = buildSanitizedRuntimeEnvironment(
+    target.platform,
+    target.platform === "win32"
+      ? { TEMP: isolatedTemp, TMP: isolatedTemp }
+      : { TMPDIR: isolatedTemp },
   );
-  if (whichProbe.exitCode === 0) {
+  await mkdir(isolatedTemp, { recursive: true });
+  const resolvedSystemFfmpeg = await findExecutableOnSanitizedPath(
+    target.platform === "win32" ? "ffmpeg.exe" : "ffmpeg",
+    isolatedEnvironment,
+    target.platform,
+  );
+  if (resolvedSystemFfmpeg !== null) {
     throw new Error("The no-PATH smoke environment can still resolve system FFmpeg.");
   }
 
   const fixtureRoot = path.join(workRoot, "fixtures");
   const normalizedRoot = path.join(workRoot, "normalized");
   await mkdir(normalizedRoot, { recursive: true });
-  const fixtures = await generateMediaFixtures(generatorFfmpeg, fixtureRoot);
+  const fixtures = await generateMediaFixtures(
+    generatorFfmpeg,
+    fixtureRoot,
+    target.platform,
+  );
   const formatMatrix = [];
   for (const formatCase of PRE005_FORMAT_CASES) {
     const inputPath = path.join(fixtureRoot, formatCase.fileName);
@@ -183,11 +197,13 @@ export async function runPre005Smoke(options) {
     throw new Error("The zero-duration fixture did not remain zero duration.");
   }
 
-  const faultMatrix = await runFaultMatrix(runtimeRoot);
+  const faultMatrix = await runFaultMatrix(runtimeRoot, target, {
+    tempParent: path.join(workRoot, "fault-copies"),
+  });
   const report = {
     schemaVersion: 1,
     workPackage: "PRE-005",
-    target: { platform: "darwin", arch: "arm64" },
+    target,
     status: "current_environment_passed",
     packagedRuntime: {
       manifestSha256: bundleVerification.manifestSha256,
@@ -221,13 +237,15 @@ export async function runPre005Smoke(options) {
     },
     faultMatrix,
     blocksBeforeEnqueue: faultMatrix.every((entry) => entry.blockedBeforeEnqueue),
-    remainingTargetEvidence: [
-      "windows_x64_packaged_no_path_and_authenticode_runtime_smoke",
-    ],
-    deferredReleaseEvidence: [
-      "ffmpeg_detached_signature_verification_with_pinned_key",
-      "developer_id_notarization_and_gatekeeper_acceptance_QA_004",
-    ],
+    remainingTargetEvidence: target.platform === "win32"
+      ? []
+      : ["windows_x64_packaged_no_path_and_authenticode_runtime_smoke"],
+    deferredReleaseEvidence: target.platform === "darwin"
+      ? ["developer_id_notarization_and_gatekeeper_acceptance_QA_004"]
+      : [],
+    optionalPublicDistributionHardening: target.platform === "win32"
+      ? ["trusted_windows_installer_signature_and_timestamp_QA_003"]
+      : [],
     privacy: {
       absolutePathsRecorded: false,
       mediaContentRecorded: false,
@@ -242,12 +260,20 @@ export async function runPre005Smoke(options) {
   return report;
 }
 
-export async function generateMediaFixtures(generatorFfmpeg, fixtureRoot) {
+export async function generateMediaFixtures(
+  generatorFfmpeg,
+  fixtureRoot,
+  platform = process.platform,
+) {
   await mkdir(fixtureRoot, { recursive: true });
-  const environment = buildSanitizedRuntimeEnvironment("darwin", {
-    TMPDIR: path.join(fixtureRoot, "tmp"),
-  });
-  await mkdir(environment.TMPDIR, { recursive: true });
+  const fixtureTemp = path.join(fixtureRoot, "tmp");
+  const environment = buildSanitizedRuntimeEnvironment(
+    platform,
+    platform === "win32"
+      ? { TEMP: fixtureTemp, TMP: fixtureTemp }
+      : { TMPDIR: fixtureTemp },
+  );
+  await mkdir(fixtureTemp, { recursive: true });
   const baseTone = path.join(fixtureRoot, "base-tone.wav");
   await runGenerator(generatorFfmpeg, [
     "-f",
@@ -396,7 +422,13 @@ export function summarizeMediaProbe(probe) {
   };
 }
 
-export async function runFaultMatrix(runtimeRoot) {
+export async function runFaultMatrix(
+  runtimeRoot,
+  target = { platform: process.platform, arch: process.arch },
+  options = {},
+) {
+  const tempParent = path.resolve(options.tempParent ?? os.tmpdir());
+  await mkdir(tempParent, { recursive: true });
   const cases = [
     {
       id: "manifest_missing",
@@ -432,17 +464,40 @@ export async function runFaultMatrix(runtimeRoot) {
       mutate: async (root, manifest) => {
         const target = artifactPath(root, manifest, "ffmpeg");
         const bytes = await readFile(target);
-        bytes.writeUInt32LE(0x01000007, 4);
+        mutateBinaryArchitecture(bytes, manifest.target.platform);
         await writeFile(target, bytes);
         await updateArtifactEvidence(root, manifest, "ffmpeg");
       },
     },
-    {
-      id: "ffmpeg_not_executable",
-      expectedCode: "media_runtime_invalid",
-      mutate: async (root, manifest) =>
-        chmod(artifactPath(root, manifest, "ffmpeg"), 0o644),
-    },
+    ...(target.platform === "win32"
+      ? [{
+          id: "ffmpeg_signature_policy_invalid",
+          expectedCode: "media_runtime_invalid",
+          mutate: async (root, manifest) => {
+            const targetPath = artifactPath(root, manifest, "ffmpeg");
+            const artifact = manifest.artifacts.find(
+              (entry) => entry.kind === "ffmpeg",
+            );
+            if (artifact.signatureKind === "authenticode") {
+              const bytes = await readFile(targetPath);
+              bytes[0x20] ^= 0x01;
+              await writeFile(targetPath, bytes);
+              await updateArtifactEvidence(root, manifest, "ffmpeg");
+            } else {
+              artifact.signatureKind = "authenticode";
+              await writeFile(
+                manifestPath(root),
+                `${JSON.stringify(manifest, null, 2)}\n`,
+              );
+            }
+          },
+        }]
+      : [{
+          id: "ffmpeg_not_executable",
+          expectedCode: "media_runtime_invalid",
+          mutate: async (root, manifest) =>
+            chmod(artifactPath(root, manifest, "ffmpeg"), 0o644),
+        }]),
     {
       id: "ffmpeg_launch_identity_failed",
       expectedCode: "media_runtime_launch_failed",
@@ -451,7 +506,7 @@ export async function runFaultMatrix(runtimeRoot) {
         const ffmpeg = artifactPath(root, manifest, "ffmpeg");
         const ffprobe = artifactPath(root, manifest, "ffprobe");
         await copyFile(ffprobe, ffmpeg);
-        await chmod(ffmpeg, 0o755);
+        if (target.platform !== "win32") await chmod(ffmpeg, 0o755);
         await updateArtifactEvidence(root, manifest, "ffmpeg");
       },
     },
@@ -464,7 +519,9 @@ export async function runFaultMatrix(runtimeRoot) {
   ];
   const results = [];
   for (const fault of cases) {
-    const tempRoot = await mkdtemp(path.join(os.tmpdir(), "fusionkit-pre005-fault-"));
+    const tempRoot = await mkdtemp(
+      path.join(tempParent, "fusionkit-pre005-fault-"),
+    );
     const copyRoot = path.join(tempRoot, "local-subtitle");
     try {
       await cp(runtimeRoot, copyRoot, {
@@ -477,8 +534,8 @@ export async function runFaultMatrix(runtimeRoot) {
       try {
         await verifyRuntimeBundle({
           runtimeRoot: copyRoot,
-          platform: "darwin",
-          arch: "arm64",
+          platform: target.platform,
+          arch: target.arch,
           scope: fault.scope ?? "media",
           launch: fault.launch === true,
         });
@@ -528,7 +585,9 @@ async function probeMediaResult(ffprobePath, inputPath, environment) {
       inputPath,
     ],
     {
-      cwd: path.dirname(inputPath),
+      // Windows CreateProcess can reject an otherwise valid long input path
+      // when that same long directory is also used as cwd.
+      cwd: path.dirname(ffprobePath),
       env: environment,
       timeoutMs: 30_000,
       allowFailure: true,
@@ -599,23 +658,65 @@ async function runGenerator(command, args, cwd, environment) {
 }
 
 async function runCommand(command, args, options) {
+  commandSequence += 1;
+  const logStem = path.join(
+    options.cwd,
+    `.fusionkit-pre005-command-${process.pid}-${commandSequence}`,
+  );
+  const stdoutPath = `${logStem}.stdout.local`;
+  const stderrPath = `${logStem}.stderr.local`;
+  let stdoutDescriptor;
+  let stderrDescriptor;
   try {
-    const { stdout, stderr } = await execFileAsync(command, args, {
+    stdoutDescriptor = openSync(stdoutPath, "wx");
+    stderrDescriptor = openSync(stderrPath, "wx");
+    const spawned = spawnSync(command, args, {
       cwd: options.cwd,
       env: options.env,
       timeout: options.timeoutMs,
-      maxBuffer: 4 * 1024 * 1024,
       windowsHide: true,
+      stdio: ["ignore", stdoutDescriptor, stderrDescriptor],
     });
-    return { exitCode: 0, stdout, stderr };
-  } catch (error) {
+    closeSync(stdoutDescriptor);
+    stdoutDescriptor = undefined;
+    closeSync(stderrDescriptor);
+    stderrDescriptor = undefined;
+    if (
+      statSync(stdoutPath).size > 4 * 1024 * 1024 ||
+      statSync(stderrPath).size > 4 * 1024 * 1024
+    ) {
+      throw new Error("PRE-005 command output exceeded its bounded buffer.");
+    }
     const result = {
-      exitCode: Number.isInteger(error?.code) ? error.code : null,
-      stdout: String(error?.stdout ?? ""),
-      stderr: String(error?.stderr ?? ""),
+      exitCode: Number.isInteger(spawned.status) ? spawned.status : null,
+      signal: spawned.signal ?? null,
+      stdout: readFileSync(stdoutPath, "utf8"),
+      stderr: readFileSync(stderrPath, "utf8"),
     };
-    if (options.allowFailure === true) return result;
-    throw new Error(`PRE-005 command failed: ${path.basename(command)}.`);
+    if (
+      !spawned.error &&
+      (result.exitCode === 0 || options.allowFailure === true)
+    ) {
+      return result;
+    }
+    const failureCode = typeof spawned.error?.code === "string"
+      ? spawned.error.code
+      : result.exitCode === null
+        ? "unknown"
+        : `exit_${result.exitCode}`;
+    throw new Error(
+      `PRE-005 command failed: ${path.basename(command)} (${failureCode}).`,
+    );
+  } finally {
+    if (stdoutDescriptor !== undefined) closeSync(stdoutDescriptor);
+    if (stderrDescriptor !== undefined) closeSync(stderrDescriptor);
+    for (const logPath of [stdoutPath, stderrPath]) {
+      try {
+        unlinkSync(logPath);
+      } catch (error) {
+        if (error?.code !== "ENOENT") throw error;
+      }
+    }
   }
 }
 
@@ -634,8 +735,61 @@ async function updateArtifactEvidence(runtimeRoot, manifest, kind) {
   const target = artifactPath(runtimeRoot, manifest, kind);
   const targetStat = await stat(target);
   artifact.byteSize = targetStat.size;
-  artifact.sha256 = createHash("sha256").update(await readFile(target)).digest("hex");
+  artifact.sha256 = await sha256File(target);
   await writeFile(manifestPath(runtimeRoot), `${JSON.stringify(manifest, null, 2)}\n`);
+}
+
+export function mutateBinaryArchitecture(bytes, platform) {
+  if (!Buffer.isBuffer(bytes)) {
+    throw new TypeError("bytes must be a Buffer.");
+  }
+  if (platform === "win32") {
+    if (bytes.length < 70 || bytes[0] !== 0x4d || bytes[1] !== 0x5a) {
+      throw new Error("The Windows fault fixture is not a PE artifact.");
+    }
+    const peOffset = bytes.readUInt32LE(0x3c);
+    if (peOffset + 6 > bytes.length) {
+      throw new Error("The Windows fault fixture has an invalid PE header.");
+    }
+    bytes.writeUInt16LE(0xaa64, peOffset + 4);
+    return bytes;
+  }
+  bytes.writeUInt32LE(0x01000007, 4);
+  return bytes;
+}
+
+export async function findExecutableOnSanitizedPath(
+  fileName,
+  environment,
+  platform = process.platform,
+) {
+  const searchPath = environment?.PATH;
+  if (typeof searchPath !== "string" || searchPath === "") return null;
+  const extensions = platform === "win32" && path.extname(fileName) === ""
+    ? String(environment.PATHEXT ?? ".COM;.EXE;.BAT;.CMD")
+        .split(";")
+        .filter(Boolean)
+    : [""];
+  for (const directory of searchPath.split(path.delimiter).filter(Boolean)) {
+    for (const extension of extensions) {
+      const candidate = path.join(directory, `${fileName}${extension}`);
+      try {
+        const candidateStat = await stat(candidate);
+        if (candidateStat.isFile()) return candidate;
+      } catch (error) {
+        if (error?.code !== "ENOENT" && error?.code !== "ENOTDIR") throw error;
+      }
+    }
+  }
+  return null;
+}
+
+function normalizeTarget(platform, arch) {
+  const supported =
+    (platform === "darwin" && arch === "arm64") ||
+    (platform === "win32" && arch === "x64");
+  if (!supported) throw new Error("The PRE-005 smoke target is unsupported.");
+  return { platform, arch };
 }
 
 async function assertMissing(filePath, message) {
@@ -663,6 +817,8 @@ function parseCliArguments(argv) {
       "fixture-generator-ffmpeg": { type: "string" },
       work: { type: "string" },
       output: { type: "string" },
+      platform: { type: "string", default: process.platform },
+      arch: { type: "string", default: process.arch },
       help: { type: "boolean", default: false },
     },
     strict: true,
@@ -673,6 +829,8 @@ function parseCliArguments(argv) {
     fixtureGeneratorFfmpeg: values["fixture-generator-ffmpeg"],
     workRoot: values.work,
     outputPath: values.output,
+    platform: values.platform,
+    arch: values.arch,
   };
 }
 
@@ -682,7 +840,8 @@ async function runCli(argv = process.argv.slice(2)) {
     process.stdout.write(
       "Usage: node run-pre005-smoke.mjs --runtime <packaged-local-subtitle> " +
         "--fixture-generator-ffmpeg <development-only-ffmpeg> --work <ignored-dir> " +
-        "[--output <ignored-report.json>]\n",
+        "[--output <ignored-report.json>] [--platform darwin|win32] " +
+        "[--arch arm64|x64]\n",
     );
     return;
   }

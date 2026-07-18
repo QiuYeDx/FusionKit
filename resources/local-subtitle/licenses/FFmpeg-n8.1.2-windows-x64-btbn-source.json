@@ -1,0 +1,43 @@
+{
+  "schemaVersion": 1,
+  "component": "FFmpeg Windows candidate",
+  "version": "n8.1.2-21-gce3c09c101-20260630",
+  "upstreamSource": {
+    "releaseVersion": "8.1.2",
+    "archiveUrl": "https://ffmpeg.org/releases/ffmpeg-8.1.2.tar.xz",
+    "archiveByteSize": 11710924,
+    "archiveSha256": "464beb5e7bf0c311e68b45ae2f04e9cc2af88851abb4082231742a74d97b524c",
+    "detachedSignatureUrl": "https://ffmpeg.org/releases/ffmpeg-8.1.2.tar.xz.asc",
+    "detachedSignatureSha256": "0a0963fccd70597838073f3e31b20f4a4d8cc2b5e577472c9a5a1f22624246f8",
+    "signingKeyFingerprint": "FCF986EA15E6E293A5644F10B4322F04D67658D8",
+    "verificationRequired": true
+  },
+  "binaryDistribution": {
+    "provider": "BtbN/FFmpeg-Builds",
+    "sourceRepository": "https://github.com/BtbN/FFmpeg-Builds/tree/7a83528ea3431e9eca982a712bc3a7cd0789d5d0",
+    "releaseTag": "autobuild-2026-06-30-13-34",
+    "releaseUrl": "https://github.com/BtbN/FFmpeg-Builds/releases/tag/autobuild-2026-06-30-13-34",
+    "assetFileName": "ffmpeg-n8.1.2-21-gce3c09c101-win64-lgpl-8.1.zip",
+    "assetUrl": "https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-06-30-13-34/ffmpeg-n8.1.2-21-gce3c09c101-win64-lgpl-8.1.zip",
+    "assetId": 462189264,
+    "assetByteSize": 144332533,
+    "assetSha256": "3b9eceb438016b647e0755a51ce3a388cd4ed5679e2427cb83a01e1ae2cd0eba",
+    "ffmpegCommit": "ce3c09c101c83add623774d414a9f9498caf5c25",
+    "immutableReleaseSelected": true
+  },
+  "audit": {
+    "script": "scripts/local-subtitle/runtime/audit-ffmpeg-windows-x64.mjs",
+    "license": "LGPL-3.0-or-later",
+    "gplEnabled": false,
+    "nonfreeEnabled": false,
+    "version3Enabled": true,
+    "configurationSha256": "942a04ca7fafc83bb5ffaa5e40a4c74682b77e353b5d3e597d77219c54d04dc6",
+    "candidateScope": "PRE-005 packaging, unsigned integrity and media proof only",
+    "productionFreezeOwner": "PRE-006"
+  },
+  "license": {
+    "spdxExpression": "LGPL-3.0-or-later",
+    "licenseFile": "FFmpeg-COPYING.LGPLv3.txt",
+    "upstreamNotesFile": "FFmpeg-LICENSE.md"
+  }
+}

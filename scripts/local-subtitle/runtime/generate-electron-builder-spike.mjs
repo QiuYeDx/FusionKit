@@ -22,6 +22,10 @@ export function createElectronBuilderSpikeConfig(baseConfig, options) {
   const releaseOutput = path.resolve(
     requirePath(options.releaseOutput, "releaseOutput"),
   );
+  const target = normalizeTarget(
+    options.platform ?? process.platform,
+    options.arch ?? process.arch,
+  );
   const config = structuredClone(baseConfig);
   config.directories = {
     ...(config.directories ?? {}),
@@ -36,19 +40,25 @@ export function createElectronBuilderSpikeConfig(baseConfig, options) {
     },
   ];
   config.beforePack = BEFORE_PACK_HOOK;
-  config.mac = {
-    ...(config.mac ?? {}),
-    artifactName: "${productName}_${version}_${arch}.${ext}",
-    target: [{ target: "dir", arch: ["arm64"] }],
-    identity: "-",
-    signIgnore: [
-      ...normalizeStrings(config.mac?.signIgnore),
-      PRE005_SIGN_IGNORE,
-    ],
-  };
+  if (target.platform === "win32") config.forceCodeSigning = false;
+  config.mac = target.platform === "darwin"
+    ? {
+        ...(config.mac ?? {}),
+        artifactName: "${productName}_${version}_${arch}.${ext}",
+        target: [{ target: "dir", arch: ["arm64"] }],
+        identity: "-",
+        signIgnore: [
+          ...normalizeStrings(config.mac?.signIgnore),
+          PRE005_SIGN_IGNORE,
+        ],
+      }
+    : { ...(config.mac ?? {}) };
   config.win = {
     ...(config.win ?? {}),
     artifactName: "${productName}_${version}_${arch}.${ext}",
+    ...(target.platform === "win32"
+      ? { target: [{ target: "dir", arch: ["x64"] }] }
+      : {}),
   };
   return config;
 }
@@ -59,10 +69,14 @@ export async function generateElectronBuilderSpike(options) {
   );
   const outputPath = path.resolve(requirePath(options.outputPath, "outputPath"));
   const runtimeRoot = path.resolve(requirePath(options.runtimeRoot, "runtimeRoot"));
+  const target = normalizeTarget(
+    options.platform ?? process.platform,
+    options.arch ?? process.arch,
+  );
   await verifyRuntimeBundle({
     runtimeRoot,
-    platform: "darwin",
-    arch: "arm64",
+    platform: target.platform,
+    arch: target.arch,
     scope: "all",
     launch: true,
   });
@@ -70,20 +84,37 @@ export async function generateElectronBuilderSpike(options) {
   const config = createElectronBuilderSpikeConfig(baseConfig, {
     runtimeRoot,
     releaseOutput: options.releaseOutput,
+    platform: target.platform,
+    arch: target.arch,
   });
   await writeFile(outputPath, `${JSON.stringify(config, null, 2)}\n`, "utf8");
   return {
     schemaVersion: 1,
-    target: { platform: "darwin", arch: "arm64" },
+    target,
     runtimeVerifiedBeforeBuilder: true,
     extraResourcesDestination: "local-subtitle",
     artifactNameIncludesArch: true,
-    nestedRuntimeSignIgnoreConfigured: true,
+    nestedRuntimeSignIgnoreConfigured: target.platform === "darwin",
+    nestedRuntimeIntegrityVerifiedBeforeBuilder: true,
+    nestedRuntimeAuthenticodeVerifiedBeforeBuilder: false,
     beforePackRuntimeGateConfigured: true,
-    outerAppSignatureRequired: true,
+    outerAppSignatureRequired: target.platform === "darwin",
+    distributionProfile: target.platform === "win32"
+      ? "unsigned_personal_distribution"
+      : "adhoc_packaged_validation",
     outputContainsMachinePath: true,
     outputMustRemainGitIgnored: true,
   };
+}
+
+function normalizeTarget(platform, arch) {
+  const supported =
+    (platform === "darwin" && arch === "arm64") ||
+    (platform === "win32" && arch === "x64");
+  if (!supported) {
+    throw new Error("The PRE-005 builder spike target is unsupported.");
+  }
+  return { platform, arch };
 }
 
 function normalizeFileSets(value) {
@@ -111,6 +142,8 @@ function parseCliArguments(argv) {
       runtime: { type: "string" },
       output: { type: "string" },
       release: { type: "string" },
+      platform: { type: "string", default: process.platform },
+      arch: { type: "string", default: process.arch },
       help: { type: "boolean", default: false },
     },
     strict: true,
@@ -121,6 +154,8 @@ function parseCliArguments(argv) {
     runtimeRoot: values.runtime,
     outputPath: values.output,
     releaseOutput: values.release,
+    platform: values.platform,
+    arch: values.arch,
   };
 }
 
@@ -130,7 +165,8 @@ async function runCli(argv = process.argv.slice(2)) {
     process.stdout.write(
       "Usage: node generate-electron-builder-spike.mjs --runtime <local-subtitle> " +
         "--output <ignored-config.json> --release <ignored-output-directory> " +
-        "[--base electron-builder.json]\n",
+        "[--base electron-builder.json] [--platform darwin|win32] " +
+        "[--arch arm64|x64]\n",
     );
     return;
   }
