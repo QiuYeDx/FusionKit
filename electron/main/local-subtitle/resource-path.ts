@@ -36,6 +36,9 @@ const MACOS_SIGNATURE_ENVIRONMENT = {
   LANG: "C",
   LC_ALL: "C",
 } as unknown as NodeJS.ProcessEnv;
+const VERIFIED_RUNTIME_BUNDLE_BRAND: unique symbol = Symbol(
+  "fusionkit.local-subtitle.verified-runtime-bundle",
+);
 
 interface LocalSubtitleResourceEnvironmentBase {
   readonly platform?: NodeJS.Platform | string;
@@ -76,6 +79,7 @@ export interface LocalSubtitleVerifiedRuntimeArtifact {
 }
 
 export interface LocalSubtitleVerifiedRuntimeBundle {
+  readonly [VERIFIED_RUNTIME_BUNDLE_BRAND]: true;
   readonly schemaVersion: 1;
   readonly target: {
     readonly platform: LocalSubtitleRuntimePlatform;
@@ -365,7 +369,7 @@ export async function verifyLocalSubtitleRuntimeBundle(
     });
   }
 
-  return Object.freeze({
+  const bundle = {
     schemaVersion: 1,
     target: Object.freeze({ platform: target.platform, arch: target.arch }),
     scope,
@@ -378,7 +382,30 @@ export async function verifyLocalSubtitleRuntimeBundle(
     evidenceFileCount: evidenceFiles.length,
     noPathFallback: true,
     ready: true,
+  } as Omit<
+    LocalSubtitleVerifiedRuntimeBundle,
+    typeof VERIFIED_RUNTIME_BUNDLE_BRAND
+  >;
+  Object.defineProperty(bundle, VERIFIED_RUNTIME_BUNDLE_BRAND, {
+    value: true,
+    enumerable: false,
+    configurable: false,
+    writable: false,
   });
+  return Object.freeze(bundle) as LocalSubtitleVerifiedRuntimeBundle;
+}
+
+export function isLocalSubtitleVerifiedRuntimeBundle(
+  input: unknown,
+): input is LocalSubtitleVerifiedRuntimeBundle {
+  return (
+    typeof input === "object" &&
+    input !== null &&
+    Object.isFrozen(input) &&
+    (input as { readonly [VERIFIED_RUNTIME_BUNDLE_BRAND]?: unknown })[
+      VERIFIED_RUNTIME_BUNDLE_BRAND
+    ] === true
+  );
 }
 
 export function resolveVerifiedLocalSubtitleArtifact(

@@ -29,6 +29,10 @@ prerequisite.
   dependencies.
 - Test product-critical capabilities separately: model residency, structured
   final output, cancellation, health/readiness, child ownership and cleanup.
+- Treat startup readiness and ready-state health as different phases. A startup
+  connection failure or 503 may be retryable, while the same result after ready
+  requires a new process generation. A post-cancel `/health=ok` is not a reuse
+  barrier for underlying inference work.
 - Prefer a Node-owned official server process when it covers the required
   contract: spawn without a shell, bind loopback only, use a random private
   request path and empty static directory, sanitize the environment, and treat
@@ -61,9 +65,10 @@ node --test scripts/local-subtitle/whisper-server/supervisor.test.mjs
 node scripts/local-subtitle/whisper-server/run-poc.mjs <ignored local arguments>
 ```
 
-Confirm one server PID handles multiple files with one model load, aborting a
-request leaves the process healthy, results come from structured JSON, and
-shutdown leaves no child process, temporary directory or partial artifact.
+Confirm one server PID handles multiple successful files with one model load,
+aborting a request settles the client and forces a new process generation,
+results come from structured JSON, and shutdown leaves no child process,
+temporary directory or partial artifact.
 
 ## Related files
 

@@ -4,7 +4,7 @@
 >
 > Feature Slug：`local-subtitle-transcriber`
 >
-> 状态：调研、Final Design、`PRE-001`～`PRE-006` 技术冻结与 `CORE-001`～`CORE-004` 已完成。production decision record 固定 `whisper.cpp v1.9.1`、Node-managed HTTP contract v1、`large-v3-q5_0` 首发默认、跨平台 FFmpeg 8.1.2、Windows unsigned personal profile 与目标平台矩阵；shared schema、resource staging、独立 preload/IPC/capability 安全边界和 renderer 会话状态合同已冻结，下一步执行 `NATIVE-001`
+> 状态：调研、Final Design、`PRE-001`～`PRE-006`、`CORE-001`～`CORE-004` 与 `NATIVE-001` 已完成。production decision record 固定 `whisper.cpp v1.9.1`、Node-managed HTTP contract v1、`large-v3-q5_0` 首发默认、跨平台 FFmpeg 8.1.2、Windows unsigned personal profile 与目标平台矩阵；shared schema、resource staging、preload/IPC/capability、renderer session 与 official server transport/process contract 已冻结，下一步执行 `BE-001`
 >
 > 产品定位：使用本地算力把批量音频/视频转成可直接翻译的 SRT/LRC 字幕
 >
@@ -43,6 +43,8 @@
 > 2026-07-21 CORE-003 完成：冻结 15 个 public invoke、6 个 preload-private、2 个 event channel 和完整 fixed `window.localSubtitleApi`；main 为 top document/frame 签发私有 owner session，input/output draft capability、atomic task/batch lease、artifact ref/import token 骨架均独立于 Audio registry。legacy generic bridge 拒绝整个 namespace、丢弃 raw Electron event，并修复同源子窗口的 `nodeIntegration` 绕过。公开 artifact summary 收口为 ref/format/displayName/expiry，size/hash/path 保持 main-private；真实 media/model/task/artifact handler 仍分别属于后续 owner 包
 
 > 2026-07-21 CORE-004 完成：新增仅持久化安全偏好的 `fusionkit-local-subtitle-transcriber` Store、共享 task/resource revision reducer、SPA 级 runtime singleton 与 draft capability cleanup retry。runtime 先订阅后取快照，保留缓冲事件的 identity/generation observation，处理 gap、overflow、stale generation、tombstone、epoch invalidation 和 observer failure；prompt、File、token、task、artifact、字幕正文、路径及诊断均不持久化。9 files / 132 tests 定向、全量 109 files / 1034 tests、TypeScript、Vite test build 与 manifest gate 通过
+
+> 2026-07-21 NATIVE-001 完成：新增 pinned official server schema、显式 `node:http` multipart transport、opaque verified bundle 驱动的 launch/load identity、最小环境和有界脱敏诊断。startup readiness 与 runtime health 分离，health/inference 共用 single-active ticket；推理 deadline 覆盖文件 open/stat/upload/close，任何 mid-request/timeout/schema/cleanup failure 都要求新 process generation。定向 4 files / 75 tests、全量 113 passed + 1 skipped files / 1109 passed + 1 skipped tests、TypeScript 与 real CPU two-request/same-PID smoke 通过。child/session/port/restart/kill/owner cleanup 仍由 `BE-001` 独占
 
 ---
 
@@ -765,17 +767,18 @@ interface LocalSubtitleApi {
 
 ### 10.1 进程与传输模型
 
-- main 直接 `spawn()` runtime manifest 中固定、校验过的官方 `whisper-server`，不经过 shell，也不接受 renderer 提交 executable 或参数。
+- main 只从 `verifyLocalSubtitleRuntimeBundle()` 返回、带 module-private opaque proof 的 verified bundle map 按固定 artifact ID 选择官方 `whisper-server`，再直接 `spawn()`；不得把 root/generation/artifact 字段重新拼成一个看似已验证的 selection，也不接受 renderer 提交 executable 或参数。
 - child 使用 allowlisted 最小环境与受控 cwd，只保留动态库、系统运行和 bundled media runtime 所需变量；不得继承 API Key、authorization header、代理凭据或任意 Electron/Agent secret。
-- server 只绑定 `127.0.0.1` 临时端口；main 为每次进程会话生成至少 192-bit 随机 request path，并把 `--public` 指向空的私有临时目录。端口和私有 path 不进入 renderer、Store 或日志。
-- readiness 只认带私有前缀的 `/health` JSON；推理只认 `/inference` 的 HTTP status 与 `verbose_json`。stdout/stderr 仅作有界脱敏诊断，不解析人类进度或结果文案。
-- inference HTTP 客户端必须流式发送文件并使用独立、显式的长任务 timeout 与 response size 上限；不得依赖 Node 全局 `fetch`/Undici 的默认 response-header timeout。PRE-003 已复现短任务成功、长 CPU 任务约五分钟客户端断开的隐蔽边界。
-- 一个 server 同时只接受一个 FusionKit 推理请求，但在同一 model/backend 的连续任务间保留 context。model/backend 变化、load 失败、crash 或取消超时时由 supervisor 终止并重启进程。
+- server 只绑定 `127.0.0.1` 临时端口；main 为每次进程会话生成至少 192-bit 随机 request path，并把 `--public` 指向空的私有临时目录。端口和私有 path 不进入 renderer、Store 或日志。`BE-001` 必须在受控 `<userData>/local-subtitle/temp` 下原子创建 mode `0700` 的 session/public/tmp，使用 no-follow `lstat`、`realpath` containment、empty-public 与 identity 复核后才 spawn；NATIVE-001 的同步 descriptor 只做词法合同，不能把调用方传入的“empty”路径当作文件系统事实。
+- startup readiness 只认带私有前缀的 `/health` JSON；启动阶段的 connect/timeout/503 可由 supervisor 有界重试。一旦进入 ready，runtime health 的 timeout、transport、HTTP 或 schema 失败都 taint 当前 generation 并要求重启，不能沿用 startup 的 reusable 语义。取消后的 `/health=ok` 也不能证明底层推理已收敛。
+- health/readiness/inference 共用在首个 `await` 前同步领取的 single-active operation ticket；busy 调用不得发出第二个 HTTP request，成功返回前必须复核 ticket 与 session disposition，避免并发 health 已 taint 后 inference 仍返回 reusable。
+- inference HTTP 客户端必须流式发送文件并使用独立、显式的长任务 absolute deadline 与 response size 上限；deadline 从文件 open 前起算，并覆盖 HTTP exchange 与有界 FileHandle close，open/stat 消耗会缩短可用 HTTP 时间。close 失败或超期同样 taint generation，不得吞错；不得依赖 Node 全局 `fetch`/Undici 的默认 response-header timeout。PRE-003 已复现短任务成功、长 CPU 任务约五分钟客户端断开的隐蔽边界。
+- 一个 server 同时只接受一个 FusionKit operation，但在同一 model/backend 的连续成功任务间保留 context。model/backend 变化、load 失败、ready 后 health 失败、crash、取消或 cleanup 超时时由 supervisor 终止并重启进程。
 - 普通推理不访问外网。loopback HTTP 只是 Electron main 与其 child 的本机进程边界，并禁用代理继承；模型/加速包下载仍走单独的 ResourceJob。
 
 ### 10.2 请求与结果归一化
 
-正式媒体管线先由 FusionKit 的 Media Normalizer 生成受控 16 kHz mono PCM16 WAV，再从该 PCM 按精确 frame 边界切出约 30 秒、有小幅 overlap 的私有窗口 WAV，以独立 multipart `file` 请求发送给 `/inference`。原始音视频只规范化一次，不为每个窗口重新解码；产品 runtime 不启用官方 server 的 `--convert`，避免其内部 shell FFmpeg。PRE-002 为快速验证现有 MP4 临时启用系统 FFmpeg，不形成发行合同。
+正式媒体管线先由 FusionKit 的 Media Normalizer 生成受控 16 kHz mono PCM16 WAV，再从该 PCM 按精确 frame 边界切出约 30 秒、有小幅 overlap 的私有窗口 WAV，以独立 multipart `file` 请求发送给 `/inference`。`MEDIA-001` 必须产出 main-only branded window identity 并验证 RIFF/WAVE、PCM16、16 kHz、mono、frame/size/duration；HTTP transport 只接受该 owner 解析出的绝对路径，使用 `O_NOFOLLOW + FileHandle/fstat` 持有并复核同一非空文件，不能独自把任意 `.wav` 路径宣称为已规范化。原始音视频只规范化一次，不为每个窗口重新解码；产品 runtime 不启用官方 server 的 `--convert`，避免其内部 shell FFmpeg。PRE-002 为快速验证现有 MP4 临时启用系统 FFmpeg，不形成发行合同。
 
 请求字段只由 main 从已校验 task snapshot 生成：
 
@@ -1335,7 +1338,7 @@ resources/local-subtitle/
 
 ## 18. 分期实施建议（高层阶段）
 
-本节保留架构层面的阶段划分；可认领的工作包、依赖、状态、验证和实施记录以 `local-subtitle-transcriber_execution_plan.md` 为唯一执行台账。Execution Plan 已于 2026-07-16 建立，当前 `PRE-001`～`PRE-006` 与 `CORE-001`～`CORE-004` 已完成，M0、共享 schema、resource staging、IPC/capability 和 renderer session runtime 合同已冻结；下一步认领 `NATIVE-001`，完成 M1 并解锁 `NATIVE-002` 与 `BE-001`。`MEDIA-001`、`SUB-001`、`LINK-001` 也可按依赖独立推进。Windows personal distribution 的 unsigned profile 已明确；Developer ID、公证和 Gatekeeper accepted 只由未来 `QA-004` 验收 macOS 分发产物。
+本节保留架构层面的阶段划分；可认领的工作包、依赖、状态、验证和实施记录以 `local-subtitle-transcriber_execution_plan.md` 为唯一执行台账。Execution Plan 已于 2026-07-16 建立，当前 `PRE-001`～`PRE-006`、`CORE-001`～`CORE-004` 与 `NATIVE-001` 已完成，M1 的 schema、resource staging、IPC/capability、renderer session 和 official server contract 均已冻结；下一步认领 `BE-001` 实现真实 Supervisor。`NATIVE-002`、`MEDIA-001`、`SUB-001`、`LINK-001` 也可按依赖推进。Windows personal distribution 的 unsigned profile 已明确；Developer ID、公证和 Gatekeeper accepted 只由未来 `QA-004` 验收 macOS 分发产物。
 
 其中本节原先汇总为一个 `PRE-001` 的跨平台 PoC，在 Execution Plan 中拆为 `PRE-001`～`PRE-006`，以避免把基准、CPU runner、Windows CUDA、macOS Metal、FFmpeg/打包许可和最终技术冻结塞进一个无法单会话闭环的工作包。其余高层包也在执行计划中按安全边界和可验证纵向切片进一步拆分。
 
@@ -1425,11 +1428,20 @@ PRE-001 已解锁 runtime 开发，PRE-003 已确定 Windows CPU/CUDA，PRE-004 
 - capability cleanup queue 从 Audio 目录提炼到无业务语义的 shared service；Local 使用 authoritative earliest expiry，并把 `revoked:false`、owner release 和 expiry 作为幂等完成。
 - 9 files / 132 tests 定向、全量 109 files / 1034 tests、TypeScript、Vite test build、PRE manifest 0 error / 0 warning、validator 17/17 和 diff check 通过；未启动 Vite/Electron/native 长期进程。
 
-### BE-001：本地任务运行时
+### NATIVE-001：official server transport/process contract（已完成）
 
-- Job Manager、Runner Supervisor、状态机、取消、退出清理。
-- 模型驻留和单 GPU 串行队列。
-- 稳定错误码和脱敏诊断。
+- `server-contract.ts` 固定 v1.9.1 request fields、BCP-47 → Whisper code、strict health/`verbose_json` schema、时间戳整数化、response/upload/diagnostic/deadline 上限和 restart disposition；不发送 formatter 的 cue/line 参数，也不启用 token timestamps、`--convert`、`/load` 或人类 progress parsing。
+- `server-http-client.ts` 使用私有 `127.0.0.1 + 192-bit path` 的 `node:http` 流式 multipart，固定 `window.wav`；readiness/runtime health 分相、所有 operation single-active、文件 descriptor identity 复核、early response/UTF-8/header/body/schema 防护和 bounded close 均可测。任何 inference request 已开始后的 abort/timeout/HTTP/schema/transport/cleanup failure 都使 client `restart_required`。
+- `server-process-contract.ts` 直接消费完整 CORE-002 verified bundle + artifact ID，冻结 model/VAD/backend/runtime generation/process flags 的 load identity、exact argv 与 secret-free environment；session 可位于同一 managed root 的专用 `temp/` 子树，但真实目录创建、empty/no-follow/realpath/identity 复核仍属于 launcher。
+- `server-diagnostics.ts` 只接受 stdout/stderr，先脱敏 exact private values、endpoint/port/path/credential/prompt/body/transcript，再按 UTF-8 byte、行数和行长限额保留最近诊断。
+- 定向 4 files / 75 tests、全量 113 passed + 1 skipped files / 1109 passed + 1 skipped tests、TypeScript 与 exact v1.9.1 CPU two-request/same-PID smoke 通过；real test 默认无 fixture 时 skip，未提交 native binary/model/media。
+
+### BE-001：Server Supervisor 与真实进程生命周期
+
+- 只从 CORE-002 verified bundle map 与 main-managed model/VAD identity 构造 NATIVE-001 descriptor；创建/复核 mode `0700` session/public/tmp，持有 child handle、port reservation、process epoch 与 HTTP client。
+- 使用 `probeReadiness()` 做 starting 阶段有界轮询，ready 后只用 restart-on-failure `health()`；管理模型驻留、single-active window queue、late response generation、crash/idle/model/backend restart。
+- 取消先 abort 当前 request；无论随后 health 是否 ok，下一任务前都按同一 generation boundary terminate/restart。请求不结算时执行 kill fallback，等待 child `close`/stdio drain 后再 finish diagnostics 和删除 identity-bound session。
+- owner cleanup、app quit/update cleanup、稳定错误映射和有界脱敏诊断都由 Supervisor 统一实现；NATIVE-001 不持有 child、端口或跨请求 owner 状态，Job Manager 仍由 `BE-002` 完成。
 
 ### MODEL-001：模型管理
 
@@ -1594,9 +1606,9 @@ Electron 视觉/交互验证必须等待 preload loading 完全退出。若启�
 
 ## 22. 推荐下一步
 
-`PRE-001`～`PRE-006` 与 `CORE-001`～`CORE-004` 已完成，M0、共享 schema、resource manifest/resolver/staging、preload/IPC/capability 和 renderer session runtime contract 已冻结。唯一 production decision record 是 `poc/pre006-production-decision.json`，后续实现不得静默更换引擎、平台矩阵、首发模型或 media acquisition policy。
+`PRE-001`～`PRE-006`、`CORE-001`～`CORE-004` 与 `NATIVE-001` 已完成，M1 的共享 schema、resource manifest/resolver/staging、preload/IPC/capability、renderer session runtime 和 official server transport/process contract 已冻结。唯一 production decision record 是 `poc/pre006-production-decision.json`，后续实现不得静默更换引擎、平台矩阵、首发模型或 media acquisition policy。
 
-1. 下一步认领 `NATIVE-001`（official server runtime contract），完成 M1 的最后一个 owner 包并解锁 `NATIVE-002` 与 `BE-001`。`MEDIA-001`、`SUB-001` 或 `LINK-001` 仍可按依赖独立推进，但每次会话只闭环一个；正式 artifact/builder 接线由 `NATIVE-002` 在 `NATIVE-001 + CORE-002` 后完成。
+1. 下一步认领 `BE-001`（Server Supervisor），把已冻结 descriptor/client 接到真实 session directory、child/process epoch、readiness、restart/kill 和 owner/app cleanup；不得把 PoC supervisor 直接复制进产品，也不得把 session filesystem 事实或 lifecycle 状态塞回 NATIVE-001。`NATIVE-002`、`MEDIA-001`、`SUB-001` 或 `LINK-001` 仍可按依赖推进；正式 artifact/builder 接线由 `NATIVE-002` 完成。
 2. Windows 继续使用 `unsigned_personal_distribution`；本人/朋友安装不引入证书或信任库变更。若以后明确要求公开低提示分发，受信任 installer 签名/timestamp 才归可选 `QA-003`。
 3. Developer ID、公证和 Gatekeeper accepted 只由 `QA-004` 验收 macOS 分发产物；QA-005 完成分发前第三方 notices/source-offer/NVIDIA DLL 核对。
 4. 仍无需 FusionKit 自写 C++ runner；只有 official server 出现产品必需能力的真实硬缺口，才通过独立工作包重新评估 native bridge。
