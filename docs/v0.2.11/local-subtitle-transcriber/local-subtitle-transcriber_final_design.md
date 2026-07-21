@@ -4,7 +4,7 @@
 >
 > Feature Slug：`local-subtitle-transcriber`
 >
-> 状态：调研、Final Design、`PRE-001`～`PRE-006` 技术冻结与 `CORE-001` 共享 domain/runtime schema 已完成。production decision record 固定 `whisper.cpp v1.9.1`、Node-managed HTTP contract v1、`large-v3-q5_0` 首发默认、跨平台 FFmpeg 8.1.2、Windows unsigned personal profile 与目标平台矩阵；下一步优先执行 `CORE-002`，`CORE-003` 等依赖 `CORE-001` 的工作包已解锁
+> 状态：调研、Final Design、`PRE-001`～`PRE-006` 技术冻结与 `CORE-001`～`CORE-002` 已完成。production decision record 固定 `whisper.cpp v1.9.1`、Node-managed HTTP contract v1、`large-v3-q5_0` 首发默认、跨平台 FFmpeg 8.1.2、Windows unsigned personal profile 与目标平台矩阵；shared schema 和 versioned resource manifest/resolver/staging contract 已冻结，下一步优先执行 `CORE-003`
 >
 > 产品定位：使用本地算力把批量音频/视频转成可直接翻译的 SRT/LRC 字幕
 >
@@ -37,6 +37,8 @@
 > 2026-07-18 PRE-006 完成：`poc/pre006-production-decision.json` 将五项 production 决策全部标记为 `go`。Windows 默认随 CPU runtime、CUDA 12.4 官方包按需安装；macOS arm64 默认 Metal 并保留显式 CPU，macOS x64 固定拒绝。Windows 采用已实跑的 immutable BtbN LGPLv3 baseline，不引入本地 source-build 工具链；个人/朋友分发继续不要求 Windows 代码签名、证书或信任库。阶段式进度已满足 v1，首版不建 native bridge；第三方 notices 与 NVIDIA 精确 DLL 清单仍由 `QA-005` 在分发前复核
 
 > 2026-07-21 CORE-001 完成：新增独立 `localSubtitle.ts` / `localSubtitleIpc.ts`，冻结 domain、状态机、full/partial/none-success、task generation/session revision、post-action、错误 manifest、canonical transcript、strict request/event/snapshot schema 与 v1 上限；57 项定向 Vitest、TypeScript、PRE-006 manifest drift 校验与 Audio IPC 回归通过。preload channel、owner capability、native HTTP parser 和 resource resolver 仍分别属于 `CORE-003`、`NATIVE-001`、`CORE-002`
+
+> 2026-07-21 CORE-002 完成：新增 production strict runtime manifest、dev/packaged resource resolver、完整 Windows CPU DLL/profile/evidence 绑定、symlink/containment/size/SHA/arch/execute/signature gate，以及共享的 versioned staging contract/canonical preflight。CORE-002 定向 42 项、CORE+Audio 117 项、全量 918 项 Vitest 与 TypeScript/manifest/Node gate 通过；正式 `extraResources`、真实 artifact 和 launch/HTTP probe 仍分别属于 `NATIVE-002`、`NATIVE-001` / `MEDIA-001`
 
 ---
 
@@ -700,10 +702,11 @@ type LocalSubtitleErrorCode =
 | 字幕文本 | 单 cue 最多 4,096 个正文字符、4 行、每行 1,024 字符；保留 Unicode，拒绝结构破坏控制字符 |
 | 标识与展示 | id / opaque token/ref 最多 128 字符；display leaf 最多 255 字符 |
 | 诊断 | 总计 64 KiB UTF-8、256 行、每行 1,024 字符；metadata 只接受固定 key，截断显式标记 |
+| Runtime manifest | 文件最多 2 MiB；最多 256 artifacts、64 licenses、64 sources、256 evidence files；relative path 最多 512 字符 |
 | PRE-006 raw gate | 30,000 ms window、5,000 ms overlap、100 ms boundary tolerance、15,000 ms raw segment、连续 8 cue 且覆盖 15,000 ms、最多 3 层 window retry |
 | Native HTTP | 单响应 64 MiB、单活动请求、私有 path 至少 192-bit entropy |
 
-所有跨边界 object 递归使用 strict runtime schema，拒绝 raw `path/filePath/outputPath/modelPath`、任意 executable/args/backend flags、未知 backend 与多余字段。renderer enqueue 只提交产品字段与 opaque capability；`modelHash`、`resolvedBackend`、runtime pin 和 batch immutable snapshot 均由 main 解析/生成。CORE-001 不冻结 channel 名、owner handshake 或 native/resource manifest 文件格式，这些仍由后续 owner 工作包完成。
+所有跨边界 object 递归使用 strict runtime schema，拒绝 raw `path/filePath/outputPath/modelPath`、任意 executable/args/backend flags、未知 backend 与多余字段。renderer enqueue 只提交产品字段与 opaque capability；`modelHash`、`resolvedBackend`、runtime pin 和 batch immutable snapshot 均由 main 解析/生成。CORE-001 不冻结 channel 名或 owner handshake；CORE-002 已冻结 bundled runtime manifest/staging 文件合同，下载型 model/VAD/accelerator manifest 仍由对应后续 owner 包完成。
 
 ## 9. Preload、IPC 与权限边界
 
@@ -958,7 +961,7 @@ Windows x64 首版采用 immutable BtbN `autobuild-2026-06-30-13-34` 的 `ffmpeg
 
 ### 12.5 用户机器缺失或损坏时的处理
 
-用户无需也不应自行安装或选择 FFmpeg。应用启动或首次进入工具页时做轻量 runtime probe，并在每次 batch commit 前复核当前 runtime generation：
+用户无需也不应自行安装或选择 FFmpeg。静态 verified bundle 仅代表校验完成时的时点快照，并公开 `runtimeGeneration = manifestSha256`；应用启动或首次进入工具页时做轻量 runtime probe，每次 batch commit 前都必须重新执行完整静态验证并复核当前 runtime generation：
 
 1. 必需文件/manifest 项缺失时返回 `media_runtime_missing`。
 2. 平台、架构、大小、SHA-256、声明的签名/unsigned integrity profile 或版本不匹配时返回 `media_runtime_invalid`。
@@ -1287,7 +1290,7 @@ resources/local-subtitle/
   licenses/...
 ```
 
-开发环境和 packaged 环境统一通过一个 `resolveLocalSubtitleResourcePath()` 解析，不在业务代码散落 `process.cwd()` 或相对路径。runtime manifest 必须覆盖每个 runner、动态依赖、FFmpeg/ffprobe 的平台、架构、backend、相对路径、size、SHA-256、版本和许可证引用；packaged resolver 从 `process.resourcesPath` 开始并拒绝目录逃逸。
+开发环境和 packaged 环境统一通过一个 `resolveLocalSubtitleResourcePath()` 解析，不在业务代码散落 `process.cwd()` 或相对路径。CORE-002 已固定开发态 `<appRoot>/build/local-subtitle-resources/local-subtitle` 与 packaged `<resourcesPath>/local-subtitle` 两个唯一 root；runtime manifest 覆盖每个 runner、动态依赖、FFmpeg/ffprobe 的平台、架构、backend、相对路径、size、SHA-256、版本、许可证引用和 integrity profile，并拒绝 lexical/realpath 逃逸及任意 parent symlink。
 
 ### 16.2 electron-builder
 
@@ -1322,7 +1325,7 @@ resources/local-subtitle/
 
 ## 18. 分期实施建议（高层阶段）
 
-本节保留架构层面的阶段划分；可认领的工作包、依赖、状态、验证和实施记录以 `local-subtitle-transcriber_execution_plan.md` 为唯一执行台账。Execution Plan 已于 2026-07-16 建立，当前 `PRE-001`～`PRE-006` 与 `CORE-001` 已完成，M0 技术可行性门禁已解除；下一步优先认领 `CORE-002`，依赖 `CORE-001` 的 `CORE-003`、`NATIVE-001`、`MEDIA-001`、`SUB-001`、`LINK-001` 也已解锁。Windows personal distribution 的 unsigned profile 已明确；Developer ID、公证和 Gatekeeper accepted 只由未来 `QA-004` 验收 macOS 分发产物。
+本节保留架构层面的阶段划分；可认领的工作包、依赖、状态、验证和实施记录以 `local-subtitle-transcriber_execution_plan.md` 为唯一执行台账。Execution Plan 已于 2026-07-16 建立，当前 `PRE-001`～`PRE-006` 与 `CORE-001`～`CORE-002` 已完成，M0、共享 schema 和 resource staging 合同已冻结；下一步优先认领 `CORE-003`，`NATIVE-001`、`MEDIA-001`、`SUB-001`、`LINK-001` 也可按依赖独立推进。Windows personal distribution 的 unsigned profile 已明确；Developer ID、公证和 Gatekeeper accepted 只由未来 `QA-004` 验收 macOS 分发产物。
 
 其中本节原先汇总为一个 `PRE-001` 的跨平台 PoC，在 Execution Plan 中拆为 `PRE-001`～`PRE-006`，以避免把基准、CPU runner、Windows CUDA、macOS Metal、FFmpeg/打包许可和最终技术冻结塞进一个无法单会话闭环的工作包。其余高层包也在执行计划中按安全边界和可验证纵向切片进一步拆分。
 
@@ -1387,6 +1390,14 @@ PRE-001 已解锁 runtime 开发，PRE-003 已确定 Windows CPU/CUDA，PRE-004 
 - `src/type/localSubtitleIpc.ts` 只组合 strict renderer/main request、control request、IPC result、task/resource event、session snapshot 与 transcript schema；unknown field、raw path、executable/args/backend flags 和未发布 Vulkan 均拒绝。
 - preload channel/owner capability 留给 `CORE-003`，official server HTTP response parser 留给 `NATIVE-001`，runtime/resource manifest 文件 schema 和 resolver 留给 `CORE-002`，没有跨包预实现。
 - 57 项定向测试覆盖 PRE-006 drift、10×10 状态迁移、completion、取消、revision/generation、post-action/status 跨字段约束、UTF-8 frame/diagnostics、round-trip 和 Audio 隔离；TypeScript 通过。
+
+### CORE-002：资源 manifest、路径 resolver 与构建 staging 合同（已完成）
+
+- `resource-manifest.ts` 与 `resource-path.ts` 实现 strict/deep-frozen manifest、显式 dev/packaged root、main-only verified artifact lookup，以及 size/SHA/arch/execute/signature/license/source/containment gate；macOS x64 在 filesystem 前拒绝。
+- `local-subtitle-staging.v1.json` 同时约束 TS 与 Node staging：macOS nested-signed final bytes、Windows unsigned personal final bytes、完整 base artifact/evidence 集、canonical build root 和 `${arch}` artifact naming。
+- Windows base manifest 精确要求 server + 12 CPU DLL + ffmpeg/ffprobe；所有 artifact/evidence path 全局大小写不敏感唯一，不允许 PATH、用户 executable 或任意 relative path 补洞。
+- `validate-runtime-staging.mjs` 只验证 canonical staging 和现有 builder naming；正式 `extraResources` / `beforePack` / sign ignore 留给 `NATIVE-002`，本包没有提交或生成真实 binary。
+- CORE-002 定向 Vitest 2 files / 42 tests，CORE-001/002 + Audio IPC 5 files / 117 tests，全量 Vitest 97 files / 918 tests；TypeScript、35 项 staging/runtime Node 定向与 manifest gate 通过。canonical staging 固定 `point_in_time_static` / `launch:false`，descriptor-bound server/media launch 分别留 `NATIVE-001` / `MEDIA-001`。完整 Node 套件 104 项中 102 pass / 1 fail / 1 skip，唯一红灯仍为既有 `FK-PIT-0030` fixture。
 
 ### BE-001：本地任务运行时
 
@@ -1556,9 +1567,9 @@ Electron 视觉/交互验证必须等待 preload loading 完全退出。若启�
 
 ## 22. 推荐下一步
 
-`PRE-001`～`PRE-006` 与 `CORE-001` 已完成，M0 技术可行性和共享 domain/runtime schema 已冻结。唯一 production decision record 是 `poc/pre006-production-decision.json`，后续实现不得静默更换引擎、平台矩阵、首发模型或 media acquisition policy。
+`PRE-001`～`PRE-006` 与 `CORE-001`～`CORE-002` 已完成，M0、共享 schema 和 resource manifest/resolver/staging contract 已冻结。唯一 production decision record 是 `poc/pre006-production-decision.json`，后续实现不得静默更换引擎、平台矩阵、首发模型或 media acquisition policy。
 
-1. 下一步优先认领 `CORE-002`（资源 manifest/resolver/staging 合同）；也可按依赖独立认领 `CORE-003`、`NATIVE-001`、`MEDIA-001`、`SUB-001` 或 `LINK-001`，但本会话一次只闭环一个。
+1. 下一步优先认领 `CORE-003`（preload/IPC/capability 安全边界）；也可按依赖独立认领 `NATIVE-001`、`MEDIA-001`、`SUB-001` 或 `LINK-001`，但本会话一次只闭环一个。正式 artifact/builder 接线由 `NATIVE-002` 在 `NATIVE-001 + CORE-002` 后完成。
 2. Windows 继续使用 `unsigned_personal_distribution`；本人/朋友安装不引入证书或信任库变更。若以后明确要求公开低提示分发，受信任 installer 签名/timestamp 才归可选 `QA-003`。
 3. Developer ID、公证和 Gatekeeper accepted 只由 `QA-004` 验收 macOS 分发产物；QA-005 完成分发前第三方 notices/source-offer/NVIDIA DLL 核对。
 4. 仍无需 FusionKit 自写 C++ runner；只有 official server 出现产品必需能力的真实硬缺口，才通过独立工作包重新评估 native bridge。

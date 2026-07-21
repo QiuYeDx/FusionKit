@@ -16,7 +16,6 @@ import { parseArgs, promisify } from "node:util";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import {
   RUNTIME_CONTRACT_VERSION,
-  RUNTIME_HASH_PHASE,
   RUNTIME_MANIFEST_RELATIVE_PATH,
   RUNTIME_MANIFEST_SCHEMA_VERSION,
   buildSanitizedRuntimeEnvironment,
@@ -28,6 +27,10 @@ import {
   FFMPEG_BUILD_CONTRACT,
   validateVersionOutput,
 } from "./build-ffmpeg-macos-arm64.mjs";
+import {
+  getLocalSubtitleStagingTarget,
+  resolveRuntimeStagingOutputParent,
+} from "./staging-contract.mjs";
 
 const execFileAsync = promisify(execFile);
 const SCRIPT_PATH = fileURLToPath(import.meta.url);
@@ -41,14 +44,14 @@ const WHISPER_COMMIT = "f049fff95a089aa9969deb009cdd4892b3e74916";
 
 export const RUNTIME_LAYOUTS = Object.freeze({
   "darwin-arm64": Object.freeze({
-    targetId: "mac-arm64",
+    targetId: "darwin-arm64",
     server: "mac-arm64/metal/whisper-server",
     ffmpeg: "mac-arm64/media/ffmpeg",
     ffprobe: "mac-arm64/media/ffprobe",
     serverBackend: "metal_cpu",
   }),
   "win32-x64": Object.freeze({
-    targetId: "win-x64",
+    targetId: "win32-x64",
     server: "win-x64/cpu/whisper-server.exe",
     ffmpeg: "win-x64/media/ffmpeg.exe",
     ffprobe: "win-x64/media/ffprobe.exe",
@@ -111,7 +114,8 @@ export async function stageMacosArm64Runtime(options) {
     throw new Error("macOS arm64 staging requires a native darwin/arm64 host.");
   }
   const layout = getRuntimeLayout("darwin", "arm64");
-  const outputParent = path.resolve(requirePath(options.outputParent, "outputParent"));
+  const targetContract = getLocalSubtitleStagingTarget("darwin", "arm64");
+  const outputParent = resolveRuntimeOutputParent(options.outputParent);
   const finalRoot = path.join(outputParent, "local-subtitle");
   const partialRoot = path.join(
     outputParent,
@@ -129,12 +133,15 @@ export async function stageMacosArm64Runtime(options) {
   const signingIdentity = requirePath(options.signingIdentity, "signingIdentity");
   const buildReceipt = JSON.parse(await readFile(buildReceiptPath, "utf8"));
   await validateFfmpegBuildReceipt(buildReceipt, { ffmpegPath, ffprobePath });
+  const receiptArtifacts = new Map(
+    buildReceipt.artifacts.map((artifact) => [artifact.kind, artifact]),
+  );
 
   try {
     await mkdir(partialRoot, { recursive: true });
     const stagedInputs = [
       {
-        id: "whisper-server-mac-arm64",
+        id: "whisper-server-mac-arm64-metal-cpu",
         kind: "server",
         inputPath: serverPath,
         relativePath: layout.server,
@@ -154,6 +161,7 @@ export async function stageMacosArm64Runtime(options) {
         licenseRef: "ffmpeg-lgpl-2.1-or-later",
         sourceRef: "ffmpeg-8.1.2",
         codeIdentifier: "com.fusionkit.local-subtitle.ffmpeg",
+        expectedUnsigned: receiptArtifacts.get("ffmpeg"),
       },
       {
         id: "ffprobe-mac-arm64",
@@ -165,6 +173,7 @@ export async function stageMacosArm64Runtime(options) {
         licenseRef: "ffmpeg-lgpl-2.1-or-later",
         sourceRef: "ffmpeg-8.1.2",
         codeIdentifier: "com.fusionkit.local-subtitle.ffprobe",
+        expectedUnsigned: receiptArtifacts.get("ffprobe"),
       },
     ];
 
@@ -172,8 +181,18 @@ export async function stageMacosArm64Runtime(options) {
     for (const input of stagedInputs) {
       const outputPath = path.join(partialRoot, ...input.relativePath.split("/"));
       await mkdir(path.dirname(outputPath), { recursive: true });
+      const inputStat = await stat(input.inputPath);
+      const inputSha256 = await sha256File(input.inputPath);
       await copyFile(input.inputPath, outputPath);
       await chmod(outputPath, 0o755);
+      await verifyStagedCopyMatches(
+        outputPath,
+        input.expectedUnsigned ?? {
+          byteSize: inputStat.size,
+          sha256: inputSha256,
+        },
+        input.id,
+      );
       const inspectionBeforeSigning = await inspectNativeBinaryFile(outputPath);
       if (
         inspectionBeforeSigning.format !== "mach-o" ||
@@ -214,13 +233,10 @@ export async function stageMacosArm64Runtime(options) {
     const manifest = {
       schemaVersion: RUNTIME_MANIFEST_SCHEMA_VERSION,
       runtimeContractVersion: RUNTIME_CONTRACT_VERSION,
-      manifestId: "local-subtitle-runtime-darwin-arm64-pre005",
+      manifestId: "local-subtitle-runtime-darwin-arm64-v1",
       target: { platform: "darwin", arch: "arm64" },
-      integrity: {
-        algorithm: "sha256",
-        binaryHashPhase: RUNTIME_HASH_PHASE,
-        outerSignatureCoverage: "required",
-      },
+      integrityProfile: targetContract.integrityProfile,
+      integrity: { ...targetContract.integrity },
       artifacts,
       licenses: evidence.licenses,
       sources: evidence.sources,
@@ -253,6 +269,7 @@ export async function stageMacosArm64Runtime(options) {
       nestedSigningCompletedBeforeHashing: true,
       outerSignatureCoveragePending: true,
       signatureKind: artifacts[0].signatureKind,
+      integrityProfile: targetContract.integrityProfile,
       ffmpegSourceSignatureVerification:
         buildReceipt.source.signatureVerification.status,
       readyForBuilderSpike: true,
@@ -264,6 +281,24 @@ export async function stageMacosArm64Runtime(options) {
   } catch (error) {
     await rm(partialRoot, { recursive: true, force: true });
     throw error;
+  }
+}
+
+export function resolveRuntimeOutputParent(outputParent) {
+  if (outputParent === undefined) {
+    return resolveRuntimeStagingOutputParent(PROJECT_ROOT);
+  }
+  return path.resolve(requirePath(outputParent, "outputParent"));
+}
+
+export async function verifyStagedCopyMatches(filePath, expected, artifactId) {
+  const fileStat = await stat(filePath);
+  if (
+    !fileStat.isFile() ||
+    fileStat.size !== expected.byteSize ||
+    await sha256File(filePath) !== expected.sha256
+  ) {
+    throw new Error(`${artifactId} staged bytes do not match the verified input.`);
   }
 }
 
@@ -493,7 +528,7 @@ async function runCli(argv = process.argv.slice(2)) {
   const options = parseCliArguments(argv);
   if (options.help) {
     process.stdout.write(
-      "Usage: node stage-runtime.mjs --output <ignored-parent> --server <file> " +
+      "Usage: node stage-runtime.mjs [--output <ignored-parent>] --server <file> " +
         "--ffmpeg <file> --ffprobe <file> --ffmpeg-build-receipt <json> " +
         "[--sign-identity <identity-or-dash>]\n",
     );

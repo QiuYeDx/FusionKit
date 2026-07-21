@@ -1,20 +1,32 @@
 import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
-import { createReadStream } from "node:fs";
+import { constants as fsConstants, createReadStream } from "node:fs";
 import {
   lstat,
+  open,
   readFile,
   realpath,
 } from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
+import {
+  LOCAL_SUBTITLE_STAGING_CONTRACT,
+  STAGING_LIMITS,
+  getLocalSubtitleStagingTarget,
+} from "./staging-contract.mjs";
 
 const execFileAsync = promisify(execFile);
+const MAX_NATIVE_HEADER_BYTES = 1024 * 1024;
+const FILE_HASH_CHUNK_BYTES = 1024 * 1024;
+const READ_ONLY_NOFOLLOW_FLAGS =
+  fsConstants.O_RDONLY | (fsConstants.O_NOFOLLOW ?? 0);
 
 export const RUNTIME_MANIFEST_RELATIVE_PATH =
-  "manifests/local-subtitle-runtime.v1.json";
-export const RUNTIME_MANIFEST_SCHEMA_VERSION = 1;
-export const RUNTIME_CONTRACT_VERSION = 1;
+  LOCAL_SUBTITLE_STAGING_CONTRACT.runtimeManifestRelativePath;
+export const RUNTIME_MANIFEST_SCHEMA_VERSION =
+  LOCAL_SUBTITLE_STAGING_CONTRACT.runtimeManifestSchemaVersion;
+export const RUNTIME_CONTRACT_VERSION =
+  LOCAL_SUBTITLE_STAGING_CONTRACT.runtimeContractVersion;
 export const RUNTIME_HASH_PHASE =
   "after_nested_code_signing_before_outer_bundle_signing";
 export const RUNTIME_UNSIGNED_HASH_PHASE =
@@ -39,8 +51,8 @@ const SIGNATURE_KINDS = new Set([
   "unsigned",
 ]);
 const SUPPORTED_TARGETS = Object.freeze({
-  darwin: Object.freeze({ arch: "arm64", targetId: "mac-arm64" }),
-  win32: Object.freeze({ arch: "x64", targetId: "win-x64" }),
+  darwin: Object.freeze({ arch: "arm64", targetId: "darwin-arm64" }),
+  win32: Object.freeze({ arch: "x64", targetId: "win32-x64" }),
 });
 
 export class LocalSubtitleRuntimeError extends Error {
@@ -77,18 +89,30 @@ export function normalizeManifestRelativePath(value, label = "relativePath") {
   if (
     typeof value !== "string" ||
     value.length === 0 ||
+    value.length > STAGING_LIMITS.maxRelativePathChars ||
     value.includes("\0") ||
     value.includes("\\") ||
-    path.posix.isAbsolute(value)
+    value.includes(":") ||
+    path.posix.isAbsolute(value) ||
+    value.trim() !== value ||
+    /[\u0000-\u001f\u007f]/u.test(value)
   ) {
     throw invalidManifest(`${label} must be a non-empty POSIX relative path.`);
   }
   const normalized = path.posix.normalize(value);
+  const segments = value.split("/");
   if (
     normalized !== value ||
     normalized === "." ||
     normalized === ".." ||
-    normalized.startsWith("../")
+    normalized.startsWith("../") ||
+    segments.some(
+      (segment) =>
+        segment.length === 0 ||
+        segment.endsWith(".") ||
+        segment.endsWith(" ") ||
+        isWindowsReservedName(segment),
+    )
   ) {
     throw invalidManifest(`${label} is not a normalized contained path.`);
   }
@@ -124,6 +148,7 @@ export function validateRuntimeManifest(manifest, options = {}) {
       "runtimeContractVersion",
       "manifestId",
       "target",
+      "integrityProfile",
       "integrity",
       "artifacts",
       "licenses",
@@ -137,13 +162,18 @@ export function validateRuntimeManifest(manifest, options = {}) {
   if (manifest.runtimeContractVersion !== RUNTIME_CONTRACT_VERSION) {
     throw invalidManifest("Unsupported runtimeContractVersion.");
   }
-  assertNonEmptyString(manifest.manifestId, "manifestId");
-  rejectPrivatePath(manifest.manifestId, "manifestId");
+  assertIdentifier(manifest.manifestId, "manifestId");
 
   assertPlainObject(manifest.target, "target");
   assertExactKeys(manifest.target, ["platform", "arch"], "target");
   if (manifest.target.platform !== platform || manifest.target.arch !== arch) {
     throw invalidManifest("Runtime manifest target does not match the host target.");
+  }
+  const targetContract = getLocalSubtitleStagingTarget(platform, arch);
+  if (manifest.integrityProfile !== targetContract.integrityProfile) {
+    throw invalidManifest(
+      "Runtime integrity profile does not match the staging target.",
+    );
   }
 
   assertPlainObject(manifest.integrity, "integrity");
@@ -152,45 +182,50 @@ export function validateRuntimeManifest(manifest, options = {}) {
     ["algorithm", "binaryHashPhase", "outerSignatureCoverage"],
     "integrity",
   );
-  const signedIntegrity =
-    manifest.integrity.binaryHashPhase === RUNTIME_HASH_PHASE &&
-    manifest.integrity.outerSignatureCoverage === "required";
-  const unsignedPersonalIntegrity =
-    platform === "win32" &&
-    manifest.integrity.binaryHashPhase === RUNTIME_UNSIGNED_HASH_PHASE &&
-    manifest.integrity.outerSignatureCoverage ===
-      PERSONAL_DISTRIBUTION_OUTER_COVERAGE;
-  if (
-    manifest.integrity.algorithm !== "sha256" ||
-    (!signedIntegrity && !unsignedPersonalIntegrity)
-  ) {
-    throw invalidManifest("Runtime integrity policy is not supported.");
+  for (const key of [
+    "algorithm",
+    "binaryHashPhase",
+    "outerSignatureCoverage",
+  ]) {
+    if (manifest.integrity[key] !== targetContract.integrity[key]) {
+      throw invalidManifest(
+        "Runtime integrity policy does not match the staging target.",
+      );
+    }
   }
 
-  const licenses = validateLicenseRecords(manifest.licenses);
-  const sources = validateSourceRecords(manifest.sources);
+  const evidenceFileCount = Array.isArray(manifest.licenses)
+    ? manifest.licenses.reduce(
+        (count, record) =>
+          count +
+          (Array.isArray(record?.licenseFiles) ? record.licenseFiles.length : 0) +
+          (Array.isArray(record?.noticeFiles) ? record.noticeFiles.length : 0),
+        0,
+      ) + (Array.isArray(manifest.sources) ? manifest.sources.length : 0)
+    : Number.POSITIVE_INFINITY;
+  if (evidenceFileCount > STAGING_LIMITS.maxEvidenceFiles) {
+    throw invalidManifest("Runtime manifest evidence files exceed the limit.");
+  }
+
+  const globalPaths = new Set();
+  const licenses = validateLicenseRecords(
+    manifest.licenses,
+    targetContract.requiredLicenses,
+    globalPaths,
+  );
+  const sources = validateSourceRecords(
+    manifest.sources,
+    targetContract.requiredSources,
+    globalPaths,
+  );
   validateArtifactRecords(manifest.artifacts, {
     platform,
     arch,
     licenses,
     sources,
+    globalPaths,
+    targetContract,
   });
-  if (
-    unsignedPersonalIntegrity &&
-    manifest.artifacts.some((artifact) => artifact.signatureKind !== "unsigned")
-  ) {
-    throw invalidManifest(
-      "Unsigned personal distribution artifacts must declare signatureKind unsigned.",
-    );
-  }
-  if (
-    signedIntegrity &&
-    manifest.artifacts.some((artifact) => artifact.signatureKind === "unsigned")
-  ) {
-    throw invalidManifest(
-      "Signed distribution artifacts cannot declare signatureKind unsigned.",
-    );
-  }
   return manifest;
 }
 
@@ -199,6 +234,11 @@ export async function loadRuntimeManifest(runtimeRoot, options = {}) {
   const arch = options.arch ?? process.arch;
   assertSupportedRuntimeTarget(platform, arch);
   const root = path.resolve(runtimeRoot);
+  await assertRuntimeRootDirectory(root, {
+    missingCode: "media_runtime_missing",
+    invalidCode: "media_runtime_invalid",
+    stage: "manifest",
+  });
   const manifestPath = resolveContainedResourcePath(
     root,
     RUNTIME_MANIFEST_RELATIVE_PATH,
@@ -211,13 +251,74 @@ export async function loadRuntimeManifest(runtimeRoot, options = {}) {
       "The bundled local subtitle runtime manifest is missing.",
     );
   }
-  if (!manifestStat.isFile() || manifestStat.isSymbolicLink()) {
+  if (
+    !manifestStat.isFile() ||
+    manifestStat.isSymbolicLink() ||
+    manifestStat.size > STAGING_LIMITS.maxManifestBytes
+  ) {
     throw invalidManifest("The runtime manifest is not a regular file.");
+  }
+  await assertNoSymbolicResourcePath(
+    root,
+    RUNTIME_MANIFEST_RELATIVE_PATH,
+    {
+      missingCode: "media_runtime_missing",
+      invalidCode: "media_runtime_invalid",
+      stage: "manifest",
+    },
+  );
+
+  let manifestHandle;
+  try {
+    manifestHandle = await open(manifestPath, READ_ONLY_NOFOLLOW_FLAGS);
+  } catch {
+    throw invalidManifest("The runtime manifest cannot be opened.");
+  }
+  let content;
+  try {
+    const openedStat = await statOpenFile(manifestHandle, {
+      invalidCode: "media_runtime_invalid",
+      stage: "manifest",
+    });
+    assertMatchingFileIdentity(manifestStat, openedStat, {
+      invalidCode: "media_runtime_invalid",
+      stage: "manifest",
+    });
+    if (!openedStat.isFile() || openedStat.size > STAGING_LIMITS.maxManifestBytes) {
+      throw invalidManifest("The runtime manifest is not a regular file.");
+    }
+    content = await manifestHandle.readFile();
+    const completedStat = await statOpenFile(manifestHandle, {
+      invalidCode: "media_runtime_invalid",
+      stage: "manifest",
+    });
+    assertMatchingFileIdentity(openedStat, completedStat, {
+      invalidCode: "media_runtime_invalid",
+      stage: "manifest",
+    });
+    await assertNoSymbolicResourcePath(
+      root,
+      RUNTIME_MANIFEST_RELATIVE_PATH,
+      {
+        missingCode: "media_runtime_missing",
+        invalidCode: "media_runtime_invalid",
+        stage: "manifest",
+      },
+    );
+    await assertPathFileIdentity(manifestPath, completedStat, {
+      invalidCode: "media_runtime_invalid",
+      stage: "manifest",
+    });
+  } catch (error) {
+    if (error instanceof LocalSubtitleRuntimeError) throw error;
+    throw invalidManifest("The runtime manifest is not valid JSON.");
+  } finally {
+    await manifestHandle.close();
   }
 
   let manifest;
   try {
-    manifest = JSON.parse(await readFile(manifestPath, "utf8"));
+    manifest = JSON.parse(content.toString("utf8"));
   } catch {
     throw invalidManifest("The runtime manifest is not valid JSON.");
   }
@@ -226,7 +327,7 @@ export async function loadRuntimeManifest(runtimeRoot, options = {}) {
     root,
     manifestPath,
     manifest,
-    manifestSha256: await sha256File(manifestPath),
+    manifestSha256: createHash("sha256").update(content).digest("hex"),
   };
 }
 
@@ -282,7 +383,7 @@ export async function verifyRuntimeBundle(options) {
   const verifiedArtifacts = [];
   for (const artifact of selectedArtifacts) {
     const media = isMediaArtifact(artifact);
-    const verified = await verifyRegularFile(loaded.root, artifact, {
+    const verificationPolicy = {
       missingCode: media ? "media_runtime_missing" : "runtime_missing",
       invalidCode: media
         ? "media_runtime_invalid"
@@ -295,8 +396,17 @@ export async function verifyRuntimeBundle(options) {
       platform,
       signatureKind: artifact.signatureKind,
       signatureVerifier: options.signatureVerifier,
+    };
+    const verified = await verifyRegularFile(
+      loaded.root,
+      artifact,
+      verificationPolicy,
+    );
+    verifiedArtifacts.push({
+      artifact,
+      verificationPolicy,
+      ...verified,
     });
-    verifiedArtifacts.push({ artifact, ...verified });
   }
 
   const launchResults = [];
@@ -304,12 +414,24 @@ export async function verifyRuntimeBundle(options) {
     const runner = options.commandRunner ?? runArtifactCommand;
     for (const verified of verifiedArtifacts) {
       if (verified.artifact.kind === "dynamic_library") continue;
+      const launchClosure = await verifyArtifactClosure(
+        loaded.root,
+        verifiedArtifacts,
+      );
+      const launchReady = launchClosure.get(verified.artifact.id);
+      if (!launchReady) {
+        throw launchErrorFor(verified.artifact);
+      }
       const result = await probeArtifact(
-        verified,
+        { artifact: verified.artifact, ...launchReady },
         loaded.root,
         runner,
         platform,
         options.launchTimeoutMs,
+      );
+      await verifyArtifactClosure(
+        loaded.root,
+        verifiedArtifacts,
       );
       launchResults.push(result);
     }
@@ -346,6 +468,21 @@ export async function verifyRuntimeBundle(options) {
       signingIdentityRecorded: false,
     },
   };
+}
+
+async function verifyArtifactClosure(runtimeRoot, verifiedArtifacts) {
+  const refreshed = new Map();
+  for (const verified of verifiedArtifacts) {
+    refreshed.set(
+      verified.artifact.id,
+      await verifyRegularFile(
+        runtimeRoot,
+        verified.artifact,
+        verified.verificationPolicy,
+      ),
+    );
+  }
+  return refreshed;
 }
 
 export function inspectNativeBinary(buffer) {
@@ -479,7 +616,40 @@ export function sha256File(filePath) {
 }
 
 async function verifyRegularFile(runtimeRoot, record, policy) {
+  let verified = await verifyRegularFileStatic(runtimeRoot, record, policy);
+  if (policy.signatureKind && policy.signatureKind !== "unsigned") {
+    const verifier = policy.signatureVerifier ?? verifyArtifactSignature;
+    let signatureValid = false;
+    try {
+      signatureValid = await verifier(verified.filePath, {
+        platform: policy.platform,
+        expectedKind: policy.signatureKind,
+      });
+    } catch {
+      signatureValid = false;
+    }
+    if (!signatureValid) {
+      throw new LocalSubtitleRuntimeError(
+        policy.invalidCode,
+        "static_verification",
+        "A bundled runtime executable failed code-signature verification.",
+      );
+    }
+    verified = await verifyRegularFileStatic(runtimeRoot, record, policy);
+  }
+  return verified;
+}
+
+async function verifyRegularFileStatic(runtimeRoot, record, policy) {
   const filePath = resolveContainedResourcePath(runtimeRoot, record.relativePath);
+  await assertRuntimeRootDirectory(runtimeRoot, {
+    ...policy,
+    stage: "static_verification",
+  });
+  await assertNoSymbolicResourcePath(runtimeRoot, record.relativePath, {
+    ...policy,
+    stage: "static_verification",
+  });
   const fileStat = await safeLstat(filePath);
   if (!fileStat) {
     throw new LocalSubtitleRuntimeError(
@@ -495,72 +665,93 @@ async function verifyRegularFile(runtimeRoot, record, policy) {
       "A bundled runtime resource is not a regular file.",
     );
   }
-  const [rootRealPath, fileRealPath] = await Promise.all([
-    realpath(runtimeRoot),
-    realpath(filePath),
-  ]);
-  const realRelative = path.relative(rootRealPath, fileRealPath);
-  if (
-    realRelative === "" ||
-    realRelative === ".." ||
-    realRelative.startsWith(`..${path.sep}`) ||
-    path.isAbsolute(realRelative)
-  ) {
-    throw new LocalSubtitleRuntimeError(
-      policy.invalidCode,
-      "static_verification",
-      "A bundled runtime resource resolves outside the resource root.",
-    );
-  }
-  if (
-    fileStat.size !== record.byteSize ||
-    (await sha256File(filePath)) !== record.sha256
-  ) {
-    throw new LocalSubtitleRuntimeError(
-      policy.invalidCode,
-      "static_verification",
-      "A bundled runtime resource failed its size or SHA-256 check.",
-    );
-  }
-  if (policy.requireExecutableBit && (fileStat.mode & 0o111) === 0) {
-    throw new LocalSubtitleRuntimeError(
-      policy.invalidCode,
-      "static_verification",
-      "A bundled runtime executable is not executable.",
-    );
-  }
-
+  await assertContainedRealPath(runtimeRoot, filePath, policy);
   let inspection = {
     format: "evidence",
     architectures: [],
     minimumOsVersion: null,
   };
-  if (policy.expectedArch) {
-    inspection = await inspectNativeBinaryFile(filePath);
+  let fileHandle;
+  try {
+    fileHandle = await open(filePath, READ_ONLY_NOFOLLOW_FLAGS);
+  } catch {
+    throw new LocalSubtitleRuntimeError(
+      policy.invalidCode,
+      "static_verification",
+      "A bundled runtime resource cannot be opened.",
+    );
+  }
+  try {
+    const openedStat = await statOpenFile(fileHandle, {
+      invalidCode: policy.invalidCode,
+      stage: "static_verification",
+    });
+    assertMatchingFileIdentity(fileStat, openedStat, {
+      invalidCode: policy.invalidCode,
+      stage: "static_verification",
+    });
     if (
-      inspection.architectures.length !== 1 ||
-      inspection.architectures[0] !== policy.expectedArch
+      !openedStat.isFile() ||
+      openedStat.size !== record.byteSize ||
+      (policy.requireExecutableBit && (openedStat.mode & 0o111) === 0)
     ) {
       throw new LocalSubtitleRuntimeError(
         policy.invalidCode,
         "static_verification",
-        "A bundled runtime executable has the wrong architecture.",
+        "A bundled runtime resource failed its size or permission check.",
       );
     }
-  }
-  if (policy.signatureKind && policy.signatureKind !== "unsigned") {
-    const verifier = policy.signatureVerifier ?? verifyArtifactSignature;
-    const signatureValid = await verifier(filePath, {
-      platform: policy.platform,
-      expectedKind: policy.signatureKind,
-    });
-    if (!signatureValid) {
+    const observed = await hashOpenFile(
+      fileHandle,
+      openedStat.size,
+      Boolean(policy.expectedArch),
+      policy.invalidCode,
+    );
+    if (observed.sha256 !== record.sha256) {
       throw new LocalSubtitleRuntimeError(
         policy.invalidCode,
         "static_verification",
-        "A bundled runtime executable failed code-signature verification.",
+        "A bundled runtime resource failed its SHA-256 check.",
       );
     }
+    if (policy.expectedArch) {
+      inspection = inspectNativeBinary(observed.header);
+      const expectedFormat = policy.platform === "darwin" ? "mach-o" : "pe";
+      if (
+        inspection.format !== expectedFormat ||
+        inspection.architectures.length !== 1 ||
+        inspection.architectures[0] !== policy.expectedArch
+      ) {
+        throw new LocalSubtitleRuntimeError(
+          policy.invalidCode,
+          "static_verification",
+          "A bundled runtime executable has the wrong binary identity.",
+        );
+      }
+    }
+    const completedStat = await statOpenFile(fileHandle, {
+      invalidCode: policy.invalidCode,
+      stage: "static_verification",
+    });
+    assertMatchingFileIdentity(openedStat, completedStat, {
+      invalidCode: policy.invalidCode,
+      stage: "static_verification",
+    });
+    await assertRuntimeRootDirectory(runtimeRoot, {
+      ...policy,
+      stage: "static_verification",
+    });
+    await assertNoSymbolicResourcePath(runtimeRoot, record.relativePath, {
+      ...policy,
+      stage: "static_verification",
+    });
+    await assertContainedRealPath(runtimeRoot, filePath, policy);
+    await assertPathFileIdentity(filePath, completedStat, {
+      invalidCode: policy.invalidCode,
+      stage: "static_verification",
+    });
+  } finally {
+    await fileHandle.close();
   }
   return { filePath, inspection };
 }
@@ -708,12 +899,14 @@ function launchErrorFor(artifact) {
   );
 }
 
-function validateLicenseRecords(records) {
-  if (!Array.isArray(records) || records.length < 2) {
-    throw invalidManifest("At least two license records are required.");
+function validateLicenseRecords(records, requiredRecords, globalPaths) {
+  if (!Array.isArray(records) || records.length !== requiredRecords.length) {
+    throw invalidManifest("Runtime manifest licenses do not match the target contract.");
   }
+  const requiredById = new Map(
+    requiredRecords.map((record) => [record.id, record]),
+  );
   const byId = new Map();
-  const paths = new Set();
   for (const record of records) {
     assertPlainObject(record, "license");
     assertExactKeys(
@@ -728,6 +921,16 @@ function validateLicenseRecords(records) {
       "license",
     );
     assertUniqueId(record.id, byId, "license");
+    const required = requiredById.get(record.id);
+    if (
+      !required ||
+      record.component !== required.component ||
+      record.spdxExpression !== required.spdxExpression
+    ) {
+      throw invalidManifest(
+        "Runtime license metadata does not match the target contract.",
+      );
+    }
     assertNonEmptyString(record.component, "license.component");
     assertNonEmptyString(record.spdxExpression, "license.spdxExpression");
     if (!Array.isArray(record.licenseFiles) || record.licenseFiles.length === 0) {
@@ -736,20 +939,32 @@ function validateLicenseRecords(records) {
     if (!Array.isArray(record.noticeFiles)) {
       throw invalidManifest("license.noticeFiles must be an array.");
     }
+    assertEvidenceRecordsMatch(
+      record.licenseFiles,
+      required.licenseFiles,
+      "license files",
+    );
+    assertEvidenceRecordsMatch(
+      record.noticeFiles,
+      required.noticeFiles,
+      "notice files",
+    );
     for (const file of [...record.licenseFiles, ...record.noticeFiles]) {
-      validateEvidenceFile(file, "license evidence", paths);
+      validateEvidenceFile(file, "license evidence", globalPaths);
     }
     byId.set(record.id, record);
   }
   return byId;
 }
 
-function validateSourceRecords(records) {
-  if (!Array.isArray(records) || records.length < 2) {
-    throw invalidManifest("At least two source records are required.");
+function validateSourceRecords(records, requiredRecords, globalPaths) {
+  if (!Array.isArray(records) || records.length !== requiredRecords.length) {
+    throw invalidManifest("Runtime manifest sources do not match the target contract.");
   }
+  const requiredById = new Map(
+    requiredRecords.map((record) => [record.id, record]),
+  );
   const byId = new Map();
-  const paths = new Set();
   for (const record of records) {
     assertPlainObject(record, "source");
     assertExactKeys(
@@ -758,21 +973,40 @@ function validateSourceRecords(records) {
       "source",
     );
     assertUniqueId(record.id, byId, "source");
+    const required = requiredById.get(record.id);
+    if (
+      !required ||
+      record.component !== required.component ||
+      record.version !== required.version
+    ) {
+      throw invalidManifest(
+        "Runtime source metadata does not match the target contract.",
+      );
+    }
     assertNonEmptyString(record.component, "source.component");
     assertNonEmptyString(record.version, "source.version");
-    validateEvidenceFile(record.evidenceFile, "source evidence", paths);
+    assertEvidenceRecordsMatch(
+      [record.evidenceFile],
+      [required.evidenceFile],
+      "source evidence",
+    );
+    validateEvidenceFile(record.evidenceFile, "source evidence", globalPaths);
     byId.set(record.id, record);
   }
   return byId;
 }
 
 function validateArtifactRecords(records, context) {
-  if (!Array.isArray(records) || records.length < 3) {
-    throw invalidManifest("Runtime manifest artifacts are incomplete.");
+  const requiredArtifacts = context.targetContract.requiredArtifacts;
+  if (!Array.isArray(records) || records.length !== requiredArtifacts.length) {
+    throw invalidManifest(
+      "Runtime manifest artifacts do not match the target contract.",
+    );
   }
+  const requiredById = new Map(
+    requiredArtifacts.map((record) => [record.id, record]),
+  );
   const byId = new Map();
-  const paths = new Set();
-  const kinds = new Set();
   for (const record of records) {
     assertPlainObject(record, "artifact");
     assertExactKeys(
@@ -795,6 +1029,10 @@ function validateArtifactRecords(records, context) {
       "artifact",
     );
     assertUniqueId(record.id, byId, "artifact");
+    const required = requiredById.get(record.id);
+    if (!required) {
+      throw invalidManifest("Runtime manifest contains an unexpected artifact.");
+    }
     if (!ARTIFACT_KINDS.has(record.kind)) {
       throw invalidManifest("Runtime artifact kind is not allowed.");
     }
@@ -807,6 +1045,13 @@ function validateArtifactRecords(records, context) {
     if (!SIGNATURE_KINDS.has(record.signatureKind)) {
       throw invalidManifest("Runtime artifact signatureKind is not allowed.");
     }
+    if (!context.targetContract.allowedSignatureKinds.includes(
+      record.signatureKind,
+    )) {
+      throw invalidManifest(
+        "Runtime artifact signatureKind does not match the integrity profile.",
+      );
+    }
     if (typeof record.executable !== "boolean") {
       throw invalidManifest("Runtime artifact executable must be boolean.");
     }
@@ -814,10 +1059,7 @@ function validateArtifactRecords(records, context) {
       throw invalidManifest("Runtime programs must be executable.");
     }
     validateSizedHashRecord(record, "artifact");
-    if (paths.has(record.relativePath)) {
-      throw invalidManifest("Runtime artifact paths must be unique.");
-    }
-    paths.add(record.relativePath);
+    registerGlobalPath(context.globalPaths, record.relativePath);
     assertNonEmptyString(record.version, "artifact.version");
     if (!context.licenses.has(record.licenseRef)) {
       throw invalidManifest("Runtime artifact licenseRef is unknown.");
@@ -825,53 +1067,71 @@ function validateArtifactRecords(records, context) {
     if (!context.sources.has(record.sourceRef)) {
       throw invalidManifest("Runtime artifact sourceRef is unknown.");
     }
-    validateExpectedArtifactPath(record, context.platform);
-    if (isMediaArtifact(record) && record.backend !== "media") {
-      throw invalidManifest("Media tools must use the media backend.");
+    for (const key of [
+      "kind",
+      "backend",
+      "relativePath",
+      "licenseRef",
+      "sourceRef",
+      "executable",
+      "version",
+    ]) {
+      const expected = key === "version"
+        ? expectedArtifactVersion(required, context.targetContract)
+        : required[key];
+      if (record[key] !== expected) {
+        throw invalidManifest(
+          "Runtime artifact metadata does not match the target contract.",
+        );
+      }
     }
-    kinds.add(record.kind);
     byId.set(record.id, record);
   }
-  for (const required of ["server", "ffmpeg", "ffprobe"]) {
-    if (!kinds.has(required)) {
-      throw invalidManifest(`Runtime manifest is missing ${required}.`);
+}
+
+function expectedArtifactVersion(artifact, targetContract) {
+  return artifact.kind === "ffmpeg" || artifact.kind === "ffprobe"
+    ? targetContract.artifactVersions.media
+    : targetContract.artifactVersions.runner;
+}
+
+function assertEvidenceRecordsMatch(actual, expected, label) {
+  if (!Array.isArray(actual) || actual.length !== expected.length) {
+    throw invalidManifest(`Runtime ${label} do not match the target contract.`);
+  }
+  const expectedByPath = new Map(
+    expected.map((record) => [record.relativePath.toLowerCase(), record]),
+  );
+  for (const record of actual) {
+    const required = expectedByPath.get(
+      String(record?.relativePath ?? "").toLowerCase(),
+    );
+    if (
+      !required ||
+      record.relativePath !== required.relativePath ||
+      record.byteSize !== required.byteSize ||
+      record.sha256 !== required.sha256
+    ) {
+      throw invalidManifest(`Runtime ${label} do not match the target contract.`);
     }
   }
 }
 
-function validateExpectedArtifactPath(record, platform) {
-  const expected = platform === "darwin"
-    ? {
-        server: "mac-arm64/metal/whisper-server",
-        ffmpeg: "mac-arm64/media/ffmpeg",
-        ffprobe: "mac-arm64/media/ffprobe",
-      }
-    : {
-        server: "win-x64/cpu/whisper-server.exe",
-        ffmpeg: "win-x64/media/ffmpeg.exe",
-        ffprobe: "win-x64/media/ffprobe.exe",
-      };
-  if (expected[record.kind] && record.relativePath !== expected[record.kind]) {
-    throw invalidManifest("A required runtime artifact uses an unexpected path.");
-  }
-  if (
-    record.kind === "dynamic_library" &&
-    !record.relativePath.startsWith(
-      platform === "darwin" ? "mac-arm64/" : "win-x64/",
-    )
-  ) {
-    throw invalidManifest("A dynamic dependency uses an unexpected target path.");
-  }
-}
-
-function validateEvidenceFile(file, label, paths) {
+function validateEvidenceFile(file, label, globalPaths) {
   assertPlainObject(file, label);
   assertExactKeys(file, ["relativePath", "byteSize", "sha256"], label);
   validateSizedHashRecord(file, label);
-  if (paths.has(file.relativePath)) {
-    throw invalidManifest("Evidence file paths must be unique within their section.");
+  registerGlobalPath(globalPaths, file.relativePath);
+}
+
+function registerGlobalPath(paths, relativePath) {
+  const key = relativePath.toLowerCase();
+  if (paths.has(key)) {
+    throw invalidManifest(
+      "Runtime resource paths must be globally unique ignoring case.",
+    );
   }
-  paths.add(file.relativePath);
+  paths.add(key);
 }
 
 function validateSizedHashRecord(record, label) {
@@ -916,10 +1176,26 @@ function assertNonEmptyString(value, label) {
   rejectPrivatePath(value, label);
 }
 
+function assertIdentifier(value, label) {
+  if (
+    typeof value !== "string" ||
+    value.length === 0 ||
+    value.length > STAGING_LIMITS.maxIdChars ||
+    !/^[a-z0-9](?:[a-z0-9._-]*[a-z0-9])?$/u.test(value)
+  ) {
+    throw invalidManifest(`${label} must be a bounded lowercase identifier.`);
+  }
+}
+
 function rejectPrivatePath(value, label) {
   if (PRIVATE_PATH_PATTERN.test(String(value))) {
     throw invalidManifest(`${label} contains a private machine path.`);
   }
+}
+
+function isWindowsReservedName(segment) {
+  const base = segment.split(".", 1)[0]?.toUpperCase() ?? "";
+  return /^(?:CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])$/u.test(base);
 }
 
 function invalidManifest(detail) {
@@ -932,6 +1208,158 @@ function invalidManifest(detail) {
 
 function isMediaArtifact(artifact) {
   return artifact.kind === "ffmpeg" || artifact.kind === "ffprobe";
+}
+
+async function hashOpenFile(fileHandle, fileSize, captureHeader, invalidCode) {
+  const header = Buffer.alloc(
+    captureHeader ? Math.min(fileSize, MAX_NATIVE_HEADER_BYTES) : 0,
+  );
+  const chunk = Buffer.alloc(FILE_HASH_CHUNK_BYTES);
+  const hash = createHash("sha256");
+  let position = 0;
+  try {
+    while (position < fileSize) {
+      const requested = Math.min(chunk.length, fileSize - position);
+      const { bytesRead } = await fileHandle.read(
+        chunk,
+        0,
+        requested,
+        position,
+      );
+      if (bytesRead === 0) throw new Error("unexpected end of file");
+      const bytes = chunk.subarray(0, bytesRead);
+      hash.update(bytes);
+      if (position < header.length) {
+        bytes.copy(header, position, 0, Math.min(bytesRead, header.length - position));
+      }
+      position += bytesRead;
+    }
+  } catch {
+    throw new LocalSubtitleRuntimeError(
+      invalidCode,
+      "static_verification",
+      "A bundled runtime resource cannot be hashed.",
+    );
+  }
+  return { sha256: hash.digest("hex"), header };
+}
+
+async function assertRuntimeRootDirectory(runtimeRoot, policy) {
+  const rootStat = await safeLstat(runtimeRoot);
+  if (!rootStat) {
+    throw new LocalSubtitleRuntimeError(
+      policy.missingCode,
+      policy.stage,
+      "The bundled runtime root is missing.",
+    );
+  }
+  if (!rootStat.isDirectory() || rootStat.isSymbolicLink()) {
+    throw new LocalSubtitleRuntimeError(
+      policy.invalidCode,
+      policy.stage,
+      "The bundled runtime root is not a regular directory.",
+    );
+  }
+}
+
+async function assertNoSymbolicResourcePath(runtimeRoot, relativePath, policy) {
+  await assertRuntimeRootDirectory(runtimeRoot, policy);
+  let current = runtimeRoot;
+  const segments = normalizeManifestRelativePath(relativePath).split("/");
+  for (let index = 0; index < segments.length; index += 1) {
+    current = path.join(current, segments[index]);
+    const currentStat = await safeLstat(current);
+    if (!currentStat) {
+      throw new LocalSubtitleRuntimeError(
+        policy.missingCode,
+        policy.stage,
+        "A required bundled runtime resource is missing.",
+      );
+    }
+    const leaf = index === segments.length - 1;
+    if (
+      currentStat.isSymbolicLink() ||
+      (!leaf && !currentStat.isDirectory()) ||
+      (leaf && !currentStat.isFile())
+    ) {
+      throw new LocalSubtitleRuntimeError(
+        policy.invalidCode,
+        policy.stage,
+        "A bundled runtime resource path has an invalid file type.",
+      );
+    }
+  }
+}
+
+async function assertContainedRealPath(runtimeRoot, filePath, policy) {
+  let rootRealPath;
+  let fileRealPath;
+  try {
+    [rootRealPath, fileRealPath] = await Promise.all([
+      realpath(runtimeRoot),
+      realpath(filePath),
+    ]);
+  } catch {
+    throw new LocalSubtitleRuntimeError(
+      policy.invalidCode,
+      "static_verification",
+      "A bundled runtime resource cannot be resolved.",
+    );
+  }
+  const relative = path.relative(rootRealPath, fileRealPath);
+  if (
+    relative === "" ||
+    relative === ".." ||
+    relative.startsWith(`..${path.sep}`) ||
+    path.isAbsolute(relative)
+  ) {
+    throw new LocalSubtitleRuntimeError(
+      policy.invalidCode,
+      "static_verification",
+      "A bundled runtime resource resolves outside the resource root.",
+    );
+  }
+}
+
+async function statOpenFile(fileHandle, policy) {
+  try {
+    return await fileHandle.stat();
+  } catch {
+    throw new LocalSubtitleRuntimeError(
+      policy.invalidCode,
+      policy.stage,
+      "Bundled runtime filesystem metadata cannot be read.",
+    );
+  }
+}
+
+function assertMatchingFileIdentity(before, after, policy) {
+  if (
+    after.dev !== before.dev ||
+    after.ino !== before.ino ||
+    after.mode !== before.mode ||
+    after.size !== before.size ||
+    after.mtimeMs !== before.mtimeMs ||
+    after.ctimeMs !== before.ctimeMs
+  ) {
+    throw new LocalSubtitleRuntimeError(
+      policy.invalidCode,
+      policy.stage,
+      "A bundled runtime resource changed during verification.",
+    );
+  }
+}
+
+async function assertPathFileIdentity(filePath, expected, policy) {
+  const observed = await safeLstat(filePath);
+  if (!observed || !observed.isFile() || observed.isSymbolicLink()) {
+    throw new LocalSubtitleRuntimeError(
+      policy.invalidCode,
+      policy.stage,
+      "A bundled runtime resource changed during verification.",
+    );
+  }
+  assertMatchingFileIdentity(expected, observed, policy);
 }
 
 async function safeLstat(filePath) {

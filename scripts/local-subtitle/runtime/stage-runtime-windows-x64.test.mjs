@@ -7,6 +7,7 @@ import {
   resolveWindowsSigningProfile,
   validateWindowsFfmpegAuditReceipt,
 } from "./stage-runtime-windows-x64.mjs";
+import { getLocalSubtitleStagingTarget } from "./staging-contract.mjs";
 
 test("pins only the required Windows CPU server and dependency artifacts", () => {
   assert.equal(WHISPER_WINDOWS_CPU_CONTRACT.artifacts.length, 13);
@@ -21,6 +22,15 @@ test("pins only the required Windows CPU server and dependency artifacts", () =>
       (artifact) => artifact.fileName === "SDL2.dll",
     ),
     false,
+  );
+  const target = getLocalSubtitleStagingTarget("win32", "x64");
+  assert.deepEqual(
+    target.requiredArtifacts
+      .filter((artifact) => artifact.sourceRef === "whisper-cpp-v1.9.1")
+      .map((artifact) => artifact.relativePath.split("/").at(-1)),
+    WHISPER_WINDOWS_CPU_CONTRACT.artifacts.map(
+      (artifact) => artifact.fileName,
+    ),
   );
 });
 

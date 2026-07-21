@@ -4,21 +4,28 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
+import { fileURLToPath } from "node:url";
 import {
-  RUNTIME_HASH_PHASE,
   RUNTIME_MANIFEST_RELATIVE_PATH,
-  RUNTIME_UNSIGNED_HASH_PHASE,
-  PERSONAL_DISTRIBUTION_OUTER_COVERAGE,
   assertSupportedRuntimeTarget,
   buildSanitizedRuntimeEnvironment,
   getWindowsPowerShellPath,
   inspectNativeBinary,
   loadRuntimeManifest,
   validateRuntimeManifest,
+  verifyArtifactSignature,
   verifyRuntimeBundle,
 } from "./runtime-manifest.mjs";
+import {
+  STAGING_LIMITS,
+  getLocalSubtitleStagingTarget,
+} from "./staging-contract.mjs";
 
 const acceptSignature = async () => true;
+const EVIDENCE_ROOT = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  "../../../resources/local-subtitle/licenses",
+);
 
 test("parses thin arm64 Mach-O, fat Mach-O, and x64 PE identities", () => {
   const arm64 = createMachO("arm64", "11.0.0");
@@ -57,6 +64,25 @@ test("rejects unsupported macOS architecture before reading a manifest", async (
   );
 });
 
+test("rejects an oversized runtime manifest before JSON parsing", async () => {
+  await withRuntimeFixture(
+    { platform: "darwin", arch: "arm64" },
+    async (fixture) => {
+      fs.writeFileSync(
+        fixture.manifestPath,
+        Buffer.alloc(STAGING_LIMITS.maxManifestBytes + 1),
+      );
+      await assert.rejects(
+        loadRuntimeManifest(fixture.runtimeRoot, {
+          platform: "darwin",
+          arch: "arm64",
+        }),
+        (error) => error.code === "media_runtime_invalid",
+      );
+    },
+  );
+});
+
 test("requires exact manifest fields, contained paths, and known references", () => {
   const manifest = createManifest({ platform: "darwin", arch: "arm64" });
   assert.equal(
@@ -91,6 +117,146 @@ test("requires exact manifest fields, contained paths, and known references", ()
   unknownLicense.artifacts[1].licenseRef = "missing-license";
   assert.throws(
     () => validateRuntimeManifest(unknownLicense, {
+      platform: "darwin",
+      arch: "arm64",
+    }),
+    (error) => error.code === "media_runtime_invalid",
+  );
+
+  for (const manifestId of ["Invalid ID", "a".repeat(129), "-leading"]) {
+    const invalidId = structuredClone(manifest);
+    invalidId.manifestId = manifestId;
+    assert.throws(
+      () => validateRuntimeManifest(invalidId, {
+        platform: "darwin",
+        arch: "arm64",
+      }),
+      (error) => error.code === "media_runtime_invalid",
+    );
+  }
+});
+
+test("binds integrity, artifacts, licenses, and sources to the selected target", () => {
+  const manifest = createManifest({ platform: "darwin", arch: "arm64" });
+
+  const profileDrift = structuredClone(manifest);
+  profileDrift.integrityProfile =
+    "windows_unsigned_personal_final_bytes_sha256";
+  assert.throws(
+    () => validateRuntimeManifest(profileDrift, {
+      platform: "darwin",
+      arch: "arm64",
+    }),
+    /integrity profile/u,
+  );
+
+  const integrityDrift = structuredClone(manifest);
+  integrityDrift.integrity.binaryHashPhase =
+    "unsigned_final_bytes_before_outer_packaging";
+  assert.throws(
+    () => validateRuntimeManifest(integrityDrift, {
+      platform: "darwin",
+      arch: "arm64",
+    }),
+    /integrity policy/u,
+  );
+
+  const artifactDrift = structuredClone(manifest);
+  artifactDrift.artifacts[0].backend = "cpu";
+  assert.throws(
+    () => validateRuntimeManifest(artifactDrift, {
+      platform: "darwin",
+      arch: "arm64",
+    }),
+    /artifact metadata/u,
+  );
+
+  const incompleteWindows = createManifest({ platform: "win32", arch: "x64" });
+  incompleteWindows.artifacts.splice(1, 1);
+  assert.throws(
+    () => validateRuntimeManifest(incompleteWindows, {
+      platform: "win32",
+      arch: "x64",
+    }),
+    /artifacts do not match/u,
+  );
+
+  const licenseDrift = structuredClone(manifest);
+  licenseDrift.licenses[1].spdxExpression = "MIT";
+  assert.throws(
+    () => validateRuntimeManifest(licenseDrift, {
+      platform: "darwin",
+      arch: "arm64",
+    }),
+    /license metadata/u,
+  );
+
+  const sourceDrift = structuredClone(manifest);
+  sourceDrift.sources[1].version = "latest";
+  assert.throws(
+    () => validateRuntimeManifest(sourceDrift, {
+      platform: "darwin",
+      arch: "arm64",
+    }),
+    /source metadata/u,
+  );
+
+  const missingNotice = structuredClone(manifest);
+  missingNotice.licenses[1].noticeFiles.pop();
+  assert.throws(
+    () => validateRuntimeManifest(missingNotice, {
+      platform: "darwin",
+      arch: "arm64",
+    }),
+    /notice files/u,
+  );
+
+  const evidenceHashDrift = structuredClone(manifest);
+  evidenceHashDrift.sources[0].evidenceFile.sha256 = "f".repeat(64);
+  assert.throws(
+    () => validateRuntimeManifest(evidenceHashDrift, {
+      platform: "darwin",
+      arch: "arm64",
+    }),
+    /source evidence/u,
+  );
+
+  const versionDrift = structuredClone(manifest);
+  versionDrift.artifacts[0].version = "latest";
+  assert.throws(
+    () => validateRuntimeManifest(versionDrift, {
+      platform: "darwin",
+      arch: "arm64",
+    }),
+    /artifact metadata/u,
+  );
+});
+
+test("rejects production-incompatible relative path syntax and limits", () => {
+  for (const relativePath of [
+    "win-x64/media/ffmpeg.exe:stream",
+    "win-x64/CON/file.exe",
+    "win-x64/media/trailing. ",
+    `licenses/${"x".repeat(512)}`,
+  ]) {
+    const manifest = createManifest({ platform: "win32", arch: "x64" });
+    manifest.artifacts[0].relativePath = relativePath;
+    assert.throws(
+      () => validateRuntimeManifest(manifest, {
+        platform: "win32",
+        arch: "x64",
+      }),
+      (error) => error.code === "media_runtime_invalid",
+    );
+  }
+});
+
+test("rejects resource paths duplicated across sections ignoring case", () => {
+  const manifest = createManifest({ platform: "darwin", arch: "arm64" });
+  manifest.sources[0].evidenceFile.relativePath =
+    manifest.licenses[0].licenseFiles[0].relativePath.toUpperCase();
+  assert.throws(
+    () => validateRuntimeManifest(manifest, {
       platform: "darwin",
       arch: "arm64",
     }),
@@ -144,10 +310,6 @@ test("sanitized child environments exclude API keys and proxy credentials", () =
 
 test("accepts an explicit unsigned Windows personal-distribution integrity profile", () => {
   const manifest = createManifest({ platform: "win32", arch: "x64" });
-  manifest.integrity.binaryHashPhase = RUNTIME_UNSIGNED_HASH_PHASE;
-  manifest.integrity.outerSignatureCoverage =
-    PERSONAL_DISTRIBUTION_OUTER_COVERAGE;
-  for (const artifact of manifest.artifacts) artifact.signatureKind = "unsigned";
   assert.equal(
     validateRuntimeManifest(manifest, { platform: "win32", arch: "x64" }),
     manifest,
@@ -157,7 +319,7 @@ test("accepts an explicit unsigned Windows personal-distribution integrity profi
   falseClaim.artifacts[1].signatureKind = "authenticode";
   assert.throws(
     () => validateRuntimeManifest(falseClaim, { platform: "win32", arch: "x64" }),
-    /must declare signatureKind unsigned/u,
+    /does not match the integrity profile/u,
   );
 });
 
@@ -273,6 +435,128 @@ test("classifies a static-pass identity failure as media_runtime_launch_failed",
   });
 });
 
+test("rejects runtime-root and intermediate-directory links", async () => {
+  await withRuntimeFixture({ platform: "darwin", arch: "arm64" }, async (fixture) => {
+    const realRoot = path.join(fixture.tempRoot, "real-local-subtitle");
+    fs.renameSync(fixture.runtimeRoot, realRoot);
+    fs.symlinkSync(realRoot, fixture.runtimeRoot, directoryLinkType());
+    await assert.rejects(
+      verifyRuntimeBundle({
+        runtimeRoot: fixture.runtimeRoot,
+        platform: "darwin",
+        arch: "arm64",
+        scope: "media",
+        signatureVerifier: acceptSignature,
+      }),
+      (error) => error.code === "media_runtime_invalid",
+    );
+  });
+
+  await withRuntimeFixture({ platform: "darwin", arch: "arm64" }, async (fixture) => {
+    const licenses = path.join(fixture.runtimeRoot, "licenses");
+    const realLicenses = path.join(fixture.runtimeRoot, "real-licenses");
+    fs.renameSync(licenses, realLicenses);
+    fs.symlinkSync(realLicenses, licenses, directoryLinkType());
+    await assert.rejects(
+      verifyRuntimeBundle({
+        runtimeRoot: fixture.runtimeRoot,
+        platform: "darwin",
+        arch: "arm64",
+        scope: "media",
+        signatureVerifier: acceptSignature,
+      }),
+      (error) => error.code === "media_runtime_invalid",
+    );
+  });
+
+});
+
+test("rechecks static bytes after signature verification and launch probes", async () => {
+  await withRuntimeFixture({ platform: "darwin", arch: "arm64" }, async (fixture) => {
+    let mutated = false;
+    await assert.rejects(
+      verifyRuntimeBundle({
+        runtimeRoot: fixture.runtimeRoot,
+        platform: "darwin",
+        arch: "arm64",
+        scope: "media",
+        signatureVerifier: async (filePath) => {
+          if (!mutated) {
+            const bytes = fs.readFileSync(filePath);
+            bytes[bytes.length - 1] ^= 0xff;
+            fs.writeFileSync(filePath, bytes);
+            mutated = true;
+          }
+          return true;
+        },
+      }),
+      (error) => error.code === "media_runtime_invalid",
+    );
+  });
+
+  await withRuntimeFixture({ platform: "darwin", arch: "arm64" }, async (fixture) => {
+    let mutated = false;
+    await assert.rejects(
+      verifyRuntimeBundle({
+        runtimeRoot: fixture.runtimeRoot,
+        platform: "darwin",
+        arch: "arm64",
+        scope: "media",
+        launch: true,
+        signatureVerifier: acceptSignature,
+        commandRunner: async (filePath) => {
+          if (!mutated) {
+            const bytes = fs.readFileSync(filePath);
+            bytes[bytes.length - 1] ^= 0xff;
+            fs.writeFileSync(filePath, bytes);
+            mutated = true;
+          }
+          return {
+            exitCode: 0,
+            stdout: `${path.basename(filePath)} version 8.1.2 fixture\n`,
+            stderr: "",
+          };
+        },
+      }),
+      (error) => error.code === "media_runtime_invalid",
+    );
+  });
+
+  await withRuntimeFixture({ platform: "win32", arch: "x64" }, async (fixture) => {
+    const dependency = fixture.manifest.artifacts.find(
+      (artifact) => artifact.kind === "dynamic_library",
+    );
+    const dependencyPath = path.join(
+      fixture.runtimeRoot,
+      ...dependency.relativePath.split("/"),
+    );
+    let mutated = false;
+    await assert.rejects(
+      verifyRuntimeBundle({
+        runtimeRoot: fixture.runtimeRoot,
+        platform: "win32",
+        arch: "x64",
+        scope: "server",
+        launch: true,
+        commandRunner: async (filePath) => {
+          if (!mutated) {
+            const bytes = fs.readFileSync(dependencyPath);
+            bytes[bytes.length - 1] ^= 0xff;
+            fs.writeFileSync(dependencyPath, bytes);
+            mutated = true;
+          }
+          return {
+            exitCode: 0,
+            stdout: `${path.basename(filePath)} usage fixture\n`,
+            stderr: "",
+          };
+        },
+      }),
+      (error) => error.code === "runtime_protocol_mismatch",
+    );
+  });
+});
+
 test("validates Windows PE resources on a non-Windows host without POSIX mode rules", async () => {
   await withRuntimeFixture({ platform: "win32", arch: "x64" }, async (fixture) => {
     fs.chmodSync(fixture.ffmpegPath, 0o644);
@@ -290,18 +574,26 @@ test("validates Windows PE resources on a non-Windows host without POSIX mode ru
   });
 });
 
+test("rejects a target-architecture binary in the wrong native format", async () => {
+  await withRuntimeFixture(
+    { platform: "win32", arch: "x64" },
+    async (fixture) => {
+      await assert.rejects(
+        verifyRuntimeBundle({
+          runtimeRoot: fixture.runtimeRoot,
+          platform: "win32",
+          arch: "x64",
+          scope: "media",
+        }),
+        (error) => error.code === "media_runtime_invalid",
+      );
+    },
+    { binary: createMachO("x64", "11.0.0") },
+  );
+});
+
 test("reports that unsigned Windows personal distribution does not require signing", async () => {
   await withRuntimeFixture({ platform: "win32", arch: "x64" }, async (fixture) => {
-    fixture.manifest.integrity.binaryHashPhase = RUNTIME_UNSIGNED_HASH_PHASE;
-    fixture.manifest.integrity.outerSignatureCoverage =
-      PERSONAL_DISTRIBUTION_OUTER_COVERAGE;
-    for (const artifact of fixture.manifest.artifacts) {
-      artifact.signatureKind = "unsigned";
-    }
-    fs.writeFileSync(
-      fixture.manifestPath,
-      `${JSON.stringify(fixture.manifest, null, 2)}\n`,
-    );
     const report = await verifyRuntimeBundle({
       runtimeRoot: fixture.runtimeRoot,
       platform: "win32",
@@ -324,22 +616,12 @@ test(
       "System32",
       "where.exe",
     );
-    await withRuntimeFixture(
-      { platform: "win32", arch: "x64" },
-      async (fixture) => {
-        const report = await verifyRuntimeBundle({
-          runtimeRoot: fixture.runtimeRoot,
-          platform: "win32",
-          arch: "x64",
-          scope: "media",
-        });
-        assert.equal(report.signatureVerification, "verified_on_target_host");
-        assert.equal(report.ready, true);
-      },
-      {
-        binary: fs.readFileSync(trustedPePath),
-        tempBase: path.join(process.cwd(), "runtime-manifest-test.local"),
-      },
+    assert.equal(
+      await verifyArtifactSignature(trustedPePath, {
+        platform: "win32",
+        expectedKind: "authenticode",
+      }),
+      true,
     );
   },
 );
@@ -365,11 +647,11 @@ async function withRuntimeFixture(target, callback, options = {}) {
   });
   for (const license of manifest.licenses) {
     for (const record of [...license.licenseFiles, ...license.noticeFiles]) {
-      writeEvidence(runtimeRoot, record, `license:${license.id}:${record.relativePath}`);
+      copyEvidence(runtimeRoot, record.relativePath);
     }
   }
   for (const source of manifest.sources) {
-    writeEvidence(runtimeRoot, source.evidenceFile, `source:${source.id}`);
+    copyEvidence(runtimeRoot, source.evidenceFile.relativePath);
   }
   const manifestPath = path.join(
     runtimeRoot,
@@ -393,113 +675,41 @@ async function withRuntimeFixture(target, callback, options = {}) {
 }
 
 function createManifest(target) {
-  const darwin = target.platform === "darwin";
-  const root = darwin ? "mac-arm64" : "win-x64";
-  const extension = darwin ? "" : ".exe";
-  const signatureKind = darwin ? "adhoc" : "authenticode";
+  const targetContract = getLocalSubtitleStagingTarget(
+    target.platform,
+    target.arch,
+  );
+  const signatureKind = targetContract.allowedSignatureKinds[0];
   return {
     schemaVersion: 1,
     runtimeContractVersion: 1,
     manifestId: `local-subtitle-${target.platform}-${target.arch}-fixture`,
     target: { platform: target.platform, arch: target.arch },
-    integrity: {
-      algorithm: "sha256",
-      binaryHashPhase: RUNTIME_HASH_PHASE,
-      outerSignatureCoverage: "required",
-    },
-    artifacts: [
-      {
-        id: `whisper-server-${root}`,
-        kind: "server",
-        platform: target.platform,
-        arch: target.arch,
-        backend: darwin ? "metal_cpu" : "cpu",
-        relativePath: darwin
-          ? `${root}/metal/whisper-server`
-          : `${root}/cpu/whisper-server.exe`,
-        byteSize: 1,
-        sha256: "a".repeat(64),
-        version: "v1.9.1",
-        licenseRef: "whisper-cpp-mit",
-        sourceRef: "whisper-cpp-v1.9.1",
-        executable: true,
-        signatureKind,
-      },
-      {
-        id: `ffmpeg-${root}`,
-        kind: "ffmpeg",
-        platform: target.platform,
-        arch: target.arch,
-        backend: "media",
-        relativePath: `${root}/media/ffmpeg${extension}`,
-        byteSize: 1,
-        sha256: "b".repeat(64),
-        version: "8.1.2",
-        licenseRef: "ffmpeg-lgpl-2.1-or-later",
-        sourceRef: "ffmpeg-8.1.2",
-        executable: true,
-        signatureKind,
-      },
-      {
-        id: `ffprobe-${root}`,
-        kind: "ffprobe",
-        platform: target.platform,
-        arch: target.arch,
-        backend: "media",
-        relativePath: `${root}/media/ffprobe${extension}`,
-        byteSize: 1,
-        sha256: "c".repeat(64),
-        version: "8.1.2",
-        licenseRef: "ffmpeg-lgpl-2.1-or-later",
-        sourceRef: "ffmpeg-8.1.2",
-        executable: true,
-        signatureKind,
-      },
-    ],
-    licenses: [
-      {
-        id: "whisper-cpp-mit",
-        component: "whisper.cpp",
-        spdxExpression: "MIT",
-        licenseFiles: [evidenceRecord("licenses/whisper.cpp-MIT.txt")],
-        noticeFiles: [],
-      },
-      {
-        id: "ffmpeg-lgpl-2.1-or-later",
-        component: "FFmpeg",
-        spdxExpression: "LGPL-2.1-or-later",
-        licenseFiles: [evidenceRecord("licenses/FFmpeg-COPYING.LGPLv2.1.txt")],
-        noticeFiles: [evidenceRecord("licenses/FFmpeg-LICENSE.md")],
-      },
-    ],
-    sources: [
-      {
-        id: "whisper-cpp-v1.9.1",
-        component: "whisper.cpp",
-        version: "v1.9.1",
-        evidenceFile: evidenceRecord("licenses/whisper.cpp-v1.9.1-source.json"),
-      },
-      {
-        id: "ffmpeg-8.1.2",
-        component: "FFmpeg",
-        version: "8.1.2",
-        evidenceFile: evidenceRecord("licenses/FFmpeg-8.1.2-source-offer.json"),
-      },
-    ],
+    integrityProfile: targetContract.integrityProfile,
+    integrity: structuredClone(targetContract.integrity),
+    artifacts: targetContract.requiredArtifacts.map((required) => ({
+      ...structuredClone(required),
+      platform: target.platform,
+      arch: target.arch,
+      byteSize: 1,
+      sha256: "a".repeat(64),
+      version: required.kind === "ffmpeg" || required.kind === "ffprobe"
+        ? targetContract.artifactVersions.media
+        : targetContract.artifactVersions.runner,
+      signatureKind,
+    })),
+    licenses: structuredClone(targetContract.requiredLicenses),
+    sources: structuredClone(targetContract.requiredSources),
   };
 }
 
-function evidenceRecord(relativePath) {
-  return { relativePath, byteSize: 1, sha256: "d".repeat(64) };
-}
-
-function writeEvidence(runtimeRoot, record, value) {
-  const bytes = Buffer.from(value);
-  const filePath = path.join(runtimeRoot, ...record.relativePath.split("/"));
+function copyEvidence(runtimeRoot, relativePath) {
+  const filePath = path.join(runtimeRoot, ...relativePath.split("/"));
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
-  fs.writeFileSync(filePath, bytes);
-  record.byteSize = bytes.length;
-  record.sha256 = sha256(bytes);
+  fs.copyFileSync(
+    path.join(EVIDENCE_ROOT, path.basename(relativePath)),
+    filePath,
+  );
 }
 
 function updateArtifactEvidence(fixture, kind, bytes) {
@@ -547,4 +757,8 @@ function packVersion(value) {
 
 function sha256(value) {
   return createHash("sha256").update(value).digest("hex");
+}
+
+function directoryLinkType() {
+  return process.platform === "win32" ? "junction" : "dir";
 }

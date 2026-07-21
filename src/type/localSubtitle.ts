@@ -62,6 +62,12 @@ export const LOCAL_SUBTITLE_LIMITS = {
   maxDiagnosticLines: 256,
   maxDiagnosticLineChars: 1024,
   maxDiagnosticSummaryChars: 2048,
+  maxRuntimeManifestBytes: 2 * 1024 * 1024,
+  maxRuntimeArtifacts: 256,
+  maxRuntimeLicenses: 64,
+  maxRuntimeSources: 64,
+  maxRuntimeEvidenceFiles: 256,
+  maxRuntimeRelativePathChars: 512,
 } as const;
 
 export const LOCAL_SUBTITLE_ENGINES = ["whisper_cpp"] as const;

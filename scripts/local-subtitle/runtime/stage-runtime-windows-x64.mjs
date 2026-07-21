@@ -15,11 +15,8 @@ import { parseArgs, promisify } from "node:util";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import {
   RUNTIME_CONTRACT_VERSION,
-  RUNTIME_HASH_PHASE,
   RUNTIME_MANIFEST_RELATIVE_PATH,
   RUNTIME_MANIFEST_SCHEMA_VERSION,
-  RUNTIME_UNSIGNED_HASH_PHASE,
-  PERSONAL_DISTRIBUTION_OUTER_COVERAGE,
   buildSanitizedRuntimeEnvironment,
   getWindowsPowerShellPath,
   inspectNativeBinaryFile,
@@ -28,7 +25,12 @@ import {
 } from "./runtime-manifest.mjs";
 import { WINDOWS_FFMPEG_CANDIDATE } from "./audit-ffmpeg-windows-x64.mjs";
 import { FFMPEG_SOURCE_RELEASE } from "./ffmpeg-source-release.mjs";
-import { getRuntimeLayout } from "./stage-runtime.mjs";
+import {
+  getRuntimeLayout,
+  resolveRuntimeOutputParent,
+  verifyStagedCopyMatches,
+} from "./stage-runtime.mjs";
+import { getLocalSubtitleStagingTarget } from "./staging-contract.mjs";
 
 const execFileAsync = promisify(execFile);
 const SCRIPT_PATH = fileURLToPath(import.meta.url);
@@ -186,7 +188,8 @@ export async function stageWindowsX64Runtime(options) {
     throw new Error("Windows x64 staging requires a native win32/x64 host.");
   }
   const layout = getRuntimeLayout("win32", "x64");
-  const outputParent = path.resolve(requirePath(options.outputParent, "outputParent"));
+  const targetContract = getLocalSubtitleStagingTarget("win32", "x64");
+  const outputParent = resolveRuntimeOutputParent(options.outputParent);
   const finalRoot = path.join(outputParent, "local-subtitle");
   const partialRoot = path.join(
     outputParent,
@@ -209,6 +212,13 @@ export async function stageWindowsX64Runtime(options) {
     options.signingMode ?? "unsigned",
     options.certificateThumbprint,
   );
+  if (!targetContract.allowedSignatureKinds.includes(
+    signingProfile.signatureKind,
+  )) {
+    throw new Error(
+      "The selected Windows staging contract only permits unsigned final bytes.",
+    );
+  }
   await verifyPinnedFile(whisperArchivePath, {
     byteSize: WHISPER_WINDOWS_CPU_CONTRACT.archiveByteSize,
     sha256: WHISPER_WINDOWS_CPU_CONTRACT.archiveSha256,
@@ -237,6 +247,8 @@ export async function stageWindowsX64Runtime(options) {
         licenseRef: "whisper-cpp-mit",
         sourceRef: "whisper-cpp-v1.9.1",
         executable: artifact.kind === "server",
+        expectedByteSize: artifact.byteSize,
+        expectedSha256: artifact.sha256,
       }),
     );
     const mediaInputs = ["ffmpeg", "ffprobe"].map((kind) => ({
@@ -252,6 +264,8 @@ export async function stageWindowsX64Runtime(options) {
       licenseRef: "ffmpeg-windows-lgpl-3.0-or-later",
       sourceRef: "ffmpeg-windows-n8.1.2-btbn",
       executable: true,
+      expectedByteSize: WINDOWS_FFMPEG_CANDIDATE.artifacts[kind].byteSize,
+      expectedSha256: WINDOWS_FFMPEG_CANDIDATE.artifacts[kind].sha256,
     }));
 
     const artifacts = [];
@@ -259,6 +273,10 @@ export async function stageWindowsX64Runtime(options) {
       const outputPath = path.join(partialRoot, ...input.relativePath.split("/"));
       await mkdir(path.dirname(outputPath), { recursive: true });
       await copyFile(input.inputPath, outputPath);
+      await verifyStagedCopyMatches(outputPath, {
+        byteSize: input.expectedByteSize,
+        sha256: input.expectedSha256,
+      }, input.id);
       const inspection = await inspectNativeBinaryFile(outputPath);
       if (
         inspection.format !== "pe" ||
@@ -274,6 +292,13 @@ export async function stageWindowsX64Runtime(options) {
         );
       }
       const outputStat = await stat(outputPath);
+      const outputSha256 = await sha256File(outputPath);
+      if (
+        outputStat.size !== input.expectedByteSize ||
+        outputSha256 !== input.expectedSha256
+      ) {
+        throw new Error(`${input.id} changed while its manifest record was created.`);
+      }
       artifacts.push({
         id: input.id,
         kind: input.kind,
@@ -282,7 +307,7 @@ export async function stageWindowsX64Runtime(options) {
         backend: input.backend,
         relativePath: input.relativePath,
         byteSize: outputStat.size,
-        sha256: await sha256File(outputPath),
+        sha256: outputSha256,
         version: input.version,
         licenseRef: input.licenseRef,
         sourceRef: input.sourceRef,
@@ -295,17 +320,10 @@ export async function stageWindowsX64Runtime(options) {
     const manifest = {
       schemaVersion: RUNTIME_MANIFEST_SCHEMA_VERSION,
       runtimeContractVersion: RUNTIME_CONTRACT_VERSION,
-      manifestId: "local-subtitle-runtime-win32-x64-pre005",
+      manifestId: "local-subtitle-runtime-win32-x64-v1",
       target: { platform: "win32", arch: "x64" },
-      integrity: {
-        algorithm: "sha256",
-        binaryHashPhase: signingProfile.mode === "authenticode"
-          ? RUNTIME_HASH_PHASE
-          : RUNTIME_UNSIGNED_HASH_PHASE,
-        outerSignatureCoverage: signingProfile.mode === "authenticode"
-          ? "required"
-          : PERSONAL_DISTRIBUTION_OUTER_COVERAGE,
-      },
+      integrityProfile: targetContract.integrityProfile,
+      integrity: { ...targetContract.integrity },
       artifacts,
       licenses: evidence.licenses,
       sources: evidence.sources,
@@ -342,9 +360,10 @@ export async function stageWindowsX64Runtime(options) {
       finalArtifactBytesHashedBeforePackaging: true,
       signatureKind: signingProfile.signatureKind,
       signingProfile: signingProfile.reportName,
+      integrityProfile: targetContract.integrityProfile,
       outerSignatureCoveragePending: signingProfile.mode === "authenticode",
       readyForBuilderSpike: true,
-      productionRuntimeFreezeDeferredTo: "PRE-006",
+      productionDecisionId: "local-subtitle-production-freeze-v1",
       privacy: {
         absolutePathsRecorded: false,
         signingIdentityRecorded: false,
@@ -497,7 +516,9 @@ async function verifyPinnedFile(filePath, expected) {
 }
 
 function artifactIdForWhisper(fileName) {
-  if (fileName === "whisper-server.exe") return "whisper-server-win-x64";
+  if (fileName === "whisper-server.exe") {
+    return "whisper-server-win-x64-cpu";
+  }
   return `whisper-dependency-${fileName
     .toLowerCase()
     .replace(/[^a-z0-9]+/gu, "-")
@@ -599,11 +620,10 @@ async function runCli(argv = process.argv.slice(2)) {
   const options = parseCliArguments(argv);
   if (options.help) {
     process.stdout.write(
-      "Usage: node stage-runtime-windows-x64.mjs --output <ignored-parent> " +
+      "Usage: node stage-runtime-windows-x64.mjs [--output <ignored-parent>] " +
         "--whisper-archive <whisper-bin-x64.zip> --whisper-root <Release> " +
         "--ffmpeg-root <BtbN-directory> --ffmpeg-audit-receipt <json> " +
-        "[--signing-mode unsigned|authenticode] " +
-        "[--certificate-thumbprint <sha1>]\n",
+        "[--signing-mode unsigned]\n",
     );
     return;
   }

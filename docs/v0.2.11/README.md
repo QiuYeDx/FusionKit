@@ -56,6 +56,6 @@ docs/v0.2.11/
 | `openai-api-format-compatibility` | 已完成 `PRE-001`、`CORE-001`、`CORE-002`、`BE-001`、`BE-002`、`BE-003`、`BE-004`、`BE-005`、`FE-001`、`FE-002`、`AGENT-001`、`AGENT-002`、`FIX-001`；`DOC-001` 发布说明部分完成，下一步 `QA-001` / 补齐 README 与隐私说明 | `docs/v0.2.11/openai-api-format-compatibility/openai-api-format-compatibility_execution_plan.md` |
 | `audio-toolkit` | `FIX-001`～`FIX-007`、`AUDIT-001`、`QA-001` 已完成；TypeScript、四语言 i18n、全量 73 files / 560 tests、Vite test build、四路由×四语言×宽窄窗口 Electron 矩阵通过；真实供应商/设备验收保留在 `QA-002` | `docs/v0.2.11/audio-toolkit/audio-toolkit_execution_plan.md` |
 | `audio-toolkit-config-ux-refactor` | `PRE-R01`～`I18N-R01`、`FIX-R06`、`FIX-R07` 已完成；字幕文件翻译与音频 Radio 组共用 `ToolRadioButtonGroup`，跨页计算样式签名验证通过；下一步 `TEST-R01` | `docs/v0.2.11/audio-toolkit/audio-toolkit-config-ux-refactor_execution_plan.md` |
-| `local-subtitle-transcriber` | `PRE-001`～`PRE-006` 与 `CORE-001` 已完成；M0 及共享 domain/runtime schema 已冻结，57 项定向合同测试通过。Windows personal/friend profile 保持 unsigned，不创建证书或修改信任库；下一步优先 `CORE-002`，依赖 CORE-001 的后续包已解锁 | `docs/v0.2.11/local-subtitle-transcriber/local-subtitle-transcriber_execution_plan.md` |
+| `local-subtitle-transcriber` | `PRE-001`～`PRE-006`、`CORE-001`～`CORE-002` 已完成；domain/runtime schema 与 versioned resource manifest/resolver/staging contract 已冻结，CORE-002 定向 42 项、全量 918 项测试通过。Windows personal/friend profile 保持 unsigned；下一步优先 `CORE-003` | `docs/v0.2.11/local-subtitle-transcriber/local-subtitle-transcriber_execution_plan.md` |
 
 收到新的具体迭代需求后，在本目录下新增 `<feature-slug>/` 并补齐设计文档与执行计划。
