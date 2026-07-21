@@ -133,22 +133,39 @@ describe("local subtitle native media process", () => {
     expect(Object.isFrozen(result)).toBe(true);
   });
 
-  it("streams only retained stdout and stops after either output cap", async () => {
+  it.each([
+    {
+      label: "stdout",
+      stdout: "123456789",
+      stderr: "",
+      stdoutMaxBytes: 5,
+      stderrMaxBytes: 16,
+      expectedStdout: "12345",
+      expectedStderr: "",
+    },
+    {
+      label: "stderr",
+      stdout: "ok",
+      stderr: "abcdefgh",
+      stdoutMaxBytes: 16,
+      stderrMaxBytes: 4,
+      expectedStdout: "ok",
+      expectedStderr: "abcd",
+    },
+  ])("retains bounded output and stops after the $label cap", async (fixture) => {
     const child = new FakeChild({ closeOnSignal: "SIGTERM" });
     const streamed: Uint8Array[] = [];
-    const resultPromise = runLocalSubtitleMediaProcess(
+    const result = await runLocalSubtitleMediaProcess(
       validRequest({
         runner: fakeRunner(child, () => {
-          child.stdout.write("123456789");
-          child.stderr.write("abcdefgh");
+          if (fixture.stdout) child.stdout.write(fixture.stdout);
+          if (fixture.stderr) child.stderr.write(fixture.stderr);
         }),
-        stdoutMaxBytes: 5,
-        stderrMaxBytes: 4,
+        stdoutMaxBytes: fixture.stdoutMaxBytes,
+        stderrMaxBytes: fixture.stderrMaxBytes,
         onStdoutChunk: (chunk) => streamed.push(chunk),
       }),
     );
-
-    const result = await resultPromise;
 
     expect(result).toMatchObject({
       status: "closed",
@@ -156,10 +173,10 @@ describe("local subtitle native media process", () => {
       timedOut: false,
       aborted: false,
     });
-    expect(result.stdout.toString()).toBe("12345");
-    expect(result.stderr.toString()).toBe("abcd");
+    expect(result.stdout.toString()).toBe(fixture.expectedStdout);
+    expect(result.stderr.toString()).toBe(fixture.expectedStderr);
     expect(Buffer.concat(streamed.map((chunk) => Buffer.from(chunk))).toString())
-      .toBe("12345");
+      .toBe(fixture.expectedStdout);
     expect(child.killSignals).toEqual(["SIGTERM"]);
   });
 
@@ -190,6 +207,70 @@ describe("local subtitle native media process", () => {
         "out_time_us=1000\nprogress=continue\nout_time_us=2000\nprogress=end\n",
       );
     expect(child.killSignals).toEqual([]);
+  });
+
+  it.each([
+    { failureMode: "synchronous", stdoutMode: "capture" },
+    { failureMode: "asynchronous", stdoutMode: "capture" },
+    { failureMode: "synchronous", stdoutMode: "stream" },
+    { failureMode: "asynchronous", stdoutMode: "stream" },
+  ] as const)(
+    "stops after a $failureMode stdout callback failure in $stdoutMode mode without an unhandled rejection",
+    async ({ failureMode, stdoutMode }) => {
+      const child = new FakeChild({ closeOnSignal: "SIGTERM" });
+      const unhandledRejection = vi.fn();
+      process.on("unhandledRejection", unhandledRejection);
+      try {
+        const result = await runLocalSubtitleMediaProcess(
+          validRequest({
+            runner: fakeRunner(child, () => {
+              child.stdout.write("progress=continue\n");
+            }),
+            stdoutMode,
+            onStdoutChunk: () => {
+              if (failureMode === "synchronous") {
+                throw new Error("sync callback failure");
+              }
+              return Promise.reject(new Error("async callback failure"));
+            },
+          }),
+        );
+        await new Promise<void>((resolve) => setImmediate(resolve));
+
+        expect(result).toMatchObject({
+          status: "closed",
+          stdioErrorCode: "STDOUT_CALLBACK_FAILED",
+        });
+        expect(child.killSignals).toEqual(["SIGTERM"]);
+        expect(unhandledRejection).not.toHaveBeenCalled();
+      } finally {
+        process.off("unhandledRejection", unhandledRejection);
+      }
+    },
+  );
+
+  it("rejects a pending stdout thenable immediately without awaiting it", async () => {
+    const child = new FakeChild({ closeOnSignal: "SIGTERM" });
+    let releaseCallbacks!: () => void;
+    const callbacksPending = new Promise<void>((resolve) => {
+      releaseCallbacks = resolve;
+    });
+    const result = await runLocalSubtitleMediaProcess(
+      validRequest({
+        runner: fakeRunner(child, () => {
+          child.stdout.write("first\n");
+        }),
+        stdoutMode: "stream",
+        onStdoutChunk: () => callbacksPending,
+      }),
+    );
+
+    expect(result).toMatchObject({
+      status: "closed",
+      stdioErrorCode: "STDOUT_CALLBACK_FAILED",
+    });
+    expect(child.killSignals).toEqual(["SIGTERM"]);
+    releaseCallbacks();
   });
 
   it("does not spawn when already aborted", async () => {

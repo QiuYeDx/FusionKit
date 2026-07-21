@@ -1,12 +1,16 @@
 import { createHash } from "node:crypto";
 import {
+  chmod,
   lstat,
   mkdir,
   open,
   readFile,
   realpath,
   readdir,
+  rm,
   rename,
+  stat,
+  symlink,
   writeFile,
 } from "node:fs/promises";
 import path from "node:path";
@@ -145,6 +149,57 @@ describe("local subtitle media runtime and probing", () => {
     ]);
   });
 
+  it(
+    "rejects managed/temp/media links without touching their external targets",
+    async () => {
+      const sourcePath = await sourceFile("unsafe-root.mov", "unsafe-root");
+      const authorized = await inputs.authorize(OWNER_A, sourcePath);
+
+      for (const level of ["managed", "temp", "media"] as const) {
+        const customManagedRoot = path.join(
+          runtime.tempRoot,
+          `managed-${level}-link`,
+        );
+        const external = path.join(runtime.tempRoot, `external-${level}`);
+        await mkdir(external, { mode: 0o755 });
+        if (process.platform !== "win32") await chmod(external, 0o755);
+        const linkType = process.platform === "win32" ? "junction" : "dir";
+
+        if (level === "managed") {
+          await symlink(external, customManagedRoot, linkType);
+        } else {
+          await mkdir(customManagedRoot, { mode: 0o700 });
+          if (process.platform !== "win32") await chmod(customManagedRoot, 0o700);
+          if (level === "media") {
+            const tempRoot = path.join(customManagedRoot, "temp");
+            await mkdir(tempRoot, { mode: 0o700 });
+            if (process.platform !== "win32") await chmod(tempRoot, 0o700);
+            await symlink(external, path.join(tempRoot, "media"), linkType);
+          } else {
+            await symlink(external, path.join(customManagedRoot, "temp"), linkType);
+          }
+        }
+
+        const before = await stat(external);
+        const harness = createHarness({
+          managedResourceRoot: customManagedRoot,
+        });
+        await expect(
+          harness.normalizer.probeDraft({
+            owner: OWNER_A,
+            fileToken: authorized.fileToken,
+          }),
+        ).rejects.toMatchObject({ code: "invalid_configuration" });
+        const after = await stat(external);
+        if (process.platform !== "win32") {
+          expect(after.mode & 0o777).toBe(before.mode & 0o777);
+        }
+        await expect(readdir(external)).resolves.toEqual([]);
+        expect(harness.calls).toEqual([]);
+      }
+    },
+  );
+
   it("aborts an in-flight probe and rejects late owner records on release", async () => {
     const sourcePath = await sourceFile("owner-release.mov", "owner-release");
     const authorized = await inputs.authorize(OWNER_A, sourcePath);
@@ -156,6 +211,16 @@ describe("local subtitle media runtime and probing", () => {
     await waitForCondition(() =>
       harness.calls.some((call) => call.kind === "media-probe"),
     );
+
+    await expect(
+      harness.normalizer.probeDraft({
+        owner: OWNER_A,
+        fileToken: authorized.fileToken,
+      }),
+    ).rejects.toMatchObject({
+      code: "limit_exceeded",
+      localSubtitleCode: "limit_exceeded",
+    });
 
     harness.normalizer.releaseOwner(OWNER_A);
 
@@ -270,9 +335,75 @@ describe("local subtitle media runtime and probing", () => {
     expect(track.title).toBe(track.title!.trim());
     expect(track.title).not.toMatch(/[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u2028-\u202e]/u);
   });
+
+  it("bounds per-owner probe records and expires the oldest stream binding", async () => {
+    const harness = createHarness();
+    let first:
+      | {
+          readonly fileToken: string;
+          readonly streamId: string;
+        }
+      | undefined;
+
+    for (
+      let index = 0;
+      index < LOCAL_SUBTITLE_MEDIA_POLICY.maxProbeRecordsPerOwner + 1;
+      index += 1
+    ) {
+      const sourcePath = await sourceFile(`probe-quota-${index}.mkv`, `source-${index}`);
+      const authorized = await inputs.authorize(OWNER_A, sourcePath);
+      const summary = await harness.normalizer.probeDraft({
+        owner: OWNER_A,
+        fileToken: authorized.fileToken,
+      });
+      if (index === 0) {
+        first = {
+          fileToken: authorized.fileToken,
+          streamId: summary.autoSelectedStreamId,
+        };
+      }
+    }
+
+    await commitTaskLease(OWNER_A, first!.fileToken, "task-probe-quota");
+    await expect(
+      harness.normalizer.normalizeTask({
+        owner: OWNER_A,
+        fileToken: first!.fileToken,
+        taskId: "task-probe-quota",
+        taskGeneration: 1,
+        audioStreamId: first!.streamId,
+      }),
+    ).rejects.toMatchObject({
+      code: "media_changed",
+      localSubtitleCode: "media_changed",
+    });
+    expect(harness.decodeCount).toBe(0);
+  });
 });
 
 describe("local subtitle stream binding and normalization", () => {
+  it("rejects an auto-selection request whose task lease belongs to another file token", async () => {
+    const sourceA = await sourceFile("lease-token-a.mov", "lease-token-a");
+    const sourceB = await sourceFile("lease-token-b.mov", "lease-token-b");
+    const authorizedA = await inputs.authorize(OWNER_A, sourceA);
+    const authorizedB = await inputs.authorize(OWNER_A, sourceB);
+    await commitTaskLease(OWNER_A, authorizedA.fileToken, "task-token-a");
+    const harness = createHarness();
+
+    await expect(
+      harness.normalizer.normalizeTask({
+        owner: OWNER_A,
+        fileToken: authorizedB.fileToken,
+        taskId: "task-token-a",
+        taskGeneration: 1,
+      }),
+    ).rejects.toMatchObject({
+      code: "invalid_ipc_request",
+      field: "token",
+    });
+    expect(harness.calls).toEqual([]);
+  });
+
   it("rejects stale, forged, and cross-owner stream ids before decoding", async () => {
     const sourceA = await sourceFile("owner-a.mkv", "owner-a");
     const sourceB = await sourceFile("owner-b.mkv", "owner-b");
@@ -413,6 +544,164 @@ describe("local subtitle stream binding and normalization", () => {
     await expect(mediaSessions()).resolves.toEqual([]);
   });
 
+  it("rejects replacement of the private source snapshot during ffprobe", async () => {
+    const sourcePath = await sourceFile("replace-snapshot.mov", "snapshot-before");
+    const authorized = await inputs.authorize(OWNER_A, sourcePath);
+    await commitTaskLease(OWNER_A, authorized.fileToken, "task-snapshot-replaced");
+    const harness = createHarness({
+      afterMediaProbe: async (inputPath) => {
+        await writeFile(inputPath, "snapshot-after");
+      },
+    });
+
+    await expect(
+      harness.normalizer.normalizeTask({
+        owner: OWNER_A,
+        fileToken: authorized.fileToken,
+        taskId: "task-snapshot-replaced",
+        taskGeneration: 1,
+      }),
+    ).rejects.toMatchObject({
+      code: "media_changed",
+      localSubtitleCode: "media_changed",
+    });
+    expect(harness.decodeCount).toBe(0);
+    await expect(mediaSessions()).resolves.toEqual([]);
+  });
+
+  it("bounds decode bytes and duration before rejecting a short-reported source", async () => {
+    const sourcePath = await sourceFile("short-duration.mov", "short-duration");
+    const authorized = await inputs.authorize(OWNER_A, sourcePath);
+    await commitTaskLease(OWNER_A, authorized.fileToken, "task-short-duration");
+    const trustedDurationLimitMs =
+      1_000 + LOCAL_SUBTITLE_MEDIA_POLICY.decodeDurationToleranceMs;
+    const processDurationLimitMs =
+      trustedDurationLimitMs + LOCAL_SUBTITLE_MEDIA_POLICY.decodeLimitSentinelMs;
+    const outputLimitBytes =
+      processDurationLimitMs * 16 * 2 +
+      LOCAL_SUBTITLE_MEDIA_POLICY.maxNormalizedWavHeaderBytes;
+    const harness = createHarness({
+      probeOutputs: [probePayload([probeTrack(0, true)], "1.000")],
+      decodedFrames: trustedDurationLimitMs * 16,
+    });
+
+    await expect(
+      harness.normalizer.normalizeTask({
+        owner: OWNER_A,
+        fileToken: authorized.fileToken,
+        taskId: "task-short-duration",
+        taskGeneration: 1,
+      }),
+    ).rejects.toMatchObject({
+      code: "limit_exceeded",
+      localSubtitleCode: "limit_exceeded",
+    });
+    const args = harness.decodeCalls[0]!.args;
+    expect(args[args.indexOf("-t") + 1]).toBe("4.000");
+    expect(args[args.indexOf("-fs") + 1]).toBe(String(outputLimitBytes));
+    expect(args.indexOf("-t")).toBeLessThan(args.indexOf("-rf64"));
+    expect(args.indexOf("-fs")).toBeLessThan(args.indexOf("-rf64"));
+    await expect(mediaSessions()).resolves.toEqual([]);
+  });
+
+  it("rejects a valid short RIFF whose non-audio chunks reach the byte cap", async () => {
+    const sourcePath = await sourceFile("byte-limit.mov", "byte-limit");
+    const authorized = await inputs.authorize(OWNER_A, sourcePath);
+    await commitTaskLease(OWNER_A, authorized.fileToken, "task-byte-limit");
+    const trustedDurationLimitMs =
+      1_000 + LOCAL_SUBTITLE_MEDIA_POLICY.decodeDurationToleranceMs;
+    const processDurationLimitMs =
+      trustedDurationLimitMs + LOCAL_SUBTITLE_MEDIA_POLICY.decodeLimitSentinelMs;
+    const outputLimitBytes =
+      processDurationLimitMs * 16 * 2 +
+      LOCAL_SUBTITLE_MEDIA_POLICY.maxNormalizedWavHeaderBytes;
+    const harness = createHarness({
+      probeOutputs: [probePayload([probeTrack(0, true)], "1.000")],
+      decodedFrames: 16_000,
+      afterDecodeOutput: async ({ outputPath }) => {
+        await padRiffWithJunk(outputPath, outputLimitBytes);
+      },
+    });
+
+    await expect(
+      harness.normalizer.normalizeTask({
+        owner: OWNER_A,
+        fileToken: authorized.fileToken,
+        taskId: "task-byte-limit",
+        taskGeneration: 1,
+      }),
+    ).rejects.toMatchObject({
+      code: "limit_exceeded",
+      localSubtitleCode: "limit_exceeded",
+    });
+    await expect(mediaSessions()).resolves.toEqual([]);
+  });
+
+  it("keeps a truncation sentinel beyond the exact shared duration limit", async () => {
+    const sourcePath = await sourceFile("maximum-duration.mov", "maximum-duration");
+    const authorized = await inputs.authorize(OWNER_A, sourcePath);
+    await commitTaskLease(OWNER_A, authorized.fileToken, "task-maximum-duration");
+    const processDurationLimitMs =
+      LOCAL_SUBTITLE_LIMITS.maxDurationMs +
+      LOCAL_SUBTITLE_MEDIA_POLICY.decodeLimitSentinelMs;
+    const outputLimitBytes =
+      Math.ceil((processDurationLimitMs * 16_000) / 1_000) * 2 +
+      LOCAL_SUBTITLE_MEDIA_POLICY.maxNormalizedWavHeaderBytes;
+    const harness = createHarness({
+      probeOutputs: [
+        probePayload(
+          [probeTrack(0, true)],
+          String(LOCAL_SUBTITLE_LIMITS.maxDurationMs / 1_000),
+        ),
+      ],
+      decodeResult: closedResult(Buffer.alloc(0), { exitCode: 1 }),
+    });
+
+    await expect(
+      harness.normalizer.normalizeTask({
+        owner: OWNER_A,
+        fileToken: authorized.fileToken,
+        taskId: "task-maximum-duration",
+        taskGeneration: 1,
+      }),
+    ).rejects.toMatchObject({ code: "decode_failed" });
+    const args = harness.decodeCalls[0]!.args;
+    expect(args[args.indexOf("-t") + 1]).toBe("360000.999");
+    expect(args[args.indexOf("-fs") + 1]).toBe(String(outputLimitBytes));
+    await expect(mediaSessions()).resolves.toEqual([]);
+  });
+
+  it("preserves limit_exceeded when decoded RF64 frames exceed the shared duration", async () => {
+    const sourcePath = await sourceFile("duration-overflow.mov", "duration-overflow");
+    const authorized = await inputs.authorize(OWNER_A, sourcePath);
+    await commitTaskLease(OWNER_A, authorized.fileToken, "task-duration-overflow");
+    const totalFrames = (LOCAL_SUBTITLE_LIMITS.maxDurationMs + 1) * 16;
+    const harness = createHarness({
+      probeOutputs: [
+        probePayload(
+          [probeTrack(0, true)],
+          String(LOCAL_SUBTITLE_LIMITS.maxDurationMs / 1_000),
+        ),
+      ],
+      afterDecodeOutput: async ({ outputPath }) => {
+        await overwriteWithSparseRf64(outputPath, totalFrames);
+      },
+    });
+
+    await expect(
+      harness.normalizer.normalizeTask({
+        owner: OWNER_A,
+        fileToken: authorized.fileToken,
+        taskId: "task-duration-overflow",
+        taskGeneration: 1,
+      }),
+    ).rejects.toMatchObject({
+      code: "limit_exceeded",
+      localSubtitleCode: "limit_exceeded",
+    });
+    await expect(mediaSessions()).resolves.toEqual([]);
+  });
+
   it("streams monotonic non-duplicated decode progress", async () => {
     const sourcePath = await sourceFile("progress.mov", "progress");
     const authorized = await inputs.authorize(OWNER_A, sourcePath);
@@ -437,6 +726,78 @@ describe("local subtitle stream binding and normalization", () => {
     expect(progress).toEqual([...new Set(progress)]);
     expect(progress.every((value, index) => index === 0 || value > progress[index - 1]!))
       .toBe(true);
+  });
+
+  it("accepts a progress chunk larger than 16 KiB when every line is bounded", async () => {
+    const sourcePath = await sourceFile("large-progress.mov", "large-progress");
+    const authorized = await inputs.authorize(OWNER_A, sourcePath);
+    await commitTaskLease(OWNER_A, authorized.fileToken, "task-large-progress");
+    const progressChunk = `${"out_time_us=1000\n".repeat(1_100)}progress=end\n`;
+    expect(Buffer.byteLength(progressChunk)).toBeGreaterThan(16 * 1024);
+    const harness = createHarness({ progressChunks: [progressChunk] });
+
+    await expect(
+      harness.normalizer.normalizeTask({
+        owner: OWNER_A,
+        fileToken: authorized.fileToken,
+        taskId: "task-large-progress",
+        taskGeneration: 1,
+      }),
+    ).resolves.toMatchObject({ taskId: "task-large-progress" });
+  });
+
+  it("parses split CRLF progress and falls back from zero time to total_size", async () => {
+    const sourcePath = await sourceFile("size-progress.mov", "size-progress");
+    const authorized = await inputs.authorize(OWNER_A, sourcePath);
+    await commitTaskLease(OWNER_A, authorized.fileToken, "task-size-progress");
+    const harness = createHarness({
+      progressChunks: [
+        "out_time_us=0\r",
+        "\ntotal_size=160000\r",
+        "\nprogress=end\r",
+        "\n",
+      ],
+    });
+    const progress: number[] = [];
+
+    await harness.normalizer.normalizeTask({
+      owner: OWNER_A,
+      fileToken: authorized.fileToken,
+      taskId: "task-size-progress",
+      taskGeneration: 1,
+      onProgress: (value) => progress.push(value),
+    });
+
+    expect(harness.decodeCalls[0]!.stdoutMode).toBe("stream");
+    expect(progress[0]).toBe(10);
+    expect(progress.some((value) => value > 10 && value < 100)).toBe(true);
+    expect(progress.at(-1)).toBe(100);
+  });
+
+  it("absorbs rejected async progress observers without changing normalization", async () => {
+    const sourcePath = await sourceFile("async-progress.mov", "async-progress");
+    const authorized = await inputs.authorize(OWNER_A, sourcePath);
+    await commitTaskLease(OWNER_A, authorized.fileToken, "task-async-progress");
+    const harness = createHarness();
+    const unhandledRejection = vi.fn();
+    process.on("unhandledRejection", unhandledRejection);
+    try {
+      await expect(
+        harness.normalizer.normalizeTask({
+          owner: OWNER_A,
+          fileToken: authorized.fileToken,
+          taskId: "task-async-progress",
+          taskGeneration: 1,
+          onProgress: async () => {
+            throw new Error("progress observer failure");
+          },
+        }),
+      ).resolves.toMatchObject({ taskId: "task-async-progress" });
+      await new Promise<void>((resolve) => setImmediate(resolve));
+      expect(unhandledRejection).not.toHaveBeenCalled();
+    } finally {
+      process.off("unhandledRejection", unhandledRejection);
+    }
   });
 });
 
@@ -519,6 +880,7 @@ describe("local subtitle PCM proof, window integrity, and cleanup", () => {
       descriptor,
     } as const;
     const resolved = await harness.normalizer.resolveWindow(window, expected);
+    const originalBytes = await readFile(resolved.filePath);
     const handle = await open(resolved.filePath, "r+");
     try {
       await handle.write(Buffer.from([0x7f]), 0, 1, 44);
@@ -533,6 +895,109 @@ describe("local subtitle PCM proof, window integrity, and cleanup", () => {
       code: "media_changed",
       localSubtitleCode: "media_changed",
     });
+    expect(isLocalSubtitleBrandedPcmWindow(window)).toBe(false);
+
+    await writeFile(resolved.filePath, originalBytes);
+    expect(isLocalSubtitleBrandedPcmWindow(window)).toBe(false);
+    await expect(
+      harness.normalizer.resolveWindow(window, expected),
+    ).rejects.toMatchObject({ code: "invalid_configuration" });
+
+    const headerDescriptor = structuralWindow(8_000, 16_000);
+    const headerWindow = await harness.normalizer.materializeWindow({
+      normalized,
+      descriptor: headerDescriptor,
+    });
+    const headerExpected = {
+      taskId: "task-changed-window",
+      taskGeneration: 1,
+      descriptor: headerDescriptor,
+    } as const;
+    const headerResolved = await harness.normalizer.resolveWindow(
+      headerWindow,
+      headerExpected,
+    );
+    const headerBytes = await readFile(headerResolved.filePath);
+    const headerHandle = await open(headerResolved.filePath, "r+");
+    try {
+      await headerHandle.write(Buffer.from("NOPE"), 0, 4, 0);
+      await headerHandle.sync();
+    } finally {
+      await headerHandle.close();
+    }
+
+    await expect(
+      harness.normalizer.resolveWindow(headerWindow, headerExpected),
+    ).rejects.toMatchObject({
+      code: "media_changed",
+      localSubtitleCode: "media_changed",
+    });
+    expect(isLocalSubtitleBrandedPcmWindow(headerWindow)).toBe(false);
+    await writeFile(headerResolved.filePath, headerBytes);
+    expect(isLocalSubtitleBrandedPcmWindow(headerWindow)).toBe(false);
+    await expect(
+      harness.normalizer.resolveWindow(headerWindow, headerExpected),
+    ).rejects.toMatchObject({ code: "invalid_configuration" });
+  });
+
+  it("permanently invalidates existing windows when the normalized source faults", async () => {
+    const { harness, normalized } = await normalizedFixture(
+      OWNER_A,
+      "faulted-normalized.mov",
+      "task-faulted-normalized",
+    );
+    const firstDescriptor = structuralWindow(0, 8_000);
+    const firstWindow = await harness.normalizer.materializeWindow({
+      normalized,
+      descriptor: firstDescriptor,
+    });
+    const resolved = await harness.normalizer.resolveWindow(firstWindow, {
+      taskId: "task-faulted-normalized",
+      taskGeneration: 1,
+      descriptor: firstDescriptor,
+    });
+    const normalizedPath = path.join(path.dirname(resolved.filePath), "normalized.wav");
+    const originalBytes = await readFile(normalizedPath);
+    await writeFile(normalizedPath, Buffer.from(originalBytes).fill(0x55, 44, 45));
+
+    await expect(
+      harness.normalizer.materializeWindow({
+        normalized,
+        descriptor: structuralWindow(8_000, 16_000),
+      }),
+    ).rejects.toMatchObject({ code: "decode_failed" });
+    expect(isLocalSubtitleNormalizedPcm(normalized)).toBe(false);
+    expect(isLocalSubtitleBrandedPcmWindow(firstWindow)).toBe(false);
+
+    await writeFile(normalizedPath, originalBytes);
+    expect(isLocalSubtitleNormalizedPcm(normalized)).toBe(false);
+    expect(isLocalSubtitleBrandedPcmWindow(firstWindow)).toBe(false);
+    await expect(
+      harness.normalizer.resolveWindow(firstWindow, {
+        taskId: "task-faulted-normalized",
+        taskGeneration: 1,
+        descriptor: firstDescriptor,
+      }),
+    ).rejects.toMatchObject({ code: "invalid_configuration" });
+  });
+
+  it("materializes multiple exact windows without decoding the source again", async () => {
+    const { harness, normalized } = await normalizedFixture(
+      OWNER_A,
+      "multi-window.mov",
+      "task-multi-window",
+    );
+
+    await harness.normalizer.materializeWindow({
+      normalized,
+      descriptor: structuralWindow(0, 16_000),
+    });
+    await harness.normalizer.materializeWindow({
+      normalized,
+      descriptor: structuralWindow(16_000, 32_000),
+    });
+
+    expect(harness.decodeCount).toBe(1);
   });
 
   it("binds odd half-millisecond descriptors to exact frame duration", async () => {
@@ -609,7 +1074,9 @@ describe("local subtitle PCM proof, window integrity, and cleanup", () => {
 
   it("fails promptly but retains the session until an unconfirmed child closes", async () => {
     const sourcePath = await sourceFile("late-close.mov", "late-close");
+    const nextSourcePath = await sourceFile("after-late-close.mov", "after-late-close");
     const authorized = await inputs.authorize(OWNER_A, sourcePath);
+    const nextAuthorized = await inputs.authorize(OWNER_A, nextSourcePath);
     await commitTaskLease(OWNER_A, authorized.fileToken, "task-late-close");
     const close = deferred<void>();
     const harness = createHarness({
@@ -632,9 +1099,132 @@ describe("local subtitle PCM proof, window integrity, and cleanup", () => {
     );
     await rejection;
     await expect(mediaSessions()).resolves.toHaveLength(1);
+    await expect(
+      harness.normalizer.probeDraft({
+        owner: OWNER_A,
+        fileToken: nextAuthorized.fileToken,
+      }),
+    ).rejects.toMatchObject({
+      code: "runtime_launch_failed",
+      localSubtitleCode: "media_runtime_launch_failed",
+    });
 
     close.resolve();
     await waitForCondition(async () => (await mediaSessions()).length === 0);
+    await expect(
+      harness.normalizer.probeDraft({
+        owner: OWNER_A,
+        fileToken: nextAuthorized.fileToken,
+      }),
+    ).resolves.toMatchObject({ durationMs: 10_000 });
+  });
+
+  it("faults an owner after failed session cleanup and retries only during shutdown", async () => {
+    const sourcePath = await sourceFile("cleanup-fault.mov", "cleanup-fault");
+    const nextSourcePath = await sourceFile("cleanup-fenced.mov", "cleanup-fenced");
+    const authorized = await inputs.authorize(OWNER_A, sourcePath);
+    const nextAuthorized = await inputs.authorize(OWNER_A, nextSourcePath);
+    await commitTaskLease(OWNER_A, authorized.fileToken, "task-cleanup-fault");
+    let sessionRoot = "";
+    let displacedSession = "";
+    const harness = createHarness({
+      decodeResult: closedResult(Buffer.alloc(0), { exitCode: 1 }),
+      afterDecodeOutput: async ({ outputPath }) => {
+        sessionRoot = path.dirname(outputPath);
+        displacedSession = `${sessionRoot}.displaced`;
+        await rename(sessionRoot, displacedSession);
+        await mkdir(sessionRoot, { mode: 0o700 });
+      },
+    });
+
+    await expect(
+      harness.normalizer.normalizeTask({
+        owner: OWNER_A,
+        fileToken: authorized.fileToken,
+        taskId: "task-cleanup-fault",
+        taskGeneration: 1,
+      }),
+    ).rejects.toMatchObject({
+      code: "cleanup_failed",
+      localSubtitleCode: "cancel_failed",
+      stage: "cleanup",
+    });
+    await expect(
+      harness.normalizer.probeDraft({
+        owner: OWNER_A,
+        fileToken: nextAuthorized.fileToken,
+      }),
+    ).rejects.toMatchObject({
+      code: "cleanup_failed",
+      localSubtitleCode: "cancel_failed",
+    });
+
+    await rm(sessionRoot, { recursive: true, force: false });
+    await rename(displacedSession, sessionRoot);
+    await expect(harness.normalizer.shutdown("fatal")).resolves.toBeUndefined();
+    await expect(mediaSessions()).resolves.toEqual([]);
+  });
+
+  it("invalidates existing proofs when a later task session cannot be cleaned", async () => {
+    let sabotageCleanup = false;
+    let failedSession = "";
+    let displacedSession = "";
+    const harness = createHarness({
+      decodeResult: () =>
+        sabotageCleanup
+          ? closedResult(Buffer.alloc(0), { exitCode: 1 })
+          : closedResult(),
+      afterDecodeOutput: async ({ outputPath }) => {
+        if (!sabotageCleanup) return;
+        failedSession = path.dirname(outputPath);
+        displacedSession = `${failedSession}.displaced`;
+        await rename(failedSession, displacedSession);
+        await mkdir(failedSession, { mode: 0o700 });
+      },
+    });
+    const normalized = await normalizeSource(
+      harness,
+      OWNER_A,
+      "proof-before-cleanup-fault.mov",
+      "task-proof-before-cleanup-fault",
+    );
+    const descriptor = structuralWindow(0, 4_000);
+    const window = await harness.normalizer.materializeWindow({
+      normalized,
+      descriptor,
+    });
+    expect(isLocalSubtitleNormalizedPcm(normalized)).toBe(true);
+    expect(isLocalSubtitleBrandedPcmWindow(window)).toBe(true);
+
+    sabotageCleanup = true;
+    const failingSource = await sourceFile(
+      "later-cleanup-fault.mov",
+      "later-cleanup-fault",
+    );
+    const failingAuthorization = await inputs.authorize(OWNER_A, failingSource);
+    await commitTaskLease(
+      OWNER_A,
+      failingAuthorization.fileToken,
+      "task-later-cleanup-fault",
+    );
+    await expect(
+      harness.normalizer.normalizeTask({
+        owner: OWNER_A,
+        fileToken: failingAuthorization.fileToken,
+        taskId: "task-later-cleanup-fault",
+        taskGeneration: 1,
+      }),
+    ).rejects.toMatchObject({
+      code: "cleanup_failed",
+      localSubtitleCode: "cancel_failed",
+    });
+    expect(isLocalSubtitleNormalizedPcm(normalized)).toBe(false);
+    expect(isLocalSubtitleBrandedPcmWindow(window)).toBe(false);
+
+    await rm(failedSession, { recursive: true, force: false });
+    await rename(displacedSession, failedSession);
+    await expect(harness.normalizer.shutdown("fatal")).resolves.toBeUndefined();
+    await expect(mediaSessions()).resolves.toEqual([]);
   });
 
   it("releaseOwner removes only owned sessions and invalidates every proof", async () => {
@@ -664,6 +1254,9 @@ describe("local subtitle PCM proof, window integrity, and cleanup", () => {
 
     harness.normalizer.releaseOwner(OWNER_A);
 
+    expect(isLocalSubtitleNormalizedPcm(normalizedA)).toBe(false);
+    expect(isLocalSubtitleBrandedPcmWindow(windowA)).toBe(false);
+
     await expect(
       harness.normalizer.resolveWindow(windowA, {
         taskId: "task-release-a",
@@ -671,12 +1264,7 @@ describe("local subtitle PCM proof, window integrity, and cleanup", () => {
         descriptor,
       }),
     ).rejects.toMatchObject({ localSubtitleCode: "owner_released" });
-    await waitForCondition(
-      async () =>
-        !isLocalSubtitleNormalizedPcm(normalizedA) &&
-        !isLocalSubtitleBrandedPcmWindow(windowA) &&
-        (await mediaSessions()).length === 1,
-    );
+    await waitForCondition(async () => (await mediaSessions()).length === 1);
     expect(isLocalSubtitleNormalizedPcm(normalizedB)).toBe(true);
     expect(isLocalSubtitleBrandedPcmWindow(windowB)).toBe(true);
     await expect(
@@ -711,6 +1299,7 @@ describe("local subtitle PCM proof, window integrity, and cleanup", () => {
     const first = harness.normalizer.shutdown("update");
     const second = harness.normalizer.shutdown("fatal");
     expect(first).toBe(second);
+    expect(isLocalSubtitleNormalizedPcm(normalized)).toBe(false);
     await first;
 
     expect(isLocalSubtitleNormalizedPcm(normalized)).toBe(false);
@@ -722,6 +1311,58 @@ describe("local subtitle PCM proof, window integrity, and cleanup", () => {
       }),
     ).rejects.toMatchObject({ localSubtitleCode: "owner_released" });
     await expect(harness.normalizer.shutdown("app_quit")).resolves.toBeUndefined();
+  });
+
+  it("continues other owner cleanup when one owner fails and supports a later retry", async () => {
+    const harness = createHarness();
+    const normalizedA = await normalizeSource(
+      harness,
+      OWNER_A,
+      "shutdown-failure-a.mov",
+      "task-shutdown-failure-a",
+    );
+    const normalizedB = await normalizeSource(
+      harness,
+      OWNER_B,
+      "shutdown-failure-b.mov",
+      "task-shutdown-failure-b",
+    );
+    const descriptor = structuralWindow(0, 4_000);
+    const windowA = await harness.normalizer.materializeWindow({
+      normalized: normalizedA,
+      descriptor,
+    });
+    const windowB = await harness.normalizer.materializeWindow({
+      normalized: normalizedB,
+      descriptor,
+    });
+    const resolvedA = await harness.normalizer.resolveWindow(windowA, {
+      taskId: "task-shutdown-failure-a",
+      taskGeneration: 1,
+      descriptor,
+    });
+    const resolvedB = await harness.normalizer.resolveWindow(windowB, {
+      taskId: "task-shutdown-failure-b",
+      taskGeneration: 1,
+      descriptor,
+    });
+    const sessionA = path.dirname(resolvedA.filePath);
+    const sessionB = path.dirname(resolvedB.filePath);
+    const displacedA = `${sessionA}.displaced`;
+    await rename(sessionA, displacedA);
+    await mkdir(sessionA, { mode: 0o700 });
+
+    await expect(harness.normalizer.shutdown("update")).rejects.toMatchObject({
+      code: "cleanup_failed",
+      localSubtitleCode: "cancel_failed",
+    });
+    await expect(lstat(displacedA)).resolves.toMatchObject({});
+    await expect(lstat(sessionB)).rejects.toMatchObject({ code: "ENOENT" });
+
+    await rm(sessionA, { recursive: true, force: false });
+    await rename(displacedA, sessionA);
+    await expect(harness.normalizer.shutdown("update")).resolves.toBeUndefined();
+    await expect(mediaSessions()).resolves.toEqual([]);
   });
 });
 
@@ -748,6 +1389,7 @@ interface CapturedMediaCall {
   readonly args: readonly string[];
   readonly cwd: string;
   readonly env: Readonly<Record<string, string | undefined>>;
+  readonly stdoutMode?: "capture" | "stream";
 }
 
 interface DecodeContext {
@@ -762,7 +1404,11 @@ interface FakeHarnessOptions {
   readonly probeOutputs?: readonly unknown[];
   readonly progressChunks?: readonly string[];
   readonly decodedFrames?: number;
-  readonly decodeResult?: LocalSubtitleMediaProcessResult;
+  readonly decodeResult?:
+    | LocalSubtitleMediaProcessResult
+    | ((context: DecodeContext) => LocalSubtitleMediaProcessResult);
+  readonly managedResourceRoot?: string;
+  readonly afterMediaProbe?: (inputPath: string) => Promise<void> | void;
   readonly afterDecodeOutput?: (context: DecodeContext) => Promise<void> | void;
   readonly yieldEveryCall?: boolean;
   readonly waitForAbortKind?: FakeCallKind;
@@ -789,6 +1435,9 @@ function createHarness(options: FakeHarnessOptions = {}) {
         args: Object.freeze([...request.args]),
         cwd: request.cwd,
         env: Object.freeze({ ...request.env }),
+        ...(request.stdoutMode === undefined
+          ? {}
+          : { stdoutMode: request.stdoutMode }),
       });
       try {
         if (options.yieldEveryCall) await Promise.resolve();
@@ -818,6 +1467,7 @@ function createHarness(options: FakeHarnessOptions = {}) {
           const outputs = options.probeOutputs ?? [probePayload([probeTrack(0, true)])];
           const output = outputs[Math.min(probeIndex, outputs.length - 1)]!;
           probeIndex += 1;
+          await options.afterMediaProbe?.(inputPath);
           return closedResult(Buffer.from(JSON.stringify(output)));
         }
 
@@ -843,7 +1493,11 @@ function createHarness(options: FakeHarnessOptions = {}) {
         }
         const context = { request, inputPath, outputPath, inputBytes };
         await options.afterDecodeOutput?.(context);
-        return options.decodeResult ?? closedResult();
+        return (
+          (typeof options.decodeResult === "function"
+            ? options.decodeResult(context)
+            : options.decodeResult) ?? closedResult()
+        );
       } finally {
         active -= 1;
       }
@@ -852,7 +1506,7 @@ function createHarness(options: FakeHarnessOptions = {}) {
 
   const normalizer = new LocalSubtitleMediaNormalizer({
     environment: runtime.environment,
-    managedResourceRoot: managedRoot,
+    managedResourceRoot: options.managedResourceRoot ?? managedRoot,
     inputAuthorizations: inputs,
     processRunner: runner,
     signatureVerifier: async () => true,
@@ -1036,6 +1690,55 @@ function structuralWindow(
     coreStartMs: startMs,
     coreEndMs: endMs,
   });
+}
+
+async function padRiffWithJunk(
+  filePath: string,
+  targetSize: number,
+): Promise<void> {
+  const wav = await readFile(filePath);
+  const payloadSize = targetSize - wav.length - 8;
+  if (payloadSize <= 0 || payloadSize % 2 !== 0) {
+    throw new Error("The RIFF padding fixture size is invalid.");
+  }
+  const chunkHeader = Buffer.alloc(8);
+  chunkHeader.write("JUNK", 0, "ascii");
+  chunkHeader.writeUInt32LE(payloadSize, 4);
+  const expanded = Buffer.concat([wav, chunkHeader, Buffer.alloc(payloadSize)]);
+  expanded.writeUInt32LE(expanded.length - 8, 4);
+  await writeFile(filePath, expanded);
+}
+
+async function overwriteWithSparseRf64(
+  filePath: string,
+  totalFrames: number,
+): Promise<void> {
+  const dataSize = totalFrames * 2;
+  const fileSize = 80 + dataSize;
+  const header = Buffer.alloc(80);
+  const canonicalHeader = createLocalSubtitlePcm16WavHeader(2);
+  header.write("RF64", 0, "ascii");
+  header.writeUInt32LE(0xffff_ffff, 4);
+  header.write("WAVE", 8, "ascii");
+  header.write("ds64", 12, "ascii");
+  header.writeUInt32LE(28, 16);
+  header.writeBigUInt64LE(BigInt(fileSize - 8), 20);
+  header.writeBigUInt64LE(BigInt(dataSize), 28);
+  header.writeBigUInt64LE(BigInt(totalFrames), 36);
+  header.writeUInt32LE(0, 44);
+  header.write("fmt ", 48, "ascii");
+  header.writeUInt32LE(16, 52);
+  canonicalHeader.copy(header, 56, 20, 36);
+  header.write("data", 72, "ascii");
+  header.writeUInt32LE(0xffff_ffff, 76);
+
+  const handle = await open(filePath, "r+");
+  try {
+    await handle.write(header, 0, header.length, 0);
+    await handle.truncate(fileSize);
+  } finally {
+    await handle.close();
+  }
 }
 
 async function mediaSessions(): Promise<string[]> {

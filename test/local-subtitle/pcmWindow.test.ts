@@ -106,9 +106,12 @@ describe("local subtitle PCM16 WAV inspection", () => {
     });
   });
 
-  it("accepts the exact shared 99:59:59.999 frame limit", async () => {
+  it("accepts seven frames beyond the rounded 99:59:59.999 frame limit", async () => {
     const filePath = path.join(fixtureRoot, "duration-limit.rf64.wav");
-    const totalFrames = LOCAL_SUBTITLE_LIMITS.maxDurationMs * 16;
+    const roundedLimitFrames = Math.round(
+      (LOCAL_SUBTITLE_LIMITS.maxDurationMs * 16_000) / 1_000,
+    );
+    const totalFrames = roundedLimitFrames + 7;
     const dataSize = totalFrames * 2;
     await writeSparseRf64(filePath, dataSize, totalFrames);
 
@@ -121,10 +124,18 @@ describe("local subtitle PCM16 WAV inspection", () => {
     );
   });
 
-  it("rejects an RF64 source one millisecond beyond the shared duration limit", async () => {
+  it("rejects eight frames beyond the rounded 99:59:59.999 frame limit", async () => {
     const filePath = path.join(fixtureRoot, "duration-overflow.rf64.wav");
-    const totalFrames = (LOCAL_SUBTITLE_LIMITS.maxDurationMs + 1) * 16;
-    await writeSparseRf64(filePath, totalFrames * 2, totalFrames);
+    const roundedLimitFrames = Math.round(
+      (LOCAL_SUBTITLE_LIMITS.maxDurationMs * 16_000) / 1_000,
+    );
+    const totalFrames = roundedLimitFrames + 8;
+    const dataSize = totalFrames * 2;
+    await writeSparseRf64(filePath, dataSize, totalFrames);
+
+    expect(80 + dataSize).toBeLessThan(
+      LOCAL_SUBTITLE_LIMITS.maxNormalizedPcmBytes,
+    );
 
     await expect(inspectLocalSubtitlePcm16Wav(filePath)).rejects.toMatchObject({
       reason: "limit_exceeded",

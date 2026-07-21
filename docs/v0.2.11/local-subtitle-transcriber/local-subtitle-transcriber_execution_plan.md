@@ -6,7 +6,7 @@
 >
 > 对应设计文档：`docs/v0.2.11/local-subtitle-transcriber/local-subtitle-transcriber_final_design.md`
 >
-> 当前状态：`PRE-001`～`PRE-006`、`CORE-001`～`CORE-004`、`NATIVE-001`、`BE-001` 与 `SUB-001` 已完成，M1 的 domain/runtime schema、versioned resource staging、preload/IPC/capability、renderer session、official server contract、真实 Supervisor 生命周期与 canonical post-processing contract 已冻结；Windows 使用 `unsigned_personal_distribution`。下一步可认领 `NATIVE-002`、`MEDIA-001`、`SUB-002` 或 `LINK-001`；`BE-002` 的媒体、字幕、模型依赖仍未齐
+> 当前状态：`PRE-001`～`PRE-006`、`CORE-001`～`CORE-004`、`NATIVE-001`、`BE-001`、`MEDIA-001` 与 `SUB-001` 已完成，M1 的 domain/runtime schema、versioned resource staging、preload/IPC/capability、renderer session、official server contract、真实 Supervisor 生命周期、media normalization/PCM proof 与 canonical post-processing contract 已冻结；Windows 使用 `unsigned_personal_distribution`。下一步可认领 `NATIVE-002`、`SUB-002`、`MODEL-001` 或 `LINK-001`；`BE-002` 仍等待字幕与模型依赖
 >
 > 发布门禁：M0 已解除；正式实现必须遵守 `poc/pre006-production-decision.json`，不得静默更换引擎、平台、模型或 runtime acquisition policy
 >
@@ -43,6 +43,8 @@
 > 2026-07-21 BE-001 完成：新增 opaque/identity-bound `0700` server session、`unloaded → starting → ready → stopping/faulted/disposed` Supervisor、owner/load lease、独立 process epoch、同步 request ticket、fresh startup retry、runtime health restart、backend attestation、AbortController → SIGTERM → SIGKILL 与 close-gated 单次 finalization；接通同步 owner release、`before-quit` 和 update install 的共享有界 shutdown。聚焦 3 files / 37 tests、显式 real CPU 1/1、全量 116 passed + 2 skipped files / 1146 passed + 2 skipped tests、TypeScript、三段 Vite test build 与 manifest gate 通过。PCM window 仍属 `MEDIA-001`，raw quality/retry 属 `SUB-001`，Job Manager 属 `BE-002`，启动 orphan scan 属 `BE-003`
 
 > 2026-07-21 SUB-001 完成：新增 segment-only v1 policy、16 kHz structural root plan、main-only attempt graph、stable root/window/parent + attempt/epoch/request lineage、exact retry children、verified no-speech evidence、PRE-004 raw gate、owned-boundary merge与 grapheme-safe canonical shaping。正常 split 保持内部结构化 control，逐窗 retry 只有 exhausted/unsplittable 映射质量失败；`estimatedTiming` 进入 canonical strict schema并与 words 互斥。processing warning 保持 main-only，public completion warning v1 不扩张。聚焦 4 files / 174 tests、全量 117 passed + 2 skipped files / 1223 passed + 2 skipped tests、TypeScript、三段 Vite test build、manifest 0/0 与 validator 17/17 通过。PCM/WAV authority 仍属 `MEDIA-001`，SRT/LRC/atomic artifact 仍属 `SUB-002`，非 VAD words 等待 versioned server capability。
+
+> 2026-07-21 MEDIA-001 完成：新增 shell-free/close-confirmed native process contract、fixed bundled FFmpeg/ffprobe version attestation、task-private source snapshot、owner/file/runtime/track-table stream binding、decode-time `-t`/`-fs` 与 disk guard、RIFF/RF64 exact-frame PCM/window/SHA-256 proof，以及 owner fault/release/shutdown cleanup；`probeMedia` 接入 app-scoped composite runtime。聚焦 4 files / 84 tests、全量 121 passed + 2 skipped files / 1312 passed + 2 skipped tests、TypeScript、三段 Vite test build、manifest 0/0、validator 17/17 与 diff gate 通过。final packaged bytes/`extraResources`/builder/signing/no-PATH smoke 仍属 `NATIVE-002`，BE binding/orphan 分别留 `BE-002` / `BE-003`。
 
 ---
 
@@ -331,7 +333,7 @@ flowchart TD
 | NATIVE-001 | 已完成 | 2026-07-21 | PRE-006/CORE-001/002 | 正式 official server runtime contract | `electron/main/local-subtitle/server-{contract,http-client,process-contract,diagnostics}.ts`、CORE-002 opaque verifier proof、5 tests、Final Design | 4 files / 75 tests 定向；全量 113 pass + 1 skip files / 1109 pass + 1 skip tests；TypeScript、Vite test build、manifest/validator、real CPU two-request/same-PID、diff/process cleanup | `docs/v0.2.11/local-subtitle-transcriber/local-subtitle-transcriber_implementation_records/2026-07-21_NATIVE-001_official-server-runtime-contract.md` | 无；真实 session FS、child/port/epoch/restart/kill/owner cleanup 已由 `BE-001` 完成，PCM branded identity 留 `MEDIA-001`；当前宿主 Metal 临时资源不足不覆盖 PRE-004 完整证据 |
 | NATIVE-002 | 未开始 | — | NATIVE-001/CORE-002 | 三类 official server artifact、runtime manifest 与 builder 接线 | staging/source-build scripts、resource manifests、`electron-builder.json`、可选 workflow | win-x64 CPU/CUDA、mac-arm64 Metal/CPU artifact + packaged smoke + SHA manifest | — | 签名凭据不得进入仓库；staging 缺失必须在打包前明确失败 |
 | BE-001 | 已完成 | 2026-07-21 | NATIVE-001/CORE-001/002 | Server Supervisor、私有 session、process epoch 与 app lifecycle | `electron/main/local-subtitle/server-{session,supervisor,app-lifecycle}.ts`、`electron/main/{index,update}.ts`、4 tests、Final Design | 聚焦 session/supervisor/lifecycle 3 files / 37 tests；默认 real 1 skip、显式 CPU real 1/1；全量 116 pass + 2 skip files / 1146 pass + 2 skip tests；tsc、renderer/main/preload Vite test build、manifest 0/0、validator 17/17、diff/process cleanup | `docs/v0.2.11/local-subtitle-transcriber/local-subtitle-transcriber_implementation_records/2026-07-21_BE-001_server-supervisor.md` | 无 BE-001 blocker；PCM window=`MEDIA-001`，raw quality/retry=`SUB-001`，Job Manager=`BE-002`，startup orphan scan=`BE-003`；`BE-002` 依赖仍未齐 |
-| MEDIA-001 | 未开始 | — | CORE-001/002 | FFprobe/FFmpeg 媒体规范化与 PCM 窗口 | `electron/main/local-subtitle/media-normalizer.ts`、tests | 格式矩阵、PCM frame 覆盖/overlap、进度、音轨、取消、损坏输入、临时清理 | — | packaged 模式不得回退 PATH；原媒体只解码一次 |
+| MEDIA-001 | 已完成 | 2026-07-21 | CORE-001/002/003 | FFprobe/FFmpeg 媒体规范化、exact PCM 窗口与 main-only proof | `electron/main/local-subtitle/{media-process,pcm-window,media-normalizer,main-runtime,authorizations,ipc-security,ipc}.ts`、`electron/main/index.ts`、metadata schema、tests、pitfall/docs | 聚焦 4 files / 84 tests；全量 121 pass + 2 skip files / 1312 pass + 2 skip tests；TypeScript、三段 Vite test build、manifest 0/0、validator 17/17、diff check | `docs/v0.2.11/local-subtitle-transcriber/local-subtitle-transcriber_implementation_records/2026-07-21_MEDIA-001_media-normalization.md` | 无 MEDIA service blocker；final artifact/`extraResources`/builder/signing/packaged no-PATH=`NATIVE-002`，dispatch binding=`BE-002`，startup orphan=`BE-003` |
 | SUB-001 | 已完成 | 2026-07-21 | CORE-001 | Raw transcript gate、窗口合并与 canonical 字幕整形 | `electron/main/local-subtitle/{subtitle-post-processor,server-contract}.ts`、`src/type/localSubtitle.ts`、`src/type/localSubtitleIpc.{ts,test.ts}`、`test/local-subtitle/{subtitlePostProcessor,serverContract}.test.ts`、Final Design | 聚焦 4 files / 174 tests；全量 117 pass + 2 skip files / 1223 pass + 2 skip tests；TypeScript、renderer/main/preload Vite test build、manifest 0/0、validator 17/17、diff/process cleanup | `docs/v0.2.11/local-subtitle-transcriber/local-subtitle-transcriber_implementation_records/2026-07-21_SUB-001_subtitle-post-processing.md` | 无设计 blocker；PCM branded identity=`MEDIA-001`，SRT/LRC/atomic artifact=`SUB-002`，immutable brand/window/generation orchestration=`BE-002`，word timeline=未来 versioned capability |
 | SUB-002 | 未开始 | — | SUB-001/CORE-003 | SRT/LRC 导出、原子写和 Artifact Registry | exporters、artifact registry、tests | parse-back、目录 reservation/overwrite、full/partial/none-success、commit 前后取消、artifactRef owner/expiry/revoke/retry | — | 增强 LRC 不得自动交接 |
 | MODEL-001 | 未开始 | — | BE-001/CORE-002 | 模型 manifest、managed 本地导入与 load smoke | model manager、model manifest、import ResourceJob、tests | header/size/hash/load、import progress/cancel、CTranslate2 拒绝、复制原子性 | — | 不接受任意外部路径作为运行时 modelId |
@@ -590,11 +592,11 @@ Process descriptor 只接受完整 CORE-002 `LocalSubtitleVerifiedRuntimeBundle 
 
 验收结果：session/supervisor/lifecycle 聚焦 3 files / 37 tests；default real test 1 skipped，显式 exact v1.9.1 CPU real test 1/1 通过，同一 PID 连续两次 inference 后 private session 为空。全量 Vitest 116 passed + 2 skipped files / 1146 passed + 2 skipped tests；TypeScript、renderer/main/preload Vite test build、manifest 0 error / 0 warning、validator 17/17、diff check 与进程清理通过。
 
-### MEDIA-001：FFprobe/FFmpeg 媒体规范化
+### MEDIA-001：FFprobe/FFmpeg 媒体规范化（已完成）
 
 目标：把声明支持的音视频稳定转换为 runner 唯一 PCM 输入。
 
-实施范围：
+实施结果：
 
 - 使用 manifest 解析的 ffprobe/FFmpeg；禁止 packaged 模式回退 PATH。
 - 工具页 probe 与 batch commit 前验证 bundled media runtime generation；缺失、manifest/arch/hash/signature 无效、启动失败分别映射三个稳定 `media_runtime_*` code，阻止新任务入队并保留草稿与用户数据。
@@ -604,7 +606,9 @@ Process descriptor 只接受完整 CORE-002 `LocalSubtitleVerifiedRuntimeBundle 
 - 为每个实际窗口生成 immutable main-only brand，绑定 PCM owner/file identity、frame range、duration 和 structural window descriptor；普通对象、路径字符串或旧 generation brand 均不能取得媒体 authority，供 `BE-002` 原子绑定 dispatch/response。
 - 失败/取消/启动清理删除 temp；错误区分 probe/decode/unsupported/disk/cancel。
 
-验收口径：在隔离系统 FFmpeg 的 packaged app 中，格式矩阵、无音轨、唯一/多个/无 default、多音轨逐文件覆盖、超长/控制字符 metadata、伪造/陈旧 streamId、文件替换、损坏输入、非 ASCII/长路径、PCM frame 对齐窗口/overlap/短尾完整覆盖、取消和超期 temp 清理全部通过；内置资源缺失/损坏/错架构/不可启动在入队前失败，用户不能通过选择 executable 绕过。
+验收结果：service-level tests 覆盖 exact bundle/version/no-PATH、无音轨/default/多音轨、bounded metadata、伪造/陈旧/cross-owner streamId、task/file token mismatch、源文件与 snapshot 替换、进度 CRLF/大 chunk/`total_size` fallback、decode timeout/abort/late close、`-t`/`-fs`/duration/byte/disk guard、RIFF/RF64 rounded frame boundary、窗口 hash/header/source 失真永久撤权、symlink/junction 无外部副作用、owner fault/release 与 all-settled shutdown retry。聚焦 4 files / 84 tests、全量 121 passed + 2 skipped files / 1312 passed + 2 skipped tests；TypeScript、renderer/main/preload 三段 Vite test build、manifest 0/0、validator 17/17 与 diff check 通过。
+
+职责边界：本包完成 media service、PCM/window proof 与当前进程持有 identity proof 的 cleanup。目标平台 final FFmpeg/ffprobe bytes、正式 manifest/`extraResources`、builder/signing 与真实 packaged no-PATH 格式/fault matrix 仍由 `NATIVE-002` 验收，详见 `fix/2026-07-21_local-subtitle-transcriber_split-media-service-and-packaged-runtime-ownership.md`；因此 MEDIA focused/full tests 不作为发行产物证据。
 
 ### SUB-001：Canonical transcript 与字幕整形（已完成）
 
@@ -1083,6 +1087,6 @@ git diff --check
 
 ## 12. 下一步建议
 
-`PRE-001`～`PRE-006`、`CORE-001`～`CORE-004`、`NATIVE-001`、`BE-001` 与 `SUB-001` 已完成，M1 的共享 domain/runtime schema、resource manifest/resolver/staging、preload/IPC/capability、renderer session runtime、official server contract、真实 Supervisor 生命周期和 canonical post-processing contract 已冻结。下一步可按依赖认领 `NATIVE-002`、`MEDIA-001`、`SUB-002` 或 `LINK-001`；`BE-002` 仍等待 `MEDIA-001`、`SUB-002`、`MODEL-001` 等依赖，不能仅凭 Supervisor/post processor 完成就提前启动完整 Job Manager。实现必须以 `poc/pre006-production-decision.json` 为唯一技术冻结记录，并复用已冻结版本、error、limit 和 staging contract；SUB-001 的 clean-room shaping policy 与 main-only processing warnings 不得冒充 PRE-006 字段或 shared completion warning。
+`PRE-001`～`PRE-006`、`CORE-001`～`CORE-004`、`NATIVE-001`、`BE-001`、`MEDIA-001` 与 `SUB-001` 已完成，M1 的共享 domain/runtime schema、resource manifest/resolver/staging、preload/IPC/capability、renderer session runtime、official server contract、真实 Supervisor 生命周期、media normalization/PCM proof 和 canonical post-processing contract 已冻结。下一步可按依赖认领 `NATIVE-002`、`SUB-002`、`MODEL-001` 或 `LINK-001`；`BE-002` 的 MEDIA 依赖已解除，但仍等待 `SUB-002`、`MODEL-001`，不能仅凭 Supervisor/media proof/post processor 完成就提前启动完整 Job Manager。实现必须以 `poc/pre006-production-decision.json` 为唯一技术冻结记录，并复用已冻结版本、error、limit 和 staging contract；SUB-001 的 clean-room shaping policy 与 main-only processing warnings 不得冒充 PRE-006 字段或 shared completion warning。
 
 模型和 official runtime 继续只下载到 Git 忽略目录，hash 只作来源/完整性门禁。系统 PATH 中的 FFmpeg 仍只作开发 PoC，不是发行资源或最终用户前置条件。正式开发继续由 Node 直接管理 official server；Windows 无需 CMake/MSVC，FusionKit C++ runner 不是当前方案依赖。Windows 保持 unsigned personal profile；QA-005 在分发前核对 notices/source offers/NVIDIA DLL，但不会要求证书或信任库变更。

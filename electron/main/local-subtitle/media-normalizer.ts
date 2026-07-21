@@ -66,6 +66,9 @@ const WINDOW_PROOFS = new WeakMap<
 const OWNER_RELEASED_ABORT_REASON = Symbol(
   "fusionkit.local-subtitle.media-owner-released",
 );
+const OWNER_FAULTED_ABORT_REASON = Symbol(
+  "fusionkit.local-subtitle.media-owner-faulted",
+);
 
 export const LOCAL_SUBTITLE_MEDIA_POLICY = deepFreeze({
   schemaVersion: 1,
@@ -84,7 +87,12 @@ export const LOCAL_SUBTITLE_MEDIA_POLICY = deepFreeze({
   maxProbeStdoutBytes: 1024 * 1024,
   maxDiagnosticBytes: 64 * 1024,
   maxProbeMetadataBytes: 128 * 1024,
+  maxProbeRecordsPerOwner: LOCAL_SUBTITLE_LIMITS.maxSessionResourceJobs,
+  maxConcurrentOperationsPerOwner: 1,
   diskReserveBytes: 64 * 1024 * 1024,
+  decodeDurationToleranceMs: 2_000,
+  decodeLimitSentinelMs: 1_000,
+  maxNormalizedWavHeaderBytes: 4_096,
   inputCopyProgressMaximum: 10,
   decodeProgressMaximum: 99,
   normalizedLeaf: "normalized.wav",
@@ -284,7 +292,7 @@ interface PcmWindowRecord {
 }
 
 interface MediaOwnerState {
-  status: "active" | "released";
+  status: "active" | "faulted" | "released";
   readonly controllers: Set<AbortController>;
   readonly operationSettlements: Set<Promise<void>>;
   readonly processCloseConfirmations: Set<Promise<void>>;
@@ -405,7 +413,7 @@ export class LocalSubtitleMediaNormalizer {
         parsed,
         tokenFactory: this.#tokenFactory,
       });
-      this.#probeRecords.set(probeKey(options.owner, options.fileToken), record);
+      this.#storeProbeRecord(record);
       return probeSummary(record, input.displayName);
     } finally {
       operation.finish();
@@ -495,16 +503,21 @@ export class LocalSubtitleMediaNormalizer {
             "The normalized media would exceed the versioned PCM limit.",
           );
         }
+        const durationLimitMs = decodeDurationLimitMs(parsed.durationMs);
+        const processDurationLimitMs =
+          durationLimitMs + LOCAL_SUBTITLE_MEDIA_POLICY.decodeLimitSentinelMs;
+        const outputLimitBytes = decodeOutputLimitBytes(processDurationLimitMs);
         await this.#assertDiskSpace(
           session.root,
-          estimatedPcmBytes * 2 +
-            LOCAL_SUBTITLE_MEDIA_POLICY.diskReserveBytes,
+          outputLimitBytes + LOCAL_SUBTITLE_MEDIA_POLICY.diskReserveBytes,
         );
         await this.#decodeSnapshot({
           inputPath: sourceSnapshotPath,
           outputPath: normalizedPath,
           streamIndex: selected.track.streamIndex,
           durationMs: parsed.durationMs,
+          processDurationLimitMs,
+          outputLimitBytes,
           tools,
           operation,
           inputIdentity: sourceSnapshotIdentity,
@@ -522,6 +535,19 @@ export class LocalSubtitleMediaNormalizer {
             "media_decode_failed",
             "preparing_media",
             "The normalized PCM output does not satisfy the media contract.",
+          );
+        }
+        if (
+          metadata.durationMs > LOCAL_SUBTITLE_LIMITS.maxDurationMs ||
+          (durationLimitMs > parsed.durationMs &&
+            metadata.durationMs >= durationLimitMs) ||
+          metadata.fileSize >= outputLimitBytes
+        ) {
+          throw mediaFailure(
+            "limit_exceeded",
+            "limit_exceeded",
+            "preparing_media",
+            "The normalized PCM output exceeded its trusted decode boundary.",
           );
         }
         await rm(sourceSnapshotPath, { force: false });
@@ -563,6 +589,15 @@ export class LocalSubtitleMediaNormalizer {
       } catch (error) {
         if (error instanceof LocalSubtitleMediaError) throw error;
         if (error instanceof LocalSubtitlePcmWindowError) {
+          if (error.reason === "limit_exceeded") {
+            throw mediaFailure(
+              "limit_exceeded",
+              "limit_exceeded",
+              "preparing_media",
+              "The normalized PCM output exceeds the versioned media limit.",
+              error,
+            );
+          }
           throw mediaFailure(
             "decode_failed",
             "media_decode_failed",
@@ -583,14 +618,13 @@ export class LocalSubtitleMediaNormalizer {
           const ownerState = this.#ownerStates.get(ownedBy)!;
           if (operation.hasUnconfirmedClose) {
             this.#startSessionCleanup(
+              ownedBy,
               ownerState,
               session,
               operation.waitForClose(),
             );
           } else {
-            await this.#startSessionCleanup(ownerState, session).catch(
-              () => undefined,
-            );
+            await this.#startSessionCleanup(ownedBy, ownerState, session);
           }
         }
       }
@@ -669,7 +703,7 @@ export class LocalSubtitleMediaNormalizer {
             "limit_exceeded",
           ].includes(error.reason)
         ) {
-          record.state = "faulted";
+          faultNormalizedRecord(record);
         }
         throw mediaFailure(
           "decode_failed",
@@ -773,7 +807,13 @@ export class LocalSubtitleMediaNormalizer {
         NORMALIZED_PCM_PROOFS.get(record.normalized)?.windows.delete(window);
         return deepFreeze({ removed: true });
       } catch (error) {
-        record.state = "faulted";
+        const normalizedRecord = NORMALIZED_PCM_PROOFS.get(record.normalized);
+        if (normalizedRecord) {
+          faultNormalizedRecord(normalizedRecord);
+          this.#faultOwner(normalizedRecord.ownerKey);
+        } else {
+          record.state = "faulted";
+        }
         record.cleanupPromise = undefined;
         throw mediaFailure(
           "cleanup_failed",
@@ -810,6 +850,7 @@ export class LocalSubtitleMediaNormalizer {
       })
       .catch((error) => {
         record.state = "faulted";
+        this.#faultOwner(record.ownerKey);
         record.cleanupPromise = undefined;
         throw mediaFailure(
           "cleanup_failed",
@@ -827,6 +868,7 @@ export class LocalSubtitleMediaNormalizer {
     const key = ownerKey(owner);
     const state = this.#ownerStates.get(key) ?? createMediaOwnerState();
     this.#ownerStates.set(key, state);
+    this.#invalidateOwnerProofs(key);
     if (state.status === "released") {
       this.#startOwnerCleanup(key, state);
       return;
@@ -849,7 +891,8 @@ export class LocalSubtitleMediaNormalizer {
     this.#terminalFence = true;
 
     for (const [key, state] of this.#ownerStates) {
-      if (state.status === "active") {
+      this.#invalidateOwnerProofs(key);
+      if (state.status !== "released") {
         state.status = "released";
         for (const controller of state.controllers) {
           controller.abort(OWNER_RELEASED_ABORT_REASON);
@@ -902,8 +945,23 @@ export class LocalSubtitleMediaNormalizer {
     }
     const state = this.#ownerStates.get(key) ?? createMediaOwnerState();
     this.#ownerStates.set(key, state);
-    if (state.status !== "active") throw ownerReleasedMediaFailure();
-    if (state.processCloseConfirmations.size > 0) {
+    if (state.status === "released") throw ownerReleasedMediaFailure();
+    if (state.status === "faulted") throw ownerFaultedMediaFailure();
+    if (
+      state.operationSettlements.size >=
+      LOCAL_SUBTITLE_MEDIA_POLICY.maxConcurrentOperationsPerOwner
+    ) {
+      throw mediaFailure(
+        "limit_exceeded",
+        "limit_exceeded",
+        "preflight",
+        "The local subtitle media owner already has an active operation.",
+      );
+    }
+    if (
+      state.processCloseConfirmations.size > 0 ||
+      state.sessionCleanupPromises.size > 0
+    ) {
       throw mediaFailure(
         "runtime_launch_failed",
         "media_runtime_launch_failed",
@@ -969,6 +1027,7 @@ export class LocalSubtitleMediaNormalizer {
   }
 
   #startSessionCleanup(
+    key: string,
     state: MediaOwnerState,
     session: MediaSession,
     ready: Promise<void> = Promise.resolve(),
@@ -982,11 +1041,22 @@ export class LocalSubtitleMediaNormalizer {
       await cleanupMediaSession(session);
       state.pendingSessions.delete(session);
     });
-    cleanup = run.finally(() => {
-      if (state.sessionCleanupPromises.get(session) === cleanup) {
-        state.sessionCleanupPromises.delete(session);
-      }
-    });
+    cleanup = run
+      .catch((error: unknown) => {
+        this.#faultOwner(key);
+        throw mediaFailure(
+          "cleanup_failed",
+          "cancel_failed",
+          "cleanup",
+          "The failed media session could not be removed safely.",
+          error,
+        );
+      })
+      .finally(() => {
+        if (state.sessionCleanupPromises.get(session) === cleanup) {
+          state.sessionCleanupPromises.delete(session);
+        }
+      });
     state.sessionCleanupPromises.set(session, cleanup);
     const observed = cleanup.catch(() => undefined).finally(() => {
       this.#backgroundCleanup.delete(observed);
@@ -1008,7 +1078,7 @@ export class LocalSubtitleMediaNormalizer {
     }
     for (const session of [...state.pendingSessions]) {
       try {
-        await this.#startSessionCleanup(state, session);
+        await this.#startSessionCleanup(key, state, session);
       } catch (error) {
         failures.push(error);
       }
@@ -1022,6 +1092,40 @@ export class LocalSubtitleMediaNormalizer {
         failures[0],
       );
     }
+  }
+
+  #invalidateOwnerProofs(key: string): void {
+    for (const normalized of this.#normalizedByOwner.get(key) ?? []) {
+      const record = NORMALIZED_PCM_PROOFS.get(normalized);
+      if (record) deactivateNormalizedRecord(record);
+    }
+  }
+
+  #faultOwner(key: string): void {
+    const state = this.#ownerStates.get(key);
+    if (state?.status !== "active") return;
+    state.status = "faulted";
+    this.#invalidateOwnerProofs(key);
+    for (const controller of state.controllers) {
+      controller.abort(OWNER_FAULTED_ABORT_REASON);
+    }
+    for (const probe of [...this.#probeRecords.keys()]) {
+      if (probe.startsWith(`${key}:`)) this.#probeRecords.delete(probe);
+    }
+  }
+
+  #storeProbeRecord(record: ProbeRecord): void {
+    const key = `${record.ownerKey}:${record.fileToken}`;
+    this.#probeRecords.delete(key);
+    const ownedKeys = [...this.#probeRecords]
+      .filter(([, candidate]) => candidate.ownerKey === record.ownerKey)
+      .map(([candidateKey]) => candidateKey);
+    const overflow =
+      ownedKeys.length - LOCAL_SUBTITLE_MEDIA_POLICY.maxProbeRecordsPerOwner + 1;
+    for (const candidateKey of ownedKeys.slice(0, Math.max(0, overflow))) {
+      this.#probeRecords.delete(candidateKey);
+    }
+    this.#probeRecords.set(key, record);
   }
 
   async #attestMediaRuntime(operation: MediaOwnerOperation): Promise<MediaTools> {
@@ -1241,6 +1345,8 @@ export class LocalSubtitleMediaNormalizer {
     readonly outputPath: string;
     readonly streamIndex: number;
     readonly durationMs: number;
+    readonly processDurationLimitMs: number;
+    readonly outputLimitBytes: number;
     readonly tools: MediaTools;
     readonly operation: MediaOwnerOperation;
     readonly inputIdentity: LocalSubtitleFileIdentity;
@@ -1291,6 +1397,10 @@ export class LocalSubtitleMediaNormalizer {
         "16000",
         "-c:a",
         "pcm_s16le",
+        "-t",
+        formatFfmpegDuration(input.processDurationLimitMs),
+        "-fs",
+        String(input.outputLimitBytes),
         "-rf64",
         "auto",
         "-f",
@@ -1380,12 +1490,38 @@ export function isLocalSubtitleBrandedPcmWindow(
     typeof input === "object" && input !== null
       ? WINDOW_PROOFS.get(input as LocalSubtitleBrandedPcmWindow)
       : undefined;
+  const normalizedRecord = record
+    ? NORMALIZED_PCM_PROOFS.get(record.normalized)
+    : undefined;
   return (
     typeof input === "object" &&
     input !== null &&
     Object.isFrozen(input) &&
-    record?.state === "active"
+    record?.state === "active" &&
+    normalizedRecord?.state === "active"
   );
+}
+
+function faultNormalizedRecord(record: NormalizedPcmRecord): void {
+  setNormalizedRecordState(record, "faulted");
+}
+
+function deactivateNormalizedRecord(record: NormalizedPcmRecord): void {
+  setNormalizedRecordState(record, "cleaning");
+}
+
+function setNormalizedRecordState(
+  record: NormalizedPcmRecord,
+  state: "cleaning" | "faulted",
+): void {
+  if (record.state === "removed") return;
+  record.state = state;
+  for (const window of record.windows) {
+    const windowRecord = WINDOW_PROOFS.get(window);
+    if (windowRecord && windowRecord.state !== "removed") {
+      windowRecord.state = state;
+    }
+  }
 }
 
 function createProbeRecord(input: {
@@ -2258,6 +2394,34 @@ function estimatePcmBytes(durationMs: number): number {
   return bytes;
 }
 
+function decodeDurationLimitMs(durationMs: number): number {
+  const limit = Math.min(
+    LOCAL_SUBTITLE_LIMITS.maxDurationMs,
+    durationMs + LOCAL_SUBTITLE_MEDIA_POLICY.decodeDurationToleranceMs,
+  );
+  if (!Number.isSafeInteger(limit) || limit < durationMs) {
+    throw invalidMediaConfiguration("The media decode duration limit is invalid.");
+  }
+  return limit;
+}
+
+function decodeOutputLimitBytes(durationLimitMs: number): number {
+  const bytes =
+    estimatePcmBytes(durationLimitMs) +
+    LOCAL_SUBTITLE_MEDIA_POLICY.maxNormalizedWavHeaderBytes;
+  if (!Number.isSafeInteger(bytes) || bytes <= 0) {
+    throw invalidMediaConfiguration("The media decode byte limit is invalid.");
+  }
+  return Math.min(bytes, LOCAL_SUBTITLE_LIMITS.maxNormalizedPcmBytes);
+}
+
+function formatFfmpegDuration(durationMs: number): string {
+  if (!Number.isSafeInteger(durationMs) || durationMs <= 0) {
+    throw invalidMediaConfiguration("The media decode duration is invalid.");
+  }
+  return (durationMs / 1_000).toFixed(3);
+}
+
 function decodeTimeoutMs(durationMs: number): number {
   return Math.min(
     LOCAL_SUBTITLE_MEDIA_POLICY.maximumDecodeTimeoutMs,
@@ -2274,10 +2438,23 @@ function reportProgress(
 ): void {
   if (!callback) return;
   try {
-    callback(Math.max(0, Math.min(100, Math.floor(percentage))));
+    const result = callback(
+      Math.max(0, Math.min(100, Math.floor(percentage))),
+    ) as unknown;
+    if (isPromiseLike(result)) {
+      void Promise.resolve(result).catch(() => undefined);
+    }
   } catch {
     // Progress observers cannot change native media lifecycle semantics.
   }
+}
+
+function isPromiseLike(value: unknown): value is PromiseLike<unknown> {
+  return (
+    ((typeof value === "object" && value !== null) ||
+      typeof value === "function") &&
+    typeof (value as { readonly then?: unknown }).then === "function"
+  );
 }
 
 function monotonicProgressReporter(
@@ -2300,6 +2477,9 @@ function throwIfAborted(
   if (signal.reason === OWNER_RELEASED_ABORT_REASON) {
     throw ownerReleasedMediaFailure();
   }
+  if (signal.reason === OWNER_FAULTED_ABORT_REASON) {
+    throw ownerFaultedMediaFailure();
+  }
   const localSubtitleCode =
     fallback === "runtime_launch_failed"
       ? "media_runtime_launch_failed"
@@ -2320,6 +2500,15 @@ function ownerReleasedMediaFailure(): LocalSubtitleMediaError {
     "owner_released",
     "cleanup",
     "The local subtitle media owner was released.",
+  );
+}
+
+function ownerFaultedMediaFailure(): LocalSubtitleMediaError {
+  return mediaFailure(
+    "cleanup_failed",
+    "cancel_failed",
+    "cleanup",
+    "The local subtitle media owner is fenced after unsafe cleanup.",
   );
 }
 

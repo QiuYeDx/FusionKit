@@ -330,14 +330,7 @@ export async function runLocalSubtitleMediaProcess(
     function onStdoutData(chunk: unknown) {
       if (normalized.stdoutMode === "stream") {
         const streamed = Buffer.from(toBuffer(chunk));
-        if (streamed.byteLength > 0 && normalized.onStdoutChunk) {
-          try {
-            normalized.onStdoutChunk(Uint8Array.from(streamed));
-          } catch {
-            stdioErrorCode ??= "STDOUT_CALLBACK_FAILED";
-            requestStop();
-          }
-        }
+        forwardStdoutChunk(streamed);
         return;
       }
       const retained = retainChunk(
@@ -347,18 +340,32 @@ export async function runLocalSubtitleMediaProcess(
         normalized.stdoutMaxBytes,
       );
       stdoutBytes += retained.buffer.byteLength;
-      if (retained.buffer.byteLength > 0 && normalized.onStdoutChunk) {
-        try {
-          normalized.onStdoutChunk(Uint8Array.from(retained.buffer));
-        } catch {
-          stdioErrorCode ??= "STDOUT_CALLBACK_FAILED";
-          requestStop();
-        }
-      }
+      forwardStdoutChunk(retained.buffer);
       if (retained.truncated) {
         outputExceeded = true;
         requestStop();
       }
+    }
+
+    function forwardStdoutChunk(chunk: Buffer) {
+      if (chunk.byteLength === 0 || !normalized.onStdoutChunk) return;
+      try {
+        const callbackResult = normalized.onStdoutChunk(
+          Uint8Array.from(chunk),
+        ) as unknown;
+        if (isPromiseLike(callbackResult)) {
+          void Promise.resolve(callbackResult).catch(() => undefined);
+          onStdoutCallbackFailure();
+        }
+      } catch {
+        onStdoutCallbackFailure();
+      }
+    }
+
+    function onStdoutCallbackFailure() {
+      if (settled) return;
+      stdioErrorCode ??= "STDOUT_CALLBACK_FAILED";
+      requestStop();
     }
 
     function onStderrData(chunk: unknown) {
@@ -627,4 +634,12 @@ function isPlainRecord(
   }
   const prototype = Object.getPrototypeOf(value);
   return prototype === Object.prototype || prototype === null;
+}
+
+function isPromiseLike(value: unknown): value is PromiseLike<unknown> {
+  return (
+    ((typeof value === "object" && value !== null) ||
+      typeof value === "function") &&
+    typeof (value as { readonly then?: unknown }).then === "function"
+  );
 }

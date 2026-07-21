@@ -4,7 +4,7 @@
 >
 > Feature Slug：`local-subtitle-transcriber`
 >
-> 状态：调研、Final Design、`PRE-001`～`PRE-006`、`CORE-001`～`CORE-004`、`NATIVE-001`、`BE-001` 与 `SUB-001` 已完成。production decision record 固定 `whisper.cpp v1.9.1`、Node-managed HTTP contract v1、`large-v3-q5_0` 首发默认、跨平台 FFmpeg 8.1.2、Windows unsigned personal profile 与目标平台矩阵；shared schema、resource staging、preload/IPC/capability、renderer session、official server contract、真实 Supervisor 生命周期与 canonical post-processing contract 已冻结。下一步可执行 `NATIVE-002`、`MEDIA-001`、`SUB-002` 或 `LINK-001`，`BE-002` 依赖仍未齐
+> 状态：调研、Final Design、`PRE-001`～`PRE-006`、`CORE-001`～`CORE-004`、`NATIVE-001`、`BE-001`、`MEDIA-001` 与 `SUB-001` 已完成。production decision record 固定 `whisper.cpp v1.9.1`、Node-managed HTTP contract v1、`large-v3-q5_0` 首发默认、跨平台 FFmpeg 8.1.2、Windows unsigned personal profile 与目标平台矩阵；shared schema、resource staging、preload/IPC/capability、renderer session、official server contract、真实 Supervisor 生命周期、media normalization/PCM proof 与 canonical post-processing contract 已冻结。下一步可执行 `NATIVE-002`、`SUB-002`、`MODEL-001` 或 `LINK-001`，`BE-002` 仍等待字幕导出与模型管理依赖
 >
 > 产品定位：使用本地算力把批量音频/视频转成可直接翻译的 SRT/LRC 字幕
 >
@@ -49,6 +49,8 @@
 > 2026-07-21 BE-001 完成：新增 identity-bound `0700` private session filesystem、opaque owner/load lease、独立 process epoch、同步 single-active request ticket、fresh startup retry、runtime health restart、CPU/GPU backend attestation、close-gated idempotent finalization，以及 owner/app/update lifecycle。聚焦 3 files / 37 tests、显式 exact v1.9.1 CPU real 1/1、全量 116 passed + 2 skipped files / 1146 passed + 2 skipped tests、TypeScript、三段 Vite test build、manifest/validator 与进程清理通过。PCM window 仍属 `MEDIA-001`，raw quality/retry 属 `SUB-001`，Job Manager 属 `BE-002`，startup orphan scan 属 `BE-003`
 
 > 2026-07-21 SUB-001 完成：新增 versioned segment-only post-processing policy、root plan + attempt graph、stable lineage/generation、exact retry replacement、verified no-speech evidence、PRE-004 raw gate、owned-boundary merge、grapheme-safe canonical shaping 与 `estimatedTiming` schema。`timeline_boundary_clamped` / `estimated_timing_used` 只留在 main processing report，shared completion warning v1 仍只有 `cancelled_after_partial_commit`。正式 PCM/WAV branded identity 仍属 `MEDIA-001`，SRT/LRC/atomic artifact 仍属 `SUB-002`；非 VAD word timeline 等待未来 versioned server capability。
+
+> 2026-07-21 MEDIA-001 完成：新增 shell-free bounded FFmpeg/ffprobe process contract、固定 bundle/version/no-PATH attestation、授权源 snapshot 与音轨 binding、decode-time `-t`/`-fs` guard、RIFF/RF64 16 kHz mono PCM16 校验、exact frame window/SHA-256/main-only proof，以及 owner fault/release/app shutdown 的 close-gated cleanup；`probeMedia` 已接入 app-scoped runtime。聚焦 4 files / 84 tests、全量 121 passed + 2 skipped files / 1312 passed + 2 skipped tests、TypeScript、三段 Vite test build、manifest/validator 与 diff gate 通过。目标平台 final bytes、`extraResources`、builder/signing 与 packaged no-PATH smoke 仍属 `NATIVE-002`；dispatch/response 原子 binding 与启动 orphan 扫描仍属 `BE-002` / `BE-003`。
 
 ---
 
@@ -1378,7 +1380,7 @@ resources/local-subtitle/
 
 ## 18. 分期实施建议（高层阶段）
 
-本节保留架构层面的阶段划分；可认领的工作包、依赖、状态、验证和实施记录以 `local-subtitle-transcriber_execution_plan.md` 为唯一执行台账。Execution Plan 已于 2026-07-16 建立，当前 `PRE-001`～`PRE-006`、`CORE-001`～`CORE-004`、`NATIVE-001`、`BE-001` 与 `SUB-001` 已完成，M1 的 schema、resource staging、IPC/capability、renderer session、official server contract、真实 Supervisor 生命周期和 canonical post-processing contract 均已冻结。下一步可按依赖推进 `NATIVE-002`、`MEDIA-001` 或 `LINK-001`；`SUB-002` 已由 SUB-001 解锁，`BE-002` 仍等待媒体、字幕导出和模型管理依赖。Windows personal distribution 的 unsigned profile 已明确；Developer ID、公证和 Gatekeeper accepted 只由未来 `QA-004` 验收 macOS 分发产物。
+本节保留架构层面的阶段划分；可认领的工作包、依赖、状态、验证和实施记录以 `local-subtitle-transcriber_execution_plan.md` 为唯一执行台账。Execution Plan 已于 2026-07-16 建立，当前 `PRE-001`～`PRE-006`、`CORE-001`～`CORE-004`、`NATIVE-001`、`BE-001`、`MEDIA-001` 与 `SUB-001` 已完成，M1 的 schema、resource staging、IPC/capability、renderer session、official server contract、真实 Supervisor 生命周期、media normalization/PCM proof 和 canonical post-processing contract 均已冻结。下一步可按依赖推进 `NATIVE-002`、`SUB-002`、`MODEL-001` 或 `LINK-001`；`BE-002` 仍等待字幕导出和模型管理依赖。Windows personal distribution 的 unsigned profile 已明确；Developer ID、公证和 Gatekeeper accepted 只由未来 `QA-004` 验收 macOS 分发产物。
 
 其中本节原先汇总为一个 `PRE-001` 的跨平台 PoC，在 Execution Plan 中拆为 `PRE-001`～`PRE-006`，以避免把基准、CPU runner、Windows CUDA、macOS Metal、FFmpeg/打包许可和最终技术冻结塞进一个无法单会话闭环的工作包。其余高层包也在执行计划中按安全边界和可验证纵向切片进一步拆分。
 
@@ -1492,11 +1494,15 @@ PRE-001 已解锁 runtime 开发，PRE-003 已确定 Windows CPU/CUDA，PRE-004 
 - 首发 `large-v3-q5_0` 清单；其他 large-v3/turbo 型号先保持 deferred。
 - VAD 模型管理。
 
-### MEDIA-001：媒体规范化
+### MEDIA-001：媒体规范化（已完成）
 
-- ffprobe/FFmpeg sidecar。
-- 音轨选择、进度、取消、临时文件和格式错误。
-- 音频/视频格式矩阵。
+- 只消费 CORE-002 verified runtime bundle，固定 macOS/Windows FFmpeg 8.1.2 版本并串行探测 exact binary；shell、PATH、用户 executable 与任意参数 fallback 均不可进入产品合同。
+- `probeMedia` 绑定 owner、授权 file token、文件 identity、runtime generation 与 bounded track table；streamId 不能跨 owner/file/runtime 或在 reprobe 后复用，task lease 的 expected file token 在 auto/override 两条路径都原子复核。
+- 每个 task 先从同一 no-follow handle 冻结私有 source snapshot，ffprobe/FFmpeg 前后复核 identity，原媒体只 decode 一次。FFmpeg 使用最小环境、受控 cwd、关闭 stdin、流式 machine progress、超时/abort、TERM→KILL 与真实 `close` cleanup boundary。
+- decode 以 probe duration + 2 秒 trusted tolerance 验收，并在 process cap 再保留 1 秒 truncation sentinel；`-t` / `-fs`、cap-derived disk reserve、完成后 actual frame duration/file size 与 RIFF/RF64 parse-back 共同阻止短报 duration、磁盘耗尽和静默截断。
+- 规范化输出严格验证 16 kHz mono PCM16、frame/size/duration；窗口按 exact half-open frame range 延迟物化并绑定 structural descriptor、file identity 与 SHA-256。WeakMap proof 不能由普通对象/路径伪造，source/window 失真或 owner fence 后同步且永久失效。
+- owner 同时只允许一个 media operation；cleanup fault 会 abort active controller、撤销 probe/PCM/window proof 并阻止后续启动，只能由 release/shutdown 重试。多 owner shutdown 采用 all-settled cleanup，本进程只删除持有 identity proof 的 session。
+- `NATIVE-002` 仍独占目标平台 final bytes、manifest、`extraResources`、builder/signing 与真实 packaged no-PATH 矩阵；`BE-002` 仍须把 proof 与 structural attempt/epoch/generation/response 原子绑定，`BE-003` 负责下一次启动的历史 orphan 扫描。
 
 ### SUB-001：Raw gate、窗口合并与 canonical 字幕整形（已完成）
 
@@ -1504,7 +1510,7 @@ PRE-001 已解锁 runtime 开发，PRE-003 已确定 Windows CPU/CUDA，PRE-004 
 - raw gate 在任何删除/整形前检查正时长、顺序/重叠、窗口边界、15 秒单段，以及连续 8 cue 首尾 wall-clock span 15 秒；正常 split 不映射公开错误，逐窗 quality retry 只有 depth/size 预算耗尽返回 `transcript_quality_failed`，protocol mismatch 与后续全局 merge/shaping failure 各自保留正确错误语义。
 - overlap merger 只在相邻 owned core、真实 PCM overlap 和两边 raw observation 都有边界来源证明时删除/裁剪；raw-loop 与 destructive boundary fingerprint 分离，NFKC 只按完整 grapheme 裁剪，不做全局去重。
 - segment-only v1 完成 CR/LF/U+2028/U+2029、unpaired surrogate 与不受支持/结构破坏 C0/C1 拒绝、CJK/Latin/标点、grapheme-safe split/wrap、300 ms short merge、100 ms clamp/overlap repair与 `estimatedTiming=true`；`words` 与 estimated timing 互斥。processing warnings/report 保持 main-only，public completion warning v1 仍只有 `cancelled_after_partial_commit`。
-- 本包不生成/验证 PCM/WAV branded identity，不导出或写文件；`MEDIA-001` 产出 brand 后由 `BE-002` 绑定 exact window/attempt/epoch/generation/response 并拒绝 swap/stale brand。SRT/LRC formatter、parse-back、原子提交与 Artifact Registry 仍属于 `SUB-002`。
+- 本包不生成/验证 PCM/WAV branded identity，不导出或写文件；`MEDIA-001` 已产出 brand，但仍须由 `BE-002` 绑定 exact window/attempt/epoch/generation/response 并拒绝 swap/stale brand。SRT/LRC formatter、parse-back、原子提交与 Artifact Registry 仍属于 `SUB-002`。
 
 ### FE-001：独立工具页
 
@@ -1654,9 +1660,9 @@ Electron 视觉/交互验证必须等待 preload loading 完全退出。若启�
 
 ## 22. 推荐下一步
 
-`PRE-001`～`PRE-006`、`CORE-001`～`CORE-004`、`NATIVE-001`、`BE-001` 与 `SUB-001` 已完成，M1 的共享 schema、resource manifest/resolver/staging、preload/IPC/capability、renderer session runtime、official server transport/process contract、真实 Supervisor 生命周期和 canonical post-processing contract 已冻结。唯一 production decision record 是 `poc/pre006-production-decision.json`，后续实现不得静默更换引擎、平台矩阵、首发模型或 media acquisition policy；SUB-001 自有 policy 也不得伪装为 PRE-006 字段。
+`PRE-001`～`PRE-006`、`CORE-001`～`CORE-004`、`NATIVE-001`、`BE-001`、`MEDIA-001` 与 `SUB-001` 已完成，M1 的共享 schema、resource manifest/resolver/staging、preload/IPC/capability、renderer session runtime、official server transport/process contract、真实 Supervisor 生命周期、media normalization/PCM proof 和 canonical post-processing contract 已冻结。唯一 production decision record 是 `poc/pre006-production-decision.json`，后续实现不得静默更换引擎、平台矩阵、首发模型或 media acquisition policy；SUB-001 自有 policy 也不得伪装为 PRE-006 字段。
 
-1. 下一步可认领 `NATIVE-002`、`MEDIA-001`、`SUB-002` 或 `LINK-001`。正式 artifact/builder 接线由 `NATIVE-002` 完成；PCM window 与 branded identity 由 `MEDIA-001` 完成；SRT/LRC/atomic artifact 由已解锁的 `SUB-002` 完成；翻译配置迁移由 `LINK-001` 完成。`BE-002` 仍依赖 `MEDIA-001`、`SUB-002`、`MODEL-001` 与 CORE capability，不能因为 Supervisor 和 post processor 已完成就提前宣称 Job Manager 闭环。
+1. 下一步可认领 `NATIVE-002`、`SUB-002`、`MODEL-001` 或 `LINK-001`。正式 artifact/builder 接线由 `NATIVE-002` 完成；SRT/LRC/atomic artifact 由已解锁的 `SUB-002` 完成；模型 manifest/import/load smoke 由 `MODEL-001` 完成；翻译配置迁移由 `LINK-001` 完成。`BE-002` 的 MEDIA 依赖已解除，但仍依赖 `SUB-002`、`MODEL-001` 与 CORE capability，不能因为 Supervisor、media proof 和 post processor 已完成就提前宣称 Job Manager 闭环。
 2. Windows 继续使用 `unsigned_personal_distribution`；本人/朋友安装不引入证书或信任库变更。若以后明确要求公开低提示分发，受信任 installer 签名/timestamp 才归可选 `QA-003`。
 3. Developer ID、公证和 Gatekeeper accepted 只由 `QA-004` 验收 macOS 分发产物；QA-005 完成分发前第三方 notices/source-offer/NVIDIA DLL 核对。
 4. 仍无需 FusionKit 自写 C++ runner；只有 official server 出现产品必需能力的真实硬缺口，才通过独立工作包重新评估 native bridge。
