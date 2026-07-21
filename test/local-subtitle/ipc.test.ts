@@ -12,6 +12,8 @@ import {
 } from "@/type/localSubtitleIpc";
 import { LocalSubtitleIpcService } from "../../electron/main/local-subtitle/ipc";
 import { LocalSubtitleOwnerSessionRegistry } from "../../electron/main/local-subtitle/ipc-security";
+import { LocalSubtitleMediaError } from "../../electron/main/local-subtitle/media-normalizer";
+import { LocalSubtitleResourceError } from "../../electron/main/local-subtitle/resource-manifest";
 
 const DEV_SERVER_URL = "http://127.0.0.1:7777/";
 const tempRoots: string[] = [];
@@ -208,6 +210,142 @@ describe("local subtitle IPC service", () => {
     });
   });
 
+  it("passes the private owner abort signal into handler context", async () => {
+    let handlerSignal: AbortSignal | undefined;
+    const fixture = createService({
+      public: {
+        [LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.cancelTask]: (_request, context) => {
+          handlerSignal = context.signal;
+          return localSubtitleIpcSuccess({ cancelled: true });
+        },
+      },
+    });
+    const authorization = fixture.registry.authorize(
+      fixture.event,
+      fixture.envelope({ taskId: "task-1" }),
+    );
+    if (!authorization.ok) throw new Error("Expected owner authorization.");
+
+    await expect(
+      fixture.service.handlePublic(
+        LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.cancelTask,
+        fixture.event,
+        fixture.envelope({ taskId: "task-1" }),
+      ),
+    ).resolves.toEqual({ ok: true, data: { cancelled: true } });
+    expect(handlerSignal).toBe(authorization.data.signal);
+    expect(handlerSignal?.aborted).toBe(false);
+
+    fixture.registry.release(fixture.ownerSessionId);
+    expect(handlerSignal?.aborted).toBe(true);
+  });
+
+  it("returns owner_released when a late public handler rejects", async () => {
+    const deferred = createDeferred<ReturnType<typeof localSubtitleIpcSuccess>>();
+    const fixture = createService({
+      public: {
+        [LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.cancelTask]: () =>
+          deferred.promise,
+      },
+    });
+
+    const pending = fixture.service.handlePublic(
+      LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.cancelTask,
+      fixture.event,
+      fixture.envelope({ taskId: "task-1" }),
+    );
+    fixture.registry.release(fixture.ownerSessionId);
+    deferred.reject(new Error("late private failure"));
+
+    await expect(pending).resolves.toMatchObject({
+      ok: false,
+      error: { code: "owner_released" },
+    });
+  });
+
+  it("returns owner_released when a late internal handler rejects", async () => {
+    const deferred = createDeferred<ReturnType<typeof localSubtitleIpcSuccess>>();
+    const fixture = createService({ importModel: () => deferred.promise });
+    const pending = fixture.service.handleInternal(
+      LOCAL_SUBTITLE_PRELOAD_INTERNAL_CHANNELS.importModel,
+      fixture.event,
+      fixture.envelope({ filePath: path.resolve("model.bin"), mode: "copy" }),
+    );
+    fixture.registry.release(fixture.ownerSessionId);
+    deferred.reject(new Error("late private import failure"));
+
+    await expect(pending).resolves.toMatchObject({
+      ok: false,
+      error: { code: "owner_released" },
+    });
+  });
+
+  it("maps media and resource failures without exposing private diagnostics", async () => {
+    const privatePath = "/Users/private-owner/secret/input.mov";
+    const privateCause = "ffmpeg stderr included a private token";
+    const mediaFixture = createService({
+      public: {
+        [LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.cancelTask]: () => {
+          throw new LocalSubtitleMediaError(
+            "decode_failed",
+            "media_decode_failed",
+            "preparing_media",
+            `Could not decode ${privatePath}`,
+            { cause: new Error(privateCause) },
+          );
+        },
+      },
+    });
+    const mediaResult = await mediaFixture.service.handlePublic(
+      LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.cancelTask,
+      mediaFixture.event,
+      mediaFixture.envelope({ taskId: "task-1" }),
+    );
+    expect(mediaResult).toEqual({
+      ok: false,
+      error: {
+        code: "media_decode_failed",
+        message: "Local subtitle media operation failed.",
+        stage: "preparing_media",
+        retryable: true,
+      },
+    });
+    expect(JSON.stringify(mediaResult)).not.toContain(privatePath);
+    expect(JSON.stringify(mediaResult)).not.toContain(privateCause);
+
+    const resourceFailure = new LocalSubtitleResourceError(
+      "media_runtime_invalid",
+      "static_verification",
+      `Runtime verification failed at ${privatePath}`,
+    );
+    Object.defineProperty(resourceFailure, "cause", {
+      value: new Error(privateCause),
+    });
+    const resourceFixture = createService({
+      public: {
+        [LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.cancelTask]: () => {
+          throw resourceFailure;
+        },
+      },
+    });
+    const resourceResult = await resourceFixture.service.handlePublic(
+      LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.cancelTask,
+      resourceFixture.event,
+      resourceFixture.envelope({ taskId: "task-1" }),
+    );
+    expect(resourceResult).toEqual({
+      ok: false,
+      error: {
+        code: "media_runtime_invalid",
+        message: "Local subtitle runtime resource is unavailable.",
+        stage: "preflight",
+        retryable: true,
+      },
+    });
+    expect(JSON.stringify(resourceResult)).not.toContain(privatePath);
+    expect(JSON.stringify(resourceResult)).not.toContain(privateCause);
+  });
+
   it("requires an empty strict payload for the sync owner handshake", () => {
     const registry = new LocalSubtitleOwnerSessionRegistry({
       trustedSender: { devServerUrl: DEV_SERVER_URL },
@@ -267,10 +405,12 @@ function createEvent(sender: FakeSender, frame: FakeFrame) {
 
 function createDeferred<T>() {
   let resolve!: (value: T) => void;
-  const promise = new Promise<T>((resolvePromise) => {
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
     resolve = resolvePromise;
+    reject = rejectPromise;
   });
-  return { promise, resolve };
+  return { promise, reject, resolve };
 }
 
 class FakeFrame extends EventEmitter {

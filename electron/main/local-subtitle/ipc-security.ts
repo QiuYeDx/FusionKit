@@ -41,6 +41,7 @@ export interface LocalSubtitleOwnerIdentity {
 export interface AuthorizedLocalSubtitleIpcRequest<TPayload>
   extends LocalSubtitleOwnerIdentity {
   readonly payload: TPayload;
+  readonly signal: AbortSignal;
 }
 
 export type LocalSubtitleOwnerReleasedListener = (
@@ -56,6 +57,7 @@ interface LocalSubtitleOwnerSessionRecord
   extends LocalSubtitleOwnerIdentity {
   readonly sender: WebContents;
   readonly frame: WebFrameMain;
+  readonly abortController: AbortController;
   disposeLifecycle?: () => void;
 }
 
@@ -113,6 +115,7 @@ export class LocalSubtitleOwnerSessionRegistry {
       frameId: event.frameId,
       sender: event.sender,
       frame,
+      abortController: new AbortController(),
     };
     this.sessions.set(ownerSessionId, record);
     this.currentSessionBySender.set(record.senderId, ownerSessionId);
@@ -155,6 +158,7 @@ export class LocalSubtitleOwnerSessionRegistry {
       processId: record.processId,
       frameId: record.frameId,
       payload: parsedEnvelope.payload as TPayload,
+      signal: record.abortController.signal,
     });
   }
 
@@ -210,6 +214,7 @@ export class LocalSubtitleOwnerSessionRegistry {
     ) {
       this.currentSessionBySender.delete(record.senderId);
     }
+    record.abortController.abort();
     try {
       record.disposeLifecycle?.();
     } catch {

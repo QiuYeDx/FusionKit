@@ -93,12 +93,14 @@ describe("local subtitle owner session registry", () => {
       data: { ownerSessionId: SESSION_ONE },
     });
 
-    expect(
-      registry.authorize<{ action: string }>(fixture.event, {
+    const authorization = registry.authorize<{ action: string }>(
+      fixture.event,
+      {
         ownerSessionId: SESSION_ONE,
         payload: { action: "probe" },
-      }),
-    ).toEqual({
+      },
+    );
+    expect(authorization).toMatchObject({
       ok: true,
       data: {
         ownerSessionId: SESSION_ONE,
@@ -108,6 +110,9 @@ describe("local subtitle owner session registry", () => {
         payload: { action: "probe" },
       },
     });
+    if (!authorization.ok) throw new Error("Expected owner authorization.");
+    expect(authorization.data.signal).toBeInstanceOf(AbortSignal);
+    expect(authorization.data.signal.aborted).toBe(false);
 
     for (const envelope of [
       null,
@@ -175,6 +180,11 @@ describe("local subtitle owner session registry", () => {
     registry.onOwnerReleased((owner) => released.push(owner));
 
     expect(registry.register(fixture.event).ok).toBe(true);
+    const oldAuthorization = registry.authorize(fixture.event, {
+      ownerSessionId: SESSION_ONE,
+      payload: {},
+    });
+    if (!oldAuthorization.ok) throw new Error("Expected old authorization.");
     const staleNavigation = fixture.sender.listeners(
       "did-start-navigation",
     )[0] as (...args: unknown[]) => void;
@@ -182,8 +192,17 @@ describe("local subtitle owner session registry", () => {
       ok: true,
       data: { ownerSessionId: SESSION_TWO },
     });
+    expect(oldAuthorization.data.signal.aborted).toBe(true);
     expect(released.map((owner) => owner.ownerSessionId)).toEqual([SESSION_ONE]);
 
+    const currentAuthorization = registry.authorize(fixture.event, {
+      ownerSessionId: SESSION_TWO,
+      payload: { current: true },
+    });
+    if (!currentAuthorization.ok) {
+      throw new Error("Expected current authorization.");
+    }
+    expect(currentAuthorization.data.signal.aborted).toBe(false);
     staleNavigation({}, DEV_SERVER_URL, false, true);
     expect(
       registry.authorize(fixture.event, {
@@ -192,6 +211,37 @@ describe("local subtitle owner session registry", () => {
       }),
     ).toMatchObject({ ok: true, data: { payload: { current: true } } });
     expect(released.map((owner) => owner.ownerSessionId)).toEqual([SESSION_ONE]);
+    expect(currentAuthorization.data.signal.aborted).toBe(false);
+    expect(registry.release(SESSION_ONE)).toBe(false);
+    expect(currentAuthorization.data.signal.aborted).toBe(false);
+    expect(registry.release(SESSION_TWO)).toBe(true);
+    expect(currentAuthorization.data.signal.aborted).toBe(true);
+  });
+
+  it("aborts the owner signal before release listeners run", () => {
+    const fixture = createIpcFixture();
+    const registry = createRegistry([SESSION_ONE]);
+    expect(registry.register(fixture.event).ok).toBe(true);
+    const authorization = registry.authorize(fixture.event, {
+      ownerSessionId: SESSION_ONE,
+      payload: {},
+    });
+    if (!authorization.ok) throw new Error("Expected owner authorization.");
+
+    const order: string[] = [];
+    authorization.data.signal.addEventListener("abort", () => {
+      order.push("signal");
+    });
+    registry.onOwnerReleased(() => {
+      expect(authorization.data.signal.aborted).toBe(true);
+      order.push("listener");
+    });
+
+    expect(authorization.data.signal.aborted).toBe(false);
+    expect(registry.release(SESSION_ONE)).toBe(true);
+    expect(order).toEqual(["signal", "listener"]);
+    expect(registry.release(SESSION_ONE)).toBe(false);
+    expect(order).toEqual(["signal", "listener"]);
   });
 
   it("revalidates exact owner identity across awaits", () => {

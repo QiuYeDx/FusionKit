@@ -21,8 +21,15 @@ import {
   LocalSubtitleIpcService,
   setupLocalSubtitleIPC,
 } from "./local-subtitle/ipc";
+import { LocalSubtitleInputAuthorizationRegistry } from "./local-subtitle/authorizations";
+import { LocalSubtitleMainRuntime } from "./local-subtitle/main-runtime";
+import { LocalSubtitleMediaNormalizer } from "./local-subtitle/media-normalizer";
 import { LocalSubtitleServerSupervisor } from "./local-subtitle/server-supervisor";
 import { LocalSubtitleServerAppLifecycle } from "./local-subtitle/server-app-lifecycle";
+import {
+  LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS,
+  localSubtitleIpcSuccess,
+} from "@/type/localSubtitleIpc";
 import { TextTranslationService } from "./text-translation/text-translation-service";
 
 const require = createRequire(import.meta.url);
@@ -175,14 +182,28 @@ async function createWindow() {
 }
 
 app.whenReady().then(() => {
-  const localSubtitleServerSupervisor = new LocalSubtitleServerSupervisor({
-    managedResourceRoot: path.join(
-      app.getPath("userData"),
-      "local-subtitle",
-    ),
+  const localSubtitleManagedResourceRoot = path.join(
+    app.getPath("userData"),
+    "local-subtitle",
+  );
+  const localSubtitleInputAuthorizations =
+    new LocalSubtitleInputAuthorizationRegistry();
+  const localSubtitleMediaNormalizer = new LocalSubtitleMediaNormalizer({
+    environment: app.isPackaged
+      ? { mode: "packaged", resourcesPath: process.resourcesPath }
+      : { mode: "development", appRoot: process.env.APP_ROOT! },
+    managedResourceRoot: localSubtitleManagedResourceRoot,
+    inputAuthorizations: localSubtitleInputAuthorizations,
   });
-  localSubtitleServerLifecycle = new LocalSubtitleServerAppLifecycle(
+  const localSubtitleServerSupervisor = new LocalSubtitleServerSupervisor({
+    managedResourceRoot: localSubtitleManagedResourceRoot,
+  });
+  const localSubtitleMainRuntime = new LocalSubtitleMainRuntime(
+    localSubtitleMediaNormalizer,
     localSubtitleServerSupervisor,
+  );
+  localSubtitleServerLifecycle = new LocalSubtitleServerAppLifecycle(
+    localSubtitleMainRuntime,
   );
   localSubtitleServerLifecycle.install({
     onBeforeQuit: (listener) => app.on("before-quit", listener),
@@ -192,9 +213,25 @@ app.whenReady().then(() => {
   // The sync preload handshake must exist before any renderer starts loading.
   setupLocalSubtitleIPC(
     new LocalSubtitleIpcService({
+      capabilities: { inputs: localSubtitleInputAuthorizations },
       handlers: {
+        public: {
+          [LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.probeMedia]: async (
+            request,
+            context,
+          ) => {
+            const { fileToken } = request as { readonly fileToken: string };
+            return localSubtitleIpcSuccess(
+              await localSubtitleMediaNormalizer.probeDraft({
+                owner: context.owner,
+                fileToken,
+                signal: context.signal,
+              }),
+            );
+          },
+        },
         onOwnerReleased: (owner) =>
-          localSubtitleServerSupervisor.releaseOwner({
+          localSubtitleMainRuntime.releaseOwner({
             webContentsId: owner.senderId,
             ownerSessionId: owner.ownerSessionId,
           }),

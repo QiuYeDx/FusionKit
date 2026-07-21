@@ -7,6 +7,7 @@ import {
 import path from "node:path";
 import type { ZodType } from "zod";
 import {
+  LOCAL_SUBTITLE_ERROR_MANIFEST,
   createLocalSubtitleError,
   type LocalSubtitleResourceEventEnvelope,
   type LocalSubtitleTaskEventEnvelope,
@@ -41,6 +42,8 @@ import {
   type LocalSubtitleOwnerIdentity,
   type LocalSubtitleOwnerSessionRegistry,
 } from "./ipc-security";
+import { LocalSubtitleMediaError } from "./media-normalizer";
+import { LocalSubtitleResourceError } from "./resource-manifest";
 
 type MaybePromise<T> = T | Promise<T>;
 
@@ -49,6 +52,7 @@ export interface LocalSubtitleIpcHandlerContext {
   readonly ownerIdentity: LocalSubtitleOwnerIdentity;
   readonly event: IpcMainInvokeEvent;
   readonly capabilities: LocalSubtitleIpcCapabilities;
+  readonly signal: AbortSignal;
   readonly isOwnerCurrent: () => boolean;
 }
 
@@ -173,6 +177,9 @@ export class LocalSubtitleIpcService {
       }
       return validateOperationResult(contract.resultSchema, result);
     } catch (error) {
+      if (!this.ownerSessions.isCurrent(context.ownerIdentity)) {
+        return ownerReleasedFailure();
+      }
       return toLocalSubtitleIpcFailure(error);
     }
   }
@@ -204,6 +211,9 @@ export class LocalSubtitleIpcService {
       }
       return validateOperationResult(contract.resultSchema, result);
     } catch (error) {
+      if (!this.ownerSessions.isCurrent(context.ownerIdentity)) {
+        return ownerReleasedFailure();
+      }
       return toLocalSubtitleIpcFailure(error);
     }
   }
@@ -342,6 +352,7 @@ export class LocalSubtitleIpcService {
       ownerIdentity,
       event,
       capabilities: this.capabilities,
+      signal: authorization.signal,
       isOwnerCurrent: () => this.ownerSessions.isCurrent(ownerIdentity),
     };
   }
@@ -400,6 +411,24 @@ function toLocalSubtitleIpcFailure(
       createLocalSubtitleError(error.code, error.message, {
         ...(error.field ? { field: error.field } : {}),
       }),
+    );
+  }
+  if (error instanceof LocalSubtitleMediaError) {
+    return localSubtitleIpcFailure(
+      createLocalSubtitleError(
+        error.localSubtitleCode,
+        "Local subtitle media operation failed.",
+        { stage: error.stage },
+      ),
+    );
+  }
+  if (error instanceof LocalSubtitleResourceError) {
+    return localSubtitleIpcFailure(
+      createLocalSubtitleError(
+        error.code,
+        "Local subtitle runtime resource is unavailable.",
+        { stage: LOCAL_SUBTITLE_ERROR_MANIFEST[error.code].defaultStage },
+      ),
     );
   }
   return localSubtitleIpcFailure(

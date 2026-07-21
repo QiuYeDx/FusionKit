@@ -308,11 +308,20 @@ class DraftLeaseRegistry<TDescriptor, TOperation extends string> {
     owner: LocalSubtitleOwnerKey,
     scopeId: string,
     op: TOperation,
+    expectedToken?: string,
   ) {
     const entry = this.requireLease(owner, scopeId, op);
+    if (expectedToken !== undefined && entry.token !== expectedToken) {
+      throw invalid("token");
+    }
     await this.verifyOrDelete(entry);
     const current = this.requireLease(owner, scopeId, op);
-    if (current.version !== entry.version) throw invalid("scopeId");
+    if (
+      current.version !== entry.version ||
+      (expectedToken !== undefined && current.token !== expectedToken)
+    ) {
+      throw invalid(expectedToken === undefined ? "scopeId" : "token");
+    }
     return current;
   }
 
@@ -503,8 +512,11 @@ export class LocalSubtitleInputAuthorizationRegistry {
     owner: LocalSubtitleOwnerKey,
     taskId: string,
     op: LocalSubtitleInputOperation,
+    expectedFileToken?: string,
   ) {
-    return resolvedInput(await this.core.resolveLease(owner, taskId, op));
+    return resolvedInput(
+      await this.core.resolveLease(owner, taskId, op, expectedFileToken),
+    );
   }
 
   renewTaskLease(
