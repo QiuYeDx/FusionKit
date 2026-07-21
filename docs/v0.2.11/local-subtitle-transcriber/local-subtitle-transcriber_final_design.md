@@ -4,7 +4,7 @@
 >
 > Feature Slug：`local-subtitle-transcriber`
 >
-> 状态：调研、Final Design、`PRE-001`～`PRE-006`、`CORE-001`～`CORE-004` 与 `NATIVE-001` 已完成。production decision record 固定 `whisper.cpp v1.9.1`、Node-managed HTTP contract v1、`large-v3-q5_0` 首发默认、跨平台 FFmpeg 8.1.2、Windows unsigned personal profile 与目标平台矩阵；shared schema、resource staging、preload/IPC/capability、renderer session 与 official server transport/process contract 已冻结，下一步执行 `BE-001`
+> 状态：调研、Final Design、`PRE-001`～`PRE-006`、`CORE-001`～`CORE-004`、`NATIVE-001` 与 `BE-001` 已完成。production decision record 固定 `whisper.cpp v1.9.1`、Node-managed HTTP contract v1、`large-v3-q5_0` 首发默认、跨平台 FFmpeg 8.1.2、Windows unsigned personal profile 与目标平台矩阵；shared schema、resource staging、preload/IPC/capability、renderer session、official server contract 与真实 Supervisor 生命周期已冻结。下一步可执行 `NATIVE-002`、`MEDIA-001`、`SUB-001` 或 `LINK-001`，`BE-002` 依赖仍未齐
 >
 > 产品定位：使用本地算力把批量音频/视频转成可直接翻译的 SRT/LRC 字幕
 >
@@ -44,7 +44,9 @@
 
 > 2026-07-21 CORE-004 完成：新增仅持久化安全偏好的 `fusionkit-local-subtitle-transcriber` Store、共享 task/resource revision reducer、SPA 级 runtime singleton 与 draft capability cleanup retry。runtime 先订阅后取快照，保留缓冲事件的 identity/generation observation，处理 gap、overflow、stale generation、tombstone、epoch invalidation 和 observer failure；prompt、File、token、task、artifact、字幕正文、路径及诊断均不持久化。9 files / 132 tests 定向、全量 109 files / 1034 tests、TypeScript、Vite test build 与 manifest gate 通过
 
-> 2026-07-21 NATIVE-001 完成：新增 pinned official server schema、显式 `node:http` multipart transport、opaque verified bundle 驱动的 launch/load identity、最小环境和有界脱敏诊断。startup readiness 与 runtime health 分离，health/inference 共用 single-active ticket；推理 deadline 覆盖文件 open/stat/upload/close，任何 mid-request/timeout/schema/cleanup failure 都要求新 process generation。定向 4 files / 75 tests、全量 113 passed + 1 skipped files / 1109 passed + 1 skipped tests、TypeScript 与 real CPU two-request/same-PID smoke 通过。child/session/port/restart/kill/owner cleanup 仍由 `BE-001` 独占
+> 2026-07-21 NATIVE-001 完成：新增 pinned official server schema、显式 `node:http` multipart transport、opaque verified bundle 驱动的 launch/load identity、最小环境和有界脱敏诊断。startup readiness 与 runtime health 分离，health/inference 共用 single-active ticket；推理 deadline 覆盖文件 open/stat/upload/close，任何 mid-request/timeout/schema/cleanup failure 都要求新 process generation。定向 4 files / 75 tests、全量 113 passed + 1 skipped files / 1109 passed + 1 skipped tests、TypeScript 与 real CPU two-request/same-PID smoke 通过。child/session/port/restart/kill/owner cleanup 的独占 owner 为 `BE-001`，现已由下一条完成
+
+> 2026-07-21 BE-001 完成：新增 identity-bound `0700` private session filesystem、opaque owner/load lease、独立 process epoch、同步 single-active request ticket、fresh startup retry、runtime health restart、CPU/GPU backend attestation、close-gated idempotent finalization，以及 owner/app/update lifecycle。聚焦 3 files / 37 tests、显式 exact v1.9.1 CPU real 1/1、全量 116 passed + 2 skipped files / 1146 passed + 2 skipped tests、TypeScript、三段 Vite test build、manifest/validator 与进程清理通过。PCM window 仍属 `MEDIA-001`，raw quality/retry 属 `SUB-001`，Job Manager 属 `BE-002`，startup orphan scan 属 `BE-003`
 
 ---
 
@@ -769,12 +771,21 @@ interface LocalSubtitleApi {
 
 - main 只从 `verifyLocalSubtitleRuntimeBundle()` 返回、带 module-private opaque proof 的 verified bundle map 按固定 artifact ID 选择官方 `whisper-server`，再直接 `spawn()`；不得把 root/generation/artifact 字段重新拼成一个看似已验证的 selection，也不接受 renderer 提交 executable 或参数。
 - child 使用 allowlisted 最小环境与受控 cwd，只保留动态库、系统运行和 bundled media runtime 所需变量；不得继承 API Key、authorization header、代理凭据或任意 Electron/Agent secret。
-- server 只绑定 `127.0.0.1` 临时端口；main 为每次进程会话生成至少 192-bit 随机 request path，并把 `--public` 指向空的私有临时目录。端口和私有 path 不进入 renderer、Store 或日志。`BE-001` 必须在受控 `<userData>/local-subtitle/temp` 下原子创建 mode `0700` 的 session/public/tmp，使用 no-follow `lstat`、`realpath` containment、empty-public 与 identity 复核后才 spawn；NATIVE-001 的同步 descriptor 只做词法合同，不能把调用方传入的“empty”路径当作文件系统事实。
+- server 只绑定 `127.0.0.1` 临时端口；main 为每次进程会话生成至少 192-bit 随机 request path，并把 `--public` 指向空的私有临时目录。端口和私有 path 不进入 renderer、Store 或日志。`BE-001` 已在受控 `<userData>/local-subtitle/temp/server-*` 下创建 mode `0700` 的 session/public/tmp，使用 no-follow `lstat`、`realpath` containment、empty-public 与 `dev/inode/birthtime/mode` identity 复核后才 spawn；NATIVE-001 的同步 descriptor 仍只做词法合同，不能把调用方传入的“empty”路径当作文件系统事实。
 - startup readiness 只认带私有前缀的 `/health` JSON；启动阶段的 connect/timeout/503 可由 supervisor 有界重试。一旦进入 ready，runtime health 的 timeout、transport、HTTP 或 schema 失败都 taint 当前 generation 并要求重启，不能沿用 startup 的 reusable 语义。取消后的 `/health=ok` 也不能证明底层推理已收敛。
 - health/readiness/inference 共用在首个 `await` 前同步领取的 single-active operation ticket；busy 调用不得发出第二个 HTTP request，成功返回前必须复核 ticket 与 session disposition，避免并发 health 已 taint 后 inference 仍返回 reusable。
 - inference HTTP 客户端必须流式发送文件并使用独立、显式的长任务 absolute deadline 与 response size 上限；deadline 从文件 open 前起算，并覆盖 HTTP exchange 与有界 FileHandle close，open/stat 消耗会缩短可用 HTTP 时间。close 失败或超期同样 taint generation，不得吞错；不得依赖 Node 全局 `fetch`/Undici 的默认 response-header timeout。PRE-003 已复现短任务成功、长 CPU 任务约五分钟客户端断开的隐蔽边界。
 - 一个 server 同时只接受一个 FusionKit operation，但在同一 model/backend 的连续成功任务间保留 context。model/backend 变化、load 失败、ready 后 health 失败、crash、取消或 cleanup 超时时由 supervisor 终止并重启进程。
 - 普通推理不访问外网。loopback HTTP 只是 Electron main 与其 child 的本机进程边界，并禁用代理继承；模型/加速包下载仍走单独的 ResourceJob。
+
+`BE-001` 的 Supervisor 已把进程层合同实现为以下 main-only 状态：
+
+- 状态机为 `unloaded → starting → ready → stopping`，异常清理进入 `faulted`，终止 app lifecycle 后进入 `disposed`。应用启动或只打开页面不 acquire server。
+- opaque owner/load lease 绑定 verified runtime、server artifact、model/VAD、backend 与 process flags；匹配 lease 复用同一 PID，不匹配的 identity 在任一 lease 活跃时返回 `resource_busy`。load/inference 可变输入在首个 `await` 前快照，process epoch 与公开 task `generation` / HTTP `requestGeneration` 分离。
+- `beginInference()` 同步领取 Supervisor request ticket；NATIVE-001 client 仍在自身边界同步领取 transport ticket。取消、owner release、unexpected close 和 late result 先 fence process epoch，不能让旧结果穿过 restart boundary。
+- starting 内只重试 reusable transport/timeout/503 readiness；schema failure 立即失败。pre-readiness child close 最多在同一 startup deadline 内以全新 session、port、private path 和 process epoch 重试一次；ready 后复用前的 `health()` 任一失败均退役该 epoch，再由同一 lease 启动新进程。
+- CPU 的 backend 证明来自 descriptor 中 exact 单一 `--no-gpu`；Metal/CUDA 必须由 main-only verifier 在 startup deadline 内返回与 exact epoch、PID、backend、runtime generation 和 artifact 完全一致的 attestation。缺失/超时/未知字段为 `backend_unverified`，已证明但 backend/runtime/artifact 不一致为 `backend_mismatch`；Supervisor 不做 silent fallback。
+- session cleanup 只接受原 opaque proof：先复核 identity，再把 owned root 原子改名到同一 private base 内的 quarantine path，复核后才递归删除；quarantine remove 失败可按 exact proof/identity 续清理。原 root 缺失时默认 fail-closed，只有同一 proof 已记录成功删除才幂等返回 `removed:false`。替换路径、权限变化、unconfirmed child close、pre-spawn cleanup failure 或 closed-session cleanup failure 都锁存 `faulted` 并阻止 respawn；显式 shutdown 可重试已知 identity 的 cleanup。启动时扫描历史 orphan `server-*` 不属于本包，仍由 `BE-003` 完成。
 
 ### 10.2 请求与结果归一化
 
@@ -820,13 +831,17 @@ Node 对当前 inference request 使用 `AbortController`。请求连接关闭�
 2. 无论紧接着的 `/health` 是否返回 ok，supervisor 都在下一任务前终止并重启该 server、重新加载模型；PRE-003 证明 health 只代表 HTTP 进程存活，不能作为底层取消工作已经完全收敛的复用屏障。
 3. 在有界超时内连客户端请求都未结束时，直接进入 kill fallback；旧 generation 的 late response 必须丢弃。
 
-主进程始终维护 child handle，不使用参考 GUI 的“只改布尔标志”方案。窗口销毁/renderer 崩溃执行 owner-scoped cleanup；应用退出和 update 安装执行 app-scoped cleanup。两者复用同一可重入机制，但 owner cleanup 不能关闭仍被其他 owner 使用的 server。
+主进程始终维护 child handle，不使用参考 GUI 的“只改布尔标志”方案。BE-001 已实现同步 `releaseOwner()`：立即撤销该 owner 的 lease、fence/abort 其请求，再把异步 retire 纳入 Supervisor background cleanup；其他匹配 lease 可以在新 epoch 继续。应用退出的首个 `before-quit` 会阻止退出并等待有界 shutdown，结算后重试 `app.quit()`；瞬时 shutdown failure 可重试，wrapper timeout 不丢弃仍在运行的底层 cleanup，后续调用继续观察同一 operation。update `quitAndInstall` 也必须先等待成功 shutdown。lifecycle 与 updater listener 注册幂等。实际 task/window 所有权、批量取消和 revision event 仍由 `BE-002` 编排，不能把 Supervisor lease 当成 Job Manager。
+
+取消或 retire 依次执行 AbortController、SIGTERM、SIGKILL；`kill()` 返回、`exit` 或健康检查成功都不构成 native work 已结束。只有 child `close` 这个 stdio-drain boundary 后才能 finish diagnostics 和删除 session；同一 epoch 的主动 retire 与被动 close observer 共享幂等 cleanup/finalize promise，具体规则沉淀为 `FK-PIT-0039`。force kill 后仍无 `close` 时保持 `faulted` 和 session proof，不允许新进程覆盖证据。
 
 ### 10.5 Backend 解析与 fallback
 
 - `devicePreference = "auto"` 在批次 commit 前根据 selected-profile 完整性 manifest、真实 runner probe、accelerator pack 和模型兼容性解析为 CUDA/Metal/CPU，并把 `resolvedBackend` 明确展示并写入批次 snapshot；没有可用加速时可解析为 CPU，但用户在点击开始前必须看得到。
 - 用户显式选择 CUDA/Metal 时不可回退 CPU。auto 已 commit 后若 GPU load/OOM/driver/crash，批次暂停且不启动后续文件；UI 提供“以 CPU 新 generation 重试”，需要用户确认预期性能变化，不能在后台把长任务静默改跑 CPU。
 - 每个任务 metadata 携带所选 artifact/build ID 与 resolved backend。PRE-003 已用真实 GPU 占用、RTF 和故障注入确认官方 CUDA artifact 不会假成功；Windows WDDM 下 `nvidia-smi` 的逐进程显存可能为 `N/A`，可使用按 exact PID 过滤的 `GPU Process Memory` 性能计数器。PRE-006 冻结：无法取得实际 backend 证明时返回 `backend_unverified`，不得仅靠人类日志在 UI 宣称 GPU。
+
+`BE-001` 只验证调用方已经解析出的 backend 与实际 child 一致，不负责 `auto` 选择、批次 snapshot、CPU fallback CTA 或重试 generation；这些产品级决策随 model/runtime probe 与 Job Manager 接线完成。当前 CPU 证明由 exact `--no-gpu` 固定；GPU 证明接口保持 main-only 且 deadline-bound，拒绝字段/epoch/PID/backend/runtime/artifact 不一致，但其可信根仍是注入的 main-only verifier，不能由 renderer 或 stderr 文本提供。
 
 ## 11. 模型与加速包管理
 
@@ -1338,7 +1353,7 @@ resources/local-subtitle/
 
 ## 18. 分期实施建议（高层阶段）
 
-本节保留架构层面的阶段划分；可认领的工作包、依赖、状态、验证和实施记录以 `local-subtitle-transcriber_execution_plan.md` 为唯一执行台账。Execution Plan 已于 2026-07-16 建立，当前 `PRE-001`～`PRE-006`、`CORE-001`～`CORE-004` 与 `NATIVE-001` 已完成，M1 的 schema、resource staging、IPC/capability、renderer session 和 official server contract 均已冻结；下一步认领 `BE-001` 实现真实 Supervisor。`NATIVE-002`、`MEDIA-001`、`SUB-001`、`LINK-001` 也可按依赖推进。Windows personal distribution 的 unsigned profile 已明确；Developer ID、公证和 Gatekeeper accepted 只由未来 `QA-004` 验收 macOS 分发产物。
+本节保留架构层面的阶段划分；可认领的工作包、依赖、状态、验证和实施记录以 `local-subtitle-transcriber_execution_plan.md` 为唯一执行台账。Execution Plan 已于 2026-07-16 建立，当前 `PRE-001`～`PRE-006`、`CORE-001`～`CORE-004`、`NATIVE-001` 与 `BE-001` 已完成，M1 的 schema、resource staging、IPC/capability、renderer session、official server contract 和真实 Supervisor 生命周期均已冻结。下一步可按依赖推进 `NATIVE-002`、`MEDIA-001`、`SUB-001` 或 `LINK-001`；`BE-002` 仍等待媒体、字幕导出和模型管理依赖。Windows personal distribution 的 unsigned profile 已明确；Developer ID、公证和 Gatekeeper accepted 只由未来 `QA-004` 验收 macOS 分发产物。
 
 其中本节原先汇总为一个 `PRE-001` 的跨平台 PoC，在 Execution Plan 中拆为 `PRE-001`～`PRE-006`，以避免把基准、CPU runner、Windows CUDA、macOS Metal、FFmpeg/打包许可和最终技术冻结塞进一个无法单会话闭环的工作包。其余高层包也在执行计划中按安全边界和可验证纵向切片进一步拆分。
 
@@ -1436,12 +1451,15 @@ PRE-001 已解锁 runtime 开发，PRE-003 已确定 Windows CPU/CUDA，PRE-004 
 - `server-diagnostics.ts` 只接受 stdout/stderr，先脱敏 exact private values、endpoint/port/path/credential/prompt/body/transcript，再按 UTF-8 byte、行数和行长限额保留最近诊断。
 - 定向 4 files / 75 tests、全量 113 passed + 1 skipped files / 1109 passed + 1 skipped tests、TypeScript 与 exact v1.9.1 CPU two-request/same-PID smoke 通过；real test 默认无 fixture 时 skip，未提交 native binary/model/media。
 
-### BE-001：Server Supervisor 与真实进程生命周期
+### BE-001：Server Supervisor 与真实进程生命周期（已完成）
 
-- 只从 CORE-002 verified bundle map 与 main-managed model/VAD identity 构造 NATIVE-001 descriptor；创建/复核 mode `0700` session/public/tmp，持有 child handle、port reservation、process epoch 与 HTTP client。
-- 使用 `probeReadiness()` 做 starting 阶段有界轮询，ready 后只用 restart-on-failure `health()`；管理模型驻留、single-active window queue、late response generation、crash/idle/model/backend restart。
-- 取消先 abort 当前 request；无论随后 health 是否 ok，下一任务前都按同一 generation boundary terminate/restart。请求不结算时执行 kill fallback，等待 child `close`/stdio drain 后再 finish diagnostics 和删除 identity-bound session。
-- owner cleanup、app quit/update cleanup、稳定错误映射和有界脱敏诊断都由 Supervisor 统一实现；NATIVE-001 不持有 child、端口或跨请求 owner 状态，Job Manager 仍由 `BE-002` 完成。
+- `server-session.ts` 创建 opaque、identity-bound 的 `<userData>/local-subtitle/temp/server-*`，复核五级 private directory 的 no-symlink、POSIX `0700`、realpath containment、launch emptiness 与 `dev/inode/birthtime/mode`；cleanup 只对持有 proof 的 root 做 quarantine rename + identity recheck，拒绝 structural copy、replacement path 和 permission drift。
+- `server-supervisor.ts` 只从 CORE-002 verified bundle 与 main-managed model/VAD identity 构造 NATIVE-001 descriptor，持有 child、loopback reservation、HTTP client、opaque owner/load lease 和独立 process epoch。matching load identity 复用 PID，冲突 identity 返回 `resource_busy`；load/inference 输入先快照，`beginInference()` 同步占用 single-active ticket。
+- starting 只轮询 `probeReadiness()` 的 reusable connect/timeout/503；schema fail-fast。early close 在共享 deadline 内以 fresh session/endpoint/epoch 重试一次；ready 后复用前 `health()` 任一失败先 retire，再由 lease 启动新 epoch。CPU exact `--no-gpu`，Metal/CUDA exact main-only epoch/PID/backend/runtime/artifact attestation，均不静默 fallback。
+- cancel/owner release/unexpected close 先 fence epoch 和 late result，再 abort；请求或 child 不结算时 SIGTERM → SIGKILL。diagnostics finish 与 session delete 只发生在 child `close` 后；unconfirmed close 或 cleanup failure 锁存 `faulted` 并阻止 respawn，显式 shutdown 可重试。幂等 epoch finalization 遵守 `FK-PIT-0039`。
+- `server-app-lifecycle.ts` 把同步 IPC owner release、app `before-quit` 和 update install 接到共享的 bounded shutdown；注册幂等，瞬时 failure 可重试，timeout 后仍观察同一底层 cleanup，更新安装不会越过成功清理。应用启动/打开页面保持 unloaded，只有受控 acquire 才启动 child。
+- 聚焦 3 files / 37 tests、default real 1 skipped、显式 exact v1.9.1 CPU real 1/1、全量 116 passed + 2 skipped files / 1146 passed + 2 skipped tests、TypeScript、三段 Vite test build、manifest 0/0、validator 17/17 与进程清理通过。
+- 本包不生成或验证 PCM window，不执行 raw quality/retry，也不拥有任务队列或启动 orphan scan：分别由 `MEDIA-001`、`SUB-001`、`BE-002`、`BE-003` 完成。
 
 ### MODEL-001：模型管理
 
@@ -1565,6 +1583,7 @@ Electron 视觉/交互验证必须等待 preload loading 完全退出。若启�
 | LRC 逐词标签被翻译破坏 | 交接仅支持标准 LRC/SRT；增强 LRC 明确隔离 |
 | 自动翻译意外产生费用或启动旧任务 | 默认仅导出；每批显式授权并展示配置/费用提示；按 import receipt 精确启动，禁止 `startAllTasks()` |
 | 长任务取消卡住 | abort callback，超时后杀 runner 并重启 |
+| child `close` 与主动 retire 并发导致重复 diagnostics/session cleanup | 每个 process epoch 共享幂等 retirement/finalization；只在 `close` 后清理，失败锁存 `faulted` 并由显式 shutdown 重试，遵守 `FK-PIT-0039` |
 | renderer 注入任意路径/参数 | fixed preload methods、private channels、sender-bound token、拒绝未知字段 |
 | AGPL 参考代码污染 | 只参考行为和参数，独立实现与测试，不复制代码 |
 | FFmpeg/CUDA/model 许可证遗漏 | 发布前完整第三方清单和许可证审计 |
@@ -1606,9 +1625,9 @@ Electron 视觉/交互验证必须等待 preload loading 完全退出。若启�
 
 ## 22. 推荐下一步
 
-`PRE-001`～`PRE-006`、`CORE-001`～`CORE-004` 与 `NATIVE-001` 已完成，M1 的共享 schema、resource manifest/resolver/staging、preload/IPC/capability、renderer session runtime 和 official server transport/process contract 已冻结。唯一 production decision record 是 `poc/pre006-production-decision.json`，后续实现不得静默更换引擎、平台矩阵、首发模型或 media acquisition policy。
+`PRE-001`～`PRE-006`、`CORE-001`～`CORE-004`、`NATIVE-001` 与 `BE-001` 已完成，M1 的共享 schema、resource manifest/resolver/staging、preload/IPC/capability、renderer session runtime、official server transport/process contract 和真实 Supervisor 生命周期已冻结。唯一 production decision record 是 `poc/pre006-production-decision.json`，后续实现不得静默更换引擎、平台矩阵、首发模型或 media acquisition policy。
 
-1. 下一步认领 `BE-001`（Server Supervisor），把已冻结 descriptor/client 接到真实 session directory、child/process epoch、readiness、restart/kill 和 owner/app cleanup；不得把 PoC supervisor 直接复制进产品，也不得把 session filesystem 事实或 lifecycle 状态塞回 NATIVE-001。`NATIVE-002`、`MEDIA-001`、`SUB-001` 或 `LINK-001` 仍可按依赖推进；正式 artifact/builder 接线由 `NATIVE-002` 完成。
+1. 下一步可认领 `NATIVE-002`、`MEDIA-001`、`SUB-001` 或 `LINK-001`。正式 artifact/builder 接线由 `NATIVE-002` 完成；PCM window 与 branded identity 由 `MEDIA-001` 完成；raw quality/retry 由 `SUB-001` 完成；翻译配置迁移由 `LINK-001` 完成。`BE-002` 仍依赖 `MEDIA-001`、`SUB-002`、`MODEL-001` 与 CORE capability，不能因为 Supervisor 已完成就提前宣称 Job Manager 闭环。
 2. Windows 继续使用 `unsigned_personal_distribution`；本人/朋友安装不引入证书或信任库变更。若以后明确要求公开低提示分发，受信任 installer 签名/timestamp 才归可选 `QA-003`。
 3. Developer ID、公证和 Gatekeeper accepted 只由 `QA-004` 验收 macOS 分发产物；QA-005 完成分发前第三方 notices/source-offer/NVIDIA DLL 核对。
 4. 仍无需 FusionKit 自写 C++ runner；只有 official server 出现产品必需能力的真实硬缺口，才通过独立工作包重新评估 native bridge。

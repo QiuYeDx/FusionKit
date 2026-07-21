@@ -17,7 +17,12 @@ import {
 } from "./text-translation/ipc";
 import { setupAudioIPC } from "./audio/ipc";
 import { setupAudioRealtimeIPC } from "./audio/realtime-ipc";
-import { setupLocalSubtitleIPC } from "./local-subtitle/ipc";
+import {
+  LocalSubtitleIpcService,
+  setupLocalSubtitleIPC,
+} from "./local-subtitle/ipc";
+import { LocalSubtitleServerSupervisor } from "./local-subtitle/server-supervisor";
+import { LocalSubtitleServerAppLifecycle } from "./local-subtitle/server-app-lifecycle";
 import { TextTranslationService } from "./text-translation/text-translation-service";
 
 const require = createRequire(import.meta.url);
@@ -56,6 +61,7 @@ if (!app.requestSingleInstanceLock()) {
 }
 
 let win: BrowserWindow | null = null;
+let localSubtitleServerLifecycle: LocalSubtitleServerAppLifecycle | undefined;
 let translationService: TranslationService = new TranslationService();
 let textTranslationService = new TextTranslationService({
   eventSink: (event) => {
@@ -160,13 +166,41 @@ async function createWindow() {
 
   // Auto update
   if (win) {
-    update(win);
+    update(win, {
+      prepareQuitAndInstall: () =>
+        localSubtitleServerLifecycle?.prepareUpdateInstall() ??
+        Promise.resolve(),
+    });
   }
 }
 
 app.whenReady().then(() => {
+  const localSubtitleServerSupervisor = new LocalSubtitleServerSupervisor({
+    managedResourceRoot: path.join(
+      app.getPath("userData"),
+      "local-subtitle",
+    ),
+  });
+  localSubtitleServerLifecycle = new LocalSubtitleServerAppLifecycle(
+    localSubtitleServerSupervisor,
+  );
+  localSubtitleServerLifecycle.install({
+    onBeforeQuit: (listener) => app.on("before-quit", listener),
+    quit: () => app.quit(),
+  });
+
   // The sync preload handshake must exist before any renderer starts loading.
-  setupLocalSubtitleIPC();
+  setupLocalSubtitleIPC(
+    new LocalSubtitleIpcService({
+      handlers: {
+        onOwnerReleased: (owner) =>
+          localSubtitleServerSupervisor.releaseOwner({
+            webContentsId: owner.senderId,
+            ownerSessionId: owner.ownerSessionId,
+          }),
+      },
+    }),
+  );
   createWindow();
   setupTranslationIPC(translationService);
   setupPowerIPC(win);

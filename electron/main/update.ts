@@ -12,8 +12,28 @@ import type {
 const { autoUpdater } = createRequire(import.meta.url)('electron-updater');
 const RELEASES_DOWNLOAD_BASE = 'https://github.com/QiuYeDx/FusionKit/releases/latest/download/'
 let latestUpdateInfo: UpdateInfo | null = null
+let activeWindow: Electron.BrowserWindow | null = null
+let prepareQuitAndInstall: (() => Promise<void>) | undefined
+let updateInitialized = false
+let quitAndInstallOperation: Promise<void> | undefined
+let quitAndInstallSucceeded = false
+const downloadSubscribers = new Set<{
+  readonly progress: (error: Error | null, info: ProgressInfo | null) => void
+  readonly complete: (event: UpdateDownloadedEvent) => void
+}>()
+let downloadInFlight = false
 
-export function update(win: Electron.BrowserWindow) {
+export interface UpdateOptions {
+  readonly prepareQuitAndInstall?: () => Promise<void>
+}
+
+export function update(win: Electron.BrowserWindow, options: UpdateOptions = {}) {
+  activeWindow = win
+  if (options.prepareQuitAndInstall) {
+    prepareQuitAndInstall = options.prepareQuitAndInstall
+  }
+  if (updateInitialized) return
+  updateInitialized = true
 
   // When set to false, the update download will be triggered through the API
   autoUpdater.autoDownload = false
@@ -25,12 +45,24 @@ export function update(win: Electron.BrowserWindow) {
   // update available
   autoUpdater.on('update-available', (arg: UpdateInfo) => {
     latestUpdateInfo = arg
-    win.webContents.send('update-can-available', { update: true, version: app.getVersion(), newVersion: arg?.version })
+    sendToActiveWindow('update-can-available', { update: true, version: app.getVersion(), newVersion: arg?.version })
   })
   // update not available
   autoUpdater.on('update-not-available', (arg: UpdateInfo) => {
     latestUpdateInfo = null
-    win.webContents.send('update-can-available', { update: false, version: app.getVersion(), newVersion: arg?.version })
+    sendToActiveWindow('update-can-available', { update: false, version: app.getVersion(), newVersion: arg?.version })
+  })
+  autoUpdater.on('download-progress', (info: ProgressInfo) => {
+    for (const subscriber of downloadSubscribers) {
+      subscriber.progress(null, info)
+    }
+  })
+  autoUpdater.on('error', (error: Error) => settleDownload(error))
+  autoUpdater.on('update-downloaded', (event: UpdateDownloadedEvent) => {
+    const subscribers = [...downloadSubscribers]
+    downloadSubscribers.clear()
+    downloadInFlight = false
+    for (const subscriber of subscribers) subscriber.complete(event)
   })
 
   // Checking for updates
@@ -51,6 +83,7 @@ export function update(win: Electron.BrowserWindow) {
   ipcMain.handle('start-download', (event: Electron.IpcMainInvokeEvent) => {
     startDownload(
       (error, progressInfo) => {
+        if (event.sender.isDestroyed()) return
         if (error) {
           // feedback download error message
           event.sender.send('update-error', { message: error.message, error })
@@ -60,6 +93,7 @@ export function update(win: Electron.BrowserWindow) {
         }
       },
       () => {
+        if (event.sender.isDestroyed()) return
         // feedback update downloaded message
         event.sender.send('update-downloaded')
       }
@@ -104,19 +138,58 @@ export function update(win: Electron.BrowserWindow) {
   })
 
   // Install now
-  ipcMain.handle('quit-and-install', () => {
+  ipcMain.handle('quit-and-install', runQuitAndInstall)
+}
+
+function runQuitAndInstall(): Promise<void> {
+  if (quitAndInstallSucceeded) return Promise.resolve()
+  if (quitAndInstallOperation) return quitAndInstallOperation
+
+  const operation = (async () => {
+    await prepareQuitAndInstall?.()
     autoUpdater.quitAndInstall(false, true)
+    quitAndInstallSucceeded = true
+  })()
+  const observed = operation.catch((error: unknown) => {
+    if (quitAndInstallOperation === observed) {
+      quitAndInstallOperation = undefined
+    }
+    throw error
   })
+  quitAndInstallOperation = observed
+  return observed
+}
+
+function sendToActiveWindow(channel: string, payload: unknown) {
+  if (!activeWindow || activeWindow.isDestroyed()) return
+  activeWindow.webContents.send(channel, payload)
 }
 
 function startDownload(
   callback: (error: Error | null, info: ProgressInfo | null) => void,
   complete: (event: UpdateDownloadedEvent) => void,
 ) {
-  autoUpdater.on('download-progress', (info: ProgressInfo) => callback(null, info))
-  autoUpdater.on('error', (error: Error) => callback(error, null))
-  autoUpdater.on('update-downloaded', complete)
-  autoUpdater.downloadUpdate()
+  downloadSubscribers.add({ progress: callback, complete })
+  if (downloadInFlight) return
+  downloadInFlight = true
+  try {
+    void Promise.resolve(autoUpdater.downloadUpdate()).catch((error: unknown) => {
+      settleDownload(
+        error instanceof Error ? error : new Error('Update download failed'),
+      )
+    })
+  } catch (error) {
+    settleDownload(
+      error instanceof Error ? error : new Error('Update download failed'),
+    )
+  }
+}
+
+function settleDownload(error: Error) {
+  const subscribers = [...downloadSubscribers]
+  downloadSubscribers.clear()
+  downloadInFlight = false
+  for (const subscriber of subscribers) subscriber.progress(error, null)
 }
 
 function pickUpdateFileUrl(info: UpdateInfo) {
