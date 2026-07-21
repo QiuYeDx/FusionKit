@@ -39,6 +39,7 @@ const MACOS_SIGNATURE_ENVIRONMENT = {
 const VERIFIED_RUNTIME_BUNDLE_BRAND: unique symbol = Symbol(
   "fusionkit.local-subtitle.verified-runtime-bundle",
 );
+const VERIFIED_RUNTIME_BUNDLES = new WeakSet<object>();
 
 interface LocalSubtitleResourceEnvironmentBase {
   readonly platform?: NodeJS.Platform | string;
@@ -392,7 +393,9 @@ export async function verifyLocalSubtitleRuntimeBundle(
     configurable: false,
     writable: false,
   });
-  return Object.freeze(bundle) as LocalSubtitleVerifiedRuntimeBundle;
+  const verified = Object.freeze(bundle) as LocalSubtitleVerifiedRuntimeBundle;
+  VERIFIED_RUNTIME_BUNDLES.add(verified);
+  return verified;
 }
 
 export function isLocalSubtitleVerifiedRuntimeBundle(
@@ -402,6 +405,7 @@ export function isLocalSubtitleVerifiedRuntimeBundle(
     typeof input === "object" &&
     input !== null &&
     Object.isFrozen(input) &&
+    VERIFIED_RUNTIME_BUNDLES.has(input) &&
     (input as { readonly [VERIFIED_RUNTIME_BUNDLE_BRAND]?: unknown })[
       VERIFIED_RUNTIME_BUNDLE_BRAND
     ] === true
@@ -412,6 +416,13 @@ export function resolveVerifiedLocalSubtitleArtifact(
   bundle: LocalSubtitleVerifiedRuntimeBundle,
   artifactId: string,
 ): LocalSubtitleVerifiedRuntimeArtifact {
+  if (!isLocalSubtitleVerifiedRuntimeBundle(bundle)) {
+    throw resourceFailure(
+      "runtime_protocol_mismatch",
+      "static_verification",
+      "The bundled runtime verification proof is invalid.",
+    );
+  }
   const artifact = bundle.artifactPaths[artifactId];
   if (!artifact) {
     throw resourceFailure(

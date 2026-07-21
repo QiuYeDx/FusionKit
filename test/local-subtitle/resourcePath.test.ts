@@ -16,6 +16,7 @@ import {
 } from "../../electron/main/local-subtitle/resource-manifest";
 import {
   loadLocalSubtitleRuntimeManifest,
+  isLocalSubtitleVerifiedRuntimeBundle,
   resolveLocalSubtitleResourcePath,
   resolveLocalSubtitleRuntimeRoot,
   resolveVerifiedLocalSubtitleArtifact,
@@ -123,6 +124,17 @@ describe("local subtitle runtime verification", () => {
     expect(resolveLocalSubtitleResourcePath(bundle, "ffmpeg-mac-arm64")).toBe(
       ffmpeg.absolutePath,
     );
+    const forged = { ...bundle } as typeof bundle;
+    for (const symbol of Object.getOwnPropertySymbols(bundle)) {
+      Object.defineProperty(forged, symbol, {
+        value: Reflect.get(bundle, symbol),
+      });
+    }
+    Object.freeze(forged);
+    expect(isLocalSubtitleVerifiedRuntimeBundle(forged)).toBe(false);
+    expect(() =>
+      resolveVerifiedLocalSubtitleArtifact(forged, "ffmpeg-mac-arm64")
+    ).toThrowError(LocalSubtitleResourceError);
     expect(() =>
       resolveVerifiedLocalSubtitleArtifact(bundle, "not-in-manifest")
     ).toThrowError(LocalSubtitleResourceError);

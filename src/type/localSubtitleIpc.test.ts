@@ -411,6 +411,14 @@ describe("local subtitle fixed IPC surface", () => {
         autoSelectedStreamId: "unknown-stream",
       }).success,
     ).toBe(false);
+    for (const title of [" outer", "line\nbreak", "tab\tvalue", "line\u2028break"]) {
+      expect(
+        localSubtitleMediaProbeSummarySchema.safeParse({
+          ...probe,
+          audioTracks: [{ ...probe.audioTracks[0], title }],
+        }).success,
+      ).toBe(false);
+    }
 
     expect(
       localSubtitleOutputDirectorySelectionSchema.parse({ cancelled: true }),

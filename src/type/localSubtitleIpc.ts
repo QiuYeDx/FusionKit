@@ -1149,7 +1149,14 @@ const boundedMetadataStringSchema = z
   .string()
   .min(1)
   .max(LOCAL_SUBTITLE_LIMITS.maxMediaMetadataFieldChars)
-  .refine((value) => value.trim().length > 0, "Must not be blank.")
+  .refine(
+    (value) => value.trim() === value && value.length > 0,
+    "Must be a non-blank trimmed value.",
+  )
+  .refine(
+    (value) => !/[\t\r\n\u2028\u2029]/u.test(value),
+    "Media metadata must be a single line.",
+  )
   .refine(noUnsafeControlCharacters);
 
 export const localSubtitleAuthorizedMediaSchema = z
