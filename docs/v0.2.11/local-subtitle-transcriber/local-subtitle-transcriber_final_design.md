@@ -4,7 +4,7 @@
 >
 > Feature Slug：`local-subtitle-transcriber`
 >
-> 状态：调研、Final Design 与 `PRE-001`～`PRE-006` 技术冻结已完成。production decision record 固定 `whisper.cpp v1.9.1`、Node-managed HTTP contract v1、`large-v3-q5_0` 首发默认、跨平台 FFmpeg 8.1.2、Windows unsigned personal profile 与目标平台矩阵；下一步可并行执行 `CORE-001` / `CORE-002`
+> 状态：调研、Final Design、`PRE-001`～`PRE-006` 技术冻结与 `CORE-001` 共享 domain/runtime schema 已完成。production decision record 固定 `whisper.cpp v1.9.1`、Node-managed HTTP contract v1、`large-v3-q5_0` 首发默认、跨平台 FFmpeg 8.1.2、Windows unsigned personal profile 与目标平台矩阵；下一步优先执行 `CORE-002`，`CORE-003` 等依赖 `CORE-001` 的工作包已解锁
 >
 > 产品定位：使用本地算力把批量音频/视频转成可直接翻译的 SRT/LRC 字幕
 >
@@ -35,6 +35,8 @@
 > 2026-07-18 PRE-005 完成：固定 BtbN `autobuild-2026-06-30-13-34` LGPLv3 x64 candidate，archive/PE/config/license 审计和官方 FFmpeg 8.1.2 detached-signature 完整 fingerprint `VALIDSIG` 通过；15 个 x64 PE 以 `unsigned_personal_distribution` staging，x64 builder 正反向、9 格式/多音轨/长路径/no-PATH/9 类 fault matrix 全部实跑通过，runtime tests 38/38。未创建证书、未修改信任库；当时留给 PRE-006 的 production 体积/依赖/许可证策略已由下一条完成记录闭环
 
 > 2026-07-18 PRE-006 完成：`poc/pre006-production-decision.json` 将五项 production 决策全部标记为 `go`。Windows 默认随 CPU runtime、CUDA 12.4 官方包按需安装；macOS arm64 默认 Metal 并保留显式 CPU，macOS x64 固定拒绝。Windows 采用已实跑的 immutable BtbN LGPLv3 baseline，不引入本地 source-build 工具链；个人/朋友分发继续不要求 Windows 代码签名、证书或信任库。阶段式进度已满足 v1，首版不建 native bridge；第三方 notices 与 NVIDIA 精确 DLL 清单仍由 `QA-005` 在分发前复核
+
+> 2026-07-21 CORE-001 完成：新增独立 `localSubtitle.ts` / `localSubtitleIpc.ts`，冻结 domain、状态机、full/partial/none-success、task generation/session revision、post-action、错误 manifest、canonical transcript、strict request/event/snapshot schema 与 v1 上限；57 项定向 Vitest、TypeScript、PRE-006 manifest drift 校验与 Audio IPC 回归通过。preload channel、owner capability、native HTTP parser 和 resource resolver 仍分别属于 `CORE-003`、`NATIVE-001`、`CORE-002`
 
 ---
 
@@ -491,7 +493,7 @@ interface LocalSubtitleArtifactResult {
 interface LocalSubtitleCompletionResult {
   outcome: "full" | "partial";
   artifacts: LocalSubtitleArtifactResult[];
-  warnings: LocalSubtitleErrorCode[];
+  warnings: LocalSubtitleWarningCode[];
 }
 ```
 
@@ -508,6 +510,7 @@ queued
 
 任意运行阶段 → cancelling → cancelled
 exporting 且已有 commit → cancelling → completed（partial）
+取消清理失败且尚无 commit → cancelling → failed（cancel_failed）
 首个 artifact commit 前任意阶段 → failed
 exporting 且已有 commit 后发生错误 → completed（partial）
 ```
@@ -532,7 +535,7 @@ interface LocalSubtitleSessionSnapshot {
 }
 ```
 
-同一 owner session 的 `revision` 单调递增。renderer service 先注册 listener，再读取 snapshot，以 revision 合并两者；重复、倒序或旧 generation 事件不得覆盖新状态。
+同一 owner session 的 `revision` 单调递增。renderer service 先注册 listener，再读取 snapshot，以 revision 合并两者；重复、倒序或旧 generation 事件不得覆盖新状态。旧 task generation 的 late event 仍消费它对应的 session revision 水位，避免下一条合法事件被误判为 gap，但不得修改 task；真正的 revision gap 必须触发 snapshot 重同步。task `generation` 只在同一逻辑任务显式 retry/restart 时递增，窗口拆短重试使用 main-private `windowAttempt` / `retryDepth`，不得复用公开 task generation。
 
 字幕翻译交接不是本地转写状态机的运行阶段。导出成功后本地任务即为 `completed`，交接另行记录，避免外部 API 配置或网络错误把已经成功的本地转写误标为失败：
 
@@ -608,7 +611,7 @@ interface LocalSubtitleTranscript {
     engine: "whisper_cpp";
     modelId: string;
     modelHash: string;
-    backend: "cuda" | "metal" | "cpu" | "vulkan";
+    backend: "cuda" | "metal" | "cpu";
   };
   detectedLanguage?: string;
   languageProbability?: number;
@@ -616,7 +619,7 @@ interface LocalSubtitleTranscript {
 }
 ```
 
-不得把真实输入路径、模型绝对路径或临时 WAV 路径放进公开结果或 renderer 持久化。
+不得把真实输入路径、模型绝对路径或临时 WAV 路径放进公开结果或 renderer 持久化。v1 runtime schema 只接受 PRE-006 已验证的 CPU/CUDA/Metal 实际 backend；尚未发布的 Vulkan 不能提前进入 v1 task/transcript。resource manifest 中表示一个 artifact 同时具备 Metal/CPU 能力的标签也不是 task backend，必须使用独立类型。
 
 ### 8.3 错误合同
 
@@ -638,6 +641,7 @@ type LocalSubtitleErrorCode =
   | "media_runtime_launch_failed"
   | "accelerator_unavailable"
   | "backend_mismatch"
+  | "backend_unverified"
   | "model_missing"
   | "model_incompatible"
   | "model_corrupt"
@@ -669,7 +673,9 @@ type LocalSubtitleErrorCode =
   | "configuration_required"
   | "directory_authorization_required"
   | "profile_required"
+  | "profile_unavailable"
   | "duplicate"
+  | "unsupported_format"
   | "import_failed"
   | "estimate_failed"
   | "start_rejected";
@@ -678,6 +684,26 @@ type LocalSubtitleErrorCode =
 `runtime_*` 指 runner；`media_runtime_*` 专指随应用发布的 FFmpeg/ffprobe。`media_runtime_missing` 表示必需文件或 manifest 项缺失，`media_runtime_invalid` 表示 manifest、平台/架构、大小、SHA-256 或签名校验失败，`media_runtime_launch_failed` 表示文件通过静态校验但进程无法启动或版本探测失败。这三类错误都必须在任务入队前阻断转写，不能到媒体处理阶段才让一批任务逐个失败。`transcript_quality_failed` 表示 raw segment 在有界重试后仍命中连续重复、非法时间轴、窗口/媒体越界或窗口执行覆盖缺口；它不得被 formatter、去重或 parse-back 转成成功。
 
 错误 envelope 还必须包含 `stage`、`retryable`、受控 `details` 和可选 `causeCode`，并对未知 runner/FFmpeg 诊断映射为最近的稳定 code。主错误文案可操作；stderr、退出码、backend 和阶段进入折叠技术详情。不得把完整命令行、用户路径、媒体内容、API Key 或下载授权 header 直接显示或写日志；diagnostics 有固定字节/行数上限，截断必须显式标记。
+
+### 8.4 CORE-001 v1 版本与上限
+
+`src/type/localSubtitle.ts` 是共享语义与上限的 production source；`poc/pre006-production-decision.json` 继续是 engine/platform/model/media 技术冻结的唯一记录。v1 固定 domain schema、official server HTTP contract、runtime manifest、resource/model manifest version 均为 `1`，任何不兼容放宽都必须升级对应版本，不能静默接受未知字段。
+
+| 边界 | v1 上限/规则 |
+| --- | --- |
+| 普通 IPC request/event JSON frame | 256 KiB UTF-8；先计序列化字节，再执行 strict schema |
+| Session snapshot JSON frame | 4 MiB UTF-8；snapshot 不含 raw path、目录 capability、one-shot token、prompt 或字幕正文 |
+| 单批输入 | 100 文件；重复 file token 拒绝 |
+| 单输入媒体 / 规范化 PCM guard | 64 GiB / 12 GiB |
+| 单标准字幕 artifact | 16 MiB、最多 200,000 cues；artifact read/handoff 另按此上限，不受普通 event frame 代替 |
+| Canonical transcript | 最多 200,000 segments、1,000,000 words、每 segment 512 words；duration/cue end 不超过 `359,999,999 ms` |
+| 字幕文本 | 单 cue 最多 4,096 个正文字符、4 行、每行 1,024 字符；保留 Unicode，拒绝结构破坏控制字符 |
+| 标识与展示 | id / opaque token/ref 最多 128 字符；display leaf 最多 255 字符 |
+| 诊断 | 总计 64 KiB UTF-8、256 行、每行 1,024 字符；metadata 只接受固定 key，截断显式标记 |
+| PRE-006 raw gate | 30,000 ms window、5,000 ms overlap、100 ms boundary tolerance、15,000 ms raw segment、连续 8 cue 且覆盖 15,000 ms、最多 3 层 window retry |
+| Native HTTP | 单响应 64 MiB、单活动请求、私有 path 至少 192-bit entropy |
+
+所有跨边界 object 递归使用 strict runtime schema，拒绝 raw `path/filePath/outputPath/modelPath`、任意 executable/args/backend flags、未知 backend 与多余字段。renderer enqueue 只提交产品字段与 opaque capability；`modelHash`、`resolvedBackend`、runtime pin 和 batch immutable snapshot 均由 main 解析/生成。CORE-001 不冻结 channel 名、owner handshake 或 native/resource manifest 文件格式，这些仍由后续 owner 工作包完成。
 
 ## 9. Preload、IPC 与权限边界
 
@@ -758,9 +784,9 @@ no_language_probabilities=true
 原时间轴/静音幻觉矩阵时，main 才可发送 `token_timestamps=true`；renderer 不能直接
 控制这两个上游字段。
 
-窗口索引、绝对 `startMs/endMs`、overlap 和 retry generation 只保存在 main 的任务上下文，不作为可由 renderer 或上游响应覆盖的字段。Node adapter 对 response schema 做运行时校验，把 segment/word 的相对秒值立即转换为整数毫秒；VAD 模式丢弃 words，只保留已映射回原媒体的 segment。非 VAD words 也必须全部位于 parent segment 时间范围内，否则 merge 回退到 segment 并记录诊断。raw quality gate 通过后再加窗口绝对偏移并交给 overlap merger/canonical post processor。不得直接采用上游 SRT/LRC 输出，也不得在 renderer 解析 server JSON。
+窗口索引、绝对 `startMs/endMs`、overlap 和 main-private `windowAttempt` / `retryDepth` 只保存在 main 的任务上下文，不作为可由 renderer 或上游响应覆盖的字段。Node adapter 对 response schema 做运行时校验，把 segment/word 的相对秒值立即转换为整数毫秒；VAD 模式丢弃 words，只保留已映射回原媒体的 segment。非 VAD words 也必须全部位于 parent segment 时间范围内，否则 merge 回退到 segment 并记录诊断。raw quality gate 通过后再加窗口绝对偏移并交给 overlap merger/canonical post processor。不得直接采用上游 SRT/LRC 输出，也不得在 renderer 解析 server JSON。
 
-官方 v1.9.1 server 不提供稳定的结构化增量 progress/segment 流。PRE-006 已冻结首版 UI 只显示 `loading_model → normalizing_media → transcribing → postprocessing → exporting` 阶段、窗口/文件完成数和真实媒体准备进度；不解析 `--print-progress` stderr 伪造百分比。未来若真实 UX 验收证明不足，应新增独立工作包评估上游 API，不能在 NATIVE-001 中暗建 native bridge。
+官方 v1.9.1 server 不提供稳定的结构化增量 progress/segment 流。PRE-006 已冻结首版 UI 只显示 `preparing_media → loading_model → transcribing → post_processing → exporting` 阶段、窗口/文件完成数和真实媒体准备进度；不解析 `--print-progress` stderr 伪造百分比。未来若真实 UX 验收证明不足，应新增独立工作包评估上游 API，不能在 NATIVE-001 中暗建 native bridge。
 
 ### 10.3 有界窗口、合并与 raw quality gate
 
@@ -770,7 +796,7 @@ PRE-004 已证明同一模型/backend 对故障区间的独立约 30 秒请求�
 2. 每个窗口是独立 inference 请求和 decoder context，但继续复用同一已加载 model/backend 的 server 进程。取消仍作用于当前请求并使下一任务重启 server；普通窗口成功不触发模型重载。
 3. 在任何 trim/split/formatter 之前，逐窗检查 raw segment 的正时长、单调/重叠、窗口及媒体边界、15 秒单段上限、规范化同文连续 8 cue 且覆盖 15 秒的退化，以及 window plan 执行覆盖；`parseBack=true`、HTTP 200 或尾时间戳接近媒体末尾都不能替代该检查。
 4. overlap 合并使用绝对时间、窗口核心区所有权和边界 token/text 相似度做确定性仲裁；只处理同一边界的重复观测，不做全文件字符串去重，也不因合法重复台词直接丢 cue。
-5. 命中退化门禁时用新 retry generation 最多拆短 3 层，并完整记录 parent/children、窗口长度和 overlap；不得在重试中静默更换 backend、sampling strategy 或 VAD 合同。预算耗尽后返回 `transcript_quality_failed`，不进入 canonical formatter 或 artifact commit。
+5. 命中退化门禁时用 main-private `windowAttempt` / `retryDepth` 最多拆短 3 层，并完整记录 parent/children、窗口长度和 overlap；不得把窗口重试伪装成公开 task generation，也不得在重试中静默更换 backend、sampling strategy 或 VAD 合同。预算耗尽后返回 `transcript_quality_failed`，不进入 canonical formatter 或 artifact commit。
 
 质量门禁证明的是输出没有已知 decoder loop/时间轴退化，不是 CER/WER 准确率声明。最终中日内容仍需真实样本人工 smoke，但不能再只抽查开头几段。
 
@@ -1296,7 +1322,7 @@ resources/local-subtitle/
 
 ## 18. 分期实施建议（高层阶段）
 
-本节保留架构层面的阶段划分；可认领的工作包、依赖、状态、验证和实施记录以 `local-subtitle-transcriber_execution_plan.md` 为唯一执行台账。Execution Plan 已于 2026-07-16 建立，当前 `PRE-001`～`PRE-006` 已完成，M0 技术可行性门禁已解除；下一步可并行认领 `CORE-001` / `CORE-002`。Windows personal distribution 的 unsigned profile 已明确；Developer ID、公证和 Gatekeeper accepted 只由未来 `QA-004` 验收 macOS 分发产物。
+本节保留架构层面的阶段划分；可认领的工作包、依赖、状态、验证和实施记录以 `local-subtitle-transcriber_execution_plan.md` 为唯一执行台账。Execution Plan 已于 2026-07-16 建立，当前 `PRE-001`～`PRE-006` 与 `CORE-001` 已完成，M0 技术可行性门禁已解除；下一步优先认领 `CORE-002`，依赖 `CORE-001` 的 `CORE-003`、`NATIVE-001`、`MEDIA-001`、`SUB-001`、`LINK-001` 也已解锁。Windows personal distribution 的 unsigned profile 已明确；Developer ID、公证和 Gatekeeper accepted 只由未来 `QA-004` 验收 macOS 分发产物。
 
 其中本节原先汇总为一个 `PRE-001` 的跨平台 PoC，在 Execution Plan 中拆为 `PRE-001`～`PRE-006`，以避免把基准、CPU runner、Windows CUDA、macOS Metal、FFmpeg/打包许可和最终技术冻结塞进一个无法单会话闭环的工作包。其余高层包也在执行计划中按安全边界和可验证纵向切片进一步拆分。
 
@@ -1355,12 +1381,12 @@ PRE-001 已解锁 runtime 开发，PRE-003 已确定 Windows CPU/CUDA，PRE-004 
 - Windows/macOS CPU/GPU RTF 均 < 1，30 秒窗口/5 秒 overlap 的 raw quality gate 通过；接受 Windows 789,147,424-byte unpacked baseline、1,209,487,872-byte optional CUDA pack 和 1,081,140,203-byte launch model，并要求 UI 展示磁盘占用。
 - 决策记录为 `poc/pre006-production-decision.json`，五项均为 `go`，无 PRE blocker，解锁 `CORE-001` / `CORE-002`。QA-005 仍是向他人分发前的精确 notices/source-offer/NVIDIA DLL 门禁，但不会引入 Windows 代码签名要求。
 
-### CORE-001：类型、协议与安全边界
+### CORE-001：domain、状态机、事件、错误与 runtime schema（已完成）
 
-- `localSubtitle.ts`、`localSubtitleIpc.ts`。
-- fixed preload API、private file authorization channels。
-- owner/token/schema/allowlist 测试。
-- fake/real server HTTP contract、private endpoint、response schema 和 lifecycle tests。
+- `src/type/localSubtitle.ts` 固定 PRE-006 pins、版本/上限、immutable batch snapshot、状态机、full/partial/none-success reducer、task generation/session revision、post-action、canonical transcript 与单一 error manifest。
+- `src/type/localSubtitleIpc.ts` 只组合 strict renderer/main request、control request、IPC result、task/resource event、session snapshot 与 transcript schema；unknown field、raw path、executable/args/backend flags 和未发布 Vulkan 均拒绝。
+- preload channel/owner capability 留给 `CORE-003`，official server HTTP response parser 留给 `NATIVE-001`，runtime/resource manifest 文件 schema 和 resolver 留给 `CORE-002`，没有跨包预实现。
+- 57 项定向测试覆盖 PRE-006 drift、10×10 状态迁移、completion、取消、revision/generation、post-action/status 跨字段约束、UTF-8 frame/diagnostics、round-trip 和 Audio 隔离；TypeScript 通过。
 
 ### BE-001：本地任务运行时
 
@@ -1530,9 +1556,9 @@ Electron 视觉/交互验证必须等待 preload loading 完全退出。若启�
 
 ## 22. 推荐下一步
 
-`PRE-001`～`PRE-006` 已完成，M0 技术可行性已冻结。唯一 production decision record 是 `poc/pre006-production-decision.json`，后续实现不得静默更换引擎、平台矩阵、首发模型或 media acquisition policy。
+`PRE-001`～`PRE-006` 与 `CORE-001` 已完成，M0 技术可行性和共享 domain/runtime schema 已冻结。唯一 production decision record 是 `poc/pre006-production-decision.json`，后续实现不得静默更换引擎、平台矩阵、首发模型或 media acquisition policy。
 
-1. 下一步认领 `CORE-001`（domain/状态机/事件/error/runtime schema）或 `CORE-002`（资源 manifest/resolver/staging 合同）；两者可并行，但本会话一次只闭环一个。
+1. 下一步优先认领 `CORE-002`（资源 manifest/resolver/staging 合同）；也可按依赖独立认领 `CORE-003`、`NATIVE-001`、`MEDIA-001`、`SUB-001` 或 `LINK-001`，但本会话一次只闭环一个。
 2. Windows 继续使用 `unsigned_personal_distribution`；本人/朋友安装不引入证书或信任库变更。若以后明确要求公开低提示分发，受信任 installer 签名/timestamp 才归可选 `QA-003`。
 3. Developer ID、公证和 Gatekeeper accepted 只由 `QA-004` 验收 macOS 分发产物；QA-005 完成分发前第三方 notices/source-offer/NVIDIA DLL 核对。
 4. 仍无需 FusionKit 自写 C++ runner；只有 official server 出现产品必需能力的真实硬缺口，才通过独立工作包重新评估 native bridge。

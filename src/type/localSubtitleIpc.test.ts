@@ -1,0 +1,767 @@
+import { readFileSync } from "node:fs";
+import path from "node:path";
+import { describe, expect, it } from "vitest";
+import {
+  LOCAL_SUBTITLE_DOMAIN_SCHEMA_VERSION,
+  LOCAL_SUBTITLE_LIMITS,
+  LOCAL_SUBTITLE_MODEL_MANIFEST_VERSION,
+  LOCAL_SUBTITLE_PRODUCTION_CONTRACT,
+  createLocalSubtitleError,
+  resolveLocalSubtitleTerminalOutcome,
+  type LocalSubtitleArtifactResult,
+  type LocalSubtitleBatchSummary,
+  type LocalSubtitleTaskSummary,
+  type LocalSubtitleTranscript,
+} from "@/type/localSubtitle";
+import {
+  enqueueLocalSubtitleBatchRequestSchema,
+  localSubtitleArtifactRefRequestSchema,
+  localSubtitleDiagnosticsSchema,
+  localSubtitleErrorSchema,
+  localSubtitleIpcResultSchema,
+  localSubtitleSessionSnapshotSchema,
+  localSubtitleTaskEventEnvelopeSchema,
+  localSubtitleTaskSummarySchema,
+  localSubtitleTranscriptSchema,
+  validateEnqueueLocalSubtitleBatchRequest,
+  validateLocalSubtitleSessionSnapshot,
+  validateLocalSubtitleTaskEventEnvelope,
+  validateLocalSubtitleTranscript,
+} from "@/type/localSubtitleIpc";
+
+const NOW = "2026-07-21T12:00:00.000Z";
+const SHA = "a".repeat(64);
+
+describe("local subtitle IPC request contract", () => {
+  it("accepts the versioned metadata-only enqueue request", () => {
+    const request = validEnqueueRequest();
+    const result = validateEnqueueLocalSubtitleBatchRequest(request);
+
+    expect(result).toEqual({ ok: true, data: request });
+    expect(
+      enqueueLocalSubtitleBatchRequestSchema.parse(
+        JSON.parse(JSON.stringify(request)),
+      ),
+    ).toEqual(request);
+  });
+
+  it("rejects raw paths, executables, resolved backends, and unknown fields at every layer", () => {
+    const cases: Array<[string, (request: any) => void]> = [
+      ["root path", (request) => (request.path = "/private/media.wav")],
+      [
+        "file path",
+        (request) => (request.files[0].filePath = "/private/media.wav"),
+      ],
+      [
+        "model path",
+        (request) => (request.config.modelPath = "/private/model.bin"),
+      ],
+      [
+        "model hash",
+        (request) => (request.config.modelHash = SHA),
+      ],
+      [
+        "resolved backend",
+        (request) => (request.config.resolvedBackend = "cuda"),
+      ],
+      [
+        "executable",
+        (request) => (request.config.executable = "/tmp/whisper-server"),
+      ],
+      [
+        "arguments",
+        (request) => (request.config.args = ["--port", "9999"]),
+      ],
+      [
+        "backend flags",
+        (request) => (request.config.backendFlags = { flashAttention: true }),
+      ],
+      [
+        "output path",
+        (request) =>
+          (request.config.output.outputPath = "/private/subtitles"),
+      ],
+      [
+        "post action override",
+        (request) => (request.config.postAction.autoStart = true),
+      ],
+    ];
+
+    for (const [name, mutate] of cases) {
+      const request = structuredClone(validEnqueueRequest());
+      mutate(request);
+      expect(validateEnqueueLocalSubtitleBatchRequest(request), name).toMatchObject({
+        ok: false,
+        error: { code: "invalid_ipc_request" },
+      });
+    }
+  });
+
+  it("keeps v1 device requests on the frozen CPU, CUDA, and Metal matrix", () => {
+    const request = validEnqueueRequest();
+    request.config.devicePreference = "vulkan" as "auto";
+
+    const result = validateEnqueueLocalSubtitleBatchRequest(request);
+    expect(result).toMatchObject({
+      ok: false,
+      error: { code: "invalid_ipc_request", field: "config.devicePreference" },
+    });
+  });
+
+  it("enforces output and post-action discriminants", () => {
+    const duplicateFormats = validEnqueueRequest();
+    duplicateFormats.config.output.formats = ["SRT", "SRT"];
+    expect(validateEnqueueLocalSubtitleBatchRequest(duplicateFormats).ok).toBe(
+      false,
+    );
+
+    const missingCustomToken = validEnqueueRequest() as any;
+    missingCustomToken.config.output = {
+      mode: "custom",
+      formats: ["SRT"],
+      conflictPolicy: "index",
+    };
+    expect(validateEnqueueLocalSubtitleBatchRequest(missingCustomToken).ok).toBe(
+      false,
+    );
+
+    const wrongHandoffFormat = validEnqueueRequest();
+    wrongHandoffFormat.config.output.formats = ["SRT"];
+    wrongHandoffFormat.config.postAction = {
+      mode: "enqueue_translation",
+      preferredFormat: "LRC",
+    };
+    expect(validateEnqueueLocalSubtitleBatchRequest(wrongHandoffFormat).ok).toBe(
+      false,
+    );
+
+    const invalidExportOnly = validEnqueueRequest() as any;
+    invalidExportOnly.config.postAction = {
+      mode: "export_only",
+      preferredFormat: "SRT",
+    };
+    expect(validateEnqueueLocalSubtitleBatchRequest(invalidExportOnly).ok).toBe(
+      false,
+    );
+  });
+
+  it("enforces batch count and prompt boundaries", () => {
+    const atBatchLimit = validEnqueueRequest();
+    atBatchLimit.files = Array.from(
+      { length: LOCAL_SUBTITLE_LIMITS.maxBatchFiles },
+      (_, index) => ({
+        fileToken: `file-${index}`,
+        audioStreamId: `stream-${index}`,
+      }),
+    );
+    expect(validateEnqueueLocalSubtitleBatchRequest(atBatchLimit).ok).toBe(true);
+
+    const aboveBatchLimit = structuredClone(atBatchLimit);
+    aboveBatchLimit.files.push({
+      fileToken: "file-over-limit",
+      audioStreamId: "stream-over-limit",
+    });
+    expect(validateEnqueueLocalSubtitleBatchRequest(aboveBatchLimit).ok).toBe(
+      false,
+    );
+
+    const atPromptLimit = validEnqueueRequest();
+    atPromptLimit.config.advanced.initialPrompt = "x".repeat(
+      LOCAL_SUBTITLE_LIMITS.maxInitialPromptChars,
+    );
+    expect(validateEnqueueLocalSubtitleBatchRequest(atPromptLimit).ok).toBe(true);
+
+    const abovePromptLimit = validEnqueueRequest();
+    abovePromptLimit.config.advanced.initialPrompt = "x".repeat(
+      LOCAL_SUBTITLE_LIMITS.maxInitialPromptChars + 1,
+    );
+    expect(validateEnqueueLocalSubtitleBatchRequest(abovePromptLimit).ok).toBe(
+      false,
+    );
+  });
+
+  it("measures normal IPC frames in UTF-8 bytes before parsing", () => {
+    const oversized = {
+      ...validEnqueueRequest(),
+      padding: "字".repeat(LOCAL_SUBTITLE_LIMITS.maxIpcFrameBytes),
+    };
+    const result = validateEnqueueLocalSubtitleBatchRequest(oversized);
+
+    expect(result).toMatchObject({
+      ok: false,
+      error: {
+        code: "limit_exceeded",
+        details: {
+          metadata: { limit: LOCAL_SUBTITLE_LIMITS.maxIpcFrameBytes },
+        },
+      },
+    });
+  });
+
+  it("rejects non-JSON frames without reflecting their content", () => {
+    const circular: Record<string, unknown> = {};
+    circular.self = circular;
+    const result = validateEnqueueLocalSubtitleBatchRequest(circular);
+
+    expect(result).toEqual({
+      ok: false,
+      error: {
+        code: "invalid_ipc_request",
+        message: "Local subtitle IPC payload must be JSON serializable.",
+        stage: "ipc",
+        retryable: false,
+      },
+    });
+  });
+});
+
+describe("local subtitle event and snapshot schemas", () => {
+  it("round-trips a task event with fixed ids, generation, and revision", () => {
+    const task = validTaskSummary();
+    const event = {
+      batchId: task.batchId,
+      taskId: task.taskId,
+      generation: task.generation,
+      revision: 7,
+      event: { type: "task-updated" as const, task },
+    };
+
+    expect(validateLocalSubtitleTaskEventEnvelope(event)).toEqual({
+      ok: true,
+      data: event,
+    });
+    expect(
+      localSubtitleTaskEventEnvelopeSchema.parse(
+        JSON.parse(JSON.stringify(event)),
+      ),
+    ).toEqual(event);
+  });
+
+  it("rejects mismatched envelope identity and nested unknown fields", () => {
+    const task = validTaskSummary();
+    const mismatched = {
+      batchId: task.batchId,
+      taskId: "another-task",
+      generation: task.generation,
+      revision: 7,
+      event: { type: "task-updated" as const, task },
+    };
+    expect(validateLocalSubtitleTaskEventEnvelope(mismatched).ok).toBe(false);
+
+    const injected = structuredClone(mismatched) as any;
+    injected.taskId = task.taskId;
+    injected.event.task.sourcePath = "/private/media.wav";
+    expect(validateLocalSubtitleTaskEventEnvelope(injected)).toMatchObject({
+      ok: false,
+      error: { code: "invalid_ipc_request" },
+    });
+  });
+
+  it("keeps session snapshots path-free and JSON round-trippable", () => {
+    const snapshot = validSessionSnapshot();
+    expect(validateLocalSubtitleSessionSnapshot(snapshot)).toEqual({
+      ok: true,
+      data: snapshot,
+    });
+    expect(
+      localSubtitleSessionSnapshotSchema.parse(
+        JSON.parse(JSON.stringify(snapshot)),
+      ),
+    ).toEqual(snapshot);
+
+    const injected = structuredClone(snapshot) as any;
+    injected.batches[0].tasks[0].outputPath = "/private/subtitles/sample.srt";
+    expect(validateLocalSubtitleSessionSnapshot(injected).ok).toBe(false);
+  });
+
+  it("uses the larger snapshot frame budget without weakening strict parsing", () => {
+    const belowSnapshotLimit = {
+      ...validSessionSnapshot(),
+      padding: "x".repeat(LOCAL_SUBTITLE_LIMITS.maxIpcFrameBytes + 1),
+    };
+    expect(validateLocalSubtitleSessionSnapshot(belowSnapshotLimit)).toMatchObject({
+      ok: false,
+      error: { code: "invalid_ipc_request" },
+    });
+
+    const aboveSnapshotLimit = {
+      ...validSessionSnapshot(),
+      padding: "x".repeat(LOCAL_SUBTITLE_LIMITS.maxSessionSnapshotBytes + 1),
+    };
+    expect(validateLocalSubtitleSessionSnapshot(aboveSnapshotLimit)).toMatchObject({
+      ok: false,
+      error: { code: "limit_exceeded" },
+    });
+  });
+});
+
+describe("local subtitle error and result schemas", () => {
+  it("derives retryability from the versioned manifest", () => {
+    const error = createLocalSubtitleError(
+      "media_runtime_invalid",
+      "Bundled media runtime failed verification.",
+    );
+    expect(localSubtitleErrorSchema.parse(error)).toEqual(error);
+
+    expect(
+      localSubtitleErrorSchema.safeParse({ ...error, retryable: false }).success,
+    ).toBe(false);
+  });
+
+  it("bounds diagnostics by UTF-8 bytes and an exact metadata allowlist", () => {
+    const ascii = {
+      truncated: false,
+      lines: Array.from({ length: 22 }, () => "x".repeat(1000)),
+      metadata: { attempt: 1, backend: "metal" },
+    };
+    expect(localSubtitleDiagnosticsSchema.safeParse(ascii).success).toBe(true);
+
+    const multibyte = {
+      ...ascii,
+      lines: Array.from({ length: 22 }, () => "字".repeat(1000)),
+    };
+    expect(localSubtitleDiagnosticsSchema.safeParse(multibyte).success).toBe(
+      false,
+    );
+
+    expect(
+      localSubtitleDiagnosticsSchema.safeParse({
+        truncated: false,
+        metadata: { path: "/private/media.wav" },
+      }).success,
+    ).toBe(false);
+  });
+
+  it("creates strict generic IPC result schemas", () => {
+    const schema = localSubtitleIpcResultSchema(
+      localSubtitleArtifactRefRequestSchema,
+    );
+    expect(
+      schema.parse({ ok: true, data: { artifactRef: "artifact-ref" } }),
+    ).toEqual({ ok: true, data: { artifactRef: "artifact-ref" } });
+    expect(
+      schema.safeParse({
+        ok: true,
+        data: { artifactRef: "artifact-ref", path: "/private/result.srt" },
+      }).success,
+    ).toBe(false);
+    expect(
+      schema.safeParse({
+        ok: false,
+        error: createLocalSubtitleError("artifact_expired", "Expired."),
+        extra: true,
+      }).success,
+    ).toBe(false);
+  });
+});
+
+describe("local subtitle transcript and task summary schemas", () => {
+  it("round-trips canonical integer-millisecond transcripts", () => {
+    const transcript = validTranscript();
+    expect(validateLocalSubtitleTranscript(transcript)).toEqual({
+      ok: true,
+      data: transcript,
+    });
+    expect(
+      localSubtitleTranscriptSchema.parse(
+        JSON.parse(JSON.stringify(transcript)),
+      ),
+    ).toEqual(transcript);
+  });
+
+  it("rejects v1 Vulkan, raw paths, unsafe timelines, and compressed word time", () => {
+    const vulkan = validTranscript() as any;
+    vulkan.model.backend = "vulkan";
+    expect(validateLocalSubtitleTranscript(vulkan).ok).toBe(false);
+
+    const withPath = validTranscript() as any;
+    withPath.source.path = "/private/media.wav";
+    expect(validateLocalSubtitleTranscript(withPath).ok).toBe(false);
+
+    const overDuration = validTranscript();
+    overDuration.source.durationMs = LOCAL_SUBTITLE_LIMITS.maxDurationMs + 1;
+    expect(validateLocalSubtitleTranscript(overDuration).ok).toBe(false);
+
+    const wordOutsideSegment = validTranscript();
+    wordOutsideSegment.segments[0].words = [
+      { startMs: 0, endMs: 1500, text: "outside" },
+    ];
+    expect(validateLocalSubtitleTranscript(wordOutsideSegment).ok).toBe(false);
+
+    const unordered = validTranscript();
+    unordered.segments.push({
+      id: "segment-2",
+      startMs: 500,
+      endMs: 900,
+      text: "earlier",
+    });
+    expect(validateLocalSubtitleTranscript(unordered).ok).toBe(false);
+  });
+
+  it("enforces duration, artifact byte, cue, and text boundaries", () => {
+    const atDurationLimit = validTranscript();
+    atDurationLimit.source.durationMs = LOCAL_SUBTITLE_LIMITS.maxDurationMs;
+    expect(validateLocalSubtitleTranscript(atDurationLimit).ok).toBe(true);
+
+    const atTextLimit = validTranscript();
+    atTextLimit.segments[0].text = Array.from(
+      { length: LOCAL_SUBTITLE_LIMITS.maxCueLines },
+      () => "x".repeat(LOCAL_SUBTITLE_LIMITS.maxLineChars),
+    ).join("\n");
+    expect(validateLocalSubtitleTranscript(atTextLimit).ok).toBe(true);
+
+    const overLineLimit = validTranscript();
+    overLineLimit.segments[0].text = "x".repeat(
+      LOCAL_SUBTITLE_LIMITS.maxLineChars + 1,
+    );
+    expect(validateLocalSubtitleTranscript(overLineLimit).ok).toBe(false);
+
+    const task = completedTaskSummary();
+    const committed = task.artifactResults[0];
+    if (committed.status !== "committed") throw new Error("fixture mismatch");
+    committed.artifact.byteSize = LOCAL_SUBTITLE_LIMITS.maxArtifactBytes;
+    committed.artifact.cueCount = LOCAL_SUBTITLE_LIMITS.maxArtifactCues;
+    const atLimitOutcome = resolveLocalSubtitleTerminalOutcome({
+      requestedFormats: task.requestedFormats,
+      artifactResults: task.artifactResults,
+    });
+    if (!atLimitOutcome.ok || atLimitOutcome.status !== "completed") {
+      throw new Error("invalid limit fixture");
+    }
+    task.completion = atLimitOutcome.completion;
+    expect(localSubtitleTaskSummarySchema.safeParse(task).success).toBe(true);
+
+    committed.artifact.byteSize = LOCAL_SUBTITLE_LIMITS.maxArtifactBytes + 1;
+    expect(localSubtitleTaskSummarySchema.safeParse(task).success).toBe(false);
+  });
+
+  it("requires task completion details to exactly match artifact results", () => {
+    const task = completedTaskSummary();
+    expect(localSubtitleTaskSummarySchema.safeParse(task).success).toBe(true);
+
+    task.completion = {
+      ...task.completion!,
+      outcome: "full",
+    };
+    expect(localSubtitleTaskSummarySchema.safeParse(task).success).toBe(false);
+
+    const cancelledWithCommit = completedTaskSummary() as any;
+    cancelledWithCommit.status = "cancelled";
+    delete cancelledWithCommit.completion;
+    expect(localSubtitleTaskSummarySchema.safeParse(cancelledWithCommit).success)
+      .toBe(false);
+  });
+
+  it("binds task status to progress stage and artifact visibility", () => {
+    const queuedWithArtifact = validTaskSummary() as any;
+    queuedWithArtifact.artifactResults = [completedArtifactResults()[0]];
+    expect(localSubtitleTaskSummarySchema.safeParse(queuedWithArtifact).success)
+      .toBe(false);
+
+    const queuedAtExporting = validTaskSummary() as any;
+    queuedAtExporting.progress = {
+      stage: "exporting",
+      stageProgress: 50,
+      overallProgress: 95,
+    };
+    expect(localSubtitleTaskSummarySchema.safeParse(queuedAtExporting).success)
+      .toBe(false);
+
+    const exportingWithCommit = validTaskSummary() as any;
+    exportingWithCommit.status = "exporting";
+    exportingWithCommit.progress = {
+      stage: "exporting",
+      stageProgress: 50,
+      overallProgress: 95,
+    };
+    exportingWithCommit.artifactResults = [completedArtifactResults()[0]];
+    expect(localSubtitleTaskSummarySchema.safeParse(exportingWithCommit).success)
+      .toBe(true);
+  });
+
+  it("derives cancellation warnings instead of accepting self-asserted state", () => {
+    const fullWithCancellationWarning = completedTaskSummary() as any;
+    fullWithCancellationWarning.artifactResults = [
+      completedArtifactResults()[0],
+      {
+        format: "LRC",
+        status: "committed",
+        artifact: {
+          artifactRef: "artifact-ref-2",
+          displayName: "sample.lrc",
+          format: "LRC",
+          byteSize: 64,
+          cueCount: 1,
+          sha256: "b".repeat(64),
+          committedAt: NOW,
+        },
+      },
+    ];
+    fullWithCancellationWarning.completion = {
+      outcome: "full",
+      artifacts: structuredClone(fullWithCancellationWarning.artifactResults),
+      warnings: ["cancelled_after_partial_commit"],
+    };
+    expect(
+      localSubtitleTaskSummarySchema.safeParse(fullWithCancellationWarning)
+        .success,
+    ).toBe(false);
+  });
+
+  it("requires queued import identity before any translation start state", () => {
+    const impossibleStart = validTaskSummary() as any;
+    impossibleStart.postAction = {
+      mode: "enqueue_and_start_translation",
+      preferredFormat: "SRT",
+      importStatus: "failed",
+      startStatus: "started",
+      importErrorCode: "import_failed",
+    };
+    expect(localSubtitleTaskSummarySchema.safeParse(impossibleStart).success)
+      .toBe(false);
+
+    const failedStartWithoutTask = validTaskSummary() as any;
+    failedStartWithoutTask.postAction = {
+      mode: "enqueue_and_start_translation",
+      preferredFormat: "SRT",
+      importStatus: "queued",
+      startStatus: "failed",
+      startFailureReason: "start_rejected",
+    };
+    expect(
+      localSubtitleTaskSummarySchema.safeParse(failedStartWithoutTask).success,
+    ).toBe(false);
+
+    const started = completedTaskSummary() as any;
+    started.postAction = {
+      mode: "enqueue_and_start_translation",
+      preferredFormat: "SRT",
+      importStatus: "queued",
+      startStatus: "started",
+      importReceiptId: "receipt-1",
+      translationTaskId: "translation-task-1",
+    };
+    expect(localSubtitleTaskSummarySchema.safeParse(started).success).toBe(
+      true,
+    );
+  });
+
+  it("preserves failed-format handoff state without substituting another artifact", () => {
+    const skippedHandoff = completedTaskSummary() as any;
+    skippedHandoff.postAction = {
+      mode: "enqueue_translation",
+      preferredFormat: "LRC",
+      importStatus: "skipped",
+      startStatus: "not_requested",
+      importErrorCode: "unsupported_format",
+    };
+    expect(localSubtitleTaskSummarySchema.safeParse(skippedHandoff).success)
+      .toBe(true);
+
+    const importingWithoutCommit = validTaskSummary() as any;
+    importingWithoutCommit.postAction = {
+      mode: "enqueue_translation",
+      preferredFormat: "SRT",
+      importStatus: "importing",
+      startStatus: "not_requested",
+    };
+    expect(
+      localSubtitleTaskSummarySchema.safeParse(importingWithoutCommit).success,
+    ).toBe(false);
+  });
+});
+
+describe("local subtitle module ownership", () => {
+  it("does not import or extend the remote audio contracts", () => {
+    for (const file of ["localSubtitle.ts", "localSubtitleIpc.ts"]) {
+      const source = readFileSync(
+        path.join(process.cwd(), "src", "type", file),
+        "utf8",
+      );
+      expect(source).not.toMatch(/from\s+["'][^"']*audio[^"']*["']/i);
+      expect(source).not.toContain("audio:");
+    }
+  });
+});
+
+function validEnqueueRequest() {
+  return {
+    schemaVersion: LOCAL_SUBTITLE_DOMAIN_SCHEMA_VERSION,
+    files: [{ fileToken: "file-token-1", audioStreamId: "stream-1" }],
+    config: {
+      modelId: LOCAL_SUBTITLE_PRODUCTION_CONTRACT.launchModel.id,
+      devicePreference: "auto" as const,
+      language: "auto",
+      taskMode: "transcribe" as const,
+      qualityPreset: "subtitle_quality" as const,
+      advanced: {
+        initialPrompt: "optional prompt",
+        beamSize: 5,
+        temperature: 0,
+        vadMinSilenceMs: 500,
+        maxCueDurationMs: 10_000,
+        maxCueChars: 120,
+        maxLineChars: 42,
+      },
+      output: {
+        mode: "source" as const,
+        formats: ["SRT", "LRC"] as Array<"SRT" | "LRC">,
+        conflictPolicy: "index" as const,
+      },
+      postAction: { mode: "export_only" as const } as
+        | { mode: "export_only" }
+        | {
+            mode: "enqueue_translation" | "enqueue_and_start_translation";
+            preferredFormat: "SRT" | "LRC";
+          },
+    },
+  };
+}
+
+function modelSnapshot() {
+  return {
+    engine: "whisper_cpp" as const,
+    engineVersion: LOCAL_SUBTITLE_PRODUCTION_CONTRACT.engine.version,
+    engineCommit: LOCAL_SUBTITLE_PRODUCTION_CONTRACT.engine.commit,
+    modelManifestVersion: LOCAL_SUBTITLE_MODEL_MANIFEST_VERSION,
+    modelId: LOCAL_SUBTITLE_PRODUCTION_CONTRACT.launchModel.id,
+    modelHash: LOCAL_SUBTITLE_PRODUCTION_CONTRACT.launchModel.sha256,
+  };
+}
+
+function validTaskSummary(): LocalSubtitleTaskSummary {
+  return {
+    taskId: "task-1",
+    batchId: "batch-1",
+    generation: 1,
+    displayName: "sample.wav",
+    durationMs: 60_000,
+    status: "queued",
+    progress: {
+      stage: "queued",
+      stageProgress: 0,
+      overallProgress: 0,
+    },
+    model: modelSnapshot(),
+    resolvedBackend: "metal",
+    requestedFormats: ["SRT", "LRC"],
+    artifactResults: [],
+    postAction: {
+      mode: "export_only",
+      importStatus: "not_requested",
+      startStatus: "not_requested",
+    },
+    createdAt: NOW,
+    updatedAt: NOW,
+  };
+}
+
+function completedArtifactResults(): LocalSubtitleArtifactResult[] {
+  return [
+    {
+      format: "SRT",
+      status: "committed",
+      artifact: {
+        artifactRef: "artifact-ref-1",
+        displayName: "sample.srt",
+        format: "SRT",
+        byteSize: 128,
+        cueCount: 1,
+        sha256: SHA,
+        committedAt: NOW,
+      },
+    },
+    {
+      format: "LRC",
+      status: "failed",
+      errorCode: "output_write_failed",
+    },
+  ];
+}
+
+function completedTaskSummary(): Mutable<LocalSubtitleTaskSummary> {
+  const artifactResults = completedArtifactResults();
+  const terminal = resolveLocalSubtitleTerminalOutcome({
+    requestedFormats: ["SRT", "LRC"],
+    artifactResults,
+  });
+  if (!terminal.ok || terminal.status !== "completed") {
+    throw new Error("invalid completion fixture");
+  }
+
+  return {
+    ...validTaskSummary(),
+    status: "completed",
+    progress: {
+      stage: "exporting",
+      stageProgress: 100,
+      overallProgress: 100,
+    },
+    artifactResults,
+    completion: terminal.completion,
+  } as Mutable<LocalSubtitleTaskSummary>;
+}
+
+function validBatchSummary(): LocalSubtitleBatchSummary {
+  return {
+    batchId: "batch-1",
+    status: "queued",
+    config: {
+      modelId: LOCAL_SUBTITLE_PRODUCTION_CONTRACT.launchModel.id,
+      devicePreference: "auto",
+      resolvedBackend: "metal",
+      language: "auto",
+      taskMode: "transcribe",
+      qualityPreset: "subtitle_quality",
+      outputFormats: ["SRT", "LRC"],
+      outputMode: "source",
+      conflictPolicy: "index",
+      postActionMode: "export_only",
+    },
+    tasks: [validTaskSummary()],
+    createdAt: NOW,
+    updatedAt: NOW,
+  };
+}
+
+function validSessionSnapshot() {
+  return {
+    schemaVersion: LOCAL_SUBTITLE_DOMAIN_SCHEMA_VERSION,
+    revision: 6,
+    batches: [validBatchSummary()],
+    resourceJobs: [],
+  };
+}
+
+function validTranscript(): Mutable<LocalSubtitleTranscript> {
+  return {
+    schemaVersion: LOCAL_SUBTITLE_DOMAIN_SCHEMA_VERSION,
+    source: { displayName: "sample.wav", durationMs: 60_000 },
+    model: {
+      engine: "whisper_cpp",
+      modelId: LOCAL_SUBTITLE_PRODUCTION_CONTRACT.launchModel.id,
+      modelHash: LOCAL_SUBTITLE_PRODUCTION_CONTRACT.launchModel.sha256,
+      backend: "metal",
+    },
+    detectedLanguage: "ja",
+    languageProbability: 0.98,
+    segments: [
+      {
+        id: "segment-1",
+        startMs: 1000,
+        endMs: 2000,
+        text: "sample",
+        words: [{ startMs: 1000, endMs: 1500, text: "sample" }],
+        confidence: 0.9,
+      },
+    ],
+  } as Mutable<LocalSubtitleTranscript>;
+}
+
+type Mutable<T> = {
+  -readonly [K in keyof T]: T[K] extends readonly (infer U)[]
+    ? Array<Mutable<U>>
+    : T[K] extends object
+      ? Mutable<T[K]>
+      : T[K];
+};
