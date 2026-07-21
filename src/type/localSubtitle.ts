@@ -1064,6 +1064,7 @@ export interface LocalSubtitleSegment {
   readonly endMs: number;
   readonly text: string;
   readonly words?: readonly LocalSubtitleWord[];
+  readonly estimatedTiming?: true;
   readonly confidence?: number;
   readonly speaker?: string;
 }

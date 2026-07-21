@@ -156,6 +156,36 @@ describe("local subtitle official server contract", () => {
   });
 
   it.each([
+    {
+      label: "C1 control",
+      mutate: (body: ReturnType<typeof validVerboseJson>) => {
+        body.text = "bad\u0085text";
+      },
+    },
+    {
+      label: "unpaired high surrogate",
+      mutate: (body: ReturnType<typeof validVerboseJson>) => {
+        body.segments[0]!.text = "bad\ud800";
+      },
+    },
+    {
+      label: "unpaired low surrogate in discarded words",
+      mutate: (body: ReturnType<typeof validVerboseJson>) => {
+        body.segments[0]!.words![0]!.word = "bad\udc00text";
+      },
+    },
+  ])("rejects $label in verbose_json text", ({ mutate }) => {
+    const body = validVerboseJson();
+    mutate(body);
+    expect(() =>
+      parseLocalSubtitleServerVerboseJson(body, {
+        taskMode: "transcribe",
+        vadEnabled: true,
+      }),
+    ).toThrow(LocalSubtitleServerContractError);
+  });
+
+  it.each([
     { ...validVerboseJson(), extra: true },
     { ...validVerboseJson(), task: "summarize" },
     { ...validVerboseJson(), duration: Number.NaN },

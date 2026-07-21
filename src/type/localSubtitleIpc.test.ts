@@ -802,7 +802,54 @@ describe("local subtitle transcript and task summary schemas", () => {
         JSON.parse(JSON.stringify(transcript)),
       ),
     ).toEqual(transcript);
+
+    const timestamped = validTranscript();
+    delete timestamped.segments[0].estimatedTiming;
+    timestamped.segments[0].words = [
+      { startMs: 1000, endMs: 1400, text: "sample" },
+      { startMs: 1400, endMs: 2000, text: "words" },
+    ];
+    expect(validateLocalSubtitleTranscript(timestamped)).toEqual({
+      ok: true,
+      data: timestamped,
+    });
+
+    const falseEstimate = validTranscript() as any;
+    falseEstimate.segments[0].estimatedTiming = false;
+    expect(validateLocalSubtitleTranscript(falseEstimate).ok).toBe(false);
+
+    const wordsAndEstimate = validTranscript() as any;
+    wordsAndEstimate.segments[0].words = [
+      { startMs: 1000, endMs: 1500, text: "sample" },
+    ];
+    expect(validateLocalSubtitleTranscript(wordsAndEstimate).ok).toBe(false);
+
+    const overlappingSegments = validTranscript() as any;
+    overlappingSegments.segments.push({
+      id: "seg-002",
+      startMs: 1500,
+      endMs: 2500,
+      text: "overlap",
+    });
+    expect(validateLocalSubtitleTranscript(overlappingSegments).ok).toBe(false);
+
+    const reversedWords = validTranscript() as any;
+    delete reversedWords.segments[0].estimatedTiming;
+    reversedWords.segments[0].words = [
+      { startMs: 1400, endMs: 1600, text: "later" },
+      { startMs: 1200, endMs: 1300, text: "earlier" },
+    ];
+    expect(validateLocalSubtitleTranscript(reversedWords).ok).toBe(false);
   });
+
+  it.each(["line\rbreak", "line\u2028break", "line\u2029break", "bad\u0085text", "bad\ud800text", "bad\ud800", "bad\udc00text"])(
+    "rejects non-canonical line separators, controls, and Unicode scalars",
+    (text) => {
+      const transcript = validTranscript();
+      transcript.segments[0].text = text;
+      expect(validateLocalSubtitleTranscript(transcript).ok).toBe(false);
+    },
+  );
 
   it("rejects v1 Vulkan, raw paths, unsafe timelines, and compressed word time", () => {
     const vulkan = validTranscript() as any;
@@ -1386,7 +1433,7 @@ function validTranscript(): Mutable<LocalSubtitleTranscript> {
         startMs: 1000,
         endMs: 2000,
         text: "sample",
-        words: [{ startMs: 1000, endMs: 1500, text: "sample" }],
+        estimatedTiming: true,
         confidence: 0.9,
       },
     ],

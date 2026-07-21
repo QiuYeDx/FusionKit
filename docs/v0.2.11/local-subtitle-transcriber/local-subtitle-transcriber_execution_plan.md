@@ -6,7 +6,7 @@
 >
 > 对应设计文档：`docs/v0.2.11/local-subtitle-transcriber/local-subtitle-transcriber_final_design.md`
 >
-> 当前状态：`PRE-001`～`PRE-006`、`CORE-001`～`CORE-004`、`NATIVE-001` 与 `BE-001` 已完成，M1 的 domain/runtime schema、versioned resource staging、preload/IPC/capability、renderer session、official server contract 与真实 Supervisor 生命周期已冻结；Windows 使用 `unsigned_personal_distribution`。下一步可认领 `NATIVE-002`、`MEDIA-001`、`SUB-001` 或 `LINK-001`；`BE-002` 的媒体、字幕、模型依赖仍未齐
+> 当前状态：`PRE-001`～`PRE-006`、`CORE-001`～`CORE-004`、`NATIVE-001`、`BE-001` 与 `SUB-001` 已完成，M1 的 domain/runtime schema、versioned resource staging、preload/IPC/capability、renderer session、official server contract、真实 Supervisor 生命周期与 canonical post-processing contract 已冻结；Windows 使用 `unsigned_personal_distribution`。下一步可认领 `NATIVE-002`、`MEDIA-001`、`SUB-002` 或 `LINK-001`；`BE-002` 的媒体、字幕、模型依赖仍未齐
 >
 > 发布门禁：M0 已解除；正式实现必须遵守 `poc/pre006-production-decision.json`，不得静默更换引擎、平台、模型或 runtime acquisition policy
 >
@@ -22,7 +22,7 @@
 >
 > 2026-07-17 PRE-004 证据修正：精确 `whisper.cpp v1.9.1 / f049fff` 的 thin arm64、Metal-library-embedded server 已通过 backend、RTF/RSS、复用、取消和 packaged-like 检查；但原始 `verbose_json` 存在最长 347 段连续重复与越界时间戳，parse-back 只证明序列化结构。Developer ID/Gatekeeper 不再是 PRE-004 门禁，未来公开无警告分发由 `QA-004` 验收
 >
-> 2026-07-17 PRE-004 完成：一次性规范化为 PCM16，按 30 秒窗口/5 秒 overlap 独立推理；raw gate 覆盖重复、非法/越界时间轴、超长段和窗口执行覆盖，退化窗口受控拆短。VAD 开启时禁用 token timestamps，只使用已映射回原媒体的 segment 时间；merge 对越出 parent segment 的 word 时间再次回退。3 样本 Metal/CPU 最终矩阵均通过，Gatekeeper rejected 继续仅归 `QA-004`
+> 2026-07-17 PRE-004 完成：一次性规范化为 PCM16，按 30 秒窗口/5 秒 overlap 独立推理；raw gate 覆盖重复、非法/越界时间轴、超长段和窗口执行覆盖，退化窗口受控拆短。VAD 开启时禁用 token timestamps，只使用已映射回原媒体的 segment 时间。SUB-001 随后把 production v1 进一步收口为 VAD/非 VAD 均使用 `segment_only_v1`，不向 post processor 暴露 words。3 样本 Metal/CPU 最终矩阵均通过，Gatekeeper rejected 继续仅归 `QA-004`
 >
 > 2026-07-17 PRE-005 macOS 阶段记录：固定 FFmpeg 8.1.2 最小 LGPL arm64 build recipe、macOS 11 target、stable logical prefix、license/source offer；nested signing 后生成 runtime manifest，`extraResources`/`${arch}`/`beforePack`、外层签名 hash 不变、9 格式/多音轨/长路径/no-PATH/fault matrix 均通过。当日尚待 Windows 子矩阵，已由下方 2026-07-18 完成记录闭环
 >
@@ -41,6 +41,8 @@
 > 2026-07-21 NATIVE-001 完成：新增 pinned v1.9.1 HTTP/schema、`node:http` streaming multipart、opaque verified bundle + artifact ID launch/load contract、strict environment 与 bounded redacted diagnostics。startup readiness/runtime health 分相且与 inference 共用 single-active ticket；inference deadline 覆盖 open/stat、HTTP exchange 与 bounded FileHandle close，mid-request/timeout/HTTP/schema/transport/cleanup failure 均要求新 generation。4 files / 75 tests 定向、全量 113 passed + 1 skipped files / 1109 passed + 1 skipped tests、TypeScript 与 real CPU two-request/same-PID smoke 通过；child/session/port/process epoch/restart/kill/owner cleanup 的独占 owner 为 `BE-001`，现已完成
 
 > 2026-07-21 BE-001 完成：新增 opaque/identity-bound `0700` server session、`unloaded → starting → ready → stopping/faulted/disposed` Supervisor、owner/load lease、独立 process epoch、同步 request ticket、fresh startup retry、runtime health restart、backend attestation、AbortController → SIGTERM → SIGKILL 与 close-gated 单次 finalization；接通同步 owner release、`before-quit` 和 update install 的共享有界 shutdown。聚焦 3 files / 37 tests、显式 real CPU 1/1、全量 116 passed + 2 skipped files / 1146 passed + 2 skipped tests、TypeScript、三段 Vite test build 与 manifest gate 通过。PCM window 仍属 `MEDIA-001`，raw quality/retry 属 `SUB-001`，Job Manager 属 `BE-002`，启动 orphan scan 属 `BE-003`
+
+> 2026-07-21 SUB-001 完成：新增 segment-only v1 policy、16 kHz structural root plan、main-only attempt graph、stable root/window/parent + attempt/epoch/request lineage、exact retry children、verified no-speech evidence、PRE-004 raw gate、owned-boundary merge与 grapheme-safe canonical shaping。正常 split 保持内部结构化 control，逐窗 retry 只有 exhausted/unsplittable 映射质量失败；`estimatedTiming` 进入 canonical strict schema并与 words 互斥。processing warning 保持 main-only，public completion warning v1 不扩张。聚焦 4 files / 174 tests、全量 117 passed + 2 skipped files / 1223 passed + 2 skipped tests、TypeScript、三段 Vite test build、manifest 0/0 与 validator 17/17 通过。PCM/WAV authority 仍属 `MEDIA-001`，SRT/LRC/atomic artifact 仍属 `SUB-002`，非 VAD words 等待 versioned server capability。
 
 ---
 
@@ -161,7 +163,10 @@
 31. macOS 只生成和加载 arm64 runtime；macOS x64 在资源解析前返回 `unsupported_architecture`，不提供 Rosetta、CPU artifact 或用户自备 runner fallback。
 32. builder staging 缺 runner、FFmpeg、ffprobe、manifest 或 license/source-offer 证据时必须失败；运行时缺失、损坏或启动失败分别返回 `media_runtime_missing` / `media_runtime_invalid` / `media_runtime_launch_failed`，在 batch commit 前禁用入队并保留草稿、设置、模型与已导出字幕。
 33. 长媒体必须按有界独立窗口推理，并在任何整形/导出前通过 raw segment 的重复、时间轴、窗口/媒体边界和执行覆盖门禁；HTTP 200、schema 合法、parse-back 或开头抽查不能替代内容有效性，禁止用全局删除重复行掩盖 decoder loop。
-34. `whisper.cpp v1.9.1` 开启 VAD 时不得消费 token/word 时间戳：segment 时间已映射回原媒体，word 时间仍可能处于去静音后的压缩时间轴。VAD 请求强制 `token_timestamps=false`；merge 还必须拒绝越出 parent segment 的 word 时间并回退到 segment。
+34. `whisper.cpp v1.9.1` production v1 的 VAD/非 VAD 请求均固定 `token_timestamps=false` 与 `segment_only_v1`，post processor 不消费 words。未来 word timeline 必须先升级 versioned server capability/provenance；不能靠可选 `words` 属性提前开启。
+35. `windowAttempt` 是 root-plan-local 唯一正整数 dispatch ID；child ID 必须大于 parent但允许有间隔。每个 attempt 必须绑定 Supervisor `processEpoch`，dispatch `requestGeneration` 必须与 response generation 完全一致，`processEpoch:requestGeneration` 不得复用。
+36. SUB-001 structural planner 不拥有媒体 authority。`MEDIA-001` 必须生成 immutable main-only branded PCM/WAV window，`BE-002` 再把 brand 绑定到 exact structural window、attempt/epoch/generation 与 response；window swap、stale/reused brand 或 stale response 必须拒绝。
+37. shared `LocalSubtitleCompletionResult.warnings` v1 只有 `cancelled_after_partial_commit`；`timeline_boundary_clamped` / `estimated_timing_used` 只属于 main processing report。公开它们必须升级 CORE contract，不能由后续包临时扩展 v1 payload。
 
 ---
 
@@ -327,7 +332,7 @@ flowchart TD
 | NATIVE-002 | 未开始 | — | NATIVE-001/CORE-002 | 三类 official server artifact、runtime manifest 与 builder 接线 | staging/source-build scripts、resource manifests、`electron-builder.json`、可选 workflow | win-x64 CPU/CUDA、mac-arm64 Metal/CPU artifact + packaged smoke + SHA manifest | — | 签名凭据不得进入仓库；staging 缺失必须在打包前明确失败 |
 | BE-001 | 已完成 | 2026-07-21 | NATIVE-001/CORE-001/002 | Server Supervisor、私有 session、process epoch 与 app lifecycle | `electron/main/local-subtitle/server-{session,supervisor,app-lifecycle}.ts`、`electron/main/{index,update}.ts`、4 tests、Final Design | 聚焦 session/supervisor/lifecycle 3 files / 37 tests；默认 real 1 skip、显式 CPU real 1/1；全量 116 pass + 2 skip files / 1146 pass + 2 skip tests；tsc、renderer/main/preload Vite test build、manifest 0/0、validator 17/17、diff/process cleanup | `docs/v0.2.11/local-subtitle-transcriber/local-subtitle-transcriber_implementation_records/2026-07-21_BE-001_server-supervisor.md` | 无 BE-001 blocker；PCM window=`MEDIA-001`，raw quality/retry=`SUB-001`，Job Manager=`BE-002`，startup orphan scan=`BE-003`；`BE-002` 依赖仍未齐 |
 | MEDIA-001 | 未开始 | — | CORE-001/002 | FFprobe/FFmpeg 媒体规范化与 PCM 窗口 | `electron/main/local-subtitle/media-normalizer.ts`、tests | 格式矩阵、PCM frame 覆盖/overlap、进度、音轨、取消、损坏输入、临时清理 | — | packaged 模式不得回退 PATH；原媒体只解码一次 |
-| SUB-001 | 未开始 | — | CORE-001 | Raw transcript gate、窗口合并与 canonical 字幕整形 | `electron/main/local-subtitle/subtitle-post-processor.ts`、fixtures | 重复/非法时间轴/越界/覆盖缺口、overlap、CJK/Latin、空文本、长 cue、整数毫秒 golden tests | — | 不复制 AGPL 切分算法；不得全局去重掩盖丢失语音 |
+| SUB-001 | 已完成 | 2026-07-21 | CORE-001 | Raw transcript gate、窗口合并与 canonical 字幕整形 | `electron/main/local-subtitle/{subtitle-post-processor,server-contract}.ts`、`src/type/localSubtitle.ts`、`src/type/localSubtitleIpc.{ts,test.ts}`、`test/local-subtitle/{subtitlePostProcessor,serverContract}.test.ts`、Final Design | 聚焦 4 files / 174 tests；全量 117 pass + 2 skip files / 1223 pass + 2 skip tests；TypeScript、renderer/main/preload Vite test build、manifest 0/0、validator 17/17、diff/process cleanup | `docs/v0.2.11/local-subtitle-transcriber/local-subtitle-transcriber_implementation_records/2026-07-21_SUB-001_subtitle-post-processing.md` | 无设计 blocker；PCM branded identity=`MEDIA-001`，SRT/LRC/atomic artifact=`SUB-002`，immutable brand/window/generation orchestration=`BE-002`，word timeline=未来 versioned capability |
 | SUB-002 | 未开始 | — | SUB-001/CORE-003 | SRT/LRC 导出、原子写和 Artifact Registry | exporters、artifact registry、tests | parse-back、目录 reservation/overwrite、full/partial/none-success、commit 前后取消、artifactRef owner/expiry/revoke/retry | — | 增强 LRC 不得自动交接 |
 | MODEL-001 | 未开始 | — | BE-001/CORE-002 | 模型 manifest、managed 本地导入与 load smoke | model manager、model manifest、import ResourceJob、tests | header/size/hash/load、import progress/cancel、CTranslate2 拒绝、复制原子性 | — | 不接受任意外部路径作为运行时 modelId |
 | MODEL-002 | 未开始 | — | MODEL-001/NATIVE-002 | 下载续传、VAD、删除、磁盘和 accelerator pack | download manager、accelerator manager、ResourceJob download adapters、tests/UI service | Range/no-Range、`.part`、SHA、job cancel/reconcile、并发锁、busy delete、profile/integrity | — | exact NVIDIA DLL 与 notice 仍由 QA-005 复核 |
@@ -412,7 +417,7 @@ flowchart TD
 
 验收口径：arm64 日志和 probe 明确显示实际 Metal/CPU backend；Metal 不可用时 auto 在 commit 前可见地解析 CPU，显式 Metal 不降级；macOS x64 稳定拒绝且无发布产物；性能不足必须进入产品提示。3 个真实样本的 raw transcript validity 与 SRT/LRC parse-back 必须同时通过，禁止把 formatter round-trip 当作字幕有效性。
 
-截至 2026-07-17，本工作包已完成。整段单请求的历史失败仍保留：Metal 日文长音频曾从 405.52 s 起连续重复 347 段，Metal/CPU 中文曾重复 77/43 段，CPU 长音频曾越界 27.89 s；删除重复行、beam、关闭 flash attention 或增大 max length 都不是修复。最终策略一次性规范化为 PCM16，使用 30 秒窗口/5 秒 overlap、owned-core 合并、raw gate 和有界拆短重试，并启用 VAD。v1.9.1 的 VAD segment 时间已映射回原媒体，但 word 时间仍是压缩时间轴，因此请求强制关闭 token timestamps，merge 再校验 word 必须位于 parent segment 内。相同 3 样本最终 Metal RTF 0.0698～0.0821、CPU RTF 0.1954～0.2811；所有 raw 时间轴错误为 0、最长连续重复最多 2 cue，600～630 s 静音窗口为空，后续台词与媒体尾部恢复，语言、SRT/LRC 回读、复用、取消和清理均通过。Gatekeeper rejected 只记录为当前未采用的公开分发能力，由 `QA-004` 处理，不阻塞 PRE-004。
+截至 2026-07-17，本工作包已完成。整段单请求的历史失败仍保留：Metal 日文长音频曾从 405.52 s 起连续重复 347 段，Metal/CPU 中文曾重复 77/43 段，CPU 长音频曾越界 27.89 s；删除重复行、beam、关闭 flash attention 或增大 max length 都不是修复。最终策略一次性规范化为 PCM16，使用 30 秒窗口/5 秒 overlap、owned-core 合并、raw gate 和有界拆短重试，并启用 VAD。v1.9.1 的 VAD segment 时间已映射回原媒体，而 word 时间仍是压缩时间轴；SUB-001 最终把 production v1 收口为 VAD/非 VAD 均关闭 token timestamps，并由 segment-only post processor 统一处理。相同 3 样本最终 Metal RTF 0.0698～0.0821、CPU RTF 0.1954～0.2811；所有 raw 时间轴错误为 0、最长连续重复最多 2 cue，600～630 s 静音窗口为空，后续台词与媒体尾部恢复，语言、SRT/LRC 回读、复用、取消和清理均通过。Gatekeeper rejected 只记录为当前未采用的公开分发能力，由 `QA-004` 处理，不阻塞 PRE-004。
 
 ### PRE-005：Bundled FFmpeg、sidecar staging、完整性与许可证 PoC
 
@@ -596,27 +601,31 @@ Process descriptor 只接受完整 CORE-002 `LocalSubtitleVerifiedRuntimeBundle 
 - probe 时长/音轨/codec，返回受控 streamId + default/language/title/codec/channels 摘要；容器字符串去控制字符并限制字段/总长度，不返回原始 selector。`auto` 优先唯一 default，否则首轨并提示，用户可逐文件覆盖。main 在执行前把 streamId 与同一 authorized file identity/最新流表重新校验，再转 16 kHz mono PCM16 WAV。
 - 解析 `-progress`，关闭 stdin；使用 UUID 临时名、超时、取消、输出 WAV header/采样率/通道/时长校验。
 - 从已验证 PCM 按 frame 边界生成约 30 秒窗口和小幅 overlap；首窗、中间窗、短尾窗连续覆盖 source duration，累计取整不得留下缺口。原始媒体只解码一次，每窗临时文件与绝对范围均由 main 管理。
+- 为每个实际窗口生成 immutable main-only brand，绑定 PCM owner/file identity、frame range、duration 和 structural window descriptor；普通对象、路径字符串或旧 generation brand 均不能取得媒体 authority，供 `BE-002` 原子绑定 dispatch/response。
 - 失败/取消/启动清理删除 temp；错误区分 probe/decode/unsupported/disk/cancel。
 
 验收口径：在隔离系统 FFmpeg 的 packaged app 中，格式矩阵、无音轨、唯一/多个/无 default、多音轨逐文件覆盖、超长/控制字符 metadata、伪造/陈旧 streamId、文件替换、损坏输入、非 ASCII/长路径、PCM frame 对齐窗口/overlap/短尾完整覆盖、取消和超期 temp 清理全部通过；内置资源缺失/损坏/错架构/不可启动在入队前失败，用户不能通过选择 executable 绕过。
 
-### SUB-001：Canonical transcript 与字幕整形
+### SUB-001：Canonical transcript 与字幕整形（已完成）
 
 目标：在任何格式化前拦截退化 raw transcript，并建立与引擎无关的稳定字幕时间轴。
 
 实施范围：
 
-- 逐窗验证 raw segment schema 后检查正时长、单调/重叠、窗口与媒体边界、同文连续重复的 cue 数/覆盖时长，以及 window plan 执行覆盖；PRE-004 已用 15 秒单段上限、连续 8 cue 且覆盖 15 秒的重复门禁和最多 3 层有界拆短完成真实矩阵。
+- 以 half-open frame interval `[0,totalFrames)` 生成受 CORE duration/frame 上限约束的 structural root plan；`durationMs` 只能是 `Math.round(totalFrames * 1000 / 16_000)`，不得用毫秒反向取整重建 frame coverage。`windowAttempt` 为 root-plan-local 唯一正整数 dispatch ID，child 大于 parent但允许有间隔；root/window/parent lineage、exact retry children、leaf frame coverage、Supervisor `processEpoch` 和 request/response generation 必须一致。
+- 逐窗验证 strict segment-only response 后检查正时长、单调/重叠、窗口与媒体边界、同文连续重复的 cue 数/首尾 wall-clock span，以及 window plan 执行覆盖。空结果只有在 server duration 为正、与窗口在 100 ms 内一致且顶层/segment text 同时为空时才是 verified no-speech；0ms 空响应不能填覆盖。
+- quality threshold provenance 分层：PRE-006 只拥有 30,000/5,000/depth 3 策略；100 ms、15,000 ms、8 cue + 15,000 ms span、4,000/2,000/1.25 retry 和 500 ms + CJK 2 / Latin 4 来自 PRE-004 oracle；300 ms short-cue merge 与 fingerprint/grapheme 规则属于 SUB-001 policy v1。
 - 将相对时间转换为绝对整数毫秒，并按窗口核心区所有权、时间和边界 token/text 相似度确定性合并 overlap；不做全文件字符串去重，合法重复台词不得被静默删除。
-- segment/word 统一整数毫秒，trim whitespace，按 CJK/Latin 和标点做全新 split/merge。
-- 文本换行统一为 LF，拒绝 NUL/结构破坏控制字符并限制 cue 内换行/字符数，保留合法 Unicode。
+- v1 只消费 segment；因 cue duration/text limit 必须拆分时按 grapheme-safe 比例估时并标记 `estimatedTiming: true`，该标志与 `words` 互斥。未来 words 必须等待 versioned server capability/provenance。
+- 文本把 CRLF/CR/U+2028/U+2029 统一为 LF，拒绝 unpaired surrogate 与不受支持/结构破坏的 C0/C1 控制字符，并限制 cue 内换行/字符数；canonical schema 要求 LF-only，保留其他合法 Unicode。
 - 丢弃 trim 后空 cue；整个 transcript 无非空 cue 时返回 `no_speech_detected`，不导出空文件、不触发 handoff。
 - 强制 `start>=0`、`end>start`、单调；轻微重叠裁剪，无法修复则结构化失败。
-- 对照 source duration 验证 cue；PRE 冻结尾部 rounding tolerance，阈值内 clamp 并记 warning，超限或 clamp 后非正时长则失败。
-- 非 VAD 结果只有在所有 word 时间均位于 parent segment 内且时间轴有效时才优先使用；v1.9.1 VAD 结果强制使用映射后的 segment 时间，不消费压缩时间轴 word。字符比例估时只作显式 `estimatedTiming` fallback。
+- 对照 source duration 验证 cue；100 ms tolerance 内 clamp 并记 main-only `timeline_boundary_clamped`，超限或 clamp 后非正时长结构化失败，不能被静默丢弃后变成 no-speech。
+- 正常 split 是内部 control；逐窗 quality retry 仅 `retry_exhausted` / `unsplittable` 映射 `transcript_quality_failed`，contract invalid 映射 protocol mismatch。merge/shaping/canonical 的全局质量失败仍可独立返回 `transcript_quality_failed`。
+- main-only processing warning 固定为 `timeline_boundary_clamped` / `estimated_timing_used`；shared completion warning v1 只有 `cancelled_after_partial_commit`，未来公开扩展必须升级 CORE contract。
 - 记录整形 preset 和参数，使用 clean-room golden fixtures。
 
-验收口径：数十段同文 decoder loop、合法短重复、零/负时长、倒退/重叠、窗口/媒体越界、遗漏窗口、边界半句/双窗重复观测、retry 耗尽，以及 0、59.999、1h+、`99:59:59.999`、越界 100h、duration 尾差阈值内 clamp/阈值外拒绝、CRLF/CR/NUL/控制字符、部分空 segment、全静音/全空 transcript、长词、缺词时间戳和多语言 fixtures 通过。
+验收结果：root/recursive retry graph、odd-half-millisecond retry、lineage/generation/task mode/response binding、missing root identity、数十段同文 decoder loop、合法短重复、零/负时长、倒退/重叠、窗口/媒体越界、遗漏窗口、边界半句/双窗重复观测、retry 耗尽，以及 0、59.999、1h+、`99:59:59.999`、越界 100h、duration 尾差阈值内 clamp/阈值外/零时长拒绝、CRLF/CR/U+2028/U+2029、unpaired surrogate、不受支持/结构破坏 C0/C1、部分空 segment、全静音/全空 transcript、长 grapheme、estimated timing 和多语言 fixtures 通过。聚焦 4 files / 174 tests；全量 117 passed + 2 skipped files / 1223 passed + 2 skipped tests（119 files / 1225 tests）；TypeScript、三段 Vite test build、manifest 0/0 与 validator 17/17 通过。
 
 ### SUB-002：SRT/LRC 导出、原子写与 Artifact Registry
 
@@ -670,6 +679,7 @@ Process descriptor 只接受完整 CORE-002 `LocalSubtitleVerifiedRuntimeBundle 
 实施范围：
 
 - task identity 使用 UUID + authorized file identity，不按文件名去重。
+- 对每次窗口 inference 原子持有 `MEDIA-001` immutable branded window request，并绑定 exact structural descriptor、`windowAttempt`、Supervisor `processEpoch`、dispatch/response `requestGeneration` 和 response。window/brand swap、旧 brand 复用、frame identity 不匹配或 restart 后 stale response 在进入 SUB-001 前拒绝。
 - 批次启动时冻结成员列表、model manifest/hash、device/language/preset/VAD/整形/输出/冲突/handoff 设置；custom 模式持有 main-owned batch output lease，source 模式按任务从 authorized file identity 派生/校验父目录写入目标。commit 在同一事务中把 draft input/output refs 转成 task leases；失败时保持 draft 所有权或逆序回滚。等待任务只读 snapshot，运行中新增文件进入新 draft batch，配置中途修改只影响新批次。
 - 状态机逐阶段发事件和 stageProgress；总体权重只供 UI，不反写真实阶段。
 - 每批复用模型；文件失败继续后续，runner/model/disk 等批次错误按合同暂停或终止等待项。
@@ -1073,6 +1083,6 @@ git diff --check
 
 ## 12. 下一步建议
 
-`PRE-001`～`PRE-006`、`CORE-001`～`CORE-004`、`NATIVE-001` 与 `BE-001` 已完成，M1 的共享 domain/runtime schema、resource manifest/resolver/staging、preload/IPC/capability、renderer session runtime、official server contract 和真实 Supervisor 生命周期已冻结。下一步可按依赖认领 `NATIVE-002`、`MEDIA-001`、`SUB-001` 或 `LINK-001`；`BE-002` 仍等待 `MEDIA-001`、`SUB-002`、`MODEL-001` 等依赖，不能仅凭 Supervisor 完成就提前启动完整 Job Manager。实现必须以 `poc/pre006-production-decision.json` 为唯一技术冻结记录，并复用已冻结版本、error、limit 和 staging contract。
+`PRE-001`～`PRE-006`、`CORE-001`～`CORE-004`、`NATIVE-001`、`BE-001` 与 `SUB-001` 已完成，M1 的共享 domain/runtime schema、resource manifest/resolver/staging、preload/IPC/capability、renderer session runtime、official server contract、真实 Supervisor 生命周期和 canonical post-processing contract 已冻结。下一步可按依赖认领 `NATIVE-002`、`MEDIA-001`、`SUB-002` 或 `LINK-001`；`BE-002` 仍等待 `MEDIA-001`、`SUB-002`、`MODEL-001` 等依赖，不能仅凭 Supervisor/post processor 完成就提前启动完整 Job Manager。实现必须以 `poc/pre006-production-decision.json` 为唯一技术冻结记录，并复用已冻结版本、error、limit 和 staging contract；SUB-001 的 clean-room shaping policy 与 main-only processing warnings 不得冒充 PRE-006 字段或 shared completion warning。
 
 模型和 official runtime 继续只下载到 Git 忽略目录，hash 只作来源/完整性门禁。系统 PATH 中的 FFmpeg 仍只作开发 PoC，不是发行资源或最终用户前置条件。正式开发继续由 Node 直接管理 official server；Windows 无需 CMake/MSVC，FusionKit C++ runner 不是当前方案依赖。Windows 保持 unsigned personal profile；QA-005 在分发前核对 notices/source offers/NVIDIA DLL，但不会要求证书或信任库变更。

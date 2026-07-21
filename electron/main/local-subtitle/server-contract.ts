@@ -148,7 +148,10 @@ const boundedTextSchema = z
 
 const rawWordSchema = z
   .object({
-    word: z.string().max(LOCAL_SUBTITLE_LIMITS.maxCueTextChars),
+    word: z
+      .string()
+      .max(LOCAL_SUBTITLE_LIMITS.maxCueTextChars)
+      .refine(noUnsafeControlCharacters),
     start: nonNegativeFiniteSchema.optional(),
     end: nonNegativeFiniteSchema.optional(),
     t_dtw: z.number().finite().optional(),
@@ -510,7 +513,24 @@ function secondsToMilliseconds(value: number): number {
 }
 
 function noUnsafeControlCharacters(value: string): boolean {
-  return !/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/u.test(value);
+  return (
+    !/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f-\u009f]/u.test(value) &&
+    !hasUnpairedSurrogate(value)
+  );
+}
+
+function hasUnpairedSurrogate(value: string): boolean {
+  for (let index = 0; index < value.length; index += 1) {
+    const current = value.charCodeAt(index);
+    if (current >= 0xd800 && current <= 0xdbff) {
+      const next = value.charCodeAt(index + 1);
+      if (!(next >= 0xdc00 && next <= 0xdfff)) return true;
+      index += 1;
+    } else if (current >= 0xdc00 && current <= 0xdfff) {
+      return true;
+    }
+  }
+  return false;
 }
 
 const LANGUAGE_ALIASES: Readonly<Record<string, string>> = Object.freeze({

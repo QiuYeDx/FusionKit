@@ -1513,6 +1513,10 @@ const subtitleTextSchema = z
   )
   .refine((value) => value.trim().length > 0, "Subtitle text must not be blank.")
   .refine(noUnsafeControlCharacters)
+  .refine(
+    (value) => !/[\r\u2028\u2029]/u.test(value),
+    "Subtitle line breaks must use LF.",
+  )
   .refine((value) => value.split("\n").length <= LOCAL_SUBTITLE_LIMITS.maxCueLines)
   .refine(
     (value) =>
@@ -1548,6 +1552,7 @@ const segmentSchema = z
       .array(wordSchema)
       .max(LOCAL_SUBTITLE_LIMITS.maxWordsPerSegment)
       .optional(),
+    estimatedTiming: z.literal(true).optional(),
     confidence: z.number().finite().min(0).max(1).optional(),
     speaker: z.string().min(1).max(128).refine(noUnsafeControlCharacters).optional(),
   })
@@ -1560,6 +1565,14 @@ const segmentSchema = z
         message: "Segment endMs must be greater than startMs.",
       });
     }
+    if (value.estimatedTiming && value.words !== undefined) {
+      context.addIssue({
+        code: "custom",
+        path: ["estimatedTiming"],
+        message: "Estimated timing cannot be combined with word timestamps.",
+      });
+    }
+    let previousWordEndMs = value.startMs;
     value.words?.forEach((word, index) => {
       if (word.startMs < value.startMs || word.endMs > value.endMs) {
         context.addIssue({
@@ -1568,6 +1581,14 @@ const segmentSchema = z
           message: "Word timestamps must stay inside their segment.",
         });
       }
+      if (word.startMs < previousWordEndMs) {
+        context.addIssue({
+          code: "custom",
+          path: ["words", index, "startMs"],
+          message: "Words must be ordered and non-overlapping.",
+        });
+      }
+      previousWordEndMs = Math.max(previousWordEndMs, word.endMs);
     });
   });
 
@@ -1603,7 +1624,7 @@ export const localSubtitleTranscriptSchema: z.ZodType<LocalSubtitleTranscript> =
     .strict()
     .superRefine((value, context) => {
       const ids = new Set<string>();
-      let previousStartMs = -1;
+      let previousEndMs = 0;
       let wordCount = 0;
       value.segments.forEach((segment, index) => {
         if (ids.has(segment.id)) {
@@ -1614,11 +1635,11 @@ export const localSubtitleTranscriptSchema: z.ZodType<LocalSubtitleTranscript> =
           });
         }
         ids.add(segment.id);
-        if (segment.startMs < previousStartMs) {
+        if (segment.startMs < previousEndMs) {
           context.addIssue({
             code: "custom",
             path: ["segments", index, "startMs"],
-            message: "Segments must be ordered by startMs.",
+            message: "Segments must be ordered and non-overlapping.",
           });
         }
         if (segment.endMs > value.source.durationMs) {
@@ -1628,7 +1649,7 @@ export const localSubtitleTranscriptSchema: z.ZodType<LocalSubtitleTranscript> =
             message: "Segments must stay inside source duration.",
           });
         }
-        previousStartMs = segment.startMs;
+        previousEndMs = Math.max(previousEndMs, segment.endMs);
         wordCount += segment.words?.length ?? 0;
       });
       if (wordCount > LOCAL_SUBTITLE_LIMITS.maxTranscriptWords) {
@@ -2115,5 +2136,22 @@ function serializedByteLength(value: unknown): number | null {
 }
 
 function noUnsafeControlCharacters(value: string): boolean {
-  return !/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/u.test(value);
+  return (
+    !/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f-\u009f]/u.test(value) &&
+    !hasUnpairedSurrogate(value)
+  );
+}
+
+function hasUnpairedSurrogate(value: string): boolean {
+  for (let index = 0; index < value.length; index += 1) {
+    const current = value.charCodeAt(index);
+    if (current >= 0xd800 && current <= 0xdbff) {
+      const next = value.charCodeAt(index + 1);
+      if (!(next >= 0xdc00 && next <= 0xdfff)) return true;
+      index += 1;
+    } else if (current >= 0xdc00 && current <= 0xdfff) {
+      return true;
+    }
+  }
+  return false;
 }
