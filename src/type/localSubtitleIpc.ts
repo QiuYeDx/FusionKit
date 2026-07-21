@@ -30,11 +30,61 @@ import {
   type LocalSubtitleBatchSummary,
   type LocalSubtitleError,
   type LocalSubtitleResourceEventEnvelope,
+  type LocalSubtitleResourceJobSummary,
   type LocalSubtitleSessionSnapshot,
   type LocalSubtitleTaskEventEnvelope,
   type LocalSubtitleTaskSummary,
   type LocalSubtitleTranscript,
 } from "@/type/localSubtitle";
+
+export type {
+  LocalSubtitleResourceEventEnvelope,
+  LocalSubtitleTaskEventEnvelope,
+} from "@/type/localSubtitle";
+
+export const LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS = {
+  probeMedia: "local-subtitle:probe-media",
+  probeRuntime: "local-subtitle:probe-runtime",
+  listManagedResources: "local-subtitle:list-managed-resources",
+  startResourceInstall: "local-subtitle:start-resource-install",
+  cancelResourceJob: "local-subtitle:cancel-resource-job",
+  deleteManagedResource: "local-subtitle:delete-managed-resource",
+  getSessionSnapshot: "local-subtitle:get-session-snapshot",
+  enqueue: "local-subtitle:enqueue",
+  retryTask: "local-subtitle:retry-task",
+  cancelBatch: "local-subtitle:cancel-batch",
+  cancelTask: "local-subtitle:cancel-task",
+  removeTask: "local-subtitle:remove-task",
+  readArtifactText: "local-subtitle:read-artifact-text",
+  revealArtifact: "local-subtitle:reveal-artifact",
+  handoffArtifact: "local-subtitle:handoff-artifact",
+} as const;
+
+export const LOCAL_SUBTITLE_PRELOAD_INTERNAL_CHANNELS = {
+  registerOwnerSession: "local-subtitle:internal:register-owner-session",
+  authorizeInputFiles: "local-subtitle:internal:authorize-input-files",
+  revokeInputFile: "local-subtitle:internal:revoke-input-file",
+  selectOutputDirectory: "local-subtitle:internal:select-output-directory",
+  revokeOutputDirectory: "local-subtitle:internal:revoke-output-directory",
+  importModel: "local-subtitle:internal:import-model",
+} as const;
+
+export const LOCAL_SUBTITLE_EVENT_CHANNELS = {
+  taskEvent: "local-subtitle:task-event",
+  resourceEvent: "local-subtitle:resource-event",
+} as const;
+
+export type LocalSubtitlePublicInvokeChannel =
+  (typeof LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS)[keyof typeof LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS];
+export type LocalSubtitlePreloadInternalChannel =
+  (typeof LOCAL_SUBTITLE_PRELOAD_INTERNAL_CHANNELS)[keyof typeof LOCAL_SUBTITLE_PRELOAD_INTERNAL_CHANNELS];
+export type LocalSubtitleEventChannel =
+  (typeof LOCAL_SUBTITLE_EVENT_CHANNELS)[keyof typeof LOCAL_SUBTITLE_EVENT_CHANNELS];
+
+export interface LocalSubtitleSecureIpcEnvelope<TPayload = unknown> {
+  readonly ownerSessionId: string;
+  readonly payload: TPayload;
+}
 
 export type LocalSubtitleIpcResult<T> =
   | { readonly ok: true; readonly data: T }
@@ -65,18 +115,31 @@ const idSchema = z
   .string()
   .min(1)
   .max(LOCAL_SUBTITLE_LIMITS.maxIdChars)
-  .refine((value) => value.trim() === value, "Must not have outer whitespace.");
+  .refine((value) => value.trim() === value, "Must not have outer whitespace.")
+  .regex(/^[a-zA-Z0-9][a-zA-Z0-9._-]*$/)
+  .refine((value) => value !== "." && value !== "..", "Must be an opaque id.");
 const opaqueRefSchema = z
   .string()
   .min(1)
   .max(LOCAL_SUBTITLE_LIMITS.maxOpaqueRefChars)
-  .refine((value) => value.trim() === value, "Must not have outer whitespace.");
+  .refine((value) => value.trim() === value, "Must not have outer whitespace.")
+  .regex(/^[a-zA-Z0-9][a-zA-Z0-9._-]*$/)
+  .refine((value) => value !== "." && value !== "..", "Must be an opaque ref.");
+const ownerSessionIdSchema = z
+  .string()
+  .min(20)
+  .max(200)
+  .regex(/^[a-zA-Z0-9_-]+$/);
 const displayNameSchema = z
   .string()
   .min(1)
   .max(LOCAL_SUBTITLE_LIMITS.maxDisplayNameChars)
   .refine((value) => value.trim().length > 0, "Must not be blank.")
-  .refine(noUnsafeControlCharacters, "Contains an unsupported control character.");
+  .refine(noUnsafeControlCharacters, "Contains an unsupported control character.")
+  .refine(
+    (value) => value !== "." && value !== ".." && !/[\\/]/u.test(value),
+    "Must be a display leaf, not a path.",
+  );
 const sha256Schema = z.string().regex(/^[a-f0-9]{64}$/);
 const isoTimestampSchema = z.string().datetime({ offset: true });
 const safeIntegerSchema = z.number().int().safe();
@@ -91,6 +154,23 @@ const languageSchema = z
     (value) => value === "auto" || /^[a-z]{2,3}(?:-[A-Za-z0-9]{2,8})*$/.test(value),
     "Must be auto or a BCP-47-like language tag.",
   );
+
+export function localSubtitleSecureIpcEnvelopeSchema<
+  TSchema extends z.ZodTypeAny,
+>(payloadSchema: TSchema) {
+  return z
+    .object({
+      ownerSessionId: ownerSessionIdSchema,
+      payload: payloadSchema,
+    })
+    .strict()
+    .refine(
+      (value) =>
+        (serializedByteLength(value) ?? Number.POSITIVE_INFINITY) <=
+        LOCAL_SUBTITLE_LIMITS.maxIpcFrameBytes,
+      "Local subtitle secure IPC envelope exceeds the frame byte limit.",
+    );
+}
 
 const diagnosticMetadataSchema = z
   .object(
@@ -178,14 +258,7 @@ const artifactSummarySchema = z
     artifactRef: opaqueRefSchema,
     displayName: displayNameSchema,
     format: z.enum(LOCAL_SUBTITLE_FORMATS),
-    byteSize: nonNegativeSafeIntegerSchema.max(
-      LOCAL_SUBTITLE_LIMITS.maxArtifactBytes,
-    ),
-    cueCount: nonNegativeSafeIntegerSchema.max(
-      LOCAL_SUBTITLE_LIMITS.maxArtifactCues,
-    ),
-    sha256: sha256Schema,
-    committedAt: isoTimestampSchema,
+    expiresAt: positiveSafeIntegerSchema,
   })
   .strict();
 
@@ -726,21 +799,26 @@ export const localSubtitleBatchSummarySchema: z.ZodType<LocalSubtitleBatchSummar
       });
     });
 
-const resourceJobSummarySchema = z
-  .object({
-    jobId: idSchema,
-    resourceId: idSchema,
-    resourceType: z.enum(LOCAL_SUBTITLE_RESOURCE_TYPES),
-    status: z.enum(LOCAL_SUBTITLE_RESOURCE_JOB_STATUSES),
-    progress: percentageSchema,
-    bytesCompleted: nonNegativeSafeIntegerSchema.optional(),
-    bytesTotal: nonNegativeSafeIntegerSchema.optional(),
-    error: localSubtitleErrorSchema.optional(),
-    createdAt: isoTimestampSchema,
-    updatedAt: isoTimestampSchema,
-  })
-  .strict()
-  .superRefine((value, context) => {
+export const localSubtitleResourceJobSummarySchema: z.ZodType<LocalSubtitleResourceJobSummary> =
+  z
+    .object({
+      jobId: idSchema,
+      resourceId: idSchema,
+      resourceType: z.enum(LOCAL_SUBTITLE_RESOURCE_TYPES),
+      status: z.enum(LOCAL_SUBTITLE_RESOURCE_JOB_STATUSES),
+      progress: percentageSchema,
+      bytesCompleted: nonNegativeSafeIntegerSchema
+        .max(LOCAL_SUBTITLE_LIMITS.maxMediaFileBytes)
+        .optional(),
+      bytesTotal: nonNegativeSafeIntegerSchema
+        .max(LOCAL_SUBTITLE_LIMITS.maxMediaFileBytes)
+        .optional(),
+      error: localSubtitleErrorSchema.optional(),
+      createdAt: isoTimestampSchema,
+      updatedAt: isoTimestampSchema,
+    })
+    .strict()
+    .superRefine((value, context) => {
     if (
       value.bytesCompleted !== undefined &&
       value.bytesTotal !== undefined &&
@@ -759,7 +837,7 @@ const resourceJobSummarySchema = z
         message: "Failed resource jobs require a structured error.",
       });
     }
-  });
+    });
 
 export const localSubtitleSessionSnapshotSchema: z.ZodType<LocalSubtitleSessionSnapshot> =
   z
@@ -770,7 +848,7 @@ export const localSubtitleSessionSnapshotSchema: z.ZodType<LocalSubtitleSessionS
         .array(localSubtitleBatchSummarySchema)
         .max(LOCAL_SUBTITLE_LIMITS.maxSessionBatches),
       resourceJobs: z
-        .array(resourceJobSummarySchema)
+        .array(localSubtitleResourceJobSummarySchema)
         .max(LOCAL_SUBTITLE_LIMITS.maxSessionResourceJobs),
     })
     .strict()
@@ -846,7 +924,7 @@ const resourceEventSchema = z.discriminatedUnion("type", [
   z
     .object({
       type: z.literal("resource-job-updated"),
-      job: resourceJobSummarySchema,
+      job: localSubtitleResourceJobSummarySchema,
     })
     .strict(),
   z
@@ -1017,6 +1095,404 @@ export const localSubtitleArtifactRefRequestSchema = z
   .strict();
 export const localSubtitleEmptyRequestSchema = z.object({}).strict();
 
+const privateFilePathSchema = z
+  .string()
+  .min(1)
+  .max(32_768)
+  .refine((value) => value.trim().length > 0, "File path must not be blank.")
+  .refine(
+    (value) => !/[\u0000-\u001f\u007f]/u.test(value),
+    "File path contains an unsupported control character.",
+  );
+
+export const localSubtitleOwnerSessionRegistrationSchema = z
+  .object({ ownerSessionId: ownerSessionIdSchema })
+  .strict();
+export const localSubtitleAuthorizeInputFilesRequestSchema = z
+  .object({
+    files: z
+      .array(z.object({ filePath: privateFilePathSchema }).strict())
+      .min(1)
+      .max(LOCAL_SUBTITLE_LIMITS.maxBatchFiles),
+  })
+  .strict()
+  .superRefine((value, context) => {
+    if (
+      new Set(value.files.map((file) => file.filePath)).size !==
+      value.files.length
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["files"],
+        message: "Input file paths must be unique within an authorization request.",
+      });
+    }
+  });
+export const localSubtitleImportModelRequestSchema = z
+  .object({
+    filePath: privateFilePathSchema,
+    mode: z.enum(["copy", "move"]),
+  })
+  .strict();
+
+const boundedMetadataStringSchema = z
+  .string()
+  .min(1)
+  .max(LOCAL_SUBTITLE_LIMITS.maxMediaMetadataFieldChars)
+  .refine((value) => value.trim().length > 0, "Must not be blank.")
+  .refine(noUnsafeControlCharacters);
+
+export const localSubtitleAuthorizedMediaSchema = z
+  .object({
+    fileToken: opaqueRefSchema,
+    displayName: displayNameSchema,
+    byteSize: positiveSafeIntegerSchema.max(
+      LOCAL_SUBTITLE_LIMITS.maxMediaFileBytes,
+    ),
+    expiresAt: positiveSafeIntegerSchema,
+  })
+  .strict();
+export const localSubtitleAuthorizedMediaListSchema = z
+  .array(localSubtitleAuthorizedMediaSchema)
+  .min(1)
+  .max(LOCAL_SUBTITLE_LIMITS.maxBatchFiles)
+  .superRefine((value, context) => {
+    if (new Set(value.map((entry) => entry.fileToken)).size !== value.length) {
+      context.addIssue({
+        code: "custom",
+        message: "Authorized media tokens must be unique.",
+      });
+    }
+  });
+
+export const localSubtitleMediaTrackSummarySchema = z
+  .object({
+    streamId: idSchema,
+    ordinal: positiveSafeIntegerSchema.max(
+      LOCAL_SUBTITLE_LIMITS.maxMediaTracks,
+    ),
+    isDefault: z.boolean(),
+    language: boundedMetadataStringSchema.optional(),
+    title: boundedMetadataStringSchema.optional(),
+    codec: boundedMetadataStringSchema.optional(),
+    channels: positiveSafeIntegerSchema.max(256).optional(),
+    sampleRateHz: positiveSafeIntegerSchema.max(1_536_000).optional(),
+  })
+  .strict();
+
+export const localSubtitleMediaProbeSummarySchema = z
+  .object({
+    fileToken: opaqueRefSchema,
+    displayName: displayNameSchema,
+    durationMs: positiveSafeIntegerSchema.max(LOCAL_SUBTITLE_LIMITS.maxDurationMs),
+    audioTracks: z
+      .array(localSubtitleMediaTrackSummarySchema)
+      .min(1)
+      .max(LOCAL_SUBTITLE_LIMITS.maxMediaTracks),
+    autoSelectedStreamId: idSchema,
+  })
+  .strict()
+  .superRefine((value, context) => {
+    const streamIds = new Set(value.audioTracks.map((track) => track.streamId));
+    if (streamIds.size !== value.audioTracks.length) {
+      context.addIssue({
+        code: "custom",
+        path: ["audioTracks"],
+        message: "Media track stream ids must be unique.",
+      });
+    }
+    if (
+      new Set(value.audioTracks.map((track) => track.ordinal)).size !==
+      value.audioTracks.length
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["audioTracks"],
+        message: "Media track ordinals must be unique.",
+      });
+    }
+    if (!streamIds.has(value.autoSelectedStreamId)) {
+      context.addIssue({
+        code: "custom",
+        path: ["autoSelectedStreamId"],
+        message: "The automatic selection must reference a returned stream id.",
+      });
+    }
+  });
+
+export const localSubtitleOutputDirectorySelectionSchema = z.discriminatedUnion(
+  "cancelled",
+  [
+    z.object({ cancelled: z.literal(true) }).strict(),
+    z
+      .object({
+        cancelled: z.literal(false),
+        outputDirToken: opaqueRefSchema,
+        displayLabel: displayNameSchema,
+        expiresAt: positiveSafeIntegerSchema,
+      })
+      .strict(),
+  ],
+);
+
+export const LOCAL_SUBTITLE_RUNTIME_PROBE_STATUSES = [
+  "ready",
+  "missing",
+  "invalid",
+  "launch_failed",
+] as const;
+export const LOCAL_SUBTITLE_BACKEND_PROBE_STATUSES = [
+  "available",
+  "unavailable",
+  "unverified",
+] as const;
+
+const runtimeComponentSummarySchema = z
+  .object({
+    status: z.enum(LOCAL_SUBTITLE_RUNTIME_PROBE_STATUSES),
+    version: boundedMetadataStringSchema.optional(),
+    errorCode: z.enum(LOCAL_SUBTITLE_ERROR_CODES).optional(),
+  })
+  .strict()
+  .superRefine((value, context) => {
+    if (value.status === "ready" && value.errorCode !== undefined) {
+      context.addIssue({
+        code: "custom",
+        path: ["errorCode"],
+        message: "Ready runtime components cannot include an error code.",
+      });
+    }
+    if (value.status !== "ready" && value.errorCode === undefined) {
+      context.addIssue({
+        code: "custom",
+        path: ["errorCode"],
+        message: "Unavailable runtime components require an error code.",
+      });
+    }
+  });
+
+const backendProbeSummarySchema = z
+  .object({
+    backend: z.enum(LOCAL_SUBTITLE_BACKENDS),
+    status: z.enum(LOCAL_SUBTITLE_BACKEND_PROBE_STATUSES),
+    errorCode: z.enum(LOCAL_SUBTITLE_ERROR_CODES).optional(),
+  })
+  .strict()
+  .superRefine((value, context) => {
+    if (value.status === "available" && value.errorCode !== undefined) {
+      context.addIssue({
+        code: "custom",
+        path: ["errorCode"],
+        message: "Available backends cannot include an error code.",
+      });
+    }
+    if (value.status !== "available" && value.errorCode === undefined) {
+      context.addIssue({
+        code: "custom",
+        path: ["errorCode"],
+        message: "Unavailable backends require an error code.",
+      });
+    }
+  });
+
+export const localSubtitleRuntimeSummarySchema = z
+  .object({
+    schemaVersion: z.literal(LOCAL_SUBTITLE_DOMAIN_SCHEMA_VERSION),
+    platform: z.enum(["win32", "darwin"]),
+    arch: z.enum(["x64", "arm64"]),
+    runtimeGeneration: sha256Schema,
+    runner: runtimeComponentSummarySchema,
+    mediaRuntime: runtimeComponentSummarySchema,
+    backends: z
+      .array(backendProbeSummarySchema)
+      .min(1)
+      .max(LOCAL_SUBTITLE_BACKENDS.length),
+  })
+  .strict()
+  .superRefine((value, context) => {
+    if (
+      (value.platform === "win32" && value.arch !== "x64") ||
+      (value.platform === "darwin" && value.arch !== "arm64")
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["arch"],
+        message: "Runtime platform and architecture must match a release profile.",
+      });
+    }
+    if (
+      new Set(value.backends.map((backend) => backend.backend)).size !==
+      value.backends.length
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["backends"],
+        message: "Runtime backend summaries must be unique.",
+      });
+    }
+  });
+
+export const LOCAL_SUBTITLE_MANAGED_RESOURCE_STATUSES = [
+  "not_installed",
+  "installing",
+  "ready",
+  "invalid",
+] as const;
+
+export const localSubtitleManagedResourceSummarySchema = z
+  .object({
+    resourceId: idSchema,
+    resourceType: z.enum(LOCAL_SUBTITLE_RESOURCE_TYPES),
+    displayName: displayNameSchema,
+    status: z.enum(LOCAL_SUBTITLE_MANAGED_RESOURCE_STATUSES),
+    version: boundedMetadataStringSchema.optional(),
+    byteSize: positiveSafeIntegerSchema.max(
+      LOCAL_SUBTITLE_LIMITS.maxMediaFileBytes,
+    ),
+    isDefault: z.boolean(),
+    compatibleBackends: z
+      .array(z.enum(LOCAL_SUBTITLE_BACKENDS))
+      .min(1)
+      .max(LOCAL_SUBTITLE_BACKENDS.length),
+    errorCode: z.enum(LOCAL_SUBTITLE_ERROR_CODES).optional(),
+  })
+  .strict()
+  .superRefine((value, context) => {
+    if (
+      new Set(value.compatibleBackends).size !== value.compatibleBackends.length
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["compatibleBackends"],
+        message: "Compatible backends must be unique.",
+      });
+    }
+    if (value.status === "invalid" && value.errorCode === undefined) {
+      context.addIssue({
+        code: "custom",
+        path: ["errorCode"],
+        message: "Invalid managed resources require an error code.",
+      });
+    }
+    if (value.status !== "invalid" && value.errorCode !== undefined) {
+      context.addIssue({
+        code: "custom",
+        path: ["errorCode"],
+        message: "Only invalid managed resources may include an error code.",
+      });
+    }
+  });
+export const localSubtitleManagedResourceListSchema = z
+  .array(localSubtitleManagedResourceSummarySchema)
+  .max(LOCAL_SUBTITLE_LIMITS.maxRuntimeArtifacts)
+  .superRefine((value, context) => {
+    if (new Set(value.map((entry) => entry.resourceId)).size !== value.length) {
+      context.addIssue({
+        code: "custom",
+        message: "Managed resource ids must be unique.",
+      });
+    }
+  });
+
+export const localSubtitleRevokeResultSchema = z
+  .object({ revoked: z.boolean() })
+  .strict();
+export const localSubtitleCancelResourceJobResultSchema = z
+  .object({ cancelled: z.boolean() })
+  .strict();
+export const localSubtitleDeleteManagedResourceResultSchema = z
+  .object({ deleted: z.boolean() })
+  .strict();
+export const localSubtitleCancelBatchResultSchema = z
+  .object({
+    cancelledTaskIds: z
+      .array(idSchema)
+      .max(LOCAL_SUBTITLE_LIMITS.maxBatchFiles),
+  })
+  .strict()
+  .superRefine((value, context) => {
+    if (
+      new Set(value.cancelledTaskIds).size !== value.cancelledTaskIds.length
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["cancelledTaskIds"],
+        message: "Cancelled task ids must be unique.",
+      });
+    }
+  });
+export const localSubtitleCancelTaskResultSchema = z
+  .object({ cancelled: z.boolean() })
+  .strict();
+export const localSubtitleRemoveTaskResultSchema = z
+  .object({ removed: z.boolean() })
+  .strict();
+
+export const localSubtitleArtifactTextResultSchema = z
+  .object({
+    format: z.enum(LOCAL_SUBTITLE_FORMATS),
+    rawText: z
+      .string()
+      .min(1)
+      .max(LOCAL_SUBTITLE_LIMITS.maxArtifactBytes)
+      .refine(noUnsafeControlCharacters),
+    plainText: z
+      .string()
+      .min(1)
+      .max(LOCAL_SUBTITLE_LIMITS.maxArtifactBytes)
+      .refine(noUnsafeControlCharacters),
+    cueCount: positiveSafeIntegerSchema.max(
+      LOCAL_SUBTITLE_LIMITS.maxArtifactCues,
+    ),
+  })
+  .strict()
+  .refine(
+    (value) =>
+      (serializedByteLength(value) ?? Number.POSITIVE_INFINITY) <=
+      LOCAL_SUBTITLE_LIMITS.maxArtifactBytes,
+    "Artifact text exceeds the versioned byte limit.",
+  );
+export const localSubtitleRevealArtifactResultSchema = z
+  .object({ revealed: z.literal(true) })
+  .strict();
+export const localSubtitleHandoffResultSchema = z
+  .object({
+    translationImportToken: opaqueRefSchema,
+    expiresAt: positiveSafeIntegerSchema,
+  })
+  .strict();
+
+export type LocalSubtitleAuthorizedMedia = z.infer<
+  typeof localSubtitleAuthorizedMediaSchema
+>;
+export type LocalSubtitleMediaProbeSummary = z.infer<
+  typeof localSubtitleMediaProbeSummarySchema
+>;
+export type LocalSubtitleOutputDirectorySelection = z.infer<
+  typeof localSubtitleOutputDirectorySelectionSchema
+>;
+export type LocalSubtitleRuntimeSummary = z.infer<
+  typeof localSubtitleRuntimeSummarySchema
+>;
+export type LocalSubtitleManagedResourceSummary = z.infer<
+  typeof localSubtitleManagedResourceSummarySchema
+>;
+export type LocalSubtitleArtifactTextResult = z.infer<
+  typeof localSubtitleArtifactTextResultSchema
+>;
+export type LocalSubtitleHandoffResult = z.infer<
+  typeof localSubtitleHandoffResultSchema
+>;
+export type LocalSubtitleOwnerSessionRegistration = z.infer<
+  typeof localSubtitleOwnerSessionRegistrationSchema
+>;
+export type LocalSubtitleAuthorizeInputFilesRequest = z.infer<
+  typeof localSubtitleAuthorizeInputFilesRequestSchema
+>;
+export type LocalSubtitleImportModelRequest = z.infer<
+  typeof localSubtitleImportModelRequestSchema
+>;
+
 const subtitleTextSchema = z
   .string()
   .min(1)
@@ -1153,6 +1629,377 @@ export const localSubtitleTranscriptSchema: z.ZodType<LocalSubtitleTranscript> =
         });
       }
     });
+
+function boundedLocalSubtitleIpcResultSchema<
+  TSchema extends z.ZodTypeAny,
+>(dataSchema: TSchema, maxBytes: number) {
+  return localSubtitleIpcResultSchema(dataSchema).refine(
+    (value) =>
+      (serializedByteLength(value) ?? Number.POSITIVE_INFINITY) <= maxBytes,
+    "Local subtitle IPC result exceeds its operation byte limit.",
+  );
+}
+
+function boundedLocalSubtitleIpcRequestSchema<TSchema extends z.ZodTypeAny>(
+  requestSchema: TSchema,
+) {
+  return requestSchema.refine(
+    (value) =>
+      (serializedByteLength(value) ?? Number.POSITIVE_INFINITY) <=
+      LOCAL_SUBTITLE_LIMITS.maxIpcFrameBytes,
+    "Local subtitle IPC request exceeds the frame byte limit.",
+  );
+}
+
+export interface LocalSubtitlePublicOperationContract {
+  readonly requestSchema: z.ZodTypeAny;
+  readonly resultSchema: z.ZodTypeAny;
+  readonly maxRequestBytes: number;
+  readonly maxResultBytes: number;
+}
+
+const normalRequestBytes = LOCAL_SUBTITLE_LIMITS.maxIpcFrameBytes;
+const normalResultBytes = LOCAL_SUBTITLE_LIMITS.maxIpcFrameBytes;
+const artifactTextResultBytes =
+  LOCAL_SUBTITLE_LIMITS.maxArtifactBytes + LOCAL_SUBTITLE_LIMITS.maxIpcFrameBytes;
+
+export const LOCAL_SUBTITLE_PUBLIC_OPERATION_CONTRACTS: Record<
+  LocalSubtitlePublicInvokeChannel,
+  LocalSubtitlePublicOperationContract
+> = {
+  [LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.probeMedia]: {
+    requestSchema: boundedLocalSubtitleIpcRequestSchema(
+      localSubtitleFileTokenRequestSchema,
+    ),
+    resultSchema: boundedLocalSubtitleIpcResultSchema(
+      localSubtitleMediaProbeSummarySchema,
+      normalResultBytes,
+    ),
+    maxRequestBytes: normalRequestBytes,
+    maxResultBytes: normalResultBytes,
+  },
+  [LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.probeRuntime]: {
+    requestSchema: boundedLocalSubtitleIpcRequestSchema(
+      localSubtitleEmptyRequestSchema,
+    ),
+    resultSchema: boundedLocalSubtitleIpcResultSchema(
+      localSubtitleRuntimeSummarySchema,
+      normalResultBytes,
+    ),
+    maxRequestBytes: normalRequestBytes,
+    maxResultBytes: normalResultBytes,
+  },
+  [LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.listManagedResources]: {
+    requestSchema: boundedLocalSubtitleIpcRequestSchema(
+      localSubtitleEmptyRequestSchema,
+    ),
+    resultSchema: boundedLocalSubtitleIpcResultSchema(
+      localSubtitleManagedResourceListSchema,
+      normalResultBytes,
+    ),
+    maxRequestBytes: normalRequestBytes,
+    maxResultBytes: normalResultBytes,
+  },
+  [LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.startResourceInstall]: {
+    requestSchema: boundedLocalSubtitleIpcRequestSchema(
+      localSubtitleResourceIdRequestSchema,
+    ),
+    resultSchema: boundedLocalSubtitleIpcResultSchema(
+      localSubtitleResourceJobSummarySchema,
+      normalResultBytes,
+    ),
+    maxRequestBytes: normalRequestBytes,
+    maxResultBytes: normalResultBytes,
+  },
+  [LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.cancelResourceJob]: {
+    requestSchema: boundedLocalSubtitleIpcRequestSchema(
+      localSubtitleResourceJobIdRequestSchema,
+    ),
+    resultSchema: boundedLocalSubtitleIpcResultSchema(
+      localSubtitleCancelResourceJobResultSchema,
+      normalResultBytes,
+    ),
+    maxRequestBytes: normalRequestBytes,
+    maxResultBytes: normalResultBytes,
+  },
+  [LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.deleteManagedResource]: {
+    requestSchema: boundedLocalSubtitleIpcRequestSchema(
+      localSubtitleResourceIdRequestSchema,
+    ),
+    resultSchema: boundedLocalSubtitleIpcResultSchema(
+      localSubtitleDeleteManagedResourceResultSchema,
+      normalResultBytes,
+    ),
+    maxRequestBytes: normalRequestBytes,
+    maxResultBytes: normalResultBytes,
+  },
+  [LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.getSessionSnapshot]: {
+    requestSchema: boundedLocalSubtitleIpcRequestSchema(
+      localSubtitleEmptyRequestSchema,
+    ),
+    resultSchema: boundedLocalSubtitleIpcResultSchema(
+      localSubtitleSessionSnapshotSchema,
+      LOCAL_SUBTITLE_LIMITS.maxSessionSnapshotBytes,
+    ),
+    maxRequestBytes: normalRequestBytes,
+    maxResultBytes: LOCAL_SUBTITLE_LIMITS.maxSessionSnapshotBytes,
+  },
+  [LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.enqueue]: {
+    requestSchema: boundedLocalSubtitleIpcRequestSchema(
+      enqueueLocalSubtitleBatchRequestSchema,
+    ),
+    resultSchema: boundedLocalSubtitleIpcResultSchema(
+      localSubtitleBatchSummarySchema,
+      normalResultBytes,
+    ),
+    maxRequestBytes: normalRequestBytes,
+    maxResultBytes: normalResultBytes,
+  },
+  [LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.retryTask]: {
+    requestSchema: boundedLocalSubtitleIpcRequestSchema(
+      localSubtitleTaskIdRequestSchema,
+    ),
+    resultSchema: boundedLocalSubtitleIpcResultSchema(
+      localSubtitleTaskSummarySchema,
+      normalResultBytes,
+    ),
+    maxRequestBytes: normalRequestBytes,
+    maxResultBytes: normalResultBytes,
+  },
+  [LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.cancelBatch]: {
+    requestSchema: boundedLocalSubtitleIpcRequestSchema(
+      localSubtitleBatchIdRequestSchema,
+    ),
+    resultSchema: boundedLocalSubtitleIpcResultSchema(
+      localSubtitleCancelBatchResultSchema,
+      normalResultBytes,
+    ),
+    maxRequestBytes: normalRequestBytes,
+    maxResultBytes: normalResultBytes,
+  },
+  [LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.cancelTask]: {
+    requestSchema: boundedLocalSubtitleIpcRequestSchema(
+      localSubtitleTaskIdRequestSchema,
+    ),
+    resultSchema: boundedLocalSubtitleIpcResultSchema(
+      localSubtitleCancelTaskResultSchema,
+      normalResultBytes,
+    ),
+    maxRequestBytes: normalRequestBytes,
+    maxResultBytes: normalResultBytes,
+  },
+  [LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.removeTask]: {
+    requestSchema: boundedLocalSubtitleIpcRequestSchema(
+      localSubtitleTaskIdRequestSchema,
+    ),
+    resultSchema: boundedLocalSubtitleIpcResultSchema(
+      localSubtitleRemoveTaskResultSchema,
+      normalResultBytes,
+    ),
+    maxRequestBytes: normalRequestBytes,
+    maxResultBytes: normalResultBytes,
+  },
+  [LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.readArtifactText]: {
+    requestSchema: boundedLocalSubtitleIpcRequestSchema(
+      localSubtitleArtifactRefRequestSchema,
+    ),
+    resultSchema: boundedLocalSubtitleIpcResultSchema(
+      localSubtitleArtifactTextResultSchema,
+      artifactTextResultBytes,
+    ),
+    maxRequestBytes: normalRequestBytes,
+    maxResultBytes: artifactTextResultBytes,
+  },
+  [LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.revealArtifact]: {
+    requestSchema: boundedLocalSubtitleIpcRequestSchema(
+      localSubtitleArtifactRefRequestSchema,
+    ),
+    resultSchema: boundedLocalSubtitleIpcResultSchema(
+      localSubtitleRevealArtifactResultSchema,
+      normalResultBytes,
+    ),
+    maxRequestBytes: normalRequestBytes,
+    maxResultBytes: normalResultBytes,
+  },
+  [LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.handoffArtifact]: {
+    requestSchema: boundedLocalSubtitleIpcRequestSchema(
+      localSubtitleArtifactRefRequestSchema,
+    ),
+    resultSchema: boundedLocalSubtitleIpcResultSchema(
+      localSubtitleHandoffResultSchema,
+      normalResultBytes,
+    ),
+    maxRequestBytes: normalRequestBytes,
+    maxResultBytes: normalResultBytes,
+  },
+};
+
+export interface LocalSubtitleInternalOperationContract
+  extends LocalSubtitlePublicOperationContract {
+  readonly requiresOwnerEnvelope: boolean;
+}
+
+export const LOCAL_SUBTITLE_INTERNAL_OPERATION_CONTRACTS: Record<
+  LocalSubtitlePreloadInternalChannel,
+  LocalSubtitleInternalOperationContract
+> = {
+  [LOCAL_SUBTITLE_PRELOAD_INTERNAL_CHANNELS.registerOwnerSession]: {
+    requestSchema: boundedLocalSubtitleIpcRequestSchema(
+      localSubtitleEmptyRequestSchema,
+    ),
+    resultSchema: boundedLocalSubtitleIpcResultSchema(
+      localSubtitleOwnerSessionRegistrationSchema,
+      normalResultBytes,
+    ),
+    maxRequestBytes: normalRequestBytes,
+    maxResultBytes: normalResultBytes,
+    requiresOwnerEnvelope: false,
+  },
+  [LOCAL_SUBTITLE_PRELOAD_INTERNAL_CHANNELS.authorizeInputFiles]: {
+    requestSchema: boundedLocalSubtitleIpcRequestSchema(
+      localSubtitleAuthorizeInputFilesRequestSchema,
+    ),
+    resultSchema: boundedLocalSubtitleIpcResultSchema(
+      localSubtitleAuthorizedMediaListSchema,
+      normalResultBytes,
+    ),
+    maxRequestBytes: normalRequestBytes,
+    maxResultBytes: normalResultBytes,
+    requiresOwnerEnvelope: true,
+  },
+  [LOCAL_SUBTITLE_PRELOAD_INTERNAL_CHANNELS.revokeInputFile]: {
+    requestSchema: boundedLocalSubtitleIpcRequestSchema(
+      localSubtitleFileTokenRequestSchema,
+    ),
+    resultSchema: boundedLocalSubtitleIpcResultSchema(
+      localSubtitleRevokeResultSchema,
+      normalResultBytes,
+    ),
+    maxRequestBytes: normalRequestBytes,
+    maxResultBytes: normalResultBytes,
+    requiresOwnerEnvelope: true,
+  },
+  [LOCAL_SUBTITLE_PRELOAD_INTERNAL_CHANNELS.selectOutputDirectory]: {
+    requestSchema: boundedLocalSubtitleIpcRequestSchema(
+      localSubtitleEmptyRequestSchema,
+    ),
+    resultSchema: boundedLocalSubtitleIpcResultSchema(
+      localSubtitleOutputDirectorySelectionSchema,
+      normalResultBytes,
+    ),
+    maxRequestBytes: normalRequestBytes,
+    maxResultBytes: normalResultBytes,
+    requiresOwnerEnvelope: true,
+  },
+  [LOCAL_SUBTITLE_PRELOAD_INTERNAL_CHANNELS.revokeOutputDirectory]: {
+    requestSchema: boundedLocalSubtitleIpcRequestSchema(
+      localSubtitleOutputDirTokenRequestSchema,
+    ),
+    resultSchema: boundedLocalSubtitleIpcResultSchema(
+      localSubtitleRevokeResultSchema,
+      normalResultBytes,
+    ),
+    maxRequestBytes: normalRequestBytes,
+    maxResultBytes: normalResultBytes,
+    requiresOwnerEnvelope: true,
+  },
+  [LOCAL_SUBTITLE_PRELOAD_INTERNAL_CHANNELS.importModel]: {
+    requestSchema: boundedLocalSubtitleIpcRequestSchema(
+      localSubtitleImportModelRequestSchema,
+    ),
+    resultSchema: boundedLocalSubtitleIpcResultSchema(
+      localSubtitleResourceJobSummarySchema,
+      normalResultBytes,
+    ),
+    maxRequestBytes: normalRequestBytes,
+    maxResultBytes: normalResultBytes,
+    requiresOwnerEnvelope: true,
+  },
+};
+
+export interface LocalSubtitleRendererApi {
+  authorizeInputFiles(
+    files: File[],
+  ): Promise<LocalSubtitleIpcResult<LocalSubtitleAuthorizedMedia[]>>;
+  probeMedia(
+    fileToken: string,
+  ): Promise<LocalSubtitleIpcResult<LocalSubtitleMediaProbeSummary>>;
+  revokeInputFile(
+    fileToken: string,
+  ): Promise<LocalSubtitleIpcResult<z.infer<typeof localSubtitleRevokeResultSchema>>>;
+  selectOutputDirectory(): Promise<
+    LocalSubtitleIpcResult<LocalSubtitleOutputDirectorySelection>
+  >;
+  revokeOutputDirectory(
+    outputDirToken: string,
+  ): Promise<LocalSubtitleIpcResult<z.infer<typeof localSubtitleRevokeResultSchema>>>;
+  probeRuntime(): Promise<LocalSubtitleIpcResult<LocalSubtitleRuntimeSummary>>;
+  listManagedResources(): Promise<
+    LocalSubtitleIpcResult<LocalSubtitleManagedResourceSummary[]>
+  >;
+  startResourceInstall(request: {
+    readonly resourceId: string;
+  }): Promise<LocalSubtitleIpcResult<LocalSubtitleResourceJobSummary>>;
+  cancelResourceJob(
+    jobId: string,
+  ): Promise<
+    LocalSubtitleIpcResult<
+      z.infer<typeof localSubtitleCancelResourceJobResultSchema>
+    >
+  >;
+  importModel(
+    file: File,
+    options: { readonly mode: "copy" | "move" },
+  ): Promise<LocalSubtitleIpcResult<LocalSubtitleResourceJobSummary>>;
+  deleteManagedResource(
+    resourceId: string,
+  ): Promise<
+    LocalSubtitleIpcResult<
+      z.infer<typeof localSubtitleDeleteManagedResourceResultSchema>
+    >
+  >;
+  getSessionSnapshot(): Promise<
+    LocalSubtitleIpcResult<LocalSubtitleSessionSnapshot>
+  >;
+  enqueue(
+    request: EnqueueLocalSubtitleBatchRequest,
+  ): Promise<LocalSubtitleIpcResult<LocalSubtitleBatchSummary>>;
+  retryTask(
+    taskId: string,
+  ): Promise<LocalSubtitleIpcResult<LocalSubtitleTaskSummary>>;
+  cancelBatch(
+    batchId: string,
+  ): Promise<
+    LocalSubtitleIpcResult<z.infer<typeof localSubtitleCancelBatchResultSchema>>
+  >;
+  cancelTask(
+    taskId: string,
+  ): Promise<
+    LocalSubtitleIpcResult<z.infer<typeof localSubtitleCancelTaskResultSchema>>
+  >;
+  removeTask(
+    taskId: string,
+  ): Promise<
+    LocalSubtitleIpcResult<z.infer<typeof localSubtitleRemoveTaskResultSchema>>
+  >;
+  readArtifactText(
+    artifactRef: string,
+  ): Promise<LocalSubtitleIpcResult<LocalSubtitleArtifactTextResult>>;
+  revealArtifact(
+    artifactRef: string,
+  ): Promise<
+    LocalSubtitleIpcResult<z.infer<typeof localSubtitleRevealArtifactResultSchema>>
+  >;
+  handoffArtifact(
+    artifactRef: string,
+  ): Promise<LocalSubtitleIpcResult<LocalSubtitleHandoffResult>>;
+  onTaskEvent(
+    listener: (event: LocalSubtitleTaskEventEnvelope) => void,
+  ): () => void;
+  onResourceEvent(
+    listener: (event: LocalSubtitleResourceEventEnvelope) => void,
+  ): () => void;
+}
 
 export function validateEnqueueLocalSubtitleBatchRequest(
   payload: unknown,

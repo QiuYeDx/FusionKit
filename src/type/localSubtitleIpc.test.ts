@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, expectTypeOf, it } from "vitest";
 import {
   LOCAL_SUBTITLE_DOMAIN_SCHEMA_VERSION,
   LOCAL_SUBTITLE_LIMITS,
@@ -14,11 +14,27 @@ import {
   type LocalSubtitleTranscript,
 } from "@/type/localSubtitle";
 import {
+  LOCAL_SUBTITLE_EVENT_CHANNELS,
+  LOCAL_SUBTITLE_INTERNAL_OPERATION_CONTRACTS,
+  LOCAL_SUBTITLE_PRELOAD_INTERNAL_CHANNELS,
+  LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS,
+  LOCAL_SUBTITLE_PUBLIC_OPERATION_CONTRACTS,
   enqueueLocalSubtitleBatchRequestSchema,
+  localSubtitleAuthorizeInputFilesRequestSchema,
+  localSubtitleAuthorizedMediaListSchema,
   localSubtitleArtifactRefRequestSchema,
+  localSubtitleArtifactTextResultSchema,
   localSubtitleDiagnosticsSchema,
   localSubtitleErrorSchema,
   localSubtitleIpcResultSchema,
+  localSubtitleManagedResourceListSchema,
+  localSubtitleMediaProbeSummarySchema,
+  localSubtitleImportModelRequestSchema,
+  localSubtitleOwnerSessionRegistrationSchema,
+  localSubtitleOutputDirectorySelectionSchema,
+  localSubtitleResourceJobSummarySchema,
+  localSubtitleRuntimeSummarySchema,
+  localSubtitleSecureIpcEnvelopeSchema,
   localSubtitleSessionSnapshotSchema,
   localSubtitleTaskEventEnvelopeSchema,
   localSubtitleTaskSummarySchema,
@@ -27,10 +43,405 @@ import {
   validateLocalSubtitleSessionSnapshot,
   validateLocalSubtitleTaskEventEnvelope,
   validateLocalSubtitleTranscript,
+  type LocalSubtitlePublicInvokeChannel,
+  type LocalSubtitlePreloadInternalChannel,
+  type LocalSubtitleRendererApi,
 } from "@/type/localSubtitleIpc";
 
 const NOW = "2026-07-21T12:00:00.000Z";
 const SHA = "a".repeat(64);
+
+describe("local subtitle fixed IPC surface", () => {
+  it("keeps public, preload-internal, and event channels exact and disjoint", () => {
+    const publicChannels = Object.values(LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS);
+    const internalChannels = Object.values(
+      LOCAL_SUBTITLE_PRELOAD_INTERNAL_CHANNELS,
+    );
+    const eventChannels = Object.values(LOCAL_SUBTITLE_EVENT_CHANNELS);
+    const allChannels = [...publicChannels, ...internalChannels, ...eventChannels];
+
+    expect(publicChannels).toHaveLength(15);
+    expect(internalChannels).toHaveLength(6);
+    expect(eventChannels).toHaveLength(2);
+    expect(new Set(allChannels).size).toBe(allChannels.length);
+    expect(allChannels.every((channel) => channel.startsWith("local-subtitle:")))
+      .toBe(true);
+    expect(allChannels.some((channel) => channel.startsWith("audio:"))).toBe(
+      false,
+    );
+    expect(Object.keys(LOCAL_SUBTITLE_PUBLIC_OPERATION_CONTRACTS).sort()).toEqual(
+      [...publicChannels].sort(),
+    );
+    expect(
+      Object.keys(LOCAL_SUBTITLE_INTERNAL_OPERATION_CONTRACTS).sort(),
+    ).toEqual([...internalChannels].sort());
+  });
+
+  it("exposes only the fixed renderer methods without a generic transport", () => {
+    type ExpectedRendererApiKey =
+      | "authorizeInputFiles"
+      | "probeMedia"
+      | "revokeInputFile"
+      | "selectOutputDirectory"
+      | "revokeOutputDirectory"
+      | "probeRuntime"
+      | "listManagedResources"
+      | "startResourceInstall"
+      | "cancelResourceJob"
+      | "importModel"
+      | "deleteManagedResource"
+      | "getSessionSnapshot"
+      | "enqueue"
+      | "retryTask"
+      | "cancelBatch"
+      | "cancelTask"
+      | "removeTask"
+      | "readArtifactText"
+      | "revealArtifact"
+      | "handoffArtifact"
+      | "onTaskEvent"
+      | "onResourceEvent";
+
+    expectTypeOf<keyof LocalSubtitleRendererApi>().toEqualTypeOf<
+      ExpectedRendererApiKey
+    >();
+    expectTypeOf<
+      Extract<keyof LocalSubtitleRendererApi, "invoke" | "send" | "channel">
+    >().toEqualTypeOf<never>();
+    expectTypeOf<Parameters<LocalSubtitleRendererApi["authorizeInputFiles"]>>()
+      .toEqualTypeOf<[files: File[]]>();
+    expectTypeOf<Parameters<LocalSubtitleRendererApi["importModel"]>>()
+      .toEqualTypeOf<[
+        file: File,
+        options: { readonly mode: "copy" | "move" },
+      ]>();
+  });
+
+  it("uses a strict preload-private owner envelope", () => {
+    const schema = localSubtitleSecureIpcEnvelopeSchema(
+      localSubtitleArtifactRefRequestSchema,
+    );
+    const envelope = {
+      ownerSessionId: "owner_session_1234567890",
+      payload: { artifactRef: "artifact-ref" },
+    };
+
+    expect(schema.parse(envelope)).toEqual(envelope);
+    expect(
+      schema.safeParse({ ...envelope, senderId: 7 }).success,
+    ).toBe(false);
+    expect(
+      schema.safeParse({
+        ...envelope,
+        ownerSessionId: "short",
+      }).success,
+    ).toBe(false);
+    expect(
+      schema.safeParse({
+        ...envelope,
+        payload: { ...envelope.payload, path: "/private/result.srt" },
+      }).success,
+    ).toBe(false);
+  });
+
+  it("freezes every preload-internal request, result, and envelope policy", () => {
+    const requests = validInternalOperationRequests();
+    const results = validInternalOperationResults();
+    const registerChannel =
+      LOCAL_SUBTITLE_PRELOAD_INTERNAL_CHANNELS.registerOwnerSession;
+
+    for (const channel of Object.values(
+      LOCAL_SUBTITLE_PRELOAD_INTERNAL_CHANNELS,
+    )) {
+      const contract = LOCAL_SUBTITLE_INTERNAL_OPERATION_CONTRACTS[channel];
+      expect(
+        contract.requestSchema.safeParse(requests[channel]).success,
+        `${channel}:request`,
+      ).toBe(true);
+      expect(
+        contract.resultSchema.safeParse({
+          ok: true,
+          data: results[channel],
+        }).success,
+        `${channel}:result`,
+      ).toBe(true);
+      expect(contract.requiresOwnerEnvelope, channel).toBe(
+        channel !== registerChannel,
+      );
+      expect(contract.maxRequestBytes, channel).toBe(
+        LOCAL_SUBTITLE_LIMITS.maxIpcFrameBytes,
+      );
+      expect(contract.maxResultBytes, channel).toBe(
+        LOCAL_SUBTITLE_LIMITS.maxIpcFrameBytes,
+      );
+
+      expect(
+        contract.requestSchema.safeParse({
+          ...(requests[channel] as Record<string, unknown>),
+          ownerSessionId: "owner_session_1234567890",
+        }).success,
+        `${channel}:owner-injection`,
+      ).toBe(false);
+
+      const result = results[channel];
+      const injectedResult = Array.isArray(result)
+        ? [{ ...(result[0] as Record<string, unknown>), path: "/private/file" }]
+        : { ...(result as Record<string, unknown>), path: "/private/file" };
+      expect(
+        contract.resultSchema.safeParse({
+          ok: true,
+          data: injectedResult,
+        }).success,
+        `${channel}:result-path-injection`,
+      ).toBe(false);
+    }
+
+    expect(
+      localSubtitleOwnerSessionRegistrationSchema.parse({
+        ownerSessionId: "owner_session_1234567890",
+      }),
+    ).toEqual({ ownerSessionId: "owner_session_1234567890" });
+    expect(
+      localSubtitleOwnerSessionRegistrationSchema.safeParse({
+        ownerSessionId: "owner_session_1234567890",
+        senderId: 1,
+      }).success,
+    ).toBe(false);
+
+    const maxPath = "x".repeat(32_768);
+    expect(
+      localSubtitleAuthorizeInputFilesRequestSchema.safeParse({
+        files: [{ filePath: maxPath }],
+      }).success,
+    ).toBe(true);
+    expect(
+      localSubtitleAuthorizeInputFilesRequestSchema.safeParse({
+        files: [{ filePath: `${maxPath}x` }],
+      }).success,
+    ).toBe(false);
+    expect(
+      localSubtitleAuthorizeInputFilesRequestSchema.safeParse({
+        files: [
+          {
+            filePath: "/private/media.wav",
+            url: "https://example.invalid/media.wav",
+          },
+        ],
+      }).success,
+    ).toBe(false);
+    expect(
+      localSubtitleImportModelRequestSchema.safeParse({
+        filePath: "/private/model.bin",
+        mode: "copy",
+        executable: "/tmp/whisper-server",
+      }).success,
+    ).toBe(false);
+  });
+
+  it("maps every public request to a strict path-free schema", () => {
+    const fixtures = validPublicOperationRequests();
+    const forbiddenFields: Record<string, unknown> = {
+      path: "/private/media.wav",
+      filePath: "/private/media.wav",
+      outputPath: "/private/output.srt",
+      url: "https://example.invalid/model.bin",
+      executable: "/tmp/whisper-server",
+      backendFlags: { flashAttention: true },
+      ownerSessionId: "owner_session_1234567890",
+    };
+
+    for (const channel of Object.values(
+      LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS,
+    )) {
+      const contract = LOCAL_SUBTITLE_PUBLIC_OPERATION_CONTRACTS[channel];
+      const fixture = fixtures[channel];
+      expect(contract.requestSchema.safeParse(fixture).success, channel).toBe(
+        true,
+      );
+
+      for (const [field, value] of Object.entries(forbiddenFields)) {
+        expect(
+          contract.requestSchema.safeParse({
+            ...(fixture as Record<string, unknown>),
+            [field]: value,
+          }).success,
+          `${channel}:${field}`,
+        ).toBe(false);
+      }
+    }
+
+    const installContract =
+      LOCAL_SUBTITLE_PUBLIC_OPERATION_CONTRACTS[
+        LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.startResourceInstall
+      ];
+    expect(installContract.requestSchema.parse({ resourceId: "model-1" }))
+      .toEqual({ resourceId: "model-1" });
+    expect(
+      installContract.requestSchema.safeParse({
+        resourceId: "https://example.invalid/model.bin",
+      }).success,
+    ).toBe(false);
+    expect(
+      LOCAL_SUBTITLE_PUBLIC_OPERATION_CONTRACTS[
+        LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.probeMedia
+      ].requestSchema.safeParse({ fileToken: "/private/media.wav" }).success,
+    ).toBe(false);
+    expect(
+      LOCAL_SUBTITLE_PUBLIC_OPERATION_CONTRACTS[
+        LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.handoffArtifact
+      ].requestSchema.safeParse({ artifactRef: "C:\\private\\result.srt" })
+        .success,
+    ).toBe(false);
+  });
+
+  it("maps every public result to a strict bounded path-free schema", () => {
+    const fixtures = validPublicOperationResults();
+    const forbiddenFields: Record<string, unknown> = {
+      path: "/private/media.wav",
+      filePath: "/private/media.wav",
+      outputPath: "/private/output.srt",
+      url: "https://example.invalid/model.bin",
+      executable: "/tmp/whisper-server",
+      backendFlags: { flashAttention: true },
+      ownerSessionId: "owner_session_1234567890",
+    };
+
+    for (const channel of Object.values(
+      LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS,
+    )) {
+      const contract = LOCAL_SUBTITLE_PUBLIC_OPERATION_CONTRACTS[channel];
+      const fixture = fixtures[channel];
+      expect(
+        contract.resultSchema.safeParse({ ok: true, data: fixture }).success,
+        channel,
+      ).toBe(true);
+
+      for (const [field, value] of Object.entries(forbiddenFields)) {
+        const injected = Array.isArray(fixture)
+          ? [{ ...(fixture[0] as Record<string, unknown>), [field]: value }]
+          : { ...(fixture as Record<string, unknown>), [field]: value };
+        expect(
+          contract.resultSchema.safeParse({ ok: true, data: injected }).success,
+          `${channel}:${field}`,
+        ).toBe(false);
+      }
+
+      expect(
+        contract.resultSchema.safeParse({
+          ok: false,
+          error: createLocalSubtitleError(
+            "configuration_required",
+            "Configuration is required.",
+          ),
+        }).success,
+        `${channel}:failure`,
+      ).toBe(true);
+    }
+  });
+
+  it("assigns operation-specific frame budgets", () => {
+    for (const [channel, contract] of Object.entries(
+      LOCAL_SUBTITLE_PUBLIC_OPERATION_CONTRACTS,
+    )) {
+      expect(contract.maxRequestBytes, channel).toBe(
+        LOCAL_SUBTITLE_LIMITS.maxIpcFrameBytes,
+      );
+      const expectedResultBytes =
+        channel === LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.getSessionSnapshot
+          ? LOCAL_SUBTITLE_LIMITS.maxSessionSnapshotBytes
+          : channel === LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.readArtifactText
+            ? LOCAL_SUBTITLE_LIMITS.maxArtifactBytes +
+              LOCAL_SUBTITLE_LIMITS.maxIpcFrameBytes
+            : LOCAL_SUBTITLE_LIMITS.maxIpcFrameBytes;
+      expect(contract.maxResultBytes, channel).toBe(expectedResultBytes);
+    }
+
+    const artifactShell = {
+      format: "SRT" as const,
+      rawText: "",
+      plainText: "",
+      cueCount: 1,
+    };
+    const artifactShellBytes = new TextEncoder().encode(
+      JSON.stringify(artifactShell),
+    ).byteLength;
+    const availableTextBytes =
+      LOCAL_SUBTITLE_LIMITS.maxArtifactBytes - artifactShellBytes;
+    const atArtifactLimit = {
+      ...artifactShell,
+      rawText: "x".repeat(availableTextBytes - 1),
+      plainText: "x",
+    };
+    expect(
+      localSubtitleArtifactTextResultSchema.safeParse(atArtifactLimit).success,
+    ).toBe(true);
+    expect(
+      LOCAL_SUBTITLE_PUBLIC_OPERATION_CONTRACTS[
+        LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.readArtifactText
+      ].resultSchema.safeParse({ ok: true, data: atArtifactLimit }).success,
+    ).toBe(true);
+    expect(
+      localSubtitleArtifactTextResultSchema.safeParse({
+        ...atArtifactLimit,
+        rawText: `${atArtifactLimit.rawText}x`,
+      }).success,
+    ).toBe(false);
+  });
+
+  it("bounds and cross-validates fixed API response summaries", () => {
+    const authorized = validAuthorizedMedia();
+    expect(localSubtitleAuthorizedMediaListSchema.parse([authorized])).toEqual([
+      authorized,
+    ]);
+    expect(
+      localSubtitleAuthorizedMediaListSchema.safeParse([authorized, authorized])
+        .success,
+    ).toBe(false);
+    expect(
+      localSubtitleAuthorizedMediaListSchema.safeParse([
+        { ...authorized, displayName: "/private/sample.wav" },
+      ]).success,
+    ).toBe(false);
+
+    const probe = validMediaProbeSummary();
+    expect(localSubtitleMediaProbeSummarySchema.parse(probe)).toEqual(probe);
+    expect(
+      localSubtitleMediaProbeSummarySchema.safeParse({
+        ...probe,
+        autoSelectedStreamId: "unknown-stream",
+      }).success,
+    ).toBe(false);
+
+    expect(
+      localSubtitleOutputDirectorySelectionSchema.parse({ cancelled: true }),
+    ).toEqual({ cancelled: true });
+    expect(
+      localSubtitleOutputDirectorySelectionSchema.safeParse({
+        cancelled: false,
+        outputDirToken: "output-token",
+        displayLabel: "Exports",
+        expiresAt: Date.now() + 60_000,
+        path: "/private/exports",
+      }).success,
+    ).toBe(false);
+
+    expect(localSubtitleRuntimeSummarySchema.parse(validRuntimeSummary()))
+      .toEqual(validRuntimeSummary());
+    expect(
+      localSubtitleManagedResourceListSchema.parse([validManagedResource()]),
+    ).toEqual([validManagedResource()]);
+    expect(
+      localSubtitleManagedResourceListSchema.safeParse([
+        {
+          ...validManagedResource(),
+          resourceId: "https://example.invalid/model.bin",
+        },
+      ]).success,
+    ).toBe(false);
+    expect(localSubtitleResourceJobSummarySchema.parse(validResourceJob()))
+      .toEqual(validResourceJob());
+  });
+});
 
 describe("local subtitle IPC request contract", () => {
   it("accepts the versioned metadata-only enqueue request", () => {
@@ -398,7 +809,7 @@ describe("local subtitle transcript and task summary schemas", () => {
     expect(validateLocalSubtitleTranscript(unordered).ok).toBe(false);
   });
 
-  it("enforces duration, artifact byte, cue, and text boundaries", () => {
+  it("enforces duration and text boundaries while keeping artifact integrity private", () => {
     const atDurationLimit = validTranscript();
     atDurationLimit.source.durationMs = LOCAL_SUBTITLE_LIMITS.maxDurationMs;
     expect(validateLocalSubtitleTranscript(atDurationLimit).ok).toBe(true);
@@ -419,8 +830,6 @@ describe("local subtitle transcript and task summary schemas", () => {
     const task = completedTaskSummary();
     const committed = task.artifactResults[0];
     if (committed.status !== "committed") throw new Error("fixture mismatch");
-    committed.artifact.byteSize = LOCAL_SUBTITLE_LIMITS.maxArtifactBytes;
-    committed.artifact.cueCount = LOCAL_SUBTITLE_LIMITS.maxArtifactCues;
     const atLimitOutcome = resolveLocalSubtitleTerminalOutcome({
       requestedFormats: task.requestedFormats,
       artifactResults: task.artifactResults,
@@ -431,7 +840,7 @@ describe("local subtitle transcript and task summary schemas", () => {
     task.completion = atLimitOutcome.completion;
     expect(localSubtitleTaskSummarySchema.safeParse(task).success).toBe(true);
 
-    committed.artifact.byteSize = LOCAL_SUBTITLE_LIMITS.maxArtifactBytes + 1;
+    (committed.artifact as any).sha256 = SHA;
     expect(localSubtitleTaskSummarySchema.safeParse(task).success).toBe(false);
   });
 
@@ -490,10 +899,7 @@ describe("local subtitle transcript and task summary schemas", () => {
           artifactRef: "artifact-ref-2",
           displayName: "sample.lrc",
           format: "LRC",
-          byteSize: 64,
-          cueCount: 1,
-          sha256: "b".repeat(64),
-          committedAt: NOW,
+          expiresAt: 1_800_000_000_000,
         },
       },
     ];
@@ -665,10 +1071,7 @@ function completedArtifactResults(): LocalSubtitleArtifactResult[] {
         artifactRef: "artifact-ref-1",
         displayName: "sample.srt",
         format: "SRT",
-        byteSize: 128,
-        cueCount: 1,
-        sha256: SHA,
-        committedAt: NOW,
+        expiresAt: 1_800_000_000_000,
       },
     },
     {
@@ -730,6 +1133,212 @@ function validSessionSnapshot() {
     revision: 6,
     batches: [validBatchSummary()],
     resourceJobs: [],
+  };
+}
+
+function validInternalOperationRequests(): Record<
+  LocalSubtitlePreloadInternalChannel,
+  unknown
+> {
+  return {
+    [LOCAL_SUBTITLE_PRELOAD_INTERNAL_CHANNELS.registerOwnerSession]: {},
+    [LOCAL_SUBTITLE_PRELOAD_INTERNAL_CHANNELS.authorizeInputFiles]: {
+      files: [{ filePath: "/private/sample.wav" }],
+    },
+    [LOCAL_SUBTITLE_PRELOAD_INTERNAL_CHANNELS.revokeInputFile]: {
+      fileToken: "file-token-1",
+    },
+    [LOCAL_SUBTITLE_PRELOAD_INTERNAL_CHANNELS.selectOutputDirectory]: {},
+    [LOCAL_SUBTITLE_PRELOAD_INTERNAL_CHANNELS.revokeOutputDirectory]: {
+      outputDirToken: "output-token-1",
+    },
+    [LOCAL_SUBTITLE_PRELOAD_INTERNAL_CHANNELS.importModel]: {
+      filePath: "/private/model.bin",
+      mode: "copy",
+    },
+  };
+}
+
+function validInternalOperationResults(): Record<
+  LocalSubtitlePreloadInternalChannel,
+  unknown
+> {
+  return {
+    [LOCAL_SUBTITLE_PRELOAD_INTERNAL_CHANNELS.registerOwnerSession]: {
+      ownerSessionId: "owner_session_1234567890",
+    },
+    [LOCAL_SUBTITLE_PRELOAD_INTERNAL_CHANNELS.authorizeInputFiles]: [
+      validAuthorizedMedia(),
+    ],
+    [LOCAL_SUBTITLE_PRELOAD_INTERNAL_CHANNELS.revokeInputFile]: {
+      revoked: true,
+    },
+    [LOCAL_SUBTITLE_PRELOAD_INTERNAL_CHANNELS.selectOutputDirectory]: {
+      cancelled: false,
+      outputDirToken: "output-token-1",
+      displayLabel: "Exports",
+      expiresAt: Date.parse(NOW) + 60_000,
+    },
+    [LOCAL_SUBTITLE_PRELOAD_INTERNAL_CHANNELS.revokeOutputDirectory]: {
+      revoked: true,
+    },
+    [LOCAL_SUBTITLE_PRELOAD_INTERNAL_CHANNELS.importModel]: validResourceJob(),
+  };
+}
+
+function validPublicOperationRequests(): Record<
+  LocalSubtitlePublicInvokeChannel,
+  unknown
+> {
+  return {
+    [LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.probeMedia]: {
+      fileToken: "file-token-1",
+    },
+    [LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.probeRuntime]: {},
+    [LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.listManagedResources]: {},
+    [LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.startResourceInstall]: {
+      resourceId: "model-1",
+    },
+    [LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.cancelResourceJob]: {
+      jobId: "resource-job-1",
+    },
+    [LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.deleteManagedResource]: {
+      resourceId: "model-1",
+    },
+    [LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.getSessionSnapshot]: {},
+    [LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.enqueue]: validEnqueueRequest(),
+    [LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.retryTask]: { taskId: "task-1" },
+    [LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.cancelBatch]: {
+      batchId: "batch-1",
+    },
+    [LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.cancelTask]: { taskId: "task-1" },
+    [LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.removeTask]: { taskId: "task-1" },
+    [LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.readArtifactText]: {
+      artifactRef: "artifact-ref-1",
+    },
+    [LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.revealArtifact]: {
+      artifactRef: "artifact-ref-1",
+    },
+    [LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.handoffArtifact]: {
+      artifactRef: "artifact-ref-1",
+    },
+  };
+}
+
+function validPublicOperationResults(): Record<
+  LocalSubtitlePublicInvokeChannel,
+  unknown
+> {
+  return {
+    [LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.probeMedia]:
+      validMediaProbeSummary(),
+    [LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.probeRuntime]: validRuntimeSummary(),
+    [LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.listManagedResources]: [
+      validManagedResource(),
+    ],
+    [LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.startResourceInstall]:
+      validResourceJob(),
+    [LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.cancelResourceJob]: {
+      cancelled: true,
+    },
+    [LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.deleteManagedResource]: {
+      deleted: true,
+    },
+    [LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.getSessionSnapshot]:
+      validSessionSnapshot(),
+    [LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.enqueue]: validBatchSummary(),
+    [LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.retryTask]: validTaskSummary(),
+    [LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.cancelBatch]: {
+      cancelledTaskIds: ["task-1"],
+    },
+    [LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.cancelTask]: { cancelled: true },
+    [LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.removeTask]: { removed: true },
+    [LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.readArtifactText]: {
+      format: "SRT",
+      rawText: "1\n00:00:01,000 --> 00:00:02,000\nsample\n",
+      plainText: "sample",
+      cueCount: 1,
+    },
+    [LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.revealArtifact]: {
+      revealed: true,
+    },
+    [LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.handoffArtifact]: {
+      translationImportToken: "translation-import-token-1",
+      expiresAt: Date.parse(NOW) + 60_000,
+    },
+  };
+}
+
+function validAuthorizedMedia() {
+  return {
+    fileToken: "file-token-1",
+    displayName: "sample.wav",
+    byteSize: 1024,
+    expiresAt: Date.parse(NOW) + 60_000,
+  };
+}
+
+function validMediaProbeSummary() {
+  return {
+    fileToken: "file-token-1",
+    displayName: "sample.wav",
+    durationMs: 60_000,
+    audioTracks: [
+      {
+        streamId: "stream-1",
+        ordinal: 1,
+        isDefault: true,
+        language: "ja",
+        title: "Main audio",
+        codec: "aac",
+        channels: 2,
+        sampleRateHz: 48_000,
+      },
+    ],
+    autoSelectedStreamId: "stream-1",
+  };
+}
+
+function validRuntimeSummary() {
+  return {
+    schemaVersion: LOCAL_SUBTITLE_DOMAIN_SCHEMA_VERSION,
+    platform: "darwin",
+    arch: "arm64",
+    runtimeGeneration: SHA,
+    runner: {
+      status: "ready",
+      version: LOCAL_SUBTITLE_PRODUCTION_CONTRACT.engine.version,
+    },
+    mediaRuntime: { status: "ready", version: "8.1.2" },
+    backends: [
+      { backend: "metal", status: "available" },
+      { backend: "cpu", status: "available" },
+    ],
+  };
+}
+
+function validManagedResource() {
+  return {
+    resourceId: "model-1",
+    resourceType: "model",
+    displayName: "Large v3 Q5",
+    status: "ready",
+    version: "1",
+    byteSize: 1_081_140_203,
+    isDefault: true,
+    compatibleBackends: ["cpu", "metal"],
+  };
+}
+
+function validResourceJob() {
+  return {
+    jobId: "resource-job-1",
+    resourceId: "model-1",
+    resourceType: "model",
+    status: "queued",
+    progress: 0,
+    createdAt: NOW,
+    updatedAt: NOW,
   };
 }
 

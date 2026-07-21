@@ -10,8 +10,9 @@ interface ImportMeta {
 
 interface Window {
   // expose in the `electron/preload/index.ts`
-  ipcRenderer: import('electron').IpcRenderer
+  ipcRenderer: import('../electron/preload/legacy-ipc-bridge').SafeLegacyIpcBridge
   audioApi: import('@/type/audioIpc').AudioRendererApi
+  localSubtitleApi: import('@/type/localSubtitleIpc').LocalSubtitleRendererApi
   // expose webUtils for file path access (Electron 24+)
   electronUtils: {
     getPathForFile(file: File): string

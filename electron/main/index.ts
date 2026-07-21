@@ -17,6 +17,7 @@ import {
 } from "./text-translation/ipc";
 import { setupAudioIPC } from "./audio/ipc";
 import { setupAudioRealtimeIPC } from "./audio/realtime-ipc";
+import { setupLocalSubtitleIPC } from "./local-subtitle/ipc";
 import { TextTranslationService } from "./text-translation/text-translation-service";
 
 const require = createRequire(import.meta.url);
@@ -164,6 +165,8 @@ async function createWindow() {
 }
 
 app.whenReady().then(() => {
+  // The sync preload handshake must exist before any renderer starts loading.
+  setupLocalSubtitleIPC();
   createWindow();
   setupTranslationIPC(translationService);
   setupPowerIPC(win);
@@ -204,8 +207,8 @@ ipcMain.handle("open-win", (_, arg) => {
   const childWindow = new BrowserWindow({
     webPreferences: {
       preload,
-      nodeIntegration: true,
-      contextIsolation: false,
+      nodeIntegration: false,
+      contextIsolation: true,
     },
   });
 

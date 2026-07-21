@@ -1,0 +1,521 @@
+import {
+  dialog,
+  ipcMain,
+  type IpcMainEvent,
+  type IpcMainInvokeEvent,
+} from "electron";
+import path from "node:path";
+import type { ZodType } from "zod";
+import {
+  createLocalSubtitleError,
+  type LocalSubtitleResourceEventEnvelope,
+  type LocalSubtitleTaskEventEnvelope,
+} from "@/type/localSubtitle";
+import {
+  LOCAL_SUBTITLE_EVENT_CHANNELS,
+  LOCAL_SUBTITLE_INTERNAL_OPERATION_CONTRACTS,
+  LOCAL_SUBTITLE_PRELOAD_INTERNAL_CHANNELS,
+  LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS,
+  LOCAL_SUBTITLE_PUBLIC_OPERATION_CONTRACTS,
+  localSubtitleIpcFailure,
+  localSubtitleIpcSuccess,
+  validateLocalSubtitleControlRequest,
+  validateLocalSubtitleResourceEventEnvelope,
+  validateLocalSubtitleTaskEventEnvelope,
+  type LocalSubtitleIpcResult,
+  type LocalSubtitlePreloadInternalChannel,
+  type LocalSubtitlePublicInvokeChannel,
+} from "@/type/localSubtitleIpc";
+import {
+  LocalSubtitleArtifactAuthorizationRegistry,
+  LocalSubtitleAuthorizationError,
+  LocalSubtitleCapabilityLeaseCoordinator,
+  LocalSubtitleImportTokenRegistry,
+  LocalSubtitleInputAuthorizationRegistry,
+  LocalSubtitleOutputDirectoryAuthorizationRegistry,
+  type LocalSubtitleOwnerKey,
+} from "./authorizations";
+import {
+  sharedLocalSubtitleOwnerSessionRegistry,
+  type AuthorizedLocalSubtitleIpcRequest,
+  type LocalSubtitleOwnerIdentity,
+  type LocalSubtitleOwnerSessionRegistry,
+} from "./ipc-security";
+
+type MaybePromise<T> = T | Promise<T>;
+
+export interface LocalSubtitleIpcHandlerContext {
+  readonly owner: LocalSubtitleOwnerKey;
+  readonly ownerIdentity: LocalSubtitleOwnerIdentity;
+  readonly event: IpcMainInvokeEvent;
+  readonly capabilities: LocalSubtitleIpcCapabilities;
+  readonly isOwnerCurrent: () => boolean;
+}
+
+export type LocalSubtitlePublicIpcHandler = (
+  request: unknown,
+  context: LocalSubtitleIpcHandlerContext,
+) => MaybePromise<LocalSubtitleIpcResult<unknown>>;
+
+export interface LocalSubtitleIpcHandlers {
+  readonly public?: Partial<
+    Record<LocalSubtitlePublicInvokeChannel, LocalSubtitlePublicIpcHandler>
+  >;
+  readonly importModel?: (
+    request: { readonly filePath: string; readonly mode: "copy" | "move" },
+    context: LocalSubtitleIpcHandlerContext,
+  ) => MaybePromise<LocalSubtitleIpcResult<unknown>>;
+  readonly onOwnerReleased?: (owner: LocalSubtitleOwnerIdentity) => void;
+}
+
+export interface LocalSubtitleIpcCapabilities {
+  readonly inputs: LocalSubtitleInputAuthorizationRegistry;
+  readonly outputs: LocalSubtitleOutputDirectoryAuthorizationRegistry;
+  readonly leases: LocalSubtitleCapabilityLeaseCoordinator;
+  readonly artifacts: LocalSubtitleArtifactAuthorizationRegistry<unknown>;
+  readonly importTokens: LocalSubtitleImportTokenRegistry<unknown>;
+}
+
+export type LocalSubtitleOutputDirectorySelector = () => Promise<{
+  readonly canceled: boolean;
+  readonly filePaths: readonly string[];
+}>;
+
+export interface LocalSubtitleIpcServiceOptions {
+  readonly ownerSessions?: LocalSubtitleOwnerSessionRegistry;
+  readonly capabilities?: Partial<LocalSubtitleIpcCapabilities>;
+  readonly handlers?: LocalSubtitleIpcHandlers;
+  readonly selectOutputDirectory?: LocalSubtitleOutputDirectorySelector;
+}
+
+export class LocalSubtitleIpcService {
+  readonly ownerSessions: LocalSubtitleOwnerSessionRegistry;
+  readonly capabilities: LocalSubtitleIpcCapabilities;
+  private readonly handlers: LocalSubtitleIpcHandlers;
+  private readonly selectOutputDirectoryImpl: LocalSubtitleOutputDirectorySelector;
+
+  constructor(options: LocalSubtitleIpcServiceOptions = {}) {
+    this.ownerSessions =
+      options.ownerSessions ?? sharedLocalSubtitleOwnerSessionRegistry;
+    const inputs =
+      options.capabilities?.inputs ??
+      new LocalSubtitleInputAuthorizationRegistry();
+    const outputs =
+      options.capabilities?.outputs ??
+      new LocalSubtitleOutputDirectoryAuthorizationRegistry();
+    this.capabilities = {
+      inputs,
+      outputs,
+      leases:
+        options.capabilities?.leases ??
+        new LocalSubtitleCapabilityLeaseCoordinator(inputs, outputs),
+      artifacts:
+        options.capabilities?.artifacts ??
+        new LocalSubtitleArtifactAuthorizationRegistry<unknown>(),
+      importTokens:
+        options.capabilities?.importTokens ??
+        new LocalSubtitleImportTokenRegistry<unknown>(),
+    };
+    this.handlers = options.handlers ?? {};
+    this.selectOutputDirectoryImpl =
+      options.selectOutputDirectory ??
+      (() =>
+        dialog.showOpenDialog({
+          title: "Select subtitle output directory",
+          buttonLabel: "Select directory",
+          properties: ["openDirectory", "createDirectory"],
+        }));
+  }
+
+  registerOwnerSession(
+    event: IpcMainEvent,
+    request: unknown,
+  ): LocalSubtitleIpcResult<unknown> {
+    const channel =
+      LOCAL_SUBTITLE_PRELOAD_INTERNAL_CHANNELS.registerOwnerSession;
+    const contract = LOCAL_SUBTITLE_INTERNAL_OPERATION_CONTRACTS[channel];
+    const validation = validateLocalSubtitleControlRequest(
+      contract.requestSchema as ZodType<unknown>,
+      request,
+    );
+    if (!validation.ok) return validation;
+
+    return validateOperationResult(
+      contract.resultSchema,
+      this.ownerSessions.register(event),
+    );
+  }
+
+  async handlePublic(
+    channel: string,
+    event: IpcMainInvokeEvent,
+    envelope: unknown,
+  ): Promise<LocalSubtitleIpcResult<unknown>> {
+    if (!isPublicChannel(channel)) return invalidChannelFailure();
+    const authorization = this.ownerSessions.authorize<unknown>(event, envelope);
+    if (!authorization.ok) return authorization;
+
+    const contract = LOCAL_SUBTITLE_PUBLIC_OPERATION_CONTRACTS[channel];
+    const validation = validateLocalSubtitleControlRequest(
+      contract.requestSchema as ZodType<unknown>,
+      authorization.data.payload,
+    );
+    if (!validation.ok) return validation;
+
+    const handler = this.handlers.public?.[channel];
+    if (!handler) return unavailableOperationFailure(channel);
+
+    const context = this.createContext(authorization.data, event);
+    try {
+      const result = await handler(validation.data, context);
+      if (!this.ownerSessions.isCurrent(context.ownerIdentity)) {
+        return ownerReleasedFailure();
+      }
+      return validateOperationResult(contract.resultSchema, result);
+    } catch (error) {
+      return toLocalSubtitleIpcFailure(error);
+    }
+  }
+
+  async handleInternal(
+    channel: string,
+    event: IpcMainInvokeEvent,
+    envelope: unknown,
+  ): Promise<LocalSubtitleIpcResult<unknown>> {
+    if (!isInternalChannel(channel)) return invalidChannelFailure();
+    if (channel === LOCAL_SUBTITLE_PRELOAD_INTERNAL_CHANNELS.registerOwnerSession) {
+      return invalidChannelFailure();
+    }
+
+    const authorization = this.ownerSessions.authorize<unknown>(event, envelope);
+    if (!authorization.ok) return authorization;
+    const contract = LOCAL_SUBTITLE_INTERNAL_OPERATION_CONTRACTS[channel];
+    const validation = validateLocalSubtitleControlRequest(
+      contract.requestSchema as ZodType<unknown>,
+      authorization.data.payload,
+    );
+    if (!validation.ok) return validation;
+
+    const context = this.createContext(authorization.data, event);
+    try {
+      const result = await this.runInternal(channel, validation.data, context);
+      if (!this.ownerSessions.isCurrent(context.ownerIdentity)) {
+        return ownerReleasedFailure();
+      }
+      return validateOperationResult(contract.resultSchema, result);
+    } catch (error) {
+      return toLocalSubtitleIpcFailure(error);
+    }
+  }
+
+  emitTaskEvent(
+    owner: LocalSubtitleOwnerIdentity,
+    payload: LocalSubtitleTaskEventEnvelope,
+  ): boolean {
+    const validation = validateLocalSubtitleTaskEventEnvelope(payload);
+    if (!validation.ok) return false;
+    return this.ownerSessions.sendToOwner(
+      owner,
+      LOCAL_SUBTITLE_EVENT_CHANNELS.taskEvent,
+      validation.data,
+    );
+  }
+
+  emitResourceEvent(
+    owner: LocalSubtitleOwnerIdentity,
+    payload: LocalSubtitleResourceEventEnvelope,
+  ): boolean {
+    const validation = validateLocalSubtitleResourceEventEnvelope(payload);
+    if (!validation.ok) return false;
+    return this.ownerSessions.sendToOwner(
+      owner,
+      LOCAL_SUBTITLE_EVENT_CHANNELS.resourceEvent,
+      validation.data,
+    );
+  }
+
+  releaseOwner(owner: LocalSubtitleOwnerIdentity): void {
+    const ownerKey = toOwnerKey(owner);
+    try {
+      this.handlers.onOwnerReleased?.(owner);
+    } finally {
+      this.capabilities.inputs.releaseOwner(ownerKey);
+      this.capabilities.outputs.releaseOwner(ownerKey);
+      this.capabilities.artifacts.releaseOwner(ownerKey);
+      this.capabilities.importTokens.releaseOwner(ownerKey);
+    }
+  }
+
+  private async runInternal(
+    channel: Exclude<
+      LocalSubtitlePreloadInternalChannel,
+      typeof LOCAL_SUBTITLE_PRELOAD_INTERNAL_CHANNELS.registerOwnerSession
+    >,
+    request: unknown,
+    context: LocalSubtitleIpcHandlerContext,
+  ): Promise<LocalSubtitleIpcResult<unknown>> {
+    switch (channel) {
+      case LOCAL_SUBTITLE_PRELOAD_INTERNAL_CHANNELS.authorizeInputFiles: {
+        const { files } = request as {
+          readonly files: readonly { readonly filePath: string }[];
+        };
+        const authorizations = await this.capabilities.inputs.authorizeMany(
+          context.owner,
+          files.map((file) => file.filePath),
+        );
+        return localSubtitleIpcSuccess(authorizations);
+      }
+      case LOCAL_SUBTITLE_PRELOAD_INTERNAL_CHANNELS.revokeInputFile: {
+        const { fileToken } = request as { readonly fileToken: string };
+        return localSubtitleIpcSuccess({
+          revoked: this.capabilities.inputs.revokeDraft(
+            context.owner,
+            fileToken,
+          ),
+        });
+      }
+      case LOCAL_SUBTITLE_PRELOAD_INTERNAL_CHANNELS.selectOutputDirectory: {
+        const selected = await this.selectOutputDirectoryImpl();
+        const directoryPath = selected.filePaths[0];
+        if (selected.canceled || !directoryPath) {
+          return localSubtitleIpcSuccess({ cancelled: true });
+        }
+        if (!this.ownerSessions.isCurrent(context.ownerIdentity)) {
+          return ownerReleasedFailure();
+        }
+        const authorization = await this.capabilities.outputs.authorize(
+          context.owner,
+          directoryPath,
+        );
+        return localSubtitleIpcSuccess({
+          cancelled: false,
+          outputDirToken: authorization.outputDirToken,
+          displayLabel: authorization.directoryName,
+          expiresAt: authorization.expiresAt,
+        });
+      }
+      case LOCAL_SUBTITLE_PRELOAD_INTERNAL_CHANNELS.revokeOutputDirectory: {
+        const { outputDirToken } = request as {
+          readonly outputDirToken: string;
+        };
+        return localSubtitleIpcSuccess({
+          revoked: this.capabilities.outputs.revokeDraft(
+            context.owner,
+            outputDirToken,
+          ),
+        });
+      }
+      case LOCAL_SUBTITLE_PRELOAD_INTERNAL_CHANNELS.importModel: {
+        if (!this.handlers.importModel) {
+          return resourceManagerUnavailableFailure();
+        }
+        const importRequest = request as {
+          readonly filePath: string;
+          readonly mode: "copy" | "move";
+        };
+        if (!path.isAbsolute(importRequest.filePath)) {
+          return invalidRequestFailure(
+            "Local subtitle model import requires a selected file.",
+            "filePath",
+          );
+        }
+        return this.handlers.importModel(
+          importRequest,
+          context,
+        );
+      }
+    }
+  }
+
+  private createContext(
+    authorization: AuthorizedLocalSubtitleIpcRequest<unknown>,
+    event: IpcMainInvokeEvent,
+  ): LocalSubtitleIpcHandlerContext {
+    const ownerIdentity: LocalSubtitleOwnerIdentity = {
+      ownerSessionId: authorization.ownerSessionId,
+      senderId: authorization.senderId,
+      processId: authorization.processId,
+      frameId: authorization.frameId,
+    };
+    return {
+      owner: toOwnerKey(ownerIdentity),
+      ownerIdentity,
+      event,
+      capabilities: this.capabilities,
+      isOwnerCurrent: () => this.ownerSessions.isCurrent(ownerIdentity),
+    };
+  }
+}
+
+export function setupLocalSubtitleIPC(
+  service = new LocalSubtitleIpcService(),
+): LocalSubtitleIpcService {
+  const registerChannel =
+    LOCAL_SUBTITLE_PRELOAD_INTERNAL_CHANNELS.registerOwnerSession;
+  ipcMain.on(registerChannel, (event, request: unknown) => {
+    event.returnValue = service.registerOwnerSession(event, request);
+  });
+
+  for (const channel of Object.values(
+    LOCAL_SUBTITLE_PRELOAD_INTERNAL_CHANNELS,
+  )) {
+    if (channel === registerChannel) continue;
+    ipcMain.handle(channel, (event, envelope: unknown) =>
+      service.handleInternal(channel, event, envelope),
+    );
+  }
+
+  for (const channel of Object.values(LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS)) {
+    ipcMain.handle(channel, (event, envelope: unknown) =>
+      service.handlePublic(channel, event, envelope),
+    );
+  }
+
+  service.ownerSessions.onOwnerReleased((owner) => service.releaseOwner(owner));
+  return service;
+}
+
+function validateOperationResult(
+  schema: { safeParse(value: unknown): { success: boolean; data?: unknown } },
+  result: unknown,
+): LocalSubtitleIpcResult<unknown> {
+  const validation = schema.safeParse(result);
+  if (validation.success) {
+    return validation.data as LocalSubtitleIpcResult<unknown>;
+  }
+  return localSubtitleIpcFailure(
+    createLocalSubtitleError(
+      "invalid_content",
+      "Local subtitle IPC handler returned an invalid response.",
+      { stage: "ipc" },
+    ),
+  );
+}
+
+function toLocalSubtitleIpcFailure(
+  error: unknown,
+): LocalSubtitleIpcResult<never> {
+  if (error instanceof LocalSubtitleAuthorizationError) {
+    return localSubtitleIpcFailure(
+      createLocalSubtitleError(error.code, error.message, {
+        ...(error.field ? { field: error.field } : {}),
+      }),
+    );
+  }
+  return localSubtitleIpcFailure(
+    createLocalSubtitleError(
+      "invalid_ipc_request",
+      "Local subtitle IPC request could not be completed.",
+    ),
+  );
+}
+
+function unavailableOperationFailure(
+  channel: LocalSubtitlePublicInvokeChannel,
+): LocalSubtitleIpcResult<never> {
+  if (
+    channel === LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.readArtifactText ||
+    channel === LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.revealArtifact
+  ) {
+    return localSubtitleIpcFailure(
+      createLocalSubtitleError(
+        "artifact_expired",
+        "Local subtitle artifact service is unavailable.",
+      ),
+    );
+  }
+  if (channel === LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.handoffArtifact) {
+    return localSubtitleIpcFailure(
+      createLocalSubtitleError(
+        "configuration_not_ready",
+        "Local subtitle handoff service is unavailable.",
+      ),
+    );
+  }
+  if (
+    channel === LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.listManagedResources ||
+    channel === LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.startResourceInstall ||
+    channel === LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.cancelResourceJob ||
+    channel === LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.deleteManagedResource
+  ) {
+    return resourceManagerUnavailableFailure();
+  }
+  if (channel === LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.probeMedia) {
+    return localSubtitleIpcFailure(
+      createLocalSubtitleError(
+        "media_runtime_missing",
+        "Local subtitle media service is unavailable.",
+      ),
+    );
+  }
+  return localSubtitleIpcFailure(
+    createLocalSubtitleError(
+      "runtime_missing",
+      "Local subtitle task service is unavailable.",
+    ),
+  );
+}
+
+function resourceManagerUnavailableFailure(): LocalSubtitleIpcResult<never> {
+  return localSubtitleIpcFailure(
+    createLocalSubtitleError(
+      "resource_not_allowed",
+      "Local subtitle resource service is unavailable.",
+    ),
+  );
+}
+
+function ownerReleasedFailure(): LocalSubtitleIpcResult<never> {
+  return localSubtitleIpcFailure(
+    createLocalSubtitleError(
+      "owner_released",
+      "Local subtitle IPC owner session is unavailable.",
+    ),
+  );
+}
+
+function invalidChannelFailure(): LocalSubtitleIpcResult<never> {
+  return localSubtitleIpcFailure(
+    createLocalSubtitleError(
+      "invalid_ipc_request",
+      "Local subtitle IPC channel is not allowed.",
+    ),
+  );
+}
+
+function invalidRequestFailure(
+  message: string,
+  field?: string,
+): LocalSubtitleIpcResult<never> {
+  return localSubtitleIpcFailure(
+    createLocalSubtitleError("invalid_ipc_request", message, {
+      ...(field ? { field } : {}),
+    }),
+  );
+}
+
+function toOwnerKey(owner: LocalSubtitleOwnerIdentity): LocalSubtitleOwnerKey {
+  return {
+    webContentsId: owner.senderId,
+    ownerSessionId: owner.ownerSessionId,
+  };
+}
+
+const PUBLIC_CHANNELS = new Set<string>(
+  Object.values(LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS),
+);
+const INTERNAL_CHANNELS = new Set<string>(
+  Object.values(LOCAL_SUBTITLE_PRELOAD_INTERNAL_CHANNELS),
+);
+
+function isPublicChannel(
+  channel: string,
+): channel is LocalSubtitlePublicInvokeChannel {
+  return PUBLIC_CHANNELS.has(channel);
+}
+
+function isInternalChannel(
+  channel: string,
+): channel is LocalSubtitlePreloadInternalChannel {
+  return INTERNAL_CHANNELS.has(channel);
+}

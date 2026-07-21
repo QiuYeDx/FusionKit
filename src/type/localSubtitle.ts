@@ -289,10 +289,7 @@ export interface GeneratedSubtitleArtifactSummary {
   readonly artifactRef: string;
   readonly displayName: string;
   readonly format: LocalSubtitleFormat;
-  readonly byteSize: number;
-  readonly cueCount: number;
-  readonly sha256: string;
-  readonly committedAt: string;
+  readonly expiresAt: number;
 }
 
 export type LocalSubtitleArtifactResult =

@@ -6,7 +6,7 @@
 >
 > 对应设计文档：`docs/v0.2.11/local-subtitle-transcriber/local-subtitle-transcriber_final_design.md`
 >
-> 当前状态：`PRE-001`～`PRE-006` 与 `CORE-001`～`CORE-002` 已完成，M0、共享 domain/runtime schema 和 versioned resource manifest/resolver/staging contract 已冻结；Windows 使用 `unsigned_personal_distribution`。下一步优先认领 `CORE-003`，正式 native artifact / builder 接线仍由 `NATIVE-002` 完成
+> 当前状态：`PRE-001`～`PRE-006` 与 `CORE-001`～`CORE-003` 已完成，M0、共享 domain/runtime schema、versioned resource staging 与 preload/IPC/capability contract 已冻结；Windows 使用 `unsigned_personal_distribution`。下一步优先认领 `CORE-004` 或 `NATIVE-001`，正式 native artifact / builder 接线仍由 `NATIVE-002` 完成
 >
 > 发布门禁：M0 已解除；正式实现必须遵守 `poc/pre006-production-decision.json`，不得静默更换引擎、平台、模型或 runtime acquisition policy
 >
@@ -33,6 +33,8 @@
 > 2026-07-21 CORE-001 完成：新增独立 domain/IPC runtime schema，冻结 PRE-006 pins、v1 上限、immutable batch snapshot、10×10 状态迁移、full/partial/none-success、post-action、error manifest、canonical transcript 与 revision/generation 合同；普通 request/event 与 session snapshot 分别使用 256 KiB / 4 MiB UTF-8 frame gate，strict schema 拒绝 raw path、任意 executable/args/backend flags、未知字段和未发布 Vulkan。57 项定向 Vitest、TypeScript、manifest drift 与 Audio IPC 回归通过；channel/owner/native HTTP/resource resolver 未跨包实现
 
 > 2026-07-21 CORE-002 完成：新增 production strict/deep-frozen runtime manifest、显式 dev/packaged resolver、完整 Windows base artifact/evidence profile、symlink/containment/size/SHA/arch/execute/signature gate，以及共享 versioned staging contract/canonical preflight。CORE-002 定向 42 项、CORE+Audio 117 项、全量 918 项 Vitest 与 TypeScript/manifest/Node gate 通过；正式 `extraResources`、真实 artifact 和 launch/HTTP probe 未跨包实现
+
+> 2026-07-21 CORE-003 完成：新增完整 fixed preload API、15 public / 6 internal / 2 event exact channel、main-issued document owner session、独立 input/output/artifact/import registry、draft→task/batch atomic lease 与双向 runtime schema gate；legacy bridge 不再暴露 raw Electron event，子窗口不能绕过 private channel。真实业务 handler 与 cleanup retry 没有跨包伪实现
 
 ---
 
@@ -313,7 +315,7 @@ flowchart TD
 | PRE-006 | 已完成 | 2026-07-18 | PRE-003/004/005 | PoC 评审与 production 技术冻结 | `poc/pre006-production-decision.json`、`poc/third-party-candidates.json`、manifest validator/tests、Final Design、license records | 五项 decision 全部 `go`；manifest 0 error/0 warning；validator 17/17、PRE benchmark 26/26、runtime 38/38；exact pins/URL/platform/profile/model/media/quality/evidence drift tests 通过 | `docs/v0.2.11/local-subtitle-transcriber/local-subtitle-transcriber_implementation_records/2026-07-18_PRE-006_production-technology-freeze.md` | 无 PRE blocker；M0 已解除，`CORE-001`～`CORE-002` 已完成；QA-005 保留分发前 notices/source-offer/NVIDIA DLL 复核 |
 | CORE-001 | 已完成 | 2026-07-21 | PRE-006 | domain、状态机、事件、错误与 runtime schema | `src/type/localSubtitle.ts`、`src/type/localSubtitleIpc.ts`、两份 tests、Final Design | 定向 Vitest 2 files / 57 tests、全量 95 files / 876 tests；10×10 transition、full/partial/none-success、取消后 commit、revision/generation、post-action/status 跨字段约束、strict injection/UTF-8 limits/round-trip/PRE drift/Audio 隔离；tsc、manifest validator、diff check 通过 | `docs/v0.2.11/local-subtitle-transcriber/local-subtitle-transcriber_implementation_records/2026-07-21_CORE-001_domain-state-schema.md` | 无；channel/owner capability 留 `CORE-003`，native HTTP 留 `NATIVE-001`，resource manifest/resolver 留 `CORE-002`；已知 PRE-005 跨平台 PATH fixture 红灯单独处理 |
 | CORE-002 | 已完成 | 2026-07-21 | PRE-006 | 资源 manifest、路径 resolver 与构建 staging 合同 | `electron/main/local-subtitle/resource-{manifest,path}.ts`、`resources/local-subtitle/manifests/local-subtitle-staging.v1.json`、staging/runtime scripts、tests、`.gitignore` | CORE-002 Vitest 2 files / 42 tests；CORE+Audio 5 files / 117 tests；全量 97 files / 918 tests；staging/runtime Node 35 tests（34 pass / 1 Windows-only skip）；完整 Node 104 tests（102 pass / 1 fail / 1 skip）；tsc、manifest 0/0、PRE validator 17/17 | `docs/v0.2.11/local-subtitle-transcriber/local-subtitle-transcriber_implementation_records/2026-07-21_CORE-002_resource-manifest-resolver-staging.md` | 无；正式 artifact、`extraResources` / `beforePack` / sign ignore 留 `NATIVE-002`，server/media launch probe 留 `NATIVE-001` / `MEDIA-001`；既有 PRE-005 PATH fixture 红灯单独修复 |
-| CORE-003 | 未开始 | — | CORE-001 | preload、IPC、文件/目录 capability 安全边界 | preload policy、`electron/main/local-subtitle/ipc.ts`、authorization tests | complete fixed API、public/internal channel、owner、TTL、draft→task lease、revoke、path containment | — | 不复用 audio registry；禁止 resource URL/path 输入 |
+| CORE-003 | 已完成 | 2026-07-21 | CORE-001 | preload、IPC、文件/目录 capability 安全边界 | `src/type/localSubtitleIpc.ts`、`electron/preload/local-subtitle-*`、`electron/main/local-subtitle/{ipc-security,authorizations,ipc}.ts`、tests | CORE-003/domain/Audio isolation 10 files / 134 tests；全量 103 files / 975 tests；tsc、Vite test build、manifest 17/17、diff check | `docs/v0.2.11/local-subtitle-transcriber/local-subtitle-transcriber_implementation_records/2026-07-21_CORE-003_preload-ipc-capability-boundary.md` | 真实 media/model/task/artifact handler 留后续 owner 包；旧工具 raw-path bridge 不能换取 local authority，待全消费者迁移后删除 |
 | CORE-004 | 未开始 | — | CORE-001/003 | Renderer 偏好 Store、事件 reducer 与 cleanup retry | `src/store/tools/subtitle/useLocalSubtitleTranscriberStore.ts`、runtime service/tests | persist partialize、subscribe→snapshot revision reconcile、stale generation、revoke retry、SPA remount | — | token/任务不得持久化，listener 不归页面组件独占 |
 | NATIVE-001 | 未开始 | — | PRE-006/CORE-001 | 正式 official server runtime contract | runtime manifest、HTTP schema、Node contract tests | private loopback/health/inference schema、single active request、model reuse、abort/kill、diagnostic bounds | — | 固定上游 release/build 并保留 MIT notice；只有证据需要时才建 native bridge |
 | NATIVE-002 | 未开始 | — | NATIVE-001/CORE-002 | 三类 official server artifact、runtime manifest 与 builder 接线 | staging/source-build scripts、resource manifests、`electron-builder.json`、可选 workflow | win-x64 CPU/CUDA、mac-arm64 Metal/CPU artifact + packaged smoke + SHA manifest | — | 签名凭据不得进入仓库；staging 缺失必须在打包前明确失败 |
@@ -497,9 +499,13 @@ PRE-005 已完成。Windows 未创建证书、未修改 `CurrentUser` 信任库�
 - main/preload 私有握手为当前 document/frame 签发 `ownerSessionId`，只保存在 preload 闭包；固定方法用 `webUtils.getPathForFile()` 获取路径并通过私有 channel 授权，公共调用只能传 token，不能自填 owner/session。
 - 文件、输出目录、artifact ref/import token 分 registry，绑定 owner/TTL/allowed operations；路径 resolve 后检查 containment，并覆盖 symlink/junction/reparse 风险。batch commit 原子把 draft capability 转为 task lease，普通页面 cleanup 不能撤销 active lease。
 - 固化首版完整 fixed API：media probe、input/output revoke、managed resource list/install/cancel/delete、session snapshot、enqueue/retry、batch/task cancel、remove、artifact read/reveal/handoff 和 task/resource event；resource install 只接受 manifest `resourceId`，不接受 URL/path。
-- renderer cleanup queue 同时处理 rejected Promise、`ok:false` 和幂等 `revoked:false`，SPA 卸载后继续有界重试。
+- revoke result 固定为 strict `{ revoked: boolean }`，其中 `revoked:false` 是幂等成功且不能撤销 active lease；处理 rejected Promise、`ok:false` 与 SPA 卸载重试的 renderer cleanup queue 由 `CORE-004` 实现。
 
-验收口径：首版 UI 承诺的 fixed API 均有 schema/policy 测试；内部/prefix-confusable channel 和任意 resource URL/path 均被拒绝；跨 webContents/session、reload/navigation 后重放、过期、重复消费、draft→task lease 半提交、目录逃逸和失败 revoke 测试通过。
+验收口径：首版 UI 承诺的 fixed API 均有 schema/policy 测试；内部/prefix-confusable channel 和任意 resource URL/path 均被拒绝；跨 webContents/session、reload/navigation 后重放、过期、重复消费、draft→task lease 半提交、目录逃逸和幂等 revoke 测试通过。
+
+截至 2026-07-21，本工作包已完成。preload 只暴露 fixed `localSubtitleApi`，owner session 留在闭包；main 对 request 与 handler result 双向执行 strict/byte-budget schema，future manager 只能按 exact channel 注入。owner registry 绑定 top document/frame，lifecycle release 只通知一次；input/output capability 使用 kind prefix、owner/TTL/op/filesystem identity 与 reserve/commit/rollback，显式短 lease 过期后不能提交。artifact ref/import token 只提供后续包所需的 owner/TTL/op/one-shot dispose/quota 骨架。main 默认返回稳定 unavailable error，不把尚未实现的 media/model/task/artifact 能力伪装为成功。
+
+同包修复了两个会绕过边界的既有入口：`open-win` 不再启用 Node integration，legacy event bridge 丢弃 raw `IpcRendererEvent`、不返回底层 transport，并能按同一 wrapper 正确 `off`。现有 Subtitle/Text/Rename/HomeAgent 仍使用全局 raw-path compatibility bridge；它不能提交 path/owner 到 local namespace，也不能调用 private channel，但 app-wide path confidentiality 仍需按 `FK-PIT-0022` 在全部旧消费者迁移后收口，不能在本包直接删除造成回归。真实 enqueue 与 lease 集成留 `BE-002`，media/runtime/model/artifact/handoff handler 分别留其 owner 包，cleanup retry 留 `CORE-004`。
 
 ### CORE-004：Renderer 偏好 Store、事件 reducer 与 cleanup retry
 
@@ -1045,6 +1051,6 @@ git diff --check
 
 ## 12. 下一步建议
 
-`PRE-001`～`PRE-006` 与 `CORE-001`～`CORE-002` 已完成，M0、共享 domain/runtime schema 和 resource manifest/resolver/staging contract 已冻结。下一步优先认领 `CORE-003`（preload/IPC/capability）；`NATIVE-001`、`MEDIA-001`、`SUB-001`、`LINK-001` 也可按依赖独立推进，但每次会话仍只认领一个闭环包。实现必须以 `poc/pre006-production-decision.json` 为唯一技术冻结记录，并复用已冻结版本、error、limit 和 staging contract。
+`PRE-001`～`PRE-006` 与 `CORE-001`～`CORE-003` 已完成，M0、共享 domain/runtime schema、resource manifest/resolver/staging 和 preload/IPC/capability contract 已冻结。下一步优先认领 `CORE-004`（renderer 偏好、event reducer、cleanup retry）或 `NATIVE-001`（official server runtime contract）；`MEDIA-001`、`SUB-001`、`LINK-001` 也可按依赖独立推进，但每次会话仍只认领一个闭环包。实现必须以 `poc/pre006-production-decision.json` 为唯一技术冻结记录，并复用已冻结版本、error、limit 和 staging contract。
 
 模型和 official runtime 继续只下载到 Git 忽略目录，hash 只作来源/完整性门禁。系统 PATH 中的 FFmpeg 仍只作开发 PoC，不是发行资源或最终用户前置条件。正式开发继续由 Node 直接管理 official server；Windows 无需 CMake/MSVC，FusionKit C++ runner 不是当前方案依赖。Windows 保持 unsigned personal profile；QA-005 在分发前核对 notices/source offers/NVIDIA DLL，但不会要求证书或信任库变更。

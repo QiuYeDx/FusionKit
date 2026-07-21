@@ -906,10 +906,7 @@ function committed(
       artifactRef: `artifact-${format.toLowerCase()}`,
       displayName: `episode.${format.toLowerCase()}`,
       format: artifactFormat,
-      byteSize: 128,
-      cueCount: 2,
-      sha256: format === "SRT" ? "a".repeat(64) : "b".repeat(64),
-      committedAt: "2026-07-21T00:01:00.000Z",
+      expiresAt: 1_800_000_000_000,
     },
   };
 }
