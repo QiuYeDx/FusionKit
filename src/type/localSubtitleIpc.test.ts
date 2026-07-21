@@ -519,6 +519,20 @@ describe("local subtitle IPC request contract", () => {
     });
   });
 
+  it("requires an explicit VAD preference in every enqueue request", () => {
+    const enabled = validEnqueueRequest();
+    enabled.config.vadEnabled = true;
+    expect(validateEnqueueLocalSubtitleBatchRequest(enabled).ok).toBe(true);
+
+    const disabled = validEnqueueRequest();
+    disabled.config.vadEnabled = false;
+    expect(validateEnqueueLocalSubtitleBatchRequest(disabled).ok).toBe(true);
+
+    const missing = validEnqueueRequest() as any;
+    delete missing.config.vadEnabled;
+    expect(validateEnqueueLocalSubtitleBatchRequest(missing).ok).toBe(false);
+  });
+
   it("enforces output and post-action discriminants", () => {
     const duplicateFormats = validEnqueueRequest();
     duplicateFormats.config.output.formats = ["SRT", "SRT"];
@@ -683,6 +697,16 @@ describe("local subtitle event and snapshot schemas", () => {
     const injected = structuredClone(snapshot) as any;
     injected.batches[0].tasks[0].outputPath = "/private/subtitles/sample.srt";
     expect(validateLocalSubtitleSessionSnapshot(injected).ok).toBe(false);
+  });
+
+  it("requires snapshot batch status to match the shared task aggregate", () => {
+    const snapshot = structuredClone(validSessionSnapshot()) as any;
+    snapshot.batches[0]!.status = "running";
+
+    expect(validateLocalSubtitleSessionSnapshot(snapshot)).toMatchObject({
+      ok: false,
+      error: { code: "invalid_ipc_request", field: "batches.0.status" },
+    });
   });
 
   it("uses the larger snapshot frame budget without weakening strict parsing", () => {
@@ -1000,6 +1024,7 @@ function validEnqueueRequest() {
       language: "auto",
       taskMode: "transcribe" as const,
       qualityPreset: "subtitle_quality" as const,
+      vadEnabled: true,
       advanced: {
         initialPrompt: "optional prompt",
         beamSize: 5,
@@ -1116,6 +1141,7 @@ function validBatchSummary(): LocalSubtitleBatchSummary {
       language: "auto",
       taskMode: "transcribe",
       qualityPreset: "subtitle_quality",
+      vadEnabled: true,
       outputFormats: ["SRT", "LRC"],
       outputMode: "source",
       conflictPolicy: "index",

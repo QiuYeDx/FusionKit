@@ -4,7 +4,7 @@
 >
 > Feature Slug：`local-subtitle-transcriber`
 >
-> 状态：调研、Final Design、`PRE-001`～`PRE-006` 技术冻结与 `CORE-001`～`CORE-003` 已完成。production decision record 固定 `whisper.cpp v1.9.1`、Node-managed HTTP contract v1、`large-v3-q5_0` 首发默认、跨平台 FFmpeg 8.1.2、Windows unsigned personal profile 与目标平台矩阵；shared schema、resource staging 与独立 preload/IPC/capability 安全边界已冻结，下一步优先执行 `CORE-004` 或 `NATIVE-001`
+> 状态：调研、Final Design、`PRE-001`～`PRE-006` 技术冻结与 `CORE-001`～`CORE-004` 已完成。production decision record 固定 `whisper.cpp v1.9.1`、Node-managed HTTP contract v1、`large-v3-q5_0` 首发默认、跨平台 FFmpeg 8.1.2、Windows unsigned personal profile 与目标平台矩阵；shared schema、resource staging、独立 preload/IPC/capability 安全边界和 renderer 会话状态合同已冻结，下一步执行 `NATIVE-001`
 >
 > 产品定位：使用本地算力把批量音频/视频转成可直接翻译的 SRT/LRC 字幕
 >
@@ -41,6 +41,8 @@
 > 2026-07-21 CORE-002 完成：新增 production strict runtime manifest、dev/packaged resource resolver、完整 Windows CPU DLL/profile/evidence 绑定、symlink/containment/size/SHA/arch/execute/signature gate，以及共享的 versioned staging contract/canonical preflight。CORE-002 定向 42 项、CORE+Audio 117 项、全量 918 项 Vitest 与 TypeScript/manifest/Node gate 通过；正式 `extraResources`、真实 artifact 和 launch/HTTP probe 仍分别属于 `NATIVE-002`、`NATIVE-001` / `MEDIA-001`
 
 > 2026-07-21 CORE-003 完成：冻结 15 个 public invoke、6 个 preload-private、2 个 event channel 和完整 fixed `window.localSubtitleApi`；main 为 top document/frame 签发私有 owner session，input/output draft capability、atomic task/batch lease、artifact ref/import token 骨架均独立于 Audio registry。legacy generic bridge 拒绝整个 namespace、丢弃 raw Electron event，并修复同源子窗口的 `nodeIntegration` 绕过。公开 artifact summary 收口为 ref/format/displayName/expiry，size/hash/path 保持 main-private；真实 media/model/task/artifact handler 仍分别属于后续 owner 包
+
+> 2026-07-21 CORE-004 完成：新增仅持久化安全偏好的 `fusionkit-local-subtitle-transcriber` Store、共享 task/resource revision reducer、SPA 级 runtime singleton 与 draft capability cleanup retry。runtime 先订阅后取快照，保留缓冲事件的 identity/generation observation，处理 gap、overflow、stale generation、tombstone、epoch invalidation 和 observer failure；prompt、File、token、task、artifact、字幕正文、路径及诊断均不持久化。9 files / 132 tests 定向、全量 109 files / 1034 tests、TypeScript、Vite test build 与 manifest gate 通过
 
 ---
 
@@ -539,7 +541,9 @@ interface LocalSubtitleSessionSnapshot {
 }
 ```
 
-同一 owner session 的 `revision` 单调递增。renderer service 先注册 listener，再读取 snapshot，以 revision 合并两者；重复、倒序或旧 generation 事件不得覆盖新状态。旧 task generation 的 late event 仍消费它对应的 session revision 水位，避免下一条合法事件被误判为 gap，但不得修改 task；真正的 revision gap 必须触发 snapshot 重同步。task `generation` 只在同一逻辑任务显式 retry/restart 时递增，窗口拆短重试使用 main-private `windowAttempt` / `retryDepth`，不得复用公开 task generation。
+同一 owner session 的 task/resource channel 共用一个单调 `revision`。renderer runtime service 先注册全部 listener，再读取 snapshot，并在页面组件之外保持 singleton；重复、倒序或旧 generation 事件不得覆盖新状态。订阅与快照之间的缓冲事件除 payload 外还必须保留 identity、generation、首次观测 revision 和 removal revision：只有 snapshot revision 已覆盖该观测且 snapshot 缺失实体时才能建立 tombstone，snapshot 之后首次出现的实体必须继续 replay。buffer overflow 要提高最低可接受 snapshot revision，但不能丢掉覆盖范围内的 identity observation。旧 task generation 的 late event 仍消费它对应的 session revision 水位，避免下一条合法事件被误判为 gap，但不得修改 task；真正的 revision gap、snapshot generation regression 或 resource resurrection 必须触发重同步。task `generation` 只在同一逻辑任务显式 retry/restart 时递增，窗口拆短重试使用 main-private `windowAttempt` / `retryDepth`，不得复用公开 task generation。
+
+批次 `status` 不是独立可写事实，必须由当前 task summaries 通过共享 `deriveLocalSubtitleBatchStatus()` 计算；session snapshot schema 同样拒绝与 task 聚合不一致的 batch status。空批次或全 queued 为 `queued`，任一 cancelling 为 `cancelling`，存在非终态为 `running`，全终态时有任一 completed 为 `completed`、全 cancelled 为 `cancelled`，否则为 `failed`。
 
 字幕翻译交接不是本地转写状态机的运行阶段。导出成功后本地任务即为 `completed`，交接另行记录，避免外部 API 配置或网络错误把已经成功的本地转写误标为失败：
 
@@ -1256,6 +1260,10 @@ Agent 迁移不能把任意模型参数中的 `roots`/`checkpointPaths` 直接�
 - segment/word 全量结果。
 - runner stderr、临时 WAV 路径。
 
+`CORE-004` 将 Store key 固定为 `fusionkit-local-subtitle-transcriber`，版本 1 的 persisted envelope 只包含经过逐字段 sanitize 的 `preferences`。安全白名单精确为 `modelId`、device preference、language、VAD enable、quality preset、beam size、temperature、VAD 最短静音、cue/line shaping、output formats、output mode 和不含分隔符的目录显示名。默认值固定为 beam `5`、temperature `0`、VAD silence `500 ms`、最大 cue `7000 ms / 84 chars`、最大行 `42 chars`；invalid/malformed 值逐字段回退。post-action、task mode、conflict policy、handoff format、初始提示词、File、token、task/batch/resource state、artifact、transcript、path、diagnostics 与 revision/tombstone 一律只存在当前 renderer session 内存或 main 权威状态，不进入 persist/migrate/merge。
+
+草稿文件或 custom output 被替换、截断、重置或切回 source mode 时，Store 必须先把 capability 交给 renderer runtime cleanup queue，再清理 UI 引用；batch commit 成功则只消费 draft 引用，不撤销已经转为 task lease 的 capability。cleanup 使用 capability 的权威最早 expiry、有限退避和单次超时；rejected Promise、`ok:false` 与 timeout 重试，`ok:true`（包括 `revoked:false`）、`owner_released` 和 `authorization_expired` 终止。singleton 不因 SPA 页面卸载而销毁；在真实 Job Manager/session handler 接入前不从应用入口急切启动。
+
 ### 15.2 任务恢复
 
 首版任务队列为会话级。异常退出后：
@@ -1327,7 +1335,7 @@ resources/local-subtitle/
 
 ## 18. 分期实施建议（高层阶段）
 
-本节保留架构层面的阶段划分；可认领的工作包、依赖、状态、验证和实施记录以 `local-subtitle-transcriber_execution_plan.md` 为唯一执行台账。Execution Plan 已于 2026-07-16 建立，当前 `PRE-001`～`PRE-006` 与 `CORE-001`～`CORE-003` 已完成，M0、共享 schema、resource staging 和 IPC/capability 合同已冻结；下一步优先认领 `CORE-004` 或 `NATIVE-001`，`MEDIA-001`、`SUB-001`、`LINK-001` 也可按依赖独立推进。Windows personal distribution 的 unsigned profile 已明确；Developer ID、公证和 Gatekeeper accepted 只由未来 `QA-004` 验收 macOS 分发产物。
+本节保留架构层面的阶段划分；可认领的工作包、依赖、状态、验证和实施记录以 `local-subtitle-transcriber_execution_plan.md` 为唯一执行台账。Execution Plan 已于 2026-07-16 建立，当前 `PRE-001`～`PRE-006` 与 `CORE-001`～`CORE-004` 已完成，M0、共享 schema、resource staging、IPC/capability 和 renderer session runtime 合同已冻结；下一步认领 `NATIVE-001`，完成 M1 并解锁 `NATIVE-002` 与 `BE-001`。`MEDIA-001`、`SUB-001`、`LINK-001` 也可按依赖独立推进。Windows personal distribution 的 unsigned profile 已明确；Developer ID、公证和 Gatekeeper accepted 只由未来 `QA-004` 验收 macOS 分发产物。
 
 其中本节原先汇总为一个 `PRE-001` 的跨平台 PoC，在 Execution Plan 中拆为 `PRE-001`～`PRE-006`，以避免把基准、CPU runner、Windows CUDA、macOS Metal、FFmpeg/打包许可和最终技术冻结塞进一个无法单会话闭环的工作包。其余高层包也在执行计划中按安全边界和可验证纵向切片进一步拆分。
 
@@ -1407,7 +1415,15 @@ PRE-001 已解锁 runtime 开发，PRE-003 已确定 Windows CPU/CUDA，PRE-004 
 - owner session 由 main 签发并绑定 `webContents.id + processId + routing/frame identity`；reload、主导航、render-process-gone、frame/window destroy 单次释放，旧 document replay 和 late result 均失败。
 - input/output registry 绑定 owner、kind、operation、TTL 与 filesystem identity；批次使用 reserve/commit/rollback 原子把 draft 转成 task/batch lease，lease 过期不能提交，renderer revoke 对 active lease 幂等返回 false。artifact ref 与 one-shot import token 只冻结 owner/TTL/op/dispose/quota 骨架，文件 parser/handoff 业务仍留 `SUB-002` / `LINK-006`。
 - legacy generic bridge 对整个 `local-subtitle:` namespace 封闭，不再向 renderer 传 raw `IpcRendererEvent` 或底层 transport；`open-win` 子窗口恢复 `contextIsolation: true` / `nodeIntegration: false`。现有旧工具仍依赖全局 `electronUtils.getPathForFile()` 和 raw output picker，这些值不能换取 local capability，待既有 Subtitle/Text/Rename/HomeAgent 消费者分阶段迁移后再删除，不能违反 `FK-PIT-0022` 直接破坏旧流程。
-- 本包只注册注入式业务 handler 与稳定 unavailable error，不伪造 media/runtime/model/task/artifact 成功；真实 handler 分别由 `MEDIA-001`、`NATIVE-001`、`MODEL-*`、`BE-002`、`SUB-002`、`LINK-006` 接入，renderer cleanup retry 由 `CORE-004` 实现。
+- 本包只注册注入式业务 handler 与稳定 unavailable error，不伪造 media/runtime/model/task/artifact 成功；真实 handler 分别由 `MEDIA-001`、`NATIVE-001`、`MODEL-*`、`BE-002`、`SUB-002`、`LINK-006` 接入，renderer cleanup retry 已由 `CORE-004` 完成。
+
+### CORE-004：Renderer Store、session runtime 与 cleanup retry（已完成）
+
+- `useLocalSubtitleTranscriberStore` 只持久化 sanitize 后的安全偏好；rehydration/migration 强制恢复空 draft，prompt、capability、task、artifact、正文、路径与诊断不能从脏 envelope 进入内存。
+- `localSubtitleSessionReducer` 共享 task/resource revision，派生 batch status，并以 generation/resource tombstone 拒绝 stale resurrection；`localSubtitleRuntimeService` 订阅后取 snapshot、缓冲并 replay 事件，覆盖 gap、overflow floor、snapshot retry、epoch invalidation 和 subscriber isolation。
+- subscribe-before-snapshot overlap 额外保留 task/resource identity observation；covered omission 建 tombstone，post-snapshot addition 不误删，规则沉淀为 `FK-PIT-0037`。
+- capability cleanup queue 从 Audio 目录提炼到无业务语义的 shared service；Local 使用 authoritative earliest expiry，并把 `revoked:false`、owner release 和 expiry 作为幂等完成。
+- 9 files / 132 tests 定向、全量 109 files / 1034 tests、TypeScript、Vite test build、PRE manifest 0 error / 0 warning、validator 17/17 和 diff check 通过；未启动 Vite/Electron/native 长期进程。
 
 ### BE-001：本地任务运行时
 
@@ -1574,12 +1590,13 @@ Electron 视觉/交互验证必须等待 preload loading 完全退出。若启�
 26. 不得把 HTTP 200、`verbose_json` schema 通过、SRT/LRC parse-back 或开头几段抽查当作整段字幕有效性；raw segment quality gate 必须先于任何整形与导出。
 27. 不得通过删除连续重复行掩盖 decoder loop；只能在 overlap 边界按时间和内容仲裁重复观测，无法恢复的窗口必须重试或以 `transcript_quality_failed` 失败。
 28. 不得在 `whisper.cpp v1.9.1` VAD 结果中使用 token/word 时间轴；VAD 请求必须强制 `token_timestamps=false`，canonical merge 必须拒绝越出 parent segment 的 word 时间并回退到映射后的 segment 时间。
+29. 不得在 subscribe-before-snapshot reconciliation 中只保留 payload 或按 snapshot omission 无条件建 tombstone；task/resource channel 必须共用 revision cursor，并按 observation revision 判断 snapshot 是否已经覆盖实体身份。
 
 ## 22. 推荐下一步
 
-`PRE-001`～`PRE-006` 与 `CORE-001`～`CORE-003` 已完成，M0、共享 schema、resource manifest/resolver/staging 与 preload/IPC/capability contract 已冻结。唯一 production decision record 是 `poc/pre006-production-decision.json`，后续实现不得静默更换引擎、平台矩阵、首发模型或 media acquisition policy。
+`PRE-001`～`PRE-006` 与 `CORE-001`～`CORE-004` 已完成，M0、共享 schema、resource manifest/resolver/staging、preload/IPC/capability 和 renderer session runtime contract 已冻结。唯一 production decision record 是 `poc/pre006-production-decision.json`，后续实现不得静默更换引擎、平台矩阵、首发模型或 media acquisition policy。
 
-1. 下一步优先认领 `CORE-004`（renderer 偏好、事件 reducer 与 cleanup retry）或 `NATIVE-001`（official server runtime contract）；也可按依赖独立认领 `MEDIA-001`、`SUB-001` 或 `LINK-001`，但本会话一次只闭环一个。正式 artifact/builder 接线由 `NATIVE-002` 在 `NATIVE-001 + CORE-002` 后完成。
+1. 下一步认领 `NATIVE-001`（official server runtime contract），完成 M1 的最后一个 owner 包并解锁 `NATIVE-002` 与 `BE-001`。`MEDIA-001`、`SUB-001` 或 `LINK-001` 仍可按依赖独立推进，但每次会话只闭环一个；正式 artifact/builder 接线由 `NATIVE-002` 在 `NATIVE-001 + CORE-002` 后完成。
 2. Windows 继续使用 `unsigned_personal_distribution`；本人/朋友安装不引入证书或信任库变更。若以后明确要求公开低提示分发，受信任 installer 签名/timestamp 才归可选 `QA-003`。
 3. Developer ID、公证和 Gatekeeper accepted 只由 `QA-004` 验收 macOS 分发产物；QA-005 完成分发前第三方 notices/source-offer/NVIDIA DLL 核对。
 4. 仍无需 FusionKit 自写 C++ runner；只有 official server 出现产品必需能力的真实硬缺口，才通过独立工作包重新评估 native bridge。

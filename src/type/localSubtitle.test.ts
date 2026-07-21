@@ -15,6 +15,7 @@ import {
   classifyLocalSubtitleTaskEvent,
   createLocalSubtitleBatchConfigSnapshot,
   createLocalSubtitleError,
+  deriveLocalSubtitleBatchStatus,
   isLocalSubtitleErrorCode,
   resolveLocalSubtitleTerminalOutcome,
   transitionLocalSubtitleTaskState,
@@ -730,6 +731,39 @@ describe("local subtitle error manifest", () => {
       },
     });
     expectDeeplyFrozen(error);
+  });
+});
+
+describe("local subtitle batch status derivation", () => {
+  it.each([
+    { statuses: [] as LocalSubtitleTaskStatus[], expected: "queued" },
+    { statuses: ["queued"] as LocalSubtitleTaskStatus[], expected: "queued" },
+    {
+      statuses: ["queued", "transcribing"] as LocalSubtitleTaskStatus[],
+      expected: "running",
+    },
+    {
+      statuses: ["transcribing", "cancelling"] as LocalSubtitleTaskStatus[],
+      expected: "cancelling",
+    },
+    {
+      statuses: ["completed", "failed"] as LocalSubtitleTaskStatus[],
+      expected: "completed",
+    },
+    {
+      statuses: ["cancelled", "cancelled"] as LocalSubtitleTaskStatus[],
+      expected: "cancelled",
+    },
+    {
+      statuses: ["failed", "cancelled"] as LocalSubtitleTaskStatus[],
+      expected: "failed",
+    },
+  ])("derives $expected from $statuses", ({ statuses, expected }) => {
+    expect(
+      deriveLocalSubtitleBatchStatus(
+        statuses.map((status) => ({ status })),
+      ),
+    ).toBe(expected);
   });
 });
 

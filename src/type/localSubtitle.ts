@@ -924,6 +924,32 @@ export const LOCAL_SUBTITLE_BATCH_STATUSES = [
 export type LocalSubtitleBatchStatus =
   (typeof LOCAL_SUBTITLE_BATCH_STATUSES)[number];
 
+export function deriveLocalSubtitleBatchStatus(
+  tasks: readonly Pick<LocalSubtitleTaskSummary, "status">[],
+): LocalSubtitleBatchStatus {
+  if (tasks.length === 0 || tasks.every((task) => task.status === "queued")) {
+    return "queued";
+  }
+  if (tasks.some((task) => task.status === "cancelling")) {
+    return "cancelling";
+  }
+  const terminalStatuses = new Set<LocalSubtitleTaskStatus>([
+    "completed",
+    "cancelled",
+    "failed",
+  ]);
+  if (!tasks.every((task) => terminalStatuses.has(task.status))) {
+    return "running";
+  }
+  if (tasks.some((task) => task.status === "completed")) {
+    return "completed";
+  }
+  if (tasks.every((task) => task.status === "cancelled")) {
+    return "cancelled";
+  }
+  return "failed";
+}
+
 export interface LocalSubtitleBatchConfigSummary {
   readonly modelId: string;
   readonly devicePreference: LocalSubtitleDevicePreference;
@@ -931,6 +957,7 @@ export interface LocalSubtitleBatchConfigSummary {
   readonly language: string;
   readonly taskMode: LocalSubtitleTaskMode;
   readonly qualityPreset: LocalSubtitleQualityPreset;
+  readonly vadEnabled: boolean;
   readonly outputFormats: readonly LocalSubtitleFormat[];
   readonly outputMode: LocalSubtitleOutputMode;
   readonly conflictPolicy: LocalSubtitleConflictPolicy;

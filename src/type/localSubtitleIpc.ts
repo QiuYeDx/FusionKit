@@ -26,6 +26,7 @@ import {
   SUBTITLE_TRANSLATION_IMPORT_STATUSES,
   SUBTITLE_TRANSLATION_START_FAILURE_REASONS,
   SUBTITLE_TRANSLATION_START_STATUSES,
+  deriveLocalSubtitleBatchStatus,
   resolveLocalSubtitleTerminalOutcome,
   type LocalSubtitleBatchSummary,
   type LocalSubtitleError,
@@ -724,6 +725,7 @@ const batchConfigSummarySchema = z
     language: languageSchema,
     taskMode: z.enum(LOCAL_SUBTITLE_TASK_MODES),
     qualityPreset: z.enum(LOCAL_SUBTITLE_QUALITY_PRESETS),
+    vadEnabled: z.boolean(),
     outputFormats: z
       .array(z.enum(LOCAL_SUBTITLE_FORMATS))
       .min(1)
@@ -797,6 +799,13 @@ export const localSubtitleBatchSummarySchema: z.ZodType<LocalSubtitleBatchSummar
         }
         taskIds.add(task.taskId);
       });
+      if (value.status !== deriveLocalSubtitleBatchStatus(value.tasks)) {
+        context.addIssue({
+          code: "custom",
+          path: ["status"],
+          message: "Batch status must be derived from its task summaries.",
+        });
+      }
     });
 
 export const localSubtitleResourceJobSummarySchema: z.ZodType<LocalSubtitleResourceJobSummary> =
@@ -1027,6 +1036,7 @@ export const enqueueLocalSubtitleBatchRequestSchema = z
         language: languageSchema,
         taskMode: z.enum(LOCAL_SUBTITLE_TASK_MODES),
         qualityPreset: z.enum(LOCAL_SUBTITLE_QUALITY_PRESETS),
+        vadEnabled: z.boolean(),
         advanced: advancedSettingsSchema,
         output: outputRequestSchema,
         postAction: postActionRequestSchema,

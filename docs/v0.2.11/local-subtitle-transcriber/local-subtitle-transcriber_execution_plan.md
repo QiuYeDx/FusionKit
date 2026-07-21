@@ -6,7 +6,7 @@
 >
 > 对应设计文档：`docs/v0.2.11/local-subtitle-transcriber/local-subtitle-transcriber_final_design.md`
 >
-> 当前状态：`PRE-001`～`PRE-006` 与 `CORE-001`～`CORE-003` 已完成，M0、共享 domain/runtime schema、versioned resource staging 与 preload/IPC/capability contract 已冻结；Windows 使用 `unsigned_personal_distribution`。下一步优先认领 `CORE-004` 或 `NATIVE-001`，正式 native artifact / builder 接线仍由 `NATIVE-002` 完成
+> 当前状态：`PRE-001`～`PRE-006` 与 `CORE-001`～`CORE-004` 已完成，M0、共享 domain/runtime schema、versioned resource staging、preload/IPC/capability 和 renderer session runtime contract 已冻结；Windows 使用 `unsigned_personal_distribution`。下一步认领 `NATIVE-001`，正式 native artifact / builder 接线仍由 `NATIVE-002` 完成
 >
 > 发布门禁：M0 已解除；正式实现必须遵守 `poc/pre006-production-decision.json`，不得静默更换引擎、平台、模型或 runtime acquisition policy
 >
@@ -35,6 +35,8 @@
 > 2026-07-21 CORE-002 完成：新增 production strict/deep-frozen runtime manifest、显式 dev/packaged resolver、完整 Windows base artifact/evidence profile、symlink/containment/size/SHA/arch/execute/signature gate，以及共享 versioned staging contract/canonical preflight。CORE-002 定向 42 项、CORE+Audio 117 项、全量 918 项 Vitest 与 TypeScript/manifest/Node gate 通过；正式 `extraResources`、真实 artifact 和 launch/HTTP probe 未跨包实现
 
 > 2026-07-21 CORE-003 完成：新增完整 fixed preload API、15 public / 6 internal / 2 event exact channel、main-issued document owner session、独立 input/output/artifact/import registry、draft→task/batch atomic lease 与双向 runtime schema gate；legacy bridge 不再暴露 raw Electron event，子窗口不能绕过 private channel。真实业务 handler 与 cleanup retry 没有跨包伪实现
+
+> 2026-07-21 CORE-004 完成：新增安全偏好 Store、task/resource shared-revision reducer、SPA 级 runtime singleton 与 bounded capability cleanup retry；subscribe-before-snapshot 保留 identity/generation observation，覆盖 gap/overflow/tombstone/stale generation/epoch/observer failure。9 files / 132 tests 定向、全量 109 files / 1034 tests、TypeScript、Vite test build 与 manifest gate 通过
 
 ---
 
@@ -145,7 +147,7 @@
 21. Electron 视觉证据必须等待 preload loading 完全退出，并检查 1080×786、786×540、明暗主题和四语言。
 22. 工作包结束不得遗留 Vite/Electron/runner/FFmpeg/下载进程、`.partial`、临时 WAV 或未撤销 capability。
 23. 多格式导出至少一个成功时统一为 `completed + partial`，全部失败才是 `failed`；取消不得删除已 commit artifact，不能另造未进入共享 schema 的“部分完成”状态。
-24. draft capability 在 batch commit 时原子转移为 task lease；SPA 路由切换不取消 committed task，renderer 必须用单调 revision snapshot 重同步，reload/window owner 结束才按合同取消。
+24. draft capability 在 batch commit 时原子转移为 task lease；SPA 路由切换不取消 committed task。renderer task/resource channel 必须共用单调 revision cursor，subscribe-before-snapshot 期间保留带 revision/generation 的实体 observation，仅对 snapshot 已覆盖的缺失实体建立 tombstone；buffer overflow 必须提高 snapshot revision floor 且不得丢失 identity observation。reload/window owner 结束才按合同取消。
 25. 模型/VAD/accelerator 安装只能提交 allowlisted `resourceId`，并有可查询/取消/重同步的 resource job；renderer 不得提交 URL、下载路径或可执行参数。
 26. `enqueue_translation` 无 profile 时必须创建显式 `needs_configuration` task binding；所有 start 入口只接受 ready binding，禁止用空 API 字段伪装可执行任务。
 27. LINK-003 完成后仍保留只供既有消费者使用的 legacy path adapter；LINK-004 迁移普通/Agent 新建任务，只有 LINK-005 再迁移 RecoveryDialog、renderer events 和 main recovery 后，才可删除旧 `outputURL`/`checkpointPath` 暴露。
@@ -316,7 +318,7 @@ flowchart TD
 | CORE-001 | 已完成 | 2026-07-21 | PRE-006 | domain、状态机、事件、错误与 runtime schema | `src/type/localSubtitle.ts`、`src/type/localSubtitleIpc.ts`、两份 tests、Final Design | 定向 Vitest 2 files / 57 tests、全量 95 files / 876 tests；10×10 transition、full/partial/none-success、取消后 commit、revision/generation、post-action/status 跨字段约束、strict injection/UTF-8 limits/round-trip/PRE drift/Audio 隔离；tsc、manifest validator、diff check 通过 | `docs/v0.2.11/local-subtitle-transcriber/local-subtitle-transcriber_implementation_records/2026-07-21_CORE-001_domain-state-schema.md` | 无；channel/owner capability 留 `CORE-003`，native HTTP 留 `NATIVE-001`，resource manifest/resolver 留 `CORE-002`；已知 PRE-005 跨平台 PATH fixture 红灯单独处理 |
 | CORE-002 | 已完成 | 2026-07-21 | PRE-006 | 资源 manifest、路径 resolver 与构建 staging 合同 | `electron/main/local-subtitle/resource-{manifest,path}.ts`、`resources/local-subtitle/manifests/local-subtitle-staging.v1.json`、staging/runtime scripts、tests、`.gitignore` | CORE-002 Vitest 2 files / 42 tests；CORE+Audio 5 files / 117 tests；全量 97 files / 918 tests；staging/runtime Node 35 tests（34 pass / 1 Windows-only skip）；完整 Node 104 tests（102 pass / 1 fail / 1 skip）；tsc、manifest 0/0、PRE validator 17/17 | `docs/v0.2.11/local-subtitle-transcriber/local-subtitle-transcriber_implementation_records/2026-07-21_CORE-002_resource-manifest-resolver-staging.md` | 无；正式 artifact、`extraResources` / `beforePack` / sign ignore 留 `NATIVE-002`，server/media launch probe 留 `NATIVE-001` / `MEDIA-001`；既有 PRE-005 PATH fixture 红灯单独修复 |
 | CORE-003 | 已完成 | 2026-07-21 | CORE-001 | preload、IPC、文件/目录 capability 安全边界 | `src/type/localSubtitleIpc.ts`、`electron/preload/local-subtitle-*`、`electron/main/local-subtitle/{ipc-security,authorizations,ipc}.ts`、tests | CORE-003/domain/Audio isolation 10 files / 134 tests；全量 103 files / 975 tests；tsc、Vite test build、manifest 17/17、diff check | `docs/v0.2.11/local-subtitle-transcriber/local-subtitle-transcriber_implementation_records/2026-07-21_CORE-003_preload-ipc-capability-boundary.md` | 真实 media/model/task/artifact handler 留后续 owner 包；旧工具 raw-path bridge 不能换取 local authority，待全消费者迁移后删除 |
-| CORE-004 | 未开始 | — | CORE-001/003 | Renderer 偏好 Store、事件 reducer 与 cleanup retry | `src/store/tools/subtitle/useLocalSubtitleTranscriberStore.ts`、runtime service/tests | persist partialize、subscribe→snapshot revision reconcile、stale generation、revoke retry、SPA remount | — | token/任务不得持久化，listener 不归页面组件独占 |
+| CORE-004 | 已完成 | 2026-07-21 | CORE-001/003 | Renderer 偏好 Store、事件 reducer 与 cleanup retry | `src/store/tools/subtitle/{localSubtitleTranscriberConfig,useLocalSubtitleTranscriberStore}.ts`、`src/services/local-subtitle/*`、shared cleanup queue、domain/IPC schema/tests | 9 files / 132 tests 定向、全量 109 files / 1034 tests；TypeScript、Vite test build、manifest 0/0、validator 17/17、diff check | `docs/v0.2.11/local-subtitle-transcriber/local-subtitle-transcriber_implementation_records/2026-07-21_CORE-004_renderer-store-session-runtime.md` | 无；真实 snapshot/event handler 留 `BE-002`，runtime singleton 暂不在 app startup 急切启动；下一步 `NATIVE-001` |
 | NATIVE-001 | 未开始 | — | PRE-006/CORE-001 | 正式 official server runtime contract | runtime manifest、HTTP schema、Node contract tests | private loopback/health/inference schema、single active request、model reuse、abort/kill、diagnostic bounds | — | 固定上游 release/build 并保留 MIT notice；只有证据需要时才建 native bridge |
 | NATIVE-002 | 未开始 | — | NATIVE-001/CORE-002 | 三类 official server artifact、runtime manifest 与 builder 接线 | staging/source-build scripts、resource manifests、`electron-builder.json`、可选 workflow | win-x64 CPU/CUDA、mac-arm64 Metal/CPU artifact + packaged smoke + SHA manifest | — | 签名凭据不得进入仓库；staging 缺失必须在打包前明确失败 |
 | BE-001 | 未开始 | — | NATIVE-001/CORE-001/002 | Server Supervisor、窗口调度、模型驻留与崩溃恢复 | `electron/main/local-subtitle/server-supervisor.ts`、tests | fake/real server、独立窗口、retry generation、timeout、crash、late response、abort/kill fallback | — | endpoint 不进入 renderer/log；stderr 需脱敏且有界 |
@@ -519,6 +521,10 @@ PRE-005 已完成。Windows 未创建证书、未修改 `CurrentUser` 信任库�
 - capability 清理由 renderer service 持有，不依赖单一页面组件生命周期。
 
 验收口径：rehydration 不恢复任务/token；subscribe→snapshot 期间发生事件、SPA 离页终态、重复/倒序 revision 和旧 generation 无法覆盖新任务；cleanup 重试和 TTL 结束行为可测。
+
+截至 2026-07-21，本工作包已完成。Store key 固定为 `fusionkit-local-subtitle-transcriber`，只 partialize 经 sanitize 的模型/设备/语言/VAD/质量/数值整形/输出偏好和安全目录显示名；prompt、post-action、File、capability、task、artifact、正文、路径、诊断与 revision state 不进入持久化。enqueue 与 batch summary 显式携带 `vadEnabled`，batch status 统一从 task summaries 派生并由 snapshot schema 复核。
+
+renderer runtime singleton 在页面之外共享 task/resource revision cursor，先订阅再取 snapshot，缓冲/replay 事件并保留 identity/generation observation；处理 duplicate/stale/gap、旧 generation、covered omission tombstone、buffer overflow floor、snapshot retry、epoch invalidation 和 observer failure。shared cleanup queue 支持权威最早 expiry；rejected Promise、`ok:false`、timeout 重试，`ok:true`（含 `revoked:false`）、`owner_released`、`authorization_expired` 结束。真实 handler 未完成前不从应用入口急切启动。定向 9 files / 132 tests、全量 109 files / 1034 tests、TypeScript、Vite test build、manifest/validator 与 diff check 全部通过。
 
 ### NATIVE-001：正式 official server runtime contract
 
@@ -1051,6 +1057,6 @@ git diff --check
 
 ## 12. 下一步建议
 
-`PRE-001`～`PRE-006` 与 `CORE-001`～`CORE-003` 已完成，M0、共享 domain/runtime schema、resource manifest/resolver/staging 和 preload/IPC/capability contract 已冻结。下一步优先认领 `CORE-004`（renderer 偏好、event reducer、cleanup retry）或 `NATIVE-001`（official server runtime contract）；`MEDIA-001`、`SUB-001`、`LINK-001` 也可按依赖独立推进，但每次会话仍只认领一个闭环包。实现必须以 `poc/pre006-production-decision.json` 为唯一技术冻结记录，并复用已冻结版本、error、limit 和 staging contract。
+`PRE-001`～`PRE-006` 与 `CORE-001`～`CORE-004` 已完成，M0、共享 domain/runtime schema、resource manifest/resolver/staging、preload/IPC/capability 和 renderer session runtime contract 已冻结。下一步认领 `NATIVE-001`（official server runtime contract），完成 M1 的最后一项并解锁 `NATIVE-002`、`BE-001`；`MEDIA-001`、`SUB-001`、`LINK-001` 也可按依赖独立推进，但每次会话仍只认领一个闭环包。实现必须以 `poc/pre006-production-decision.json` 为唯一技术冻结记录，并复用已冻结版本、error、limit 和 staging contract。
 
 模型和 official runtime 继续只下载到 Git 忽略目录，hash 只作来源/完整性门禁。系统 PATH 中的 FFmpeg 仍只作开发 PoC，不是发行资源或最终用户前置条件。正式开发继续由 Node 直接管理 official server；Windows 无需 CMake/MSVC，FusionKit C++ runner 不是当前方案依赖。Windows 保持 unsigned personal profile；QA-005 在分发前核对 notices/source offers/NVIDIA DLL，但不会要求证书或信任库变更。
