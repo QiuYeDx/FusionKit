@@ -11,6 +11,7 @@ import {
   LOCAL_SUBTITLE_EVENT_CHANNELS,
   LOCAL_SUBTITLE_PRELOAD_INTERNAL_CHANNELS,
   LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS,
+  type EnqueueLocalSubtitleBatchRequest,
 } from "../../src/type/localSubtitleIpc";
 import {
   LocalSubtitleCapabilityLeaseCoordinator,
@@ -127,6 +128,112 @@ describe("local subtitle Job Manager IPC integration", () => {
         fixture.envelope({ taskId: "task-ipc" }),
       ),
     ).resolves.toEqual({ ok: true, data: { removed: true } });
+  });
+
+  it("keeps source output capabilities and raw paths out of IPC state", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "fusionkit-job-ipc-source-"));
+    tempRoots.push(root);
+    const sourcePath = path.join(root, "private-source.wav");
+    await writeFile(sourcePath, "private media bytes");
+    const fixture = createFixture(root);
+    const outputResolve = vi.spyOn(fixture.outputs, "resolveBatchLease");
+    const outputRenew = vi.spyOn(fixture.outputs, "renewBatchLease");
+    const outputRelease = vi.spyOn(fixture.outputs, "releaseBatchLease");
+    const authorized = await fixture.service.handleInternal(
+      LOCAL_SUBTITLE_PRELOAD_INTERNAL_CHANNELS.authorizeInputFiles,
+      fixture.event,
+      fixture.envelope({ files: [{ filePath: sourcePath }] }),
+    );
+    if (!authorized.ok) throw new Error("Expected input authorization.");
+    const fileToken = (
+      authorized.data as Array<{ readonly fileToken: string }>
+    )[0]!.fileToken;
+
+    const enqueued = await fixture.service.handlePublic(
+      LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.enqueue,
+      fixture.event,
+      fixture.envelope(sourceEnqueueRequest(fileToken)),
+    );
+    expect(enqueued).toMatchObject({
+      ok: true,
+      data: {
+        batchId: "batch-ipc",
+        config: { outputMode: "source" },
+        tasks: [{ taskId: "task-ipc", status: "queued" }],
+      },
+    });
+    await fixture.manager.waitForIdle();
+
+    const snapshot = await fixture.service.handlePublic(
+      LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.getSessionSnapshot,
+      fixture.event,
+      fixture.envelope({}),
+    );
+    expect(snapshot).toMatchObject({
+      ok: true,
+      data: {
+        batches: [
+          {
+            config: { outputMode: "source" },
+            tasks: [{ taskId: "task-ipc", status: "completed" }],
+          },
+        ],
+      },
+    });
+    const taskEvents = fixture.frame.send.mock.calls.filter(
+      ([channel]) => channel === LOCAL_SUBTITLE_EVENT_CHANNELS.taskEvent,
+    );
+    const publicState = JSON.stringify({ enqueued, snapshot, taskEvents });
+    expect(publicState).not.toContain(fileToken);
+    expect(publicState).not.toContain(sourcePath);
+    expect(publicState).not.toContain(root);
+    expect(publicState).not.toContain("outputDirToken");
+    expect(outputResolve).not.toHaveBeenCalled();
+    expect(outputRenew).not.toHaveBeenCalled();
+    expect(outputRelease).not.toHaveBeenCalled();
+  });
+
+  it("rejects source overwrite over IPC without consuming the input capability", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "fusionkit-job-ipc-overwrite-"));
+    tempRoots.push(root);
+    const sourcePath = path.join(root, "private-source.wav");
+    await writeFile(sourcePath, "private media bytes");
+    const fixture = createFixture(root);
+    const authorized = await fixture.service.handleInternal(
+      LOCAL_SUBTITLE_PRELOAD_INTERNAL_CHANNELS.authorizeInputFiles,
+      fixture.event,
+      fixture.envelope({ files: [{ filePath: sourcePath }] }),
+    );
+    if (!authorized.ok) throw new Error("Expected input authorization.");
+    const fileToken = (
+      authorized.data as Array<{ readonly fileToken: string }>
+    )[0]!.fileToken;
+    const request = sourceEnqueueRequest(fileToken);
+    request.config.output.conflictPolicy = "overwrite";
+
+    const rejected = await fixture.service.handlePublic(
+      LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.enqueue,
+      fixture.event,
+      fixture.envelope(request),
+    );
+    expect(rejected).toMatchObject({
+      ok: false,
+      error: {
+        code: "invalid_ipc_request",
+        stage: "preflight",
+        field: "config",
+      },
+    });
+    expect(JSON.stringify(rejected)).not.toContain(fileToken);
+    expect(JSON.stringify(rejected)).not.toContain(sourcePath);
+    expect(JSON.stringify(rejected)).not.toContain(root);
+    await expect(
+      fixture.service.handleInternal(
+        LOCAL_SUBTITLE_PRELOAD_INTERNAL_CHANNELS.revokeInputFile,
+        fixture.event,
+        fixture.envelope({ fileToken }),
+      ),
+    ).resolves.toEqual({ ok: true, data: { revoked: true } });
   });
 
   it("maps first-slice rejections without consuming input capabilities", async () => {
@@ -312,7 +419,10 @@ function createFixture(root: string) {
   };
 }
 
-function enqueueRequest(fileToken: string, outputDirToken: string) {
+function enqueueRequest(
+  fileToken: string,
+  outputDirToken: string,
+): EnqueueLocalSubtitleBatchRequest {
   return {
     schemaVersion: LOCAL_SUBTITLE_DOMAIN_SCHEMA_VERSION,
     files: [{ fileToken }],
@@ -340,6 +450,18 @@ function enqueueRequest(fileToken: string, outputDirToken: string) {
       postAction: { mode: "export_only" as const },
     },
   };
+}
+
+function sourceEnqueueRequest(
+  fileToken: string,
+): EnqueueLocalSubtitleBatchRequest {
+  const request = enqueueRequest(fileToken, "unused-output-token");
+  request.config.output = {
+    mode: "source",
+    formats: ["SRT"],
+    conflictPolicy: "index",
+  };
+  return request;
 }
 
 function createEvent(sender: FakeSender, frame: FakeFrame) {

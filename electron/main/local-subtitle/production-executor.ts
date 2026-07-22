@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import path from "node:path";
 import {
+  LOCAL_SUBTITLE_ERROR_MANIFEST,
   LOCAL_SUBTITLE_LIMITS,
   LOCAL_SUBTITLE_PRODUCTION_CONTRACT,
   createLocalSubtitleError,
@@ -9,7 +10,12 @@ import {
   type LocalSubtitleErrorCode,
   type LocalSubtitleOperationStage,
 } from "@/type/localSubtitle";
-import type { LocalSubtitleOutputDirectoryAuthorizationRegistry } from "./authorizations";
+import type {
+  LocalSubtitleInputAuthorizationRegistry,
+  LocalSubtitleDirectoryIdentity,
+  LocalSubtitleOutputDirectoryAuthorizationRegistry,
+  ResolvedLocalSubtitleOutputDirectory,
+} from "./authorizations";
 import type {
   LocalSubtitleJobBatchExecutionContext,
   LocalSubtitleJobBatchRuntime,
@@ -134,6 +140,11 @@ type ProductionOutputs = Pick<
   "resolveBatchLease"
 >;
 
+type ProductionInputs = Pick<
+  LocalSubtitleInputAuthorizationRegistry,
+  "resolveTaskSourceOutputDirectory"
+>;
+
 type ProductionExporter = Pick<
   LocalSubtitleExporter<unknown>,
   "exportArtifacts"
@@ -142,6 +153,7 @@ type ProductionExporter = Pick<
 export interface LocalSubtitleProductionExecutorOptions {
   readonly media: ProductionMedia;
   readonly supervisor: ProductionSupervisor;
+  readonly inputs: ProductionInputs;
   readonly outputs: ProductionOutputs;
   readonly exporter: ProductionExporter;
   readonly runtimeEnvironment?: LocalSubtitleResourceEnvironment;
@@ -162,6 +174,7 @@ export class LocalSubtitleProductionExecutor
 {
   readonly #media: ProductionMedia;
   readonly #supervisor: ProductionSupervisor;
+  readonly #inputs: ProductionInputs;
   readonly #outputs: ProductionOutputs;
   readonly #exporter: ProductionExporter;
   readonly #verifyServerRuntime: () => Promise<LocalSubtitleVerifiedRuntimeBundle>;
@@ -197,6 +210,7 @@ export class LocalSubtitleProductionExecutor
         "release",
         "releaseBatchRuntimePin",
       ]) ||
+      !hasMethods(options?.inputs, ["resolveTaskSourceOutputDirectory"]) ||
       !hasMethods(options?.outputs, ["resolveBatchLease"]) ||
       !hasMethods(options?.exporter, ["exportArtifacts"])
     ) {
@@ -233,6 +247,7 @@ export class LocalSubtitleProductionExecutor
     }
     this.#media = options.media;
     this.#supervisor = options.supervisor;
+    this.#inputs = options.inputs;
     this.#outputs = options.outputs;
     this.#exporter = options.exporter;
     this.#verifyServerRuntime = options.verifyServerRuntime ?? (() =>
@@ -291,6 +306,33 @@ export class LocalSubtitleProductionExecutor
     if (!batchRuntime || !isSupportedExecutionContext(context)) {
       return failedResult("invalid_ipc_request", "preflight");
     }
+
+    let sourceOutputDirectoryIdentity: LocalSubtitleDirectoryIdentity | undefined;
+    if (context.config.output.mode === "source") {
+      try {
+        throwIfCancelled(context.signal);
+        const directory = await this.#inputs.resolveTaskSourceOutputDirectory(
+          context.owner,
+          context.taskId,
+          context.fileToken,
+        );
+        sourceOutputDirectoryIdentity = Object.freeze({ ...directory.identity });
+        throwIfCancelled(context.signal);
+      } catch (error) {
+        if (context.signal.aborted || error instanceof ExecutionCancelled) {
+          return Object.freeze({ status: "cancelled", artifactResults: [] });
+        }
+        const code = publicErrorCode(error, "exporting");
+        return failedResult(
+          code,
+          LOCAL_SUBTITLE_ERROR_MANIFEST[code].defaultStage,
+        );
+      }
+    }
+    const resolveOutputDirectory = this.#createOutputDirectoryResolver(
+      context,
+      sourceOutputDirectoryIdentity,
+    );
 
     let stage: LocalSubtitleOperationStage = "preparing_media";
     let normalized: LocalSubtitleNormalizedPcm | undefined;
@@ -591,8 +633,7 @@ export class LocalSubtitleProductionExecutor
         formats: context.config.output.formats,
         conflictPolicy: context.config.output.conflictPolicy,
         transcript,
-        resolveOutputDirectory: () =>
-          this.#outputs.resolveBatchLease(context.owner, context.batchId),
+        resolveOutputDirectory,
         signal: context.signal,
       });
       return mapExportResult(result, durationMs, context.signal.aborted);
@@ -604,7 +645,9 @@ export class LocalSubtitleProductionExecutor
       }
       return failedResult(
         code,
-        isCleanupFailureCode(code) ? "cleanup" : stage,
+        isCleanupFailureCode(code)
+          ? "cleanup"
+          : LOCAL_SUBTITLE_ERROR_MANIFEST[code].defaultStage,
         durationMs,
       );
     }
@@ -686,6 +729,36 @@ export class LocalSubtitleProductionExecutor
       "requestGeneration",
     );
     return generation;
+  }
+
+  #createOutputDirectoryResolver(
+    context: LocalSubtitleJobTaskExecutionContext,
+    expectedSourceIdentity?: LocalSubtitleDirectoryIdentity,
+  ): () => Promise<ResolvedLocalSubtitleOutputDirectory> {
+    return context.config.output.mode === "source"
+      ? async () => {
+          if (!expectedSourceIdentity) {
+            throw createLocalSubtitleError(
+              "output_write_failed",
+              "The source subtitle output directory proof is unavailable.",
+              { stage: "exporting" },
+            );
+          }
+          const directory = await this.#inputs.resolveTaskSourceOutputDirectory(
+            context.owner,
+            context.taskId,
+            context.fileToken,
+          );
+          if (!sameDirectoryIdentity(directory.identity, expectedSourceIdentity)) {
+            throw createLocalSubtitleError(
+              "output_write_failed",
+              "The source subtitle output directory changed after preflight.",
+              { stage: "exporting" },
+            );
+          }
+          return directory;
+        }
+      : () => this.#outputs.resolveBatchLease(context.owner, context.batchId);
   }
 
   #resolveBatchRuntime(
@@ -1068,7 +1141,9 @@ function mapExportResult(
   return Object.freeze({
     status: "failed",
     error: createLocalSubtitleError(code, "The subtitle artifact export failed.", {
-      stage: isCleanupFailureCode(code) ? "cleanup" : "exporting",
+      stage: isCleanupFailureCode(code)
+        ? "cleanup"
+        : LOCAL_SUBTITLE_ERROR_MANIFEST[code].defaultStage,
     }),
     artifactResults,
     durationMs,
@@ -1183,7 +1258,9 @@ function isSupportedBatchExecutionContext(
     context.managedModel.storage === "managed" &&
     context.managedModel.id === context.config.model.modelId &&
     context.managedModel.sha256 === context.config.model.modelHash &&
-    context.config.output.mode === "custom" &&
+    (context.config.output.mode === "custom" ||
+      context.config.output.mode === "source") &&
+    context.config.output.conflictPolicy === "index" &&
     context.config.output.formats.length === 1 &&
     context.config.output.formats[0] === "SRT" &&
     context.config.devicePreference === "cpu" &&
@@ -1198,7 +1275,9 @@ function isSupportedExecutionContext(
   context: LocalSubtitleJobTaskExecutionContext,
 ): boolean {
   return (
-    context.config.output.mode === "custom" &&
+    (context.config.output.mode === "custom" ||
+      context.config.output.mode === "source") &&
+    context.config.output.conflictPolicy === "index" &&
     context.config.output.formats.length === 1 &&
     context.config.output.formats[0] === "SRT" &&
     context.config.devicePreference === "cpu" &&
@@ -1241,6 +1320,15 @@ function sameFileIdentity(
     left.mtimeMs === right.mtimeMs &&
     left.ctimeMs === right.ctimeMs
   );
+}
+
+function sameDirectoryIdentity(
+  left: LocalSubtitleDirectoryIdentity,
+  right: LocalSubtitleDirectoryIdentity,
+): boolean {
+  return left.dev === right.dev &&
+    left.ino === right.ino &&
+    left.birthtimeMs === right.birthtimeMs;
 }
 
 function incrementSafeCounter(value: number, field: string): number {

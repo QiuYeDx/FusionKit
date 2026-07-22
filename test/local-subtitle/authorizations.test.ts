@@ -1,8 +1,11 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  link,
+  lstat,
   mkdir,
   mkdtemp,
   realpath,
+  rename,
   rm,
   symlink,
   truncate,
@@ -130,6 +133,23 @@ describe("local subtitle input and output authorizations", () => {
     expect(registry.revokeDraft(OWNER_A, authorized.fileToken)).toBe(false);
   });
 
+  it("keeps custom transcribe inputs valid when only the source parent label is unsafe", async () => {
+    if (process.platform === "win32") return;
+    const root = await tempRoot();
+    const sourceDirectory = path.join(root, "unsafe\\parent");
+    await mkdir(sourceDirectory);
+    const inputPath = await file(sourceDirectory, "input.wav", "audio");
+    const registry = new LocalSubtitleInputAuthorizationRegistry({
+      tokenFactory: () => "unsafe-parent-input",
+    });
+
+    const authorized = await registry.authorize(OWNER_A, inputPath);
+
+    await expect(
+      registry.resolveDraft(OWNER_A, authorized.fileToken, "transcribe"),
+    ).resolves.toMatchObject({ displayName: "input.wav" });
+  });
+
   it("revokes an input when its filesystem identity changes", async () => {
     const root = await tempRoot();
     const input = await file(root, "changed.wav", "before");
@@ -201,6 +221,449 @@ describe("local subtitle input and output authorizations", () => {
       registry.resolveDraft(OWNER_A, authorized.outputDirToken),
     ).rejects.toMatchObject({ code: "output_write_failed" });
     expect(registry.revokeDraft(OWNER_A, authorized.outputDirToken)).toBe(false);
+  });
+});
+
+describe("local subtitle task source output authorization", () => {
+  it("derives a main-only canonical parent from the committed input lease", async () => {
+    const root = await tempRoot();
+    const sourceDirectory = path.join(root, "source-media");
+    await mkdir(sourceDirectory);
+    const inputPath = await file(sourceDirectory, "input.wav", "audio");
+    let now = 1_000;
+    const inputs = new LocalSubtitleInputAuthorizationRegistry({
+      leaseTtlMs: 100,
+      now: () => now,
+      tokenFactory: () => "source-input",
+    });
+    const input = await inputs.authorize(OWNER_A, inputPath);
+    const transaction = await new LocalSubtitleCapabilityLeaseCoordinator(
+      inputs,
+      new LocalSubtitleOutputDirectoryAuthorizationRegistry(),
+      { now: () => now },
+    ).reserveBatch({
+      owner: OWNER_A,
+      batchId: "source-batch",
+      inputs: [{ fileToken: input.fileToken, taskId: "source-task" }],
+    });
+    const lease = transaction.commit();
+    const canonicalDirectory = await realpath(sourceDirectory);
+    const directoryStats = await lstat(canonicalDirectory);
+
+    now = 1_050;
+    await expect(
+      inputs.resolveTaskSourceOutputDirectory(
+        OWNER_A,
+        "source-task",
+        input.fileToken,
+      ),
+    ).resolves.toEqual({
+      directoryPath: canonicalDirectory,
+      directoryName: "source-media",
+      identity: {
+        dev: directoryStats.dev,
+        ino: directoryStats.ino,
+        birthtimeMs: directoryStats.birthtimeMs,
+      },
+      expiresAt: 1_100,
+    });
+    expect(JSON.stringify(input)).not.toContain(root);
+    expect(JSON.stringify(lease)).not.toContain(root);
+  });
+
+  it("binds source output derivation to owner, task, token, and exact TTL", async () => {
+    const root = await tempRoot();
+    const paths = await Promise.all([
+      file(root, "first.wav", "first"),
+      file(root, "second.wav", "second"),
+    ]);
+    let now = 2_000;
+    const inputs = new LocalSubtitleInputAuthorizationRegistry({
+      leaseTtlMs: 10,
+      now: () => now,
+      tokenFactory: sequence("source-bound"),
+    });
+    const [first, second] = await inputs.authorizeMany(OWNER_A, paths);
+    const transaction = await new LocalSubtitleCapabilityLeaseCoordinator(
+      inputs,
+      new LocalSubtitleOutputDirectoryAuthorizationRegistry(),
+      { now: () => now },
+    ).reserveBatch({
+      owner: OWNER_A,
+      batchId: "source-bound-batch",
+      inputs: [
+        { fileToken: first!.fileToken, taskId: "source-bound-first" },
+        { fileToken: second!.fileToken, taskId: "source-bound-second" },
+      ],
+    });
+    transaction.commit();
+
+    await expect(
+      inputs.resolveTaskSourceOutputDirectory(
+        OWNER_B,
+        "source-bound-first",
+        first!.fileToken,
+      ),
+    ).rejects.toMatchObject({ code: "invalid_ipc_request" });
+    await expect(
+      inputs.resolveTaskSourceOutputDirectory(
+        OWNER_A,
+        "unknown-task",
+        first!.fileToken,
+      ),
+    ).rejects.toMatchObject({ code: "invalid_ipc_request" });
+    await expect(
+      inputs.resolveTaskSourceOutputDirectory(
+        OWNER_A,
+        "source-bound-first",
+        second!.fileToken,
+      ),
+    ).rejects.toMatchObject({ code: "invalid_ipc_request" });
+    await expect(
+      inputs.resolveTaskSourceOutputDirectory(
+        OWNER_A,
+        "source-bound-second",
+        first!.fileToken,
+      ),
+    ).rejects.toMatchObject({ code: "invalid_ipc_request" });
+
+    now = 2_010;
+    await expect(
+      inputs.resolveTaskSourceOutputDirectory(
+        OWNER_A,
+        "source-bound-first",
+        first!.fileToken,
+      ),
+    ).rejects.toMatchObject({ code: "authorization_expired" });
+  });
+
+  it("requires derive_source_output on the committed input lease", async () => {
+    const root = await tempRoot();
+    const inputPath = await file(root, "transcribe-only.wav", "audio");
+    const inputs = new LocalSubtitleInputAuthorizationRegistry({
+      tokenFactory: () => "transcribe-only",
+    });
+    const input = await inputs.authorize(OWNER_A, inputPath, ["transcribe"]);
+    const transaction = await new LocalSubtitleCapabilityLeaseCoordinator(
+      inputs,
+      new LocalSubtitleOutputDirectoryAuthorizationRegistry(),
+    ).reserveBatch({
+      owner: OWNER_A,
+      batchId: "transcribe-only-batch",
+      inputs: [
+        { fileToken: input.fileToken, taskId: "transcribe-only-task" },
+      ],
+    });
+    transaction.commit();
+
+    await expect(
+      inputs.resolveTaskSourceOutputDirectory(
+        OWNER_A,
+        "transcribe-only-task",
+        input.fileToken,
+      ),
+    ).rejects.toMatchObject({ code: "invalid_ipc_request", field: "operation" });
+  });
+
+  it("revokes source output derivation when the committed file is replaced", async () => {
+    const root = await tempRoot();
+    const inputPath = await file(root, "replace-file.wav", "before");
+    const inputs = new LocalSubtitleInputAuthorizationRegistry({
+      tokenFactory: () => "replace-file",
+    });
+    const input = await inputs.authorize(OWNER_A, inputPath);
+    const transaction = await new LocalSubtitleCapabilityLeaseCoordinator(
+      inputs,
+      new LocalSubtitleOutputDirectoryAuthorizationRegistry(),
+    ).reserveBatch({
+      owner: OWNER_A,
+      batchId: "replace-file-batch",
+      inputs: [{ fileToken: input.fileToken, taskId: "replace-file-task" }],
+    });
+    transaction.commit();
+    await rm(inputPath);
+    await writeFile(inputPath, "after replacement");
+
+    await expect(
+      inputs.resolveTaskSourceOutputDirectory(
+        OWNER_A,
+        "replace-file-task",
+        input.fileToken,
+      ),
+    ).rejects.toMatchObject({ code: "media_changed" });
+    await expect(
+      inputs.resolveTaskSourceOutputDirectory(
+        OWNER_A,
+        "replace-file-task",
+        input.fileToken,
+      ),
+    ).rejects.toMatchObject({ code: "invalid_ipc_request" });
+  });
+
+  it("rejects parent replacement after capture even when file identity remains exact", async () => {
+    const root = await tempRoot();
+    const sourceDirectory = path.join(root, "replace-parent-source");
+    const replacementDirectory = path.join(root, "replace-parent-ready");
+    const displacedDirectory = path.join(root, "replace-parent-displaced");
+    await mkdir(sourceDirectory);
+    await mkdir(replacementDirectory);
+    const inputPath = await file(sourceDirectory, "input.wav", "audio");
+    await link(inputPath, path.join(replacementDirectory, "input.wav"));
+    let sourceResolutionActive = false;
+    let sourceVerification = 0;
+    const enteredSecondVerification = deferred<void>();
+    const verificationGate = deferred<void>();
+    const inputs = new LocalSubtitleInputAuthorizationRegistry({
+      tokenFactory: () => "replace-parent",
+      beforeVerify: () => {
+        if (!sourceResolutionActive) return;
+        sourceVerification += 1;
+        if (sourceVerification !== 2) return;
+        enteredSecondVerification.resolve();
+        return verificationGate.promise;
+      },
+    });
+    const input = await inputs.authorize(OWNER_A, inputPath);
+    const transaction = await new LocalSubtitleCapabilityLeaseCoordinator(
+      inputs,
+      new LocalSubtitleOutputDirectoryAuthorizationRegistry(),
+    ).reserveBatch({
+      owner: OWNER_A,
+      batchId: "replace-parent-batch",
+      inputs: [{ fileToken: input.fileToken, taskId: "replace-parent-task" }],
+    });
+    transaction.commit();
+
+    sourceResolutionActive = true;
+    const resolving = inputs.resolveTaskSourceOutputDirectory(
+      OWNER_A,
+      "replace-parent-task",
+      input.fileToken,
+    );
+    await enteredSecondVerification.promise;
+    await rename(sourceDirectory, displacedDirectory);
+    await rename(replacementDirectory, sourceDirectory);
+    verificationGate.resolve();
+
+    await expect(resolving).rejects.toMatchObject({
+      code: "output_write_failed",
+    });
+    await expect(
+      inputs.resolveTaskLease(
+        OWNER_A,
+        "replace-parent-task",
+        "transcribe",
+        input.fileToken,
+      ),
+    ).resolves.toMatchObject({ filePath: await realpath(inputPath) });
+  });
+
+  it("pins the source parent at authorization and accepts it again after repair", async () => {
+    const root = await tempRoot();
+    const sourceDirectory = path.join(root, "pinned-parent-source");
+    const replacementDirectory = path.join(root, "pinned-parent-ready");
+    const displacedDirectory = path.join(root, "pinned-parent-displaced");
+    await Promise.all([mkdir(sourceDirectory), mkdir(replacementDirectory)]);
+    const inputPath = await file(sourceDirectory, "input.wav", "audio");
+    await link(inputPath, path.join(replacementDirectory, "input.wav"));
+    const sourceStats = await lstat(sourceDirectory);
+    const inputs = new LocalSubtitleInputAuthorizationRegistry({
+      tokenFactory: () => "pinned-parent",
+    });
+    const input = await inputs.authorize(OWNER_A, inputPath);
+    const transaction = await new LocalSubtitleCapabilityLeaseCoordinator(
+      inputs,
+      new LocalSubtitleOutputDirectoryAuthorizationRegistry(),
+    ).reserveBatch({
+      owner: OWNER_A,
+      batchId: "pinned-parent-batch",
+      inputs: [{ fileToken: input.fileToken, taskId: "pinned-parent-task" }],
+    });
+    transaction.commit();
+
+    await rename(sourceDirectory, displacedDirectory);
+    await rename(replacementDirectory, sourceDirectory);
+    await expect(
+      inputs.resolveTaskSourceOutputDirectory(
+        OWNER_A,
+        "pinned-parent-task",
+        input.fileToken,
+      ),
+    ).rejects.toMatchObject({ code: "output_write_failed" });
+    await expect(
+      inputs.resolveTaskLease(
+        OWNER_A,
+        "pinned-parent-task",
+        "transcribe",
+        input.fileToken,
+      ),
+    ).resolves.toBeDefined();
+
+    await rename(sourceDirectory, replacementDirectory);
+    await rename(displacedDirectory, sourceDirectory);
+    await expect(
+      inputs.resolveTaskSourceOutputDirectory(
+        OWNER_A,
+        "pinned-parent-task",
+        input.fileToken,
+      ),
+    ).resolves.toMatchObject({
+      directoryPath: await realpath(sourceDirectory),
+      identity: {
+        dev: sourceStats.dev,
+        ino: sourceStats.ino,
+        birthtimeMs: sourceStats.birthtimeMs,
+      },
+    });
+  });
+
+  it("rechecks exact file identity after the source parent boundary proof", async () => {
+    const root = await tempRoot();
+    const sourceDirectory = path.join(root, "final-file-source");
+    await mkdir(sourceDirectory);
+    const inputPath = await file(sourceDirectory, "input.wav", "before");
+    let sourceResolutionActive = false;
+    let sourceVerification = 0;
+    const enteredFinalVerification = deferred<void>();
+    const verificationGate = deferred<void>();
+    const inputs = new LocalSubtitleInputAuthorizationRegistry({
+      tokenFactory: () => "final-file",
+      beforeVerify: () => {
+        if (!sourceResolutionActive) return;
+        sourceVerification += 1;
+        if (sourceVerification !== 3) return;
+        enteredFinalVerification.resolve();
+        return verificationGate.promise;
+      },
+    });
+    const input = await inputs.authorize(OWNER_A, inputPath);
+    const transaction = await new LocalSubtitleCapabilityLeaseCoordinator(
+      inputs,
+      new LocalSubtitleOutputDirectoryAuthorizationRegistry(),
+    ).reserveBatch({
+      owner: OWNER_A,
+      batchId: "final-file-batch",
+      inputs: [{ fileToken: input.fileToken, taskId: "final-file-task" }],
+    });
+    transaction.commit();
+
+    sourceResolutionActive = true;
+    const resolving = inputs.resolveTaskSourceOutputDirectory(
+      OWNER_A,
+      "final-file-task",
+      input.fileToken,
+    );
+    await enteredFinalVerification.promise;
+    await rm(inputPath);
+    await writeFile(inputPath, "after");
+    verificationGate.resolve();
+
+    await expect(resolving).rejects.toMatchObject({ code: "media_changed" });
+    await expect(
+      inputs.resolveTaskLease(
+        OWNER_A,
+        "final-file-task",
+        "transcribe",
+        input.fileToken,
+      ),
+    ).rejects.toMatchObject({ code: "invalid_ipc_request" });
+  });
+
+  it("uses a canonical parent and rejects a symlink inserted after capture", async () => {
+    const root = await tempRoot();
+    const canonicalDirectory = path.join(root, "canonical-source");
+    const aliasDirectory = path.join(root, "source-alias");
+    await mkdir(canonicalDirectory);
+    const canonicalInput = await file(canonicalDirectory, "input.wav", "audio");
+    await symlink(
+      canonicalDirectory,
+      aliasDirectory,
+      process.platform === "win32" ? "junction" : "dir",
+    );
+    const canonicalInputs = new LocalSubtitleInputAuthorizationRegistry({
+      tokenFactory: () => "canonical-parent",
+    });
+    const canonicalAuthorization = await canonicalInputs.authorize(
+      OWNER_A,
+      path.join(aliasDirectory, "input.wav"),
+    );
+    const canonicalTransaction = await new LocalSubtitleCapabilityLeaseCoordinator(
+      canonicalInputs,
+      new LocalSubtitleOutputDirectoryAuthorizationRegistry(),
+    ).reserveBatch({
+      owner: OWNER_A,
+      batchId: "canonical-parent-batch",
+      inputs: [
+        {
+          fileToken: canonicalAuthorization.fileToken,
+          taskId: "canonical-parent-task",
+        },
+      ],
+    });
+    canonicalTransaction.commit();
+    await expect(
+      canonicalInputs.resolveTaskSourceOutputDirectory(
+        OWNER_A,
+        "canonical-parent-task",
+        canonicalAuthorization.fileToken,
+      ),
+    ).resolves.toMatchObject({
+      directoryPath: await realpath(canonicalDirectory),
+      directoryName: "canonical-source",
+    });
+
+    const sourceDirectory = path.join(root, "symlink-race-source");
+    const displacedDirectory = path.join(root, "symlink-race-displaced");
+    await mkdir(sourceDirectory);
+    const raceInput = await file(sourceDirectory, "race.wav", "audio");
+    let sourceResolutionActive = false;
+    let sourceVerification = 0;
+    const enteredSecondVerification = deferred<void>();
+    const verificationGate = deferred<void>();
+    const raceInputs = new LocalSubtitleInputAuthorizationRegistry({
+      tokenFactory: () => "symlink-parent",
+      beforeVerify: () => {
+        if (!sourceResolutionActive) return;
+        sourceVerification += 1;
+        if (sourceVerification !== 2) return;
+        enteredSecondVerification.resolve();
+        return verificationGate.promise;
+      },
+    });
+    const raceAuthorization = await raceInputs.authorize(OWNER_A, raceInput);
+    const raceTransaction = await new LocalSubtitleCapabilityLeaseCoordinator(
+      raceInputs,
+      new LocalSubtitleOutputDirectoryAuthorizationRegistry(),
+    ).reserveBatch({
+      owner: OWNER_A,
+      batchId: "symlink-parent-batch",
+      inputs: [
+        {
+          fileToken: raceAuthorization.fileToken,
+          taskId: "symlink-parent-task",
+        },
+      ],
+    });
+    raceTransaction.commit();
+
+    sourceResolutionActive = true;
+    const resolving = raceInputs.resolveTaskSourceOutputDirectory(
+      OWNER_A,
+      "symlink-parent-task",
+      raceAuthorization.fileToken,
+    );
+    await enteredSecondVerification.promise;
+    await rename(sourceDirectory, displacedDirectory);
+    await symlink(
+      displacedDirectory,
+      sourceDirectory,
+      process.platform === "win32" ? "junction" : "dir",
+    );
+    verificationGate.resolve();
+
+    await expect(resolving).rejects.toMatchObject({
+      code: "output_write_failed",
+    });
   });
 });
 

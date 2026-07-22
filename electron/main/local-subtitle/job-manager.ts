@@ -397,11 +397,13 @@ export class LocalSubtitleJobManager {
           parsed.config.modelId,
           pending.controller.signal,
         ),
-        Promise.all(
-          parsed.files.map((file) =>
-            this.#inputs.resolveDraft(owner, file.fileToken, "transcribe")
-          ),
-        ),
+        parsed.config.output.mode === "source"
+          ? resolveSourceInputDrafts(this.#inputs, owner, parsed.files)
+          : Promise.all(
+              parsed.files.map((file) =>
+                this.#inputs.resolveDraft(owner, file.fileToken, "transcribe")
+              ),
+            ),
         this.#runtimeVerifier.verifyRuntime({
           owner,
           signal: pending.controller.signal,
@@ -1090,10 +1092,15 @@ export class LocalSubtitleJobManager {
         this.#settleCancelled(run, result.artifactResults ?? [], result.durationMs);
         return;
       }
-      await this.#runLeaseOperation(
-        run.record.ownerKey,
-        () => this.#renewTaskCapabilities(run.record),
-      );
+      let terminalRenewalFailure: unknown;
+      try {
+        await this.#runLeaseOperation(
+          run.record.ownerKey,
+          () => this.#renewTaskCapabilities(run.record),
+        );
+      } catch (error) {
+        terminalRenewalFailure = error;
+      }
       if (!this.#isPublishableRun(run)) return;
       if (run.record.cancelRequested) {
         this.#settleCancelled(run, result.artifactResults ?? [], result.durationMs);
@@ -1104,6 +1111,8 @@ export class LocalSubtitleJobManager {
           result.artifactResults ?? [],
           result.durationMs,
         );
+      } else if (terminalRenewalFailure !== undefined) {
+        throw terminalRenewalFailure;
       } else {
         this.#settleFailed(
           run,
@@ -1998,18 +2007,45 @@ function assertProductionBatchSliceRequest(
     config.devicePreference === "cpu" &&
     config.taskMode === "transcribe" &&
     config.vadEnabled === false &&
-    config.output.mode === "custom" &&
+    (config.output.mode === "custom" || config.output.mode === "source") &&
+    config.output.conflictPolicy === "index" &&
     config.output.formats.length === 1 &&
     config.output.formats[0] === "SRT" &&
     config.postAction.mode === "export_only";
   if (!supported) {
     throw managerFailure(
       "invalid_ipc_request",
-      "This local subtitle build currently supports CPU, no-VAD SRT batches with custom output.",
+      "This local subtitle build currently supports CPU, no-VAD, index-only SRT batches with source or custom output.",
       "preflight",
       "config",
     );
   }
+}
+
+async function resolveSourceInputDrafts(
+  inputs: LocalSubtitleInputAuthorizationRegistry,
+  owner: LocalSubtitleOwnerKey,
+  files: EnqueueLocalSubtitleBatchRequest["files"],
+): Promise<readonly ResolvedLocalSubtitleInput[]> {
+  const validations = await Promise.all(
+    files.map((file) =>
+      Promise.allSettled([
+        inputs.resolveDraft(owner, file.fileToken, "transcribe"),
+        inputs.resolveDraft(owner, file.fileToken, "derive_source_output"),
+      ])
+    ),
+  );
+  for (const validation of validations) {
+    const failure = validation.find(
+      (result): result is PromiseRejectedResult => result.status === "rejected",
+    );
+    if (failure) throw failure.reason;
+  }
+  return validations.map((validation) => {
+    const transcribe = validation[0];
+    if (transcribe.status !== "fulfilled") throw transcribe.reason;
+    return transcribe.value;
+  });
 }
 
 function createConfigSnapshot(

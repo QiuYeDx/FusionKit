@@ -1,4 +1,12 @@
-import { mkdir, mkdtemp, realpath, rm, writeFile } from "node:fs/promises";
+import {
+  link,
+  mkdir,
+  mkdtemp,
+  realpath,
+  rename,
+  rm,
+  writeFile,
+} from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -2295,39 +2303,365 @@ describe("LocalSubtitleJobManager", () => {
     expect(harness.inputs.revokeDraft(OWNER_A, harness.fileToken)).toBe(true);
   });
 
-  it("rejects source output before resolving or reserving capabilities", async () => {
+  it.each(["custom", "source"] as const)(
+    "rejects %s overwrite before consuming capabilities",
+    async (outputMode) => {
+      const harness = await createHarness({
+        executor: executor(async (context) => successfulExecution(context)),
+      });
+      const request = outputMode === "custom"
+        ? await harness.createRequest(harness.fileToken)
+        : enqueueRequest(harness.fileToken);
+      request.config.output.conflictPolicy = "overwrite";
+      const outputDirToken = request.config.output.mode === "custom"
+        ? request.config.output.outputDirToken
+        : undefined;
+      const inputResolve = vi.spyOn(harness.inputs, "resolveDraft");
+      const outputResolve = vi.spyOn(harness.outputs, "resolveDraft");
+      const reserveBatch = vi.spyOn(harness.leases, "reserveBatch");
+
+      await expect(harness.manager.enqueue(OWNER_A, request)).rejects.toMatchObject({
+        localSubtitleCode: "invalid_ipc_request",
+        field: "config",
+      });
+
+      expect(inputResolve).not.toHaveBeenCalled();
+      expect(outputResolve).not.toHaveBeenCalled();
+      expect(reserveBatch).not.toHaveBeenCalled();
+      expect(harness.executor.execute).not.toHaveBeenCalled();
+      expect(harness.registry.getSnapshot(OWNER_A)).toMatchObject({
+        revision: 0,
+        batches: [],
+      });
+      expect(harness.inputs.revokeDraft(OWNER_A, harness.fileToken)).toBe(true);
+      if (outputDirToken !== undefined) {
+        expect(harness.outputs.revokeDraft(OWNER_A, outputDirToken)).toBe(true);
+      }
+    },
+  );
+
+  it("admits source output with both input operations and no output lease", async () => {
     const harness = await createHarness({
       executor: executor(async (context) => successfulExecution(context)),
     });
     const inputResolve = vi.spyOn(harness.inputs, "resolveDraft");
     const outputResolve = vi.spyOn(harness.outputs, "resolveDraft");
     const outputPrepare = vi.spyOn(harness.outputs, "_prepare");
+    const outputResolveLease = vi.spyOn(harness.outputs, "resolveBatchLease");
+    const outputRenewLease = vi.spyOn(harness.outputs, "renewBatchLease");
+    const outputReleaseLease = vi.spyOn(harness.outputs, "releaseBatchLease");
     const reserveBatch = vi.spyOn(harness.leases, "reserveBatch");
+    const events: unknown[] = [];
+    harness.manager.onTaskEvent(OWNER_A, (event) => events.push(event));
+
+    const batch = await harness.manager.enqueue(
+      OWNER_A,
+      enqueueRequest(harness.fileToken),
+    );
+
+    expect(batch).toMatchObject({
+      batchId: "batch-1",
+      config: { outputMode: "source", outputFormats: ["SRT"] },
+      tasks: [{ taskId: "task-1", displayName: "sample.wav" }],
+    });
+    expect(inputResolve.mock.calls.map((call) => [call[1], call[2]])).toEqual([
+      [harness.fileToken, "transcribe"],
+      [harness.fileToken, "derive_source_output"],
+    ]);
+    expect(reserveBatch).toHaveBeenCalledOnce();
+    expect(reserveBatch.mock.calls[0]![0]).not.toHaveProperty("outputDirToken");
+    expect(outputResolve).not.toHaveBeenCalled();
+    expect(outputPrepare).not.toHaveBeenCalled();
+    expect(harness.inputs.revokeDraft(OWNER_A, harness.fileToken)).toBe(false);
+
+    harness.flushScheduled();
+    await harness.manager.waitForIdle();
+
+    expect(harness.executor.execute).toHaveBeenCalledOnce();
+    expect(harness.executor.execute.mock.calls[0]![0].config.output).toEqual({
+      mode: "source",
+      formats: ["SRT"],
+      conflictPolicy: "index",
+    });
+    expect(outputResolve).not.toHaveBeenCalled();
+    expect(outputPrepare).not.toHaveBeenCalled();
+    expect(outputResolveLease).not.toHaveBeenCalled();
+    expect(outputRenewLease).not.toHaveBeenCalled();
+    expect(outputReleaseLease).not.toHaveBeenCalled();
+    const snapshot = harness.registry.getSnapshot(OWNER_A);
+    expect(snapshot).toMatchObject({
+      batches: [
+        {
+          config: { outputMode: "source" },
+          tasks: [{ taskId: "task-1", status: "completed" }],
+        },
+      ],
+    });
+    const publicState = JSON.stringify({ batch, events, snapshot });
+    expect(publicState).not.toContain(harness.fileToken);
+    expect(publicState).not.toContain(harness.root);
+    expect(publicState).not.toContain("outputDirToken");
+  });
+
+  it.each([
+    {
+      missingOperation: "derive_source_output",
+      allowedOperations: ["transcribe"] as const,
+      retainedOperation: "transcribe" as const,
+    },
+    {
+      missingOperation: "transcribe",
+      allowedOperations: ["derive_source_output"] as const,
+      retainedOperation: "derive_source_output" as const,
+    },
+  ])(
+    "rejects source output missing $missingOperation without consuming its draft",
+    async ({ missingOperation, allowedOperations, retainedOperation }) => {
+      const harness = await createHarness({
+        executor: executor(async (context) => successfulExecution(context)),
+        taskIds: ["task-1", "task-2"],
+      });
+      const restrictedPath = path.join(
+        harness.root,
+        `restricted-${missingOperation}.wav`,
+      );
+      await writeFile(restrictedPath, "restricted audio");
+      const restricted = await harness.inputs.authorize(
+        OWNER_A,
+        restrictedPath,
+        allowedOperations,
+      );
+      const inputResolve = vi.spyOn(harness.inputs, "resolveDraft");
+      const reserveBatch = vi.spyOn(harness.leases, "reserveBatch");
+
+      await expect(
+        harness.manager.enqueue(
+          OWNER_A,
+          enqueueRequest([harness.fileToken, restricted.fileToken]),
+        ),
+      ).rejects.toMatchObject({
+        code: "invalid_ipc_request",
+        field: "operation",
+      });
+
+      expect(inputResolve.mock.calls.map((call) => call[2])).toEqual([
+        "transcribe",
+        "derive_source_output",
+        "transcribe",
+        "derive_source_output",
+      ]);
+      expect(reserveBatch).not.toHaveBeenCalled();
+      expect(harness.executor.execute).not.toHaveBeenCalled();
+      expect(harness.registry.getSnapshot(OWNER_A)).toMatchObject({
+        revision: 0,
+        batches: [],
+      });
+      await expect(
+        harness.inputs.resolveDraft(OWNER_A, harness.fileToken, "transcribe"),
+      ).resolves.toMatchObject({ displayName: "sample.wav" });
+      await expect(
+        harness.inputs.resolveDraft(
+          OWNER_A,
+          restricted.fileToken,
+          retainedOperation,
+        ),
+      ).resolves.toMatchObject({
+        displayName: `restricted-${missingOperation}.wav`,
+      });
+      expect(harness.inputs.revokeDraft(OWNER_A, harness.fileToken)).toBe(true);
+      expect(harness.inputs.revokeDraft(OWNER_A, restricted.fileToken)).toBe(true);
+    },
+  );
+
+  it("rolls a source input lease back to its draft when publication fails", async () => {
+    const harness = await createHarness({
+      executor: executor(async (context) => successfulExecution(context)),
+    });
+    const outputPrepare = vi.spyOn(harness.outputs, "_prepare");
+    vi.spyOn(harness.registry, "prepareBatchPublication").mockImplementationOnce(
+      () => {
+        throw new Error("source publication failed");
+      },
+    );
 
     await expect(
       harness.manager.enqueue(OWNER_A, enqueueRequest(harness.fileToken)),
-    ).rejects.toMatchObject({
-      localSubtitleCode: "invalid_ipc_request",
-      field: "config",
-    });
+    ).rejects.toThrow("source publication failed");
 
-    expect(harness.modelResolver.resolveManagedModel).not.toHaveBeenCalled();
-    expect(inputResolve).not.toHaveBeenCalled();
-    expect(outputResolve).not.toHaveBeenCalled();
     expect(outputPrepare).not.toHaveBeenCalled();
-    expect(reserveBatch).not.toHaveBeenCalled();
-    expect(harness.executor.execute).not.toHaveBeenCalled();
+    expect(harness.inputs.revokeDraft(OWNER_A, harness.fileToken)).toBe(true);
     expect(harness.registry.getSnapshot(OWNER_A)).toMatchObject({
       revision: 0,
       batches: [],
     });
-    await expect(
-      harness.inputs.resolveDraft(
-        OWNER_A,
-        harness.fileToken,
-        "transcribe",
-      ),
-    ).resolves.toMatchObject({ displayName: "sample.wav" });
+    expect(harness.executor.execute).not.toHaveBeenCalled();
+  });
+
+  it("keeps source output parent failures task-scoped and runs the sibling", async () => {
+    const starts: string[] = [];
+    const harness = await createHarness({
+      executor: executor(async (context) => {
+        starts.push(context.taskId);
+        if (context.taskId === "task-1") {
+          advanceExecutionToExporting(context);
+          return {
+            status: "failed",
+            error: createLocalSubtitleError(
+              "output_write_failed",
+              "The source parent directory is not writable.",
+              { stage: "exporting" },
+            ),
+            artifactResults: [
+              {
+                format: "SRT",
+                status: "failed",
+                errorCode: "output_write_failed",
+              },
+            ],
+          };
+        }
+        return successfulExecution(context);
+      }),
+      taskIds: ["task-1", "task-2"],
+    });
+    const sibling = await authorizeInput(harness.inputs, OWNER_A, "sibling.wav");
+    const outputReleaseLease = vi.spyOn(harness.outputs, "releaseBatchLease");
+
+    await harness.manager.enqueue(
+      OWNER_A,
+      enqueueRequest([harness.fileToken, sibling.fileToken]),
+    );
+    harness.flushScheduled();
+    await harness.manager.waitForIdle();
+
+    expect(starts).toEqual(["task-1", "task-2"]);
+    expect(harness.executor.beginBatchSlice).toHaveBeenCalledOnce();
+    expect(harness.executor.endBatchSlice).toHaveBeenCalledOnce();
+    expect(outputReleaseLease).not.toHaveBeenCalled();
+    expect(harness.manager.getSessionSnapshot(OWNER_A)).toMatchObject({
+      batches: [
+        {
+          status: "completed",
+          config: { outputMode: "source" },
+          tasks: [
+            {
+              taskId: "task-1",
+              status: "failed",
+              error: { code: "output_write_failed" },
+            },
+            { taskId: "task-2", status: "completed" },
+          ],
+        },
+      ],
+    });
+  });
+
+  it("re-resolves the frozen source parent after repair on retry", async () => {
+    let inputs!: LocalSubtitleInputAuthorizationRegistry;
+    let executions = 0;
+    const harness = await createHarness({
+      executor: executor(async (context) => {
+        executions += 1;
+        try {
+          await inputs.resolveTaskSourceOutputDirectory(
+            context.owner,
+            context.taskId,
+            context.fileToken,
+          );
+        } catch {
+          return {
+            status: "failed" as const,
+            error: createLocalSubtitleError(
+              "output_write_failed",
+              "The source parent directory changed.",
+              { stage: "exporting" },
+            ),
+            artifactResults: [
+              {
+                format: "SRT" as const,
+                status: "failed" as const,
+                errorCode: "output_write_failed" as const,
+              },
+            ],
+          };
+        }
+        return successfulExecution(context);
+      }),
+    });
+    inputs = harness.inputs;
+    const sourceDirectory = path.join(harness.root, "retry-source");
+    const replacementDirectory = path.join(harness.root, "retry-replacement");
+    const displacedDirectory = path.join(harness.root, "retry-displaced");
+    await Promise.all([mkdir(sourceDirectory), mkdir(replacementDirectory)]);
+    const inputPath = path.join(sourceDirectory, "retry.wav");
+    await writeFile(inputPath, "retry-audio");
+    await link(inputPath, path.join(replacementDirectory, "retry.wav"));
+    const input = await inputs.authorize(OWNER_A, inputPath);
+
+    await harness.manager.enqueue(OWNER_A, enqueueRequest(input.fileToken));
+    await rename(sourceDirectory, displacedDirectory);
+    await rename(replacementDirectory, sourceDirectory);
+    harness.flushScheduled();
+    await harness.manager.waitForIdle();
+    expect(harness.manager.getSessionSnapshot(OWNER_A)).toMatchObject({
+      batches: [{ tasks: [{ status: "failed", generation: 1 }] }],
+    });
+
+    await rename(sourceDirectory, replacementDirectory);
+    await rename(displacedDirectory, sourceDirectory);
+    await harness.manager.retryTask(OWNER_A, "task-1");
+    await harness.manager.waitForIdle();
+
+    expect(executions).toBe(2);
+    expect(harness.manager.getSessionSnapshot(OWNER_A)).toMatchObject({
+      batches: [{ tasks: [{ status: "completed", generation: 2 }] }],
+    });
+  });
+
+  it("preserves media_changed when source preflight invalidates the task lease", async () => {
+    let inputs!: LocalSubtitleInputAuthorizationRegistry;
+    let inputPath = "";
+    const harness = await createHarness({
+      executor: executor(async (context) => {
+        await rm(inputPath);
+        await writeFile(inputPath, "replacement-audio");
+        await expect(
+          inputs.resolveTaskSourceOutputDirectory(
+            context.owner,
+            context.taskId,
+            context.fileToken,
+          ),
+        ).rejects.toMatchObject({ code: "media_changed" });
+        return {
+          status: "failed" as const,
+          error: createLocalSubtitleError(
+            "media_changed",
+            "The authorized source file changed before execution.",
+            { stage: "preparing_media" },
+          ),
+          artifactResults: [],
+        };
+      }),
+    });
+    inputs = harness.inputs;
+    inputPath = path.join(harness.root, "sample.wav");
+
+    await harness.manager.enqueue(OWNER_A, enqueueRequest(harness.fileToken));
+    harness.flushScheduled();
+    await harness.manager.waitForIdle();
+
+    expect(harness.registry.getSnapshot(OWNER_A)).toMatchObject({
+      batches: [
+        {
+          tasks: [
+            {
+              status: "failed",
+              error: { code: "media_changed", stage: "preparing_media" },
+            },
+          ],
+        },
+      ],
+    });
   });
 
   it("rejects media runtime preflight without consuming capability drafts", async () => {

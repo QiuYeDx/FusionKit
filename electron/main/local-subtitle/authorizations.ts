@@ -66,6 +66,7 @@ interface FileDescriptor {
   readonly path: string;
   readonly displayName: string;
   readonly identity: LocalSubtitleFileIdentity;
+  readonly sourceOutputDirectoryIdentity?: LocalSubtitleDirectoryIdentity;
 }
 
 interface DirectoryDescriptor {
@@ -339,6 +340,16 @@ class DraftLeaseRegistry<TDescriptor, TOperation extends string> {
       throw invalid("token");
     }
     await this.verifyOrDelete(entry);
+    return this.recheckLease(owner, scopeId, op, expectedToken, entry);
+  }
+
+  recheckLease(
+    owner: LocalSubtitleOwnerKey,
+    scopeId: string,
+    op: TOperation,
+    expectedToken: string | undefined,
+    entry: Entry<TDescriptor, TOperation>,
+  ) {
     const current = this.requireLease(owner, scopeId, op);
     if (
       current.token !== entry.token ||
@@ -521,7 +532,14 @@ export class LocalSubtitleInputAuthorizationRegistry {
       "derive_source_output",
     ],
   ) {
-    const descriptors = await Promise.all(paths.map(inspectFile));
+    const captureSourceOutputDirectory = operations.includes(
+      "derive_source_output",
+    );
+    const descriptors = await Promise.all(
+      paths.map((filePath) =>
+        inspectFileAuthorization(filePath, captureSourceOutputDirectory)
+      ),
+    );
     const identityCount = new Set(
       descriptors.map((value) => identityKey(value.identity)),
     ).size;
@@ -567,6 +585,61 @@ export class LocalSubtitleInputAuthorizationRegistry {
     return resolvedInput(
       await this.core.resolveLease(owner, taskId, op, expectedFileToken),
     );
+  }
+
+  async resolveTaskSourceOutputDirectory(
+    owner: LocalSubtitleOwnerKey,
+    taskId: string,
+    expectedFileToken: string,
+  ): Promise<ResolvedLocalSubtitleOutputDirectory> {
+    assertId(expectedFileToken, "fileToken");
+    const first = await this.core.resolveLease(
+      owner,
+      taskId,
+      "derive_source_output",
+      expectedFileToken,
+    );
+    const expectedDirectoryIdentity = first.descriptor
+      .sourceOutputDirectoryIdentity;
+    if (!expectedDirectoryIdentity) {
+      throw failure(
+        "output_write_failed",
+        "Source output directory authority is unavailable.",
+        "fileToken",
+      );
+    }
+    const directory = await inspectSourceOutputDirectory(first.descriptor);
+    if (!sameDirectoryIdentity(directory.identity, expectedDirectoryIdentity)) {
+      throw failure(
+        "output_write_failed",
+        "Source output directory changed.",
+        "fileToken",
+      );
+    }
+    const verified = await this.core.resolveLease(
+      owner,
+      taskId,
+      "derive_source_output",
+      expectedFileToken,
+    );
+    if (verified.descriptor !== first.descriptor) throw invalid("fileToken");
+    await verifySourceOutputDirectory(directory, verified.descriptor);
+    const finalFile = await this.core.resolveLease(
+      owner,
+      taskId,
+      "derive_source_output",
+      expectedFileToken,
+    );
+    if (finalFile.descriptor !== first.descriptor) throw invalid("fileToken");
+    await verifySourceOutputDirectory(directory, finalFile.descriptor);
+    const current = this.core.recheckLease(
+      owner,
+      taskId,
+      "derive_source_output",
+      expectedFileToken,
+      finalFile,
+    );
+    return resolvedSourceOutput(directory, current.expiresAt);
   }
 
   renewTaskLease(
@@ -1198,6 +1271,20 @@ async function inspectFile(filePath: string): Promise<FileDescriptor> {
   }
 }
 
+async function inspectFileAuthorization(
+  filePath: string,
+  captureSourceOutputDirectory: boolean,
+): Promise<FileDescriptor> {
+  const file = await inspectFile(filePath);
+  if (!captureSourceOutputDirectory) return file;
+  const directory = await inspectSourceOutputDirectory(file);
+  await verifySourceOutputDirectory(directory, file);
+  return Object.freeze({
+    ...file,
+    sourceOutputDirectoryIdentity: directory.identity,
+  });
+}
+
 async function verifyFile(value: FileDescriptor): Promise<void> {
   try {
     const before = await lstat(value.path);
@@ -1224,27 +1311,13 @@ async function verifyFile(value: FileDescriptor): Promise<void> {
 async function inspectDirectory(directoryPath: string): Promise<DirectoryDescriptor> {
   const absolute = absolutePath(directoryPath, "outputDir");
   try {
-    const before = await lstat(absolute);
-    if (!before.isDirectory() || before.isSymbolicLink()) throw new Error();
-    const canonical = await realpath(absolute);
-    const after = await lstat(canonical);
-    const lexicalAfter = await lstat(absolute);
-    if (
-      !after.isDirectory() ||
-      after.isSymbolicLink() ||
-      lexicalAfter.isSymbolicLink() ||
-      !sameDirectory(before, after) ||
-      !sameDirectory(before, lexicalAfter)
-    ) {
-      throw new Error();
-    }
+    const directory = await inspectDirectoryObject(absolute);
     const basename = path.basename(absolute);
     return Object.freeze({
-      path: canonical,
+      ...directory,
       directoryName: basename
         ? safeDisplayName(basename, "outputDir")
         : "Filesystem root",
-      identity: Object.freeze(directoryIdentity(after)),
     });
   } catch (error) {
     if (error instanceof LocalSubtitleAuthorizationError) throw error;
@@ -1275,6 +1348,93 @@ async function verifyDirectory(value: DirectoryDescriptor): Promise<void> {
   }
 }
 
+async function inspectSourceOutputDirectory(
+  file: FileDescriptor,
+): Promise<DirectoryDescriptor> {
+  const expectedParent = path.dirname(file.path);
+  try {
+    const directory = await inspectDirectoryObject(expectedParent);
+    if (!sameCanonicalPath(directory.path, expectedParent)) throw new Error();
+    const basename = path.basename(directory.path);
+    return Object.freeze({
+      ...directory,
+      directoryName: isSafeDisplayName(basename)
+        ? basename
+        : "Source directory",
+    });
+  } catch {
+    throw failure(
+      "output_write_failed",
+      "Source output directory is unavailable or unsafe.",
+      "fileToken",
+    );
+  }
+}
+
+async function inspectDirectoryObject(
+  absolute: string,
+): Promise<Pick<DirectoryDescriptor, "path" | "identity">> {
+  const before = await lstat(absolute);
+  if (!before.isDirectory() || before.isSymbolicLink()) throw new Error();
+  const canonical = await realpath(absolute);
+  const after = await lstat(canonical);
+  const lexicalAfter = await lstat(absolute);
+  if (
+    !after.isDirectory() ||
+    after.isSymbolicLink() ||
+    lexicalAfter.isSymbolicLink() ||
+    !sameDirectory(before, after) ||
+    !sameDirectory(before, lexicalAfter)
+  ) {
+    throw new Error();
+  }
+  return Object.freeze({
+    path: canonical,
+    identity: Object.freeze(directoryIdentity(after)),
+  });
+}
+
+async function verifySourceOutputDirectory(
+  value: DirectoryDescriptor,
+  file: FileDescriptor,
+): Promise<void> {
+  try {
+    const before = await lstat(value.path);
+    if (
+      !before.isDirectory() ||
+      before.isSymbolicLink() ||
+      !sameDirectoryIdentity(directoryIdentity(before), value.identity)
+    ) {
+      throw new Error();
+    }
+    const canonical = await realpath(value.path);
+    const canonicalStats = await lstat(canonical);
+    await verifyFile(file);
+    const canonicalFile = await realpath(file.path);
+    const after = await lstat(value.path);
+    if (
+      !sameCanonicalPath(canonicalFile, file.path) ||
+      !sameCanonicalPath(path.dirname(canonicalFile), value.path) ||
+      !sameCanonicalPath(canonical, value.path) ||
+      !canonicalStats.isDirectory() ||
+      canonicalStats.isSymbolicLink() ||
+      after.isSymbolicLink() ||
+      !sameDirectory(before, canonicalStats) ||
+      !sameDirectory(before, after) ||
+      !sameDirectoryIdentity(directoryIdentity(canonicalStats), value.identity)
+    ) {
+      throw new Error();
+    }
+  } catch (error) {
+    if (error instanceof LocalSubtitleAuthorizationError) throw error;
+    throw failure(
+      "output_write_failed",
+      "Source output directory changed.",
+      "fileToken",
+    );
+  }
+}
+
 function resolvedInput(
   entry: Entry<FileDescriptor, LocalSubtitleInputOperation>,
 ): ResolvedLocalSubtitleInput {
@@ -1290,11 +1450,18 @@ function resolvedInput(
 function resolvedOutput(
   entry: Entry<DirectoryDescriptor, LocalSubtitleOutputOperation>,
 ): ResolvedLocalSubtitleOutputDirectory {
+  return resolvedSourceOutput(entry.descriptor, entry.expiresAt);
+}
+
+function resolvedSourceOutput(
+  descriptor: DirectoryDescriptor,
+  expiresAt: number,
+): ResolvedLocalSubtitleOutputDirectory {
   return Object.freeze({
-    directoryPath: entry.descriptor.path,
-    directoryName: entry.descriptor.directoryName,
-    identity: entry.descriptor.identity,
-    expiresAt: entry.expiresAt,
+    directoryPath: descriptor.path,
+    directoryName: descriptor.directoryName,
+    identity: descriptor.identity,
+    expiresAt,
   });
 }
 
@@ -1344,19 +1511,20 @@ function sameDirectoryIdentity(
     a.birthtimeMs === b.birthtimeMs;
 }
 
+function sameCanonicalPath(a: string, b: string) {
+  const left = path.normalize(a);
+  const right = path.normalize(b);
+  return process.platform === "win32"
+    ? left.toLowerCase() === right.toLowerCase()
+    : left === right;
+}
+
 function identityKey(value: LocalSubtitleFileIdentity) {
   return JSON.stringify(value);
 }
 
 function safeDisplayName(value: string, field: string) {
-  const unsafe =
-    !value ||
-    value === "." ||
-    value === ".." ||
-    value.length > LOCAL_SUBTITLE_LIMITS.maxDisplayNameChars ||
-    !value.trim() ||
-    /[\\/\u0000-\u001f\u007f]/.test(value);
-  if (unsafe) {
+  if (!isSafeDisplayName(value)) {
     throw failure(
       "invalid_content",
       "Selected item has an unsafe display name.",
@@ -1364,6 +1532,17 @@ function safeDisplayName(value: string, field: string) {
     );
   }
   return value;
+}
+
+function isSafeDisplayName(value: string): boolean {
+  return Boolean(
+    value &&
+      value !== "." &&
+      value !== ".." &&
+      value.length <= LOCAL_SUBTITLE_LIMITS.maxDisplayNameChars &&
+      value.trim() &&
+      !/[\\/\u0000-\u001f\u007f]/.test(value),
+  );
 }
 
 function sameOwner(a: LocalSubtitleOwnerKey, b: LocalSubtitleOwnerKey) {

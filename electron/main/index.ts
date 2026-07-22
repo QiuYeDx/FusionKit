@@ -239,6 +239,7 @@ app.whenReady().then(() => {
   const localSubtitleProductionExecutor = new LocalSubtitleProductionExecutor({
     media: localSubtitleMediaNormalizer,
     supervisor: localSubtitleServerSupervisor,
+    inputs: localSubtitleInputAuthorizations,
     outputs: localSubtitleOutputAuthorizations,
     exporter: localSubtitleExporter,
     runtimeEnvironment: localSubtitleResourceEnvironment,

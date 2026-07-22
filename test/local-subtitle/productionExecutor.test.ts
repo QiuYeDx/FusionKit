@@ -89,6 +89,8 @@ describe("local subtitle production executor", () => {
     expect(harness.supervisor.acquirePinnedTaskLease).toHaveBeenCalledOnce();
     expect(harness.supervisor.release).toHaveBeenCalledTimes(1);
     expect(harness.media.disposeNormalized).toHaveBeenCalledTimes(1);
+    expect(harness.outputs.resolveBatchLease).toHaveBeenCalled();
+    expect(harness.inputs.resolveTaskSourceOutputDirectory).not.toHaveBeenCalled();
     expect(harness.context.update.mock.calls.map(([update]) => update.status)).toEqual([
       "preparing_media",
       "loading_model",
@@ -100,6 +102,187 @@ describe("local subtitle production executor", () => {
       "exporting",
     ]);
   });
+
+  it("uses only the task input parent resolver for source output", async () => {
+    const harness = await createHarness({ outputMode: "source" });
+
+    await expect(harness.executor.execute(harness.context)).resolves.toMatchObject({
+      status: "completed",
+      artifactResults: [{ format: "SRT", status: "committed" }],
+    });
+
+    expect(harness.outputs.resolveBatchLease).not.toHaveBeenCalled();
+    expect(
+      harness.inputs.resolveTaskSourceOutputDirectory,
+    ).toHaveBeenCalledTimes(4);
+    for (const call of harness.inputs.resolveTaskSourceOutputDirectory.mock.calls) {
+      expect(call).toEqual([OWNER, "task-1", "file-token-1"]);
+    }
+  });
+
+  it("fails source output preflight before media or runtime work", async () => {
+    const harness = await createHarness({ outputMode: "source" });
+    harness.inputs.resolveTaskSourceOutputDirectory.mockRejectedValueOnce(
+      Object.assign(new Error("source parent changed"), {
+        code: "media_changed",
+      }),
+    );
+
+    await expect(harness.executor.execute(harness.context)).resolves.toMatchObject({
+      status: "failed",
+      error: { code: "media_changed", stage: "preparing_media" },
+      artifactResults: [],
+    });
+
+    expect(harness.media.normalizeTask).not.toHaveBeenCalled();
+    expect(harness.supervisor.acquireBatchRuntimePin).not.toHaveBeenCalled();
+    expect(harness.exporter.exportArtifacts).not.toHaveBeenCalled();
+    expect(harness.outputs.resolveBatchLease).not.toHaveBeenCalled();
+  });
+
+  it("rejects source parent identity drift between preflight and export", async () => {
+    const harness = await createHarness({ outputMode: "source" });
+    const preflightRoot = path.join(harness.root, "preflight-parent");
+    const exportRoot = path.join(harness.root, "export-parent");
+    await Promise.all([mkdir(preflightRoot), mkdir(exportRoot)]);
+    let resolution = 0;
+    harness.inputs.resolveTaskSourceOutputDirectory.mockImplementation(async () =>
+      resolvedOutputDirectory(resolution++ === 0 ? preflightRoot : exportRoot),
+    );
+
+    await expect(harness.executor.execute(harness.context)).resolves.toMatchObject({
+      status: "failed",
+      error: { code: "output_write_failed", stage: "exporting" },
+    });
+
+    expect(resolution).toBe(2);
+    await expect(lstat(path.join(preflightRoot, "meeting.srt"))).rejects.toMatchObject({
+      code: "ENOENT",
+    });
+    await expect(lstat(path.join(exportRoot, "meeting.srt"))).rejects.toMatchObject({
+      code: "ENOENT",
+    });
+  });
+
+  it("stabilizes a source parent failure during export", async () => {
+    const harness = await createHarness({ outputMode: "source" });
+    harness.inputs.resolveTaskSourceOutputDirectory
+      .mockResolvedValueOnce(await resolvedOutputDirectory(harness.outputRoot))
+      .mockRejectedValueOnce(
+        Object.assign(new Error("source lease expired after transcription"), {
+          code: "authorization_expired",
+        }),
+      );
+
+    await expect(harness.executor.execute(harness.context)).resolves.toMatchObject({
+      status: "failed",
+      error: { code: "authorization_expired", stage: "preflight" },
+      artifactResults: [
+        { format: "SRT", status: "failed", errorCode: "authorization_expired" },
+      ],
+    });
+
+    expect(harness.supervisor.acquireBatchRuntimePin).toHaveBeenCalledOnce();
+    expect(harness.exporter.exportArtifacts).toHaveBeenCalledOnce();
+  });
+
+  it("resolves each source task to its own parent directory", async () => {
+    const harness = await createHarness({ outputMode: "source" });
+    const firstRoot = path.join(harness.root, "first-parent");
+    const secondRoot = path.join(harness.root, "second-parent");
+    await Promise.all([mkdir(firstRoot), mkdir(secondRoot)]);
+    harness.inputs.resolveTaskSourceOutputDirectory.mockImplementation(
+      async (_owner, taskId, expectedFileToken) => {
+        expect(expectedFileToken).toBe(
+          taskId === "task-1" ? "file-token-1" : "file-token-2",
+        );
+        return resolvedOutputDirectory(
+          taskId === "task-1" ? firstRoot : secondRoot,
+        );
+      },
+    );
+    const sibling = createContext(
+      new AbortController().signal,
+      harness.context.admittedRuntimeGeneration,
+      harness.context.batchRuntime,
+      harness.context.config,
+      harness.context.managedModel,
+      { taskId: "task-2", fileToken: "file-token-2" },
+    );
+
+    await expect(harness.executor.execute(harness.context)).resolves.toMatchObject({
+      status: "completed",
+    });
+    await expect(harness.executor.execute(sibling)).resolves.toMatchObject({
+      status: "completed",
+    });
+
+    await expect(lstat(path.join(firstRoot, "meeting.srt"))).resolves.toBeDefined();
+    await expect(lstat(path.join(secondRoot, "meeting.srt"))).resolves.toBeDefined();
+    expect(harness.supervisor.acquireBatchRuntimePin).toHaveBeenCalledOnce();
+  });
+
+  it("lets a source sibling continue after the first task parent preflight fails", async () => {
+    const harness = await createHarness({ outputMode: "source" });
+    harness.inputs.resolveTaskSourceOutputDirectory.mockImplementation(
+      async (_owner, taskId) => {
+        if (taskId === "task-1") {
+          throw Object.assign(new Error("source parent is unavailable"), {
+            code: "output_write_failed",
+          });
+        }
+        return resolvedOutputDirectory(harness.outputRoot);
+      },
+    );
+    const sibling = createContext(
+      new AbortController().signal,
+      harness.context.admittedRuntimeGeneration,
+      harness.context.batchRuntime,
+      harness.context.config,
+      harness.context.managedModel,
+      { taskId: "task-2", fileToken: "file-token-2" },
+    );
+
+    await expect(harness.executor.execute(harness.context)).resolves.toMatchObject({
+      status: "failed",
+      error: { code: "output_write_failed", stage: "exporting" },
+    });
+    expect(harness.supervisor.acquireBatchRuntimePin).not.toHaveBeenCalled();
+
+    await expect(harness.executor.execute(sibling)).resolves.toMatchObject({
+      status: "completed",
+    });
+    expect(harness.supervisor.acquireBatchRuntimePin).toHaveBeenCalledOnce();
+    expect(harness.supervisor.acquirePinnedTaskLease).toHaveBeenCalledOnce();
+  });
+
+  it.each(["custom", "source"] as const)(
+    "rejects %s overwrite contexts before resolving or executing",
+    async (outputMode) => {
+      const harness = await createHarness();
+      const config = createConfig(outputMode, "overwrite");
+      expect(() =>
+        harness.executor.beginBatchSlice(Object.freeze({
+          owner: OWNER,
+          batchId: "overwrite-batch",
+          config,
+          managedModel: harness.context.managedModel,
+          admittedRuntimeGeneration: harness.context.admittedRuntimeGeneration,
+          signal: new AbortController().signal,
+        }))).toThrow();
+
+      await expect(
+        harness.executor.execute(Object.freeze({ ...harness.context, config })),
+      ).resolves.toMatchObject({
+        status: "failed",
+        error: { code: "invalid_ipc_request", stage: "preflight" },
+      });
+      expect(harness.inputs.resolveTaskSourceOutputDirectory).not.toHaveBeenCalled();
+      expect(harness.outputs.resolveBatchLease).not.toHaveBeenCalled();
+      expect(harness.media.normalizeTask).not.toHaveBeenCalled();
+      expect(harness.exporter.exportArtifacts).not.toHaveBeenCalled();
+    },
+  );
 
   it("splits a degenerate root into exact retry children with unique identities", async () => {
     const harness = await createHarness({
@@ -608,6 +791,7 @@ interface HarnessOptions {
   readonly releaseFailure?: boolean;
   readonly acquireBatchRuntimePin?: () => Promise<LocalSubtitleServerRuntimePin>;
   readonly normalizeFailure?: unknown;
+  readonly outputMode?: "custom" | "source";
   readonly retainedRawBudget?: Readonly<{
     maxSegments: number;
     maxTextBytes: number;
@@ -653,12 +837,25 @@ async function createHarness(options: HarnessOptions = {}) {
   let nextWindow = 0;
   let firstBrand: LocalSubtitleBrandedPcmWindow | undefined;
   const media = {
-    normalizeTask: vi.fn(async (request: { onProgress?: (value: number) => void }) => {
+    normalizeTask: vi.fn(async (request: {
+      taskId: string;
+      taskGeneration: number;
+      onProgress?: (value: number) => void;
+    }) => {
       if (options.normalizeFailure !== undefined) throw options.normalizeFailure;
       request.onProgress?.(100);
-      return normalized;
+      return deepFreeze({
+        ...normalized,
+        normalizationId:
+          request.taskId === "task-1"
+            ? normalized.normalizationId
+            : `normalization-${request.taskId}`,
+        taskId: request.taskId,
+        taskGeneration: request.taskGeneration,
+      });
     }),
     materializeWindow: vi.fn(async (request: {
+      normalized: LocalSubtitleNormalizedPcm;
       descriptor: LocalSubtitleMediaStructuralWindow;
     }) => {
       if (options.reuseWindowBrand && firstBrand) return firstBrand;
@@ -668,9 +865,9 @@ async function createHarness(options: HarnessOptions = {}) {
         schemaVersion: 1 as const,
         windowId,
         normalizationId:
-          options.brandNormalizationId ?? normalized.normalizationId,
-        taskId: normalized.taskId,
-        taskGeneration: normalized.taskGeneration,
+          options.brandNormalizationId ?? request.normalized.normalizationId,
+        taskId: request.normalized.taskId,
+        taskGeneration: request.normalized.taskGeneration,
         descriptor: request.descriptor,
         frameCount: request.descriptor.endFrame - request.descriptor.startFrame,
         durationMs: request.descriptor.endMs - request.descriptor.startMs,
@@ -749,19 +946,12 @@ async function createHarness(options: HarnessOptions = {}) {
     exportArtifacts: vi.fn(realExporter.exportArtifacts.bind(realExporter)),
   };
   const outputs = {
-    resolveBatchLease: vi.fn(async () => {
-      const stats = await lstat(outputRoot);
-      return Object.freeze({
-        directoryPath: outputRoot,
-        directoryName: "output",
-        identity: Object.freeze({
-          dev: stats.dev,
-          ino: stats.ino,
-          birthtimeMs: stats.birthtimeMs,
-        }),
-        expiresAt: Date.now() + 60_000,
-      });
-    }),
+    resolveBatchLease: vi.fn(async () => resolvedOutputDirectory(outputRoot)),
+  };
+  const inputs = {
+    resolveTaskSourceOutputDirectory: vi.fn(async () =>
+      resolvedOutputDirectory(outputRoot),
+    ),
   };
   const defaultServerRuntime = fakeVerifiedServerRuntime(
     root,
@@ -771,6 +961,7 @@ async function createHarness(options: HarnessOptions = {}) {
   const executor = new LocalSubtitleProductionExecutor({
     media,
     supervisor,
+    inputs,
     outputs,
     exporter,
     verifyServerRuntime: async () => {
@@ -790,7 +981,7 @@ async function createHarness(options: HarnessOptions = {}) {
   });
   const admittedRuntimeGeneration =
     options.admittedRuntimeGeneration ?? normalized.runtimeGeneration;
-  const config = createConfig();
+  const config = createConfig(options.outputMode ?? "custom");
   const managedModel = Object.freeze({
     storage: "managed" as const,
     id: LOCAL_SUBTITLE_PRODUCTION_CONTRACT.launchModel.id,
@@ -822,6 +1013,7 @@ async function createHarness(options: HarnessOptions = {}) {
     executor,
     media,
     supervisor,
+    inputs,
     outputs,
     exporter,
     artifacts,
@@ -869,14 +1061,18 @@ function createContext(
   batchRuntime: LocalSubtitleJobBatchRuntime,
   config: LocalSubtitleBatchConfigSnapshot,
   managedModel: LocalSubtitleJobTaskExecutionContext["managedModel"],
+  identity: Readonly<{
+    taskId: string;
+    fileToken: string;
+  }> = { taskId: "task-1", fileToken: "file-token-1" },
 ) {
   const update = vi.fn(() => ({} as LocalSubtitleTaskSummary));
   return Object.freeze({
     owner: OWNER,
     batchId: "batch-1",
-    taskId: "task-1",
+    taskId: identity.taskId,
     generation: 1,
-    fileToken: "file-token-1",
+    fileToken: identity.fileToken,
     config,
     managedModel,
     admittedRuntimeGeneration,
@@ -886,7 +1082,10 @@ function createContext(
   }) as LocalSubtitleJobTaskExecutionContext & { readonly update: typeof update };
 }
 
-function createConfig(): LocalSubtitleBatchConfigSnapshot {
+function createConfig(
+  outputMode: "custom" | "source" = "custom",
+  conflictPolicy: "index" | "overwrite" = "index",
+): LocalSubtitleBatchConfigSnapshot {
   return createLocalSubtitleBatchConfigSnapshot({
     schemaVersion: LOCAL_SUBTITLE_DOMAIN_SCHEMA_VERSION,
     serverHttpContractVersion: LOCAL_SUBTITLE_SERVER_HTTP_CONTRACT_VERSION,
@@ -931,14 +1130,34 @@ function createConfig(): LocalSubtitleBatchConfigSnapshot {
           LOCAL_SUBTITLE_PRODUCTION_CONTRACT.transcript.maxRetryDepth,
       },
     },
-    output: {
-      mode: "custom",
-      formats: ["SRT"],
-      conflictPolicy: "index",
-      directoryLeaseRef: "batch-1",
-      displayLabel: "output",
-    },
+    output: outputMode === "source"
+      ? {
+          mode: "source",
+          formats: ["SRT"],
+          conflictPolicy,
+        }
+      : {
+          mode: "custom",
+          formats: ["SRT"],
+          conflictPolicy,
+          directoryLeaseRef: "batch-1",
+          displayLabel: "output",
+        },
     postAction: { mode: "export_only" },
+  });
+}
+
+async function resolvedOutputDirectory(directoryPath: string) {
+  const stats = await lstat(directoryPath);
+  return Object.freeze({
+    directoryPath,
+    directoryName: path.basename(directoryPath),
+    identity: Object.freeze({
+      dev: stats.dev,
+      ino: stats.ino,
+      birthtimeMs: stats.birthtimeMs,
+    }),
+    expiresAt: Date.now() + 60_000,
   });
 }
 
