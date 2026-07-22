@@ -8,6 +8,7 @@ import {
   isLocalSubtitleErrorCode,
   type LocalSubtitleError,
   type LocalSubtitleErrorCode,
+  type LocalSubtitleFormat,
   type LocalSubtitleOperationStage,
 } from "@/type/localSubtitle";
 import type {
@@ -1125,19 +1126,25 @@ function mapExportResult(
       durationMs,
     });
   }
-  const rawCode = result.artifactResults.find(
-    (artifact) => artifact.status === "failed",
-  )?.errorCode ?? "output_write_failed";
-  const code = normalizeCleanupErrorCode(rawCode, cancellationRequested);
-  const artifactResults = code === rawCode
-    ? result.artifactResults
-    : Object.freeze(
-      result.artifactResults.map((artifact) =>
-        artifact.status === "failed" && artifact.errorCode === rawCode
-          ? Object.freeze({ ...artifact, errorCode: code })
-          : artifact
-      ),
-    );
+  const artifactResults = Object.freeze(
+    result.artifactResults.map((artifact) =>
+      artifact.status === "failed"
+        ? Object.freeze({
+            ...artifact,
+            errorCode: normalizeCleanupErrorCode(
+              artifact.errorCode,
+              cancellationRequested,
+            ),
+          })
+        : artifact
+    ),
+  );
+  const failedCodes = artifactResults.flatMap((artifact) =>
+    artifact.status === "failed" ? [artifact.errorCode] : []
+  );
+  const code = failedCodes.find(isCleanupFailureCode) ??
+    failedCodes[0] ??
+    "output_write_failed";
   return Object.freeze({
     status: "failed",
     error: createLocalSubtitleError(code, "The subtitle artifact export failed.", {
@@ -1261,8 +1268,7 @@ function isSupportedBatchExecutionContext(
     (context.config.output.mode === "custom" ||
       context.config.output.mode === "source") &&
     context.config.output.conflictPolicy === "index" &&
-    context.config.output.formats.length === 1 &&
-    context.config.output.formats[0] === "SRT" &&
+    isSupportedProductionFormats(context.config.output.formats) &&
     context.config.devicePreference === "cpu" &&
     context.config.resolvedBackend === "cpu" &&
     context.config.taskMode === "transcribe" &&
@@ -1278,14 +1284,22 @@ function isSupportedExecutionContext(
     (context.config.output.mode === "custom" ||
       context.config.output.mode === "source") &&
     context.config.output.conflictPolicy === "index" &&
-    context.config.output.formats.length === 1 &&
-    context.config.output.formats[0] === "SRT" &&
+    isSupportedProductionFormats(context.config.output.formats) &&
     context.config.devicePreference === "cpu" &&
     context.config.resolvedBackend === "cpu" &&
     context.config.taskMode === "transcribe" &&
     context.config.inference.vad.enabled === false &&
     context.config.postAction.mode === "export_only"
   );
+}
+
+function isSupportedProductionFormats(
+  formats: readonly LocalSubtitleFormat[],
+): boolean {
+  return formats.length > 0 &&
+    formats.length <= 2 &&
+    new Set(formats).size === formats.length &&
+    formats.every((format) => format === "SRT" || format === "LRC");
 }
 
 function sameWindowDescriptor(

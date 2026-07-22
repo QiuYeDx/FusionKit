@@ -346,6 +346,30 @@ describe("local subtitle task transitions", () => {
     ).toEqual({ ok: false, reason: "terminal_status_mismatch" });
   });
 
+  it("lets an explicit ordinary completion override a late cancelling state", () => {
+    const transition = transitionLocalSubtitleTaskState(
+      taskState("cancelling"),
+      "completed",
+      transitionContext({
+        requestedFormats: ["SRT", "LRC"],
+        artifactResults: [
+          committed("SRT"),
+          failed("LRC", "output_write_failed"),
+        ],
+        cancellationRequested: false,
+      }),
+    );
+
+    expect(transition).toMatchObject({
+      ok: true,
+      state: {
+        status: "completed",
+        completion: { outcome: "partial", warnings: [] },
+      },
+    });
+    if (transition.ok) expectDeeplyFrozen(transition.state);
+  });
+
   it("guards cancelled and failed terminal state invariants", () => {
     expect(
       transitionLocalSubtitleTaskState(
@@ -405,6 +429,25 @@ describe("local subtitle task transitions", () => {
         }),
       ),
     ).toEqual({ ok: false, reason: "terminal_outcome_invalid" });
+
+    expect(
+      transitionLocalSubtitleTaskState(
+        taskState("exporting"),
+        "failed",
+        transitionContext({
+          artifactResults: [failed("SRT", "cancel_failed")],
+          cancellationRequested: true,
+          error: cancelError,
+        }),
+      ),
+    ).toEqual({
+      ok: true,
+      state: {
+        status: "failed",
+        artifactResults: [failed("SRT", "cancel_failed")],
+        error: cancelError,
+      },
+    });
 
     expect(
       transitionLocalSubtitleTaskState(

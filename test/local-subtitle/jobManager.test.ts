@@ -16,6 +16,7 @@ import {
   LOCAL_SUBTITLE_PRODUCTION_CONTRACT,
   createLocalSubtitleError,
   type LocalSubtitleArtifactResult,
+  type LocalSubtitleFormat,
 } from "../../src/type/localSubtitle";
 import type { EnqueueLocalSubtitleBatchRequest } from "../../src/type/localSubtitleIpc";
 import {
@@ -1220,6 +1221,319 @@ describe("LocalSubtitleJobManager", () => {
     await expect(
       harness.outputs.resolveBatchLease(OWNER_A, "batch-1"),
     ).rejects.toMatchObject({ code: "invalid_ipc_request" });
+  });
+
+  it.each([
+    { formats: ["LRC"] },
+    { formats: ["SRT", "LRC"] },
+    { formats: ["LRC", "SRT"] },
+  ] as const)("admits and publishes production formats in order: $formats", async ({ formats }) => {
+    const harness = await createHarness({
+      executor: executor(async (context) => {
+        advanceExecutionToExporting(context);
+        return {
+          status: "completed",
+          artifactResults: context.config.output.formats.map(committedArtifact),
+        };
+      }),
+    });
+    const request = await harness.createRequest(harness.fileToken);
+    request.config.output.formats = [...formats];
+
+    const batch = await harness.manager.enqueue(OWNER_A, request);
+    expect(batch.config.outputFormats).toEqual(formats);
+    harness.flushScheduled();
+    await harness.manager.waitForIdle();
+
+    expect(harness.manager.getSessionSnapshot(OWNER_A)).toMatchObject({
+      batches: [
+        {
+          status: "completed",
+          config: { outputFormats: formats },
+          tasks: [
+            {
+              status: "completed",
+              requestedFormats: formats,
+              artifactResults: formats.map((format) => ({
+                format,
+                status: "committed",
+              })),
+              completion: { outcome: "full", warnings: [] },
+            },
+          ],
+        },
+      ],
+    });
+  });
+
+  it("publishes one committed format plus a write failure as partial completion", async () => {
+    const harness = await createHarness({
+      executor: executor(async (context) => {
+        advanceExecutionToExporting(context);
+        return {
+          status: "completed",
+          artifactResults: [
+            committedArtifact("SRT"),
+            {
+              format: "LRC",
+              status: "failed",
+              errorCode: "output_write_failed",
+            },
+          ] as const,
+        };
+      }),
+    });
+    const request = await harness.createRequest(harness.fileToken);
+    request.config.output.formats = ["SRT", "LRC"];
+    const releaseInputLease = vi.spyOn(harness.inputs, "releaseTaskLease");
+    const releaseOutputLease = vi.spyOn(harness.outputs, "releaseBatchLease");
+
+    await harness.manager.enqueue(OWNER_A, request);
+    harness.flushScheduled();
+    await harness.manager.waitForIdle();
+
+    expect(harness.manager.getSessionSnapshot(OWNER_A)).toMatchObject({
+      batches: [
+        {
+          status: "completed",
+          tasks: [
+            {
+              status: "completed",
+              artifactResults: [
+                { format: "SRT", status: "committed" },
+                {
+                  format: "LRC",
+                  status: "failed",
+                  errorCode: "output_write_failed",
+                },
+              ],
+              completion: { outcome: "partial", warnings: [] },
+            },
+          ],
+        },
+      ],
+    });
+    expect(releaseInputLease).toHaveBeenCalledWith(OWNER_A, "task-1");
+    expect(releaseOutputLease).toHaveBeenCalledWith(OWNER_A, "batch-1");
+    await expect(harness.manager.retryTask(OWNER_A, "task-1"))
+      .rejects.toMatchObject({ localSubtitleCode: "invalid_ipc_request" });
+  });
+
+  it("does not let a late cancel rewrite an already resolved ordinary partial", async () => {
+    const terminal = deferred<{
+      status: "completed";
+      artifactResults: readonly LocalSubtitleArtifactResult[];
+    }>();
+    const harness = await createHarness({
+      executor: executor(async (context) => {
+        advanceExecutionToExporting(context);
+        return terminal.promise;
+      }),
+    });
+    const request = await harness.createRequest(harness.fileToken);
+    request.config.output.formats = ["SRT", "LRC"];
+    await harness.manager.enqueue(OWNER_A, request);
+    harness.flushScheduled();
+    await waitFor(() => harness.executor.execute.mock.calls.length === 1);
+
+    terminal.resolve({
+      status: "completed",
+      artifactResults: [
+        committedArtifact("SRT"),
+        { format: "LRC", status: "failed", errorCode: "output_write_failed" },
+      ],
+    });
+    expect(harness.manager.cancelTask(OWNER_A, "task-1")).toEqual({
+      cancelled: true,
+    });
+    await harness.manager.waitForIdle();
+
+    expect(harness.manager.getSessionSnapshot(OWNER_A)).toMatchObject({
+      batches: [
+        {
+          status: "completed",
+          tasks: [
+            {
+              status: "completed",
+              completion: { outcome: "partial", warnings: [] },
+            },
+          ],
+        },
+      ],
+    });
+  });
+
+  it("keeps a committed artifact visible when lease failure cancels later formats", async () => {
+    const harness = await createHarness({
+      executor: executor(
+        (context) =>
+          new Promise((resolve) => {
+            advanceExecutionToExporting(context);
+            context.signal.addEventListener(
+              "abort",
+              () => resolve({
+                status: "completed",
+                artifactResults: [
+                  committedArtifact("SRT"),
+                  {
+                    format: "LRC",
+                    status: "skipped",
+                    errorCode: "cancelled_after_partial_commit",
+                  },
+                ],
+              }),
+              { once: true },
+            );
+          }),
+      ),
+      manualLeaseRenewal: true,
+    });
+    const request = await harness.createRequest(harness.fileToken);
+    request.config.output.formats = ["SRT", "LRC"];
+    await harness.manager.enqueue(OWNER_A, request);
+    harness.flushScheduled();
+    await waitFor(() => harness.executor.execute.mock.calls.length === 1);
+    vi.spyOn(harness.inputs, "renewTaskLease").mockRejectedValueOnce(
+      new Error("input lease renewal failed"),
+    );
+
+    expect(harness.fireLeaseRenewals()).toBe(1);
+    await harness.manager.waitForIdle();
+
+    expect(harness.manager.getSessionSnapshot(OWNER_A)).toMatchObject({
+      batches: [
+        {
+          status: "completed",
+          tasks: [
+            {
+              status: "completed",
+              artifactResults: [
+                { format: "SRT", status: "committed" },
+                {
+                  format: "LRC",
+                  status: "skipped",
+                  errorCode: "cancelled_after_partial_commit",
+                },
+              ],
+              completion: {
+                outcome: "partial",
+                warnings: ["cancelled_after_partial_commit"],
+              },
+            },
+          ],
+        },
+      ],
+    });
+  });
+
+  it("preserves every cancel_failed artifact after a lease renewal abort", async () => {
+    const harness = await createHarness({
+      executor: executor(
+        (context) =>
+          new Promise((resolve) => {
+            advanceExecutionToExporting(context);
+            context.signal.addEventListener(
+              "abort",
+              () => resolve({
+                status: "failed",
+                error: createLocalSubtitleError(
+                  "cancel_failed",
+                  "private cleanup failure",
+                  { stage: "cancelling" },
+                ),
+                artifactResults: [
+                  {
+                    format: "SRT",
+                    status: "failed",
+                    errorCode: "cancel_failed",
+                  },
+                  {
+                    format: "LRC",
+                    status: "failed",
+                    errorCode: "cancel_failed",
+                  },
+                ],
+              }),
+              { once: true },
+            );
+          }),
+      ),
+      manualLeaseRenewal: true,
+    });
+    const request = await harness.createRequest(harness.fileToken);
+    request.config.output.formats = ["SRT", "LRC"];
+    await harness.manager.enqueue(OWNER_A, request);
+    harness.flushScheduled();
+    await waitFor(() => harness.executor.execute.mock.calls.length === 1);
+    vi.spyOn(harness.inputs, "renewTaskLease").mockRejectedValueOnce(
+      new Error("input lease renewal failed"),
+    );
+
+    expect(harness.fireLeaseRenewals()).toBe(1);
+    await harness.manager.waitForIdle();
+
+    expect(harness.manager.getSessionSnapshot(OWNER_A)).toMatchObject({
+      batches: [
+        {
+          status: "failed",
+          tasks: [
+            {
+              status: "failed",
+              error: { code: "cancel_failed" },
+              artifactResults: [
+                { format: "SRT", status: "failed", errorCode: "cancel_failed" },
+                { format: "LRC", status: "failed", errorCode: "cancel_failed" },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+  });
+
+  it("uses every requested format when cancellation settlement is invalid", async () => {
+    const harness = await createHarness({
+      executor: executor(
+        (context) =>
+          new Promise((resolve) => {
+            context.signal.addEventListener(
+              "abort",
+              () => resolve({
+                status: "cancelled",
+                artifactResults: [{ format: "SRT", status: "skipped" }],
+              }),
+              { once: true },
+            );
+          }),
+      ),
+    });
+    const request = await harness.createRequest(harness.fileToken);
+    request.config.output.formats = ["LRC"];
+    await harness.manager.enqueue(OWNER_A, request);
+    harness.flushScheduled();
+    await waitFor(() => harness.executor.execute.mock.calls.length === 1);
+
+    expect(harness.manager.cancelTask(OWNER_A, "task-1")).toEqual({
+      cancelled: true,
+    });
+    await harness.manager.waitForIdle();
+
+    expect(harness.manager.getSessionSnapshot(OWNER_A)).toMatchObject({
+      batches: [
+        {
+          status: "failed",
+          tasks: [
+            {
+              status: "failed",
+              error: { code: "cancel_failed" },
+              artifactResults: [
+                { format: "LRC", status: "failed", errorCode: "cancel_failed" },
+              ],
+            },
+          ],
+        },
+      ],
+    });
   });
 
   it("preserves a fully committed result when cancellation arrives too late", async () => {
@@ -3105,14 +3419,17 @@ function advanceExecutionToExporting(
   });
 }
 
-function committedArtifact(): LocalSubtitleArtifactResult {
+function committedArtifact(
+  format: LocalSubtitleFormat = "SRT",
+): LocalSubtitleArtifactResult {
+  const extension = format.toLowerCase();
   return {
-    format: "SRT",
+    format,
     status: "committed",
     artifact: {
-      artifactRef: "artifact-1",
-      displayName: "sample.srt",
-      format: "SRT",
+      artifactRef: `artifact-${extension}`,
+      displayName: `sample.${extension}`,
+      format,
       expiresAt: Date.parse("2026-07-23T01:00:00.000Z"),
     },
   };

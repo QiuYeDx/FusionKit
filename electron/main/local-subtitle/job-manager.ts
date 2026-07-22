@@ -9,6 +9,7 @@ import {
   createLocalSubtitleBatchConfigSnapshot,
   createLocalSubtitleError,
   deriveLocalSubtitleBatchStatus,
+  hasLocalSubtitleArtifactCancellationEvidence,
   isLocalSubtitleErrorCode,
   transitionLocalSubtitleTaskState,
   type LocalSubtitleArtifactResult,
@@ -16,6 +17,7 @@ import {
   type LocalSubtitleBatchSummary,
   type LocalSubtitleError,
   type LocalSubtitleErrorCode,
+  type LocalSubtitleFormat,
   type LocalSubtitleOperationStage,
   type LocalSubtitlePostActionState,
   type LocalSubtitleSessionSnapshot,
@@ -1230,6 +1232,9 @@ export class LocalSubtitleJobManager {
       {
         requestedFormats: current.requestedFormats,
         artifactResults: result.artifactResults,
+        cancellationRequested: hasLocalSubtitleArtifactCancellationEvidence(
+          result.artifactResults,
+        ),
       },
     );
     if (!transition.ok) {
@@ -1272,6 +1277,11 @@ export class LocalSubtitleJobManager {
       {
         requestedFormats: current.requestedFormats,
         artifactResults,
+        cancellationRequested:
+          current.status === "cancelling" ||
+          run.record.cancelRequested ||
+          run.record.leaseFailure !== undefined ||
+          run.controller.signal.aborted,
         error,
       },
     );
@@ -1348,7 +1358,11 @@ export class LocalSubtitleJobManager {
           "The local subtitle task could not settle cancellation safely.",
           { stage: "cancelling" },
         ),
-        [{ format: "SRT", status: "failed", errorCode: "cancel_failed" }],
+        current.requestedFormats.map((format) => ({
+          format,
+          status: "failed" as const,
+          errorCode: "cancel_failed" as const,
+        })),
         durationMs,
       );
       return;
@@ -2009,17 +2023,25 @@ function assertProductionBatchSliceRequest(
     config.vadEnabled === false &&
     (config.output.mode === "custom" || config.output.mode === "source") &&
     config.output.conflictPolicy === "index" &&
-    config.output.formats.length === 1 &&
-    config.output.formats[0] === "SRT" &&
+    isSupportedProductionFormats(config.output.formats) &&
     config.postAction.mode === "export_only";
   if (!supported) {
     throw managerFailure(
       "invalid_ipc_request",
-      "This local subtitle build currently supports CPU, no-VAD, index-only SRT batches with source or custom output.",
+      "This local subtitle build currently supports CPU, no-VAD, index-only SRT/LRC batches with source or custom output.",
       "preflight",
       "config",
     );
   }
+}
+
+function isSupportedProductionFormats(
+  formats: readonly LocalSubtitleFormat[],
+): boolean {
+  return formats.length > 0 &&
+    formats.length <= 2 &&
+    new Set(formats).size === formats.length &&
+    formats.every((format) => format === "SRT" || format === "LRC");
 }
 
 async function resolveSourceInputDrafts(

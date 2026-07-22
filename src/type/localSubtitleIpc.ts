@@ -27,6 +27,7 @@ import {
   SUBTITLE_TRANSLATION_START_FAILURE_REASONS,
   SUBTITLE_TRANSLATION_START_STATUSES,
   deriveLocalSubtitleBatchStatus,
+  hasLocalSubtitleArtifactCancellationEvidence,
   resolveLocalSubtitleTerminalOutcome,
   type LocalSubtitleBatchSummary,
   type LocalSubtitleError,
@@ -536,13 +537,7 @@ export const localSubtitleTaskSummarySchema: z.ZodType<LocalSubtitleTaskSummary>
         artifactResults: value.artifactResults,
         cancellationRequested:
           value.status === "cancelled" ||
-          value.artifactResults.some(
-            (artifact) =>
-              (artifact.status === "skipped" &&
-                artifact.errorCode === "cancelled_after_partial_commit") ||
-              (artifact.status === "failed" &&
-                artifact.errorCode === "cancel_failed"),
-          ),
+          hasLocalSubtitleArtifactCancellationEvidence(value.artifactResults),
       });
       if (value.status === "completed") {
         if (!terminal.ok || terminal.status !== "completed") {

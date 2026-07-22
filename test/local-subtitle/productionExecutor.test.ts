@@ -9,6 +9,7 @@ import {
   LOCAL_SUBTITLE_SERVER_HTTP_CONTRACT_VERSION,
   createLocalSubtitleBatchConfigSnapshot,
   type LocalSubtitleBatchConfigSnapshot,
+  type LocalSubtitleFormat,
   type LocalSubtitleTaskSummary,
 } from "../../src/type/localSubtitle";
 import type { LocalSubtitleOwnerKey } from "../../electron/main/local-subtitle/authorizations";
@@ -118,6 +119,143 @@ describe("local subtitle production executor", () => {
     for (const call of harness.inputs.resolveTaskSourceOutputDirectory.mock.calls) {
       expect(call).toEqual([OWNER, "task-1", "file-token-1"]);
     }
+  });
+
+  it("exports an LRC-only artifact through the production pipeline", async () => {
+    const harness = await createHarness({ formats: ["LRC"] });
+
+    const result = await harness.executor.execute(harness.context);
+
+    expect(result).toMatchObject({
+      status: "completed",
+      artifactResults: [{ format: "LRC", status: "committed" }],
+    });
+    if (result.status !== "completed") throw new Error("Expected completion.");
+    const artifact = result.artifactResults[0];
+    if (artifact?.status !== "committed") throw new Error("Expected artifact.");
+    await expect(
+      harness.artifacts.readText(OWNER, artifact.artifact.artifactRef),
+    ).resolves.toMatchObject({
+      format: "LRC",
+      rawText: expect.stringMatching(/^\[00:01\.00\]/u),
+    });
+  });
+
+  it.each([
+    ["SRT", "LRC"],
+    ["LRC", "SRT"],
+  ] as const)(
+    "commits source output formats in request order: %s then %s",
+    async (first, second) => {
+      const harness = await createHarness({
+        outputMode: "source",
+        formats: [first, second],
+      });
+
+      const result = await harness.executor.execute(harness.context);
+
+      expect(result).toMatchObject({
+        status: "completed",
+        artifactResults: [
+          { format: first, status: "committed" },
+          { format: second, status: "committed" },
+        ],
+      });
+      expect(
+        harness.inputs.resolveTaskSourceOutputDirectory,
+      ).toHaveBeenCalledTimes(7);
+      expect(harness.supervisor.beginInference).toHaveBeenCalledOnce();
+    },
+  );
+
+  it("keeps the first production artifact when the second format fails", async () => {
+    const harness = await createHarness({
+      formats: ["SRT", "LRC"],
+      failArtifactReserveFormat: "LRC",
+    });
+
+    const result = await harness.executor.execute(harness.context);
+
+    expect(result).toMatchObject({
+      status: "completed",
+      artifactResults: [
+        { format: "SRT", status: "committed" },
+        { format: "LRC", status: "failed", errorCode: "output_write_failed" },
+      ],
+    });
+    if (result.status !== "completed") throw new Error("Expected completion.");
+    const artifact = result.artifactResults[0];
+    if (artifact?.status !== "committed") throw new Error("Expected artifact.");
+    await expect(
+      harness.artifacts.readText(OWNER, artifact.artifact.artifactRef),
+    ).resolves.toMatchObject({ format: "SRT" });
+  });
+
+  it.each(["custom", "source"] as const)(
+    "keeps the first artifact when the %s directory resolver fails before the second format",
+    async (outputMode) => {
+      const harness = await createHarness({
+        outputMode,
+        formats: ["SRT", "LRC"],
+      });
+      let resolutions = 0;
+      const failBeforeSecondFormat = async () => {
+        resolutions += 1;
+        const failingResolution = outputMode === "source" ? 5 : 4;
+        if (resolutions === failingResolution) {
+          throw Object.assign(new Error("output directory resolution failed"), {
+            code: "output_write_failed",
+          });
+        }
+        return resolvedOutputDirectory(harness.outputRoot);
+      };
+      if (outputMode === "source") {
+        harness.inputs.resolveTaskSourceOutputDirectory.mockImplementation(
+          failBeforeSecondFormat,
+        );
+      } else {
+        harness.outputs.resolveBatchLease.mockImplementation(failBeforeSecondFormat);
+      }
+
+      const result = await harness.executor.execute(harness.context);
+
+      expect(result).toMatchObject({
+        status: "completed",
+        artifactResults: [
+          { format: "SRT", status: "committed" },
+          { format: "LRC", status: "failed", errorCode: "output_write_failed" },
+        ],
+      });
+      if (result.status !== "completed") throw new Error("Expected completion.");
+      const artifact = result.artifactResults[0];
+      if (artifact?.status !== "committed") throw new Error("Expected artifact.");
+      await expect(
+        harness.artifacts.readText(OWNER, artifact.artifact.artifactRef),
+      ).resolves.toMatchObject({ format: "SRT" });
+      expect(resolutions).toBe(outputMode === "source" ? 5 : 4);
+    },
+  );
+
+  it("preserves the first production artifact when cancellation follows its commit", async () => {
+    const harness = await createHarness({
+      formats: ["SRT", "LRC"],
+      abortAfterArtifactFormat: "SRT",
+    });
+
+    const result = await harness.executor.execute(harness.context);
+
+    expect(harness.controller.signal.aborted).toBe(true);
+    expect(result).toMatchObject({
+      status: "completed",
+      artifactResults: [
+        { format: "SRT", status: "committed" },
+        {
+          format: "LRC",
+          status: "skipped",
+          errorCode: "cancelled_after_partial_commit",
+        },
+      ],
+    });
   });
 
   it("fails source output preflight before media or runtime work", async () => {
@@ -747,6 +885,62 @@ describe("local subtitle production executor", () => {
       });
   });
 
+  it.each([
+    [
+      ["SRT", "LRC"],
+      [
+        { format: "SRT", status: "failed", errorCode: "output_write_failed" },
+        { format: "LRC", status: "failed", errorCode: "cleanup_failed" },
+      ],
+    ],
+    [
+      ["LRC", "SRT"],
+      [
+        { format: "LRC", status: "failed", errorCode: "output_write_failed" },
+        { format: "SRT", status: "failed", errorCode: "cleanup_failed" },
+      ],
+    ],
+  ] as const)(
+    "prioritizes a later cleanup failure for %j",
+    async (formats, artifactResults) => {
+      const harness = await createHarness({ formats });
+      harness.exporter.exportArtifacts.mockResolvedValueOnce({
+        status: "failed",
+        artifactResults,
+      });
+
+      await expect(harness.executor.execute(harness.context)).resolves
+        .toMatchObject({
+          status: "failed",
+          error: { code: "cleanup_failed", stage: "cleanup" },
+          artifactResults,
+        });
+    },
+  );
+
+  it("normalizes every cleanup artifact when cancellation wins", async () => {
+    const harness = await createHarness({ formats: ["SRT", "LRC"] });
+    harness.exporter.exportArtifacts.mockImplementationOnce(async () => {
+      harness.controller.abort();
+      return {
+        status: "failed",
+        artifactResults: [
+          { format: "SRT", status: "failed", errorCode: "output_write_failed" },
+          { format: "LRC", status: "failed", errorCode: "cleanup_failed" },
+        ],
+      };
+    });
+
+    await expect(harness.executor.execute(harness.context)).resolves.toMatchObject({
+      status: "failed",
+      error: { code: "cancel_failed", stage: "cleanup" },
+      artifactResults: [
+        { format: "SRT", status: "failed", errorCode: "output_write_failed" },
+        { format: "LRC", status: "failed", errorCode: "cancel_failed" },
+      ],
+    });
+  });
+
   it("maps a non-cancel pipeline cleanup failure to cleanup_failed", async () => {
     const harness = await createHarness({
       normalizeFailure: Object.assign(new Error("media cleanup failed"), {
@@ -792,6 +986,9 @@ interface HarnessOptions {
   readonly acquireBatchRuntimePin?: () => Promise<LocalSubtitleServerRuntimePin>;
   readonly normalizeFailure?: unknown;
   readonly outputMode?: "custom" | "source";
+  readonly formats?: readonly LocalSubtitleFormat[];
+  readonly failArtifactReserveFormat?: LocalSubtitleFormat;
+  readonly abortAfterArtifactFormat?: LocalSubtitleFormat;
   readonly retainedRawBudget?: Readonly<{
     maxSegments: number;
     maxTextBytes: number;
@@ -939,7 +1136,24 @@ async function createHarness(options: HarnessOptions = {}) {
     tokenFactory: sequence("artifact"),
     reservationFactory: sequence("reservation"),
   });
-  const realExporter = new LocalSubtitleExporter(artifacts, {
+  const exporterArtifacts = {
+    reserve: (request: Parameters<typeof artifacts.reserve>[0]) => {
+      if (request.format === options.failArtifactReserveFormat) {
+        throw new Error("artifact reservation failed");
+      }
+      return artifacts.reserve(request);
+    },
+    activate: (...args: Parameters<typeof artifacts.activate>) => {
+      const summary = artifacts.activate(...args);
+      if (summary.format === options.abortAfterArtifactFormat) {
+        controller.abort();
+      }
+      return summary;
+    },
+    revokeReservation: (reservation: string) =>
+      artifacts.revokeReservation(reservation),
+  };
+  const realExporter = new LocalSubtitleExporter(exporterArtifacts, {
     createPartialId: sequence("partial"),
   });
   const exporter = {
@@ -981,7 +1195,11 @@ async function createHarness(options: HarnessOptions = {}) {
   });
   const admittedRuntimeGeneration =
     options.admittedRuntimeGeneration ?? normalized.runtimeGeneration;
-  const config = createConfig(options.outputMode ?? "custom");
+  const config = createConfig(
+    options.outputMode ?? "custom",
+    "index",
+    options.formats ?? ["SRT"],
+  );
   const managedModel = Object.freeze({
     storage: "managed" as const,
     id: LOCAL_SUBTITLE_PRODUCTION_CONTRACT.launchModel.id,
@@ -1085,6 +1303,7 @@ function createContext(
 function createConfig(
   outputMode: "custom" | "source" = "custom",
   conflictPolicy: "index" | "overwrite" = "index",
+  formats: readonly LocalSubtitleFormat[] = ["SRT"],
 ): LocalSubtitleBatchConfigSnapshot {
   return createLocalSubtitleBatchConfigSnapshot({
     schemaVersion: LOCAL_SUBTITLE_DOMAIN_SCHEMA_VERSION,
@@ -1133,12 +1352,12 @@ function createConfig(
     output: outputMode === "source"
       ? {
           mode: "source",
-          formats: ["SRT"],
+          formats: [...formats],
           conflictPolicy,
         }
       : {
           mode: "custom",
-          formats: ["SRT"],
+          formats: [...formats],
           conflictPolicy,
           directoryLeaseRef: "batch-1",
           displayLabel: "output",

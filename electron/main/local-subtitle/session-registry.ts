@@ -3,6 +3,7 @@ import {
   LOCAL_SUBTITLE_LIMITS,
   createLocalSubtitleError,
   deriveLocalSubtitleBatchStatus,
+  hasLocalSubtitleArtifactCancellationEvidence,
   transitionLocalSubtitleTaskState,
   type LocalSubtitleBatchSummary,
   type LocalSubtitleErrorCode,
@@ -646,6 +647,9 @@ function assertSameGenerationTransition(
     {
       requestedFormats: current.requestedFormats,
       artifactResults: next.artifactResults,
+      cancellationRequested: hasLocalSubtitleArtifactCancellationEvidence(
+        next.artifactResults,
+      ),
       ...(next.error === undefined ? {} : { error: next.error }),
     },
   );

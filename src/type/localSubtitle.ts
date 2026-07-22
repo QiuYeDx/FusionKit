@@ -651,6 +651,16 @@ export type LocalSubtitleTerminalResolution =
       readonly format?: LocalSubtitleFormat;
     };
 
+export function hasLocalSubtitleArtifactCancellationEvidence(
+  artifactResults: readonly LocalSubtitleArtifactResult[],
+): boolean {
+  return artifactResults.some((result) =>
+    (result.status === "failed" && result.errorCode === "cancel_failed") ||
+    (result.status === "skipped" &&
+      result.errorCode === "cancelled_after_partial_commit")
+  );
+}
+
 export function resolveLocalSubtitleTerminalOutcome(options: {
   requestedFormats: readonly LocalSubtitleFormat[];
   artifactResults: readonly LocalSubtitleArtifactResult[];
@@ -794,6 +804,7 @@ export function transitionLocalSubtitleTaskState(
   context: {
     requestedFormats: readonly LocalSubtitleFormat[];
     artifactResults?: readonly LocalSubtitleArtifactResult[];
+    cancellationRequested?: boolean;
     error?: LocalSubtitleError;
   },
 ): LocalSubtitleTaskTransitionResult {
@@ -819,11 +830,13 @@ export function transitionLocalSubtitleTaskState(
   ) {
     return { ok: false, reason: "artifact_results_invalid" };
   }
+  const cancellationRequested =
+    context.cancellationRequested ?? current.status === "cancelling";
   if (target === "completed") {
     const terminal = resolveLocalSubtitleTerminalOutcome({
       requestedFormats: context.requestedFormats,
       artifactResults,
-      cancellationRequested: current.status === "cancelling",
+      cancellationRequested,
     });
     if (!terminal.ok) {
       return { ok: false, reason: "terminal_outcome_invalid" };
@@ -857,7 +870,7 @@ export function transitionLocalSubtitleTaskState(
       return { ok: false, reason: "terminal_outcome_invalid" };
     }
     if (
-      current.status !== "cancelling" &&
+      !cancellationRequested &&
       artifactResults.some(
         (result) =>
           result.status === "failed" && result.errorCode === "cancel_failed",

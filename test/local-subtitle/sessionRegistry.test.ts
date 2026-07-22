@@ -4,6 +4,7 @@ import {
   LOCAL_SUBTITLE_MODEL_MANIFEST_VERSION,
   LOCAL_SUBTITLE_PRODUCTION_CONTRACT,
   createLocalSubtitleError,
+  type LocalSubtitleArtifactResult,
   type LocalSubtitleBatchSummary,
   type LocalSubtitleResourceJobSummary,
   type LocalSubtitleTaskSummary,
@@ -233,6 +234,129 @@ describe("LocalSubtitleSessionRegistry", () => {
         },
       ],
       resourceJobs: [{ jobId: "job-1" }],
+    });
+  });
+
+  it("validates partial completion from artifact cancellation evidence", () => {
+    const registry = new LocalSubtitleSessionRegistry();
+    const outputConfig = {
+      ...batch().config,
+      outputFormats: ["SRT", "LRC"] as const,
+    };
+    const advanceToExporting = (owner: LocalSubtitleOwnerKey) => {
+      registry.addBatch(
+        owner,
+        batch({
+          config: outputConfig,
+          tasks: [task({ requestedFormats: ["SRT", "LRC"] })],
+        }),
+      );
+      for (const [status, stageProgress, overallProgress] of [
+        ["preparing_media", 100, 20],
+        ["transcribing", 100, 80],
+        ["post_processing", 100, 90],
+        ["exporting", 50, 95],
+      ] as const) {
+        registry.upsertTask(
+          owner,
+          task({
+            status,
+            requestedFormats: ["SRT", "LRC"],
+            progress: { stage: status, stageProgress, overallProgress },
+          }),
+        );
+      }
+    };
+    const committed = committedArtifact("SRT");
+    const ordinaryArtifacts = [
+      committed,
+      {
+        format: "LRC",
+        status: "failed",
+        errorCode: "output_write_failed",
+      },
+    ] as const satisfies readonly LocalSubtitleArtifactResult[];
+    advanceToExporting(OWNER_A);
+    registry.upsertTask(
+      OWNER_A,
+      task({
+        status: "cancelling",
+        requestedFormats: ["SRT", "LRC"],
+        progress: {
+          stage: "cancelling",
+          stageProgress: 0,
+          overallProgress: 95,
+        },
+      }),
+    );
+
+    expect(
+      registry.upsertTask(
+        OWNER_A,
+        task({
+          status: "completed",
+          requestedFormats: ["SRT", "LRC"],
+          artifactResults: ordinaryArtifacts,
+          completion: {
+            outcome: "partial",
+            artifacts: ordinaryArtifacts,
+            warnings: [],
+          },
+          progress: {
+            stage: "exporting",
+            stageProgress: 100,
+            overallProgress: 100,
+          },
+        }),
+      ),
+    ).toMatchObject({
+      event: {
+        task: {
+          status: "completed",
+          completion: { outcome: "partial", warnings: [] },
+        },
+      },
+    });
+
+    const cancelledArtifacts = [
+      committed,
+      {
+        format: "LRC",
+        status: "skipped",
+        errorCode: "cancelled_after_partial_commit",
+      },
+    ] as const satisfies readonly LocalSubtitleArtifactResult[];
+    advanceToExporting(OWNER_B);
+
+    expect(
+      registry.upsertTask(
+        OWNER_B,
+        task({
+          status: "completed",
+          requestedFormats: ["SRT", "LRC"],
+          artifactResults: cancelledArtifacts,
+          completion: {
+            outcome: "partial",
+            artifacts: cancelledArtifacts,
+            warnings: ["cancelled_after_partial_commit"],
+          },
+          progress: {
+            stage: "exporting",
+            stageProgress: 100,
+            overallProgress: 100,
+          },
+        }),
+      ),
+    ).toMatchObject({
+      event: {
+        task: {
+          status: "completed",
+          completion: {
+            outcome: "partial",
+            warnings: ["cancelled_after_partial_commit"],
+          },
+        },
+      },
     });
   });
 
@@ -727,6 +851,20 @@ function task(
     createdAt: NOW,
     updatedAt: NOW,
     ...overrides,
+  };
+}
+
+function committedArtifact(format: "SRT" | "LRC"): LocalSubtitleArtifactResult {
+  const extension = format.toLowerCase();
+  return {
+    format,
+    status: "committed",
+    artifact: {
+      artifactRef: `artifact-${extension}`,
+      displayName: `sample.${extension}`,
+      format,
+      expiresAt: Date.parse("2026-07-23T00:00:00.000Z"),
+    },
   };
 }
 
