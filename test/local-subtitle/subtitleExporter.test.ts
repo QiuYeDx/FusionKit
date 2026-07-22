@@ -1,5 +1,10 @@
 import { createHash } from "node:crypto";
-import { unlinkSync } from "node:fs";
+import {
+  lstatSync,
+  renameSync,
+  unlinkSync,
+  type Stats,
+} from "node:fs";
 import {
   link,
   lstat,
@@ -36,6 +41,10 @@ import {
   LocalSubtitleExporterError,
   type LocalSubtitleArtifactRegistryCollaborator,
 } from "../../electron/main/local-subtitle/subtitle-exporter";
+import {
+  createLocalSubtitleOverwriteTransactionCoordinator,
+  type LocalSubtitleOverwriteTransactionRequest,
+} from "../../electron/main/local-subtitle/overwrite-transaction";
 import {
   parseLocalSubtitleLrcUtf8,
   parseLocalSubtitleSrtUtf8,
@@ -302,7 +311,9 @@ describe("local subtitle artifact export", () => {
     const before = await stat(finalPath);
     const registry = new TestArtifactRegistry();
 
-    const result = await new LocalSubtitleExporter(registry).exportArtifacts({
+    const result = await new LocalSubtitleExporter(registry, {
+      commitOverwrite: rename,
+    }).exportArtifacts({
       owner: OWNER,
       taskId: "task-overwrite",
       generation: 1,
@@ -317,6 +328,436 @@ describe("local subtitle artifact export", () => {
     expect(await readFile(finalPath, "utf8")).toContain("00:00:00,009");
     const after = await stat(finalPath);
     expect([after.dev, after.ino]).not.toEqual([before.dev, before.ino]);
+    await expect(partialNames()).resolves.toEqual([]);
+  });
+
+  it("fails closed when no native overwrite transaction is configured", async () => {
+    const finalPath = path.join(fixtureRoot, "native-required.srt");
+    await writeFile(finalPath, "old-subtitle", { mode: 0o600 });
+    const registry = new TestArtifactRegistry();
+    let partialIds = 0;
+    let resolveCalls = 0;
+
+    const result = await new LocalSubtitleExporter(registry, {
+      createPartialId: () => {
+        partialIds += 1;
+        return "unexpected-partial";
+      },
+    }).exportArtifacts({
+      owner: OWNER,
+      taskId: "task-native-required",
+      generation: 1,
+      outputStem: "native-required",
+      formats: ["SRT"],
+      conflictPolicy: "overwrite",
+      transcript: transcript(),
+      resolveOutputDirectory: async () => {
+        resolveCalls += 1;
+        return resolvedDirectory(fixtureRoot);
+      },
+    });
+
+    expect(result).toEqual({
+      status: "failed",
+      artifactResults: [
+        { format: "SRT", status: "failed", errorCode: "output_write_failed" },
+      ],
+    });
+    await expect(readFile(finalPath, "utf8")).resolves.toBe("old-subtitle");
+    expect(partialIds).toBe(0);
+    expect(resolveCalls).toBe(0);
+    expect(registry.reservations).toEqual([]);
+    await expect(partialNames()).resolves.toEqual([]);
+  });
+
+  it("rejects configuring native and legacy overwrite strategies together", () => {
+    const overwriteTransaction = createTestOverwriteTransaction().coordinator;
+
+    expect(
+      () =>
+        new LocalSubtitleExporter(new TestArtifactRegistry(), {
+          overwriteTransaction,
+          commitOverwrite: rename,
+        }),
+    ).toThrow(TypeError);
+  });
+
+  it("rejects a structural overwrite adapter that bypasses the coordinator", () => {
+    expect(
+      () =>
+        new LocalSubtitleExporter(new TestArtifactRegistry(), {
+          overwriteTransaction: {
+            begin: async () => Promise.reject(errnoError("EIO")),
+          } as never,
+        }),
+    ).toThrow(TypeError);
+  });
+
+  it("rejects a prototype-spoofed overwrite coordinator", () => {
+    const coordinator = createTestOverwriteTransaction().coordinator;
+    const spoof = Object.create(Object.getPrototypeOf(coordinator));
+
+    expect(
+      () =>
+        new LocalSubtitleExporter(new TestArtifactRegistry(), {
+          overwriteTransaction: spoof,
+        }),
+    ).toThrow(TypeError);
+  });
+
+  it("finalizes a synchronous overwrite transaction after Registry activation", async () => {
+    const finalPath = path.join(fixtureRoot, "transaction-success.srt");
+    await writeFile(finalPath, "old-subtitle", { mode: 0o600 });
+    const events: string[] = [];
+    const transaction = createTestOverwriteTransaction({ events });
+    const registry = new TestArtifactRegistry({
+      onActivate: () => events.push("activate"),
+    });
+
+    const result = await new LocalSubtitleExporter(registry, {
+      overwriteTransaction: transaction.coordinator,
+    }).exportArtifacts({
+      owner: OWNER,
+      taskId: "task-transaction-success",
+      generation: 1,
+      outputStem: "transaction-success",
+      formats: ["SRT"],
+      conflictPolicy: "overwrite",
+      transcript: transcript(),
+      resolveOutputDirectory: resolver(fixtureRoot),
+    });
+
+    expect(result).toMatchObject({
+      status: "completed",
+      artifactResults: [{ format: "SRT", status: "committed" }],
+    });
+    expect(events).toEqual(["begin", "activate", "finalize"]);
+    expect(transaction.requests).toHaveLength(1);
+    expect(transaction.requests[0]).toMatchObject({
+      directoryPath: await realpath(fixtureRoot),
+      finalLeaf: "transaction-success.srt",
+    });
+    expect(registry.activations[0]!.expectedFileIdentity).toEqual(
+      fileIdentity(lstatSync(finalPath)),
+    );
+    await expect(readFile(finalPath, "utf8")).resolves.toContain(
+      "00:00:00,009",
+    );
+    await expect(lstat(transaction.backupPaths[0]!)).rejects.toMatchObject({
+      code: "ENOENT",
+    });
+    await expect(partialNames()).resolves.toEqual([]);
+  });
+
+  it("commits and repeatedly reads a transaction artifact through the real Registry", async () => {
+    const registry = new LocalSubtitleArtifactRegistry({
+      tokenFactory: () => "transaction-integration-ref",
+      reservationFactory: () => "transaction-integration-reservation",
+    });
+    const transaction = createTestOverwriteTransaction();
+    const result = await new LocalSubtitleExporter(registry, {
+      overwriteTransaction: transaction.coordinator,
+    }).exportArtifacts({
+      owner: OWNER,
+      taskId: "task-transaction-registry-integration",
+      generation: 1,
+      outputStem: "transaction-registry-integration",
+      formats: ["SRT"],
+      conflictPolicy: "overwrite",
+      transcript: transcript(),
+      resolveOutputDirectory: resolver(fixtureRoot),
+    });
+
+    if (result.status !== "completed") throw new Error("Expected completion.");
+    const artifact = result.artifactResults[0];
+    if (artifact?.status !== "committed") throw new Error("Expected artifact.");
+    const first = await registry.readText(OWNER, artifact.artifact.artifactRef);
+    const second = await registry.readText(OWNER, artifact.artifact.artifactRef);
+    expect(second).toEqual(first);
+    expect(first).toMatchObject({ format: "SRT", cueCount: 2 });
+  });
+
+  it("supports a transaction with no pre-existing overwrite victim", async () => {
+    const finalPath = path.join(fixtureRoot, "transaction-no-victim.srt");
+    const transaction = createTestOverwriteTransaction();
+
+    const result = await new LocalSubtitleExporter(new TestArtifactRegistry(), {
+      overwriteTransaction: transaction.coordinator,
+    }).exportArtifacts({
+      owner: OWNER,
+      taskId: "task-transaction-no-victim",
+      generation: 1,
+      outputStem: "transaction-no-victim",
+      formats: ["SRT"],
+      conflictPolicy: "overwrite",
+      transcript: transcript(),
+      resolveOutputDirectory: resolver(fixtureRoot),
+    });
+
+    expect(result.status).toBe("completed");
+    await expect(readFile(finalPath, "utf8")).resolves.toContain("Hello");
+    await expect(partialNames()).resolves.toEqual([]);
+  });
+
+  it("restores target absence when activation fails without a victim", async () => {
+    const finalPath = path.join(fixtureRoot, "transaction-no-victim-rollback.srt");
+    const transaction = createTestOverwriteTransaction();
+
+    const result = await new LocalSubtitleExporter(
+      new TestArtifactRegistry({ failActivateFormat: "SRT" }),
+      { overwriteTransaction: transaction.coordinator },
+    ).exportArtifacts({
+      owner: OWNER,
+      taskId: "task-transaction-no-victim-rollback",
+      generation: 1,
+      outputStem: "transaction-no-victim-rollback",
+      formats: ["SRT"],
+      conflictPolicy: "overwrite",
+      transcript: transcript(),
+      resolveOutputDirectory: resolver(fixtureRoot),
+    });
+
+    expect(result).toMatchObject({
+      status: "failed",
+      artifactResults: [{ errorCode: "invalid_content" }],
+    });
+    await expect(lstat(finalPath)).rejects.toMatchObject({ code: "ENOENT" });
+    await expect(partialNames()).resolves.toEqual([]);
+  });
+
+  it("rolls back activation failure and preserves the overwritten victim", async () => {
+    const finalPath = path.join(fixtureRoot, "transaction-activation-failure.srt");
+    await writeFile(finalPath, "old-subtitle", { mode: 0o600 });
+    const events: string[] = [];
+    const transaction = createTestOverwriteTransaction({ events });
+    const registry = new TestArtifactRegistry({ failActivateFormat: "SRT" });
+
+    const result = await new LocalSubtitleExporter(registry, {
+      overwriteTransaction: transaction.coordinator,
+    }).exportArtifacts({
+      owner: OWNER,
+      taskId: "task-transaction-activation-failure",
+      generation: 1,
+      outputStem: "transaction-activation-failure",
+      formats: ["SRT"],
+      conflictPolicy: "overwrite",
+      transcript: transcript(),
+      resolveOutputDirectory: resolver(fixtureRoot),
+    });
+
+    expect(result).toEqual({
+      status: "failed",
+      artifactResults: [
+        { format: "SRT", status: "failed", errorCode: "invalid_content" },
+      ],
+    });
+    expect(events).toEqual(["begin", "rollback"]);
+    expect(registry.revokedArtifacts).toEqual([]);
+    expect(registry.revoked).toEqual([registry.reservations[0]!.reservation]);
+    await expect(readFile(finalPath, "utf8")).resolves.toBe("old-subtitle");
+    await expect(lstat(transaction.backupPaths[0]!)).rejects.toMatchObject({
+      code: "ENOENT",
+    });
+    await expect(partialNames()).resolves.toEqual([]);
+  });
+
+  it("revokes Registry activation before rollback when finalization fails", async () => {
+    const finalPath = path.join(fixtureRoot, "transaction-finalize-failure.srt");
+    await writeFile(finalPath, "old-subtitle", { mode: 0o600 });
+    const events: string[] = [];
+    let registry: TestArtifactRegistry;
+    const transaction = createTestOverwriteTransaction({
+      events,
+      beforeFinalize: () => {
+        throw errnoError("EIO");
+      },
+      beforeRollback: () => {
+        expect(registry.revokedArtifacts).toEqual(["ls-artifact-1"]);
+      },
+    });
+    registry = new TestArtifactRegistry({
+      onActivate: () => events.push("activate"),
+      onRevokeArtifact: () => events.push("revoke-artifact"),
+    });
+
+    const result = await new LocalSubtitleExporter(registry, {
+      overwriteTransaction: transaction.coordinator,
+    }).exportArtifacts({
+      owner: OWNER,
+      taskId: "task-transaction-finalize-failure",
+      generation: 1,
+      outputStem: "transaction-finalize-failure",
+      formats: ["SRT"],
+      conflictPolicy: "overwrite",
+      transcript: transcript(),
+      resolveOutputDirectory: resolver(fixtureRoot),
+    });
+
+    expect(result).toEqual({
+      status: "failed",
+      artifactResults: [
+        { format: "SRT", status: "failed", errorCode: "output_write_failed" },
+      ],
+    });
+    expect(events).toEqual([
+      "begin",
+      "activate",
+      "finalize",
+      "revoke-artifact",
+      "rollback",
+    ]);
+    expect(registry.revokedArtifacts).toEqual(["ls-artifact-1"]);
+    expect(registry.revoked).toEqual([registry.reservations[0]!.reservation]);
+    await expect(readFile(finalPath, "utf8")).resolves.toBe("old-subtitle");
+    await expect(lstat(transaction.backupPaths[0]!)).rejects.toMatchObject({
+      code: "ENOENT",
+    });
+    await expect(partialNames()).resolves.toEqual([]);
+  });
+
+  it("still rolls back when Registry revocation throws after finalization failure", async () => {
+    const finalPath = path.join(fixtureRoot, "transaction-revoke-failure.srt");
+    await writeFile(finalPath, "old-subtitle", { mode: 0o600 });
+    const events: string[] = [];
+    const transaction = createTestOverwriteTransaction({
+      events,
+      beforeFinalize: () => {
+        throw errnoError("EIO");
+      },
+    });
+    const registry = new TestArtifactRegistry({
+      onActivate: () => events.push("activate"),
+      onRevokeArtifact: () => {
+        events.push("revoke-artifact");
+        throw errnoError("EACCES");
+      },
+    });
+
+    const result = await new LocalSubtitleExporter(registry, {
+      overwriteTransaction: transaction.coordinator,
+    }).exportArtifacts({
+      owner: OWNER,
+      taskId: "task-transaction-revoke-failure",
+      generation: 1,
+      outputStem: "transaction-revoke-failure",
+      formats: ["SRT"],
+      conflictPolicy: "overwrite",
+      transcript: transcript(),
+      resolveOutputDirectory: resolver(fixtureRoot),
+    });
+
+    expect(result).toMatchObject({
+      status: "failed",
+      artifactResults: [{ errorCode: "cleanup_failed" }],
+    });
+    expect(events).toEqual([
+      "begin",
+      "activate",
+      "finalize",
+      "revoke-artifact",
+      "rollback",
+    ]);
+    await expect(readFile(finalPath, "utf8")).resolves.toBe("old-subtitle");
+    await expect(partialNames()).resolves.toEqual([]);
+  });
+
+  it.each([
+    { label: "without cancellation", abortDuringBegin: false, errorCode: "cleanup_failed" },
+    { label: "after cancellation", abortDuringBegin: true, errorCode: "cancel_failed" },
+  ] as const)(
+    "maps activation rollback failure to $errorCode $label",
+    async ({ abortDuringBegin, errorCode }) => {
+      const finalPath = path.join(fixtureRoot, "transaction-rollback-failure.srt");
+      await writeFile(finalPath, "old-subtitle", { mode: 0o600 });
+      const controller = new AbortController();
+      const events: string[] = [];
+      const transaction = createTestOverwriteTransaction({
+        events,
+        afterBeginCommit: () => {
+          if (abortDuringBegin) controller.abort();
+        },
+        beforeRollback: () => {
+          throw errnoError("EACCES");
+        },
+      });
+      const registry = new TestArtifactRegistry({ failActivateFormat: "SRT" });
+
+      const result = await new LocalSubtitleExporter(registry, {
+        overwriteTransaction: transaction.coordinator,
+      }).exportArtifacts({
+        owner: OWNER,
+        taskId: `task-transaction-rollback-failure-${errorCode}`,
+        generation: 1,
+        outputStem: "transaction-rollback-failure",
+        formats: ["SRT"],
+        conflictPolicy: "overwrite",
+        transcript: transcript(),
+        resolveOutputDirectory: resolver(fixtureRoot),
+        signal: controller.signal,
+      });
+
+      expect(result).toEqual({
+        status: "failed",
+        artifactResults: [{ format: "SRT", status: "failed", errorCode }],
+      });
+      expect(events).toEqual(["begin", "rollback"]);
+      expect(registry.revoked).toEqual([registry.reservations[0]!.reservation]);
+      await expect(readFile(finalPath, "utf8")).resolves.toContain(
+        "00:00:00,009",
+      );
+      await expect(readFile(transaction.backupPaths[0]!, "utf8")).resolves.toBe(
+        "old-subtitle",
+      );
+      await expect(partialNames()).resolves.toEqual([]);
+    },
+  );
+
+  it("commits and finalizes before observing cancellation raised by begin", async () => {
+    const finalPath = path.join(fixtureRoot, "transaction-late-cancel.srt");
+    await writeFile(finalPath, "old-subtitle", { mode: 0o600 });
+    const controller = new AbortController();
+    const events: string[] = [];
+    const transaction = createTestOverwriteTransaction({
+      events,
+      afterBeginCommit: () => controller.abort(),
+    });
+    const registry = new TestArtifactRegistry({
+      onActivate: () => events.push("activate"),
+    });
+
+    const result = await new LocalSubtitleExporter(registry, {
+      overwriteTransaction: transaction.coordinator,
+    }).exportArtifacts({
+      owner: OWNER,
+      taskId: "task-transaction-late-cancel",
+      generation: 1,
+      outputStem: "transaction-late-cancel",
+      formats: ["SRT", "LRC"],
+      conflictPolicy: "overwrite",
+      transcript: transcript(),
+      resolveOutputDirectory: resolver(fixtureRoot),
+      signal: controller.signal,
+    });
+
+    expect(result).toMatchObject({
+      status: "completed",
+      completion: {
+        outcome: "partial",
+        warnings: ["cancelled_after_partial_commit"],
+      },
+      artifactResults: [
+        { format: "SRT", status: "committed" },
+        {
+          format: "LRC",
+          status: "skipped",
+          errorCode: "cancelled_after_partial_commit",
+        },
+      ],
+    });
+    expect(events).toEqual(["begin", "activate", "finalize"]);
+    await expect(readFile(finalPath, "utf8")).resolves.toContain(
+      "00:00:00,009",
+    );
     await expect(partialNames()).resolves.toEqual([]);
   });
 
@@ -448,7 +889,9 @@ describe("local subtitle artifact export", () => {
     await symlink(external, finalPath, "file");
     const registry = new TestArtifactRegistry();
 
-    const result = await new LocalSubtitleExporter(registry).exportArtifacts({
+    const result = await new LocalSubtitleExporter(registry, {
+      commitOverwrite: rename,
+    }).exportArtifacts({
       owner: OWNER,
       taskId: "task-symlink",
       generation: 1,
@@ -896,7 +1339,9 @@ describe("local subtitle artifact export", () => {
 
     const snapshot = await resolvedDirectory(fixtureRoot);
     let resolveCalls = 0;
-    const second = new LocalSubtitleExporter(secondRegistry).exportArtifacts({
+    const second = new LocalSubtitleExporter(secondRegistry, {
+      commitOverwrite: rename,
+    }).exportArtifacts({
       owner: OWNER,
       taskId: "task-lock-second",
       generation: 1,
@@ -961,21 +1406,25 @@ class TestArtifactRegistry
   }> = [];
   readonly activations: Activation[] = [];
   readonly revoked: Reservation[] = [];
+  readonly revokedArtifacts: string[] = [];
   readonly #failReserveFormat?: LocalSubtitleFormat;
   readonly #failActivateFormat?: LocalSubtitleFormat;
   readonly #onReserve?: (format: LocalSubtitleFormat) => void;
   readonly #onActivate?: (activation: Activation) => void;
+  readonly #onRevokeArtifact?: (artifactRef: string) => void;
 
   constructor(options: {
     readonly failReserveFormat?: LocalSubtitleFormat;
     readonly failActivateFormat?: LocalSubtitleFormat;
     readonly onReserve?: (format: LocalSubtitleFormat) => void;
     readonly onActivate?: (activation: Activation) => void;
+    readonly onRevokeArtifact?: (artifactRef: string) => void;
   } = {}) {
     this.#failReserveFormat = options.failReserveFormat;
     this.#failActivateFormat = options.failActivateFormat;
     this.#onReserve = options.onReserve;
     this.#onActivate = options.onActivate;
+    this.#onRevokeArtifact = options.onRevokeArtifact;
   }
 
   reserve(options: {
@@ -1039,6 +1488,85 @@ class TestArtifactRegistry
     this.revoked.push(reservation);
     return true;
   }
+
+  revokeArtifact(_owner: LocalSubtitleOwnerKey, artifactRef: string): boolean {
+    this.revokedArtifacts.push(artifactRef);
+    this.#onRevokeArtifact?.(artifactRef);
+    return true;
+  }
+}
+
+function createTestOverwriteTransaction(options: {
+  readonly events?: string[];
+  readonly afterBeginCommit?: (
+    request: LocalSubtitleOverwriteTransactionRequest,
+  ) => void;
+  readonly beforeFinalize?: () => void;
+  readonly beforeRollback?: () => void;
+} = {}) {
+  const requests: LocalSubtitleOverwriteTransactionRequest[] = [];
+  const backupPaths: string[] = [];
+  const coordinator = createLocalSubtitleOverwriteTransactionCoordinator({
+    begin(request) {
+      options.events?.push("begin");
+      requests.push(request);
+      const partialPath = path.join(request.directoryPath, request.partialLeaf);
+      const finalPath = path.join(request.directoryPath, request.finalLeaf);
+      const backupPath = path.join(
+        request.directoryPath,
+        `.fusionkit-test-overwrite-backup-${request.finalLeaf}`,
+      );
+      backupPaths.push(backupPath);
+
+      expect(fileIdentity(lstatSync(request.directoryPath))).toEqual(
+        request.expectedDirectoryIdentity,
+      );
+      const partial = lstatSync(partialPath);
+      expect(fileIdentity(partial)).toEqual(request.expectedPartialIdentity);
+      expect(partial.size).toBe(request.expectedByteSize);
+
+      let hadVictim = true;
+      try {
+        renameSync(finalPath, backupPath);
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+        hadVictim = false;
+      }
+      try {
+        renameSync(partialPath, finalPath);
+      } catch (error) {
+        if (hadVictim) renameSync(backupPath, finalPath);
+        throw error;
+      }
+      const expectedFinalIdentity = fileIdentity(lstatSync(finalPath));
+      options.afterBeginCommit?.(request);
+
+      return {
+        expectedFinalIdentity,
+        finalize() {
+          options.events?.push("finalize");
+          options.beforeFinalize?.();
+          if (hadVictim) unlinkSync(backupPath);
+        },
+        rollback() {
+          options.events?.push("rollback");
+          options.beforeRollback?.();
+          renameSync(finalPath, partialPath);
+          if (hadVictim) renameSync(backupPath, finalPath);
+        },
+      };
+    },
+  });
+
+  return { coordinator, requests, backupPaths };
+}
+
+function fileIdentity(value: Stats): LocalSubtitleFileObjectIdentity {
+  return Object.freeze({
+    dev: value.dev,
+    ino: value.ino,
+    birthtimeMs: value.birthtimeMs,
+  });
 }
 
 function transcript(): LocalSubtitleTranscript {

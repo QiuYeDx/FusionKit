@@ -1,4 +1,4 @@
-import { lstat, mkdir, mkdtemp, realpath, rm } from "node:fs/promises";
+import { link, lstat, mkdir, mkdtemp, realpath, rm, unlink } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -37,7 +37,10 @@ import type {
   LocalSubtitleServerSupervisorInferenceResponse,
 } from "../../electron/main/local-subtitle/server-supervisor";
 import { LocalSubtitleArtifactRegistry } from "../../electron/main/local-subtitle/subtitle-artifact-registry";
-import { LocalSubtitleExporter } from "../../electron/main/local-subtitle/subtitle-exporter";
+import {
+  LocalSubtitleExporter,
+  type LocalSubtitleExporterDependencies,
+} from "../../electron/main/local-subtitle/subtitle-exporter";
 
 const OWNER: LocalSubtitleOwnerKey = Object.freeze({
   webContentsId: 71,
@@ -190,6 +193,69 @@ describe("local subtitle production executor", () => {
       harness.artifacts.readText(OWNER, artifact.artifact.artifactRef),
     ).resolves.toMatchObject({ format: "SRT" });
   });
+
+  it.each([
+    ["without cancellation", false, "cleanup_failed"],
+    ["after synchronous cancellation", true, "cancel_failed"],
+  ] as const)(
+    "keeps a readable SRT when LRC commit and partial cleanup fail %s",
+    async (_case, abortDuringCleanup, expectedErrorCode) => {
+      let failedLrcPartialPath: string | undefined;
+      const harness = await createHarness({
+        formats: ["SRT", "LRC"],
+        exporterDependencies: (controller) => ({
+          commitIndex: async (partialPath, finalPath) => {
+            if (finalPath.endsWith(".lrc")) {
+              failedLrcPartialPath = partialPath;
+              throw Object.assign(new Error("LRC commit failed"), { code: "EIO" });
+            }
+            await link(partialPath, finalPath);
+          },
+          removeFile: async (filePath) => {
+            if (filePath === failedLrcPartialPath) {
+              if (abortDuringCleanup) controller.abort();
+              throw Object.assign(new Error("LRC partial cleanup failed"), {
+                code: "EACCES",
+              });
+            }
+            await unlink(filePath);
+          },
+        }),
+      });
+
+      const result = await harness.executor.execute(harness.context);
+
+      expect(harness.controller.signal.aborted).toBe(abortDuringCleanup);
+      expect(result).toMatchObject({
+        status: "completed",
+        artifactResults: [
+          { format: "SRT", status: "committed" },
+          { format: "LRC", status: "failed", errorCode: expectedErrorCode },
+        ],
+      });
+      if (result.status !== "completed") throw new Error("Expected completion.");
+      const artifact = result.artifactResults[0];
+      if (artifact?.status !== "committed") throw new Error("Expected artifact.");
+      const first = await harness.artifacts.readText(
+        OWNER,
+        artifact.artifact.artifactRef,
+      );
+      const second = await harness.artifacts.readText(
+        OWNER,
+        artifact.artifact.artifactRef,
+      );
+      expect(second).toEqual(first);
+      expect(first).toMatchObject({ format: "SRT" });
+      await expect(lstat(path.join(harness.outputRoot, "meeting.srt"))).resolves
+        .toMatchObject({ size: expect.any(Number) });
+      await expect(lstat(path.join(harness.outputRoot, "meeting.lrc"))).rejects
+        .toMatchObject({ code: "ENOENT" });
+      if (!failedLrcPartialPath) throw new Error("Expected failed LRC partial.");
+      await expect(lstat(failedLrcPartialPath)).resolves.toMatchObject({
+        size: expect.any(Number),
+      });
+    },
+  );
 
   it.each(["custom", "source"] as const)(
     "keeps the first artifact when the %s directory resolver fails before the second format",
@@ -989,6 +1055,9 @@ interface HarnessOptions {
   readonly formats?: readonly LocalSubtitleFormat[];
   readonly failArtifactReserveFormat?: LocalSubtitleFormat;
   readonly abortAfterArtifactFormat?: LocalSubtitleFormat;
+  readonly exporterDependencies?: (
+    controller: AbortController,
+  ) => LocalSubtitleExporterDependencies;
   readonly retainedRawBudget?: Readonly<{
     maxSegments: number;
     maxTextBytes: number;
@@ -1152,8 +1221,11 @@ async function createHarness(options: HarnessOptions = {}) {
     },
     revokeReservation: (reservation: string) =>
       artifacts.revokeReservation(reservation),
+    revokeArtifact: (...args: Parameters<typeof artifacts.revokeArtifact>) =>
+      artifacts.revokeArtifact(...args),
   };
   const realExporter = new LocalSubtitleExporter(exporterArtifacts, {
+    ...options.exporterDependencies?.(controller),
     createPartialId: sequence("partial"),
   });
   const exporter = {

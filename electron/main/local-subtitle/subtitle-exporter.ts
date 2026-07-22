@@ -9,7 +9,6 @@ import {
   link,
   lstat,
   open,
-  rename,
   unlink,
   type FileHandle,
 } from "node:fs/promises";
@@ -41,6 +40,11 @@ import {
   parseLocalSubtitleArtifactUtf8,
   verifyLocalSubtitleArtifactRoundTrip,
 } from "./subtitle-formats";
+import {
+  isLocalSubtitleOverwriteTransactionCoordinator,
+  type LocalSubtitleOverwriteTransactionCoordinator,
+  type LocalSubtitleOverwriteTransactionReceipt,
+} from "./overwrite-transaction";
 
 const PRIVATE_FILE_MODE = 0o600;
 const WRITE_EXCLUSIVE_NOFOLLOW =
@@ -87,11 +91,14 @@ export interface LocalSubtitleArtifactRegistryCollaborator<TReservation> {
     },
   ): GeneratedSubtitleArtifactSummary;
   revokeReservation(reservation: TReservation): boolean;
+  revokeArtifact(owner: LocalSubtitleOwnerKey, artifactRef: string): boolean;
 }
 
 export interface LocalSubtitleExporterDependencies {
   readonly createPartialId?: () => string;
   readonly commitIndex?: (partialPath: string, finalPath: string) => Promise<void>;
+  readonly overwriteTransaction?: LocalSubtitleOverwriteTransactionCoordinator;
+  /** Explicit legacy/test adapter. It is never used as a production fallback. */
   readonly commitOverwrite?: (
     partialPath: string,
     finalPath: string,
@@ -155,7 +162,8 @@ export class LocalSubtitleExporter<TReservation> {
     partialPath: string,
     finalPath: string,
   ) => Promise<void>;
-  readonly #commitOverwrite: (
+  readonly #overwriteTransaction?: LocalSubtitleOverwriteTransactionCoordinator;
+  readonly #commitOverwrite?: (
     partialPath: string,
     finalPath: string,
   ) => Promise<void>;
@@ -167,9 +175,25 @@ export class LocalSubtitleExporter<TReservation> {
     private readonly artifacts: LocalSubtitleArtifactRegistryCollaborator<TReservation>,
     dependencies: LocalSubtitleExporterDependencies = {},
   ) {
+    if (dependencies.overwriteTransaction && dependencies.commitOverwrite) {
+      throw new TypeError(
+        "Only one local subtitle overwrite commit strategy may be configured.",
+      );
+    }
+    if (
+      dependencies.overwriteTransaction &&
+      !isLocalSubtitleOverwriteTransactionCoordinator(
+        dependencies.overwriteTransaction,
+      )
+    ) {
+      throw new TypeError(
+        "A validated local subtitle overwrite transaction coordinator is required.",
+      );
+    }
     this.#createPartialId = dependencies.createPartialId ?? randomUUID;
     this.#commitIndex = dependencies.commitIndex ?? link;
-    this.#commitOverwrite = dependencies.commitOverwrite ?? rename;
+    this.#overwriteTransaction = dependencies.overwriteTransaction;
+    this.#commitOverwrite = dependencies.commitOverwrite;
     this.#removeFile = dependencies.removeFile ?? unlink;
     this.#removeFileSync = dependencies.removeFileSync ?? unlinkSync;
     this.#onPartialWriteChunk = dependencies.onPartialWriteChunk;
@@ -179,6 +203,10 @@ export class LocalSubtitleExporter<TReservation> {
     options: ExportLocalSubtitleArtifactsOptions,
   ): Promise<LocalSubtitleExportResult> {
     assertExportOptions(options);
+    const overwriteUnavailable =
+      options.conflictPolicy === "overwrite" &&
+      !this.#overwriteTransaction &&
+      !this.#commitOverwrite;
     const artifactResults: LocalSubtitleArtifactResult[] = [];
     let committedCount = 0;
     let cancellationRequested = Boolean(options.signal?.aborted);
@@ -193,6 +221,11 @@ export class LocalSubtitleExporter<TReservation> {
       }
 
       try {
+        if (overwriteUnavailable) {
+          throw outputWriteFailure(
+            "The native subtitle overwrite transaction is unavailable.",
+          );
+        }
         const artifact = await this.#exportFormat(options, format);
         artifactResults.push(
           Object.freeze({
@@ -548,7 +581,15 @@ export class LocalSubtitleExporter<TReservation> {
       0,
     );
     const finalPath = resolveArtifactPath(directory.directoryPath, displayName);
-    await assertOverwriteTarget(finalPath);
+
+    if (!this.#overwriteTransaction && !this.#commitOverwrite) {
+      throw outputWriteFailure(
+        "The native subtitle overwrite transaction is unavailable.",
+      );
+    }
+    if (!this.#overwriteTransaction) {
+      await assertOverwriteTarget(finalPath);
+    }
 
     const reserved = this.artifacts.reserve({
       owner: options.options.owner,
@@ -560,8 +601,20 @@ export class LocalSubtitleExporter<TReservation> {
     let activated = false;
     try {
       throwIfCancelled(options.options.signal);
+      if (this.#overwriteTransaction) {
+        return this.#commitWithOverwriteTransaction({
+          ...options,
+          directory,
+          displayName,
+          finalPath,
+          reserved,
+          markActivated: () => {
+            activated = true;
+          },
+        });
+      }
       try {
-        await this.#commitOverwrite(options.prepared.partialPath, finalPath);
+        await this.#commitOverwrite!(options.prepared.partialPath, finalPath);
       } catch {
         throw outputWriteFailure("The subtitle artifact could not be atomically replaced.");
       }
@@ -582,6 +635,94 @@ export class LocalSubtitleExporter<TReservation> {
     } finally {
       if (!activated) this.artifacts.revokeReservation(reserved.reservation);
     }
+  }
+
+  #commitWithOverwriteTransaction(options: {
+    readonly options: ExportLocalSubtitleArtifactsOptions;
+    readonly format: LocalSubtitleFormat;
+    readonly initialDirectory: ResolvedLocalSubtitleOutputDirectory;
+    readonly directory: ResolvedLocalSubtitleOutputDirectory;
+    readonly prepared: PreparedArtifact;
+    readonly displayName: string;
+    readonly finalPath: string;
+    readonly reserved: LocalSubtitleArtifactReservation<TReservation>;
+    readonly markActivated: () => void;
+  }): CommittedArtifact {
+    if (path.dirname(options.prepared.partialPath) !== options.directory.directoryPath) {
+      throw outputWriteFailure(
+        "The subtitle partial is not bound to the overwrite directory.",
+      );
+    }
+
+    let receipt: LocalSubtitleOverwriteTransactionReceipt;
+    try {
+      receipt = this.#overwriteTransaction!.begin({
+        directoryPath: options.directory.directoryPath,
+        expectedDirectoryIdentity: options.directory.identity,
+        partialLeaf: path.basename(options.prepared.partialPath),
+        finalLeaf: options.displayName,
+        expectedPartialIdentity: options.prepared.identity,
+        expectedByteSize: options.prepared.byteSize,
+      });
+    } catch {
+      throw outputWriteFailure(
+        "The native subtitle overwrite transaction could not begin.",
+      );
+    }
+
+    let summary: GeneratedSubtitleArtifactSummary;
+    try {
+      summary = this.artifacts.activate(options.reserved.reservation, {
+        filePath: options.finalPath,
+        format: options.format,
+        displayName: options.displayName,
+        sha256: options.prepared.sha256,
+        byteSize: options.prepared.byteSize,
+        expectedFileIdentity: receipt.expectedFinalIdentity,
+        expectedDirectoryIdentity: options.directory.identity,
+      });
+    } catch (activationError) {
+      try {
+        receipt.rollback();
+      } catch {
+        throw cleanupFailureForSignal(options.options.signal)(
+          "The overwritten subtitle target could not be rolled back after artifact activation failed.",
+        );
+      }
+      throw activationError;
+    }
+
+    try {
+      receipt.finalize();
+    } catch {
+      let registryRevoked = false;
+      try {
+        registryRevoked = this.artifacts.revokeArtifact(
+          options.options.owner,
+          summary.artifactRef,
+        );
+      } catch {
+        // Rollback still has to run even if Registry cleanup failed.
+      }
+      let rolledBack = false;
+      try {
+        receipt.rollback();
+        rolledBack = true;
+      } catch {
+        // Report one stable cleanup failure after attempting both cleanup phases.
+      }
+      if (!registryRevoked || !rolledBack) {
+        throw cleanupFailureForSignal(options.options.signal)(
+          "The overwritten subtitle artifact could not be revoked and rolled back after finalization failed.",
+        );
+      }
+      throw outputWriteFailure(
+        "The overwritten subtitle transaction could not be finalized.",
+      );
+    }
+
+    options.markActivated();
+    return Object.freeze({ summary, prepared: options.prepared });
   }
 }
 
