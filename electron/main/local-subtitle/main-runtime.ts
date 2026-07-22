@@ -18,13 +18,11 @@ export class LocalSubtitleMainRuntime {
   #shutdownOperation: Promise<void> | undefined;
   #shutdownSucceeded = false;
 
-  constructor(
-    media: LocalSubtitleMainRuntimeMediaTarget,
-    server: LocalSubtitleMainRuntimeServerTarget,
-    ...additionalTargets: readonly LocalSubtitleMainRuntimeTarget[]
-  ) {
-    const targets = [media, server, ...additionalTargets];
-    if (targets.some((target) => !isRuntimeTarget(target))) {
+  constructor(...targets: readonly LocalSubtitleMainRuntimeTarget[]) {
+    if (
+      targets.length === 0 ||
+      targets.some((target) => !isRuntimeTarget(target))
+    ) {
       throw new TypeError("The local subtitle main runtime targets are invalid.");
     }
     this.#targets = Object.freeze([...targets]);
@@ -48,8 +46,15 @@ export class LocalSubtitleMainRuntime {
     if (this.#shutdownSucceeded) return Promise.resolve();
     if (this.#shutdownOperation) return this.#shutdownOperation;
 
-    let operation: Promise<void>;
-    operation = Promise.allSettled(
+    let resolveOperation!: () => void;
+    let rejectOperation!: (reason?: unknown) => void;
+    const operation = new Promise<void>((resolve, reject) => {
+      resolveOperation = resolve;
+      rejectOperation = reject;
+    });
+    this.#shutdownOperation = operation;
+
+    void Promise.allSettled(
       this.#targets.map((target) => invokeShutdown(target, reason)),
     )
       .then((results) => {
@@ -60,13 +65,12 @@ export class LocalSubtitleMainRuntime {
         if (failure) throw failure.reason;
         this.#shutdownSucceeded = true;
       })
-      .catch((error: unknown) => {
+      .then(resolveOperation, (error: unknown) => {
         if (this.#shutdownOperation === operation) {
           this.#shutdownOperation = undefined;
         }
-        throw error;
+        rejectOperation(error);
       });
-    this.#shutdownOperation = operation;
     return operation;
   }
 }

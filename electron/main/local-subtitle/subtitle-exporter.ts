@@ -1004,6 +1004,10 @@ function cancellationCleanupFailure(message: string): LocalSubtitleExporterError
   return new LocalSubtitleExporterError("cancel_failed", message);
 }
 
+function cleanupFailure(message: string): LocalSubtitleExporterError {
+  return new LocalSubtitleExporterError("cleanup_failed", message);
+}
+
 function cleanupFailureForSignal(
   signal?: AbortSignal,
   cancellationAlreadyRequested = false,
@@ -1011,7 +1015,7 @@ function cleanupFailureForSignal(
   return (message) =>
     cancellationAlreadyRequested || signal?.aborted
       ? cancellationCleanupFailure(message)
-      : outputWriteFailure(message);
+      : cleanupFailure(message);
 }
 
 function asCleanupFailure(

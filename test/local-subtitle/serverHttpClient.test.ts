@@ -1,4 +1,5 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
+import { statSync, type Stats } from "node:fs";
 import {
   mkdtemp,
   mkdir,
@@ -296,6 +297,44 @@ describe("LocalSubtitleServerHttpClient", () => {
     }
   });
 
+  it("rejects an expected window identity mismatch before any network request", async () => {
+    let requestCount = 0;
+    const server = await startServer(async (request, response) => {
+      requestCount += 1;
+      await readRequestBody(request);
+      sendJson(response, validVerboseJson());
+    });
+
+    try {
+      const client = clientFor(server.port);
+      const expectedFileIdentity = fileIdentity(statSync(windowPath));
+      const error = await captureContractError(
+        client.inference(
+          validRequest(windowPath, {
+            expectedFileIdentity: Object.freeze({
+              ...expectedFileIdentity,
+              ino: expectedFileIdentity.ino + 1,
+            }),
+          }),
+        ),
+      );
+
+      expect(error).toMatchObject({
+        code: "invalid_configuration",
+        sessionDisposition: "reusable",
+      });
+      expect(requestCount).toBe(0);
+      await expect(
+        client.inference(
+          validRequest(windowPath, { requestGeneration: 2 }),
+        ),
+      ).resolves.toMatchObject({ requestGeneration: 2 });
+      expect(requestCount).toBe(1);
+    } finally {
+      await server.close();
+    }
+  });
+
   it("claims the single-active inference ticket before the first await", async () => {
     let releaseResponse!: () => void;
     const responseGate = new Promise<void>((resolve) => {
@@ -404,7 +443,7 @@ describe("LocalSubtitleServerHttpClient", () => {
       ).rejects.toThrow(/upload exceeds/u);
       await expect(
         client.inference(validRequest(emptyPath)),
-      ).rejects.toThrow(/non-empty/u);
+      ).rejects.toThrow(/identity/u);
       await expect(
         client.inference(validRequest(windowPath, { requestGeneration: 4 })),
       ).resolves.toMatchObject({ requestGeneration: 4 });
@@ -870,6 +909,7 @@ function validRequest(
   return {
     requestGeneration: 1,
     filePath,
+    expectedFileIdentity: expectedFileIdentity(filePath),
     language: "ja",
     taskMode: "transcribe",
     beamSize: 5,
@@ -879,6 +919,30 @@ function validRequest(
     initialPrompt: "FusionKit",
     ...overrides,
   };
+}
+
+function expectedFileIdentity(filePath: string) {
+  try {
+    return fileIdentity(statSync(filePath));
+  } catch {
+    return Object.freeze({
+      dev: 0,
+      ino: 0,
+      size: 1,
+      mtimeMs: 0,
+      ctimeMs: 0,
+    });
+  }
+}
+
+function fileIdentity(stats: Stats) {
+  return Object.freeze({
+    dev: stats.dev,
+    ino: stats.ino,
+    size: stats.size,
+    mtimeMs: stats.mtimeMs,
+    ctimeMs: stats.ctimeMs,
+  });
 }
 
 function validVerboseJson() {

@@ -204,6 +204,15 @@ export interface ProbeLocalSubtitleMediaOptions {
   readonly signal?: AbortSignal;
 }
 
+export interface VerifyLocalSubtitleMediaRuntimeOptions {
+  readonly owner: LocalSubtitleOwnerKey;
+  readonly signal?: AbortSignal;
+}
+
+export interface LocalSubtitleMediaRuntimeVerification {
+  readonly runtimeGeneration: string;
+}
+
 export interface NormalizeLocalSubtitleMediaOptions {
   readonly owner: LocalSubtitleOwnerKey;
   readonly fileToken: string;
@@ -377,6 +386,25 @@ export class LocalSubtitleMediaNormalizer {
     this.#tokenFactory = options.tokenFactory ?? randomUUID;
     this.#sourceEnvironment = options.sourceEnvironment;
     this.#availableBytes = options.availableBytes ?? availableFileSystemBytes;
+  }
+
+  async verifyRuntime(
+    options: VerifyLocalSubtitleMediaRuntimeOptions,
+  ): Promise<LocalSubtitleMediaRuntimeVerification> {
+    assertOwner(options.owner);
+    const operation = this.#beginOwnerOperation(
+      ownerKey(options.owner),
+      options.signal,
+    );
+    try {
+      const tools = await this.#attestMediaRuntime(operation);
+      throwIfAborted(operation.signal, "runtime_launch_failed");
+      return Object.freeze({
+        runtimeGeneration: tools.bundle.runtimeGeneration,
+      });
+    } finally {
+      operation.finish();
+    }
   }
 
   async probeDraft(
@@ -817,7 +845,7 @@ export class LocalSubtitleMediaNormalizer {
         record.cleanupPromise = undefined;
         throw mediaFailure(
           "cleanup_failed",
-          "cancel_failed",
+          "cleanup_failed",
           "cleanup",
           "The inference PCM window could not be removed safely.",
           error,
@@ -854,7 +882,7 @@ export class LocalSubtitleMediaNormalizer {
         record.cleanupPromise = undefined;
         throw mediaFailure(
           "cleanup_failed",
-          "cancel_failed",
+          "cleanup_failed",
           "cleanup",
           "The private media session could not be removed safely.",
           error,
@@ -1046,7 +1074,7 @@ export class LocalSubtitleMediaNormalizer {
         this.#faultOwner(key);
         throw mediaFailure(
           "cleanup_failed",
-          "cancel_failed",
+          "cleanup_failed",
           "cleanup",
           "The failed media session could not be removed safely.",
           error,
@@ -1086,7 +1114,7 @@ export class LocalSubtitleMediaNormalizer {
     if (failures.length > 0) {
       throw mediaFailure(
         "cleanup_failed",
-        "cancel_failed",
+        "cleanup_failed",
         "cleanup",
         "One or more private media sessions could not be removed safely.",
         failures[0],
@@ -2506,7 +2534,7 @@ function ownerReleasedMediaFailure(): LocalSubtitleMediaError {
 function ownerFaultedMediaFailure(): LocalSubtitleMediaError {
   return mediaFailure(
     "cleanup_failed",
-    "cancel_failed",
+    "cleanup_failed",
     "cleanup",
     "The local subtitle media owner is fenced after unsafe cleanup.",
   );

@@ -3,7 +3,7 @@
 ## 基本信息
 
 - 日期：2026-07-22
-- 状态：部分完成
+- 状态：进行中
 - 对应执行计划工作包：`BE-002`
 - 目标平台/硬件：跨平台 Electron main / Node 合同；未启动真实 native server、FFmpeg 或 Electron UI
 
@@ -77,3 +77,7 @@ git diff --check
 ## 下一步建议
 
 - 先实现单文件 CPU/no-VAD/SRT production executor 和 identity-binding tests，再接入 main lifecycle；完成后运行完整 local-subtitle、全量 Vitest、TypeScript、根 Vite build、manifest/validator 与进程清理门禁。
+
+## 后续进展
+
+- 本记录保留 Job Manager foundation 当时的范围、未完成项与 559/1511 历史门禁。后续单文件 production executor、main wiring 与 session lifecycle 进展见 `2026-07-22_BE-002_production-executor-slice.md`；完整 BE-002 仍保持进行中。

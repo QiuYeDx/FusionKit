@@ -394,6 +394,7 @@ export const LOCAL_SUBTITLE_ERROR_CODES = [
   "out_of_memory",
   "output_conflict",
   "output_write_failed",
+  "cleanup_failed",
   "cancel_failed",
   "cancelled_after_partial_commit",
   "artifact_expired",
@@ -492,6 +493,7 @@ export const LOCAL_SUBTITLE_ERROR_MANIFEST = {
   out_of_memory: defineError("batch", "transcribing", true, true),
   output_conflict: defineError("task", "exporting", true, false),
   output_write_failed: defineError("task", "exporting", true, false),
+  cleanup_failed: defineError("task", "cleanup", true, false),
   cancel_failed: defineError("task", "cancelling", true, false),
   cancelled_after_partial_commit: defineError(
     "task",

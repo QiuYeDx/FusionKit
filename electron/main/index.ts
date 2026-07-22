@@ -21,13 +21,22 @@ import {
   LocalSubtitleIpcService,
   setupLocalSubtitleIPC,
 } from "./local-subtitle/ipc";
-import { LocalSubtitleInputAuthorizationRegistry } from "./local-subtitle/authorizations";
+import {
+  LocalSubtitleCapabilityLeaseCoordinator,
+  LocalSubtitleInputAuthorizationRegistry,
+  LocalSubtitleOutputDirectoryAuthorizationRegistry,
+} from "./local-subtitle/authorizations";
 import { LocalSubtitleArtifactRegistry } from "./local-subtitle/subtitle-artifact-registry";
+import { LocalSubtitleExporter } from "./local-subtitle/subtitle-exporter";
+import { LocalSubtitleJobIpcBridge } from "./local-subtitle/job-ipc";
+import { LocalSubtitleJobManager } from "./local-subtitle/job-manager";
 import { LocalSubtitleMainRuntime } from "./local-subtitle/main-runtime";
 import { LocalSubtitleMediaNormalizer } from "./local-subtitle/media-normalizer";
 import { LocalSubtitleModelManager } from "./local-subtitle/model-manager";
 import { LocalSubtitleModelIpcBridge } from "./local-subtitle/model-ipc";
+import { LocalSubtitleProductionExecutor } from "./local-subtitle/production-executor";
 import { LocalSubtitleSessionIpcBridge } from "./local-subtitle/session-ipc";
+import { LocalSubtitleSessionLifecycle } from "./local-subtitle/session-lifecycle";
 import { LocalSubtitleSessionRegistry } from "./local-subtitle/session-registry";
 import { LocalSubtitleServerSupervisor } from "./local-subtitle/server-supervisor";
 import { LocalSubtitleServerAppLifecycle } from "./local-subtitle/server-app-lifecycle";
@@ -199,6 +208,13 @@ app.whenReady().then(() => {
       } as const);
   const localSubtitleInputAuthorizations =
     new LocalSubtitleInputAuthorizationRegistry();
+  const localSubtitleOutputAuthorizations =
+    new LocalSubtitleOutputDirectoryAuthorizationRegistry();
+  const localSubtitleCapabilityLeases =
+    new LocalSubtitleCapabilityLeaseCoordinator(
+      localSubtitleInputAuthorizations,
+      localSubtitleOutputAuthorizations,
+    );
   const localSubtitleArtifacts = new LocalSubtitleArtifactRegistry({
     revealFile: (filePath) => shell.showItemInFolder(filePath),
   });
@@ -217,24 +233,34 @@ app.whenReady().then(() => {
     supervisor: localSubtitleServerSupervisor,
     sessionRegistry: localSubtitleSessionRegistry,
   });
-  const localSubtitleSessionLifecycle = {
-    releaseOwner: (owner: {
-      readonly webContentsId: number;
-      readonly ownerSessionId: string;
-    }) => {
-      localSubtitleSessionRegistry.releaseOwner(owner);
-    },
-    shutdown: async () => {
-      // MainRuntime starts targets together; awaiting the model manager here
-      // keeps the shared registry alive until resource work is fully fenced.
-      await localSubtitleModelManager.shutdown();
-      await localSubtitleSessionRegistry.shutdown();
-    },
-  };
-  const localSubtitleMainRuntime = new LocalSubtitleMainRuntime(
+  const localSubtitleExporter = new LocalSubtitleExporter(
+    localSubtitleArtifacts,
+  );
+  const localSubtitleProductionExecutor = new LocalSubtitleProductionExecutor({
+    media: localSubtitleMediaNormalizer,
+    supervisor: localSubtitleServerSupervisor,
+    outputs: localSubtitleOutputAuthorizations,
+    exporter: localSubtitleExporter,
+    runtimeEnvironment: localSubtitleResourceEnvironment,
+  });
+  const localSubtitleJobManager = new LocalSubtitleJobManager({
+    registry: localSubtitleSessionRegistry,
+    inputs: localSubtitleInputAuthorizations,
+    outputs: localSubtitleOutputAuthorizations,
+    leases: localSubtitleCapabilityLeases,
+    runtimeVerifier: localSubtitleMediaNormalizer,
+    modelResolver: localSubtitleModelManager,
+    executor: localSubtitleProductionExecutor,
+    artifacts: localSubtitleArtifacts,
+  });
+  const localSubtitleSessionLifecycle = new LocalSubtitleSessionLifecycle(
+    localSubtitleJobManager,
+    localSubtitleModelManager,
     localSubtitleMediaNormalizer,
     localSubtitleServerSupervisor,
-    localSubtitleModelManager,
+    localSubtitleSessionRegistry,
+  );
+  const localSubtitleMainRuntime = new LocalSubtitleMainRuntime(
     localSubtitleSessionLifecycle,
   );
   localSubtitleServerLifecycle = new LocalSubtitleServerAppLifecycle(
@@ -249,43 +275,51 @@ app.whenReady().then(() => {
   const localSubtitleSessionIpcBridge = new LocalSubtitleSessionIpcBridge(
     localSubtitleSessionRegistry,
   );
+  const localSubtitleJobIpcBridge = new LocalSubtitleJobIpcBridge(
+    localSubtitleJobManager,
+    localSubtitleSessionIpcBridge,
+  );
   const localSubtitleModelIpcBridge = new LocalSubtitleModelIpcBridge(
     localSubtitleModelManager,
     localSubtitleSessionIpcBridge,
   );
   const localSubtitleIpcService = new LocalSubtitleIpcService({
-      capabilities: {
-        inputs: localSubtitleInputAuthorizations,
-        artifacts: localSubtitleArtifacts,
-      },
-      handlers: {
-        public: {
-          [LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.probeMedia]: async (
-            request,
-            context,
-          ) => {
-            const { fileToken } = request as { readonly fileToken: string };
-            return localSubtitleIpcSuccess(
-              await localSubtitleMediaNormalizer.probeDraft({
-                owner: context.owner,
-                fileToken,
-                signal: context.signal,
-              }),
-            );
-          },
-          ...localSubtitleModelIpcBridge.handlers.public,
+    capabilities: {
+      inputs: localSubtitleInputAuthorizations,
+      outputs: localSubtitleOutputAuthorizations,
+      leases: localSubtitleCapabilityLeases,
+      artifacts: localSubtitleArtifacts,
+    },
+    handlers: {
+      public: {
+        [LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.probeMedia]: async (
+          request,
+          context,
+        ) => {
+          const { fileToken } = request as { readonly fileToken: string };
+          return localSubtitleIpcSuccess(
+            await localSubtitleMediaNormalizer.probeDraft({
+              owner: context.owner,
+              fileToken,
+              signal: context.signal,
+            }),
+          );
         },
-        importModel: localSubtitleModelIpcBridge.handlers.importModel,
-        onOwnerReleased: (owner) => {
-          localSubtitleModelIpcBridge.releaseOwner(owner);
-          localSubtitleMainRuntime.releaseOwner({
-            webContentsId: owner.senderId,
-            ownerSessionId: owner.ownerSessionId,
-          });
-        },
+        ...localSubtitleSessionIpcBridge.handlers.public,
+        ...localSubtitleModelIpcBridge.handlers.public,
+        ...localSubtitleJobIpcBridge.handlers.public,
       },
-    });
-  localSubtitleModelIpcBridge.attach(localSubtitleIpcService);
+      importModel: localSubtitleModelIpcBridge.handlers.importModel,
+      onOwnerReleased: (owner) => {
+        localSubtitleSessionIpcBridge.releaseOwner(owner);
+        localSubtitleMainRuntime.releaseOwner({
+          webContentsId: owner.senderId,
+          ownerSessionId: owner.ownerSessionId,
+        });
+      },
+    },
+  });
+  localSubtitleSessionIpcBridge.attach(localSubtitleIpcService);
   setupLocalSubtitleIPC(localSubtitleIpcService);
   createWindow();
   setupTranslationIPC(translationService);

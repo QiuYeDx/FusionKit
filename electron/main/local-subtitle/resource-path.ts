@@ -141,6 +141,38 @@ export function resolveLocalSubtitleResourcePath(
   return resolveVerifiedLocalSubtitleArtifact(bundle, artifactId).absolutePath;
 }
 
+export function selectLocalSubtitleCpuServerArtifactId(
+  bundle: LocalSubtitleVerifiedRuntimeBundle,
+): string {
+  if (!isLocalSubtitleVerifiedRuntimeBundle(bundle)) {
+    throw resourceFailure(
+      "runtime_protocol_mismatch",
+      "static_verification",
+      "The bundled runtime verification proof is invalid.",
+    );
+  }
+  const candidates = Object.values(bundle.artifactPaths).filter(
+    (artifact) =>
+      artifact.kind === "server" &&
+      (artifact.backend === "cpu" || artifact.backend === "metal_cpu"),
+  );
+  if (candidates.length === 0) {
+    throw resourceFailure(
+      "runtime_missing",
+      "static_verification",
+      "The verified runtime does not contain a CPU-capable server.",
+    );
+  }
+  if (candidates.length !== 1) {
+    throw resourceFailure(
+      "runtime_protocol_mismatch",
+      "static_verification",
+      "The verified runtime contains multiple CPU-capable servers.",
+    );
+  }
+  return candidates[0]!.id;
+}
+
 export async function loadLocalSubtitleRuntimeManifest(
   environment: LocalSubtitleResourceEnvironment,
 ): Promise<LocalSubtitleLoadedRuntimeManifest> {

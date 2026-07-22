@@ -16,6 +16,7 @@ import {
   parseLocalSubtitleServerHealth,
   parseLocalSubtitleServerVerboseJson,
   validateLocalSubtitleServerInferenceRequest,
+  type LocalSubtitleServerExpectedFileIdentity,
   type LocalSubtitleServerInferenceFields,
   type LocalSubtitleServerInferenceRequest,
   type LocalSubtitleServerInferenceResponse,
@@ -52,13 +53,8 @@ interface MultipartUpload {
   readonly contentType: string;
 }
 
-interface LocalSubtitleServerWindowIdentity {
-  readonly dev: number;
-  readonly ino: number;
-  readonly size: number;
-  readonly mtimeMs: number;
-  readonly ctimeMs: number;
-}
+type LocalSubtitleServerWindowIdentity =
+  LocalSubtitleServerExpectedFileIdentity;
 
 interface JsonExchangeOptions {
   readonly method: "GET" | "POST";
@@ -170,6 +166,13 @@ export class LocalSubtitleServerHttpClient {
   ): Promise<LocalSubtitleServerInferenceResponse> {
     this.#assertReusable();
     validateLocalSubtitleServerInferenceRequest(request);
+    const expectedFileIdentity = Object.freeze({
+      dev: request.expectedFileIdentity.dev,
+      ino: request.expectedFileIdentity.ino,
+      size: request.expectedFileIdentity.size,
+      mtimeMs: request.expectedFileIdentity.mtimeMs,
+      ctimeMs: request.expectedFileIdentity.ctimeMs,
+    });
     const ticket = this.#claimRequestTicket();
     const absoluteDeadline = Date.now() + this.#inferenceDeadlineMs;
     let fileHandle: FileHandle | undefined;
@@ -241,11 +244,22 @@ export class LocalSubtitleServerHttpClient {
           "The normalized inference window must be a regular file.",
         );
       }
+      const openedFileIdentity = toWindowIdentity(fileStat);
+      if (
+        !sameWindowIdentity(
+          expectedFileIdentity,
+          openedFileIdentity,
+        )
+      ) {
+        throw invalidLocalSubtitleServerConfiguration(
+          "The normalized inference window does not match its expected identity.",
+        );
+      }
 
       const fields = createLocalSubtitleServerInferenceFields(request);
       const upload = createMultipartUpload(
         fileHandle,
-        toWindowIdentity(fileStat),
+        openedFileIdentity,
         fields,
       );
       const remainingRequestMs = absoluteDeadline - Date.now();

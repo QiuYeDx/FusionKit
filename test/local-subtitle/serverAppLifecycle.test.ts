@@ -77,6 +77,23 @@ describe("local subtitle server app lifecycle", () => {
     expect(host.quit).not.toHaveBeenCalled();
   });
 
+  it("caches shutdown before the target synchronously reenters", async () => {
+    let lifecycle!: LocalSubtitleServerAppLifecycle;
+    let reentered: Promise<void> | undefined;
+    const target = {
+      shutdown: vi.fn(() => {
+        reentered = lifecycle.shutdown("fatal");
+        return Promise.resolve();
+      }),
+    };
+    lifecycle = new LocalSubtitleServerAppLifecycle(target);
+
+    const shutdown = lifecycle.shutdown("app_quit");
+
+    await Promise.all([shutdown, reentered]);
+    expect(target.shutdown).toHaveBeenCalledOnce();
+  });
+
   it("retries an app quit even when bounded shutdown reports a failure", async () => {
     const host = createHost();
     const shutdown = vi.fn(() => Promise.reject(new Error("shutdown failed")));

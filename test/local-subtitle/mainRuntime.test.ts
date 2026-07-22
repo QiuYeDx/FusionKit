@@ -92,6 +92,30 @@ describe("local subtitle main runtime", () => {
     await expect(runtime.shutdown("fatal")).resolves.toBeUndefined();
   });
 
+  it("caches the composite shutdown before a target synchronously reenters", async () => {
+    let runtime!: LocalSubtitleMainRuntime;
+    let reentered: Promise<void> | undefined;
+    const first: LocalSubtitleMainRuntimeTarget = {
+      releaseOwner: () => undefined,
+      shutdown: vi.fn(() => {
+        reentered = runtime.shutdown("fatal");
+        return Promise.resolve();
+      }),
+    };
+    const second: LocalSubtitleMainRuntimeTarget = {
+      releaseOwner: () => undefined,
+      shutdown: vi.fn(() => Promise.resolve()),
+    };
+    runtime = new LocalSubtitleMainRuntime(first, second);
+
+    const shutdown = runtime.shutdown("app_quit");
+
+    expect(reentered).toBe(shutdown);
+    await shutdown;
+    expect(first.shutdown).toHaveBeenCalledOnce();
+    expect(second.shutdown).toHaveBeenCalledOnce();
+  });
+
   it("allows an explicit retry after composite shutdown fails", async () => {
     const mediaShutdown = vi
       .fn<(reason: "app_quit" | "update" | "fatal") => Promise<void>>()

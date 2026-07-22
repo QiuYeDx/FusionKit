@@ -661,6 +661,41 @@ describe("local subtitle artifact export", () => {
     await expect(partialNames()).resolves.toHaveLength(1);
   });
 
+  it("reports cleanup_failed when a failed commit cannot remove its partial", async () => {
+    const registry = new TestArtifactRegistry();
+    const exporter = new LocalSubtitleExporter(registry, {
+      commitIndex: async () => {
+        throw errnoError("EIO");
+      },
+      removeFile: async () => {
+        throw errnoError("EACCES");
+      },
+    });
+
+    const result = await exporter.exportArtifacts({
+      owner: OWNER,
+      taskId: "task-partial-cleanup-failure",
+      generation: 1,
+      outputStem: "partial-cleanup-failure",
+      formats: ["SRT"],
+      conflictPolicy: "index",
+      transcript: transcript(),
+      resolveOutputDirectory: resolver(fixtureRoot),
+    });
+
+    expect(result).toEqual({
+      status: "failed",
+      artifactResults: [
+        { format: "SRT", status: "failed", errorCode: "cleanup_failed" },
+      ],
+    });
+    expect(registry.revoked).toEqual([registry.reservations[0]!.reservation]);
+    expect(registry.activations).toEqual([]);
+    await expect(partialNames()).resolves.toHaveLength(1);
+    await expect(lstat(path.join(fixtureRoot, "partial-cleanup-failure.srt")))
+      .rejects.toMatchObject({ code: "ENOENT" });
+  });
+
   it("rolls back an indexed commit when the hard-link partial cannot detach", async () => {
     const registry = new TestArtifactRegistry();
     const exporter = new LocalSubtitleExporter(registry, {
@@ -687,13 +722,48 @@ describe("local subtitle artifact export", () => {
         {
           format: "SRT",
           status: "failed",
-          errorCode: "output_write_failed",
+          errorCode: "cleanup_failed",
         },
       ],
     });
     expect(registry.revoked).toEqual([registry.reservations[0]!.reservation]);
     expect(registry.activations).toEqual([]);
     await expect(readdir(fixtureRoot)).resolves.toEqual([]);
+  });
+
+  it("reports cleanup_failed when an indexed final cannot be rolled back", async () => {
+    const registry = new TestArtifactRegistry({ failActivateFormat: "SRT" });
+    const finalPath = path.join(fixtureRoot, "index-rollback-failure.srt");
+    const exporter = new LocalSubtitleExporter(registry, {
+      removeFileSync: (filePath) => {
+        if (path.basename(filePath) === "index-rollback-failure.srt") {
+          throw errnoError("EACCES");
+        }
+        unlinkSync(filePath);
+      },
+    });
+
+    const result = await exporter.exportArtifacts({
+      owner: OWNER,
+      taskId: "task-index-rollback-failure",
+      generation: 1,
+      outputStem: "index-rollback-failure",
+      formats: ["SRT"],
+      conflictPolicy: "index",
+      transcript: transcript(),
+      resolveOutputDirectory: resolver(fixtureRoot),
+    });
+
+    expect(result).toEqual({
+      status: "failed",
+      artifactResults: [
+        { format: "SRT", status: "failed", errorCode: "cleanup_failed" },
+      ],
+    });
+    expect(registry.revoked).toEqual([registry.reservations[0]!.reservation]);
+    expect(registry.activations).toEqual([]);
+    await expect(readFile(finalPath, "utf8")).resolves.toContain("Hello");
+    await expect(partialNames()).resolves.toEqual([]);
   });
 
   it("rolls back an indexed final when artifact activation rejects", async () => {

@@ -83,24 +83,31 @@ export class LocalSubtitleServerAppLifecycle {
     if (this.#shutdownSucceeded) return Promise.resolve();
 
     if (!this.#shutdownOperation) {
-      let operation: Promise<void>;
+      let resolveOperation!: () => void;
+      let rejectOperation!: (reason?: unknown) => void;
+      const operation = new Promise<void>((resolve, reject) => {
+        resolveOperation = resolve;
+        rejectOperation = reject;
+      });
+      this.#shutdownOperation = operation;
+      let targetOperation: Promise<void>;
       try {
-        operation = this.#target.shutdown(reason);
+        targetOperation = this.#target.shutdown(reason);
       } catch (error) {
-        operation = Promise.reject(error);
+        targetOperation = Promise.reject(error);
       }
-      const observed = operation.then(
+      void targetOperation.then(
         () => {
           this.#shutdownSucceeded = true;
+          resolveOperation();
         },
         (error: unknown) => {
-          if (this.#shutdownOperation === observed) {
+          if (this.#shutdownOperation === operation) {
             this.#shutdownOperation = undefined;
           }
-          throw error;
+          rejectOperation(error);
         },
       );
-      this.#shutdownOperation = observed;
     }
     return settleBeforeTimeout(
       this.#shutdownOperation,

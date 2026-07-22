@@ -344,20 +344,38 @@ describe("LocalSubtitleServerSupervisor", () => {
       options.model.absolutePath,
     );
 
-    const request = inferenceRequest(1) as {
+    const request = {
+      ...inferenceRequest(1),
+      expectedFileIdentity: { ...inferenceRequest(1).expectedFileIdentity },
+    } as {
       requestGeneration: number;
       language: string;
+      expectedFileIdentity: {
+        dev: number;
+        ino: number;
+        size: number;
+        mtimeMs: number;
+        ctimeMs: number;
+      };
     } & LocalSubtitleServerInferenceRequest;
+    const originalExpectedFileIdentity = { ...request.expectedFileIdentity };
     const operation = harness.supervisor.beginInference(lease, request);
     request.requestGeneration = 99;
     request.language = "ja";
+    request.expectedFileIdentity.ino += 1;
+    request.expectedFileIdentity.size += 1;
     health.resolve(HEALTHY);
     await operation.result;
 
     expect(client.inferenceRequests[0]).toMatchObject({
       requestGeneration: 1,
       language: "auto",
+      expectedFileIdentity: originalExpectedFileIdentity,
     });
+    expect(Object.isFrozen(client.inferenceRequests[0])).toBe(true);
+    expect(
+      Object.isFrozen(client.inferenceRequests[0]!.expectedFileIdentity),
+    ).toBe(true);
     await harness.supervisor.release(lease);
   });
 
@@ -1023,6 +1041,13 @@ function inferenceRequest(
   return {
     requestGeneration,
     filePath: path.join(managedRoot(), "windows", "window.wav"),
+    expectedFileIdentity: Object.freeze({
+      dev: 1,
+      ino: 2,
+      size: 4_096,
+      mtimeMs: 1_000.25,
+      ctimeMs: 1_000.5,
+    }),
     language: "auto",
     taskMode: "transcribe",
     beamSize: 5,

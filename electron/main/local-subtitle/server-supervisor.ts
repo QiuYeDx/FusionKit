@@ -10,6 +10,7 @@ import {
 import {
   LOCAL_SUBTITLE_SERVER_HTTP_POLICY,
   LocalSubtitleServerContractError,
+  validateLocalSubtitleServerInferenceRequest,
   type LocalSubtitleServerInferenceRequest,
   type LocalSubtitleServerInferenceResponse,
   type LocalSubtitleServerSessionDisposition,
@@ -529,6 +530,7 @@ export class LocalSubtitleServerSupervisor {
     if (this.#activeRequest || this.#startController || this.#shutdownPromise) {
       throw resourceBusyError();
     }
+    validateLocalSubtitleServerInferenceRequest(request);
     const canonicalRequest = snapshotInferenceRequest(request);
     if (
       canonicalRequest.vadEnabled !==
@@ -737,10 +739,10 @@ export class LocalSubtitleServerSupervisor {
       active.processEpoch = epoch.processEpoch;
       this.#assertActiveRequest(active, epoch);
 
-      const response = await epoch.client.inference({
+      const response = await epoch.client.inference(Object.freeze({
         ...request,
         signal: active.controller.signal,
-      });
+      }));
       this.#assertActiveRequest(active, epoch);
       epoch.requestCount += 1;
       return deepFreeze({ processEpoch: epoch.processEpoch, response });
@@ -1650,9 +1652,17 @@ function createSupervisorProcessDescriptor(
 function snapshotInferenceRequest(
   request: LocalSubtitleServerInferenceRequest,
 ): LocalSubtitleServerInferenceRequest {
+  const expectedFileIdentity = Object.freeze({
+    dev: request.expectedFileIdentity.dev,
+    ino: request.expectedFileIdentity.ino,
+    size: request.expectedFileIdentity.size,
+    mtimeMs: request.expectedFileIdentity.mtimeMs,
+    ctimeMs: request.expectedFileIdentity.ctimeMs,
+  });
   return Object.freeze({
     requestGeneration: request.requestGeneration,
     filePath: request.filePath,
+    expectedFileIdentity,
     language: request.language,
     taskMode: request.taskMode,
     beamSize: request.beamSize,

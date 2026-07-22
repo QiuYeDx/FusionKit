@@ -15,7 +15,15 @@ import {
 } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
 import type { LocalSubtitleResourceEventEnvelope } from "@/type/localSubtitle";
 import {
   LOCAL_SUBTITLE_MODEL_MANIFEST,
@@ -30,16 +38,44 @@ import {
   type LocalSubtitleModelManagerOptions,
   type LocalSubtitleModelLoadSmokeTarget,
 } from "../../electron/main/local-subtitle/model-manager";
-import type { LocalSubtitleVerifiedRuntimeBundle } from "../../electron/main/local-subtitle/resource-path";
+import {
+  verifyLocalSubtitleRuntimeBundle,
+  type LocalSubtitleVerifiedRuntimeBundle,
+} from "../../electron/main/local-subtitle/resource-path";
 import { LocalSubtitleSessionRegistry } from "../../electron/main/local-subtitle/session-registry";
+import {
+  createRuntimeFixture,
+  type LocalSubtitleRuntimeFixture,
+} from "./runtimeFixture";
 
 const OWNER = Object.freeze({ webContentsId: 41, ownerSessionId: "owner-model-a" });
 const tempRoots: string[] = [];
+let runtimeFixture: LocalSubtitleRuntimeFixture;
+let verifiedRuntime: LocalSubtitleVerifiedRuntimeBundle;
+let verifiedMediaRuntime: LocalSubtitleVerifiedRuntimeBundle;
+
+beforeAll(async () => {
+  runtimeFixture = await createRuntimeFixture();
+  verifiedRuntime = await verifyLocalSubtitleRuntimeBundle({
+    environment: runtimeFixture.environment,
+    scope: "server",
+    signatureVerifier: async () => true,
+  });
+  verifiedMediaRuntime = await verifyLocalSubtitleRuntimeBundle({
+    environment: runtimeFixture.environment,
+    scope: "media",
+    signatureVerifier: async () => true,
+  });
+});
 
 afterEach(async () => {
   await Promise.all(
     tempRoots.splice(0).map((root) => rm(root, { recursive: true, force: true })),
   );
+});
+
+afterAll(async () => {
+  await runtimeFixture.cleanup();
 });
 
 describe("local subtitle model manager", () => {
@@ -151,6 +187,26 @@ describe("local subtitle model manager", () => {
     });
     await expect(fixture.manager.resolveManagedModel(fixture.model.id)).rejects.toMatchObject({
       localSubtitleCode: "model_missing",
+    });
+    expect(await stagingEntries(fixture.managedRoot)).toEqual([]);
+  });
+
+  it("preserves a missing CPU server as a runtime resource failure", async () => {
+    const fixture = await createFixture({
+      verifyServerRuntime: async () => verifiedMediaRuntime,
+    });
+
+    fixture.manager.importModel({
+      owner: OWNER,
+      filePath: fixture.sourcePath,
+      mode: "copy",
+    });
+    await fixture.manager.waitForIdle();
+
+    expect(fixture.smoke).not.toHaveBeenCalled();
+    expect(fixture.manager.getSessionSnapshot(OWNER).resourceJobs[0]).toMatchObject({
+      status: "failed",
+      error: { code: "runtime_missing" },
     });
     expect(await stagingEntries(fixture.managedRoot)).toEqual([]);
   });
@@ -1094,6 +1150,7 @@ interface FixtureOptions {
   readonly commitModelLink?: (source: string, destination: string) => Promise<void>;
   readonly removeStagingDirectory?: (absolutePath: string) => Promise<void>;
   readonly verifyModelFile?: LocalSubtitleModelManagerOptions["verifyModelFile"];
+  readonly verifyServerRuntime?: LocalSubtitleModelManagerOptions["verifyServerRuntime"];
   readonly stagingIdFactory?: () => string;
   readonly sessionRegistry?: LocalSubtitleSessionRegistry;
 }
@@ -1129,7 +1186,7 @@ async function createFixture(options: FixtureOptions = {}) {
       ? {}
       : { sessionRegistry: options.sessionRegistry }),
     modelCatalog: [model],
-    verifyServerRuntime: async () => fakeRuntime(),
+    verifyServerRuntime: options.verifyServerRuntime ?? (async () => fakeRuntime()),
     availableBytes: options.availableBytes ?? (async () => Number.MAX_SAFE_INTEGER),
     ...(options.stagingIdFactory === undefined
       ? {}
@@ -1174,31 +1231,7 @@ function sha256(bytes: Uint8Array): string {
 }
 
 function fakeRuntime(): LocalSubtitleVerifiedRuntimeBundle {
-  return {
-    schemaVersion: 1,
-    target: { platform: "darwin", arch: "arm64" },
-    scope: "server",
-    root: "/verified/runtime",
-    manifestPath: "/verified/runtime/manifest.json",
-    manifestSha256: "a".repeat(64),
-    runtimeGeneration: "a".repeat(64),
-    integrityProfile: "macos_nested_signed_final_bytes_sha256",
-    artifactPaths: {
-      "whisper-server-mac-arm64-metal-cpu": {
-        id: "whisper-server-mac-arm64-metal-cpu",
-        kind: "server",
-        backend: "metal_cpu",
-        absolutePath: "/verified/runtime/bin/whisper-server",
-        byteSize: 1,
-        sha256: "b".repeat(64),
-        version: "v1.9.1+f049fff",
-        signatureKind: "adhoc",
-      },
-    },
-    evidenceFileCount: 1,
-    noPathFallback: true,
-    ready: true,
-  } as LocalSubtitleVerifiedRuntimeBundle;
+  return verifiedRuntime;
 }
 
 async function stagingEntries(managedRoot: string): Promise<string[]> {

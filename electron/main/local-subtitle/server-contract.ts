@@ -85,6 +85,7 @@ export class LocalSubtitleServerContractError extends Error {
 export interface LocalSubtitleServerInferenceRequest {
   readonly requestGeneration: number;
   readonly filePath: string;
+  readonly expectedFileIdentity: LocalSubtitleServerExpectedFileIdentity;
   readonly language: string;
   readonly taskMode: LocalSubtitleTaskMode;
   readonly beamSize: number;
@@ -93,6 +94,14 @@ export interface LocalSubtitleServerInferenceRequest {
   readonly vadMinSilenceMs: number;
   readonly initialPrompt?: string;
   readonly signal?: AbortSignal;
+}
+
+export interface LocalSubtitleServerExpectedFileIdentity {
+  readonly dev: number;
+  readonly ino: number;
+  readonly size: number;
+  readonly mtimeMs: number;
+  readonly ctimeMs: number;
 }
 
 export interface LocalSubtitleServerInferenceFields {
@@ -448,6 +457,7 @@ function validateInferenceOptions(
   if (!Number.isSafeInteger(request.requestGeneration) || request.requestGeneration < 1) {
     throw invalidConfiguration("The inference generation must be a positive integer.");
   }
+  validateExpectedFileIdentity(request.expectedFileIdentity);
   if (
     typeof request.language !== "string" ||
     request.language.length < 2 ||
@@ -498,6 +508,50 @@ function validateInferenceOptions(
   ) {
     throw invalidConfiguration("The inference prompt is invalid.");
   }
+}
+
+function validateExpectedFileIdentity(input: unknown): void {
+  if (!isExactRecord(input, ["dev", "ino", "size", "mtimeMs", "ctimeMs"])) {
+    throw invalidConfiguration(
+      "The normalized inference window identity is invalid.",
+    );
+  }
+  const { dev, ino, size, mtimeMs, ctimeMs } = input;
+  if (
+    !isNonNegativeSafeInteger(dev) ||
+    !isNonNegativeSafeInteger(ino) ||
+    !Number.isSafeInteger(size) ||
+    size <= 0 ||
+    !isNonNegativeSafeNumber(mtimeMs) ||
+    !isNonNegativeSafeNumber(ctimeMs)
+  ) {
+    throw invalidConfiguration(
+      "The normalized inference window identity is invalid.",
+    );
+  }
+}
+
+function isExactRecord(
+  input: unknown,
+  expectedKeys: readonly string[],
+): input is Record<string, number> {
+  if (typeof input !== "object" || input === null || Array.isArray(input)) {
+    return false;
+  }
+  const keys = Reflect.ownKeys(input);
+  return keys.length === expectedKeys.length &&
+    expectedKeys.every((key) => keys.includes(key));
+}
+
+function isNonNegativeSafeInteger(value: unknown): value is number {
+  return Number.isSafeInteger(value) && (value as number) >= 0;
+}
+
+function isNonNegativeSafeNumber(value: unknown): value is number {
+  return typeof value === "number" &&
+    Number.isFinite(value) &&
+    value >= 0 &&
+    value <= Number.MAX_SAFE_INTEGER;
 }
 
 function secondsToMilliseconds(value: number): number {

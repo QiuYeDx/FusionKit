@@ -48,10 +48,12 @@ import {
   type LocalSubtitleSessionRegistryOwnership,
 } from "./resource-job";
 import {
+  selectLocalSubtitleCpuServerArtifactId,
   verifyLocalSubtitleRuntimeBundle,
   type LocalSubtitleResourceEnvironment,
   type LocalSubtitleVerifiedRuntimeBundle,
 } from "./resource-path";
+import { LocalSubtitleResourceError } from "./resource-manifest";
 import type {
   LocalSubtitleServerManagedResourceIdentity,
 } from "./server-process-contract";
@@ -642,7 +644,7 @@ export class LocalSubtitleModelManager {
         });
         throwIfCancelled(context);
         const runtime = await this.#verifyServerRuntime();
-        const serverArtifactId = selectCpuServerArtifactId(runtime);
+        const serverArtifactId = selectLocalSubtitleCpuServerArtifactId(runtime);
         await this.#supervisor.smokeModelLoad(
           owner,
           {
@@ -1956,23 +1958,6 @@ function assertVerifiedModelMatches(
   }
 }
 
-function selectCpuServerArtifactId(
-  runtime: LocalSubtitleVerifiedRuntimeBundle,
-): string {
-  const candidates = Object.values(runtime.artifactPaths).filter(
-    (artifact) =>
-      artifact.kind === "server" &&
-      (artifact.backend === "cpu" || artifact.backend === "metal_cpu"),
-  );
-  if (candidates.length !== 1) {
-    throw managerFailure(
-      "resource_not_allowed",
-      "The verified runtime does not contain one CPU-capable server.",
-    );
-  }
-  return candidates[0]!.id;
-}
-
 function throwIfCancelled(context: LocalSubtitleResourceJobContext): void {
   if (context.signal.aborted || context.isCancellationRequested()) {
     throw new ImportCancelledError("The local subtitle model import was cancelled.");
@@ -2010,6 +1995,12 @@ function toResourceJobError(error: unknown): LocalSubtitleError {
   }
   if (error instanceof LocalSubtitleModelError) {
     return createLocalSubtitleError(error.code, error.message);
+  }
+  if (error instanceof LocalSubtitleResourceError) {
+    return createLocalSubtitleError(
+      error.code,
+      "Local subtitle runtime resource is unavailable.",
+    );
   }
   if (error instanceof LocalSubtitleServerSupervisorError) {
     return createLocalSubtitleError(

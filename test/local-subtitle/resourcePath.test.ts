@@ -20,6 +20,7 @@ import {
   resolveLocalSubtitleResourcePath,
   resolveLocalSubtitleRuntimeRoot,
   resolveVerifiedLocalSubtitleArtifact,
+  selectLocalSubtitleCpuServerArtifactId,
   verifyLocalSubtitleRuntimeBundle,
 } from "../../electron/main/local-subtitle/resource-path";
 import {
@@ -124,6 +125,9 @@ describe("local subtitle runtime verification", () => {
     expect(resolveLocalSubtitleResourcePath(bundle, "ffmpeg-mac-arm64")).toBe(
       ffmpeg.absolutePath,
     );
+    expect(selectLocalSubtitleCpuServerArtifactId(bundle)).toBe(
+      "whisper-server-mac-arm64-metal-cpu",
+    );
     const forged = { ...bundle } as typeof bundle;
     for (const symbol of Object.getOwnPropertySymbols(bundle)) {
       Object.defineProperty(forged, symbol, {
@@ -135,6 +139,9 @@ describe("local subtitle runtime verification", () => {
     expect(() =>
       resolveVerifiedLocalSubtitleArtifact(forged, "ffmpeg-mac-arm64")
     ).toThrowError(LocalSubtitleResourceError);
+    expect(() => selectLocalSubtitleCpuServerArtifactId(forged)).toThrowError(
+      expect.objectContaining({ code: "runtime_protocol_mismatch" }),
+    );
     expect(() =>
       resolveVerifiedLocalSubtitleArtifact(bundle, "not-in-manifest")
     ).toThrowError(LocalSubtitleResourceError);
@@ -160,6 +167,25 @@ describe("local subtitle runtime verification", () => {
     );
     expect(Object.keys(bundle.artifactPaths)).toHaveLength(15);
     expect(signatureCalls).toBe(0);
+    expect(selectLocalSubtitleCpuServerArtifactId(bundle)).toBe(
+      "whisper-server-win-x64-cpu",
+    );
+  });
+
+  it("rejects a verified scope without a CPU-capable server", async () => {
+    const fixture = await trackedFixture();
+    const media = await verifyLocalSubtitleRuntimeBundle({
+      environment: fixture.environment,
+      scope: "media",
+      signatureVerifier: async () => true,
+    });
+
+    expect(() => selectLocalSubtitleCpuServerArtifactId(media)).toThrowError(
+      expect.objectContaining({
+        code: "runtime_missing",
+        stage: "static_verification",
+      }),
+    );
   });
 
   it("does not fall back to a development root or PATH in packaged mode", async () => {

@@ -127,6 +127,19 @@ describe("local subtitle media runtime and probing", () => {
     }
   });
 
+  it("verifies the media runtime without consuming an input capability", async () => {
+    const harness = createHarness({ yieldEveryCall: true });
+
+    const verification = await harness.normalizer.verifyRuntime({ owner: OWNER_A });
+
+    expect(verification.runtimeGeneration).toMatch(/^[a-f0-9]{64}$/u);
+    expect(harness.calls.map((call) => call.kind)).toEqual([
+      "ffmpeg-version",
+      "ffprobe-version",
+    ]);
+    expect(harness.maxActive).toBe(1);
+  });
+
   it("fails before ffprobe when the bundled ffmpeg version is wrong", async () => {
     const sourcePath = await sourceFile("wrong-version.mov", "wrong-version");
     const authorized = await inputs.authorize(OWNER_A, sourcePath);
@@ -1146,7 +1159,7 @@ describe("local subtitle PCM proof, window integrity, and cleanup", () => {
       }),
     ).rejects.toMatchObject({
       code: "cleanup_failed",
-      localSubtitleCode: "cancel_failed",
+      localSubtitleCode: "cleanup_failed",
       stage: "cleanup",
     });
     await expect(
@@ -1156,7 +1169,7 @@ describe("local subtitle PCM proof, window integrity, and cleanup", () => {
       }),
     ).rejects.toMatchObject({
       code: "cleanup_failed",
-      localSubtitleCode: "cancel_failed",
+      localSubtitleCode: "cleanup_failed",
     });
 
     await rm(sessionRoot, { recursive: true, force: false });
@@ -1216,7 +1229,7 @@ describe("local subtitle PCM proof, window integrity, and cleanup", () => {
       }),
     ).rejects.toMatchObject({
       code: "cleanup_failed",
-      localSubtitleCode: "cancel_failed",
+      localSubtitleCode: "cleanup_failed",
     });
     expect(isLocalSubtitleNormalizedPcm(normalized)).toBe(false);
     expect(isLocalSubtitleBrandedPcmWindow(window)).toBe(false);
@@ -1354,7 +1367,7 @@ describe("local subtitle PCM proof, window integrity, and cleanup", () => {
 
     await expect(harness.normalizer.shutdown("update")).rejects.toMatchObject({
       code: "cleanup_failed",
-      localSubtitleCode: "cancel_failed",
+      localSubtitleCode: "cleanup_failed",
     });
     await expect(lstat(displacedA)).resolves.toMatchObject({});
     await expect(lstat(sessionB)).rejects.toMatchObject({ code: "ENOENT" });

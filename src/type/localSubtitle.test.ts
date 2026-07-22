@@ -64,6 +64,7 @@ const EXPECTED_ERROR_CODES = [
   "out_of_memory",
   "output_conflict",
   "output_write_failed",
+  "cleanup_failed",
   "cancel_failed",
   "cancelled_after_partial_commit",
   "artifact_expired",

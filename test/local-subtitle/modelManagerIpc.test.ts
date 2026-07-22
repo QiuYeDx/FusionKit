@@ -3,7 +3,15 @@ import { EventEmitter } from "node:events";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
 import {
   LOCAL_SUBTITLE_EVENT_CHANNELS,
   LOCAL_SUBTITLE_PRELOAD_INTERNAL_CHANNELS,
@@ -17,17 +25,39 @@ import {
   type LocalSubtitleModelManifestEntry,
 } from "../../electron/main/local-subtitle/model-manifest";
 import { LocalSubtitleModelManager } from "../../electron/main/local-subtitle/model-manager";
-import type { LocalSubtitleVerifiedRuntimeBundle } from "../../electron/main/local-subtitle/resource-path";
+import {
+  verifyLocalSubtitleRuntimeBundle,
+  type LocalSubtitleVerifiedRuntimeBundle,
+} from "../../electron/main/local-subtitle/resource-path";
 import { LocalSubtitleSessionIpcBridge } from "../../electron/main/local-subtitle/session-ipc";
 import { LocalSubtitleSessionRegistry } from "../../electron/main/local-subtitle/session-registry";
+import {
+  createRuntimeFixture,
+  type LocalSubtitleRuntimeFixture,
+} from "./runtimeFixture";
 
 const DEV_SERVER_URL = "http://127.0.0.1:7777/";
 const tempRoots: string[] = [];
+let runtimeFixture: LocalSubtitleRuntimeFixture;
+let verifiedRuntime: LocalSubtitleVerifiedRuntimeBundle;
+
+beforeAll(async () => {
+  runtimeFixture = await createRuntimeFixture();
+  verifiedRuntime = await verifyLocalSubtitleRuntimeBundle({
+    environment: runtimeFixture.environment,
+    scope: "server",
+    signatureVerifier: async () => true,
+  });
+});
 
 afterEach(async () => {
   await Promise.all(
     tempRoots.splice(0).map((root) => rm(root, { recursive: true, force: true })),
   );
+});
+
+afterAll(async () => {
+  await runtimeFixture.cleanup();
 });
 
 describe("local subtitle model manager IPC integration", () => {
@@ -195,7 +225,11 @@ async function createFixture(options: { readonly smoke?: ReturnType<typeof vi.fn
   const service = new LocalSubtitleIpcService({
     ownerSessions,
     handlers: {
-      ...bridge.handlers,
+      public: {
+        ...sessionBridge.handlers.public,
+        ...bridge.handlers.public,
+      },
+      importModel: bridge.handlers.importModel,
       onOwnerReleased: (owner) => {
         bridge.releaseOwner(owner);
         manager.releaseOwner({
@@ -240,31 +274,7 @@ function createGgmlModel(): Buffer {
 }
 
 function fakeRuntime(): LocalSubtitleVerifiedRuntimeBundle {
-  return {
-    schemaVersion: 1,
-    target: { platform: "darwin", arch: "arm64" },
-    scope: "server",
-    root: "/verified/runtime",
-    manifestPath: "/verified/runtime/manifest.json",
-    manifestSha256: "a".repeat(64),
-    runtimeGeneration: "a".repeat(64),
-    integrityProfile: "macos_nested_signed_final_bytes_sha256",
-    artifactPaths: {
-      "whisper-server-mac-arm64-metal-cpu": {
-        id: "whisper-server-mac-arm64-metal-cpu",
-        kind: "server",
-        backend: "metal_cpu",
-        absolutePath: "/verified/runtime/bin/whisper-server",
-        byteSize: 1,
-        sha256: "b".repeat(64),
-        version: "v1.9.1+f049fff",
-        signatureKind: "adhoc",
-      },
-    },
-    evidenceFileCount: 1,
-    noPathFallback: true,
-    ready: true,
-  } as LocalSubtitleVerifiedRuntimeBundle;
+  return verifiedRuntime;
 }
 
 function createEvent(sender: FakeSender, frame: FakeFrame) {

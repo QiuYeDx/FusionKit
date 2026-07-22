@@ -56,6 +56,10 @@ const MODEL_LOAD_ERROR_CODES = new Set<LocalSubtitleErrorCode>([
   "model_incompatible",
   "model_corrupt",
 ]);
+const CLEANUP_FAILURE_CODES = new Set<LocalSubtitleErrorCode>([
+  "cleanup_failed",
+  "cancel_failed",
+]);
 const SAFE_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]*$/u;
 
 export type LocalSubtitleJobManagerErrorCode = Extract<
@@ -92,6 +96,13 @@ export interface LocalSubtitleJobModelResolver {
 
 export interface LocalSubtitleJobArtifactRegistry {
   revokeTask(owner: LocalSubtitleOwnerKey, taskId: string): number;
+}
+
+export interface LocalSubtitleJobRuntimeVerifier {
+  verifyRuntime(options: {
+    readonly owner: LocalSubtitleOwnerKey;
+    readonly signal?: AbortSignal;
+  }): Promise<{ readonly runtimeGeneration: string }>;
 }
 
 export interface LocalSubtitleJobTaskUpdate {
@@ -150,6 +161,7 @@ export interface LocalSubtitleJobManagerOptions {
   readonly inputs: LocalSubtitleInputAuthorizationRegistry;
   readonly outputs: LocalSubtitleOutputDirectoryAuthorizationRegistry;
   readonly leases: LocalSubtitleCapabilityLeaseCoordinator;
+  readonly runtimeVerifier: LocalSubtitleJobRuntimeVerifier;
   readonly modelResolver: LocalSubtitleJobModelResolver;
   readonly executor: LocalSubtitleJobTaskExecutor;
   readonly artifacts?: LocalSubtitleJobArtifactRegistry;
@@ -229,6 +241,7 @@ export class LocalSubtitleJobManager {
   readonly #inputs: LocalSubtitleInputAuthorizationRegistry;
   readonly #outputs: LocalSubtitleOutputDirectoryAuthorizationRegistry;
   readonly #leases: LocalSubtitleCapabilityLeaseCoordinator;
+  readonly #runtimeVerifier: LocalSubtitleJobRuntimeVerifier;
   readonly #modelResolver: LocalSubtitleJobModelResolver;
   readonly #executor: LocalSubtitleJobTaskExecutor;
   readonly #artifacts?: LocalSubtitleJobArtifactRegistry;
@@ -266,6 +279,7 @@ export class LocalSubtitleJobManager {
       !(options.inputs instanceof LocalSubtitleInputAuthorizationRegistry) ||
       !(options.outputs instanceof LocalSubtitleOutputDirectoryAuthorizationRegistry) ||
       !(options.leases instanceof LocalSubtitleCapabilityLeaseCoordinator) ||
+      typeof options.runtimeVerifier?.verifyRuntime !== "function" ||
       typeof options.modelResolver?.resolveManagedModel !== "function" ||
       typeof options.executor?.execute !== "function" ||
       (options.scheduleLeaseRenewal !== undefined &&
@@ -277,6 +291,7 @@ export class LocalSubtitleJobManager {
     this.#inputs = options.inputs;
     this.#outputs = options.outputs;
     this.#leases = options.leases;
+    this.#runtimeVerifier = options.runtimeVerifier;
     this.#modelResolver = options.modelResolver;
     this.#executor = options.executor;
     this.#artifacts = options.artifacts;
@@ -333,6 +348,10 @@ export class LocalSubtitleJobManager {
           parsed.files[0]!.fileToken,
           "transcribe",
         ),
+        this.#runtimeVerifier.verifyRuntime({
+          owner,
+          signal: pending.controller.signal,
+        }),
       ]);
       throwIfAborted(pending.controller.signal);
       this.#assertOwnerAvailable(owner);
@@ -437,6 +456,18 @@ export class LocalSubtitleJobManager {
       throw managerFailure(
         "invalid_ipc_request",
         "Only a failed local subtitle task can be retried.",
+        "preflight",
+        "taskId",
+      );
+    }
+    if (
+      current.error !== undefined &&
+      CLEANUP_FAILURE_CODES.has(current.error.code)
+    ) {
+      throw managerFailure(
+        "invalid_ipc_request",
+        "Cleanup-failed tasks cannot be retried in the same owner session. " +
+          "Start a new owner session and authorize the input and output paths again.",
         "preflight",
         "taskId",
       );
@@ -793,7 +824,10 @@ export class LocalSubtitleJobManager {
       if (result.status === "completed" && this.#settleCompleted(run, result)) {
         return;
       }
-      if (result.status === "failed" && result.error.code === "cancel_failed") {
+      if (
+        result.status === "failed" &&
+        CLEANUP_FAILURE_CODES.has(result.error.code)
+      ) {
         this.#settleFailed(
           run,
           result.error,
@@ -846,7 +880,8 @@ export class LocalSubtitleJobManager {
       }
     } catch (error) {
       if (!this.#isPublishableRun(run)) return;
-      if (errorCode(error) === "cancel_failed") {
+      const code = errorCode(error);
+      if (code !== undefined && CLEANUP_FAILURE_CODES.has(code)) {
         this.#settleFailed(
           run,
           executionError(error, this.#currentStage(run.record)),
@@ -987,7 +1022,7 @@ export class LocalSubtitleJobManager {
         error,
       },
     );
-    const stableError = transition.ok
+    const stableError = transition.ok || CLEANUP_FAILURE_CODES.has(error.code)
       ? error
       : createLocalSubtitleError(
           "invalid_content",
@@ -1024,7 +1059,11 @@ export class LocalSubtitleJobManager {
     });
     this.#publishTask(run, next);
     run.record.state = "terminal";
-    if (run.record.leaseFailure === undefined) {
+    if (CLEANUP_FAILURE_CODES.has(stableError.code)) {
+      this.#releaseInputLease(run.record);
+      this.#releaseOutputIfUnmaintained(run.record.batch);
+      this.#stopLeaseRenewalIfIdle();
+    } else if (run.record.leaseFailure === undefined) {
       // Failed tasks retain renewable input/output leases for retry.
       this.#ensureLeaseRenewalScheduled();
     } else {
@@ -1536,6 +1575,7 @@ function assertFirstSliceRequest(request: EnqueueLocalSubtitleBatchRequest): voi
     config.devicePreference === "cpu" &&
     config.taskMode === "transcribe" &&
     config.vadEnabled === false &&
+    config.output.mode === "custom" &&
     config.output.formats.length === 1 &&
     config.output.formats[0] === "SRT" &&
     config.postAction.mode === "export_only";

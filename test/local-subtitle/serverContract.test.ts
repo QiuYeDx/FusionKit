@@ -97,6 +97,23 @@ describe("local subtitle official server contract", () => {
     ).toThrow(/normalized window/u);
   });
 
+  it.each([
+    { label: "missing", identity: undefined },
+    { label: "extra key", identity: { ...validFileIdentity(), path: "/private/window.wav" } },
+    { label: "negative device", identity: { ...validFileIdentity(), dev: -1 } },
+    { label: "unsafe inode", identity: { ...validFileIdentity(), ino: Number.MAX_SAFE_INTEGER + 1 } },
+    { label: "empty file", identity: { ...validFileIdentity(), size: 0 } },
+    { label: "negative mtime", identity: { ...validFileIdentity(), mtimeMs: -1 } },
+    { label: "non-finite ctime", identity: { ...validFileIdentity(), ctimeMs: Number.POSITIVE_INFINITY } },
+  ])("rejects a $label expected window identity", ({ identity }) => {
+    expect(() =>
+      validateLocalSubtitleServerInferenceRequest({
+        ...validRequest(),
+        expectedFileIdentity: identity,
+      } as never),
+    ).toThrow(/window identity/u);
+  });
+
   it("maps BCP-47 variants and legacy aliases to pinned Whisper codes", () => {
     expect(mapLocalSubtitleLanguageToWhisper("zh-Hans")).toBe("zh");
     expect(mapLocalSubtitleLanguageToWhisper("jv-ID")).toBe("jw");
@@ -226,6 +243,7 @@ function validRequest() {
   return {
     requestGeneration: 1,
     filePath: "/private/window.wav",
+    expectedFileIdentity: validFileIdentity(),
     language: "ja",
     taskMode: "transcribe" as const,
     beamSize: 5,
@@ -234,6 +252,16 @@ function validRequest() {
     vadMinSilenceMs: 500,
     initialPrompt: "FusionKit",
   };
+}
+
+function validFileIdentity() {
+  return Object.freeze({
+    dev: 1,
+    ino: 2,
+    size: 4_096,
+    mtimeMs: 1_000.25,
+    ctimeMs: 1_000.5,
+  });
 }
 
 function validVerboseJson() {

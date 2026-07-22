@@ -30,7 +30,6 @@ export class LocalSubtitleModelIpcBridge {
     this.#session = session;
     this.handlers = Object.freeze({
       public: Object.freeze({
-        ...session.handlers.public,
         [LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.listManagedResources]: async (
           _request: unknown,
           context: LocalSubtitleIpcHandlerContext,

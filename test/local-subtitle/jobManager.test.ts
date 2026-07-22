@@ -45,7 +45,7 @@ describe("LocalSubtitleJobManager", () => {
     });
     const events: unknown[] = [];
     harness.manager.onTaskEvent(OWNER_A, (event) => events.push(event));
-    const request = enqueueRequest(harness.fileToken);
+    const request = await harness.createRequest(harness.fileToken);
 
     const batch = await harness.manager.enqueue(OWNER_A, request);
     request.config.language = "ja";
@@ -100,7 +100,10 @@ describe("LocalSubtitleJobManager", () => {
       );
     });
 
-    await harness.manager.enqueue(OWNER_A, enqueueRequest(harness.fileToken));
+    await harness.manager.enqueue(
+      OWNER_A,
+      await harness.createRequest(harness.fileToken),
+    );
     harness.flushScheduled();
     await harness.manager.waitForIdle();
 
@@ -156,8 +159,14 @@ describe("LocalSubtitleJobManager", () => {
     });
     const secondInput = await authorizeInput(harness.inputs, OWNER_B, "second.wav");
 
-    await harness.manager.enqueue(OWNER_A, enqueueRequest(harness.fileToken));
-    await harness.manager.enqueue(OWNER_B, enqueueRequest(secondInput.fileToken));
+    await harness.manager.enqueue(
+      OWNER_A,
+      await harness.createRequest(harness.fileToken),
+    );
+    await harness.manager.enqueue(
+      OWNER_B,
+      await harness.createRequest(secondInput.fileToken, OWNER_B),
+    );
     harness.flushScheduled();
     await waitFor(() => starts.length === 1);
     expect(starts).toEqual(["task-1"]);
@@ -192,12 +201,12 @@ describe("LocalSubtitleJobManager", () => {
 
     const firstEnqueue = harness.manager.enqueue(
       OWNER_A,
-      enqueueRequest(harness.fileToken),
+      await harness.createRequest(harness.fileToken),
     );
     await waitFor(() => modelResolution === 1);
     const secondEnqueue = harness.manager.enqueue(
       OWNER_B,
-      enqueueRequest(secondInput.fileToken),
+      await harness.createRequest(secondInput.fileToken, OWNER_B),
     );
     await secondEnqueue;
     harness.flushScheduled();
@@ -240,7 +249,7 @@ describe("LocalSubtitleJobManager", () => {
     );
     await harness.manager.enqueue(
       OWNER_B,
-      enqueueRequest(secondInput.fileToken),
+      await harness.createRequest(secondInput.fileToken, OWNER_B),
     );
     harness.flushScheduled();
     await waitFor(() => starts.length === 1);
@@ -268,8 +277,14 @@ describe("LocalSubtitleJobManager", () => {
       batchIds: ["batch-1", "batch-2"],
     });
     const secondInput = await authorizeInput(harness.inputs, OWNER_A, "queued.wav");
-    await harness.manager.enqueue(OWNER_A, enqueueRequest(harness.fileToken));
-    await harness.manager.enqueue(OWNER_A, enqueueRequest(secondInput.fileToken));
+    await harness.manager.enqueue(
+      OWNER_A,
+      await harness.createRequest(harness.fileToken),
+    );
+    await harness.manager.enqueue(
+      OWNER_A,
+      await harness.createRequest(secondInput.fileToken),
+    );
     harness.flushScheduled();
     await Promise.resolve();
 
@@ -306,7 +321,10 @@ describe("LocalSubtitleJobManager", () => {
           }),
       ),
     });
-    await harness.manager.enqueue(OWNER_A, enqueueRequest(harness.fileToken));
+    await harness.manager.enqueue(
+      OWNER_A,
+      await harness.createRequest(harness.fileToken),
+    );
     harness.flushScheduled();
     await waitFor(() => harness.executor.execute.mock.calls.length === 1);
 
@@ -341,7 +359,10 @@ describe("LocalSubtitleJobManager", () => {
     harness.manager.onTaskEvent(OWNER_A, (event) => {
       if (event.event.type === "task-updated") statuses.push(event.event.task.status);
     });
-    await harness.manager.enqueue(OWNER_A, enqueueRequest(harness.fileToken));
+    await harness.manager.enqueue(
+      OWNER_A,
+      await harness.createRequest(harness.fileToken),
+    );
     harness.flushScheduled();
     await waitFor(() => harness.executor.execute.mock.calls.length === 1);
 
@@ -381,7 +402,10 @@ describe("LocalSubtitleJobManager", () => {
       },
     );
 
-    await harness.manager.enqueue(OWNER_A, enqueueRequest(harness.fileToken));
+    await harness.manager.enqueue(
+      OWNER_A,
+      await harness.createRequest(harness.fileToken),
+    );
     harness.flushScheduled();
     await harness.manager.waitForIdle();
 
@@ -418,7 +442,10 @@ describe("LocalSubtitleJobManager", () => {
           }),
       ),
     });
-    await harness.manager.enqueue(OWNER_A, enqueueRequest(harness.fileToken));
+    const request = await harness.createRequest(harness.fileToken);
+    const releaseInputLease = vi.spyOn(harness.inputs, "releaseTaskLease");
+    const releaseOutputLease = vi.spyOn(harness.outputs, "releaseBatchLease");
+    await harness.manager.enqueue(OWNER_A, request);
     harness.flushScheduled();
     await waitFor(() => harness.executor.execute.mock.calls.length === 1);
 
@@ -442,6 +469,178 @@ describe("LocalSubtitleJobManager", () => {
         },
       ],
     });
+    expect(releaseInputLease).toHaveBeenCalledWith(OWNER_A, "task-1");
+    expect(releaseOutputLease).toHaveBeenCalledWith(OWNER_A, "batch-1");
+    await expect(
+      harness.inputs.resolveTaskLease(OWNER_A, "task-1", "transcribe"),
+    ).rejects.toMatchObject({ code: "invalid_ipc_request" });
+    await expect(
+      harness.outputs.resolveBatchLease(OWNER_A, "batch-1"),
+    ).rejects.toMatchObject({ code: "invalid_ipc_request" });
+    await expect(
+      harness.manager.retryTask(OWNER_A, "task-1"),
+    ).rejects.toMatchObject({
+      localSubtitleCode: "invalid_ipc_request",
+      field: "taskId",
+      message: expect.stringContaining("new owner session"),
+    });
+  });
+
+  it("releases leases and refuses retry after non-cancellation cleanup failure", async () => {
+    const harness = await createHarness({
+      executor: executor(async () => ({
+        status: "failed",
+        error: createLocalSubtitleError(
+          "cleanup_failed",
+          "private cleanup failure",
+          { stage: "cleanup" },
+        ),
+      })),
+    });
+    const request = await harness.createRequest(harness.fileToken);
+    const releaseInputLease = vi.spyOn(harness.inputs, "releaseTaskLease");
+    const releaseOutputLease = vi.spyOn(harness.outputs, "releaseBatchLease");
+
+    await harness.manager.enqueue(OWNER_A, request);
+    harness.flushScheduled();
+    await harness.manager.waitForIdle();
+
+    expect(harness.manager.getSessionSnapshot(OWNER_A)).toMatchObject({
+      batches: [
+        {
+          status: "failed",
+          tasks: [
+            {
+              status: "failed",
+              error: { code: "cleanup_failed" },
+              artifactResults: [],
+            },
+          ],
+        },
+      ],
+    });
+    expect(releaseInputLease).toHaveBeenCalledWith(OWNER_A, "task-1");
+    expect(releaseOutputLease).toHaveBeenCalledWith(OWNER_A, "batch-1");
+    await expect(
+      harness.inputs.resolveTaskLease(OWNER_A, "task-1", "transcribe"),
+    ).rejects.toMatchObject({ code: "invalid_ipc_request" });
+    await expect(
+      harness.outputs.resolveBatchLease(OWNER_A, "batch-1"),
+    ).rejects.toMatchObject({ code: "invalid_ipc_request" });
+    await expect(
+      harness.manager.retryTask(OWNER_A, "task-1"),
+    ).rejects.toMatchObject({
+      localSubtitleCode: "invalid_ipc_request",
+      field: "taskId",
+      message: expect.stringContaining("new owner session"),
+    });
+  });
+
+  it("preserves cleanup_failed when invalid artifacts require terminal fallback", async () => {
+    const harness = await createHarness({
+      executor: executor(async () => ({
+        status: "failed",
+        error: createLocalSubtitleError(
+          "cleanup_failed",
+          "private cleanup failure",
+          { stage: "cleanup" },
+        ),
+        artifactResults: [committedArtifact()],
+      })),
+    });
+    const releaseInputLease = vi.spyOn(harness.inputs, "releaseTaskLease");
+    const releaseOutputLease = vi.spyOn(harness.outputs, "releaseBatchLease");
+
+    await harness.manager.enqueue(
+      OWNER_A,
+      await harness.createRequest(harness.fileToken),
+    );
+    harness.flushScheduled();
+    await harness.manager.waitForIdle();
+
+    expect(harness.manager.getSessionSnapshot(OWNER_A)).toMatchObject({
+      batches: [
+        {
+          status: "failed",
+          tasks: [
+            {
+              status: "failed",
+              error: { code: "cleanup_failed" },
+              artifactResults: [],
+            },
+          ],
+        },
+      ],
+    });
+    expect(releaseInputLease).toHaveBeenCalledWith(OWNER_A, "task-1");
+    expect(releaseOutputLease).toHaveBeenCalledWith(OWNER_A, "batch-1");
+    await expect(
+      harness.manager.retryTask(OWNER_A, "task-1"),
+    ).rejects.toMatchObject({
+      localSubtitleCode: "invalid_ipc_request",
+      field: "taskId",
+      message: expect.stringContaining("new owner session"),
+    });
+  });
+
+  it("preserves cancel_failed when invalid artifacts require terminal fallback", async () => {
+    const harness = await createHarness({
+      executor: executor(
+        (context) =>
+          new Promise((resolve) => {
+            context.signal.addEventListener(
+              "abort",
+              () => resolve({
+                status: "failed",
+                error: createLocalSubtitleError(
+                  "cancel_failed",
+                  "private cleanup failure",
+                  { stage: "cancelling" },
+                ),
+                artifactResults: [committedArtifact()],
+              }),
+              { once: true },
+            );
+          }),
+      ),
+    });
+    const releaseInputLease = vi.spyOn(harness.inputs, "releaseTaskLease");
+    const releaseOutputLease = vi.spyOn(harness.outputs, "releaseBatchLease");
+
+    await harness.manager.enqueue(
+      OWNER_A,
+      await harness.createRequest(harness.fileToken),
+    );
+    harness.flushScheduled();
+    await waitFor(() => harness.executor.execute.mock.calls.length === 1);
+    expect(harness.manager.cancelTask(OWNER_A, "task-1")).toEqual({
+      cancelled: true,
+    });
+    await harness.manager.waitForIdle();
+
+    expect(harness.manager.getSessionSnapshot(OWNER_A)).toMatchObject({
+      batches: [
+        {
+          status: "failed",
+          tasks: [
+            {
+              status: "failed",
+              error: { code: "cancel_failed" },
+              artifactResults: [],
+            },
+          ],
+        },
+      ],
+    });
+    expect(releaseInputLease).toHaveBeenCalledWith(OWNER_A, "task-1");
+    expect(releaseOutputLease).toHaveBeenCalledWith(OWNER_A, "batch-1");
+    await expect(
+      harness.manager.retryTask(OWNER_A, "task-1"),
+    ).rejects.toMatchObject({
+      localSubtitleCode: "invalid_ipc_request",
+      field: "taskId",
+      message: expect.stringContaining("new owner session"),
+    });
   });
 
   it("revalidates an exact managed model identity before execution", async () => {
@@ -452,7 +651,10 @@ describe("LocalSubtitleJobManager", () => {
       async () => Object.freeze({ ...harness.managedModel }),
     );
 
-    await harness.manager.enqueue(OWNER_A, enqueueRequest(harness.fileToken));
+    await harness.manager.enqueue(
+      OWNER_A,
+      await harness.createRequest(harness.fileToken),
+    );
     harness.flushScheduled();
     await harness.manager.waitForIdle();
 
@@ -467,7 +669,10 @@ describe("LocalSubtitleJobManager", () => {
     const harness = await createHarness({
       executor: executor(async (context) => successfulExecution(context)),
     });
-    await harness.manager.enqueue(OWNER_A, enqueueRequest(harness.fileToken));
+    await harness.manager.enqueue(
+      OWNER_A,
+      await harness.createRequest(harness.fileToken),
+    );
     harness.modelResolver.resolveManagedModel.mockResolvedValueOnce(
       Object.freeze({ ...harness.managedModel, sha256: "0".repeat(64) }),
     );
@@ -499,7 +704,10 @@ describe("LocalSubtitleJobManager", () => {
     const harness = await createHarness({
       executor: executor(async (context) => successfulExecution(context)),
     });
-    await harness.manager.enqueue(OWNER_A, enqueueRequest(harness.fileToken));
+    await harness.manager.enqueue(
+      OWNER_A,
+      await harness.createRequest(harness.fileToken),
+    );
     harness.modelResolver.resolveManagedModel.mockRejectedValueOnce(
       Object.assign(new Error("managed model disappeared"), {
         localSubtitleCode: "model_missing" as const,
@@ -543,7 +751,10 @@ describe("LocalSubtitleJobManager", () => {
         return successfulExecution(context);
       }),
     });
-    await harness.manager.enqueue(OWNER_A, enqueueRequest(harness.fileToken));
+    await harness.manager.enqueue(
+      OWNER_A,
+      await harness.createRequest(harness.fileToken),
+    );
     harness.flushScheduled();
     await harness.manager.waitForIdle();
     expect(harness.manager.getSessionSnapshot(OWNER_A)).toMatchObject({
@@ -579,7 +790,10 @@ describe("LocalSubtitleJobManager", () => {
         ),
       })),
     });
-    await harness.manager.enqueue(OWNER_A, enqueueRequest(harness.fileToken));
+    await harness.manager.enqueue(
+      OWNER_A,
+      await harness.createRequest(harness.fileToken),
+    );
     harness.flushScheduled();
     await harness.manager.waitForIdle();
     expect(harness.executor.execute).toHaveBeenCalledOnce();
@@ -623,7 +837,7 @@ describe("LocalSubtitleJobManager", () => {
     });
     const queued = await harness.manager.enqueue(
       OWNER_A,
-      enqueueRequest(harness.fileToken),
+      await harness.createRequest(harness.fileToken),
     );
     expect(() => harness.manager.removeTask(OWNER_A, "task-1")).toThrow(
       expect.objectContaining({ localSubtitleCode: "resource_busy" }),
@@ -653,7 +867,10 @@ describe("LocalSubtitleJobManager", () => {
     });
 
     await expect(
-      harness.manager.enqueue(OWNER_A, enqueueRequest(harness.fileToken)),
+      harness.manager.enqueue(
+        OWNER_A,
+        await harness.createRequest(harness.fileToken),
+      ),
     ).rejects.toThrow("publish failed");
     expect(harness.registry.getSnapshot(OWNER_A).revision).toBe(0);
     expect(harness.inputs.revokeDraft(OWNER_A, harness.fileToken)).toBe(true);
@@ -671,7 +888,10 @@ describe("LocalSubtitleJobManager", () => {
     });
 
     await expect(
-      harness.manager.enqueue(OWNER_A, enqueueRequest(harness.fileToken)),
+      harness.manager.enqueue(
+        OWNER_A,
+        await harness.createRequest(harness.fileToken),
+      ),
     ).rejects.toThrow("post-commit lease validation failed");
     expect(events).toEqual([]);
     expect(harness.registry.getSnapshot(OWNER_A)).toMatchObject({
@@ -686,7 +906,7 @@ describe("LocalSubtitleJobManager", () => {
     const harness = await createHarness({
       executor: executor(async (context) => successfulExecution(context)),
     });
-    const request = enqueueRequest(harness.fileToken);
+    const request = await harness.createRequest(harness.fileToken);
     request.config.vadEnabled = true;
 
     await expect(harness.manager.enqueue(OWNER_A, request)).rejects.toMatchObject({
@@ -694,6 +914,78 @@ describe("LocalSubtitleJobManager", () => {
       field: "config",
     });
     expect(harness.inputs.revokeDraft(OWNER_A, harness.fileToken)).toBe(true);
+  });
+
+  it("rejects source output before resolving or reserving capabilities", async () => {
+    const harness = await createHarness({
+      executor: executor(async (context) => successfulExecution(context)),
+    });
+    const inputResolve = vi.spyOn(harness.inputs, "resolveDraft");
+    const outputResolve = vi.spyOn(harness.outputs, "resolveDraft");
+    const outputPrepare = vi.spyOn(harness.outputs, "_prepare");
+    const reserveBatch = vi.spyOn(harness.leases, "reserveBatch");
+
+    await expect(
+      harness.manager.enqueue(OWNER_A, enqueueRequest(harness.fileToken)),
+    ).rejects.toMatchObject({
+      localSubtitleCode: "invalid_ipc_request",
+      field: "config",
+    });
+
+    expect(harness.modelResolver.resolveManagedModel).not.toHaveBeenCalled();
+    expect(inputResolve).not.toHaveBeenCalled();
+    expect(outputResolve).not.toHaveBeenCalled();
+    expect(outputPrepare).not.toHaveBeenCalled();
+    expect(reserveBatch).not.toHaveBeenCalled();
+    expect(harness.executor.execute).not.toHaveBeenCalled();
+    expect(harness.registry.getSnapshot(OWNER_A)).toMatchObject({
+      revision: 0,
+      batches: [],
+    });
+    await expect(
+      harness.inputs.resolveDraft(
+        OWNER_A,
+        harness.fileToken,
+        "transcribe",
+      ),
+    ).resolves.toMatchObject({ displayName: "sample.wav" });
+  });
+
+  it("rejects media runtime preflight without consuming capability drafts", async () => {
+    const verifyRuntime = vi.fn(async () => {
+      throw createLocalSubtitleError(
+        "media_runtime_invalid",
+        "The bundled media runtime is invalid.",
+        { stage: "preflight" },
+      );
+    });
+    const harness = await createHarness({
+      executor: executor(async (context) => successfulExecution(context)),
+      verifyRuntime,
+    });
+    const request = await harness.createRequest(harness.fileToken);
+    if (request.config.output.mode !== "custom") {
+      throw new Error("Expected custom output.");
+    }
+
+    await expect(harness.manager.enqueue(OWNER_A, request)).rejects.toMatchObject({
+      code: "media_runtime_invalid",
+      stage: "preflight",
+    });
+
+    expect(verifyRuntime).toHaveBeenCalledOnce();
+    expect(harness.inputs.revokeDraft(OWNER_A, harness.fileToken)).toBe(true);
+    expect(
+      harness.outputs.revokeDraft(
+        OWNER_A,
+        request.config.output.outputDirToken,
+      ),
+    ).toBe(true);
+    expect(harness.executor.execute).not.toHaveBeenCalled();
+    expect(harness.registry.getSnapshot(OWNER_A)).toMatchObject({
+      revision: 0,
+      batches: [],
+    });
   });
 
   it("fences late executor completion on owner release", async () => {
@@ -704,7 +996,10 @@ describe("LocalSubtitleJobManager", () => {
         return successfulExecution(context);
       }),
     });
-    await harness.manager.enqueue(OWNER_A, enqueueRequest(harness.fileToken));
+    await harness.manager.enqueue(
+      OWNER_A,
+      await harness.createRequest(harness.fileToken),
+    );
     harness.flushScheduled();
     await waitFor(() => harness.executor.execute.mock.calls.length === 1);
     const before = harness.registry.getSnapshot(OWNER_A).revision;
@@ -738,7 +1033,10 @@ describe("LocalSubtitleJobManager", () => {
       ),
     });
     manager = harness.manager;
-    await manager.enqueue(OWNER_A, enqueueRequest(harness.fileToken));
+    await manager.enqueue(
+      OWNER_A,
+      await harness.createRequest(harness.fileToken),
+    );
     harness.flushScheduled();
     await waitFor(() => harness.executor.execute.mock.calls.length === 1);
 
@@ -778,8 +1076,14 @@ describe("LocalSubtitleJobManager", () => {
       batchIds: ["batch-1", "batch-2"],
     });
     const secondInput = await authorizeInput(harness.inputs, OWNER_A, "second.wav");
-    await harness.manager.enqueue(OWNER_A, enqueueRequest(harness.fileToken));
-    await harness.manager.enqueue(OWNER_A, enqueueRequest(secondInput.fileToken));
+    await harness.manager.enqueue(
+      OWNER_A,
+      await harness.createRequest(harness.fileToken),
+    );
+    await harness.manager.enqueue(
+      OWNER_A,
+      await harness.createRequest(secondInput.fileToken),
+    );
     harness.flushScheduled();
     await waitFor(() => harness.executor.execute.mock.calls.length === 1);
 
@@ -831,7 +1135,10 @@ describe("LocalSubtitleJobManager", () => {
         }
       },
     });
-    await harness.manager.enqueue(OWNER_A, enqueueRequest(harness.fileToken));
+    await harness.manager.enqueue(
+      OWNER_A,
+      await harness.createRequest(harness.fileToken),
+    );
 
     const first = harness.manager.shutdown("app_quit");
     await expect(first).rejects.toThrow("lease renewal cancellation failed");
@@ -844,6 +1151,7 @@ describe("LocalSubtitleJobManager", () => {
 
 interface HarnessOptions {
   readonly executor: ReturnType<typeof executor>;
+  readonly verifyRuntime?: ReturnType<typeof vi.fn>;
   readonly taskIds?: readonly string[];
   readonly batchIds?: readonly string[];
   readonly artifacts?: { revokeTask(owner: LocalSubtitleOwnerKey, taskId: string): number };
@@ -891,6 +1199,11 @@ async function createHarness(options: HarnessOptions) {
   const modelResolver = {
     resolveManagedModel: vi.fn(async () => managedModel),
   };
+  const runtimeVerifier = {
+    verifyRuntime: options.verifyRuntime ??
+      vi.fn(async () => ({ runtimeGeneration: "a".repeat(64) })),
+  };
+  let requestOutputIndex = 0;
   const leaseRenewals: Array<{
     cancelled: boolean;
     readonly operation: () => void;
@@ -901,6 +1214,7 @@ async function createHarness(options: HarnessOptions) {
     inputs,
     outputs,
     leases,
+    runtimeVerifier,
     modelResolver,
     executor: options.executor,
     ...(options.artifacts === undefined ? {} : { artifacts: options.artifacts }),
@@ -935,10 +1249,21 @@ async function createHarness(options: HarnessOptions) {
     registry,
     inputs,
     outputs,
+    leases,
+    runtimeVerifier,
     executor: options.executor,
     managedModel,
     modelResolver,
     fileToken: file.fileToken,
+    createRequest: async (
+      fileToken: string,
+      owner: LocalSubtitleOwnerKey = OWNER_A,
+    ) => {
+      const outputRoot = path.join(root, `request-output-${++requestOutputIndex}`);
+      await mkdir(outputRoot);
+      const output = await outputs.authorize(owner, outputRoot);
+      return customOutputRequest(fileToken, output.outputDirToken);
+    },
     flushScheduled: () => {
       manuallyScheduled = false;
       while (scheduled.length > 0) scheduled.shift()!();

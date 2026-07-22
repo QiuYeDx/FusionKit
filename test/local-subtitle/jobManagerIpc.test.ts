@@ -50,6 +50,7 @@ describe("local subtitle Job Manager IPC integration", () => {
     const fileToken = (
       authorized.data as Array<{ readonly fileToken: string }>
     )[0]!.fileToken;
+    const output = await fixture.outputs.authorize(fixture.owner, root);
 
     await expect(
       fixture.service.handlePublic(
@@ -64,7 +65,7 @@ describe("local subtitle Job Manager IPC integration", () => {
     const enqueued = await fixture.service.handlePublic(
       LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.enqueue,
       fixture.event,
-      fixture.envelope(enqueueRequest(fileToken)),
+      fixture.envelope(enqueueRequest(fileToken, output.outputDirToken)),
     );
     expect(enqueued).toMatchObject({
       ok: true,
@@ -140,7 +141,8 @@ describe("local subtitle Job Manager IPC integration", () => {
     const fileToken = (
       authorized.data as Array<{ readonly fileToken: string }>
     )[0]!.fileToken;
-    const request = enqueueRequest(fileToken);
+    const output = await fixture.outputs.authorize(fixture.owner, root);
+    const request = enqueueRequest(fileToken, output.outputDirToken);
     request.config.vadEnabled = true;
 
     await expect(
@@ -162,6 +164,13 @@ describe("local subtitle Job Manager IPC integration", () => {
         LOCAL_SUBTITLE_PRELOAD_INTERNAL_CHANNELS.revokeInputFile,
         fixture.event,
         fixture.envelope({ fileToken }),
+      ),
+    ).resolves.toEqual({ ok: true, data: { revoked: true } });
+    await expect(
+      fixture.service.handleInternal(
+        LOCAL_SUBTITLE_PRELOAD_INTERNAL_CHANNELS.revokeOutputDirectory,
+        fixture.event,
+        fixture.envelope({ outputDirToken: output.outputDirToken }),
       ),
     ).resolves.toEqual({ ok: true, data: { revoked: true } });
   });
@@ -188,6 +197,9 @@ function createFixture(root: string) {
     inputs,
     outputs,
     leases,
+    runtimeVerifier: {
+      verifyRuntime: async () => ({ runtimeGeneration: "a".repeat(64) }),
+    },
     modelResolver: {
       resolveManagedModel: async () => ({
         storage: "managed",
@@ -259,7 +271,10 @@ function createFixture(root: string) {
     ownerSessions,
     capabilities: { inputs, outputs, leases },
     handlers: {
-      public: jobBridge.handlers.public,
+      public: {
+        ...sessionBridge.handlers.public,
+        ...jobBridge.handlers.public,
+      },
       onOwnerReleased: (owner) => {
         sessionBridge.releaseOwner(owner);
         const ownerKey = {
@@ -277,16 +292,22 @@ function createFixture(root: string) {
   if (!registration.ok) throw new Error("Could not register Job Manager owner.");
   const ownerSessionId = (registration.data as { readonly ownerSessionId: string })
     .ownerSessionId;
+  const owner = Object.freeze({
+    webContentsId: sender.id,
+    ownerSessionId,
+  });
   return {
     manager,
     service,
+    outputs,
+    owner,
     frame,
     event,
     envelope: (payload: unknown) => ({ ownerSessionId, payload }),
   };
 }
 
-function enqueueRequest(fileToken: string) {
+function enqueueRequest(fileToken: string, outputDirToken: string) {
   return {
     schemaVersion: LOCAL_SUBTITLE_DOMAIN_SCHEMA_VERSION,
     files: [{ fileToken }],
@@ -306,7 +327,8 @@ function enqueueRequest(fileToken: string) {
         maxLineChars: 42,
       },
       output: {
-        mode: "source" as const,
+        mode: "custom" as const,
+        outputDirToken,
         formats: ["SRT" as const],
         conflictPolicy: "index" as const,
       },

@@ -1169,7 +1169,7 @@ function validateExecutionGraph(input: LocalSubtitlePostProcessingRequest): {
       if (children.length !== 0) {
         throw graphFailure("failed_attempt_has_children", decision.retryTarget);
       }
-      throwWindowDecisionFailure(decision, assessment);
+      throwLocalSubtitleWindowDecisionFailure(decision, assessment);
     }
     visiting.delete(key);
     visited.add(key);
@@ -2496,7 +2496,7 @@ function graphFailure(
   );
 }
 
-function throwWindowDecisionFailure(
+export function throwLocalSubtitleWindowDecisionFailure(
   decision: Extract<LocalSubtitleWindowRetryDecision, { action: "fail" }>,
   assessment: LocalSubtitleRawQualityAssessment,
 ): never {

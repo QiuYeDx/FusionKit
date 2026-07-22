@@ -134,6 +134,13 @@ describe("local subtitle server supervisor real contract", () => {
           const result = await supervisor.beginInference(lease, {
             requestGeneration,
             filePath: windowPath,
+            expectedFileIdentity: Object.freeze({
+              dev: windowStat.dev,
+              ino: windowStat.ino,
+              size: windowStat.size,
+              mtimeMs: windowStat.mtimeMs,
+              ctimeMs: windowStat.ctimeMs,
+            }),
             language: "auto",
             taskMode: "transcribe",
             beamSize: 5,
