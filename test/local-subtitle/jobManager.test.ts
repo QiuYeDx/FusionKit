@@ -4,6 +4,7 @@ import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   LOCAL_SUBTITLE_DOMAIN_SCHEMA_VERSION,
+  LOCAL_SUBTITLE_LIMITS,
   LOCAL_SUBTITLE_PRODUCTION_CONTRACT,
   createLocalSubtitleError,
   type LocalSubtitleArtifactResult,
@@ -82,7 +83,348 @@ describe("LocalSubtitleJobManager", () => {
     const context = harness.executor.execute.mock.calls[0]![0];
     expect(context.config.language).toBe("auto");
     expect(context.config.inference.advanced.initialPrompt).toBe("original");
+    expect(context.admittedRuntimeGeneration).toBe("a".repeat(64));
     expect(Object.isFrozen(context.config)).toBe(true);
+  });
+
+  it("accepts the maximum number of unique inputs in one ordered batch", async () => {
+    const taskIds = Array.from(
+      { length: LOCAL_SUBTITLE_LIMITS.maxBatchFiles },
+      (_, index) => `task-${index + 1}`,
+    );
+    const harness = await createHarness({
+      executor: executor(async (context) => successfulExecution(context)),
+      taskIds,
+    });
+    const names = taskIds.map((_, index) => `sample-${index + 1}.wav`);
+    const files = await authorizeInputs(harness.inputs, OWNER_A, names);
+
+    const batch = await harness.manager.enqueue(
+      OWNER_A,
+      await harness.createRequest(files.map((file) => file.fileToken)),
+    );
+
+    expect(batch.tasks).toHaveLength(LOCAL_SUBTITLE_LIMITS.maxBatchFiles);
+    expect(batch.tasks.map((task) => task.taskId)).toEqual(taskIds);
+    expect(batch.tasks.map((task) => task.displayName)).toEqual(names);
+    expect(batch.tasks.every((task) => task.status === "queued")).toBe(true);
+    expect(harness.executor.execute).not.toHaveBeenCalled();
+
+    expect(harness.manager.cancelBatch(OWNER_A, batch.batchId).cancelledTaskIds)
+      .toEqual(taskIds);
+    await expect(harness.manager.waitForIdle()).resolves.toBeUndefined();
+  });
+
+  it("publishes a complete batch atomically and runs its tasks consecutively in app FIFO", async () => {
+    const gates = new Map([
+      ["task-1", deferred<void>()],
+      ["task-2", deferred<void>()],
+      ["task-3", deferred<void>()],
+    ]);
+    const starts: string[] = [];
+    let active = 0;
+    let maximumActive = 0;
+    const harness = await createHarness({
+      executor: executor(async (context) => {
+        starts.push(context.taskId);
+        active += 1;
+        maximumActive = Math.max(maximumActive, active);
+        try {
+          await gates.get(context.taskId)?.promise;
+          return successfulExecution(context);
+        } finally {
+          active -= 1;
+        }
+      }),
+      taskIds: ["task-1", "task-2", "task-3", "task-4"],
+      batchIds: ["batch-1", "batch-2"],
+    });
+    const firstFiles = await authorizeInputs(
+      harness.inputs,
+      OWNER_A,
+      ["first.wav", "second.wav", "third.wav"],
+    );
+    const queuedTaskIds: string[] = [];
+    harness.manager.onTaskEvent(OWNER_A, (event) => {
+      if (
+        event.event.type === "task-updated" &&
+        event.event.task.status === "queued"
+      ) {
+        queuedTaskIds.push(event.taskId);
+      }
+    });
+
+    const firstBatch = await harness.manager.enqueue(
+      OWNER_A,
+      await harness.createRequest(firstFiles.map((file) => file.fileToken)),
+    );
+
+    expect(queuedTaskIds).toEqual(["task-1", "task-2", "task-3"]);
+    expect(firstBatch.tasks.map((task) => task.taskId)).toEqual([
+      "task-1",
+      "task-2",
+      "task-3",
+    ]);
+    expect(firstBatch.tasks.map((task) => task.displayName)).toEqual([
+      "first.wav",
+      "second.wav",
+      "third.wav",
+    ]);
+    expect(harness.registry.getSnapshot(OWNER_A)).toMatchObject({
+      revision: 3,
+      batches: [
+        {
+          batchId: "batch-1",
+          status: "queued",
+          tasks: [
+            { taskId: "task-1", status: "queued" },
+            { taskId: "task-2", status: "queued" },
+            { taskId: "task-3", status: "queued" },
+          ],
+        },
+      ],
+    });
+    expect(harness.executor.execute).not.toHaveBeenCalled();
+
+    const laterInput = await authorizeInput(harness.inputs, OWNER_B, "later.wav");
+    await harness.manager.enqueue(
+      OWNER_B,
+      await harness.createRequest(laterInput.fileToken, OWNER_B),
+    );
+    harness.flushScheduled();
+    await waitFor(() => starts.length === 1);
+    expect(starts).toEqual(["task-1"]);
+    expect(active).toBe(1);
+
+    gates.get("task-1")!.resolve();
+    await waitFor(() => starts.length === 2);
+    expect(starts).toEqual(["task-1", "task-2"]);
+    expect(active).toBe(1);
+
+    gates.get("task-2")!.resolve();
+    await waitFor(() => starts.length === 3);
+    expect(starts).toEqual(["task-1", "task-2", "task-3"]);
+    expect(active).toBe(1);
+
+    gates.get("task-3")!.resolve();
+    await harness.manager.waitForIdle();
+    expect(starts).toEqual(["task-1", "task-2", "task-3", "task-4"]);
+    expect(maximumActive).toBe(1);
+  });
+
+  it("supports reentrant batch cancellation after the complete queued publication is staged", async () => {
+    const harness = await createHarness({
+      executor: executor(async (context) => successfulExecution(context)),
+      taskIds: ["task-1", "task-2", "task-3"],
+    });
+    const files = await authorizeInputs(
+      harness.inputs,
+      OWNER_A,
+      ["first.wav", "second.wav", "third.wav"],
+    );
+    const delivered: Array<readonly [number, string, string]> = [];
+    let cancellation:
+      | Readonly<{ cancelledTaskIds: readonly string[] }>
+      | undefined;
+    harness.manager.onTaskEvent(OWNER_A, (event) => {
+      if (event.event.type !== "task-updated") return;
+      delivered.push([
+        event.revision,
+        event.taskId,
+        event.event.task.status,
+      ]);
+      if (event.revision === 1) {
+        cancellation = harness.manager.cancelBatch(OWNER_A, event.batchId);
+      }
+    });
+
+    const batch = await harness.manager.enqueue(
+      OWNER_A,
+      await harness.createRequest(files.map((file) => file.fileToken)),
+    );
+
+    expect(cancellation).toEqual({
+      cancelledTaskIds: ["task-1", "task-2", "task-3"],
+    });
+    expect(delivered.slice(0, 3)).toEqual([
+      [1, "task-1", "queued"],
+      [2, "task-2", "queued"],
+      [3, "task-3", "queued"],
+    ]);
+    expect(batch.tasks.map((task) => [task.taskId, task.status])).toEqual([
+      ["task-1", "cancelled"],
+      ["task-2", "cancelled"],
+      ["task-3", "cancelled"],
+    ]);
+    harness.flushScheduled();
+    await harness.manager.waitForIdle();
+    expect(harness.executor.execute).not.toHaveBeenCalled();
+  });
+
+  it("continues later batch tasks after one file fails normally", async () => {
+    const starts: string[] = [];
+    const harness = await createHarness({
+      executor: executor(async (context) => {
+        starts.push(context.taskId);
+        if (context.taskId === "task-2") {
+          return {
+            status: "failed",
+            error: createLocalSubtitleError(
+              "transcription_failed",
+              "private per-file failure",
+              { stage: "transcribing" },
+            ),
+          };
+        }
+        return successfulExecution(context);
+      }),
+      taskIds: ["task-1", "task-2", "task-3"],
+    });
+    const files = await authorizeInputs(
+      harness.inputs,
+      OWNER_A,
+      ["first.wav", "broken.wav", "third.wav"],
+    );
+
+    await harness.manager.enqueue(
+      OWNER_A,
+      await harness.createRequest(files.map((file) => file.fileToken)),
+    );
+    harness.flushScheduled();
+    await harness.manager.waitForIdle();
+
+    expect(starts).toEqual(["task-1", "task-2", "task-3"]);
+    expect(harness.manager.getSessionSnapshot(OWNER_A)).toMatchObject({
+      batches: [
+        {
+          status: "completed",
+          tasks: [
+            { taskId: "task-1", status: "completed" },
+            {
+              taskId: "task-2",
+              status: "failed",
+              error: { code: "transcription_failed" },
+            },
+            { taskId: "task-3", status: "completed" },
+          ],
+        },
+      ],
+    });
+  });
+
+  it("fails waiting siblings after a batch-scoped runtime failure without blocking later batches", async () => {
+    const starts: string[] = [];
+    const harness = await createHarness({
+      executor: executor(async (context) => {
+        starts.push(context.taskId);
+        if (context.taskId === "task-2") {
+          return {
+            status: "failed",
+            error: createLocalSubtitleError(
+              "runtime_crashed",
+              "private batch runtime failure",
+              { stage: "transcribing" },
+            ),
+          };
+        }
+        return successfulExecution(context);
+      }),
+      taskIds: ["task-1", "task-2", "task-3", "task-4"],
+      batchIds: ["batch-1", "batch-2"],
+    });
+    const firstFiles = await authorizeInputs(
+      harness.inputs,
+      OWNER_A,
+      ["first.wav", "crashed.wav", "never-started.wav"],
+    );
+    const laterInput = await authorizeInput(harness.inputs, OWNER_B, "later.wav");
+
+    await harness.manager.enqueue(
+      OWNER_A,
+      await harness.createRequest(firstFiles.map((file) => file.fileToken)),
+    );
+    await harness.manager.enqueue(
+      OWNER_B,
+      await harness.createRequest(laterInput.fileToken, OWNER_B),
+    );
+    harness.flushScheduled();
+    await harness.manager.waitForIdle();
+
+    expect(starts).toEqual(["task-1", "task-2", "task-4"]);
+    expect(harness.manager.getSessionSnapshot(OWNER_A)).toMatchObject({
+      batches: [
+        {
+          tasks: [
+            { taskId: "task-1", status: "completed" },
+            {
+              taskId: "task-2",
+              status: "failed",
+              error: { code: "runtime_crashed" },
+            },
+            {
+              taskId: "task-3",
+              status: "failed",
+              error: { code: "runtime_crashed" },
+            },
+          ],
+        },
+      ],
+    });
+    expect(harness.manager.getSessionSnapshot(OWNER_B)).toMatchObject({
+      batches: [
+        {
+          tasks: [{ taskId: "task-4", status: "completed" }],
+        },
+      ],
+    });
+  });
+
+  it("fences every waiting sibling before publishing a batch-scoped failure", async () => {
+    const harness = await createHarness({
+      executor: executor(async () => ({
+        status: "failed",
+        error: createLocalSubtitleError(
+          "runtime_crashed",
+          "private batch runtime failure",
+          { stage: "transcribing" },
+        ),
+      })),
+      taskIds: ["task-1", "task-2"],
+    });
+    const sibling = await authorizeInput(harness.inputs, OWNER_A, "sibling.wav");
+    let cancellation:
+      | Readonly<{ cancelledTaskIds: readonly string[] }>
+      | undefined;
+    harness.manager.onTaskEvent(OWNER_A, (event) => {
+      if (
+        event.event.type === "task-updated" &&
+        event.event.task.status === "failed" &&
+        cancellation === undefined
+      ) {
+        cancellation = harness.manager.cancelBatch(OWNER_A, event.batchId);
+      }
+    });
+
+    await harness.manager.enqueue(
+      OWNER_A,
+      await harness.createRequest([harness.fileToken, sibling.fileToken]),
+    );
+    harness.flushScheduled();
+    await harness.manager.waitForIdle();
+
+    expect(cancellation).toEqual({ cancelledTaskIds: [] });
+    expect(harness.executor.execute).toHaveBeenCalledOnce();
+    expect(harness.manager.getSessionSnapshot(OWNER_A)).toMatchObject({
+      batches: [
+        {
+          status: "failed",
+          tasks: [
+            { taskId: "task-1", status: "failed" },
+            { taskId: "task-2", status: "failed" },
+          ],
+        },
+      ],
+    });
   });
 
   it("serializes the complete working-stage chain into one revision stream", async () => {
@@ -222,6 +564,174 @@ describe("LocalSubtitleJobManager", () => {
     expect(starts).toEqual(["task-1", "task-2"]);
   });
 
+  it("lets another owner run immediately when a released owner remains in pending preflight", async () => {
+    const firstModel = deferred<void>();
+    const starts: string[] = [];
+    const harness = await createHarness({
+      executor: executor(async (context) => {
+        starts.push(context.taskId);
+        return successfulExecution(context);
+      }),
+      taskIds: ["task-1", "task-2"],
+      batchIds: ["batch-1", "batch-2"],
+    });
+    let modelResolution = 0;
+    harness.modelResolver.resolveManagedModel.mockImplementation(async () => {
+      modelResolution += 1;
+      if (modelResolution === 1) await firstModel.promise;
+      return harness.managedModel;
+    });
+    const firstRequest = await harness.createRequest(harness.fileToken);
+    const secondInput = await authorizeInput(harness.inputs, OWNER_B, "second.wav");
+    const firstEnqueue = harness.manager.enqueue(OWNER_A, firstRequest);
+    await waitFor(() => modelResolution === 1);
+    await harness.manager.enqueue(
+      OWNER_B,
+      await harness.createRequest(secondInput.fileToken, OWNER_B),
+    );
+    harness.flushScheduled();
+    await Promise.resolve();
+    expect(starts).toEqual([]);
+
+    harness.manager.releaseOwner(OWNER_A);
+    await waitFor(() => starts.length === 1);
+    expect(starts).toEqual(["task-2"]);
+    await harness.manager.waitForOwnerIdle(OWNER_B);
+
+    firstModel.resolve();
+    await expect(firstEnqueue).rejects.toMatchObject({
+      localSubtitleCode: "owner_released",
+    });
+    await harness.manager.waitForOwnerIdle(OWNER_A);
+    expect(starts).toEqual(["task-2"]);
+    expect(harness.inputs.revokeDraft(OWNER_A, harness.fileToken)).toBe(true);
+    if (firstRequest.config.output.mode !== "custom") {
+      throw new Error("Expected custom output.");
+    }
+    expect(
+      harness.outputs.revokeDraft(
+        OWNER_A,
+        firstRequest.config.output.outputDirToken,
+      ),
+    ).toBe(true);
+  });
+
+  it("reports a cancelled ready admission idle behind unrelated pending preflight", async () => {
+    const firstModel = deferred<void>();
+    const harness = await createHarness({
+      executor: executor(async (context) => successfulExecution(context)),
+      taskIds: ["task-1", "task-2"],
+      batchIds: ["batch-1", "batch-2"],
+    });
+    let modelResolution = 0;
+    harness.modelResolver.resolveManagedModel.mockImplementation(async () => {
+      modelResolution += 1;
+      if (modelResolution === 1) await firstModel.promise;
+      return harness.managedModel;
+    });
+    const firstEnqueue = harness.manager.enqueue(
+      OWNER_A,
+      await harness.createRequest(harness.fileToken),
+    );
+    await waitFor(() => modelResolution === 1);
+    const secondInput = await authorizeInput(harness.inputs, OWNER_B, "second.wav");
+    await harness.manager.enqueue(
+      OWNER_B,
+      await harness.createRequest(secondInput.fileToken, OWNER_B),
+    );
+
+    expect(harness.manager.cancelBatch(OWNER_B, "batch-2")).toEqual({
+      cancelledTaskIds: ["task-2"],
+    });
+    let ownerBIdle = false;
+    void harness.manager.waitForOwnerIdle(OWNER_B).then(() => {
+      ownerBIdle = true;
+    });
+    await Promise.resolve();
+    expect(ownerBIdle).toBe(true);
+
+    firstModel.resolve();
+    await firstEnqueue;
+    harness.flushScheduled();
+    await harness.manager.waitForIdle();
+    expect(harness.executor.execute).toHaveBeenCalledOnce();
+  });
+
+  it("reserves pending batch and task ids across concurrent owner preflights", async () => {
+    const firstModel = deferred<void>();
+    const firstExecution = deferred<void>();
+    const starts: string[] = [];
+    const harness = await createHarness({
+      executor: executor(async (context) => {
+        starts.push(context.taskId);
+        if (context.taskId === "task-shared") await firstExecution.promise;
+        return successfulExecution(context);
+      }),
+      batchIds: ["batch-shared", "batch-shared", "batch-second"],
+      taskIds: ["task-shared", "task-shared", "task-second"],
+    });
+    let modelResolution = 0;
+    harness.modelResolver.resolveManagedModel.mockImplementation(async () => {
+      modelResolution += 1;
+      if (modelResolution === 1) await firstModel.promise;
+      return harness.managedModel;
+    });
+    const secondInput = await authorizeInput(harness.inputs, OWNER_B, "second.wav");
+
+    const firstEnqueue = harness.manager.enqueue(
+      OWNER_A,
+      await harness.createRequest(harness.fileToken),
+    );
+    await waitFor(() => modelResolution === 1);
+    const secondBatch = await harness.manager.enqueue(
+      OWNER_B,
+      await harness.createRequest(secondInput.fileToken, OWNER_B),
+    );
+
+    expect(secondBatch).toMatchObject({
+      batchId: "batch-second",
+      tasks: [{ taskId: "task-second", status: "queued" }],
+    });
+    harness.flushScheduled();
+    await Promise.resolve();
+    expect(starts).toEqual([]);
+
+    firstModel.resolve();
+    const firstBatch = await firstEnqueue;
+    expect(firstBatch).toMatchObject({
+      batchId: "batch-shared",
+      tasks: [{ taskId: "task-shared", status: "queued" }],
+    });
+    await waitFor(() => starts.length === 1);
+    expect(starts).toEqual(["task-shared"]);
+
+    firstExecution.resolve();
+    await harness.manager.waitForIdle();
+    expect(starts).toEqual(["task-shared", "task-second"]);
+    expect(harness.manager.getSessionSnapshot(OWNER_A)).toMatchObject({
+      batches: [
+        {
+          batchId: "batch-shared",
+          tasks: [{ taskId: "task-shared", status: "completed" }],
+        },
+      ],
+    });
+    expect(harness.manager.getSessionSnapshot(OWNER_B)).toMatchObject({
+      batches: [
+        {
+          batchId: "batch-second",
+          tasks: [{ taskId: "task-second", status: "completed" }],
+        },
+      ],
+    });
+    expect(harness.manager.removeTask(OWNER_A, "task-shared")).toEqual({
+      removed: true,
+    });
+    expect(harness.manager.removeTask(OWNER_B, "task-second")).toEqual({
+      removed: true,
+    });
+  });
+
   it("renews queued input and running output leases before their original expiry", async () => {
     const firstExecution = deferred<void>();
     const starts: string[] = [];
@@ -261,6 +771,72 @@ describe("LocalSubtitleJobManager", () => {
       harness.outputs.resolveBatchLease(OWNER_A, "batch-1"),
     ).resolves.toMatchObject({ directoryPath: await realpath(outputRoot) });
 
+    firstExecution.resolve();
+    await harness.manager.waitForIdle();
+    expect(starts).toEqual(["task-1", "task-2"]);
+  });
+
+  it("keeps each owner's renewal cadence independent while another renewal is pending", async () => {
+    const firstExecution = deferred<void>();
+    const stalledRenewal = deferred<void>();
+    const starts: string[] = [];
+    const leaseClock = { now: 1_000 };
+    const harness = await createHarness({
+      executor: executor(async (context) => {
+        starts.push(context.taskId);
+        if (context.taskId === "task-1") await firstExecution.promise;
+        return successfulExecution(context);
+      }),
+      taskIds: ["task-1", "task-2"],
+      batchIds: ["batch-1", "batch-2"],
+      leaseClock,
+      leaseTtlMs: 100,
+      leaseRenewalIntervalMs: 40,
+      manualLeaseRenewal: true,
+    });
+    const secondInput = await authorizeInput(harness.inputs, OWNER_B, "queued.wav");
+    await harness.manager.enqueue(
+      OWNER_A,
+      await harness.createRequest(harness.fileToken),
+    );
+    await harness.manager.enqueue(
+      OWNER_B,
+      await harness.createRequest(secondInput.fileToken, OWNER_B),
+    );
+    harness.flushScheduled();
+    await waitFor(() => starts.length === 1);
+
+    const originalRenew = harness.inputs.renewTaskLease.bind(harness.inputs);
+    let ownerARenewalStarted = false;
+    let ownerBRenewals = 0;
+    vi.spyOn(harness.inputs, "renewTaskLease").mockImplementation(
+      async (owner, taskId) => {
+        if (owner.ownerSessionId === OWNER_A.ownerSessionId) {
+          ownerARenewalStarted = true;
+          await stalledRenewal.promise;
+        } else {
+          ownerBRenewals += 1;
+        }
+        return originalRenew(owner, taskId);
+      },
+    );
+
+    leaseClock.now = 1_050;
+    expect(harness.fireLeaseRenewals()).toBe(2);
+    await waitFor(() => ownerARenewalStarted);
+    await waitFor(() => ownerBRenewals === 1);
+    await waitFor(() => harness.activeLeaseRenewalCount() === 1);
+
+    leaseClock.now = 1_101;
+    expect(harness.fireLeaseRenewals()).toBe(1);
+    await waitFor(() => ownerBRenewals === 2);
+    await waitFor(() => harness.activeLeaseRenewalCount() === 1);
+    leaseClock.now = 1_151;
+    await expect(
+      harness.inputs.resolveTaskLease(OWNER_B, "task-2", "transcribe"),
+    ).resolves.toMatchObject({ displayName: "queued.wav" });
+
+    stalledRenewal.resolve();
     firstExecution.resolve();
     await harness.manager.waitForIdle();
     expect(starts).toEqual(["task-1", "task-2"]);
@@ -335,6 +911,59 @@ describe("LocalSubtitleJobManager", () => {
     expect(harness.manager.getSessionSnapshot(OWNER_A)).toMatchObject({
       batches: [{ status: "cancelled", tasks: [{ status: "cancelled" }] }],
     });
+  });
+
+  it("cancels the active and queued tasks of one batch together", async () => {
+    const starts: string[] = [];
+    const harness = await createHarness({
+      executor: executor(
+        (context) =>
+          new Promise((_resolve, reject) => {
+            starts.push(context.taskId);
+            context.signal.addEventListener(
+              "abort",
+              () => reject(new Error("aborted")),
+              { once: true },
+            );
+          }),
+      ),
+      taskIds: ["task-1", "task-2", "task-3"],
+    });
+    const files = await authorizeInputs(
+      harness.inputs,
+      OWNER_A,
+      ["active.wav", "queued-a.wav", "queued-b.wav"],
+    );
+    const request = await harness.createRequest(
+      files.map((file) => file.fileToken),
+    );
+
+    const batch = await harness.manager.enqueue(OWNER_A, request);
+    harness.flushScheduled();
+    await waitFor(() => starts.length === 1);
+
+    expect(harness.manager.cancelBatch(OWNER_A, batch.batchId)).toEqual({
+      cancelledTaskIds: ["task-1", "task-2", "task-3"],
+    });
+    await harness.manager.waitForIdle();
+
+    expect(starts).toEqual(["task-1"]);
+    expect(harness.manager.getSessionSnapshot(OWNER_A)).toMatchObject({
+      batches: [
+        {
+          batchId: "batch-1",
+          status: "cancelled",
+          tasks: [
+            { taskId: "task-1", status: "cancelled" },
+            { taskId: "task-2", status: "cancelled" },
+            { taskId: "task-3", status: "cancelled" },
+          ],
+        },
+      ],
+    });
+    await expect(
+      harness.outputs.resolveBatchLease(OWNER_A, "batch-1"),
+    ).rejects.toMatchObject({ code: "invalid_ipc_request" });
   });
 
   it("preserves a fully committed result when cancellation arrives too late", async () => {
@@ -524,6 +1153,87 @@ describe("LocalSubtitleJobManager", () => {
     await expect(
       harness.inputs.resolveTaskLease(OWNER_A, "task-1", "transcribe"),
     ).rejects.toMatchObject({ code: "invalid_ipc_request" });
+    await expect(
+      harness.outputs.resolveBatchLease(OWNER_A, "batch-1"),
+    ).rejects.toMatchObject({ code: "invalid_ipc_request" });
+    await expect(
+      harness.manager.retryTask(OWNER_A, "task-1"),
+    ).rejects.toMatchObject({
+      localSubtitleCode: "invalid_ipc_request",
+      field: "taskId",
+      message: expect.stringContaining("new owner session"),
+    });
+  });
+
+  it("continues after cleanup_failed and releases shared output only after the batch drains", async () => {
+    const second = deferred<void>();
+    const starts: string[] = [];
+    const harness = await createHarness({
+      executor: executor(async (context) => {
+        starts.push(context.taskId);
+        if (context.taskId === "task-1") {
+          return {
+            status: "failed",
+            error: createLocalSubtitleError(
+              "cleanup_failed",
+              "private cleanup failure",
+              { stage: "cleanup" },
+            ),
+          };
+        }
+        if (context.taskId === "task-2") await second.promise;
+        return successfulExecution(context);
+      }),
+      taskIds: ["task-1", "task-2", "task-3"],
+    });
+    const files = await authorizeInputs(
+      harness.inputs,
+      OWNER_A,
+      ["cleanup-failed.wav", "second.wav", "third.wav"],
+    );
+    const releaseOutputLease = vi.spyOn(harness.outputs, "releaseBatchLease");
+
+    await harness.manager.enqueue(
+      OWNER_A,
+      await harness.createRequest(files.map((file) => file.fileToken)),
+    );
+    harness.flushScheduled();
+    await waitFor(() => starts.length === 2);
+
+    expect(starts).toEqual(["task-1", "task-2"]);
+    await expect(
+      harness.inputs.resolveTaskLease(OWNER_A, "task-1", "transcribe"),
+    ).rejects.toMatchObject({ code: "invalid_ipc_request" });
+    await expect(
+      harness.inputs.resolveTaskLease(OWNER_A, "task-2", "transcribe"),
+    ).resolves.toMatchObject({ displayName: "second.wav" });
+    await expect(
+      harness.outputs.resolveBatchLease(OWNER_A, "batch-1"),
+    ).resolves.toMatchObject({ directoryName: "request-output-1" });
+    expect(releaseOutputLease).not.toHaveBeenCalled();
+
+    second.resolve();
+    await harness.manager.waitForIdle();
+
+    expect(starts).toEqual(["task-1", "task-2", "task-3"]);
+    expect(harness.manager.getSessionSnapshot(OWNER_A)).toMatchObject({
+      batches: [
+        {
+          status: "completed",
+          tasks: [
+            {
+              taskId: "task-1",
+              status: "failed",
+              error: { code: "cleanup_failed" },
+            },
+            { taskId: "task-2", status: "completed" },
+            { taskId: "task-3", status: "completed" },
+          ],
+        },
+      ],
+    });
+    expect(releaseOutputLease).toHaveBeenCalledOnce();
+    expect(releaseOutputLease).toHaveBeenCalledWith(OWNER_A, "batch-1");
     await expect(
       harness.outputs.resolveBatchLease(OWNER_A, "batch-1"),
     ).rejects.toMatchObject({ code: "invalid_ipc_request" });
@@ -779,6 +1489,260 @@ describe("LocalSubtitleJobManager", () => {
     expect(contexts.map((context) => context.generation)).toEqual([1, 2]);
   });
 
+  it("honors reentrant cancellation from the queued retry publication", async () => {
+    const harness = await createHarness({
+      executor: executor(async () => ({
+        status: "failed",
+        error: createLocalSubtitleError(
+          "transcription_failed",
+          "private retryable failure",
+          { stage: "transcribing" },
+        ),
+      })),
+    });
+    await harness.manager.enqueue(
+      OWNER_A,
+      await harness.createRequest(harness.fileToken),
+    );
+    harness.flushScheduled();
+    await harness.manager.waitForIdle();
+
+    let cancellation: Readonly<{ cancelled: boolean }> | undefined;
+    harness.manager.onTaskEvent(OWNER_A, (event) => {
+      if (
+        event.event.type === "task-updated" &&
+        event.event.task.generation === 2 &&
+        event.event.task.status === "queued"
+      ) {
+        cancellation = harness.manager.cancelTask(OWNER_A, event.taskId);
+      }
+    });
+
+    const retried = await harness.manager.retryTask(OWNER_A, "task-1");
+    await harness.manager.waitForIdle();
+
+    expect(cancellation).toEqual({ cancelled: true });
+    expect(retried).toMatchObject({ generation: 2, status: "cancelled" });
+    expect(harness.executor.execute).toHaveBeenCalledOnce();
+    expect(harness.manager.getSessionSnapshot(OWNER_A)).toMatchObject({
+      batches: [
+        {
+          status: "cancelled",
+          tasks: [{ taskId: "task-1", generation: 2, status: "cancelled" }],
+        },
+      ],
+    });
+  });
+
+  it("lets another owner run after releasing an owner with a pending retry renewal", async () => {
+    const starts: string[] = [];
+    const harness = await createHarness({
+      executor: executor(async (context) => {
+        starts.push(context.taskId);
+        if (context.taskId === "task-1") {
+          return {
+            status: "failed",
+            error: createLocalSubtitleError(
+              "transcription_failed",
+              "private retryable failure",
+              { stage: "transcribing" },
+            ),
+          };
+        }
+        return successfulExecution(context);
+      }),
+      taskIds: ["task-1", "task-2"],
+      batchIds: ["batch-1", "batch-2"],
+    });
+    await harness.manager.enqueue(
+      OWNER_A,
+      await harness.createRequest(harness.fileToken),
+    );
+    harness.flushScheduled();
+    await harness.manager.waitForIdle();
+
+    const retryRenewal = deferred<void>();
+    const originalResolveTaskLease = harness.inputs.resolveTaskLease.bind(
+      harness.inputs,
+    );
+    let retryRenewalStarted = false;
+    vi.spyOn(harness.inputs, "resolveTaskLease").mockImplementation(
+      async (owner, taskId, operation, expectedFileToken) => {
+        if (
+          owner.ownerSessionId === OWNER_A.ownerSessionId &&
+          taskId === "task-1" &&
+          !retryRenewalStarted
+        ) {
+          retryRenewalStarted = true;
+          await retryRenewal.promise;
+        }
+        return originalResolveTaskLease(
+          owner,
+          taskId,
+          operation,
+          expectedFileToken,
+        );
+      },
+    );
+    const retry = harness.manager.retryTask(OWNER_A, "task-1");
+    await waitFor(() => retryRenewalStarted);
+
+    const secondInput = await authorizeInput(harness.inputs, OWNER_B, "second.wav");
+    await harness.manager.enqueue(
+      OWNER_B,
+      await harness.createRequest(secondInput.fileToken, OWNER_B),
+    );
+    harness.manager.releaseOwner(OWNER_A);
+
+    await waitFor(() => starts.includes("task-2"));
+    await harness.manager.waitForOwnerIdle(OWNER_B);
+    expect(starts).toEqual(["task-1", "task-2"]);
+
+    retryRenewal.resolve();
+    await expect(retry).rejects.toBeDefined();
+    await harness.manager.waitForOwnerIdle(OWNER_A);
+  });
+
+  it.each([
+    {
+      expiredLease: "input",
+      inputLeaseTtlMs: 100,
+      outputLeaseTtlMs: 1_000,
+    },
+    {
+      expiredLease: "output",
+      inputLeaseTtlMs: 1_000,
+      outputLeaseTtlMs: 100,
+    },
+  ] as const)(
+    "releases every remaining capability when the $expiredLease lease expires before retry",
+    async ({ inputLeaseTtlMs, outputLeaseTtlMs }) => {
+      const leaseClock = { now: 1_000 };
+      const harness = await createHarness({
+        executor: executor(async () => ({
+          status: "failed",
+          error: createLocalSubtitleError(
+            "transcription_failed",
+            "private retryable failure",
+            { stage: "transcribing" },
+          ),
+        })),
+        leaseClock,
+        inputLeaseTtlMs,
+        outputLeaseTtlMs,
+        manualLeaseRenewal: true,
+      });
+
+      await harness.manager.enqueue(
+        OWNER_A,
+        await harness.createRequest(harness.fileToken),
+      );
+      harness.flushScheduled();
+      await harness.manager.waitForIdle();
+      await expect(
+        harness.inputs.resolveTaskLease(OWNER_A, "task-1", "transcribe"),
+      ).resolves.toMatchObject({ displayName: "sample.wav" });
+      await expect(
+        harness.outputs.resolveBatchLease(OWNER_A, "batch-1"),
+      ).resolves.toMatchObject({ directoryName: "request-output-1" });
+
+      const releaseInputLease = vi.spyOn(harness.inputs, "releaseTaskLease");
+      const releaseOutputLease = vi.spyOn(harness.outputs, "releaseBatchLease");
+      leaseClock.now = 1_101;
+
+      await expect(
+        harness.manager.retryTask(OWNER_A, "task-1"),
+      ).rejects.toMatchObject({ code: "authorization_expired" });
+
+      expect(harness.executor.execute).toHaveBeenCalledOnce();
+      expect(releaseInputLease).toHaveBeenCalledOnce();
+      expect(releaseInputLease).toHaveBeenCalledWith(OWNER_A, "task-1");
+      expect(releaseOutputLease).toHaveBeenCalledOnce();
+      expect(releaseOutputLease).toHaveBeenCalledWith(OWNER_A, "batch-1");
+      await expect(
+        harness.inputs.resolveTaskLease(OWNER_A, "task-1", "transcribe"),
+      ).rejects.toMatchObject({ code: "invalid_ipc_request" });
+      await expect(
+        harness.outputs.resolveBatchLease(OWNER_A, "batch-1"),
+      ).rejects.toMatchObject({ code: "invalid_ipc_request" });
+      expect(harness.manager.getSessionSnapshot(OWNER_A)).toMatchObject({
+        batches: [
+          {
+            status: "failed",
+            tasks: [
+              {
+                taskId: "task-1",
+                generation: 1,
+                status: "failed",
+                error: { code: "transcription_failed" },
+              },
+            ],
+          },
+        ],
+      });
+    },
+  );
+
+  it("keeps shared output leased when a failed sibling can still be retried", async () => {
+    const harness = await createHarness({
+      executor: executor(async () => ({
+        status: "failed",
+        error: createLocalSubtitleError(
+          "transcription_failed",
+          "private retryable failure",
+          { stage: "transcribing" },
+        ),
+      })),
+      taskIds: ["task-1", "task-2"],
+      manualLeaseRenewal: true,
+    });
+    const sibling = await authorizeInput(harness.inputs, OWNER_A, "sibling.wav");
+    await harness.manager.enqueue(
+      OWNER_A,
+      await harness.createRequest([harness.fileToken, sibling.fileToken]),
+    );
+    harness.flushScheduled();
+    await harness.manager.waitForIdle();
+    expect(harness.manager.getSessionSnapshot(OWNER_A)).toMatchObject({
+      batches: [
+        {
+          status: "failed",
+          tasks: [
+            { taskId: "task-1", status: "failed" },
+            { taskId: "task-2", status: "failed" },
+          ],
+        },
+      ],
+    });
+
+    const releaseInputLease = vi.spyOn(harness.inputs, "releaseTaskLease");
+    const releaseOutputLease = vi.spyOn(harness.outputs, "releaseBatchLease");
+    await rm(path.join(harness.root, "sample.wav"));
+
+    await expect(
+      harness.manager.retryTask(OWNER_A, "task-1"),
+    ).rejects.toMatchObject({ code: "media_changed" });
+
+    expect(releaseInputLease).toHaveBeenCalledWith(OWNER_A, "task-1");
+    expect(releaseOutputLease).not.toHaveBeenCalled();
+    await expect(
+      harness.inputs.resolveTaskLease(OWNER_A, "task-2", "transcribe"),
+    ).resolves.toMatchObject({ displayName: "sibling.wav" });
+    await expect(
+      harness.outputs.resolveBatchLease(OWNER_A, "batch-1"),
+    ).resolves.toMatchObject({ directoryName: "request-output-1" });
+
+    expect(harness.manager.removeTask(OWNER_A, "task-1")).toEqual({
+      removed: true,
+    });
+    expect(releaseOutputLease).not.toHaveBeenCalled();
+    expect(harness.manager.removeTask(OWNER_A, "task-2")).toEqual({
+      removed: true,
+    });
+    expect(releaseOutputLease).toHaveBeenCalledOnce();
+    expect(releaseOutputLease).toHaveBeenCalledWith(OWNER_A, "batch-1");
+  });
+
   it("revalidates the frozen model again before a retry generation", async () => {
     const harness = await createHarness({
       executor: executor(async () => ({
@@ -858,6 +1822,82 @@ describe("LocalSubtitleJobManager", () => {
     });
   });
 
+  it("allows reentrant removal from a completed task publication", async () => {
+    const revokeTask = vi.fn(() => 1);
+    const harness = await createHarness({
+      executor: executor(async (context) => successfulExecution(context)),
+      artifacts: { revokeTask },
+    });
+    let removal: Readonly<{ removed: boolean }> | undefined;
+    harness.manager.onTaskEvent(OWNER_A, (event) => {
+      if (
+        event.event.type === "task-updated" &&
+        event.event.task.status === "completed"
+      ) {
+        removal = harness.manager.removeTask(OWNER_A, event.taskId);
+      }
+    });
+
+    await harness.manager.enqueue(
+      OWNER_A,
+      await harness.createRequest(harness.fileToken),
+    );
+    harness.flushScheduled();
+    await harness.manager.waitForIdle();
+
+    expect(removal).toEqual({ removed: true });
+    expect(revokeTask).toHaveBeenCalledWith(OWNER_A, "task-1");
+    expect(harness.manager.getSessionSnapshot(OWNER_A)).toMatchObject({
+      batches: [],
+    });
+  });
+
+  it("rejects two tokens for the same exact input identity without consuming drafts", async () => {
+    const harness = await createHarness({
+      executor: executor(async (context) => successfulExecution(context)),
+      taskIds: ["task-1", "task-2"],
+    });
+    const duplicate = await harness.inputs.authorize(
+      OWNER_A,
+      path.join(harness.root, "sample.wav"),
+    );
+    expect(duplicate.fileToken).not.toBe(harness.fileToken);
+    const request = await harness.createRequest([
+      harness.fileToken,
+      duplicate.fileToken,
+    ]);
+    if (request.config.output.mode !== "custom") {
+      throw new Error("Expected custom output.");
+    }
+    const events: unknown[] = [];
+    const reserveBatch = vi.spyOn(harness.leases, "reserveBatch");
+    harness.manager.onTaskEvent(OWNER_A, (event) => events.push(event));
+
+    await expect(
+      harness.manager.enqueue(OWNER_A, request),
+    ).rejects.toMatchObject({
+      localSubtitleCode: "invalid_ipc_request",
+      stage: "preflight",
+      field: "files",
+    });
+
+    expect(reserveBatch).not.toHaveBeenCalled();
+    expect(events).toEqual([]);
+    expect(harness.registry.getSnapshot(OWNER_A)).toMatchObject({
+      revision: 0,
+      batches: [],
+    });
+    expect(harness.executor.execute).not.toHaveBeenCalled();
+    expect(harness.inputs.revokeDraft(OWNER_A, harness.fileToken)).toBe(true);
+    expect(harness.inputs.revokeDraft(OWNER_A, duplicate.fileToken)).toBe(true);
+    expect(
+      harness.outputs.revokeDraft(
+        OWNER_A,
+        request.config.output.outputDirToken,
+      ),
+    ).toBe(true);
+  });
+
   it("rolls capability commit back to drafts when session publication fails", async () => {
     const harness = await createHarness({
       executor: executor(async (context) => successfulExecution(context)),
@@ -874,6 +1914,97 @@ describe("LocalSubtitleJobManager", () => {
     ).rejects.toThrow("publish failed");
     expect(harness.registry.getSnapshot(OWNER_A).revision).toBe(0);
     expect(harness.inputs.revokeDraft(OWNER_A, harness.fileToken)).toBe(true);
+    expect(harness.executor.execute).not.toHaveBeenCalled();
+  });
+
+  it("rolls every input and output draft back when a later batch reservation fails", async () => {
+    const harness = await createHarness({
+      executor: executor(async (context) => successfulExecution(context)),
+      taskIds: ["task-1", "task-2", "task-3"],
+    });
+    const files = await authorizeInputs(
+      harness.inputs,
+      OWNER_A,
+      ["first.wav", "second.wav", "third.wav"],
+    );
+    const request = await harness.createRequest(
+      files.map((file) => file.fileToken),
+    );
+    if (request.config.output.mode !== "custom") {
+      throw new Error("Expected custom output.");
+    }
+    const originalReserve = harness.inputs._reserve.bind(harness.inputs);
+    let reservationCount = 0;
+    vi.spyOn(harness.inputs, "_reserve").mockImplementation((...args) => {
+      reservationCount += 1;
+      if (reservationCount === 2) {
+        throw new Error("second input reservation failed");
+      }
+      return originalReserve(...args);
+    });
+
+    await expect(
+      harness.manager.enqueue(OWNER_A, request),
+    ).rejects.toThrow("second input reservation failed");
+
+    expect(harness.registry.getSnapshot(OWNER_A)).toMatchObject({
+      revision: 0,
+      batches: [],
+    });
+    expect(
+      files.map((file) => harness.inputs.revokeDraft(OWNER_A, file.fileToken)),
+    ).toEqual([true, true, true]);
+    expect(
+      harness.outputs.revokeDraft(
+        OWNER_A,
+        request.config.output.outputDirToken,
+      ),
+    ).toBe(true);
+    expect(harness.executor.execute).not.toHaveBeenCalled();
+  });
+
+  it("rolls every batch draft back when multi-task publication fails", async () => {
+    const harness = await createHarness({
+      executor: executor(async (context) => successfulExecution(context)),
+      taskIds: ["task-1", "task-2", "task-3"],
+    });
+    const files = await authorizeInputs(
+      harness.inputs,
+      OWNER_A,
+      ["first.wav", "second.wav", "third.wav"],
+    );
+    const request = await harness.createRequest(
+      files.map((file) => file.fileToken),
+    );
+    if (request.config.output.mode !== "custom") {
+      throw new Error("Expected custom output.");
+    }
+    const events: unknown[] = [];
+    harness.manager.onTaskEvent(OWNER_A, (event) => events.push(event));
+    vi.spyOn(harness.registry, "prepareBatchPublication").mockImplementationOnce(
+      () => {
+        throw new Error("multi-task publication failed");
+      },
+    );
+
+    await expect(
+      harness.manager.enqueue(OWNER_A, request),
+    ).rejects.toThrow("multi-task publication failed");
+
+    expect(events).toEqual([]);
+    expect(harness.registry.getSnapshot(OWNER_A)).toMatchObject({
+      revision: 0,
+      batches: [],
+    });
+    expect(
+      files.map((file) => harness.inputs.revokeDraft(OWNER_A, file.fileToken)),
+    ).toEqual([true, true, true]);
+    expect(
+      harness.outputs.revokeDraft(
+        OWNER_A,
+        request.config.output.outputDirToken,
+      ),
+    ).toBe(true);
     expect(harness.executor.execute).not.toHaveBeenCalled();
   });
 
@@ -1157,6 +2288,8 @@ interface HarnessOptions {
   readonly artifacts?: { revokeTask(owner: LocalSubtitleOwnerKey, taskId: string): number };
   readonly leaseClock?: { now: number };
   readonly leaseTtlMs?: number;
+  readonly inputLeaseTtlMs?: number;
+  readonly outputLeaseTtlMs?: number;
   readonly leaseRenewalIntervalMs?: number;
   readonly manualLeaseRenewal?: boolean;
   readonly cancelLeaseRenewal?: () => void;
@@ -1168,15 +2301,17 @@ async function createHarness(options: HarnessOptions) {
   const inputPath = path.join(root, "sample.wav");
   await writeFile(inputPath, "sample-audio");
   const leaseClock = options.leaseClock ?? { now: Date.now() };
+  const inputLeaseTtlMs = options.inputLeaseTtlMs ?? options.leaseTtlMs;
+  const outputLeaseTtlMs = options.outputLeaseTtlMs ?? options.leaseTtlMs;
   const inputs = new LocalSubtitleInputAuthorizationRegistry({
     tokenFactory: sequence("input"),
     now: () => leaseClock.now,
-    ...(options.leaseTtlMs === undefined ? {} : { leaseTtlMs: options.leaseTtlMs }),
+    ...(inputLeaseTtlMs === undefined ? {} : { leaseTtlMs: inputLeaseTtlMs }),
   });
   const outputs = new LocalSubtitleOutputDirectoryAuthorizationRegistry({
     tokenFactory: sequence("output"),
     now: () => leaseClock.now,
-    ...(options.leaseTtlMs === undefined ? {} : { leaseTtlMs: options.leaseTtlMs }),
+    ...(outputLeaseTtlMs === undefined ? {} : { leaseTtlMs: outputLeaseTtlMs }),
   });
   const file = await inputs.authorize(OWNER_A, inputPath);
   const registry = new LocalSubtitleSessionRegistry();
@@ -1256,33 +2391,53 @@ async function createHarness(options: HarnessOptions) {
     modelResolver,
     fileToken: file.fileToken,
     createRequest: async (
-      fileToken: string,
+      fileTokens: string | readonly string[],
       owner: LocalSubtitleOwnerKey = OWNER_A,
     ) => {
       const outputRoot = path.join(root, `request-output-${++requestOutputIndex}`);
       await mkdir(outputRoot);
       const output = await outputs.authorize(owner, outputRoot);
-      return customOutputRequest(fileToken, output.outputDirToken);
+      return customOutputRequest(fileTokens, output.outputDirToken);
     },
     flushScheduled: () => {
       manuallyScheduled = false;
       while (scheduled.length > 0) scheduled.shift()!();
     },
+    activeLeaseRenewalCount: () =>
+      leaseRenewals.filter((candidate) => !candidate.cancelled).length,
+    fireLeaseRenewals: () => {
+      const renewals = leaseRenewals.filter((candidate) => !candidate.cancelled);
+      if (renewals.length === 0) {
+        throw new Error("No local subtitle lease renewal was scheduled.");
+      }
+      for (const renewal of renewals) {
+        renewal.cancelled = true;
+        renewal.operation();
+      }
+      return renewals.length;
+    },
     runLeaseRenewal: async () => {
-      const renewal = leaseRenewals.find((candidate) => !candidate.cancelled);
-      if (!renewal) throw new Error("No local subtitle lease renewal was scheduled.");
-      renewal.cancelled = true;
       const before = leaseScheduleCount;
-      renewal.operation();
-      await waitFor(() => leaseScheduleCount > before);
+      const fired = leaseRenewals.filter((candidate) => !candidate.cancelled);
+      if (fired.length === 0) {
+        throw new Error("No local subtitle lease renewal was scheduled.");
+      }
+      for (const renewal of fired) {
+        renewal.cancelled = true;
+        renewal.operation();
+      }
+      await waitFor(() => leaseScheduleCount >= before + fired.length);
     },
   };
 }
 
-function enqueueRequest(fileToken: string): EnqueueLocalSubtitleBatchRequest {
+function enqueueRequest(
+  fileTokens: string | readonly string[],
+): EnqueueLocalSubtitleBatchRequest {
+  const tokens = typeof fileTokens === "string" ? [fileTokens] : fileTokens;
   return {
     schemaVersion: LOCAL_SUBTITLE_DOMAIN_SCHEMA_VERSION,
-    files: [{ fileToken }],
+    files: tokens.map((fileToken) => ({ fileToken })),
     config: {
       modelId: LOCAL_SUBTITLE_PRODUCTION_CONTRACT.launchModel.id,
       devicePreference: "cpu",
@@ -1310,10 +2465,10 @@ function enqueueRequest(fileToken: string): EnqueueLocalSubtitleBatchRequest {
 }
 
 function customOutputRequest(
-  fileToken: string,
+  fileTokens: string | readonly string[],
   outputDirToken: string,
 ): EnqueueLocalSubtitleBatchRequest {
-  const request = enqueueRequest(fileToken);
+  const request = enqueueRequest(fileTokens);
   request.config.output = {
     mode: "custom",
     outputDirToken,
@@ -1392,11 +2547,21 @@ async function authorizeInput(
   owner: LocalSubtitleOwnerKey,
   name: string,
 ) {
+  return (await authorizeInputs(inputs, owner, [name]))[0]!;
+}
+
+async function authorizeInputs(
+  inputs: LocalSubtitleInputAuthorizationRegistry,
+  owner: LocalSubtitleOwnerKey,
+  names: readonly string[],
+) {
   const root = await mkdtemp(path.join(os.tmpdir(), "fusionkit-job-input-"));
   tempRoots.push(root);
-  const filePath = path.join(root, name);
-  await writeFile(filePath, name);
-  return inputs.authorize(owner, filePath);
+  const filePaths = names.map((name) => path.join(root, name));
+  await Promise.all(
+    filePaths.map((filePath, index) => writeFile(filePath, names[index]!)),
+  );
+  return inputs.authorizeMany(owner, filePaths);
 }
 
 function sequence(prefix: string) {

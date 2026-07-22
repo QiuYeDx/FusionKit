@@ -103,7 +103,132 @@ describe("LocalSubtitleServerSupervisor", () => {
     await harness.supervisor.release(first);
     expect(harness.children[0]?.killSignals).toEqual([]);
     await harness.supervisor.release(second);
+    expect(harness.children[0]?.killSignals).toEqual([]);
+    expect(harness.supervisor.snapshot).toMatchObject({
+      state: "ready",
+      processEpoch: initial.processEpoch,
+      leaseCount: 0,
+    });
+  });
+
+  it("reuses a warm process epoch across sequential task leases", async () => {
+    const client = new FakeHttpClient();
+    const harness = createHarness({ clients: [client] });
+    const firstLease = await harness.supervisor.acquire(OWNER_A, loadOptions());
+    const first = await harness.supervisor.beginInference(
+      firstLease,
+      inferenceRequest(1),
+    ).result;
+
+    await harness.supervisor.release(firstLease);
+    expect(harness.supervisor.snapshot).toMatchObject({
+      state: "ready",
+      processEpoch: first.processEpoch,
+      leaseCount: 0,
+    });
+    expect(harness.children[0]?.killSignals).toEqual([]);
+
+    const secondLease = await harness.supervisor.acquire(OWNER_B, loadOptions());
+    const second = await harness.supervisor.beginInference(
+      secondLease,
+      inferenceRequest(2),
+    ).result;
+
+    expect(second.processEpoch).toBe(first.processEpoch);
+    expect(harness.spawnRecords).toHaveLength(1);
+    expect(client.readinessCalls).toBe(1);
+    expect(client.healthCalls).toBe(2);
+    expect(client.inferenceCalls).toBe(2);
+    await harness.supervisor.release(secondLease);
+    expect(harness.children[0]?.killSignals).toEqual([]);
+
+    harness.supervisor.releaseOwner(OWNER_A);
+    await harness.supervisor.drainBackgroundCleanup();
+    expect(harness.children[0]?.killSignals).toEqual([]);
+    harness.supervisor.releaseOwner(OWNER_B);
+    await harness.supervisor.drainBackgroundCleanup();
     expect(harness.children[0]?.killSignals).toEqual(["SIGTERM"]);
+  });
+
+  it("retires a warm zero-lease process after the idle timeout", async () => {
+    const harness = createHarness({ idleTimeoutMs: 1 });
+    const lease = await harness.supervisor.acquire(OWNER_A, loadOptions());
+
+    await harness.supervisor.release(lease);
+    expect(harness.supervisor.snapshot).toMatchObject({
+      state: "ready",
+      leaseCount: 0,
+    });
+    await waitFor(() => harness.children[0]?.killSignals.includes("SIGTERM"));
+    await harness.supervisor.drainBackgroundCleanup();
+
+    expect(harness.supervisor.snapshot).toMatchObject({
+      state: "unloaded",
+      leaseCount: 0,
+    });
+  });
+
+  it("does not carry resident owners across an idle-retired process epoch", async () => {
+    const nativeSetTimeout = globalThis.setTimeout;
+    const idleCallbacks: Array<() => void> = [];
+    vi.spyOn(globalThis, "setTimeout").mockImplementation((
+      (handler: TimerHandler, timeout?: number, ...args: unknown[]) => {
+        if (timeout === 500 && typeof handler === "function") {
+          idleCallbacks.push(() => handler(...args));
+        }
+        return nativeSetTimeout(handler, timeout, ...args);
+      }
+    ) as typeof setTimeout);
+    const harness = createHarness({ idleTimeoutMs: 500 });
+    const first = await harness.supervisor.acquire(OWNER_A, loadOptions());
+    await harness.supervisor.release(first);
+
+    idleCallbacks.at(-1)!();
+    await harness.supervisor.drainBackgroundCleanup();
+    expect(harness.supervisor.snapshot.state).toBe("unloaded");
+
+    const second = await harness.supervisor.acquire(OWNER_B, loadOptions());
+    await harness.supervisor.release(second);
+    harness.supervisor.releaseOwner(OWNER_B);
+    await harness.supervisor.drainBackgroundCleanup();
+
+    expect(harness.children[1]?.killSignals).toEqual(["SIGTERM"]);
+    expect(harness.supervisor.snapshot.state).toBe("unloaded");
+  });
+
+  it("re-registers every active lease owner after an idle process restart", async () => {
+    const nativeSetTimeout = globalThis.setTimeout;
+    const idleCallbacks: Array<() => void> = [];
+    vi.spyOn(globalThis, "setTimeout").mockImplementation((
+      (handler: TimerHandler, timeout?: number, ...args: unknown[]) => {
+        if (timeout === 500 && typeof handler === "function") {
+          idleCallbacks.push(() => handler(...args));
+        }
+        return nativeSetTimeout(handler, timeout, ...args);
+      }
+    ) as typeof setTimeout);
+    const harness = createHarness({ idleTimeoutMs: 500 });
+    const first = await harness.supervisor.acquire(OWNER_A, loadOptions());
+    const second = await harness.supervisor.acquire(OWNER_B, loadOptions());
+
+    idleCallbacks.at(-1)!();
+    await harness.supervisor.drainBackgroundCleanup();
+    expect(harness.supervisor.snapshot).toMatchObject({
+      state: "unloaded",
+      leaseCount: 2,
+    });
+
+    await harness.supervisor.beginInference(first, inferenceRequest(1)).result;
+    expect(harness.supervisor.snapshot.processEpoch).toBe(2);
+    await harness.supervisor.release(first);
+    await harness.supervisor.release(second);
+    harness.supervisor.releaseOwner(OWNER_A);
+    await harness.supervisor.drainBackgroundCleanup();
+    expect(harness.children[1]?.killSignals).toEqual([]);
+
+    harness.supervisor.releaseOwner(OWNER_B);
+    await harness.supervisor.drainBackgroundCleanup();
+    expect(harness.children[1]?.killSignals).toEqual(["SIGTERM"]);
   });
 
   it("runs an explicitly no-VAD inference without loading a VAD model", async () => {
@@ -232,6 +357,9 @@ describe("LocalSubtitleServerSupervisor", () => {
       leaseCount: 1,
     });
     await harness.supervisor.release(inferenceLease);
+    harness.supervisor.releaseOwner(OWNER_B);
+    await harness.supervisor.drainBackgroundCleanup();
+    expect(harness.children[1]?.killSignals).toEqual(["SIGTERM"]);
   });
 
   it("rejects a matching smoke in the ready-to-retire window", async () => {
@@ -324,6 +452,27 @@ describe("LocalSubtitleServerSupervisor", () => {
     expect(harness.spawnRecords).toHaveLength(1);
 
     await harness.supervisor.release(lease);
+  });
+
+  it("retires a warm epoch before acquiring an incompatible load identity", async () => {
+    const harness = createHarness();
+    const first = await harness.supervisor.acquire(OWNER_A, loadOptions());
+    await harness.supervisor.release(first);
+
+    const second = await harness.supervisor.acquire(
+      OWNER_B,
+      loadOptions({ model: managedModel("another-model", HASH_B) }),
+    );
+
+    expect(harness.children[0]?.killSignals).toEqual(["SIGTERM"]);
+    expect(harness.spawnRecords).toHaveLength(2);
+    expect(harness.supervisor.snapshot).toMatchObject({
+      state: "ready",
+      processEpoch: 2,
+      modelId: "another-model",
+      leaseCount: 1,
+    });
+    await harness.supervisor.release(second);
   });
 
   it("snapshots mutable load and inference inputs before the first await", async () => {
@@ -569,6 +718,7 @@ describe("LocalSubtitleServerSupervisor", () => {
     const lease = await harness.supervisor.acquire(OWNER_A, loadOptions());
 
     await harness.supervisor.release(lease);
+    await harness.supervisor.shutdown("last_owner");
 
     expect(child.killSignals).toEqual(["SIGTERM", "SIGKILL"]);
     expect(harness.cleanupEvents).toEqual([
@@ -584,7 +734,8 @@ describe("LocalSubtitleServerSupervisor", () => {
     const harness = createHarness({ children: [child] });
     const lease = await harness.supervisor.acquire(OWNER_A, loadOptions());
 
-    await expect(harness.supervisor.release(lease)).rejects.toMatchObject({
+    await harness.supervisor.release(lease);
+    await expect(harness.supervisor.shutdown("last_owner")).rejects.toMatchObject({
       code: "runtime_unresponsive",
       processEpoch: 1,
     });
@@ -605,13 +756,13 @@ describe("LocalSubtitleServerSupervisor", () => {
     ]);
   });
 
-  it("retries a transient closed-session cleanup failure during shutdown", async () => {
-    const harness = createHarness({ cleanupFailures: 1 });
+  it("latches an idle cleanup failure and retries it during shutdown", async () => {
+    const harness = createHarness({ cleanupFailures: 1, idleTimeoutMs: 1 });
     const lease = await harness.supervisor.acquire(OWNER_A, loadOptions());
 
-    await expect(harness.supervisor.release(lease)).rejects.toMatchObject({
-      code: "runtime_unresponsive",
-    });
+    await harness.supervisor.release(lease);
+    await waitFor(() => harness.supervisor.snapshot.state === "faulted");
+    await harness.supervisor.drainBackgroundCleanup();
     expect(harness.supervisor.snapshot.state).toBe("faulted");
     expect(harness.cleanupEvents).toHaveLength(1);
 
@@ -736,6 +887,37 @@ describe("LocalSubtitleServerSupervisor", () => {
       response: { requestGeneration: 3 },
     });
     await harness.supervisor.release(secondLease);
+  });
+
+  it("ignores an idle callback superseded on the same warm process epoch", async () => {
+    const nativeSetTimeout = globalThis.setTimeout;
+    const idleCallbacks: Array<() => void> = [];
+    vi.spyOn(globalThis, "setTimeout").mockImplementation((
+      (handler: TimerHandler, timeout?: number, ...args: unknown[]) => {
+        if (timeout === 500 && typeof handler === "function") {
+          idleCallbacks.push(() => handler(...args));
+        }
+        return nativeSetTimeout(handler, timeout, ...args);
+      }
+    ) as typeof setTimeout);
+
+    const harness = createHarness({ idleTimeoutMs: 500 });
+    const first = await harness.supervisor.acquire(OWNER_A, loadOptions());
+    await harness.supervisor.release(first);
+    expect(idleCallbacks.length).toBeGreaterThanOrEqual(2);
+    const superseded = idleCallbacks.at(-1)!;
+
+    const second = await harness.supervisor.acquire(OWNER_A, loadOptions());
+    superseded();
+    await Promise.resolve();
+
+    expect(harness.children[0]?.killSignals).toEqual([]);
+    expect(harness.supervisor.snapshot).toMatchObject({
+      state: "ready",
+      processEpoch: 1,
+      leaseCount: 1,
+    });
+    await harness.supervisor.release(second);
   });
 
   it("ignores an idle callback captured from an older process epoch", async () => {

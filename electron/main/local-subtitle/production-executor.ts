@@ -265,10 +265,13 @@ export class LocalSubtitleProductionExecutor
       });
       const runtime = await this.#verifyServerRuntime();
       throwIfCancelled(context.signal);
-      if (runtime.runtimeGeneration !== normalized.runtimeGeneration) {
+      if (
+        runtime.runtimeGeneration !== normalized.runtimeGeneration ||
+        runtime.runtimeGeneration !== context.admittedRuntimeGeneration
+      ) {
         throw createLocalSubtitleError(
           "media_runtime_invalid",
-          "The bundled runtime changed after media normalization.",
+          "The bundled runtime changed after batch admission or media normalization.",
           { stage: "loading_model" },
         );
       }

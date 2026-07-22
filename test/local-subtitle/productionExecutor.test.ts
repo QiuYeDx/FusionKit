@@ -246,6 +246,23 @@ describe("local subtitle production executor", () => {
     expect(harness.exporter.exportArtifacts).not.toHaveBeenCalled();
   });
 
+  it("rejects a runtime generation that changed after batch admission", async () => {
+    const harness = await createHarness({
+      admittedRuntimeGeneration: "c".repeat(64),
+    });
+
+    const result = await harness.executor.execute(harness.context);
+
+    expect(result).toMatchObject({
+      status: "failed",
+      error: { code: "media_runtime_invalid", stage: "loading_model" },
+    });
+    expect(harness.supervisor.acquire).not.toHaveBeenCalled();
+    expect(harness.media.materializeWindow).not.toHaveBeenCalled();
+    expect(harness.media.disposeNormalized).toHaveBeenCalledTimes(1);
+    expect(harness.exporter.exportArtifacts).not.toHaveBeenCalled();
+  });
+
   it("sanitizes Windows device names before reserving an artifact", async () => {
     const harness = await createHarness({ displayName: "CON.wav" });
 
@@ -368,6 +385,8 @@ describe("local subtitle production executor", () => {
         ([, request]) => request.requestGeneration,
       ),
     ).toEqual([1, 2]);
+    expect(harness.supervisor.acquire).toHaveBeenCalledTimes(2);
+    expect(harness.supervisor.release).toHaveBeenCalledTimes(2);
   });
 
   it("reports exporter cleanup failures at the cleanup stage", async () => {
@@ -439,6 +458,7 @@ interface HarnessOptions {
   readonly brandNormalizationId?: string;
   readonly reuseWindowBrand?: boolean;
   readonly serverRuntimeGeneration?: string;
+  readonly admittedRuntimeGeneration?: string;
   readonly mutateSecondResolve?: boolean;
   readonly disposeNormalizedFailure?: boolean;
   readonly releaseFailure?: boolean;
@@ -610,7 +630,10 @@ async function createHarness(options: HarnessOptions = {}) {
       ? {}
       : { retainedRawBudget: options.retainedRawBudget }),
   });
-  const context = createContext(controller.signal);
+  const context = createContext(
+    controller.signal,
+    options.admittedRuntimeGeneration ?? normalized.runtimeGeneration,
+  );
   return {
     root,
     outputRoot,
@@ -625,7 +648,7 @@ async function createHarness(options: HarnessOptions = {}) {
   };
 }
 
-function createContext(signal: AbortSignal) {
+function createContext(signal: AbortSignal, admittedRuntimeGeneration: string) {
   const update = vi.fn(() => ({} as LocalSubtitleTaskSummary));
   return Object.freeze({
     owner: OWNER,
@@ -641,6 +664,7 @@ function createContext(signal: AbortSignal) {
       byteSize: 1024,
       sha256: MODEL_HASH,
     }),
+    admittedRuntimeGeneration,
     signal,
     update,
   }) as LocalSubtitleJobTaskExecutionContext & { readonly update: typeof update };

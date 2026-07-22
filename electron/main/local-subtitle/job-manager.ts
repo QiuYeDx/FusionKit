@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import {
   LOCAL_SUBTITLE_DOMAIN_SCHEMA_VERSION,
+  LOCAL_SUBTITLE_ERROR_MANIFEST,
   LOCAL_SUBTITLE_MODEL_MANIFEST_VERSION,
   LOCAL_SUBTITLE_OPERATION_STAGES,
   LOCAL_SUBTITLE_PRODUCTION_CONTRACT,
@@ -31,6 +32,7 @@ import {
   LocalSubtitleInputAuthorizationRegistry,
   LocalSubtitleOutputDirectoryAuthorizationRegistry,
   type LocalSubtitleOwnerKey,
+  type ResolvedLocalSubtitleInput,
 } from "./authorizations";
 import type { LocalSubtitleMainRuntimeShutdownReason } from "./main-runtime";
 import type { LocalSubtitleServerManagedResourceIdentity } from "./server-process-contract";
@@ -127,6 +129,7 @@ export interface LocalSubtitleJobTaskExecutionContext {
   readonly audioStreamId?: string;
   readonly config: LocalSubtitleBatchConfigSnapshot;
   readonly managedModel: LocalSubtitleServerManagedResourceIdentity<"managed">;
+  readonly admittedRuntimeGeneration: string;
   readonly signal: AbortSignal;
   update(update: LocalSubtitleJobTaskUpdate): LocalSubtitleTaskSummary;
 }
@@ -190,6 +193,7 @@ interface BatchRecord {
   readonly batchId: string;
   readonly config: LocalSubtitleBatchConfigSnapshot;
   readonly managedModel: LocalSubtitleServerManagedResourceIdentity<"managed">;
+  readonly runtimeGeneration: string;
   readonly outputDirToken?: string;
   readonly taskIds: Set<string>;
   outputLeaseReleased: boolean;
@@ -228,7 +232,7 @@ interface QueueAdmission {
   readonly sequence: number;
   readonly ownerKey: string;
   state: "pending" | "ready" | "skipped";
-  run?: TaskRun;
+  runs?: readonly TaskRun[];
 }
 
 interface IdleWaiter {
@@ -257,6 +261,8 @@ export class LocalSubtitleJobManager {
   ) => () => void;
   readonly #batches = new Map<string, BatchRecord>();
   readonly #tasks = new Map<string, TaskRecord>();
+  readonly #pendingBatchIds = new Set<string>();
+  readonly #pendingTaskIds = new Set<string>();
   readonly #queue: TaskRun[] = [];
   readonly #admissions: QueueAdmission[] = [];
   readonly #releasedOwners = new Set<string>();
@@ -266,9 +272,9 @@ export class LocalSubtitleJobManager {
   #activeRun: TaskRun | undefined;
   #drainScheduled = false;
   #nextAdmissionSequence = 1;
-  #cancelLeaseRenewal: (() => void) | undefined;
-  #leaseOperationTail: Promise<void> = Promise.resolve();
-  #leaseOperationCount = 0;
+  readonly #cancelLeaseRenewals = new Map<string, () => void>();
+  readonly #leaseOperationTails = new Map<string, Promise<void>>();
+  readonly #leaseOperationCounts = new Map<string, number>();
   #shuttingDown = false;
   #shutdownOperation: Promise<void> | undefined;
 
@@ -326,27 +332,43 @@ export class LocalSubtitleJobManager {
   ): Promise<LocalSubtitleBatchSummary> {
     this.#assertOwnerAvailable(owner);
     const parsed = parseEnqueueRequest(request);
-    assertFirstSliceRequest(parsed);
+    assertProductionBatchSliceRequest(parsed);
     const ownerKeyValue = ownerKey(owner);
     const pending = this.#beginPendingEnqueue(ownerKeyValue, signal);
     let transaction:
       | Awaited<ReturnType<LocalSubtitleCapabilityLeaseCoordinator["reserveBatch"]>>
       | undefined;
-    let record: TaskRecord | undefined;
+    let claimedBatchId: string | undefined;
+    const claimedTaskIds: string[] = [];
     try {
       throwIfAborted(pending.controller.signal);
-      const batchId = this.#mintId(this.#batchIdFactory, this.#batches, "batchId");
-      const taskId = this.#mintId(this.#taskIdFactory, this.#tasks, "taskId");
+      const batchId = this.#claimId(
+        this.#batchIdFactory,
+        this.#batches,
+        this.#pendingBatchIds,
+        "batchId",
+      );
+      claimedBatchId = batchId;
+      const taskIds = parsed.files.map(() => {
+        const taskId = this.#claimId(
+          this.#taskIdFactory,
+          this.#tasks,
+          this.#pendingTaskIds,
+          "taskId",
+        );
+        claimedTaskIds.push(taskId);
+        return taskId;
+      });
       const createdAt = this.#timestamp();
-      const [managedModel, input] = await Promise.all([
+      const [managedModel, inputs, runtimeAdmission] = await Promise.all([
         this.#modelResolver.resolveManagedModel(
           parsed.config.modelId,
           pending.controller.signal,
         ),
-        this.#inputs.resolveDraft(
-          owner,
-          parsed.files[0]!.fileToken,
-          "transcribe",
+        Promise.all(
+          parsed.files.map((file) =>
+            this.#inputs.resolveDraft(owner, file.fileToken, "transcribe")
+          ),
         ),
         this.#runtimeVerifier.verifyRuntime({
           owner,
@@ -356,6 +378,8 @@ export class LocalSubtitleJobManager {
       throwIfAborted(pending.controller.signal);
       this.#assertOwnerAvailable(owner);
       assertManagedModel(managedModel, parsed.config.modelId);
+      assertDistinctInputIdentities(inputs);
+      const runtimeGeneration = assertRuntimeAdmission(runtimeAdmission);
 
       const config = createConfigSnapshot(
         parsed,
@@ -370,38 +394,40 @@ export class LocalSubtitleJobManager {
         batchId,
         config,
         managedModel: freezeManagedModel(managedModel),
+        runtimeGeneration,
         ...(parsed.config.output.mode === "custom"
           ? { outputDirToken: parsed.config.output.outputDirToken }
           : {}),
-        taskIds: new Set([taskId]),
+        taskIds: new Set(taskIds),
         outputLeaseReleased: false,
       };
-      record = {
+      const records = parsed.files.map((file, index): TaskRecord => ({
         owner: batchRecord.owner,
         ownerKey: ownerKeyValue,
         batch: batchRecord,
-        taskId,
-        fileToken: parsed.files[0]!.fileToken,
-        ...(parsed.files[0]!.audioStreamId === undefined
+        taskId: taskIds[index]!,
+        fileToken: file.fileToken,
+        ...(file.audioStreamId === undefined
           ? {}
-          : { audioStreamId: parsed.files[0]!.audioStreamId }),
+          : { audioStreamId: file.audioStreamId }),
         generation: 1,
         state: "queued",
         cancelRequested: false,
         inputLeaseReleased: false,
         artifactsRevoked: false,
-      };
-      const summary = createQueuedTaskSummary(
-        record,
-        input.displayName,
-        createdAt,
+      }));
+      const summaries = records.map((record, index) =>
+        createQueuedTaskSummary(record, inputs[index]!.displayName, createdAt)
       );
-      const batch = createBatchSummary(batchRecord, [summary], createdAt);
+      const batch = createBatchSummary(batchRecord, summaries, createdAt);
 
       transaction = await this.#leases.reserveBatch({
         owner,
         batchId,
-        inputs: [{ fileToken: record.fileToken, taskId }],
+        inputs: records.map((record) => ({
+          fileToken: record.fileToken,
+          taskId: record.taskId,
+        })),
         ...(batchRecord.outputDirToken === undefined
           ? {}
           : { outputDirToken: batchRecord.outputDirToken }),
@@ -411,7 +437,7 @@ export class LocalSubtitleJobManager {
 
       const publication = this.#registry.prepareBatchPublication(owner, batch);
       this.#batches.set(batchId, batchRecord);
-      this.#tasks.set(taskId, record);
+      for (const record of records) this.#tasks.set(record.taskId, record);
       try {
         transaction.commitAndRun(() => publication.commit());
       } catch (error) {
@@ -421,19 +447,21 @@ export class LocalSubtitleJobManager {
         } catch (rollbackError) {
           rollbackFailure = rollbackError;
         } finally {
-          this.#tasks.delete(taskId);
+          for (const record of records) this.#tasks.delete(record.taskId);
           this.#batches.delete(batchId);
         }
         throw rollbackFailure ?? error;
       }
       transaction = undefined;
+      const runs = records.map((record) => this.#createRun(record));
       publication.publish();
 
-      const run = record.state === "queued" &&
-          !this.#releasedOwners.has(ownerKeyValue)
-        ? this.#createRun(record)
-        : undefined;
-      this.#settleAdmission(pending.admission, run);
+      const runnable = runs.filter((run) =>
+        run.record.state === "queued" &&
+        !run.record.cancelRequested &&
+        !this.#releasedOwners.has(ownerKeyValue)
+      );
+      this.#settleAdmission(pending.admission, runnable);
       this.#ensureLeaseRenewalScheduled();
       return this.#registry.getBatch(owner, batchId) ?? batch;
     } finally {
@@ -441,6 +469,8 @@ export class LocalSubtitleJobManager {
       this.#settleAdmission(pending.admission);
       pending.detach();
       this.#pendingEnqueues.delete(pending);
+      if (claimedBatchId) this.#pendingBatchIds.delete(claimedBatchId);
+      for (const taskId of claimedTaskIds) this.#pendingTaskIds.delete(taskId);
       this.#flushIdleWaiters();
     }
   }
@@ -474,15 +504,18 @@ export class LocalSubtitleJobManager {
     }
     const admission = this.#beginAdmission(record.ownerKey);
     try {
-      await this.#runLeaseOperation(() => this.#renewTaskCapabilities(record));
+      await this.#runLeaseOperation(
+        record.ownerKey,
+        () => this.#renewTaskCapabilities(record),
+      );
       this.#assertOwnerAvailable(owner);
-      const latest = this.#registry.getTask(owner, taskId);
+      const currentAfterRenewal = this.#registry.getTask(owner, taskId);
       if (
         this.#ownedTask(owner, taskId) !== record ||
         record.state !== "terminal" ||
-        !latest ||
-        latest.generation !== current.generation ||
-        latest.status !== "failed"
+        !currentAfterRenewal ||
+        currentAfterRenewal.generation !== current.generation ||
+        currentAfterRenewal.status !== "failed"
       ) {
         throw managerFailure(
           "invalid_ipc_request",
@@ -511,10 +544,15 @@ export class LocalSubtitleJobManager {
         error: undefined,
       };
       const canonical = stripUndefined(retried);
-      const envelope = this.#registry.upsertTask(owner, canonical);
-      if (envelope.event.type !== "task-updated") {
-        throw managerFailure("invalid_content", "Task retry publication failed.");
-      }
+      const previousRecordState = {
+        generation: record.generation,
+        state: record.state,
+        cancelRequested: record.cancelRequested,
+        inputLeaseReleased: record.inputLeaseReleased,
+        artifactsRevoked: record.artifactsRevoked,
+        leaseFailure: record.leaseFailure,
+        run: record.run,
+      };
       record.generation = generation;
       record.state = "queued";
       record.cancelRequested = false;
@@ -522,9 +560,35 @@ export class LocalSubtitleJobManager {
       record.artifactsRevoked = false;
       record.leaseFailure = undefined;
       const run = this.#createRun(record);
-      this.#settleAdmission(admission, run);
+      let publishedTask!: LocalSubtitleTaskSummary;
+      try {
+        const envelope = this.#registry.upsertTask(owner, canonical);
+        if (envelope.event.type !== "task-updated") {
+          throw managerFailure("invalid_content", "Task retry publication failed.");
+        }
+        publishedTask = envelope.event.task;
+      } catch (error) {
+        if (record.run === run && record.generation === generation) {
+          record.generation = previousRecordState.generation;
+          record.state = previousRecordState.state;
+          record.cancelRequested = previousRecordState.cancelRequested;
+          record.inputLeaseReleased = previousRecordState.inputLeaseReleased;
+          record.artifactsRevoked = previousRecordState.artifactsRevoked;
+          record.leaseFailure = previousRecordState.leaseFailure;
+          record.run = previousRecordState.run;
+        }
+        throw error;
+      }
+      this.#assertOwnerAvailable(owner);
+      const latestAfterPublication = this.#registry.getTask(owner, taskId);
+      const runnable =
+        record.run === run &&
+        record.state === "queued" &&
+        !record.cancelRequested &&
+        !this.#releasedOwners.has(record.ownerKey);
+      this.#settleAdmission(admission, runnable ? [run] : []);
       this.#ensureLeaseRenewalScheduled();
-      return envelope.event.task;
+      return latestAfterPublication ?? publishedTask;
     } finally {
       this.#settleAdmission(admission);
       this.#flushIdleWaiters();
@@ -583,6 +647,8 @@ export class LocalSubtitleJobManager {
     if (record.batch.taskIds.size === 0) {
       this.#releaseOutputLease(record.batch);
       this.#batches.delete(record.batch.batchId);
+    } else {
+      this.#releaseOutputIfUnmaintained(record.batch);
     }
     this.#stopLeaseRenewalIfIdle();
     this.#flushIdleWaiters();
@@ -615,7 +681,9 @@ export class LocalSubtitleJobManager {
       record.cancelRequested = true;
     }
     for (const pending of this.#pendingEnqueues) {
-      if (pending.ownerKey === key) captureFailure(failures, () => pending.controller.abort());
+      if (pending.ownerKey !== key) continue;
+      captureFailure(failures, () => pending.controller.abort());
+      captureFailure(failures, () => this.#settleAdmission(pending.admission));
     }
     for (const record of records) {
       captureFailure(failures, () => record.run?.controller.abort());
@@ -628,7 +696,7 @@ export class LocalSubtitleJobManager {
       }
     }
     this.#removeQueuedRuns((run) => run.record.ownerKey === key);
-    this.#discardReadyAdmissions((admission) => admission.ownerKey === key);
+    this.#discardAdmissions((admission) => admission.ownerKey === key);
     this.#stopLeaseRenewalIfIdle();
     this.#flushIdleWaiters();
     if (failures.length > 0) throw failures[0];
@@ -652,7 +720,7 @@ export class LocalSubtitleJobManager {
       record.state = "fenced";
       record.cancelRequested = true;
     }
-    captureFailure(failures, () => this.#cancelLeaseRenewalTimer());
+    captureFailure(failures, () => this.#cancelLeaseRenewalTimers());
     for (const pending of this.#pendingEnqueues) {
       captureFailure(failures, () => pending.controller.abort());
     }
@@ -665,7 +733,7 @@ export class LocalSubtitleJobManager {
       captureFailure(failures, () => this.#releaseOutputLease(batch));
     }
     this.#queue.splice(0);
-    this.#discardReadyAdmissions(() => true);
+    this.#discardAdmissions(() => true);
     void this.#waitForOperations()
       .then(() => {
         if (failures.length > 0) throw failures[0];
@@ -715,11 +783,14 @@ export class LocalSubtitleJobManager {
     return admission;
   }
 
-  #settleAdmission(admission: QueueAdmission, run?: TaskRun): void {
+  #settleAdmission(
+    admission: QueueAdmission,
+    runs: readonly TaskRun[] = [],
+  ): void {
     if (admission.state !== "pending") return;
-    if (run) {
+    if (runs.length > 0) {
       admission.state = "ready";
-      admission.run = run;
+      admission.runs = Object.freeze([...runs]);
     } else {
       admission.state = "skipped";
     }
@@ -730,8 +801,8 @@ export class LocalSubtitleJobManager {
     while (this.#admissions[0]?.state !== "pending") {
       const admission = this.#admissions.shift();
       if (!admission) break;
-      if (admission.state === "ready" && admission.run) {
-        this.#queue.push(admission.run);
+      if (admission.state === "ready" && admission.runs) {
+        this.#queue.push(...admission.runs);
       }
     }
     this.#scheduleDrain();
@@ -786,7 +857,10 @@ export class LocalSubtitleJobManager {
   async #executeRun(run: TaskRun): Promise<void> {
     if (!this.#isPublishableRun(run)) return;
     try {
-      await this.#runLeaseOperation(() => this.#renewTaskCapabilities(run.record));
+      await this.#runLeaseOperation(
+        run.record.ownerKey,
+        () => this.#renewTaskCapabilities(run.record),
+      );
       if (!this.#isPublishableRun(run)) return;
       const managedModel = await this.#modelResolver.resolveManagedModel(
         run.record.batch.config.model.modelId,
@@ -815,6 +889,7 @@ export class LocalSubtitleJobManager {
           : { audioStreamId: run.record.audioStreamId }),
         config: run.record.batch.config,
         managedModel: run.record.batch.managedModel,
+        admittedRuntimeGeneration: run.record.batch.runtimeGeneration,
         signal: run.controller.signal,
         update: (update: LocalSubtitleJobTaskUpdate) =>
           this.#transition(run, update),
@@ -841,7 +916,7 @@ export class LocalSubtitleJobManager {
         return;
       }
       if (run.record.leaseFailure !== undefined) {
-        this.#settleFailed(
+        this.#settleExecutionFailure(
           run,
           executionError(run.record.leaseFailure, this.#currentStage(run.record)),
           result.artifactResults ?? [],
@@ -853,12 +928,15 @@ export class LocalSubtitleJobManager {
         this.#settleCancelled(run, result.artifactResults ?? [], result.durationMs);
         return;
       }
-      await this.#runLeaseOperation(() => this.#renewTaskCapabilities(run.record));
+      await this.#runLeaseOperation(
+        run.record.ownerKey,
+        () => this.#renewTaskCapabilities(run.record),
+      );
       if (!this.#isPublishableRun(run)) return;
       if (run.record.cancelRequested) {
         this.#settleCancelled(run, result.artifactResults ?? [], result.durationMs);
       } else if (result.status === "failed") {
-        this.#settleFailed(
+        this.#settleExecutionFailure(
           run,
           result.error,
           result.artifactResults ?? [],
@@ -889,14 +967,17 @@ export class LocalSubtitleJobManager {
       } else if (run.record.cancelRequested) {
         this.#settleCancelled(run, []);
       } else if (run.record.leaseFailure !== undefined) {
-        this.#settleFailed(
+        this.#settleExecutionFailure(
           run,
           executionError(run.record.leaseFailure, this.#currentStage(run.record)),
         );
       } else if (run.controller.signal.aborted) {
         this.#settleCancelled(run, []);
       } else {
-        this.#settleFailed(run, executionError(error, this.#currentStage(run.record)));
+        this.#settleExecutionFailure(
+          run,
+          executionError(error, this.#currentStage(run.record)),
+        );
       }
     }
   }
@@ -998,10 +1079,9 @@ export class LocalSubtitleJobManager {
       updatedAt: this.#timestamp(),
       error: undefined,
     });
-    this.#publishTask(run, next);
-    run.record.state = "terminal";
+    this.#publishTerminalTask(run, next);
     this.#releaseInputLease(run.record);
-    this.#releaseOutputIfSettled(run.record.batch);
+    this.#releaseOutputIfUnmaintained(run.record.batch);
     this.#stopLeaseRenewalIfIdle();
     return true;
   }
@@ -1057,8 +1137,8 @@ export class LocalSubtitleJobManager {
       updatedAt: this.#timestamp(),
       completion: undefined,
     });
-    this.#publishTask(run, next);
-    run.record.state = "terminal";
+    this.#publishTerminalTask(run, next);
+    if (!this.#isCurrentRun(run) || run.record.state !== "terminal") return;
     if (CLEANUP_FAILURE_CODES.has(stableError.code)) {
       this.#releaseInputLease(run.record);
       this.#releaseOutputIfUnmaintained(run.record.batch);
@@ -1117,10 +1197,9 @@ export class LocalSubtitleJobManager {
       completion: undefined,
       error: undefined,
     });
-    this.#publishTask(run, next);
-    run.record.state = "terminal";
+    this.#publishTerminalTask(run, next);
     this.#releaseInputLease(run.record);
-    this.#releaseOutputIfSettled(run.record.batch);
+    this.#releaseOutputIfUnmaintained(run.record.batch);
     this.#stopLeaseRenewalIfIdle();
   }
 
@@ -1176,7 +1255,7 @@ export class LocalSubtitleJobManager {
       if (!transition.ok) {
         throw managerFailure("invalid_content", "Queued cancellation failed.");
       }
-      this.#publishTask(run, {
+      this.#publishTerminalTask(run, {
         ...cancelling,
         ...transition.state,
         progress: {
@@ -1186,9 +1265,8 @@ export class LocalSubtitleJobManager {
         },
         updatedAt: this.#timestamp(),
       });
-      record.state = "terminal";
       this.#releaseInputLease(record);
-      this.#releaseOutputIfSettled(record.batch);
+      this.#releaseOutputIfUnmaintained(record.batch);
       this.#stopLeaseRenewalIfIdle();
       this.#flushIdleWaiters();
       return true;
@@ -1206,6 +1284,65 @@ export class LocalSubtitleJobManager {
       throw managerFailure("invalid_content", "Task publication failed.");
     }
     return envelope.event.task;
+  }
+
+  #publishTerminalTask(
+    run: TaskRun,
+    task: LocalSubtitleTaskSummary,
+  ): LocalSubtitleTaskSummary {
+    const previousState = run.record.state;
+    run.record.state = "terminal";
+    try {
+      return this.#publishTask(run, task);
+    } catch (error) {
+      if (this.#isCurrentRun(run) && run.record.state === "terminal") {
+        run.record.state = previousState;
+      }
+      throw error;
+    }
+  }
+
+  #settleExecutionFailure(
+    run: TaskRun,
+    error: LocalSubtitleError,
+    artifactResults: readonly LocalSubtitleArtifactResult[] = [],
+    durationMs?: number,
+  ): void {
+    const stopsBatch = errorStopsBatch(error.code);
+    const siblingRuns: TaskRun[] = [];
+    if (stopsBatch) {
+      for (const taskId of run.record.batch.taskIds) {
+        const sibling = this.#tasks.get(taskId);
+        const siblingRun = sibling?.run;
+        if (
+          !sibling ||
+          !siblingRun ||
+          sibling === run.record ||
+          sibling.state !== "queued" ||
+          sibling.cancelRequested ||
+          !this.#isPublishableRun(siblingRun)
+        ) {
+          continue;
+        }
+        sibling.state = "terminal";
+        siblingRuns.push(siblingRun);
+      }
+      this.#removeQueuedRuns((candidate) =>
+        siblingRuns.includes(candidate)
+      );
+    }
+    this.#settleFailed(run, error, artifactResults, durationMs);
+    if (!stopsBatch) return;
+
+    for (const siblingRun of siblingRuns) {
+      if (
+        siblingRun.record.state !== "terminal" ||
+        !this.#isPublishableRun(siblingRun)
+      ) {
+        continue;
+      }
+      this.#settleFailed(siblingRun, error);
+    }
   }
 
   #requireCurrentTask(run: TaskRun): LocalSubtitleTaskSummary {
@@ -1260,45 +1397,89 @@ export class LocalSubtitleJobManager {
         );
       }
     } catch (error) {
-      record.leaseFailure = error;
+      this.#markLeaseFailure(record, error);
       throw error;
     }
   }
 
-  #runLeaseOperation<T>(operation: () => Promise<T>): Promise<T> {
-    this.#leaseOperationCount += 1;
-    const result = this.#leaseOperationTail.then(operation, operation);
-    this.#leaseOperationTail = result.then(
+  #runLeaseOperation<T>(
+    ownerKeyValue: string,
+    operation: () => Promise<T>,
+  ): Promise<T> {
+    this.#leaseOperationCounts.set(
+      ownerKeyValue,
+      (this.#leaseOperationCounts.get(ownerKeyValue) ?? 0) + 1,
+    );
+    const tail = this.#leaseOperationTails.get(ownerKeyValue) ?? Promise.resolve();
+    const result = tail.then(operation, operation);
+    const nextTail = result.then(
       () => undefined,
       () => undefined,
     );
+    this.#leaseOperationTails.set(ownerKeyValue, nextTail);
     return result.finally(() => {
-      this.#leaseOperationCount -= 1;
+      const remaining = (this.#leaseOperationCounts.get(ownerKeyValue) ?? 1) - 1;
+      if (remaining === 0) {
+        this.#leaseOperationCounts.delete(ownerKeyValue);
+        if (this.#leaseOperationTails.get(ownerKeyValue) === nextTail) {
+          this.#leaseOperationTails.delete(ownerKeyValue);
+        }
+      } else {
+        this.#leaseOperationCounts.set(ownerKeyValue, remaining);
+      }
       this.#flushIdleWaiters();
     });
   }
 
   #ensureLeaseRenewalScheduled(): void {
+    if (this.#shuttingDown) return;
+    for (const ownerKeyValue of this.#maintainedLeaseOwnerKeys()) {
+      this.#ensureOwnerLeaseRenewalScheduled(ownerKeyValue);
+    }
+  }
+
+  #ensureOwnerLeaseRenewalScheduled(ownerKeyValue: string): void {
     if (
-      this.#cancelLeaseRenewal ||
       this.#shuttingDown ||
-      !this.#hasMaintainedLeases()
+      this.#cancelLeaseRenewals.has(ownerKeyValue) ||
+      !this.#ownerHasMaintainedLeases(ownerKeyValue)
     ) {
       return;
     }
     try {
-      this.#cancelLeaseRenewal = this.#scheduleLeaseRenewal(() => {
-        this.#cancelLeaseRenewal = undefined;
-        void this.#runLeaseOperation(() => this.#renewMaintainedLeases())
+      let cancel!: () => void;
+      cancel = this.#scheduleLeaseRenewal(() => {
+        if (this.#cancelLeaseRenewals.get(ownerKeyValue) !== cancel) return;
+        this.#cancelLeaseRenewals.delete(ownerKeyValue);
+        if (
+          this.#shuttingDown ||
+          !this.#ownerHasMaintainedLeases(ownerKeyValue)
+        ) {
+          this.#flushIdleWaiters();
+          return;
+        }
+        if (this.#leaseOperationCounts.has(ownerKeyValue)) {
+          this.#ensureOwnerLeaseRenewalScheduled(ownerKeyValue);
+          this.#flushIdleWaiters();
+          return;
+        }
+        void this.#runLeaseOperation(
+          ownerKeyValue,
+          () => this.#renewMaintainedLeases(ownerKeyValue),
+        )
           .catch(() => undefined)
           .finally(() => {
-            this.#ensureLeaseRenewalScheduled();
+            this.#ensureOwnerLeaseRenewalScheduled(ownerKeyValue);
             this.#flushIdleWaiters();
           });
       }, this.#leaseRenewalIntervalMs);
+      this.#cancelLeaseRenewals.set(ownerKeyValue, cancel);
     } catch (error) {
       for (const record of this.#tasks.values()) {
-        if (this.#shouldMaintainTaskLease(record)) {
+        if (
+          record.ownerKey === ownerKeyValue &&
+          this.#shouldMaintainTaskLease(record)
+        ) {
           this.#markLeaseFailure(record, error);
         }
       }
@@ -1306,13 +1487,13 @@ export class LocalSubtitleJobManager {
     }
   }
 
-  async #renewMaintainedLeases(): Promise<void> {
+  async #renewMaintainedLeases(ownerKeyValue: string): Promise<void> {
     if (this.#shuttingDown) return;
     const records = [...this.#tasks.values()].filter((record) =>
-      this.#shouldMaintainTaskLease(record)
+      record.ownerKey === ownerKeyValue && this.#shouldMaintainTaskLease(record)
     );
     const batches = [...this.#batches.values()].filter((batch) =>
-      this.#shouldMaintainOutputLease(batch)
+      batch.ownerKey === ownerKeyValue && this.#shouldMaintainOutputLease(batch)
     );
     const inputResults = await Promise.allSettled(
       records.map(async (record) => {
@@ -1352,6 +1533,9 @@ export class LocalSubtitleJobManager {
     if (!this.#shouldMaintainTaskLease(record)) return;
     record.leaseFailure = error;
     record.run?.controller.abort();
+    this.#releaseInputLease(record);
+    this.#releaseOutputIfUnmaintained(record.batch);
+    this.#stopLeaseRenewalIfIdle();
   }
 
   #shouldMaintainTaskLease(record: TaskRecord): boolean {
@@ -1374,25 +1558,46 @@ export class LocalSubtitleJobManager {
     );
   }
 
-  #hasMaintainedLeases(): boolean {
+  #maintainedLeaseOwnerKeys(): readonly string[] {
+    return [...new Set(
+      [...this.#tasks.values()]
+        .filter((record) => this.#shouldMaintainTaskLease(record))
+        .map((record) => record.ownerKey),
+    )];
+  }
+
+  #ownerHasMaintainedLeases(ownerKeyValue: string): boolean {
     return [...this.#tasks.values()].some((record) =>
-      this.#shouldMaintainTaskLease(record)
-    ) || [...this.#batches.values()].some((batch) =>
-      this.#shouldMaintainOutputLease(batch)
+      record.ownerKey === ownerKeyValue && this.#shouldMaintainTaskLease(record)
     );
   }
 
   #stopLeaseRenewalIfIdle(): void {
-    if (!this.#hasMaintainedLeases()) this.#cancelLeaseRenewalTimer();
+    const maintainedOwners = new Set(this.#maintainedLeaseOwnerKeys());
+    for (const [ownerKeyValue, cancel] of this.#cancelLeaseRenewals) {
+      if (maintainedOwners.has(ownerKeyValue)) continue;
+      cancel();
+      if (this.#cancelLeaseRenewals.get(ownerKeyValue) === cancel) {
+        this.#cancelLeaseRenewals.delete(ownerKeyValue);
+      }
+    }
   }
 
-  #cancelLeaseRenewalTimer(): void {
-    const cancel = this.#cancelLeaseRenewal;
-    if (!cancel) return;
-    cancel();
-    if (this.#cancelLeaseRenewal === cancel) {
-      this.#cancelLeaseRenewal = undefined;
+  #cancelLeaseRenewalTimers(): void {
+    let firstFailure: unknown;
+    let failed = false;
+    for (const [ownerKeyValue, cancel] of this.#cancelLeaseRenewals) {
+      try {
+        cancel();
+        if (this.#cancelLeaseRenewals.get(ownerKeyValue) === cancel) {
+          this.#cancelLeaseRenewals.delete(ownerKeyValue);
+        }
+      } catch (error) {
+        if (!failed) firstFailure = error;
+        failed = true;
+      }
     }
+    if (failed) throw firstFailure;
   }
 
   #releaseInputLease(record: TaskRecord): void {
@@ -1405,18 +1610,6 @@ export class LocalSubtitleJobManager {
     if (batch.outputLeaseReleased || batch.outputDirToken === undefined) return;
     this.#outputs.releaseBatchLease(batch.owner, batch.batchId);
     batch.outputLeaseReleased = true;
-  }
-
-  #releaseOutputIfSettled(batch: BatchRecord): void {
-    const tasks = [...batch.taskIds]
-      .map((taskId) => this.#registry.getTask(batch.owner, taskId))
-      .filter((task): task is LocalSubtitleTaskSummary => task !== undefined);
-    if (
-      tasks.length > 0 &&
-      tasks.every((task) => task.status === "completed" || task.status === "cancelled")
-    ) {
-      this.#releaseOutputLease(batch);
-    }
   }
 
   #releaseOutputIfUnmaintained(batch: BatchRecord): void {
@@ -1438,22 +1631,37 @@ export class LocalSubtitleJobManager {
     for (let index = this.#queue.length - 1; index >= 0; index -= 1) {
       if (predicate(this.#queue[index]!)) this.#queue.splice(index, 1);
     }
+    let admissionsChanged = false;
+    for (const admission of this.#admissions) {
+      if (admission.state !== "ready" || !admission.runs) continue;
+      const runs = admission.runs.filter((run) => !predicate(run));
+      if (runs.length === admission.runs.length) continue;
+      admissionsChanged = true;
+      if (runs.length === 0) {
+        admission.state = "skipped";
+        admission.runs = undefined;
+      } else {
+        admission.runs = Object.freeze(runs);
+      }
+    }
+    if (admissionsChanged) this.#flushAdmissions();
   }
 
-  #discardReadyAdmissions(
+  #discardAdmissions(
     predicate: (admission: QueueAdmission) => boolean,
   ): void {
     for (const admission of this.#admissions) {
-      if (admission.state !== "ready" || !predicate(admission)) continue;
+      if (admission.state === "skipped" || !predicate(admission)) continue;
       admission.state = "skipped";
-      admission.run = undefined;
+      admission.runs = undefined;
     }
     this.#flushAdmissions();
   }
 
-  #mintId(
+  #claimId(
     factory: () => string,
     records: ReadonlyMap<string, unknown>,
+    pendingIds: Set<string>,
     field: string,
   ): string {
     for (let attempt = 0; attempt < 16; attempt += 1) {
@@ -1462,8 +1670,10 @@ export class LocalSubtitleJobManager {
         typeof id === "string" &&
         id.length <= 128 &&
         SAFE_ID_PATTERN.test(id) &&
-        !records.has(id)
+        !records.has(id) &&
+        !pendingIds.has(id)
       ) {
+        pendingIds.add(id);
         return id;
       }
     }
@@ -1525,11 +1735,15 @@ export class LocalSubtitleJobManager {
       ownerKeyValue === undefined || ownerKeyValue === value;
     return (
       ![...this.#pendingEnqueues].some((pending) => matches(pending.ownerKey)) &&
-      !this.#admissions.some((admission) => matches(admission.ownerKey)) &&
+      !this.#admissions.some((admission) =>
+        admission.state !== "skipped" && matches(admission.ownerKey)
+      ) &&
       !this.#queue.some((run) => matches(run.record.ownerKey)) &&
       !(this.#activeRun && matches(this.#activeRun.record.ownerKey)) &&
       ![...this.#operations.values()].some(matches) &&
-      this.#leaseOperationCount === 0
+      (ownerKeyValue === undefined
+        ? this.#leaseOperationCounts.size === 0
+        : !this.#leaseOperationCounts.has(ownerKeyValue))
     );
   }
 
@@ -1546,7 +1760,7 @@ export class LocalSubtitleJobManager {
       this.#operations.size > 0 ||
       this.#pendingEnqueues.size > 0 ||
       this.#admissions.length > 0 ||
-      this.#leaseOperationCount > 0
+      this.#leaseOperationCounts.size > 0
     ) {
       await Promise.allSettled([
         ...this.#operations.keys(),
@@ -1568,10 +1782,50 @@ function parseEnqueueRequest(input: unknown): EnqueueLocalSubtitleBatchRequest {
   return result.data;
 }
 
-function assertFirstSliceRequest(request: EnqueueLocalSubtitleBatchRequest): void {
+function assertDistinctInputIdentities(
+  inputs: readonly ResolvedLocalSubtitleInput[],
+): void {
+  const identities = new Set<string>();
+  for (const input of inputs) {
+    const identity = input.identity;
+    const key = JSON.stringify([
+      identity.dev,
+      identity.ino,
+      identity.size,
+      identity.mtimeMs,
+      identity.ctimeMs,
+    ]);
+    if (identities.has(key)) {
+      throw managerFailure(
+        "invalid_ipc_request",
+        "A local subtitle batch cannot contain the same authorized file twice.",
+        "preflight",
+        "files",
+      );
+    }
+    identities.add(key);
+  }
+}
+
+function assertRuntimeAdmission(
+  admission: Readonly<{ runtimeGeneration: string }>,
+): string {
+  if (!/^[a-f0-9]{64}$/u.test(admission.runtimeGeneration)) {
+    throw managerFailure(
+      "invalid_content",
+      "The admitted local subtitle runtime generation is invalid.",
+      "preflight",
+      "runtimeGeneration",
+    );
+  }
+  return admission.runtimeGeneration;
+}
+
+function assertProductionBatchSliceRequest(
+  request: EnqueueLocalSubtitleBatchRequest,
+): void {
   const config = request.config;
   const supported =
-    request.files.length === 1 &&
     config.devicePreference === "cpu" &&
     config.taskMode === "transcribe" &&
     config.vadEnabled === false &&
@@ -1582,7 +1836,7 @@ function assertFirstSliceRequest(request: EnqueueLocalSubtitleBatchRequest): voi
   if (!supported) {
     throw managerFailure(
       "invalid_ipc_request",
-      "This local subtitle build currently supports one CPU, no-VAD SRT task.",
+      "This local subtitle build currently supports CPU, no-VAD SRT batches with custom output.",
       "preflight",
       "config",
     );
@@ -1803,6 +2057,11 @@ function errorCode(error: unknown): LocalSubtitleErrorCode | undefined {
   if (isLocalSubtitleErrorCode(localSubtitleCode)) return localSubtitleCode;
   const code = Reflect.get(error, "code");
   return isLocalSubtitleErrorCode(code) ? code : undefined;
+}
+
+function errorStopsBatch(code: LocalSubtitleErrorCode): boolean {
+  const scope = LOCAL_SUBTITLE_ERROR_MANIFEST[code].scope;
+  return scope === "batch" || scope === "session";
 }
 
 function operationStage(error: unknown): LocalSubtitleOperationStage | undefined {

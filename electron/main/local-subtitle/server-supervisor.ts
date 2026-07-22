@@ -318,6 +318,7 @@ export class LocalSubtitleServerSupervisor {
   readonly #delay: NonNullable<LocalSubtitleServerSupervisorDependencies["delay"]>;
   readonly #leases = new Map<LocalSubtitleServerLease, LeaseRecord>();
   readonly #releasedOwners = new Set<string>();
+  readonly #activeOwners = new Set<string>();
   readonly #backgroundCleanup = new Set<Promise<void>>();
   #state: LocalSubtitleServerSupervisorState = "unloaded";
   #epoch: ServerProcessEpoch | undefined;
@@ -327,6 +328,7 @@ export class LocalSubtitleServerSupervisor {
   #startController: AbortController | undefined;
   #startPromise: Promise<void> | undefined;
   #idleTimer: NodeJS.Timeout | undefined;
+  #idleTimerToken: object | undefined;
   #disposed = false;
   #shutdownPromise: Promise<void> | undefined;
   #lastDiagnostics: LocalSubtitleDiagnostics | undefined;
@@ -451,6 +453,7 @@ export class LocalSubtitleServerSupervisor {
       current?.state === "ready" &&
       canReuseLocalSubtitleServerLoadIdentity(current.loadIdentity, loadIdentity)
     ) {
+      this.#registerActiveInferenceOwners(current);
       this.#scheduleIdleShutdown();
       return lease;
     }
@@ -481,6 +484,7 @@ export class LocalSubtitleServerSupervisor {
         await retirement;
         this.#assertLeaseCurrent(record);
       } else {
+        this.#registerActiveInferenceOwners(epoch);
         this.#scheduleIdleShutdown();
       }
       return lease;
@@ -617,13 +621,14 @@ export class LocalSubtitleServerSupervisor {
     }
     await start;
     if (this.#activeLeaseCount() === 0) {
-      await this.#retireCurrentEpoch("last_lease_released");
+      this.#scheduleIdleShutdown();
     }
   }
 
   releaseOwner(owner: LocalSubtitleOwnerKey): void {
     const ownerKey = validateOwner(owner);
     this.#releasedOwners.add(ownerKey);
+    this.#activeOwners.delete(ownerKey);
     for (const record of this.#leases.values()) {
       if (record.ownerKey === ownerKey) this.#deactivateLease(record);
     }
@@ -650,6 +655,7 @@ export class LocalSubtitleServerSupervisor {
     if (terminal) {
       this.#disposed = true;
       this.#state = "disposed";
+      this.#activeOwners.clear();
       for (const record of this.#leases.values()) this.#deactivateLease(record);
     }
     this.#clearIdleTimer();
@@ -738,6 +744,7 @@ export class LocalSubtitleServerSupervisor {
       );
       active.processEpoch = epoch.processEpoch;
       this.#assertActiveRequest(active, epoch);
+      this.#registerActiveInferenceOwners(epoch);
 
       const response = await epoch.client.inference(Object.freeze({
         ...request,
@@ -1205,6 +1212,7 @@ export class LocalSubtitleServerSupervisor {
       epoch.state = "closed";
       if (this.#epoch === epoch) {
         this.#epoch = undefined;
+        this.#activeOwners.clear();
         if (!this.#disposed) this.#state = "unloaded";
       }
     })();
@@ -1318,6 +1326,22 @@ export class LocalSubtitleServerSupervisor {
     return count;
   }
 
+  #registerActiveInferenceOwners(epoch: ServerProcessEpoch): void {
+    if (this.#epoch !== epoch || epoch.state !== "ready") return;
+    for (const record of this.#leases.values()) {
+      if (
+        record.active &&
+        record.loadIdentity.purpose === "inference" &&
+        canReuseLocalSubtitleServerLoadIdentity(
+          epoch.loadIdentity,
+          record.loadIdentity,
+        )
+      ) {
+        this.#activeOwners.add(record.ownerKey);
+      }
+    }
+  }
+
   async #cleanupAfterOwnerRelease(
     active: ActiveRequest | undefined,
     ownerKey: string,
@@ -1327,7 +1351,7 @@ export class LocalSubtitleServerSupervisor {
     if (active?.lease.ownerKey === ownerKey) {
       await this.cancelRequest(active.ticket).catch(() => undefined);
     }
-    if (this.#activeLeaseCount() === 0) {
+    if (this.#activeLeaseCount() === 0 && this.#activeOwners.size === 0) {
       await this.#retireCurrentEpoch("owner_released");
     }
   }
@@ -1344,15 +1368,18 @@ export class LocalSubtitleServerSupervisor {
     if (
       this.#disposed ||
       this.#activeRequest ||
-      this.#activeLeaseCount() === 0 ||
       !this.#epoch ||
       this.#epoch.state !== "ready"
     ) {
       return;
     }
     const capturedEpoch = this.#epoch;
+    const token = {};
+    this.#idleTimerToken = token;
     this.#idleTimer = setTimeout(() => {
+      if (this.#idleTimerToken !== token) return;
       this.#idleTimer = undefined;
+      this.#idleTimerToken = undefined;
       if (
         this.#epoch !== capturedEpoch ||
         this.#activeRequest ||
@@ -1368,6 +1395,7 @@ export class LocalSubtitleServerSupervisor {
   }
 
   #clearIdleTimer(): void {
+    this.#idleTimerToken = undefined;
     if (!this.#idleTimer) return;
     clearTimeout(this.#idleTimer);
     this.#idleTimer = undefined;

@@ -80,6 +80,10 @@ describe("local subtitle server supervisor real contract", () => {
       const supervisor = new LocalSubtitleServerSupervisor({
         managedResourceRoot,
       });
+      const owner = Object.freeze({
+        webContentsId: 1,
+        ownerSessionId: "be001-real-owner",
+      });
       let lease:
         | Awaited<ReturnType<LocalSubtitleServerSupervisor["acquire"]>>
         | undefined;
@@ -103,7 +107,7 @@ describe("local subtitle server supervisor real contract", () => {
         });
 
         lease = await supervisor.acquire(
-          { webContentsId: 1, ownerSessionId: "be001-real-owner" },
+          owner,
           {
             verifiedRuntime,
             serverArtifactId,
@@ -161,6 +165,14 @@ describe("local subtitle server supervisor real contract", () => {
 
         await supervisor.release(lease);
         lease = undefined;
+        expect(supervisor.snapshot).toMatchObject({
+          state: "ready",
+          processId: firstPid,
+          leaseCount: 0,
+          activeRequest: false,
+        });
+        supervisor.releaseOwner(owner);
+        await supervisor.drainBackgroundCleanup();
         expect(supervisor.snapshot).toMatchObject({
           state: "unloaded",
           leaseCount: 0,
