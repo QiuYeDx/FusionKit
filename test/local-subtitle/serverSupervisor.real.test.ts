@@ -107,14 +107,17 @@ describe("local subtitle server supervisor real contract", () => {
           {
             verifiedRuntime,
             serverArtifactId,
+            purpose: "inference",
             backend: "cpu",
             model: {
+              storage: "managed",
               id: LOCAL_SUBTITLE_PRODUCTION_CONTRACT.launchModel.id,
               absolutePath: modelPath,
               byteSize: modelStat.size,
               sha256: LOCAL_SUBTITLE_PRODUCTION_CONTRACT.launchModel.sha256,
             },
             vadModel: {
+              storage: "managed",
               id: LOCAL_SUBTITLE_PRODUCTION_CONTRACT.vad.id,
               absolutePath: vadPath,
               byteSize: vadStat.size,

@@ -22,6 +22,7 @@ import {
   LocalSubtitleServerSupervisorError,
   type LocalSubtitleServerBackendAttestation,
   type LocalSubtitleServerHttpClientLike,
+  type LocalSubtitleServerModelLoadSmokeOptions,
   type LocalSubtitleServerSupervisorLoadOptions,
 } from "../../electron/main/local-subtitle/server-supervisor";
 import {
@@ -39,6 +40,10 @@ const HASH_B = "b".repeat(64);
 const OWNER_A = Object.freeze({ webContentsId: 17, ownerSessionId: "owner-a" });
 const OWNER_B = Object.freeze({ webContentsId: 18, ownerSessionId: "owner-b" });
 const HEALTHY = Object.freeze({ sessionDisposition: "reusable" } as const);
+type InferenceLoadOptions = Extract<
+  LocalSubtitleServerSupervisorLoadOptions,
+  { readonly purpose: "inference" }
+>;
 
 let runtimeFixture: LocalSubtitleRuntimeFixture;
 let verifiedRuntime: LocalSubtitleVerifiedRuntimeBundle;
@@ -90,6 +95,7 @@ describe("LocalSubtitleServerSupervisor", () => {
       processEpoch: initial.processEpoch,
       processId: initial.processId,
       leaseCount: 2,
+      purpose: "inference",
       backend: "cpu",
     });
     expect(harness.supervisor.snapshot).not.toHaveProperty("backendVerified");
@@ -98,6 +104,156 @@ describe("LocalSubtitleServerSupervisor", () => {
     expect(harness.children[0]?.killSignals).toEqual([]);
     await harness.supervisor.release(second);
     expect(harness.children[0]?.killSignals).toEqual(["SIGTERM"]);
+  });
+
+  it("retires a model load smoke before success without VAD or inference", async () => {
+    const child = new FakeChild({ closeOnSignal: "never" });
+    const client = new FakeHttpClient();
+    const harness = createHarness({ children: [child], clients: [client] });
+    let settled = false;
+
+    const smoke = harness.supervisor
+      .smokeModelLoad(OWNER_A, smokeLoadOptions())
+      .finally(() => {
+        settled = true;
+      });
+    await waitFor(() => child.killSignals.includes("SIGTERM"));
+
+    expect(settled).toBe(false);
+    expect(harness.cleanupEvents).toEqual([]);
+    expect(client.readinessCalls).toBe(1);
+    expect(client.inferenceCalls).toBe(0);
+    expect(harness.spawnRecords[0]?.args).not.toContain("--vad-model");
+    expect(
+      harness.spawnRecords[0]?.args.filter((value) => value === "--no-gpu"),
+    ).toEqual(["--no-gpu"]);
+
+    child.stderr.write("late smoke shutdown line\n");
+    child.close(null, "SIGTERM");
+    await expect(smoke).resolves.toBeUndefined();
+
+    expect(harness.cleanupEvents).toEqual([
+      expect.objectContaining({ childClosed: true }),
+    ]);
+    expect(harness.supervisor.snapshot).toMatchObject({
+      state: "unloaded",
+      leaseCount: 0,
+      activeRequest: false,
+      lastDiagnostics: {
+        lines: expect.arrayContaining(["[stderr] late smoke shutdown line"]),
+      },
+    });
+    expect(harness.supervisor.snapshot).not.toHaveProperty("processEpoch");
+  });
+
+  it("keeps smoke leases purpose-bound and incompatible with inference reuse", async () => {
+    const smokeClient = new FakeHttpClient();
+    const inferenceClient = new FakeHttpClient();
+    const harness = createHarness({ clients: [smokeClient, inferenceClient] });
+    const smokeLease = await harness.supervisor.acquire(
+      OWNER_A,
+      smokeLoadOptions(),
+    );
+
+    expect(harness.supervisor.snapshot).toMatchObject({
+      state: "unloaded",
+      leaseCount: 1,
+    });
+    expect(() =>
+      harness.supervisor.beginInference(smokeLease, inferenceRequest(1)),
+    ).toThrow(expect.objectContaining({ code: "invalid_configuration" }));
+    await expect(
+      harness.supervisor.acquire(OWNER_B, loadOptions()),
+    ).rejects.toMatchObject({ code: "resource_busy" });
+    expect(smokeClient.inferenceCalls).toBe(0);
+
+    await harness.supervisor.release(smokeLease);
+    const inferenceLease = await harness.supervisor.acquire(
+      OWNER_B,
+      loadOptions(),
+    );
+    expect(harness.spawnRecords).toHaveLength(2);
+    expect(harness.supervisor.snapshot).toMatchObject({
+      state: "ready",
+      purpose: "inference",
+      leaseCount: 1,
+    });
+    await harness.supervisor.release(inferenceLease);
+  });
+
+  it("rejects a matching smoke in the ready-to-retire window", async () => {
+    let harness!: SupervisorHarness;
+    let second: Promise<void> | undefined;
+    let observationError: Error | undefined;
+    const observedReady = deferred<void>();
+    const client = new FakeHttpClient({
+      readiness: [() => {
+        let checks = 0;
+        const observe = () => {
+          if (harness.supervisor.snapshot.state === "ready") {
+            second = harness.supervisor.smokeModelLoad(
+              OWNER_B,
+              smokeLoadOptions(),
+            );
+            observedReady.resolve(undefined);
+            return;
+          }
+          checks += 1;
+          if (checks >= 100) {
+            observationError = new Error(
+              "The smoke process did not expose its ready retirement window.",
+            );
+            observedReady.resolve(undefined);
+            return;
+          }
+          queueMicrotask(observe);
+        };
+        queueMicrotask(observe);
+        return Promise.resolve(HEALTHY);
+      }],
+    });
+    harness = createHarness({ clients: [client] });
+    const first = harness.supervisor.smokeModelLoad(OWNER_A, smokeLoadOptions());
+
+    await observedReady.promise;
+    if (observationError) throw observationError;
+    await expect(second).rejects.toMatchObject({ code: "resource_busy" });
+
+    await expect(first).resolves.toBeUndefined();
+    expect(harness.spawnRecords).toHaveLength(1);
+  });
+
+  it("rejects smoke success when closed-session cleanup fails", async () => {
+    const harness = createHarness({ cleanupFailures: 1 });
+
+    await expect(
+      harness.supervisor.smokeModelLoad(OWNER_A, smokeLoadOptions()),
+    ).rejects.toMatchObject({
+      code: "runtime_unresponsive",
+      processEpoch: 1,
+    });
+    expect(harness.cleanupEvents).toHaveLength(1);
+    expect(harness.supervisor.snapshot).toMatchObject({
+      state: "faulted",
+      leaseCount: 0,
+    });
+
+    await expect(harness.supervisor.shutdown("app_quit")).resolves.toBeUndefined();
+    expect(harness.cleanupEvents).toHaveLength(2);
+  });
+
+  it("rejects a smoke VAD before creating a private process session", async () => {
+    const harness = createHarness();
+    const invalid = {
+      ...smokeLoadOptions(),
+      vadModel: loadOptions().vadModel,
+    };
+
+    await expect(
+      harness.supervisor.smokeModelLoad(OWNER_A, invalid as never),
+    ).rejects.toMatchObject({ code: "invalid_configuration" });
+    expect(harness.spawnRecords).toHaveLength(0);
+    expect(harness.cleanupEvents).toHaveLength(0);
   });
 
   it("rejects a different load identity while a lease is active", async () => {
@@ -744,14 +900,16 @@ async function resolveOutcome(
 }
 
 function loadOptions(
-  overrides: Partial<LocalSubtitleServerSupervisorLoadOptions> = {},
-): LocalSubtitleServerSupervisorLoadOptions {
+  overrides: Partial<InferenceLoadOptions> = {},
+): InferenceLoadOptions {
   return {
     verifiedRuntime,
     serverArtifactId: SERVER_ARTIFACT_ID,
+    purpose: "inference",
     backend: "cpu",
     model: managedModel("large-v3-q5_0", HASH_A),
     vadModel: {
+      storage: "managed",
       id: LOCAL_SUBTITLE_PRODUCTION_CONTRACT.vad.id,
       absolutePath: path.join(managedRoot(), "vad", "vad.bin"),
       byteSize: 885_098,
@@ -762,8 +920,33 @@ function loadOptions(
   };
 }
 
+function smokeLoadOptions(
+  overrides: Partial<LocalSubtitleServerModelLoadSmokeOptions> = {},
+): LocalSubtitleServerModelLoadSmokeOptions {
+  return {
+    verifiedRuntime,
+    serverArtifactId: SERVER_ARTIFACT_ID,
+    purpose: "model_load_smoke",
+    backend: "cpu",
+    model: {
+      storage: "managed_staging",
+      id: "large-v3-q5_0",
+      absolutePath: path.join(
+        managedRoot(),
+        "model-staging",
+        "large-v3-q5_0.bin",
+      ),
+      byteSize: 1_081_140_203,
+      sha256: HASH_A,
+    },
+    threads: 1,
+    ...overrides,
+  };
+}
+
 function managedModel(id: string, sha256: string) {
   return {
+    storage: "managed" as const,
     id,
     absolutePath: path.join(managedRoot(), "models", id, "model.bin"),
     byteSize: 1_081_140_203,

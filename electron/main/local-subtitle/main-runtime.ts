@@ -5,46 +5,43 @@ export type LocalSubtitleMainRuntimeShutdownReason =
   | "update"
   | "fatal";
 
-export interface LocalSubtitleMainRuntimeMediaTarget {
+export interface LocalSubtitleMainRuntimeTarget {
   releaseOwner(owner: LocalSubtitleOwnerKey): void;
   shutdown(reason: LocalSubtitleMainRuntimeShutdownReason): Promise<void>;
 }
 
-export interface LocalSubtitleMainRuntimeServerTarget {
-  releaseOwner(owner: LocalSubtitleOwnerKey): void;
-  shutdown(reason: LocalSubtitleMainRuntimeShutdownReason): Promise<void>;
-}
+export type LocalSubtitleMainRuntimeMediaTarget = LocalSubtitleMainRuntimeTarget;
+export type LocalSubtitleMainRuntimeServerTarget = LocalSubtitleMainRuntimeTarget;
 
 export class LocalSubtitleMainRuntime {
-  readonly #media: LocalSubtitleMainRuntimeMediaTarget;
-  readonly #server: LocalSubtitleMainRuntimeServerTarget;
+  readonly #targets: readonly LocalSubtitleMainRuntimeTarget[];
   #shutdownOperation: Promise<void> | undefined;
   #shutdownSucceeded = false;
 
   constructor(
     media: LocalSubtitleMainRuntimeMediaTarget,
     server: LocalSubtitleMainRuntimeServerTarget,
+    ...additionalTargets: readonly LocalSubtitleMainRuntimeTarget[]
   ) {
-    if (
-      !media ||
-      typeof media.releaseOwner !== "function" ||
-      typeof media.shutdown !== "function" ||
-      !server ||
-      typeof server.releaseOwner !== "function" ||
-      typeof server.shutdown !== "function"
-    ) {
+    const targets = [media, server, ...additionalTargets];
+    if (targets.some((target) => !isRuntimeTarget(target))) {
       throw new TypeError("The local subtitle main runtime targets are invalid.");
     }
-    this.#media = media;
-    this.#server = server;
+    this.#targets = Object.freeze([...targets]);
   }
 
   releaseOwner(owner: LocalSubtitleOwnerKey): void {
-    try {
-      this.#media.releaseOwner(owner);
-    } finally {
-      this.#server.releaseOwner(owner);
+    let firstFailure: unknown;
+    let failed = false;
+    for (const target of this.#targets) {
+      try {
+        target.releaseOwner(owner);
+      } catch (error) {
+        if (!failed) firstFailure = error;
+        failed = true;
+      }
     }
+    if (failed) throw firstFailure;
   }
 
   shutdown(reason: LocalSubtitleMainRuntimeShutdownReason): Promise<void> {
@@ -52,10 +49,9 @@ export class LocalSubtitleMainRuntime {
     if (this.#shutdownOperation) return this.#shutdownOperation;
 
     let operation: Promise<void>;
-    operation = Promise.allSettled([
-      invokeShutdown(this.#media, reason),
-      invokeShutdown(this.#server, reason),
-    ])
+    operation = Promise.allSettled(
+      this.#targets.map((target) => invokeShutdown(target, reason)),
+    )
       .then((results) => {
         const failure = results.find(
           (result): result is PromiseRejectedResult =>
@@ -76,7 +72,7 @@ export class LocalSubtitleMainRuntime {
 }
 
 function invokeShutdown(
-  target: Pick<LocalSubtitleMainRuntimeMediaTarget, "shutdown">,
+  target: Pick<LocalSubtitleMainRuntimeTarget, "shutdown">,
   reason: LocalSubtitleMainRuntimeShutdownReason,
 ): Promise<void> {
   try {
@@ -84,4 +80,13 @@ function invokeShutdown(
   } catch (error) {
     return Promise.reject(error);
   }
+}
+
+function isRuntimeTarget(value: unknown): value is LocalSubtitleMainRuntimeTarget {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    typeof (value as LocalSubtitleMainRuntimeTarget).releaseOwner === "function" &&
+    typeof (value as LocalSubtitleMainRuntimeTarget).shutdown === "function"
+  );
 }

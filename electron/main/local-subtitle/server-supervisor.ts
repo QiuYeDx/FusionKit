@@ -28,6 +28,7 @@ import {
   type LocalSubtitleServerEndpoint,
   type LocalSubtitleServerLoadIdentity,
   type LocalSubtitleServerProcessDescriptor,
+  type LocalSubtitleServerPurpose,
 } from "./server-process-contract";
 import {
   createLocalSubtitleServerDiagnosticCollector,
@@ -107,12 +108,21 @@ export class LocalSubtitleServerSupervisorError extends Error {
   }
 }
 
-export type LocalSubtitleServerSupervisorLoadOptions = Omit<
-  CreateLocalSubtitleServerLoadIdentityOptions,
-  "managedResourceRoot"
-> & {
-  readonly sourceEnvironment?: Readonly<Record<string, string | undefined>>;
-};
+type LocalSubtitleServerSupervisorLoadOptionsFor<
+  Options extends CreateLocalSubtitleServerLoadIdentityOptions,
+> = Options extends CreateLocalSubtitleServerLoadIdentityOptions
+  ? Omit<Options, "managedResourceRoot"> & {
+      readonly sourceEnvironment?: Readonly<Record<string, string | undefined>>;
+    }
+  : never;
+
+export type LocalSubtitleServerSupervisorLoadOptions =
+  LocalSubtitleServerSupervisorLoadOptionsFor<CreateLocalSubtitleServerLoadIdentityOptions>;
+
+export type LocalSubtitleServerModelLoadSmokeOptions = Extract<
+  LocalSubtitleServerSupervisorLoadOptions,
+  { readonly purpose: "model_load_smoke" }
+>;
 
 export interface LocalSubtitleServerLease {
   readonly [LEASE_BRAND]: true;
@@ -135,6 +145,7 @@ export interface LocalSubtitleServerSupervisorInferenceResponse {
 export interface LocalSubtitleServerReadySummary {
   readonly processEpoch: number;
   readonly processId: number;
+  readonly purpose: LocalSubtitleServerPurpose;
   readonly backend: LocalSubtitleBackend;
   readonly modelId: string;
   readonly runtimeGeneration: string;
@@ -146,6 +157,7 @@ export interface LocalSubtitleServerSupervisorSnapshot {
   readonly state: LocalSubtitleServerSupervisorState;
   readonly processEpoch?: number;
   readonly processId?: number;
+  readonly purpose?: LocalSubtitleServerPurpose;
   readonly backend?: LocalSubtitleBackend;
   readonly modelId?: string;
   readonly runtimeGeneration?: string;
@@ -391,6 +403,7 @@ export class LocalSubtitleServerSupervisor {
         : {
             processEpoch: epoch.processEpoch,
             ...(epoch.child.pid === undefined ? {} : { processId: epoch.child.pid }),
+            purpose: epoch.loadIdentity.purpose,
             backend: epoch.loadIdentity.backend,
             modelId: epoch.loadIdentity.model.id,
             runtimeGeneration: epoch.loadIdentity.runtimeGeneration,
@@ -414,10 +427,10 @@ export class LocalSubtitleServerSupervisor {
     const ownerKey = validateOwner(owner);
     if (this.#releasedOwners.has(ownerKey)) throw ownerReleasedError();
     const canonicalLoadOptions = snapshotLoadOptions(loadOptions);
-    const loadIdentity = createLocalSubtitleServerLoadIdentity({
-      ...canonicalLoadOptions,
-      managedResourceRoot: this.#managedResourceRoot,
-    });
+    const loadIdentity = createSupervisorLoadIdentity(
+      canonicalLoadOptions,
+      this.#managedResourceRoot,
+    );
     this.#assertLoadCompatibleWithLeases(loadIdentity);
 
     const lease = createLease();
@@ -433,6 +446,7 @@ export class LocalSubtitleServerSupervisor {
 
     const current = this.#epoch;
     if (
+      loadIdentity.purpose === "inference" &&
       current?.state === "ready" &&
       canReuseLocalSubtitleServerLoadIdentity(current.loadIdentity, loadIdentity)
     ) {
@@ -449,15 +463,30 @@ export class LocalSubtitleServerSupervisor {
     this.#startOwnerKey = ownerKey;
     this.#startController = controller;
     const start = this.#ensureEpoch(record, controller.signal, false);
+    let smokeRetirementStarted = false;
     try {
-      await start;
+      const epoch = await start;
       this.#assertLeaseCurrent(record);
-      this.#scheduleIdleShutdown();
+      if (record.loadIdentity.purpose === "model_load_smoke") {
+        if (
+          this.#epoch !== epoch ||
+          epoch.state !== "ready" ||
+          epoch.closeInfo !== undefined
+        ) {
+          throw crashedError(epoch);
+        }
+        smokeRetirementStarted = true;
+        const retirement = this.#retireEpoch(epoch, "model_load_smoke_complete");
+        await retirement;
+        this.#assertLeaseCurrent(record);
+      } else {
+        this.#scheduleIdleShutdown();
+      }
       return lease;
     } catch (error) {
       this.#deactivateLease(record);
       let failure: unknown = error;
-      if (this.#activeLeaseCount() === 0) {
+      if (this.#activeLeaseCount() === 0 && !smokeRetirementStarted) {
         await this.#retireCurrentEpoch("acquire_failed").catch((cleanupError) => {
           failure = cleanupError;
         });
@@ -472,6 +501,19 @@ export class LocalSubtitleServerSupervisor {
     }
   }
 
+  async smokeModelLoad(
+    owner: LocalSubtitleOwnerKey,
+    loadOptions: LocalSubtitleServerModelLoadSmokeOptions,
+    signal?: AbortSignal,
+  ): Promise<void> {
+    let lease: LocalSubtitleServerLease | undefined;
+    try {
+      lease = await this.acquire(owner, loadOptions, signal);
+    } finally {
+      if (lease !== undefined) await this.release(lease);
+    }
+  }
+
   beginInference(
     lease: LocalSubtitleServerLease,
     request: LocalSubtitleServerInferenceRequest,
@@ -479,6 +521,11 @@ export class LocalSubtitleServerSupervisor {
     this.#assertAvailable();
     const leaseRecord = this.#requireLease(lease);
     this.#assertLeaseCurrent(leaseRecord);
+    if (leaseRecord.loadIdentity.purpose !== "inference") {
+      throw invalidConfigurationError(
+        "A model load smoke lease cannot run inference.",
+      );
+    }
     if (this.#activeRequest || this.#startController || this.#shutdownPromise) {
       throw resourceBusyError();
     }
@@ -806,8 +853,7 @@ export class LocalSubtitleServerSupervisor {
       const endpoint = createLocalSubtitleServerEndpoint({
         port: reservation.port,
       });
-      const descriptor = createLocalSubtitleServerProcessDescriptor({
-        ...lease.loadOptions,
+      const descriptor = createSupervisorProcessDescriptor(lease.loadOptions, {
         endpoint,
         managedResourceRoot: this.#managedResourceRoot,
         sessionRoot: session.root,
@@ -837,7 +883,9 @@ export class LocalSubtitleServerSupervisor {
           descriptor.loadIdentity.runtimeRoot,
           descriptor.loadIdentity.managedResourceRoot,
           descriptor.loadIdentity.model.absolutePath,
-          descriptor.loadIdentity.vadModel.absolutePath,
+          ...(descriptor.loadIdentity.purpose === "inference"
+            ? [descriptor.loadIdentity.vadModel.absolutePath]
+            : []),
           session.baseRoot,
           session.root,
           session.publicDirectory,
@@ -1528,15 +1576,64 @@ function snapshotLoadOptions(
   const sourceEnvironment = options.sourceEnvironment === undefined
     ? undefined
     : Object.freeze({ ...options.sourceEnvironment });
-  return Object.freeze({
+  const common = {
     verifiedRuntime: options.verifiedRuntime,
     serverArtifactId: options.serverArtifactId,
+    threads: options.threads,
+    ...(sourceEnvironment === undefined ? {} : { sourceEnvironment }),
+  };
+  if (options.purpose === "model_load_smoke") {
+    if (Object.prototype.hasOwnProperty.call(options, "vadModel")) {
+      throw invalidConfigurationError(
+        "A model load smoke cannot include a VAD model.",
+      );
+    }
+    return Object.freeze({
+      ...common,
+      purpose: options.purpose,
+      backend: options.backend,
+      model: Object.freeze({ ...options.model }),
+    });
+  }
+  return Object.freeze({
+    ...common,
+    purpose: options.purpose,
     backend: options.backend,
     model: Object.freeze({ ...options.model }),
     vadModel: Object.freeze({ ...options.vadModel }),
-    threads: options.threads,
-    ...(sourceEnvironment === undefined ? {} : { sourceEnvironment }),
   });
+}
+
+function createSupervisorLoadIdentity(
+  options: LocalSubtitleServerSupervisorLoadOptions,
+  managedResourceRoot: string,
+): LocalSubtitleServerLoadIdentity {
+  if (options.purpose === "model_load_smoke") {
+    return createLocalSubtitleServerLoadIdentity({
+      ...options,
+      managedResourceRoot,
+    });
+  }
+  return createLocalSubtitleServerLoadIdentity({
+    ...options,
+    managedResourceRoot,
+  });
+}
+
+function createSupervisorProcessDescriptor(
+  options: LocalSubtitleServerSupervisorLoadOptions,
+  session: Readonly<{
+    endpoint: LocalSubtitleServerEndpoint;
+    managedResourceRoot: string;
+    sessionRoot: string;
+    emptyPublicDirectory: string;
+    temporaryDirectory: string;
+  }>,
+): LocalSubtitleServerProcessDescriptor {
+  if (options.purpose === "model_load_smoke") {
+    return createLocalSubtitleServerProcessDescriptor({ ...options, ...session });
+  }
+  return createLocalSubtitleServerProcessDescriptor({ ...options, ...session });
 }
 
 function snapshotInferenceRequest(

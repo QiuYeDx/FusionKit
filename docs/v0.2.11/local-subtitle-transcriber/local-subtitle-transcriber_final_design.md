@@ -4,7 +4,7 @@
 >
 > Feature Slug：`local-subtitle-transcriber`
 >
-> 状态：调研、Final Design、`PRE-001`～`PRE-006`、`CORE-001`～`CORE-004`、`NATIVE-001`、`BE-001`、`MEDIA-001`、`SUB-001` 与 `SUB-002` 已完成。production decision record 固定 `whisper.cpp v1.9.1`、Node-managed HTTP contract v1、`large-v3-q5_0` 首发默认、跨平台 FFmpeg 8.1.2、Windows unsigned personal profile 与目标平台矩阵；shared schema、resource staging、preload/IPC/capability、renderer session、official server contract、真实 Supervisor 生命周期、media normalization/PCM proof、canonical post-processing、SRT/LRC 原子导出与 Artifact Registry 合同已冻结。下一步可执行 `NATIVE-002`、`MODEL-001` 或 `LINK-001`，`BE-002` 仍等待模型管理依赖
+> 状态：调研、Final Design、`PRE-001`～`PRE-006`、`CORE-001`～`CORE-004`、`NATIVE-001`、`BE-001`、`MEDIA-001`、`SUB-001`、`SUB-002` 与 `MODEL-001` 已完成。production decision record 固定 `whisper.cpp v1.9.1`、Node-managed HTTP contract v1、`large-v3-q5_0` 首发默认、跨平台 FFmpeg 8.1.2、Windows unsigned personal profile 与目标平台矩阵；shared schema、resource staging、preload/IPC/capability、renderer session、official server contract、真实 Supervisor 生命周期、media normalization/PCM proof、canonical post-processing、SRT/LRC 原子导出、Artifact Registry 与 managed model 合同已冻结。`BE-002` 的实现依赖已解除，下一步优先形成单文件 CPU → SRT 的 Job Manager 纵向切片
 >
 > 产品定位：使用本地算力把批量音频/视频转成可直接翻译的 SRT/LRC 字幕
 >
@@ -53,6 +53,8 @@
 > 2026-07-21 MEDIA-001 完成：新增 shell-free bounded FFmpeg/ffprobe process contract、固定 bundle/version/no-PATH attestation、授权源 snapshot 与音轨 binding、decode-time `-t`/`-fs` guard、RIFF/RF64 16 kHz mono PCM16 校验、exact frame window/SHA-256/main-only proof，以及 owner fault/release/app shutdown 的 close-gated cleanup；`probeMedia` 已接入 app-scoped runtime。聚焦 4 files / 84 tests、全量 121 passed + 2 skipped files / 1312 passed + 2 skipped tests、TypeScript、三段 Vite test build、manifest/validator 与 diff gate 通过。目标平台 final bytes、`extraResources`、builder/signing 与 packaged no-PATH smoke 仍属 `NATIVE-002`；dispatch/response 原子 binding 与启动 orphan 扫描仍属 `BE-002` / `BE-003`。
 
 > 2026-07-22 SUB-002 完成：新增 strict SRT/LRC formatter/parser/round-trip、同目录 `0600` exclusive partial、index hard-link no-clobber、overwrite atomic rename、目录对象 mutex、full/partial/none-success 与 commit 前后取消，以及 owner/task/generation/TTL/operation-bound Artifact Registry。partial stable identity 与 mutable size 分离，required cleanup failure 显式上报，hard-link detach/Registry activation 失败回滚 final 且不签发 ref。read/reveal 已接入 app-scoped IPC，并在每次操作重验目录/文件 identity、size/hash、UTF-8 与格式；`handoffArtifact` 仍由 `LINK-006` 实现。聚焦 5 files / 94 tests、local-subtitle 23 passed + 2 skipped files / 431 passed + 2 skipped tests、全量 124 passed + 2 skipped files / 1383 passed + 2 skipped tests、TypeScript、三段 Vite test build、manifest/validator 与 diff gate 通过。
+
+> 2026-07-22 MODEL-001 完成：新增 strict model manifest、abortable GGML verifier、app-scoped Session Registry/ResourceJob、managed copy/move staging、CPU no-VAD load smoke 与 fixed model IPC/main lifecycle。private roots、staging、commit、list/resolve、owner release 和 shutdown 均绑定 filesystem identity；move 删除异常保留最后一份 verified copy，quarantine rediscovery 需要本事务 creation receipt。聚焦 4 files / 50 tests、local-subtitle 29 passed + 2 skipped files / 504 passed + 2 skipped tests、全量 130 passed + 2 skipped files / 1456 passed + 2 skipped tests、TypeScript、三段 Vite test build、manifest/validator 与 diff gate 通过。`BE-002` 依赖已解除，真实 packaged model/runtime 证据仍属 `NATIVE-002`。
 
 ---
 
@@ -1386,7 +1388,7 @@ resources/local-subtitle/
 
 ## 18. 分期实施建议（高层阶段）
 
-本节保留架构层面的阶段划分；可认领的工作包、依赖、状态、验证和实施记录以 `local-subtitle-transcriber_execution_plan.md` 为唯一执行台账。Execution Plan 已于 2026-07-16 建立，当前 `PRE-001`～`PRE-006`、`CORE-001`～`CORE-004`、`NATIVE-001`、`BE-001`、`MEDIA-001`、`SUB-001` 与 `SUB-002` 已完成，M1 的 schema、resource staging、IPC/capability、renderer session、official server contract、真实 Supervisor 生命周期、media normalization/PCM proof、canonical post-processing 和标准字幕原子产物合同均已冻结。下一步可按依赖推进 `NATIVE-002`、`MODEL-001` 或 `LINK-001`；`BE-002` 仍等待模型管理依赖。Windows personal distribution 的 unsigned profile 已明确；Developer ID、公证和 Gatekeeper accepted 只由未来 `QA-004` 验收 macOS 分发产物。
+本节保留架构层面的阶段划分；可认领的工作包、依赖、状态、验证和实施记录以 `local-subtitle-transcriber_execution_plan.md` 为唯一执行台账。Execution Plan 已于 2026-07-16 建立，当前 `PRE-001`～`PRE-006`、`CORE-001`～`CORE-004`、`NATIVE-001`、`BE-001`、`MEDIA-001`、`SUB-001`、`SUB-002` 与 `MODEL-001` 已完成，M1 的 schema、resource staging、IPC/capability、renderer session、official server contract、真实 Supervisor 生命周期、media normalization/PCM proof、canonical post-processing、标准字幕原子产物和 managed model 合同均已冻结。`BE-002` 的依赖现已解除，应优先形成单文件 CPU → SRT Job Manager 纵向切片；`NATIVE-002`、`MODEL-002` 与 `LINK-001` 可按各自里程碑继续推进。Windows personal distribution 的 unsigned profile 已明确；Developer ID、公证和 Gatekeeper accepted 只由未来 `QA-004` 验收 macOS 分发产物。
 
 其中本节原先汇总为一个 `PRE-001` 的跨平台 PoC，在 Execution Plan 中拆为 `PRE-001`～`PRE-006`，以避免把基准、CPU runner、Windows CUDA、macOS Metal、FFmpeg/打包许可和最终技术冻结塞进一个无法单会话闭环的工作包。其余高层包也在执行计划中按安全边界和可验证纵向切片进一步拆分。
 
@@ -1500,6 +1502,9 @@ PRE-001 已解锁 runtime 开发，PRE-003 已确定 Windows CPU/CUDA，PRE-004 
 - 本地 GGML 导入必须通过 no-follow header/架构/大小/SHA-256 校验，默认复制；显式移动仍先进入受管 staging，校验和 load smoke 全部成功并原子提交后才删除源文件。CTranslate2/faster-whisper 目录和任意外部运行时路径一律拒绝。
 - 导入使用可查询/取消的 `ResourceJob`，并由 app-scoped、per-owner `LocalSubtitleSessionRegistry` 独占 `{ revision, batches, resourceJobs }`；MODEL-001 初始 `batches=[]`，每次 mutation 只增加一次共享 revision，BE-002 后续扩展同一个 registry。
 - Supervisor 调用显式区分 `purpose=inference` 与 `purpose=model_load_smoke`。smoke 只允许 CPU、verified runtime 和 managed staging model，不加载 VAD、不执行 inference；readiness 成功后必须先 retire/cleanup 才返回 ready。正常 inference 继续要求 pinned VAD。
+- 本包已于 2026-07-22 完成：model catalog 运行时深校验、跨平台安全叶名、abortable GGML 分块校验、`0700` managed/models/staging identity proof、copy/move staging、CPU no-VAD load smoke、hard-link no-clobber commit、list/resolve 复验、owner/app shutdown cleanup 与 identity-bound move recovery 已接入 app-scoped main runtime 和 fixed IPC。
+- move 回滚保留最后一份 verified managed copy，直到源路径恢复成功；隔离 rediscovery 必须先有本事务成功创建 path 的 receipt，不能凭相同 inode/prefix 认领既有隐藏链接。空 model 目录、symlink、root replacement、late verification/cache write 和 verifier metadata drift 均 fail closed。
+- 验收：MODEL 聚焦 4 files / 50 tests、local-subtitle 29 passed + 2 skipped files / 504 passed + 2 skipped tests、全量 130 passed + 2 skipped files / 1456 passed + 2 skipped tests；TypeScript、renderer/main/preload 三段 Vite test build、manifest 0/0、validator 17/17 与 diff gate 通过。默认真实 server tests 保持 2 skipped，本包未把 unit smoke 冒充 packaged/target-hardware 证据。
 
 ### MODEL-002：下载、VAD、删除与 accelerator pack
 
@@ -1683,9 +1688,9 @@ Electron 视觉/交互验证必须等待 preload loading 完全退出。若启�
 
 ## 22. 推荐下一步
 
-`PRE-001`～`PRE-006`、`CORE-001`～`CORE-004`、`NATIVE-001`、`BE-001`、`MEDIA-001`、`SUB-001` 与 `SUB-002` 已完成，M1 的共享 schema、resource manifest/resolver/staging、preload/IPC/capability、renderer session runtime、official server transport/process contract、真实 Supervisor 生命周期、media normalization/PCM proof、canonical post-processing 和标准字幕原子产物合同已冻结。唯一 production decision record 是 `poc/pre006-production-decision.json`，后续实现不得静默更换引擎、平台矩阵、首发模型或 media acquisition policy；SUB-001 自有 policy 也不得伪装为 PRE-006 字段。
+`PRE-001`～`PRE-006`、`CORE-001`～`CORE-004`、`NATIVE-001`、`BE-001`、`MEDIA-001`、`SUB-001`、`SUB-002` 与 `MODEL-001` 已完成，M1 的共享 schema、resource manifest/resolver/staging、preload/IPC/capability、renderer session runtime、official server transport/process contract、真实 Supervisor 生命周期、media normalization/PCM proof、canonical post-processing、标准字幕原子产物和 managed model 合同已冻结。唯一 production decision record 是 `poc/pre006-production-decision.json`，后续实现不得静默更换引擎、平台矩阵、首发模型或 media acquisition policy；SUB-001 自有 policy 也不得伪装为 PRE-006 字段。
 
-1. 下一步可认领 `NATIVE-002`、`MODEL-001` 或 `LINK-001`。正式 artifact/builder 接线由 `NATIVE-002` 完成；模型 manifest/import/load smoke 由 `MODEL-001` 完成；翻译配置迁移由 `LINK-001` 完成。`BE-002` 的 MEDIA/SUBTITLE 依赖已解除，但仍依赖 `MODEL-001` 与 CORE capability，不能因为 Supervisor、media proof、post processor 和 exporter 已完成就提前宣称 Job Manager 闭环。
+1. `MODEL-001` 已解除 Job Manager 的最后一个业务依赖；下一步优先认领 `BE-002`，先闭合单文件 CPU → SRT 的 main-only 编排、revision snapshot 与失败/取消合同，再由 `FE-001` 接入最小 UI。正式 artifact/builder、下载/VAD/accelerator 与翻译配置迁移仍分别由 `NATIVE-002`、`MODEL-002`、`LINK-001` 完成。
 2. Windows 继续使用 `unsigned_personal_distribution`；本人/朋友安装不引入证书或信任库变更。若以后明确要求公开低提示分发，受信任 installer 签名/timestamp 才归可选 `QA-003`。
 3. Developer ID、公证和 Gatekeeper accepted 只由 `QA-004` 验收 macOS 分发产物；QA-005 完成分发前第三方 notices/source-offer/NVIDIA DLL 核对。
 4. 仍无需 FusionKit 自写 C++ runner；只有 official server 出现产品必需能力的真实硬缺口，才通过独立工作包重新评估 native bridge。

@@ -25,6 +25,9 @@ import { LocalSubtitleInputAuthorizationRegistry } from "./local-subtitle/author
 import { LocalSubtitleArtifactRegistry } from "./local-subtitle/subtitle-artifact-registry";
 import { LocalSubtitleMainRuntime } from "./local-subtitle/main-runtime";
 import { LocalSubtitleMediaNormalizer } from "./local-subtitle/media-normalizer";
+import { LocalSubtitleModelManager } from "./local-subtitle/model-manager";
+import { LocalSubtitleModelIpcBridge } from "./local-subtitle/model-ipc";
+import { LocalSubtitleSessionRegistry } from "./local-subtitle/session-registry";
 import { LocalSubtitleServerSupervisor } from "./local-subtitle/server-supervisor";
 import { LocalSubtitleServerAppLifecycle } from "./local-subtitle/server-app-lifecycle";
 import {
@@ -187,24 +190,36 @@ app.whenReady().then(() => {
     app.getPath("userData"),
     "local-subtitle",
   );
+  const localSubtitleResourceEnvironment = app.isPackaged
+    ? ({ mode: "packaged", resourcesPath: process.resourcesPath } as const)
+    : ({
+        mode: "development",
+        appRoot: process.env.APP_ROOT!,
+      } as const);
   const localSubtitleInputAuthorizations =
     new LocalSubtitleInputAuthorizationRegistry();
   const localSubtitleArtifacts = new LocalSubtitleArtifactRegistry({
     revealFile: (filePath) => shell.showItemInFolder(filePath),
   });
   const localSubtitleMediaNormalizer = new LocalSubtitleMediaNormalizer({
-    environment: app.isPackaged
-      ? { mode: "packaged", resourcesPath: process.resourcesPath }
-      : { mode: "development", appRoot: process.env.APP_ROOT! },
+    environment: localSubtitleResourceEnvironment,
     managedResourceRoot: localSubtitleManagedResourceRoot,
     inputAuthorizations: localSubtitleInputAuthorizations,
   });
   const localSubtitleServerSupervisor = new LocalSubtitleServerSupervisor({
     managedResourceRoot: localSubtitleManagedResourceRoot,
   });
+  const localSubtitleSessionRegistry = new LocalSubtitleSessionRegistry();
+  const localSubtitleModelManager = new LocalSubtitleModelManager({
+    managedResourceRoot: localSubtitleManagedResourceRoot,
+    runtimeEnvironment: localSubtitleResourceEnvironment,
+    supervisor: localSubtitleServerSupervisor,
+    sessionRegistry: localSubtitleSessionRegistry,
+  });
   const localSubtitleMainRuntime = new LocalSubtitleMainRuntime(
     localSubtitleMediaNormalizer,
     localSubtitleServerSupervisor,
+    localSubtitleModelManager,
   );
   localSubtitleServerLifecycle = new LocalSubtitleServerAppLifecycle(
     localSubtitleMainRuntime,
@@ -215,8 +230,10 @@ app.whenReady().then(() => {
   });
 
   // The sync preload handshake must exist before any renderer starts loading.
-  setupLocalSubtitleIPC(
-    new LocalSubtitleIpcService({
+  const localSubtitleModelIpcBridge = new LocalSubtitleModelIpcBridge(
+    localSubtitleModelManager,
+  );
+  const localSubtitleIpcService = new LocalSubtitleIpcService({
       capabilities: {
         inputs: localSubtitleInputAuthorizations,
         artifacts: localSubtitleArtifacts,
@@ -236,15 +253,20 @@ app.whenReady().then(() => {
               }),
             );
           },
+          ...localSubtitleModelIpcBridge.handlers.public,
         },
-        onOwnerReleased: (owner) =>
+        importModel: localSubtitleModelIpcBridge.handlers.importModel,
+        onOwnerReleased: (owner) => {
+          localSubtitleModelIpcBridge.releaseOwner(owner);
           localSubtitleMainRuntime.releaseOwner({
             webContentsId: owner.senderId,
             ownerSessionId: owner.ownerSessionId,
-          }),
+          });
+        },
       },
-    }),
-  );
+    });
+  localSubtitleModelIpcBridge.attach(localSubtitleIpcService);
+  setupLocalSubtitleIPC(localSubtitleIpcService);
   createWindow();
   setupTranslationIPC(translationService);
   setupPowerIPC(win);

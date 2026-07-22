@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   LocalSubtitleMainRuntime,
   type LocalSubtitleMainRuntimeMediaTarget,
+  type LocalSubtitleMainRuntimeTarget,
   type LocalSubtitleMainRuntimeServerTarget,
 } from "../../electron/main/local-subtitle/main-runtime";
 
@@ -34,6 +35,27 @@ describe("local subtitle main runtime", () => {
 
     expect(() => runtime.releaseOwner(OWNER)).toThrow("media fence failed");
     expect(serverRelease).toHaveBeenCalledWith(OWNER);
+  });
+
+  it("fences every additional target and rethrows the first release failure", () => {
+    const order: string[] = [];
+    const firstFailure = new Error("media fence failed");
+    const runtime = createRuntime({
+      mediaRelease: () => {
+        order.push("media");
+        throw firstFailure;
+      },
+      serverRelease: () => order.push("server"),
+      additionalTargets: [
+        {
+          releaseOwner: () => order.push("model"),
+          shutdown: () => Promise.resolve(),
+        },
+      ],
+    });
+
+    expect(() => runtime.releaseOwner(OWNER)).toThrow(firstFailure);
+    expect(order).toEqual(["media", "server", "model"]);
   });
 
   it("shares composite shutdown and waits for both targets", async () => {
@@ -115,6 +137,24 @@ describe("local subtitle main runtime", () => {
     );
     expect(serverShutdown).toHaveBeenCalledWith("fatal");
   });
+
+  it("starts every additional shutdown target before reporting a failure", async () => {
+    const modelShutdown = vi.fn(() => Promise.resolve());
+    const runtime = createRuntime({
+      mediaShutdown: () => Promise.reject(new Error("media cleanup failed")),
+      additionalTargets: [
+        {
+          releaseOwner: () => undefined,
+          shutdown: modelShutdown,
+        },
+      ],
+    });
+
+    await expect(runtime.shutdown("app_quit")).rejects.toThrow(
+      "media cleanup failed",
+    );
+    expect(modelShutdown).toHaveBeenCalledWith("app_quit");
+  });
 });
 
 function createRuntime(overrides: {
@@ -122,6 +162,7 @@ function createRuntime(overrides: {
   readonly serverRelease?: LocalSubtitleMainRuntimeServerTarget["releaseOwner"];
   readonly mediaShutdown?: LocalSubtitleMainRuntimeMediaTarget["shutdown"];
   readonly serverShutdown?: LocalSubtitleMainRuntimeServerTarget["shutdown"];
+  readonly additionalTargets?: readonly LocalSubtitleMainRuntimeTarget[];
 } = {}): LocalSubtitleMainRuntime {
   const media: LocalSubtitleMainRuntimeMediaTarget = {
     releaseOwner: overrides.mediaRelease ?? (() => undefined),
@@ -131,5 +172,9 @@ function createRuntime(overrides: {
     releaseOwner: overrides.serverRelease ?? (() => undefined),
     shutdown: overrides.serverShutdown ?? (() => Promise.resolve()),
   };
-  return new LocalSubtitleMainRuntime(media, server);
+  return new LocalSubtitleMainRuntime(
+    media,
+    server,
+    ...(overrides.additionalTargets ?? []),
+  );
 }

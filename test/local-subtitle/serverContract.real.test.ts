@@ -106,15 +106,18 @@ describe("local subtitle official server real contract", () => {
         endpoint,
         verifiedRuntime,
         serverArtifactId,
+        purpose: "inference",
         backend: realBackend,
         managedResourceRoot,
         model: {
+          storage: "managed",
           id: LOCAL_SUBTITLE_PRODUCTION_CONTRACT.launchModel.id,
           absolutePath: modelPath,
           byteSize: modelStat.size,
           sha256: LOCAL_SUBTITLE_PRODUCTION_CONTRACT.launchModel.sha256,
         },
         vadModel: {
+          storage: "managed",
           id: LOCAL_SUBTITLE_PRODUCTION_CONTRACT.vad.id,
           absolutePath: vadPath,
           byteSize: vadStat.size,

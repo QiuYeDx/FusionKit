@@ -8,7 +8,9 @@ import {
 } from "../../electron/main/local-subtitle/resource-path";
 import { LocalSubtitleServerContractError } from "../../electron/main/local-subtitle/server-contract";
 import {
+  LOCAL_SUBTITLE_SERVER_MANAGED_RESOURCE_STORAGES,
   LOCAL_SUBTITLE_SERVER_PROCESS_POLICY,
+  LOCAL_SUBTITLE_SERVER_PURPOSES,
   buildLocalSubtitleServerEnvironment,
   canReuseLocalSubtitleServerLoadIdentity,
   createLocalSubtitleServerEndpoint,
@@ -29,6 +31,18 @@ const HASH_A = "a".repeat(64);
 const HASH_B = "b".repeat(64);
 const HASH_C = "c".repeat(64);
 const SERVER_ARTIFACT_ID = "whisper-server-mac-arm64-metal-cpu";
+type InferenceDescriptorOptions = Extract<
+  CreateLocalSubtitleServerProcessDescriptorOptions,
+  { readonly purpose: "inference" }
+>;
+type SmokeDescriptorOptions = Extract<
+  CreateLocalSubtitleServerProcessDescriptorOptions,
+  { readonly purpose: "model_load_smoke" }
+>;
+type InferenceLoadIdentity = Extract<
+  LocalSubtitleServerLoadIdentity,
+  { readonly purpose: "inference" }
+>;
 let runtimeFixture: LocalSubtitleRuntimeFixture;
 let verifiedRuntime: LocalSubtitleVerifiedRuntimeBundle;
 
@@ -46,6 +60,21 @@ afterAll(async () => {
 });
 
 describe("local subtitle server process contract", () => {
+  it("freezes the exact server purpose and managed-storage discriminants", () => {
+    expect(LOCAL_SUBTITLE_SERVER_PURPOSES).toEqual([
+      "inference",
+      "model_load_smoke",
+    ]);
+    expect(LOCAL_SUBTITLE_SERVER_MANAGED_RESOURCE_STORAGES).toEqual([
+      "managed",
+      "managed_staging",
+    ]);
+    expect(Object.isFrozen(LOCAL_SUBTITLE_SERVER_PURPOSES)).toBe(true);
+    expect(Object.isFrozen(LOCAL_SUBTITLE_SERVER_MANAGED_RESOURCE_STORAGES)).toBe(
+      true,
+    );
+  });
+
   it("generates exactly 24 bytes of private path entropy", () => {
     const randomBytes = vi.fn((size: number) =>
       Uint8Array.from({ length: size }, (_, index) => index),
@@ -152,6 +181,41 @@ describe("local subtitle server process contract", () => {
     );
     expect(isLocalSubtitleServerBackendCompatible("cpu", "cuda")).toBe(false);
     expect(isLocalSubtitleServerBackendCompatible("cuda", "cpu")).toBe(false);
+  });
+
+  it("builds a CPU-only staging smoke descriptor without loading VAD", () => {
+    const options = smokeOptions();
+    const descriptor = createLocalSubtitleServerProcessDescriptor(options);
+
+    expect(descriptor.loadIdentity).toMatchObject({
+      purpose: "model_load_smoke",
+      backend: "cpu",
+      model: { storage: "managed_staging", id: "large-v3-q5_0" },
+      process: { noGpu: true },
+    });
+    expect(descriptor.loadIdentity).not.toHaveProperty("vadModel");
+    expect(descriptor.args).toContain(options.model.absolutePath);
+    expect(descriptor.args.filter((value) => value === "--no-gpu")).toEqual([
+      "--no-gpu",
+    ]);
+    expect(descriptor.args).not.toContain("--vad-model");
+    expectDeeplyFrozen(descriptor);
+  });
+
+  it("rejects smoke loads outside the CPU staging contract", () => {
+    const smoke = smokeOptions();
+    const inference = validOptions();
+    for (const invalid of [
+      { ...smoke, backend: "metal" },
+      { ...smoke, model: { ...smoke.model, storage: "managed" } },
+      { ...smoke, vadModel: inference.vadModel },
+    ]) {
+      expect(() =>
+        createLocalSubtitleServerProcessDescriptor(
+          invalid as unknown as CreateLocalSubtitleServerProcessDescriptorOptions,
+        ),
+      ).toThrow(LocalSubtitleServerContractError);
+    }
   });
 
   it("accepts only backend-compatible pinned server artifacts", () => {
@@ -329,10 +393,28 @@ describe("local subtitle server process contract", () => {
     }
   });
 
+  it("requires managed storage for inference model and VAD identities", () => {
+    const base = validOptions();
+    for (const invalid of [
+      { ...base, model: { ...base.model, storage: "managed_staging" } },
+      { ...base, vadModel: { ...base.vadModel, storage: "managed_staging" } },
+    ]) {
+      expect(() =>
+        createLocalSubtitleServerProcessDescriptor(
+          invalid as unknown as CreateLocalSubtitleServerProcessDescriptorOptions,
+        ),
+      ).toThrow(/storage/u);
+    }
+  });
+
   it("compares every process load identity field before model reuse", () => {
     const baseOptions = validOptions();
     const current = createLocalSubtitleServerLoadIdentity(baseOptions);
     const equivalent = createLocalSubtitleServerLoadIdentity(validOptions());
+
+    if (current.purpose !== "inference") {
+      throw new Error("The inference fixture produced the wrong purpose.");
+    }
 
     expect(canReuseLocalSubtitleServerLoadIdentity(current, equivalent)).toBe(
       true,
@@ -369,6 +451,9 @@ describe("local subtitle server process contract", () => {
         false,
       );
     }
+
+    const smoke = createLocalSubtitleServerLoadIdentity(smokeOptions());
+    expect(canReuseLocalSubtitleServerLoadIdentity(current, smoke)).toBe(false);
   });
 
   it("builds an allowlisted environment without app secrets or proxies", () => {
@@ -442,10 +527,12 @@ describe("local subtitle server process contract", () => {
       engineVersion: "v1.9.1",
       engineCommit: "f049fff95a089aa9969deb009cdd4892b3e74916",
       runtimeGeneration: options.verifiedRuntime.runtimeGeneration,
+      purpose: "inference",
       backend: "metal",
       process: { threads: 6, processors: 1, noGpu: false },
-      model: { id: "large-v3-q5_0", sha256: HASH_B },
+      model: { storage: "managed", id: "large-v3-q5_0", sha256: HASH_B },
       vadModel: {
+        storage: "managed",
         id: LOCAL_SUBTITLE_PRODUCTION_CONTRACT.vad.id,
         sha256: LOCAL_SUBTITLE_PRODUCTION_CONTRACT.vad.sha256,
       },
@@ -464,16 +551,18 @@ describe("local subtitle server process contract", () => {
 });
 
 function validOptions(
-  overrides: Partial<CreateLocalSubtitleServerProcessDescriptorOptions> = {},
-): CreateLocalSubtitleServerProcessDescriptorOptions {
+  overrides: Partial<InferenceDescriptorOptions> = {},
+): InferenceDescriptorOptions {
   const root = roots();
-  const base: CreateLocalSubtitleServerProcessDescriptorOptions = {
+  const base: InferenceDescriptorOptions = {
     endpoint: endpointFixture(),
     verifiedRuntime,
     serverArtifactId: SERVER_ARTIFACT_ID,
+    purpose: "inference",
     backend: "metal",
     managedResourceRoot: root.managed,
     model: {
+      storage: "managed",
       id: "large-v3-q5_0",
       absolutePath: path.join(
         root.managed,
@@ -485,6 +574,7 @@ function validOptions(
       sha256: HASH_B,
     },
     vadModel: {
+      storage: "managed",
       id: LOCAL_SUBTITLE_PRODUCTION_CONTRACT.vad.id,
       absolutePath: path.join(
         root.managed,
@@ -496,6 +586,32 @@ function validOptions(
       sha256: LOCAL_SUBTITLE_PRODUCTION_CONTRACT.vad.sha256,
     },
     threads: 6,
+    sessionRoot: root.session,
+    emptyPublicDirectory: root.public,
+    temporaryDirectory: root.temp,
+  };
+  return { ...base, ...overrides };
+}
+
+function smokeOptions(
+  overrides: Partial<SmokeDescriptorOptions> = {},
+): SmokeDescriptorOptions {
+  const root = roots();
+  const base: SmokeDescriptorOptions = {
+    endpoint: endpointFixture(),
+    verifiedRuntime,
+    serverArtifactId: SERVER_ARTIFACT_ID,
+    purpose: "model_load_smoke",
+    backend: "cpu",
+    managedResourceRoot: root.managed,
+    model: {
+      storage: "managed_staging",
+      id: "large-v3-q5_0",
+      absolutePath: path.join(root.managed, "model-staging", "model.bin"),
+      byteSize: 1_081_140_203,
+      sha256: HASH_B,
+    },
+    threads: 1,
     sessionRoot: root.session,
     emptyPublicDirectory: root.public,
     temporaryDirectory: root.temp,
@@ -537,9 +653,9 @@ function roots() {
 }
 
 function changed(
-  identity: LocalSubtitleServerLoadIdentity,
-  overrides: Partial<LocalSubtitleServerLoadIdentity>,
-): LocalSubtitleServerLoadIdentity {
+  identity: InferenceLoadIdentity,
+  overrides: Partial<InferenceLoadIdentity>,
+): InferenceLoadIdentity {
   return { ...identity, ...overrides };
 }
 

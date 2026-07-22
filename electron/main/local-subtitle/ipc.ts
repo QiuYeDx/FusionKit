@@ -46,7 +46,12 @@ import {
   LocalSubtitleArtifactRegistryError,
 } from "./subtitle-artifact-registry";
 import { LocalSubtitleMediaError } from "./media-normalizer";
+import {
+  LocalSubtitleModelManagerError,
+} from "./model-manager";
+import { LocalSubtitleModelError } from "./model-manifest";
 import { LocalSubtitleResourceError } from "./resource-manifest";
+import { LocalSubtitleSessionRegistryError } from "./session-registry";
 
 type MaybePromise<T> = T | Promise<T>;
 
@@ -461,6 +466,25 @@ function toLocalSubtitleIpcFailure(
         "Local subtitle media operation failed.",
         { stage: error.stage },
       ),
+    );
+  }
+  if (error instanceof LocalSubtitleModelManagerError) {
+    return localSubtitleIpcFailure(
+      createLocalSubtitleError(error.localSubtitleCode, error.message, {
+        ...(error.field ? { field: error.field } : {}),
+      }),
+    );
+  }
+  if (error instanceof LocalSubtitleModelError) {
+    return localSubtitleIpcFailure(
+      createLocalSubtitleError(error.code, error.message),
+    );
+  }
+  if (error instanceof LocalSubtitleSessionRegistryError) {
+    return localSubtitleIpcFailure(
+      createLocalSubtitleError(error.localSubtitleCode, error.message, {
+        ...(error.field ? { field: error.field } : {}),
+      }),
     );
   }
   if (error instanceof LocalSubtitleResourceError) {

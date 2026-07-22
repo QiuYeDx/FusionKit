@@ -44,20 +44,38 @@ export type LocalSubtitleServerProcessEnvironment = Readonly<
   Record<string, string | undefined>
 >;
 
+export const LOCAL_SUBTITLE_SERVER_PURPOSES = Object.freeze([
+  "inference",
+  "model_load_smoke",
+] as const);
+export type LocalSubtitleServerPurpose =
+  (typeof LOCAL_SUBTITLE_SERVER_PURPOSES)[number];
+
+export const LOCAL_SUBTITLE_SERVER_MANAGED_RESOURCE_STORAGES = Object.freeze([
+  "managed",
+  "managed_staging",
+] as const);
+export type LocalSubtitleServerManagedResourceStorage =
+  (typeof LOCAL_SUBTITLE_SERVER_MANAGED_RESOURCE_STORAGES)[number];
+
 export interface LocalSubtitleServerEndpoint {
   readonly host: typeof LOCAL_SUBTITLE_SERVER_HTTP_POLICY.host;
   readonly port: number;
   readonly privatePath: string;
 }
 
-export interface LocalSubtitleServerManagedResourceIdentity {
+export interface LocalSubtitleServerManagedResourceIdentity<
+  Storage extends LocalSubtitleServerManagedResourceStorage =
+    LocalSubtitleServerManagedResourceStorage,
+> {
+  readonly storage: Storage;
   readonly id: string;
   readonly absolutePath: string;
   readonly byteSize: number;
   readonly sha256: string;
 }
 
-export interface LocalSubtitleServerLoadIdentity {
+interface LocalSubtitleServerLoadIdentityBase {
   readonly contractVersion: typeof LOCAL_SUBTITLE_SERVER_HTTP_CONTRACT_VERSION;
   readonly engineVersion: typeof LOCAL_SUBTITLE_PRODUCTION_CONTRACT.engine.version;
   readonly engineCommit: typeof LOCAL_SUBTITLE_PRODUCTION_CONTRACT.engine.commit;
@@ -74,10 +92,7 @@ export interface LocalSubtitleServerLoadIdentity {
     version: string;
     signatureKind: LocalSubtitleVerifiedRuntimeArtifact["signatureKind"];
   }>;
-  readonly backend: LocalSubtitleBackend;
   readonly managedResourceRoot: string;
-  readonly model: LocalSubtitleServerManagedResourceIdentity;
-  readonly vadModel: LocalSubtitleServerManagedResourceIdentity;
   readonly process: Readonly<{
     threads: number;
     processors: 1;
@@ -85,24 +100,53 @@ export interface LocalSubtitleServerLoadIdentity {
   }>;
 }
 
-export interface CreateLocalSubtitleServerLoadIdentityOptions {
+export type LocalSubtitleServerLoadIdentity =
+  | (LocalSubtitleServerLoadIdentityBase & {
+      readonly purpose: "inference";
+      readonly backend: LocalSubtitleBackend;
+      readonly model: LocalSubtitleServerManagedResourceIdentity<"managed">;
+      readonly vadModel: LocalSubtitleServerManagedResourceIdentity<"managed">;
+    })
+  | (LocalSubtitleServerLoadIdentityBase & {
+      readonly purpose: "model_load_smoke";
+      readonly backend: "cpu";
+      readonly model: LocalSubtitleServerManagedResourceIdentity<"managed_staging">;
+      readonly process: Readonly<{
+        threads: number;
+        processors: 1;
+        noGpu: true;
+      }>;
+    });
+
+interface CreateLocalSubtitleServerLoadIdentityOptionsBase {
   readonly verifiedRuntime: LocalSubtitleVerifiedRuntimeBundle;
   readonly serverArtifactId: string;
-  readonly backend: LocalSubtitleBackend;
   readonly managedResourceRoot: string;
-  readonly model: LocalSubtitleServerManagedResourceIdentity;
-  readonly vadModel: LocalSubtitleServerManagedResourceIdentity;
   readonly threads: number;
 }
 
-export interface CreateLocalSubtitleServerProcessDescriptorOptions
-  extends CreateLocalSubtitleServerLoadIdentityOptions {
+export type CreateLocalSubtitleServerLoadIdentityOptions =
+  | (CreateLocalSubtitleServerLoadIdentityOptionsBase & {
+      readonly purpose: "inference";
+      readonly backend: LocalSubtitleBackend;
+      readonly model: LocalSubtitleServerManagedResourceIdentity<"managed">;
+      readonly vadModel: LocalSubtitleServerManagedResourceIdentity<"managed">;
+    })
+  | (CreateLocalSubtitleServerLoadIdentityOptionsBase & {
+      readonly purpose: "model_load_smoke";
+      readonly backend: "cpu";
+      readonly model: LocalSubtitleServerManagedResourceIdentity<"managed_staging">;
+      readonly vadModel?: never;
+    });
+
+export type CreateLocalSubtitleServerProcessDescriptorOptions =
+  CreateLocalSubtitleServerLoadIdentityOptions & {
   readonly endpoint: LocalSubtitleServerEndpoint;
   readonly sessionRoot: string;
   readonly emptyPublicDirectory: string;
   readonly temporaryDirectory: string;
   readonly sourceEnvironment?: Readonly<Record<string, string | undefined>>;
-}
+};
 
 export interface LocalSubtitleServerProcessDescriptor {
   readonly contractVersion: typeof LOCAL_SUBTITLE_SERVER_HTTP_CONTRACT_VERSION;
@@ -181,7 +225,7 @@ export function createLocalSubtitleServerLoadIdentity(
   options: CreateLocalSubtitleServerLoadIdentityOptions,
 ): LocalSubtitleServerLoadIdentity {
   const artifact = validateLoadOptions(options);
-  return deepFreeze({
+  const common = {
     contractVersion: LOCAL_SUBTITLE_SERVER_HTTP_CONTRACT_VERSION,
     engineVersion: LOCAL_SUBTITLE_PRODUCTION_CONTRACT.engine.version,
     engineCommit: LOCAL_SUBTITLE_PRODUCTION_CONTRACT.engine.commit,
@@ -198,14 +242,30 @@ export function createLocalSubtitleServerLoadIdentity(
       version: artifact.version,
       signatureKind: artifact.signatureKind,
     },
-    backend: options.backend,
     managedResourceRoot: options.managedResourceRoot,
-    model: { ...options.model },
-    vadModel: { ...options.vadModel },
     process: {
       threads: options.threads,
       processors: LOCAL_SUBTITLE_SERVER_PROCESS_POLICY.processors,
       noGpu: options.backend === "cpu",
+    },
+  };
+  if (options.purpose === "inference") {
+    return deepFreeze({
+      ...common,
+      purpose: options.purpose,
+      backend: options.backend,
+      model: { ...options.model },
+      vadModel: { ...options.vadModel },
+    });
+  }
+  return deepFreeze({
+    ...common,
+    purpose: options.purpose,
+    backend: options.backend,
+    model: { ...options.model },
+    process: {
+      ...common.process,
+      noGpu: true,
     },
   });
 }
@@ -243,8 +303,9 @@ export function createLocalSubtitleServerProcessDescriptor(
     String(loadIdentity.process.threads),
     "--processors",
     String(loadIdentity.process.processors),
-    "--vad-model",
-    loadIdentity.vadModel.absolutePath,
+    ...(loadIdentity.purpose === "inference"
+      ? ["--vad-model", loadIdentity.vadModel.absolutePath]
+      : []),
     ...(loadIdentity.process.noGpu ? ["--no-gpu"] : []),
   ];
   const command = loadIdentity.serverArtifact.absolutePath;
@@ -340,6 +401,11 @@ export function isLocalSubtitleServerBackendCompatible(
 function validateLoadOptions(
   options: CreateLocalSubtitleServerLoadIdentityOptions,
 ): LocalSubtitleVerifiedRuntimeArtifact {
+  if (
+    !(LOCAL_SUBTITLE_SERVER_PURPOSES as readonly string[]).includes(options.purpose)
+  ) {
+    throw invalidConfiguration("The local inference server purpose is invalid.");
+  }
   const runtime = options.verifiedRuntime;
   if (
     !isLocalSubtitleVerifiedRuntimeBundle(runtime) ||
@@ -463,24 +529,45 @@ function validateLoadOptions(
     "The managed resource root",
   );
   assertNotFilesystemRoot(options.managedResourceRoot, "The managed resource root");
-  validateManagedResource(
-    options.model,
-    options.managedResourceRoot,
-    "model",
-  );
-  validateManagedResource(
-    options.vadModel,
-    options.managedResourceRoot,
-    "VAD model",
-  );
-  if (
-    options.vadModel.id !== LOCAL_SUBTITLE_PRODUCTION_CONTRACT.vad.id ||
-    options.vadModel.sha256 !== LOCAL_SUBTITLE_PRODUCTION_CONTRACT.vad.sha256
-  ) {
-    throw invalidConfiguration("The local inference VAD model is not pinned.");
-  }
-  if (options.model.absolutePath === options.vadModel.absolutePath) {
-    throw invalidConfiguration("The model and VAD model paths must be distinct.");
+  if (options.purpose === "model_load_smoke") {
+    if (options.backend !== "cpu") {
+      throw invalidConfiguration(
+        "The local model load smoke must use the CPU backend.",
+      );
+    }
+    if (Object.prototype.hasOwnProperty.call(options, "vadModel")) {
+      throw invalidConfiguration(
+        "The local model load smoke cannot load a VAD model.",
+      );
+    }
+    validateManagedResource(
+      options.model,
+      options.managedResourceRoot,
+      "model",
+      "managed_staging",
+    );
+  } else {
+    validateManagedResource(
+      options.model,
+      options.managedResourceRoot,
+      "model",
+      "managed",
+    );
+    validateManagedResource(
+      options.vadModel,
+      options.managedResourceRoot,
+      "VAD model",
+      "managed",
+    );
+    if (
+      options.vadModel.id !== LOCAL_SUBTITLE_PRODUCTION_CONTRACT.vad.id ||
+      options.vadModel.sha256 !== LOCAL_SUBTITLE_PRODUCTION_CONTRACT.vad.sha256
+    ) {
+      throw invalidConfiguration("The local inference VAD model is not pinned.");
+    }
+    if (options.model.absolutePath === options.vadModel.absolutePath) {
+      throw invalidConfiguration("The model and VAD model paths must be distinct.");
+    }
   }
   if (
     !Number.isSafeInteger(options.threads) ||
@@ -530,11 +617,14 @@ function validateSessionPaths(
       "The server session root must be disjoint from the bundled runtime.",
     );
   }
-  for (const privateFile of [
+  const privateFiles = [
     loadIdentity.serverArtifact.absolutePath,
     loadIdentity.model.absolutePath,
-    loadIdentity.vadModel.absolutePath,
-  ]) {
+    ...(loadIdentity.purpose === "inference"
+      ? [loadIdentity.vadModel.absolutePath]
+      : []),
+  ];
+  for (const privateFile of privateFiles) {
     if (
       isPathWithin(options.emptyPublicDirectory, privateFile) ||
       isPathWithin(options.temporaryDirectory, privateFile)
@@ -550,7 +640,15 @@ function validateManagedResource(
   resource: LocalSubtitleServerManagedResourceIdentity,
   root: string,
   label: string,
+  expectedStorage: LocalSubtitleServerManagedResourceStorage,
 ): void {
+  if (
+    typeof resource !== "object" ||
+    resource === null ||
+    resource.storage !== expectedStorage
+  ) {
+    throw invalidConfiguration(`The ${label} storage is invalid.`);
+  }
   assertIdentifier(resource.id, `The ${label} id`);
   assertAbsoluteNormalizedPath(resource.absolutePath, `The ${label} path`);
   assertContainedPath(root, resource.absolutePath, `The ${label}`);
@@ -561,6 +659,7 @@ function validateManagedResource(
 function loadIdentityKey(identity: LocalSubtitleServerLoadIdentity): string {
   return JSON.stringify([
     identity.contractVersion,
+    identity.purpose,
     identity.engineVersion,
     identity.engineCommit,
     identity.runtimeRoot,
@@ -577,14 +676,20 @@ function loadIdentityKey(identity: LocalSubtitleServerLoadIdentity): string {
     identity.serverArtifact.signatureKind,
     identity.backend,
     identity.managedResourceRoot,
+    identity.model.storage,
     identity.model.id,
     identity.model.absolutePath,
     identity.model.byteSize,
     identity.model.sha256,
-    identity.vadModel.id,
-    identity.vadModel.absolutePath,
-    identity.vadModel.byteSize,
-    identity.vadModel.sha256,
+    ...(identity.purpose === "inference"
+      ? [
+          identity.vadModel.storage,
+          identity.vadModel.id,
+          identity.vadModel.absolutePath,
+          identity.vadModel.byteSize,
+          identity.vadModel.sha256,
+        ]
+      : []),
     identity.process.threads,
     identity.process.processors,
     identity.process.noGpu,
