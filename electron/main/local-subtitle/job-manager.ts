@@ -120,6 +120,21 @@ export interface LocalSubtitleJobTaskUpdate {
   readonly durationMs?: number;
 }
 
+declare const JOB_BATCH_RUNTIME_BRAND: unique symbol;
+
+export interface LocalSubtitleJobBatchRuntime {
+  readonly [JOB_BATCH_RUNTIME_BRAND]: true;
+}
+
+export interface LocalSubtitleJobBatchExecutionContext {
+  readonly owner: LocalSubtitleOwnerKey;
+  readonly batchId: string;
+  readonly config: LocalSubtitleBatchConfigSnapshot;
+  readonly managedModel: LocalSubtitleServerManagedResourceIdentity<"managed">;
+  readonly admittedRuntimeGeneration: string;
+  readonly signal: AbortSignal;
+}
+
 export interface LocalSubtitleJobTaskExecutionContext {
   readonly owner: LocalSubtitleOwnerKey;
   readonly batchId: string;
@@ -130,6 +145,7 @@ export interface LocalSubtitleJobTaskExecutionContext {
   readonly config: LocalSubtitleBatchConfigSnapshot;
   readonly managedModel: LocalSubtitleServerManagedResourceIdentity<"managed">;
   readonly admittedRuntimeGeneration: string;
+  readonly batchRuntime: LocalSubtitleJobBatchRuntime;
   readonly signal: AbortSignal;
   update(update: LocalSubtitleJobTaskUpdate): LocalSubtitleTaskSummary;
 }
@@ -154,9 +170,13 @@ export type LocalSubtitleJobTaskExecutionResult =
     };
 
 export interface LocalSubtitleJobTaskExecutor {
+  beginBatchSlice(
+    context: LocalSubtitleJobBatchExecutionContext,
+  ): LocalSubtitleJobBatchRuntime;
   execute(
     context: LocalSubtitleJobTaskExecutionContext,
   ): Promise<LocalSubtitleJobTaskExecutionResult>;
+  endBatchSlice(runtime: LocalSubtitleJobBatchRuntime): void;
 }
 
 export interface LocalSubtitleJobManagerOptions {
@@ -218,7 +238,16 @@ interface TaskRecord {
 interface TaskRun {
   readonly record: TaskRecord;
   readonly generation: number;
+  readonly admissionSequence: number;
   readonly controller: AbortController;
+}
+
+interface ActiveBatchSlice {
+  readonly batch: BatchRecord;
+  readonly admissionSequence: number;
+  readonly runtime: LocalSubtitleJobBatchRuntime;
+  readonly controller: AbortController;
+  closeRequested: boolean;
 }
 
 interface PendingEnqueue {
@@ -270,6 +299,7 @@ export class LocalSubtitleJobManager {
   readonly #operations = new Map<Promise<void>, string>();
   readonly #idleWaiters = new Set<IdleWaiter>();
   #activeRun: TaskRun | undefined;
+  #activeBatchSlice: ActiveBatchSlice | undefined;
   #drainScheduled = false;
   #nextAdmissionSequence = 1;
   readonly #cancelLeaseRenewals = new Map<string, () => void>();
@@ -287,7 +317,9 @@ export class LocalSubtitleJobManager {
       !(options.leases instanceof LocalSubtitleCapabilityLeaseCoordinator) ||
       typeof options.runtimeVerifier?.verifyRuntime !== "function" ||
       typeof options.modelResolver?.resolveManagedModel !== "function" ||
+      typeof options.executor?.beginBatchSlice !== "function" ||
       typeof options.executor?.execute !== "function" ||
+      typeof options.executor?.endBatchSlice !== "function" ||
       (options.scheduleLeaseRenewal !== undefined &&
         typeof options.scheduleLeaseRenewal !== "function")
     ) {
@@ -453,7 +485,9 @@ export class LocalSubtitleJobManager {
         throw rollbackFailure ?? error;
       }
       transaction = undefined;
-      const runs = records.map((record) => this.#createRun(record));
+      const runs = records.map((record) =>
+        this.#createRun(record, pending.admission.sequence)
+      );
       publication.publish();
 
       const runnable = runs.filter((run) =>
@@ -559,7 +593,7 @@ export class LocalSubtitleJobManager {
       record.inputLeaseReleased = false;
       record.artifactsRevoked = false;
       record.leaseFailure = undefined;
-      const run = this.#createRun(record);
+      const run = this.#createRun(record, admission.sequence);
       let publishedTask!: LocalSubtitleTaskSummary;
       try {
         const envelope = this.#registry.upsertTask(owner, canonical);
@@ -608,6 +642,7 @@ export class LocalSubtitleJobManager {
     for (const taskId of batch.taskIds) {
       if (this.#cancelOwnedTask(owner, taskId)) cancelledTaskIds.push(taskId);
     }
+    this.#closeActiveBatchSliceIfFinished();
     return Object.freeze({
       cancelledTaskIds: Object.freeze(cancelledTaskIds),
     });
@@ -690,6 +725,10 @@ export class LocalSubtitleJobManager {
       captureFailure(failures, () => this.#releaseInputLease(record));
       captureFailure(failures, () => this.#revokeTaskArtifacts(record));
     }
+    if (this.#activeBatchSlice?.batch.ownerKey === key) {
+      const slice = this.#activeBatchSlice;
+      captureFailure(failures, () => this.#requestBatchSliceClose(slice));
+    }
     for (const batch of this.#batches.values()) {
       if (batch.ownerKey === key) {
         captureFailure(failures, () => this.#releaseOutputLease(batch));
@@ -728,6 +767,10 @@ export class LocalSubtitleJobManager {
       captureFailure(failures, () => record.run?.controller.abort());
       captureFailure(failures, () => this.#releaseInputLease(record));
       captureFailure(failures, () => this.#revokeTaskArtifacts(record));
+    }
+    if (this.#activeBatchSlice) {
+      const slice = this.#activeBatchSlice;
+      captureFailure(failures, () => this.#requestBatchSliceClose(slice));
     }
     for (const batch of this.#batches.values()) {
       captureFailure(failures, () => this.#releaseOutputLease(batch));
@@ -808,14 +851,131 @@ export class LocalSubtitleJobManager {
     this.#scheduleDrain();
   }
 
-  #createRun(record: TaskRecord): TaskRun {
+  #createRun(record: TaskRecord, admissionSequence: number): TaskRun {
     const run: TaskRun = {
       record,
       generation: record.generation,
+      admissionSequence,
       controller: new AbortController(),
     };
     record.run = run;
     return run;
+  }
+
+  #beginBatchSlice(run: TaskRun): ActiveBatchSlice {
+    const current = this.#activeBatchSlice;
+    if (
+      current &&
+      !current.closeRequested &&
+      current.batch === run.record.batch &&
+      current.admissionSequence === run.admissionSequence
+    ) {
+      return current;
+    }
+    if (current) this.#closeActiveBatchSlice();
+
+    const controller = new AbortController();
+    const runtime = this.#executor.beginBatchSlice(Object.freeze({
+      owner: run.record.owner,
+      batchId: run.record.batch.batchId,
+      config: run.record.batch.config,
+      managedModel: run.record.batch.managedModel,
+      admittedRuntimeGeneration: run.record.batch.runtimeGeneration,
+      signal: controller.signal,
+    }));
+    if (typeof runtime !== "object" || runtime === null) {
+      controller.abort();
+      throw managerFailure(
+        "invalid_content",
+        "The local subtitle batch runtime is invalid.",
+      );
+    }
+    const slice: ActiveBatchSlice = {
+      batch: run.record.batch,
+      admissionSequence: run.admissionSequence,
+      runtime,
+      controller,
+      closeRequested: false,
+    };
+    this.#activeBatchSlice = slice;
+    return slice;
+  }
+
+  #requestBatchSliceClose(slice: ActiveBatchSlice): void {
+    if (this.#activeBatchSlice !== slice) return;
+    slice.closeRequested = true;
+    slice.controller.abort();
+    const active = this.#activeRun;
+    if (
+      active &&
+      active.record.batch === slice.batch &&
+      active.admissionSequence === slice.admissionSequence
+    ) {
+      return;
+    }
+    this.#closeActiveBatchSlice();
+  }
+
+  #finishActiveBatchSlice(run: TaskRun): void {
+    const slice = this.#activeBatchSlice;
+    if (
+      !slice ||
+      slice.batch !== run.record.batch ||
+      slice.admissionSequence !== run.admissionSequence
+    ) {
+      return;
+    }
+    if (
+      slice.closeRequested ||
+      !this.#hasQueuedRunForBatchSlice(slice, run)
+    ) {
+      this.#closeActiveBatchSlice();
+    }
+  }
+
+  #closeActiveBatchSliceIfFinished(): void {
+    const slice = this.#activeBatchSlice;
+    if (!slice) return;
+    const active = this.#activeRun;
+    if (
+      active &&
+      active.record.batch === slice.batch &&
+      active.admissionSequence === slice.admissionSequence
+    ) {
+      return;
+    }
+    if (!this.#hasQueuedRunForBatchSlice(slice)) this.#closeActiveBatchSlice();
+  }
+
+  #hasQueuedRunForBatchSlice(
+    slice: ActiveBatchSlice,
+    excluded?: TaskRun,
+  ): boolean {
+    for (const taskId of slice.batch.taskIds) {
+      const record = this.#tasks.get(taskId);
+      const run = record?.run;
+      if (
+        record &&
+        run &&
+        run !== excluded &&
+        run.admissionSequence === slice.admissionSequence &&
+        record.state === "queued" &&
+        !record.cancelRequested &&
+        this.#isCurrentRun(run)
+      ) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  #closeActiveBatchSlice(): void {
+    const slice = this.#activeBatchSlice;
+    if (!slice) return;
+    this.#activeBatchSlice = undefined;
+    slice.closeRequested = true;
+    slice.controller.abort();
+    this.#executor.endBatchSlice(slice.runtime);
   }
 
   #scheduleDrain(): void {
@@ -870,6 +1030,7 @@ export class LocalSubtitleJobManager {
       assertManagedModelUnchanged(run.record.batch, managedModel);
       if (!this.#isPublishableRun(run)) return;
       if (run.record.leaseFailure !== undefined) throw run.record.leaseFailure;
+      const batchSlice = this.#beginBatchSlice(run);
       this.#transition(run, {
         status: "preparing_media",
         progress: {
@@ -890,6 +1051,7 @@ export class LocalSubtitleJobManager {
         config: run.record.batch.config,
         managedModel: run.record.batch.managedModel,
         admittedRuntimeGeneration: run.record.batch.runtimeGeneration,
+        batchRuntime: batchSlice.runtime,
         signal: run.controller.signal,
         update: (update: LocalSubtitleJobTaskUpdate) =>
           this.#transition(run, update),
@@ -979,6 +1141,8 @@ export class LocalSubtitleJobManager {
           executionError(error, this.#currentStage(run.record)),
         );
       }
+    } finally {
+      this.#finishActiveBatchSlice(run);
     }
   }
 
@@ -1268,6 +1432,7 @@ export class LocalSubtitleJobManager {
       this.#releaseInputLease(record);
       this.#releaseOutputIfUnmaintained(record.batch);
       this.#stopLeaseRenewalIfIdle();
+      this.#closeActiveBatchSliceIfFinished();
       this.#flushIdleWaiters();
       return true;
     }
@@ -1740,6 +1905,10 @@ export class LocalSubtitleJobManager {
       ) &&
       !this.#queue.some((run) => matches(run.record.ownerKey)) &&
       !(this.#activeRun && matches(this.#activeRun.record.ownerKey)) &&
+      !(
+        this.#activeBatchSlice &&
+        matches(this.#activeBatchSlice.batch.ownerKey)
+      ) &&
       ![...this.#operations.values()].some(matches) &&
       (ownerKeyValue === undefined
         ? this.#leaseOperationCounts.size === 0

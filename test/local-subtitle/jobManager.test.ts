@@ -18,6 +18,7 @@ import {
 } from "../../electron/main/local-subtitle/authorizations";
 import {
   LocalSubtitleJobManager,
+  type LocalSubtitleJobBatchRuntime,
   type LocalSubtitleJobTaskExecutionContext,
   type LocalSubtitleJobTaskExecutor,
 } from "../../electron/main/local-subtitle/job-manager";
@@ -260,6 +261,253 @@ describe("LocalSubtitleJobManager", () => {
     await harness.manager.waitForIdle();
     expect(harness.executor.execute).not.toHaveBeenCalled();
   });
+
+  it("keeps one runtime slice for consecutive siblings and closes it before the next owner", async () => {
+    const lifecycle: string[] = [];
+    const runtimeBatches = new WeakMap<object, string>();
+    const taskExecutor = executor(async (context) => {
+      lifecycle.push(`execute:${context.taskId}`);
+      return successfulExecution(context);
+    });
+    taskExecutor.beginBatchSlice.mockImplementation((context) => {
+      const runtime = Object.freeze({}) as LocalSubtitleJobBatchRuntime;
+      runtimeBatches.set(runtime, context.batchId);
+      lifecycle.push(`begin:${context.batchId}`);
+      return runtime;
+    });
+    taskExecutor.endBatchSlice.mockImplementation((runtime) => {
+      lifecycle.push(`end:${runtimeBatches.get(runtime)}`);
+    });
+    const harness = await createHarness({
+      executor: taskExecutor,
+      taskIds: ["task-1", "task-2", "task-3", "task-4"],
+      batchIds: ["batch-1", "batch-2"],
+    });
+    const firstFiles = await authorizeInputs(
+      harness.inputs,
+      OWNER_A,
+      ["first.wav", "second.wav", "third.wav"],
+    );
+    const later = await authorizeInput(harness.inputs, OWNER_B, "later.wav");
+
+    await harness.manager.enqueue(
+      OWNER_A,
+      await harness.createRequest(firstFiles.map((file) => file.fileToken)),
+    );
+    await harness.manager.enqueue(
+      OWNER_B,
+      await harness.createRequest(later.fileToken, OWNER_B),
+    );
+    harness.flushScheduled();
+    await harness.manager.waitForIdle();
+
+    expect(lifecycle).toEqual([
+      "begin:batch-1",
+      "execute:task-1",
+      "execute:task-2",
+      "execute:task-3",
+      "end:batch-1",
+      "begin:batch-2",
+      "execute:task-4",
+      "end:batch-2",
+    ]);
+  });
+
+  it("reuses a slice after a task failure but opens a new slice for retry", async () => {
+    const taskExecutor = executor(async (context) => {
+      if (context.taskId === "task-1" && context.generation === 1) {
+        return {
+          status: "failed",
+          error: createLocalSubtitleError(
+            "transcription_failed",
+            "private per-file failure",
+            { stage: "transcribing" },
+          ),
+        };
+      }
+      return successfulExecution(context);
+    });
+    const harness = await createHarness({
+      executor: taskExecutor,
+      taskIds: ["task-1", "task-2"],
+    });
+    const sibling = await authorizeInput(harness.inputs, OWNER_A, "sibling.wav");
+
+    await harness.manager.enqueue(
+      OWNER_A,
+      await harness.createRequest([harness.fileToken, sibling.fileToken]),
+    );
+    harness.flushScheduled();
+    await harness.manager.waitForIdle();
+
+    expect(taskExecutor.beginBatchSlice).toHaveBeenCalledOnce();
+    expect(taskExecutor.endBatchSlice).toHaveBeenCalledOnce();
+    await harness.manager.retryTask(OWNER_A, "task-1");
+    await harness.manager.waitForIdle();
+
+    expect(taskExecutor.beginBatchSlice).toHaveBeenCalledTimes(2);
+    expect(taskExecutor.endBatchSlice).toHaveBeenCalledTimes(2);
+    expect(taskExecutor.execute.mock.calls.map(([context]) => [
+      context.taskId,
+      context.generation,
+    ])).toEqual([
+      ["task-1", 1],
+      ["task-2", 1],
+      ["task-1", 2],
+    ]);
+  });
+
+  it("keeps a cancelled active task and its sibling in one slice", async () => {
+    const firstStarted = deferred<void>();
+    const taskExecutor = executor(async (context) => {
+      if (context.taskId === "task-1") {
+        firstStarted.resolve();
+        await new Promise<void>((resolve) => {
+          if (context.signal.aborted) resolve();
+          else context.signal.addEventListener("abort", () => resolve(), { once: true });
+        });
+        return { status: "cancelled", artifactResults: [] };
+      }
+      return successfulExecution(context);
+    });
+    const harness = await createHarness({
+      executor: taskExecutor,
+      taskIds: ["task-1", "task-2"],
+    });
+    const sibling = await authorizeInput(harness.inputs, OWNER_A, "sibling.wav");
+
+    await harness.manager.enqueue(
+      OWNER_A,
+      await harness.createRequest([harness.fileToken, sibling.fileToken]),
+    );
+    harness.flushScheduled();
+    await firstStarted.promise;
+    expect(harness.manager.cancelTask(OWNER_A, "task-1")).toEqual({ cancelled: true });
+    await harness.manager.waitForIdle();
+
+    expect(taskExecutor.beginBatchSlice).toHaveBeenCalledOnce();
+    expect(taskExecutor.endBatchSlice).toHaveBeenCalledOnce();
+    expect(taskExecutor.execute.mock.calls.map(([context]) => context.taskId)).toEqual([
+      "task-1",
+      "task-2",
+    ]);
+    expect(taskExecutor.execute.mock.calls[1]![0].batchRuntime).toBe(
+      taskExecutor.execute.mock.calls[0]![0].batchRuntime,
+    );
+  });
+
+  it("keeps a task-scope cleanup failure and its sibling in one slice", async () => {
+    const taskExecutor = executor(async (context) => {
+      if (context.taskId === "task-1") {
+        return {
+          status: "failed",
+          error: createLocalSubtitleError(
+            "cleanup_failed",
+            "private task cleanup failure",
+            { stage: "cleanup" },
+          ),
+        };
+      }
+      return successfulExecution(context);
+    });
+    const harness = await createHarness({
+      executor: taskExecutor,
+      taskIds: ["task-1", "task-2"],
+    });
+    const sibling = await authorizeInput(harness.inputs, OWNER_A, "sibling.wav");
+
+    await harness.manager.enqueue(
+      OWNER_A,
+      await harness.createRequest([harness.fileToken, sibling.fileToken]),
+    );
+    harness.flushScheduled();
+    await harness.manager.waitForIdle();
+
+    expect(taskExecutor.beginBatchSlice).toHaveBeenCalledOnce();
+    expect(taskExecutor.endBatchSlice).toHaveBeenCalledOnce();
+    expect(taskExecutor.execute.mock.calls.map(([context]) => context.taskId)).toEqual([
+      "task-1",
+      "task-2",
+    ]);
+    expect(taskExecutor.execute.mock.calls[1]![0].batchRuntime).toBe(
+      taskExecutor.execute.mock.calls[0]![0].batchRuntime,
+    );
+    expect(harness.manager.getSessionSnapshot(OWNER_A)).toMatchObject({
+      batches: [
+        {
+          status: "completed",
+          tasks: [
+            { taskId: "task-1", status: "failed", error: { code: "cleanup_failed" } },
+            { taskId: "task-2", status: "completed" },
+          ],
+        },
+      ],
+    });
+  });
+
+  it.each(["releaseOwner", "shutdown"] as const)(
+    "ends an active batch slice only after executor settlement during %s",
+    async (lifecycleMethod) => {
+      const executorStarted = deferred<void>();
+      const executorSettlement = deferred<void>();
+      const lifecycle: string[] = [];
+      let taskSignal: AbortSignal | undefined;
+      let sliceSignal: AbortSignal | undefined;
+      const taskExecutor = executor(async (context) => {
+        lifecycle.push("execute");
+        taskSignal = context.signal;
+        executorStarted.resolve();
+        await executorSettlement.promise;
+        lifecycle.push("executor-settled");
+        return { status: "cancelled", artifactResults: [] };
+      });
+      taskExecutor.beginBatchSlice.mockImplementation((context) => {
+        lifecycle.push("begin");
+        sliceSignal = context.signal;
+        return Object.freeze({}) as LocalSubtitleJobBatchRuntime;
+      });
+      taskExecutor.endBatchSlice.mockImplementation(() => {
+        lifecycle.push("end");
+      });
+      const harness = await createHarness({ executor: taskExecutor });
+
+      await harness.manager.enqueue(
+        OWNER_A,
+        await harness.createRequest(harness.fileToken),
+      );
+      harness.flushScheduled();
+      await executorStarted.promise;
+
+      const lifecycleOperation = lifecycleMethod === "releaseOwner"
+        ? (() => {
+            harness.manager.releaseOwner(OWNER_A);
+            return harness.manager.waitForOwnerIdle(OWNER_A);
+          })()
+        : harness.manager.shutdown("app_quit");
+      let operationSettled = false;
+      const observedOperation = lifecycleOperation.finally(() => {
+        operationSettled = true;
+      });
+
+      await Promise.resolve();
+      expect(taskSignal?.aborted).toBe(true);
+      expect(sliceSignal?.aborted).toBe(true);
+      expect(taskExecutor.endBatchSlice).not.toHaveBeenCalled();
+      expect(lifecycle).toEqual(["begin", "execute"]);
+      expect(operationSettled).toBe(false);
+
+      executorSettlement.resolve();
+      await expect(observedOperation).resolves.toBeUndefined();
+
+      expect(taskExecutor.endBatchSlice).toHaveBeenCalledOnce();
+      expect(lifecycle).toEqual([
+        "begin",
+        "execute",
+        "executor-settled",
+        "end",
+      ]);
+    },
+  );
 
   it("continues later batch tasks after one file fails normally", async () => {
     const starts: string[] = [];
@@ -2539,7 +2787,13 @@ function committedArtifact(): LocalSubtitleArtifactResult {
 function executor(
   execute: LocalSubtitleJobTaskExecutor["execute"],
 ) {
-  return { execute: vi.fn(execute) };
+  return {
+    beginBatchSlice: vi.fn(() =>
+      Object.freeze({}) as LocalSubtitleJobBatchRuntime
+    ),
+    execute: vi.fn(execute),
+    endBatchSlice: vi.fn(() => undefined),
+  };
 }
 
 async function authorizeInput(

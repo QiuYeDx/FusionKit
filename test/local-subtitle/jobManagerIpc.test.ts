@@ -20,7 +20,10 @@ import {
 import { LocalSubtitleIpcService } from "../../electron/main/local-subtitle/ipc";
 import { LocalSubtitleOwnerSessionRegistry } from "../../electron/main/local-subtitle/ipc-security";
 import { LocalSubtitleJobIpcBridge } from "../../electron/main/local-subtitle/job-ipc";
-import { LocalSubtitleJobManager } from "../../electron/main/local-subtitle/job-manager";
+import {
+  LocalSubtitleJobManager,
+  type LocalSubtitleJobBatchRuntime,
+} from "../../electron/main/local-subtitle/job-manager";
 import { LocalSubtitleSessionIpcBridge } from "../../electron/main/local-subtitle/session-ipc";
 import { LocalSubtitleSessionRegistry } from "../../electron/main/local-subtitle/session-registry";
 
@@ -210,6 +213,7 @@ function createFixture(root: string) {
       }),
     },
     executor: {
+      beginBatchSlice: () => Object.freeze({}) as LocalSubtitleJobBatchRuntime,
       execute: async (context) => {
         context.update({
           status: "loading_model",
@@ -259,6 +263,7 @@ function createFixture(root: string) {
           ],
         };
       },
+      endBatchSlice: () => undefined,
     },
     now: () => Date.parse("2026-07-22T00:00:00.000Z"),
     batchIdFactory: () => "batch-ipc",

@@ -11,6 +11,8 @@ import {
 } from "@/type/localSubtitle";
 import type { LocalSubtitleOutputDirectoryAuthorizationRegistry } from "./authorizations";
 import type {
+  LocalSubtitleJobBatchExecutionContext,
+  LocalSubtitleJobBatchRuntime,
   LocalSubtitleJobTaskExecutionContext,
   LocalSubtitleJobTaskExecutionResult,
   LocalSubtitleJobTaskExecutor,
@@ -27,6 +29,7 @@ import {
   selectLocalSubtitleCpuServerArtifactId,
   verifyLocalSubtitleRuntimeBundle,
   type LocalSubtitleResourceEnvironment,
+  type LocalSubtitleVerifiedRuntimeArtifact,
   type LocalSubtitleVerifiedRuntimeBundle,
 } from "./resource-path";
 import type {
@@ -35,6 +38,7 @@ import type {
 import type {
   LocalSubtitleServerInferenceOperation,
   LocalSubtitleServerLease,
+  LocalSubtitleServerRuntimePin,
   LocalSubtitleServerSupervisor,
   LocalSubtitleServerSupervisorInferenceResponse,
 } from "./server-supervisor";
@@ -86,8 +90,44 @@ type ProductionMedia = Pick<
 
 type ProductionSupervisor = Pick<
   LocalSubtitleServerSupervisor,
-  "acquire" | "beginInference" | "cancelRequest" | "release"
+  | "acquireBatchRuntimePin"
+  | "acquirePinnedTaskLease"
+  | "beginInference"
+  | "cancelRequest"
+  | "release"
+  | "releaseBatchRuntimePin"
 >;
+
+interface ProductionBatchRuntimeRecord {
+  readonly runtime: LocalSubtitleJobBatchRuntime;
+  readonly owner: LocalSubtitleJobBatchExecutionContext["owner"];
+  readonly batchId: string;
+  readonly config: LocalSubtitleJobBatchExecutionContext["config"];
+  readonly managedModel: LocalSubtitleJobBatchExecutionContext["managedModel"];
+  readonly admittedRuntimeGeneration: string;
+  readonly signal: AbortSignal;
+  active: boolean;
+  pin?: LocalSubtitleServerRuntimePin;
+  pinOperation?: Promise<LocalSubtitleServerRuntimePin>;
+  pinnedIdentity?: PinnedServerRuntimeIdentity;
+}
+
+interface PinnedServerRuntimeIdentity {
+  readonly runtimeRoot: string;
+  readonly runtimeGeneration: string;
+  readonly targetPlatform: LocalSubtitleVerifiedRuntimeBundle["target"]["platform"];
+  readonly targetArch: LocalSubtitleVerifiedRuntimeBundle["target"]["arch"];
+  readonly serverArtifact: Readonly<{
+    id: string;
+    kind: LocalSubtitleVerifiedRuntimeArtifact["kind"];
+    backend: LocalSubtitleVerifiedRuntimeArtifact["backend"];
+    absolutePath: string;
+    byteSize: number;
+    sha256: string;
+    version: string;
+    signatureKind: LocalSubtitleVerifiedRuntimeArtifact["signatureKind"];
+  }>;
+}
 
 type ProductionOutputs = Pick<
   LocalSubtitleOutputDirectoryAuthorizationRegistry,
@@ -134,6 +174,10 @@ export class LocalSubtitleProductionExecutor
   readonly #rootPlanIdFactory: () => string;
   readonly #cpuThreads: number;
   readonly #retainedRawBudget: LocalSubtitleRetainedRawBudget;
+  readonly #batchRuntimes = new WeakMap<
+    LocalSubtitleJobBatchRuntime,
+    ProductionBatchRuntimeRecord
+  >();
   #nextRequestGeneration = 1;
 
   constructor(options: LocalSubtitleProductionExecutorOptions) {
@@ -146,10 +190,12 @@ export class LocalSubtitleProductionExecutor
         "disposeNormalized",
       ]) ||
       !hasMethods(options?.supervisor, [
-        "acquire",
+        "acquireBatchRuntimePin",
+        "acquirePinnedTaskLease",
         "beginInference",
         "cancelRequest",
         "release",
+        "releaseBatchRuntimePin",
       ]) ||
       !hasMethods(options?.outputs, ["resolveBatchLease"]) ||
       !hasMethods(options?.exporter, ["exportArtifacts"])
@@ -204,10 +250,45 @@ export class LocalSubtitleProductionExecutor
     this.#retainedRawBudget = Object.freeze({ ...retainedRawBudget });
   }
 
+  beginBatchSlice(
+    context: LocalSubtitleJobBatchExecutionContext,
+  ): LocalSubtitleJobBatchRuntime {
+    if (!isSupportedBatchExecutionContext(context)) {
+      throw createLocalSubtitleError(
+        "invalid_ipc_request",
+        "The local subtitle batch runtime context is invalid.",
+        { stage: "preflight" },
+      );
+    }
+    const runtime = Object.freeze({}) as LocalSubtitleJobBatchRuntime;
+    this.#batchRuntimes.set(runtime, {
+      runtime,
+      owner: Object.freeze({ ...context.owner }),
+      batchId: context.batchId,
+      config: context.config,
+      managedModel: context.managedModel,
+      admittedRuntimeGeneration: context.admittedRuntimeGeneration,
+      signal: context.signal,
+      active: true,
+    });
+    return runtime;
+  }
+
+  endBatchSlice(runtime: LocalSubtitleJobBatchRuntime): void {
+    const record = this.#batchRuntimes.get(runtime);
+    if (!record?.active) return;
+    record.active = false;
+    if (record.pin) {
+      this.#supervisor.releaseBatchRuntimePin(record.pin);
+      record.pin = undefined;
+    }
+  }
+
   async execute(
     context: LocalSubtitleJobTaskExecutionContext,
   ): Promise<LocalSubtitleJobTaskExecutionResult> {
-    if (!isSupportedExecutionContext(context)) {
+    const batchRuntime = this.#resolveBatchRuntime(context);
+    if (!batchRuntime || !isSupportedExecutionContext(context)) {
       return failedResult("invalid_ipc_request", "preflight");
     }
 
@@ -276,18 +357,13 @@ export class LocalSubtitleProductionExecutor
         );
       }
       const serverArtifactId = this.#selectCpuServerArtifactId(runtime);
-      lease = await this.#supervisor.acquire(
-        context.owner,
-        {
-          purpose: "inference",
-          backend: "cpu",
-          verifiedRuntime: runtime,
-          serverArtifactId,
-          model: context.managedModel,
-          threads: this.#cpuThreads,
-        },
+      const pin = await this.#ensureBatchRuntimePin(
+        batchRuntime,
+        runtime,
+        serverArtifactId,
         context.signal,
       );
+      lease = await this.#supervisor.acquirePinnedTaskLease(pin, context.signal);
       throwIfCancelled(context.signal);
       context.update({
         status: "loading_model",
@@ -611,6 +687,181 @@ export class LocalSubtitleProductionExecutor
     );
     return generation;
   }
+
+  #resolveBatchRuntime(
+    context: LocalSubtitleJobTaskExecutionContext,
+  ): ProductionBatchRuntimeRecord | undefined {
+    const record = this.#batchRuntimes.get(context.batchRuntime);
+    if (
+      !record?.active ||
+      record.signal.aborted ||
+      record.batchId !== context.batchId ||
+      record.owner.webContentsId !== context.owner.webContentsId ||
+      record.owner.ownerSessionId !== context.owner.ownerSessionId ||
+      record.config !== context.config ||
+      record.managedModel !== context.managedModel ||
+      record.admittedRuntimeGeneration !== context.admittedRuntimeGeneration
+    ) {
+      return undefined;
+    }
+    return record;
+  }
+
+  async #ensureBatchRuntimePin(
+    record: ProductionBatchRuntimeRecord,
+    runtime: LocalSubtitleVerifiedRuntimeBundle,
+    serverArtifactId: string,
+    signal: AbortSignal,
+  ): Promise<LocalSubtitleServerRuntimePin> {
+    if (signal.aborted) throw new ExecutionCancelled();
+    if (!record.active || record.signal.aborted) {
+      throw createLocalSubtitleError(
+        "owner_released",
+        "The local subtitle batch runtime was released.",
+        { stage: "loading_model" },
+      );
+    }
+    const requestedIdentity = snapshotPinnedServerRuntimeIdentity(
+      runtime,
+      serverArtifactId,
+    );
+    if (
+      record.pinnedIdentity &&
+      !samePinnedServerRuntimeIdentity(record.pinnedIdentity, requestedIdentity)
+    ) {
+      throw createLocalSubtitleError(
+        "media_runtime_invalid",
+        "The bundled runtime changed while the batch runtime was pinned.",
+        { stage: "loading_model" },
+      );
+    }
+    if (record.pin) {
+      return record.pin;
+    }
+    if (!record.pinOperation) {
+      record.pinnedIdentity = requestedIdentity;
+      let acquired: Promise<LocalSubtitleServerRuntimePin>;
+      try {
+        acquired = this.#supervisor.acquireBatchRuntimePin(
+          record.owner,
+          record.batchId,
+          {
+            purpose: "inference",
+            backend: "cpu",
+            verifiedRuntime: runtime,
+            serverArtifactId,
+            model: record.managedModel,
+            threads: this.#cpuThreads,
+          },
+          record.signal,
+        );
+      } catch (error) {
+        record.pinnedIdentity = undefined;
+        throw error;
+      }
+      let operation!: Promise<LocalSubtitleServerRuntimePin>;
+      operation = acquired
+        .then((pin) => {
+          if (!record.active || record.signal.aborted) {
+            this.#supervisor.releaseBatchRuntimePin(pin);
+            throw createLocalSubtitleError(
+              "owner_released",
+              "The local subtitle batch runtime was released during startup.",
+              { stage: "loading_model" },
+            );
+          }
+          record.pin = pin;
+          return pin;
+        })
+        .catch((error: unknown) => {
+          if (record.pinOperation === operation && !record.pin) {
+            record.pinnedIdentity = undefined;
+          }
+          throw error;
+        })
+        .finally(() => {
+          if (record.pinOperation === operation) record.pinOperation = undefined;
+        });
+      record.pinOperation = operation;
+      void operation.catch(() => undefined);
+    }
+    const operation = record.pinOperation;
+    return waitForBatchPin(operation, signal);
+  }
+}
+
+function waitForBatchPin(
+  operation: Promise<LocalSubtitleServerRuntimePin>,
+  signal: AbortSignal,
+): Promise<LocalSubtitleServerRuntimePin> {
+  if (signal.aborted) return Promise.reject(new ExecutionCancelled());
+  return new Promise<LocalSubtitleServerRuntimePin>((resolve, reject) => {
+    let settled = false;
+    const finish = (callback: () => void) => {
+      if (settled) return;
+      settled = true;
+      signal.removeEventListener("abort", onAbort);
+      callback();
+    };
+    const onAbort = () => finish(() => reject(new ExecutionCancelled()));
+    signal.addEventListener("abort", onAbort, { once: true });
+    operation.then(
+      (pin) => finish(() => resolve(pin)),
+      (error: unknown) => finish(() => reject(error)),
+    );
+  });
+}
+
+function snapshotPinnedServerRuntimeIdentity(
+  runtime: LocalSubtitleVerifiedRuntimeBundle,
+  serverArtifactId: string,
+): PinnedServerRuntimeIdentity {
+  const artifact = runtime.artifactPaths[serverArtifactId];
+  if (!artifact) {
+    throw createLocalSubtitleError(
+      "runtime_protocol_mismatch",
+      "The selected local inference server artifact is missing.",
+      { stage: "loading_model" },
+    );
+  }
+  return Object.freeze({
+    runtimeRoot: runtime.root,
+    runtimeGeneration: runtime.runtimeGeneration,
+    targetPlatform: runtime.target.platform,
+    targetArch: runtime.target.arch,
+    serverArtifact: Object.freeze({
+      id: artifact.id,
+      kind: artifact.kind,
+      backend: artifact.backend,
+      absolutePath: artifact.absolutePath,
+      byteSize: artifact.byteSize,
+      sha256: artifact.sha256,
+      version: artifact.version,
+      signatureKind: artifact.signatureKind,
+    }),
+  });
+}
+
+function samePinnedServerRuntimeIdentity(
+  current: PinnedServerRuntimeIdentity,
+  requested: PinnedServerRuntimeIdentity,
+): boolean {
+  const left = current.serverArtifact;
+  const right = requested.serverArtifact;
+  return (
+    current.runtimeRoot === requested.runtimeRoot &&
+    current.runtimeGeneration === requested.runtimeGeneration &&
+    current.targetPlatform === requested.targetPlatform &&
+    current.targetArch === requested.targetArch &&
+    left.id === right.id &&
+    left.kind === right.kind &&
+    left.backend === right.backend &&
+    left.absolutePath === right.absolutePath &&
+    left.byteSize === right.byteSize &&
+    left.sha256 === right.sha256 &&
+    left.version === right.version &&
+    left.signatureKind === right.signatureKind
+  );
 }
 
 function createInferenceRequest(
@@ -907,6 +1158,40 @@ function boundOutputStem(source: string): string {
     result = candidate;
   }
   return result;
+}
+
+function isSupportedBatchExecutionContext(
+  context: LocalSubtitleJobBatchExecutionContext,
+): boolean {
+  return (
+    typeof context === "object" &&
+    context !== null &&
+    typeof context.batchId === "string" &&
+    context.batchId.length > 0 &&
+    context.batchId.length <= LOCAL_SUBTITLE_LIMITS.maxIdChars &&
+    typeof context.owner === "object" &&
+    context.owner !== null &&
+    Number.isSafeInteger(context.owner.webContentsId) &&
+    typeof context.owner.ownerSessionId === "string" &&
+    typeof context.admittedRuntimeGeneration === "string" &&
+    /^[a-f0-9]{64}$/u.test(context.admittedRuntimeGeneration) &&
+    typeof context.signal?.aborted === "boolean" &&
+    typeof context.managedModel === "object" &&
+    context.managedModel !== null &&
+    typeof context.config === "object" &&
+    context.config !== null &&
+    context.managedModel.storage === "managed" &&
+    context.managedModel.id === context.config.model.modelId &&
+    context.managedModel.sha256 === context.config.model.modelHash &&
+    context.config.output.mode === "custom" &&
+    context.config.output.formats.length === 1 &&
+    context.config.output.formats[0] === "SRT" &&
+    context.config.devicePreference === "cpu" &&
+    context.config.resolvedBackend === "cpu" &&
+    context.config.taskMode === "transcribe" &&
+    context.config.inference.vad.enabled === false &&
+    context.config.postAction.mode === "export_only"
+  );
 }
 
 function isSupportedExecutionContext(

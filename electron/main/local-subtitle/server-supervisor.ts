@@ -47,10 +47,14 @@ import type { LocalSubtitleOwnerKey } from "./authorizations";
 const LEASE_BRAND: unique symbol = Symbol(
   "fusionkit.local-subtitle.server-supervisor-lease",
 );
+const RUNTIME_PIN_BRAND: unique symbol = Symbol(
+  "fusionkit.local-subtitle.server-supervisor-runtime-pin",
+);
 const REQUEST_TICKET_BRAND: unique symbol = Symbol(
   "fusionkit.local-subtitle.server-supervisor-request",
 );
 const OWNER_SESSION_ID_PATTERN = /^[A-Za-z0-9._:-]+$/u;
+const SAFE_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]*$/u;
 const MAX_ABSOLUTE_PATH_CHARS = 32_768;
 
 export const LOCAL_SUBTITLE_SERVER_SUPERVISOR_POLICY = Object.freeze({
@@ -125,8 +129,17 @@ export type LocalSubtitleServerModelLoadSmokeOptions = Extract<
   { readonly purpose: "model_load_smoke" }
 >;
 
+export type LocalSubtitleServerInferenceLoadOptions = Extract<
+  LocalSubtitleServerSupervisorLoadOptions,
+  { readonly purpose: "inference" }
+>;
+
 export interface LocalSubtitleServerLease {
   readonly [LEASE_BRAND]: true;
+}
+
+export interface LocalSubtitleServerRuntimePin {
+  readonly [RUNTIME_PIN_BRAND]: true;
 }
 
 export interface LocalSubtitleServerRequestTicket {
@@ -164,6 +177,7 @@ export interface LocalSubtitleServerSupervisorSnapshot {
   readonly runtimeGeneration?: string;
   readonly serverArtifactId?: string;
   readonly leaseCount: number;
+  readonly runtimePinCount: number;
   readonly activeRequest: boolean;
   readonly lastDiagnostics?: LocalSubtitleDiagnostics;
 }
@@ -243,6 +257,19 @@ interface LeaseRecord {
   readonly ownerKey: string;
   readonly loadOptions: LocalSubtitleServerSupervisorLoadOptions;
   readonly loadIdentity: LocalSubtitleServerLoadIdentity;
+  readonly runtimePin?: RuntimePinRecord;
+  active: boolean;
+}
+
+interface RuntimePinRecord {
+  readonly pin: LocalSubtitleServerRuntimePin;
+  readonly pinKey: string;
+  readonly owner: LocalSubtitleOwnerKey;
+  readonly ownerKey: string;
+  readonly batchId: string;
+  readonly loadOptions: LocalSubtitleServerInferenceLoadOptions;
+  readonly loadIdentity: LocalSubtitleServerLoadIdentity;
+  readonly childLeases: Set<LeaseRecord>;
   active: boolean;
 }
 
@@ -317,6 +344,8 @@ export class LocalSubtitleServerSupervisor {
   readonly #now: () => number;
   readonly #delay: NonNullable<LocalSubtitleServerSupervisorDependencies["delay"]>;
   readonly #leases = new Map<LocalSubtitleServerLease, LeaseRecord>();
+  readonly #runtimePins = new Map<LocalSubtitleServerRuntimePin, RuntimePinRecord>();
+  readonly #runtimePinKeys = new Set<string>();
   readonly #releasedOwners = new Set<string>();
   readonly #activeOwners = new Set<string>();
   readonly #backgroundCleanup = new Set<Promise<void>>();
@@ -325,6 +354,7 @@ export class LocalSubtitleServerSupervisor {
   #nextProcessEpoch = 1;
   #activeRequest: ActiveRequest | undefined;
   #startOwnerKey: string | undefined;
+  #startLease: LeaseRecord | undefined;
   #startController: AbortController | undefined;
   #startPromise: Promise<void> | undefined;
   #idleTimer: NodeJS.Timeout | undefined;
@@ -413,6 +443,7 @@ export class LocalSubtitleServerSupervisor {
             serverArtifactId: epoch.loadIdentity.serverArtifact.id,
           }),
       leaseCount: this.#activeLeaseCount(),
+      runtimePinCount: this.#activeRuntimePinCount(),
       activeRequest: this.#activeRequest !== undefined,
       ...(this.#lastDiagnostics === undefined
         ? {}
@@ -420,21 +451,43 @@ export class LocalSubtitleServerSupervisor {
     });
   }
 
-  async acquire(
+  acquire(
     owner: LocalSubtitleOwnerKey,
     loadOptions: LocalSubtitleServerSupervisorLoadOptions,
     signal?: AbortSignal,
+  ): Promise<LocalSubtitleServerLease> {
+    return this.#acquire(owner, loadOptions, signal);
+  }
+
+  async #acquire(
+    owner: LocalSubtitleOwnerKey,
+    loadOptions: LocalSubtitleServerSupervisorLoadOptions,
+    signal?: AbortSignal,
+    runtimePin?: RuntimePinRecord,
   ): Promise<LocalSubtitleServerLease> {
     this.#assertAvailable();
     if (this.#shutdownPromise) throw resourceBusyError();
     const ownerKey = validateOwner(owner);
     if (this.#releasedOwners.has(ownerKey)) throw ownerReleasedError();
+    if (signal?.aborted) throw abortedSupervisorError();
+    if (runtimePin) this.#assertRuntimePinCurrent(runtimePin);
     const canonicalLoadOptions = snapshotLoadOptions(loadOptions);
     const loadIdentity = createSupervisorLoadIdentity(
       canonicalLoadOptions,
       this.#managedResourceRoot,
     );
+    if (
+      runtimePin &&
+      (runtimePin.ownerKey !== ownerKey ||
+        !canReuseLocalSubtitleServerLoadIdentity(
+          runtimePin.loadIdentity,
+          loadIdentity,
+        ))
+    ) {
+      throw ownerReleasedError();
+    }
     this.#assertLoadCompatibleWithLeases(loadIdentity);
+    this.#assertLoadCompatibleWithRuntimePins(loadIdentity);
 
     const lease = createLease();
     const record: LeaseRecord = {
@@ -443,9 +496,11 @@ export class LocalSubtitleServerSupervisor {
       ownerKey,
       loadOptions: canonicalLoadOptions,
       loadIdentity,
+      ...(runtimePin === undefined ? {} : { runtimePin }),
       active: true,
     };
     this.#leases.set(lease, record);
+    runtimePin?.childLeases.add(record);
 
     const current = this.#epoch;
     if (
@@ -453,6 +508,10 @@ export class LocalSubtitleServerSupervisor {
       current?.state === "ready" &&
       canReuseLocalSubtitleServerLoadIdentity(current.loadIdentity, loadIdentity)
     ) {
+      if (signal?.aborted) {
+        this.#deactivateLease(record);
+        throw abortedSupervisorError();
+      }
       this.#registerActiveInferenceOwners(current);
       this.#scheduleIdleShutdown();
       return lease;
@@ -465,7 +524,13 @@ export class LocalSubtitleServerSupervisor {
     const controller = new AbortController();
     const detach = forwardAbort(signal, controller, () => undefined);
     this.#startOwnerKey = ownerKey;
+    this.#startLease = record;
     this.#startController = controller;
+    let resolveStartOperation!: () => void;
+    const startOperation = new Promise<void>((resolve) => {
+      resolveStartOperation = resolve;
+    });
+    this.#startPromise = startOperation;
     const start = this.#ensureEpoch(record, controller.signal, false);
     let smokeRetirementStarted = false;
     try {
@@ -491,7 +556,11 @@ export class LocalSubtitleServerSupervisor {
     } catch (error) {
       this.#deactivateLease(record);
       let failure: unknown = error;
-      if (this.#activeLeaseCount() === 0 && !smokeRetirementStarted) {
+      if (
+        this.#activeLeaseCount() === 0 &&
+        !smokeRetirementStarted &&
+        this.#epoch?.state !== "faulted"
+      ) {
         await this.#retireCurrentEpoch("acquire_failed").catch((cleanupError) => {
           failure = cleanupError;
         });
@@ -499,11 +568,134 @@ export class LocalSubtitleServerSupervisor {
       throw this.#normalizeError(failure, this.#epoch);
     } finally {
       detach();
+      if (this.#startPromise === startOperation) this.#startPromise = undefined;
+      resolveStartOperation();
       if (this.#startController === controller) {
         this.#startController = undefined;
         this.#startOwnerKey = undefined;
+        this.#startLease = undefined;
       }
     }
+  }
+
+  async acquireBatchRuntimePin(
+    owner: LocalSubtitleOwnerKey,
+    batchId: string,
+    loadOptions: LocalSubtitleServerInferenceLoadOptions,
+    signal?: AbortSignal,
+  ): Promise<LocalSubtitleServerRuntimePin> {
+    this.#assertAvailable();
+    if (this.#shutdownPromise) throw resourceBusyError();
+    const ownerKey = validateOwner(owner);
+    if (this.#releasedOwners.has(ownerKey)) throw ownerReleasedError();
+    if (signal?.aborted) throw abortedSupervisorError();
+    const canonicalBatchId = validateBatchId(batchId);
+    const canonicalLoadOptions = snapshotLoadOptions(
+      loadOptions,
+    ) as LocalSubtitleServerInferenceLoadOptions;
+    if (canonicalLoadOptions.purpose !== "inference") {
+      throw invalidConfigurationError(
+        "A batch runtime pin must use an inference load identity.",
+      );
+    }
+    const loadIdentity = createSupervisorLoadIdentity(
+      canonicalLoadOptions,
+      this.#managedResourceRoot,
+    );
+    this.#assertLoadCompatibleWithLeases(loadIdentity);
+    this.#assertLoadCompatibleWithRuntimePins(loadIdentity);
+    const pinKey = `${ownerKey}\u0000${canonicalBatchId}`;
+    if (this.#runtimePinKeys.has(pinKey)) throw resourceBusyError();
+
+    const pin = createRuntimePin();
+    const record: RuntimePinRecord = {
+      pin,
+      pinKey,
+      owner: Object.freeze({ ...owner }),
+      ownerKey,
+      batchId: canonicalBatchId,
+      loadOptions: canonicalLoadOptions,
+      loadIdentity,
+      childLeases: new Set<LeaseRecord>(),
+      active: true,
+    };
+    this.#runtimePins.set(pin, record);
+    this.#runtimePinKeys.add(pinKey);
+    this.#clearIdleTimer();
+
+    let lease: LocalSubtitleServerLease | undefined;
+    try {
+      lease = await this.#acquire(owner, canonicalLoadOptions, signal, record);
+      this.#assertRuntimePinCurrent(record);
+      const leaseRecord = this.#requireLease(lease);
+      if (
+        !canReuseLocalSubtitleServerLoadIdentity(
+          record.loadIdentity,
+          leaseRecord.loadIdentity,
+        )
+      ) {
+        throw invalidConfigurationError(
+          "The pinned local inference load identity changed during startup.",
+        );
+      }
+      this.#deactivateLease(leaseRecord);
+      lease = undefined;
+      this.#clearIdleTimer();
+      return pin;
+    } catch (error) {
+      let failure: unknown = error;
+      if (lease !== undefined) {
+        try {
+          await this.release(lease);
+        } catch (cleanupError) {
+          failure = cleanupError;
+        }
+      }
+      this.#deactivateRuntimePin(record);
+      this.#scheduleIdleShutdown();
+      throw this.#normalizeError(failure, this.#epoch);
+    }
+  }
+
+  async acquirePinnedTaskLease(
+    pin: LocalSubtitleServerRuntimePin,
+    signal?: AbortSignal,
+  ): Promise<LocalSubtitleServerLease> {
+    const record = this.#requireRuntimePin(pin);
+    this.#assertRuntimePinCurrent(record);
+    if (signal?.aborted) throw abortedSupervisorError();
+    const lease = await this.#acquire(
+      record.owner,
+      record.loadOptions,
+      signal,
+      record,
+    );
+    try {
+      this.#assertRuntimePinCurrent(record);
+      const leaseRecord = this.#requireLease(lease);
+      if (
+        !canReuseLocalSubtitleServerLoadIdentity(
+          record.loadIdentity,
+          leaseRecord.loadIdentity,
+        )
+      ) {
+        throw invalidConfigurationError(
+          "The task lease does not match its pinned runtime identity.",
+        );
+      }
+      return lease;
+    } catch (error) {
+      await this.release(lease);
+      throw error;
+    }
+  }
+
+  releaseBatchRuntimePin(pin: LocalSubtitleServerRuntimePin): void {
+    if (!isRuntimePin(pin)) return;
+    const record = this.#runtimePins.get(pin);
+    if (!record?.active) return;
+    this.#deactivateRuntimePin(record);
+    this.#scheduleIdleShutdown();
   }
 
   async smokeModelLoad(
@@ -629,6 +821,9 @@ export class LocalSubtitleServerSupervisor {
     const ownerKey = validateOwner(owner);
     this.#releasedOwners.add(ownerKey);
     this.#activeOwners.delete(ownerKey);
+    for (const record of this.#runtimePins.values()) {
+      if (record.ownerKey === ownerKey) this.#deactivateRuntimePin(record);
+    }
     for (const record of this.#leases.values()) {
       if (record.ownerKey === ownerKey) this.#deactivateLease(record);
     }
@@ -647,27 +842,42 @@ export class LocalSubtitleServerSupervisor {
     this.#trackBackgroundCleanup(cleanup);
   }
 
-  async shutdown(
+  shutdown(
     reason: "idle" | "last_owner" | "app_quit" | "update" | "fatal" = "app_quit",
   ): Promise<void> {
     if (this.#shutdownPromise) return this.#shutdownPromise;
-    const terminal = reason === "app_quit" || reason === "update" || reason === "fatal";
-    if (terminal) {
-      this.#disposed = true;
-      this.#state = "disposed";
-      this.#activeOwners.clear();
-      for (const record of this.#leases.values()) this.#deactivateLease(record);
+    const terminal =
+      reason === "app_quit" || reason === "update" || reason === "fatal";
+    if (!terminal && this.#activeRuntimePinCount() > 0) {
+      return Promise.reject(resourceBusyError());
     }
-    this.#clearIdleTimer();
-    this.#startController?.abort();
-    const start = this.#startPromise;
-    const active = this.#activeRequest;
-    if (active) {
-      this.#fenceActiveRequest(active);
-      active.controller.abort();
-    }
+    let resolveOperation!: () => void;
+    let rejectOperation!: (reason?: unknown) => void;
+    const operation = new Promise<void>((resolve, reject) => {
+      resolveOperation = resolve;
+      rejectOperation = reject;
+    });
+    this.#shutdownPromise = operation;
 
-    const promise = (async () => {
+    void (async () => {
+      if (terminal) {
+        this.#disposed = true;
+        this.#state = "disposed";
+        this.#activeOwners.clear();
+        for (const record of this.#runtimePins.values()) {
+          this.#deactivateRuntimePin(record);
+        }
+        for (const record of this.#leases.values()) this.#deactivateLease(record);
+      }
+      this.#clearIdleTimer();
+      this.#startController?.abort();
+      const start = this.#startPromise;
+      const active = this.#activeRequest;
+      if (active) {
+        this.#fenceActiveRequest(active);
+        active.controller.abort();
+      }
+
       await start;
       if (active && !(await settlesWithin(active.settled, this.#abortGraceMs))) {
         let retirementError: unknown;
@@ -687,12 +897,19 @@ export class LocalSubtitleServerSupervisor {
       await this.#cleanupOrphanedSession();
       await this.drainBackgroundCleanup();
       if (!this.#disposed) this.#state = "unloaded";
-    })();
-    this.#shutdownPromise = promise.finally(() => {
-      this.#shutdownPromise = undefined;
-      if (this.#disposed) this.#state = "disposed";
-    });
-    return this.#shutdownPromise;
+    })().then(
+      () => {
+        if (this.#shutdownPromise === operation) this.#shutdownPromise = undefined;
+        if (this.#disposed) this.#state = "disposed";
+        resolveOperation();
+      },
+      (error: unknown) => {
+        if (this.#shutdownPromise === operation) this.#shutdownPromise = undefined;
+        if (this.#disposed) this.#state = "disposed";
+        rejectOperation(error);
+      },
+    );
+    return operation;
   }
 
   async drainBackgroundCleanup(): Promise<void> {
@@ -806,7 +1023,10 @@ export class LocalSubtitleServerSupervisor {
       }
       return current;
     }
-    if (current) await this.#retireEpoch(current, "load_identity_changed");
+    if (current) {
+      await this.#retireEpoch(current, "load_identity_changed");
+      this.#assertLeaseAndSignal(lease, signal);
+    }
     return this.#startEpoch(lease, signal);
   }
 
@@ -814,16 +1034,7 @@ export class LocalSubtitleServerSupervisor {
     lease: LeaseRecord,
     signal: AbortSignal,
   ): Promise<ServerProcessEpoch> {
-    if (this.#startPromise) return Promise.reject(resourceBusyError());
-    const start = this.#runStartEpoch(lease, signal);
-    const observed = start.then(
-      () => undefined,
-      () => undefined,
-    );
-    this.#startPromise = observed;
-    return start.finally(() => {
-      if (this.#startPromise === observed) this.#startPromise = undefined;
-    });
+    return this.#runStartEpoch(lease, signal);
   }
 
   async #runStartEpoch(
@@ -863,6 +1074,7 @@ export class LocalSubtitleServerSupervisor {
     let epoch: ServerProcessEpoch | undefined;
 
     try {
+      this.#assertLeaseAndSignal(lease, signal);
       session = await this.#createSession(this.#managedResourceRoot);
       this.#assertLeaseAndSignal(lease, signal);
       reservation = await this.#reservePort();
@@ -1286,7 +1498,10 @@ export class LocalSubtitleServerSupervisor {
     if (
       !record.active ||
       this.#leases.get(record.lease) !== record ||
-      this.#releasedOwners.has(record.ownerKey)
+      this.#releasedOwners.has(record.ownerKey) ||
+      (record.runtimePin !== undefined &&
+        (!record.runtimePin.active ||
+          this.#runtimePins.get(record.runtimePin.pin) !== record.runtimePin))
     ) {
       throw ownerReleasedError();
     }
@@ -1312,15 +1527,69 @@ export class LocalSubtitleServerSupervisor {
     }
   }
 
+  #assertLoadCompatibleWithRuntimePins(
+    requested: LocalSubtitleServerLoadIdentity,
+  ): void {
+    for (const record of this.#runtimePins.values()) {
+      if (
+        record.active &&
+        !canReuseLocalSubtitleServerLoadIdentity(record.loadIdentity, requested)
+      ) {
+        throw resourceBusyError();
+      }
+    }
+  }
+
   #deactivateLease(record: LeaseRecord): void {
     if (!record.active) return;
     record.active = false;
     this.#leases.delete(record.lease);
+    record.runtimePin?.childLeases.delete(record);
+  }
+
+  #requireRuntimePin(pin: LocalSubtitleServerRuntimePin): RuntimePinRecord {
+    if (!isRuntimePin(pin)) throw ownerReleasedError();
+    const record = this.#runtimePins.get(pin);
+    if (!record) throw ownerReleasedError();
+    return record;
+  }
+
+  #assertRuntimePinCurrent(record: RuntimePinRecord): void {
+    if (
+      !record.active ||
+      this.#runtimePins.get(record.pin) !== record ||
+      this.#releasedOwners.has(record.ownerKey)
+    ) {
+      throw ownerReleasedError();
+    }
+  }
+
+  #deactivateRuntimePin(record: RuntimePinRecord): void {
+    if (!record.active) return;
+    record.active = false;
+    this.#runtimePins.delete(record.pin);
+    this.#runtimePinKeys.delete(record.pinKey);
+    if (this.#startLease?.runtimePin === record) this.#startController?.abort();
+    const active = this.#activeRequest;
+    for (const lease of [...record.childLeases]) this.#deactivateLease(lease);
+    if (active?.lease.runtimePin === record) {
+      this.#fenceActiveRequest(active);
+      active.controller.abort();
+      this.#trackBackgroundCleanup(this.cancelRequest(active.ticket));
+    }
   }
 
   #activeLeaseCount(): number {
     let count = 0;
     for (const record of this.#leases.values()) {
+      if (record.active) count += 1;
+    }
+    return count;
+  }
+
+  #activeRuntimePinCount(): number {
+    let count = 0;
+    for (const record of this.#runtimePins.values()) {
       if (record.active) count += 1;
     }
     return count;
@@ -1340,6 +1609,17 @@ export class LocalSubtitleServerSupervisor {
         this.#activeOwners.add(record.ownerKey);
       }
     }
+    for (const record of this.#runtimePins.values()) {
+      if (
+        record.active &&
+        canReuseLocalSubtitleServerLoadIdentity(
+          epoch.loadIdentity,
+          record.loadIdentity,
+        )
+      ) {
+        this.#activeOwners.add(record.ownerKey);
+      }
+    }
   }
 
   async #cleanupAfterOwnerRelease(
@@ -1351,8 +1631,14 @@ export class LocalSubtitleServerSupervisor {
     if (active?.lease.ownerKey === ownerKey) {
       await this.cancelRequest(active.ticket).catch(() => undefined);
     }
-    if (this.#activeLeaseCount() === 0 && this.#activeOwners.size === 0) {
+    if (
+      this.#activeLeaseCount() === 0 &&
+      this.#activeRuntimePinCount() === 0 &&
+      this.#activeOwners.size === 0
+    ) {
       await this.#retireCurrentEpoch("owner_released");
+    } else {
+      this.#scheduleIdleShutdown();
     }
   }
 
@@ -1368,6 +1654,7 @@ export class LocalSubtitleServerSupervisor {
     if (
       this.#disposed ||
       this.#activeRequest ||
+      this.#activeRuntimePinCount() > 0 ||
       !this.#epoch ||
       this.#epoch.state !== "ready"
     ) {
@@ -1383,6 +1670,7 @@ export class LocalSubtitleServerSupervisor {
       if (
         this.#epoch !== capturedEpoch ||
         this.#activeRequest ||
+        this.#activeRuntimePinCount() > 0 ||
         capturedEpoch.state !== "ready"
       ) {
         return;
@@ -1553,6 +1841,17 @@ function createLease(): LocalSubtitleServerLease {
   return Object.freeze(lease) as LocalSubtitleServerLease;
 }
 
+function createRuntimePin(): LocalSubtitleServerRuntimePin {
+  const pin = {};
+  Object.defineProperty(pin, RUNTIME_PIN_BRAND, {
+    value: true,
+    enumerable: false,
+    configurable: false,
+    writable: false,
+  });
+  return Object.freeze(pin) as LocalSubtitleServerRuntimePin;
+}
+
 function createRequestTicket(): LocalSubtitleServerRequestTicket {
   const ticket = {};
   Object.defineProperty(ticket, REQUEST_TICKET_BRAND, {
@@ -1570,6 +1869,15 @@ function isLease(input: unknown): input is LocalSubtitleServerLease {
     input !== null &&
     Object.isFrozen(input) &&
     (input as { readonly [LEASE_BRAND]?: unknown })[LEASE_BRAND] === true
+  );
+}
+
+function isRuntimePin(input: unknown): input is LocalSubtitleServerRuntimePin {
+  return (
+    typeof input === "object" &&
+    input !== null &&
+    Object.isFrozen(input) &&
+    (input as { readonly [RUNTIME_PIN_BRAND]?: unknown })[RUNTIME_PIN_BRAND] === true
   );
 }
 
@@ -1719,6 +2027,18 @@ function validateOwner(owner: LocalSubtitleOwnerKey): string {
     throw invalidConfigurationError("The local inference owner is invalid.");
   }
   return `${owner.webContentsId}:${owner.ownerSessionId}`;
+}
+
+function validateBatchId(batchId: string): string {
+  if (
+    typeof batchId !== "string" ||
+    batchId.length < 1 ||
+    batchId.length > LOCAL_SUBTITLE_LIMITS.maxIdChars ||
+    !SAFE_ID_PATTERN.test(batchId)
+  ) {
+    throw invalidConfigurationError("The local inference batch id is invalid.");
+  }
+  return batchId;
 }
 
 function validateDuration(

@@ -15,6 +15,7 @@ import type {
 } from "../../electron/main/local-subtitle/server-http-client";
 import {
   cleanupLocalSubtitleServerSession,
+  createLocalSubtitleServerSession,
   type LocalSubtitleServerSession,
 } from "../../electron/main/local-subtitle/server-session";
 import {
@@ -80,6 +81,7 @@ describe("LocalSubtitleServerSupervisor", () => {
     expect(harness.supervisor.snapshot).toEqual({
       state: "unloaded",
       leaseCount: 0,
+      runtimePinCount: 0,
       activeRequest: false,
     });
 
@@ -148,6 +150,394 @@ describe("LocalSubtitleServerSupervisor", () => {
     harness.supervisor.releaseOwner(OWNER_B);
     await harness.supervisor.drainBackgroundCleanup();
     expect(harness.children[0]?.killSignals).toEqual(["SIGTERM"]);
+  });
+
+  it("pins one exact runtime across task leases and blocks smoke, switches, and idle retirement", async () => {
+    const client = new FakeHttpClient();
+    const harness = createHarness({ clients: [client], idleTimeoutMs: 1 });
+    const pin = await harness.supervisor.acquireBatchRuntimePin(
+      OWNER_A,
+      "batch-1",
+      loadOptions(),
+    );
+    const processEpoch = harness.supervisor.snapshot.processEpoch;
+
+    expect(harness.supervisor.snapshot).toMatchObject({
+      state: "ready",
+      leaseCount: 0,
+      runtimePinCount: 1,
+      processEpoch,
+    });
+    await expect(
+      harness.supervisor.smokeModelLoad(OWNER_B, smokeLoadOptions()),
+    ).rejects.toMatchObject({ code: "resource_busy" });
+    await expect(
+      harness.supervisor.acquire(OWNER_B, noVadLoadOptions()),
+    ).rejects.toMatchObject({ code: "resource_busy" });
+
+    const firstLease = await harness.supervisor.acquirePinnedTaskLease(pin);
+    const first = await harness.supervisor.beginInference(
+      firstLease,
+      inferenceRequest(1),
+    ).result;
+    await harness.supervisor.release(firstLease);
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    expect(harness.children[0]?.killSignals).toEqual([]);
+
+    const secondLease = await harness.supervisor.acquirePinnedTaskLease(pin);
+    const second = await harness.supervisor.beginInference(
+      secondLease,
+      inferenceRequest(2),
+    ).result;
+    await harness.supervisor.release(secondLease);
+
+    expect(first.processEpoch).toBe(processEpoch);
+    expect(second.processEpoch).toBe(processEpoch);
+    expect(harness.spawnRecords).toHaveLength(1);
+    expect(client.readinessCalls).toBe(1);
+    expect(client.inferenceCalls).toBe(2);
+
+    harness.supervisor.releaseBatchRuntimePin(pin);
+    await waitFor(() => harness.children[0]?.killSignals.includes("SIGTERM"));
+    await harness.supervisor.drainBackgroundCleanup();
+    expect(harness.supervisor.snapshot).toMatchObject({
+      state: "unloaded",
+      runtimePinCount: 0,
+    });
+  });
+
+  it("publishes pin authority before startup awaits readiness", async () => {
+    const readiness = deferred<LocalSubtitleServerHealthResponse>();
+    const client = new FakeHttpClient({ readiness: [() => readiness.promise] });
+    const harness = createHarness({ clients: [client] });
+
+    const acquiring = harness.supervisor.acquireBatchRuntimePin(
+      OWNER_A,
+      "batch-starting",
+      loadOptions(),
+    );
+    await waitFor(() => client.readinessCalls === 1);
+
+    expect(harness.supervisor.snapshot).toMatchObject({
+      state: "starting",
+      runtimePinCount: 1,
+    });
+    await expect(
+      harness.supervisor.smokeModelLoad(OWNER_B, smokeLoadOptions()),
+    ).rejects.toMatchObject({ code: "resource_busy" });
+    await expect(
+      harness.supervisor.acquire(OWNER_B, noVadLoadOptions()),
+    ).rejects.toMatchObject({ code: "resource_busy" });
+
+    readiness.resolve(HEALTHY);
+    const pin = await acquiring;
+    expect(harness.supervisor.snapshot).toMatchObject({
+      state: "ready",
+      runtimePinCount: 1,
+    });
+    harness.supervisor.releaseBatchRuntimePin(pin);
+  });
+
+  it("keeps a compatible owner pin alive when another owner is released", async () => {
+    const harness = createHarness();
+    const firstPin = await harness.supervisor.acquireBatchRuntimePin(
+      OWNER_A,
+      "batch-a",
+      loadOptions(),
+    );
+    const secondPin = await harness.supervisor.acquireBatchRuntimePin(
+      OWNER_B,
+      "batch-b",
+      loadOptions(),
+    );
+    const processEpoch = harness.supervisor.snapshot.processEpoch;
+
+    harness.supervisor.releaseOwner(OWNER_A);
+    await harness.supervisor.drainBackgroundCleanup();
+    expect(harness.children[0]?.killSignals).toEqual([]);
+    await expect(
+      harness.supervisor.acquirePinnedTaskLease(firstPin),
+    ).rejects.toMatchObject({ code: "owner_released" });
+
+    const lease = await harness.supervisor.acquirePinnedTaskLease(secondPin);
+    await expect(
+      harness.supervisor.beginInference(lease, inferenceRequest(1)).result,
+    ).resolves.toMatchObject({ processEpoch });
+    await harness.supervisor.release(lease);
+    harness.supervisor.releaseBatchRuntimePin(secondPin);
+    harness.supervisor.releaseOwner(OWNER_B);
+    await harness.supervisor.drainBackgroundCleanup();
+
+    expect(harness.children[0]?.killSignals).toEqual(["SIGTERM"]);
+  });
+
+  it("rejects pre-aborted warm acquire and pin paths without leaking authority", async () => {
+    const controller = new AbortController();
+    controller.abort();
+
+    const acquireHarness = createHarness();
+    const warmLease = await acquireHarness.supervisor.acquire(
+      OWNER_A,
+      loadOptions(),
+    );
+    await acquireHarness.supervisor.release(warmLease);
+    await expect(
+      acquireHarness.supervisor.acquire(
+        OWNER_B,
+        loadOptions(),
+        controller.signal,
+      ),
+    ).rejects.toMatchObject({ code: "owner_released" });
+    expect(acquireHarness.supervisor.snapshot).toMatchObject({
+      state: "ready",
+      processEpoch: 1,
+      leaseCount: 0,
+      runtimePinCount: 0,
+    });
+    expect(acquireHarness.spawnRecords).toHaveLength(1);
+
+    const pinHarness = createHarness();
+    const pinWarmLease = await pinHarness.supervisor.acquire(
+      OWNER_A,
+      loadOptions(),
+    );
+    await pinHarness.supervisor.release(pinWarmLease);
+    await expect(
+      pinHarness.supervisor.acquireBatchRuntimePin(
+        OWNER_B,
+        "batch-pre-aborted",
+        loadOptions(),
+        controller.signal,
+      ),
+    ).rejects.toMatchObject({ code: "owner_released" });
+    expect(pinHarness.supervisor.snapshot).toMatchObject({
+      state: "ready",
+      processEpoch: 1,
+      leaseCount: 0,
+      runtimePinCount: 0,
+    });
+    expect(pinHarness.spawnRecords).toHaveLength(1);
+
+    const pinnedLeaseHarness = createHarness();
+    const pin = await pinnedLeaseHarness.supervisor.acquireBatchRuntimePin(
+      OWNER_A,
+      "batch-pinned-pre-aborted",
+      loadOptions(),
+    );
+    await expect(
+      pinnedLeaseHarness.supervisor.acquirePinnedTaskLease(
+        pin,
+        controller.signal,
+      ),
+    ).rejects.toMatchObject({ code: "owner_released" });
+    expect(pinnedLeaseHarness.supervisor.snapshot).toMatchObject({
+      state: "ready",
+      processEpoch: 1,
+      leaseCount: 0,
+      runtimePinCount: 1,
+    });
+    expect(pinnedLeaseHarness.spawnRecords).toHaveLength(1);
+    pinnedLeaseHarness.supervisor.releaseBatchRuntimePin(pin);
+  });
+
+  it("revokes child task leases when their runtime pin is released", async () => {
+    const harness = createHarness();
+    const pin = await harness.supervisor.acquireBatchRuntimePin(
+      OWNER_A,
+      "batch-release-pin",
+      loadOptions(),
+    );
+    const lease = await harness.supervisor.acquirePinnedTaskLease(pin);
+
+    expect(harness.supervisor.snapshot).toMatchObject({
+      leaseCount: 1,
+      runtimePinCount: 1,
+    });
+    harness.supervisor.releaseBatchRuntimePin(pin);
+
+    expect(harness.supervisor.snapshot).toMatchObject({
+      state: "ready",
+      leaseCount: 0,
+      runtimePinCount: 0,
+    });
+    expect(() =>
+      harness.supervisor.beginInference(lease, inferenceRequest(1)),
+    ).toThrow(expect.objectContaining({ code: "owner_released" }));
+    await expect(harness.supervisor.release(lease)).resolves.toBeUndefined();
+  });
+
+  it("fences an active child request when its runtime pin is released", async () => {
+    const firstClient = new FakeHttpClient({
+      inference: [(request) =>
+        new Promise<LocalSubtitleServerInferenceResponse>((_resolve, reject) => {
+          request.signal?.addEventListener(
+            "abort",
+            () => reject(new Error("pin released")),
+            { once: true },
+          );
+        })],
+    });
+    const secondClient = new FakeHttpClient();
+    const harness = createHarness({ clients: [firstClient, secondClient] });
+    const firstPin = await harness.supervisor.acquireBatchRuntimePin(
+      OWNER_A,
+      "batch-active-release",
+      loadOptions(),
+    );
+    const lease = await harness.supervisor.acquirePinnedTaskLease(firstPin);
+    const inference = harness.supervisor.beginInference(
+      lease,
+      inferenceRequest(1),
+    );
+    await waitFor(() => firstClient.inferenceCalls === 1);
+
+    harness.supervisor.releaseBatchRuntimePin(firstPin);
+
+    await expect(inference.result).rejects.toBeInstanceOf(
+      LocalSubtitleServerSupervisorError,
+    );
+    await harness.supervisor.drainBackgroundCleanup();
+    expect(harness.supervisor.snapshot).toMatchObject({
+      state: "unloaded",
+      leaseCount: 0,
+      runtimePinCount: 0,
+      activeRequest: false,
+    });
+
+    const secondPin = await harness.supervisor.acquireBatchRuntimePin(
+      OWNER_A,
+      "batch-active-release",
+      loadOptions(),
+    );
+    const secondLease = await harness.supervisor.acquirePinnedTaskLease(secondPin);
+    await expect(
+      harness.supervisor.beginInference(secondLease, inferenceRequest(2)).result,
+    ).resolves.toMatchObject({ processEpoch: 2 });
+    await harness.supervisor.release(secondLease);
+    harness.supervisor.releaseBatchRuntimePin(secondPin);
+  });
+
+  it("refuses nonterminal shutdown while a runtime pin is active", async () => {
+    const harness = createHarness();
+    const pin = await harness.supervisor.acquireBatchRuntimePin(
+      OWNER_A,
+      "batch-nonterminal-shutdown",
+      loadOptions(),
+    );
+
+    await expect(harness.supervisor.shutdown("idle")).rejects.toMatchObject({
+      code: "resource_busy",
+    });
+    await expect(
+      harness.supervisor.shutdown("last_owner"),
+    ).rejects.toMatchObject({ code: "resource_busy" });
+    expect(harness.children[0]?.killSignals).toEqual([]);
+    expect(harness.supervisor.snapshot).toMatchObject({
+      state: "ready",
+      processEpoch: 1,
+      leaseCount: 0,
+      runtimePinCount: 1,
+    });
+
+    const lease = await harness.supervisor.acquirePinnedTaskLease(pin);
+    await expect(
+      harness.supervisor.beginInference(lease, inferenceRequest(1)).result,
+    ).resolves.toMatchObject({ processEpoch: 1 });
+    await harness.supervisor.release(lease);
+    harness.supervisor.releaseBatchRuntimePin(pin);
+  });
+
+  it("re-arms idle retirement after owner release removes the final pin", async () => {
+    const nativeSetTimeout = globalThis.setTimeout;
+    const idleCallbacks: Array<() => void> = [];
+    vi.spyOn(globalThis, "setTimeout").mockImplementation((
+      (handler: TimerHandler, timeout?: number, ...args: unknown[]) => {
+        if (timeout === 500 && typeof handler === "function") {
+          idleCallbacks.push(() => handler(...args));
+        }
+        return nativeSetTimeout(handler, timeout, ...args);
+      }
+    ) as typeof setTimeout);
+    const harness = createHarness({ idleTimeoutMs: 500 });
+    const residentLease = await harness.supervisor.acquire(
+      OWNER_A,
+      loadOptions(),
+    );
+    await harness.supervisor.release(residentLease);
+    const staleIdle = idleCallbacks.at(-1)!;
+    const pin = await harness.supervisor.acquireBatchRuntimePin(
+      OWNER_B,
+      "batch-owner-release",
+      loadOptions(),
+    );
+    const callbackCountBeforeRelease = idleCallbacks.length;
+
+    harness.supervisor.releaseOwner(OWNER_B);
+    await harness.supervisor.drainBackgroundCleanup();
+
+    expect(idleCallbacks.length).toBeGreaterThan(callbackCountBeforeRelease);
+    expect(harness.supervisor.snapshot).toMatchObject({
+      state: "ready",
+      leaseCount: 0,
+      runtimePinCount: 0,
+    });
+    await expect(
+      harness.supervisor.acquirePinnedTaskLease(pin),
+    ).rejects.toMatchObject({ code: "owner_released" });
+
+    staleIdle();
+    await Promise.resolve();
+    expect(harness.children[0]?.killSignals).toEqual([]);
+
+    idleCallbacks.at(-1)!();
+    await harness.supervisor.drainBackgroundCleanup();
+    expect(harness.children[0]?.killSignals).toEqual(["SIGTERM"]);
+    expect(harness.supervisor.snapshot.state).toBe("unloaded");
+  });
+
+  it("terminal shutdown fences runtime pins, child leases, and active requests", async () => {
+    const pending = deferred<LocalSubtitleServerInferenceResponse>();
+    const client = new FakeHttpClient({ inference: [() => pending.promise] });
+    const harness = createHarness({ clients: [client] });
+    const pin = await harness.supervisor.acquireBatchRuntimePin(
+      OWNER_A,
+      "batch-terminal-shutdown",
+      loadOptions(),
+    );
+    const lease = await harness.supervisor.acquirePinnedTaskLease(pin);
+    const inference = harness.supervisor.beginInference(
+      lease,
+      inferenceRequest(1),
+    );
+    await waitFor(() => client.inferenceCalls === 1);
+
+    const shutdown = harness.supervisor.shutdown("app_quit");
+
+    expect(harness.supervisor.shutdown("update")).toBe(shutdown);
+    expect(harness.supervisor.snapshot).toMatchObject({
+      state: "disposed",
+      leaseCount: 0,
+      runtimePinCount: 0,
+      activeRequest: true,
+    });
+    await expect(
+      harness.supervisor.acquirePinnedTaskLease(pin),
+    ).rejects.toMatchObject({ code: "owner_released" });
+    expect(() =>
+      harness.supervisor.beginInference(lease, inferenceRequest(2)),
+    ).toThrow(expect.objectContaining({ code: "shutdown" }));
+
+    await expect(shutdown).resolves.toBeUndefined();
+    await expect(inference.result).rejects.toBeInstanceOf(
+      LocalSubtitleServerSupervisorError,
+    );
+    expect(harness.children[0]?.killSignals).toEqual(["SIGTERM"]);
+    expect(harness.supervisor.snapshot).toMatchObject({
+      state: "disposed",
+      leaseCount: 0,
+      runtimePinCount: 0,
+      activeRequest: false,
+    });
   });
 
   it("retires a warm zero-lease process after the idle timeout", async () => {
@@ -475,6 +865,101 @@ describe("LocalSubtitleServerSupervisor", () => {
     await harness.supervisor.release(second);
   });
 
+  it("waits for an incompatible acquire to settle when its owner is released", async () => {
+    const retirementEntered = deferred<void>();
+    const allowRetirement = deferred<void>();
+    let gateFirstCleanup = true;
+    const harness = createHarness({
+      beforeCleanupSession: async () => {
+        if (!gateFirstCleanup) return;
+        gateFirstCleanup = false;
+        retirementEntered.resolve(undefined);
+        await allowRetirement.promise;
+      },
+    });
+    const first = await harness.supervisor.acquire(OWNER_A, loadOptions());
+    await harness.supervisor.release(first);
+    const acquiring = harness.supervisor.acquire(
+      OWNER_B,
+      loadOptions({ model: managedModel("another-model", HASH_B) }),
+    );
+    let acquireSettled = false;
+    void acquiring.then(
+      () => {
+        acquireSettled = true;
+      },
+      () => {
+        acquireSettled = true;
+      },
+    );
+    await retirementEntered.promise;
+
+    harness.supervisor.releaseOwner(OWNER_B);
+    const cleanup = harness.supervisor.drainBackgroundCleanup();
+    let cleanupSettled = false;
+    void cleanup.then(
+      () => {
+        cleanupSettled = true;
+      },
+      () => {
+        cleanupSettled = true;
+      },
+    );
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    const waitedForAcquire = !cleanupSettled;
+    allowRetirement.resolve(undefined);
+
+    await expect(acquiring).rejects.toMatchObject({ code: "owner_released" });
+    await cleanup;
+    expect(waitedForAcquire).toBe(true);
+    expect(acquireSettled).toBe(true);
+    expect(harness.createdSessions).toHaveLength(1);
+    expect(harness.spawnRecords).toHaveLength(1);
+  });
+
+  it("waits for an incompatible acquire before terminal shutdown completes", async () => {
+    const retirementEntered = deferred<void>();
+    const allowRetirement = deferred<void>();
+    let gateFirstCleanup = true;
+    const harness = createHarness({
+      beforeCleanupSession: async () => {
+        if (!gateFirstCleanup) return;
+        gateFirstCleanup = false;
+        retirementEntered.resolve(undefined);
+        await allowRetirement.promise;
+      },
+    });
+    const first = await harness.supervisor.acquire(OWNER_A, loadOptions());
+    await harness.supervisor.release(first);
+    const acquiring = harness.supervisor.acquire(
+      OWNER_B,
+      loadOptions({ model: managedModel("another-model", HASH_B) }),
+    );
+    let acquireSettled = false;
+    let acquireError: unknown;
+    const observedAcquire = acquiring.then(
+      () => {
+        acquireSettled = true;
+      },
+      (error: unknown) => {
+        acquireSettled = true;
+        acquireError = error;
+      },
+    );
+    await retirementEntered.promise;
+
+    const shutdown = harness.supervisor.shutdown("app_quit");
+    allowRetirement.resolve(undefined);
+    await expect(shutdown).resolves.toBeUndefined();
+    const shutdownWaitedForAcquire = acquireSettled;
+    await observedAcquire;
+
+    expect(shutdownWaitedForAcquire).toBe(true);
+    expect(acquireError).toMatchObject({ code: "owner_released" });
+    expect(harness.createdSessions).toHaveLength(1);
+    expect(harness.spawnRecords).toHaveLength(1);
+  });
+
   it("snapshots mutable load and inference inputs before the first await", async () => {
     const health = deferred<LocalSubtitleServerHealthResponse>();
     const client = new FakeHttpClient({ health: [() => health.promise] });
@@ -709,6 +1194,33 @@ describe("LocalSubtitleServerSupervisor", () => {
     ]);
   });
 
+  it("caches shutdown before an abort listener reenters it", async () => {
+    let harness!: SupervisorHarness;
+    let reentered: Promise<void> | undefined;
+    const client = new FakeHttpClient({
+      inference: [(request) =>
+        new Promise<LocalSubtitleServerInferenceResponse>((_resolve, reject) => {
+          request.signal?.addEventListener("abort", () => {
+            reentered = harness.supervisor.shutdown("fatal");
+            reject(new Error("aborted by shutdown"));
+          }, { once: true });
+        })],
+    });
+    harness = createHarness({ clients: [client] });
+    const lease = await harness.supervisor.acquire(OWNER_A, loadOptions());
+    const inference = harness.supervisor.beginInference(lease, inferenceRequest(1));
+    await waitFor(() => client.inferenceCalls === 1);
+
+    const first = harness.supervisor.shutdown("app_quit");
+
+    expect(reentered).toBe(first);
+    expect(harness.supervisor.shutdown("update")).toBe(first);
+    await expect(first).resolves.toBeUndefined();
+    await expect(inference.result).rejects.toBeInstanceOf(
+      LocalSubtitleServerSupervisorError,
+    );
+  });
+
   it("escalates SIGTERM to SIGKILL and cleans only after close and late stderr", async () => {
     const child = new FakeChild({ closeOnSignal: "SIGKILL" });
     child.onKill = (signal) => {
@@ -920,6 +1432,39 @@ describe("LocalSubtitleServerSupervisor", () => {
     await harness.supervisor.release(second);
   });
 
+  it("ignores a warm idle callback after the same epoch becomes batch-pinned", async () => {
+    const nativeSetTimeout = globalThis.setTimeout;
+    const idleCallbacks: Array<() => void> = [];
+    vi.spyOn(globalThis, "setTimeout").mockImplementation((
+      (handler: TimerHandler, timeout?: number, ...args: unknown[]) => {
+        if (timeout === 500 && typeof handler === "function") {
+          idleCallbacks.push(() => handler(...args));
+        }
+        return nativeSetTimeout(handler, timeout, ...args);
+      }
+    ) as typeof setTimeout);
+    const harness = createHarness({ idleTimeoutMs: 500 });
+    const lease = await harness.supervisor.acquire(OWNER_A, loadOptions());
+    await harness.supervisor.release(lease);
+    const staleIdle = idleCallbacks.at(-1)!;
+
+    const pin = await harness.supervisor.acquireBatchRuntimePin(
+      OWNER_A,
+      "batch-pinned",
+      loadOptions(),
+    );
+    staleIdle();
+    await Promise.resolve();
+
+    expect(harness.children[0]?.killSignals).toEqual([]);
+    expect(harness.supervisor.snapshot).toMatchObject({
+      state: "ready",
+      processEpoch: 1,
+      runtimePinCount: 1,
+    });
+    harness.supervisor.releaseBatchRuntimePin(pin);
+  });
+
   it("ignores an idle callback captured from an older process epoch", async () => {
     const nativeSetTimeout = globalThis.setTimeout;
     const idleCallbacks: Array<() => void> = [];
@@ -960,6 +1505,9 @@ interface HarnessOptions {
   readonly startupTimeoutMs?: number;
   readonly cleanupFailures?: number;
   readonly createHttpClientError?: Error;
+  readonly beforeCleanupSession?: (
+    session: LocalSubtitleServerSession,
+  ) => Promise<void>;
   readonly verifyBackend?: (
     context: Parameters<
       NonNullable<
@@ -984,6 +1532,7 @@ interface SupervisorHarness {
   readonly supervisor: LocalSubtitleServerSupervisor;
   readonly children: FakeChild[];
   readonly spawnRecords: SpawnRecord[];
+  readonly createdSessions: LocalSubtitleServerSession[];
   readonly cleanupEvents: CleanupEvent[];
 }
 
@@ -991,6 +1540,7 @@ function createHarness(options: HarnessOptions = {}): SupervisorHarness {
   const children = [...(options.children ?? [])];
   const clients = [...(options.clients ?? [])];
   const spawnRecords: SpawnRecord[] = [];
+  const createdSessions: LocalSubtitleServerSession[] = [];
   const cleanupEvents: CleanupEvent[] = [];
   const childBySessionRoot = new Map<string, FakeChild>();
   let nextPort = 43_000;
@@ -1010,6 +1560,13 @@ function createHarness(options: HarnessOptions = {}): SupervisorHarness {
         const port = nextPort;
         nextPort += 1;
         return { port, release: async () => undefined };
+      },
+      createSession: async (managedResourceRoot) => {
+        const session = await createLocalSubtitleServerSession(
+          managedResourceRoot,
+        );
+        createdSessions.push(session);
+        return session;
       },
       createHttpClient: (_endpoint: LocalSubtitleServerHttpEndpoint) => {
         if (options.createHttpClientError) throw options.createHttpClientError;
@@ -1031,6 +1588,7 @@ function createHarness(options: HarnessOptions = {}): SupervisorHarness {
           root: session.root,
           childClosed: child?.closed ?? false,
         });
+        await options.beforeCleanupSession?.(session);
         if (cleanupFailures > 0) {
           cleanupFailures -= 1;
           throw new Error("Injected transient session cleanup failure.");
@@ -1042,7 +1600,13 @@ function createHarness(options: HarnessOptions = {}): SupervisorHarness {
         : { verifyBackend: options.verifyBackend }),
     },
   });
-  const harness = { supervisor, children, spawnRecords, cleanupEvents };
+  const harness = {
+    supervisor,
+    children,
+    spawnRecords,
+    createdSessions,
+    cleanupEvents,
+  };
   harnesses.push(harness);
   return harness;
 }

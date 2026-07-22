@@ -57,6 +57,7 @@ Read this index first, then open only the detail files that plausibly match the 
 | FK-PIT-0051 | Electron / shutdown lifecycle | shutdown,cleanup,firstFailure,??=,short-circuit,all-settled; Await every cleanup phase before preserving the first failure because nullish assignment can skip a later awaited phase. | [do-not-short-circuit-later-shutdown-cleanup-phases.md](do-not-short-circuit-later-shutdown-cleanup-phases.md) |
 | FK-PIT-0052 | Electron / multi-owner job lifecycle | multi-owner FIFO,pending admission,retry,lease renewal,TTL,owner release,head-of-line; Keep global queue order separate from owner-partitioned capability operations and renewal timers. | [partition-owner-admission-and-lease-renewal.md](partition-owner-admission-and-lease-renewal.md) |
 | FK-PIT-0053 | Electron / local inference reuse | zero-lease warm epoch,idle timeout,resident owner,model smoke,stale timer,background cleanup; Bind warm process residency to inference owners and guard idle cleanup with epoch plus timer identity. | [bind-warm-process-epochs-to-owners-and-timer-tokens.md](bind-warm-process-epochs-to-owners-and-timer-tokens.md) |
+| FK-PIT-0054 | Electron / batch inference runtime pin | batch pin,queue admission,retry,sibling,cancel,cleanup failure,owner release; Bind strict runtime pins to one queue admission execution wave, not to a long-lived batch or retry authority. | [bind-batch-runtime-pins-to-queue-admission-slices.md](bind-batch-runtime-pins-to-queue-admission-slices.md) |
 
 ## Add new cases
 

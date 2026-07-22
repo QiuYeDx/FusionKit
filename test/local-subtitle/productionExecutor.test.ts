@@ -12,7 +12,10 @@ import {
   type LocalSubtitleTaskSummary,
 } from "../../src/type/localSubtitle";
 import type { LocalSubtitleOwnerKey } from "../../electron/main/local-subtitle/authorizations";
-import type { LocalSubtitleJobTaskExecutionContext } from "../../electron/main/local-subtitle/job-manager";
+import type {
+  LocalSubtitleJobBatchRuntime,
+  LocalSubtitleJobTaskExecutionContext,
+} from "../../electron/main/local-subtitle/job-manager";
 import type {
   LocalSubtitleBrandedPcmWindow,
   LocalSubtitleMediaStructuralWindow,
@@ -29,6 +32,7 @@ import type {
   LocalSubtitleServerInferenceOperation,
   LocalSubtitleServerLease,
   LocalSubtitleServerRequestTicket,
+  LocalSubtitleServerRuntimePin,
   LocalSubtitleServerSupervisorInferenceResponse,
 } from "../../electron/main/local-subtitle/server-supervisor";
 import { LocalSubtitleArtifactRegistry } from "../../electron/main/local-subtitle/subtitle-artifact-registry";
@@ -81,6 +85,8 @@ describe("local subtitle production executor", () => {
     });
     expect(Object.isFrozen(request.expectedFileIdentity)).toBe(true);
     expect(harness.media.disposeWindow).toHaveBeenCalledTimes(1);
+    expect(harness.supervisor.acquireBatchRuntimePin).toHaveBeenCalledOnce();
+    expect(harness.supervisor.acquirePinnedTaskLease).toHaveBeenCalledOnce();
     expect(harness.supervisor.release).toHaveBeenCalledTimes(1);
     expect(harness.media.disposeNormalized).toHaveBeenCalledTimes(1);
     expect(harness.context.update.mock.calls.map(([update]) => update.status)).toEqual([
@@ -240,7 +246,7 @@ describe("local subtitle production executor", () => {
       status: "failed",
       error: { code: "media_runtime_invalid", stage: "loading_model" },
     });
-    expect(harness.supervisor.acquire).not.toHaveBeenCalled();
+    expect(harness.supervisor.acquireBatchRuntimePin).not.toHaveBeenCalled();
     expect(harness.media.materializeWindow).not.toHaveBeenCalled();
     expect(harness.media.disposeNormalized).toHaveBeenCalledTimes(1);
     expect(harness.exporter.exportArtifacts).not.toHaveBeenCalled();
@@ -257,10 +263,144 @@ describe("local subtitle production executor", () => {
       status: "failed",
       error: { code: "media_runtime_invalid", stage: "loading_model" },
     });
-    expect(harness.supervisor.acquire).not.toHaveBeenCalled();
+    expect(harness.supervisor.acquireBatchRuntimePin).not.toHaveBeenCalled();
     expect(harness.media.materializeWindow).not.toHaveBeenCalled();
     expect(harness.media.disposeNormalized).toHaveBeenCalledTimes(1);
     expect(harness.exporter.exportArtifacts).not.toHaveBeenCalled();
+  });
+
+  it("pins lazily after media succeeds and keeps the same pin for later tasks", async () => {
+    const harness = await createHarness();
+    harness.media.normalizeTask.mockRejectedValueOnce(new Error("decode failed"));
+
+    await expect(harness.executor.execute(harness.context)).resolves.toMatchObject({
+      status: "failed",
+      error: { code: "media_decode_failed" },
+    });
+    expect(harness.supervisor.acquireBatchRuntimePin).not.toHaveBeenCalled();
+
+    await expect(harness.executor.execute(harness.context)).resolves.toMatchObject({
+      status: "completed",
+    });
+    await expect(harness.executor.execute(harness.context)).resolves.toMatchObject({
+      status: "completed",
+    });
+
+    expect(harness.supervisor.acquireBatchRuntimePin).toHaveBeenCalledOnce();
+    expect(harness.supervisor.acquirePinnedTaskLease).toHaveBeenCalledTimes(2);
+  });
+
+  it("rejects exact server artifact drift after a batch pin is established", async () => {
+    const generation = "b".repeat(64);
+    const runtimeRoot = path.join(os.tmpdir(), "fusionkit-pinned-runtime-proof");
+    const harness = await createHarness({
+      serverRuntimeBundles: [
+        fakeVerifiedServerRuntime(
+          runtimeRoot,
+          generation,
+          path.join(runtimeRoot, "runtime", "server-a"),
+        ),
+        fakeVerifiedServerRuntime(
+          runtimeRoot,
+          generation,
+          path.join(runtimeRoot, "runtime", "server-b"),
+        ),
+      ],
+    });
+
+    await expect(harness.executor.execute(harness.context)).resolves.toMatchObject({
+      status: "completed",
+    });
+    await expect(harness.executor.execute(harness.context)).resolves.toMatchObject({
+      status: "failed",
+      error: { code: "media_runtime_invalid", stage: "loading_model" },
+    });
+
+    expect(harness.supervisor.acquireBatchRuntimePin).toHaveBeenCalledOnce();
+    expect(harness.supervisor.acquirePinnedTaskLease).toHaveBeenCalledOnce();
+  });
+
+  it("releases a pin acquired after its batch runtime closes exactly once", async () => {
+    const runtimePin = Object.freeze({}) as LocalSubtitleServerRuntimePin;
+    let resolvePin!: (pin: LocalSubtitleServerRuntimePin) => void;
+    const pendingPin = new Promise<LocalSubtitleServerRuntimePin>((resolve) => {
+      resolvePin = resolve;
+    });
+    const harness = await createHarness({
+      acquireBatchRuntimePin: () => pendingPin,
+    });
+    const execution = harness.executor.execute(harness.context);
+    await waitFor(
+      () => harness.supervisor.acquireBatchRuntimePin.mock.calls.length === 1,
+    );
+
+    harness.executor.endBatchSlice(harness.context.batchRuntime);
+    resolvePin(runtimePin);
+
+    await expect(execution).resolves.toMatchObject({
+      status: "failed",
+      error: { code: "owner_released", stage: "loading_model" },
+    });
+    expect(harness.supervisor.releaseBatchRuntimePin).toHaveBeenCalledTimes(1);
+    expect(harness.supervisor.releaseBatchRuntimePin).toHaveBeenCalledWith(runtimePin);
+  });
+
+  it("keeps a shared pending pin for a sibling when the current task is cancelled", async () => {
+    const runtimePin = Object.freeze({}) as LocalSubtitleServerRuntimePin;
+    let resolvePin!: (pin: LocalSubtitleServerRuntimePin) => void;
+    const pendingPin = new Promise<LocalSubtitleServerRuntimePin>((resolve) => {
+      resolvePin = resolve;
+    });
+    const harness = await createHarness({
+      acquireBatchRuntimePin: () => pendingPin,
+    });
+    const first = harness.executor.execute(harness.context);
+    await waitFor(
+      () => harness.supervisor.acquireBatchRuntimePin.mock.calls.length === 1,
+    );
+
+    harness.controller.abort();
+
+    await expect(first).resolves.toMatchObject({ status: "cancelled" });
+    expect(harness.supervisor.releaseBatchRuntimePin).not.toHaveBeenCalled();
+    expect(harness.supervisor.acquireBatchRuntimePin.mock.calls[0]![3]).toBe(
+      harness.sliceController.signal,
+    );
+
+    resolvePin(runtimePin);
+    await Promise.resolve();
+    await Promise.resolve();
+    const siblingController = new AbortController();
+    const sibling = createContext(
+      siblingController.signal,
+      harness.context.admittedRuntimeGeneration,
+      harness.context.batchRuntime,
+      harness.context.config,
+      harness.context.managedModel,
+    );
+
+    await expect(harness.executor.execute(sibling)).resolves.toMatchObject({
+      status: "completed",
+    });
+    expect(harness.supervisor.acquireBatchRuntimePin).toHaveBeenCalledOnce();
+    expect(harness.supervisor.acquirePinnedTaskLease).toHaveBeenCalledOnce();
+    expect(harness.supervisor.releaseBatchRuntimePin).not.toHaveBeenCalled();
+
+    harness.executor.endBatchSlice(harness.context.batchRuntime);
+    expect(harness.supervisor.releaseBatchRuntimePin).toHaveBeenCalledOnce();
+    expect(harness.supervisor.releaseBatchRuntimePin).toHaveBeenCalledWith(runtimePin);
+  });
+
+  it("rejects a task after its batch runtime slice is closed", async () => {
+    const harness = await createHarness();
+    harness.executor.endBatchSlice(harness.context.batchRuntime);
+
+    await expect(harness.executor.execute(harness.context)).resolves.toMatchObject({
+      status: "failed",
+      error: { code: "invalid_ipc_request", stage: "preflight" },
+    });
+    expect(harness.media.normalizeTask).not.toHaveBeenCalled();
+    expect(harness.supervisor.acquireBatchRuntimePin).not.toHaveBeenCalled();
   });
 
   it("sanitizes Windows device names before reserving an artifact", async () => {
@@ -385,8 +525,11 @@ describe("local subtitle production executor", () => {
         ([, request]) => request.requestGeneration,
       ),
     ).toEqual([1, 2]);
-    expect(harness.supervisor.acquire).toHaveBeenCalledTimes(2);
+    expect(harness.supervisor.acquireBatchRuntimePin).toHaveBeenCalledOnce();
+    expect(harness.supervisor.acquirePinnedTaskLease).toHaveBeenCalledTimes(2);
     expect(harness.supervisor.release).toHaveBeenCalledTimes(2);
+    harness.executor.endBatchSlice(harness.context.batchRuntime);
+    expect(harness.supervisor.releaseBatchRuntimePin).toHaveBeenCalledOnce();
   });
 
   it("reports exporter cleanup failures at the cleanup stage", async () => {
@@ -458,10 +601,12 @@ interface HarnessOptions {
   readonly brandNormalizationId?: string;
   readonly reuseWindowBrand?: boolean;
   readonly serverRuntimeGeneration?: string;
+  readonly serverRuntimeBundles?: readonly LocalSubtitleVerifiedRuntimeBundle[];
   readonly admittedRuntimeGeneration?: string;
   readonly mutateSecondResolve?: boolean;
   readonly disposeNormalizedFailure?: boolean;
   readonly releaseFailure?: boolean;
+  readonly acquireBatchRuntimePin?: () => Promise<LocalSubtitleServerRuntimePin>;
   readonly normalizeFailure?: unknown;
   readonly retainedRawBudget?: Readonly<{
     maxSegments: number;
@@ -486,6 +631,7 @@ async function createHarness(options: HarnessOptions = {}) {
   const outputRoot = path.join(root, "output");
   await mkdir(outputRoot);
   const controller = new AbortController();
+  const sliceController = new AbortController();
   const totalFrames = options.totalFrames ?? 10 * 16_000;
   const normalized: LocalSubtitleNormalizedPcm = Object.freeze({
     schemaVersion: 1,
@@ -563,8 +709,12 @@ async function createHarness(options: HarnessOptions = {}) {
   };
   let inferenceIndex = 0;
   const lease = Object.freeze({}) as LocalSubtitleServerLease;
+  const runtimePin = Object.freeze({}) as LocalSubtitleServerRuntimePin;
   const supervisor = {
-    acquire: vi.fn(async () => lease),
+    acquireBatchRuntimePin: vi.fn(
+      options.acquireBatchRuntimePin ?? (async () => runtimePin),
+    ),
+    acquirePinnedTaskLease: vi.fn(async () => lease),
     beginInference: vi.fn((
       _lease: LocalSubtitleServerLease,
       request: LocalSubtitleServerInferenceRequest,
@@ -586,6 +736,7 @@ async function createHarness(options: HarnessOptions = {}) {
     release: vi.fn(async () => {
       if (options.releaseFailure) throw new Error("server release failed");
     }),
+    releaseBatchRuntimePin: vi.fn(() => undefined),
   };
   const artifacts = new LocalSubtitleArtifactRegistry({
     tokenFactory: sequence("artifact"),
@@ -612,16 +763,23 @@ async function createHarness(options: HarnessOptions = {}) {
       });
     }),
   };
+  const defaultServerRuntime = fakeVerifiedServerRuntime(
+    root,
+    options.serverRuntimeGeneration ?? normalized.runtimeGeneration,
+  );
+  let serverRuntimeIndex = 0;
   const executor = new LocalSubtitleProductionExecutor({
     media,
     supervisor,
     outputs,
     exporter,
-    verifyServerRuntime: async () =>
-      Object.freeze({
-        runtimeGeneration:
-          options.serverRuntimeGeneration ?? normalized.runtimeGeneration,
-      }) as LocalSubtitleVerifiedRuntimeBundle,
+    verifyServerRuntime: async () => {
+      const configured = options.serverRuntimeBundles;
+      if (!configured || configured.length === 0) return defaultServerRuntime;
+      const runtime = configured[Math.min(serverRuntimeIndex, configured.length - 1)]!;
+      serverRuntimeIndex += 1;
+      return runtime;
+    },
     selectCpuServerArtifactId: () => "whisper-server-cpu",
     validateWindowBrand: () => true,
     rootPlanIdFactory: () => "root-plan-1",
@@ -630,14 +788,36 @@ async function createHarness(options: HarnessOptions = {}) {
       ? {}
       : { retainedRawBudget: options.retainedRawBudget }),
   });
+  const admittedRuntimeGeneration =
+    options.admittedRuntimeGeneration ?? normalized.runtimeGeneration;
+  const config = createConfig();
+  const managedModel = Object.freeze({
+    storage: "managed" as const,
+    id: LOCAL_SUBTITLE_PRODUCTION_CONTRACT.launchModel.id,
+    absolutePath: path.join(os.tmpdir(), "managed-model.bin"),
+    byteSize: 1024,
+    sha256: MODEL_HASH,
+  });
+  const batchRuntime = executor.beginBatchSlice(Object.freeze({
+    owner: OWNER,
+    batchId: "batch-1",
+    config,
+    managedModel,
+    admittedRuntimeGeneration,
+    signal: sliceController.signal,
+  }));
   const context = createContext(
     controller.signal,
-    options.admittedRuntimeGeneration ?? normalized.runtimeGeneration,
+    admittedRuntimeGeneration,
+    batchRuntime,
+    config,
+    managedModel,
   );
   return {
     root,
     outputRoot,
     controller,
+    sliceController,
     context,
     executor,
     media,
@@ -648,7 +828,48 @@ async function createHarness(options: HarnessOptions = {}) {
   };
 }
 
-function createContext(signal: AbortSignal, admittedRuntimeGeneration: string) {
+function fakeVerifiedServerRuntime(
+  root: string,
+  runtimeGeneration: string,
+  serverAbsolutePath = path.join(root, "runtime", "whisper-server"),
+): LocalSubtitleVerifiedRuntimeBundle {
+  return deepFreeze({
+    schemaVersion: 1 as const,
+    target: {
+      platform: "darwin" as const,
+      arch: "arm64" as const,
+    },
+    scope: "server" as const,
+    root: path.join(root, "runtime"),
+    manifestPath: path.join(root, "runtime", "manifest.json"),
+    manifestSha256: runtimeGeneration,
+    runtimeGeneration,
+    integrityProfile: "development" as const,
+    artifactPaths: {
+      "whisper-server-cpu": {
+        id: "whisper-server-cpu",
+        kind: "server" as const,
+        backend: "cpu" as const,
+        absolutePath: serverAbsolutePath,
+        byteSize: 1024,
+        sha256: "d".repeat(64),
+        version: "1.9.1+b1ade71",
+        signatureKind: "unsigned" as const,
+      },
+    },
+    evidenceFileCount: 1,
+    noPathFallback: true as const,
+    ready: true as const,
+  }) as LocalSubtitleVerifiedRuntimeBundle;
+}
+
+function createContext(
+  signal: AbortSignal,
+  admittedRuntimeGeneration: string,
+  batchRuntime: LocalSubtitleJobBatchRuntime,
+  config: LocalSubtitleBatchConfigSnapshot,
+  managedModel: LocalSubtitleJobTaskExecutionContext["managedModel"],
+) {
   const update = vi.fn(() => ({} as LocalSubtitleTaskSummary));
   return Object.freeze({
     owner: OWNER,
@@ -656,15 +877,10 @@ function createContext(signal: AbortSignal, admittedRuntimeGeneration: string) {
     taskId: "task-1",
     generation: 1,
     fileToken: "file-token-1",
-    config: createConfig(),
-    managedModel: Object.freeze({
-      storage: "managed" as const,
-      id: LOCAL_SUBTITLE_PRODUCTION_CONTRACT.launchModel.id,
-      absolutePath: path.join(os.tmpdir(), "managed-model.bin"),
-      byteSize: 1024,
-      sha256: MODEL_HASH,
-    }),
+    config,
+    managedModel,
     admittedRuntimeGeneration,
+    batchRuntime,
     signal,
     update,
   }) as LocalSubtitleJobTaskExecutionContext & { readonly update: typeof update };
