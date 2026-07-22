@@ -28,7 +28,6 @@ import {
   type LocalSubtitlePublicInvokeChannel,
 } from "@/type/localSubtitleIpc";
 import {
-  LocalSubtitleArtifactAuthorizationRegistry,
   LocalSubtitleAuthorizationError,
   LocalSubtitleCapabilityLeaseCoordinator,
   LocalSubtitleImportTokenRegistry,
@@ -42,6 +41,10 @@ import {
   type LocalSubtitleOwnerIdentity,
   type LocalSubtitleOwnerSessionRegistry,
 } from "./ipc-security";
+import {
+  LocalSubtitleArtifactRegistry,
+  LocalSubtitleArtifactRegistryError,
+} from "./subtitle-artifact-registry";
 import { LocalSubtitleMediaError } from "./media-normalizer";
 import { LocalSubtitleResourceError } from "./resource-manifest";
 
@@ -76,7 +79,7 @@ export interface LocalSubtitleIpcCapabilities {
   readonly inputs: LocalSubtitleInputAuthorizationRegistry;
   readonly outputs: LocalSubtitleOutputDirectoryAuthorizationRegistry;
   readonly leases: LocalSubtitleCapabilityLeaseCoordinator;
-  readonly artifacts: LocalSubtitleArtifactAuthorizationRegistry<unknown>;
+  readonly artifacts: LocalSubtitleArtifactRegistry;
   readonly importTokens: LocalSubtitleImportTokenRegistry<unknown>;
 }
 
@@ -115,7 +118,7 @@ export class LocalSubtitleIpcService {
         new LocalSubtitleCapabilityLeaseCoordinator(inputs, outputs),
       artifacts:
         options.capabilities?.artifacts ??
-        new LocalSubtitleArtifactAuthorizationRegistry<unknown>(),
+        new LocalSubtitleArtifactRegistry(),
       importTokens:
         options.capabilities?.importTokens ??
         new LocalSubtitleImportTokenRegistry<unknown>(),
@@ -166,12 +169,13 @@ export class LocalSubtitleIpcService {
     );
     if (!validation.ok) return validation;
 
-    const handler = this.handlers.public?.[channel];
-    if (!handler) return unavailableOperationFailure(channel);
-
     const context = this.createContext(authorization.data, event);
     try {
-      const result = await handler(validation.data, context);
+      const handler = this.handlers.public?.[channel];
+      const result = handler
+        ? await handler(validation.data, context)
+        : await this.runBuiltInPublic(channel, validation.data, context);
+      if (!result) return unavailableOperationFailure(channel);
       if (!this.ownerSessions.isCurrent(context.ownerIdentity)) {
         return ownerReleasedFailure();
       }
@@ -337,6 +341,35 @@ export class LocalSubtitleIpcService {
     }
   }
 
+  private async runBuiltInPublic(
+    channel: LocalSubtitlePublicInvokeChannel,
+    request: unknown,
+    context: LocalSubtitleIpcHandlerContext,
+  ): Promise<LocalSubtitleIpcResult<unknown> | undefined> {
+    switch (channel) {
+      case LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.readArtifactText: {
+        const { artifactRef } = request as { readonly artifactRef: string };
+        return localSubtitleIpcSuccess(
+          await this.capabilities.artifacts.readText(
+            context.owner,
+            artifactRef,
+          ),
+        );
+      }
+      case LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.revealArtifact: {
+        const { artifactRef } = request as { readonly artifactRef: string };
+        return localSubtitleIpcSuccess(
+          await this.capabilities.artifacts.reveal(
+            context.owner,
+            artifactRef,
+          ),
+        );
+      }
+      default:
+        return undefined;
+    }
+  }
+
   private createContext(
     authorization: AuthorizedLocalSubtitleIpcRequest<unknown>,
     event: IpcMainInvokeEvent,
@@ -409,6 +442,14 @@ function toLocalSubtitleIpcFailure(
   if (error instanceof LocalSubtitleAuthorizationError) {
     return localSubtitleIpcFailure(
       createLocalSubtitleError(error.code, error.message, {
+        ...(error.field ? { field: error.field } : {}),
+      }),
+    );
+  }
+  if (error instanceof LocalSubtitleArtifactRegistryError) {
+    return localSubtitleIpcFailure(
+      createLocalSubtitleError(error.code, error.message, {
+        stage: "artifact",
         ...(error.field ? { field: error.field } : {}),
       }),
     );

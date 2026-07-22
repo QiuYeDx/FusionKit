@@ -1,12 +1,12 @@
 # 本地字幕转写工具 Execution Plan
 
-> 创建日期：2026-07-16；最近更新：2026-07-21
+> 创建日期：2026-07-16；最近更新：2026-07-22
 >
 > Feature Slug：`local-subtitle-transcriber`
 >
 > 对应设计文档：`docs/v0.2.11/local-subtitle-transcriber/local-subtitle-transcriber_final_design.md`
 >
-> 当前状态：`PRE-001`～`PRE-006`、`CORE-001`～`CORE-004`、`NATIVE-001`、`BE-001`、`MEDIA-001` 与 `SUB-001` 已完成，M1 的 domain/runtime schema、versioned resource staging、preload/IPC/capability、renderer session、official server contract、真实 Supervisor 生命周期、media normalization/PCM proof 与 canonical post-processing contract 已冻结；Windows 使用 `unsigned_personal_distribution`。下一步可认领 `NATIVE-002`、`SUB-002`、`MODEL-001` 或 `LINK-001`；`BE-002` 仍等待字幕与模型依赖
+> 当前状态：`PRE-001`～`PRE-006`、`CORE-001`～`CORE-004`、`NATIVE-001`、`BE-001`、`MEDIA-001`、`SUB-001` 与 `SUB-002` 已完成，M1 的 domain/runtime schema、versioned resource staging、preload/IPC/capability、renderer session、official server contract、真实 Supervisor 生命周期、media normalization/PCM proof、canonical post-processing 与标准字幕原子产物合同已冻结；Windows 使用 `unsigned_personal_distribution`。下一步可认领 `NATIVE-002`、`MODEL-001` 或 `LINK-001`；`BE-002` 仍等待模型管理依赖
 >
 > 发布门禁：M0 已解除；正式实现必须遵守 `poc/pre006-production-decision.json`，不得静默更换引擎、平台、模型或 runtime acquisition policy
 >
@@ -45,6 +45,8 @@
 > 2026-07-21 SUB-001 完成：新增 segment-only v1 policy、16 kHz structural root plan、main-only attempt graph、stable root/window/parent + attempt/epoch/request lineage、exact retry children、verified no-speech evidence、PRE-004 raw gate、owned-boundary merge与 grapheme-safe canonical shaping。正常 split 保持内部结构化 control，逐窗 retry 只有 exhausted/unsplittable 映射质量失败；`estimatedTiming` 进入 canonical strict schema并与 words 互斥。processing warning 保持 main-only，public completion warning v1 不扩张。聚焦 4 files / 174 tests、全量 117 passed + 2 skipped files / 1223 passed + 2 skipped tests、TypeScript、三段 Vite test build、manifest 0/0 与 validator 17/17 通过。PCM/WAV authority 仍属 `MEDIA-001`，SRT/LRC/atomic artifact 仍属 `SUB-002`，非 VAD words 等待 versioned server capability。
 
 > 2026-07-21 MEDIA-001 完成：新增 shell-free/close-confirmed native process contract、fixed bundled FFmpeg/ffprobe version attestation、task-private source snapshot、owner/file/runtime/track-table stream binding、decode-time `-t`/`-fs` 与 disk guard、RIFF/RF64 exact-frame PCM/window/SHA-256 proof，以及 owner fault/release/shutdown cleanup；`probeMedia` 接入 app-scoped composite runtime。聚焦 4 files / 84 tests、全量 121 passed + 2 skipped files / 1312 passed + 2 skipped tests、TypeScript、三段 Vite test build、manifest 0/0、validator 17/17 与 diff gate 通过。final packaged bytes/`extraResources`/builder/signing/no-PATH smoke 仍属 `NATIVE-002`，BE binding/orphan 分别留 `BE-002` / `BE-003`。
+
+> 2026-07-22 SUB-002 完成：新增 strict SRT/LRC formatter/parser/round-trip、同目录 private partial、index hard-link no-clobber、overwrite atomic rename、目录对象 mutex、共享 terminal resolver 与 app-scoped Artifact Registry；read/reveal fixed IPC 已接通，每次操作重验 owner/op/TTL/generation、目录/文件 identity、size/hash、UTF-8 与 parser。partial 稳定 identity 与 mutable size 已分离，required cleanup failure 不再吞掉，hard-link detach/Registry activation 失败会回滚 final 且不激活 ref。聚焦 5 files / 94 tests、local-subtitle 23 passed + 2 skipped files / 431 passed + 2 skipped tests、全量 124 passed + 2 skipped files / 1383 passed + 2 skipped tests、TypeScript、三段 Vite test build、manifest 0/0、validator 17/17 与 diff gate 通过。handoff/one-shot token 仍属 `LINK-006`。
 
 ---
 
@@ -335,7 +337,7 @@ flowchart TD
 | BE-001 | 已完成 | 2026-07-21 | NATIVE-001/CORE-001/002 | Server Supervisor、私有 session、process epoch 与 app lifecycle | `electron/main/local-subtitle/server-{session,supervisor,app-lifecycle}.ts`、`electron/main/{index,update}.ts`、4 tests、Final Design | 聚焦 session/supervisor/lifecycle 3 files / 37 tests；默认 real 1 skip、显式 CPU real 1/1；全量 116 pass + 2 skip files / 1146 pass + 2 skip tests；tsc、renderer/main/preload Vite test build、manifest 0/0、validator 17/17、diff/process cleanup | `docs/v0.2.11/local-subtitle-transcriber/local-subtitle-transcriber_implementation_records/2026-07-21_BE-001_server-supervisor.md` | 无 BE-001 blocker；PCM window=`MEDIA-001`，raw quality/retry=`SUB-001`，Job Manager=`BE-002`，startup orphan scan=`BE-003`；`BE-002` 依赖仍未齐 |
 | MEDIA-001 | 已完成 | 2026-07-21 | CORE-001/002/003 | FFprobe/FFmpeg 媒体规范化、exact PCM 窗口与 main-only proof | `electron/main/local-subtitle/{media-process,pcm-window,media-normalizer,main-runtime,authorizations,ipc-security,ipc}.ts`、`electron/main/index.ts`、metadata schema、tests、pitfall/docs | 聚焦 4 files / 84 tests；全量 121 pass + 2 skip files / 1312 pass + 2 skip tests；TypeScript、三段 Vite test build、manifest 0/0、validator 17/17、diff check | `docs/v0.2.11/local-subtitle-transcriber/local-subtitle-transcriber_implementation_records/2026-07-21_MEDIA-001_media-normalization.md` | 无 MEDIA service blocker；final artifact/`extraResources`/builder/signing/packaged no-PATH=`NATIVE-002`，dispatch binding=`BE-002`，startup orphan=`BE-003` |
 | SUB-001 | 已完成 | 2026-07-21 | CORE-001 | Raw transcript gate、窗口合并与 canonical 字幕整形 | `electron/main/local-subtitle/{subtitle-post-processor,server-contract}.ts`、`src/type/localSubtitle.ts`、`src/type/localSubtitleIpc.{ts,test.ts}`、`test/local-subtitle/{subtitlePostProcessor,serverContract}.test.ts`、Final Design | 聚焦 4 files / 174 tests；全量 117 pass + 2 skip files / 1223 pass + 2 skip tests；TypeScript、renderer/main/preload Vite test build、manifest 0/0、validator 17/17、diff/process cleanup | `docs/v0.2.11/local-subtitle-transcriber/local-subtitle-transcriber_implementation_records/2026-07-21_SUB-001_subtitle-post-processing.md` | 无设计 blocker；PCM branded identity=`MEDIA-001`，SRT/LRC/atomic artifact=`SUB-002`，immutable brand/window/generation orchestration=`BE-002`，word timeline=未来 versioned capability |
-| SUB-002 | 未开始 | — | SUB-001/CORE-003 | SRT/LRC 导出、原子写和 Artifact Registry | exporters、artifact registry、tests | parse-back、目录 reservation/overwrite、full/partial/none-success、commit 前后取消、artifactRef owner/expiry/revoke/retry | — | 增强 LRC 不得自动交接 |
+| SUB-002 | 已完成 | 2026-07-22 | SUB-001/CORE-003 | SRT/LRC 导出、原子写和 Artifact Registry | `electron/main/local-subtitle/{subtitle-formats,subtitle-exporter,subtitle-artifact-registry,ipc,authorizations}.ts`、`electron/main/index.ts`、shared terminal/schema、3 个新 tests、IPC/authorization tests、pitfall/docs | 聚焦 5 files / 94 tests；local-subtitle 23 pass + 2 skip files / 431 pass + 2 skip tests；全量 124 pass + 2 skip files / 1383 pass + 2 skip tests；TypeScript、renderer/main/preload Vite test build、manifest 0/0、validator 17/17、diff/process cleanup | `docs/v0.2.11/local-subtitle-transcriber/local-subtitle-transcriber_implementation_records/2026-07-22_SUB-002_subtitle-export-artifact-registry.md` | read/reveal 已接通；handoff/one-shot token=`LINK-006`，跨重启只清理受控 temp，用户输出目录不持久化/全局扫描 |
 | MODEL-001 | 未开始 | — | BE-001/CORE-002 | 模型 manifest、managed 本地导入与 load smoke | model manager、model manifest、import ResourceJob、tests | header/size/hash/load、import progress/cancel、CTranslate2 拒绝、复制原子性 | — | 不接受任意外部路径作为运行时 modelId |
 | MODEL-002 | 未开始 | — | MODEL-001/NATIVE-002 | 下载续传、VAD、删除、磁盘和 accelerator pack | download manager、accelerator manager、ResourceJob download adapters、tests/UI service | Range/no-Range、`.part`、SHA、job cancel/reconcile、并发锁、busy delete、profile/integrity | — | exact NVIDIA DLL 与 notice 仍由 QA-005 复核 |
 | BE-002 | 未开始 | — | BE-001/MEDIA-001/SUB-002/MODEL-001/CORE-003 | Job Manager、批量队列、进度、取消和失败隔离 | job manager、IPC registration、session snapshot、tests | 状态机、draft→task lease、单 GPU 串行、revision reconcile、批次级错误、partial outputs、owner cleanup | — | 不支持中途断点续跑；SPA 离页不取消 committed batch |
@@ -631,7 +633,7 @@ Process descriptor 只接受完整 CORE-002 `LocalSubtitleVerifiedRuntimeBundle 
 
 验收结果：root/recursive retry graph、odd-half-millisecond retry、lineage/generation/task mode/response binding、missing root identity、数十段同文 decoder loop、合法短重复、零/负时长、倒退/重叠、窗口/媒体越界、遗漏窗口、边界半句/双窗重复观测、retry 耗尽，以及 0、59.999、1h+、`99:59:59.999`、越界 100h、duration 尾差阈值内 clamp/阈值外/零时长拒绝、CRLF/CR/U+2028/U+2029、unpaired surrogate、不受支持/结构破坏 C0/C1、部分空 segment、全静音/全空 transcript、长 grapheme、estimated timing 和多语言 fixtures 通过。聚焦 4 files / 174 tests；全量 117 passed + 2 skipped files / 1223 passed + 2 skipped tests（119 files / 1225 tests）；TypeScript、三段 Vite test build、manifest 0/0 与 validator 17/17 通过。
 
-### SUB-002：SRT/LRC 导出、原子写与 Artifact Registry
+### SUB-002：SRT/LRC 导出、原子写与 Artifact Registry（已完成）
 
 目标：从同一 canonical transcript 独立提交可回读产物。
 
@@ -643,7 +645,17 @@ Process descriptor 只接受完整 CORE-002 `LocalSubtitleVerifiedRuntimeBundle 
 - Artifact Registry 仅 main 保存真实路径、file identity、size 和 SHA-256，发放 owner-bound、operation-checked、可撤销的 session `artifactRef`；result clear/window destroy/app exit/TTL 时回收。
 - 增强逐词 LRC 标记为不可自动交接。
 
-验收口径：SRT/LRC golden（含 9/10/11ms、分钟进位、1h+、重复 LRC 标签）/parse-back/冲突/overwrite 旧文件保护、full/partial/none-success、commit 前后取消和原子失败测试通过；artifactRef 跨 owner、过期、撤销、文件替换/symlink、hash/size 变化、重复 read/reveal/handoff 请求和清理受控，renderer 无路径。
+验收口径：SRT/LRC golden（含 9/10/11ms、分钟进位、1h+、重复 LRC 标签）/parse-back/冲突/overwrite 旧文件保护、full/partial/none-success、commit 前后取消和原子失败测试通过；artifactRef 跨 owner、过期、撤销、文件替换/symlink、hash/size 变化、重复 read/reveal/main-only handoff snapshot 和清理受控，renderer 无路径。公开 `handoffArtifact` 与 one-shot token 仍按依赖图由 `LINK-006` 验收。
+
+截至 2026-07-22，本工作包已完成：
+
+- `subtitle-formats.ts` 严格生成/解析 SRT 与标准行级 LRC，逐块执行 16 MiB UTF-8 限额；SRT 保留整数毫秒、LF-only、no BOM，LRC 固定 `floor(startMs / 10)`、重复标签保序、多行文本投影为空格。parse-back 对比 canonical transcript 或其 LRC 投影，不把结构回读冒充 raw transcript 质量证明。
+- `subtitle-exporter.ts` 使用同目录 exclusive `0600` partial、sync/close/reopen/parse-back。partial ownership 只绑定 stable device/inode/birthtime，内容大小独立校验；index 通过 hard-link no-clobber，先同步 unlink partial 再冻结 final `ctime`。required cleanup failure 不被吞掉，取消清理失败优先成为 `failed(cancel_failed)`，hard-link detach 或 Registry activation 失败会撤销 reservation、按 identity 同步回滚 final 且绝不激活 ref。overwrite 通过 atomic rename 且不先删除旧目标；Registry activation 同步绑定 prepared file object 与授权 directory identity，并以 realpath 后二次 lstat 拒绝同尺寸换 inode 或目录替换竞态。目录对象 mutex 后重新解析 lease，格式独立提交并复用 shared terminal resolver，覆盖 full/partial/none-success 与 commit 前后取消。
+- `subtitle-artifact-registry.ts` 只在 main 持有路径、directory/file identity、size/hash 和 parser authority，ref 绑定 owner/task/generation/TTL/operation。每次 read/reveal/main-only snapshot 都重新 no-follow 打开并验证；高 generation 原子撤销旧 ref，低 generation late reserve 拒绝，owner/task release 永久 fence 当前 session。
+- `readArtifactText` 与 `revealArtifact` 已接入 app-scoped `LocalSubtitleIpcService`，响应无路径；公开 `handoffArtifact` 保持 stable unavailable，等待 `LINK-006`。`rawText + plainText` 必须共同满足 frozen 16 MiB result schema，超出时返回 `content_too_large`。
+- 正常失败、取消和未 commit 分支会清理 user-output `.partial`。由于真实用户输出路径不持久化，进程崩溃后的任意输出目录不能在重启时全局扫描；`BE-003` 的启动清理只覆盖受控 temp 根，未来扩大必须使用 main-only 授权 cleanup receipt。
+
+验收结果：聚焦 5 files / 94 tests，shared terminal/schema 2 files / 83 tests；local-subtitle 23 passed + 2 skipped files / 431 passed + 2 skipped tests；全量 124 passed + 2 skipped files / 1383 passed + 2 skipped tests；TypeScript、renderer/main/preload 三段 Vite test build、manifest 0 error / 0 warning、validator 17/17 与 diff/process cleanup 通过。未启动 Vite dev server、Electron 或 native server。
 
 ### MODEL-001：模型 manifest、managed 导入与 load smoke
 
@@ -700,7 +712,7 @@ Process descriptor 只接受完整 CORE-002 `LocalSubtitleVerifiedRuntimeBundle 
 实施范围：
 
 - 会话 manifest 只保存 version、task/batch id、脱敏 display name、阶段/终态、格式、backend/build、时间与稳定错误 code；不得保存 source/output/model/temp path、token/capability、字幕内容、segment/word、命令行或 API Key。未完成任务标记 interrupted，不声称断点续跑；重启摘要不提供 reveal/自动交接。
-- 启动清理 orphan temp/`.partial`/过期 token/download；已成功 artifact 保留。
+- 启动只扫描受控 `<userData>/local-subtitle` roots，清理 orphan temp/`.part`/过期 token/download；已成功 artifact 保留。任意 user-output 目录不持久化 raw path，因此不能在重启后全局发现其中的 `.partial`；正常失败/取消清理由 SUB-002 保证，未来跨重启回收必须新增 main-only 授权 cleanup receipt。
 - 监控可用磁盘、进程退出、模型占用和内存水位；错误详情限制长度并隐藏路径/内容。
 - app quit/update/window destroyed 的 cleanup 可重入且有超时。
 
@@ -1087,6 +1099,6 @@ git diff --check
 
 ## 12. 下一步建议
 
-`PRE-001`～`PRE-006`、`CORE-001`～`CORE-004`、`NATIVE-001`、`BE-001`、`MEDIA-001` 与 `SUB-001` 已完成，M1 的共享 domain/runtime schema、resource manifest/resolver/staging、preload/IPC/capability、renderer session runtime、official server contract、真实 Supervisor 生命周期、media normalization/PCM proof 和 canonical post-processing contract 已冻结。下一步可按依赖认领 `NATIVE-002`、`SUB-002`、`MODEL-001` 或 `LINK-001`；`BE-002` 的 MEDIA 依赖已解除，但仍等待 `SUB-002`、`MODEL-001`，不能仅凭 Supervisor/media proof/post processor 完成就提前启动完整 Job Manager。实现必须以 `poc/pre006-production-decision.json` 为唯一技术冻结记录，并复用已冻结版本、error、limit 和 staging contract；SUB-001 的 clean-room shaping policy 与 main-only processing warnings 不得冒充 PRE-006 字段或 shared completion warning。
+`PRE-001`～`PRE-006`、`CORE-001`～`CORE-004`、`NATIVE-001`、`BE-001`、`MEDIA-001`、`SUB-001` 与 `SUB-002` 已完成，M1 的共享 domain/runtime schema、resource manifest/resolver/staging、preload/IPC/capability、renderer session runtime、official server contract、真实 Supervisor 生命周期、media normalization/PCM proof、canonical post-processing 和标准字幕原子产物合同已冻结。下一步可按依赖认领 `NATIVE-002`、`MODEL-001` 或 `LINK-001`；`BE-002` 的 MEDIA/SUBTITLE 依赖已解除，但仍等待 `MODEL-001`，不能仅凭 Supervisor/media proof/post processor/exporter 完成就提前启动完整 Job Manager。实现必须以 `poc/pre006-production-decision.json` 为唯一技术冻结记录，并复用已冻结版本、error、limit 和 staging contract；SUB-001 的 clean-room shaping policy 与 main-only processing warnings 不得冒充 PRE-006 字段或 shared completion warning。
 
 模型和 official runtime 继续只下载到 Git 忽略目录，hash 只作来源/完整性门禁。系统 PATH 中的 FFmpeg 仍只作开发 PoC，不是发行资源或最终用户前置条件。正式开发继续由 Node 直接管理 official server；Windows 无需 CMake/MSVC，FusionKit C++ runner 不是当前方案依赖。Windows 保持 unsigned personal profile；QA-005 在分发前核对 notices/source offers/NVIDIA DLL，但不会要求证书或信任库变更。

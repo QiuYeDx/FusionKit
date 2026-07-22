@@ -1,5 +1,6 @@
+import { createHash } from "node:crypto";
 import { EventEmitter } from "node:events";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { lstat, mkdtemp, realpath, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -14,6 +15,7 @@ import { LocalSubtitleIpcService } from "../../electron/main/local-subtitle/ipc"
 import { LocalSubtitleOwnerSessionRegistry } from "../../electron/main/local-subtitle/ipc-security";
 import { LocalSubtitleMediaError } from "../../electron/main/local-subtitle/media-normalizer";
 import { LocalSubtitleResourceError } from "../../electron/main/local-subtitle/resource-manifest";
+import { LocalSubtitleArtifactRegistry } from "../../electron/main/local-subtitle/subtitle-artifact-registry";
 
 const DEV_SERVER_URL = "http://127.0.0.1:7777/";
 const tempRoots: string[] = [];
@@ -263,6 +265,123 @@ describe("local subtitle IPC service", () => {
     });
   });
 
+  it("reads and reveals app-scoped artifacts without exposing their paths", async () => {
+    const root = await realpath(
+      await mkdtemp(path.join(os.tmpdir(), "fusionkit-local-artifact-ipc-")),
+    );
+    tempRoots.push(root);
+    const artifactPath = path.join(root, "result.srt");
+    const rawText = "1\n00:00:00,000 --> 00:00:01,000\nHello\n";
+    await writeFile(artifactPath, rawText, "utf8");
+    const revealFile = vi.fn();
+    const artifacts = new LocalSubtitleArtifactRegistry({ revealFile });
+    const fixture = createService({}, { artifacts });
+    const owner = {
+      webContentsId: 10,
+      ownerSessionId: fixture.ownerSessionId,
+    };
+    const reserved = artifacts.reserve({
+      owner,
+      taskId: "task-artifact-ipc",
+      generation: 1,
+      format: "SRT",
+      displayName: "result.srt",
+    });
+    const expectedIdentities = await captureExpectedIdentities(artifactPath);
+    artifacts.activate(reserved.reservation, {
+      filePath: artifactPath,
+      format: "SRT",
+      displayName: "result.srt",
+      byteSize: Buffer.byteLength(rawText),
+      sha256: createHash("sha256").update(rawText).digest("hex"),
+      ...expectedIdentities,
+    });
+
+    const readResult = await fixture.service.handlePublic(
+      LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.readArtifactText,
+      fixture.event,
+      fixture.envelope({ artifactRef: reserved.artifactRef }),
+    );
+    expect(readResult).toEqual({
+      ok: true,
+      data: {
+        format: "SRT",
+        rawText,
+        plainText: "Hello",
+        cueCount: 1,
+      },
+    });
+    expect(JSON.stringify(readResult)).not.toContain(root);
+
+    await expect(
+      fixture.service.handlePublic(
+        LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.revealArtifact,
+        fixture.event,
+        fixture.envelope({ artifactRef: reserved.artifactRef }),
+      ),
+    ).resolves.toEqual({ ok: true, data: { revealed: true } });
+    expect(revealFile).toHaveBeenCalledWith(artifactPath);
+
+    await expect(
+      fixture.service.handlePublic(
+        LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.handoffArtifact,
+        fixture.event,
+        fixture.envelope({ artifactRef: reserved.artifactRef }),
+      ),
+    ).resolves.toMatchObject({
+      ok: false,
+      error: { code: "configuration_not_ready" },
+    });
+  });
+
+  it("maps stable artifact validation failures through the IPC envelope", async () => {
+    const root = await realpath(
+      await mkdtemp(path.join(os.tmpdir(), "fusionkit-local-artifact-error-")),
+    );
+    tempRoots.push(root);
+    const artifactPath = path.join(root, "changed.lrc");
+    const rawText = "[00:00.00]Before\n";
+    await writeFile(artifactPath, rawText, "utf8");
+    const artifacts = new LocalSubtitleArtifactRegistry();
+    const fixture = createService({}, { artifacts });
+    const owner = {
+      webContentsId: 10,
+      ownerSessionId: fixture.ownerSessionId,
+    };
+    const reserved = artifacts.reserve({
+      owner,
+      taskId: "task-artifact-error",
+      generation: 1,
+      format: "LRC",
+      displayName: "changed.lrc",
+    });
+    const expectedIdentities = await captureExpectedIdentities(artifactPath);
+    artifacts.activate(reserved.reservation, {
+      filePath: artifactPath,
+      format: "LRC",
+      displayName: "changed.lrc",
+      byteSize: Buffer.byteLength(rawText),
+      sha256: createHash("sha256").update(rawText).digest("hex"),
+      ...expectedIdentities,
+    });
+    await writeFile(artifactPath, "[00:00.00]After!\n", "utf8");
+
+    await expect(
+      fixture.service.handlePublic(
+        LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.readArtifactText,
+        fixture.event,
+        fixture.envelope({ artifactRef: reserved.artifactRef }),
+      ),
+    ).resolves.toMatchObject({
+      ok: false,
+      error: {
+        code: "artifact_changed",
+        stage: "artifact",
+        field: "artifactRef",
+      },
+    });
+  });
+
   it("returns owner_released when a late internal handler rejects", async () => {
     const deferred = createDeferred<ReturnType<typeof localSubtitleIpcSuccess>>();
     const fixture = createService({ importModel: () => deferred.promise });
@@ -369,6 +488,9 @@ describe("local subtitle IPC service", () => {
 
 function createService(
   handlers: ConstructorParameters<typeof LocalSubtitleIpcService>[0]["handlers"] = {},
+  capabilities?: ConstructorParameters<
+    typeof LocalSubtitleIpcService
+  >[0]["capabilities"],
 ) {
   const registry = new LocalSubtitleOwnerSessionRegistry({
     trustedSender: { devServerUrl: DEV_SERVER_URL },
@@ -380,6 +502,7 @@ function createService(
   const service = new LocalSubtitleIpcService({
     ownerSessions: registry,
     handlers,
+    capabilities,
   });
   const registration = service.registerOwnerSession(event, {});
   if (!registration.ok) throw new Error("Could not register test owner.");
@@ -391,6 +514,25 @@ function createService(
     event,
     ownerSessionId,
     envelope: (payload: unknown) => ({ ownerSessionId, payload }),
+  };
+}
+
+async function captureExpectedIdentities(filePath: string) {
+  const [file, directory] = await Promise.all([
+    lstat(filePath),
+    lstat(path.dirname(filePath)),
+  ]);
+  return {
+    expectedFileIdentity: Object.freeze({
+      dev: file.dev,
+      ino: file.ino,
+      birthtimeMs: file.birthtimeMs,
+    }),
+    expectedDirectoryIdentity: Object.freeze({
+      dev: directory.dev,
+      ino: directory.ino,
+      birthtimeMs: directory.birthtimeMs,
+    }),
   };
 }
 

@@ -379,6 +379,54 @@ describe("local subtitle capability lease transaction", () => {
     expect(inputs.revokeDraft(OWNER_A, input.fileToken)).toBe(true);
   });
 
+  it("sweeps abandoned reservations back to drafts until the draft expires", async () => {
+    const root = await tempRoot();
+    const firstPath = await file(root, "abandoned.wav", "input");
+    const secondPath = await file(root, "fully-expired.wav", "input");
+    let now = 1_000;
+    const inputs = new LocalSubtitleInputAuthorizationRegistry({
+      draftTtlMs: 100,
+      leaseTtlMs: 10,
+      now: () => now,
+      tokenFactory: sequence("abandoned"),
+    });
+    const outputs = new LocalSubtitleOutputDirectoryAuthorizationRegistry({
+      draftTtlMs: 100,
+      leaseTtlMs: 10,
+      now: () => now,
+    });
+    const first = await inputs.authorize(OWNER_A, firstPath);
+    const firstTransaction = await new LocalSubtitleCapabilityLeaseCoordinator(
+      inputs,
+      outputs,
+      { now: () => now },
+    ).reserveBatch({
+      owner: OWNER_A,
+      batchId: "abandoned-batch",
+      inputs: [{ fileToken: first.fileToken, taskId: "abandoned-task" }],
+    });
+
+    now = 1_010;
+    expect(inputs.sweepExpired()).toBe(1);
+    expect(inputs.revokeDraft(OWNER_A, first.fileToken)).toBe(true);
+    expect(() => firstTransaction.commit()).toThrowError(
+      expect.objectContaining({ code: "invalid_ipc_request" }),
+    );
+
+    now = 2_000;
+    const second = await inputs.authorize(OWNER_A, secondPath);
+    await new LocalSubtitleCapabilityLeaseCoordinator(inputs, outputs, {
+      now: () => now,
+    }).reserveBatch({
+      owner: OWNER_A,
+      batchId: "expired-batch",
+      inputs: [{ fileToken: second.fileToken, taskId: "expired-task" }],
+    });
+    now = 2_100;
+    expect(inputs.sweepExpired()).toBe(1);
+    expect(inputs.revokeDraft(OWNER_A, second.fileToken)).toBe(false);
+  });
+
   it("owner release removes drafts and leases without authorizing a reload", async () => {
     const root = await tempRoot();
     const inputPath = await file(root, "input.wav", "input");

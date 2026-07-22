@@ -535,10 +535,13 @@ export const localSubtitleTaskSummarySchema: z.ZodType<LocalSubtitleTaskSummary>
         requestedFormats: value.requestedFormats,
         artifactResults: value.artifactResults,
         cancellationRequested:
+          value.status === "cancelled" ||
           value.artifactResults.some(
             (artifact) =>
-              artifact.status === "skipped" &&
-              artifact.errorCode === "cancelled_after_partial_commit",
+              (artifact.status === "skipped" &&
+                artifact.errorCode === "cancelled_after_partial_commit") ||
+              (artifact.status === "failed" &&
+                artifact.errorCode === "cancel_failed"),
           ),
       });
       if (value.status === "completed") {
@@ -572,6 +575,21 @@ export const localSubtitleTaskSummarySchema: z.ZodType<LocalSubtitleTaskSummary>
           code: "custom",
           path: ["completion"],
           message: "Only completed tasks may include completion details.",
+        });
+      }
+      if (
+        value.status === "cancelled" &&
+        (value.artifactResults.some(
+          (artifact) =>
+            artifact.status === "failed" &&
+            artifact.errorCode === "cancel_failed",
+        ) ||
+          (terminal.ok && terminal.status !== "cancelled"))
+      ) {
+        context.addIssue({
+          code: "custom",
+          path: ["artifactResults"],
+          message: "Cancelled tasks cannot contain a failed terminal outcome.",
         });
       }
       if (value.status === "failed" && value.error === undefined) {

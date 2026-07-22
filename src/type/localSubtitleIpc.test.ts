@@ -927,6 +927,59 @@ describe("local subtitle transcript and task summary schemas", () => {
     const task = completedTaskSummary();
     expect(localSubtitleTaskSummarySchema.safeParse(task).success).toBe(true);
 
+    const cancellationCleanupFailure = completedTaskSummary();
+    cancellationCleanupFailure.artifactResults[1] = {
+      format: "LRC",
+      status: "failed",
+      errorCode: "cancel_failed",
+    };
+    const cancellationOutcome = resolveLocalSubtitleTerminalOutcome({
+      requestedFormats: cancellationCleanupFailure.requestedFormats,
+      artifactResults: cancellationCleanupFailure.artifactResults,
+      cancellationRequested: true,
+    });
+    if (!cancellationOutcome.ok || cancellationOutcome.status !== "completed") {
+      throw new Error("invalid cancellation cleanup fixture");
+    }
+    cancellationCleanupFailure.completion = cancellationOutcome.completion;
+    expect(
+      localSubtitleTaskSummarySchema.safeParse(cancellationCleanupFailure).success,
+    ).toBe(true);
+
+    const cancelledCleanupFailure = validTaskSummary() as any;
+    cancelledCleanupFailure.status = "cancelled";
+    cancelledCleanupFailure.progress = {
+      stage: "cancelling",
+      stageProgress: 100,
+      overallProgress: 99,
+    };
+    cancelledCleanupFailure.artifactResults = [
+      { format: "SRT", status: "failed", errorCode: "cancel_failed" },
+    ];
+    expect(
+      localSubtitleTaskSummarySchema.safeParse(cancelledCleanupFailure).success,
+    ).toBe(false);
+
+    const cancelledAfterOrdinaryFailure = validTaskSummary() as any;
+    cancelledAfterOrdinaryFailure.status = "cancelled";
+    cancelledAfterOrdinaryFailure.progress = {
+      stage: "cancelling",
+      stageProgress: 100,
+      overallProgress: 99,
+    };
+    cancelledAfterOrdinaryFailure.artifactResults = [
+      {
+        format: "SRT",
+        status: "failed",
+        errorCode: "output_write_failed",
+      },
+      { format: "LRC", status: "skipped" },
+    ];
+    expect(
+      localSubtitleTaskSummarySchema.safeParse(cancelledAfterOrdinaryFailure)
+        .success,
+    ).toBe(true);
+
     task.completion = {
       ...task.completion!,
       outcome: "full",

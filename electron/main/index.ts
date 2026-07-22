@@ -22,6 +22,7 @@ import {
   setupLocalSubtitleIPC,
 } from "./local-subtitle/ipc";
 import { LocalSubtitleInputAuthorizationRegistry } from "./local-subtitle/authorizations";
+import { LocalSubtitleArtifactRegistry } from "./local-subtitle/subtitle-artifact-registry";
 import { LocalSubtitleMainRuntime } from "./local-subtitle/main-runtime";
 import { LocalSubtitleMediaNormalizer } from "./local-subtitle/media-normalizer";
 import { LocalSubtitleServerSupervisor } from "./local-subtitle/server-supervisor";
@@ -188,6 +189,9 @@ app.whenReady().then(() => {
   );
   const localSubtitleInputAuthorizations =
     new LocalSubtitleInputAuthorizationRegistry();
+  const localSubtitleArtifacts = new LocalSubtitleArtifactRegistry({
+    revealFile: (filePath) => shell.showItemInFolder(filePath),
+  });
   const localSubtitleMediaNormalizer = new LocalSubtitleMediaNormalizer({
     environment: app.isPackaged
       ? { mode: "packaged", resourcesPath: process.resourcesPath }
@@ -213,7 +217,10 @@ app.whenReady().then(() => {
   // The sync preload handshake must exist before any renderer starts loading.
   setupLocalSubtitleIPC(
     new LocalSubtitleIpcService({
-      capabilities: { inputs: localSubtitleInputAuthorizations },
+      capabilities: {
+        inputs: localSubtitleInputAuthorizations,
+        artifacts: localSubtitleArtifacts,
+      },
       handlers: {
         public: {
           [LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.probeMedia]: async (

@@ -372,6 +372,52 @@ describe("local subtitle task transitions", () => {
       "transcription_failed",
       "runtime rejected inference",
     );
+    expect(
+      transitionLocalSubtitleTaskState(
+        taskState("exporting"),
+        "failed",
+        transitionContext({
+          artifactResults: [
+            skipped("SRT", "cancelled_after_partial_commit"),
+          ],
+          error,
+        }),
+      ),
+    ).toEqual({ ok: false, reason: "terminal_outcome_invalid" });
+
+    const cancelError = createLocalSubtitleError(
+      "cancel_failed",
+      "partial cleanup failed",
+    );
+    expect(
+      transitionLocalSubtitleTaskState(
+        taskState("exporting"),
+        "failed",
+        transitionContext({
+          artifactResults: [failed("SRT", "cancel_failed")],
+          error: cancelError,
+        }),
+      ),
+    ).toEqual({ ok: false, reason: "terminal_outcome_invalid" });
+
+    expect(
+      transitionLocalSubtitleTaskState(
+        taskState("cancelling"),
+        "failed",
+        transitionContext({
+          artifactResults: [failed("SRT", "cancel_failed")],
+          error: cancelError,
+        }),
+      ),
+    ).toEqual({
+      ok: true,
+      state: {
+        status: "failed",
+        artifactResults: [failed("SRT", "cancel_failed")],
+        error: cancelError,
+      },
+    });
+
     const failedTransition = transitionLocalSubtitleTaskState(
       taskState("transcribing"),
       "failed",
@@ -423,6 +469,33 @@ describe("local subtitle task transitions", () => {
         }),
       ),
     ).toEqual({ ok: false, reason: "terminal_outcome_invalid" });
+
+    expect(
+      transitionLocalSubtitleTaskState(
+        taskState("cancelling"),
+        "cancelled",
+        transitionContext({
+          artifactResults: [failed("SRT", "cancel_failed")],
+        }),
+      ),
+    ).toEqual({ ok: false, reason: "terminal_status_mismatch" });
+
+    expect(
+      transitionLocalSubtitleTaskState(
+        taskState("cancelling"),
+        "cancelled",
+        transitionContext({
+          requestedFormats: ["SRT", "LRC"],
+          artifactResults: [failed("SRT"), skipped("LRC")],
+        }),
+      ),
+    ).toEqual({
+      ok: true,
+      state: {
+        status: "cancelled",
+        artifactResults: [failed("SRT"), skipped("LRC")],
+      },
+    });
   });
 });
 
@@ -497,6 +570,32 @@ describe("local subtitle terminal outcomes", () => {
       cancellationRequested: true,
     });
     expect(partial).toMatchObject({
+      ok: true,
+      status: "completed",
+      completion: {
+        outcome: "partial",
+        warnings: ["cancelled_after_partial_commit"],
+      },
+    });
+
+    expect(
+      resolveLocalSubtitleTerminalOutcome({
+        requestedFormats: ["SRT"],
+        artifactResults: [failed("SRT", "cancel_failed")],
+        cancellationRequested: true,
+      }),
+    ).toEqual({ ok: true, status: "failed" });
+
+    expect(
+      resolveLocalSubtitleTerminalOutcome({
+        requestedFormats: ["SRT", "LRC"],
+        artifactResults: [
+          committed("SRT"),
+          failed("LRC", "cancel_failed"),
+        ],
+        cancellationRequested: true,
+      }),
+    ).toMatchObject({
       ok: true,
       status: "completed",
       completion: {
@@ -581,6 +680,26 @@ describe("local subtitle terminal outcomes", () => {
       ],
       cancellationRequested: false,
       expected: { ok: false, reason: "unexpected_cancellation_marker" },
+    },
+    {
+      name: "cancellation cleanup failure without cancellation",
+      requestedFormats: ["SRT"] as LocalSubtitleFormat[],
+      artifactResults: [failed("SRT", "cancel_failed")],
+      cancellationRequested: false,
+      expected: {
+        ok: false,
+        reason: "unexpected_cancellation_cleanup_failure",
+      },
+    },
+    {
+      name: "partial cleanup failure without cancellation",
+      requestedFormats: ["SRT", "LRC"] as LocalSubtitleFormat[],
+      artifactResults: [committed("SRT"), failed("LRC", "cancel_failed")],
+      cancellationRequested: false,
+      expected: {
+        ok: false,
+        reason: "unexpected_cancellation_cleanup_failure",
+      },
     },
     {
       name: "partial-commit marker without a committed artifact",

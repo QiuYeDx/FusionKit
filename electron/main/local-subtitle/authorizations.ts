@@ -50,6 +50,12 @@ export interface LocalSubtitleFileIdentity {
   readonly ctimeMs: number;
 }
 
+export interface LocalSubtitleFileObjectIdentity {
+  readonly dev: number;
+  readonly ino: number;
+  readonly birthtimeMs: number;
+}
+
 export interface LocalSubtitleDirectoryIdentity {
   readonly dev: number;
   readonly ino: number;
@@ -369,11 +375,30 @@ class DraftLeaseRegistry<TDescriptor, TOperation extends string> {
 
   sweepExpired(): number {
     let count = 0;
+    const now = this.now();
     for (const [token, entry] of this.entries) {
-      const expiresAt = entry.state === "reserved"
-        ? entry.draftExpiresAt!
-        : entry.expiresAt;
-      if (expiresAt > this.now()) continue;
+      if (entry.state === "reserved") {
+        if (entry.draftExpiresAt! <= now) {
+          this.remove(token, entry);
+          count += 1;
+          continue;
+        }
+        if (entry.leaseExpiresAt! <= now) {
+          this.scopeTokens.delete(ownedScope(entry.owner, entry.scopeId!));
+          this.entries.set(token, {
+            token,
+            owner: entry.owner,
+            descriptor: entry.descriptor,
+            operations: entry.operations,
+            state: "draft",
+            expiresAt: entry.draftExpiresAt!,
+            version: entry.version + 1,
+          });
+          count += 1;
+        }
+        continue;
+      }
+      if (entry.expiresAt > now) continue;
       this.remove(token, entry);
       count += 1;
     }

@@ -644,6 +644,7 @@ export type LocalSubtitleTerminalResolution =
         | "no_failed_artifact"
         | "cancellation_marker_missing"
         | "unexpected_cancellation_marker"
+        | "unexpected_cancellation_cleanup_failure"
         | "cancellation_marker_without_commit";
       readonly format?: LocalSubtitleFormat;
     };
@@ -710,6 +711,16 @@ export function resolveLocalSubtitleTerminalOutcome(options: {
       result.status === "skipped" &&
       result.errorCode === "cancelled_after_partial_commit",
   );
+  const hasCancellationCleanupFailure = options.artifactResults.some(
+    (result) =>
+      result.status === "failed" && result.errorCode === "cancel_failed",
+  );
+  if (!options.cancellationRequested && hasCancellationCleanupFailure) {
+    return {
+      ok: false,
+      reason: "unexpected_cancellation_cleanup_failure",
+    };
+  }
   if (committedCount === 0) {
     if (hasCancellationMarker) {
       return { ok: false, reason: "cancellation_marker_without_commit" };
@@ -722,7 +733,10 @@ export function resolveLocalSubtitleTerminalOutcome(options: {
     }
     return {
       ok: true,
-      status: options.cancellationRequested ? "cancelled" : "failed",
+      status:
+        options.cancellationRequested && !hasCancellationCleanupFailure
+          ? "cancelled"
+          : "failed",
     };
   }
 
@@ -730,7 +744,8 @@ export function resolveLocalSubtitleTerminalOutcome(options: {
   if (
     !full &&
     options.cancellationRequested &&
-    !hasCancellationMarker
+    !hasCancellationMarker &&
+    !hasCancellationCleanupFailure
   ) {
     return { ok: false, reason: "cancellation_marker_missing" };
   }
@@ -840,6 +855,24 @@ export function transitionLocalSubtitleTaskState(
     ) {
       return { ok: false, reason: "terminal_status_mismatch" };
     }
+    if (
+      artifactResults.some(
+        (result) =>
+          result.status === "skipped" &&
+          result.errorCode === "cancelled_after_partial_commit",
+      )
+    ) {
+      return { ok: false, reason: "terminal_outcome_invalid" };
+    }
+    if (
+      current.status !== "cancelling" &&
+      artifactResults.some(
+        (result) =>
+          result.status === "failed" && result.errorCode === "cancel_failed",
+      )
+    ) {
+      return { ok: false, reason: "terminal_outcome_invalid" };
+    }
     if (context.error === undefined) {
       return { ok: false, reason: "failure_error_required" };
     }
@@ -867,6 +900,14 @@ export function transitionLocalSubtitleTaskState(
       )
     ) {
       return { ok: false, reason: "terminal_outcome_invalid" };
+    }
+    if (
+      artifactResults.some(
+        (result) =>
+          result.status === "failed" && result.errorCode === "cancel_failed",
+      )
+    ) {
+      return { ok: false, reason: "terminal_status_mismatch" };
     }
     return {
       ok: true,
