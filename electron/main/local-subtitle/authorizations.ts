@@ -107,6 +107,7 @@ interface RegistryOptions {
   readonly leaseTtlMs?: number;
   readonly now?: () => number;
   readonly tokenFactory?: () => string;
+  readonly beforeVerify?: () => void | Promise<void>;
 }
 
 interface Entry<TDescriptor, TOperation extends string> {
@@ -138,6 +139,7 @@ class DraftLeaseRegistry<TDescriptor, TOperation extends string> {
   readonly leaseTtlMs: number;
   private readonly now: () => number;
   private readonly tokenFactory: () => string;
+  private readonly beforeVerify: (() => void | Promise<void>) | undefined;
 
   constructor(
     options: RegistryOptions,
@@ -148,6 +150,7 @@ class DraftLeaseRegistry<TDescriptor, TOperation extends string> {
     this.leaseTtlMs = ttl(options.leaseTtlMs ?? DEFAULT_LEASE_TTL_MS);
     this.now = options.now ?? Date.now;
     this.tokenFactory = options.tokenFactory ?? randomUUID;
+    this.beforeVerify = options.beforeVerify;
   }
 
   authorizeMany(
@@ -282,6 +285,21 @@ class DraftLeaseRegistry<TDescriptor, TOperation extends string> {
     });
   }
 
+  assertCommitted(reservationId: string, token: string): void {
+    const entry = this.entries.get(token);
+    if (
+      !entry ||
+      entry.state !== "leased" ||
+      entry.reservationId !== reservationId ||
+      !entry.scopeId ||
+      this.scopeTokens.get(ownedScope(entry.owner, entry.scopeId)) !== token
+    ) {
+      throw invalid("token");
+    }
+    this.assertActive(entry.owner);
+    if (entry.expiresAt <= this.now()) throw expired("token");
+  }
+
   rollback(reservationId: string, token: string): void {
     const entry = this.entries.get(token);
     if (
@@ -323,7 +341,13 @@ class DraftLeaseRegistry<TDescriptor, TOperation extends string> {
     await this.verifyOrDelete(entry);
     const current = this.requireLease(owner, scopeId, op);
     if (
-      current.version !== entry.version ||
+      current.token !== entry.token ||
+      current.owner !== entry.owner ||
+      current.descriptor !== entry.descriptor ||
+      current.operations !== entry.operations ||
+      current.reservationId !== entry.reservationId ||
+      current.scopeId !== entry.scopeId ||
+      current.version < entry.version ||
       (expectedToken !== undefined && current.token !== expectedToken)
     ) {
       throw invalid(expectedToken === undefined ? "scopeId" : "token");
@@ -456,6 +480,7 @@ class DraftLeaseRegistry<TDescriptor, TOperation extends string> {
     entry: Entry<TDescriptor, TOperation>,
   ): Promise<void> {
     try {
+      await this.beforeVerify?.();
       await this.verify(entry.descriptor);
     } catch (error) {
       this.remove(entry.token, entry);
@@ -584,6 +609,10 @@ export class LocalSubtitleInputAuthorizationRegistry {
     this.core.commit(id, token);
   }
 
+  _assertCommitted(id: string, token: string) {
+    this.core.assertCommitted(id, token);
+  }
+
   _rollback(id: string, token: string) {
     this.core.rollback(id, token);
   }
@@ -661,6 +690,10 @@ export class LocalSubtitleOutputDirectoryAuthorizationRegistry {
     this.core.commit(id, token);
   }
 
+  _assertCommitted(id: string, token: string) {
+    this.core.assertCommitted(id, token);
+  }
+
   _rollback(id: string, token: string) {
     this.core.rollback(id, token);
   }
@@ -678,7 +711,8 @@ export interface ReserveLocalSubtitleBatchCapabilitiesOptions {
 }
 
 export class LocalSubtitleBatchCapabilityTransaction {
-  private pending = true;
+  private phase: "reserved" | "publishing" | "committed" | "rolled_back" =
+    "reserved";
   constructor(
     private readonly input: LocalSubtitleInputAuthorizationRegistry,
     private readonly output: LocalSubtitleOutputDirectoryAuthorizationRegistry,
@@ -691,7 +725,20 @@ export class LocalSubtitleBatchCapabilityTransaction {
   ) {}
 
   commit() {
-    if (!this.pending) throw invalid("transaction");
+    return this.commitAndRun(() => undefined).lease;
+  }
+
+  commitAndRun<T>(publish: () => T): Readonly<{
+    lease: Readonly<{
+      batchId: string;
+      taskIds: readonly string[];
+      expiresAt: number;
+    }>;
+    value: T;
+  }> {
+    if (this.phase !== "reserved") throw invalid("transaction");
+    if (typeof publish !== "function") throw invalid("publish");
+    this.phase = "publishing";
     try {
       this.inputTokens.forEach((token) =>
         this.input._assert(this.reservationId, token)
@@ -705,29 +752,42 @@ export class LocalSubtitleBatchCapabilityTransaction {
       if (this.outputToken) {
         this.output._commit(this.reservationId, this.outputToken);
       }
-      this.pending = false;
-      return Object.freeze({
+      const value = publish();
+      if (isThenable(value)) {
+        void Promise.resolve(value).catch(() => undefined);
+        throw invalid("publish");
+      }
+      this.inputTokens.forEach((token) =>
+        this.input._assertCommitted(this.reservationId, token)
+      );
+      if (this.outputToken) {
+        this.output._assertCommitted(this.reservationId, this.outputToken);
+      }
+      this.phase = "committed";
+      const lease = Object.freeze({
         batchId: this.batchId,
         taskIds: Object.freeze([...this.taskIds]),
         expiresAt: this.expiresAt,
       });
+      return Object.freeze({ lease, value });
     } catch (error) {
-      this.rollbackInternal();
+      this.compensate();
       throw error;
     }
   }
   rollback() {
-    if (this.pending) this.rollbackInternal();
+    if (this.phase === "reserved") this.compensate();
   }
 
-  private rollbackInternal() {
+  private compensate() {
+    if (this.phase === "committed" || this.phase === "rolled_back") return;
     this.inputTokens.forEach((token) =>
       this.input._rollback(this.reservationId, token)
     );
     if (this.outputToken) {
       this.output._rollback(this.reservationId, this.outputToken);
     }
-    this.pending = false;
+    this.phase = "rolled_back";
   }
 }
 
@@ -1309,6 +1369,14 @@ function safeDisplayName(value: string, field: string) {
 function sameOwner(a: LocalSubtitleOwnerKey, b: LocalSubtitleOwnerKey) {
   return a.webContentsId === b.webContentsId &&
     a.ownerSessionId === b.ownerSessionId;
+}
+
+function isThenable(value: unknown): value is PromiseLike<unknown> {
+  return Boolean(
+    value &&
+      (typeof value === "object" || typeof value === "function") &&
+      typeof Reflect.get(value, "then") === "function",
+  );
 }
 
 function ownerKey(value: LocalSubtitleOwnerKey) {

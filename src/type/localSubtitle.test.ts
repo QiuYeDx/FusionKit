@@ -297,7 +297,7 @@ describe("local subtitle task transitions", () => {
     ).toEqual({ ok: false, reason: "terminal_outcome_invalid" });
   });
 
-  it("requires cancelling to complete as partial with its stable warning", () => {
+  it("lets a cancelling task preserve either a full or partial committed result", () => {
     const partial = transitionLocalSubtitleTaskState(
       taskState("cancelling"),
       "completed",
@@ -321,16 +321,21 @@ describe("local subtitle task transitions", () => {
       },
     });
 
-    expect(
-      transitionLocalSubtitleTaskState(
-        taskState("cancelling"),
-        "completed",
-        transitionContext({
-          requestedFormats: ["SRT", "LRC"],
-          artifactResults: [committed("SRT"), committed("LRC")],
-        }),
-      ),
-    ).toEqual({ ok: false, reason: "terminal_status_mismatch" });
+    const full = transitionLocalSubtitleTaskState(
+      taskState("cancelling"),
+      "completed",
+      transitionContext({
+        artifactResults: [committed("SRT")],
+      }),
+    );
+    expect(full).toMatchObject({
+      ok: true,
+      state: {
+        status: "completed",
+        completion: { outcome: "full", warnings: [] },
+      },
+    });
+    if (full.ok) expectDeeplyFrozen(full.state);
     expect(
       transitionLocalSubtitleTaskState(
         taskState("cancelling"),

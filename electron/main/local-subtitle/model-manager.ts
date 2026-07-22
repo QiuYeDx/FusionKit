@@ -45,6 +45,7 @@ import {
   LocalSubtitleResourceJobManager,
   type LocalSubtitleResourceJobContext,
   type LocalSubtitleResourceJobExecutionResult,
+  type LocalSubtitleSessionRegistryOwnership,
 } from "./resource-job";
 import {
   verifyLocalSubtitleRuntimeBundle,
@@ -247,6 +248,7 @@ export class LocalSubtitleModelManager {
     PendingManagedReservation
   >();
   readonly #activeVerifications = new Set<ManagedVerificationRecord>();
+  readonly #releasedOwners = new Set<string>();
   #rootProofs: ImportRootProofs | undefined;
   #rootProofOperation: Promise<void> | undefined;
   #cleanupRetryOperation: Promise<void> | undefined;
@@ -270,6 +272,8 @@ export class LocalSubtitleModelManager {
     );
     this.#runtimeEnvironment = options.runtimeEnvironment;
     this.#supervisor = options.supervisor;
+    const sessionRegistryOwnership: LocalSubtitleSessionRegistryOwnership =
+      options.sessionRegistry === undefined ? "owned" : "shared";
     this.#registry = options.sessionRegistry ?? new LocalSubtitleSessionRegistry();
     this.#resourceJobs = options.resourceJobs ??
       new LocalSubtitleResourceJobManager(this.#registry, {
@@ -277,6 +281,7 @@ export class LocalSubtitleModelManager {
         ...(options.jobIdFactory === undefined
           ? {}
           : { jobIdFactory: options.jobIdFactory }),
+        sessionRegistryOwnership,
       });
     this.#catalog = parseLocalSubtitleModelCatalog(
       options.modelCatalog ?? LOCAL_SUBTITLE_MODEL_MANIFEST.models,
@@ -300,6 +305,7 @@ export class LocalSubtitleModelManager {
     options: ImportLocalSubtitleModelOptions,
   ): LocalSubtitleResourceJobSummary {
     this.#assertManagerAvailable();
+    this.#assertOwnerAvailable(options.owner);
     validateImportMode(options.mode);
     const sourcePath = validateSourcePath(options.filePath);
     const model = this.#catalog[0]!;
@@ -323,10 +329,14 @@ export class LocalSubtitleModelManager {
     owner: LocalSubtitleOwnerKey,
     jobId: string,
   ): Readonly<{ cancelled: boolean }> {
+    this.#assertManagerAvailable();
+    this.#assertOwnerAvailable(owner);
     return this.#resourceJobs.cancel(owner, jobId);
   }
 
   getSessionSnapshot(owner: LocalSubtitleOwnerKey): LocalSubtitleSessionSnapshot {
+    this.#assertManagerAvailable();
+    this.#assertOwnerAvailable(owner);
     return this.#registry.getSnapshot(owner);
   }
 
@@ -334,6 +344,8 @@ export class LocalSubtitleModelManager {
     owner: LocalSubtitleOwnerKey,
     listener: LocalSubtitleResourceEventListener,
   ): () => void {
+    this.#assertManagerAvailable();
+    this.#assertOwnerAvailable(owner);
     return this.#registry.onResourceEvent(owner, listener);
   }
 
@@ -342,7 +354,7 @@ export class LocalSubtitleModelManager {
     signal?: AbortSignal,
   ): Promise<readonly LocalSubtitleManagedResourceSummary[]> {
     this.#assertManagerAvailable();
-    this.#registry.assertOwnerActive(owner);
+    this.#assertOwnerAvailable(owner);
     return Promise.all(
       this.#catalog.map(async (model) => {
         const base = {
@@ -416,7 +428,18 @@ export class LocalSubtitleModelManager {
   }
 
   releaseOwner(owner: LocalSubtitleOwnerKey): void {
-    this.#resourceJobs.releaseOwner(owner);
+    const key = modelOwnerKey(owner);
+    if (this.#releasedOwners.has(key)) return;
+    this.#registry.assertOwnerActive(owner);
+    this.#releasedOwners.add(key);
+    let releaseFailure: unknown;
+    let releaseFailed = false;
+    try {
+      this.#resourceJobs.releaseOwner(owner);
+    } catch (error) {
+      releaseFailure = error;
+      releaseFailed = true;
+    }
     for (const verification of this.#activeVerifications) {
       if (sameOwner(verification.owner, owner)) {
         verification.controller.abort(
@@ -427,6 +450,7 @@ export class LocalSubtitleModelManager {
         );
       }
     }
+    if (releaseFailed) throw releaseFailure;
   }
 
   shutdown(): Promise<void> {
@@ -1431,6 +1455,17 @@ export class LocalSubtitleModelManager {
     }
   }
 
+  #assertOwnerAvailable(owner: LocalSubtitleOwnerKey): void {
+    if (this.#releasedOwners.has(modelOwnerKey(owner))) {
+      throw new LocalSubtitleSessionRegistryError(
+        "owner_released",
+        "The local subtitle model owner is unavailable.",
+        "owner",
+      );
+    }
+    this.#registry.assertOwnerActive(owner);
+  }
+
   #finalModelDirectory(model: LocalSubtitleModelManifestEntry): string {
     return resolveContainedCatalogPath(this.#modelsRoot, model.id);
   }
@@ -2083,6 +2118,10 @@ function sameOwner(
     left?.webContentsId === right.webContentsId &&
     left.ownerSessionId === right.ownerSessionId
   );
+}
+
+function modelOwnerKey(owner: LocalSubtitleOwnerKey): string {
+  return JSON.stringify([owner.webContentsId, owner.ownerSessionId]);
 }
 
 function forwardAbort(

@@ -3,6 +3,7 @@ import rawModelManifest from "../../resources/local-subtitle/manifests/local-sub
 import {
   LOCAL_SUBTITLE_MODEL_MANIFEST,
   LocalSubtitleModelError,
+  parseLocalSubtitleModelCatalog,
   parseLocalSubtitleModelManifest,
   resolveLocalSubtitleModelManifestEntry,
 } from "../../electron/main/local-subtitle/model-manifest";
@@ -71,6 +72,46 @@ describe("local subtitle model manifest", () => {
     colliding.fileName = colliding.fileName.toUpperCase();
     caseCollision.models.push(colliding);
     expectManifestFailure(() => parseLocalSubtitleModelManifest(caseCollision));
+  });
+
+  it("deep-clones and freezes a validated injected catalog", () => {
+    const source = structuredClone(rawModelManifest.models);
+    const catalog = parseLocalSubtitleModelCatalog(source);
+
+    expect(catalog).not.toBe(source);
+    expect(catalog[0]).not.toBe(source[0]);
+    expect(catalog[0]!.ggml).not.toBe(source[0]!.ggml);
+    expect(catalog[0]!.ggml.headerInt32Le).not.toBe(
+      source[0]!.ggml.headerInt32Le,
+    );
+    expect(Object.isFrozen(catalog)).toBe(true);
+    expect(Object.isFrozen(catalog[0])).toBe(true);
+    expect(Object.isFrozen(catalog[0]!.ggml.headerInt32Le)).toBe(true);
+
+    source[0]!.id = "mutated-model";
+    source[0]!.ggml.headerInt32Le[0] = 1;
+    expect(catalog[0]!.id).toBe("large-v3-q5_0");
+    expect(catalog[0]!.ggml.headerInt32Le[0]).toBe(51_866);
+  });
+
+  it("rejects case-colliding ids and file names in injected catalogs", () => {
+    const duplicateId = structuredClone(rawModelManifest.models);
+    duplicateId.push({
+      ...structuredClone(duplicateId[0]!),
+      id: duplicateId[0]!.id.toUpperCase(),
+      fileName: "ggml-distinct-model.bin",
+    });
+    expectManifestFailure(() => parseLocalSubtitleModelCatalog(duplicateId));
+
+    const duplicateFileName = structuredClone(rawModelManifest.models);
+    duplicateFileName.push({
+      ...structuredClone(duplicateFileName[0]!),
+      id: "distinct-model",
+      fileName: duplicateFileName[0]!.fileName.toUpperCase(),
+    });
+    expectManifestFailure(() =>
+      parseLocalSubtitleModelCatalog(duplicateFileName),
+    );
   });
 
   it("rejects PRE-006 engine, artifact, source and GGML header drift", () => {

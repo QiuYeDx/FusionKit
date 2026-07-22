@@ -246,6 +246,53 @@ describe("LocalSubtitleResourceJobManager", () => {
     });
   });
 
+  it("leaves a shared session registry active until its composite owner releases it", async () => {
+    const registry = new LocalSubtitleSessionRegistry();
+    const manager = managerFor(registry, {
+      sessionRegistryOwnership: "shared",
+    });
+    const started = deferred<void>();
+    const finish = deferred<void>();
+    let signal: AbortSignal | undefined;
+    manager.start({
+      owner: OWNER_A,
+      resourceId: "large-v3-q5_0",
+      resourceType: "model",
+      execute: async (context) => {
+        signal = context.signal;
+        context.update({ status: "acquiring", progress: 20 });
+        started.resolve();
+        await finish.promise;
+        return { status: "completed" };
+      },
+    });
+    await started.promise;
+
+    manager.releaseOwner(OWNER_A);
+    expect(signal?.aborted).toBe(true);
+    expect(registry.getSnapshot(OWNER_A)).toMatchObject({
+      revision: 2,
+      resourceJobs: [{ status: "acquiring", progress: 20 }],
+    });
+    expect(() =>
+      manager.start({
+        owner: OWNER_A,
+        resourceId: "large-v3-q5_0",
+        resourceType: "model",
+        execute: () => undefined,
+      })
+    ).toThrow(expect.objectContaining({ code: "owner_released" }));
+
+    finish.resolve();
+    await manager.waitForOwnerIdle(OWNER_A);
+    expect(registry.getSnapshot(OWNER_A).revision).toBe(2);
+
+    expect(registry.releaseOwner(OWNER_A)).toBe(true);
+    expect(() => registry.getSnapshot(OWNER_A)).toThrow(
+      expect.objectContaining({ code: "owner_released" }),
+    );
+  });
+
   it("shares reentrant shutdown while synchronously aborting and awaiting cleanup", async () => {
     const registry = new LocalSubtitleSessionRegistry();
     const manager = managerFor(registry);
@@ -308,6 +355,37 @@ describe("LocalSubtitleResourceJobManager", () => {
     cleanupB.resolve();
     await shutdown;
     expect(settled).toBe(true);
+  });
+
+  it("does not release shared session owners during shutdown", async () => {
+    const registry = new LocalSubtitleSessionRegistry();
+    const manager = managerFor(registry, {
+      sessionRegistryOwnership: "shared",
+    });
+    const started = deferred<void>();
+    const finish = deferred<void>();
+    manager.start({
+      owner: OWNER_A,
+      resourceId: "large-v3-q5_0",
+      resourceType: "model",
+      execute: async (context) => {
+        context.update({ status: "acquiring", progress: 10 });
+        started.resolve();
+        await finish.promise;
+      },
+    });
+    await started.promise;
+
+    const shutdown = manager.shutdown();
+    expect(registry.getSnapshot(OWNER_A)).toMatchObject({
+      revision: 2,
+      resourceJobs: [{ status: "acquiring" }],
+    });
+    finish.resolve();
+    await shutdown;
+    expect(registry.getSnapshot(OWNER_A).revision).toBe(2);
+
+    expect(registry.releaseOwner(OWNER_A)).toBe(true);
   });
 
   it("sanitizes declared and unexpected path-bearing failures", async () => {
@@ -376,11 +454,15 @@ describe("LocalSubtitleResourceJobManager", () => {
 
 function managerFor(
   registry: LocalSubtitleSessionRegistry,
+  options: {
+    readonly sessionRegistryOwnership?: "owned" | "shared";
+  } = {},
 ): LocalSubtitleResourceJobManager {
   let nextJobId = 1;
   return new LocalSubtitleResourceJobManager(registry, {
     now: () => NOW,
     jobIdFactory: () => `job-${nextJobId++}`,
+    ...options,
   });
 }
 

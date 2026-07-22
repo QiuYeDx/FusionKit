@@ -155,6 +155,36 @@ describe("local subtitle main runtime", () => {
     );
     expect(modelShutdown).toHaveBeenCalledWith("app_quit");
   });
+
+  it("can keep shared session state alive until its owning manager settles", async () => {
+    const releaseOrder: string[] = [];
+    let finishManager!: () => void;
+    const managerSettled = new Promise<void>((resolve) => {
+      finishManager = resolve;
+    });
+    const manager: LocalSubtitleMainRuntimeTarget = {
+      releaseOwner: () => releaseOrder.push("manager"),
+      shutdown: () => managerSettled,
+    };
+    const registry: LocalSubtitleMainRuntimeTarget = {
+      releaseOwner: () => releaseOrder.push("registry"),
+      shutdown: async () => {
+        await manager.shutdown("app_quit");
+        releaseOrder.push("registry-shutdown");
+      },
+    };
+    const runtime = createRuntime({ additionalTargets: [manager, registry] });
+
+    runtime.releaseOwner(OWNER);
+    expect(releaseOrder).toEqual(["manager", "registry"]);
+
+    const shutdown = runtime.shutdown("app_quit");
+    await Promise.resolve();
+    expect(releaseOrder).not.toContain("registry-shutdown");
+    finishManager();
+    await shutdown;
+    expect(releaseOrder.at(-1)).toBe("registry-shutdown");
+  });
 });
 
 function createRuntime(overrides: {

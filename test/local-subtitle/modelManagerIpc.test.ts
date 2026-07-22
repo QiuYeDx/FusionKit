@@ -18,6 +18,8 @@ import {
 } from "../../electron/main/local-subtitle/model-manifest";
 import { LocalSubtitleModelManager } from "../../electron/main/local-subtitle/model-manager";
 import type { LocalSubtitleVerifiedRuntimeBundle } from "../../electron/main/local-subtitle/resource-path";
+import { LocalSubtitleSessionIpcBridge } from "../../electron/main/local-subtitle/session-ipc";
+import { LocalSubtitleSessionRegistry } from "../../electron/main/local-subtitle/session-registry";
 
 const DEV_SERVER_URL = "http://127.0.0.1:7777/";
 const tempRoots: string[] = [];
@@ -164,6 +166,7 @@ async function createFixture(options: { readonly smoke?: ReturnType<typeof vi.fn
     byteSize: bytes.length,
     sha256: createHash("sha256").update(bytes).digest("hex"),
   };
+  const sessionRegistry = new LocalSubtitleSessionRegistry();
   const manager = new LocalSubtitleModelManager({
     managedResourceRoot: path.join(root, "managed"),
     runtimeEnvironment: {
@@ -178,8 +181,10 @@ async function createFixture(options: { readonly smoke?: ReturnType<typeof vi.fn
     modelCatalog: [model],
     verifyServerRuntime: async () => fakeRuntime(),
     availableBytes: async () => Number.MAX_SAFE_INTEGER,
+    sessionRegistry,
   });
-  const bridge = new LocalSubtitleModelIpcBridge(manager);
+  const sessionBridge = new LocalSubtitleSessionIpcBridge(sessionRegistry);
+  const bridge = new LocalSubtitleModelIpcBridge(manager, sessionBridge);
   const ownerSessions = new LocalSubtitleOwnerSessionRegistry({
     trustedSender: { devServerUrl: DEV_SERVER_URL },
   });
@@ -194,6 +199,10 @@ async function createFixture(options: { readonly smoke?: ReturnType<typeof vi.fn
       onOwnerReleased: (owner) => {
         bridge.releaseOwner(owner);
         manager.releaseOwner({
+          webContentsId: owner.senderId,
+          ownerSessionId: owner.ownerSessionId,
+        });
+        sessionRegistry.releaseOwner({
           webContentsId: owner.senderId,
           ownerSessionId: owner.ownerSessionId,
         });

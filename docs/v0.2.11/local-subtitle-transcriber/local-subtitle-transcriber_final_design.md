@@ -529,13 +529,13 @@ queued
   → completed
 
 任意运行阶段 → cancelling → cancelled
-exporting 且已有 commit → cancelling → completed（partial）
+exporting 且已有 commit → cancelling → completed（全部格式已提交为 full，否则 partial）
 取消清理失败且尚无 commit → cancelling → failed（cancel_failed）
 首个 artifact commit 前任意阶段 → failed
 exporting 且已有 commit 后发生错误 → completed（partial）
 ```
 
-终态判定固定为：全部请求格式提交成功则 `completed + full`；至少一个成功、至少一个失败或被取消跳过则 `completed + partial`；没有任何请求格式成功才是 `failed`。取消在第一个 artifact commit 前生效时进入 `cancelled`；一旦已有 artifact 原子提交，后续取消不得删除它，当前原子写完成后跳过尚未开始的格式，并以 `completed + partial` 加 `cancelled_after_partial_commit` warning 结束。翻译交接只能选择 `status = "committed"` 的标准 SRT/LRC。
+终态判定固定为：全部请求格式提交成功则 `completed + full`；至少一个成功、至少一个失败或被取消跳过则 `completed + partial`；没有任何请求格式成功才是 `failed`。取消在第一个 artifact commit 前生效时进入 `cancelled`；一旦已有 artifact 原子提交，后续取消不得删除它。若取消被观察时全部请求格式已经提交，结果保持 `completed + full` 且不添加取消 warning；否则当前原子写完成后跳过尚未开始的格式，并以 `completed + partial` 加 `cancelled_after_partial_commit` warning 结束。翻译交接只能选择 `status = "committed"` 的标准 SRT/LRC。
 
 warning 有两层且首版不得混用：shared/public `LocalSubtitleCompletionResult.warnings` v1 只有 `cancelled_after_partial_commit`；SUB-001 的 `timeline_boundary_clamped` 与 `estimated_timing_used` 只属于 main-only `LocalSubtitlePostProcessingWarning` / processing report，用于诊断、统计和后续导出决策，不进入 renderer completion result。若未来确需公开 processing warning，必须升级并评审 CORE shared contract、schema 和 UI 语义，不能由 `SUB-002` 临时把 main-only code 塞进 v1 completion payload。
 

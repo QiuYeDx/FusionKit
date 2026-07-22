@@ -105,7 +105,7 @@ export type LocalSubtitleServerLoadIdentity =
       readonly purpose: "inference";
       readonly backend: LocalSubtitleBackend;
       readonly model: LocalSubtitleServerManagedResourceIdentity<"managed">;
-      readonly vadModel: LocalSubtitleServerManagedResourceIdentity<"managed">;
+      readonly vadModel?: LocalSubtitleServerManagedResourceIdentity<"managed">;
     })
   | (LocalSubtitleServerLoadIdentityBase & {
       readonly purpose: "model_load_smoke";
@@ -130,7 +130,7 @@ export type CreateLocalSubtitleServerLoadIdentityOptions =
       readonly purpose: "inference";
       readonly backend: LocalSubtitleBackend;
       readonly model: LocalSubtitleServerManagedResourceIdentity<"managed">;
-      readonly vadModel: LocalSubtitleServerManagedResourceIdentity<"managed">;
+      readonly vadModel?: LocalSubtitleServerManagedResourceIdentity<"managed">;
     })
   | (CreateLocalSubtitleServerLoadIdentityOptionsBase & {
       readonly purpose: "model_load_smoke";
@@ -255,7 +255,9 @@ export function createLocalSubtitleServerLoadIdentity(
       purpose: options.purpose,
       backend: options.backend,
       model: { ...options.model },
-      vadModel: { ...options.vadModel },
+      ...(options.vadModel === undefined
+        ? {}
+        : { vadModel: { ...options.vadModel } }),
     });
   }
   return deepFreeze({
@@ -303,7 +305,8 @@ export function createLocalSubtitleServerProcessDescriptor(
     String(loadIdentity.process.threads),
     "--processors",
     String(loadIdentity.process.processors),
-    ...(loadIdentity.purpose === "inference"
+    ...(loadIdentity.purpose === "inference" &&
+      loadIdentity.vadModel !== undefined
       ? ["--vad-model", loadIdentity.vadModel.absolutePath]
       : []),
     ...(loadIdentity.process.noGpu ? ["--no-gpu"] : []),
@@ -553,20 +556,22 @@ function validateLoadOptions(
       "model",
       "managed",
     );
-    validateManagedResource(
-      options.vadModel,
-      options.managedResourceRoot,
-      "VAD model",
-      "managed",
-    );
-    if (
-      options.vadModel.id !== LOCAL_SUBTITLE_PRODUCTION_CONTRACT.vad.id ||
-      options.vadModel.sha256 !== LOCAL_SUBTITLE_PRODUCTION_CONTRACT.vad.sha256
-    ) {
-      throw invalidConfiguration("The local inference VAD model is not pinned.");
-    }
-    if (options.model.absolutePath === options.vadModel.absolutePath) {
-      throw invalidConfiguration("The model and VAD model paths must be distinct.");
+    if (options.vadModel !== undefined) {
+      validateManagedResource(
+        options.vadModel,
+        options.managedResourceRoot,
+        "VAD model",
+        "managed",
+      );
+      if (
+        options.vadModel.id !== LOCAL_SUBTITLE_PRODUCTION_CONTRACT.vad.id ||
+        options.vadModel.sha256 !== LOCAL_SUBTITLE_PRODUCTION_CONTRACT.vad.sha256
+      ) {
+        throw invalidConfiguration("The local inference VAD model is not pinned.");
+      }
+      if (options.model.absolutePath === options.vadModel.absolutePath) {
+        throw invalidConfiguration("The model and VAD model paths must be distinct.");
+      }
     }
   }
   if (
@@ -620,7 +625,8 @@ function validateSessionPaths(
   const privateFiles = [
     loadIdentity.serverArtifact.absolutePath,
     loadIdentity.model.absolutePath,
-    ...(loadIdentity.purpose === "inference"
+    ...(loadIdentity.purpose === "inference" &&
+      loadIdentity.vadModel !== undefined
       ? [loadIdentity.vadModel.absolutePath]
       : []),
   ];
@@ -682,13 +688,16 @@ function loadIdentityKey(identity: LocalSubtitleServerLoadIdentity): string {
     identity.model.byteSize,
     identity.model.sha256,
     ...(identity.purpose === "inference"
-      ? [
-          identity.vadModel.storage,
-          identity.vadModel.id,
-          identity.vadModel.absolutePath,
-          identity.vadModel.byteSize,
-          identity.vadModel.sha256,
-        ]
+      ? identity.vadModel === undefined
+        ? ["no_vad"]
+        : [
+            "vad",
+            identity.vadModel.storage,
+            identity.vadModel.id,
+            identity.vadModel.absolutePath,
+            identity.vadModel.byteSize,
+            identity.vadModel.sha256,
+          ]
       : []),
     identity.process.threads,
     identity.process.processors,

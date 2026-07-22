@@ -47,9 +47,12 @@ export interface StartLocalSubtitleResourceJobOptions {
     | Promise<void | LocalSubtitleResourceJobExecutionResult>;
 }
 
+export type LocalSubtitleSessionRegistryOwnership = "owned" | "shared";
+
 export interface LocalSubtitleResourceJobManagerOptions {
   readonly now?: () => number;
   readonly jobIdFactory?: () => string;
+  readonly sessionRegistryOwnership?: LocalSubtitleSessionRegistryOwnership;
 }
 
 export class LocalSubtitleResourceJobExecutionError extends Error {
@@ -96,6 +99,7 @@ export class LocalSubtitleResourceJobManager {
   readonly #registry: LocalSubtitleSessionRegistry;
   readonly #now: () => number;
   readonly #jobIdFactory: () => string;
+  readonly #sessionRegistryOwnership: LocalSubtitleSessionRegistryOwnership;
   readonly #activeJobs = new Map<string, ActiveJobRecord>();
   readonly #releasedOwners = new Set<string>();
   readonly #operations = new Map<Promise<void>, string>();
@@ -113,6 +117,9 @@ export class LocalSubtitleResourceJobManager {
     this.#now = options.now ?? Date.now;
     this.#jobIdFactory = options.jobIdFactory ??
       (() => `resource-job-${randomUUID()}`);
+    this.#sessionRegistryOwnership = validateSessionRegistryOwnership(
+      options.sessionRegistryOwnership ?? "owned",
+    );
   }
 
   start(
@@ -198,8 +205,6 @@ export class LocalSubtitleResourceJobManager {
   }
 
   releaseOwner(owner: LocalSubtitleOwnerKey): void {
-    // This manager owns the session-registry release boundary for resource jobs.
-    // Callers fence an owner here once, then may await waitForOwnerIdle().
     const key = ownerKey(owner);
     if (this.#releasedOwners.has(key)) return;
     this.#registry.assertOwnerActive(owner);
@@ -212,7 +217,9 @@ export class LocalSubtitleResourceJobManager {
         new Error("The local subtitle resource job owner was released."),
       );
     }
-    this.#registry.releaseOwner(owner);
+    if (this.#sessionRegistryOwnership === "owned") {
+      this.#registry.releaseOwner(owner);
+    }
   }
 
   shutdown(): Promise<void> {
@@ -230,8 +237,10 @@ export class LocalSubtitleResourceJobManager {
         new Error("The local subtitle resource job manager is shutting down."),
       );
     }
-    for (const owner of owners.values()) {
-      this.#registry.releaseOwner(owner);
+    if (this.#sessionRegistryOwnership === "owned") {
+      for (const owner of owners.values()) {
+        this.#registry.releaseOwner(owner);
+      }
     }
     return shutdownOperation;
   }
@@ -493,4 +502,15 @@ function executionError(error: unknown): LocalSubtitleError {
 
 function ownerKey(owner: LocalSubtitleOwnerKey): string {
   return JSON.stringify([owner.webContentsId, owner.ownerSessionId]);
+}
+
+function validateSessionRegistryOwnership(
+  value: unknown,
+): LocalSubtitleSessionRegistryOwnership {
+  if (value !== "owned" && value !== "shared") {
+    throw new TypeError(
+      "The local subtitle session registry ownership is invalid.",
+    );
+  }
+  return value;
 }

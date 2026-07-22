@@ -273,6 +273,75 @@ describe("local subtitle capability lease transaction", () => {
     expect(outputs.releaseBatchLease(OWNER_A, "batch-1")).toBe(true);
   });
 
+  it("keeps in-flight input and output resolution valid across lease renewal", async () => {
+    const root = await tempRoot();
+    const inputPath = await file(root, "renew-race.wav", "input");
+    const outputPath = path.join(root, "renew-race-output");
+    await mkdir(outputPath);
+    const inputEntered = deferred<void>();
+    const inputGate = deferred<void>();
+    const outputEntered = deferred<void>();
+    const outputGate = deferred<void>();
+    let blockInput = false;
+    let blockOutput = false;
+    const inputs = new LocalSubtitleInputAuthorizationRegistry({
+      tokenFactory: () => "renew-race-input",
+      beforeVerify: () => {
+        if (!blockInput) return;
+        blockInput = false;
+        inputEntered.resolve();
+        return inputGate.promise;
+      },
+    });
+    const outputs = new LocalSubtitleOutputDirectoryAuthorizationRegistry({
+      tokenFactory: () => "renew-race-output",
+      beforeVerify: () => {
+        if (!blockOutput) return;
+        blockOutput = false;
+        outputEntered.resolve();
+        return outputGate.promise;
+      },
+    });
+    const input = await inputs.authorize(OWNER_A, inputPath);
+    const output = await outputs.authorize(OWNER_A, outputPath);
+    const transaction = await new LocalSubtitleCapabilityLeaseCoordinator(
+      inputs,
+      outputs,
+    ).reserveBatch({
+      owner: OWNER_A,
+      batchId: "renew-race-batch",
+      inputs: [{ fileToken: input.fileToken, taskId: "renew-race-task" }],
+      outputDirToken: output.outputDirToken,
+    });
+    transaction.commit();
+
+    blockInput = true;
+    const resolvingInput = inputs.resolveTaskLease(
+      OWNER_A,
+      "renew-race-task",
+      "transcribe",
+      input.fileToken,
+    );
+    await inputEntered.promise;
+    await inputs.renewTaskLease(OWNER_A, "renew-race-task");
+    inputGate.resolve();
+    await expect(resolvingInput).resolves.toMatchObject({
+      filePath: await realpath(inputPath),
+    });
+
+    blockOutput = true;
+    const resolvingOutput = outputs.resolveBatchLease(
+      OWNER_A,
+      "renew-race-batch",
+    );
+    await outputEntered.promise;
+    await outputs.renewBatchLease(OWNER_A, "renew-race-batch");
+    outputGate.resolve();
+    await expect(resolvingOutput).resolves.toMatchObject({
+      directoryPath: await realpath(outputPath),
+    });
+  });
+
   it("rolls back earlier reservations when a later task scope conflicts", async () => {
     const root = await tempRoot();
     const paths = await Promise.all([
@@ -342,6 +411,220 @@ describe("local subtitle capability lease transaction", () => {
     expect(inputs.revokeDraft(OWNER_A, input.fileToken)).toBe(true);
     expect(outputs.revokeDraft(OWNER_A, output.outputDirToken)).toBe(true);
   });
+
+  it("restores committed leases when synchronous batch publication fails", async () => {
+    const root = await tempRoot();
+    const inputPath = await file(root, "publish-failure.wav", "input");
+    const outputPath = path.join(root, "publish-failure-output");
+    await mkdir(outputPath);
+    const inputs = new LocalSubtitleInputAuthorizationRegistry({
+      tokenFactory: () => "publish-failure-input",
+    });
+    const outputs = new LocalSubtitleOutputDirectoryAuthorizationRegistry({
+      tokenFactory: () => "publish-failure-output",
+    });
+    const input = await inputs.authorize(OWNER_A, inputPath);
+    const output = await outputs.authorize(OWNER_A, outputPath);
+    const transaction = await new LocalSubtitleCapabilityLeaseCoordinator(
+      inputs,
+      outputs,
+    ).reserveBatch({
+      owner: OWNER_A,
+      batchId: "publish-failure-batch",
+      inputs: [
+        { fileToken: input.fileToken, taskId: "publish-failure-task" },
+      ],
+      outputDirToken: output.outputDirToken,
+    });
+
+    expect(() =>
+      transaction.commitAndRun(() => {
+        throw new Error("session publication failed");
+      }),
+    ).toThrow("session publication failed");
+
+    expect(inputs.revokeDraft(OWNER_A, input.fileToken)).toBe(true);
+    expect(outputs.revokeDraft(OWNER_A, output.outputDirToken)).toBe(true);
+    await expect(
+      inputs.resolveTaskLease(
+        OWNER_A,
+        "publish-failure-task",
+        "transcribe",
+      ),
+    ).rejects.toMatchObject({ code: "invalid_ipc_request" });
+  });
+
+  it("ignores public rollback reentrancy while publishing a committed batch", async () => {
+    const root = await tempRoot();
+    const inputPath = await file(root, "reentrant-rollback.wav", "input");
+    const outputPath = path.join(root, "reentrant-rollback-output");
+    await mkdir(outputPath);
+    const inputs = new LocalSubtitleInputAuthorizationRegistry({
+      tokenFactory: () => "reentrant-rollback-input",
+    });
+    const outputs = new LocalSubtitleOutputDirectoryAuthorizationRegistry({
+      tokenFactory: () => "reentrant-rollback-output",
+    });
+    const input = await inputs.authorize(OWNER_A, inputPath);
+    const output = await outputs.authorize(OWNER_A, outputPath);
+    const transaction = await new LocalSubtitleCapabilityLeaseCoordinator(
+      inputs,
+      outputs,
+    ).reserveBatch({
+      owner: OWNER_A,
+      batchId: "reentrant-rollback-batch",
+      inputs: [
+        { fileToken: input.fileToken, taskId: "reentrant-rollback-task" },
+      ],
+      outputDirToken: output.outputDirToken,
+    });
+
+    expect(
+      transaction.commitAndRun(() => {
+        transaction.rollback();
+        return "published";
+      }),
+    ).toMatchObject({
+      lease: { batchId: "reentrant-rollback-batch" },
+      value: "published",
+    });
+    await expect(
+      inputs.resolveTaskLease(
+        OWNER_A,
+        "reentrant-rollback-task",
+        "transcribe",
+      ),
+    ).resolves.toMatchObject({ filePath: await realpath(inputPath) });
+    await expect(
+      outputs.resolveBatchLease(OWNER_A, "reentrant-rollback-batch"),
+    ).resolves.toMatchObject({ directoryPath: await realpath(outputPath) });
+  });
+
+  it("fails publication and compensates surviving leases after owner release", async () => {
+    const root = await tempRoot();
+    const inputPath = await file(root, "publish-owner-release.wav", "input");
+    const outputPath = path.join(root, "publish-owner-release-output");
+    await mkdir(outputPath);
+    const inputs = new LocalSubtitleInputAuthorizationRegistry({
+      tokenFactory: () => "publish-owner-release-input",
+    });
+    const outputs = new LocalSubtitleOutputDirectoryAuthorizationRegistry({
+      tokenFactory: () => "publish-owner-release-output",
+    });
+    const input = await inputs.authorize(OWNER_A, inputPath);
+    const output = await outputs.authorize(OWNER_A, outputPath);
+    const transaction = await new LocalSubtitleCapabilityLeaseCoordinator(
+      inputs,
+      outputs,
+    ).reserveBatch({
+      owner: OWNER_A,
+      batchId: "publish-owner-release-batch",
+      inputs: [
+        {
+          fileToken: input.fileToken,
+          taskId: "publish-owner-release-task",
+        },
+      ],
+      outputDirToken: output.outputDirToken,
+    });
+
+    expect(() =>
+      transaction.commitAndRun(() => inputs.releaseOwner(OWNER_A))
+    ).toThrowError(expect.objectContaining({ code: "invalid_ipc_request" }));
+    await expect(
+      inputs.resolveTaskLease(
+        OWNER_A,
+        "publish-owner-release-task",
+        "transcribe",
+      ),
+    ).rejects.toMatchObject({ code: "owner_released" });
+    expect(outputs.revokeDraft(OWNER_A, output.outputDirToken)).toBe(true);
+    await expect(
+      outputs.resolveBatchLease(OWNER_A, "publish-owner-release-batch"),
+    ).rejects.toMatchObject({ code: "invalid_ipc_request" });
+  });
+
+  it("fails closed when publication sweeps an output lease at expiry", async () => {
+    const root = await tempRoot();
+    const inputPath = await file(root, "publish-expiry.wav", "input");
+    const outputPath = path.join(root, "publish-expiry-output");
+    await mkdir(outputPath);
+    let inputNow = 100;
+    let outputNow = 100;
+    const inputs = new LocalSubtitleInputAuthorizationRegistry({
+      draftTtlMs: 1_000,
+      leaseTtlMs: 10,
+      now: () => inputNow,
+      tokenFactory: () => "publish-expiry-input",
+    });
+    const outputs = new LocalSubtitleOutputDirectoryAuthorizationRegistry({
+      draftTtlMs: 1_000,
+      leaseTtlMs: 10,
+      now: () => outputNow,
+      tokenFactory: () => "publish-expiry-output",
+    });
+    const input = await inputs.authorize(OWNER_A, inputPath);
+    const output = await outputs.authorize(OWNER_A, outputPath);
+    const transaction = await new LocalSubtitleCapabilityLeaseCoordinator(
+      inputs,
+      outputs,
+      { now: () => 100 },
+    ).reserveBatch({
+      owner: OWNER_A,
+      batchId: "publish-expiry-batch",
+      inputs: [{ fileToken: input.fileToken, taskId: "publish-expiry-task" }],
+      outputDirToken: output.outputDirToken,
+    });
+
+    expect(() =>
+      transaction.commitAndRun(() => {
+        outputNow = 110;
+        expect(outputs.sweepExpired()).toBe(1);
+      })
+    ).toThrowError(expect.objectContaining({ code: "invalid_ipc_request" }));
+    expect(inputs.revokeDraft(OWNER_A, input.fileToken)).toBe(true);
+    expect(outputs.revokeDraft(OWNER_A, output.outputDirToken)).toBe(false);
+    await expect(
+      outputs.resolveBatchLease(OWNER_A, "publish-expiry-batch"),
+    ).rejects.toMatchObject({ code: "invalid_ipc_request" });
+  });
+
+  it.each(["pending", "resolved", "rejected"] as const)(
+    "rejects and absorbs a %s thenable from synchronous batch publication",
+    async (kind) => {
+      const root = await tempRoot();
+      const inputPath = await file(root, `${kind}-publish.wav`, "input");
+      const inputs = new LocalSubtitleInputAuthorizationRegistry({
+        tokenFactory: () => `${kind}-publish-input`,
+      });
+      const outputs = new LocalSubtitleOutputDirectoryAuthorizationRegistry();
+      const input = await inputs.authorize(OWNER_A, inputPath);
+      const transaction = await new LocalSubtitleCapabilityLeaseCoordinator(
+        inputs,
+        outputs,
+      ).reserveBatch({
+        owner: OWNER_A,
+        batchId: `${kind}-publish-batch`,
+        inputs: [
+          {
+            fileToken: input.fileToken,
+            taskId: `${kind}-publish-task`,
+          },
+        ],
+      });
+      const thenable = kind === "pending"
+        ? new Promise<never>(() => undefined)
+        : kind === "resolved"
+          ? Promise.resolve("published")
+          : Promise.reject(new Error("late publish rejection"));
+
+      expect(() => transaction.commitAndRun(() => thenable)).toThrow(
+        expect.objectContaining({ code: "invalid_ipc_request", field: "publish" }),
+      );
+      await Promise.resolve();
+      expect(inputs.revokeDraft(OWNER_A, input.fileToken)).toBe(true);
+    },
+  );
 
   it("rolls back to valid drafts when a reserved lease expires before commit", async () => {
     const root = await tempRoot();
@@ -644,4 +927,14 @@ async function file(root: string, name: string, content: string): Promise<string
 function sequence(prefix: string): () => string {
   let value = 0;
   return () => `${prefix}-${++value}`;
+}
+
+function deferred<T>() {
+  let resolve!: (value: T | PromiseLike<T>) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise;
+    reject = rejectPromise;
+  });
+  return { promise, reject, resolve };
 }

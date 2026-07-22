@@ -529,8 +529,16 @@ export class LocalSubtitleServerSupervisor {
     if (this.#activeRequest || this.#startController || this.#shutdownPromise) {
       throw resourceBusyError();
     }
-    this.#clearIdleTimer();
     const canonicalRequest = snapshotInferenceRequest(request);
+    if (
+      canonicalRequest.vadEnabled !==
+        (leaseRecord.loadIdentity.vadModel !== undefined)
+    ) {
+      throw invalidConfigurationError(
+        "The inference VAD request does not match the loaded VAD identity.",
+      );
+    }
+    this.#clearIdleTimer();
 
     const ticket = createRequestTicket();
     const controller = new AbortController();
@@ -883,7 +891,8 @@ export class LocalSubtitleServerSupervisor {
           descriptor.loadIdentity.runtimeRoot,
           descriptor.loadIdentity.managedResourceRoot,
           descriptor.loadIdentity.model.absolutePath,
-          ...(descriptor.loadIdentity.purpose === "inference"
+          ...(descriptor.loadIdentity.purpose === "inference" &&
+            descriptor.loadIdentity.vadModel !== undefined
             ? [descriptor.loadIdentity.vadModel.absolutePath]
             : []),
           session.baseRoot,
@@ -1600,7 +1609,9 @@ function snapshotLoadOptions(
     purpose: options.purpose,
     backend: options.backend,
     model: Object.freeze({ ...options.model }),
-    vadModel: Object.freeze({ ...options.vadModel }),
+    ...(options.vadModel === undefined
+      ? {}
+      : { vadModel: Object.freeze({ ...options.vadModel }) }),
   });
 }
 

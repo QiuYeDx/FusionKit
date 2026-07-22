@@ -183,6 +183,23 @@ describe("local subtitle server process contract", () => {
     expect(isLocalSubtitleServerBackendCompatible("cuda", "cpu")).toBe(false);
   });
 
+  it("builds a CPU inference descriptor without loading VAD", () => {
+    const { vadModel: _vadModel, ...options } = validOptions({ backend: "cpu" });
+    const descriptor = createLocalSubtitleServerProcessDescriptor(options);
+
+    expect(descriptor.loadIdentity).toMatchObject({
+      purpose: "inference",
+      backend: "cpu",
+      process: { noGpu: true },
+    });
+    expect(descriptor.loadIdentity).not.toHaveProperty("vadModel");
+    expect(descriptor.args).not.toContain("--vad-model");
+    expect(descriptor.args.filter((value) => value === "--no-gpu")).toEqual([
+      "--no-gpu",
+    ]);
+    expectDeeplyFrozen(descriptor);
+  });
+
   it("builds a CPU-only staging smoke descriptor without loading VAD", () => {
     const options = smokeOptions();
     const descriptor = createLocalSubtitleServerProcessDescriptor(options);
@@ -380,7 +397,7 @@ describe("local subtitle server process contract", () => {
     },
   );
 
-  it("requires the exact pinned VAD identity", () => {
+  it("requires the exact pinned VAD identity when VAD is loaded", () => {
     const base = validOptions();
     for (const vadModel of [
       { ...base.vadModel, id: "other-vad" },
@@ -418,6 +435,11 @@ describe("local subtitle server process contract", () => {
 
     expect(canReuseLocalSubtitleServerLoadIdentity(current, equivalent)).toBe(
       true,
+    );
+    const { vadModel: _vadModel, ...withoutVadOptions } = validOptions();
+    const withoutVad = createLocalSubtitleServerLoadIdentity(withoutVadOptions);
+    expect(canReuseLocalSubtitleServerLoadIdentity(current, withoutVad)).toBe(
+      false,
     );
 
     const changedIdentities: LocalSubtitleServerLoadIdentity[] = [

@@ -1,12 +1,17 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   LOCAL_SUBTITLE_DOMAIN_SCHEMA_VERSION,
+  LOCAL_SUBTITLE_MODEL_MANIFEST_VERSION,
+  LOCAL_SUBTITLE_PRODUCTION_CONTRACT,
   createLocalSubtitleError,
+  type LocalSubtitleBatchSummary,
   type LocalSubtitleResourceJobSummary,
+  type LocalSubtitleTaskSummary,
 } from "../../src/type/localSubtitle";
 import {
   localSubtitleResourceEventEnvelopeSchema,
   localSubtitleSessionSnapshotSchema,
+  localSubtitleTaskEventEnvelopeSchema,
 } from "../../src/type/localSubtitleIpc";
 import type { LocalSubtitleOwnerKey } from "../../electron/main/local-subtitle/authorizations";
 import { LocalSubtitleSessionRegistry } from "../../electron/main/local-subtitle/session-registry";
@@ -174,6 +179,475 @@ describe("LocalSubtitleSessionRegistry", () => {
     });
     expect(Object.isFrozen((failed.event as any).job.error)).toBe(true);
   });
+
+  it("publishes task and resource mutations on one owner revision cursor", async () => {
+    const registry = new LocalSubtitleSessionRegistry();
+    const taskEvents: unknown[] = [];
+    const resourceEvents: unknown[] = [];
+    registry.onTaskEvent(OWNER_A, (event) => taskEvents.push(event));
+    registry.onTaskEvent(OWNER_A, () => {
+      throw new Error("task delivery failed");
+    });
+    registry.onTaskEvent(OWNER_A, () =>
+      Promise.reject(new Error("async task delivery failed")),
+    );
+    registry.onResourceEvent(OWNER_A, (event) => resourceEvents.push(event));
+
+    const inserted = registry.addBatch(OWNER_A, batch());
+    const resource = registry.upsertResourceJob(OWNER_A, resourceJob());
+    const running = registry.upsertTask(
+      OWNER_A,
+      task({
+        status: "preparing_media",
+        progress: {
+          stage: "preparing_media",
+          stageProgress: 25,
+          overallProgress: 5,
+        },
+        updatedAt: "2026-07-22T00:00:01.000Z",
+      }),
+    );
+    await Promise.resolve();
+
+    expect(inserted).toHaveLength(1);
+    expect([inserted[0]?.revision, resource.revision, running.revision]).toEqual([
+      1,
+      2,
+      3,
+    ]);
+    expect(taskEvents).toHaveLength(2);
+    expect(resourceEvents).toHaveLength(1);
+    expect(
+      taskEvents.every(
+        (event) => localSubtitleTaskEventEnvelopeSchema.safeParse(event).success,
+      ),
+    ).toBe(true);
+    expect(taskEvents.every((event) => Object.isFrozen(event))).toBe(true);
+    expect(registry.getSnapshot(OWNER_A)).toMatchObject({
+      revision: 3,
+      batches: [
+        {
+          batchId: "batch-1",
+          status: "running",
+          tasks: [{ taskId: "task-1", status: "preparing_media" }],
+        },
+      ],
+      resourceJobs: [{ jobId: "job-1" }],
+    });
+  });
+
+  it("commits staged batches without observation and can roll them back", () => {
+    const registry = new LocalSubtitleSessionRegistry();
+    const listener = vi.fn();
+    registry.onTaskEvent(OWNER_A, listener);
+    const publication = registry.prepareBatchPublication(OWNER_A, batch());
+
+    expect(publication.envelopes.map((event) => event.revision)).toEqual([1]);
+    expect(registry.getSnapshot(OWNER_A)).toMatchObject({ revision: 0, batches: [] });
+    expect(publication.commit()).toBe(publication.envelopes);
+    expect(registry.getSnapshot(OWNER_A)).toMatchObject({
+      revision: 1,
+      batches: [{ batchId: "batch-1" }],
+    });
+    expect(listener).not.toHaveBeenCalled();
+
+    publication.rollback();
+    publication.rollback();
+    expect(registry.getSnapshot(OWNER_A)).toMatchObject({ revision: 0, batches: [] });
+    expect(listener).not.toHaveBeenCalled();
+    expect(() => publication.commit()).toThrow(
+      expect.objectContaining({ code: "invalid_ipc_request" }),
+    );
+  });
+
+  it("rejects a staged commit after another mutation advances the session", () => {
+    const registry = new LocalSubtitleSessionRegistry();
+    const publication = registry.prepareBatchPublication(OWNER_A, batch());
+    registry.upsertResourceJob(OWNER_A, resourceJob());
+
+    expect(() => publication.commit()).toThrow(
+      expect.objectContaining({ code: "invalid_content", field: "batch.publication" }),
+    );
+    publication.rollback();
+    expect(registry.getSnapshot(OWNER_A)).toMatchObject({
+      revision: 1,
+      batches: [],
+      resourceJobs: [{ jobId: "job-1" }],
+    });
+  });
+
+  it("serializes reentrant task and resource delivery by shared revision", () => {
+    const registry = new LocalSubtitleSessionRegistry();
+    const delivered: string[] = [];
+    registry.onTaskEvent(OWNER_A, (event) => {
+      if (event.revision === 1) registry.upsertResourceJob(OWNER_A, resourceJob());
+    });
+    registry.onTaskEvent(OWNER_A, (event) => {
+      delivered.push(`task:${event.revision}`);
+    });
+    registry.onResourceEvent(OWNER_A, (event) => {
+      delivered.push(`resource:${event.revision}`);
+    });
+
+    const inserted = registry.addBatch(
+      OWNER_A,
+      batch({
+        tasks: [
+          task({ taskId: "task-1" }),
+          task({ taskId: "task-2" }),
+        ],
+      }),
+    );
+
+    expect(inserted.map((event) => event.revision)).toEqual([1, 2]);
+    expect(delivered).toEqual(["task:1", "task:2", "resource:3"]);
+    expect(registry.getSnapshot(OWNER_A).revision).toBe(3);
+  });
+
+  it("stops queued delivery when a listener releases the owner", () => {
+    const registry = new LocalSubtitleSessionRegistry();
+    const lateListener = vi.fn();
+    registry.onTaskEvent(OWNER_A, () => {
+      registry.releaseOwner(OWNER_A);
+    });
+    registry.onTaskEvent(OWNER_A, lateListener);
+
+    registry.addBatch(
+      OWNER_A,
+      batch({
+        tasks: [
+          task({ taskId: "task-1" }),
+          task({ taskId: "task-2" }),
+        ],
+      }),
+    );
+
+    expect(lateListener).not.toHaveBeenCalled();
+    expect(() => registry.getSnapshot(OWNER_A)).toThrow(
+      expect.objectContaining({ code: "owner_released" }),
+    );
+  });
+
+  it("enforces legal same-generation transitions and monotonic progress", () => {
+    const registry = new LocalSubtitleSessionRegistry();
+    registry.addBatch(OWNER_A, batch());
+
+    registry.upsertTask(
+      OWNER_A,
+      task({
+        status: "preparing_media",
+        progress: {
+          stage: "preparing_media",
+          stageProgress: 25,
+          overallProgress: 5,
+        },
+        updatedAt: "2026-07-22T00:00:01.000Z",
+      }),
+    );
+    registry.upsertTask(
+      OWNER_A,
+      task({
+        status: "preparing_media",
+        progress: {
+          stage: "preparing_media",
+          stageProgress: 50,
+          overallProgress: 10,
+        },
+        updatedAt: "2026-07-22T00:00:02.000Z",
+      }),
+    );
+
+    expect(() =>
+      registry.upsertTask(
+        OWNER_A,
+        task({
+          status: "preparing_media",
+          progress: {
+            stage: "preparing_media",
+            stageProgress: 49,
+            overallProgress: 10,
+          },
+          updatedAt: "2026-07-22T00:00:03.000Z",
+        }),
+      )
+    ).toThrow(expect.objectContaining({
+      code: "invalid_content",
+      field: "task.progress",
+    }));
+    expect(() =>
+      registry.upsertTask(
+        OWNER_A,
+        task({
+          status: "loading_model",
+          progress: {
+            stage: "loading_model",
+            stageProgress: 0,
+            overallProgress: 9,
+          },
+          updatedAt: "2026-07-22T00:00:03.000Z",
+        }),
+      )
+    ).toThrow(expect.objectContaining({
+      code: "invalid_content",
+      field: "task.progress",
+    }));
+    expect(() =>
+      registry.upsertTask(
+        OWNER_A,
+        task({
+          status: "post_processing",
+          progress: {
+            stage: "post_processing",
+            stageProgress: 0,
+            overallProgress: 20,
+          },
+          updatedAt: "2026-07-22T00:00:03.000Z",
+        }),
+      )
+    ).toThrow(expect.objectContaining({
+      code: "invalid_content",
+      field: "task.status",
+    }));
+    expect(registry.getSnapshot(OWNER_A).revision).toBe(3);
+  });
+
+  it("rejects same-generation changes to immutable task fields", () => {
+    const registry = new LocalSubtitleSessionRegistry();
+    registry.addBatch(OWNER_A, batch());
+    const mutations: readonly Partial<LocalSubtitleTaskSummary>[] = [
+      { displayName: "replacement.wav" },
+      {
+        model: {
+          ...task().model,
+          modelHash: "0".repeat(64),
+        },
+      },
+      { resolvedBackend: "metal" },
+      { requestedFormats: ["LRC"] },
+      {
+        createdAt: "2026-07-22T00:00:01.000Z",
+        updatedAt: "2026-07-22T00:00:01.000Z",
+      },
+      {
+        postAction: {
+          mode: "enqueue_translation",
+          preferredFormat: "SRT",
+          importStatus: "pending",
+          startStatus: "not_requested",
+        },
+      },
+    ];
+
+    for (const mutation of mutations) {
+      expect(() => registry.upsertTask(OWNER_A, task(mutation))).toThrow(
+        expect.objectContaining({
+          code: "invalid_content",
+          field: "task.immutable",
+        }),
+      );
+    }
+    expect(registry.getSnapshot(OWNER_A).revision).toBe(1);
+  });
+
+  it("enforces session-global task ids", () => {
+    const registry = new LocalSubtitleSessionRegistry();
+    registry.addBatch(OWNER_A, batch());
+
+    expect(() =>
+      registry.addBatch(
+        OWNER_A,
+        batch({
+          batchId: "batch-2",
+          tasks: [task({ batchId: "batch-2" })],
+        }),
+      ),
+    ).toThrow(expect.objectContaining({ code: "invalid_content" }));
+    expect(registry.getSnapshot(OWNER_A).revision).toBe(1);
+  });
+
+  it("admits a higher generation only as an exact failed-task retry", () => {
+    const invalidInitial = new LocalSubtitleSessionRegistry();
+    expect(() =>
+      invalidInitial.addBatch(
+        OWNER_A,
+        batch({ tasks: [task({ generation: 2 })] }),
+      )
+    ).toThrow(expect.objectContaining({
+      code: "invalid_content",
+      field: "batch.tasks.generation",
+    }));
+    expect(invalidInitial.getSnapshot(OWNER_A).revision).toBe(0);
+
+    const registry = new LocalSubtitleSessionRegistry();
+    registry.addBatch(OWNER_A, batch());
+    expect(() =>
+      registry.upsertTask(
+        OWNER_A,
+        task({
+          generation: 2,
+          createdAt: "2026-07-22T00:00:01.000Z",
+          updatedAt: "2026-07-22T00:00:01.000Z",
+        }),
+      )
+    ).toThrow(expect.objectContaining({
+      code: "invalid_content",
+      field: "task.status",
+    }));
+
+    registry.upsertTask(
+      OWNER_A,
+      failedTask({ updatedAt: "2026-07-22T00:00:01.000Z" }),
+    );
+    expect(() =>
+      registry.upsertTask(
+        OWNER_A,
+        task({ updatedAt: "2026-07-22T00:00:02.000Z" }),
+      )
+    ).toThrow(expect.objectContaining({
+      code: "invalid_content",
+      field: "task.status",
+    }));
+    expect(() =>
+      registry.upsertTask(
+        OWNER_A,
+        task({
+          generation: 3,
+          createdAt: "2026-07-22T00:00:02.000Z",
+          updatedAt: "2026-07-22T00:00:02.000Z",
+        }),
+      )
+    ).toThrow(expect.objectContaining({
+      code: "invalid_content",
+      field: "task.generation",
+    }));
+    expect(() =>
+      registry.upsertTask(
+        OWNER_A,
+        task({
+          generation: 2,
+          model: { ...task().model, modelHash: "0".repeat(64) },
+          createdAt: "2026-07-22T00:00:02.000Z",
+          updatedAt: "2026-07-22T00:00:02.000Z",
+        }),
+      )
+    ).toThrow(expect.objectContaining({
+      code: "invalid_content",
+      field: "task.immutable",
+    }));
+
+    const retried = registry.upsertTask(
+      OWNER_A,
+      task({
+        generation: 2,
+        createdAt: "2026-07-22T00:00:02.000Z",
+        updatedAt: "2026-07-22T00:00:02.000Z",
+      }),
+    );
+    expect(retried).toMatchObject({
+      generation: 2,
+      event: { task: { status: "queued", generation: 2 } },
+    });
+
+    expect(() =>
+      registry.upsertTask(
+        OWNER_A,
+        failedTask({ updatedAt: "2026-07-22T00:00:03.000Z" }),
+      )
+    ).toThrow(expect.objectContaining({
+      code: "invalid_content",
+      field: "task.generation",
+    }));
+    expect(registry.getSnapshot(OWNER_A).revision).toBe(3);
+  });
+
+  it("removes the final task and batch while retaining a generation tombstone", () => {
+    const registry = new LocalSubtitleSessionRegistry();
+    registry.addBatch(OWNER_A, batch());
+    const removed = registry.removeTask(
+      OWNER_A,
+      "task-1",
+      "2026-07-22T00:00:02.000Z",
+    );
+
+    expect(removed).toMatchObject({
+      revision: 2,
+      batchId: "batch-1",
+      taskId: "task-1",
+      generation: 1,
+      event: { type: "task-removed" },
+    });
+    expect(registry.removeTask(OWNER_A, "task-1", NOW)).toBeUndefined();
+    expect(registry.getSnapshot(OWNER_A)).toMatchObject({
+      revision: 2,
+      batches: [],
+    });
+    expect(() => registry.addBatch(OWNER_A, batch())).toThrow(
+      expect.objectContaining({ code: "invalid_content" }),
+    );
+    expect(registry.getSnapshot(OWNER_A).revision).toBe(2);
+  });
+
+  it("sanitizes task failures before storing or emitting them", () => {
+    const registry = new LocalSubtitleSessionRegistry();
+    const privatePath = "/private/source/media.wav";
+    registry.addBatch(OWNER_A, batch());
+
+    const failed = registry.upsertTask(
+      OWNER_A,
+      task({
+        status: "failed",
+        progress: {
+          stage: "transcribing",
+          stageProgress: 40,
+          overallProgress: 35,
+        },
+        error: createLocalSubtitleError(
+          "transcription_failed",
+          `failed at ${privatePath}`,
+          {
+            details: {
+              summary: `token=secret at ${privatePath}`,
+              truncated: false,
+            },
+          },
+        ),
+      }),
+    );
+
+    expect(JSON.stringify(failed)).not.toContain(privatePath);
+    expect(JSON.stringify(failed)).not.toContain("token=secret");
+    expect(failed).toMatchObject({
+      event: {
+        task: {
+          error: {
+            code: "transcription_failed",
+            message: "The local subtitle task failed.",
+          },
+        },
+      },
+    });
+  });
+
+  it("shares shutdown and fences both existing and unseen owners", async () => {
+    const registry = new LocalSubtitleSessionRegistry();
+    const listener = vi.fn();
+    registry.onTaskEvent(OWNER_A, listener);
+    registry.addBatch(OWNER_A, batch());
+
+    const first = registry.shutdown();
+    expect(registry.shutdown()).toBe(first);
+    await first;
+    expect(() => registry.getSnapshot(OWNER_A)).toThrow(
+      expect.objectContaining({ code: "owner_released" }),
+    );
+    expect(() => registry.getSnapshot(OWNER_B)).toThrow(
+      expect.objectContaining({ code: "owner_released" }),
+    );
+    expect(() => registry.addBatch(OWNER_A, batch())).toThrow(
+      expect.objectContaining({ code: "owner_released" }),
+    );
+    expect(listener).toHaveBeenCalledOnce();
+  });
 });
 
 function resourceJob(
@@ -189,4 +663,83 @@ function resourceJob(
     updatedAt: NOW,
     ...overrides,
   };
+}
+
+function batch(
+  overrides: Partial<LocalSubtitleBatchSummary> = {},
+): LocalSubtitleBatchSummary {
+  const tasks = overrides.tasks ?? [task()];
+  return {
+    batchId: "batch-1",
+    status: tasks.every((entry) => entry.status === "queued")
+      ? "queued"
+      : "running",
+    config: {
+      modelId: LOCAL_SUBTITLE_PRODUCTION_CONTRACT.launchModel.id,
+      devicePreference: "cpu",
+      resolvedBackend: "cpu",
+      language: "auto",
+      taskMode: "transcribe",
+      qualityPreset: "balanced",
+      vadEnabled: false,
+      outputFormats: ["SRT"],
+      outputMode: "source",
+      conflictPolicy: "index",
+      postActionMode: "export_only",
+    },
+    tasks,
+    createdAt: NOW,
+    updatedAt: NOW,
+    ...overrides,
+  };
+}
+
+function task(
+  overrides: Partial<LocalSubtitleTaskSummary> = {},
+): LocalSubtitleTaskSummary {
+  return {
+    taskId: "task-1",
+    batchId: "batch-1",
+    generation: 1,
+    displayName: "sample.wav",
+    status: "queued",
+    progress: {
+      stage: "queued",
+      stageProgress: 0,
+      overallProgress: 0,
+    },
+    model: {
+      engine: "whisper_cpp",
+      engineVersion: LOCAL_SUBTITLE_PRODUCTION_CONTRACT.engine.version,
+      engineCommit: LOCAL_SUBTITLE_PRODUCTION_CONTRACT.engine.commit,
+      modelManifestVersion: LOCAL_SUBTITLE_MODEL_MANIFEST_VERSION,
+      modelId: LOCAL_SUBTITLE_PRODUCTION_CONTRACT.launchModel.id,
+      modelHash: LOCAL_SUBTITLE_PRODUCTION_CONTRACT.launchModel.sha256,
+    },
+    resolvedBackend: "cpu",
+    requestedFormats: ["SRT"],
+    artifactResults: [],
+    postAction: {
+      mode: "export_only",
+      importStatus: "not_requested",
+      startStatus: "not_requested",
+    },
+    createdAt: NOW,
+    updatedAt: NOW,
+    ...overrides,
+  };
+}
+
+function failedTask(
+  overrides: Partial<LocalSubtitleTaskSummary> = {},
+): LocalSubtitleTaskSummary {
+  return task({
+    status: "failed",
+    error: createLocalSubtitleError(
+      "transcription_failed",
+      "Task execution failed.",
+      { stage: "transcribing" },
+    ),
+    ...overrides,
+  });
 }

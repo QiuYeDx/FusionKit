@@ -31,6 +31,7 @@ import {
   type LocalSubtitleModelLoadSmokeTarget,
 } from "../../electron/main/local-subtitle/model-manager";
 import type { LocalSubtitleVerifiedRuntimeBundle } from "../../electron/main/local-subtitle/resource-path";
+import { LocalSubtitleSessionRegistry } from "../../electron/main/local-subtitle/session-registry";
 
 const OWNER = Object.freeze({ webContentsId: 41, ownerSessionId: "owner-model-a" });
 const tempRoots: string[] = [];
@@ -368,6 +369,35 @@ describe("local subtitle model manager", () => {
     );
   });
 
+  it("leaves an injected session registry for the composite owner to release", async () => {
+    const sessionRegistry = new LocalSubtitleSessionRegistry();
+    const fixture = await createFixture({ sessionRegistry });
+    expect(fixture.manager.getSessionSnapshot(OWNER)).toMatchObject({
+      revision: 0,
+      batches: [],
+      resourceJobs: [],
+    });
+
+    fixture.manager.releaseOwner(OWNER);
+
+    expect(() => fixture.manager.getSessionSnapshot(OWNER)).toThrow(
+      expect.objectContaining({ localSubtitleCode: "owner_released" }),
+    );
+    await expect(fixture.manager.listManagedResources(OWNER)).rejects.toMatchObject({
+      localSubtitleCode: "owner_released",
+    });
+    expect(sessionRegistry.getSnapshot(OWNER)).toMatchObject({
+      revision: 0,
+      batches: [],
+      resourceJobs: [],
+    });
+
+    expect(sessionRegistry.releaseOwner(OWNER)).toBe(true);
+    expect(() => sessionRegistry.getSnapshot(OWNER)).toThrow(
+      expect.objectContaining({ code: "owner_released" }),
+    );
+  });
+
   it("invalidates a cached ready model when its managed file changes", async () => {
     const fixture = await createFixture();
     fixture.manager.importModel({
@@ -493,25 +523,60 @@ describe("local subtitle model manager", () => {
     });
   });
 
-  it.skipIf(process.platform === "win32")(
-    "rejects an existing managed root with non-private permissions",
-    async () => {
+  it("reports symbolic-link and non-directory model placeholders as invalid", async () => {
+    for (const placeholder of ["symlink", "file"] as const) {
       const fixture = await createFixture();
-      await mkdir(fixture.managedRoot, { recursive: true, mode: 0o700 });
-      await chmod(fixture.managedRoot, 0o755);
+      const modelsRoot = path.join(fixture.managedRoot, "models");
+      const modelDirectory = path.join(modelsRoot, fixture.model.id);
+      await mkdir(modelsRoot, { recursive: true, mode: 0o700 });
+      if (placeholder === "symlink") {
+        const outside = path.join(fixture.root, "outside-model-placeholder");
+        await mkdir(outside, { mode: 0o700 });
+        await symlink(outside, modelDirectory, "dir");
+      } else {
+        await writeFile(modelDirectory, "not a model directory");
+      }
 
-      fixture.manager.importModel({
-        owner: OWNER,
-        filePath: fixture.sourcePath,
-        mode: "move",
-      });
-      await fixture.manager.waitForIdle();
+      await expect(fixture.manager.listManagedResources(OWNER)).resolves.toEqual([
+        expect.objectContaining({
+          resourceId: fixture.model.id,
+          status: "invalid",
+          errorCode: "resource_not_allowed",
+        }),
+      ]);
+    }
+  });
 
-      expect(await readFile(fixture.sourcePath)).toEqual(fixture.bytes);
-      expect(fixture.manager.getSessionSnapshot(OWNER).resourceJobs[0]).toMatchObject({
-        status: "failed",
-        error: { code: "resource_not_allowed" },
-      });
+  it.skipIf(process.platform === "win32")(
+    "rejects any existing model root with non-private permissions",
+    async () => {
+      for (const rootName of ["managed", "models", "model-staging"] as const) {
+        const fixture = await createFixture();
+        await mkdir(fixture.managedRoot, { recursive: true, mode: 0o700 });
+        const target = rootName === "managed"
+          ? fixture.managedRoot
+          : path.join(fixture.managedRoot, rootName);
+        if (target !== fixture.managedRoot) {
+          await mkdir(target, { mode: 0o700 });
+        }
+        await chmod(target, 0o755);
+
+        fixture.manager.importModel({
+          owner: OWNER,
+          filePath: fixture.sourcePath,
+          mode: "move",
+        });
+        await fixture.manager.waitForIdle();
+
+        expect(await readFile(fixture.sourcePath)).toEqual(fixture.bytes);
+        expect(fixture.smoke).not.toHaveBeenCalled();
+        expect(
+          fixture.manager.getSessionSnapshot(OWNER).resourceJobs[0],
+        ).toMatchObject({
+          status: "failed",
+          error: { code: "resource_not_allowed" },
+        });
+      }
     },
   );
 
@@ -572,25 +637,29 @@ describe("local subtitle model manager", () => {
     expect(await stagingEntries(fixture.managedRoot)).toEqual([]);
   });
 
-  it("rejects a same-mode models root replacement after capturing its identity", async () => {
-    const fixture = await createFixture();
-    fixture.manager.importModel({
-      owner: OWNER,
-      filePath: fixture.sourcePath,
-      mode: "copy",
-    });
-    await fixture.manager.waitForIdle();
-    const modelsRoot = path.join(fixture.managedRoot, "models");
-    await rename(modelsRoot, `${modelsRoot}-replaced`);
-    await mkdir(modelsRoot, { mode: 0o700 });
+  it("rejects same-mode root replacements after capturing their identities", async () => {
+    for (const rootName of ["managed", "models", "model-staging"] as const) {
+      const fixture = await createFixture();
+      fixture.manager.importModel({
+        owner: OWNER,
+        filePath: fixture.sourcePath,
+        mode: "copy",
+      });
+      await fixture.manager.waitForIdle();
+      const target = rootName === "managed"
+        ? fixture.managedRoot
+        : path.join(fixture.managedRoot, rootName);
+      await rename(target, `${target}-replaced`);
+      await mkdir(target, { mode: 0o700 });
 
-    await expect(fixture.manager.listManagedResources(OWNER)).resolves.toEqual([
-      expect.objectContaining({
-        resourceId: fixture.model.id,
-        status: "invalid",
-        errorCode: "resource_not_allowed",
-      }),
-    ]);
+      await expect(fixture.manager.listManagedResources(OWNER)).resolves.toEqual([
+        expect.objectContaining({
+          resourceId: fixture.model.id,
+          status: "invalid",
+          errorCode: "resource_not_allowed",
+        }),
+      ]);
+    }
   });
 
   it("rolls back both final and staging paths when post-link identity validation fails", async () => {
@@ -1026,6 +1095,7 @@ interface FixtureOptions {
   readonly removeStagingDirectory?: (absolutePath: string) => Promise<void>;
   readonly verifyModelFile?: LocalSubtitleModelManagerOptions["verifyModelFile"];
   readonly stagingIdFactory?: () => string;
+  readonly sessionRegistry?: LocalSubtitleSessionRegistry;
 }
 
 async function createFixture(options: FixtureOptions = {}) {
@@ -1055,6 +1125,9 @@ async function createFixture(options: FixtureOptions = {}) {
       arch: "arm64",
     },
     supervisor,
+    ...(options.sessionRegistry === undefined
+      ? {}
+      : { sessionRegistry: options.sessionRegistry }),
     modelCatalog: [model],
     verifyServerRuntime: async () => fakeRuntime(),
     availableBytes: options.availableBytes ?? (async () => Number.MAX_SAFE_INTEGER),

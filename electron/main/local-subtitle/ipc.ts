@@ -46,6 +46,7 @@ import {
   LocalSubtitleArtifactRegistryError,
 } from "./subtitle-artifact-registry";
 import { LocalSubtitleMediaError } from "./media-normalizer";
+import { LocalSubtitleJobManagerError } from "./job-manager";
 import {
   LocalSubtitleModelManagerError,
 } from "./model-manager";
@@ -466,6 +467,14 @@ function toLocalSubtitleIpcFailure(
         "Local subtitle media operation failed.",
         { stage: error.stage },
       ),
+    );
+  }
+  if (error instanceof LocalSubtitleJobManagerError) {
+    return localSubtitleIpcFailure(
+      createLocalSubtitleError(error.localSubtitleCode, error.message, {
+        stage: error.stage,
+        ...(error.field ? { field: error.field } : {}),
+      }),
     );
   }
   if (error instanceof LocalSubtitleModelManagerError) {

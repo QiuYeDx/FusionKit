@@ -829,16 +829,6 @@ export function transitionLocalSubtitleTaskState(
     if (terminal.status !== "completed") {
       return { ok: false, reason: "terminal_status_mismatch" };
     }
-    if (
-      current.status === "cancelling" &&
-      (terminal.completion.outcome !== "partial" ||
-        !terminal.completion.warnings.includes(
-          "cancelled_after_partial_commit",
-        ))
-    ) {
-      return { ok: false, reason: "terminal_status_mismatch" };
-    }
-
     return {
       ok: true,
       state: deepFreeze({

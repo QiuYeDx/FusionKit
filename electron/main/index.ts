@@ -27,6 +27,7 @@ import { LocalSubtitleMainRuntime } from "./local-subtitle/main-runtime";
 import { LocalSubtitleMediaNormalizer } from "./local-subtitle/media-normalizer";
 import { LocalSubtitleModelManager } from "./local-subtitle/model-manager";
 import { LocalSubtitleModelIpcBridge } from "./local-subtitle/model-ipc";
+import { LocalSubtitleSessionIpcBridge } from "./local-subtitle/session-ipc";
 import { LocalSubtitleSessionRegistry } from "./local-subtitle/session-registry";
 import { LocalSubtitleServerSupervisor } from "./local-subtitle/server-supervisor";
 import { LocalSubtitleServerAppLifecycle } from "./local-subtitle/server-app-lifecycle";
@@ -216,10 +217,25 @@ app.whenReady().then(() => {
     supervisor: localSubtitleServerSupervisor,
     sessionRegistry: localSubtitleSessionRegistry,
   });
+  const localSubtitleSessionLifecycle = {
+    releaseOwner: (owner: {
+      readonly webContentsId: number;
+      readonly ownerSessionId: string;
+    }) => {
+      localSubtitleSessionRegistry.releaseOwner(owner);
+    },
+    shutdown: async () => {
+      // MainRuntime starts targets together; awaiting the model manager here
+      // keeps the shared registry alive until resource work is fully fenced.
+      await localSubtitleModelManager.shutdown();
+      await localSubtitleSessionRegistry.shutdown();
+    },
+  };
   const localSubtitleMainRuntime = new LocalSubtitleMainRuntime(
     localSubtitleMediaNormalizer,
     localSubtitleServerSupervisor,
     localSubtitleModelManager,
+    localSubtitleSessionLifecycle,
   );
   localSubtitleServerLifecycle = new LocalSubtitleServerAppLifecycle(
     localSubtitleMainRuntime,
@@ -230,8 +246,12 @@ app.whenReady().then(() => {
   });
 
   // The sync preload handshake must exist before any renderer starts loading.
+  const localSubtitleSessionIpcBridge = new LocalSubtitleSessionIpcBridge(
+    localSubtitleSessionRegistry,
+  );
   const localSubtitleModelIpcBridge = new LocalSubtitleModelIpcBridge(
     localSubtitleModelManager,
+    localSubtitleSessionIpcBridge,
   );
   const localSubtitleIpcService = new LocalSubtitleIpcService({
       capabilities: {

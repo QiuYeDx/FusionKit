@@ -106,6 +106,59 @@ describe("LocalSubtitleServerSupervisor", () => {
     expect(harness.children[0]?.killSignals).toEqual(["SIGTERM"]);
   });
 
+  it("runs an explicitly no-VAD inference without loading a VAD model", async () => {
+    const client = new FakeHttpClient();
+    const harness = createHarness({ clients: [client] });
+    const lease = await harness.supervisor.acquire(OWNER_A, noVadLoadOptions());
+
+    const result = await harness.supervisor.beginInference(lease, {
+      ...inferenceRequest(1),
+      vadEnabled: false,
+    }).result;
+
+    expect(result.response.requestGeneration).toBe(1);
+    expect(harness.spawnRecords[0]?.args).not.toContain("--vad-model");
+    expect(client.inferenceRequests[0]?.vadEnabled).toBe(false);
+    await harness.supervisor.release(lease);
+  });
+
+  it("rejects inference when the request VAD mode differs from the load identity", async () => {
+    const withVadClient = new FakeHttpClient();
+    const withVadHarness = createHarness({
+      clients: [withVadClient],
+      idleTimeoutMs: 1,
+    });
+    const withVadLease = await withVadHarness.supervisor.acquire(
+      OWNER_A,
+      loadOptions(),
+    );
+    expect(() =>
+      withVadHarness.supervisor.beginInference(withVadLease, {
+        ...inferenceRequest(1),
+        vadEnabled: false,
+      }),
+    ).toThrow(expect.objectContaining({ code: "invalid_configuration" }));
+    expect(withVadClient.inferenceCalls).toBe(0);
+    expect(withVadHarness.supervisor.snapshot.activeRequest).toBe(false);
+    await waitFor(() => withVadHarness.children[0]?.killSignals.includes("SIGTERM"));
+    await withVadHarness.supervisor.release(withVadLease);
+
+    const withoutVadClient = new FakeHttpClient();
+    const withoutVadHarness = createHarness({ clients: [withoutVadClient] });
+    const withoutVadLease = await withoutVadHarness.supervisor.acquire(
+      OWNER_B,
+      noVadLoadOptions(),
+    );
+    expect(() =>
+      withoutVadHarness.supervisor.beginInference(
+        withoutVadLease,
+        inferenceRequest(1),
+      ),
+    ).toThrow(expect.objectContaining({ code: "invalid_configuration" }));
+    expect(withoutVadClient.inferenceCalls).toBe(0);
+    await withoutVadHarness.supervisor.release(withoutVadLease);
+  });
+
   it("retires a model load smoke before success without VAD or inference", async () => {
     const child = new FakeChild({ closeOnSignal: "never" });
     const client = new FakeHttpClient();
@@ -918,6 +971,11 @@ function loadOptions(
     threads: 4,
     ...overrides,
   };
+}
+
+function noVadLoadOptions(): InferenceLoadOptions {
+  const { vadModel: _vadModel, ...options } = loadOptions();
+  return options;
 }
 
 function smokeLoadOptions(
