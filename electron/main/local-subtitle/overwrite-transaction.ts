@@ -1,7 +1,11 @@
 import path from "node:path";
+import { isProxy } from "node:util/types";
+import { snapshotLocalSubtitleOverwriteDirectoryIdentity } from "./overwrite-directory-coordinator";
 
 export type LocalSubtitleOverwriteTransactionState =
   | "open"
+  | "finalize_pending"
+  | "rollback_pending"
   | "finalized"
   | "rolled_back";
 
@@ -36,6 +40,7 @@ export interface LocalSubtitleOverwriteFileIdentity {
 }
 
 export interface LocalSubtitleOverwriteTransactionRequest {
+  readonly transactionId: string;
   readonly directoryPath: string;
   readonly expectedDirectoryIdentity: LocalSubtitleOverwriteDirectoryIdentity;
   readonly partialLeaf: string;
@@ -48,15 +53,19 @@ export interface LocalSubtitleOverwriteTransactionBackendReceipt {
   readonly expectedFinalIdentity: LocalSubtitleOverwriteFileIdentity;
   /**
    * Releases the recoverable victim backup relative to the directory handle
-   * retained by begin(). A thrown error must leave the transaction open,
-   * rollback-capable, and must not redirect cleanup through a fresh path.
+   * retained by begin(). Once the backend method is invoked, a thrown error
+   * leaves the transaction finalize_pending and retryable only in the same
+   * direction; rollback is no longer permitted.
    */
   finalize(): void;
   /**
-   * Restores both the original final target (or its prior absence) and the
-   * exact partial leaf relative to the retained directory handle so the
-   * exporter can perform identity-bound cleanup. A thrown error must leave the
-   * transaction open and retryable by the backend's recovery authority.
+   * Restores the original final target (or its prior absence) and converges
+   * cleanup of the exact new inode. A native backend must remove that inode
+   * relative to the retained directory handle; a test adapter may instead
+   * restore the partial leaf only while the authorized path is still proven to
+   * name the same directory object. Once rollback is invoked, a thrown error
+   * leaves the transaction rollback_pending and retryable by the backend's
+   * recovery authority; finalize is no longer permitted.
    */
   rollback(): void;
 }
@@ -77,6 +86,7 @@ export interface LocalSubtitleOverwriteTransactionBackend {
 }
 
 const coordinatorInstances = new WeakSet<object>();
+const receiptInstances = new WeakSet<object>();
 
 export class LocalSubtitleOverwriteTransactionReceipt {
   readonly expectedFinalIdentity: LocalSubtitleOverwriteFileIdentity;
@@ -91,6 +101,7 @@ export class LocalSubtitleOverwriteTransactionReceipt {
     this.expectedFinalIdentity = freezeIdentity(validated.expectedFinalIdentity);
     this.#finalizeBackend = () => validated.finalize.call(rawReceipt);
     this.#rollbackBackend = () => validated.rollback.call(rawReceipt);
+    receiptInstances.add(this);
     Object.freeze(this);
   }
 
@@ -103,8 +114,22 @@ export class LocalSubtitleOverwriteTransactionReceipt {
     if (this.#state === "rolled_back") {
       throw invalidState("A rolled-back overwrite transaction cannot be finalized.");
     }
-    this.#invokeTerminalOnce(this.#finalizeBackend, "finalize");
-    this.#state = "finalized";
+    if (this.#state === "rollback_pending") {
+      throw invalidState("A rollback-pending overwrite transaction cannot be finalized.");
+    }
+    let backendInvoked = false;
+    try {
+      this.#invokeTerminalOnce(() => {
+        backendInvoked = true;
+        return this.#finalizeBackend();
+      }, "finalize");
+      this.#state = "finalized";
+    } catch (error) {
+      if (backendInvoked) {
+        this.#state = "finalize_pending";
+      }
+      throw error;
+    }
   }
 
   rollback(): void {
@@ -112,8 +137,22 @@ export class LocalSubtitleOverwriteTransactionReceipt {
     if (this.#state === "finalized") {
       throw invalidState("A finalized overwrite transaction cannot be rolled back.");
     }
-    this.#invokeTerminalOnce(this.#rollbackBackend, "rollback");
-    this.#state = "rolled_back";
+    if (this.#state === "finalize_pending") {
+      throw invalidState("A finalize-pending overwrite transaction cannot be rolled back.");
+    }
+    let backendInvoked = false;
+    try {
+      this.#invokeTerminalOnce(() => {
+        backendInvoked = true;
+        return this.#rollbackBackend();
+      }, "rollback");
+      this.#state = "rolled_back";
+    } catch (error) {
+      if (backendInvoked) {
+        this.#state = "rollback_pending";
+      }
+      throw error;
+    }
   }
 
   #invokeTerminalOnce(
@@ -186,11 +225,23 @@ export function isLocalSubtitleOverwriteTransactionCoordinator(
   );
 }
 
+export function isLocalSubtitleOverwriteTransactionReceipt(
+  value: unknown,
+): value is LocalSubtitleOverwriteTransactionReceipt {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    receiptInstances.has(value) &&
+    Object.getPrototypeOf(value) === LocalSubtitleOverwriteTransactionReceipt.prototype
+  );
+}
+
 function snapshotRequest(
   request: LocalSubtitleOverwriteTransactionRequest,
 ): LocalSubtitleOverwriteTransactionRequest {
   if (
     !isExactRecord(request, [
+      "transactionId",
       "directoryPath",
       "expectedDirectoryIdentity",
       "partialLeaf",
@@ -201,34 +252,53 @@ function snapshotRequest(
   ) {
     throw invalidRequest("The overwrite transaction request is invalid.");
   }
+  const transactionId = ownDataValue(request, "transactionId");
+  const directoryPath = ownDataValue(request, "directoryPath");
+  const expectedDirectoryIdentity = snapshotLocalSubtitleOverwriteDirectoryIdentity(
+    ownDataValue(request, "expectedDirectoryIdentity"),
+  );
+  const partialLeaf = ownDataValue(request, "partialLeaf");
+  const finalLeaf = ownDataValue(request, "finalLeaf");
+  const expectedPartialIdentity = snapshotLocalSubtitleOverwriteDirectoryIdentity(
+    ownDataValue(request, "expectedPartialIdentity"),
+  );
+  const expectedByteSize = ownDataValue(request, "expectedByteSize");
   if (
-    typeof request.directoryPath !== "string" ||
-    !path.isAbsolute(request.directoryPath) ||
-    request.directoryPath.includes("\0")
+    typeof transactionId !== "string" ||
+    !/^[A-Za-z0-9-]{1,80}$/u.test(transactionId)
+  ) {
+    throw invalidRequest("The overwrite transaction identifier is invalid.");
+  }
+  if (
+    typeof directoryPath !== "string" ||
+    !path.isAbsolute(directoryPath) ||
+    directoryPath.includes("\0")
   ) {
     throw invalidRequest("The overwrite transaction directory path must be absolute.");
   }
-  assertLeaf(request.partialLeaf, "partial");
-  assertLeaf(request.finalLeaf, "final");
-  if (request.partialLeaf === request.finalLeaf) {
+  assertLeaf(partialLeaf, "partial");
+  assertLeaf(finalLeaf, "final");
+  if (partialLeaf === finalLeaf) {
     throw invalidRequest("The overwrite transaction leaves must be different.");
   }
-  assertIdentity(request.expectedDirectoryIdentity, "request");
-  assertIdentity(request.expectedPartialIdentity, "request");
+  if (!expectedDirectoryIdentity || !expectedPartialIdentity) {
+    throw invalidRequest("The overwrite transaction request identity is invalid.");
+  }
   if (
-    !Number.isSafeInteger(request.expectedByteSize) ||
-    request.expectedByteSize <= 0
+    !Number.isSafeInteger(expectedByteSize) ||
+    (expectedByteSize as number) <= 0
   ) {
     throw invalidRequest("The overwrite transaction byte size is invalid.");
   }
 
   return deepFreeze({
-    directoryPath: request.directoryPath,
-    expectedDirectoryIdentity: { ...request.expectedDirectoryIdentity },
-    partialLeaf: request.partialLeaf,
-    finalLeaf: request.finalLeaf,
-    expectedPartialIdentity: { ...request.expectedPartialIdentity },
-    expectedByteSize: request.expectedByteSize,
+    transactionId,
+    directoryPath,
+    expectedDirectoryIdentity,
+    partialLeaf,
+    finalLeaf,
+    expectedPartialIdentity,
+    expectedByteSize: expectedByteSize as number,
   });
 }
 
@@ -260,41 +330,29 @@ function validateBackendReceipt(
   if (!isExactRecord(receipt, ["expectedFinalIdentity", "finalize", "rollback"])) {
     throw invalidReceipt("The overwrite transaction backend receipt is invalid.");
   }
-  const expectedFinalIdentity = Reflect.get(receipt, "expectedFinalIdentity");
-  const finalize = Reflect.get(receipt, "finalize");
-  const rollback = Reflect.get(receipt, "rollback");
-  if (typeof finalize !== "function" || typeof rollback !== "function") {
+  const expectedFinalIdentity = snapshotLocalSubtitleOverwriteDirectoryIdentity(
+    ownDataValue(receipt, "expectedFinalIdentity"),
+  );
+  const finalize = ownDataValue(receipt, "finalize");
+  const rollback = ownDataValue(receipt, "rollback");
+  if (
+    !expectedFinalIdentity ||
+    typeof finalize !== "function" ||
+    typeof rollback !== "function"
+  ) {
     throw invalidReceipt("The overwrite transaction backend receipt is invalid.");
   }
-  assertIdentity(expectedFinalIdentity, "receipt");
   return {
     expectedFinalIdentity,
-    finalize,
-    rollback,
+    finalize: finalize as () => void,
+    rollback: rollback as () => void,
   };
 }
 
-function assertIdentity(
-  identity: LocalSubtitleOverwriteDirectoryIdentity | LocalSubtitleOverwriteFileIdentity,
-  source: "request" | "receipt",
-): void {
-  if (
-    !isExactRecord(identity, ["dev", "ino", "birthtimeMs"]) ||
-    !isNonNegativeSafeInteger(identity.dev) ||
-    !isNonNegativeSafeInteger(identity.ino) ||
-    typeof identity.birthtimeMs !== "number" ||
-    !Number.isFinite(identity.birthtimeMs) ||
-    identity.birthtimeMs < 0
-  ) {
-    const message = source === "request"
-      ? "The overwrite transaction request identity is invalid."
-      : "The overwrite transaction final identity is invalid.";
-    if (source === "request") throw invalidRequest(message);
-    throw invalidReceipt(message);
-  }
-}
-
-function assertLeaf(value: unknown, field: "partial" | "final"): void {
+function assertLeaf(
+  value: unknown,
+  field: "partial" | "final",
+): asserts value is string {
   if (
     typeof value !== "string" ||
     value.length === 0 ||
@@ -320,7 +378,12 @@ function isExactRecord(
   input: unknown,
   expectedKeys: readonly string[],
 ): input is Record<string, unknown> {
-  if (typeof input !== "object" || input === null || Array.isArray(input)) {
+  if (
+    typeof input !== "object" ||
+    input === null ||
+    Array.isArray(input) ||
+    isProxy(input)
+  ) {
     return false;
   }
   const keys = Reflect.ownKeys(input);
@@ -328,8 +391,9 @@ function isExactRecord(
     expectedKeys.every((key) => keys.includes(key));
 }
 
-function isNonNegativeSafeInteger(value: unknown): value is number {
-  return Number.isSafeInteger(value) && (value as number) >= 0;
+function ownDataValue(input: object, key: string): unknown {
+  const descriptor = Object.getOwnPropertyDescriptor(input, key);
+  return descriptor && "value" in descriptor ? descriptor.value : undefined;
 }
 
 function isThenable(value: unknown): value is PromiseLike<unknown> {

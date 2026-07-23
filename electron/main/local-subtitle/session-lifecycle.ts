@@ -8,6 +8,7 @@ export class LocalSubtitleSessionLifecycle
   implements LocalSubtitleMainRuntimeTarget
 {
   readonly #quiesceTargets: readonly LocalSubtitleMainRuntimeTarget[];
+  readonly #recoveryTargets: readonly LocalSubtitleMainRuntimeTarget[];
   readonly #cleanupTargets: readonly LocalSubtitleMainRuntimeTarget[];
   readonly #releaseTargets: readonly LocalSubtitleMainRuntimeTarget[];
   readonly #registry: LocalSubtitleMainRuntimeTarget;
@@ -20,15 +21,27 @@ export class LocalSubtitleSessionLifecycle
     media: LocalSubtitleMainRuntimeTarget,
     server: LocalSubtitleMainRuntimeTarget,
     sessionRegistry: LocalSubtitleMainRuntimeTarget,
+    overwriteRecoveryOwner?: LocalSubtitleMainRuntimeTarget,
   ) {
-    const targets = [jobManager, modelManager, media, server, sessionRegistry];
+    const targets = [
+      jobManager,
+      modelManager,
+      media,
+      server,
+      sessionRegistry,
+      ...(overwriteRecoveryOwner ? [overwriteRecoveryOwner] : []),
+    ];
     if (targets.some((target) => !isRuntimeTarget(target))) {
       throw new TypeError("The local subtitle session lifecycle targets are invalid.");
     }
     this.#quiesceTargets = Object.freeze([jobManager, modelManager]);
+    this.#recoveryTargets = Object.freeze(
+      overwriteRecoveryOwner ? [overwriteRecoveryOwner] : [],
+    );
     this.#cleanupTargets = Object.freeze([media, server]);
     this.#releaseTargets = Object.freeze([
       jobManager,
+      ...this.#recoveryTargets,
       media,
       server,
       modelManager,
@@ -65,6 +78,8 @@ export class LocalSubtitleSessionLifecycle
 
     void (async () => {
       let firstFailure = await settlePhase(this.#quiesceTargets, reason);
+      const recoveryFailure = await settlePhase(this.#recoveryTargets, reason);
+      firstFailure ??= recoveryFailure;
       const cleanupFailure = await settlePhase(this.#cleanupTargets, reason);
       firstFailure ??= cleanupFailure;
       try {

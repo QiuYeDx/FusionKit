@@ -45,6 +45,15 @@ import {
   type LocalSubtitleOverwriteTransactionCoordinator,
   type LocalSubtitleOverwriteTransactionReceipt,
 } from "./overwrite-transaction";
+import {
+  isLocalSubtitleOverwriteRecoveryOwner,
+  type LocalSubtitleOverwriteRecoveryOwner,
+  type LocalSubtitleOverwriteRecoveryRegistryAuthority,
+} from "./overwrite-recovery-owner";
+import {
+  localSubtitleOverwriteDirectoryKey,
+  withLocalSubtitleOverwriteDirectory,
+} from "./overwrite-directory-coordinator";
 
 const PRIVATE_FILE_MODE = 0o600;
 const WRITE_EXCLUSIVE_NOFOLLOW =
@@ -94,10 +103,11 @@ export interface LocalSubtitleArtifactRegistryCollaborator<TReservation> {
   revokeArtifact(owner: LocalSubtitleOwnerKey, artifactRef: string): boolean;
 }
 
-export interface LocalSubtitleExporterDependencies {
+export interface LocalSubtitleExporterDependencies<TReservation = unknown> {
   readonly createPartialId?: () => string;
   readonly commitIndex?: (partialPath: string, finalPath: string) => Promise<void>;
   readonly overwriteTransaction?: LocalSubtitleOverwriteTransactionCoordinator;
+  readonly overwriteRecoveryOwner?: LocalSubtitleOverwriteRecoveryOwner<TReservation>;
   /** Explicit legacy/test adapter. It is never used as a production fallback. */
   readonly commitOverwrite?: (
     partialPath: string,
@@ -143,6 +153,7 @@ export class LocalSubtitleExporterError extends Error {
 }
 
 interface PreparedArtifact {
+  readonly transactionId: string;
   readonly partialPath: string;
   readonly identity: FileObjectIdentity;
   readonly byteSize: number;
@@ -154,8 +165,6 @@ interface CommittedArtifact {
   readonly prepared: PreparedArtifact;
 }
 
-const directoryMutexes = new Map<string, Promise<void>>();
-
 export class LocalSubtitleExporter<TReservation> {
   readonly #createPartialId: () => string;
   readonly #commitIndex: (
@@ -163,6 +172,7 @@ export class LocalSubtitleExporter<TReservation> {
     finalPath: string,
   ) => Promise<void>;
   readonly #overwriteTransaction?: LocalSubtitleOverwriteTransactionCoordinator;
+  readonly #overwriteRecoveryOwner?: LocalSubtitleOverwriteRecoveryOwner<TReservation>;
   readonly #commitOverwrite?: (
     partialPath: string,
     finalPath: string,
@@ -173,7 +183,7 @@ export class LocalSubtitleExporter<TReservation> {
 
   constructor(
     private readonly artifacts: LocalSubtitleArtifactRegistryCollaborator<TReservation>,
-    dependencies: LocalSubtitleExporterDependencies = {},
+    dependencies: LocalSubtitleExporterDependencies<TReservation> = {},
   ) {
     if (dependencies.overwriteTransaction && dependencies.commitOverwrite) {
       throw new TypeError(
@@ -190,9 +200,22 @@ export class LocalSubtitleExporter<TReservation> {
         "A validated local subtitle overwrite transaction coordinator is required.",
       );
     }
+    if (
+      Boolean(dependencies.overwriteTransaction) !==
+        Boolean(dependencies.overwriteRecoveryOwner) ||
+      (dependencies.overwriteRecoveryOwner &&
+        !isLocalSubtitleOverwriteRecoveryOwner(
+          dependencies.overwriteRecoveryOwner,
+        ))
+    ) {
+      throw new TypeError(
+        "A validated recovery owner is required with the overwrite transaction coordinator.",
+      );
+    }
     this.#createPartialId = dependencies.createPartialId ?? randomUUID;
     this.#commitIndex = dependencies.commitIndex ?? link;
     this.#overwriteTransaction = dependencies.overwriteTransaction;
+    this.#overwriteRecoveryOwner = dependencies.overwriteRecoveryOwner;
     this.#commitOverwrite = dependencies.commitOverwrite;
     this.#removeFile = dependencies.removeFile ?? unlink;
     this.#removeFileSync = dependencies.removeFileSync ?? unlinkSync;
@@ -297,9 +320,9 @@ export class LocalSubtitleExporter<TReservation> {
     throwIfCancelled(options.signal);
     const initialDirectory = await options.resolveOutputDirectory();
     assertResolvedDirectory(initialDirectory);
-    const key = directoryIdentityKey(initialDirectory.identity);
+    const key = localSubtitleOverwriteDirectoryKey(initialDirectory.identity);
 
-    return withDirectoryMutex(key, async () => {
+    return withLocalSubtitleOverwriteDirectory(key, async () => {
       throwIfCancelled(options.signal);
       const lockedDirectory = await options.resolveOutputDirectory();
       assertSameResolvedDirectory(initialDirectory, lockedDirectory);
@@ -419,6 +442,10 @@ export class LocalSubtitleExporter<TReservation> {
       );
       throwIfCancelled(options.signal);
       return Object.freeze({
+        transactionId: path.basename(partialPath).slice(
+          ".fusionkit-local-subtitle-".length,
+          -".partial".length,
+        ),
         partialPath,
         identity,
         byteSize: actualBytes.byteLength,
@@ -599,6 +626,7 @@ export class LocalSubtitleExporter<TReservation> {
       displayName,
     });
     let activated = false;
+    let recoveryTransferred = false;
     try {
       throwIfCancelled(options.options.signal);
       if (this.#overwriteTransaction) {
@@ -610,6 +638,9 @@ export class LocalSubtitleExporter<TReservation> {
           reserved,
           markActivated: () => {
             activated = true;
+          },
+          markRecoveryTransferred: () => {
+            recoveryTransferred = true;
           },
         });
       }
@@ -633,7 +664,9 @@ export class LocalSubtitleExporter<TReservation> {
       activated = true;
       return Object.freeze({ summary, prepared: options.prepared });
     } finally {
-      if (!activated) this.artifacts.revokeReservation(reserved.reservation);
+      if (!activated && !recoveryTransferred) {
+        this.artifacts.revokeReservation(reserved.reservation);
+      }
     }
   }
 
@@ -647,6 +680,7 @@ export class LocalSubtitleExporter<TReservation> {
     readonly finalPath: string;
     readonly reserved: LocalSubtitleArtifactReservation<TReservation>;
     readonly markActivated: () => void;
+    readonly markRecoveryTransferred: () => void;
   }): CommittedArtifact {
     if (path.dirname(options.prepared.partialPath) !== options.directory.directoryPath) {
       throw outputWriteFailure(
@@ -654,9 +688,56 @@ export class LocalSubtitleExporter<TReservation> {
       );
     }
 
-    let receipt: LocalSubtitleOverwriteTransactionReceipt;
+    const recoveryOwner = this.#overwriteRecoveryOwner!;
+    const recoveryHandoff = recoveryOwner.prepareAdoption({
+      recoveryId: options.prepared.transactionId,
+      owner: options.options.owner,
+      taskId: options.options.taskId,
+      generation: options.options.generation,
+      format: options.format,
+      directoryIdentity: options.directory.identity,
+    });
+    let receipt: LocalSubtitleOverwriteTransactionReceipt | undefined;
+    const transferRecovery = (
+      direction: "finalize" | "rollback",
+      registry: LocalSubtitleOverwriteRecoveryRegistryAuthority<TReservation>,
+      markTransferred: () => void,
+    ): void => {
+      if (!receipt) {
+        throw outputWriteFailure(
+          "The overwrite recovery handoff has no transaction receipt.",
+        );
+      }
+      let adoptionFailure: unknown;
+      try {
+        recoveryOwner.adopt({
+          handoff: recoveryHandoff,
+          recoveryId: options.prepared.transactionId,
+          owner: options.options.owner,
+          taskId: options.options.taskId,
+          generation: options.options.generation,
+          format: options.format,
+          direction,
+          directoryIdentity: options.directory.identity,
+          receipt,
+          registry,
+        });
+      } catch (error) {
+        adoptionFailure = error;
+      }
+      if (recoveryOwner.isAdoptionClaimed(recoveryHandoff)) {
+        markTransferred();
+        return;
+      }
+      throw adoptionFailure ?? outputWriteFailure(
+        "The overwrite recovery owner rejected the transaction handoff.",
+      );
+    };
+
+    try {
     try {
       receipt = this.#overwriteTransaction!.begin({
+        transactionId: options.prepared.transactionId,
         directoryPath: options.directory.directoryPath,
         expectedDirectoryIdentity: options.directory.identity,
         partialLeaf: path.basename(options.prepared.partialPath),
@@ -685,6 +766,14 @@ export class LocalSubtitleExporter<TReservation> {
       try {
         receipt.rollback();
       } catch {
+        transferRecovery(
+          "rollback",
+          {
+            state: "reserved",
+            reservation: options.reserved.reservation,
+          },
+          options.markRecoveryTransferred,
+        );
         throw cleanupFailureForSignal(options.options.signal)(
           "The overwritten subtitle target could not be rolled back after artifact activation failed.",
         );
@@ -695,54 +784,62 @@ export class LocalSubtitleExporter<TReservation> {
     try {
       receipt.finalize();
     } catch {
-      let registryRevoked = false;
-      try {
-        registryRevoked = this.artifacts.revokeArtifact(
-          options.options.owner,
-          summary.artifactRef,
+      if (receipt.state === "finalize_pending") {
+        try {
+          receipt.finalize();
+        } catch {
+          transferRecovery(
+            "finalize",
+            {
+              state: "active",
+              artifactRef: summary.artifactRef,
+            },
+            options.markActivated,
+          );
+          throw cleanupFailureForSignal(options.options.signal)(
+            "The overwritten subtitle transaction remains pending after finalization retry failed.",
+          );
+        }
+      } else {
+        let registryRevoked = false;
+        try {
+          registryRevoked = this.artifacts.revokeArtifact(
+            options.options.owner,
+            summary.artifactRef,
+          );
+        } catch {
+          // Rollback still has to run even if Registry cleanup failed.
+        }
+        let rolledBack = false;
+        try {
+          receipt.rollback();
+          rolledBack = true;
+        } catch {
+          // Report one stable cleanup failure after attempting both cleanup phases.
+        }
+        if (!registryRevoked || !rolledBack) {
+          transferRecovery(
+            "rollback",
+            registryRevoked
+              ? { state: "settled" }
+              : { state: "active", artifactRef: summary.artifactRef },
+            options.markActivated,
+          );
+          throw cleanupFailureForSignal(options.options.signal)(
+            "The overwritten subtitle artifact could not be revoked and rolled back after finalization failed.",
+          );
+        }
+        throw outputWriteFailure(
+          "The overwritten subtitle transaction could not be finalized.",
         );
-      } catch {
-        // Rollback still has to run even if Registry cleanup failed.
       }
-      let rolledBack = false;
-      try {
-        receipt.rollback();
-        rolledBack = true;
-      } catch {
-        // Report one stable cleanup failure after attempting both cleanup phases.
-      }
-      if (!registryRevoked || !rolledBack) {
-        throw cleanupFailureForSignal(options.options.signal)(
-          "The overwritten subtitle artifact could not be revoked and rolled back after finalization failed.",
-        );
-      }
-      throw outputWriteFailure(
-        "The overwritten subtitle transaction could not be finalized.",
-      );
     }
 
     options.markActivated();
     return Object.freeze({ summary, prepared: options.prepared });
-  }
-}
-
-async function withDirectoryMutex<T>(
-  key: string,
-  operation: () => Promise<T>,
-): Promise<T> {
-  const previous = directoryMutexes.get(key) ?? Promise.resolve();
-  let release!: () => void;
-  const held = new Promise<void>((resolve) => {
-    release = resolve;
-  });
-  const tail = previous.then(() => held);
-  directoryMutexes.set(key, tail);
-  await previous;
-  try {
-    return await operation();
-  } finally {
-    release();
-    if (directoryMutexes.get(key) === tail) directoryMutexes.delete(key);
+    } finally {
+      recoveryOwner.releaseAdoption(recoveryHandoff);
+    }
   }
 }
 
@@ -1083,10 +1180,6 @@ function sameDirectoryIdentity(
   return left.dev === right.dev &&
     left.ino === right.ino &&
     left.birthtimeMs === right.birthtimeMs;
-}
-
-function directoryIdentityKey(value: LocalSubtitleDirectoryIdentity): string {
-  return JSON.stringify([value.dev, value.ino, value.birthtimeMs]);
 }
 
 function skippedResult(

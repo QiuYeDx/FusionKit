@@ -114,6 +114,62 @@ describe("local subtitle session lifecycle", () => {
     await shutdown;
     expect(job.shutdown).toHaveBeenCalledOnce();
   });
+
+  it("retries overwrite recovery after managers quiesce and before cleanup", async () => {
+    const order: string[] = [];
+    const lifecycle = new LocalSubtitleSessionLifecycle(
+      target("job", order),
+      target("model", order),
+      target("media", order),
+      target("server", order),
+      target("registry", order),
+      target("recovery", order),
+    );
+
+    lifecycle.releaseOwner(OWNER);
+    expect(order).toEqual([
+      "job:release",
+      "recovery:release",
+      "media:release",
+      "server:release",
+      "model:release",
+      "registry:release",
+    ]);
+
+    order.length = 0;
+    await lifecycle.shutdown("app_quit");
+    expect(order).toEqual([
+      "job:app_quit",
+      "model:app_quit",
+      "recovery:app_quit",
+      "media:app_quit",
+      "server:app_quit",
+      "registry:app_quit",
+    ]);
+  });
+
+  it("continues cleanup and Registry shutdown after overwrite recovery fails", async () => {
+    const order: string[] = [];
+    const failure = new Error("overwrite recovery pending");
+    const lifecycle = new LocalSubtitleSessionLifecycle(
+      target("job", order),
+      target("model", order),
+      target("media", order),
+      target("server", order),
+      target("registry", order),
+      target("recovery", order, { shutdownFailure: failure }),
+    );
+
+    await expect(lifecycle.shutdown("update")).rejects.toThrow(failure);
+    expect(order).toEqual([
+      "job:update",
+      "model:update",
+      "recovery:update",
+      "media:update",
+      "server:update",
+      "registry:update",
+    ]);
+  });
 });
 
 function target(

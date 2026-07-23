@@ -72,6 +72,8 @@ describe("local subtitle overwrite transaction contract", () => {
   it.each([
     { label: "missing field", mutate: (request: Record<string, unknown>) => delete request.finalLeaf },
     { label: "extra field", mutate: (request: Record<string, unknown>) => { request.finalPath = "/private/result.srt"; } },
+    { label: "empty transaction id", mutate: (request: Record<string, unknown>) => { request.transactionId = ""; } },
+    { label: "unsafe transaction id", mutate: (request: Record<string, unknown>) => { request.transactionId = "../redirect"; } },
     { label: "relative directory", mutate: (request: Record<string, unknown>) => { request.directoryPath = "relative"; } },
     { label: "NUL directory", mutate: (request: Record<string, unknown>) => { request.directoryPath = `${absoluteDirectory()}\0redirect`; } },
     { label: "empty partial leaf", mutate: (request: Record<string, unknown>) => { request.partialLeaf = ""; } },
@@ -97,6 +99,39 @@ describe("local subtitle overwrite transaction contract", () => {
     expect(() => coordinator.begin(request as never)).toThrowError(
       expect.objectContaining({ code: "invalid_request" }),
     );
+    expect(begin).not.toHaveBeenCalled();
+  });
+
+  it("rejects a proxied request without invoking reflection traps", () => {
+    const begin = vi.fn(() => validRawReceipt());
+    const coordinator = new LocalSubtitleOverwriteTransactionCoordinator({ begin });
+    const ownKeys = vi.fn(() => {
+      throw new Error("proxy trap must not run");
+    });
+
+    expect(() => coordinator.begin(new Proxy(validRequest(), { ownKeys }))).toThrowError(
+      expect.objectContaining({ code: "invalid_request" }),
+    );
+    expect(ownKeys).not.toHaveBeenCalled();
+    expect(begin).not.toHaveBeenCalled();
+  });
+
+  it("rejects accessor-backed request fields without invoking getters", () => {
+    const begin = vi.fn(() => validRawReceipt());
+    const coordinator = new LocalSubtitleOverwriteTransactionCoordinator({ begin });
+    const request = mutableRequest();
+    const dev = vi.fn(() => 1);
+    const identityWithAccessor = { ino: 2, birthtimeMs: 3.25 } as Record<
+      string,
+      unknown
+    >;
+    Object.defineProperty(identityWithAccessor, "dev", { enumerable: true, get: dev });
+    request.expectedDirectoryIdentity = identityWithAccessor as never;
+
+    expect(() => coordinator.begin(request as never)).toThrowError(
+      expect.objectContaining({ code: "invalid_request" }),
+    );
+    expect(dev).not.toHaveBeenCalled();
     expect(begin).not.toHaveBeenCalled();
   });
 
@@ -156,6 +191,20 @@ describe("local subtitle overwrite transaction contract", () => {
     );
   });
 
+  it("rejects a proxied backend receipt without invoking reflection traps", () => {
+    const ownKeys = vi.fn(() => {
+      throw new Error("proxy trap must not run");
+    });
+    const coordinator = new LocalSubtitleOverwriteTransactionCoordinator({
+      begin: () => new Proxy(validRawReceipt(), { ownKeys }),
+    });
+
+    expect(() => coordinator.begin(validRequest())).toThrowError(
+      expect.objectContaining({ code: "invalid_receipt" }),
+    );
+    expect(ownKeys).not.toHaveBeenCalled();
+  });
+
   it.each([
     ["pending", () => new Promise(() => undefined)],
     ["resolved", () => Promise.resolve(validRawReceipt())],
@@ -213,24 +262,29 @@ describe("local subtitle overwrite transaction contract", () => {
     expect(finalize).not.toHaveBeenCalled();
   });
 
-  it("keeps finalize open after a failure so it can be retried", () => {
+  it("locks finalize failures into finalize_pending until retry converges", () => {
     const finalize = vi.fn()
       .mockImplementationOnce(() => { throw new Error("retry finalize"); })
       .mockImplementationOnce(() => undefined);
+    const rollback = vi.fn();
     const receipt = new LocalSubtitleOverwriteTransactionReceipt({
       expectedFinalIdentity: identity(7, 8),
       finalize,
-      rollback() {},
+      rollback,
     });
 
     expect(() => receipt.finalize()).toThrow("retry finalize");
-    expect(receipt.state).toBe("open");
+    expect(receipt.state).toBe("finalize_pending");
+    expect(() => receipt.rollback()).toThrowError(
+      expect.objectContaining({ code: "invalid_state" }),
+    );
     receipt.finalize();
     expect(receipt.state).toBe("finalized");
     expect(finalize).toHaveBeenCalledTimes(2);
+    expect(rollback).not.toHaveBeenCalled();
   });
 
-  it("keeps rollback open after a failure so it can be retried", () => {
+  it("locks rollback failures into rollback_pending until retry converges", () => {
     const rollback = vi.fn()
       .mockImplementationOnce(() => { throw new Error("retry rollback"); })
       .mockImplementationOnce(() => undefined);
@@ -241,7 +295,10 @@ describe("local subtitle overwrite transaction contract", () => {
     });
 
     expect(() => receipt.rollback()).toThrow("retry rollback");
-    expect(receipt.state).toBe("open");
+    expect(receipt.state).toBe("rollback_pending");
+    expect(() => receipt.finalize()).toThrowError(
+      expect.objectContaining({ code: "invalid_state" }),
+    );
     receipt.rollback();
     expect(receipt.state).toBe("rolled_back");
     expect(rollback).toHaveBeenCalledTimes(2);
@@ -255,17 +312,21 @@ describe("local subtitle overwrite transaction contract", () => {
         expect(() => receipt.finalize()).toThrowError(
           expect.objectContaining({ code: "invalid_state" }),
         );
+        expect(receipt.state).toBe("open");
         expect(() => receipt.rollback()).toThrowError(
           expect.objectContaining({ code: "invalid_state" }),
         );
+        expect(receipt.state).toBe("open");
       });
       const rollback = vi.fn(() => {
         expect(() => receipt.rollback()).toThrowError(
           expect.objectContaining({ code: "invalid_state" }),
         );
+        expect(receipt.state).toBe("open");
         expect(() => receipt.finalize()).toThrowError(
           expect.objectContaining({ code: "invalid_state" }),
         );
+        expect(receipt.state).toBe("open");
       });
       receipt = new LocalSubtitleOverwriteTransactionReceipt({
         expectedFinalIdentity: identity(7, 8),
@@ -280,6 +341,28 @@ describe("local subtitle overwrite transaction contract", () => {
       expect(rollback).toHaveBeenCalledTimes(method === "rollback" ? 1 : 0);
     },
   );
+
+  it("locks only the invoked finalize direction when rollback reentry is rejected", () => {
+    let receipt!: LocalSubtitleOverwriteTransactionReceipt;
+    const rollback = vi.fn();
+    const finalize = vi.fn(() => receipt.rollback());
+    receipt = new LocalSubtitleOverwriteTransactionReceipt({
+      expectedFinalIdentity: identity(7, 8),
+      finalize,
+      rollback,
+    });
+
+    expect(() => receipt.finalize()).toThrowError(
+      expect.objectContaining({ code: "invalid_state" }),
+    );
+
+    expect(receipt.state).toBe("finalize_pending");
+    expect(finalize).toHaveBeenCalledOnce();
+    expect(rollback).not.toHaveBeenCalled();
+    expect(() => receipt.rollback()).toThrowError(
+      expect.objectContaining({ code: "invalid_state" }),
+    );
+  });
 
   it("captures validated receipt methods before backend mutation", () => {
     const raw = validRawReceipt();
@@ -303,7 +386,7 @@ describe("local subtitle overwrite transaction contract", () => {
     ["rollback", "resolved", () => Promise.resolve()],
     ["rollback", "rejected", () => Promise.reject(new Error("late rollback failure"))],
   ] as const)(
-    "rejects an asynchronous %s %s result and keeps the receipt open",
+    "rejects an asynchronous %s %s result without losing its terminal decision",
     async (method, _case, result) => {
       const raw = validRawReceipt();
       raw[method] = result as never;
@@ -312,7 +395,9 @@ describe("local subtitle overwrite transaction contract", () => {
       expect(() => receipt[method]()).toThrowError(
         expect.objectContaining({ code: "invalid_receipt" }),
       );
-      expect(receipt.state).toBe("open");
+      expect(receipt.state).toBe(
+        method === "rollback" ? "rollback_pending" : "finalize_pending",
+      );
       await Promise.resolve();
     },
   );
@@ -336,6 +421,7 @@ function validRequest(): LocalSubtitleOverwriteTransactionRequest {
 
 function mutableRequest() {
   return {
+    transactionId: "01234567-89ab-4cde-8fab-0123456789ab",
     directoryPath: absoluteDirectory(),
     expectedDirectoryIdentity: { ...identity(1, 2, 3.25) },
     partialLeaf: ".meeting.srt.fusionkit.partial",
