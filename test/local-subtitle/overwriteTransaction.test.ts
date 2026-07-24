@@ -173,6 +173,65 @@ describe("local subtitle overwrite transaction contract", () => {
     });
   });
 
+  it("preserves lossless Windows request and receipt identities", () => {
+    const expectedDirectoryIdentity = windowsIdentity(
+      "0a0b0c0d",
+      "00112233445566778899aabbccddeeff",
+    );
+    const expectedPartialIdentity = windowsIdentity(
+      "0a0b0c0d",
+      "10112233445566778899aabbccddeeff",
+    );
+    const expectedFinalIdentity = windowsIdentity(
+      "0a0b0c0d",
+      "20112233445566778899aabbccddeeff",
+    );
+    let observed: LocalSubtitleOverwriteTransactionRequest | undefined;
+    const coordinator = new LocalSubtitleOverwriteTransactionCoordinator({
+      begin(request) {
+        observed = request;
+        return {
+          expectedFinalIdentity,
+          finalize() {},
+          rollback() {},
+        };
+      },
+    });
+    const request = {
+      ...validRequest(),
+      expectedDirectoryIdentity,
+      expectedPartialIdentity,
+    };
+
+    const receipt = coordinator.begin(request);
+
+    expect(observed?.expectedDirectoryIdentity).toEqual(expectedDirectoryIdentity);
+    expect(observed?.expectedPartialIdentity).toEqual(expectedPartialIdentity);
+    expect(receipt.expectedFinalIdentity).toEqual(expectedFinalIdentity);
+    expect(receipt.expectedFinalIdentity).not.toBe(expectedFinalIdentity);
+    expect(Object.isFrozen(receipt.expectedFinalIdentity)).toBe(true);
+  });
+
+  it.each([
+    windowsIdentity("0A0B0C0D", "00112233445566778899aabbccddeeff"),
+    windowsIdentity("0a0b0c0d", "00112233445566778899AABBCCDDEEFF"),
+    windowsIdentity("0a0b0c0d", "00112233445566778899aabbccddee"),
+    {
+      ...windowsIdentity("0a0b0c0d", "00112233445566778899aabbccddeeff"),
+      birthtimeMs: 3,
+    },
+  ])("rejects a malformed Windows request identity %#", (invalidIdentity) => {
+    const begin = vi.fn(() => validRawReceipt());
+    const coordinator = new LocalSubtitleOverwriteTransactionCoordinator({ begin });
+    expect(() => coordinator.begin({
+      ...validRequest(),
+      expectedPartialIdentity: invalidIdentity,
+    } as never)).toThrowError(
+      expect.objectContaining({ code: "invalid_request" }),
+    );
+    expect(begin).not.toHaveBeenCalled();
+  });
+
   it.each([
     { label: "missing", receipt: undefined },
     { label: "expanded", receipt: { ...validRawReceipt(), finalPath: "/private/result.srt" } },
@@ -441,6 +500,10 @@ function validRawReceipt(): LocalSubtitleOverwriteTransactionBackendReceipt {
 
 function identity(dev: number, ino: number, birthtimeMs = 9.75) {
   return { dev, ino, birthtimeMs };
+}
+
+function windowsIdentity(volumeSerialHex: string, fileIdHex: string) {
+  return { volumeSerialHex, fileIdHex };
 }
 
 function absoluteDirectory(): string {

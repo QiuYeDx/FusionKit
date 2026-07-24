@@ -587,6 +587,58 @@ describe("local subtitle artifact export", () => {
     await expect(partialNames()).resolves.toEqual([]);
   });
 
+  it("rolls back when a Windows identity reaches the uncomposed Registry boundary", async () => {
+    const rollback = vi.fn();
+    const finalize = vi.fn();
+    const coordinator = createLocalSubtitleOverwriteTransactionCoordinator({
+      begin(request) {
+        const partialPath = path.join(request.directoryPath, request.partialLeaf);
+        const finalPath = path.join(request.directoryPath, request.finalLeaf);
+        renameSync(partialPath, finalPath);
+        return {
+          expectedFinalIdentity: {
+            volumeSerialHex: "0a0b0c0d",
+            fileIdHex: "00112233445566778899aabbccddeeff",
+          },
+          finalize,
+          rollback() {
+            rollback();
+            renameSync(finalPath, partialPath);
+          },
+        };
+      },
+    });
+
+    const result = await new LocalSubtitleExporter(new TestArtifactRegistry(), {
+      overwriteTransaction: coordinator,
+      overwriteRecoveryOwner: createTestOverwriteRecoveryOwner(),
+    }).exportArtifacts({
+      owner: OWNER,
+      taskId: "task-windows-identity-boundary",
+      generation: 1,
+      outputStem: "windows-identity-boundary",
+      formats: ["SRT"],
+      conflictPolicy: "overwrite",
+      transcript: transcript(),
+      resolveOutputDirectory: resolver(fixtureRoot),
+    });
+
+    expect(result).toMatchObject({
+      status: "failed",
+      artifactResults: [{
+        format: "SRT",
+        status: "failed",
+        error: { code: "output_write_failed" },
+      }],
+    });
+    expect(rollback).toHaveBeenCalledOnce();
+    expect(finalize).not.toHaveBeenCalled();
+    await expect(
+      lstat(path.join(fixtureRoot, "windows-identity-boundary.srt")),
+    ).rejects.toMatchObject({ code: "ENOENT" });
+    await expect(partialNames()).resolves.toEqual([]);
+  });
+
   it("commits and repeatedly reads a transaction artifact through the real Registry", async () => {
     const registry = new LocalSubtitleArtifactRegistry({
       tokenFactory: () => "transaction-integration-ref",

@@ -16,12 +16,21 @@ export function localSubtitleOverwriteDirectoryKey(identity: {
   readonly dev: number;
   readonly ino: number;
   readonly birthtimeMs: number;
+} | {
+  readonly volumeSerialHex: string;
+  readonly fileIdHex: string;
 }): string {
   const snapshot = snapshotLocalSubtitleOverwriteDirectoryIdentity(identity);
   if (!snapshot) {
     throw new TypeError("The local subtitle overwrite directory identity is invalid.");
   }
-  return JSON.stringify([snapshot.dev, snapshot.ino, snapshot.birthtimeMs]);
+  return "volumeSerialHex" in snapshot
+    ? JSON.stringify([
+        "win32",
+        snapshot.volumeSerialHex,
+        snapshot.fileIdHex,
+      ])
+    : JSON.stringify(["posix", snapshot.dev, snapshot.ino, snapshot.birthtimeMs]);
 }
 
 export function snapshotLocalSubtitleOverwriteDirectoryIdentity(
@@ -36,6 +45,24 @@ export function snapshotLocalSubtitleOverwriteDirectoryIdentity(
     return undefined;
   }
   const keys = Reflect.ownKeys(value);
+  if (
+    keys.length === 2 &&
+    ["volumeSerialHex", "fileIdHex"].every((key) =>
+      keys.includes(key)
+    )
+  ) {
+    const volumeSerialHex = ownDataValue(value, "volumeSerialHex");
+    const fileIdHex = ownDataValue(value, "fileIdHex");
+    if (
+      typeof volumeSerialHex !== "string" ||
+      !/^[0-9a-f]{8}$/u.test(volumeSerialHex) ||
+      typeof fileIdHex !== "string" ||
+      !/^[0-9a-f]{32}$/u.test(fileIdHex)
+    ) {
+      return undefined;
+    }
+    return Object.freeze({ volumeSerialHex, fileIdHex });
+  }
   if (
     keys.length !== 3 ||
     !["dev", "ino", "birthtimeMs"].every((key) => keys.includes(key))
@@ -56,6 +83,21 @@ export function snapshotLocalSubtitleOverwriteDirectoryIdentity(
     return undefined;
   }
   return Object.freeze({ dev, ino, birthtimeMs });
+}
+
+export function sameLocalSubtitleOverwriteDirectoryIdentity(
+  left: LocalSubtitleOverwriteDirectoryIdentity,
+  right: LocalSubtitleOverwriteDirectoryIdentity,
+): boolean {
+  if ("volumeSerialHex" in left || "volumeSerialHex" in right) {
+    return "volumeSerialHex" in left &&
+      "volumeSerialHex" in right &&
+      left.volumeSerialHex === right.volumeSerialHex &&
+      left.fileIdHex === right.fileIdHex;
+  }
+  return left.dev === right.dev &&
+    left.ino === right.ino &&
+    left.birthtimeMs === right.birthtimeMs;
 }
 
 export function fenceLocalSubtitleOverwriteDirectory(

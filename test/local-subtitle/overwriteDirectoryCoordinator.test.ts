@@ -3,6 +3,7 @@ import {
   fenceLocalSubtitleOverwriteDirectory,
   localSubtitleOverwriteDirectoryKey,
   releaseLocalSubtitleOverwriteDirectoryFence,
+  sameLocalSubtitleOverwriteDirectoryIdentity,
   snapshotLocalSubtitleOverwriteDirectoryIdentity,
   withLocalSubtitleOverwriteDirectory,
 } from "../../electron/main/local-subtitle/overwrite-directory-coordinator";
@@ -15,11 +16,55 @@ describe("local subtitle overwrite directory identity", () => {
     expect(snapshot).toEqual(identity);
     expect(snapshot).not.toBe(identity);
     expect(Object.isFrozen(snapshot)).toBe(true);
-    expect(localSubtitleOverwriteDirectoryKey(identity)).toBe("[1,2,3.5]");
-    expect(localSubtitleOverwriteDirectoryKey({ ...identity })).toBe("[1,2,3.5]");
-    expect(localSubtitleOverwriteDirectoryKey({ ...identity, ino: 4 })).not.toBe(
-      "[1,2,3.5]",
+    expect(localSubtitleOverwriteDirectoryKey(identity)).toBe(
+      '["posix",1,2,3.5]',
     );
+    expect(localSubtitleOverwriteDirectoryKey({ ...identity })).toBe(
+      '["posix",1,2,3.5]',
+    );
+    expect(localSubtitleOverwriteDirectoryKey({ ...identity, ino: 4 })).not.toBe(
+      '["posix",1,2,3.5]',
+    );
+  });
+
+  it("snapshots lossless Windows identities without a JS safe-number bridge", () => {
+    const identity = {
+      volumeSerialHex: "0a0b0c0d",
+      fileIdHex: "00112233445566778899aabbccddeeff",
+    };
+    const snapshot = snapshotLocalSubtitleOverwriteDirectoryIdentity(identity);
+
+    expect(snapshot).toEqual(identity);
+    expect(snapshot).not.toBe(identity);
+    expect(Object.isFrozen(snapshot)).toBe(true);
+    expect(localSubtitleOverwriteDirectoryKey(identity)).toBe(
+      '["win32","0a0b0c0d","00112233445566778899aabbccddeeff"]',
+    );
+    expect(sameLocalSubtitleOverwriteDirectoryIdentity(identity, { ...identity }))
+      .toBe(true);
+    expect(sameLocalSubtitleOverwriteDirectoryIdentity(
+      identity,
+      { ...identity, fileIdHex: "10112233445566778899aabbccddeeff" },
+    )).toBe(false);
+    expect(sameLocalSubtitleOverwriteDirectoryIdentity(
+      identity,
+      { dev: 1, ino: 2, birthtimeMs: 3 },
+    )).toBe(false);
+  });
+
+  it.each([
+    ["short volume", { volumeSerialHex: "0a0b0c0", fileIdHex: "00112233445566778899aabbccddeeff" }],
+    ["uppercase volume", { volumeSerialHex: "0A0B0C0D", fileIdHex: "00112233445566778899aabbccddeeff" }],
+    ["short file id", { volumeSerialHex: "0a0b0c0d", fileIdHex: "00112233445566778899aabbccddee" }],
+    ["uppercase file id", { volumeSerialHex: "0a0b0c0d", fileIdHex: "00112233445566778899AABBCCDDEEFF" }],
+    ["expanded Windows identity", {
+      volumeSerialHex: "0a0b0c0d",
+      fileIdHex: "00112233445566778899aabbccddeeff",
+      birthtimeMs: 3,
+    }],
+  ])("rejects a Windows identity with %s", (_label, identity) => {
+    expect(snapshotLocalSubtitleOverwriteDirectoryIdentity(identity)).toBeUndefined();
+    expect(() => localSubtitleOverwriteDirectoryKey(identity)).toThrow(TypeError);
   });
 
   it.each([

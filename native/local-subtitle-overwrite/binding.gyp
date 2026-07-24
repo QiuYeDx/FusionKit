@@ -5,6 +5,26 @@
       "sources": [
         "src/addon.cc"
       ],
+      "conditions": [
+        [
+          "OS=='win'",
+          {
+            "sources!": [
+              "src/addon.cc"
+            ],
+            "sources": [
+              "src/addon-win32.cc"
+            ],
+            "msvs_settings": {
+              "VCCLCompilerTool": {
+                "AdditionalOptions": [
+                  "/std:c++17"
+                ]
+              }
+            }
+          }
+        ]
+      ],
       "defines": [
         "NAPI_VERSION=8"
       ],

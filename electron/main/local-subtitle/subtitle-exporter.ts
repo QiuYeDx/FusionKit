@@ -753,13 +753,19 @@ export class LocalSubtitleExporter<TReservation> {
 
     let summary: GeneratedSubtitleArtifactSummary;
     try {
+      const expectedFileIdentity = receipt.expectedFinalIdentity;
+      if (!("dev" in expectedFileIdentity)) {
+        throw outputWriteFailure(
+          "The Windows overwrite identity is not yet composed with the artifact registry.",
+        );
+      }
       summary = this.artifacts.activate(options.reserved.reservation, {
         filePath: options.finalPath,
         format: options.format,
         displayName: options.displayName,
         sha256: options.prepared.sha256,
         byteSize: options.prepared.byteSize,
-        expectedFileIdentity: receipt.expectedFinalIdentity,
+        expectedFileIdentity,
         expectedDirectoryIdentity: options.directory.identity,
       });
     } catch (activationError) {

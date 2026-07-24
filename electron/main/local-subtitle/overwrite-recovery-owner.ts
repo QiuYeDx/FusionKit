@@ -25,6 +25,7 @@ import {
   fenceLocalSubtitleOverwriteDirectory,
   localSubtitleOverwriteDirectoryKey,
   releaseLocalSubtitleOverwriteDirectoryFence,
+  sameLocalSubtitleOverwriteDirectoryIdentity,
   snapshotLocalSubtitleOverwriteDirectoryIdentity,
   withLocalSubtitleOverwriteDirectory,
 } from "./overwrite-directory-coordinator";
@@ -890,9 +891,10 @@ function sameAdoptionMetadata<TReservation>(
     prepared.taskId === options.taskId &&
     prepared.generation === options.generation &&
     prepared.format === options.format &&
-    prepared.directoryIdentity.dev === directoryIdentity.dev &&
-    prepared.directoryIdentity.ino === directoryIdentity.ino &&
-    prepared.directoryIdentity.birthtimeMs === directoryIdentity.birthtimeMs;
+    sameLocalSubtitleOverwriteDirectoryIdentity(
+      prepared.directoryIdentity,
+      directoryIdentity,
+    );
 }
 
 function snapshotRegistryAuthority<TReservation>(
@@ -1078,6 +1080,7 @@ function snapshotResolvedDirectory(
     directoryPath.includes("\0") ||
     typeof directoryName !== "string" ||
     !identity ||
+    !("dev" in identity) ||
     !isTimestamp(expiresAt)
   ) {
     return undefined;

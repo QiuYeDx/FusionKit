@@ -27,17 +27,23 @@ export class LocalSubtitleOverwriteTransactionError extends Error {
   }
 }
 
-export interface LocalSubtitleOverwriteDirectoryIdentity {
+export interface LocalSubtitleOverwritePosixIdentity {
   readonly dev: number;
   readonly ino: number;
   readonly birthtimeMs: number;
 }
 
-export interface LocalSubtitleOverwriteFileIdentity {
-  readonly dev: number;
-  readonly ino: number;
-  readonly birthtimeMs: number;
+export interface LocalSubtitleOverwriteWindowsIdentity {
+  readonly volumeSerialHex: string;
+  readonly fileIdHex: string;
 }
+
+export type LocalSubtitleOverwriteDirectoryIdentity =
+  | LocalSubtitleOverwritePosixIdentity
+  | LocalSubtitleOverwriteWindowsIdentity;
+
+export type LocalSubtitleOverwriteFileIdentity =
+  LocalSubtitleOverwriteDirectoryIdentity;
 
 export interface LocalSubtitleOverwriteTransactionRequest {
   readonly transactionId: string;
@@ -367,6 +373,12 @@ function assertLeaf(
 function freezeIdentity(
   identity: LocalSubtitleOverwriteFileIdentity,
 ): LocalSubtitleOverwriteFileIdentity {
+  if ("volumeSerialHex" in identity) {
+    return Object.freeze({
+      volumeSerialHex: identity.volumeSerialHex,
+      fileIdHex: identity.fileIdHex,
+    });
+  }
   return Object.freeze({
     dev: identity.dev,
     ino: identity.ino,

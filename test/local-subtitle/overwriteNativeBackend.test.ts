@@ -179,6 +179,48 @@ describe.sequential("local subtitle overwrite native backend loader", () => {
     expect(receipt.state).toBe("open");
   });
 
+  it("loads the Windows x64 protocol with lossless Windows identities", () => {
+    setProcessTarget("win32", "x64");
+    const expectedFinalIdentity = windowsIdentity(
+      "0a0b0c0d",
+      "20112233445566778899aabbccddeeff",
+    );
+    const rawModule = validRawModule(
+      () => ({
+        expectedFinalIdentity,
+        finalize() {},
+        rollback() {},
+      }),
+      "win32",
+      "x64",
+    );
+    rawModule.recover = vi.fn(() => ({ state: "not_found" }));
+    nativeLoader.mockReturnValue(rawModule);
+    const runtime = createLocalSubtitleOverwriteNativeRuntime(absoluteNodePath);
+    const request = {
+      ...validRequest(),
+      expectedDirectoryIdentity: windowsIdentity(
+        "0a0b0c0d",
+        "00112233445566778899aabbccddeeff",
+      ),
+      expectedPartialIdentity: windowsIdentity(
+        "0a0b0c0d",
+        "10112233445566778899aabbccddeeff",
+      ),
+    };
+
+    const receipt = runtime.transactions.begin(request);
+    const recovery = runtime.recovery.claim()({
+      transactionId: request.transactionId,
+      directoryPath: request.directoryPath,
+      expectedDirectoryIdentity: request.expectedDirectoryIdentity,
+    });
+
+    expect(receipt.expectedFinalIdentity).toEqual(expectedFinalIdentity);
+    expect(Object.isFrozen(receipt.expectedFinalIdentity)).toBe(true);
+    expect(recovery).toEqual({ state: "not_found" });
+  });
+
   it("captures begin before native module mutation", () => {
     const originalBegin = vi.fn(() => validRawReceipt());
     const rawModule = validRawModule(originalBegin);
@@ -508,4 +550,8 @@ function validRecoveryRequest() {
 
 function identity(dev: number, ino: number, birthtimeMs = 3) {
   return { dev, ino, birthtimeMs };
+}
+
+function windowsIdentity(volumeSerialHex: string, fileIdHex: string) {
+  return { volumeSerialHex, fileIdHex };
 }
