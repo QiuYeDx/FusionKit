@@ -24,6 +24,13 @@ import type {
   LocalSubtitleOwnerKey,
 } from "./authorizations";
 import {
+  localSubtitleFilesystemObjectIdentityForHandle,
+  localSubtitleFilesystemObjectIdentityForPath,
+  localSubtitleFilesystemObjectIdentityForPathSync,
+  sameLocalSubtitleFilesystemObjectIdentity,
+  snapshotLocalSubtitleFilesystemObjectIdentity,
+} from "./filesystem-object-identity";
+import {
   LocalSubtitleFormatError,
   parseLocalSubtitleArtifactUtf8,
   toPlainLocalSubtitleText,
@@ -148,6 +155,7 @@ interface LocalSubtitleArtifactRecord {
   readonly directoryPath: string;
   readonly directoryIdentity: LocalSubtitleDirectoryIdentity;
   readonly filePath: string;
+  readonly fileObjectIdentity: LocalSubtitleFileObjectIdentity;
   readonly fileIdentity: LocalSubtitleFileIdentity;
   readonly byteSize: number;
   readonly sha256: string;
@@ -574,12 +582,14 @@ function captureArtifactRecord(
     }
 
     const directoryBefore = lstatSync(directoryPath);
+    const directoryIdentityBefore =
+      localSubtitleFilesystemObjectIdentityForPathSync(directoryPath);
     if (!directoryBefore.isDirectory() || directoryBefore.isSymbolicLink()) {
       throw artifactChanged();
     }
     if (
       !sameDirectoryIdentity(
-        directoryIdentity(directoryBefore),
+        directoryIdentityBefore,
         options.expectedDirectoryIdentity,
       )
     ) {
@@ -591,11 +601,13 @@ function captureArtifactRecord(
     }
 
     const before = lstatSync(filePath);
+    const fileObjectIdentityBefore =
+      localSubtitleFilesystemObjectIdentityForPathSync(filePath);
     if (!before.isFile() || before.isSymbolicLink()) throw artifactChanged();
     if (before.size !== options.byteSize) throw artifactChanged();
     if (
       !sameFileObjectIdentity(
-        fileObjectIdentity(before),
+        fileObjectIdentityBefore,
         options.expectedFileIdentity,
       )
     ) {
@@ -605,13 +617,15 @@ function captureArtifactRecord(
     if (!samePath(canonicalFile, filePath)) throw artifactChanged();
 
     const after = lstatSync(filePath);
+    const fileObjectIdentityAfter =
+      localSubtitleFilesystemObjectIdentityForPathSync(filePath);
     if (
       !after.isFile() ||
       after.isSymbolicLink() ||
       after.size !== options.byteSize ||
       !sameFileIdentity(fileIdentity(before), fileIdentity(after)) ||
       !sameFileObjectIdentity(
-        fileObjectIdentity(after),
+        fileObjectIdentityAfter,
         options.expectedFileIdentity,
       )
     ) {
@@ -619,15 +633,17 @@ function captureArtifactRecord(
     }
 
     const directoryAfter = lstatSync(directoryPath);
+    const directoryIdentityAfter =
+      localSubtitleFilesystemObjectIdentityForPathSync(directoryPath);
     if (
       !directoryAfter.isDirectory() ||
       directoryAfter.isSymbolicLink() ||
       !sameDirectoryIdentity(
-        directoryIdentity(directoryBefore),
-        directoryIdentity(directoryAfter),
+        directoryIdentityBefore,
+        directoryIdentityAfter,
       ) ||
       !sameDirectoryIdentity(
-        directoryIdentity(directoryAfter),
+        directoryIdentityAfter,
         options.expectedDirectoryIdentity,
       )
     ) {
@@ -639,8 +655,9 @@ function captureArtifactRecord(
       format: options.format,
       displayName: options.displayName,
       directoryPath,
-      directoryIdentity: Object.freeze(directoryIdentity(directoryAfter)),
+      directoryIdentity: directoryIdentityAfter,
       filePath,
+      fileObjectIdentity: fileObjectIdentityAfter,
       fileIdentity: Object.freeze(fileIdentity(after)),
       byteSize: options.byteSize,
       sha256: options.sha256,
@@ -657,8 +674,11 @@ async function validateArtifactRecord(
   await verifyArtifactDirectory(record);
 
   let before: Stats;
+  let beforeObjectIdentity: LocalSubtitleFileObjectIdentity;
   try {
     before = await lstat(record.filePath);
+    beforeObjectIdentity =
+      await localSubtitleFilesystemObjectIdentityForPath(record.filePath);
   } catch {
     throw artifactChanged();
   }
@@ -668,6 +688,7 @@ async function validateArtifactRecord(
   if (
     !before.isFile() ||
     before.isSymbolicLink() ||
+    !sameFileObjectIdentity(beforeObjectIdentity, record.fileObjectIdentity) ||
     !sameFileIdentity(fileIdentity(before), record.fileIdentity)
   ) {
     throw artifactChanged();
@@ -683,15 +704,32 @@ async function validateArtifactRecord(
   let bytes: Uint8Array;
   try {
     const opened = await handle.stat();
+    const openedObjectIdentity =
+      await localSubtitleFilesystemObjectIdentityForHandle(handle);
     if (opened.size > LOCAL_SUBTITLE_LIMITS.maxArtifactBytes) {
       throw contentTooLarge();
     }
-    if (!opened.isFile() || !sameFileIdentity(fileIdentity(opened), record.fileIdentity)) {
+    if (
+      !opened.isFile() ||
+      !sameFileObjectIdentity(
+        openedObjectIdentity,
+        record.fileObjectIdentity,
+      ) ||
+      !sameFileIdentity(fileIdentity(opened), record.fileIdentity)
+    ) {
       throw artifactChanged();
     }
     bytes = await readExactArtifactBytes(handle, opened.size);
     const openedAfter = await handle.stat();
-    if (!sameFileIdentity(fileIdentity(openedAfter), record.fileIdentity)) {
+    const openedAfterObjectIdentity =
+      await localSubtitleFilesystemObjectIdentityForHandle(handle);
+    if (
+      !sameFileObjectIdentity(
+        openedAfterObjectIdentity,
+        record.fileObjectIdentity,
+      ) ||
+      !sameFileIdentity(fileIdentity(openedAfter), record.fileIdentity)
+    ) {
       throw artifactChanged();
     }
   } finally {
@@ -703,14 +741,18 @@ async function validateArtifactRecord(
   }
 
   let after: Stats;
+  let afterObjectIdentity: LocalSubtitleFileObjectIdentity;
   try {
     after = await lstat(record.filePath);
+    afterObjectIdentity =
+      await localSubtitleFilesystemObjectIdentityForPath(record.filePath);
   } catch {
     throw artifactChanged();
   }
   if (
     !after.isFile() ||
     after.isSymbolicLink() ||
+    !sameFileObjectIdentity(afterObjectIdentity, record.fileObjectIdentity) ||
     !sameFileIdentity(fileIdentity(after), record.fileIdentity)
   ) {
     throw artifactChanged();
@@ -756,11 +798,13 @@ async function verifyArtifactDirectory(
 ): Promise<void> {
   try {
     const current = await lstat(record.directoryPath);
+    const currentIdentity =
+      await localSubtitleFilesystemObjectIdentityForPath(record.directoryPath);
     if (
       !current.isDirectory() ||
       current.isSymbolicLink() ||
       !sameDirectoryIdentity(
-        directoryIdentity(current),
+        currentIdentity,
         record.directoryIdentity,
       )
     ) {
@@ -908,12 +952,7 @@ function assertFileObjectIdentity(
   value: LocalSubtitleFileObjectIdentity,
   field: string,
 ): void {
-  if (
-    !value ||
-    !Number.isFinite(value.dev) ||
-    !Number.isFinite(value.ino) ||
-    !Number.isFinite(value.birthtimeMs)
-  ) {
+  if (!snapshotLocalSubtitleFilesystemObjectIdentity(value)) {
     throw invalid(field);
   }
 }
@@ -922,12 +961,7 @@ function assertDirectoryIdentity(
   value: LocalSubtitleDirectoryIdentity,
   field: string,
 ): void {
-  if (
-    !value ||
-    !Number.isFinite(value.dev) ||
-    !Number.isFinite(value.ino) ||
-    !Number.isFinite(value.birthtimeMs)
-  ) {
+  if (!snapshotLocalSubtitleFilesystemObjectIdentity(value)) {
     throw invalid(field);
   }
 }
@@ -999,22 +1033,6 @@ function fileIdentity(value: Stats): LocalSubtitleFileIdentity {
   };
 }
 
-function fileObjectIdentity(value: Stats): LocalSubtitleFileObjectIdentity {
-  return {
-    dev: value.dev,
-    ino: value.ino,
-    birthtimeMs: value.birthtimeMs,
-  };
-}
-
-function directoryIdentity(value: Stats): LocalSubtitleDirectoryIdentity {
-  return {
-    dev: value.dev,
-    ino: value.ino,
-    birthtimeMs: value.birthtimeMs,
-  };
-}
-
 function sameFileIdentity(
   left: LocalSubtitleFileIdentity,
   right: LocalSubtitleFileIdentity,
@@ -1030,18 +1048,14 @@ function sameFileObjectIdentity(
   left: LocalSubtitleFileObjectIdentity,
   right: LocalSubtitleFileObjectIdentity,
 ): boolean {
-  return left.dev === right.dev &&
-    left.ino === right.ino &&
-    left.birthtimeMs === right.birthtimeMs;
+  return sameLocalSubtitleFilesystemObjectIdentity(left, right);
 }
 
 function sameDirectoryIdentity(
   left: LocalSubtitleDirectoryIdentity,
   right: LocalSubtitleDirectoryIdentity,
 ): boolean {
-  return left.dev === right.dev &&
-    left.ino === right.ino &&
-    left.birthtimeMs === right.birthtimeMs;
+  return sameLocalSubtitleFilesystemObjectIdentity(left, right);
 }
 
 function sameOwner(

@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { EventEmitter } from "node:events";
-import { lstat, mkdtemp, realpath, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, realpath, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -16,6 +16,9 @@ import { LocalSubtitleOwnerSessionRegistry } from "../../electron/main/local-sub
 import { LocalSubtitleMediaError } from "../../electron/main/local-subtitle/media-normalizer";
 import { LocalSubtitleResourceError } from "../../electron/main/local-subtitle/resource-manifest";
 import { LocalSubtitleArtifactRegistry } from "../../electron/main/local-subtitle/subtitle-artifact-registry";
+import {
+  localSubtitleFilesystemObjectIdentityForPath,
+} from "../../electron/main/local-subtitle/filesystem-object-identity";
 
 const DEV_SERVER_URL = "http://127.0.0.1:7777/";
 const tempRoots: string[] = [];
@@ -518,21 +521,13 @@ function createService(
 }
 
 async function captureExpectedIdentities(filePath: string) {
-  const [file, directory] = await Promise.all([
-    lstat(filePath),
-    lstat(path.dirname(filePath)),
+  const [expectedFileIdentity, expectedDirectoryIdentity] = await Promise.all([
+    localSubtitleFilesystemObjectIdentityForPath(filePath),
+    localSubtitleFilesystemObjectIdentityForPath(path.dirname(filePath)),
   ]);
   return {
-    expectedFileIdentity: Object.freeze({
-      dev: file.dev,
-      ino: file.ino,
-      birthtimeMs: file.birthtimeMs,
-    }),
-    expectedDirectoryIdentity: Object.freeze({
-      dev: directory.dev,
-      ino: directory.ino,
-      birthtimeMs: directory.birthtimeMs,
-    }),
+    expectedFileIdentity,
+    expectedDirectoryIdentity,
   };
 }
 

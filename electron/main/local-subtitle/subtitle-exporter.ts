@@ -54,6 +54,13 @@ import {
   localSubtitleOverwriteDirectoryKey,
   withLocalSubtitleOverwriteDirectory,
 } from "./overwrite-directory-coordinator";
+import {
+  localSubtitleFilesystemObjectIdentityForHandle,
+  localSubtitleFilesystemObjectIdentityForPath,
+  localSubtitleFilesystemObjectIdentityForPathSync,
+  sameLocalSubtitleFilesystemObjectIdentity,
+  snapshotLocalSubtitleFilesystemObjectIdentity,
+} from "./filesystem-object-identity";
 
 const PRIVATE_FILE_MODE = 0o600;
 const WRITE_EXCLUSIVE_NOFOLLOW =
@@ -411,7 +418,7 @@ export class LocalSubtitleExporter<TReservation> {
       }
 
       const created = await handle.stat();
-      identity = fileObjectIdentity(created);
+      identity = await localSubtitleFilesystemObjectIdentityForHandle(handle);
       assertPrivateRegularFile(created, 0);
       await writeExactly(
         handle,
@@ -421,7 +428,12 @@ export class LocalSubtitleExporter<TReservation> {
       );
       const written = await handle.stat();
       assertPrivateRegularFile(written, options.bytes.byteLength);
-      if (!sameFileObject(fileObjectIdentity(written), identity)) {
+      if (
+        !sameFileObject(
+          await localSubtitleFilesystemObjectIdentityForHandle(handle),
+          identity,
+        )
+      ) {
         throw outputWriteFailure("The subtitle partial identity changed while writing.");
       }
       await handle.sync();
@@ -754,11 +766,6 @@ export class LocalSubtitleExporter<TReservation> {
     let summary: GeneratedSubtitleArtifactSummary;
     try {
       const expectedFileIdentity = receipt.expectedFinalIdentity;
-      if (!("dev" in expectedFileIdentity)) {
-        throw outputWriteFailure(
-          "The Windows overwrite identity is not yet composed with the artifact registry.",
-        );
-      }
       summary = this.artifacts.activate(options.reserved.reservation, {
         filePath: options.finalPath,
         format: options.format,
@@ -876,28 +883,34 @@ async function readOwnedPartial(
   let handle: FileHandle | undefined;
   try {
     const before = await lstat(partialPath);
+    const beforeIdentity =
+      await localSubtitleFilesystemObjectIdentityForPath(partialPath);
     if (
       before.isSymbolicLink() ||
       !before.isFile() ||
-      !sameFileObject(fileObjectIdentity(before), expected) ||
+      !sameFileObject(beforeIdentity, expected) ||
       before.size !== expectedSize
     ) {
       throw outputWriteFailure("The subtitle partial identity changed.");
     }
     handle = await open(partialPath, READ_NOFOLLOW);
     const opened = await handle.stat();
+    const openedIdentity =
+      await localSubtitleFilesystemObjectIdentityForHandle(handle);
     if (
       !opened.isFile() ||
-      !sameFileObject(fileObjectIdentity(opened), expected) ||
+      !sameFileObject(openedIdentity, expected) ||
       opened.size !== expectedSize
     ) {
       throw outputWriteFailure("The subtitle partial identity changed.");
     }
     const bytes = await handle.readFile();
     const after = await handle.stat();
+    const afterIdentity =
+      await localSubtitleFilesystemObjectIdentityForHandle(handle);
     if (
       bytes.byteLength !== expectedSize ||
-      !sameFileObject(fileObjectIdentity(after), expected) ||
+      !sameFileObject(afterIdentity, expected) ||
       after.size !== expectedSize
     ) {
       throw outputWriteFailure("The subtitle partial bytes changed.");
@@ -925,8 +938,11 @@ async function removeOwnedPartial(
   cleanupFailure: (message: string) => LocalSubtitleExporterError,
 ): Promise<void> {
   let current: Stats;
+  let currentIdentity: FileObjectIdentity;
   try {
     current = await lstat(partialPath);
+    currentIdentity =
+      await localSubtitleFilesystemObjectIdentityForPath(partialPath);
   } catch (error) {
     if (errno(error) === "ENOENT") return;
     throw cleanupFailure(
@@ -936,7 +952,7 @@ async function removeOwnedPartial(
   if (
     current.isSymbolicLink() ||
     !current.isFile() ||
-    !sameFileObject(fileObjectIdentity(current), expected)
+    !sameFileObject(currentIdentity, expected)
   ) {
     throw cleanupFailure(
       "The subtitle partial identity changed before cleanup.",
@@ -959,8 +975,11 @@ function detachOwnedPartialSync(
   cleanupFailure: (message: string) => LocalSubtitleExporterError,
 ): void {
   let current: Stats;
+  let currentIdentity: FileObjectIdentity;
   try {
     current = lstatSync(partialPath);
+    currentIdentity =
+      localSubtitleFilesystemObjectIdentityForPathSync(partialPath);
   } catch {
     throw cleanupFailure(
       "The indexed subtitle partial could not be inspected before detach.",
@@ -969,7 +988,7 @@ function detachOwnedPartialSync(
   if (
     current.isSymbolicLink() ||
     !current.isFile() ||
-    !sameFileObject(fileObjectIdentity(current), expected)
+    !sameFileObject(currentIdentity, expected)
   ) {
     throw cleanupFailure(
       "The indexed subtitle partial identity changed before detach.",
@@ -991,8 +1010,11 @@ function rollbackOwnedIndexSync(
   cleanupFailure: (message: string) => LocalSubtitleExporterError,
 ): void {
   let current: Stats;
+  let currentIdentity: FileObjectIdentity;
   try {
     current = lstatSync(finalPath);
+    currentIdentity =
+      localSubtitleFilesystemObjectIdentityForPathSync(finalPath);
   } catch (error) {
     if (errno(error) === "ENOENT") return;
     throw cleanupFailure(
@@ -1002,7 +1024,7 @@ function rollbackOwnedIndexSync(
   if (
     current.isSymbolicLink() ||
     !current.isFile() ||
-    !sameFileObject(fileObjectIdentity(current), expected)
+    !sameFileObject(currentIdentity, expected)
   ) {
     throw cleanupFailure(
       "The indexed subtitle artifact identity changed before rollback.",
@@ -1046,10 +1068,14 @@ async function assertDirectoryIdentity(
 ): Promise<void> {
   try {
     const current = await lstat(directory.directoryPath);
+    const currentIdentity =
+      await localSubtitleFilesystemObjectIdentityForPath(
+        directory.directoryPath,
+      );
     if (
       !current.isDirectory() ||
       current.isSymbolicLink() ||
-      !sameDirectoryIdentity(directoryIdentity(current), directory.identity)
+      !sameDirectoryIdentity(currentIdentity, directory.identity)
     ) {
       throw new Error();
     }
@@ -1148,44 +1174,22 @@ function assertPrivateRegularFile(stat: Stats, expectedSize: number): void {
   }
 }
 
-function fileObjectIdentity(value: Stats): FileObjectIdentity {
-  return Object.freeze({
-    dev: value.dev,
-    ino: value.ino,
-    birthtimeMs: value.birthtimeMs,
-  });
-}
-
 function sameFileObject(
   left: FileObjectIdentity,
   right: FileObjectIdentity,
 ): boolean {
-  return left.dev === right.dev &&
-    left.ino === right.ino &&
-    left.birthtimeMs === right.birthtimeMs;
-}
-
-function directoryIdentity(value: Stats): LocalSubtitleDirectoryIdentity {
-  return Object.freeze({
-    dev: value.dev,
-    ino: value.ino,
-    birthtimeMs: value.birthtimeMs,
-  });
+  return sameLocalSubtitleFilesystemObjectIdentity(left, right);
 }
 
 function validDirectoryIdentity(value: LocalSubtitleDirectoryIdentity): boolean {
-  return Number.isFinite(value.dev) &&
-    Number.isFinite(value.ino) &&
-    Number.isFinite(value.birthtimeMs);
+  return Boolean(snapshotLocalSubtitleFilesystemObjectIdentity(value));
 }
 
 function sameDirectoryIdentity(
   left: LocalSubtitleDirectoryIdentity,
   right: LocalSubtitleDirectoryIdentity,
 ): boolean {
-  return left.dev === right.dev &&
-    left.ino === right.ino &&
-    left.birthtimeMs === right.birthtimeMs;
+  return sameLocalSubtitleFilesystemObjectIdentity(left, right);
 }
 
 function skippedResult(

@@ -54,6 +54,9 @@ import type {
   LocalSubtitleExporter,
 } from "./subtitle-exporter";
 import {
+  sameLocalSubtitleFilesystemObjectIdentity,
+} from "./filesystem-object-identity";
+import {
   assessLocalSubtitleRawWindow,
   createSubtitlePostProcessPolicy,
   decideLocalSubtitleWindowRetry,
@@ -1340,9 +1343,7 @@ function sameDirectoryIdentity(
   left: LocalSubtitleDirectoryIdentity,
   right: LocalSubtitleDirectoryIdentity,
 ): boolean {
-  return left.dev === right.dev &&
-    left.ino === right.ino &&
-    left.birthtimeMs === right.birthtimeMs;
+  return sameLocalSubtitleFilesystemObjectIdentity(left, right);
 }
 
 function incrementSafeCounter(value: number, field: string): number {

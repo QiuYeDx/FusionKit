@@ -3,6 +3,11 @@ import { constants as fsConstants, type Stats } from "node:fs";
 import { lstat, open, realpath } from "node:fs/promises";
 import path from "node:path";
 import { LOCAL_SUBTITLE_LIMITS } from "@/type/localSubtitle";
+import {
+  localSubtitleFilesystemObjectIdentityForPath,
+  sameLocalSubtitleFilesystemObjectIdentity,
+  type LocalSubtitleFilesystemObjectIdentity,
+} from "./filesystem-object-identity";
 
 const NOFOLLOW_READ = fsConstants.O_RDONLY | (fsConstants.O_NOFOLLOW ?? 0);
 const DEFAULT_DRAFT_TTL_MS = 30 * 60 * 1000;
@@ -50,17 +55,11 @@ export interface LocalSubtitleFileIdentity {
   readonly ctimeMs: number;
 }
 
-export interface LocalSubtitleFileObjectIdentity {
-  readonly dev: number;
-  readonly ino: number;
-  readonly birthtimeMs: number;
-}
+export type LocalSubtitleFileObjectIdentity =
+  LocalSubtitleFilesystemObjectIdentity;
 
-export interface LocalSubtitleDirectoryIdentity {
-  readonly dev: number;
-  readonly ino: number;
-  readonly birthtimeMs: number;
-}
+export type LocalSubtitleDirectoryIdentity =
+  LocalSubtitleFilesystemObjectIdentity;
 
 interface FileDescriptor {
   readonly path: string;
@@ -1332,10 +1331,12 @@ async function inspectDirectory(directoryPath: string): Promise<DirectoryDescrip
 async function verifyDirectory(value: DirectoryDescriptor): Promise<void> {
   try {
     const current = await lstat(value.path);
+    const currentIdentity =
+      await localSubtitleFilesystemObjectIdentityForPath(value.path);
     if (
       !current.isDirectory() ||
       current.isSymbolicLink() ||
-      !sameDirectoryIdentity(directoryIdentity(current), value.identity)
+      !sameDirectoryIdentity(currentIdentity, value.identity)
     ) {
       throw new Error();
     }
@@ -1375,22 +1376,28 @@ async function inspectDirectoryObject(
   absolute: string,
 ): Promise<Pick<DirectoryDescriptor, "path" | "identity">> {
   const before = await lstat(absolute);
+  const beforeIdentity =
+    await localSubtitleFilesystemObjectIdentityForPath(absolute);
   if (!before.isDirectory() || before.isSymbolicLink()) throw new Error();
   const canonical = await realpath(absolute);
   const after = await lstat(canonical);
+  const afterIdentity =
+    await localSubtitleFilesystemObjectIdentityForPath(canonical);
   const lexicalAfter = await lstat(absolute);
+  const lexicalAfterIdentity =
+    await localSubtitleFilesystemObjectIdentityForPath(absolute);
   if (
     !after.isDirectory() ||
     after.isSymbolicLink() ||
     lexicalAfter.isSymbolicLink() ||
-    !sameDirectory(before, after) ||
-    !sameDirectory(before, lexicalAfter)
+    !sameDirectoryIdentity(beforeIdentity, afterIdentity) ||
+    !sameDirectoryIdentity(beforeIdentity, lexicalAfterIdentity)
   ) {
     throw new Error();
   }
   return Object.freeze({
     path: canonical,
-    identity: Object.freeze(directoryIdentity(after)),
+    identity: afterIdentity,
   });
 }
 
@@ -1400,18 +1407,24 @@ async function verifySourceOutputDirectory(
 ): Promise<void> {
   try {
     const before = await lstat(value.path);
+    const beforeIdentity =
+      await localSubtitleFilesystemObjectIdentityForPath(value.path);
     if (
       !before.isDirectory() ||
       before.isSymbolicLink() ||
-      !sameDirectoryIdentity(directoryIdentity(before), value.identity)
+      !sameDirectoryIdentity(beforeIdentity, value.identity)
     ) {
       throw new Error();
     }
     const canonical = await realpath(value.path);
     const canonicalStats = await lstat(canonical);
+    const canonicalIdentity =
+      await localSubtitleFilesystemObjectIdentityForPath(canonical);
     await verifyFile(file);
     const canonicalFile = await realpath(file.path);
     const after = await lstat(value.path);
+    const afterIdentity =
+      await localSubtitleFilesystemObjectIdentityForPath(value.path);
     if (
       !sameCanonicalPath(canonicalFile, file.path) ||
       !sameCanonicalPath(path.dirname(canonicalFile), value.path) ||
@@ -1419,9 +1432,9 @@ async function verifySourceOutputDirectory(
       !canonicalStats.isDirectory() ||
       canonicalStats.isSymbolicLink() ||
       after.isSymbolicLink() ||
-      !sameDirectory(before, canonicalStats) ||
-      !sameDirectory(before, after) ||
-      !sameDirectoryIdentity(directoryIdentity(canonicalStats), value.identity)
+      !sameDirectoryIdentity(beforeIdentity, canonicalIdentity) ||
+      !sameDirectoryIdentity(beforeIdentity, afterIdentity) ||
+      !sameDirectoryIdentity(canonicalIdentity, value.identity)
     ) {
       throw new Error();
     }
@@ -1475,14 +1488,6 @@ function fileIdentity(value: Stats): LocalSubtitleFileIdentity {
   };
 }
 
-function directoryIdentity(value: Stats): LocalSubtitleDirectoryIdentity {
-  return {
-    dev: value.dev,
-    ino: value.ino,
-    birthtimeMs: value.birthtimeMs,
-  };
-}
-
 function sameFile(a: Stats, b: Stats) {
   return sameFileIdentity(fileIdentity(a), fileIdentity(b));
 }
@@ -1498,17 +1503,11 @@ function sameFileIdentity(
     a.ctimeMs === b.ctimeMs;
 }
 
-function sameDirectory(a: Stats, b: Stats) {
-  return sameDirectoryIdentity(directoryIdentity(a), directoryIdentity(b));
-}
-
 function sameDirectoryIdentity(
   a: LocalSubtitleDirectoryIdentity,
   b: LocalSubtitleDirectoryIdentity,
 ) {
-  return a.dev === b.dev &&
-    a.ino === b.ino &&
-    a.birthtimeMs === b.birthtimeMs;
+  return sameLocalSubtitleFilesystemObjectIdentity(a, b);
 }
 
 function sameCanonicalPath(a: string, b: string) {

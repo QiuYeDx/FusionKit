@@ -1080,7 +1080,6 @@ function snapshotResolvedDirectory(
     directoryPath.includes("\0") ||
     typeof directoryName !== "string" ||
     !identity ||
-    !("dev" in identity) ||
     !isTimestamp(expiresAt)
   ) {
     return undefined;

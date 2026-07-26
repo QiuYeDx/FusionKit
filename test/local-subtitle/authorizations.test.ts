@@ -23,6 +23,9 @@ import {
   resolveSafeLocalSubtitleChildPath,
   type LocalSubtitleOwnerKey,
 } from "../../electron/main/local-subtitle/authorizations";
+import {
+  localSubtitleFilesystemObjectIdentityForPath,
+} from "../../electron/main/local-subtitle/filesystem-object-identity";
 
 const OWNER_A = Object.freeze({
   webContentsId: 7,
@@ -90,12 +93,12 @@ describe("local subtitle input and output authorizations", () => {
       code: "limit_exceeded",
     });
     expect(failedFactory).not.toHaveBeenCalled();
-    const unsafeName = await file(root, "unsafe\n.wav", "audio");
-    await expect(
-      failedRegistry.authorize(OWNER_A, unsafeName),
-    ).rejects.toMatchObject({ code: "invalid_content" });
-    expect(failedFactory).not.toHaveBeenCalled();
     if (process.platform !== "win32") {
+      const unsafeName = await file(root, "unsafe\n.wav", "audio");
+      await expect(
+        failedRegistry.authorize(OWNER_A, unsafeName),
+      ).rejects.toMatchObject({ code: "invalid_content" });
+      expect(failedFactory).not.toHaveBeenCalled();
       const separatorName = await file(root, "unsafe\\name.wav", "audio");
       await expect(
         failedRegistry.authorize(OWNER_A, separatorName),
@@ -201,14 +204,16 @@ describe("local subtitle input and output authorizations", () => {
       tokenFactory: () => "output-token",
     });
     const authorized = await registry.authorize(OWNER_A, output);
-    const unsafeOutput = path.join(root, "unsafe\noutput");
-    await mkdir(unsafeOutput);
     const unsafeFactory = vi.fn(() => "unsafe-output-token");
-    await expect(
-      new LocalSubtitleOutputDirectoryAuthorizationRegistry({
-        tokenFactory: unsafeFactory,
-      }).authorize(OWNER_A, unsafeOutput),
-    ).rejects.toMatchObject({ code: "invalid_content" });
+    if (process.platform !== "win32") {
+      const unsafeOutput = path.join(root, "unsafe\noutput");
+      await mkdir(unsafeOutput);
+      await expect(
+        new LocalSubtitleOutputDirectoryAuthorizationRegistry({
+          tokenFactory: unsafeFactory,
+        }).authorize(OWNER_A, unsafeOutput),
+      ).rejects.toMatchObject({ code: "invalid_content" });
+    }
     expect(unsafeFactory).not.toHaveBeenCalled();
     const rootAuthorization = await new LocalSubtitleOutputDirectoryAuthorizationRegistry()
       .authorize(OWNER_A, path.parse(root).root);
@@ -248,7 +253,8 @@ describe("local subtitle task source output authorization", () => {
     });
     const lease = transaction.commit();
     const canonicalDirectory = await realpath(sourceDirectory);
-    const directoryStats = await lstat(canonicalDirectory);
+    const directoryIdentity =
+      await localSubtitleFilesystemObjectIdentityForPath(canonicalDirectory);
 
     now = 1_050;
     await expect(
@@ -260,11 +266,7 @@ describe("local subtitle task source output authorization", () => {
     ).resolves.toEqual({
       directoryPath: canonicalDirectory,
       directoryName: "source-media",
-      identity: {
-        dev: directoryStats.dev,
-        ino: directoryStats.ino,
-        birthtimeMs: directoryStats.birthtimeMs,
-      },
+      identity: directoryIdentity,
       expiresAt: 1_100,
     });
     expect(JSON.stringify(input)).not.toContain(root);
@@ -466,7 +468,8 @@ describe("local subtitle task source output authorization", () => {
     await Promise.all([mkdir(sourceDirectory), mkdir(replacementDirectory)]);
     const inputPath = await file(sourceDirectory, "input.wav", "audio");
     await link(inputPath, path.join(replacementDirectory, "input.wav"));
-    const sourceStats = await lstat(sourceDirectory);
+    const sourceIdentity =
+      await localSubtitleFilesystemObjectIdentityForPath(sourceDirectory);
     const inputs = new LocalSubtitleInputAuthorizationRegistry({
       tokenFactory: () => "pinned-parent",
     });
@@ -509,11 +512,7 @@ describe("local subtitle task source output authorization", () => {
       ),
     ).resolves.toMatchObject({
       directoryPath: await realpath(sourceDirectory),
-      identity: {
-        dev: sourceStats.dev,
-        ino: sourceStats.ino,
-        birthtimeMs: sourceStats.birthtimeMs,
-      },
+      identity: sourceIdentity,
     });
   });
 

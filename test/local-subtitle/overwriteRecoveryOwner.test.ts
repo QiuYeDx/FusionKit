@@ -328,6 +328,35 @@ describe("local subtitle overwrite recovery owner", () => {
     expect(repository.records).toEqual([]);
   });
 
+  it("accepts an exact Windows directory identity for recovery selection", async () => {
+    const record = persistedRecord({ direction: "rollback" });
+    const repository = new MemoryRepository({ records: [record] });
+    const recover = vi.fn(() => ({ state: "rolled_back" as const }));
+    const owner = new LocalSubtitleOverwriteRecoveryOwner(
+      repository,
+      registryFixture(),
+      createLocalSubtitleOverwriteRecoveryAuthority({ recover }),
+    );
+    const windowsIdentity = Object.freeze({
+      volumeSerialHex: "680b91a8",
+      fileIdHex: "0000000000000000002800000013944f",
+    });
+
+    await expect(owner.recoverAfterReauthorization({
+      recoveryId: RECOVERY_ID,
+      taskId: record.taskId,
+      generation: record.generation,
+      format: record.format,
+      directory: resolvedDirectory(fixtureRoot, windowsIdentity),
+    })).resolves.toEqual({ state: "rolled_back" });
+
+    expect(recover).toHaveBeenCalledWith({
+      transactionId: RECOVERY_ID,
+      directoryPath: fixtureRoot,
+      expectedDirectoryIdentity: windowsIdentity,
+    });
+  });
+
   it("retries only repository deletion after native rollback already settled", async () => {
     const record = persistedRecord({ direction: "rollback" });
     const repository = new MemoryRepository({ records: [record] });

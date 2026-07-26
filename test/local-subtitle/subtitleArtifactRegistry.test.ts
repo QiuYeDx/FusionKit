@@ -19,6 +19,9 @@ import {
   LocalSubtitleArtifactRegistry,
   type ActivateLocalSubtitleArtifactOptions,
 } from "../../electron/main/local-subtitle/subtitle-artifact-registry";
+import {
+  localSubtitleFilesystemObjectIdentityForPath,
+} from "../../electron/main/local-subtitle/filesystem-object-identity";
 
 const OWNER_A = Object.freeze({
   webContentsId: 7,
@@ -745,21 +748,13 @@ async function writeArtifact(
 }
 
 async function captureExpectedIdentities(filePath: string) {
-  const [file, directory] = await Promise.all([
-    lstat(filePath),
-    lstat(path.dirname(filePath)),
+  const [expectedFileIdentity, expectedDirectoryIdentity] = await Promise.all([
+    localSubtitleFilesystemObjectIdentityForPath(filePath),
+    localSubtitleFilesystemObjectIdentityForPath(path.dirname(filePath)),
   ]);
   return {
-    expectedFileIdentity: Object.freeze({
-      dev: file.dev,
-      ino: file.ino,
-      birthtimeMs: file.birthtimeMs,
-    }),
-    expectedDirectoryIdentity: Object.freeze({
-      dev: directory.dev,
-      ino: directory.ino,
-      birthtimeMs: directory.birthtimeMs,
-    }),
+    expectedFileIdentity,
+    expectedDirectoryIdentity,
   };
 }
 

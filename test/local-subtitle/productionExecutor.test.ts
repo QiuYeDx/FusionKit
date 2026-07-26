@@ -41,6 +41,9 @@ import {
   LocalSubtitleExporter,
   type LocalSubtitleExporterDependencies,
 } from "../../electron/main/local-subtitle/subtitle-exporter";
+import {
+  localSubtitleFilesystemObjectIdentityForPath,
+} from "../../electron/main/local-subtitle/filesystem-object-identity";
 
 const OWNER: LocalSubtitleOwnerKey = Object.freeze({
   webContentsId: 71,
@@ -1439,15 +1442,12 @@ function createConfig(
 }
 
 async function resolvedOutputDirectory(directoryPath: string) {
-  const stats = await lstat(directoryPath);
+  const identity =
+    await localSubtitleFilesystemObjectIdentityForPath(directoryPath);
   return Object.freeze({
     directoryPath,
     directoryName: path.basename(directoryPath),
-    identity: Object.freeze({
-      dev: stats.dev,
-      ino: stats.ino,
-      birthtimeMs: stats.birthtimeMs,
-    }),
+    identity,
     expiresAt: Date.now() + 60_000,
   });
 }

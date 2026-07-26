@@ -3,7 +3,6 @@ import {
   lstatSync,
   renameSync,
   unlinkSync,
-  type Stats,
 } from "node:fs";
 import {
   link,
@@ -56,6 +55,10 @@ import {
   parseLocalSubtitleLrcUtf8,
   parseLocalSubtitleSrtUtf8,
 } from "../../electron/main/local-subtitle/subtitle-formats";
+import {
+  localSubtitleFilesystemObjectIdentityForPath,
+  localSubtitleFilesystemObjectIdentityForPathSync,
+} from "../../electron/main/local-subtitle/filesystem-object-identity";
 
 const OWNER = Object.freeze({
   webContentsId: 91,
@@ -450,7 +453,7 @@ describe("local subtitle artifact export", () => {
       taskId: "existing-recovery",
       generation: 1,
       format: "SRT",
-      directoryIdentity: fileIdentity(lstatSync(fixtureRoot)),
+      directoryIdentity: fileIdentity(fixtureRoot),
     });
 
     try {
@@ -498,7 +501,7 @@ describe("local subtitle artifact export", () => {
         const finalPath = path.join(request.directoryPath, request.finalLeaf);
         renameSync(partialPath, finalPath);
         return {
-          expectedFinalIdentity: fileIdentity(lstatSync(finalPath)),
+          expectedFinalIdentity: fileIdentity(finalPath),
           finalize: () => undefined,
           rollback: () => undefined,
         };
@@ -576,7 +579,7 @@ describe("local subtitle artifact export", () => {
       finalLeaf: "transaction-success.srt",
     });
     expect(registry.activations[0]!.expectedFileIdentity).toEqual(
-      fileIdentity(lstatSync(finalPath)),
+      fileIdentity(finalPath),
     );
     await expect(readFile(finalPath, "utf8")).resolves.toContain(
       "00:00:00,009",
@@ -587,7 +590,7 @@ describe("local subtitle artifact export", () => {
     await expect(partialNames()).resolves.toEqual([]);
   });
 
-  it("rolls back when a Windows identity reaches the uncomposed Registry boundary", async () => {
+  it("passes a Windows identity through Registry activation and finalizes", async () => {
     const rollback = vi.fn();
     const finalize = vi.fn();
     const coordinator = createLocalSubtitleOverwriteTransactionCoordinator({
@@ -624,18 +627,17 @@ describe("local subtitle artifact export", () => {
     });
 
     expect(result).toMatchObject({
-      status: "failed",
+      status: "completed",
       artifactResults: [{
         format: "SRT",
-        status: "failed",
-        error: { code: "output_write_failed" },
+        status: "committed",
       }],
     });
-    expect(rollback).toHaveBeenCalledOnce();
-    expect(finalize).not.toHaveBeenCalled();
+    expect(rollback).not.toHaveBeenCalled();
+    expect(finalize).toHaveBeenCalledOnce();
     await expect(
       lstat(path.join(fixtureRoot, "windows-identity-boundary.srt")),
-    ).rejects.toMatchObject({ code: "ENOENT" });
+    ).resolves.toMatchObject({ size: expect.any(Number) });
     await expect(partialNames()).resolves.toEqual([]);
   });
 
@@ -1855,11 +1857,11 @@ function createTestOverwriteTransaction(options: {
       );
       backupPaths.push(backupPath);
 
-      expect(fileIdentity(lstatSync(request.directoryPath))).toEqual(
+      expect(fileIdentity(request.directoryPath)).toEqual(
         request.expectedDirectoryIdentity,
       );
       const partial = lstatSync(partialPath);
-      expect(fileIdentity(partial)).toEqual(request.expectedPartialIdentity);
+      expect(fileIdentity(partialPath)).toEqual(request.expectedPartialIdentity);
       expect(partial.size).toBe(request.expectedByteSize);
 
       let hadVictim = true;
@@ -1875,7 +1877,7 @@ function createTestOverwriteTransaction(options: {
         if (hadVictim) renameSync(backupPath, finalPath);
         throw error;
       }
-      const expectedFinalIdentity = fileIdentity(lstatSync(finalPath));
+      const expectedFinalIdentity = fileIdentity(finalPath);
       options.afterBeginCommit?.(request);
 
       return {
@@ -1898,12 +1900,8 @@ function createTestOverwriteTransaction(options: {
   return { coordinator, requests, backupPaths };
 }
 
-function fileIdentity(value: Stats): LocalSubtitleFileObjectIdentity {
-  return Object.freeze({
-    dev: value.dev,
-    ino: value.ino,
-    birthtimeMs: value.birthtimeMs,
-  });
+function fileIdentity(filePath: string): LocalSubtitleFileObjectIdentity {
+  return localSubtitleFilesystemObjectIdentityForPathSync(filePath);
 }
 
 function transcript(): LocalSubtitleTranscript {
@@ -1972,12 +1970,8 @@ async function resolvedDirectory(
   directoryPath: string,
 ): Promise<ResolvedLocalSubtitleOutputDirectory> {
   const canonicalPath = await realpath(directoryPath);
-  const value = await lstat(canonicalPath);
-  const identity = Object.freeze({
-    dev: value.dev,
-    ino: value.ino,
-    birthtimeMs: value.birthtimeMs,
-  }) satisfies LocalSubtitleDirectoryIdentity;
+  const identity =
+    await localSubtitleFilesystemObjectIdentityForPath(canonicalPath);
   return Object.freeze({
     directoryPath: canonicalPath,
     directoryName: path.basename(canonicalPath),
