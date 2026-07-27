@@ -217,6 +217,58 @@
       "trigger": "使用導覽"
     }
   },
+  "local_transcriber": {
+    "overwrite_recovery": {
+      "title": "輸出復原",
+      "trigger_label": "開啟輸出復原，{{count}} 項待處理",
+      "pending_count": "{{count}} 項輸出操作需要處理",
+      "loading": "正在檢查輸出復原...",
+      "empty_title": "沒有待處理的輸出復原",
+      "refresh": "重新整理",
+      "close": "關閉",
+      "item_title": "復原項目 {{code}}",
+      "choose_original_directory": "選擇原輸出資料夾",
+      "retry": "重試復原",
+      "working": "正在復原...",
+      "selection_cancelled": "已取消選擇資料夾",
+      "settled": {
+        "finalized": "已完成輸出取代",
+        "rolled_back": "已復原原輸出"
+      },
+      "direction": {
+        "finalize": "完成取代",
+        "rollback": "復原原檔案"
+      },
+      "state": {
+        "not_started": "等待確認",
+        "pending": "等待復原",
+        "retry_failed": "需要重試",
+        "settled": "等待清理"
+      },
+      "blocked": {
+        "title": "復原狀態無法使用",
+        "description": "FusionKit 無法讀取復原狀態，現有檔案保持不變。"
+      },
+      "unavailable": {
+        "title": "輸出復原無法使用",
+        "description": "所需的復原元件目前無法使用，現有檔案保持不變。"
+      },
+      "error": {
+        "recovery_pending": "復原尚未完成，請選擇原輸出資料夾後重試。",
+        "directory_authorization_required": "請選擇原輸出資料夾後繼續復原。",
+        "persistence_failed": "無法安全儲存復原狀態，請稍後重試。",
+        "invalid_request": "此復原項目已變更，請重新整理後重試。",
+        "invalid_state": "此復原項目目前無法處理，請重新整理後重試。",
+        "invalid_result": "無法確認復原結果，檔案將繼續保持受保護狀態。",
+        "generic": "無法完成復原，請稍後重試。"
+      },
+      "field": {
+        "recovery_code": "復原碼",
+        "format": "格式",
+        "created_at": "建立時間"
+      }
+    }
+  },
   "extractor": {
     "title": "字幕語言擷取",
     "description": "支援從 LRC/SRT 雙語字幕中擷取指定語言的文字行，保持原格式與時間軸。",

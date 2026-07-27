@@ -217,6 +217,58 @@
       "trigger": "ガイドを表示"
     }
   },
+  "local_transcriber": {
+    "overwrite_recovery": {
+      "title": "出力の復旧",
+      "trigger_label": "出力の復旧を開く、{{count}} 件保留中",
+      "pending_count": "{{count}} 件の出力操作に対応が必要です",
+      "loading": "出力の復旧状態を確認しています...",
+      "empty_title": "保留中の出力復旧はありません",
+      "refresh": "更新",
+      "close": "閉じる",
+      "item_title": "復旧 {{code}}",
+      "choose_original_directory": "元の出力フォルダを選択",
+      "retry": "復旧を再試行",
+      "working": "復旧しています...",
+      "selection_cancelled": "フォルダの選択をキャンセルしました",
+      "settled": {
+        "finalized": "出力の置換が完了しました",
+        "rolled_back": "以前の出力を復元しました"
+      },
+      "direction": {
+        "finalize": "置換を完了",
+        "rollback": "以前のファイルを復元"
+      },
+      "state": {
+        "not_started": "確認待ち",
+        "pending": "復旧待ち",
+        "retry_failed": "再試行が必要",
+        "settled": "クリーンアップ待ち"
+      },
+      "blocked": {
+        "title": "復旧状態を利用できません",
+        "description": "FusionKit は復旧状態を読み取れませんでした。既存のファイルは変更されていません。"
+      },
+      "unavailable": {
+        "title": "出力の復旧を利用できません",
+        "description": "必要な復旧コンポーネントを利用できません。既存のファイルは変更されていません。"
+      },
+      "error": {
+        "recovery_pending": "復旧はまだ完了していません。元の出力フォルダを選択して再試行してください。",
+        "directory_authorization_required": "元の出力フォルダを選択して復旧を続行してください。",
+        "persistence_failed": "復旧状態を安全に保存できませんでした。後でもう一度お試しください。",
+        "invalid_request": "この復旧項目は変更されています。更新してから再試行してください。",
+        "invalid_state": "この復旧項目は現在処理できません。更新してから再試行してください。",
+        "invalid_result": "復旧結果を確認できませんでした。ファイルは引き続き保護されます。",
+        "generic": "復旧を完了できませんでした。後でもう一度お試しください。"
+      },
+      "field": {
+        "recovery_code": "復旧コード",
+        "format": "形式",
+        "created_at": "作成日時"
+      }
+    }
+  },
   "extractor": {
     "title": "字幕言語抽出",
     "description": "LRC/SRTのバイリンガル字幕から指定した言語の行を抽出し、フォーマットとタイムスタンプを維持します。",

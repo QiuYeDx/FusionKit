@@ -217,6 +217,58 @@
       "trigger": "使用引导"
     }
   },
+  "local_transcriber": {
+    "overwrite_recovery": {
+      "title": "输出恢复",
+      "trigger_label": "打开输出恢复，{{count}} 项待处理",
+      "pending_count": "{{count}} 项输出操作需要处理",
+      "loading": "正在检查输出恢复...",
+      "empty_title": "没有待处理的输出恢复",
+      "refresh": "刷新",
+      "close": "关闭",
+      "item_title": "恢复项 {{code}}",
+      "choose_original_directory": "选择原输出目录",
+      "retry": "重试恢复",
+      "working": "正在恢复...",
+      "selection_cancelled": "已取消选择目录",
+      "settled": {
+        "finalized": "已完成输出替换",
+        "rolled_back": "已恢复原输出"
+      },
+      "direction": {
+        "finalize": "完成替换",
+        "rollback": "恢复原文件"
+      },
+      "state": {
+        "not_started": "等待确认",
+        "pending": "等待恢复",
+        "retry_failed": "需要重试",
+        "settled": "等待清理"
+      },
+      "blocked": {
+        "title": "恢复状态不可用",
+        "description": "FusionKit 无法读取恢复状态，现有文件保持不变。"
+      },
+      "unavailable": {
+        "title": "输出恢复不可用",
+        "description": "所需的恢复组件当前不可用，现有文件保持不变。"
+      },
+      "error": {
+        "recovery_pending": "恢复尚未完成，请选择原输出目录后重试。",
+        "directory_authorization_required": "请选择原输出目录后继续恢复。",
+        "persistence_failed": "无法安全保存恢复状态，请稍后重试。",
+        "invalid_request": "此恢复项已变化，请刷新后重试。",
+        "invalid_state": "此恢复项当前无法处理，请刷新后重试。",
+        "invalid_result": "无法确认恢复结果，文件将继续保持受保护状态。",
+        "generic": "无法完成恢复，请稍后重试。"
+      },
+      "field": {
+        "recovery_code": "恢复码",
+        "format": "格式",
+        "created_at": "创建时间"
+      }
+    }
+  },
   "extractor": {
     "title": "字幕语言提取",
     "description": "支持从 LRC/SRT 双语字幕中提取指定语言的文本行，保持原格式与时间轴。",

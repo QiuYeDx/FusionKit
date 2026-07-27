@@ -542,6 +542,7 @@ describe("local subtitle artifact export", () => {
     await expect(partialNames()).resolves.toEqual([]);
 
     await expect(recoveryOwner.recoverAfterReauthorization({
+      owner: OWNER,
       recoveryId,
       taskId: "task-begin-failure-retry",
       generation: 1,
@@ -1924,8 +1925,8 @@ function createTestOverwriteRecoveryOwner(
     repository,
     registry,
     createLocalSubtitleOverwriteRecoveryAuthority({
-      recover: () => ({ state: "not_found" }),
-      acknowledge: () => ({ state: "not_found" }),
+      recover: () => ({ state: "rolled_back" }),
+      acknowledge: () => ({ state: "acknowledged" }),
     }),
   );
 }

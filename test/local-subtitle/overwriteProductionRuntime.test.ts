@@ -114,6 +114,15 @@ describe("local subtitle overwrite production runtime composition", () => {
     const localSubtitleIpcInstall = source.indexOf(
       "setupLocalSubtitleIPC(localSubtitleIpcService);",
     );
+    const recoveryIpcBridge = source.indexOf(
+      "new LocalSubtitleOverwriteRecoveryIpcBridge(localSubtitleOverwriteRuntime);",
+    );
+    const recoveryPublicHandlers = source.indexOf(
+      "...localSubtitleOverwriteRecoveryIpcBridge.handlers.public,",
+    );
+    const recoveryInternalHandler = source.indexOf(
+      "localSubtitleOverwriteRecoveryIpcBridge.handlers.overwriteRecovery,",
+    );
     const initialWindow = source.indexOf("  createWindow();", localSubtitleIpcInstall);
     const activateInstall = source.indexOf(
       '  app.on("activate", () => {',
@@ -121,7 +130,12 @@ describe("local subtitle overwrite production runtime composition", () => {
     );
 
     expect(lifecycleInstall).toBeGreaterThan(-1);
+    expect(recoveryIpcBridge).toBeGreaterThan(lifecycleInstall);
+    expect(recoveryPublicHandlers).toBeGreaterThan(recoveryIpcBridge);
+    expect(recoveryInternalHandler).toBeGreaterThan(recoveryIpcBridge);
     expect(localSubtitleIpcInstall).toBeGreaterThan(lifecycleInstall);
+    expect(localSubtitleIpcInstall).toBeGreaterThan(recoveryPublicHandlers);
+    expect(localSubtitleIpcInstall).toBeGreaterThan(recoveryInternalHandler);
     expect(initialWindow).toBeGreaterThan(localSubtitleIpcInstall);
     expect(activateInstall).toBeGreaterThan(initialWindow);
     expect(source.indexOf('  app.on("activate", () => {')).toBe(
@@ -174,6 +188,7 @@ describe("local subtitle overwrite production runtime composition", () => {
     expect(result.recoveryOwner.listPending()).toEqual([
       {
         recoveryId: "pending-recovery",
+        displayCode: "17629E2A0387",
         taskId: "task-pending",
         generation: 3,
         format: "SRT",

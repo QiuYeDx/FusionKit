@@ -1,4 +1,5 @@
 import {
+  BrowserWindow,
   dialog,
   ipcMain,
   type IpcMainEvent,
@@ -34,6 +35,7 @@ import {
   LocalSubtitleInputAuthorizationRegistry,
   LocalSubtitleOutputDirectoryAuthorizationRegistry,
   type LocalSubtitleOwnerKey,
+  type ResolvedLocalSubtitleOutputDirectory,
 } from "./authorizations";
 import {
   sharedLocalSubtitleOwnerSessionRegistry,
@@ -41,6 +43,11 @@ import {
   type LocalSubtitleOwnerIdentity,
   type LocalSubtitleOwnerSessionRegistry,
 } from "./ipc-security";
+import type { LocalSubtitleOverwriteRecoverySummary } from "./overwrite-recovery-owner";
+import type {
+  LocalSubtitleMainRuntimeShutdownReason,
+  LocalSubtitleMainRuntimeTarget,
+} from "./main-runtime";
 import {
   LocalSubtitleArtifactRegistry,
   LocalSubtitleArtifactRegistryError,
@@ -78,6 +85,27 @@ export interface LocalSubtitleIpcHandlers {
     request: { readonly filePath: string; readonly mode: "copy" | "move" },
     context: LocalSubtitleIpcHandlerContext,
   ) => MaybePromise<LocalSubtitleIpcResult<unknown>>;
+  readonly overwriteRecovery?:
+    | Readonly<{
+        status: "ready";
+        describe: (
+          request: { readonly recoveryId: string },
+          context: LocalSubtitleIpcHandlerContext,
+        ) => MaybePromise<LocalSubtitleIpcResult<LocalSubtitleOverwriteRecoverySummary>>;
+        retry: (
+          request: { readonly recoveryId: string },
+          expected: LocalSubtitleOverwriteRecoverySummary,
+          context: LocalSubtitleIpcHandlerContext,
+        ) => MaybePromise<LocalSubtitleIpcResult<unknown>>;
+        recover: (
+          request: { readonly recoveryId: string },
+          directory: ResolvedLocalSubtitleOutputDirectory,
+          expected: LocalSubtitleOverwriteRecoverySummary,
+          context: LocalSubtitleIpcHandlerContext,
+        ) => MaybePromise<LocalSubtitleIpcResult<unknown>>;
+      }>
+    | Readonly<{ status: "unavailable" }>
+    | Readonly<{ status: "blocked" }>;
   readonly onOwnerReleased?: (owner: LocalSubtitleOwnerIdentity) => void;
 }
 
@@ -94,11 +122,137 @@ export type LocalSubtitleOutputDirectorySelector = () => Promise<{
   readonly filePaths: readonly string[];
 }>;
 
+export type LocalSubtitleOverwriteRecoveryDirectorySelector = (
+  event: IpcMainInvokeEvent,
+) => Promise<{
+  readonly canceled: boolean;
+  readonly filePaths: readonly string[];
+}>;
+
 export interface LocalSubtitleIpcServiceOptions {
   readonly ownerSessions?: LocalSubtitleOwnerSessionRegistry;
   readonly capabilities?: Partial<LocalSubtitleIpcCapabilities>;
   readonly handlers?: LocalSubtitleIpcHandlers;
   readonly selectOutputDirectory?: LocalSubtitleOutputDirectorySelector;
+  readonly selectOverwriteRecoveryDirectory?: LocalSubtitleOverwriteRecoveryDirectorySelector;
+  readonly overwriteRecoveryAdmissions?: LocalSubtitleOverwriteRecoveryAdmissionCoordinator;
+}
+
+interface ActiveOverwriteRecoveryAdmission {
+  readonly owner: LocalSubtitleOwnerIdentity;
+  phase: "selecting" | "recovering";
+}
+
+const NOOP_OVERWRITE_RECOVERY_TARGET: LocalSubtitleMainRuntimeTarget = {
+  releaseOwner: () => undefined,
+  shutdown: () => Promise.resolve(),
+};
+
+export class LocalSubtitleOverwriteRecoveryAdmissionCoordinator
+  implements LocalSubtitleMainRuntimeTarget
+{
+  readonly #active = new Map<string, ActiveOverwriteRecoveryAdmission>();
+  readonly #target: LocalSubtitleMainRuntimeTarget;
+  #closed = false;
+  #shutdownOperation: Promise<void> | undefined;
+
+  constructor(
+    target: LocalSubtitleMainRuntimeTarget = NOOP_OVERWRITE_RECOVERY_TARGET,
+  ) {
+    if (
+      !target ||
+      typeof target !== "object" ||
+      typeof target.releaseOwner !== "function" ||
+      typeof target.shutdown !== "function"
+    ) {
+      throw new TypeError("The overwrite recovery lifecycle target is invalid.");
+    }
+    this.#target = target;
+  }
+
+  begin(
+    recoveryId: string,
+    owner: LocalSubtitleOwnerIdentity,
+  ): ActiveOverwriteRecoveryAdmission | undefined {
+    if (this.#closed || this.#active.has(recoveryId)) return undefined;
+    const admission: ActiveOverwriteRecoveryAdmission = {
+      owner,
+      phase: "selecting",
+    };
+    this.#active.set(recoveryId, admission);
+    return admission;
+  }
+
+  isCurrent(
+    recoveryId: string,
+    admission: ActiveOverwriteRecoveryAdmission,
+  ): boolean {
+    return this.#active.get(recoveryId) === admission;
+  }
+
+  finish(
+    recoveryId: string,
+    admission: ActiveOverwriteRecoveryAdmission,
+  ): void {
+    if (this.#active.get(recoveryId) === admission) {
+      this.#active.delete(recoveryId);
+    }
+  }
+
+  releaseSelectingOwner(owner: LocalSubtitleOwnerIdentity): void {
+    for (const [recoveryId, admission] of this.#active) {
+      if (
+        admission.phase === "selecting" &&
+        sameOwnerIdentity(admission.owner, owner)
+      ) {
+        this.#active.delete(recoveryId);
+      }
+    }
+  }
+
+  releaseOwner(owner: LocalSubtitleOwnerKey): void {
+    for (const [recoveryId, admission] of this.#active) {
+      if (
+        admission.phase === "selecting" &&
+        admission.owner.senderId === owner.webContentsId &&
+        admission.owner.ownerSessionId === owner.ownerSessionId
+      ) {
+        this.#active.delete(recoveryId);
+      }
+    }
+    this.#target.releaseOwner(owner);
+  }
+
+  shutdown(reason: LocalSubtitleMainRuntimeShutdownReason): Promise<void> {
+    if (this.#shutdownOperation) return this.#shutdownOperation;
+    this.#closed = true;
+    for (const [recoveryId, admission] of this.#active) {
+      if (admission.phase === "selecting") this.#active.delete(recoveryId);
+    }
+
+    let operation: Promise<void>;
+    try {
+      operation = this.#target.shutdown(reason);
+    } catch (error) {
+      this.#closed = false;
+      throw error;
+    }
+    this.#shutdownOperation = operation;
+    void operation.then(
+      () => {
+        if (this.#shutdownOperation === operation) {
+          this.#shutdownOperation = undefined;
+        }
+      },
+      () => {
+        if (this.#shutdownOperation === operation) {
+          this.#shutdownOperation = undefined;
+          this.#closed = false;
+        }
+      },
+    );
+    return operation;
+  }
 }
 
 export class LocalSubtitleIpcService {
@@ -106,6 +260,8 @@ export class LocalSubtitleIpcService {
   readonly capabilities: LocalSubtitleIpcCapabilities;
   private readonly handlers: LocalSubtitleIpcHandlers;
   private readonly selectOutputDirectoryImpl: LocalSubtitleOutputDirectorySelector;
+  private readonly selectOverwriteRecoveryDirectoryImpl: LocalSubtitleOverwriteRecoveryDirectorySelector;
+  private readonly overwriteRecoveryAdmissions: LocalSubtitleOverwriteRecoveryAdmissionCoordinator;
 
   constructor(options: LocalSubtitleIpcServiceOptions = {}) {
     this.ownerSessions =
@@ -138,6 +294,20 @@ export class LocalSubtitleIpcService {
           buttonLabel: "Select directory",
           properties: ["openDirectory", "createDirectory"],
         }));
+    this.selectOverwriteRecoveryDirectoryImpl =
+      options.selectOverwriteRecoveryDirectory ??
+      ((event) => {
+        const dialogOptions = {
+          properties: ["openDirectory"] as Array<"openDirectory">,
+        };
+        const parent = BrowserWindow.fromWebContents(event.sender);
+        return parent
+          ? dialog.showOpenDialog(parent, dialogOptions)
+          : dialog.showOpenDialog(dialogOptions);
+      });
+    this.overwriteRecoveryAdmissions =
+      options.overwriteRecoveryAdmissions ??
+      new LocalSubtitleOverwriteRecoveryAdmissionCoordinator();
   }
 
   registerOwnerSession(
@@ -255,6 +425,7 @@ export class LocalSubtitleIpcService {
   }
 
   releaseOwner(owner: LocalSubtitleOwnerIdentity): void {
+    this.overwriteRecoveryAdmissions.releaseSelectingOwner(owner);
     const ownerKey = toOwnerKey(owner);
     try {
       this.handlers.onOwnerReleased?.(owner);
@@ -343,6 +514,111 @@ export class LocalSubtitleIpcService {
           importRequest,
           context,
         );
+      }
+      case LOCAL_SUBTITLE_PRELOAD_INTERNAL_CHANNELS.recoverOverwrite: {
+        const recovery = this.handlers.overwriteRecovery;
+        if (!recovery || recovery.status === "blocked") {
+          return overwriteRecoveryBlockedFailure();
+        }
+        if (recovery.status === "unavailable") {
+          return overwriteRecoveryUnavailableFailure();
+        }
+        const requestData = request as { readonly recoveryId: string };
+        const admission = this.overwriteRecoveryAdmissions.begin(
+          requestData.recoveryId,
+          context.ownerIdentity,
+        );
+        if (!admission) return overwriteRecoveryBusyFailure();
+        try {
+          const described = await recovery.describe(requestData, context);
+          if (
+            !this.overwriteRecoveryAdmissions.isCurrent(
+              requestData.recoveryId,
+              admission,
+            ) ||
+            !context.isOwnerCurrent()
+          ) {
+            return ownerReleasedFailure();
+          }
+          if (!described.ok) return described;
+          if (!described.data.requiresDirectorySelection) {
+            admission.phase = "recovering";
+            return await recovery.retry(requestData, described.data, context);
+          }
+
+          const selected = await this.selectOverwriteRecoveryDirectoryImpl(
+            context.event,
+          );
+          if (
+            !this.overwriteRecoveryAdmissions.isCurrent(
+              requestData.recoveryId,
+              admission,
+            ) ||
+            !context.isOwnerCurrent()
+          ) {
+            return ownerReleasedFailure();
+          }
+          const directoryPath = selected.filePaths[0];
+          if (selected.canceled || !directoryPath) {
+            return localSubtitleIpcSuccess({ status: "cancelled" as const });
+          }
+
+          let outputDirToken: string | undefined;
+          try {
+            const authorization = await this.capabilities.outputs.authorize(
+              context.owner,
+              directoryPath,
+            );
+            outputDirToken = authorization.outputDirToken;
+            if (
+              !this.overwriteRecoveryAdmissions.isCurrent(
+                requestData.recoveryId,
+                admission,
+              ) ||
+              !context.isOwnerCurrent()
+            ) {
+              return ownerReleasedFailure();
+            }
+            const directory = await this.capabilities.outputs.resolveDraft(
+              context.owner,
+              outputDirToken,
+            );
+            if (
+              !this.overwriteRecoveryAdmissions.isCurrent(
+                requestData.recoveryId,
+                admission,
+              ) ||
+              !context.isOwnerCurrent()
+            ) {
+              return ownerReleasedFailure();
+            }
+            admission.phase = "recovering";
+            return await recovery.recover(
+              requestData,
+              directory,
+              described.data,
+              context,
+            );
+          } catch (error) {
+            if (!context.isOwnerCurrent()) return ownerReleasedFailure();
+            if (error instanceof LocalSubtitleAuthorizationError) {
+              return overwriteDirectoryAuthorizationFailure();
+            }
+            throw error;
+          } finally {
+            if (outputDirToken) {
+              this.capabilities.outputs.revokeDraft(
+                context.owner,
+                outputDirToken,
+              );
+            }
+          }
+        } finally {
+          this.overwriteRecoveryAdmissions.finish(
+            requestData.recoveryId,
+            admission,
+          );
+        }
       }
     }
   }
@@ -568,6 +844,42 @@ function resourceManagerUnavailableFailure(): LocalSubtitleIpcResult<never> {
   );
 }
 
+function overwriteRecoveryUnavailableFailure(): LocalSubtitleIpcResult<never> {
+  return localSubtitleIpcFailure(
+    createLocalSubtitleError(
+      "runtime_missing",
+      "Overwrite recovery runtime is unavailable.",
+    ),
+  );
+}
+
+function overwriteRecoveryBlockedFailure(): LocalSubtitleIpcResult<never> {
+  return localSubtitleIpcFailure(
+    createLocalSubtitleError(
+      "configuration_not_ready",
+      "Overwrite recovery state is unavailable.",
+    ),
+  );
+}
+
+function overwriteRecoveryBusyFailure(): LocalSubtitleIpcResult<never> {
+  return localSubtitleIpcFailure(
+    createLocalSubtitleError(
+      "resource_busy",
+      "Overwrite recovery is already in progress.",
+    ),
+  );
+}
+
+function overwriteDirectoryAuthorizationFailure(): LocalSubtitleIpcResult<never> {
+  return localSubtitleIpcFailure(
+    createLocalSubtitleError(
+      "directory_authorization_required",
+      "The original subtitle output directory must be selected again.",
+    ),
+  );
+}
+
 function ownerReleasedFailure(): LocalSubtitleIpcResult<never> {
   return localSubtitleIpcFailure(
     createLocalSubtitleError(
@@ -602,6 +914,16 @@ function toOwnerKey(owner: LocalSubtitleOwnerIdentity): LocalSubtitleOwnerKey {
     webContentsId: owner.senderId,
     ownerSessionId: owner.ownerSessionId,
   };
+}
+
+function sameOwnerIdentity(
+  left: LocalSubtitleOwnerIdentity,
+  right: LocalSubtitleOwnerIdentity,
+): boolean {
+  return left.ownerSessionId === right.ownerSessionId &&
+    left.senderId === right.senderId &&
+    left.processId === right.processId &&
+    left.frameId === right.frameId;
 }
 
 const PUBLIC_CHANNELS = new Set<string>(

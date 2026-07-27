@@ -32,6 +32,9 @@ import {
   localSubtitleImportModelRequestSchema,
   localSubtitleOwnerSessionRegistrationSchema,
   localSubtitleOutputDirectorySelectionSchema,
+  localSubtitleListOverwriteRecoveriesResultSchema,
+  localSubtitleRecoverOverwriteRequestSchema,
+  localSubtitleRecoverOverwriteResultSchema,
   localSubtitleResourceJobSummarySchema,
   localSubtitleRuntimeSummarySchema,
   localSubtitleSecureIpcEnvelopeSchema,
@@ -60,8 +63,8 @@ describe("local subtitle fixed IPC surface", () => {
     const eventChannels = Object.values(LOCAL_SUBTITLE_EVENT_CHANNELS);
     const allChannels = [...publicChannels, ...internalChannels, ...eventChannels];
 
-    expect(publicChannels).toHaveLength(15);
-    expect(internalChannels).toHaveLength(6);
+    expect(publicChannels).toHaveLength(16);
+    expect(internalChannels).toHaveLength(7);
     expect(eventChannels).toHaveLength(2);
     expect(new Set(allChannels).size).toBe(allChannels.length);
     expect(allChannels.every((channel) => channel.startsWith("local-subtitle:")))
@@ -99,6 +102,8 @@ describe("local subtitle fixed IPC surface", () => {
       | "readArtifactText"
       | "revealArtifact"
       | "handoffArtifact"
+      | "listOverwriteRecoveries"
+      | "recoverOverwrite"
       | "onTaskEvent"
       | "onResourceEvent";
 
@@ -140,6 +145,66 @@ describe("local subtitle fixed IPC surface", () => {
       schema.safeParse({
         ...envelope,
         payload: { ...envelope.payload, path: "/private/result.srt" },
+      }).success,
+    ).toBe(false);
+  });
+
+  it("keeps overwrite recovery paging and selection path-free", () => {
+    const summary = {
+      recoveryId: "recovery-1",
+      displayCode: "ABCDEF123456",
+      taskId: "task-1",
+      generation: 1,
+      format: "SRT" as const,
+      direction: "rollback" as const,
+      state: "retry_failed" as const,
+      createdAt: 1,
+      requiresDirectorySelection: true,
+    };
+    expect(
+      localSubtitleListOverwriteRecoveriesResultSchema.parse({
+        status: "ready",
+        items: [summary],
+        nextCursor: { createdAt: 1, recoveryId: "recovery-1" },
+      }),
+    ).toEqual({
+      status: "ready",
+      items: [summary],
+      nextCursor: { createdAt: 1, recoveryId: "recovery-1" },
+    });
+    expect(
+      localSubtitleListOverwriteRecoveriesResultSchema.safeParse({
+        status: "ready",
+        items: [{ ...summary, directoryPath: "/private/output" }],
+      }).success,
+    ).toBe(false);
+    expect(
+      localSubtitleListOverwriteRecoveriesResultSchema.safeParse({
+        status: "ready",
+        items: [{ ...summary, displayCode: "recovery-1" }],
+      }).success,
+    ).toBe(false);
+    expect(
+      localSubtitleRecoverOverwriteRequestSchema.safeParse({
+        recoveryId: "r".repeat(81),
+      }).success,
+    ).toBe(false);
+    expect(
+      localSubtitleRecoverOverwriteRequestSchema.safeParse({
+        recoveryId: "recovery-1",
+        outputDirToken: "output-token",
+      }).success,
+    ).toBe(false);
+    expect(
+      localSubtitleRecoverOverwriteResultSchema.safeParse({
+        status: "recovered",
+        outcome: "not_found",
+      }).success,
+    ).toBe(false);
+    expect(
+      localSubtitleListOverwriteRecoveriesResultSchema.safeParse({
+        status: "blocked",
+        items: [],
       }).success,
     ).toBe(false);
   });
@@ -1290,6 +1355,9 @@ function validInternalOperationRequests(): Record<
       filePath: "/private/model.bin",
       mode: "copy",
     },
+    [LOCAL_SUBTITLE_PRELOAD_INTERNAL_CHANNELS.recoverOverwrite]: {
+      recoveryId: "recovery-1",
+    },
   };
 }
 
@@ -1317,6 +1385,10 @@ function validInternalOperationResults(): Record<
       revoked: true,
     },
     [LOCAL_SUBTITLE_PRELOAD_INTERNAL_CHANNELS.importModel]: validResourceJob(),
+    [LOCAL_SUBTITLE_PRELOAD_INTERNAL_CHANNELS.recoverOverwrite]: {
+      status: "recovered",
+      outcome: "rolled_back",
+    },
   };
 }
 
@@ -1355,6 +1427,9 @@ function validPublicOperationRequests(): Record<
     },
     [LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.handoffArtifact]: {
       artifactRef: "artifact-ref-1",
+    },
+    [LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.listOverwriteRecoveries]: {
+      limit: 25,
     },
   };
 }
@@ -1399,6 +1474,10 @@ function validPublicOperationResults(): Record<
     [LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.handoffArtifact]: {
       translationImportToken: "translation-import-token-1",
       expiresAt: Date.parse(NOW) + 60_000,
+    },
+    [LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.listOverwriteRecoveries]: {
+      status: "ready",
+      items: [],
     },
   };
 }

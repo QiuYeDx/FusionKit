@@ -60,6 +60,7 @@ export const LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS = {
   readArtifactText: "local-subtitle:read-artifact-text",
   revealArtifact: "local-subtitle:reveal-artifact",
   handoffArtifact: "local-subtitle:handoff-artifact",
+  listOverwriteRecoveries: "local-subtitle:list-overwrite-recoveries",
 } as const;
 
 export const LOCAL_SUBTITLE_PRELOAD_INTERNAL_CHANNELS = {
@@ -69,6 +70,7 @@ export const LOCAL_SUBTITLE_PRELOAD_INTERNAL_CHANNELS = {
   selectOutputDirectory: "local-subtitle:internal:select-output-directory",
   revokeOutputDirectory: "local-subtitle:internal:revoke-output-directory",
   importModel: "local-subtitle:internal:import-model",
+  recoverOverwrite: "local-subtitle:internal:recover-overwrite",
 } as const;
 
 export const LOCAL_SUBTITLE_EVENT_CHANNELS = {
@@ -156,6 +158,34 @@ const languageSchema = z
     (value) => value === "auto" || /^[a-z]{2,3}(?:-[A-Za-z0-9]{2,8})*$/.test(value),
     "Must be auto or a BCP-47-like language tag.",
   );
+
+export const LOCAL_SUBTITLE_OVERWRITE_RECOVERY_PAGE_LIMIT = 100 as const;
+
+const localSubtitleOverwriteRecoveryIdSchema = z
+  .string()
+  .min(1)
+  .max(80)
+  .regex(/^[A-Za-z0-9-]+$/);
+
+export const localSubtitleOverwriteRecoveryCursorSchema = z
+  .object({
+    createdAt: nonNegativeSafeIntegerSchema,
+    recoveryId: localSubtitleOverwriteRecoveryIdSchema,
+  })
+  .strict();
+
+export const localSubtitleListOverwriteRecoveriesRequestSchema = z
+  .object({
+    after: localSubtitleOverwriteRecoveryCursorSchema.optional(),
+    limit: positiveSafeIntegerSchema
+      .max(LOCAL_SUBTITLE_OVERWRITE_RECOVERY_PAGE_LIMIT)
+      .optional(),
+  })
+  .strict();
+
+export const localSubtitleRecoverOverwriteRequestSchema = z
+  .object({ recoveryId: localSubtitleOverwriteRecoveryIdSchema })
+  .strict();
 
 export function localSubtitleSecureIpcEnvelopeSchema<
   TSchema extends z.ZodTypeAny,
@@ -1492,6 +1522,48 @@ export const localSubtitleHandoffResultSchema = z
   })
   .strict();
 
+export const localSubtitleOverwriteRecoverySummarySchema = z
+  .object({
+    recoveryId: localSubtitleOverwriteRecoveryIdSchema,
+    displayCode: z.string().regex(/^[0-9A-F]{12}$/u),
+    taskId: idSchema,
+    generation: positiveSafeIntegerSchema,
+    format: z.enum(LOCAL_SUBTITLE_FORMATS),
+    direction: z.enum(["finalize", "rollback"]),
+    state: z.enum(["not_started", "pending", "settled", "retry_failed"]),
+    createdAt: nonNegativeSafeIntegerSchema,
+    requiresDirectorySelection: z.boolean(),
+  })
+  .strict();
+
+export const localSubtitleListOverwriteRecoveriesResultSchema =
+  z.discriminatedUnion("status", [
+    z
+      .object({
+        status: z.literal("ready"),
+        items: z
+          .array(localSubtitleOverwriteRecoverySummarySchema)
+          .max(LOCAL_SUBTITLE_OVERWRITE_RECOVERY_PAGE_LIMIT),
+        nextCursor: localSubtitleOverwriteRecoveryCursorSchema.optional(),
+      })
+      .strict(),
+    z.object({ status: z.literal("unavailable") }).strict(),
+    z.object({ status: z.literal("blocked") }).strict(),
+  ]);
+
+export const localSubtitleRecoverOverwriteResultSchema = z.discriminatedUnion(
+  "status",
+  [
+    z.object({ status: z.literal("cancelled") }).strict(),
+    z
+      .object({
+        status: z.literal("recovered"),
+        outcome: z.enum(["finalized", "rolled_back"]),
+      })
+      .strict(),
+  ],
+);
+
 export type LocalSubtitleAuthorizedMedia = z.infer<
   typeof localSubtitleAuthorizedMediaSchema
 >;
@@ -1512,6 +1584,21 @@ export type LocalSubtitleArtifactTextResult = z.infer<
 >;
 export type LocalSubtitleHandoffResult = z.infer<
   typeof localSubtitleHandoffResultSchema
+>;
+export type LocalSubtitleOverwriteRecoveryCursor = z.infer<
+  typeof localSubtitleOverwriteRecoveryCursorSchema
+>;
+export type LocalSubtitleListOverwriteRecoveriesRequest = z.infer<
+  typeof localSubtitleListOverwriteRecoveriesRequestSchema
+>;
+export type LocalSubtitleOverwriteRecoverySummary = z.infer<
+  typeof localSubtitleOverwriteRecoverySummarySchema
+>;
+export type LocalSubtitleListOverwriteRecoveriesResult = z.infer<
+  typeof localSubtitleListOverwriteRecoveriesResultSchema
+>;
+export type LocalSubtitleRecoverOverwriteResult = z.infer<
+  typeof localSubtitleRecoverOverwriteResultSchema
 >;
 export type LocalSubtitleOwnerSessionRegistration = z.infer<
   typeof localSubtitleOwnerSessionRegistrationSchema
@@ -1883,6 +1970,17 @@ export const LOCAL_SUBTITLE_PUBLIC_OPERATION_CONTRACTS: Record<
     maxRequestBytes: normalRequestBytes,
     maxResultBytes: normalResultBytes,
   },
+  [LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.listOverwriteRecoveries]: {
+    requestSchema: boundedLocalSubtitleIpcRequestSchema(
+      localSubtitleListOverwriteRecoveriesRequestSchema,
+    ),
+    resultSchema: boundedLocalSubtitleIpcResultSchema(
+      localSubtitleListOverwriteRecoveriesResultSchema,
+      normalResultBytes,
+    ),
+    maxRequestBytes: normalRequestBytes,
+    maxResultBytes: normalResultBytes,
+  },
 };
 
 export interface LocalSubtitleInternalOperationContract
@@ -1960,6 +2058,18 @@ export const LOCAL_SUBTITLE_INTERNAL_OPERATION_CONTRACTS: Record<
     ),
     resultSchema: boundedLocalSubtitleIpcResultSchema(
       localSubtitleResourceJobSummarySchema,
+      normalResultBytes,
+    ),
+    maxRequestBytes: normalRequestBytes,
+    maxResultBytes: normalResultBytes,
+    requiresOwnerEnvelope: true,
+  },
+  [LOCAL_SUBTITLE_PRELOAD_INTERNAL_CHANNELS.recoverOverwrite]: {
+    requestSchema: boundedLocalSubtitleIpcRequestSchema(
+      localSubtitleRecoverOverwriteRequestSchema,
+    ),
+    resultSchema: boundedLocalSubtitleIpcResultSchema(
+      localSubtitleRecoverOverwriteResultSchema,
       normalResultBytes,
     ),
     maxRequestBytes: normalRequestBytes,
@@ -2044,6 +2154,12 @@ export interface LocalSubtitleRendererApi {
   handoffArtifact(
     artifactRef: string,
   ): Promise<LocalSubtitleIpcResult<LocalSubtitleHandoffResult>>;
+  listOverwriteRecoveries(
+    request?: LocalSubtitleListOverwriteRecoveriesRequest,
+  ): Promise<LocalSubtitleIpcResult<LocalSubtitleListOverwriteRecoveriesResult>>;
+  recoverOverwrite(
+    recoveryId: string,
+  ): Promise<LocalSubtitleIpcResult<LocalSubtitleRecoverOverwriteResult>>;
   onTaskEvent(
     listener: (event: LocalSubtitleTaskEventEnvelope) => void,
   ): () => void;

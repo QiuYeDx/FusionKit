@@ -21,6 +21,7 @@ import RealtimeVoice from "./pages/Tools/Audio/RealtimeVoice";
 import { Toaster } from "@/components/ui/sonner";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import Update from "@/components/update";
+import LocalSubtitleOverwriteRecoveryPrompt from "@/components/local-subtitle/LocalSubtitleOverwriteRecoveryPrompt";
 
 
 const ROUTE_ORDER: Record<string, number> = {
@@ -157,6 +158,8 @@ function App() {
 
       {/* 自动更新检测 */}
       <Update autoCheck showTrigger={false} />
+
+      <LocalSubtitleOverwriteRecoveryPrompt />
 
     </div>
   );

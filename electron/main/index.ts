@@ -19,6 +19,7 @@ import { setupAudioIPC } from "./audio/ipc";
 import { setupAudioRealtimeIPC } from "./audio/realtime-ipc";
 import {
   LocalSubtitleIpcService,
+  LocalSubtitleOverwriteRecoveryAdmissionCoordinator,
   setupLocalSubtitleIPC,
 } from "./local-subtitle/ipc";
 import {
@@ -41,6 +42,7 @@ import { LocalSubtitleSessionRegistry } from "./local-subtitle/session-registry"
 import { LocalSubtitleServerSupervisor } from "./local-subtitle/server-supervisor";
 import { LocalSubtitleServerAppLifecycle } from "./local-subtitle/server-app-lifecycle";
 import { initializeLocalSubtitleOverwriteProductionRuntime } from "./local-subtitle/overwrite-production-runtime";
+import { LocalSubtitleOverwriteRecoveryIpcBridge } from "./local-subtitle/overwrite-recovery-ipc";
 import {
   LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS,
   localSubtitleIpcSuccess,
@@ -267,13 +269,17 @@ app.whenReady().then(async () => {
     executor: localSubtitleProductionExecutor,
     artifacts: localSubtitleArtifacts,
   });
+  const localSubtitleOverwriteRecoveryAdmissions =
+    new LocalSubtitleOverwriteRecoveryAdmissionCoordinator(
+      localSubtitleOverwriteRuntime.lifecycleTarget,
+    );
   const localSubtitleSessionLifecycle = new LocalSubtitleSessionLifecycle(
     localSubtitleJobManager,
     localSubtitleModelManager,
     localSubtitleMediaNormalizer,
     localSubtitleServerSupervisor,
     localSubtitleSessionRegistry,
-    localSubtitleOverwriteRuntime.lifecycleTarget,
+    localSubtitleOverwriteRecoveryAdmissions,
   );
   const localSubtitleMainRuntime = new LocalSubtitleMainRuntime(
     localSubtitleSessionLifecycle,
@@ -298,7 +304,10 @@ app.whenReady().then(async () => {
     localSubtitleModelManager,
     localSubtitleSessionIpcBridge,
   );
+  const localSubtitleOverwriteRecoveryIpcBridge =
+    new LocalSubtitleOverwriteRecoveryIpcBridge(localSubtitleOverwriteRuntime);
   const localSubtitleIpcService = new LocalSubtitleIpcService({
+    overwriteRecoveryAdmissions: localSubtitleOverwriteRecoveryAdmissions,
     capabilities: {
       inputs: localSubtitleInputAuthorizations,
       outputs: localSubtitleOutputAuthorizations,
@@ -323,8 +332,11 @@ app.whenReady().then(async () => {
         ...localSubtitleSessionIpcBridge.handlers.public,
         ...localSubtitleModelIpcBridge.handlers.public,
         ...localSubtitleJobIpcBridge.handlers.public,
+        ...localSubtitleOverwriteRecoveryIpcBridge.handlers.public,
       },
       importModel: localSubtitleModelIpcBridge.handlers.importModel,
+      overwriteRecovery:
+        localSubtitleOverwriteRecoveryIpcBridge.handlers.overwriteRecovery,
       onOwnerReleased: (owner) => {
         localSubtitleSessionIpcBridge.releaseOwner(owner);
         localSubtitleMainRuntime.releaseOwner({

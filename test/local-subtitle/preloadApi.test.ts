@@ -53,6 +53,8 @@ describe("local subtitle fixed preload API", () => {
         "readArtifactText",
         "revealArtifact",
         "handoffArtifact",
+        "listOverwriteRecoveries",
+        "recoverOverwrite",
         "onTaskEvent",
         "onResourceEvent",
       ].sort(),
@@ -106,6 +108,8 @@ describe("local subtitle fixed preload API", () => {
       [LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.readArtifactText, { artifactRef: "artifact-1" }],
       [LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.revealArtifact, { artifactRef: "artifact-1" }],
       [LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.handoffArtifact, { artifactRef: "artifact-1" }],
+      [LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.listOverwriteRecoveries, { limit: 20 }],
+      [LOCAL_SUBTITLE_PRELOAD_INTERNAL_CHANNELS.recoverOverwrite, { recoveryId: "recovery-1" }],
     ];
 
     expect(invoke).toHaveBeenCalledTimes(expectedCalls.length);
@@ -209,7 +213,7 @@ describe("local subtitle fixed preload API", () => {
     );
 
     const results = await callEveryCommand(api, mediaOne, mediaTwo, model);
-    expect(results).toHaveLength(20);
+    expect(results).toHaveLength(22);
     expect(
       results.every(
         (result) => !result.ok && result.error.code === "owner_released",
@@ -249,6 +253,10 @@ describe("local subtitle fixed preload API", () => {
         error: { code: "invalid_ipc_request" },
       },
     );
+    await expect(api.recoverOverwrite("r".repeat(81))).resolves.toMatchObject({
+      ok: false,
+      error: { code: "invalid_ipc_request" },
+    });
 
     expect(invoke).not.toHaveBeenCalled();
     expect(getPathForFile).not.toHaveBeenCalled();
@@ -409,6 +417,8 @@ async function callEveryCommand(
     api.readArtifactText("artifact-1"),
     api.revealArtifact("artifact-1"),
     api.handoffArtifact("artifact-1"),
+    api.listOverwriteRecoveries({ limit: 20 }),
+    api.recoverOverwrite("recovery-1"),
   ]);
 }
 

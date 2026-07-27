@@ -269,6 +269,18 @@ export function createLocalSubtitleRendererApi({
         { artifactRef },
       );
     },
+    listOverwriteRecoveries(request = {}) {
+      return invokePublic(
+        LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.listOverwriteRecoveries,
+        request,
+      );
+    },
+    recoverOverwrite(recoveryId) {
+      return invokeInternal(
+        LOCAL_SUBTITLE_PRELOAD_INTERNAL_CHANNELS.recoverOverwrite,
+        { recoveryId },
+      );
+    },
     onTaskEvent(listener) {
       return subscribe<LocalSubtitleTaskEventEnvelope>(
         LOCAL_SUBTITLE_EVENT_CHANNELS.taskEvent,

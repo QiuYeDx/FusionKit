@@ -217,6 +217,58 @@
       "trigger": "Show guide"
     }
   },
+  "local_transcriber": {
+    "overwrite_recovery": {
+      "title": "Output recovery",
+      "trigger_label": "Open output recovery, {{count}} pending",
+      "pending_count": "Pending output recovery items: {{count}}",
+      "loading": "Checking output recovery...",
+      "empty_title": "No output recovery is pending",
+      "refresh": "Refresh",
+      "close": "Close",
+      "item_title": "Recovery {{code}}",
+      "choose_original_directory": "Choose original folder",
+      "retry": "Retry recovery",
+      "working": "Recovering...",
+      "selection_cancelled": "Folder selection was cancelled",
+      "settled": {
+        "finalized": "Output replacement completed",
+        "rolled_back": "Previous output restored"
+      },
+      "direction": {
+        "finalize": "Complete replacement",
+        "rollback": "Restore previous file"
+      },
+      "state": {
+        "not_started": "Awaiting confirmation",
+        "pending": "Recovery pending",
+        "retry_failed": "Retry required",
+        "settled": "Cleanup pending"
+      },
+      "blocked": {
+        "title": "Recovery state unavailable",
+        "description": "FusionKit could not read the recovery state. Existing files were left unchanged."
+      },
+      "unavailable": {
+        "title": "Output recovery unavailable",
+        "description": "The required recovery component is unavailable. Existing files were left unchanged."
+      },
+      "error": {
+        "recovery_pending": "Recovery is not complete. Choose the original output folder and try again.",
+        "directory_authorization_required": "Choose the original output folder to continue recovery.",
+        "persistence_failed": "Recovery state could not be saved safely. Try again later.",
+        "invalid_request": "This recovery item changed. Refresh and try again.",
+        "invalid_state": "This recovery item cannot be processed now. Refresh and try again.",
+        "invalid_result": "The recovery result could not be confirmed. The files remain protected.",
+        "generic": "Recovery could not be completed. Try again later."
+      },
+      "field": {
+        "recovery_code": "Recovery code",
+        "format": "Format",
+        "created_at": "Created"
+      }
+    }
+  },
   "extractor": {
     "title": "Subtitle Language Extraction",
     "description": "Extract text lines of a specified language from bilingual LRC/SRT subtitles while preserving format and timestamps.",

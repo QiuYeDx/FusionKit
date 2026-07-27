@@ -90,6 +90,7 @@ export interface LocalSubtitleOverwriteRecoveryRecord {
 
 export interface LocalSubtitleOverwriteRecoverySummary {
   readonly recoveryId: string;
+  readonly displayCode: string;
   readonly taskId: string;
   readonly generation: number;
   readonly format: LocalSubtitleFormat;
@@ -145,6 +146,7 @@ export interface LocalSubtitleOverwriteRecoveryHandoff {
 }
 
 export interface RecoverLocalSubtitleOverwriteAfterReauthorizationOptions {
+  readonly owner: LocalSubtitleOwnerKey;
   readonly recoveryId: string;
   readonly taskId: string;
   readonly generation: number;
@@ -153,6 +155,7 @@ export interface RecoverLocalSubtitleOverwriteAfterReauthorizationOptions {
 }
 
 export type LocalSubtitleOverwriteRecoveryErrorCode =
+  | "authorization_expired"
   | "invalid_authority"
   | "invalid_record"
   | "invalid_request"
@@ -401,6 +404,7 @@ export class LocalSubtitleOverwriteRecoveryOwner<TReservation>
   readonly #now: () => number;
   #shutdownOperation: Promise<void> | undefined;
   #shutdownStarted = false;
+  #reauthorizationAdmissionsClosed = false;
 
   constructor(
     private readonly repository: LocalSubtitleOverwriteRecoveryRepository,
@@ -439,6 +443,7 @@ export class LocalSubtitleOverwriteRecoveryOwner<TReservation>
       [...this.#entries.values()]
         .map(({ record, volatile }) => Object.freeze({
           recoveryId: record.recoveryId,
+          displayCode: recoveryDisplayCode(record.recoveryId),
           taskId: record.taskId,
           generation: record.generation,
           format: record.format,
@@ -663,6 +668,16 @@ export class LocalSubtitleOverwriteRecoveryOwner<TReservation>
     options: RecoverLocalSubtitleOverwriteAfterReauthorizationOptions,
   ): Promise<LocalSubtitleOverwriteRecoveryResult> {
     const selection = assertRecoverySelection(options);
+    const actorFingerprint = ownerFingerprint(selection.owner);
+    if (
+      this.#reauthorizationAdmissionsClosed ||
+      this.#releasedOwners.has(actorFingerprint)
+    ) {
+      throw failure(
+        "invalid_state",
+        "The overwrite recovery reauthorization admission is closed.",
+      );
+    }
     return this.#withRecovery(selection.recoveryId, () => {
       const entry = this.#requireEntry(selection.recoveryId);
       if (entry.volatile) {
@@ -681,6 +696,12 @@ export class LocalSubtitleOverwriteRecoveryOwner<TReservation>
       return withLocalSubtitleOverwriteDirectory(
         key,
         () => {
+          if (selection.directory.expiresAt <= this.#now()) {
+            throw failure(
+              "authorization_expired",
+              "The overwrite recovery directory authorization expired.",
+            );
+          }
           const request = {
             transactionId: entry.record.recoveryId,
             directoryPath: selection.directory.directoryPath,
@@ -709,13 +730,12 @@ export class LocalSubtitleOverwriteRecoveryOwner<TReservation>
           }
 
           if (result.state === "not_found") {
-            if (entry.record.nativeState !== "not_started") {
-              entry.record = this.#updatedRecord(entry.record, "retry_failed");
-              this.#persist();
-              throw failure("recovery_pending", "The overwrite recovery terminal marker is missing.");
-            }
-            this.#complete(entry.record.recoveryId, entry);
-            return Object.freeze({ state: "rolled_back" as const });
+            entry.record = this.#updatedRecord(entry.record, "retry_failed");
+            this.#persist();
+            throw failure(
+              "recovery_pending",
+              "The overwrite recovery terminal marker was not found in the selected directory.",
+            );
           }
           if (result.state !== terminalResultForDecision(entry.record.decision)) {
             throw failure("invalid_result", "The overwrite recovery result conflicts with its durable decision.");
@@ -757,8 +777,20 @@ export class LocalSubtitleOverwriteRecoveryOwner<TReservation>
 
   shutdown(_reason: LocalSubtitleMainRuntimeShutdownReason): Promise<void> {
     if (this.#shutdownOperation) return this.#shutdownOperation;
+
+    let resolveOperation!: () => void;
+    let rejectOperation!: (reason?: unknown) => void;
+    const operation = new Promise<void>((resolve, reject) => {
+      resolveOperation = resolve;
+      rejectOperation = reject;
+    });
+    this.#shutdownOperation = operation;
     this.#shutdownStarted = true;
-    const operation = Promise.resolve().then(() => {
+    this.#reauthorizationAdmissionsClosed = true;
+    const recoveryTails = [...this.#recoveryTails.values()];
+
+    void (async () => {
+      await Promise.all(recoveryTails);
       let firstFailure: unknown;
       for (const [recoveryId, entry] of [...this.#entries]) {
         try {
@@ -774,13 +806,21 @@ export class LocalSubtitleOverwriteRecoveryOwner<TReservation>
           "Overwrite recovery remains pending and requires reauthorization.",
         );
       }
-    });
-    this.#shutdownOperation = operation;
-    void operation.then(() => {
-      if (this.#shutdownOperation === operation) this.#shutdownOperation = undefined;
-    }, () => {
-      if (this.#shutdownOperation === operation) this.#shutdownOperation = undefined;
-    });
+    })().then(
+      () => {
+        if (this.#shutdownOperation === operation) {
+          this.#shutdownOperation = undefined;
+        }
+        resolveOperation();
+      },
+      (error: unknown) => {
+        if (this.#shutdownOperation === operation) {
+          this.#shutdownOperation = undefined;
+          this.#reauthorizationAdmissionsClosed = false;
+        }
+        rejectOperation(error);
+      },
+    );
     return operation;
   }
 
@@ -1108,6 +1148,7 @@ function snapshotRegistryAuthority<TReservation>(
 function assertRecoverySelection(
   options: RecoverLocalSubtitleOverwriteAfterReauthorizationOptions,
 ): Readonly<RecoverLocalSubtitleOverwriteAfterReauthorizationOptions> {
+  const owner = options?.owner;
   const recoveryId = options?.recoveryId;
   const taskId = options?.taskId;
   const generation = options?.generation;
@@ -1115,6 +1156,7 @@ function assertRecoverySelection(
   const directory = snapshotResolvedDirectory(options?.directory);
   if (
     !options ||
+    !isOwner(owner) ||
     typeof recoveryId !== "string" ||
     !RECOVERY_ID_PATTERN.test(recoveryId) ||
     !isId(taskId) ||
@@ -1124,7 +1166,14 @@ function assertRecoverySelection(
   ) {
     throw failure("invalid_request", "The overwrite recovery selection is invalid.");
   }
-  return Object.freeze({ recoveryId, taskId, generation, format, directory });
+  return Object.freeze({
+    owner: Object.freeze({ ...owner }),
+    recoveryId,
+    taskId,
+    generation,
+    format,
+    directory,
+  });
 }
 
 function serializeRecoveryFile(
@@ -1213,6 +1262,15 @@ function ownerFingerprint(owner: LocalSubtitleOwnerKey): string {
     .update("\0")
     .update(owner.ownerSessionId)
     .digest("hex");
+}
+
+function recoveryDisplayCode(recoveryId: string): string {
+  return createHash("sha256")
+    .update("fusionkit-overwrite-recovery\0")
+    .update(recoveryId)
+    .digest("hex")
+    .slice(0, 12)
+    .toUpperCase();
 }
 
 function isRepository(value: unknown): value is LocalSubtitleOverwriteRecoveryRepository {
