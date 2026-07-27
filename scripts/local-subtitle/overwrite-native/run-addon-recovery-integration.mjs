@@ -31,8 +31,7 @@ const ROLLBACK_POINTS = Object.freeze([
   "rollback_after_namespace_sync",
   "rollback_before_cleanup_unlink",
   "rollback_after_cleanup_sync",
-  "rollback_before_journal_remove",
-  GENERIC_JOURNAL_POINT,
+  "rollback_before_ack",
 ]);
 const ROLLBACK_OPEN_LAYOUT_POINTS = new Set([
   "rollback_after_intent_sync",
@@ -43,11 +42,13 @@ const ROLLBACK_PARTIAL_CLEANUP_POINTS = new Set([
   "rollback_before_cleanup_unlink",
 ]);
 const FINALIZE_ERROR_CASES = Object.freeze([
+  { priorVictim: "existing", checkpoint: "finalize_after_intent_sync" },
+  { priorVictim: "absent", checkpoint: "finalize_after_intent_sync" },
   { priorVictim: "existing", checkpoint: "finalize_before_namespace" },
   { priorVictim: "absent", checkpoint: "finalize_before_namespace" },
   { priorVictim: "existing", checkpoint: "finalize_after_namespace_sync" },
-  { priorVictim: "existing", checkpoint: GENERIC_JOURNAL_POINT },
-  { priorVictim: "absent", checkpoint: GENERIC_JOURNAL_POINT },
+  { priorVictim: "existing", checkpoint: "finalize_before_ack" },
+  { priorVictim: "absent", checkpoint: "finalize_before_ack" },
 ]);
 
 export function parseRecoveryIntegrationArguments(argv) {
@@ -97,8 +98,21 @@ export async function runOverwriteNativeRecoveryIntegration(options = {}) {
     path.join(tempRoot, "fusionkit-overwrite-native-recovery-"),
   );
   try {
-    const beginCrashCases = ["existing", "absent"].map((priorVictim) =>
-      runBeginCrashCase(canonicalAddonPath, workRoot, priorVictim)
+    const beginCrashCases = ["existing", "absent"].flatMap((priorVictim) =>
+      ["rollback", "finalize"].map((decision) =>
+        runBeginCrashCase(canonicalAddonPath, workRoot, priorVictim, decision)
+      )
+    );
+    const abandonedOpenReceiptCases = ["existing", "absent"].flatMap(
+      (priorVictim) =>
+        ["rollback", "finalize"].map((decision) =>
+          runAbandonedOpenReceiptCase(
+            canonicalAddonPath,
+            workRoot,
+            priorVictim,
+            decision,
+          )
+        ),
     );
     const rollbackCrashCases = createPriorVictimMatrix(ROLLBACK_POINTS).map(
       ({ priorVictim, checkpoint }) =>
@@ -117,31 +131,41 @@ export async function runOverwriteNativeRecoveryIntegration(options = {}) {
     const finalizeErrorRetryCases = FINALIZE_ERROR_CASES.map((entry) =>
       runFinalizeErrorRetryCase(canonicalAddonPath, workRoot, entry)
     );
-    const finalizeUnsupportedCases = [
-      runAbsentFinalizeAfterNamespaceUnsupportedCase(
-        canonicalAddonPath,
-        workRoot,
-      ),
-    ];
+    const finalizeCrashCases = FINALIZE_ERROR_CASES.map((entry) =>
+      runFinalizeCrashCase(canonicalAddonPath, workRoot, entry)
+    );
+    const acknowledgeCases = ["existing", "absent"].flatMap((priorVictim) =>
+      ["rollback", "finalize"].map((decision) => ({ priorVictim, decision }))
+    );
+    const acknowledgeCrashCases = acknowledgeCases.map((entry) =>
+      runAcknowledgeCrashCase(canonicalAddonPath, workRoot, entry)
+    );
+    const acknowledgeErrorRetryCases = acknowledgeCases.map((entry) =>
+      runAcknowledgeErrorRetryCase(canonicalAddonPath, workRoot, entry)
+    );
     const report = deepFreeze({
-      schemaVersion: 2,
-      workPackage: "FS-TXN-001B",
+      schemaVersion: 3,
+      workPackage: "FS-TXN-001F",
       target: { platform: "darwin", arch: "arm64" },
       addon: {
         component: "local-subtitle-overwrite",
-        protocolVersion: 3,
+        protocolVersion: 4,
         testOnly: true,
         testFaultInjection: true,
       },
       beginCrashCases,
+      abandonedOpenReceiptCases,
       rollbackCrashCases,
       rollbackErrorRetryCases,
       finalizeErrorRetryCases,
-      finalizeUnsupportedCases,
+      finalizeCrashCases,
+      acknowledgeCrashCases,
+      acknowledgeErrorRetryCases,
       claims: {
-        beginOpenJournalAutomaticallyDecided: false,
-        finalizeCrashRecoveryClaimed: false,
+        beginOpenJournalRequiresExplicitDecision: true,
+        processCrashRecoveryClaimed: true,
         powerLossSafetyClaimed: false,
+        nonCooperativeWriterSafetyClaimed: false,
       },
       status: "passed",
       productionGateChanged: false,
@@ -169,8 +193,8 @@ function createPriorVictimMatrix(checkpoints) {
   );
 }
 
-function runBeginCrashCase(addonPath, workRoot, priorVictim) {
-  const id = `begin-${priorVictim}-${BEGIN_CRASH_POINT}`;
+function runBeginCrashCase(addonPath, workRoot, priorVictim, decision) {
+  const id = `begin-${priorVictim}-${decision}-${BEGIN_CRASH_POINT}`;
   const fixture = createFixture(workRoot, id, priorVictim === "existing");
   const crash = spawnChild(
     childInput("begin-crash", addonPath, fixture, BEGIN_CRASH_POINT),
@@ -180,19 +204,29 @@ function runBeginCrashCase(addonPath, workRoot, priorVictim) {
   assertOpenTransactionLayout(fixture);
   const namespaceBeforeRecovery = namespaceSnapshot(fixture);
 
-  const firstRecovery = recoverInFreshChild(addonPath, fixture);
-  assert.deepEqual(firstRecovery, { state: "decision_required" });
-  assert.deepEqual(namespaceSnapshot(fixture), namespaceBeforeRecovery);
-  assertOpenTransactionLayout(fixture);
+  const firstRecovery = recoverInFreshChild(addonPath, fixture, decision);
+  const firstExpectedState = decision === "finalize"
+    ? "finalized"
+    : "rolled_back";
+  assert.deepEqual(firstRecovery, { state: firstExpectedState });
+  if (decision === "finalize") assertFixtureFinalizedLayout(fixture);
+  else assertFixtureRolledBackLayout(fixture);
+  assertJournalState(fixture, decision);
+  assert.notDeepEqual(namespaceSnapshot(fixture), namespaceBeforeRecovery);
+  const acknowledge = acknowledgeInFreshChild(addonPath, fixture, decision);
+  assert.deepEqual(acknowledge, { state: "acknowledged" });
+  if (decision === "finalize") assertFixtureFinalized(fixture);
+  else assertFixtureRolledBack(fixture);
+  const namespaceAfterAcknowledge = namespaceSnapshot(fixture);
 
-  const repeatedRecovery = recoverInFreshChild(addonPath, fixture);
-  assert.deepEqual(repeatedRecovery, { state: "decision_required" });
-  assert.deepEqual(namespaceSnapshot(fixture), namespaceBeforeRecovery);
-  assertOpenTransactionLayout(fixture);
+  const repeatedRecovery = recoverInFreshChild(addonPath, fixture, decision);
+  assert.deepEqual(repeatedRecovery, { state: "not_found" });
+  assert.deepEqual(namespaceSnapshot(fixture), namespaceAfterAcknowledge);
 
   return Object.freeze({
     id,
     priorVictim,
+    decision,
     checkpoint: BEGIN_CRASH_POINT,
     childA: {
       action: "begin",
@@ -202,15 +236,79 @@ function runBeginCrashCase(addonPath, workRoot, priorVictim) {
     childB: {
       freshProcess: true,
       recoveryState: firstRecovery.state,
+      explicitDecisionApplied: true,
     },
     childC: {
       freshProcess: true,
+      acknowledgeState: acknowledge.state,
+    },
+    childD: {
+      freshProcess: true,
       recoveryState: repeatedRecovery.state,
+      idempotent: true,
     },
     openJournalVerified: true,
     installedLayoutVerifiedWithExactIdentity: true,
-    recoveryNamespaceUnchanged: true,
-    automaticTerminalDecision: false,
+    recoveryConvergedToExplicitDecision: true,
+    idempotentNamespaceUnchanged: true,
+    passed: true,
+  });
+}
+
+function runAbandonedOpenReceiptCase(
+  addonPath,
+  workRoot,
+  priorVictim,
+  decision,
+) {
+  const id = `abandon-open-${priorVictim}-${decision}`;
+  const fixture = createFixture(workRoot, id, priorVictim === "existing");
+  const abandoned = spawnJsonChild(
+    childInput("abandon-open", addonPath, fixture),
+  );
+  assert.deepEqual(abandoned, { receiptAbandoned: true });
+  assertOpenTransactionLayout(fixture);
+  assertJournalState(fixture, "open");
+  const namespaceBeforeRecovery = namespaceSnapshot(fixture);
+
+  const firstRecovery = recoverInFreshChild(addonPath, fixture, decision);
+  const expectedState = decision === "finalize" ? "finalized" : "rolled_back";
+  assert.deepEqual(firstRecovery, { state: expectedState });
+  if (decision === "finalize") assertFixtureFinalizedLayout(fixture);
+  else assertFixtureRolledBackLayout(fixture);
+  assertJournalState(fixture, decision);
+  assert.notDeepEqual(namespaceSnapshot(fixture), namespaceBeforeRecovery);
+
+  const acknowledgement = acknowledgeInFreshChild(
+    addonPath,
+    fixture,
+    decision,
+  );
+  assert.deepEqual(acknowledgement, { state: "acknowledged" });
+  if (decision === "finalize") assertFixtureFinalized(fixture);
+  else assertFixtureRolledBack(fixture);
+
+  return Object.freeze({
+    id,
+    priorVictim,
+    decision,
+    childA: {
+      action: "abandon-open",
+      receiptAbandoned: true,
+      normalExit: true,
+    },
+    childB: {
+      freshProcess: true,
+      recoveryState: firstRecovery.state,
+      explicitDecisionApplied: true,
+    },
+    childC: {
+      freshProcess: true,
+      acknowledgeState: acknowledgement.state,
+    },
+    openJournalRetainedByFinalizer: true,
+    presetRollbackMarkerAbsent: true,
+    recoveryConvergedToExplicitDecision: true,
     passed: true,
   });
 }
@@ -233,21 +331,16 @@ function runRollbackCrashCase(addonPath, workRoot, options) {
     options.checkpoint,
   );
 
-  const firstExpectedState = options.checkpoint === GENERIC_JOURNAL_POINT
-    ? "not_found"
-    : "rolled_back";
-  const namespaceBeforeFirstRecovery = options.checkpoint === GENERIC_JOURNAL_POINT
-    ? namespaceSnapshot(fixture)
-    : undefined;
-  const firstRecovery = recoverInFreshChild(addonPath, fixture);
-  assert.deepEqual(firstRecovery, { state: firstExpectedState });
-  if (namespaceBeforeFirstRecovery) {
-    assert.deepEqual(namespaceSnapshot(fixture), namespaceBeforeFirstRecovery);
-  }
+  const firstRecovery = recoverInFreshChild(addonPath, fixture, "rollback");
+  assert.deepEqual(firstRecovery, { state: "rolled_back" });
+  assertFixtureRolledBackLayout(fixture);
+  assertJournalState(fixture, "rollback");
+  const acknowledge = acknowledgeInFreshChild(addonPath, fixture, "rollback");
+  assert.deepEqual(acknowledge, { state: "acknowledged" });
   assertFixtureRolledBack(fixture);
   const namespaceBeforeIdempotencyCheck = namespaceSnapshot(fixture);
 
-  const repeatedRecovery = recoverInFreshChild(addonPath, fixture);
+  const repeatedRecovery = recoverInFreshChild(addonPath, fixture, "rollback");
   assert.deepEqual(repeatedRecovery, { state: "not_found" });
   assert.deepEqual(
     namespaceSnapshot(fixture),
@@ -267,9 +360,13 @@ function runRollbackCrashCase(addonPath, workRoot, options) {
     childB: {
       freshProcess: true,
       recoveryState: firstRecovery.state,
-      recoveryApplied: firstExpectedState === "rolled_back",
+      recoveryApplied: true,
     },
     childC: {
+      freshProcess: true,
+      acknowledgeState: acknowledge.state,
+    },
+    childD: {
       freshProcess: true,
       recoveryState: repeatedRecovery.state,
       idempotent: true,
@@ -300,9 +397,7 @@ function runRollbackErrorRetryCase(addonPath, workRoot, options) {
     ),
     faultEnvironment("error", options.checkpoint),
   );
-  const expectedJournalState = options.checkpoint === GENERIC_JOURNAL_POINT
-    ? "absent"
-    : "rollback";
+  const expectedJournalState = "rollback";
   assert.deepEqual(result, {
     firstAction: "error",
     firstErrorCode: "ERR_LOCAL_SUBTITLE_OVERWRITE_FILESYSTEM",
@@ -340,17 +435,18 @@ function runFinalizeErrorRetryCase(addonPath, workRoot, options) {
     ),
     faultEnvironment("error", options.checkpoint),
   );
-  const cleanupEntered = options.checkpoint !== "finalize_before_namespace";
-  const expectedJournalState = options.checkpoint === GENERIC_JOURNAL_POINT
-    ? "absent"
-    : "open";
+  const cleanupEntered = ![
+    "finalize_after_intent_sync",
+    "finalize_before_namespace",
+  ].includes(options.checkpoint);
+  const expectedJournalState = "finalize";
   assert.deepEqual(result, {
     firstAction: "error",
     firstErrorCode: "ERR_LOCAL_SUBTITLE_OVERWRITE_FILESYSTEM",
     intermediateLayoutVerified: true,
     journalStateBeforeRetry: expectedJournalState,
     cleanupEntered,
-    oppositeTerminalRejected: cleanupEntered ? true : null,
+    oppositeTerminalRejected: true,
     sameReceiptRetried: true,
     retryCompleted: true,
   });
@@ -361,38 +457,160 @@ function runFinalizeErrorRetryCase(addonPath, workRoot, options) {
     checkpoint: options.checkpoint,
     ...result,
     finalizedWithExactNewIdentity: true,
-    errorRetryOnly: true,
-    crashRecoveryClaimed: false,
+    durableFinalizeIntentVerified: true,
     passed: true,
   });
 }
 
-function runAbsentFinalizeAfterNamespaceUnsupportedCase(addonPath, workRoot) {
-  const checkpoint = "finalize_after_namespace_sync";
-  const id = `finalize-unsupported-absent-${checkpoint}`;
-  const fixture = createFixture(workRoot, id, false);
-  const result = spawnJsonChild(
-    childInput(
-      "finalize-unreachable-point",
-      addonPath,
-      fixture,
-      checkpoint,
-    ),
-    faultEnvironment("error", checkpoint),
+function runFinalizeCrashCase(addonPath, workRoot, options) {
+  const id = `finalize-crash-${options.priorVictim}-${options.checkpoint}`;
+  const fixture = createFixture(
+    workRoot,
+    id,
+    options.priorVictim === "existing",
   );
-  assert.deepEqual(result, {
-    configuredAction: "error",
-    faultPointReached: false,
-    finalizeCompleted: true,
-  });
+  const crash = spawnChild(
+    childInput("finalize-crash", addonPath, fixture, options.checkpoint),
+    faultEnvironment("exit", options.checkpoint),
+  );
+  assertCrashExit(crash);
+  const journalStateAtCrash = "finalize";
+  if (["finalize_after_intent_sync", "finalize_before_namespace"].includes(
+    options.checkpoint,
+  )) {
+    assertInstalledLayout(fixture);
+  } else {
+    assertFixtureFinalizedLayout(fixture);
+  }
+  assertJournalState(fixture, journalStateAtCrash);
+
+  const firstRecovery = recoverInFreshChild(addonPath, fixture, "finalize");
+  assert.deepEqual(firstRecovery, { state: "finalized" });
+  assertFixtureFinalizedLayout(fixture);
+  assertJournalState(fixture, "finalize");
+  const acknowledge = acknowledgeInFreshChild(addonPath, fixture, "finalize");
+  assert.deepEqual(acknowledge, { state: "acknowledged" });
   assertFixtureFinalized(fixture);
+  const namespaceBeforeIdempotencyCheck = namespaceSnapshot(fixture);
+  const repeatedRecovery = recoverInFreshChild(addonPath, fixture, "finalize");
+  assert.deepEqual(repeatedRecovery, { state: "not_found" });
+  assert.deepEqual(namespaceSnapshot(fixture), namespaceBeforeIdempotencyCheck);
+
   return Object.freeze({
     id,
-    priorVictim: "absent",
-    checkpoint,
+    priorVictim: options.priorVictim,
+    checkpoint: options.checkpoint,
+    childA: {
+      action: "finalize",
+      exitCode: CRASH_EXIT_CODE,
+      processTerminatedAtCheckpoint: true,
+    },
+    childB: {
+      freshProcess: true,
+      recoveryState: firstRecovery.state,
+      recoveryApplied: true,
+    },
+    childC: {
+      freshProcess: true,
+      acknowledgeState: acknowledge.state,
+    },
+    childD: {
+      freshProcess: true,
+      recoveryState: repeatedRecovery.state,
+      idempotent: true,
+    },
+    journalStateAtCrash,
+    finalizedWithExactNewIdentity: true,
+    idempotentNamespaceUnchanged: true,
+    passed: true,
+  });
+}
+
+function runAcknowledgeCrashCase(addonPath, workRoot, options) {
+  const id =
+    `acknowledge-crash-${options.priorVictim}-${options.decision}`;
+  const fixture = createFixture(
+    workRoot,
+    id,
+    options.priorVictim === "existing",
+  );
+  const crash = spawnChild(
+    {
+      ...childInput(
+        "acknowledge-crash",
+        addonPath,
+        fixture,
+        GENERIC_JOURNAL_POINT,
+      ),
+      terminal: options.decision,
+    },
+    faultEnvironment("exit", GENERIC_JOURNAL_POINT),
+  );
+  assertCrashExit(crash);
+  if (options.decision === "finalize") assertFixtureFinalized(fixture);
+  else assertFixtureRolledBack(fixture);
+  const namespaceBeforeRetry = namespaceSnapshot(fixture);
+  const acknowledge = acknowledgeInFreshChild(
+    addonPath,
+    fixture,
+    options.decision,
+  );
+  assert.deepEqual(acknowledge, { state: "not_found" });
+  assert.deepEqual(namespaceSnapshot(fixture), namespaceBeforeRetry);
+  return Object.freeze({
+    id,
+    priorVictim: options.priorVictim,
+    decision: options.decision,
+    checkpoint: GENERIC_JOURNAL_POINT,
+    childA: {
+      action: "acknowledge",
+      exitCode: CRASH_EXIT_CODE,
+      processTerminatedAtCheckpoint: true,
+    },
+    childB: {
+      freshProcess: true,
+      acknowledgeState: acknowledge.state,
+    },
+    terminalLayoutPreserved: true,
+    notFoundTreatedAsNativeSuccess: false,
+    passed: true,
+  });
+}
+
+function runAcknowledgeErrorRetryCase(addonPath, workRoot, options) {
+  const id =
+    `acknowledge-error-${options.priorVictim}-${options.decision}`;
+  const fixture = createFixture(
+    workRoot,
+    id,
+    options.priorVictim === "existing",
+  );
+  const result = spawnJsonChild(
+    {
+      ...childInput(
+        "acknowledge-error-retry",
+        addonPath,
+        fixture,
+        GENERIC_JOURNAL_POINT,
+      ),
+      terminal: options.decision,
+    },
+    faultEnvironment("error", GENERIC_JOURNAL_POINT),
+  );
+  assert.deepEqual(result, {
+    firstAction: "error",
+    firstErrorCode: "ERR_LOCAL_SUBTITLE_OVERWRITE_FILESYSTEM",
+    sameReceiptRetried: true,
+    retryCompleted: true,
+  });
+  if (options.decision === "finalize") assertFixtureFinalized(fixture);
+  else assertFixtureRolledBack(fixture);
+  return Object.freeze({
+    id,
+    priorVictim: options.priorVictim,
+    decision: options.decision,
+    checkpoint: GENERIC_JOURNAL_POINT,
     ...result,
-    reason: "absent_finalize_has_no_namespace_mutation_checkpoint",
-    crashRecoveryClaimed: false,
     passed: true,
   });
 }
@@ -416,11 +634,21 @@ function faultEnvironment(action, point) {
   };
 }
 
-function recoverInFreshChild(addonPath, fixture) {
+function recoverInFreshChild(addonPath, fixture, decision) {
   return spawnJsonChild({
     action: "recover",
     addonPath,
-    recoveryRequest: recoveryRequest(fixture.request),
+    recoveryRequest: recoveryRequest(fixture.request, decision),
+    victimExisted: fixture.victimExisted,
+    victimIdentity: fixture.victimIdentity,
+  });
+}
+
+function acknowledgeInFreshChild(addonPath, fixture, decision) {
+  return spawnJsonChild({
+    action: "acknowledge",
+    addonPath,
+    recoveryRequest: recoveryRequest(fixture.request, decision),
     victimExisted: fixture.victimExisted,
     victimIdentity: fixture.victimIdentity,
   });
@@ -472,11 +700,12 @@ function createFixture(workRoot, id, victimExisted) {
   };
 }
 
-function recoveryRequest(request) {
+function recoveryRequest(request, decision = "rollback") {
   return {
     directoryPath: request.directoryPath,
     expectedDirectoryIdentity: request.expectedDirectoryIdentity,
     transactionId: request.transactionId,
+    decision,
   };
 }
 
@@ -515,9 +744,7 @@ function assertRollbackIntermediate(fixture, checkpoint) {
     assertPriorFinalState(fixture);
     assertPathAbsent(path.join(fixture.directoryPath, fixture.partialLeaf));
   }
-  const journalState = checkpoint === GENERIC_JOURNAL_POINT
-    ? "absent"
-    : "rollback";
+  const journalState = "rollback";
   assertJournalState(fixture, journalState);
   const expectedLeaves = [];
   if (ROLLBACK_OPEN_LAYOUT_POINTS.has(checkpoint)) {
@@ -564,8 +791,7 @@ function assertPriorFinalState(fixture) {
 }
 
 function assertFixtureRolledBack(fixture) {
-  assertPriorFinalState(fixture);
-  assertPathAbsent(path.join(fixture.directoryPath, fixture.partialLeaf));
+  assertFixtureRolledBackLayout(fixture);
   assertJournalState(fixture, "absent");
   assertDirectoryLeaves(
     fixture,
@@ -573,15 +799,24 @@ function assertFixtureRolledBack(fixture) {
   );
 }
 
+function assertFixtureRolledBackLayout(fixture) {
+  assertPriorFinalState(fixture);
+  assertPathAbsent(path.join(fixture.directoryPath, fixture.partialLeaf));
+}
+
 function assertFixtureFinalized(fixture) {
+  assertFixtureFinalizedLayout(fixture);
+  assertJournalState(fixture, "absent");
+  assertDirectoryLeaves(fixture, [fixture.finalLeaf]);
+}
+
+function assertFixtureFinalizedLayout(fixture) {
   assertExactRegularFile(
     path.join(fixture.directoryPath, fixture.finalLeaf),
     fixture.newIdentity,
     fixture.newBytes,
   );
   assertPathAbsent(path.join(fixture.directoryPath, fixture.partialLeaf));
-  assertJournalState(fixture, "absent");
-  assertDirectoryLeaves(fixture, [fixture.finalLeaf]);
 }
 
 function assertExactRegularFile(filePath, expectedIdentity, expectedBytes) {
@@ -599,18 +834,31 @@ function assertJournalState(fixture, expected) {
     fixture.directoryPath,
     journalLeaf(fixture, "rollback"),
   );
+  const finalizePath = path.join(
+    fixture.directoryPath,
+    journalLeaf(fixture, "finalize"),
+  );
   if (expected === "open") {
     assertOwnedJournal(openPath);
+    assertPathAbsent(finalizePath);
+    assertPathAbsent(rollbackPath);
+    return;
+  }
+  if (expected === "finalize") {
+    assertPathAbsent(openPath);
+    assertOwnedJournal(finalizePath);
     assertPathAbsent(rollbackPath);
     return;
   }
   if (expected === "rollback") {
     assertPathAbsent(openPath);
+    assertPathAbsent(finalizePath);
     assertOwnedJournal(rollbackPath);
     return;
   }
   assert.equal(expected, "absent");
   assertPathAbsent(openPath);
+  assertPathAbsent(finalizePath);
   assertPathAbsent(rollbackPath);
 }
 
@@ -667,7 +915,11 @@ function spawnJsonChild(input, additionalEnvironment = {}) {
   if (result.status !== 0 || result.signal !== null || result.stderr !== "") {
     throw integrationError(
       "child_failed",
-      "A fresh overwrite recovery child process failed.",
+      "A fresh overwrite recovery child process failed " +
+        `(action=${input.action}, fault=${input.faultPoint ?? "none"}, ` +
+        `terminal=${input.terminal ?? "none"}, status=${result.status}, ` +
+        `signal=${result.signal ?? "none"}, ` +
+        `stderr=${result.stderr.trim() || "none"}).`,
     );
   }
   let parsed;
@@ -718,6 +970,7 @@ function identityFromStat(value) {
 
 function assertTestAddonContract(addon) {
   assert.deepEqual(Reflect.ownKeys(addon).sort(), [
+    "acknowledge",
     "architecture",
     "begin",
     "platform",
@@ -725,12 +978,13 @@ function assertTestAddonContract(addon) {
     "recover",
     "testFaultInjection",
   ]);
-  assert.equal(addon.protocolVersion, 3);
+  assert.equal(addon.protocolVersion, 4);
   assert.equal(addon.platform, "darwin");
   assert.equal(addon.architecture, "arm64");
   assert.equal(addon.testFaultInjection, true);
   assert.equal(typeof addon.begin, "function");
   assert.equal(typeof addon.recover, "function");
+  assert.equal(typeof addon.acknowledge, "function");
 }
 
 function pathExists(filePath) {

@@ -93,7 +93,11 @@ export async function runOverwriteNativeIntegration(options = {}) {
       }),
     ];
     const retainedDirectory = runRetainedDirectoryCase(addon, workRoot);
-    const openJournalDecision = runOpenJournalDecisionCase(addon, workRoot);
+    const openJournalDecisions = runOpenJournalDecisionCases(addon, workRoot);
+    const terminalDecisionConflicts = runTerminalDecisionConflictCases(
+      addon,
+      workRoot,
+    );
     const recoveryRequestCases = runRecoveryRequestCases(addon, workRoot);
     const journalValidationCases = runJournalValidationCases(addon, workRoot);
     const rollbackCleanupRetry = runRollbackCleanupRetryCase(addon, workRoot);
@@ -107,7 +111,7 @@ export async function runOverwriteNativeIntegration(options = {}) {
     ];
     const report = deepFreeze({
       schemaVersion: 1,
-      workPackage: "FS-TXN-001B",
+      workPackage: "FS-TXN-001F",
       target: { platform: "darwin", arch: "arm64" },
       addon: {
         component: "local-subtitle-overwrite",
@@ -117,7 +121,8 @@ export async function runOverwriteNativeIntegration(options = {}) {
       },
       cases,
       retainedDirectory,
-      openJournalDecision,
+      openJournalDecisions,
+      terminalDecisionConflicts,
       recoveryRequestCases,
       journalValidationCases,
       rollbackCleanupRetry,
@@ -163,7 +168,7 @@ function runJournalValidationCases(addon, workRoot) {
       id: "journal-version-mismatch",
       mutate(fixture) {
         const changed = Buffer.from(fixture.journalBytes);
-        changed.writeUInt32LE(3, 8);
+        changed.writeUInt32LE(2, 8);
         changed.writeUInt32LE(
           journalChecksum(changed.subarray(0, changed.length - 4)),
           changed.length - 4,
@@ -261,12 +266,18 @@ function runJournalValidationCase(addon, workRoot, options) {
       "ERR_LOCAL_SUBTITLE_OVERWRITE_FILESYSTEM",
     );
     assert.deepEqual(businessNamespaceSnapshot(fixture), before);
+
   } finally {
     restore?.();
     invokeSynchronous(
       fixture.receipt.rollback,
       fixture.receipt,
       `${options.id} cleanup rollback`,
+    );
+    invokeSynchronous(
+      fixture.receipt.acknowledge,
+      fixture.receipt,
+      `${options.id} cleanup acknowledge`,
     );
   }
   return Object.freeze({
@@ -356,39 +367,91 @@ function journalChecksum(bytes) {
   return (~value) >>> 0;
 }
 
-function runOpenJournalDecisionCase(addon, workRoot) {
-  const directoryPath = path.join(workRoot, "open-journal-decision-required");
-  mkdirSync(directoryPath, { mode: 0o700 });
-  const partialLeaf = partialLeafFor("open-journal-decision");
-  const finalLeaf = "open-decision.srt";
-  const partialPath = path.join(directoryPath, partialLeaf);
-  const finalPath = path.join(directoryPath, finalLeaf);
-  const newBytes = Buffer.from("new-open-decision", "utf8");
-  const victimBytes = Buffer.from("victim-open-decision", "utf8");
-  writeFileSync(partialPath, newBytes, { flag: "wx", mode: 0o600 });
-  writeFileSync(finalPath, victimBytes, { flag: "wx", mode: 0o600 });
-  const request = createRequest(
-    directoryPath,
-    partialLeaf,
-    finalLeaf,
-    newBytes.byteLength,
-  );
+function runOpenJournalDecisionCases(addon, workRoot) {
+  return ["rollback", "finalize"].map((decision) => {
+    const fixture = createOpenJournalFixture(
+      addon,
+      workRoot,
+      `open-journal-${decision}`,
+    );
+    const recovery = addon.recover(recoveryRequest(fixture.request, decision));
+    assertExactOwnKeys(recovery, ["state"]);
+    const expectedState = decision === "finalize" ? "finalized" : "rolled_back";
+    assert.equal(recovery.state, expectedState);
+    assert.deepEqual(
+      addon.acknowledge(recoveryRequest(fixture.request, decision)),
+      { state: "acknowledged" },
+    );
+    assert.equal(
+      addon.recover(recoveryRequest(fixture.request, decision)).state,
+      "not_found",
+    );
+    assert.equal(pathExists(fixture.partialPath), false);
+    assert.deepEqual(
+      readFileSync(fixture.finalPath),
+      decision === "finalize" ? Buffer.from(`new-open-journal-${decision}`) :
+        Buffer.from(`victim-open-journal-${decision}`),
+    );
+    return Object.freeze({
+      id: `open-journal-${decision}`,
+      decision,
+      recoveryState: expectedState,
+      explicitTerminalDecisionApplied: true,
+      passed: true,
+    });
+  });
+}
 
-  const receipt = addon.begin(request);
-  const recovery = addon.recover(recoveryRequest(request));
-  assertExactOwnKeys(recovery, ["state"]);
-  assert.equal(recovery.state, "decision_required");
-  assert.deepEqual(readFileSync(finalPath), newBytes);
-  assert.deepEqual(readFileSync(partialPath), victimBytes);
-
-  invokeSynchronous(receipt.rollback, receipt, "open journal rollback");
-  assert.equal(addon.recover(recoveryRequest(request)).state, "not_found");
-  assert.deepEqual(readFileSync(finalPath), victimBytes);
-  assert.equal(pathExists(partialPath), false);
-  return Object.freeze({
-    id: "open-journal-decision-required",
-    automaticTerminalDecisionMade: false,
-    passed: true,
+function runTerminalDecisionConflictCases(addon, workRoot) {
+  return ["rollback", "finalize"].map((terminalDecision) => {
+    const fixture = createOpenJournalFixture(
+      addon,
+      workRoot,
+      `terminal-conflict-${terminalDecision}`,
+    );
+    const terminalJournalPath = path.join(
+      fixture.directoryPath,
+      `${fixture.partialLeaf}.fusionkit-overwrite.${terminalDecision}`,
+    );
+    renameSync(fixture.journalPath, terminalJournalPath);
+    const before = businessNamespaceSnapshot(fixture);
+    const conflictingDecision = terminalDecision === "finalize"
+      ? "rollback"
+      : "finalize";
+    assert.throws(
+      () => addon.recover(
+        recoveryRequest(fixture.request, conflictingDecision),
+      ),
+      (error) => error?.code === "ERR_LOCAL_SUBTITLE_OVERWRITE_FILESYSTEM",
+    );
+    assert.deepEqual(businessNamespaceSnapshot(fixture), before);
+    assert.throws(
+      () => addon.acknowledge(
+        recoveryRequest(fixture.request, conflictingDecision),
+      ),
+      (error) => error?.code === "ERR_LOCAL_SUBTITLE_OVERWRITE_FILESYSTEM",
+    );
+    assert.deepEqual(businessNamespaceSnapshot(fixture), before);
+    const recovery = addon.recover(
+      recoveryRequest(fixture.request, terminalDecision),
+    );
+    assert.equal(
+      recovery.state,
+      terminalDecision === "finalize" ? "finalized" : "rolled_back",
+    );
+    assert.deepEqual(
+      addon.acknowledge(
+        recoveryRequest(fixture.request, terminalDecision),
+      ),
+      { state: "acknowledged" },
+    );
+    return Object.freeze({
+      id: `terminal-conflict-${terminalDecision}`,
+      terminalDecision,
+      conflictingDecision,
+      conflictRejectedWithoutBusinessMutation: true,
+      passed: true,
+    });
   });
 }
 
@@ -407,9 +470,30 @@ function runRecoveryRequestCases(addon, workRoot) {
     assert.deepEqual(businessNamespaceSnapshot(fixture), before);
 
     assert.throws(
+      () => addon.acknowledge(fixture.request),
+      (error) => error?.code === "ERR_LOCAL_SUBTITLE_OVERWRITE_INVALID_REQUEST",
+    );
+    assert.deepEqual(businessNamespaceSnapshot(fixture), before);
+
+    assert.throws(
+      () => addon.acknowledge(recoveryRequest(fixture.request)),
+      (error) => error?.code === "ERR_LOCAL_SUBTITLE_OVERWRITE_FILESYSTEM",
+    );
+    assert.deepEqual(businessNamespaceSnapshot(fixture), before);
+
+    assert.throws(
       () => addon.recover({
         ...recoveryRequest(fixture.request),
         transactionId: "invalid_transaction_id",
+      }),
+      (error) => error?.code === "ERR_LOCAL_SUBTITLE_OVERWRITE_INVALID_REQUEST",
+    );
+    assert.deepEqual(businessNamespaceSnapshot(fixture), before);
+
+    assert.throws(
+      () => addon.recover({
+        ...recoveryRequest(fixture.request),
+        decision: "undecided",
       }),
       (error) => error?.code === "ERR_LOCAL_SUBTITLE_OVERWRITE_INVALID_REQUEST",
     );
@@ -426,6 +510,11 @@ function runRecoveryRequestCases(addon, workRoot) {
       fixture.receipt.rollback,
       fixture.receipt,
       "recovery request contract cleanup rollback",
+    );
+    invokeSynchronous(
+      fixture.receipt.acknowledge,
+      fixture.receipt,
+      "recovery request contract cleanup acknowledge",
     );
   }
 
@@ -448,7 +537,10 @@ function runRecoveryRequestCases(addon, workRoot) {
 
   return Object.freeze([
     Object.freeze({ id: "recover-exact-own-keys", passed: true }),
+    Object.freeze({ id: "acknowledge-exact-own-keys", passed: true }),
+    Object.freeze({ id: "acknowledge-rejects-open-journal", passed: true }),
     Object.freeze({ id: "recover-transaction-id-validation", passed: true }),
+    Object.freeze({ id: "recover-decision-validation", passed: true }),
     Object.freeze({ id: "recover-exact-id-no-scan", passed: true }),
     Object.freeze({ id: "begin-transaction-partial-match", passed: true }),
   ]);
@@ -484,9 +576,17 @@ function runTerminalCase(addon, workRoot, options) {
   assert.deepEqual(readFileSync(finalPath), newBytes);
   assert.deepEqual(receipt.expectedFinalIdentity, fileIdentity(finalPath));
   invokeSynchronous(receipt[options.terminal], receipt, options.terminal);
-  const recovery = addon.recover(recoveryRequest(request));
+  const recovery = addon.recover(recoveryRequest(request, options.terminal));
   assertExactOwnKeys(recovery, ["state"]);
-  assert.equal(recovery.state, "not_found");
+  assert.equal(
+    recovery.state,
+    options.terminal === "finalize" ? "finalized" : "rolled_back",
+  );
+  invokeSynchronous(receipt.acknowledge, receipt, "acknowledge");
+  assert.equal(
+    addon.recover(recoveryRequest(request, options.terminal)).state,
+    "not_found",
+  );
 
   if (options.terminal === "finalize") {
     assert.equal(pathExists(partialPath), false);
@@ -506,7 +606,7 @@ function runTerminalCase(addon, workRoot, options) {
     id: options.id,
     priorVictim: options.victim ? "existing" : "absent",
     terminal: options.terminal,
-    terminalJournalRemoved: true,
+    terminalJournalRemovedAfterAcknowledge: true,
     passed: true,
   });
 }
@@ -540,6 +640,7 @@ function runRetainedDirectoryCase(addon, workRoot) {
     mode: 0o600,
   });
   invokeSynchronous(receipt.rollback, receipt, "rollback");
+  invokeSynchronous(receipt.acknowledge, receipt, "acknowledge");
 
   assert.equal(pathExists(path.join(retainedPath, partialLeaf)), false);
   assert.deepEqual(readFileSync(path.join(retainedPath, finalLeaf)), victimBytes);
@@ -585,6 +686,7 @@ function runRollbackCleanupRetryCase(addon, workRoot) {
 
   unlinkSync(aliasPath);
   invokeSynchronous(receipt.rollback, receipt, "rollback retry");
+  invokeSynchronous(receipt.acknowledge, receipt, "rollback acknowledge");
   assert.deepEqual(readFileSync(finalPath), victimBytes);
   assert.equal(pathExists(partialPath), false);
   assert.deepEqual(readdirSync(directoryPath), [finalLeaf]);
@@ -832,11 +934,12 @@ function createRequest(directoryPath, partialLeaf, finalLeaf, expectedByteSize) 
   };
 }
 
-function recoveryRequest(request) {
+function recoveryRequest(request, decision = "rollback") {
   return {
     directoryPath: request.directoryPath,
     expectedDirectoryIdentity: request.expectedDirectoryIdentity,
     transactionId: request.transactionId,
+    decision,
   };
 }
 
@@ -889,21 +992,29 @@ function identityFromStat(fileStat) {
 
 function assertAddonContract(addon) {
   assertExactOwnKeys(addon, [
+    "acknowledge",
     "architecture",
     "begin",
     "platform",
     "protocolVersion",
     "recover",
   ]);
-  assert.equal(addon.protocolVersion, 3);
+  assert.equal(addon.protocolVersion, 4);
   assert.equal(addon.platform, "darwin");
   assert.equal(addon.architecture, "arm64");
   assert.equal(typeof addon.begin, "function");
   assert.equal(typeof addon.recover, "function");
+  assert.equal(typeof addon.acknowledge, "function");
 }
 
 function assertReceiptContract(receipt) {
-  assertExactOwnKeys(receipt, ["expectedFinalIdentity", "finalize", "rollback"]);
+  assertExactOwnKeys(receipt, [
+    "acknowledge",
+    "expectedFinalIdentity",
+    "finalize",
+    "rollback",
+  ]);
+  assert.equal(typeof receipt.acknowledge, "function");
   assert.equal(typeof receipt.finalize, "function");
   assert.equal(typeof receipt.rollback, "function");
   assertExactOwnKeys(receipt.expectedFinalIdentity, ["birthtimeMs", "dev", "ino"]);

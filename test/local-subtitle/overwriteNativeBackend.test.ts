@@ -68,13 +68,13 @@ describe.sequential("local subtitle overwrite native backend loader", () => {
     rawModule.recover = vi.fn(function (request) {
       expect(this).toBe(rawModule);
       observedRequest = request;
-      return { state: "decision_required" };
+      return { state: "rolled_back" };
     });
     nativeLoader.mockReturnValue(rawModule);
     const runtime = createLocalSubtitleOverwriteNativeRuntime(absoluteNodePath);
-    const recover = runtime.recovery.claim();
+    const { recover } = runtime.recovery.claim();
 
-    expect(recover(validRecoveryRequest())).toEqual({ state: "decision_required" });
+    expect(recover(validRecoveryRequest())).toEqual({ state: "rolled_back" });
     expect(observedRequest).toEqual(validRecoveryRequest());
     expect(Object.isFrozen(observedRequest)).toBe(true);
     expect(Object.isFrozen(
@@ -83,8 +83,34 @@ describe.sequential("local subtitle overwrite native backend loader", () => {
     )).toBe(true);
 
     rawModule.recover = vi.fn(() => ({ state: "not_found" }));
-    expect(recover(validRecoveryRequest())).toEqual({ state: "decision_required" });
+    expect(recover(validRecoveryRequest())).toEqual({ state: "rolled_back" });
     expect(rawModule.recover).not.toHaveBeenCalled();
+  });
+
+  it("captures, binds, snapshots, and validates the synchronous acknowledge export", () => {
+    let observedRequest: unknown;
+    const rawModule = validRawModule();
+    rawModule.acknowledge = vi.fn(function (request) {
+      expect(this).toBe(rawModule);
+      observedRequest = request;
+      return { state: "acknowledged" };
+    });
+    nativeLoader.mockReturnValue(rawModule);
+    const { acknowledge } = createLocalSubtitleOverwriteNativeRuntime(
+      absoluteNodePath,
+    ).recovery.claim();
+
+    expect(acknowledge(validRecoveryRequest())).toEqual({ state: "acknowledged" });
+    expect(observedRequest).toEqual(validRecoveryRequest());
+    expect(Object.isFrozen(observedRequest)).toBe(true);
+    expect(Object.isFrozen(
+      (observedRequest as ReturnType<typeof validRecoveryRequest>)
+        .expectedDirectoryIdentity,
+    )).toBe(true);
+
+    rawModule.acknowledge = vi.fn(() => ({ state: "not_found" }));
+    expect(acknowledge(validRecoveryRequest())).toEqual({ state: "acknowledged" });
+    expect(rawModule.acknowledge).not.toHaveBeenCalled();
   });
 
   it("rejects proxied and expanded recovery requests before native invocation", () => {
@@ -93,7 +119,7 @@ describe.sequential("local subtitle overwrite native backend loader", () => {
     nativeLoader.mockReturnValue(rawModule);
     const recover = createLocalSubtitleOverwriteNativeRuntime(
       absoluteNodePath,
-    ).recovery.claim();
+    ).recovery.claim().recover;
     const ownKeys = vi.fn(() => {
       throw new Error("proxy trap must not run");
     });
@@ -122,7 +148,7 @@ describe.sequential("local subtitle overwrite native backend loader", () => {
 
   it.each([
     ["extra key", { state: "rolled_back", finalPath: "/private/result.srt" }],
-    ["unknown state", { state: "finalized" }],
+    ["unknown state", { state: "decision_required" }],
     ["primitive", "rolled_back"],
   ])("rejects an invalid native recovery result: %s", (_label, result) => {
     const rawModule = validRawModule();
@@ -130,9 +156,26 @@ describe.sequential("local subtitle overwrite native backend loader", () => {
     nativeLoader.mockReturnValue(rawModule);
     const recover = createLocalSubtitleOverwriteNativeRuntime(
       absoluteNodePath,
-    ).recovery.claim();
+    ).recovery.claim().recover;
 
     expect(() => recover(validRecoveryRequest())).toThrowError(
+      expect.objectContaining({ code: "invalid_result" }),
+    );
+  });
+
+  it.each([
+    ["extra key", { state: "acknowledged", journal: "removed" }],
+    ["unknown state", { state: "finalized" }],
+    ["primitive", "acknowledged"],
+  ])("rejects an invalid native acknowledgement result: %s", (_label, result) => {
+    const rawModule = validRawModule();
+    rawModule.acknowledge = () => result;
+    nativeLoader.mockReturnValue(rawModule);
+    const acknowledge = createLocalSubtitleOverwriteNativeRuntime(
+      absoluteNodePath,
+    ).recovery.claim().acknowledge;
+
+    expect(() => acknowledge(validRecoveryRequest())).toThrowError(
       expect.objectContaining({ code: "invalid_result" }),
     );
   });
@@ -147,9 +190,23 @@ describe.sequential("local subtitle overwrite native backend loader", () => {
     nativeLoader.mockReturnValue(rawModule);
     const recover = createLocalSubtitleOverwriteNativeRuntime(
       absoluteNodePath,
-    ).recovery.claim();
+    ).recovery.claim().recover;
 
     expect(() => recover(validRecoveryRequest())).toThrowError(
+      expect.objectContaining({ code: "invalid_result" }),
+    );
+    await Promise.resolve();
+  });
+
+  it("rejects and absorbs an asynchronous native acknowledgement", async () => {
+    const rawModule = validRawModule();
+    rawModule.acknowledge = () => Promise.reject(new Error("late acknowledgement failure"));
+    nativeLoader.mockReturnValue(rawModule);
+    const acknowledge = createLocalSubtitleOverwriteNativeRuntime(
+      absoluteNodePath,
+    ).recovery.claim().acknowledge;
+
+    expect(() => acknowledge(validRecoveryRequest())).toThrowError(
       expect.objectContaining({ code: "invalid_result" }),
     );
     await Promise.resolve();
@@ -190,6 +247,7 @@ describe.sequential("local subtitle overwrite native backend loader", () => {
         expectedFinalIdentity,
         finalize() {},
         rollback() {},
+        acknowledge() {},
       }),
       "win32",
       "x64",
@@ -210,10 +268,11 @@ describe.sequential("local subtitle overwrite native backend loader", () => {
     };
 
     const receipt = runtime.transactions.begin(request);
-    const recovery = runtime.recovery.claim()({
+    const recovery = runtime.recovery.claim().recover({
       transactionId: request.transactionId,
       directoryPath: request.directoryPath,
       expectedDirectoryIdentity: request.expectedDirectoryIdentity,
+      decision: "rollback",
     });
 
     expect(receipt.expectedFinalIdentity).toEqual(expectedFinalIdentity);
@@ -517,6 +576,9 @@ function validRawModule(
     recover() {
       return { state: "not_found" };
     },
+    acknowledge() {
+      return { state: "not_found" };
+    },
   };
 }
 
@@ -525,6 +587,7 @@ function validRawReceipt(): LocalSubtitleOverwriteTransactionBackendReceipt {
     expectedFinalIdentity: identity(7, 8),
     finalize() {},
     rollback() {},
+    acknowledge() {},
   };
 }
 
@@ -545,6 +608,7 @@ function validRecoveryRequest() {
     transactionId: "01234567-89ab-4cde-8fab-0123456789ab",
     directoryPath: absoluteDirectory,
     expectedDirectoryIdentity: identity(1, 2),
+    decision: "rollback" as const,
   };
 }
 

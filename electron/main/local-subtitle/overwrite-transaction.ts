@@ -5,7 +5,9 @@ import { snapshotLocalSubtitleOverwriteDirectoryIdentity } from "./overwrite-dir
 export type LocalSubtitleOverwriteTransactionState =
   | "open"
   | "finalize_pending"
+  | "finalize_pending_ack"
   | "rollback_pending"
+  | "rollback_pending_ack"
   | "finalized"
   | "rolled_back";
 
@@ -74,6 +76,11 @@ export interface LocalSubtitleOverwriteTransactionBackendReceipt {
    * recovery authority; finalize is no longer permitted.
    */
   rollback(): void;
+  /**
+   * Removes the durable terminal marker only after the recovery owner has
+   * persisted that native convergence was observed.
+   */
+  acknowledge(): void;
 }
 
 export interface LocalSubtitleOverwriteTransactionBackend {
@@ -98,15 +105,17 @@ export class LocalSubtitleOverwriteTransactionReceipt {
   readonly expectedFinalIdentity: LocalSubtitleOverwriteFileIdentity;
 
   #state: LocalSubtitleOverwriteTransactionState = "open";
-  #terminalOperation: "finalize" | "rollback" | undefined;
+  #terminalOperation: "finalize" | "rollback" | "acknowledge" | undefined;
   readonly #finalizeBackend: () => unknown;
   readonly #rollbackBackend: () => unknown;
+  readonly #acknowledgeBackend: () => unknown;
 
   constructor(rawReceipt: LocalSubtitleOverwriteTransactionBackendReceipt) {
     const validated = validateBackendReceipt(rawReceipt);
     this.expectedFinalIdentity = freezeIdentity(validated.expectedFinalIdentity);
     this.#finalizeBackend = () => validated.finalize.call(rawReceipt);
     this.#rollbackBackend = () => validated.rollback.call(rawReceipt);
+    this.#acknowledgeBackend = () => validated.acknowledge.call(rawReceipt);
     receiptInstances.add(this);
     Object.freeze(this);
   }
@@ -116,8 +125,8 @@ export class LocalSubtitleOverwriteTransactionReceipt {
   }
 
   finalize(): void {
-    if (this.#state === "finalized") return;
-    if (this.#state === "rolled_back") {
+    if (this.#state === "finalized" || this.#state === "finalize_pending_ack") return;
+    if (this.#state === "rolled_back" || this.#state === "rollback_pending_ack") {
       throw invalidState("A rolled-back overwrite transaction cannot be finalized.");
     }
     if (this.#state === "rollback_pending") {
@@ -129,7 +138,7 @@ export class LocalSubtitleOverwriteTransactionReceipt {
         backendInvoked = true;
         return this.#finalizeBackend();
       }, "finalize");
-      this.#state = "finalized";
+      this.#state = "finalize_pending_ack";
     } catch (error) {
       if (backendInvoked) {
         this.#state = "finalize_pending";
@@ -139,8 +148,8 @@ export class LocalSubtitleOverwriteTransactionReceipt {
   }
 
   rollback(): void {
-    if (this.#state === "rolled_back") return;
-    if (this.#state === "finalized") {
+    if (this.#state === "rolled_back" || this.#state === "rollback_pending_ack") return;
+    if (this.#state === "finalized" || this.#state === "finalize_pending_ack") {
       throw invalidState("A finalized overwrite transaction cannot be rolled back.");
     }
     if (this.#state === "finalize_pending") {
@@ -152,7 +161,7 @@ export class LocalSubtitleOverwriteTransactionReceipt {
         backendInvoked = true;
         return this.#rollbackBackend();
       }, "rollback");
-      this.#state = "rolled_back";
+      this.#state = "rollback_pending_ack";
     } catch (error) {
       if (backendInvoked) {
         this.#state = "rollback_pending";
@@ -161,13 +170,33 @@ export class LocalSubtitleOverwriteTransactionReceipt {
     }
   }
 
+  acknowledge(): void {
+    if (this.#state === "finalized" || this.#state === "rolled_back") return;
+    const finalState = this.#state === "finalize_pending_ack"
+      ? "finalized"
+      : this.#state === "rollback_pending_ack"
+      ? "rolled_back"
+      : undefined;
+    if (!finalState) {
+      throw invalidState("The overwrite transaction has no terminal marker to acknowledge.");
+    }
+    this.#invokeTerminalOnce(this.#acknowledgeBackend, "acknowledge");
+    this.#state = finalState;
+  }
+
   #invokeTerminalOnce(
     operation: () => unknown,
-    name: "finalize" | "rollback",
+    name: "finalize" | "rollback" | "acknowledge",
   ): void {
     if (this.#terminalOperation) {
       throw invalidState(
-        `The overwrite transaction is already ${this.#terminalOperation === "finalize" ? "finalizing" : "rolling back"}.`,
+        `The overwrite transaction is already ${
+          this.#terminalOperation === "finalize"
+            ? "finalizing"
+            : this.#terminalOperation === "rollback"
+            ? "rolling back"
+            : "acknowledging"
+        }.`,
       );
     }
     this.#terminalOperation = name;
@@ -333,7 +362,12 @@ function validateBackend(
 function validateBackendReceipt(
   receipt: LocalSubtitleOverwriteTransactionBackendReceipt,
 ): LocalSubtitleOverwriteTransactionBackendReceipt {
-  if (!isExactRecord(receipt, ["expectedFinalIdentity", "finalize", "rollback"])) {
+  if (!isExactRecord(receipt, [
+    "expectedFinalIdentity",
+    "finalize",
+    "rollback",
+    "acknowledge",
+  ])) {
     throw invalidReceipt("The overwrite transaction backend receipt is invalid.");
   }
   const expectedFinalIdentity = snapshotLocalSubtitleOverwriteDirectoryIdentity(
@@ -341,10 +375,12 @@ function validateBackendReceipt(
   );
   const finalize = ownDataValue(receipt, "finalize");
   const rollback = ownDataValue(receipt, "rollback");
+  const acknowledge = ownDataValue(receipt, "acknowledge");
   if (
     !expectedFinalIdentity ||
     typeof finalize !== "function" ||
-    typeof rollback !== "function"
+    typeof rollback !== "function" ||
+    typeof acknowledge !== "function"
   ) {
     throw invalidReceipt("The overwrite transaction backend receipt is invalid.");
   }
@@ -352,6 +388,7 @@ function validateBackendReceipt(
     expectedFinalIdentity,
     finalize: finalize as () => void,
     rollback: rollback as () => void,
+    acknowledge: acknowledge as () => void,
   };
 }
 

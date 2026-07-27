@@ -27,17 +27,16 @@ journal, post-mutation finalize throw, same-direction retry, process crash
 The wrapper modeled every thrown terminal call as failure-before-state-change.
 Filesystem transactions can cross a mutation or durable decision point before
 throwing, so the error preserves retryability but cannot restore the prior
-choice of terminal direction. Rollback has a durable `.rollback` journal;
-finalize currently has only a same-process in-memory direction lock and must not
-be misrepresented as a cross-process commit decision.
+choice of terminal direction. Protocol v4 makes both directions durable by
+renaming `.open` to `.rollback` or `.finalize` before namespace convergence.
 
 ## Do
 
-- Publish durable rollback intent before rollback's first namespace mutation.
-- Set an in-memory finalize direction before finalize's first namespace
-  mutation. A valid remaining `.open` journal is `decision_required`, but a
-  finalize crash after journal unlink may be `not_found`; do not claim finalize
-  crash recovery until a durable composite decision exists.
+- Persist the composite rollback or finalize decision before invoking the
+  matching native terminal operation.
+- Publish the matching `.rollback` or `.finalize` marker before that terminal's
+  first namespace mutation, then retain it until durable settled state is
+  acknowledged.
 - Move the wrapper receipt to the corresponding pending state only after the
   backend method was actually invoked and threw; a reentry rejection before
   invocation must leave the prior state unchanged.
@@ -47,8 +46,8 @@ be misrepresented as a cross-process commit decision.
 - Make native retries and fresh-process recovery converge from journal phase plus
   the observed owned layout; never repeat a completed swap solely from stale
   in-memory phase.
-- If journal unlink succeeded but a later sync/proof failed, converge retry from
-  named-leaf absence plus the pinned journal descriptor's `nlink == 0` proof.
+- If acknowledgement unlink succeeded but a later sync/proof failed, retry
+  acknowledgement from durable settled state and accept exact `not_found`.
 - Preserve the activated Artifact Registry commit direction when finalize retry
   remains pending; hand that combined state to the future composite owner.
 - Keep the composite recovery owner responsible for both native journal state and
@@ -64,7 +63,8 @@ be misrepresented as a cross-process commit decision.
 - Do not permit finalize after rollback has become durable.
 - Do not revoke and rollback after a backend-invoked finalize failure.
 - Do not let a GC finalizer reverse `finalize_pending` into rollback.
-- Do not claim `finalize_pending` is a durable cross-process commit decision.
+- Do not infer finalize or rollback direction from layout after restart; use the
+  persisted composite decision and reject a conflicting terminal marker.
 - Do not let a GC finalizer stand in for reportable recovery ownership.
 
 ## Validation
@@ -82,8 +82,8 @@ git diff --check
 Cover rollback throwing after durable intent, finalize throwing before and after
 mutation, both pending states, opposite-terminal rejection, pre-invocation
 reentry state preservation, same-terminal retry, existing/absent victim
-recovery, journal-unlink-then-sync/proof retry, and a second fresh-process
-recovery returning `not_found` without another namespace mutation.
+recovery, terminal-marker acknowledgement retry, and a second fresh-process
+acknowledgement returning `not_found` without another namespace mutation.
 
 ## Related files
 

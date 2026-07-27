@@ -37,8 +37,8 @@
 namespace {
 
 constexpr double kMaxSafeInteger = 9007199254740991.0;
-constexpr uint32_t kProtocolVersion = 3;
-constexpr uint32_t kJournalVersion = 2;
+constexpr uint32_t kProtocolVersion = 4;
+constexpr uint32_t kJournalVersion = 3;
 constexpr size_t kMaximumJournalBytes = 4096;
 constexpr const char *kInvalidRequestCode =
     "ERR_LOCAL_SUBTITLE_OVERWRITE_INVALID_REQUEST";
@@ -176,9 +176,15 @@ struct Request {
 };
 
 struct RecoveryRequest {
+  enum class Decision {
+    kFinalize,
+    kRollback,
+  };
+
   std::string directory_path;
   Identity expected_directory_identity;
   std::string transaction_id;
+  Decision decision = Decision::kRollback;
 };
 
 double BirthtimeMs(const struct stat &value) {
@@ -463,7 +469,7 @@ Request ReadRequest(napi_env env, napi_value value) {
 RecoveryRequest ReadRecoveryRequest(napi_env env, napi_value value) {
   RequireExactOwnKeys(env, value,
                       {"directoryPath", "expectedDirectoryIdentity",
-                       "transactionId"},
+                       "transactionId", "decision"},
                       "overwrite recovery request");
 
   RecoveryRequest result;
@@ -479,6 +485,15 @@ RecoveryRequest ReadRecoveryRequest(napi_env env, napi_value value) {
   result.transaction_id =
       ReadString(env, GetNamed(env, value, "transactionId"), "transactionId");
   ValidateTransactionId(result.transaction_id);
+  const std::string decision =
+      ReadString(env, GetNamed(env, value, "decision"), "decision");
+  if (decision == "finalize") {
+    result.decision = RecoveryRequest::Decision::kFinalize;
+  } else if (decision == "rollback") {
+    result.decision = RecoveryRequest::Decision::kRollback;
+  } else {
+    ThrowInvalidRequest("decision must be finalize or rollback");
+  }
   return result;
 }
 
@@ -543,6 +558,7 @@ UniqueFd OpenAndVerifyPartial(int directory_fd, const Request &request) {
 
 struct JournalNames {
   std::string open;
+  std::string finalize;
   std::string rollback;
 };
 
@@ -792,8 +808,10 @@ JournalRecord ParseJournal(const std::vector<unsigned char> &bytes,
 JournalNames DeriveJournalNames(const std::string &transaction_id) {
   const std::string base =
       PartialLeafForTransactionId(transaction_id) + ".fusionkit-overwrite";
-  JournalNames names{base + ".open", base + ".rollback"};
-  if (names.open.size() > NAME_MAX || names.rollback.size() > NAME_MAX) {
+  JournalNames names{base + ".open", base + ".finalize",
+                     base + ".rollback"};
+  if (names.open.size() > NAME_MAX || names.finalize.size() > NAME_MAX ||
+      names.rollback.size() > NAME_MAX) {
     ThrowInvalidRequest(
         "partialLeaf is too long for the overwrite recovery journal");
   }
@@ -884,6 +902,8 @@ UniqueFd CreateOpenJournal(int directory_fd, const Request &request,
                            const JournalNames &names, bool victim_existed,
                            const Identity &victim_identity) {
   RequireAbsent(StatLeaf(directory_fd, names.open), "open recovery journal");
+  RequireAbsent(StatLeaf(directory_fd, names.finalize),
+                "finalize recovery journal");
   RequireAbsent(StatLeaf(directory_fd, names.rollback),
                 "rollback recovery journal");
   const int fd = ::openat(directory_fd, names.open.c_str(),
@@ -983,6 +1003,8 @@ enum class Phase {
   kFinalizeIntentAbsent,
   kFinalizeCleanupExisting,
   kFinalizeCleanupAbsent,
+  kFinalizePendingAck,
+  kRollbackPendingAck,
   kFinalized,
   kRolledBack,
 };
@@ -993,7 +1015,8 @@ public:
               bool victim_existed, Identity victim_identity)
       : directory_fd_(std::move(directory_fd)),
         new_file_fd_(std::move(new_file_fd)), request_(std::move(request)),
-        victim_identity_(victim_identity), journal_names_(DeriveJournalNames(request_)),
+        victim_existed_(victim_existed), victim_identity_(victim_identity),
+        journal_names_(DeriveJournalNames(request_)),
         phase_(victim_existed ? Phase::kPreparedExisting
                               : Phase::kPreparedAbsent) {}
 
@@ -1001,7 +1024,7 @@ public:
   Transaction &operator=(const Transaction &) = delete;
 
   ~Transaction() {
-    BestEffortRollback();
+    BestEffortFinishArmedTerminal();
     directory_fd_.CloseIgnoringErrors();
   }
 
@@ -1061,7 +1084,12 @@ public:
     TerminalGuard guard(*this);
     if (phase_ == Phase::kFinalized)
       return;
+    if (phase_ == Phase::kFinalizePendingAck) {
+      VerifyFinalizeCleanup();
+      return;
+    }
     if (phase_ == Phase::kRolledBack ||
+        phase_ == Phase::kRollbackPendingAck ||
         phase_ == Phase::kRollbackIntentExisting ||
         phase_ == Phase::kRollbackIntentAbsent ||
         phase_ == Phase::kRollbackCleanupExisting ||
@@ -1077,9 +1105,11 @@ public:
     }
 
     if (phase_ == Phase::kOpenExisting) {
-      phase_ = Phase::kFinalizeIntentExisting;
+      VerifyOpenExisting();
+      ArmFinalize(Phase::kFinalizeIntentExisting);
     } else if (phase_ == Phase::kOpenAbsent) {
-      phase_ = Phase::kFinalizeIntentAbsent;
+      VerifyOpenAbsent();
+      ArmFinalize(Phase::kFinalizeIntentAbsent);
     }
 
     if (phase_ == Phase::kFinalizeIntentExisting) {
@@ -1099,10 +1129,8 @@ public:
     }
 
     VerifyFinalizeCleanup();
-    RemoveOwnedJournal(directory_fd_.get(), journal_fd_.get(),
-                       journal_names_.open);
-    phase_ = Phase::kFinalized;
-    CloseHandlesIgnoringErrors();
+    MaybeInjectTestFault("finalize_before_ack");
+    phase_ = Phase::kFinalizePendingAck;
   }
 
   void Rollback() {
@@ -1112,10 +1140,15 @@ public:
     if (phase_ == Phase::kFinalized) {
       ThrowInvalidState("a finalized transaction cannot be rolled back");
     }
+    if (phase_ == Phase::kRollbackPendingAck) {
+      VerifyRollbackSettled();
+      return;
+    }
     if (phase_ == Phase::kFinalizeIntentExisting ||
         phase_ == Phase::kFinalizeIntentAbsent ||
         phase_ == Phase::kFinalizeCleanupExisting ||
-        phase_ == Phase::kFinalizeCleanupAbsent) {
+        phase_ == Phase::kFinalizeCleanupAbsent ||
+        phase_ == Phase::kFinalizePendingAck) {
       ThrowInvalidState("a finalizing transaction cannot be rolled back");
     }
 
@@ -1137,6 +1170,29 @@ public:
       ConvergeRollbackNamespace();
     }
     CompleteRollbackCleanup();
+  }
+
+  void Acknowledge() {
+    TerminalGuard guard(*this);
+    if (phase_ == Phase::kFinalized || phase_ == Phase::kRolledBack)
+      return;
+    if (phase_ == Phase::kFinalizePendingAck) {
+      VerifyFinalizeCleanup();
+      RemoveOwnedJournal(directory_fd_.get(), journal_fd_.get(),
+                         journal_names_.finalize);
+      phase_ = Phase::kFinalized;
+      CloseHandlesIgnoringErrors();
+      return;
+    }
+    if (phase_ == Phase::kRollbackPendingAck) {
+      VerifyRollbackSettled();
+      RemoveOwnedJournal(directory_fd_.get(), journal_fd_.get(),
+                         journal_names_.rollback);
+      phase_ = Phase::kRolledBack;
+      CloseHandlesIgnoringErrors();
+      return;
+    }
+    ThrowInvalidState("the overwrite transaction is not pending acknowledgement");
   }
 
 private:
@@ -1202,6 +1258,30 @@ private:
                            &request_.expected_byte_size);
     RequireAbsent(StatLeaf(directory_fd_.get(), request_.partial_leaf),
                   "finalized overwrite victim leaf");
+  }
+
+  void VerifyRollbackSettled() const {
+    if (victim_existed_) {
+      const LeafStat restored =
+          StatLeaf(directory_fd_.get(), request_.final_leaf);
+      RequireRegularIdentity(restored, victim_identity_,
+                             "settled overwrite victim");
+    } else {
+      RequireAbsent(StatLeaf(directory_fd_.get(), request_.final_leaf),
+                    "settled final leaf");
+    }
+    RequireAbsent(StatLeaf(directory_fd_.get(), request_.partial_leaf),
+                  "settled rollback partial leaf");
+  }
+
+  void ArmFinalize(Phase intent_phase) {
+    RenameOwnedJournal(directory_fd_.get(), journal_fd_.get(),
+                       journal_names_.open, journal_names_.finalize);
+    phase_ = intent_phase;
+    VerifyNamedJournal(directory_fd_.get(), journal_names_.finalize,
+                       journal_fd_.get());
+    SyncDirectory(directory_fd_.get());
+    MaybeInjectTestFault("finalize_after_intent_sync");
   }
 
   void ArmRollback(Phase intent_phase) {
@@ -1279,14 +1359,11 @@ private:
     }
 
     MaybeInjectTestFault("rollback_after_cleanup_sync");
-    MaybeInjectTestFault("rollback_before_journal_remove");
-    RemoveOwnedJournal(directory_fd_.get(), journal_fd_.get(),
-                       journal_names_.rollback);
-    phase_ = Phase::kRolledBack;
-    CloseHandlesIgnoringErrors();
+    MaybeInjectTestFault("rollback_before_ack");
+    phase_ = Phase::kRollbackPendingAck;
   }
 
-  void BestEffortRollback() noexcept {
+  void BestEffortFinishArmedTerminal() noexcept {
     if ((phase_ == Phase::kPreparedExisting ||
          phase_ == Phase::kPreparedAbsent) &&
         journal_fd_.valid()) {
@@ -1297,6 +1374,11 @@ private:
       }
       return;
     }
+    // An open receipt has no native terminal direction. Leave its durable
+    // journal for the composite owner to recover using the main-process
+    // decision instead of making rollback the finalizer's implicit choice.
+    if (phase_ == Phase::kOpenExisting || phase_ == Phase::kOpenAbsent)
+      return;
     if (phase_ == Phase::kFinalizeIntentExisting ||
         phase_ == Phase::kFinalizeIntentAbsent ||
         phase_ == Phase::kFinalizeCleanupExisting ||
@@ -1307,8 +1389,7 @@ private:
       }
       return;
     }
-    if (phase_ != Phase::kOpenExisting && phase_ != Phase::kOpenAbsent &&
-        phase_ != Phase::kRollbackIntentExisting &&
+    if (phase_ != Phase::kRollbackIntentExisting &&
         phase_ != Phase::kRollbackIntentAbsent &&
         phase_ != Phase::kRollbackCleanupExisting &&
         phase_ != Phase::kRollbackCleanupAbsent) {
@@ -1331,6 +1412,7 @@ private:
   UniqueFd directory_fd_;
   UniqueFd new_file_fd_;
   Request request_;
+  bool victim_existed_ = false;
   Identity victim_identity_;
   JournalNames journal_names_;
   UniqueFd journal_fd_;
@@ -1340,8 +1422,13 @@ private:
 
 enum class RecoveryState {
   kNotFound,
-  kDecisionRequired,
+  kFinalized,
   kRolledBack,
+};
+
+enum class AcknowledgeState {
+  kAcknowledged,
+  kNotFound,
 };
 
 bool MatchesRegularIdentity(const LeafStat &actual, const Identity &expected,
@@ -1369,8 +1456,31 @@ UniqueFd OpenExpectedNewLeaf(int directory_fd, const std::string &leaf,
   return result;
 }
 
+void VerifyRecoveredRollbackLayout(int directory_fd, const Request &request,
+                                   const JournalRecord &record) {
+  if (record.victim_existed) {
+    RequireRegularIdentity(StatLeaf(directory_fd, request.final_leaf),
+                           record.victim_identity,
+                           "settled recovery overwrite victim");
+  } else {
+    RequireAbsent(StatLeaf(directory_fd, request.final_leaf),
+                  "settled recovery final leaf");
+  }
+  RequireAbsent(StatLeaf(directory_fd, request.partial_leaf),
+                "settled recovery rollback partial leaf");
+}
+
+void VerifyRecoveredFinalizeLayout(int directory_fd, const Request &request) {
+  RequireRegularIdentity(StatLeaf(directory_fd, request.final_leaf),
+                         request.expected_partial_identity,
+                         "settled recovery finalized overwrite leaf",
+                         &request.expected_byte_size);
+  RequireAbsent(StatLeaf(directory_fd, request.partial_leaf),
+                "settled recovery finalized victim leaf");
+}
+
 void RecoverRollback(int directory_fd, const Request &request,
-                     const JournalNames &names, OpenedJournal &journal) {
+                     OpenedJournal &journal) {
   const LeafStat initial_final = StatLeaf(directory_fd, request.final_leaf);
   const LeafStat initial_partial = StatLeaf(directory_fd, request.partial_leaf);
   const bool final_is_new = MatchesRegularIdentity(
@@ -1451,29 +1561,134 @@ void RecoverRollback(int directory_fd, const Request &request,
     }
   }
 
-  RemoveOwnedJournal(directory_fd, journal.fd.get(), names.rollback);
+  VerifyRecoveredRollbackLayout(directory_fd, request, journal.record);
+}
+
+void RecoverFinalize(int directory_fd, const Request &request,
+                     OpenedJournal &journal) {
+  const LeafStat installed = StatLeaf(directory_fd, request.final_leaf);
+  RequireRegularIdentity(installed, request.expected_partial_identity,
+                         "recovery finalized overwrite leaf",
+                         &request.expected_byte_size);
+
+  const LeafStat victim = StatLeaf(directory_fd, request.partial_leaf);
+  if (journal.record.victim_existed) {
+    if (victim.exists) {
+      RequireRegularIdentity(victim, journal.record.victim_identity,
+                             "recovery overwrite victim");
+      if (::unlinkat(directory_fd, request.partial_leaf.c_str(), 0) != 0)
+        ThrowErrno("unlinkat(recover finalize victim)", errno);
+      SyncDirectory(directory_fd);
+    }
+  } else {
+    RequireAbsent(victim, "recovery finalized victim leaf");
+  }
+  RequireAbsent(StatLeaf(directory_fd, request.partial_leaf),
+                "recovery finalized victim leaf");
+  VerifyRecoveredFinalizeLayout(directory_fd, request);
 }
 
 RecoveryState RecoverTransaction(const RecoveryRequest &request) {
   UniqueFd directory_fd = OpenAndVerifyDirectory(request);
   const JournalNames names = DeriveJournalNames(request.transaction_id);
   const LeafStat open = StatLeaf(directory_fd.get(), names.open);
+  const LeafStat finalize = StatLeaf(directory_fd.get(), names.finalize);
   const LeafStat rollback = StatLeaf(directory_fd.get(), names.rollback);
-  if (open.exists && rollback.exists) {
+  const unsigned int journal_count = static_cast<unsigned int>(open.exists) +
+                                     static_cast<unsigned int>(finalize.exists) +
+                                     static_cast<unsigned int>(rollback.exists);
+  if (journal_count > 1) {
     throw NativeError(kFilesystemCode,
                       "multiple overwrite recovery journals exist");
   }
-  if (!open.exists && !rollback.exists)
+  if (journal_count == 0)
     return RecoveryState::kNotFound;
+
   if (open.exists) {
-    (void)OpenAndValidateJournal(directory_fd.get(), names.open, request);
-    return RecoveryState::kDecisionRequired;
+    OpenedJournal journal =
+        OpenAndValidateJournal(directory_fd.get(), names.open, request);
+    const std::string &terminal_leaf =
+        request.decision == RecoveryRequest::Decision::kFinalize
+            ? names.finalize
+            : names.rollback;
+    RenameOwnedJournal(directory_fd.get(), journal.fd.get(), names.open,
+                       terminal_leaf);
+    VerifyNamedJournal(directory_fd.get(), terminal_leaf, journal.fd.get());
+    SyncDirectory(directory_fd.get());
+    if (request.decision == RecoveryRequest::Decision::kFinalize) {
+      RecoverFinalize(directory_fd.get(), journal.record.request, journal);
+      return RecoveryState::kFinalized;
+    }
+    RecoverRollback(directory_fd.get(), journal.record.request, journal);
+    return RecoveryState::kRolledBack;
   }
 
-  OpenedJournal journal =
-      OpenAndValidateJournal(directory_fd.get(), names.rollback, request);
-  RecoverRollback(directory_fd.get(), journal.record.request, names, journal);
+  if (finalize.exists &&
+      request.decision != RecoveryRequest::Decision::kFinalize) {
+    throw NativeError(kFilesystemCode,
+                      "the overwrite recovery decision conflicts with finalize intent");
+  }
+  if (rollback.exists &&
+      request.decision != RecoveryRequest::Decision::kRollback) {
+    throw NativeError(kFilesystemCode,
+                      "the overwrite recovery decision conflicts with rollback intent");
+  }
+
+  const bool recovering_finalize = finalize.exists;
+  OpenedJournal journal = OpenAndValidateJournal(
+      directory_fd.get(), recovering_finalize ? names.finalize : names.rollback,
+      request);
+  if (recovering_finalize) {
+    RecoverFinalize(directory_fd.get(), journal.record.request, journal);
+    return RecoveryState::kFinalized;
+  }
+  RecoverRollback(directory_fd.get(), journal.record.request, journal);
   return RecoveryState::kRolledBack;
+}
+
+AcknowledgeState AcknowledgeTransaction(const RecoveryRequest &request) {
+  UniqueFd directory_fd = OpenAndVerifyDirectory(request);
+  const JournalNames names = DeriveJournalNames(request.transaction_id);
+  const LeafStat open = StatLeaf(directory_fd.get(), names.open);
+  const LeafStat finalize = StatLeaf(directory_fd.get(), names.finalize);
+  const LeafStat rollback = StatLeaf(directory_fd.get(), names.rollback);
+  const unsigned int journal_count = static_cast<unsigned int>(open.exists) +
+                                     static_cast<unsigned int>(finalize.exists) +
+                                     static_cast<unsigned int>(rollback.exists);
+  if (journal_count > 1) {
+    throw NativeError(kFilesystemCode,
+                      "multiple overwrite recovery journals exist");
+  }
+  if (journal_count == 0)
+    return AcknowledgeState::kNotFound;
+  if (open.exists) {
+    throw NativeError(kFilesystemCode,
+                      "an open overwrite transaction cannot be acknowledged");
+  }
+  if (finalize.exists &&
+      request.decision != RecoveryRequest::Decision::kFinalize) {
+    throw NativeError(kFilesystemCode,
+                      "the overwrite acknowledgement conflicts with finalize intent");
+  }
+  if (rollback.exists &&
+      request.decision != RecoveryRequest::Decision::kRollback) {
+    throw NativeError(kFilesystemCode,
+                      "the overwrite acknowledgement conflicts with rollback intent");
+  }
+
+  const bool acknowledging_finalize = finalize.exists;
+  const std::string &journal_leaf =
+      acknowledging_finalize ? names.finalize : names.rollback;
+  OpenedJournal journal =
+      OpenAndValidateJournal(directory_fd.get(), journal_leaf, request);
+  if (acknowledging_finalize) {
+    VerifyRecoveredFinalizeLayout(directory_fd.get(), journal.record.request);
+  } else {
+    VerifyRecoveredRollbackLayout(directory_fd.get(), journal.record.request,
+                                  journal.record);
+  }
+  RemoveOwnedJournal(directory_fd.get(), journal.fd.get(), journal_leaf);
+  return AcknowledgeState::kAcknowledged;
 }
 
 napi_value CreateNumber(napi_env env, double value) {
@@ -1545,6 +1760,21 @@ napi_value RollbackCallback(napi_env env, napi_callback_info info) {
   }
 }
 
+napi_value AcknowledgeReceiptCallback(napi_env env, napi_callback_info info) {
+  try {
+    napi_value result = nullptr;
+    CheckNapi(env, napi_get_undefined(env, &result), "napi_get_undefined");
+    UnwrapTransaction(env, info)->Acknowledge();
+    return result;
+  } catch (const NativeError &error) {
+    ThrowToJavaScript(env, error);
+    return nullptr;
+  } catch (const std::exception &error) {
+    ThrowToJavaScript(env, NativeError(kInternalCode, error.what()));
+    return nullptr;
+  }
+}
+
 void ReceiptFinalizer(napi_env, void *data, void *) {
   delete static_cast<Transaction *>(data);
 }
@@ -1586,6 +1816,7 @@ BuiltReceipt BuildReceipt(napi_env env,
   try {
     napi_value finalize = nullptr;
     napi_value rollback = nullptr;
+    napi_value acknowledge = nullptr;
     CheckNapi(env,
               napi_create_function(env, "finalize", NAPI_AUTO_LENGTH,
                                    FinalizeCallback, nullptr, &finalize),
@@ -1595,6 +1826,11 @@ BuiltReceipt BuildReceipt(napi_env env,
                                    RollbackCallback, nullptr, &rollback),
               "napi_create_function(rollback)");
     CheckNapi(env,
+              napi_create_function(env, "acknowledge", NAPI_AUTO_LENGTH,
+                                   AcknowledgeReceiptCallback, nullptr,
+                                   &acknowledge),
+              "napi_create_function(acknowledge)");
+    CheckNapi(env,
               napi_set_named_property(
                   env, receipt, "expectedFinalIdentity",
                   CreateIdentity(env, raw->expected_final_identity())),
@@ -1603,6 +1839,9 @@ BuiltReceipt BuildReceipt(napi_env env,
               "napi_set_named_property(finalize)");
     CheckNapi(env, napi_set_named_property(env, receipt, "rollback", rollback),
               "napi_set_named_property(rollback)");
+    CheckNapi(env,
+              napi_set_named_property(env, receipt, "acknowledge", acknowledge),
+              "napi_set_named_property(acknowledge)");
   } catch (...) {
     BuiltReceipt failed{receipt, raw};
     DisposeBuiltReceipt(env, failed);
@@ -1675,8 +1914,8 @@ napi_value CreateRecoveryResult(napi_env env, RecoveryState state) {
   case RecoveryState::kNotFound:
     name = "not_found";
     break;
-  case RecoveryState::kDecisionRequired:
-    name = "decision_required";
+  case RecoveryState::kFinalized:
+    name = "finalized";
     break;
   case RecoveryState::kRolledBack:
     name = "rolled_back";
@@ -1690,6 +1929,21 @@ napi_value CreateRecoveryResult(napi_env env, RecoveryState state) {
             "napi_create_string_utf8(recovery state)");
   CheckNapi(env, napi_set_named_property(env, result, "state", state_value),
             "napi_set_named_property(recovery state)");
+  return result;
+}
+
+napi_value CreateAcknowledgeResult(napi_env env, AcknowledgeState state) {
+  const char *name = state == AcknowledgeState::kAcknowledged
+                         ? "acknowledged"
+                         : "not_found";
+  napi_value result = nullptr;
+  napi_value state_value = nullptr;
+  CheckNapi(env, napi_create_object(env, &result), "napi_create_object");
+  CheckNapi(env,
+            napi_create_string_utf8(env, name, NAPI_AUTO_LENGTH, &state_value),
+            "napi_create_string_utf8(acknowledge state)");
+  CheckNapi(env, napi_set_named_property(env, result, "state", state_value),
+            "napi_set_named_property(acknowledge state)");
   return result;
 }
 
@@ -1712,6 +1966,25 @@ napi_value RecoverCallback(napi_env env, napi_callback_info info) {
   }
 }
 
+napi_value AcknowledgeCallback(napi_env env, napi_callback_info info) {
+  try {
+    size_t argc = 2;
+    napi_value argv[2] = {nullptr, nullptr};
+    CheckNapi(env, napi_get_cb_info(env, info, &argc, argv, nullptr, nullptr),
+              "napi_get_cb_info");
+    if (argc != 1)
+      ThrowInvalidRequest("acknowledge requires exactly one request argument");
+    const RecoveryRequest request = ReadRecoveryRequest(env, argv[0]);
+    return CreateAcknowledgeResult(env, AcknowledgeTransaction(request));
+  } catch (const NativeError &error) {
+    ThrowToJavaScript(env, error);
+    return nullptr;
+  } catch (const std::exception &error) {
+    ThrowToJavaScript(env, NativeError(kInternalCode, error.what()));
+    return nullptr;
+  }
+}
+
 void SetNamed(napi_env env, napi_value object, const char *name,
               napi_value value) {
   CheckNapi(env, napi_set_named_property(env, object, name, value),
@@ -1725,6 +1998,7 @@ napi_value Init(napi_env env, napi_value exports) {
     napi_value architecture = nullptr;
     napi_value begin = nullptr;
     napi_value recover = nullptr;
+    napi_value acknowledge = nullptr;
     CheckNapi(env, napi_create_uint32(env, kProtocolVersion, &protocol_version),
               "napi_create_uint32");
     CheckNapi(
@@ -1743,11 +2017,16 @@ napi_value Init(napi_env env, napi_value exports) {
               napi_create_function(env, "recover", NAPI_AUTO_LENGTH,
                                    RecoverCallback, nullptr, &recover),
               "napi_create_function(recover)");
+    CheckNapi(env,
+              napi_create_function(env, "acknowledge", NAPI_AUTO_LENGTH,
+                                   AcknowledgeCallback, nullptr, &acknowledge),
+              "napi_create_function(acknowledge)");
     SetNamed(env, exports, "protocolVersion", protocol_version);
     SetNamed(env, exports, "platform", platform);
     SetNamed(env, exports, "architecture", architecture);
     SetNamed(env, exports, "begin", begin);
     SetNamed(env, exports, "recover", recover);
+    SetNamed(env, exports, "acknowledge", acknowledge);
 #if defined(FUSIONKIT_OVERWRITE_TEST_FAULTS)
     napi_value test_fault_injection = nullptr;
     CheckNapi(env, napi_get_boolean(env, true, &test_fault_injection),

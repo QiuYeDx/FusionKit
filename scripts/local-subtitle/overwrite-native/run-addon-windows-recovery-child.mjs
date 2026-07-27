@@ -35,11 +35,15 @@ function capture(operation) {
   }
 }
 
+function abandonOpenReceipt(addon, request) {
+  addon.begin(request);
+}
+
 function run() {
   const input = readInput();
   const addon = require(input.addonPath);
   if (
-    addon.protocolVersion !== 3 ||
+    addon.protocolVersion !== 4 ||
     addon.platform !== "win32" ||
     addon.architecture !== "x64" ||
     addon.testFaultInjection !== true
@@ -48,6 +52,21 @@ function run() {
   }
   if (input.action === "recover") {
     process.stdout.write(`${JSON.stringify(addon.recover(input.request))}\n`);
+    return;
+  }
+  if (input.action === "acknowledge") {
+    process.stdout.write(
+      `${JSON.stringify(addon.acknowledge(input.request))}\n`,
+    );
+    return;
+  }
+  if (input.action === "abandon-open") {
+    abandonOpenReceipt(addon, input.request);
+    if (typeof globalThis.gc !== "function") {
+      throw new Error("explicit garbage collection is unavailable");
+    }
+    for (let attempt = 0; attempt < 3; attempt += 1) globalThis.gc();
+    process.stdout.write(`${JSON.stringify({ state: "abandoned_open" })}\n`);
     return;
   }
   const receipt = addon.begin(input.request);
@@ -62,8 +81,9 @@ function run() {
     const first = capture(() => receipt.rollback());
     clearFault();
     const second = capture(() => receipt.rollback());
+    const acknowledge = capture(() => receipt.acknowledge());
     process.stdout.write(
-      `${JSON.stringify({ first, second, terminal: "rollback" })}\n`,
+      `${JSON.stringify({ first, second, acknowledge, terminal: "rollback" })}\n`,
     );
     return;
   }
@@ -75,8 +95,24 @@ function run() {
     const first = capture(() => receipt.finalize());
     clearFault();
     const second = capture(() => receipt.finalize());
+    const acknowledge = capture(() => receipt.acknowledge());
     process.stdout.write(
-      `${JSON.stringify({ first, second, terminal: "finalize" })}\n`,
+      `${JSON.stringify({ first, second, acknowledge, terminal: "finalize" })}\n`,
+    );
+    return;
+  }
+  if (input.action === "acknowledge-crash") {
+    receipt[input.decision]();
+    receipt.acknowledge();
+    throw new Error("the acknowledge crash checkpoint was not reached");
+  }
+  if (input.action === "acknowledge-error-retry") {
+    receipt[input.decision]();
+    const first = capture(() => receipt.acknowledge());
+    clearFault();
+    const second = capture(() => receipt.acknowledge());
+    process.stdout.write(
+      `${JSON.stringify({ first, second, decision: input.decision })}\n`,
     );
     return;
   }

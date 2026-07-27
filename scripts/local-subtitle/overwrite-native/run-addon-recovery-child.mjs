@@ -6,7 +6,6 @@ import { createRequire } from "node:module";
 import path from "node:path";
 
 const require = createRequire(import.meta.url);
-const GENERIC_JOURNAL_POINT = "journal_after_unlink_before_sync";
 const ROLLBACK_OPEN_LAYOUT_POINTS = new Set([
   "rollback_after_intent_sync",
   "rollback_before_namespace",
@@ -17,8 +16,7 @@ const ROLLBACK_PARTIAL_CLEANUP_POINTS = new Set([
 ]);
 const ROLLBACK_COMPLETE_LAYOUT_POINTS = new Set([
   "rollback_after_cleanup_sync",
-  "rollback_before_journal_remove",
-  GENERIC_JOURNAL_POINT,
+  "rollback_before_ack",
 ]);
 
 function readInput() {
@@ -26,7 +24,7 @@ function readInput() {
   assert.ok(input && typeof input === "object");
   assert.equal(typeof input.action, "string");
   assert.equal(typeof input.addonPath, "string");
-  if (input.action === "recover") {
+  if (["recover", "acknowledge"].includes(input.action)) {
     assert.ok(
       input.recoveryRequest && typeof input.recoveryRequest === "object",
     );
@@ -41,6 +39,7 @@ function readInput() {
 
 function assertTestAddon(addon) {
   assert.deepEqual(Reflect.ownKeys(addon).sort(), [
+    "acknowledge",
     "architecture",
     "begin",
     "platform",
@@ -48,12 +47,13 @@ function assertTestAddon(addon) {
     "recover",
     "testFaultInjection",
   ]);
-  assert.equal(addon.protocolVersion, 3);
+  assert.equal(addon.protocolVersion, 4);
   assert.equal(addon.platform, "darwin");
   assert.equal(addon.architecture, "arm64");
   assert.equal(addon.testFaultInjection, true);
   assert.equal(typeof addon.begin, "function");
   assert.equal(typeof addon.recover, "function");
+  assert.equal(typeof addon.acknowledge, "function");
 }
 
 function assertConfiguredFault(input, action) {
@@ -80,6 +80,12 @@ function run() {
     throw new Error("begin crash checkpoint did not terminate the process");
   }
 
+  if (input.action === "abandon-open") {
+    addon.begin(input.request);
+    writeResult({ receiptAbandoned: true });
+    return;
+  }
+
   if (input.action === "rollback-crash") {
     assertConfiguredFault(input, "exit");
     const receipt = addon.begin(input.request);
@@ -87,13 +93,56 @@ function run() {
     throw new Error("rollback crash checkpoint did not terminate the process");
   }
 
+  if (input.action === "finalize-crash") {
+    assertConfiguredFault(input, "exit");
+    const receipt = addon.begin(input.request);
+    receipt.finalize();
+    throw new Error("finalize crash checkpoint did not terminate the process");
+  }
+
   if (input.action === "recover") {
     const result = addon.recover(input.recoveryRequest);
     assert.deepEqual(Reflect.ownKeys(result), ["state"]);
     assert.ok(
-      ["decision_required", "rolled_back", "not_found"].includes(result.state),
+      ["finalized", "rolled_back", "not_found"].includes(result.state),
     );
     process.stdout.write(`${JSON.stringify({ state: result.state })}\n`);
+    return;
+  }
+
+  if (input.action === "acknowledge") {
+    const result = addon.acknowledge(input.recoveryRequest);
+    assert.deepEqual(Reflect.ownKeys(result), ["state"]);
+    assert.ok(["acknowledged", "not_found"].includes(result.state));
+    writeResult({ state: result.state });
+    return;
+  }
+
+  if (input.action === "acknowledge-crash") {
+    assertConfiguredFault(input, "exit");
+    const receipt = addon.begin(input.request);
+    receipt[input.terminal]();
+    receipt.acknowledge();
+    throw new Error("acknowledge crash checkpoint did not terminate the process");
+  }
+
+  if (input.action === "acknowledge-error-retry") {
+    assertConfiguredFault(input, "error");
+    const receipt = addon.begin(input.request);
+    assert.equal(receipt[input.terminal](), undefined);
+    const firstError = invokeAndCapture(() => receipt.acknowledge());
+    assert.equal(
+      firstError?.code,
+      "ERR_LOCAL_SUBTITLE_OVERWRITE_FILESYSTEM",
+    );
+    clearConfiguredFault();
+    assert.equal(receipt.acknowledge(), undefined);
+    writeResult({
+      firstAction: "error",
+      firstErrorCode: firstError.code,
+      sameReceiptRetried: true,
+      retryCompleted: true,
+    });
     return;
   }
 
@@ -113,6 +162,7 @@ function run() {
     );
     clearConfiguredFault();
     assert.equal(receipt.rollback(), undefined);
+    assert.equal(receipt.acknowledge(), undefined);
     writeResult({
       firstAction: "error",
       firstErrorCode: firstError.code,
@@ -134,39 +184,23 @@ function run() {
       "ERR_LOCAL_SUBTITLE_OVERWRITE_FILESYSTEM",
     );
     const intermediate = assertFinalizeIntermediate(input);
-    let oppositeTerminalRejected = null;
-    if (intermediate.cleanupEntered) {
-      const oppositeTerminalError = invokeAndCapture(() => receipt.rollback());
-      assert.equal(
-        oppositeTerminalError?.code,
-        "ERR_LOCAL_SUBTITLE_OVERWRITE_INVALID_STATE",
-      );
-      oppositeTerminalRejected = true;
-    }
+    const oppositeTerminalError = invokeAndCapture(() => receipt.rollback());
+    assert.equal(
+      oppositeTerminalError?.code,
+      "ERR_LOCAL_SUBTITLE_OVERWRITE_INVALID_STATE",
+    );
     clearConfiguredFault();
     assert.equal(receipt.finalize(), undefined);
+    assert.equal(receipt.acknowledge(), undefined);
     writeResult({
       firstAction: "error",
       firstErrorCode: firstError.code,
       intermediateLayoutVerified: true,
       journalStateBeforeRetry: intermediate.journalState,
       cleanupEntered: intermediate.cleanupEntered,
-      oppositeTerminalRejected,
+      oppositeTerminalRejected: true,
       sameReceiptRetried: true,
       retryCompleted: true,
-    });
-    return;
-  }
-
-  if (input.action === "finalize-unreachable-point") {
-    assertConfiguredFault(input, "error");
-    const receipt = addon.begin(input.request);
-    assert.equal(receipt.finalize(), undefined);
-    clearConfiguredFault();
-    writeResult({
-      configuredAction: "error",
-      faultPointReached: false,
-      finalizeCompleted: true,
     });
     return;
   }
@@ -190,29 +224,32 @@ function assertRollbackIntermediate(input) {
   } else {
     throw new Error("unsupported rollback fault point");
   }
-  const journalState = input.faultPoint === GENERIC_JOURNAL_POINT
-    ? "absent"
-    : "rollback";
+  const journalState = "rollback";
   assertJournalState(input, journalState);
   return journalState;
 }
 
 function assertFinalizeIntermediate(input) {
+  if (input.faultPoint === "finalize_after_intent_sync") {
+    assertInstalledLayout(input);
+    assertJournalState(input, "finalize");
+    return { cleanupEntered: false, journalState: "finalize" };
+  }
   if (input.faultPoint === "finalize_before_namespace") {
     assertInstalledLayout(input);
-    assertJournalState(input, "open");
-    return { cleanupEntered: false, journalState: "open" };
+    assertJournalState(input, "finalize");
+    return { cleanupEntered: false, journalState: "finalize" };
   }
   if (input.faultPoint === "finalize_after_namespace_sync") {
     assert.equal(input.victimExisted, true);
     assertFinalizedLayout(input);
-    assertJournalState(input, "open");
-    return { cleanupEntered: true, journalState: "open" };
+    assertJournalState(input, "finalize");
+    return { cleanupEntered: true, journalState: "finalize" };
   }
-  if (input.faultPoint === GENERIC_JOURNAL_POINT) {
+  if (input.faultPoint === "finalize_before_ack") {
     assertFinalizedLayout(input);
-    assertJournalState(input, "absent");
-    return { cleanupEntered: true, journalState: "absent" };
+    assertJournalState(input, "finalize");
+    return { cleanupEntered: true, journalState: "finalize" };
   }
   throw new Error("unsupported finalize fault point");
 }
@@ -256,19 +293,29 @@ function assertFinalizedLayout(input) {
 function assertJournalState(input, expected) {
   const base = `${input.request.partialLeaf}.fusionkit-overwrite`;
   const openPath = leafPath(input, `${base}.open`);
+  const finalizePath = leafPath(input, `${base}.finalize`);
   const rollbackPath = leafPath(input, `${base}.rollback`);
   if (expected === "open") {
     assertOwnedJournal(openPath);
+    assertAbsent(finalizePath);
+    assertAbsent(rollbackPath);
+    return;
+  }
+  if (expected === "finalize") {
+    assertAbsent(openPath);
+    assertOwnedJournal(finalizePath);
     assertAbsent(rollbackPath);
     return;
   }
   if (expected === "rollback") {
     assertAbsent(openPath);
+    assertAbsent(finalizePath);
     assertOwnedJournal(rollbackPath);
     return;
   }
   assert.equal(expected, "absent");
   assertAbsent(openPath);
+  assertAbsent(finalizePath);
   assertAbsent(rollbackPath);
 }
 

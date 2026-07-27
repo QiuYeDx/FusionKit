@@ -48,7 +48,6 @@ import {
 import {
   isLocalSubtitleOverwriteRecoveryOwner,
   type LocalSubtitleOverwriteRecoveryOwner,
-  type LocalSubtitleOverwriteRecoveryRegistryAuthority,
 } from "./overwrite-recovery-owner";
 import {
   localSubtitleOverwriteDirectoryKey,
@@ -710,146 +709,97 @@ export class LocalSubtitleExporter<TReservation> {
       directoryIdentity: options.directory.identity,
     });
     let receipt: LocalSubtitleOverwriteTransactionReceipt | undefined;
-    const transferRecovery = (
-      direction: "finalize" | "rollback",
-      registry: LocalSubtitleOverwriteRecoveryRegistryAuthority<TReservation>,
-      markTransferred: () => void,
-    ): void => {
-      if (!receipt) {
-        throw outputWriteFailure(
-          "The overwrite recovery handoff has no transaction receipt.",
-        );
-      }
-      let adoptionFailure: unknown;
+    try {
+      recoveryOwner.markBeginStarted(recoveryHandoff);
       try {
-        recoveryOwner.adopt({
-          handoff: recoveryHandoff,
-          recoveryId: options.prepared.transactionId,
-          owner: options.options.owner,
-          taskId: options.options.taskId,
-          generation: options.options.generation,
-          format: options.format,
-          direction,
-          directoryIdentity: options.directory.identity,
-          receipt,
-          registry,
+        receipt = this.#overwriteTransaction!.begin({
+          transactionId: options.prepared.transactionId,
+          directoryPath: options.directory.directoryPath,
+          expectedDirectoryIdentity: options.directory.identity,
+          partialLeaf: path.basename(options.prepared.partialPath),
+          finalLeaf: options.displayName,
+          expectedPartialIdentity: options.prepared.identity,
+          expectedByteSize: options.prepared.byteSize,
         });
-      } catch (error) {
-        adoptionFailure = error;
-      }
-      if (recoveryOwner.isAdoptionClaimed(recoveryHandoff)) {
-        markTransferred();
-        return;
-      }
-      throw adoptionFailure ?? outputWriteFailure(
-        "The overwrite recovery owner rejected the transaction handoff.",
-      );
-    };
-
-    try {
-    try {
-      receipt = this.#overwriteTransaction!.begin({
-        transactionId: options.prepared.transactionId,
-        directoryPath: options.directory.directoryPath,
-        expectedDirectoryIdentity: options.directory.identity,
-        partialLeaf: path.basename(options.prepared.partialPath),
-        finalLeaf: options.displayName,
-        expectedPartialIdentity: options.prepared.identity,
-        expectedByteSize: options.prepared.byteSize,
-      });
-    } catch {
-      throw outputWriteFailure(
-        "The native subtitle overwrite transaction could not begin.",
-      );
-    }
-
-    let summary: GeneratedSubtitleArtifactSummary;
-    try {
-      const expectedFileIdentity = receipt.expectedFinalIdentity;
-      summary = this.artifacts.activate(options.reserved.reservation, {
-        filePath: options.finalPath,
-        format: options.format,
-        displayName: options.displayName,
-        sha256: options.prepared.sha256,
-        byteSize: options.prepared.byteSize,
-        expectedFileIdentity,
-        expectedDirectoryIdentity: options.directory.identity,
-      });
-    } catch (activationError) {
-      try {
-        receipt.rollback();
       } catch {
-        transferRecovery(
-          "rollback",
-          {
-            state: "reserved",
-            reservation: options.reserved.reservation,
-          },
-          options.markRecoveryTransferred,
-        );
-        throw cleanupFailureForSignal(options.options.signal)(
-          "The overwritten subtitle target could not be rolled back after artifact activation failed.",
-        );
-      }
-      throw activationError;
-    }
-
-    try {
-      receipt.finalize();
-    } catch {
-      if (receipt.state === "finalize_pending") {
-        try {
-          receipt.finalize();
-        } catch {
-          transferRecovery(
-            "finalize",
-            {
-              state: "active",
-              artifactRef: summary.artifactRef,
-            },
-            options.markActivated,
-          );
-          throw cleanupFailureForSignal(options.options.signal)(
-            "The overwritten subtitle transaction remains pending after finalization retry failed.",
-          );
-        }
-      } else {
-        let registryRevoked = false;
-        try {
-          registryRevoked = this.artifacts.revokeArtifact(
-            options.options.owner,
-            summary.artifactRef,
-          );
-        } catch {
-          // Rollback still has to run even if Registry cleanup failed.
-        }
-        let rolledBack = false;
-        try {
-          receipt.rollback();
-          rolledBack = true;
-        } catch {
-          // Report one stable cleanup failure after attempting both cleanup phases.
-        }
-        if (!registryRevoked || !rolledBack) {
-          transferRecovery(
-            "rollback",
-            registryRevoked
-              ? { state: "settled" }
-              : { state: "active", artifactRef: summary.artifactRef },
-            options.markActivated,
-          );
-          throw cleanupFailureForSignal(options.options.signal)(
-            "The overwritten subtitle artifact could not be revoked and rolled back after finalization failed.",
-          );
-        }
         throw outputWriteFailure(
-          "The overwritten subtitle transaction could not be finalized.",
+          "The native subtitle overwrite transaction could not begin.",
         );
       }
-    }
 
-    options.markActivated();
-    return Object.freeze({ summary, prepared: options.prepared });
+      recoveryOwner.adopt({
+        handoff: recoveryHandoff,
+        recoveryId: options.prepared.transactionId,
+        owner: options.options.owner,
+        taskId: options.options.taskId,
+        generation: options.options.generation,
+        format: options.format,
+        direction: "rollback",
+        directoryIdentity: options.directory.identity,
+        receipt,
+        registry: {
+          state: "reserved",
+          reservation: options.reserved.reservation,
+        },
+      });
+      options.markRecoveryTransferred();
+      if (receipt.state !== "open") {
+        throw cleanupFailureForSignal(options.options.signal)(
+          "The overwrite recovery owner closed the transaction before artifact activation.",
+        );
+      }
+
+      let summary: GeneratedSubtitleArtifactSummary;
+      try {
+        summary = this.artifacts.activate(options.reserved.reservation, {
+          filePath: options.finalPath,
+          format: options.format,
+          displayName: options.displayName,
+          sha256: options.prepared.sha256,
+          byteSize: options.prepared.byteSize,
+          expectedFileIdentity: receipt.expectedFinalIdentity,
+          expectedDirectoryIdentity: options.directory.identity,
+        });
+      } catch (activationError) {
+        try {
+          recoveryOwner.settleAdoption(recoveryHandoff);
+        } catch {
+          try {
+            recoveryOwner.settleAdoption(recoveryHandoff);
+          } catch {
+            throw cleanupFailureForSignal(options.options.signal)(
+              "The overwritten subtitle target remains pending after artifact activation failed.",
+            );
+          }
+        }
+        throw activationError;
+      }
+
+      options.markActivated();
+      try {
+        recoveryOwner.commitActivated(recoveryHandoff, summary.artifactRef);
+      } catch {
+        try {
+          recoveryOwner.commitActivated(recoveryHandoff, summary.artifactRef);
+        } catch {
+          throw cleanupFailureForSignal(options.options.signal)(
+            "The overwrite commit decision could not be durably persisted.",
+          );
+        }
+      }
+
+      try {
+        recoveryOwner.settleAdoption(recoveryHandoff);
+      } catch {
+        try {
+          recoveryOwner.settleAdoption(recoveryHandoff);
+        } catch {
+          throw cleanupFailureForSignal(options.options.signal)(
+            "The overwritten subtitle transaction remains pending after terminal retry failed.",
+          );
+        }
+      }
+      return Object.freeze({ summary, prepared: options.prepared });
     } finally {
       recoveryOwner.releaseAdoption(recoveryHandoff);
     }

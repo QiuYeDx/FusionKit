@@ -38,6 +38,8 @@ test("freezes a shell-free N-API v8 macOS arm64 build descriptor", () => {
     arch: "arm64",
   });
   assert.equal(descriptor.contract.napiVersion, 8);
+  assert.equal(descriptor.contract.nativeProtocolVersion, 4);
+  assert.equal(descriptor.contract.journalVersion, 3);
   assert.equal(descriptor.contract.deploymentTarget, "11.0");
   assert.deepEqual(
     descriptor.commands.slice(0, 3).map(({ command, args }) => [command, args]),
@@ -108,7 +110,11 @@ test("keeps deterministic fault injection in a distinct test-only build", () => 
     true,
   );
   assert.equal(testOnly.contract.testOnly, true);
-  assert.equal(testOnly.contract.workPackage, "FS-TXN-001B");
+  assert.equal(testOnly.contract.workPackage, "FS-TXN-001F");
+  assert.equal(production.contract.nativeProtocolVersion, 4);
+  assert.equal(production.contract.journalVersion, 3);
+  assert.equal(testOnly.contract.nativeProtocolVersion, 4);
+  assert.equal(testOnly.contract.journalVersion, 3);
   assert.equal(
     testOnly.contract.faultInjection.crashExitCode,
     86,
@@ -253,6 +259,8 @@ test(
       assert.equal(receipt.artifact.architecture, "arm64");
       assert.equal(receipt.artifact.minimumMacosVersion, "11.0.0");
       assert.equal(receipt.build.napiVersion, 8);
+      assert.equal(receipt.build.nativeProtocolVersion, 4);
+      assert.equal(receipt.build.journalVersion, 3);
       assert.equal(repeatedReceipt.artifact.byteSize, receipt.artifact.byteSize);
       assert.equal(repeatedReceipt.artifact.sha256, receipt.artifact.sha256);
       assert.equal(JSON.stringify(receipt).includes("/Users/"), false);
@@ -260,17 +268,19 @@ test(
 
       const addon = require(outputPath);
       assert.deepEqual(Reflect.ownKeys(addon).sort(), [
+        "acknowledge",
         "architecture",
         "begin",
         "platform",
         "protocolVersion",
         "recover",
       ]);
-      assert.equal(addon.protocolVersion, 3);
+      assert.equal(addon.protocolVersion, 4);
       assert.equal(addon.platform, "darwin");
       assert.equal(addon.architecture, "arm64");
       assert.equal(typeof addon.begin, "function");
       assert.equal(typeof addon.recover, "function");
+      assert.equal(typeof addon.acknowledge, "function");
       assert.equal(Reflect.has(addon, "testFaultInjection"), false);
 
       const integration = await runOverwriteNativeIntegration({
@@ -295,7 +305,10 @@ test(
         integration.recoveryRequestCases.map(({ id, passed }) => ({ id, passed })),
         [
           { id: "recover-exact-own-keys", passed: true },
+          { id: "acknowledge-exact-own-keys", passed: true },
+          { id: "acknowledge-rejects-open-journal", passed: true },
           { id: "recover-transaction-id-validation", passed: true },
+          { id: "recover-decision-validation", passed: true },
           { id: "recover-exact-id-no-scan", passed: true },
           { id: "begin-transaction-partial-match", passed: true },
         ],
@@ -329,7 +342,7 @@ test(
 );
 
 test(
-  "proves native terminal fault boundaries and rollback recovery in fresh processes",
+  "proves durable terminal decisions and acknowledgement in fresh processes",
   { skip: !MACOS_ARM64 },
   async () => {
     const outputRoot = await mkdtemp("/tmp/fusionkit-overwrite-recovery-");
@@ -341,11 +354,14 @@ test(
       assert.deepEqual(receipt.build.compileDefinitions, [
         "FUSIONKIT_OVERWRITE_TEST_FAULTS=1",
       ]);
+      assert.equal(receipt.build.nativeProtocolVersion, 4);
+      assert.equal(receipt.build.journalVersion, 3);
       assert.equal(receipt.productionGateChanged, false);
       assert.equal(JSON.stringify(receipt).includes(outputRoot), false);
 
       const addon = require(outputPath);
       assert.deepEqual(Reflect.ownKeys(addon).sort(), [
+        "acknowledge",
         "architecture",
         "begin",
         "platform",
@@ -359,19 +375,39 @@ test(
         addonPath: outputPath,
       });
       assert.equal(integration.status, "passed");
-      assert.equal(integration.schemaVersion, 2);
+      assert.equal(integration.schemaVersion, 3);
       assert.equal(integration.productionGateChanged, false);
-      assert.equal(integration.beginCrashCases.length, 2);
+      assert.equal(integration.beginCrashCases.length, 4);
       for (const beginCase of integration.beginCrashCases) {
         assert.equal(beginCase.checkpoint, "begin_after_namespace");
         assert.equal(beginCase.childA.exitCode, 86);
-        assert.equal(beginCase.childB.recoveryState, "decision_required");
-        assert.equal(beginCase.childC.recoveryState, "decision_required");
+        assert.equal(
+          beginCase.childB.recoveryState,
+          beginCase.decision === "finalize" ? "finalized" : "rolled_back",
+        );
+        assert.equal(beginCase.childC.acknowledgeState, "acknowledged");
+        assert.equal(beginCase.childD.recoveryState, "not_found");
         assert.equal(beginCase.openJournalVerified, true);
         assert.equal(beginCase.installedLayoutVerifiedWithExactIdentity, true);
-        assert.equal(beginCase.recoveryNamespaceUnchanged, true);
-        assert.equal(beginCase.automaticTerminalDecision, false);
+        assert.equal(beginCase.recoveryConvergedToExplicitDecision, true);
+        assert.equal(beginCase.idempotentNamespaceUnchanged, true);
         assert.equal(beginCase.passed, true);
+      }
+
+      assert.equal(integration.abandonedOpenReceiptCases.length, 4);
+      for (const abandonedCase of integration.abandonedOpenReceiptCases) {
+        assert.equal(abandonedCase.childA.action, "abandon-open");
+        assert.equal(abandonedCase.childA.receiptAbandoned, true);
+        assert.equal(abandonedCase.childA.normalExit, true);
+        assert.equal(
+          abandonedCase.childB.recoveryState,
+          abandonedCase.decision === "finalize" ? "finalized" : "rolled_back",
+        );
+        assert.equal(abandonedCase.childC.acknowledgeState, "acknowledged");
+        assert.equal(abandonedCase.openJournalRetainedByFinalizer, true);
+        assert.equal(abandonedCase.presetRollbackMarkerAbsent, true);
+        assert.equal(abandonedCase.recoveryConvergedToExplicitDecision, true);
+        assert.equal(abandonedCase.passed, true);
       }
 
       const rollbackPoints = new Set([
@@ -380,10 +416,9 @@ test(
         "rollback_after_namespace_sync",
         "rollback_before_cleanup_unlink",
         "rollback_after_cleanup_sync",
-        "rollback_before_journal_remove",
-        "journal_after_unlink_before_sync",
+        "rollback_before_ack",
       ]);
-      assert.equal(integration.rollbackCrashCases.length, 14);
+      assert.equal(integration.rollbackCrashCases.length, 12);
       assert.deepEqual(
         new Set(
           integration.rollbackCrashCases.map(({ checkpoint }) => checkpoint),
@@ -399,14 +434,10 @@ test(
       for (const crashCase of integration.rollbackCrashCases) {
         assert.equal(crashCase.childA.exitCode, 86);
         assert.equal(crashCase.childA.processTerminatedAtCheckpoint, true);
-        assert.equal(
-          crashCase.childB.recoveryState,
-          crashCase.checkpoint === "journal_after_unlink_before_sync"
-            ? "not_found"
-            : "rolled_back",
-        );
-        assert.equal(crashCase.childC.recoveryState, "not_found");
-        assert.equal(crashCase.childC.idempotent, true);
+        assert.equal(crashCase.childB.recoveryState, "rolled_back");
+        assert.equal(crashCase.childC.acknowledgeState, "acknowledged");
+        assert.equal(crashCase.childD.recoveryState, "not_found");
+        assert.equal(crashCase.childD.idempotent, true);
         assert.equal(
           crashCase.intermediateLayoutVerifiedWithExactIdentity,
           true,
@@ -416,7 +447,7 @@ test(
         assert.equal(crashCase.passed, true);
       }
 
-      assert.equal(integration.rollbackErrorRetryCases.length, 14);
+      assert.equal(integration.rollbackErrorRetryCases.length, 12);
       assert.deepEqual(
         new Set(
           integration.rollbackErrorRetryCases.map(
@@ -438,7 +469,7 @@ test(
         assert.equal(retryCase.passed, true);
       }
 
-      assert.equal(integration.finalizeErrorRetryCases.length, 5);
+      assert.equal(integration.finalizeErrorRetryCases.length, 7);
       for (const finalizeCase of integration.finalizeErrorRetryCases) {
         assert.equal(
           finalizeCase.firstErrorCode,
@@ -448,31 +479,46 @@ test(
         assert.equal(finalizeCase.sameReceiptRetried, true);
         assert.equal(finalizeCase.retryCompleted, true);
         assert.equal(finalizeCase.finalizedWithExactNewIdentity, true);
-        assert.equal(finalizeCase.crashRecoveryClaimed, false);
-        assert.equal(
-          finalizeCase.oppositeTerminalRejected,
-          finalizeCase.cleanupEntered ? true : null,
-        );
+        assert.equal(finalizeCase.durableFinalizeIntentVerified, true);
+        assert.equal(finalizeCase.oppositeTerminalRejected, true);
         assert.equal(finalizeCase.passed, true);
       }
-      assert.deepEqual(integration.finalizeUnsupportedCases, [
-        {
-          id:
-            "finalize-unsupported-absent-finalize_after_namespace_sync",
-          priorVictim: "absent",
-          checkpoint: "finalize_after_namespace_sync",
-          configuredAction: "error",
-          faultPointReached: false,
-          finalizeCompleted: true,
-          reason: "absent_finalize_has_no_namespace_mutation_checkpoint",
-          crashRecoveryClaimed: false,
-          passed: true,
-        },
-      ]);
+
+      assert.equal(integration.finalizeCrashCases.length, 7);
+      for (const finalizeCase of integration.finalizeCrashCases) {
+        assert.equal(finalizeCase.childA.exitCode, 86);
+        assert.equal(finalizeCase.childB.recoveryState, "finalized");
+        assert.equal(finalizeCase.childC.acknowledgeState, "acknowledged");
+        assert.equal(finalizeCase.childD.recoveryState, "not_found");
+        assert.equal(finalizeCase.finalizedWithExactNewIdentity, true);
+        assert.equal(finalizeCase.passed, true);
+      }
+
+      assert.equal(integration.acknowledgeCrashCases.length, 4);
+      for (const acknowledgeCase of integration.acknowledgeCrashCases) {
+        assert.equal(acknowledgeCase.childA.exitCode, 86);
+        assert.equal(acknowledgeCase.childB.acknowledgeState, "not_found");
+        assert.equal(acknowledgeCase.terminalLayoutPreserved, true);
+        assert.equal(acknowledgeCase.notFoundTreatedAsNativeSuccess, false);
+        assert.equal(acknowledgeCase.passed, true);
+      }
+
+      assert.equal(integration.acknowledgeErrorRetryCases.length, 4);
+      for (const acknowledgeCase of integration.acknowledgeErrorRetryCases) {
+        assert.equal(
+          acknowledgeCase.firstErrorCode,
+          "ERR_LOCAL_SUBTITLE_OVERWRITE_FILESYSTEM",
+        );
+        assert.equal(acknowledgeCase.sameReceiptRetried, true);
+        assert.equal(acknowledgeCase.retryCompleted, true);
+        assert.equal(acknowledgeCase.passed, true);
+      }
+
       assert.deepEqual(integration.claims, {
-        beginOpenJournalAutomaticallyDecided: false,
-        finalizeCrashRecoveryClaimed: false,
+        beginOpenJournalRequiresExplicitDecision: true,
+        processCrashRecoveryClaimed: true,
         powerLossSafetyClaimed: false,
+        nonCooperativeWriterSafetyClaimed: false,
       });
       assert.equal(JSON.stringify(integration).includes(outputRoot), false);
       assert.equal(JSON.stringify(integration).includes("/"), false);

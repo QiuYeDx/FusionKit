@@ -194,6 +194,7 @@ describe("local subtitle overwrite transaction contract", () => {
           expectedFinalIdentity,
           finalize() {},
           rollback() {},
+          acknowledge() {},
         };
       },
     });
@@ -297,6 +298,8 @@ describe("local subtitle overwrite transaction contract", () => {
 
     receipt.finalize();
     receipt.finalize();
+    expect(receipt.state).toBe("finalize_pending_ack");
+    receipt.acknowledge();
     expect(receipt.state).toBe("finalized");
     expect(finalize).toHaveBeenCalledTimes(1);
     expect(() => receipt.rollback()).toThrowError(
@@ -313,6 +316,8 @@ describe("local subtitle overwrite transaction contract", () => {
 
     receipt.rollback();
     receipt.rollback();
+    expect(receipt.state).toBe("rollback_pending_ack");
+    receipt.acknowledge();
     expect(receipt.state).toBe("rolled_back");
     expect(rollback).toHaveBeenCalledTimes(1);
     expect(() => receipt.finalize()).toThrowError(
@@ -330,6 +335,7 @@ describe("local subtitle overwrite transaction contract", () => {
       expectedFinalIdentity: identity(7, 8),
       finalize,
       rollback,
+      acknowledge() {},
     });
 
     expect(() => receipt.finalize()).toThrow("retry finalize");
@@ -338,6 +344,8 @@ describe("local subtitle overwrite transaction contract", () => {
       expect.objectContaining({ code: "invalid_state" }),
     );
     receipt.finalize();
+    expect(receipt.state).toBe("finalize_pending_ack");
+    receipt.acknowledge();
     expect(receipt.state).toBe("finalized");
     expect(finalize).toHaveBeenCalledTimes(2);
     expect(rollback).not.toHaveBeenCalled();
@@ -351,6 +359,7 @@ describe("local subtitle overwrite transaction contract", () => {
       expectedFinalIdentity: identity(7, 8),
       finalize() {},
       rollback,
+      acknowledge() {},
     });
 
     expect(() => receipt.rollback()).toThrow("retry rollback");
@@ -359,6 +368,8 @@ describe("local subtitle overwrite transaction contract", () => {
       expect.objectContaining({ code: "invalid_state" }),
     );
     receipt.rollback();
+    expect(receipt.state).toBe("rollback_pending_ack");
+    receipt.acknowledge();
     expect(receipt.state).toBe("rolled_back");
     expect(rollback).toHaveBeenCalledTimes(2);
   });
@@ -391,10 +402,15 @@ describe("local subtitle overwrite transaction contract", () => {
         expectedFinalIdentity: identity(7, 8),
         finalize,
         rollback,
+        acknowledge() {},
       });
 
       receipt[method]();
 
+      expect(receipt.state).toBe(
+        method === "finalize" ? "finalize_pending_ack" : "rollback_pending_ack",
+      );
+      receipt.acknowledge();
       expect(receipt.state).toBe(method === "finalize" ? "finalized" : "rolled_back");
       expect(finalize).toHaveBeenCalledTimes(method === "finalize" ? 1 : 0);
       expect(rollback).toHaveBeenCalledTimes(method === "rollback" ? 1 : 0);
@@ -409,6 +425,7 @@ describe("local subtitle overwrite transaction contract", () => {
       expectedFinalIdentity: identity(7, 8),
       finalize,
       rollback,
+      acknowledge() {},
     });
 
     expect(() => receipt.finalize()).toThrowError(
@@ -495,6 +512,7 @@ function validRawReceipt(): LocalSubtitleOverwriteTransactionBackendReceipt {
     expectedFinalIdentity: { ...identity(7, 8) },
     finalize() {},
     rollback() {},
+    acknowledge() {},
   };
 }
 

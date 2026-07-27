@@ -14,7 +14,7 @@ import {
   type LocalSubtitleOverwriteRecoveryRequest,
 } from "./overwrite-recovery-owner";
 
-export const LOCAL_SUBTITLE_OVERWRITE_NATIVE_PROTOCOL_VERSION = 3 as const;
+export const LOCAL_SUBTITLE_OVERWRITE_NATIVE_PROTOCOL_VERSION = 4 as const;
 
 export type LocalSubtitleOverwriteNativePlatform = "darwin" | "win32";
 export type LocalSubtitleOverwriteNativeArchitecture = "arm64" | "x64";
@@ -47,12 +47,16 @@ interface LocalSubtitleOverwriteNativeRawModule {
     request: LocalSubtitleOverwriteTransactionRequest,
   ) => LocalSubtitleOverwriteTransactionBackendReceipt;
   readonly recover: (request: LocalSubtitleOverwriteRecoveryRequest) => unknown;
+  readonly acknowledge: (request: LocalSubtitleOverwriteRecoveryRequest) => unknown;
 }
 
 interface ValidatedLocalSubtitleOverwriteNativeRawModule {
   readonly receiver: object;
   readonly begin: LocalSubtitleOverwriteNativeRawModule["begin"];
   readonly recover: (
+    request: LocalSubtitleOverwriteRecoveryRequest,
+  ) => unknown;
+  readonly acknowledge: (
     request: LocalSubtitleOverwriteRecoveryRequest,
   ) => unknown;
 }
@@ -68,13 +72,17 @@ const RAW_MODULE_KEYS = Object.freeze([
   "architecture",
   "begin",
   "recover",
+  "acknowledge",
 ] as const);
 
 function loadLocalSubtitleOverwriteNativeBackend(
   absoluteNodePath: string,
 ): {
   readonly transactions: LocalSubtitleOverwriteTransactionBackend;
-  readonly recovery: { recover(request: LocalSubtitleOverwriteRecoveryRequest): unknown };
+  readonly recovery: {
+    recover(request: LocalSubtitleOverwriteRecoveryRequest): unknown;
+    acknowledge(request: LocalSubtitleOverwriteRecoveryRequest): unknown;
+  };
 } {
   assertAbsoluteNodePath(absoluteNodePath);
   const expectedTarget = resolveExpectedTarget(process.platform, process.arch);
@@ -90,7 +98,10 @@ function loadLocalSubtitleOverwriteNativeBackend(
     );
   }
 
-  const { begin, recover, receiver } = validateRawModule(loaded, expectedTarget);
+  const { begin, recover, acknowledge, receiver } = validateRawModule(
+    loaded,
+    expectedTarget,
+  );
   return Object.freeze({
     transactions: Object.freeze({
       begin(request: LocalSubtitleOverwriteTransactionRequest) {
@@ -100,6 +111,9 @@ function loadLocalSubtitleOverwriteNativeBackend(
     recovery: Object.freeze({
       recover(request: LocalSubtitleOverwriteRecoveryRequest) {
         return recover.call(receiver, request);
+      },
+      acknowledge(request: LocalSubtitleOverwriteRecoveryRequest) {
+        return acknowledge.call(receiver, request);
       },
     }),
   });
@@ -203,6 +217,7 @@ function validateRawModule(
   const architecture = readDataExport(input, "architecture");
   const begin = readDataExport(input, "begin");
   const recover = readDataExport(input, "recover");
+  const acknowledge = readDataExport(input, "acknowledge");
   if (!Number.isSafeInteger(protocolVersion) || Number(protocolVersion) <= 0) {
     throw invalidModule();
   }
@@ -224,13 +239,18 @@ function validateRawModule(
       "The overwrite native module target does not match the current process target.",
     );
   }
-  if (typeof begin !== "function" || typeof recover !== "function") {
+  if (
+    typeof begin !== "function" ||
+    typeof recover !== "function" ||
+    typeof acknowledge !== "function"
+  ) {
     throw invalidModule();
   }
   return {
     receiver: input,
     begin: begin as LocalSubtitleOverwriteNativeRawModule["begin"],
     recover: recover as ValidatedLocalSubtitleOverwriteNativeRawModule["recover"],
+    acknowledge: acknowledge as ValidatedLocalSubtitleOverwriteNativeRawModule["acknowledge"],
   };
 }
 

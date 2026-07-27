@@ -71,7 +71,7 @@ describe("local subtitle overwrite recovery owner", () => {
     ]);
     expect(repository.records[0]).toMatchObject({
       recoveryId: RECOVERY_ID,
-      registryState: "active",
+      decision: "finalize_committed",
       nativeState: "pending",
     });
 
@@ -112,8 +112,8 @@ describe("local subtitle overwrite recovery owner", () => {
     expect(rollback).toHaveBeenCalledTimes(2);
     expect(registry.revokeReservation).toHaveBeenCalledWith("reservation-1");
     expect(repository.records[0]).toMatchObject({
+      decision: "rollback_unpublished",
       nativeState: "retry_failed",
-      registryState: "reserved",
     });
   });
 
@@ -145,7 +145,7 @@ describe("local subtitle overwrite recovery owner", () => {
     expect(owner.listPending()).toEqual([]);
   });
 
-  it("retains ownership when durable persistence reports a failure", () => {
+  it("retains a fenced preclaim when durable persistence reports an uncertain failure", async () => {
     const finalize = vi.fn()
       .mockImplementationOnce(() => { throw new Error("pending finalize"); })
       .mockImplementationOnce(() => undefined);
@@ -166,11 +166,155 @@ describe("local subtitle overwrite recovery owner", () => {
       registry: { state: "active", artifactRef: "artifact-persist-failure" },
     })).toThrowError(expect.objectContaining({ code: "persistence_failed" }));
 
-    expect(owner.listPending()).toHaveLength(1);
+    expect(owner.listPending()).toEqual([
+      expect.objectContaining({
+        recoveryId: RECOVERY_ID,
+        direction: "rollback",
+        state: "not_started",
+        requiresDirectorySelection: true,
+      }),
+    ]);
+    expect(repository.records).toEqual([]);
+    expect(finalize).toHaveBeenCalledOnce();
+
     repository.failReplace = false;
-    owner.retry(RECOVERY_ID);
-    expect(finalize).toHaveBeenCalledTimes(2);
+    await expect(owner.recoverAfterReauthorization({
+      recoveryId: RECOVERY_ID,
+      taskId: "task-persist-failure",
+      generation: 1,
+      format: "SRT",
+      directory: resolvedDirectory(fixtureRoot),
+    })).resolves.toEqual({ state: "rolled_back" });
     expect(owner.listPending()).toEqual([]);
+  });
+
+  it.each(["before", "after"] as const)(
+    "does not acknowledge a terminal marker when settled persistence fails $phase replacement",
+    (phase) => {
+    const rollback = vi.fn();
+    const acknowledge = vi.fn();
+    const receipt = transactionReceipt({ rollback, acknowledge });
+    const repository = new MemoryRepository();
+    const owner = recoveryOwner(repository, registryFixture());
+    const handoff = owner.prepareAdoption({
+      recoveryId: RECOVERY_ID,
+      owner: OWNER,
+      taskId: "task-settled-persistence",
+      generation: 1,
+      format: "SRT",
+      directoryIdentity: DIRECTORY_IDENTITY,
+    });
+    owner.markBeginStarted(handoff);
+    owner.adopt({
+      handoff,
+      recoveryId: RECOVERY_ID,
+      owner: OWNER,
+      taskId: "task-settled-persistence",
+      generation: 1,
+      format: "SRT",
+      direction: "rollback",
+      directoryIdentity: DIRECTORY_IDENTITY,
+      receipt,
+      registry: { state: "reserved", reservation: "reservation-settled" },
+    });
+    if (phase === "before") repository.failReplace = true;
+    else repository.failAfterReplace = true;
+
+    expect(() => owner.settleAdoption(handoff)).toThrowError(
+      expect.objectContaining({ code: "persistence_failed" }),
+    );
+    expect(rollback).toHaveBeenCalledOnce();
+    expect(receipt.state).toBe("rollback_pending_ack");
+    expect(acknowledge).not.toHaveBeenCalled();
+
+    repository.failReplace = false;
+    repository.failAfterReplace = false;
+    owner.settleAdoption(handoff);
+    expect(acknowledge).toHaveBeenCalledOnce();
+    expect(receipt.state).toBe("rolled_back");
+    expect(owner.listPending()).toEqual([]);
+    expect(repository.records).toEqual([]);
+    },
+  );
+
+  it("retries the exact finalize decision after an uncertain persistence result", () => {
+    const finalize = vi.fn();
+    const acknowledge = vi.fn();
+    const receipt = transactionReceipt({ finalize, acknowledge });
+    const repository = new MemoryRepository();
+    const owner = recoveryOwner(repository, registryFixture());
+    const handoff = owner.prepareAdoption({
+      recoveryId: RECOVERY_ID,
+      owner: OWNER,
+      taskId: "task-finalize-persistence",
+      generation: 1,
+      format: "SRT",
+      directoryIdentity: DIRECTORY_IDENTITY,
+    });
+    owner.markBeginStarted(handoff);
+    owner.adopt({
+      handoff,
+      recoveryId: RECOVERY_ID,
+      owner: OWNER,
+      taskId: "task-finalize-persistence",
+      generation: 1,
+      format: "SRT",
+      direction: "rollback",
+      directoryIdentity: DIRECTORY_IDENTITY,
+      receipt,
+      registry: { state: "reserved", reservation: "reservation-finalize" },
+    });
+    repository.failAfterReplace = true;
+
+    expect(() => owner.commitActivated(handoff, "artifact-finalize")).toThrowError(
+      expect.objectContaining({ code: "persistence_failed" }),
+    );
+    expect(finalize).not.toHaveBeenCalled();
+    expect(receipt.state).toBe("open");
+    expect(repository.records[0]).toMatchObject({
+      decision: "finalize_committed",
+      nativeState: "pending",
+    });
+
+    repository.failAfterReplace = false;
+    expect(() => owner.commitActivated(handoff, "artifact-finalize")).not.toThrow();
+    owner.settleAdoption(handoff);
+    expect(finalize).toHaveBeenCalledOnce();
+    expect(acknowledge).toHaveBeenCalledOnce();
+    expect(owner.listPending()).toEqual([]);
+  });
+
+  it("does not delete the durable preclaim after native begin has started", async () => {
+    const repository = new MemoryRepository();
+    const owner = recoveryOwner(repository, registryFixture());
+    const handoff = owner.prepareAdoption({
+      recoveryId: RECOVERY_ID,
+      owner: OWNER,
+      taskId: "task-begin-started",
+      generation: 1,
+      format: "SRT",
+      directoryIdentity: DIRECTORY_IDENTITY,
+    });
+
+    owner.markBeginStarted(handoff);
+    owner.releaseAdoption(handoff);
+
+    expect(owner.listPending()).toEqual([
+      expect.objectContaining({
+        recoveryId: RECOVERY_ID,
+        state: "not_started",
+        requiresDirectorySelection: true,
+      }),
+    ]);
+    expect(repository.records).toHaveLength(1);
+
+    await expect(owner.recoverAfterReauthorization({
+      recoveryId: RECOVERY_ID,
+      taskId: "task-begin-started",
+      generation: 1,
+      format: "SRT",
+      directory: resolvedDirectory(fixtureRoot),
+    })).resolves.toEqual({ state: "rolled_back" });
     expect(repository.records).toEqual([]);
   });
 
@@ -228,6 +372,7 @@ describe("local subtitle overwrite recovery owner", () => {
       registry,
       createLocalSubtitleOverwriteRecoveryAuthority({
         recover: () => ({ state: "not_found" }),
+        acknowledge: () => ({ state: "not_found" }),
       }),
       { now: () => 100 },
     );
@@ -304,7 +449,10 @@ describe("local subtitle overwrite recovery owner", () => {
     const owner = new LocalSubtitleOverwriteRecoveryOwner(
       repository,
       registryFixture(),
-      createLocalSubtitleOverwriteRecoveryAuthority({ recover }),
+      createLocalSubtitleOverwriteRecoveryAuthority({
+        recover,
+        acknowledge: () => ({ state: "acknowledged" }),
+      }),
     );
     const directory = resolvedDirectory(fixtureRoot);
 
@@ -320,6 +468,7 @@ describe("local subtitle overwrite recovery owner", () => {
       transactionId: RECOVERY_ID,
       directoryPath: fixtureRoot,
       expectedDirectoryIdentity: DIRECTORY_IDENTITY,
+      decision: "rollback",
     });
     const request = recover.mock.calls[0]![0];
     expect(Object.isFrozen(request)).toBe(true);
@@ -335,7 +484,10 @@ describe("local subtitle overwrite recovery owner", () => {
     const owner = new LocalSubtitleOverwriteRecoveryOwner(
       repository,
       registryFixture(),
-      createLocalSubtitleOverwriteRecoveryAuthority({ recover }),
+      createLocalSubtitleOverwriteRecoveryAuthority({
+        recover,
+        acknowledge: () => ({ state: "acknowledged" }),
+      }),
     );
     const windowsIdentity = Object.freeze({
       volumeSerialHex: "680b91a8",
@@ -354,20 +506,38 @@ describe("local subtitle overwrite recovery owner", () => {
       transactionId: RECOVERY_ID,
       directoryPath: fixtureRoot,
       expectedDirectoryIdentity: windowsIdentity,
+      decision: "rollback",
     });
   });
 
-  it("retries only repository deletion after native rollback already settled", async () => {
+  it("reauthorizes and retries only acknowledgement plus repository deletion after native rollback settled", async () => {
     const record = persistedRecord({ direction: "rollback" });
     const repository = new MemoryRepository({ records: [record] });
-    const recover = vi.fn(() => {
-      repository.failReplace = true;
-      return { state: "rolled_back" as const };
+    const replace = vi.spyOn(repository, "replace");
+    const replaceImplementation = replace.getMockImplementation();
+    let failDeletion = true;
+    replace.mockImplementation((records) => {
+      if (records.length === 0 && failDeletion) {
+        failDeletion = false;
+        throw new LocalSubtitleOverwriteRecoveryError(
+          "persistence_failed",
+          "injected deletion failure",
+        );
+      }
+      if (replaceImplementation) return replaceImplementation(records);
+      repository.records = records.map((item) => Object.freeze({ ...item }));
     });
+    const recover = vi.fn(() => ({ state: "rolled_back" as const }));
+    const acknowledge = vi.fn()
+      .mockReturnValueOnce({ state: "acknowledged" as const })
+      .mockReturnValueOnce({ state: "not_found" as const });
     const owner = new LocalSubtitleOverwriteRecoveryOwner(
       repository,
       registryFixture(),
-      createLocalSubtitleOverwriteRecoveryAuthority({ recover }),
+      createLocalSubtitleOverwriteRecoveryAuthority({
+        recover,
+        acknowledge,
+      }),
     );
     const directoryKey = localSubtitleOverwriteDirectoryKey(DIRECTORY_IDENTITY);
 
@@ -384,9 +554,15 @@ describe("local subtitle overwrite recovery owner", () => {
       withLocalSubtitleOverwriteDirectory(directoryKey, () => undefined),
     ).rejects.toThrow("pending overwrite recovery");
 
-    repository.failReplace = false;
-    expect(() => owner.retry(RECOVERY_ID)).not.toThrow();
+    await expect(owner.recoverAfterReauthorization({
+      recoveryId: RECOVERY_ID,
+      taskId: record.taskId,
+      generation: record.generation,
+      format: record.format,
+      directory: resolvedDirectory(fixtureRoot),
+    })).resolves.toEqual({ state: "rolled_back" });
     expect(recover).toHaveBeenCalledTimes(1);
+    expect(acknowledge).toHaveBeenCalledTimes(2);
     expect(owner.listPending()).toEqual([]);
     expect(repository.records).toEqual([]);
     await expect(
@@ -394,41 +570,7 @@ describe("local subtitle overwrite recovery owner", () => {
     ).resolves.toBe("released");
   });
 
-  it("retains decision_required and fences the selected directory", async () => {
-      const state = "decision_required" as const;
-      const record = persistedRecord({ direction: "rollback" });
-      const repository = new MemoryRepository({ records: [record] });
-      const owner = new LocalSubtitleOverwriteRecoveryOwner(
-        repository,
-        registryFixture(),
-        createLocalSubtitleOverwriteRecoveryAuthority({
-          recover: () => ({ state }),
-        }),
-      );
-
-      await expect(owner.recoverAfterReauthorization({
-        recoveryId: RECOVERY_ID,
-        taskId: record.taskId,
-        generation: record.generation,
-        format: record.format,
-        directory: resolvedDirectory(fixtureRoot),
-      })).resolves.toEqual({ state });
-
-      expect(owner.listPending()).toEqual([
-        expect.objectContaining({ state, direction: "rollback" }),
-      ]);
-      const directoryKey = localSubtitleOverwriteDirectoryKey(DIRECTORY_IDENTITY);
-      await expect(withLocalSubtitleOverwriteDirectory(
-        directoryKey,
-        () => undefined,
-      )).rejects.toThrow("pending overwrite recovery");
-      await expect(owner.shutdown("app_quit")).rejects.toMatchObject({
-        code: "recovery_pending",
-      });
-      releaseLocalSubtitleOverwriteDirectoryFence(directoryKey, RECOVERY_ID);
-  });
-
-  it("retains not_found and fences the selected directory", async () => {
+  it("retains pending recovery when the native terminal marker is not found", async () => {
     const record = persistedRecord({ direction: "rollback" });
     const repository = new MemoryRepository({ records: [record] });
     const owner = new LocalSubtitleOverwriteRecoveryOwner(
@@ -436,6 +578,7 @@ describe("local subtitle overwrite recovery owner", () => {
       registryFixture(),
       createLocalSubtitleOverwriteRecoveryAuthority({
         recover: () => ({ state: "not_found" }),
+        acknowledge: () => ({ state: "not_found" }),
       }),
     );
     const directoryKey = localSubtitleOverwriteDirectoryKey(DIRECTORY_IDENTITY);
@@ -446,10 +589,10 @@ describe("local subtitle overwrite recovery owner", () => {
       generation: record.generation,
       format: record.format,
       directory: resolvedDirectory(fixtureRoot),
-    })).resolves.toEqual({ state: "not_found" });
+    })).rejects.toMatchObject({ code: "recovery_pending" });
 
     expect(owner.listPending()).toEqual([
-      expect.objectContaining({ state: "not_found", direction: "rollback" }),
+      expect.objectContaining({ state: "retry_failed", direction: "rollback" }),
     ]);
     await expect(
       withLocalSubtitleOverwriteDirectory(directoryKey, () => undefined),
@@ -460,6 +603,73 @@ describe("local subtitle overwrite recovery owner", () => {
     releaseLocalSubtitleOverwriteDirectoryFence(directoryKey, RECOVERY_ID);
   });
 
+  it("completes a not-started rollback preclaim when native begin created no journal", async () => {
+    const record = persistedRecord({
+      direction: "rollback",
+      nativeState: "not_started",
+    });
+    const repository = new MemoryRepository({ records: [record] });
+    const acknowledge = vi.fn();
+    const owner = new LocalSubtitleOverwriteRecoveryOwner(
+      repository,
+      registryFixture(),
+      createLocalSubtitleOverwriteRecoveryAuthority({
+        recover: () => ({ state: "not_found" }),
+        acknowledge,
+      }),
+    );
+
+    await expect(owner.recoverAfterReauthorization({
+      recoveryId: RECOVERY_ID,
+      taskId: record.taskId,
+      generation: record.generation,
+      format: record.format,
+      directory: resolvedDirectory(fixtureRoot),
+    })).resolves.toEqual({ state: "rolled_back" });
+
+    expect(acknowledge).not.toHaveBeenCalled();
+    expect(owner.listPending()).toEqual([]);
+    expect(repository.records).toEqual([]);
+  });
+
+  it("preserves not-started state across a transient recovery failure", async () => {
+    const record = persistedRecord({
+      direction: "rollback",
+      nativeState: "not_started",
+    });
+    const repository = new MemoryRepository({ records: [record] });
+    const recover = vi.fn()
+      .mockImplementationOnce(() => { throw new Error("transient recovery failure"); })
+      .mockReturnValueOnce({ state: "not_found" as const });
+    const owner = new LocalSubtitleOverwriteRecoveryOwner(
+      repository,
+      registryFixture(),
+      createLocalSubtitleOverwriteRecoveryAuthority({
+        recover,
+        acknowledge: () => ({ state: "not_found" }),
+      }),
+    );
+    const selection = {
+      recoveryId: RECOVERY_ID,
+      taskId: record.taskId,
+      generation: record.generation,
+      format: record.format,
+      directory: resolvedDirectory(fixtureRoot),
+    } as const;
+
+    await expect(owner.recoverAfterReauthorization(selection)).rejects.toThrow(
+      "transient recovery failure",
+    );
+    expect(owner.listPending()).toEqual([
+      expect.objectContaining({ state: "not_started" }),
+    ]);
+
+    await expect(owner.recoverAfterReauthorization(selection)).resolves.toEqual({
+      state: "rolled_back",
+    });
+    expect(owner.listPending()).toEqual([]);
+  });
+
   it("serializes concurrent directory selections for the same recovery", async () => {
     const record = persistedRecord({ direction: "rollback" });
     const repository = new MemoryRepository({ records: [record] });
@@ -467,7 +677,10 @@ describe("local subtitle overwrite recovery owner", () => {
     const owner = new LocalSubtitleOverwriteRecoveryOwner(
       repository,
       registryFixture(),
-      createLocalSubtitleOverwriteRecoveryAuthority({ recover }),
+      createLocalSubtitleOverwriteRecoveryAuthority({
+        recover,
+        acknowledge: () => ({ state: "acknowledged" }),
+      }),
     );
     const selection = {
       recoveryId: RECOVERY_ID,
@@ -511,7 +724,10 @@ describe("local subtitle overwrite recovery owner", () => {
     const owner = new LocalSubtitleOverwriteRecoveryOwner(
       repository,
       registryFixture(),
-      createLocalSubtitleOverwriteRecoveryAuthority({ recover }),
+      createLocalSubtitleOverwriteRecoveryAuthority({
+        recover,
+        acknowledge: () => ({ state: "acknowledged" }),
+      }),
     );
     const selection = {
       recoveryId: RECOVERY_ID,
@@ -527,19 +743,23 @@ describe("local subtitle overwrite recovery owner", () => {
     await expect(first).rejects.toMatchObject({ code: "persistence_failed" });
     await expect(second).resolves.toEqual({ state: "rolled_back" });
     expect(recover).toHaveBeenCalledOnce();
-    expect(replace).toHaveBeenCalledTimes(2);
+    expect(replace).toHaveBeenCalledTimes(3);
     expect(owner.listPending()).toEqual([]);
     expect(repository.records).toEqual([]);
   });
 
-  it("does not invoke rollback-only native recovery for a durable finalize direction", async () => {
+  it("drives native finalize recovery from the durable commit decision", async () => {
     const record = persistedRecord({ direction: "finalize" });
     const repository = new MemoryRepository({ records: [record] });
-    const recover = vi.fn(() => ({ state: "rolled_back" as const }));
+    const recover = vi.fn(() => ({ state: "finalized" as const }));
+    const acknowledge = vi.fn(() => ({ state: "acknowledged" as const }));
     const owner = new LocalSubtitleOverwriteRecoveryOwner(
       repository,
       registryFixture(),
-      createLocalSubtitleOverwriteRecoveryAuthority({ recover }),
+      createLocalSubtitleOverwriteRecoveryAuthority({
+        recover,
+        acknowledge,
+      }),
     );
 
     await expect(owner.recoverAfterReauthorization({
@@ -548,19 +768,17 @@ describe("local subtitle overwrite recovery owner", () => {
       generation: record.generation,
       format: record.format,
       directory: resolvedDirectory(fixtureRoot),
-    })).resolves.toEqual({ state: "decision_required" });
+    })).resolves.toEqual({ state: "finalized" });
 
-    expect(recover).not.toHaveBeenCalled();
-    expect(repository.records[0]).toMatchObject({
-      direction: "finalize",
-      nativeState: "decision_required",
+    expect(recover).toHaveBeenCalledWith({
+      transactionId: RECOVERY_ID,
+      directoryPath: fixtureRoot,
+      expectedDirectoryIdentity: DIRECTORY_IDENTITY,
+      decision: "finalize",
     });
-    const directoryKey = localSubtitleOverwriteDirectoryKey(DIRECTORY_IDENTITY);
-    await expect(withLocalSubtitleOverwriteDirectory(
-      directoryKey,
-      () => undefined,
-    )).rejects.toThrow("pending overwrite recovery");
-    releaseLocalSubtitleOverwriteDirectoryFence(directoryKey, RECOVERY_ID);
+    expect(acknowledge).toHaveBeenCalledOnce();
+    expect(owner.listPending()).toEqual([]);
+    expect(repository.records).toEqual([]);
   });
 
   it("settles a handoff that arrives after shutdown already succeeded", async () => {
@@ -594,7 +812,7 @@ describe("local subtitle overwrite recovery owner", () => {
     await expect(owner.shutdown("app_quit")).resolves.toBeUndefined();
   });
 
-  it("claims each branded transaction receipt only once", () => {
+  it("claims each branded transaction receipt only once", async () => {
     const finalize = vi.fn()
       .mockImplementationOnce(() => { throw new Error("pending finalize"); })
       .mockImplementationOnce(() => undefined);
@@ -624,13 +842,20 @@ describe("local subtitle overwrite recovery owner", () => {
       receipt,
       registry: { state: "active", artifactRef: "artifact-second-claim" },
     })).toThrowError(expect.objectContaining({ code: "invalid_state" }));
-    expect(owner.listPending()).toHaveLength(1);
+    expect(owner.listPending()).toHaveLength(2);
 
     owner.retry(RECOVERY_ID);
+    await expect(owner.recoverAfterReauthorization({
+      recoveryId: "11234567-89ab-4cde-8fab-0123456789ab",
+      taskId: "task-second-claim",
+      generation: 1,
+      format: "SRT",
+      directory: resolvedDirectory(fixtureRoot),
+    })).resolves.toEqual({ state: "rolled_back" });
     expect(owner.listPending()).toEqual([]);
   });
 
-  it("rejects an unbranded transaction receipt before claiming recovery", () => {
+  it("rejects an unbranded transaction receipt while retaining its begun preclaim", async () => {
     const owner = recoveryOwner(new MemoryRepository(), registryFixture());
 
     expect(() => adoptRecovery(owner, {
@@ -648,7 +873,16 @@ describe("local subtitle overwrite recovery owner", () => {
       } as never,
       registry: { state: "active", artifactRef: "artifact-fake-receipt" },
     })).toThrowError(expect.objectContaining({ code: "invalid_request" }));
-    expect(owner.listPending()).toEqual([]);
+    expect(owner.listPending()).toEqual([
+      expect.objectContaining({ state: "not_started", direction: "rollback" }),
+    ]);
+    await expect(owner.recoverAfterReauthorization({
+      recoveryId: RECOVERY_ID,
+      taskId: "task-fake-receipt",
+      generation: 1,
+      format: "SRT",
+      directory: resolvedDirectory(fixtureRoot),
+    })).resolves.toEqual({ state: "rolled_back" });
   });
 
   it("rejects stale task metadata before invoking native recovery", async () => {
@@ -658,7 +892,10 @@ describe("local subtitle overwrite recovery owner", () => {
     const owner = new LocalSubtitleOverwriteRecoveryOwner(
       repository,
       registryFixture(),
-      createLocalSubtitleOverwriteRecoveryAuthority({ recover }),
+      createLocalSubtitleOverwriteRecoveryAuthority({
+        recover,
+        acknowledge: () => ({ state: "acknowledged" }),
+      }),
     );
 
     await expect(owner.recoverAfterReauthorization({
@@ -674,6 +911,7 @@ describe("local subtitle overwrite recovery owner", () => {
   it("claims one recovery authority exactly once", () => {
     const authority = createLocalSubtitleOverwriteRecoveryAuthority({
       recover: () => ({ state: "not_found" }),
+      acknowledge: () => ({ state: "not_found" }),
     });
     new LocalSubtitleOverwriteRecoveryOwner(
       new MemoryRepository(),
@@ -688,6 +926,22 @@ describe("local subtitle overwrite recovery owner", () => {
     )).toThrowError(expect.objectContaining({ code: "invalid_authority" }));
   });
 
+  it("rejects the impossible finalize-committed plus not-started record state", () => {
+    const record = persistedRecord({
+      direction: "finalize",
+      nativeState: "not_started",
+    });
+
+    expect(() => new LocalSubtitleOverwriteRecoveryOwner(
+      new MemoryRepository({ records: [record] }),
+      registryFixture(),
+      createLocalSubtitleOverwriteRecoveryAuthority({
+        recover: () => ({ state: "not_found" }),
+        acknowledge: () => ({ state: "not_found" }),
+      }),
+    )).toThrowError(expect.objectContaining({ code: "invalid_record" }));
+  });
+
   it.each([
     ["extra key", { state: "rolled_back", path: fixtureRoot }],
     ["unknown state", { state: "finalized" }],
@@ -697,7 +951,10 @@ describe("local subtitle overwrite recovery owner", () => {
     const owner = new LocalSubtitleOverwriteRecoveryOwner(
       new MemoryRepository({ records: [record] }),
       registryFixture(),
-      createLocalSubtitleOverwriteRecoveryAuthority({ recover: () => result }),
+      createLocalSubtitleOverwriteRecoveryAuthority({
+        recover: () => result,
+        acknowledge: () => ({ state: "acknowledged" }),
+      }),
     );
 
     await expect(owner.recoverAfterReauthorization({
@@ -707,6 +964,10 @@ describe("local subtitle overwrite recovery owner", () => {
       format: record.format,
       directory: resolvedDirectory(fixtureRoot),
     })).rejects.toMatchObject({ code: "invalid_result" });
+    releaseLocalSubtitleOverwriteDirectoryFence(
+      localSubtitleOverwriteDirectoryKey(DIRECTORY_IDENTITY),
+      RECOVERY_ID,
+    );
   });
 
   it("rejects and absorbs an asynchronous recovery result", async () => {
@@ -716,6 +977,7 @@ describe("local subtitle overwrite recovery owner", () => {
       registryFixture(),
       createLocalSubtitleOverwriteRecoveryAuthority({
         recover: () => Promise.reject(new Error("late failure")),
+        acknowledge: () => ({ state: "acknowledged" }),
       }),
     );
 
@@ -727,6 +989,10 @@ describe("local subtitle overwrite recovery owner", () => {
       directory: resolvedDirectory(fixtureRoot),
     })).rejects.toMatchObject({ code: "invalid_result" });
     await Promise.resolve();
+    releaseLocalSubtitleOverwriteDirectoryFence(
+      localSubtitleOverwriteDirectoryKey(DIRECTORY_IDENTITY),
+      RECOVERY_ID,
+    );
   });
 });
 
@@ -789,6 +1055,7 @@ function recoveryOwner(
     registry,
     createLocalSubtitleOverwriteRecoveryAuthority({
       recover: () => ({ state: "not_found" }),
+      acknowledge: () => ({ state: "not_found" }),
     }),
     { now: () => 100 },
   );
@@ -810,6 +1077,7 @@ function adoptRecovery<TReservation>(
     directoryIdentity: options.directoryIdentity,
   });
   try {
+    owner.markBeginStarted(handoff);
     owner.adopt({ ...options, handoff });
   } finally {
     owner.releaseAdoption(handoff);
@@ -829,11 +1097,13 @@ function registryFixture(overrides: {
 function transactionReceipt(options: {
   readonly finalize?: () => void;
   readonly rollback?: () => void;
+  readonly acknowledge?: () => void;
 }) {
   return new LocalSubtitleOverwriteTransactionReceipt({
     expectedFinalIdentity: { dev: 4, ino: 5, birthtimeMs: 6 },
     finalize: options.finalize ?? (() => undefined),
     rollback: options.rollback ?? (() => undefined),
+    acknowledge: options.acknowledge ?? (() => undefined),
   });
 }
 
@@ -851,17 +1121,19 @@ function resolvedDirectory(
 
 function persistedRecord(overrides: {
   readonly direction: "finalize" | "rollback";
+  readonly nativeState?: LocalSubtitleOverwriteRecoveryRecord["nativeState"];
 }): LocalSubtitleOverwriteRecoveryRecord {
   return Object.freeze({
-    schemaVersion: 1,
+    schemaVersion: 2,
     recoveryId: RECOVERY_ID,
     ownerFingerprint: "a".repeat(64),
     taskId: "task-persisted",
     generation: 3,
     format: "SRT",
-    direction: overrides.direction,
-    registryState: overrides.direction === "finalize" ? "active" : "reserved",
-    nativeState: "pending",
+    decision: overrides.direction === "finalize"
+      ? "finalize_committed"
+      : "rollback_unpublished",
+    nativeState: overrides.nativeState ?? "pending",
     createdAt: 10,
     updatedAt: 10,
   });
@@ -870,13 +1142,16 @@ function persistedRecord(overrides: {
 class MemoryRepository implements LocalSubtitleOverwriteRecoveryRepository {
   records: readonly LocalSubtitleOverwriteRecoveryRecord[];
   failReplace: boolean;
+  failAfterReplace: boolean;
 
   constructor(options: {
     readonly records?: readonly LocalSubtitleOverwriteRecoveryRecord[];
     readonly failReplace?: boolean;
+    readonly failAfterReplace?: boolean;
   } = {}) {
     this.records = options.records ?? [];
     this.failReplace = options.failReplace ?? false;
+    this.failAfterReplace = options.failAfterReplace ?? false;
   }
 
   load() {
@@ -891,5 +1166,11 @@ class MemoryRepository implements LocalSubtitleOverwriteRecoveryRepository {
       );
     }
     this.records = records.map((record) => Object.freeze({ ...record }));
+    if (this.failAfterReplace) {
+      throw new LocalSubtitleOverwriteRecoveryError(
+        "persistence_failed",
+        "injected post-replacement persistence failure",
+      );
+    }
   }
 }

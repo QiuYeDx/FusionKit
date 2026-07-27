@@ -479,8 +479,9 @@ describe("local subtitle artifact export", () => {
         ],
       });
       expect(transaction.requests).toEqual([]);
+      expect(registry.reservations).toEqual([]);
       expect(registry.activations).toEqual([]);
-      expect(registry.revoked).toEqual([registry.reservations[0]!.reservation]);
+      expect(registry.revoked).toEqual([]);
       await expect(readFile(finalPath, "utf8")).resolves.toBe("old-subtitle");
       await expect(partialNames()).resolves.toEqual([]);
     } finally {
@@ -488,7 +489,7 @@ describe("local subtitle artifact export", () => {
     }
   });
 
-  it("releases an unclaimed recovery handoff after native begin fails", async () => {
+  it("retains and reauthorizes a durable preclaim after native begin fails", async () => {
     const recoveryId = "begin-failure-retry";
     const registry = new TestArtifactRegistry();
     const recoveryOwner = createTestOverwriteRecoveryOwner(registry);
@@ -504,6 +505,7 @@ describe("local subtitle artifact export", () => {
           expectedFinalIdentity: fileIdentity(finalPath),
           finalize: () => undefined,
           rollback: () => undefined,
+          acknowledge: () => undefined,
         };
       });
     const coordinator = createLocalSubtitleOverwriteTransactionCoordinator({ begin });
@@ -529,8 +531,24 @@ describe("local subtitle artifact export", () => {
         { format: "SRT", status: "failed", errorCode: "output_write_failed" },
       ],
     });
-    expect(recoveryOwner.listPending()).toEqual([]);
+    expect(recoveryOwner.listPending()).toEqual([
+      expect.objectContaining({
+        recoveryId,
+        direction: "rollback",
+        state: "not_started",
+        requiresDirectorySelection: true,
+      }),
+    ]);
     await expect(partialNames()).resolves.toEqual([]);
+
+    await expect(recoveryOwner.recoverAfterReauthorization({
+      recoveryId,
+      taskId: "task-begin-failure-retry",
+      generation: 1,
+      format: "SRT",
+      directory: await resolvedDirectory(fixtureRoot),
+    })).resolves.toEqual({ state: "rolled_back" });
+    expect(recoveryOwner.listPending()).toEqual([]);
 
     await expect(exporter.exportArtifacts(options)).resolves.toMatchObject({
       status: "completed",
@@ -590,6 +608,94 @@ describe("local subtitle artifact export", () => {
     await expect(partialNames()).resolves.toEqual([]);
   });
 
+  it("retries an uncertain finalize-decision write before invoking native finalize", async () => {
+    const finalPath = path.join(fixtureRoot, "transaction-decision-retry.srt");
+    await writeFile(finalPath, "old-subtitle", { mode: 0o600 });
+    const events: string[] = [];
+    const transaction = createTestOverwriteTransaction({ events });
+    const registry = new TestArtifactRegistry({
+      onActivate: () => events.push("activate"),
+    });
+    const repository = new TestOverwriteRecoveryRepository(new Set([2]));
+    const recoveryOwner = createTestOverwriteRecoveryOwner(registry, repository);
+
+    const result = await new LocalSubtitleExporter(registry, {
+      overwriteTransaction: transaction.coordinator,
+      overwriteRecoveryOwner: recoveryOwner,
+    }).exportArtifacts({
+      owner: OWNER,
+      taskId: "task-decision-retry",
+      generation: 1,
+      outputStem: "transaction-decision-retry",
+      formats: ["SRT"],
+      conflictPolicy: "overwrite",
+      transcript: transcript(),
+      resolveOutputDirectory: resolver(fixtureRoot),
+    });
+
+    expect(result).toMatchObject({
+      status: "completed",
+      artifactResults: [{ format: "SRT", status: "committed" }],
+    });
+    expect(events).toEqual(["begin", "activate", "finalize"]);
+    expect(repository.replaceCalls).toBe(5);
+    expect(recoveryOwner.listPending()).toEqual([]);
+    await expect(readFile(finalPath, "utf8")).resolves.toContain(
+      "00:00:00,009",
+    );
+  });
+
+  it("keeps the activated receipt fenced when both finalize-decision writes fail", async () => {
+    const recoveryId = "transaction-decision-pending";
+    const finalPath = path.join(fixtureRoot, "transaction-decision-pending.srt");
+    await writeFile(finalPath, "old-subtitle", { mode: 0o600 });
+    const events: string[] = [];
+    const transaction = createTestOverwriteTransaction({ events });
+    const registry = new TestArtifactRegistry({
+      onActivate: () => events.push("activate"),
+    });
+    const repository = new TestOverwriteRecoveryRepository(new Set([2, 3]));
+    const recoveryOwner = createTestOverwriteRecoveryOwner(registry, repository);
+
+    const result = await new LocalSubtitleExporter(registry, {
+      overwriteTransaction: transaction.coordinator,
+      overwriteRecoveryOwner: recoveryOwner,
+      createPartialId: () => recoveryId,
+    }).exportArtifacts({
+      owner: OWNER,
+      taskId: "task-decision-pending",
+      generation: 1,
+      outputStem: "transaction-decision-pending",
+      formats: ["SRT"],
+      conflictPolicy: "overwrite",
+      transcript: transcript(),
+      resolveOutputDirectory: resolver(fixtureRoot),
+    });
+
+    expect(result).toEqual({
+      status: "failed",
+      artifactResults: [
+        { format: "SRT", status: "failed", errorCode: "cleanup_failed" },
+      ],
+    });
+    expect(events).toEqual(["begin", "activate"]);
+    expect(recoveryOwner.listPending()).toEqual([
+      expect.objectContaining({
+        recoveryId,
+        direction: "finalize",
+        state: "pending",
+        requiresDirectorySelection: false,
+      }),
+    ]);
+
+    recoveryOwner.retry(recoveryId);
+    expect(events).toEqual(["begin", "activate", "finalize"]);
+    expect(recoveryOwner.listPending()).toEqual([]);
+    await expect(readFile(finalPath, "utf8")).resolves.toContain(
+      "00:00:00,009",
+    );
+  });
+
   it("passes a Windows identity through Registry activation and finalizes", async () => {
     const rollback = vi.fn();
     const finalize = vi.fn();
@@ -608,6 +714,7 @@ describe("local subtitle artifact export", () => {
             rollback();
             renameSync(finalPath, partialPath);
           },
+          acknowledge() {},
         };
       },
     });
@@ -1002,8 +1109,8 @@ describe("local subtitle artifact export", () => {
         status: "failed",
         artifactResults: [{ format: "SRT", status: "failed", errorCode }],
       });
-      expect(events).toEqual(["begin", "rollback"]);
-      expect(registry.revoked).toEqual([]);
+      expect(events).toEqual(["begin", "rollback", "rollback"]);
+      expect(registry.revoked).toEqual([registry.reservations[0]!.reservation]);
       expect(recoveryOwner.listPending()).toEqual([
         expect.objectContaining({
           taskId: `task-transaction-rollback-failure-${errorCode}`,
@@ -1811,12 +1918,14 @@ function createTestOverwriteRecoveryOwner(
     revokeReservation: () => true,
     revokeArtifact: () => true,
   },
+  repository = new TestOverwriteRecoveryRepository(),
 ) {
   return new LocalSubtitleOverwriteRecoveryOwner(
-    new TestOverwriteRecoveryRepository(),
+    repository,
     registry,
     createLocalSubtitleOverwriteRecoveryAuthority({
       recover: () => ({ state: "not_found" }),
+      acknowledge: () => ({ state: "not_found" }),
     }),
   );
 }
@@ -1825,13 +1934,20 @@ class TestOverwriteRecoveryRepository
   implements LocalSubtitleOverwriteRecoveryRepository
 {
   records: readonly LocalSubtitleOverwriteRecoveryRecord[] = [];
+  replaceCalls = 0;
+
+  constructor(private readonly failAfterReplaceCalls = new Set<number>()) {}
 
   load() {
     return this.records;
   }
 
   replace(records: readonly LocalSubtitleOverwriteRecoveryRecord[]) {
+    this.replaceCalls += 1;
     this.records = records;
+    if (this.failAfterReplaceCalls.has(this.replaceCalls)) {
+      throw new Error("Injected uncertain recovery persistence failure.");
+    }
   }
 }
 
@@ -1893,6 +2009,7 @@ function createTestOverwriteTransaction(options: {
           renameSync(finalPath, partialPath);
           if (hadVictim) renameSync(backupPath, finalPath);
         },
+        acknowledge() {},
       };
     },
   });

@@ -60,10 +60,11 @@ node_modules/.bin/vitest run test/local-subtitle/overwriteTransaction.test.ts te
 git diff --check
 ```
 
-Require begin rejection cases to leave the victim and original partial intact
-with zero descriptor delta. Separately require a test-only `_exit` immediately
-after a successful namespace mutation to leave an exact open journal and return
-`decision_required` from a fresh process without changing the namespace.
+Require pre-mutation begin rejection cases to leave the victim and original
+partial intact with zero descriptor delta. Separately require a test-only
+`_exit` immediately after a successful namespace mutation to leave an exact
+open journal, then require fresh-process recovery to apply the persisted
+rollback or finalize decision without guessing from layout.
 
 ## Related files
 

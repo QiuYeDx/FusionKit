@@ -31,11 +31,12 @@ const XCRUN_PATH = "/usr/bin/xcrun";
 
 export const OVERWRITE_NATIVE_BUILD_CONTRACT = deepFreeze({
   schemaVersion: 1,
-  workPackage: "FS-TXN-001B",
+  workPackage: "FS-TXN-001F",
   component: "local-subtitle-overwrite",
   target: { platform: "darwin", arch: "arm64" },
   napiVersion: 8,
-  nativeProtocolVersion: 2,
+  nativeProtocolVersion: 4,
+  journalVersion: 3,
   cxxStandard: "c++17",
   deploymentTarget: "11.0",
   sourceRelativePath: SOURCE_RELATIVE_PATH,
@@ -269,6 +270,7 @@ export async function buildMacosArm64OverwriteAddon(options = {}) {
         napiVersion: OVERWRITE_NATIVE_BUILD_CONTRACT.napiVersion,
         nativeProtocolVersion:
           OVERWRITE_NATIVE_BUILD_CONTRACT.nativeProtocolVersion,
+        journalVersion: OVERWRITE_NATIVE_BUILD_CONTRACT.journalVersion,
         cxxStandard: OVERWRITE_NATIVE_BUILD_CONTRACT.cxxStandard,
         deploymentTarget: OVERWRITE_NATIVE_BUILD_CONTRACT.deploymentTarget,
         sdkVersion: toolchain.sdkVersion,

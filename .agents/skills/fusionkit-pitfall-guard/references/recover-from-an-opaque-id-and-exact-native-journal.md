@@ -8,7 +8,7 @@ privacy-preserving persistence.
 ## Triggers
 
 Recovery ID, reauthorization, path-free repository, native journal, prefix scan,
-caller-supplied rollback request, `decision_required`, `not_found`.
+durable decision, terminal marker, acknowledgement, `not_found`.
 
 ## Symptoms
 
@@ -32,15 +32,19 @@ the native backend derives and validates the one journal leaf bound to that ID.
 ## Do
 
 - Persist only the recovery schema, opaque ID, owner fingerprint,
-  task/generation/format, terminal direction, composite states, and timestamps.
+  task/generation/format, durable decision, native state, and timestamps.
 - Require the user to reauthorize the directory, then verify its exact object
   identity before invoking recovery.
-- Pass only the opaque transaction ID, authorized directory, and expected
-  directory identity to native recovery.
+- Pass only the opaque transaction ID, authorized directory, expected directory
+  identity, and persisted finalize/rollback decision to native recovery.
 - Let the native backend derive the exact journal names and reconstruct rollback
   metadata from the checksummed, ID-matching journal.
-- Keep `decision_required` and `not_found` pending: retain the durable record and
-  selected directory fence until native and Registry authority truly converge.
+- Keep `pending` or `retry_failed` plus recovery `not_found` pending: retain the
+  durable record and selected directory fence until native and Registry
+  authority truly converge. Only `rollback_unpublished + not_started` may use
+  recovery `not_found` to prove begin never created a journal.
+- Retain `.finalize` or `.rollback` after namespace convergence; remove it only
+  after the owner durably records `settled` and calls exact acknowledgement.
 
 ## Avoid
 
@@ -62,9 +66,10 @@ node_modules/.bin/tsc --noEmit --pretty false
 git diff --check
 ```
 
-Cover path/token-free serialization, exact request validation, stale metadata,
-same-recovery concurrent directory selections, `decision_required`/`not_found`
-fences, malformed or mismatched journals, and fresh-process exact-ID recovery.
+Cover path/token-free serialization, exact four-key request validation, stale
+metadata, same-recovery concurrent directory selections, pending `not_found`
+fences, settled acknowledgement, malformed or mismatched journals, and
+fresh-process exact-ID recovery.
 
 ## Related files
 

@@ -70,8 +70,10 @@ export async function runWindowsOverwriteNativeIntegration(options = {}) {
       runTerminalCase(addon, workRoot, "absent-rollback", false, "rollback"),
     ];
     const recoveryCases = [
-      runOpenDecisionCase(addon, workRoot, true),
-      runOpenDecisionCase(addon, workRoot, false),
+      runOpenDecisionCase(addon, workRoot, true, "finalize"),
+      runOpenDecisionCase(addon, workRoot, true, "rollback"),
+      runOpenDecisionCase(addon, workRoot, false, "finalize"),
+      runOpenDecisionCase(addon, workRoot, false, "rollback"),
       ...runRecoveryRequestCases(addon, workRoot),
     ];
     const rejectionCases = [
@@ -84,12 +86,12 @@ export async function runWindowsOverwriteNativeIntegration(options = {}) {
     ];
     const report = deepFreeze({
       schemaVersion: 1,
-      workPackage: "FS-TXN-001D",
+      workPackage: "FS-TXN-001F",
       target: { platform: "win32", arch: "x64" },
       addon: {
         component: "local-subtitle-overwrite",
-        protocolVersion: 3,
-        journalVersion: 2,
+        protocolVersion: 4,
+        journalVersion: 3,
         testOnly: false,
       },
       terminalCases,
@@ -99,7 +101,8 @@ export async function runWindowsOverwriteNativeIntegration(options = {}) {
         rootDirectoryRelativeChildOperations: true,
         reparseNoFollowBoundary: true,
         losslessWindowsIdentityStrings: true,
-        finalizeCrashRecoveryClaimed: false,
+        durableTerminalDecisionRecovery: true,
+        terminalAcknowledgementRequired: true,
         powerLossSafetyClaimed: false,
       },
       status: "passed",
@@ -139,7 +142,17 @@ function runTerminalCase(
     fixture.request.expectedPartialIdentity,
   );
   assertInstalledLayout(fixture);
+  assert.throws(
+    () => receipt.acknowledge(),
+    { code: "ERR_LOCAL_SUBTITLE_OVERWRITE_INVALID_STATE" },
+  );
   invokeSync(() => receipt[terminal](), terminal);
+  assertSettledLayout(fixture, terminal);
+  assert.throws(
+    () => receipt[terminal === "finalize" ? "rollback" : "finalize"](),
+    { code: "ERR_LOCAL_SUBTITLE_OVERWRITE_INVALID_STATE" },
+  );
+  invokeSync(() => receipt.acknowledge(), "acknowledge");
   if (terminal === "finalize") assertFinalizedLayout(fixture);
   else assertRolledBackLayout(fixture);
   return {
@@ -150,43 +163,67 @@ function runTerminalCase(
   };
 }
 
-function runOpenDecisionCase(addon, workRoot, victimExisted) {
-  const id = `open-decision-${victimExisted ? "existing" : "absent"}`;
+function runOpenDecisionCase(addon, workRoot, victimExisted, decision) {
+  const id = `open-decision-${victimExisted ? "existing" : "absent"}-${decision}`;
   const fixture = createFixture(workRoot, id, victimExisted);
   const receipt = addon.begin(fixture.request);
-  const result = addon.recover(recoveryRequest(fixture.request));
-  assert.deepEqual(result, { state: "decision_required" });
-  assertInstalledLayout(fixture);
-  receipt.rollback();
-  assertRolledBackLayout(fixture);
+  assertReceiptContract(receipt);
+  const request = recoveryRequest(fixture.request, decision);
+  const expectedState = decision === "finalize" ? "finalized" : "rolled_back";
+  const result = addon.recover(request);
+  assert.deepEqual(result, { state: expectedState });
+  assertSettledLayout(fixture, decision);
+  assert.deepEqual(addon.acknowledge(request), { state: "acknowledged" });
+  if (decision === "finalize") assertFinalizedLayout(fixture);
+  else assertRolledBackLayout(fixture);
   return {
     id,
-    state: "decision_required",
-    namespaceMutatedByRecovery: false,
+    decision,
+    state: expectedState,
+    acknowledged: true,
     status: "passed",
   };
 }
 
 function runRecoveryRequestCases(addon, workRoot) {
   const fixture = createFixture(workRoot, "recovery-request", false);
-  assert.deepEqual(addon.recover(recoveryRequest(fixture.request)), {
+  assert.deepEqual(addon.recover(recoveryRequest(fixture.request, "rollback")), {
     state: "not_found",
   });
+  assert.deepEqual(
+    addon.acknowledge(recoveryRequest(fixture.request, "rollback")),
+    { state: "not_found" },
+  );
   const changedIdentity = {
     ...fixture.request.expectedDirectoryIdentity,
     fileIdHex: flipHex(fixture.request.expectedDirectoryIdentity.fileIdHex),
   };
   assert.throws(
     () => addon.recover({
-      ...recoveryRequest(fixture.request),
+      ...recoveryRequest(fixture.request, "rollback"),
       expectedDirectoryIdentity: changedIdentity,
     }),
     { code: "ERR_LOCAL_SUBTITLE_OVERWRITE_FILESYSTEM" },
   );
   assert.throws(
     () => addon.recover({
-      ...recoveryRequest(fixture.request),
+      ...recoveryRequest(fixture.request, "rollback"),
       fallbackPath: fixture.directoryPath,
+    }),
+    { code: "ERR_LOCAL_SUBTITLE_OVERWRITE_INVALID_REQUEST" },
+  );
+  assert.throws(
+    () => addon.recover({
+      directoryPath: fixture.request.directoryPath,
+      expectedDirectoryIdentity: fixture.request.expectedDirectoryIdentity,
+      transactionId: fixture.request.transactionId,
+    }),
+    { code: "ERR_LOCAL_SUBTITLE_OVERWRITE_INVALID_REQUEST" },
+  );
+  assert.throws(
+    () => addon.recover({
+      ...recoveryRequest(fixture.request, "rollback"),
+      decision: "commit",
     }),
     { code: "ERR_LOCAL_SUBTITLE_OVERWRITE_INVALID_REQUEST" },
   );
@@ -194,6 +231,8 @@ function runRecoveryRequestCases(addon, workRoot) {
     { id: "not-found", status: "passed" },
     { id: "directory-identity-mismatch", status: "passed" },
     { id: "expanded-request", status: "passed" },
+    { id: "missing-decision", status: "passed" },
+    { id: "invalid-decision", status: "passed" },
   ];
 }
 
@@ -347,6 +386,7 @@ function assertInstalledLayout(fixture) {
   );
   assertAbsent(path.join(fixture.directoryPath, fixture.partialLeaf));
   assertOwnedJournal(journalPath(fixture, "open"));
+  assertAbsent(journalPath(fixture, "finalize"));
   assertAbsent(journalPath(fixture, "rollback"));
   if (fixture.victimExisted) {
     assertExactFile(
@@ -359,6 +399,31 @@ function assertInstalledLayout(fixture) {
   }
 }
 
+function assertSettledLayout(fixture, decision) {
+  if (decision === "finalize") {
+    assertExactFile(
+      path.join(fixture.directoryPath, fixture.finalLeaf),
+      fixture.newIdentity,
+      fixture.newBytes,
+    );
+  } else {
+    const finalPath = path.join(fixture.directoryPath, fixture.finalLeaf);
+    if (fixture.victimExisted) {
+      assertExactFile(finalPath, fixture.victimIdentity, fixture.victimBytes);
+    } else {
+      assertAbsent(finalPath);
+    }
+  }
+  assertAbsent(path.join(fixture.directoryPath, fixture.partialLeaf));
+  assertAbsent(victimBackupPath(fixture));
+  assertAbsent(journalPath(fixture, "open"));
+  assertOwnedJournal(journalPath(fixture, decision));
+  assertAbsent(journalPath(
+    fixture,
+    decision === "finalize" ? "rollback" : "finalize",
+  ));
+}
+
 function assertFinalizedLayout(fixture) {
   assertExactFile(
     path.join(fixture.directoryPath, fixture.finalLeaf),
@@ -367,6 +432,7 @@ function assertFinalizedLayout(fixture) {
   );
   assertAbsent(path.join(fixture.directoryPath, fixture.partialLeaf));
   assertAbsent(journalPath(fixture, "open"));
+  assertAbsent(journalPath(fixture, "finalize"));
   assertAbsent(journalPath(fixture, "rollback"));
   assertAbsent(victimBackupPath(fixture));
   assert.deepEqual(readdirSync(fixture.directoryPath), [fixture.finalLeaf]);
@@ -383,6 +449,7 @@ function assertRolledBackLayout(fixture) {
   }
   assertAbsent(path.join(fixture.directoryPath, fixture.partialLeaf));
   assertAbsent(journalPath(fixture, "open"));
+  assertAbsent(journalPath(fixture, "finalize"));
   assertAbsent(journalPath(fixture, "rollback"));
   assertAbsent(victimBackupPath(fixture));
 }
@@ -406,7 +473,7 @@ function assertOwnedJournal(filePath) {
 
 function assertNoJournal(request) {
   const base = `${request.partialLeaf}.fusionkit-overwrite`;
-  for (const suffix of ["open", "rollback", "victim"]) {
+  for (const suffix of ["open", "finalize", "rollback", "victim"]) {
     assertAbsent(path.join(request.directoryPath, `${base}.${suffix}`));
   }
 }
@@ -453,11 +520,12 @@ function partialLeafFor(transactionId) {
   return `.fusionkit-local-subtitle-${transactionId}.partial`;
 }
 
-function recoveryRequest(request) {
+function recoveryRequest(request, decision) {
   return {
     directoryPath: request.directoryPath,
     expectedDirectoryIdentity: request.expectedDirectoryIdentity,
     transactionId: request.transactionId,
+    decision,
   };
 }
 
@@ -493,27 +561,31 @@ function namespaceSnapshot(directoryPath) {
 
 function assertAddonContract(addon) {
   assert.deepEqual(Reflect.ownKeys(addon).sort(), [
+    "acknowledge",
     "architecture",
     "begin",
     "platform",
     "protocolVersion",
     "recover",
   ]);
-  assert.equal(addon.protocolVersion, 3);
+  assert.equal(addon.protocolVersion, 4);
   assert.equal(addon.platform, "win32");
   assert.equal(addon.architecture, "x64");
   assert.equal(typeof addon.begin, "function");
   assert.equal(typeof addon.recover, "function");
+  assert.equal(typeof addon.acknowledge, "function");
 }
 
 function assertReceiptContract(receipt) {
   assert.deepEqual(Reflect.ownKeys(receipt).sort(), [
+    "acknowledge",
     "expectedFinalIdentity",
     "finalize",
     "rollback",
   ]);
   assert.equal(typeof receipt.finalize, "function");
   assert.equal(typeof receipt.rollback, "function");
+  assert.equal(typeof receipt.acknowledge, "function");
 }
 
 function invokeSync(operation, label) {

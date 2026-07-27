@@ -35,8 +35,8 @@ import {
   type LocalSubtitleOverwriteTransactionReceipt,
 } from "./overwrite-transaction";
 
-const RECOVERY_RECORD_SCHEMA_VERSION = 1 as const;
-const RECOVERY_FILE_SCHEMA_VERSION = 1 as const;
+const RECOVERY_RECORD_SCHEMA_VERSION = 2 as const;
+const RECOVERY_FILE_SCHEMA_VERSION = 2 as const;
 const MAX_RECOVERY_FILE_BYTES = 1024 * 1024;
 const RECOVERY_ID_PATTERN = /^[A-Za-z0-9-]{1,80}$/u;
 const OWNER_FINGERPRINT_PATTERN = /^[0-9a-f]{64}$/u;
@@ -46,29 +46,34 @@ const ownerInstances = new WeakSet<object>();
 const claimedRecoveryReceipts = new WeakSet<object>();
 
 export type LocalSubtitleOverwriteRecoveryDirection = "finalize" | "rollback";
+export type LocalSubtitleOverwriteRecoveryDecision =
+  | "finalize_committed"
+  | "rollback_unpublished";
 export type LocalSubtitleOverwriteRecoveryNativeState =
+  | "not_started"
   | "pending"
-  | "decision_required"
-  | "not_found"
+  | "settled"
   | "retry_failed";
-export type LocalSubtitleOverwriteRecoveryRegistryState =
-  | "active"
-  | "reserved"
-  | "settled";
 
 export interface LocalSubtitleOverwriteRecoveryRequest {
   readonly transactionId: string;
   readonly directoryPath: string;
   readonly expectedDirectoryIdentity: LocalSubtitleOverwriteDirectoryIdentity;
+  readonly decision: LocalSubtitleOverwriteRecoveryDirection;
 }
 
 export type LocalSubtitleOverwriteRecoveryResult = Readonly<{
-  state: "rolled_back" | "decision_required" | "not_found";
+  state: "finalized" | "rolled_back" | "not_found";
 }>;
 
 export interface LocalSubtitleOverwriteRecoveryBackend {
   recover(request: LocalSubtitleOverwriteRecoveryRequest): unknown;
+  acknowledge(request: LocalSubtitleOverwriteRecoveryRequest): unknown;
 }
+
+export type LocalSubtitleOverwriteAcknowledgementResult = Readonly<{
+  state: "acknowledged" | "not_found";
+}>;
 
 export interface LocalSubtitleOverwriteRecoveryRecord {
   readonly schemaVersion: typeof RECOVERY_RECORD_SCHEMA_VERSION;
@@ -77,8 +82,7 @@ export interface LocalSubtitleOverwriteRecoveryRecord {
   readonly taskId: string;
   readonly generation: number;
   readonly format: LocalSubtitleFormat;
-  readonly direction: LocalSubtitleOverwriteRecoveryDirection;
-  readonly registryState: LocalSubtitleOverwriteRecoveryRegistryState;
+  readonly decision: LocalSubtitleOverwriteRecoveryDecision;
   readonly nativeState: LocalSubtitleOverwriteRecoveryNativeState;
   readonly createdAt: number;
   readonly updatedAt: number;
@@ -173,6 +177,9 @@ export class LocalSubtitleOverwriteRecoveryAuthority {
   readonly #recoverBackend: (
     request: LocalSubtitleOverwriteRecoveryRequest,
   ) => unknown;
+  readonly #acknowledgeBackend: (
+    request: LocalSubtitleOverwriteRecoveryRequest,
+  ) => unknown;
 
   constructor(backend: LocalSubtitleOverwriteRecoveryBackend) {
     if (
@@ -183,15 +190,20 @@ export class LocalSubtitleOverwriteRecoveryAuthority {
       throw failure("invalid_authority", "A synchronous overwrite recovery backend is required.");
     }
     const recover = Reflect.get(backend, "recover");
-    if (typeof recover !== "function") {
+    const acknowledge = Reflect.get(backend, "acknowledge");
+    if (typeof recover !== "function" || typeof acknowledge !== "function") {
       throw failure("invalid_authority", "A synchronous overwrite recovery backend is required.");
     }
     this.#recoverBackend = (request) => recover.call(backend, request);
+    this.#acknowledgeBackend = (request) => acknowledge.call(backend, request);
     authorityInstances.add(this);
     Object.freeze(this);
   }
 
-  claim(): (request: LocalSubtitleOverwriteRecoveryRequest) => LocalSubtitleOverwriteRecoveryResult {
+  claim(): Readonly<{
+    recover(request: LocalSubtitleOverwriteRecoveryRequest): LocalSubtitleOverwriteRecoveryResult;
+    acknowledge(request: LocalSubtitleOverwriteRecoveryRequest): LocalSubtitleOverwriteAcknowledgementResult;
+  }> {
     if (
       !authorityInstances.has(this) ||
       Object.getPrototypeOf(this) !== LocalSubtitleOverwriteRecoveryAuthority.prototype ||
@@ -200,15 +212,31 @@ export class LocalSubtitleOverwriteRecoveryAuthority {
       throw failure("invalid_authority", "The overwrite recovery authority is unavailable.");
     }
     claimedAuthorities.add(this);
-    return (request) => {
+    const invoke = <T>(
+      operation: (request: LocalSubtitleOverwriteRecoveryRequest) => unknown,
+      request: LocalSubtitleOverwriteRecoveryRequest,
+      validate: (input: unknown) => T,
+      label: string,
+    ): T => {
       const snapshot = snapshotRecoveryRequest(request);
-      const rawResult = this.#recoverBackend(snapshot);
+      const rawResult = operation(snapshot);
       if (isThenable(rawResult)) {
         void Promise.resolve(rawResult).catch(() => undefined);
-        throw failure("invalid_result", "Overwrite recovery must be synchronous.");
+        throw failure("invalid_result", `Overwrite ${label} must be synchronous.`);
       }
-      return validateRecoveryResult(rawResult);
+      return validate(rawResult);
     };
+    return Object.freeze({
+      recover: (request: LocalSubtitleOverwriteRecoveryRequest) =>
+        invoke(this.#recoverBackend, request, validateRecoveryResult, "recovery"),
+      acknowledge: (request: LocalSubtitleOverwriteRecoveryRequest) =>
+        invoke(
+          this.#acknowledgeBackend,
+          request,
+          validateAcknowledgementResult,
+          "recovery acknowledgement",
+        ),
+    });
   }
 }
 
@@ -333,7 +361,7 @@ interface VolatileRecovery<TReservation> {
 interface OwnedRecovery<TReservation> {
   record: LocalSubtitleOverwriteRecoveryRecord;
   volatile?: VolatileRecovery<TReservation>;
-  nativeSettled?: "rolled_back";
+  persistenceUncertain?: boolean;
   readonly directoryKeys: Set<string>;
 }
 
@@ -347,7 +375,7 @@ interface PreparedRecoveryHandoff {
   readonly directoryIdentity: LocalSubtitleOverwriteDirectoryIdentity;
   readonly directoryKey: string;
   readonly createdAt: number;
-  status: "prepared" | "claimed" | "discarded";
+  status: "prepared" | "begin_started" | "claimed" | "discarded";
 }
 
 export class LocalSubtitleOverwriteRecoveryOwner<TReservation>
@@ -367,6 +395,9 @@ export class LocalSubtitleOverwriteRecoveryOwner<TReservation>
   readonly #recover: (
     request: LocalSubtitleOverwriteRecoveryRequest,
   ) => LocalSubtitleOverwriteRecoveryResult;
+  readonly #acknowledge: (
+    request: LocalSubtitleOverwriteRecoveryRequest,
+  ) => LocalSubtitleOverwriteAcknowledgementResult;
   readonly #now: () => number;
   #shutdownOperation: Promise<void> | undefined;
   #shutdownStarted = false;
@@ -386,7 +417,9 @@ export class LocalSubtitleOverwriteRecoveryOwner<TReservation>
     ) {
       throw failure("invalid_authority", "A validated overwrite recovery authority is required.");
     }
-    this.#recover = authority.claim();
+    const claimedAuthority = authority.claim();
+    this.#recover = claimedAuthority.recover;
+    this.#acknowledge = claimedAuthority.acknowledge;
     this.#now = options.now ?? Date.now;
     for (const record of repository.load()) {
       const validated = validatePersistedRecord(record);
@@ -409,7 +442,7 @@ export class LocalSubtitleOverwriteRecoveryOwner<TReservation>
           taskId: record.taskId,
           generation: record.generation,
           format: record.format,
-          direction: record.direction,
+          direction: directionForDecision(record.decision),
           state: record.nativeState,
           createdAt: record.createdAt,
           requiresDirectorySelection: volatile === undefined,
@@ -436,7 +469,7 @@ export class LocalSubtitleOverwriteRecoveryOwner<TReservation>
     const handoff = Object.freeze({
       recoveryId: options.recoveryId,
     }) satisfies LocalSubtitleOverwriteRecoveryHandoff;
-    this.#handoffs.set(handoff, {
+    const prepared: PreparedRecoveryHandoff = {
       recoveryId: options.recoveryId,
       owner: Object.freeze({ ...options.owner }),
       ownerFingerprint: ownerFingerprint(options.owner),
@@ -447,26 +480,111 @@ export class LocalSubtitleOverwriteRecoveryOwner<TReservation>
       directoryKey,
       createdAt,
       status: "prepared",
+    };
+    const record = validatePersistedRecord({
+      schemaVersion: RECOVERY_RECORD_SCHEMA_VERSION,
+      recoveryId: prepared.recoveryId,
+      ownerFingerprint: prepared.ownerFingerprint,
+      taskId: prepared.taskId,
+      generation: prepared.generation,
+      format: prepared.format,
+      decision: "rollback_unpublished",
+      nativeState: "not_started",
+      createdAt: prepared.createdAt,
+      updatedAt: prepared.createdAt,
     });
+    fenceLocalSubtitleOverwriteDirectory(directoryKey, record.recoveryId);
+    this.#entries.set(record.recoveryId, {
+      record,
+      directoryKeys: new Set([directoryKey]),
+    });
+    try {
+      this.#persist();
+    } catch (error) {
+      const entry = this.#entries.get(record.recoveryId);
+      if (entry) entry.persistenceUncertain = true;
+      throw error;
+    }
+    this.#handoffs.set(handoff, prepared);
     this.#pendingHandoffIds.set(options.recoveryId, handoff);
     return handoff;
   }
 
+  markBeginStarted(handoff: LocalSubtitleOverwriteRecoveryHandoff): void {
+    const prepared = this.#handoffs.get(handoff);
+    if (
+      !prepared ||
+      prepared.status !== "prepared" ||
+      this.#pendingHandoffIds.get(prepared.recoveryId) !== handoff
+    ) {
+      throw failure("invalid_state", "The overwrite recovery handoff is unavailable.");
+    }
+    prepared.status = "begin_started";
+  }
+
   releaseAdoption(handoff: LocalSubtitleOverwriteRecoveryHandoff): void {
     const prepared = this.#handoffs.get(handoff);
-    if (!prepared || prepared.status !== "prepared") return;
+    if (
+      !prepared ||
+      (prepared.status !== "prepared" && prepared.status !== "begin_started")
+    ) return;
+    if (prepared.status === "prepared") {
+      const entry = this.#entries.get(prepared.recoveryId);
+      if (entry) this.#complete(prepared.recoveryId, entry);
+    }
     if (this.#pendingHandoffIds.get(prepared.recoveryId) === handoff) {
       this.#pendingHandoffIds.delete(prepared.recoveryId);
     }
     prepared.status = "discarded";
   }
 
-  isAdoptionClaimed(handoff: LocalSubtitleOverwriteRecoveryHandoff): boolean {
-    return this.#handoffs.get(handoff)?.status === "claimed";
-  }
-
   adopt(options: AdoptLocalSubtitleOverwriteRecoveryOptions<TReservation>): void {
     this.#adoptPrepared(options.handoff, options);
+  }
+
+  commitActivated(
+    handoff: LocalSubtitleOverwriteRecoveryHandoff,
+    artifactRef: string,
+  ): void {
+    const prepared = this.#handoffs.get(handoff);
+    if (!prepared || prepared.status !== "claimed" || !isId(artifactRef)) {
+      throw failure("invalid_state", "The overwrite recovery handoff is unavailable.");
+    }
+    const entry = this.#requireEntry(prepared.recoveryId);
+    if (!entry.volatile) {
+      throw failure("invalid_state", "The overwrite recovery decision is unavailable.");
+    }
+    if (entry.record.decision === "rollback_unpublished") {
+      entry.volatile.registry = Object.freeze({ state: "active", artifactRef });
+      entry.record = validatePersistedRecord({
+        ...entry.record,
+        decision: "finalize_committed",
+        nativeState: "pending",
+        updatedAt: requireTimestamp(this.#now(), "updatedAt"),
+      });
+    } else if (
+      !entry.persistenceUncertain ||
+      entry.volatile.registry.state !== "active" ||
+      entry.volatile.registry.artifactRef !== artifactRef
+    ) {
+      throw failure("invalid_state", "The overwrite recovery decision is unavailable.");
+    }
+    try {
+      this.#persist();
+      entry.persistenceUncertain = false;
+    } catch (error) {
+      entry.persistenceUncertain = true;
+      throw error;
+    }
+  }
+
+  settleAdoption(handoff: LocalSubtitleOverwriteRecoveryHandoff): void {
+    const prepared = this.#handoffs.get(handoff);
+    if (!prepared || prepared.status !== "claimed") {
+      throw failure("invalid_state", "The overwrite recovery handoff is unavailable.");
+    }
+    const entry = this.#requireEntry(prepared.recoveryId);
+    this.#settleVolatile(prepared.recoveryId, entry);
   }
 
   #adoptPrepared(
@@ -478,7 +596,7 @@ export class LocalSubtitleOverwriteRecoveryOwner<TReservation>
     const registry = assertAdoptionTerminal(options);
     if (
       !prepared ||
-      prepared.status !== "prepared" ||
+      prepared.status !== "begin_started" ||
       this.#pendingHandoffIds.get(prepared.recoveryId) !== handoff ||
       !sameAdoptionMetadata(prepared, options, directoryIdentity)
     ) {
@@ -487,47 +605,42 @@ export class LocalSubtitleOverwriteRecoveryOwner<TReservation>
     if (claimedRecoveryReceipts.has(options.receipt)) {
       throw failure("invalid_state", "The overwrite transaction receipt is already owned.");
     }
-    const record = validatePersistedRecord({
-      schemaVersion: RECOVERY_RECORD_SCHEMA_VERSION,
-      recoveryId: prepared.recoveryId,
-      ownerFingerprint: prepared.ownerFingerprint,
-      taskId: prepared.taskId,
-      generation: prepared.generation,
-      format: prepared.format,
-      direction: options.direction,
-      registryState: registry.state,
+    const entry = this.#entries.get(prepared.recoveryId);
+    if (!entry || entry.volatile) {
+      throw failure("invalid_state", "The overwrite recovery preclaim is unavailable.");
+    }
+    const decision = decisionForDirection(options.direction);
+    entry.record = validatePersistedRecord({
+      ...entry.record,
+      decision,
       nativeState: "pending",
-      createdAt: prepared.createdAt,
-      updatedAt: prepared.createdAt,
+      updatedAt: requireTimestamp(this.#now(), "updatedAt"),
     });
-    const entry: OwnedRecovery<TReservation> = {
-      record,
-      volatile: {
-        owner: prepared.owner,
-        receipt: options.receipt,
-        registry,
-      },
-      directoryKeys: new Set([prepared.directoryKey]),
+    entry.volatile = {
+      owner: prepared.owner,
+      receipt: options.receipt,
+      registry,
     };
-    fenceLocalSubtitleOverwriteDirectory(prepared.directoryKey, record.recoveryId);
-    this.#entries.set(record.recoveryId, entry);
-    this.#pendingHandoffIds.delete(record.recoveryId);
+    this.#pendingHandoffIds.delete(entry.record.recoveryId);
     prepared.status = "claimed";
     claimedRecoveryReceipts.add(options.receipt);
 
     let firstFailure: unknown;
-    try {
-      this.#persist();
-    } catch (error) {
-      firstFailure = error;
+    if (decision !== "rollback_unpublished") {
+      try {
+        this.#persist();
+      } catch (error) {
+        entry.persistenceUncertain = true;
+        firstFailure = error;
+      }
     }
 
     if (
-      this.#releasedOwners.has(record.ownerFingerprint) ||
+      this.#releasedOwners.has(entry.record.ownerFingerprint) ||
       this.#shutdownStarted
     ) {
       try {
-        this.#settleVolatile(record.recoveryId, entry);
+        this.#settleVolatile(entry.record.recoveryId, entry);
       } catch (error) {
         firstFailure ??= error;
       }
@@ -538,10 +651,6 @@ export class LocalSubtitleOverwriteRecoveryOwner<TReservation>
   retry(recoveryId: string): void {
     const entry = this.#requireEntry(recoveryId);
     if (!entry.volatile) {
-      if (entry.nativeSettled === "rolled_back") {
-        this.#complete(recoveryId, entry);
-        return;
-      }
       throw failure(
         "recovery_pending",
         "The overwrite recovery requires output directory reauthorization.",
@@ -566,43 +675,64 @@ export class LocalSubtitleOverwriteRecoveryOwner<TReservation>
       ) {
         throw failure("invalid_request", "The overwrite recovery metadata does not match.");
       }
-      if (entry.nativeSettled === "rolled_back") {
-        this.#complete(entry.record.recoveryId, entry);
-        return Object.freeze({ state: "rolled_back" as const });
-      }
-
       const key = localSubtitleOverwriteDirectoryKey(selection.directory.identity);
       fenceLocalSubtitleOverwriteDirectory(key, entry.record.recoveryId);
       entry.directoryKeys.add(key);
       return withLocalSubtitleOverwriteDirectory(
         key,
         () => {
-          if (entry.record.direction !== "rollback") {
-            entry.record = this.#updatedRecord(entry.record, "decision_required");
-            this.#persist();
-            return Object.freeze({ state: "decision_required" as const });
+          const request = {
+            transactionId: entry.record.recoveryId,
+            directoryPath: selection.directory.directoryPath,
+            expectedDirectoryIdentity: selection.directory.identity,
+            decision: directionForDecision(entry.record.decision),
+          } as const;
+          if (entry.record.nativeState === "settled") {
+            if (entry.persistenceUncertain) {
+              this.#persist();
+              entry.persistenceUncertain = false;
+            }
+            this.#acknowledge(request);
+            this.#complete(entry.record.recoveryId, entry);
+            return Object.freeze({ state: terminalResultForDecision(entry.record.decision) });
           }
+
           let result: LocalSubtitleOverwriteRecoveryResult;
           try {
-            result = this.#recover({
-              transactionId: entry.record.recoveryId,
-              directoryPath: selection.directory.directoryPath,
-              expectedDirectoryIdentity: selection.directory.identity,
-            });
+            result = this.#recover(request);
           } catch (error) {
-            entry.record = this.#updatedRecord(entry.record, "retry_failed");
-            this.#persist();
+            if (entry.record.nativeState !== "not_started") {
+              entry.record = this.#updatedRecord(entry.record, "retry_failed");
+              this.#persist();
+            }
             throw error;
           }
 
-          if (result.state === "rolled_back") {
-            entry.nativeSettled = "rolled_back";
+          if (result.state === "not_found") {
+            if (entry.record.nativeState !== "not_started") {
+              entry.record = this.#updatedRecord(entry.record, "retry_failed");
+              this.#persist();
+              throw failure("recovery_pending", "The overwrite recovery terminal marker is missing.");
+            }
             this.#complete(entry.record.recoveryId, entry);
-            return result;
+            return Object.freeze({ state: "rolled_back" as const });
           }
-
-          entry.record = this.#updatedRecord(entry.record, result.state);
-          this.#persist();
+          if (result.state !== terminalResultForDecision(entry.record.decision)) {
+            throw failure("invalid_result", "The overwrite recovery result conflicts with its durable decision.");
+          }
+          entry.record = this.#updatedRecord(entry.record, "settled");
+          try {
+            this.#persist();
+            entry.persistenceUncertain = false;
+          } catch (error) {
+            entry.persistenceUncertain = true;
+            throw error;
+          }
+          const acknowledgement = this.#acknowledge(request);
+          if (acknowledgement.state !== "acknowledged" && acknowledgement.state !== "not_found") {
+            throw failure("invalid_result", "The overwrite recovery acknowledgement is invalid.");
+          }
+          this.#complete(entry.record.recoveryId, entry);
           return result;
         },
         { recoveryId: entry.record.recoveryId },
@@ -618,9 +748,6 @@ export class LocalSubtitleOverwriteRecoveryOwner<TReservation>
       if (entry.record.ownerFingerprint !== fingerprint) continue;
       try {
         if (entry.volatile) this.#settleVolatile(recoveryId, entry);
-        else if (entry.nativeSettled === "rolled_back") {
-          this.#complete(recoveryId, entry);
-        }
       } catch (error) {
         firstFailure ??= error;
       }
@@ -636,9 +763,6 @@ export class LocalSubtitleOverwriteRecoveryOwner<TReservation>
       for (const [recoveryId, entry] of [...this.#entries]) {
         try {
           if (entry.volatile) this.#settleVolatile(recoveryId, entry);
-          else if (entry.nativeSettled === "rolled_back") {
-            this.#complete(recoveryId, entry);
-          }
         } catch (error) {
           firstFailure ??= error;
         }
@@ -670,19 +794,60 @@ export class LocalSubtitleOverwriteRecoveryOwner<TReservation>
     }
     let firstFailure: unknown;
 
-    const terminalState = entry.record.direction === "finalize"
+    if (entry.persistenceUncertain) {
+      try {
+        this.#persist();
+        entry.persistenceUncertain = false;
+      } catch (error) {
+        throw error;
+      }
+    }
+
+    const direction = directionForDecision(entry.record.decision);
+    const terminalState = direction === "finalize"
       ? "finalized"
       : "rolled_back";
-    if (volatile.receipt.state !== terminalState) {
+    const pendingAckState = direction === "finalize"
+      ? "finalize_pending_ack"
+      : "rollback_pending_ack";
+    if (
+      volatile.receipt.state !== terminalState &&
+      volatile.receipt.state !== pendingAckState
+    ) {
       try {
-        if (entry.record.direction === "finalize") volatile.receipt.finalize();
+        if (direction === "finalize") volatile.receipt.finalize();
         else volatile.receipt.rollback();
       } catch (error) {
         firstFailure = error;
       }
     }
 
-    if (entry.record.direction === "rollback" && volatile.registry.state !== "settled") {
+    const nativeConverged = volatile.receipt.state === pendingAckState ||
+      volatile.receipt.state === terminalState;
+    if (nativeConverged && entry.record.nativeState !== "settled") {
+      try {
+        entry.record = this.#updatedRecord(entry.record, "settled");
+        this.#persist();
+        entry.persistenceUncertain = false;
+      } catch (error) {
+        entry.persistenceUncertain = true;
+        firstFailure ??= error;
+      }
+    }
+
+    if (
+      entry.record.nativeState === "settled" &&
+      !entry.persistenceUncertain &&
+      volatile.receipt.state === pendingAckState
+    ) {
+      try {
+        volatile.receipt.acknowledge();
+      } catch (error) {
+        firstFailure ??= error;
+      }
+    }
+
+    if (direction === "rollback" && volatile.registry.state !== "settled") {
       try {
         if (volatile.registry.state === "active") {
           this.artifacts.revokeArtifact(
@@ -693,29 +858,26 @@ export class LocalSubtitleOverwriteRecoveryOwner<TReservation>
           this.artifacts.revokeReservation(volatile.registry.reservation);
         }
         volatile.registry = { state: "settled" };
-        entry.record = Object.freeze({
-          ...entry.record,
-          registryState: "settled",
-          updatedAt: requireTimestamp(this.#now(), "updatedAt"),
-        });
       } catch (error) {
         firstFailure ??= error;
       }
     }
 
     const nativeSettled = volatile.receipt.state === terminalState;
-    const registrySettled = entry.record.direction === "finalize" ||
+    const registrySettled = direction === "finalize" ||
       volatile.registry.state === "settled";
     if (nativeSettled && registrySettled) {
       this.#complete(recoveryId, entry);
       return;
     }
 
-    try {
-      entry.record = this.#updatedRecord(entry.record, "retry_failed");
-      this.#persist();
-    } catch (error) {
-      firstFailure ??= error;
+    if (entry.record.nativeState !== "settled") {
+      try {
+        entry.record = this.#updatedRecord(entry.record, "retry_failed");
+        this.#persist();
+      } catch (error) {
+        firstFailure ??= error;
+      }
     }
     throw firstFailure ?? failure(
       "recovery_pending",
@@ -799,6 +961,7 @@ function snapshotRecoveryRequest(
     "transactionId",
     "directoryPath",
     "expectedDirectoryIdentity",
+    "decision",
   ])
     ? snapshotLocalSubtitleOverwriteDirectoryIdentity(
         request.expectedDirectoryIdentity,
@@ -809,7 +972,8 @@ function snapshotRecoveryRequest(
     !RECOVERY_ID_PATTERN.test(request.transactionId) ||
     typeof request.directoryPath !== "string" ||
     !path.isAbsolute(request.directoryPath) ||
-    request.directoryPath.includes("\0")
+    request.directoryPath.includes("\0") ||
+    (request.decision !== "finalize" && request.decision !== "rollback")
   ) {
     throw failure("invalid_request", "The overwrite recovery request is invalid.");
   }
@@ -817,6 +981,7 @@ function snapshotRecoveryRequest(
     transactionId: request.transactionId,
     directoryPath: request.directoryPath,
     expectedDirectoryIdentity: directoryIdentity,
+    decision: request.decision,
   });
 }
 
@@ -824,7 +989,7 @@ function validateRecoveryResult(input: unknown): LocalSubtitleOverwriteRecoveryR
   if (
     !isExactRecord(input, ["state"]) ||
     isProxy(input) ||
-    !["rolled_back", "decision_required", "not_found"].includes(
+    !["finalized", "rolled_back", "not_found"].includes(
       input.state as string,
     )
   ) {
@@ -833,6 +998,19 @@ function validateRecoveryResult(input: unknown): LocalSubtitleOverwriteRecoveryR
   return Object.freeze({
     state: input.state as LocalSubtitleOverwriteRecoveryResult["state"],
   });
+}
+
+function validateAcknowledgementResult(
+  input: unknown,
+): LocalSubtitleOverwriteAcknowledgementResult {
+  if (
+    !isExactRecord(input, ["state"]) ||
+    isProxy(input) ||
+    (input.state !== "acknowledged" && input.state !== "not_found")
+  ) {
+    throw failure("invalid_result", "The overwrite recovery acknowledgement is invalid.");
+  }
+  return Object.freeze({ state: input.state });
 }
 
 function assertAdoptionMetadata(
@@ -871,9 +1049,14 @@ function assertAdoptionTerminal<TReservation>(
   if (
     (options.direction === "finalize" && registry.state !== "active") ||
     (options.direction === "finalize" &&
-      state !== "finalize_pending" && state !== "finalized") ||
+      state !== "finalize_pending" &&
+      state !== "finalize_pending_ack" &&
+      state !== "finalized") ||
     (options.direction === "rollback" &&
-      state !== "open" && state !== "rollback_pending" && state !== "rolled_back")
+      state !== "open" &&
+      state !== "rollback_pending" &&
+      state !== "rollback_pending_ack" &&
+      state !== "rolled_back")
   ) {
     throw failure("invalid_state", "The overwrite recovery direction is inconsistent.");
   }
@@ -994,8 +1177,7 @@ function validatePersistedRecord(input: unknown): LocalSubtitleOverwriteRecovery
       "taskId",
       "generation",
       "format",
-      "direction",
-      "registryState",
+      "decision",
       "nativeState",
       "createdAt",
       "updatedAt",
@@ -1008,11 +1190,11 @@ function validatePersistedRecord(input: unknown): LocalSubtitleOverwriteRecovery
     !isId(input.taskId) ||
     !isPositiveSafeInteger(input.generation) ||
     !isFormat(input.format) ||
-    !["finalize", "rollback"].includes(input.direction as string) ||
-    !["active", "reserved", "settled"].includes(input.registryState as string) ||
-    !["pending", "decision_required", "not_found", "retry_failed"].includes(
+    !["finalize_committed", "rollback_unpublished"].includes(input.decision as string) ||
+    !["not_started", "pending", "settled", "retry_failed"].includes(
       input.nativeState as string,
     ) ||
+    (input.decision === "finalize_committed" && input.nativeState === "not_started") ||
     !isTimestamp(input.createdAt) ||
     !isTimestamp(input.updatedAt) ||
     input.updatedAt < input.createdAt
@@ -1117,6 +1299,24 @@ function isFormat(value: unknown): value is LocalSubtitleFormat {
 
 function isPositiveSafeInteger(value: unknown): value is number {
   return Number.isSafeInteger(value) && (value as number) > 0;
+}
+
+function decisionForDirection(
+  direction: LocalSubtitleOverwriteRecoveryDirection,
+): LocalSubtitleOverwriteRecoveryDecision {
+  return direction === "finalize" ? "finalize_committed" : "rollback_unpublished";
+}
+
+function directionForDecision(
+  decision: LocalSubtitleOverwriteRecoveryDecision,
+): LocalSubtitleOverwriteRecoveryDirection {
+  return decision === "finalize_committed" ? "finalize" : "rollback";
+}
+
+function terminalResultForDecision(
+  decision: LocalSubtitleOverwriteRecoveryDecision,
+): "finalized" | "rolled_back" {
+  return decision === "finalize_committed" ? "finalized" : "rolled_back";
 }
 
 function isNonNegativeSafeInteger(value: unknown): value is number {

@@ -17,7 +17,7 @@ const TEST_FAULT_DEFINITION = "-DFUSIONKIT_OVERWRITE_TEST_FAULTS=1";
 
 export const OVERWRITE_NATIVE_TEST_BUILD_CONTRACT = deepFreeze({
   ...OVERWRITE_NATIVE_BUILD_CONTRACT,
-  workPackage: "FS-TXN-001B",
+  workPackage: "FS-TXN-001F",
   defaultOutputPath: DEFAULT_OUTPUT_PATH,
   testOnly: true,
   faultInjection: {

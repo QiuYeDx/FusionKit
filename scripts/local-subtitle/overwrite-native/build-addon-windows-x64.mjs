@@ -38,12 +38,12 @@ const COMPILER_LEAF = "x86_64-w64-mingw32-clang++.exe";
 
 export const OVERWRITE_NATIVE_WINDOWS_BUILD_CONTRACT = deepFreeze({
   schemaVersion: 1,
-  workPackage: "FS-TXN-001D",
+  workPackage: "FS-TXN-001F",
   component: "local-subtitle-overwrite",
   target: { platform: "win32", arch: "x64" },
   napiVersion: 8,
-  nativeProtocolVersion: 3,
-  journalVersion: 2,
+  nativeProtocolVersion: 4,
+  journalVersion: 3,
   cxxStandard: "c++17",
   minimumWindowsVersion: "10.0",
   sourceRelativePath: SOURCE_RELATIVE_PATH,

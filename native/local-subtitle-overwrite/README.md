@@ -24,39 +24,51 @@ contract.
 
 The production module exports exactly these own properties:
 
-- `protocolVersion: 3`
+- `protocolVersion: 4`
 - `platform: "darwin"` with `architecture: "arm64"`, or
   `platform: "win32"` with `architecture: "x64"`
 - `begin(request)`
 - `recover(request)`
+- `acknowledge(request)`
 
 `begin` accepts exactly `directoryPath`, `expectedDirectoryIdentity`,
 `transactionId`, `partialLeaf`, `finalLeaf`, `expectedPartialIdentity`, and
 `expectedByteSize`. `transactionId` must match
 `^[A-Za-z0-9-]{1,80}$`, and `partialLeaf` must equal
 `.fusionkit-local-subtitle-${transactionId}.partial`. It returns an object with
-the exact own properties `expectedFinalIdentity`, `finalize`, and `rollback`.
-All three operations are synchronous.
+the exact own properties `expectedFinalIdentity`, `finalize`, `rollback`, and
+`acknowledge`. All operations are synchronous.
 
-`begin` writes a journal-version-2, addon-write-once, checksummed journal in the
+`begin` writes a journal-version-3, addon-write-once, checksummed journal in the
 retained output directory before its first namespace mutation. The journal
 stores `transactionId` and the complete validated begin snapshot needed for
-rollback. Its exact leaves are `<partialLeaf>.fusionkit-overwrite.open` and
+either terminal direction. Its exact leaves are
+`<partialLeaf>.fusionkit-overwrite.open`,
+`<partialLeaf>.fusionkit-overwrite.finalize`, and
 `<partialLeaf>.fusionkit-overwrite.rollback`.
 
-`recover` accepts exactly `directoryPath`, `expectedDirectoryIdentity`, and
-`transactionId`. After the caller reauthorizes the directory, the addon derives
-the two possible journal leaves from that opaque ID and never scans the
-directory or accepts caller-supplied rollback metadata. A validated journal
-reconstructs the remaining begin request fields. The first rollback attempt
-atomically renames `.open` to `.rollback` before restoring or deleting any leaf.
-Recovery returns exactly one state: `rolled_back`, `decision_required`, or
-`not_found`. A valid, ID-matching open journal is
-`decision_required`; malformed, replaced, multiply linked, or request-mismatched
-journals are rejected. This checkpoint does not guess a terminal direction for
-an abandoned receipt or finalize crash. A finalize crash after `.open` has
-already been unlinked may instead make `recover()` return `not_found`; finalize
-crash recovery is intentionally unsupported and unclaimed at this checkpoint.
+`recover` and module-level `acknowledge` accept exactly `directoryPath`,
+`expectedDirectoryIdentity`, `transactionId`, and `decision`, where `decision`
+is `finalize` or `rollback`. After the caller reauthorizes the directory, the
+addon derives all three journal leaves from that opaque ID and never scans the
+directory or accepts caller-supplied begin metadata. A validated journal
+reconstructs the remaining begin request fields. Recovery of `.open` first
+atomically renames it to the requested terminal marker, verifies the renamed
+journal, and syncs the directory before any terminal namespace mutation.
+An existing `.finalize` or `.rollback` marker that conflicts with the request is
+rejected without consulting the current business-file layout.
+
+Recovery returns exactly `finalized`, `rolled_back`, or `not_found`. A successful
+terminal operation keeps its `.finalize` or `.rollback` marker and the receipt
+enters pending acknowledgement. The caller must first persist its composite
+state as settled, then call receipt `acknowledge()` or module-level
+`acknowledge(request)`. Acknowledgement revalidates the marker and terminal
+layout before removing the marker; module-level acknowledgement returns exactly
+`acknowledged` or `not_found`. Therefore a pending recovery never treats a
+missing marker as native terminal success. Only an already-settled composite
+owner may interpret acknowledgement `not_found` as completion after a crash at
+the marker-unlink boundary. Malformed, replaced, multiply linked, or
+request-mismatched journals are rejected.
 
 The absolute directory path is used only to open and verify one no-follow
 directory descriptor/HANDLE. Every child lookup, rename, link, and unlink after
@@ -80,17 +92,21 @@ or its prior absence, then removes the identity-matching new partial relative
 to the retained directory descriptor. If that unlink fails, another
 `rollback()` call resumes cleanup without repeating the rename. Once rollback
 has been attempted, the TypeScript receipt remains `rollback_pending` after a
-failure and rejects finalize. The N-API finalizer makes one best-effort attempt
-but is not a persistent recovery owner.
+failure and rejects finalize. Once cleanup completes, the rollback marker
+remains until acknowledgement. The N-API finalizer continues an already-armed
+rollback direction once, but never chooses rollback for an open receipt, never
+acknowledges persistent state, and is not a recovery owner.
 
-Finalize has a separate in-memory direction lock. Once the native finalize
-method has started, a throw leaves the TypeScript receipt `finalize_pending`;
-only `finalize()` on that same receipt may retry, and rollback is rejected. The
-Exporter retries once and, if the retry also fails, keeps the activated Registry
-commit direction for a future composite owner. This is not a durable commit
-decision: after a process crash the remaining `.open` journal still produces
-`decision_required`, and the N-API finalizer must not reverse a pending finalize
-into rollback.
+Finalize publishes its durable `.finalize` direction before deleting an existing
+victim. Once finalize has started, only finalize may retry and rollback is
+rejected. Existing-victim cleanup and absent-victim verification both retain the
+finalize marker until acknowledgement, so fresh-process recovery continues the
+persisted direction without guessing from layout. The N-API finalizer must not
+reverse a pending finalize into rollback or acknowledge the marker. It may
+remove a prepared `.open` journal only before begin mutates the namespace. Once
+begin is open, finalization leaves `.open` intact for the main-process durable
+decision; already-armed finalize or rollback work may continue only in that same
+direction.
 
 The prepared partial must have exactly one directory link. Rollback retains its
 open file descriptor until `fstat` proves that link count reached zero, so a

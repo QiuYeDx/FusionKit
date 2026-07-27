@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -18,6 +18,7 @@ import {
 } from "./build-test-addon-windows-x64.mjs";
 
 const SCRIPT_DIRECTORY = path.dirname(fileURLToPath(import.meta.url));
+const PROJECT_ROOT = path.resolve(SCRIPT_DIRECTORY, "../../..");
 const WINDOWS_X64 = process.platform === "win32" && process.arch === "x64";
 const HAS_EXPLICIT_TOOLCHAIN = [
   process.env.FUSIONKIT_LLVM_MINGW_ROOT,
@@ -38,8 +39,8 @@ test("freezes a shell-free Windows x64 N-API v8 build descriptor", () => {
     arch: "x64",
   });
   assert.equal(descriptor.contract.napiVersion, 8);
-  assert.equal(descriptor.contract.nativeProtocolVersion, 3);
-  assert.equal(descriptor.contract.journalVersion, 2);
+  assert.equal(descriptor.contract.nativeProtocolVersion, 4);
+  assert.equal(descriptor.contract.journalVersion, 3);
   assert.equal(descriptor.commands.length, 1);
   const compile = descriptor.commands[0];
   assert.match(compile.command, /x86_64-w64-mingw32-clang\+\+\.exe$/u);
@@ -102,10 +103,43 @@ test("keeps fault injection in a distinct Windows test-only build", () => {
     true,
   );
   assert.equal(OVERWRITE_NATIVE_WINDOWS_TEST_BUILD_CONTRACT.testOnly, true);
+  assert.equal(production.contract.nativeProtocolVersion, 4);
+  assert.equal(production.contract.journalVersion, 3);
+  assert.equal(faultTest.contract.nativeProtocolVersion, 4);
+  assert.equal(faultTest.contract.journalVersion, 3);
   assert.equal(
     OVERWRITE_NATIVE_WINDOWS_TEST_BUILD_CONTRACT.faultInjection.crashExitCode,
     86,
   );
+});
+
+test("freezes the Windows durable decision and acknowledgement source surface", async () => {
+  const source = await readFile(
+    path.join(PROJECT_ROOT, OVERWRITE_NATIVE_WINDOWS_BUILD_CONTRACT.sourceRelativePath),
+    "utf8",
+  );
+  for (const required of [
+    "constexpr uint32_t kProtocolVersion = 4;",
+    "constexpr uint32_t kJournalVersion = 3;",
+    'base + ".finalize"',
+    'MaybeInjectTestFault("finalize_after_intent_sync")',
+    'MaybeInjectTestFault("finalize_before_ack")',
+    'MaybeInjectTestFault("rollback_before_ack")',
+    "AcknowledgeTransaction",
+    'SetNamed(env, exports, "acknowledge", acknowledge);',
+  ]) {
+    assert.ok(source.includes(required), `missing source contract: ${required}`);
+  }
+  const finalizerStart = source.indexOf("void BestEffortTerminalConvergence()");
+  const finalizerEnd = source.indexOf("void CloseHandlesIgnoringErrors()", finalizerStart);
+  assert.equal(finalizerStart >= 0 && finalizerEnd > finalizerStart, true);
+  const finalizer = source.slice(finalizerStart, finalizerEnd);
+  assert.equal(finalizer.includes("Phase::kOpenExisting"), false);
+  assert.equal(finalizer.includes("Phase::kOpenAbsent"), false);
+  assert.equal(finalizer.includes("Phase::kFinalizeIntentExisting"), true);
+  assert.equal(finalizer.includes("Phase::kRollbackIntentExisting"), true);
+  assert.equal(finalizer.includes("Phase::kFinalizePendingAck"), false);
+  assert.equal(finalizer.includes("Phase::kRollbackPendingAck"), false);
 });
 
 test("parses only explicit absolute typed Windows build inputs", () => {
@@ -169,6 +203,10 @@ test(
       assert.equal(productionReceipt.artifact.format, "pe");
       assert.equal(productionReceipt.artifact.architecture, "x64");
       assert.equal(productionReceipt.build.nodeVersion, process.versions.node);
+      assert.equal(productionReceipt.build.nativeProtocolVersion, 4);
+      assert.equal(productionReceipt.build.journalVersion, 3);
+      assert.equal(testReceipt.build.nativeProtocolVersion, 4);
+      assert.equal(testReceipt.build.journalVersion, 3);
       assert.equal(testReceipt.testFaultInjection, true);
       assert.equal(
         JSON.stringify([productionReceipt, testReceipt]).includes(
@@ -189,10 +227,22 @@ test(
       assert.equal(integration.terminalCases.length, 4);
       assert.equal(integration.rejectionCases.length, 6);
       assert.equal(recovery.status, "passed");
-      assert.equal(recovery.beginCrashCases.length, 3);
-      assert.equal(recovery.rollbackCrashCases.length, 14);
-      assert.equal(recovery.rollbackErrorRetryCases.length, 14);
-      assert.equal(recovery.finalizeErrorRetryCases.length, 5);
+      assert.equal(recovery.schemaVersion, 3);
+      assert.equal(recovery.abandonedOpenCases.length, 4);
+      for (const abandoned of recovery.abandonedOpenCases) {
+        assert.equal(abandoned.openJournalPreservedByFinalizer, true);
+        assert.equal(abandoned.namespaceAwaitedDurableDecision, true);
+        assert.equal(abandoned.status, "passed");
+      }
+      assert.equal(recovery.beginCrashCases.length, 4);
+      assert.equal(recovery.openRecoveryArmCrashCases.length, 4);
+      assert.equal(recovery.rollbackCrashCases.length, 12);
+      assert.equal(recovery.rollbackErrorRetryCases.length, 12);
+      assert.equal(recovery.finalizeErrorRetryCases.length, 7);
+      assert.equal(recovery.finalizeCrashCases.length, 7);
+      assert.equal(recovery.acknowledgeCrashCases.length, 4);
+      assert.equal(recovery.acknowledgeErrorRetryCases.length, 4);
+      assert.equal(recovery.conflictCases.length, 2);
       assert.equal(recovery.productionGateChanged, false);
     } finally {
       await rm(outputRoot, { recursive: true, force: true });
@@ -201,7 +251,7 @@ test(
 );
 
 test("declares the Windows component boundary without changing the gate", () => {
-  assert.equal(OVERWRITE_NATIVE_WINDOWS_BUILD_CONTRACT.workPackage, "FS-TXN-001D");
+  assert.equal(OVERWRITE_NATIVE_WINDOWS_BUILD_CONTRACT.workPackage, "FS-TXN-001F");
   assert.deepEqual(OVERWRITE_NATIVE_WINDOWS_BUILD_CONTRACT.target, {
     platform: "win32",
     arch: "x64",
