@@ -13,6 +13,15 @@ import {
 
 const SCRIPT_DIRECTORY = path.dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = path.resolve(SCRIPT_DIRECTORY, "../../..");
+export const LOCAL_SUBTITLE_BUILDER_EXTRA_RESOURCE = Object.freeze({
+  from: "build/local-subtitle-resources/local-subtitle",
+  to: "local-subtitle",
+  filter: Object.freeze(["**/*"]),
+});
+export const LOCAL_SUBTITLE_BUILDER_BEFORE_PACK =
+  "scripts/local-subtitle/runtime/electron-builder-local-subtitle-before-pack.cjs";
+export const LOCAL_SUBTITLE_BUILDER_MAC_SIGN_IGNORE =
+  "Contents/Resources/local-subtitle/";
 
 export async function validateRuntimeStaging(options = {}) {
   const projectRoot = path.resolve(options.projectRoot ?? PROJECT_ROOT);
@@ -24,7 +33,7 @@ export async function validateRuntimeStaging(options = {}) {
     electronBuilderConfigPath,
     "electron-builder config",
   );
-  assertBuilderArtifactNamePattern(
+  assertBuilderConsumptionContract(
     builderConfig,
     LOCAL_SUBTITLE_STAGING_CONTRACT.artifactNamePattern,
   );
@@ -35,15 +44,26 @@ export async function validateRuntimeStaging(options = {}) {
   const runtimeRoot = resolveDevelopmentRuntimeRoot(projectRoot);
   await assertCanonicalDevelopmentRuntimePath(projectRoot, runtimeRoot);
   const verify = options.verifyRuntimeBundleImpl ?? verifyRuntimeBundle;
-  const verification = await verify({
+  const runtimeVerification = await verify({
     runtimeRoot,
     platform,
     arch,
     scope: "all",
     launch: false,
   });
-  if (verification?.ready !== true) {
+  if (runtimeVerification?.ready !== true) {
     throw invalidStaging("The canonical runtime staging root is not ready.");
+  }
+  const verifyOverwrite = options.verifyOverwriteNativeAddonImpl ??
+    await loadOverwriteNativeVerifier();
+  const overwriteVerification = await verifyOverwrite({
+    root: runtimeRoot,
+    platform,
+    arch,
+    signatureVerifier: options.overwriteSignatureVerifier,
+  });
+  if (overwriteVerification?.ready !== true) {
+    throw invalidStaging("The staged overwrite native addon is not ready.");
   }
 
   return {
@@ -58,7 +78,9 @@ export async function validateRuntimeStaging(options = {}) {
     verificationScope: "point_in_time_static",
     launchPerformed: false,
     runtimeVerified: true,
-    verification,
+    overwriteNativeVerified: true,
+    verification: runtimeVerification,
+    overwriteVerification,
   };
 }
 
@@ -116,6 +138,69 @@ export function assertBuilderArtifactNamePattern(config, expectedPattern) {
     }
   }
   return true;
+}
+
+export function assertBuilderConsumptionContract(config, expectedPattern) {
+  assertBuilderArtifactNamePattern(config, expectedPattern);
+  if (
+    config.beforePack !== LOCAL_SUBTITLE_BUILDER_BEFORE_PACK ||
+    !Array.isArray(config.extraResources) ||
+    config.extraResources.length !== 1 ||
+    !isExactExtraResource(config.extraResources[0])
+  ) {
+    throw invalidStaging(
+      "The electron-builder local-subtitle resource mapping is invalid.",
+    );
+  }
+  if (
+    !isExactTargetMatrix(config.mac?.target, ["dmg", "zip"], "arm64") ||
+    !isExactTargetMatrix(config.win?.target, ["nsis"], "x64") ||
+    !Array.isArray(config.mac?.signIgnore) ||
+    config.mac.signIgnore.length !== 1 ||
+    config.mac.signIgnore[0] !== LOCAL_SUBTITLE_BUILDER_MAC_SIGN_IGNORE
+  ) {
+    throw invalidStaging("The electron-builder target contract is invalid.");
+  }
+  return true;
+}
+
+function isExactExtraResource(input) {
+  return isExactObject(input, ["from", "to", "filter"]) &&
+    input.from === LOCAL_SUBTITLE_BUILDER_EXTRA_RESOURCE.from &&
+    input.to === LOCAL_SUBTITLE_BUILDER_EXTRA_RESOURCE.to &&
+    Array.isArray(input.filter) &&
+    input.filter.length === 1 &&
+    input.filter[0] === LOCAL_SUBTITLE_BUILDER_EXTRA_RESOURCE.filter[0];
+}
+
+function isExactTargetMatrix(input, expectedTargets, expectedArch) {
+  if (!Array.isArray(input) || input.length !== expectedTargets.length) return false;
+  return input.every((entry, index) =>
+    isExactObject(entry, ["target", "arch"]) &&
+    entry.target === expectedTargets[index] &&
+    Array.isArray(entry.arch) &&
+    entry.arch.length === 1 &&
+    entry.arch[0] === expectedArch
+  );
+}
+
+function isExactObject(input, expectedKeys) {
+  if (input === null || typeof input !== "object" || Array.isArray(input)) {
+    return false;
+  }
+  const keys = Object.keys(input);
+  return keys.length === expectedKeys.length &&
+    expectedKeys.every((key) => keys.includes(key));
+}
+
+async function loadOverwriteNativeVerifier() {
+  const module = await import(
+    "../overwrite-native/overwrite-native-staging.mjs"
+  );
+  if (typeof module.verifyStagedOverwriteNativeAddon !== "function") {
+    throw invalidStaging("The overwrite native staging verifier is unavailable.");
+  }
+  return module.verifyStagedOverwriteNativeAddon;
 }
 
 async function readJsonFile(filePath, label) {

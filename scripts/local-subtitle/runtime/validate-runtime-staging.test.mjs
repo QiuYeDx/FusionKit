@@ -5,48 +5,95 @@ import path from "node:path";
 import test from "node:test";
 import { STAGING_ARTIFACT_NAME_PATTERN } from "./staging-contract.mjs";
 import {
-  assertBuilderArtifactNamePattern,
+  assertBuilderConsumptionContract,
   validateRuntimeStaging,
 } from "./validate-runtime-staging.mjs";
 
-test("validates both builder artifact names before the canonical runtime root", async () => {
+test("validates the builder contract and both canonical staged runtimes", async () => {
   await withProjectFixture(async (projectRoot) => {
     const calls = [];
+    const signatureVerifier = () => true;
     const report = await validateRuntimeStaging({
       projectRoot,
       platform: "darwin",
       arch: "arm64",
+      overwriteSignatureVerifier: signatureVerifier,
       verifyRuntimeBundleImpl: async (options) => {
-        calls.push(options);
+        calls.push(["runtime", options]);
         return { ready: true, artifactCount: 3 };
+      },
+      verifyOverwriteNativeAddonImpl: async (options) => {
+        calls.push(["overwrite", options]);
+        return { ready: true, artifactId: "local-subtitle-overwrite-darwin-arm64" };
       },
     });
 
-    assert.equal(calls.length, 1);
-    assert.deepEqual(calls[0], {
-      runtimeRoot: path.join(
-        projectRoot,
-        "build",
-        "local-subtitle-resources",
-        "local-subtitle",
-      ),
-      platform: "darwin",
-      arch: "arm64",
-      scope: "all",
-      launch: false,
-    });
+    const root = path.join(
+      projectRoot,
+      "build",
+      "local-subtitle-resources",
+      "local-subtitle",
+    );
+    assert.deepEqual(calls, [
+      ["runtime", {
+        runtimeRoot: root,
+        platform: "darwin",
+        arch: "arm64",
+        scope: "all",
+        launch: false,
+      }],
+      ["overwrite", {
+        root,
+        platform: "darwin",
+        arch: "arm64",
+        signatureVerifier,
+      }],
+    ]);
     assert.equal(report.target.id, "darwin-arm64");
     assert.equal(report.verificationScope, "point_in_time_static");
     assert.equal(report.launchPerformed, false);
     assert.equal(report.runtimeVerified, true);
+    assert.equal(report.overwriteNativeVerified, true);
     assert.equal(report.artifactNamePattern, STAGING_ARTIFACT_NAME_PATTERN);
   });
 });
 
-test("rejects either builder artifact-name drift before bundle verification", async () => {
-  for (const platformKey of ["mac", "win"]) {
+test("rejects builder contract drift before either staging verifier", async () => {
+  const mutations = [
+    ["mac artifact name", (config) => {
+      config.mac.artifactName = "${productName}_${version}.${ext}";
+    }],
+    ["win artifact name", (config) => {
+      config.win.artifactName = "${productName}_${version}.${ext}";
+    }],
+    ["beforePack", (config) => {
+      config.beforePack = "other.cjs";
+    }],
+    ["mapping from", (config) => {
+      config.extraResources[0].from = "other";
+    }],
+    ["mapping to", (config) => {
+      config.extraResources[0].to = "other";
+    }],
+    ["mapping filter", (config) => {
+      config.extraResources[0].filter = ["**/*.node"];
+    }],
+    ["duplicate mapping", (config) => {
+      config.extraResources.push(structuredClone(config.extraResources[0]));
+    }],
+    ["mac sign ignore", (config) => {
+      config.mac.signIgnore = [];
+    }],
+    ["mac target arch", (config) => {
+      config.mac.target[0].arch = ["x64"];
+    }],
+    ["win target arch", (config) => {
+      config.win.target[0].arch = ["arm64"];
+    }],
+  ];
+  for (const [label, mutate] of mutations) {
     await withProjectFixture(async (projectRoot, config) => {
-      config[platformKey].artifactName = "${productName}_${version}.${ext}";
+      mutate(config);
       fs.writeFileSync(
         path.join(projectRoot, "electron-builder.json"),
         `${JSON.stringify(config, null, 2)}\n`,
@@ -55,21 +102,23 @@ test("rejects either builder artifact-name drift before bundle verification", as
       await assert.rejects(
         validateRuntimeStaging({
           projectRoot,
-          platform: "win32",
-          arch: "x64",
+          platform: "darwin",
+          arch: "arm64",
           verifyRuntimeBundleImpl: async () => {
             verified = true;
             return { ready: true };
           },
+          verifyOverwriteNativeAddonImpl: async () => ({ ready: true }),
         }),
         (error) => error.code === "runtime_staging_invalid",
+        label,
       );
-      assert.equal(verified, false);
+      assert.equal(verified, false, label);
     });
   }
 });
 
-test("rejects a symbolic ancestor in the canonical development runtime path", async () => {
+test("rejects a symbolic ancestor before either staging verifier", async () => {
   await withProjectFixture(async (projectRoot) => {
     const buildRoot = path.join(projectRoot, "build");
     const realBuildRoot = path.join(projectRoot, "real-build");
@@ -85,6 +134,7 @@ test("rejects a symbolic ancestor in the canonical development runtime path", as
           verified = true;
           return { ready: true };
         },
+        verifyOverwriteNativeAddonImpl: async () => ({ ready: true }),
       }),
       (error) => error.code === "runtime_staging_invalid",
     );
@@ -92,32 +142,42 @@ test("rejects a symbolic ancestor in the canonical development runtime path", as
   });
 });
 
-test("requires exact mac and Windows artifact-name patterns", () => {
+test("requires the complete exact builder consumption contract", () => {
   assert.equal(
-    assertBuilderArtifactNamePattern(createBuilderConfig(), STAGING_ARTIFACT_NAME_PATTERN),
-    true,
-  );
-  assert.throws(
-    () => assertBuilderArtifactNamePattern(
-      { mac: {}, win: { artifactName: STAGING_ARTIFACT_NAME_PATTERN } },
+    assertBuilderConsumptionContract(
+      createBuilderConfig(),
       STAGING_ARTIFACT_NAME_PATTERN,
     ),
+    true,
+  );
+  const expanded = createBuilderConfig();
+  expanded.extraResources[0].optional = true;
+  assert.throws(
+    () => assertBuilderConsumptionContract(expanded, STAGING_ARTIFACT_NAME_PATTERN),
     (error) => error.code === "runtime_staging_invalid",
   );
 });
 
-test("rejects a verifier result that is not explicitly ready", async () => {
-  await withProjectFixture(async (projectRoot) => {
-    await assert.rejects(
-      validateRuntimeStaging({
-        projectRoot,
-        platform: "darwin",
-        arch: "arm64",
-        verifyRuntimeBundleImpl: async () => ({ ready: false }),
-      }),
-      (error) => error.code === "runtime_staging_invalid",
-    );
-  });
+test("requires both verifier results to be explicitly ready", async () => {
+  for (const failedVerifier of ["runtime", "overwrite"]) {
+    await withProjectFixture(async (projectRoot) => {
+      await assert.rejects(
+        validateRuntimeStaging({
+          projectRoot,
+          platform: "darwin",
+          arch: "arm64",
+          verifyRuntimeBundleImpl: async () => ({
+            ready: failedVerifier !== "runtime",
+          }),
+          verifyOverwriteNativeAddonImpl: async () => ({
+            ready: failedVerifier !== "overwrite",
+          }),
+        }),
+        (error) => error.code === "runtime_staging_invalid",
+        failedVerifier,
+      );
+    });
+  }
 });
 
 async function withProjectFixture(callback) {
@@ -151,7 +211,23 @@ function directoryLinkType() {
 
 function createBuilderConfig() {
   return {
-    mac: { artifactName: STAGING_ARTIFACT_NAME_PATTERN },
-    win: { artifactName: STAGING_ARTIFACT_NAME_PATTERN },
+    extraResources: [{
+      from: "build/local-subtitle-resources/local-subtitle",
+      to: "local-subtitle",
+      filter: ["**/*"],
+    }],
+    beforePack: "scripts/local-subtitle/runtime/electron-builder-local-subtitle-before-pack.cjs",
+    mac: {
+      artifactName: STAGING_ARTIFACT_NAME_PATTERN,
+      target: [
+        { target: "dmg", arch: ["arm64"] },
+        { target: "zip", arch: ["arm64"] },
+      ],
+      signIgnore: ["Contents/Resources/local-subtitle/"],
+    },
+    win: {
+      artifactName: STAGING_ARTIFACT_NAME_PATTERN,
+      target: [{ target: "nsis", arch: ["x64"] }],
+    },
   };
 }

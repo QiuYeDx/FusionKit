@@ -11,9 +11,11 @@ import * as nativeAdapter from "../../electron/main/local-subtitle/overwrite-nat
 import {
   LOCAL_SUBTITLE_OVERWRITE_NATIVE_PROTOCOL_VERSION,
   LocalSubtitleOverwriteNativeBackendError,
-  createLocalSubtitleOverwriteNativeRuntime,
-  createLocalSubtitleOverwriteNativeTransactionCoordinator,
 } from "../../electron/main/local-subtitle/overwrite-native-backend";
+import {
+  createLocalSubtitleOverwriteNativeRuntimeForTest,
+  createLocalSubtitleOverwriteNativeTransactionCoordinatorForTest,
+} from "../../electron/main/local-subtitle/overwrite-native-backend-test-support";
 import {
   isLocalSubtitleOverwriteTransactionCoordinator,
   type LocalSubtitleOverwriteTransactionBackendReceipt,
@@ -32,6 +34,23 @@ const absoluteDirectory = path.join(
   "trusted-output",
 );
 
+function createLocalSubtitleOverwriteNativeRuntime(
+  modulePath: string,
+  loadModule: (absoluteNodePath: string) => unknown = nativeLoader,
+) {
+  return createLocalSubtitleOverwriteNativeRuntimeForTest(modulePath, loadModule);
+}
+
+function createLocalSubtitleOverwriteNativeTransactionCoordinator(
+  modulePath: string,
+  loadModule: (absoluteNodePath: string) => unknown = nativeLoader,
+) {
+  return createLocalSubtitleOverwriteNativeTransactionCoordinatorForTest(
+    modulePath,
+    loadModule,
+  );
+}
+
 describe.sequential("local subtitle overwrite native backend loader", () => {
   beforeEach(() => {
     setProcessTarget("darwin", "arm64");
@@ -44,8 +63,13 @@ describe.sequential("local subtitle overwrite native backend loader", () => {
     Object.defineProperty(process, "arch", originalArchitecture);
   });
 
-  it("exports only a branded Coordinator factory, never a raw backend loader", () => {
-    expect(nativeAdapter).not.toHaveProperty("loadLocalSubtitleOverwriteNativeBackend");
+  it("keeps the production backend export surface proof-only", () => {
+    expect(Object.keys(nativeAdapter).sort()).toEqual([
+      "LOCAL_SUBTITLE_OVERWRITE_NATIVE_PROTOCOL_VERSION",
+      "LocalSubtitleOverwriteNativeBackendError",
+      "createLocalSubtitleOverwriteNativeRuntime",
+      "createLocalSubtitleOverwriteNativeTransactionCoordinator",
+    ].sort());
 
     const coordinator = createLocalSubtitleOverwriteNativeTransactionCoordinator(
       absoluteNodePath,
@@ -297,21 +321,26 @@ describe.sequential("local subtitle overwrite native backend loader", () => {
     expect(rawModule.begin).not.toHaveBeenCalled();
   });
 
-  it("ignores a runtime second-argument injection surface", () => {
+  it("allows module injection only through the explicit test-only factory", () => {
     const injectedLoader = vi.fn(() => validRawModule());
-    const callWithInjectedOptions = createLocalSubtitleOverwriteNativeTransactionCoordinator as unknown as (
-      modulePath: string,
-      options: unknown,
-    ) => unknown;
+    createLocalSubtitleOverwriteNativeTransactionCoordinator(
+      absoluteNodePath,
+      injectedLoader,
+    );
 
-    callWithInjectedOptions(absoluteNodePath, {
-      expectedPlatform: "win32",
-      expectedArchitecture: "x64",
-      loadModule: injectedLoader,
-    });
+    expect(injectedLoader).toHaveBeenCalledOnce();
+    expect(injectedLoader).toHaveBeenCalledWith(absoluteNodePath);
+    expect(nativeLoader).not.toHaveBeenCalled();
+  });
 
-    expect(injectedLoader).not.toHaveBeenCalled();
-    expect(nativeLoader).toHaveBeenCalledOnce();
+  it("requires an explicit loader in the isolated test-support module", () => {
+    const callWithoutLoader =
+      createLocalSubtitleOverwriteNativeTransactionCoordinatorForTest as unknown as (
+        modulePath: string,
+      ) => unknown;
+
+    expect(() => callWithoutLoader(absoluteNodePath)).toThrowError(TypeError);
+    expect(nativeLoader).not.toHaveBeenCalled();
   });
 
   it.each([

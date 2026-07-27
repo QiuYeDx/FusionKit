@@ -117,7 +117,7 @@ renames and requires a zero open-file-descriptor delta.
 
 ## Developer checkpoint evidence
 
-### Windows x64 — 2026-07-24
+### Windows x64 — 2026-07-24 (historical protocol-v3 evidence)
 
 - Real Node load: exact five-export production surface, protocol 3.
 - Production integration: 4 terminal cases, 5 recovery cases, and 6 rejection
@@ -139,16 +139,18 @@ renames and requires a zero open-file-descriptor delta.
 - Test-only integration: 2 begin crashes, 14 rollback crashes, 14 rollback
   error/retries, 5 finalize error/retries, and 1 unsupported-checkpoint proof.
 
-Protocol-v2 artifact sizes and hashes are intentionally not carried forward as
-protocol-v3 evidence. The temporary protocol-v3 test artifacts are not staged,
-signed, packaged, or release-manifest identities, and the report makes no
-finalize crash-recovery or power-loss-safety claim.
+The historical Windows protocol-v3 artifacts and earlier macOS artifact sizes
+and hashes are intentionally not carried forward as protocol-v4 evidence. The
+temporary protocol-v4 test artifacts are not packaged or release-manifest
+identities, and the report makes no power-loss-safety claim. The current macOS
+production addon has separately passed build, ad-hoc sign, stage, and
+fresh-process load; the equivalent Windows protocol-v4 matrix remains pending.
 
 This addon is only a backend primitive. Callers must load it through the
 validated TypeScript adapter and
 `LocalSubtitleOverwriteTransactionCoordinator`; it does not by itself permit
 the production overwrite conflict policy. The production module has the exact
-five-export surface above. A separately compiled fault-test artifact has one
+six-export surface above. A separately compiled fault-test artifact has one
 extra `testFaultInjection` export, so the strict production loader rejects it.
 
 Retaining the directory descriptor/HANDLE closes parent-path replacement.
@@ -160,8 +162,8 @@ races and cannot guarantee zero mutation of foreign vnodes.
 
 Production remains gated. The Windows component is intentionally not staged,
 signed, packaged, or instantiated by production main in this checkpoint. The
-component-level main/Registry recovery owner, path-free repository, and exact
-reauthorization method exist, but the prepared handoff is process-local rather
-than a durable preclaim. Durable finalize/open decisions, production runtime
-composition, staging/builder integration, reauthorization IPC/UI, and packaged
+component-level durable preclaim/decision, main/Registry recovery owner,
+path-free repository, exact reauthorization method, generation-bound staging
+and builder consumption contracts exist. Production runtime composition,
+reauthorization IPC/UI, the real Windows protocol-v4 matrix, and packaged
 validation remain cross-platform follow-up work.
