@@ -40,6 +40,7 @@ import { LocalSubtitleSessionLifecycle } from "./local-subtitle/session-lifecycl
 import { LocalSubtitleSessionRegistry } from "./local-subtitle/session-registry";
 import { LocalSubtitleServerSupervisor } from "./local-subtitle/server-supervisor";
 import { LocalSubtitleServerAppLifecycle } from "./local-subtitle/server-app-lifecycle";
+import { initializeLocalSubtitleOverwriteProductionRuntime } from "./local-subtitle/overwrite-production-runtime";
 import {
   LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS,
   localSubtitleIpcSuccess,
@@ -195,7 +196,7 @@ async function createWindow() {
   }
 }
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   const localSubtitleManagedResourceRoot = path.join(
     app.getPath("userData"),
     "local-subtitle",
@@ -233,8 +234,20 @@ app.whenReady().then(() => {
     supervisor: localSubtitleServerSupervisor,
     sessionRegistry: localSubtitleSessionRegistry,
   });
+  const localSubtitleOverwriteRuntime =
+    await initializeLocalSubtitleOverwriteProductionRuntime({
+      environment: localSubtitleResourceEnvironment,
+      managedResourceRoot: localSubtitleManagedResourceRoot,
+      artifacts: localSubtitleArtifacts,
+    });
   const localSubtitleExporter = new LocalSubtitleExporter(
     localSubtitleArtifacts,
+    localSubtitleOverwriteRuntime.status === "ready"
+      ? {
+          overwriteTransaction: localSubtitleOverwriteRuntime.transactions,
+          overwriteRecoveryOwner: localSubtitleOverwriteRuntime.recoveryOwner,
+        }
+      : {},
   );
   const localSubtitleProductionExecutor = new LocalSubtitleProductionExecutor({
     media: localSubtitleMediaNormalizer,
@@ -260,6 +273,7 @@ app.whenReady().then(() => {
     localSubtitleMediaNormalizer,
     localSubtitleServerSupervisor,
     localSubtitleSessionRegistry,
+    localSubtitleOverwriteRuntime.lifecycleTarget,
   );
   const localSubtitleMainRuntime = new LocalSubtitleMainRuntime(
     localSubtitleSessionLifecycle,
@@ -333,6 +347,15 @@ app.whenReady().then(() => {
   setupTextTranslationIPC(textTranslationService);
   setupAudioIPC();
   setupAudioRealtimeIPC();
+
+  app.on("activate", () => {
+    const allWindows = BrowserWindow.getAllWindows();
+    if (allWindows.length) {
+      allWindows[0].focus();
+    } else {
+      createWindow();
+    }
+  });
 });
 
 app.on("window-all-closed", () => {
@@ -345,15 +368,6 @@ app.on("second-instance", () => {
     // Focus on the main window if the user tried to open another
     if (win.isMinimized()) win.restore();
     win.focus();
-  }
-});
-
-app.on("activate", () => {
-  const allWindows = BrowserWindow.getAllWindows();
-  if (allWindows.length) {
-    allWindows[0].focus();
-  } else {
-    createWindow();
   }
 });
 
