@@ -50,7 +50,7 @@
 - 新增 `run-native002-macos-smoke.mjs`，先重新验证 canonical runtime manifest 与三类 executable identity，再对真实 artifact 执行独立 target smoke。
 - CPU 路径使用 production `large-v3-q5_0` 模型、显式 `--no-gpu`、`127.0.0.1` 临时端口、192-bit 随机私有 path、空 public/tmp 目录和 sanitized environment，private `/health` 返回 exact `{\"status\":\"ok\"}`。报告不保存 model raw path、端口或私有 route。
 - bundled FFmpeg 将本地生成的短 PCM fixture 解码为 mono 16 kHz PCM16，bundled ffprobe 精确回读 codec/sample rate/channels；子进程使用受控 cwd 和 sanitized PATH，系统 FFmpeg/ffprobe 不提供 fallback authority。
-- 同一个 production `large-v3-q5_0` 模型的 Metal health 实跑在当前 16 GB 宿主因 Metal buffer allocation failure 未达到 ready；该结果明确记录为未通过，不能以 embedded Metal capability、PRE-004 历史 PoC 或 CPU health 代替。它不推翻本 checkpoint 的 reproducible assembly/CPU launch 结论，也不构成 macOS Metal product support 的新验收证据。
+- 同一个 production `large-v3-q5_0` 模型的 Metal health 首次实跑在restricted sandbox中只能完成7.33 MiB allocation并触发SIGSEGV，未达到 ready；本 checkpoint 当时据此诚实记录为未通过，未以 embedded Metal capability、PRE-004 历史 PoC 或 CPU health 代替。后续 `NATIVE-002A1` 使用同一canonical manifest和production模型在unrestricted环境约8秒通过private health/no-PATH与backend verification，证明首次失败是执行环境限制；原assembly/CPU证据和首次失败记录均保留。
 
 ## 修改文件
 
@@ -99,7 +99,7 @@ node scripts/local-subtitle/runtime/run-native002-macos-smoke.mjs <ignored produ
 - TypeScript、renderer/main/preload 三段 Vite test build、manifest 0 error / 0 warning、四语言各1522 keys与source usage、`git diff --check`通过。
 - exact source build、receipt validation、canonical runtime + addon staging、official runtime/addon static verifier 和 `beforePack` 双门禁通过。
 - CPU production-model private health 与 bundled media PCM16 decode/probe/no-PATH 通过；所有 temporary work roots 与 child processes 已清理。
-- Metal production-model private health 未通过：当前宿主在模型加载时出现 buffer allocation failure，未返回 ready；本记录不把该分支写成通过或 packaged/Metal 验收。
+- Metal production-model private health 在本 checkpoint 的restricted sandbox运行中未通过：7.33 MiB allocation后在private health前触发SIGSEGV，未返回 ready。后续 `NATIVE-002A1` 在unrestricted环境对同一manifest与production模型`d75795ec...ad1`执行hardened复验，约8秒通过Metal private health/media decode/no-PATH；独立backend probe记录model load 531～547 ms、peak RSS 1,516,158,976～1,535,049,728 bytes、initialization/device=true、failure=false且`backendVerified=true`，CPU hardened smoke也通过。该后续target证据仍不是packaged验收。
 - Windows、两平台 packaged app、Developer ID/notarization/Gatekeeper 未运行；这些不是本 component checkpoint 的完成条件，仍是顶层 `NATIVE-002` / QA 的剩余门禁。
 
 ## 产生的证据
@@ -119,10 +119,10 @@ node scripts/local-subtitle/runtime/run-native002-macos-smoke.mjs <ignored produ
 - Job Manager / Production Executor 双重 `index-only` gate 不变，production overwrite 仍不可用；M2 仍未完成。
 - `NATIVE-002` 仍需 Windows x64 CPU/CUDA + media canonical assembly/launch/no-PATH，以及 macOS arm64 / Windows x64 packaged consumption。
 - `FS-TXN-001` 仍需真实 Windows protocol v4 compile/load/terminal/recovery/crash/acknowledgement 矩阵和两平台 packaged validation。
-- Metal production-model health 的当前 buffer allocation failure 必须保留为真实未通过项；后续只能用有证据的资源策略或目标机复验收敛，不能静默 CPU fallback 或改写 PRE-004 历史结论。
+- Metal production-model health 的restricted sandbox失败作为历史执行环境证据保留；`NATIVE-002A1`已通过unrestricted目标机复验撤销该blocker，没有静默CPU fallback，也未改写PRE-004历史结论。
 
 ## 下一步建议
 
 1. 认领 `NATIVE-002B`，在 Windows x64 目标机完成 official CPU/CUDA + media artifact assembly、final unsigned size/SHA、launch/no-PATH 与真实 protocol v4 矩阵。
 2. 再以独立 packaged checkpoint 对 macOS arm64 与 Windows x64 执行真实 `extraResources` consumption、launch/no-PATH 和更新/签名边界验证。
-3. 只有 Metal production-model资源失败与Windows/runtime/packaged全部闭环后，才评估完成 `NATIVE-002`、`FS-TXN-001`、`BE-002` 或解除双重 `index-only` gate。
+3. 只有Windows/runtime/packaged全部闭环后，才评估完成 `NATIVE-002`、`FS-TXN-001`、`BE-002` 或解除双重 `index-only` gate。

@@ -18,6 +18,10 @@ import path from "node:path";
 import { parseArgs } from "node:util";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import {
+  mergeMetalBackendEvidence,
+  parseMetalBackendDiagnostics,
+} from "../whisper-server/process-metrics.mjs";
+import {
   buildSanitizedRuntimeEnvironment,
   loadRuntimeManifest,
   resolveContainedResourcePath,
@@ -31,6 +35,7 @@ const MODEL_MANIFEST_PATH = path.join(
   "resources/local-subtitle/manifests/local-subtitle-models.v1.json",
 );
 const MAX_HEALTH_BYTES = 4 * 1024;
+const MAX_DIAGNOSTIC_CAPTURE_BYTES = 64 * 1024;
 
 export async function runNative002MacosSmoke(options) {
   if (process.platform !== "darwin" || process.arch !== "arm64") {
@@ -202,6 +207,99 @@ export function parseExactHealthResponse(bytes) {
   return true;
 }
 
+export function createBoundedBackendEvidenceCapture(options = {}) {
+  const backend = normalizeBackend(options.backend);
+  const maxRetainedBytes =
+    options.maxRetainedBytes ?? MAX_DIAGNOSTIC_CAPTURE_BYTES;
+  if (
+    !Number.isSafeInteger(maxRetainedBytes) ||
+    maxRetainedBytes < 256 ||
+    maxRetainedBytes > 1024 * 1024
+  ) {
+    throw new Error("maxRetainedBytes must be between 256 and 1048576.");
+  }
+  let retained = Buffer.alloc(0);
+  let observedBytes = 0;
+  let metalEvidence = parseMetalBackendDiagnostics("");
+
+  return {
+    write(value) {
+      const bytes = Buffer.isBuffer(value) ? value : Buffer.from(value);
+      observedBytes = Math.min(
+        Number.MAX_SAFE_INTEGER,
+        observedBytes + bytes.length,
+      );
+      for (let offset = 0; offset < bytes.length; offset += maxRetainedBytes) {
+        const next = bytes.subarray(offset, offset + maxRetainedBytes);
+        const window = Buffer.concat([retained, next]);
+        if (backend === "metal") {
+          metalEvidence = mergeMetalBackendEvidence(
+            metalEvidence,
+            parseMetalBackendDiagnostics(window.toString("utf8")),
+          );
+        }
+        retained = Buffer.from(window.subarray(-maxRetainedBytes));
+      }
+    },
+    summary() {
+      return {
+        diagnosticsBounded: retained.length <= maxRetainedBytes,
+        diagnosticBytesObserved: observedBytes,
+        diagnosticBytesRetained: retained.length,
+        diagnosticsTruncated: observedBytes > retained.length,
+        ...(backend === "metal"
+          ? { backendEvidenceDetails: { ...metalEvidence } }
+          : {}),
+      };
+    },
+  };
+}
+
+export function assertBackendEvidence(backend, evidence) {
+  if (normalizeBackend(backend) !== "metal") return;
+  if (evidence?.failureObserved) {
+    throw new Error("The Metal backend reported an initialization failure.");
+  }
+  if (!evidence?.initializationObserved) {
+    throw new Error("The Metal backend did not report initialization evidence.");
+  }
+  if (!evidence?.deviceObserved) {
+    throw new Error("The Metal backend did not report device evidence.");
+  }
+  if (!evidence.backendVerified) {
+    throw new Error("The Metal backend evidence did not verify.");
+  }
+}
+
+export function buildServerSmokeReport(backend, diagnosticSummaries) {
+  const normalizedBackend = normalizeBackend(backend);
+  const summaries = Array.isArray(diagnosticSummaries) ? diagnosticSummaries : [];
+  const evidence = summaries.reduce(
+    (merged, summary) =>
+      mergeMetalBackendEvidence(merged, summary?.backendEvidenceDetails),
+    parseMetalBackendDiagnostics(""),
+  );
+  assertBackendEvidence(normalizedBackend, evidence);
+  return {
+    backend: normalizedBackend,
+    healthStatus: "ok",
+    loopbackOnly: true,
+    privatePathUsed: true,
+    modelLoaded: true,
+    exitedBeforeHealth: false,
+    diagnosticsBounded: summaries.every(
+      (summary) => summary?.diagnosticsBounded === true,
+    ),
+    backendEvidence: normalizedBackend === "metal"
+      ? "bounded-whisper-server-metal-initialization-diagnostics"
+      : "official-server-no-gpu-flag",
+    backendVerified: true,
+    ...(normalizedBackend === "metal"
+      ? { backendEvidenceDetails: evidence }
+      : {}),
+  };
+}
+
 async function runMediaDecodeSmoke(options) {
   const inputPath = path.join(options.workRoot, "input.wav");
   const outputPath = path.join(options.workRoot, "normalized.wav");
@@ -305,17 +403,25 @@ async function runPrivateHealthSmoke(options) {
     shell: false,
     stdio: ["ignore", "pipe", "pipe"],
   });
-  const closed = new Promise((resolve) => child.once("close", resolve));
+  const closed = new Promise((resolve) => {
+    child.once("close", (code, signal) => resolve({ code, signal }));
+  });
   let spawnError;
   child.once("error", (error) => {
     spawnError = error;
   });
-  let diagnosticBytes = 0;
-  for (const stream of [child.stdout, child.stderr]) {
+  const diagnosticCaptures = [child.stdout, child.stderr].map(() =>
+    createBoundedBackendEvidenceCapture({
+      backend: options.backend,
+      maxRetainedBytes: MAX_DIAGNOSTIC_CAPTURE_BYTES / 2,
+    }),
+  );
+  for (const [index, stream] of [child.stdout, child.stderr].entries()) {
     stream.on("data", (chunk) => {
-      diagnosticBytes = Math.min(64 * 1024, diagnosticBytes + chunk.length);
+      diagnosticCaptures[index].write(chunk);
     });
   }
+  let finalizationStarted = false;
   try {
     await waitForPrivateHealth({
       child,
@@ -325,21 +431,48 @@ async function runPrivateHealthSmoke(options) {
       timeoutMs: options.timeoutMs,
     });
     await assertCurrentModelIdentity(options.modelPath, options.modelIdentity);
-    return {
+    finalizationStarted = true;
+    return await finalizeHealthyServerSmoke({
+      child,
+      closed,
       backend: options.backend,
-      healthStatus: "ok",
-      loopbackOnly: true,
-      privatePathUsed: true,
-      modelLoaded: true,
-      exitedBeforeHealth: false,
-      diagnosticsBounded: diagnosticBytes <= 64 * 1024,
-    };
+      diagnosticCaptures,
+    });
   } finally {
-    await terminateChild(child, closed);
+    if (!finalizationStarted) await terminateChild(child, closed);
   }
 }
 
-async function waitForPrivateHealth(options) {
+export async function finalizeHealthyServerSmoke(options) {
+  const aliveAfterHealth =
+    options.child.exitCode === null && options.child.signalCode === null;
+  const termination = await terminateChild(options.child, options.closed);
+  if (
+    !aliveAfterHealth ||
+    !isExpectedControlledClose(termination)
+  ) {
+    throw new Error("The whisper-server exited unexpectedly after private health.");
+  }
+  return buildServerSmokeReport(
+    options.backend,
+    options.diagnosticCaptures.map((capture) => capture.summary()),
+  );
+}
+
+function isExpectedControlledClose(termination) {
+  if (termination.requestedSignal === "SIGTERM") {
+    return (
+      termination.close.signal === "SIGTERM" ||
+      (termination.close.signal === null && termination.close.code === 0)
+    );
+  }
+  return (
+    termination.requestedSignal === "SIGKILL" &&
+    termination.close.signal === "SIGKILL"
+  );
+}
+
+export async function waitForPrivateHealth(options) {
   const deadline = Date.now() + options.timeoutMs;
   while (Date.now() < deadline) {
     if (options.getSpawnError()) {
@@ -423,21 +556,22 @@ function isRetryableHealthError(error) {
     error?.message === "health_timeout";
 }
 
-async function terminateChild(child, closed) {
+export async function terminateChild(child, closed) {
   if (child.exitCode !== null || child.signalCode !== null) {
     if (!await waitForCloseWithin(closed, 5_000)) {
       throw new Error("The whisper-server close event was not confirmed.");
     }
-    return;
+    return { close: await closed, requestedSignal: undefined };
   }
-  child.kill("SIGTERM");
+  let requestedSignal = child.kill("SIGTERM") ? "SIGTERM" : undefined;
   const graceful = await waitForCloseWithin(closed, 5_000);
   if (!graceful) {
-    child.kill("SIGKILL");
+    if (child.kill("SIGKILL")) requestedSignal = "SIGKILL";
     if (!await waitForCloseWithin(closed, 5_000)) {
       throw new Error("The whisper-server could not confirm close after SIGKILL.");
     }
   }
+  return { close: await closed, requestedSignal };
 }
 
 async function reserveLoopbackPort() {

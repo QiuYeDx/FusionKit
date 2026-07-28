@@ -59,6 +59,29 @@ test("parses macOS RSS and requires positive Metal initialization evidence", () 
     ).backendVerified,
     false,
   );
+  for (const diagnostic of [
+    "ggml_metal_init: error: could not create command queue",
+    "ggml_backend_metal_device_init: unsupported GPU family",
+    "ggml_metal_init: device = nil",
+    "ggml_metal_init: fatal initialization fault",
+    "error: failed to initialize Metal backend",
+    "Metal backend is disabled by runtime policy",
+  ]) {
+    const evidence = parseMetalBackendDiagnostics(diagnostic);
+    assert.equal(evidence.failureObserved, true, diagnostic);
+    assert.equal(evidence.backendVerified, false, diagnostic);
+  }
+  for (const diagnostic of [
+    "request error: connection reset",
+    "ggml_init: error: invalid tensor",
+    "Metal device: Apple M4 Max; optional mmap disabled",
+  ]) {
+    assert.equal(
+      parseMetalBackendDiagnostics(diagnostic).failureObserved,
+      false,
+      diagnostic,
+    );
+  }
   assert.equal(
     parseMetalBackendDiagnostics("whisper-server ready on CPU").backendVerified,
     false,
