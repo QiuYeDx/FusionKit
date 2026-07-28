@@ -109,8 +109,8 @@ const EVIDENCE_FILES = deepFreeze({
   },
   whisperSource: {
     relativePath: "licenses/whisper.cpp-v1.9.1-source.json",
-    byteSize: 1_384,
-    sha256: "8de3fe96090c1aeded95ff6ad9edff86afc2f02791be6c93af5c5a949e9d15fd",
+    byteSize: 1_720,
+    sha256: "711a66a5934ffa3a5dac2fdebcae9d95d07bb97270671d298bfad10753b3f275",
   },
   ffmpegMacSource: {
     relativePath: "licenses/FFmpeg-8.1.2-source-offer.json",

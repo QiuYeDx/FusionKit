@@ -119,6 +119,22 @@ test("beforePack resolves only one exact canonical extraResources mapping", () =
   assert.equal(findRuntimeRoot({ ...mapping }, projectRoot), null);
 });
 
+test("beforePack omits an absent optional signature verifier", async () => {
+  let overwriteOptions;
+  const hook = createBeforePackHook({
+    processPlatform: "darwin",
+    processArch: "arm64",
+    assertBuilderConsumptionContract,
+    verifyRuntimeBundle: async () => ({ ready: true }),
+    verifyStagedOverwriteNativeAddon: async (options) => {
+      overwriteOptions = options;
+      return { ready: true };
+    },
+  });
+  await hook(createContext(path.resolve("ignored/project")));
+  assert.deepEqual(Object.keys(overwriteOptions).sort(), ["arch", "platform", "root"]);
+});
+
 function createContext(projectRoot, overrides = {}) {
   return {
     electronPlatformName: overrides.platform ?? "darwin",

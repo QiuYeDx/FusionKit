@@ -60,7 +60,9 @@ export async function validateRuntimeStaging(options = {}) {
     root: runtimeRoot,
     platform,
     arch,
-    signatureVerifier: options.overwriteSignatureVerifier,
+    ...(options.overwriteSignatureVerifier === undefined
+      ? {}
+      : { signatureVerifier: options.overwriteSignatureVerifier }),
   });
   if (overwriteVerification?.ready !== true) {
     throw invalidStaging("The staged overwrite native addon is not ready.");

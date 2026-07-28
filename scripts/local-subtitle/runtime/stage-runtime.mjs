@@ -28,6 +28,10 @@ import {
   validateVersionOutput,
 } from "./build-ffmpeg-macos-arm64.mjs";
 import {
+  WHISPER_SERVER_BUILD_CONTRACT,
+  validateWhisperServerBuildReceipt,
+} from "./build-whisper-server-macos-arm64.mjs";
+import {
   getLocalSubtitleStagingTarget,
   resolveRuntimeStagingOutputParent,
 } from "./staging-contract.mjs";
@@ -130,9 +134,16 @@ export async function stageMacosArm64Runtime(options) {
   const buildReceiptPath = path.resolve(
     requirePath(options.ffmpegBuildReceiptPath, "ffmpegBuildReceiptPath"),
   );
+  const serverBuildReceiptPath = path.resolve(
+    requirePath(options.serverBuildReceiptPath, "serverBuildReceiptPath"),
+  );
   const signingIdentity = requirePath(options.signingIdentity, "signingIdentity");
   const buildReceipt = JSON.parse(await readFile(buildReceiptPath, "utf8"));
+  const serverBuildReceipt = JSON.parse(
+    await readFile(serverBuildReceiptPath, "utf8"),
+  );
   await validateFfmpegBuildReceipt(buildReceipt, { ffmpegPath, ffprobePath });
+  await validateWhisperServerBuildReceipt(serverBuildReceipt, { serverPath });
   const receiptArtifacts = new Map(
     buildReceipt.artifacts.map((artifact) => [artifact.kind, artifact]),
   );
@@ -150,6 +161,7 @@ export async function stageMacosArm64Runtime(options) {
         licenseRef: "whisper-cpp-mit",
         sourceRef: "whisper-cpp-v1.9.1",
         codeIdentifier: "com.fusionkit.local-subtitle.whisper-server",
+        expectedUnsigned: serverBuildReceipt.artifact,
       },
       {
         id: "ffmpeg-mac-arm64",
@@ -272,6 +284,8 @@ export async function stageMacosArm64Runtime(options) {
       integrityProfile: targetContract.integrityProfile,
       ffmpegSourceSignatureVerification:
         buildReceipt.source.signatureVerification.status,
+      whisperSourceCommit: WHISPER_SERVER_BUILD_CONTRACT.commit,
+      whisperBuildReceiptVerified: true,
       readyForBuilderSpike: true,
       privacy: {
         absolutePathsRecorded: false,
@@ -508,6 +522,7 @@ function parseCliArguments(argv) {
       ffmpeg: { type: "string" },
       ffprobe: { type: "string" },
       "ffmpeg-build-receipt": { type: "string" },
+      "server-build-receipt": { type: "string" },
       "sign-identity": { type: "string", default: "-" },
       help: { type: "boolean", default: false },
     },
@@ -520,6 +535,7 @@ function parseCliArguments(argv) {
     ffmpegPath: values.ffmpeg,
     ffprobePath: values.ffprobe,
     ffmpegBuildReceiptPath: values["ffmpeg-build-receipt"],
+    serverBuildReceiptPath: values["server-build-receipt"],
     signingIdentity: values["sign-identity"],
   };
 }
@@ -529,7 +545,8 @@ async function runCli(argv = process.argv.slice(2)) {
   if (options.help) {
     process.stdout.write(
       "Usage: node stage-runtime.mjs [--output <ignored-parent>] --server <file> " +
-        "--ffmpeg <file> --ffprobe <file> --ffmpeg-build-receipt <json> " +
+        "--server-build-receipt <json> --ffmpeg <file> --ffprobe <file> " +
+        "--ffmpeg-build-receipt <json> " +
         "[--sign-identity <identity-or-dash>]\n",
     );
     return;

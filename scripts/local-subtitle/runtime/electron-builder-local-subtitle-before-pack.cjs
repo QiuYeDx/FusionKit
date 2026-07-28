@@ -38,7 +38,9 @@ function createBeforePackHook(dependencies = {}) {
         root: runtimeRoot,
         platform: target.platform,
         arch: target.arch,
-        signatureVerifier: dependencies.overwriteSignatureVerifier,
+        ...(dependencies.overwriteSignatureVerifier === undefined
+          ? {}
+          : { signatureVerifier: dependencies.overwriteSignatureVerifier }),
       });
       if (overwriteVerification?.ready !== true) {
         throw stagingError("The staged overwrite native addon is not ready.");

@@ -109,8 +109,8 @@
           "version": "v1.9.1",
           "evidenceFile": {
             "relativePath": "licenses/whisper.cpp-v1.9.1-source.json",
-            "byteSize": 1384,
-            "sha256": "8de3fe96090c1aeded95ff6ad9edff86afc2f02791be6c93af5c5a949e9d15fd"
+            "byteSize": 1720,
+            "sha256": "711a66a5934ffa3a5dac2fdebcae9d95d07bb97270671d298bfad10753b3f275"
           }
         },
         {
@@ -325,8 +325,8 @@
           "version": "v1.9.1",
           "evidenceFile": {
             "relativePath": "licenses/whisper.cpp-v1.9.1-source.json",
-            "byteSize": 1384,
-            "sha256": "8de3fe96090c1aeded95ff6ad9edff86afc2f02791be6c93af5c5a949e9d15fd"
+            "byteSize": 1720,
+            "sha256": "711a66a5934ffa3a5dac2fdebcae9d95d07bb97270671d298bfad10753b3f275"
           }
         },
         {

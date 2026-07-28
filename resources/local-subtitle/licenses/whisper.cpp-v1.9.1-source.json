@@ -11,15 +11,21 @@
   },
   "macosArm64Build": {
     "sourceKind": "exact_upstream_git_clone",
+    "recipe": "scripts/local-subtitle/runtime/build-whisper-server-macos-arm64.mjs",
     "cmakeFlags": [
+      "CMAKE_BUILD_TYPE=Release",
       "CMAKE_OSX_ARCHITECTURES=arm64",
+      "CMAKE_OSX_DEPLOYMENT_TARGET=11.0",
       "BUILD_SHARED_LIBS=OFF",
       "GGML_NATIVE=OFF",
       "GGML_METAL=ON",
       "GGML_METAL_EMBED_LIBRARY=ON",
-      "WHISPER_BUILD_SERVER=ON"
+      "WHISPER_BUILD_SERVER=ON",
+      "file/debug prefix maps for the exact source and temporary build roots"
     ],
-    "implementationRecord": "docs/v0.2.11/local-subtitle-transcriber/local-subtitle-transcriber_implementation_records/2026-07-17_PRE-004_macos-arm64-metal-cpu.md"
+    "buildReceiptRequired": true,
+    "privateBuildPathScanRequired": true,
+    "implementationRecord": "docs/v0.2.11/local-subtitle-transcriber/local-subtitle-transcriber_implementation_records/2026-07-28_NATIVE-002A_macos-arm64-official-runtime-assembly.md"
   },
   "windowsX64CpuPrebuilt": {
     "archiveFileName": "whisper-bin-x64.zip",

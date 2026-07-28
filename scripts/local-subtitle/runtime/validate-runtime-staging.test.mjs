@@ -180,6 +180,23 @@ test("requires both verifier results to be explicitly ready", async () => {
   }
 });
 
+test("does not pass an absent optional signature verifier to the strict verifier", async () => {
+  await withProjectFixture(async (projectRoot) => {
+    let overwriteOptions;
+    await validateRuntimeStaging({
+      projectRoot,
+      platform: "darwin",
+      arch: "arm64",
+      verifyRuntimeBundleImpl: async () => ({ ready: true }),
+      verifyOverwriteNativeAddonImpl: async (options) => {
+        overwriteOptions = options;
+        return { ready: true };
+      },
+    });
+    assert.deepEqual(Object.keys(overwriteOptions).sort(), ["arch", "platform", "root"]);
+  });
+});
+
 async function withProjectFixture(callback) {
   const projectRoot = fs.mkdtempSync(
     path.join(os.tmpdir(), "fusionkit-runtime-staging-validator-"),
