@@ -130,6 +130,24 @@ renames and requires a zero open-file-descriptor delta.
   same-receipt terminal retry all passed on Windows x64.
 - No finalize-crash recovery or power-loss safety claim is made.
 
+### Windows x64 — 2026-07-29 (protocol-v4 real matrix)
+
+- Native build/load tests: 7/7, with both production and test-only variants
+  compiled and loaded rather than skipped.
+- Production integration: 4 terminal cases, 9 recovery/open-decision cases,
+  and 6 rejection cases.
+- Fresh-process fault integration: 4 abandoned-open, 4 begin-crash, 4
+  open-recovery-arm-crash, 12 rollback-crash, 12 rollback-error/retry, 7
+  finalize-error/retry, 7 finalize-crash, 4 acknowledgement-crash, 4
+  acknowledgement-error/retry, and 2 conflict cases.
+- Production artifact: 847,360 bytes, SHA-256
+  `40c666c02a44444ec9c8eed90f63792cd550ca5db09984fb2023fb85de08c5b2`.
+- Test-only artifact: 849,920 bytes, SHA-256
+  `fd4eeee823b2db301547a1c95617c11de9699e82297df8a758e09dddf91bff82`.
+- Both artifacts are Windows x64 PE, Node 24.14.0, N-API v8, protocol 4,
+  journal 3. Reports explicitly keep the production gate unchanged and make
+  no power-loss-safety claim.
+
 ### macOS arm64 — 2026-07-23
 
 - Native Node tests: 11/11.
@@ -141,10 +159,11 @@ renames and requires a zero open-file-descriptor delta.
 
 The historical Windows protocol-v3 artifacts and earlier macOS artifact sizes
 and hashes are intentionally not carried forward as protocol-v4 evidence. The
-temporary protocol-v4 test artifacts are not packaged or release-manifest
-identities, and the report makes no power-loss-safety claim. The current macOS
-production addon has separately passed build, ad-hoc sign, stage, and
-fresh-process load; the equivalent Windows protocol-v4 matrix remains pending.
+2026-07-29 Windows protocol-v4 artifacts close the real component matrix but
+remain ignored developer evidence, not staged, signed, packaged, or
+release-manifest identities. The current macOS production addon has separately
+passed build, ad-hoc sign, stage, and fresh-process load. Neither result makes a
+power-loss-safety claim.
 
 This addon is only a backend primitive. Callers must load it through the
 validated TypeScript adapter and
@@ -165,5 +184,5 @@ signed, packaged, or instantiated by production main in this checkpoint. The
 component-level durable preclaim/decision, main/Registry recovery owner,
 path-free repository, exact reauthorization method, generation-bound staging
 and builder consumption contracts exist. Production runtime composition,
-reauthorization IPC/UI, the real Windows protocol-v4 matrix, and packaged
-validation remain cross-platform follow-up work.
+Windows official CPU/CUDA and media assembly, canonical addon publication, and
+two-platform packaged validation remain cross-platform follow-up work.

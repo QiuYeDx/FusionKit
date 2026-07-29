@@ -121,6 +121,8 @@ test("freezes the Windows durable decision and acknowledgement source surface", 
   for (const required of [
     "constexpr uint32_t kProtocolVersion = 4;",
     "constexpr uint32_t kJournalVersion = 3;",
+    "FILE_READ_ATTRIBUTES | FILE_READ_DATA | FILE_WRITE_DATA | DELETE",
+    "NtFlushBuffersFile",
     'base + ".finalize"',
     'MaybeInjectTestFault("finalize_after_intent_sync")',
     'MaybeInjectTestFault("finalize_before_ack")',
@@ -140,6 +142,36 @@ test("freezes the Windows durable decision and acknowledgement source surface", 
   assert.equal(finalizer.includes("Phase::kRollbackIntentExisting"), true);
   assert.equal(finalizer.includes("Phase::kFinalizePendingAck"), false);
   assert.equal(finalizer.includes("Phase::kRollbackPendingAck"), false);
+
+  const rollbackStart = source.indexOf("void RecoverRollback(");
+  const finalizeStart = source.indexOf("void RecoverFinalize(", rollbackStart);
+  const recoverTransactionStart = source.indexOf(
+    "RecoveryState RecoverTransaction(",
+    finalizeStart,
+  );
+  assert.equal(
+    rollbackStart >= 0 &&
+      finalizeStart > rollbackStart &&
+      recoverTransactionStart > finalizeStart,
+    true,
+  );
+  const rollback = source.slice(rollbackStart, finalizeStart);
+  assert.equal(
+    rollback.indexOf('RequireZeroLinks(new_file.get(), "recovery rollback partial")') <
+      rollback.indexOf('CloseHandleChecked(new_file, "recovery rollback partial")'),
+    true,
+  );
+  assert.equal(
+    rollback.lastIndexOf("CloseHandleChecked(") <
+      rollback.indexOf("RequireAbsent(directory, request.partial_leaf"),
+    true,
+  );
+  const finalize = source.slice(finalizeStart, recoverTransactionStart);
+  assert.equal(
+    finalize.lastIndexOf("CloseHandleChecked(") <
+      finalize.indexOf("RequireNamedIdentity(directory, request.final_leaf"),
+    true,
+  );
 });
 
 test("parses only explicit absolute typed Windows build inputs", () => {

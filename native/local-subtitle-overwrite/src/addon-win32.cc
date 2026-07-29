@@ -60,6 +60,8 @@ constexpr ULONG kRenamePosixSemantics = 0x00000002;
 constexpr ULONG kDispositionDelete = 0x00000001;
 constexpr ULONG kDispositionPosixSemantics = 0x00000002;
 constexpr ULONG kDispositionIgnoreReadonly = 0x00000010;
+constexpr ACCESS_MASK kJournalAccess =
+    FILE_READ_ATTRIBUTES | FILE_READ_DATA | FILE_WRITE_DATA | DELETE;
 constexpr const char *kInvalidRequestCode =
     "ERR_LOCAL_SUBTITLE_OVERWRITE_INVALID_REQUEST";
 constexpr const char *kFilesystemCode =
@@ -174,16 +176,27 @@ private:
   HANDLE value_ = INVALID_HANDLE_VALUE;
 };
 
+void CloseHandleChecked(UniqueHandle &handle, const std::string &label) {
+  if (!handle.valid())
+    return;
+  if (!::CloseHandle(handle.get()))
+    ThrowWindows("CloseHandle(" + label + ")", ::GetLastError());
+  (void)handle.Release();
+}
+
 using NtCreateFileFunction = NTSTATUS(NTAPI *)(
     PHANDLE, ACCESS_MASK, POBJECT_ATTRIBUTES, PIO_STATUS_BLOCK, PLARGE_INTEGER,
     ULONG, ULONG, ULONG, ULONG, PVOID, ULONG);
 using NtSetInformationFileFunction = NTSTATUS(NTAPI *)(
     HANDLE, PIO_STATUS_BLOCK, PVOID, ULONG, ULONG);
+using NtFlushBuffersFileFunction = NTSTATUS(NTAPI *)(
+    HANDLE, PIO_STATUS_BLOCK);
 using RtlNtStatusToDosErrorFunction = ULONG(WINAPI *)(NTSTATUS);
 
 struct NtApi {
   NtCreateFileFunction create_file = nullptr;
   NtSetInformationFileFunction set_information_file = nullptr;
+  NtFlushBuffersFileFunction flush_buffers_file = nullptr;
   RtlNtStatusToDosErrorFunction status_to_error = nullptr;
 };
 
@@ -198,11 +211,15 @@ const NtApi &GetNtApi() {
     result.set_information_file =
         reinterpret_cast<NtSetInformationFileFunction>(
             ::GetProcAddress(module, "NtSetInformationFile"));
+    result.flush_buffers_file =
+        reinterpret_cast<NtFlushBuffersFileFunction>(
+            ::GetProcAddress(module, "NtFlushBuffersFile"));
     result.status_to_error =
         reinterpret_cast<RtlNtStatusToDosErrorFunction>(
             ::GetProcAddress(module, "RtlNtStatusToDosError"));
     if (result.create_file == nullptr ||
         result.set_information_file == nullptr ||
+        result.flush_buffers_file == nullptr ||
         result.status_to_error == nullptr) {
       throw NativeError(kFilesystemCode,
                         "the required Windows native file APIs are unavailable");
@@ -694,7 +711,11 @@ RelativeOpen OpenRelative(HANDLE directory, const std::string &leaf,
   if (!NtSucceeded(status)) {
     if (allow_missing && IsMissingStatus(status))
       return RelativeOpen{UniqueHandle(), true};
-    ThrowNt("NtCreateFile(relative leaf)", status);
+    ThrowNt(
+        (access & FILE_WRITE_DATA) != 0
+            ? "NtCreateFile(relative journal leaf)"
+            : "NtCreateFile(relative leaf)",
+        status);
   }
   UniqueHandle result(child);
   const FileProof proof = ProofFromHandle(child, "relative leaf");
@@ -709,6 +730,15 @@ RelativeOpen TryOpenLeaf(HANDLE directory, const std::string &leaf,
   return OpenRelative(directory, leaf, access, FILE_OPEN, true);
 }
 
+RelativeOpen TryOpenLeafFor(HANDLE directory, const std::string &leaf,
+                            const std::string &label) {
+  try {
+    return TryOpenLeaf(directory, leaf);
+  } catch (const NativeError &error) {
+    throw NativeError(error.code(), label + ": " + error.what());
+  }
+}
+
 UniqueHandle OpenRequiredLeaf(HANDLE directory, const std::string &leaf,
                               ACCESS_MASK access =
                                   FILE_READ_ATTRIBUTES | DELETE) {
@@ -718,8 +748,13 @@ UniqueHandle OpenRequiredLeaf(HANDLE directory, const std::string &leaf,
 
 void RequireAbsent(HANDLE directory, const std::string &leaf,
                    const std::string &label) {
-  RelativeOpen opened =
-      TryOpenLeaf(directory, leaf, FILE_READ_ATTRIBUTES | DELETE);
+  RelativeOpen opened;
+  try {
+    opened = TryOpenLeaf(directory, leaf,
+                         FILE_READ_ATTRIBUTES | DELETE);
+  } catch (const NativeError &error) {
+    throw NativeError(error.code(), label + ": " + error.what());
+  }
   if (!opened.missing)
     throw NativeError(kFilesystemCode, label + " is no longer absent");
 }
@@ -728,7 +763,12 @@ FileProof RequireNamedIdentity(HANDLE directory, const std::string &leaf,
                                const Identity &expected,
                                const std::string &label,
                                const int64_t *expected_size = nullptr) {
-  UniqueHandle handle = OpenRequiredLeaf(directory, leaf);
+  UniqueHandle handle;
+  try {
+    handle = OpenRequiredLeaf(directory, leaf);
+  } catch (const NativeError &error) {
+    throw NativeError(error.code(), label + ": " + error.what());
+  }
   const FileProof proof = ProofFromHandle(handle.get(), label);
   RequireRegularIdentity(proof, expected, label, expected_size);
   return proof;
@@ -1057,8 +1097,11 @@ void WriteAll(HANDLE handle, const std::vector<unsigned char> &bytes) {
 }
 
 void FlushJournal(HANDLE handle) {
-  if (!::FlushFileBuffers(handle))
-    ThrowWindows("FlushFileBuffers(overwrite journal)", ::GetLastError());
+  IO_STATUS_BLOCK status_block{};
+  const NTSTATUS status =
+      GetNtApi().flush_buffers_file(handle, &status_block);
+  if (!NtSucceeded(status))
+    ThrowNt("NtFlushBuffersFile(overwrite journal)", status);
 }
 
 std::vector<unsigned char> ReadJournalBytes(HANDLE handle,
@@ -1094,7 +1137,7 @@ OpenedJournal OpenAndValidateJournal(HANDLE directory,
   UniqueHandle handle;
   try {
     handle = OpenRequiredLeaf(
-        directory, leaf, FILE_READ_ATTRIBUTES | FILE_READ_DATA | DELETE);
+        directory, leaf, kJournalAccess);
   } catch (const NativeError &error) {
     throw NativeError(error.code(),
                       std::string("recovery journal initial open: ") +
@@ -1130,9 +1173,7 @@ UniqueHandle CreateOpenJournal(HANDLE directory, const Request &request,
   RequireAbsent(directory, names.rollback, "rollback recovery journal");
   RequireAbsent(directory, names.victim, "victim recovery leaf");
   RelativeOpen opened = OpenRelative(
-      directory, names.open,
-      FILE_READ_ATTRIBUTES | FILE_READ_DATA | FILE_WRITE_DATA | DELETE,
-      FILE_CREATE, false);
+      directory, names.open, kJournalAccess, FILE_CREATE, false);
   UniqueHandle result = std::move(opened.handle);
   try {
     WriteAll(result.get(),
@@ -1643,9 +1684,15 @@ void RecoverRollback(HANDLE directory, const Request &request,
                      OpenedJournal &journal) {
   UniqueHandle new_file;
   if (journal.record.victim_existed) {
-    RelativeOpen final = TryOpenLeaf(directory, request.final_leaf);
-    RelativeOpen partial = TryOpenLeaf(directory, request.partial_leaf);
-    RelativeOpen backup = TryOpenLeaf(directory, names.victim);
+    RelativeOpen final =
+        TryOpenLeafFor(directory, request.final_leaf,
+                       "rollback recovery final leaf");
+    RelativeOpen partial =
+        TryOpenLeafFor(directory, request.partial_leaf,
+                       "rollback recovery partial leaf");
+    RelativeOpen backup =
+        TryOpenLeafFor(directory, names.victim,
+                       "rollback recovery victim backup");
     if (final.missing)
       throw NativeError(kFilesystemCode,
                         "the rollback recovery final leaf is missing");
@@ -1701,14 +1748,25 @@ void RecoverRollback(HANDLE directory, const Request &request,
       throw NativeError(kFilesystemCode,
                         "the rollback recovery layout is not owned");
     }
+    if (new_file.valid()) {
+      RequireZeroLinks(new_file.get(), "recovery rollback partial");
+      CloseHandleChecked(new_file, "recovery rollback partial");
+    }
+    CloseHandleChecked(final.handle, "rollback recovery final leaf");
+    CloseHandleChecked(partial.handle, "rollback recovery partial leaf");
+    CloseHandleChecked(backup.handle, "rollback recovery victim backup");
     const FileProof restored =
         RequireNamedIdentity(directory, request.final_leaf,
                              journal.record.victim_identity,
                              "recovered overwrite victim");
     RequireSingleLink(restored, "recovered overwrite victim");
   } else {
-    RelativeOpen final = TryOpenLeaf(directory, request.final_leaf);
-    RelativeOpen partial = TryOpenLeaf(directory, request.partial_leaf);
+    RelativeOpen final =
+        TryOpenLeafFor(directory, request.final_leaf,
+                       "absent rollback recovery final leaf");
+    RelativeOpen partial =
+        TryOpenLeafFor(directory, request.partial_leaf,
+                       "absent rollback recovery partial leaf");
     if (!final.missing && partial.missing) {
       const FileProof proof =
           ProofFromHandle(final.handle.get(), "recovery installed file");
@@ -1732,21 +1790,33 @@ void RecoverRollback(HANDLE directory, const Request &request,
       throw NativeError(kFilesystemCode,
                         "the absent rollback recovery layout is not owned");
     }
+    if (new_file.valid()) {
+      RequireZeroLinks(new_file.get(), "recovery rollback partial");
+      CloseHandleChecked(new_file, "recovery rollback partial");
+    }
+    CloseHandleChecked(final.handle,
+                       "absent rollback recovery final leaf");
+    CloseHandleChecked(partial.handle,
+                       "absent rollback recovery partial leaf");
   }
   RequireAbsent(directory, request.partial_leaf,
                 "recovery partial leaf");
   RequireAbsent(directory, names.victim,
                 "recovery victim leaf");
-  if (new_file.valid())
-    RequireZeroLinks(new_file.get(), "recovery rollback partial");
 }
 
 void RecoverFinalize(HANDLE directory, const Request &request,
                      const JournalNames &names,
                      OpenedJournal &journal) {
-  RelativeOpen final = TryOpenLeaf(directory, request.final_leaf);
-  RelativeOpen partial = TryOpenLeaf(directory, request.partial_leaf);
-  RelativeOpen backup = TryOpenLeaf(directory, names.victim);
+  RelativeOpen final =
+      TryOpenLeafFor(directory, request.final_leaf,
+                     "finalize recovery final leaf");
+  RelativeOpen partial =
+      TryOpenLeafFor(directory, request.partial_leaf,
+                     "finalize recovery partial leaf");
+  RelativeOpen backup =
+      TryOpenLeafFor(directory, names.victim,
+                     "finalize recovery victim backup");
   if (journal.record.victim_existed) {
     if (final.missing)
       throw NativeError(kFilesystemCode,
@@ -1812,6 +1882,9 @@ void RecoverFinalize(HANDLE directory, const Request &request,
                         "the absent finalize recovery victim leaf exists");
   }
 
+  CloseHandleChecked(final.handle, "finalize recovery final leaf");
+  CloseHandleChecked(partial.handle, "finalize recovery partial leaf");
+  CloseHandleChecked(backup.handle, "finalize recovery victim backup");
   const FileProof installed =
       RequireNamedIdentity(directory, request.final_leaf,
                            request.expected_partial_identity,

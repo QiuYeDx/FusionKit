@@ -166,14 +166,17 @@ function runTerminalCase(
 function runOpenDecisionCase(addon, workRoot, victimExisted, decision) {
   const id = `open-decision-${victimExisted ? "existing" : "absent"}-${decision}`;
   const fixture = createFixture(workRoot, id, victimExisted);
-  const receipt = addon.begin(fixture.request);
+  const receipt = invokeSync(() => addon.begin(fixture.request), `${id}: begin`);
   assertReceiptContract(receipt);
   const request = recoveryRequest(fixture.request, decision);
   const expectedState = decision === "finalize" ? "finalized" : "rolled_back";
-  const result = addon.recover(request);
+  const result = invokeSync(() => addon.recover(request), `${id}: recover`);
   assert.deepEqual(result, { state: expectedState });
   assertSettledLayout(fixture, decision);
-  assert.deepEqual(addon.acknowledge(request), { state: "acknowledged" });
+  assert.deepEqual(
+    invokeSync(() => addon.acknowledge(request), `${id}: acknowledge`),
+    { state: "acknowledged" },
+  );
   if (decision === "finalize") assertFinalizedLayout(fixture);
   else assertRolledBackLayout(fixture);
   return {
@@ -589,7 +592,13 @@ function assertReceiptContract(receipt) {
 }
 
 function invokeSync(operation, label) {
-  const result = operation();
+  let result;
+  try {
+    result = operation();
+  } catch (error) {
+    error.message = `${label}: ${error.message}`;
+    throw error;
+  }
   assert.equal(
     Boolean(result && typeof result.then === "function"),
     false,
