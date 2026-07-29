@@ -56,6 +56,51 @@ test("beforePack verifies the exact process target and both staged runtimes with
   ]);
 });
 
+test("beforePack accepts the exact native Windows x64 builder target", async () => {
+  const projectRoot = path.resolve("ignored/windows-project");
+  const calls = [];
+  const hook = createBeforePackHook({
+    processPlatform: "win32",
+    processArch: "x64",
+    assertBuilderConsumptionContract,
+    verifyRuntimeBundle: async (options) => {
+      calls.push(["runtime", options]);
+      return { ready: true };
+    },
+    verifyStagedOverwriteNativeAddon: async (options) => {
+      calls.push(["overwrite", options]);
+      return { ready: true };
+    },
+  });
+
+  await hook(createContext(projectRoot, {
+    platform: "win32",
+    arch: 1,
+    packagerPlatform: "win32",
+  }));
+
+  const root = path.join(
+    projectRoot,
+    "build",
+    "local-subtitle-resources",
+    "local-subtitle",
+  );
+  assert.deepEqual(calls, [
+    ["runtime", {
+      runtimeRoot: root,
+      platform: "win32",
+      arch: "x64",
+      scope: "all",
+      launch: false,
+    }],
+    ["overwrite", {
+      root,
+      platform: "win32",
+      arch: "x64",
+    }],
+  ]);
+});
+
 test("beforePack rejects process, context, and packager target drift before verification", async () => {
   const cases = [
     ["process platform", { processPlatform: "win32" }, {}],

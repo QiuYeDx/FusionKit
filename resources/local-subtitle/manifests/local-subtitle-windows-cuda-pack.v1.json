@@ -1,0 +1,367 @@
+{
+  "schemaVersion": 1,
+  "packId": "local-subtitle-windows-x64-cuda-12.4-v1",
+  "engine": {
+    "id": "whisper.cpp",
+    "version": "v1.9.1",
+    "commit": "f049fff95a089aa9969deb009cdd4892b3e74916"
+  },
+  "target": {
+    "platform": "win32",
+    "arch": "x64",
+    "backend": "cuda",
+    "cudaVersion": "12.4"
+  },
+  "delivery": {
+    "mode": "on_demand_accelerator_pack",
+    "bundledInInstaller": false,
+    "includedInDefaultExtraResources": false,
+    "distributionProfile": "unsigned_personal_distribution",
+    "signatureKind": "unsigned",
+    "selfContained": true
+  },
+  "sourceArchive": {
+    "fileName": "whisper-cublas-12.4.0-bin-x64.zip",
+    "downloadUrl": "https://github.com/ggml-org/whisper.cpp/releases/download/v1.9.1/whisper-cublas-12.4.0-bin-x64.zip",
+    "byteSize": 677887125,
+    "sha256": "106a2030eff8998e4ef320fe72e263a78449e9040386ee27c41ea80b001b601b",
+    "expandedFileCount": 44,
+    "expandedByteSize": 1209487872
+  },
+  "staging": {
+    "developmentPackRoot": "build/local-subtitle-accelerators/win32-x64/cuda-12.4/v1",
+    "baseRuntimeRoot": "build/local-subtitle-resources/local-subtitle",
+    "manifestRelativePath": "manifests/local-subtitle-windows-cuda-pack.v1.json",
+    "artifactRoot": "win-x64/cuda",
+    "publication": "atomic_directory_rename_no_clobber"
+  },
+  "acceptance": {
+    "targetSmokeStatus": "pending",
+    "backendVerificationRequired": "exact_pid_vram",
+    "licenseClosure": {
+      "status": "pending",
+      "gate": "QA-005",
+      "artifactSharingAllowed": false
+    },
+    "model002": {
+      "owner": "MODEL-002",
+      "downloadInstallUpdateImplementedByThisStager": false,
+      "excludedOperations": [
+        "download",
+        "install",
+        "update",
+        "rollback"
+      ]
+    }
+  },
+  "licenses": [
+    {
+      "id": "whisper-cpp-mit",
+      "component": "whisper.cpp v1.9.1",
+      "spdxExpression": "MIT",
+      "status": "declared",
+      "closureGate": "none",
+      "artifactSharingAllowed": true
+    },
+    {
+      "id": "nvidia-cuda-runtime-eula",
+      "component": "NVIDIA CUDA 12.4 redistributable runtime dependencies",
+      "spdxExpression": "LicenseRef-NVIDIA-CUDA-EULA",
+      "status": "pending",
+      "closureGate": "QA-005",
+      "artifactSharingAllowed": false
+    }
+  ],
+  "selection": {
+    "selectedArtifactCount": 20,
+    "selectedArtifactByteSize": 1199083008,
+    "excludedArchiveEntries": [
+      "bench.exe",
+      "command.exe",
+      "main.exe",
+      "parakeet-cli.exe",
+      "parakeet-quantize.exe",
+      "parakeet.dll",
+      "SDL2.dll",
+      "stream.exe",
+      "test-common-utf8.exe",
+      "test-parakeet-full-diffusion.exe",
+      "test-parakeet-full-gb1.exe",
+      "test-parakeet-full-jfk.exe",
+      "test-parakeet.exe",
+      "test-vad-full.exe",
+      "test-vad.exe",
+      "wchess.exe",
+      "whisper-bench.exe",
+      "whisper-cli.exe",
+      "whisper-command.exe",
+      "whisper-lsp.exe",
+      "whisper-quantize.exe",
+      "whisper-stream.exe",
+      "whisper-talk-llama.exe",
+      "whisper-vad-speech-segments.exe"
+    ]
+  },
+  "artifacts": [
+    {
+      "id": "whisper-server-win-x64-cuda-12-4",
+      "kind": "server",
+      "fileName": "whisper-server.exe",
+      "relativePath": "win-x64/cuda/whisper-server.exe",
+      "byteSize": 728576,
+      "sha256": "c72f99b75ae4111d6e7ddb62e04d3c0c94fea2ba6536412e517f256b4388dd37",
+      "format": "pe",
+      "architecture": "x64",
+      "backend": "cuda",
+      "signatureKind": "unsigned",
+      "licenseRef": "whisper-cpp-mit"
+    },
+    {
+      "id": "cuda-dependency-cublas64-12-dll",
+      "kind": "dynamic_library",
+      "fileName": "cublas64_12.dll",
+      "relativePath": "win-x64/cuda/cublas64_12.dll",
+      "byteSize": 100033536,
+      "sha256": "e40202fe4223c1cd2d2dce7beec59e1ed61c7801bd827309183be9b50e358f4c",
+      "format": "pe",
+      "architecture": "x64",
+      "backend": "cuda",
+      "signatureKind": "unsigned",
+      "licenseRef": "nvidia-cuda-runtime-eula"
+    },
+    {
+      "id": "cuda-dependency-cublas-lt64-12-dll",
+      "kind": "dynamic_library",
+      "fileName": "cublasLt64_12.dll",
+      "relativePath": "win-x64/cuda/cublasLt64_12.dll",
+      "byteSize": 473551360,
+      "sha256": "2a896460bef60ed57ef32b0875812f355a6984e671d638bb632f5e8c1d7a831f",
+      "format": "pe",
+      "architecture": "x64",
+      "backend": "cuda",
+      "signatureKind": "unsigned",
+      "licenseRef": "nvidia-cuda-runtime-eula"
+    },
+    {
+      "id": "cuda-dependency-cudart64-12-dll",
+      "kind": "dynamic_library",
+      "fileName": "cudart64_12.dll",
+      "relativePath": "win-x64/cuda/cudart64_12.dll",
+      "byteSize": 553984,
+      "sha256": "d28e42265da7462162a54da6b7a99ea4fa2caf8139d862bb500db875d0b32dfc",
+      "format": "pe",
+      "architecture": "x64",
+      "backend": "cuda",
+      "signatureKind": "unsigned",
+      "licenseRef": "nvidia-cuda-runtime-eula"
+    },
+    {
+      "id": "cuda-dependency-ggml-base-dll",
+      "kind": "dynamic_library",
+      "fileName": "ggml-base.dll",
+      "relativePath": "win-x64/cuda/ggml-base.dll",
+      "byteSize": 641024,
+      "sha256": "2fdf1dea0cbab9d796d1a6c2bca672a3784c5faec2f1df2a3812212fa7409747",
+      "format": "pe",
+      "architecture": "x64",
+      "backend": "cuda",
+      "signatureKind": "unsigned",
+      "licenseRef": "whisper-cpp-mit"
+    },
+    {
+      "id": "cuda-dependency-ggml-cpu-alderlake-dll",
+      "kind": "dynamic_library",
+      "fileName": "ggml-cpu-alderlake.dll",
+      "relativePath": "win-x64/cuda/ggml-cpu-alderlake.dll",
+      "byteSize": 789504,
+      "sha256": "e9e27720fd14a33e86d13c1c8fee5a6afbf6a702e8472abb84cde23ccb4fb654",
+      "format": "pe",
+      "architecture": "x64",
+      "backend": "cuda",
+      "signatureKind": "unsigned",
+      "licenseRef": "whisper-cpp-mit"
+    },
+    {
+      "id": "cuda-dependency-ggml-cpu-cannonlake-dll",
+      "kind": "dynamic_library",
+      "fileName": "ggml-cpu-cannonlake.dll",
+      "relativePath": "win-x64/cuda/ggml-cpu-cannonlake.dll",
+      "byteSize": 833536,
+      "sha256": "63c136e823b85e519a2fd5d5085c7f28e9b07a7d23df99b6e2abd05dbcf4b47c",
+      "format": "pe",
+      "architecture": "x64",
+      "backend": "cuda",
+      "signatureKind": "unsigned",
+      "licenseRef": "whisper-cpp-mit"
+    },
+    {
+      "id": "cuda-dependency-ggml-cpu-cascadelake-dll",
+      "kind": "dynamic_library",
+      "fileName": "ggml-cpu-cascadelake.dll",
+      "relativePath": "win-x64/cuda/ggml-cpu-cascadelake.dll",
+      "byteSize": 830976,
+      "sha256": "9ab872d0e6e0dd6c5becd585cc84e1684ddfc603443904bc007af4a14e4a52fb",
+      "format": "pe",
+      "architecture": "x64",
+      "backend": "cuda",
+      "signatureKind": "unsigned",
+      "licenseRef": "whisper-cpp-mit"
+    },
+    {
+      "id": "cuda-dependency-ggml-cpu-haswell-dll",
+      "kind": "dynamic_library",
+      "fileName": "ggml-cpu-haswell.dll",
+      "relativePath": "win-x64/cuda/ggml-cpu-haswell.dll",
+      "byteSize": 790528,
+      "sha256": "cb4b01954b8b7bec4d891024192d3ed80c43102a4d17447ceefc4e183632df1f",
+      "format": "pe",
+      "architecture": "x64",
+      "backend": "cuda",
+      "signatureKind": "unsigned",
+      "licenseRef": "whisper-cpp-mit"
+    },
+    {
+      "id": "cuda-dependency-ggml-cpu-icelake-dll",
+      "kind": "dynamic_library",
+      "fileName": "ggml-cpu-icelake.dll",
+      "relativePath": "win-x64/cuda/ggml-cpu-icelake.dll",
+      "byteSize": 830976,
+      "sha256": "e97d8c4744c92e74190979a7d87a690d02d26373724d203722284e1cc837becb",
+      "format": "pe",
+      "architecture": "x64",
+      "backend": "cuda",
+      "signatureKind": "unsigned",
+      "licenseRef": "whisper-cpp-mit"
+    },
+    {
+      "id": "cuda-dependency-ggml-cpu-sandybridge-dll",
+      "kind": "dynamic_library",
+      "fileName": "ggml-cpu-sandybridge.dll",
+      "relativePath": "win-x64/cuda/ggml-cpu-sandybridge.dll",
+      "byteSize": 763904,
+      "sha256": "695b93cd2a2b4d30c60b722d0ff92870b308af82bf76be45a1ceb9aea8c3f611",
+      "format": "pe",
+      "architecture": "x64",
+      "backend": "cuda",
+      "signatureKind": "unsigned",
+      "licenseRef": "whisper-cpp-mit"
+    },
+    {
+      "id": "cuda-dependency-ggml-cpu-skylakex-dll",
+      "kind": "dynamic_library",
+      "fileName": "ggml-cpu-skylakex.dll",
+      "relativePath": "win-x64/cuda/ggml-cpu-skylakex.dll",
+      "byteSize": 833536,
+      "sha256": "37ee8dd2620aa8e350f50ccc22e3fd3995ef63edb696d42c12830b06ef81ff28",
+      "format": "pe",
+      "architecture": "x64",
+      "backend": "cuda",
+      "signatureKind": "unsigned",
+      "licenseRef": "whisper-cpp-mit"
+    },
+    {
+      "id": "cuda-dependency-ggml-cpu-sse42-dll",
+      "kind": "dynamic_library",
+      "fileName": "ggml-cpu-sse42.dll",
+      "relativePath": "win-x64/cuda/ggml-cpu-sse42.dll",
+      "byteSize": 751104,
+      "sha256": "25db1975a6664ae7f77db3bce0ee6f35d4894514717a39cf97f833bf56a7d2c4",
+      "format": "pe",
+      "architecture": "x64",
+      "backend": "cuda",
+      "signatureKind": "unsigned",
+      "licenseRef": "whisper-cpp-mit"
+    },
+    {
+      "id": "cuda-dependency-ggml-cpu-x64-dll",
+      "kind": "dynamic_library",
+      "fileName": "ggml-cpu-x64.dll",
+      "relativePath": "win-x64/cuda/ggml-cpu-x64.dll",
+      "byteSize": 752128,
+      "sha256": "b338f13d391470fd3dab3029df226f6306ca8140c69bc381725e39507b4d59f4",
+      "format": "pe",
+      "architecture": "x64",
+      "backend": "cuda",
+      "signatureKind": "unsigned",
+      "licenseRef": "whisper-cpp-mit"
+    },
+    {
+      "id": "cuda-dependency-ggml-cuda-dll",
+      "kind": "dynamic_library",
+      "fileName": "ggml-cuda.dll",
+      "relativePath": "win-x64/cuda/ggml-cuda.dll",
+      "byteSize": 564585984,
+      "sha256": "bdf5ba84f7014eaa8a4fae7a090ce222edf03432ef8d39d57fb615beea5c68ac",
+      "format": "pe",
+      "architecture": "x64",
+      "backend": "cuda",
+      "signatureKind": "unsigned",
+      "licenseRef": "whisper-cpp-mit"
+    },
+    {
+      "id": "cuda-dependency-ggml-dll",
+      "kind": "dynamic_library",
+      "fileName": "ggml.dll",
+      "relativePath": "win-x64/cuda/ggml.dll",
+      "byteSize": 66560,
+      "sha256": "3063b832600f58fb0e15af50a9ace99dbc15de02b8cb325df64390bfbcf22796",
+      "format": "pe",
+      "architecture": "x64",
+      "backend": "cuda",
+      "signatureKind": "unsigned",
+      "licenseRef": "whisper-cpp-mit"
+    },
+    {
+      "id": "cuda-dependency-nvblas64-12-dll",
+      "kind": "dynamic_library",
+      "fileName": "nvblas64_12.dll",
+      "relativePath": "win-x64/cuda/nvblas64_12.dll",
+      "byteSize": 331776,
+      "sha256": "e42a77405e6e4b1cc661dcfcddead35ec62dcf59c6f9be1a3b5fab73d1f4c616",
+      "format": "pe",
+      "architecture": "x64",
+      "backend": "cuda",
+      "signatureKind": "unsigned",
+      "licenseRef": "nvidia-cuda-runtime-eula"
+    },
+    {
+      "id": "cuda-dependency-nvrtc-builtins64-124-dll",
+      "kind": "dynamic_library",
+      "fileName": "nvrtc-builtins64_124.dll",
+      "relativePath": "win-x64/cuda/nvrtc-builtins64_124.dll",
+      "byteSize": 5367808,
+      "sha256": "79888dba26c51475ea21fc7b47d2b9dd5b1ffaecc8e5ea22a49fa5f5a722eb43",
+      "format": "pe",
+      "architecture": "x64",
+      "backend": "cuda",
+      "signatureKind": "unsigned",
+      "licenseRef": "nvidia-cuda-runtime-eula"
+    },
+    {
+      "id": "cuda-dependency-nvrtc64-120-0-dll",
+      "kind": "dynamic_library",
+      "fileName": "nvrtc64_120_0.dll",
+      "relativePath": "win-x64/cuda/nvrtc64_120_0.dll",
+      "byteSize": 44738048,
+      "sha256": "3aa3cd8aa10437e212760c0e1ed730807811ec3bc330216dbfde4b26211d2243",
+      "format": "pe",
+      "architecture": "x64",
+      "backend": "cuda",
+      "signatureKind": "unsigned",
+      "licenseRef": "nvidia-cuda-runtime-eula"
+    },
+    {
+      "id": "cuda-dependency-whisper-dll",
+      "kind": "dynamic_library",
+      "fileName": "whisper.dll",
+      "relativePath": "win-x64/cuda/whisper.dll",
+      "byteSize": 1308160,
+      "sha256": "0c76791ffda66ce58b6247424ca750a4b1bff12fd52928abb81de3037172ce1b",
+      "format": "pe",
+      "architecture": "x64",
+      "backend": "cuda",
+      "signatureKind": "unsigned",
+      "licenseRef": "whisper-cpp-mit"
+    }
+  ]
+}

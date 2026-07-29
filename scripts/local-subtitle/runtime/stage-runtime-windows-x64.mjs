@@ -47,11 +47,20 @@ const SIGNING_SCRIPT = path.join(
 
 export const WHISPER_WINDOWS_CPU_CONTRACT = Object.freeze({
   version: "v1.9.1",
+  releaseTag: "v1.9.1",
   commit: "f049fff95a089aa9969deb009cdd4892b3e74916",
+  sourceUrl:
+    "https://github.com/ggml-org/whisper.cpp/tree/f049fff95a089aa9969deb009cdd4892b3e74916",
+  releaseUrl:
+    "https://github.com/ggml-org/whisper.cpp/releases/tag/v1.9.1",
+  acquisition: "official-prebuilt-release-asset",
   archiveFileName: "whisper-bin-x64.zip",
+  downloadUrl:
+    "https://github.com/ggml-org/whisper.cpp/releases/download/v1.9.1/whisper-bin-x64.zip",
   archiveByteSize: 7_982_101,
   archiveSha256:
     "7d8be46ecd31828e1eb7a2ecdd0d6b314feafd82163038ab6092594b0a063539",
+  sourceBuildRequired: false,
   artifacts: Object.freeze([
     Object.freeze({
       fileName: "whisper-server.exe",
@@ -169,10 +178,10 @@ const WINDOWS_EVIDENCE_DEFINITIONS = Object.freeze({
   ]),
   sources: Object.freeze([
     Object.freeze({
-      id: "whisper-cpp-v1.9.1",
-      component: "whisper.cpp",
+      id: "whisper-cpp-v1.9.1-windows-x64-release",
+      component: "whisper.cpp Windows x64 official prebuilt",
       version: WHISPER_WINDOWS_CPU_CONTRACT.version,
-      fileName: "whisper.cpp-v1.9.1-source.json",
+      fileName: "whisper.cpp-v1.9.1-windows-x64-release.json",
     }),
     Object.freeze({
       id: "ffmpeg-windows-n8.1.2-btbn",
@@ -245,7 +254,7 @@ export async function stageWindowsX64Runtime(options) {
           WHISPER_WINDOWS_CPU_CONTRACT.commit.slice(0, 7),
         backend: layout.serverBackend,
         licenseRef: "whisper-cpp-mit",
-        sourceRef: "whisper-cpp-v1.9.1",
+        sourceRef: "whisper-cpp-v1.9.1-windows-x64-release",
         executable: artifact.kind === "server",
         expectedByteSize: artifact.byteSize,
         expectedSha256: artifact.sha256,
@@ -351,8 +360,8 @@ export async function stageWindowsX64Runtime(options) {
       ),
       artifactSummary: verification.artifactSummary,
       launchResults: verification.launchResults,
-      licenseEvidenceValid: true,
-      sourceEvidenceValid: true,
+      licenseEvidenceBytesVerified: true,
+      sourceEvidenceBytesVerified: true,
       sourceSignatureVerification:
         ffmpegAuditReceipt.upstreamSource.signatureVerification.status,
       nestedSigningCompletedBeforeHashing:
@@ -362,7 +371,11 @@ export async function stageWindowsX64Runtime(options) {
       signingProfile: signingProfile.reportName,
       integrityProfile: targetContract.integrityProfile,
       outerSignatureCoveragePending: signingProfile.mode === "authenticode",
-      readyForBuilderSpike: true,
+      officialRuntimeReady: true,
+      launchScope: "artifact_identity_only",
+      productionModelHealthVerified: false,
+      builderReady: false,
+      builderPendingRequirements: ["overwrite_native_addon"],
       productionDecisionId: "local-subtitle-production-freeze-v1",
       privacy: {
         absolutePathsRecorded: false,
@@ -470,7 +483,10 @@ async function copyEvidenceFiles(partialRoot, fileNames) {
     const relativePath = `licenses/${fileName}`;
     const outputPath = path.join(partialRoot, "licenses", fileName);
     await mkdir(path.dirname(outputPath), { recursive: true });
-    await copyFile(inputPath, outputPath);
+    const canonicalBytes = normalizeEvidenceBytesForStaging(
+      await readFile(inputPath),
+    );
+    await writeFile(outputPath, canonicalBytes, { flag: "wx", mode: 0o644 });
     const outputStat = await stat(outputPath);
     records.push({
       relativePath,
@@ -479,6 +495,16 @@ async function copyEvidenceFiles(partialRoot, fileNames) {
     });
   }
   return records;
+}
+
+export function normalizeEvidenceBytesForStaging(bytes) {
+  if (!Buffer.isBuffer(bytes)) {
+    throw new TypeError("evidence bytes must be a Buffer.");
+  }
+  return Buffer.from(
+    bytes.toString("utf8").replace(/\r\n?|\n/gu, "\n"),
+    "utf8",
+  );
 }
 
 async function signWindowsArtifact(filePath, certificateThumbprint) {

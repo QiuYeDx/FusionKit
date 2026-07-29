@@ -50,11 +50,57 @@ test("validates the builder contract and both canonical staged runtimes", async 
       }],
     ]);
     assert.equal(report.target.id, "darwin-arm64");
-    assert.equal(report.verificationScope, "point_in_time_static");
-    assert.equal(report.launchPerformed, false);
+    assert.equal(
+      report.verificationScope,
+      "point_in_time_static_plus_addon_module_probe",
+    );
+    assert.equal(report.officialRuntimeLaunchPerformed, false);
+    assert.equal(report.overwriteAddonModuleProbePerformed, true);
     assert.equal(report.runtimeVerified, true);
     assert.equal(report.overwriteNativeVerified, true);
     assert.equal(report.artifactNamePattern, STAGING_ARTIFACT_NAME_PATTERN);
+  });
+});
+
+test("validates the canonical Windows x64 runtime and addon probe contract", async () => {
+  await withProjectFixture(async (projectRoot) => {
+    const calls = [];
+    const report = await validateRuntimeStaging({
+      projectRoot,
+      platform: "win32",
+      arch: "x64",
+      verifyRuntimeBundleImpl: async (options) => {
+        calls.push(["runtime", options]);
+        return { ready: true, artifactCount: 15 };
+      },
+      verifyOverwriteNativeAddonImpl: async (options) => {
+        calls.push(["overwrite", options]);
+        return { ready: true };
+      },
+    });
+    const root = path.join(
+      projectRoot,
+      "build",
+      "local-subtitle-resources",
+      "local-subtitle",
+    );
+    assert.deepEqual(calls, [
+      ["runtime", {
+        runtimeRoot: root,
+        platform: "win32",
+        arch: "x64",
+        scope: "all",
+        launch: false,
+      }],
+      ["overwrite", {
+        root,
+        platform: "win32",
+        arch: "x64",
+      }],
+    ]);
+    assert.equal(report.target.id, "win32-x64");
+    assert.equal(report.officialRuntimeLaunchPerformed, false);
+    assert.equal(report.overwriteAddonModuleProbePerformed, true);
   });
 });
 

@@ -77,8 +77,9 @@ export async function validateRuntimeStaging(options = {}) {
       LOCAL_SUBTITLE_STAGING_CONTRACT.runtimeManifestRelativePath,
     artifactNamePattern:
       LOCAL_SUBTITLE_STAGING_CONTRACT.artifactNamePattern,
-    verificationScope: "point_in_time_static",
-    launchPerformed: false,
+    verificationScope: "point_in_time_static_plus_addon_module_probe",
+    officialRuntimeLaunchPerformed: false,
+    overwriteAddonModuleProbePerformed: true,
     runtimeVerified: true,
     overwriteNativeVerified: true,
     verification: runtimeVerification,

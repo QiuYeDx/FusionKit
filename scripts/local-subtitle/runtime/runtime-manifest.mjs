@@ -606,12 +606,27 @@ export function getWindowsPowerShellPath(source = process.env) {
 }
 
 export function sha256File(filePath) {
+  return sha256ReadableStream(createReadStream(filePath));
+}
+
+export function sha256ReadableStream(stream) {
   return new Promise((resolve, reject) => {
     const hash = createHash("sha256");
-    const stream = createReadStream(filePath);
-    stream.on("error", reject);
+    let digest;
+    let ended = false;
     stream.on("data", (chunk) => hash.update(chunk));
-    stream.on("end", () => resolve(hash.digest("hex")));
+    stream.once("error", reject);
+    stream.once("end", () => {
+      ended = true;
+      digest = hash.digest("hex");
+    });
+    stream.once("close", () => {
+      if (!ended) {
+        reject(new Error("The SHA-256 input stream closed before end."));
+        return;
+      }
+      resolve(digest);
+    });
   });
 }
 

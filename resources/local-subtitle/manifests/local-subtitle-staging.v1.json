@@ -149,7 +149,7 @@
           "backend": "cpu",
           "relativePath": "win-x64/cpu/whisper-server.exe",
           "licenseRef": "whisper-cpp-mit",
-          "sourceRef": "whisper-cpp-v1.9.1",
+          "sourceRef": "whisper-cpp-v1.9.1-windows-x64-release",
           "executable": true
         },
         {
@@ -158,7 +158,7 @@
           "backend": "cpu",
           "relativePath": "win-x64/cpu/ggml-base.dll",
           "licenseRef": "whisper-cpp-mit",
-          "sourceRef": "whisper-cpp-v1.9.1",
+          "sourceRef": "whisper-cpp-v1.9.1-windows-x64-release",
           "executable": false
         },
         {
@@ -167,7 +167,7 @@
           "backend": "cpu",
           "relativePath": "win-x64/cpu/ggml-cpu-alderlake.dll",
           "licenseRef": "whisper-cpp-mit",
-          "sourceRef": "whisper-cpp-v1.9.1",
+          "sourceRef": "whisper-cpp-v1.9.1-windows-x64-release",
           "executable": false
         },
         {
@@ -176,7 +176,7 @@
           "backend": "cpu",
           "relativePath": "win-x64/cpu/ggml-cpu-cannonlake.dll",
           "licenseRef": "whisper-cpp-mit",
-          "sourceRef": "whisper-cpp-v1.9.1",
+          "sourceRef": "whisper-cpp-v1.9.1-windows-x64-release",
           "executable": false
         },
         {
@@ -185,7 +185,7 @@
           "backend": "cpu",
           "relativePath": "win-x64/cpu/ggml-cpu-cascadelake.dll",
           "licenseRef": "whisper-cpp-mit",
-          "sourceRef": "whisper-cpp-v1.9.1",
+          "sourceRef": "whisper-cpp-v1.9.1-windows-x64-release",
           "executable": false
         },
         {
@@ -194,7 +194,7 @@
           "backend": "cpu",
           "relativePath": "win-x64/cpu/ggml-cpu-haswell.dll",
           "licenseRef": "whisper-cpp-mit",
-          "sourceRef": "whisper-cpp-v1.9.1",
+          "sourceRef": "whisper-cpp-v1.9.1-windows-x64-release",
           "executable": false
         },
         {
@@ -203,7 +203,7 @@
           "backend": "cpu",
           "relativePath": "win-x64/cpu/ggml-cpu-icelake.dll",
           "licenseRef": "whisper-cpp-mit",
-          "sourceRef": "whisper-cpp-v1.9.1",
+          "sourceRef": "whisper-cpp-v1.9.1-windows-x64-release",
           "executable": false
         },
         {
@@ -212,7 +212,7 @@
           "backend": "cpu",
           "relativePath": "win-x64/cpu/ggml-cpu-sandybridge.dll",
           "licenseRef": "whisper-cpp-mit",
-          "sourceRef": "whisper-cpp-v1.9.1",
+          "sourceRef": "whisper-cpp-v1.9.1-windows-x64-release",
           "executable": false
         },
         {
@@ -221,7 +221,7 @@
           "backend": "cpu",
           "relativePath": "win-x64/cpu/ggml-cpu-skylakex.dll",
           "licenseRef": "whisper-cpp-mit",
-          "sourceRef": "whisper-cpp-v1.9.1",
+          "sourceRef": "whisper-cpp-v1.9.1-windows-x64-release",
           "executable": false
         },
         {
@@ -230,7 +230,7 @@
           "backend": "cpu",
           "relativePath": "win-x64/cpu/ggml-cpu-sse42.dll",
           "licenseRef": "whisper-cpp-mit",
-          "sourceRef": "whisper-cpp-v1.9.1",
+          "sourceRef": "whisper-cpp-v1.9.1-windows-x64-release",
           "executable": false
         },
         {
@@ -239,7 +239,7 @@
           "backend": "cpu",
           "relativePath": "win-x64/cpu/ggml-cpu-x64.dll",
           "licenseRef": "whisper-cpp-mit",
-          "sourceRef": "whisper-cpp-v1.9.1",
+          "sourceRef": "whisper-cpp-v1.9.1-windows-x64-release",
           "executable": false
         },
         {
@@ -248,7 +248,7 @@
           "backend": "cpu",
           "relativePath": "win-x64/cpu/ggml.dll",
           "licenseRef": "whisper-cpp-mit",
-          "sourceRef": "whisper-cpp-v1.9.1",
+          "sourceRef": "whisper-cpp-v1.9.1-windows-x64-release",
           "executable": false
         },
         {
@@ -257,7 +257,7 @@
           "backend": "cpu",
           "relativePath": "win-x64/cpu/whisper.dll",
           "licenseRef": "whisper-cpp-mit",
-          "sourceRef": "whisper-cpp-v1.9.1",
+          "sourceRef": "whisper-cpp-v1.9.1-windows-x64-release",
           "executable": false
         },
         {
@@ -320,13 +320,13 @@
       ],
       "requiredSources": [
         {
-          "id": "whisper-cpp-v1.9.1",
-          "component": "whisper.cpp",
+          "id": "whisper-cpp-v1.9.1-windows-x64-release",
+          "component": "whisper.cpp Windows x64 official prebuilt",
           "version": "v1.9.1",
           "evidenceFile": {
-            "relativePath": "licenses/whisper.cpp-v1.9.1-source.json",
-            "byteSize": 1720,
-            "sha256": "711a66a5934ffa3a5dac2fdebcae9d95d07bb97270671d298bfad10753b3f275"
+            "relativePath": "licenses/whisper.cpp-v1.9.1-windows-x64-release.json",
+            "byteSize": 1365,
+            "sha256": "63b2e7df33a46627defae9d2ec420b5d5f5209dde920578970b2f6fdcdcc8e5d"
           }
         },
         {

@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "component": "whisper.cpp",
+  "version": "v1.9.1",
+  "upstreamTag": "v1.9.1",
+  "upstreamCommit": "f049fff95a089aa9969deb009cdd4892b3e74916",
+  "sourceUrl": "https://github.com/ggml-org/whisper.cpp/tree/f049fff95a089aa9969deb009cdd4892b3e74916",
+  "license": {
+    "spdxExpression": "MIT",
+    "licenseFile": "whisper.cpp-MIT.txt"
+  },
+  "windowsX64CpuPrebuilt": {
+    "acquisition": "official-prebuilt-release-asset",
+    "releaseTag": "v1.9.1",
+    "releaseUrl": "https://github.com/ggml-org/whisper.cpp/releases/tag/v1.9.1",
+    "archiveFileName": "whisper-bin-x64.zip",
+    "downloadUrl": "https://github.com/ggml-org/whisper.cpp/releases/download/v1.9.1/whisper-bin-x64.zip",
+    "archiveByteSize": 7982101,
+    "archiveSha256": "7d8be46ecd31828e1eb7a2ecdd0d6b314feafd82163038ab6092594b0a063539",
+    "selectedProgram": "whisper-server.exe",
+    "selectedDependencyCount": 12,
+    "sourceBuildRequired": false,
+    "selectionScript": "scripts/local-subtitle/runtime/stage-runtime-windows-x64.mjs",
+    "candidateScope": "production Windows x64 CPU base runtime"
+  },
+  "productionDecision": {
+    "id": "local-subtitle-production-freeze-v1",
+    "workPackage": "PRE-006",
+    "runtimeContract": "node-managed-official-whisper-server",
+    "baseInstallerBackend": "cpu",
+    "cudaDelivery": "optional-on-demand-accelerator-pack"
+  }
+}

@@ -112,6 +112,12 @@ const EVIDENCE_FILES = deepFreeze({
     byteSize: 1_720,
     sha256: "711a66a5934ffa3a5dac2fdebcae9d95d07bb97270671d298bfad10753b3f275",
   },
+  whisperWindowsRelease: {
+    relativePath:
+      "licenses/whisper.cpp-v1.9.1-windows-x64-release.json",
+    byteSize: 1_365,
+    sha256: "63b2e7df33a46627defae9d2ec420b5d5f5209dde920578970b2f6fdcdcc8e5d",
+  },
   ffmpegMacSource: {
     relativePath: "licenses/FFmpeg-8.1.2-source-offer.json",
     byteSize: 2_038,
@@ -140,6 +146,16 @@ const WHISPER_SOURCE = deepFreeze({
 const WHISPER_ARTIFACT_REFERENCES = Object.freeze({
   licenseRef: WHISPER_LICENSE.id,
   sourceRef: WHISPER_SOURCE.id,
+});
+const WHISPER_WINDOWS_SOURCE = deepFreeze({
+  id: "whisper-cpp-v1.9.1-windows-x64-release",
+  component: "whisper.cpp Windows x64 official prebuilt",
+  version: "v1.9.1",
+  evidenceFile: EVIDENCE_FILES.whisperWindowsRelease,
+});
+const WHISPER_WINDOWS_ARTIFACT_REFERENCES = Object.freeze({
+  licenseRef: WHISPER_LICENSE.id,
+  sourceRef: WHISPER_WINDOWS_SOURCE.id,
 });
 
 const WINDOWS_CPU_DEPENDENCIES = Object.freeze([
@@ -253,7 +269,7 @@ const EXPECTED_TARGETS = deepFreeze({
         kind: "server",
         backend: "cpu",
         relativePath: "win-x64/cpu/whisper-server.exe",
-        ...WHISPER_ARTIFACT_REFERENCES,
+        ...WHISPER_WINDOWS_ARTIFACT_REFERENCES,
         executable: true,
       },
       ...WINDOWS_CPU_DEPENDENCIES.map((fileName) => ({
@@ -261,7 +277,7 @@ const EXPECTED_TARGETS = deepFreeze({
         kind: "dynamic_library",
         backend: "cpu",
         relativePath: `win-x64/cpu/${fileName}`,
-        ...WHISPER_ARTIFACT_REFERENCES,
+        ...WHISPER_WINDOWS_ARTIFACT_REFERENCES,
         executable: false,
       })),
       {
@@ -297,7 +313,7 @@ const EXPECTED_TARGETS = deepFreeze({
       },
     ],
     requiredSources: [
-      WHISPER_SOURCE,
+      WHISPER_WINDOWS_SOURCE,
       {
         id: "ffmpeg-windows-n8.1.2-btbn",
         component: "FFmpeg Windows candidate",

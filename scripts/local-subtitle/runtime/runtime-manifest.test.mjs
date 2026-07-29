@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
+import { EventEmitter } from "node:events";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -12,6 +13,7 @@ import {
   getWindowsPowerShellPath,
   inspectNativeBinary,
   loadRuntimeManifest,
+  sha256ReadableStream,
   validateRuntimeManifest,
   verifyArtifactSignature,
   verifyRuntimeBundle,
@@ -26,6 +28,29 @@ const EVIDENCE_ROOT = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
   "../../../resources/local-subtitle/licenses",
 );
+
+test("does not finish a file hash until the readable handle closes", async () => {
+  const stream = new EventEmitter();
+  const hashPromise = sha256ReadableStream(stream);
+  let settled = false;
+  hashPromise.then(() => {
+    settled = true;
+  });
+  stream.emit("data", Buffer.from("release-bytes"));
+  stream.emit("end");
+  await Promise.resolve();
+  assert.equal(settled, false);
+  stream.emit("close");
+  assert.equal(
+    await hashPromise,
+    createHash("sha256").update("release-bytes").digest("hex"),
+  );
+
+  const earlyClose = new EventEmitter();
+  const rejected = sha256ReadableStream(earlyClose);
+  earlyClose.emit("close");
+  await assert.rejects(rejected, /closed before end/u);
+});
 
 test("parses thin arm64 Mach-O, fat Mach-O, and x64 PE identities", () => {
   const arm64 = createMachO("arm64", "11.0.0");
