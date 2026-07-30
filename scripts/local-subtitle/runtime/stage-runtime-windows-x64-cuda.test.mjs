@@ -4,6 +4,7 @@ import {
   mkdir,
   readFile,
   readdir,
+  realpath,
   rm,
   symlink,
   writeFile,
@@ -23,7 +24,10 @@ import {
 } from "./stage-runtime-windows-x64-cuda.mjs";
 
 async function createFixture(t) {
-  const projectRoot = await mkdtemp(path.join(os.tmpdir(), "fusionkit-cuda-pack-"));
+  const canonicalTempRoot = await realpath(os.tmpdir());
+  const projectRoot = await mkdtemp(
+    path.join(canonicalTempRoot, "fusionkit-cuda-pack-"),
+  );
   t.after(() => rm(projectRoot, { recursive: true, force: true }));
   const archivePath = path.join(projectRoot, "cuda.zip");
   const expandedRoot = path.join(projectRoot, "expanded");

@@ -5,6 +5,7 @@ import { createRequire } from "node:module";
 import path from "node:path";
 import { parseArgs, promisify } from "node:util";
 import { pathToFileURL } from "node:url";
+import { verifyStagedOverwriteNativeAddon } from "../overwrite-native/overwrite-native-staging.mjs";
 import {
   RUNTIME_MANIFEST_RELATIVE_PATH,
   buildSanitizedRuntimeEnvironment,
@@ -74,6 +75,13 @@ export async function signPackagedSpike(options) {
     runtimeIntegrityUnchangedByOuterSigning: true,
     runtimeManifestSha256: after.manifestSha256,
     runtimeArtifactHashes: after.artifactHashes,
+    overwriteNativeIntegrityUnchangedByOuterSigning: true,
+    overwriteNativeGeneration: after.overwriteNative.generation,
+    overwriteNativeArtifactSha256: after.overwriteNative.artifactSha256,
+    overwriteNativeBuildReceiptSha256:
+      after.overwriteNative.buildReceiptSha256,
+    overwriteNativeModuleExportsVerified:
+      after.overwriteNative.moduleExportsVerified,
     gatekeeper,
     packagedLikeReady: true,
     releaseReady: signatureKind === "developer_id" && gatekeeper.status === "accepted",
@@ -96,21 +104,55 @@ export function isPathInside(root, candidate) {
 }
 
 async function collectRuntimeIntegrity(runtimeRoot) {
-  const verification = await verifyRuntimeBundle({
-    runtimeRoot,
-    platform: "darwin",
-    arch: "arm64",
-    scope: "all",
-    launch: true,
-  });
+  const [verification, overwriteVerification, manifestSha256] =
+    await Promise.all([
+      verifyRuntimeBundle({
+        runtimeRoot,
+        platform: "darwin",
+        arch: "arm64",
+        scope: "all",
+        launch: true,
+      }),
+      verifyStagedOverwriteNativeAddon({
+        root: runtimeRoot,
+        platform: "darwin",
+        arch: "arm64",
+      }),
+      sha256File(
+        path.join(runtimeRoot, ...RUNTIME_MANIFEST_RELATIVE_PATH.split("/")),
+      ),
+    ]);
+  return createPackagedIntegritySnapshot(
+    verification,
+    overwriteVerification,
+    manifestSha256,
+  );
+}
+
+export function createPackagedIntegritySnapshot(
+  runtimeVerification,
+  overwriteVerification,
+  manifestSha256,
+) {
+  if (
+    runtimeVerification?.ready !== true ||
+    overwriteVerification?.ready !== true ||
+    overwriteVerification.moduleExportsVerified !== true
+  ) {
+    throw new Error("The packaged local-subtitle integrity snapshot is incomplete.");
+  }
   return {
-    manifestSha256: await sha256File(
-      path.join(runtimeRoot, ...RUNTIME_MANIFEST_RELATIVE_PATH.split("/")),
-    ),
-    artifactHashes: verification.artifactSummary.map((artifact) => ({
+    manifestSha256,
+    artifactHashes: runtimeVerification.artifactSummary.map((artifact) => ({
       id: artifact.id,
       sha256: artifact.sha256,
     })),
+    overwriteNative: {
+      generation: overwriteVerification.generation,
+      artifactSha256: overwriteVerification.artifact.sha256,
+      buildReceiptSha256: overwriteVerification.buildReceiptSha256,
+      moduleExportsVerified: true,
+    },
   };
 }
 

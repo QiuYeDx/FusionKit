@@ -1,4 +1,6 @@
 import assert from "node:assert/strict";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import {
@@ -20,19 +22,26 @@ test("freezes the exact PRE-005 media container matrix", () => {
   );
 });
 
-test("checks a sanitized Windows PATH without spawning where.exe", async () => {
+test("checks a sanitized Windows PATH without spawning where.exe", async (t) => {
+  const systemDirectory = await mkdtemp(
+    path.join(os.tmpdir(), "fusionkit-pre005-system32-"),
+  );
+  t.after(() => rm(systemDirectory, { recursive: true, force: true }));
+  const wherePath = path.join(systemDirectory, "where.exe");
+  await writeFile(wherePath, "fixture", "utf8");
+
   assert.equal(
     await findExecutableOnSanitizedPath(
       "where.exe",
-      { PATH: `${process.env.SystemRoot ?? "C:\\Windows"}\\System32` },
+      { PATH: systemDirectory },
       "win32",
     ),
-    path.join(process.env.SystemRoot ?? "C:\\Windows", "System32", "where.exe"),
+    wherePath,
   );
   assert.equal(
     await findExecutableOnSanitizedPath(
       "fusionkit-definitely-missing.exe",
-      { PATH: `${process.env.SystemRoot ?? "C:\\Windows"}\\System32` },
+      { PATH: systemDirectory },
       "win32",
     ),
     null,

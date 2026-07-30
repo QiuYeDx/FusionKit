@@ -249,6 +249,7 @@ test("requires explicit --no-gpu evidence for CPU", () => {
 
 test("creates a minimal Windows environment without inherited secrets or PATH", () => {
   const root = path.resolve("native002b-environment");
+  const systemRoot = path.join(root, "Windows");
   const executableDirectory = path.join(root, "server");
   const temporaryDirectory = path.join(root, "tmp");
   const environment = createWindowsSmokeEnvironment({
@@ -256,14 +257,14 @@ test("creates a minimal Windows environment without inherited secrets or PATH", 
     temporaryDirectory,
     tempDirectory: temporaryDirectory,
     sourceEnvironment: {
-      SystemRoot: "C:\\Windows",
-      ProgramFiles: "C:\\Program Files",
-      ProgramW6432: "C:\\Program Files",
-      PATH: "C:\\untrusted-bin",
+      SystemRoot: systemRoot,
+      ProgramFiles: path.join(root, "Program Files"),
+      ProgramW6432: path.join(root, "Program Files"),
+      PATH: path.join(root, "untrusted-bin"),
       OPENAI_API_KEY: "secret",
       HTTPS_PROXY: "http://secret.invalid",
-      CUDA_PATH: "C:\\CUDA",
-      COMSPEC: "C:\\untrusted\\cmd.exe",
+      CUDA_PATH: path.join(root, "CUDA"),
+      COMSPEC: path.join(root, "untrusted", "cmd.exe"),
     },
   });
 
