@@ -96,6 +96,8 @@ export type SubtitleTranslatorTask = {
   endPoint: string;
   apiFormat?: SubtitleModelApiFormat;
   outputTokenParameter?: SubtitleOutputTokenParameter;
+  /** 模型支持的最大输出 token 数，用于设置 API 请求的 max_tokens 上限 */
+  maxOutputTokens?: number;
 
   sourceLang?: TranslationLanguage;
   targetLang?: TranslationLanguage;

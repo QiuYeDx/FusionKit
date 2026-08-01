@@ -1,14 +1,15 @@
 import type { ModelProfile } from "@/type/model";
 import type { SubtitleTranslatorTask } from "@/type/subtitle";
+import { inferMaxOutputTokens } from "@/constants/model";
 
 type SubtitleTaskModelFields = Pick<
   SubtitleTranslatorTask,
-  "apiKey" | "apiModel" | "endPoint" | "apiFormat" | "outputTokenParameter"
+  "apiKey" | "apiModel" | "endPoint" | "apiFormat" | "outputTokenParameter" | "maxOutputTokens"
 >;
 
 type TaskModelProfile = Pick<
   ModelProfile,
-  "apiKey" | "modelKey" | "baseUrl" | "apiFormat" | "outputTokenParameter"
+  "apiKey" | "modelKey" | "baseUrl" | "apiFormat" | "outputTokenParameter" | "maxOutputTokens"
 >;
 
 export function createSubtitleTaskModelFields(
@@ -20,5 +21,6 @@ export function createSubtitleTaskModelFields(
     endPoint: profile.baseUrl,
     apiFormat: profile.apiFormat,
     outputTokenParameter: profile.outputTokenParameter,
+    maxOutputTokens: profile.maxOutputTokens ?? inferMaxOutputTokens(profile.modelKey),
   };
 }

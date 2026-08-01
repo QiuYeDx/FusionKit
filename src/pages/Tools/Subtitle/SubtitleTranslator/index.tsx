@@ -10,6 +10,7 @@ import {
   type TranslationLanguage,
   type TranslationOutputMode,
 } from "@/type/subtitle";
+import { inferMaxOutputTokens } from "@/constants/model";
 import { useTranslation } from "react-i18next";
 import { useState, useMemo, useEffect, useRef } from "react";
 import {
@@ -791,6 +792,7 @@ function SubtitleTranslator() {
           endPoint: taskProfile?.baseUrl ?? "",
           apiFormat: taskProfile?.apiFormat,
           outputTokenParameter: taskProfile?.outputTokenParameter,
+          maxOutputTokens: taskProfile?.maxOutputTokens ?? inferMaxOutputTokens(taskProfile?.modelKey ?? ""),
           sourceLang,
           targetLang,
           translationOutputMode,

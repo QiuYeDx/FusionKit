@@ -17,6 +17,7 @@ describe("agent task model config", () => {
       endPoint: "https://api.openai.com/v1",
       apiFormat: "responses",
       outputTokenParameter: "max_completion_tokens",
+      maxOutputTokens: 128_000,
     });
   });
 
