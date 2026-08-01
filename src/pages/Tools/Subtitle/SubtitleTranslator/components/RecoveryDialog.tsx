@@ -23,6 +23,7 @@ import {
   Clock,
 } from "lucide-react";
 import { showToast } from "@/utils/toast";
+import { inferMaxOutputTokens } from "@/constants/model";
 import useSubtitleTranslatorStore from "@/store/tools/subtitle/useSubtitleTranslatorStore";
 import useModelStore from "@/store/useModelStore";
 import type { ModelProfile } from "@/type/model";
@@ -205,6 +206,7 @@ export default function RecoveryDialog({ open, onOpenChange }: RecoveryDialogPro
           endPoint: taskProfile.baseUrl,
           apiFormat: taskProfile.apiFormat,
           outputTokenParameter: taskProfile.outputTokenParameter,
+          maxOutputTokens: taskProfile.maxOutputTokens ?? inferMaxOutputTokens(taskProfile.modelKey),
           conflictPolicy: "index",
           concurrentSlices: true,
         };

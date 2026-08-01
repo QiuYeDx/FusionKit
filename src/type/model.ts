@@ -35,6 +35,8 @@ export interface ModelProfile {
   tokenPricing: TokenPricing;
   apiFormat: ModelApiFormat;
   outputTokenParameter?: OutputTokenParameter;
+  /** 模型支持的最大输出 token 数；未设置时由 inferMaxOutputTokens 根据 modelKey 推断 */
+  maxOutputTokens?: number;
 }
 
 export interface ModelAssignment {

@@ -55,6 +55,15 @@ import {
   cleanupOnSuccess,
 } from "../recovery-artifacts";
 
+/**
+ * 当 task.maxOutputTokens 未设置时的默认最大输出 token 数。
+ * 8192 对大多数翻译场景足够；带有 inferMaxOutputTokens 推断的任务不会命中此值。
+ */
+const DEFAULT_MAX_RESPONSE_TOKENS = 8192;
+
+/** length_truncated 重试时 maxResponseTokens 翻倍的上限天花板 */
+const MAX_RESPONSE_TOKEN_CEILING = 128_000;
+
 type OutputConflictPolicy = "overwrite" | "index";
 type TranslationFragmentMeta = {
   index: number;
@@ -120,7 +129,7 @@ export abstract class BaseTranslator {
       );
 
       const maxTokens = this.getMaxTokens(task);
-      this.maxResponseTokens = this.computeResponseMaxTokens(maxTokens);
+      this.maxResponseTokens = this.resolveMaxResponseTokens(task);
       console.log("[03] max token num:", maxTokens, "response max:", this.maxResponseTokens);
       errorLogs.push(`[${new Date().toISOString()}] 最大Token数: ${maxTokens}, 响应Token上限: ${this.maxResponseTokens}`);
 
@@ -542,13 +551,22 @@ export abstract class BaseTranslator {
   }
 
   /**
-   * 根据分片 token 上限和输出模式计算 API 响应的 max_tokens。
-   * 双语模式输出行数约为源文本 2 倍，乘以 3 作为安全余量；
-   * 仅译文模式乘以 2 保证充裕空间。最低不少于 4096。
+   * 确定 API 请求的 max_tokens：
+   *   1. 优先使用任务级别的 maxOutputTokens（由模型配置传入，反映模型的真实能力上限）
+   *   2. 兜底使用 DEFAULT_MAX_RESPONSE_TOKENS
+   *
+   * 不再按分片大小做比例计算——max_tokens 是上限而非目标，模型不会因为上限高就多输出；
+   * 但上限设得太低会导致 finish_reason=length 截断错误。
    */
-  private computeResponseMaxTokens(maxSourceTokens: number): number {
-    const multiplier = this.bilingualOutput ? 3 : 2;
-    return Math.max(4096, Math.ceil(maxSourceTokens * multiplier));
+  private resolveMaxResponseTokens(task: SubtitleTranslatorTask): number {
+    if (
+      typeof task.maxOutputTokens === "number" &&
+      Number.isFinite(task.maxOutputTokens) &&
+      task.maxOutputTokens > 0
+    ) {
+      return task.maxOutputTokens;
+    }
+    return DEFAULT_MAX_RESPONSE_TOKENS;
   }
 
   private getMaxTokens(task: SubtitleTranslatorTask) {
@@ -689,7 +707,28 @@ export abstract class BaseTranslator {
         if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
 
         if (error instanceof ModelRuntimeClientError && !error.retryable) {
-          throw this.normalizeError(error);
+          if (
+            error.code === "length_truncated" &&
+            attempt < this.maxRetries
+          ) {
+            const increased = Math.min(
+              this.maxResponseTokens * 2,
+              MAX_RESPONSE_TOKEN_CEILING,
+            );
+            if (increased > this.maxResponseTokens) {
+              this.maxResponseTokens = increased;
+              errorLogs.push(
+                `[${new Date().toISOString()}] 输出被截断，自动提升输出token上限至 ${this.maxResponseTokens} 后重试`,
+              );
+            } else {
+              errorLogs.push(
+                `[${new Date().toISOString()}] 输出被截断且已达最大token上限 ${MAX_RESPONSE_TOKEN_CEILING}，无法继续`,
+              );
+              throw this.normalizeError(error);
+            }
+          } else {
+            throw this.normalizeError(error);
+          }
         }
 
         if (attempt === this.maxRetries) {
