@@ -52,7 +52,7 @@
     "gpt-tokenizer": "^3.4.0",
     "i18next": "^24.2.2",
     "iconv-lite": "0.7.2",
-    "lodash": "^4.17.21",
+    "lodash": "^4.18.1",
     "lucide-react": "^0.546.0",
     "mermaid": "^11.14.0",
     "motion": "^12.38.0",
