@@ -4,6 +4,14 @@
 
 ## [0.2.11] - 2026-07-15
 
+### 修复
+
+- 修复字幕翻译任务因输出 token 上限（max_tokens）过低导致模型响应被截断（finish_reason=length）后任务直接失败、无法重试的问题
+- 输出 token 上限不再按分片大小做比例计算，改为直接使用模型的实际最大输出能力（如 DeepSeek V4 Flash 384K、GPT-5.x 128K），从根本上避免截断
+- 内置模型预设新增 `maxOutputTokens` 字段，补充 DeepSeek V4 / GPT-5 全系列的精确输出上限
+- 自定义模型（Model.Other）支持在 profile 中显式设置最大输出 token 数；未设置时由 `inferMaxOutputTokens` 根据模型名称自动推断（覆盖 Claude、Gemini、Qwen、Mistral、Llama 等主流模型）
+- 保留 `length_truncated` 自动翻倍重试作为兜底安全网，防止极端场景下仍然截断
+
 ### 新增
 
 - 模型配置新增 API 格式选择，支持 OpenAI Responses API 与 Chat Completions / OpenAI Compatible 两种调用协议并存
