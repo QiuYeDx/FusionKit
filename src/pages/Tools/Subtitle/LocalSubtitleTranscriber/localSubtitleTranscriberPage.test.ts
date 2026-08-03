@@ -1,7 +1,16 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
-const source = readFileSync(new URL("./index.tsx", import.meta.url), "utf8");
+const pageSource = readFileSync(new URL("./index.tsx", import.meta.url), "utf8");
+const environmentSource = readFileSync(
+  new URL("./LocalSubtitleEnvironmentManager.tsx", import.meta.url),
+  "utf8",
+);
+const errorSource = readFileSync(
+  new URL("./LocalSubtitleErrorNotice.tsx", import.meta.url),
+  "utf8",
+);
+const source = `${pageSource}\n${environmentSource}\n${errorSource}`;
 
 describe("local subtitle transcriber page wiring", () => {
   it("uses shared tool controls and the fixed local subtitle bridge", () => {
@@ -19,6 +28,10 @@ describe("local subtitle transcriber page wiring", () => {
       "authorizeInputFiles",
       "probeRuntime",
       "listManagedResources",
+      "startResourceInstall",
+      "cancelResourceJob",
+      "importModel",
+      "deleteManagedResource",
       "enqueue",
       "revealArtifact",
     ]) {
@@ -26,6 +39,22 @@ describe("local subtitle transcriber page wiring", () => {
     }
     expect(source).not.toContain("window.ipcRenderer");
     expect(source).not.toContain('"audio:');
+  });
+
+  it("renders resource progress from the shared session snapshot", () => {
+    expect(pageSource).toContain("runtimeState.resourceJobs");
+    expect(environmentSource).toContain("getLatestLocalSubtitleResourceJobs(resourceJobs)");
+    expect(environmentSource).toContain("job.progress");
+    expect(environmentSource).toContain("job.bytesCompleted");
+    expect(environmentSource).toContain("job.error");
+    expect(environmentSource).not.toContain("http://");
+    expect(environmentSource).not.toContain("https://");
+  });
+
+  it("contains long resource diagnostics inside block wrapping surfaces", () => {
+    expect(errorSource).toContain("whitespace-pre-wrap");
+    expect(errorSource).toContain("[overflow-wrap:anywhere]");
+    expect(environmentSource).toContain("break-words");
   });
 
   it("exposes stable hooks for the single-file start, progress, and result flow", () => {

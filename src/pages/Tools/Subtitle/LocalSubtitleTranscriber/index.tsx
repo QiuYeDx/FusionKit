@@ -13,7 +13,6 @@ import {
   FolderOpen,
   Loader2,
   Play,
-  RefreshCw,
   Settings2,
   Trash2,
   XCircle,
@@ -51,6 +50,7 @@ import type {
   LocalSubtitleTaskSummary,
 } from "@/type/localSubtitle";
 import type {
+  LocalSubtitleIpcResult,
   LocalSubtitleManagedResourceSummary,
   LocalSubtitleRuntimeSummary,
 } from "@/type/localSubtitleIpc";
@@ -58,11 +58,20 @@ import {
   createSingleFileLocalSubtitleRequest,
   deriveLocalSubtitleStartIssue,
   findLocalSubtitleTask,
+  formatLocalSubtitleBytes,
   getCommittedSrtArtifact,
   getReadyLocalSubtitleModels,
   isLocalSubtitleTaskActive,
   type LocalSubtitleStartIssue,
 } from "./localSubtitleTranscriberModel";
+import {
+  LocalSubtitleEnvironmentManager,
+  localSubtitleResourceActionKey,
+} from "./LocalSubtitleEnvironmentManager";
+import {
+  LocalSubtitleErrorNotice,
+  type LocalSubtitleDisplayError,
+} from "./LocalSubtitleErrorNotice";
 
 const MEDIA_ACCEPT = [
   "audio/*",
@@ -120,11 +129,6 @@ interface EnvironmentState {
   readonly error: LocalSubtitleError | null;
 }
 
-interface DisplayError {
-  readonly code?: string;
-  readonly message: string;
-}
-
 export default function LocalSubtitleTranscriber() {
   const { t } = useTranslation(["subtitle", "common"]);
   const runtimeService = useMemo(getLocalSubtitleRuntimeService, []);
@@ -160,6 +164,8 @@ export default function LocalSubtitleTranscriber() {
 
   const mountedRef = useRef(true);
   const refreshGenerationRef = useRef(0);
+  const resourceRefreshGenerationRef = useRef(0);
+  const terminalResourceJobsRef = useRef("");
   const [environment, setEnvironment] = useState<EnvironmentState>({
     loading: true,
     runtime: null,
@@ -171,7 +177,11 @@ export default function LocalSubtitleTranscriber() {
   const [outputSelectionPending, setOutputSelectionPending] = useState(false);
   const [submissionPending, setSubmissionPending] = useState(false);
   const [cancelPending, setCancelPending] = useState(false);
-  const [actionError, setActionError] = useState<DisplayError | null>(null);
+  const [actionError, setActionError] = useState<LocalSubtitleDisplayError | null>(null);
+  const [resourceActionError, setResourceActionError] =
+    useState<LocalSubtitleDisplayError | null>(null);
+  const [pendingResourceActions, setPendingResourceActions] =
+    useState<ReadonlySet<string>>(() => new Set());
   const [activeIdentity, setActiveIdentity] = useState<{
     readonly batchId: string;
     readonly taskId: string;
@@ -181,6 +191,7 @@ export default function LocalSubtitleTranscriber() {
   const refreshEnvironment = useCallback(async () => {
     const generation = ++refreshGenerationRef.current;
     setEnvironment((current) => ({ ...current, loading: true, error: null }));
+    setResourceActionError(null);
     try {
       const [runtimeResult, resourceResult] = await Promise.all([
         window.localSubtitleApi.probeRuntime(),
@@ -220,9 +231,29 @@ export default function LocalSubtitleTranscriber() {
         resources: [],
         error: null,
       });
-      setActionError(toDisplayError(error));
+      setResourceActionError(toDisplayError(error));
     }
   }, [runtimeService]);
+
+  const refreshManagedResources = useCallback(async () => {
+    const generation = ++resourceRefreshGenerationRef.current;
+    try {
+      const result = await window.localSubtitleApi.listManagedResources();
+      if (!mountedRef.current || generation !== resourceRefreshGenerationRef.current) return;
+      if (!result.ok) {
+        setResourceActionError(result.error);
+        return;
+      }
+      setEnvironment((current) => ({
+        ...current,
+        resources: result.data,
+      }));
+    } catch (error) {
+      if (mountedRef.current && generation === resourceRefreshGenerationRef.current) {
+        setResourceActionError(toDisplayError(error));
+      }
+    }
+  }, []);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -230,9 +261,28 @@ export default function LocalSubtitleTranscriber() {
     return () => {
       mountedRef.current = false;
       refreshGenerationRef.current += 1;
+      resourceRefreshGenerationRef.current += 1;
       resetDraft();
     };
   }, [refreshEnvironment, resetDraft]);
+
+  const terminalResourceJobsSignature = useMemo(
+    () => runtimeState.resourceJobs
+      .filter((job) => ["completed", "cancelled", "failed"].includes(job.status))
+      .map((job) => `${job.jobId}:${job.status}:${job.updatedAt}`)
+      .sort()
+      .join("|"),
+    [runtimeState.resourceJobs],
+  );
+
+  useEffect(() => {
+    if (
+      terminalResourceJobsSignature.length === 0 ||
+      terminalResourceJobsRef.current === terminalResourceJobsSignature
+    ) return;
+    terminalResourceJobsRef.current = terminalResourceJobsSignature;
+    void refreshManagedResources();
+  }, [refreshManagedResources, terminalResourceJobsSignature]);
 
   const readyModels = useMemo(
     () => getReadyLocalSubtitleModels(environment.resources),
@@ -266,6 +316,78 @@ export default function LocalSubtitleTranscriber() {
     outputDirectory,
     taskActive,
   });
+
+  const runResourceAction = useCallback(async (
+    key: string,
+    operation: () => Promise<LocalSubtitleIpcResult<unknown>>,
+    refreshResourcesAfter: boolean,
+  ): Promise<boolean> => {
+    setPendingResourceActions((current) => new Set(current).add(key));
+    setResourceActionError(null);
+    try {
+      const result = await operation();
+      if (!mountedRef.current) return false;
+      if (!result.ok) {
+        setResourceActionError(result.error);
+        return false;
+      }
+      if (refreshResourcesAfter) void refreshManagedResources();
+      void runtimeService.refresh();
+      return true;
+    } catch (error) {
+      if (mountedRef.current) setResourceActionError(toDisplayError(error));
+      return false;
+    } finally {
+      if (mountedRef.current) {
+        setPendingResourceActions((current) => {
+          const next = new Set(current);
+          next.delete(key);
+          return next;
+        });
+      }
+    }
+  }, [refreshManagedResources, runtimeService]);
+
+  const handleResourceInstall = useCallback(
+    (resourceId: string) => runResourceAction(
+      localSubtitleResourceActionKey("install", resourceId),
+      () => window.localSubtitleApi.startResourceInstall({ resourceId }),
+      true,
+    ),
+    [runResourceAction],
+  );
+
+  const handleResourceCancel = useCallback(
+    (jobId: string) => runResourceAction(
+      localSubtitleResourceActionKey("cancel", jobId),
+      () => window.localSubtitleApi.cancelResourceJob(jobId),
+      false,
+    ),
+    [runResourceAction],
+  );
+
+  const handleResourceDelete = useCallback(
+    (resourceId: string) => runResourceAction(
+      localSubtitleResourceActionKey("delete", resourceId),
+      () => window.localSubtitleApi.deleteManagedResource(resourceId),
+      true,
+    ),
+    [runResourceAction],
+  );
+
+  const handleModelImport = useCallback(
+    (file: File, mode: "copy" | "move") => {
+      const modelId = environment.resources.find(
+        (resource) => resource.resourceType === "model",
+      )?.resourceId ?? "model";
+      return runResourceAction(
+        localSubtitleResourceActionKey("import", modelId),
+        () => window.localSubtitleApi.importModel(file, { mode }),
+        true,
+      );
+    },
+    [environment.resources, runResourceAction],
+  );
 
   const handleFiles = useCallback(async (files: FileList) => {
     const file = files.item(0);
@@ -458,6 +580,20 @@ export default function LocalSubtitleTranscriber() {
           </ToolConfigPanel>
         }
       >
+        <LocalSubtitleEnvironmentManager
+          loading={environment.loading}
+          runtime={environment.runtime}
+          resources={environment.resources}
+          resourceJobs={runtimeState.resourceJobs}
+          pendingActionKeys={pendingResourceActions}
+          error={resourceActionError ?? environment.error}
+          onRefresh={refreshEnvironment}
+          onInstall={handleResourceInstall}
+          onCancel={handleResourceCancel}
+          onDelete={handleResourceDelete}
+          onImport={handleModelImport}
+        />
+
         <ToolPanel
           icon={FileVideo2}
           title={t("subtitle:local_transcriber.workspace.title")}
@@ -466,19 +602,6 @@ export default function LocalSubtitleTranscriber() {
               ready={environmentReady}
               loading={environment.loading || runtimeState.syncStatus === "syncing"}
             />
-          }
-          actions={
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-sm"
-              disabled={environment.loading}
-              onClick={refreshEnvironment}
-              aria-label={t("subtitle:local_transcriber.actions.refresh")}
-              title={t("subtitle:local_transcriber.actions.refresh")}
-            >
-              <RefreshCw className="h-3.5 w-3.5" />
-            </Button>
           }
           bodyClassName="p-5"
         >
@@ -510,7 +633,7 @@ export default function LocalSubtitleTranscriber() {
                 <div className="min-w-0 flex-1">
                   <div className="truncate text-sm font-medium">{selectedFile.displayName}</div>
                   <div className="mt-0.5 text-[11px] text-muted-foreground">
-                    {formatBytes(selectedFile.byteSize)}
+                    {formatLocalSubtitleBytes(selectedFile.byteSize)}
                   </div>
                 </div>
                 <Button
@@ -527,8 +650,8 @@ export default function LocalSubtitleTranscriber() {
               </div>
             ) : null}
 
-            {actionError || environment.error || runtimeState.error ? (
-              <ErrorNotice error={actionError ?? environment.error ?? runtimeState.error!} />
+            {actionError || runtimeState.error ? (
+              <LocalSubtitleErrorNotice error={actionError ?? runtimeState.error!} />
             ) : null}
 
             <div className="flex min-w-0 flex-wrap items-center gap-2">
@@ -624,7 +747,7 @@ function TaskResult({
         <div className="min-w-0">
           <div className="truncate text-sm font-medium">{task.displayName}</div>
           <div className="mt-0.5 text-[11px] text-muted-foreground">
-            {t(TASK_STATUS_KEYS[task.status])}
+            {t(TASK_STATUS_KEYS[task.status])} · {task.resolvedBackend.toUpperCase()}
           </div>
         </div>
         {artifact ? (
@@ -652,46 +775,15 @@ function TaskResult({
         </div>
       ) : null}
 
-      {task.error ? <ErrorNotice error={task.error} /> : null}
+      {task.error ? <LocalSubtitleErrorNotice error={task.error} /> : null}
     </div>
   );
 }
 
-function ErrorNotice({ error }: { error: DisplayError | LocalSubtitleError }) {
-  return (
-    <div
-      data-testid="local-subtitle-error"
-      className="w-full min-w-0 max-w-full overflow-hidden border-l-2 border-destructive bg-destructive/5 px-3 py-2 text-xs"
-    >
-      <div className="whitespace-pre-wrap break-words [overflow-wrap:anywhere]">
-        {error.message}
-      </div>
-      {error.code ? (
-        <div className="mt-1 font-mono text-[11px] text-muted-foreground [overflow-wrap:anywhere]">
-          code: {error.code}
-        </div>
-      ) : null}
-    </div>
-  );
-}
-
-function toDisplayError(error: unknown): DisplayError {
+function toDisplayError(error: unknown): LocalSubtitleDisplayError {
   return {
     message: error instanceof Error
       ? error.message
       : "The local subtitle operation could not be completed.",
   };
-}
-
-function formatBytes(bytes: number): string {
-  if (!Number.isFinite(bytes) || bytes < 0) return "-";
-  if (bytes < 1024) return `${bytes} B`;
-  const units = ["KB", "MB", "GB", "TB"];
-  let value = bytes / 1024;
-  let index = 0;
-  while (value >= 1024 && index < units.length - 1) {
-    value /= 1024;
-    index += 1;
-  }
-  return `${value.toFixed(value >= 10 ? 1 : 2)} ${units[index]}`;
 }

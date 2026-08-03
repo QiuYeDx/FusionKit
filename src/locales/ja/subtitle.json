@@ -232,9 +232,30 @@
     },
     "workspace": { "title": "文字起こしタスク" },
     "environment": {
+      "title": "ローカル環境",
       "checking": "確認中",
       "ready": "環境利用可能",
-      "unavailable": "環境利用不可"
+      "unavailable": "環境利用不可",
+      "unavailable_short": "利用不可",
+      "platform": "プラットフォーム",
+      "contract": "サーバー契約",
+      "runner": "Whisper ランナー",
+      "ffmpeg": "FFmpeg",
+      "not_ready": "準備未完了",
+      "backends": "バックエンド検査",
+      "execution_profile": "現在のタスク構成：{{backend}}",
+      "no_backend_data": "バックエンド検査データがありません",
+      "backend": {
+        "cpu": "CPU",
+        "cuda": "CUDA",
+        "metal": "Metal"
+      },
+      "backend_status": {
+        "available": "利用可能",
+        "unavailable": "利用不可",
+        "unverified": "未検証",
+        "not_reported": "報告なし"
+      }
     },
     "file": {
       "authorizing": "ファイルを承認しています...",
@@ -246,8 +267,58 @@
       "clear_file": "ファイルを削除",
       "select_output": "出力フォルダーを選択",
       "refresh": "環境を再確認",
+      "import_model": "モデルを読み込む",
+      "install_resource": "{{name}} をインストール",
+      "cancel_resource": "{{name}} のインストールをキャンセル",
+      "delete_named_resource": "{{name}} を削除",
+      "delete_resource": "リソースを削除",
       "start": "文字起こしを開始",
       "reveal": "フォルダーに表示"
+    },
+    "resources": {
+      "title": "管理対象リソース",
+      "ready_count": "{{ready}} / {{total}} 利用可能",
+      "managed_only": "組み込みマニフェストの管理対象リソース",
+      "disk_usage": "使用中：{{size}}",
+      "loading": "管理対象リソースのマニフェストを読み込んでいます...",
+      "empty": "このプラットフォームで利用できる管理対象リソースはありません。",
+      "type": {
+        "model": "モデル",
+        "vad": "音声区間検出",
+        "accelerator": "GPU アクセラレーター"
+      },
+      "status": {
+        "not_installed": "未インストール",
+        "installing": "インストール中",
+        "ready": "利用可能",
+        "invalid": "確認が必要"
+      },
+      "job": {
+        "queued": "開始待ち",
+        "acquiring": "ファイルを取得中",
+        "verifying": "整合性を検証中",
+        "load_smoke": "ランタイム互換性を確認中",
+        "signature_check": "署名を確認中",
+        "committing": "リソースを確定中",
+        "completed": "インストール済み",
+        "cancelling": "キャンセル中",
+        "cancelled": "キャンセル済み",
+        "failed": "インストールに失敗"
+      },
+      "import": {
+        "title": "互換モデルを読み込む",
+        "description": "組み込みマニフェストと一致する GGML モデルファイルを選択します。FusionKit は確定前にサイズ、ハッシュ、CPU 読み込みを検証します。",
+        "estimated_usage": "追加使用量の目安：{{size}}",
+        "mode": "読み込み方法",
+        "copy": "コピー",
+        "move": "移動",
+        "copy_hint": "検証済みコピーのインストール後も、選択した元ファイルを保持します。",
+        "move_hint": "モデルの検証と安全な確定が完了した場合にのみ、選択した元ファイルを削除します。"
+      },
+      "delete": {
+        "title": "管理対象リソースを削除しますか？",
+        "description": "{{name}} を FusionKit の管理ストレージから削除します。後から再インストールできます。"
+      }
     },
     "readiness": {
       "environment_loading": "ローカル実行環境を確認しています。",

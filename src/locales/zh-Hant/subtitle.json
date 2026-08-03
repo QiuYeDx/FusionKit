@@ -232,9 +232,30 @@
     },
     "workspace": { "title": "轉寫任務" },
     "environment": {
+      "title": "本機環境",
       "checking": "檢查中",
       "ready": "環境可用",
-      "unavailable": "環境不可用"
+      "unavailable": "環境不可用",
+      "unavailable_short": "不可用",
+      "platform": "平台",
+      "contract": "服務合約",
+      "runner": "Whisper 執行器",
+      "ffmpeg": "FFmpeg",
+      "not_ready": "尚未就緒",
+      "backends": "後端探測",
+      "execution_profile": "目前任務設定：{{backend}}",
+      "no_backend_data": "暫無後端探測資料",
+      "backend": {
+        "cpu": "CPU",
+        "cuda": "CUDA",
+        "metal": "Metal"
+      },
+      "backend_status": {
+        "available": "可用",
+        "unavailable": "不可用",
+        "unverified": "未驗證",
+        "not_reported": "未回報"
+      }
     },
     "file": {
       "authorizing": "正在授權檔案...",
@@ -246,8 +267,58 @@
       "clear_file": "移除檔案",
       "select_output": "選擇輸出目錄",
       "refresh": "重新檢查環境",
+      "import_model": "匯入模型",
+      "install_resource": "安裝 {{name}}",
+      "cancel_resource": "取消安裝 {{name}}",
+      "delete_named_resource": "刪除 {{name}}",
+      "delete_resource": "刪除資源",
       "start": "開始轉寫",
       "reveal": "在資料夾中顯示"
+    },
+    "resources": {
+      "title": "託管資源",
+      "ready_count": "{{ready}} / {{total}} 可用",
+      "managed_only": "來自內建清單的受控資源",
+      "disk_usage": "已佔用：{{size}}",
+      "loading": "正在讀取託管資源清單...",
+      "empty": "目前平台沒有可用的託管資源。",
+      "type": {
+        "model": "模型",
+        "vad": "語音活動偵測",
+        "accelerator": "GPU 加速元件"
+      },
+      "status": {
+        "not_installed": "未安裝",
+        "installing": "安裝中",
+        "ready": "可用",
+        "invalid": "需要處理"
+      },
+      "job": {
+        "queued": "等待開始",
+        "acquiring": "正在取得檔案",
+        "verifying": "正在驗證完整性",
+        "load_smoke": "正在檢查執行相容性",
+        "signature_check": "正在檢查簽章",
+        "committing": "正在提交資源",
+        "completed": "安裝完成",
+        "cancelling": "正在取消",
+        "cancelled": "已取消",
+        "failed": "安裝失敗"
+      },
+      "import": {
+        "title": "匯入相容模型",
+        "description": "選擇與內建清單相符的 GGML 模型檔案。FusionKit 會在提交前驗證檔案大小、雜湊與 CPU 載入能力。",
+        "estimated_usage": "預計新增佔用：{{size}}",
+        "mode": "匯入方式",
+        "copy": "複製",
+        "move": "移動",
+        "copy_hint": "驗證並安裝副本後，所選來源檔案會繼續保留。",
+        "move_hint": "僅在模型完成驗證並安全提交後移除所選來源檔案。"
+      },
+      "delete": {
+        "title": "刪除託管資源？",
+        "description": "將從 FusionKit 的託管儲存空間中刪除 {{name}}，之後仍可重新安裝。"
+      }
     },
     "readiness": {
       "environment_loading": "正在檢查本機執行環境。",

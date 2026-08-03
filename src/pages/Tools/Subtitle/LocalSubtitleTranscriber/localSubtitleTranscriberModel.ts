@@ -1,6 +1,8 @@
 import {
   LOCAL_SUBTITLE_DOMAIN_SCHEMA_VERSION,
   type LocalSubtitleBatchSummary,
+  type LocalSubtitleResourceJobStatus,
+  type LocalSubtitleResourceJobSummary,
   type LocalSubtitleTaskSummary,
 } from "@/type/localSubtitle";
 import type {
@@ -47,6 +49,52 @@ export function getReadyLocalSubtitleModels(
   return resources.filter(
     (resource) => resource.resourceType === "model" && resource.status === "ready",
   );
+}
+
+const TERMINAL_RESOURCE_JOB_STATUSES: ReadonlySet<
+  LocalSubtitleResourceJobStatus
+> = new Set(["completed", "cancelled", "failed"] as const);
+
+export function isLocalSubtitleResourceJobActive(
+  job: LocalSubtitleResourceJobSummary | null,
+): boolean {
+  return Boolean(job && !TERMINAL_RESOURCE_JOB_STATUSES.has(job.status));
+}
+
+export function getLatestLocalSubtitleResourceJobs(
+  jobs: readonly LocalSubtitleResourceJobSummary[],
+): ReadonlyMap<string, LocalSubtitleResourceJobSummary> {
+  const latest = new Map<string, LocalSubtitleResourceJobSummary>();
+  for (const job of jobs) {
+    const current = latest.get(job.resourceId);
+    if (!current || compareResourceJobs(current, job) <= 0) {
+      latest.set(job.resourceId, job);
+    }
+  }
+  return latest;
+}
+
+export function getInstalledLocalSubtitleResourceBytes(
+  resources: readonly LocalSubtitleManagedResourceSummary[],
+): number {
+  return resources.reduce(
+    (total, resource) =>
+      resource.status === "ready" ? total + resource.byteSize : total,
+    0,
+  );
+}
+
+export function formatLocalSubtitleBytes(bytes: number): string {
+  if (!Number.isFinite(bytes) || bytes < 0) return "-";
+  if (bytes < 1024) return `${bytes} B`;
+  const units = ["KB", "MB", "GB", "TB"];
+  let value = bytes / 1024;
+  let index = 0;
+  while (value >= 1024 && index < units.length - 1) {
+    value /= 1024;
+    index += 1;
+  }
+  return `${value.toFixed(value >= 10 ? 1 : 2)} ${units[index]}`;
 }
 
 export function deriveLocalSubtitleStartIssue(
@@ -160,4 +208,14 @@ function requireOutputDirectory(
     throw new Error("A custom output directory authorization is required.");
   }
   return outputDirectory.outputDirToken;
+}
+
+function compareResourceJobs(
+  left: LocalSubtitleResourceJobSummary,
+  right: LocalSubtitleResourceJobSummary,
+): number {
+  const updated = left.updatedAt.localeCompare(right.updatedAt);
+  if (updated !== 0) return updated;
+  const created = left.createdAt.localeCompare(right.createdAt);
+  return created;
 }

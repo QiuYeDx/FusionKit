@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   LOCAL_SUBTITLE_PRODUCTION_CONTRACT,
   type LocalSubtitleBatchSummary,
+  type LocalSubtitleResourceJobSummary,
   type LocalSubtitleTaskSummary,
 } from "@/type/localSubtitle";
 import {
@@ -15,8 +16,12 @@ import {
   createSingleFileLocalSubtitleRequest,
   deriveLocalSubtitleStartIssue,
   findLocalSubtitleTask,
+  formatLocalSubtitleBytes,
   getCommittedSrtArtifact,
+  getInstalledLocalSubtitleResourceBytes,
+  getLatestLocalSubtitleResourceJobs,
   getReadyLocalSubtitleModels,
+  isLocalSubtitleResourceJobActive,
   isLocalSubtitleTaskActive,
 } from "./localSubtitleTranscriberModel";
 
@@ -59,6 +64,42 @@ describe("local subtitle transcriber page model", () => {
         { ...model, resourceId: "vad", resourceType: "vad" },
       ]).map((entry) => entry.resourceId),
     ).toEqual([LOCAL_SUBTITLE_PRODUCTION_CONTRACT.launchModel.id]);
+  });
+
+  it("derives resource actions and disk usage from the latest session job", () => {
+    const older = createResourceJob({
+      jobId: "job-1",
+      status: "acquiring",
+      updatedAt: "2026-08-03T00:00:01.000Z",
+    });
+    const latest = createResourceJob({
+      jobId: "job-2",
+      status: "failed",
+      updatedAt: "2026-08-03T00:00:02.000Z",
+    });
+    const vadJob = createResourceJob({
+      jobId: "job-3",
+      resourceId: "vad-1",
+      resourceType: "vad",
+      status: "verifying",
+      updatedAt: "2026-08-03T00:00:03.000Z",
+    });
+
+    const byResource = getLatestLocalSubtitleResourceJobs([
+      latest,
+      vadJob,
+      older,
+    ]);
+    expect(byResource.get(model.resourceId)).toBe(latest);
+    expect(byResource.get("vad-1")).toBe(vadJob);
+    expect(isLocalSubtitleResourceJobActive(latest)).toBe(false);
+    expect(isLocalSubtitleResourceJobActive(vadJob)).toBe(true);
+    expect(getInstalledLocalSubtitleResourceBytes([
+      model,
+      { ...model, resourceId: "pending", status: "not_installed", byteSize: 50 },
+      { ...model, resourceId: "ready", byteSize: 1_024 },
+    ])).toBe(model.byteSize + 1_024);
+    expect(formatLocalSubtitleBytes(1_024)).toBe("1.00 KB");
   });
 
   it("requires verified runtime, session, model, file, and custom output in order", () => {
@@ -209,5 +250,20 @@ function createTask(): LocalSubtitleTaskSummary {
     },
     createdAt: "2026-08-03T00:00:00.000Z",
     updatedAt: "2026-08-03T00:01:00.000Z",
+  };
+}
+
+function createResourceJob(
+  patch: Partial<LocalSubtitleResourceJobSummary>,
+): LocalSubtitleResourceJobSummary {
+  return {
+    jobId: "job-1",
+    resourceId: model.resourceId,
+    resourceType: "model",
+    status: "queued",
+    progress: 0,
+    createdAt: "2026-08-03T00:00:00.000Z",
+    updatedAt: "2026-08-03T00:00:00.000Z",
+    ...patch,
   };
 }

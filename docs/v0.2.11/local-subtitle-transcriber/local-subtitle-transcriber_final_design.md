@@ -4,7 +4,7 @@
 >
 > Feature Slug：`local-subtitle-transcriber`
 >
-> 状态：39个顶层工作包中20个已完成、18个未开始、1个进行中。`MODEL-002A`已接通首发模型下载/删除，`MODEL-002B1`～`MODEL-002B2`已完成CUDA archive安全解包与资源生命周期，`MODEL-002C`已完成冻结VAD manifest、managed lifecycle与CPU load smoke，`MODEL-002D`已完成受控下载/staging root启动孤儿清理；顶层`MODEL-002`仍等待真实大文件下载与目标环境证据。`NATIVE-002`、`FS-TXN-001`、`BE-002`与`FE-001`已按职责结项；不提前声明M2 packaged/目标机验收或M3完成
+> 状态：39个顶层工作包中20个已完成、17个未开始、2个进行中。`MODEL-002A`～`MODEL-002D`已完成model/VAD/CUDA managed lifecycle与受控root启动孤儿清理；`FE-002`已完成真实runtime/backend摘要、managed resource下载/导入/取消/删除/占用及共享ResourceJob reconciliation纵向UI。顶层`MODEL-002`仍等待真实大文件下载与目标环境证据；`FE-002`仍等待main侧auto backend resolution与确认式CPU fallback generation。`NATIVE-002`、`FS-TXN-001`、`BE-002`与`FE-001`已按职责结项；不提前声明M2 packaged/目标机验收或M3完成
 >
 > 产品定位：使用本地算力把批量音频/视频转成可直接翻译的 SRT/LRC 字幕
 >
@@ -111,6 +111,8 @@
 > 2026-08-03 MODEL-002C checkpoint：新增strict/deep-frozen VAD manifest，固定Silero v6.2.0 GGML来源、allowlisted URL、size/SHA、MIT与segment-only时间轴约束；`LocalSubtitleVadManager`经既有managed-resource API和共享ResourceJob完成private-root下载、exact tree/no-follow full-hash、同步claim、busy delete、identity-bound quarantine、atomic commit、post-commit复验与失败回滚。server process/supervisor新增`vad_load_smoke`，只允许verified CPU server + ready managed首发模型 + staged pinned VAD，固定`--vad-model --no-gpu`，readiness后立即退役且不能inference；缺少ready主模型时下载前失败并可重试。未新增public IPC，production仍不开放`vadEnabled=true`。VAD manager 7/7、server process/supervisor 71/71、local-subtitle 48 passed + 2 skipped files / 1008 passed + 2 skipped tests、TypeScript、manifest 0/0与diff通过。真实VAD网络/native smoke、启动孤儿清理和FE-002仍未完成，故`MODEL-002`继续为`进行中`。
 
 > 2026-08-03 MODEL-002D checkpoint：新增受控资源启动cleaner，统一model/VAD/accelerator下载与staging目录合同；冻结manifest完全匹配、结构有效且绑定ETag/Last-Modified的`.part + metadata`续传状态保留，单边、schema/URL/size/validator不匹配状态和exact metadata temporary按稳定文件对象身份清理，未知叶名、symlink、hard-link或replacement均fail closed。model/VAD/Windows accelerator只识别production实际生成的完整staging命名，先同root隔离rename，再以dev/ino/birthtime与realpath containment复核后递归删除；候选all-settled且Windows `rm`有界重试。`LocalSubtitleModelManager.initialize()`缓存单一启动Promise并锁存失败，production main在IPC/window前等待；失败不阻止窗口启动，但managed-resource API稳定拒绝继续操作。聚焦5 files / 73 tests、local-subtitle 49 passed + 2 skipped files / 1016 passed + 2 skipped tests、TypeScript与diff通过。未执行真实1.08 GB模型、885 KB VAD或678 MB CUDA archive下载/目标机smoke，故顶层`MODEL-002`继续为`进行中`。
+
+> 2026-08-03 FE-002环境/资源管理checkpoint：LocalSubtitleTranscriber新增server contract、runner、FFmpeg、platform/arch与CPU/CUDA/Metal probe摘要；managed model/VAD/accelerator列表接通fixed `resourceId` install/cancel/delete及File-only GGML copy/move import，显示ready占用、预计导入占用、共享ResourceJob阶段/bytes/失败与重试。页面复用既有SPA runtime的subscribe-before-snapshot/revision reconciliation，终态后重读manifest，不从action Promise维护下载状态；长错误/code/name均在block wrapping surface收敛。打开页面不下载、不启动带模型server，renderer不接收URL/path/hash authority。聚焦renderer/runtime 5 files / 32 tests、TypeScript、三段Vite test build、四语言i18n与diff通过。当前production admission仍固定CPU/no-VAD，故UI只如实显示开始前CPU task profile和任务真实`resolvedBackend`；auto GPU resolution与用户确认CPU新generation仍未完成，`FE-002`保持进行中。
 
 > 2026-07-30 runtime fixture portability fix：3个测试文件改用宿主原生绝对路径、真实临时`where.exe`与canonical temp root，不修改生产校验；加入002C packaged tests后的完整runtime Node为123 passed、0 failed、1 expected Windows-only skip。
 
@@ -1497,7 +1499,7 @@ resources/local-subtitle/
 
 ## 18. 分期实施建议（高层阶段）
 
-本节保留架构层面的阶段划分；可认领的工作包、依赖、状态、验证和实施记录以 `local-subtitle-transcriber_execution_plan.md` 为唯一执行台账。Execution Plan 已于 2026-07-16 建立，当前39个顶层工作包中20个已完成、18个未开始、1个进行中。M1的schema、resource staging、IPC/capability、renderer session、official server contract、Supervisor生命周期、media normalization/PCM proof、canonical post-processing、标准字幕原子产物和managed model合同均已冻结。`BE-002`已完成最多100文件的CPU/no-VAD批次、失败隔离、SRT/LRC、custom/source及index/conditional-overwrite；`FS-TXN-001A`～`FS-TXN-001J`完成两平台transaction/recovery；`NATIVE-002A`～`NATIVE-002D`完成两平台canonical、target smoke与真实packaged component；`FE-001`已接通用户可见的单文件CPU→SRT renderer代码路径。Windows personal distribution的unsigned profile已明确；NSIS生命周期归`QA-003`，真实模型Electron产品E2E归QA，CUDA delivery/notice closure归`MODEL-002`/`QA-005`，Developer ID、公证和Gatekeeper accepted归`QA-004`。
+本节保留架构层面的阶段划分；可认领的工作包、依赖、状态、验证和实施记录以 `local-subtitle-transcriber_execution_plan.md` 为唯一执行台账。Execution Plan 已于 2026-07-16 建立，当前39个顶层工作包中20个已完成、17个未开始、2个进行中。M1的schema、resource staging、IPC/capability、renderer session、official server contract、Supervisor生命周期、media normalization/PCM proof、canonical post-processing、标准字幕原子产物和managed model合同均已冻结。`BE-002`已完成最多100文件的CPU/no-VAD批次、失败隔离、SRT/LRC、custom/source及index/conditional-overwrite；`FS-TXN-001A`～`FS-TXN-001J`完成两平台transaction/recovery；`NATIVE-002A`～`NATIVE-002D`完成两平台canonical、target smoke与真实packaged component；`FE-001`已接通用户可见的单文件CPU→SRT renderer代码路径，`FE-002`已接通环境/backend可见性和managed resource管理纵向UI。Windows personal distribution的unsigned profile已明确；NSIS生命周期归`QA-003`，真实模型Electron产品E2E归QA，CUDA delivery/notice closure归`MODEL-002`/`QA-005`，Developer ID、公证和Gatekeeper accepted归`QA-004`。
 
 其中本节原先汇总为一个 `PRE-001` 的跨平台 PoC，在 Execution Plan 中拆为 `PRE-001`～`PRE-006`，以避免把基准、CPU runner、Windows CUDA、macOS Metal、FFmpeg/打包许可和最终技术冻结塞进一个无法单会话闭环的工作包。其余高层包也在执行计划中按安全边界和可验证纵向切片进一步拆分。
 
@@ -1833,7 +1835,7 @@ Electron 视觉/交互验证必须等待 preload loading 完全退出。若启�
 
 `PRE-001`～`PRE-006`、`CORE-001`～`CORE-004`、`NATIVE-001`～`NATIVE-002`、`BE-001`～`BE-002`、`MEDIA-001`、`SUB-001`～`SUB-002`、`FS-TXN-001`与`MODEL-001`已完成，M1的共享schema、resource manifest/resolver/staging、preload/IPC/capability、renderer session runtime、official server transport/process contract、Supervisor生命周期、media normalization/PCM proof、canonical post-processing、标准字幕原子产物和managed model合同已冻结。唯一production decision record是`poc/pre006-production-decision.json`，后续实现不得静默更换引擎、平台矩阵、首发模型或media acquisition policy；SUB-001自有policy也不得伪装为PRE-006字段。
 
-1. `MODEL-002C`代码职责已完成；下一步继续`MODEL-002`的启动受控root `.part`/staging孤儿清理，之后进入`FE-002`环境诊断与资源管理UI。
+1. `MODEL-002D`已完成受控root `.part`/staging启动孤儿清理，`FE-002`已完成环境/backend摘要和managed resource管理纵向UI；下一步接main侧auto backend resolution与用户确认的CPU fallback generation，完成后进入`FE-003`批量队列。
 2. 使用真实FFmpeg、official server、PRE-006模型与Electron页面完成单文件SRT/reveal产品E2E后，再记录M2 packaged/目标机验收；该QA证据不反向扩大`FE-001`职责。
 3. Developer ID、公证和 Gatekeeper accepted 只由 `QA-004` 验收 macOS 分发产物；QA-005 完成分发前第三方 notices/source-offer/NVIDIA DLL 核对。
 4. 仍无需 FusionKit 自写 C++ runner；只有 official server 出现产品必需能力的真实硬缺口，才通过独立工作包重新评估 native bridge。

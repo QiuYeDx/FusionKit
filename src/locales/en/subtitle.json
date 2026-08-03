@@ -232,9 +232,30 @@
     },
     "workspace": { "title": "Transcription task" },
     "environment": {
+      "title": "Local environment",
       "checking": "Checking",
       "ready": "Environment ready",
-      "unavailable": "Environment unavailable"
+      "unavailable": "Environment unavailable",
+      "unavailable_short": "Unavailable",
+      "platform": "Platform",
+      "contract": "Server contract",
+      "runner": "Whisper runner",
+      "ffmpeg": "FFmpeg",
+      "not_ready": "Not ready",
+      "backends": "Backend probe",
+      "execution_profile": "Current task profile: {{backend}}",
+      "no_backend_data": "No backend probe data",
+      "backend": {
+        "cpu": "CPU",
+        "cuda": "CUDA",
+        "metal": "Metal"
+      },
+      "backend_status": {
+        "available": "Available",
+        "unavailable": "Unavailable",
+        "unverified": "Unverified",
+        "not_reported": "Not reported"
+      }
     },
     "file": {
       "authorizing": "Authorizing file...",
@@ -246,8 +267,58 @@
       "clear_file": "Remove file",
       "select_output": "Select output folder",
       "refresh": "Check environment again",
+      "import_model": "Import model",
+      "install_resource": "Install {{name}}",
+      "cancel_resource": "Cancel installation of {{name}}",
+      "delete_named_resource": "Delete {{name}}",
+      "delete_resource": "Delete resource",
       "start": "Start transcription",
       "reveal": "Show in folder"
+    },
+    "resources": {
+      "title": "Managed resources",
+      "ready_count": "{{ready}} / {{total}} ready",
+      "managed_only": "Resources from the built-in manifest",
+      "disk_usage": "Installed: {{size}}",
+      "loading": "Reading the managed resource manifest...",
+      "empty": "No managed resources are available for this platform.",
+      "type": {
+        "model": "Model",
+        "vad": "Voice activity detection",
+        "accelerator": "GPU accelerator"
+      },
+      "status": {
+        "not_installed": "Not installed",
+        "installing": "Installing",
+        "ready": "Ready",
+        "invalid": "Needs attention"
+      },
+      "job": {
+        "queued": "Waiting to start",
+        "acquiring": "Acquiring files",
+        "verifying": "Verifying integrity",
+        "load_smoke": "Checking runtime compatibility",
+        "signature_check": "Checking signature",
+        "committing": "Committing resource",
+        "completed": "Installed",
+        "cancelling": "Cancelling",
+        "cancelled": "Cancelled",
+        "failed": "Installation failed"
+      },
+      "import": {
+        "title": "Import compatible model",
+        "description": "Select the GGML model file matching the built-in manifest. FusionKit verifies its size, hash, and CPU load before committing it.",
+        "estimated_usage": "Estimated additional usage: {{size}}",
+        "mode": "Import mode",
+        "copy": "Copy",
+        "move": "Move",
+        "copy_hint": "The selected file is kept after a verified copy is installed.",
+        "move_hint": "The selected file is removed only after the verified model is committed safely."
+      },
+      "delete": {
+        "title": "Delete managed resource?",
+        "description": "{{name}} will be removed from FusionKit's managed storage. You can install it again later."
+      }
     },
     "readiness": {
       "environment_loading": "Checking the local runtime.",

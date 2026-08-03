@@ -232,9 +232,30 @@
     },
     "workspace": { "title": "转写任务" },
     "environment": {
+      "title": "本地环境",
       "checking": "检查中",
       "ready": "环境可用",
-      "unavailable": "环境不可用"
+      "unavailable": "环境不可用",
+      "unavailable_short": "不可用",
+      "platform": "平台",
+      "contract": "服务合同",
+      "runner": "Whisper 运行器",
+      "ffmpeg": "FFmpeg",
+      "not_ready": "未就绪",
+      "backends": "后端探测",
+      "execution_profile": "当前任务配置：{{backend}}",
+      "no_backend_data": "暂无后端探测数据",
+      "backend": {
+        "cpu": "CPU",
+        "cuda": "CUDA",
+        "metal": "Metal"
+      },
+      "backend_status": {
+        "available": "可用",
+        "unavailable": "不可用",
+        "unverified": "未验证",
+        "not_reported": "未报告"
+      }
     },
     "file": {
       "authorizing": "正在授权文件...",
@@ -246,8 +267,58 @@
       "clear_file": "移除文件",
       "select_output": "选择输出目录",
       "refresh": "重新检查环境",
+      "import_model": "导入模型",
+      "install_resource": "安装 {{name}}",
+      "cancel_resource": "取消安装 {{name}}",
+      "delete_named_resource": "删除 {{name}}",
+      "delete_resource": "删除资源",
       "start": "开始转写",
       "reveal": "在文件夹中显示"
+    },
+    "resources": {
+      "title": "托管资源",
+      "ready_count": "{{ready}} / {{total}} 可用",
+      "managed_only": "来自内置清单的受控资源",
+      "disk_usage": "已占用：{{size}}",
+      "loading": "正在读取托管资源清单...",
+      "empty": "当前平台没有可用的托管资源。",
+      "type": {
+        "model": "模型",
+        "vad": "语音活动检测",
+        "accelerator": "GPU 加速组件"
+      },
+      "status": {
+        "not_installed": "未安装",
+        "installing": "安装中",
+        "ready": "可用",
+        "invalid": "需要处理"
+      },
+      "job": {
+        "queued": "等待开始",
+        "acquiring": "正在获取文件",
+        "verifying": "正在校验完整性",
+        "load_smoke": "正在检查运行兼容性",
+        "signature_check": "正在检查签名",
+        "committing": "正在提交资源",
+        "completed": "安装完成",
+        "cancelling": "正在取消",
+        "cancelled": "已取消",
+        "failed": "安装失败"
+      },
+      "import": {
+        "title": "导入兼容模型",
+        "description": "选择与内置清单匹配的 GGML 模型文件。FusionKit 会在提交前验证文件大小、哈希和 CPU 加载能力。",
+        "estimated_usage": "预计新增占用：{{size}}",
+        "mode": "导入方式",
+        "copy": "复制",
+        "move": "移动",
+        "copy_hint": "验证并安装副本后，所选源文件会继续保留。",
+        "move_hint": "仅在模型完成验证并安全提交后移除所选源文件。"
+      },
+      "delete": {
+        "title": "删除托管资源？",
+        "description": "将从 FusionKit 的托管存储中删除 {{name}}，之后仍可重新安装。"
+      }
     },
     "readiness": {
       "environment_loading": "正在检查本地运行环境。",
