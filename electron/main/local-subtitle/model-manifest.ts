@@ -13,6 +13,7 @@ const MODEL_IDENTIFIER_PATTERN =
 const FILE_NAME_PATTERN =
   /^[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9_-])?$/u;
 const GGML_MAGIC_HEX_PATTERN = /^[a-f0-9]{8}$/u;
+const DOWNLOAD_HOST_PATTERN = /^(?:\*\.)?[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?$/u;
 
 export type LocalSubtitleModelErrorCode = Extract<
   LocalSubtitleErrorCode,
@@ -85,6 +86,10 @@ const modelEntrySchema = z
     engineCompatibility: boundedStringSchema,
     sourceRevision: sourceRevisionSchema,
     downloadUrl: httpsUrlSchema,
+    allowedDownloadHosts: z
+      .array(z.string().min(1).max(253).regex(DOWNLOAD_HOST_PATTERN))
+      .min(1)
+      .max(8),
     byteSize: z
       .number()
       .int()
@@ -142,6 +147,7 @@ const EXPECTED_LAUNCH_MODEL = deepFreeze({
   sourceRevision: "c521a4b02f422512d734391fdf08bb08c0862f68",
   downloadUrl:
     "https://huggingface.co/ggerganov/whisper.cpp/resolve/c521a4b02f422512d734391fdf08bb08c0862f68/ggml-large-v3-q5_0.bin?download=true",
+  allowedDownloadHosts: ["huggingface.co", "*.hf.co"],
   byteSize: 1_081_140_203,
   sha256: LOCAL_SUBTITLE_PRODUCTION_CONTRACT.launchModel.sha256,
   license: "MIT",
@@ -186,14 +192,7 @@ export function parseLocalSubtitleModelCatalog(
   if (!result.success) {
     throw invalidManifest("The local subtitle model catalog is invalid.");
   }
-  assertUniqueCaseInsensitive(
-    result.data.map((model) => model.id),
-    "Model IDs",
-  );
-  assertUniqueCaseInsensitive(
-    result.data.map((model) => model.fileName),
-    "Model file names",
-  );
+  validateCatalogSemantics(result.data);
   return deepFreeze(result.data);
 }
 
@@ -219,14 +218,7 @@ export function resolveLocalSubtitleModelManifestEntry(
 function validateManifestSemantics(
   manifest: LocalSubtitleModelManifest,
 ): void {
-  assertUniqueCaseInsensitive(
-    manifest.models.map((model) => model.id),
-    "Model IDs",
-  );
-  assertUniqueCaseInsensitive(
-    manifest.models.map((model) => model.fileName),
-    "Model file names",
-  );
+  validateCatalogSemantics(manifest.models);
   if (!sameEngine(manifest.engine, EXPECTED_ENGINE)) {
     throw invalidManifest(
       "The local subtitle model engine pin does not match PRE-006.",
@@ -239,6 +231,31 @@ function validateManifestSemantics(
     throw invalidManifest(
       "The local subtitle launch model pins do not match PRE-006.",
     );
+  }
+}
+
+function validateCatalogSemantics(
+  models: readonly LocalSubtitleModelManifestEntry[],
+): void {
+  assertUniqueCaseInsensitive(
+    models.map((model) => model.id),
+    "Model IDs",
+  );
+  assertUniqueCaseInsensitive(
+    models.map((model) => model.fileName),
+    "Model file names",
+  );
+  for (const model of models) {
+    assertUniqueCaseInsensitive(
+      model.allowedDownloadHosts,
+      "Model download hosts",
+    );
+    const sourceHost = new URL(model.downloadUrl).hostname.toLowerCase();
+    if (!downloadHostAllowed(sourceHost, model.allowedDownloadHosts)) {
+      throw invalidManifest(
+        "The local subtitle model source host is not allowlisted.",
+      );
+    }
   }
 }
 
@@ -265,6 +282,10 @@ function sameModel(
     actual.engineCompatibility === expected.engineCompatibility &&
     actual.sourceRevision === expected.sourceRevision &&
     actual.downloadUrl === expected.downloadUrl &&
+    sameStringArray(
+      actual.allowedDownloadHosts,
+      expected.allowedDownloadHosts,
+    ) &&
     actual.byteSize === expected.byteSize &&
     actual.sha256 === expected.sha256 &&
     actual.license === expected.license &&
@@ -281,6 +302,16 @@ function sameModel(
 function sameNumberArray(
   actual: readonly number[],
   expected: readonly number[],
+): boolean {
+  return (
+    actual.length === expected.length &&
+    actual.every((value, index) => value === expected[index])
+  );
+}
+
+function sameStringArray(
+  actual: readonly string[],
+  expected: readonly string[],
 ): boolean {
   return (
     actual.length === expected.length &&
@@ -305,6 +336,20 @@ function assertUniqueCaseInsensitive(
 function isWindowsReservedName(fileName: string): boolean {
   const base = fileName.split(".", 1)[0]?.toUpperCase() ?? "";
   return /^(?:CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])$/u.test(base);
+}
+
+function downloadHostAllowed(
+  hostname: string,
+  allowedHosts: readonly string[],
+): boolean {
+  return allowedHosts.some((entry) => {
+    const candidate = entry.toLowerCase();
+    if (candidate.startsWith("*.")) {
+      const suffix = candidate.slice(1);
+      return hostname.endsWith(suffix) && hostname.length > suffix.length;
+    }
+    return hostname === candidate;
+  });
 }
 
 function invalidManifest(message: string): LocalSubtitleModelError {

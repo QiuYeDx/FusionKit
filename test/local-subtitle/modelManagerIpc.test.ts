@@ -113,19 +113,21 @@ describe("local subtitle model manager IPC integration", () => {
     );
   });
 
-  it("keeps download/delete unavailable and scopes cancel to the current owner", async () => {
+  it("installs and deletes through fixed public handlers while cancel stays owner-scoped", async () => {
     const fixture = await createFixture();
 
-    await expect(
-      fixture.service.handlePublic(
-        LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.startResourceInstall,
-        fixture.event,
-        fixture.envelope({ resourceId: fixture.model.id }),
-      ),
-    ).resolves.toMatchObject({
-      ok: false,
-      error: { code: "resource_not_allowed" },
+    const started = await fixture.service.handlePublic(
+      LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.startResourceInstall,
+      fixture.event,
+      fixture.envelope({ resourceId: fixture.model.id }),
+    );
+    expect(started).toMatchObject({
+      ok: true,
+      data: { resourceId: fixture.model.id, status: "queued" },
     });
+    expect(JSON.stringify(started)).not.toContain(fixture.root);
+    await fixture.manager.waitForIdle();
+
     await expect(
       fixture.service.handlePublic(
         LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.deleteManagedResource,
@@ -133,8 +135,8 @@ describe("local subtitle model manager IPC integration", () => {
         fixture.envelope({ resourceId: fixture.model.id }),
       ),
     ).resolves.toMatchObject({
-      ok: false,
-      error: { code: "resource_not_allowed" },
+      ok: true,
+      data: { deleted: true },
     });
     await expect(
       fixture.service.handlePublic(
@@ -211,6 +213,11 @@ async function createFixture(options: { readonly smoke?: ReturnType<typeof vi.fn
     modelCatalog: [model],
     verifyServerRuntime: async () => fakeRuntime(),
     availableBytes: async () => Number.MAX_SAFE_INTEGER,
+    downloadResource: async (options) => {
+      await writeFile(options.destinationPath, bytes);
+      options.onProgress?.(bytes.length, bytes.length);
+      return {};
+    },
     sessionRegistry,
   });
   const sessionBridge = new LocalSubtitleSessionIpcBridge(sessionRegistry);

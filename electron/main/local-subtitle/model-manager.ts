@@ -48,6 +48,11 @@ import {
   type LocalSubtitleSessionRegistryOwnership,
 } from "./resource-job";
 import {
+  downloadLocalSubtitleResource,
+  LocalSubtitleResourceDownloadError,
+  type DownloadLocalSubtitleResourceOptions,
+} from "./resource-download";
+import {
   selectLocalSubtitleCpuServerArtifactId,
   verifyLocalSubtitleRuntimeBundle,
   type LocalSubtitleResourceEnvironment,
@@ -79,8 +84,11 @@ const COPY_CHUNK_BYTES = 1024 * 1024;
 export const LOCAL_SUBTITLE_MODEL_MANAGER_POLICY = Object.freeze({
   modelsDirectoryName: "models",
   stagingDirectoryName: "model-staging",
+  downloadsDirectoryName: "downloads",
   copyChunkBytes: COPY_CHUNK_BYTES,
   smokeThreads: 1,
+  cleanupMaxRetries: 5,
+  cleanupRetryDelayMs: 200,
 } as const);
 
 export type LocalSubtitleModelImportMode = "copy" | "move";
@@ -131,6 +139,12 @@ export interface LocalSubtitleModelManagerOptions {
   readonly removeSourceFile?: (absolutePath: string) => Promise<void>;
   readonly commitModelLink?: (source: string, destination: string) => Promise<void>;
   readonly removeStagingDirectory?: (absolutePath: string) => Promise<void>;
+  readonly downloadResource?: (
+    options: DownloadLocalSubtitleResourceOptions,
+  ) => Promise<unknown>;
+  readonly isResourceBusy?: (
+    resourceId: string,
+  ) => boolean | Promise<boolean>;
   readonly now?: () => number;
   readonly jobIdFactory?: () => string;
 }
@@ -166,6 +180,7 @@ interface ImportRootProofs {
   readonly managed: PrivateDirectoryProof;
   readonly models: PrivateDirectoryProof;
   readonly staging: PrivateDirectoryProof;
+  readonly downloads: PrivateDirectoryProof;
 }
 
 interface SourceReceipt {
@@ -229,6 +244,7 @@ export class LocalSubtitleModelManager {
   readonly #managedResourceRoot: string;
   readonly #modelsRoot: string;
   readonly #stagingRoot: string;
+  readonly #downloadsRoot: string;
   readonly #runtimeEnvironment: LocalSubtitleResourceEnvironment;
   readonly #supervisor: LocalSubtitleModelLoadSmokeTarget;
   readonly #registry: LocalSubtitleSessionRegistry;
@@ -241,6 +257,11 @@ export class LocalSubtitleModelManager {
   readonly #removeSourceFile: (absolutePath: string) => Promise<void>;
   readonly #commitModelLink: (source: string, destination: string) => Promise<void>;
   readonly #removeStagingDirectory: (absolutePath: string) => Promise<void>;
+  readonly #downloadResource: (
+    options: DownloadLocalSubtitleResourceOptions,
+  ) => Promise<unknown>;
+  readonly #isResourceBusy: (resourceId: string) => boolean | Promise<boolean>;
+  readonly #claimedModelIds = new Set<string>();
   readonly #activeModelIds = new Set<string>();
   readonly #verifiedModels = new Map<string, VerifiedManagedModel>();
   readonly #orphanedStaging = new Set<StagingReceipt>();
@@ -250,6 +271,7 @@ export class LocalSubtitleModelManager {
     PendingManagedReservation
   >();
   readonly #activeVerifications = new Set<ManagedVerificationRecord>();
+  readonly #activeDeletions = new Set<Promise<void>>();
   readonly #releasedOwners = new Set<string>();
   #rootProofs: ImportRootProofs | undefined;
   #rootProofOperation: Promise<void> | undefined;
@@ -271,6 +293,10 @@ export class LocalSubtitleModelManager {
     this.#stagingRoot = path.join(
       this.#managedResourceRoot,
       LOCAL_SUBTITLE_MODEL_MANAGER_POLICY.stagingDirectoryName,
+    );
+    this.#downloadsRoot = path.join(
+      this.#managedResourceRoot,
+      LOCAL_SUBTITLE_MODEL_MANAGER_POLICY.downloadsDirectoryName,
     );
     this.#runtimeEnvironment = options.runtimeEnvironment;
     this.#supervisor = options.supervisor;
@@ -300,7 +326,15 @@ export class LocalSubtitleModelManager {
     this.#removeSourceFile = options.removeSourceFile ?? unlink;
     this.#commitModelLink = options.commitModelLink ?? link;
     this.#removeStagingDirectory = options.removeStagingDirectory ?? ((absolutePath) =>
-      rm(absolutePath, { recursive: true, force: false }));
+      rm(absolutePath, {
+        recursive: true,
+        force: false,
+        maxRetries: LOCAL_SUBTITLE_MODEL_MANAGER_POLICY.cleanupMaxRetries,
+        retryDelay: LOCAL_SUBTITLE_MODEL_MANAGER_POLICY.cleanupRetryDelayMs,
+      }));
+    this.#downloadResource = options.downloadResource ??
+      downloadLocalSubtitleResource;
+    this.#isResourceBusy = options.isResourceBusy ?? (() => false);
   }
 
   importModel(
@@ -312,19 +346,59 @@ export class LocalSubtitleModelManager {
     const sourcePath = validateSourcePath(options.filePath);
     const model = this.#catalog[0]!;
 
-    return this.#resourceJobs.start({
-      owner: options.owner,
-      resourceId: model.id,
-      resourceType: "model",
-      execute: (context) =>
-        this.#executeImport(
+    return this.#startClaimedModelJob(
+      options.owner,
+      model,
+      (context) => this.#executeImport(
           options.owner,
           sourcePath,
           options.mode,
           model,
           context,
         ),
+    );
+  }
+
+  startResourceInstall(
+    owner: LocalSubtitleOwnerKey,
+    resourceId: string,
+  ): LocalSubtitleResourceJobSummary {
+    this.#assertManagerAvailable();
+    this.#assertOwnerAvailable(owner);
+    const model = this.#resolveCatalogEntry(resourceId);
+    return this.#startClaimedModelJob(
+      owner,
+      model,
+      (context) => this.#executeDownload(owner, model, context),
+    );
+  }
+
+  async deleteManagedResource(
+    owner: LocalSubtitleOwnerKey,
+    resourceId: string,
+  ): Promise<Readonly<{ deleted: boolean }>> {
+    this.#assertManagerAvailable();
+    this.#assertOwnerAvailable(owner);
+    const model = this.#resolveCatalogEntry(resourceId);
+    this.#claimModelOperation(model.id);
+    let completeDeletion!: () => void;
+    const deletion = new Promise<void>((resolve) => {
+      completeDeletion = resolve;
     });
+    this.#activeDeletions.add(deletion);
+    try {
+      if (await this.#isResourceBusy(model.id)) {
+        throw managerFailure(
+          "resource_busy",
+          "The local subtitle model is currently in use.",
+        );
+      }
+      return Object.freeze({ deleted: await this.#deleteManagedModel(model) });
+    } finally {
+      this.#claimedModelIds.delete(model.id);
+      this.#activeDeletions.delete(deletion);
+      completeDeletion();
+    }
   }
 
   cancelResourceJob(
@@ -370,7 +444,10 @@ export class LocalSubtitleModelManager {
             "cpu" | "cuda" | "metal"
           >,
         };
-        if (this.#activeModelIds.has(model.id)) {
+        if (
+          this.#claimedModelIds.has(model.id) ||
+          this.#activeModelIds.has(model.id)
+        ) {
           return Object.freeze({ ...base, status: "installing" as const });
         }
         if (this.#pendingManagedReservations.has(model.id)) {
@@ -412,6 +489,7 @@ export class LocalSubtitleModelManager {
     const model = this.#resolveCatalogEntry(modelId);
     if (
       this.#activeModelIds.has(model.id) ||
+      this.#claimedModelIds.has(model.id) ||
       this.#pendingManagedReservations.has(model.id)
     ) {
       throw managerFailure(
@@ -478,6 +556,7 @@ export class LocalSubtitleModelManager {
         const results = await Promise.allSettled([
           this.#resourceJobs.shutdown(),
           this.#waitForActiveVerifications(),
+          this.#waitForActiveDeletions(),
         ]);
         const failure = results.find(
           (result): result is PromiseRejectedResult =>
@@ -498,6 +577,7 @@ export class LocalSubtitleModelManager {
   async waitForIdle(): Promise<void> {
     await this.#resourceJobs.waitForIdle();
     await this.#waitForActiveVerifications();
+    await this.#waitForActiveDeletions();
     await this.#retryOutstandingCleanup();
   }
 
@@ -563,6 +643,227 @@ export class LocalSubtitleModelManager {
         [...this.#activeVerifications].map((record) => record.completion),
       );
     }
+  }
+
+  async #waitForActiveDeletions(): Promise<void> {
+    while (this.#activeDeletions.size > 0) {
+      await Promise.all([...this.#activeDeletions]);
+    }
+  }
+
+  #startClaimedModelJob(
+    owner: LocalSubtitleOwnerKey,
+    model: LocalSubtitleModelManifestEntry,
+    execute: (
+      context: LocalSubtitleResourceJobContext,
+    ) => Promise<LocalSubtitleResourceJobExecutionResult>,
+  ): LocalSubtitleResourceJobSummary {
+    this.#claimModelOperation(model.id);
+    try {
+      return this.#resourceJobs.start({
+        owner,
+        resourceId: model.id,
+        resourceType: "model",
+        execute: async (context) => {
+          try {
+            return await execute(context);
+          } finally {
+            this.#claimedModelIds.delete(model.id);
+          }
+        },
+      });
+    } catch (error) {
+      this.#claimedModelIds.delete(model.id);
+      throw error;
+    }
+  }
+
+  #claimModelOperation(modelId: string): void {
+    if (
+      this.#claimedModelIds.has(modelId) ||
+      this.#activeModelIds.has(modelId) ||
+      this.#pendingManagedReservations.has(modelId)
+    ) {
+      throw managerFailure(
+        "resource_busy",
+        "The selected local subtitle model already has an active resource operation.",
+      );
+    }
+    this.#claimedModelIds.add(modelId);
+  }
+
+  async #executeDownload(
+    owner: LocalSubtitleOwnerKey,
+    model: LocalSubtitleModelManifestEntry,
+    context: LocalSubtitleResourceJobContext,
+  ): Promise<LocalSubtitleResourceJobExecutionResult> {
+    let staging: StagingReceipt | undefined;
+    let committed: StagingReceipt | undefined;
+    let completed = false;
+    let commitStarted = false;
+    let outcome: LocalSubtitleResourceJobExecutionResult | undefined;
+
+    this.#activeModelIds.add(model.id);
+    try {
+      context.update({
+        status: "acquiring",
+        progress: 1,
+        bytesCompleted: 0,
+        bytesTotal: model.byteSize,
+      });
+      throwIfCancelled(context);
+      await this.#retryOutstandingCleanup();
+      await this.#ensureImportRoots();
+      if (await this.#hasManagedModel(model, owner, context.signal)) {
+        throw managerFailure(
+          "resource_busy",
+          "The selected local subtitle model is already installed.",
+        );
+      }
+      staging = await this.#createStaging(model);
+      const stagedPath = path.join(staging.currentPath, staging.fileName);
+      await this.#downloadResource({
+        sourceUrl: model.downloadUrl,
+        allowedHosts: model.allowedDownloadHosts,
+        expectedBytes: model.byteSize,
+        downloadDirectory: this.#downloadsRoot,
+        partFileName: `${model.id}.part`,
+        metadataFileName: `${model.id}.part.json`,
+        destinationPath: stagedPath,
+        signal: context.signal,
+        ensureCapacity: (remainingBytes) =>
+          this.#assertDiskSpace(remainingBytes),
+        onProgress: (completedBytes, totalBytes) => {
+          context.update({
+            status: "acquiring",
+            progress: Math.min(
+              55,
+              5 + (completedBytes / totalBytes) * 50,
+            ),
+            bytesCompleted: completedBytes,
+            bytesTotal: totalBytes,
+          });
+        },
+      });
+      const downloadedStats = await lstat(stagedPath);
+      if (!downloadedStats.isFile() || downloadedStats.isSymbolicLink()) {
+        throw managerFailure(
+          "model_corrupt",
+          "The downloaded local subtitle model staging file is invalid.",
+        );
+      }
+      staging.fileIdentity = fileIdentity(downloadedStats);
+      await this.#assertImportRoots();
+      await this.#assertStagingIdentity(staging);
+
+      context.update({
+        status: "verifying",
+        progress: 65,
+        bytesCompleted: model.byteSize,
+        bytesTotal: model.byteSize,
+      });
+      throwIfCancelled(context);
+      const verification = await this.#verifyModelFile(stagedPath, {
+        modelId: model.id,
+        byteSize: model.byteSize,
+        sha256: model.sha256,
+        ggml: model.ggml,
+      }, context.signal);
+      assertVerifiedModelMatches(verification, model, stagedPath);
+      const stagedGuard = await open(stagedPath, READ_ONLY_NOFOLLOW_FLAGS);
+      try {
+        const guardedIdentity = fileIdentity(await stagedGuard.stat());
+        assertSameFileIdentity(verification.fileIdentity, guardedIdentity);
+        await assertPathStillNamesFile(stagedPath, guardedIdentity);
+        staging.fileIdentity = guardedIdentity;
+
+        context.update({
+          status: "load_smoke",
+          progress: 80,
+          bytesCompleted: model.byteSize,
+          bytesTotal: model.byteSize,
+        });
+        throwIfCancelled(context);
+        const runtime = await this.#verifyServerRuntime();
+        const serverArtifactId = selectLocalSubtitleCpuServerArtifactId(runtime);
+        await this.#supervisor.smokeModelLoad(
+          owner,
+          {
+            purpose: "model_load_smoke",
+            backend: "cpu",
+            verifiedRuntime: runtime,
+            serverArtifactId,
+            model: {
+              storage: "managed_staging",
+              id: model.id,
+              absolutePath: stagedPath,
+              byteSize: model.byteSize,
+              sha256: model.sha256,
+            },
+            threads: LOCAL_SUBTITLE_MODEL_MANAGER_POLICY.smokeThreads,
+          },
+          context.signal,
+        );
+        await this.#assertStagingIdentity(staging);
+        assertSameFileIdentity(
+          staging.fileIdentity,
+          fileIdentity(await stagedGuard.stat()),
+        );
+      } finally {
+        await stagedGuard.close();
+      }
+      throwIfCancelled(context);
+
+      context.update({
+        status: "committing",
+        progress: 95,
+        bytesCompleted: model.byteSize,
+        bytesTotal: model.byteSize,
+      });
+      commitStarted = true;
+      committed = await this.#commitStaging(staging, model);
+      await this.#cleanupStaging(staging);
+      const finalPath = path.join(committed.currentPath, committed.fileName);
+      const finalIdentity = fileIdentity(await lstat(finalPath));
+      assertSameFileObjectAndContent(verification.fileIdentity, finalIdentity);
+      committed.fileIdentity = finalIdentity;
+      await this.#assertStagingIdentity(committed);
+      this.#verifiedModels.set(model.id, {
+        identity: finalIdentity,
+        verification: Object.freeze({
+          ...verification,
+          absolutePath: finalPath,
+          fileIdentity: finalIdentity,
+        }),
+      });
+      completed = true;
+      this.#pendingManagedReservations.delete(model.id);
+      outcome = { status: "completed" };
+    } catch (error) {
+      outcome = !commitStarted && isCancellation(error, context)
+        ? { status: "cancelled" }
+        : { status: "failed", error: toResourceJobError(error) };
+    }
+
+    if (!completed) {
+      for (const receipt of [committed, staging]) {
+        if (!receipt || receipt.cleanupConfirmed) continue;
+        try {
+          await this.#cleanupStaging(receipt);
+        } catch {
+          this.#orphanedStaging.add(receipt);
+          outcome = failedJob(
+            "cancel_failed",
+            "The local subtitle model download staging area could not be removed safely.",
+          );
+        }
+      }
+    }
+    this.#activeModelIds.delete(model.id);
+    return outcome ?? failedJob(
+      "model_download_failed",
+      "The local subtitle model download did not reach a terminal state.",
+    );
   }
 
   async #executeImport(
@@ -776,7 +1077,8 @@ export class LocalSubtitleModelManager {
     const managed = await ensurePrivateDirectory(this.#managedResourceRoot);
     const models = await ensurePrivateDirectory(this.#modelsRoot);
     const staging = await ensurePrivateDirectory(this.#stagingRoot);
-    const proofs = Object.freeze({ managed, models, staging });
+    const downloads = await ensurePrivateDirectory(this.#downloadsRoot);
+    const proofs = Object.freeze({ managed, models, staging, downloads });
     assertImportRootContainment(proofs);
     await verifyImportRootProofs(proofs);
     this.#rootProofs = proofs;
@@ -1278,6 +1580,92 @@ export class LocalSubtitleModelManager {
     }
   }
 
+  async #deleteManagedModel(
+    model: LocalSubtitleModelManifestEntry,
+  ): Promise<boolean> {
+    await this.#retryOutstandingCleanup();
+    await this.#ensureImportRoots();
+    const finalDirectory = this.#finalModelDirectory(model);
+    let directoryStats: Stats;
+    try {
+      directoryStats = await lstat(finalDirectory);
+    } catch (error) {
+      if (isNodeError(error, "ENOENT")) return false;
+      throw managerFailure(
+        "model_download_failed",
+        "The managed local subtitle model could not be inspected for deletion.",
+      );
+    }
+    if (!directoryStats.isDirectory() || directoryStats.isSymbolicLink()) {
+      throw managerFailure(
+        "model_corrupt",
+        "The managed local subtitle model directory is invalid.",
+      );
+    }
+    await this.#verifyManagedModel(model);
+    if (await this.#isResourceBusy(model.id)) {
+      throw managerFailure(
+        "resource_busy",
+        "The local subtitle model is currently in use.",
+      );
+    }
+    await this.#assertImportRoots();
+    const finalPath = this.#finalModelPath(model);
+    const guard = await open(finalPath, READ_ONLY_NOFOLLOW_FLAGS);
+    let fileProof: FileIdentity;
+    try {
+      fileProof = fileIdentity(await guard.stat());
+      await assertPathStillNamesFile(finalPath, fileProof);
+    } finally {
+      await guard.close();
+    }
+
+    const quarantinePath = path.join(
+      this.#stagingRoot,
+      `.delete-${sanitizeStagingId(this.#stagingIdFactory())}`,
+    );
+    const receipt: StagingReceipt = {
+      modelId: model.id,
+      phase: "managed_reservation",
+      currentPath: quarantinePath,
+      stagingRoot: this.#stagingRoot,
+      directoryIdentity: directoryIdentity(directoryStats),
+      fileName: model.fileName,
+      fileIdentity: fileProof,
+      quarantined: true,
+      cleanupConfirmed: false,
+    };
+    try {
+      await rename(finalDirectory, quarantinePath);
+    } catch (error) {
+      throw managerFailure(
+        isNodeError(error, "EBUSY") ||
+          isNodeError(error, "EPERM") ||
+          isNodeError(error, "EACCES")
+          ? "resource_busy"
+          : "model_download_failed",
+        "The managed local subtitle model could not be reserved for deletion.",
+      );
+    }
+    this.#pendingManagedReservations.set(model.id, {
+      modelId: model.id,
+      absolutePath: quarantinePath,
+      receipt,
+    });
+    this.#verifiedModels.delete(model.id);
+    try {
+      await this.#assertStagingIdentity(receipt);
+      await this.#cleanupStaging(receipt);
+      return true;
+    } catch {
+      this.#orphanedStaging.add(receipt);
+      throw managerFailure(
+        "cancel_failed",
+        "The managed local subtitle model deletion still requires cleanup.",
+      );
+    }
+  }
+
   async #hasManagedModel(
     model: LocalSubtitleModelManifestEntry,
     owner: LocalSubtitleOwnerKey,
@@ -1288,6 +1676,7 @@ export class LocalSubtitleModelManager {
       this.#managedResourceRoot,
       this.#modelsRoot,
       this.#stagingRoot,
+      this.#downloadsRoot,
     );
     const finalDirectory = this.#finalModelDirectory(model);
     try {
@@ -1313,6 +1702,7 @@ export class LocalSubtitleModelManager {
         this.#managedResourceRoot,
         this.#modelsRoot,
         this.#stagingRoot,
+        this.#downloadsRoot,
       );
       let directoryStats: Stats;
       try {
@@ -1552,6 +1942,7 @@ async function verifyImportRootProofs(proofs: ImportRootProofs): Promise<void> {
     verifyPrivateDirectoryProof(proofs.managed),
     verifyPrivateDirectoryProof(proofs.models),
     verifyPrivateDirectoryProof(proofs.staging),
+    verifyPrivateDirectoryProof(proofs.downloads),
   ]);
   assertImportRootContainment(proofs);
 }
@@ -1560,9 +1951,13 @@ function assertImportRootContainment(proofs: ImportRootProofs): void {
   if (
     proofs.models.realPath === proofs.managed.realPath ||
     proofs.staging.realPath === proofs.managed.realPath ||
+    proofs.downloads.realPath === proofs.managed.realPath ||
     proofs.models.realPath === proofs.staging.realPath ||
+    proofs.models.realPath === proofs.downloads.realPath ||
+    proofs.staging.realPath === proofs.downloads.realPath ||
     !isContainedPath(proofs.managed.realPath, proofs.models.realPath) ||
-    !isContainedPath(proofs.managed.realPath, proofs.staging.realPath)
+    !isContainedPath(proofs.managed.realPath, proofs.staging.realPath) ||
+    !isContainedPath(proofs.managed.realPath, proofs.downloads.realPath)
   ) {
     throw managerFailure(
       "resource_not_allowed",
@@ -1646,11 +2041,12 @@ async function assertExistingManagedRootState(
   managedRoot: string,
   modelsRoot: string,
   stagingRoot: string,
+  downloadsRoot: string,
 ): Promise<void> {
   if (!(await pathExistsNoFollow(managedRoot))) return;
   const managed = await readPrivateDirectoryProof(managedRoot);
   const children: PrivateDirectoryProof[] = [];
-  for (const candidate of [modelsRoot, stagingRoot]) {
+  for (const candidate of [modelsRoot, stagingRoot, downloadsRoot]) {
     if (await pathExistsNoFollow(candidate)) {
       children.push(await readPrivateDirectoryProof(candidate));
     }
@@ -1992,6 +2388,9 @@ function toResourceJobError(error: unknown): LocalSubtitleError {
     return createLocalSubtitleError(error.localSubtitleCode, error.message, {
       ...(error.field === undefined ? {} : { field: error.field }),
     });
+  }
+  if (error instanceof LocalSubtitleResourceDownloadError) {
+    return createLocalSubtitleError(error.code, error.message);
   }
   if (error instanceof LocalSubtitleModelError) {
     return createLocalSubtitleError(error.code, error.message);

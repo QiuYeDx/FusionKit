@@ -256,6 +256,7 @@ interface ActiveBatchSlice {
 
 interface PendingEnqueue {
   readonly ownerKey: string;
+  readonly modelId: string;
   readonly controller: AbortController;
   readonly detach: () => void;
   readonly admission: QueueAdmission;
@@ -362,6 +363,20 @@ export class LocalSubtitleJobManager {
       });
   }
 
+  isManagedModelBusy(modelId: string): boolean {
+    return (
+      [...this.#pendingEnqueues].some(
+        (pending) => pending.modelId === modelId,
+      ) ||
+      [...this.#tasks.values()].some(
+        (record) =>
+          record.batch.config.model.modelId === modelId &&
+          record.state !== "terminal" &&
+          record.state !== "removed",
+      )
+    );
+  }
+
   async enqueue(
     owner: LocalSubtitleOwnerKey,
     request: EnqueueLocalSubtitleBatchRequest,
@@ -371,7 +386,11 @@ export class LocalSubtitleJobManager {
     const parsed = parseEnqueueRequest(request);
     assertProductionBatchSliceRequest(parsed, this.#executor);
     const ownerKeyValue = ownerKey(owner);
-    const pending = this.#beginPendingEnqueue(ownerKeyValue, signal);
+    const pending = this.#beginPendingEnqueue(
+      ownerKeyValue,
+      parsed.config.modelId,
+      signal,
+    );
     let transaction:
       | Awaited<ReturnType<LocalSubtitleCapabilityLeaseCoordinator["reserveBatch"]>>
       | undefined;
@@ -806,11 +825,16 @@ export class LocalSubtitleJobManager {
     return this.#waitForIdle();
   }
 
-  #beginPendingEnqueue(ownerKeyValue: string, signal?: AbortSignal): PendingEnqueue {
+  #beginPendingEnqueue(
+    ownerKeyValue: string,
+    modelId: string,
+    signal?: AbortSignal,
+  ): PendingEnqueue {
     const controller = new AbortController();
     const detach = forwardAbort(signal, controller);
     const pending = {
       ownerKey: ownerKeyValue,
+      modelId,
       controller,
       detach,
       admission: this.#beginAdmission(ownerKeyValue),

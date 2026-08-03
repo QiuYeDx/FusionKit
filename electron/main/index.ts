@@ -230,11 +230,17 @@ app.whenReady().then(async () => {
     managedResourceRoot: localSubtitleManagedResourceRoot,
   });
   const localSubtitleSessionRegistry = new LocalSubtitleSessionRegistry();
+  let localSubtitleJobManager: LocalSubtitleJobManager | undefined;
   const localSubtitleModelManager = new LocalSubtitleModelManager({
     managedResourceRoot: localSubtitleManagedResourceRoot,
     runtimeEnvironment: localSubtitleResourceEnvironment,
     supervisor: localSubtitleServerSupervisor,
     sessionRegistry: localSubtitleSessionRegistry,
+    isResourceBusy: (resourceId) =>
+      Boolean(
+        localSubtitleJobManager?.isManagedModelBusy(resourceId) ||
+        localSubtitleServerSupervisor.snapshot.modelId === resourceId,
+      ),
   });
   const localSubtitleOverwriteRuntime =
     await initializeLocalSubtitleOverwriteProductionRuntime({
@@ -259,7 +265,7 @@ app.whenReady().then(async () => {
     exporter: localSubtitleExporter,
     runtimeEnvironment: localSubtitleResourceEnvironment,
   });
-  const localSubtitleJobManager = new LocalSubtitleJobManager({
+  localSubtitleJobManager = new LocalSubtitleJobManager({
     registry: localSubtitleSessionRegistry,
     inputs: localSubtitleInputAuthorizations,
     outputs: localSubtitleOutputAuthorizations,

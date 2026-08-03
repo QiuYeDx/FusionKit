@@ -49,6 +49,7 @@ import {
 } from "./runtimeFixture";
 
 const OWNER = Object.freeze({ webContentsId: 41, ownerSessionId: "owner-model-a" });
+const OWNER_B = Object.freeze({ webContentsId: 42, ownerSessionId: "owner-model-b" });
 const tempRoots: string[] = [];
 let runtimeFixture: LocalSubtitleRuntimeFixture;
 let verifiedRuntime: LocalSubtitleVerifiedRuntimeBundle;
@@ -79,6 +80,93 @@ afterAll(async () => {
 });
 
 describe("local subtitle model manager", () => {
+  it("downloads, verifies, load-smokes and commits an allowlisted model", async () => {
+    const fixture = await createFixture({
+      downloadResource: async (options) => {
+        await writeFile(options.destinationPath, fixtureBytes);
+        options.onProgress?.(fixtureBytes.length, fixtureBytes.length);
+        return {};
+      },
+    });
+    const fixtureBytes = fixture.bytes;
+
+    const queued = fixture.manager.startResourceInstall(
+      OWNER,
+      fixture.model.id,
+    );
+    expect(queued).toMatchObject({
+      resourceId: fixture.model.id,
+      resourceType: "model",
+      status: "queued",
+    });
+    await fixture.manager.waitForIdle();
+
+    expect(fixture.manager.getSessionSnapshot(OWNER)).toMatchObject({
+      resourceJobs: [
+        {
+          resourceId: fixture.model.id,
+          status: "completed",
+          progress: 100,
+          bytesCompleted: fixture.model.byteSize,
+          bytesTotal: fixture.model.byteSize,
+        },
+      ],
+    });
+    await expect(fixture.manager.listManagedResources(OWNER)).resolves.toMatchObject([
+      { resourceId: fixture.model.id, status: "ready" },
+    ]);
+    expect(fixture.smoke).toHaveBeenCalledOnce();
+  });
+
+  it("claims the model before the first await and hides another owner's job", async () => {
+    const fixture = await createFixture({
+      downloadResource: async (options) => {
+        await writeFile(options.destinationPath, fixtureBytes);
+        return {};
+      },
+    });
+    const fixtureBytes = fixture.bytes;
+
+    fixture.manager.startResourceInstall(OWNER, fixture.model.id);
+    expect(() =>
+      fixture.manager.startResourceInstall(OWNER_B, fixture.model.id)
+    ).toThrow(expect.objectContaining({ localSubtitleCode: "resource_busy" }));
+    expect(fixture.manager.getSessionSnapshot(OWNER_B)).toMatchObject({
+      revision: 0,
+      resourceJobs: [],
+    });
+    await fixture.manager.waitForIdle();
+  });
+
+  it("refuses busy deletion and removes an idle managed model", async () => {
+    let busy = false;
+    const fixture = await createFixture({
+      downloadResource: async (options) => {
+        await writeFile(options.destinationPath, fixtureBytes);
+        return {};
+      },
+      isResourceBusy: () => busy,
+    });
+    const fixtureBytes = fixture.bytes;
+    fixture.manager.startResourceInstall(OWNER, fixture.model.id);
+    await fixture.manager.waitForIdle();
+
+    busy = true;
+    await expect(
+      fixture.manager.deleteManagedResource(OWNER, fixture.model.id),
+    ).rejects.toMatchObject({ localSubtitleCode: "resource_busy" });
+    busy = false;
+    await expect(
+      fixture.manager.deleteManagedResource(OWNER, fixture.model.id),
+    ).resolves.toEqual({ deleted: true });
+    await expect(fixture.manager.listManagedResources(OWNER)).resolves.toMatchObject([
+      { resourceId: fixture.model.id, status: "not_installed" },
+    ]);
+    await expect(
+      fixture.manager.deleteManagedResource(OWNER, fixture.model.id),
+    ).resolves.toEqual({ deleted: false });
+  });
+
   it("copies, verifies, load-smokes and atomically commits a managed model", async () => {
     const fixture = await createFixture();
     const statuses: string[] = [];
@@ -1153,6 +1241,8 @@ interface FixtureOptions {
   readonly verifyServerRuntime?: LocalSubtitleModelManagerOptions["verifyServerRuntime"];
   readonly stagingIdFactory?: () => string;
   readonly sessionRegistry?: LocalSubtitleSessionRegistry;
+  readonly downloadResource?: LocalSubtitleModelManagerOptions["downloadResource"];
+  readonly isResourceBusy?: LocalSubtitleModelManagerOptions["isResourceBusy"];
 }
 
 async function createFixture(options: FixtureOptions = {}) {
@@ -1203,6 +1293,12 @@ async function createFixture(options: FixtureOptions = {}) {
     ...(options.verifyModelFile === undefined
       ? {}
       : { verifyModelFile: options.verifyModelFile }),
+    ...(options.downloadResource === undefined
+      ? {}
+      : { downloadResource: options.downloadResource }),
+    ...(options.isResourceBusy === undefined
+      ? {}
+      : { isResourceBusy: options.isResourceBusy }),
   });
   return {
     root,

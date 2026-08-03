@@ -15,6 +15,11 @@ describe("local subtitle model manifest", () => {
     expect(Object.isFrozen(LOCAL_SUBTITLE_MODEL_MANIFEST.engine)).toBe(true);
     expect(Object.isFrozen(LOCAL_SUBTITLE_MODEL_MANIFEST.models)).toBe(true);
     expect(
+      Object.isFrozen(
+        LOCAL_SUBTITLE_MODEL_MANIFEST.models[0]!.allowedDownloadHosts,
+      ),
+    ).toBe(true);
+    expect(
       Object.isFrozen(LOCAL_SUBTITLE_MODEL_MANIFEST.models[0]!.ggml.headerInt32Le),
     ).toBe(true);
     expect(LOCAL_SUBTITLE_MODEL_MANIFEST.models).toHaveLength(1);
@@ -24,6 +29,7 @@ describe("local subtitle model manifest", () => {
       sha256:
         "d75795ecff3f83b5faa89d1900604ad8c780abd5739fae406de19f23ecd98ad1",
       sourceRevision: "c521a4b02f422512d734391fdf08bb08c0862f68",
+      allowedDownloadHosts: ["huggingface.co", "*.hf.co"],
       ggml: {
         magicHex: "6c6d6767",
         headerInt32Le: [
@@ -127,6 +133,9 @@ describe("local subtitle model manifest", () => {
       },
       (manifest) => {
         manifest.models[0]!.sourceRevision = "a".repeat(40);
+      },
+      (manifest) => {
+        manifest.models[0]!.allowedDownloadHosts = ["example.com"];
       },
       (manifest) => {
         manifest.models[0]!.ggml.magicHex = "67676d6c";

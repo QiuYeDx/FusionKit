@@ -42,6 +42,16 @@ export class LocalSubtitleModelIpcBridge {
             ),
           );
         },
+        [LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.startResourceInstall]: (
+          request: unknown,
+          context: LocalSubtitleIpcHandlerContext,
+        ) => {
+          this.#session.ensureEvents(context);
+          const { resourceId } = request as { readonly resourceId: string };
+          return localSubtitleIpcSuccess(
+            this.#manager.startResourceInstall(context.owner, resourceId),
+          );
+        },
         [LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.cancelResourceJob]: (
           request: unknown,
           context: LocalSubtitleIpcHandlerContext,
@@ -50,6 +60,19 @@ export class LocalSubtitleModelIpcBridge {
           const { jobId } = request as { readonly jobId: string };
           return localSubtitleIpcSuccess(
             this.#manager.cancelResourceJob(context.owner, jobId),
+          );
+        },
+        [LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.deleteManagedResource]: async (
+          request: unknown,
+          context: LocalSubtitleIpcHandlerContext,
+        ) => {
+          this.#session.ensureEvents(context);
+          const { resourceId } = request as { readonly resourceId: string };
+          return localSubtitleIpcSuccess(
+            await this.#manager.deleteManagedResource(
+              context.owner,
+              resourceId,
+            ),
           );
         },
       }),

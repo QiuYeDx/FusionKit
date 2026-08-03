@@ -51,6 +51,40 @@ afterEach(async () => {
 });
 
 describe("LocalSubtitleJobManager", () => {
+  it("reports pending and queued model usage to resource deletion guards", async () => {
+    const resolution = deferred<void>();
+    const harness = await createHarness({
+      executor: executor(async (context) => successfulExecution(context)),
+      modelResolutionGate: resolution.promise,
+    });
+    const request = await harness.createRequest(harness.fileToken);
+    const enqueue = harness.manager.enqueue(OWNER_A, request);
+    await waitFor(() => harness.modelResolver.resolveManagedModel.mock.calls.length === 1);
+
+    expect(
+      harness.manager.isManagedModelBusy(
+        LOCAL_SUBTITLE_PRODUCTION_CONTRACT.launchModel.id,
+      ),
+    ).toBe(true);
+    resolution.resolve();
+    const batch = await enqueue;
+    expect(
+      harness.manager.isManagedModelBusy(
+        LOCAL_SUBTITLE_PRODUCTION_CONTRACT.launchModel.id,
+      ),
+    ).toBe(true);
+
+    expect(harness.manager.cancelBatch(OWNER_A, batch.batchId)).toMatchObject({
+      cancelledTaskIds: ["task-1"],
+    });
+    await harness.manager.waitForIdle();
+    expect(
+      harness.manager.isManagedModelBusy(
+        LOCAL_SUBTITLE_PRODUCTION_CONTRACT.launchModel.id,
+      ),
+    ).toBe(false);
+  });
+
   it("atomically publishes a frozen CPU no-VAD batch before execution", async () => {
     const harness = await createHarness({
       executor: executor(async (context) => successfulExecution(context)),
@@ -3228,6 +3262,7 @@ interface HarnessOptions {
   readonly leaseRenewalIntervalMs?: number;
   readonly manualLeaseRenewal?: boolean;
   readonly cancelLeaseRenewal?: () => void;
+  readonly modelResolutionGate?: Promise<void>;
 }
 
 async function createHarness(options: HarnessOptions) {
@@ -3267,7 +3302,10 @@ async function createHarness(options: HarnessOptions) {
     sha256: LOCAL_SUBTITLE_PRODUCTION_CONTRACT.launchModel.sha256,
   });
   const modelResolver = {
-    resolveManagedModel: vi.fn(async () => managedModel),
+    resolveManagedModel: vi.fn(async () => {
+      await options.modelResolutionGate;
+      return managedModel;
+    }),
   };
   const runtimeVerifier = {
     verifyRuntime: options.verifyRuntime ??
