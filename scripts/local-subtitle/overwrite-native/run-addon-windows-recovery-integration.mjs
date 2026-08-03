@@ -199,7 +199,7 @@ export async function runWindowsOverwriteRecoveryIntegration(options = {}) {
     assert.equal(serialized.includes("victim-"), false);
     return report;
   } finally {
-    await rm(workRoot, { recursive: true, force: true });
+    await rm(workRoot, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
   }
 }
 
