@@ -825,6 +825,8 @@ native backend 必须满足：
 
 截至2026-08-03，本工作包已完成`MODEL-002A`代码checkpoint：首发model manifest新增exact redirect host allowlist；main-only下载器实现HTTPS逐跳校验、Range/If-Range续传、no-Range/validator安全重启、part/meta fsync绑定、字节上限与取消清理。ModelManager复用既有ResourceJob接通download→GGML verify→CPU load smoke→atomic commit及fixed install/delete IPC；app-scoped同步claim、JobManager pending/queued usage和Supervisor resident model共同关闭跨owner竞态与busy delete。聚焦7 files / 145 tests、local-subtitle 43 passed + 2 skipped files / 968 passed + 2 skipped tests、TypeScript、manifest 0/0与validator 17/17通过。真实1.08 GB下载、VAD、accelerator安全解包/probe、update/rollback、启动孤儿清理和FE-002未完成，顶层状态保持`进行中`。
 
+`MODEL-002B1`继续关闭了CUDA archive的高风险component边界：source manifest新增exact GitHub redirect allowlist，production parser以独立digest锁定20个selected artifact和24个excluded leaf；main-only guard在同一已打开archive句柄上先做完整SHA，再以两遍central-directory流程确保所有entry通过后才创建不可执行staging。absolute/`..`/unknown/case-insensitive duplicate/symlink/reparse/unsupported compression/单项与总量越界/zip bomb均fail closed，只写出selected file并逐项复核size/SHA、fsync、no-clobber和取消清理。聚焦2 files / 14 tests、runtime/manifest Node 32/32、TypeScript、manifest 0/0通过。该checkpoint不接public ResourceJob/install，不执行真实678 MB archive、PE/probe、原子版本提交/旧pack回滚，也不改变CUDA分发许可`QA-005`边界；`MODEL-002`保持`进行中`。
+
 ### BE-002：Job Manager、批量队列与失败隔离（已完成）
 
 目标：串联授权、媒体、模型、runner、整形和导出，形成单 GPU 串行批处理。
@@ -1242,6 +1244,6 @@ git diff --check
 
 ## 12. 下一步建议
 
-`PRE-001`～`PRE-006`、`CORE-001`～`CORE-004`、`NATIVE-001`～`NATIVE-002`、`BE-001`～`BE-002`、`MEDIA-001`、`SUB-001`～`SUB-002`、`FS-TXN-001`、`MODEL-001`与`FE-001`已完成。39个顶层工作包中20个已完成、18个未开始，`MODEL-002`进行中。下一步继续`MODEL-002B`的VAD或CUDA accelerator可信安装、安全解包、probe与回滚，再接`FE-002`资源管理UI。真实1.08 GB下载、NSIS生命周期、CUDA分发许可、M2产品E2E与其余QA仍按原边界闭环；M3继续等待`MODEL-002`、`BE-003`与`FE-002`～`FE-004`。
+`PRE-001`～`PRE-006`、`CORE-001`～`CORE-004`、`NATIVE-001`～`NATIVE-002`、`BE-001`～`BE-002`、`MEDIA-001`、`SUB-001`～`SUB-002`、`FS-TXN-001`、`MODEL-001`与`FE-001`已完成。39个顶层工作包中20个已完成、18个未开始，`MODEL-002`进行中。`MODEL-002B1`已关闭CUDA archive manifest与安全解包component；下一步继续`MODEL-002B2`的ResourceJob/install、PE/probe、原子版本提交与旧pack回滚，再补VAD并接`FE-002`资源管理UI。真实大文件下载、NSIS生命周期、CUDA分发许可、M2产品E2E与其余QA仍按原边界闭环；M3继续等待`MODEL-002`、`BE-003`与`FE-002`～`FE-004`。
 
 模型和 official runtime 继续只下载到 Git 忽略目录，hash 只作来源/完整性门禁。系统 PATH 中的 FFmpeg 仍只作开发 PoC，不是发行资源或最终用户前置条件。正式开发继续由 Node 直接管理 official server；Windows 无需 CMake/MSVC，FusionKit C++ runner 不是当前方案依赖。Windows 保持 unsigned personal profile；QA-005 在分发前核对 notices/source offers/NVIDIA DLL，但不会要求证书或信任库变更。

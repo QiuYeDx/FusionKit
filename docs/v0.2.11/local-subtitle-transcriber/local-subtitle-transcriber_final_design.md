@@ -4,7 +4,7 @@
 >
 > Feature Slug：`local-subtitle-transcriber`
 >
-> 状态：39个顶层工作包中20个已完成、18个未开始、1个进行中。`MODEL-002A`已接通首发模型的allowlisted HTTPS下载、Range续传、no-Range/validator重启、ResourceJob/IPC、跨owner锁、取消清理与busy delete；顶层`MODEL-002`仍等待VAD、CUDA accelerator、更新/回滚、启动孤儿清理与真实1.08 GB下载。`NATIVE-002`、`FS-TXN-001`、`BE-002`与`FE-001`已按职责结项；不提前声明M2 packaged/目标机验收或M3完成
+> 状态：39个顶层工作包中20个已完成、18个未开始、1个进行中。`MODEL-002A`已接通首发模型下载/删除，`MODEL-002B1`已完成CUDA archive frozen manifest与安全解包组件；顶层`MODEL-002`仍等待VAD、accelerator ResourceJob/install/probe/原子提交回滚、启动孤儿清理与真实大文件下载。`NATIVE-002`、`FS-TXN-001`、`BE-002`与`FE-001`已按职责结项；不提前声明M2 packaged/目标机验收或M3完成
 >
 > 产品定位：使用本地算力把批量音频/视频转成可直接翻译的 SRT/LRC 字幕
 >
@@ -103,6 +103,8 @@
 > 2026-08-03 FE-001结项：新增独立`/tools/subtitle/local-transcriber`工具注册与四语言页面，在进入页面时只probe runtime/resource，不加载模型；只选择already-ready managed model并提交CPU/no-VAD/SRT/index/export-only单文件请求，复用既有subscribe-before-snapshot session runtime显示阶段进度、取消并通过opaque artifact ref reveal。5 files / 28 tests、TypeScript、四语言各1577 keys及usage、renderer/main/preload三段Vite test build通过。GPU/VAD/model download/batch/LRC/translation不作为可用控件；本轮未做真实模型Electron产品E2E，M2 packaged/目标机验收仍不提前声明。
 
 > 2026-08-03 MODEL-002A checkpoint：model manifest新增exact redirect host allowlist；main-only下载器完成HTTPS逐跳门禁、Range/If-Range续传、no-Range/validator重启、part/meta fsync绑定、上限与取消清理。ModelManager复用既有ResourceJob完成download→GGML verify→CPU load smoke→atomic managed commit，fixed install/delete IPC已接通；app-scoped claim不泄露其他owner job，JobManager pending/queued usage与Supervisor resident model共同阻止busy delete。local-subtitle 43 files / 968 passed + 2 skipped、TypeScript、manifest 0/0与validator 17/17通过。该checkpoint不包含VAD、accelerator、update/rollback、启动孤儿扫描、真实1.08 GB下载或FE-002，故`MODEL-002`保持进行中。
+
+> 2026-08-03 MODEL-002B1 checkpoint：Windows CUDA pack source archive新增exact GitHub redirect allowlist并由strict production manifest绑定archive、20个selected PE与24个excluded leaf。main-only archive guard使用`yauzl 2.10.0`在同一已打开句柄上先做全量SHA，再以独立random-access reader两遍读取central directory；在创建staging前拒绝absolute/`..`/unknown/case-insensitive duplicate/symlink/reparse/unsupported compression/单项与总量越界/zip bomb，随后只流式写出selected files并逐项校验size/SHA、fsync、no-clobber与取消清理。聚焦2 files / 14 tests、runtime/manifest Node 32/32、TypeScript、manifest 0/0通过。真实678 MB archive、ResourceJob/install、PE/probe、原子版本提交/旧pack回滚、VAD与FE-002仍未完成，故`MODEL-002`继续为`进行中`。
 
 > 2026-07-30 runtime fixture portability fix：3个测试文件改用宿主原生绝对路径、真实临时`where.exe`与canonical temp root，不修改生产校验；加入002C packaged tests后的完整runtime Node为123 passed、0 failed、1 expected Windows-only skip。
 

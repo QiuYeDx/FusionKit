@@ -113,6 +113,10 @@ const EXPECTED_CONTRACT = {
     fileName: "whisper-cublas-12.4.0-bin-x64.zip",
     downloadUrl:
       "https://github.com/ggml-org/whisper.cpp/releases/download/v1.9.1/whisper-cublas-12.4.0-bin-x64.zip",
+    allowedDownloadHosts: [
+      "github.com",
+      "release-assets.githubusercontent.com",
+    ],
     byteSize: 677887125,
     sha256:
       "106a2030eff8998e4ef320fe72e263a78449e9040386ee27c41ea80b001b601b",
