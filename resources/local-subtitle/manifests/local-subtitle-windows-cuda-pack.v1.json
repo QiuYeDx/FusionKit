@@ -49,12 +49,17 @@
     },
     "model002": {
       "owner": "MODEL-002",
-      "downloadInstallUpdateImplementedByThisStager": false,
-      "excludedOperations": [
+      "resourceJobLifecycleImplemented": true,
+      "implementedOperations": [
         "download",
         "install",
         "update",
-        "rollback"
+        "rollback",
+        "delete"
+      ],
+      "remainingGates": [
+        "target_gpu_backend_verification",
+        "license_closure"
       ]
     }
   },

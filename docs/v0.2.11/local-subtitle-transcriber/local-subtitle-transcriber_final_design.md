@@ -4,7 +4,7 @@
 >
 > Feature Slug：`local-subtitle-transcriber`
 >
-> 状态：39个顶层工作包中20个已完成、18个未开始、1个进行中。`MODEL-002A`已接通首发模型下载/删除，`MODEL-002B1`已完成CUDA archive frozen manifest与安全解包组件；顶层`MODEL-002`仍等待VAD、accelerator ResourceJob/install/probe/原子提交回滚、启动孤儿清理与真实大文件下载。`NATIVE-002`、`FS-TXN-001`、`BE-002`与`FE-001`已按职责结项；不提前声明M2 packaged/目标机验收或M3完成
+> 状态：39个顶层工作包中20个已完成、18个未开始、1个进行中。`MODEL-002A`已接通首发模型下载/删除，`MODEL-002B1`～`MODEL-002B2`已完成CUDA archive安全解包与资源生命周期，`MODEL-002C`已完成冻结VAD manifest、managed lifecycle与CPU load smoke；顶层`MODEL-002`仍等待启动孤儿清理与真实大文件下载。`NATIVE-002`、`FS-TXN-001`、`BE-002`与`FE-001`已按职责结项；不提前声明M2 packaged/目标机验收或M3完成
 >
 > 产品定位：使用本地算力把批量音频/视频转成可直接翻译的 SRT/LRC 字幕
 >
@@ -105,6 +105,10 @@
 > 2026-08-03 MODEL-002A checkpoint：model manifest新增exact redirect host allowlist；main-only下载器完成HTTPS逐跳门禁、Range/If-Range续传、no-Range/validator重启、part/meta fsync绑定、上限与取消清理。ModelManager复用既有ResourceJob完成download→GGML verify→CPU load smoke→atomic managed commit，fixed install/delete IPC已接通；app-scoped claim不泄露其他owner job，JobManager pending/queued usage与Supervisor resident model共同阻止busy delete。local-subtitle 43 files / 968 passed + 2 skipped、TypeScript、manifest 0/0与validator 17/17通过。该checkpoint不包含VAD、accelerator、update/rollback、启动孤儿扫描、真实1.08 GB下载或FE-002，故`MODEL-002`保持进行中。
 
 > 2026-08-03 MODEL-002B1 checkpoint：Windows CUDA pack source archive新增exact GitHub redirect allowlist并由strict production manifest绑定archive、20个selected PE与24个excluded leaf。main-only archive guard使用`yauzl 2.10.0`在同一已打开句柄上先做全量SHA，再以独立random-access reader两遍读取central directory；在创建staging前拒绝absolute/`..`/unknown/case-insensitive duplicate/symlink/reparse/unsupported compression/单项与总量越界/zip bomb，随后只流式写出selected files并逐项校验size/SHA、fsync、no-clobber与取消清理。聚焦2 files / 14 tests、runtime/manifest Node 32/32、TypeScript、manifest 0/0通过。真实678 MB archive、ResourceJob/install、PE/probe、原子版本提交/旧pack回滚、VAD与FE-002仍未完成，故`MODEL-002`继续为`进行中`。
+
+> 2026-08-03 MODEL-002B2 checkpoint：新增Windows x64限定的`LocalSubtitleAcceleratorManager`，经既有managed-resource API与共享ResourceJob/session registry提供CUDA pack list/install/delete。安装复用allowlisted续传下载器和B1安全解包，在private downloads/staging/accelerators roots完成archive+展开占用预检、20个PE x64逐文件复核、最小环境下shell-free且有界的`whisper-server.exe --help` identity probe、versioned directory原子发布与post-commit全hash验证；新pack失败只回滚新目录，旧known pack只在新版本验证成功后隔离删除，删除失败保留identity receipt重试。不同版本操作按同一accelerator family同步串行，commit边界后的取消完成验证/清理，shutdown可重入并等待所有cleanup。accelerator manager 13/13、local-subtitle 46 passed + 2 skipped files / 995 passed + 2 skipped tests、TypeScript、三段Vite test build、manifest 0/0与runtime Node 25 passed + 1 skipped通过。真实678 MB archive、约1.2 GB展开、Windows executable/CUDA backend/GPU memory与许可closure未验证；VAD、启动孤儿清理和FE-002仍未完成，故`MODEL-002`继续为`进行中`。
+
+> 2026-08-03 MODEL-002C checkpoint：新增strict/deep-frozen VAD manifest，固定Silero v6.2.0 GGML来源、allowlisted URL、size/SHA、MIT与segment-only时间轴约束；`LocalSubtitleVadManager`经既有managed-resource API和共享ResourceJob完成private-root下载、exact tree/no-follow full-hash、同步claim、busy delete、identity-bound quarantine、atomic commit、post-commit复验与失败回滚。server process/supervisor新增`vad_load_smoke`，只允许verified CPU server + ready managed首发模型 + staged pinned VAD，固定`--vad-model --no-gpu`，readiness后立即退役且不能inference；缺少ready主模型时下载前失败并可重试。未新增public IPC，production仍不开放`vadEnabled=true`。VAD manager 7/7、server process/supervisor 71/71、local-subtitle 48 passed + 2 skipped files / 1008 passed + 2 skipped tests、TypeScript、manifest 0/0与diff通过。真实VAD网络/native smoke、启动孤儿清理和FE-002仍未完成，故`MODEL-002`继续为`进行中`。
 
 > 2026-07-30 runtime fixture portability fix：3个测试文件改用宿主原生绝对路径、真实临时`where.exe`与canonical temp root，不修改生产校验；加入002C packaged tests后的完整runtime Node为123 passed、0 failed、1 expected Windows-only skip。
 
@@ -1015,6 +1019,8 @@ accelerator pack 若使用 archive，必须先下载到不可执行 staging，�
 
 model/VAD manifest v1 的每个可下载资源都必须包含 `id`、`resourceType`、`fileName`、`format`、`engineCompatibility`、exact `sourceRevision`/HTTPS URL、`byteSize`、SHA-256、license 和 `bundledInInstaller=false`。model 另含 multilingual/quantization/default/quality label；VAD 另含 default、token-timestamp policy 和 timeline policy。renderer 只提交 `resourceId`，不能覆盖 URL、hash 或目标路径。
 
+VAD 安装在 exact size/SHA 验证后还必须执行独立 `vad_load_smoke`：使用已验证的 managed 首发模型与 staged VAD，通过 CPU official server 加载后立即退役，不执行 inference，也不允许把 staged VAD 当作普通 managed identity 复用。首发模型尚未 ready 时，VAD job 保留可重试失败状态而不能只凭 hash 标记 ready；smoke 与后续推理都固定 `token_timestamps=false`，运行输出只允许 mapped segment timeline。VAD 原子提交后才能由 main 解析为 managed identity，renderer 始终看不到文件路径。
+
 `tiny`、`base`、`small`、`medium` 等其他 Whisper GGML 模型可在 runner 兼容、manifest 来源/哈希和真实质量验收完成后加入；在此之前不得笼统宣称支持所有 Whisper 或 whisper.cpp 模型。用户导入的兼容 GGML 模型通过 header、架构、大小、语言能力和 load smoke 后可以形成 managed model，但“允许自定义导入”不等于该型号自动进入 FusionKit 内置下载清单。
 
 模型生命周期固定为：
@@ -1489,7 +1495,7 @@ resources/local-subtitle/
 
 ## 18. 分期实施建议（高层阶段）
 
-本节保留架构层面的阶段划分；可认领的工作包、依赖、状态、验证和实施记录以 `local-subtitle-transcriber_execution_plan.md` 为唯一执行台账。Execution Plan 已于 2026-07-16 建立，当前39个顶层工作包中20个已完成、19个未开始。M1的schema、resource staging、IPC/capability、renderer session、official server contract、Supervisor生命周期、media normalization/PCM proof、canonical post-processing、标准字幕原子产物和managed model合同均已冻结。`BE-002`已完成最多100文件的CPU/no-VAD批次、失败隔离、SRT/LRC、custom/source及index/conditional-overwrite；`FS-TXN-001A`～`FS-TXN-001J`完成两平台transaction/recovery；`NATIVE-002A`～`NATIVE-002D`完成两平台canonical、target smoke与真实packaged component；`FE-001`已接通用户可见的单文件CPU→SRT renderer代码路径。Windows personal distribution的unsigned profile已明确；NSIS生命周期归`QA-003`，真实模型Electron产品E2E归QA，CUDA delivery/notice closure归`MODEL-002`/`QA-005`，Developer ID、公证和Gatekeeper accepted归`QA-004`。
+本节保留架构层面的阶段划分；可认领的工作包、依赖、状态、验证和实施记录以 `local-subtitle-transcriber_execution_plan.md` 为唯一执行台账。Execution Plan 已于 2026-07-16 建立，当前39个顶层工作包中20个已完成、18个未开始、1个进行中。M1的schema、resource staging、IPC/capability、renderer session、official server contract、Supervisor生命周期、media normalization/PCM proof、canonical post-processing、标准字幕原子产物和managed model合同均已冻结。`BE-002`已完成最多100文件的CPU/no-VAD批次、失败隔离、SRT/LRC、custom/source及index/conditional-overwrite；`FS-TXN-001A`～`FS-TXN-001J`完成两平台transaction/recovery；`NATIVE-002A`～`NATIVE-002D`完成两平台canonical、target smoke与真实packaged component；`FE-001`已接通用户可见的单文件CPU→SRT renderer代码路径。Windows personal distribution的unsigned profile已明确；NSIS生命周期归`QA-003`，真实模型Electron产品E2E归QA，CUDA delivery/notice closure归`MODEL-002`/`QA-005`，Developer ID、公证和Gatekeeper accepted归`QA-004`。
 
 其中本节原先汇总为一个 `PRE-001` 的跨平台 PoC，在 Execution Plan 中拆为 `PRE-001`～`PRE-006`，以避免把基准、CPU runner、Windows CUDA、macOS Metal、FFmpeg/打包许可和最终技术冻结塞进一个无法单会话闭环的工作包。其余高层包也在执行计划中按安全边界和可验证纵向切片进一步拆分。
 
@@ -1612,6 +1618,7 @@ PRE-001 已解锁 runtime 开发，PRE-003 已确定 Windows CPU/CUDA，PRE-004 
 - 负责模型下载/续传、磁盘空间与删除生命周期；首发内置下载仍只暴露 exact `large-v3-q5_0`。
 - 负责 VAD manifest/下载/校验，以及 accelerator pack 的可信下载、安全解包、probe、原子提交和回滚。
 - 复用 MODEL-001 的 `ResourceJob` 与 session revision registry，不另造下载状态机。
+- `MODEL-002A`、`MODEL-002B1`～`MODEL-002B2`与`MODEL-002C`已关闭首发模型、Windows CUDA pack和VAD代码生命周期；剩余实现为启动受控root的孤儿下载/staging清理，真实大文件、目标GPU和许可仍由后续验收闭环。
 
 ### MEDIA-001：媒体规范化（已完成）
 
@@ -1824,7 +1831,7 @@ Electron 视觉/交互验证必须等待 preload loading 完全退出。若启�
 
 `PRE-001`～`PRE-006`、`CORE-001`～`CORE-004`、`NATIVE-001`～`NATIVE-002`、`BE-001`～`BE-002`、`MEDIA-001`、`SUB-001`～`SUB-002`、`FS-TXN-001`与`MODEL-001`已完成，M1的共享schema、resource manifest/resolver/staging、preload/IPC/capability、renderer session runtime、official server transport/process contract、Supervisor生命周期、media normalization/PCM proof、canonical post-processing、标准字幕原子产物和managed model合同已冻结。唯一production decision record是`poc/pre006-production-decision.json`，后续实现不得静默更换引擎、平台矩阵、首发模型或media acquisition policy；SUB-001自有policy也不得伪装为PRE-006字段。
 
-1. `FE-001`代码职责已完成；下一步可认领`MODEL-002`，负责模型与CUDA pack的下载、安装、更新、回滚和资源任务，或认领`BE-003`/`FE-002`补环境诊断与资源管理UI。
+1. `MODEL-002C`代码职责已完成；下一步继续`MODEL-002`的启动受控root `.part`/staging孤儿清理，之后进入`FE-002`环境诊断与资源管理UI。
 2. 使用真实FFmpeg、official server、PRE-006模型与Electron页面完成单文件SRT/reveal产品E2E后，再记录M2 packaged/目标机验收；该QA证据不反向扩大`FE-001`职责。
 3. Developer ID、公证和 Gatekeeper accepted 只由 `QA-004` 验收 macOS 分发产物；QA-005 完成分发前第三方 notices/source-offer/NVIDIA DLL 核对。
 4. 仍无需 FusionKit 自写 C++ runner；只有 official server 出现产品必需能力的真实硬缺口，才通过独立工作包重新评估 native bridge。

@@ -31,6 +31,11 @@ import {
 import type { LocalSubtitleManagedResourceSummary } from "@/type/localSubtitleIpc";
 import type { LocalSubtitleOwnerKey } from "./authorizations";
 import {
+  LocalSubtitleAcceleratorManager,
+  LocalSubtitleAcceleratorManagerError,
+  type LocalSubtitleAcceleratorManagerOptions,
+} from "./accelerator-manager";
+import {
   verifyLocalSubtitleGgmlModelFile,
   verifyLocalSubtitleGgmlModelHeader,
   type LocalSubtitleGgmlModelVerification,
@@ -71,6 +76,12 @@ import {
   LocalSubtitleSessionRegistryError,
   type LocalSubtitleResourceEventListener,
 } from "./session-registry";
+import {
+  LocalSubtitleVadManager,
+  LocalSubtitleVadManagerError,
+  type LocalSubtitleVadLoadSmokeTarget,
+  type LocalSubtitleVadManagerOptions,
+} from "./vad-manager";
 
 const READ_ONLY_NOFOLLOW_FLAGS =
   fsConstants.O_RDONLY | (fsConstants.O_NOFOLLOW ?? 0);
@@ -106,8 +117,13 @@ export class LocalSubtitleModelManagerError extends Error {
       | "model_corrupt"
       | "model_download_failed"
       | "model_disk_full"
+      | "unsupported_platform"
+      | "unsupported_architecture"
+      | "accelerator_unavailable"
       | "resource_not_allowed"
       | "resource_busy"
+      | "resource_signature_invalid"
+      | "insufficient_disk"
       | "cancel_failed"
     >,
     message: string,
@@ -125,12 +141,35 @@ export interface LocalSubtitleModelLoadSmokeTarget {
   ): Promise<void>;
 }
 
+export type LocalSubtitleModelResourceTarget = LocalSubtitleModelLoadSmokeTarget &
+  Partial<LocalSubtitleVadLoadSmokeTarget>;
+
 export interface LocalSubtitleModelManagerOptions {
   readonly managedResourceRoot: string;
   readonly runtimeEnvironment: LocalSubtitleResourceEnvironment;
-  readonly supervisor: LocalSubtitleModelLoadSmokeTarget;
+  readonly supervisor: LocalSubtitleModelResourceTarget;
   readonly sessionRegistry?: LocalSubtitleSessionRegistry;
   readonly resourceJobs?: LocalSubtitleResourceJobManager;
+  readonly acceleratorManager?: false;
+  readonly acceleratorOptions?: Omit<
+    LocalSubtitleAcceleratorManagerOptions,
+    | "managedResourceRoot"
+    | "platform"
+    | "arch"
+    | "resourceJobs"
+    | "isResourceBusy"
+  >;
+  readonly vadManager?: false;
+  readonly vadOptions?: Omit<
+    LocalSubtitleVadManagerOptions,
+    | "managedResourceRoot"
+    | "platform"
+    | "resourceJobs"
+    | "supervisor"
+    | "resolveSmokeModel"
+    | "verifyServerRuntime"
+    | "isResourceBusy"
+  >;
   readonly modelCatalog?: readonly LocalSubtitleModelManifestEntry[];
   readonly verifyModelFile?: typeof verifyLocalSubtitleGgmlModelFile;
   readonly verifyServerRuntime?: () => Promise<LocalSubtitleVerifiedRuntimeBundle>;
@@ -249,6 +288,8 @@ export class LocalSubtitleModelManager {
   readonly #supervisor: LocalSubtitleModelLoadSmokeTarget;
   readonly #registry: LocalSubtitleSessionRegistry;
   readonly #resourceJobs: LocalSubtitleResourceJobManager;
+  readonly #acceleratorManager: LocalSubtitleAcceleratorManager | undefined;
+  readonly #vadManager: LocalSubtitleVadManager | undefined;
   readonly #catalog: readonly LocalSubtitleModelManifestEntry[];
   readonly #verifyModelFile: typeof verifyLocalSubtitleGgmlModelFile;
   readonly #verifyServerRuntime: () => Promise<LocalSubtitleVerifiedRuntimeBundle>;
@@ -311,6 +352,20 @@ export class LocalSubtitleModelManager {
           : { jobIdFactory: options.jobIdFactory }),
         sessionRegistryOwnership,
       });
+    const platform = options.runtimeEnvironment.platform ?? process.platform;
+    const arch = options.runtimeEnvironment.arch ?? process.arch;
+    this.#acceleratorManager = options.acceleratorManager === false
+      ? undefined
+      : platform === "win32" && arch === "x64"
+        ? new LocalSubtitleAcceleratorManager({
+            ...options.acceleratorOptions,
+            managedResourceRoot: this.#managedResourceRoot,
+            platform,
+            arch,
+            resourceJobs: this.#resourceJobs,
+            isResourceBusy: options.isResourceBusy,
+          })
+        : undefined;
     this.#catalog = parseLocalSubtitleModelCatalog(
       options.modelCatalog ?? LOCAL_SUBTITLE_MODEL_MANIFEST.models,
     );
@@ -335,6 +390,22 @@ export class LocalSubtitleModelManager {
     this.#downloadResource = options.downloadResource ??
       downloadLocalSubtitleResource;
     this.#isResourceBusy = options.isResourceBusy ?? (() => false);
+    const vadSupervisor = hasVadLoadSmoke(options.supervisor)
+      ? options.supervisor
+      : undefined;
+    this.#vadManager = options.vadManager === false || !vadSupervisor
+      ? undefined
+      : new LocalSubtitleVadManager({
+          ...options.vadOptions,
+          managedResourceRoot: this.#managedResourceRoot,
+          platform,
+          resourceJobs: this.#resourceJobs,
+          supervisor: vadSupervisor,
+          resolveSmokeModel: (signal) =>
+            this.resolveManagedModel(this.#catalog[0]!.id, signal),
+          verifyServerRuntime: this.#verifyServerRuntime,
+          isResourceBusy: this.#isResourceBusy,
+        });
   }
 
   importModel(
@@ -365,6 +436,20 @@ export class LocalSubtitleModelManager {
   ): LocalSubtitleResourceJobSummary {
     this.#assertManagerAvailable();
     this.#assertOwnerAvailable(owner);
+    if (this.#vadManager?.hasResourceId(resourceId)) {
+      try {
+        return this.#vadManager.startResourceInstall(owner, resourceId);
+      } catch (error) {
+        throw normalizeVadManagerError(error);
+      }
+    }
+    if (this.#acceleratorManager?.hasResourceId(resourceId)) {
+      try {
+        return this.#acceleratorManager.startResourceInstall(owner, resourceId);
+      } catch (error) {
+        throw normalizeAcceleratorManagerError(error);
+      }
+    }
     const model = this.#resolveCatalogEntry(resourceId);
     return this.#startClaimedModelJob(
       owner,
@@ -379,6 +464,20 @@ export class LocalSubtitleModelManager {
   ): Promise<Readonly<{ deleted: boolean }>> {
     this.#assertManagerAvailable();
     this.#assertOwnerAvailable(owner);
+    if (this.#vadManager?.hasResourceId(resourceId)) {
+      try {
+        return await this.#vadManager.deleteManagedResource(resourceId);
+      } catch (error) {
+        throw normalizeVadManagerError(error);
+      }
+    }
+    if (this.#acceleratorManager?.hasResourceId(resourceId)) {
+      try {
+        return await this.#acceleratorManager.deleteManagedResource(resourceId);
+      } catch (error) {
+        throw normalizeAcceleratorManagerError(error);
+      }
+    }
     const model = this.#resolveCatalogEntry(resourceId);
     this.#claimModelOperation(model.id);
     let completeDeletion!: () => void;
@@ -431,8 +530,8 @@ export class LocalSubtitleModelManager {
   ): Promise<readonly LocalSubtitleManagedResourceSummary[]> {
     this.#assertManagerAvailable();
     this.#assertOwnerAvailable(owner);
-    return Promise.all(
-      this.#catalog.map(async (model) => {
+    const [models, vad, accelerators] = await Promise.all([
+      Promise.all(this.#catalog.map(async (model) => {
         const base = {
           resourceId: model.id,
           resourceType: "model" as const,
@@ -477,8 +576,11 @@ export class LocalSubtitleModelManager {
             errorCode: modelErrorCode(error),
           });
         }
-      }),
-    );
+      })),
+      this.#vadManager?.listManagedResources(signal) ?? Promise.resolve([]),
+      this.#acceleratorManager?.listManagedResources(signal) ?? Promise.resolve([]),
+    ]);
+    return Object.freeze([...models, ...vad, ...accelerators]);
   }
 
   async resolveManagedModel(
@@ -505,6 +607,24 @@ export class LocalSubtitleModelManager {
       byteSize: verification.byteSize,
       sha256: verification.sha256,
     });
+  }
+
+  async resolveManagedVad(
+    resourceId: string,
+    signal?: AbortSignal,
+  ): Promise<LocalSubtitleServerManagedResourceIdentity<"managed">> {
+    this.#assertManagerAvailable();
+    if (!this.#vadManager?.hasResourceId(resourceId)) {
+      throw managerFailure(
+        "resource_not_allowed",
+        "The requested local subtitle VAD is not allowlisted.",
+      );
+    }
+    try {
+      return await this.#vadManager.resolveManagedVad(resourceId, signal);
+    } catch (error) {
+      throw normalizeVadManagerError(error);
+    }
   }
 
   releaseOwner(owner: LocalSubtitleOwnerKey): void {
@@ -557,6 +677,10 @@ export class LocalSubtitleModelManager {
           this.#resourceJobs.shutdown(),
           this.#waitForActiveVerifications(),
           this.#waitForActiveDeletions(),
+          ...(this.#acceleratorManager
+            ? [this.#acceleratorManager.shutdown()]
+            : []),
+          ...(this.#vadManager ? [this.#vadManager.shutdown()] : []),
         ]);
         const failure = results.find(
           (result): result is PromiseRejectedResult =>
@@ -578,6 +702,8 @@ export class LocalSubtitleModelManager {
     await this.#resourceJobs.waitForIdle();
     await this.#waitForActiveVerifications();
     await this.#waitForActiveDeletions();
+    await this.#acceleratorManager?.waitForIdle();
+    await this.#vadManager?.waitForIdle();
     await this.#retryOutstandingCleanup();
   }
 
@@ -2440,6 +2566,43 @@ function managerFailure(
   field?: string,
 ): LocalSubtitleModelManagerError {
   return new LocalSubtitleModelManagerError(code, message, field);
+}
+
+function normalizeAcceleratorManagerError(
+  error: unknown,
+): LocalSubtitleModelManagerError {
+  if (error instanceof LocalSubtitleAcceleratorManagerError) {
+    return managerFailure(error.localSubtitleCode, error.message);
+  }
+  if (error instanceof LocalSubtitleModelManagerError) return error;
+  throw error;
+}
+
+function hasVadLoadSmoke(
+  target: LocalSubtitleModelResourceTarget,
+): target is LocalSubtitleModelLoadSmokeTarget & LocalSubtitleVadLoadSmokeTarget {
+  return typeof target.smokeVadLoad === "function";
+}
+
+function normalizeVadManagerError(
+  error: unknown,
+): LocalSubtitleModelManagerError {
+  if (error instanceof LocalSubtitleModelManagerError) return error;
+  if (error instanceof LocalSubtitleVadManagerError) {
+    const code = error.localSubtitleCode;
+    if (
+      code === "owner_released" ||
+      code === "model_missing" ||
+      code === "resource_not_allowed" ||
+      code === "resource_busy" ||
+      code === "resource_signature_invalid" ||
+      code === "insufficient_disk" ||
+      code === "cancel_failed"
+    ) {
+      return managerFailure(code, error.message);
+    }
+  }
+  throw error;
 }
 
 function validateManagedRoot(value: string): string {

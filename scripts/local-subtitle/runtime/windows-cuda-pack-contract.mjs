@@ -141,8 +141,18 @@ const EXPECTED_CONTRACT = {
     },
     model002: {
       owner: "MODEL-002",
-      downloadInstallUpdateImplementedByThisStager: false,
-      excludedOperations: ["download", "install", "update", "rollback"],
+      resourceJobLifecycleImplemented: true,
+      implementedOperations: [
+        "download",
+        "install",
+        "update",
+        "rollback",
+        "delete",
+      ],
+      remainingGates: [
+        "target_gpu_backend_verification",
+        "license_closure",
+      ],
     },
   },
   licenses: [

@@ -39,6 +39,10 @@ type SmokeDescriptorOptions = Extract<
   CreateLocalSubtitleServerProcessDescriptorOptions,
   { readonly purpose: "model_load_smoke" }
 >;
+type VadSmokeDescriptorOptions = Extract<
+  CreateLocalSubtitleServerProcessDescriptorOptions,
+  { readonly purpose: "vad_load_smoke" }
+>;
 type InferenceLoadIdentity = Extract<
   LocalSubtitleServerLoadIdentity,
   { readonly purpose: "inference" }
@@ -64,6 +68,7 @@ describe("local subtitle server process contract", () => {
     expect(LOCAL_SUBTITLE_SERVER_PURPOSES).toEqual([
       "inference",
       "model_load_smoke",
+      "vad_load_smoke",
     ]);
     expect(LOCAL_SUBTITLE_SERVER_MANAGED_RESOURCE_STORAGES).toEqual([
       "managed",
@@ -226,6 +231,48 @@ describe("local subtitle server process contract", () => {
       { ...smoke, backend: "metal" },
       { ...smoke, model: { ...smoke.model, storage: "managed" } },
       { ...smoke, vadModel: inference.vadModel },
+    ]) {
+      expect(() =>
+        createLocalSubtitleServerProcessDescriptor(
+          invalid as unknown as CreateLocalSubtitleServerProcessDescriptorOptions,
+        ),
+      ).toThrow(LocalSubtitleServerContractError);
+    }
+  });
+
+  it("builds a CPU-only VAD staging smoke against a managed model", () => {
+    const options = vadSmokeOptions();
+    const descriptor = createLocalSubtitleServerProcessDescriptor(options);
+
+    expect(descriptor.loadIdentity).toMatchObject({
+      purpose: "vad_load_smoke",
+      backend: "cpu",
+      model: { storage: "managed", id: "large-v3-q5_0" },
+      vadModel: {
+        storage: "managed_staging",
+        id: LOCAL_SUBTITLE_PRODUCTION_CONTRACT.vad.id,
+      },
+      process: { noGpu: true },
+    });
+    expect(descriptor.args).toContain(options.model.absolutePath);
+    expect(descriptor.args).toContain(options.vadModel.absolutePath);
+    expect(descriptor.args.filter((value) => value === "--vad-model")).toEqual([
+      "--vad-model",
+    ]);
+    expect(descriptor.args.filter((value) => value === "--no-gpu")).toEqual([
+      "--no-gpu",
+    ]);
+    expectDeeplyFrozen(descriptor);
+  });
+
+  it("rejects VAD smoke identities outside the pinned storage contract", () => {
+    const smoke = vadSmokeOptions();
+    for (const invalid of [
+      { ...smoke, backend: "metal" },
+      { ...smoke, model: { ...smoke.model, storage: "managed_staging" } },
+      { ...smoke, vadModel: { ...smoke.vadModel, storage: "managed" } },
+      { ...smoke, vadModel: { ...smoke.vadModel, id: "other-vad" } },
+      { ...smoke, vadModel: { ...smoke.vadModel, sha256: HASH_C } },
     ]) {
       expect(() =>
         createLocalSubtitleServerProcessDescriptor(
@@ -632,6 +679,34 @@ function smokeOptions(
       absolutePath: path.join(root.managed, "model-staging", "model.bin"),
       byteSize: 1_081_140_203,
       sha256: HASH_B,
+    },
+    threads: 1,
+    sessionRoot: root.session,
+    emptyPublicDirectory: root.public,
+    temporaryDirectory: root.temp,
+  };
+  return { ...base, ...overrides };
+}
+
+function vadSmokeOptions(
+  overrides: Partial<VadSmokeDescriptorOptions> = {},
+): VadSmokeDescriptorOptions {
+  const root = roots();
+  const inference = validOptions({ backend: "cpu" });
+  const base: VadSmokeDescriptorOptions = {
+    endpoint: endpointFixture(),
+    verifiedRuntime,
+    serverArtifactId: SERVER_ARTIFACT_ID,
+    purpose: "vad_load_smoke",
+    backend: "cpu",
+    managedResourceRoot: root.managed,
+    model: inference.model,
+    vadModel: {
+      storage: "managed_staging",
+      id: LOCAL_SUBTITLE_PRODUCTION_CONTRACT.vad.id,
+      absolutePath: path.join(root.managed, "vad-staging", "vad.bin"),
+      byteSize: 885_098,
+      sha256: LOCAL_SUBTITLE_PRODUCTION_CONTRACT.vad.sha256,
     },
     threads: 1,
     sessionRoot: root.session,

@@ -25,6 +25,7 @@ import {
   type LocalSubtitleServerHttpClientLike,
   type LocalSubtitleServerModelLoadSmokeOptions,
   type LocalSubtitleServerSupervisorLoadOptions,
+  type LocalSubtitleServerVadLoadSmokeOptions,
 } from "../../electron/main/local-subtitle/server-supervisor";
 import {
   verifyLocalSubtitleRuntimeBundle,
@@ -712,6 +713,39 @@ describe("LocalSubtitleServerSupervisor", () => {
       },
     });
     expect(harness.supervisor.snapshot).not.toHaveProperty("processEpoch");
+  });
+
+  it("retires a VAD load smoke with pinned staging VAD and no inference", async () => {
+    const child = new FakeChild({ closeOnSignal: "never" });
+    const client = new FakeHttpClient();
+    const harness = createHarness({ children: [child], clients: [client] });
+
+    const smoke = harness.supervisor.smokeVadLoad(
+      OWNER_A,
+      vadSmokeLoadOptions(),
+    );
+    await waitFor(() => child.killSignals.includes("SIGTERM"));
+
+    expect(client.readinessCalls).toBe(1);
+    expect(client.inferenceCalls).toBe(0);
+    expect(harness.supervisor.snapshot).toMatchObject({
+      purpose: "vad_load_smoke",
+      modelId: "large-v3-q5_0",
+      vadModelId: LOCAL_SUBTITLE_PRODUCTION_CONTRACT.vad.id,
+    });
+    expect(harness.spawnRecords[0]?.args).toEqual(expect.arrayContaining([
+      "--vad-model",
+      vadSmokeLoadOptions().vadModel.absolutePath,
+      "--no-gpu",
+    ]));
+
+    child.close(null, "SIGTERM");
+    await expect(smoke).resolves.toBeUndefined();
+    expect(harness.supervisor.snapshot).toMatchObject({
+      state: "unloaded",
+      leaseCount: 0,
+      activeRequest: false,
+    });
   });
 
   it("keeps smoke leases purpose-bound and incompatible with inference reuse", async () => {
@@ -1760,6 +1794,27 @@ function smokeLoadOptions(
       ),
       byteSize: 1_081_140_203,
       sha256: HASH_A,
+    },
+    threads: 1,
+    ...overrides,
+  };
+}
+
+function vadSmokeLoadOptions(
+  overrides: Partial<LocalSubtitleServerVadLoadSmokeOptions> = {},
+): LocalSubtitleServerVadLoadSmokeOptions {
+  return {
+    verifiedRuntime,
+    serverArtifactId: SERVER_ARTIFACT_ID,
+    purpose: "vad_load_smoke",
+    backend: "cpu",
+    model: managedModel("large-v3-q5_0", HASH_A),
+    vadModel: {
+      storage: "managed_staging",
+      id: LOCAL_SUBTITLE_PRODUCTION_CONTRACT.vad.id,
+      absolutePath: path.join(managedRoot(), "vad-staging", "vad.bin"),
+      byteSize: 885_098,
+      sha256: LOCAL_SUBTITLE_PRODUCTION_CONTRACT.vad.sha256,
     },
     threads: 1,
     ...overrides,

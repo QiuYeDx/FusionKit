@@ -66,9 +66,17 @@ test("records on-demand, unsigned, external-smoke, MODEL-002, and license bounda
   );
   assert.equal(WINDOWS_CUDA_PACK_CONTRACT.delivery.signatureKind, "unsigned");
   assert.equal(WINDOWS_CUDA_PACK_CONTRACT.acceptance.targetSmokeStatus, "pending");
+  assert.equal(
+    WINDOWS_CUDA_PACK_CONTRACT.acceptance.model002.resourceJobLifecycleImplemented,
+    true,
+  );
   assert.deepEqual(
-    WINDOWS_CUDA_PACK_CONTRACT.acceptance.model002.excludedOperations,
-    ["download", "install", "update", "rollback"],
+    WINDOWS_CUDA_PACK_CONTRACT.acceptance.model002.implementedOperations,
+    ["download", "install", "update", "rollback", "delete"],
+  );
+  assert.deepEqual(
+    WINDOWS_CUDA_PACK_CONTRACT.acceptance.model002.remainingGates,
+    ["target_gpu_backend_verification", "license_closure"],
   );
   assert.deepEqual(
     WINDOWS_CUDA_PACK_CONTRACT.licenses.map((license) => license.id),

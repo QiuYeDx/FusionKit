@@ -47,6 +47,7 @@ export type LocalSubtitleServerProcessEnvironment = Readonly<
 export const LOCAL_SUBTITLE_SERVER_PURPOSES = Object.freeze([
   "inference",
   "model_load_smoke",
+  "vad_load_smoke",
 ] as const);
 export type LocalSubtitleServerPurpose =
   (typeof LOCAL_SUBTITLE_SERVER_PURPOSES)[number];
@@ -116,6 +117,17 @@ export type LocalSubtitleServerLoadIdentity =
         processors: 1;
         noGpu: true;
       }>;
+    })
+  | (LocalSubtitleServerLoadIdentityBase & {
+      readonly purpose: "vad_load_smoke";
+      readonly backend: "cpu";
+      readonly model: LocalSubtitleServerManagedResourceIdentity<"managed">;
+      readonly vadModel: LocalSubtitleServerManagedResourceIdentity<"managed_staging">;
+      readonly process: Readonly<{
+        threads: number;
+        processors: 1;
+        noGpu: true;
+      }>;
     });
 
 interface CreateLocalSubtitleServerLoadIdentityOptionsBase {
@@ -137,6 +149,12 @@ export type CreateLocalSubtitleServerLoadIdentityOptions =
       readonly backend: "cpu";
       readonly model: LocalSubtitleServerManagedResourceIdentity<"managed_staging">;
       readonly vadModel?: never;
+    })
+  | (CreateLocalSubtitleServerLoadIdentityOptionsBase & {
+      readonly purpose: "vad_load_smoke";
+      readonly backend: "cpu";
+      readonly model: LocalSubtitleServerManagedResourceIdentity<"managed">;
+      readonly vadModel: LocalSubtitleServerManagedResourceIdentity<"managed_staging">;
     });
 
 export type CreateLocalSubtitleServerProcessDescriptorOptions =
@@ -260,6 +278,19 @@ export function createLocalSubtitleServerLoadIdentity(
         : { vadModel: { ...options.vadModel } }),
     });
   }
+  if (options.purpose === "vad_load_smoke") {
+    return deepFreeze({
+      ...common,
+      purpose: options.purpose,
+      backend: options.backend,
+      model: { ...options.model },
+      vadModel: { ...options.vadModel },
+      process: {
+        ...common.process,
+        noGpu: true,
+      },
+    });
+  }
   return deepFreeze({
     ...common,
     purpose: options.purpose,
@@ -305,7 +336,7 @@ export function createLocalSubtitleServerProcessDescriptor(
     String(loadIdentity.process.threads),
     "--processors",
     String(loadIdentity.process.processors),
-    ...(loadIdentity.purpose === "inference" &&
+    ...(loadIdentity.purpose !== "model_load_smoke" &&
       loadIdentity.vadModel !== undefined
       ? ["--vad-model", loadIdentity.vadModel.absolutePath]
       : []),
@@ -549,6 +580,25 @@ function validateLoadOptions(
       "model",
       "managed_staging",
     );
+  } else if (options.purpose === "vad_load_smoke") {
+    if (options.backend !== "cpu") {
+      throw invalidConfiguration(
+        "The local VAD load smoke must use the CPU backend.",
+      );
+    }
+    validateManagedResource(
+      options.model,
+      options.managedResourceRoot,
+      "model",
+      "managed",
+    );
+    validateManagedResource(
+      options.vadModel,
+      options.managedResourceRoot,
+      "VAD model",
+      "managed_staging",
+    );
+    validatePinnedVad(options.model, options.vadModel);
   } else {
     validateManagedResource(
       options.model,
@@ -563,15 +613,7 @@ function validateLoadOptions(
         "VAD model",
         "managed",
       );
-      if (
-        options.vadModel.id !== LOCAL_SUBTITLE_PRODUCTION_CONTRACT.vad.id ||
-        options.vadModel.sha256 !== LOCAL_SUBTITLE_PRODUCTION_CONTRACT.vad.sha256
-      ) {
-        throw invalidConfiguration("The local inference VAD model is not pinned.");
-      }
-      if (options.model.absolutePath === options.vadModel.absolutePath) {
-        throw invalidConfiguration("The model and VAD model paths must be distinct.");
-      }
+      validatePinnedVad(options.model, options.vadModel);
     }
   }
   if (
@@ -625,7 +667,7 @@ function validateSessionPaths(
   const privateFiles = [
     loadIdentity.serverArtifact.absolutePath,
     loadIdentity.model.absolutePath,
-    ...(loadIdentity.purpose === "inference" &&
+    ...(loadIdentity.purpose !== "model_load_smoke" &&
       loadIdentity.vadModel !== undefined
       ? [loadIdentity.vadModel.absolutePath]
       : []),
@@ -687,7 +729,7 @@ function loadIdentityKey(identity: LocalSubtitleServerLoadIdentity): string {
     identity.model.absolutePath,
     identity.model.byteSize,
     identity.model.sha256,
-    ...(identity.purpose === "inference"
+    ...(identity.purpose !== "model_load_smoke"
       ? identity.vadModel === undefined
         ? ["no_vad"]
         : [
@@ -703,6 +745,21 @@ function loadIdentityKey(identity: LocalSubtitleServerLoadIdentity): string {
     identity.process.processors,
     identity.process.noGpu,
   ]);
+}
+
+function validatePinnedVad(
+  model: LocalSubtitleServerManagedResourceIdentity,
+  vadModel: LocalSubtitleServerManagedResourceIdentity,
+): void {
+  if (
+    vadModel.id !== LOCAL_SUBTITLE_PRODUCTION_CONTRACT.vad.id ||
+    vadModel.sha256 !== LOCAL_SUBTITLE_PRODUCTION_CONTRACT.vad.sha256
+  ) {
+    throw invalidConfiguration("The local inference VAD model is not pinned.");
+  }
+  if (model.absolutePath === vadModel.absolutePath) {
+    throw invalidConfiguration("The model and VAD model paths must be distinct.");
+  }
 }
 
 function assertIdentifier(value: string, label: string): void {

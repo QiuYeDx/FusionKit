@@ -239,7 +239,8 @@ app.whenReady().then(async () => {
     isResourceBusy: (resourceId) =>
       Boolean(
         localSubtitleJobManager?.isManagedModelBusy(resourceId) ||
-        localSubtitleServerSupervisor.snapshot.modelId === resourceId,
+        localSubtitleServerSupervisor.snapshot.modelId === resourceId ||
+        localSubtitleServerSupervisor.snapshot.vadModelId === resourceId,
       ),
   });
   const localSubtitleOverwriteRuntime =
