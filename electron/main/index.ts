@@ -243,6 +243,7 @@ app.whenReady().then(async () => {
         localSubtitleServerSupervisor.snapshot.vadModelId === resourceId,
       ),
   });
+  await localSubtitleModelManager.initialize().catch(() => undefined);
   const localSubtitleOverwriteRuntime =
     await initializeLocalSubtitleOverwriteProductionRuntime({
       environment: localSubtitleResourceEnvironment,

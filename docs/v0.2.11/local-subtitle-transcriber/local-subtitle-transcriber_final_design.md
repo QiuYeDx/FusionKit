@@ -4,7 +4,7 @@
 >
 > Feature Slug：`local-subtitle-transcriber`
 >
-> 状态：39个顶层工作包中20个已完成、18个未开始、1个进行中。`MODEL-002A`已接通首发模型下载/删除，`MODEL-002B1`～`MODEL-002B2`已完成CUDA archive安全解包与资源生命周期，`MODEL-002C`已完成冻结VAD manifest、managed lifecycle与CPU load smoke；顶层`MODEL-002`仍等待启动孤儿清理与真实大文件下载。`NATIVE-002`、`FS-TXN-001`、`BE-002`与`FE-001`已按职责结项；不提前声明M2 packaged/目标机验收或M3完成
+> 状态：39个顶层工作包中20个已完成、18个未开始、1个进行中。`MODEL-002A`已接通首发模型下载/删除，`MODEL-002B1`～`MODEL-002B2`已完成CUDA archive安全解包与资源生命周期，`MODEL-002C`已完成冻结VAD manifest、managed lifecycle与CPU load smoke，`MODEL-002D`已完成受控下载/staging root启动孤儿清理；顶层`MODEL-002`仍等待真实大文件下载与目标环境证据。`NATIVE-002`、`FS-TXN-001`、`BE-002`与`FE-001`已按职责结项；不提前声明M2 packaged/目标机验收或M3完成
 >
 > 产品定位：使用本地算力把批量音频/视频转成可直接翻译的 SRT/LRC 字幕
 >
@@ -109,6 +109,8 @@
 > 2026-08-03 MODEL-002B2 checkpoint：新增Windows x64限定的`LocalSubtitleAcceleratorManager`，经既有managed-resource API与共享ResourceJob/session registry提供CUDA pack list/install/delete。安装复用allowlisted续传下载器和B1安全解包，在private downloads/staging/accelerators roots完成archive+展开占用预检、20个PE x64逐文件复核、最小环境下shell-free且有界的`whisper-server.exe --help` identity probe、versioned directory原子发布与post-commit全hash验证；新pack失败只回滚新目录，旧known pack只在新版本验证成功后隔离删除，删除失败保留identity receipt重试。不同版本操作按同一accelerator family同步串行，commit边界后的取消完成验证/清理，shutdown可重入并等待所有cleanup。accelerator manager 13/13、local-subtitle 46 passed + 2 skipped files / 995 passed + 2 skipped tests、TypeScript、三段Vite test build、manifest 0/0与runtime Node 25 passed + 1 skipped通过。真实678 MB archive、约1.2 GB展开、Windows executable/CUDA backend/GPU memory与许可closure未验证；VAD、启动孤儿清理和FE-002仍未完成，故`MODEL-002`继续为`进行中`。
 
 > 2026-08-03 MODEL-002C checkpoint：新增strict/deep-frozen VAD manifest，固定Silero v6.2.0 GGML来源、allowlisted URL、size/SHA、MIT与segment-only时间轴约束；`LocalSubtitleVadManager`经既有managed-resource API和共享ResourceJob完成private-root下载、exact tree/no-follow full-hash、同步claim、busy delete、identity-bound quarantine、atomic commit、post-commit复验与失败回滚。server process/supervisor新增`vad_load_smoke`，只允许verified CPU server + ready managed首发模型 + staged pinned VAD，固定`--vad-model --no-gpu`，readiness后立即退役且不能inference；缺少ready主模型时下载前失败并可重试。未新增public IPC，production仍不开放`vadEnabled=true`。VAD manager 7/7、server process/supervisor 71/71、local-subtitle 48 passed + 2 skipped files / 1008 passed + 2 skipped tests、TypeScript、manifest 0/0与diff通过。真实VAD网络/native smoke、启动孤儿清理和FE-002仍未完成，故`MODEL-002`继续为`进行中`。
+
+> 2026-08-03 MODEL-002D checkpoint：新增受控资源启动cleaner，统一model/VAD/accelerator下载与staging目录合同；冻结manifest完全匹配、结构有效且绑定ETag/Last-Modified的`.part + metadata`续传状态保留，单边、schema/URL/size/validator不匹配状态和exact metadata temporary按稳定文件对象身份清理，未知叶名、symlink、hard-link或replacement均fail closed。model/VAD/Windows accelerator只识别production实际生成的完整staging命名，先同root隔离rename，再以dev/ino/birthtime与realpath containment复核后递归删除；候选all-settled且Windows `rm`有界重试。`LocalSubtitleModelManager.initialize()`缓存单一启动Promise并锁存失败，production main在IPC/window前等待；失败不阻止窗口启动，但managed-resource API稳定拒绝继续操作。聚焦5 files / 73 tests、local-subtitle 49 passed + 2 skipped files / 1016 passed + 2 skipped tests、TypeScript与diff通过。未执行真实1.08 GB模型、885 KB VAD或678 MB CUDA archive下载/目标机smoke，故顶层`MODEL-002`继续为`进行中`。
 
 > 2026-07-30 runtime fixture portability fix：3个测试文件改用宿主原生绝对路径、真实临时`where.exe`与canonical temp root，不修改生产校验；加入002C packaged tests后的完整runtime Node为123 passed、0 failed、1 expected Windows-only skip。
 

@@ -40,6 +40,9 @@ import {
   type DownloadLocalSubtitleResourceOptions,
 } from "./resource-download";
 import {
+  LOCAL_SUBTITLE_RESOURCE_STARTUP_CLEANUP_POLICY,
+} from "./resource-startup-cleaner";
+import {
   LocalSubtitleResourceJobManager,
   type LocalSubtitleResourceJobContext,
   type LocalSubtitleResourceJobExecutionResult,
@@ -58,8 +61,12 @@ const MAX_NATIVE_HEADER_BYTES = 1024 * 1024;
 
 export const LOCAL_SUBTITLE_ACCELERATOR_MANAGER_POLICY = Object.freeze({
   acceleratorDirectoryName: "accelerators",
-  stagingDirectoryName: "accelerator-staging",
-  downloadsDirectoryName: "accelerator-downloads",
+  stagingDirectoryName:
+    LOCAL_SUBTITLE_RESOURCE_STARTUP_CLEANUP_POLICY
+      .acceleratorStagingDirectoryName,
+  downloadsDirectoryName:
+    LOCAL_SUBTITLE_RESOURCE_STARTUP_CLEANUP_POLICY
+      .acceleratorDownloadsDirectoryName,
   cleanupMaxRetries: 5,
   cleanupRetryDelayMs: 200,
   probeTimeoutMs: 15_000,

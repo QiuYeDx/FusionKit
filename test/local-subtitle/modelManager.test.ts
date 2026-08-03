@@ -80,6 +80,45 @@ afterAll(async () => {
 });
 
 describe("local subtitle model manager", () => {
+  it("shares one startup cleanup operation and gates resources until it completes", async () => {
+    let releaseCleanup!: () => void;
+    const cleanupGate = new Promise<void>((resolve) => {
+      releaseCleanup = resolve;
+    });
+    const startupCleanup = vi.fn(() => cleanupGate);
+    const fixture = await createFixture({ startupCleanup });
+
+    const first = fixture.manager.initialize();
+    const second = fixture.manager.initialize();
+    expect(second).toBe(first);
+    expect(() => fixture.manager.getSessionSnapshot(OWNER)).toThrowError(
+      expect.objectContaining({ localSubtitleCode: "resource_busy" }),
+    );
+    releaseCleanup();
+    await first;
+
+    expect(startupCleanup).toHaveBeenCalledOnce();
+    expect(fixture.manager.getSessionSnapshot(OWNER)).toMatchObject({
+      resourceJobs: [],
+    });
+  });
+
+  it("locks a startup cleanup failure and fails managed-resource APIs closed", async () => {
+    const failure = new Error("startup cleanup failed");
+    const fixture = await createFixture({
+      startupCleanup: async () => {
+        throw failure;
+      },
+    });
+
+    const initialization = fixture.manager.initialize();
+    await expect(initialization).rejects.toBe(failure);
+    expect(fixture.manager.initialize()).toBe(initialization);
+    expect(() => fixture.manager.getSessionSnapshot(OWNER)).toThrowError(
+      expect.objectContaining({ localSubtitleCode: "resource_not_allowed" }),
+    );
+  });
+
   it("downloads, verifies, load-smokes and commits an allowlisted model", async () => {
     const fixture = await createFixture({
       downloadResource: async (options) => {
@@ -1243,6 +1282,7 @@ interface FixtureOptions {
   readonly sessionRegistry?: LocalSubtitleSessionRegistry;
   readonly downloadResource?: LocalSubtitleModelManagerOptions["downloadResource"];
   readonly isResourceBusy?: LocalSubtitleModelManagerOptions["isResourceBusy"];
+  readonly startupCleanup?: LocalSubtitleModelManagerOptions["startupCleanup"];
 }
 
 async function createFixture(options: FixtureOptions = {}) {
@@ -1299,6 +1339,9 @@ async function createFixture(options: FixtureOptions = {}) {
     ...(options.isResourceBusy === undefined
       ? {}
       : { isResourceBusy: options.isResourceBusy }),
+    ...(options.startupCleanup === undefined
+      ? {}
+      : { startupCleanup: options.startupCleanup }),
   });
   return {
     root,

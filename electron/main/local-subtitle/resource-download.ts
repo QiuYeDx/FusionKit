@@ -80,6 +80,25 @@ export interface DownloadLocalSubtitleResourceOptions {
   readonly metadataSyncBytes?: number;
 }
 
+export interface ReconcileLocalSubtitleResourceDownloadStateOptions {
+  readonly sourceUrl: string;
+  readonly allowedHosts: readonly string[];
+  readonly expectedBytes: number;
+  readonly downloadDirectory: string;
+  readonly partFileName: string;
+  readonly metadataFileName: string;
+}
+
+export type LocalSubtitleResourceDownloadStateResult = Readonly<
+  | { status: "absent"; resumedBytes: 0 }
+  | { status: "removed"; resumedBytes: 0 }
+  | {
+      status: "resumable";
+      resumedBytes: number;
+      metadata: LocalSubtitleResourceDownloadMetadata;
+    }
+>;
+
 export interface LocalSubtitleResourceDownloadResult {
   readonly absolutePath: string;
   readonly byteSize: number;
@@ -89,7 +108,7 @@ export interface LocalSubtitleResourceDownloadResult {
   readonly lastModified?: string;
 }
 
-interface DownloadMetadata {
+export interface LocalSubtitleResourceDownloadMetadata {
   readonly schemaVersion: 1;
   readonly sourceUrl: string;
   readonly effectiveUrl: string;
@@ -98,6 +117,8 @@ interface DownloadMetadata {
   readonly etag?: string;
   readonly lastModified?: string;
 }
+
+type DownloadMetadata = LocalSubtitleResourceDownloadMetadata;
 
 interface ResumeState {
   readonly bytesCompleted: number;
@@ -110,6 +131,93 @@ interface FileIdentity {
   readonly birthtimeMs: number;
   readonly size: number;
   readonly nlink: number;
+}
+
+interface CleanupFileReceipt {
+  readonly absolutePath: string;
+  readonly dev: number;
+  readonly ino: number;
+  readonly birthtimeMs: number;
+}
+
+export async function reconcileLocalSubtitleResourceDownloadState(
+  options: ReconcileLocalSubtitleResourceDownloadStateOptions,
+): Promise<LocalSubtitleResourceDownloadStateResult> {
+  const validated = validateStateOptions(options);
+  const partPath = resolveDownloadLeaf(
+    validated.downloadDirectory,
+    validated.partFileName,
+  );
+  const metadataPath = resolveDownloadLeaf(
+    validated.downloadDirectory,
+    validated.metadataFileName,
+  );
+  const [partStats, metadataStats] = await Promise.all([
+    lstatOptional(partPath),
+    lstatOptional(metadataPath),
+  ]);
+  if (!partStats && !metadataStats) {
+    return Object.freeze({ status: "absent", resumedBytes: 0 });
+  }
+
+  const receipts = [
+    partStats === undefined
+      ? undefined
+      : cleanupFileReceipt(partPath, partStats),
+    metadataStats === undefined
+      ? undefined
+      : cleanupFileReceipt(metadataPath, metadataStats),
+  ].filter((receipt): receipt is CleanupFileReceipt => receipt !== undefined);
+  let metadata: DownloadMetadata | undefined;
+  if (
+    partStats?.isFile() &&
+    !partStats.isSymbolicLink() &&
+    partStats.nlink === 1 &&
+    metadataStats?.isFile() &&
+    !metadataStats.isSymbolicLink() &&
+    metadataStats.nlink === 1 &&
+    partStats.size > 0 &&
+    partStats.size <= validated.expectedBytes &&
+    metadataStats.size <= LOCAL_SUBTITLE_RESOURCE_DOWNLOAD_POLICY.maxMetadataBytes
+  ) {
+    const metadataText = await readNoFollowText(
+      metadataPath,
+      fileIdentity(metadataStats),
+    );
+    try {
+      metadata = parseMetadata(metadataText);
+      const resumable =
+        metadata.sourceUrl === validated.sourceUrl &&
+        metadata.expectedBytes === validated.expectedBytes &&
+        metadata.bytesCompleted === partStats.size &&
+        metadata.bytesCompleted > 0 &&
+        metadata.bytesCompleted <= validated.expectedBytes &&
+        hasNormalizedResumeValidator(metadata) &&
+        isAllowedUrl(metadata.effectiveUrl, validated.allowedHosts);
+      if (!resumable) metadata = undefined;
+    } catch {
+      metadata = undefined;
+    }
+  }
+  if (metadata) {
+    const [currentPart, currentMetadata] = await Promise.all([
+      lstat(partPath),
+      lstat(metadataPath),
+    ]);
+    assertSameFileIdentity(fileIdentity(partStats!), fileIdentity(currentPart));
+    assertSameFileIdentity(
+      fileIdentity(metadataStats!),
+      fileIdentity(currentMetadata),
+    );
+    return Object.freeze({
+      status: "resumable",
+      resumedBytes: partStats!.size,
+      metadata,
+    });
+  }
+
+  await removeDownloadStateReceipts(receipts);
+  return Object.freeze({ status: "removed", resumedBytes: 0 });
 }
 
 export async function downloadLocalSubtitleResource(
@@ -292,13 +400,7 @@ function validateOptions(
   if (!options || !(options.signal instanceof AbortSignal)) {
     throw new TypeError("The local subtitle resource download options are invalid.");
   }
-  if (!Number.isSafeInteger(options.expectedBytes) || options.expectedBytes <= 0) {
-    throw new TypeError("The local subtitle resource byte size is invalid.");
-  }
-  if (!Array.isArray(options.allowedHosts) || options.allowedHosts.length === 0) {
-    throw new TypeError("The local subtitle resource host allowlist is invalid.");
-  }
-  const source = parseAllowedUrl(options.sourceUrl, options.allowedHosts);
+  const state = validateStateOptions(options);
   const metadataSyncBytes = options.metadataSyncBytes ??
     LOCAL_SUBTITLE_RESOURCE_DOWNLOAD_POLICY.metadataSyncBytes;
   if (!Number.isSafeInteger(metadataSyncBytes) || metadataSyncBytes <= 0) {
@@ -307,8 +409,29 @@ function validateOptions(
   if (typeof options.ensureCapacity !== "function") {
     throw new TypeError("The local subtitle resource capacity probe is invalid.");
   }
-  validateAbsoluteDirectory(options.downloadDirectory);
   validateAbsolutePath(options.destinationPath);
+  return Object.freeze({
+    ...options,
+    ...state,
+    metadataSyncBytes,
+    openResponse: options.openResponse ?? openHttpsResponse,
+  });
+}
+
+function validateStateOptions<T extends ReconcileLocalSubtitleResourceDownloadStateOptions>(
+  options: T,
+): T & ReconcileLocalSubtitleResourceDownloadStateOptions {
+  if (!options) {
+    throw new TypeError("The local subtitle resource state options are invalid.");
+  }
+  if (!Number.isSafeInteger(options.expectedBytes) || options.expectedBytes <= 0) {
+    throw new TypeError("The local subtitle resource byte size is invalid.");
+  }
+  if (!Array.isArray(options.allowedHosts) || options.allowedHosts.length === 0) {
+    throw new TypeError("The local subtitle resource host allowlist is invalid.");
+  }
+  const source = parseAllowedUrl(options.sourceUrl, options.allowedHosts);
+  validateAbsoluteDirectory(options.downloadDirectory);
   validateLeaf(options.partFileName);
   validateLeaf(options.metadataFileName);
   if (options.partFileName === options.metadataFileName) {
@@ -318,8 +441,6 @@ function validateOptions(
     ...options,
     sourceUrl: source.href,
     allowedHosts: Object.freeze([...options.allowedHosts]),
-    metadataSyncBytes,
-    openResponse: options.openResponse ?? openHttpsResponse,
   });
 }
 
@@ -328,44 +449,18 @@ async function readResumeState(
   partPath: string,
   metadataPath: string,
 ): Promise<ResumeState> {
-  const [partStats, metadataStats] = await Promise.all([
-    lstatOptional(partPath),
-    lstatOptional(metadataPath),
-  ]);
-  if (!partStats && !metadataStats) return { bytesCompleted: 0 };
+  const state = await reconcileLocalSubtitleResourceDownloadState(options);
+  if (state.status !== "resumable") return { bytesCompleted: 0 };
   if (
-    !partStats?.isFile() ||
-    partStats.isSymbolicLink() ||
-    !metadataStats?.isFile() ||
-    metadataStats.isSymbolicLink() ||
-    partStats.size > options.expectedBytes ||
-    metadataStats.size > LOCAL_SUBTITLE_RESOURCE_DOWNLOAD_POLICY.maxMetadataBytes
+    resolveDownloadLeaf(options.downloadDirectory, options.partFileName) !== partPath ||
+    resolveDownloadLeaf(options.downloadDirectory, options.metadataFileName) !== metadataPath
   ) {
-    await removeDownloadState(partPath, metadataPath);
-    return { bytesCompleted: 0 };
+    throw new TypeError("The local subtitle resource state paths are inconsistent.");
   }
-  if (partStats.size === 0) {
-    await removeDownloadState(partPath, metadataPath);
-    return { bytesCompleted: 0 };
-  }
-  let metadata: DownloadMetadata;
-  try {
-    metadata = parseMetadata(await readNoFollowText(metadataPath));
-  } catch {
-    await removeDownloadState(partPath, metadataPath);
-    return { bytesCompleted: 0 };
-  }
-  if (
-    metadata.sourceUrl !== options.sourceUrl ||
-    metadata.expectedBytes !== options.expectedBytes ||
-    metadata.bytesCompleted !== partStats.size ||
-    !hasResumeValidator(metadata) ||
-    !isAllowedUrl(metadata.effectiveUrl, options.allowedHosts)
-  ) {
-    await removeDownloadState(partPath, metadataPath);
-    return { bytesCompleted: 0 };
-  }
-  return Object.freeze({ bytesCompleted: partStats.size, metadata });
+  return Object.freeze({
+    bytesCompleted: state.resumedBytes,
+    metadata: state.metadata,
+  });
 }
 
 async function openFollowingRedirects(
@@ -609,14 +704,65 @@ async function removeDownloadState(
   partPath: string,
   metadataPath: string,
 ): Promise<void> {
-  const results = await Promise.allSettled([
-    unlinkOptional(partPath),
-    unlinkOptional(metadataPath),
+  const observations = await Promise.all([
+    lstatOptional(partPath),
+    lstatOptional(metadataPath),
   ]);
+  const receipts = observations.flatMap((stats, index) =>
+    stats === undefined
+      ? []
+      : [cleanupFileReceipt(index === 0 ? partPath : metadataPath, stats)]);
+  await removeDownloadStateReceipts(receipts);
+}
+
+async function removeDownloadStateReceipts(
+  receipts: readonly CleanupFileReceipt[],
+): Promise<void> {
+  const results = await Promise.allSettled(
+    receipts.map(unlinkOwnedFile),
+  );
   const failure = results.find(
     (result): result is PromiseRejectedResult => result.status === "rejected",
   );
   if (failure) throw failure.reason;
+}
+
+async function unlinkOwnedFile(receipt: CleanupFileReceipt): Promise<void> {
+  const stats = await lstatOptional(receipt.absolutePath);
+  if (!stats) return;
+  const current = cleanupFileReceipt(receipt.absolutePath, stats);
+  if (
+    current.dev !== receipt.dev ||
+    current.ino !== receipt.ino ||
+    current.birthtimeMs !== receipt.birthtimeMs
+  ) {
+    throw downloadFailure(
+      "The local subtitle resource download state identity changed before cleanup.",
+    );
+  }
+  await unlink(receipt.absolutePath);
+  if (await lstatOptional(receipt.absolutePath)) {
+    throw downloadFailure(
+      "The local subtitle resource download state was not removed safely.",
+    );
+  }
+}
+
+function cleanupFileReceipt(
+  absolutePath: string,
+  stats: Stats,
+): CleanupFileReceipt {
+  if (!stats.isFile() || stats.isSymbolicLink() || stats.nlink !== 1) {
+    throw downloadFailure(
+      "The local subtitle resource download state is not an owned regular file.",
+    );
+  }
+  return Object.freeze({
+    absolutePath,
+    dev: stats.dev,
+    ino: stats.ino,
+    birthtimeMs: stats.birthtimeMs,
+  });
 }
 
 async function unlinkOptional(absolutePath: string): Promise<void> {
@@ -627,7 +773,10 @@ async function unlinkOptional(absolutePath: string): Promise<void> {
   }
 }
 
-async function readNoFollowText(absolutePath: string): Promise<string> {
+async function readNoFollowText(
+  absolutePath: string,
+  expected?: FileIdentity,
+): Promise<string> {
   const handle = await open(absolutePath, READ_ONLY_NOFOLLOW_FLAGS);
   try {
     const stats = await handle.stat();
@@ -638,7 +787,17 @@ async function readNoFollowText(absolutePath: string): Promise<string> {
     ) {
       throw new Error("invalid resume metadata file");
     }
-    return await readFile(handle, "utf8");
+    if (expected) assertSameFileIdentity(expected, fileIdentity(stats));
+    const value = await readFile(handle, "utf8");
+    const settled = fileIdentity(await handle.stat());
+    assertSameFileIdentity(fileIdentity(stats), settled);
+    if (expected) {
+      assertSameFileIdentity(
+        expected,
+        fileIdentity(await lstat(absolutePath)),
+      );
+    }
+    return value;
   } finally {
     await handle.close();
   }
@@ -700,6 +859,15 @@ function sameResumeValidator(
 
 function hasResumeValidator(metadata: DownloadMetadata): boolean {
   return metadata.etag !== undefined || metadata.lastModified !== undefined;
+}
+
+function hasNormalizedResumeValidator(metadata: DownloadMetadata): boolean {
+  return (
+    hasResumeValidator(metadata) &&
+    (metadata.etag === undefined || normalizeValidator(metadata.etag) === metadata.etag) &&
+    (metadata.lastModified === undefined ||
+      normalizeValidator(metadata.lastModified) === metadata.lastModified)
+  );
 }
 
 function normalizeValidator(value: string | undefined): string | undefined {

@@ -29,6 +29,9 @@ import {
   type DownloadLocalSubtitleResourceOptions,
 } from "./resource-download";
 import {
+  LOCAL_SUBTITLE_RESOURCE_STARTUP_CLEANUP_POLICY,
+} from "./resource-startup-cleaner";
+import {
   LocalSubtitleResourceJobManager,
   type LocalSubtitleResourceJobContext,
   type LocalSubtitleResourceJobExecutionResult,
@@ -55,8 +58,10 @@ const HASH_CHUNK_BYTES = 1024 * 1024;
 
 export const LOCAL_SUBTITLE_VAD_MANAGER_POLICY = Object.freeze({
   vadDirectoryName: "vad",
-  stagingDirectoryName: "vad-staging",
-  downloadsDirectoryName: "downloads",
+  stagingDirectoryName:
+    LOCAL_SUBTITLE_RESOURCE_STARTUP_CLEANUP_POLICY.vadStagingDirectoryName,
+  downloadsDirectoryName:
+    LOCAL_SUBTITLE_RESOURCE_STARTUP_CLEANUP_POLICY.downloadsDirectoryName,
   manifestFileName: "manifest.json",
   smokeThreads: 1,
   cleanupMaxRetries: 5,

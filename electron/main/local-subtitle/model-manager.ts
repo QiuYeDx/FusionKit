@@ -58,6 +58,10 @@ import {
   type DownloadLocalSubtitleResourceOptions,
 } from "./resource-download";
 import {
+  cleanupLocalSubtitleResourceStartupOrphans,
+  LOCAL_SUBTITLE_RESOURCE_STARTUP_CLEANUP_POLICY,
+} from "./resource-startup-cleaner";
+import {
   selectLocalSubtitleCpuServerArtifactId,
   verifyLocalSubtitleRuntimeBundle,
   type LocalSubtitleResourceEnvironment,
@@ -94,8 +98,10 @@ const COPY_CHUNK_BYTES = 1024 * 1024;
 
 export const LOCAL_SUBTITLE_MODEL_MANAGER_POLICY = Object.freeze({
   modelsDirectoryName: "models",
-  stagingDirectoryName: "model-staging",
-  downloadsDirectoryName: "downloads",
+  stagingDirectoryName:
+    LOCAL_SUBTITLE_RESOURCE_STARTUP_CLEANUP_POLICY.modelStagingDirectoryName,
+  downloadsDirectoryName:
+    LOCAL_SUBTITLE_RESOURCE_STARTUP_CLEANUP_POLICY.downloadsDirectoryName,
   copyChunkBytes: COPY_CHUNK_BYTES,
   smokeThreads: 1,
   cleanupMaxRetries: 5,
@@ -184,6 +190,7 @@ export interface LocalSubtitleModelManagerOptions {
   readonly isResourceBusy?: (
     resourceId: string,
   ) => boolean | Promise<boolean>;
+  readonly startupCleanup?: () => Promise<void>;
   readonly now?: () => number;
   readonly jobIdFactory?: () => string;
 }
@@ -302,6 +309,7 @@ export class LocalSubtitleModelManager {
     options: DownloadLocalSubtitleResourceOptions,
   ) => Promise<unknown>;
   readonly #isResourceBusy: (resourceId: string) => boolean | Promise<boolean>;
+  readonly #startupCleanup: () => Promise<void>;
   readonly #claimedModelIds = new Set<string>();
   readonly #activeModelIds = new Set<string>();
   readonly #verifiedModels = new Map<string, VerifiedManagedModel>();
@@ -317,6 +325,9 @@ export class LocalSubtitleModelManager {
   #rootProofs: ImportRootProofs | undefined;
   #rootProofOperation: Promise<void> | undefined;
   #cleanupRetryOperation: Promise<void> | undefined;
+  #initializationOperation: Promise<void> | undefined;
+  #initializationComplete = false;
+  #initializationFailed = false;
   #shutdownRequested = false;
   #shutdownOperation: Promise<void> | undefined;
 
@@ -390,6 +401,12 @@ export class LocalSubtitleModelManager {
     this.#downloadResource = options.downloadResource ??
       downloadLocalSubtitleResource;
     this.#isResourceBusy = options.isResourceBusy ?? (() => false);
+    this.#startupCleanup = options.startupCleanup ?? (() =>
+      cleanupLocalSubtitleResourceStartupOrphans({
+        managedResourceRoot: this.#managedResourceRoot,
+        platform,
+        arch,
+      }).then(() => undefined));
     const vadSupervisor = hasVadLoadSmoke(options.supervisor)
       ? options.supervisor
       : undefined;
@@ -406,6 +423,29 @@ export class LocalSubtitleModelManager {
           verifyServerRuntime: this.#verifyServerRuntime,
           isResourceBusy: this.#isResourceBusy,
         });
+  }
+
+  initialize(): Promise<void> {
+    if (this.#initializationOperation) return this.#initializationOperation;
+    if (this.#shutdownRequested) {
+      return Promise.reject(managerFailure(
+        "owner_released",
+        "The local subtitle model manager is shutting down.",
+      ));
+    }
+    const operation = Promise.resolve()
+      .then(() => this.#startupCleanup())
+      .then(
+        () => {
+          this.#initializationComplete = true;
+        },
+        (error: unknown) => {
+          this.#initializationFailed = true;
+          throw error;
+        },
+      );
+    this.#initializationOperation = operation;
+    return operation;
   }
 
   importModel(
@@ -674,6 +714,9 @@ export class LocalSubtitleModelManager {
     void Promise.resolve()
       .then(async () => {
         const results = await Promise.allSettled([
+          ...(this.#initializationOperation
+            ? [this.#initializationOperation]
+            : []),
           this.#resourceJobs.shutdown(),
           this.#waitForActiveVerifications(),
           this.#waitForActiveDeletions(),
@@ -1969,6 +2012,18 @@ export class LocalSubtitleModelManager {
       throw managerFailure(
         "owner_released",
         "The local subtitle model manager is shutting down.",
+      );
+    }
+    if (this.#initializationFailed) {
+      throw managerFailure(
+        "resource_not_allowed",
+        "Local subtitle managed resources failed startup cleanup.",
+      );
+    }
+    if (this.#initializationOperation && !this.#initializationComplete) {
+      throw managerFailure(
+        "resource_busy",
+        "Local subtitle managed resources are still initializing.",
       );
     }
   }
