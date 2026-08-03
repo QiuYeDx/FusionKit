@@ -10,12 +10,15 @@ import {
   Volume2,
   Captions,
   Radio,
+  Clapperboard,
 } from "lucide-react";
+import { LOCAL_SUBTITLE_TRANSCRIBER_ROUTE } from "@/constants/router";
 
 export type ToolKey =
   | "translator"
   | "converter"
   | "extractor"
+  | "localSubtitleTranscriber"
   | "music"
   | "nameTranslator"
   | "textTranslator"
@@ -58,6 +61,14 @@ export const TOOL_META: Record<ToolKey, ToolMeta> = {
     category: "subtitle",
     status: "stable",
     route: "/tools/subtitle/extractor",
+  },
+  localSubtitleTranscriber: {
+    id: "localSubtitleTranscriber",
+    toneVar: "--tool-local-subtitle",
+    icon: Clapperboard,
+    category: "subtitle",
+    status: "stable",
+    route: LOCAL_SUBTITLE_TRANSCRIBER_ROUTE,
   },
   music: {
     id: "music",

@@ -17,6 +17,7 @@ import {
   type LocalSubtitleBatchSummary,
   type LocalSubtitleError,
   type LocalSubtitleErrorCode,
+  type LocalSubtitleConflictPolicy,
   type LocalSubtitleFormat,
   type LocalSubtitleOperationStage,
   type LocalSubtitlePostActionState,
@@ -172,6 +173,7 @@ export type LocalSubtitleJobTaskExecutionResult =
     };
 
 export interface LocalSubtitleJobTaskExecutor {
+  supportsOutputConflictPolicy(policy: LocalSubtitleConflictPolicy): boolean;
   beginBatchSlice(
     context: LocalSubtitleJobBatchExecutionContext,
   ): LocalSubtitleJobBatchRuntime;
@@ -319,6 +321,7 @@ export class LocalSubtitleJobManager {
       !(options.leases instanceof LocalSubtitleCapabilityLeaseCoordinator) ||
       typeof options.runtimeVerifier?.verifyRuntime !== "function" ||
       typeof options.modelResolver?.resolveManagedModel !== "function" ||
+      typeof options.executor?.supportsOutputConflictPolicy !== "function" ||
       typeof options.executor?.beginBatchSlice !== "function" ||
       typeof options.executor?.execute !== "function" ||
       typeof options.executor?.endBatchSlice !== "function" ||
@@ -366,7 +369,7 @@ export class LocalSubtitleJobManager {
   ): Promise<LocalSubtitleBatchSummary> {
     this.#assertOwnerAvailable(owner);
     const parsed = parseEnqueueRequest(request);
-    assertProductionBatchSliceRequest(parsed);
+    assertProductionBatchSliceRequest(parsed, this.#executor);
     const ownerKeyValue = ownerKey(owner);
     const pending = this.#beginPendingEnqueue(ownerKeyValue, signal);
     let transaction:
@@ -2015,6 +2018,7 @@ function assertRuntimeAdmission(
 
 function assertProductionBatchSliceRequest(
   request: EnqueueLocalSubtitleBatchRequest,
+  executor: Pick<LocalSubtitleJobTaskExecutor, "supportsOutputConflictPolicy">,
 ): void {
   const config = request.config;
   const supported =
@@ -2022,13 +2026,13 @@ function assertProductionBatchSliceRequest(
     config.taskMode === "transcribe" &&
     config.vadEnabled === false &&
     (config.output.mode === "custom" || config.output.mode === "source") &&
-    config.output.conflictPolicy === "index" &&
+    executor.supportsOutputConflictPolicy(config.output.conflictPolicy) &&
     isSupportedProductionFormats(config.output.formats) &&
     config.postAction.mode === "export_only";
   if (!supported) {
     throw managerFailure(
       "invalid_ipc_request",
-      "This local subtitle build currently supports CPU, no-VAD, index-only SRT/LRC batches with source or custom output.",
+      "This local subtitle build currently supports CPU, no-VAD SRT/LRC batches with an available output conflict policy.",
       "preflight",
       "config",
     );

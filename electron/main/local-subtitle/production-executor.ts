@@ -8,6 +8,7 @@ import {
   isLocalSubtitleErrorCode,
   type LocalSubtitleError,
   type LocalSubtitleErrorCode,
+  type LocalSubtitleConflictPolicy,
   type LocalSubtitleFormat,
   type LocalSubtitleOperationStage,
 } from "@/type/localSubtitle";
@@ -151,7 +152,7 @@ type ProductionInputs = Pick<
 
 type ProductionExporter = Pick<
   LocalSubtitleExporter<unknown>,
-  "exportArtifacts"
+  "exportArtifacts" | "supportsConflictPolicy"
 >;
 
 export interface LocalSubtitleProductionExecutorOptions {
@@ -216,7 +217,10 @@ export class LocalSubtitleProductionExecutor
       ]) ||
       !hasMethods(options?.inputs, ["resolveTaskSourceOutputDirectory"]) ||
       !hasMethods(options?.outputs, ["resolveBatchLease"]) ||
-      !hasMethods(options?.exporter, ["exportArtifacts"])
+      !hasMethods(options?.exporter, [
+        "exportArtifacts",
+        "supportsConflictPolicy",
+      ])
     ) {
       throw new TypeError("The local subtitle production executor options are invalid.");
     }
@@ -269,10 +273,19 @@ export class LocalSubtitleProductionExecutor
     this.#retainedRawBudget = Object.freeze({ ...retainedRawBudget });
   }
 
+  supportsOutputConflictPolicy(policy: LocalSubtitleConflictPolicy): boolean {
+    return this.#exporter.supportsConflictPolicy(policy);
+  }
+
   beginBatchSlice(
     context: LocalSubtitleJobBatchExecutionContext,
   ): LocalSubtitleJobBatchRuntime {
-    if (!isSupportedBatchExecutionContext(context)) {
+    if (
+      !isSupportedBatchExecutionContext(
+        context,
+        this.#exporter.supportsConflictPolicy.bind(this.#exporter),
+      )
+    ) {
       throw createLocalSubtitleError(
         "invalid_ipc_request",
         "The local subtitle batch runtime context is invalid.",
@@ -307,7 +320,13 @@ export class LocalSubtitleProductionExecutor
     context: LocalSubtitleJobTaskExecutionContext,
   ): Promise<LocalSubtitleJobTaskExecutionResult> {
     const batchRuntime = this.#resolveBatchRuntime(context);
-    if (!batchRuntime || !isSupportedExecutionContext(context)) {
+    if (
+      !batchRuntime ||
+      !isSupportedExecutionContext(
+        context,
+        this.#exporter.supportsConflictPolicy.bind(this.#exporter),
+      )
+    ) {
       return failedResult("invalid_ipc_request", "preflight");
     }
 
@@ -1247,6 +1266,7 @@ function boundOutputStem(source: string): string {
 
 function isSupportedBatchExecutionContext(
   context: LocalSubtitleJobBatchExecutionContext,
+  supportsConflictPolicy: (policy: LocalSubtitleConflictPolicy) => boolean,
 ): boolean {
   return (
     typeof context === "object" &&
@@ -1270,7 +1290,7 @@ function isSupportedBatchExecutionContext(
     context.managedModel.sha256 === context.config.model.modelHash &&
     (context.config.output.mode === "custom" ||
       context.config.output.mode === "source") &&
-    context.config.output.conflictPolicy === "index" &&
+    supportsConflictPolicy(context.config.output.conflictPolicy) &&
     isSupportedProductionFormats(context.config.output.formats) &&
     context.config.devicePreference === "cpu" &&
     context.config.resolvedBackend === "cpu" &&
@@ -1282,11 +1302,12 @@ function isSupportedBatchExecutionContext(
 
 function isSupportedExecutionContext(
   context: LocalSubtitleJobTaskExecutionContext,
+  supportsConflictPolicy: (policy: LocalSubtitleConflictPolicy) => boolean,
 ): boolean {
   return (
     (context.config.output.mode === "custom" ||
       context.config.output.mode === "source") &&
-    context.config.output.conflictPolicy === "index" &&
+    supportsConflictPolicy(context.config.output.conflictPolicy) &&
     isSupportedProductionFormats(context.config.output.formats) &&
     context.config.devicePreference === "cpu" &&
     context.config.resolvedBackend === "cpu" &&

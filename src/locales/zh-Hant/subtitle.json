@@ -218,6 +218,72 @@
     }
   },
   "local_transcriber": {
+    "title": "本機字幕轉寫",
+    "description": "使用裝置上已安裝的模型，將單一音訊或影片轉寫為 SRT 字幕。",
+    "config": {
+      "title": "轉寫設定",
+      "model": "本機模型",
+      "no_model": "沒有可用模型",
+      "output_mode": "輸出位置",
+      "output_source": "來源檔案目錄",
+      "output_custom": "自訂目錄",
+      "output_directory": "輸出目錄",
+      "output_placeholder": "請選擇輸出目錄"
+    },
+    "workspace": { "title": "轉寫任務" },
+    "environment": {
+      "checking": "檢查中",
+      "ready": "環境可用",
+      "unavailable": "環境不可用"
+    },
+    "file": {
+      "authorizing": "正在授權檔案...",
+      "title": "加入音訊或影片",
+      "description": "拖曳一個媒體檔案到這裡，或從裝置中選擇"
+    },
+    "actions": {
+      "select_file": "選擇檔案",
+      "clear_file": "移除檔案",
+      "select_output": "選擇輸出目錄",
+      "refresh": "重新檢查環境",
+      "start": "開始轉寫",
+      "reveal": "在資料夾中顯示"
+    },
+    "readiness": {
+      "environment_loading": "正在檢查本機執行環境。",
+      "environment_unavailable": "無法讀取本機執行環境狀態。",
+      "runtime_unavailable": "本機轉寫執行環境或 CPU 後端目前不可用。",
+      "session_unavailable": "任務工作階段尚未就緒，請重新檢查環境。",
+      "model_required": "需要一個已安裝且可用的本機模型。",
+      "file_required": "請選擇一個音訊或影片檔案。",
+      "output_directory_required": "請選擇自訂輸出目錄。",
+      "task_active": "目前任務完成或取消後可開始新任務。"
+    },
+    "stage": {
+      "queued": "等待處理",
+      "preparing_media": "準備媒體",
+      "loading_model": "載入模型",
+      "transcribing": "正在轉寫",
+      "post_processing": "整理字幕",
+      "exporting": "匯出 SRT",
+      "cancelling": "正在取消"
+    },
+    "status": {
+      "queued": "等待處理",
+      "preparing_media": "準備媒體",
+      "loading_model": "載入模型",
+      "transcribing": "正在轉寫",
+      "post_processing": "整理字幕",
+      "exporting": "匯出字幕",
+      "completed": "已完成",
+      "cancelling": "正在取消",
+      "cancelled": "已取消",
+      "failed": "轉寫失敗"
+    },
+    "result": {
+      "empty_title": "尚無轉寫結果",
+      "empty_description": "任務開始後，可在這裡查看階段進度和 SRT 結果。"
+    },
     "overwrite_recovery": {
       "title": "輸出復原",
       "trigger_label": "開啟輸出復原，{{count}} 項待處理",

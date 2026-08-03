@@ -218,6 +218,72 @@
     }
   },
   "local_transcriber": {
+    "title": "本地字幕转写",
+    "description": "使用设备上的已安装模型，将单个音频或视频转写为 SRT 字幕。",
+    "config": {
+      "title": "转写配置",
+      "model": "本地模型",
+      "no_model": "没有可用模型",
+      "output_mode": "输出位置",
+      "output_source": "源文件目录",
+      "output_custom": "自定义目录",
+      "output_directory": "输出目录",
+      "output_placeholder": "请选择输出目录"
+    },
+    "workspace": { "title": "转写任务" },
+    "environment": {
+      "checking": "检查中",
+      "ready": "环境可用",
+      "unavailable": "环境不可用"
+    },
+    "file": {
+      "authorizing": "正在授权文件...",
+      "title": "添加音频或视频",
+      "description": "拖拽一个媒体文件到此处，或从设备中选择"
+    },
+    "actions": {
+      "select_file": "选择文件",
+      "clear_file": "移除文件",
+      "select_output": "选择输出目录",
+      "refresh": "重新检查环境",
+      "start": "开始转写",
+      "reveal": "在文件夹中显示"
+    },
+    "readiness": {
+      "environment_loading": "正在检查本地运行环境。",
+      "environment_unavailable": "无法读取本地运行环境状态。",
+      "runtime_unavailable": "本地转写运行时或 CPU 后端当前不可用。",
+      "session_unavailable": "任务会话尚未就绪，请重新检查环境。",
+      "model_required": "需要一个已安装且可用的本地模型。",
+      "file_required": "请选择一个音频或视频文件。",
+      "output_directory_required": "请选择自定义输出目录。",
+      "task_active": "当前任务完成或取消后可开始新任务。"
+    },
+    "stage": {
+      "queued": "等待处理",
+      "preparing_media": "准备媒体",
+      "loading_model": "加载模型",
+      "transcribing": "正在转写",
+      "post_processing": "整理字幕",
+      "exporting": "导出 SRT",
+      "cancelling": "正在取消"
+    },
+    "status": {
+      "queued": "等待处理",
+      "preparing_media": "准备媒体",
+      "loading_model": "加载模型",
+      "transcribing": "正在转写",
+      "post_processing": "整理字幕",
+      "exporting": "导出字幕",
+      "completed": "已完成",
+      "cancelling": "正在取消",
+      "cancelled": "已取消",
+      "failed": "转写失败"
+    },
+    "result": {
+      "empty_title": "尚无转写结果",
+      "empty_description": "任务开始后，可在这里查看阶段进度和 SRT 结果。"
+    },
     "overwrite_recovery": {
       "title": "输出恢复",
       "trigger_label": "打开输出恢复，{{count}} 项待处理",

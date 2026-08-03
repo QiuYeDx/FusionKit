@@ -1,0 +1,213 @@
+import { describe, expect, it } from "vitest";
+import {
+  LOCAL_SUBTITLE_PRODUCTION_CONTRACT,
+  type LocalSubtitleBatchSummary,
+  type LocalSubtitleTaskSummary,
+} from "@/type/localSubtitle";
+import {
+  validateEnqueueLocalSubtitleBatchRequest,
+  type LocalSubtitleAuthorizedMedia,
+  type LocalSubtitleManagedResourceSummary,
+  type LocalSubtitleRuntimeSummary,
+} from "@/type/localSubtitleIpc";
+import { DEFAULT_LOCAL_SUBTITLE_TRANSCRIBER_PREFERENCES } from "@/store/tools/subtitle/localSubtitleTranscriberConfig";
+import {
+  createSingleFileLocalSubtitleRequest,
+  deriveLocalSubtitleStartIssue,
+  findLocalSubtitleTask,
+  getCommittedSrtArtifact,
+  getReadyLocalSubtitleModels,
+  isLocalSubtitleTaskActive,
+} from "./localSubtitleTranscriberModel";
+
+const file: LocalSubtitleAuthorizedMedia = {
+  fileToken: "file-token",
+  displayName: "interview.mp4",
+  byteSize: 1024,
+  expiresAt: 10_000,
+};
+
+const model: LocalSubtitleManagedResourceSummary = {
+  resourceId: LOCAL_SUBTITLE_PRODUCTION_CONTRACT.launchModel.id,
+  resourceType: "model",
+  displayName: "Whisper large-v3 Q5",
+  status: "ready",
+  byteSize: 4_000_000_000,
+  isDefault: true,
+  compatibleBackends: ["cpu", "metal"],
+};
+
+const runtime: LocalSubtitleRuntimeSummary = {
+  schemaVersion: 1,
+  platform: "darwin",
+  arch: "arm64",
+  runtimeGeneration: "a".repeat(64),
+  runner: { status: "ready", version: "1.9.1" },
+  mediaRuntime: { status: "ready", version: "7.1" },
+  backends: [
+    { backend: "cpu", status: "available" },
+    { backend: "metal", status: "available" },
+  ],
+};
+
+describe("local subtitle transcriber page model", () => {
+  it("offers only managed models that are already ready", () => {
+    expect(
+      getReadyLocalSubtitleModels([
+        model,
+        { ...model, resourceId: "installing", status: "installing" },
+        { ...model, resourceId: "vad", resourceType: "vad" },
+      ]).map((entry) => entry.resourceId),
+    ).toEqual([LOCAL_SUBTITLE_PRODUCTION_CONTRACT.launchModel.id]);
+  });
+
+  it("requires verified runtime, session, model, file, and custom output in order", () => {
+    const ready = {
+      environmentLoading: false,
+      environmentError: false,
+      runtime,
+      runtimeSyncStatus: "ready" as const,
+      readyModels: [model],
+      selectedModelId: model.resourceId,
+      selectedFile: file,
+      outputMode: "source" as const,
+      outputDirectory: null,
+      taskActive: false,
+    };
+
+    expect(deriveLocalSubtitleStartIssue(ready)).toBeNull();
+    expect(
+      deriveLocalSubtitleStartIssue({ ...ready, runtime: null }),
+    ).toBe("runtime_unavailable");
+    expect(
+      deriveLocalSubtitleStartIssue({ ...ready, selectedModelId: "missing" }),
+    ).toBe("model_required");
+    expect(
+      deriveLocalSubtitleStartIssue({ ...ready, selectedFile: null }),
+    ).toBe("file_required");
+    expect(
+      deriveLocalSubtitleStartIssue({ ...ready, outputMode: "custom" }),
+    ).toBe("output_directory_required");
+    expect(
+      deriveLocalSubtitleStartIssue({
+        ...ready,
+        selectedFile: null,
+        taskActive: true,
+      }),
+    ).toBe("task_active");
+  });
+
+  it("builds the production CPU, transcribe, no-VAD, SRT, index-only request", () => {
+    const request = createSingleFileLocalSubtitleRequest({
+      file,
+      modelId: model.resourceId,
+      preferences: DEFAULT_LOCAL_SUBTITLE_TRANSCRIBER_PREFERENCES,
+      outputDirectory: null,
+    });
+
+    expect(validateEnqueueLocalSubtitleBatchRequest(request).ok).toBe(true);
+    expect(request).toMatchObject({
+      files: [{ fileToken: file.fileToken }],
+      config: {
+        modelId: model.resourceId,
+        devicePreference: "cpu",
+        taskMode: "transcribe",
+        vadEnabled: false,
+        output: {
+          mode: "source",
+          formats: ["SRT"],
+          conflictPolicy: "index",
+        },
+        postAction: { mode: "export_only" },
+      },
+    });
+  });
+
+  it("finds the active task and exposes only a committed SRT artifact", () => {
+    const task = createTask();
+    const batch: LocalSubtitleBatchSummary = {
+      batchId: task.batchId,
+      status: "completed",
+      config: {
+        modelId: model.resourceId,
+        devicePreference: "cpu",
+        resolvedBackend: "cpu",
+        language: "auto",
+        taskMode: "transcribe",
+        qualityPreset: "subtitle_quality",
+        vadEnabled: false,
+        outputFormats: ["SRT"],
+        outputMode: "source",
+        conflictPolicy: "index",
+        postActionMode: "export_only",
+      },
+      tasks: [task],
+      createdAt: task.createdAt,
+      updatedAt: task.updatedAt,
+    };
+
+    expect(findLocalSubtitleTask([batch], task.batchId, task.taskId)).toBe(task);
+    expect(isLocalSubtitleTaskActive(task)).toBe(false);
+    expect(getCommittedSrtArtifact(task)?.artifactRef).toBe("artifact-ref");
+  });
+});
+
+function createTask(): LocalSubtitleTaskSummary {
+  return {
+    taskId: "task-1",
+    batchId: "batch-1",
+    generation: 1,
+    displayName: "interview.mp4",
+    status: "completed",
+    progress: {
+      stage: "exporting",
+      stageProgress: 100,
+      overallProgress: 100,
+    },
+    model: {
+      engine: "whisper_cpp",
+      engineVersion: LOCAL_SUBTITLE_PRODUCTION_CONTRACT.engine.version,
+      engineCommit: LOCAL_SUBTITLE_PRODUCTION_CONTRACT.engine.commit,
+      modelManifestVersion: 1,
+      modelId: model.resourceId,
+      modelHash: LOCAL_SUBTITLE_PRODUCTION_CONTRACT.launchModel.sha256,
+    },
+    resolvedBackend: "cpu",
+    requestedFormats: ["SRT"],
+    artifactResults: [
+      {
+        format: "SRT",
+        status: "committed",
+        artifact: {
+          artifactRef: "artifact-ref",
+          displayName: "interview.srt",
+          format: "SRT",
+          expiresAt: 10_000,
+        },
+      },
+    ],
+    completion: {
+      outcome: "full",
+      artifacts: [
+        {
+          format: "SRT",
+          status: "committed",
+          artifact: {
+            artifactRef: "artifact-ref",
+            displayName: "interview.srt",
+            format: "SRT",
+            expiresAt: 10_000,
+          },
+        },
+      ],
+      warnings: [],
+    },
+    postAction: {
+      mode: "export_only",
+      importStatus: "not_requested",
+      startStatus: "not_requested",
+    },
+    createdAt: "2026-08-03T00:00:00.000Z",
+    updatedAt: "2026-08-03T00:01:00.000Z",
+  };
+}

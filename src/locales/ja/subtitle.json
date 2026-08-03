@@ -218,6 +218,72 @@
     }
   },
   "local_transcriber": {
+    "title": "ローカル字幕文字起こし",
+    "description": "端末にインストール済みのモデルで、1つの音声または動画を SRT 字幕に文字起こしします。",
+    "config": {
+      "title": "文字起こし設定",
+      "model": "ローカルモデル",
+      "no_model": "利用可能なモデルがありません",
+      "output_mode": "出力先",
+      "output_source": "元ファイルのフォルダー",
+      "output_custom": "カスタムフォルダー",
+      "output_directory": "出力フォルダー",
+      "output_placeholder": "出力フォルダーを選択"
+    },
+    "workspace": { "title": "文字起こしタスク" },
+    "environment": {
+      "checking": "確認中",
+      "ready": "環境利用可能",
+      "unavailable": "環境利用不可"
+    },
+    "file": {
+      "authorizing": "ファイルを承認しています...",
+      "title": "音声または動画を追加",
+      "description": "メディアファイルを1つドロップするか、端末から選択します"
+    },
+    "actions": {
+      "select_file": "ファイルを選択",
+      "clear_file": "ファイルを削除",
+      "select_output": "出力フォルダーを選択",
+      "refresh": "環境を再確認",
+      "start": "文字起こしを開始",
+      "reveal": "フォルダーに表示"
+    },
+    "readiness": {
+      "environment_loading": "ローカル実行環境を確認しています。",
+      "environment_unavailable": "ローカル実行環境の状態を取得できません。",
+      "runtime_unavailable": "ローカル文字起こし環境または CPU バックエンドを利用できません。",
+      "session_unavailable": "タスクセッションの準備ができていません。環境を再確認してください。",
+      "model_required": "インストール済みで利用可能なローカルモデルが必要です。",
+      "file_required": "音声または動画ファイルを1つ選択してください。",
+      "output_directory_required": "カスタム出力フォルダーを選択してください。",
+      "task_active": "現在のタスクが完了またはキャンセルされると、新しいタスクを開始できます。"
+    },
+    "stage": {
+      "queued": "待機中",
+      "preparing_media": "メディアを準備中",
+      "loading_model": "モデルを読み込み中",
+      "transcribing": "文字起こし中",
+      "post_processing": "字幕を処理中",
+      "exporting": "SRT を書き出し中",
+      "cancelling": "キャンセル中"
+    },
+    "status": {
+      "queued": "待機中",
+      "preparing_media": "メディアを準備中",
+      "loading_model": "モデルを読み込み中",
+      "transcribing": "文字起こし中",
+      "post_processing": "字幕を処理中",
+      "exporting": "字幕を書き出し中",
+      "completed": "完了",
+      "cancelling": "キャンセル中",
+      "cancelled": "キャンセル済み",
+      "failed": "文字起こしに失敗"
+    },
+    "result": {
+      "empty_title": "文字起こし結果はまだありません",
+      "empty_description": "開始後、ここにタスクの進行状況と SRT の結果が表示されます。"
+    },
     "overwrite_recovery": {
       "title": "出力の復旧",
       "trigger_label": "出力の復旧を開く、{{count}} 件保留中",

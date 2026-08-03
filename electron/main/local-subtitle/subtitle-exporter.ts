@@ -228,6 +228,12 @@ export class LocalSubtitleExporter<TReservation> {
     this.#onPartialWriteChunk = dependencies.onPartialWriteChunk;
   }
 
+  supportsConflictPolicy(policy: LocalSubtitleConflictPolicy): boolean {
+    return policy === "index" ||
+      (policy === "overwrite" &&
+        Boolean(this.#overwriteTransaction || this.#commitOverwrite));
+  }
+
   async exportArtifacts(
     options: ExportLocalSubtitleArtifactsOptions,
   ): Promise<LocalSubtitleExportResult> {

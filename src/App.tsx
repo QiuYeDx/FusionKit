@@ -12,6 +12,7 @@ import AppTitleBar from "@/pages/components/AppTitleBar";
 import SubtitleTranslator from "./pages/Tools/Subtitle/SubtitleTranslator";
 import SubtitleConverter from "./pages/Tools/Subtitle/SubtitleConverter";
 import SubtitleLanguageExtractor from "./pages/Tools/Subtitle/SubtitleLanguageExtractor";
+import LocalSubtitleTranscriber from "./pages/Tools/Subtitle/LocalSubtitleTranscriber";
 import NameTranslator from "./pages/Tools/Rename/NameTranslator";
 import TextTranslator from "./pages/Tools/Text/TextTranslator";
 import AudioTranscriber from "./pages/Tools/Audio/AudioTranscriber";
@@ -22,6 +23,7 @@ import { Toaster } from "@/components/ui/sonner";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import Update from "@/components/update";
 import LocalSubtitleOverwriteRecoveryPrompt from "@/components/local-subtitle/LocalSubtitleOverwriteRecoveryPrompt";
+import { LOCAL_SUBTITLE_TRANSCRIBER_ROUTE } from "@/constants/router";
 
 
 const ROUTE_ORDER: Record<string, number> = {
@@ -119,6 +121,10 @@ function App() {
                 <Route
                   path="/tools/subtitle/extractor"
                   element={<SubtitleLanguageExtractor />}
+                />
+                <Route
+                  path={LOCAL_SUBTITLE_TRANSCRIBER_ROUTE}
+                  element={<LocalSubtitleTranscriber />}
                 />
                 <Route
                   path="/tools/rename/name-translator"

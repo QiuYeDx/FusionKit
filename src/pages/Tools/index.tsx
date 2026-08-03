@@ -48,6 +48,15 @@ const CATEGORIES: Category[] = [
         descKey: "tools:field_desc.subtitle_language_extractor",
         chips: ["LRC · SRT"],
       },
+      {
+        id: "localSubtitleTranscriber",
+        titleKey: "tools:fields.local_subtitle_transcriber",
+        descKey: "tools:field_desc.local_subtitle_transcriber",
+        chipKeys: [
+          "tools:chips.local_cpu",
+          "tools:chips.local_srt",
+        ],
+      },
     ],
   },
   {

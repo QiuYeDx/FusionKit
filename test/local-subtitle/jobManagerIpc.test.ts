@@ -236,6 +236,39 @@ describe("local subtitle Job Manager IPC integration", () => {
     ).resolves.toEqual({ ok: true, data: { revoked: true } });
   });
 
+  it("admits source overwrite over IPC when production commit authority is available", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "fusionkit-job-ipc-overwrite-ready-"));
+    tempRoots.push(root);
+    const sourcePath = path.join(root, "private-source.wav");
+    await writeFile(sourcePath, "private media bytes");
+    const fixture = createFixture(root, true);
+    const authorized = await fixture.service.handleInternal(
+      LOCAL_SUBTITLE_PRELOAD_INTERNAL_CHANNELS.authorizeInputFiles,
+      fixture.event,
+      fixture.envelope({ files: [{ filePath: sourcePath }] }),
+    );
+    if (!authorized.ok) throw new Error("Expected input authorization.");
+    const fileToken = (
+      authorized.data as Array<{ readonly fileToken: string }>
+    )[0]!.fileToken;
+    const request = sourceEnqueueRequest(fileToken);
+    request.config.output.conflictPolicy = "overwrite";
+
+    const enqueued = await fixture.service.handlePublic(
+      LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.enqueue,
+      fixture.event,
+      fixture.envelope(request),
+    );
+
+    expect(enqueued).toMatchObject({
+      ok: true,
+      data: { config: { conflictPolicy: "overwrite", outputMode: "source" } },
+    });
+    expect(JSON.stringify(enqueued)).not.toContain(fileToken);
+    expect(JSON.stringify(enqueued)).not.toContain(sourcePath);
+    expect(JSON.stringify(enqueued)).not.toContain(root);
+  });
+
   it("maps first-slice rejections without consuming input capabilities", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "fusionkit-job-ipc-error-"));
     tempRoots.push(root);
@@ -286,7 +319,7 @@ describe("local subtitle Job Manager IPC integration", () => {
   });
 });
 
-function createFixture(root: string) {
+function createFixture(root: string, supportsOverwrite = false) {
   const ownerSessions = new LocalSubtitleOwnerSessionRegistry({
     trustedSender: { devServerUrl: DEV_SERVER_URL },
   });
@@ -320,6 +353,8 @@ function createFixture(root: string) {
       }),
     },
     executor: {
+      supportsOutputConflictPolicy: (policy) =>
+        policy === "index" || (policy === "overwrite" && supportsOverwrite),
       beginBatchSlice: () => Object.freeze({}) as LocalSubtitleJobBatchRuntime,
       execute: async (context) => {
         context.update({

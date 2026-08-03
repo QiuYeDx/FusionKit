@@ -392,6 +392,21 @@ describe("local subtitle artifact export", () => {
     ).toThrow(TypeError);
   });
 
+  it("reports overwrite support only when a commit authority is configured", () => {
+    const indexOnly = new LocalSubtitleExporter(new TestArtifactRegistry());
+    expect(indexOnly.supportsConflictPolicy("index")).toBe(true);
+    expect(indexOnly.supportsConflictPolicy("overwrite")).toBe(false);
+
+    const registry = new TestArtifactRegistry();
+    const transaction = createTestOverwriteTransaction();
+    const nativeOverwrite = new LocalSubtitleExporter(registry, {
+      overwriteTransaction: transaction.coordinator,
+      overwriteRecoveryOwner: createTestOverwriteRecoveryOwner(registry),
+    });
+    expect(nativeOverwrite.supportsConflictPolicy("index")).toBe(true);
+    expect(nativeOverwrite.supportsConflictPolicy("overwrite")).toBe(true);
+  });
+
   it("rejects a structural overwrite adapter that bypasses the coordinator", () => {
     expect(
       () =>

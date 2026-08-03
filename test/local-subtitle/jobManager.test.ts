@@ -16,6 +16,7 @@ import {
   LOCAL_SUBTITLE_PRODUCTION_CONTRACT,
   createLocalSubtitleError,
   type LocalSubtitleArtifactResult,
+  type LocalSubtitleConflictPolicy,
   type LocalSubtitleFormat,
 } from "../../src/type/localSubtitle";
 import type { EnqueueLocalSubtitleBatchRequest } from "../../src/type/localSubtitleIpc";
@@ -2654,6 +2655,44 @@ describe("LocalSubtitleJobManager", () => {
     },
   );
 
+  it.each(["custom", "source"] as const)(
+    "admits %s overwrite when the executor supports it",
+    async (outputMode) => {
+      const taskExecutor = executor(
+        async (context) => successfulExecution(context),
+        ["index", "overwrite"],
+      );
+      const harness = await createHarness({ executor: taskExecutor });
+      const request = outputMode === "custom"
+        ? await harness.createRequest(harness.fileToken)
+        : enqueueRequest(harness.fileToken);
+      request.config.output.conflictPolicy = "overwrite";
+      const inputResolve = vi.spyOn(harness.inputs, "resolveDraft");
+      const outputResolve = vi.spyOn(harness.outputs, "resolveDraft");
+      const reserveBatch = vi.spyOn(harness.leases, "reserveBatch");
+
+      await expect(harness.manager.enqueue(OWNER_A, request)).resolves.toMatchObject({
+        config: { conflictPolicy: "overwrite", outputMode },
+      });
+
+      expect(taskExecutor.supportsOutputConflictPolicy).toHaveBeenCalledWith(
+        "overwrite",
+      );
+      expect(inputResolve).toHaveBeenCalled();
+      expect(outputResolve).not.toHaveBeenCalled();
+      expect(reserveBatch).toHaveBeenCalledOnce();
+      expect(harness.inputs.revokeDraft(OWNER_A, harness.fileToken)).toBe(false);
+      if (request.config.output.mode === "custom") {
+        expect(
+          harness.outputs.revokeDraft(
+            OWNER_A,
+            request.config.output.outputDirToken,
+          ),
+        ).toBe(false);
+      }
+    },
+  );
+
   it("admits source output with both input operations and no output lease", async () => {
     const harness = await createHarness({
       executor: executor(async (context) => successfulExecution(context)),
@@ -3437,8 +3476,12 @@ function committedArtifact(
 
 function executor(
   execute: LocalSubtitleJobTaskExecutor["execute"],
+  supportedConflictPolicies: readonly LocalSubtitleConflictPolicy[] = ["index"],
 ) {
   return {
+    supportsOutputConflictPolicy: vi.fn((policy: LocalSubtitleConflictPolicy) =>
+      supportedConflictPolicies.includes(policy)
+    ),
     beginBatchSlice: vi.fn(() =>
       Object.freeze({}) as LocalSubtitleJobBatchRuntime
     ),

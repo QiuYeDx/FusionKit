@@ -8,7 +8,8 @@
     "subtitle": {
       "translator": "字幕AI翻訳",
       "converter": "字幕形式変換",
-      "extractor": "字幕言語抽出"
+      "extractor": "字幕言語抽出",
+      "local_transcriber": "ローカル字幕文字起こし"
     },
     "rename": {
       "name_translator": "ファイル/フォルダ名翻訳"

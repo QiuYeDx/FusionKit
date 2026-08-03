@@ -19,6 +19,7 @@
     "subtitle_translator": "字幕AI翻譯",
     "subtitle_formatter": "字幕格式轉換",
     "subtitle_language_extractor": "字幕語言擷取",
+    "local_subtitle_transcriber": "本機字幕轉寫",
     "name_translator": "檔案名稱/資料夾名稱翻譯",
     "text_translator": "長文本翻譯",
     "audio_transcriber": "音訊轉文字",
@@ -30,6 +31,7 @@
     "subtitle_translator": "使用AI模型翻譯字幕檔案",
     "subtitle_formatter": "轉換字幕格式（SRT、ASS等）",
     "subtitle_language_extractor": "從雙語字幕中擷取指定語言",
+    "local_subtitle_transcriber": "使用本機模型將音訊或影片轉寫為 SRT 字幕",
     "name_translator": "批次翻譯檔案和資料夾名稱，先預覽再安全重新命名",
     "text_translator": "透過任務模型翻譯長篇 TXT / Markdown 檔案，並保留可恢復工作區",
     "audio_transcriber": "使用全域 ASR 設定轉寫本機音訊檔案",
@@ -49,7 +51,9 @@
     "microphone": "麥克風",
     "realtime": "即時",
     "webrtc": "WebRTC",
-    "duplex": "雙向語音"
+    "duplex": "雙向語音",
+    "local_cpu": "本機 · CPU",
+    "local_srt": "單一檔案 · SRT"
   },
   "coming_soon": {
     "title": "敬請期待",

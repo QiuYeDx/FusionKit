@@ -218,6 +218,72 @@
     }
   },
   "local_transcriber": {
+    "title": "Local Subtitle Transcriber",
+    "description": "Use an installed on-device model to transcribe one audio or video file into SRT subtitles.",
+    "config": {
+      "title": "Transcription settings",
+      "model": "Local model",
+      "no_model": "No model available",
+      "output_mode": "Output location",
+      "output_source": "Source folder",
+      "output_custom": "Custom folder",
+      "output_directory": "Output folder",
+      "output_placeholder": "Select an output folder"
+    },
+    "workspace": { "title": "Transcription task" },
+    "environment": {
+      "checking": "Checking",
+      "ready": "Environment ready",
+      "unavailable": "Environment unavailable"
+    },
+    "file": {
+      "authorizing": "Authorizing file...",
+      "title": "Add audio or video",
+      "description": "Drop one media file here or select it from your device"
+    },
+    "actions": {
+      "select_file": "Select file",
+      "clear_file": "Remove file",
+      "select_output": "Select output folder",
+      "refresh": "Check environment again",
+      "start": "Start transcription",
+      "reveal": "Show in folder"
+    },
+    "readiness": {
+      "environment_loading": "Checking the local runtime.",
+      "environment_unavailable": "The local runtime status could not be read.",
+      "runtime_unavailable": "The local transcription runtime or CPU backend is unavailable.",
+      "session_unavailable": "The task session is not ready. Check the environment again.",
+      "model_required": "An installed, ready local model is required.",
+      "file_required": "Select one audio or video file.",
+      "output_directory_required": "Select a custom output folder.",
+      "task_active": "A new task can start after the current task finishes or is cancelled."
+    },
+    "stage": {
+      "queued": "Waiting",
+      "preparing_media": "Preparing media",
+      "loading_model": "Loading model",
+      "transcribing": "Transcribing",
+      "post_processing": "Processing subtitles",
+      "exporting": "Exporting SRT",
+      "cancelling": "Cancelling"
+    },
+    "status": {
+      "queued": "Waiting",
+      "preparing_media": "Preparing media",
+      "loading_model": "Loading model",
+      "transcribing": "Transcribing",
+      "post_processing": "Processing subtitles",
+      "exporting": "Exporting subtitles",
+      "completed": "Completed",
+      "cancelling": "Cancelling",
+      "cancelled": "Cancelled",
+      "failed": "Transcription failed"
+    },
+    "result": {
+      "empty_title": "No transcription result yet",
+      "empty_description": "Task stages and the exported SRT result will appear here after transcription starts."
+    },
     "overwrite_recovery": {
       "title": "Output recovery",
       "trigger_label": "Open output recovery, {{count}} pending",

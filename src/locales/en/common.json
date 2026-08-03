@@ -8,7 +8,8 @@
     "subtitle": {
       "translator": "Subtitle AI Translation",
       "converter": "Subtitle Format Converter",
-      "extractor": "Language Extraction"
+      "extractor": "Language Extraction",
+      "local_transcriber": "Local Subtitle Transcriber"
     },
     "rename": {
       "name_translator": "File/Folder Name Translation"

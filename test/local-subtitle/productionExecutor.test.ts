@@ -1,4 +1,14 @@
-import { link, lstat, mkdir, mkdtemp, realpath, rm, unlink } from "node:fs/promises";
+import {
+  link,
+  lstat,
+  mkdir,
+  mkdtemp,
+  realpath,
+  rename,
+  rm,
+  unlink,
+  writeFile,
+} from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -9,6 +19,7 @@ import {
   LOCAL_SUBTITLE_SERVER_HTTP_CONTRACT_VERSION,
   createLocalSubtitleBatchConfigSnapshot,
   type LocalSubtitleBatchConfigSnapshot,
+  type LocalSubtitleConflictPolicy,
   type LocalSubtitleFormat,
   type LocalSubtitleTaskSummary,
 } from "../../src/type/localSubtitle";
@@ -302,6 +313,34 @@ describe("local subtitle production executor", () => {
         harness.artifacts.readText(OWNER, artifact.artifact.artifactRef),
       ).resolves.toMatchObject({ format: "SRT" });
       expect(resolutions).toBe(outputMode === "source" ? 5 : 4);
+    },
+  );
+
+  it.each(["custom", "source"] as const)(
+    "executes %s overwrite when the exporter has commit authority",
+    async (outputMode) => {
+      const commitOverwrite = vi.fn(rename);
+      const harness = await createHarness({
+        outputMode,
+        conflictPolicy: "overwrite",
+        exporterDependencies: () => ({ commitOverwrite }),
+      });
+      const finalPath = path.join(harness.outputRoot, "meeting.srt");
+      await writeFile(finalPath, "previous subtitle", { mode: 0o600 });
+
+      const result = await harness.executor.execute(harness.context);
+      expect(result).toMatchObject({
+        status: "completed",
+        artifactResults: [{ format: "SRT", status: "committed" }],
+      });
+      expect(commitOverwrite).toHaveBeenCalledOnce();
+      if (result.status !== "completed") throw new Error("Expected completion.");
+      const artifact = result.artifactResults[0];
+      if (artifact?.status !== "committed") throw new Error("Expected artifact.");
+      await expect(harness.artifacts.readText(
+        OWNER,
+        artifact.artifact.artifactRef,
+      )).resolves.toMatchObject({ rawText: expect.stringContaining("cue-0") });
     },
   );
 
@@ -1055,6 +1094,7 @@ interface HarnessOptions {
   readonly acquireBatchRuntimePin?: () => Promise<LocalSubtitleServerRuntimePin>;
   readonly normalizeFailure?: unknown;
   readonly outputMode?: "custom" | "source";
+  readonly conflictPolicy?: LocalSubtitleConflictPolicy;
   readonly formats?: readonly LocalSubtitleFormat[];
   readonly failArtifactReserveFormat?: LocalSubtitleFormat;
   readonly abortAfterArtifactFormat?: LocalSubtitleFormat;
@@ -1233,6 +1273,9 @@ async function createHarness(options: HarnessOptions = {}) {
   });
   const exporter = {
     exportArtifacts: vi.fn(realExporter.exportArtifacts.bind(realExporter)),
+    supportsConflictPolicy: vi.fn(
+      realExporter.supportsConflictPolicy.bind(realExporter),
+    ),
   };
   const outputs = {
     resolveBatchLease: vi.fn(async () => resolvedOutputDirectory(outputRoot)),
@@ -1272,7 +1315,7 @@ async function createHarness(options: HarnessOptions = {}) {
     options.admittedRuntimeGeneration ?? normalized.runtimeGeneration;
   const config = createConfig(
     options.outputMode ?? "custom",
-    "index",
+    options.conflictPolicy ?? "index",
     options.formats ?? ["SRT"],
   );
   const managedModel = Object.freeze({
