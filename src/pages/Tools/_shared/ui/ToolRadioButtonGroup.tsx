@@ -1,6 +1,7 @@
 import { useRef, type KeyboardEvent, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { ButtonGroup } from "@/components/ui/button-group";
+import { cn } from "@/lib/utils";
 
 export interface ToolRadioButtonOption<T extends string> {
   value: T;
@@ -16,6 +17,8 @@ interface ToolRadioButtonGroupProps<T extends string> {
   onValueChange: (value: T) => void;
   onPointerValueChange?: (value: T) => void;
   disabled?: boolean;
+  orientation?: "horizontal" | "vertical";
+  className?: string;
 }
 
 export function ToolRadioButtonGroup<T extends string>({
@@ -25,6 +28,8 @@ export function ToolRadioButtonGroup<T extends string>({
   onValueChange,
   onPointerValueChange,
   disabled = false,
+  orientation = "horizontal",
+  className,
 }: ToolRadioButtonGroupProps<T>) {
   const buttonRefs = useRef(new Map<T, HTMLButtonElement>());
 
@@ -53,7 +58,8 @@ export function ToolRadioButtonGroup<T extends string>({
 
   return (
     <ButtonGroup
-      className="w-full"
+      className={cn("w-full", className)}
+      orientation={orientation}
       role="radiogroup"
       aria-label={ariaLabel}
     >
@@ -66,7 +72,11 @@ export function ToolRadioButtonGroup<T extends string>({
           }}
           type="button"
           size="sm"
-          className="min-w-0 flex-1"
+          className={cn(
+            "min-w-0 flex-1",
+            orientation === "vertical" &&
+              "h-auto min-h-8 justify-start whitespace-normal py-2 text-left",
+          )}
           role="radio"
           aria-label={option.ariaLabel}
           aria-checked={value === option.value}

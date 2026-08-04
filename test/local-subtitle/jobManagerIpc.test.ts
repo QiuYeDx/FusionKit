@@ -463,6 +463,10 @@ function createFixture(root: string, supportsOverwrite = false) {
     modelResolver: {
       resolveManagedModel: async () => managedModel,
     },
+    mediaSelections: {
+      bindTaskMediaSelection: () => undefined,
+      releaseTaskMediaSelection: () => undefined,
+    },
     executor: {
       supportsOutputConflictPolicy: (policy) =>
         policy === "index" || (policy === "overwrite" && supportsOverwrite),

@@ -303,6 +303,7 @@ app.whenReady().then(async () => {
     runtimeVerifier: localSubtitleMediaNormalizer,
     backendResolver: localSubtitleBackendResolver,
     modelResolver: localSubtitleModelManager,
+    mediaSelections: localSubtitleMediaNormalizer,
     executor: localSubtitleProductionExecutor,
     artifacts: localSubtitleArtifacts,
   });

@@ -135,6 +135,98 @@ describe("LocalSubtitleJobManager", () => {
     expect(Object.isFrozen(context.config)).toBe(true);
   });
 
+  it("promotes an explicit draft stream selection into the task lifecycle", async () => {
+    const harness = await createHarness({
+      executor: executor(async (context) => successfulExecution(context)),
+    });
+    const request = await harness.createRequest(harness.fileToken);
+    request.files[0] = {
+      ...request.files[0]!,
+      audioStreamId: "stream-explicit",
+    };
+
+    await harness.manager.enqueue(OWNER_A, request);
+
+    expect(harness.mediaSelections.bindTaskMediaSelection).toHaveBeenCalledWith(
+      expect.objectContaining({
+        owner: OWNER_A,
+        fileToken: harness.fileToken,
+        taskId: "task-1",
+        audioStreamId: "stream-explicit",
+        runtimeGeneration: "a".repeat(64),
+        inputIdentity: expect.any(Object),
+      }),
+    );
+    expect(harness.mediaSelections.releaseTaskMediaSelection).not.toHaveBeenCalled();
+
+    harness.flushScheduled();
+    await harness.manager.waitForIdle();
+    expect(harness.mediaSelections.releaseTaskMediaSelection).toHaveBeenCalledWith(
+      OWNER_A,
+      "task-1",
+    );
+  });
+
+  it("rolls draft capabilities back when an explicit stream binding is stale", async () => {
+    const harness = await createHarness({
+      executor: executor(async (context) => successfulExecution(context)),
+    });
+    harness.mediaSelections.bindTaskMediaSelection.mockImplementationOnce(() => {
+      throw new Error("stale stream selection");
+    });
+    const request = await harness.createRequest(harness.fileToken);
+    request.files[0] = {
+      ...request.files[0]!,
+      audioStreamId: "stream-stale",
+    };
+
+    await expect(harness.manager.enqueue(OWNER_A, request)).rejects.toThrow(
+      "stale stream selection",
+    );
+    expect(harness.inputs.revokeDraft(OWNER_A, harness.fileToken)).toBe(true);
+    expect(harness.registry.getSnapshot(OWNER_A).batches).toEqual([]);
+    expect(harness.executor.execute).not.toHaveBeenCalled();
+  });
+
+  it("retains an explicit task stream binding across a retryable failure", async () => {
+    let attempt = 0;
+    const harness = await createHarness({
+      executor: executor(async (context) => {
+        attempt += 1;
+        if (attempt === 1) {
+          return {
+            status: "failed",
+            error: createLocalSubtitleError(
+              "media_changed",
+              "The media changed before decode.",
+              { stage: "preparing_media" },
+            ),
+          };
+        }
+        return successfulExecution(context);
+      }),
+    });
+    const request = await harness.createRequest(harness.fileToken);
+    request.files[0] = {
+      ...request.files[0]!,
+      audioStreamId: "stream-retry",
+    };
+    const batch = await harness.manager.enqueue(OWNER_A, request);
+
+    harness.flushScheduled();
+    await harness.manager.waitForIdle();
+    expect(batch.tasks[0]?.taskId).toBe("task-1");
+    expect(harness.mediaSelections.releaseTaskMediaSelection).not.toHaveBeenCalled();
+
+    await harness.manager.retryTask(OWNER_A, "task-1");
+    await harness.manager.waitForIdle();
+    expect(harness.mediaSelections.bindTaskMediaSelection).toHaveBeenCalledOnce();
+    expect(harness.mediaSelections.releaseTaskMediaSelection).toHaveBeenCalledWith(
+      OWNER_A,
+      "task-1",
+    );
+  });
+
   it("accepts the maximum number of unique inputs in one ordered batch", async () => {
     const taskIds = Array.from(
       { length: LOCAL_SUBTITLE_LIMITS.maxBatchFiles },
@@ -3517,6 +3609,10 @@ async function createHarness(options: HarnessOptions) {
     readonly operation: () => void;
   }> = [];
   let leaseScheduleCount = 0;
+  const mediaSelections = {
+    bindTaskMediaSelection: vi.fn(() => undefined),
+    releaseTaskMediaSelection: vi.fn(() => undefined),
+  };
   const manager = new LocalSubtitleJobManager({
     registry,
     inputs,
@@ -3525,6 +3621,7 @@ async function createHarness(options: HarnessOptions) {
     runtimeVerifier,
     backendResolver,
     modelResolver,
+    mediaSelections,
     executor: options.executor,
     ...(options.artifacts === undefined ? {} : { artifacts: options.artifacts }),
     now: () => now++,
@@ -3564,6 +3661,7 @@ async function createHarness(options: HarnessOptions) {
     executor: options.executor,
     managedModel,
     modelResolver,
+    mediaSelections,
     fileToken: file.fileToken,
     createRequest: async (
       fileTokens: string | readonly string[],

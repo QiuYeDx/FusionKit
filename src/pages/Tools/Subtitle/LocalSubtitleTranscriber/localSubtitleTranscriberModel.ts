@@ -10,6 +10,7 @@ import type {
   EnqueueLocalSubtitleBatchRequest,
   LocalSubtitleAuthorizedMedia,
   LocalSubtitleManagedResourceSummary,
+  LocalSubtitleMediaProbeSummary,
   LocalSubtitleOutputDirectorySelection,
   LocalSubtitleRuntimeSummary,
 } from "@/type/localSubtitleIpc";
@@ -30,7 +31,28 @@ export type LocalSubtitleStartIssue =
   | "backend_preview_loading"
   | "backend_preview_unavailable"
   | "file_required"
+  | "media_probe_loading"
+  | "media_probe_failed"
   | "output_directory_required";
+
+export type LocalSubtitleDraftMediaProbe =
+  | { readonly status: "loading" }
+  | {
+      readonly status: "ready";
+      readonly summary: LocalSubtitleMediaProbeSummary;
+    }
+  | {
+      readonly status: "error";
+      readonly error:
+        | { readonly message: string }
+        | { readonly kind: "mismatched_file" };
+    };
+
+export type LocalSubtitleDraftMediaProbeStatus =
+  | "idle"
+  | "loading"
+  | "ready"
+  | "error";
 
 export interface LocalSubtitleStartReadinessInput {
   readonly environmentLoading: boolean;
@@ -42,6 +64,7 @@ export interface LocalSubtitleStartReadinessInput {
   readonly backendPreviewStatus: "idle" | "loading" | "ready" | "error";
   readonly backendPreviewModelId: string | null;
   readonly selectedFiles: readonly LocalSubtitleAuthorizedMedia[];
+  readonly mediaProbeStatus: LocalSubtitleDraftMediaProbeStatus;
   readonly outputMode: "source" | "custom";
   readonly outputDirectory: ActiveOutputDirectory | null;
 }
@@ -126,6 +149,10 @@ export function deriveLocalSubtitleStartIssue(
     return "backend_preview_unavailable";
   }
   if (input.selectedFiles.length === 0) return "file_required";
+  if (input.mediaProbeStatus === "idle" || input.mediaProbeStatus === "loading") {
+    return "media_probe_loading";
+  }
+  if (input.mediaProbeStatus === "error") return "media_probe_failed";
   if (input.outputMode === "custom" && !input.outputDirectory) {
     return "output_directory_required";
   }
@@ -137,6 +164,7 @@ export function createLocalSubtitleBatchRequest(input: {
   readonly modelId: string;
   readonly preferences: LocalSubtitleTranscriberPreferences;
   readonly outputDirectory: ActiveOutputDirectory | null;
+  readonly explicitAudioStreamIds?: ReadonlyMap<string, string>;
 }): EnqueueLocalSubtitleBatchRequest {
   if (
     input.files.length === 0 ||
@@ -161,7 +189,13 @@ export function createLocalSubtitleBatchRequest(input: {
 
   return {
     schemaVersion: LOCAL_SUBTITLE_DOMAIN_SCHEMA_VERSION,
-    files: input.files.map((file) => ({ fileToken: file.fileToken })),
+    files: input.files.map((file) => {
+      const audioStreamId = input.explicitAudioStreamIds?.get(file.fileToken);
+      return {
+        fileToken: file.fileToken,
+        ...(audioStreamId === undefined ? {} : { audioStreamId }),
+      };
+    }),
     config: {
       modelId: input.modelId,
       devicePreference: "auto",
@@ -181,6 +215,27 @@ export function createLocalSubtitleBatchRequest(input: {
       postAction: { mode: "export_only" },
     },
   };
+}
+
+export function deriveLocalSubtitleDraftMediaProbeStatus(
+  files: readonly LocalSubtitleAuthorizedMedia[],
+  probes: ReadonlyMap<string, LocalSubtitleDraftMediaProbe>,
+): LocalSubtitleDraftMediaProbeStatus {
+  if (files.length === 0) return "idle";
+  const entries = files.map((file) => probes.get(file.fileToken));
+  if (entries.some((entry) => entry?.status === "error")) return "error";
+  if (entries.some((entry) => entry?.status !== "ready")) return "loading";
+  return "ready";
+}
+
+export function formatLocalSubtitleDuration(durationMs: number): string {
+  const totalSeconds = Math.max(0, Math.floor(durationMs / 1_000));
+  const hours = Math.floor(totalSeconds / 3_600);
+  const minutes = Math.floor((totalSeconds % 3_600) / 60);
+  const seconds = totalSeconds % 60;
+  return hours > 0
+    ? `${hours}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`
+    : `${minutes}:${String(seconds).padStart(2, "0")}`;
 }
 
 export function findLocalSubtitleTask(

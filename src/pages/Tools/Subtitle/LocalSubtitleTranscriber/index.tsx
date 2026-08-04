@@ -12,7 +12,6 @@ import {
   Loader2,
   Play,
   Settings2,
-  Trash2,
 } from "lucide-react";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import { Badge } from "@/components/ui/badge";
@@ -47,18 +46,21 @@ import type {
 import { LOCAL_SUBTITLE_LIMITS } from "@/type/localSubtitle";
 import type {
   LocalSubtitleIpcResult,
+  LocalSubtitleAuthorizedMedia,
   LocalSubtitleBackendPreviewSummary,
   LocalSubtitleManagedResourceSummary,
   LocalSubtitleRuntimeSummary,
 } from "@/type/localSubtitleIpc";
 import {
   createLocalSubtitleBatchRequest,
+  deriveLocalSubtitleDraftMediaProbeStatus,
   deriveLocalSubtitleStartIssue,
-  formatLocalSubtitleBytes,
   getCommittedSrtArtifact,
   getReadyLocalSubtitleModels,
+  type LocalSubtitleDraftMediaProbe,
   type LocalSubtitleStartIssue,
 } from "./localSubtitleTranscriberModel";
+import { LocalSubtitleDraftMediaList } from "./LocalSubtitleDraftMediaList";
 import {
   LocalSubtitleEnvironmentManager,
   localSubtitleResourceActionKey,
@@ -97,6 +99,8 @@ const START_ISSUE_KEYS = {
   backend_preview_loading: "subtitle:local_transcriber.readiness.backend_preview_loading",
   backend_preview_unavailable: "subtitle:local_transcriber.readiness.backend_preview_unavailable",
   file_required: "subtitle:local_transcriber.readiness.file_required",
+  media_probe_loading: "subtitle:local_transcriber.readiness.media_probe_loading",
+  media_probe_failed: "subtitle:local_transcriber.readiness.media_probe_failed",
   output_directory_required: "subtitle:local_transcriber.readiness.output_directory_required",
 } as const satisfies Record<LocalSubtitleStartIssue, string>;
 
@@ -153,6 +157,8 @@ export default function LocalSubtitleTranscriber() {
   const refreshGenerationRef = useRef(0);
   const resourceRefreshGenerationRef = useRef(0);
   const backendPreviewGenerationRef = useRef(0);
+  const mediaProbeGenerationRef = useRef(0);
+  const mediaProbeQueueRef = useRef<Promise<void>>(Promise.resolve());
   const terminalResourceJobsRef = useRef("");
   const [environment, setEnvironment] = useState<EnvironmentState>({
     loading: true,
@@ -169,6 +175,13 @@ export default function LocalSubtitleTranscriber() {
   const [fileAuthorizationPending, setFileAuthorizationPending] = useState(false);
   const [outputSelectionPending, setOutputSelectionPending] = useState(false);
   const [submissionPending, setSubmissionPending] = useState(false);
+  const [mediaProbeQueuePending, setMediaProbeQueuePending] = useState(false);
+  const [draftMediaProbes, setDraftMediaProbes] = useState<
+    ReadonlyMap<string, LocalSubtitleDraftMediaProbe>
+  >(() => new Map());
+  const [explicitAudioStreamIds, setExplicitAudioStreamIds] = useState<
+    ReadonlyMap<string, string>
+  >(() => new Map());
   const [cpuRetryCandidate, setCpuRetryCandidate] =
     useState<LocalSubtitleTaskSummary | null>(null);
   const [actionError, setActionError] = useState<LocalSubtitleDisplayError | null>(null);
@@ -257,6 +270,7 @@ export default function LocalSubtitleTranscriber() {
       refreshGenerationRef.current += 1;
       resourceRefreshGenerationRef.current += 1;
       backendPreviewGenerationRef.current += 1;
+      mediaProbeGenerationRef.current += 1;
       resetDraft();
     };
   }, [refreshEnvironment, resetDraft]);
@@ -364,6 +378,114 @@ export default function LocalSubtitleTranscriber() {
     runtimeState.syncStatus,
     selectedModel,
   ]);
+
+  const enqueueMediaProbes = useCallback((
+    files: readonly LocalSubtitleAuthorizedMedia[],
+    generation: number,
+  ) => {
+    const operation = mediaProbeQueueRef.current
+      .catch(() => undefined)
+      .then(async () => {
+        for (const file of files) {
+          if (
+            !mountedRef.current ||
+            generation !== mediaProbeGenerationRef.current
+          ) return;
+
+          let next: LocalSubtitleDraftMediaProbe;
+          try {
+            const result = await window.localSubtitleApi.probeMedia(file.fileToken);
+            if (
+              result.ok &&
+              (result.data.fileToken !== file.fileToken ||
+                result.data.displayName !== file.displayName)
+            ) {
+              next = {
+                status: "error",
+                error: { kind: "mismatched_file" },
+              };
+            } else {
+              next = result.ok
+                ? { status: "ready", summary: result.data }
+                : { status: "error", error: result.error };
+            }
+          } catch (error) {
+            next = { status: "error", error: toDisplayError(error) };
+          }
+          if (
+            !mountedRef.current ||
+            generation !== mediaProbeGenerationRef.current
+          ) return;
+          setDraftMediaProbes((current) => {
+            const updated = new Map(current);
+            updated.set(file.fileToken, next);
+            return updated;
+          });
+        }
+      });
+    mediaProbeQueueRef.current = operation;
+    void operation.finally(() => {
+      if (
+        mountedRef.current &&
+        generation === mediaProbeGenerationRef.current
+      ) {
+        setMediaProbeQueuePending(false);
+      }
+    });
+  }, []);
+
+  useEffect(() => {
+    const generation = ++mediaProbeGenerationRef.current;
+    setExplicitAudioStreamIds(new Map());
+    setDraftMediaProbes(new Map(
+      selectedFiles.map((file) => [
+        file.fileToken,
+        { status: "loading" as const },
+      ]),
+    ));
+    setMediaProbeQueuePending(selectedFiles.length > 0);
+    if (selectedFiles.length > 0) enqueueMediaProbes(selectedFiles, generation);
+  }, [enqueueMediaProbes, selectedFiles]);
+
+  const handleRetryMediaProbe = useCallback((
+    file: LocalSubtitleAuthorizedMedia,
+  ) => {
+    const generation = ++mediaProbeGenerationRef.current;
+    setMediaProbeQueuePending(true);
+    setDraftMediaProbes((current) => {
+      const updated = new Map(current);
+      updated.set(file.fileToken, { status: "loading" });
+      return updated;
+    });
+    setExplicitAudioStreamIds((current) => {
+      const updated = new Map(current);
+      updated.delete(file.fileToken);
+      return updated;
+    });
+    enqueueMediaProbes([file], generation);
+  }, [enqueueMediaProbes]);
+
+  const handleAudioStreamChange = useCallback((
+    fileToken: string,
+    audioStreamId: string | null,
+  ) => {
+    setExplicitAudioStreamIds((current) => {
+      const updated = new Map(current);
+      if (audioStreamId === null) {
+        updated.delete(fileToken);
+        return updated;
+      }
+      const probe = draftMediaProbes.get(fileToken);
+      if (
+        probe?.status === "ready" &&
+        probe.summary.audioTracks.some((track) => track.streamId === audioStreamId)
+      ) {
+        updated.set(fileToken, audioStreamId);
+      }
+      return updated;
+    });
+  }, [draftMediaProbes]);
+
   useEffect(() => {
     const liveBatchIds = new Set(
       runtimeState.batches.map((batch) => batch.batchId),
@@ -387,6 +509,10 @@ export default function LocalSubtitleTranscriber() {
     .flatMap((batch) => batch.tasks)
     .find((task) => !["completed", "cancelled", "failed"].includes(task.status));
   const submissionLocked = submissionPending;
+  const mediaProbeStatus = deriveLocalSubtitleDraftMediaProbeStatus(
+    selectedFiles,
+    draftMediaProbes,
+  );
   const startIssue = deriveLocalSubtitleStartIssue({
     environmentLoading: environment.loading,
     environmentError: Boolean(environment.error),
@@ -397,6 +523,7 @@ export default function LocalSubtitleTranscriber() {
     backendPreviewStatus: backendPreview.status,
     backendPreviewModelId: backendPreview.modelId,
     selectedFiles,
+    mediaProbeStatus,
     outputMode: preferences.outputMode,
     outputDirectory,
   });
@@ -542,6 +669,7 @@ export default function LocalSubtitleTranscriber() {
         modelId: selectedModelId,
         preferences,
         outputDirectory,
+        explicitAudioStreamIds,
       });
       const result = await window.localSubtitleApi.enqueue(request);
       if (!mountedRef.current) return;
@@ -563,6 +691,7 @@ export default function LocalSubtitleTranscriber() {
     }
   }, [
     consumeDraftCapabilitiesAfterCommit,
+    explicitAudioStreamIds,
     fileAuthorizationPending,
     outputDirectory,
     outputSelectionPending,
@@ -660,6 +789,8 @@ export default function LocalSubtitleTranscriber() {
 
   const environmentReady = !startIssue || [
     "file_required",
+    "media_probe_loading",
+    "media_probe_failed",
     "output_directory_required",
   ].includes(startIssue);
 
@@ -786,59 +917,17 @@ export default function LocalSubtitleTranscriber() {
             />
 
             {selectedFiles.length > 0 ? (
-              <div data-testid="local-subtitle-draft-files" className="border-y">
-                <div className="flex min-w-0 items-center justify-between gap-3 border-b px-1 py-2.5">
-                  <div className="text-xs font-medium">
-                    {t("subtitle:local_transcriber.file.selected_count", {
-                      count: selectedFiles.length,
-                    })}
-                  </div>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    disabled={submissionLocked}
-                    onClick={() => setDraftInputFiles([])}
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                    {t("subtitle:local_transcriber.actions.clear_files")}
-                  </Button>
-                </div>
-                <div className="max-h-64 divide-y overflow-y-auto">
-                  {selectedFiles.map((file) => (
-                    <div
-                      key={file.fileToken}
-                      data-testid="local-subtitle-draft-file"
-                      className="flex min-w-0 items-center gap-3 px-1 py-2.5"
-                    >
-                      <FileVideo2 className="h-4 w-4 shrink-0 text-muted-foreground" />
-                      <div className="min-w-0 flex-1">
-                        <div className="truncate text-sm font-medium">
-                          {file.displayName}
-                        </div>
-                        <div className="mt-0.5 text-[11px] text-muted-foreground">
-                          {formatLocalSubtitleBytes(file.byteSize)}
-                        </div>
-                      </div>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon-sm"
-                        disabled={submissionLocked}
-                        onClick={() => removeDraftInputFile(file.fileToken)}
-                        aria-label={t("subtitle:local_transcriber.actions.remove_draft_file", {
-                          name: file.displayName,
-                        })}
-                        title={t("subtitle:local_transcriber.actions.remove_draft_file", {
-                          name: file.displayName,
-                        })}
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </Button>
-                    </div>
-                  ))}
-                </div>
-              </div>
+              <LocalSubtitleDraftMediaList
+                files={selectedFiles}
+                probes={draftMediaProbes}
+                explicitAudioStreamIds={explicitAudioStreamIds}
+                disabled={submissionLocked}
+                probeQueuePending={mediaProbeQueuePending}
+                onClear={() => setDraftInputFiles([])}
+                onRemove={removeDraftInputFile}
+                onRetryProbe={handleRetryMediaProbe}
+                onAudioStreamChange={handleAudioStreamChange}
+              />
             ) : null}
 
             {actionError || runtimeState.error ? (

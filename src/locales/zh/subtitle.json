@@ -260,14 +260,27 @@
     },
     "file": {
       "authorizing": "正在授权文件...",
+      "probing": "正在读取媒体信息...",
+      "probe_mismatch": "媒体信息与所选文件不匹配，请重新选择文件。",
       "title": "添加音频或视频",
       "description": "拖拽媒体文件到此处，或从设备中选择；每批最多 {{max}} 个",
       "selected_count": "已选择 {{count}} 个文件"
+    },
+    "audio": {
+      "group_label": "{{name}} 的音轨",
+      "track_count": "{{count}} 条音轨",
+      "auto": "自动（第 {{track}} 轨）",
+      "track": "音轨 {{track}}",
+      "track_aria": "音轨 {{track}}，{{details}}",
+      "default": "默认",
+      "channels": "{{count}} 声道",
+      "sample_rate": "{{rate}}"
     },
     "actions": {
       "select_files": "选择文件",
       "clear_files": "清空文件",
       "remove_draft_file": "移除 {{name}}",
+      "retry_probe": "重新读取 {{name}} 的媒体信息",
       "select_output": "选择输出目录",
       "refresh": "重新检查环境",
       "import_model": "导入模型",
@@ -338,6 +351,8 @@
       "backend_preview_loading": "正在解析当前模型的执行后端。",
       "backend_preview_unavailable": "无法验证当前模型的执行后端，请重新检查本地环境。",
       "file_required": "请至少选择一个音频或视频文件。",
+      "media_probe_loading": "正在读取所选文件的媒体信息。",
+      "media_probe_failed": "部分文件的媒体信息读取失败，请重试或移除文件。",
       "output_directory_required": "请选择自定义输出目录。"
     },
     "stage": {

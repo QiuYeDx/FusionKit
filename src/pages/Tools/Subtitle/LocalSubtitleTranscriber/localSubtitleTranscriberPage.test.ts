@@ -14,7 +14,11 @@ const queueSource = readFileSync(
   new URL("./LocalSubtitleTaskQueue.tsx", import.meta.url),
   "utf8",
 );
-const source = `${pageSource}\n${environmentSource}\n${errorSource}\n${queueSource}`;
+const draftMediaSource = readFileSync(
+  new URL("./LocalSubtitleDraftMediaList.tsx", import.meta.url),
+  "utf8",
+);
+const source = `${pageSource}\n${environmentSource}\n${errorSource}\n${queueSource}\n${draftMediaSource}`;
 
 describe("local subtitle transcriber page wiring", () => {
   it("uses shared tool controls and the fixed local subtitle bridge", () => {
@@ -30,6 +34,7 @@ describe("local subtitle transcriber page wiring", () => {
     }
     for (const method of [
       "authorizeInputFiles",
+      "probeMedia",
       "probeRuntime",
       "previewBackend",
       "listManagedResources",
@@ -72,7 +77,7 @@ describe("local subtitle transcriber page wiring", () => {
     expect(source).toContain('inputTestId="local-subtitle-file-input"');
     expect(pageSource).toContain("multiple");
     expect(pageSource).toContain("LOCAL_SUBTITLE_LIMITS.maxBatchFiles");
-    expect(pageSource).toContain('data-testid="local-subtitle-draft-files"');
+    expect(draftMediaSource).toContain('data-testid="local-subtitle-draft-files"');
     expect(source).toContain('data-testid="local-subtitle-start"');
     expect(source).toContain('data-testid="local-subtitle-task-queue"');
     expect(queueSource).toContain('data-testid="local-subtitle-task"');
@@ -82,6 +87,9 @@ describe("local subtitle transcriber page wiring", () => {
     expect(queueSource).toContain('"remove"');
     expect(queueSource).toContain('"reveal"');
     expect(pageSource).toContain("candidate.generation");
+    expect(pageSource).toContain("mediaProbeQueueRef");
+    expect(pageSource).toContain("explicitAudioStreamIds");
+    expect(draftMediaSource).toContain('orientation="vertical"');
     expect(pageSource).not.toContain("taskActive");
   });
 });

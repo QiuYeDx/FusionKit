@@ -223,6 +223,15 @@ export interface NormalizeLocalSubtitleMediaOptions {
   readonly onProgress?: (percentage: number) => void;
 }
 
+export interface BindLocalSubtitleTaskMediaSelectionOptions {
+  readonly owner: LocalSubtitleOwnerKey;
+  readonly fileToken: string;
+  readonly taskId: string;
+  readonly audioStreamId: string;
+  readonly inputIdentity: LocalSubtitleFileIdentity;
+  readonly runtimeGeneration: string;
+}
+
 export interface MaterializeLocalSubtitlePcmWindowOptions {
   readonly normalized: LocalSubtitleNormalizedPcm;
   readonly descriptor: LocalSubtitleMediaStructuralWindow;
@@ -263,6 +272,17 @@ interface ProbeRecord {
   readonly durationMs: number;
   readonly trackTableSignature: string;
   readonly tracks: readonly (RawAudioTrack & { readonly streamId: string })[];
+}
+
+interface TaskTrackSelectionRecord {
+  readonly ownerKey: string;
+  readonly fileToken: string;
+  readonly taskId: string;
+  readonly inputIdentity: LocalSubtitleFileIdentity;
+  readonly runtimeGeneration: string;
+  readonly durationMs: number;
+  readonly trackTableSignature: string;
+  readonly selectedTrack: RawAudioTrack & { readonly streamId: string };
 }
 
 interface DirectoryIdentity {
@@ -356,6 +376,7 @@ export class LocalSubtitleMediaNormalizer {
   readonly #sourceEnvironment?: Readonly<Record<string, string | undefined>>;
   readonly #availableBytes: (directory: string) => Promise<number>;
   readonly #probeRecords = new Map<string, ProbeRecord>();
+  readonly #taskTrackSelections = new Map<string, TaskTrackSelectionRecord>();
   readonly #normalizedByOwner = new Map<string, Set<LocalSubtitleNormalizedPcm>>();
   readonly #ownerStates = new Map<string, MediaOwnerState>();
   readonly #backgroundCleanup = new Set<Promise<void>>();
@@ -448,6 +469,60 @@ export class LocalSubtitleMediaNormalizer {
     }
   }
 
+  bindTaskMediaSelection(
+    options: BindLocalSubtitleTaskMediaSelectionOptions,
+  ): void {
+    assertOwner(options.owner);
+    assertOpaqueId(options.fileToken, "file token");
+    assertOpaqueId(options.taskId, "task id");
+    assertOpaqueId(options.audioStreamId, "audio stream id");
+    assertOpaqueId(options.runtimeGeneration, "media runtime generation");
+
+    const ownedBy = ownerKey(options.owner);
+    const record = this.#probeRecords.get(probeKey(options.owner, options.fileToken));
+    const selectedTrack = record?.tracks.find(
+      (track) => track.streamId === options.audioStreamId,
+    );
+    if (
+      !record ||
+      !selectedTrack ||
+      record.ownerKey !== ownedBy ||
+      record.runtimeGeneration !== options.runtimeGeneration ||
+      !sameFileIdentity(record.inputIdentity, options.inputIdentity)
+    ) {
+      throw mediaFailure(
+        "media_changed",
+        "media_changed",
+        "preflight",
+        "The selected media stream is stale or belongs to another input.",
+      );
+    }
+
+    const key = taskSelectionKey(options.owner, options.taskId);
+    if (this.#taskTrackSelections.has(key)) {
+      throw invalidMediaConfiguration("The media task selection is already bound.");
+    }
+    this.#taskTrackSelections.set(key, deepFreeze({
+      ownerKey: record.ownerKey,
+      fileToken: record.fileToken,
+      taskId: options.taskId,
+      inputIdentity: { ...record.inputIdentity },
+      runtimeGeneration: record.runtimeGeneration,
+      durationMs: record.durationMs,
+      trackTableSignature: record.trackTableSignature,
+      selectedTrack,
+    }));
+  }
+
+  releaseTaskMediaSelection(
+    owner: LocalSubtitleOwnerKey,
+    taskId: string,
+  ): void {
+    assertOwner(owner);
+    assertOpaqueId(taskId, "task id");
+    this.#taskTrackSelections.delete(taskSelectionKey(owner, taskId));
+  }
+
   async normalizeTask(
     options: NormalizeLocalSubtitleMediaOptions,
   ): Promise<LocalSubtitleNormalizedPcm> {
@@ -517,6 +592,7 @@ export class LocalSubtitleMediaNormalizer {
         const selected = this.#resolveTrackSelection({
           owner: options.owner,
           fileToken: options.fileToken,
+          taskId: options.taskId,
           input,
           runtimeGeneration: tools.bundle.runtimeGeneration,
           parsed,
@@ -908,6 +984,9 @@ export class LocalSubtitleMediaNormalizer {
     for (const probe of [...this.#probeRecords.keys()]) {
       if (probe.startsWith(`${key}:`)) this.#probeRecords.delete(probe);
     }
+    for (const selection of [...this.#taskTrackSelections.keys()]) {
+      if (selection.startsWith(`${key}:`)) this.#taskTrackSelections.delete(selection);
+    }
     this.#startOwnerCleanup(key, state);
   }
 
@@ -927,6 +1006,11 @@ export class LocalSubtitleMediaNormalizer {
         }
         for (const probe of [...this.#probeRecords.keys()]) {
           if (probe.startsWith(`${key}:`)) this.#probeRecords.delete(probe);
+        }
+        for (const selection of [...this.#taskTrackSelections.keys()]) {
+          if (selection.startsWith(`${key}:`)) {
+            this.#taskTrackSelections.delete(selection);
+          }
         }
       }
     }
@@ -1140,6 +1224,9 @@ export class LocalSubtitleMediaNormalizer {
     for (const probe of [...this.#probeRecords.keys()]) {
       if (probe.startsWith(`${key}:`)) this.#probeRecords.delete(probe);
     }
+    for (const selection of [...this.#taskTrackSelections.keys()]) {
+      if (selection.startsWith(`${key}:`)) this.#taskTrackSelections.delete(selection);
+    }
   }
 
   #storeProbeRecord(record: ProbeRecord): void {
@@ -1322,6 +1409,7 @@ export class LocalSubtitleMediaNormalizer {
   #resolveTrackSelection(input: {
     readonly owner: LocalSubtitleOwnerKey;
     readonly fileToken: string;
+    readonly taskId: string;
     readonly input: ResolvedLocalSubtitleInput;
     readonly runtimeGeneration: string;
     readonly parsed: ParsedMediaProbe;
@@ -1334,14 +1422,17 @@ export class LocalSubtitleMediaNormalizer {
         track,
       };
     }
-    const record = this.#probeRecords.get(probeKey(input.owner, input.fileToken));
-    const selected = record?.tracks.find(
-      (track) => track.streamId === input.audioStreamId,
+    const record = this.#taskTrackSelections.get(
+      taskSelectionKey(input.owner, input.taskId),
     );
+    const selected = record?.selectedTrack;
     if (
       !record ||
       !selected ||
       record.ownerKey !== ownerKey(input.owner) ||
+      record.taskId !== input.taskId ||
+      record.fileToken !== input.fileToken ||
+      selected.streamId !== input.audioStreamId ||
       record.runtimeGeneration !== input.runtimeGeneration ||
       !sameFileIdentity(record.inputIdentity, input.input.identity) ||
       record.durationMs !== input.parsed.durationMs ||
@@ -2602,6 +2693,10 @@ function ownerKey(owner: LocalSubtitleOwnerKey): string {
 
 function probeKey(owner: LocalSubtitleOwnerKey, fileToken: string): string {
   return `${ownerKey(owner)}:${fileToken}`;
+}
+
+function taskSelectionKey(owner: LocalSubtitleOwnerKey, taskId: string): string {
+  return `${ownerKey(owner)}:${taskId}`;
 }
 
 function assertOpaqueId(value: string, label: string): void {

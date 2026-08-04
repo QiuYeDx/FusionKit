@@ -41,6 +41,7 @@ import {
   LocalSubtitleInputAuthorizationRegistry,
   LocalSubtitleOutputDirectoryAuthorizationRegistry,
   type LocalSubtitleOwnerKey,
+  type LocalSubtitleFileIdentity,
   type ResolvedLocalSubtitleInput,
 } from "./authorizations";
 import {
@@ -130,6 +131,18 @@ export interface LocalSubtitleJobBackendResolver {
   ): Promise<LocalSubtitleVerifiedBackendResolution>;
 }
 
+export interface LocalSubtitleJobMediaSelectionRegistry {
+  bindTaskMediaSelection(options: {
+    readonly owner: LocalSubtitleOwnerKey;
+    readonly fileToken: string;
+    readonly taskId: string;
+    readonly audioStreamId: string;
+    readonly inputIdentity: LocalSubtitleFileIdentity;
+    readonly runtimeGeneration: string;
+  }): void;
+  releaseTaskMediaSelection(owner: LocalSubtitleOwnerKey, taskId: string): void;
+}
+
 export interface LocalSubtitleJobTaskUpdate {
   readonly status: Extract<
     LocalSubtitleTaskStatus,
@@ -213,6 +226,7 @@ export interface LocalSubtitleJobManagerOptions {
   readonly runtimeVerifier: LocalSubtitleJobRuntimeVerifier;
   readonly backendResolver: LocalSubtitleJobBackendResolver;
   readonly modelResolver: LocalSubtitleJobModelResolver;
+  readonly mediaSelections: LocalSubtitleJobMediaSelectionRegistry;
   readonly executor: LocalSubtitleJobTaskExecutor;
   readonly artifacts?: LocalSubtitleJobArtifactRegistry;
   readonly now?: () => number;
@@ -260,6 +274,7 @@ interface TaskRecord {
   cancelRequested: boolean;
   inputLeaseReleased: boolean;
   artifactsRevoked: boolean;
+  mediaSelectionReleased: boolean;
   leaseFailure?: unknown;
   run?: TaskRun;
 }
@@ -329,6 +344,7 @@ export class LocalSubtitleJobManager {
   readonly #runtimeVerifier: LocalSubtitleJobRuntimeVerifier;
   readonly #backendResolver: LocalSubtitleJobBackendResolver;
   readonly #modelResolver: LocalSubtitleJobModelResolver;
+  readonly #mediaSelections: LocalSubtitleJobMediaSelectionRegistry;
   readonly #executor: LocalSubtitleJobTaskExecutor;
   readonly #artifacts?: LocalSubtitleJobArtifactRegistry;
   readonly #now: () => number;
@@ -373,6 +389,8 @@ export class LocalSubtitleJobManager {
       typeof options.runtimeVerifier?.verifyRuntime !== "function" ||
       typeof options.backendResolver?.resolveBackend !== "function" ||
       typeof options.modelResolver?.resolveManagedModel !== "function" ||
+      typeof options.mediaSelections?.bindTaskMediaSelection !== "function" ||
+      typeof options.mediaSelections?.releaseTaskMediaSelection !== "function" ||
       typeof options.executor?.supportsOutputConflictPolicy !== "function" ||
       typeof options.executor?.beginBatchSlice !== "function" ||
       typeof options.executor?.execute !== "function" ||
@@ -389,6 +407,7 @@ export class LocalSubtitleJobManager {
     this.#runtimeVerifier = options.runtimeVerifier;
     this.#backendResolver = options.backendResolver;
     this.#modelResolver = options.modelResolver;
+    this.#mediaSelections = options.mediaSelections;
     this.#executor = options.executor;
     this.#artifacts = options.artifacts;
     this.#now = options.now ?? Date.now;
@@ -614,6 +633,7 @@ export class LocalSubtitleJobManager {
         cancelRequested: false,
         inputLeaseReleased: false,
         artifactsRevoked: false,
+        mediaSelectionReleased: false,
       }));
       const summaries = records.map((record, index) =>
         createQueuedTaskSummary(record, inputs[index]!.displayName, createdAt)
@@ -637,7 +657,20 @@ export class LocalSubtitleJobManager {
       const publication = this.#registry.prepareBatchPublication(owner, batch);
       this.#batches.set(batchId, batchRecord);
       for (const record of records) this.#tasks.set(record.taskId, record);
+      const boundMediaSelections: TaskRecord[] = [];
       try {
+        records.forEach((record, index) => {
+          if (record.audioStreamId === undefined) return;
+          this.#mediaSelections.bindTaskMediaSelection({
+            owner: record.owner,
+            fileToken: record.fileToken,
+            taskId: record.taskId,
+            audioStreamId: record.audioStreamId,
+            inputIdentity: inputs[index]!.identity,
+            runtimeGeneration,
+          });
+          boundMediaSelections.push(record);
+        });
         transaction.commitAndRun(() => publication.commit());
       } catch (error) {
         let rollbackFailure: unknown;
@@ -646,6 +679,9 @@ export class LocalSubtitleJobManager {
         } catch (rollbackError) {
           rollbackFailure = rollbackError;
         } finally {
+          for (const record of boundMediaSelections) {
+            this.#releaseMediaSelection(record);
+          }
           for (const record of records) this.#tasks.delete(record.taskId);
           this.#batches.delete(batchId);
         }
@@ -906,6 +942,7 @@ export class LocalSubtitleJobManager {
 
     this.#releaseInputLease(record);
     this.#revokeTaskArtifacts(record);
+    this.#releaseMediaSelection(record);
     record.state = "removed";
     record.batch.taskIds.delete(taskId);
     this.#tasks.delete(taskId);
@@ -965,6 +1002,7 @@ export class LocalSubtitleJobManager {
       captureFailure(failures, () => record.run?.controller.abort());
       captureFailure(failures, () => this.#releaseInputLease(record));
       captureFailure(failures, () => this.#revokeTaskArtifacts(record));
+      captureFailure(failures, () => this.#releaseMediaSelection(record));
     }
     if (this.#activeBatchSlice?.batch.ownerKey === key) {
       const slice = this.#activeBatchSlice;
@@ -1015,6 +1053,7 @@ export class LocalSubtitleJobManager {
       captureFailure(failures, () => record.run?.controller.abort());
       captureFailure(failures, () => this.#releaseInputLease(record));
       captureFailure(failures, () => this.#revokeTaskArtifacts(record));
+      captureFailure(failures, () => this.#releaseMediaSelection(record));
     }
     if (this.#activeBatchSlice) {
       const slice = this.#activeBatchSlice;
@@ -1623,6 +1662,7 @@ export class LocalSubtitleJobManager {
       error: undefined,
     });
     this.#publishTerminalTask(run, next);
+    this.#releaseMediaSelection(run.record);
     this.#releaseInputLease(run.record);
     this.#releaseOutputIfUnmaintained(run.record.batch);
     this.#stopLeaseRenewalIfIdle();
@@ -1695,6 +1735,7 @@ export class LocalSubtitleJobManager {
     this.#publishTerminalTask(run, next);
     if (!this.#isCurrentRun(run) || run.record.state !== "terminal") return;
     if (CLEANUP_FAILURE_CODES.has(stableError.code)) {
+      this.#releaseMediaSelection(run.record);
       this.#releaseInputLease(run.record);
       this.#releaseOutputIfUnmaintained(run.record.batch);
       this.#stopLeaseRenewalIfIdle();
@@ -1702,6 +1743,7 @@ export class LocalSubtitleJobManager {
       // Failed tasks retain renewable input/output leases for retry.
       this.#ensureLeaseRenewalScheduled();
     } else {
+      this.#releaseMediaSelection(run.record);
       this.#releaseInputLease(run.record);
       this.#releaseOutputIfUnmaintained(run.record.batch);
       this.#stopLeaseRenewalIfIdle();
@@ -1757,6 +1799,7 @@ export class LocalSubtitleJobManager {
       error: undefined,
     });
     this.#publishTerminalTask(run, next);
+    this.#releaseMediaSelection(run.record);
     this.#releaseInputLease(run.record);
     this.#releaseOutputIfUnmaintained(run.record.batch);
     this.#stopLeaseRenewalIfIdle();
@@ -1824,6 +1867,7 @@ export class LocalSubtitleJobManager {
         },
         updatedAt: this.#timestamp(),
       });
+      this.#releaseMediaSelection(record);
       this.#releaseInputLease(record);
       this.#releaseOutputIfUnmaintained(record.batch);
       this.#stopLeaseRenewalIfIdle();
@@ -2180,6 +2224,12 @@ export class LocalSubtitleJobManager {
     if (record.artifactsRevoked) return;
     this.#artifacts?.revokeTask(record.owner, record.taskId);
     record.artifactsRevoked = true;
+  }
+
+  #releaseMediaSelection(record: TaskRecord): void {
+    if (record.mediaSelectionReleased) return;
+    this.#mediaSelections.releaseTaskMediaSelection(record.owner, record.taskId);
+    record.mediaSelectionReleased = true;
   }
 
   #currentStage(record: TaskRecord): LocalSubtitleOperationStage {

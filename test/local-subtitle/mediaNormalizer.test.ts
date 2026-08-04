@@ -349,7 +349,7 @@ describe("local subtitle media runtime and probing", () => {
     expect(track.title).not.toMatch(/[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u2028-\u202e]/u);
   });
 
-  it("bounds per-owner probe records and expires the oldest stream binding", async () => {
+  it("bounds draft probe records without expiring a committed task selection", async () => {
     const harness = createHarness();
     let first:
       | {
@@ -374,23 +374,26 @@ describe("local subtitle media runtime and probing", () => {
           fileToken: authorized.fileToken,
           streamId: summary.autoSelectedStreamId,
         };
+        await bindTaskSelection(
+          harness.normalizer,
+          OWNER_A,
+          authorized.fileToken,
+          "task-probe-quota",
+          summary.autoSelectedStreamId,
+        );
       }
     }
 
     await commitTaskLease(OWNER_A, first!.fileToken, "task-probe-quota");
-    await expect(
-      harness.normalizer.normalizeTask({
-        owner: OWNER_A,
-        fileToken: first!.fileToken,
-        taskId: "task-probe-quota",
-        taskGeneration: 1,
-        audioStreamId: first!.streamId,
-      }),
-    ).rejects.toMatchObject({
-      code: "media_changed",
-      localSubtitleCode: "media_changed",
+    const normalized = await harness.normalizer.normalizeTask({
+      owner: OWNER_A,
+      fileToken: first!.fileToken,
+      taskId: "task-probe-quota",
+      taskGeneration: 1,
+      audioStreamId: first!.streamId,
     });
-    expect(harness.decodeCount).toBe(0);
+    expect(normalized.selectedStreamId).toBe(first!.streamId);
+    expect(harness.decodeCount).toBe(1);
   });
 });
 
@@ -437,9 +440,6 @@ describe("local subtitle stream binding and normalization", () => {
       owner: OWNER_B,
       fileToken: authorizedB.fileToken,
     });
-    await commitTaskLease(OWNER_A, authorizedA.fileToken, "task-stream-a");
-    await commitTaskLease(OWNER_B, authorizedB.fileToken, "task-stream-b");
-
     for (const request of [
       {
         owner: OWNER_A,
@@ -460,18 +460,27 @@ describe("local subtitle stream binding and normalization", () => {
         audioStreamId: currentA.autoSelectedStreamId,
       },
     ] as const) {
-      await expect(
-        harness.normalizer.normalizeTask({
-          ...request,
-          taskGeneration: 1,
-        }),
-      ).rejects.toMatchObject({
+      await expect(bindTaskSelection(
+        harness.normalizer,
+        request.owner,
+        request.fileToken,
+        request.taskId,
+        request.audioStreamId,
+      )).rejects.toMatchObject({
         code: "media_changed",
         localSubtitleCode: "media_changed",
       });
     }
     expect(harness.decodeCount).toBe(0);
 
+    await bindTaskSelection(
+      harness.normalizer,
+      OWNER_A,
+      authorizedA.fileToken,
+      "task-stream-a",
+      currentA.autoSelectedStreamId,
+    );
+    await commitTaskLease(OWNER_A, authorizedA.fileToken, "task-stream-a");
     const normalized = await harness.normalizer.normalizeTask({
       owner: OWNER_A,
       fileToken: authorizedA.fileToken,
@@ -1654,6 +1663,25 @@ async function commitTaskLease(
     inputs: [{ fileToken, taskId }],
   });
   transaction.commit();
+}
+
+async function bindTaskSelection(
+  normalizer: LocalSubtitleMediaNormalizer,
+  owner: LocalSubtitleOwnerKey,
+  fileToken: string,
+  taskId: string,
+  audioStreamId: string,
+): Promise<void> {
+  const input = await inputs.resolveDraft(owner, fileToken, "probe");
+  const { runtimeGeneration } = await normalizer.verifyRuntime({ owner });
+  normalizer.bindTaskMediaSelection({
+    owner,
+    fileToken,
+    taskId,
+    audioStreamId,
+    inputIdentity: input.identity,
+    runtimeGeneration,
+  });
 }
 
 async function normalizeSource(

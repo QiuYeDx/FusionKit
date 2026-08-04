@@ -29,4 +29,23 @@ describe("ToolRadioButtonGroup", () => {
     expect(markup.match(/tabindex="0"/g)).toHaveLength(1);
     expect(markup.match(/tabindex="-1"/g)).toHaveLength(1);
   });
+
+  it("supports a vertical radio list without changing the default baseline", () => {
+    const markup = renderToStaticMarkup(
+      <ToolRadioButtonGroup
+        value="first"
+        ariaLabel="Tracks"
+        orientation="vertical"
+        options={[
+          { value: "first", label: "First" },
+          { value: "second", label: "Second" },
+        ]}
+        onValueChange={() => undefined}
+      />,
+    );
+
+    expect(markup).toContain('data-orientation="vertical"');
+    expect(markup.match(/justify-start/g)).toHaveLength(2);
+    expect(markup.match(/whitespace-normal/g)).toHaveLength(2);
+  });
 });

@@ -260,14 +260,27 @@
     },
     "file": {
       "authorizing": "Authorizing files...",
+      "probing": "Reading media details...",
+      "probe_mismatch": "The media details did not match the selected file. Select the file again.",
       "title": "Add audio or video",
       "description": "Drop media files here or select them from your device, up to {{max}} per batch",
       "selected_count": "{{count}} files selected"
+    },
+    "audio": {
+      "group_label": "Audio track for {{name}}",
+      "track_count": "{{count}} audio tracks",
+      "auto": "Auto (track {{track}})",
+      "track": "Track {{track}}",
+      "track_aria": "Track {{track}}, {{details}}",
+      "default": "Default",
+      "channels": "{{count}} channels",
+      "sample_rate": "{{rate}}"
     },
     "actions": {
       "select_files": "Select files",
       "clear_files": "Clear files",
       "remove_draft_file": "Remove {{name}}",
+      "retry_probe": "Read media details for {{name}} again",
       "select_output": "Select output folder",
       "refresh": "Check environment again",
       "import_model": "Import model",
@@ -338,6 +351,8 @@
       "backend_preview_loading": "Resolving the execution backend for the selected model.",
       "backend_preview_unavailable": "The execution backend for the selected model could not be verified. Check the local environment again.",
       "file_required": "Select at least one audio or video file.",
+      "media_probe_loading": "Reading media details for the selected files.",
+      "media_probe_failed": "Media details could not be read for some files. Retry or remove them.",
       "output_directory_required": "Select a custom output folder."
     },
     "stage": {

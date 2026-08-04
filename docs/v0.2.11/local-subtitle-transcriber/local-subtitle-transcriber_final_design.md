@@ -4,7 +4,7 @@
 >
 > Feature Slug：`local-subtitle-transcriber`
 >
-> 状态：39个顶层工作包中20个已完成、17个未开始、2个进行中。`MODEL-002A`～`MODEL-002D`已完成model/VAD/CUDA managed lifecycle与受控root启动孤儿清理；`FE-002`已完成真实runtime/backend摘要、managed resource管理、commit-time main auto backend proof、开始前path/hash-free preview、macOS arm64 Metal admission、Windows x64 managed CUDA production admission及用户确认CPU新generation代码闭环。顶层`MODEL-002`仍等待真实大文件下载与目标环境证据；`FE-002`仍等待CUDA/Metal真实目标机与packaged产品证据。`NATIVE-002`、`FS-TXN-001`、`BE-002`与`FE-001`已按职责结项；不提前声明M2 packaged/目标机验收或M3完成
+> 状态：39个顶层工作包中21个已完成、16个未开始、2个进行中。`MODEL-002A`～`MODEL-002D`已完成model/VAD/CUDA managed lifecycle与受控root启动孤儿清理；`FE-002`已完成真实runtime/backend摘要、managed resource管理、commit-time main auto backend proof、开始前path/hash-free preview、macOS arm64 Metal admission、Windows x64 managed CUDA production admission及用户确认CPU新generation代码闭环；`FE-003`已完成1～100文件批量草稿/任务队列、逐文件media probe摘要、多音轨Radio选择与draft-to-task音轨证明提升。顶层`MODEL-002`仍等待真实大文件下载与目标环境证据；`FE-002`仍等待CUDA/Metal真实目标机与packaged产品证据。`NATIVE-002`、`FS-TXN-001`、`BE-002`、`FE-001`与`FE-003`已按职责结项；Electron窄窗口、键盘与cancel race人工验收归`QA-002`，不提前声明M2 packaged/目标机验收或M3完成
 >
 > 产品定位：使用本地算力把批量音频/视频转成可直接翻译的 SRT/LRC 字幕
 >
@@ -1072,6 +1072,7 @@ FFmpeg/ffprobe 是产品运行时组成，不是用户环境前置条件。正�
 - 语言/标题/codec 等容器元数据属于不可信输入：main 去除控制字符、限制每字段与总 payload 长度，并保留原始 stream index 仅作私有映射；UI 使用可换行 block surface，不把长标题塞进不换行 Badge。
 - 默认 `auto`：优先容器中唯一标记为 default 的音轨；没有或存在多个 default 时选第一条音轨，并在任务启动前显示“自动选择了第 N 轨”。无音轨直接返回 `no_audio_stream`。
 - 多音轨文件允许用户在启动前按文件覆盖；renderer 只提交 probe 返回的 `streamId`，main 必须校验它仍属于同一 authorized file identity。批量偏好只保存 `auto`，不能把某个文件的 stream index 持久化给其他文件。
+- draft probe记录是有界、可替换的临时摘要；显式音轨选择在原子enqueue期间必须提升为task-owned main authority，并绑定owner、task、file token、exact input identity、runtime generation、duration/track-table signature与selected-track proof。后续draft probe LRU淘汰不能让已提交任务失去选择证明；retryable failed task继续持有该证明，completed/cancelled/non-retryable failed/remove/owner release/shutdown后释放。
 - probe 与 ffmpeg 启动之间若文件 identity 或流表变化，拒绝执行并要求重新 probe，不能让旧 streamId 指向新内容。
 
 ### 12.3 进程规则
@@ -1509,7 +1510,7 @@ resources/local-subtitle/
 
 ## 18. 分期实施建议（高层阶段）
 
-本节保留架构层面的阶段划分；可认领的工作包、依赖、状态、验证和实施记录以 `local-subtitle-transcriber_execution_plan.md` 为唯一执行台账。Execution Plan 已于 2026-07-16 建立，当前39个顶层工作包中20个已完成、17个未开始、2个进行中。M1的schema、resource staging、IPC/capability、renderer session、official server contract、Supervisor生命周期、media normalization/PCM proof、canonical post-processing、标准字幕原子产物和managed model合同均已冻结。`BE-002`已完成最多100文件的CPU/no-VAD批次、失败隔离、SRT/LRC、custom/source及index/conditional-overwrite；`FS-TXN-001A`～`FS-TXN-001J`完成两平台transaction/recovery；`NATIVE-002A`～`NATIVE-002D`完成两平台canonical、target smoke与真实packaged component；`FE-001`已接通用户可见的单文件CPU→SRT renderer代码路径，`FE-002`已接通环境/backend可见性、managed resource管理、main auto proof和开始前preview。Windows personal distribution的unsigned profile已明确；NSIS生命周期归`QA-003`，真实模型Electron产品E2E归QA，CUDA delivery/notice closure归`MODEL-002`/`QA-005`，Developer ID、公证和Gatekeeper accepted归`QA-004`。
+本节保留架构层面的阶段划分；可认领的工作包、依赖、状态、验证和实施记录以 `local-subtitle-transcriber_execution_plan.md` 为唯一执行台账。Execution Plan 已于 2026-07-16 建立，当前39个顶层工作包中21个已完成、16个未开始、2个进行中。M1的schema、resource staging、IPC/capability、renderer session、official server contract、Supervisor生命周期、media normalization/PCM proof、canonical post-processing、标准字幕原子产物和managed model合同均已冻结。`BE-002`已完成最多100文件的CPU/no-VAD批次、失败隔离、SRT/LRC、custom/source及index/conditional-overwrite；`FS-TXN-001A`～`FS-TXN-001J`完成两平台transaction/recovery；`NATIVE-002A`～`NATIVE-002D`完成两平台canonical、target smoke与真实packaged component；`FE-001`已接通用户可见的单文件CPU→SRT renderer代码路径，`FE-002`已接通环境/backend可见性、managed resource管理、main auto proof和开始前preview，`FE-003`已接通批量draft/task queue、逐文件media probe、多音轨Radio与task-owned selection proof。Windows personal distribution的unsigned profile已明确；NSIS生命周期归`QA-003`，真实模型Electron产品E2E归QA，CUDA delivery/notice closure归`MODEL-002`/`QA-005`，Developer ID、公证和Gatekeeper accepted归`QA-004`。
 
 其中本节原先汇总为一个 `PRE-001` 的跨平台 PoC，在 Execution Plan 中拆为 `PRE-001`～`PRE-006`，以避免把基准、CPU runner、Windows CUDA、macOS Metal、FFmpeg/打包许可和最终技术冻结塞进一个无法单会话闭环的工作包。其余高层包也在执行计划中按安全边界和可验证纵向切片进一步拆分。
 
@@ -1845,7 +1846,7 @@ Electron 视觉/交互验证必须等待 preload loading 完全退出。若启�
 
 `PRE-001`～`PRE-006`、`CORE-001`～`CORE-004`、`NATIVE-001`～`NATIVE-002`、`BE-001`～`BE-002`、`MEDIA-001`、`SUB-001`～`SUB-002`、`FS-TXN-001`与`MODEL-001`已完成，M1的共享schema、resource manifest/resolver/staging、preload/IPC/capability、renderer session runtime、official server transport/process contract、Supervisor生命周期、media normalization/PCM proof、canonical post-processing、标准字幕原子产物和managed model合同已冻结。唯一production decision record是`poc/pre006-production-decision.json`，后续实现不得静默更换引擎、平台矩阵、首发模型或media acquisition policy；SUB-001自有policy也不得伪装为PRE-006字段。
 
-1. `MODEL-002D`已完成受控root `.part`/staging启动孤儿清理，`FE-002`已完成环境/backend摘要、managed resource管理、main auto proof、开始前preview、macOS arm64 Metal、Windows x64 managed CUDA production admission及用户确认CPU新generation代码闭环；`FE-003`已完成1～100文件draft/batch request、revisioned session批次/任务列表与逐task cancel/retry/CPU retry/remove/reveal checkpoint，已有任务运行时可提交下一批。下一步继续逐文件media probe摘要与多音轨Radio选择，并在真实Windows NVIDIA与unrestricted Apple Silicon packaged目标机补GPU正向证据。
+1. `MODEL-002D`已完成受控root `.part`/staging启动孤儿清理，`FE-002`已完成环境/backend摘要、managed resource管理、main auto proof、开始前preview、macOS arm64 Metal、Windows x64 managed CUDA production admission及用户确认CPU新generation代码闭环；`FE-003`已完成1～100文件draft/batch request、revisioned session批次/任务列表、逐task操作、逐文件media probe摘要、多音轨Radio与task-owned selection proof。下一步进入`FE-004`的artifact预览/复制、partial result与错误详情；真实Windows NVIDIA、unrestricted Apple Silicon packaged正向证据及Electron窄窗口/键盘/cancel race继续由QA闭环。
 2. 使用真实FFmpeg、official server、PRE-006模型与Electron页面完成单文件SRT/reveal产品E2E后，再记录M2 packaged/目标机验收；该QA证据不反向扩大`FE-001`职责。
 3. Developer ID、公证和 Gatekeeper accepted 只由 `QA-004` 验收 macOS 分发产物；QA-005 完成分发前第三方 notices/source-offer/NVIDIA DLL 核对。
 4. 仍无需 FusionKit 自写 C++ runner；只有 official server 出现产品必需能力的真实硬缺口，才通过独立工作包重新评估 native bridge。

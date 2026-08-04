@@ -260,14 +260,27 @@
     },
     "file": {
       "authorizing": "ファイルを承認しています...",
+      "probing": "メディア情報を読み込んでいます...",
+      "probe_mismatch": "メディア情報が選択したファイルと一致しません。ファイルを選択し直してください。",
       "title": "音声または動画を追加",
       "description": "メディアファイルをドロップするか端末から選択します。1バッチ最大 {{max}} 件です",
       "selected_count": "{{count}} 件のファイルを選択中"
+    },
+    "audio": {
+      "group_label": "{{name}} の音声トラック",
+      "track_count": "音声トラック {{count}} 件",
+      "auto": "自動（トラック {{track}}）",
+      "track": "トラック {{track}}",
+      "track_aria": "トラック {{track}}、{{details}}",
+      "default": "既定",
+      "channels": "{{count}} チャンネル",
+      "sample_rate": "{{rate}}"
     },
     "actions": {
       "select_files": "ファイルを選択",
       "clear_files": "ファイルをクリア",
       "remove_draft_file": "{{name}} を削除",
+      "retry_probe": "{{name}} のメディア情報を再読み込み",
       "select_output": "出力フォルダーを選択",
       "refresh": "環境を再確認",
       "import_model": "モデルを読み込む",
@@ -338,6 +351,8 @@
       "backend_preview_loading": "選択したモデルの実行バックエンドを解決しています。",
       "backend_preview_unavailable": "選択したモデルの実行バックエンドを検証できません。ローカル環境を再確認してください。",
       "file_required": "音声または動画ファイルを1つ以上選択してください。",
+      "media_probe_loading": "選択したファイルのメディア情報を読み込んでいます。",
+      "media_probe_failed": "一部のファイルのメディア情報を読み込めませんでした。再試行するか削除してください。",
       "output_directory_required": "カスタム出力フォルダーを選択してください。"
     },
     "stage": {

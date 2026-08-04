@@ -260,14 +260,27 @@
     },
     "file": {
       "authorizing": "正在授權檔案...",
+      "probing": "正在讀取媒體資訊...",
+      "probe_mismatch": "媒體資訊與所選檔案不符，請重新選擇檔案。",
       "title": "加入音訊或影片",
       "description": "拖曳媒體檔案到這裡，或從裝置中選擇；每批最多 {{max}} 個",
       "selected_count": "已選擇 {{count}} 個檔案"
+    },
+    "audio": {
+      "group_label": "{{name}} 的音軌",
+      "track_count": "{{count}} 條音軌",
+      "auto": "自動（第 {{track}} 軌）",
+      "track": "音軌 {{track}}",
+      "track_aria": "音軌 {{track}}，{{details}}",
+      "default": "預設",
+      "channels": "{{count}} 聲道",
+      "sample_rate": "{{rate}}"
     },
     "actions": {
       "select_files": "選擇檔案",
       "clear_files": "清空檔案",
       "remove_draft_file": "移除 {{name}}",
+      "retry_probe": "重新讀取 {{name}} 的媒體資訊",
       "select_output": "選擇輸出目錄",
       "refresh": "重新檢查環境",
       "import_model": "匯入模型",
@@ -338,6 +351,8 @@
       "backend_preview_loading": "正在解析目前模型的執行後端。",
       "backend_preview_unavailable": "無法驗證目前模型的執行後端，請重新檢查本機環境。",
       "file_required": "請至少選擇一個音訊或影片檔案。",
+      "media_probe_loading": "正在讀取所選檔案的媒體資訊。",
+      "media_probe_failed": "部分檔案的媒體資訊讀取失敗，請重試或移除檔案。",
       "output_directory_required": "請選擇自訂輸出目錄。"
     },
     "stage": {

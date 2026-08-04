@@ -14,9 +14,11 @@ import {
 import { DEFAULT_LOCAL_SUBTITLE_TRANSCRIBER_PREFERENCES } from "@/store/tools/subtitle/localSubtitleTranscriberConfig";
 import {
   createLocalSubtitleBatchRequest,
+  deriveLocalSubtitleDraftMediaProbeStatus,
   deriveLocalSubtitleStartIssue,
   findLocalSubtitleTask,
   formatLocalSubtitleBytes,
+  formatLocalSubtitleDuration,
   getCommittedSrtArtifact,
   getInstalledLocalSubtitleResourceBytes,
   getLatestLocalSubtitleResourceJobs,
@@ -113,6 +115,7 @@ describe("local subtitle transcriber page model", () => {
       backendPreviewStatus: "ready" as const,
       backendPreviewModelId: model.resourceId,
       selectedFiles: [file],
+      mediaProbeStatus: "ready" as const,
       outputMode: "source" as const,
       outputDirectory: null,
     };
@@ -161,11 +164,16 @@ describe("local subtitle transcriber page model", () => {
       modelId: model.resourceId,
       preferences: DEFAULT_LOCAL_SUBTITLE_TRANSCRIBER_PREFERENCES,
       outputDirectory: null,
+      explicitAudioStreamIds: new Map([["file-token-2", "stream-track-2"]]),
     });
 
     expect(validateEnqueueLocalSubtitleBatchRequest(request).ok).toBe(true);
     expect(request).toMatchObject({
-      files: files.map((entry) => ({ fileToken: entry.fileToken })),
+      files: [
+        { fileToken: "file-token" },
+        { fileToken: "file-token-2", audioStreamId: "stream-track-2" },
+        { fileToken: "file-token-3" },
+      ],
       config: {
         modelId: model.resourceId,
         devicePreference: "auto",
@@ -181,6 +189,36 @@ describe("local subtitle transcriber page model", () => {
     });
   });
 
+  it("derives bounded draft probe readiness and media durations", () => {
+    const readyProbe = {
+      status: "ready" as const,
+      summary: {
+        fileToken: file.fileToken,
+        displayName: file.displayName,
+        durationMs: 3_661_000,
+        audioTracks: [
+          { streamId: "stream-1", ordinal: 1, isDefault: true },
+        ],
+        autoSelectedStreamId: "stream-1",
+      },
+    };
+    expect(deriveLocalSubtitleDraftMediaProbeStatus([file], new Map())).toBe(
+      "loading",
+    );
+    expect(deriveLocalSubtitleDraftMediaProbeStatus(
+      [file],
+      new Map([[file.fileToken, readyProbe]]),
+    )).toBe("ready");
+    expect(deriveLocalSubtitleDraftMediaProbeStatus(
+      [file],
+      new Map([[file.fileToken, {
+        status: "error" as const,
+        error: { message: "probe failed" },
+      }]]),
+    )).toBe("error");
+    expect(formatLocalSubtitleDuration(3_661_000)).toBe("1:01:01");
+  });
+
   it("does not let another active task block a ready draft batch", () => {
     expect(deriveLocalSubtitleStartIssue({
       environmentLoading: false,
@@ -192,6 +230,7 @@ describe("local subtitle transcriber page model", () => {
       backendPreviewStatus: "ready",
       backendPreviewModelId: model.resourceId,
       selectedFiles: [file],
+      mediaProbeStatus: "ready",
       outputMode: "source",
       outputDirectory: null,
     })).toBeNull();
