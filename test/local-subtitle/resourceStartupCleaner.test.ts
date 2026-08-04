@@ -147,6 +147,67 @@ describe("local subtitle resource startup cleaner", () => {
     await expect(lstat(unknown)).resolves.toMatchObject({ isDirectory: expect.any(Function) });
   });
 
+  it("cleans only exact server and media session leaves inside controlled temp roots", async () => {
+    const fixture = await createFixture([definition("test-model", 10)]);
+    const tempRoot = path.join(fixture.managedRoot, "temp");
+    const mediaRoot = path.join(tempRoot, "media");
+    const serverCandidates = [
+      path.join(tempRoot, "server-Ab12Cd"),
+      path.join(
+        tempRoot,
+        "server-Zz99Yy.cleanup-0123456789abcdef0123456789abcdef",
+      ),
+    ];
+    const mediaCandidates = [
+      path.join(mediaRoot, "media-Qw12Er"),
+      path.join(
+        mediaRoot,
+        "media-Xx90Yy.cleanup-fedcba9876543210fedcba9876543210",
+      ),
+    ];
+    await Promise.all([...serverCandidates, ...mediaCandidates].map((candidate) =>
+      mkdir(candidate, { recursive: true, mode: 0o700 })));
+    const unknownServer = path.join(tempRoot, "server-not-owned");
+    const unknownMedia = path.join(mediaRoot, "media-too-long");
+    const successfulArtifact = path.join(fixture.managedRoot, "successful.srt");
+    const summaryTemporary = path.join(
+      fixture.managedRoot,
+      `.session-summary.v1.json.${uuid(39)}.tmp`,
+    );
+    const unknownSummaryTemporary = path.join(
+      fixture.managedRoot,
+      ".session-summary.v1.json.not-owned.tmp",
+    );
+    await Promise.all([
+      mkdir(unknownServer, { mode: 0o700 }),
+      mkdir(unknownMedia, { mode: 0o700 }),
+      writeFile(successfulArtifact, "preserve me"),
+      writeFile(summaryTemporary, "incomplete", { mode: 0o600 }),
+      writeFile(unknownSummaryTemporary, "preserve me", { mode: 0o600 }),
+    ]);
+
+    const result = await fixture.cleanup({
+      quarantineIdFactory: sequentialUuidFactory(40),
+    });
+
+    expect(result).toMatchObject({
+      removedServerSessions: 2,
+      removedMediaSessions: 2,
+      removedSessionSummaryTemporaries: 1,
+    });
+    await Promise.all([...serverCandidates, ...mediaCandidates].map((candidate) =>
+      expect(lstat(candidate)).rejects.toMatchObject({ code: "ENOENT" })));
+    await expect(lstat(unknownServer)).resolves.toMatchObject({
+      isDirectory: expect.any(Function),
+    });
+    await expect(lstat(unknownMedia)).resolves.toMatchObject({
+      isDirectory: expect.any(Function),
+    });
+    expect(await readFile(successfulArtifact, "utf8")).toBe("preserve me");
+    await expect(lstat(summaryTemporary)).rejects.toMatchObject({ code: "ENOENT" });
+    expect(await readFile(unknownSummaryTemporary, "utf8")).toBe("preserve me");
+  });
+
   it("leaves an exact-name symlink untouched while settling other cleanup work", async () => {
     const fixture = await createFixture([definition("test-model", 10)]);
     const target = path.join(fixture.root, "outside.bin");

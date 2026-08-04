@@ -79,6 +79,7 @@ import {
   LocalSubtitleErrorDetailsDialog,
   type LocalSubtitleArtifactPreviewSelection,
 } from "./LocalSubtitleTaskDetailsDialogs";
+import { LocalSubtitleRecoveredSession } from "./LocalSubtitleRecoveredSession";
 
 const MEDIA_ACCEPT = [
   "audio/*",
@@ -983,6 +984,9 @@ export default function LocalSubtitleTranscriber() {
               onShowError={setErrorDetailsTask}
               onRetryOnCpu={setCpuRetryCandidate}
               onRemove={handleRemove}
+            />
+            <LocalSubtitleRecoveredSession
+              summary={runtimeState.recoveredSession}
             />
           </div>
         </ToolPanel>

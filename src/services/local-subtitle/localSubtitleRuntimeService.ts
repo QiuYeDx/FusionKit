@@ -3,6 +3,7 @@ import {
   type LocalSubtitleBatchSummary,
   type LocalSubtitleError,
   type LocalSubtitleResourceJobSummary,
+  type LocalSubtitleRecoveredSessionSummary,
   type LocalSubtitleSessionSnapshot,
 } from "@/type/localSubtitle";
 import type {
@@ -53,6 +54,7 @@ export interface LocalSubtitleRuntimeState {
   readonly revision: number;
   readonly batches: readonly LocalSubtitleBatchSummary[];
   readonly resourceJobs: readonly LocalSubtitleResourceJobSummary[];
+  readonly recoveredSession?: LocalSubtitleRecoveredSessionSummary;
   readonly error: LocalSubtitleError | null;
 }
 
@@ -520,6 +522,9 @@ function toRuntimeState(
     revision: state.revision,
     batches: state.batches,
     resourceJobs: state.resourceJobs,
+    ...(state.recoveredSession === undefined
+      ? {}
+      : { recoveredSession: state.recoveredSession }),
     error,
   };
 }

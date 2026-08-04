@@ -376,7 +376,8 @@
       "completed": "Completed",
       "cancelling": "Cancelling",
       "cancelled": "Cancelled",
-      "failed": "Transcription failed"
+      "failed": "Transcription failed",
+      "interrupted": "Interrupted"
     },
     "batch_status": {
       "queued": "Waiting",
@@ -384,7 +385,8 @@
       "cancelling": "Cancelling",
       "completed": "Completed",
       "cancelled": "Cancelled",
-      "failed": "Failed"
+      "failed": "Failed",
+      "interrupted": "Interrupted"
     },
     "queue": {
       "title": "Task queue",
@@ -395,6 +397,11 @@
       "overall_progress": "Overall {{progress}}%",
       "empty_title": "The task queue is empty",
       "empty_description": "Submitted files will appear here in batches with task status and results."
+    },
+    "recovered": {
+      "title": "Previous session",
+      "summary": "{{count}} tasks · engine {{version}}",
+      "batch": "Previous batch · {{count}} tasks"
     },
     "result": {
       "full": "All formats generated",

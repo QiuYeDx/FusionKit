@@ -17,6 +17,8 @@ import {
   LOCAL_SUBTITLE_OUTPUT_MODES,
   LOCAL_SUBTITLE_PRODUCTION_CONTRACT,
   LOCAL_SUBTITLE_QUALITY_PRESETS,
+  LOCAL_SUBTITLE_RECOVERED_BATCH_STATUSES,
+  LOCAL_SUBTITLE_RECOVERED_TASK_STATUSES,
   LOCAL_SUBTITLE_RESOURCE_JOB_STATUSES,
   LOCAL_SUBTITLE_RESOURCE_TYPES,
   LOCAL_SUBTITLE_TASK_MODES,
@@ -33,6 +35,7 @@ import {
   type LocalSubtitleBatchSummary,
   type LocalSubtitleError,
   type LocalSubtitleResourceEventEnvelope,
+  type LocalSubtitleRecoveredSessionSummary,
   type LocalSubtitleResourceJobSummary,
   type LocalSubtitleSessionSnapshot,
   type LocalSubtitleTaskEventEnvelope,
@@ -865,6 +868,163 @@ export const localSubtitleBatchSummarySchema: z.ZodType<LocalSubtitleBatchSummar
       }
     });
 
+const recoveredArtifactResultSchema = z
+  .object({
+    format: z.enum(LOCAL_SUBTITLE_FORMATS),
+    status: z.enum(["committed", "failed", "skipped"]),
+    errorCode: z.enum(LOCAL_SUBTITLE_ERROR_CODES).optional(),
+  })
+  .strict()
+  .superRefine((value, context) => {
+    if (value.status === "failed" && value.errorCode === undefined) {
+      context.addIssue({
+        code: "custom",
+        path: ["errorCode"],
+        message: "Failed recovered artifacts require an error code.",
+      });
+    }
+    if (value.status === "committed" && value.errorCode !== undefined) {
+      context.addIssue({
+        code: "custom",
+        path: ["errorCode"],
+        message: "Committed recovered artifacts cannot include an error code.",
+      });
+    }
+  });
+
+const recoveredTaskSummarySchema = z
+  .object({
+    taskId: idSchema,
+    batchId: idSchema,
+    generation: positiveSafeIntegerSchema,
+    displayName: displayNameSchema,
+    status: z.enum(LOCAL_SUBTITLE_RECOVERED_TASK_STATUSES),
+    stage: z.enum(LOCAL_SUBTITLE_TASK_STAGES),
+    formats: z
+      .array(z.enum(LOCAL_SUBTITLE_FORMATS))
+      .min(1)
+      .max(LOCAL_SUBTITLE_FORMATS.length),
+    backend: z.enum(LOCAL_SUBTITLE_BACKENDS),
+    artifactResults: z
+      .array(recoveredArtifactResultSchema)
+      .max(LOCAL_SUBTITLE_FORMATS.length),
+    errorCode: z.enum(LOCAL_SUBTITLE_ERROR_CODES).optional(),
+    createdAt: isoTimestampSchema,
+    updatedAt: isoTimestampSchema,
+  })
+  .strict()
+  .superRefine((value, context) => {
+    if (value.status === "interrupted" && value.errorCode !== "runtime_crashed") {
+      context.addIssue({
+        code: "custom",
+        path: ["errorCode"],
+        message: "Interrupted tasks require the stable runtime_crashed code.",
+      });
+    }
+    if (value.status === "failed" && value.errorCode === undefined) {
+      context.addIssue({
+        code: "custom",
+        path: ["errorCode"],
+        message: "Failed recovered tasks require an error code.",
+      });
+    }
+    if (
+      value.status !== "failed" &&
+      value.status !== "interrupted" &&
+      value.errorCode !== undefined
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["errorCode"],
+        message: "Only failed or interrupted recovered tasks may include an error code.",
+      });
+    }
+    if (new Set(value.formats).size !== value.formats.length) {
+      context.addIssue({
+        code: "custom",
+        path: ["formats"],
+        message: "Recovered task formats must be unique.",
+      });
+    }
+    const artifactFormats = new Set<string>();
+    value.artifactResults.forEach((artifact, index) => {
+      if (!value.formats.includes(artifact.format) || artifactFormats.has(artifact.format)) {
+        context.addIssue({
+          code: "custom",
+          path: ["artifactResults", index, "format"],
+          message: "Recovered artifact formats must be requested and unique.",
+        });
+      }
+      artifactFormats.add(artifact.format);
+    });
+  });
+
+const recoveredBatchSummarySchema = z
+  .object({
+    batchId: idSchema,
+    status: z.enum(LOCAL_SUBTITLE_RECOVERED_BATCH_STATUSES),
+    tasks: z
+      .array(recoveredTaskSummarySchema)
+      .min(1)
+      .max(LOCAL_SUBTITLE_LIMITS.maxBatchFiles),
+    createdAt: isoTimestampSchema,
+    updatedAt: isoTimestampSchema,
+  })
+  .strict()
+  .superRefine((value, context) => {
+    const expected = value.tasks.some((task) => task.status === "interrupted")
+      ? "interrupted"
+      : value.tasks.some((task) => task.status === "completed")
+        ? "completed"
+        : value.tasks.every((task) => task.status === "cancelled")
+          ? "cancelled"
+          : "failed";
+    if (value.status !== expected) {
+      context.addIssue({
+        code: "custom",
+        path: ["status"],
+        message: "Recovered batch status must be derived from its tasks.",
+      });
+    }
+    const taskIds = new Set<string>();
+    value.tasks.forEach((task, index) => {
+      if (task.batchId !== value.batchId || taskIds.has(task.taskId)) {
+        context.addIssue({
+          code: "custom",
+          path: ["tasks", index],
+          message: "Recovered task identities must be unique within their batch.",
+        });
+      }
+      taskIds.add(task.taskId);
+    });
+  });
+
+export const localSubtitleRecoveredSessionSummarySchema: z.ZodType<LocalSubtitleRecoveredSessionSummary> =
+  z
+    .object({
+      build: z
+        .object({
+          engine: z.literal(LOCAL_SUBTITLE_PRODUCTION_CONTRACT.engine.id),
+          version: z.literal(LOCAL_SUBTITLE_PRODUCTION_CONTRACT.engine.version),
+          commit: z.literal(LOCAL_SUBTITLE_PRODUCTION_CONTRACT.engine.commit),
+        })
+        .strict(),
+      batches: z
+        .array(recoveredBatchSummarySchema)
+        .max(LOCAL_SUBTITLE_LIMITS.maxSessionBatches),
+      resourceWatermarks: z
+        .object({
+          peakResidentBytes: nonNegativeSafeIntegerSchema,
+          peakHeapUsedBytes: nonNegativeSafeIntegerSchema,
+          minimumAvailableDiskBytes: nonNegativeSafeIntegerSchema,
+          sampledAt: isoTimestampSchema,
+        })
+        .strict()
+        .optional(),
+      updatedAt: isoTimestampSchema,
+    })
+    .strict();
+
 export const localSubtitleResourceJobSummarySchema: z.ZodType<LocalSubtitleResourceJobSummary> =
   z
     .object({
@@ -916,6 +1076,7 @@ export const localSubtitleSessionSnapshotSchema: z.ZodType<LocalSubtitleSessionS
       resourceJobs: z
         .array(localSubtitleResourceJobSummarySchema)
         .max(LOCAL_SUBTITLE_LIMITS.maxSessionResourceJobs),
+      recoveredSession: localSubtitleRecoveredSessionSummarySchema.optional(),
     })
     .strict()
     .superRefine((value, context) => {

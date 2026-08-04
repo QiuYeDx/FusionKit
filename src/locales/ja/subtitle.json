@@ -376,7 +376,8 @@
       "completed": "完了",
       "cancelling": "キャンセル中",
       "cancelled": "キャンセル済み",
-      "failed": "文字起こしに失敗"
+      "failed": "文字起こしに失敗",
+      "interrupted": "中断"
     },
     "batch_status": {
       "queued": "待機中",
@@ -384,7 +385,8 @@
       "cancelling": "キャンセル中",
       "completed": "完了",
       "cancelled": "キャンセル済み",
-      "failed": "失敗"
+      "failed": "失敗",
+      "interrupted": "中断"
     },
     "queue": {
       "title": "タスクキュー",
@@ -395,6 +397,11 @@
       "overall_progress": "全体 {{progress}}%",
       "empty_title": "タスクキューは空です",
       "empty_description": "送信したファイルのタスク状態と結果がバッチごとに表示されます。"
+    },
+    "recovered": {
+      "title": "前回のセッション",
+      "summary": "{{count}} 件のタスク · エンジン {{version}}",
+      "batch": "以前のバッチ · {{count}} 件"
     },
     "result": {
       "full": "すべての形式を生成しました",

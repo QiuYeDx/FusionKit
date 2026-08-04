@@ -46,6 +46,7 @@ import { LocalSubtitleProductionExecutor } from "./local-subtitle/production-exe
 import { LocalSubtitleSessionIpcBridge } from "./local-subtitle/session-ipc";
 import { LocalSubtitleSessionLifecycle } from "./local-subtitle/session-lifecycle";
 import { LocalSubtitleSessionRegistry } from "./local-subtitle/session-registry";
+import { LocalSubtitleSessionSummaryStore } from "./local-subtitle/session-summary";
 import { LocalSubtitleServerSupervisor } from "./local-subtitle/server-supervisor";
 import { LocalSubtitleServerAppLifecycle } from "./local-subtitle/server-app-lifecycle";
 import { initializeLocalSubtitleOverwriteProductionRuntime } from "./local-subtitle/overwrite-production-runtime";
@@ -241,7 +242,13 @@ app.whenReady().then(async () => {
       verifyBackend: localSubtitleBackendAttestor.verifyBackend,
     },
   });
-  const localSubtitleSessionRegistry = new LocalSubtitleSessionRegistry();
+  const localSubtitleSessionSummary = new LocalSubtitleSessionSummaryStore({
+    managedResourceRoot: localSubtitleManagedResourceRoot,
+  });
+  localSubtitleSessionSummary.initialize();
+  const localSubtitleSessionRegistry = new LocalSubtitleSessionRegistry({
+    summarySink: localSubtitleSessionSummary,
+  });
   let localSubtitleJobManager: LocalSubtitleJobManager | undefined;
   const localSubtitleModelManager = new LocalSubtitleModelManager({
     managedResourceRoot: localSubtitleManagedResourceRoot,

@@ -97,6 +97,8 @@ export const LOCAL_SUBTITLE_MEDIA_POLICY = deepFreeze({
   decodeProgressMaximum: 99,
   normalizedLeaf: "normalized.wav",
   sourceSnapshotLeaf: "source.snapshot",
+  cleanupMaxRetries: 5,
+  cleanupRetryDelayMs: 200,
   noPathFallback: true,
 } as const);
 
@@ -2287,7 +2289,12 @@ async function cleanupMediaSession(
   ) {
     throw new Error("Quarantined media session identity changed.");
   }
-  await rm(target, { recursive: true, force: false });
+  await rm(target, {
+    recursive: true,
+    force: false,
+    maxRetries: LOCAL_SUBTITLE_MEDIA_POLICY.cleanupMaxRetries,
+    retryDelay: LOCAL_SUBTITLE_MEDIA_POLICY.cleanupRetryDelayMs,
+  });
   return deepFreeze({ removed: true });
 }
 

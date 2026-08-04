@@ -16,6 +16,7 @@ import {
   reconcileLocalSubtitleResourceDownloadState,
   type ReconcileLocalSubtitleResourceDownloadStateOptions,
 } from "./resource-download";
+import { LOCAL_SUBTITLE_SESSION_SUMMARY_POLICY } from "./session-summary";
 import { LOCAL_SUBTITLE_VAD_MANIFEST } from "./vad-manifest";
 
 const UUID_SOURCE =
@@ -28,6 +29,8 @@ export const LOCAL_SUBTITLE_RESOURCE_STARTUP_CLEANUP_POLICY = Object.freeze({
   vadStagingDirectoryName: "vad-staging",
   acceleratorDownloadsDirectoryName: "accelerator-downloads",
   acceleratorStagingDirectoryName: "accelerator-staging",
+  temporaryDirectoryName: "temp",
+  mediaTemporaryDirectoryName: "media",
   cleanupMaxRetries: 5,
   cleanupRetryDelayMs: 200,
 } as const);
@@ -54,7 +57,10 @@ export interface LocalSubtitleResourceStartupCleanupResult {
   readonly preservedDownloads: number;
   readonly removedDownloadStates: number;
   readonly removedMetadataTemporaries: number;
+  readonly removedSessionSummaryTemporaries: number;
   readonly removedStagingDirectories: number;
+  readonly removedServerSessions: number;
+  readonly removedMediaSessions: number;
 }
 
 interface DirectoryIdentity {
@@ -104,6 +110,7 @@ export async function cleanupLocalSubtitleResourceStartupOrphans(
   const childNames = new Set([
     ...definitions.map((definition) => definition.downloadDirectoryName),
     ...stagingDefinitions.map((definition) => definition.directoryName),
+    LOCAL_SUBTITLE_RESOURCE_STARTUP_CLEANUP_POLICY.temporaryDirectoryName,
   ]);
   const childResults = await Promise.allSettled(
     [...childNames].map(async (directoryName) => [
@@ -119,13 +126,30 @@ export async function cleanupLocalSubtitleResourceStartupOrphans(
     childResults.flatMap((result) =>
       result.status === "fulfilled" ? [result.value] : []),
   );
+  const temporary = children.get(
+    LOCAL_SUBTITLE_RESOURCE_STARTUP_CLEANUP_POLICY.temporaryDirectoryName,
+  )!;
+  const mediaTemporary = await ensurePrivateDirectory(
+    resolvePrivateChild(
+      temporary.absolutePath,
+      LOCAL_SUBTITLE_RESOURCE_STARTUP_CLEANUP_POLICY.mediaTemporaryDirectoryName,
+    ),
+    platform,
+  );
+  children.set(
+    `${LOCAL_SUBTITLE_RESOURCE_STARTUP_CLEANUP_POLICY.temporaryDirectoryName}/${LOCAL_SUBTITLE_RESOURCE_STARTUP_CLEANUP_POLICY.mediaTemporaryDirectoryName}`,
+    mediaTemporary,
+  );
   assertIndependentRoots(managed, [...children.values()], platform);
   await verifyRootProofs(managed, [...children.values()], platform);
 
   let preservedDownloads = 0;
   let removedDownloadStates = 0;
   let removedMetadataTemporaries = 0;
+  let removedSessionSummaryTemporaries = 0;
   let removedStagingDirectories = 0;
+  let removedServerSessions = 0;
+  let removedMediaSessions = 0;
   const operations: Array<Promise<void>> = [];
 
   for (const definition of definitions) {
@@ -155,6 +179,14 @@ export async function cleanupLocalSubtitleResourceStartupOrphans(
     ));
   }
 
+  operations.push(cleanSessionSummaryTemporaries(
+    managed,
+    platform,
+    () => {
+      removedSessionSummaryTemporaries += 1;
+    },
+  ));
+
   for (const definition of stagingDefinitions) {
     const staging = children.get(definition.directoryName)!;
     operations.push(cleanStagingRoot(
@@ -171,6 +203,31 @@ export async function cleanupLocalSubtitleResourceStartupOrphans(
     ));
   }
 
+  operations.push(cleanStagingRoot(
+    managed,
+    temporary,
+    serverSessionStartupDefinition(),
+    platform,
+    quarantineIdFactory,
+    renameDirectory,
+    removeDirectory,
+    () => {
+      removedServerSessions += 1;
+    },
+  ));
+  operations.push(cleanStagingRoot(
+    managed,
+    mediaTemporary,
+    mediaSessionStartupDefinition(),
+    platform,
+    quarantineIdFactory,
+    renameDirectory,
+    removeDirectory,
+    () => {
+      removedMediaSessions += 1;
+    },
+  ));
+
   const results = await Promise.allSettled(operations);
   throwFirstFailure(results);
   await verifyRootProofs(managed, [...children.values()], platform);
@@ -178,8 +235,59 @@ export async function cleanupLocalSubtitleResourceStartupOrphans(
     preservedDownloads,
     removedDownloadStates,
     removedMetadataTemporaries,
+    removedSessionSummaryTemporaries,
     removedStagingDirectories,
+    removedServerSessions,
+    removedMediaSessions,
   });
+}
+
+async function cleanSessionSummaryTemporaries(
+  managed: PrivateDirectoryProof,
+  platform: string,
+  onRemoved: () => void,
+): Promise<void> {
+  await verifyRootProofs(managed, [], platform);
+  const pattern = ownedPattern(
+    `\\.${escapeRegExp(LOCAL_SUBTITLE_SESSION_SUMMARY_POLICY.fileName)}\\.${UUID_SOURCE}\\.tmp`,
+  );
+  const names = (await readdir(managed.absolutePath)).sort();
+  const results = await Promise.allSettled(names
+    .filter((name) => pattern.test(name))
+    .map(async (name) => {
+      await verifyRootProofs(managed, [], platform);
+      const absolutePath = path.join(managed.absolutePath, name);
+      const receipt = ownedFileReceipt(absolutePath, await lstat(absolutePath));
+      await unlinkOwnedFile(receipt);
+      onRemoved();
+    }));
+  throwFirstFailure(results);
+}
+
+function serverSessionStartupDefinition(): StagingRootDefinition {
+  return {
+    directoryName:
+      LOCAL_SUBTITLE_RESOURCE_STARTUP_CLEANUP_POLICY.temporaryDirectoryName,
+    ownedLeafPatterns: Object.freeze([
+      ownedPattern(
+        `server-${MKDTEMP_SUFFIX_SOURCE}(?:\\.cleanup-[a-f0-9]{32})?`,
+      ),
+      ownedPattern(`\\.startup-cleanup-${UUID_SOURCE}`),
+    ]),
+  };
+}
+
+function mediaSessionStartupDefinition(): StagingRootDefinition {
+  return {
+    directoryName:
+      LOCAL_SUBTITLE_RESOURCE_STARTUP_CLEANUP_POLICY.mediaTemporaryDirectoryName,
+    ownedLeafPatterns: Object.freeze([
+      ownedPattern(
+        `media-${MKDTEMP_SUFFIX_SOURCE}(?:\\.cleanup-[a-f0-9]{32})?`,
+      ),
+      ownedPattern(`\\.startup-cleanup-${UUID_SOURCE}`),
+    ]),
+  };
 }
 
 function productionDownloadDefinitions(

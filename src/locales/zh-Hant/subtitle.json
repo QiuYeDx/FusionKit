@@ -376,7 +376,8 @@
       "completed": "已完成",
       "cancelling": "正在取消",
       "cancelled": "已取消",
-      "failed": "轉寫失敗"
+      "failed": "轉寫失敗",
+      "interrupted": "已中斷"
     },
     "batch_status": {
       "queued": "等待處理",
@@ -384,7 +385,8 @@
       "cancelling": "正在取消",
       "completed": "已完成",
       "cancelled": "已取消",
-      "failed": "失敗"
+      "failed": "失敗",
+      "interrupted": "已中斷"
     },
     "queue": {
       "title": "任務佇列",
@@ -395,6 +397,11 @@
       "overall_progress": "總進度 {{progress}}%",
       "empty_title": "任務佇列為空",
       "empty_description": "提交檔案後，這裡會依批次顯示每個任務的狀態與結果。"
+    },
+    "recovered": {
+      "title": "上次工作階段",
+      "summary": "{{count}} 個任務 · 引擎 {{version}}",
+      "batch": "歷史批次 · {{count}} 個任務"
     },
     "result": {
       "full": "所有格式均已產生",

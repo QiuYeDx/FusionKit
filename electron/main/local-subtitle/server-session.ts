@@ -27,6 +27,8 @@ export const LOCAL_SUBTITLE_SERVER_SESSION_POLICY = Object.freeze({
   temporaryLeaf: "tmp",
   sessionPrefix: SESSION_PREFIX,
   privateDirectoryMode: PRIVATE_DIRECTORY_MODE,
+  cleanupMaxRetries: 5,
+  cleanupRetryDelayMs: 200,
 } as const);
 
 export type LocalSubtitleServerSessionErrorCode =
@@ -338,7 +340,7 @@ async function cleanupQuarantinedSession(
         "The quarantined server session containment changed.",
       );
     }
-    await rm(candidate, { recursive: true, force: false });
+    await removeSessionDirectory(candidate);
     return true;
   }
   return false;
@@ -516,8 +518,17 @@ async function quarantineOwnedDirectory(
       "The quarantined server session identity is invalid.",
     );
   }
-  await rm(quarantinePath, { recursive: true, force: false });
+  await removeSessionDirectory(quarantinePath);
   return true;
+}
+
+function removeSessionDirectory(absolutePath: string): Promise<void> {
+  return rm(absolutePath, {
+    recursive: true,
+    force: false,
+    maxRetries: LOCAL_SUBTITLE_SERVER_SESSION_POLICY.cleanupMaxRetries,
+    retryDelay: LOCAL_SUBTITLE_SERVER_SESSION_POLICY.cleanupRetryDelayMs,
+  });
 }
 
 function sessionIdentityError(

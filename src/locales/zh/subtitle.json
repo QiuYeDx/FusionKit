@@ -376,7 +376,8 @@
       "completed": "已完成",
       "cancelling": "正在取消",
       "cancelled": "已取消",
-      "failed": "转写失败"
+      "failed": "转写失败",
+      "interrupted": "已中断"
     },
     "batch_status": {
       "queued": "等待处理",
@@ -384,7 +385,8 @@
       "cancelling": "正在取消",
       "completed": "已完成",
       "cancelled": "已取消",
-      "failed": "失败"
+      "failed": "失败",
+      "interrupted": "已中断"
     },
     "queue": {
       "title": "任务队列",
@@ -395,6 +397,11 @@
       "overall_progress": "总进度 {{progress}}%",
       "empty_title": "任务队列为空",
       "empty_description": "提交文件后，这里会按批次显示每个任务的状态和结果。"
+    },
+    "recovered": {
+      "title": "上次会话",
+      "summary": "{{count}} 个任务 · 引擎 {{version}}",
+      "batch": "历史批次 · {{count}} 个任务"
     },
     "result": {
       "full": "所有格式均已生成",
