@@ -1,5 +1,6 @@
 import {
   LOCAL_SUBTITLE_DOMAIN_SCHEMA_VERSION,
+  LOCAL_SUBTITLE_LIMITS,
   type LocalSubtitleBatchSummary,
   type LocalSubtitleResourceJobStatus,
   type LocalSubtitleResourceJobSummary,
@@ -29,8 +30,7 @@ export type LocalSubtitleStartIssue =
   | "backend_preview_loading"
   | "backend_preview_unavailable"
   | "file_required"
-  | "output_directory_required"
-  | "task_active";
+  | "output_directory_required";
 
 export interface LocalSubtitleStartReadinessInput {
   readonly environmentLoading: boolean;
@@ -41,10 +41,9 @@ export interface LocalSubtitleStartReadinessInput {
   readonly selectedModelId: string | null;
   readonly backendPreviewStatus: "idle" | "loading" | "ready" | "error";
   readonly backendPreviewModelId: string | null;
-  readonly selectedFile: LocalSubtitleAuthorizedMedia | null;
+  readonly selectedFiles: readonly LocalSubtitleAuthorizedMedia[];
   readonly outputMode: "source" | "custom";
   readonly outputDirectory: ActiveOutputDirectory | null;
-  readonly taskActive: boolean;
 }
 
 export function getReadyLocalSubtitleModels(
@@ -116,7 +115,6 @@ export function deriveLocalSubtitleStartIssue(
   ) {
     return "model_required";
   }
-  if (input.taskActive) return "task_active";
   if (
     input.backendPreviewStatus === "idle" ||
     input.backendPreviewStatus === "loading" ||
@@ -127,19 +125,27 @@ export function deriveLocalSubtitleStartIssue(
   if (input.backendPreviewStatus === "error") {
     return "backend_preview_unavailable";
   }
-  if (!input.selectedFile) return "file_required";
+  if (input.selectedFiles.length === 0) return "file_required";
   if (input.outputMode === "custom" && !input.outputDirectory) {
     return "output_directory_required";
   }
   return null;
 }
 
-export function createSingleFileLocalSubtitleRequest(input: {
-  readonly file: LocalSubtitleAuthorizedMedia;
+export function createLocalSubtitleBatchRequest(input: {
+  readonly files: readonly LocalSubtitleAuthorizedMedia[];
   readonly modelId: string;
   readonly preferences: LocalSubtitleTranscriberPreferences;
   readonly outputDirectory: ActiveOutputDirectory | null;
 }): EnqueueLocalSubtitleBatchRequest {
+  if (
+    input.files.length === 0 ||
+    input.files.length > LOCAL_SUBTITLE_LIMITS.maxBatchFiles
+  ) {
+    throw new Error(
+      `A local subtitle batch requires 1-${LOCAL_SUBTITLE_LIMITS.maxBatchFiles} files.`,
+    );
+  }
   const output = input.preferences.outputMode === "custom"
     ? {
         mode: "custom" as const,
@@ -155,7 +161,7 @@ export function createSingleFileLocalSubtitleRequest(input: {
 
   return {
     schemaVersion: LOCAL_SUBTITLE_DOMAIN_SCHEMA_VERSION,
-    files: [{ fileToken: input.file.fileToken }],
+    files: input.files.map((file) => ({ fileToken: file.fileToken })),
     config: {
       modelId: input.modelId,
       devicePreference: "auto",

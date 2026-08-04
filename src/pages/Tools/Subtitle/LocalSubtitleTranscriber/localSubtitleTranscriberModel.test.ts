@@ -13,7 +13,7 @@ import {
 } from "@/type/localSubtitleIpc";
 import { DEFAULT_LOCAL_SUBTITLE_TRANSCRIBER_PREFERENCES } from "@/store/tools/subtitle/localSubtitleTranscriberConfig";
 import {
-  createSingleFileLocalSubtitleRequest,
+  createLocalSubtitleBatchRequest,
   deriveLocalSubtitleStartIssue,
   findLocalSubtitleTask,
   formatLocalSubtitleBytes,
@@ -112,10 +112,9 @@ describe("local subtitle transcriber page model", () => {
       selectedModelId: model.resourceId,
       backendPreviewStatus: "ready" as const,
       backendPreviewModelId: model.resourceId,
-      selectedFile: file,
+      selectedFiles: [file],
       outputMode: "source" as const,
       outputDirectory: null,
-      taskActive: false,
     };
 
     expect(deriveLocalSubtitleStartIssue(ready)).toBeNull();
@@ -144,30 +143,21 @@ describe("local subtitle transcriber page model", () => {
       }),
     ).toBe("backend_preview_loading");
     expect(
-      deriveLocalSubtitleStartIssue({
-        ...ready,
-        backendPreviewStatus: "error",
-        taskActive: true,
-      }),
-    ).toBe("task_active");
-    expect(
-      deriveLocalSubtitleStartIssue({ ...ready, selectedFile: null }),
+      deriveLocalSubtitleStartIssue({ ...ready, selectedFiles: [] }),
     ).toBe("file_required");
     expect(
       deriveLocalSubtitleStartIssue({ ...ready, outputMode: "custom" }),
     ).toBe("output_directory_required");
-    expect(
-      deriveLocalSubtitleStartIssue({
-        ...ready,
-        selectedFile: null,
-        taskActive: true,
-      }),
-    ).toBe("task_active");
   });
 
-  it("builds the production CPU, transcribe, no-VAD, SRT, index-only request", () => {
-    const request = createSingleFileLocalSubtitleRequest({
+  it("builds one production request entry for every authorized batch file", () => {
+    const files = [
       file,
+      { ...file, fileToken: "file-token-2", displayName: "panel.mkv" },
+      { ...file, fileToken: "file-token-3", displayName: "briefing.wav" },
+    ];
+    const request = createLocalSubtitleBatchRequest({
+      files,
       modelId: model.resourceId,
       preferences: DEFAULT_LOCAL_SUBTITLE_TRANSCRIBER_PREFERENCES,
       outputDirectory: null,
@@ -175,7 +165,7 @@ describe("local subtitle transcriber page model", () => {
 
     expect(validateEnqueueLocalSubtitleBatchRequest(request).ok).toBe(true);
     expect(request).toMatchObject({
-      files: [{ fileToken: file.fileToken }],
+      files: files.map((entry) => ({ fileToken: entry.fileToken })),
       config: {
         modelId: model.resourceId,
         devicePreference: "auto",
@@ -189,6 +179,22 @@ describe("local subtitle transcriber page model", () => {
         postAction: { mode: "export_only" },
       },
     });
+  });
+
+  it("does not let another active task block a ready draft batch", () => {
+    expect(deriveLocalSubtitleStartIssue({
+      environmentLoading: false,
+      environmentError: false,
+      runtime,
+      runtimeSyncStatus: "ready",
+      readyModels: [model],
+      selectedModelId: model.resourceId,
+      backendPreviewStatus: "ready",
+      backendPreviewModelId: model.resourceId,
+      selectedFiles: [file],
+      outputMode: "source",
+      outputDirectory: null,
+    })).toBeNull();
   });
 
   it("finds the active task and exposes only a committed SRT artifact", () => {

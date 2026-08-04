@@ -10,7 +10,11 @@ const errorSource = readFileSync(
   new URL("./LocalSubtitleErrorNotice.tsx", import.meta.url),
   "utf8",
 );
-const source = `${pageSource}\n${environmentSource}\n${errorSource}`;
+const queueSource = readFileSync(
+  new URL("./LocalSubtitleTaskQueue.tsx", import.meta.url),
+  "utf8",
+);
+const source = `${pageSource}\n${environmentSource}\n${errorSource}\n${queueSource}`;
 
 describe("local subtitle transcriber page wiring", () => {
   it("uses shared tool controls and the fixed local subtitle bridge", () => {
@@ -34,7 +38,10 @@ describe("local subtitle transcriber page wiring", () => {
       "importModel",
       "deleteManagedResource",
       "enqueue",
+      "cancelTask",
+      "retryTask",
       "retryTaskOnCpu",
+      "removeTask",
       "revealArtifact",
     ]) {
       expect(source).toContain(`window.localSubtitleApi.${method}`);
@@ -61,12 +68,20 @@ describe("local subtitle transcriber page wiring", () => {
     expect(environmentSource).toContain("break-words");
   });
 
-  it("exposes stable hooks for the single-file start, progress, and result flow", () => {
+  it("exposes stable hooks for batch drafts, task progress, and task actions", () => {
     expect(source).toContain('inputTestId="local-subtitle-file-input"');
+    expect(pageSource).toContain("multiple");
+    expect(pageSource).toContain("LOCAL_SUBTITLE_LIMITS.maxBatchFiles");
+    expect(pageSource).toContain('data-testid="local-subtitle-draft-files"');
     expect(source).toContain('data-testid="local-subtitle-start"');
-    expect(source).toContain('data-testid="local-subtitle-result"');
+    expect(source).toContain('data-testid="local-subtitle-task-queue"');
+    expect(queueSource).toContain('data-testid="local-subtitle-task"');
     expect(source).toContain("task.progress.overallProgress");
-    expect(source).toContain('data-testid="local-subtitle-retry-on-cpu"');
+    expect(queueSource).toContain('"cancel"');
+    expect(queueSource).toContain('"retry"');
+    expect(queueSource).toContain('"remove"');
+    expect(queueSource).toContain('"reveal"');
     expect(pageSource).toContain("candidate.generation");
+    expect(pageSource).not.toContain("taskActive");
   });
 });

@@ -8,20 +8,15 @@ import {
 } from "react";
 import { useTranslation } from "react-i18next";
 import {
-  CheckCircle2,
-  Cpu,
   FileVideo2,
-  FolderOpen,
   Loader2,
   Play,
   Settings2,
   Trash2,
-  XCircle,
 } from "lucide-react";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Progress } from "@/components/ui/progress";
 import {
   Select,
   SelectContent,
@@ -47,10 +42,9 @@ import useLocalSubtitleTranscriberStore from "@/store/tools/subtitle/useLocalSub
 import type {
   LocalSubtitleBatchSummary,
   LocalSubtitleError,
-  LocalSubtitleTaskStage,
-  LocalSubtitleTaskStatus,
   LocalSubtitleTaskSummary,
 } from "@/type/localSubtitle";
+import { LOCAL_SUBTITLE_LIMITS } from "@/type/localSubtitle";
 import type {
   LocalSubtitleIpcResult,
   LocalSubtitleBackendPreviewSummary,
@@ -58,13 +52,11 @@ import type {
   LocalSubtitleRuntimeSummary,
 } from "@/type/localSubtitleIpc";
 import {
-  createSingleFileLocalSubtitleRequest,
+  createLocalSubtitleBatchRequest,
   deriveLocalSubtitleStartIssue,
-  findLocalSubtitleTask,
   formatLocalSubtitleBytes,
   getCommittedSrtArtifact,
   getReadyLocalSubtitleModels,
-  isLocalSubtitleTaskActive,
   type LocalSubtitleStartIssue,
 } from "./localSubtitleTranscriberModel";
 import {
@@ -75,6 +67,11 @@ import {
   LocalSubtitleErrorNotice,
   type LocalSubtitleDisplayError,
 } from "./LocalSubtitleErrorNotice";
+import {
+  LocalSubtitleTaskQueue,
+  localSubtitleTaskActionKey,
+  type LocalSubtitleTaskAction,
+} from "./LocalSubtitleTaskQueue";
 
 const MEDIA_ACCEPT = [
   "audio/*",
@@ -91,29 +88,6 @@ const MEDIA_ACCEPT = [
   ".webm",
 ].join(",");
 
-const TASK_STAGE_KEYS = {
-  queued: "subtitle:local_transcriber.stage.queued",
-  preparing_media: "subtitle:local_transcriber.stage.preparing_media",
-  loading_model: "subtitle:local_transcriber.stage.loading_model",
-  transcribing: "subtitle:local_transcriber.stage.transcribing",
-  post_processing: "subtitle:local_transcriber.stage.post_processing",
-  exporting: "subtitle:local_transcriber.stage.exporting",
-  cancelling: "subtitle:local_transcriber.stage.cancelling",
-} as const satisfies Record<LocalSubtitleTaskStage, string>;
-
-const TASK_STATUS_KEYS = {
-  queued: "subtitle:local_transcriber.status.queued",
-  preparing_media: "subtitle:local_transcriber.status.preparing_media",
-  loading_model: "subtitle:local_transcriber.status.loading_model",
-  transcribing: "subtitle:local_transcriber.status.transcribing",
-  post_processing: "subtitle:local_transcriber.status.post_processing",
-  exporting: "subtitle:local_transcriber.status.exporting",
-  completed: "subtitle:local_transcriber.status.completed",
-  cancelling: "subtitle:local_transcriber.status.cancelling",
-  cancelled: "subtitle:local_transcriber.status.cancelled",
-  failed: "subtitle:local_transcriber.status.failed",
-} as const satisfies Record<LocalSubtitleTaskStatus, string>;
-
 const START_ISSUE_KEYS = {
   environment_loading: "subtitle:local_transcriber.readiness.environment_loading",
   environment_unavailable: "subtitle:local_transcriber.readiness.environment_unavailable",
@@ -124,7 +98,6 @@ const START_ISSUE_KEYS = {
   backend_preview_unavailable: "subtitle:local_transcriber.readiness.backend_preview_unavailable",
   file_required: "subtitle:local_transcriber.readiness.file_required",
   output_directory_required: "subtitle:local_transcriber.readiness.output_directory_required",
-  task_active: "subtitle:local_transcriber.readiness.task_active",
 } as const satisfies Record<LocalSubtitleStartIssue, string>;
 
 interface EnvironmentState {
@@ -151,8 +124,8 @@ export default function LocalSubtitleTranscriber() {
   const preferences = useLocalSubtitleTranscriberStore(
     (state) => state.preferences,
   );
-  const selectedFile = useLocalSubtitleTranscriberStore(
-    (state) => state.draftInputFiles[0] ?? null,
+  const selectedFiles = useLocalSubtitleTranscriberStore(
+    (state) => state.draftInputFiles,
   );
   const outputDirectory = useLocalSubtitleTranscriberStore(
     (state) => state.draftOutputDirectory,
@@ -162,6 +135,9 @@ export default function LocalSubtitleTranscriber() {
   );
   const setDraftInputFiles = useLocalSubtitleTranscriberStore(
     (state) => state.setDraftInputFiles,
+  );
+  const removeDraftInputFile = useLocalSubtitleTranscriberStore(
+    (state) => state.removeDraftInputFile,
   );
   const setDraftOutputDirectory = useLocalSubtitleTranscriberStore(
     (state) => state.setDraftOutputDirectory,
@@ -193,8 +169,6 @@ export default function LocalSubtitleTranscriber() {
   const [fileAuthorizationPending, setFileAuthorizationPending] = useState(false);
   const [outputSelectionPending, setOutputSelectionPending] = useState(false);
   const [submissionPending, setSubmissionPending] = useState(false);
-  const [cancelPending, setCancelPending] = useState(false);
-  const [cpuRetryPending, setCpuRetryPending] = useState(false);
   const [cpuRetryCandidate, setCpuRetryCandidate] =
     useState<LocalSubtitleTaskSummary | null>(null);
   const [actionError, setActionError] = useState<LocalSubtitleDisplayError | null>(null);
@@ -202,11 +176,11 @@ export default function LocalSubtitleTranscriber() {
     useState<LocalSubtitleDisplayError | null>(null);
   const [pendingResourceActions, setPendingResourceActions] =
     useState<ReadonlySet<string>>(() => new Set());
-  const [activeIdentity, setActiveIdentity] = useState<{
-    readonly batchId: string;
-    readonly taskId: string;
-  } | null>(null);
-  const [submittedBatch, setSubmittedBatch] = useState<LocalSubtitleBatchSummary | null>(null);
+  const [pendingTaskActions, setPendingTaskActions] =
+    useState<ReadonlySet<string>>(() => new Set());
+  const [submittedBatches, setSubmittedBatches] = useState<
+    readonly LocalSubtitleBatchSummary[]
+  >([]);
 
   const refreshEnvironment = useCallback(async () => {
     const generation = ++refreshGenerationRef.current;
@@ -390,17 +364,29 @@ export default function LocalSubtitleTranscriber() {
     runtimeState.syncStatus,
     selectedModel,
   ]);
-  const liveTask = findLocalSubtitleTask(
-    runtimeState.batches,
-    activeIdentity?.batchId ?? null,
-    activeIdentity?.taskId ?? null,
-  );
-  const fallbackTask = activeIdentity && submittedBatch?.batchId === activeIdentity.batchId
-    ? submittedBatch.tasks.find((task) => task.taskId === activeIdentity.taskId) ?? null
-    : null;
-  const activeTask = liveTask ?? fallbackTask;
-  const taskActive = isLocalSubtitleTaskActive(activeTask);
-  const submissionLocked = submissionPending || cpuRetryPending || taskActive;
+  useEffect(() => {
+    const liveBatchIds = new Set(
+      runtimeState.batches.map((batch) => batch.batchId),
+    );
+    if (liveBatchIds.size === 0) return;
+    setSubmittedBatches((current) => current.filter(
+      (batch) => !liveBatchIds.has(batch.batchId),
+    ));
+  }, [runtimeState.batches]);
+
+  const visibleBatches = useMemo(() => {
+    const liveBatchIds = new Set(
+      runtimeState.batches.map((batch) => batch.batchId),
+    );
+    return [
+      ...submittedBatches.filter((batch) => !liveBatchIds.has(batch.batchId)),
+      ...runtimeState.batches,
+    ].sort((left, right) => right.createdAt.localeCompare(left.createdAt));
+  }, [runtimeState.batches, submittedBatches]);
+  const latestActiveTask = visibleBatches
+    .flatMap((batch) => batch.tasks)
+    .find((task) => !["completed", "cancelled", "failed"].includes(task.status));
+  const submissionLocked = submissionPending;
   const startIssue = deriveLocalSubtitleStartIssue({
     environmentLoading: environment.loading,
     environmentError: Boolean(environment.error),
@@ -410,10 +396,9 @@ export default function LocalSubtitleTranscriber() {
     selectedModelId,
     backendPreviewStatus: backendPreview.status,
     backendPreviewModelId: backendPreview.modelId,
-    selectedFile,
+    selectedFiles,
     outputMode: preferences.outputMode,
     outputDirectory,
-    taskActive,
   });
 
   const runResourceAction = useCallback(async (
@@ -489,12 +474,15 @@ export default function LocalSubtitleTranscriber() {
   );
 
   const handleFiles = useCallback(async (files: FileList) => {
-    const file = files.item(0);
-    if (!file) return;
+    const selected = Array.from(files).slice(
+      0,
+      LOCAL_SUBTITLE_LIMITS.maxBatchFiles,
+    );
+    if (selected.length === 0) return;
     setFileAuthorizationPending(true);
     setActionError(null);
     try {
-      const result = await window.localSubtitleApi.authorizeInputFiles([file]);
+      const result = await window.localSubtitleApi.authorizeInputFiles(selected);
       if (!mountedRef.current) {
         if (result.ok) {
           for (const authorized of result.data) {
@@ -507,7 +495,7 @@ export default function LocalSubtitleTranscriber() {
         setActionError(result.error);
         return;
       }
-      setDraftInputFiles(result.data.slice(0, 1));
+      setDraftInputFiles(result.data);
     } catch (error) {
       if (mountedRef.current) setActionError(toDisplayError(error));
     } finally {
@@ -539,12 +527,18 @@ export default function LocalSubtitleTranscriber() {
   }, [runtimeService, setDraftOutputDirectory]);
 
   const handleStart = useCallback(async () => {
-    if (startIssue || !selectedFile || !selectedModelId) return;
+    if (
+      startIssue ||
+      fileAuthorizationPending ||
+      outputSelectionPending ||
+      selectedFiles.length === 0 ||
+      !selectedModelId
+    ) return;
     setSubmissionPending(true);
     setActionError(null);
     try {
-      const request = createSingleFileLocalSubtitleRequest({
-        file: selectedFile,
+      const request = createLocalSubtitleBatchRequest({
+        files: selectedFiles,
         modelId: selectedModelId,
         preferences,
         outputDirectory,
@@ -555,13 +549,11 @@ export default function LocalSubtitleTranscriber() {
         setActionError(result.error);
         return;
       }
-      const task = result.data.tasks[0];
-      if (!task) {
+      if (result.data.tasks.length === 0) {
         setActionError({ message: "The local subtitle batch did not return a task." });
         return;
       }
-      setSubmittedBatch(result.data);
-      setActiveIdentity({ batchId: result.data.batchId, taskId: task.taskId });
+      setSubmittedBatches((current) => [result.data, ...current]);
       consumeDraftCapabilitiesAfterCommit();
       void runtimeService.refresh();
     } catch (error) {
@@ -571,75 +563,104 @@ export default function LocalSubtitleTranscriber() {
     }
   }, [
     consumeDraftCapabilitiesAfterCommit,
+    fileAuthorizationPending,
     outputDirectory,
+    outputSelectionPending,
     preferences,
     runtimeService,
-    selectedFile,
+    selectedFiles,
     selectedModelId,
     startIssue,
   ]);
 
-  const handleCancel = useCallback(async () => {
-    if (!activeTask || !isLocalSubtitleTaskActive(activeTask)) return;
-    setCancelPending(true);
+  const runTaskAction = useCallback(async (
+    action: LocalSubtitleTaskAction,
+    task: LocalSubtitleTaskSummary,
+    operation: () => Promise<LocalSubtitleIpcResult<unknown>>,
+    refreshAfter = true,
+  ): Promise<boolean> => {
+    const key = localSubtitleTaskActionKey(action, task.taskId);
+    setPendingTaskActions((current) => new Set(current).add(key));
     setActionError(null);
     try {
-      const result = await window.localSubtitleApi.cancelTask(activeTask.taskId);
-      if (mountedRef.current && !result.ok) setActionError(result.error);
+      const result = await operation();
+      if (!mountedRef.current) return false;
+      if (!result.ok) {
+        setActionError(result.error);
+        return false;
+      }
+      if (refreshAfter) void runtimeService.refresh();
+      return true;
     } catch (error) {
       if (mountedRef.current) setActionError(toDisplayError(error));
+      return false;
     } finally {
-      if (mountedRef.current) setCancelPending(false);
+      if (mountedRef.current) {
+        setPendingTaskActions((current) => {
+          const next = new Set(current);
+          next.delete(key);
+          return next;
+        });
+      }
     }
-  }, [activeTask]);
+  }, [runtimeService]);
 
-  const handleReveal = useCallback(async (task: LocalSubtitleTaskSummary) => {
+  const handleCancel = useCallback((task: LocalSubtitleTaskSummary) => {
+    void runTaskAction(
+      "cancel",
+      task,
+      () => window.localSubtitleApi.cancelTask(task.taskId),
+    );
+  }, [runTaskAction]);
+
+  const handleRetry = useCallback((task: LocalSubtitleTaskSummary) => {
+    void runTaskAction(
+      "retry",
+      task,
+      () => window.localSubtitleApi.retryTask(task.taskId),
+    );
+  }, [runTaskAction]);
+
+  const handleRemove = useCallback((task: LocalSubtitleTaskSummary) => {
+    void runTaskAction(
+      "remove",
+      task,
+      () => window.localSubtitleApi.removeTask(task.taskId),
+    );
+  }, [runTaskAction]);
+
+  const handleReveal = useCallback((task: LocalSubtitleTaskSummary) => {
     const artifact = getCommittedSrtArtifact(task);
     if (!artifact) return;
-    setActionError(null);
-    try {
-      const result = await window.localSubtitleApi.revealArtifact(artifact.artifactRef);
-      if (mountedRef.current && !result.ok) setActionError(result.error);
-    } catch (error) {
-      if (mountedRef.current) setActionError(toDisplayError(error));
-    }
-  }, []);
+    void runTaskAction(
+      "reveal",
+      task,
+      () => window.localSubtitleApi.revealArtifact(artifact.artifactRef),
+      false,
+    );
+  }, [runTaskAction]);
 
   const handleCpuRetryConfirm = useCallback(async () => {
     const candidate = cpuRetryCandidate;
     if (!candidate || candidate.cpuRetryAvailable !== true) return;
-    setCpuRetryPending(true);
-    setActionError(null);
-    try {
-      const result = await window.localSubtitleApi.retryTaskOnCpu({
+    const succeeded = await runTaskAction(
+      "cpu-retry",
+      candidate,
+      () => window.localSubtitleApi.retryTaskOnCpu({
         taskId: candidate.taskId,
         generation: candidate.generation,
-      });
-      if (!mountedRef.current) return;
-      if (!result.ok) {
-        setActionError(result.error);
-        return;
-      }
-      setSubmittedBatch((current) => current?.batchId === result.data.batchId
-        ? {
-            ...current,
-            tasks: current.tasks.map((task) =>
-              task.taskId === result.data.taskId ? result.data : task
-            ),
-          }
-        : current);
-      void runtimeService.refresh();
-    } catch (error) {
-      if (mountedRef.current) setActionError(toDisplayError(error));
-    } finally {
-      if (mountedRef.current) setCpuRetryPending(false);
-    }
-  }, [cpuRetryCandidate, runtimeService]);
+      }),
+    );
+    if (succeeded && mountedRef.current) setCpuRetryCandidate(null);
+  }, [cpuRetryCandidate, runTaskAction]);
+
+  const cpuRetryPending = cpuRetryCandidate !== null && pendingTaskActions.has(
+    localSubtitleTaskActionKey("cpu-retry", cpuRetryCandidate.taskId),
+  );
 
   const environmentReady = !startIssue || [
     "file_required",
     "output_directory_required",
-    "task_active",
   ].includes(startIssue);
 
   return (
@@ -652,7 +673,7 @@ export default function LocalSubtitleTranscriber() {
             description={t("subtitle:local_transcriber.description")}
             right={
               <Badge variant="outline">
-                {(activeTask?.resolvedBackend ?? backendPreview.summary?.resolvedBackend ?? "auto")
+                {(latestActiveTask?.resolvedBackend ?? backendPreview.summary?.resolvedBackend ?? "auto")
                   .toUpperCase()} · SRT
               </Badge>
             }
@@ -747,6 +768,7 @@ export default function LocalSubtitleTranscriber() {
               id="local-subtitle-file"
               inputTestId="local-subtitle-file-input"
               accept={MEDIA_ACCEPT}
+              multiple
               dragging={dragging}
               disabled={submissionLocked || fileAuthorizationPending}
               title={t(
@@ -754,36 +776,68 @@ export default function LocalSubtitleTranscriber() {
                   ? "subtitle:local_transcriber.file.authorizing"
                   : "subtitle:local_transcriber.file.title",
               )}
-              description={t("subtitle:local_transcriber.file.description")}
-              actionLabel={t("subtitle:local_transcriber.actions.select_file")}
+              description={t("subtitle:local_transcriber.file.description", {
+                max: LOCAL_SUBTITLE_LIMITS.maxBatchFiles,
+              })}
+              actionLabel={t("subtitle:local_transcriber.actions.select_files")}
               icon={fileAuthorizationPending ? <Loader2 className="h-5 w-5 animate-spin" /> : undefined}
               onDraggingChange={setDragging}
               onFiles={handleFiles}
             />
 
-            {selectedFile ? (
-              <div
-                data-testid="local-subtitle-file-selected"
-                className="flex min-w-0 items-center gap-3 border-y px-1 py-3"
-              >
-                <FileVideo2 className="h-4 w-4 shrink-0 text-muted-foreground" />
-                <div className="min-w-0 flex-1">
-                  <div className="truncate text-sm font-medium">{selectedFile.displayName}</div>
-                  <div className="mt-0.5 text-[11px] text-muted-foreground">
-                    {formatLocalSubtitleBytes(selectedFile.byteSize)}
+            {selectedFiles.length > 0 ? (
+              <div data-testid="local-subtitle-draft-files" className="border-y">
+                <div className="flex min-w-0 items-center justify-between gap-3 border-b px-1 py-2.5">
+                  <div className="text-xs font-medium">
+                    {t("subtitle:local_transcriber.file.selected_count", {
+                      count: selectedFiles.length,
+                    })}
                   </div>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    disabled={submissionLocked}
+                    onClick={() => setDraftInputFiles([])}
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                    {t("subtitle:local_transcriber.actions.clear_files")}
+                  </Button>
                 </div>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon-sm"
-                  disabled={submissionLocked}
-                  onClick={() => setDraftInputFiles([])}
-                  aria-label={t("subtitle:local_transcriber.actions.clear_file")}
-                  title={t("subtitle:local_transcriber.actions.clear_file")}
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                </Button>
+                <div className="max-h-64 divide-y overflow-y-auto">
+                  {selectedFiles.map((file) => (
+                    <div
+                      key={file.fileToken}
+                      data-testid="local-subtitle-draft-file"
+                      className="flex min-w-0 items-center gap-3 px-1 py-2.5"
+                    >
+                      <FileVideo2 className="h-4 w-4 shrink-0 text-muted-foreground" />
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate text-sm font-medium">
+                          {file.displayName}
+                        </div>
+                        <div className="mt-0.5 text-[11px] text-muted-foreground">
+                          {formatLocalSubtitleBytes(file.byteSize)}
+                        </div>
+                      </div>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon-sm"
+                        disabled={submissionLocked}
+                        onClick={() => removeDraftInputFile(file.fileToken)}
+                        aria-label={t("subtitle:local_transcriber.actions.remove_draft_file", {
+                          name: file.displayName,
+                        })}
+                        title={t("subtitle:local_transcriber.actions.remove_draft_file", {
+                          name: file.displayName,
+                        })}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
               </div>
             ) : null}
 
@@ -795,7 +849,12 @@ export default function LocalSubtitleTranscriber() {
               <Button
                 data-testid="local-subtitle-start"
                 type="button"
-                disabled={Boolean(startIssue) || submissionPending}
+                disabled={
+                  Boolean(startIssue) ||
+                  fileAuthorizationPending ||
+                  outputSelectionPending ||
+                  submissionPending
+                }
                 onClick={handleStart}
               >
                 {submissionPending ? (
@@ -805,20 +864,6 @@ export default function LocalSubtitleTranscriber() {
                 )}
                 {t("subtitle:local_transcriber.actions.start")}
               </Button>
-              <Button
-                data-testid="local-subtitle-cancel"
-                type="button"
-                variant="outline"
-                disabled={!taskActive || cancelPending}
-                onClick={handleCancel}
-              >
-                {cancelPending ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <XCircle className="h-4 w-4" />
-                )}
-                {t("common:action.cancel")}
-              </Button>
               {startIssue ? (
                 <p className="min-w-0 flex-1 text-xs leading-relaxed text-muted-foreground">
                   {t(START_ISSUE_KEYS[startIssue])}
@@ -826,11 +871,14 @@ export default function LocalSubtitleTranscriber() {
               ) : null}
             </div>
 
-            <TaskResult
-              task={activeTask}
-              cpuRetryPending={cpuRetryPending}
+            <LocalSubtitleTaskQueue
+              batches={visibleBatches}
+              pendingActionKeys={pendingTaskActions}
+              onCancel={handleCancel}
+              onRetry={handleRetry}
               onReveal={handleReveal}
               onRetryOnCpu={setCpuRetryCandidate}
+              onRemove={handleRemove}
             />
           </div>
         </ToolPanel>
@@ -867,97 +915,6 @@ function EnvironmentBadge({ ready, loading }: { ready: boolean; loading: boolean
             : "subtitle:local_transcriber.environment.unavailable",
       )}
     </Badge>
-  );
-}
-
-function TaskResult({
-  task,
-  cpuRetryPending,
-  onReveal,
-  onRetryOnCpu,
-}: {
-  task: LocalSubtitleTaskSummary | null;
-  cpuRetryPending: boolean;
-  onReveal: (task: LocalSubtitleTaskSummary) => void;
-  onRetryOnCpu: (task: LocalSubtitleTaskSummary) => void;
-}) {
-  const { t } = useTranslation(["subtitle"]);
-  if (!task) {
-    return (
-      <div
-        data-testid="local-subtitle-result-empty"
-        className="flex min-h-48 items-center justify-center border-t px-4 py-8 text-center"
-      >
-        <div className="max-w-sm space-y-2">
-          <FileVideo2 className="mx-auto h-6 w-6 text-muted-foreground" />
-          <div className="text-sm font-medium">
-            {t("subtitle:local_transcriber.result.empty_title")}
-          </div>
-          <div className="text-xs leading-relaxed text-muted-foreground">
-            {t("subtitle:local_transcriber.result.empty_description")}
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  const artifact = getCommittedSrtArtifact(task);
-  return (
-    <div data-testid="local-subtitle-result" className="space-y-3 border-t pt-4">
-      <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
-        <div className="min-w-0">
-          <div className="truncate text-sm font-medium">{task.displayName}</div>
-          <div className="mt-0.5 text-[11px] text-muted-foreground">
-            {t(TASK_STATUS_KEYS[task.status])} · {task.resolvedBackend.toUpperCase()}
-          </div>
-        </div>
-        {artifact ? (
-          <Button type="button" variant="outline" size="sm" onClick={() => onReveal(task)}>
-            <FolderOpen className="h-3.5 w-3.5" />
-            {t("subtitle:local_transcriber.actions.reveal")}
-          </Button>
-        ) : null}
-      </div>
-
-      {isLocalSubtitleTaskActive(task) ? (
-        <div className="space-y-1.5">
-          <div className="flex items-center justify-between gap-3 text-[11px] text-muted-foreground">
-            <span>{t(TASK_STAGE_KEYS[task.progress.stage])}</span>
-            <span>{Math.round(task.progress.overallProgress)}%</span>
-          </div>
-          <Progress value={task.progress.overallProgress} />
-        </div>
-      ) : null}
-
-      {task.status === "completed" && artifact ? (
-        <div className="flex min-w-0 items-center gap-2 text-xs text-emerald-700 dark:text-emerald-300">
-          <CheckCircle2 className="h-4 w-4 shrink-0" />
-          <span className="truncate">{artifact.displayName}</span>
-        </div>
-      ) : null}
-
-      {task.error ? <LocalSubtitleErrorNotice error={task.error} /> : null}
-
-      {task.cpuRetryAvailable === true ? (
-        <div className="flex justify-end">
-          <Button
-            data-testid="local-subtitle-retry-on-cpu"
-            type="button"
-            variant="outline"
-            size="sm"
-            disabled={cpuRetryPending}
-            onClick={() => onRetryOnCpu(task)}
-          >
-            {cpuRetryPending ? (
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-            ) : (
-              <Cpu className="h-3.5 w-3.5" />
-            )}
-            {t("subtitle:local_transcriber.actions.retry_on_cpu")}
-          </Button>
-        </div>
-      ) : null}
-    </div>
   );
 }
 

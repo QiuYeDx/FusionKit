@@ -1845,7 +1845,7 @@ Electron 视觉/交互验证必须等待 preload loading 完全退出。若启�
 
 `PRE-001`～`PRE-006`、`CORE-001`～`CORE-004`、`NATIVE-001`～`NATIVE-002`、`BE-001`～`BE-002`、`MEDIA-001`、`SUB-001`～`SUB-002`、`FS-TXN-001`与`MODEL-001`已完成，M1的共享schema、resource manifest/resolver/staging、preload/IPC/capability、renderer session runtime、official server transport/process contract、Supervisor生命周期、media normalization/PCM proof、canonical post-processing、标准字幕原子产物和managed model合同已冻结。唯一production decision record是`poc/pre006-production-decision.json`，后续实现不得静默更换引擎、平台矩阵、首发模型或media acquisition policy；SUB-001自有policy也不得伪装为PRE-006字段。
 
-1. `MODEL-002D`已完成受控root `.part`/staging启动孤儿清理，`FE-002`已完成环境/backend摘要、managed resource管理、main auto proof、开始前preview、macOS arm64 Metal、Windows x64 managed CUDA production admission及用户确认CPU新generation代码闭环；下一步在真实Windows NVIDIA与unrestricted Apple Silicon packaged目标机补正向证据，并开始评估`FE-003`批量队列。
+1. `MODEL-002D`已完成受控root `.part`/staging启动孤儿清理，`FE-002`已完成环境/backend摘要、managed resource管理、main auto proof、开始前preview、macOS arm64 Metal、Windows x64 managed CUDA production admission及用户确认CPU新generation代码闭环；`FE-003`已完成1～100文件draft/batch request、revisioned session批次/任务列表与逐task cancel/retry/CPU retry/remove/reveal checkpoint，已有任务运行时可提交下一批。下一步继续逐文件media probe摘要与多音轨Radio选择，并在真实Windows NVIDIA与unrestricted Apple Silicon packaged目标机补GPU正向证据。
 2. 使用真实FFmpeg、official server、PRE-006模型与Electron页面完成单文件SRT/reveal产品E2E后，再记录M2 packaged/目标机验收；该QA证据不反向扩大`FE-001`职责。
 3. Developer ID、公证和 Gatekeeper accepted 只由 `QA-004` 验收 macOS 分发产物；QA-005 完成分发前第三方 notices/source-offer/NVIDIA DLL 核对。
 4. 仍无需 FusionKit 自写 C++ runner；只有 official server 出现产品必需能力的真实硬缺口，才通过独立工作包重新评估 native bridge。

@@ -219,7 +219,7 @@
   },
   "local_transcriber": {
     "title": "本機字幕轉寫",
-    "description": "使用裝置上已安裝的模型，將單一音訊或影片轉寫為 SRT 字幕。",
+    "description": "使用裝置上已安裝的模型，批次將音訊或影片轉寫為 SRT 字幕。",
     "config": {
       "title": "轉寫設定",
       "model": "本機模型",
@@ -230,7 +230,7 @@
       "output_directory": "輸出目錄",
       "output_placeholder": "請選擇輸出目錄"
     },
-    "workspace": { "title": "轉寫任務" },
+    "workspace": { "title": "批次轉寫" },
     "environment": {
       "title": "本機環境",
       "checking": "檢查中",
@@ -261,11 +261,13 @@
     "file": {
       "authorizing": "正在授權檔案...",
       "title": "加入音訊或影片",
-      "description": "拖曳一個媒體檔案到這裡，或從裝置中選擇"
+      "description": "拖曳媒體檔案到這裡，或從裝置中選擇；每批最多 {{max}} 個",
+      "selected_count": "已選擇 {{count}} 個檔案"
     },
     "actions": {
-      "select_file": "選擇檔案",
-      "clear_file": "移除檔案",
+      "select_files": "選擇檔案",
+      "clear_files": "清空檔案",
+      "remove_draft_file": "移除 {{name}}",
       "select_output": "選擇輸出目錄",
       "refresh": "重新檢查環境",
       "import_model": "匯入模型",
@@ -275,7 +277,12 @@
       "delete_resource": "刪除資源",
       "start": "開始轉寫",
       "retry_on_cpu": "改用 CPU 重試",
-      "reveal": "在資料夾中顯示"
+      "reveal": "在資料夾中顯示",
+      "cancel_task": "取消 {{name}}",
+      "retry_task": "重試 {{name}}",
+      "retry_task_on_cpu": "改用 CPU 重試 {{name}}",
+      "remove_task": "移除 {{name}}",
+      "reveal_task": "在資料夾中顯示 {{name}}"
     },
     "resources": {
       "title": "託管資源",
@@ -330,9 +337,8 @@
       "model_required": "需要一個已安裝且可用的本機模型。",
       "backend_preview_loading": "正在解析目前模型的執行後端。",
       "backend_preview_unavailable": "無法驗證目前模型的執行後端，請重新檢查本機環境。",
-      "file_required": "請選擇一個音訊或影片檔案。",
-      "output_directory_required": "請選擇自訂輸出目錄。",
-      "task_active": "目前任務完成或取消後可開始新任務。"
+      "file_required": "請至少選擇一個音訊或影片檔案。",
+      "output_directory_required": "請選擇自訂輸出目錄。"
     },
     "stage": {
       "queued": "等待處理",
@@ -355,9 +361,23 @@
       "cancelled": "已取消",
       "failed": "轉寫失敗"
     },
-    "result": {
-      "empty_title": "尚無轉寫結果",
-      "empty_description": "任務開始後，可在這裡查看階段進度和 SRT 結果。"
+    "batch_status": {
+      "queued": "等待處理",
+      "running": "處理中",
+      "cancelling": "正在取消",
+      "completed": "已完成",
+      "cancelled": "已取消",
+      "failed": "失敗"
+    },
+    "queue": {
+      "title": "任務佇列",
+      "batch_count": "{{count}} 個批次",
+      "batch": "轉寫批次",
+      "batch_progress": "{{completed}} / {{total}} 個任務完成",
+      "duration": "媒體時長 {{duration}}",
+      "overall_progress": "總進度 {{progress}}%",
+      "empty_title": "任務佇列為空",
+      "empty_description": "提交檔案後，這裡會依批次顯示每個任務的狀態與結果。"
     },
     "cpu_retry": {
       "title": "改用 CPU 重新轉寫？",

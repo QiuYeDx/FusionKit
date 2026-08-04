@@ -219,7 +219,7 @@
   },
   "local_transcriber": {
     "title": "ローカル字幕文字起こし",
-    "description": "端末にインストール済みのモデルで、1つの音声または動画を SRT 字幕に文字起こしします。",
+    "description": "端末にインストール済みのモデルで、音声や動画を一括して SRT 字幕に文字起こしします。",
     "config": {
       "title": "文字起こし設定",
       "model": "ローカルモデル",
@@ -230,7 +230,7 @@
       "output_directory": "出力フォルダー",
       "output_placeholder": "出力フォルダーを選択"
     },
-    "workspace": { "title": "文字起こしタスク" },
+    "workspace": { "title": "一括文字起こし" },
     "environment": {
       "title": "ローカル環境",
       "checking": "確認中",
@@ -261,11 +261,13 @@
     "file": {
       "authorizing": "ファイルを承認しています...",
       "title": "音声または動画を追加",
-      "description": "メディアファイルを1つドロップするか、端末から選択します"
+      "description": "メディアファイルをドロップするか端末から選択します。1バッチ最大 {{max}} 件です",
+      "selected_count": "{{count}} 件のファイルを選択中"
     },
     "actions": {
-      "select_file": "ファイルを選択",
-      "clear_file": "ファイルを削除",
+      "select_files": "ファイルを選択",
+      "clear_files": "ファイルをクリア",
+      "remove_draft_file": "{{name}} を削除",
       "select_output": "出力フォルダーを選択",
       "refresh": "環境を再確認",
       "import_model": "モデルを読み込む",
@@ -275,7 +277,12 @@
       "delete_resource": "リソースを削除",
       "start": "文字起こしを開始",
       "retry_on_cpu": "CPU で再試行",
-      "reveal": "フォルダーに表示"
+      "reveal": "フォルダーに表示",
+      "cancel_task": "{{name}} をキャンセル",
+      "retry_task": "{{name}} を再試行",
+      "retry_task_on_cpu": "{{name}} を CPU で再試行",
+      "remove_task": "{{name}} を削除",
+      "reveal_task": "{{name}} をフォルダーに表示"
     },
     "resources": {
       "title": "管理対象リソース",
@@ -330,9 +337,8 @@
       "model_required": "インストール済みで利用可能なローカルモデルが必要です。",
       "backend_preview_loading": "選択したモデルの実行バックエンドを解決しています。",
       "backend_preview_unavailable": "選択したモデルの実行バックエンドを検証できません。ローカル環境を再確認してください。",
-      "file_required": "音声または動画ファイルを1つ選択してください。",
-      "output_directory_required": "カスタム出力フォルダーを選択してください。",
-      "task_active": "現在のタスクが完了またはキャンセルされると、新しいタスクを開始できます。"
+      "file_required": "音声または動画ファイルを1つ以上選択してください。",
+      "output_directory_required": "カスタム出力フォルダーを選択してください。"
     },
     "stage": {
       "queued": "待機中",
@@ -355,9 +361,23 @@
       "cancelled": "キャンセル済み",
       "failed": "文字起こしに失敗"
     },
-    "result": {
-      "empty_title": "文字起こし結果はまだありません",
-      "empty_description": "開始後、ここにタスクの進行状況と SRT の結果が表示されます。"
+    "batch_status": {
+      "queued": "待機中",
+      "running": "実行中",
+      "cancelling": "キャンセル中",
+      "completed": "完了",
+      "cancelled": "キャンセル済み",
+      "failed": "失敗"
+    },
+    "queue": {
+      "title": "タスクキュー",
+      "batch_count": "{{count}} バッチ",
+      "batch": "文字起こしバッチ",
+      "batch_progress": "{{total}} 件中 {{completed}} 件完了",
+      "duration": "メディア時間 {{duration}}",
+      "overall_progress": "全体 {{progress}}%",
+      "empty_title": "タスクキューは空です",
+      "empty_description": "送信したファイルのタスク状態と結果がバッチごとに表示されます。"
     },
     "cpu_retry": {
       "title": "CPU で文字起こしを再試行しますか？",

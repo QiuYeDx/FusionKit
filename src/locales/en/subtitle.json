@@ -219,7 +219,7 @@
   },
   "local_transcriber": {
     "title": "Local Subtitle Transcriber",
-    "description": "Use an installed on-device model to transcribe one audio or video file into SRT subtitles.",
+    "description": "Use an installed on-device model to transcribe audio and video files into SRT subtitles in batches.",
     "config": {
       "title": "Transcription settings",
       "model": "Local model",
@@ -230,7 +230,7 @@
       "output_directory": "Output folder",
       "output_placeholder": "Select an output folder"
     },
-    "workspace": { "title": "Transcription task" },
+    "workspace": { "title": "Batch transcription" },
     "environment": {
       "title": "Local environment",
       "checking": "Checking",
@@ -259,13 +259,15 @@
       }
     },
     "file": {
-      "authorizing": "Authorizing file...",
+      "authorizing": "Authorizing files...",
       "title": "Add audio or video",
-      "description": "Drop one media file here or select it from your device"
+      "description": "Drop media files here or select them from your device, up to {{max}} per batch",
+      "selected_count": "{{count}} files selected"
     },
     "actions": {
-      "select_file": "Select file",
-      "clear_file": "Remove file",
+      "select_files": "Select files",
+      "clear_files": "Clear files",
+      "remove_draft_file": "Remove {{name}}",
       "select_output": "Select output folder",
       "refresh": "Check environment again",
       "import_model": "Import model",
@@ -275,7 +277,12 @@
       "delete_resource": "Delete resource",
       "start": "Start transcription",
       "retry_on_cpu": "Retry on CPU",
-      "reveal": "Show in folder"
+      "reveal": "Show in folder",
+      "cancel_task": "Cancel {{name}}",
+      "retry_task": "Retry {{name}}",
+      "retry_task_on_cpu": "Retry {{name}} on CPU",
+      "remove_task": "Remove {{name}}",
+      "reveal_task": "Show {{name}} in folder"
     },
     "resources": {
       "title": "Managed resources",
@@ -330,9 +337,8 @@
       "model_required": "An installed, ready local model is required.",
       "backend_preview_loading": "Resolving the execution backend for the selected model.",
       "backend_preview_unavailable": "The execution backend for the selected model could not be verified. Check the local environment again.",
-      "file_required": "Select one audio or video file.",
-      "output_directory_required": "Select a custom output folder.",
-      "task_active": "A new task can start after the current task finishes or is cancelled."
+      "file_required": "Select at least one audio or video file.",
+      "output_directory_required": "Select a custom output folder."
     },
     "stage": {
       "queued": "Waiting",
@@ -355,9 +361,23 @@
       "cancelled": "Cancelled",
       "failed": "Transcription failed"
     },
-    "result": {
-      "empty_title": "No transcription result yet",
-      "empty_description": "Task stages and the exported SRT result will appear here after transcription starts."
+    "batch_status": {
+      "queued": "Waiting",
+      "running": "Running",
+      "cancelling": "Cancelling",
+      "completed": "Completed",
+      "cancelled": "Cancelled",
+      "failed": "Failed"
+    },
+    "queue": {
+      "title": "Task queue",
+      "batch_count": "{{count}} batches",
+      "batch": "Transcription batch",
+      "batch_progress": "{{completed}} of {{total}} tasks completed",
+      "duration": "Media duration {{duration}}",
+      "overall_progress": "Overall {{progress}}%",
+      "empty_title": "The task queue is empty",
+      "empty_description": "Submitted files will appear here in batches with task status and results."
     },
     "cpu_retry": {
       "title": "Retry this transcription on CPU?",
