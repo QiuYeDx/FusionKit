@@ -3,7 +3,9 @@ import { useTranslation } from "react-i18next";
 import {
   CheckCircle2,
   Cpu,
+  Eye,
   FolderOpen,
+  Info,
   Loader2,
   RotateCcw,
   Trash2,
@@ -15,14 +17,12 @@ import { Progress } from "@/components/ui/progress";
 import type {
   LocalSubtitleBatchStatus,
   LocalSubtitleBatchSummary,
+  GeneratedSubtitleArtifactSummary,
   LocalSubtitleTaskStage,
   LocalSubtitleTaskStatus,
   LocalSubtitleTaskSummary,
 } from "@/type/localSubtitle";
-import {
-  getCommittedSrtArtifact,
-  isLocalSubtitleTaskActive,
-} from "./localSubtitleTranscriberModel";
+import { isLocalSubtitleTaskActive } from "./localSubtitleTranscriberModel";
 import { LocalSubtitleErrorNotice } from "./LocalSubtitleErrorNotice";
 
 const TASK_STAGE_KEYS = {
@@ -78,7 +78,15 @@ interface LocalSubtitleTaskQueueProps {
   readonly onRetry: (task: LocalSubtitleTaskSummary) => void;
   readonly onRetryOnCpu: (task: LocalSubtitleTaskSummary) => void;
   readonly onRemove: (task: LocalSubtitleTaskSummary) => void;
-  readonly onReveal: (task: LocalSubtitleTaskSummary) => void;
+  readonly onPreview: (
+    task: LocalSubtitleTaskSummary,
+    artifact: GeneratedSubtitleArtifactSummary,
+  ) => void;
+  readonly onReveal: (
+    task: LocalSubtitleTaskSummary,
+    artifact: GeneratedSubtitleArtifactSummary,
+  ) => void;
+  readonly onShowError: (task: LocalSubtitleTaskSummary) => void;
 }
 
 export function LocalSubtitleTaskQueue({
@@ -88,7 +96,9 @@ export function LocalSubtitleTaskQueue({
   onRetry,
   onRetryOnCpu,
   onRemove,
+  onPreview,
   onReveal,
+  onShowError,
 }: LocalSubtitleTaskQueueProps) {
   const { t } = useTranslation(["subtitle"]);
 
@@ -158,7 +168,9 @@ export function LocalSubtitleTaskQueue({
                     onRetry={onRetry}
                     onRetryOnCpu={onRetryOnCpu}
                     onRemove={onRemove}
+                    onPreview={onPreview}
                     onReveal={onReveal}
+                    onShowError={onShowError}
                   />
                 ))}
               </div>
@@ -177,12 +189,13 @@ function TaskRow({
   onRetry,
   onRetryOnCpu,
   onRemove,
+  onPreview,
   onReveal,
+  onShowError,
 }: Omit<LocalSubtitleTaskQueueProps, "batches"> & {
   readonly task: LocalSubtitleTaskSummary;
 }) {
   const { t } = useTranslation(["subtitle"]);
-  const artifact = getCommittedSrtArtifact(task);
   const active = isLocalSubtitleTaskActive(task);
   const pending = (action: LocalSubtitleTaskAction) =>
     pendingActionKeys.has(localSubtitleTaskActionKey(action, task.taskId));
@@ -219,14 +232,13 @@ function TaskRow({
 
         <TaskActions
           task={task}
-          artifactAvailable={Boolean(artifact)}
           anyActionPending={anyActionPending}
           pending={pending}
           onCancel={onCancel}
           onRetry={onRetry}
           onRetryOnCpu={onRetryOnCpu}
           onRemove={onRemove}
-          onReveal={onReveal}
+          onShowError={onShowError}
         />
       </div>
 
@@ -246,11 +258,14 @@ function TaskRow({
         </div>
       ) : null}
 
-      {task.status === "completed" && artifact ? (
-        <div className="flex min-w-0 items-center gap-2 text-xs text-emerald-700 dark:text-emerald-300">
-          <CheckCircle2 className="h-4 w-4 shrink-0" />
-          <span className="truncate">{artifact.displayName}</span>
-        </div>
+      {task.status === "completed" && task.completion ? (
+        <TaskArtifactResults
+          task={task}
+          anyActionPending={anyActionPending}
+          revealPending={pending("reveal")}
+          onPreview={onPreview}
+          onReveal={onReveal}
+        />
       ) : null}
 
       {task.error ? <LocalSubtitleErrorNotice error={task.error} /> : null}
@@ -260,24 +275,22 @@ function TaskRow({
 
 function TaskActions({
   task,
-  artifactAvailable,
   anyActionPending,
   pending,
   onCancel,
   onRetry,
   onRetryOnCpu,
   onRemove,
-  onReveal,
+  onShowError,
 }: {
   readonly task: LocalSubtitleTaskSummary;
-  readonly artifactAvailable: boolean;
   readonly anyActionPending: boolean;
   readonly pending: (action: LocalSubtitleTaskAction) => boolean;
   readonly onCancel: (task: LocalSubtitleTaskSummary) => void;
   readonly onRetry: (task: LocalSubtitleTaskSummary) => void;
   readonly onRetryOnCpu: (task: LocalSubtitleTaskSummary) => void;
   readonly onRemove: (task: LocalSubtitleTaskSummary) => void;
-  readonly onReveal: (task: LocalSubtitleTaskSummary) => void;
+  readonly onShowError: (task: LocalSubtitleTaskSummary) => void;
 }) {
   const { t } = useTranslation(["subtitle"]);
   const active = isLocalSubtitleTaskActive(task);
@@ -317,15 +330,15 @@ function TaskActions({
           onClick={() => onRetryOnCpu(task)}
         />
       ) : null}
-      {artifactAvailable ? (
+      {task.error ? (
         <TaskIconButton
-          label={t("subtitle:local_transcriber.actions.reveal_task", {
+          label={t("subtitle:local_transcriber.actions.show_error_details", {
             name: task.displayName,
           })}
           disabled={anyActionPending}
-          loading={pending("reveal")}
-          icon={<FolderOpen className="h-3.5 w-3.5" />}
-          onClick={() => onReveal(task)}
+          loading={false}
+          icon={<Info className="h-3.5 w-3.5" />}
+          onClick={() => onShowError(task)}
         />
       ) : null}
       {!active ? (
@@ -339,6 +352,102 @@ function TaskActions({
           onClick={() => onRemove(task)}
         />
       ) : null}
+    </div>
+  );
+}
+
+function TaskArtifactResults({
+  task,
+  anyActionPending,
+  revealPending,
+  onPreview,
+  onReveal,
+}: {
+  readonly task: LocalSubtitleTaskSummary;
+  readonly anyActionPending: boolean;
+  readonly revealPending: boolean;
+  readonly onPreview: (
+    task: LocalSubtitleTaskSummary,
+    artifact: GeneratedSubtitleArtifactSummary,
+  ) => void;
+  readonly onReveal: (
+    task: LocalSubtitleTaskSummary,
+    artifact: GeneratedSubtitleArtifactSummary,
+  ) => void;
+}) {
+  const { t } = useTranslation(["subtitle"]);
+  const completion = task.completion!;
+  return (
+    <div className="min-w-0 border-y">
+      <div className="flex min-w-0 flex-wrap items-center gap-2 border-b px-2 py-2 text-xs">
+        <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-300" />
+        <span className="font-medium">
+          {t(completion.outcome === "full"
+            ? "subtitle:local_transcriber.result.full"
+            : "subtitle:local_transcriber.result.partial")}
+        </span>
+        {completion.warnings.map((warning) => (
+          <span
+            key={warning}
+            className="min-w-0 break-words text-amber-700 dark:text-amber-300 [overflow-wrap:anywhere]"
+          >
+            {t("subtitle:local_transcriber.result.cancelled_after_partial_commit")}
+          </span>
+        ))}
+      </div>
+      <div className="divide-y">
+        {completion.artifacts.map((result) => (
+          <div
+            key={result.format}
+            className="flex min-w-0 flex-wrap items-center justify-between gap-2 px-2 py-2 text-xs"
+          >
+            <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+              <Badge variant="outline" className="shrink-0">
+                {result.format}
+              </Badge>
+              <span className={result.status === "committed"
+                ? "text-emerald-700 dark:text-emerald-300"
+                : result.status === "failed"
+                  ? "text-destructive"
+                  : "text-muted-foreground"}
+              >
+                {t(`subtitle:local_transcriber.result.${result.status}`)}
+              </span>
+              {result.status === "committed" ? (
+                <span className="min-w-0 truncate text-muted-foreground">
+                  {result.artifact.displayName}
+                </span>
+              ) : result.errorCode ? (
+                <span className="min-w-0 break-words font-mono text-[11px] text-muted-foreground [overflow-wrap:anywhere]">
+                  {result.errorCode}
+                </span>
+              ) : null}
+            </div>
+            {result.status === "committed" ? (
+              <div className="flex shrink-0 items-center gap-1">
+                <TaskIconButton
+                  label={t("subtitle:local_transcriber.actions.preview_artifact", {
+                    name: result.artifact.displayName,
+                  })}
+                  disabled={anyActionPending}
+                  loading={false}
+                  icon={<Eye className="h-3.5 w-3.5" />}
+                  onClick={() => onPreview(task, result.artifact)}
+                />
+                <TaskIconButton
+                  label={t("subtitle:local_transcriber.actions.reveal_task", {
+                    name: result.artifact.displayName,
+                  })}
+                  disabled={anyActionPending}
+                  loading={revealPending}
+                  icon={<FolderOpen className="h-3.5 w-3.5" />}
+                  onClick={() => onReveal(task, result.artifact)}
+                />
+              </div>
+            ) : null}
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

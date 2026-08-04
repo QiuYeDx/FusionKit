@@ -39,6 +39,7 @@ import {
 } from "@/services/local-subtitle/localSubtitleRuntimeService";
 import useLocalSubtitleTranscriberStore from "@/store/tools/subtitle/useLocalSubtitleTranscriberStore";
 import type {
+  GeneratedSubtitleArtifactSummary,
   LocalSubtitleBatchSummary,
   LocalSubtitleError,
   LocalSubtitleTaskSummary,
@@ -55,7 +56,6 @@ import {
   createLocalSubtitleBatchRequest,
   deriveLocalSubtitleDraftMediaProbeStatus,
   deriveLocalSubtitleStartIssue,
-  getCommittedSrtArtifact,
   getReadyLocalSubtitleModels,
   type LocalSubtitleDraftMediaProbe,
   type LocalSubtitleStartIssue,
@@ -74,6 +74,11 @@ import {
   localSubtitleTaskActionKey,
   type LocalSubtitleTaskAction,
 } from "./LocalSubtitleTaskQueue";
+import {
+  LocalSubtitleArtifactPreviewDialog,
+  LocalSubtitleErrorDetailsDialog,
+  type LocalSubtitleArtifactPreviewSelection,
+} from "./LocalSubtitleTaskDetailsDialogs";
 
 const MEDIA_ACCEPT = [
   "audio/*",
@@ -183,6 +188,10 @@ export default function LocalSubtitleTranscriber() {
     ReadonlyMap<string, string>
   >(() => new Map());
   const [cpuRetryCandidate, setCpuRetryCandidate] =
+    useState<LocalSubtitleTaskSummary | null>(null);
+  const [artifactPreview, setArtifactPreview] =
+    useState<LocalSubtitleArtifactPreviewSelection | null>(null);
+  const [errorDetailsTask, setErrorDetailsTask] =
     useState<LocalSubtitleTaskSummary | null>(null);
   const [actionError, setActionError] = useState<LocalSubtitleDisplayError | null>(null);
   const [resourceActionError, setResourceActionError] =
@@ -758,9 +767,10 @@ export default function LocalSubtitleTranscriber() {
     );
   }, [runTaskAction]);
 
-  const handleReveal = useCallback((task: LocalSubtitleTaskSummary) => {
-    const artifact = getCommittedSrtArtifact(task);
-    if (!artifact) return;
+  const handleReveal = useCallback((
+    task: LocalSubtitleTaskSummary,
+    artifact: GeneratedSubtitleArtifactSummary,
+  ) => {
     void runTaskAction(
       "reveal",
       task,
@@ -965,7 +975,12 @@ export default function LocalSubtitleTranscriber() {
               pendingActionKeys={pendingTaskActions}
               onCancel={handleCancel}
               onRetry={handleRetry}
+              onPreview={(task, artifact) => setArtifactPreview({
+                taskName: task.displayName,
+                artifact,
+              })}
               onReveal={handleReveal}
+              onShowError={setErrorDetailsTask}
               onRetryOnCpu={setCpuRetryCandidate}
               onRemove={handleRemove}
             />
@@ -986,6 +1001,18 @@ export default function LocalSubtitleTranscriber() {
         cancelText={t("common:action.cancel")}
         variant="default"
         onConfirm={() => void handleCpuRetryConfirm()}
+      />
+      <LocalSubtitleArtifactPreviewDialog
+        selection={artifactPreview}
+        onOpenChange={(open) => {
+          if (!open) setArtifactPreview(null);
+        }}
+      />
+      <LocalSubtitleErrorDetailsDialog
+        task={errorDetailsTask}
+        onOpenChange={(open) => {
+          if (!open) setErrorDetailsTask(null);
+        }}
       />
     </div>
   );

@@ -295,6 +295,8 @@
       "retry_task": "Retry {{name}}",
       "retry_task_on_cpu": "Retry {{name}} on CPU",
       "remove_task": "Remove {{name}}",
+      "preview_artifact": "Preview {{name}}",
+      "show_error_details": "Show error details for {{name}}",
       "reveal_task": "Show {{name}} in folder"
     },
     "resources": {
@@ -393,6 +395,41 @@
       "overall_progress": "Overall {{progress}}%",
       "empty_title": "The task queue is empty",
       "empty_description": "Submitted files will appear here in batches with task status and results."
+    },
+    "result": {
+      "full": "All formats generated",
+      "partial": "Some formats generated",
+      "committed": "Generated",
+      "failed": "Generation failed",
+      "skipped": "Skipped",
+      "cancelled_after_partial_commit": "Successfully generated subtitles were kept before cancellation"
+    },
+    "preview": {
+      "title": "Subtitle preview",
+      "description": "{{name}} · {{format}}",
+      "loading": "Reading and validating subtitle content...",
+      "read_failed": "Subtitle content could not be read.",
+      "retry": "Read again",
+      "cue_count": "{{count}} cues",
+      "page": "Page {{current}} of {{total}}",
+      "previous_page": "Previous page",
+      "next_page": "Next page",
+      "copy_plain_text": "Copy plain text",
+      "copied": "Plain text copied",
+      "copy_failed": "Plain text could not be copied"
+    },
+    "error_details": {
+      "title": "Error details",
+      "stage": "Stage",
+      "retryable": "Retryable",
+      "yes": "Yes",
+      "no": "No",
+      "field": "Field",
+      "cause": "Cause code",
+      "truncated": "Diagnostics truncated",
+      "summary": "Diagnostic summary",
+      "lines": "Diagnostic log",
+      "metadata": "Diagnostic metadata"
     },
     "cpu_retry": {
       "title": "Retry this transcription on CPU?",

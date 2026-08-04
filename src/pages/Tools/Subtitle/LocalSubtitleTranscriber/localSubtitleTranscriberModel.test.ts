@@ -19,7 +19,6 @@ import {
   findLocalSubtitleTask,
   formatLocalSubtitleBytes,
   formatLocalSubtitleDuration,
-  getCommittedSrtArtifact,
   getInstalledLocalSubtitleResourceBytes,
   getLatestLocalSubtitleResourceJobs,
   getReadyLocalSubtitleModels,
@@ -261,7 +260,6 @@ describe("local subtitle transcriber page model", () => {
 
     expect(findLocalSubtitleTask([batch], task.batchId, task.taskId)).toBe(task);
     expect(isLocalSubtitleTaskActive(task)).toBe(false);
-    expect(getCommittedSrtArtifact(task)?.artifactRef).toBe("artifact-ref");
   });
 });
 

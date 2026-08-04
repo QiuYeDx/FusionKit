@@ -295,6 +295,8 @@
       "retry_task": "{{name}} を再試行",
       "retry_task_on_cpu": "{{name}} を CPU で再試行",
       "remove_task": "{{name}} を削除",
+      "preview_artifact": "{{name}} をプレビュー",
+      "show_error_details": "{{name}} のエラー詳細を表示",
       "reveal_task": "{{name}} をフォルダーに表示"
     },
     "resources": {
@@ -393,6 +395,41 @@
       "overall_progress": "全体 {{progress}}%",
       "empty_title": "タスクキューは空です",
       "empty_description": "送信したファイルのタスク状態と結果がバッチごとに表示されます。"
+    },
+    "result": {
+      "full": "すべての形式を生成しました",
+      "partial": "一部の形式を生成しました",
+      "committed": "生成済み",
+      "failed": "生成失敗",
+      "skipped": "スキップ済み",
+      "cancelled_after_partial_commit": "キャンセル前に生成済みの字幕を保持しました"
+    },
+    "preview": {
+      "title": "字幕プレビュー",
+      "description": "{{name}} · {{format}}",
+      "loading": "字幕内容を読み込み、検証しています...",
+      "read_failed": "字幕内容を読み込めませんでした。",
+      "retry": "再読み込み",
+      "cue_count": "{{count}} 件の字幕",
+      "page": "{{current}} / {{total}} ページ",
+      "previous_page": "前のページ",
+      "next_page": "次のページ",
+      "copy_plain_text": "プレーンテキストをコピー",
+      "copied": "プレーンテキストをコピーしました",
+      "copy_failed": "プレーンテキストをコピーできませんでした"
+    },
+    "error_details": {
+      "title": "エラー詳細",
+      "stage": "段階",
+      "retryable": "再試行可能",
+      "yes": "はい",
+      "no": "いいえ",
+      "field": "フィールド",
+      "cause": "原因コード",
+      "truncated": "診断は切り詰め済み",
+      "summary": "診断概要",
+      "lines": "診断ログ",
+      "metadata": "診断メタデータ"
     },
     "cpu_retry": {
       "title": "CPU で文字起こしを再試行しますか？",

@@ -295,6 +295,8 @@
       "retry_task": "重试 {{name}}",
       "retry_task_on_cpu": "改用 CPU 重试 {{name}}",
       "remove_task": "移除 {{name}}",
+      "preview_artifact": "预览 {{name}}",
+      "show_error_details": "查看 {{name}} 的错误详情",
       "reveal_task": "在文件夹中显示 {{name}}"
     },
     "resources": {
@@ -393,6 +395,41 @@
       "overall_progress": "总进度 {{progress}}%",
       "empty_title": "任务队列为空",
       "empty_description": "提交文件后，这里会按批次显示每个任务的状态和结果。"
+    },
+    "result": {
+      "full": "所有格式均已生成",
+      "partial": "部分格式已生成",
+      "committed": "已生成",
+      "failed": "生成失败",
+      "skipped": "已跳过",
+      "cancelled_after_partial_commit": "取消前已保留成功生成的字幕"
+    },
+    "preview": {
+      "title": "字幕预览",
+      "description": "{{name}} · {{format}}",
+      "loading": "正在读取并验证字幕内容...",
+      "read_failed": "无法读取字幕内容。",
+      "retry": "重新读取",
+      "cue_count": "{{count}} 条字幕",
+      "page": "第 {{current}} / {{total}} 页",
+      "previous_page": "上一页",
+      "next_page": "下一页",
+      "copy_plain_text": "复制纯文本",
+      "copied": "已复制纯文本",
+      "copy_failed": "无法复制纯文本"
+    },
+    "error_details": {
+      "title": "错误详情",
+      "stage": "阶段",
+      "retryable": "可重试",
+      "yes": "是",
+      "no": "否",
+      "field": "字段",
+      "cause": "原因代码",
+      "truncated": "诊断已截断",
+      "summary": "诊断摘要",
+      "lines": "诊断记录",
+      "metadata": "诊断元数据"
     },
     "cpu_retry": {
       "title": "改用 CPU 重新转写？",

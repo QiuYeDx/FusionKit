@@ -295,6 +295,8 @@
       "retry_task": "重試 {{name}}",
       "retry_task_on_cpu": "改用 CPU 重試 {{name}}",
       "remove_task": "移除 {{name}}",
+      "preview_artifact": "預覽 {{name}}",
+      "show_error_details": "查看 {{name}} 的錯誤詳情",
       "reveal_task": "在資料夾中顯示 {{name}}"
     },
     "resources": {
@@ -393,6 +395,41 @@
       "overall_progress": "總進度 {{progress}}%",
       "empty_title": "任務佇列為空",
       "empty_description": "提交檔案後，這裡會依批次顯示每個任務的狀態與結果。"
+    },
+    "result": {
+      "full": "所有格式均已產生",
+      "partial": "部分格式已產生",
+      "committed": "已產生",
+      "failed": "產生失敗",
+      "skipped": "已略過",
+      "cancelled_after_partial_commit": "取消前已保留成功產生的字幕"
+    },
+    "preview": {
+      "title": "字幕預覽",
+      "description": "{{name}} · {{format}}",
+      "loading": "正在讀取並驗證字幕內容...",
+      "read_failed": "無法讀取字幕內容。",
+      "retry": "重新讀取",
+      "cue_count": "{{count}} 條字幕",
+      "page": "第 {{current}} / {{total}} 頁",
+      "previous_page": "上一頁",
+      "next_page": "下一頁",
+      "copy_plain_text": "複製純文字",
+      "copied": "已複製純文字",
+      "copy_failed": "無法複製純文字"
+    },
+    "error_details": {
+      "title": "錯誤詳情",
+      "stage": "階段",
+      "retryable": "可重試",
+      "yes": "是",
+      "no": "否",
+      "field": "欄位",
+      "cause": "原因代碼",
+      "truncated": "診斷已截斷",
+      "summary": "診斷摘要",
+      "lines": "診斷記錄",
+      "metadata": "診斷中繼資料"
     },
     "cpu_retry": {
       "title": "改用 CPU 重新轉寫？",

@@ -249,14 +249,6 @@ export function findLocalSubtitleTask(
     ?.tasks.find((task) => task.taskId === taskId) ?? null;
 }
 
-export function getCommittedSrtArtifact(task: LocalSubtitleTaskSummary | null) {
-  if (!task) return null;
-  const result = task.artifactResults.find(
-    (artifact) => artifact.format === "SRT" && artifact.status === "committed",
-  );
-  return result?.status === "committed" ? result.artifact : null;
-}
-
 export function isLocalSubtitleTaskActive(
   task: LocalSubtitleTaskSummary | null,
 ): boolean {

@@ -18,7 +18,11 @@ const draftMediaSource = readFileSync(
   new URL("./LocalSubtitleDraftMediaList.tsx", import.meta.url),
   "utf8",
 );
-const source = `${pageSource}\n${environmentSource}\n${errorSource}\n${queueSource}\n${draftMediaSource}`;
+const detailsDialogSource = readFileSync(
+  new URL("./LocalSubtitleTaskDetailsDialogs.tsx", import.meta.url),
+  "utf8",
+);
+const source = `${pageSource}\n${environmentSource}\n${errorSource}\n${queueSource}\n${draftMediaSource}\n${detailsDialogSource}`;
 
 describe("local subtitle transcriber page wiring", () => {
   it("uses shared tool controls and the fixed local subtitle bridge", () => {
@@ -47,6 +51,7 @@ describe("local subtitle transcriber page wiring", () => {
       "retryTask",
       "retryTaskOnCpu",
       "removeTask",
+      "readArtifactText",
       "revealArtifact",
     ]) {
       expect(source).toContain(`window.localSubtitleApi.${method}`);
@@ -86,10 +91,20 @@ describe("local subtitle transcriber page wiring", () => {
     expect(queueSource).toContain('"retry"');
     expect(queueSource).toContain('"remove"');
     expect(queueSource).toContain('"reveal"');
+    expect(queueSource).toContain("completion.artifacts.map");
     expect(pageSource).toContain("candidate.generation");
     expect(pageSource).toContain("mediaProbeQueueRef");
     expect(pageSource).toContain("explicitAudioStreamIds");
     expect(draftMediaSource).toContain('orientation="vertical"');
     expect(pageSource).not.toContain("taskActive");
+  });
+
+  it("uses bounded ScrollableDialog surfaces for artifact and error details", () => {
+    expect(detailsDialogSource).toContain("ScrollableDialog");
+    expect(detailsDialogSource).toContain("createLocalSubtitleArtifactPreviewPage");
+    expect(detailsDialogSource).toContain("navigator.clipboard.writeText");
+    expect(detailsDialogSource).toContain("[overflow-wrap:anywhere]");
+    expect(detailsDialogSource).toContain("[data-slot=scroll-area-viewport]>div");
+    expect(detailsDialogSource).not.toContain('from "@/components/ui/dialog"');
   });
 });
