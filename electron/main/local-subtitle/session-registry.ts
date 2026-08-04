@@ -4,6 +4,7 @@ import {
   createLocalSubtitleError,
   deriveLocalSubtitleBatchStatus,
   hasLocalSubtitleArtifactCancellationEvidence,
+  isLocalSubtitleCpuRetryAvailable,
   transitionLocalSubtitleTaskState,
   type LocalSubtitleBatchSummary,
   type LocalSubtitleErrorCode,
@@ -576,7 +577,13 @@ function assertTaskMutation(
   if (observedGeneration !== current.generation) {
     throw invalidContent("task.generation");
   }
-  assertImmutableTaskFields(current, next);
+  const cpuRetryGeneration =
+    next.generation === current.generation + 1 &&
+    current.cpuRetryAvailable === true &&
+    isLocalSubtitleCpuRetryAvailable(current) &&
+    next.status === "queued" &&
+    next.resolvedBackend === "cpu";
+  assertImmutableTaskFields(current, next, cpuRetryGeneration);
 
   if (next.generation === current.generation) {
     if (next.createdAt !== current.createdAt) {
@@ -614,12 +621,14 @@ function assertTaskMutation(
 function assertImmutableTaskFields(
   current: LocalSubtitleTaskSummary,
   next: LocalSubtitleTaskSummary,
+  allowCpuRetryBackendChange = false,
 ): void {
   if (
     next.taskId !== current.taskId ||
     next.batchId !== current.batchId ||
     next.displayName !== current.displayName ||
-    next.resolvedBackend !== current.resolvedBackend ||
+    (!allowCpuRetryBackendChange &&
+      next.resolvedBackend !== current.resolvedBackend) ||
     !sameModel(next.model, current.model) ||
     !sameStringList(next.requestedFormats, current.requestedFormats) ||
     next.postAction.mode !== current.postAction.mode ||

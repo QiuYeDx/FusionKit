@@ -416,6 +416,18 @@ export const LOCAL_SUBTITLE_ERROR_CODES = [
 export type LocalSubtitleErrorCode =
   (typeof LOCAL_SUBTITLE_ERROR_CODES)[number];
 
+export const LOCAL_SUBTITLE_CPU_RETRY_ERROR_CODES = [
+  "runtime_missing",
+  "runtime_crashed",
+  "runtime_unresponsive",
+  "media_runtime_invalid",
+  "accelerator_unavailable",
+  "backend_mismatch",
+  "backend_unverified",
+  "transcription_failed",
+  "out_of_memory",
+] as const satisfies readonly LocalSubtitleErrorCode[];
+
 export const LOCAL_SUBTITLE_WARNING_CODES = [
   "cancelled_after_partial_commit",
 ] as const satisfies readonly LocalSubtitleErrorCode[];
@@ -956,8 +968,22 @@ export interface LocalSubtitleTaskSummary {
   readonly completion?: LocalSubtitleCompletionResult;
   readonly postAction: LocalSubtitlePostActionState;
   readonly error?: LocalSubtitleError;
+  readonly cpuRetryAvailable?: true;
   readonly createdAt: string;
   readonly updatedAt: string;
+}
+
+export function isLocalSubtitleCpuRetryAvailable(
+  task: Pick<
+    LocalSubtitleTaskSummary,
+    "status" | "resolvedBackend" | "error"
+  >,
+): boolean {
+  return task.status === "failed" &&
+    task.resolvedBackend !== "cpu" &&
+    task.error !== undefined &&
+    (LOCAL_SUBTITLE_CPU_RETRY_ERROR_CODES as readonly LocalSubtitleErrorCode[])
+      .includes(task.error.code);
 }
 
 export const LOCAL_SUBTITLE_BATCH_STATUSES = [

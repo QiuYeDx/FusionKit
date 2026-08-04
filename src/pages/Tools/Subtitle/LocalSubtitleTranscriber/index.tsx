@@ -9,6 +9,7 @@ import {
 import { useTranslation } from "react-i18next";
 import {
   CheckCircle2,
+  Cpu,
   FileVideo2,
   FolderOpen,
   Loader2,
@@ -17,6 +18,7 @@ import {
   Trash2,
   XCircle,
 } from "lucide-react";
+import ConfirmDialog from "@/components/ConfirmDialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
@@ -192,6 +194,9 @@ export default function LocalSubtitleTranscriber() {
   const [outputSelectionPending, setOutputSelectionPending] = useState(false);
   const [submissionPending, setSubmissionPending] = useState(false);
   const [cancelPending, setCancelPending] = useState(false);
+  const [cpuRetryPending, setCpuRetryPending] = useState(false);
+  const [cpuRetryCandidate, setCpuRetryCandidate] =
+    useState<LocalSubtitleTaskSummary | null>(null);
   const [actionError, setActionError] = useState<LocalSubtitleDisplayError | null>(null);
   const [resourceActionError, setResourceActionError] =
     useState<LocalSubtitleDisplayError | null>(null);
@@ -395,7 +400,7 @@ export default function LocalSubtitleTranscriber() {
     : null;
   const activeTask = liveTask ?? fallbackTask;
   const taskActive = isLocalSubtitleTaskActive(activeTask);
-  const submissionLocked = submissionPending || taskActive;
+  const submissionLocked = submissionPending || cpuRetryPending || taskActive;
   const startIssue = deriveLocalSubtitleStartIssue({
     environmentLoading: environment.loading,
     environmentError: Boolean(environment.error),
@@ -600,6 +605,37 @@ export default function LocalSubtitleTranscriber() {
     }
   }, []);
 
+  const handleCpuRetryConfirm = useCallback(async () => {
+    const candidate = cpuRetryCandidate;
+    if (!candidate || candidate.cpuRetryAvailable !== true) return;
+    setCpuRetryPending(true);
+    setActionError(null);
+    try {
+      const result = await window.localSubtitleApi.retryTaskOnCpu({
+        taskId: candidate.taskId,
+        generation: candidate.generation,
+      });
+      if (!mountedRef.current) return;
+      if (!result.ok) {
+        setActionError(result.error);
+        return;
+      }
+      setSubmittedBatch((current) => current?.batchId === result.data.batchId
+        ? {
+            ...current,
+            tasks: current.tasks.map((task) =>
+              task.taskId === result.data.taskId ? result.data : task
+            ),
+          }
+        : current);
+      void runtimeService.refresh();
+    } catch (error) {
+      if (mountedRef.current) setActionError(toDisplayError(error));
+    } finally {
+      if (mountedRef.current) setCpuRetryPending(false);
+    }
+  }, [cpuRetryCandidate, runtimeService]);
+
   const environmentReady = !startIssue || [
     "file_required",
     "output_directory_required",
@@ -790,10 +826,30 @@ export default function LocalSubtitleTranscriber() {
               ) : null}
             </div>
 
-            <TaskResult task={activeTask} onReveal={handleReveal} />
+            <TaskResult
+              task={activeTask}
+              cpuRetryPending={cpuRetryPending}
+              onReveal={handleReveal}
+              onRetryOnCpu={setCpuRetryCandidate}
+            />
           </div>
         </ToolPanel>
       </ToolDetailLayout>
+
+      <ConfirmDialog
+        open={cpuRetryCandidate !== null}
+        onOpenChange={(open) => {
+          if (!open && !cpuRetryPending) setCpuRetryCandidate(null);
+        }}
+        title={t("subtitle:local_transcriber.cpu_retry.title")}
+        description={t("subtitle:local_transcriber.cpu_retry.description", {
+          name: cpuRetryCandidate?.displayName ?? "",
+        })}
+        confirmText={t("subtitle:local_transcriber.cpu_retry.confirm")}
+        cancelText={t("common:action.cancel")}
+        variant="default"
+        onConfirm={() => void handleCpuRetryConfirm()}
+      />
     </div>
   );
 }
@@ -816,10 +872,14 @@ function EnvironmentBadge({ ready, loading }: { ready: boolean; loading: boolean
 
 function TaskResult({
   task,
+  cpuRetryPending,
   onReveal,
+  onRetryOnCpu,
 }: {
   task: LocalSubtitleTaskSummary | null;
+  cpuRetryPending: boolean;
   onReveal: (task: LocalSubtitleTaskSummary) => void;
+  onRetryOnCpu: (task: LocalSubtitleTaskSummary) => void;
 }) {
   const { t } = useTranslation(["subtitle"]);
   if (!task) {
@@ -877,6 +937,26 @@ function TaskResult({
       ) : null}
 
       {task.error ? <LocalSubtitleErrorNotice error={task.error} /> : null}
+
+      {task.cpuRetryAvailable === true ? (
+        <div className="flex justify-end">
+          <Button
+            data-testid="local-subtitle-retry-on-cpu"
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={cpuRetryPending}
+            onClick={() => onRetryOnCpu(task)}
+          >
+            {cpuRetryPending ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <Cpu className="h-3.5 w-3.5" />
+            )}
+            {t("subtitle:local_transcriber.actions.retry_on_cpu")}
+          </Button>
+        </div>
+      ) : null}
     </div>
   );
 }

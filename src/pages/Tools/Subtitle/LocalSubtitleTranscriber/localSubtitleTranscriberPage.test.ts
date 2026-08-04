@@ -34,6 +34,7 @@ describe("local subtitle transcriber page wiring", () => {
       "importModel",
       "deleteManagedResource",
       "enqueue",
+      "retryTaskOnCpu",
       "revealArtifact",
     ]) {
       expect(source).toContain(`window.localSubtitleApi.${method}`);
@@ -65,5 +66,7 @@ describe("local subtitle transcriber page wiring", () => {
     expect(source).toContain('data-testid="local-subtitle-start"');
     expect(source).toContain('data-testid="local-subtitle-result"');
     expect(source).toContain("task.progress.overallProgress");
+    expect(source).toContain('data-testid="local-subtitle-retry-on-cpu"');
+    expect(pageSource).toContain("candidate.generation");
   });
 });

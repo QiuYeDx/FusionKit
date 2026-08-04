@@ -11,6 +11,7 @@ import {
   deriveLocalSubtitleBatchStatus,
   hasLocalSubtitleArtifactCancellationEvidence,
   isLocalSubtitleErrorCode,
+  isLocalSubtitleCpuRetryAvailable,
   transitionLocalSubtitleTaskState,
   type LocalSubtitleArtifactResult,
   type LocalSubtitleBatchConfigSnapshot,
@@ -29,9 +30,11 @@ import {
 import {
   enqueueLocalSubtitleBatchRequestSchema,
   localSubtitleBackendPreviewRequestSchema,
+  localSubtitleCpuRetryRequestSchema,
   type EnqueueLocalSubtitleBatchRequest,
   type LocalSubtitleBackendPreviewRequest,
   type LocalSubtitleBackendPreviewSummary,
+  type LocalSubtitleCpuRetryRequest,
 } from "@/type/localSubtitleIpc";
 import {
   LocalSubtitleCapabilityLeaseCoordinator,
@@ -251,6 +254,7 @@ interface TaskRecord {
   readonly taskId: string;
   readonly fileToken: string;
   readonly audioStreamId?: string;
+  execution: TaskExecutionBinding;
   generation: number;
   state: TaskRecordState;
   cancelRequested: boolean;
@@ -262,9 +266,17 @@ interface TaskRecord {
 
 interface TaskRun {
   readonly record: TaskRecord;
+  readonly execution: TaskExecutionBinding;
   readonly generation: number;
   readonly admissionSequence: number;
   readonly controller: AbortController;
+}
+
+interface TaskExecutionBinding {
+  readonly config: LocalSubtitleBatchConfigSnapshot;
+  readonly managedModel: LocalSubtitleServerManagedResourceIdentity<"managed">;
+  readonly runtimeGeneration: string;
+  readonly backendResolution: LocalSubtitleVerifiedBackendResolution;
 }
 
 interface ActiveBatchSlice {
@@ -287,6 +299,14 @@ interface PendingBackendPreview {
   readonly ownerKey: string;
   readonly controller: AbortController;
   readonly detach: () => void;
+}
+
+interface PendingCpuRetry {
+  readonly ownerKey: string;
+  readonly modelId: string;
+  readonly controller: AbortController;
+  readonly detach: () => void;
+  readonly admission: QueueAdmission;
 }
 
 interface QueueAdmission {
@@ -330,6 +350,7 @@ export class LocalSubtitleJobManager {
   readonly #releasedOwners = new Set<string>();
   readonly #pendingEnqueues = new Set<PendingEnqueue>();
   readonly #pendingBackendPreviews = new Set<PendingBackendPreview>();
+  readonly #pendingCpuRetries = new Set<PendingCpuRetry>();
   readonly #operations = new Map<Promise<void>, string>();
   readonly #idleWaiters = new Set<IdleWaiter>();
   #activeRun: TaskRun | undefined;
@@ -397,6 +418,9 @@ export class LocalSubtitleJobManager {
   isManagedModelBusy(modelId: string): boolean {
     return (
       [...this.#pendingEnqueues].some(
+        (pending) => pending.modelId === modelId,
+      ) ||
+      [...this.#pendingCpuRetries].some(
         (pending) => pending.modelId === modelId,
       ) ||
       [...this.#tasks.values()].some(
@@ -558,6 +582,12 @@ export class LocalSubtitleJobManager {
         taskIds: new Set(taskIds),
         outputLeaseReleased: false,
       };
+      const execution = createTaskExecutionBinding({
+        config,
+        managedModel: batchRecord.managedModel,
+        runtimeGeneration,
+        backendResolution,
+      });
       const records = parsed.files.map((file, index): TaskRecord => ({
         owner: batchRecord.owner,
         ownerKey: ownerKeyValue,
@@ -567,6 +597,7 @@ export class LocalSubtitleJobManager {
         ...(file.audioStreamId === undefined
           ? {}
           : { audioStreamId: file.audioStreamId }),
+        execution,
         generation: 1,
         state: "queued",
         cancelRequested: false,
@@ -684,72 +715,136 @@ export class LocalSubtitleJobManager {
         );
       }
 
-      const generation = current.generation + 1;
-      if (!Number.isSafeInteger(generation)) {
-        throw managerFailure("invalid_content", "Task generation overflowed.");
-      }
-      const timestamp = this.#timestamp();
-      const retried: LocalSubtitleTaskSummary = {
-        ...current,
-        generation,
-        status: "queued",
-        progress: queuedProgress(),
-        artifactResults: [],
-        postAction: initialPostAction(record.batch.config),
-        createdAt: timestamp,
-        updatedAt: timestamp,
-        ...(current.durationMs === undefined ? {} : { durationMs: current.durationMs }),
-        completion: undefined,
-        error: undefined,
-      };
-      const canonical = stripUndefined(retried);
-      const previousRecordState = {
-        generation: record.generation,
-        state: record.state,
-        cancelRequested: record.cancelRequested,
-        inputLeaseReleased: record.inputLeaseReleased,
-        artifactsRevoked: record.artifactsRevoked,
-        leaseFailure: record.leaseFailure,
-        run: record.run,
-      };
-      record.generation = generation;
-      record.state = "queued";
-      record.cancelRequested = false;
-      record.inputLeaseReleased = false;
-      record.artifactsRevoked = false;
-      record.leaseFailure = undefined;
-      const run = this.#createRun(record, admission.sequence);
-      let publishedTask!: LocalSubtitleTaskSummary;
-      try {
-        const envelope = this.#registry.upsertTask(owner, canonical);
-        if (envelope.event.type !== "task-updated") {
-          throw managerFailure("invalid_content", "Task retry publication failed.");
-        }
-        publishedTask = envelope.event.task;
-      } catch (error) {
-        if (record.run === run && record.generation === generation) {
-          record.generation = previousRecordState.generation;
-          record.state = previousRecordState.state;
-          record.cancelRequested = previousRecordState.cancelRequested;
-          record.inputLeaseReleased = previousRecordState.inputLeaseReleased;
-          record.artifactsRevoked = previousRecordState.artifactsRevoked;
-          record.leaseFailure = previousRecordState.leaseFailure;
-          record.run = previousRecordState.run;
-        }
-        throw error;
-      }
-      this.#assertOwnerAvailable(owner);
-      const latestAfterPublication = this.#registry.getTask(owner, taskId);
-      const runnable =
-        record.run === run &&
-        record.state === "queued" &&
-        !record.cancelRequested &&
-        !this.#releasedOwners.has(record.ownerKey);
-      this.#settleAdmission(admission, runnable ? [run] : []);
-      this.#ensureLeaseRenewalScheduled();
-      return latestAfterPublication ?? publishedTask;
+      return this.#publishRetryGeneration(
+        record,
+        currentAfterRenewal,
+        admission,
+        record.execution,
+      );
     } finally {
       this.#settleAdmission(admission);
+      this.#flushIdleWaiters();
+    }
+  }
+
+  async retryTaskOnCpu(
+    owner: LocalSubtitleOwnerKey,
+    request: LocalSubtitleCpuRetryRequest,
+    signal?: AbortSignal,
+  ): Promise<LocalSubtitleTaskSummary> {
+    this.#assertOwnerAvailable(owner);
+    const parsed = parseCpuRetryRequest(request);
+    const record = this.#ownedTask(owner, parsed.taskId);
+    const current = record
+      ? this.#registry.getTask(owner, parsed.taskId)
+      : undefined;
+    if (
+      !record ||
+      !current ||
+      current.generation !== parsed.generation ||
+      record.generation !== parsed.generation ||
+      record.state !== "terminal" ||
+      current.cpuRetryAvailable !== true ||
+      !isLocalSubtitleCpuRetryAvailable(current)
+    ) {
+      throw managerFailure(
+        "invalid_ipc_request",
+        "The requested GPU task generation is not available for CPU retry.",
+        "preflight",
+        "generation",
+      );
+    }
+
+    const pending = this.#beginPendingCpuRetry(
+      record.ownerKey,
+      record.execution.config.model.modelId,
+      signal,
+    );
+    const admission = pending.admission;
+    try {
+      throwIfCpuRetryAborted(pending.controller.signal);
+      await this.#runLeaseOperation(
+        record.ownerKey,
+        () => this.#renewTaskCapabilities(record),
+      );
+      throwIfCpuRetryAborted(pending.controller.signal);
+      this.#assertOwnerAvailable(owner);
+      assertCpuRetryTaskCurrent(
+        this.#ownedTask(owner, parsed.taskId),
+        record,
+        this.#registry.getTask(owner, parsed.taskId),
+        parsed.generation,
+      );
+
+      const [managedModel, runtimeAdmission] = await Promise.all([
+        this.#modelResolver.resolveManagedModel(
+          record.execution.config.model.modelId,
+          pending.controller.signal,
+        ),
+        this.#runtimeVerifier.verifyRuntime({
+          owner,
+          signal: pending.controller.signal,
+        }),
+      ]);
+      throwIfCpuRetryAborted(pending.controller.signal);
+      this.#assertOwnerAvailable(owner);
+      assertCpuRetryTaskCurrent(
+        this.#ownedTask(owner, parsed.taskId),
+        record,
+        this.#registry.getTask(owner, parsed.taskId),
+        parsed.generation,
+      );
+      assertManagedModel(
+        managedModel,
+        record.execution.config.model.modelId,
+      );
+      assertExecutionManagedModelUnchanged(record.execution, managedModel);
+      const runtimeGeneration = assertRuntimeAdmission(runtimeAdmission);
+      const backendResolution = await this.#backendResolver.resolveBackend({
+        devicePreference: "cpu",
+        admittedRuntimeGeneration: runtimeGeneration,
+        model: managedModel,
+        signal: pending.controller.signal,
+      });
+      throwIfCpuRetryAborted(pending.controller.signal);
+      this.#assertOwnerAvailable(owner);
+      const currentAfterResolution = this.#registry.getTask(
+        owner,
+        parsed.taskId,
+      );
+      assertCpuRetryTaskCurrent(
+        this.#ownedTask(owner, parsed.taskId),
+        record,
+        currentAfterResolution,
+        parsed.generation,
+      );
+      assertBackendResolution(
+        backendResolution,
+        "cpu",
+        runtimeGeneration,
+        managedModel,
+      );
+      const timestamp = this.#timestamp();
+      const execution = createTaskExecutionBinding({
+        config: createCpuRetryConfig(
+          record.execution.config,
+          this.#mintSnapshotId(),
+          timestamp,
+        ),
+        managedModel: freezeManagedModel(managedModel),
+        runtimeGeneration,
+        backendResolution,
+      });
+      return this.#publishRetryGeneration(
+        record,
+        currentAfterResolution!,
+        admission,
+        execution,
+      );
+    } finally {
+      this.#settleAdmission(admission);
+      pending.detach();
+      this.#pendingCpuRetries.delete(pending);
       this.#flushIdleWaiters();
     }
   }
@@ -850,6 +945,11 @@ export class LocalSubtitleJobManager {
         captureFailure(failures, () => pending.controller.abort());
       }
     }
+    for (const pending of this.#pendingCpuRetries) {
+      if (pending.ownerKey !== key) continue;
+      captureFailure(failures, () => pending.controller.abort());
+      captureFailure(failures, () => this.#settleAdmission(pending.admission));
+    }
     for (const record of records) {
       captureFailure(failures, () => record.run?.controller.abort());
       captureFailure(failures, () => this.#releaseInputLease(record));
@@ -895,6 +995,10 @@ export class LocalSubtitleJobManager {
     }
     for (const pending of this.#pendingBackendPreviews) {
       captureFailure(failures, () => pending.controller.abort());
+    }
+    for (const pending of this.#pendingCpuRetries) {
+      captureFailure(failures, () => pending.controller.abort());
+      captureFailure(failures, () => this.#settleAdmission(pending.admission));
     }
     for (const record of records) {
       captureFailure(failures, () => record.run?.controller.abort());
@@ -964,6 +1068,23 @@ export class LocalSubtitleJobManager {
     return pending;
   }
 
+  #beginPendingCpuRetry(
+    ownerKeyValue: string,
+    modelId: string,
+    signal?: AbortSignal,
+  ): PendingCpuRetry {
+    const controller = new AbortController();
+    const pending = {
+      ownerKey: ownerKeyValue,
+      modelId,
+      controller,
+      detach: forwardAbort(signal, controller),
+      admission: this.#beginAdmission(ownerKeyValue),
+    };
+    this.#pendingCpuRetries.add(pending);
+    return pending;
+  }
+
   #beginAdmission(ownerKeyValue: string): QueueAdmission {
     if (!Number.isSafeInteger(this.#nextAdmissionSequence)) {
       throw managerFailure("invalid_content", "Queue admission sequence overflowed.");
@@ -1003,9 +1124,91 @@ export class LocalSubtitleJobManager {
     this.#scheduleDrain();
   }
 
+  #publishRetryGeneration(
+    record: TaskRecord,
+    current: LocalSubtitleTaskSummary,
+    admission: QueueAdmission,
+    execution: TaskExecutionBinding,
+  ): LocalSubtitleTaskSummary {
+    const generation = current.generation + 1;
+    if (!Number.isSafeInteger(generation)) {
+      throw managerFailure("invalid_content", "Task generation overflowed.");
+    }
+    const timestamp = this.#timestamp();
+    const retried: LocalSubtitleTaskSummary = {
+      ...current,
+      generation,
+      status: "queued",
+      progress: queuedProgress(),
+      model: execution.config.model,
+      resolvedBackend: execution.config.resolvedBackend,
+      artifactResults: [],
+      postAction: initialPostAction(execution.config),
+      createdAt: timestamp,
+      updatedAt: timestamp,
+      ...(current.durationMs === undefined ? {} : { durationMs: current.durationMs }),
+      completion: undefined,
+      error: undefined,
+      cpuRetryAvailable: undefined,
+    };
+    const canonical = stripUndefined(retried);
+    const previousRecordState = {
+      execution: record.execution,
+      generation: record.generation,
+      state: record.state,
+      cancelRequested: record.cancelRequested,
+      inputLeaseReleased: record.inputLeaseReleased,
+      artifactsRevoked: record.artifactsRevoked,
+      leaseFailure: record.leaseFailure,
+      run: record.run,
+    };
+    record.execution = execution;
+    record.generation = generation;
+    record.state = "queued";
+    record.cancelRequested = false;
+    record.inputLeaseReleased = false;
+    record.artifactsRevoked = false;
+    record.leaseFailure = undefined;
+    const run = this.#createRun(record, admission.sequence);
+    let publishedTask!: LocalSubtitleTaskSummary;
+    try {
+      const envelope = this.#registry.upsertTask(record.owner, canonical);
+      if (envelope.event.type !== "task-updated") {
+        throw managerFailure("invalid_content", "Task retry publication failed.");
+      }
+      publishedTask = envelope.event.task;
+    } catch (error) {
+      if (record.run === run && record.generation === generation) {
+        record.execution = previousRecordState.execution;
+        record.generation = previousRecordState.generation;
+        record.state = previousRecordState.state;
+        record.cancelRequested = previousRecordState.cancelRequested;
+        record.inputLeaseReleased = previousRecordState.inputLeaseReleased;
+        record.artifactsRevoked = previousRecordState.artifactsRevoked;
+        record.leaseFailure = previousRecordState.leaseFailure;
+        record.run = previousRecordState.run;
+      }
+      throw error;
+    }
+    this.#assertOwnerAvailable(record.owner);
+    const latestAfterPublication = this.#registry.getTask(
+      record.owner,
+      record.taskId,
+    );
+    const runnable =
+      record.run === run &&
+      record.state === "queued" &&
+      !record.cancelRequested &&
+      !this.#releasedOwners.has(record.ownerKey);
+    this.#settleAdmission(admission, runnable ? [run] : []);
+    this.#ensureLeaseRenewalScheduled();
+    return latestAfterPublication ?? publishedTask;
+  }
+
   #createRun(record: TaskRecord, admissionSequence: number): TaskRun {
     const run: TaskRun = {
       record,
+      execution: record.execution,
       generation: record.generation,
       admissionSequence,
       controller: new AbortController(),
@@ -1030,10 +1233,10 @@ export class LocalSubtitleJobManager {
     const runtime = this.#executor.beginBatchSlice(Object.freeze({
       owner: run.record.owner,
       batchId: run.record.batch.batchId,
-      config: run.record.batch.config,
-      managedModel: run.record.batch.managedModel,
-      admittedRuntimeGeneration: run.record.batch.runtimeGeneration,
-      backendResolution: run.record.batch.backendResolution,
+      config: run.execution.config,
+      managedModel: run.execution.managedModel,
+      admittedRuntimeGeneration: run.execution.runtimeGeneration,
+      backendResolution: run.execution.backendResolution,
       signal: controller.signal,
     }));
     if (typeof runtime !== "object" || runtime === null) {
@@ -1176,11 +1379,11 @@ export class LocalSubtitleJobManager {
       );
       if (!this.#isPublishableRun(run)) return;
       const managedModel = await this.#modelResolver.resolveManagedModel(
-        run.record.batch.config.model.modelId,
+        run.execution.config.model.modelId,
         run.controller.signal,
       );
-      assertManagedModel(managedModel, run.record.batch.config.model.modelId);
-      assertManagedModelUnchanged(run.record.batch, managedModel);
+      assertManagedModel(managedModel, run.execution.config.model.modelId);
+      assertExecutionManagedModelUnchanged(run.execution, managedModel);
       if (!this.#isPublishableRun(run)) return;
       if (run.record.leaseFailure !== undefined) throw run.record.leaseFailure;
       const batchSlice = this.#beginBatchSlice(run);
@@ -1201,10 +1404,10 @@ export class LocalSubtitleJobManager {
         ...(run.record.audioStreamId === undefined
           ? {}
           : { audioStreamId: run.record.audioStreamId }),
-        config: run.record.batch.config,
-        managedModel: run.record.batch.managedModel,
-        admittedRuntimeGeneration: run.record.batch.runtimeGeneration,
-        backendResolution: run.record.batch.backendResolution,
+        config: run.execution.config,
+        managedModel: run.execution.managedModel,
+        admittedRuntimeGeneration: run.execution.runtimeGeneration,
+        backendResolution: run.execution.backendResolution,
         batchRuntime: batchSlice.runtime,
         signal: run.controller.signal,
         update: (update: LocalSubtitleJobTaskUpdate) =>
@@ -1367,6 +1570,7 @@ export class LocalSubtitleJobManager {
       updatedAt: timestamp,
       completion: undefined,
       error: undefined,
+      cpuRetryAvailable: undefined,
     });
     return this.#publishTask(run, next);
   }
@@ -1469,6 +1673,13 @@ export class LocalSubtitleJobManager {
         : { durationMs }),
       updatedAt: this.#timestamp(),
       completion: undefined,
+      cpuRetryAvailable: isLocalSubtitleCpuRetryAvailable({
+        status: "failed",
+        resolvedBackend: current.resolvedBackend,
+        error: stableError,
+      })
+        ? true
+        : undefined,
     });
     this.#publishTerminalTask(run, next);
     if (!this.#isCurrentRun(run) || run.record.state !== "terminal") return;
@@ -2076,6 +2287,9 @@ export class LocalSubtitleJobManager {
       ![...this.#pendingBackendPreviews].some((pending) =>
         matches(pending.ownerKey)
       ) &&
+      ![...this.#pendingCpuRetries].some((pending) =>
+        matches(pending.ownerKey)
+      ) &&
       !this.#admissions.some((admission) =>
         admission.state !== "skipped" && matches(admission.ownerKey)
       ) &&
@@ -2105,6 +2319,7 @@ export class LocalSubtitleJobManager {
       this.#operations.size > 0 ||
       this.#pendingEnqueues.size > 0 ||
       this.#pendingBackendPreviews.size > 0 ||
+      this.#pendingCpuRetries.size > 0 ||
       this.#admissions.length > 0 ||
       this.#leaseOperationCounts.size > 0
     ) {
@@ -2136,6 +2351,18 @@ function parseBackendPreviewRequest(
     throw managerFailure(
       "invalid_ipc_request",
       "The local subtitle backend preview request is invalid.",
+      "ipc",
+    );
+  }
+  return result.data;
+}
+
+function parseCpuRetryRequest(input: unknown): LocalSubtitleCpuRetryRequest {
+  const result = localSubtitleCpuRetryRequestSchema.safeParse(input);
+  if (!result.success) {
+    throw managerFailure(
+      "invalid_ipc_request",
+      "The local subtitle CPU retry request is invalid.",
       "ipc",
     );
   }
@@ -2331,6 +2558,31 @@ function createConfigSnapshot(
   });
 }
 
+function createCpuRetryConfig(
+  current: LocalSubtitleBatchConfigSnapshot,
+  snapshotId: string,
+  createdAt: string,
+): LocalSubtitleBatchConfigSnapshot {
+  return createLocalSubtitleBatchConfigSnapshot({
+    ...current,
+    snapshotId,
+    createdAt,
+    devicePreference: "cpu",
+    resolvedBackend: "cpu",
+  });
+}
+
+function createTaskExecutionBinding(
+  binding: TaskExecutionBinding,
+): TaskExecutionBinding {
+  return Object.freeze({
+    config: binding.config,
+    managedModel: binding.managedModel,
+    runtimeGeneration: binding.runtimeGeneration,
+    backendResolution: binding.backendResolution,
+  });
+}
+
 function createQueuedTaskSummary(
   record: TaskRecord,
   displayName: string,
@@ -2439,25 +2691,49 @@ function freezeManagedModel(
   return Object.freeze({ ...model });
 }
 
-function assertManagedModelUnchanged(
-  batch: BatchRecord,
+function assertExecutionManagedModelUnchanged(
+  execution: TaskExecutionBinding,
   model: LocalSubtitleServerManagedResourceIdentity<"managed">,
 ): void {
-  const frozen = batch.managedModel;
+  const frozen = execution.managedModel;
   if (
     model.storage !== frozen.storage ||
     model.id !== frozen.id ||
     model.absolutePath !== frozen.absolutePath ||
     model.byteSize !== frozen.byteSize ||
     model.sha256 !== frozen.sha256 ||
-    batch.config.model.modelId !== frozen.id ||
-    batch.config.model.modelHash !== frozen.sha256
+    execution.config.model.modelId !== frozen.id ||
+    execution.config.model.modelHash !== frozen.sha256
   ) {
     throw managerFailure(
       "model_corrupt",
       "The managed local subtitle model changed after the batch was frozen.",
       "loading_model",
       "modelId",
+    );
+  }
+}
+
+function assertCpuRetryTaskCurrent(
+  ownedRecord: TaskRecord | undefined,
+  expectedRecord: TaskRecord,
+  task: LocalSubtitleTaskSummary | undefined,
+  generation: number,
+): asserts task is LocalSubtitleTaskSummary {
+  if (
+    ownedRecord !== expectedRecord ||
+    expectedRecord.state !== "terminal" ||
+    expectedRecord.generation !== generation ||
+    !task ||
+    task.generation !== generation ||
+    task.cpuRetryAvailable !== true ||
+    !isLocalSubtitleCpuRetryAvailable(task)
+  ) {
+    throw managerFailure(
+      "invalid_ipc_request",
+      "The GPU task generation changed while CPU retry was being prepared.",
+      "preflight",
+      "generation",
     );
   }
 }
@@ -2551,6 +2827,16 @@ function throwIfSignalAborted(signal: AbortSignal | undefined): void {
     throw managerFailure(
       "owner_released",
       "The local subtitle backend preview operation was aborted.",
+      "cleanup",
+    );
+  }
+}
+
+function throwIfCpuRetryAborted(signal: AbortSignal): void {
+  if (signal.aborted) {
+    throw managerFailure(
+      "owner_released",
+      "The local subtitle CPU retry operation was aborted.",
       "cleanup",
     );
   }

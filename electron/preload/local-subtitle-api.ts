@@ -242,6 +242,12 @@ export function createLocalSubtitleRendererApi({
         taskId,
       });
     },
+    retryTaskOnCpu(request) {
+      return invokePublic(
+        LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.retryTaskOnCpu,
+        request,
+      );
+    },
     cancelBatch(batchId) {
       return invokePublic(LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.cancelBatch, {
         batchId,

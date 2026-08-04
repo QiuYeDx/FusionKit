@@ -684,6 +684,51 @@ describe("LocalSubtitleSessionRegistry", () => {
     expect(registry.getSnapshot(OWNER_A).revision).toBe(3);
   });
 
+  it("allows only an eligible GPU failure to change backend on the next generation", () => {
+    const registry = new LocalSubtitleSessionRegistry();
+    registry.addBatch(
+      OWNER_A,
+      batch({ tasks: [task({ resolvedBackend: "metal" })] }),
+    );
+    registry.upsertTask(
+      OWNER_A,
+      failedTask({
+        resolvedBackend: "metal",
+        error: createLocalSubtitleError(
+          "runtime_crashed",
+          "The GPU runtime failed.",
+          { stage: "transcribing" },
+        ),
+        cpuRetryAvailable: true,
+        updatedAt: "2026-07-22T00:00:01.000Z",
+      }),
+    );
+
+    expect(() => registry.upsertTask(
+      OWNER_A,
+      task({
+        generation: 2,
+        resolvedBackend: "cuda",
+        createdAt: "2026-07-22T00:00:02.000Z",
+        updatedAt: "2026-07-22T00:00:02.000Z",
+      }),
+    )).toThrow(expect.objectContaining({ field: "task.immutable" }));
+
+    const retried = registry.upsertTask(
+      OWNER_A,
+      task({
+        generation: 2,
+        resolvedBackend: "cpu",
+        createdAt: "2026-07-22T00:00:02.000Z",
+        updatedAt: "2026-07-22T00:00:02.000Z",
+      }),
+    );
+    expect(retried).toMatchObject({
+      generation: 2,
+      event: { task: { status: "queued", resolvedBackend: "cpu" } },
+    });
+  });
+
   it("removes the final task and batch while retaining a generation tombstone", () => {
     const registry = new LocalSubtitleSessionRegistry();
     registry.addBatch(OWNER_A, batch());

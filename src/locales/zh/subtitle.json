@@ -274,6 +274,7 @@
       "delete_named_resource": "删除 {{name}}",
       "delete_resource": "删除资源",
       "start": "开始转写",
+      "retry_on_cpu": "改用 CPU 重试",
       "reveal": "在文件夹中显示"
     },
     "resources": {
@@ -357,6 +358,11 @@
     "result": {
       "empty_title": "尚无转写结果",
       "empty_description": "任务开始后，可在这里查看阶段进度和 SRT 结果。"
+    },
+    "cpu_retry": {
+      "title": "改用 CPU 重新转写？",
+      "description": "{{name}} 的 GPU 任务已失败。FusionKit 会保留该 generation，并创建一个新的 CPU generation；转写速度可能明显变慢。",
+      "confirm": "创建 CPU 任务"
     },
     "overwrite_recovery": {
       "title": "输出恢复",

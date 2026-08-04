@@ -65,7 +65,7 @@ describe("local subtitle fixed IPC surface", () => {
     const eventChannels = Object.values(LOCAL_SUBTITLE_EVENT_CHANNELS);
     const allChannels = [...publicChannels, ...internalChannels, ...eventChannels];
 
-    expect(publicChannels).toHaveLength(17);
+    expect(publicChannels).toHaveLength(18);
     expect(internalChannels).toHaveLength(7);
     expect(eventChannels).toHaveLength(2);
     expect(new Set(allChannels).size).toBe(allChannels.length);
@@ -99,6 +99,7 @@ describe("local subtitle fixed IPC surface", () => {
       | "getSessionSnapshot"
       | "enqueue"
       | "retryTask"
+      | "retryTaskOnCpu"
       | "cancelBatch"
       | "cancelTask"
       | "removeTask"
@@ -1128,6 +1129,28 @@ describe("local subtitle transcript and task summary schemas", () => {
       .toBe(true);
   });
 
+  it("exposes CPU retry only for eligible failed GPU generations", () => {
+    const eligible = validTaskSummary() as any;
+    eligible.status = "failed";
+    eligible.error = createLocalSubtitleError(
+      "runtime_crashed",
+      "The GPU runtime failed.",
+      { stage: "transcribing" },
+    );
+    eligible.cpuRetryAvailable = true;
+    expect(localSubtitleTaskSummarySchema.safeParse(eligible).success).toBe(true);
+
+    eligible.resolvedBackend = "cpu";
+    expect(localSubtitleTaskSummarySchema.safeParse(eligible).success).toBe(false);
+
+    eligible.resolvedBackend = "metal";
+    eligible.error = createLocalSubtitleError(
+      "media_decode_failed",
+      "The media could not be decoded.",
+    );
+    expect(localSubtitleTaskSummarySchema.safeParse(eligible).success).toBe(false);
+  });
+
   it("derives cancellation warnings instead of accepting self-asserted state", () => {
     const fullWithCancellationWarning = completedTaskSummary() as any;
     fullWithCancellationWarning.artifactResults = [
@@ -1461,6 +1484,10 @@ function validPublicOperationRequests(): Record<
     [LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.getSessionSnapshot]: {},
     [LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.enqueue]: validEnqueueRequest(),
     [LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.retryTask]: { taskId: "task-1" },
+    [LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.retryTaskOnCpu]: {
+      taskId: "task-1",
+      generation: 1,
+    },
     [LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.cancelBatch]: {
       batchId: "batch-1",
     },
@@ -1511,6 +1538,7 @@ function validPublicOperationResults(): Record<
       validSessionSnapshot(),
     [LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.enqueue]: validBatchSummary(),
     [LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.retryTask]: validTaskSummary(),
+    [LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.retryTaskOnCpu]: validTaskSummary(),
     [LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.cancelBatch]: {
       cancelledTaskIds: ["task-1"],
     },

@@ -2068,6 +2068,7 @@ describe("LocalSubtitleJobManager", () => {
         }
         return successfulExecution(context);
       }),
+      metalBackend: true,
     });
     await harness.manager.enqueue(
       OWNER_A,
@@ -2076,7 +2077,15 @@ describe("LocalSubtitleJobManager", () => {
     harness.flushScheduled();
     await harness.manager.waitForIdle();
     expect(harness.manager.getSessionSnapshot(OWNER_A)).toMatchObject({
-      batches: [{ status: "failed", tasks: [{ status: "failed", generation: 1 }] }],
+      batches: [{
+        status: "failed",
+        tasks: [{
+          status: "failed",
+          generation: 1,
+          resolvedBackend: "metal",
+          cpuRetryAvailable: true,
+        }],
+      }],
     });
     await expect(
       harness.inputs.resolveTaskLease(OWNER_A, "task-1", "transcribe"),
@@ -2094,7 +2103,109 @@ describe("LocalSubtitleJobManager", () => {
     const contexts = harness.executor.execute.mock.calls.map(([context]) => context);
     expect(contexts).toHaveLength(2);
     expect(contexts[1]?.config).toBe(contexts[0]?.config);
+    expect(contexts.map((context) => context.config.resolvedBackend)).toEqual([
+      "metal",
+      "metal",
+    ]);
     expect(contexts.map((context) => context.generation)).toEqual([1, 2]);
+  });
+
+  it("creates a fresh CPU execution binding and queue slice after confirmation", async () => {
+    const taskExecutor = executor(async (context) => {
+      if (context.generation === 1) {
+        return {
+          status: "failed",
+          error: createLocalSubtitleError(
+            "runtime_crashed",
+            "private GPU runtime failure",
+            { stage: "transcribing" },
+          ),
+        };
+      }
+      return successfulExecution(context);
+    });
+    const harness = await createHarness({
+      executor: taskExecutor,
+      metalBackend: true,
+    });
+    await harness.manager.enqueue(
+      OWNER_A,
+      await harness.createRequest(harness.fileToken),
+    );
+    harness.flushScheduled();
+    await harness.manager.waitForIdle();
+
+    await expect(
+      harness.manager.retryTaskOnCpu(OWNER_A, {
+        taskId: "task-1",
+        generation: 2,
+      }),
+    ).rejects.toMatchObject({ localSubtitleCode: "invalid_ipc_request" });
+
+    const retried = await harness.manager.retryTaskOnCpu(OWNER_A, {
+      taskId: "task-1",
+      generation: 1,
+    });
+    expect(retried).toMatchObject({
+      status: "queued",
+      generation: 2,
+      resolvedBackend: "cpu",
+    });
+    expect(retried).not.toHaveProperty("cpuRetryAvailable");
+    await harness.manager.waitForIdle();
+
+    const contexts = taskExecutor.execute.mock.calls.map(([context]) => context);
+    expect(contexts).toHaveLength(2);
+    expect(contexts.map((context) => ({
+      generation: context.generation,
+      devicePreference: context.config.devicePreference,
+      resolvedBackend: context.config.resolvedBackend,
+    }))).toEqual([
+      { generation: 1, devicePreference: "auto", resolvedBackend: "metal" },
+      { generation: 2, devicePreference: "cpu", resolvedBackend: "cpu" },
+    ]);
+    expect(contexts[1]?.config).not.toBe(contexts[0]?.config);
+    expect(taskExecutor.beginBatchSlice).toHaveBeenCalledTimes(2);
+    expect(taskExecutor.endBatchSlice).toHaveBeenCalledTimes(2);
+    expect(harness.manager.getSessionSnapshot(OWNER_A)).toMatchObject({
+      batches: [{
+        status: "completed",
+        tasks: [{
+          status: "completed",
+          generation: 2,
+          resolvedBackend: "cpu",
+        }],
+      }],
+    });
+  });
+
+  it("does not offer CPU retry for non-GPU execution failures", async () => {
+    const harness = await createHarness({
+      executor: executor(async () => ({
+        status: "failed",
+        error: createLocalSubtitleError(
+          "media_decode_failed",
+          "private media failure",
+          { stage: "preparing_media" },
+        ),
+      })),
+      metalBackend: true,
+    });
+    await harness.manager.enqueue(
+      OWNER_A,
+      await harness.createRequest(harness.fileToken),
+    );
+    harness.flushScheduled();
+    await harness.manager.waitForIdle();
+
+    const task = harness.manager.getSessionSnapshot(OWNER_A).batches[0]?.tasks[0];
+    expect(task).not.toHaveProperty("cpuRetryAvailable");
+    await expect(
+      harness.manager.retryTaskOnCpu(OWNER_A, {
+        taskId: "task-1",
+        generation: 1,
+      }),
+    ).rejects.toMatchObject({ localSubtitleCode: "invalid_ipc_request" });
   });
 
   it("honors reentrant cancellation from the queued retry publication", async () => {
@@ -3337,6 +3448,7 @@ interface HarnessOptions {
   readonly manualLeaseRenewal?: boolean;
   readonly cancelLeaseRenewal?: () => void;
   readonly modelResolutionGate?: Promise<void>;
+  readonly metalBackend?: boolean;
 }
 
 async function createHarness(options: HarnessOptions) {
@@ -3385,11 +3497,18 @@ async function createHarness(options: HarnessOptions) {
     verifyRuntime: options.verifyRuntime ??
       vi.fn(async () => ({ runtimeGeneration: "a".repeat(64) })),
   };
-  const backendRuntime = fakeVerifiedServerRuntime(root, "a".repeat(64));
+  const backendRuntime = fakeVerifiedServerRuntime(
+    root,
+    "a".repeat(64),
+    options.metalBackend === true,
+  );
   const backendResolver = options.backendResolver ??
     new LocalSubtitleBackendResolver({
       verifyServerRuntime: async () => backendRuntime,
+      metalAttestationAvailable: options.metalBackend === true,
       selectCpuServerArtifact: (runtime) =>
+        runtime.artifactPaths["whisper-server-cpu"]!,
+      selectMetalServerArtifact: (runtime) =>
         runtime.artifactPaths["whisper-server-cpu"]!,
     });
   let requestOutputIndex = 0;
@@ -3537,6 +3656,7 @@ function customOutputRequest(
 function fakeVerifiedServerRuntime(
   root: string,
   runtimeGeneration: string,
+  metalBackend = false,
 ): LocalSubtitleVerifiedRuntimeBundle {
   return Object.freeze({
     schemaVersion: 1 as const,
@@ -3551,12 +3671,12 @@ function fakeVerifiedServerRuntime(
       "whisper-server-cpu": Object.freeze({
         id: "whisper-server-cpu",
         kind: "server" as const,
-        backend: "cpu" as const,
+        backend: metalBackend ? "metal_cpu" as const : "cpu" as const,
         absolutePath: path.join(root, "runtime", "whisper-server"),
         byteSize: 1024,
         sha256: "d".repeat(64),
         version: "1.9.1+b1ade71",
-        signatureKind: "unsigned" as const,
+        signatureKind: metalBackend ? "adhoc" as const : "unsigned" as const,
       }),
     }),
     evidenceFileCount: 1,

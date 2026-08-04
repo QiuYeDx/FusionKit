@@ -274,6 +274,7 @@
       "delete_named_resource": "Delete {{name}}",
       "delete_resource": "Delete resource",
       "start": "Start transcription",
+      "retry_on_cpu": "Retry on CPU",
       "reveal": "Show in folder"
     },
     "resources": {
@@ -357,6 +358,11 @@
     "result": {
       "empty_title": "No transcription result yet",
       "empty_description": "Task stages and the exported SRT result will appear here after transcription starts."
+    },
+    "cpu_retry": {
+      "title": "Retry this transcription on CPU?",
+      "description": "The GPU task for {{name}} failed. FusionKit will retain that generation and create a new CPU generation, which may run considerably slower.",
+      "confirm": "Create CPU task"
     },
     "overwrite_recovery": {
       "title": "Output recovery",

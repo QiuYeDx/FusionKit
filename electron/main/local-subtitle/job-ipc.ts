@@ -64,6 +64,19 @@ export class LocalSubtitleJobIpcBridge {
             await this.#manager.retryTask(context.owner, taskId),
           );
         },
+        [LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.retryTaskOnCpu]: async (
+          request: unknown,
+          context: LocalSubtitleIpcHandlerContext,
+        ) => {
+          this.#session.ensureEvents(context);
+          return localSubtitleIpcSuccess(
+            await this.#manager.retryTaskOnCpu(
+              context.owner,
+              request as never,
+              context.signal,
+            ),
+          );
+        },
         [LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.cancelBatch]: (
           request: unknown,
           context: LocalSubtitleIpcHandlerContext,

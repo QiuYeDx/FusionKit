@@ -274,6 +274,7 @@
       "delete_named_resource": "{{name}} を削除",
       "delete_resource": "リソースを削除",
       "start": "文字起こしを開始",
+      "retry_on_cpu": "CPU で再試行",
       "reveal": "フォルダーに表示"
     },
     "resources": {
@@ -357,6 +358,11 @@
     "result": {
       "empty_title": "文字起こし結果はまだありません",
       "empty_description": "開始後、ここにタスクの進行状況と SRT の結果が表示されます。"
+    },
+    "cpu_retry": {
+      "title": "CPU で文字起こしを再試行しますか？",
+      "description": "{{name}} の GPU タスクは失敗しました。FusionKit はその generation を保持したまま、新しい CPU generation を作成します。処理速度が大幅に低下する場合があります。",
+      "confirm": "CPU タスクを作成"
     },
     "overwrite_recovery": {
       "title": "出力の復旧",

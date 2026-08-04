@@ -48,6 +48,7 @@ describe("local subtitle fixed preload API", () => {
         "getSessionSnapshot",
         "enqueue",
         "retryTask",
+        "retryTaskOnCpu",
         "cancelBatch",
         "cancelTask",
         "removeTask",
@@ -107,6 +108,10 @@ describe("local subtitle fixed preload API", () => {
       [LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.getSessionSnapshot, {}],
       [LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.enqueue, validEnqueueRequest()],
       [LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.retryTask, { taskId: "task-1" }],
+      [LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.retryTaskOnCpu, {
+        taskId: "task-1",
+        generation: 1,
+      }],
       [LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.cancelBatch, { batchId: "batch-1" }],
       [LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.cancelTask, { taskId: "task-1" }],
       [LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.removeTask, { taskId: "task-1" }],
@@ -218,7 +223,7 @@ describe("local subtitle fixed preload API", () => {
     );
 
     const results = await callEveryCommand(api, mediaOne, mediaTwo, model);
-    expect(results).toHaveLength(23);
+    expect(results).toHaveLength(24);
     expect(
       results.every(
         (result) => !result.ok && result.error.code === "owner_released",
@@ -417,6 +422,7 @@ async function callEveryCommand(
     api.getSessionSnapshot(),
     api.enqueue(validEnqueueRequest()),
     api.retryTask("task-1"),
+    api.retryTaskOnCpu({ taskId: "task-1", generation: 1 }),
     api.cancelBatch("batch-1"),
     api.cancelTask("task-1"),
     api.removeTask("task-1"),

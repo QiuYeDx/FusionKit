@@ -4,7 +4,7 @@
 >
 > Feature Slug：`local-subtitle-transcriber`
 >
-> 状态：39个顶层工作包中20个已完成、17个未开始、2个进行中。`MODEL-002A`～`MODEL-002D`已完成model/VAD/CUDA managed lifecycle与受控root启动孤儿清理；`FE-002`已完成真实runtime/backend摘要、managed resource管理、commit-time main auto backend proof、开始前path/hash-free preview及macOS arm64 Metal production admission代码闭环。顶层`MODEL-002`仍等待真实大文件下载与目标环境证据；`FE-002`仍等待Windows CUDA production admission、真实GPU generation失败后的确认式CPU新generation及对应目标机证据。`NATIVE-002`、`FS-TXN-001`、`BE-002`与`FE-001`已按职责结项；不提前声明M2 packaged/目标机验收或M3完成
+> 状态：39个顶层工作包中20个已完成、17个未开始、2个进行中。`MODEL-002A`～`MODEL-002D`已完成model/VAD/CUDA managed lifecycle与受控root启动孤儿清理；`FE-002`已完成真实runtime/backend摘要、managed resource管理、commit-time main auto backend proof、开始前path/hash-free preview、macOS arm64 Metal production admission及用户确认CPU新generation代码闭环。顶层`MODEL-002`仍等待真实大文件下载与目标环境证据；`FE-002`仍等待Windows CUDA production admission及CUDA/Metal目标机证据。`NATIVE-002`、`FS-TXN-001`、`BE-002`与`FE-001`已按职责结项；不提前声明M2 packaged/目标机验收或M3完成
 >
 > 产品定位：使用本地算力把批量音频/视频转成可直接翻译的 SRT/LRC 字幕
 >
@@ -948,6 +948,8 @@ Node 对当前 inference request 使用 `AbortController`。请求连接关闭�
 
 macOS arm64 Metal production admission随后完成代码闭环：production composition显式安装main-only attestor，resolver只有在`darwin/arm64`、attestor capability与verified `metal_cpu` exact artifact同时成立时才把`auto`或显式Metal冻结为`resolvedBackend=metal`；显式CPU仍对同一artifact唯一注入`--no-gpu`。Supervisor从exact child stdout/stderr分别保留每流64 KiB有界窗口，只把module-private opaque evidence交给attestor；evidence绑定epoch/PID/runtime generation/server artifact，要求初始化与device标志、观察窗内无失败标志，并继续受startup deadline、AbortSignal和child close race约束。原始诊断、marker文本及evidence不进入renderer、IPC或snapshot。Job Manager与Executor只消费resolver签发的branded CPU/Metal proof，queue-admission pin仍冻结同一identity。该checkpoint不把restricted sandbox当作Metal目标机结论，也不开放CUDA；Windows managed CUDA server/DLL组合、exact-PID VRAM attestor及GPU失败后的用户确认CPU新generation仍待完成。
 
+用户确认CPU新generation随后完成代码闭环：公开task summary只增加main签发的`cpuRetryAvailable: true`，且仅允许失败的非CPU generation与固定GPU/runtime错误白名单组合；renderer确认请求只提交`taskId + generation`，不提交backend proof、path、hash、artifact identity、runtime generation或flags。Job Manager为每个task generation保存独立execution binding；普通retry沿用当前binding，不会静默改backend，CPU retry则在exact失败generation仍有效时重新验证capability、managed model与runtime，并要求main resolver签发显式CPU proof，再以`generation + 1`和全新queue admission/runtime slice发布。Session Registry只允许`eligible failed GPU generation -> queued CPU next generation`改变backend；旧GPU generation事件继续受generation fence约束。pending CPU retry绑定owner、可abort、计入idle/shutdown并在准备期间阻止managed model删除。页面只在main公开资格时显示CPU重试，并用明确的性能确认对话框触发新generation。该checkpoint不开放Windows CUDA，亦不把代码测试当作真实GPU/packaged证据。
+
 ## 11. 模型与加速包管理
 
 ### 11.1 目录
@@ -1841,7 +1843,7 @@ Electron 视觉/交互验证必须等待 preload loading 完全退出。若启�
 
 `PRE-001`～`PRE-006`、`CORE-001`～`CORE-004`、`NATIVE-001`～`NATIVE-002`、`BE-001`～`BE-002`、`MEDIA-001`、`SUB-001`～`SUB-002`、`FS-TXN-001`与`MODEL-001`已完成，M1的共享schema、resource manifest/resolver/staging、preload/IPC/capability、renderer session runtime、official server transport/process contract、Supervisor生命周期、media normalization/PCM proof、canonical post-processing、标准字幕原子产物和managed model合同已冻结。唯一production decision record是`poc/pre006-production-decision.json`，后续实现不得静默更换引擎、平台矩阵、首发模型或media acquisition policy；SUB-001自有policy也不得伪装为PRE-006字段。
 
-1. `MODEL-002D`已完成受控root `.part`/staging启动孤儿清理，`FE-002`已完成环境/backend摘要、managed resource管理、main auto proof、开始前preview及macOS arm64 Metal production admission代码闭环；下一步接Windows managed CUDA exact artifact与exact-PID positive attestation，再实现真实GPU失败后的用户确认CPU新generation，完成后进入`FE-003`批量队列。
+1. `MODEL-002D`已完成受控root `.part`/staging启动孤儿清理，`FE-002`已完成环境/backend摘要、managed resource管理、main auto proof、开始前preview、macOS arm64 Metal production admission及用户确认CPU新generation代码闭环；下一步接Windows managed CUDA exact artifact与exact-PID positive attestation，完成后再评估进入`FE-003`批量队列。
 2. 使用真实FFmpeg、official server、PRE-006模型与Electron页面完成单文件SRT/reveal产品E2E后，再记录M2 packaged/目标机验收；该QA证据不反向扩大`FE-001`职责。
 3. Developer ID、公证和 Gatekeeper accepted 只由 `QA-004` 验收 macOS 分发产物；QA-005 完成分发前第三方 notices/source-offer/NVIDIA DLL 核对。
 4. 仍无需 FusionKit 自写 C++ runner；只有 official server 出现产品必需能力的真实硬缺口，才通过独立工作包重新评估 native bridge。

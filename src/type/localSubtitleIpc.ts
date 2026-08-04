@@ -28,6 +28,7 @@ import {
   SUBTITLE_TRANSLATION_START_STATUSES,
   deriveLocalSubtitleBatchStatus,
   hasLocalSubtitleArtifactCancellationEvidence,
+  isLocalSubtitleCpuRetryAvailable,
   resolveLocalSubtitleTerminalOutcome,
   type LocalSubtitleBatchSummary,
   type LocalSubtitleError,
@@ -55,6 +56,7 @@ export const LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS = {
   getSessionSnapshot: "local-subtitle:get-session-snapshot",
   enqueue: "local-subtitle:enqueue",
   retryTask: "local-subtitle:retry-task",
+  retryTaskOnCpu: "local-subtitle:retry-task-on-cpu",
   cancelBatch: "local-subtitle:cancel-batch",
   cancelTask: "local-subtitle:cancel-task",
   removeTask: "local-subtitle:remove-task",
@@ -551,6 +553,7 @@ export const localSubtitleTaskSummarySchema: z.ZodType<LocalSubtitleTaskSummary>
       completion: completionResultSchema.optional(),
       postAction: postActionStateSchema,
       error: localSubtitleErrorSchema.optional(),
+      cpuRetryAvailable: z.literal(true).optional(),
       createdAt: isoTimestampSchema,
       updatedAt: isoTimestampSchema,
     })
@@ -630,6 +633,16 @@ export const localSubtitleTaskSummarySchema: z.ZodType<LocalSubtitleTaskSummary>
           code: "custom",
           path: ["error"],
           message: "Only failed tasks may include a terminal error.",
+        });
+      }
+      if (
+        value.cpuRetryAvailable === true &&
+        !isLocalSubtitleCpuRetryAvailable(value)
+      ) {
+        context.addIssue({
+          code: "custom",
+          path: ["cpuRetryAvailable"],
+          message: "CPU retry is only available for an eligible failed GPU generation.",
         });
       }
       if (
@@ -1129,6 +1142,15 @@ export type EnqueueLocalSubtitleBatchRequest = z.infer<
 export const localSubtitleTaskIdRequestSchema = z
   .object({ taskId: idSchema })
   .strict();
+export const localSubtitleCpuRetryRequestSchema = z
+  .object({
+    taskId: idSchema,
+    generation: positiveSafeIntegerSchema,
+  })
+  .strict();
+export type LocalSubtitleCpuRetryRequest = z.infer<
+  typeof localSubtitleCpuRetryRequestSchema
+>;
 export const localSubtitleBatchIdRequestSchema = z
   .object({ batchId: idSchema })
   .strict();
@@ -1939,6 +1961,17 @@ export const LOCAL_SUBTITLE_PUBLIC_OPERATION_CONTRACTS: Record<
     maxRequestBytes: normalRequestBytes,
     maxResultBytes: normalResultBytes,
   },
+  [LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.retryTaskOnCpu]: {
+    requestSchema: boundedLocalSubtitleIpcRequestSchema(
+      localSubtitleCpuRetryRequestSchema,
+    ),
+    resultSchema: boundedLocalSubtitleIpcResultSchema(
+      localSubtitleTaskSummarySchema,
+      normalResultBytes,
+    ),
+    maxRequestBytes: normalRequestBytes,
+    maxResultBytes: normalResultBytes,
+  },
   [LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.cancelBatch]: {
     requestSchema: boundedLocalSubtitleIpcRequestSchema(
       localSubtitleBatchIdRequestSchema,
@@ -2165,6 +2198,9 @@ export interface LocalSubtitleRendererApi {
   ): Promise<LocalSubtitleIpcResult<LocalSubtitleBatchSummary>>;
   retryTask(
     taskId: string,
+  ): Promise<LocalSubtitleIpcResult<LocalSubtitleTaskSummary>>;
+  retryTaskOnCpu(
+    request: LocalSubtitleCpuRetryRequest,
   ): Promise<LocalSubtitleIpcResult<LocalSubtitleTaskSummary>>;
   cancelBatch(
     batchId: string,
