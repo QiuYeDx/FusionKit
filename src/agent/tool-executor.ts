@@ -59,7 +59,8 @@ import {
   inspectTranslationRecoveryArtifact,
   createRecoveredSubtitleTaskDraft,
 } from "@/services/subtitle/translatorRecoveryService";
-import { createSubtitleTaskModelFields } from "./task-model-config";
+import { createSubtitleTaskExecutionBinding } from "./task-model-config";
+import { createSubtitleTranslatorTask } from "@/services/subtitle/subtitleTranslatorTaskFactory";
 
 // ---------------------------------------------------------------------------
 // Tool Executor — 工具执行函数（由 AI SDK tool() 的 execute 调用）
@@ -430,7 +431,7 @@ export async function executeQueueTranslate(
       { sourceLang, targetLang, translationOutputMode },
     );
 
-    store.addTask({
+    const task = createSubtitleTranslatorTask({
       fileName,
       fileContent,
       sliceType: sliceConfig.sliceType as any,
@@ -440,16 +441,18 @@ export async function executeQueueTranslate(
       status: TaskStatus.NOT_STARTED,
       progress: 0,
       costEstimate: fastEstimate,
-      ...createSubtitleTaskModelFields(taskProfile),
+      executionBinding: createSubtitleTaskExecutionBinding(taskProfile),
       sourceLang,
       targetLang,
       translationOutputMode,
       conflictPolicy: args.conflictPolicy ?? "index",
       concurrentSlices: args.concurrentSlices ?? true,
     });
+    const addResult = store.addTask(task);
+    if (!addResult.added) continue;
     queued++;
 
-    const capturedFileName = fileName;
+    const capturedTaskId = task.taskId;
     estimateSubtitleTokens(
       fileContent,
       sliceConfig.sliceType as SubtitleSliceType,
@@ -458,7 +461,7 @@ export async function executeQueueTranslate(
       taskProfile.tokenPricing,
       { sourceLang, targetLang, translationOutputMode },
     ).then((precise) => {
-      store.updateTaskCostEstimate(capturedFileName, precise);
+      store.updateTaskCostEstimate(capturedTaskId, precise);
     });
   }
 
@@ -762,14 +765,14 @@ export async function executeQueueRecoveredSubtitleTranslate(
         recoveryInputMode,
       });
 
-      const task: SubtitleTranslatorTask = {
+      const task = createSubtitleTranslatorTask({
         ...draft,
         fileContent: draft.fileContent || "",
         status: TaskStatus.NOT_STARTED,
-        ...createSubtitleTaskModelFields(taskProfile),
+        executionBinding: createSubtitleTaskExecutionBinding(taskProfile),
         conflictPolicy: args.conflictPolicy ?? "index",
         concurrentSlices: args.concurrentSlices ?? true,
-      };
+      });
       tasks.push(task);
     } catch (err: any) {
       errors.push(`${candidate.checkpointPath}: ${err?.message || err}`);

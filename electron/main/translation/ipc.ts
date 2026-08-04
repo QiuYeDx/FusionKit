@@ -66,8 +66,8 @@ export function setupTranslationIPC(translationService: TranslationService) {
     }
   );
 
-  ipcMain.on("cancel-translation", (_, fileName: string) => {
-    translationService.cancelTask(fileName);
+  ipcMain.on("cancel-translation", (_, taskId: string) => {
+    translationService.cancelTask(taskId);
   });
 
   // ─── Recovery Discovery IPC ──────────────────────────────────────────────

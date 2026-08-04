@@ -21,6 +21,7 @@ import {
   SubtitleFileType,
   SubtitleSliceType,
   SubtitleTranslatorTask,
+  type SubtitleTaskReadyExecutionBinding,
   type TranslationCheckpointManifest,
   type SubtitleTranslationRecovery,
 } from "../typing";
@@ -56,7 +57,7 @@ import {
 } from "../recovery-artifacts";
 
 /**
- * 当 task.maxOutputTokens 未设置时的默认最大输出 token 数。
+ * 当 execution binding 未设置 maxOutputTokens 时的默认最大输出 token 数。
  * 8192 对大多数翻译场景足够；带有 inferMaxOutputTokens 推断的任务不会命中此值。
  */
 const DEFAULT_MAX_RESPONSE_TOKENS = 8192;
@@ -69,6 +70,15 @@ type TranslationFragmentMeta = {
   index: number;
   total: number;
 };
+
+function readyExecution(
+  task: SubtitleTranslatorTask,
+): SubtitleTaskReadyExecutionBinding {
+  if (task.executionBinding.status !== "ready") {
+    throw new Error("configuration_required");
+  }
+  return task.executionBinding;
+}
 
 export abstract class BaseTranslator {
   /** 子类实现：将字幕文本按 token 上限拆分为多个 fragment */
@@ -278,6 +288,7 @@ export abstract class BaseTranslator {
       const mainWindow = BrowserWindow.getAllWindows()[0];
       if (mainWindow) {
         mainWindow.webContents.send("task-resolved", {
+          taskId: task.taskId,
           fileName: task.fileName,
           outputFilePath: finalPath,
           finalFileName: path.basename(finalPath),
@@ -313,6 +324,7 @@ export abstract class BaseTranslator {
       const mainWindow = BrowserWindow.getAllWindows()[0];
       if (mainWindow) {
         mainWindow.webContents.send("task-failed", {
+          taskId: task.taskId,
           fileName: task.fileName,
           error: errorDetails,
           message: "请求接口失败",
@@ -355,7 +367,7 @@ export abstract class BaseTranslator {
       }
 
       const cpFragment = manifest.fragments[index];
-      markFragmentRunning(cpFragment, task.apiModel);
+      markFragmentRunning(cpFragment, readyExecution(task).apiModel);
 
       try {
         errorLogs.push(
@@ -425,7 +437,7 @@ export abstract class BaseTranslator {
         const fragment = fragments[index];
         const context = index > 0 ? fragments[index - 1] : "";
         const cpFragment = manifest.fragments[index];
-        markFragmentRunning(cpFragment, task.apiModel);
+        markFragmentRunning(cpFragment, readyExecution(task).apiModel);
 
         try {
           errorLogs.push(
@@ -482,6 +494,7 @@ export abstract class BaseTranslator {
     task.progress = Math.round((current / total) * 100);
 
     const payload: Record<string, unknown> = {
+      taskId: task.taskId,
       fileName: task.fileName,
       resolvedFragments: current,
       totalFragments: total,
@@ -560,11 +573,11 @@ export abstract class BaseTranslator {
    */
   private resolveMaxResponseTokens(task: SubtitleTranslatorTask): number {
     if (
-      typeof task.maxOutputTokens === "number" &&
-      Number.isFinite(task.maxOutputTokens) &&
-      task.maxOutputTokens > 0
+      typeof readyExecution(task).maxOutputTokens === "number" &&
+      Number.isFinite(readyExecution(task).maxOutputTokens) &&
+      readyExecution(task).maxOutputTokens! > 0
     ) {
-      return task.maxOutputTokens;
+      return readyExecution(task).maxOutputTokens!;
     }
     return DEFAULT_MAX_RESPONSE_TOKENS;
   }
@@ -751,11 +764,11 @@ export abstract class BaseTranslator {
     task: SubtitleTranslatorTask,
   ): ModelRuntimeConfig {
     return {
-      apiKey: task.apiKey,
-      modelKey: task.apiModel,
-      endpoint: task.endPoint,
-      apiFormat: task.apiFormat ?? "chat_completions",
-      outputTokenParameter: task.outputTokenParameter,
+      apiKey: readyExecution(task).apiKey,
+      modelKey: readyExecution(task).apiModel,
+      endpoint: readyExecution(task).endPoint,
+      apiFormat: readyExecution(task).apiFormat ?? "chat_completions",
+      outputTokenParameter: readyExecution(task).outputTokenParameter,
     };
   }
 

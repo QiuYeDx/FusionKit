@@ -39,6 +39,22 @@ export type TranslationOutputMode = "bilingual" | "target_only";
 export type SubtitleModelApiFormat = ModelApiFormat;
 export type SubtitleOutputTokenParameter = OutputTokenParameter;
 
+export type SubtitleTaskReadyExecutionBinding = Readonly<{
+  status: "ready";
+  profileId: string;
+  profileLabel: string;
+  apiKey: string;
+  apiModel: string;
+  endPoint: string;
+  apiFormat?: SubtitleModelApiFormat;
+  outputTokenParameter?: SubtitleOutputTokenParameter;
+  maxOutputTokens?: number;
+}>;
+
+export type SubtitleTaskExecutionBinding =
+  | SubtitleTaskReadyExecutionBinding
+  | Readonly<{ status: "needs_configuration" }>;
+
 export const SUPPORTED_LANGUAGES: {
   code: TranslationLanguage;
   labelKey: string;
@@ -101,6 +117,7 @@ export type TranslationRecoveryInputMode =
   | "manifest_fragments";
 
 export type SubtitleTranslatorTask = {
+  taskId: string;
   fileName: string;
   fileContent: string;
   sliceType: SubtitleSliceType;
@@ -122,13 +139,7 @@ export type SubtitleTranslatorTask = {
   };
   errorLog?: string[];
 
-  apiKey: string;
-  apiModel: string;
-  endPoint: string;
-  apiFormat?: SubtitleModelApiFormat;
-  outputTokenParameter?: SubtitleOutputTokenParameter;
-  /** 模型支持的最大输出 token 数，用于设置 API 请求的 max_tokens 上限 */
-  maxOutputTokens?: number;
+  executionBinding: SubtitleTaskExecutionBinding;
 
   sourceLang?: TranslationLanguage;
   targetLang?: TranslationLanguage;

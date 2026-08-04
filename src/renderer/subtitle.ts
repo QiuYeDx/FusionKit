@@ -8,6 +8,7 @@ window.ipcRenderer.on(
   (
     _,
     progressData: {
+      taskId: string;
       fileName: string;
       resolvedFragments: number;
       totalFragments: number;
@@ -18,9 +19,9 @@ window.ipcRenderer.on(
       >;
     },
   ) => {
-    console.info(">>> 收到 updateProgress", progressData);
     const store = useSubtitleTranslatorStore.getState();
     store.updateProgress(
+      progressData.taskId,
       progressData.fileName,
       progressData.resolvedFragments,
       progressData.totalFragments,
@@ -35,6 +36,7 @@ window.ipcRenderer.on(
   (
     _,
     errorData: {
+      taskId: string;
       fileName: string;
       error: string;
       message: string;
@@ -44,7 +46,6 @@ window.ipcRenderer.on(
       recovery?: SubtitleTranslationRecovery;
     },
   ) => {
-    console.info(">>> 收到 task-failed", errorData);
     const store = useSubtitleTranslatorStore.getState();
     store.addFailedTask(errorData);
     showSystemNotification(
@@ -58,10 +59,9 @@ window.ipcRenderer.on(
 
 window.ipcRenderer.on(
   "task-resolved",
-  (_, data: { fileName: string; outputFilePath: string }) => {
-    console.info(">>> 收到 task-resolved", data);
+  (_, data: { taskId: string; fileName: string; outputFilePath: string }) => {
     const store = useSubtitleTranslatorStore.getState();
-    store.markTaskResolved(data.fileName, data.outputFilePath);
+    store.markTaskResolved(data.taskId, data.fileName, data.outputFilePath);
     showSystemNotification(
       "FusionKit",
       i18n.t("setting:fields.notification.task_resolved", {

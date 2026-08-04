@@ -5,6 +5,7 @@ import {
   type SubtitleTranslationRecovery,
   type TranslationRecoveryMode,
 } from "@/type/subtitle";
+import { hasReadySubtitleTaskExecution } from "./subtitleTranslatorTaskFactory";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -18,11 +19,20 @@ export interface TranslatorQueueState {
 
 export type TranslatorQueueEffect =
   | { type: "start"; task: SubtitleTranslatorTask }
-  | { type: "cancel"; fileName: string };
+  | { type: "cancel"; taskId: string };
 
 export interface TranslatorQueueResult {
   state: TranslatorQueueState;
   effects: TranslatorQueueEffect[];
+}
+
+export type SubtitleTaskStartFailure = Readonly<{
+  taskId: string;
+  reason: "configuration_required" | "start_rejected";
+}>;
+
+export interface TranslatorQueueStartResult extends TranslatorQueueResult {
+  startFailures: readonly SubtitleTaskStartFailure[];
 }
 
 // ─── Internal helpers ────────────────────────────────────────────────────────
@@ -53,10 +63,10 @@ function mergeIntoResolved(
   resolvedQueue: SubtitleTranslatorTask[],
   task: SubtitleTranslatorTask,
 ): SubtitleTranslatorTask[] {
-  const existing = resolvedQueue.find((t) => t.fileName === task.fileName);
+  const existing = resolvedQueue.find((t) => t.taskId === task.taskId);
   if (existing) {
     return resolvedQueue.map((t) =>
-      t.fileName === task.fileName
+      t.taskId === task.taskId
         ? {
             ...t,
             ...task,
@@ -82,7 +92,7 @@ export function addTask(
     ...state.failedTaskQueue,
   ];
 
-  if (allTasks.some((t) => t.fileName === task.fileName)) {
+  if (allTasks.some((t) => t.taskId === task.taskId)) {
     return { state, effects: [], isDuplicate: true };
   }
 
@@ -98,11 +108,11 @@ export function addTask(
 
 export function updateTaskCostEstimate(
   state: TranslatorQueueState,
-  fileName: string,
+  taskId: string,
   costEstimate: SubtitleTranslatorTask["costEstimate"],
 ): TranslatorQueueResult {
   const patch = (queue: SubtitleTranslatorTask[]) =>
-    queue.map((t) => (t.fileName === fileName ? { ...t, costEstimate } : t));
+    queue.map((t) => (t.taskId === taskId ? { ...t, costEstimate } : t));
 
   return {
     state: {
@@ -118,14 +128,27 @@ export function updateTaskCostEstimate(
 
 export function startTask(
   state: TranslatorQueueState,
-  fileName: string,
+  taskId: string,
   maxConcurrency: number,
-): TranslatorQueueResult {
-  const task = state.notStartedTaskQueue.find((t) => t.fileName === fileName);
-  if (!task) return { state, effects: [] };
+): TranslatorQueueStartResult {
+  const task = state.notStartedTaskQueue.find((t) => t.taskId === taskId);
+  if (!task) {
+    return {
+      state,
+      effects: [],
+      startFailures: [{ taskId, reason: "start_rejected" }],
+    };
+  }
+  if (!hasReadySubtitleTaskExecution(task)) {
+    return {
+      state,
+      effects: [],
+      startFailures: [{ taskId, reason: "configuration_required" }],
+    };
+  }
 
   const remaining = state.notStartedTaskQueue.filter(
-    (t) => t.fileName !== fileName,
+    (t) => t.taskId !== taskId,
   );
 
   if (state.pendingTaskQueue.length < maxConcurrency) {
@@ -137,6 +160,7 @@ export function startTask(
         pendingTaskQueue: [...state.pendingTaskQueue, started],
       },
       effects: [{ type: "start", task: started }],
+      startFailures: [],
     };
   }
 
@@ -148,20 +172,27 @@ export function startTask(
       waitingTaskQueue: [...state.waitingTaskQueue, waiting],
     },
     effects: [],
+    startFailures: [],
   };
 }
 
 export function startAllTasks(
   state: TranslatorQueueState,
   maxConcurrency: number,
-): TranslatorQueueResult {
+): TranslatorQueueStartResult {
   const slotsAvailable = Math.max(
     0,
     maxConcurrency - state.pendingTaskQueue.length,
   );
 
-  const tasksToStart = state.notStartedTaskQueue.slice(0, slotsAvailable);
-  const tasksToWait = state.notStartedTaskQueue.slice(slotsAvailable);
+  const readyTasks = state.notStartedTaskQueue.filter(
+    hasReadySubtitleTaskExecution,
+  );
+  const blockedTasks = state.notStartedTaskQueue.filter(
+    (task) => !hasReadySubtitleTaskExecution(task),
+  );
+  const tasksToStart = readyTasks.slice(0, slotsAvailable);
+  const tasksToWait = readyTasks.slice(slotsAvailable);
 
   const started = tasksToStart.map((t) => ({
     ...t,
@@ -175,11 +206,73 @@ export function startAllTasks(
   return {
     state: {
       ...state,
-      notStartedTaskQueue: [],
+      notStartedTaskQueue: blockedTasks,
       waitingTaskQueue: [...state.waitingTaskQueue, ...waiting],
       pendingTaskQueue: [...state.pendingTaskQueue, ...started],
     },
     effects: started.map((task) => ({ type: "start" as const, task })),
+    startFailures: blockedTasks.map((task) => ({
+      taskId: task.taskId,
+      reason: "configuration_required" as const,
+    })),
+  };
+}
+
+export type StartSubtitleTasksReceipt = Readonly<{
+  requestedTaskIds: readonly string[];
+  startedTaskIds: readonly string[];
+  waitingTaskIds: readonly string[];
+  notStartedTaskIds: readonly string[];
+  startFailures: readonly SubtitleTaskStartFailure[];
+}>;
+
+export function startTasks(
+  state: TranslatorQueueState,
+  taskIds: readonly string[],
+  maxConcurrency: number,
+): TranslatorQueueResult & { receipt: StartSubtitleTasksReceipt } {
+  if (new Set(taskIds).size !== taskIds.length) {
+    throw new TypeError("Subtitle task start IDs must be unique.");
+  }
+
+  let currentState = state;
+  const effects: TranslatorQueueEffect[] = [];
+  const startedTaskIds: string[] = [];
+  const waitingTaskIds: string[] = [];
+  const notStartedTaskIds: string[] = [];
+  const startFailures: SubtitleTaskStartFailure[] = [];
+
+  for (const taskId of taskIds) {
+    const result = startTask(currentState, taskId, maxConcurrency);
+    currentState = result.state;
+    effects.push(...result.effects);
+    if (result.startFailures.length > 0) {
+      notStartedTaskIds.push(taskId);
+      startFailures.push(...result.startFailures);
+    } else if (
+      currentState.pendingTaskQueue.some((task) => task.taskId === taskId)
+    ) {
+      startedTaskIds.push(taskId);
+    } else if (
+      currentState.waitingTaskQueue.some((task) => task.taskId === taskId)
+    ) {
+      waitingTaskIds.push(taskId);
+    } else {
+      notStartedTaskIds.push(taskId);
+      startFailures.push({ taskId, reason: "start_rejected" });
+    }
+  }
+
+  return {
+    state: currentState,
+    effects,
+    receipt: Object.freeze({
+      requestedTaskIds: Object.freeze([...taskIds]),
+      startedTaskIds: Object.freeze(startedTaskIds),
+      waitingTaskIds: Object.freeze(waitingTaskIds),
+      notStartedTaskIds: Object.freeze(notStartedTaskIds),
+      startFailures: Object.freeze(startFailures),
+    }),
   };
 }
 
@@ -190,10 +283,10 @@ export function startAllTasks(
  */
 export function retryTask(
   state: TranslatorQueueState,
-  fileName: string,
+  taskId: string,
   mode: TranslationRecoveryMode = "resume",
 ): TranslatorQueueResult {
-  const task = state.failedTaskQueue.find((t) => t.fileName === fileName);
+  const task = state.failedTaskQueue.find((t) => t.taskId === taskId);
   if (!task) return { state, effects: [] };
 
   const isResume = mode !== "restart";
@@ -213,7 +306,7 @@ export function retryTask(
     state: {
       ...state,
       failedTaskQueue: state.failedTaskQueue.filter(
-        (t) => t.fileName !== fileName,
+        (t) => t.taskId !== taskId,
       ),
       notStartedTaskQueue: [...state.notStartedTaskQueue, reset],
     },
@@ -223,17 +316,22 @@ export function retryTask(
 
 export function updateTask(
   state: TranslatorQueueState,
-  fileName: string,
-  updates: Partial<SubtitleTranslatorTask>,
+  taskId: string,
+  updates: Partial<Omit<SubtitleTranslatorTask, "taskId">>,
 ): TranslatorQueueResult {
+  const applyUpdates = (task: SubtitleTranslatorTask): SubtitleTranslatorTask => ({
+    ...task,
+    ...updates,
+    taskId: task.taskId,
+  });
   return {
     state: {
       ...state,
       notStartedTaskQueue: state.notStartedTaskQueue.map((t) =>
-        t.fileName === fileName ? { ...t, ...updates } : t,
+        t.taskId === taskId ? applyUpdates(t) : t,
       ),
       failedTaskQueue: state.failedTaskQueue.map((t) =>
-        t.fileName === fileName ? { ...t, ...updates } : t,
+        t.taskId === taskId ? applyUpdates(t) : t,
       ),
     },
     effects: [],
@@ -250,6 +348,7 @@ export function updateTask(
 export function completeTaskProgress(
   state: TranslatorQueueState,
   payload: {
+    taskId: string;
     fileName: string;
     resolvedFragments: number;
     totalFragments: number;
@@ -261,9 +360,9 @@ export function completeTaskProgress(
   },
   maxConcurrency: number,
 ): TranslatorQueueResult {
-  const { fileName, resolvedFragments, totalFragments, progress, recovery } =
+  const { taskId, resolvedFragments, totalFragments, progress, recovery } =
     payload;
-  const task = state.pendingTaskQueue.find((t) => t.fileName === fileName);
+  const task = state.pendingTaskQueue.find((t) => t.taskId === taskId);
   if (!task) return { state, effects: [] };
 
   if (resolvedFragments === totalFragments) {
@@ -279,7 +378,7 @@ export function completeTaskProgress(
     };
 
     const remainingPending = state.pendingTaskQueue.filter(
-      (t) => t.fileName !== fileName,
+      (t) => t.taskId !== taskId,
     );
     const nextResolved = mergeIntoResolved(state.resolvedTaskQueue, completed);
 
@@ -306,7 +405,7 @@ export function completeTaskProgress(
     state: {
       ...state,
       pendingTaskQueue: state.pendingTaskQueue.map((t) =>
-        t.fileName === fileName
+        t.taskId === taskId
           ? {
               ...t,
               costEstimate: t.costEstimate
@@ -331,12 +430,12 @@ export function completeTaskProgress(
  */
 export function resolveTask(
   state: TranslatorQueueState,
-  fileName: string,
+  taskId: string,
   outputFilePath: string,
   maxConcurrency: number,
 ): TranslatorQueueResult {
   const pendingTask = state.pendingTaskQueue.find(
-    (t) => t.fileName === fileName,
+    (t) => t.taskId === taskId,
   );
 
   if (pendingTask) {
@@ -348,7 +447,7 @@ export function resolveTask(
     };
 
     const remainingPending = state.pendingTaskQueue.filter(
-      (t) => t.fileName !== fileName,
+      (t) => t.taskId !== taskId,
     );
     const nextResolved = mergeIntoResolved(state.resolvedTaskQueue, resolved);
 
@@ -359,14 +458,14 @@ export function resolveTask(
   }
 
   const existingResolved = state.resolvedTaskQueue.find(
-    (t) => t.fileName === fileName,
+    (t) => t.taskId === taskId,
   );
   if (existingResolved) {
     return {
       state: {
         ...state,
         resolvedTaskQueue: state.resolvedTaskQueue.map((t) =>
-          t.fileName === fileName
+          t.taskId === taskId
             ? { ...t, extraInfo: { ...(t.extraInfo || {}), outputFilePath } }
             : t,
         ),
@@ -388,6 +487,7 @@ export function resolveTask(
 export function failTask(
   state: TranslatorQueueState,
   errorData: {
+    taskId: string;
     fileName: string;
     error: string;
     message: string;
@@ -399,7 +499,7 @@ export function failTask(
   maxConcurrency: number,
 ): TranslatorQueueResult {
   const task = state.pendingTaskQueue.find(
-    (t) => t.fileName === errorData.fileName,
+    (t) => t.taskId === errorData.taskId,
   );
   if (!task) return { state, effects: [] };
 
@@ -420,7 +520,7 @@ export function failTask(
   };
 
   const remainingPending = state.pendingTaskQueue.filter(
-    (t) => t.fileName !== errorData.fileName,
+    (t) => t.taskId !== errorData.taskId,
   );
 
   return promoteWaitingTaskIfSlotAvailable(
@@ -435,14 +535,14 @@ export function failTask(
 
 export function cancelTask(
   state: TranslatorQueueState,
-  fileName: string,
+  taskId: string,
   cancelMessage: string,
   maxConcurrency: number,
 ): TranslatorQueueResult {
-  const task = state.pendingTaskQueue.find((t) => t.fileName === fileName);
+  const task = state.pendingTaskQueue.find((t) => t.taskId === taskId);
   if (!task) {
     const waitingTask = state.waitingTaskQueue.find(
-      (t) => t.fileName === fileName,
+      (t) => t.taskId === taskId,
     );
     if (!waitingTask) return { state, effects: [] };
 
@@ -450,7 +550,7 @@ export function cancelTask(
       state: {
         ...state,
         waitingTaskQueue: state.waitingTaskQueue.filter(
-          (t) => t.fileName !== fileName,
+          (t) => t.taskId !== taskId,
         ),
         failedTaskQueue: [
           ...state.failedTaskQueue,
@@ -472,7 +572,7 @@ export function cancelTask(
   };
 
   const remainingPending = state.pendingTaskQueue.filter(
-    (t) => t.fileName !== fileName,
+    (t) => t.taskId !== taskId,
   );
 
   const promotion = promoteWaitingTaskIfSlotAvailable(
@@ -486,37 +586,37 @@ export function cancelTask(
 
   return {
     ...promotion,
-    effects: [{ type: "cancel", fileName }, ...promotion.effects],
+    effects: [{ type: "cancel", taskId }, ...promotion.effects],
   };
 }
 
 export function deleteTask(
   state: TranslatorQueueState,
-  fileName: string,
+  taskId: string,
 ): TranslatorQueueResult {
   const wasPending = state.pendingTaskQueue.some(
-    (t) => t.fileName === fileName,
+    (t) => t.taskId === taskId,
   );
 
   return {
     state: {
       notStartedTaskQueue: state.notStartedTaskQueue.filter(
-        (t) => t.fileName !== fileName,
+        (t) => t.taskId !== taskId,
       ),
       waitingTaskQueue: state.waitingTaskQueue.filter(
-        (t) => t.fileName !== fileName,
+        (t) => t.taskId !== taskId,
       ),
       pendingTaskQueue: state.pendingTaskQueue.filter(
-        (t) => t.fileName !== fileName,
+        (t) => t.taskId !== taskId,
       ),
       resolvedTaskQueue: state.resolvedTaskQueue.filter(
-        (t) => t.fileName !== fileName,
+        (t) => t.taskId !== taskId,
       ),
       failedTaskQueue: state.failedTaskQueue.filter(
-        (t) => t.fileName !== fileName,
+        (t) => t.taskId !== taskId,
       ),
     },
-    effects: wasPending ? [{ type: "cancel" as const, fileName }] : [],
+    effects: wasPending ? [{ type: "cancel" as const, taskId }] : [],
   };
 }
 
@@ -524,7 +624,7 @@ export function clearTasks(
   state: TranslatorQueueState,
 ): TranslatorQueueResult {
   const effects: TranslatorQueueEffect[] = state.pendingTaskQueue.map(
-    (task) => ({ type: "cancel" as const, fileName: task.fileName }),
+    (task) => ({ type: "cancel" as const, taskId: task.taskId }),
   );
 
   return {
@@ -559,7 +659,8 @@ export type AddRecoveredTaskResult = {
  * 将恢复的任务加入 notStartedTaskQueue。
  * 去重规则：
  *   1. checkpointPath 相同 -> 跳过
- *   2. originFileURL + targetFileURL + fileName 全部相同 -> 跳过
+ *   2. taskId 相同 -> 跳过
+ *   3. originFileURL + targetFileURL + fileName 全部相同 -> 跳过
  */
 export function addRecoveredTask(
   state: TranslatorQueueState,
@@ -581,6 +682,7 @@ export function addRecoveredTask(
   }
 
   if (
+    allTasks.some((t) => t.taskId === task.taskId) ||
     allTasks.some(
       (t) =>
         t.fileName === task.fileName &&
@@ -604,20 +706,32 @@ export function addRecoveredTask(
 export function addRecoveredTasks(
   state: TranslatorQueueState,
   tasks: SubtitleTranslatorTask[],
-): TranslatorQueueResult & { addedCount: number; skippedCount: number } {
+): TranslatorQueueResult & {
+  addedCount: number;
+  skippedCount: number;
+  addedTaskIds: readonly string[];
+} {
   let currentState = state;
   let addedCount = 0;
   let skippedCount = 0;
+  const addedTaskIds: string[] = [];
 
   for (const task of tasks) {
     const result = addRecoveredTask(currentState, task);
     currentState = result.state;
     if (result.result.added) {
       addedCount++;
+      addedTaskIds.push(task.taskId);
     } else {
       skippedCount++;
     }
   }
 
-  return { state: currentState, effects: [], addedCount, skippedCount };
+  return {
+    state: currentState,
+    effects: [],
+    addedCount,
+    skippedCount,
+    addedTaskIds: Object.freeze(addedTaskIds),
+  };
 }

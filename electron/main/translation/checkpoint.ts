@@ -88,7 +88,7 @@ export function createManifest(
 
   return {
     schemaVersion: CURRENT_SCHEMA_VERSION,
-    taskId: `${task.fileName}-${Date.now()}`,
+    taskId: task.taskId,
     status: "running",
     createdAt: now,
     updatedAt: now,

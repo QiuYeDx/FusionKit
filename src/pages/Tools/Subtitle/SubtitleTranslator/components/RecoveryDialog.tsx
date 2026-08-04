@@ -23,7 +23,6 @@ import {
   Clock,
 } from "lucide-react";
 import { showToast } from "@/utils/toast";
-import { inferMaxOutputTokens } from "@/constants/model";
 import useSubtitleTranslatorStore from "@/store/tools/subtitle/useSubtitleTranslatorStore";
 import useModelStore from "@/store/useModelStore";
 import type { ModelProfile } from "@/type/model";
@@ -39,6 +38,8 @@ import type {
   TranslationRecoveryInputMode,
 } from "@/type/subtitle";
 import { TaskStatus } from "@/type/subtitle";
+import { createSubtitleTaskExecutionBinding } from "@/agent/task-model-config";
+import { createSubtitleTranslatorTask } from "@/services/subtitle/subtitleTranslatorTaskFactory";
 
 type RecoveryDialogState = "idle" | "scanning" | "ready" | "importing" | "error";
 
@@ -51,7 +52,7 @@ export default function RecoveryDialog({ open, onOpenChange }: RecoveryDialogPro
   const { t } = useTranslation();
   const outputURL = useSubtitleTranslatorStore((s) => s.outputURL);
   const addRecoveredTasks = useSubtitleTranslatorStore((s) => s.addRecoveredTasks);
-  const startAllTasks = useSubtitleTranslatorStore((s) => s.startAllTasks);
+  const startTasks = useSubtitleTranslatorStore((s) => s.startTasks);
 
   const [state, setState] = useState<RecoveryDialogState>("idle");
   const [candidates, setCandidates] = useState<TranslationRecoveryCandidate[]>([]);
@@ -197,24 +198,20 @@ export default function RecoveryDialog({ open, onOpenChange }: RecoveryDialogPro
           recoveryInputMode: inputMode,
         });
 
-        const task: SubtitleTranslatorTask = {
+        const task = createSubtitleTranslatorTask({
           ...draft,
           fileContent: draft.fileContent || "",
           status: TaskStatus.NOT_STARTED,
-          apiKey: taskProfile.apiKey,
-          apiModel: taskProfile.modelKey,
-          endPoint: taskProfile.baseUrl,
-          apiFormat: taskProfile.apiFormat,
-          outputTokenParameter: taskProfile.outputTokenParameter,
-          maxOutputTokens: taskProfile.maxOutputTokens ?? inferMaxOutputTokens(taskProfile.modelKey),
+          executionBinding: createSubtitleTaskExecutionBinding(taskProfile),
           conflictPolicy: "index",
           concurrentSlices: true,
-        };
+        });
 
         tasks.push(task);
       }
 
-      const { addedCount, skippedCount } = addRecoveredTasks(tasks);
+      const { addedCount, skippedCount, addedTaskIds } =
+        addRecoveredTasks(tasks);
 
       if (addedCount > 0) {
         showToast(
@@ -230,7 +227,7 @@ export default function RecoveryDialog({ open, onOpenChange }: RecoveryDialogPro
       }
 
       if (andStart && addedCount > 0) {
-        startAllTasks();
+        startTasks(addedTaskIds);
       }
 
       handleOpenChange(false);
@@ -238,7 +235,7 @@ export default function RecoveryDialog({ open, onOpenChange }: RecoveryDialogPro
       setError(err instanceof Error ? err.message : String(err));
       setState("error");
     }
-  }, [candidates, selected, addRecoveredTasks, startAllTasks, handleOpenChange, t]);
+  }, [candidates, selected, addRecoveredTasks, startTasks, handleOpenChange, t]);
 
   const handleOpenLocation = useCallback((dirPath: string) => {
     window.ipcRenderer.invoke("show-item-in-folder", dirPath);

@@ -75,16 +75,22 @@ describe("BaseTranslator runtime integration", () => {
 
     const outputDir = await mkdtemp(path.join(os.tmpdir(), "fusionkit-lrc-"));
     const task = {
+      taskId: "subtitle-task-runtime-test",
       fileName: "responses.lrc",
       fileContent: "[00:01.00]source",
       sliceType: SubtitleSliceType.NORMAL,
       originFileURL: "/input/responses.lrc",
       targetFileURL: outputDir,
       status: TaskStatus.PENDING,
-      apiKey: "test-key",
-      apiModel: "test-model",
-      endPoint: server.baseUrl,
-      apiFormat: "responses" as const,
+      executionBinding: {
+        status: "ready" as const,
+        profileId: "profile-test",
+        profileLabel: "Test profile",
+        apiKey: "test-key",
+        apiModel: "test-model",
+        endPoint: server.baseUrl,
+        apiFormat: "responses" as const,
+      },
       concurrentSlices: false,
     };
 

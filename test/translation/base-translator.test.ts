@@ -72,15 +72,21 @@ describe("BaseTranslator empty result retry", () => {
 
     const outputDir = await mkdtemp(path.join(os.tmpdir(), "fusionkit-lrc-"));
     const task = {
+      taskId: "subtitle-task-base-test",
       fileName: "sample.lrc",
       fileContent: "[00:01.00]source",
       sliceType: SubtitleSliceType.NORMAL,
       originFileURL: "/input/sample.lrc",
       targetFileURL: outputDir,
       status: TaskStatus.PENDING,
-      apiKey: "test-key",
-      apiModel: "test-model",
-      endPoint: "https://example.test/chat/completions",
+      executionBinding: {
+        status: "ready" as const,
+        profileId: "profile-test",
+        profileLabel: "Test profile",
+        apiKey: "test-key",
+        apiModel: "test-model",
+        endPoint: "https://example.test/chat/completions",
+      },
       concurrentSlices: false,
     };
 

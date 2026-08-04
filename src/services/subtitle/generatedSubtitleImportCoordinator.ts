@@ -1,4 +1,7 @@
-import { createSubtitleTaskModelFields } from "@/agent/task-model-config";
+import {
+  createSubtitleTaskModelFields,
+  type SubtitleTaskModelFields,
+} from "@/agent/task-model-config";
 import useSubtitleTranslatorConfigStore, {
   sanitizeSubtitleTranslatorConfigPreferences,
   type SubtitleTranslatorConfigPreferences,
@@ -10,20 +13,9 @@ import type {
   SubtitleTranslationImportConfigSummary,
 } from "@/type/generatedSubtitleImport";
 import type { ModelProfile } from "@/type/model";
-import type { SubtitleTranslatorTask } from "@/type/subtitle";
 
 const DEFAULT_SNAPSHOT_TTL_MS = 30 * 60 * 1000;
 const DEFAULT_HYDRATION_TIMEOUT_MS = 10_000;
-
-type SubtitleTaskModelFields = Pick<
-  SubtitleTranslatorTask,
-  | "apiKey"
-  | "apiModel"
-  | "endPoint"
-  | "apiFormat"
-  | "outputTokenParameter"
-  | "maxOutputTokens"
->;
 
 export interface GeneratedSubtitleImportHydrationSource<T> {
   isHydrated(): boolean;

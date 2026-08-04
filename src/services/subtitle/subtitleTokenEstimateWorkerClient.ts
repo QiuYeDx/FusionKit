@@ -14,6 +14,7 @@ import { DEFAULT_SLICE_LENGTH_MAP } from "@/constants/subtitle";
 export type EstimateJob = {
   jobId: string;
   estimateKey: string;
+  taskId: string;
   fileName: string;
   content: string;
   maxTokens: number;
@@ -29,6 +30,7 @@ export type EstimateJob = {
 };
 
 export type EnqueueEstimateOptions = {
+  taskId: string;
   fileName: string;
   content: string;
   sliceType: SubtitleSliceType;
@@ -46,14 +48,14 @@ export type EnqueueEstimateOptions = {
 // ---------------------------------------------------------------------------
 
 export function buildEstimateKey(
-  fileName: string,
+  taskId: string,
   sliceType: SubtitleSliceType,
   customSliceLength: number | undefined,
   sourceLang: string | undefined,
   targetLang: string | undefined,
   translationOutputMode: string | undefined,
 ): string {
-  return `${fileName}|${sliceType}|${customSliceLength ?? ""}|${sourceLang ?? ""}|${targetLang ?? ""}|${translationOutputMode ?? ""}`;
+  return `${taskId}|${sliceType}|${customSliceLength ?? ""}|${sourceLang ?? ""}|${targetLang ?? ""}|${translationOutputMode ?? ""}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -105,7 +107,7 @@ class SubtitleTokenEstimateWorkerClient {
       options.customSliceLength,
     );
     const estimateKey = buildEstimateKey(
-      options.fileName,
+      options.taskId,
       options.sliceType,
       options.customSliceLength,
       options.sourceLang,
@@ -116,6 +118,7 @@ class SubtitleTokenEstimateWorkerClient {
     const job: EstimateJob = {
       jobId,
       estimateKey,
+      taskId: options.taskId,
       fileName: options.fileName,
       content: options.content,
       maxTokens,
@@ -132,13 +135,16 @@ class SubtitleTokenEstimateWorkerClient {
     return jobId;
   }
 
-  cancelByFileName(fileName: string): void {
-    this.queue = this.queue.filter((j) => j.fileName !== fileName);
-    if (this.activeJob?.fileName === fileName) {
+  cancelByTaskId(taskId: string): void {
+    this.queue = this.queue.filter((job) => job.taskId !== taskId);
+    if (this.activeJob?.taskId === taskId) {
       this.cancelledJobs.add(this.activeJob.jobId);
     }
     for (const [jobId, _] of this.pendingCallbacks) {
-      if (this.activeJob?.jobId === jobId && this.activeJob.fileName === fileName) {
+      if (
+        this.activeJob?.jobId === jobId &&
+        this.activeJob.taskId === taskId
+      ) {
         this.cancelledJobs.add(jobId);
       }
     }

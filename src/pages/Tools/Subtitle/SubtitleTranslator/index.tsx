@@ -13,7 +13,8 @@ import {
   type TranslationLanguage,
   type TranslationOutputMode,
 } from "@/type/subtitle";
-import { inferMaxOutputTokens } from "@/constants/model";
+import { createSubtitleTaskExecutionBinding } from "@/agent/task-model-config";
+import { createSubtitleTranslatorTask } from "@/services/subtitle/subtitleTranslatorTaskFactory";
 import { useTranslation } from "react-i18next";
 import { useState, useMemo, useEffect, useRef } from "react";
 import {
@@ -571,15 +572,15 @@ function SubtitleTranslator() {
     pendingTaskQueue.length > 0 || waitingTaskQueue.length > 0;
 
   const handleDeleteTask = (task: SubtitleTranslatorTask) => {
-    getEstimateWorkerClient().cancelByFileName(task.fileName);
+    getEstimateWorkerClient().cancelByTaskId(task.taskId);
     if (
       task.status === TaskStatus.PENDING ||
       task.status === TaskStatus.WAITING
     ) {
-      setTaskToDelete(task.fileName);
+      setTaskToDelete(task.taskId);
       setConfirmDeleteOpen(true);
     } else {
-      deleteTask(task.fileName);
+      deleteTask(task.taskId);
     }
   };
 
@@ -629,7 +630,7 @@ function SubtitleTranslator() {
         }
       : editingTask.costEstimate;
 
-    updateTask(editingTask.fileName, {
+    updateTask(editingTask.taskId, {
       sourceLang: editSourceLang,
       targetLang: editTargetLang,
       translationOutputMode: editOutputMode,
@@ -638,12 +639,16 @@ function SubtitleTranslator() {
       conflictPolicy: editConflictPolicy,
       concurrentSlices: editConcurrentSlices,
       costEstimate: loadingCostEstimate,
+      ...(taskProfile
+        ? { executionBinding: createSubtitleTaskExecutionBinding(taskProfile) }
+        : {}),
     });
 
     if (taskProfile) {
+      const taskId = editingTask.taskId;
       const fileName = editingTask.fileName;
       const estimateKey = buildEstimateKey(
-        fileName,
+        taskId,
         editSliceType,
         customLen,
         editSourceLang,
@@ -651,8 +656,9 @@ function SubtitleTranslator() {
         editOutputMode,
       );
 
-      getEstimateWorkerClient().cancelByFileName(fileName);
+      getEstimateWorkerClient().cancelByTaskId(taskId);
       getEstimateWorkerClient().enqueue({
+        taskId,
         fileName,
         content: editingTask.fileContent,
         sliceType: editSliceType,
@@ -663,7 +669,7 @@ function SubtitleTranslator() {
         translationOutputMode: editOutputMode,
         onResult: (estimate) => {
           const currentKey = buildEstimateKey(
-            fileName,
+            taskId,
             editSliceType,
             customLen,
             editSourceLang,
@@ -671,12 +677,12 @@ function SubtitleTranslator() {
             editOutputMode,
           );
           if (currentKey === estimateKey) {
-            updateTaskCostEstimate(fileName, estimate);
+            updateTaskCostEstimate(taskId, estimate);
           }
         },
         onError: (error) => {
           console.error(`[TokenEstimate] edit failed for ${fileName}:`, error);
-          updateTaskCostEstimate(fileName, {
+          updateTaskCostEstimate(taskId, {
             inputTokens: 0,
             outputTokens: 0,
             totalTokens: 0,
@@ -740,15 +746,6 @@ function SubtitleTranslator() {
     }
     if (!files || files.length === 0) return;
 
-    // 获取已有的任务文件路径列表
-    const existingFileNames = [
-      ...notStartedTaskQueue,
-      ...waitingTaskQueue,
-      ...pendingTaskQueue,
-      ...resolvedTaskQueue,
-      ...failedTaskQueue,
-    ].map((task) => task.fileName);
-
     const fileArray = Array.from(files);
     for (let i = 0; i < fileArray.length; i++) {
       const file = fileArray[i];
@@ -764,17 +761,6 @@ function SubtitleTranslator() {
           t("subtitle:translator.errors.invalid_file_type").replace(
             "{types}",
             extension || " - "
-          ),
-          "error"
-        );
-        continue;
-      }
-
-      if (existingFileNames.includes(file.name)) {
-        showToast(
-          t("subtitle:translator.errors.duplicate_file").replace(
-            "{file}",
-            file.name
           ),
           "error"
         );
@@ -810,7 +796,7 @@ function SubtitleTranslator() {
             }
           : undefined;
 
-        const newTask: SubtitleTranslatorTask = {
+        const newTask = createSubtitleTranslatorTask({
           fileName: file.name,
           fileContent,
           sliceType,
@@ -821,24 +807,23 @@ function SubtitleTranslator() {
           costEstimate: loadingCostEstimate,
           customSliceLength: customLen,
 
-          apiKey: taskProfile?.apiKey ?? "",
-          apiModel: taskProfile?.modelKey ?? "",
-          endPoint: taskProfile?.baseUrl ?? "",
-          apiFormat: taskProfile?.apiFormat,
-          outputTokenParameter: taskProfile?.outputTokenParameter,
-          maxOutputTokens: taskProfile?.maxOutputTokens ?? inferMaxOutputTokens(taskProfile?.modelKey ?? ""),
+          executionBinding: taskProfile
+            ? createSubtitleTaskExecutionBinding(taskProfile)
+            : Object.freeze({ status: "needs_configuration" as const }),
           sourceLang,
           targetLang,
           translationOutputMode,
           conflictPolicy,
           concurrentSlices,
-        };
-        addTask(newTask);
+        });
+        const addResult = addTask(newTask);
+        if (!addResult.added) continue;
 
         if (taskProfile) {
+          const taskId = newTask.taskId;
           const fileName = file.name;
           const estimateKey = buildEstimateKey(
-            fileName,
+            taskId,
             sliceType,
             customLen,
             sourceLang,
@@ -846,6 +831,7 @@ function SubtitleTranslator() {
             translationOutputMode,
           );
           getEstimateWorkerClient().enqueue({
+            taskId,
             fileName,
             content: fileContent,
             sliceType,
@@ -856,7 +842,7 @@ function SubtitleTranslator() {
             translationOutputMode,
             onResult: (estimate) => {
               const currentKey = buildEstimateKey(
-                fileName,
+                taskId,
                 sliceType,
                 customLen,
                 sourceLang,
@@ -864,7 +850,7 @@ function SubtitleTranslator() {
                 translationOutputMode,
               );
               if (currentKey === estimateKey) {
-                updateTaskCostEstimate(fileName, estimate);
+                updateTaskCostEstimate(taskId, estimate);
               }
             },
             onError: (error) => {
@@ -872,7 +858,7 @@ function SubtitleTranslator() {
                 `[TokenEstimate] failed for ${fileName}:`,
                 error,
               );
-              updateTaskCostEstimate(fileName, {
+              updateTaskCostEstimate(taskId, {
                 inputTokens: 0,
                 outputTokens: 0,
                 totalTokens: 0,
@@ -1460,7 +1446,11 @@ function SubtitleTranslator() {
                   id="tour-start-all-btn"
                   size="sm"
                   onClick={() => startAllTasks()}
-                  disabled={notStartedTaskQueue.length === 0}
+                  disabled={
+                    !notStartedTaskQueue.some(
+                      (task) => task.executionBinding.status === "ready",
+                    )
+                  }
                 >
                   <PlayCircle className="h-3.5 w-3.5" />
                   {t("subtitle:translator.fields.start_all")}
@@ -1475,7 +1465,7 @@ function SubtitleTranslator() {
                 </div>
               ) : (
                 allTasks.map((task) => (
-                  <div key={task.fileName} className="px-4 py-3">
+                  <div key={task.taskId} className="px-4 py-3">
                     <div className="flex items-start gap-3">
                       <div
                         className={cn(
@@ -1498,6 +1488,17 @@ function SubtitleTranslator() {
                             {task.status === TaskStatus.PENDING &&
                               ` · ${task.totalFragments ? `${task.resolvedFragments ?? 0}/${task.totalFragments} · ` : ""}${Math.round(task.progress || 0)}%`}
                           </Badge>
+                          {task.executionBinding.status ===
+                            "needs_configuration" && (
+                            <Badge
+                              variant="secondary"
+                              className="text-[10px] h-4 px-1.5 font-normal shrink-0"
+                            >
+                              {t(
+                                "subtitle:translator.fields.no_model_selected",
+                              )}
+                            </Badge>
+                          )}
                         </div>
                         <div className="mt-1 flex items-center flex-wrap gap-x-2 gap-y-1 text-[11px] text-muted-foreground">
                           <span>
@@ -1560,9 +1561,9 @@ function SubtitleTranslator() {
                           onClick={() => {
                             setExpandedTasks((prev) => {
                               const next = new Set(prev);
-                              if (next.has(task.fileName))
-                                next.delete(task.fileName);
-                              else next.add(task.fileName);
+                              if (next.has(task.taskId))
+                                next.delete(task.taskId);
+                              else next.add(task.taskId);
                               return next;
                             });
                           }}
@@ -1584,7 +1585,7 @@ function SubtitleTranslator() {
                           <Button
                             variant="outline"
                             size="icon"
-                            onClick={() => retryTask(task.fileName)}
+                            onClick={() => retryTask(task.taskId)}
                           >
                             <RotateCw className="h-3.5 w-3.5" />
                           </Button>
@@ -1593,7 +1594,17 @@ function SubtitleTranslator() {
                           <Button
                             variant="outline"
                             size="icon"
-                            onClick={() => startTask(task.fileName)}
+                            onClick={() => startTask(task.taskId)}
+                            disabled={
+                              task.executionBinding.status !== "ready"
+                            }
+                            title={
+                              task.executionBinding.status === "ready"
+                                ? t("subtitle:translator.actions.start")
+                                : t(
+                                    "subtitle:translator.fields.no_model_selected",
+                                  )
+                            }
                           >
                             <PlayCircle className="h-3.5 w-3.5" />
                           </Button>
@@ -1603,7 +1614,7 @@ function SubtitleTranslator() {
                           <Button
                             variant="outline"
                             size="icon"
-                            onClick={() => cancelTask(task.fileName)}
+                            onClick={() => cancelTask(task.taskId)}
                           >
                             <X className="h-3.5 w-3.5" />
                           </Button>
@@ -1647,7 +1658,7 @@ function SubtitleTranslator() {
                       </div>
                     )}
 
-                    {expandedTasks.has(task.fileName) && (
+                    {expandedTasks.has(task.taskId) && (
                       <div className="mt-3 pt-3 border-t border-border/50">
                         <div className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 text-xs">
                           <span className="text-muted-foreground">
@@ -1679,14 +1690,22 @@ function SubtitleTranslator() {
                           <span className="text-muted-foreground">
                             {t("subtitle:translator.task_detail.api_model")}
                           </span>
-                          <span className="font-mono">{task.apiModel}</span>
+                          <span className="font-mono">
+                            {task.executionBinding.status === "ready"
+                              ? task.executionBinding.apiModel
+                              : t(
+                                  "subtitle:translator.fields.no_model_selected",
+                                )}
+                          </span>
                           <span className="text-muted-foreground">
                             {t(
                               "subtitle:translator.task_detail.api_endpoint"
                             )}
                           </span>
                           <span className="font-mono break-all">
-                            {task.endPoint}
+                            {task.executionBinding.status === "ready"
+                              ? task.executionBinding.endPoint
+                              : "-"}
                           </span>
                           <span className="text-muted-foreground">
                             {t(
