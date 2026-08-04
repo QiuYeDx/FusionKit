@@ -24,9 +24,14 @@ import {
 } from "./local-subtitle/ipc";
 import {
   LocalSubtitleCapabilityLeaseCoordinator,
+  LocalSubtitleImportTokenRegistry,
   LocalSubtitleInputAuthorizationRegistry,
   LocalSubtitleOutputDirectoryAuthorizationRegistry,
 } from "./local-subtitle/authorizations";
+import {
+  LocalSubtitleArtifactHandoffService,
+  type LocalSubtitleTranslationImportTokenRegistry,
+} from "./local-subtitle/artifact-handoff";
 import { LocalSubtitleBackendResolver } from "./local-subtitle/backend-resolver";
 import {
   LOCAL_SUBTITLE_WINDOWS_CUDA_PACK_DEFINITION,
@@ -229,6 +234,13 @@ app.whenReady().then(async () => {
   const localSubtitleArtifacts = new LocalSubtitleArtifactRegistry({
     revealFile: (filePath) => shell.showItemInFolder(filePath),
   });
+  const localSubtitleImportTokens: LocalSubtitleTranslationImportTokenRegistry =
+    new LocalSubtitleImportTokenRegistry();
+  const localSubtitleArtifactHandoffs =
+    new LocalSubtitleArtifactHandoffService(
+      localSubtitleArtifacts,
+      localSubtitleImportTokens,
+    );
   const localSubtitleMediaNormalizer = new LocalSubtitleMediaNormalizer({
     environment: localSubtitleResourceEnvironment,
     managedResourceRoot: localSubtitleManagedResourceRoot,
@@ -312,7 +324,7 @@ app.whenReady().then(async () => {
     modelResolver: localSubtitleModelManager,
     mediaSelections: localSubtitleMediaNormalizer,
     executor: localSubtitleProductionExecutor,
-    artifacts: localSubtitleArtifacts,
+    artifacts: localSubtitleArtifactHandoffs,
   });
   const localSubtitleOverwriteRecoveryAdmissions =
     new LocalSubtitleOverwriteRecoveryAdmissionCoordinator(
@@ -340,6 +352,7 @@ app.whenReady().then(async () => {
   // The sync preload handshake must exist before any renderer starts loading.
   const localSubtitleSessionIpcBridge = new LocalSubtitleSessionIpcBridge(
     localSubtitleSessionRegistry,
+    localSubtitleArtifacts,
   );
   const localSubtitleJobIpcBridge = new LocalSubtitleJobIpcBridge(
     localSubtitleJobManager,
@@ -358,6 +371,8 @@ app.whenReady().then(async () => {
       outputs: localSubtitleOutputAuthorizations,
       leases: localSubtitleCapabilityLeases,
       artifacts: localSubtitleArtifacts,
+      importTokens: localSubtitleImportTokens,
+      handoffs: localSubtitleArtifactHandoffs,
     },
     handlers: {
       public: {

@@ -140,6 +140,8 @@ describe("LocalSubtitleArtifactRegistry", () => {
       lrc.artifactRef,
     );
     expect(snapshot).toEqual({
+      taskId: "task-lrc",
+      generation: 1,
       format: "LRC",
       displayName: "subtitle.lrc",
       rawText: VALID_LRC,
@@ -214,6 +216,98 @@ describe("LocalSubtitleArtifactRegistry", () => {
     await expect(
       registry.readText(OWNER_A, "ls-artifact-never-issued"),
     ).rejects.toMatchObject({ code: "artifact_expired" });
+  });
+
+  it("reuses valid summaries and coalesces an expired ref into one verified rotation", async () => {
+    const root = await tempRoot();
+    let now = 100;
+    const registry = deterministicRegistry({ ttlMs: 10, now: () => now });
+    const artifact = await reserveAndActivate(
+      registry,
+      root,
+      "task-refresh",
+      "refresh.srt",
+      VALID_SRT,
+      "SRT",
+    );
+
+    expect(await registry.refreshSummary(OWNER_A, artifact)).toEqual(artifact);
+    now = 110;
+    expect(registry.sweepExpired()).toBe(1);
+    const [first, second] = await Promise.all([
+      registry.refreshSummary(OWNER_A, artifact),
+      registry.refreshSummary(OWNER_A, artifact),
+    ]);
+
+    expect(first).toEqual({
+      artifactRef: "ls-artifact-ref-2",
+      displayName: "refresh.srt",
+      format: "SRT",
+      expiresAt: 120,
+    });
+    expect(second).toEqual(first);
+    expect(await registry.refreshSummary(OWNER_A, artifact)).toEqual(first);
+    await expect(
+      registry.readText(OWNER_A, artifact.artifactRef),
+    ).rejects.toMatchObject({ code: "artifact_expired" });
+    await expect(registry.readText(OWNER_A, first.artifactRef)).resolves
+      .toMatchObject({ cueCount: 2 });
+  });
+
+  it("keeps a refreshable record when validation crosses the artifact TTL", async () => {
+    const root = await tempRoot();
+    let expireDuringRead = false;
+    let readClockChecks = 0;
+    const registry = deterministicRegistry({
+      ttlMs: 10,
+      now: () =>
+        expireDuringRead && readClockChecks++ > 0 ? 110 : 100,
+    });
+    const artifact = await reserveAndActivate(
+      registry,
+      root,
+      "task-refresh-during-read",
+      "refresh-during-read.srt",
+      VALID_SRT,
+      "SRT",
+    );
+
+    expireDuringRead = true;
+    await expect(
+      registry.readText(OWNER_A, artifact.artifactRef),
+    ).rejects.toMatchObject({ code: "artifact_expired" });
+    await expect(registry.refreshSummary(OWNER_A, artifact)).resolves.toEqual({
+      artifactRef: "ls-artifact-ref-2",
+      displayName: "refresh-during-read.srt",
+      format: "SRT",
+      expiresAt: 120,
+    });
+  });
+
+  it("does not rotate an expired ref after its artifact changes or task is removed", async () => {
+    const root = await tempRoot();
+    let now = 200;
+    const registry = deterministicRegistry({ ttlMs: 10, now: () => now });
+    const artifact = await reserveAndActivate(
+      registry,
+      root,
+      "task-refresh-failure",
+      "refresh-failure.srt",
+      VALID_SRT,
+      "SRT",
+    );
+    await writeFile(
+      path.join(root, "refresh-failure.srt"),
+      VALID_SRT.replace("Second line", "Changed line"),
+      "utf8",
+    );
+    now = 210;
+
+    await expect(registry.refreshSummary(OWNER_A, artifact)).rejects
+      .toMatchObject({ code: "artifact_changed" });
+    expect(registry.revokeTask(OWNER_A, "task-refresh-failure")).toBe(1);
+    await expect(registry.refreshSummary(OWNER_A, artifact)).rejects
+      .toMatchObject({ code: "artifact_expired" });
   });
 
   it("revokes pending and active refs by task and permanently fences removed tasks", async () => {

@@ -39,6 +39,10 @@ import {
 } from "./authorizations";
 import { LocalSubtitleBackendResolverError } from "./backend-resolver";
 import {
+  LocalSubtitleArtifactHandoffService,
+  type LocalSubtitleTranslationImportTokenRegistry,
+} from "./artifact-handoff";
+import {
   sharedLocalSubtitleOwnerSessionRegistry,
   type AuthorizedLocalSubtitleIpcRequest,
   type LocalSubtitleOwnerIdentity,
@@ -115,7 +119,8 @@ export interface LocalSubtitleIpcCapabilities {
   readonly outputs: LocalSubtitleOutputDirectoryAuthorizationRegistry;
   readonly leases: LocalSubtitleCapabilityLeaseCoordinator;
   readonly artifacts: LocalSubtitleArtifactRegistry;
-  readonly importTokens: LocalSubtitleImportTokenRegistry<unknown>;
+  readonly importTokens: LocalSubtitleTranslationImportTokenRegistry;
+  readonly handoffs: LocalSubtitleArtifactHandoffService;
 }
 
 export type LocalSubtitleOutputDirectorySelector = () => Promise<{
@@ -273,18 +278,30 @@ export class LocalSubtitleIpcService {
     const outputs =
       options.capabilities?.outputs ??
       new LocalSubtitleOutputDirectoryAuthorizationRegistry();
+    const artifacts =
+      options.capabilities?.artifacts ??
+      new LocalSubtitleArtifactRegistry();
+    const importTokens: LocalSubtitleTranslationImportTokenRegistry =
+      options.capabilities?.importTokens ??
+      new LocalSubtitleImportTokenRegistry();
+    const handoffs =
+      options.capabilities?.handoffs ??
+      new LocalSubtitleArtifactHandoffService(artifacts, importTokens);
+    if (
+      handoffs.artifacts !== artifacts ||
+      handoffs.importTokens !== importTokens
+    ) {
+      throw new TypeError("Local subtitle handoff capabilities are inconsistent.");
+    }
     this.capabilities = {
       inputs,
       outputs,
       leases:
         options.capabilities?.leases ??
         new LocalSubtitleCapabilityLeaseCoordinator(inputs, outputs),
-      artifacts:
-        options.capabilities?.artifacts ??
-        new LocalSubtitleArtifactRegistry(),
-      importTokens:
-        options.capabilities?.importTokens ??
-        new LocalSubtitleImportTokenRegistry<unknown>(),
+      artifacts,
+      importTokens,
+      handoffs,
     };
     this.handlers = options.handlers ?? {};
     this.selectOutputDirectoryImpl =
@@ -643,6 +660,15 @@ export class LocalSubtitleIpcService {
         const { artifactRef } = request as { readonly artifactRef: string };
         return localSubtitleIpcSuccess(
           await this.capabilities.artifacts.reveal(
+            context.owner,
+            artifactRef,
+          ),
+        );
+      }
+      case LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.handoffArtifact: {
+        const { artifactRef } = request as { readonly artifactRef: string };
+        return localSubtitleIpcSuccess(
+          await this.capabilities.handoffs.handoff(
             context.owner,
             artifactRef,
           ),

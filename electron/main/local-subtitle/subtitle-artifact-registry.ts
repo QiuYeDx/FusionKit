@@ -105,6 +105,8 @@ export interface ActivateLocalSubtitleArtifactOptions {
 }
 
 export interface LocalSubtitleArtifactHandoffSnapshot {
+  readonly taskId: string;
+  readonly generation: number;
   readonly format: LocalSubtitleFormat;
   readonly displayName: string;
   readonly rawText: string;
@@ -143,10 +145,22 @@ interface InvalidArtifactEntry extends ArtifactEntryBase {
     | "invalid_content";
 }
 
+interface ExpiredArtifactEntry extends ArtifactEntryBase {
+  readonly state: "expired";
+  readonly record: LocalSubtitleArtifactRecord;
+}
+
+interface RotatedArtifactEntry extends ArtifactEntryBase {
+  readonly state: "rotated";
+  readonly replacementRef: string;
+}
+
 type ArtifactEntry =
   | PendingArtifactEntry
   | ActiveArtifactEntry
-  | InvalidArtifactEntry;
+  | InvalidArtifactEntry
+  | ExpiredArtifactEntry
+  | RotatedArtifactEntry;
 
 interface LocalSubtitleArtifactRecord {
   readonly generation: number;
@@ -170,6 +184,10 @@ interface ValidatedArtifact {
 export class LocalSubtitleArtifactRegistry {
   private readonly entries = new Map<string, ArtifactEntry>();
   private readonly reservationRefs = new Map<string, string>();
+  private readonly refreshOperations = new Map<
+    string,
+    Promise<GeneratedSubtitleArtifactSummary>
+  >();
   private readonly releasedOwners = new Set<string>();
   private readonly revokedTasks = new Set<string>();
   private readonly taskGenerations = new Map<string, number>();
@@ -247,7 +265,13 @@ export class LocalSubtitleArtifactRegistry {
             candidate.taskId === options.taskId,
         )
       : [];
-    if (this.entries.size - supersededEntries.length >= this.maxEntries) {
+    const capacityEntries = [...this.entries.values()].filter(
+      (entry) => entry.state !== "rotated",
+    ).length;
+    const supersededCapacityEntries = supersededEntries.filter(
+      (entry) => entry.state !== "rotated",
+    ).length;
+    if (capacityEntries - supersededCapacityEntries >= this.maxEntries) {
       throw failure(
         "limit_exceeded",
         "Local subtitle artifact registry capacity was reached.",
@@ -375,12 +399,36 @@ export class LocalSubtitleArtifactRegistry {
     return Object.freeze({
       format: entry.format,
       displayName: entry.displayName,
+      taskId: entry.taskId,
+      generation: entry.generation,
       rawText: validated.rawText,
       plainText: validated.plainText,
       cueCount: validated.cueCount,
       byteSize: entry.record.byteSize,
       sha256: entry.record.sha256,
     });
+  }
+
+  async refreshSummary(
+    owner: LocalSubtitleOwnerKey,
+    summary: GeneratedSubtitleArtifactSummary,
+  ): Promise<GeneratedSubtitleArtifactSummary> {
+    assertOwner(owner);
+    this.assertOwnerActive(owner);
+    if (!isOpaqueValue(summary?.artifactRef, "ls-artifact-")) {
+      throw invalid("artifactRef");
+    }
+    const entry = this.entries.get(summary.artifactRef);
+    if (!entry) throw artifactExpired();
+    if (!sameOwner(entry.owner, owner)) throw invalid("artifactRef");
+    if (
+      entry.displayName !== summary.displayName ||
+      entry.format !== summary.format ||
+      entry.expiresAt !== summary.expiresAt
+    ) {
+      throw invalid("artifactRef");
+    }
+    return this.refreshCurrentEntry(entry);
   }
 
   revokeArtifact(owner: LocalSubtitleOwnerKey, artifactRef: string): boolean {
@@ -439,8 +487,10 @@ export class LocalSubtitleArtifactRegistry {
     const now = this.now();
     let count = 0;
     for (const entry of [...this.entries.values()]) {
+      if (entry.state === "expired" || entry.state === "rotated") continue;
       if (entry.expiresAt > now) continue;
-      this.removeEntry(entry);
+      if (entry.state === "active") this.expireEntry(entry);
+      else this.removeEntry(entry);
       count += 1;
     }
     return count;
@@ -475,14 +525,142 @@ export class LocalSubtitleArtifactRegistry {
     if (!sameOwner(entry.owner, owner)) throw invalid("artifactRef");
     if (!entry.operations.has(operation)) throw invalid("operation");
     if (entry.expiresAt <= this.now()) {
-      this.removeEntry(entry);
+      if (entry.state === "active") this.expireEntry(entry);
+      else if (entry.state !== "expired" && entry.state !== "rotated") {
+        this.removeEntry(entry);
+      }
       throw artifactExpired();
     }
     if (entry.state === "pending") throw invalid("artifactRef");
     if (entry.state === "invalid") {
       throw stableValidationFailure(entry.errorCode);
     }
+    if (entry.state === "expired" || entry.state === "rotated") {
+      throw artifactExpired();
+    }
     return entry;
+  }
+
+  private async refreshCurrentEntry(
+    entry: ArtifactEntry,
+  ): Promise<GeneratedSubtitleArtifactSummary> {
+    this.assertOwnerActive(entry.owner);
+    const current = this.entries.get(entry.artifactRef);
+    if (current !== entry) throw artifactExpired();
+    if (entry.state === "pending") throw invalid("artifactRef");
+    if (entry.state === "invalid") {
+      throw stableValidationFailure(entry.errorCode);
+    }
+    if (entry.state === "rotated") {
+      const replacement = this.entries.get(entry.replacementRef);
+      if (
+        !replacement ||
+        !sameOwner(replacement.owner, entry.owner) ||
+        replacement.taskId !== entry.taskId ||
+        replacement.generation !== entry.generation ||
+        replacement.format !== entry.format
+      ) {
+        throw artifactExpired();
+      }
+      return this.refreshCurrentEntry(replacement);
+    }
+    if (entry.state === "active" && entry.expiresAt > this.now()) {
+      return artifactSummary(entry);
+    }
+    const expired = entry.state === "active"
+      ? this.expireEntry(entry)
+      : entry;
+    const pending = this.refreshOperations.get(expired.artifactRef);
+    if (pending) return pending;
+    const operation = this.rotateExpiredEntry(expired).finally(() => {
+      if (this.refreshOperations.get(expired.artifactRef) === operation) {
+        this.refreshOperations.delete(expired.artifactRef);
+      }
+    });
+    this.refreshOperations.set(expired.artifactRef, operation);
+    return operation;
+  }
+
+  private expireEntry(entry: ActiveArtifactEntry): ExpiredArtifactEntry {
+    const current = this.entries.get(entry.artifactRef);
+    if (current !== entry) throw artifactExpired();
+    const expired: ExpiredArtifactEntry = Object.freeze({
+      state: "expired",
+      owner: entry.owner,
+      taskId: entry.taskId,
+      generation: entry.generation,
+      format: entry.format,
+      displayName: entry.displayName,
+      operations: entry.operations,
+      artifactRef: entry.artifactRef,
+      expiresAt: entry.expiresAt,
+      record: entry.record,
+    });
+    this.entries.set(entry.artifactRef, expired);
+    return expired;
+  }
+
+  private async rotateExpiredEntry(
+    entry: ExpiredArtifactEntry,
+  ): Promise<GeneratedSubtitleArtifactSummary> {
+    try {
+      await validateArtifactRecord(entry.record);
+    } catch (error) {
+      const normalized = normalizeValidationFailure(error);
+      if (this.entries.get(entry.artifactRef) === entry) {
+        this.entries.set(entry.artifactRef, Object.freeze({
+          state: "invalid",
+          owner: entry.owner,
+          taskId: entry.taskId,
+          generation: entry.generation,
+          format: entry.format,
+          displayName: entry.displayName,
+          operations: entry.operations,
+          artifactRef: entry.artifactRef,
+          expiresAt: entry.expiresAt,
+          errorCode: normalized.code,
+        } satisfies InvalidArtifactEntry));
+      }
+      throw normalized;
+    }
+
+    this.assertOwnerActive(entry.owner);
+    if (this.entries.get(entry.artifactRef) !== entry) {
+      throw artifactExpired();
+    }
+    const artifactRef = mintOpaqueValue(
+      "ls-artifact-",
+      this.tokenFactory,
+      (value) => this.entries.has(value),
+    );
+    const expiresAt = addTtl(this.now(), this.ttlMs);
+    const replacement: ActiveArtifactEntry = Object.freeze({
+      state: "active",
+      owner: entry.owner,
+      taskId: entry.taskId,
+      generation: entry.generation,
+      format: entry.format,
+      displayName: entry.displayName,
+      operations: entry.operations,
+      artifactRef,
+      expiresAt,
+      record: entry.record,
+    });
+    const rotated: RotatedArtifactEntry = Object.freeze({
+      state: "rotated",
+      owner: entry.owner,
+      taskId: entry.taskId,
+      generation: entry.generation,
+      format: entry.format,
+      displayName: entry.displayName,
+      operations: entry.operations,
+      artifactRef: entry.artifactRef,
+      expiresAt: entry.expiresAt,
+      replacementRef: artifactRef,
+    });
+    this.entries.set(entry.artifactRef, rotated);
+    this.entries.set(artifactRef, replacement);
+    return artifactSummary(replacement);
   }
 
   private async validateEntry(
@@ -516,7 +694,7 @@ export class LocalSubtitleArtifactRegistry {
     this.assertOwnerActive(entry.owner);
     const current = this.entries.get(entry.artifactRef);
     if (entry.expiresAt <= this.now()) {
-      if (current) this.removeEntry(current);
+      if (current === entry) this.expireEntry(entry);
       throw artifactExpired();
     }
     if (current === entry) return;

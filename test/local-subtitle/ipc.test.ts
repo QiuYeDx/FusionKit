@@ -325,16 +325,101 @@ describe("local subtitle IPC service", () => {
     ).resolves.toEqual({ ok: true, data: { revealed: true } });
     expect(revealFile).toHaveBeenCalledWith(artifactPath);
 
+    const storedContentBuffers: Buffer[] = [];
+    const importTokens = fixture.service.capabilities.importTokens;
+    const mintImportToken = importTokens.mint.bind(importTokens);
+    vi.spyOn(importTokens, "mint").mockImplementation(
+      (tokenOwner, value, bytes, dispose) => {
+        storedContentBuffers.push(value.contentBytes);
+        return mintImportToken(tokenOwner, value, bytes, dispose);
+      },
+    );
+    const handoff = await fixture.service.handlePublic(
+      LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.handoffArtifact,
+      fixture.event,
+      fixture.envelope({ artifactRef: reserved.artifactRef }),
+    );
+    expect(handoff).toMatchObject({
+      ok: true,
+      data: {
+        translationImportToken: expect.stringMatching(/^ls-import-/u),
+        expiresAt: expect.any(Number),
+      },
+    });
+    expect(JSON.stringify(handoff)).not.toContain(root);
+    expect(JSON.stringify(handoff)).not.toContain(rawText);
+    expect(JSON.stringify(handoff)).not.toContain(
+      createHash("sha256").update(rawText).digest("hex"),
+    );
+    if (!handoff.ok) throw new Error("Expected a handoff token.");
+    const { translationImportToken } = handoff.data as {
+      readonly translationImportToken: string;
+    };
+    const secondHandoff = await fixture.service.handlePublic(
+      LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.handoffArtifact,
+      fixture.event,
+      fixture.envelope({ artifactRef: reserved.artifactRef }),
+    );
+    if (!secondHandoff.ok) throw new Error("Expected a second handoff token.");
+    const secondTranslationImportToken = (secondHandoff.data as {
+      readonly translationImportToken: string;
+    }).translationImportToken;
+    expect(storedContentBuffers).toHaveLength(2);
+    expect(storedContentBuffers[0]?.toString("utf8")).toBe(rawText);
+    expect(storedContentBuffers[1]?.toString("utf8")).toBe(rawText);
+    await writeFile(
+      artifactPath,
+      "1\n00:00:00,000 --> 00:00:01,000\nChanged\n",
+      "utf8",
+    );
     await expect(
-      fixture.service.handlePublic(
-        LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.handoffArtifact,
-        fixture.event,
-        fixture.envelope({ artifactRef: reserved.artifactRef }),
+      fixture.service.capabilities.handoffs.consume(
+        owner,
+        translationImportToken,
+        (snapshot) => snapshot,
       ),
     ).resolves.toMatchObject({
-      ok: false,
-      error: { code: "configuration_not_ready" },
+      content: rawText,
+      format: "SRT",
+      displayName: "result.srt",
+      cueCount: 1,
+      artifactIdentity: {
+        artifactRef: reserved.artifactRef,
+        taskId: "task-artifact-ipc",
+        generation: 1,
+        format: "SRT",
+        byteSize: Buffer.byteLength(rawText),
+      },
     });
+    expect(storedContentBuffers[0]?.every((byte) => byte === 0)).toBe(true);
+    await expect(
+      fixture.service.capabilities.handoffs.consume(
+        owner,
+        translationImportToken,
+        (snapshot) => snapshot,
+      ),
+    ).rejects.toMatchObject({ code: "invalid_ipc_request" });
+
+    expect(
+      fixture.service.capabilities.handoffs.revokeTask(
+        owner,
+        "task-artifact-ipc",
+      ),
+    ).toBe(1);
+    expect(storedContentBuffers[1]?.every((byte) => byte === 0)).toBe(true);
+    await expect(
+      fixture.service.capabilities.handoffs.consume(
+        owner,
+        secondTranslationImportToken,
+        (snapshot) => snapshot,
+      ),
+    ).rejects.toMatchObject({ code: "invalid_ipc_request" });
+    await expect(
+      fixture.service.capabilities.artifacts.readText(
+        owner,
+        reserved.artifactRef,
+      ),
+    ).rejects.toMatchObject({ code: "artifact_expired" });
   });
 
   it("maps stable artifact validation failures through the IPC envelope", async () => {
