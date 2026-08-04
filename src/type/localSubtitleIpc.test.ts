@@ -20,6 +20,8 @@ import {
   LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS,
   LOCAL_SUBTITLE_PUBLIC_OPERATION_CONTRACTS,
   enqueueLocalSubtitleBatchRequestSchema,
+  localSubtitleBackendPreviewRequestSchema,
+  localSubtitleBackendPreviewSummarySchema,
   localSubtitleAuthorizeInputFilesRequestSchema,
   localSubtitleAuthorizedMediaListSchema,
   localSubtitleArtifactRefRequestSchema,
@@ -63,7 +65,7 @@ describe("local subtitle fixed IPC surface", () => {
     const eventChannels = Object.values(LOCAL_SUBTITLE_EVENT_CHANNELS);
     const allChannels = [...publicChannels, ...internalChannels, ...eventChannels];
 
-    expect(publicChannels).toHaveLength(16);
+    expect(publicChannels).toHaveLength(17);
     expect(internalChannels).toHaveLength(7);
     expect(eventChannels).toHaveLength(2);
     expect(new Set(allChannels).size).toBe(allChannels.length);
@@ -88,6 +90,7 @@ describe("local subtitle fixed IPC surface", () => {
       | "selectOutputDirectory"
       | "revokeOutputDirectory"
       | "probeRuntime"
+      | "previewBackend"
       | "listManagedResources"
       | "startResourceInstall"
       | "cancelResourceJob"
@@ -357,6 +360,19 @@ describe("local subtitle fixed IPC surface", () => {
       ].requestSchema.safeParse({ artifactRef: "C:\\private\\result.srt" })
         .success,
     ).toBe(false);
+    expect(
+      localSubtitleBackendPreviewRequestSchema.parse({
+        modelId: "model-1",
+        devicePreference: "auto",
+      }),
+    ).toEqual({ modelId: "model-1", devicePreference: "auto" });
+    expect(
+      localSubtitleBackendPreviewRequestSchema.safeParse({
+        modelId: "model-1",
+        devicePreference: "auto",
+        runtimeGeneration: SHA,
+      }).success,
+    ).toBe(false);
   });
 
   it("maps every public result to a strict bounded path-free schema", () => {
@@ -401,6 +417,33 @@ describe("local subtitle fixed IPC surface", () => {
         }).success,
         `${channel}:failure`,
       ).toBe(true);
+    }
+  });
+
+  it("keeps backend previews path, hash, generation, and flag free", () => {
+    const preview = {
+      devicePreference: "auto" as const,
+      resolvedBackend: "cpu" as const,
+      modelId: "model-1",
+      serverArtifactId: "whisper-server-cpu",
+      serverVersion: "1.9.1+b1ade71",
+    };
+    expect(localSubtitleBackendPreviewSummarySchema.parse(preview)).toEqual(
+      preview,
+    );
+    for (const injected of [
+      { absolutePath: "/private/runtime/server" },
+      { modelHash: SHA },
+      { artifactHash: SHA },
+      { runtimeGeneration: SHA },
+      { backendFlags: ["--flash-attn"] },
+    ]) {
+      expect(
+        localSubtitleBackendPreviewSummarySchema.safeParse({
+          ...preview,
+          ...injected,
+        }).success,
+      ).toBe(false);
     }
   });
 
@@ -1401,6 +1444,10 @@ function validPublicOperationRequests(): Record<
       fileToken: "file-token-1",
     },
     [LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.probeRuntime]: {},
+    [LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.previewBackend]: {
+      modelId: "model-1",
+      devicePreference: "auto",
+    },
     [LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.listManagedResources]: {},
     [LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.startResourceInstall]: {
       resourceId: "model-1",
@@ -1442,6 +1489,13 @@ function validPublicOperationResults(): Record<
     [LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.probeMedia]:
       validMediaProbeSummary(),
     [LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.probeRuntime]: validRuntimeSummary(),
+    [LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.previewBackend]: {
+      devicePreference: "auto",
+      resolvedBackend: "cpu",
+      modelId: "model-1",
+      serverArtifactId: "whisper-server-cpu",
+      serverVersion: "1.9.1+b1ade71",
+    },
     [LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.listManagedResources]: [
       validManagedResource(),
     ],

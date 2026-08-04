@@ -175,6 +175,12 @@ export function createLocalSubtitleRendererApi({
     probeRuntime() {
       return invokePublic(LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.probeRuntime, {});
     },
+    previewBackend(request) {
+      return invokePublic(
+        LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.previewBackend,
+        request,
+      );
+    },
     listManagedResources() {
       return invokePublic(
         LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.listManagedResources,

@@ -39,6 +39,7 @@ describe("local subtitle fixed preload API", () => {
         "selectOutputDirectory",
         "revokeOutputDirectory",
         "probeRuntime",
+        "previewBackend",
         "listManagedResources",
         "startResourceInstall",
         "cancelResourceJob",
@@ -94,6 +95,10 @@ describe("local subtitle fixed preload API", () => {
       [LOCAL_SUBTITLE_PRELOAD_INTERNAL_CHANNELS.selectOutputDirectory, {}],
       [LOCAL_SUBTITLE_PRELOAD_INTERNAL_CHANNELS.revokeOutputDirectory, { outputDirToken: "output-1" }],
       [LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.probeRuntime, {}],
+      [LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.previewBackend, {
+        modelId: "model-1",
+        devicePreference: "auto",
+      }],
       [LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.listManagedResources, {}],
       [LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.startResourceInstall, { resourceId: "model-1" }],
       [LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.cancelResourceJob, { jobId: "job-1" }],
@@ -213,7 +218,7 @@ describe("local subtitle fixed preload API", () => {
     );
 
     const results = await callEveryCommand(api, mediaOne, mediaTwo, model);
-    expect(results).toHaveLength(22);
+    expect(results).toHaveLength(23);
     expect(
       results.every(
         (result) => !result.ok && result.error.code === "owner_released",
@@ -403,6 +408,7 @@ async function callEveryCommand(
     api.selectOutputDirectory(),
     api.revokeOutputDirectory("output-1"),
     api.probeRuntime(),
+    api.previewBackend({ modelId: "model-1", devicePreference: "auto" }),
     api.listManagedResources(),
     api.startResourceInstall({ resourceId: "model-1" }),
     api.cancelResourceJob("job-1"),

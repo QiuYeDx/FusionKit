@@ -47,6 +47,7 @@ export type {
 export const LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS = {
   probeMedia: "local-subtitle:probe-media",
   probeRuntime: "local-subtitle:probe-runtime",
+  previewBackend: "local-subtitle:preview-backend",
   listManagedResources: "local-subtitle:list-managed-resources",
   startResourceInstall: "local-subtitle:start-resource-install",
   cancelResourceJob: "local-subtitle:cancel-resource-job",
@@ -1392,6 +1393,23 @@ export const localSubtitleRuntimeSummarySchema = z
     }
   });
 
+export const localSubtitleBackendPreviewRequestSchema = z
+  .object({
+    modelId: idSchema,
+    devicePreference: z.enum(LOCAL_SUBTITLE_DEVICE_PREFERENCES),
+  })
+  .strict();
+
+export const localSubtitleBackendPreviewSummarySchema = z
+  .object({
+    devicePreference: z.enum(LOCAL_SUBTITLE_DEVICE_PREFERENCES),
+    resolvedBackend: z.enum(LOCAL_SUBTITLE_BACKENDS),
+    modelId: idSchema,
+    serverArtifactId: idSchema,
+    serverVersion: boundedMetadataStringSchema,
+  })
+  .strict();
+
 export const LOCAL_SUBTITLE_MANAGED_RESOURCE_STATUSES = [
   "not_installed",
   "installing",
@@ -1575,6 +1593,12 @@ export type LocalSubtitleOutputDirectorySelection = z.infer<
 >;
 export type LocalSubtitleRuntimeSummary = z.infer<
   typeof localSubtitleRuntimeSummarySchema
+>;
+export type LocalSubtitleBackendPreviewRequest = z.infer<
+  typeof localSubtitleBackendPreviewRequestSchema
+>;
+export type LocalSubtitleBackendPreviewSummary = z.infer<
+  typeof localSubtitleBackendPreviewSummarySchema
 >;
 export type LocalSubtitleManagedResourceSummary = z.infer<
   typeof localSubtitleManagedResourceSummarySchema
@@ -1822,6 +1846,17 @@ export const LOCAL_SUBTITLE_PUBLIC_OPERATION_CONTRACTS: Record<
     ),
     resultSchema: boundedLocalSubtitleIpcResultSchema(
       localSubtitleRuntimeSummarySchema,
+      normalResultBytes,
+    ),
+    maxRequestBytes: normalRequestBytes,
+    maxResultBytes: normalResultBytes,
+  },
+  [LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.previewBackend]: {
+    requestSchema: boundedLocalSubtitleIpcRequestSchema(
+      localSubtitleBackendPreviewRequestSchema,
+    ),
+    resultSchema: boundedLocalSubtitleIpcResultSchema(
+      localSubtitleBackendPreviewSummarySchema,
       normalResultBytes,
     ),
     maxRequestBytes: normalRequestBytes,
@@ -2095,6 +2130,9 @@ export interface LocalSubtitleRendererApi {
     outputDirToken: string,
   ): Promise<LocalSubtitleIpcResult<z.infer<typeof localSubtitleRevokeResultSchema>>>;
   probeRuntime(): Promise<LocalSubtitleIpcResult<LocalSubtitleRuntimeSummary>>;
+  previewBackend(
+    request: LocalSubtitleBackendPreviewRequest,
+  ): Promise<LocalSubtitleIpcResult<LocalSubtitleBackendPreviewSummary>>;
   listManagedResources(): Promise<
     LocalSubtitleIpcResult<LocalSubtitleManagedResourceSummary[]>
   >;

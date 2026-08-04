@@ -51,6 +51,7 @@ import type {
 } from "@/type/localSubtitle";
 import type {
   LocalSubtitleIpcResult,
+  LocalSubtitleBackendPreviewSummary,
   LocalSubtitleManagedResourceSummary,
   LocalSubtitleRuntimeSummary,
 } from "@/type/localSubtitleIpc";
@@ -117,6 +118,8 @@ const START_ISSUE_KEYS = {
   runtime_unavailable: "subtitle:local_transcriber.readiness.runtime_unavailable",
   session_unavailable: "subtitle:local_transcriber.readiness.session_unavailable",
   model_required: "subtitle:local_transcriber.readiness.model_required",
+  backend_preview_loading: "subtitle:local_transcriber.readiness.backend_preview_loading",
+  backend_preview_unavailable: "subtitle:local_transcriber.readiness.backend_preview_unavailable",
   file_required: "subtitle:local_transcriber.readiness.file_required",
   output_directory_required: "subtitle:local_transcriber.readiness.output_directory_required",
   task_active: "subtitle:local_transcriber.readiness.task_active",
@@ -127,6 +130,12 @@ interface EnvironmentState {
   readonly runtime: LocalSubtitleRuntimeSummary | null;
   readonly resources: readonly LocalSubtitleManagedResourceSummary[];
   readonly error: LocalSubtitleError | null;
+}
+
+interface BackendPreviewState {
+  readonly status: "idle" | "loading" | "ready" | "error";
+  readonly modelId: string | null;
+  readonly summary: LocalSubtitleBackendPreviewSummary | null;
 }
 
 export default function LocalSubtitleTranscriber() {
@@ -165,12 +174,18 @@ export default function LocalSubtitleTranscriber() {
   const mountedRef = useRef(true);
   const refreshGenerationRef = useRef(0);
   const resourceRefreshGenerationRef = useRef(0);
+  const backendPreviewGenerationRef = useRef(0);
   const terminalResourceJobsRef = useRef("");
   const [environment, setEnvironment] = useState<EnvironmentState>({
     loading: true,
     runtime: null,
     resources: [],
     error: null,
+  });
+  const [backendPreview, setBackendPreview] = useState<BackendPreviewState>({
+    status: "idle",
+    modelId: null,
+    summary: null,
   });
   const [dragging, setDragging] = useState(false);
   const [fileAuthorizationPending, setFileAuthorizationPending] = useState(false);
@@ -262,6 +277,7 @@ export default function LocalSubtitleTranscriber() {
       mountedRef.current = false;
       refreshGenerationRef.current += 1;
       resourceRefreshGenerationRef.current += 1;
+      backendPreviewGenerationRef.current += 1;
       resetDraft();
     };
   }, [refreshEnvironment, resetDraft]);
@@ -293,6 +309,82 @@ export default function LocalSubtitleTranscriber() {
   )
     ? preferences.modelId
     : readyModels[0]?.resourceId ?? null;
+  const selectedModel = readyModels.find(
+    (model) => model.resourceId === selectedModelId,
+  ) ?? null;
+
+  useEffect(() => {
+    const generation = ++backendPreviewGenerationRef.current;
+    if (
+      !selectedModel ||
+      environment.loading ||
+      environment.error ||
+      !environment.runtime ||
+      runtimeState.syncStatus !== "ready"
+    ) {
+      setBackendPreview({
+        status: "idle",
+        modelId: selectedModel?.resourceId ?? null,
+        summary: null,
+      });
+      return;
+    }
+
+    const modelId = selectedModel.resourceId;
+    setBackendPreview({
+      status: "loading",
+      modelId,
+      summary: null,
+    });
+    void window.localSubtitleApi.previewBackend({
+      modelId,
+      devicePreference: "auto",
+    }).then((result) => {
+      if (
+        !mountedRef.current ||
+        generation !== backendPreviewGenerationRef.current
+      ) return;
+      if (
+        result.ok &&
+        (result.data.modelId !== modelId ||
+          result.data.devicePreference !== "auto")
+      ) {
+        setBackendPreview({
+          status: "error",
+          modelId,
+          summary: null,
+        });
+        return;
+      }
+      setBackendPreview(result.ok
+        ? {
+            status: "ready",
+            modelId,
+            summary: result.data,
+          }
+        : {
+            status: "error",
+            modelId,
+            summary: null,
+          });
+    }).catch(() => {
+      if (
+        !mountedRef.current ||
+        generation !== backendPreviewGenerationRef.current
+      ) return;
+      setBackendPreview({
+        status: "error",
+        modelId,
+        summary: null,
+      });
+    });
+  }, [
+    environment.error,
+    environment.loading,
+    environment.runtime,
+    runtimeState.syncStatus,
+    selectedModel,
+  ]);
   const liveTask = findLocalSubtitleTask(
     runtimeState.batches,
     activeIdentity?.batchId ?? null,
@@ -311,6 +403,8 @@ export default function LocalSubtitleTranscriber() {
     runtimeSyncStatus: runtimeState.syncStatus,
     readyModels,
     selectedModelId,
+    backendPreviewStatus: backendPreview.status,
+    backendPreviewModelId: backendPreview.modelId,
     selectedFile,
     outputMode: preferences.outputMode,
     outputDirectory,
@@ -520,7 +614,12 @@ export default function LocalSubtitleTranscriber() {
             meta={TOOL_META.localSubtitleTranscriber}
             title={t("subtitle:local_transcriber.title")}
             description={t("subtitle:local_transcriber.description")}
-            right={<Badge variant="outline">CPU · SRT</Badge>}
+            right={
+              <Badge variant="outline">
+                {(activeTask?.resolvedBackend ?? backendPreview.summary?.resolvedBackend ?? "auto")
+                  .toUpperCase()} · SRT
+              </Badge>
+            }
           />
         }
         aside={
@@ -583,6 +682,8 @@ export default function LocalSubtitleTranscriber() {
         <LocalSubtitleEnvironmentManager
           loading={environment.loading}
           runtime={environment.runtime}
+          backendPreviewStatus={backendPreview.status}
+          backendPreview={backendPreview.summary}
           resources={environment.resources}
           resourceJobs={runtimeState.resourceJobs}
           pendingActionKeys={pendingResourceActions}

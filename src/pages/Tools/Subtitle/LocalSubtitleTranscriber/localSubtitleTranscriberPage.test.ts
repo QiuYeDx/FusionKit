@@ -27,6 +27,7 @@ describe("local subtitle transcriber page wiring", () => {
     for (const method of [
       "authorizeInputFiles",
       "probeRuntime",
+      "previewBackend",
       "listManagedResources",
       "startResourceInstall",
       "cancelResourceJob",
@@ -39,6 +40,8 @@ describe("local subtitle transcriber page wiring", () => {
     }
     expect(source).not.toContain("window.ipcRenderer");
     expect(source).not.toContain('"audio:');
+    expect(pageSource).toContain("backendPreviewGenerationRef");
+    expect(environmentSource).not.toContain("cpuAvailable");
   });
 
   it("renders resource progress from the shared session snapshot", () => {

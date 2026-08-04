@@ -34,6 +34,7 @@ import {
   type LocalSubtitleResourceType,
 } from "@/type/localSubtitle";
 import type {
+  LocalSubtitleBackendPreviewSummary,
   LocalSubtitleManagedResourceSummary,
   LocalSubtitleRuntimeSummary,
 } from "@/type/localSubtitleIpc";
@@ -104,6 +105,8 @@ export function localSubtitleResourceActionKey(
 interface LocalSubtitleEnvironmentManagerProps {
   readonly loading: boolean;
   readonly runtime: LocalSubtitleRuntimeSummary | null;
+  readonly backendPreviewStatus: "idle" | "loading" | "ready" | "error";
+  readonly backendPreview: LocalSubtitleBackendPreviewSummary | null;
   readonly resources: readonly LocalSubtitleManagedResourceSummary[];
   readonly resourceJobs: readonly LocalSubtitleResourceJobSummary[];
   readonly pendingActionKeys: ReadonlySet<string>;
@@ -118,6 +121,8 @@ interface LocalSubtitleEnvironmentManagerProps {
 export function LocalSubtitleEnvironmentManager({
   loading,
   runtime,
+  backendPreviewStatus,
+  backendPreview,
   resources,
   resourceJobs,
   pendingActionKeys,
@@ -191,7 +196,12 @@ export function LocalSubtitleEnvironmentManager({
           </Button>
         }
       >
-        <RuntimeSummary runtime={runtime} loading={loading} />
+        <RuntimeSummary
+          runtime={runtime}
+          loading={loading}
+          backendPreviewStatus={backendPreviewStatus}
+          backendPreview={backendPreview}
+        />
       </ToolPanel>
 
       <ToolPanel
@@ -407,14 +417,15 @@ export function LocalSubtitleEnvironmentManager({
 function RuntimeSummary({
   runtime,
   loading,
+  backendPreviewStatus,
+  backendPreview,
 }: {
   runtime: LocalSubtitleRuntimeSummary | null;
   loading: boolean;
+  backendPreviewStatus: "idle" | "loading" | "ready" | "error";
+  backendPreview: LocalSubtitleBackendPreviewSummary | null;
 }) {
   const { t } = useTranslation(["subtitle"]);
-  const cpuAvailable = runtime?.backends.some(
-    (backend) => backend.backend === "cpu" && backend.status === "available",
-  ) ?? false;
   const values = [
     {
       label: t("subtitle:local_transcriber.environment.platform"),
@@ -462,12 +473,16 @@ function RuntimeSummary({
             <Cpu className="h-3.5 w-3.5 text-muted-foreground" />
             {t("subtitle:local_transcriber.environment.backends")}
           </div>
-          <div className="text-[11px] text-muted-foreground">
-            {t("subtitle:local_transcriber.environment.execution_profile", {
-              backend: cpuAvailable
-                ? "CPU"
-                : t("subtitle:local_transcriber.environment.unavailable_short"),
-            })}
+          <div className="min-w-0 break-words text-right text-[11px] text-muted-foreground [overflow-wrap:anywhere]">
+            {backendPreviewStatus === "ready" && backendPreview
+              ? t("subtitle:local_transcriber.environment.execution_profile", {
+                  preference: backendPreview.devicePreference.toUpperCase(),
+                  backend: backendPreview.resolvedBackend.toUpperCase(),
+                  version: backendPreview.serverVersion,
+                })
+              : backendPreviewStatus === "loading"
+                ? t("subtitle:local_transcriber.environment.resolving_backend")
+                : t("subtitle:local_transcriber.environment.unavailable_short")}
           </div>
         </div>
         <div className="grid gap-2 sm:grid-cols-3">

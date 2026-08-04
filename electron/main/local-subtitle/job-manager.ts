@@ -28,7 +28,10 @@ import {
 } from "@/type/localSubtitle";
 import {
   enqueueLocalSubtitleBatchRequestSchema,
+  localSubtitleBackendPreviewRequestSchema,
   type EnqueueLocalSubtitleBatchRequest,
+  type LocalSubtitleBackendPreviewRequest,
+  type LocalSubtitleBackendPreviewSummary,
 } from "@/type/localSubtitleIpc";
 import {
   LocalSubtitleCapabilityLeaseCoordinator,
@@ -280,6 +283,12 @@ interface PendingEnqueue {
   readonly admission: QueueAdmission;
 }
 
+interface PendingBackendPreview {
+  readonly ownerKey: string;
+  readonly controller: AbortController;
+  readonly detach: () => void;
+}
+
 interface QueueAdmission {
   readonly sequence: number;
   readonly ownerKey: string;
@@ -320,6 +329,7 @@ export class LocalSubtitleJobManager {
   readonly #admissions: QueueAdmission[] = [];
   readonly #releasedOwners = new Set<string>();
   readonly #pendingEnqueues = new Set<PendingEnqueue>();
+  readonly #pendingBackendPreviews = new Set<PendingBackendPreview>();
   readonly #operations = new Map<Promise<void>, string>();
   readonly #idleWaiters = new Set<IdleWaiter>();
   #activeRun: TaskRun | undefined;
@@ -396,6 +406,58 @@ export class LocalSubtitleJobManager {
           record.state !== "removed",
       )
     );
+  }
+
+  async previewBackend(
+    owner: LocalSubtitleOwnerKey,
+    request: LocalSubtitleBackendPreviewRequest,
+    signal?: AbortSignal,
+  ): Promise<LocalSubtitleBackendPreviewSummary> {
+    this.#assertOwnerAvailable(owner);
+    const parsed = parseBackendPreviewRequest(request);
+    const pending = this.#beginPendingBackendPreview(ownerKey(owner), signal);
+    try {
+      throwIfSignalAborted(pending.controller.signal);
+      const [managedModel, runtimeAdmission] = await Promise.all([
+        this.#modelResolver.resolveManagedModel(
+          parsed.modelId,
+          pending.controller.signal,
+        ),
+        this.#runtimeVerifier.verifyRuntime({
+          owner,
+          signal: pending.controller.signal,
+        }),
+      ]);
+      throwIfSignalAborted(pending.controller.signal);
+      this.#assertOwnerAvailable(owner);
+      assertManagedModel(managedModel, parsed.modelId);
+      const runtimeGeneration = assertRuntimeAdmission(runtimeAdmission);
+      const resolution = await this.#backendResolver.resolveBackend({
+        devicePreference: parsed.devicePreference,
+        admittedRuntimeGeneration: runtimeGeneration,
+        model: managedModel,
+        signal: pending.controller.signal,
+      });
+      throwIfSignalAborted(pending.controller.signal);
+      this.#assertOwnerAvailable(owner);
+      assertBackendResolution(
+        resolution,
+        parsed.devicePreference,
+        runtimeGeneration,
+        managedModel,
+      );
+      return Object.freeze({
+        devicePreference: resolution.devicePreference,
+        resolvedBackend: resolution.resolvedBackend,
+        modelId: managedModel.id,
+        serverArtifactId: resolution.serverArtifact.id,
+        serverVersion: resolution.serverArtifact.version,
+      });
+    } finally {
+      pending.detach();
+      this.#pendingBackendPreviews.delete(pending);
+      this.#flushIdleWaiters();
+    }
   }
 
   async enqueue(
@@ -783,6 +845,11 @@ export class LocalSubtitleJobManager {
       captureFailure(failures, () => pending.controller.abort());
       captureFailure(failures, () => this.#settleAdmission(pending.admission));
     }
+    for (const pending of this.#pendingBackendPreviews) {
+      if (pending.ownerKey === key) {
+        captureFailure(failures, () => pending.controller.abort());
+      }
+    }
     for (const record of records) {
       captureFailure(failures, () => record.run?.controller.abort());
       captureFailure(failures, () => this.#releaseInputLease(record));
@@ -824,6 +891,9 @@ export class LocalSubtitleJobManager {
     }
     captureFailure(failures, () => this.#cancelLeaseRenewalTimers());
     for (const pending of this.#pendingEnqueues) {
+      captureFailure(failures, () => pending.controller.abort());
+    }
+    for (const pending of this.#pendingBackendPreviews) {
       captureFailure(failures, () => pending.controller.abort());
     }
     for (const record of records) {
@@ -877,6 +947,20 @@ export class LocalSubtitleJobManager {
       admission: this.#beginAdmission(ownerKeyValue),
     };
     this.#pendingEnqueues.add(pending);
+    return pending;
+  }
+
+  #beginPendingBackendPreview(
+    ownerKeyValue: string,
+    signal?: AbortSignal,
+  ): PendingBackendPreview {
+    const controller = new AbortController();
+    const pending = {
+      ownerKey: ownerKeyValue,
+      controller,
+      detach: forwardAbort(signal, controller),
+    };
+    this.#pendingBackendPreviews.add(pending);
     return pending;
   }
 
@@ -1989,6 +2073,9 @@ export class LocalSubtitleJobManager {
       ownerKeyValue === undefined || ownerKeyValue === value;
     return (
       ![...this.#pendingEnqueues].some((pending) => matches(pending.ownerKey)) &&
+      ![...this.#pendingBackendPreviews].some((pending) =>
+        matches(pending.ownerKey)
+      ) &&
       !this.#admissions.some((admission) =>
         admission.state !== "skipped" && matches(admission.ownerKey)
       ) &&
@@ -2017,6 +2104,7 @@ export class LocalSubtitleJobManager {
     while (
       this.#operations.size > 0 ||
       this.#pendingEnqueues.size > 0 ||
+      this.#pendingBackendPreviews.size > 0 ||
       this.#admissions.length > 0 ||
       this.#leaseOperationCounts.size > 0
     ) {
@@ -2034,6 +2122,20 @@ function parseEnqueueRequest(input: unknown): EnqueueLocalSubtitleBatchRequest {
     throw managerFailure(
       "invalid_ipc_request",
       "The local subtitle enqueue request is invalid.",
+      "ipc",
+    );
+  }
+  return result.data;
+}
+
+function parseBackendPreviewRequest(
+  input: unknown,
+): LocalSubtitleBackendPreviewRequest {
+  const result = localSubtitleBackendPreviewRequestSchema.safeParse(input);
+  if (!result.success) {
+    throw managerFailure(
+      "invalid_ipc_request",
+      "The local subtitle backend preview request is invalid.",
       "ipc",
     );
   }
@@ -2432,6 +2534,16 @@ function throwIfAborted(signal: AbortSignal): void {
     throw managerFailure(
       "owner_released",
       "The local subtitle enqueue operation was aborted.",
+      "cleanup",
+    );
+  }
+}
+
+function throwIfSignalAborted(signal: AbortSignal | undefined): void {
+  if (signal?.aborted) {
+    throw managerFailure(
+      "owner_released",
+      "The local subtitle backend preview operation was aborted.",
       "cleanup",
     );
   }

@@ -243,7 +243,8 @@
       "ffmpeg": "FFmpeg",
       "not_ready": "Not ready",
       "backends": "Backend probe",
-      "execution_profile": "Auto resolution target: {{backend}}",
+      "execution_profile": "{{preference}} -> {{backend}} · {{version}}",
+      "resolving_backend": "Resolving execution backend",
       "no_backend_data": "No backend probe data",
       "backend": {
         "cpu": "CPU",
@@ -326,6 +327,8 @@
       "runtime_unavailable": "The local transcription runtime or CPU backend is unavailable.",
       "session_unavailable": "The task session is not ready. Check the environment again.",
       "model_required": "An installed, ready local model is required.",
+      "backend_preview_loading": "Resolving the execution backend for the selected model.",
+      "backend_preview_unavailable": "The execution backend for the selected model could not be verified. Check the local environment again.",
       "file_required": "Select one audio or video file.",
       "output_directory_required": "Select a custom output folder.",
       "task_active": "A new task can start after the current task finishes or is cancelled."

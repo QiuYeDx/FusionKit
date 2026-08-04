@@ -110,6 +110,8 @@ describe("local subtitle transcriber page model", () => {
       runtimeSyncStatus: "ready" as const,
       readyModels: [model],
       selectedModelId: model.resourceId,
+      backendPreviewStatus: "ready" as const,
+      backendPreviewModelId: model.resourceId,
       selectedFile: file,
       outputMode: "source" as const,
       outputDirectory: null,
@@ -123,6 +125,31 @@ describe("local subtitle transcriber page model", () => {
     expect(
       deriveLocalSubtitleStartIssue({ ...ready, selectedModelId: "missing" }),
     ).toBe("model_required");
+    expect(
+      deriveLocalSubtitleStartIssue({
+        ...ready,
+        backendPreviewStatus: "loading",
+      }),
+    ).toBe("backend_preview_loading");
+    expect(
+      deriveLocalSubtitleStartIssue({
+        ...ready,
+        backendPreviewStatus: "error",
+      }),
+    ).toBe("backend_preview_unavailable");
+    expect(
+      deriveLocalSubtitleStartIssue({
+        ...ready,
+        backendPreviewModelId: "another-model",
+      }),
+    ).toBe("backend_preview_loading");
+    expect(
+      deriveLocalSubtitleStartIssue({
+        ...ready,
+        backendPreviewStatus: "error",
+        taskActive: true,
+      }),
+    ).toBe("task_active");
     expect(
       deriveLocalSubtitleStartIssue({ ...ready, selectedFile: null }),
     ).toBe("file_required");

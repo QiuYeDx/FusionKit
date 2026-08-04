@@ -243,7 +243,8 @@
       "ffmpeg": "FFmpeg",
       "not_ready": "未就绪",
       "backends": "后端探测",
-      "execution_profile": "自动解析目标：{{backend}}",
+      "execution_profile": "{{preference}} -> {{backend}} · {{version}}",
+      "resolving_backend": "正在解析执行后端",
       "no_backend_data": "暂无后端探测数据",
       "backend": {
         "cpu": "CPU",
@@ -326,6 +327,8 @@
       "runtime_unavailable": "本地转写运行时或 CPU 后端当前不可用。",
       "session_unavailable": "任务会话尚未就绪，请重新检查环境。",
       "model_required": "需要一个已安装且可用的本地模型。",
+      "backend_preview_loading": "正在解析当前模型的执行后端。",
+      "backend_preview_unavailable": "无法验证当前模型的执行后端，请重新检查本地环境。",
       "file_required": "请选择一个音频或视频文件。",
       "output_directory_required": "请选择自定义输出目录。",
       "task_active": "当前任务完成或取消后可开始新任务。"

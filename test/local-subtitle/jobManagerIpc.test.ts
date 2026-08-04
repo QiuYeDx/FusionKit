@@ -40,6 +40,60 @@ afterEach(async () => {
 });
 
 describe("local subtitle Job Manager IPC integration", () => {
+  it("previews the main-resolved backend without publishing a batch or leaking proof", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "fusionkit-job-preview-"));
+    tempRoots.push(root);
+    const fixture = createFixture(root);
+
+    const preview = await fixture.service.handlePublic(
+      LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.previewBackend,
+      fixture.event,
+      fixture.envelope({
+        modelId: LOCAL_SUBTITLE_PRODUCTION_CONTRACT.launchModel.id,
+        devicePreference: "auto",
+      }),
+    );
+    expect(preview).toEqual({
+      ok: true,
+      data: {
+        devicePreference: "auto",
+        resolvedBackend: "cpu",
+        modelId: LOCAL_SUBTITLE_PRODUCTION_CONTRACT.launchModel.id,
+        serverArtifactId: "whisper-server-cpu",
+        serverVersion: "1.9.1+b1ade71",
+      },
+    });
+    const publicPreview = JSON.stringify(preview);
+    expect(publicPreview).not.toContain(root);
+    expect(publicPreview).not.toContain("runtimeGeneration");
+    expect(publicPreview).not.toContain("sha256");
+
+    await expect(
+      fixture.service.handlePublic(
+        LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.getSessionSnapshot,
+        fixture.event,
+        fixture.envelope({}),
+      ),
+    ).resolves.toMatchObject({
+      ok: true,
+      data: { revision: 0, batches: [], resourceJobs: [] },
+    });
+
+    await expect(
+      fixture.service.handlePublic(
+        LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.previewBackend,
+        fixture.event,
+        fixture.envelope({
+          modelId: LOCAL_SUBTITLE_PRODUCTION_CONTRACT.launchModel.id,
+          devicePreference: "metal",
+        }),
+      ),
+    ).resolves.toMatchObject({
+      ok: false,
+      error: { code: "backend_unverified", stage: "preflight" },
+    });
+  });
+
   it("replaces task placeholders and forwards task events before snapshot", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "fusionkit-job-ipc-"));
     tempRoots.push(root);

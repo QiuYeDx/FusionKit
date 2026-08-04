@@ -3091,6 +3091,35 @@ describe("LocalSubtitleJobManager", () => {
     });
   });
 
+  it("aborts a pending backend preview and keeps owner idle fenced until it settles", async () => {
+    const modelResolution = deferred<void>();
+    const harness = await createHarness({
+      executor: executor(async (context) => successfulExecution(context)),
+      modelResolutionGate: modelResolution.promise,
+    });
+    const preview = harness.manager.previewBackend(OWNER_A, {
+      modelId: LOCAL_SUBTITLE_PRODUCTION_CONTRACT.launchModel.id,
+      devicePreference: "auto",
+    });
+    await waitFor(() => harness.modelResolver.resolveManagedModel.mock.calls.length === 1);
+    let ownerIdle = false;
+    void harness.manager.waitForOwnerIdle(OWNER_A).then(() => {
+      ownerIdle = true;
+    });
+
+    harness.manager.releaseOwner(OWNER_A);
+    await Promise.resolve();
+    expect(ownerIdle).toBe(false);
+    modelResolution.resolve();
+
+    await expect(preview).rejects.toMatchObject({
+      localSubtitleCode: "owner_released",
+      stage: "cleanup",
+    });
+    await harness.manager.waitForOwnerIdle(OWNER_A);
+    expect(ownerIdle).toBe(true);
+  });
+
   it("fences late executor completion on owner release", async () => {
     const completion = deferred<void>();
     const harness = await createHarness({

@@ -243,7 +243,8 @@
       "ffmpeg": "FFmpeg",
       "not_ready": "尚未就緒",
       "backends": "後端探測",
-      "execution_profile": "自動解析目標：{{backend}}",
+      "execution_profile": "{{preference}} -> {{backend}} · {{version}}",
+      "resolving_backend": "正在解析執行後端",
       "no_backend_data": "暫無後端探測資料",
       "backend": {
         "cpu": "CPU",
@@ -326,6 +327,8 @@
       "runtime_unavailable": "本機轉寫執行環境或 CPU 後端目前不可用。",
       "session_unavailable": "任務工作階段尚未就緒，請重新檢查環境。",
       "model_required": "需要一個已安裝且可用的本機模型。",
+      "backend_preview_loading": "正在解析目前模型的執行後端。",
+      "backend_preview_unavailable": "無法驗證目前模型的執行後端，請重新檢查本機環境。",
       "file_required": "請選擇一個音訊或影片檔案。",
       "output_directory_required": "請選擇自訂輸出目錄。",
       "task_active": "目前任務完成或取消後可開始新任務。"

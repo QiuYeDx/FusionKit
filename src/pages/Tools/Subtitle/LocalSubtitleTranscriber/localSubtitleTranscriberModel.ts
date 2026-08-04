@@ -26,6 +26,8 @@ export type LocalSubtitleStartIssue =
   | "runtime_unavailable"
   | "session_unavailable"
   | "model_required"
+  | "backend_preview_loading"
+  | "backend_preview_unavailable"
   | "file_required"
   | "output_directory_required"
   | "task_active";
@@ -37,6 +39,8 @@ export interface LocalSubtitleStartReadinessInput {
   readonly runtimeSyncStatus: LocalSubtitleRuntimeSyncStatus;
   readonly readyModels: readonly LocalSubtitleManagedResourceSummary[];
   readonly selectedModelId: string | null;
+  readonly backendPreviewStatus: "idle" | "loading" | "ready" | "error";
+  readonly backendPreviewModelId: string | null;
   readonly selectedFile: LocalSubtitleAuthorizedMedia | null;
   readonly outputMode: "source" | "custom";
   readonly outputDirectory: ActiveOutputDirectory | null;
@@ -113,6 +117,16 @@ export function deriveLocalSubtitleStartIssue(
     return "model_required";
   }
   if (input.taskActive) return "task_active";
+  if (
+    input.backendPreviewStatus === "idle" ||
+    input.backendPreviewStatus === "loading" ||
+    input.backendPreviewModelId !== input.selectedModelId
+  ) {
+    return "backend_preview_loading";
+  }
+  if (input.backendPreviewStatus === "error") {
+    return "backend_preview_unavailable";
+  }
   if (!input.selectedFile) return "file_required";
   if (input.outputMode === "custom" && !input.outputDirectory) {
     return "output_directory_required";
