@@ -69,6 +69,74 @@ describe("LocalSubtitleBackendResolver", () => {
     },
   );
 
+  it.each(["auto", "metal"] as const)(
+    "admits an exact macOS Metal artifact for %s when production attestation is available",
+    async (devicePreference) => {
+      const runtime = fakeRuntime();
+      const resolution = await new LocalSubtitleBackendResolver({
+        verifyServerRuntime: async () => runtime,
+        metalAttestationAvailable: true,
+        selectCpuServerArtifact: selectCpuArtifact,
+        selectMetalServerArtifact: selectCpuArtifact,
+      }).resolveBackend({
+        devicePreference,
+        admittedRuntimeGeneration: RUNTIME_GENERATION,
+        model: MODEL,
+      });
+
+      expect(resolution).toMatchObject({
+        devicePreference,
+        resolvedBackend: "metal",
+        target: { platform: "darwin", arch: "arm64" },
+        serverArtifact: { backend: "metal_cpu" },
+      });
+      expect(matchesLocalSubtitleBackendResolutionRuntime(resolution, runtime)).toBe(
+        true,
+      );
+    },
+  );
+
+  it("keeps explicit CPU on the shared Metal/CPU artifact", async () => {
+    const runtime = fakeRuntime();
+    const resolution = await new LocalSubtitleBackendResolver({
+      verifyServerRuntime: async () => runtime,
+      metalAttestationAvailable: true,
+      selectCpuServerArtifact: selectCpuArtifact,
+      selectMetalServerArtifact: selectCpuArtifact,
+    }).resolveBackend({
+      devicePreference: "cpu",
+      admittedRuntimeGeneration: RUNTIME_GENERATION,
+      model: MODEL,
+    });
+
+    expect(resolution.resolvedBackend).toBe("cpu");
+  });
+
+  it("does not admit Metal on a Windows runtime", async () => {
+    const runtime = fakeWindowsRuntime();
+    const backendResolver = new LocalSubtitleBackendResolver({
+      verifyServerRuntime: async () => runtime,
+      metalAttestationAvailable: true,
+      selectCpuServerArtifact: selectCpuArtifact,
+      selectMetalServerArtifact: selectCpuArtifact,
+    });
+
+    await expect(
+      backendResolver.resolveBackend({
+        devicePreference: "metal",
+        admittedRuntimeGeneration: RUNTIME_GENERATION,
+        model: MODEL,
+      }),
+    ).rejects.toMatchObject({ localSubtitleCode: "backend_unverified" });
+    await expect(
+      backendResolver.resolveBackend({
+        devicePreference: "auto",
+        admittedRuntimeGeneration: RUNTIME_GENERATION,
+        model: MODEL,
+      }),
+    ).resolves.toMatchObject({ resolvedBackend: "cpu" });
+  });
+
   it("rejects a runtime generation change during admission", async () => {
     await expect(
       resolver(fakeRuntime("c".repeat(64))).resolveBackend({
@@ -143,5 +211,22 @@ function fakeRuntime(
     evidenceFileCount: 1,
     noPathFallback: true as const,
     ready: true as const,
+  }) as LocalSubtitleVerifiedRuntimeBundle;
+}
+
+function fakeWindowsRuntime(): LocalSubtitleVerifiedRuntimeBundle {
+  const runtime = fakeRuntime();
+  return Object.freeze({
+    ...runtime,
+    target: Object.freeze({ platform: "win32" as const, arch: "x64" as const }),
+    integrityProfile: "development" as const,
+    artifactPaths: Object.freeze({
+      "whisper-server-cpu": Object.freeze({
+        ...runtime.artifactPaths["whisper-server-cpu"]!,
+        backend: "cpu" as const,
+        absolutePath: path.join("/runtime", "whisper-server.exe"),
+        signatureKind: "unsigned" as const,
+      }),
+    }),
   }) as LocalSubtitleVerifiedRuntimeBundle;
 }

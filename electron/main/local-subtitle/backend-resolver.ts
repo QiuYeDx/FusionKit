@@ -73,7 +73,11 @@ export interface ResolveLocalSubtitleBackendOptions {
 export interface LocalSubtitleBackendResolverOptions {
   readonly runtimeEnvironment?: LocalSubtitleResourceEnvironment;
   readonly verifyServerRuntime?: () => Promise<LocalSubtitleVerifiedRuntimeBundle>;
+  readonly metalAttestationAvailable?: boolean;
   readonly selectCpuServerArtifact?: (
+    runtime: LocalSubtitleVerifiedRuntimeBundle,
+  ) => LocalSubtitleVerifiedRuntimeArtifact;
+  readonly selectMetalServerArtifact?: (
     runtime: LocalSubtitleVerifiedRuntimeBundle,
   ) => LocalSubtitleVerifiedRuntimeArtifact;
 }
@@ -83,6 +87,10 @@ export class LocalSubtitleBackendResolver {
   readonly #selectCpuServerArtifact: (
     runtime: LocalSubtitleVerifiedRuntimeBundle,
   ) => LocalSubtitleVerifiedRuntimeArtifact;
+  readonly #selectMetalServerArtifact: (
+    runtime: LocalSubtitleVerifiedRuntimeBundle,
+  ) => LocalSubtitleVerifiedRuntimeArtifact;
+  readonly #metalAttestationAvailable: boolean;
 
   constructor(options: LocalSubtitleBackendResolverOptions) {
     if (!options?.verifyServerRuntime && !options?.runtimeEnvironment) {
@@ -93,6 +101,18 @@ export class LocalSubtitleBackendResolver {
       typeof options.selectCpuServerArtifact !== "function"
     ) {
       throw new TypeError("The local subtitle backend artifact selector is invalid.");
+    }
+    if (
+      options.selectMetalServerArtifact !== undefined &&
+      typeof options.selectMetalServerArtifact !== "function"
+    ) {
+      throw new TypeError("The local subtitle Metal artifact selector is invalid.");
+    }
+    if (
+      options.metalAttestationAvailable !== undefined &&
+      typeof options.metalAttestationAvailable !== "boolean"
+    ) {
+      throw new TypeError("The local subtitle Metal attestation capability is invalid.");
     }
     this.#verifyServerRuntime = options.verifyServerRuntime ?? (() =>
       verifyLocalSubtitleRuntimeBundle({
@@ -105,6 +125,9 @@ export class LocalSubtitleBackendResolver {
           runtime,
           selectLocalSubtitleCpuServerArtifactId(runtime),
         ));
+    this.#selectMetalServerArtifact = options.selectMetalServerArtifact ??
+      this.#selectCpuServerArtifact;
+    this.#metalAttestationAvailable = options.metalAttestationAvailable === true;
   }
 
   async resolveBackend(
@@ -113,15 +136,19 @@ export class LocalSubtitleBackendResolver {
     assertResolutionRequest(options);
     throwIfAborted(options.signal);
 
-    // GPU admission remains closed until production has an identity-bound,
-    // deadline-bounded backend attestor. Explicit GPU requests never fall back.
-    if (
-      options.devicePreference === "cuda" ||
-      options.devicePreference === "metal"
-    ) {
+    if (options.devicePreference === "cuda") {
       throw new LocalSubtitleBackendResolverError(
         "backend_unverified",
         "The selected local subtitle GPU backend does not have a production attestation path.",
+      );
+    }
+    if (
+      options.devicePreference === "metal" &&
+      !this.#metalAttestationAvailable
+    ) {
+      throw new LocalSubtitleBackendResolverError(
+        "backend_unverified",
+        "The selected local subtitle Metal backend does not have a production attestation path.",
       );
     }
 
@@ -136,12 +163,27 @@ export class LocalSubtitleBackendResolver {
         "The local subtitle runtime changed during backend resolution.",
       );
     }
-    const artifact = this.#selectCpuServerArtifact(runtime);
-    assertCpuServerArtifact(artifact);
+    const metalAdmitted =
+      this.#metalAttestationAvailable &&
+      runtime.target.platform === "darwin" &&
+      runtime.target.arch === "arm64";
+    if (options.devicePreference === "metal" && !metalAdmitted) {
+      throw new LocalSubtitleBackendResolverError(
+        "backend_unverified",
+        "The selected local subtitle Metal backend does not have a production attestation path.",
+      );
+    }
+    const resolvedBackend =
+      options.devicePreference !== "cpu" && metalAdmitted ? "metal" : "cpu";
+    const artifact = resolvedBackend === "metal"
+      ? this.#selectMetalServerArtifact(runtime)
+      : this.#selectCpuServerArtifact(runtime);
+    if (resolvedBackend === "metal") assertMetalServerArtifact(runtime, artifact);
+    else assertCpuServerArtifact(artifact);
 
     const resolution = {
       devicePreference: options.devicePreference,
-      resolvedBackend: "cpu" as const,
+      resolvedBackend,
       model: Object.freeze({
         id: options.model.id,
         sha256: options.model.sha256,
@@ -250,6 +292,27 @@ function assertCpuServerArtifact(
     throw new LocalSubtitleBackendResolverError(
       "runtime_protocol_mismatch",
       "The verified runtime did not provide one CPU-capable server artifact.",
+    );
+  }
+}
+
+function assertMetalServerArtifact(
+  runtime: LocalSubtitleVerifiedRuntimeBundle,
+  artifact: LocalSubtitleVerifiedRuntimeArtifact,
+): void {
+  if (
+    runtime.target.platform !== "darwin" ||
+    runtime.target.arch !== "arm64" ||
+    !artifact ||
+    artifact.kind !== "server" ||
+    artifact.backend !== "metal_cpu" ||
+    !SHA256_PATTERN.test(artifact.sha256) ||
+    typeof artifact.absolutePath !== "string" ||
+    artifact.absolutePath.length === 0
+  ) {
+    throw new LocalSubtitleBackendResolverError(
+      "runtime_protocol_mismatch",
+      "The verified runtime did not provide the production Metal server artifact.",
     );
   }
 }

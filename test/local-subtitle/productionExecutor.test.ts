@@ -142,6 +142,24 @@ describe("local subtitle production executor", () => {
     }
   });
 
+  it("consumes a verified Metal resolution in the queue-admission runtime pin", async () => {
+    const harness = await createHarness({ backend: "metal" });
+
+    await expect(harness.executor.execute(harness.context)).resolves.toMatchObject({
+      status: "completed",
+    });
+    expect(harness.context.config).toMatchObject({
+      devicePreference: "auto",
+      resolvedBackend: "metal",
+    });
+    expect(harness.supervisor.acquireBatchRuntimePin).toHaveBeenCalledOnce();
+    expect(harness.supervisor.acquireBatchRuntimePin.mock.calls[0]?.[2]).toMatchObject({
+      purpose: "inference",
+      backend: "metal",
+      serverArtifactId: "whisper-server-cpu",
+    });
+  });
+
   it("exports an LRC-only artifact through the production pipeline", async () => {
     const harness = await createHarness({ formats: ["LRC"] });
 
@@ -1089,6 +1107,7 @@ describe("local subtitle production executor", () => {
 });
 
 interface HarnessOptions {
+  readonly backend?: "cpu" | "metal";
   readonly totalFrames?: number;
   readonly displayName?: string;
   readonly brandNormalizationId?: string;
@@ -1324,6 +1343,7 @@ async function createHarness(options: HarnessOptions = {}) {
     options.outputMode ?? "custom",
     options.conflictPolicy ?? "index",
     options.formats ?? ["SRT"],
+    options.backend ?? "cpu",
   );
   const managedModel = Object.freeze({
     storage: "managed" as const,
@@ -1338,6 +1358,9 @@ async function createHarness(options: HarnessOptions = {}) {
       fakeVerifiedServerRuntime(root, admittedRuntimeGeneration),
     selectCpuServerArtifact: (runtime) =>
       runtime.artifactPaths["whisper-server-cpu"]!,
+    selectMetalServerArtifact: (runtime) =>
+      runtime.artifactPaths["whisper-server-cpu"]!,
+    metalAttestationAvailable: options.backend === "metal",
   }).resolveBackend({
     devicePreference: config.devicePreference,
     admittedRuntimeGeneration,
@@ -1397,7 +1420,7 @@ function fakeVerifiedServerRuntime(
       "whisper-server-cpu": {
         id: "whisper-server-cpu",
         kind: "server" as const,
-        backend: "cpu" as const,
+        backend: "metal_cpu" as const,
         absolutePath: serverAbsolutePath,
         byteSize: 1024,
         sha256: "d".repeat(64),
@@ -1444,6 +1467,7 @@ function createConfig(
   outputMode: "custom" | "source" = "custom",
   conflictPolicy: "index" | "overwrite" = "index",
   formats: readonly LocalSubtitleFormat[] = ["SRT"],
+  resolvedBackend: "cpu" | "metal" = "cpu",
 ): LocalSubtitleBatchConfigSnapshot {
   return createLocalSubtitleBatchConfigSnapshot({
     schemaVersion: LOCAL_SUBTITLE_DOMAIN_SCHEMA_VERSION,
@@ -1459,7 +1483,7 @@ function createConfig(
       modelHash: MODEL_HASH,
     },
     devicePreference: "auto",
-    resolvedBackend: "cpu",
+    resolvedBackend,
     language: "auto",
     taskMode: "transcribe",
     inference: {

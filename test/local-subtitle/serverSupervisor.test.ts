@@ -27,6 +27,7 @@ import {
   type LocalSubtitleServerSupervisorLoadOptions,
   type LocalSubtitleServerVadLoadSmokeOptions,
 } from "../../electron/main/local-subtitle/server-supervisor";
+import { createLocalSubtitleProductionBackendAttestor } from "../../electron/main/local-subtitle/backend-attestor";
 import {
   verifyLocalSubtitleRuntimeBundle,
   type LocalSubtitleVerifiedRuntimeBundle,
@@ -1376,6 +1377,139 @@ describe("LocalSubtitleServerSupervisor", () => {
       mismatch.supervisor.acquire(OWNER_B, loadOptions({ backend: "metal" })),
     ).rejects.toMatchObject({ code: "backend_mismatch" });
     expect(mismatch.spawnRecords).toHaveLength(1);
+  });
+
+  it("attests Metal from bounded opaque evidence bound to the exact child epoch", async () => {
+    const child = new FakeChild();
+    const client = new FakeHttpClient({
+      readiness: [async () => {
+        child.stderr.write("ggml_meta");
+        child.stderr.write("l_init: loading kernels\nfound device: Apple GPU\n");
+        return HEALTHY;
+      }],
+    });
+    const attestor = createLocalSubtitleProductionBackendAttestor({
+      platform: "darwin",
+      arch: "arm64",
+      metalEvidenceGraceMs: 25,
+    });
+    let evidenceKeys: string[] | undefined;
+    const harness = createHarness({
+      children: [child],
+      clients: [client],
+      verifyBackend: async (context) => {
+        evidenceKeys = Object.keys(context.evidence);
+        return attestor.verifyBackend(context);
+      },
+    });
+
+    await expect(
+      harness.supervisor.acquire(OWNER_A, loadOptions({ backend: "metal" })),
+    ).resolves.toBeDefined();
+    expect(evidenceKeys).toEqual([]);
+    expect(harness.supervisor.snapshot).toMatchObject({
+      state: "ready",
+      processEpoch: 1,
+      processId: child.pid,
+      backend: "metal",
+      runtimeGeneration: verifiedRuntime.runtimeGeneration,
+      serverArtifactId: SERVER_ARTIFACT_ID,
+    });
+    expect(harness.spawnRecords[0]?.args).not.toContain("--no-gpu");
+  });
+
+  it.each([
+    ["missing device evidence", "ggml_metal_init: loading kernels\n"],
+    [
+      "an initialization failure",
+      "ggml_metal_init: found device: Apple GPU\n" +
+        "ggml_metal_init: error: could not create command queue\n",
+    ],
+  ])(
+    "rejects Metal production attestation with %s",
+    async (_label, diagnostics) => {
+      const child = new FakeChild();
+      const client = new FakeHttpClient({
+        readiness: [async () => {
+          child.stderr.write(diagnostics);
+          return HEALTHY;
+        }],
+      });
+      const attestor = createLocalSubtitleProductionBackendAttestor({
+        platform: "darwin",
+        arch: "arm64",
+        metalEvidenceGraceMs: 10,
+      });
+      const harness = createHarness({
+        children: [child],
+        clients: [client],
+        verifyBackend: attestor.verifyBackend,
+      });
+
+      await expect(
+        harness.supervisor.acquire(OWNER_A, loadOptions({ backend: "metal" })),
+      ).rejects.toMatchObject({ code: "backend_unverified", processEpoch: 1 });
+      expect(child.killSignals).toEqual(["SIGTERM"]);
+    },
+  );
+
+  it("rejects a Metal failure marker that arrives after positive startup markers", async () => {
+    const child = new FakeChild();
+    const client = new FakeHttpClient({
+      readiness: [async () => {
+        child.stderr.write(
+          "ggml_metal_init: loading kernels\nfound device: Apple GPU\n",
+        );
+        setTimeout(() => {
+          child.stderr.write(
+            "ggml_metal_init: error: late command queue failure\n",
+          );
+        }, 0);
+        return HEALTHY;
+      }],
+    });
+    const attestor = createLocalSubtitleProductionBackendAttestor({
+      platform: "darwin",
+      arch: "arm64",
+      metalEvidenceGraceMs: 25,
+    });
+    const harness = createHarness({
+      children: [child],
+      clients: [client],
+      verifyBackend: attestor.verifyBackend,
+    });
+
+    await expect(
+      harness.supervisor.acquire(OWNER_A, loadOptions({ backend: "metal" })),
+    ).rejects.toMatchObject({ code: "backend_unverified" });
+    expect(child.killSignals).toEqual(["SIGTERM"]);
+  });
+
+  it("rejects Metal evidence when the production attestor target is unsupported", async () => {
+    const child = new FakeChild();
+    const client = new FakeHttpClient({
+      readiness: [async () => {
+        child.stderr.write(
+          "ggml_metal_init: loading kernels\nfound device: Apple GPU\n",
+        );
+        return HEALTHY;
+      }],
+    });
+    const attestor = createLocalSubtitleProductionBackendAttestor({
+      platform: "win32",
+      arch: "x64",
+      metalEvidenceGraceMs: 10,
+    });
+    const harness = createHarness({
+      children: [child],
+      clients: [client],
+      verifyBackend: attestor.verifyBackend,
+    });
+
+    expect(attestor.supportedBackends).toEqual([]);
+    await expect(
+      harness.supervisor.acquire(OWNER_A, loadOptions({ backend: "metal" })),
+    ).rejects.toMatchObject({ code: "backend_unverified" });
   });
 
   it("aborts a GPU attestation probe at the startup deadline", async () => {

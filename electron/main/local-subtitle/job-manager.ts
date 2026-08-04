@@ -2190,7 +2190,14 @@ function assertBackendResolution(
   if (
     !isLocalSubtitleVerifiedBackendResolution(resolution) ||
     resolution.devicePreference !== devicePreference ||
-    resolution.resolvedBackend !== "cpu" ||
+    (resolution.resolvedBackend !== "cpu" &&
+      resolution.resolvedBackend !== "metal") ||
+    (resolution.resolvedBackend === "metal" &&
+      devicePreference !== "auto" &&
+      devicePreference !== "metal") ||
+    (resolution.resolvedBackend === "cpu" &&
+      devicePreference !== "auto" &&
+      devicePreference !== "cpu") ||
     resolution.runtimeGeneration !== runtimeGeneration ||
     resolution.model.id !== model.id ||
     resolution.model.sha256 !== model.sha256

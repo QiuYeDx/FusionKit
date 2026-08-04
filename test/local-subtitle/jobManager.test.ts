@@ -3120,6 +3120,47 @@ describe("LocalSubtitleJobManager", () => {
     expect(ownerIdle).toBe(true);
   });
 
+  it("publishes a path-free Metal preview only from an admitted main proof", async () => {
+    const runtime = fakeVerifiedServerRuntime(
+      path.join(os.tmpdir(), "fusionkit-metal-preview"),
+      "a".repeat(64),
+    );
+    const metalRuntime = Object.freeze({
+      ...runtime,
+      artifactPaths: Object.freeze({
+        "whisper-server-cpu": Object.freeze({
+          ...runtime.artifactPaths["whisper-server-cpu"]!,
+          backend: "metal_cpu" as const,
+          signatureKind: "adhoc" as const,
+        }),
+      }),
+    }) as LocalSubtitleVerifiedRuntimeBundle;
+    const harness = await createHarness({
+      executor: executor(async (context) => successfulExecution(context)),
+      backendResolver: new LocalSubtitleBackendResolver({
+        verifyServerRuntime: async () => metalRuntime,
+        metalAttestationAvailable: true,
+        selectCpuServerArtifact: (verified) =>
+          verified.artifactPaths["whisper-server-cpu"]!,
+        selectMetalServerArtifact: (verified) =>
+          verified.artifactPaths["whisper-server-cpu"]!,
+      }),
+    });
+
+    await expect(
+      harness.manager.previewBackend(OWNER_A, {
+        modelId: LOCAL_SUBTITLE_PRODUCTION_CONTRACT.launchModel.id,
+        devicePreference: "auto",
+      }),
+    ).resolves.toEqual({
+      devicePreference: "auto",
+      resolvedBackend: "metal",
+      modelId: LOCAL_SUBTITLE_PRODUCTION_CONTRACT.launchModel.id,
+      serverArtifactId: "whisper-server-cpu",
+      serverVersion: "1.9.1+b1ade71",
+    });
+  });
+
   it("fences late executor completion on owner release", async () => {
     const completion = deferred<void>();
     const harness = await createHarness({

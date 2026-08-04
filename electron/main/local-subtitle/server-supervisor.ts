@@ -56,6 +56,14 @@ const REQUEST_TICKET_BRAND: unique symbol = Symbol(
 const OWNER_SESSION_ID_PATTERN = /^[A-Za-z0-9._:-]+$/u;
 const SAFE_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]*$/u;
 const MAX_ABSOLUTE_PATH_CHARS = 32_768;
+const MAX_BACKEND_EVIDENCE_BYTES_PER_STREAM = 64 * 1024;
+const BACKEND_EVIDENCE_BRAND: unique symbol = Symbol(
+  "fusionkit.local-subtitle.server-backend-evidence",
+);
+const BACKEND_EVIDENCE_RECORDS = new WeakMap<
+  LocalSubtitleServerBackendEvidence,
+  BackendEvidenceRecord
+>();
 
 export const LOCAL_SUBTITLE_SERVER_SUPERVISOR_POLICY = Object.freeze({
   startupTimeoutMs: LOCAL_SUBTITLE_SERVER_HTTP_POLICY.startupTimeoutMs,
@@ -198,6 +206,20 @@ export interface LocalSubtitleServerBackendAttestation {
   readonly serverArtifactId: string;
 }
 
+export interface LocalSubtitleServerBackendEvidence {
+  readonly [BACKEND_EVIDENCE_BRAND]: true;
+}
+
+export interface LocalSubtitleServerBackendAttestationContext {
+  readonly processEpoch: number;
+  readonly processId: number;
+  readonly backend: Exclude<LocalSubtitleBackend, "cpu">;
+  readonly runtimeGeneration: string;
+  readonly serverArtifactId: string;
+  readonly evidence: LocalSubtitleServerBackendEvidence;
+  readonly signal: AbortSignal;
+}
+
 export interface LocalSubtitleLoopbackPortReservation {
   readonly port: number;
   release(): Promise<void>;
@@ -233,14 +255,7 @@ export interface LocalSubtitleServerSupervisorDependencies {
     session: LocalSubtitleServerSession,
   ) => Promise<{ readonly removed: boolean }>;
   readonly verifyBackend?: (
-    context: Readonly<{
-      processEpoch: number;
-      processId: number;
-      backend: Exclude<LocalSubtitleBackend, "cpu">;
-      runtimeGeneration: string;
-      serverArtifactId: string;
-      signal: AbortSignal;
-    }>,
+    context: Readonly<LocalSubtitleServerBackendAttestationContext>,
   ) => Promise<LocalSubtitleServerBackendAttestation>;
   readonly now?: () => number;
   readonly delay?: (milliseconds: number, signal?: AbortSignal) => Promise<void>;
@@ -308,6 +323,7 @@ interface ServerProcessEpoch {
   readonly child: ChildProcess;
   readonly client: LocalSubtitleServerHttpClientLike;
   readonly diagnostics: LocalSubtitleServerDiagnosticCollector;
+  readonly backendEvidence: LocalSubtitleServerBackendEvidence;
   readonly closePromise: Promise<ChildCloseInfo>;
   readonly detachDiagnostics: () => void;
   state: "starting" | "ready" | "tainted" | "stopping" | "closed" | "faulted";
@@ -316,6 +332,20 @@ interface ServerProcessEpoch {
   finalizePromise?: Promise<void>;
   requestCount: number;
   backendVerified: boolean;
+}
+
+interface BackendEvidenceRecord {
+  readonly processEpoch: number;
+  readonly processId: number;
+  readonly backend: LocalSubtitleBackend;
+  readonly runtimeGeneration: string;
+  readonly serverArtifactId: string;
+  readonly watchers: Set<() => void>;
+  readonly retained: Record<"stdout" | "stderr", Buffer>;
+  initializationObserved: boolean;
+  deviceObserved: boolean;
+  failureObserved: boolean;
+  disposed: boolean;
 }
 
 export class LocalSubtitleServerSupervisor {
@@ -1314,6 +1344,7 @@ export class LocalSubtitleServerSupervisor {
       backend,
       runtimeGeneration: epoch.loadIdentity.runtimeGeneration,
       serverArtifactId: epoch.loadIdentity.serverArtifact.id,
+      evidence: epoch.backendEvidence,
       signal: attestationController.signal,
     } as const;
     let attestation: LocalSubtitleServerBackendAttestation;
@@ -1825,19 +1856,26 @@ function createEpoch(options: {
   const closePromise = new Promise<ChildCloseInfo>((resolve) => {
     resolveClose = resolve;
   });
-  const onStdout = (chunk: Buffer | string) =>
+  const backendEvidence = createBackendEvidence(options);
+  const onStdout = (chunk: Buffer | string) => {
     options.diagnostics.append("stdout", toDiagnosticBytes(chunk));
-  const onStderr = (chunk: Buffer | string) =>
+    appendBackendEvidence(backendEvidence, "stdout", chunk);
+  };
+  const onStderr = (chunk: Buffer | string) => {
     options.diagnostics.append("stderr", toDiagnosticBytes(chunk));
+    appendBackendEvidence(backendEvidence, "stderr", chunk);
+  };
   options.child.stdout?.on("data", onStdout);
   options.child.stderr?.on("data", onStderr);
 
   const epoch: ServerProcessEpoch = {
     ...options,
+    backendEvidence,
     closePromise,
     detachDiagnostics: () => {
       options.child.stdout?.removeListener("data", onStdout);
       options.child.stderr?.removeListener("data", onStderr);
+      disposeBackendEvidence(backendEvidence);
     },
     state: "starting",
     requestCount: 0,
@@ -1889,6 +1927,153 @@ function createRequestTicket(): LocalSubtitleServerRequestTicket {
     writable: false,
   });
   return Object.freeze(ticket) as LocalSubtitleServerRequestTicket;
+}
+
+export function waitForLocalSubtitleMetalBackendEvidence(
+  evidence: LocalSubtitleServerBackendEvidence,
+  expected: Readonly<{
+    processEpoch: number;
+    processId: number;
+    runtimeGeneration: string;
+    serverArtifactId: string;
+  }>,
+  signal: AbortSignal,
+  timeoutMs: number,
+): Promise<void> {
+  const record = BACKEND_EVIDENCE_RECORDS.get(evidence);
+  if (
+    !record ||
+    record.backend !== "metal" ||
+    record.processEpoch !== expected.processEpoch ||
+    record.processId !== expected.processId ||
+    record.runtimeGeneration !== expected.runtimeGeneration ||
+    record.serverArtifactId !== expected.serverArtifactId ||
+    !Number.isSafeInteger(timeoutMs) ||
+    timeoutMs < 1
+  ) {
+    return Promise.reject(
+      new Error("The Metal backend evidence identity is invalid."),
+    );
+  }
+  if (record.failureObserved || record.disposed) {
+    return Promise.reject(
+      new Error("The Metal backend evidence did not verify."),
+    );
+  }
+  return new Promise<void>((resolve, reject) => {
+    let settled = false;
+    let timeout: NodeJS.Timeout | undefined;
+    const finish = (operation: () => void) => {
+      if (settled) return;
+      settled = true;
+      if (timeout) clearTimeout(timeout);
+      record.watchers.delete(observe);
+      signal.removeEventListener("abort", onAbort);
+      operation();
+    };
+    const observe = () => {
+      if (record.failureObserved || record.disposed) {
+        finish(() =>
+          reject(new Error("The Metal backend evidence did not verify.")),
+        );
+      }
+    };
+    const onAbort = () =>
+      finish(() =>
+        reject(signal.reason ?? new DOMException("Aborted", "AbortError")),
+      );
+
+    if (signal.aborted) {
+      onAbort();
+      return;
+    }
+    record.watchers.add(observe);
+    signal.addEventListener("abort", onAbort, { once: true });
+    timeout = setTimeout(() => {
+      if (record.initializationObserved && record.deviceObserved) {
+        finish(resolve);
+      } else {
+        finish(() => reject(new Error("The Metal backend evidence timed out.")));
+      }
+    }, timeoutMs);
+    timeout.unref?.();
+    observe();
+  });
+}
+
+function createBackendEvidence(options: {
+  readonly processEpoch: number;
+  readonly loadIdentity: LocalSubtitleServerLoadIdentity;
+  readonly child: ChildProcess;
+}): LocalSubtitleServerBackendEvidence {
+  const evidence = Object.create(null) as LocalSubtitleServerBackendEvidence;
+  Object.defineProperty(evidence, BACKEND_EVIDENCE_BRAND, {
+    value: true,
+    enumerable: false,
+    configurable: false,
+    writable: false,
+  });
+  Object.freeze(evidence);
+  BACKEND_EVIDENCE_RECORDS.set(evidence, {
+    processEpoch: options.processEpoch,
+    processId: options.child.pid ?? 0,
+    backend: options.loadIdentity.backend,
+    runtimeGeneration: options.loadIdentity.runtimeGeneration,
+    serverArtifactId: options.loadIdentity.serverArtifact.id,
+    watchers: new Set(),
+    retained: {
+      stdout: Buffer.alloc(0),
+      stderr: Buffer.alloc(0),
+    },
+    initializationObserved: false,
+    deviceObserved: false,
+    failureObserved: false,
+    disposed: false,
+  });
+  return evidence;
+}
+
+function appendBackendEvidence(
+  evidence: LocalSubtitleServerBackendEvidence,
+  stream: "stdout" | "stderr",
+  value: Buffer | string,
+): void {
+  const record = BACKEND_EVIDENCE_RECORDS.get(evidence);
+  if (!record || record.disposed || record.backend !== "metal") return;
+  const bytes = Buffer.isBuffer(value) ? value : Buffer.from(value);
+  const combined = Buffer.concat([record.retained[stream], bytes]);
+  record.retained[stream] = Buffer.from(
+    combined.subarray(-MAX_BACKEND_EVIDENCE_BYTES_PER_STREAM),
+  );
+  const text = record.retained[stream].toString("utf8");
+  record.initializationObserved ||=
+    /(?:ggml_metal_init|ggml_backend_metal_(?:device_)?init)/iu.test(text);
+  record.deviceObserved ||=
+    /(?:found device|GPU name|using Metal backend|Metal device)/iu.test(text);
+  record.failureObserved ||= text.split(/\r?\n/u).some((line) => {
+    const hasMetalContext =
+      /\bggml_(?:backend_)?metal\w*\b/iu.test(line) ||
+      /\bMetal (?:backend|device)\b/iu.test(line);
+    return hasMetalContext && (
+      /\berror\s*:|\b(?:failed|failure|unavailable|unsupported|fatal|nil)\b/iu.test(
+        line,
+      ) ||
+      /(?:\bMetal backend\b[^\n]*\bdisabled\b|\bdisabled\b[^\n]*\bMetal backend\b)/iu.test(
+        line,
+      )
+    );
+  });
+  for (const watcher of [...record.watchers]) watcher();
+}
+
+function disposeBackendEvidence(evidence: LocalSubtitleServerBackendEvidence): void {
+  const record = BACKEND_EVIDENCE_RECORDS.get(evidence);
+  if (!record || record.disposed) return;
+  record.disposed = true;
+  record.retained.stdout = Buffer.alloc(0);
+  record.retained.stderr = Buffer.alloc(0);
+  for (const watcher of [...record.watchers]) watcher();
+  record.watchers.clear();
 }
 
 function isLease(input: unknown): input is LocalSubtitleServerLease {

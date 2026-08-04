@@ -1331,9 +1331,15 @@ function isSupportedBackendResolutionContext(
   return (
     isLocalSubtitleVerifiedBackendResolution(resolution) &&
     (context.config.devicePreference === "auto" ||
-      context.config.devicePreference === "cpu") &&
+      context.config.devicePreference === "cpu" ||
+      context.config.devicePreference === "metal") &&
     resolution.devicePreference === context.config.devicePreference &&
-    resolution.resolvedBackend === "cpu" &&
+    (resolution.resolvedBackend === "cpu" ||
+      resolution.resolvedBackend === "metal") &&
+    (resolution.resolvedBackend !== "metal" ||
+      context.config.devicePreference !== "cpu") &&
+    (resolution.resolvedBackend !== "cpu" ||
+      context.config.devicePreference !== "metal") &&
     resolution.resolvedBackend === context.config.resolvedBackend &&
     resolution.runtimeGeneration === context.admittedRuntimeGeneration &&
     resolution.model.id === context.managedModel.id &&

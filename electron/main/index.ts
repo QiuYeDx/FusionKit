@@ -28,6 +28,9 @@ import {
   LocalSubtitleOutputDirectoryAuthorizationRegistry,
 } from "./local-subtitle/authorizations";
 import { LocalSubtitleBackendResolver } from "./local-subtitle/backend-resolver";
+import {
+  createLocalSubtitleProductionBackendAttestor,
+} from "./local-subtitle/backend-attestor";
 import { LocalSubtitleArtifactRegistry } from "./local-subtitle/subtitle-artifact-registry";
 import { LocalSubtitleExporter } from "./local-subtitle/subtitle-exporter";
 import { LocalSubtitleJobIpcBridge } from "./local-subtitle/job-ipc";
@@ -227,8 +230,13 @@ app.whenReady().then(async () => {
     managedResourceRoot: localSubtitleManagedResourceRoot,
     inputAuthorizations: localSubtitleInputAuthorizations,
   });
+  const localSubtitleBackendAttestor =
+    createLocalSubtitleProductionBackendAttestor();
   const localSubtitleServerSupervisor = new LocalSubtitleServerSupervisor({
     managedResourceRoot: localSubtitleManagedResourceRoot,
+    dependencies: {
+      verifyBackend: localSubtitleBackendAttestor.verifyBackend,
+    },
   });
   const localSubtitleSessionRegistry = new LocalSubtitleSessionRegistry();
   let localSubtitleJobManager: LocalSubtitleJobManager | undefined;
@@ -270,6 +278,8 @@ app.whenReady().then(async () => {
   });
   const localSubtitleBackendResolver = new LocalSubtitleBackendResolver({
     runtimeEnvironment: localSubtitleResourceEnvironment,
+    metalAttestationAvailable:
+      localSubtitleBackendAttestor.supportedBackends.includes("metal"),
   });
   localSubtitleJobManager = new LocalSubtitleJobManager({
     registry: localSubtitleSessionRegistry,
