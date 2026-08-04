@@ -26,6 +26,11 @@ import type {
   LocalSubtitleJobTaskExecutor,
 } from "./job-manager";
 import {
+  isLocalSubtitleVerifiedBackendResolution,
+  matchesLocalSubtitleBackendResolutionRuntime,
+  type LocalSubtitleVerifiedBackendResolution,
+} from "./backend-resolver";
+import {
   isLocalSubtitleBrandedPcmWindow,
   type LocalSubtitleBrandedPcmWindow,
   type LocalSubtitleMediaNormalizer,
@@ -34,7 +39,6 @@ import {
   type LocalSubtitleResolvedPcmWindow,
 } from "./media-normalizer";
 import {
-  selectLocalSubtitleCpuServerArtifactId,
   verifyLocalSubtitleRuntimeBundle,
   type LocalSubtitleResourceEnvironment,
   type LocalSubtitleVerifiedRuntimeArtifact,
@@ -116,6 +120,7 @@ interface ProductionBatchRuntimeRecord {
   readonly config: LocalSubtitleJobBatchExecutionContext["config"];
   readonly managedModel: LocalSubtitleJobBatchExecutionContext["managedModel"];
   readonly admittedRuntimeGeneration: string;
+  readonly backendResolution: LocalSubtitleVerifiedBackendResolution;
   readonly signal: AbortSignal;
   active: boolean;
   pin?: LocalSubtitleServerRuntimePin;
@@ -163,9 +168,6 @@ export interface LocalSubtitleProductionExecutorOptions {
   readonly exporter: ProductionExporter;
   readonly runtimeEnvironment?: LocalSubtitleResourceEnvironment;
   readonly verifyServerRuntime?: () => Promise<LocalSubtitleVerifiedRuntimeBundle>;
-  readonly selectCpuServerArtifactId?: (
-    runtime: LocalSubtitleVerifiedRuntimeBundle,
-  ) => string;
   readonly validateWindowBrand?: (
     window: LocalSubtitleBrandedPcmWindow,
   ) => boolean;
@@ -183,9 +185,6 @@ export class LocalSubtitleProductionExecutor
   readonly #outputs: ProductionOutputs;
   readonly #exporter: ProductionExporter;
   readonly #verifyServerRuntime: () => Promise<LocalSubtitleVerifiedRuntimeBundle>;
-  readonly #selectCpuServerArtifactId: (
-    runtime: LocalSubtitleVerifiedRuntimeBundle,
-  ) => string;
   readonly #validateWindowBrand: (
     window: LocalSubtitleBrandedPcmWindow,
   ) => boolean;
@@ -263,8 +262,6 @@ export class LocalSubtitleProductionExecutor
         environment: options.runtimeEnvironment!,
         scope: "server",
       }));
-    this.#selectCpuServerArtifactId =
-      options.selectCpuServerArtifactId ?? selectLocalSubtitleCpuServerArtifactId;
     this.#validateWindowBrand =
       options.validateWindowBrand ?? isLocalSubtitleBrandedPcmWindow;
     this.#rootPlanIdFactory =
@@ -300,6 +297,7 @@ export class LocalSubtitleProductionExecutor
       config: context.config,
       managedModel: context.managedModel,
       admittedRuntimeGeneration: context.admittedRuntimeGeneration,
+      backendResolution: context.backendResolution,
       signal: context.signal,
       active: true,
     });
@@ -413,7 +411,11 @@ export class LocalSubtitleProductionExecutor
       throwIfCancelled(context.signal);
       if (
         runtime.runtimeGeneration !== normalized.runtimeGeneration ||
-        runtime.runtimeGeneration !== context.admittedRuntimeGeneration
+        runtime.runtimeGeneration !== context.admittedRuntimeGeneration ||
+        !matchesLocalSubtitleBackendResolutionRuntime(
+          context.backendResolution,
+          runtime,
+        )
       ) {
         throw createLocalSubtitleError(
           "media_runtime_invalid",
@@ -421,7 +423,7 @@ export class LocalSubtitleProductionExecutor
           { stage: "loading_model" },
         );
       }
-      const serverArtifactId = this.#selectCpuServerArtifactId(runtime);
+      const serverArtifactId = context.backendResolution.serverArtifact.id;
       const pin = await this.#ensureBatchRuntimePin(
         batchRuntime,
         runtime,
@@ -796,7 +798,8 @@ export class LocalSubtitleProductionExecutor
       record.owner.ownerSessionId !== context.owner.ownerSessionId ||
       record.config !== context.config ||
       record.managedModel !== context.managedModel ||
-      record.admittedRuntimeGeneration !== context.admittedRuntimeGeneration
+      record.admittedRuntimeGeneration !== context.admittedRuntimeGeneration ||
+      record.backendResolution !== context.backendResolution
     ) {
       return undefined;
     }
@@ -843,7 +846,7 @@ export class LocalSubtitleProductionExecutor
           record.batchId,
           {
             purpose: "inference",
-            backend: "cpu",
+            backend: record.backendResolution.resolvedBackend,
             verifiedRuntime: runtime,
             serverArtifactId,
             model: record.managedModel,
@@ -1288,12 +1291,11 @@ function isSupportedBatchExecutionContext(
     context.managedModel.storage === "managed" &&
     context.managedModel.id === context.config.model.modelId &&
     context.managedModel.sha256 === context.config.model.modelHash &&
+    isSupportedBackendResolutionContext(context) &&
     (context.config.output.mode === "custom" ||
       context.config.output.mode === "source") &&
     supportsConflictPolicy(context.config.output.conflictPolicy) &&
     isSupportedProductionFormats(context.config.output.formats) &&
-    context.config.devicePreference === "cpu" &&
-    context.config.resolvedBackend === "cpu" &&
     context.config.taskMode === "transcribe" &&
     context.config.inference.vad.enabled === false &&
     context.config.postAction.mode === "export_only"
@@ -1309,11 +1311,33 @@ function isSupportedExecutionContext(
       context.config.output.mode === "source") &&
     supportsConflictPolicy(context.config.output.conflictPolicy) &&
     isSupportedProductionFormats(context.config.output.formats) &&
-    context.config.devicePreference === "cpu" &&
-    context.config.resolvedBackend === "cpu" &&
+    isSupportedBackendResolutionContext(context) &&
     context.config.taskMode === "transcribe" &&
     context.config.inference.vad.enabled === false &&
     context.config.postAction.mode === "export_only"
+  );
+}
+
+function isSupportedBackendResolutionContext(
+  context: Pick<
+    LocalSubtitleJobBatchExecutionContext,
+    | "backendResolution"
+    | "config"
+    | "managedModel"
+    | "admittedRuntimeGeneration"
+  >,
+): boolean {
+  const resolution = context.backendResolution;
+  return (
+    isLocalSubtitleVerifiedBackendResolution(resolution) &&
+    (context.config.devicePreference === "auto" ||
+      context.config.devicePreference === "cpu") &&
+    resolution.devicePreference === context.config.devicePreference &&
+    resolution.resolvedBackend === "cpu" &&
+    resolution.resolvedBackend === context.config.resolvedBackend &&
+    resolution.runtimeGeneration === context.admittedRuntimeGeneration &&
+    resolution.model.id === context.managedModel.id &&
+    resolution.model.sha256 === context.managedModel.sha256
   );
 }
 

@@ -144,7 +144,7 @@ export function createSingleFileLocalSubtitleRequest(input: {
     files: [{ fileToken: input.file.fileToken }],
     config: {
       modelId: input.modelId,
-      devicePreference: "cpu",
+      devicePreference: "auto",
       language: input.preferences.language,
       taskMode: "transcribe",
       qualityPreset: input.preferences.qualityPreset,

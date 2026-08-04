@@ -18,6 +18,7 @@ import {
   LocalSubtitleInputAuthorizationRegistry,
   LocalSubtitleOutputDirectoryAuthorizationRegistry,
 } from "../../electron/main/local-subtitle/authorizations";
+import { LocalSubtitleBackendResolver } from "../../electron/main/local-subtitle/backend-resolver";
 import { LocalSubtitleIpcService } from "../../electron/main/local-subtitle/ipc";
 import { LocalSubtitleOwnerSessionRegistry } from "../../electron/main/local-subtitle/ipc-security";
 import { LocalSubtitleJobIpcBridge } from "../../electron/main/local-subtitle/job-ipc";
@@ -25,6 +26,7 @@ import {
   LocalSubtitleJobManager,
   type LocalSubtitleJobBatchRuntime,
 } from "../../electron/main/local-subtitle/job-manager";
+import type { LocalSubtitleVerifiedRuntimeBundle } from "../../electron/main/local-subtitle/resource-path";
 import { LocalSubtitleSessionIpcBridge } from "../../electron/main/local-subtitle/session-ipc";
 import { LocalSubtitleSessionRegistry } from "../../electron/main/local-subtitle/session-registry";
 
@@ -317,6 +319,54 @@ describe("local subtitle Job Manager IPC integration", () => {
       ),
     ).resolves.toEqual({ ok: true, data: { revoked: true } });
   });
+
+  it.each(["cuda", "metal"] as const)(
+    "returns backend_unverified for explicit %s without consuming drafts",
+    async (devicePreference) => {
+      const root = await mkdtemp(path.join(os.tmpdir(), "fusionkit-job-ipc-gpu-"));
+      tempRoots.push(root);
+      const sourcePath = path.join(root, "gpu-source.wav");
+      await writeFile(sourcePath, "private media bytes");
+      const fixture = createFixture(root);
+      const authorized = await fixture.service.handleInternal(
+        LOCAL_SUBTITLE_PRELOAD_INTERNAL_CHANNELS.authorizeInputFiles,
+        fixture.event,
+        fixture.envelope({ files: [{ filePath: sourcePath }] }),
+      );
+      if (!authorized.ok) throw new Error("Expected input authorization.");
+      const fileToken = (
+        authorized.data as Array<{ readonly fileToken: string }>
+      )[0]!.fileToken;
+      const output = await fixture.outputs.authorize(fixture.owner, root);
+      const request = enqueueRequest(fileToken, output.outputDirToken);
+      request.config.devicePreference = devicePreference;
+
+      await expect(
+        fixture.service.handlePublic(
+          LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.enqueue,
+          fixture.event,
+          fixture.envelope(request),
+        ),
+      ).resolves.toMatchObject({
+        ok: false,
+        error: { code: "backend_unverified", stage: "preflight" },
+      });
+      await expect(
+        fixture.service.handleInternal(
+          LOCAL_SUBTITLE_PRELOAD_INTERNAL_CHANNELS.revokeInputFile,
+          fixture.event,
+          fixture.envelope({ fileToken }),
+        ),
+      ).resolves.toEqual({ ok: true, data: { revoked: true } });
+      await expect(
+        fixture.service.handleInternal(
+          LOCAL_SUBTITLE_PRELOAD_INTERNAL_CHANNELS.revokeOutputDirectory,
+          fixture.event,
+          fixture.envelope({ outputDirToken: output.outputDirToken }),
+        ),
+      ).resolves.toEqual({ ok: true, data: { revoked: true } });
+    },
+  );
 });
 
 function createFixture(root: string, supportsOverwrite = false) {
@@ -335,6 +385,14 @@ function createFixture(root: string, supportsOverwrite = false) {
     reservationIdFactory: () => "job-ipc-reservation",
   });
   const registry = new LocalSubtitleSessionRegistry();
+  const managedModel = Object.freeze({
+    storage: "managed" as const,
+    id: LOCAL_SUBTITLE_PRODUCTION_CONTRACT.launchModel.id,
+    absolutePath: path.join(root, "private-managed-model.bin"),
+    byteSize: 1024,
+    sha256: LOCAL_SUBTITLE_PRODUCTION_CONTRACT.launchModel.sha256,
+  });
+  const runtime = fakeVerifiedServerRuntime(root);
   const manager = new LocalSubtitleJobManager({
     registry,
     inputs,
@@ -343,14 +401,13 @@ function createFixture(root: string, supportsOverwrite = false) {
     runtimeVerifier: {
       verifyRuntime: async () => ({ runtimeGeneration: "a".repeat(64) }),
     },
+    backendResolver: new LocalSubtitleBackendResolver({
+      verifyServerRuntime: async () => runtime,
+      selectCpuServerArtifact: (verified) =>
+        verified.artifactPaths["whisper-server-cpu"]!,
+    }),
     modelResolver: {
-      resolveManagedModel: async () => ({
-        storage: "managed",
-        id: LOCAL_SUBTITLE_PRODUCTION_CONTRACT.launchModel.id,
-        absolutePath: path.join(root, "private-managed-model.bin"),
-        byteSize: 1024,
-        sha256: LOCAL_SUBTITLE_PRODUCTION_CONTRACT.launchModel.sha256,
-      }),
+      resolveManagedModel: async () => managedModel,
     },
     executor: {
       supportsOutputConflictPolicy: (policy) =>
@@ -463,7 +520,7 @@ function enqueueRequest(
     files: [{ fileToken }],
     config: {
       modelId: LOCAL_SUBTITLE_PRODUCTION_CONTRACT.launchModel.id,
-      devicePreference: "cpu" as const,
+      devicePreference: "auto" as const,
       language: "auto",
       taskMode: "transcribe" as const,
       qualityPreset: "balanced" as const,
@@ -485,6 +542,35 @@ function enqueueRequest(
       postAction: { mode: "export_only" as const },
     },
   };
+}
+
+function fakeVerifiedServerRuntime(root: string): LocalSubtitleVerifiedRuntimeBundle {
+  const runtimeGeneration = "a".repeat(64);
+  return Object.freeze({
+    schemaVersion: 1 as const,
+    target: Object.freeze({ platform: "darwin" as const, arch: "arm64" as const }),
+    scope: "server" as const,
+    root: path.join(root, "runtime"),
+    manifestPath: path.join(root, "runtime", "manifest.json"),
+    manifestSha256: runtimeGeneration,
+    runtimeGeneration,
+    integrityProfile: "development" as const,
+    artifactPaths: Object.freeze({
+      "whisper-server-cpu": Object.freeze({
+        id: "whisper-server-cpu",
+        kind: "server" as const,
+        backend: "cpu" as const,
+        absolutePath: path.join(root, "runtime", "whisper-server"),
+        byteSize: 1024,
+        sha256: "d".repeat(64),
+        version: "1.9.1+b1ade71",
+        signatureKind: "unsigned" as const,
+      }),
+    }),
+    evidenceFileCount: 1,
+    noPathFallback: true as const,
+    ready: true as const,
+  }) as LocalSubtitleVerifiedRuntimeBundle;
 }
 
 function sourceEnqueueRequest(

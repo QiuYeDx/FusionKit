@@ -243,7 +243,7 @@
       "ffmpeg": "FFmpeg",
       "not_ready": "未就绪",
       "backends": "后端探测",
-      "execution_profile": "当前任务配置：{{backend}}",
+      "execution_profile": "自动解析目标：{{backend}}",
       "no_backend_data": "暂无后端探测数据",
       "backend": {
         "cpu": "CPU",

@@ -37,6 +37,11 @@ import {
   type LocalSubtitleOwnerKey,
   type ResolvedLocalSubtitleInput,
 } from "./authorizations";
+import {
+  isLocalSubtitleVerifiedBackendResolution,
+  type LocalSubtitleVerifiedBackendResolution,
+  type ResolveLocalSubtitleBackendOptions,
+} from "./backend-resolver";
 import type { LocalSubtitleMainRuntimeShutdownReason } from "./main-runtime";
 import type { LocalSubtitleServerManagedResourceIdentity } from "./server-process-contract";
 import {
@@ -74,6 +79,9 @@ export type LocalSubtitleJobManagerErrorCode = Extract<
   | "authorization_expired"
   | "resource_busy"
   | "runtime_missing"
+  | "media_runtime_invalid"
+  | "backend_unverified"
+  | "runtime_protocol_mismatch"
   | "model_corrupt"
   | "invalid_content"
   | "cancel_failed"
@@ -110,6 +118,12 @@ export interface LocalSubtitleJobRuntimeVerifier {
   }): Promise<{ readonly runtimeGeneration: string }>;
 }
 
+export interface LocalSubtitleJobBackendResolver {
+  resolveBackend(
+    options: ResolveLocalSubtitleBackendOptions,
+  ): Promise<LocalSubtitleVerifiedBackendResolution>;
+}
+
 export interface LocalSubtitleJobTaskUpdate {
   readonly status: Extract<
     LocalSubtitleTaskStatus,
@@ -135,6 +149,7 @@ export interface LocalSubtitleJobBatchExecutionContext {
   readonly config: LocalSubtitleBatchConfigSnapshot;
   readonly managedModel: LocalSubtitleServerManagedResourceIdentity<"managed">;
   readonly admittedRuntimeGeneration: string;
+  readonly backendResolution: LocalSubtitleVerifiedBackendResolution;
   readonly signal: AbortSignal;
 }
 
@@ -148,6 +163,7 @@ export interface LocalSubtitleJobTaskExecutionContext {
   readonly config: LocalSubtitleBatchConfigSnapshot;
   readonly managedModel: LocalSubtitleServerManagedResourceIdentity<"managed">;
   readonly admittedRuntimeGeneration: string;
+  readonly backendResolution: LocalSubtitleVerifiedBackendResolution;
   readonly batchRuntime: LocalSubtitleJobBatchRuntime;
   readonly signal: AbortSignal;
   update(update: LocalSubtitleJobTaskUpdate): LocalSubtitleTaskSummary;
@@ -189,6 +205,7 @@ export interface LocalSubtitleJobManagerOptions {
   readonly outputs: LocalSubtitleOutputDirectoryAuthorizationRegistry;
   readonly leases: LocalSubtitleCapabilityLeaseCoordinator;
   readonly runtimeVerifier: LocalSubtitleJobRuntimeVerifier;
+  readonly backendResolver: LocalSubtitleJobBackendResolver;
   readonly modelResolver: LocalSubtitleJobModelResolver;
   readonly executor: LocalSubtitleJobTaskExecutor;
   readonly artifacts?: LocalSubtitleJobArtifactRegistry;
@@ -218,6 +235,7 @@ interface BatchRecord {
   readonly config: LocalSubtitleBatchConfigSnapshot;
   readonly managedModel: LocalSubtitleServerManagedResourceIdentity<"managed">;
   readonly runtimeGeneration: string;
+  readonly backendResolution: LocalSubtitleVerifiedBackendResolution;
   readonly outputDirToken?: string;
   readonly taskIds: Set<string>;
   outputLeaseReleased: boolean;
@@ -280,6 +298,7 @@ export class LocalSubtitleJobManager {
   readonly #outputs: LocalSubtitleOutputDirectoryAuthorizationRegistry;
   readonly #leases: LocalSubtitleCapabilityLeaseCoordinator;
   readonly #runtimeVerifier: LocalSubtitleJobRuntimeVerifier;
+  readonly #backendResolver: LocalSubtitleJobBackendResolver;
   readonly #modelResolver: LocalSubtitleJobModelResolver;
   readonly #executor: LocalSubtitleJobTaskExecutor;
   readonly #artifacts?: LocalSubtitleJobArtifactRegistry;
@@ -321,6 +340,7 @@ export class LocalSubtitleJobManager {
       !(options.outputs instanceof LocalSubtitleOutputDirectoryAuthorizationRegistry) ||
       !(options.leases instanceof LocalSubtitleCapabilityLeaseCoordinator) ||
       typeof options.runtimeVerifier?.verifyRuntime !== "function" ||
+      typeof options.backendResolver?.resolveBackend !== "function" ||
       typeof options.modelResolver?.resolveManagedModel !== "function" ||
       typeof options.executor?.supportsOutputConflictPolicy !== "function" ||
       typeof options.executor?.beginBatchSlice !== "function" ||
@@ -336,6 +356,7 @@ export class LocalSubtitleJobManager {
     this.#outputs = options.outputs;
     this.#leases = options.leases;
     this.#runtimeVerifier = options.runtimeVerifier;
+    this.#backendResolver = options.backendResolver;
     this.#modelResolver = options.modelResolver;
     this.#executor = options.executor;
     this.#artifacts = options.artifacts;
@@ -438,10 +459,25 @@ export class LocalSubtitleJobManager {
       assertManagedModel(managedModel, parsed.config.modelId);
       assertDistinctInputIdentities(inputs);
       const runtimeGeneration = assertRuntimeAdmission(runtimeAdmission);
+      const backendResolution = await this.#backendResolver.resolveBackend({
+        devicePreference: parsed.config.devicePreference,
+        admittedRuntimeGeneration: runtimeGeneration,
+        model: managedModel,
+        signal: pending.controller.signal,
+      });
+      throwIfAborted(pending.controller.signal);
+      this.#assertOwnerAvailable(owner);
+      assertBackendResolution(
+        backendResolution,
+        parsed.config.devicePreference,
+        runtimeGeneration,
+        managedModel,
+      );
 
       const config = createConfigSnapshot(
         parsed,
         managedModel,
+        backendResolution,
         batchId,
         this.#mintSnapshotId(),
         createdAt,
@@ -453,6 +489,7 @@ export class LocalSubtitleJobManager {
         config,
         managedModel: freezeManagedModel(managedModel),
         runtimeGeneration,
+        backendResolution,
         ...(parsed.config.output.mode === "custom"
           ? { outputDirToken: parsed.config.output.outputDirToken }
           : {}),
@@ -912,6 +949,7 @@ export class LocalSubtitleJobManager {
       config: run.record.batch.config,
       managedModel: run.record.batch.managedModel,
       admittedRuntimeGeneration: run.record.batch.runtimeGeneration,
+      backendResolution: run.record.batch.backendResolution,
       signal: controller.signal,
     }));
     if (typeof runtime !== "object" || runtime === null) {
@@ -1082,6 +1120,7 @@ export class LocalSubtitleJobManager {
         config: run.record.batch.config,
         managedModel: run.record.batch.managedModel,
         admittedRuntimeGeneration: run.record.batch.runtimeGeneration,
+        backendResolution: run.record.batch.backendResolution,
         batchRuntime: batchSlice.runtime,
         signal: run.controller.signal,
         update: (update: LocalSubtitleJobTaskUpdate) =>
@@ -2040,13 +2079,35 @@ function assertRuntimeAdmission(
   return admission.runtimeGeneration;
 }
 
+function assertBackendResolution(
+  resolution: LocalSubtitleVerifiedBackendResolution,
+  devicePreference: EnqueueLocalSubtitleBatchRequest["config"]["devicePreference"],
+  runtimeGeneration: string,
+  model: LocalSubtitleServerManagedResourceIdentity<"managed">,
+): void {
+  if (
+    !isLocalSubtitleVerifiedBackendResolution(resolution) ||
+    resolution.devicePreference !== devicePreference ||
+    resolution.resolvedBackend !== "cpu" ||
+    resolution.runtimeGeneration !== runtimeGeneration ||
+    resolution.model.id !== model.id ||
+    resolution.model.sha256 !== model.sha256
+  ) {
+    throw managerFailure(
+      "invalid_content",
+      "The local subtitle backend resolution proof is invalid.",
+      "preflight",
+      "devicePreference",
+    );
+  }
+}
+
 function assertProductionBatchSliceRequest(
   request: EnqueueLocalSubtitleBatchRequest,
   executor: Pick<LocalSubtitleJobTaskExecutor, "supportsOutputConflictPolicy">,
 ): void {
   const config = request.config;
   const supported =
-    config.devicePreference === "cpu" &&
     config.taskMode === "transcribe" &&
     config.vadEnabled === false &&
     (config.output.mode === "custom" || config.output.mode === "source") &&
@@ -2056,7 +2117,7 @@ function assertProductionBatchSliceRequest(
   if (!supported) {
     throw managerFailure(
       "invalid_ipc_request",
-      "This local subtitle build currently supports CPU, no-VAD SRT/LRC batches with an available output conflict policy.",
+      "This local subtitle build currently supports no-VAD SRT/LRC batches with an available output conflict policy.",
       "preflight",
       "config",
     );
@@ -2101,6 +2162,7 @@ async function resolveSourceInputDrafts(
 function createConfigSnapshot(
   request: EnqueueLocalSubtitleBatchRequest,
   model: LocalSubtitleServerManagedResourceIdentity<"managed">,
+  backendResolution: LocalSubtitleVerifiedBackendResolution,
   batchId: string,
   snapshotId: string,
   createdAt: string,
@@ -2131,8 +2193,8 @@ function createConfigSnapshot(
       modelId: model.id,
       modelHash: model.sha256,
     },
-    devicePreference: "cpu",
-    resolvedBackend: "cpu",
+    devicePreference: backendResolution.devicePreference,
+    resolvedBackend: backendResolution.resolvedBackend,
     language: request.config.language,
     taskMode: request.config.taskMode,
     inference: {

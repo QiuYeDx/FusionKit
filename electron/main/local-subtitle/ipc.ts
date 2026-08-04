@@ -37,6 +37,7 @@ import {
   type LocalSubtitleOwnerKey,
   type ResolvedLocalSubtitleOutputDirectory,
 } from "./authorizations";
+import { LocalSubtitleBackendResolverError } from "./backend-resolver";
 import {
   sharedLocalSubtitleOwnerSessionRegistry,
   type AuthorizedLocalSubtitleIpcRequest,
@@ -750,6 +751,13 @@ function toLocalSubtitleIpcFailure(
       createLocalSubtitleError(error.localSubtitleCode, error.message, {
         stage: error.stage,
         ...(error.field ? { field: error.field } : {}),
+      }),
+    );
+  }
+  if (error instanceof LocalSubtitleBackendResolverError) {
+    return localSubtitleIpcFailure(
+      createLocalSubtitleError(error.localSubtitleCode, error.message, {
+        stage: error.stage,
       }),
     );
   }

@@ -151,7 +151,7 @@ describe("local subtitle transcriber page model", () => {
       files: [{ fileToken: file.fileToken }],
       config: {
         modelId: model.resourceId,
-        devicePreference: "cpu",
+        devicePreference: "auto",
         taskMode: "transcribe",
         vadEnabled: false,
         output: {

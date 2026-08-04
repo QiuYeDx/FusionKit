@@ -243,7 +243,7 @@
       "ffmpeg": "FFmpeg",
       "not_ready": "準備未完了",
       "backends": "バックエンド検査",
-      "execution_profile": "現在のタスク構成：{{backend}}",
+      "execution_profile": "自動解決の対象：{{backend}}",
       "no_backend_data": "バックエンド検査データがありません",
       "backend": {
         "cpu": "CPU",

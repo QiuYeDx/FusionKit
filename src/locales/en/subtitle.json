@@ -243,7 +243,7 @@
       "ffmpeg": "FFmpeg",
       "not_ready": "Not ready",
       "backends": "Backend probe",
-      "execution_profile": "Current task profile: {{backend}}",
+      "execution_profile": "Auto resolution target: {{backend}}",
       "no_backend_data": "No backend probe data",
       "backend": {
         "cpu": "CPU",

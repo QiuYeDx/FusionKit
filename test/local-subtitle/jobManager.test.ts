@@ -26,12 +26,15 @@ import {
   LocalSubtitleOutputDirectoryAuthorizationRegistry,
   type LocalSubtitleOwnerKey,
 } from "../../electron/main/local-subtitle/authorizations";
+import { LocalSubtitleBackendResolver } from "../../electron/main/local-subtitle/backend-resolver";
 import {
   LocalSubtitleJobManager,
   type LocalSubtitleJobBatchRuntime,
+  type LocalSubtitleJobBackendResolver,
   type LocalSubtitleJobTaskExecutionContext,
   type LocalSubtitleJobTaskExecutor,
 } from "../../electron/main/local-subtitle/job-manager";
+import type { LocalSubtitleVerifiedRuntimeBundle } from "../../electron/main/local-subtitle/resource-path";
 import { LocalSubtitleSessionRegistry } from "../../electron/main/local-subtitle/session-registry";
 
 const OWNER_A = Object.freeze({
@@ -85,7 +88,7 @@ describe("LocalSubtitleJobManager", () => {
     ).toBe(false);
   });
 
-  it("atomically publishes a frozen CPU no-VAD batch before execution", async () => {
+  it("atomically publishes a frozen auto-to-CPU no-VAD batch before execution", async () => {
     const harness = await createHarness({
       executor: executor(async (context) => successfulExecution(context)),
     });
@@ -101,7 +104,7 @@ describe("LocalSubtitleJobManager", () => {
       batchId: "batch-1",
       status: "queued",
       config: {
-        devicePreference: "cpu",
+        devicePreference: "auto",
         resolvedBackend: "cpu",
         language: "auto",
         vadEnabled: false,
@@ -3252,6 +3255,7 @@ describe("LocalSubtitleJobManager", () => {
 interface HarnessOptions {
   readonly executor: ReturnType<typeof executor>;
   readonly verifyRuntime?: ReturnType<typeof vi.fn>;
+  readonly backendResolver?: LocalSubtitleJobBackendResolver;
   readonly taskIds?: readonly string[];
   readonly batchIds?: readonly string[];
   readonly artifacts?: { revokeTask(owner: LocalSubtitleOwnerKey, taskId: string): number };
@@ -3311,6 +3315,13 @@ async function createHarness(options: HarnessOptions) {
     verifyRuntime: options.verifyRuntime ??
       vi.fn(async () => ({ runtimeGeneration: "a".repeat(64) })),
   };
+  const backendRuntime = fakeVerifiedServerRuntime(root, "a".repeat(64));
+  const backendResolver = options.backendResolver ??
+    new LocalSubtitleBackendResolver({
+      verifyServerRuntime: async () => backendRuntime,
+      selectCpuServerArtifact: (runtime) =>
+        runtime.artifactPaths["whisper-server-cpu"]!,
+    });
   let requestOutputIndex = 0;
   const leaseRenewals: Array<{
     cancelled: boolean;
@@ -3323,6 +3334,7 @@ async function createHarness(options: HarnessOptions) {
     outputs,
     leases,
     runtimeVerifier,
+    backendResolver,
     modelResolver,
     executor: options.executor,
     ...(options.artifacts === undefined ? {} : { artifacts: options.artifacts }),
@@ -3359,6 +3371,7 @@ async function createHarness(options: HarnessOptions) {
     outputs,
     leases,
     runtimeVerifier,
+    backendResolver,
     executor: options.executor,
     managedModel,
     modelResolver,
@@ -3413,7 +3426,7 @@ function enqueueRequest(
     files: tokens.map((fileToken) => ({ fileToken })),
     config: {
       modelId: LOCAL_SUBTITLE_PRODUCTION_CONTRACT.launchModel.id,
-      devicePreference: "cpu",
+      devicePreference: "auto",
       language: "auto",
       taskMode: "transcribe",
       qualityPreset: "balanced",
@@ -3449,6 +3462,37 @@ function customOutputRequest(
     conflictPolicy: "index",
   };
   return request;
+}
+
+function fakeVerifiedServerRuntime(
+  root: string,
+  runtimeGeneration: string,
+): LocalSubtitleVerifiedRuntimeBundle {
+  return Object.freeze({
+    schemaVersion: 1 as const,
+    target: Object.freeze({ platform: "darwin" as const, arch: "arm64" as const }),
+    scope: "server" as const,
+    root: path.join(root, "runtime"),
+    manifestPath: path.join(root, "runtime", "manifest.json"),
+    manifestSha256: runtimeGeneration,
+    runtimeGeneration,
+    integrityProfile: "development" as const,
+    artifactPaths: Object.freeze({
+      "whisper-server-cpu": Object.freeze({
+        id: "whisper-server-cpu",
+        kind: "server" as const,
+        backend: "cpu" as const,
+        absolutePath: path.join(root, "runtime", "whisper-server"),
+        byteSize: 1024,
+        sha256: "d".repeat(64),
+        version: "1.9.1+b1ade71",
+        signatureKind: "unsigned" as const,
+      }),
+    }),
+    evidenceFileCount: 1,
+    noPathFallback: true as const,
+    ready: true as const,
+  }) as LocalSubtitleVerifiedRuntimeBundle;
 }
 
 async function successfulExecution(

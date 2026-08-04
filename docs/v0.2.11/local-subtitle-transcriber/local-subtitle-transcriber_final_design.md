@@ -942,6 +942,8 @@ Node 对当前 inference request 使用 `AbortController`。请求连接关闭�
 
 `BE-001` 只验证调用方已经解析出的 backend 与实际 child 一致，不负责 `auto` 选择、批次 snapshot、CPU fallback CTA 或重试 generation；这些产品级决策随 model/runtime probe 与 Job Manager 接线完成。当前 CPU 证明由 exact `--no-gpu` 固定；GPU 证明接口保持 main-only 且 deadline-bound，拒绝字段/epoch/PID/backend/runtime/artifact 不一致，但其可信根仍是注入的 main-only verifier，不能由 renderer 或 stderr 文本提供。
 
+截至2026-08-04，production已先关闭可独立验证的CPU checkpoint：main-only backend resolver生成不可结构伪造的proof，绑定requested preference、resolved backend、managed model identity、runtime generation/target/root和exact server artifact完整identity；Job Manager只在proof完成并复核后commit capability，Executor在每个admission slice首次加载时重新验证runtime/artifact并让batch pin消费同一proof。`auto`当前诚实解析为CPU；显式CUDA/Metal在production attestor缺失时返回`backend_unverified`且不回退。该checkpoint不等于GPU完成；开始前preview summary、managed CUDA artifact接线、Metal/CUDA positive attestation与用户确认的CPU新generation仍必须按上述合同实现。
+
 ## 11. 模型与加速包管理
 
 ### 11.1 目录

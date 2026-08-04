@@ -24,6 +24,10 @@ import {
   type LocalSubtitleTaskSummary,
 } from "../../src/type/localSubtitle";
 import type { LocalSubtitleOwnerKey } from "../../electron/main/local-subtitle/authorizations";
+import {
+  LocalSubtitleBackendResolver,
+  type LocalSubtitleVerifiedBackendResolution,
+} from "../../electron/main/local-subtitle/backend-resolver";
 import type {
   LocalSubtitleJobBatchRuntime,
   LocalSubtitleJobTaskExecutionContext,
@@ -453,6 +457,7 @@ describe("local subtitle production executor", () => {
       harness.context.batchRuntime,
       harness.context.config,
       harness.context.managedModel,
+      harness.context.backendResolution,
       { taskId: "task-2", fileToken: "file-token-2" },
     );
 
@@ -486,6 +491,7 @@ describe("local subtitle production executor", () => {
       harness.context.batchRuntime,
       harness.context.config,
       harness.context.managedModel,
+      harness.context.backendResolution,
       { taskId: "task-2", fileToken: "file-token-2" },
     );
 
@@ -514,6 +520,7 @@ describe("local subtitle production executor", () => {
           config,
           managedModel: harness.context.managedModel,
           admittedRuntimeGeneration: harness.context.admittedRuntimeGeneration,
+          backendResolution: harness.context.backendResolution,
           signal: new AbortController().signal,
         }))).toThrow();
 
@@ -806,6 +813,7 @@ describe("local subtitle production executor", () => {
       harness.context.batchRuntime,
       harness.context.config,
       harness.context.managedModel,
+      harness.context.backendResolution,
     );
 
     await expect(harness.executor.execute(sibling)).resolves.toMatchObject({
@@ -1303,7 +1311,6 @@ async function createHarness(options: HarnessOptions = {}) {
       serverRuntimeIndex += 1;
       return runtime;
     },
-    selectCpuServerArtifactId: () => "whisper-server-cpu",
     validateWindowBrand: () => true,
     rootPlanIdFactory: () => "root-plan-1",
     cpuThreads: 2,
@@ -1325,12 +1332,24 @@ async function createHarness(options: HarnessOptions = {}) {
     byteSize: 1024,
     sha256: MODEL_HASH,
   });
+  const backendResolution = await new LocalSubtitleBackendResolver({
+    verifyServerRuntime: async () =>
+      options.serverRuntimeBundles?.[0] ??
+      fakeVerifiedServerRuntime(root, admittedRuntimeGeneration),
+    selectCpuServerArtifact: (runtime) =>
+      runtime.artifactPaths["whisper-server-cpu"]!,
+  }).resolveBackend({
+    devicePreference: config.devicePreference,
+    admittedRuntimeGeneration,
+    model: managedModel,
+  });
   const batchRuntime = executor.beginBatchSlice(Object.freeze({
     owner: OWNER,
     batchId: "batch-1",
     config,
     managedModel,
     admittedRuntimeGeneration,
+    backendResolution,
     signal: sliceController.signal,
   }));
   const context = createContext(
@@ -1339,6 +1358,7 @@ async function createHarness(options: HarnessOptions = {}) {
     batchRuntime,
     config,
     managedModel,
+    backendResolution,
   );
   return {
     root,
@@ -1397,6 +1417,7 @@ function createContext(
   batchRuntime: LocalSubtitleJobBatchRuntime,
   config: LocalSubtitleBatchConfigSnapshot,
   managedModel: LocalSubtitleJobTaskExecutionContext["managedModel"],
+  backendResolution: LocalSubtitleVerifiedBackendResolution,
   identity: Readonly<{
     taskId: string;
     fileToken: string;
@@ -1412,6 +1433,7 @@ function createContext(
     config,
     managedModel,
     admittedRuntimeGeneration,
+    backendResolution,
     batchRuntime,
     signal,
     update,
@@ -1436,7 +1458,7 @@ function createConfig(
       modelId: LOCAL_SUBTITLE_PRODUCTION_CONTRACT.launchModel.id,
       modelHash: MODEL_HASH,
     },
-    devicePreference: "cpu",
+    devicePreference: "auto",
     resolvedBackend: "cpu",
     language: "auto",
     taskMode: "transcribe",

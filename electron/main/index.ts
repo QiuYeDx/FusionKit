@@ -27,6 +27,7 @@ import {
   LocalSubtitleInputAuthorizationRegistry,
   LocalSubtitleOutputDirectoryAuthorizationRegistry,
 } from "./local-subtitle/authorizations";
+import { LocalSubtitleBackendResolver } from "./local-subtitle/backend-resolver";
 import { LocalSubtitleArtifactRegistry } from "./local-subtitle/subtitle-artifact-registry";
 import { LocalSubtitleExporter } from "./local-subtitle/subtitle-exporter";
 import { LocalSubtitleJobIpcBridge } from "./local-subtitle/job-ipc";
@@ -267,12 +268,16 @@ app.whenReady().then(async () => {
     exporter: localSubtitleExporter,
     runtimeEnvironment: localSubtitleResourceEnvironment,
   });
+  const localSubtitleBackendResolver = new LocalSubtitleBackendResolver({
+    runtimeEnvironment: localSubtitleResourceEnvironment,
+  });
   localSubtitleJobManager = new LocalSubtitleJobManager({
     registry: localSubtitleSessionRegistry,
     inputs: localSubtitleInputAuthorizations,
     outputs: localSubtitleOutputAuthorizations,
     leases: localSubtitleCapabilityLeases,
     runtimeVerifier: localSubtitleMediaNormalizer,
+    backendResolver: localSubtitleBackendResolver,
     modelResolver: localSubtitleModelManager,
     executor: localSubtitleProductionExecutor,
     artifacts: localSubtitleArtifacts,
