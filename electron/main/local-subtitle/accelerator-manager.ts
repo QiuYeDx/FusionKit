@@ -48,6 +48,12 @@ import {
   type LocalSubtitleResourceJobExecutionResult,
 } from "./resource-job";
 import { inspectLocalSubtitleNativeBinary } from "./resource-manifest";
+import {
+  localSubtitleFilesystemObjectIdentityForHandle,
+  localSubtitleFilesystemObjectIdentityForPath,
+  sameLocalSubtitleFilesystemObjectIdentity,
+  type LocalSubtitleFilesystemObjectIdentity,
+} from "./filesystem-object-identity";
 
 const READ_ONLY_NOFOLLOW_FLAGS =
   fsConstants.O_RDONLY | (fsConstants.O_NOFOLLOW ?? 0);
@@ -58,6 +64,11 @@ const WRITE_EXCLUSIVE_NOFOLLOW_FLAGS =
   (fsConstants.O_NOFOLLOW ?? 0);
 const HASH_CHUNK_BYTES = 1024 * 1024;
 const MAX_NATIVE_HEADER_BYTES = 1024 * 1024;
+const VERIFIED_ACCELERATOR_PACK_BRAND: unique symbol = Symbol(
+  "fusionkit.local-subtitle.verified-accelerator-pack",
+);
+const VERIFIED_ACCELERATOR_PACKS = new WeakSet<object>();
+const VERIFIED_ACCELERATOR_PACK_IDENTITY_KEYS = new WeakMap<object, string>();
 
 export const LOCAL_SUBTITLE_ACCELERATOR_MANAGER_POLICY = Object.freeze({
   acceleratorDirectoryName: "accelerators",
@@ -77,6 +88,16 @@ export interface LocalSubtitleAcceleratorPackDefinition {
   readonly resourceId: string;
   readonly displayName: string;
   readonly version: string;
+  readonly engine: {
+    readonly version: string;
+    readonly commit: string;
+  };
+  readonly target: {
+    readonly platform: "win32";
+    readonly arch: "x64";
+    readonly backend: "cuda";
+  };
+  readonly signatureKind: "unsigned";
   readonly sourceArchive: {
     readonly fileName: string;
     readonly downloadUrl: string;
@@ -95,6 +116,52 @@ export interface LocalSubtitleAcceleratorPackDefinition {
     readonly byteSize: number;
     readonly sha256: string;
   }[];
+}
+
+interface LocalSubtitleVerifiedAcceleratorFileMetadata {
+  readonly size: number;
+  readonly mtimeMs: number;
+  readonly ctimeMs: number;
+}
+
+export type LocalSubtitleVerifiedAcceleratorFileIdentity = Readonly<
+  LocalSubtitleFilesystemObjectIdentity &
+  LocalSubtitleVerifiedAcceleratorFileMetadata
+>;
+
+export interface LocalSubtitleVerifiedAcceleratorPackArtifact {
+  readonly id: string;
+  readonly kind: "server" | "dynamic_library";
+  readonly relativePath: string;
+  readonly absolutePath: string;
+  readonly byteSize: number;
+  readonly sha256: string;
+  readonly identity: LocalSubtitleVerifiedAcceleratorFileIdentity;
+}
+
+export interface LocalSubtitleVerifiedAcceleratorPack {
+  readonly [VERIFIED_ACCELERATOR_PACK_BRAND]: true;
+  readonly resourceId: string;
+  readonly version: string;
+  readonly packGeneration: string;
+  readonly root: string;
+  readonly rootIdentity: Readonly<DirectoryIdentity>;
+  readonly target: LocalSubtitleAcceleratorPackDefinition["target"];
+  readonly engine: Readonly<{
+    readonly version: string;
+    readonly commit: string;
+  }>;
+  readonly manifest: Readonly<{
+    readonly relativePath: string;
+    readonly absolutePath: string;
+    readonly byteSize: number;
+    readonly sha256: string;
+    readonly identity: LocalSubtitleVerifiedAcceleratorFileIdentity;
+  }>;
+  readonly serverArtifactId: string;
+  readonly serverVersion: string;
+  readonly signatureKind: "unsigned";
+  readonly artifacts: readonly LocalSubtitleVerifiedAcceleratorPackArtifact[];
 }
 
 export interface LocalSubtitleAcceleratorProbeOptions {
@@ -149,17 +216,9 @@ export class LocalSubtitleAcceleratorManagerError extends Error {
   }
 }
 
-interface DirectoryIdentity {
-  readonly dev: number;
-  readonly ino: number;
-  readonly birthtimeMs: number;
-}
+type DirectoryIdentity = LocalSubtitleFilesystemObjectIdentity;
 
-interface FileIdentity extends DirectoryIdentity {
-  readonly size: number;
-  readonly mtimeMs: number;
-  readonly ctimeMs: number;
-}
+type FileIdentity = LocalSubtitleVerifiedAcceleratorFileIdentity;
 
 interface VerifiedPackObservation {
   readonly rootIdentity: DirectoryIdentity;
@@ -169,10 +228,10 @@ interface VerifiedPackObservation {
   }[];
 }
 
-interface PrivateDirectoryProof extends DirectoryIdentity {
+type PrivateDirectoryProof = DirectoryIdentity & Readonly<{
   readonly absolutePath: string;
   readonly realPath: string;
-}
+}>;
 
 interface AcceleratorRootProofs {
   readonly managed: PrivateDirectoryProof;
@@ -287,6 +346,46 @@ export class LocalSubtitleAcceleratorManager {
 
   hasResourceId(resourceId: string): boolean {
     return this.#packs.some((pack) => pack.resourceId === resourceId);
+  }
+
+  async resolveManagedAccelerator(
+    resourceId: string,
+    signal?: AbortSignal,
+  ): Promise<LocalSubtitleVerifiedAcceleratorPack> {
+    this.#assertAvailable();
+    this.#assertSupportedTarget();
+    const pack = this.#resolvePack(resourceId);
+    if (
+      this.#claimedResourceIds.has(pack.resourceId) ||
+      this.#activeResourceIds.has(pack.resourceId)
+    ) {
+      throw acceleratorFailure(
+        "resource_busy",
+        "The local subtitle accelerator is still being installed.",
+      );
+    }
+    return this.#runVerification(
+      pack.resourceId,
+      signal,
+      async (operationSignal) => {
+        const packRoot = this.#finalPackPath(pack);
+        if (!(await lstatOptional(packRoot))) {
+          this.#verifiedPacks.delete(pack.resourceId);
+          throw acceleratorFailure(
+            "accelerator_unavailable",
+            "The selected local subtitle accelerator is not installed.",
+          );
+        }
+        await this.#ensureRoots();
+        const observation = await this.#verifyPack(
+          pack,
+          packRoot,
+          operationSignal,
+          true,
+        );
+        return createVerifiedAcceleratorPack(pack, packRoot, observation);
+      },
+    );
   }
 
   startResourceInstall(
@@ -579,11 +678,9 @@ export class LocalSubtitleAcceleratorManager {
           "The local subtitle accelerator destination already exists.",
         );
       }
-      const packRootStats = await lstat(packRoot);
-      const packIdentity = directoryIdentity(packRootStats);
+      const packIdentity = await directoryIdentityForPath(packRoot);
       await this.#renameDirectory(packRoot, finalPath);
-      const finalStats = await lstat(finalPath);
-      assertSameDirectory(packIdentity, directoryIdentity(finalStats));
+      assertSameDirectory(packIdentity, await directoryIdentityForPath(finalPath));
       committed = {
         currentPath: finalPath,
         stagingRoot: this.#stagingRoot,
@@ -632,10 +729,11 @@ export class LocalSubtitleAcceleratorManager {
     packRoot: string,
     signal: AbortSignal | undefined,
     verifyHashes: boolean,
-  ): Promise<void> {
+  ): Promise<VerifiedPackObservation> {
     throwIfSignalAborted(signal);
     const rootStats = await lstat(packRoot);
     if (!rootStats.isDirectory() || rootStats.isSymbolicLink()) throw invalidPack();
+    const rootIdentity = await directoryIdentityForPath(packRoot);
     const expectedFiles = new Set([
       pack.manifestRelativePath,
       ...pack.artifacts.map((artifact) => artifact.relativePath),
@@ -645,16 +743,24 @@ export class LocalSubtitleAcceleratorManager {
     const cached = canCache ? this.#verifiedPacks.get(pack.resourceId) : undefined;
     if (cached) {
       try {
-        assertSameDirectory(cached.rootIdentity, directoryIdentity(rootStats));
+        assertSameDirectory(cached.rootIdentity, rootIdentity);
         for (const file of cached.files) {
           throwIfSignalAborted(signal);
           const stats = await lstat(
             resolvePackRelativePath(packRoot, file.relativePath),
           );
           if (!stats.isFile() || stats.isSymbolicLink()) throw invalidPack();
-          assertSameFile(file.identity, fileIdentity(stats));
+          assertSameFile(
+            file.identity,
+            fileIdentity(
+              await directoryIdentityForPath(
+                resolvePackRelativePath(packRoot, file.relativePath),
+              ),
+              stats,
+            ),
+          );
         }
-        return;
+        return cached;
       } catch {
         this.#verifiedPacks.delete(pack.resourceId);
       }
@@ -681,14 +787,19 @@ export class LocalSubtitleAcceleratorManager {
       );
       files.push({ relativePath: artifact.relativePath, identity });
     }
-    const rootIdentity = directoryIdentity(rootStats);
-    assertSameDirectory(rootIdentity, directoryIdentity(await lstat(packRoot)));
+    assertSameDirectory(rootIdentity, await directoryIdentityForPath(packRoot));
     if (canCache) {
-      this.#verifiedPacks.set(pack.resourceId, Object.freeze({
+      const observation = Object.freeze({
         rootIdentity,
         files: Object.freeze(files.map((file) => Object.freeze(file))),
-      }));
+      });
+      this.#verifiedPacks.set(pack.resourceId, observation);
+      return observation;
     }
+    return Object.freeze({
+      rootIdentity,
+      files: Object.freeze(files.map((file) => Object.freeze(file))),
+    });
   }
 
   async #runVerification<T>(
@@ -826,7 +937,7 @@ export class LocalSubtitleAcceleratorManager {
     return {
       currentPath: root,
       stagingRoot: this.#stagingRoot,
-      identity: directoryIdentity(proof),
+      identity: cloneDirectoryIdentity(proof),
       quarantined: false,
       cleaned: false,
     };
@@ -838,18 +949,19 @@ export class LocalSubtitleAcceleratorManager {
   ): Promise<StagingReceipt> {
     const stats = await lstat(absolutePath);
     if (!stats.isDirectory() || stats.isSymbolicLink()) throw invalidPack();
+    const identity = await directoryIdentityForPath(absolutePath);
     const quarantine = path.join(this.#stagingRoot, quarantineLeaf);
     await this.#renameDirectory(absolutePath, quarantine);
     const receipt: StagingReceipt = {
       currentPath: quarantine,
       stagingRoot: this.#stagingRoot,
-      identity: directoryIdentity(stats),
+      identity,
       quarantined: true,
       cleaned: false,
     };
     assertSameDirectory(
       receipt.identity,
-      directoryIdentity(await lstat(quarantine)),
+      await directoryIdentityForPath(quarantine),
     );
     return receipt;
   }
@@ -862,7 +974,10 @@ export class LocalSubtitleAcceleratorManager {
       this.#orphanedStaging.delete(receipt);
       return;
     }
-    assertSameDirectory(receipt.identity, directoryIdentity(stats));
+    assertSameDirectory(
+      receipt.identity,
+      await directoryIdentityForPath(receipt.currentPath),
+    );
     if (!receipt.quarantined) {
       const quarantine = path.join(
         receipt.stagingRoot,
@@ -872,8 +987,10 @@ export class LocalSubtitleAcceleratorManager {
       receipt.currentPath = quarantine;
       receipt.quarantined = true;
     }
-    const quarantineStats = await lstat(receipt.currentPath);
-    assertSameDirectory(receipt.identity, directoryIdentity(quarantineStats));
+    assertSameDirectory(
+      receipt.identity,
+      await directoryIdentityForPath(receipt.currentPath),
+    );
     const stagingRealPath = await realpath(receipt.stagingRoot);
     const quarantineRealPath = await realpath(receipt.currentPath);
     if (!isContainedPath(stagingRealPath, quarantineRealPath)) {
@@ -1023,6 +1140,16 @@ function createProductionPackDefinition(
     resourceId: manifest.packId,
     displayName: `CUDA ${manifest.target.cudaVersion} accelerator`,
     version: `${manifest.engine.version}+cuda-${manifest.target.cudaVersion}`,
+    engine: {
+      version: manifest.engine.version,
+      commit: manifest.engine.commit,
+    },
+    target: {
+      platform: manifest.target.platform,
+      arch: manifest.target.arch,
+      backend: manifest.target.backend,
+    },
+    signatureKind: manifest.delivery.signatureKind,
     sourceArchive: {
       fileName: manifest.sourceArchive.fileName,
       downloadUrl: manifest.sourceArchive.downloadUrl,
@@ -1062,6 +1189,13 @@ function validatePackCatalog(
       pack.version.trim() === "" ||
       !Buffer.isBuffer(pack.manifestBytes) ||
       pack.manifestBytes.length === 0 ||
+      typeof pack.engine?.version !== "string" ||
+      pack.engine.version.trim() === "" ||
+      !/^[a-f0-9]{40}$/u.test(pack.engine.commit) ||
+      pack.target?.platform !== "win32" ||
+      pack.target.arch !== "x64" ||
+      pack.target.backend !== "cuda" ||
+      pack.signatureKind !== "unsigned" ||
       !isSafeRelativePath(pack.manifestRelativePath) ||
       !Number.isSafeInteger(pack.installedByteSize) ||
       pack.installedByteSize <= 0 ||
@@ -1128,6 +1262,8 @@ function validatePackCatalog(
     }
     return deepFreeze({
       ...pack,
+      engine: { ...pack.engine },
+      target: { ...pack.target },
       sourceArchive: {
         ...pack.sourceArchive,
         allowedDownloadHosts: [...pack.sourceArchive.allowedDownloadHosts],
@@ -1137,6 +1273,147 @@ function validatePackCatalog(
     });
   });
   return Object.freeze(validated);
+}
+
+function createVerifiedAcceleratorPack(
+  pack: LocalSubtitleAcceleratorPackDefinition,
+  packRoot: string,
+  observation: VerifiedPackObservation,
+): LocalSubtitleVerifiedAcceleratorPack {
+  const observations = new Map(
+    observation.files.map((file) => [file.relativePath, file.identity] as const),
+  );
+  const manifestIdentity = observations.get(pack.manifestRelativePath);
+  const server = pack.artifacts.find((artifact) => artifact.kind === "server");
+  if (!manifestIdentity || !server) throw invalidPack();
+  const artifacts = pack.artifacts.map((artifact) => {
+    const identity = observations.get(artifact.relativePath);
+    if (!identity) throw invalidPack();
+    return Object.freeze({
+      id: artifact.id,
+      kind: artifact.kind,
+      relativePath: artifact.relativePath,
+      absolutePath: resolvePackRelativePath(packRoot, artifact.relativePath),
+      byteSize: artifact.byteSize,
+      sha256: artifact.sha256,
+      identity: Object.freeze({ ...identity }),
+    });
+  });
+  const proof = {
+    resourceId: pack.resourceId,
+    version: pack.version,
+    packGeneration: createHash("sha256").update(pack.manifestBytes).digest("hex"),
+    root: packRoot,
+    rootIdentity: Object.freeze({ ...observation.rootIdentity }),
+    target: Object.freeze({ ...pack.target }),
+    engine: Object.freeze({ ...pack.engine }),
+    manifest: Object.freeze({
+      relativePath: pack.manifestRelativePath,
+      absolutePath: resolvePackRelativePath(packRoot, pack.manifestRelativePath),
+      byteSize: pack.manifestBytes.byteLength,
+      sha256: createHash("sha256").update(pack.manifestBytes).digest("hex"),
+      identity: Object.freeze({ ...manifestIdentity }),
+    }),
+    serverArtifactId: server.id,
+    serverVersion: `${pack.engine.version}+${pack.engine.commit.slice(0, 7)}`,
+    signatureKind: pack.signatureKind,
+    artifacts: Object.freeze(artifacts),
+  } as Omit<
+    LocalSubtitleVerifiedAcceleratorPack,
+    typeof VERIFIED_ACCELERATOR_PACK_BRAND
+  >;
+  Object.defineProperty(proof, VERIFIED_ACCELERATOR_PACK_BRAND, {
+    value: true,
+    enumerable: false,
+    configurable: false,
+    writable: false,
+  });
+  const verified = deepFreeze(proof) as LocalSubtitleVerifiedAcceleratorPack;
+  VERIFIED_ACCELERATOR_PACKS.add(verified);
+  VERIFIED_ACCELERATOR_PACK_IDENTITY_KEYS.set(
+    verified,
+    acceleratorPackIdentityKey(verified),
+  );
+  return verified;
+}
+
+export function isLocalSubtitleVerifiedAcceleratorPack(
+  input: unknown,
+): input is LocalSubtitleVerifiedAcceleratorPack {
+  return (
+    typeof input === "object" &&
+    input !== null &&
+    Object.isFrozen(input) &&
+    VERIFIED_ACCELERATOR_PACKS.has(input) &&
+    (input as {
+      readonly [VERIFIED_ACCELERATOR_PACK_BRAND]?: unknown;
+    })[VERIFIED_ACCELERATOR_PACK_BRAND] === true
+  );
+}
+
+export function matchesLocalSubtitleVerifiedAcceleratorPack(
+  left: LocalSubtitleVerifiedAcceleratorPack,
+  right: LocalSubtitleVerifiedAcceleratorPack,
+): boolean {
+  if (
+    !isLocalSubtitleVerifiedAcceleratorPack(left) ||
+    !isLocalSubtitleVerifiedAcceleratorPack(right)
+  ) {
+    return false;
+  }
+  return VERIFIED_ACCELERATOR_PACK_IDENTITY_KEYS.get(left) ===
+    VERIFIED_ACCELERATOR_PACK_IDENTITY_KEYS.get(right);
+}
+
+function acceleratorPackIdentityKey(
+  pack: LocalSubtitleVerifiedAcceleratorPack,
+): string {
+  return JSON.stringify([
+    pack.resourceId,
+    pack.version,
+    pack.packGeneration,
+    pack.root,
+    ...directoryIdentityValues(pack.rootIdentity),
+    pack.target.platform,
+    pack.target.arch,
+    pack.target.backend,
+    pack.engine.version,
+    pack.engine.commit,
+    pack.manifest.relativePath,
+    pack.manifest.absolutePath,
+    pack.manifest.byteSize,
+    pack.manifest.sha256,
+    ...fileIdentityValues(pack.manifest.identity),
+    pack.serverArtifactId,
+    pack.serverVersion,
+    pack.signatureKind,
+    ...pack.artifacts.flatMap((artifact) => [
+      artifact.id,
+      artifact.kind,
+      artifact.relativePath,
+      artifact.absolutePath,
+      artifact.byteSize,
+      artifact.sha256,
+      ...fileIdentityValues(artifact.identity),
+    ]),
+  ]);
+}
+
+function directoryIdentityValues(
+  identity: DirectoryIdentity,
+): readonly (number | string)[] {
+  return "volumeSerialHex" in identity
+    ? ["win32", identity.volumeSerialHex, identity.fileIdHex]
+    : ["posix", identity.dev, identity.ino, identity.birthtimeMs];
+}
+
+function fileIdentityValues(identity: FileIdentity): readonly (number | string)[] {
+  return [
+    ...directoryIdentityValues(identity),
+    identity.size,
+    identity.mtimeMs,
+    identity.ctimeMs,
+  ];
 }
 
 async function verifyPeArtifact(
@@ -1153,10 +1430,18 @@ async function verifyPeArtifact(
   ) {
     throw invalidPack();
   }
+  const beforeIdentity = fileIdentity(
+    await directoryIdentityForPath(absolutePath),
+    before,
+  );
   const handle = await open(absolutePath, READ_ONLY_NOFOLLOW_FLAGS);
   try {
     const opened = await handle.stat();
-    assertSameFile(fileIdentity(before), fileIdentity(opened));
+    const openedIdentity = fileIdentity(
+      await localSubtitleFilesystemObjectIdentityForHandle(handle),
+      opened,
+    );
+    assertSameFile(beforeIdentity, openedIdentity);
     const header = Buffer.alloc(Math.min(opened.size, MAX_NATIVE_HEADER_BYTES));
     const headerRead = await handle.read(header, 0, header.length, 0);
     if (headerRead.bytesRead !== header.length) throw invalidPack();
@@ -1172,9 +1457,9 @@ async function verifyPeArtifact(
       const observedHash = await hashFileHandle(handle, opened.size, signal);
       if (observedHash !== expected.sha256) throw invalidPack();
     }
-    const observedIdentity = fileIdentity(opened);
-    assertSameFile(observedIdentity, fileIdentity(await handle.stat()));
-    assertSameFile(observedIdentity, fileIdentity(await lstat(absolutePath)));
+    const observedIdentity = openedIdentity;
+    assertSameFile(observedIdentity, await fileIdentityForHandle(handle));
+    assertSameFile(observedIdentity, await fileIdentityForPath(absolutePath));
     return observedIdentity;
   } finally {
     await handle.close();
@@ -1258,9 +1543,12 @@ async function readNoFollowFile(
       if (read.bytesRead <= 0) throw invalidPack();
       position += read.bytesRead;
     }
-    const identity = fileIdentity(stats);
-    assertSameFile(identity, fileIdentity(await handle.stat()));
-    assertSameFile(identity, fileIdentity(await lstat(absolutePath)));
+    const identity = fileIdentity(
+      await localSubtitleFilesystemObjectIdentityForHandle(handle),
+      stats,
+    );
+    assertSameFile(identity, await fileIdentityForHandle(handle));
+    assertSameFile(identity, await fileIdentityForPath(absolutePath));
     return Object.freeze({ bytes, identity });
   } finally {
     await handle.close();
@@ -1340,17 +1628,21 @@ async function readPrivateDirectoryProof(
       "A managed accelerator directory is not private.",
     );
   }
+  const identity = await directoryIdentityForPath(absolutePath);
   return Object.freeze({
     absolutePath,
     realPath: await realpath(absolutePath),
-    ...directoryIdentity(stats),
+    ...identity,
   });
 }
 
 async function verifyRootProofs(proofs: AcceleratorRootProofs): Promise<void> {
   await Promise.all(Object.values(proofs).map(async (proof) => {
     const stats = await lstat(proof.absolutePath);
-    assertSameDirectory(proof, directoryIdentity(stats));
+    assertSameDirectory(
+      proof,
+      await directoryIdentityForPath(proof.absolutePath),
+    );
     if (!stats.isDirectory() || stats.isSymbolicLink()) throw invalidPack();
     if (await realpath(proof.absolutePath) !== proof.realPath) throw invalidPack();
   }));
@@ -1433,43 +1725,69 @@ function isContainedPath(parent: string, candidate: string): boolean {
     !path.isAbsolute(relative);
 }
 
-function directoryIdentity(stats: Pick<Stats, "dev" | "ino" | "birthtimeMs">): DirectoryIdentity {
-  return Object.freeze({
-    dev: stats.dev,
-    ino: stats.ino,
-    birthtimeMs: stats.birthtimeMs,
-  });
+async function directoryIdentityForPath(
+  absolutePath: string,
+): Promise<DirectoryIdentity> {
+  return localSubtitleFilesystemObjectIdentityForPath(absolutePath);
 }
 
 function fileIdentity(
+  objectIdentity: DirectoryIdentity,
   stats: Pick<
     Stats,
-    "dev" | "ino" | "birthtimeMs" | "size" | "mtimeMs" | "ctimeMs"
+    "size" | "mtimeMs" | "ctimeMs"
   >,
 ): FileIdentity {
   return Object.freeze({
-    ...directoryIdentity(stats),
+    ...objectIdentity,
     size: stats.size,
     mtimeMs: stats.mtimeMs,
     ctimeMs: stats.ctimeMs,
   });
 }
 
+async function fileIdentityForPath(absolutePath: string): Promise<FileIdentity> {
+  const objectIdentity = await directoryIdentityForPath(absolutePath);
+  const stats = await lstat(absolutePath);
+  assertSameDirectory(
+    objectIdentity,
+    await directoryIdentityForPath(absolutePath),
+  );
+  return fileIdentity(objectIdentity, stats);
+}
+
+async function fileIdentityForHandle(handle: FileHandle): Promise<FileIdentity> {
+  const objectIdentity = await localSubtitleFilesystemObjectIdentityForHandle(handle);
+  const stats = await handle.stat();
+  assertSameDirectory(
+    objectIdentity,
+    await localSubtitleFilesystemObjectIdentityForHandle(handle),
+  );
+  return fileIdentity(objectIdentity, stats);
+}
+
+function cloneDirectoryIdentity(identity: DirectoryIdentity): DirectoryIdentity {
+  return "volumeSerialHex" in identity
+    ? Object.freeze({
+        volumeSerialHex: identity.volumeSerialHex,
+        fileIdHex: identity.fileIdHex,
+      })
+    : Object.freeze({
+        dev: identity.dev,
+        ino: identity.ino,
+        birthtimeMs: identity.birthtimeMs,
+      });
+}
+
 function assertSameDirectory(left: DirectoryIdentity, right: DirectoryIdentity): void {
-  if (
-    left.dev !== right.dev ||
-    left.ino !== right.ino ||
-    left.birthtimeMs !== right.birthtimeMs
-  ) {
+  if (!sameLocalSubtitleFilesystemObjectIdentity(left, right)) {
     throw invalidPack();
   }
 }
 
 function assertSameFile(left: FileIdentity, right: FileIdentity): void {
   if (
-    left.dev !== right.dev ||
-    left.ino !== right.ino ||
-    left.birthtimeMs !== right.birthtimeMs ||
+    !sameLocalSubtitleFilesystemObjectIdentity(left, right) ||
     left.size !== right.size ||
     left.mtimeMs !== right.mtimeMs ||
     left.ctimeMs !== right.ctimeMs

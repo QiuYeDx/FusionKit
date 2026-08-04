@@ -59,6 +59,8 @@ import {
 import {
   localSubtitleFilesystemObjectIdentityForPath,
 } from "../../electron/main/local-subtitle/filesystem-object-identity";
+import type { LocalSubtitleVerifiedAcceleratorPack } from "../../electron/main/local-subtitle/accelerator-manager";
+import { createAcceleratorFixture } from "./acceleratorFixture";
 
 const OWNER: LocalSubtitleOwnerKey = Object.freeze({
   webContentsId: 71,
@@ -75,6 +77,33 @@ afterEach(async () => {
 });
 
 describe("local subtitle production executor", () => {
+  it("reverifies and pins the exact admitted CUDA pack before inference", async () => {
+    const accelerator = await createAcceleratorFixture();
+    try {
+      const harness = await createHarness({
+        backend: "cuda",
+        acceleratorPack: accelerator.proof,
+      });
+
+      await expect(harness.executor.execute(harness.context)).resolves.toMatchObject({
+        status: "completed",
+      });
+      expect(harness.resolveCudaAccelerator).toHaveBeenCalledTimes(2);
+      expect(harness.supervisor.acquireBatchRuntimePin).toHaveBeenCalledWith(
+        OWNER,
+        "batch-1",
+        expect.objectContaining({
+          backend: "cuda",
+          serverArtifactId: accelerator.proof.serverArtifactId,
+          acceleratorPack: accelerator.proof,
+        }),
+        harness.sliceController.signal,
+      );
+    } finally {
+      await accelerator.cleanup();
+    }
+  });
+
   it("binds one branded PCM attempt and activates a readable SRT artifact", async () => {
     const harness = await createHarness();
 
@@ -1107,7 +1136,8 @@ describe("local subtitle production executor", () => {
 });
 
 interface HarnessOptions {
-  readonly backend?: "cpu" | "metal";
+  readonly backend?: "cpu" | "cuda" | "metal";
+  readonly acceleratorPack?: LocalSubtitleVerifiedAcceleratorPack;
   readonly totalFrames?: number;
   readonly displayName?: string;
   readonly brandNormalizationId?: string;
@@ -1315,8 +1345,13 @@ async function createHarness(options: HarnessOptions = {}) {
   const defaultServerRuntime = fakeVerifiedServerRuntime(
     root,
     options.serverRuntimeGeneration ?? normalized.runtimeGeneration,
+    options.backend === "cuda",
   );
   let serverRuntimeIndex = 0;
+  const resolveCudaAccelerator = vi.fn(async () => {
+    if (!options.acceleratorPack) throw new Error("Missing CUDA accelerator fixture.");
+    return options.acceleratorPack;
+  });
   const executor = new LocalSubtitleProductionExecutor({
     media,
     supervisor,
@@ -1330,6 +1365,7 @@ async function createHarness(options: HarnessOptions = {}) {
       serverRuntimeIndex += 1;
       return runtime;
     },
+    ...(options.backend === "cuda" ? { resolveCudaAccelerator } : {}),
     validateWindowBrand: () => true,
     rootPlanIdFactory: () => "root-plan-1",
     cpuThreads: 2,
@@ -1355,12 +1391,18 @@ async function createHarness(options: HarnessOptions = {}) {
   const backendResolution = await new LocalSubtitleBackendResolver({
     verifyServerRuntime: async () =>
       options.serverRuntimeBundles?.[0] ??
-      fakeVerifiedServerRuntime(root, admittedRuntimeGeneration),
+      fakeVerifiedServerRuntime(
+        root,
+        admittedRuntimeGeneration,
+        options.backend === "cuda",
+      ),
     selectCpuServerArtifact: (runtime) =>
       runtime.artifactPaths["whisper-server-cpu"]!,
     selectMetalServerArtifact: (runtime) =>
       runtime.artifactPaths["whisper-server-cpu"]!,
     metalAttestationAvailable: options.backend === "metal",
+    cudaAttestationAvailable: options.backend === "cuda",
+    ...(options.backend === "cuda" ? { resolveCudaAccelerator } : {}),
   }).resolveBackend({
     devicePreference: config.devicePreference,
     admittedRuntimeGeneration,
@@ -1396,19 +1438,30 @@ async function createHarness(options: HarnessOptions = {}) {
     outputs,
     exporter,
     artifacts,
+    resolveCudaAccelerator,
   };
 }
 
 function fakeVerifiedServerRuntime(
   root: string,
   runtimeGeneration: string,
-  serverAbsolutePath = path.join(root, "runtime", "whisper-server"),
+  windowsOrServerPath: boolean | string = false,
 ): LocalSubtitleVerifiedRuntimeBundle {
+  const windows = typeof windowsOrServerPath === "boolean"
+    ? windowsOrServerPath
+    : false;
+  const serverAbsolutePath = typeof windowsOrServerPath === "string"
+    ? windowsOrServerPath
+    : path.join(
+        root,
+        "runtime",
+        windows ? "whisper-server.exe" : "whisper-server",
+      );
   return deepFreeze({
     schemaVersion: 1 as const,
     target: {
-      platform: "darwin" as const,
-      arch: "arm64" as const,
+      platform: windows ? "win32" as const : "darwin" as const,
+      arch: windows ? "x64" as const : "arm64" as const,
     },
     scope: "server" as const,
     root: path.join(root, "runtime"),
@@ -1420,7 +1473,7 @@ function fakeVerifiedServerRuntime(
       "whisper-server-cpu": {
         id: "whisper-server-cpu",
         kind: "server" as const,
-        backend: "metal_cpu" as const,
+        backend: windows ? "cpu" as const : "metal_cpu" as const,
         absolutePath: serverAbsolutePath,
         byteSize: 1024,
         sha256: "d".repeat(64),
@@ -1467,7 +1520,7 @@ function createConfig(
   outputMode: "custom" | "source" = "custom",
   conflictPolicy: "index" | "overwrite" = "index",
   formats: readonly LocalSubtitleFormat[] = ["SRT"],
-  resolvedBackend: "cpu" | "metal" = "cpu",
+  resolvedBackend: "cpu" | "cuda" | "metal" = "cpu",
 ): LocalSubtitleBatchConfigSnapshot {
   return createLocalSubtitleBatchConfigSnapshot({
     schemaVersion: LOCAL_SUBTITLE_DOMAIN_SCHEMA_VERSION,

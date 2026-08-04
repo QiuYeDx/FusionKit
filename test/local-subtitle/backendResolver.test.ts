@@ -3,9 +3,11 @@ import { describe, expect, it, vi } from "vitest";
 import {
   LocalSubtitleBackendResolver,
   isLocalSubtitleVerifiedBackendResolution,
+  matchesLocalSubtitleBackendResolutionAccelerator,
   matchesLocalSubtitleBackendResolutionRuntime,
 } from "../../electron/main/local-subtitle/backend-resolver";
 import type { LocalSubtitleVerifiedRuntimeBundle } from "../../electron/main/local-subtitle/resource-path";
+import { createAcceleratorFixture } from "./acceleratorFixture";
 
 const RUNTIME_GENERATION = "a".repeat(64);
 const MODEL_HASH = "b".repeat(64);
@@ -130,6 +132,68 @@ describe("LocalSubtitleBackendResolver", () => {
     ).rejects.toMatchObject({ localSubtitleCode: "backend_unverified" });
     await expect(
       backendResolver.resolveBackend({
+        devicePreference: "auto",
+        admittedRuntimeGeneration: RUNTIME_GENERATION,
+        model: MODEL,
+      }),
+    ).resolves.toMatchObject({ resolvedBackend: "cpu" });
+  });
+
+  it.each(["auto", "cuda"] as const)(
+    "admits the exact managed CUDA pack for %s on Windows x64",
+    async (devicePreference) => {
+      const accelerator = await createAcceleratorFixture();
+      try {
+        const runtime = fakeWindowsRuntime();
+        const resolution = await new LocalSubtitleBackendResolver({
+          verifyServerRuntime: async () => runtime,
+          cudaAttestationAvailable: true,
+          resolveCudaAccelerator: async () => accelerator.proof,
+          selectCpuServerArtifact: selectCpuArtifact,
+        }).resolveBackend({
+          devicePreference,
+          admittedRuntimeGeneration: RUNTIME_GENERATION,
+          model: MODEL,
+        });
+
+        expect(resolution).toMatchObject({
+          devicePreference,
+          resolvedBackend: "cuda",
+          serverArtifact: {
+            id: accelerator.proof.serverArtifactId,
+            backend: "cuda",
+          },
+          acceleratorPack: {
+            resourceId: accelerator.proof.resourceId,
+            packGeneration: accelerator.proof.packGeneration,
+          },
+        });
+        expect(matchesLocalSubtitleBackendResolutionRuntime(resolution, runtime)).toBe(
+          true,
+        );
+        expect(
+          matchesLocalSubtitleBackendResolutionAccelerator(
+            resolution,
+            accelerator.proof,
+          ),
+        ).toBe(true);
+      } finally {
+        await accelerator.cleanup();
+      }
+    },
+  );
+
+  it("falls back auto to CPU before commit when the CUDA pack is unavailable", async () => {
+    const runtime = fakeWindowsRuntime();
+    await expect(
+      new LocalSubtitleBackendResolver({
+        verifyServerRuntime: async () => runtime,
+        cudaAttestationAvailable: true,
+        resolveCudaAccelerator: async () => {
+          throw new Error("not installed");
+        },
+        selectCpuServerArtifact: selectCpuArtifact,
+      }).resolveBackend({
         devicePreference: "auto",
         admittedRuntimeGeneration: RUNTIME_GENERATION,
         model: MODEL,

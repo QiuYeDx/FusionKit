@@ -13,11 +13,17 @@ import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   LocalSubtitleAcceleratorManager,
+  isLocalSubtitleVerifiedAcceleratorPack,
+  matchesLocalSubtitleVerifiedAcceleratorPack,
   type LocalSubtitleAcceleratorManagerOptions,
   type LocalSubtitleAcceleratorPackDefinition,
 } from "../../electron/main/local-subtitle/accelerator-manager";
+import { LOCAL_SUBTITLE_PRODUCTION_CONTRACT } from "../../src/type/localSubtitle";
 import { LOCAL_SUBTITLE_MODEL_MANIFEST } from "../../electron/main/local-subtitle/model-manifest";
 import { LocalSubtitleModelManager } from "../../electron/main/local-subtitle/model-manager";
+import {
+  localSubtitleFilesystemObjectIdentityForPath,
+} from "../../electron/main/local-subtitle/filesystem-object-identity";
 import { LocalSubtitleResourceJobManager } from "../../electron/main/local-subtitle/resource-job";
 import { LocalSubtitleSessionRegistry } from "../../electron/main/local-subtitle/session-registry";
 
@@ -146,6 +152,41 @@ describe("local subtitle accelerator manager", () => {
     await expect(
       readdir(path.join(fixture.managedRoot, "accelerator-staging")),
     ).resolves.toEqual([]);
+
+    const firstProof = await fixture.manager.resolveManagedAccelerator(
+      pack.resourceId,
+    );
+    const secondProof = await fixture.manager.resolveManagedAccelerator(
+      pack.resourceId,
+    );
+    expect(isLocalSubtitleVerifiedAcceleratorPack(firstProof)).toBe(true);
+    expect(matchesLocalSubtitleVerifiedAcceleratorPack(firstProof, secondProof)).toBe(
+      true,
+    );
+    expect(firstProof).toMatchObject({
+      resourceId: pack.resourceId,
+      target: { platform: "win32", arch: "x64", backend: "cuda" },
+      serverArtifactId: pack.artifacts[0]!.id,
+      artifacts: [
+        expect.objectContaining({ kind: "server", sha256: pack.artifacts[0]!.sha256 }),
+        expect.objectContaining({ kind: "dynamic_library" }),
+      ],
+    });
+    const expectedRootIdentity =
+      await localSubtitleFilesystemObjectIdentityForPath(firstProof.root);
+    expect(firstProof.rootIdentity).toEqual(expectedRootIdentity);
+    for (const file of [firstProof.manifest, ...firstProof.artifacts]) {
+      const expectedObjectIdentity =
+        await localSubtitleFilesystemObjectIdentityForPath(file.absolutePath);
+      expect(file.identity).toMatchObject(expectedObjectIdentity);
+      expect(Reflect.ownKeys(file.identity).sort()).toEqual([
+        ...Reflect.ownKeys(expectedObjectIdentity),
+        "size",
+        "mtimeMs",
+        "ctimeMs",
+      ].sort());
+    }
+    expect(Object.isFrozen(firstProof.artifacts)).toBe(true);
   });
 
   it("claims an install synchronously across owners", async () => {
@@ -541,6 +582,12 @@ function createPack(
     resourceId,
     displayName: `CUDA pack ${resourceId}`,
     version: resourceId,
+    engine: {
+      version: LOCAL_SUBTITLE_PRODUCTION_CONTRACT.engine.version,
+      commit: LOCAL_SUBTITLE_PRODUCTION_CONTRACT.engine.commit,
+    },
+    target: { platform: "win32", arch: "x64", backend: "cuda" },
+    signatureKind: "unsigned",
     sourceArchive: {
       fileName: `${resourceId}.zip`,
       downloadUrl: `https://downloads.example.test/${resourceId}.zip`,

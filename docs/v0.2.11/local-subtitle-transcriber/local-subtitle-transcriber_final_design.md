@@ -4,7 +4,7 @@
 >
 > Feature Slug：`local-subtitle-transcriber`
 >
-> 状态：39个顶层工作包中20个已完成、17个未开始、2个进行中。`MODEL-002A`～`MODEL-002D`已完成model/VAD/CUDA managed lifecycle与受控root启动孤儿清理；`FE-002`已完成真实runtime/backend摘要、managed resource管理、commit-time main auto backend proof、开始前path/hash-free preview、macOS arm64 Metal production admission及用户确认CPU新generation代码闭环。顶层`MODEL-002`仍等待真实大文件下载与目标环境证据；`FE-002`仍等待Windows CUDA production admission及CUDA/Metal目标机证据。`NATIVE-002`、`FS-TXN-001`、`BE-002`与`FE-001`已按职责结项；不提前声明M2 packaged/目标机验收或M3完成
+> 状态：39个顶层工作包中20个已完成、17个未开始、2个进行中。`MODEL-002A`～`MODEL-002D`已完成model/VAD/CUDA managed lifecycle与受控root启动孤儿清理；`FE-002`已完成真实runtime/backend摘要、managed resource管理、commit-time main auto backend proof、开始前path/hash-free preview、macOS arm64 Metal admission、Windows x64 managed CUDA production admission及用户确认CPU新generation代码闭环。顶层`MODEL-002`仍等待真实大文件下载与目标环境证据；`FE-002`仍等待CUDA/Metal真实目标机与packaged产品证据。`NATIVE-002`、`FS-TXN-001`、`BE-002`与`FE-001`已按职责结项；不提前声明M2 packaged/目标机验收或M3完成
 >
 > 产品定位：使用本地算力把批量音频/视频转成可直接翻译的 SRT/LRC 字幕
 >
@@ -950,6 +950,8 @@ macOS arm64 Metal production admission随后完成代码闭环：production comp
 
 用户确认CPU新generation随后完成代码闭环：公开task summary只增加main签发的`cpuRetryAvailable: true`，且仅允许失败的非CPU generation与固定GPU/runtime错误白名单组合；renderer确认请求只提交`taskId + generation`，不提交backend proof、path、hash、artifact identity、runtime generation或flags。Job Manager为每个task generation保存独立execution binding；普通retry沿用当前binding，不会静默改backend，CPU retry则在exact失败generation仍有效时重新验证capability、managed model与runtime，并要求main resolver签发显式CPU proof，再以`generation + 1`和全新queue admission/runtime slice发布。Session Registry只允许`eligible failed GPU generation -> queued CPU next generation`改变backend；旧GPU generation事件继续受generation fence约束。pending CPU retry绑定owner、可abort、计入idle/shutdown并在准备期间阻止managed model删除。页面只在main公开资格时显示CPU重试，并用明确的性能确认对话框触发新generation。该checkpoint不开放Windows CUDA，亦不把代码测试当作真实GPU/packaged证据。
 
+Windows x64 CUDA production admission随后完成代码闭环：Accelerator Manager在每次admission与执行前复验fixed managed pack的exact tree、manifest bytes、20个PE x64 artifact、full SHA-256及当前文件身份，并签发module-private branded proof；Windows root/file对象身份复用canonical fixed-width volume serial + 128-bit FileId，不经过JS `number` inode且不把birthtime/creation time当身份。proof冻结pack generation、root、server和全部DLL identity，不把CUDA server伪装成base runtime artifact。Resolver只有在Windows x64、production attestor capability与该proof同时存在时才把`auto`/显式CUDA冻结为CUDA；`auto`在commit前pack不可用时可解析CPU，显式CUDA始终fail closed。Process Descriptor从verified pack server目录启动，最小`PATH`只加入同目录DLL与System32；load identity、queue pin和执行前二次复验同时绑定base runtime generation与完整pack identity。Supervisor在exact child ready前调用main-only WDDM `GPU Process Memory(pid_...)`探针，只有正显存才通过；计数器不可用时仅尝试同PID的`nvidia-smi` compute-app记录，并将attestation绑定epoch/PID/backend/base runtime/server ID/accelerator resource/pack generation。资源删除同时检查queued task、pin、lease与resident epoch。renderer/IPC仍不接收path/hash/artifact/DLL/generation/probe输出。该checkpoint仅关闭代码路径，真实Windows NVIDIA、完整下载、packaged app与CUDA/Metal目标机正向证据仍是`FE-002`验收门槛。
+
 ## 11. 模型与加速包管理
 
 ### 11.1 目录
@@ -1843,7 +1845,7 @@ Electron 视觉/交互验证必须等待 preload loading 完全退出。若启�
 
 `PRE-001`～`PRE-006`、`CORE-001`～`CORE-004`、`NATIVE-001`～`NATIVE-002`、`BE-001`～`BE-002`、`MEDIA-001`、`SUB-001`～`SUB-002`、`FS-TXN-001`与`MODEL-001`已完成，M1的共享schema、resource manifest/resolver/staging、preload/IPC/capability、renderer session runtime、official server transport/process contract、Supervisor生命周期、media normalization/PCM proof、canonical post-processing、标准字幕原子产物和managed model合同已冻结。唯一production decision record是`poc/pre006-production-decision.json`，后续实现不得静默更换引擎、平台矩阵、首发模型或media acquisition policy；SUB-001自有policy也不得伪装为PRE-006字段。
 
-1. `MODEL-002D`已完成受控root `.part`/staging启动孤儿清理，`FE-002`已完成环境/backend摘要、managed resource管理、main auto proof、开始前preview、macOS arm64 Metal production admission及用户确认CPU新generation代码闭环；下一步接Windows managed CUDA exact artifact与exact-PID positive attestation，完成后再评估进入`FE-003`批量队列。
+1. `MODEL-002D`已完成受控root `.part`/staging启动孤儿清理，`FE-002`已完成环境/backend摘要、managed resource管理、main auto proof、开始前preview、macOS arm64 Metal、Windows x64 managed CUDA production admission及用户确认CPU新generation代码闭环；下一步在真实Windows NVIDIA与unrestricted Apple Silicon packaged目标机补正向证据，并开始评估`FE-003`批量队列。
 2. 使用真实FFmpeg、official server、PRE-006模型与Electron页面完成单文件SRT/reveal产品E2E后，再记录M2 packaged/目标机验收；该QA证据不反向扩大`FE-001`职责。
 3. Developer ID、公证和 Gatekeeper accepted 只由 `QA-004` 验收 macOS 分发产物；QA-005 完成分发前第三方 notices/source-offer/NVIDIA DLL 核对。
 4. 仍无需 FusionKit 自写 C++ runner；只有 official server 出现产品必需能力的真实硬缺口，才通过独立工作包重新评估 native bridge。

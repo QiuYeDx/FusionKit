@@ -26,6 +26,7 @@ import {
   createRuntimeFixture,
   type LocalSubtitleRuntimeFixture,
 } from "./runtimeFixture";
+import { createAcceleratorFixture } from "./acceleratorFixture";
 
 const HASH_A = "a".repeat(64);
 const HASH_B = "b".repeat(64);
@@ -320,7 +321,7 @@ describe("local subtitle server process contract", () => {
         ...base,
         backend: "cuda",
       }),
-    ).toThrow(/does not support/u);
+    ).toThrow(/CUDA accelerator proof/u);
   });
 
   it("requires a server-scoped verified manifest generation", () => {
@@ -616,6 +617,71 @@ describe("local subtitle server process contract", () => {
       allowProgressParsing: false,
     });
     expectDeeplyFrozen(LOCAL_SUBTITLE_SERVER_PROCESS_POLICY);
+  });
+
+  it("launches CUDA only from a branded pack that binds every server and DLL identity", async () => {
+    const windowsRuntimeFixture = await createRuntimeFixture({ platform: "win32" });
+    const accelerator = await createAcceleratorFixture();
+    try {
+      const windowsRuntime = await verifyLocalSubtitleRuntimeBundle({
+        environment: windowsRuntimeFixture.environment,
+        scope: "server",
+      });
+      const sessionRoot = path.join(accelerator.managedRoot, "temp", "session-1");
+      const options: CreateLocalSubtitleServerProcessDescriptorOptions = {
+        endpoint: endpointFixture(),
+        verifiedRuntime: windowsRuntime,
+        serverArtifactId: accelerator.proof.serverArtifactId,
+        purpose: "inference",
+        backend: "cuda",
+        acceleratorPack: accelerator.proof,
+        managedResourceRoot: accelerator.managedRoot,
+        model: {
+          storage: "managed",
+          id: "large-v3-q5_0",
+          absolutePath: path.join(
+            accelerator.managedRoot,
+            "models",
+            "large-v3-q5_0",
+            "model.bin",
+          ),
+          byteSize: 1_081_140_203,
+          sha256: HASH_B,
+        },
+        threads: 4,
+        sessionRoot,
+        emptyPublicDirectory: path.join(sessionRoot, "public"),
+        temporaryDirectory: path.join(sessionRoot, "tmp"),
+      };
+      const descriptor = createLocalSubtitleServerProcessDescriptor(options);
+      const server = accelerator.proof.artifacts.find(
+        (artifact) => artifact.id === accelerator.proof.serverArtifactId,
+      )!;
+
+      expect(descriptor.command).toBe(server.absolutePath);
+      expect(descriptor.spawnOptions.cwd).toBe(path.dirname(server.absolutePath));
+      expect(descriptor.spawnOptions.env.PATH?.split(";")[0]).toBe(
+        path.dirname(server.absolutePath),
+      );
+      expect(descriptor.args).not.toContain("--no-gpu");
+      expect(descriptor.loadIdentity).toMatchObject({
+        backend: "cuda",
+        runtimeGeneration: windowsRuntime.runtimeGeneration,
+        serverArtifact: { id: server.id, sha256: server.sha256, backend: "cuda" },
+        acceleratorPack: {
+          resourceId: accelerator.proof.resourceId,
+          packGeneration: accelerator.proof.packGeneration,
+          artifacts: accelerator.proof.artifacts.map((artifact) => ({
+            id: artifact.id,
+            sha256: artifact.sha256,
+          })),
+        },
+      });
+      expectDeeplyFrozen(descriptor);
+    } finally {
+      await accelerator.cleanup();
+      await windowsRuntimeFixture.cleanup();
+    }
   });
 });
 

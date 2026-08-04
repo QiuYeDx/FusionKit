@@ -27,9 +27,14 @@ import type {
 } from "./job-manager";
 import {
   isLocalSubtitleVerifiedBackendResolution,
+  matchesLocalSubtitleBackendResolutionAccelerator,
   matchesLocalSubtitleBackendResolutionRuntime,
   type LocalSubtitleVerifiedBackendResolution,
 } from "./backend-resolver";
+import {
+  matchesLocalSubtitleVerifiedAcceleratorPack,
+  type LocalSubtitleVerifiedAcceleratorPack,
+} from "./accelerator-manager";
 import {
   isLocalSubtitleBrandedPcmWindow,
   type LocalSubtitleBrandedPcmWindow,
@@ -143,6 +148,7 @@ interface PinnedServerRuntimeIdentity {
     version: string;
     signatureKind: LocalSubtitleVerifiedRuntimeArtifact["signatureKind"];
   }>;
+  readonly acceleratorPack?: LocalSubtitleVerifiedAcceleratorPack;
 }
 
 type ProductionOutputs = Pick<
@@ -168,6 +174,9 @@ export interface LocalSubtitleProductionExecutorOptions {
   readonly exporter: ProductionExporter;
   readonly runtimeEnvironment?: LocalSubtitleResourceEnvironment;
   readonly verifyServerRuntime?: () => Promise<LocalSubtitleVerifiedRuntimeBundle>;
+  readonly resolveCudaAccelerator?: (
+    signal?: AbortSignal,
+  ) => Promise<LocalSubtitleVerifiedAcceleratorPack>;
   readonly validateWindowBrand?: (
     window: LocalSubtitleBrandedPcmWindow,
   ) => boolean;
@@ -185,6 +194,9 @@ export class LocalSubtitleProductionExecutor
   readonly #outputs: ProductionOutputs;
   readonly #exporter: ProductionExporter;
   readonly #verifyServerRuntime: () => Promise<LocalSubtitleVerifiedRuntimeBundle>;
+  readonly #resolveCudaAccelerator:
+    | ((signal?: AbortSignal) => Promise<LocalSubtitleVerifiedAcceleratorPack>)
+    | undefined;
   readonly #validateWindowBrand: (
     window: LocalSubtitleBrandedPcmWindow,
   ) => boolean;
@@ -226,6 +238,12 @@ export class LocalSubtitleProductionExecutor
     if (!options.verifyServerRuntime && !options.runtimeEnvironment) {
       throw new TypeError("A local subtitle server runtime verifier is required.");
     }
+    if (
+      options.resolveCudaAccelerator !== undefined &&
+      typeof options.resolveCudaAccelerator !== "function"
+    ) {
+      throw new TypeError("The local subtitle CUDA accelerator resolver is invalid.");
+    }
     const cpuThreads = options.cpuThreads ?? DEFAULT_CPU_THREADS;
     if (
       !Number.isSafeInteger(cpuThreads) ||
@@ -262,6 +280,7 @@ export class LocalSubtitleProductionExecutor
         environment: options.runtimeEnvironment!,
         scope: "server",
       }));
+    this.#resolveCudaAccelerator = options.resolveCudaAccelerator;
     this.#validateWindowBrand =
       options.validateWindowBrand ?? isLocalSubtitleBrandedPcmWindow;
     this.#rootPlanIdFactory =
@@ -424,10 +443,44 @@ export class LocalSubtitleProductionExecutor
         );
       }
       const serverArtifactId = context.backendResolution.serverArtifact.id;
+      let acceleratorPack: LocalSubtitleVerifiedAcceleratorPack | undefined;
+      if (context.backendResolution.resolvedBackend === "cuda") {
+        if (!this.#resolveCudaAccelerator) {
+          throw createLocalSubtitleError(
+            "backend_unverified",
+            "The CUDA accelerator cannot be reverified for execution.",
+            { stage: "loading_model" },
+          );
+        }
+        try {
+          acceleratorPack = await this.#resolveCudaAccelerator(context.signal);
+        } catch {
+          if (context.signal.aborted) throw new ExecutionCancelled();
+          throw createLocalSubtitleError(
+            "backend_unverified",
+            "The CUDA accelerator failed execution-time verification.",
+            { stage: "loading_model" },
+          );
+        }
+        throwIfCancelled(context.signal);
+        if (
+          !matchesLocalSubtitleBackendResolutionAccelerator(
+            context.backendResolution,
+            acceleratorPack,
+          )
+        ) {
+          throw createLocalSubtitleError(
+            "media_runtime_invalid",
+            "The CUDA accelerator changed after batch admission.",
+            { stage: "loading_model" },
+          );
+        }
+      }
       const pin = await this.#ensureBatchRuntimePin(
         batchRuntime,
         runtime,
         serverArtifactId,
+        acceleratorPack,
         context.signal,
       );
       lease = await this.#supervisor.acquirePinnedTaskLease(pin, context.signal);
@@ -810,6 +863,7 @@ export class LocalSubtitleProductionExecutor
     record: ProductionBatchRuntimeRecord,
     runtime: LocalSubtitleVerifiedRuntimeBundle,
     serverArtifactId: string,
+    acceleratorPack: LocalSubtitleVerifiedAcceleratorPack | undefined,
     signal: AbortSignal,
   ): Promise<LocalSubtitleServerRuntimePin> {
     if (signal.aborted) throw new ExecutionCancelled();
@@ -822,7 +876,8 @@ export class LocalSubtitleProductionExecutor
     }
     const requestedIdentity = snapshotPinnedServerRuntimeIdentity(
       runtime,
-      serverArtifactId,
+      record.backendResolution,
+      acceleratorPack,
     );
     if (
       record.pinnedIdentity &&
@@ -841,19 +896,33 @@ export class LocalSubtitleProductionExecutor
       record.pinnedIdentity = requestedIdentity;
       let acquired: Promise<LocalSubtitleServerRuntimePin>;
       try {
-        acquired = this.#supervisor.acquireBatchRuntimePin(
-          record.owner,
-          record.batchId,
-          {
-            purpose: "inference",
-            backend: record.backendResolution.resolvedBackend,
-            verifiedRuntime: runtime,
-            serverArtifactId,
-            model: record.managedModel,
-            threads: this.#cpuThreads,
-          },
-          record.signal,
-        );
+        const common = {
+          purpose: "inference" as const,
+          verifiedRuntime: runtime,
+          serverArtifactId,
+          model: record.managedModel,
+          threads: this.#cpuThreads,
+        };
+        acquired = record.backendResolution.resolvedBackend === "cuda"
+          ? this.#supervisor.acquireBatchRuntimePin(
+              record.owner,
+              record.batchId,
+              {
+                ...common,
+                backend: "cuda",
+                acceleratorPack: acceleratorPack!,
+              },
+              record.signal,
+            )
+          : this.#supervisor.acquireBatchRuntimePin(
+              record.owner,
+              record.batchId,
+              {
+                ...common,
+                backend: record.backendResolution.resolvedBackend,
+              },
+              record.signal,
+            );
       } catch (error) {
         record.pinnedIdentity = undefined;
         throw error;
@@ -913,10 +982,14 @@ function waitForBatchPin(
 
 function snapshotPinnedServerRuntimeIdentity(
   runtime: LocalSubtitleVerifiedRuntimeBundle,
-  serverArtifactId: string,
+  resolution: LocalSubtitleVerifiedBackendResolution,
+  acceleratorPack: LocalSubtitleVerifiedAcceleratorPack | undefined,
 ): PinnedServerRuntimeIdentity {
-  const artifact = runtime.artifactPaths[serverArtifactId];
-  if (!artifact) {
+  const artifact = resolution.serverArtifact;
+  if (
+    resolution.resolvedBackend !== "cuda" &&
+    !runtime.artifactPaths[artifact.id]
+  ) {
     throw createLocalSubtitleError(
       "runtime_protocol_mismatch",
       "The selected local inference server artifact is missing.",
@@ -938,6 +1011,7 @@ function snapshotPinnedServerRuntimeIdentity(
       version: artifact.version,
       signatureKind: artifact.signatureKind,
     }),
+    ...(acceleratorPack === undefined ? {} : { acceleratorPack }),
   });
 }
 
@@ -959,8 +1033,20 @@ function samePinnedServerRuntimeIdentity(
     left.byteSize === right.byteSize &&
     left.sha256 === right.sha256 &&
     left.version === right.version &&
-    left.signatureKind === right.signatureKind
+    left.signatureKind === right.signatureKind &&
+    samePinnedAcceleratorPack(
+      current.acceleratorPack,
+      requested.acceleratorPack,
+    )
   );
+}
+
+function samePinnedAcceleratorPack(
+  current: LocalSubtitleVerifiedAcceleratorPack | undefined,
+  requested: LocalSubtitleVerifiedAcceleratorPack | undefined,
+): boolean {
+  if (!current || !requested) return current === requested;
+  return matchesLocalSubtitleVerifiedAcceleratorPack(current, requested);
 }
 
 function createInferenceRequest(
@@ -1332,14 +1418,20 @@ function isSupportedBackendResolutionContext(
     isLocalSubtitleVerifiedBackendResolution(resolution) &&
     (context.config.devicePreference === "auto" ||
       context.config.devicePreference === "cpu" ||
+      context.config.devicePreference === "cuda" ||
       context.config.devicePreference === "metal") &&
     resolution.devicePreference === context.config.devicePreference &&
     (resolution.resolvedBackend === "cpu" ||
+      resolution.resolvedBackend === "cuda" ||
       resolution.resolvedBackend === "metal") &&
-    (resolution.resolvedBackend !== "metal" ||
-      context.config.devicePreference !== "cpu") &&
-    (resolution.resolvedBackend !== "cpu" ||
-      context.config.devicePreference !== "metal") &&
+    (resolution.resolvedBackend === "cpu"
+      ? context.config.devicePreference === "auto" ||
+        context.config.devicePreference === "cpu"
+      : resolution.resolvedBackend === "cuda"
+        ? context.config.devicePreference === "auto" ||
+          context.config.devicePreference === "cuda"
+        : context.config.devicePreference === "auto" ||
+          context.config.devicePreference === "metal") &&
     resolution.resolvedBackend === context.config.resolvedBackend &&
     resolution.runtimeGeneration === context.admittedRuntimeGeneration &&
     resolution.model.id === context.managedModel.id &&

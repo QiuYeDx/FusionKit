@@ -432,6 +432,17 @@ export class LocalSubtitleJobManager {
     );
   }
 
+  isManagedAcceleratorBusy(resourceId: string): boolean {
+    return [...this.#tasks.values()].some(
+      (record) =>
+        record.execution.backendResolution.resolvedBackend === "cuda" &&
+        record.execution.backendResolution.acceleratorPack?.resourceId ===
+          resourceId &&
+        record.state !== "terminal" &&
+        record.state !== "removed",
+    );
+  }
+
   async previewBackend(
     owner: LocalSubtitleOwnerKey,
     request: LocalSubtitleBackendPreviewRequest,
@@ -2418,13 +2429,14 @@ function assertBackendResolution(
     !isLocalSubtitleVerifiedBackendResolution(resolution) ||
     resolution.devicePreference !== devicePreference ||
     (resolution.resolvedBackend !== "cpu" &&
-      resolution.resolvedBackend !== "metal") ||
+      resolution.resolvedBackend !== "metal" &&
+      resolution.resolvedBackend !== "cuda") ||
     (resolution.resolvedBackend === "metal" &&
-      devicePreference !== "auto" &&
-      devicePreference !== "metal") ||
+      devicePreference !== "auto" && devicePreference !== "metal") ||
     (resolution.resolvedBackend === "cpu" &&
-      devicePreference !== "auto" &&
-      devicePreference !== "cpu") ||
+      devicePreference !== "auto" && devicePreference !== "cpu") ||
+    (resolution.resolvedBackend === "cuda" &&
+      devicePreference !== "auto" && devicePreference !== "cuda") ||
     resolution.runtimeGeneration !== runtimeGeneration ||
     resolution.model.id !== model.id ||
     resolution.model.sha256 !== model.sha256

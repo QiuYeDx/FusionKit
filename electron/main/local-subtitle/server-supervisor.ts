@@ -204,6 +204,8 @@ export interface LocalSubtitleServerBackendAttestation {
   readonly backend: Exclude<LocalSubtitleBackend, "cpu">;
   readonly runtimeGeneration: string;
   readonly serverArtifactId: string;
+  readonly acceleratorResourceId?: string;
+  readonly acceleratorPackGeneration?: string;
 }
 
 export interface LocalSubtitleServerBackendEvidence {
@@ -216,6 +218,8 @@ export interface LocalSubtitleServerBackendAttestationContext {
   readonly backend: Exclude<LocalSubtitleBackend, "cpu">;
   readonly runtimeGeneration: string;
   readonly serverArtifactId: string;
+  readonly acceleratorResourceId?: string;
+  readonly acceleratorPackGeneration?: string;
   readonly evidence: LocalSubtitleServerBackendEvidence;
   readonly signal: AbortSignal;
 }
@@ -491,6 +495,22 @@ export class LocalSubtitleServerSupervisor {
         ? {}
         : { lastDiagnostics: this.#lastDiagnostics }),
     });
+  }
+
+  isManagedAcceleratorBusy(resourceId: string): boolean {
+    const matches = (identity: LocalSubtitleServerLoadIdentity) =>
+      identity.purpose === "inference" &&
+      identity.backend === "cuda" &&
+      identity.acceleratorPack.resourceId === resourceId;
+    return (
+      (this.#epoch !== undefined && matches(this.#epoch.loadIdentity)) ||
+      [...this.#runtimePins.values()].some(
+        (record) => record.active && matches(record.loadIdentity),
+      ) ||
+      [...this.#leases.values()].some(
+        (record) => record.active && matches(record.loadIdentity),
+      )
+    );
   }
 
   acquire(
@@ -1171,6 +1191,10 @@ export class LocalSubtitleServerSupervisor {
           descriptor.loadIdentity.managedResourceRoot,
           descriptor.loadIdentity.model.absolutePath,
           ...(descriptor.loadIdentity.purpose === "inference" &&
+            descriptor.loadIdentity.backend === "cuda"
+            ? [descriptor.loadIdentity.acceleratorPack.root]
+            : []),
+          ...(descriptor.loadIdentity.purpose === "inference" &&
             descriptor.loadIdentity.vadModel !== undefined
             ? [descriptor.loadIdentity.vadModel.absolutePath]
             : []),
@@ -1344,6 +1368,15 @@ export class LocalSubtitleServerSupervisor {
       backend,
       runtimeGeneration: epoch.loadIdentity.runtimeGeneration,
       serverArtifactId: epoch.loadIdentity.serverArtifact.id,
+      ...(epoch.loadIdentity.purpose === "inference" &&
+        epoch.loadIdentity.backend === "cuda"
+        ? {
+            acceleratorResourceId:
+              epoch.loadIdentity.acceleratorPack.resourceId,
+            acceleratorPackGeneration:
+              epoch.loadIdentity.acceleratorPack.packGeneration,
+          }
+        : {}),
       evidence: epoch.backendEvidence,
       signal: attestationController.signal,
     } as const;
@@ -1373,7 +1406,11 @@ export class LocalSubtitleServerSupervisor {
       attestationRecord?.verified === true &&
       (attestationRecord.backend !== expected.backend ||
         attestationRecord.runtimeGeneration !== expected.runtimeGeneration ||
-        attestationRecord.serverArtifactId !== expected.serverArtifactId)
+        attestationRecord.serverArtifactId !== expected.serverArtifactId ||
+        attestationRecord.acceleratorResourceId !==
+          expected.acceleratorResourceId ||
+        attestationRecord.acceleratorPackGeneration !==
+          expected.acceleratorPackGeneration)
     ) {
       throw backendMismatchError(epoch);
     }
@@ -1386,6 +1423,9 @@ export class LocalSubtitleServerSupervisor {
       attestation.backend !== expected.backend ||
       attestation.runtimeGeneration !== expected.runtimeGeneration ||
       attestation.serverArtifactId !== expected.serverArtifactId ||
+      attestation.acceleratorResourceId !== expected.acceleratorResourceId ||
+      attestation.acceleratorPackGeneration !==
+        expected.acceleratorPackGeneration ||
       Object.keys(attestation).sort().join(",") !==
         [
           "backend",
@@ -1394,6 +1434,9 @@ export class LocalSubtitleServerSupervisor {
           "runtimeGeneration",
           "serverArtifactId",
           "verified",
+          ...(expected.backend === "cuda"
+            ? ["acceleratorPackGeneration", "acceleratorResourceId"]
+            : []),
         ]
           .sort()
           .join(",")
@@ -2162,6 +2205,18 @@ function snapshotLoadOptions(
       backend: options.backend,
       model: Object.freeze({ ...options.model }),
       vadModel: Object.freeze({ ...options.vadModel }),
+    });
+  }
+  if (options.backend === "cuda") {
+    return Object.freeze({
+      ...common,
+      purpose: options.purpose,
+      backend: options.backend,
+      model: Object.freeze({ ...options.model }),
+      acceleratorPack: options.acceleratorPack,
+      ...(options.vadModel === undefined
+        ? {}
+        : { vadModel: Object.freeze({ ...options.vadModel }) }),
     });
   }
   return Object.freeze({

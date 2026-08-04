@@ -13,6 +13,14 @@ import {
   type LocalSubtitleVerifiedRuntimeBundle,
 } from "./resource-path";
 import {
+  isLocalSubtitleVerifiedAcceleratorPack,
+  type LocalSubtitleVerifiedAcceleratorFileIdentity,
+  type LocalSubtitleVerifiedAcceleratorPack,
+} from "./accelerator-manager";
+import type {
+  LocalSubtitleFilesystemObjectIdentity,
+} from "./filesystem-object-identity";
+import {
   LOCAL_SUBTITLE_SERVER_HTTP_POLICY,
   invalidLocalSubtitleServerConfiguration,
 } from "./server-contract";
@@ -104,9 +112,17 @@ interface LocalSubtitleServerLoadIdentityBase {
 export type LocalSubtitleServerLoadIdentity =
   | (LocalSubtitleServerLoadIdentityBase & {
       readonly purpose: "inference";
-      readonly backend: LocalSubtitleBackend;
+      readonly backend: "cpu" | "metal";
       readonly model: LocalSubtitleServerManagedResourceIdentity<"managed">;
       readonly vadModel?: LocalSubtitleServerManagedResourceIdentity<"managed">;
+      readonly acceleratorPack?: never;
+    })
+  | (LocalSubtitleServerLoadIdentityBase & {
+      readonly purpose: "inference";
+      readonly backend: "cuda";
+      readonly model: LocalSubtitleServerManagedResourceIdentity<"managed">;
+      readonly vadModel?: LocalSubtitleServerManagedResourceIdentity<"managed">;
+      readonly acceleratorPack: LocalSubtitleVerifiedAcceleratorPack;
     })
   | (LocalSubtitleServerLoadIdentityBase & {
       readonly purpose: "model_load_smoke";
@@ -140,9 +156,17 @@ interface CreateLocalSubtitleServerLoadIdentityOptionsBase {
 export type CreateLocalSubtitleServerLoadIdentityOptions =
   | (CreateLocalSubtitleServerLoadIdentityOptionsBase & {
       readonly purpose: "inference";
-      readonly backend: LocalSubtitleBackend;
+      readonly backend: "cpu" | "metal";
       readonly model: LocalSubtitleServerManagedResourceIdentity<"managed">;
       readonly vadModel?: LocalSubtitleServerManagedResourceIdentity<"managed">;
+      readonly acceleratorPack?: never;
+    })
+  | (CreateLocalSubtitleServerLoadIdentityOptionsBase & {
+      readonly purpose: "inference";
+      readonly backend: "cuda";
+      readonly model: LocalSubtitleServerManagedResourceIdentity<"managed">;
+      readonly vadModel?: LocalSubtitleServerManagedResourceIdentity<"managed">;
+      readonly acceleratorPack: LocalSubtitleVerifiedAcceleratorPack;
     })
   | (CreateLocalSubtitleServerLoadIdentityOptionsBase & {
       readonly purpose: "model_load_smoke";
@@ -268,6 +292,18 @@ export function createLocalSubtitleServerLoadIdentity(
     },
   };
   if (options.purpose === "inference") {
+    if (options.backend === "cuda") {
+      return deepFreeze({
+        ...common,
+        purpose: options.purpose,
+        backend: options.backend,
+        model: { ...options.model },
+        acceleratorPack: options.acceleratorPack,
+        ...(options.vadModel === undefined
+          ? {}
+          : { vadModel: { ...options.vadModel } }),
+      });
+    }
     return deepFreeze({
       ...common,
       purpose: options.purpose,
@@ -499,12 +535,22 @@ function validateLoadOptions(
   }
 
   assertIdentifier(options.serverArtifactId, "The server artifact id");
-  const artifact = Object.prototype.hasOwnProperty.call(
-    runtime.artifactPaths,
-    options.serverArtifactId,
-  )
-    ? runtime.artifactPaths[options.serverArtifactId]
-    : undefined;
+  const artifact = options.purpose === "inference" && options.backend === "cuda"
+    ? validateCudaAcceleratorPack(options.acceleratorPack, options, runtime)
+    : Object.prototype.hasOwnProperty.call(
+        runtime.artifactPaths,
+        options.serverArtifactId,
+      )
+      ? runtime.artifactPaths[options.serverArtifactId]
+      : undefined;
+  if (
+    !(options.purpose === "inference" && options.backend === "cuda") &&
+    Object.prototype.hasOwnProperty.call(options, "acceleratorPack")
+  ) {
+    throw invalidConfiguration(
+      "Only a CUDA inference load may include an accelerator pack.",
+    );
+  }
   if (!artifact || artifact.id !== options.serverArtifactId) {
     throw invalidConfiguration(
       "The requested server artifact is not part of the verified runtime bundle.",
@@ -521,11 +567,13 @@ function validateLoadOptions(
     artifact.absolutePath,
     "The verified server artifact path",
   );
-  assertContainedPath(
-    runtime.root,
-    artifact.absolutePath,
-    "The verified server artifact",
-  );
+  if (!(options.purpose === "inference" && options.backend === "cuda")) {
+    assertContainedPath(
+      runtime.root,
+      artifact.absolutePath,
+      "The verified server artifact",
+    );
+  }
   const expectedLeaf =
     runtime.target.platform === "win32"
       ? "whisper-server.exe"
@@ -664,12 +712,27 @@ function validateSessionPaths(
       "The server session root must be disjoint from the bundled runtime.",
     );
   }
+  if (
+    loadIdentity.purpose === "inference" &&
+    loadIdentity.backend === "cuda" &&
+    pathsOverlap(options.sessionRoot, loadIdentity.acceleratorPack.root)
+  ) {
+    throw invalidConfiguration(
+      "The server session root must be disjoint from the CUDA accelerator pack.",
+    );
+  }
   const privateFiles = [
     loadIdentity.serverArtifact.absolutePath,
     loadIdentity.model.absolutePath,
     ...(loadIdentity.purpose !== "model_load_smoke" &&
       loadIdentity.vadModel !== undefined
       ? [loadIdentity.vadModel.absolutePath]
+      : []),
+    ...(loadIdentity.purpose === "inference" &&
+      loadIdentity.backend === "cuda"
+      ? loadIdentity.acceleratorPack.artifacts.map(
+          (artifact) => artifact.absolutePath,
+        )
       : []),
   ];
   for (const privateFile of privateFiles) {
@@ -744,7 +807,152 @@ function loadIdentityKey(identity: LocalSubtitleServerLoadIdentity): string {
     identity.process.threads,
     identity.process.processors,
     identity.process.noGpu,
+    ...(identity.purpose === "inference" && identity.backend === "cuda"
+      ? [
+          "cuda_pack",
+          identity.acceleratorPack.resourceId,
+          identity.acceleratorPack.version,
+          identity.acceleratorPack.packGeneration,
+          identity.acceleratorPack.root,
+          ...filesystemObjectIdentityKey(
+            identity.acceleratorPack.rootIdentity,
+          ),
+          identity.acceleratorPack.manifest.relativePath,
+          identity.acceleratorPack.manifest.absolutePath,
+          identity.acceleratorPack.manifest.byteSize,
+          identity.acceleratorPack.manifest.sha256,
+          ...fileIdentityKey(identity.acceleratorPack.manifest.identity),
+          ...identity.acceleratorPack.artifacts.flatMap((artifact) => [
+            artifact.id,
+            artifact.kind,
+            artifact.relativePath,
+            artifact.absolutePath,
+            artifact.byteSize,
+            artifact.sha256,
+            ...fileIdentityKey(artifact.identity),
+          ]),
+        ]
+      : ["no_accelerator_pack"]),
   ]);
+}
+
+function validateCudaAcceleratorPack(
+  pack: LocalSubtitleVerifiedAcceleratorPack,
+  options: Extract<
+    CreateLocalSubtitleServerLoadIdentityOptions,
+    { readonly purpose: "inference"; readonly backend: "cuda" }
+  >,
+  runtime: LocalSubtitleVerifiedRuntimeBundle,
+): LocalSubtitleVerifiedRuntimeArtifact {
+  if (
+    !isLocalSubtitleVerifiedAcceleratorPack(pack) ||
+    runtime.target.platform !== "win32" ||
+    runtime.target.arch !== "x64" ||
+    pack.target.platform !== runtime.target.platform ||
+    pack.target.arch !== runtime.target.arch ||
+    pack.target.backend !== "cuda" ||
+    pack.serverArtifactId !== options.serverArtifactId ||
+    pack.engine.version !== LOCAL_SUBTITLE_PRODUCTION_CONTRACT.engine.version ||
+    pack.engine.commit !== LOCAL_SUBTITLE_PRODUCTION_CONTRACT.engine.commit ||
+    pack.serverVersion !== LOCAL_SUBTITLE_SERVER_PROCESS_POLICY.expectedArtifactVersion ||
+    pack.signatureKind !== "unsigned"
+  ) {
+    throw invalidConfiguration(
+      "The local inference CUDA accelerator proof is invalid.",
+    );
+  }
+  assertAbsoluteNormalizedPath(pack.root, "The CUDA accelerator root");
+  assertNotFilesystemRoot(pack.root, "The CUDA accelerator root");
+  assertContainedPath(
+    options.managedResourceRoot,
+    pack.root,
+    "The CUDA accelerator pack",
+  );
+  assertSha256(pack.packGeneration, "The CUDA accelerator generation");
+  assertAbsoluteNormalizedPath(
+    pack.manifest.absolutePath,
+    "The CUDA accelerator manifest path",
+  );
+  assertContainedPath(
+    pack.root,
+    pack.manifest.absolutePath,
+    "The CUDA accelerator manifest",
+  );
+  assertSha256(pack.manifest.sha256, "The CUDA accelerator manifest hash");
+  if (
+    pack.manifest.sha256 !== pack.packGeneration ||
+    !Array.isArray(pack.artifacts) ||
+    pack.artifacts.length < 2 ||
+    new Set(pack.artifacts.map((artifact) => artifact.id)).size !==
+      pack.artifacts.length
+  ) {
+    throw invalidConfiguration(
+      "The CUDA accelerator artifact identity is invalid.",
+    );
+  }
+  const servers = pack.artifacts.filter((artifact) => artifact.kind === "server");
+  const server = servers[0];
+  if (servers.length !== 1 || !server || server.id !== pack.serverArtifactId) {
+    throw invalidConfiguration(
+      "The CUDA accelerator server identity is invalid.",
+    );
+  }
+  const serverDirectory = path.dirname(server.absolutePath);
+  for (const artifact of pack.artifacts) {
+    assertIdentifier(artifact.id, "The CUDA accelerator artifact id");
+    assertAbsoluteNormalizedPath(
+      artifact.absolutePath,
+      "The CUDA accelerator artifact path",
+    );
+    assertContainedPath(
+      pack.root,
+      artifact.absolutePath,
+      "The CUDA accelerator artifact",
+    );
+    assertPositiveByteSize(
+      artifact.byteSize,
+      "The CUDA accelerator artifact byte size",
+    );
+    assertSha256(artifact.sha256, "The CUDA accelerator artifact hash");
+    if (
+      path.basename(artifact.absolutePath) !==
+        path.posix.basename(artifact.relativePath) ||
+      path.dirname(artifact.absolutePath) !== serverDirectory
+    ) {
+      throw invalidConfiguration(
+        "The CUDA accelerator artifacts must share the verified server directory.",
+      );
+    }
+  }
+  return Object.freeze({
+    id: server.id,
+    kind: "server" as const,
+    backend: "cuda" as const,
+    absolutePath: server.absolutePath,
+    byteSize: server.byteSize,
+    sha256: server.sha256,
+    version: pack.serverVersion,
+    signatureKind: pack.signatureKind,
+  });
+}
+
+function filesystemObjectIdentityKey(
+  identity: LocalSubtitleFilesystemObjectIdentity,
+): readonly (number | string)[] {
+  return "volumeSerialHex" in identity
+    ? ["win32", identity.volumeSerialHex, identity.fileIdHex]
+    : ["posix", identity.dev, identity.ino, identity.birthtimeMs];
+}
+
+function fileIdentityKey(
+  identity: LocalSubtitleVerifiedAcceleratorFileIdentity,
+): readonly (number | string)[] {
+  return [
+    ...filesystemObjectIdentityKey(identity),
+    identity.size,
+    identity.mtimeMs,
+    identity.ctimeMs,
+  ];
 }
 
 function validatePinnedVad(

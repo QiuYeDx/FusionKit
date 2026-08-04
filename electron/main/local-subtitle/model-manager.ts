@@ -34,6 +34,7 @@ import {
   LocalSubtitleAcceleratorManager,
   LocalSubtitleAcceleratorManagerError,
   type LocalSubtitleAcceleratorManagerOptions,
+  type LocalSubtitleVerifiedAcceleratorPack,
 } from "./accelerator-manager";
 import {
   verifyLocalSubtitleGgmlModelFile,
@@ -664,6 +665,27 @@ export class LocalSubtitleModelManager {
       return await this.#vadManager.resolveManagedVad(resourceId, signal);
     } catch (error) {
       throw normalizeVadManagerError(error);
+    }
+  }
+
+  async resolveManagedAccelerator(
+    resourceId: string,
+    signal?: AbortSignal,
+  ): Promise<LocalSubtitleVerifiedAcceleratorPack> {
+    this.#assertManagerAvailable();
+    if (!this.#acceleratorManager?.hasResourceId(resourceId)) {
+      throw managerFailure(
+        "accelerator_unavailable",
+        "The requested local subtitle accelerator is not available on this target.",
+      );
+    }
+    try {
+      return await this.#acceleratorManager.resolveManagedAccelerator(
+        resourceId,
+        signal,
+      );
+    } catch (error) {
+      throw normalizeAcceleratorManagerError(error);
     }
   }
 

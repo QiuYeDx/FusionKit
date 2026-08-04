@@ -29,6 +29,9 @@ import {
 } from "./local-subtitle/authorizations";
 import { LocalSubtitleBackendResolver } from "./local-subtitle/backend-resolver";
 import {
+  LOCAL_SUBTITLE_WINDOWS_CUDA_PACK_DEFINITION,
+} from "./local-subtitle/accelerator-manager";
+import {
   createLocalSubtitleProductionBackendAttestor,
 } from "./local-subtitle/backend-attestor";
 import { LocalSubtitleArtifactRegistry } from "./local-subtitle/subtitle-artifact-registry";
@@ -248,11 +251,18 @@ app.whenReady().then(async () => {
     isResourceBusy: (resourceId) =>
       Boolean(
         localSubtitleJobManager?.isManagedModelBusy(resourceId) ||
+        localSubtitleJobManager?.isManagedAcceleratorBusy(resourceId) ||
+        localSubtitleServerSupervisor.isManagedAcceleratorBusy(resourceId) ||
         localSubtitleServerSupervisor.snapshot.modelId === resourceId ||
         localSubtitleServerSupervisor.snapshot.vadModelId === resourceId,
       ),
   });
   await localSubtitleModelManager.initialize().catch(() => undefined);
+  const resolveLocalSubtitleCudaAccelerator = (signal?: AbortSignal) =>
+    localSubtitleModelManager.resolveManagedAccelerator(
+      LOCAL_SUBTITLE_WINDOWS_CUDA_PACK_DEFINITION.resourceId,
+      signal,
+    );
   const localSubtitleOverwriteRuntime =
     await initializeLocalSubtitleOverwriteProductionRuntime({
       environment: localSubtitleResourceEnvironment,
@@ -275,11 +285,15 @@ app.whenReady().then(async () => {
     outputs: localSubtitleOutputAuthorizations,
     exporter: localSubtitleExporter,
     runtimeEnvironment: localSubtitleResourceEnvironment,
+    resolveCudaAccelerator: resolveLocalSubtitleCudaAccelerator,
   });
   const localSubtitleBackendResolver = new LocalSubtitleBackendResolver({
     runtimeEnvironment: localSubtitleResourceEnvironment,
     metalAttestationAvailable:
       localSubtitleBackendAttestor.supportedBackends.includes("metal"),
+    cudaAttestationAvailable:
+      localSubtitleBackendAttestor.supportedBackends.includes("cuda"),
+    resolveCudaAccelerator: resolveLocalSubtitleCudaAccelerator,
   });
   localSubtitleJobManager = new LocalSubtitleJobManager({
     registry: localSubtitleSessionRegistry,

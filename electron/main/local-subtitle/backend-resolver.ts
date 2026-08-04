@@ -1,10 +1,17 @@
 import {
+  LOCAL_SUBTITLE_PRODUCTION_CONTRACT,
   LOCAL_SUBTITLE_DEVICE_PREFERENCES,
   type LocalSubtitleBackend,
   type LocalSubtitleDevicePreference,
   type LocalSubtitleErrorCode,
   type LocalSubtitleOperationStage,
 } from "@/type/localSubtitle";
+import {
+  isLocalSubtitleVerifiedAcceleratorPack,
+  matchesLocalSubtitleVerifiedAcceleratorPack,
+  type LocalSubtitleVerifiedAcceleratorPack,
+  type LocalSubtitleVerifiedAcceleratorPackArtifact,
+} from "./accelerator-manager";
 import {
   resolveVerifiedLocalSubtitleArtifact,
   selectLocalSubtitleCpuServerArtifactId,
@@ -61,6 +68,7 @@ export interface LocalSubtitleVerifiedBackendResolution
     readonly id: string;
     readonly sha256: string;
   }>;
+  readonly acceleratorPack?: LocalSubtitleVerifiedAcceleratorPack;
 }
 
 export interface ResolveLocalSubtitleBackendOptions {
@@ -74,6 +82,10 @@ export interface LocalSubtitleBackendResolverOptions {
   readonly runtimeEnvironment?: LocalSubtitleResourceEnvironment;
   readonly verifyServerRuntime?: () => Promise<LocalSubtitleVerifiedRuntimeBundle>;
   readonly metalAttestationAvailable?: boolean;
+  readonly cudaAttestationAvailable?: boolean;
+  readonly resolveCudaAccelerator?: (
+    signal?: AbortSignal,
+  ) => Promise<LocalSubtitleVerifiedAcceleratorPack>;
   readonly selectCpuServerArtifact?: (
     runtime: LocalSubtitleVerifiedRuntimeBundle,
   ) => LocalSubtitleVerifiedRuntimeArtifact;
@@ -91,6 +103,10 @@ export class LocalSubtitleBackendResolver {
     runtime: LocalSubtitleVerifiedRuntimeBundle,
   ) => LocalSubtitleVerifiedRuntimeArtifact;
   readonly #metalAttestationAvailable: boolean;
+  readonly #cudaAttestationAvailable: boolean;
+  readonly #resolveCudaAccelerator:
+    | ((signal?: AbortSignal) => Promise<LocalSubtitleVerifiedAcceleratorPack>)
+    | undefined;
 
   constructor(options: LocalSubtitleBackendResolverOptions) {
     if (!options?.verifyServerRuntime && !options?.runtimeEnvironment) {
@@ -114,6 +130,18 @@ export class LocalSubtitleBackendResolver {
     ) {
       throw new TypeError("The local subtitle Metal attestation capability is invalid.");
     }
+    if (
+      options.cudaAttestationAvailable !== undefined &&
+      typeof options.cudaAttestationAvailable !== "boolean"
+    ) {
+      throw new TypeError("The local subtitle CUDA attestation capability is invalid.");
+    }
+    if (
+      options.resolveCudaAccelerator !== undefined &&
+      typeof options.resolveCudaAccelerator !== "function"
+    ) {
+      throw new TypeError("The local subtitle CUDA accelerator resolver is invalid.");
+    }
     this.#verifyServerRuntime = options.verifyServerRuntime ?? (() =>
       verifyLocalSubtitleRuntimeBundle({
         environment: options.runtimeEnvironment!,
@@ -128,6 +156,8 @@ export class LocalSubtitleBackendResolver {
     this.#selectMetalServerArtifact = options.selectMetalServerArtifact ??
       this.#selectCpuServerArtifact;
     this.#metalAttestationAvailable = options.metalAttestationAvailable === true;
+    this.#cudaAttestationAvailable = options.cudaAttestationAvailable === true;
+    this.#resolveCudaAccelerator = options.resolveCudaAccelerator;
   }
 
   async resolveBackend(
@@ -136,7 +166,10 @@ export class LocalSubtitleBackendResolver {
     assertResolutionRequest(options);
     throwIfAborted(options.signal);
 
-    if (options.devicePreference === "cuda") {
+    if (
+      options.devicePreference === "cuda" &&
+      (!this.#cudaAttestationAvailable || !this.#resolveCudaAccelerator)
+    ) {
       throw new LocalSubtitleBackendResolverError(
         "backend_unverified",
         "The selected local subtitle GPU backend does not have a production attestation path.",
@@ -167,19 +200,62 @@ export class LocalSubtitleBackendResolver {
       this.#metalAttestationAvailable &&
       runtime.target.platform === "darwin" &&
       runtime.target.arch === "arm64";
+    const cudaTargetAdmitted =
+      this.#cudaAttestationAvailable &&
+      this.#resolveCudaAccelerator !== undefined &&
+      runtime.target.platform === "win32" &&
+      runtime.target.arch === "x64";
     if (options.devicePreference === "metal" && !metalAdmitted) {
       throw new LocalSubtitleBackendResolverError(
         "backend_unverified",
         "The selected local subtitle Metal backend does not have a production attestation path.",
       );
     }
-    const resolvedBackend =
-      options.devicePreference !== "cpu" && metalAdmitted ? "metal" : "cpu";
-    const artifact = resolvedBackend === "metal"
+    if (options.devicePreference === "cuda" && !cudaTargetAdmitted) {
+      throw new LocalSubtitleBackendResolverError(
+        "backend_unverified",
+        "The selected local subtitle CUDA backend is not available on this target.",
+      );
+    }
+    let acceleratorPack: LocalSubtitleVerifiedAcceleratorPack | undefined;
+    if (
+      cudaTargetAdmitted &&
+      options.devicePreference !== "cpu" &&
+      options.devicePreference !== "metal"
+    ) {
+      try {
+        acceleratorPack = await this.#resolveCudaAccelerator!(options.signal);
+        throwIfAborted(options.signal);
+        assertCudaAcceleratorPack(acceleratorPack);
+      } catch (error) {
+        throwIfAborted(options.signal);
+        if (options.devicePreference === "cuda") {
+          throw new LocalSubtitleBackendResolverError(
+            "backend_unverified",
+            "The selected local subtitle CUDA accelerator did not pass production verification.",
+          );
+        }
+        acceleratorPack = undefined;
+      }
+    }
+    const resolvedBackend = acceleratorPack
+      ? "cuda" as const
+      : options.devicePreference !== "cpu" && metalAdmitted
+        ? "metal" as const
+        : "cpu" as const;
+    const runtimeArtifact = resolvedBackend === "metal"
       ? this.#selectMetalServerArtifact(runtime)
       : this.#selectCpuServerArtifact(runtime);
-    if (resolvedBackend === "metal") assertMetalServerArtifact(runtime, artifact);
-    else assertCpuServerArtifact(artifact);
+    if (resolvedBackend === "metal") {
+      assertMetalServerArtifact(runtime, runtimeArtifact);
+    } else {
+      assertCpuServerArtifact(runtimeArtifact);
+    }
+    const runtimeServerArtifact = runtimeArtifact as
+      LocalSubtitleVerifiedRuntimeArtifact & { readonly kind: "server" };
+    const artifact = acceleratorPack
+      ? acceleratorServerArtifact(acceleratorPack)
+      : runtimeServerArtifact;
 
     const resolution = {
       devicePreference: options.devicePreference,
@@ -189,6 +265,7 @@ export class LocalSubtitleBackendResolver {
         sha256: options.model.sha256,
       }),
       ...snapshotRuntimeIdentity(runtime, artifact),
+      ...(acceleratorPack === undefined ? {} : { acceleratorPack }),
     } as Omit<
       LocalSubtitleVerifiedBackendResolution,
       typeof VERIFIED_BACKEND_RESOLUTION_BRAND
@@ -226,12 +303,32 @@ export function matchesLocalSubtitleBackendResolutionRuntime(
   runtime: LocalSubtitleVerifiedRuntimeBundle,
 ): boolean {
   if (!isLocalSubtitleVerifiedBackendResolution(resolution)) return false;
-  const artifact = runtime?.artifactPaths?.[resolution.serverArtifact.id];
-  return (
+  const runtimeMatches =
     runtime.root === resolution.runtimeRoot &&
     runtime.runtimeGeneration === resolution.runtimeGeneration &&
     runtime.target.platform === resolution.target.platform &&
-    runtime.target.arch === resolution.target.arch &&
+    runtime.target.arch === resolution.target.arch;
+  if (!runtimeMatches) return false;
+  if (resolution.resolvedBackend === "cuda") {
+    const pack = resolution.acceleratorPack;
+    const artifact = pack?.artifacts.find(
+      (candidate): candidate is LocalSubtitleVerifiedAcceleratorPackArtifact & {
+        readonly kind: "server";
+      } => candidate.id === resolution.serverArtifact.id &&
+        candidate.kind === "server",
+    );
+    return isLocalSubtitleVerifiedAcceleratorPack(pack) &&
+      artifact !== undefined &&
+      sameServerArtifact(resolution.serverArtifact, {
+        ...artifact,
+        backend: "cuda",
+        version: pack.serverVersion,
+        signatureKind: pack.signatureKind,
+      });
+  }
+  if (resolution.acceleratorPack !== undefined) return false;
+  const artifact = runtime?.artifactPaths?.[resolution.serverArtifact.id];
+  return (
     artifact?.kind === resolution.serverArtifact.kind &&
     artifact.backend === resolution.serverArtifact.backend &&
     artifact.absolutePath === resolution.serverArtifact.absolutePath &&
@@ -242,9 +339,31 @@ export function matchesLocalSubtitleBackendResolutionRuntime(
   );
 }
 
+export function matchesLocalSubtitleBackendResolutionAccelerator(
+  resolution: LocalSubtitleVerifiedBackendResolution,
+  acceleratorPack: LocalSubtitleVerifiedAcceleratorPack,
+): boolean {
+  return isLocalSubtitleVerifiedBackendResolution(resolution) &&
+    resolution.resolvedBackend === "cuda" &&
+    resolution.acceleratorPack !== undefined &&
+    matchesLocalSubtitleVerifiedAcceleratorPack(
+      resolution.acceleratorPack,
+      acceleratorPack,
+    );
+}
+
 function snapshotRuntimeIdentity(
   runtime: LocalSubtitleVerifiedRuntimeBundle,
-  artifact: LocalSubtitleVerifiedRuntimeArtifact,
+  artifact: Readonly<{
+    readonly id: string;
+    readonly kind: "server";
+    readonly backend: LocalSubtitleVerifiedRuntimeArtifact["backend"];
+    readonly absolutePath: string;
+    readonly byteSize: number;
+    readonly sha256: string;
+    readonly version: string;
+    readonly signatureKind: LocalSubtitleVerifiedRuntimeArtifact["signatureKind"];
+  }>,
 ): LocalSubtitleBackendRuntimeIdentity {
   return Object.freeze({
     runtimeRoot: runtime.root,
@@ -261,6 +380,80 @@ function snapshotRuntimeIdentity(
       signatureKind: artifact.signatureKind,
     }),
   });
+}
+
+function assertCudaAcceleratorPack(
+  pack: LocalSubtitleVerifiedAcceleratorPack,
+): void {
+  const server = Array.isArray(pack?.artifacts)
+    ? pack.artifacts.filter((artifact) => artifact.kind === "server")
+    : [];
+  if (
+    !isLocalSubtitleVerifiedAcceleratorPack(pack) ||
+    pack.target.platform !== "win32" ||
+    pack.target.arch !== "x64" ||
+    pack.target.backend !== "cuda" ||
+    pack.engine.version !== LOCAL_SUBTITLE_PRODUCTION_CONTRACT.engine.version ||
+    pack.engine.commit !== LOCAL_SUBTITLE_PRODUCTION_CONTRACT.engine.commit ||
+    server.length !== 1 ||
+    server[0]?.id !== pack.serverArtifactId ||
+    server[0].kind !== "server" ||
+    !SHA256_PATTERN.test(server[0].sha256)
+  ) {
+    throw new LocalSubtitleBackendResolverError(
+      "backend_unverified",
+      "The managed CUDA accelerator proof is invalid.",
+    );
+  }
+}
+
+function acceleratorServerArtifact(
+  pack: LocalSubtitleVerifiedAcceleratorPack,
+): Readonly<{
+  readonly id: string;
+  readonly kind: "server";
+  readonly backend: "cuda";
+  readonly absolutePath: string;
+  readonly byteSize: number;
+  readonly sha256: string;
+  readonly version: string;
+  readonly signatureKind: "unsigned";
+}> {
+  const artifact = pack.artifacts.find(
+    (candidate): candidate is LocalSubtitleVerifiedAcceleratorPackArtifact & {
+      readonly kind: "server";
+    } => candidate.id === pack.serverArtifactId && candidate.kind === "server",
+  );
+  if (!artifact) {
+    throw new LocalSubtitleBackendResolverError(
+      "backend_unverified",
+      "The managed CUDA accelerator server proof is invalid.",
+    );
+  }
+  return Object.freeze({
+    id: artifact.id,
+    kind: artifact.kind,
+    backend: "cuda" as const,
+    absolutePath: artifact.absolutePath,
+    byteSize: artifact.byteSize,
+    sha256: artifact.sha256,
+    version: pack.serverVersion,
+    signatureKind: pack.signatureKind,
+  });
+}
+
+function sameServerArtifact(
+  left: LocalSubtitleBackendRuntimeIdentity["serverArtifact"],
+  right: LocalSubtitleBackendRuntimeIdentity["serverArtifact"],
+): boolean {
+  return left.id === right.id &&
+    left.kind === right.kind &&
+    left.backend === right.backend &&
+    left.absolutePath === right.absolutePath &&
+    left.byteSize === right.byteSize &&
+    left.sha256 === right.sha256 &&
+    left.version === right.version &&
+    left.signatureKind === right.signatureKind;
 }
 
 function assertResolutionRequest(
