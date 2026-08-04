@@ -24,6 +24,7 @@ import {
   type SubtitleTaskReadyExecutionBinding,
   type TranslationCheckpointManifest,
   type SubtitleTranslationRecovery,
+  type SubtitleTranslationRuntimeAuthorization,
 } from "../typing";
 import { ipcMain, BrowserWindow } from "electron";
 import {
@@ -113,7 +114,11 @@ export abstract class BaseTranslator {
    *   6. 全部分片完成后合并最终文件
    *   7. 通过 IPC 通知渲染进程翻译结果（成功/失败）
    */
-  async translate(task: SubtitleTranslatorTask, signal?: AbortSignal) {
+  async translate(
+    task: SubtitleTranslatorTask,
+    signal?: AbortSignal,
+    runtimeAuthorization?: SubtitleTranslationRuntimeAuthorization,
+  ) {
     this.sourceLang = task.sourceLang || "JA";
     this.targetLang = task.targetLang || "ZH";
     this.bilingualOutput = task.translationOutputMode !== "target_only";
@@ -146,6 +151,7 @@ export abstract class BaseTranslator {
       let fragments: string[];
 
       // ── checkpoint 加载或创建 ─────────────────────────────────────────
+      await runtimeAuthorization?.revalidateTarget();
       await fs.mkdir(outputDir, { recursive: true });
       const paths = buildCheckpointPaths(outputDir, task.fileName);
       manifestPath = paths.manifestPath;
@@ -268,11 +274,13 @@ export abstract class BaseTranslator {
       errorLogs.push(
         `[${new Date().toISOString()}] 开始写入文件到: ${task.targetFileURL}`,
       );
+      await runtimeAuthorization?.revalidateTarget();
       const finalPath = await this.writeFile(
         task.targetFileURL,
         translatedContent,
         task.fileName,
         task.conflictPolicy,
+        runtimeAuthorization,
       );
       errorLogs.push(
         `[${new Date().toISOString()}] 文件写入完成: ${finalPath}`,
@@ -531,6 +539,7 @@ export abstract class BaseTranslator {
     content: string,
     fileName: string,
     conflictPolicy: OutputConflictPolicy = "index",
+    runtimeAuthorization?: SubtitleTranslationRuntimeAuthorization,
   ) {
     try {
       const absoluteOutputDir = path.resolve(fileURL);
@@ -554,6 +563,7 @@ export abstract class BaseTranslator {
         }
       }
 
+      await runtimeAuthorization?.validateOutputPath(finalPath);
       await fs.writeFile(finalPath, content, "utf-8");
       console.log("文件已成功写入:", path.basename(finalPath));
       return finalPath;

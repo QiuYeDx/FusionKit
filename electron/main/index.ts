@@ -3,7 +3,12 @@ import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 import os from "node:os";
-import { setupTranslationIPC } from "./translation/ipc";
+import {
+  setupTranslationIPC,
+  SubtitleTranslationIpcService,
+} from "./translation/ipc";
+import { SubtitleTranslationDirectoryCapabilityRegistry } from "./translation/directory-capability";
+import { GeneratedSubtitleImportCandidateService } from "./translation/generated-import-candidate";
 import { update } from "./update";
 import { setupPowerIPC } from "./power";
 import { setupConversionIPC } from "./conversion/ipc";
@@ -100,6 +105,8 @@ if (!app.requestSingleInstanceLock()) {
 let win: BrowserWindow | null = null;
 let localSubtitleServerLifecycle: LocalSubtitleServerAppLifecycle | undefined;
 let translationService: TranslationService = new TranslationService();
+const subtitleTranslationDirectoryCapabilities =
+  new SubtitleTranslationDirectoryCapabilityRegistry();
 let textTranslationService = new TextTranslationService({
   eventSink: (event) => {
     if (!win || win.webContents.isDestroyed()) return;
@@ -406,10 +413,18 @@ app.whenReady().then(async () => {
       },
     },
   });
+  const subtitleTranslationIpcService = new SubtitleTranslationIpcService({
+    directoryCapabilities: subtitleTranslationDirectoryCapabilities,
+    localOwnerSessions: localSubtitleIpcService.ownerSessions,
+    generatedImports: new GeneratedSubtitleImportCandidateService({
+      handoffs: localSubtitleArtifactHandoffs,
+      directoryCapabilities: subtitleTranslationDirectoryCapabilities,
+    }),
+  });
   localSubtitleSessionIpcBridge.attach(localSubtitleIpcService);
   setupLocalSubtitleIPC(localSubtitleIpcService);
+  setupTranslationIPC(translationService, subtitleTranslationIpcService);
   createWindow();
-  setupTranslationIPC(translationService);
   setupPowerIPC(win);
   setupConversionIPC();
   setupExtractionIPC();

@@ -16,6 +16,9 @@ import { assertLegacyLocalSubtitleChannelAllowed } from './local-subtitle-channe
 import { createLocalSubtitleRendererApi } from './local-subtitle-api'
 import { LOCAL_SUBTITLE_PRELOAD_INTERNAL_CHANNELS } from '@/type/localSubtitleIpc'
 import { createSafeLegacyIpcBridge } from './legacy-ipc-bridge'
+import { assertLegacySubtitleTranslationChannelAllowed } from './subtitle-translation-channel-policy'
+import { createSubtitleTranslationRendererApi } from './subtitle-translation-api'
+import { SUBTITLE_TRANSLATION_PRELOAD_INTERNAL_CHANNELS } from '@/type/subtitleTranslationIpc'
 
 const AUDIO_CHANNEL_PREFIX = 'audio:'
 const AUDIO_REGISTER_CAPABILITY_CHANNEL =
@@ -39,9 +42,14 @@ const localSubtitleOwnerSessionRegistration = ipcRenderer.sendSync(
   LOCAL_SUBTITLE_PRELOAD_INTERNAL_CHANNELS.registerOwnerSession,
   {},
 )
+const subtitleTranslationOwnerSessionRegistration = ipcRenderer.sendSync(
+  SUBTITLE_TRANSLATION_PRELOAD_INTERNAL_CHANNELS.registerOwnerSession,
+  {},
+)
 
 const assertLegacyIpcChannelAllowed = (channel: string) => {
   assertLegacyLocalSubtitleChannelAllowed(channel)
+  assertLegacySubtitleTranslationChannelAllowed(channel)
   if (channel.startsWith(AUDIO_CHANNEL_PREFIX)) {
     throw new Error(
       'Audio IPC is restricted. Use the preload audioApi capability instead.',
@@ -51,6 +59,7 @@ const assertLegacyIpcChannelAllowed = (channel: string) => {
 
 const assertLegacyListenChannelAllowed = (channel: string) => {
   assertLegacyLocalSubtitleChannelAllowed(channel)
+  assertLegacySubtitleTranslationChannelAllowed(channel)
   if (
     channel.startsWith(AUDIO_CHANNEL_PREFIX) &&
     !AUDIO_EVENT_CHANNELS.has(channel as AudioEventChannel)
@@ -197,6 +206,16 @@ contextBridge.exposeInMainWorld(
     ipcRenderer,
     webUtils,
     ownerSessionRegistration: localSubtitleOwnerSessionRegistration,
+  }),
+)
+
+contextBridge.exposeInMainWorld(
+  'subtitleTranslationApi',
+  createSubtitleTranslationRendererApi({
+    ipcRenderer,
+    webUtils,
+    ownerSessionRegistration: subtitleTranslationOwnerSessionRegistration,
+    localSubtitleOwnerSessionRegistration,
   }),
 )
 

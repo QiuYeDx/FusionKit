@@ -317,12 +317,13 @@ export function retryTask(
 export function updateTask(
   state: TranslatorQueueState,
   taskId: string,
-  updates: Partial<Omit<SubtitleTranslatorTask, "taskId">>,
+  updates: Partial<Omit<SubtitleTranslatorTask, "taskId" | "taskReference">>,
 ): TranslatorQueueResult {
   const applyUpdates = (task: SubtitleTranslatorTask): SubtitleTranslatorTask => ({
     ...task,
     ...updates,
     taskId: task.taskId,
+    taskReference: task.taskReference,
   });
   return {
     state: {

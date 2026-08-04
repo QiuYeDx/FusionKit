@@ -159,6 +159,11 @@ export type SubtitleTranslatorTask = {
   checkpointPath?: string;
 };
 
+export interface SubtitleTranslationRuntimeAuthorization {
+  revalidateTarget(): Promise<void>;
+  validateOutputPath(outputFilePath: string): Promise<void>;
+}
+
 // ─── Recovery & Checkpoint ──────────────────────────────────────────────────
 
 export type TranslationRecoveryMode = "auto" | "resume" | "restart";

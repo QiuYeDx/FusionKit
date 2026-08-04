@@ -15,6 +15,11 @@ import {
 } from "@/type/subtitle";
 import { createSubtitleTaskExecutionBinding } from "@/agent/task-model-config";
 import { createSubtitleTranslatorTask } from "@/services/subtitle/subtitleTranslatorTaskFactory";
+import {
+  getCurrentSubtitleTranslatorCustomDirectoryAuthorization,
+  selectGeneratedSubtitleImportCustomDirectory,
+} from "@/services/subtitle/generatedSubtitleImportCoordinator";
+import { releaseSubtitleTranslationTaskAuthority } from "@/services/subtitle/translatorExecutionService";
 import { useTranslation } from "react-i18next";
 import { useState, useMemo, useEffect, useRef } from "react";
 import {
@@ -49,7 +54,6 @@ import {
 } from "@/pages/Tools/_shared/ui";
 import { Badge } from "@/components/ui/badge";
 import { showToast } from "@/utils/toast";
-import { getSourceDirFromFile, getFilePathFromFile } from "@/utils/filePath";
 import useModelStore from "@/store/useModelStore";
 import ErrorDetailModal from "@/components/ErrorDetailModal";
 import ConfirmDialog from "@/components/ConfirmDialog";
@@ -122,7 +126,6 @@ function SubtitleTranslator() {
     // fileType,
     sliceType,
     sliceLengthMap,
-    outputURL,
     notStartedTaskQueue,
     waitingTaskQueue,
     pendingTaskQueue,
@@ -131,7 +134,6 @@ function SubtitleTranslator() {
     // setFileType,
     setSliceType,
     setCustomSliceLength,
-    setOutputURL,
     addTask,
     startTask,
     retryTask,
@@ -155,6 +157,7 @@ function SubtitleTranslator() {
     const raw = localStorage.getItem("subtitle-translator-output-mode");
     return raw === "source" ? "source" : "custom";
   });
+  const [authorizedOutputLabel, setAuthorizedOutputLabel] = useState("");
   const [conflictPolicy, setConflictPolicy] =
     useState<OutputConflictPolicy>(() => {
       const raw = localStorage.getItem("subtitle-translator-conflict-policy");
@@ -377,7 +380,7 @@ function SubtitleTranslator() {
       outputMode,
       outputDirectoryDisplayLabel:
         outputMode === "custom"
-          ? subtitleTranslatorDirectoryDisplayLabel(outputURL)
+          ? subtitleTranslatorDirectoryDisplayLabel(authorizedOutputLabel)
           : null,
       conflictPolicy,
       concurrentSlices,
@@ -386,7 +389,7 @@ function SubtitleTranslator() {
     concurrentSlices,
     conflictPolicy,
     outputMode,
-    outputURL,
+    authorizedOutputLabel,
     sliceLengthMap,
     sliceType,
     sourceLang,
@@ -593,11 +596,19 @@ function SubtitleTranslator() {
   };
 
 
-  const handleOpenFileLocation = (task: SubtitleTranslatorTask) => {
+  const handleOpenFileLocation = async (task: SubtitleTranslatorTask) => {
+    if (
+      task.taskReference?.kind === "authorized_task_v1" &&
+      !(task.status === TaskStatus.RESOLVED && task.extraInfo?.outputFilePath)
+    ) {
+      await window.subtitleTranslationApi.revealTaskSource(task.taskId);
+      return;
+    }
     const filePath =
       task.status === TaskStatus.RESOLVED && task.extraInfo?.outputFilePath
         ? task.extraInfo.outputFilePath
         : task.originFileURL;
+    if (!filePath) return;
     window.ipcRenderer.invoke("show-item-in-folder", filePath);
   };
 
@@ -714,18 +725,9 @@ function SubtitleTranslator() {
   // 选择输出路径
   const handleSelectOutputPath = async () => {
     try {
-      // 通过 IPC 调用主进程的目录选择对话框
-      const result = await window.ipcRenderer.invoke(
-        "select-output-directory",
-        {
-          title: t("subtitle:translator.dialog.select_output_title"),
-          buttonLabel: t("subtitle:translator.dialog.select_output_confirm"),
-        }
-      );
-
-      if (result && !result.canceled && result.filePaths.length > 0) {
-        const selectedPath = result.filePaths[0];
-        setOutputURL(selectedPath);
+      const result = await selectGeneratedSubtitleImportCustomDirectory();
+      if (!result.cancelled && result.displayLabel) {
+        setAuthorizedOutputLabel(result.displayLabel);
         showToast(
           t("subtitle:translator.infos.output_path_selected"),
           "success"
@@ -737,7 +739,9 @@ function SubtitleTranslator() {
   };
 
   const handleFileUpload = async (files: FileList) => {
-    if (outputMode === "custom" && !outputURL) {
+    const customDirectory =
+      getCurrentSubtitleTranslatorCustomDirectoryAuthorization();
+    if (outputMode === "custom" && !customDirectory) {
       showToast(
         t("subtitle:translator.errors.please_select_output_url"),
         "error"
@@ -767,18 +771,22 @@ function SubtitleTranslator() {
         continue;
       }
 
-      const outputDir =
-        outputMode === "source" ? getSourceDirFromFile(file) : outputURL;
-      if (!outputDir) {
-        showToast(
-          t("subtitle:translator.errors.source_path_missing"),
-          "error"
-        );
-        continue;
-      }
-
       try {
-        const fileContent = await file.text();
+        const inputAuthorization = await window.subtitleTranslationApi
+          .authorizeInputFile(file);
+        if (!inputAuthorization.ok) {
+          showToast(t("subtitle:translator.errors.source_path_missing"), "error");
+          continue;
+        }
+        const inputContent = await window.subtitleTranslationApi
+          .readInputFile(inputAuthorization.data.inputToken);
+        if (!inputContent.ok) {
+          await window.subtitleTranslationApi
+            .revokeInputFile(inputAuthorization.data.inputToken);
+          showToast(t("subtitle:translator.errors.source_path_missing"), "error");
+          continue;
+        }
+        const fileContent = inputContent.data.content;
 
         const customLen =
           sliceType === SubtitleSliceType.CUSTOM
@@ -800,8 +808,8 @@ function SubtitleTranslator() {
           fileName: file.name,
           fileContent,
           sliceType,
-          originFileURL: getFilePathFromFile(file) ?? file.name,
-          targetFileURL: outputDir,
+          originFileURL: "",
+          targetFileURL: "",
           status: TaskStatus.NOT_STARTED,
           progress: 0,
           costEstimate: loadingCostEstimate,
@@ -816,8 +824,31 @@ function SubtitleTranslator() {
           conflictPolicy,
           concurrentSlices,
         });
-        const addResult = addTask(newTask);
-        if (!addResult.added) continue;
+        const registration = await window.subtitleTranslationApi
+          .registerAuthorizedTask({
+            taskId: newTask.taskId,
+            inputToken: inputAuthorization.data.inputToken,
+            outputMode,
+            outputFileName: file.name,
+            ...(outputMode === "custom" && customDirectory
+              ? { directoryToken: customDirectory.directoryToken }
+              : {}),
+          });
+        if (!registration.ok) {
+          await window.subtitleTranslationApi
+            .revokeInputFile(inputAuthorization.data.inputToken);
+          showToast(t("subtitle:translator.errors.source_path_missing"), "error");
+          continue;
+        }
+        const authorizedTask: SubtitleTranslatorTask = {
+          ...newTask,
+          taskReference: registration.data,
+        };
+        const addResult = addTask(authorizedTask);
+        if (!addResult.added) {
+          releaseSubtitleTranslationTaskAuthority(newTask.taskId);
+          continue;
+        }
 
         if (taskProfile) {
           const taskId = newTask.taskId;
@@ -1096,7 +1127,7 @@ function SubtitleTranslator() {
                 {outputMode === "custom" ? (
                   <ToolOutputPathPicker
                     className="mt-2"
-                    value={outputURL}
+                    value={authorizedOutputLabel}
                     placeholder={t(
                       "subtitle:translator.fields.no_output_path_selected"
                     )}
@@ -1713,7 +1744,8 @@ function SubtitleTranslator() {
                             )}
                           </span>
                           <span className="font-mono break-all">
-                            {task.targetFileURL}
+                            {task.taskReference?.target.displayLabel ||
+                              task.targetFileURL}
                           </span>
                           <span className="text-muted-foreground">
                             {t(

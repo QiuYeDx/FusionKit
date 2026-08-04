@@ -13,6 +13,7 @@ interface Window {
   ipcRenderer: import('../electron/preload/legacy-ipc-bridge').SafeLegacyIpcBridge
   audioApi: import('@/type/audioIpc').AudioRendererApi
   localSubtitleApi: import('@/type/localSubtitleIpc').LocalSubtitleRendererApi
+  subtitleTranslationApi: import('@/type/subtitleTranslationIpc').SubtitleTranslationRendererApi
   // expose webUtils for file path access (Electron 24+)
   electronUtils: {
     getPathForFile(file: File): string

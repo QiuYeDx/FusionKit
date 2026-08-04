@@ -10,6 +10,7 @@ import {
 import {
   LocalSubtitleArtifactRegistry,
   LocalSubtitleArtifactRegistryError,
+  type LocalSubtitleArtifactDirectoryProof,
 } from "./subtitle-artifact-registry";
 
 export interface LocalSubtitleTranslationImportArtifactIdentity {
@@ -27,6 +28,7 @@ export interface LocalSubtitleTranslationImportSnapshot {
   readonly displayName: string;
   readonly cueCount: number;
   readonly artifactIdentity: LocalSubtitleTranslationImportArtifactIdentity;
+  readonly sourceDirectoryProof: LocalSubtitleArtifactDirectoryProof;
 }
 
 export interface LocalSubtitleStoredTranslationImportSnapshot {
@@ -35,6 +37,7 @@ export interface LocalSubtitleStoredTranslationImportSnapshot {
   readonly displayName: string;
   readonly cueCount: number;
   readonly artifactIdentity: LocalSubtitleTranslationImportArtifactIdentity;
+  readonly sourceDirectoryProof: LocalSubtitleArtifactDirectoryProof;
 }
 
 export type LocalSubtitleTranslationImportTokenRegistry =
@@ -65,6 +68,11 @@ export class LocalSubtitleArtifactHandoffService {
     artifactRef: string,
   ): Promise<LocalSubtitleHandoffResult> {
     const snapshot = await this.artifacts.snapshotForHandoff(owner, artifactRef);
+    const sourceDirectoryProof =
+      await this.artifacts.resolveDirectoryForTranslationImport(
+        owner,
+        artifactRef,
+      );
     const contentBytes = Buffer.from(snapshot.rawText, "utf8");
     if (contentBytes.byteLength !== snapshot.byteSize) {
       contentBytes.fill(0);
@@ -87,6 +95,7 @@ export class LocalSubtitleArtifactHandoffService {
         byteSize: snapshot.byteSize,
         sha256: snapshot.sha256,
       }),
+      sourceDirectoryProof,
     });
     let translationImportToken: string | undefined;
     try {
@@ -132,6 +141,7 @@ export class LocalSubtitleArtifactHandoffService {
         displayName: stored.displayName,
         cueCount: stored.cueCount,
         artifactIdentity: stored.artifactIdentity,
+        sourceDirectoryProof: stored.sourceDirectoryProof,
       })),
     );
   }

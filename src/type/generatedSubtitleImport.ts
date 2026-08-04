@@ -51,3 +51,35 @@ export type PrepareGeneratedSubtitleImportResult =
         | "profile_required";
       warnings: readonly string[];
     }>;
+
+export type SubtitleTranslationImportStartFailureReason =
+  | "estimate_failed"
+  | "configuration_required"
+  | "profile_unavailable"
+  | "authorization_expired"
+  | "start_rejected";
+
+export type SubtitleTranslationImportSkipReason =
+  | "duplicate"
+  | "unsupported_format"
+  | "artifact_expired"
+  | "artifact_changed"
+  | "content_too_large"
+  | "invalid_content";
+
+export interface SubtitleTranslationImportReceipt {
+  readonly receiptId: string;
+  readonly snapshotId: string;
+  readonly addedTaskIds: readonly string[];
+  readonly startedTaskIds: readonly string[];
+  readonly waitingTaskIds: readonly string[];
+  readonly notStartedTaskIds: readonly string[];
+  readonly startFailures: readonly Readonly<{
+    taskId: string;
+    reason: SubtitleTranslationImportStartFailureReason;
+  }>[];
+  readonly skipped: readonly Readonly<{
+    displayName: string;
+    reason: SubtitleTranslationImportSkipReason;
+  }>[];
+}

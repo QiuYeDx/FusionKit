@@ -116,6 +116,11 @@ export interface LocalSubtitleArtifactHandoffSnapshot {
   readonly sha256: string;
 }
 
+export interface LocalSubtitleArtifactDirectoryProof {
+  readonly directoryPath: string;
+  readonly directoryIdentity: LocalSubtitleDirectoryIdentity;
+}
+
 interface ArtifactEntryBase {
   readonly owner: LocalSubtitleOwnerKey;
   readonly taskId: string;
@@ -406,6 +411,19 @@ export class LocalSubtitleArtifactRegistry {
       cueCount: validated.cueCount,
       byteSize: entry.record.byteSize,
       sha256: entry.record.sha256,
+    });
+  }
+
+  async resolveDirectoryForTranslationImport(
+    owner: LocalSubtitleOwnerKey,
+    artifactRef: string,
+  ): Promise<LocalSubtitleArtifactDirectoryProof> {
+    const entry = this.requireActive(owner, artifactRef, "handoff");
+    await this.validateEntry(entry);
+    this.assertEntryCurrent(entry);
+    return Object.freeze({
+      directoryPath: entry.record.directoryPath,
+      directoryIdentity: Object.freeze({ ...entry.record.directoryIdentity }),
     });
   }
 

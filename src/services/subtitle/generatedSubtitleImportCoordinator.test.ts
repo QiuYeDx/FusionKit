@@ -24,9 +24,12 @@ import {
 } from "@/store/tools/subtitle/useSubtitleTranslatorConfigStore";
 import { Model, type ModelProfile } from "@/type/model";
 import {
+  GeneratedSubtitleImportCoordinator,
   GeneratedSubtitleImportSnapshotCoordinator,
   type GeneratedSubtitleImportHydrationSource,
+  type GeneratedSubtitleImportQueue,
 } from "./generatedSubtitleImportCoordinator";
+import { subtitleTranslationIpcSuccess } from "@/type/subtitleTranslationIpc";
 
 const PROFILE = Object.freeze({
   id: "profile-1",
@@ -329,6 +332,269 @@ describe("GeneratedSubtitleImportSnapshotCoordinator", () => {
   });
 });
 
+describe("GeneratedSubtitleImportCoordinator", () => {
+  it("commits one candidate and starts only the receipt task IDs", async () => {
+    const snapshots = createCoordinator(
+      hydrationSource(preferences({ outputMode: "source" }), true),
+      hydrationSource<ModelProfile | null>(PROFILE, true),
+    );
+    const prepared = await snapshots.prepareBatch(
+      "enqueue_and_start_translation",
+    );
+    if (!prepared.ok) throw new Error("Expected a snapshot.");
+    const addImportedTasks = vi.fn((
+      request: Parameters<GeneratedSubtitleImportQueue["addImportedTasks"]>[0],
+    ) => ({
+      receiptId: request.receiptId,
+      snapshotId: request.snapshotId,
+      addedTaskIds: [request.candidates[0].task.taskId],
+      notStartedTaskIds: [request.candidates[0].task.taskId],
+      skipped: [],
+    }));
+    const startTasks = vi.fn((taskIds: readonly string[]) => ({
+      requestedTaskIds: taskIds,
+      startedTaskIds: taskIds,
+      waitingTaskIds: [],
+      notStartedTaskIds: [],
+      startFailures: [],
+    }));
+    const commitGeneratedImportCandidate = vi.fn(async () =>
+      subtitleTranslationIpcSuccess({ committed: true }));
+    const releaseGeneratedImportCandidate = vi.fn(async () =>
+      subtitleTranslationIpcSuccess({ released: true }));
+    const releaseImportSnapshot = vi.fn();
+    const coordinator = new GeneratedSubtitleImportCoordinator({
+      snapshots,
+      mainApi: {
+        createGeneratedImportCandidate: vi.fn(async () =>
+          subtitleTranslationIpcSuccess(candidate())),
+        commitGeneratedImportCandidate,
+        releaseGeneratedImportCandidate,
+      },
+      queue: queue({ addImportedTasks, startTasks, releaseImportSnapshot }),
+      receiptIdFactory: () => "one",
+    });
+
+    const receipt = await coordinator.importArtifact({
+      translationImportToken: "ls-import-one",
+      snapshotId: prepared.snapshot.snapshotId,
+    });
+    const importedTask = addImportedTasks.mock.calls[0][0].candidates[0].task;
+    expect(importedTask).toMatchObject({
+      taskId: "subtitle-task-imported",
+      fileName: "generated.srt",
+      originFileURL: "",
+      targetFileURL: "",
+      recoveryInputMode: "manifest_fragments",
+      taskReference: { kind: "generated_task_v1" },
+      executionBinding: {
+        status: "ready",
+        profileId: "profile-1",
+        apiKey: "private-api-key",
+      },
+    });
+    expect(startTasks).toHaveBeenCalledOnce();
+    expect(startTasks).toHaveBeenCalledWith([
+      "subtitle-task-imported",
+    ]);
+    expect(commitGeneratedImportCandidate).toHaveBeenCalledOnce();
+    expect(receipt).toEqual({
+      receiptId: "subtitle-import-receipt-one",
+      snapshotId: prepared.snapshot.snapshotId,
+      addedTaskIds: ["subtitle-task-imported"],
+      startedTaskIds: ["subtitle-task-imported"],
+      waitingTaskIds: [],
+      notStartedTaskIds: [],
+      startFailures: [],
+      skipped: [],
+    });
+    expect(Object.isFrozen(receipt)).toBe(true);
+    await coordinator.releaseBatch(prepared.snapshot.snapshotId);
+    expect(releaseImportSnapshot).toHaveBeenCalledOnce();
+    expect(releaseGeneratedImportCandidate).not.toHaveBeenCalled();
+  });
+
+  it("keeps enqueue-only tasks not started and releases duplicate candidates", async () => {
+    const snapshots = createCoordinator(
+      hydrationSource(preferences({ outputMode: "source" }), true),
+      hydrationSource<ModelProfile | null>(null, true),
+    );
+    const prepared = await snapshots.prepareBatch("enqueue_translation");
+    if (!prepared.ok) throw new Error("Expected a snapshot.");
+    const releaseGeneratedImportCandidate = vi.fn(async () =>
+      subtitleTranslationIpcSuccess({ released: true }));
+    const startTasks = vi.fn();
+    const coordinator = new GeneratedSubtitleImportCoordinator({
+      snapshots,
+      mainApi: {
+        createGeneratedImportCandidate: vi.fn(async () =>
+          subtitleTranslationIpcSuccess(candidate())),
+        commitGeneratedImportCandidate: vi.fn(async () =>
+          subtitleTranslationIpcSuccess({ committed: true })),
+        releaseGeneratedImportCandidate,
+      },
+      queue: queue({
+        addImportedTasks: vi.fn((
+          request: Parameters<GeneratedSubtitleImportQueue["addImportedTasks"]>[0],
+        ) => ({
+          receiptId: request.receiptId,
+          snapshotId: request.snapshotId,
+          addedTaskIds: [],
+          notStartedTaskIds: [],
+          skipped: [{
+            handoffKey: request.candidates[0].handoffKey,
+            taskId: request.candidates[0].task.taskId,
+            displayName: request.candidates[0].task.fileName,
+            reason: "task_id_conflict" as const,
+          }],
+        })),
+        startTasks,
+      }),
+      receiptIdFactory: () => "duplicate",
+    });
+
+    const receipt = await coordinator.importArtifact({
+      translationImportToken: "ls-import-duplicate",
+      snapshotId: prepared.snapshot.snapshotId,
+    });
+    expect(receipt).toMatchObject({
+      addedTaskIds: [],
+      notStartedTaskIds: [],
+      skipped: [{ displayName: "generated.srt", reason: "duplicate" }],
+    });
+    expect(releaseGeneratedImportCandidate).toHaveBeenCalledOnce();
+    expect(startTasks).not.toHaveBeenCalled();
+  });
+
+  it("preserves an added task when estimation prevents auto-start", async () => {
+    const snapshots = createCoordinator(
+      hydrationSource(preferences({ outputMode: "source" }), true),
+      hydrationSource<ModelProfile | null>(PROFILE, true),
+    );
+    const prepared = await snapshots.prepareBatch(
+      "enqueue_and_start_translation",
+    );
+    if (!prepared.ok) throw new Error("Expected a snapshot.");
+    const startTasks = vi.fn();
+    const coordinator = new GeneratedSubtitleImportCoordinator({
+      snapshots,
+      mainApi: {
+        createGeneratedImportCandidate: vi.fn(async () =>
+          subtitleTranslationIpcSuccess(candidate())),
+        commitGeneratedImportCandidate: vi.fn(async () =>
+          subtitleTranslationIpcSuccess({ committed: true })),
+        releaseGeneratedImportCandidate: vi.fn(async () =>
+          subtitleTranslationIpcSuccess({ released: true })),
+      },
+      queue: queue({ startTasks }),
+      estimate: () => {
+        throw new Error("estimate failed");
+      },
+      receiptIdFactory: () => "estimate-failed",
+    });
+
+    const receipt = await coordinator.importArtifact({
+      translationImportToken: "ls-import-estimate",
+      snapshotId: prepared.snapshot.snapshotId,
+    });
+    expect(receipt).toMatchObject({
+      addedTaskIds: ["subtitle-task-imported"],
+      notStartedTaskIds: ["subtitle-task-imported"],
+      startFailures: [{
+        taskId: "subtitle-task-imported",
+        reason: "estimate_failed",
+      }],
+    });
+    expect(startTasks).not.toHaveBeenCalled();
+  });
+
+  it("releases a main candidate when queue insertion throws", async () => {
+    const snapshots = createCoordinator(
+      hydrationSource(preferences({ outputMode: "source" }), true),
+      hydrationSource<ModelProfile | null>(PROFILE, true),
+    );
+    const prepared = await snapshots.prepareBatch("enqueue_translation");
+    if (!prepared.ok) throw new Error("Expected a snapshot.");
+    const releaseGeneratedImportCandidate = vi.fn(async () =>
+      subtitleTranslationIpcSuccess({ released: true }));
+    const coordinator = new GeneratedSubtitleImportCoordinator({
+      snapshots,
+      mainApi: {
+        createGeneratedImportCandidate: vi.fn(async () =>
+          subtitleTranslationIpcSuccess(candidate())),
+        commitGeneratedImportCandidate: vi.fn(async () =>
+          subtitleTranslationIpcSuccess({ committed: true })),
+        releaseGeneratedImportCandidate,
+      },
+      queue: queue({
+        addImportedTasks: () => {
+          throw new Error("queue failed");
+        },
+      }),
+      receiptIdFactory: () => "queue-failed",
+    });
+
+    await expect(coordinator.importArtifact({
+      translationImportToken: "ls-import-queue-failed",
+      snapshotId: prepared.snapshot.snapshotId,
+    })).rejects.toThrow("queue failed");
+    expect(releaseGeneratedImportCandidate).toHaveBeenCalledOnce();
+  });
+
+  it("returns the original immutable receipt without starting twice", async () => {
+    const snapshots = createCoordinator(
+      hydrationSource(preferences({ outputMode: "source" }), true),
+      hydrationSource<ModelProfile | null>(PROFILE, true),
+    );
+    const prepared = await snapshots.prepareBatch(
+      "enqueue_and_start_translation",
+    );
+    if (!prepared.ok) throw new Error("Expected a snapshot.");
+    const mainCandidate = vi.fn(async () =>
+      subtitleTranslationIpcSuccess(candidate()));
+    const startTasks = vi.fn((taskIds: readonly string[]) => ({
+      requestedTaskIds: taskIds,
+      startedTaskIds: taskIds,
+      waitingTaskIds: [],
+      notStartedTaskIds: [],
+      startFailures: [],
+    }));
+    const addImportedTasks = vi.fn((
+      request: Parameters<GeneratedSubtitleImportQueue["addImportedTasks"]>[0],
+    ) => ({
+      receiptId: request.receiptId,
+      snapshotId: request.snapshotId,
+      addedTaskIds: [request.candidates[0].task.taskId],
+      notStartedTaskIds: [request.candidates[0].task.taskId],
+      skipped: [],
+    }));
+    const coordinator = new GeneratedSubtitleImportCoordinator({
+      snapshots,
+      mainApi: {
+        createGeneratedImportCandidate: mainCandidate,
+        commitGeneratedImportCandidate: vi.fn(async () =>
+          subtitleTranslationIpcSuccess({ committed: true })),
+        releaseGeneratedImportCandidate: vi.fn(async () =>
+          subtitleTranslationIpcSuccess({ released: true })),
+      },
+      queue: queue({ addImportedTasks, startTasks }),
+      receiptIdFactory: () => "replay",
+    });
+    const first = await coordinator.importArtifact({
+      translationImportToken: "ls-import-first",
+      snapshotId: prepared.snapshot.snapshotId,
+    });
+    const second = await coordinator.importArtifact({
+      translationImportToken: "ls-import-second",
+      snapshotId: prepared.snapshot.snapshotId,
+    });
+    expect(second).toBe(first);
+    expect(mainCandidate).toHaveBeenCalledTimes(2);
+    expect(addImportedTasks).toHaveBeenCalledOnce();
+    expect(startTasks).toHaveBeenCalledOnce();
+  });
+});
+
 function preferences(
   patch: Partial<SubtitleTranslatorConfigPreferences> = {},
 ): SubtitleTranslatorConfigPreferences {
@@ -375,4 +641,49 @@ function createCoordinator(
     snapshotIdFactory: () => `snapshot-${++idIndex}`,
     ...overrides,
   });
+}
+
+function candidate() {
+  return Object.freeze({
+    taskId: "subtitle-task-imported",
+    handoffKey: "subtitle-handoff-imported",
+    candidateBinding: "subtitle-candidate-imported",
+    displayName: "generated.srt",
+    format: "SRT" as const,
+    content: "1\n00:00:00,000 --> 00:00:01,000\nHello\n",
+    reference: Object.freeze({
+      kind: "generated_task_v1" as const,
+      source: Object.freeze({
+        kind: "generated_content" as const,
+        displayName: "generated.srt",
+      }),
+      target: Object.freeze({
+        kind: "authorized_directory" as const,
+        token: "subtitle-translation-target-imported",
+        displayLabel: "Source directory",
+      }),
+    }),
+  });
+}
+
+function queue(overrides: Partial<GeneratedSubtitleImportQueue> = {}):
+  GeneratedSubtitleImportQueue {
+  return {
+    addImportedTasks: (request) => ({
+      receiptId: request.receiptId,
+      snapshotId: request.snapshotId,
+      addedTaskIds: [request.candidates[0].task.taskId],
+      notStartedTaskIds: [request.candidates[0].task.taskId],
+      skipped: [],
+    }),
+    startTasks: (taskIds) => ({
+      requestedTaskIds: taskIds,
+      startedTaskIds: taskIds,
+      waitingTaskIds: [],
+      notStartedTaskIds: [],
+      startFailures: [],
+    }),
+    releaseImportSnapshot: () => undefined,
+    ...overrides,
+  };
 }

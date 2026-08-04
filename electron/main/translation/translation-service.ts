@@ -15,6 +15,7 @@ import {
   type SubtitleTranslatorTask,
   type TranslationLanguage,
   type TranslationOutputMode,
+  type SubtitleTranslationRuntimeAuthorization,
   isSubtitleTaskReadyExecutionBinding,
   isSubtitleTranslatorTaskId,
 } from "./typing";
@@ -32,7 +33,10 @@ export class TranslationService {
    * 处理一个翻译任务：根据文件后缀选择翻译器 → 执行翻译 → 返回最终状态。
    * AbortController 贯穿整个翻译流程，任何阶段调用 cancelTask 都能中断。
    */
-  async processTask(task: SubtitleTranslatorTask) {
+  async processTask(
+    task: SubtitleTranslatorTask,
+    runtimeAuthorization?: SubtitleTranslationRuntimeAuthorization,
+  ) {
     if (!isSubtitleTranslatorTaskId(task?.taskId)) {
       return { status: "failed", error: "invalid_task_identity" };
     }
@@ -60,7 +64,7 @@ export class TranslationService {
         fileName: task.fileName,
         model: execution.apiModel,
       });
-      await translator.translate(task, controller.signal);
+      await translator.translate(task, controller.signal, runtimeAuthorization);
       return { status: "completed" };
     } catch (error) {
       if (error instanceof Error && error.name === "AbortError") return { status: "cancelled" };

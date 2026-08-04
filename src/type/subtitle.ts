@@ -1,4 +1,8 @@
 import type { ModelApiFormat, OutputTokenParameter } from "@/type/model";
+import type {
+  SubtitleTranslationAuthorizedTaskReference,
+  SubtitleTranslationGeneratedTaskReference,
+} from "./subtitleTranslationIpc";
 
 export enum SubtitleFileType {
   LRC = "LRC",
@@ -157,6 +161,10 @@ export type SubtitleTranslatorTask = {
   checkpointPath?: string;
   /** 恢复输入模式：source_file 依赖源文件分片，manifest_fragments 直接使用 manifest 中的分片 */
   recoveryInputMode?: TranslationRecoveryInputMode;
+  /** Path-free authority for newly selected or generated subtitle tasks. */
+  taskReference?:
+    | SubtitleTranslationAuthorizedTaskReference
+    | SubtitleTranslationGeneratedTaskReference;
 };
 
 export type TranslationRecoveryScanRequest = {

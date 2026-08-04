@@ -11,7 +11,10 @@
  */
 
 import { encode } from "gpt-tokenizer";
-import { SubtitleTranslatorTask } from "../typing";
+import {
+  SubtitleTranslatorTask,
+  type SubtitleTranslationRuntimeAuthorization,
+} from "../typing";
 import { BaseTranslator } from "./base-translator";
 import { getLanguageName } from "../constants";
 import type {
@@ -131,8 +134,12 @@ export class SRTTranslator extends BaseTranslator {
   }
 
   /** 覆盖父类 translate，在翻译完成后执行 SRT 特有的收尾逻辑 */
-  async translate(task: SubtitleTranslatorTask, signal?: AbortSignal) {
-    await super.translate(task, signal);
+  async translate(
+    task: SubtitleTranslatorTask,
+    signal?: AbortSignal,
+    runtimeAuthorization?: SubtitleTranslationRuntimeAuthorization,
+  ) {
+    await super.translate(task, signal, runtimeAuthorization);
     task.progress = 100;
     this.finalizeTranslation(task);
   }

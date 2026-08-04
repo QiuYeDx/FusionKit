@@ -19,6 +19,7 @@ import type {
 import {
   startSubtitleTranslation,
   cancelSubtitleTranslation,
+  releaseSubtitleTranslationTaskAuthority,
 } from "@/services/subtitle/translatorExecutionService";
 import {
   bootstrapLegacySubtitleTranslatorConfig,
@@ -83,7 +84,7 @@ interface SubtitleTranslatorStore {
   ) => void;
   updateTask: (
     taskId: string,
-    updates: Partial<Omit<SubtitleTranslatorTask, "taskId">>,
+    updates: Partial<Omit<SubtitleTranslatorTask, "taskId" | "taskReference">>,
   ) => void;
   cancelTask: (taskId: string) => void;
   deleteTask: (taskId: string) => void;
@@ -115,6 +116,16 @@ function getQueueState(state: SubtitleTranslatorStore): TranslatorQueueState {
     resolvedTaskQueue: state.resolvedTaskQueue,
     failedTaskQueue: state.failedTaskQueue,
   };
+}
+
+function allQueueTasks(state: TranslatorQueueState): SubtitleTranslatorTask[] {
+  return [
+    ...state.notStartedTaskQueue,
+    ...state.waitingTaskQueue,
+    ...state.pendingTaskQueue,
+    ...state.resolvedTaskQueue,
+    ...state.failedTaskQueue,
+  ];
 }
 
 function executeEffects(effects: TranslatorQueueEffect[]) {
@@ -279,12 +290,24 @@ const useSubtitleTranslatorStore = create<SubtitleTranslatorStore>()(
       },
 
       removeAllResolvedTask: () => {
-        const result = QueueService.removeAllResolvedTasks(getQueueState(get()));
+        const queueState = getQueueState(get());
+        for (const task of queueState.resolvedTaskQueue) {
+          if (task.taskReference) {
+            releaseSubtitleTranslationTaskAuthority(task.taskId);
+          }
+        }
+        const result = QueueService.removeAllResolvedTasks(queueState);
         set(result.state);
       },
 
       clearAllTasks: () => {
-        const result = QueueService.clearTasks(getQueueState(get()));
+        const queueState = getQueueState(get());
+        for (const task of allQueueTasks(queueState)) {
+          if (task.taskReference) {
+            releaseSubtitleTranslationTaskAuthority(task.taskId);
+          }
+        }
+        const result = QueueService.clearTasks(queueState);
         set(result.state);
         executeEffects(result.effects);
         showToast(i18n.t("subtitle:translator.infos.all_tasks_cleared"), "success");
@@ -347,7 +370,13 @@ const useSubtitleTranslatorStore = create<SubtitleTranslatorStore>()(
       },
 
       deleteTask: (taskId) => {
-        const result = QueueService.deleteTask(getQueueState(get()), taskId);
+        const queueState = getQueueState(get());
+        const task = allQueueTasks(queueState)
+          .find((candidate) => candidate.taskId === taskId);
+        if (task?.taskReference) {
+          releaseSubtitleTranslationTaskAuthority(taskId);
+        }
+        const result = QueueService.deleteTask(queueState, taskId);
         set(result.state);
         executeEffects(result.effects);
         showToast(i18n.t("subtitle:translator.infos.task_deleted"), "success");
