@@ -18,6 +18,9 @@ import {
   startSubtitleTranslation,
   cancelSubtitleTranslation,
 } from "@/services/subtitle/translatorExecutionService";
+import {
+  bootstrapLegacySubtitleTranslatorConfig,
+} from "./useSubtitleTranslatorConfigStore";
 
 const MAX_CONCURRENCY = 5;
 
@@ -101,6 +104,14 @@ function executeEffects(effects: TranslatorQueueEffect[]) {
 // ─── Store ───────────────────────────────────────────────────────────────────
 
 const LEGACY_KEY = "subtitle-translator-output-url";
+
+try {
+  if (globalThis.localStorage) {
+    bootstrapLegacySubtitleTranslatorConfig(globalThis.localStorage);
+  }
+} catch {
+  // The source Store stays intact; the config coordinator will fail closed.
+}
 
 const useSubtitleTranslatorStore = create<SubtitleTranslatorStore>()(
   persist(

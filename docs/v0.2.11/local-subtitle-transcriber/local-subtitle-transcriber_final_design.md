@@ -4,7 +4,7 @@
 >
 > Feature Slug：`local-subtitle-transcriber`
 >
-> 状态：39个顶层工作包中23个已完成、13个未开始、3个进行中。`BE-003`已完成path/content-free会话摘要、非终态重启中断标记、受控server/media/session-summary temp启动清理、资源水位与无失效authority的上一会话只读UI；`MODEL-002A`～`MODEL-002D`已完成model/VAD/CUDA managed lifecycle与受控root启动孤儿清理；`FE-002`已完成真实runtime/backend摘要、managed resource管理、commit-time main auto backend proof、开始前path/hash-free preview、macOS arm64 Metal admission、Windows x64 managed CUDA production admission及用户确认CPU新generation代码闭环；`FE-003`已完成1～100文件批量草稿/任务队列、逐文件media probe摘要、多音轨Radio选择与draft-to-task音轨证明提升；`FE-004`已完成按格式full/partial result、artifact分页预览/纯文本复制/reveal与结构化error details checkpoint；`LINK-006`已完成artifact ref安全轮换、main-only内容快照与owner-bound短TTL one-shot token，并在task/owner/TTL/consume边界清零内容。顶层`MODEL-002`仍等待真实大文件下载与目标环境证据；`FE-002`仍等待CUDA/Metal真实目标机与packaged产品证据；`FE-004`仍等待`LINK-007`提供translator-owned coordinator。`NATIVE-002`、`FS-TXN-001`、`BE-002`～`BE-003`、`FE-001`、`FE-003`与`LINK-006`已按职责结项；Electron窄窗口、键盘与cancel race人工验收归`QA-002`，不提前声明M2 packaged/目标机验收或M3完成
+> 状态：39个顶层工作包中23个已完成、11个未开始、5个进行中。`BE-003`已完成path/content-free会话摘要、非终态重启中断标记、受控server/media/session-summary temp启动清理、资源水位与无失效authority的上一会话只读UI；`MODEL-002A`～`MODEL-002D`已完成model/VAD/CUDA managed lifecycle与受控root启动孤儿清理；`FE-002`已完成真实runtime/backend摘要、managed resource管理、commit-time main auto backend proof、开始前path/hash-free preview、macOS arm64 Metal admission、Windows x64 managed CUDA production admission及用户确认CPU新generation代码闭环；`FE-003`已完成1～100文件批量草稿/任务队列、逐文件media probe摘要、多音轨Radio选择与draft-to-task音轨证明提升；`FE-004`已完成按格式full/partial result、artifact分页预览/纯文本复制/reveal与结构化error details checkpoint；`LINK-006`已完成artifact ref安全轮换、main-only内容快照与owner-bound短TTL one-shot token。`LINK-001`/`LINK-007A`已建立安全偏好Store、无损cross-key bootstrap和hydration-aware内存配置快照；旧raw path仍保留，尚未创建taskId/handoffKey/target handle或接入旧filename队列。顶层`MODEL-002`仍等待真实大文件下载与目标环境证据；`FE-002`仍等待CUDA/Metal真实目标机与packaged产品证据；`FE-004`仍等待`LINK-007B`导入闭环。`NATIVE-002`、`FS-TXN-001`、`BE-002`～`BE-003`、`FE-001`、`FE-003`与`LINK-006`已按职责结项；Electron窄窗口、键盘与cancel race人工验收归`QA-002`，不提前声明M2 packaged/目标机验收或M3完成
 >
 > 产品定位：使用本地算力把批量音频/视频转成可直接翻译的 SRT/LRC 字幕
 >
@@ -1512,7 +1512,7 @@ resources/local-subtitle/
 
 ## 18. 分期实施建议（高层阶段）
 
-本节保留架构层面的阶段划分；可认领的工作包、依赖、状态、验证和实施记录以 `local-subtitle-transcriber_execution_plan.md` 为唯一执行台账。Execution Plan 已于 2026-07-16 建立，当前39个顶层工作包中23个已完成、13个未开始、3个进行中。M1的schema、resource staging、IPC/capability、renderer session、official server contract、Supervisor生命周期、media normalization/PCM proof、canonical post-processing、标准字幕原子产物、managed model、会话恢复诊断与one-shot artifact handoff合同均已冻结。`BE-002`已完成最多100文件的CPU/no-VAD批次、失败隔离、SRT/LRC、custom/source及index/conditional-overwrite；`BE-003`已完成path/content-free会话摘要、受控temp启动清理、资源水位和只读重启诊断；`FS-TXN-001A`～`FS-TXN-001J`完成两平台transaction/recovery；`NATIVE-002A`～`NATIVE-002D`完成两平台canonical、target smoke与真实packaged component；`FE-001`已接通用户可见的单文件CPU→SRT renderer代码路径，`FE-002`已接通环境/backend可见性、managed resource管理、main auto proof和开始前preview，`FE-003`已接通批量draft/task queue、逐文件media probe、多音轨Radio与task-owned selection proof，`FE-004`已接通artifact分页preview/validated plain-text copy、按格式partial result与结构化error details，`LINK-006`已接通artifact ref安全轮换、main-only snapshot和one-shot token清理。Windows personal distribution的unsigned profile已明确；NSIS生命周期归`QA-003`，真实模型Electron产品E2E归QA，CUDA delivery/notice closure归`MODEL-002`/`QA-005`，Developer ID、公证和Gatekeeper accepted归`QA-004`。
+本节保留架构层面的阶段划分；可认领的工作包、依赖、状态、验证和实施记录以 `local-subtitle-transcriber_execution_plan.md` 为唯一执行台账。Execution Plan 已于 2026-07-16 建立，当前39个顶层工作包中23个已完成、11个未开始、5个进行中。M1的schema、resource staging、IPC/capability、renderer session、official server contract、Supervisor生命周期、media normalization/PCM proof、canonical post-processing、标准字幕原子产物、managed model、会话恢复诊断与one-shot artifact handoff合同均已冻结。`BE-002`已完成最多100文件的CPU/no-VAD批次、失败隔离、SRT/LRC、custom/source及index/conditional-overwrite；`BE-003`已完成path/content-free会话摘要、受控temp启动清理、资源水位和只读重启诊断；`FS-TXN-001A`～`FS-TXN-001J`完成两平台transaction/recovery；`NATIVE-002A`～`NATIVE-002D`完成两平台canonical、target smoke与真实packaged component；`FE-001`已接通用户可见的单文件CPU→SRT renderer代码路径，`FE-002`已接通环境/backend可见性、managed resource管理、main auto proof和开始前preview，`FE-003`已接通批量draft/task queue、逐文件media probe、多音轨Radio与task-owned selection proof，`FE-004`已接通artifact分页preview/validated plain-text copy、按格式partial result与结构化error details，`LINK-006`已接通artifact ref安全轮换、main-only snapshot和one-shot token清理；`LINK-001`/`LINK-007A`已接通安全配置迁移、readiness与内存快照，但无路径task/target和导入回执仍等待后续包。Windows personal distribution的unsigned profile已明确；NSIS生命周期归`QA-003`，真实模型Electron产品E2E归QA，CUDA delivery/notice closure归`MODEL-002`/`QA-005`，Developer ID、公证和Gatekeeper accepted归`QA-004`。
 
 其中本节原先汇总为一个 `PRE-001` 的跨平台 PoC，在 Execution Plan 中拆为 `PRE-001`～`PRE-006`，以避免把基准、CPU runner、Windows CUDA、macOS Metal、FFmpeg/打包许可和最终技术冻结塞进一个无法单会话闭环的工作包。其余高层包也在执行计划中按安全边界和可验证纵向切片进一步拆分。
 
@@ -1699,7 +1699,7 @@ PRE-001 已解锁 runtime 开发，PRE-003 已确定 Windows CPU/CUDA，PRE-004 
 - 复用`ToolDetailLayout`、`ToolConfigPanel`、`ToolField`、`ToolFileDropZone`、`ToolRadioButtonGroup`和`ToolOutputPathPicker`；既有session runtime提供阶段进度，完成后只通过opaque artifact ref reveal。
 - GPU、VAD、模型下载/删除、批量、LRC、预览/复制/重试与翻译交接分别保留给`MODEL-002`、`FE-002`～`FE-004`和LINK包。
 
-### LINK-001：字幕翻译交接
+### LINK-001：字幕翻译交接（进行中）
 
 - `SubtitleArtifactRegistry`、一次性 import token、字幕翻译模块自有的导入协调器。
 - 收敛字幕翻译当前偏好并生成批次级配置快照；本地转写侧只持有脱敏摘要和不透明 `snapshotId`。
@@ -1710,6 +1710,8 @@ PRE-001 已解锁 runtime 开发，PRE-003 已确定 Windows CPU/CUDA，PRE-004 
 - 自动执行只启动当前 import receipt 实际新增的 `taskId`，不调用 `startAllTasks()`。
 - 批量导入返回稳定任务 ID；自动模式只启动本次成功导入任务，不触碰原有待执行队列。
 - 覆盖配置缺失、重复项、部分导入失败、token 过期、启动失败与手动重试。
+
+2026-08-04完成`LINK-001`/`LINK-007A`配置快照checkpoint：新Store只持久化语言、输出/切片/冲突/并发偏好和path-free目录展示名，API Key/endpoint/capability/token/raw path均不进入；legacy `outputURL`及旧key继续保留。两个Store模块都在Zustand hydrate前触发幂等bootstrap并做exact readback，失败时协调器fail closed，同会话恢复写入后仍要求clean reload。协调器已冻结脱敏summary、私有model fields和可选custom lease，并覆盖TTL、release fence、并发合并与失败重试。当前不创建`taskId`、`handoffKey`或target handle，不调用`startAllTasks()`；`LINK-002`/`LINK-003`完成前不消费one-shot token或接入旧filename-keyed queue。
 
 ### LINK-006：Artifact ref 与 one-shot import token（已完成）
 
@@ -1856,7 +1858,7 @@ Electron 视觉/交互验证必须等待 preload loading 完全退出。若启�
 
 `PRE-001`～`PRE-006`、`CORE-001`～`CORE-004`、`NATIVE-001`～`NATIVE-002`、`BE-001`～`BE-003`、`MEDIA-001`、`SUB-001`～`SUB-002`、`FS-TXN-001`、`MODEL-001`与`LINK-006`已完成，M1的共享schema、resource manifest/resolver/staging、preload/IPC/capability、renderer session runtime、official server transport/process contract、Supervisor生命周期、media normalization/PCM proof、canonical post-processing、标准字幕原子产物、managed model、会话恢复诊断与one-shot artifact handoff合同已冻结。唯一production decision record是`poc/pre006-production-decision.json`，后续实现不得静默更换引擎、平台矩阵、首发模型或media acquisition policy；SUB-001自有policy也不得伪装为PRE-006字段。
 
-1. `BE-003`已完成会话摘要、受控temp启动清理、资源水位与只读重启诊断；`MODEL-002D`已完成受控root `.part`/staging启动孤儿清理，`FE-002`已完成环境/backend摘要、managed resource管理、main auto proof、开始前preview、macOS arm64 Metal、Windows x64 managed CUDA production admission及用户确认CPU新generation代码闭环；`FE-003`已完成1～100文件draft/batch request、revisioned session批次/任务列表、逐task操作、逐文件media probe摘要、多音轨Radio与task-owned selection proof；`FE-004`已完成artifact分页预览/纯文本复制、按格式partial result与结构化错误详情checkpoint；`LINK-006`已完成artifact ref到one-shot import token的真实authority。下一步优先`LINK-007`接入translator-owned配置快照与导入协调器，再由`LINK-008`接通三种后处理模式和FE-004手动入口；目标机与Electron人工矩阵继续由QA闭环。
+1. `BE-003`已完成会话摘要、受控temp启动清理、资源水位与只读重启诊断；`MODEL-002D`已完成受控root `.part`/staging启动孤儿清理，`FE-002`已完成环境/backend摘要、managed resource管理、main auto proof、开始前preview、macOS arm64 Metal、Windows x64 managed CUDA production admission及用户确认CPU新generation代码闭环；`FE-003`已完成1～100文件draft/batch request、revisioned session批次/任务列表、逐task操作、逐文件media probe摘要、多音轨Radio与task-owned selection proof；`FE-004`已完成artifact分页预览/纯文本复制、按格式partial result与结构化错误详情checkpoint；`LINK-006`已完成artifact ref到one-shot import token的真实authority；`LINK-001`/`LINK-007A`已完成安全配置迁移和translator-owned配置快照checkpoint。下一步优先`LINK-002`稳定taskId、execution binding、批量回执和精确启动基础，再完成`LINK-003`目录capability，随后由`LINK-007B`接candidate/import receipt/exact start；最后由`LINK-008`接通三种后处理模式和FE-004手动入口。目标机与Electron人工矩阵继续由QA闭环。
 2. 使用真实FFmpeg、official server、PRE-006模型与Electron页面完成单文件SRT/reveal产品E2E后，再记录M2 packaged/目标机验收；该QA证据不反向扩大`FE-001`职责。
 3. Developer ID、公证和 Gatekeeper accepted 只由 `QA-004` 验收 macOS 分发产物；QA-005 完成分发前第三方 notices/source-offer/NVIDIA DLL 核对。
 4. 仍无需 FusionKit 自写 C++ runner；只有 official server 出现产品必需能力的真实硬缺口，才通过独立工作包重新评估 native bridge。

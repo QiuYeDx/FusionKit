@@ -1,4 +1,7 @@
 import useSubtitleTranslatorStore from "@/store/tools/subtitle/useSubtitleTranslatorStore";
+import useSubtitleTranslatorConfigStore, {
+  subtitleTranslatorDirectoryDisplayLabel,
+} from "@/store/tools/subtitle/useSubtitleTranslatorConfigStore";
 import {
   OutputConflictPolicy,
   OutputPathMode,
@@ -140,6 +143,9 @@ function SubtitleTranslator() {
     updateTaskCostEstimate,
   } = useSubtitleTranslatorStore();
   const taskProfile = useModelStore((s) => s.getTaskProfile());
+  const updateTranslatorConfig = useSubtitleTranslatorConfigStore(
+    (state) => state.updatePreferences,
+  );
 
   const [customLengthInput, setCustomLengthInput] = useState(
     sliceLengthMap?.[SubtitleSliceType.CUSTOM]?.toString() || "500"
@@ -359,6 +365,34 @@ function SubtitleTranslator() {
       );
     } catch {}
   }, [translationOutputMode]);
+
+  useEffect(() => {
+    updateTranslatorConfig({
+      sourceLang,
+      targetLang,
+      translationOutputMode,
+      sliceType,
+      customSliceLength: sliceLengthMap[SubtitleSliceType.CUSTOM],
+      outputMode,
+      outputDirectoryDisplayLabel:
+        outputMode === "custom"
+          ? subtitleTranslatorDirectoryDisplayLabel(outputURL)
+          : null,
+      conflictPolicy,
+      concurrentSlices,
+    });
+  }, [
+    concurrentSlices,
+    conflictPolicy,
+    outputMode,
+    outputURL,
+    sliceLengthMap,
+    sliceType,
+    sourceLang,
+    targetLang,
+    translationOutputMode,
+    updateTranslatorConfig,
+  ]);
 
   const targetEpochMs = useMemo(() => {
     if (!scheduleTime) return NaN;
