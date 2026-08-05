@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { mkdir, mkdtemp, realpath, rm, writeFile } from "node:fs/promises";
+import { access, mkdir, mkdtemp, realpath, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import {
@@ -7,6 +7,7 @@ import {
   subtitleTranslationIpcSuccess,
 } from "@/type/subtitleTranslationIpc";
 import { SubtitleTranslationDirectoryCapabilityRegistry } from "../../electron/main/translation/directory-capability";
+import { buildCheckpointPaths } from "../../electron/main/translation/checkpoint";
 
 vi.mock("electron", () => ({
   BrowserWindow: { getAllWindows: () => [] },
@@ -25,6 +26,76 @@ afterEach(async () => {
 });
 
 describe("subtitle translation IPC service", () => {
+  it("cleans task-scoped recovery artifacts before releasing task authority", async () => {
+    const output = await outputDirectory("task-cleanup");
+    const capabilities = new SubtitleTranslationDirectoryCapabilityRegistry({
+      tokenFactory: sequence("draft", "target"),
+    });
+    const draft = await capabilities.authorizeDraft(
+      { webContentsId: 30, ownerSessionId: OWNER_SESSION_A },
+      output,
+    );
+    await capabilities.registerGeneratedTask({
+      owner: { webContentsId: 30, ownerSessionId: OWNER_SESSION_A },
+      taskId: "subtitle-task-cleanup-ipc",
+      sourceDisplayName: "cleanup.srt",
+      outputFileName: "cleanup.srt",
+      directoryToken: draft.directoryToken,
+    });
+    capabilities.markTaskTerminal("subtitle-task-cleanup-ipc");
+
+    const paths = buildCheckpointPaths(
+      output,
+      "cleanup.srt",
+      "subtitle-task-cleanup-ipc",
+    );
+    await Promise.all([
+      writeFile(paths.completedPath, "translated"),
+      writeFile(paths.remainingPath, "source"),
+      writeFile(paths.errorLogPath, "error"),
+      writeFile(paths.completionSummaryPath, "{}"),
+      mkdir(paths.manifestPath),
+      writeFile(path.join(output, "cleanup.srt"), "final translation"),
+    ]);
+
+    const { SubtitleTranslationIpcService } = await import(
+      "../../electron/main/translation/ipc"
+    );
+    const service = new SubtitleTranslationIpcService({
+      ownerSessions: fakeOwnerSessions() as never,
+      directoryCapabilities: capabilities,
+    });
+    const request = envelope(OWNER_SESSION_A, {
+      taskId: "subtitle-task-cleanup-ipc",
+    });
+    const first = await service.handleInternal(
+      SUBTITLE_TRANSLATION_PRELOAD_INTERNAL_CHANNELS.releaseGeneratedTask,
+      fakeEvent(30) as never,
+      request,
+    );
+    expect(first).toMatchObject({
+      ok: false,
+      error: { code: "output_write_failed", field: "taskId" },
+    });
+    expect(capabilities.isAuthorizedTask("subtitle-task-cleanup-ipc")).toBe(true);
+
+    await rm(paths.manifestPath, { recursive: true, force: true });
+    const second = await service.handleInternal(
+      SUBTITLE_TRANSLATION_PRELOAD_INTERNAL_CHANNELS.releaseGeneratedTask,
+      fakeEvent(30) as never,
+      request,
+    );
+    expect(second).toEqual(subtitleTranslationIpcSuccess({ released: true }));
+    expect(capabilities.isAuthorizedTask("subtitle-task-cleanup-ipc")).toBe(false);
+    await expect(access(paths.completedPath)).rejects.toMatchObject({ code: "ENOENT" });
+    await expect(access(paths.remainingPath)).rejects.toMatchObject({ code: "ENOENT" });
+    await expect(access(paths.errorLogPath)).rejects.toMatchObject({ code: "ENOENT" });
+    await expect(access(paths.completionSummaryPath)).rejects.toMatchObject({
+      code: "ENOENT",
+    });
+    await expect(access(path.join(output, "cleanup.srt"))).resolves.toBeUndefined();
+  });
+
   it("turns the fixed Agent picker into an owner-bound path-free selection receipt", async () => {
     const sourceDirectory = await outputDirectory("agent-source");
     const sourcePath = path.join(sourceDirectory, "agent-selected.srt");
@@ -351,7 +422,7 @@ describe("subtitle translation IPC service", () => {
       ...task,
       originFileURL: path.join(output, "generated.srt"),
       targetFileURL: output,
-    })).rejects.toMatchObject({ code: "task_reference_conflict" });
+    })).rejects.toMatchObject({ code: "invalid_ipc_request" });
   });
 });
 

@@ -17,7 +17,6 @@ import {
   type SubtitleTranslationAuthorizedTaskReference,
   type SubtitleTranslationAgentTaskRegistrationRequest,
   type SubtitleTranslationGeneratedTaskReference,
-  type SubtitleTranslationLegacyTaskReference,
   type SubtitleTranslationTaskReference,
 } from "@/type/subtitleTranslationIpc";
 
@@ -107,6 +106,8 @@ interface GeneratedTaskRecord {
   readonly candidateBinding?: string;
   readonly inputFile?: TaskInputFileEntry;
   readonly target?: TaskTargetEntry;
+  readonly artifactDirectory: DirectoryDescriptor;
+  readonly finalOutputPath?: string;
 }
 
 export interface RegisterAuthorizedSubtitleTranslationTaskRequest {
@@ -130,6 +131,15 @@ export interface RegisterGeneratedSubtitleTranslationTaskRequest {
   readonly sourceDisplayName: string;
   readonly outputFileName: string;
   readonly directoryToken: string;
+}
+
+export interface RegisterRecoveredSubtitleTranslationTaskBatchRequest {
+  readonly owner: SubtitleTranslationOwnerKey;
+  readonly directoryToken: string;
+  readonly tasks: readonly {
+    readonly taskId: string;
+    readonly fileName: string;
+  }[];
 }
 
 export interface RegisterGeneratedSubtitleTranslationCandidateRequest {
@@ -164,17 +174,14 @@ export interface ResolvedAuthorizedSubtitleTranslationPaths {
   readonly expiresAt: number;
 }
 
-export interface ResolvedLegacySubtitleTranslationPaths {
-  readonly kind: "legacy_path_v1";
-  readonly originFilePath: string;
-  readonly targetDirectoryPath: string;
-  readonly checkpointPath?: string;
+export interface SubtitleTranslationTaskArtifactCleanupTarget {
+  readonly outputDirectoryPath: string;
+  readonly outputFileName: string;
 }
 
 export type ResolvedSubtitleTranslationTaskReference =
   | ResolvedAuthorizedSubtitleTranslationPaths
-  | ResolvedGeneratedSubtitleTranslationTarget
-  | ResolvedLegacySubtitleTranslationPaths;
+  | ResolvedGeneratedSubtitleTranslationTarget;
 
 export class SubtitleTranslationCapabilityError extends Error {
   readonly name = "SubtitleTranslationCapabilityError";
@@ -563,6 +570,60 @@ export class SubtitleTranslationDirectoryCapabilityRegistry {
     });
   }
 
+  async registerRecoveredTaskBatch(
+    request: RegisterRecoveredSubtitleTranslationTaskBatchRequest,
+  ): Promise<readonly SubtitleTranslationGeneratedTaskReference[]> {
+    assertOwner(request.owner);
+    this.assertOwnerActive(request.owner);
+    if (
+      request.tasks.length === 0 ||
+      request.tasks.length > SUBTITLE_TRANSLATION_LIMITS.maxRecoveryBatchFiles
+    ) {
+      throw invalid("tasks");
+    }
+    const taskIds = new Set<string>();
+    const normalized = request.tasks.map((task) => {
+      assertTaskId(task.taskId);
+      if (taskIds.has(task.taskId) || this.generatedTasks.has(task.taskId)) {
+        throw conflict("The recovered subtitle task identity is already registered.");
+      }
+      taskIds.add(task.taskId);
+      return Object.freeze({
+        taskId: task.taskId,
+        fileName: safeOutputLeaf(task.fileName, "fileName"),
+      });
+    });
+    const draft = this.requireDraft(request.owner, request.directoryToken);
+    await this.verifyDescriptor(draft, "directoryToken");
+    this.assertOwnerActive(request.owner);
+    if (this.requireDraft(request.owner, request.directoryToken) !== draft) {
+      throw conflict("The recovery output directory authority changed.");
+    }
+
+    const registeredTaskIds: string[] = [];
+    try {
+      const references = normalized.map((task) => {
+        const reference = this.registerRecord({
+          owner: request.owner,
+          taskId: task.taskId,
+          sourceDisplayName: task.fileName,
+          outputFileName: task.fileName,
+          state: "active",
+          directory: draft,
+        });
+        registeredTaskIds.push(task.taskId);
+        return reference;
+      });
+      this.drafts.delete(request.directoryToken);
+      return Object.freeze(references);
+    } catch (error) {
+      for (const taskId of registeredTaskIds) {
+        this.releaseGeneratedTask(request.owner, taskId);
+      }
+      throw error;
+    }
+  }
+
   async acquireImportLease(
     owner: SubtitleTranslationOwnerKey,
     snapshotId: string,
@@ -694,6 +755,31 @@ export class SubtitleTranslationDirectoryCapabilityRegistry {
     return true;
   }
 
+  async resolveTaskArtifactCleanupTarget(
+    owner: SubtitleTranslationOwnerKey,
+    taskId: string,
+  ): Promise<SubtitleTranslationTaskArtifactCleanupTarget | undefined> {
+    assertOwner(owner);
+    assertTaskId(taskId);
+    const record = this.generatedTasks.get(taskId);
+    if (!record) return undefined;
+    if (!sameOwner(record.owner, owner)) throw invalid("taskId");
+    try {
+      await lstat(record.artifactDirectory.directoryPath);
+    } catch (error) {
+      if (isMissingPathError(error)) return undefined;
+      throw error;
+    }
+    await this.verifyDescriptor(record.artifactDirectory, "taskId");
+    if (this.generatedTasks.get(taskId) !== record) {
+      throw conflict("The subtitle task cleanup authority changed.");
+    }
+    return Object.freeze({
+      outputDirectoryPath: record.artifactDirectory.directoryPath,
+      outputFileName: record.outputFileName,
+    });
+  }
+
   async resolveTaskReference(
     owner: SubtitleTranslationOwnerKey,
     taskId: string,
@@ -703,9 +789,6 @@ export class SubtitleTranslationDirectoryCapabilityRegistry {
     assertTaskId(taskId);
     const reference = parseSubtitleTranslationTaskReference(value);
     if (!reference) throw invalid("reference");
-    if (reference.kind === "legacy_path_v1") {
-      return this.resolveLegacyTaskReference(taskId, reference);
-    }
     return reference.kind === "authorized_task_v1"
       ? this.resolveAuthorizedTaskReference(owner, taskId, reference)
       : this.resolveGeneratedTaskReference(owner, taskId, reference);
@@ -766,34 +849,6 @@ export class SubtitleTranslationDirectoryCapabilityRegistry {
     return this.resolveGeneratedTaskReference(record.owner, taskId, reference);
   }
 
-  resolveLegacyTaskReference(
-    taskId: string,
-    reference: SubtitleTranslationLegacyTaskReference,
-  ): ResolvedLegacySubtitleTranslationPaths {
-    assertTaskId(taskId);
-    if (this.generatedTasks.has(taskId)) {
-      throw conflict(
-        "A generated subtitle task cannot use the legacy path adapter.",
-      );
-    }
-    const originFilePath = reference.originFilePath === ""
-      ? ""
-      : absolutePath(reference.originFilePath, "originFilePath");
-    const targetDirectoryPath = absolutePath(
-      reference.targetDirectoryPath,
-      "targetDirectoryPath",
-    );
-    const checkpointPath = reference.checkpointPath === undefined
-      ? undefined
-      : absolutePath(reference.checkpointPath, "checkpointPath");
-    return Object.freeze({
-      kind: "legacy_path_v1" as const,
-      originFilePath,
-      targetDirectoryPath,
-      ...(checkpointPath ? { checkpointPath } : {}),
-    });
-  }
-
   async rotateTaskTarget(
     owner: SubtitleTranslationOwnerKey,
     taskId: string,
@@ -819,7 +874,15 @@ export class SubtitleTranslationDirectoryCapabilityRegistry {
       outputFileName: current.outputFileName,
       expiresAt: addTtl(this.now(), this.targetTtlMs),
     });
-    const next = Object.freeze({ ...current, target });
+    const next = Object.freeze({
+      ...current,
+      target,
+      artifactDirectory: Object.freeze({
+        directoryPath: descriptor.directoryPath,
+        displayLabel: descriptor.displayLabel,
+        identity: descriptor.identity,
+      }),
+    });
     const oldTarget = current.target;
 
     this.targets.set(token, target);
@@ -890,6 +953,39 @@ export class SubtitleTranslationDirectoryCapabilityRegistry {
       );
     }
     await this.revalidateTaskTarget(owner, taskId);
+  }
+
+  async recordTaskFinalOutput(
+    owner: SubtitleTranslationOwnerKey,
+    taskId: string,
+    outputFilePath: string,
+  ): Promise<void> {
+    const record = this.requireActiveTask(owner, taskId);
+    await this.validateTaskOutputPath(owner, taskId, outputFilePath);
+    const current = this.requireActiveTask(owner, taskId);
+    if (current !== record) {
+      throw conflict("The subtitle task authority changed.");
+    }
+    this.generatedTasks.set(taskId, Object.freeze({
+      ...record,
+      finalOutputPath: path.resolve(outputFilePath),
+    }));
+  }
+
+  resolveTaskFinalOutputForSender(
+    webContentsId: number,
+    taskId: string,
+  ): string {
+    assertTaskId(taskId);
+    const record = this.generatedTasks.get(taskId);
+    if (
+      !record ||
+      record.owner.webContentsId !== webContentsId ||
+      !record.finalOutputPath
+    ) {
+      throw invalid("taskId");
+    }
+    return record.finalOutputPath;
   }
 
   markTaskTerminal(taskId: string): boolean {
@@ -1201,6 +1297,11 @@ export class SubtitleTranslationDirectoryCapabilityRegistry {
       outputFileName: input.outputFileName,
       state: input.state,
       ...(input.inputFile ? { inputFile: input.inputFile } : {}),
+      artifactDirectory: Object.freeze({
+        directoryPath: input.directory.directoryPath,
+        displayLabel: input.directory.displayLabel,
+        identity: input.directory.identity,
+      }),
       target,
     });
     this.targets.set(token, target);
@@ -1362,19 +1463,6 @@ export class SubtitleTranslationDirectoryCapabilityRegistry {
     }
     throw invalid("token");
   }
-}
-
-export function createLegacySubtitleTranslationTaskReference(value: {
-  readonly originFileURL: string;
-  readonly targetFileURL: string;
-  readonly checkpointPath?: string;
-}): SubtitleTranslationLegacyTaskReference {
-  return Object.freeze({
-    kind: "legacy_path_v1",
-    originFilePath: value.originFileURL,
-    targetDirectoryPath: value.targetFileURL,
-    ...(value.checkpointPath ? { checkpointPath: value.checkpointPath } : {}),
-  });
 }
 
 export function resolveSafeSubtitleTranslationChildPath(

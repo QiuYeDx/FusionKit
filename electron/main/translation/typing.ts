@@ -155,13 +155,20 @@ export type SubtitleTranslatorTask = {
    *   - restart: 忽略 checkpoint，全部重新翻译
    */
   recoveryMode?: TranslationRecoveryMode;
-  /** 续跑清单文件路径，续跑时由 renderer 传入 */
+  /** Main-only resolved recovery input. Renderer tasks carry checkpointRef. */
   checkpointPath?: string;
+  /** Owner-bound opaque recovery reference supplied by renderer. */
+  checkpointRef?: string;
+  recoveryInputMode?: TranslationRecoveryInputMode;
 };
 
 export interface SubtitleTranslationRuntimeAuthorization {
   revalidateTarget(): Promise<void>;
   validateOutputPath(outputFilePath: string): Promise<void>;
+  authorizeCheckpoint(checkpointPath: string): Promise<string>;
+  releaseCheckpoint(): void;
+  recordFinalOutput(outputFilePath: string): Promise<void>;
+  emit(channel: string, payload: unknown): void;
 }
 
 // ─── Recovery & Checkpoint ──────────────────────────────────────────────────
@@ -191,7 +198,7 @@ export type CheckpointFragment = {
  * 翻译检查点清单，持久化到 `*.fusionkit.resume.json`。
  * 是任务恢复的唯一依据；不包含 apiKey 等敏感信息。
  */
-export type TranslationCheckpointManifest = {
+export type TranslationCheckpointManifestV1 = {
   schemaVersion: 1;
   taskId: string;
   status: "running" | "failed" | "cancelled" | "completed";
@@ -223,14 +230,43 @@ export type TranslationCheckpointManifest = {
 };
 
 /**
+ * Current checkpoint contract. Paths, capabilities, tokens and model secrets
+ * are deliberately absent; main derives artifact paths from the authorized
+ * directory containing the manifest.
+ */
+export type TranslationCheckpointManifestV2 = {
+  schemaVersion: 2;
+  taskId: string;
+  status: "running" | "failed" | "cancelled" | "completed";
+  createdAt: string;
+  updatedAt: string;
+
+  fileName: string;
+  sourceContentHash: string;
+  sourceSize?: number;
+
+  options: {
+    fileType: SubtitleFileType;
+    sliceType: SubtitleSliceType;
+    customSliceLength?: number;
+    sourceLang: string;
+    targetLang: string;
+    translationOutputMode: "bilingual" | "target_only";
+  };
+
+  fragments: CheckpointFragment[];
+};
+
+export type TranslationCheckpointManifest =
+  | TranslationCheckpointManifestV1
+  | TranslationCheckpointManifestV2;
+
+/**
  * 恢复信息摘要，附加到 task-failed / update-progress payload，
  * 也保存在 renderer 端的 SubtitleTranslatorTask.recovery 中。
  */
 export type SubtitleTranslationRecovery = {
-  checkpointPath?: string;
-  completedOutputPath?: string;
-  remainingOutputPath?: string;
-  errorLogPath?: string;
+  checkpointRef?: string;
   resumable?: boolean;
   failedFragmentIndexes?: number[];
   resolvedFragments?: number;
@@ -307,28 +343,4 @@ export type TranslationRecoveryCandidate = {
     | "too_large";
 
   blockingReason?: string;
-};
-
-export type TranslationRecoveryImportRequest = {
-  checkpointPath: string;
-  recoveryInputMode: TranslationRecoveryInputMode;
-};
-
-export type RecoveredSubtitleTaskDraft = {
-  fileName: string;
-  fileContent?: string;
-  originFileURL: string;
-  targetFileURL: string;
-  sliceType: SubtitleSliceType;
-  customSliceLength?: number;
-  sourceLang: TranslationLanguage;
-  targetLang: TranslationLanguage;
-  translationOutputMode: TranslationOutputMode;
-  resolvedFragments: number;
-  totalFragments: number;
-  progress: number;
-  recoveryMode: "resume";
-  checkpointPath: string;
-  recoveryInputMode: TranslationRecoveryInputMode;
-  recovery: SubtitleTranslationRecovery;
 };

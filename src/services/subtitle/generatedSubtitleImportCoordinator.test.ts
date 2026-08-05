@@ -383,8 +383,6 @@ describe("GeneratedSubtitleImportCoordinator", () => {
     expect(importedTask).toMatchObject({
       taskId: "subtitle-task-imported",
       fileName: "generated.srt",
-      originFileURL: "",
-      targetFileURL: "",
       recoveryInputMode: "manifest_fragments",
       taskReference: { kind: "generated_task_v1" },
       executionBinding: {
@@ -393,6 +391,8 @@ describe("GeneratedSubtitleImportCoordinator", () => {
         apiKey: "private-api-key",
       },
     });
+    expect(importedTask).not.toHaveProperty("originFileURL");
+    expect(importedTask).not.toHaveProperty("targetFileURL");
     expect(startTasks).toHaveBeenCalledOnce();
     expect(startTasks).toHaveBeenCalledWith([
       "subtitle-task-imported",

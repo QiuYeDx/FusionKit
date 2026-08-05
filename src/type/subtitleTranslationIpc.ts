@@ -39,6 +39,18 @@ export const SUBTITLE_TRANSLATION_PRELOAD_INTERNAL_CHANNELS = {
     "subtitle-translation:internal:release-generated-import-candidate",
   releaseGeneratedTask:
     "subtitle-translation:internal:release-generated-task",
+  selectRecoveryDirectory:
+    "subtitle-translation:internal:select-recovery-directory",
+  selectRecoveryManifest:
+    "subtitle-translation:internal:select-recovery-manifest",
+  prepareRecoveredTasks:
+    "subtitle-translation:internal:prepare-recovered-tasks",
+  revokeRecoveryScan:
+    "subtitle-translation:internal:revoke-recovery-scan",
+  revealRecoveryCheckpoint:
+    "subtitle-translation:internal:reveal-recovery-checkpoint",
+  revealTaskOutput:
+    "subtitle-translation:internal:reveal-task-output",
 } as const;
 
 export type SubtitleTranslationPreloadInternalChannel =
@@ -50,6 +62,8 @@ export const SUBTITLE_TRANSLATION_LIMITS = Object.freeze({
   maxPathChars: 32_768,
   maxIpcFrameBytes: 64 * 1024,
   maxAgentSelectionFiles: 100,
+  maxRecoveryPreviewFiles: 100,
+  maxRecoveryBatchFiles: 25,
 });
 
 export const SUBTITLE_TRANSLATION_ERROR_CODES = [
@@ -170,17 +184,9 @@ export interface SubtitleTranslationAuthorizedTaskReference {
   };
 }
 
-export interface SubtitleTranslationLegacyTaskReference {
-  readonly kind: "legacy_path_v1";
-  readonly originFilePath: string;
-  readonly targetDirectoryPath: string;
-  readonly checkpointPath?: string;
-}
-
 export type SubtitleTranslationTaskReference =
   | SubtitleTranslationAuthorizedTaskReference
-  | SubtitleTranslationGeneratedTaskReference
-  | SubtitleTranslationLegacyTaskReference;
+  | SubtitleTranslationGeneratedTaskReference;
 
 export interface SubtitleTranslationAuthorizedTaskRegistrationRequest {
   readonly taskId: string;
@@ -192,6 +198,79 @@ export interface SubtitleTranslationAuthorizedTaskRegistrationRequest {
 
 export interface SubtitleTranslationTaskSourceReveal {
   readonly revealed: boolean;
+}
+
+export interface SubtitleTranslationRecoveryCandidateSummary {
+  readonly candidateId: string;
+  readonly checkpointRef: string;
+  readonly fileName: string;
+  readonly schemaVersion: 1 | 2;
+  readonly manifestStatus: "running" | "failed" | "cancelled" | "completed";
+  readonly createdAt: string;
+  readonly updatedAt: string;
+  readonly outputDirectoryLabel: string;
+  readonly options: {
+    readonly fileType: "LRC" | "SRT";
+    readonly sliceType: "NORMAL" | "SENSITIVE" | "CUSTOM";
+    readonly customSliceLength?: number;
+    readonly sourceLang: string;
+    readonly targetLang: string;
+    readonly translationOutputMode: "bilingual" | "target_only";
+  };
+  readonly resolvedFragments: number;
+  readonly totalFragments: number;
+  readonly failedFragmentIndexes?: readonly number[];
+  readonly progress: number;
+  readonly recoverability:
+    | "ready_from_manifest"
+    | "completed"
+    | "no_pending_fragments"
+    | "unsupported_schema"
+    | "corrupt_manifest"
+    | "invalid_manifest"
+    | "too_large";
+  readonly blockingReason?: string;
+}
+
+export type SubtitleTranslationRecoveryScanSelection =
+  | { readonly cancelled: true }
+  | {
+      readonly cancelled: false;
+      readonly recoveryScanId: string;
+      readonly candidates: readonly SubtitleTranslationRecoveryCandidateSummary[];
+      readonly totalCount: number;
+      readonly recoverableCount: number;
+      readonly scannedDirs: number;
+      readonly scannedFiles: number;
+      readonly skippedFiles: number;
+      readonly truncated: boolean;
+      readonly errors: readonly string[];
+      readonly expiresAt: number;
+    };
+
+export interface SubtitleTranslationPreparedRecoveredTask {
+  readonly taskId: string;
+  readonly fileName: string;
+  readonly sliceType: "NORMAL" | "SENSITIVE" | "CUSTOM";
+  readonly customSliceLength?: number;
+  readonly sourceLang: string;
+  readonly targetLang: string;
+  readonly translationOutputMode: "bilingual" | "target_only";
+  readonly resolvedFragments: number;
+  readonly totalFragments: number;
+  readonly progress: number;
+  readonly checkpointRef: string;
+  readonly reference: SubtitleTranslationGeneratedTaskReference;
+  readonly failedFragmentIndexes?: readonly number[];
+}
+
+export interface SubtitleTranslationPreparedRecoveryBatch {
+  readonly tasks: readonly SubtitleTranslationPreparedRecoveredTask[];
+  readonly totalCandidates: number;
+  readonly batchStart: number;
+  readonly batchEnd: number;
+  readonly hasMore: boolean;
+  readonly nextBatchStart: number | null;
 }
 
 export type SubtitleTranslationTaskTargetReauthorization =
@@ -294,6 +373,28 @@ export interface SubtitleTranslationRendererApi {
   releaseGeneratedTask(
     taskId: string,
   ): Promise<SubtitleTranslationIpcResult<{ readonly released: boolean }>>;
+  selectRecoveryDirectory(request?: {
+    readonly includeCompleted?: boolean;
+  }): Promise<SubtitleTranslationIpcResult<SubtitleTranslationRecoveryScanSelection>>;
+  selectRecoveryManifest(): Promise<
+    SubtitleTranslationIpcResult<SubtitleTranslationRecoveryScanSelection>
+  >;
+  prepareRecoveredTasks(request: {
+    readonly recoveryScanId: string;
+    readonly directoryToken: string;
+    readonly candidateIds?: readonly string[];
+    readonly batchStart?: number;
+    readonly batchSize?: number;
+  }): Promise<SubtitleTranslationIpcResult<SubtitleTranslationPreparedRecoveryBatch>>;
+  revokeRecoveryScan(
+    recoveryScanId: string,
+  ): Promise<SubtitleTranslationIpcResult<{ readonly released: boolean }>>;
+  revealRecoveryCheckpoint(
+    checkpointRef: string,
+  ): Promise<SubtitleTranslationIpcResult<{ readonly revealed: boolean }>>;
+  revealTaskOutput(
+    taskId: string,
+  ): Promise<SubtitleTranslationIpcResult<{ readonly revealed: boolean }>>;
 }
 
 const noUnsafeControlCharacters = (value: string) =>
@@ -340,8 +441,6 @@ const legacyPathSchema = z
   .min(1)
   .max(SUBTITLE_TRANSLATION_LIMITS.maxPathChars)
   .refine(noUnsafeControlCharacters);
-const legacyOriginPathSchema = z.union([z.literal(""), legacyPathSchema]);
-
 export const subtitleTranslationGeneratedTaskReferenceSchema = z
   .object({
     kind: z.literal("generated_task_v1"),
@@ -375,21 +474,11 @@ export const subtitleTranslationAuthorizedTaskReferenceSchema = z
   })
   .strict();
 
-export const subtitleTranslationLegacyTaskReferenceSchema = z
-  .object({
-    kind: z.literal("legacy_path_v1"),
-    originFilePath: legacyOriginPathSchema,
-    targetDirectoryPath: legacyPathSchema,
-    checkpointPath: legacyPathSchema.optional(),
-  })
-  .strict();
-
 export const subtitleTranslationTaskReferenceSchema = z.discriminatedUnion(
   "kind",
   [
     subtitleTranslationAuthorizedTaskReferenceSchema,
     subtitleTranslationGeneratedTaskReferenceSchema,
-    subtitleTranslationLegacyTaskReferenceSchema,
   ],
 );
 
@@ -494,6 +583,35 @@ export const subtitleTranslationGeneratedImportCandidateControlSchema = z
   })
   .strict();
 export const subtitleTranslationReleaseGeneratedTaskRequestSchema = z
+  .object({ taskId: subtitleTranslationTaskIdSchema })
+  .strict();
+export const subtitleTranslationSelectRecoveryDirectoryRequestSchema = z
+  .object({ includeCompleted: z.boolean().optional() })
+  .strict();
+export const subtitleTranslationSelectRecoveryManifestRequestSchema = z
+  .object({})
+  .strict();
+export const subtitleTranslationPrepareRecoveredTasksRequestSchema = z
+  .object({
+    recoveryScanId: subtitleTranslationOpaqueRefSchema,
+    directoryToken: subtitleTranslationOpaqueRefSchema,
+    candidateIds: z.array(subtitleTranslationOpaqueRefSchema)
+      .min(1)
+      .max(SUBTITLE_TRANSLATION_LIMITS.maxRecoveryBatchFiles)
+      .optional(),
+    batchStart: z.number().int().min(0).optional(),
+    batchSize: z.number().int().min(1)
+      .max(SUBTITLE_TRANSLATION_LIMITS.maxRecoveryBatchFiles)
+      .optional(),
+  })
+  .strict();
+export const subtitleTranslationRevokeRecoveryScanRequestSchema = z
+  .object({ recoveryScanId: subtitleTranslationOpaqueRefSchema })
+  .strict();
+export const subtitleTranslationRevealRecoveryCheckpointRequestSchema = z
+  .object({ checkpointRef: subtitleTranslationOpaqueRefSchema })
+  .strict();
+export const subtitleTranslationRevealTaskOutputRequestSchema = z
   .object({ taskId: subtitleTranslationTaskIdSchema })
   .strict();
 
@@ -606,6 +724,87 @@ export const subtitleTranslationGeneratedImportCandidateSchema = z
     reference: subtitleTranslationGeneratedTaskReferenceSchema,
   })
   .strict();
+
+export const subtitleTranslationRecoveryCandidateSummarySchema = z
+  .object({
+    candidateId: subtitleTranslationOpaqueRefSchema,
+    checkpointRef: subtitleTranslationOpaqueRefSchema,
+    fileName: subtitleTranslationOutputLeafSchema,
+    schemaVersion: z.union([z.literal(1), z.literal(2)]),
+    manifestStatus: z.enum(["running", "failed", "cancelled", "completed"]),
+    createdAt: z.string().max(64),
+    updatedAt: z.string().max(64),
+    outputDirectoryLabel: subtitleTranslationDisplayLabelSchema,
+    options: z.object({
+      fileType: z.enum(["LRC", "SRT"]),
+      sliceType: z.enum(["NORMAL", "SENSITIVE", "CUSTOM"]),
+      customSliceLength: z.number().int().positive().optional(),
+      sourceLang: z.string().min(1).max(16),
+      targetLang: z.string().min(1).max(16),
+      translationOutputMode: z.enum(["bilingual", "target_only"]),
+    }).strict(),
+    resolvedFragments: z.number().int().min(0),
+    totalFragments: z.number().int().min(0),
+    failedFragmentIndexes: z.array(z.number().int().min(0)).optional(),
+    progress: z.number().int().min(0).max(100),
+    recoverability: z.enum([
+      "ready_from_manifest",
+      "completed",
+      "no_pending_fragments",
+      "unsupported_schema",
+      "corrupt_manifest",
+      "invalid_manifest",
+      "too_large",
+    ]),
+    blockingReason: z.string().min(1).max(512).refine(noUnsafeControlCharacters).optional(),
+  })
+  .strict();
+
+export const subtitleTranslationRecoveryScanSelectionSchema =
+  z.discriminatedUnion("cancelled", [
+    z.object({ cancelled: z.literal(true) }).strict(),
+    z.object({
+      cancelled: z.literal(false),
+      recoveryScanId: subtitleTranslationOpaqueRefSchema,
+      candidates: z.array(subtitleTranslationRecoveryCandidateSummarySchema)
+        .max(SUBTITLE_TRANSLATION_LIMITS.maxRecoveryPreviewFiles),
+      totalCount: z.number().int().min(0),
+      recoverableCount: z.number().int().min(0),
+      scannedDirs: z.number().int().min(0),
+      scannedFiles: z.number().int().min(0),
+      skippedFiles: z.number().int().min(0),
+      truncated: z.boolean(),
+      errors: z.array(z.string().min(1).max(512).refine(noUnsafeControlCharacters))
+        .max(50),
+      expiresAt: z.number().int().safe().positive(),
+    }).strict(),
+  ]);
+
+export const subtitleTranslationPreparedRecoveredTaskSchema = z.object({
+  taskId: subtitleTranslationTaskIdSchema,
+  fileName: subtitleTranslationOutputLeafSchema,
+  sliceType: z.enum(["NORMAL", "SENSITIVE", "CUSTOM"]),
+  customSliceLength: z.number().int().positive().optional(),
+  sourceLang: z.string().min(1).max(16),
+  targetLang: z.string().min(1).max(16),
+  translationOutputMode: z.enum(["bilingual", "target_only"]),
+  resolvedFragments: z.number().int().min(0),
+  totalFragments: z.number().int().positive(),
+  progress: z.number().int().min(0).max(100),
+  checkpointRef: subtitleTranslationOpaqueRefSchema,
+  reference: subtitleTranslationGeneratedTaskReferenceSchema,
+  failedFragmentIndexes: z.array(z.number().int().min(0)).optional(),
+}).strict();
+
+export const subtitleTranslationPreparedRecoveryBatchSchema = z.object({
+  tasks: z.array(subtitleTranslationPreparedRecoveredTaskSchema)
+    .max(SUBTITLE_TRANSLATION_LIMITS.maxRecoveryBatchFiles),
+  totalCandidates: z.number().int().min(0),
+  batchStart: z.number().int().min(0),
+  batchEnd: z.number().int().min(0),
+  hasMore: z.boolean(),
+  nextBatchStart: z.number().int().min(0).nullable(),
+}).strict();
 
 const subtitleTranslationReleasedSchema = z.object({ released: z.boolean() }).strict();
 const subtitleTranslationCommittedSchema = z.object({ committed: z.boolean() }).strict();
@@ -741,6 +940,42 @@ export const SUBTITLE_TRANSLATION_INTERNAL_OPERATION_CONTRACTS = {
     requestSchema: subtitleTranslationReleaseGeneratedTaskRequestSchema,
     resultSchema: subtitleTranslationIpcResultSchema(
       subtitleTranslationReleasedSchema,
+    ),
+  },
+  [SUBTITLE_TRANSLATION_PRELOAD_INTERNAL_CHANNELS.selectRecoveryDirectory]: {
+    requestSchema: subtitleTranslationSelectRecoveryDirectoryRequestSchema,
+    resultSchema: subtitleTranslationIpcResultSchema(
+      subtitleTranslationRecoveryScanSelectionSchema,
+    ),
+  },
+  [SUBTITLE_TRANSLATION_PRELOAD_INTERNAL_CHANNELS.selectRecoveryManifest]: {
+    requestSchema: subtitleTranslationSelectRecoveryManifestRequestSchema,
+    resultSchema: subtitleTranslationIpcResultSchema(
+      subtitleTranslationRecoveryScanSelectionSchema,
+    ),
+  },
+  [SUBTITLE_TRANSLATION_PRELOAD_INTERNAL_CHANNELS.prepareRecoveredTasks]: {
+    requestSchema: subtitleTranslationPrepareRecoveredTasksRequestSchema,
+    resultSchema: subtitleTranslationIpcResultSchema(
+      subtitleTranslationPreparedRecoveryBatchSchema,
+    ),
+  },
+  [SUBTITLE_TRANSLATION_PRELOAD_INTERNAL_CHANNELS.revokeRecoveryScan]: {
+    requestSchema: subtitleTranslationRevokeRecoveryScanRequestSchema,
+    resultSchema: subtitleTranslationIpcResultSchema(
+      subtitleTranslationReleasedSchema,
+    ),
+  },
+  [SUBTITLE_TRANSLATION_PRELOAD_INTERNAL_CHANNELS.revealRecoveryCheckpoint]: {
+    requestSchema: subtitleTranslationRevealRecoveryCheckpointRequestSchema,
+    resultSchema: subtitleTranslationIpcResultSchema(
+      z.object({ revealed: z.boolean() }).strict(),
+    ),
+  },
+  [SUBTITLE_TRANSLATION_PRELOAD_INTERNAL_CHANNELS.revealTaskOutput]: {
+    requestSchema: subtitleTranslationRevealTaskOutputRequestSchema,
+    resultSchema: subtitleTranslationIpcResultSchema(
+      z.object({ revealed: z.boolean() }).strict(),
     ),
   },
 } as const;

@@ -15,7 +15,7 @@ window.ipcRenderer.on(
       progress: number;
       recovery?: Pick<
         SubtitleTranslationRecovery,
-        "checkpointPath" | "completedOutputPath" | "remainingOutputPath"
+        "checkpointRef" | "resumable" | "resolvedFragments" | "totalFragments"
       >;
     },
   ) => {
@@ -59,9 +59,9 @@ window.ipcRenderer.on(
 
 window.ipcRenderer.on(
   "task-resolved",
-  (_, data: { taskId: string; fileName: string; outputFilePath: string }) => {
+  (_, data: { taskId: string; fileName: string; outputFileName: string }) => {
     const store = useSubtitleTranslatorStore.getState();
-    store.markTaskResolved(data.taskId, data.fileName, data.outputFilePath);
+    store.markTaskResolved(data.taskId, data.fileName, data.outputFileName);
     showSystemNotification(
       "FusionKit",
       i18n.t("setting:fields.notification.task_resolved", {

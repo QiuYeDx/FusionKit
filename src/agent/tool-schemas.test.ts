@@ -3,7 +3,9 @@ import {
   applyNameTranslationPlanSchema,
   createNameTranslationPlanSchema,
   inspectRenamePathsSchema,
+  queueRecoveredSubtitleTranslateSchema,
   queueTranslateSchema,
+  scanSubtitleRecoveryTasksSchema,
 } from "./tool-schemas";
 
 describe("queue translate schema", () => {
@@ -30,6 +32,32 @@ describe("queue translate schema", () => {
     { outputDir: "/private/output", outputMode: "custom" },
   ])("rejects renderer path authority: %o", (legacyAuthority) => {
     expect(() => queueTranslateSchema.parse(legacyAuthority)).toThrow();
+  });
+});
+
+describe("subtitle recovery schemas", () => {
+  it("accepts only fixed-picker scan intent and opaque scan queueing", () => {
+    expect(scanSubtitleRecoveryTasksSchema.parse({ selectionMode: "manifest" }))
+      .toMatchObject({ selectionMode: "manifest" });
+    expect(queueRecoveredSubtitleTranslateSchema.parse({
+      recoveryScanId: "recovery-scan-one",
+    })).toMatchObject({ recoveryScanId: "recovery-scan-one" });
+  });
+
+  it.each([
+    { roots: ["/private/recovery"] },
+    { checkpointPaths: ["/private/task.fusionkit.resume.json"] },
+    { useCurrentOutputDir: true },
+  ])("rejects raw recovery authority: %o", (legacyAuthority) => {
+    expect(() => scanSubtitleRecoveryTasksSchema.parse(legacyAuthority))
+      .toThrow();
+  });
+
+  it("rejects checkpoint paths when queueing recovered tasks", () => {
+    expect(() => queueRecoveredSubtitleTranslateSchema.parse({
+      recoveryScanId: "recovery-scan-one",
+      checkpointPaths: ["/private/task.fusionkit.resume.json"],
+    })).toThrow();
   });
 });
 

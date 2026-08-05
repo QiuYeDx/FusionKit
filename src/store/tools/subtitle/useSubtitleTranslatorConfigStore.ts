@@ -15,6 +15,7 @@ export const SUBTITLE_TRANSLATOR_CONFIG_STORAGE_KEY =
   "fusionkit-subtitle-translator-config";
 
 const LEGACY_TRANSLATOR_STORAGE_KEY = "fusionkit-subtitle-translator";
+const LEGACY_OUTPUT_URL_STORAGE_KEY = "subtitle-translator-output-url";
 const LEGACY_KEYS = Object.freeze({
   outputMode: "subtitle-translator-output-mode",
   conflictPolicy: "subtitle-translator-conflict-policy",
@@ -47,6 +48,7 @@ export interface SubtitleTranslatorConfigStore {
 export interface SubtitleTranslatorConfigStorage {
   getItem(key: string): string | null;
   setItem(key: string, value: string): void;
+  removeItem?(key: string): void;
 }
 
 export const DEFAULT_SUBTITLE_TRANSLATOR_CONFIG_PREFERENCES = Object.freeze({
@@ -131,8 +133,10 @@ export function bootstrapLegacySubtitleTranslatorConfig(
   storage: SubtitleTranslatorConfigStorage,
 ): "migrated" | "already_complete" | "failed" {
   try {
-    if (storage.getItem(SUBTITLE_TRANSLATOR_CONFIG_STORAGE_KEY) !== null) {
-      return "already_complete";
+    if (hasReadableTargetConfig(storage)) {
+      return cleanupLegacyTranslatorPath(storage)
+        ? "already_complete"
+        : "failed";
     }
     const legacyState = parseLegacyTranslatorState(
       storage.getItem(LEGACY_TRANSLATOR_STORAGE_KEY),
@@ -159,12 +163,57 @@ export function bootstrapLegacySubtitleTranslatorConfig(
       version: SUBTITLE_TRANSLATOR_CONFIG_STORE_VERSION,
     });
     storage.setItem(SUBTITLE_TRANSLATOR_CONFIG_STORAGE_KEY, serialized);
-    return storage.getItem(SUBTITLE_TRANSLATOR_CONFIG_STORAGE_KEY) === serialized
-      ? "migrated"
-      : "failed";
+    if (storage.getItem(SUBTITLE_TRANSLATOR_CONFIG_STORAGE_KEY) !== serialized) {
+      return "failed";
+    }
+    return cleanupLegacyTranslatorPath(storage) ? "migrated" : "failed";
   } catch {
     return "failed";
   }
+}
+
+function hasReadableTargetConfig(storage: SubtitleTranslatorConfigStorage): boolean {
+  try {
+    const raw = storage.getItem(SUBTITLE_TRANSLATOR_CONFIG_STORAGE_KEY);
+    const parsed: unknown = raw ? JSON.parse(raw) : undefined;
+    return isRecord(parsed) && isRecord(parsed.state) &&
+      isRecord(parsed.state.preferences);
+  } catch {
+    return false;
+  }
+}
+
+function cleanupLegacyTranslatorPath(
+  storage: SubtitleTranslatorConfigStorage,
+): boolean {
+  const raw = storage.getItem(LEGACY_TRANSLATOR_STORAGE_KEY);
+  if (raw !== null) {
+    try {
+      const parsed: unknown = JSON.parse(raw);
+      if (!isRecord(parsed) || !isRecord(parsed.state)) return false;
+      const { outputURL: _outputURL, ...safeState } = parsed.state;
+      const safeValue = JSON.stringify({ ...parsed, state: safeState });
+      storage.setItem(LEGACY_TRANSLATOR_STORAGE_KEY, safeValue);
+      const readback: unknown = JSON.parse(
+        storage.getItem(LEGACY_TRANSLATOR_STORAGE_KEY) ?? "null",
+      );
+      if (
+        !isRecord(readback) ||
+        !isRecord(readback.state) ||
+        Object.prototype.hasOwnProperty.call(readback.state, "outputURL")
+      ) {
+        return false;
+      }
+    } catch {
+      return false;
+    }
+  }
+  if (storage.getItem(LEGACY_OUTPUT_URL_STORAGE_KEY) !== null) {
+    if (!storage.removeItem) return false;
+    storage.removeItem(LEGACY_OUTPUT_URL_STORAGE_KEY);
+    if (storage.getItem(LEGACY_OUTPUT_URL_STORAGE_KEY) !== null) return false;
+  }
+  return true;
 }
 
 const legacyBootstrapResult = (() => {

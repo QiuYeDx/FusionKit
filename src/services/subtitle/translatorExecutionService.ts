@@ -4,9 +4,6 @@ export function startSubtitleTranslation(task: SubtitleTranslatorTask) {
   if (task.taskReference) {
     const {
       taskReference: reference,
-      originFileURL: _originFileURL,
-      targetFileURL: _targetFileURL,
-      checkpointPath: _checkpointPath,
       ...pathFreeTask
     } = task;
     return window.ipcRenderer.invoke("translate-subtitle", {

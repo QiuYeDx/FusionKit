@@ -65,13 +65,13 @@ describe("subtitle translation task reference schema", () => {
     }).success).toBe(false);
   });
 
-  it("keeps legacy paths behind an explicit strict discriminant", () => {
+  it("rejects the retired legacy path discriminant", () => {
     const legacy = {
       kind: "legacy_path_v1",
       originFilePath: "/legacy/input.srt",
       targetDirectoryPath: "/legacy/output",
     };
-    expect(parseSubtitleTranslationTaskReference(legacy)).toEqual(legacy);
+    expect(parseSubtitleTranslationTaskReference(legacy)).toBeUndefined();
     expect(subtitleTranslationTaskReferenceSchema.safeParse({
       ...legacy,
       target: {
@@ -88,6 +88,6 @@ describe("subtitle translation task reference schema", () => {
       ...legacy,
       originFilePath: "",
       checkpointPath: "/legacy/task.fusionkit.resume.json",
-    })).toBeDefined();
+    })).toBeUndefined();
   });
 });

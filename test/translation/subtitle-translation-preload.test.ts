@@ -174,6 +174,7 @@ describe("subtitle translation fixed preload API", () => {
       "authorizeInputFile",
       "commitGeneratedImportCandidate",
       "createGeneratedImportCandidate",
+      "prepareRecoveredTasks",
       "readAgentInputFile",
       "readInputFile",
       "reauthorizeTaskTarget",
@@ -182,12 +183,17 @@ describe("subtitle translation fixed preload API", () => {
       "releaseGeneratedImportCandidate",
       "releaseGeneratedTask",
       "releaseImportDirectoryLease",
+      "revealRecoveryCheckpoint",
+      "revealTaskOutput",
       "revealTaskSource",
       "revokeAgentInputSelection",
       "revokeInputFile",
       "revokeOutputDirectory",
+      "revokeRecoveryScan",
       "selectAgentInputFiles",
       "selectOutputDirectory",
+      "selectRecoveryDirectory",
+      "selectRecoveryManifest",
     ]);
     expect(api).not.toHaveProperty("invoke");
     expect(api).not.toHaveProperty("ownerSessionId");
@@ -364,5 +370,90 @@ describe("subtitle translation fixed preload API", () => {
       ok: false,
       error: { code: "invalid_content" },
     });
+  });
+
+  it("keeps recovery operations on fixed owner-bound methods", async () => {
+    const invoke = vi.fn(async (channel: string) => {
+      if (
+        channel === SUBTITLE_TRANSLATION_PRELOAD_INTERNAL_CHANNELS
+          .selectRecoveryDirectory ||
+        channel === SUBTITLE_TRANSLATION_PRELOAD_INTERNAL_CHANNELS
+          .selectRecoveryManifest
+      ) {
+        return subtitleTranslationIpcSuccess({ cancelled: true as const });
+      }
+      if (
+        channel === SUBTITLE_TRANSLATION_PRELOAD_INTERNAL_CHANNELS
+          .revokeRecoveryScan
+      ) {
+        return subtitleTranslationIpcSuccess({ released: true });
+      }
+      if (
+        channel === SUBTITLE_TRANSLATION_PRELOAD_INTERNAL_CHANNELS
+          .revealRecoveryCheckpoint ||
+        channel === SUBTITLE_TRANSLATION_PRELOAD_INTERNAL_CHANNELS.revealTaskOutput
+      ) {
+        return subtitleTranslationIpcSuccess({ revealed: true });
+      }
+      return subtitleTranslationIpcSuccess({
+        tasks: [],
+        totalCandidates: 0,
+        batchStart: 0,
+        batchEnd: 0,
+        hasMore: false,
+        nextBatchStart: null,
+      });
+    });
+    const api = createSubtitleTranslationRendererApi({
+      ipcRenderer: { invoke } as never,
+      webUtils: { getPathForFile: () => "" } as never,
+      ownerSessionRegistration: subtitleTranslationIpcSuccess({
+        ownerSessionId: OWNER_SESSION_ID,
+      }),
+    });
+
+    await api.selectRecoveryDirectory({ includeCompleted: true });
+    await api.selectRecoveryManifest();
+    await api.prepareRecoveredTasks({
+      recoveryScanId: "recovery-scan-one",
+      directoryToken: "subtitle-directory-one",
+      batchStart: 0,
+      batchSize: 10,
+    });
+    await api.revokeRecoveryScan("recovery-scan-one");
+    await api.revealRecoveryCheckpoint("checkpoint-one");
+    await api.revealTaskOutput("subtitle-task-one");
+
+    expect(invoke.mock.calls).toEqual([
+      [SUBTITLE_TRANSLATION_PRELOAD_INTERNAL_CHANNELS.selectRecoveryDirectory, {
+        ownerSessionId: OWNER_SESSION_ID,
+        payload: { includeCompleted: true },
+      }],
+      [SUBTITLE_TRANSLATION_PRELOAD_INTERNAL_CHANNELS.selectRecoveryManifest, {
+        ownerSessionId: OWNER_SESSION_ID,
+        payload: {},
+      }],
+      [SUBTITLE_TRANSLATION_PRELOAD_INTERNAL_CHANNELS.prepareRecoveredTasks, {
+        ownerSessionId: OWNER_SESSION_ID,
+        payload: {
+          recoveryScanId: "recovery-scan-one",
+          directoryToken: "subtitle-directory-one",
+          batchStart: 0,
+          batchSize: 10,
+        },
+      }],
+      [SUBTITLE_TRANSLATION_PRELOAD_INTERNAL_CHANNELS.revokeRecoveryScan, {
+        ownerSessionId: OWNER_SESSION_ID,
+        payload: { recoveryScanId: "recovery-scan-one" },
+      }],
+      [SUBTITLE_TRANSLATION_PRELOAD_INTERNAL_CHANNELS.revealRecoveryCheckpoint, {
+        ownerSessionId: OWNER_SESSION_ID,
+        payload: { checkpointRef: "checkpoint-one" },
+      }],
+      [SUBTITLE_TRANSLATION_PRELOAD_INTERNAL_CHANNELS.revealTaskOutput, {
+        ownerSessionId: OWNER_SESSION_ID,
+        payload: { taskId: "subtitle-task-one" },
+      }],
+    ]);
   });
 });

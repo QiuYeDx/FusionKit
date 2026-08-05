@@ -81,9 +81,7 @@ function generatedTask(): SubtitleTranslatorTask {
     fileName: "generated.srt",
     fileContent: "1\n00:00:00,000 --> 00:00:01,000\nHello\n",
     sliceType: SubtitleSliceType.NORMAL,
-    originFileURL: "/must/not/cross",
-    targetFileURL: "/must/not/cross",
-    checkpointPath: "/must/not/cross",
+    checkpointRef: "checkpoint-current",
     status: TaskStatus.NOT_STARTED,
     executionBinding: { status: "needs_configuration" },
     taskReference: {

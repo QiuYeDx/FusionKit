@@ -597,19 +597,21 @@ function SubtitleTranslator() {
 
 
   const handleOpenFileLocation = async (task: SubtitleTranslatorTask) => {
+    if (task.status === TaskStatus.RESOLVED) {
+      await window.subtitleTranslationApi.revealTaskOutput(task.taskId);
+      return;
+    }
     if (
-      task.taskReference?.kind === "authorized_task_v1" &&
-      !(task.status === TaskStatus.RESOLVED && task.extraInfo?.outputFilePath)
+      task.taskReference?.kind === "authorized_task_v1"
     ) {
       await window.subtitleTranslationApi.revealTaskSource(task.taskId);
       return;
     }
-    const filePath =
-      task.status === TaskStatus.RESOLVED && task.extraInfo?.outputFilePath
-        ? task.extraInfo.outputFilePath
-        : task.originFileURL;
-    if (!filePath) return;
-    window.ipcRenderer.invoke("show-item-in-folder", filePath);
+    if (task.recovery?.checkpointRef) {
+      await window.subtitleTranslationApi.revealRecoveryCheckpoint(
+        task.recovery.checkpointRef,
+      );
+    }
   };
 
   const handleOpenEditTask = (task: SubtitleTranslatorTask) => {
@@ -808,8 +810,6 @@ function SubtitleTranslator() {
           fileName: file.name,
           fileContent,
           sliceType,
-          originFileURL: "",
-          targetFileURL: "",
           status: TaskStatus.NOT_STARTED,
           progress: 0,
           costEstimate: loadingCostEstimate,
@@ -1574,11 +1574,11 @@ function SubtitleTranslator() {
                             </>
                           )}
                           {task.status === TaskStatus.RESOLVED &&
-                            task.extraInfo?.outputFilePath && (
+                            task.extraInfo?.outputFileName && (
                               <>
                                 <span className="h-0.5 w-0.5 rounded-full bg-muted-foreground/40" />
                                 <span className="font-mono text-emerald-600 dark:text-emerald-400 truncate max-w-[220px]">
-                                  → {task.extraInfo.outputFilePath}
+                                  → {task.extraInfo.outputFileName}
                                 </span>
                               </>
                             )}
@@ -1654,6 +1654,11 @@ function SubtitleTranslator() {
                           variant="outline"
                           size="icon"
                           onClick={() => handleOpenFileLocation(task)}
+                          disabled={
+                            task.status !== TaskStatus.RESOLVED &&
+                            task.taskReference?.kind !== "authorized_task_v1" &&
+                            !task.recovery?.checkpointRef
+                          }
                         >
                           <FolderOpen className="h-3.5 w-3.5" />
                         </Button>
@@ -1744,8 +1749,7 @@ function SubtitleTranslator() {
                             )}
                           </span>
                           <span className="font-mono break-all">
-                            {task.taskReference?.target.displayLabel ||
-                              task.targetFileURL}
+                            {task.taskReference?.target.displayLabel || "-"}
                           </span>
                           <span className="text-muted-foreground">
                             {t(

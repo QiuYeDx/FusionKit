@@ -549,8 +549,6 @@ function createImportedTask(
       ...(snapshot.summary.customSliceLength !== undefined
         ? { customSliceLength: snapshot.summary.customSliceLength }
         : {}),
-      originFileURL: "",
-      targetFileURL: "",
       status: TaskStatus.NOT_STARTED,
       progress: 0,
       costEstimate,

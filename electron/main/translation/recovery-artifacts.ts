@@ -11,7 +11,22 @@
 
 import { promises as fs } from "fs";
 import path from "path";
+import { randomUUID } from "node:crypto";
 import type { TranslationCheckpointManifest } from "./typing";
+import type { CheckpointArtifactPaths } from "./checkpoint";
+
+const CLEANUP_ATTEMPTS = 3;
+const CLEANUP_RETRY_DELAY_MS = 25;
+
+export interface RecoveryArtifactCleanupFailure {
+  readonly artifact:
+    | "remaining"
+    | "error_log"
+    | "completed"
+    | "manifest"
+    | "completion_summary";
+  readonly reason: string;
+}
 
 // ─── Content builders ───────────────────────────────────────────────────────
 
@@ -53,34 +68,31 @@ async function ensureDir(filePath: string): Promise<void> {
 
 export async function writeCompletedFile(
   manifest: TranslationCheckpointManifest,
+  paths: CheckpointArtifactPaths,
 ): Promise<void> {
   const content = buildCompletedContent(manifest);
   if (!content) return;
-  await ensureDir(manifest.completedOutputPath);
-  await fs.writeFile(manifest.completedOutputPath, content, "utf-8");
+  await atomicWriteFile(paths.completedPath, content);
 }
 
 export async function writeRemainingFile(
   manifest: TranslationCheckpointManifest,
+  paths: CheckpointArtifactPaths,
 ): Promise<void> {
   const content = buildRemainingContent(manifest);
   if (!content) {
-    await safeDelete(manifest.remainingOutputPath);
+    await deleteIfExists(paths.remainingPath);
     return;
   }
-  await ensureDir(manifest.remainingOutputPath);
-  await fs.writeFile(manifest.remainingOutputPath, content, "utf-8");
+  await atomicWriteFile(paths.remainingPath, content);
 }
 
 export async function writeErrorLog(
-  manifest: TranslationCheckpointManifest,
+  paths: CheckpointArtifactPaths,
   errorLogs: string[],
 ): Promise<void> {
   if (errorLogs.length === 0) return;
-  const logPath = manifest.errorLogPath;
-  if (!logPath) return;
-  await ensureDir(logPath);
-  await fs.writeFile(logPath, errorLogs.join("\n"), "utf-8");
+  await atomicWriteFile(paths.errorLogPath, errorLogs.join("\n"));
 }
 
 /**
@@ -89,36 +101,129 @@ export async function writeErrorLog(
  */
 export async function flushRecoveryArtifacts(
   manifest: TranslationCheckpointManifest,
+  paths: CheckpointArtifactPaths,
   errorLogs?: string[],
 ): Promise<void> {
   await Promise.all([
-    writeCompletedFile(manifest),
-    writeRemainingFile(manifest),
-    ...(errorLogs ? [writeErrorLog(manifest, errorLogs)] : []),
+    writeCompletedFile(manifest, paths),
+    writeRemainingFile(manifest, paths),
+    ...(errorLogs ? [writeErrorLog(paths, errorLogs)] : []),
   ]);
 }
 
 // ─── Cleanup ────────────────────────────────────────────────────────────────
 
-async function safeDelete(filePath: string): Promise<void> {
+async function deleteIfExists(filePath: string): Promise<void> {
   try {
     await fs.unlink(filePath);
-  } catch {
-    // file doesn't exist — ok
+  } catch (error) {
+    if (!isMissingPathError(error)) throw error;
   }
 }
 
 /**
  * 任务成功完成后清理临时恢复产物。
- * remaining 文件一定删除，manifest 和 completed 可选保留。
+ * 对每项产物独立执行有界清理；失败作为摘要返回，不能影响已提交的最终译文。
  */
 export async function cleanupOnSuccess(
-  manifest: TranslationCheckpointManifest,
-  manifestPath: string,
+  paths: CheckpointArtifactPaths,
   keepCompleted = false,
-): Promise<void> {
-  await safeDelete(manifest.remainingOutputPath);
-  if (manifest.errorLogPath) await safeDelete(manifest.errorLogPath);
-  if (!keepCompleted) await safeDelete(manifest.completedOutputPath);
-  await safeDelete(manifestPath);
+): Promise<readonly RecoveryArtifactCleanupFailure[]> {
+  const artifacts: Array<{
+    artifact: RecoveryArtifactCleanupFailure["artifact"];
+    filePath: string;
+  }> = [
+    { artifact: "remaining", filePath: paths.remainingPath },
+    { artifact: "error_log", filePath: paths.errorLogPath },
+    ...(keepCompleted
+      ? []
+      : [{ artifact: "completed" as const, filePath: paths.completedPath }]),
+    { artifact: "manifest", filePath: paths.manifestPath },
+  ];
+  const results = await Promise.all(artifacts.map(async ({ artifact, filePath }) => {
+    const failure = await deleteWithBoundedRetry(filePath);
+    return failure ? Object.freeze({ artifact, reason: failure }) : undefined;
+  }));
+  return Object.freeze(results.filter(
+    (result): result is RecoveryArtifactCleanupFailure => result !== undefined,
+  ));
+}
+
+export async function cleanupOnTaskDeletion(
+  paths: CheckpointArtifactPaths,
+): Promise<readonly RecoveryArtifactCleanupFailure[]> {
+  const artifacts: Array<{
+    artifact: RecoveryArtifactCleanupFailure["artifact"];
+    filePath: string;
+  }> = [
+    { artifact: "remaining", filePath: paths.remainingPath },
+    { artifact: "error_log", filePath: paths.errorLogPath },
+    { artifact: "completed", filePath: paths.completedPath },
+    { artifact: "manifest", filePath: paths.manifestPath },
+    {
+      artifact: "completion_summary",
+      filePath: paths.completionSummaryPath,
+    },
+  ];
+  const results = await Promise.all(artifacts.map(async ({ artifact, filePath }) => {
+    const failure = await deleteWithBoundedRetry(filePath);
+    return failure ? Object.freeze({ artifact, reason: failure }) : undefined;
+  }));
+  return Object.freeze(results.filter(
+    (result): result is RecoveryArtifactCleanupFailure => result !== undefined,
+  ));
+}
+
+async function atomicWriteFile(filePath: string, content: string): Promise<void> {
+  await ensureDir(filePath);
+  const temporaryPath = `${filePath}.${process.pid}.${randomUUID()}.tmp`;
+  let handle: Awaited<ReturnType<typeof fs.open>> | undefined;
+  try {
+    handle = await fs.open(temporaryPath, "wx", 0o600);
+    await handle.writeFile(content, "utf-8");
+    await handle.sync();
+    await handle.close();
+    handle = undefined;
+    await fs.rename(temporaryPath, filePath);
+  } finally {
+    await handle?.close().catch(() => undefined);
+    await deleteIfExists(temporaryPath).catch(() => undefined);
+  }
+}
+
+async function deleteWithBoundedRetry(filePath: string): Promise<string | undefined> {
+  for (let attempt = 1; attempt <= CLEANUP_ATTEMPTS; attempt += 1) {
+    try {
+      await fs.unlink(filePath);
+      return undefined;
+    } catch (error) {
+      if (isMissingPathError(error)) return undefined;
+      if (!isTransientCleanupError(error) || attempt === CLEANUP_ATTEMPTS) {
+        return errorReason(error);
+      }
+      await new Promise<void>((resolve) => {
+        setTimeout(resolve, CLEANUP_RETRY_DELAY_MS * attempt);
+      });
+    }
+  }
+  return "cleanup_failed";
+}
+
+function isMissingPathError(error: unknown): boolean {
+  return errorCode(error) === "ENOENT";
+}
+
+function isTransientCleanupError(error: unknown): boolean {
+  return ["EBUSY", "EPERM", "EACCES"].includes(errorCode(error) ?? "");
+}
+
+function errorReason(error: unknown): string {
+  return errorCode(error) ?? (error instanceof Error ? error.message : String(error));
+}
+
+function errorCode(error: unknown): string | undefined {
+  return typeof error === "object" && error !== null && "code" in error &&
+      typeof (error as { code?: unknown }).code === "string"
+    ? (error as { code: string }).code
+    : undefined;
 }

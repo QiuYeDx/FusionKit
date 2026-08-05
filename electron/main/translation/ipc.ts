@@ -39,21 +39,16 @@ import {
   type SubtitleTranslatorTask,
   type TranslationLanguage,
   type TranslationOutputMode,
-  type TranslationRecoveryScanRequest,
-  type TranslationRecoveryImportRequest,
 } from "./typing";
-import {
-  scanTranslationRecoveryArtifacts,
-  inspectTranslationRecoveryArtifact,
-  createRecoveredSubtitleTaskDraft,
-} from "./recovery-discovery";
 import {
   SubtitleTranslationCapabilityError,
   SubtitleTranslationDirectoryCapabilityRegistry,
-  createLegacySubtitleTranslationTaskReference,
   type SubtitleTranslationOwnerKey,
 } from "./directory-capability";
 import { GeneratedSubtitleImportCandidateService } from "./generated-import-candidate";
+import { SubtitleTranslationRecoveryCapabilityRegistry } from "./recovery-capability";
+import { buildCheckpointPaths } from "./checkpoint";
+import { cleanupOnTaskDeletion } from "./recovery-artifacts";
 
 type DirectoryDialogResult = {
   readonly canceled: boolean;
@@ -72,6 +67,9 @@ export interface SubtitleTranslationIpcServiceOptions {
   readonly selectOutputDirectory?: () => Promise<DirectoryDialogResult>;
   readonly localOwnerSessions?: LocalSubtitleOwnerSessionRegistry;
   readonly generatedImports?: GeneratedSubtitleImportCandidateService;
+  readonly recoveryCapabilities?: SubtitleTranslationRecoveryCapabilityRegistry;
+  readonly selectRecoveryDirectory?: () => Promise<DirectoryDialogResult>;
+  readonly selectRecoveryManifest?: () => Promise<DirectoryDialogResult>;
 }
 
 export class SubtitleTranslationIpcService {
@@ -81,6 +79,9 @@ export class SubtitleTranslationIpcService {
   private readonly selectOutputDirectoryImpl: () => Promise<DirectoryDialogResult>;
   private readonly localOwnerSessions?: LocalSubtitleOwnerSessionRegistry;
   private readonly generatedImports?: GeneratedSubtitleImportCandidateService;
+  readonly recoveryCapabilities: SubtitleTranslationRecoveryCapabilityRegistry;
+  private readonly selectRecoveryDirectoryImpl: () => Promise<DirectoryDialogResult>;
+  private readonly selectRecoveryManifestImpl: () => Promise<DirectoryDialogResult>;
 
   constructor(options: SubtitleTranslationIpcServiceOptions = {}) {
     this.ownerSessions = options.ownerSessions ??
@@ -89,6 +90,8 @@ export class SubtitleTranslationIpcService {
       new SubtitleTranslationDirectoryCapabilityRegistry();
     this.localOwnerSessions = options.localOwnerSessions;
     this.generatedImports = options.generatedImports;
+    this.recoveryCapabilities = options.recoveryCapabilities ??
+      new SubtitleTranslationRecoveryCapabilityRegistry();
     this.selectAgentInputFilesImpl = options.selectAgentInputFiles ?? (() =>
       dialog.showOpenDialog({
         title: "Select subtitle files to translate",
@@ -99,6 +102,17 @@ export class SubtitleTranslationIpcService {
       dialog.showOpenDialog({
         title: "Select subtitle translation output directory",
         properties: ["openDirectory", "createDirectory"],
+      }));
+    this.selectRecoveryDirectoryImpl = options.selectRecoveryDirectory ?? (() =>
+      dialog.showOpenDialog({
+        title: "Select recovery directory",
+        properties: ["openDirectory"],
+      }));
+    this.selectRecoveryManifestImpl = options.selectRecoveryManifest ?? (() =>
+      dialog.showOpenDialog({
+        title: "Import recovery manifest",
+        filters: [{ name: "Recovery Manifest", extensions: ["json"] }],
+        properties: ["openFile"],
       }));
   }
 
@@ -322,17 +336,96 @@ export class SubtitleTranslationIpcService {
           });
           break;
         case SUBTITLE_TRANSLATION_PRELOAD_INTERNAL_CHANNELS.releaseGeneratedTask:
+          {
+          const taskId = (request.data as { readonly taskId: string }).taskId;
+          const cleanupTargets = new Map<string, ReturnType<typeof buildCheckpointPaths>>();
+          const directoryTarget = await this.directoryCapabilities
+            .resolveTaskArtifactCleanupTarget(owner, taskId);
+          if (directoryTarget) {
+            const paths = buildCheckpointPaths(
+              directoryTarget.outputDirectoryPath,
+              directoryTarget.outputFileName,
+              taskId,
+            );
+            cleanupTargets.set(paths.manifestPath, paths);
+          }
+          const checkpointPaths = await this.recoveryCapabilities
+            .resolveTaskArtifactCleanupPaths(owner, taskId);
+          if (checkpointPaths) {
+            cleanupTargets.set(checkpointPaths.manifestPath, checkpointPaths);
+          }
+          const cleanupResults = await Promise.all(
+            [...cleanupTargets.values()].map(cleanupOnTaskDeletion),
+          );
+          if (cleanupResults.some((failures) => failures.length > 0)) {
+            throw new SubtitleTranslationCapabilityError(
+              "output_write_failed",
+              "Subtitle recovery artifact cleanup did not complete.",
+              "taskId",
+            );
+          }
+          const directoryReleased = this.generatedImports
+            ? this.generatedImports.releaseTask(owner, taskId)
+            : this.directoryCapabilities.releaseGeneratedTask(owner, taskId);
+          const recoveryReleased = this.recoveryCapabilities.releaseTask(
+            owner,
+            taskId,
+          );
           response = subtitleTranslationIpcSuccess({
-            released: this.generatedImports
-              ? this.generatedImports.releaseTask(
-                  owner,
-                  (request.data as { readonly taskId: string }).taskId,
-                )
-              : this.directoryCapabilities.releaseGeneratedTask(
-                  owner,
-                  (request.data as { readonly taskId: string }).taskId,
-                ),
+            released: directoryReleased || recoveryReleased,
           });
+          break;
+          }
+        case SUBTITLE_TRANSLATION_PRELOAD_INTERNAL_CHANNELS.selectRecoveryDirectory:
+          response = await this.selectRecoveryDirectory(
+            owner,
+            authorization.data,
+            Boolean((request.data as { includeCompleted?: boolean }).includeCompleted),
+          );
+          break;
+        case SUBTITLE_TRANSLATION_PRELOAD_INTERNAL_CHANNELS.selectRecoveryManifest:
+          response = await this.selectRecoveryManifest(owner, authorization.data);
+          break;
+        case SUBTITLE_TRANSLATION_PRELOAD_INTERNAL_CHANNELS.prepareRecoveredTasks:
+          response = subtitleTranslationIpcSuccess(
+            await this.recoveryCapabilities.prepareRecoveredTasks({
+              owner,
+              ...(request.data as {
+                readonly recoveryScanId: string;
+                readonly directoryToken: string;
+                readonly candidateIds?: readonly string[];
+                readonly batchStart?: number;
+                readonly batchSize?: number;
+              }),
+              directoryCapabilities: this.directoryCapabilities,
+            }),
+          );
+          break;
+        case SUBTITLE_TRANSLATION_PRELOAD_INTERNAL_CHANNELS.revokeRecoveryScan:
+          response = subtitleTranslationIpcSuccess({
+            released: this.recoveryCapabilities.revokeScan(
+              owner,
+              (request.data as { readonly recoveryScanId: string }).recoveryScanId,
+            ),
+          });
+          break;
+        case SUBTITLE_TRANSLATION_PRELOAD_INTERNAL_CHANNELS.revealRecoveryCheckpoint:
+          shell.showItemInFolder(
+            this.recoveryCapabilities.resolveCheckpointForReveal(
+              owner,
+              (request.data as { readonly checkpointRef: string }).checkpointRef,
+            ),
+          );
+          response = subtitleTranslationIpcSuccess({ revealed: true });
+          break;
+        case SUBTITLE_TRANSLATION_PRELOAD_INTERNAL_CHANNELS.revealTaskOutput:
+          shell.showItemInFolder(
+            this.directoryCapabilities.resolveTaskFinalOutputForSender(
+              event.sender.id,
+              (request.data as { readonly taskId: string }).taskId,
+            ),
+          );
+          response = subtitleTranslationIpcSuccess({ revealed: true });
           break;
       }
       const validated = contract.resultSchema.safeParse(response);
@@ -352,6 +445,7 @@ export class SubtitleTranslationIpcService {
     readonly ownerSessionId: string;
   }): void {
     this.generatedImports?.releaseOwner(toOwnerKey(owner));
+    this.recoveryCapabilities.releaseOwner(toOwnerKey(owner));
     this.directoryCapabilities.releaseOwner(toOwnerKey(owner));
   }
 
@@ -373,25 +467,6 @@ export class SubtitleTranslationIpcService {
           "reference",
         );
       }
-      if (reference.kind === "legacy_path_v1") {
-        const resolved = this.directoryCapabilities.resolveLegacyTaskReference(
-          taskIdOf(value.task),
-          reference,
-        );
-        return {
-          task: {
-            ...value.task,
-            originFileURL: resolved.originFilePath,
-            targetFileURL: resolved.targetDirectoryPath,
-            ...(resolved.checkpointPath
-              ? { checkpointPath: resolved.checkpointPath }
-              : {}),
-          } as SubtitleTranslatorTask,
-          generated: false,
-          authorized: false,
-        };
-      }
-
       const taskId = taskIdOf(value.task);
       const resolved = reference.kind === "authorized_task_v1"
         ? await this.directoryCapabilities.resolveAuthorizedTaskReferenceForSender(
@@ -412,6 +487,16 @@ export class SubtitleTranslationIpcService {
         );
       }
       const owner = this.ownerForTask(taskId, webContentsId);
+      const checkpointRef = typeof value.task.checkpointRef === "string"
+        ? value.task.checkpointRef
+        : undefined;
+      const checkpointPath = checkpointRef
+        ? await this.recoveryCapabilities.resolveCheckpointForTask(
+            owner,
+            taskId,
+            checkpointRef,
+          )
+        : undefined;
       return {
         task: {
           ...value.task,
@@ -419,6 +504,9 @@ export class SubtitleTranslationIpcService {
             ? resolved.originFilePath
             : "",
           targetFileURL: resolved.targetDirectoryPath,
+          ...(checkpointPath
+            ? { checkpointPath, recoveryInputMode: "manifest_fragments" as const }
+            : {}),
         } as SubtitleTranslatorTask,
         generated: resolved.kind === "generated_task_v1",
         authorized: true,
@@ -426,31 +514,11 @@ export class SubtitleTranslationIpcService {
       };
     }
 
-    if (!isRecord(value)) {
-      throw new SubtitleTranslationCapabilityError(
-        "invalid_ipc_request",
-        "The subtitle translation task is invalid.",
-        "task",
-      );
-    }
-    const task = value as unknown as SubtitleTranslatorTask;
-    const legacy = createLegacySubtitleTranslationTaskReference(task);
-    const resolved = this.directoryCapabilities.resolveLegacyTaskReference(
-      taskIdOf(task),
-      legacy,
+    throw new SubtitleTranslationCapabilityError(
+      "invalid_ipc_request",
+      "Subtitle translation tasks require an owner-bound reference.",
+      "reference",
     );
-    return {
-      task: {
-        ...task,
-        originFileURL: resolved.originFilePath,
-        targetFileURL: resolved.targetDirectoryPath,
-        ...(resolved.checkpointPath
-          ? { checkpointPath: resolved.checkpointPath }
-          : {}),
-      },
-      generated: false,
-      authorized: false,
-    };
   }
 
   private ownerForTask(
@@ -543,6 +611,50 @@ export class SubtitleTranslationIpcService {
     }
     return subtitleTranslationIpcSuccess(rotated);
   }
+
+  private async selectRecoveryDirectory(
+    owner: SubtitleTranslationOwnerKey,
+    ownerIdentity: Parameters<LocalSubtitleOwnerSessionRegistry["isCurrent"]>[0],
+    includeCompleted: boolean,
+  ): Promise<SubtitleTranslationIpcResult<unknown>> {
+    const selected = await this.selectRecoveryDirectoryImpl();
+    const directoryPath = selected.filePaths[0];
+    if (selected.canceled || !directoryPath) {
+      return subtitleTranslationIpcSuccess({ cancelled: true });
+    }
+    if (!this.ownerSessions.isCurrent(ownerIdentity)) return ownerReleasedFailure();
+    const result = await this.recoveryCapabilities.scanDirectory(
+      owner,
+      directoryPath,
+      includeCompleted,
+    );
+    if (!this.ownerSessions.isCurrent(ownerIdentity)) {
+      this.recoveryCapabilities.revokeScan(owner, result.recoveryScanId);
+      return ownerReleasedFailure();
+    }
+    return subtitleTranslationIpcSuccess(result);
+  }
+
+  private async selectRecoveryManifest(
+    owner: SubtitleTranslationOwnerKey,
+    ownerIdentity: Parameters<LocalSubtitleOwnerSessionRegistry["isCurrent"]>[0],
+  ): Promise<SubtitleTranslationIpcResult<unknown>> {
+    const selected = await this.selectRecoveryManifestImpl();
+    const checkpointPath = selected.filePaths[0];
+    if (selected.canceled || !checkpointPath) {
+      return subtitleTranslationIpcSuccess({ cancelled: true });
+    }
+    if (!this.ownerSessions.isCurrent(ownerIdentity)) return ownerReleasedFailure();
+    const result = await this.recoveryCapabilities.inspectManifest(
+      owner,
+      checkpointPath,
+    );
+    if (!this.ownerSessions.isCurrent(ownerIdentity)) {
+      this.recoveryCapabilities.revokeScan(owner, result.recoveryScanId);
+      return ownerReleasedFailure();
+    }
+    return subtitleTranslationIpcSuccess(result);
+  }
 }
 
 export function setupTranslationIPC(
@@ -588,6 +700,29 @@ export function setupTranslationIPC(
                   execution!.task.taskId,
                   outputFilePath,
                 ),
+              authorizeCheckpoint: (checkpointPath) =>
+                ipcService.recoveryCapabilities.authorizeCheckpoint(
+                  execution!.owner!,
+                  execution!.task.taskId,
+                  checkpointPath,
+                ),
+              releaseCheckpoint: () => {
+                ipcService.recoveryCapabilities.releaseTask(
+                  execution!.owner!,
+                  execution!.task.taskId,
+                );
+              },
+              recordFinalOutput: (outputFilePath) =>
+                ipcService.directoryCapabilities.recordTaskFinalOutput(
+                  execution!.owner!,
+                  execution!.task.taskId,
+                  outputFilePath,
+                ),
+              emit: (channel, payload) => {
+                if (!event.sender.isDestroyed()) {
+                  event.sender.send(channel, payload);
+                }
+              },
             }
           : undefined,
       );
@@ -643,31 +778,6 @@ export function setupTranslationIPC(
     translationService.cancelTask(taskId);
   });
 
-  ipcMain.handle(
-    "scan-translation-recovery-artifacts",
-    async (_, request: TranslationRecoveryScanRequest) =>
-      scanTranslationRecoveryArtifacts(request),
-  );
-  ipcMain.handle(
-    "inspect-translation-recovery-artifact",
-    async (_, checkpointPath: string) =>
-      inspectTranslationRecoveryArtifact(checkpointPath),
-  );
-  ipcMain.handle(
-    "create-recovered-subtitle-task-draft",
-    async (_, request: TranslationRecoveryImportRequest) =>
-      createRecoveredSubtitleTaskDraft(request),
-  );
-  ipcMain.handle("select-recovery-manifest-file", async () => {
-    const result = await dialog.showOpenDialog({
-      title: "Import Recovery Manifest",
-      filters: [{ name: "Recovery Manifest", extensions: ["json"] }],
-      properties: ["openFile"],
-    });
-    return result.canceled || result.filePaths.length === 0
-      ? null
-      : result.filePaths[0];
-  });
   return ipcService;
 }
 
@@ -767,9 +877,7 @@ function ownerReleasedFailure(): SubtitleTranslationIpcResult<never> {
 
 function isTerminalExecutionResult(value: unknown): boolean {
   if (!isRecord(value) || typeof value.status !== "string") return false;
-  if (value.status === "completed" || value.status === "cancelled") return true;
-  return value.status === "failed" &&
-    value.error !== "invalid_task_identity" &&
-    value.error !== "configuration_required" &&
-    value.error !== "task_already_active";
+  // Failed and cancelled tasks retain their target/checkpoint authority so a
+  // same-owner retry can resume. Delete/clear and owner release still revoke it.
+  return value.status === "completed";
 }

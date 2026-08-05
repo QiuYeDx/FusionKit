@@ -39,7 +39,7 @@ beforeEach(() => {
 });
 
 describe("subtitle translator safe config store", () => {
-  it("migrates safe preferences without deleting or copying legacy paths", () => {
+  it("migrates safe preferences then removes the verified legacy path", () => {
     const legacyEnvelope = JSON.stringify({
       state: {
         outputURL: "C:\\Users\\private-user\\Subtitle Exports",
@@ -82,7 +82,13 @@ describe("subtitle translator safe config store", () => {
     });
     expect(persisted).not.toMatch(/private-user|C:\\Users/u);
     expect(storage.values.get("fusionkit-subtitle-translator")).toBe(
-      legacyEnvelope,
+      JSON.stringify({
+        state: {
+          sliceType: SubtitleSliceType.CUSTOM,
+          sliceLengthMap: { [SubtitleSliceType.CUSTOM]: 777 },
+        },
+        version: 0,
+      }),
     );
     expect(storage.values.get("subtitle-translator-output-mode")).toBe(
       "custom",
@@ -136,5 +142,24 @@ describe("subtitle translator safe config store", () => {
     expect(
       bootstrapLegacySubtitleTranslatorConfig(storageWithoutReadback),
     ).toBe("failed");
+  });
+
+  it("does not report cleanup success when the standalone path key remains", () => {
+    const values = new Map<string, string>([
+      [SUBTITLE_TRANSLATOR_CONFIG_STORAGE_KEY, JSON.stringify({
+        state: { preferences: DEFAULT_SUBTITLE_TRANSLATOR_CONFIG_PREFERENCES },
+        version: 1,
+      })],
+      ["subtitle-translator-output-url", "/private/output"],
+    ]);
+    const storageWithFailedRemoval = {
+      getItem: (key: string) => values.get(key) ?? null,
+      setItem: (key: string, value: string) => values.set(key, value),
+      removeItem: () => undefined,
+    };
+
+    expect(bootstrapLegacySubtitleTranslatorConfig(storageWithFailedRemoval))
+      .toBe("failed");
+    expect(values.get("subtitle-translator-output-url")).toBe("/private/output");
   });
 });

@@ -12,7 +12,6 @@ import os from "node:os";
 import path from "node:path";
 import {
   SubtitleTranslationDirectoryCapabilityRegistry,
-  createLegacySubtitleTranslationTaskReference,
   type SubtitleTranslationOwnerKey,
 } from "../../electron/main/translation/directory-capability";
 
@@ -548,13 +547,6 @@ describe("subtitle translation directory capability registry", () => {
       "subtitle-task-terminal",
       reference,
     )).rejects.toMatchObject({ code: "task_not_active" });
-    expect(() => registry.resolveLegacyTaskReference(
-      "subtitle-task-terminal",
-      createLegacySubtitleTranslationTaskReference({
-        originFileURL: path.join(output, "terminal.srt"),
-        targetFileURL: output,
-      }),
-    )).toThrowError(expect.objectContaining({ code: "task_reference_conflict" }));
   });
 });
 

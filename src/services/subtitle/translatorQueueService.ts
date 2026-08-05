@@ -299,7 +299,7 @@ export function retryTask(
     totalFragments: isResume ? task.totalFragments : undefined,
     recovery: isResume ? task.recovery : undefined,
     recoveryMode: mode,
-    checkpointPath: isResume ? task.recovery?.checkpointPath : undefined,
+    checkpointRef: isResume ? task.recovery?.checkpointRef : undefined,
   });
 
   return {
@@ -344,7 +344,7 @@ export function updateTask(
  * When resolvedFragments === totalFragments the task is moved to resolved and
  * a waiting task is promoted if a slot opens up.
  *
- * payload.recovery 携带 checkpoint 路径，patch 到任务上以供续跑使用。
+ * payload.recovery carries only an opaque checkpoint ref.
  */
 export function completeTaskProgress(
   state: TranslatorQueueState,
@@ -356,7 +356,7 @@ export function completeTaskProgress(
     progress: number;
     recovery?: Pick<
       SubtitleTranslationRecovery,
-      "checkpointPath" | "completedOutputPath" | "remainingOutputPath"
+      "checkpointRef" | "resumable" | "resolvedFragments" | "totalFragments"
     >;
   },
   maxConcurrency: number,
@@ -427,12 +427,12 @@ export function completeTaskProgress(
 /**
  * Mark a task as resolved (triggered by `task-resolved` IPC event).
  * If the task is still in pending it gets moved; if it's already in resolved
- * only the outputFilePath is patched.
+ * only the output display name is patched.
  */
 export function resolveTask(
   state: TranslatorQueueState,
   taskId: string,
-  outputFilePath: string,
+  outputFileName: string,
   maxConcurrency: number,
 ): TranslatorQueueResult {
   const pendingTask = state.pendingTaskQueue.find(
@@ -444,7 +444,7 @@ export function resolveTask(
       ...pendingTask,
       status: TaskStatus.RESOLVED,
       progress: 100,
-      extraInfo: { ...(pendingTask.extraInfo || {}), outputFilePath },
+      extraInfo: { ...(pendingTask.extraInfo || {}), outputFileName },
     };
 
     const remainingPending = state.pendingTaskQueue.filter(
@@ -467,7 +467,7 @@ export function resolveTask(
         ...state,
         resolvedTaskQueue: state.resolvedTaskQueue.map((t) =>
           t.taskId === taskId
-            ? { ...t, extraInfo: { ...(t.extraInfo || {}), outputFilePath } }
+            ? { ...t, extraInfo: { ...(t.extraInfo || {}), outputFileName } }
             : t,
         ),
       },
@@ -659,9 +659,8 @@ export type AddRecoveredTaskResult = {
 /**
  * 将恢复的任务加入 notStartedTaskQueue。
  * 去重规则：
- *   1. checkpointPath 相同 -> 跳过
+ *   1. checkpointRef 相同 -> 跳过
  *   2. taskId 相同 -> 跳过
- *   3. originFileURL + targetFileURL + fileName 全部相同 -> 跳过
  */
 export function addRecoveredTask(
   state: TranslatorQueueState,
@@ -676,20 +675,15 @@ export function addRecoveredTask(
   ];
 
   if (
-    task.checkpointPath &&
-    allTasks.some((t) => t.checkpointPath && t.checkpointPath === task.checkpointPath)
+    task.checkpointRef &&
+    allTasks.some((t) =>
+      t.checkpointRef && t.checkpointRef === task.checkpointRef)
   ) {
     return { state, effects: [], result: { added: false, reason: "duplicate_checkpoint" } };
   }
 
   if (
-    allTasks.some((t) => t.taskId === task.taskId) ||
-    allTasks.some(
-      (t) =>
-        t.fileName === task.fileName &&
-        t.originFileURL === task.originFileURL &&
-        t.targetFileURL === task.targetFileURL,
-    )
+    allTasks.some((t) => t.taskId === task.taskId)
   ) {
     return { state, effects: [], result: { added: false, reason: "duplicate_file" } };
   }

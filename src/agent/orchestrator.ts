@@ -90,12 +90,12 @@ When the tool result includes "executionMode" and "executionStatus", use them to
 5. Only call apply_name_translation_plan when the latest user message clearly confirms applying the rename plan, such as "确认执行刚才的重命名计划".
 
 ## Workflow for Subtitle Recovery Requests
-1. If the user gives a directory, call scan_subtitle_recovery_tasks with roots=[directory].
-2. If the user gives one or more *.fusionkit.resume.json files, call scan_subtitle_recovery_tasks with checkpointPaths.
-3. If the user asks to scan previous/current output without a path, call scan_subtitle_recovery_tasks with useCurrentOutputDir=true. If the tool reports no current output dir, ask for a directory.
+1. For a directory scan, call scan_subtitle_recovery_tasks with selectionMode=directory; the user confirms the directory in the fixed native picker.
+2. For one manifest, call scan_subtitle_recovery_tasks with selectionMode=manifest; never pass a raw path.
+3. Do not read the subtitle Store output directory or accept roots/checkpointPaths for recovery authority.
 4. If no recoverable candidates are found, summarize the scan result and do not queue.
 5. Queue recoverable candidates with queue_recovered_subtitle_translate. For large scans, use recoveryScanId + batchStart + batchSize and continue while batch.hasMore=true.
-6. ready_from_manifest candidates are allowed; tell the user they will continue from original fragments stored in the recovery manifest because the source file is missing or changed.
+6. Recoverable candidates continue from original fragments stored in the recovery manifest and always reauthorize the target directory.
 7. Follow current execution mode exactly based on tool result.
 
 ## Workflow for Non-Task Messages

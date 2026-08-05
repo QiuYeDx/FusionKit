@@ -36,8 +36,6 @@ const importLedger = new SubtitleTranslatorImportLedger();
 interface SubtitleTranslatorStore {
   sliceType: SubtitleSliceType;
   sliceLengthMap: Record<SubtitleSliceType, number>;
-  outputURL: string;
-
   notStartedTaskQueue: SubtitleTranslatorTask[];
   waitingTaskQueue: SubtitleTranslatorTask[];
   pendingTaskQueue: SubtitleTranslatorTask[];
@@ -46,7 +44,6 @@ interface SubtitleTranslatorStore {
 
   setSliceType: (sliceType: SubtitleSliceType) => void;
   setCustomSliceLength: (length: number) => void;
-  setOutputURL: (url: string) => void;
   initializeSubtitleTranslatorStore: () => void;
   addTask: (task: SubtitleTranslatorTask) => {
     added: boolean;
@@ -96,13 +93,13 @@ interface SubtitleTranslatorStore {
     progress: number,
     recovery?: Pick<
       SubtitleTranslationRecovery,
-      "checkpointPath" | "completedOutputPath" | "remainingOutputPath"
+      "checkpointRef" | "resumable" | "resolvedFragments" | "totalFragments"
     >,
   ) => void;
   markTaskResolved: (
     taskId: string,
     fileName: string,
-    outputFilePath: string,
+    outputFileName: string,
   ) => void;
 }
 
@@ -143,8 +140,6 @@ function executeEffects(effects: TranslatorQueueEffect[]) {
 
 // ─── Store ───────────────────────────────────────────────────────────────────
 
-const LEGACY_KEY = "subtitle-translator-output-url";
-
 try {
   if (globalThis.localStorage) {
     bootstrapLegacySubtitleTranslatorConfig(globalThis.localStorage);
@@ -158,7 +153,6 @@ const useSubtitleTranslatorStore = create<SubtitleTranslatorStore>()(
     (set, get) => ({
       sliceType: SubtitleSliceType.NORMAL,
       sliceLengthMap: DEFAULT_SLICE_LENGTH_MAP,
-      outputURL: "",
       notStartedTaskQueue: [],
       waitingTaskQueue: [],
       pendingTaskQueue: [],
@@ -174,8 +168,6 @@ const useSubtitleTranslatorStore = create<SubtitleTranslatorStore>()(
             [SubtitleSliceType.CUSTOM]: length,
           },
         })),
-
-      setOutputURL: (url) => set({ outputURL: url }),
 
       initializeSubtitleTranslatorStore: () =>
         set({
@@ -382,11 +374,11 @@ const useSubtitleTranslatorStore = create<SubtitleTranslatorStore>()(
         showToast(i18n.t("subtitle:translator.infos.task_deleted"), "success");
       },
 
-      markTaskResolved: (taskId, _fileName, outputFilePath) => {
+      markTaskResolved: (taskId, _fileName, outputFileName) => {
         const result = QueueService.resolveTask(
           getQueueState(get()),
           taskId,
-          outputFilePath,
+          outputFileName,
           MAX_CONCURRENCY,
         );
         set(result.state);
@@ -396,20 +388,7 @@ const useSubtitleTranslatorStore = create<SubtitleTranslatorStore>()(
     {
       name: "fusionkit-subtitle-translator",
       storage: createJSONStorage(() => localStorage),
-      partialize: (state) => ({ outputURL: state.outputURL }),
-      onRehydrateStorage: () => {
-        if (
-          localStorage.getItem(LEGACY_KEY) !== null &&
-          localStorage.getItem("fusionkit-subtitle-translator") === null
-        ) {
-          const saved = localStorage.getItem(LEGACY_KEY) || "";
-          localStorage.setItem(
-            "fusionkit-subtitle-translator",
-            JSON.stringify({ state: { outputURL: saved }, version: 0 }),
-          );
-          localStorage.removeItem(LEGACY_KEY);
-        }
-      },
+      partialize: () => ({}),
     },
   ),
 );

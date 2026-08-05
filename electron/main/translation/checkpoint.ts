@@ -14,6 +14,7 @@ import path from "path";
 import crypto from "crypto";
 import {
   type TranslationCheckpointManifest,
+  type TranslationCheckpointManifestV2,
   type CheckpointFragment,
   type SubtitleTranslatorTask,
   type SubtitleTranslationRecovery,
@@ -21,7 +22,7 @@ import {
   SubtitleSliceType,
 } from "./typing";
 
-const CURRENT_SCHEMA_VERSION = 1 as const;
+const CURRENT_SCHEMA_VERSION = 2 as const;
 
 // ─── Hash helpers ────────────────────────────────────────────────────────────
 
@@ -39,22 +40,39 @@ function getExt(fileName: string): string {
   return path.parse(fileName).ext;
 }
 
+export interface CheckpointArtifactPaths {
+  readonly manifestPath: string;
+  readonly completedPath: string;
+  readonly remainingPath: string;
+  readonly errorLogPath: string;
+  readonly completionSummaryPath: string;
+}
+
 export function buildCheckpointPaths(
   outputDir: string,
   fileName: string,
-): {
-  manifestPath: string;
-  completedPath: string;
-  remainingPath: string;
-  errorLogPath: string;
-} {
+  taskId?: string,
+): CheckpointArtifactPaths {
   const base = getBaseName(fileName);
   const ext = getExt(fileName);
+  const artifactBase = taskId
+    ? `fusionkit-task-${hashContent(taskId).slice(0, 24)}`
+    : base;
   return {
-    manifestPath: path.join(outputDir, `${base}.fusionkit.resume.json`),
-    completedPath: path.join(outputDir, `${base}.fusionkit.completed${ext}`),
-    remainingPath: path.join(outputDir, `${base}.fusionkit.remaining${ext}`),
-    errorLogPath: path.join(outputDir, `${base}.fusionkit.error.log`),
+    manifestPath: path.join(outputDir, `${artifactBase}.fusionkit.resume.json`),
+    completedPath: path.join(
+      outputDir,
+      `${artifactBase}.fusionkit.completed${ext}`,
+    ),
+    remainingPath: path.join(
+      outputDir,
+      `${artifactBase}.fusionkit.remaining${ext}`,
+    ),
+    errorLogPath: path.join(outputDir, `${artifactBase}.fusionkit.error.log`),
+    completionSummaryPath: path.join(
+      outputDir,
+      `${artifactBase}.fusionkit.completed.json`,
+    ),
   };
 }
 
@@ -65,9 +83,20 @@ export function buildCheckpointPaths(
  * 避免进程在写入中途退出导致 JSON 损坏。
  */
 async function atomicWriteJSON(filePath: string, data: unknown): Promise<void> {
-  const tmpPath = `${filePath}.tmp`;
-  await fs.writeFile(tmpPath, JSON.stringify(data, null, 2), "utf-8");
-  await fs.rename(tmpPath, filePath);
+  await fs.mkdir(path.dirname(filePath), { recursive: true });
+  const tmpPath = `${filePath}.${process.pid}.${crypto.randomUUID()}.tmp`;
+  let handle: Awaited<ReturnType<typeof fs.open>> | undefined;
+  try {
+    handle = await fs.open(tmpPath, "wx", 0o600);
+    await handle.writeFile(JSON.stringify(data, null, 2), "utf-8");
+    await handle.sync();
+    await handle.close();
+    handle = undefined;
+    await fs.rename(tmpPath, filePath);
+  } finally {
+    await handle?.close().catch(() => undefined);
+    await fs.rm(tmpPath, { force: true }).catch(() => undefined);
+  }
 }
 
 // ─── Create ─────────────────────────────────────────────────────────────────
@@ -81,10 +110,8 @@ function detectFileType(fileName: string): SubtitleFileType {
 export function createManifest(
   task: SubtitleTranslatorTask,
   fragments: string[],
-  outputDir: string,
 ): TranslationCheckpointManifest {
   const now = new Date().toISOString();
-  const paths = buildCheckpointPaths(outputDir, task.fileName);
 
   return {
     schemaVersion: CURRENT_SCHEMA_VERSION,
@@ -94,14 +121,8 @@ export function createManifest(
     updatedAt: now,
 
     fileName: task.fileName,
-    sourceFilePath: task.originFileURL,
     sourceContentHash: hashContent(task.fileContent),
     sourceSize: Buffer.byteLength(task.fileContent, "utf-8"),
-
-    outputDir,
-    completedOutputPath: paths.completedPath,
-    remainingOutputPath: paths.remainingPath,
-    errorLogPath: paths.errorLogPath,
 
     options: {
       fileType: detectFileType(task.fileName),
@@ -131,7 +152,65 @@ export async function loadManifest(
   manifestPath: string,
 ): Promise<TranslationCheckpointManifest> {
   const raw = await fs.readFile(manifestPath, "utf-8");
-  return JSON.parse(raw) as TranslationCheckpointManifest;
+  return parseCheckpointManifest(JSON.parse(raw));
+}
+
+export function parseCheckpointManifest(
+  value: unknown,
+): TranslationCheckpointManifest {
+  if (!value || typeof value !== "object") {
+    throw new Error("Checkpoint manifest is not an object.");
+  }
+  const version = (value as { schemaVersion?: unknown }).schemaVersion;
+  if (version !== 1 && version !== CURRENT_SCHEMA_VERSION) {
+    throw new Error(`Unsupported checkpoint schema version: ${String(version)}`);
+  }
+  return value as TranslationCheckpointManifest;
+}
+
+export function toCurrentManifest(
+  manifest: TranslationCheckpointManifest,
+): TranslationCheckpointManifestV2 {
+  return {
+    schemaVersion: CURRENT_SCHEMA_VERSION,
+    taskId: manifest.taskId,
+    status: manifest.status,
+    createdAt: manifest.createdAt,
+    updatedAt: manifest.updatedAt,
+    fileName: manifest.fileName,
+    sourceContentHash: manifest.sourceContentHash,
+    ...(manifest.sourceSize === undefined
+      ? {}
+      : { sourceSize: manifest.sourceSize }),
+    options: {
+      fileType: manifest.options.fileType,
+      sliceType: manifest.options.sliceType,
+      ...(manifest.options.customSliceLength === undefined
+        ? {}
+        : { customSliceLength: manifest.options.customSliceLength }),
+      sourceLang: manifest.options.sourceLang,
+      targetLang: manifest.options.targetLang,
+      translationOutputMode: manifest.options.translationOutputMode,
+    },
+    fragments: manifest.fragments.map((fragment) => ({
+      index: fragment.index,
+      sourceHash: fragment.sourceHash,
+      sourceContent: fragment.sourceContent,
+      ...(fragment.translatedContent === undefined
+        ? {}
+        : { translatedContent: fragment.translatedContent }),
+      status: fragment.status,
+      attempts: fragment.attempts,
+      ...(fragment.error === undefined ? {} : { error: fragment.error }),
+      ...(fragment.startedAt === undefined
+        ? {}
+        : { startedAt: fragment.startedAt }),
+      ...(fragment.completedAt === undefined
+        ? {}
+        : { completedAt: fragment.completedAt }),
+      ...(fragment.model === undefined ? {} : { model: fragment.model }),
+    })),
+  };
 }
 
 export type ValidationResult =
@@ -147,10 +226,6 @@ export function validateManifest(
   task: SubtitleTranslatorTask,
   currentFragments: string[],
 ): ValidationResult {
-  if (manifest.schemaVersion !== CURRENT_SCHEMA_VERSION) {
-    return { valid: false, reason: `不支持的 schema 版本: ${manifest.schemaVersion}` };
-  }
-
   const currentHash = hashContent(task.fileContent);
   if (manifest.sourceContentHash !== currentHash) {
     return { valid: false, reason: "源文件内容已变化" };
@@ -210,12 +285,41 @@ export function validateManifest(
 export function validateManifestSelfContained(
   manifest: TranslationCheckpointManifest,
 ): ValidationResult {
-  if (manifest.schemaVersion !== CURRENT_SCHEMA_VERSION) {
-    return { valid: false, reason: `不支持的 schema 版本: ${manifest.schemaVersion}` };
+  if (!manifest.fileName || !manifest.options || !manifest.fragments) {
+    return { valid: false, reason: "缺少必要字段" };
   }
 
-  if (!manifest.fileName || !manifest.outputDir || !manifest.options || !manifest.fragments) {
-    return { valid: false, reason: "缺少必要字段" };
+  if (
+    path.basename(manifest.fileName) !== manifest.fileName ||
+    ![".lrc", ".srt"].includes(path.extname(manifest.fileName).toLowerCase())
+  ) {
+    return { valid: false, reason: "fileName 不是受支持的安全字幕文件名" };
+  }
+
+  if (!(["running", "failed", "cancelled", "completed"] as const)
+    .includes(manifest.status)) {
+    return { valid: false, reason: "status 无效" };
+  }
+
+  const options = manifest.options;
+  if (
+    !([SubtitleFileType.LRC, SubtitleFileType.SRT] as const)
+      .includes(options.fileType) ||
+    !([SubtitleSliceType.NORMAL, SubtitleSliceType.SENSITIVE,
+      SubtitleSliceType.CUSTOM] as const).includes(options.sliceType) ||
+    typeof options.sourceLang !== "string" ||
+    options.sourceLang.length === 0 ||
+    options.sourceLang.length > 16 ||
+    typeof options.targetLang !== "string" ||
+    options.targetLang.length === 0 ||
+    options.targetLang.length > 16 ||
+    !(["bilingual", "target_only"] as const)
+      .includes(options.translationOutputMode) ||
+    (options.sliceType === SubtitleSliceType.CUSTOM &&
+      (!Number.isSafeInteger(options.customSliceLength) ||
+        (options.customSliceLength ?? 0) <= 0))
+  ) {
+    return { valid: false, reason: "options 无效" };
   }
 
   if (!Array.isArray(manifest.fragments) || manifest.fragments.length === 0) {
@@ -224,13 +328,30 @@ export function validateManifestSelfContained(
 
   const indexes = new Set<number>();
   for (const frag of manifest.fragments) {
-    if (typeof frag.index !== "number" || indexes.has(frag.index)) {
+    if (
+      !Number.isSafeInteger(frag.index) ||
+      frag.index < 0 ||
+      indexes.has(frag.index)
+    ) {
       return { valid: false, reason: `fragment index 不连续或重复: ${frag.index}` };
     }
     indexes.add(frag.index);
 
-    if (!frag.sourceContent || !frag.sourceHash) {
+    if (
+      typeof frag.sourceContent !== "string" ||
+      frag.sourceContent.length === 0 ||
+      typeof frag.sourceHash !== "string"
+    ) {
       return { valid: false, reason: `第 ${frag.index} 个 fragment 缺少 sourceContent 或 sourceHash` };
+    }
+
+    if (
+      !(["pending", "running", "resolved", "failed"] as const)
+        .includes(frag.status) ||
+      !Number.isSafeInteger(frag.attempts) ||
+      frag.attempts < 0
+    ) {
+      return { valid: false, reason: `第 ${frag.index} 个 fragment 状态无效` };
     }
 
     const computedHash = hashContent(frag.sourceContent);
@@ -238,9 +359,18 @@ export function validateManifestSelfContained(
       return { valid: false, reason: `第 ${frag.index} 个 fragment hash 校验失败` };
     }
 
-    if (frag.status === "resolved" && !frag.translatedContent) {
+    if (
+      frag.status === "resolved" &&
+      (typeof frag.translatedContent !== "string" ||
+        frag.translatedContent.length === 0)
+    ) {
       return { valid: false, reason: `第 ${frag.index} 个 fragment 标记为 resolved 但无译文` };
     }
+  }
+
+  const sortedIndexes = [...indexes].sort((left, right) => left - right);
+  if (sortedIndexes.some((index, position) => index !== position)) {
+    return { valid: false, reason: "fragment index 不连续" };
   }
 
   return { valid: true };
@@ -283,6 +413,24 @@ export async function saveManifest(
   manifest: TranslationCheckpointManifest,
 ): Promise<void> {
   await atomicWriteJSON(manifestPath, manifest);
+}
+
+export async function saveCompletionSummary(
+  summaryPath: string,
+  manifest: TranslationCheckpointManifest,
+  finalFileName: string,
+): Promise<void> {
+  await atomicWriteJSON(summaryPath, {
+    schemaVersion: 1,
+    taskId: manifest.taskId,
+    status: "completed",
+    createdAt: manifest.createdAt,
+    updatedAt: manifest.updatedAt,
+    fileName: manifest.fileName,
+    finalFileName,
+    resolvedFragments: getResolvedCount(manifest),
+    totalFragments: manifest.fragments.length,
+  });
 }
 
 // ─── Fragment helpers ───────────────────────────────────────────────────────
@@ -348,17 +496,14 @@ export function markFragmentFailed(
 
 export function buildRecoverySummary(
   manifest: TranslationCheckpointManifest,
-  manifestPath: string,
+  checkpointRef: string,
 ): SubtitleTranslationRecovery {
   const failedIndexes = manifest.fragments
     .filter((f) => f.status === "failed")
     .map((f) => f.index);
 
   return {
-    checkpointPath: manifestPath,
-    completedOutputPath: manifest.completedOutputPath,
-    remainingOutputPath: manifest.remainingOutputPath,
-    errorLogPath: manifest.errorLogPath,
+    checkpointRef,
     resumable: true,
     failedFragmentIndexes: failedIndexes.length > 0 ? failedIndexes : undefined,
     resolvedFragments: getResolvedCount(manifest),

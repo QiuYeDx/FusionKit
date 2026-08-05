@@ -70,7 +70,7 @@ describe("subtitle translator config bootstrap import ordering", () => {
       },
     });
     expect(storage.values.get("subtitle-translator-source-lang")).toBe("EN");
-    expect(storage.values.get("fusionkit-subtitle-translator")).toContain(
+    expect(storage.values.get("fusionkit-subtitle-translator")).not.toContain(
       "private-output-path",
     );
   });
@@ -91,6 +91,9 @@ describe("subtitle translator config bootstrap import ordering", () => {
     expect(
       failedModule.bootstrapLegacySubtitleTranslatorConfig(storage.localStorage),
     ).toBe("migrated");
+    expect(storage.values.get("fusionkit-subtitle-translator")).not.toContain(
+      "private-output-path",
+    );
     expect(failedModule.default.getState().migrationStatus).toBe("failed");
 
     vi.resetModules();

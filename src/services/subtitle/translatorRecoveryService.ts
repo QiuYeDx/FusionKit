@@ -1,40 +1,42 @@
-/**
- * 字幕翻译 - 恢复发现 Service
- *
- * 集中管理恢复相关 IPC 调用，页面和 store 不直接引用 IPC channel 字符串。
- */
-
 import type {
-  TranslationRecoveryScanRequest,
-  TranslationRecoveryScanResult,
-  TranslationRecoveryCandidate,
-  TranslationRecoveryImportRequest,
-  RecoveredSubtitleTaskDraft,
-} from "@/type/subtitle";
+  SubtitleTranslationPreparedRecoveryBatch,
+  SubtitleTranslationRecoveryScanSelection,
+} from "@/type/subtitleTranslationIpc";
 
-export function scanTranslationRecoveryArtifacts(
-  request: TranslationRecoveryScanRequest,
-): Promise<TranslationRecoveryScanResult> {
-  return window.ipcRenderer.invoke(
-    "scan-translation-recovery-artifacts",
-    request,
-  );
+export async function selectTranslationRecoveryDirectory(
+  includeCompleted = false,
+): Promise<SubtitleTranslationRecoveryScanSelection> {
+  const result = await window.subtitleTranslationApi.selectRecoveryDirectory({
+    includeCompleted,
+  });
+  if (!result.ok) throw new Error(result.error.message);
+  return result.data;
 }
 
-export function inspectTranslationRecoveryArtifact(
-  checkpointPath: string,
-): Promise<TranslationRecoveryCandidate> {
-  return window.ipcRenderer.invoke(
-    "inspect-translation-recovery-artifact",
-    checkpointPath,
-  );
+export async function selectTranslationRecoveryManifest(): Promise<
+  SubtitleTranslationRecoveryScanSelection
+> {
+  const result = await window.subtitleTranslationApi.selectRecoveryManifest();
+  if (!result.ok) throw new Error(result.error.message);
+  return result.data;
 }
 
-export function createRecoveredSubtitleTaskDraft(
-  request: TranslationRecoveryImportRequest,
-): Promise<RecoveredSubtitleTaskDraft> {
-  return window.ipcRenderer.invoke(
-    "create-recovered-subtitle-task-draft",
+export async function prepareRecoveredSubtitleTasks(request: {
+  readonly recoveryScanId: string;
+  readonly directoryToken: string;
+  readonly candidateIds?: readonly string[];
+  readonly batchStart?: number;
+  readonly batchSize?: number;
+}): Promise<SubtitleTranslationPreparedRecoveryBatch> {
+  const result = await window.subtitleTranslationApi.prepareRecoveredTasks(
     request,
   );
+  if (!result.ok) throw new Error(result.error.message);
+  return result.data;
+}
+
+export async function revokeTranslationRecoveryScan(
+  recoveryScanId: string,
+): Promise<void> {
+  await window.subtitleTranslationApi.revokeRecoveryScan(recoveryScanId);
 }

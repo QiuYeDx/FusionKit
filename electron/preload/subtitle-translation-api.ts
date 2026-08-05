@@ -24,6 +24,8 @@ import {
   type SubtitleTranslationOwnerSessionRegistration,
   type SubtitleTranslationPreloadInternalChannel,
   type SubtitleTranslationRendererApi,
+  type SubtitleTranslationPreparedRecoveryBatch,
+  type SubtitleTranslationRecoveryScanSelection,
   type SubtitleTranslationTaskTargetReauthorization,
   type SubtitleTranslationTaskSourceReveal,
 } from "@/type/subtitleTranslationIpc";
@@ -198,6 +200,42 @@ export function createSubtitleTranslationRendererApi({
     releaseGeneratedTask(taskId) {
       return invoke<{ readonly released: boolean }>(
         SUBTITLE_TRANSLATION_PRELOAD_INTERNAL_CHANNELS.releaseGeneratedTask,
+        { taskId },
+      );
+    },
+    selectRecoveryDirectory(request = {}) {
+      return invoke<SubtitleTranslationRecoveryScanSelection>(
+        SUBTITLE_TRANSLATION_PRELOAD_INTERNAL_CHANNELS.selectRecoveryDirectory,
+        request,
+      );
+    },
+    selectRecoveryManifest() {
+      return invoke<SubtitleTranslationRecoveryScanSelection>(
+        SUBTITLE_TRANSLATION_PRELOAD_INTERNAL_CHANNELS.selectRecoveryManifest,
+        {},
+      );
+    },
+    prepareRecoveredTasks(request) {
+      return invoke<SubtitleTranslationPreparedRecoveryBatch>(
+        SUBTITLE_TRANSLATION_PRELOAD_INTERNAL_CHANNELS.prepareRecoveredTasks,
+        request,
+      );
+    },
+    revokeRecoveryScan(recoveryScanId) {
+      return invoke<{ readonly released: boolean }>(
+        SUBTITLE_TRANSLATION_PRELOAD_INTERNAL_CHANNELS.revokeRecoveryScan,
+        { recoveryScanId },
+      );
+    },
+    revealRecoveryCheckpoint(checkpointRef) {
+      return invoke<{ readonly revealed: boolean }>(
+        SUBTITLE_TRANSLATION_PRELOAD_INTERNAL_CHANNELS.revealRecoveryCheckpoint,
+        { checkpointRef },
+      );
+    },
+    revealTaskOutput(taskId) {
+      return invoke<{ readonly revealed: boolean }>(
+        SUBTITLE_TRANSLATION_PRELOAD_INTERNAL_CHANNELS.revealTaskOutput,
         { taskId },
       );
     },

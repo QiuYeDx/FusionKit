@@ -41,8 +41,6 @@ function makeTask(name: string, overrides?: Partial<SubtitleTranslatorTask>): Su
     fileName: name,
     fileContent: "",
     sliceType: SubtitleSliceType.NORMAL,
-    originFileURL: `/in/${name}`,
-    targetFileURL: `/out/${name}`,
     status: TaskStatus.NOT_STARTED,
     executionBinding: {
       status: "ready",
@@ -347,7 +345,7 @@ describe("completeTaskProgress", () => {
 // ─── resolveTask ─────────────────────────────────────────────────────────────
 
 describe("resolveTask", () => {
-  it("patches outputFilePath when task is already in resolved (progress arrived first)", () => {
+  it("patches outputFileName when task is already in resolved (progress arrived first)", () => {
     const state: TranslatorQueueState = {
       ...emptyState(),
       resolvedTaskQueue: [
@@ -357,16 +355,16 @@ describe("resolveTask", () => {
     const result = resolveTask(
       state,
       taskId("a.srt"),
-      "/out/a_translated.srt",
+      "a_translated.srt",
       MAX,
     );
-    expect(result.state.resolvedTaskQueue[0].extraInfo?.outputFilePath).toBe(
-      "/out/a_translated.srt",
+    expect(result.state.resolvedTaskQueue[0].extraInfo?.outputFileName).toBe(
+      "a_translated.srt",
     );
     expect(result.effects).toHaveLength(0);
   });
 
-  it("moves from pending to resolved with outputFilePath", () => {
+  it("moves from pending to resolved with outputFileName", () => {
     const state: TranslatorQueueState = {
       ...emptyState(),
       pendingTaskQueue: [pendingTask("a.srt")],
@@ -374,13 +372,13 @@ describe("resolveTask", () => {
     const result = resolveTask(
       state,
       taskId("a.srt"),
-      "/out/a_translated.srt",
+      "a_translated.srt",
       MAX,
     );
     expect(result.state.pendingTaskQueue).toHaveLength(0);
     expect(result.state.resolvedTaskQueue).toHaveLength(1);
-    expect(result.state.resolvedTaskQueue[0].extraInfo?.outputFilePath).toBe(
-      "/out/a_translated.srt",
+    expect(result.state.resolvedTaskQueue[0].extraInfo?.outputFileName).toBe(
+      "a_translated.srt",
     );
   });
 });
@@ -529,9 +527,7 @@ describe("retryTask", () => {
           resolvedFragments: 1,
           totalFragments: 2,
           recovery: {
-            checkpointPath: "/tmp/a.resume.json",
-            completedOutputPath: "/tmp/a.completed.srt",
-            remainingOutputPath: "/tmp/a.remaining.srt",
+            checkpointRef: "checkpoint-a",
             failedFragmentIndexes: [],
           },
         }),

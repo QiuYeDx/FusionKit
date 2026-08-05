@@ -16,6 +16,7 @@
 
 import { promises as fs } from "fs";
 import path from "path";
+import { randomUUID } from "node:crypto";
 import { DEFAULT_SLICE_LENGTH_MAP } from "../constants";
 import {
   SubtitleFileType,
@@ -41,8 +42,10 @@ import {
   validateManifest,
   validateManifestSelfContained,
   getManifestFragments,
+  toCurrentManifest,
   CheckpointWriter,
   buildCheckpointPaths,
+  type CheckpointArtifactPaths,
   getIncompleteIndexes,
   getResolvedCount,
   allFragmentsResolved,
@@ -50,6 +53,7 @@ import {
   markFragmentResolved,
   markFragmentFailed,
   buildRecoverySummary,
+  saveCompletionSummary,
 } from "../checkpoint";
 import {
   flushRecoveryArtifacts,
@@ -129,6 +133,8 @@ export abstract class BaseTranslator {
 
     let manifest: TranslationCheckpointManifest | undefined;
     let manifestPath: string | undefined;
+    let artifactPaths: CheckpointArtifactPaths | undefined;
+    let checkpointRef: string | undefined;
     let cpWriter: CheckpointWriter | undefined;
 
     try {
@@ -153,7 +159,8 @@ export abstract class BaseTranslator {
       // ── checkpoint 加载或创建 ─────────────────────────────────────────
       await runtimeAuthorization?.revalidateTarget();
       await fs.mkdir(outputDir, { recursive: true });
-      const paths = buildCheckpointPaths(outputDir, task.fileName);
+      const paths = buildCheckpointPaths(outputDir, task.fileName, task.taskId);
+      artifactPaths = paths;
       manifestPath = paths.manifestPath;
 
       const recoveryMode = task.recoveryMode || "auto";
@@ -169,10 +176,9 @@ export abstract class BaseTranslator {
           const loaded = await loadManifest(task.checkpointPath);
           const selfValidation = validateManifestSelfContained(loaded);
           if (selfValidation.valid) {
-            manifest = loaded;
+            manifest = toCurrentManifest(loaded);
             manifest.status = "running";
             manifest.updatedAt = new Date().toISOString();
-            manifestPath = task.checkpointPath;
             fragments = getManifestFragments(manifest);
             errorLogs.push(
               `[${new Date().toISOString()}] manifest_fragments 模式续跑，已完成 ${getResolvedCount(manifest)}/${manifest.fragments.length} 个分片`,
@@ -195,10 +201,9 @@ export abstract class BaseTranslator {
             const loaded = await loadManifest(task.checkpointPath);
             const validation = validateManifest(loaded, task, fragments);
             if (validation.valid) {
-              manifest = loaded;
+              manifest = toCurrentManifest(loaded);
               manifest.status = "running";
               manifest.updatedAt = new Date().toISOString();
-              manifestPath = task.checkpointPath;
               errorLogs.push(
                 `[${new Date().toISOString()}] 从 checkpoint 续跑，已完成 ${getResolvedCount(manifest)}/${manifest.fragments.length} 个分片`,
               );
@@ -226,15 +231,25 @@ export abstract class BaseTranslator {
       );
 
       if (!manifest) {
-        manifest = createManifest(task, fragments, outputDir);
+        manifest = createManifest(task, fragments);
       }
 
       cpWriter = new CheckpointWriter(manifestPath);
       await cpWriter.write(manifest);
-      await flushRecoveryArtifacts(manifest);
+      checkpointRef = await runtimeAuthorization?.authorizeCheckpoint(
+        manifestPath,
+      );
+      await flushRecoveryArtifacts(manifest, paths);
 
       const resolvedBefore = getResolvedCount(manifest);
-      this.updateProgress(task, resolvedBefore, fragments.length, manifest, manifestPath);
+      this.updateProgress(
+        task,
+        resolvedBefore,
+        fragments.length,
+        manifest,
+        checkpointRef,
+        runtimeAuthorization,
+      );
 
       // ── 翻译分片 ─────────────────────────────────────────────────────
       if (task.concurrentSlices && fragments.length > 1) {
@@ -248,7 +263,9 @@ export abstract class BaseTranslator {
           errorLogs,
           manifest,
           cpWriter,
-          manifestPath,
+          paths,
+          checkpointRef,
+          runtimeAuthorization,
         );
       } else {
         await this.translateFragmentsSequentially(
@@ -258,7 +275,9 @@ export abstract class BaseTranslator {
           errorLogs,
           manifest,
           cpWriter,
-          manifestPath,
+          paths,
+          checkpointRef,
+          runtimeAuthorization,
         );
       }
 
@@ -272,7 +291,7 @@ export abstract class BaseTranslator {
       const translatedContent = buildFinalContent(manifest, this.fragmentSeparator);
 
       errorLogs.push(
-        `[${new Date().toISOString()}] 开始写入文件到: ${task.targetFileURL}`,
+        `[${new Date().toISOString()}] 开始写入最终字幕文件`,
       );
       await runtimeAuthorization?.revalidateTarget();
       const finalPath = await this.writeFile(
@@ -283,27 +302,42 @@ export abstract class BaseTranslator {
         runtimeAuthorization,
       );
       errorLogs.push(
-        `[${new Date().toISOString()}] 文件写入完成: ${finalPath}`,
+        `[${new Date().toISOString()}] 最终字幕文件写入完成: ${path.basename(finalPath)}`,
       );
 
       manifest.status = "completed";
-      manifest.finalOutputPath = finalPath;
       manifest.updatedAt = new Date().toISOString();
       await cpWriter.write(manifest);
 
-      await cleanupOnSuccess(manifest, manifestPath);
-
-      const mainWindow = BrowserWindow.getAllWindows()[0];
-      if (mainWindow) {
-        mainWindow.webContents.send("task-resolved", {
-          taskId: task.taskId,
-          fileName: task.fileName,
-          outputFilePath: finalPath,
-          finalFileName: path.basename(finalPath),
-        });
+      await runtimeAuthorization?.recordFinalOutput(finalPath);
+      await saveCompletionSummary(
+        paths.completionSummaryPath,
+        manifest,
+        path.basename(finalPath),
+      );
+      const cleanupFailures = await cleanupOnSuccess(paths);
+      for (const failure of cleanupFailures) {
+        const warning = `Recovery ${failure.artifact} cleanup failed after bounded retries: ${failure.reason}`;
+        console.warn(`[base-translator] ${warning}`);
+        errorLogs.push(`[${new Date().toISOString()}] ${warning}`);
       }
+      runtimeAuthorization?.releaseCheckpoint();
+      checkpointRef = undefined;
 
-      this.updateProgress(task, fragments.length, fragments.length);
+      this.emit(runtimeAuthorization, "task-resolved", {
+        taskId: task.taskId,
+        fileName: task.fileName,
+        outputFileName: path.basename(finalPath),
+      });
+
+      this.updateProgress(
+        task,
+        fragments.length,
+        fragments.length,
+        undefined,
+        undefined,
+        runtimeAuthorization,
+      );
       errorLogs.push(`[${new Date().toISOString()}] 任务完成`);
     } catch (error) {
       const errorDetails =
@@ -317,35 +351,37 @@ export abstract class BaseTranslator {
 
       // flush checkpoint & recovery artifacts on failure
       let recovery: SubtitleTranslationRecovery | undefined;
-      if (manifest && cpWriter && manifestPath) {
+      if (manifest && cpWriter && manifestPath && artifactPaths) {
         try {
-          manifest.status = "failed";
+          manifest.status = error instanceof Error && error.name === "AbortError"
+            ? "cancelled"
+            : "failed";
           manifest.updatedAt = new Date().toISOString();
           await cpWriter.write(manifest);
-          await flushRecoveryArtifacts(manifest, errorLogs);
-          recovery = buildRecoverySummary(manifest, manifestPath);
+          if (runtimeAuthorization) {
+            checkpointRef = await runtimeAuthorization.authorizeCheckpoint(
+              manifestPath,
+            );
+          }
+          await flushRecoveryArtifacts(manifest, artifactPaths, errorLogs);
+          recovery = checkpointRef
+            ? buildRecoverySummary(manifest, checkpointRef)
+            : undefined;
         } catch (flushErr) {
           console.error("[base-translator] flush checkpoint failed:", flushErr);
         }
       }
 
-      const mainWindow = BrowserWindow.getAllWindows()[0];
-      if (mainWindow) {
-        mainWindow.webContents.send("task-failed", {
-          taskId: task.taskId,
-          fileName: task.fileName,
-          error: errorDetails,
-          message: "请求接口失败",
-          errorLogs: errorLogs,
-          timestamp: startTime,
-          stackTrace: stackTrace,
-          recovery,
-        });
-      } else {
-        console.error(
-          "[base-translator] main window not fount, updateProgress failed",
-        );
-      }
+      this.emit(runtimeAuthorization, "task-failed", {
+        taskId: task.taskId,
+        fileName: task.fileName,
+        error: errorDetails,
+        message: "请求接口失败",
+        errorLogs: errorLogs,
+        timestamp: startTime,
+        stackTrace: stackTrace,
+        recovery,
+      });
 
       console.error("[base-translator] error in translating:", error);
       throw error;
@@ -363,7 +399,9 @@ export abstract class BaseTranslator {
     errorLogs: string[],
     manifest: TranslationCheckpointManifest,
     cpWriter: CheckpointWriter,
-    manifestPath: string,
+    artifactPaths: CheckpointArtifactPaths,
+    checkpointRef: string | undefined,
+    runtimeAuthorization: SubtitleTranslationRuntimeAuthorization | undefined,
   ): Promise<void> {
     const incompleteSet = new Set(getIncompleteIndexes(manifest));
 
@@ -394,13 +432,20 @@ export abstract class BaseTranslator {
         markFragmentResolved(cpFragment, result);
         manifest.updatedAt = new Date().toISOString();
         await cpWriter.write(manifest);
-        await flushRecoveryArtifacts(manifest);
+        await flushRecoveryArtifacts(manifest, artifactPaths);
 
         const resolved = getResolvedCount(manifest);
         errorLogs.push(
           `[${new Date().toISOString()}] 第 ${index + 1} 个分片翻译完成 (${resolved}/${fragments.length})`,
         );
-        this.updateProgress(task, resolved, fragments.length, manifest, manifestPath);
+        this.updateProgress(
+          task,
+          resolved,
+          fragments.length,
+          manifest,
+          checkpointRef,
+          runtimeAuthorization,
+        );
       } catch (fragmentError) {
         markFragmentFailed(
           cpFragment,
@@ -427,7 +472,9 @@ export abstract class BaseTranslator {
     errorLogs: string[],
     manifest: TranslationCheckpointManifest,
     cpWriter: CheckpointWriter,
-    manifestPath: string,
+    artifactPaths: CheckpointArtifactPaths,
+    checkpointRef: string | undefined,
+    runtimeAuthorization: SubtitleTranslationRuntimeAuthorization | undefined,
   ): Promise<void> {
     const pendingIndexes = getIncompleteIndexes(manifest);
     if (pendingIndexes.length === 0) return;
@@ -464,13 +511,20 @@ export abstract class BaseTranslator {
           markFragmentResolved(cpFragment, result);
           manifest.updatedAt = new Date().toISOString();
           await cpWriter.write(manifest);
-          await flushRecoveryArtifacts(manifest);
+          await flushRecoveryArtifacts(manifest, artifactPaths);
 
           const resolved = getResolvedCount(manifest);
           errorLogs.push(
             `[${new Date().toISOString()}] [并发] 第 ${index + 1} 个分片翻译完成 (${resolved}/${fragments.length})`,
           );
-          this.updateProgress(task, resolved, fragments.length, manifest, manifestPath);
+          this.updateProgress(
+            task,
+            resolved,
+            fragments.length,
+            manifest,
+            checkpointRef,
+            runtimeAuthorization,
+          );
         } catch (err) {
           failed = true;
           markFragmentFailed(
@@ -495,7 +549,8 @@ export abstract class BaseTranslator {
     current: number,
     total: number,
     manifest?: TranslationCheckpointManifest,
-    manifestPath?: string,
+    checkpointRef?: string,
+    runtimeAuthorization?: SubtitleTranslationRuntimeAuthorization,
   ) {
     task.resolvedFragments = current;
     task.totalFragments = total;
@@ -509,24 +564,32 @@ export abstract class BaseTranslator {
       progress: task.progress,
     };
 
-    if (manifest && manifestPath) {
+    if (manifest && checkpointRef) {
       payload.recovery = {
-        checkpointPath: manifestPath,
-        completedOutputPath: manifest.completedOutputPath,
-        remainingOutputPath: manifest.remainingOutputPath,
+        checkpointRef,
+        resumable: true,
+        resolvedFragments: getResolvedCount(manifest),
+        totalFragments: manifest.fragments.length,
       } satisfies Pick<
         SubtitleTranslationRecovery,
-        "checkpointPath" | "completedOutputPath" | "remainingOutputPath"
+        "checkpointRef" | "resumable" | "resolvedFragments" | "totalFragments"
       >;
     }
 
-    const mainWindow = BrowserWindow.getAllWindows()[0];
-    if (mainWindow) {
-      console.log("发送进度更新:", payload);
-      mainWindow.webContents.send("update-progress", payload);
-    } else {
-      console.error("未找到主窗口，无法发送进度更新");
+    this.emit(runtimeAuthorization, "update-progress", payload);
+  }
+
+  private emit(
+    runtimeAuthorization: SubtitleTranslationRuntimeAuthorization | undefined,
+    channel: string,
+    payload: unknown,
+  ): void {
+    if (runtimeAuthorization) {
+      runtimeAuthorization.emit(channel, payload);
+      return;
     }
+    const mainWindow = BrowserWindow.getAllWindows()[0];
+    mainWindow?.webContents.send(channel, payload);
   }
 
   /**
@@ -564,7 +627,22 @@ export abstract class BaseTranslator {
       }
 
       await runtimeAuthorization?.validateOutputPath(finalPath);
-      await fs.writeFile(finalPath, content, "utf-8");
+      const temporaryLeaf = buildTemporaryOutputLeaf(parsed.ext);
+      const temporaryPath = path.join(absoluteOutputDir, temporaryLeaf);
+      await runtimeAuthorization?.validateOutputPath(temporaryPath);
+      let handle: Awaited<ReturnType<typeof fs.open>> | undefined;
+      try {
+        handle = await fs.open(temporaryPath, "wx", 0o600);
+        await handle.writeFile(content, "utf-8");
+        await handle.sync();
+        await handle.close();
+        handle = undefined;
+        await runtimeAuthorization?.revalidateTarget();
+        await fs.rename(temporaryPath, finalPath);
+      } finally {
+        await handle?.close().catch(() => undefined);
+        await fs.rm(temporaryPath, { force: true }).catch(() => undefined);
+      }
       console.log("文件已成功写入:", path.basename(finalPath));
       return finalPath;
     } catch (error) {
@@ -823,4 +901,9 @@ export abstract class BaseTranslator {
     const delay = parseInt(retryAfter) * 1000;
     await new Promise((r) => setTimeout(r, delay));
   }
+}
+
+function buildTemporaryOutputLeaf(extension: string): string {
+  const safeExtension = extension.length <= 16 ? extension : "";
+  return `.fusionkit-${randomUUID()}${safeExtension}.tmp`;
 }

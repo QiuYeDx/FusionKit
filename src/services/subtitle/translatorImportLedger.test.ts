@@ -22,8 +22,6 @@ function task(id: string, fileName = "generated.srt"): SubtitleTranslatorTask {
     fileName,
     fileContent: "private subtitle content",
     sliceType: SubtitleSliceType.NORMAL,
-    originFileURL: "/legacy/not-used/input.srt",
-    targetFileURL: "/legacy/not-used/output",
     status: TaskStatus.NOT_STARTED,
     executionBinding: { status: "needs_configuration" },
   };
