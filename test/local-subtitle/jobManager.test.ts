@@ -135,6 +135,63 @@ describe("LocalSubtitleJobManager", () => {
     expect(Object.isFrozen(context.config)).toBe(true);
   });
 
+  it("freezes a translation snapshot and accepts one immutable post-action receipt", async () => {
+    const harness = await createHarness({
+      executor: executor(async (context) => successfulExecution(context)),
+    });
+    const request = await harness.createRequest(harness.fileToken);
+    request.config.postAction = {
+      mode: "enqueue_and_start_translation",
+      preferredFormat: "SRT",
+      translationSnapshotId: "translation-snapshot-1",
+    };
+
+    const batch = await harness.manager.enqueue(OWNER_A, request);
+    expect(batch).toMatchObject({
+      config: {
+        postActionMode: "enqueue_and_start_translation",
+        preferredHandoffFormat: "SRT",
+      },
+      tasks: [{
+        postAction: {
+          mode: "enqueue_and_start_translation",
+          preferredFormat: "SRT",
+          importStatus: "pending",
+          startStatus: "not_requested",
+        },
+      }],
+    });
+    expect(JSON.stringify(batch)).not.toContain("translation-snapshot-1");
+
+    harness.flushScheduled();
+    await harness.manager.waitForIdle();
+    const completion = {
+      taskId: "task-1",
+      generation: 1,
+      postAction: {
+        mode: "enqueue_and_start_translation" as const,
+        preferredFormat: "SRT" as const,
+        importStatus: "queued" as const,
+        startStatus: "started" as const,
+        importReceiptId: "receipt-1",
+        translationTaskId: "translation-task-1",
+      },
+    };
+    const completed = harness.manager.completePostAction(OWNER_A, completion);
+    expect(completed.postAction).toEqual(completion.postAction);
+    expect(harness.manager.completePostAction(OWNER_A, completion)).toEqual(
+      completed,
+    );
+
+    expect(() => harness.manager.completePostAction(OWNER_A, {
+      ...completion,
+      postAction: {
+        ...completion.postAction,
+        startStatus: "waiting",
+      },
+    })).toThrow("already complete");
+  });
+
   it("promotes an explicit draft stream selection into the task lifecycle", async () => {
     const harness = await createHarness({
       executor: executor(async (context) => successfulExecution(context)),

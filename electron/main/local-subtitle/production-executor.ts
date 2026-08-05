@@ -1383,8 +1383,7 @@ function isSupportedBatchExecutionContext(
     supportsConflictPolicy(context.config.output.conflictPolicy) &&
     isSupportedProductionFormats(context.config.output.formats) &&
     context.config.taskMode === "transcribe" &&
-    context.config.inference.vad.enabled === false &&
-    context.config.postAction.mode === "export_only"
+    context.config.inference.vad.enabled === false
   );
 }
 
@@ -1399,8 +1398,7 @@ function isSupportedExecutionContext(
     isSupportedProductionFormats(context.config.output.formats) &&
     isSupportedBackendResolutionContext(context) &&
     context.config.taskMode === "transcribe" &&
-    context.config.inference.vad.enabled === false &&
-    context.config.postAction.mode === "export_only"
+    context.config.inference.vad.enabled === false
   );
 }
 

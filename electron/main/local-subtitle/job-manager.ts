@@ -30,10 +30,12 @@ import {
 import {
   enqueueLocalSubtitleBatchRequestSchema,
   localSubtitleBackendPreviewRequestSchema,
+  localSubtitleCompletePostActionRequestSchema,
   localSubtitleCpuRetryRequestSchema,
   type EnqueueLocalSubtitleBatchRequest,
   type LocalSubtitleBackendPreviewRequest,
   type LocalSubtitleBackendPreviewSummary,
+  type LocalSubtitleCompletePostActionRequest,
   type LocalSubtitleCpuRetryRequest,
 } from "@/type/localSubtitleIpc";
 import {
@@ -956,6 +958,54 @@ export class LocalSubtitleJobManager {
     this.#stopLeaseRenewalIfIdle();
     this.#flushIdleWaiters();
     return Object.freeze({ removed: removed !== undefined });
+  }
+
+  completePostAction(
+    owner: LocalSubtitleOwnerKey,
+    request: LocalSubtitleCompletePostActionRequest,
+  ): LocalSubtitleTaskSummary {
+    this.#assertOwnerAvailable(owner);
+    const parsed = parseCompletePostActionRequest(request);
+    const record = this.#ownedTask(owner, parsed.taskId);
+    const current = record
+      ? this.#registry.getTask(owner, parsed.taskId)
+      : undefined;
+    if (
+      !record ||
+      !current ||
+      record.state !== "terminal" ||
+      current.status !== "completed" ||
+      current.generation !== parsed.generation ||
+      current.postAction.mode === "export_only" ||
+      parsed.postAction.mode !== current.postAction.mode ||
+      parsed.postAction.preferredFormat !== current.postAction.preferredFormat
+    ) {
+      throw managerFailure(
+        "invalid_ipc_request",
+        "The local subtitle translation post action cannot be completed.",
+        "handoff",
+        "taskId",
+      );
+    }
+    if (isFinalPostAction(current.postAction)) {
+      if (samePostAction(current.postAction, parsed.postAction)) return current;
+      throw managerFailure(
+        "invalid_ipc_request",
+        "The local subtitle translation post action is already complete.",
+        "handoff",
+        "postAction",
+      );
+    }
+    const next = stripUndefined({
+      ...current,
+      postAction: { ...parsed.postAction },
+      updatedAt: this.#timestamp(),
+    });
+    const envelope = this.#registry.upsertTask(owner, next);
+    if (envelope.event.type !== "task-updated") {
+      throw managerFailure("invalid_content", "Post-action publication failed.");
+    }
+    return envelope.event.task;
   }
 
   getSessionSnapshot(owner: LocalSubtitleOwnerKey): LocalSubtitleSessionSnapshot {
@@ -2404,6 +2454,40 @@ function parseEnqueueRequest(input: unknown): EnqueueLocalSubtitleBatchRequest {
   return result.data;
 }
 
+function parseCompletePostActionRequest(
+  input: unknown,
+): LocalSubtitleCompletePostActionRequest {
+  const result = localSubtitleCompletePostActionRequestSchema.safeParse(input);
+  if (!result.success) {
+    throw managerFailure(
+      "invalid_ipc_request",
+      "The local subtitle post-action completion is invalid.",
+      "ipc",
+    );
+  }
+  return result.data;
+}
+
+function isFinalPostAction(state: LocalSubtitlePostActionState): boolean {
+  return state.importStatus === "queued" ||
+    state.importStatus === "skipped" ||
+    state.importStatus === "failed";
+}
+
+function samePostAction(
+  left: LocalSubtitlePostActionState,
+  right: LocalSubtitlePostActionState,
+): boolean {
+  return left.mode === right.mode &&
+    left.preferredFormat === right.preferredFormat &&
+    left.importStatus === right.importStatus &&
+    left.startStatus === right.startStatus &&
+    left.importReceiptId === right.importReceiptId &&
+    left.translationTaskId === right.translationTaskId &&
+    left.importErrorCode === right.importErrorCode &&
+    left.startFailureReason === right.startFailureReason;
+}
+
 function parseBackendPreviewRequest(
   input: unknown,
 ): LocalSubtitleBackendPreviewRequest {
@@ -2510,8 +2594,7 @@ function assertProductionBatchSliceRequest(
     config.vadEnabled === false &&
     (config.output.mode === "custom" || config.output.mode === "source") &&
     executor.supportsOutputConflictPolicy(config.output.conflictPolicy) &&
-    isSupportedProductionFormats(config.output.formats) &&
-    config.postAction.mode === "export_only";
+    isSupportedProductionFormats(config.output.formats);
   if (!supported) {
     throw managerFailure(
       "invalid_ipc_request",
@@ -2616,7 +2699,14 @@ function createConfigSnapshot(
       },
     },
     output,
-    postAction: { mode: "export_only" },
+    postAction: request.config.postAction.mode === "export_only"
+      ? { mode: "export_only" }
+      : {
+          mode: request.config.postAction.mode,
+          preferredFormat: request.config.postAction.preferredFormat,
+          translationSnapshotId:
+            request.config.postAction.translationSnapshotId,
+        },
   });
 }
 
@@ -2687,6 +2777,9 @@ function createBatchSummary(
       outputMode: record.config.output.mode,
       conflictPolicy: record.config.output.conflictPolicy,
       postActionMode: record.config.postAction.mode,
+      ...(record.config.postAction.mode === "export_only"
+        ? {}
+        : { preferredHandoffFormat: record.config.postAction.preferredFormat }),
     },
     tasks: [...tasks],
     createdAt,
@@ -2697,14 +2790,18 @@ function createBatchSummary(
 function initialPostAction(
   config: LocalSubtitleBatchConfigSnapshot,
 ): LocalSubtitlePostActionState {
-  if (config.postAction.mode !== "export_only") {
-    throw managerFailure("invalid_content", "Unsupported local subtitle post action.");
-  }
-  return Object.freeze({
-    mode: "export_only",
-    importStatus: "not_requested",
-    startStatus: "not_requested",
-  });
+  return config.postAction.mode === "export_only"
+    ? Object.freeze({
+        mode: "export_only" as const,
+        importStatus: "not_requested" as const,
+        startStatus: "not_requested" as const,
+      })
+    : Object.freeze({
+        mode: config.postAction.mode,
+        preferredFormat: config.postAction.preferredFormat,
+        importStatus: "pending" as const,
+        startStatus: "not_requested" as const,
+      });
 }
 
 function queuedProgress(): LocalSubtitleTaskProgress {

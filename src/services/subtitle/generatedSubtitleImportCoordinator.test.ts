@@ -371,7 +371,12 @@ describe("GeneratedSubtitleImportCoordinator", () => {
         commitGeneratedImportCandidate,
         releaseGeneratedImportCandidate,
       },
-      queue: queue({ addImportedTasks, startTasks, releaseImportSnapshot }),
+      queue: queue({
+        addImportedTasks,
+        startTasks,
+        releaseImportSnapshot,
+        hasTask: (taskId) => taskId === "subtitle-task-imported",
+      }),
       receiptIdFactory: () => "one",
     });
 
@@ -409,6 +414,9 @@ describe("GeneratedSubtitleImportCoordinator", () => {
       skipped: [],
     });
     expect(Object.isFrozen(receipt)).toBe(true);
+    expect(coordinator.hasTask("subtitle-task-imported")).toBe(true);
+    expect(coordinator.hasTask("missing-task")).toBe(false);
+    expect(coordinator.hasTask("invalid task id")).toBe(false);
     await coordinator.releaseBatch(prepared.snapshot.snapshotId);
     expect(releaseImportSnapshot).toHaveBeenCalledOnce();
     expect(releaseGeneratedImportCandidate).not.toHaveBeenCalled();

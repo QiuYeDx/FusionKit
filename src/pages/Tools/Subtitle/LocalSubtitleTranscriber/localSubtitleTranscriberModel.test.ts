@@ -13,6 +13,7 @@ import {
 } from "@/type/localSubtitleIpc";
 import { DEFAULT_LOCAL_SUBTITLE_TRANSCRIBER_PREFERENCES } from "@/store/tools/subtitle/localSubtitleTranscriberConfig";
 import {
+  canManuallyHandoffLocalSubtitleArtifact,
   createLocalSubtitleBatchRequest,
   deriveLocalSubtitleDraftMediaProbeStatus,
   deriveLocalSubtitleStartIssue,
@@ -164,6 +165,7 @@ describe("local subtitle transcriber page model", () => {
       preferences: DEFAULT_LOCAL_SUBTITLE_TRANSCRIBER_PREFERENCES,
       outputDirectory: null,
       explicitAudioStreamIds: new Map([["file-token-2", "stream-track-2"]]),
+      postAction: { mode: "export_only" },
     });
 
     expect(validateEnqueueLocalSubtitleBatchRequest(request).ok).toBe(true);
@@ -184,6 +186,34 @@ describe("local subtitle transcriber page model", () => {
           conflictPolicy: "index",
         },
         postAction: { mode: "export_only" },
+      },
+    });
+  });
+
+  it("keeps selected output formats and the prepared translation snapshot", () => {
+    const request = createLocalSubtitleBatchRequest({
+      files: [file],
+      modelId: model.resourceId,
+      preferences: {
+        ...DEFAULT_LOCAL_SUBTITLE_TRANSCRIBER_PREFERENCES,
+        outputFormats: ["SRT", "LRC"],
+      },
+      outputDirectory: null,
+      conflictPolicy: "index",
+      postAction: {
+        mode: "enqueue_translation",
+        preferredFormat: "LRC",
+        translationSnapshotId: "translation-snapshot-1",
+      },
+    });
+
+    expect(validateEnqueueLocalSubtitleBatchRequest(request).ok).toBe(true);
+    expect(request.config).toMatchObject({
+      output: { formats: ["SRT", "LRC"] },
+      postAction: {
+        mode: "enqueue_translation",
+        preferredFormat: "LRC",
+        translationSnapshotId: "translation-snapshot-1",
       },
     });
   });
@@ -260,6 +290,32 @@ describe("local subtitle transcriber page model", () => {
 
     expect(findLocalSubtitleTask([batch], task.batchId, task.taskId)).toBe(task);
     expect(isLocalSubtitleTaskActive(task)).toBe(false);
+  });
+
+  it("offers a fresh preferred-format handoff only when no translation task remains", () => {
+    const task = {
+      ...createTask(),
+      postAction: {
+        mode: "enqueue_translation" as const,
+        preferredFormat: "SRT" as const,
+        importStatus: "queued" as const,
+        startStatus: "not_requested" as const,
+        importReceiptId: "receipt-1",
+        translationTaskId: "translation-task-1",
+      },
+    };
+
+    expect(canManuallyHandoffLocalSubtitleArtifact(task, "SRT", false)).toBe(false);
+    expect(canManuallyHandoffLocalSubtitleArtifact(task, "SRT", true)).toBe(true);
+    expect(canManuallyHandoffLocalSubtitleArtifact(task, "LRC", true)).toBe(false);
+    expect(canManuallyHandoffLocalSubtitleArtifact({
+      postAction: {
+        ...task.postAction,
+        importStatus: "failed",
+        startStatus: "not_requested",
+        translationTaskId: undefined,
+      },
+    }, "SRT", false)).toBe(true);
   });
 });
 

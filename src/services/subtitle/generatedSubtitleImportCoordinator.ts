@@ -263,6 +263,7 @@ export interface GeneratedSubtitleImportQueue {
   ): GeneratedSubtitleQueueReceipt;
   startTasks(taskIds: readonly string[]): StartSubtitleTasksReceipt;
   releaseImportSnapshot(ownerId: string, snapshotId: string): void;
+  hasTask?(taskId: string): boolean;
 }
 
 export interface GeneratedSubtitleImportCoordinatorOptions {
@@ -304,6 +305,11 @@ export class GeneratedSubtitleImportCoordinator {
     mode: AutomaticSubtitleTranslationHandoffMode,
   ): Promise<PrepareGeneratedSubtitleImportResult> {
     return this.#options.snapshots.prepareBatch(mode);
+  }
+
+  hasTask(taskId: string): boolean {
+    if (!safeId(taskId)) return false;
+    return this.#options.queue.hasTask?.(taskId) ?? false;
   }
 
   async importArtifact(request: {
@@ -737,6 +743,16 @@ export function getGeneratedSubtitleImportCoordinator():
       releaseImportSnapshot: (ownerId, snapshotId) =>
         useSubtitleTranslatorStore.getState()
           .releaseImportSnapshot(ownerId, snapshotId),
+      hasTask: (taskId) => {
+        const state = useSubtitleTranslatorStore.getState();
+        return [
+          ...state.notStartedTaskQueue,
+          ...state.waitingTaskQueue,
+          ...state.pendingTaskQueue,
+          ...state.resolvedTaskQueue,
+          ...state.failedTaskQueue,
+        ].some((task) => task.taskId === taskId);
+      },
     },
   });
   return sharedImportCoordinator;

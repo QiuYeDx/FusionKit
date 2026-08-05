@@ -52,6 +52,7 @@ describe("local subtitle fixed preload API", () => {
         "cancelBatch",
         "cancelTask",
         "removeTask",
+        "completePostAction",
         "readArtifactText",
         "revealArtifact",
         "handoffArtifact",
@@ -115,6 +116,18 @@ describe("local subtitle fixed preload API", () => {
       [LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.cancelBatch, { batchId: "batch-1" }],
       [LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.cancelTask, { taskId: "task-1" }],
       [LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.removeTask, { taskId: "task-1" }],
+      [LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.completePostAction, {
+        taskId: "task-1",
+        generation: 1,
+        postAction: {
+          mode: "enqueue_translation",
+          preferredFormat: "SRT",
+          importStatus: "queued",
+          startStatus: "not_requested",
+          importReceiptId: "receipt-1",
+          translationTaskId: "translation-task-1",
+        },
+      }],
       [LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.readArtifactText, { artifactRef: "artifact-1" }],
       [LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.revealArtifact, { artifactRef: "artifact-1" }],
       [LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.handoffArtifact, { artifactRef: "artifact-1" }],
@@ -223,7 +236,7 @@ describe("local subtitle fixed preload API", () => {
     );
 
     const results = await callEveryCommand(api, mediaOne, mediaTwo, model);
-    expect(results).toHaveLength(24);
+    expect(results).toHaveLength(25);
     expect(
       results.every(
         (result) => !result.ok && result.error.code === "owner_released",
@@ -426,6 +439,18 @@ async function callEveryCommand(
     api.cancelBatch("batch-1"),
     api.cancelTask("task-1"),
     api.removeTask("task-1"),
+    api.completePostAction({
+      taskId: "task-1",
+      generation: 1,
+      postAction: {
+        mode: "enqueue_translation",
+        preferredFormat: "SRT",
+        importStatus: "queued",
+        startStatus: "not_requested",
+        importReceiptId: "receipt-1",
+        translationTaskId: "translation-task-1",
+      },
+    }),
     api.readArtifactText("artifact-1"),
     api.revealArtifact("artifact-1"),
     api.handoffArtifact("artifact-1"),

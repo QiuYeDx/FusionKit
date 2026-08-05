@@ -22,7 +22,11 @@ const detailsDialogSource = readFileSync(
   new URL("./LocalSubtitleTaskDetailsDialogs.tsx", import.meta.url),
   "utf8",
 );
-const source = `${pageSource}\n${environmentSource}\n${errorSource}\n${queueSource}\n${draftMediaSource}\n${detailsDialogSource}`;
+const postActionServiceSource = readFileSync(
+  new URL("../../../../services/local-subtitle/localSubtitlePostActionService.ts", import.meta.url),
+  "utf8",
+);
+const source = `${pageSource}\n${environmentSource}\n${errorSource}\n${queueSource}\n${draftMediaSource}\n${detailsDialogSource}\n${postActionServiceSource}`;
 
 describe("local subtitle transcriber page wiring", () => {
   it("uses shared tool controls and the fixed local subtitle bridge", () => {
@@ -56,6 +60,8 @@ describe("local subtitle transcriber page wiring", () => {
     ]) {
       expect(source).toContain(`window.localSubtitleApi.${method}`);
     }
+    expect(postActionServiceSource).toContain(".handoffArtifact");
+    expect(postActionServiceSource).toContain(".completePostAction");
     expect(source).not.toContain("window.ipcRenderer");
     expect(source).not.toContain('"audio:');
     expect(pageSource).toContain("backendPreviewGenerationRef");
@@ -97,6 +103,11 @@ describe("local subtitle transcriber page wiring", () => {
     expect(pageSource).toContain("explicitAudioStreamIds");
     expect(draftMediaSource).toContain('orientation="vertical"');
     expect(pageSource).not.toContain("taskActive");
+    expect(pageSource).toContain("draftPostActionMode");
+    expect(pageSource).toContain("draftPreferredHandoffFormat");
+    expect(pageSource).toContain("preparedTranslationBatch");
+    expect(postActionServiceSource).toContain("addedTaskIds");
+    expect(postActionServiceSource).not.toContain("startAllTasks");
   });
 
   it("uses bounded ScrollableDialog surfaces for artifact and error details", () => {

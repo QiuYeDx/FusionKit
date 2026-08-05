@@ -77,6 +77,21 @@ afterEach(async () => {
 });
 
 describe("local subtitle production executor", () => {
+  it("accepts a frozen translation post action without executing it locally", async () => {
+    const harness = await createHarness({
+      postAction: {
+        mode: "enqueue_and_start_translation",
+        preferredFormat: "SRT",
+        translationSnapshotId: "translation-snapshot-1",
+      },
+    });
+
+    await expect(harness.executor.execute(harness.context)).resolves.toMatchObject({
+      status: "completed",
+      artifactResults: [{ format: "SRT", status: "committed" }],
+    });
+  });
+
   it("reverifies and pins the exact admitted CUDA pack before inference", async () => {
     const accelerator = await createAcceleratorFixture();
     try {
@@ -1153,6 +1168,7 @@ interface HarnessOptions {
   readonly outputMode?: "custom" | "source";
   readonly conflictPolicy?: LocalSubtitleConflictPolicy;
   readonly formats?: readonly LocalSubtitleFormat[];
+  readonly postAction?: LocalSubtitleBatchConfigSnapshot["postAction"];
   readonly failArtifactReserveFormat?: LocalSubtitleFormat;
   readonly abortAfterArtifactFormat?: LocalSubtitleFormat;
   readonly exporterDependencies?: (
@@ -1380,6 +1396,7 @@ async function createHarness(options: HarnessOptions = {}) {
     options.conflictPolicy ?? "index",
     options.formats ?? ["SRT"],
     options.backend ?? "cpu",
+    options.postAction,
   );
   const managedModel = Object.freeze({
     storage: "managed" as const,
@@ -1521,6 +1538,9 @@ function createConfig(
   conflictPolicy: "index" | "overwrite" = "index",
   formats: readonly LocalSubtitleFormat[] = ["SRT"],
   resolvedBackend: "cpu" | "cuda" | "metal" = "cpu",
+  postAction: LocalSubtitleBatchConfigSnapshot["postAction"] = {
+    mode: "export_only",
+  },
 ): LocalSubtitleBatchConfigSnapshot {
   return createLocalSubtitleBatchConfigSnapshot({
     schemaVersion: LOCAL_SUBTITLE_DOMAIN_SCHEMA_VERSION,
@@ -1579,7 +1599,7 @@ function createConfig(
           directoryLeaseRef: "batch-1",
           displayLabel: "output",
         },
-    postAction: { mode: "export_only" },
+    postAction,
   });
 }
 

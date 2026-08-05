@@ -2,9 +2,12 @@ import {
   LOCAL_SUBTITLE_DOMAIN_SCHEMA_VERSION,
   LOCAL_SUBTITLE_LIMITS,
   type LocalSubtitleBatchSummary,
+  type LocalSubtitleConflictPolicy,
+  type LocalSubtitleFormat,
   type LocalSubtitleResourceJobStatus,
   type LocalSubtitleResourceJobSummary,
   type LocalSubtitleTaskSummary,
+  type SubtitleTranslationHandoffMode,
 } from "@/type/localSubtitle";
 import type {
   EnqueueLocalSubtitleBatchRequest,
@@ -165,6 +168,15 @@ export function createLocalSubtitleBatchRequest(input: {
   readonly preferences: LocalSubtitleTranscriberPreferences;
   readonly outputDirectory: ActiveOutputDirectory | null;
   readonly explicitAudioStreamIds?: ReadonlyMap<string, string>;
+  readonly conflictPolicy?: LocalSubtitleConflictPolicy;
+  readonly postAction: Readonly<
+    | { mode: "export_only" }
+    | {
+        mode: Exclude<SubtitleTranslationHandoffMode, "export_only">;
+        preferredFormat: LocalSubtitleFormat;
+        translationSnapshotId: string;
+      }
+  >;
 }): EnqueueLocalSubtitleBatchRequest {
   if (
     input.files.length === 0 ||
@@ -178,13 +190,13 @@ export function createLocalSubtitleBatchRequest(input: {
     ? {
         mode: "custom" as const,
         outputDirToken: requireOutputDirectory(input.outputDirectory),
-        formats: ["SRT" as const],
-        conflictPolicy: "index" as const,
+        formats: [...input.preferences.outputFormats],
+        conflictPolicy: input.conflictPolicy ?? "index",
       }
     : {
         mode: "source" as const,
-        formats: ["SRT" as const],
-        conflictPolicy: "index" as const,
+        formats: [...input.preferences.outputFormats],
+        conflictPolicy: input.conflictPolicy ?? "index",
       };
 
   return {
@@ -212,7 +224,13 @@ export function createLocalSubtitleBatchRequest(input: {
         maxLineChars: input.preferences.maxLineChars,
       },
       output,
-      postAction: { mode: "export_only" },
+      postAction: input.postAction.mode === "export_only"
+        ? { mode: "export_only" }
+        : {
+            mode: input.postAction.mode,
+            preferredFormat: input.postAction.preferredFormat,
+            translationSnapshotId: input.postAction.translationSnapshotId,
+          },
     },
   };
 }
@@ -255,6 +273,18 @@ export function isLocalSubtitleTaskActive(
   return Boolean(
     task && !["completed", "cancelled", "failed"].includes(task.status),
   );
+}
+
+export function canManuallyHandoffLocalSubtitleArtifact(
+  task: Pick<LocalSubtitleTaskSummary, "postAction">,
+  format: LocalSubtitleFormat,
+  translationTaskMissing: boolean,
+): boolean {
+  if (task.postAction.mode === "export_only") return true;
+  if (task.postAction.preferredFormat !== format) return false;
+  return translationTaskMissing ||
+    task.postAction.importStatus === "failed" ||
+    task.postAction.importStatus === "skipped";
 }
 
 function isCpuRuntimeReady(runtime: LocalSubtitleRuntimeSummary | null): boolean {

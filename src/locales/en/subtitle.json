@@ -224,6 +224,7 @@
       "title": "Transcription settings",
       "model": "Local model",
       "no_model": "No model available",
+      "output_formats": "Subtitle formats",
       "output_mode": "Output location",
       "output_source": "Source folder",
       "output_custom": "Custom folder",
@@ -297,7 +298,48 @@
       "remove_task": "Remove {{name}}",
       "preview_artifact": "Preview {{name}}",
       "show_error_details": "Show error details for {{name}}",
-      "reveal_task": "Show {{name}} in folder"
+      "reveal_task": "Show {{name}} in folder",
+      "handoff_artifact": "Send {{name}} to subtitle translation"
+    },
+    "post_action": {
+      "mode": "After transcription",
+      "export_only": "Export subtitles only",
+      "enqueue": "Add to subtitle translation",
+      "enqueue_and_start": "Add and start translation",
+      "send_to_translation": "Send generated subtitles to translation",
+      "start_automatically": "Start imported translation tasks automatically",
+      "handoff_format": "Translation format",
+      "languages": "Translation languages",
+      "profile": "Execution profile",
+      "translation_output": "Translation output",
+      "needs_configuration": "Configuration required before starting",
+      "confirm_title": "Confirm translation handoff",
+      "confirm_description": "Review the frozen translation settings for this batch before it starts.",
+      "confirm": "Confirm and start",
+      "cost_notice": "Translation will start automatically after each selected subtitle is generated and may use a paid external API. Only tasks added by this batch will be started.",
+      "session_only_notice": "Imported tasks are added to the current subtitle translation session and are not restored after an app restart.",
+      "receipt": "Translation handoff",
+      "view_translation": "View translation task",
+      "manual_complete": "The subtitle handoff completed.",
+      "manual_failed": "The subtitle could not be handed off.",
+      "status": {
+        "pending": "Waiting for subtitle output",
+        "importing": "Importing",
+        "queued": "Added to translation",
+        "translation_task_missing": "The translation task no longer exists",
+        "skipped": "Handoff skipped",
+        "failed": "Handoff failed"
+      },
+      "start": {
+        "started": "Translation started",
+        "waiting": "Waiting in the translation queue",
+        "failed": "Translation was not started"
+      },
+      "error": {
+        "configuration_not_ready": "Translation settings are still loading. Try again after the subtitle translator is ready.",
+        "directory_authorization_required": "Select or reauthorize the subtitle translator output folder before using this mode.",
+        "profile_required": "A valid translation profile and API key are required for automatic start."
+      }
     },
     "resources": {
       "title": "Managed resources",

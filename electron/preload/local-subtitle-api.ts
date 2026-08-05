@@ -263,6 +263,12 @@ export function createLocalSubtitleRendererApi({
         taskId,
       });
     },
+    completePostAction(request) {
+      return invokePublic(
+        LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.completePostAction,
+        request,
+      );
+    },
     readArtifactText(artifactRef) {
       return invokePublic(
         LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.readArtifactText,

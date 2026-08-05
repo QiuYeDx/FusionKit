@@ -6,11 +6,13 @@ import {
   Eye,
   FolderOpen,
   Info,
+  Languages,
   Loader2,
   RotateCcw,
   Trash2,
   XCircle,
 } from "lucide-react";
+import { Link } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
@@ -22,7 +24,11 @@ import type {
   LocalSubtitleTaskStatus,
   LocalSubtitleTaskSummary,
 } from "@/type/localSubtitle";
-import { isLocalSubtitleTaskActive } from "./localSubtitleTranscriberModel";
+import type { LocalSubtitleManualHandoffResult } from "@/services/local-subtitle/localSubtitlePostActionService";
+import {
+  canManuallyHandoffLocalSubtitleArtifact,
+  isLocalSubtitleTaskActive,
+} from "./localSubtitleTranscriberModel";
 import { LocalSubtitleErrorNotice } from "./LocalSubtitleErrorNotice";
 
 const TASK_STAGE_KEYS = {
@@ -62,7 +68,8 @@ export type LocalSubtitleTaskAction =
   | "retry"
   | "cpu-retry"
   | "remove"
-  | "reveal";
+  | "reveal"
+  | "handoff";
 
 export function localSubtitleTaskActionKey(
   action: LocalSubtitleTaskAction,
@@ -74,6 +81,11 @@ export function localSubtitleTaskActionKey(
 interface LocalSubtitleTaskQueueProps {
   readonly batches: readonly LocalSubtitleBatchSummary[];
   readonly pendingActionKeys: ReadonlySet<string>;
+  readonly manualHandoffResults: ReadonlyMap<
+    string,
+    LocalSubtitleManualHandoffResult
+  >;
+  readonly missingTranslationTaskIds: ReadonlySet<string>;
   readonly onCancel: (task: LocalSubtitleTaskSummary) => void;
   readonly onRetry: (task: LocalSubtitleTaskSummary) => void;
   readonly onRetryOnCpu: (task: LocalSubtitleTaskSummary) => void;
@@ -86,18 +98,25 @@ interface LocalSubtitleTaskQueueProps {
     task: LocalSubtitleTaskSummary,
     artifact: GeneratedSubtitleArtifactSummary,
   ) => void;
+  readonly onHandoff: (
+    task: LocalSubtitleTaskSummary,
+    artifact: GeneratedSubtitleArtifactSummary,
+  ) => void;
   readonly onShowError: (task: LocalSubtitleTaskSummary) => void;
 }
 
 export function LocalSubtitleTaskQueue({
   batches,
   pendingActionKeys,
+  manualHandoffResults,
+  missingTranslationTaskIds,
   onCancel,
   onRetry,
   onRetryOnCpu,
   onRemove,
   onPreview,
   onReveal,
+  onHandoff,
   onShowError,
 }: LocalSubtitleTaskQueueProps) {
   const { t } = useTranslation(["subtitle"]);
@@ -164,12 +183,15 @@ export function LocalSubtitleTaskQueue({
                     key={task.taskId}
                     task={task}
                     pendingActionKeys={pendingActionKeys}
+                    manualHandoffResults={manualHandoffResults}
+                    missingTranslationTaskIds={missingTranslationTaskIds}
                     onCancel={onCancel}
                     onRetry={onRetry}
                     onRetryOnCpu={onRetryOnCpu}
                     onRemove={onRemove}
                     onPreview={onPreview}
                     onReveal={onReveal}
+                    onHandoff={onHandoff}
                     onShowError={onShowError}
                   />
                 ))}
@@ -185,12 +207,15 @@ export function LocalSubtitleTaskQueue({
 function TaskRow({
   task,
   pendingActionKeys,
+  manualHandoffResults,
+  missingTranslationTaskIds,
   onCancel,
   onRetry,
   onRetryOnCpu,
   onRemove,
   onPreview,
   onReveal,
+  onHandoff,
   onShowError,
 }: Omit<LocalSubtitleTaskQueueProps, "batches"> & {
   readonly task: LocalSubtitleTaskSummary;
@@ -199,13 +224,19 @@ function TaskRow({
   const active = isLocalSubtitleTaskActive(task);
   const pending = (action: LocalSubtitleTaskAction) =>
     pendingActionKeys.has(localSubtitleTaskActionKey(action, task.taskId));
-  const anyActionPending = ([
-    "cancel",
-    "retry",
-    "cpu-retry",
-    "remove",
-    "reveal",
-  ] as const).some(pending);
+  const automaticPostActionPending = task.status === "completed" &&
+    task.postAction.mode !== "export_only" &&
+    (task.postAction.importStatus === "pending" ||
+      task.postAction.importStatus === "importing");
+  const anyActionPending = automaticPostActionPending ||
+    ([
+      "cancel",
+      "retry",
+      "cpu-retry",
+      "remove",
+      "reveal",
+      "handoff",
+    ] as const).some(pending);
 
   return (
     <div
@@ -263,8 +294,25 @@ function TaskRow({
           task={task}
           anyActionPending={anyActionPending}
           revealPending={pending("reveal")}
+          handoffPending={pending("handoff")}
           onPreview={onPreview}
           onReveal={onReveal}
+          onHandoff={onHandoff}
+          translationTaskMissing={Boolean(
+            task.postAction.translationTaskId &&
+              missingTranslationTaskIds.has(task.postAction.translationTaskId),
+          )}
+        />
+      ) : null}
+
+      {task.status === "completed" ? (
+        <TaskPostActionResult
+          task={task}
+          manualResult={manualHandoffResults.get(task.taskId)}
+          translationTaskMissing={Boolean(
+            task.postAction.translationTaskId &&
+              missingTranslationTaskIds.has(task.postAction.translationTaskId),
+          )}
         />
       ) : null}
 
@@ -360,17 +408,26 @@ function TaskArtifactResults({
   task,
   anyActionPending,
   revealPending,
+  handoffPending,
+  translationTaskMissing,
   onPreview,
   onReveal,
+  onHandoff,
 }: {
   readonly task: LocalSubtitleTaskSummary;
   readonly anyActionPending: boolean;
   readonly revealPending: boolean;
+  readonly handoffPending: boolean;
+  readonly translationTaskMissing: boolean;
   readonly onPreview: (
     task: LocalSubtitleTaskSummary,
     artifact: GeneratedSubtitleArtifactSummary,
   ) => void;
   readonly onReveal: (
+    task: LocalSubtitleTaskSummary,
+    artifact: GeneratedSubtitleArtifactSummary,
+  ) => void;
+  readonly onHandoff: (
     task: LocalSubtitleTaskSummary,
     artifact: GeneratedSubtitleArtifactSummary,
   ) => void;
@@ -443,6 +500,21 @@ function TaskArtifactResults({
                   icon={<FolderOpen className="h-3.5 w-3.5" />}
                   onClick={() => onReveal(task, result.artifact)}
                 />
+                {canManuallyHandoffLocalSubtitleArtifact(
+                  task,
+                  result.format,
+                  translationTaskMissing,
+                ) ? (
+                  <TaskIconButton
+                    label={t("subtitle:local_transcriber.actions.handoff_artifact", {
+                      name: result.artifact.displayName,
+                    })}
+                    disabled={anyActionPending}
+                    loading={handoffPending}
+                    icon={<Languages className="h-3.5 w-3.5" />}
+                    onClick={() => onHandoff(task, result.artifact)}
+                  />
+                ) : null}
               </div>
             ) : null}
           </div>
@@ -450,6 +522,126 @@ function TaskArtifactResults({
       </div>
     </div>
   );
+}
+
+const IMPORT_STATUS_KEYS = {
+  pending: "subtitle:local_transcriber.post_action.status.pending",
+  importing: "subtitle:local_transcriber.post_action.status.importing",
+  queued: "subtitle:local_transcriber.post_action.status.queued",
+  skipped: "subtitle:local_transcriber.post_action.status.skipped",
+  failed: "subtitle:local_transcriber.post_action.status.failed",
+} as const;
+
+const START_STATUS_KEYS = {
+  started: "subtitle:local_transcriber.post_action.start.started",
+  waiting: "subtitle:local_transcriber.post_action.start.waiting",
+  failed: "subtitle:local_transcriber.post_action.start.failed",
+} as const;
+
+function TaskPostActionResult({
+  task,
+  manualResult,
+  translationTaskMissing,
+}: {
+  readonly task: LocalSubtitleTaskSummary;
+  readonly manualResult?: LocalSubtitleManualHandoffResult;
+  readonly translationTaskMissing: boolean;
+}) {
+  const { t } = useTranslation(["subtitle"]);
+  if (task.postAction.mode === "export_only" && !manualResult) return null;
+
+  const automaticStatus = task.postAction.mode === "export_only"
+    ? null
+    : task.postAction.importStatus === "not_requested"
+      ? null
+      : {
+          label: translationTaskMissing
+            ? t("subtitle:local_transcriber.post_action.status.translation_task_missing")
+            : t(IMPORT_STATUS_KEYS[task.postAction.importStatus]),
+          detail: translationTaskMissing
+            ? undefined
+            : task.postAction.importErrorCode ??
+              task.postAction.startFailureReason ??
+              (task.postAction.startStatus === "not_requested" ||
+                  task.postAction.startStatus === "requesting"
+                ? undefined
+                : t(START_STATUS_KEYS[task.postAction.startStatus])),
+          taskId: translationTaskMissing
+            ? undefined
+            : task.postAction.translationTaskId,
+        };
+  const manualStatus = manualResult
+    ? summarizeManualHandoffResult(manualResult, t)
+    : null;
+
+  return (
+    <div className="min-w-0 border-l-2 border-primary/40 bg-primary/5 px-3 py-2 text-xs">
+      <div className="flex min-w-0 flex-wrap items-center gap-2">
+        <Languages className="h-4 w-4 shrink-0 text-primary" />
+        <span className="font-medium">
+          {t("subtitle:local_transcriber.post_action.receipt")}
+        </span>
+        {automaticStatus ? <span>{automaticStatus.label}</span> : null}
+        {automaticStatus?.detail ? (
+          <span className="break-words font-mono text-[11px] text-muted-foreground [overflow-wrap:anywhere]">
+            {automaticStatus.detail}
+          </span>
+        ) : null}
+        {manualStatus ? (
+          <span className="break-words text-muted-foreground [overflow-wrap:anywhere]">
+            {manualStatus.label}
+            {manualStatus.detail ? ` · ${manualStatus.detail}` : ""}
+          </span>
+        ) : null}
+        {automaticStatus?.taskId || manualStatus?.taskId ? (
+          <Button asChild type="button" variant="link" size="sm" className="h-6 px-1 text-xs">
+            <Link to="/tools/subtitle/translator">
+              {t("subtitle:local_transcriber.post_action.view_translation")}
+            </Link>
+          </Button>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+function summarizeManualHandoffResult(
+  result: LocalSubtitleManualHandoffResult,
+  t: (key: string) => string,
+): { readonly label: string; readonly detail?: string; readonly taskId?: string } {
+  if (!result.ok) {
+    return {
+      label: t("subtitle:local_transcriber.post_action.manual_failed"),
+      detail: result.code,
+    };
+  }
+  const taskId = result.receipt.addedTaskIds[0];
+  if (!taskId) {
+    return {
+      label: t("subtitle:local_transcriber.post_action.status.skipped"),
+      detail: result.receipt.skipped[0]?.reason ?? "invalid_content",
+    };
+  }
+  if (result.receipt.startedTaskIds.includes(taskId)) {
+    return {
+      label: t("subtitle:local_transcriber.post_action.start.started"),
+      taskId,
+    };
+  }
+  if (result.receipt.waitingTaskIds.includes(taskId)) {
+    return {
+      label: t("subtitle:local_transcriber.post_action.start.waiting"),
+      taskId,
+    };
+  }
+  const failure = result.receipt.startFailures.find(
+    (candidate) => candidate.taskId === taskId,
+  );
+  return {
+    label: t("subtitle:local_transcriber.post_action.status.queued"),
+    ...(failure ? { detail: failure.reason } : {}),
+    taskId,
+  };
 }
 
 function TaskIconButton({

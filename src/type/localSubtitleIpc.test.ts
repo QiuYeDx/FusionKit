@@ -22,6 +22,7 @@ import {
   enqueueLocalSubtitleBatchRequestSchema,
   localSubtitleBackendPreviewRequestSchema,
   localSubtitleBackendPreviewSummarySchema,
+  localSubtitleCompletePostActionRequestSchema,
   localSubtitleAuthorizeInputFilesRequestSchema,
   localSubtitleAuthorizedMediaListSchema,
   localSubtitleArtifactRefRequestSchema,
@@ -65,7 +66,7 @@ describe("local subtitle fixed IPC surface", () => {
     const eventChannels = Object.values(LOCAL_SUBTITLE_EVENT_CHANNELS);
     const allChannels = [...publicChannels, ...internalChannels, ...eventChannels];
 
-    expect(publicChannels).toHaveLength(18);
+    expect(publicChannels).toHaveLength(19);
     expect(internalChannels).toHaveLength(7);
     expect(eventChannels).toHaveLength(2);
     expect(new Set(allChannels).size).toBe(allChannels.length);
@@ -103,6 +104,7 @@ describe("local subtitle fixed IPC surface", () => {
       | "cancelBatch"
       | "cancelTask"
       | "removeTask"
+      | "completePostAction"
       | "readArtifactText"
       | "revealArtifact"
       | "handoffArtifact"
@@ -672,8 +674,25 @@ describe("local subtitle IPC request contract", () => {
     wrongHandoffFormat.config.postAction = {
       mode: "enqueue_translation",
       preferredFormat: "LRC",
+      translationSnapshotId: "translation-snapshot-1",
     };
     expect(validateEnqueueLocalSubtitleBatchRequest(wrongHandoffFormat).ok).toBe(
+      false,
+    );
+
+    const preparedHandoff = validEnqueueRequest();
+    preparedHandoff.config.postAction = {
+      mode: "enqueue_translation",
+      preferredFormat: "SRT",
+      translationSnapshotId: "translation-snapshot-1",
+    };
+    expect(validateEnqueueLocalSubtitleBatchRequest(preparedHandoff).ok).toBe(
+      true,
+    );
+
+    const missingSnapshot = structuredClone(preparedHandoff) as any;
+    delete missingSnapshot.config.postAction.translationSnapshotId;
+    expect(validateEnqueueLocalSubtitleBatchRequest(missingSnapshot).ok).toBe(
       false,
     );
 
@@ -685,6 +704,40 @@ describe("local subtitle IPC request contract", () => {
     expect(validateEnqueueLocalSubtitleBatchRequest(invalidExportOnly).ok).toBe(
       false,
     );
+  });
+
+  it("accepts only terminal translation post-action completions", () => {
+    const completion = {
+      taskId: "task-1",
+      generation: 1,
+      postAction: {
+        mode: "enqueue_translation" as const,
+        preferredFormat: "SRT" as const,
+        importStatus: "queued" as const,
+        startStatus: "not_requested" as const,
+        importReceiptId: "receipt-1",
+        translationTaskId: "translation-task-1",
+      },
+    };
+    expect(localSubtitleCompletePostActionRequestSchema.safeParse(completion).success)
+      .toBe(true);
+    expect(localSubtitleCompletePostActionRequestSchema.safeParse({
+      ...completion,
+      postAction: {
+        mode: "enqueue_translation",
+        preferredFormat: "SRT",
+        importStatus: "pending",
+        startStatus: "not_requested",
+      },
+    }).success).toBe(false);
+    expect(localSubtitleCompletePostActionRequestSchema.safeParse({
+      ...completion,
+      postAction: {
+        mode: "export_only",
+        importStatus: "not_requested",
+        startStatus: "not_requested",
+      },
+    }).success).toBe(false);
   });
 
   it("enforces batch count and prompt boundaries", () => {
@@ -1283,6 +1336,7 @@ function validEnqueueRequest() {
         | {
             mode: "enqueue_translation" | "enqueue_and_start_translation";
             preferredFormat: "SRT" | "LRC";
+            translationSnapshotId: string;
           },
     },
   };
@@ -1493,6 +1547,18 @@ function validPublicOperationRequests(): Record<
     },
     [LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.cancelTask]: { taskId: "task-1" },
     [LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.removeTask]: { taskId: "task-1" },
+    [LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.completePostAction]: {
+      taskId: "task-1",
+      generation: 1,
+      postAction: {
+        mode: "enqueue_translation",
+        preferredFormat: "SRT",
+        importStatus: "queued",
+        startStatus: "not_requested",
+        importReceiptId: "receipt-1",
+        translationTaskId: "translation-task-1",
+      },
+    },
     [LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.readArtifactText]: {
       artifactRef: "artifact-ref-1",
     },
@@ -1544,6 +1610,8 @@ function validPublicOperationResults(): Record<
     },
     [LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.cancelTask]: { cancelled: true },
     [LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.removeTask]: { removed: true },
+    [LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.completePostAction]:
+      validTaskSummary(),
     [LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.readArtifactText]: {
       format: "SRT",
       rawText: "1\n00:00:01,000 --> 00:00:02,000\nsample\n",

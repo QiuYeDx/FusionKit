@@ -224,6 +224,7 @@
       "title": "轉寫設定",
       "model": "本機模型",
       "no_model": "沒有可用模型",
+      "output_formats": "字幕格式",
       "output_mode": "輸出位置",
       "output_source": "來源檔案目錄",
       "output_custom": "自訂目錄",
@@ -297,7 +298,48 @@
       "remove_task": "移除 {{name}}",
       "preview_artifact": "預覽 {{name}}",
       "show_error_details": "查看 {{name}} 的錯誤詳情",
-      "reveal_task": "在資料夾中顯示 {{name}}"
+      "reveal_task": "在資料夾中顯示 {{name}}",
+      "handoff_artifact": "將 {{name}} 交給字幕翻譯"
+    },
+    "post_action": {
+      "mode": "轉寫完成後",
+      "export_only": "僅匯出字幕",
+      "enqueue": "加入字幕翻譯",
+      "enqueue_and_start": "加入並開始翻譯",
+      "send_to_translation": "將產生的字幕交給字幕翻譯",
+      "start_automatically": "自動開始本批次匯入的翻譯任務",
+      "handoff_format": "翻譯交接格式",
+      "languages": "翻譯語言",
+      "profile": "執行設定",
+      "translation_output": "翻譯輸出",
+      "needs_configuration": "開始前需要補充設定",
+      "confirm_title": "確認翻譯交接",
+      "confirm_description": "開始批次前，請檢查本次凍結的字幕翻譯設定。",
+      "confirm": "確認並開始",
+      "cost_notice": "每個所選字幕產生後會自動開始翻譯，可能呼叫付費外部 API；只會啟動本批次新增的任務。",
+      "session_only_notice": "匯入任務只加入目前字幕翻譯工作階段，應用程式重新啟動後不會還原尚未開始的任務。",
+      "receipt": "翻譯交接",
+      "view_translation": "檢視翻譯任務",
+      "manual_complete": "字幕交接已完成。",
+      "manual_failed": "無法交接該字幕。",
+      "status": {
+        "pending": "等待字幕產物",
+        "importing": "正在匯入",
+        "queued": "已加入翻譯",
+        "translation_task_missing": "翻譯任務已不存在",
+        "skipped": "已略過交接",
+        "failed": "交接失敗"
+      },
+      "start": {
+        "started": "翻譯已開始",
+        "waiting": "正在翻譯佇列中等待",
+        "failed": "翻譯未能開始"
+      },
+      "error": {
+        "configuration_not_ready": "字幕翻譯設定仍在載入，請等待翻譯器就緒後重試。",
+        "directory_authorization_required": "使用此模式前，請在字幕翻譯器中選擇或重新授權輸出目錄。",
+        "profile_required": "自動開始翻譯需要有效的翻譯設定和 API Key。"
+      }
     },
     "resources": {
       "title": "託管資源",

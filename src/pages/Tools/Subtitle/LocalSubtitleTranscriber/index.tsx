@@ -16,6 +16,7 @@ import {
 import ConfirmDialog from "@/components/ConfirmDialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
   SelectContent,
@@ -37,12 +38,17 @@ import {
 import {
   getLocalSubtitleRuntimeService,
 } from "@/services/local-subtitle/localSubtitleRuntimeService";
+import {
+  getLocalSubtitlePostActionService,
+  type LocalSubtitleManualHandoffResult,
+} from "@/services/local-subtitle/localSubtitlePostActionService";
 import useLocalSubtitleTranscriberStore from "@/store/tools/subtitle/useLocalSubtitleTranscriberStore";
 import type {
   GeneratedSubtitleArtifactSummary,
   LocalSubtitleBatchSummary,
   LocalSubtitleError,
   LocalSubtitleTaskSummary,
+  LocalSubtitleFormat,
 } from "@/type/localSubtitle";
 import { LOCAL_SUBTITLE_LIMITS } from "@/type/localSubtitle";
 import type {
@@ -51,7 +57,10 @@ import type {
   LocalSubtitleBackendPreviewSummary,
   LocalSubtitleManagedResourceSummary,
   LocalSubtitleRuntimeSummary,
+  EnqueueLocalSubtitleBatchRequest,
 } from "@/type/localSubtitleIpc";
+import type { SubtitleTranslationImportConfigSummary } from "@/type/generatedSubtitleImport";
+import { showToast } from "@/utils/toast";
 import {
   createLocalSubtitleBatchRequest,
   deriveLocalSubtitleDraftMediaProbeStatus,
@@ -80,6 +89,7 @@ import {
   type LocalSubtitleArtifactPreviewSelection,
 } from "./LocalSubtitleTaskDetailsDialogs";
 import { LocalSubtitleRecoveredSession } from "./LocalSubtitleRecoveredSession";
+import { LocalSubtitleTranslationConfirmDialog } from "./LocalSubtitleTranslationConfirmDialog";
 
 const MEDIA_ACCEPT = [
   "audio/*",
@@ -110,6 +120,15 @@ const START_ISSUE_KEYS = {
   output_directory_required: "subtitle:local_transcriber.readiness.output_directory_required",
 } as const satisfies Record<LocalSubtitleStartIssue, string>;
 
+const POST_ACTION_PREPARE_ERROR_KEYS = {
+  configuration_not_ready:
+    "subtitle:local_transcriber.post_action.error.configuration_not_ready",
+  directory_authorization_required:
+    "subtitle:local_transcriber.post_action.error.directory_authorization_required",
+  profile_required:
+    "subtitle:local_transcriber.post_action.error.profile_required",
+} as const;
+
 interface EnvironmentState {
   readonly loading: boolean;
   readonly runtime: LocalSubtitleRuntimeSummary | null;
@@ -123,9 +142,16 @@ interface BackendPreviewState {
   readonly summary: LocalSubtitleBackendPreviewSummary | null;
 }
 
+interface PreparedTranslationBatch {
+  readonly request: EnqueueLocalSubtitleBatchRequest;
+  readonly snapshot: SubtitleTranslationImportConfigSummary;
+  readonly preferredFormat: LocalSubtitleFormat;
+}
+
 export default function LocalSubtitleTranscriber() {
   const { t } = useTranslation(["subtitle", "common"]);
   const runtimeService = useMemo(getLocalSubtitleRuntimeService, []);
+  const postActionService = useMemo(getLocalSubtitlePostActionService, []);
   const runtimeState = useSyncExternalStore(
     runtimeService.subscribe,
     runtimeService.getState,
@@ -140,6 +166,15 @@ export default function LocalSubtitleTranscriber() {
   const outputDirectory = useLocalSubtitleTranscriberStore(
     (state) => state.draftOutputDirectory,
   );
+  const draftConflictPolicy = useLocalSubtitleTranscriberStore(
+    (state) => state.draftConflictPolicy,
+  );
+  const draftPostActionMode = useLocalSubtitleTranscriberStore(
+    (state) => state.draftPostActionMode,
+  );
+  const draftPreferredHandoffFormat = useLocalSubtitleTranscriberStore(
+    (state) => state.draftPreferredHandoffFormat,
+  );
   const updatePreferences = useLocalSubtitleTranscriberStore(
     (state) => state.updatePreferences,
   );
@@ -151,6 +186,12 @@ export default function LocalSubtitleTranscriber() {
   );
   const setDraftOutputDirectory = useLocalSubtitleTranscriberStore(
     (state) => state.setDraftOutputDirectory,
+  );
+  const setDraftPostActionMode = useLocalSubtitleTranscriberStore(
+    (state) => state.setDraftPostActionMode,
+  );
+  const setDraftPreferredHandoffFormat = useLocalSubtitleTranscriberStore(
+    (state) => state.setDraftPreferredHandoffFormat,
   );
   const consumeDraftCapabilitiesAfterCommit = useLocalSubtitleTranscriberStore(
     (state) => state.consumeDraftCapabilitiesAfterCommit,
@@ -181,6 +222,10 @@ export default function LocalSubtitleTranscriber() {
   const [fileAuthorizationPending, setFileAuthorizationPending] = useState(false);
   const [outputSelectionPending, setOutputSelectionPending] = useState(false);
   const [submissionPending, setSubmissionPending] = useState(false);
+  const [preparedTranslationBatch, setPreparedTranslationBatch] =
+    useState<PreparedTranslationBatch | null>(null);
+  const preparedTranslationBatchRef = useRef<PreparedTranslationBatch | null>(null);
+  const preparedBatchCommitPendingRef = useRef(false);
   const [mediaProbeQueuePending, setMediaProbeQueuePending] = useState(false);
   const [draftMediaProbes, setDraftMediaProbes] = useState<
     ReadonlyMap<string, LocalSubtitleDraftMediaProbe>
@@ -201,6 +246,9 @@ export default function LocalSubtitleTranscriber() {
     useState<ReadonlySet<string>>(() => new Set());
   const [pendingTaskActions, setPendingTaskActions] =
     useState<ReadonlySet<string>>(() => new Set());
+  const [manualHandoffResults, setManualHandoffResults] = useState<
+    ReadonlyMap<string, LocalSubtitleManualHandoffResult>
+  >(() => new Map());
   const [submittedBatches, setSubmittedBatches] = useState<
     readonly LocalSubtitleBatchSummary[]
   >([]);
@@ -281,9 +329,31 @@ export default function LocalSubtitleTranscriber() {
       resourceRefreshGenerationRef.current += 1;
       backendPreviewGenerationRef.current += 1;
       mediaProbeGenerationRef.current += 1;
+      const prepared = preparedTranslationBatchRef.current;
+      preparedTranslationBatchRef.current = null;
+      if (prepared && !preparedBatchCommitPendingRef.current) {
+        void postActionService.releaseSnapshot(prepared.snapshot.snapshotId);
+      }
       resetDraft();
     };
-  }, [refreshEnvironment, resetDraft]);
+  }, [postActionService, refreshEnvironment, resetDraft]);
+
+  useEffect(() => {
+    preparedTranslationBatchRef.current = preparedTranslationBatch;
+  }, [preparedTranslationBatch]);
+
+  useEffect(() => {
+    if (preferences.outputFormats.includes(draftPreferredHandoffFormat)) return;
+    setDraftPreferredHandoffFormat(
+      preferences.outputFormats.includes("SRT")
+        ? "SRT"
+        : preferences.outputFormats[0] ?? "SRT",
+    );
+  }, [
+    draftPreferredHandoffFormat,
+    preferences.outputFormats,
+    setDraftPreferredHandoffFormat,
+  ]);
 
   const terminalResourceJobsSignature = useMemo(
     () => runtimeState.resourceJobs
@@ -518,7 +588,14 @@ export default function LocalSubtitleTranscriber() {
   const latestActiveTask = visibleBatches
     .flatMap((batch) => batch.tasks)
     .find((task) => !["completed", "cancelled", "failed"].includes(task.status));
-  const submissionLocked = submissionPending;
+  const missingTranslationTaskIds = new Set(
+    visibleBatches
+      .flatMap((batch) => batch.tasks)
+      .map((task) => task.postAction.translationTaskId)
+      .filter((taskId): taskId is string =>
+        Boolean(taskId) && !postActionService.hasTranslationTask(taskId!)),
+  );
+  const submissionLocked = submissionPending || preparedTranslationBatch !== null;
   const mediaProbeStatus = deriveLocalSubtitleDraftMediaProbeStatus(
     selectedFiles,
     draftMediaProbes,
@@ -663,54 +740,191 @@ export default function LocalSubtitleTranscriber() {
     }
   }, [runtimeService, setDraftOutputDirectory]);
 
+  const handleOutputFormatChange = useCallback((
+    format: LocalSubtitleFormat,
+    checked: boolean,
+  ) => {
+    const current = preferences.outputFormats;
+    const next = checked
+      ? Array.from(new Set([...current, format]))
+      : current.filter((candidate) => candidate !== format);
+    if (next.length === 0) return;
+    updatePreferences({ outputFormats: next });
+    if (!next.includes(draftPreferredHandoffFormat)) {
+      setDraftPreferredHandoffFormat(
+        next.includes("SRT") ? "SRT" : next[0]!,
+      );
+    }
+  }, [
+    draftPreferredHandoffFormat,
+    preferences.outputFormats,
+    setDraftPreferredHandoffFormat,
+    updatePreferences,
+  ]);
+
+  const commitBatchRequest = useCallback(async (
+    request: EnqueueLocalSubtitleBatchRequest,
+    prepared?: PreparedTranslationBatch,
+  ) => {
+    if (prepared) preparedBatchCommitPendingRef.current = true;
+    setSubmissionPending(true);
+    setActionError(null);
+    try {
+      const result = await window.localSubtitleApi.enqueue(request);
+      if (!mountedRef.current) {
+        if (prepared && result.ok && result.data.tasks.length > 0) {
+          postActionService.registerAutomaticBatch(
+            result.data,
+            prepared.snapshot.snapshotId,
+          );
+        } else if (prepared) {
+          void postActionService.releaseSnapshot(prepared.snapshot.snapshotId);
+        }
+        return;
+      }
+      if (!result.ok) {
+        setActionError(result.error);
+        if (prepared) {
+          preparedTranslationBatchRef.current = null;
+          setPreparedTranslationBatch(null);
+          void postActionService.releaseSnapshot(prepared.snapshot.snapshotId);
+        }
+        return;
+      }
+      if (result.data.tasks.length === 0) {
+        setActionError({ message: "The local subtitle batch did not return a task." });
+        if (prepared) {
+          preparedTranslationBatchRef.current = null;
+          setPreparedTranslationBatch(null);
+          void postActionService.releaseSnapshot(prepared.snapshot.snapshotId);
+        }
+        return;
+      }
+      if (prepared) {
+        postActionService.registerAutomaticBatch(
+          result.data,
+          prepared.snapshot.snapshotId,
+        );
+      }
+      setPreparedTranslationBatch(null);
+      preparedTranslationBatchRef.current = null;
+      setSubmittedBatches((current) => [result.data, ...current]);
+      consumeDraftCapabilitiesAfterCommit();
+      void runtimeService.refresh();
+    } catch (error) {
+      if (prepared) {
+        preparedTranslationBatchRef.current = null;
+        if (mountedRef.current) setPreparedTranslationBatch(null);
+        void postActionService.releaseSnapshot(prepared.snapshot.snapshotId);
+      }
+      if (mountedRef.current) setActionError(toDisplayError(error));
+    } finally {
+      if (prepared) preparedBatchCommitPendingRef.current = false;
+      if (mountedRef.current) setSubmissionPending(false);
+    }
+  }, [
+    consumeDraftCapabilitiesAfterCommit,
+    postActionService,
+    runtimeService,
+  ]);
+
   const handleStart = useCallback(async () => {
     if (
       startIssue ||
       fileAuthorizationPending ||
       outputSelectionPending ||
       selectedFiles.length === 0 ||
-      !selectedModelId
+      !selectedModelId ||
+      preparedTranslationBatch
     ) return;
     setSubmissionPending(true);
     setActionError(null);
     try {
+      if (draftPostActionMode === "export_only") {
+        const request = createLocalSubtitleBatchRequest({
+          files: selectedFiles,
+          modelId: selectedModelId,
+          preferences,
+          outputDirectory,
+          explicitAudioStreamIds,
+          conflictPolicy: draftConflictPolicy,
+          postAction: { mode: "export_only" },
+        });
+        setSubmissionPending(false);
+        await commitBatchRequest(request);
+        return;
+      }
+      const prepared = await postActionService.prepareBatch(
+        draftPostActionMode,
+      );
+      if (!mountedRef.current) {
+        if (prepared.ok) {
+          void postActionService.releaseSnapshot(prepared.snapshot.snapshotId);
+        }
+        return;
+      }
+      if (!prepared.ok) {
+        setActionError({
+          code: prepared.code,
+          message: t(POST_ACTION_PREPARE_ERROR_KEYS[prepared.code]),
+        });
+        return;
+      }
       const request = createLocalSubtitleBatchRequest({
         files: selectedFiles,
         modelId: selectedModelId,
         preferences,
         outputDirectory,
         explicitAudioStreamIds,
+        conflictPolicy: draftConflictPolicy,
+        postAction: {
+          mode: draftPostActionMode,
+          preferredFormat: draftPreferredHandoffFormat,
+          translationSnapshotId: prepared.snapshot.snapshotId,
+        },
       });
-      const result = await window.localSubtitleApi.enqueue(request);
-      if (!mountedRef.current) return;
-      if (!result.ok) {
-        setActionError(result.error);
-        return;
-      }
-      if (result.data.tasks.length === 0) {
-        setActionError({ message: "The local subtitle batch did not return a task." });
-        return;
-      }
-      setSubmittedBatches((current) => [result.data, ...current]);
-      consumeDraftCapabilitiesAfterCommit();
-      void runtimeService.refresh();
+      setPreparedTranslationBatch({
+        request,
+        snapshot: prepared.snapshot,
+        preferredFormat: draftPreferredHandoffFormat,
+      });
     } catch (error) {
       if (mountedRef.current) setActionError(toDisplayError(error));
     } finally {
       if (mountedRef.current) setSubmissionPending(false);
     }
   }, [
-    consumeDraftCapabilitiesAfterCommit,
+    commitBatchRequest,
+    draftConflictPolicy,
+    draftPostActionMode,
+    draftPreferredHandoffFormat,
     explicitAudioStreamIds,
     fileAuthorizationPending,
     outputDirectory,
     outputSelectionPending,
+    postActionService,
     preferences,
-    runtimeService,
+    preparedTranslationBatch,
     selectedFiles,
     selectedModelId,
     startIssue,
+    t,
   ]);
+
+  const handlePreparedBatchCancel = useCallback(() => {
+    const prepared = preparedTranslationBatchRef.current;
+    preparedTranslationBatchRef.current = null;
+    setPreparedTranslationBatch(null);
+    if (prepared) {
+      void postActionService.releaseSnapshot(prepared.snapshot.snapshotId);
+    }
+  }, [postActionService]);
+
+  const handlePreparedBatchConfirm = useCallback(() => {
+    const prepared = preparedTranslationBatchRef.current;
+    if (!prepared || submissionPending) return;
+    void commitBatchRequest(prepared.request, prepared);
+  }, [commitBatchRequest, submissionPending]);
 
   const runTaskAction = useCallback(async (
     action: LocalSubtitleTaskAction,
@@ -780,6 +994,48 @@ export default function LocalSubtitleTranscriber() {
     );
   }, [runTaskAction]);
 
+  const handleHandoff = useCallback(async (
+    task: LocalSubtitleTaskSummary,
+    artifact: GeneratedSubtitleArtifactSummary,
+  ) => {
+    const key = localSubtitleTaskActionKey("handoff", task.taskId);
+    setPendingTaskActions((current) => new Set(current).add(key));
+    setActionError(null);
+    try {
+      const mode = task.postAction.mode === "export_only"
+        ? "enqueue_translation"
+        : task.postAction.mode;
+      const result = await postActionService.importManually({ artifact, mode });
+      if (!mountedRef.current) return;
+      setManualHandoffResults((current) => {
+        const next = new Map(current);
+        next.set(task.taskId, result);
+        return next;
+      });
+      if (!result.ok) {
+        setActionError({
+          code: result.code,
+          message: t("subtitle:local_transcriber.post_action.manual_failed"),
+        });
+        return;
+      }
+      showToast(
+        t("subtitle:local_transcriber.post_action.manual_complete"),
+        "success",
+      );
+    } catch (error) {
+      if (mountedRef.current) setActionError(toDisplayError(error));
+    } finally {
+      if (mountedRef.current) {
+        setPendingTaskActions((current) => {
+          const next = new Set(current);
+          next.delete(key);
+          return next;
+        });
+      }
+    }
+  }, [postActionService, t]);
+
   const handleCpuRetryConfirm = useCallback(async () => {
     const candidate = cpuRetryCandidate;
     if (!candidate || candidate.cpuRetryAvailable !== true) return;
@@ -816,7 +1072,7 @@ export default function LocalSubtitleTranscriber() {
             right={
               <Badge variant="outline">
                 {(latestActiveTask?.resolvedBackend ?? backendPreview.summary?.resolvedBackend ?? "auto")
-                  .toUpperCase()} · SRT
+                  .toUpperCase()} · {preferences.outputFormats.join("+")}
               </Badge>
             }
           />
@@ -843,6 +1099,25 @@ export default function LocalSubtitleTranscriber() {
                   ))}
                 </SelectContent>
               </Select>
+            </ToolField>
+
+            <ToolField label={t("subtitle:local_transcriber.config.output_formats")}>
+              <div className="grid grid-cols-2 gap-2">
+                {(["SRT", "LRC"] as const).map((format) => (
+                  <label
+                    key={format}
+                    className="flex min-w-0 cursor-pointer items-center gap-2 border px-2.5 py-2 text-xs"
+                  >
+                    <Checkbox
+                      checked={preferences.outputFormats.includes(format)}
+                      disabled={submissionLocked}
+                      onCheckedChange={(checked) =>
+                        handleOutputFormatChange(format, checked === true)}
+                    />
+                    <span>{format}</span>
+                  </label>
+                ))}
+              </div>
             </ToolField>
 
             <ToolField label={t("subtitle:local_transcriber.config.output_mode")}>
@@ -873,6 +1148,62 @@ export default function LocalSubtitleTranscriber() {
                   disabled={submissionLocked || outputSelectionPending}
                   onSelect={handleSelectOutput}
                 />
+              </ToolField>
+            ) : null}
+
+            <ToolField label={t("subtitle:local_transcriber.post_action.mode")}>
+              <div className="divide-y border">
+                <label className="flex min-w-0 cursor-pointer items-center justify-between gap-3 px-2.5 py-2 text-xs">
+                  <span>{t("subtitle:local_transcriber.post_action.send_to_translation")}</span>
+                  <Checkbox
+                    checked={draftPostActionMode !== "export_only"}
+                    disabled={submissionLocked}
+                    onCheckedChange={(checked) =>
+                      setDraftPostActionMode(
+                        checked === true ? "enqueue_translation" : "export_only",
+                      )}
+                  />
+                </label>
+                <label className="flex min-w-0 cursor-pointer items-center justify-between gap-3 px-2.5 py-2 text-xs">
+                  <span>{t("subtitle:local_transcriber.post_action.start_automatically")}</span>
+                  <Checkbox
+                    checked={draftPostActionMode === "enqueue_and_start_translation"}
+                    disabled={submissionLocked || draftPostActionMode === "export_only"}
+                    onCheckedChange={(checked) =>
+                      setDraftPostActionMode(
+                        checked === true
+                          ? "enqueue_and_start_translation"
+                          : "enqueue_translation",
+                      )}
+                  />
+                </label>
+              </div>
+            </ToolField>
+
+            {draftPostActionMode !== "export_only" ? (
+              <ToolField
+                label={t("subtitle:local_transcriber.post_action.handoff_format")}
+              >
+                <Select
+                  value={draftPreferredHandoffFormat}
+                  disabled={submissionLocked}
+                  onValueChange={(format) =>
+                    setDraftPreferredHandoffFormat(format as LocalSubtitleFormat)}
+                >
+                  <SelectTrigger
+                    data-testid="local-subtitle-handoff-format"
+                    className="h-8 text-xs"
+                  >
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {preferences.outputFormats.map((format) => (
+                      <SelectItem key={format} value={format}>
+                        {format}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </ToolField>
             ) : null}
           </ToolConfigPanel>
@@ -953,7 +1284,7 @@ export default function LocalSubtitleTranscriber() {
                   Boolean(startIssue) ||
                   fileAuthorizationPending ||
                   outputSelectionPending ||
-                  submissionPending
+                  submissionLocked
                 }
                 onClick={handleStart}
               >
@@ -974,6 +1305,8 @@ export default function LocalSubtitleTranscriber() {
             <LocalSubtitleTaskQueue
               batches={visibleBatches}
               pendingActionKeys={pendingTaskActions}
+              manualHandoffResults={manualHandoffResults}
+              missingTranslationTaskIds={missingTranslationTaskIds}
               onCancel={handleCancel}
               onRetry={handleRetry}
               onPreview={(task, artifact) => setArtifactPreview({
@@ -981,6 +1314,7 @@ export default function LocalSubtitleTranscriber() {
                 artifact,
               })}
               onReveal={handleReveal}
+              onHandoff={(task, artifact) => void handleHandoff(task, artifact)}
               onShowError={setErrorDetailsTask}
               onRetryOnCpu={setCpuRetryCandidate}
               onRemove={handleRemove}
@@ -1017,6 +1351,13 @@ export default function LocalSubtitleTranscriber() {
         onOpenChange={(open) => {
           if (!open) setErrorDetailsTask(null);
         }}
+      />
+      <LocalSubtitleTranslationConfirmDialog
+        snapshot={preparedTranslationBatch?.snapshot ?? null}
+        format={preparedTranslationBatch?.preferredFormat ?? null}
+        pending={submissionPending}
+        onCancel={handlePreparedBatchCancel}
+        onConfirm={handlePreparedBatchConfirm}
       />
     </div>
   );

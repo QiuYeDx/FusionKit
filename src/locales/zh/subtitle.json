@@ -224,6 +224,7 @@
       "title": "转写配置",
       "model": "本地模型",
       "no_model": "没有可用模型",
+      "output_formats": "字幕格式",
       "output_mode": "输出位置",
       "output_source": "源文件目录",
       "output_custom": "自定义目录",
@@ -297,7 +298,48 @@
       "remove_task": "移除 {{name}}",
       "preview_artifact": "预览 {{name}}",
       "show_error_details": "查看 {{name}} 的错误详情",
-      "reveal_task": "在文件夹中显示 {{name}}"
+      "reveal_task": "在文件夹中显示 {{name}}",
+      "handoff_artifact": "将 {{name}} 交给字幕翻译"
+    },
+    "post_action": {
+      "mode": "转写完成后",
+      "export_only": "仅导出字幕",
+      "enqueue": "加入字幕翻译",
+      "enqueue_and_start": "加入并开始翻译",
+      "send_to_translation": "将生成的字幕交给字幕翻译",
+      "start_automatically": "自动开始本批次导入的翻译任务",
+      "handoff_format": "翻译交接格式",
+      "languages": "翻译语言",
+      "profile": "执行配置",
+      "translation_output": "翻译输出",
+      "needs_configuration": "开始前需要补充配置",
+      "confirm_title": "确认翻译交接",
+      "confirm_description": "开始批次前，请检查本次冻结的字幕翻译配置。",
+      "confirm": "确认并开始",
+      "cost_notice": "每个所选字幕生成后会自动开始翻译，可能调用付费外部 API；只会启动本批次新增的任务。",
+      "session_only_notice": "导入任务只加入当前字幕翻译会话，应用重启后不会恢复尚未开始的任务。",
+      "receipt": "翻译交接",
+      "view_translation": "查看翻译任务",
+      "manual_complete": "字幕交接已完成。",
+      "manual_failed": "无法交接该字幕。",
+      "status": {
+        "pending": "等待字幕产物",
+        "importing": "正在导入",
+        "queued": "已加入翻译",
+        "translation_task_missing": "翻译任务已不存在",
+        "skipped": "已跳过交接",
+        "failed": "交接失败"
+      },
+      "start": {
+        "started": "翻译已开始",
+        "waiting": "正在翻译队列中等待",
+        "failed": "翻译未能开始"
+      },
+      "error": {
+        "configuration_not_ready": "字幕翻译配置仍在加载，请等待翻译器就绪后重试。",
+        "directory_authorization_required": "使用此模式前，请在字幕翻译器中选择或重新授权输出目录。",
+        "profile_required": "自动开始翻译需要有效的翻译配置和 API Key。"
+      }
     },
     "resources": {
       "title": "托管资源",

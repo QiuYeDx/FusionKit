@@ -635,6 +635,7 @@ function assertTaskMutation(
     }
     assertSameGenerationTransition(current, next);
     assertMonotonicProgress(current, next);
+    assertPostActionTransition(current, next);
     return;
   }
 
@@ -653,6 +654,26 @@ function assertTaskMutation(
     next.progress.totalWindows !== undefined
   ) {
     throw invalidContent("task.retry");
+  }
+}
+
+function assertPostActionTransition(
+  current: LocalSubtitleTaskSummary,
+  next: LocalSubtitleTaskSummary,
+): void {
+  const currentFinal = current.postAction.importStatus === "queued" ||
+    current.postAction.importStatus === "skipped" ||
+    current.postAction.importStatus === "failed";
+  if (!currentFinal) return;
+  if (
+    next.postAction.importStatus !== current.postAction.importStatus ||
+    next.postAction.startStatus !== current.postAction.startStatus ||
+    next.postAction.importReceiptId !== current.postAction.importReceiptId ||
+    next.postAction.translationTaskId !== current.postAction.translationTaskId ||
+    next.postAction.importErrorCode !== current.postAction.importErrorCode ||
+    next.postAction.startFailureReason !== current.postAction.startFailureReason
+  ) {
+    throw invalidContent("task.postAction");
   }
 }
 

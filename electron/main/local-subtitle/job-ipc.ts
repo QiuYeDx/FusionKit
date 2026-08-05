@@ -107,6 +107,15 @@ export class LocalSubtitleJobIpcBridge {
             this.#manager.removeTask(context.owner, taskId),
           );
         },
+        [LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.completePostAction]: (
+          request: unknown,
+          context: LocalSubtitleIpcHandlerContext,
+        ) => {
+          this.#session.ensureEvents(context);
+          return localSubtitleIpcSuccess(
+            this.#manager.completePostAction(context.owner, request as never),
+          );
+        },
       }),
     });
   }

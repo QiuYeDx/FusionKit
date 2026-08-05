@@ -63,6 +63,7 @@ export const LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS = {
   cancelBatch: "local-subtitle:cancel-batch",
   cancelTask: "local-subtitle:cancel-task",
   removeTask: "local-subtitle:remove-task",
+  completePostAction: "local-subtitle:complete-post-action",
   readArtifactText: "local-subtitle:read-artifact-text",
   revealArtifact: "local-subtitle:reveal-artifact",
   handoffArtifact: "local-subtitle:handoff-artifact",
@@ -1223,12 +1224,14 @@ const postActionRequestSchema = z.discriminatedUnion("mode", [
     .object({
       mode: z.literal("enqueue_translation"),
       preferredFormat: z.enum(LOCAL_SUBTITLE_FORMATS),
+      translationSnapshotId: idSchema,
     })
     .strict(),
   z
     .object({
       mode: z.literal("enqueue_and_start_translation"),
       preferredFormat: z.enum(LOCAL_SUBTITLE_FORMATS),
+      translationSnapshotId: idSchema,
     })
     .strict(),
 ]);
@@ -1303,6 +1306,37 @@ export type EnqueueLocalSubtitleBatchRequest = z.infer<
 export const localSubtitleTaskIdRequestSchema = z
   .object({ taskId: idSchema })
   .strict();
+export const localSubtitleCompletePostActionRequestSchema = z
+  .object({
+    taskId: idSchema,
+    generation: positiveSafeIntegerSchema,
+    postAction: postActionStateSchema,
+  })
+  .strict()
+  .superRefine((value, context) => {
+    if (value.postAction.mode === "export_only") {
+      context.addIssue({
+        code: "custom",
+        path: ["postAction", "mode"],
+        message: "Export-only tasks cannot complete a translation post action.",
+      });
+    }
+    if (
+      value.postAction.importStatus === "not_requested" ||
+      value.postAction.importStatus === "pending" ||
+      value.postAction.importStatus === "importing" ||
+      value.postAction.startStatus === "requesting"
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["postAction"],
+        message: "A post-action completion must be terminal.",
+      });
+    }
+  });
+export type LocalSubtitleCompletePostActionRequest = z.infer<
+  typeof localSubtitleCompletePostActionRequestSchema
+>;
 export const localSubtitleCpuRetryRequestSchema = z
   .object({
     taskId: idSchema,
@@ -2166,6 +2200,17 @@ export const LOCAL_SUBTITLE_PUBLIC_OPERATION_CONTRACTS: Record<
     maxRequestBytes: normalRequestBytes,
     maxResultBytes: normalResultBytes,
   },
+  [LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.completePostAction]: {
+    requestSchema: boundedLocalSubtitleIpcRequestSchema(
+      localSubtitleCompletePostActionRequestSchema,
+    ),
+    resultSchema: boundedLocalSubtitleIpcResultSchema(
+      localSubtitleTaskSummarySchema,
+      normalResultBytes,
+    ),
+    maxRequestBytes: normalRequestBytes,
+    maxResultBytes: normalResultBytes,
+  },
   [LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.readArtifactText]: {
     requestSchema: boundedLocalSubtitleIpcRequestSchema(
       localSubtitleArtifactRefRequestSchema,
@@ -2378,6 +2423,9 @@ export interface LocalSubtitleRendererApi {
   ): Promise<
     LocalSubtitleIpcResult<z.infer<typeof localSubtitleRemoveTaskResultSchema>>
   >;
+  completePostAction(
+    request: LocalSubtitleCompletePostActionRequest,
+  ): Promise<LocalSubtitleIpcResult<LocalSubtitleTaskSummary>>;
   readArtifactText(
     artifactRef: string,
   ): Promise<LocalSubtitleIpcResult<LocalSubtitleArtifactTextResult>>;

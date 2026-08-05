@@ -224,6 +224,7 @@
       "title": "文字起こし設定",
       "model": "ローカルモデル",
       "no_model": "利用可能なモデルがありません",
+      "output_formats": "字幕形式",
       "output_mode": "出力先",
       "output_source": "元ファイルのフォルダー",
       "output_custom": "カスタムフォルダー",
@@ -297,7 +298,48 @@
       "remove_task": "{{name}} を削除",
       "preview_artifact": "{{name}} をプレビュー",
       "show_error_details": "{{name}} のエラー詳細を表示",
-      "reveal_task": "{{name}} をフォルダーに表示"
+      "reveal_task": "{{name}} をフォルダーに表示",
+      "handoff_artifact": "{{name}} を字幕翻訳に送る"
+    },
+    "post_action": {
+      "mode": "文字起こし完了後",
+      "export_only": "字幕のみを書き出す",
+      "enqueue": "字幕翻訳に追加",
+      "enqueue_and_start": "追加して翻訳を開始",
+      "send_to_translation": "生成した字幕を字幕翻訳に送る",
+      "start_automatically": "このバッチで追加した翻訳タスクを自動開始",
+      "handoff_format": "翻訳に渡す形式",
+      "languages": "翻訳言語",
+      "profile": "実行プロファイル",
+      "translation_output": "翻訳の出力先",
+      "needs_configuration": "開始前に設定が必要です",
+      "confirm_title": "翻訳への引き渡しを確認",
+      "confirm_description": "バッチを開始する前に、今回固定される字幕翻訳設定を確認してください。",
+      "confirm": "確認して開始",
+      "cost_notice": "選択した字幕の生成後に翻訳を自動開始し、有料の外部 API を使用する場合があります。このバッチで追加されたタスクだけを開始します。",
+      "session_only_notice": "インポートしたタスクは現在の字幕翻訳セッションにだけ追加され、アプリ再起動後は未開始タスクを復元しません。",
+      "receipt": "翻訳への引き渡し",
+      "view_translation": "翻訳タスクを表示",
+      "manual_complete": "字幕の引き渡しが完了しました。",
+      "manual_failed": "字幕を引き渡せませんでした。",
+      "status": {
+        "pending": "字幕の生成待ち",
+        "importing": "インポート中",
+        "queued": "翻訳に追加済み",
+        "translation_task_missing": "翻訳タスクはすでに存在しません",
+        "skipped": "引き渡しをスキップ",
+        "failed": "引き渡しに失敗"
+      },
+      "start": {
+        "started": "翻訳を開始しました",
+        "waiting": "翻訳キューで待機中",
+        "failed": "翻訳を開始できませんでした"
+      },
+      "error": {
+        "configuration_not_ready": "字幕翻訳設定を読み込み中です。翻訳ツールの準備後に再試行してください。",
+        "directory_authorization_required": "このモードを使う前に、字幕翻訳ツールで出力フォルダーを選択または再承認してください。",
+        "profile_required": "翻訳の自動開始には有効な翻訳プロファイルと API キーが必要です。"
+      }
     },
     "resources": {
       "title": "管理対象リソース",
