@@ -277,6 +277,7 @@ app.whenReady().then(async () => {
     isResourceBusy: (resourceId) =>
       Boolean(
         localSubtitleJobManager?.isManagedModelBusy(resourceId) ||
+        localSubtitleJobManager?.isManagedVadBusy(resourceId) ||
         localSubtitleJobManager?.isManagedAcceleratorBusy(resourceId) ||
         localSubtitleServerSupervisor.isManagedAcceleratorBusy(resourceId) ||
         localSubtitleServerSupervisor.snapshot.modelId === resourceId ||

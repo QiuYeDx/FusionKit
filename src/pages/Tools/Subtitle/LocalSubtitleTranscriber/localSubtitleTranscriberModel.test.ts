@@ -112,8 +112,12 @@ describe("local subtitle transcriber page model", () => {
       runtimeSyncStatus: "ready" as const,
       readyModels: [model],
       selectedModelId: model.resourceId,
+      vadEnabled: true,
+      vadReady: true,
       backendPreviewStatus: "ready" as const,
       backendPreviewModelId: model.resourceId,
+      backendPreviewDevicePreference: "auto" as const,
+      devicePreference: "auto" as const,
       selectedFiles: [file],
       mediaProbeStatus: "ready" as const,
       outputMode: "source" as const,
@@ -127,6 +131,9 @@ describe("local subtitle transcriber page model", () => {
     expect(
       deriveLocalSubtitleStartIssue({ ...ready, selectedModelId: "missing" }),
     ).toBe("model_required");
+    expect(
+      deriveLocalSubtitleStartIssue({ ...ready, vadReady: false }),
+    ).toBe("vad_required");
     expect(
       deriveLocalSubtitleStartIssue({
         ...ready,
@@ -143,6 +150,12 @@ describe("local subtitle transcriber page model", () => {
       deriveLocalSubtitleStartIssue({
         ...ready,
         backendPreviewModelId: "another-model",
+      }),
+    ).toBe("backend_preview_loading");
+    expect(
+      deriveLocalSubtitleStartIssue({
+        ...ready,
+        backendPreviewDevicePreference: "cpu",
       }),
     ).toBe("backend_preview_loading");
     expect(
@@ -179,7 +192,7 @@ describe("local subtitle transcriber page model", () => {
         modelId: model.resourceId,
         devicePreference: "auto",
         taskMode: "transcribe",
-        vadEnabled: false,
+        vadEnabled: true,
         output: {
           mode: "source",
           formats: ["SRT"],
@@ -196,10 +209,17 @@ describe("local subtitle transcriber page model", () => {
       modelId: model.resourceId,
       preferences: {
         ...DEFAULT_LOCAL_SUBTITLE_TRANSCRIBER_PREFERENCES,
+        devicePreference: "cuda",
+        vadEnabled: false,
+        qualityPreset: "fast",
+        beamSize: 2,
+        temperature: 0.35,
         outputFormats: ["SRT", "LRC"],
       },
+      initialPrompt: "FusionKit product names",
+      taskMode: "translate_to_english",
       outputDirectory: null,
-      conflictPolicy: "index",
+      conflictPolicy: "overwrite",
       postAction: {
         mode: "enqueue_translation",
         preferredFormat: "LRC",
@@ -209,7 +229,19 @@ describe("local subtitle transcriber page model", () => {
 
     expect(validateEnqueueLocalSubtitleBatchRequest(request).ok).toBe(true);
     expect(request.config).toMatchObject({
-      output: { formats: ["SRT", "LRC"] },
+      devicePreference: "cuda",
+      taskMode: "translate_to_english",
+      qualityPreset: "fast",
+      vadEnabled: false,
+      advanced: {
+        initialPrompt: "FusionKit product names",
+        beamSize: 2,
+        temperature: 0.35,
+      },
+      output: {
+        formats: ["SRT", "LRC"],
+        conflictPolicy: "overwrite",
+      },
       postAction: {
         mode: "enqueue_translation",
         preferredFormat: "LRC",
@@ -256,8 +288,12 @@ describe("local subtitle transcriber page model", () => {
       runtimeSyncStatus: "ready",
       readyModels: [model],
       selectedModelId: model.resourceId,
+      vadEnabled: false,
+      vadReady: false,
       backendPreviewStatus: "ready",
       backendPreviewModelId: model.resourceId,
+      backendPreviewDevicePreference: "auto",
+      devicePreference: "auto",
       selectedFiles: [file],
       mediaProbeStatus: "ready",
       outputMode: "source",

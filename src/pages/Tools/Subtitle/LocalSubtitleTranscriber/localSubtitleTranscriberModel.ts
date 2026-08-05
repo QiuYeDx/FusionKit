@@ -3,10 +3,12 @@ import {
   LOCAL_SUBTITLE_LIMITS,
   type LocalSubtitleBatchSummary,
   type LocalSubtitleConflictPolicy,
+  type LocalSubtitleDevicePreference,
   type LocalSubtitleFormat,
   type LocalSubtitleResourceJobStatus,
   type LocalSubtitleResourceJobSummary,
   type LocalSubtitleTaskSummary,
+  type LocalSubtitleTaskMode,
   type SubtitleTranslationHandoffMode,
 } from "@/type/localSubtitle";
 import type {
@@ -31,6 +33,7 @@ export type LocalSubtitleStartIssue =
   | "runtime_unavailable"
   | "session_unavailable"
   | "model_required"
+  | "vad_required"
   | "backend_preview_loading"
   | "backend_preview_unavailable"
   | "file_required"
@@ -64,8 +67,12 @@ export interface LocalSubtitleStartReadinessInput {
   readonly runtimeSyncStatus: LocalSubtitleRuntimeSyncStatus;
   readonly readyModels: readonly LocalSubtitleManagedResourceSummary[];
   readonly selectedModelId: string | null;
+  readonly vadEnabled: boolean;
+  readonly vadReady: boolean;
   readonly backendPreviewStatus: "idle" | "loading" | "ready" | "error";
   readonly backendPreviewModelId: string | null;
+  readonly backendPreviewDevicePreference: LocalSubtitleDevicePreference | null;
+  readonly devicePreference: LocalSubtitleDevicePreference;
   readonly selectedFiles: readonly LocalSubtitleAuthorizedMedia[];
   readonly mediaProbeStatus: LocalSubtitleDraftMediaProbeStatus;
   readonly outputMode: "source" | "custom";
@@ -141,10 +148,12 @@ export function deriveLocalSubtitleStartIssue(
   ) {
     return "model_required";
   }
+  if (input.vadEnabled && !input.vadReady) return "vad_required";
   if (
     input.backendPreviewStatus === "idle" ||
     input.backendPreviewStatus === "loading" ||
-    input.backendPreviewModelId !== input.selectedModelId
+    input.backendPreviewModelId !== input.selectedModelId ||
+    input.backendPreviewDevicePreference !== input.devicePreference
   ) {
     return "backend_preview_loading";
   }
@@ -166,6 +175,8 @@ export function createLocalSubtitleBatchRequest(input: {
   readonly files: readonly LocalSubtitleAuthorizedMedia[];
   readonly modelId: string;
   readonly preferences: LocalSubtitleTranscriberPreferences;
+  readonly initialPrompt?: string;
+  readonly taskMode?: LocalSubtitleTaskMode;
   readonly outputDirectory: ActiveOutputDirectory | null;
   readonly explicitAudioStreamIds?: ReadonlyMap<string, string>;
   readonly conflictPolicy?: LocalSubtitleConflictPolicy;
@@ -210,12 +221,15 @@ export function createLocalSubtitleBatchRequest(input: {
     }),
     config: {
       modelId: input.modelId,
-      devicePreference: "auto",
+      devicePreference: input.preferences.devicePreference,
       language: input.preferences.language,
-      taskMode: "transcribe",
+      taskMode: input.taskMode ?? "transcribe",
       qualityPreset: input.preferences.qualityPreset,
-      vadEnabled: false,
+      vadEnabled: input.preferences.vadEnabled,
       advanced: {
+        ...(input.initialPrompt
+          ? { initialPrompt: input.initialPrompt }
+          : {}),
         beamSize: input.preferences.beamSize,
         temperature: input.preferences.temperature,
         vadMinSilenceMs: input.preferences.vadMinSilenceMs,

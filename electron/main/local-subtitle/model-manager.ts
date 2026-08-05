@@ -578,6 +578,8 @@ export class LocalSubtitleModelManager {
           resourceType: "model" as const,
           displayName: model.id,
           version: model.engineCompatibility,
+          modelFormat: model.format,
+          quantization: model.quantization,
           byteSize: model.byteSize,
           isDefault: model.defaultRecommended,
           compatibleBackends: ["cpu", "cuda", "metal"] as Array<

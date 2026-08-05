@@ -65,6 +65,15 @@ describe("local subtitle transcriber page wiring", () => {
     expect(source).not.toContain("window.ipcRenderer");
     expect(source).not.toContain('"audio:');
     expect(pageSource).toContain("backendPreviewGenerationRef");
+    expect(pageSource).toContain("preferences.devicePreference");
+    expect(pageSource).toContain("result.data.devicePreference !== devicePreference");
+    expect(pageSource).toContain("preferences.vadEnabled");
+    expect(pageSource).toContain("draftInitialPrompt");
+    expect(pageSource).toContain("draftTaskMode");
+    expect(pageSource).toContain('data-testid="local-subtitle-advanced-settings"');
+    expect(pageSource).toContain('data-testid="local-subtitle-model-description"');
+    expect(pageSource).not.toContain('devicePreference: "auto"');
+    expect(pageSource).not.toContain('vadEnabled: false');
     expect(environmentSource).not.toContain("cpuAvailable");
   });
 

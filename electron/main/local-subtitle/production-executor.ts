@@ -124,6 +124,7 @@ interface ProductionBatchRuntimeRecord {
   readonly batchId: string;
   readonly config: LocalSubtitleJobBatchExecutionContext["config"];
   readonly managedModel: LocalSubtitleJobBatchExecutionContext["managedModel"];
+  readonly managedVad?: LocalSubtitleJobBatchExecutionContext["managedVad"];
   readonly admittedRuntimeGeneration: string;
   readonly backendResolution: LocalSubtitleVerifiedBackendResolution;
   readonly signal: AbortSignal;
@@ -148,6 +149,8 @@ interface PinnedServerRuntimeIdentity {
     version: string;
     signatureKind: LocalSubtitleVerifiedRuntimeArtifact["signatureKind"];
   }>;
+  readonly managedModel: LocalSubtitleJobBatchExecutionContext["managedModel"];
+  readonly managedVad?: LocalSubtitleJobBatchExecutionContext["managedVad"];
   readonly acceleratorPack?: LocalSubtitleVerifiedAcceleratorPack;
 }
 
@@ -315,6 +318,9 @@ export class LocalSubtitleProductionExecutor
       batchId: context.batchId,
       config: context.config,
       managedModel: context.managedModel,
+      ...(context.managedVad === undefined
+        ? {}
+        : { managedVad: context.managedVad }),
       admittedRuntimeGeneration: context.admittedRuntimeGeneration,
       backendResolution: context.backendResolution,
       signal: context.signal,
@@ -851,6 +857,7 @@ export class LocalSubtitleProductionExecutor
       record.owner.ownerSessionId !== context.owner.ownerSessionId ||
       record.config !== context.config ||
       record.managedModel !== context.managedModel ||
+      record.managedVad !== context.managedVad ||
       record.admittedRuntimeGeneration !== context.admittedRuntimeGeneration ||
       record.backendResolution !== context.backendResolution
     ) {
@@ -877,6 +884,8 @@ export class LocalSubtitleProductionExecutor
     const requestedIdentity = snapshotPinnedServerRuntimeIdentity(
       runtime,
       record.backendResolution,
+      record.managedModel,
+      record.managedVad,
       acceleratorPack,
     );
     if (
@@ -901,6 +910,9 @@ export class LocalSubtitleProductionExecutor
           verifiedRuntime: runtime,
           serverArtifactId,
           model: record.managedModel,
+          ...(record.managedVad === undefined
+            ? {}
+            : { vadModel: record.managedVad }),
           threads: this.#cpuThreads,
         };
         acquired = record.backendResolution.resolvedBackend === "cuda"
@@ -983,6 +995,8 @@ function waitForBatchPin(
 function snapshotPinnedServerRuntimeIdentity(
   runtime: LocalSubtitleVerifiedRuntimeBundle,
   resolution: LocalSubtitleVerifiedBackendResolution,
+  managedModel: LocalSubtitleJobBatchExecutionContext["managedModel"],
+  managedVad: LocalSubtitleJobBatchExecutionContext["managedVad"],
   acceleratorPack: LocalSubtitleVerifiedAcceleratorPack | undefined,
 ): PinnedServerRuntimeIdentity {
   const artifact = resolution.serverArtifact;
@@ -1011,6 +1025,10 @@ function snapshotPinnedServerRuntimeIdentity(
       version: artifact.version,
       signatureKind: artifact.signatureKind,
     }),
+    managedModel: Object.freeze({ ...managedModel }),
+    ...(managedVad === undefined
+      ? {}
+      : { managedVad: Object.freeze({ ...managedVad }) }),
     ...(acceleratorPack === undefined ? {} : { acceleratorPack }),
   });
 }
@@ -1034,11 +1052,36 @@ function samePinnedServerRuntimeIdentity(
     left.sha256 === right.sha256 &&
     left.version === right.version &&
     left.signatureKind === right.signatureKind &&
+    sameManagedResourceIdentity(current.managedModel, requested.managedModel) &&
+    sameOptionalManagedResourceIdentity(current.managedVad, requested.managedVad) &&
     samePinnedAcceleratorPack(
       current.acceleratorPack,
       requested.acceleratorPack,
     )
   );
+}
+
+function sameManagedResourceIdentity(
+  current: LocalSubtitleJobBatchExecutionContext["managedModel"],
+  requested: LocalSubtitleJobBatchExecutionContext["managedModel"],
+): boolean {
+  return (
+    current.storage === requested.storage &&
+    current.id === requested.id &&
+    current.absolutePath === requested.absolutePath &&
+    current.byteSize === requested.byteSize &&
+    current.sha256 === requested.sha256
+  );
+}
+
+function sameOptionalManagedResourceIdentity(
+  current: LocalSubtitleJobBatchExecutionContext["managedVad"],
+  requested: LocalSubtitleJobBatchExecutionContext["managedVad"],
+): boolean {
+  if (current === undefined || requested === undefined) {
+    return current === requested;
+  }
+  return sameManagedResourceIdentity(current, requested);
 }
 
 function samePinnedAcceleratorPack(
@@ -1062,7 +1105,7 @@ function createInferenceRequest(
     taskMode: context.config.taskMode,
     beamSize: context.config.inference.advanced.beamSize,
     temperature: context.config.inference.advanced.temperature,
-    vadEnabled: false,
+    vadEnabled: context.config.inference.vad.enabled,
     vadMinSilenceMs: context.config.inference.advanced.vadMinSilenceMs,
     ...(context.config.inference.advanced.initialPrompt === undefined
       ? {}
@@ -1377,13 +1420,13 @@ function isSupportedBatchExecutionContext(
     context.managedModel.storage === "managed" &&
     context.managedModel.id === context.config.model.modelId &&
     context.managedModel.sha256 === context.config.model.modelHash &&
+    isSupportedManagedVadContext(context) &&
     isSupportedBackendResolutionContext(context) &&
     (context.config.output.mode === "custom" ||
       context.config.output.mode === "source") &&
     supportsConflictPolicy(context.config.output.conflictPolicy) &&
     isSupportedProductionFormats(context.config.output.formats) &&
-    context.config.taskMode === "transcribe" &&
-    context.config.inference.vad.enabled === false
+    isSupportedProductionTaskMode(context.config.taskMode)
   );
 }
 
@@ -1397,8 +1440,35 @@ function isSupportedExecutionContext(
     supportsConflictPolicy(context.config.output.conflictPolicy) &&
     isSupportedProductionFormats(context.config.output.formats) &&
     isSupportedBackendResolutionContext(context) &&
-    context.config.taskMode === "transcribe" &&
-    context.config.inference.vad.enabled === false
+    isSupportedManagedVadContext(context) &&
+    isSupportedProductionTaskMode(context.config.taskMode)
+  );
+}
+
+function isSupportedProductionTaskMode(
+  taskMode: LocalSubtitleJobTaskExecutionContext["config"]["taskMode"],
+): boolean {
+  return taskMode === "transcribe" || taskMode === "translate_to_english";
+}
+
+function isSupportedManagedVadContext(
+  context: Pick<
+    LocalSubtitleJobBatchExecutionContext,
+    "config" | "managedVad"
+  >,
+): boolean {
+  const managedVad = context.managedVad;
+  if (!context.config.inference.vad.enabled) return managedVad === undefined;
+  return (
+    managedVad !== undefined &&
+    managedVad.storage === "managed" &&
+    managedVad.id === context.config.inference.vad.modelId &&
+    managedVad.id === LOCAL_SUBTITLE_PRODUCTION_CONTRACT.vad.id &&
+    managedVad.sha256 === LOCAL_SUBTITLE_PRODUCTION_CONTRACT.vad.sha256 &&
+    Number.isSafeInteger(managedVad.byteSize) &&
+    managedVad.byteSize > 0 &&
+    typeof managedVad.absolutePath === "string" &&
+    managedVad.absolutePath.length > 0
   );
 }
 

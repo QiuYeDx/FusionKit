@@ -92,6 +92,21 @@ describe("local subtitle production executor", () => {
     });
   });
 
+  it("forwards the frozen translate mode and session prompt to inference", async () => {
+    const harness = await createHarness({
+      taskMode: "translate_to_english",
+      initialPrompt: "FusionKit product names",
+    });
+
+    await expect(harness.executor.execute(harness.context)).resolves.toMatchObject({
+      status: "completed",
+    });
+    expect(harness.supervisor.beginInference.mock.calls[0]?.[1]).toMatchObject({
+      taskMode: "translate_to_english",
+      initialPrompt: "FusionKit product names",
+    });
+  });
+
   it("reverifies and pins the exact admitted CUDA pack before inference", async () => {
     const accelerator = await createAcceleratorFixture();
     try {
@@ -167,6 +182,29 @@ describe("local subtitle production executor", () => {
       "post_processing",
       "exporting",
     ]);
+  });
+
+  it("pins the exact managed VAD and enables segment-only VAD inference", async () => {
+    const harness = await createHarness({ vadEnabled: true });
+
+    await expect(harness.executor.execute(harness.context)).resolves.toMatchObject({
+      status: "completed",
+    });
+
+    expect(harness.supervisor.acquireBatchRuntimePin).toHaveBeenCalledWith(
+      OWNER,
+      "batch-1",
+      expect.objectContaining({
+        purpose: "inference",
+        model: harness.context.managedModel,
+        vadModel: harness.managedVad,
+      }),
+      harness.sliceController.signal,
+    );
+    expect(harness.supervisor.beginInference.mock.calls[0]?.[1]).toMatchObject({
+      vadEnabled: true,
+      vadMinSilenceMs: 500,
+    });
   });
 
   it("uses only the task input parent resolver for source output", async () => {
@@ -1169,6 +1207,9 @@ interface HarnessOptions {
   readonly conflictPolicy?: LocalSubtitleConflictPolicy;
   readonly formats?: readonly LocalSubtitleFormat[];
   readonly postAction?: LocalSubtitleBatchConfigSnapshot["postAction"];
+  readonly taskMode?: LocalSubtitleBatchConfigSnapshot["taskMode"];
+  readonly initialPrompt?: string;
+  readonly vadEnabled?: boolean;
   readonly failArtifactReserveFormat?: LocalSubtitleFormat;
   readonly abortAfterArtifactFormat?: LocalSubtitleFormat;
   readonly exporterDependencies?: (
@@ -1397,6 +1438,9 @@ async function createHarness(options: HarnessOptions = {}) {
     options.formats ?? ["SRT"],
     options.backend ?? "cpu",
     options.postAction,
+    options.vadEnabled === true,
+    options.taskMode,
+    options.initialPrompt,
   );
   const managedModel = Object.freeze({
     storage: "managed" as const,
@@ -1405,6 +1449,15 @@ async function createHarness(options: HarnessOptions = {}) {
     byteSize: 1024,
     sha256: MODEL_HASH,
   });
+  const managedVad = options.vadEnabled === true
+    ? Object.freeze({
+        storage: "managed" as const,
+        id: LOCAL_SUBTITLE_PRODUCTION_CONTRACT.vad.id,
+        absolutePath: path.join(os.tmpdir(), "managed-vad.bin"),
+        byteSize: 885_098,
+        sha256: LOCAL_SUBTITLE_PRODUCTION_CONTRACT.vad.sha256,
+      })
+    : undefined;
   const backendResolution = await new LocalSubtitleBackendResolver({
     verifyServerRuntime: async () =>
       options.serverRuntimeBundles?.[0] ??
@@ -1430,6 +1483,7 @@ async function createHarness(options: HarnessOptions = {}) {
     batchId: "batch-1",
     config,
     managedModel,
+    ...(managedVad === undefined ? {} : { managedVad }),
     admittedRuntimeGeneration,
     backendResolution,
     signal: sliceController.signal,
@@ -1441,6 +1495,8 @@ async function createHarness(options: HarnessOptions = {}) {
     config,
     managedModel,
     backendResolution,
+    { taskId: "task-1", fileToken: "file-token-1" },
+    managedVad,
   );
   return {
     root,
@@ -1455,6 +1511,7 @@ async function createHarness(options: HarnessOptions = {}) {
     outputs,
     exporter,
     artifacts,
+    managedVad,
     resolveCudaAccelerator,
   };
 }
@@ -1515,6 +1572,7 @@ function createContext(
     taskId: string;
     fileToken: string;
   }> = { taskId: "task-1", fileToken: "file-token-1" },
+  managedVad?: LocalSubtitleJobTaskExecutionContext["managedVad"],
 ) {
   const update = vi.fn(() => ({} as LocalSubtitleTaskSummary));
   return Object.freeze({
@@ -1525,6 +1583,7 @@ function createContext(
     fileToken: identity.fileToken,
     config,
     managedModel,
+    ...(managedVad === undefined ? {} : { managedVad }),
     admittedRuntimeGeneration,
     backendResolution,
     batchRuntime,
@@ -1541,6 +1600,9 @@ function createConfig(
   postAction: LocalSubtitleBatchConfigSnapshot["postAction"] = {
     mode: "export_only",
   },
+  vadEnabled = false,
+  taskMode: LocalSubtitleBatchConfigSnapshot["taskMode"] = "transcribe",
+  initialPrompt?: string,
 ): LocalSubtitleBatchConfigSnapshot {
   return createLocalSubtitleBatchConfigSnapshot({
     schemaVersion: LOCAL_SUBTITLE_DOMAIN_SCHEMA_VERSION,
@@ -1558,10 +1620,11 @@ function createConfig(
     devicePreference: "auto",
     resolvedBackend,
     language: "auto",
-    taskMode: "transcribe",
+    taskMode,
     inference: {
       qualityPreset: "balanced",
       advanced: {
+        ...(initialPrompt === undefined ? {} : { initialPrompt }),
         beamSize: 5,
         temperature: 0,
         vadMinSilenceMs: 500,
@@ -1570,7 +1633,7 @@ function createConfig(
         maxLineChars: 42,
       },
       vad: {
-        enabled: false,
+        enabled: vadEnabled,
         modelId: LOCAL_SUBTITLE_PRODUCTION_CONTRACT.vad.id,
         tokenTimestamps: false,
         timelinePolicy: LOCAL_SUBTITLE_PRODUCTION_CONTRACT.vad.timelinePolicy,
@@ -1657,12 +1720,16 @@ function serverResponse(
     sessionDisposition: "reusable",
     result: {
       contractVersion: LOCAL_SUBTITLE_SERVER_HTTP_CONTRACT_VERSION,
-      task: "transcribe",
+      task: request.taskMode === "translate_to_english"
+        ? "translate"
+        : "transcribe",
       language: "en",
       durationMs,
       text: segments.map((segment) => segment.text).join(" "),
       segments,
-      wordTimelineStatus: "not_requested",
+      wordTimelineStatus: request.vadEnabled
+        ? "discarded_vad_compressed_timeline"
+        : "not_requested",
     },
   };
 }

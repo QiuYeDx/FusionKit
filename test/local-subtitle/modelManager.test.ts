@@ -152,7 +152,12 @@ describe("local subtitle model manager", () => {
       ],
     });
     await expect(fixture.manager.listManagedResources(OWNER)).resolves.toMatchObject([
-      { resourceId: fixture.model.id, status: "ready" },
+      {
+        resourceId: fixture.model.id,
+        status: "ready",
+        modelFormat: fixture.model.format,
+        quantization: fixture.model.quantization,
+      },
     ]);
     expect(fixture.smoke).toHaveBeenCalledOnce();
   });

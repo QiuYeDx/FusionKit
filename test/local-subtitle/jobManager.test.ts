@@ -2901,18 +2901,42 @@ describe("LocalSubtitleJobManager", () => {
     expect(harness.executor.execute).not.toHaveBeenCalled();
   });
 
-  it("rejects unsupported valid schema combinations without consuming drafts", async () => {
+  it("freezes a managed VAD identity and reports it busy through execution", async () => {
+    const vadResolution = deferred<void>();
+    const taskExecutor = executor(async (context) => successfulExecution(context));
     const harness = await createHarness({
-      executor: executor(async (context) => successfulExecution(context)),
+      executor: taskExecutor,
+      vadResolutionGate: vadResolution.promise,
     });
     const request = await harness.createRequest(harness.fileToken);
     request.config.vadEnabled = true;
 
-    await expect(harness.manager.enqueue(OWNER_A, request)).rejects.toMatchObject({
-      localSubtitleCode: "invalid_ipc_request",
-      field: "config",
-    });
-    expect(harness.inputs.revokeDraft(OWNER_A, harness.fileToken)).toBe(true);
+    const enqueue = harness.manager.enqueue(OWNER_A, request);
+    await waitFor(() => harness.modelResolver.resolveManagedVad.mock.calls.length === 1);
+    expect(harness.manager.isManagedVadBusy(
+      LOCAL_SUBTITLE_PRODUCTION_CONTRACT.vad.id,
+    )).toBe(true);
+    vadResolution.resolve();
+    const batch = await enqueue;
+    expect(batch.config.vadEnabled).toBe(true);
+
+    harness.flushScheduled();
+    await harness.manager.waitForIdle();
+
+    expect(taskExecutor.beginBatchSlice).toHaveBeenCalledWith(expect.objectContaining({
+      managedVad: harness.managedVad,
+      config: expect.objectContaining({
+        inference: expect.objectContaining({
+          vad: expect.objectContaining({ enabled: true }),
+        }),
+      }),
+    }));
+    expect(taskExecutor.execute).toHaveBeenCalledWith(expect.objectContaining({
+      managedVad: harness.managedVad,
+    }));
+    expect(harness.manager.isManagedVadBusy(
+      LOCAL_SUBTITLE_PRODUCTION_CONTRACT.vad.id,
+    )).toBe(false);
   });
 
   it.each(["custom", "source"] as const)(
@@ -3597,6 +3621,7 @@ interface HarnessOptions {
   readonly manualLeaseRenewal?: boolean;
   readonly cancelLeaseRenewal?: () => void;
   readonly modelResolutionGate?: Promise<void>;
+  readonly vadResolutionGate?: Promise<void>;
   readonly metalBackend?: boolean;
 }
 
@@ -3636,10 +3661,21 @@ async function createHarness(options: HarnessOptions) {
     byteSize: 1024,
     sha256: LOCAL_SUBTITLE_PRODUCTION_CONTRACT.launchModel.sha256,
   });
+  const managedVad = Object.freeze({
+    storage: "managed" as const,
+    id: LOCAL_SUBTITLE_PRODUCTION_CONTRACT.vad.id,
+    absolutePath: path.join(root, "managed-vad.bin"),
+    byteSize: 885_098,
+    sha256: LOCAL_SUBTITLE_PRODUCTION_CONTRACT.vad.sha256,
+  });
   const modelResolver = {
     resolveManagedModel: vi.fn(async () => {
       await options.modelResolutionGate;
       return managedModel;
+    }),
+    resolveManagedVad: vi.fn(async () => {
+      await options.vadResolutionGate;
+      return managedVad;
     }),
   };
   const runtimeVerifier = {
@@ -3717,6 +3753,7 @@ async function createHarness(options: HarnessOptions) {
     backendResolver,
     executor: options.executor,
     managedModel,
+    managedVad,
     modelResolver,
     mediaSelections,
     fileToken: file.fileToken,

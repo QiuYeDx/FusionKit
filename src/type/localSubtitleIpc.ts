@@ -1641,6 +1641,8 @@ export const localSubtitleManagedResourceSummarySchema = z
     displayName: displayNameSchema,
     status: z.enum(LOCAL_SUBTITLE_MANAGED_RESOURCE_STATUSES),
     version: boundedMetadataStringSchema.optional(),
+    modelFormat: boundedMetadataStringSchema.optional(),
+    quantization: boundedMetadataStringSchema.optional(),
     byteSize: positiveSafeIntegerSchema.max(
       LOCAL_SUBTITLE_LIMITS.maxMediaFileBytes,
     ),
@@ -1674,6 +1676,16 @@ export const localSubtitleManagedResourceSummarySchema = z
         code: "custom",
         path: ["errorCode"],
         message: "Only invalid managed resources may include an error code.",
+      });
+    }
+    if (
+      value.resourceType !== "model" &&
+      (value.modelFormat !== undefined || value.quantization !== undefined)
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["modelFormat"],
+        message: "Only managed models may include model format metadata.",
       });
     }
   });

@@ -114,6 +114,10 @@ export interface LocalSubtitleJobModelResolver {
     modelId: string,
     signal?: AbortSignal,
   ): Promise<LocalSubtitleServerManagedResourceIdentity<"managed">>;
+  resolveManagedVad(
+    resourceId: string,
+    signal?: AbortSignal,
+  ): Promise<LocalSubtitleServerManagedResourceIdentity<"managed">>;
 }
 
 export interface LocalSubtitleJobArtifactRegistry {
@@ -169,6 +173,7 @@ export interface LocalSubtitleJobBatchExecutionContext {
   readonly batchId: string;
   readonly config: LocalSubtitleBatchConfigSnapshot;
   readonly managedModel: LocalSubtitleServerManagedResourceIdentity<"managed">;
+  readonly managedVad?: LocalSubtitleServerManagedResourceIdentity<"managed">;
   readonly admittedRuntimeGeneration: string;
   readonly backendResolution: LocalSubtitleVerifiedBackendResolution;
   readonly signal: AbortSignal;
@@ -183,6 +188,7 @@ export interface LocalSubtitleJobTaskExecutionContext {
   readonly audioStreamId?: string;
   readonly config: LocalSubtitleBatchConfigSnapshot;
   readonly managedModel: LocalSubtitleServerManagedResourceIdentity<"managed">;
+  readonly managedVad?: LocalSubtitleServerManagedResourceIdentity<"managed">;
   readonly admittedRuntimeGeneration: string;
   readonly backendResolution: LocalSubtitleVerifiedBackendResolution;
   readonly batchRuntime: LocalSubtitleJobBatchRuntime;
@@ -256,6 +262,7 @@ interface BatchRecord {
   readonly batchId: string;
   readonly config: LocalSubtitleBatchConfigSnapshot;
   readonly managedModel: LocalSubtitleServerManagedResourceIdentity<"managed">;
+  readonly managedVad?: LocalSubtitleServerManagedResourceIdentity<"managed">;
   readonly runtimeGeneration: string;
   readonly backendResolution: LocalSubtitleVerifiedBackendResolution;
   readonly outputDirToken?: string;
@@ -292,6 +299,7 @@ interface TaskRun {
 interface TaskExecutionBinding {
   readonly config: LocalSubtitleBatchConfigSnapshot;
   readonly managedModel: LocalSubtitleServerManagedResourceIdentity<"managed">;
+  readonly managedVad?: LocalSubtitleServerManagedResourceIdentity<"managed">;
   readonly runtimeGeneration: string;
   readonly backendResolution: LocalSubtitleVerifiedBackendResolution;
 }
@@ -307,6 +315,7 @@ interface ActiveBatchSlice {
 interface PendingEnqueue {
   readonly ownerKey: string;
   readonly modelId: string;
+  readonly vadModelId?: string;
   readonly controller: AbortController;
   readonly detach: () => void;
   readonly admission: QueueAdmission;
@@ -321,6 +330,7 @@ interface PendingBackendPreview {
 interface PendingCpuRetry {
   readonly ownerKey: string;
   readonly modelId: string;
+  readonly vadModelId?: string;
   readonly controller: AbortController;
   readonly detach: () => void;
   readonly admission: QueueAdmission;
@@ -391,6 +401,7 @@ export class LocalSubtitleJobManager {
       typeof options.runtimeVerifier?.verifyRuntime !== "function" ||
       typeof options.backendResolver?.resolveBackend !== "function" ||
       typeof options.modelResolver?.resolveManagedModel !== "function" ||
+      typeof options.modelResolver?.resolveManagedVad !== "function" ||
       typeof options.mediaSelections?.bindTaskMediaSelection !== "function" ||
       typeof options.mediaSelections?.releaseTaskMediaSelection !== "function" ||
       typeof options.executor?.supportsOutputConflictPolicy !== "function" ||
@@ -464,6 +475,23 @@ export class LocalSubtitleJobManager {
     );
   }
 
+  isManagedVadBusy(resourceId: string): boolean {
+    return (
+      [...this.#pendingEnqueues].some(
+        (pending) => pending.vadModelId === resourceId,
+      ) ||
+      [...this.#pendingCpuRetries].some(
+        (pending) => pending.vadModelId === resourceId,
+      ) ||
+      [...this.#tasks.values()].some(
+        (record) =>
+          record.execution.managedVad?.id === resourceId &&
+          record.state !== "terminal" &&
+          record.state !== "removed",
+      )
+    );
+  }
+
   async previewBackend(
     owner: LocalSubtitleOwnerKey,
     request: LocalSubtitleBackendPreviewRequest,
@@ -528,6 +556,9 @@ export class LocalSubtitleJobManager {
     const pending = this.#beginPendingEnqueue(
       ownerKeyValue,
       parsed.config.modelId,
+      parsed.config.vadEnabled
+        ? LOCAL_SUBTITLE_PRODUCTION_CONTRACT.vad.id
+        : undefined,
       signal,
     );
     let transaction:
@@ -555,11 +586,17 @@ export class LocalSubtitleJobManager {
         return taskId;
       });
       const createdAt = this.#timestamp();
-      const [managedModel, inputs, runtimeAdmission] = await Promise.all([
+      const [managedModel, managedVad, inputs, runtimeAdmission] = await Promise.all([
         this.#modelResolver.resolveManagedModel(
           parsed.config.modelId,
           pending.controller.signal,
         ),
+        parsed.config.vadEnabled
+          ? this.#modelResolver.resolveManagedVad(
+              LOCAL_SUBTITLE_PRODUCTION_CONTRACT.vad.id,
+              pending.controller.signal,
+            )
+          : Promise.resolve(undefined),
         parsed.config.output.mode === "source"
           ? resolveSourceInputDrafts(this.#inputs, owner, parsed.files)
           : Promise.all(
@@ -575,6 +612,7 @@ export class LocalSubtitleJobManager {
       throwIfAborted(pending.controller.signal);
       this.#assertOwnerAvailable(owner);
       assertManagedModel(managedModel, parsed.config.modelId);
+      assertManagedVad(managedVad, parsed.config.vadEnabled);
       assertDistinctInputIdentities(inputs);
       const runtimeGeneration = assertRuntimeAdmission(runtimeAdmission);
       const backendResolution = await this.#backendResolver.resolveBackend({
@@ -606,6 +644,9 @@ export class LocalSubtitleJobManager {
         batchId,
         config,
         managedModel: freezeManagedModel(managedModel),
+        ...(managedVad === undefined
+          ? {}
+          : { managedVad: freezeManagedResource(managedVad) }),
         runtimeGeneration,
         backendResolution,
         ...(parsed.config.output.mode === "custom"
@@ -617,6 +658,9 @@ export class LocalSubtitleJobManager {
       const execution = createTaskExecutionBinding({
         config,
         managedModel: batchRecord.managedModel,
+        ...(batchRecord.managedVad === undefined
+          ? {}
+          : { managedVad: batchRecord.managedVad }),
         runtimeGeneration,
         backendResolution,
       });
@@ -807,6 +851,9 @@ export class LocalSubtitleJobManager {
     const pending = this.#beginPendingCpuRetry(
       record.ownerKey,
       record.execution.config.model.modelId,
+      record.execution.config.inference.vad.enabled
+        ? LOCAL_SUBTITLE_PRODUCTION_CONTRACT.vad.id
+        : undefined,
       signal,
     );
     const admission = pending.admission;
@@ -825,11 +872,17 @@ export class LocalSubtitleJobManager {
         parsed.generation,
       );
 
-      const [managedModel, runtimeAdmission] = await Promise.all([
+      const [managedModel, managedVad, runtimeAdmission] = await Promise.all([
         this.#modelResolver.resolveManagedModel(
           record.execution.config.model.modelId,
           pending.controller.signal,
         ),
+        record.execution.config.inference.vad.enabled
+          ? this.#modelResolver.resolveManagedVad(
+              record.execution.config.inference.vad.modelId,
+              pending.controller.signal,
+            )
+          : Promise.resolve(undefined),
         this.#runtimeVerifier.verifyRuntime({
           owner,
           signal: pending.controller.signal,
@@ -847,7 +900,12 @@ export class LocalSubtitleJobManager {
         managedModel,
         record.execution.config.model.modelId,
       );
+      assertManagedVad(
+        managedVad,
+        record.execution.config.inference.vad.enabled,
+      );
       assertExecutionManagedModelUnchanged(record.execution, managedModel);
+      assertExecutionManagedVadUnchanged(record.execution, managedVad);
       const runtimeGeneration = assertRuntimeAdmission(runtimeAdmission);
       const backendResolution = await this.#backendResolver.resolveBackend({
         devicePreference: "cpu",
@@ -881,6 +939,9 @@ export class LocalSubtitleJobManager {
           timestamp,
         ),
         managedModel: freezeManagedModel(managedModel),
+        ...(managedVad === undefined
+          ? {}
+          : { managedVad: freezeManagedResource(managedVad) }),
         runtimeGeneration,
         backendResolution,
       });
@@ -1139,6 +1200,7 @@ export class LocalSubtitleJobManager {
   #beginPendingEnqueue(
     ownerKeyValue: string,
     modelId: string,
+    vadModelId?: string,
     signal?: AbortSignal,
   ): PendingEnqueue {
     const controller = new AbortController();
@@ -1146,6 +1208,7 @@ export class LocalSubtitleJobManager {
     const pending = {
       ownerKey: ownerKeyValue,
       modelId,
+      ...(vadModelId === undefined ? {} : { vadModelId }),
       controller,
       detach,
       admission: this.#beginAdmission(ownerKeyValue),
@@ -1171,12 +1234,14 @@ export class LocalSubtitleJobManager {
   #beginPendingCpuRetry(
     ownerKeyValue: string,
     modelId: string,
+    vadModelId?: string,
     signal?: AbortSignal,
   ): PendingCpuRetry {
     const controller = new AbortController();
     const pending = {
       ownerKey: ownerKeyValue,
       modelId,
+      ...(vadModelId === undefined ? {} : { vadModelId }),
       controller,
       detach: forwardAbort(signal, controller),
       admission: this.#beginAdmission(ownerKeyValue),
@@ -1335,6 +1400,9 @@ export class LocalSubtitleJobManager {
       batchId: run.record.batch.batchId,
       config: run.execution.config,
       managedModel: run.execution.managedModel,
+      ...(run.execution.managedVad === undefined
+        ? {}
+        : { managedVad: run.execution.managedVad }),
       admittedRuntimeGeneration: run.execution.runtimeGeneration,
       backendResolution: run.execution.backendResolution,
       signal: controller.signal,
@@ -1478,12 +1546,25 @@ export class LocalSubtitleJobManager {
         () => this.#renewTaskCapabilities(run.record),
       );
       if (!this.#isPublishableRun(run)) return;
-      const managedModel = await this.#modelResolver.resolveManagedModel(
-        run.execution.config.model.modelId,
-        run.controller.signal,
-      );
+      const [managedModel, managedVad] = await Promise.all([
+        this.#modelResolver.resolveManagedModel(
+          run.execution.config.model.modelId,
+          run.controller.signal,
+        ),
+        run.execution.config.inference.vad.enabled
+          ? this.#modelResolver.resolveManagedVad(
+              run.execution.config.inference.vad.modelId,
+              run.controller.signal,
+            )
+          : Promise.resolve(undefined),
+      ]);
       assertManagedModel(managedModel, run.execution.config.model.modelId);
+      assertManagedVad(
+        managedVad,
+        run.execution.config.inference.vad.enabled,
+      );
       assertExecutionManagedModelUnchanged(run.execution, managedModel);
+      assertExecutionManagedVadUnchanged(run.execution, managedVad);
       if (!this.#isPublishableRun(run)) return;
       if (run.record.leaseFailure !== undefined) throw run.record.leaseFailure;
       const batchSlice = this.#beginBatchSlice(run);
@@ -1506,6 +1587,9 @@ export class LocalSubtitleJobManager {
           : { audioStreamId: run.record.audioStreamId }),
         config: run.execution.config,
         managedModel: run.execution.managedModel,
+        ...(run.execution.managedVad === undefined
+          ? {}
+          : { managedVad: run.execution.managedVad }),
         admittedRuntimeGeneration: run.execution.runtimeGeneration,
         backendResolution: run.execution.backendResolution,
         batchRuntime: batchSlice.runtime,
@@ -2590,19 +2674,25 @@ function assertProductionBatchSliceRequest(
 ): void {
   const config = request.config;
   const supported =
-    config.taskMode === "transcribe" &&
-    config.vadEnabled === false &&
+    isSupportedProductionTaskMode(config.taskMode) &&
+    typeof config.vadEnabled === "boolean" &&
     (config.output.mode === "custom" || config.output.mode === "source") &&
     executor.supportsOutputConflictPolicy(config.output.conflictPolicy) &&
     isSupportedProductionFormats(config.output.formats);
   if (!supported) {
     throw managerFailure(
       "invalid_ipc_request",
-      "This local subtitle build currently supports no-VAD SRT/LRC batches with an available output conflict policy.",
+      "This local subtitle build supports managed-VAD SRT/LRC batches with an available output conflict policy.",
       "preflight",
       "config",
     );
   }
+}
+
+function isSupportedProductionTaskMode(
+  taskMode: EnqueueLocalSubtitleBatchRequest["config"]["taskMode"],
+): boolean {
+  return taskMode === "transcribe" || taskMode === "translate_to_english";
 }
 
 function isSupportedProductionFormats(
@@ -2682,7 +2772,7 @@ function createConfigSnapshot(
       qualityPreset: request.config.qualityPreset,
       advanced: { ...request.config.advanced },
       vad: {
-        enabled: false,
+        enabled: request.config.vadEnabled,
         modelId: LOCAL_SUBTITLE_PRODUCTION_CONTRACT.vad.id,
         tokenTimestamps: false,
         timelinePolicy: LOCAL_SUBTITLE_PRODUCTION_CONTRACT.vad.timelinePolicy,
@@ -2730,6 +2820,9 @@ function createTaskExecutionBinding(
   return Object.freeze({
     config: binding.config,
     managedModel: binding.managedModel,
+    ...(binding.managedVad === undefined
+      ? {}
+      : { managedVad: binding.managedVad }),
     runtimeGeneration: binding.runtimeGeneration,
     backendResolution: binding.backendResolution,
   });
@@ -2850,6 +2943,36 @@ function freezeManagedModel(
   return Object.freeze({ ...model });
 }
 
+function assertManagedVad(
+  vad: LocalSubtitleServerManagedResourceIdentity<"managed"> | undefined,
+  enabled: boolean,
+): void {
+  const valid = enabled
+    ? vad !== undefined &&
+      vad.storage === "managed" &&
+      vad.id === LOCAL_SUBTITLE_PRODUCTION_CONTRACT.vad.id &&
+      Number.isSafeInteger(vad.byteSize) &&
+      vad.byteSize > 0 &&
+      vad.sha256 === LOCAL_SUBTITLE_PRODUCTION_CONTRACT.vad.sha256 &&
+      typeof vad.absolutePath === "string" &&
+      vad.absolutePath.length > 0
+    : vad === undefined;
+  if (!valid) {
+    throw managerFailure(
+      "model_corrupt",
+      "The managed local subtitle VAD identity is invalid.",
+      "loading_model",
+      "vadModelId",
+    );
+  }
+}
+
+function freezeManagedResource(
+  resource: LocalSubtitleServerManagedResourceIdentity<"managed">,
+): LocalSubtitleServerManagedResourceIdentity<"managed"> {
+  return Object.freeze({ ...resource });
+}
+
 function assertExecutionManagedModelUnchanged(
   execution: TaskExecutionBinding,
   model: LocalSubtitleServerManagedResourceIdentity<"managed">,
@@ -2869,6 +2992,32 @@ function assertExecutionManagedModelUnchanged(
       "The managed local subtitle model changed after the batch was frozen.",
       "loading_model",
       "modelId",
+    );
+  }
+}
+
+function assertExecutionManagedVadUnchanged(
+  execution: TaskExecutionBinding,
+  vad: LocalSubtitleServerManagedResourceIdentity<"managed"> | undefined,
+): void {
+  const frozen = execution.managedVad;
+  const enabled = execution.config.inference.vad.enabled;
+  const unchanged = enabled
+    ? frozen !== undefined &&
+      vad !== undefined &&
+      vad.storage === frozen.storage &&
+      vad.id === frozen.id &&
+      vad.absolutePath === frozen.absolutePath &&
+      vad.byteSize === frozen.byteSize &&
+      vad.sha256 === frozen.sha256 &&
+      execution.config.inference.vad.modelId === frozen.id
+    : frozen === undefined && vad === undefined;
+  if (!unchanged) {
+    throw managerFailure(
+      "model_corrupt",
+      "The managed local subtitle VAD changed after the batch was frozen.",
+      "loading_model",
+      "vadModelId",
     );
   }
 }

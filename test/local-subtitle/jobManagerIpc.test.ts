@@ -122,16 +122,19 @@ describe("local subtitle Job Manager IPC integration", () => {
       ok: true,
       data: { revision: 0, batches: [], resourceJobs: [] },
     });
+    const request = enqueueRequest(fileToken, output.outputDirToken);
+    request.config.taskMode = "translate_to_english";
     const enqueued = await fixture.service.handlePublic(
       LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.enqueue,
       fixture.event,
-      fixture.envelope(enqueueRequest(fileToken, output.outputDirToken)),
+      fixture.envelope(request),
     );
     expect(enqueued).toMatchObject({
       ok: true,
       data: {
         batchId: "batch-ipc",
         status: "queued",
+        config: { taskMode: "translate_to_english" },
         tasks: [{ taskId: "task-ipc", status: "queued" }],
       },
     });
@@ -342,7 +345,7 @@ describe("local subtitle Job Manager IPC integration", () => {
     )[0]!.fileToken;
     const output = await fixture.outputs.authorize(fixture.owner, root);
     const request = enqueueRequest(fileToken, output.outputDirToken);
-    request.config.vadEnabled = true;
+    request.config.output.conflictPolicy = "overwrite";
 
     await expect(
       fixture.service.handlePublic(
@@ -462,6 +465,13 @@ function createFixture(root: string, supportsOverwrite = false) {
     }),
     modelResolver: {
       resolveManagedModel: async () => managedModel,
+      resolveManagedVad: async () => Object.freeze({
+        storage: "managed" as const,
+        id: LOCAL_SUBTITLE_PRODUCTION_CONTRACT.vad.id,
+        absolutePath: path.join(root, "private-managed-vad.bin"),
+        byteSize: 885_098,
+        sha256: LOCAL_SUBTITLE_PRODUCTION_CONTRACT.vad.sha256,
+      }),
     },
     mediaSelections: {
       bindTaskMediaSelection: () => undefined,

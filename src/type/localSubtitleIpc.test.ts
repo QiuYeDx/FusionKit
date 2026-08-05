@@ -557,6 +557,15 @@ describe("local subtitle fixed IPC surface", () => {
         },
       ]).success,
     ).toBe(false);
+    expect(
+      localSubtitleManagedResourceListSchema.safeParse([
+        {
+          ...validManagedResource(),
+          resourceId: "vad-1",
+          resourceType: "vad",
+        },
+      ]).success,
+    ).toBe(false);
     expect(localSubtitleResourceJobSummarySchema.parse(validResourceJob()))
       .toEqual(validResourceJob());
   });
@@ -1687,6 +1696,8 @@ function validManagedResource() {
     displayName: "Large v3 Q5",
     status: "ready",
     version: "1",
+    modelFormat: "ggml",
+    quantization: "q5_0",
     byteSize: 1_081_140_203,
     isDefault: true,
     compatibleBackends: ["cpu", "metal"],
