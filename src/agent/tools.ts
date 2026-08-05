@@ -29,9 +29,9 @@ import {
 export const agentTools = {
   scan_subtitle_files: tool({
     description:
-      "Scan one or more directories for subtitle files (LRC/SRT/VTT). " +
+      "Scan one or more directories for subtitle conversion or language extraction inputs (LRC/SRT/VTT). " +
       "Returns a list of discovered file paths with metadata. " +
-      "Call this FIRST when the user mentions a directory path.",
+      "Do not use this scan result to authorize subtitle translation; queue_subtitle_translate opens a fixed native picker.",
     inputSchema: scanSubtitleFilesSchema,
     execute: async (args) => executeScan(args),
   }),
@@ -42,7 +42,8 @@ export const agentTools = {
       "Translates subtitle text from one language to another (default: Japanese→Chinese, bilingual output). " +
       "Supports languages: ZH(Chinese), JA(Japanese), EN(English), KO(Korean), FR(French), DE(German), ES(Spanish), RU(Russian), PT(Portuguese). " +
       "When the user requests an explicit slice length such as 按照1200分词 / every 1200 tokens, set sliceType=CUSTOM and customSliceLength to that number. " +
-      "Use filePaths for small explicit lists, or use scanId + batchStart + batchSize from a previous scan result for large batch queueing.",
+      "This fixed tool opens FusionKit's native file picker and queues only the files the user selects. " +
+      "Never pass file paths, scan ids, or a raw custom output directory.",
     inputSchema: queueTranslateSchema,
     execute: async (args) => executeQueueTranslate(args),
   }),

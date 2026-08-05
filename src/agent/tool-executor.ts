@@ -61,6 +61,7 @@ import {
 } from "@/services/subtitle/translatorRecoveryService";
 import { createSubtitleTaskExecutionBinding } from "./task-model-config";
 import { createSubtitleTranslatorTask } from "@/services/subtitle/subtitleTranslatorTaskFactory";
+import { releaseSubtitleTranslationTaskAuthority } from "@/services/subtitle/translatorExecutionService";
 
 // ---------------------------------------------------------------------------
 // Tool Executor — 工具执行函数（由 AI SDK tool() 的 execute 调用）
@@ -381,6 +382,13 @@ export async function executeApplyNameTranslationPlan(
 export async function executeQueueTranslate(
   args: QueueTranslateArgs
 ): Promise<ToolExecutionResult> {
+  if (containsLegacyAgentTranslateAuthority(args)) {
+    return {
+      success: false,
+      error:
+        "字幕翻译不接受 filePaths、scanId 或 outputDir。请通过 FusionKit 文件选择器重新授权。",
+    };
+  }
   const store = useSubtitleTranslatorStore.getState();
   const modelStore = useModelStore.getState();
   const taskProfile = modelStore.getTaskProfile();
@@ -392,15 +400,49 @@ export async function executeQueueTranslate(
     };
   }
 
-  let queued = 0;
-  const errors: string[] = [];
-  const selection = resolveQueueFileSelection(args);
-  if (!selection.ok) {
+  await flushPendingAgentTranslationRevocations();
+  const api = getSubtitleTranslationApi();
+  let directoryToken: string | undefined;
+  if (args.outputMode === "custom") {
+    const directorySelection = await api.selectOutputDirectory();
+    if (!directorySelection.ok) {
+      return {
+        success: false,
+        error: `无法授权字幕输出目录：${directorySelection.error.code}`,
+      };
+    }
+    if (directorySelection.data.cancelled) {
+      return {
+        success: false,
+        error: "已取消字幕输出目录选择，未创建翻译任务。",
+      };
+    }
+    directoryToken = directorySelection.data.directoryToken;
+  }
+
+  const selected = await api.selectAgentInputFiles();
+  if (!selected.ok) {
+    if (directoryToken) {
+      await scheduleAgentOutputDirectoryRevocation(directoryToken);
+    }
     return {
       success: false,
-      error: selection.error,
+      error: `无法授权字幕输入文件：${selected.error.code}`,
     };
   }
+  if (selected.data.cancelled) {
+    if (directoryToken) {
+      await scheduleAgentOutputDirectoryRevocation(directoryToken);
+    }
+    return {
+      success: false,
+      error: "已取消字幕文件选择，未创建翻译任务。",
+    };
+  }
+
+  const selection = selected.data;
+  let queued = 0;
+  const errors: string[] = [];
   const sliceConfig = resolveTranslationSliceConfig(
     args,
     getLatestUserMessageContent(),
@@ -410,64 +452,100 @@ export async function executeQueueTranslate(
   const translationOutputMode = (args.translationOutputMode ||
     "bilingual") as TranslationOutputMode;
 
-  for (let i = 0; i < selection.filePaths.length; i++) {
-    if (i > 0) await new Promise((r) => setTimeout(r, 0));
-    const filePath = selection.filePaths[i];
+  try {
+    for (let i = 0; i < selection.files.length; i++) {
+      if (i > 0) await new Promise((r) => setTimeout(r, 0));
+      const selectedFile = selection.files[i];
+      const inputContent = await api.readAgentInputFile({
+        selectionRef: selection.selectionRef,
+        itemRef: selectedFile.itemRef,
+      });
+      if (!inputContent.ok) {
+        errors.push(`Cannot read ${selectedFile.displayName}: ${inputContent.error.code}`);
+        continue;
+      }
+      if (inputContent.data.displayName !== selectedFile.displayName) {
+        errors.push(`Cannot read ${selectedFile.displayName}: selection_changed`);
+        continue;
+      }
+      const fileContent = inputContent.data.content;
+      const fileName = inputContent.data.displayName;
 
-    const fileContent = await readFileContent(filePath);
-    if (fileContent === null) {
-      errors.push(`Cannot read: ${filePath}`);
-      continue;
+      const fastEstimate = estimateSubtitleTokensFast(
+        fileContent,
+        sliceConfig.sliceType as SubtitleSliceType,
+        sliceConfig.customSliceLength,
+        taskProfile.provider,
+        taskProfile.tokenPricing,
+        { sourceLang, targetLang, translationOutputMode },
+      );
+
+      const task = createSubtitleTranslatorTask({
+        fileName,
+        fileContent,
+        sliceType: sliceConfig.sliceType as any,
+        customSliceLength: sliceConfig.customSliceLength,
+        originFileURL: "",
+        targetFileURL: "",
+        status: TaskStatus.NOT_STARTED,
+        progress: 0,
+        costEstimate: fastEstimate,
+        executionBinding: createSubtitleTaskExecutionBinding(taskProfile),
+        sourceLang,
+        targetLang,
+        translationOutputMode,
+        conflictPolicy: args.conflictPolicy ?? "index",
+        concurrentSlices: args.concurrentSlices ?? true,
+      });
+      const registration = await api.registerAgentAuthorizedTask({
+        selectionRef: selection.selectionRef,
+        itemRef: selectedFile.itemRef,
+        taskId: task.taskId,
+        outputMode: args.outputMode,
+        outputFileName: fileName,
+        ...(directoryToken ? { directoryToken } : {}),
+      });
+      if (!registration.ok) {
+        errors.push(`Cannot authorize ${fileName}: ${registration.error.code}`);
+        continue;
+      }
+      const authorizedTask: SubtitleTranslatorTask = {
+        ...task,
+        taskReference: registration.data,
+      };
+      const addResult = store.addTask(authorizedTask);
+      if (!addResult.added) {
+        releaseSubtitleTranslationTaskAuthority(task.taskId);
+        continue;
+      }
+      queued++;
+
+      const capturedTaskId = task.taskId;
+      estimateSubtitleTokens(
+        fileContent,
+        sliceConfig.sliceType as SubtitleSliceType,
+        sliceConfig.customSliceLength,
+        taskProfile.provider,
+        taskProfile.tokenPricing,
+        { sourceLang, targetLang, translationOutputMode },
+      ).then((precise) => {
+        store.updateTaskCostEstimate(capturedTaskId, precise);
+      });
     }
-    const fileName = extractFileName(filePath);
-    const outputDir = resolveOutputDir(args.outputMode, args.outputDir, filePath);
-
-    const fastEstimate = estimateSubtitleTokensFast(
-      fileContent,
-      sliceConfig.sliceType as SubtitleSliceType,
-      sliceConfig.customSliceLength,
-      taskProfile.provider,
-      taskProfile.tokenPricing,
-      { sourceLang, targetLang, translationOutputMode },
-    );
-
-    const task = createSubtitleTranslatorTask({
-      fileName,
-      fileContent,
-      sliceType: sliceConfig.sliceType as any,
-      customSliceLength: sliceConfig.customSliceLength,
-      originFileURL: filePath,
-      targetFileURL: outputDir,
-      status: TaskStatus.NOT_STARTED,
-      progress: 0,
-      costEstimate: fastEstimate,
-      executionBinding: createSubtitleTaskExecutionBinding(taskProfile),
-      sourceLang,
-      targetLang,
-      translationOutputMode,
-      conflictPolicy: args.conflictPolicy ?? "index",
-      concurrentSlices: args.concurrentSlices ?? true,
-    });
-    const addResult = store.addTask(task);
-    if (!addResult.added) continue;
-    queued++;
-
-    const capturedTaskId = task.taskId;
-    estimateSubtitleTokens(
-      fileContent,
-      sliceConfig.sliceType as SubtitleSliceType,
-      sliceConfig.customSliceLength,
-      taskProfile.provider,
-      taskProfile.tokenPricing,
-      { sourceLang, targetLang, translationOutputMode },
-    ).then((precise) => {
-      store.updateTaskCostEstimate(capturedTaskId, precise);
-    });
+  } finally {
+    await scheduleAgentSelectionRevocation(selection.selectionRef);
+    if (directoryToken) {
+      await scheduleAgentOutputDirectoryRevocation(directoryToken);
+    }
   }
 
   const result: ToolExecutionResult = {
     success: true,
-    data: createQueueResultData(selection, queued, errors),
+    data: {
+      queuedCount: queued,
+      totalFiles: selection.files.length,
+      ...(errors.length > 0 ? { errors } : {}),
+    },
   };
 
   return handlePostQueue("translate", queued, result);
@@ -899,6 +977,69 @@ function getIpcRenderer(): Window["ipcRenderer"] {
     throw new Error("Electron IPC is not available in this environment.");
   }
   return window.ipcRenderer;
+}
+
+const pendingAgentSelectionRevocations = new Set<string>();
+const pendingAgentOutputDirectoryRevocations = new Set<string>();
+
+function containsLegacyAgentTranslateAuthority(value: unknown): boolean {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return true;
+  }
+  return ["filePaths", "scanId", "outputDir"].some((field) =>
+    Object.prototype.hasOwnProperty.call(value, field));
+}
+
+function getSubtitleTranslationApi(): Window["subtitleTranslationApi"] {
+  if (typeof window === "undefined" || !window.subtitleTranslationApi) {
+    throw new Error("Subtitle translation authorization is unavailable.");
+  }
+  return window.subtitleTranslationApi;
+}
+
+async function scheduleAgentSelectionRevocation(
+  selectionRef: string,
+): Promise<void> {
+  pendingAgentSelectionRevocations.add(selectionRef);
+  await flushPendingAgentTranslationRevocations();
+}
+
+async function scheduleAgentOutputDirectoryRevocation(
+  directoryToken: string,
+): Promise<void> {
+  pendingAgentOutputDirectoryRevocations.add(directoryToken);
+  await flushPendingAgentTranslationRevocations();
+}
+
+async function flushPendingAgentTranslationRevocations(): Promise<void> {
+  const api = getSubtitleTranslationApi();
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    for (const selectionRef of [...pendingAgentSelectionRevocations]) {
+      try {
+        const result = await api.revokeAgentInputSelection(selectionRef);
+        if (result.ok) pendingAgentSelectionRevocations.delete(selectionRef);
+      } catch {
+        // Retain the opaque ref for the next bounded flush.
+      }
+    }
+    for (const directoryToken of [...pendingAgentOutputDirectoryRevocations]) {
+      try {
+        const result = await api.revokeOutputDirectory(directoryToken);
+        if (result.ok) {
+          pendingAgentOutputDirectoryRevocations.delete(directoryToken);
+        }
+      } catch {
+        // Retain the opaque token for the next bounded flush.
+      }
+    }
+    if (
+      pendingAgentSelectionRevocations.size === 0 &&
+      pendingAgentOutputDirectoryRevocations.size === 0
+    ) {
+      return;
+    }
+    await Promise.resolve();
+  }
 }
 
 function enrichInspectedRenamePath(path: InspectedRenamePath) {

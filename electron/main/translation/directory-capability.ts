@@ -8,12 +8,14 @@ import {
 } from "../local-subtitle/filesystem-object-identity";
 import {
   parseSubtitleTranslationTaskReference,
+  SUBTITLE_TRANSLATION_LIMITS,
   subtitleTranslationDisplayLabelSchema,
   subtitleTranslationOpaqueRefSchema,
   subtitleTranslationOutputLeafSchema,
   subtitleTranslationTaskIdSchema,
   type SubtitleTranslationErrorCode,
   type SubtitleTranslationAuthorizedTaskReference,
+  type SubtitleTranslationAgentTaskRegistrationRequest,
   type SubtitleTranslationGeneratedTaskReference,
   type SubtitleTranslationLegacyTaskReference,
   type SubtitleTranslationTaskReference,
@@ -23,6 +25,7 @@ const DEFAULT_DRAFT_TTL_MS = 30 * 60 * 1000;
 const DEFAULT_TARGET_TTL_MS = 30 * 60 * 1000;
 const MAX_TOKEN_ATTEMPTS = 8;
 const MAX_INPUT_BYTES = 16 * 1024 * 1024;
+const AGENT_SUBTITLE_EXTENSIONS = new Set([".lrc", ".srt", ".vtt"]);
 
 export interface SubtitleTranslationOwnerKey {
   readonly webContentsId: number;
@@ -60,6 +63,17 @@ interface DraftInputFileEntry extends InputFileDescriptor {
   readonly token: string;
   readonly owner: SubtitleTranslationOwnerKey;
   readonly expiresAt: number;
+}
+
+interface AgentInputSelectionEntry {
+  readonly token: string;
+  readonly owner: SubtitleTranslationOwnerKey;
+  readonly expiresAt: number;
+  readonly items: readonly {
+    readonly itemRef: string;
+    readonly inputToken: string;
+    readonly displayName: string;
+  }[];
 }
 
 interface TaskInputFileEntry extends InputFileDescriptor {
@@ -102,6 +116,11 @@ export interface RegisterAuthorizedSubtitleTranslationTaskRequest {
   readonly outputMode: "source" | "custom";
   readonly outputFileName: string;
   readonly directoryToken?: string;
+}
+
+export interface RegisterAgentAuthorizedSubtitleTranslationTaskRequest
+  extends SubtitleTranslationAgentTaskRegistrationRequest {
+  readonly owner: SubtitleTranslationOwnerKey;
 }
 
 export interface RegisterGeneratedSubtitleTranslationTaskRequest {
@@ -174,6 +193,7 @@ export class SubtitleTranslationDirectoryCapabilityRegistry {
   readonly targetTtlMs: number;
   private readonly drafts = new Map<string, DraftDirectoryEntry>();
   private readonly inputDrafts = new Map<string, DraftInputFileEntry>();
+  private readonly agentSelections = new Map<string, AgentInputSelectionEntry>();
   private readonly importLeases = new Map<string, ImportDirectoryLeaseEntry>();
   private readonly targets = new Map<string, TaskTargetEntry>();
   private readonly generatedTasks = new Map<string, GeneratedTaskRecord>();
@@ -277,6 +297,148 @@ export class SubtitleTranslationDirectoryCapabilityRegistry {
       throw conflict("The subtitle input authority changed.");
     }
     return Object.freeze({ displayName: input.displayName, content });
+  }
+
+  async authorizeAgentInputSelection(
+    owner: SubtitleTranslationOwnerKey,
+    filePaths: readonly string[],
+  ) {
+    assertOwner(owner);
+    this.assertOwnerActive(owner);
+    if (
+      filePaths.length === 0 ||
+      filePaths.length > SUBTITLE_TRANSLATION_LIMITS.maxAgentSelectionFiles
+    ) {
+      throw invalid("selection");
+    }
+
+    const items: Array<{
+      readonly itemRef: string;
+      readonly inputToken: string;
+      readonly displayName: string;
+    }> = [];
+    const authorizedInputTokens: string[] = [];
+    const canonicalFiles = new Set<string>();
+    try {
+      for (const filePath of filePaths) {
+        const authorization = await this.authorizeInputFile(owner, filePath);
+        authorizedInputTokens.push(authorization.inputToken);
+        const input = this.requireInputDraft(owner, authorization.inputToken);
+        if (!AGENT_SUBTITLE_EXTENSIONS.has(path.extname(input.displayName).toLowerCase())) {
+          throw new SubtitleTranslationCapabilityError(
+            "invalid_content",
+            "The selected Agent input is not a supported subtitle file.",
+            "selection",
+          );
+        }
+        if (canonicalFiles.has(input.filePath)) {
+          throw conflict("The Agent subtitle selection contains a duplicate file.");
+        }
+        canonicalFiles.add(input.filePath);
+        const itemRef = this.mintToken("selection-item");
+        if (items.some((item) => item.itemRef === itemRef)) {
+          throw invalid("itemRef");
+        }
+        items.push(Object.freeze({
+          itemRef,
+          inputToken: input.token,
+          displayName: input.displayName,
+        }));
+      }
+      this.assertOwnerActive(owner);
+      const token = this.mintToken("selection");
+      if (items.some((item) => item.itemRef === token)) {
+        throw invalid("selectionRef");
+      }
+      const expiresAt = Math.min(
+        ...items.map((item) => this.requireInputDraft(owner, item.inputToken).expiresAt),
+      );
+      const entry = Object.freeze({
+        token,
+        owner: Object.freeze({ ...owner }),
+        expiresAt,
+        items: Object.freeze([...items]),
+      });
+      this.agentSelections.set(token, entry);
+      return Object.freeze({
+        cancelled: false as const,
+        selectionRef: token,
+        files: Object.freeze(items.map((item) => Object.freeze({
+          itemRef: item.itemRef,
+          displayName: item.displayName,
+        }))),
+        expiresAt,
+      });
+    } catch (error) {
+      for (const inputToken of authorizedInputTokens) {
+        this.revokeInputFile(owner, inputToken);
+      }
+      throw error;
+    }
+  }
+
+  async readAgentInputFile(
+    owner: SubtitleTranslationOwnerKey,
+    selectionRef: string,
+    itemRef: string,
+  ): Promise<Readonly<{ displayName: string; content: string }>> {
+    const { item } = this.requireAgentSelectionItem(
+      owner,
+      selectionRef,
+      itemRef,
+    );
+    return this.readInputFile(owner, item.inputToken);
+  }
+
+  revokeAgentInputSelection(
+    owner: SubtitleTranslationOwnerKey,
+    selectionRef: string,
+  ): boolean {
+    assertOwner(owner);
+    if (!subtitleTranslationOpaqueRefSchema.safeParse(selectionRef).success) {
+      return false;
+    }
+    const selection = this.agentSelections.get(selectionRef);
+    if (!selection || !sameOwner(selection.owner, owner)) return false;
+    this.agentSelections.delete(selectionRef);
+    for (const item of selection.items) {
+      this.revokeInputFile(owner, item.inputToken);
+    }
+    return true;
+  }
+
+  async registerAgentAuthorizedTask(
+    request: RegisterAgentAuthorizedSubtitleTranslationTaskRequest,
+  ): Promise<SubtitleTranslationAuthorizedTaskReference> {
+    const { selection, item } = this.requireAgentSelectionItem(
+      request.owner,
+      request.selectionRef,
+      request.itemRef,
+    );
+    const reference = await this.registerAuthorizedTask({
+      owner: request.owner,
+      taskId: request.taskId,
+      inputToken: item.inputToken,
+      outputMode: request.outputMode,
+      outputFileName: request.outputFileName,
+      ...(request.directoryToken
+        ? { directoryToken: request.directoryToken }
+        : {}),
+    });
+    if (this.agentSelections.get(selection.token) === selection) {
+      const remaining = selection.items.filter(
+        (candidate) => candidate.itemRef !== item.itemRef,
+      );
+      if (remaining.length === 0) {
+        this.agentSelections.delete(selection.token);
+      } else {
+        this.agentSelections.set(selection.token, Object.freeze({
+          ...selection,
+          items: Object.freeze(remaining),
+        }));
+      }
+    }
+    return reference;
   }
 
   async registerAuthorizedTask(
@@ -776,6 +938,9 @@ export class SubtitleTranslationDirectoryCapabilityRegistry {
     for (const [token, entry] of this.inputDrafts) {
       if (sameOwner(entry.owner, owner)) this.inputDrafts.delete(token);
     }
+    for (const [token, entry] of this.agentSelections) {
+      if (sameOwner(entry.owner, owner)) this.agentSelections.delete(token);
+    }
     for (const [token, entry] of this.importLeases) {
       if (sameOwner(entry.owner, owner)) this.importLeases.delete(token);
     }
@@ -790,6 +955,14 @@ export class SubtitleTranslationDirectoryCapabilityRegistry {
   sweepExpired(): number {
     const now = this.now();
     let swept = 0;
+    for (const [token, entry] of this.agentSelections) {
+      if (entry.expiresAt > now) continue;
+      this.agentSelections.delete(token);
+      for (const item of entry.items) {
+        this.inputDrafts.delete(item.inputToken);
+      }
+      swept += 1;
+    }
     for (const [token, entry] of this.drafts) {
       if (entry.expiresAt > now) continue;
       this.drafts.delete(token);
@@ -908,6 +1081,33 @@ export class SubtitleTranslationDirectoryCapabilityRegistry {
       throw expired("inputToken");
     }
     return entry;
+  }
+
+  private requireAgentSelectionItem(
+    owner: SubtitleTranslationOwnerKey,
+    selectionRef: string,
+    itemRef: string,
+  ): {
+    readonly selection: AgentInputSelectionEntry;
+    readonly item: AgentInputSelectionEntry["items"][number];
+  } {
+    if (
+      !subtitleTranslationOpaqueRefSchema.safeParse(selectionRef).success ||
+      !subtitleTranslationOpaqueRefSchema.safeParse(itemRef).success
+    ) {
+      throw invalid("selectionRef");
+    }
+    const selection = this.agentSelections.get(selectionRef);
+    if (!selection || !sameOwner(selection.owner, owner)) {
+      throw invalid("selectionRef");
+    }
+    if (selection.expiresAt <= this.now()) {
+      this.revokeAgentInputSelection(owner, selectionRef);
+      throw expired("selectionRef");
+    }
+    const item = selection.items.find((candidate) => candidate.itemRef === itemRef);
+    if (!item) throw invalid("itemRef");
+    return { selection, item };
   }
 
   private requireImportLease(
@@ -1138,18 +1338,24 @@ export class SubtitleTranslationDirectoryCapabilityRegistry {
     }
   }
 
-  private mintToken(kind: "draft" | "input" | "source" | "lease" | "target"): string {
+  private mintToken(
+    kind: "draft" | "input" | "source" | "lease" | "target" |
+      "selection" | "selection-item",
+  ): string {
     for (let attempt = 0; attempt < MAX_TOKEN_ATTEMPTS; attempt += 1) {
       const token = `subtitle-translation-${kind}-${this.tokenFactory()}`;
       if (
         subtitleTranslationOpaqueRefSchema.safeParse(token).success &&
         !this.drafts.has(token) &&
         !this.inputDrafts.has(token) &&
+        !this.agentSelections.has(token) &&
         !this.importLeases.has(token) &&
         !this.targets.has(token) &&
         ![...this.generatedTasks.values()].some(
           (record) => record.inputFile?.token === token,
-        )
+        ) &&
+        ![...this.agentSelections.values()].some((selection) =>
+          selection.items.some((item) => item.itemRef === token))
       ) {
         return token;
       }

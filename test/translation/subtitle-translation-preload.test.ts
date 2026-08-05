@@ -48,6 +48,41 @@ describe("subtitle translation fixed preload API", () => {
           content: "subtitle content",
         });
       }
+      if (channel === SUBTITLE_TRANSLATION_PRELOAD_INTERNAL_CHANNELS.selectAgentInputFiles) {
+        return subtitleTranslationIpcSuccess({
+          cancelled: false as const,
+          selectionRef: "subtitle-translation-selection-one",
+          files: [{
+            itemRef: "subtitle-translation-selection-item-one",
+            displayName: "selected.srt",
+          }],
+          expiresAt: 2_000,
+        });
+      }
+      if (channel === SUBTITLE_TRANSLATION_PRELOAD_INTERNAL_CHANNELS.readAgentInputFile) {
+        return subtitleTranslationIpcSuccess({
+          displayName: "selected.srt",
+          content: "subtitle content",
+        });
+      }
+      if (channel === SUBTITLE_TRANSLATION_PRELOAD_INTERNAL_CHANNELS.revokeAgentInputSelection) {
+        return subtitleTranslationIpcSuccess({ revoked: true });
+      }
+      if (channel === SUBTITLE_TRANSLATION_PRELOAD_INTERNAL_CHANNELS.registerAgentAuthorizedTask) {
+        return subtitleTranslationIpcSuccess({
+          kind: "authorized_task_v1" as const,
+          source: {
+            kind: "authorized_file" as const,
+            token: "subtitle-translation-source-agent",
+            displayName: "selected.srt",
+          },
+          target: {
+            kind: "authorized_directory" as const,
+            token: "subtitle-translation-target-agent",
+            displayLabel: "Output",
+          },
+        });
+      }
       if (channel === SUBTITLE_TRANSLATION_PRELOAD_INTERNAL_CHANNELS.registerAuthorizedTask) {
         return subtitleTranslationIpcSuccess({
           kind: "authorized_task_v1" as const,
@@ -139,15 +174,19 @@ describe("subtitle translation fixed preload API", () => {
       "authorizeInputFile",
       "commitGeneratedImportCandidate",
       "createGeneratedImportCandidate",
+      "readAgentInputFile",
       "readInputFile",
       "reauthorizeTaskTarget",
+      "registerAgentAuthorizedTask",
       "registerAuthorizedTask",
       "releaseGeneratedImportCandidate",
       "releaseGeneratedTask",
       "releaseImportDirectoryLease",
       "revealTaskSource",
+      "revokeAgentInputSelection",
       "revokeInputFile",
       "revokeOutputDirectory",
+      "selectAgentInputFiles",
       "selectOutputDirectory",
     ]);
     expect(api).not.toHaveProperty("invoke");
@@ -156,6 +195,19 @@ describe("subtitle translation fixed preload API", () => {
     await api.authorizeInputFile({} as File);
     await api.revokeInputFile("subtitle-translation-input-one");
     await api.readInputFile("subtitle-translation-input-one");
+    await api.selectAgentInputFiles();
+    await api.readAgentInputFile({
+      selectionRef: "subtitle-translation-selection-one",
+      itemRef: "subtitle-translation-selection-item-one",
+    });
+    await api.revokeAgentInputSelection("subtitle-translation-selection-one");
+    await api.registerAgentAuthorizedTask({
+      selectionRef: "subtitle-translation-selection-one",
+      itemRef: "subtitle-translation-selection-item-one",
+      taskId: "subtitle-task-agent-one",
+      outputMode: "source",
+      outputFileName: "selected.srt",
+    });
     await api.registerAuthorizedTask({
       taskId: "subtitle-task-one",
       inputToken: "subtitle-translation-input-one",
@@ -197,6 +249,31 @@ describe("subtitle translation fixed preload API", () => {
       [SUBTITLE_TRANSLATION_PRELOAD_INTERNAL_CHANNELS.readInputFile, {
         ownerSessionId: OWNER_SESSION_ID,
         payload: { inputToken: "subtitle-translation-input-one" },
+      }],
+      [SUBTITLE_TRANSLATION_PRELOAD_INTERNAL_CHANNELS.selectAgentInputFiles, {
+        ownerSessionId: OWNER_SESSION_ID,
+        payload: {},
+      }],
+      [SUBTITLE_TRANSLATION_PRELOAD_INTERNAL_CHANNELS.readAgentInputFile, {
+        ownerSessionId: OWNER_SESSION_ID,
+        payload: {
+          selectionRef: "subtitle-translation-selection-one",
+          itemRef: "subtitle-translation-selection-item-one",
+        },
+      }],
+      [SUBTITLE_TRANSLATION_PRELOAD_INTERNAL_CHANNELS.revokeAgentInputSelection, {
+        ownerSessionId: OWNER_SESSION_ID,
+        payload: { selectionRef: "subtitle-translation-selection-one" },
+      }],
+      [SUBTITLE_TRANSLATION_PRELOAD_INTERNAL_CHANNELS.registerAgentAuthorizedTask, {
+        ownerSessionId: OWNER_SESSION_ID,
+        payload: {
+          selectionRef: "subtitle-translation-selection-one",
+          itemRef: "subtitle-translation-selection-item-one",
+          taskId: "subtitle-task-agent-one",
+          outputMode: "source",
+          outputFileName: "selected.srt",
+        },
       }],
       [SUBTITLE_TRANSLATION_PRELOAD_INTERNAL_CHANNELS.registerAuthorizedTask, {
         ownerSessionId: OWNER_SESSION_ID,

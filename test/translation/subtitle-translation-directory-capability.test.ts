@@ -33,6 +33,101 @@ afterEach(async () => {
 });
 
 describe("subtitle translation directory capability registry", () => {
+  it("binds Agent picker selections to one owner and consumes items exactly once", async () => {
+    const root = await tempRoot();
+    const firstInput = path.join(root, "first.srt");
+    const secondInput = path.join(root, "second.lrc");
+    await writeFile(firstInput, "first");
+    await writeFile(secondInput, "second");
+    const registry = registryWithTokens(
+      "first-input",
+      "first-item",
+      "second-input",
+      "second-item",
+      "selection",
+      "source",
+      "target",
+    );
+
+    const selection = await registry.authorizeAgentInputSelection(
+      OWNER_A,
+      [firstInput, secondInput],
+    );
+    expect(selection).toEqual({
+      cancelled: false,
+      selectionRef: "subtitle-translation-selection-selection",
+      files: [
+        {
+          itemRef: "subtitle-translation-selection-item-first-item",
+          displayName: "first.srt",
+        },
+        {
+          itemRef: "subtitle-translation-selection-item-second-item",
+          displayName: "second.lrc",
+        },
+      ],
+      expiresAt: expect.any(Number),
+    });
+    expect(JSON.stringify(selection)).not.toContain(root);
+    await expect(registry.readAgentInputFile(
+      OWNER_B,
+      selection.selectionRef,
+      selection.files[0].itemRef,
+    )).rejects.toMatchObject({ code: "invalid_ipc_request" });
+
+    const reference = await registry.registerAgentAuthorizedTask({
+      owner: OWNER_A,
+      selectionRef: selection.selectionRef,
+      itemRef: selection.files[0].itemRef,
+      taskId: "subtitle-task-agent-first",
+      outputMode: "source",
+      outputFileName: "first.srt",
+    });
+    expect(reference.kind).toBe("authorized_task_v1");
+    await expect(registry.readAgentInputFile(
+      OWNER_A,
+      selection.selectionRef,
+      selection.files[0].itemRef,
+    )).rejects.toMatchObject({ code: "invalid_ipc_request" });
+    expect(registry.revokeAgentInputSelection(
+      OWNER_A,
+      selection.selectionRef,
+    )).toBe(true);
+    await expect(registry.readAgentInputFile(
+      OWNER_A,
+      selection.selectionRef,
+      selection.files[1].itemRef,
+    )).rejects.toMatchObject({ code: "invalid_ipc_request" });
+    await expect(registry.resolveTaskReference(
+      OWNER_A,
+      "subtitle-task-agent-first",
+      reference,
+    )).resolves.toMatchObject({ originFilePath: await realpath(firstInput) });
+  });
+
+  it("rejects unsupported or duplicate Agent picker selections without retaining drafts", async () => {
+    const root = await tempRoot();
+    const textInput = path.join(root, "notes.txt");
+    const subtitleInput = path.join(root, "selected.srt");
+    await writeFile(textInput, "notes");
+    await writeFile(subtitleInput, "subtitle");
+    const registry = registryWithTokens(
+      "text-input",
+      "subtitle-input",
+      "first-item",
+      "duplicate-input",
+    );
+
+    await expect(registry.authorizeAgentInputSelection(
+      OWNER_A,
+      [textInput],
+    )).rejects.toMatchObject({ code: "invalid_content" });
+    await expect(registry.authorizeAgentInputSelection(
+      OWNER_A,
+      [subtitleInput, subtitleInput],
+    )).rejects.toMatchObject({ code: "task_reference_conflict" });
+  });
+
   it("promotes a selected input into a path-free source-mode task", async () => {
     const root = await tempRoot();
     const input = path.join(root, "selected.srt");

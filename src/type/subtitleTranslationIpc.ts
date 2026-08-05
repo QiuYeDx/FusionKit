@@ -9,6 +9,14 @@ export const SUBTITLE_TRANSLATION_PRELOAD_INTERNAL_CHANNELS = {
     "subtitle-translation:internal:read-input-file",
   revokeInputFile:
     "subtitle-translation:internal:revoke-input-file",
+  selectAgentInputFiles:
+    "subtitle-translation:internal:select-agent-input-files",
+  readAgentInputFile:
+    "subtitle-translation:internal:read-agent-input-file",
+  revokeAgentInputSelection:
+    "subtitle-translation:internal:revoke-agent-input-selection",
+  registerAgentAuthorizedTask:
+    "subtitle-translation:internal:register-agent-authorized-task",
   registerAuthorizedTask:
     "subtitle-translation:internal:register-authorized-task",
   revealTaskSource:
@@ -41,6 +49,7 @@ export const SUBTITLE_TRANSLATION_LIMITS = Object.freeze({
   maxDisplayLabelChars: 255,
   maxPathChars: 32_768,
   maxIpcFrameBytes: 64 * 1024,
+  maxAgentSelectionFiles: 100,
 });
 
 export const SUBTITLE_TRANSLATION_ERROR_CODES = [
@@ -101,6 +110,37 @@ export interface SubtitleTranslationInputFileRevocation {
 export interface SubtitleTranslationInputFileContent {
   readonly displayName: string;
   readonly content: string;
+}
+
+export interface SubtitleTranslationAgentInputSelectionItem {
+  readonly itemRef: string;
+  readonly displayName: string;
+}
+
+export type SubtitleTranslationAgentInputSelection =
+  | { readonly cancelled: true }
+  | {
+      readonly cancelled: false;
+      readonly selectionRef: string;
+      readonly files: readonly SubtitleTranslationAgentInputSelectionItem[];
+      readonly expiresAt: number;
+    };
+
+export interface SubtitleTranslationAgentInputSelectionRequest {
+  readonly selectionRef: string;
+  readonly itemRef: string;
+}
+
+export interface SubtitleTranslationAgentInputSelectionRevocation {
+  readonly revoked: boolean;
+}
+
+export interface SubtitleTranslationAgentTaskRegistrationRequest
+  extends SubtitleTranslationAgentInputSelectionRequest {
+  readonly taskId: string;
+  readonly outputMode: "source" | "custom";
+  readonly outputFileName: string;
+  readonly directoryToken?: string;
 }
 
 export interface SubtitleTranslationGeneratedTaskReference {
@@ -205,6 +245,18 @@ export interface SubtitleTranslationRendererApi {
   readInputFile(
     inputToken: string,
   ): Promise<SubtitleTranslationIpcResult<SubtitleTranslationInputFileContent>>;
+  selectAgentInputFiles(): Promise<
+    SubtitleTranslationIpcResult<SubtitleTranslationAgentInputSelection>
+  >;
+  readAgentInputFile(
+    request: SubtitleTranslationAgentInputSelectionRequest,
+  ): Promise<SubtitleTranslationIpcResult<SubtitleTranslationInputFileContent>>;
+  revokeAgentInputSelection(
+    selectionRef: string,
+  ): Promise<SubtitleTranslationIpcResult<SubtitleTranslationAgentInputSelectionRevocation>>;
+  registerAgentAuthorizedTask(
+    request: SubtitleTranslationAgentTaskRegistrationRequest,
+  ): Promise<SubtitleTranslationIpcResult<SubtitleTranslationAuthorizedTaskReference>>;
   registerAuthorizedTask(
     request: SubtitleTranslationAuthorizedTaskRegistrationRequest,
   ): Promise<SubtitleTranslationIpcResult<SubtitleTranslationAuthorizedTaskReference>>;
@@ -351,6 +403,18 @@ export const subtitleTranslationRevokeInputFileRequestSchema = z
 export const subtitleTranslationReadInputFileRequestSchema = z
   .object({ inputToken: subtitleTranslationOpaqueRefSchema })
   .strict();
+export const subtitleTranslationSelectAgentInputFilesRequestSchema = z
+  .object({})
+  .strict();
+export const subtitleTranslationAgentInputSelectionRequestSchema = z
+  .object({
+    selectionRef: subtitleTranslationOpaqueRefSchema,
+    itemRef: subtitleTranslationOpaqueRefSchema,
+  })
+  .strict();
+export const subtitleTranslationRevokeAgentInputSelectionRequestSchema = z
+  .object({ selectionRef: subtitleTranslationOpaqueRefSchema })
+  .strict();
 export const subtitleTranslationRegisterAuthorizedTaskRequestSchema = z
   .object({
     taskId: subtitleTranslationTaskIdSchema,
@@ -368,6 +432,23 @@ export const subtitleTranslationRegisterAuthorizedTaskRequestSchema = z
       });
     }
   });
+export const subtitleTranslationRegisterAgentAuthorizedTaskRequestSchema =
+  subtitleTranslationAgentInputSelectionRequestSchema
+    .extend({
+      taskId: subtitleTranslationTaskIdSchema,
+      outputMode: z.enum(["source", "custom"]),
+      outputFileName: subtitleTranslationOutputLeafSchema,
+      directoryToken: subtitleTranslationOpaqueRefSchema.optional(),
+    })
+    .strict()
+    .superRefine((value, context) => {
+      if ((value.outputMode === "custom") !== Boolean(value.directoryToken)) {
+        context.addIssue({
+          code: "custom",
+          message: "Custom output requires exactly one directory authority.",
+        });
+      }
+    });
 export const subtitleTranslationRevealTaskSourceRequestSchema = z
   .object({ taskId: subtitleTranslationTaskIdSchema })
   .strict();
@@ -468,6 +549,26 @@ export const subtitleTranslationInputFileContentSchema = z
   })
   .strict();
 
+export const subtitleTranslationAgentInputSelectionSchema =
+  z.discriminatedUnion("cancelled", [
+    z.object({ cancelled: z.literal(true) }).strict(),
+    z.object({
+      cancelled: z.literal(false),
+      selectionRef: subtitleTranslationOpaqueRefSchema,
+      files: z.array(z.object({
+        itemRef: subtitleTranslationOpaqueRefSchema,
+        displayName: subtitleTranslationOutputLeafSchema,
+      }).strict())
+        .min(1)
+        .max(SUBTITLE_TRANSLATION_LIMITS.maxAgentSelectionFiles),
+      expiresAt: z.number().int().safe().positive(),
+    }).strict(),
+  ]);
+
+export const subtitleTranslationAgentInputSelectionRevocationSchema = z
+  .object({ revoked: z.boolean() })
+  .strict();
+
 export const subtitleTranslationTaskSourceRevealSchema = z
   .object({ revealed: z.boolean() })
   .strict();
@@ -550,6 +651,30 @@ export const SUBTITLE_TRANSLATION_INTERNAL_OPERATION_CONTRACTS = {
     requestSchema: subtitleTranslationReadInputFileRequestSchema,
     resultSchema: subtitleTranslationIpcResultSchema(
       subtitleTranslationInputFileContentSchema,
+    ),
+  },
+  [SUBTITLE_TRANSLATION_PRELOAD_INTERNAL_CHANNELS.selectAgentInputFiles]: {
+    requestSchema: subtitleTranslationSelectAgentInputFilesRequestSchema,
+    resultSchema: subtitleTranslationIpcResultSchema(
+      subtitleTranslationAgentInputSelectionSchema,
+    ),
+  },
+  [SUBTITLE_TRANSLATION_PRELOAD_INTERNAL_CHANNELS.readAgentInputFile]: {
+    requestSchema: subtitleTranslationAgentInputSelectionRequestSchema,
+    resultSchema: subtitleTranslationIpcResultSchema(
+      subtitleTranslationInputFileContentSchema,
+    ),
+  },
+  [SUBTITLE_TRANSLATION_PRELOAD_INTERNAL_CHANNELS.revokeAgentInputSelection]: {
+    requestSchema: subtitleTranslationRevokeAgentInputSelectionRequestSchema,
+    resultSchema: subtitleTranslationIpcResultSchema(
+      subtitleTranslationAgentInputSelectionRevocationSchema,
+    ),
+  },
+  [SUBTITLE_TRANSLATION_PRELOAD_INTERNAL_CHANNELS.registerAgentAuthorizedTask]: {
+    requestSchema: subtitleTranslationRegisterAgentAuthorizedTaskRequestSchema,
+    resultSchema: subtitleTranslationIpcResultSchema(
+      subtitleTranslationAuthorizedTaskReferenceSchema,
     ),
   },
   [SUBTITLE_TRANSLATION_PRELOAD_INTERNAL_CHANNELS.registerAuthorizedTask]: {

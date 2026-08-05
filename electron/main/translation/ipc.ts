@@ -22,6 +22,8 @@ import {
   subtitleTranslationRegisterOwnerRequestSchema,
   subtitleTranslationSecureIpcEnvelopeSchema,
   type SubtitleTranslationIpcResult,
+  type SubtitleTranslationAgentInputSelectionRequest,
+  type SubtitleTranslationAgentTaskRegistrationRequest,
   type SubtitleTranslationAuthorizedTaskRegistrationRequest,
   type SubtitleTranslationGeneratedImportCandidateControl,
   type SubtitleTranslationGeneratedImportCandidateRequest,
@@ -66,6 +68,7 @@ type SubtitleTranslationInternalChannel = Exclude<
 export interface SubtitleTranslationIpcServiceOptions {
   readonly ownerSessions?: LocalSubtitleOwnerSessionRegistry;
   readonly directoryCapabilities?: SubtitleTranslationDirectoryCapabilityRegistry;
+  readonly selectAgentInputFiles?: () => Promise<DirectoryDialogResult>;
   readonly selectOutputDirectory?: () => Promise<DirectoryDialogResult>;
   readonly localOwnerSessions?: LocalSubtitleOwnerSessionRegistry;
   readonly generatedImports?: GeneratedSubtitleImportCandidateService;
@@ -74,6 +77,7 @@ export interface SubtitleTranslationIpcServiceOptions {
 export class SubtitleTranslationIpcService {
   readonly ownerSessions: LocalSubtitleOwnerSessionRegistry;
   readonly directoryCapabilities: SubtitleTranslationDirectoryCapabilityRegistry;
+  private readonly selectAgentInputFilesImpl: () => Promise<DirectoryDialogResult>;
   private readonly selectOutputDirectoryImpl: () => Promise<DirectoryDialogResult>;
   private readonly localOwnerSessions?: LocalSubtitleOwnerSessionRegistry;
   private readonly generatedImports?: GeneratedSubtitleImportCandidateService;
@@ -85,6 +89,12 @@ export class SubtitleTranslationIpcService {
       new SubtitleTranslationDirectoryCapabilityRegistry();
     this.localOwnerSessions = options.localOwnerSessions;
     this.generatedImports = options.generatedImports;
+    this.selectAgentInputFilesImpl = options.selectAgentInputFiles ?? (() =>
+      dialog.showOpenDialog({
+        title: "Select subtitle files to translate",
+        filters: [{ name: "Subtitle Files", extensions: ["lrc", "srt", "vtt"] }],
+        properties: ["openFile", "multiSelections"],
+      }));
     this.selectOutputDirectoryImpl = options.selectOutputDirectory ?? (() =>
       dialog.showOpenDialog({
         title: "Select subtitle translation output directory",
@@ -154,6 +164,40 @@ export class SubtitleTranslationIpcService {
               owner,
               (request.data as { readonly inputToken: string }).inputToken,
             ),
+          );
+          break;
+        case SUBTITLE_TRANSLATION_PRELOAD_INTERNAL_CHANNELS.selectAgentInputFiles:
+          response = await this.selectAgentInputs(
+            owner,
+            authorization.data,
+          );
+          break;
+        case SUBTITLE_TRANSLATION_PRELOAD_INTERNAL_CHANNELS.readAgentInputFile: {
+          const selectionRequest = request.data as
+            SubtitleTranslationAgentInputSelectionRequest;
+          response = subtitleTranslationIpcSuccess(
+            await this.directoryCapabilities.readAgentInputFile(
+              owner,
+              selectionRequest.selectionRef,
+              selectionRequest.itemRef,
+            ),
+          );
+          break;
+        }
+        case SUBTITLE_TRANSLATION_PRELOAD_INTERNAL_CHANNELS.revokeAgentInputSelection:
+          response = subtitleTranslationIpcSuccess({
+            revoked: this.directoryCapabilities.revokeAgentInputSelection(
+              owner,
+              (request.data as { readonly selectionRef: string }).selectionRef,
+            ),
+          });
+          break;
+        case SUBTITLE_TRANSLATION_PRELOAD_INTERNAL_CHANNELS.registerAgentAuthorizedTask:
+          response = subtitleTranslationIpcSuccess(
+            await this.directoryCapabilities.registerAgentAuthorizedTask({
+              owner,
+              ...(request.data as SubtitleTranslationAgentTaskRegistrationRequest),
+            }),
           );
           break;
         case SUBTITLE_TRANSLATION_PRELOAD_INTERNAL_CHANNELS.registerAuthorizedTask:
@@ -449,6 +493,29 @@ export class SubtitleTranslationIpcService {
       cancelled: false,
       ...authorization,
     });
+  }
+
+  private async selectAgentInputs(
+    owner: SubtitleTranslationOwnerKey,
+    ownerIdentity: Parameters<LocalSubtitleOwnerSessionRegistry["isCurrent"]>[0],
+  ): Promise<SubtitleTranslationIpcResult<unknown>> {
+    const selected = await this.selectAgentInputFilesImpl();
+    if (selected.canceled || selected.filePaths.length === 0) {
+      return subtitleTranslationIpcSuccess({ cancelled: true });
+    }
+    if (!this.ownerSessions.isCurrent(ownerIdentity)) {
+      return ownerReleasedFailure();
+    }
+    const selection = await this.directoryCapabilities
+      .authorizeAgentInputSelection(owner, selected.filePaths);
+    if (!this.ownerSessions.isCurrent(ownerIdentity)) {
+      this.directoryCapabilities.revokeAgentInputSelection(
+        owner,
+        selection.selectionRef,
+      );
+      return ownerReleasedFailure();
+    }
+    return subtitleTranslationIpcSuccess(selection);
   }
 
   private async reauthorizeTaskTarget(

@@ -6,6 +6,10 @@ import {
   subtitleTranslationOwnerSessionIdSchema,
   subtitleTranslationSecureIpcEnvelopeSchema,
   type SubtitleTranslationIpcResult,
+  type SubtitleTranslationAgentInputSelection,
+  type SubtitleTranslationAgentInputSelectionRequest,
+  type SubtitleTranslationAgentInputSelectionRevocation,
+  type SubtitleTranslationAgentTaskRegistrationRequest,
   type SubtitleTranslationAuthorizedTaskReference,
   type SubtitleTranslationAuthorizedTaskRegistrationRequest,
   type SubtitleTranslationDirectoryRevocation,
@@ -94,6 +98,32 @@ export function createSubtitleTranslationRendererApi({
       return invoke<SubtitleTranslationInputFileContent>(
         SUBTITLE_TRANSLATION_PRELOAD_INTERNAL_CHANNELS.readInputFile,
         { inputToken },
+      );
+    },
+    selectAgentInputFiles() {
+      return invoke<SubtitleTranslationAgentInputSelection>(
+        SUBTITLE_TRANSLATION_PRELOAD_INTERNAL_CHANNELS.selectAgentInputFiles,
+        {},
+      );
+    },
+    readAgentInputFile(request: SubtitleTranslationAgentInputSelectionRequest) {
+      return invoke<SubtitleTranslationInputFileContent>(
+        SUBTITLE_TRANSLATION_PRELOAD_INTERNAL_CHANNELS.readAgentInputFile,
+        request,
+      );
+    },
+    revokeAgentInputSelection(selectionRef: string) {
+      return invoke<SubtitleTranslationAgentInputSelectionRevocation>(
+        SUBTITLE_TRANSLATION_PRELOAD_INTERNAL_CHANNELS.revokeAgentInputSelection,
+        { selectionRef },
+      );
+    },
+    registerAgentAuthorizedTask(
+      request: SubtitleTranslationAgentTaskRegistrationRequest,
+    ) {
+      return invoke<SubtitleTranslationAuthorizedTaskReference>(
+        SUBTITLE_TRANSLATION_PRELOAD_INTERNAL_CHANNELS.registerAgentAuthorizedTask,
+        request,
       );
     },
     registerAuthorizedTask(

@@ -23,30 +23,6 @@ export const scanSubtitleFilesSchema = z.object({
 
 /** queue_subtitle_translate_tasks — 将文件加入翻译队列 */
 export const queueTranslateSchema = z.object({
-  filePaths: z
-    .array(z.string())
-    .min(1)
-    .optional()
-    .describe(
-      "Absolute paths of subtitle files to translate. Use this only for small explicit file lists; for scan results, prefer scanId + batchStart + batchSize."
-    ),
-  scanId: z
-    .string()
-    .optional()
-    .describe("scanId returned by scan_subtitle_files. Use this for batch queueing large scan results."),
-  batchStart: z
-    .number()
-    .int()
-    .min(0)
-    .default(0)
-    .describe("Zero-based start index within the scan result when scanId is used."),
-  batchSize: z
-    .number()
-    .int()
-    .min(1)
-    .max(MAX_QUEUE_BATCH_SIZE)
-    .default(DEFAULT_QUEUE_BATCH_SIZE)
-    .describe(`Number of files to queue from scanId. Default ${DEFAULT_QUEUE_BATCH_SIZE}; max ${MAX_QUEUE_BATCH_SIZE}.`),
   sliceType: z
     .enum(["NORMAL", "SENSITIVE", "CUSTOM"])
     .default("NORMAL")
@@ -77,11 +53,9 @@ export const queueTranslateSchema = z.object({
   outputMode: z
     .enum(["source", "custom"])
     .default("source")
-    .describe("'source' = save next to original, 'custom' = use outputDir"),
-  outputDir: z
-    .string()
-    .optional()
-    .describe("Output directory (required when outputMode is 'custom')"),
+    .describe(
+      "'source' = save next to each selected input; 'custom' = ask the user to select an output directory with FusionKit's fixed picker",
+    ),
   conflictPolicy: z
     .enum(["index", "overwrite"])
     .default("index")
@@ -94,7 +68,7 @@ export const queueTranslateSchema = z.object({
     .describe(
       "Whether to translate slices concurrently for faster speed. Default: true. Set to false only when the user explicitly requests sequential / non-concurrent / 串行 / 不要并发 / 逐条 processing."
     ),
-});
+}).strict();
 
 /** queue_subtitle_convert_tasks — 将文件加入格式转换队列 */
 export const queueConvertSchema = z.object({

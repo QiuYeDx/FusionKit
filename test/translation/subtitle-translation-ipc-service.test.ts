@@ -25,6 +25,108 @@ afterEach(async () => {
 });
 
 describe("subtitle translation IPC service", () => {
+  it("turns the fixed Agent picker into an owner-bound path-free selection receipt", async () => {
+    const sourceDirectory = await outputDirectory("agent-source");
+    const sourcePath = path.join(sourceDirectory, "agent-selected.srt");
+    await writeFile(sourcePath, "1\n00:00:00,000 --> 00:00:01,000\nAgent\n");
+    const capabilities = new SubtitleTranslationDirectoryCapabilityRegistry({
+      tokenFactory: sequence("input", "item", "selection", "source", "target"),
+    });
+    const { SubtitleTranslationIpcService } = await import(
+      "../../electron/main/translation/ipc"
+    );
+    const service = new SubtitleTranslationIpcService({
+      ownerSessions: fakeOwnerSessions() as never,
+      directoryCapabilities: capabilities,
+      selectAgentInputFiles: async () => ({
+        canceled: false,
+        filePaths: [sourcePath],
+      }),
+    });
+    const eventA = fakeEvent(29);
+    const eventB = fakeEvent(30);
+
+    const selected = await service.handleInternal(
+      SUBTITLE_TRANSLATION_PRELOAD_INTERNAL_CHANNELS.selectAgentInputFiles,
+      eventA as never,
+      envelope(OWNER_SESSION_A, {}),
+    );
+    expect(selected).toMatchObject({
+      ok: true,
+      data: {
+        cancelled: false,
+        selectionRef: "subtitle-translation-selection-selection",
+        files: [{
+          itemRef: "subtitle-translation-selection-item-item",
+          displayName: "agent-selected.srt",
+        }],
+      },
+    });
+    expect(JSON.stringify(selected)).not.toContain(sourceDirectory);
+    if (!selected.ok || (selected.data as { cancelled: boolean }).cancelled) {
+      throw new Error("Agent selection failed");
+    }
+    const selection = selected.data as {
+      selectionRef: string;
+      files: Array<{ itemRef: string; displayName: string }>;
+    };
+
+    const denied = await service.handleInternal(
+      SUBTITLE_TRANSLATION_PRELOAD_INTERNAL_CHANNELS.readAgentInputFile,
+      eventB as never,
+      envelope(OWNER_SESSION_B, {
+        selectionRef: selection.selectionRef,
+        itemRef: selection.files[0].itemRef,
+      }),
+    );
+    expect(denied).toMatchObject({
+      ok: false,
+      error: { code: "invalid_ipc_request" },
+    });
+    const content = await service.handleInternal(
+      SUBTITLE_TRANSLATION_PRELOAD_INTERNAL_CHANNELS.readAgentInputFile,
+      eventA as never,
+      envelope(OWNER_SESSION_A, {
+        selectionRef: selection.selectionRef,
+        itemRef: selection.files[0].itemRef,
+      }),
+    );
+    expect(content).toMatchObject({
+      ok: true,
+      data: { displayName: "agent-selected.srt", content: expect.stringContaining("Agent") },
+    });
+    const reference = await service.handleInternal(
+      SUBTITLE_TRANSLATION_PRELOAD_INTERNAL_CHANNELS.registerAgentAuthorizedTask,
+      eventA as never,
+      envelope(OWNER_SESSION_A, {
+        selectionRef: selection.selectionRef,
+        itemRef: selection.files[0].itemRef,
+        taskId: "subtitle-task-agent-ipc",
+        outputMode: "source",
+        outputFileName: "agent-selected.srt",
+      }),
+    );
+    expect(reference).toMatchObject({
+      ok: true,
+      data: { kind: "authorized_task_v1" },
+    });
+    const replay = await service.handleInternal(
+      SUBTITLE_TRANSLATION_PRELOAD_INTERNAL_CHANNELS.registerAgentAuthorizedTask,
+      eventA as never,
+      envelope(OWNER_SESSION_A, {
+        selectionRef: selection.selectionRef,
+        itemRef: selection.files[0].itemRef,
+        taskId: "subtitle-task-agent-replay",
+        outputMode: "source",
+        outputFileName: "agent-selected.srt",
+      }),
+    );
+    expect(replay).toMatchObject({
+      ok: false,
+      error: { code: "invalid_ipc_request" },
+    });
+  });
+
   it("binds selected files to path-free task authority and fixed reveal", async () => {
     const sourceDirectory = await outputDirectory("selected-source");
     const sourcePath = path.join(sourceDirectory, "selected.srt");
