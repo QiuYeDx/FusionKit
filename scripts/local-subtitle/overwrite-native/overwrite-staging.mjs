@@ -3,6 +3,7 @@
 import { spawnSync } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
 import { constants as fsConstants } from "node:fs";
+import { createRequire } from "node:module";
 import {
   chmod,
   copyFile,
@@ -43,6 +44,7 @@ const EXPECTED_MODULE_KEYS = Object.freeze([
   "recover",
   "acknowledge",
 ]);
+const require = createRequire(import.meta.url);
 const MACOS_COMMAND_ENVIRONMENT = Object.freeze({
   PATH: "/usr/bin:/bin",
   LANG: "C",
@@ -443,7 +445,7 @@ export async function probeOverwriteNativeModule(filePath) {
     "};",
     "process.stdout.write(JSON.stringify(result));",
   ].join("");
-  const result = spawnSync(process.execPath, ["-e", script, filePath], {
+  const result = spawnSync(resolveElectronHostPath(), ["-e", script, filePath], {
     encoding: "utf8",
     shell: false,
     windowsHide: true,
@@ -860,21 +862,45 @@ function sanitizedModuleEnvironment() {
   if (process.platform === "win32") {
     const systemRoot = process.env.SystemRoot ?? "C:\\Windows";
     return {
+      ELECTRON_RUN_AS_NODE: "1",
       SystemRoot: systemRoot,
       WINDIR: systemRoot,
-      PATH: [path.dirname(process.execPath), path.join(systemRoot, "System32")].join(
-        path.delimiter,
-      ),
+      PATH: path.join(systemRoot, "System32"),
       PATHEXT: ".COM;.EXE;.BAT;.CMD",
       TEMP: process.env.TEMP,
       TMP: process.env.TMP,
     };
   }
   return {
+    ELECTRON_RUN_AS_NODE: "1",
     PATH: "/usr/bin:/bin",
     LANG: "C",
     LC_ALL: "C",
   };
+}
+
+function resolveElectronHostPath() {
+  let electronPath;
+  try {
+    electronPath = require("electron");
+  } catch (cause) {
+    throw failure(
+      "overwrite_module_invalid",
+      "The Electron host required to verify the overwrite addon is unavailable.",
+      cause,
+    );
+  }
+  if (
+    typeof electronPath !== "string" ||
+    !path.isAbsolute(electronPath) ||
+    electronPath.includes("\0")
+  ) {
+    throw failure(
+      "overwrite_module_invalid",
+      "The Electron host required to verify the overwrite addon is invalid.",
+    );
+  }
+  return electronPath;
 }
 
 function normalizePath(value) {

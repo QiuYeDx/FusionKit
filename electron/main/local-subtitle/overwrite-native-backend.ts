@@ -15,6 +15,7 @@ import {
   type LocalSubtitleOverwriteNativeBackendErrorCode,
   type LocalSubtitleOverwriteNativePlatform,
 } from "./overwrite-native-backend-core";
+import { preflightLocalSubtitleOverwriteNativeHost } from "./overwrite-native-host-preflight";
 import {
   createLocalSubtitleOverwriteTransactionCoordinator,
   type LocalSubtitleOverwriteTransactionCoordinator,
@@ -107,6 +108,8 @@ export function createLocalSubtitleOverwriteNativeRuntime(
 
   let backend: ReturnType<typeof loadLocalSubtitleOverwriteNativeBackend>;
   try {
+    preflightLocalSubtitleOverwriteNativeHost(absoluteNodePath);
+    assertVerifiedArtifactCurrent(proof);
     backend = loadLocalSubtitleOverwriteNativeBackend(
       absoluteNodePath,
       defaultLoadModule,
