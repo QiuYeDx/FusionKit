@@ -484,13 +484,7 @@ function validateArchiveEntry(
   if (
     fileName.length === 0 ||
     fileName.length > 255 ||
-    fileName.includes("/") ||
-    fileName.includes("\\") ||
-    fileName.includes("\0") ||
-    fileName === "." ||
-    fileName === ".." ||
-    path.posix.isAbsolute(fileName) ||
-    /^[A-Za-z]:/u.test(fileName) ||
+    !isSafeArchivePath(fileName) ||
     entry.isEncrypted() ||
     !LOCAL_SUBTITLE_ACCELERATOR_ARCHIVE_POLICY.supportedCompressionMethods
       .includes(entry.compressionMethod as 0 | 8) ||
@@ -524,6 +518,25 @@ function validateArchiveEntry(
     throw archiveInvalid();
   }
   return fileName;
+}
+
+function isSafeArchivePath(value: string): boolean {
+  if (
+    value.includes("\\") ||
+    /[\u0000-\u001f\u007f]/u.test(value) ||
+    path.posix.isAbsolute(value) ||
+    /^[A-Za-z]:/u.test(value)
+  ) {
+    return false;
+  }
+  const segments = value.split("/");
+  return segments.length > 0 && segments.every((segment) => {
+    if (segment.length === 0 || segment === "." || segment === "..") {
+      return false;
+    }
+    const base = segment.split(".", 1)[0]!.toUpperCase();
+    return !/^(?:CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])$/u.test(base);
+  });
 }
 
 async function extractEntry(

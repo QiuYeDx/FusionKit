@@ -254,8 +254,8 @@ describe("local subtitle VAD manager", () => {
       runtimeEnvironment: {
         mode: "development",
         appRoot: root,
-        platform: "darwin",
-        arch: "arm64",
+        platform: process.platform === "win32" ? "win32" : "darwin",
+        arch: process.platform === "win32" ? "x64" : "arm64",
       },
       supervisor: {
         smokeModelLoad: vi.fn(async () => undefined),
@@ -267,14 +267,16 @@ describe("local subtitle VAD manager", () => {
       vadOptions: { definition, downloadResource },
     });
 
-    await expect(manager.listManagedResources(OWNER_A)).resolves.toEqual([
-      expect.objectContaining({ resourceType: "model" }),
-      expect.objectContaining({
-        resourceId: definition.resourceId,
-        resourceType: "vad",
-        status: "not_installed",
-      }),
-    ]);
+    await expect(manager.listManagedResources(OWNER_A)).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ resourceType: "model" }),
+        expect.objectContaining({
+          resourceId: definition.resourceId,
+          resourceType: "vad",
+          status: "not_installed",
+        }),
+      ]),
+    );
     expect(manager.startResourceInstall(OWNER_A, definition.resourceId)).toMatchObject({
       resourceType: "vad",
       status: "queued",
@@ -314,7 +316,7 @@ async function createFixture(overrides: FixtureOverrides = {}) {
   );
   const manager = new LocalSubtitleVadManager({
     managedResourceRoot: managedRoot,
-    platform: "darwin",
+    platform: process.platform,
     resourceJobs,
     supervisor: { smokeVadLoad },
     resolveSmokeModel: async () => managedModel(managedRoot),

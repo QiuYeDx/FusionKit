@@ -22,6 +22,14 @@ describe("local subtitle accelerator manifest", () => {
     expect(
       LOCAL_SUBTITLE_WINDOWS_CUDA_ARCHIVE_CONTRACT.selectedEntries,
     ).toHaveLength(20);
+    expect(
+      LOCAL_SUBTITLE_WINDOWS_CUDA_ARCHIVE_CONTRACT.selectedEntries[0]?.archiveName,
+    ).toMatch(/^Release\//u);
+    expect(
+      LOCAL_SUBTITLE_WINDOWS_CUDA_ARCHIVE_CONTRACT.excludedEntries.every(
+        (entry) => entry.startsWith("Release/"),
+      ),
+    ).toBe(true);
     expect([
       ...LOCAL_SUBTITLE_WINDOWS_CUDA_ARCHIVE_CONTRACT.selectedEntries,
       ...LOCAL_SUBTITLE_WINDOWS_CUDA_ARCHIVE_CONTRACT.excludedEntries,

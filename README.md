@@ -25,10 +25,11 @@
 
 **FusionKit** 是一款基于 Electron 的跨平台桌面工具集合应用，旨在将多种实用工具整合在一个优雅的界面中。内置 **FusionKit Agent**，可通过自然语言对话驱动字幕翻译、格式转换、语言提取、历史任务恢复，以及文件名 / 文件夹名翻译等操作；也提供完整的手动工具界面，适合逐项配置、预览和执行。
 
-PS: 使用时可以配合`Faster-Whisper-GUI`音频转文本，然后再用本工具进行 AI 翻译，相关教程[「音频转字幕&人声分离」猴子也能懂的 Faster-Whisper-GUI 使用教程](https://qiuvision.com/notes/1)
+PS: 在 FusionKit 本地字幕转写完成正式发布验收前，现有稳定流程仍可配合 `Faster-Whisper-GUI` 先生成字幕，再用本工具进行 AI 翻译。相关教程：[「音频转字幕&人声分离」猴子也能懂的 Faster-Whisper-GUI 使用教程](https://qiuvision.com/notes/1)
 
 ## 0.2.11 版本亮点
 
+- **本地字幕转写预发布实现**：新增独立的本地字幕工具，可批量处理音频/视频，使用 managed Whisper 模型生成 SRT/LRC，并按用户选择只导出、加入字幕翻译队列或确认后开始翻译。最终安装包、目标 GPU、稳定性和许可发布验收仍在进行中。
 - **音频工具箱首版**：新增音频转文本、文本转音频、实时字幕和 Realtime/WebRTC 双向语音工具页。
 - **全局音频模型配置**：设置页集中管理音频 Profile、协议、模型和任务分配；工具页只读取全局生效配置，不再各自保存 API 配置。
 - **OpenAI / MiMo 音频 API 兼容**：文件 ASR/TTS 使用 OpenAI 官方音频 API 风格作为内部契约，MiMo ASR/TTS 通过 adapter 接入。
@@ -103,6 +104,20 @@ PS: 使用时可以配合`Faster-Whisper-GUI`音频转文本，然后再用本�
 - 文件正文会发送到用户配置的 OpenAI Compatible 模型服务；请确认模型服务的隐私和数据保留政策
 - API Key 只用于运行时请求，不写入长文本翻译工作区
 - 串行语义记忆会增加每个分片的输入 token，费用通常高于并发模式
+
+### 本地字幕转写（预发布）
+
+面向本地音频/视频批量生成字幕的独立工具，不复用“音频转文本”的远端 API 配置或运行时。
+
+- 使用随应用提供并校验的 `whisper.cpp` runtime、FFmpeg 和 ffprobe；用户无需安装系统 FFmpeg，也不能配置任意 executable 或 backend 参数
+- 首发 managed 清单固定 `large-v3-q5_0` GGML 模型，可选 Silero v6.2.0 VAD；模型和 VAD 按需下载，不进入默认安装包
+- 支持 1～100 个文件、媒体探测、多音轨选择、原文转写或翻译为英语、SRT/LRC、多格式部分成功、取消与逐文件失败隔离
+- 支持源目录或自定义目录、自动编号和受控覆盖；已提交字幕不会因取消、失败、更新或卸载而主动删除
+- 默认只导出；自动翻译必须由用户显式选择并确认当前翻译配置和外部 API 费用，只启动本次交接新增的任务
+- 本地转写默认离线，普通推理不上传媒体或字幕；只有资源下载会访问固定 allowlist，自动翻译才会调用用户配置的第三方文本模型 API
+- Windows x64 CPU/CUDA 与 macOS arm64 Metal/CPU 目前仍是发布候选矩阵；最终 installer、签名/公证、目标 GPU、稳定性和许可验收完成前，不承诺 stable 支持或最低性能
+
+资源体积、磁盘需求、隐私、恢复、卸载保留、平台证据和第三方许可边界见[本地字幕转写预发布说明](docs/v0.2.11/local-subtitle-transcriber/local-subtitle-transcriber_release_notes.md)。
 
 ### 音频工具箱
 

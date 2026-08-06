@@ -1,9 +1,9 @@
 import { createHash } from "node:crypto";
 import {
   chmod,
-  copyFile,
   mkdir,
   mkdtemp,
+  readFile,
   rm,
   writeFile,
 } from "node:fs/promises";
@@ -150,7 +150,17 @@ async function copyEvidence(
     ...relativePath.split("/"),
   );
   await mkdir(path.dirname(absolutePath), { recursive: true });
-  await copyFile(path.join(EVIDENCE_ROOT, path.basename(relativePath)), absolutePath);
+  const checkoutBytes = await readFile(
+    path.join(EVIDENCE_ROOT, path.basename(relativePath)),
+  );
+  const checkoutText = checkoutBytes.toString("utf8");
+  if (Buffer.from(checkoutText, "utf8").compare(checkoutBytes) !== 0) {
+    throw new Error("The runtime fixture evidence is not canonical UTF-8 text.");
+  }
+  await writeFile(
+    absolutePath,
+    Buffer.from(checkoutText.replace(/\r\n?|\n/gu, "\n"), "utf8"),
+  );
   await chmod(absolutePath, 0o644);
 }
 

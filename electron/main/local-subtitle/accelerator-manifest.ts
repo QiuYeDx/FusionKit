@@ -9,6 +9,7 @@ const FILE_NAME_PATTERN = /^[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9_-])?$/u;
 const DOWNLOAD_HOST_PATTERN = /^(?:\*\.)?[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?$/u;
 const MAX_ARCHIVE_ENTRIES = 128;
 const MAX_ENTRY_BYTES = 640 * 1024 * 1024;
+const WINDOWS_CUDA_ARCHIVE_ROOT = "Release";
 
 const boundedStringSchema = z
   .string()
@@ -26,6 +27,13 @@ const fileNameSchema = z
   .regex(FILE_NAME_PATTERN)
   .refine((value) => value !== "." && value !== "..")
   .refine((value) => !isWindowsReservedName(value));
+const archivePathSchema = z
+  .string()
+  .min(1)
+  .max(255)
+  .refine((value) => value.trim() === value)
+  .refine((value) => !/[\u0000-\u001f\u007f]/u.test(value))
+  .refine(isSafeRelativePath);
 const downloadHostSchema = z
   .string()
   .min(1)
@@ -117,7 +125,7 @@ const acceleratorManifestSchema = z
 
 const archiveEntrySchema = z
   .object({
-    archiveName: fileNameSchema,
+    archiveName: archivePathSchema,
     outputRelativePath: boundedStringSchema,
     byteSize: positiveBytesSchema,
     sha256: sha256Schema,
@@ -135,7 +143,7 @@ const archiveContractSchema = z
       })
       .strict(),
     selectedEntries: z.array(archiveEntrySchema).min(1).max(MAX_ARCHIVE_ENTRIES),
-    excludedEntries: z.array(fileNameSchema).max(MAX_ARCHIVE_ENTRIES),
+    excludedEntries: z.array(archivePathSchema).max(MAX_ARCHIVE_ENTRIES),
     maxEntryBytes: positiveBytesSchema,
     maxCompressionRatio: z.number().finite().positive().max(10_000),
   })
@@ -204,14 +212,16 @@ export const LOCAL_SUBTITLE_WINDOWS_CUDA_ARCHIVE_CONTRACT =
     },
     selectedEntries: LOCAL_SUBTITLE_WINDOWS_CUDA_MANIFEST.artifacts.map(
       (artifact) => ({
-        archiveName: artifact.fileName,
+        archiveName: `${WINDOWS_CUDA_ARCHIVE_ROOT}/${artifact.fileName}`,
         outputRelativePath: artifact.relativePath,
         byteSize: artifact.byteSize,
         sha256: artifact.sha256,
       }),
     ),
     excludedEntries:
-      LOCAL_SUBTITLE_WINDOWS_CUDA_MANIFEST.selection.excludedArchiveEntries,
+      LOCAL_SUBTITLE_WINDOWS_CUDA_MANIFEST.selection.excludedArchiveEntries.map(
+        (fileName) => `${WINDOWS_CUDA_ARCHIVE_ROOT}/${fileName}`,
+      ),
     maxEntryBytes: MAX_ENTRY_BYTES,
     maxCompressionRatio: 200,
   });

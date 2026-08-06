@@ -28,6 +28,31 @@ interface ZipFixtureEntry {
 }
 
 describe("local subtitle accelerator archive", () => {
+  it("accepts the pinned archive's fixed Release directory prefix", async () => {
+    const fixture = await createFixture([
+      { name: "Release/server.exe", data: Buffer.from("server") },
+      { name: "Release/unused.exe", data: Buffer.from("unused") },
+    ], {
+      selectedArchiveName: "Release/server.exe",
+      excludedEntries: ["Release/unused.exe"],
+    });
+    try {
+      await expect(extractLocalSubtitleAcceleratorArchive({
+        archivePath: fixture.archivePath,
+        destinationDirectory: fixture.destination,
+        contract: fixture.contract,
+      })).resolves.toMatchObject({
+        extractedFileCount: 1,
+        extractedByteSize: 6,
+      });
+      await expect(
+        readFile(path.join(fixture.destination, "payload", "server.exe"), "utf8"),
+      ).resolves.toBe("server");
+    } finally {
+      await cleanupFixture(fixture.root);
+    }
+  });
+
   it("extracts only exact selected leaves after archive and entry verification", async () => {
     const fixture = await createFixture([
       { name: "server.exe", data: Buffer.from("server") },
@@ -236,7 +261,11 @@ describe("local subtitle accelerator archive", () => {
 
 async function createFixture(
   entries: readonly ZipFixtureEntry[],
-  overrides: { readonly selectedSha256?: string } = {},
+  overrides: {
+    readonly selectedSha256?: string;
+    readonly selectedArchiveName?: string;
+    readonly excludedEntries?: readonly string[];
+  } = {},
 ): Promise<{
   readonly root: string;
   readonly archivePath: string;
@@ -249,8 +278,10 @@ async function createFixture(
   const archive = createStoredZip(entries);
   const archivePath = path.join(root, "accelerator.zip");
   await writeFile(archivePath, archive);
-  const server = entries.find((entry) => entry.name.toLowerCase() === "server.exe") ??
-    entries[0]!;
+  const selectedArchiveName = overrides.selectedArchiveName ?? "server.exe";
+  const server = entries.find(
+    (entry) => entry.name.toLowerCase() === selectedArchiveName.toLowerCase(),
+  ) ?? entries[0]!;
   const contract = parseLocalSubtitleAcceleratorArchiveContract({
     archive: {
       byteSize: archive.length,
@@ -263,13 +294,13 @@ async function createFixture(
     },
     selectedEntries: [
       {
-        archiveName: "server.exe",
+        archiveName: selectedArchiveName,
         outputRelativePath: "payload/server.exe",
         byteSize: server.data.length,
         sha256: overrides.selectedSha256 ?? sha256(server.data),
       },
     ],
-    excludedEntries: ["unused.exe"],
+    excludedEntries: overrides.excludedEntries ?? ["unused.exe"],
     maxEntryBytes: Math.max(1, server.data.length),
     maxCompressionRatio: 200,
   });

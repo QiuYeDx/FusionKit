@@ -14,6 +14,9 @@
 
 ### 新增
 
+- 新增独立“本地字幕转写”预发布实现，不复用远端音频 ASR：支持 1～100 个本地音频/视频、媒体探测与音轨选择、managed Whisper 模型、原文转写/翻译为英语、可选 VAD、SRT/LRC、批内失败隔离、取消与重试
+- 本地字幕结果支持源目录/自定义目录、自动编号/受控覆盖、分页预览、复制、定位文件和结构化错误详情；默认只导出，也可在确认当前配置和外部费用后精确加入或启动本次新增的字幕翻译任务
+- 新增模型、VAD 和 Windows CUDA 候选加速包的固定 manifest、续传下载、大小/SHA-256 校验、ResourceJob、占用门禁、删除与启动孤儿清理；模型与可选资源不进入默认安装包
 - 模型配置新增 API 格式选择，支持 OpenAI Responses API 与 Chat Completions / OpenAI Compatible 两种调用协议并存
 - OpenAI profile 新建时默认使用 Responses API，DeepSeek 和 Other profile 默认继续使用 Chat Completions，旧配置升级后保持原有调用格式
 - 新增统一模型运行时客户端，长文本翻译、字幕翻译、名称翻译和 HomeAgent 可按 profile 的 API 格式选择对应 adapter
@@ -31,6 +34,9 @@
 
 ### 安全与隐私
 
+- 本地字幕普通推理默认离线，媒体、字幕、时间戳和真实路径不上传；资源下载只接受内置 `resourceId`、固定 host allowlist、体积和 SHA-256，不接受 renderer 提交的任意 URL、executable、路径或 backend flag
+- 本地字幕使用独立 route、Store、preload API、`local-subtitle:*` IPC、capability registry 和 main runtime；真实文件/目录路径、token、模型 identity、临时 WAV 与完整诊断不进入 renderer 持久化或公开 IPC
+- 自动字幕翻译默认关闭，只能消费 one-shot artifact token 和字幕翻译模块冻结的配置快照，并且只启动不可变导入回执中的新增 taskId；仅入队模式不创建内容 checkpoint
 - Responses API 请求默认发送 `store:false`，降低模型服务端保存请求内容的风险
 - 任务恢复清单、工作区 manifest 和事件日志不持久化 API Key、Authorization header 或完整模型请求体
 - 模型运行时错误信息增加 API Key 脱敏与统一错误分类，避免敏感凭据泄露到 UI 或日志
@@ -76,6 +82,8 @@
 
 ### 测试与文档
 
+- 新增本地字幕转写 Final Design、Execution Plan、逐工作包实施记录和预发布说明，记录资源体积、磁盘、隐私、恢复、卸载保留、平台证据与第三方许可边界
+- 新增本地字幕 domain/IPC、文件与目录授权、资源下载、official server、媒体规范化、字幕整形/导出、批量队列、GPU admission、结果交接、恢复与原子覆盖事务的自动化矩阵；固定生产模型、真实公网VAD与Windows CUDA target component已通过，Electron产品、installer和最终发布矩阵仍单独验收
 - 新增 v0.2.11 文件名翻译体验修复设计文档、执行计划和实施记录
 - 新增清空选择保留配置的 store 单测，覆盖路径清空不重置用户配置的行为
 - 新增文件名翻译警告详情聚合与换行合同测试，并通过暗色 `786×540` Electron 场景验证摘要、确认弹窗和内部 ScrollArea 无横向溢出
@@ -96,6 +104,8 @@
 
 ### 限制
 
+- 本地字幕转写仍处于预发布阶段：Windows x64 installer/目标 NVIDIA、macOS arm64 Developer ID/公证/Gatekeeper、Electron 四语言与可访问性、长时稳定性、隐私扫描和第三方许可闭环尚未完成，不应把 CPU/CUDA/Metal 候选写成 stable 支持或承诺最低性能
+- Windows CUDA 12.4 候选包当前许可状态仍为 `pending` 且禁止对外分享；Linux、Windows arm64 和 macOS x64 不在首版范围，未完成文件也不支持单文件中途断点续跑
 - OpenAI/MiMo 真实供应商、Electron 麦克风/扬声器权限、OpenAI Realtime/WebRTC 远端音轨和 MiMo `voicedesign` / `voiceclone` 低延迟流式状态仍需发布前手工验收；fixture 与自动化矩阵不能替代真实供应商和设备验证
 - 独立音频 API 配置重构的专项自动化门禁 `TEST-R01` 与真实环境验收 `QA-R02` 仍待完成
 - MiMo Chat Audio 首版不提供原生 WebRTC 双向语音；双向语音页仅对配置了 `realtimeVoice` route 的音频 API 启用
