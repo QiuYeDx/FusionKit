@@ -56,7 +56,7 @@ const springTransition = (durationMs: number) => ({
 
 当前由 Motion spring 驱动的阶段包括：合成进度到 `92%`、ready 后收束到 `100%`、中心加载标识上移淡出、白色图层切换，以及中心圆孔揭幕。`100%` 后标识淡出期间，退场遮罩会先进入 solid 模式，保持整屏纯白；圆孔揭幕开始前再恢复 `mask-image`。
 
-注意：preload 在 Electron 沙箱中运行，不能把 `motion` 保留为运行时 external dependency，否则会出现 `Unable to load preload script` / `module not found: motion`。`vite.config.ts` 中 preload 的 `rollupOptions.external` 会单独排除 `motion`，让 Motion 被打进 preload bundle。
+注意：preload 在 Electron 沙箱中运行，不能把 `motion`、`zod` 或其他 npm 运行时依赖保留为 external dependency，否则会出现 `Unable to load preload script` / `module not found`。`vite.config.ts` 中 preload 的 `rollupOptions.external` 只保留 `electron`，其余实际导入的运行时依赖必须打进 preload bundle；`scripts/check-preload-bundle.mjs` 会在测试和产品构建时检查这一约束。
 
 圆形尺寸由 JS 按当前视口实时计算：
 

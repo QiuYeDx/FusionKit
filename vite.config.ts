@@ -15,7 +15,6 @@ export default defineConfig(({ command }) => {
   const sourcemap = isServe || !!process.env.VSCODE_DEBUG
   const appVersion = process.env.VITE_APP_VERSION ?? pkg.version
   const dependencyNames = Object.keys('dependencies' in pkg ? pkg.dependencies : {})
-  const preloadExternal = dependencyNames.filter((dependencyName) => dependencyName !== 'motion')
   const srcAlias = path.join(__dirname, 'src')
 
   return {
@@ -72,7 +71,9 @@ export default defineConfig(({ command }) => {
               minify: isBuild,
               outDir: 'dist-electron/preload',
               rollupOptions: {
-                external: preloadExternal,
+                // Sandboxed preloads cannot require arbitrary npm packages.
+                // Bundle every imported runtime dependency and leave Electron external.
+                external: ['electron'],
               },
             },
           },

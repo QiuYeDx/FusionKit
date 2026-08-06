@@ -39,6 +39,10 @@ import {
   type LocalSubtitleModelLoadSmokeTarget,
 } from "../../electron/main/local-subtitle/model-manager";
 import {
+  downloadLocalSubtitleResource,
+  type LocalSubtitleDownloadResponse,
+} from "../../electron/main/local-subtitle/resource-download";
+import {
   verifyLocalSubtitleRuntimeBundle,
   type LocalSubtitleVerifiedRuntimeBundle,
 } from "../../electron/main/local-subtitle/resource-path";
@@ -160,6 +164,41 @@ describe("local subtitle model manager", () => {
       },
     ]);
     expect(fixture.smoke).toHaveBeenCalledOnce();
+  });
+
+  it("settles a stalled model download as cancelled after discarding its response", async () => {
+    const stalled = stalledDownloadResponse();
+    const fixture = await createFixture({
+      downloadResource: (options) =>
+        downloadLocalSubtitleResource({
+          ...options,
+          openResponse: async () => stalled.response(options.expectedBytes),
+          metadataSyncBytes: 1,
+        }),
+    });
+
+    const job = fixture.manager.startResourceInstall(OWNER, fixture.model.id);
+    await stalled.waitingForNextChunk;
+    expect(fixture.manager.cancelResourceJob(OWNER, job.jobId)).toEqual({
+      cancelled: true,
+    });
+    await fixture.manager.waitForIdle();
+
+    expect(stalled.discard).toHaveBeenCalledOnce();
+    expect(fixture.manager.getSessionSnapshot(OWNER).resourceJobs[0]).toMatchObject({
+      status: "cancelled",
+    });
+    await expect(
+      readFile(path.join(fixture.managedRoot, "downloads", `${fixture.model.id}.part`)),
+    ).rejects.toMatchObject({ code: "ENOENT" });
+    await expect(
+      readFile(path.join(
+        fixture.managedRoot,
+        "downloads",
+        `${fixture.model.id}.part.json`,
+      )),
+    ).rejects.toMatchObject({ code: "ENOENT" });
+    expect(await stagingEntries(fixture.managedRoot)).toEqual([]);
   });
 
   it("claims the model before the first await and hides another owner's job", async () => {
@@ -1372,6 +1411,54 @@ function createGgmlModel(payloadBytes: number): Buffer {
 
 function sha256(bytes: Uint8Array): string {
   return createHash("sha256").update(bytes).digest("hex");
+}
+
+function stalledDownloadResponse(): {
+  readonly discard: ReturnType<typeof vi.fn>;
+  readonly waitingForNextChunk: Promise<void>;
+  readonly response: (totalBytes: number) => LocalSubtitleDownloadResponse;
+} {
+  let rejectNextChunk: ((reason: Error) => void) | undefined;
+  let notifyWaiting!: () => void;
+  const waitingForNextChunk = new Promise<void>((resolve) => {
+    notifyWaiting = resolve;
+  });
+  const discard = vi.fn(() => {
+    rejectNextChunk?.(new Error("stalled model response discarded"));
+  });
+  return {
+    discard,
+    waitingForNextChunk,
+    response: (totalBytes) => {
+      let chunkIndex = 0;
+      return {
+        statusCode: 200,
+        headers: {
+          "content-length": String(totalBytes),
+          etag: '"stalled-model-v1"',
+        },
+        body: {
+          [Symbol.asyncIterator]() {
+            return {
+              next(): Promise<IteratorResult<Uint8Array>> {
+                if (chunkIndex++ === 0) {
+                  return Promise.resolve({
+                    value: Buffer.alloc(Math.min(32, totalBytes), 0x5a),
+                    done: false,
+                  });
+                }
+                notifyWaiting();
+                return new Promise((_, reject) => {
+                  rejectNextChunk = reject;
+                });
+              },
+            };
+          },
+        },
+        discard,
+      };
+    },
+  };
 }
 
 function fakeRuntime(): LocalSubtitleVerifiedRuntimeBundle {

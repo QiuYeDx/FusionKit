@@ -22,6 +22,28 @@ const WRITE_ONLY_NOFOLLOW_FLAGS =
 const WRITE_EXCLUSIVE_NOFOLLOW_FLAGS =
   WRITE_ONLY_NOFOLLOW_FLAGS | fsConstants.O_CREAT | fsConstants.O_EXCL;
 const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308]);
+const RETRYABLE_RESPONSE_STATUSES = new Set([
+  408,
+  425,
+  429,
+  500,
+  502,
+  503,
+  504,
+]);
+const RETRYABLE_NETWORK_ERROR_CODES = new Set([
+  "EAI_AGAIN",
+  "ECONNREFUSED",
+  "ECONNRESET",
+  "EHOSTUNREACH",
+  "ENETDOWN",
+  "ENETRESET",
+  "ENETUNREACH",
+  "ENOTFOUND",
+  "EPIPE",
+  "ETIMEDOUT",
+  "ERR_STREAM_PREMATURE_CLOSE",
+]);
 
 export const LOCAL_SUBTITLE_RESOURCE_DOWNLOAD_POLICY = Object.freeze({
   metadataSchemaVersion: 1,
@@ -30,6 +52,8 @@ export const LOCAL_SUBTITLE_RESOURCE_DOWNLOAD_POLICY = Object.freeze({
   maxMetadataBytes: 8 * 1_024,
   metadataSyncBytes: 8 * 1_024 * 1_024,
   responseHeaderTimeoutMs: 30_000,
+  progressIntervalMs: 100,
+  transientRetryDelaysMs: Object.freeze([250, 1_000] as const),
 } as const);
 
 export type LocalSubtitleResourceDownloadErrorCode =
@@ -78,6 +102,8 @@ export interface DownloadLocalSubtitleResourceOptions {
   readonly onProgress?: (completedBytes: number, totalBytes: number) => void;
   readonly openResponse?: OpenLocalSubtitleDownloadResponse;
   readonly metadataSyncBytes?: number;
+  readonly progressIntervalMs?: number;
+  readonly transientRetryDelaysMs?: readonly number[];
 }
 
 export interface ReconcileLocalSubtitleResourceDownloadStateOptions {
@@ -119,6 +145,10 @@ export interface LocalSubtitleResourceDownloadMetadata {
 }
 
 type DownloadMetadata = LocalSubtitleResourceDownloadMetadata;
+
+class RetryableLocalSubtitleDownloadError extends Error {
+  readonly name = "RetryableLocalSubtitleDownloadError";
+}
 
 interface ResumeState {
   readonly bytesCompleted: number;
@@ -234,6 +264,11 @@ export async function downloadLocalSubtitleResource(
   );
   let resume = await readResumeState(validated, partPath, metadataPath);
   const initiallyResumedBytes = resume.bytesCompleted;
+  const progress = createProgressReporter(
+    validated.onProgress,
+    validated.expectedBytes,
+    validated.progressIntervalMs,
+  );
 
   await validated.ensureCapacity(validated.expectedBytes - resume.bytesCompleted);
   if (resume.bytesCompleted === validated.expectedBytes) {
@@ -257,6 +292,7 @@ export async function downloadLocalSubtitleResource(
   }
 
   let restartUsed = false;
+  let transientRetryIndex = 0;
   while (true) {
     throwIfAborted(validated.signal);
     let opened:
@@ -278,6 +314,16 @@ export async function downloadLocalSubtitleResource(
       if (validated.signal.aborted) {
         await removeDownloadState(partPath, metadataPath).catch(() => undefined);
         throwIfAborted(validated.signal);
+      }
+      if (
+        isRetryableDownloadError(error) &&
+        transientRetryIndex < validated.transientRetryDelaysMs.length
+      ) {
+        await waitForDownloadRetry(
+          validated.transientRetryDelaysMs[transientRetryIndex++]!,
+          validated.signal,
+        );
+        continue;
       }
       if (error instanceof LocalSubtitleResourceDownloadError) throw error;
       throw downloadFailure(
@@ -309,12 +355,28 @@ export async function downloadLocalSubtitleResource(
     );
     let nextMetadataSyncAt = completedBytes + validated.metadataSyncBytes;
     let responseFinished = false;
+    let resumePersisted = false;
+    let responseDiscarded = false;
+    const discardResponse = () => {
+      if (responseDiscarded) return;
+      responseDiscarded = true;
+      opened.response.discard();
+    };
+    const abortResponse = () => discardResponse();
+    validated.signal.addEventListener("abort", abortResponse, { once: true });
     try {
+      throwIfAborted(validated.signal);
       handle = await openPartFile(partPath, resume.bytesCompleted);
-      validated.onProgress?.(completedBytes, validated.expectedBytes);
-      for await (const value of opened.response.body) {
+      progress.report(completedBytes);
+      const bodyIterator = opened.response.body[Symbol.asyncIterator]();
+      while (true) {
+        const next = await readNextDownloadChunk(
+          bodyIterator,
+          validated.signal,
+        );
+        if (next.done) break;
         throwIfAborted(validated.signal);
-        const chunk = Buffer.from(value);
+        const chunk = Buffer.from(next.value);
         if (chunk.byteLength === 0) continue;
         if (completedBytes + chunk.byteLength > validated.expectedBytes) {
           throw downloadFailure(
@@ -323,7 +385,8 @@ export async function downloadLocalSubtitleResource(
         }
         await writeAll(handle, chunk, completedBytes);
         completedBytes += chunk.byteLength;
-        validated.onProgress?.(completedBytes, validated.expectedBytes);
+        throwIfAborted(validated.signal);
+        progress.report(completedBytes);
         if (completedBytes >= nextMetadataSyncAt) {
           await persistProgress(
             handle,
@@ -334,11 +397,13 @@ export async function downloadLocalSubtitleResource(
         }
       }
       responseFinished = true;
+      throwIfAborted(validated.signal);
       if (completedBytes !== validated.expectedBytes) {
-        throw downloadFailure(
+        throw new RetryableLocalSubtitleDownloadError(
           "The local subtitle resource ended before its expected byte size.",
         );
       }
+      progress.report(completedBytes, true);
       await persistProgress(
         handle,
         metadataPath,
@@ -362,14 +427,19 @@ export async function downloadLocalSubtitleResource(
           : { lastModified: metadata.lastModified }),
       });
     } catch (error) {
-      if (!responseFinished) opened.response.discard();
+      if (!responseFinished) discardResponse();
       if (handle) {
         if (!validated.signal.aborted && hasResumeValidator(metadata)) {
-          await persistProgress(
-            handle,
-            metadataPath,
-            withCompletedBytes(metadata, completedBytes),
-          ).catch(() => undefined);
+          try {
+            await persistProgress(
+              handle,
+              metadataPath,
+              withCompletedBytes(metadata, completedBytes),
+            );
+            resumePersisted = completedBytes > 0;
+          } catch {
+            resumePersisted = false;
+          }
         }
         await handle.close().catch(() => undefined);
       }
@@ -386,17 +456,41 @@ export async function downloadLocalSubtitleResource(
           "The local subtitle resource download ran out of disk space.",
         );
       }
+      if (
+        isRetryableDownloadError(error) &&
+        transientRetryIndex < validated.transientRetryDelaysMs.length
+      ) {
+        if (resumePersisted) {
+          resume = await readResumeState(validated, partPath, metadataPath);
+        } else {
+          await removeDownloadState(partPath, metadataPath).catch(
+            () => undefined,
+          );
+          resume = { bytesCompleted: 0 };
+        }
+        await waitForDownloadRetry(
+          validated.transientRetryDelaysMs[transientRetryIndex++]!,
+          validated.signal,
+        );
+        continue;
+      }
       if (error instanceof LocalSubtitleResourceDownloadError) throw error;
       throw downloadFailure(
         "The local subtitle resource download could not be completed.",
       );
+    } finally {
+      validated.signal.removeEventListener("abort", abortResponse);
     }
   }
 }
 
 function validateOptions(
   options: DownloadLocalSubtitleResourceOptions,
-): DownloadLocalSubtitleResourceOptions & { readonly metadataSyncBytes: number } {
+): DownloadLocalSubtitleResourceOptions & {
+  readonly metadataSyncBytes: number;
+  readonly progressIntervalMs: number;
+  readonly transientRetryDelaysMs: readonly number[];
+} {
   if (!options || !(options.signal instanceof AbortSignal)) {
     throw new TypeError("The local subtitle resource download options are invalid.");
   }
@@ -406,6 +500,22 @@ function validateOptions(
   if (!Number.isSafeInteger(metadataSyncBytes) || metadataSyncBytes <= 0) {
     throw new TypeError("The local subtitle resource metadata interval is invalid.");
   }
+  const progressIntervalMs = options.progressIntervalMs ??
+    LOCAL_SUBTITLE_RESOURCE_DOWNLOAD_POLICY.progressIntervalMs;
+  if (!Number.isSafeInteger(progressIntervalMs) || progressIntervalMs <= 0) {
+    throw new TypeError("The local subtitle resource progress interval is invalid.");
+  }
+  const transientRetryDelaysMs = options.transientRetryDelaysMs ??
+    LOCAL_SUBTITLE_RESOURCE_DOWNLOAD_POLICY.transientRetryDelaysMs;
+  if (
+    !Array.isArray(transientRetryDelaysMs) ||
+    transientRetryDelaysMs.length > 5 ||
+    transientRetryDelaysMs.some(
+      (delay) => !Number.isSafeInteger(delay) || delay < 0 || delay > 30_000,
+    )
+  ) {
+    throw new TypeError("The local subtitle resource retry policy is invalid.");
+  }
   if (typeof options.ensureCapacity !== "function") {
     throw new TypeError("The local subtitle resource capacity probe is invalid.");
   }
@@ -414,6 +524,8 @@ function validateOptions(
     ...options,
     ...state,
     metadataSyncBytes,
+    progressIntervalMs,
+    transientRetryDelaysMs: Object.freeze([...transientRetryDelaysMs]),
     openResponse: options.openResponse ?? openHttpsResponse,
   });
 }
@@ -533,6 +645,11 @@ function validateResponse(
   resume: ResumeState,
   expectedBytes: number,
 ): "continue" | "restart" {
+  if (RETRYABLE_RESPONSE_STATUSES.has(response.statusCode)) {
+    throw new RetryableLocalSubtitleDownloadError(
+      `The local subtitle resource server returned transient HTTP ${response.statusCode}.`,
+    );
+  }
   if (resume.bytesCompleted > 0 && response.statusCode === 200) return "restart";
   if (resume.bytesCompleted > 0 && response.statusCode === 416) return "restart";
   if (resume.bytesCompleted === 0) {
@@ -1018,6 +1135,119 @@ async function writeAll(
   }
 }
 
+function createProgressReporter(
+  onProgress: DownloadLocalSubtitleResourceOptions["onProgress"],
+  totalBytes: number,
+  intervalMs: number,
+): {
+  report(completedBytes: number, force?: boolean): void;
+} {
+  let lastCompletedBytes: number | undefined;
+  let nextPublicationAt = 0;
+  return Object.freeze({
+    report(completedBytes: number, force = false): void {
+      if (
+        !onProgress ||
+        (lastCompletedBytes !== undefined &&
+          completedBytes <= lastCompletedBytes)
+      ) {
+        return;
+      }
+      const now = Date.now();
+      if (
+        lastCompletedBytes !== undefined &&
+        !force &&
+        now < nextPublicationAt
+      ) {
+        return;
+      }
+      lastCompletedBytes = completedBytes;
+      nextPublicationAt = now + intervalMs;
+      onProgress(completedBytes, totalBytes);
+    },
+  });
+}
+
+function isRetryableDownloadError(error: unknown): boolean {
+  if (error instanceof RetryableLocalSubtitleDownloadError) return true;
+  if (!error || typeof error !== "object" || !("code" in error)) return false;
+  return (
+    typeof error.code === "string" &&
+    RETRYABLE_NETWORK_ERROR_CODES.has(error.code)
+  );
+}
+
+function waitForDownloadRetry(
+  delayMs: number,
+  signal: AbortSignal,
+): Promise<void> {
+  throwIfAborted(signal);
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      signal.removeEventListener("abort", abort);
+      resolve();
+    };
+    const fail = (error: unknown) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      signal.removeEventListener("abort", abort);
+      reject(error);
+    };
+    const abort = () => {
+      try {
+        throwIfAborted(signal);
+      } catch (error) {
+        fail(error);
+      }
+    };
+    const timer = setTimeout(finish, delayMs);
+    signal.addEventListener("abort", abort, { once: true });
+    if (signal.aborted) abort();
+  });
+}
+
+function readNextDownloadChunk(
+  iterator: AsyncIterator<Uint8Array>,
+  signal: AbortSignal,
+): Promise<IteratorResult<Uint8Array>> {
+  throwIfAborted(signal);
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    const finish = (value: IteratorResult<Uint8Array>) => {
+      if (settled) return;
+      settled = true;
+      signal.removeEventListener("abort", abort);
+      resolve(value);
+    };
+    const fail = (error: unknown) => {
+      if (settled) return;
+      settled = true;
+      signal.removeEventListener("abort", abort);
+      reject(error);
+    };
+    const abort = () => {
+      try {
+        throwIfAborted(signal);
+      } catch (error) {
+        fail(error);
+      }
+    };
+
+    signal.addEventListener("abort", abort, { once: true });
+    if (signal.aborted) {
+      abort();
+      return;
+    }
+    Promise.resolve()
+      .then(() => iterator.next())
+      .then(finish, fail);
+  });
+}
+
 async function openHttpsResponse(
   options: OpenLocalSubtitleDownloadResponseOptions,
 ): Promise<LocalSubtitleDownloadResponse> {
@@ -1034,6 +1264,7 @@ async function openHttpsResponse(
       (response) => {
         settled = true;
         request.setTimeout(0);
+        let discarded = false;
         resolve(Object.freeze({
           statusCode: response.statusCode ?? 0,
           headers: Object.freeze({
@@ -1044,13 +1275,21 @@ async function openHttpsResponse(
             "content-range": firstHeader(response.headers["content-range"]),
           }),
           body: response,
-          discard: () => response.destroy(),
+          discard: () => {
+            if (discarded) return;
+            discarded = true;
+            request.destroy();
+            response.destroy();
+          },
         }));
       },
     );
     request.setTimeout(
       LOCAL_SUBTITLE_RESOURCE_DOWNLOAD_POLICY.responseHeaderTimeoutMs,
-      () => request.destroy(new Error("resource response header timeout")),
+      () => request.destroy(Object.assign(
+        new Error("resource response header timeout"),
+        { code: "ETIMEDOUT" },
+      )),
     );
     request.on("error", (error) => {
       if (!settled) reject(error);

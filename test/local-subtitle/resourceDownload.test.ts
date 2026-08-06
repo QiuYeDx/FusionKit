@@ -57,6 +57,179 @@ describe("local subtitle resource download", () => {
     expect(progress).toHaveBeenLastCalledWith(bytes.length, bytes.length);
   });
 
+  it("recovers a transient first connection failure inside the same download", async () => {
+    const fixture = await createFixture();
+    const bytes = Buffer.from("first-attempt-recovers");
+    const openResponse = vi.fn<OpenLocalSubtitleDownloadResponse>(async () => {
+      if (openResponse.mock.calls.length === 1) {
+        throw networkError("ECONNRESET", "first connection reset");
+      }
+      return response(200, {
+        "content-length": String(bytes.length),
+        etag: '"first-retry-v1"',
+      }, [bytes]);
+    });
+
+    await expect(downloadLocalSubtitleResource({
+      ...fixture.options(bytes.length),
+      openResponse,
+      transientRetryDelaysMs: [0],
+    })).resolves.toMatchObject({ byteSize: bytes.length });
+
+    expect(openResponse).toHaveBeenCalledTimes(2);
+    expect(await readFile(fixture.destinationPath)).toEqual(bytes);
+  });
+
+  it("retries a transient HTTP response inside the same download", async () => {
+    const fixture = await createFixture();
+    const bytes = Buffer.from("http-retry-recovers");
+    const unavailable = response(503, { "content-length": "0" }, []);
+    const openResponse = vi.fn<OpenLocalSubtitleDownloadResponse>(async () =>
+      openResponse.mock.calls.length === 1
+        ? unavailable
+        : response(200, {
+            "content-length": String(bytes.length),
+            etag: '"http-retry-v1"',
+          }, [bytes]));
+
+    await downloadLocalSubtitleResource({
+      ...fixture.options(bytes.length),
+      openResponse,
+      transientRetryDelaysMs: [0],
+    });
+
+    expect(unavailable.discard).toHaveBeenCalledOnce();
+    expect(openResponse).toHaveBeenCalledTimes(2);
+    expect(await readFile(fixture.destinationPath)).toEqual(bytes);
+  });
+
+  it("resumes a transient body failure without requiring a second install job", async () => {
+    const fixture = await createFixture();
+    const bytes = Buffer.from("resume-in-one-job");
+    const requests: Array<Readonly<Record<string, string>>> = [];
+    const openResponse = vi.fn<OpenLocalSubtitleDownloadResponse>(
+      async (request) => {
+        requests.push(request.headers);
+        if (openResponse.mock.calls.length === 1) {
+          return response(200, {
+            "content-length": String(bytes.length),
+            etag: '"single-job-resume-v1"',
+          }, [
+            bytes.subarray(0, 6),
+            networkError("ECONNRESET", "body connection reset"),
+          ]);
+        }
+        return response(206, {
+          "content-length": String(bytes.length - 6),
+          "content-range": `bytes 6-${bytes.length - 1}/${bytes.length}`,
+          etag: '"single-job-resume-v1"',
+        }, [bytes.subarray(6)]);
+      },
+    );
+
+    const result = await downloadLocalSubtitleResource({
+      ...fixture.options(bytes.length),
+      openResponse,
+      metadataSyncBytes: 1,
+      transientRetryDelaysMs: [0],
+    });
+
+    expect(openResponse).toHaveBeenCalledTimes(2);
+    expect(requests[1]).toMatchObject({
+      range: "bytes=6-",
+      "if-range": '"single-job-resume-v1"',
+    });
+    expect(result.resumedBytes).toBe(0);
+    expect(await readFile(fixture.destinationPath)).toEqual(bytes);
+  });
+
+  it("keeps published progress monotonic when a retry must restart from zero", async () => {
+    const fixture = await createFixture();
+    const bytes = Buffer.from("restart-without-validator");
+    const progress = vi.fn();
+    const openResponse = vi.fn<OpenLocalSubtitleDownloadResponse>(async () => {
+      if (openResponse.mock.calls.length === 1) {
+        return {
+          statusCode: 200,
+          headers: { "content-length": String(bytes.length) },
+          body: {
+            async *[Symbol.asyncIterator]() {
+              await new Promise((resolve) => setTimeout(resolve, 5));
+              yield bytes.subarray(0, 7);
+              throw networkError("ECONNRESET", "unvalidated body reset");
+            },
+          },
+          discard: vi.fn(),
+        };
+      }
+      return response(200, {
+        "content-length": String(bytes.length),
+      }, [bytes]);
+    });
+
+    await downloadLocalSubtitleResource({
+      ...fixture.options(bytes.length),
+      openResponse,
+      onProgress: progress,
+      progressIntervalMs: 1,
+      transientRetryDelaysMs: [5],
+    });
+
+    const publishedBytes = progress.mock.calls.map(([completed]) => completed);
+    expect(publishedBytes).toEqual([0, 7, bytes.length]);
+    expect(await readFile(fixture.destinationPath)).toEqual(bytes);
+  });
+
+  it("coalesces chunk progress so renderer IPC is not flooded", async () => {
+    const fixture = await createFixture();
+    const chunks = Array.from({ length: 256 }, (_, index) =>
+      Buffer.from([index % 256]));
+    const progress = vi.fn();
+
+    await downloadLocalSubtitleResource({
+      ...fixture.options(chunks.length),
+      openResponse: async () => response(200, {
+        "content-length": String(chunks.length),
+        etag: '"coalesced-progress-v1"',
+      }, chunks),
+      onProgress: progress,
+      progressIntervalMs: 30_000,
+    });
+
+    expect(progress.mock.calls).toEqual([
+      [0, chunks.length],
+      [chunks.length, chunks.length],
+    ]);
+  });
+
+  it("cancels immediately while waiting to retry a transient failure", async () => {
+    const fixture = await createFixture();
+    const controller = new AbortController();
+    const cancellation = new Error("cancelled during retry delay");
+    let notifyAttempted!: () => void;
+    const attempted = new Promise<void>((resolve) => {
+      notifyAttempted = resolve;
+    });
+    const openResponse = vi.fn<OpenLocalSubtitleDownloadResponse>(async () => {
+      notifyAttempted();
+      throw networkError("ECONNRESET", "connection reset before headers");
+    });
+    const download = downloadLocalSubtitleResource({
+      ...fixture.options(16),
+      signal: controller.signal,
+      openResponse,
+      transientRetryDelaysMs: [30_000],
+    });
+
+    await attempted;
+    controller.abort(cancellation);
+
+    await expect(download).rejects.toBe(cancellation);
+    expect(openResponse).toHaveBeenCalledOnce();
+    await expect(readFile(fixture.partPath)).rejects.toMatchObject({ code: "ENOENT" });
+    await expect(readFile(fixture.metadataPath)).rejects.toMatchObject({ code: "ENOENT" });
+  });
+
   it("resumes a failed download with Range and If-Range", async () => {
     const fixture = await createFixture();
     const bytes = Buffer.from("0123456789");
@@ -200,6 +373,71 @@ describe("local subtitle resource download", () => {
     await expect(readFile(fixture.metadataPath)).rejects.toMatchObject({ code: "ENOENT" });
     await expect(readFile(fixture.destinationPath)).rejects.toMatchObject({ code: "ENOENT" });
   });
+
+  it("actively discards a response stalled while waiting for its next chunk", async () => {
+    const fixture = await createFixture();
+    const controller = new AbortController();
+    const cancellation = new Error("cancelled stalled download");
+    const bytes = Buffer.from("stalled-download");
+    const stalled = stalledResponse(bytes.subarray(0, 4), bytes.length);
+    const download = downloadLocalSubtitleResource({
+      ...fixture.options(bytes.length),
+      signal: controller.signal,
+      openResponse: async () => stalled.response,
+      metadataSyncBytes: 1,
+    });
+
+    await stalled.waitingForNextChunk;
+    controller.abort(cancellation);
+    const interruptedSynchronously = stalled.response.discard.mock.calls.length > 0;
+    if (!interruptedSynchronously) stalled.forceFailure();
+
+    await expect(download).rejects.toBe(cancellation);
+    expect(interruptedSynchronously).toBe(true);
+    expect(stalled.response.discard).toHaveBeenCalledOnce();
+    await expect(readFile(fixture.partPath)).rejects.toMatchObject({ code: "ENOENT" });
+    await expect(readFile(fixture.metadataPath)).rejects.toMatchObject({ code: "ENOENT" });
+    await expect(readFile(fixture.destinationPath)).rejects.toMatchObject({ code: "ENOENT" });
+  });
+
+  it("stops writing even when a discarded response leaves its iterator pending", async () => {
+    const fixture = await createFixture();
+    const controller = new AbortController();
+    const cancellation = new Error("cancelled uncooperative download");
+    const bytes = Buffer.from("uncooperative-download");
+    const stalled = stalledResponse(bytes.subarray(0, 5), bytes.length, {
+      discardWakesBody: false,
+    });
+    const download = downloadLocalSubtitleResource({
+      ...fixture.options(bytes.length),
+      signal: controller.signal,
+      openResponse: async () => stalled.response,
+      metadataSyncBytes: 1,
+    });
+
+    await stalled.waitingForNextChunk;
+    controller.abort(cancellation);
+    const settlement = download.then(
+      () => "resolved" as const,
+      (error) => error === cancellation ? "cancelled" as const : "rejected" as const,
+    );
+    let timeout: ReturnType<typeof setTimeout> | undefined;
+    const settledBeforeTransport = await Promise.race([
+      settlement,
+      new Promise<"pending">((resolve) => {
+        timeout = setTimeout(() => resolve("pending"), 1_000);
+      }),
+    ]);
+    if (timeout) clearTimeout(timeout);
+    if (settledBeforeTransport === "pending") stalled.forceFailure();
+
+    await expect(download).rejects.toBe(cancellation);
+    expect(settledBeforeTransport).toBe("cancelled");
+    expect(stalled.response.discard).toHaveBeenCalledOnce();
+    await expect(readFile(fixture.partPath)).rejects.toMatchObject({ code: "ENOENT" });
+    await expect(readFile(fixture.metadataPath)).rejects.toMatchObject({ code: "ENOENT" });
+    await expect(readFile(fixture.destinationPath)).rejects.toMatchObject({ code: "ENOENT" });
+  });
 });
 
 async function createFixture() {
@@ -282,4 +520,61 @@ async function* cancellingChunks(
   yield bytes.subarray(0, 3);
   controller.abort(new Error("cancelled by test"));
   yield bytes.subarray(3);
+}
+
+function stalledResponse(
+  firstChunk: Uint8Array,
+  totalBytes: number,
+  options: { readonly discardWakesBody?: boolean } = {},
+): {
+  readonly response: LocalSubtitleDownloadResponse & {
+    readonly discard: ReturnType<typeof vi.fn>;
+  };
+  readonly waitingForNextChunk: Promise<void>;
+  readonly forceFailure: () => void;
+} {
+  let rejectNextChunk: ((reason: Error) => void) | undefined;
+  let notifyWaiting!: () => void;
+  const waitingForNextChunk = new Promise<void>((resolve) => {
+    notifyWaiting = resolve;
+  });
+  let chunkIndex = 0;
+  const body: AsyncIterable<Uint8Array> = {
+    [Symbol.asyncIterator]() {
+      return {
+        next(): Promise<IteratorResult<Uint8Array>> {
+          if (chunkIndex++ === 0) {
+            return Promise.resolve({ value: firstChunk, done: false });
+          }
+          notifyWaiting();
+          return new Promise((_, reject) => {
+            rejectNextChunk = reject;
+          });
+        },
+      };
+    },
+  };
+  const fail = () => {
+    rejectNextChunk?.(new Error("stalled response discarded"));
+  };
+  const responseValue = {
+    statusCode: 200,
+    headers: {
+      "content-length": String(totalBytes),
+      etag: '"stalled-v1"',
+    },
+    body,
+    discard: vi.fn(() => {
+      if (options.discardWakesBody !== false) fail();
+    }),
+  };
+  return {
+    response: responseValue,
+    waitingForNextChunk,
+    forceFailure: fail,
+  };
+}
+
+function networkError(code: string, message: string): Error & { code: string } {
+  return Object.assign(new Error(message), { code });
 }

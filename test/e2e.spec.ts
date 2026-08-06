@@ -152,6 +152,18 @@ if (shouldSkipElectronE2E) {
     test('startup', async () => {
       const title = await page.title()
       expect(title).eq('FusionKit')
+      expect(
+        await page.evaluate(() => ({
+          legacyIpcOn: typeof window.ipcRenderer?.on,
+          localSubtitleSubscribe: typeof window.localSubtitleApi?.onTaskEvent,
+          subtitleTranslationAuthorize:
+            typeof window.subtitleTranslationApi?.authorizeInputFile,
+        })),
+      ).toEqual({
+        legacyIpcOn: 'function',
+        localSubtitleSubscribe: 'function',
+        subtitleTranslationAuthorize: 'function',
+      })
     })
 
     test('name translator wraps warning details and explains them before high-risk apply', async () => {

@@ -29,6 +29,13 @@ import {
   verifyLocalSubtitleRuntimeBundle,
   type LocalSubtitleVerifiedRuntimeBundle,
 } from "../../electron/main/local-subtitle/resource-path";
+import {
+  downloadLocalSubtitleResource,
+  type LocalSubtitleDownloadResponse,
+} from "../../electron/main/local-subtitle/resource-download";
+import type {
+  LocalSubtitleModelManagerOptions,
+} from "../../electron/main/local-subtitle/model-manager";
 import { LocalSubtitleSessionIpcBridge } from "../../electron/main/local-subtitle/session-ipc";
 import { LocalSubtitleSessionRegistry } from "../../electron/main/local-subtitle/session-registry";
 import {
@@ -147,6 +154,97 @@ describe("local subtitle model manager IPC integration", () => {
     ).resolves.toEqual({ ok: true, data: { cancelled: false } });
   });
 
+  it("keeps a transient first failure and chunk progress inside one public install job", async () => {
+    const bytes = createGgmlModel();
+    const chunks = Array.from(bytes, (value) => Buffer.from([value]));
+    const openResponse = vi.fn(async () => {
+      if (openResponse.mock.calls.length === 1) {
+        throw networkError("ECONNRESET", "first IPC download connection reset");
+      }
+      return completeDownloadResponse(bytes.length, chunks);
+    });
+    const fixture = await createFixture({
+      downloadResource: (options) =>
+        downloadLocalSubtitleResource({
+          ...options,
+          openResponse,
+          transientRetryDelaysMs: [0],
+        }),
+    });
+
+    const started = await fixture.service.handlePublic(
+      LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.startResourceInstall,
+      fixture.event,
+      fixture.envelope({ resourceId: fixture.model.id }),
+    );
+    expect(started).toMatchObject({
+      ok: true,
+      data: { resourceId: fixture.model.id, status: "queued" },
+    });
+    await fixture.manager.waitForIdle();
+
+    expect(openResponse).toHaveBeenCalledTimes(2);
+    await expect(
+      fixture.service.handlePublic(
+        LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.getSessionSnapshot,
+        fixture.event,
+        fixture.envelope({}),
+      ),
+    ).resolves.toMatchObject({
+      ok: true,
+      data: { resourceJobs: [{ status: "completed", progress: 100 }] },
+    });
+    const resourceEvents = fixture.frame.send.mock.calls.filter(
+      ([channel]) => channel === LOCAL_SUBTITLE_EVENT_CHANNELS.resourceEvent,
+    );
+    expect(resourceEvents.length).toBeLessThan(12);
+  });
+
+  it("cancels a stalled download through the fixed public IPC without body cooperation", async () => {
+    const stalled = stubbornDownloadResponse();
+    const fixture = await createFixture({
+      downloadResource: (options) =>
+        downloadLocalSubtitleResource({
+          ...options,
+          openResponse: async () => stalled.response(options.expectedBytes),
+          metadataSyncBytes: 1,
+        }),
+    });
+    const started = await fixture.service.handlePublic(
+      LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.startResourceInstall,
+      fixture.event,
+      fixture.envelope({ resourceId: fixture.model.id }),
+    );
+    expect(started).toMatchObject({
+      ok: true,
+      data: { status: "queued" },
+    });
+    if (!started.ok) throw new Error("The resource job did not start.");
+    const jobId = (started.data as { readonly jobId: string }).jobId;
+    await stalled.waitingForNextChunk;
+
+    await expect(
+      fixture.service.handlePublic(
+        LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.cancelResourceJob,
+        fixture.event,
+        fixture.envelope({ jobId }),
+      ),
+    ).resolves.toEqual({ ok: true, data: { cancelled: true } });
+    await fixture.manager.waitForIdle();
+
+    expect(stalled.discard).toHaveBeenCalledOnce();
+    await expect(
+      fixture.service.handlePublic(
+        LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.getSessionSnapshot,
+        fixture.event,
+        fixture.envelope({}),
+      ),
+    ).resolves.toMatchObject({
+      ok: true,
+      data: { resourceJobs: [{ jobId, status: "cancelled" }] },
+    });
+  });
+
   it("releases the bridge and model owner when the document session ends", async () => {
     let smokeStarted!: () => void;
     const started = new Promise<void>((resolve) => {
@@ -185,7 +283,10 @@ describe("local subtitle model manager IPC integration", () => {
   });
 });
 
-async function createFixture(options: { readonly smoke?: ReturnType<typeof vi.fn> } = {}) {
+async function createFixture(options: {
+  readonly smoke?: ReturnType<typeof vi.fn>;
+  readonly downloadResource?: LocalSubtitleModelManagerOptions["downloadResource"];
+} = {}) {
   const root = await mkdtemp(path.join(os.tmpdir(), "fusionkit-model-ipc-"));
   tempRoots.push(root);
   const bytes = createGgmlModel();
@@ -213,11 +314,11 @@ async function createFixture(options: { readonly smoke?: ReturnType<typeof vi.fn
     modelCatalog: [model],
     verifyServerRuntime: async () => fakeRuntime(),
     availableBytes: async () => Number.MAX_SAFE_INTEGER,
-    downloadResource: async (options) => {
-      await writeFile(options.destinationPath, bytes);
-      options.onProgress?.(bytes.length, bytes.length);
+    downloadResource: options.downloadResource ?? (async (downloadOptions) => {
+      await writeFile(downloadOptions.destinationPath, bytes);
+      downloadOptions.onProgress?.(bytes.length, bytes.length);
       return {};
-    },
+    }),
     sessionRegistry,
   });
   const sessionBridge = new LocalSubtitleSessionIpcBridge(sessionRegistry);
@@ -282,6 +383,72 @@ function createGgmlModel(): Buffer {
 
 function fakeRuntime(): LocalSubtitleVerifiedRuntimeBundle {
   return verifiedRuntime;
+}
+
+function stubbornDownloadResponse(): {
+  readonly discard: ReturnType<typeof vi.fn>;
+  readonly waitingForNextChunk: Promise<void>;
+  readonly response: (totalBytes: number) => LocalSubtitleDownloadResponse;
+} {
+  let notifyWaiting!: () => void;
+  const waitingForNextChunk = new Promise<void>((resolve) => {
+    notifyWaiting = resolve;
+  });
+  const discard = vi.fn();
+  return {
+    discard,
+    waitingForNextChunk,
+    response: (totalBytes) => {
+      let chunkIndex = 0;
+      return {
+        statusCode: 200,
+        headers: {
+          "content-length": String(totalBytes),
+          etag: '"stubborn-ipc-v1"',
+        },
+        body: {
+          [Symbol.asyncIterator]() {
+            return {
+              next(): Promise<IteratorResult<Uint8Array>> {
+                if (chunkIndex++ === 0) {
+                  return Promise.resolve({
+                    value: Buffer.alloc(Math.min(32, totalBytes), 0x5a),
+                    done: false,
+                  });
+                }
+                notifyWaiting();
+                return new Promise(() => undefined);
+              },
+            };
+          },
+        },
+        discard,
+      };
+    },
+  };
+}
+
+function completeDownloadResponse(
+  totalBytes: number,
+  chunks: readonly Uint8Array[],
+): LocalSubtitleDownloadResponse {
+  return {
+    statusCode: 200,
+    headers: {
+      "content-length": String(totalBytes),
+      etag: '"complete-ipc-v1"',
+    },
+    body: {
+      async *[Symbol.asyncIterator]() {
+        for (const chunk of chunks) yield chunk;
+      },
+    },
+    discard: vi.fn(),
+  };
+}
+
+function networkError(code: string, message: string): Error & { code: string } {
+  return Object.assign(new Error(message), { code });
 }
 
 function createEvent(sender: FakeSender, frame: FakeFrame) {

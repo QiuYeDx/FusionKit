@@ -18,9 +18,10 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc && vite build && electron-builder --publish never",
+    "build": "tsc && vite build && node scripts/check-preload-bundle.mjs && electron-builder --publish never",
+    "check:preload-bundle": "node scripts/check-preload-bundle.mjs",
     "preview": "vite preview",
-    "pretest": "vite build --mode=test",
+    "pretest": "vite build --mode=test && node scripts/check-preload-bundle.mjs",
     "test": "vitest run",
     "i18n:check": "node scripts/check-i18n.mjs && node scripts/check-i18n-usage.mjs",
     "i18n:check:locales": "node scripts/check-i18n.mjs",
