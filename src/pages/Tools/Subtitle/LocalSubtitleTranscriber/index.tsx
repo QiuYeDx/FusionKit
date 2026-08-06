@@ -70,10 +70,12 @@ import type { SubtitleTranslationImportConfigSummary } from "@/type/generatedSub
 import { showToast } from "@/utils/toast";
 import {
   createLocalSubtitleBatchRequest,
+  createLocalSubtitleBackendPreviewKey,
   deriveLocalSubtitleDraftMediaProbeStatus,
   deriveLocalSubtitleStartIssue,
   formatLocalSubtitleBytes,
   getReadyLocalSubtitleModels,
+  shouldRequestLocalSubtitleBackendPreview,
   type LocalSubtitleDraftMediaProbe,
   type LocalSubtitleStartIssue,
 } from "./localSubtitleTranscriberModel";
@@ -150,6 +152,11 @@ interface BackendPreviewState {
   readonly modelId: string | null;
   readonly devicePreference: LocalSubtitleBackendPreviewSummary["devicePreference"] | null;
   readonly summary: LocalSubtitleBackendPreviewSummary | null;
+}
+
+interface CachedBackendPreview {
+  readonly key: string;
+  readonly summary: LocalSubtitleBackendPreviewSummary;
 }
 
 const LOCAL_SUBTITLE_LANGUAGE_OPTIONS = [
@@ -240,6 +247,7 @@ export default function LocalSubtitleTranscriber() {
   const refreshGenerationRef = useRef(0);
   const resourceRefreshGenerationRef = useRef(0);
   const backendPreviewGenerationRef = useRef(0);
+  const backendPreviewCacheRef = useRef<CachedBackendPreview | null>(null);
   const mediaProbeGenerationRef = useRef(0);
   const mediaProbeQueueRef = useRef<Promise<void>>(Promise.resolve());
   const terminalResourceJobsRef = useRef("");
@@ -337,6 +345,17 @@ export default function LocalSubtitleTranscriber() {
     }
   }, [runtimeService]);
 
+  const refreshEnvironmentManually = useCallback(() => {
+    backendPreviewGenerationRef.current += 1;
+    backendPreviewCacheRef.current = null;
+    setBackendPreview((current) => ({
+      ...current,
+      status: "idle",
+      summary: null,
+    }));
+    void refreshEnvironment();
+  }, [refreshEnvironment]);
+
   const refreshManagedResources = useCallback(async () => {
     const generation = ++resourceRefreshGenerationRef.current;
     try {
@@ -425,27 +444,68 @@ export default function LocalSubtitleTranscriber() {
   const vadReady = environment.resources.some(
     (resource) => resource.resourceType === "vad" && resource.status === "ready",
   );
+  const backendPreviewKey = createLocalSubtitleBackendPreviewKey({
+    runtime: environment.runtime,
+    modelId: selectedModelId,
+    devicePreference: preferences.devicePreference,
+  });
 
   useEffect(() => {
-    const generation = ++backendPreviewGenerationRef.current;
-    if (
-      !selectedModel ||
-      environment.loading ||
-      environment.error ||
-      !environment.runtime ||
-      runtimeState.syncStatus !== "ready"
-    ) {
-      setBackendPreview({
-        status: "idle",
-        modelId: selectedModel?.resourceId ?? null,
-        devicePreference: preferences.devicePreference,
-        summary: null,
+    const cached = backendPreviewCacheRef.current;
+    if (!backendPreviewKey || !selectedModelId) {
+      backendPreviewGenerationRef.current += 1;
+      backendPreviewCacheRef.current = null;
+      setBackendPreview((current) =>
+        current.status === "idle" &&
+        current.modelId === selectedModelId &&
+        current.devicePreference === preferences.devicePreference &&
+        current.summary === null
+          ? current
+          : {
+              status: "idle",
+              modelId: selectedModelId,
+              devicePreference: preferences.devicePreference,
+              summary: null,
+            });
+      return;
+    }
+
+    const modelId = selectedModelId;
+    const devicePreference = preferences.devicePreference;
+    if (!shouldRequestLocalSubtitleBackendPreview({
+      previewKey: backendPreviewKey,
+      cachedPreviewKey: cached?.key ?? null,
+      environmentLoading: environment.loading,
+      environmentError: Boolean(environment.error),
+      runtimeSyncStatus: runtimeState.syncStatus,
+    })) {
+      setBackendPreview((current) => {
+        if (cached?.key === backendPreviewKey) {
+          return current.status === "ready" && current.summary === cached.summary
+            ? current
+            : {
+                status: "ready",
+                modelId,
+                devicePreference,
+                summary: cached.summary,
+              };
+        }
+        if (
+          current.modelId === modelId &&
+          current.devicePreference === devicePreference &&
+          (current.status === "idle" || current.status === "loading")
+        ) return current;
+        return {
+          status: "idle",
+          modelId,
+          devicePreference,
+          summary: null,
+        };
       });
       return;
     }
 
-    const modelId = selectedModel.resourceId;
-    const devicePreference = preferences.devicePreference;
+    const generation = ++backendPreviewGenerationRef.current;
     setBackendPreview({
       status: "loading",
       modelId,
@@ -486,6 +546,12 @@ export default function LocalSubtitleTranscriber() {
             devicePreference,
             summary: null,
           });
+      if (result.ok) {
+        backendPreviewCacheRef.current = Object.freeze({
+          key: backendPreviewKey,
+          summary: result.data,
+        });
+      }
     }).catch(() => {
       if (
         !mountedRef.current ||
@@ -499,12 +565,12 @@ export default function LocalSubtitleTranscriber() {
       });
     });
   }, [
+    backendPreviewKey,
     environment.error,
     environment.loading,
-    environment.runtime,
     preferences.devicePreference,
     runtimeState.syncStatus,
-    selectedModel,
+    selectedModelId,
   ]);
 
   const enqueueMediaProbes = useCallback((
@@ -1505,7 +1571,7 @@ export default function LocalSubtitleTranscriber() {
           pendingActionKeys={pendingResourceActions}
           environmentError={environment.error}
           resourceActionError={resourceActionError}
-          onRefresh={refreshEnvironment}
+          onRefresh={refreshEnvironmentManually}
           onInstall={handleResourceInstall}
           onCancel={handleResourceCancel}
           onDelete={handleResourceDelete}

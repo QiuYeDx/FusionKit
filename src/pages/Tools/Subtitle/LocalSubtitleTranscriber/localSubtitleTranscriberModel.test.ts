@@ -14,6 +14,7 @@ import {
 import { DEFAULT_LOCAL_SUBTITLE_TRANSCRIBER_PREFERENCES } from "@/store/tools/subtitle/localSubtitleTranscriberConfig";
 import {
   canManuallyHandoffLocalSubtitleArtifact,
+  createLocalSubtitleBackendPreviewKey,
   createLocalSubtitleBatchRequest,
   deriveLocalSubtitleDraftMediaProbeStatus,
   deriveLocalSubtitleStartIssue,
@@ -25,6 +26,7 @@ import {
   getReadyLocalSubtitleModels,
   isLocalSubtitleResourceJobActive,
   isLocalSubtitleTaskActive,
+  shouldRequestLocalSubtitleBackendPreview,
 } from "./localSubtitleTranscriberModel";
 
 const file: LocalSubtitleAuthorizedMedia = {
@@ -164,6 +166,44 @@ describe("local subtitle transcriber page model", () => {
     expect(
       deriveLocalSubtitleStartIssue({ ...ready, outputMode: "custom" }),
     ).toBe("output_directory_required");
+  });
+
+  it("reuses a successful backend preview across session resynchronization", () => {
+    const previewKey = createLocalSubtitleBackendPreviewKey({
+      runtime,
+      modelId: model.resourceId,
+      devicePreference: "auto",
+    });
+    const base = {
+      previewKey,
+      cachedPreviewKey: previewKey,
+      environmentLoading: false,
+      environmentError: false,
+    };
+
+    expect(shouldRequestLocalSubtitleBackendPreview({
+      ...base,
+      runtimeSyncStatus: "syncing",
+    })).toBe(false);
+    expect(shouldRequestLocalSubtitleBackendPreview({
+      ...base,
+      runtimeSyncStatus: "ready",
+    })).toBe(false);
+    expect(shouldRequestLocalSubtitleBackendPreview({
+      ...base,
+      cachedPreviewKey: null,
+      runtimeSyncStatus: "ready",
+    })).toBe(true);
+    expect(createLocalSubtitleBackendPreviewKey({
+      runtime: { ...runtime, runtimeGeneration: "b".repeat(64) },
+      modelId: model.resourceId,
+      devicePreference: "auto",
+    })).not.toBe(previewKey);
+    expect(createLocalSubtitleBackendPreviewKey({
+      runtime,
+      modelId: model.resourceId,
+      devicePreference: "cpu",
+    })).not.toBe(previewKey);
   });
 
   it("builds one production request entry for every authorized batch file", () => {

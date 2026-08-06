@@ -700,6 +700,9 @@ let currentCustomDirectoryAuthorization:
     }>
   | undefined;
 const pendingCustomDirectoryRevocations = new Set<string>();
+let pendingCustomDirectorySelection:
+  | Promise<Readonly<{ cancelled: boolean; displayLabel?: string }>>
+  | undefined;
 
 export function getCurrentSubtitleTranslatorCustomDirectoryAuthorization():
   | Readonly<{
@@ -725,7 +728,7 @@ export function getGeneratedSubtitleImportSnapshotCoordinator():
       useModelStore,
       () => useModelStore.getState().getTaskProfile(),
     ),
-    acquireCustomDirectoryLease: acquireSharedCustomDirectoryLease,
+    acquireCustomDirectoryLease: acquireGeneratedSubtitleImportCustomDirectoryLease,
   });
   return sharedCoordinator;
 }
@@ -807,13 +810,13 @@ async function flushPendingCustomDirectoryRevocations(): Promise<void> {
   }
 }
 
-async function acquireSharedCustomDirectoryLease(options: {
+export async function acquireGeneratedSubtitleImportCustomDirectoryLease(options: {
   readonly snapshotId: string;
   readonly expiresAt: number;
   readonly displayLabel: string | null;
 }): Promise<GeneratedSubtitleImportCustomDirectoryLease | undefined> {
-  const current = currentCustomDirectoryAuthorization;
-  if (!current || current.expiresAt <= Date.now()) return undefined;
+  const current = await ensureGeneratedSubtitleImportCustomDirectoryAuthorization();
+  if (!current) return undefined;
   const result = await window.subtitleTranslationApi.acquireImportDirectoryLease({
     directoryToken: current.directoryToken,
     snapshotId: options.snapshotId,
@@ -831,6 +834,34 @@ async function acquireSharedCustomDirectoryLease(options: {
       }
     },
   };
+}
+
+export async function ensureGeneratedSubtitleImportCustomDirectoryAuthorization():
+  Promise<ReturnType<
+    typeof getCurrentSubtitleTranslatorCustomDirectoryAuthorization
+  >> {
+  const current = getCurrentSubtitleTranslatorCustomDirectoryAuthorization();
+  if (current) return current;
+
+  const selection = pendingCustomDirectorySelection ??
+    selectGeneratedSubtitleImportCustomDirectory();
+  pendingCustomDirectorySelection = selection;
+  try {
+    await selection;
+  } finally {
+    if (pendingCustomDirectorySelection === selection) {
+      pendingCustomDirectorySelection = undefined;
+    }
+  }
+  return getCurrentSubtitleTranslatorCustomDirectoryAuthorization();
+}
+
+export function resetGeneratedSubtitleImportCoordinatorForTests(): void {
+  sharedCoordinator = undefined;
+  sharedImportCoordinator = undefined;
+  currentCustomDirectoryAuthorization = undefined;
+  pendingCustomDirectorySelection = undefined;
+  pendingCustomDirectoryRevocations.clear();
 }
 
 function persistedStoreSource<T>(

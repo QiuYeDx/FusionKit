@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.hoisted(() => {
   const values = new Map<string, string>();
@@ -26,6 +26,9 @@ import { Model, type ModelProfile } from "@/type/model";
 import {
   GeneratedSubtitleImportCoordinator,
   GeneratedSubtitleImportSnapshotCoordinator,
+  acquireGeneratedSubtitleImportCustomDirectoryLease,
+  ensureGeneratedSubtitleImportCustomDirectoryAuthorization,
+  resetGeneratedSubtitleImportCoordinatorForTests,
   type GeneratedSubtitleImportHydrationSource,
   type GeneratedSubtitleImportQueue,
 } from "./generatedSubtitleImportCoordinator";
@@ -47,6 +50,87 @@ let idIndex = 0;
 
 beforeEach(() => {
   idIndex = 0;
+  resetGeneratedSubtitleImportCoordinatorForTests();
+});
+
+afterEach(() => {
+  resetGeneratedSubtitleImportCoordinatorForTests();
+  vi.unstubAllGlobals();
+});
+
+describe("shared generated subtitle custom directory authorization", () => {
+  it("selects one custom directory and acquires snapshot-scoped leases", async () => {
+    const selectOutputDirectory = vi.fn(async () =>
+      subtitleTranslationIpcSuccess({
+        cancelled: false as const,
+        directoryToken: "subtitle-directory-token",
+        displayLabel: "Exports",
+        expiresAt: Date.now() + 60_000,
+      }));
+    const revokeOutputDirectory = vi.fn(async () =>
+      subtitleTranslationIpcSuccess({ revoked: true }));
+    const acquireImportDirectoryLease = vi.fn(async (request: {
+      readonly snapshotId: string;
+      readonly expiresAt: number;
+    }) => subtitleTranslationIpcSuccess({
+      directoryLeaseToken: `subtitle-lease-${request.snapshotId}`,
+      displayLabel: "Exports",
+      expiresAt: request.expiresAt,
+    }));
+    const releaseImportDirectoryLease = vi.fn(async () =>
+      subtitleTranslationIpcSuccess({ released: true }));
+    vi.stubGlobal("window", {
+      subtitleTranslationApi: {
+        selectOutputDirectory,
+        revokeOutputDirectory,
+        acquireImportDirectoryLease,
+        releaseImportDirectoryLease,
+      },
+    });
+
+    const expiresAt = Date.now() + 30_000;
+    const [first, second] = await Promise.all([
+      acquireGeneratedSubtitleImportCustomDirectoryLease({
+        snapshotId: "snapshot-one",
+        expiresAt,
+        displayLabel: null,
+      }),
+      acquireGeneratedSubtitleImportCustomDirectoryLease({
+        snapshotId: "snapshot-two",
+        expiresAt,
+        displayLabel: null,
+      }),
+    ]);
+
+    expect(selectOutputDirectory).toHaveBeenCalledOnce();
+    expect(acquireImportDirectoryLease).toHaveBeenCalledTimes(2);
+    expect(first).toMatchObject({
+      displayLabel: "Exports",
+      privateLease: "subtitle-lease-snapshot-one",
+    });
+    expect(second).toMatchObject({
+      displayLabel: "Exports",
+      privateLease: "subtitle-lease-snapshot-two",
+    });
+    await first?.release();
+    await second?.release();
+    expect(releaseImportDirectoryLease).toHaveBeenCalledTimes(2);
+    expect(revokeOutputDirectory).not.toHaveBeenCalled();
+  });
+
+  it("keeps custom handoff blocked when directory selection is cancelled", async () => {
+    vi.stubGlobal("window", {
+      subtitleTranslationApi: {
+        selectOutputDirectory: vi.fn(async () =>
+          subtitleTranslationIpcSuccess({ cancelled: true as const })),
+        revokeOutputDirectory: vi.fn(),
+      },
+    });
+
+    await expect(
+      ensureGeneratedSubtitleImportCustomDirectoryAuthorization(),
+    ).resolves.toBeUndefined();
+  });
 });
 
 describe("GeneratedSubtitleImportSnapshotCoordinator", () => {

@@ -14,6 +14,7 @@ import {
 import type {
   EnqueueLocalSubtitleBatchRequest,
   LocalSubtitleAuthorizedMedia,
+  LocalSubtitleBackendPreviewSummary,
   LocalSubtitleManagedResourceSummary,
   LocalSubtitleMediaProbeSummary,
   LocalSubtitleOutputDirectorySelection,
@@ -77,6 +78,39 @@ export interface LocalSubtitleStartReadinessInput {
   readonly mediaProbeStatus: LocalSubtitleDraftMediaProbeStatus;
   readonly outputMode: "source" | "custom";
   readonly outputDirectory: ActiveOutputDirectory | null;
+}
+
+export interface LocalSubtitleBackendPreviewRequestState {
+  readonly previewKey: string | null;
+  readonly cachedPreviewKey: string | null;
+  readonly environmentLoading: boolean;
+  readonly environmentError: boolean;
+  readonly runtimeSyncStatus: LocalSubtitleRuntimeSyncStatus;
+}
+
+export function createLocalSubtitleBackendPreviewKey(input: {
+  readonly runtime: LocalSubtitleRuntimeSummary | null;
+  readonly modelId: string | null;
+  readonly devicePreference: LocalSubtitleBackendPreviewSummary["devicePreference"];
+}): string | null {
+  if (!input.runtime || !input.modelId) return null;
+  return [
+    input.runtime.runtimeGeneration,
+    input.modelId,
+    input.devicePreference,
+  ].join(":");
+}
+
+export function shouldRequestLocalSubtitleBackendPreview(
+  input: LocalSubtitleBackendPreviewRequestState,
+): boolean {
+  return Boolean(
+    input.previewKey &&
+    !input.environmentLoading &&
+    !input.environmentError &&
+    input.runtimeSyncStatus === "ready" &&
+    input.cachedPreviewKey !== input.previewKey,
+  );
 }
 
 export function getReadyLocalSubtitleModels(
