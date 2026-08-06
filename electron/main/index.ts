@@ -61,6 +61,7 @@ import { LocalSubtitleServerSupervisor } from "./local-subtitle/server-superviso
 import { LocalSubtitleServerAppLifecycle } from "./local-subtitle/server-app-lifecycle";
 import { initializeLocalSubtitleOverwriteProductionRuntime } from "./local-subtitle/overwrite-production-runtime";
 import { LocalSubtitleOverwriteRecoveryIpcBridge } from "./local-subtitle/overwrite-recovery-ipc";
+import { LocalSubtitleRuntimeIpcBridge } from "./local-subtitle/runtime-ipc";
 import {
   LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS,
   localSubtitleIpcSuccess,
@@ -370,6 +371,11 @@ app.whenReady().then(async () => {
     localSubtitleModelManager,
     localSubtitleSessionIpcBridge,
   );
+  const localSubtitleRuntimeIpcBridge = new LocalSubtitleRuntimeIpcBridge({
+    environment: localSubtitleResourceEnvironment,
+    mediaRuntimeVerifier: localSubtitleMediaNormalizer,
+    supportedGpuBackends: localSubtitleBackendAttestor.supportedBackends,
+  });
   const localSubtitleOverwriteRecoveryIpcBridge =
     new LocalSubtitleOverwriteRecoveryIpcBridge(localSubtitleOverwriteRuntime);
   const localSubtitleIpcService = new LocalSubtitleIpcService({
@@ -398,6 +404,7 @@ app.whenReady().then(async () => {
           );
         },
         ...localSubtitleSessionIpcBridge.handlers.public,
+        ...localSubtitleRuntimeIpcBridge.handlers.public,
         ...localSubtitleModelIpcBridge.handlers.public,
         ...localSubtitleJobIpcBridge.handlers.public,
         ...localSubtitleOverwriteRecoveryIpcBridge.handlers.public,

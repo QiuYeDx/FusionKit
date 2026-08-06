@@ -1503,7 +1503,8 @@ export default function LocalSubtitleTranscriber() {
           resources={environment.resources}
           resourceJobs={runtimeState.resourceJobs}
           pendingActionKeys={pendingResourceActions}
-          error={resourceActionError ?? environment.error}
+          environmentError={environment.error}
+          resourceActionError={resourceActionError}
           onRefresh={refreshEnvironment}
           onInstall={handleResourceInstall}
           onCancel={handleResourceCancel}

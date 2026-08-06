@@ -7,8 +7,10 @@ export interface LocalSubtitleDisplayError {
 
 export function LocalSubtitleErrorNotice({
   error,
+  guidance,
 }: {
   error: LocalSubtitleDisplayError | LocalSubtitleError;
+  guidance?: string;
 }) {
   return (
     <div
@@ -21,6 +23,11 @@ export function LocalSubtitleErrorNotice({
       {error.code ? (
         <div className="mt-1 whitespace-pre-wrap break-words font-mono text-[11px] text-muted-foreground [overflow-wrap:anywhere]">
           code: {error.code}
+        </div>
+      ) : null}
+      {guidance ? (
+        <div className="mt-2 whitespace-pre-wrap break-words text-muted-foreground [overflow-wrap:anywhere]">
+          {guidance}
         </div>
       ) : null}
     </div>

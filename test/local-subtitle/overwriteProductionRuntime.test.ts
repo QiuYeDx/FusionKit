@@ -120,6 +120,12 @@ describe("local subtitle overwrite production runtime composition", () => {
     const recoveryPublicHandlers = source.indexOf(
       "...localSubtitleOverwriteRecoveryIpcBridge.handlers.public,",
     );
+    const runtimeIpcBridge = source.indexOf(
+      "new LocalSubtitleRuntimeIpcBridge({",
+    );
+    const runtimePublicHandlers = source.indexOf(
+      "...localSubtitleRuntimeIpcBridge.handlers.public,",
+    );
     const recoveryInternalHandler = source.indexOf(
       "localSubtitleOverwriteRecoveryIpcBridge.handlers.overwriteRecovery,",
     );
@@ -131,10 +137,13 @@ describe("local subtitle overwrite production runtime composition", () => {
 
     expect(lifecycleInstall).toBeGreaterThan(-1);
     expect(recoveryIpcBridge).toBeGreaterThan(lifecycleInstall);
+    expect(runtimeIpcBridge).toBeGreaterThan(lifecycleInstall);
     expect(recoveryPublicHandlers).toBeGreaterThan(recoveryIpcBridge);
+    expect(runtimePublicHandlers).toBeGreaterThan(runtimeIpcBridge);
     expect(recoveryInternalHandler).toBeGreaterThan(recoveryIpcBridge);
     expect(localSubtitleIpcInstall).toBeGreaterThan(lifecycleInstall);
     expect(localSubtitleIpcInstall).toBeGreaterThan(recoveryPublicHandlers);
+    expect(localSubtitleIpcInstall).toBeGreaterThan(runtimePublicHandlers);
     expect(localSubtitleIpcInstall).toBeGreaterThan(recoveryInternalHandler);
     expect(initialWindow).toBeGreaterThan(localSubtitleIpcInstall);
     expect(activateInstall).toBeGreaterThan(initialWindow);

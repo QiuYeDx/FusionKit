@@ -297,6 +297,17 @@
         "unavailable": "不可用",
         "unverified": "未验证",
         "not_reported": "未报告"
+      },
+      "error": {
+        "unsupported_platform": "当前平台不受本地字幕运行时支持。",
+        "unsupported_architecture": "当前设备架构与本地字幕运行时不匹配。",
+        "runtime_missing": "应用自带的 Whisper 运行器缺失。",
+        "runtime_protocol_mismatch": "应用自带的 Whisper 运行器损坏或版本不匹配。",
+        "media_runtime_missing": "应用自带的 FFmpeg/ffprobe 运行时缺失。",
+        "media_runtime_invalid": "应用自带的 FFmpeg/ffprobe 运行时损坏或版本不匹配。",
+        "media_runtime_launch_failed": "应用自带的 FFmpeg/ffprobe 无法启动。",
+        "unknown": "无法完成本地运行环境检查。",
+        "recovery": "这些组件应随 FusionKit 一起提供，无需另行安装 FFmpeg 或 Whisper。请先重新检查；若仍失败，源码运行请重新组装项目内的本地运行时，安装版请更新或重新安装 FusionKit。已下载模型和已导出字幕不会因此删除。"
       }
     },
     "file": {

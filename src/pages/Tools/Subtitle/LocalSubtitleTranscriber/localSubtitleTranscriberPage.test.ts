@@ -93,6 +93,14 @@ describe("local subtitle transcriber page wiring", () => {
     expect(environmentSource).toContain("break-words");
   });
 
+  it("keeps runtime failures actionable without asking for system dependencies", () => {
+    expect(environmentSource).toContain("runtimeSummaryError(runtime)");
+    expect(environmentSource).toContain("environment.error.recovery");
+    expect(environmentSource).toContain("environment.error.runtime_missing");
+    expect(pageSource).toContain("environmentError={environment.error}");
+    expect(pageSource).toContain("resourceActionError={resourceActionError}");
+  });
+
   it("exposes stable hooks for batch drafts, task progress, and task actions", () => {
     expect(source).toContain('inputTestId="local-subtitle-file-input"');
     expect(pageSource).toContain("multiple");

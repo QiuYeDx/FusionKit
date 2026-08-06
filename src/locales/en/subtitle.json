@@ -297,6 +297,17 @@
         "unavailable": "Unavailable",
         "unverified": "Unverified",
         "not_reported": "Not reported"
+      },
+      "error": {
+        "unsupported_platform": "This platform is not supported by the local subtitle runtime.",
+        "unsupported_architecture": "This device architecture does not match the local subtitle runtime.",
+        "runtime_missing": "The Whisper runner bundled with the application is missing.",
+        "runtime_protocol_mismatch": "The bundled Whisper runner is damaged or has an incompatible version.",
+        "media_runtime_missing": "The FFmpeg/ffprobe runtime bundled with the application is missing.",
+        "media_runtime_invalid": "The bundled FFmpeg/ffprobe runtime is damaged or has an incompatible version.",
+        "media_runtime_launch_failed": "The bundled FFmpeg/ffprobe runtime could not be started.",
+        "unknown": "The local runtime check could not be completed.",
+        "recovery": "These components are included with FusionKit; you do not need to install FFmpeg or Whisper separately. Check again first. If the problem persists, rebuild the repository's local runtime when running from source, or update or reinstall FusionKit when using an installed build. Downloaded models and exported subtitles are preserved."
       }
     },
     "file": {

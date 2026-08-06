@@ -297,6 +297,17 @@
         "unavailable": "利用不可",
         "unverified": "未検証",
         "not_reported": "報告なし"
+      },
+      "error": {
+        "unsupported_platform": "このプラットフォームはローカル字幕ランタイムでサポートされていません。",
+        "unsupported_architecture": "このデバイスのアーキテクチャはローカル字幕ランタイムと一致しません。",
+        "runtime_missing": "アプリに同梱されている Whisper ランナーが見つかりません。",
+        "runtime_protocol_mismatch": "同梱の Whisper ランナーが破損しているか、バージョンに互換性がありません。",
+        "media_runtime_missing": "アプリに同梱されている FFmpeg/ffprobe ランタイムが見つかりません。",
+        "media_runtime_invalid": "同梱の FFmpeg/ffprobe ランタイムが破損しているか、バージョンに互換性がありません。",
+        "media_runtime_launch_failed": "同梱の FFmpeg/ffprobe ランタイムを起動できませんでした。",
+        "unknown": "ローカル実行環境の確認を完了できませんでした。",
+        "recovery": "これらのコンポーネントは FusionKit に同梱されているため、FFmpeg や Whisper を別途インストールする必要はありません。まず再確認してください。問題が続く場合、ソースから実行しているときはリポジトリ内のローカルランタイムを再構成し、インストール版では FusionKit を更新または再インストールしてください。ダウンロード済みのモデルと書き出した字幕は保持されます。"
       }
     },
     "file": {

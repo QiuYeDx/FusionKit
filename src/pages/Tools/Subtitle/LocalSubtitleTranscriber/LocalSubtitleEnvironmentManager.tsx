@@ -110,7 +110,8 @@ interface LocalSubtitleEnvironmentManagerProps {
   readonly resources: readonly LocalSubtitleManagedResourceSummary[];
   readonly resourceJobs: readonly LocalSubtitleResourceJobSummary[];
   readonly pendingActionKeys: ReadonlySet<string>;
-  readonly error: LocalSubtitleDisplayError | null;
+  readonly environmentError: LocalSubtitleDisplayError | null;
+  readonly resourceActionError: LocalSubtitleDisplayError | null;
   readonly onRefresh: () => void;
   readonly onInstall: (resourceId: string) => Promise<boolean>;
   readonly onCancel: (jobId: string) => Promise<boolean>;
@@ -126,7 +127,8 @@ export function LocalSubtitleEnvironmentManager({
   resources,
   resourceJobs,
   pendingActionKeys,
-  error,
+  environmentError,
+  resourceActionError,
   onRefresh,
   onInstall,
   onCancel,
@@ -162,6 +164,7 @@ export function LocalSubtitleEnvironmentManager({
     modelResource.status === "ready" ||
     isLocalSubtitleResourceJobActive(modelJob) ||
     importPending;
+  const runtimeError = environmentError ?? runtimeSummaryError(runtime);
 
   const submitImport = async () => {
     if (!importFile || importDisabled) return;
@@ -202,6 +205,9 @@ export function LocalSubtitleEnvironmentManager({
           backendPreviewStatus={backendPreviewStatus}
           backendPreview={backendPreview}
         />
+        {runtimeError ? (
+          <EnvironmentErrorNotice error={runtimeError} />
+        ) : null}
       </ToolPanel>
 
       <ToolPanel
@@ -251,9 +257,9 @@ export function LocalSubtitleEnvironmentManager({
           </span>
         </div>
 
-        {error ? (
+        {resourceActionError ? (
           <div className="p-4 pb-0">
-            <LocalSubtitleErrorNotice error={error} />
+            <LocalSubtitleErrorNotice error={resourceActionError} />
           </div>
         ) : null}
 
@@ -412,6 +418,62 @@ export function LocalSubtitleEnvironmentManager({
       </Dialog>
     </>
   );
+}
+
+function EnvironmentErrorNotice({
+  error,
+}: {
+  error: LocalSubtitleDisplayError;
+}) {
+  const { t } = useTranslation(["subtitle"]);
+  const messageKey = environmentErrorMessageKey(error.code);
+  return (
+    <div className="border-t p-4">
+      <LocalSubtitleErrorNotice
+        error={{
+          code: error.code,
+          message: t(messageKey),
+        }}
+        guidance={t("subtitle:local_transcriber.environment.error.recovery")}
+      />
+    </div>
+  );
+}
+
+function environmentErrorMessageKey(code: string | undefined) {
+  switch (code) {
+    case "unsupported_platform":
+      return "subtitle:local_transcriber.environment.error.unsupported_platform";
+    case "unsupported_architecture":
+      return "subtitle:local_transcriber.environment.error.unsupported_architecture";
+    case "runtime_missing":
+      return "subtitle:local_transcriber.environment.error.runtime_missing";
+    case "runtime_protocol_mismatch":
+      return "subtitle:local_transcriber.environment.error.runtime_protocol_mismatch";
+    case "media_runtime_missing":
+      return "subtitle:local_transcriber.environment.error.media_runtime_missing";
+    case "media_runtime_invalid":
+      return "subtitle:local_transcriber.environment.error.media_runtime_invalid";
+    case "media_runtime_launch_failed":
+      return "subtitle:local_transcriber.environment.error.media_runtime_launch_failed";
+    default:
+      return "subtitle:local_transcriber.environment.error.unknown";
+  }
+}
+
+function runtimeSummaryError(
+  runtime: LocalSubtitleRuntimeSummary | null,
+): LocalSubtitleDisplayError | null {
+  if (!runtime) return null;
+  const cpu = runtime.backends.find((backend) => backend.backend === "cpu");
+  const code = runtime.runner.status !== "ready"
+    ? runtime.runner.errorCode
+    : runtime.mediaRuntime.status !== "ready"
+      ? runtime.mediaRuntime.errorCode
+      : cpu?.status !== "available"
+        ? cpu?.errorCode
+        : undefined;
+  return code ? { code, message: "" } : null;
 }
 
 function RuntimeSummary({
