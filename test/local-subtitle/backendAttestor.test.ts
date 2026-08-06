@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 import {
+  buildWindowsCudaProbeEnvironment,
   createLocalSubtitleProductionBackendAttestor,
+  LOCAL_SUBTITLE_PRODUCTION_BACKEND_ATTESTATION_POLICY,
 } from "../../electron/main/local-subtitle/backend-attestor";
 import type {
   LocalSubtitleServerBackendAttestationContext,
@@ -59,6 +61,44 @@ describe("local subtitle production backend attestor", () => {
     });
 
     expect(attestor.supportedBackends).toEqual([]);
+  });
+
+  it("preserves only the Windows system locations required by NVIDIA probes", () => {
+    const environment = buildWindowsCudaProbeEnvironment({
+      SystemRoot: "C:\\Windows",
+      TEMP: "C:\\Temp",
+      TMP: "C:\\Temp",
+      ProgramFiles: "C:\\Program Files",
+      ProgramW6432: "C:\\Program Files",
+      PATH: "C:\\untrusted",
+      NODE_OPTIONS: "--require untrusted.js",
+      OPENAI_API_KEY: "secret",
+      HTTPS_PROXY: "http://secret.invalid",
+    });
+
+    expect(environment).toEqual({
+      SystemRoot: "C:\\Windows",
+      WINDIR: "C:\\Windows",
+      PATH: "C:\\Windows\\System32",
+      LANG: "C",
+      LC_ALL: "C",
+      TEMP: "C:\\Temp",
+      TMP: "C:\\Temp",
+      ProgramFiles: "C:\\Program Files",
+      ProgramW6432: "C:\\Program Files",
+    });
+  });
+
+  it("budgets enough time for a cold Windows GPU performance-counter probe", () => {
+    expect(LOCAL_SUBTITLE_PRODUCTION_BACKEND_ATTESTATION_POLICY).toMatchObject({
+      cudaEvidenceGraceMs: 10_000,
+      cudaProbeTimeoutMs: 5_000,
+    });
+    expect(
+      LOCAL_SUBTITLE_PRODUCTION_BACKEND_ATTESTATION_POLICY.cudaEvidenceGraceMs,
+    ).toBeGreaterThanOrEqual(
+      LOCAL_SUBTITLE_PRODUCTION_BACKEND_ATTESTATION_POLICY.cudaProbeTimeoutMs,
+    );
   });
 });
 

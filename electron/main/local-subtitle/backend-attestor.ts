@@ -10,9 +10,11 @@ import {
 
 export const LOCAL_SUBTITLE_PRODUCTION_BACKEND_ATTESTATION_POLICY = Object.freeze({
   metalEvidenceGraceMs: 1_000,
-  cudaEvidenceGraceMs: 3_000,
-  cudaPollIntervalMs: 150,
-  cudaProbeTimeoutMs: 1_500,
+  // Windows performance counters have a multi-second cold start on otherwise
+  // healthy hosts. Keep each native probe bounded inside a larger evidence gate.
+  cudaEvidenceGraceMs: 10_000,
+  cudaPollIntervalMs: 250,
+  cudaProbeTimeoutMs: 5_000,
   cudaProbeMaxOutputBytes: 64 * 1024,
 } as const);
 
@@ -194,11 +196,8 @@ function createWindowsCudaProcessMemoryProbe(
     "powershell.exe",
   );
   const nvidiaSmiPath = path.win32.join(system32, "nvidia-smi.exe");
-  const environment = createWindowsProbeEnvironment(
-    sourceEnvironment,
-    systemRoot,
-    system32,
-  );
+  const environment = buildWindowsCudaProbeEnvironment(sourceEnvironment);
+  if (!environment) return undefined;
   return async ({ processId, signal }) => {
     const wddmBytes = await queryWddmDedicatedBytes({
       processId,
@@ -294,11 +293,14 @@ function runBoundedProbe(
   });
 }
 
-function createWindowsProbeEnvironment(
+export function buildWindowsCudaProbeEnvironment(
   source: Readonly<Record<string, string | undefined>>,
-  systemRoot: string,
-  system32: string,
-): NodeJS.ProcessEnv {
+): NodeJS.ProcessEnv | undefined {
+  const systemRoot = safeAbsoluteWindowsPath(
+    source.SystemRoot ?? source.WINDIR,
+  );
+  if (!systemRoot) return undefined;
+  const system32 = path.win32.join(systemRoot, "System32");
   const environment = {
     SystemRoot: systemRoot,
     WINDIR: systemRoot,
@@ -306,7 +308,9 @@ function createWindowsProbeEnvironment(
     LANG: "C",
     LC_ALL: "C",
   } as unknown as NodeJS.ProcessEnv;
-  for (const key of ["TEMP", "TMP"] as const) {
+  for (
+    const key of ["TEMP", "TMP", "ProgramFiles", "ProgramW6432"] as const
+  ) {
     const value = safeAbsoluteWindowsPath(source[key]);
     if (value) environment[key] = value;
   }

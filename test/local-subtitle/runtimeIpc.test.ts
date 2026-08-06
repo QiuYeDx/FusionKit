@@ -10,6 +10,7 @@ import {
   verifyLocalSubtitleRuntimeBundle,
 } from "../../electron/main/local-subtitle/resource-path";
 import { LocalSubtitleRuntimeIpcBridge } from "../../electron/main/local-subtitle/runtime-ipc";
+import { createAcceleratorFixture } from "./acceleratorFixture";
 import {
   createRuntimeFixture,
   type LocalSubtitleRuntimeFixture,
@@ -109,6 +110,96 @@ describe("local subtitle runtime IPC bridge", () => {
           },
           { backend: "metal", status: "available" },
         ],
+      },
+    });
+  });
+
+  it("reports a verified installed Windows CUDA accelerator as available", async () => {
+    const fixture = await runtimeFixture();
+    const accelerator = await createAcceleratorFixture();
+    try {
+      const loaded = await loadLocalSubtitleRuntimeManifest(fixture.environment);
+      const windowsLoaded = Object.freeze({
+        ...loaded,
+        manifest: Object.freeze({
+          ...loaded.manifest,
+          target: Object.freeze({
+            platform: "win32" as const,
+            arch: "x64" as const,
+          }),
+        }),
+      });
+      const bridge = new LocalSubtitleRuntimeIpcBridge({
+        environment: fixture.environment,
+        mediaRuntimeVerifier: {
+          verifyRuntime: async () => ({
+            runtimeGeneration: loaded.manifestSha256,
+          }),
+        },
+        supportedGpuBackends: ["cuda"],
+        resolveCudaAccelerator: async () => accelerator.proof,
+        loadRuntimeManifest: async () => windowsLoaded,
+        verifyServerRuntime: () =>
+          verifyLocalSubtitleRuntimeBundle({
+            environment: fixture.environment,
+            scope: "server",
+            signatureVerifier: async () => true,
+          }),
+      });
+
+      await expect(probe(bridge)).resolves.toMatchObject({
+        ok: true,
+        data: {
+          platform: "win32",
+          arch: "x64",
+          backends: [
+            { backend: "cpu", status: "available" },
+            { backend: "cuda", status: "available" },
+            {
+              backend: "metal",
+              status: "unavailable",
+              errorCode: "accelerator_unavailable",
+            },
+          ],
+        },
+      });
+    } finally {
+      await accelerator.cleanup();
+    }
+  });
+
+  it("keeps CUDA unverified when the managed accelerator proof is unavailable", async () => {
+    const fixture = await runtimeFixture();
+    const loaded = await loadLocalSubtitleRuntimeManifest(fixture.environment);
+    const bridge = new LocalSubtitleRuntimeIpcBridge({
+      environment: fixture.environment,
+      mediaRuntimeVerifier: {
+        verifyRuntime: async () => ({
+          runtimeGeneration: loaded.manifestSha256,
+        }),
+      },
+      supportedGpuBackends: ["cuda"],
+      resolveCudaAccelerator: async () => {
+        throw new Error("not installed");
+      },
+      verifyServerRuntime: () =>
+        verifyLocalSubtitleRuntimeBundle({
+          environment: fixture.environment,
+          scope: "server",
+          signatureVerifier: async () => true,
+        }),
+    });
+
+    await expect(probe(bridge)).resolves.toMatchObject({
+      ok: true,
+      data: {
+        backends: expect.arrayContaining([
+          {
+            backend: "cuda",
+            status: "unverified",
+            errorCode: "backend_unverified",
+          },
+        ]),
       },
     });
   });

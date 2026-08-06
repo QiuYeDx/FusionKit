@@ -1499,6 +1499,7 @@ describe("LocalSubtitleServerSupervisor", () => {
       platform: "win32",
       arch: "x64",
       metalEvidenceGraceMs: 10,
+      sourceEnvironment: {},
     });
     const harness = createHarness({
       children: [child],

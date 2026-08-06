@@ -9,6 +9,10 @@ import {
   localSubtitleIpcSuccess,
   type LocalSubtitleRuntimeSummary,
 } from "@/type/localSubtitleIpc";
+import {
+  isLocalSubtitleVerifiedAcceleratorPack,
+  type LocalSubtitleVerifiedAcceleratorPack,
+} from "./accelerator-manager";
 import type {
   LocalSubtitleIpcHandlerContext,
   LocalSubtitleIpcHandlers,
@@ -36,6 +40,9 @@ export interface LocalSubtitleRuntimeIpcBridgeOptions {
     }): Promise<{ readonly runtimeGeneration: string }>;
   };
   readonly supportedGpuBackends?: readonly Exclude<LocalSubtitleBackend, "cpu">[];
+  readonly resolveCudaAccelerator?: (
+    signal?: AbortSignal,
+  ) => Promise<LocalSubtitleVerifiedAcceleratorPack>;
   readonly loadRuntimeManifest?: (
     environment: LocalSubtitleResourceEnvironment,
   ) => Promise<LocalSubtitleLoadedRuntimeManifest>;
@@ -47,6 +54,9 @@ export class LocalSubtitleRuntimeIpcBridge {
   readonly #environment: LocalSubtitleResourceEnvironment;
   readonly #verifyMediaRuntime: LocalSubtitleRuntimeIpcBridgeOptions["mediaRuntimeVerifier"]["verifyRuntime"];
   readonly #supportedGpuBackends: ReadonlySet<Exclude<LocalSubtitleBackend, "cpu">>;
+  readonly #resolveCudaAccelerator:
+    | LocalSubtitleRuntimeIpcBridgeOptions["resolveCudaAccelerator"]
+    | undefined;
   readonly #loadRuntimeManifest: NonNullable<
     LocalSubtitleRuntimeIpcBridgeOptions["loadRuntimeManifest"]
   >;
@@ -70,11 +80,18 @@ export class LocalSubtitleRuntimeIpcBridge {
     ) {
       throw new TypeError("The local subtitle runtime GPU capabilities are invalid.");
     }
+    if (
+      options.resolveCudaAccelerator !== undefined &&
+      typeof options.resolveCudaAccelerator !== "function"
+    ) {
+      throw new TypeError("The local subtitle CUDA accelerator resolver is invalid.");
+    }
     this.#environment = options.environment;
     this.#verifyMediaRuntime = options.mediaRuntimeVerifier.verifyRuntime.bind(
       options.mediaRuntimeVerifier,
     );
     this.#supportedGpuBackends = new Set(supportedGpuBackends);
+    this.#resolveCudaAccelerator = options.resolveCudaAccelerator;
     this.#loadRuntimeManifest = options.loadRuntimeManifest ??
       loadLocalSubtitleRuntimeManifest;
     this.#verifyServerRuntime = options.verifyServerRuntime ?? (() =>
@@ -97,13 +114,16 @@ export class LocalSubtitleRuntimeIpcBridge {
   ): Promise<LocalSubtitleRuntimeSummary> {
     const loaded = await this.#loadRuntimeManifest(this.#environment);
     const runtimeGeneration = loaded.manifestSha256;
-    const [serverResult, mediaResult] = await Promise.allSettled([
+    const [serverResult, mediaResult, cudaResult] = await Promise.allSettled([
       this.#verifyServerRuntime(),
       this.#verifyMediaRuntime({
         owner: context.owner,
         signal: context.signal,
       }),
-    ]);
+      this.#supportedGpuBackends.has("cuda") && this.#resolveCudaAccelerator
+        ? this.#resolveCudaAccelerator(context.signal)
+        : Promise.resolve(undefined),
+    ] as const);
     throwIfAborted(context.signal);
 
     const runner = serverResult.status === "fulfilled"
@@ -121,7 +141,7 @@ export class LocalSubtitleRuntimeIpcBridge {
       runner,
       mediaRuntime,
       backends: LOCAL_SUBTITLE_BACKENDS.map((backend) =>
-        this.#backendSummary(backend, loaded, runner),
+        this.#backendSummary(backend, loaded, runner, cudaResult),
       ),
     });
   }
@@ -130,6 +150,9 @@ export class LocalSubtitleRuntimeIpcBridge {
     backend: LocalSubtitleBackend,
     loaded: LocalSubtitleLoadedRuntimeManifest,
     runner: RuntimeComponentSummary,
+    cudaResult: PromiseSettledResult<
+      LocalSubtitleVerifiedAcceleratorPack | undefined
+    >,
   ): BackendSummary {
     if (runner.status !== "ready") {
       return Object.freeze({
@@ -153,17 +176,27 @@ export class LocalSubtitleRuntimeIpcBridge {
             errorCode: "accelerator_unavailable" as const,
           });
     }
-    return this.#supportedGpuBackends.has("cuda")
-      ? Object.freeze({
-          backend,
-          status: "unverified" as const,
-          errorCode: "backend_unverified" as const,
-        })
-      : Object.freeze({
-          backend,
-          status: "unavailable" as const,
-          errorCode: "accelerator_unavailable" as const,
-        });
+    if (!this.#supportedGpuBackends.has("cuda")) {
+      return Object.freeze({
+        backend,
+        status: "unavailable" as const,
+        errorCode: "accelerator_unavailable" as const,
+      });
+    }
+    if (
+      cudaResult.status === "fulfilled" &&
+      isLocalSubtitleVerifiedAcceleratorPack(cudaResult.value) &&
+      cudaResult.value.target.platform === loaded.manifest.target.platform &&
+      cudaResult.value.target.arch === loaded.manifest.target.arch &&
+      cudaResult.value.target.backend === "cuda"
+    ) {
+      return Object.freeze({ backend, status: "available" as const });
+    }
+    return Object.freeze({
+      backend,
+      status: "unverified" as const,
+      errorCode: "backend_unverified" as const,
+    });
   }
 }
 
