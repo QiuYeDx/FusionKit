@@ -11,6 +11,14 @@ import {
   LOCAL_SUBTITLE_LIMITS,
   LOCAL_SUBTITLE_PRODUCTION_CONTRACT,
 } from "@/type/localSubtitle";
+import {
+  localSubtitleFileIdentityForHandle,
+  localSubtitleFileIdentityForPath,
+  sameLocalSubtitleFileIdentity as sameIdentity,
+  sameLocalSubtitleFilesystemObjectIdentity,
+  snapshotLocalSubtitleFileIdentity,
+  type LocalSubtitleFileIdentity,
+} from "./filesystem-object-identity";
 
 const PCM_AUDIO_FORMAT = 1;
 const PCM_SAMPLE_RATE_HZ = 16_000;
@@ -64,13 +72,7 @@ export class LocalSubtitlePcmWindowError extends Error {
   }
 }
 
-export interface LocalSubtitlePcmFileIdentity {
-  readonly dev: number;
-  readonly ino: number;
-  readonly size: number;
-  readonly mtimeMs: number;
-  readonly ctimeMs: number;
-}
+export type LocalSubtitlePcmFileIdentity = LocalSubtitleFileIdentity;
 
 export interface LocalSubtitlePcm16WavMetadata {
   readonly container: "RIFF" | "RF64";
@@ -254,7 +256,7 @@ export async function writeLocalSubtitlePcmWindow(
           "The PCM window output identity is invalid.",
         );
       }
-      outputIdentity = Object.freeze(toIdentity(createdStat));
+      outputIdentity = await localSubtitleFileIdentityForHandle(outputHandle);
     } catch (error) {
       if ((error as NodeJS.ErrnoException)?.code === "EEXIST") {
         throw failure(
@@ -307,9 +309,12 @@ export async function writeLocalSubtitlePcmWindow(
       "source_identity_mismatch",
     );
     const outputStat = await outputHandle.stat();
+    const currentOutputIdentity = await localSubtitleFileIdentityForHandle(
+      outputHandle,
+    );
     if (
       !outputStat.isFile() ||
-      !sameFileObject(toIdentity(outputStat), outputIdentity) ||
+      !sameFileObject(currentOutputIdentity, outputIdentity) ||
       outputStat.size !== CANONICAL_RIFF_HEADER_BYTES + dataBytes ||
       (process.platform !== "win32" && (outputStat.mode & 0o777) !== 0o600)
     ) {
@@ -321,7 +326,7 @@ export async function writeLocalSubtitlePcmWindow(
     await assertOpenAndPathIdentity(
       options.outputPath,
       outputHandle,
-      toIdentity(outputStat),
+      currentOutputIdentity,
       "output_verification_failed",
     );
     await outputHandle.sync();
@@ -779,7 +784,10 @@ async function removeOwnedOutput(
   if (
     !current.isFile() ||
     current.isSymbolicLink() ||
-    !sameFileObject(toIdentity(current), expected)
+    !sameFileObject(
+      await localSubtitleFileIdentityForPath(outputPath),
+      expected,
+    )
   ) {
     throw failure(
       "output_write_failed",
@@ -802,8 +810,10 @@ async function openStableFile(
   mismatchReason: LocalSubtitlePcmWindowErrorReason,
 ): Promise<OpenedStableFile> {
   let before: Stats;
+  let beforeIdentity: LocalSubtitlePcmFileIdentity;
   try {
     before = await lstat(filePath);
+    beforeIdentity = await localSubtitleFileIdentityForPath(filePath);
   } catch {
     throw failure(unavailableReason, "The PCM file is unavailable.");
   }
@@ -819,10 +829,11 @@ async function openStableFile(
   }
   try {
     const opened = await handle.stat();
-    if (!opened.isFile() || !sameStats(before, opened)) {
+    const openedIdentity = await localSubtitleFileIdentityForHandle(handle);
+    if (!opened.isFile() || !sameIdentity(beforeIdentity, openedIdentity)) {
       throw failure(mismatchReason, "The PCM file identity changed while opening.");
     }
-    return { handle, identity: Object.freeze(toIdentity(opened)) };
+    return { handle, identity: openedIdentity };
   } catch (error) {
     await handle.close().catch(() => undefined);
     throw asPcmWindowError(
@@ -841,8 +852,15 @@ async function assertOpenAndPathIdentity(
 ): Promise<void> {
   let opened: Stats;
   let lexical: Stats;
+  let openedIdentity: LocalSubtitlePcmFileIdentity;
+  let lexicalIdentity: LocalSubtitlePcmFileIdentity;
   try {
-    [opened, lexical] = await Promise.all([handle.stat(), lstat(filePath)]);
+    [opened, lexical, openedIdentity, lexicalIdentity] = await Promise.all([
+      handle.stat(),
+      lstat(filePath),
+      localSubtitleFileIdentityForHandle(handle),
+      localSubtitleFileIdentityForPath(filePath),
+    ]);
   } catch {
     throw failure(reason, "The PCM file identity is unavailable.");
   }
@@ -850,8 +868,8 @@ async function assertOpenAndPathIdentity(
     !opened.isFile() ||
     !lexical.isFile() ||
     lexical.isSymbolicLink() ||
-    !sameIdentity(toIdentity(opened), expected) ||
-    !sameIdentity(toIdentity(lexical), expected)
+    !sameIdentity(openedIdentity, expected) ||
+    !sameIdentity(lexicalIdentity, expected)
   ) {
     throw failure(reason, "The PCM file identity changed.");
   }
@@ -997,51 +1015,23 @@ function assertAbsolutePath(value: string, message: string): void {
 }
 
 function assertIdentity(value: LocalSubtitlePcmFileIdentity): void {
-  if (
-    !value ||
-    !Number.isSafeInteger(value.dev) ||
-    !Number.isSafeInteger(value.ino) ||
-    !Number.isSafeInteger(value.size) ||
-    value.size <= 0 ||
-    !Number.isFinite(value.mtimeMs) ||
-    !Number.isFinite(value.ctimeMs)
-  ) {
+  const snapshot = snapshotLocalSubtitleFileIdentity(value);
+  if (!snapshot || snapshot.size <= 0) {
     throw failure("invalid_configuration", "The PCM file identity is invalid.");
   }
-}
-
-function toIdentity(stat: Stats): LocalSubtitlePcmFileIdentity {
-  return {
-    dev: stat.dev,
-    ino: stat.ino,
-    size: stat.size,
-    mtimeMs: stat.mtimeMs,
-    ctimeMs: stat.ctimeMs,
-  };
-}
-
-function sameStats(left: Stats, right: Stats): boolean {
-  return sameIdentity(toIdentity(left), toIdentity(right));
-}
-
-function sameIdentity(
-  left: LocalSubtitlePcmFileIdentity,
-  right: LocalSubtitlePcmFileIdentity,
-): boolean {
-  return (
-    left.dev === right.dev &&
-    left.ino === right.ino &&
-    left.size === right.size &&
-    left.mtimeMs === right.mtimeMs &&
-    left.ctimeMs === right.ctimeMs
-  );
 }
 
 function sameFileObject(
   left: LocalSubtitlePcmFileIdentity,
   right: LocalSubtitlePcmFileIdentity | undefined,
 ): boolean {
-  return Boolean(right && left.dev === right.dev && left.ino === right.ino);
+  return Boolean(
+    right &&
+      sameLocalSubtitleFilesystemObjectIdentity(
+        left.objectIdentity,
+        right.objectIdentity,
+      ),
+  );
 }
 
 function sameMetadata(

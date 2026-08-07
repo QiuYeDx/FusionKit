@@ -1,11 +1,14 @@
 import { randomUUID } from "node:crypto";
-import { constants as fsConstants, type Stats } from "node:fs";
+import { constants as fsConstants } from "node:fs";
 import { lstat, open, realpath } from "node:fs/promises";
 import path from "node:path";
 import { LOCAL_SUBTITLE_LIMITS } from "@/type/localSubtitle";
 import {
+  localSubtitleFileIdentityFromBigIntStats,
   localSubtitleFilesystemObjectIdentityForPath,
+  sameLocalSubtitleFileIdentity,
   sameLocalSubtitleFilesystemObjectIdentity,
+  type LocalSubtitleFileIdentity as FilesystemFileIdentity,
   type LocalSubtitleFilesystemObjectIdentity,
 } from "./filesystem-object-identity";
 
@@ -47,13 +50,7 @@ export type LocalSubtitleInputOperation =
 export type LocalSubtitleOutputOperation = "write";
 export type LocalSubtitleArtifactOperation = "read" | "reveal" | "handoff";
 
-export interface LocalSubtitleFileIdentity {
-  readonly dev: number;
-  readonly ino: number;
-  readonly size: number;
-  readonly mtimeMs: number;
-  readonly ctimeMs: number;
-}
+export type LocalSubtitleFileIdentity = FilesystemFileIdentity;
 
 export type LocalSubtitleFileObjectIdentity =
   LocalSubtitleFilesystemObjectIdentity;
@@ -1227,24 +1224,27 @@ export function resolveSafeLocalSubtitleChildPath(root: string, leaf: string): s
 async function inspectFile(filePath: string): Promise<FileDescriptor> {
   const absolute = absolutePath(filePath, "file");
   try {
-    const before = await lstat(absolute);
+    const before = await lstat(absolute, { bigint: true });
     if (!before.isFile() || before.isSymbolicLink()) throw new Error();
     const canonical = await realpath(absolute);
     const handle = await open(canonical, NOFOLLOW_READ);
     try {
-      const opened = await handle.stat();
-      const after = await lstat(absolute);
+      const opened = await handle.stat({ bigint: true });
+      const after = await lstat(absolute, { bigint: true });
+      const beforeIdentity = localSubtitleFileIdentityFromBigIntStats(before);
+      const openedIdentity = localSubtitleFileIdentityFromBigIntStats(opened);
+      const afterIdentity = localSubtitleFileIdentityFromBigIntStats(after);
       if (
         !opened.isFile() ||
         after.isSymbolicLink() ||
-        !sameFile(before, opened) ||
-        !sameFile(before, after)
+        !sameLocalSubtitleFileIdentity(beforeIdentity, openedIdentity) ||
+        !sameLocalSubtitleFileIdentity(beforeIdentity, afterIdentity)
       ) {
         throw new Error();
       }
       if (
-        opened.size === 0 ||
-        opened.size > LOCAL_SUBTITLE_LIMITS.maxMediaFileBytes
+        openedIdentity.size === 0 ||
+        openedIdentity.size > LOCAL_SUBTITLE_LIMITS.maxMediaFileBytes
       ) {
         throw failure(
           "limit_exceeded",
@@ -1255,7 +1255,7 @@ async function inspectFile(filePath: string): Promise<FileDescriptor> {
       return Object.freeze({
         path: canonical,
         displayName: safeDisplayName(path.basename(absolute), "file"),
-        identity: Object.freeze(fileIdentity(opened)),
+        identity: openedIdentity,
       });
     } finally {
       await handle.close();
@@ -1286,17 +1286,25 @@ async function inspectFileAuthorization(
 
 async function verifyFile(value: FileDescriptor): Promise<void> {
   try {
-    const before = await lstat(value.path);
+    const before = await lstat(value.path, { bigint: true });
     if (
       !before.isFile() ||
       before.isSymbolicLink() ||
-      !sameFileIdentity(fileIdentity(before), value.identity)
+      !sameLocalSubtitleFileIdentity(
+        localSubtitleFileIdentityFromBigIntStats(before),
+        value.identity,
+      )
     ) {
       throw new Error();
     }
     const handle = await open(value.path, NOFOLLOW_READ);
     try {
-      if (!sameFileIdentity(fileIdentity(await handle.stat()), value.identity)) {
+      if (!sameLocalSubtitleFileIdentity(
+        localSubtitleFileIdentityFromBigIntStats(
+          await handle.stat({ bigint: true }),
+        ),
+        value.identity,
+      )) {
         throw new Error();
       }
     } finally {
@@ -1476,31 +1484,6 @@ function resolvedSourceOutput(
     identity: descriptor.identity,
     expiresAt,
   });
-}
-
-function fileIdentity(value: Stats): LocalSubtitleFileIdentity {
-  return {
-    dev: value.dev,
-    ino: value.ino,
-    size: value.size,
-    mtimeMs: value.mtimeMs,
-    ctimeMs: value.ctimeMs,
-  };
-}
-
-function sameFile(a: Stats, b: Stats) {
-  return sameFileIdentity(fileIdentity(a), fileIdentity(b));
-}
-
-function sameFileIdentity(
-  a: LocalSubtitleFileIdentity,
-  b: LocalSubtitleFileIdentity,
-) {
-  return a.dev === b.dev &&
-    a.ino === b.ino &&
-    a.size === b.size &&
-    a.mtimeMs === b.mtimeMs &&
-    a.ctimeMs === b.ctimeMs;
 }
 
 function sameDirectoryIdentity(

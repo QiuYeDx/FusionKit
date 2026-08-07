@@ -7,7 +7,8 @@ Windows native filesystem transactions / Node-API
 ## Triggers
 
 Windows, NTFS, FileId, volume serial, birthtime, creation time, file
-tunneling, rename, replace, overwrite recovery
+tunneling, rename, replace, overwrite recovery, PCM window, multipart upload,
+runtime_protocol_mismatch
 
 ## Symptoms
 
@@ -15,6 +16,8 @@ tunneling, rename, replace, overwrite recovery
   changed by a small amount.
 - A Windows `fs.stat()` identity is converted to JavaScript `number` fields and
   silently loses high FileId bits.
+- A newly materialized PCM window intermittently fails before upload with
+  `runtime_protocol_mismatch`, even though the native server protocol is valid.
 - The same file HANDLE proves one object while a `{ dev, ino, birthtimeMs }`
   snapshot reports a mismatch after a rename/replace sequence.
 
@@ -34,6 +37,9 @@ identity shape therefore creates both false mismatches and possible collisions.
 - Compare both fields exactly and validate the exact own-key shape at every
   JavaScript/native boundary.
 - Keep Windows and POSIX identities as a discriminated structural union.
+- Reuse `filesystem-object-identity.ts` for complete file proofs used by input
+  authorization, PCM materialization, inference dispatch, and multipart upload;
+  do not reintroduce local `{ dev, ino }` helpers in those layers.
 - Test identity continuity through existing-target replace, absent-target
   install, rollback, finalize, and fresh-process recovery.
 
@@ -49,6 +55,7 @@ identity shape therefore creates both false mismatches and possible collisions.
 
 ```powershell
 node node_modules/typescript/bin/tsc --noEmit --pretty false
+node node_modules/vitest/vitest.mjs run test/local-subtitle/filesystemObjectIdentity.test.ts test/local-subtitle/mediaNormalizer.test.ts test/local-subtitle/pcmWindow.test.ts test/local-subtitle/serverContract.test.ts test/local-subtitle/serverHttpClient.test.ts test/local-subtitle/productionExecutor.test.ts
 node node_modules/vitest/vitest.mjs run test/local-subtitle/overwriteDirectoryCoordinator.test.ts test/local-subtitle/overwriteTransaction.test.ts test/local-subtitle/overwriteNativeBackend.test.ts
 node scripts/local-subtitle/overwrite-native/run-addon-windows-integration.mjs --addon <absolute-production-addon.node>
 node scripts/local-subtitle/overwrite-native/run-addon-windows-recovery-integration.mjs --addon <absolute-test-addon.node>
@@ -63,5 +70,8 @@ existing-target and absent-target terminal/recovery cases.
 - `native/local-subtitle-overwrite/src/addon-win32.cc`
 - `electron/main/local-subtitle/overwrite-transaction.ts`
 - `electron/main/local-subtitle/overwrite-directory-coordinator.ts`
+- `electron/main/local-subtitle/filesystem-object-identity.ts`
+- `electron/main/local-subtitle/pcm-window.ts`
+- `electron/main/local-subtitle/server-http-client.ts`
 - `scripts/local-subtitle/overwrite-native/run-addon-windows-integration.mjs`
 - `scripts/local-subtitle/overwrite-native/run-addon-windows-recovery-integration.mjs`

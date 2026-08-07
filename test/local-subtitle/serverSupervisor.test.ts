@@ -1013,25 +1013,35 @@ describe("LocalSubtitleServerSupervisor", () => {
       options.model.absolutePath,
     );
 
+    const inference = inferenceRequest(1);
     const request = {
-      ...inferenceRequest(1),
-      expectedFileIdentity: { ...inferenceRequest(1).expectedFileIdentity },
+      ...inference,
+      expectedFileIdentity: {
+        ...inference.expectedFileIdentity,
+        objectIdentity: { ...inference.expectedFileIdentity.objectIdentity },
+      },
     } as {
       requestGeneration: number;
       language: string;
       expectedFileIdentity: {
-        dev: number;
-        ino: number;
+        objectIdentity: {
+          dev: number;
+          ino: number;
+          birthtimeMs: number;
+        };
         size: number;
         mtimeMs: number;
         ctimeMs: number;
       };
     } & LocalSubtitleServerInferenceRequest;
-    const originalExpectedFileIdentity = { ...request.expectedFileIdentity };
+    const originalExpectedFileIdentity = {
+      ...request.expectedFileIdentity,
+      objectIdentity: { ...request.expectedFileIdentity.objectIdentity },
+    };
     const operation = harness.supervisor.beginInference(lease, request);
     request.requestGeneration = 99;
     request.language = "ja";
-    request.expectedFileIdentity.ino += 1;
+    request.expectedFileIdentity.objectIdentity.ino += 1;
     request.expectedFileIdentity.size += 1;
     health.resolve(HEALTHY);
     await operation.result;
@@ -1978,8 +1988,11 @@ function inferenceRequest(
     requestGeneration,
     filePath: path.join(managedRoot(), "windows", "window.wav"),
     expectedFileIdentity: Object.freeze({
-      dev: 1,
-      ino: 2,
+      objectIdentity: Object.freeze({
+        dev: 1,
+        ino: 2,
+        birthtimeMs: 3,
+      }),
       size: 4_096,
       mtimeMs: 1_000.25,
       ctimeMs: 1_000.5,

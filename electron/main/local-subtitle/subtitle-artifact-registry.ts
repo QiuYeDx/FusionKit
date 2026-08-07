@@ -27,6 +27,7 @@ import {
   localSubtitleFilesystemObjectIdentityForHandle,
   localSubtitleFilesystemObjectIdentityForPath,
   localSubtitleFilesystemObjectIdentityForPathSync,
+  sameLocalSubtitleFileIdentity,
   sameLocalSubtitleFilesystemObjectIdentity,
   snapshotLocalSubtitleFilesystemObjectIdentity,
 } from "./filesystem-object-identity";
@@ -819,7 +820,10 @@ function captureArtifactRecord(
       !after.isFile() ||
       after.isSymbolicLink() ||
       after.size !== options.byteSize ||
-      !sameFileIdentity(fileIdentity(before), fileIdentity(after)) ||
+      !sameFileIdentity(
+        fileIdentity(before, fileObjectIdentityBefore),
+        fileIdentity(after, fileObjectIdentityAfter),
+      ) ||
       !sameFileObjectIdentity(
         fileObjectIdentityAfter,
         options.expectedFileIdentity,
@@ -854,7 +858,7 @@ function captureArtifactRecord(
       directoryIdentity: directoryIdentityAfter,
       filePath,
       fileObjectIdentity: fileObjectIdentityAfter,
-      fileIdentity: Object.freeze(fileIdentity(after)),
+      fileIdentity: fileIdentity(after, fileObjectIdentityAfter),
       byteSize: options.byteSize,
       sha256: options.sha256,
     });
@@ -885,7 +889,10 @@ async function validateArtifactRecord(
     !before.isFile() ||
     before.isSymbolicLink() ||
     !sameFileObjectIdentity(beforeObjectIdentity, record.fileObjectIdentity) ||
-    !sameFileIdentity(fileIdentity(before), record.fileIdentity)
+    !sameFileIdentity(
+      fileIdentity(before, beforeObjectIdentity),
+      record.fileIdentity,
+    )
   ) {
     throw artifactChanged();
   }
@@ -911,7 +918,10 @@ async function validateArtifactRecord(
         openedObjectIdentity,
         record.fileObjectIdentity,
       ) ||
-      !sameFileIdentity(fileIdentity(opened), record.fileIdentity)
+      !sameFileIdentity(
+        fileIdentity(opened, openedObjectIdentity),
+        record.fileIdentity,
+      )
     ) {
       throw artifactChanged();
     }
@@ -924,7 +934,10 @@ async function validateArtifactRecord(
         openedAfterObjectIdentity,
         record.fileObjectIdentity,
       ) ||
-      !sameFileIdentity(fileIdentity(openedAfter), record.fileIdentity)
+      !sameFileIdentity(
+        fileIdentity(openedAfter, openedAfterObjectIdentity),
+        record.fileIdentity,
+      )
     ) {
       throw artifactChanged();
     }
@@ -949,7 +962,10 @@ async function validateArtifactRecord(
     !after.isFile() ||
     after.isSymbolicLink() ||
     !sameFileObjectIdentity(afterObjectIdentity, record.fileObjectIdentity) ||
-    !sameFileIdentity(fileIdentity(after), record.fileIdentity)
+    !sameFileIdentity(
+      fileIdentity(after, afterObjectIdentity),
+      record.fileIdentity,
+    )
   ) {
     throw artifactChanged();
   }
@@ -1219,25 +1235,23 @@ function requireAbsolutePath(value: string, field: string): string {
   return path.resolve(value);
 }
 
-function fileIdentity(value: Stats): LocalSubtitleFileIdentity {
-  return {
-    dev: value.dev,
-    ino: value.ino,
+function fileIdentity(
+  value: Stats,
+  objectIdentity: LocalSubtitleFileObjectIdentity,
+): LocalSubtitleFileIdentity {
+  return Object.freeze({
+    objectIdentity,
     size: value.size,
     mtimeMs: value.mtimeMs,
     ctimeMs: value.ctimeMs,
-  };
+  });
 }
 
 function sameFileIdentity(
   left: LocalSubtitleFileIdentity,
   right: LocalSubtitleFileIdentity,
 ): boolean {
-  return left.dev === right.dev &&
-    left.ino === right.ino &&
-    left.size === right.size &&
-    left.mtimeMs === right.mtimeMs &&
-    left.ctimeMs === right.ctimeMs;
+  return sameLocalSubtitleFileIdentity(left, right);
 }
 
 function sameFileObjectIdentity(

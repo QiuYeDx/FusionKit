@@ -2604,9 +2604,20 @@ function assertDistinctInputIdentities(
   const identities = new Set<string>();
   for (const input of inputs) {
     const identity = input.identity;
+    const objectIdentity = "dev" in identity.objectIdentity
+      ? [
+          "posix",
+          identity.objectIdentity.dev,
+          identity.objectIdentity.ino,
+          identity.objectIdentity.birthtimeMs,
+        ]
+      : [
+          "windows",
+          identity.objectIdentity.volumeSerialHex,
+          identity.objectIdentity.fileIdHex,
+        ];
     const key = JSON.stringify([
-      identity.dev,
-      identity.ino,
+      objectIdentity,
       identity.size,
       identity.mtimeMs,
       identity.ctimeMs,

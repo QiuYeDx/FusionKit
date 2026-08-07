@@ -1,4 +1,4 @@
-import { constants as fsConstants, type ReadStream, type Stats } from "node:fs";
+import { constants as fsConstants, type ReadStream } from "node:fs";
 import { open, type FileHandle } from "node:fs/promises";
 import {
   request as httpRequest,
@@ -22,6 +22,11 @@ import {
   type LocalSubtitleServerInferenceResponse,
   type LocalSubtitleServerSessionDisposition,
 } from "./server-contract";
+import {
+  localSubtitleFileIdentityForHandle,
+  sameLocalSubtitleFileIdentity,
+  snapshotLocalSubtitleFileIdentity,
+} from "./filesystem-object-identity";
 
 export interface LocalSubtitleServerHttpEndpoint {
   readonly host: typeof LOCAL_SUBTITLE_SERVER_HTTP_POLICY.host;
@@ -166,13 +171,14 @@ export class LocalSubtitleServerHttpClient {
   ): Promise<LocalSubtitleServerInferenceResponse> {
     this.#assertReusable();
     validateLocalSubtitleServerInferenceRequest(request);
-    const expectedFileIdentity = Object.freeze({
-      dev: request.expectedFileIdentity.dev,
-      ino: request.expectedFileIdentity.ino,
-      size: request.expectedFileIdentity.size,
-      mtimeMs: request.expectedFileIdentity.mtimeMs,
-      ctimeMs: request.expectedFileIdentity.ctimeMs,
-    });
+    const expectedFileIdentity = snapshotLocalSubtitleFileIdentity(
+      request.expectedFileIdentity,
+    );
+    if (!expectedFileIdentity) {
+      throw invalidLocalSubtitleServerConfiguration(
+        "The normalized inference window identity is invalid.",
+      );
+    }
     const ticket = this.#claimRequestTicket();
     const absoluteDeadline = Date.now() + this.#inferenceDeadlineMs;
     let fileHandle: FileHandle | undefined;
@@ -220,7 +226,10 @@ export class LocalSubtitleServerHttpClient {
       fileHandle = openOutcome.value;
 
       const statOutcome = await settleBeforeDeadline(
-        fileHandle.stat(),
+        Promise.all([
+          fileHandle.stat(),
+          localSubtitleFileIdentityForHandle(fileHandle),
+        ]),
         absoluteDeadline,
         request.signal,
       );
@@ -235,7 +244,7 @@ export class LocalSubtitleServerHttpClient {
           "The normalized inference window identity is unavailable.",
         );
       }
-      const fileStat: Stats = statOutcome.value;
+      const [fileStat, openedFileIdentity] = statOutcome.value;
       if (request.signal?.aborted) {
         throw abortedError("inference", false);
       }
@@ -244,9 +253,8 @@ export class LocalSubtitleServerHttpClient {
           "The normalized inference window must be a regular file.",
         );
       }
-      const openedFileIdentity = toWindowIdentity(fileStat);
       if (
-        !sameWindowIdentity(
+        !sameLocalSubtitleFileIdentity(
           expectedFileIdentity,
           openedFileIdentity,
         )
@@ -663,8 +671,10 @@ export class LocalSubtitleServerHttpClient {
           );
           return;
         }
-        const finalIdentity = toWindowIdentity(await upload.fileHandle.stat());
-        if (!sameWindowIdentity(upload.fileIdentity, finalIdentity)) {
+        const finalIdentity = await localSubtitleFileIdentityForHandle(
+          upload.fileHandle,
+        );
+        if (!sameLocalSubtitleFileIdentity(upload.fileIdentity, finalIdentity)) {
           fail(
             invalidLocalSubtitleServerResponse(
               "The normalized inference window identity changed while it was uploaded.",
@@ -964,29 +974,6 @@ function fileCleanupError(cause?: unknown): LocalSubtitleServerContractError {
     "restart_required",
     undefined,
     cause,
-  );
-}
-
-function toWindowIdentity(stat: Stats): LocalSubtitleServerWindowIdentity {
-  return {
-    dev: stat.dev,
-    ino: stat.ino,
-    size: stat.size,
-    mtimeMs: stat.mtimeMs,
-    ctimeMs: stat.ctimeMs,
-  };
-}
-
-function sameWindowIdentity(
-  left: LocalSubtitleServerWindowIdentity,
-  right: LocalSubtitleServerWindowIdentity,
-): boolean {
-  return (
-    left.dev === right.dev &&
-    left.ino === right.ino &&
-    left.size === right.size &&
-    left.mtimeMs === right.mtimeMs &&
-    left.ctimeMs === right.ctimeMs
   );
 }
 

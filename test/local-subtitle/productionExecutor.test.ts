@@ -157,8 +157,11 @@ describe("local subtitle production executor", () => {
     expect(request).toMatchObject({
       requestGeneration: 1,
       expectedFileIdentity: {
-        dev: 1,
-        ino: 1,
+        objectIdentity: {
+          dev: 1,
+          ino: 1,
+          birthtimeMs: 1,
+        },
         size: expect.any(Number),
       },
       taskMode: "transcribe",
@@ -1308,8 +1311,11 @@ async function createHarness(options: HarnessOptions = {}) {
       return Object.freeze({
         filePath,
         fileIdentity: Object.freeze({
-          dev: 1,
-          ino: nextWindow,
+          objectIdentity: Object.freeze({
+            dev: 1,
+            ino: nextWindow,
+            birthtimeMs: 1,
+          }),
           size: brand.byteSize,
           mtimeMs: 10,
           ctimeMs: 10,

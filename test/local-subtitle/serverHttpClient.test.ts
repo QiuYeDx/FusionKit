@@ -1,5 +1,4 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
-import { statSync, type Stats } from "node:fs";
 import {
   mkdtemp,
   mkdir,
@@ -21,6 +20,10 @@ import {
   type LocalSubtitleServerHttpClientDependencies,
   type LocalSubtitleServerHttpEndpoint,
 } from "../../electron/main/local-subtitle/server-http-client";
+import {
+  localSubtitleFileIdentityForPathSync,
+  type LocalSubtitleFilesystemObjectIdentity,
+} from "../../electron/main/local-subtitle/filesystem-object-identity";
 
 const PRIVATE_PATH = `/fusionkit-${"a".repeat(48)}`;
 let tempDirectory: string;
@@ -307,13 +310,15 @@ describe("LocalSubtitleServerHttpClient", () => {
 
     try {
       const client = clientFor(server.port);
-      const expectedFileIdentity = fileIdentity(statSync(windowPath));
+      const expectedFileIdentity = expectedFileIdentityForPath(windowPath);
       const error = await captureContractError(
         client.inference(
           validRequest(windowPath, {
             expectedFileIdentity: Object.freeze({
               ...expectedFileIdentity,
-              ino: expectedFileIdentity.ino + 1,
+              objectIdentity: differentObjectIdentity(
+                expectedFileIdentity.objectIdentity,
+              ),
             }),
           }),
         ),
@@ -456,7 +461,13 @@ describe("LocalSubtitleServerHttpClient", () => {
     const largeWindowPath = path.join(tempDirectory, "large-window.wav");
     await writeFile(largeWindowPath, Buffer.alloc(1_000_000, 0x31));
     const server = await startServer((_request, response) => {
-      sendJson(response, validVerboseJson());
+      const bytes = Buffer.from(JSON.stringify(validVerboseJson()), "utf8");
+      response.writeHead(200, {
+        "Content-Type": "application/json",
+        "Content-Length": String(bytes.length),
+      });
+      response.flushHeaders();
+      response.write(bytes);
     });
 
     try {
@@ -909,7 +920,7 @@ function validRequest(
   return {
     requestGeneration: 1,
     filePath,
-    expectedFileIdentity: expectedFileIdentity(filePath),
+    expectedFileIdentity: expectedFileIdentityForPath(filePath),
     language: "ja",
     taskMode: "transcribe",
     beamSize: 5,
@@ -921,13 +932,18 @@ function validRequest(
   };
 }
 
-function expectedFileIdentity(filePath: string) {
+function expectedFileIdentityForPath(filePath: string) {
   try {
-    return fileIdentity(statSync(filePath));
+    const identity = localSubtitleFileIdentityForPathSync(filePath);
+    return identity.size > 0
+      ? identity
+      : Object.freeze({ ...identity, size: 1 });
   } catch {
     return Object.freeze({
-      dev: 0,
-      ino: 0,
+      objectIdentity: Object.freeze({
+        volumeSerialHex: "00000000",
+        fileIdHex: "00000000000000000000000000000000",
+      }),
       size: 1,
       mtimeMs: 0,
       ctimeMs: 0,
@@ -935,13 +951,16 @@ function expectedFileIdentity(filePath: string) {
   }
 }
 
-function fileIdentity(stats: Stats) {
+function differentObjectIdentity(
+  identity: LocalSubtitleFilesystemObjectIdentity,
+): LocalSubtitleFilesystemObjectIdentity {
+  if ("dev" in identity) {
+    return Object.freeze({ ...identity, ino: identity.ino + 1 });
+  }
+  const replacement = identity.fileIdHex.endsWith("0") ? "1" : "0";
   return Object.freeze({
-    dev: stats.dev,
-    ino: stats.ino,
-    size: stats.size,
-    mtimeMs: stats.mtimeMs,
-    ctimeMs: stats.ctimeMs,
+    ...identity,
+    fileIdHex: `${identity.fileIdHex.slice(0, -1)}${replacement}`,
   });
 }
 

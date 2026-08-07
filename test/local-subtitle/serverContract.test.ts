@@ -97,11 +97,35 @@ describe("local subtitle official server contract", () => {
     ).toThrow(/normalized window/u);
   });
 
+  it("accepts an exact Windows file ID above the JavaScript safe integer range", () => {
+    expect(() =>
+      validateLocalSubtitleServerInferenceRequest({
+        ...validRequest(),
+        expectedFileIdentity: {
+          ...validFileIdentity(),
+          objectIdentity: {
+            volumeSerialHex: "00000001",
+            fileIdHex: "00000000000000000020000000000001",
+          },
+        },
+      }),
+    ).not.toThrow();
+  });
+
   it.each([
     { label: "missing", identity: undefined },
     { label: "extra key", identity: { ...validFileIdentity(), path: "/private/window.wav" } },
-    { label: "negative device", identity: { ...validFileIdentity(), dev: -1 } },
-    { label: "unsafe inode", identity: { ...validFileIdentity(), ino: Number.MAX_SAFE_INTEGER + 1 } },
+    {
+      label: "invalid object identity",
+      identity: { ...validFileIdentity(), objectIdentity: { dev: -1, ino: 2, birthtimeMs: 3 } },
+    },
+    {
+      label: "variable-width Windows file ID",
+      identity: {
+        ...validFileIdentity(),
+        objectIdentity: { volumeSerialHex: "00000001", fileIdHex: "9007199254740993" },
+      },
+    },
     { label: "empty file", identity: { ...validFileIdentity(), size: 0 } },
     { label: "negative mtime", identity: { ...validFileIdentity(), mtimeMs: -1 } },
     { label: "non-finite ctime", identity: { ...validFileIdentity(), ctimeMs: Number.POSITIVE_INFINITY } },
@@ -256,8 +280,10 @@ function validRequest() {
 
 function validFileIdentity() {
   return Object.freeze({
-    dev: 1,
-    ino: 2,
+    objectIdentity: Object.freeze({
+      volumeSerialHex: "00000001",
+      fileIdHex: "00000000000000000000000000000002",
+    }),
     size: 4_096,
     mtimeMs: 1_000.25,
     ctimeMs: 1_000.5,

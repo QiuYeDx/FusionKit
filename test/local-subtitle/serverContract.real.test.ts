@@ -21,6 +21,7 @@ import {
   createLocalSubtitleServerProcessDescriptor,
 } from "../../electron/main/local-subtitle/server-process-contract";
 import { createRuntimeFixture, sha256 } from "./runtimeFixture";
+import { localSubtitleFileIdentityForPath } from "../../electron/main/local-subtitle/filesystem-object-identity";
 
 const realPaths = {
   server: process.env.FUSIONKIT_NATIVE001_REAL_SERVER,
@@ -53,6 +54,7 @@ describe("local subtitle official server real contract", () => {
       expect(modelStat.isFile()).toBe(true);
       expect(vadStat.isFile()).toBe(true);
       expect(windowStat.isFile()).toBe(true);
+      const windowIdentity = await localSubtitleFileIdentityForPath(windowPath);
 
       const fixtureRoot = await mkdtemp(
         path.join(os.tmpdir(), "fusionkit-native001-real-"),
@@ -179,13 +181,7 @@ describe("local subtitle official server real contract", () => {
           const response = await client.inference({
             requestGeneration,
             filePath: windowPath,
-            expectedFileIdentity: Object.freeze({
-              dev: windowStat.dev,
-              ino: windowStat.ino,
-              size: windowStat.size,
-              mtimeMs: windowStat.mtimeMs,
-              ctimeMs: windowStat.ctimeMs,
-            }),
+            expectedFileIdentity: windowIdentity,
             language: "auto",
             taskMode: "transcribe",
             beamSize: 5,

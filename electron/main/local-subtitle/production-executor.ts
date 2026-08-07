@@ -64,6 +64,7 @@ import type {
   LocalSubtitleExporter,
 } from "./subtitle-exporter";
 import {
+  sameLocalSubtitleFileIdentity,
   sameLocalSubtitleFilesystemObjectIdentity,
 } from "./filesystem-object-identity";
 import {
@@ -1100,7 +1101,12 @@ function createInferenceRequest(
   return Object.freeze({
     requestGeneration,
     filePath: resolved.filePath,
-    expectedFileIdentity: Object.freeze({ ...resolved.fileIdentity }),
+    expectedFileIdentity: Object.freeze({
+      objectIdentity: Object.freeze({ ...resolved.fileIdentity.objectIdentity }),
+      size: resolved.fileIdentity.size,
+      mtimeMs: resolved.fileIdentity.mtimeMs,
+      ctimeMs: resolved.fileIdentity.ctimeMs,
+    }),
     language: context.config.language,
     taskMode: context.config.taskMode,
     beamSize: context.config.inference.advanced.beamSize,
@@ -1541,13 +1547,7 @@ function sameFileIdentity(
   left: LocalSubtitleResolvedPcmWindow["fileIdentity"],
   right: LocalSubtitleResolvedPcmWindow["fileIdentity"],
 ): boolean {
-  return (
-    left.dev === right.dev &&
-    left.ino === right.ino &&
-    left.size === right.size &&
-    left.mtimeMs === right.mtimeMs &&
-    left.ctimeMs === right.ctimeMs
-  );
+  return sameLocalSubtitleFileIdentity(left, right);
 }
 
 function sameDirectoryIdentity(

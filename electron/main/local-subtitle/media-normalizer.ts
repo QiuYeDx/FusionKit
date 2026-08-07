@@ -40,6 +40,11 @@ import {
   type LocalSubtitlePcm16WavMetadata,
 } from "./pcm-window";
 import {
+  localSubtitleFileIdentityForHandle,
+  localSubtitleFileIdentityForPath,
+  sameLocalSubtitleFileIdentity as sameFileIdentity,
+} from "./filesystem-object-identity";
+import {
   isLocalSubtitleVerifiedRuntimeBundle,
   verifyLocalSubtitleRuntimeBundle,
   type LocalSubtitleResourceEnvironment,
@@ -2018,7 +2023,7 @@ async function copyAuthorizedInputSnapshot(options: {
   let output: FileHandle | undefined;
   try {
     source = await open(options.input.filePath, READ_ONLY_NOFOLLOW);
-    const sourceIdentity = fileIdentity(await source.stat());
+    const sourceIdentity = await localSubtitleFileIdentityForHandle(source);
     if (!sameFileIdentity(sourceIdentity, options.input.identity)) {
       throw mediaChanged();
     }
@@ -2055,7 +2060,7 @@ async function copyAuthorizedInputSnapshot(options: {
     }
     await output.sync();
     const outputStat = await output.stat();
-    const outputIdentity = fileIdentity(outputStat);
+    const outputIdentity = await localSubtitleFileIdentityForHandle(output);
     if (
       !outputStat.isFile() ||
       outputIdentity.size !== sourceIdentity.size ||
@@ -2065,7 +2070,10 @@ async function copyAuthorizedInputSnapshot(options: {
       throw new Error("Private media snapshot identity is invalid.");
     }
     if (
-      !sameFileIdentity(fileIdentity(await source.stat()), options.input.identity)
+      !sameFileIdentity(
+        await localSubtitleFileIdentityForHandle(source),
+        options.input.identity,
+      )
     ) {
       throw mediaChanged();
     }
@@ -2103,12 +2111,18 @@ async function assertResolvedInputCurrent(
     if (
       !before.isFile() ||
       before.isSymbolicLink() ||
-      !sameFileIdentity(fileIdentity(before), input.identity)
+      !sameFileIdentity(
+        await localSubtitleFileIdentityForPath(input.filePath),
+        input.identity,
+      )
     ) {
       throw new Error();
     }
     handle = await open(input.filePath, READ_ONLY_NOFOLLOW);
-    if (!sameFileIdentity(fileIdentity(await handle.stat()), input.identity)) {
+    if (!sameFileIdentity(
+      await localSubtitleFileIdentityForHandle(handle),
+      input.identity,
+    )) {
       throw new Error();
     }
   } catch {
@@ -2127,7 +2141,10 @@ async function assertPathFileIdentity(
     if (
       !current.isFile() ||
       current.isSymbolicLink() ||
-      !sameFileIdentity(fileIdentity(current), expected)
+      !sameFileIdentity(
+        await localSubtitleFileIdentityForPath(filePath),
+        expected,
+      )
     ) {
       throw new Error();
     }
@@ -2144,7 +2161,7 @@ async function hashOwnedFile(
   let handle: FileHandle | undefined;
   try {
     handle = await open(filePath, READ_ONLY_NOFOLLOW);
-    const before = fileIdentity(await handle.stat());
+    const before = await localSubtitleFileIdentityForHandle(handle);
     if (!sameFileIdentity(before, expected)) throw new Error();
 
     const hash = createHash("sha256");
@@ -2159,7 +2176,7 @@ async function hashOwnedFile(
       position += bytesRead;
     }
 
-    const after = fileIdentity(await handle.stat());
+    const after = await localSubtitleFileIdentityForHandle(handle);
     if (!sameFileIdentity(after, expected)) throw new Error();
     await assertPathFileIdentity(filePath, expected);
     throwIfAborted(signal, "decode_failed");
@@ -2176,29 +2193,6 @@ async function hashOwnedFile(
   } finally {
     await handle?.close().catch(() => undefined);
   }
-}
-
-function fileIdentity(stat: Stats): LocalSubtitleFileIdentity {
-  return {
-    dev: stat.dev,
-    ino: stat.ino,
-    size: stat.size,
-    mtimeMs: stat.mtimeMs,
-    ctimeMs: stat.ctimeMs,
-  };
-}
-
-function sameFileIdentity(
-  left: LocalSubtitleFileIdentity,
-  right: LocalSubtitleFileIdentity,
-): boolean {
-  return (
-    left.dev === right.dev &&
-    left.ino === right.ino &&
-    left.size === right.size &&
-    left.mtimeMs === right.mtimeMs &&
-    left.ctimeMs === right.ctimeMs
-  );
 }
 
 async function ensureMediaBaseRoot(managedResourceRoot: string): Promise<string> {

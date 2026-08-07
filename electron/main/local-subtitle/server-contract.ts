@@ -6,6 +6,10 @@ import {
   type LocalSubtitleErrorCode,
   type LocalSubtitleTaskMode,
 } from "@/type/localSubtitle";
+import {
+  snapshotLocalSubtitleFilesystemObjectIdentity,
+  type LocalSubtitleFilesystemObjectIdentity,
+} from "./filesystem-object-identity";
 
 export const LOCAL_SUBTITLE_SERVER_HTTP_POLICY = deepFreeze({
   contractVersion: LOCAL_SUBTITLE_SERVER_HTTP_CONTRACT_VERSION,
@@ -97,8 +101,7 @@ export interface LocalSubtitleServerInferenceRequest {
 }
 
 export interface LocalSubtitleServerExpectedFileIdentity {
-  readonly dev: number;
-  readonly ino: number;
+  readonly objectIdentity: LocalSubtitleFilesystemObjectIdentity;
   readonly size: number;
   readonly mtimeMs: number;
   readonly ctimeMs: number;
@@ -511,15 +514,20 @@ function validateInferenceOptions(
 }
 
 function validateExpectedFileIdentity(input: unknown): void {
-  if (!isExactRecord(input, ["dev", "ino", "size", "mtimeMs", "ctimeMs"])) {
+  if (!isExactRecord(input, [
+    "objectIdentity",
+    "size",
+    "mtimeMs",
+    "ctimeMs",
+  ])) {
     throw invalidConfiguration(
       "The normalized inference window identity is invalid.",
     );
   }
-  const { dev, ino, size, mtimeMs, ctimeMs } = input;
+  const { objectIdentity, size, mtimeMs, ctimeMs } = input;
   if (
-    !isNonNegativeSafeInteger(dev) ||
-    !isNonNegativeSafeInteger(ino) ||
+    !snapshotLocalSubtitleFilesystemObjectIdentity(objectIdentity) ||
+    typeof size !== "number" ||
     !Number.isSafeInteger(size) ||
     size <= 0 ||
     !isNonNegativeSafeNumber(mtimeMs) ||
@@ -534,17 +542,13 @@ function validateExpectedFileIdentity(input: unknown): void {
 function isExactRecord(
   input: unknown,
   expectedKeys: readonly string[],
-): input is Record<string, number> {
+): input is Record<string, unknown> {
   if (typeof input !== "object" || input === null || Array.isArray(input)) {
     return false;
   }
   const keys = Reflect.ownKeys(input);
   return keys.length === expectedKeys.length &&
     expectedKeys.every((key) => keys.includes(key));
-}
-
-function isNonNegativeSafeInteger(value: unknown): value is number {
-  return Number.isSafeInteger(value) && (value as number) >= 0;
 }
 
 function isNonNegativeSafeNumber(value: unknown): value is number {

@@ -1,9 +1,12 @@
 import { lstatSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
+  localSubtitleFileIdentityFromBigIntStats,
   localSubtitleFilesystemObjectIdentityForPathSync,
   localSubtitleWindowsObjectIdentityFromStats,
+  sameLocalSubtitleFileIdentity,
   sameLocalSubtitleFilesystemObjectIdentity,
+  snapshotLocalSubtitleFileIdentity,
   snapshotLocalSubtitleFilesystemObjectIdentity,
 } from "../../electron/main/local-subtitle/filesystem-object-identity";
 
@@ -16,6 +19,30 @@ describe("local subtitle filesystem object identity", () => {
       volumeSerialHex: "680b91a8",
       fileIdHex: "0000000000000000002800000013944f",
     });
+  });
+
+  it("preserves an unsafe Windows file ID in a complete file proof", () => {
+    const identity = localSubtitleFileIdentityFromBigIntStats({
+      dev: 0x680b91a8n,
+      ino: 0x20_0000_0000_0001n,
+      size: 44n,
+      birthtimeNs: 1_000_000n,
+      mtimeNs: 2_000_000n,
+      ctimeNs: 3_000_000n,
+    }, "win32");
+
+    expect(identity).toEqual({
+      objectIdentity: {
+        volumeSerialHex: "680b91a8",
+        fileIdHex: "00000000000000000020000000000001",
+      },
+      size: 44,
+      mtimeMs: 2,
+      ctimeMs: 3,
+    });
+    const snapshot = snapshotLocalSubtitleFileIdentity(identity);
+    expect(snapshot).toEqual(identity);
+    expect(sameLocalSubtitleFileIdentity(identity, snapshot!)).toBe(true);
   });
 
   it("rejects negative or over-width Windows identity components", () => {

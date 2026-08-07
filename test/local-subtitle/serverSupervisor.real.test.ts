@@ -16,6 +16,7 @@ import { LOCAL_SUBTITLE_PRODUCTION_CONTRACT } from "@/type/localSubtitle";
 import { verifyLocalSubtitleRuntimeBundle } from "../../electron/main/local-subtitle/resource-path";
 import { LocalSubtitleServerSupervisor } from "../../electron/main/local-subtitle/server-supervisor";
 import { createRuntimeFixture, sha256 } from "./runtimeFixture";
+import { localSubtitleFileIdentityForPath } from "../../electron/main/local-subtitle/filesystem-object-identity";
 
 const realPaths = {
   server:
@@ -58,6 +59,7 @@ describe("local subtitle server supervisor real contract", () => {
         vadStat.isFile(),
         windowStat.isFile(),
       ]).toEqual([true, true, true, true]);
+      const windowIdentity = await localSubtitleFileIdentityForPath(windowPath);
 
       const fixtureRoot = await mkdtemp(
         path.join(os.tmpdir(), "fusionkit-be001-real-"),
@@ -138,13 +140,7 @@ describe("local subtitle server supervisor real contract", () => {
           const result = await supervisor.beginInference(lease, {
             requestGeneration,
             filePath: windowPath,
-            expectedFileIdentity: Object.freeze({
-              dev: windowStat.dev,
-              ino: windowStat.ino,
-              size: windowStat.size,
-              mtimeMs: windowStat.mtimeMs,
-              ctimeMs: windowStat.ctimeMs,
-            }),
+            expectedFileIdentity: windowIdentity,
             language: "auto",
             taskMode: "transcribe",
             beamSize: 5,

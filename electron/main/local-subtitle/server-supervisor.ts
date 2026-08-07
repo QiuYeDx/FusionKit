@@ -43,6 +43,7 @@ import {
   type LocalSubtitleServerSession,
 } from "./server-session";
 import type { LocalSubtitleOwnerKey } from "./authorizations";
+import { snapshotLocalSubtitleFileIdentity } from "./filesystem-object-identity";
 
 const LEASE_BRAND: unique symbol = Symbol(
   "fusionkit.local-subtitle.server-supervisor-lease",
@@ -2274,13 +2275,12 @@ function createSupervisorProcessDescriptor(
 function snapshotInferenceRequest(
   request: LocalSubtitleServerInferenceRequest,
 ): LocalSubtitleServerInferenceRequest {
-  const expectedFileIdentity = Object.freeze({
-    dev: request.expectedFileIdentity.dev,
-    ino: request.expectedFileIdentity.ino,
-    size: request.expectedFileIdentity.size,
-    mtimeMs: request.expectedFileIdentity.mtimeMs,
-    ctimeMs: request.expectedFileIdentity.ctimeMs,
-  });
+  const expectedFileIdentity = snapshotLocalSubtitleFileIdentity(
+    request.expectedFileIdentity,
+  );
+  if (!expectedFileIdentity) {
+    throw new TypeError("The normalized inference window identity is invalid.");
+  }
   return Object.freeze({
     requestGeneration: request.requestGeneration,
     filePath: request.filePath,
