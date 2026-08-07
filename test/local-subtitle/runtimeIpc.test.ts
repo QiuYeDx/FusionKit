@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS,
   localSubtitleRuntimeSummarySchema,
@@ -203,6 +203,61 @@ describe("local subtitle runtime IPC bridge", () => {
       },
     });
   });
+
+  it("coalesces duplicate runtime probes for the same document owner", async () => {
+    const fixture = await runtimeFixture();
+    const loaded = await loadLocalSubtitleRuntimeManifest(fixture.environment);
+    const verificationGate = deferred<void>();
+    let activeVerifications = 0;
+    const verifyRuntime = vi.fn(async () => {
+      activeVerifications += 1;
+      if (activeVerifications > 1) {
+        activeVerifications -= 1;
+        throw new LocalSubtitleMediaError(
+          "limit_exceeded",
+          "limit_exceeded",
+          "preflight",
+          "A duplicate runtime verification exceeded the owner operation limit.",
+        );
+      }
+      try {
+        await verificationGate.promise;
+        return { runtimeGeneration: loaded.manifestSha256 };
+      } finally {
+        activeVerifications -= 1;
+      }
+    });
+    const bridge = new LocalSubtitleRuntimeIpcBridge({
+      environment: fixture.environment,
+      mediaRuntimeVerifier: { verifyRuntime },
+      verifyServerRuntime: () =>
+        verifyLocalSubtitleRuntimeBundle({
+          environment: fixture.environment,
+          scope: "server",
+          signatureVerifier: async () => true,
+        }),
+    });
+
+    const first = probe(bridge);
+    await waitForCondition(() => verifyRuntime.mock.calls.length === 1);
+    const second = probe(bridge);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    verificationGate.resolve();
+
+    const [firstResult, secondResult] = await Promise.all([first, second]);
+    expect(verifyRuntime).toHaveBeenCalledOnce();
+    expect(firstResult).toMatchObject({
+      ok: true,
+      data: { mediaRuntime: { status: "ready" } },
+    });
+    expect(secondResult).toEqual(firstResult);
+
+    await expect(probe(bridge)).resolves.toMatchObject({
+      ok: true,
+      data: { mediaRuntime: { status: "ready" } },
+    });
+    expect(verifyRuntime).toHaveBeenCalledTimes(2);
+  });
 });
 
 async function runtimeFixture(): Promise<LocalSubtitleRuntimeFixture> {
@@ -222,11 +277,30 @@ async function probe(bridge: LocalSubtitleRuntimeIpcBridge) {
     ownerIdentity: {
       senderId: 1,
       ownerSessionId: "runtime-ipc-owner",
-      documentEpoch: 1,
+      processId: 11,
+      frameId: 0,
     },
     event: {} as LocalSubtitleIpcHandlerContext["event"],
     capabilities: {} as LocalSubtitleIpcHandlerContext["capabilities"],
     signal: controller.signal,
     isOwnerCurrent: () => true,
   });
+}
+
+function deferred<T>() {
+  let resolve!: (value: T | PromiseLike<T>) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise;
+    reject = rejectPromise;
+  });
+  return { promise, resolve, reject };
+}
+
+async function waitForCondition(predicate: () => boolean): Promise<void> {
+  const deadline = Date.now() + 1_000;
+  while (!predicate()) {
+    if (Date.now() >= deadline) throw new Error("Condition not reached.");
+    await new Promise((resolve) => setTimeout(resolve, 1));
+  }
 }

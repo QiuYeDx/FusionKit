@@ -51,6 +51,12 @@ export interface LocalSubtitleRuntimeIpcBridgeOptions {
 
 export class LocalSubtitleRuntimeIpcBridge {
   readonly handlers: LocalSubtitleIpcHandlers;
+  // React StrictMode and rapid refreshes can issue the same read-only probe twice.
+  // Share only in-flight work; settled probes are removed so rechecks stay fresh.
+  readonly #inFlightProbes = new Map<
+    string,
+    Promise<LocalSubtitleRuntimeSummary>
+  >();
   readonly #environment: LocalSubtitleResourceEnvironment;
   readonly #verifyMediaRuntime: LocalSubtitleRuntimeIpcBridgeOptions["mediaRuntimeVerifier"]["verifyRuntime"];
   readonly #supportedGpuBackends: ReadonlySet<Exclude<LocalSubtitleBackend, "cpu">>;
@@ -104,9 +110,27 @@ export class LocalSubtitleRuntimeIpcBridge {
         [LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.probeRuntime]: async (
           _request: unknown,
           context: LocalSubtitleIpcHandlerContext,
-        ) => localSubtitleIpcSuccess(await this.#probe(context)),
+        ) => localSubtitleIpcSuccess(await this.#probeShared(context)),
       }),
     });
+  }
+
+  async #probeShared(
+    context: LocalSubtitleIpcHandlerContext,
+  ): Promise<LocalSubtitleRuntimeSummary> {
+    throwIfAborted(context.signal);
+    const key = runtimeProbeOwnerKey(context);
+    const existing = this.#inFlightProbes.get(key);
+    if (existing) return existing;
+
+    let shared!: Promise<LocalSubtitleRuntimeSummary>;
+    shared = this.#probe(context).finally(() => {
+      if (this.#inFlightProbes.get(key) === shared) {
+        this.#inFlightProbes.delete(key);
+      }
+    });
+    this.#inFlightProbes.set(key, shared);
+    return shared;
   }
 
   async #probe(
@@ -198,6 +222,18 @@ export class LocalSubtitleRuntimeIpcBridge {
       errorCode: "backend_unverified" as const,
     });
   }
+}
+
+function runtimeProbeOwnerKey(
+  context: LocalSubtitleIpcHandlerContext,
+): string {
+  return JSON.stringify([
+    context.owner.webContentsId,
+    context.owner.ownerSessionId,
+    context.ownerIdentity.senderId,
+    context.ownerIdentity.processId,
+    context.ownerIdentity.frameId,
+  ]);
 }
 
 function runnerSummary(
