@@ -283,6 +283,7 @@
       "runner": "Whisper 运行器",
       "ffmpeg": "FFmpeg",
       "not_ready": "未就绪",
+      "runtime_details": "运行时详情",
       "backends": "后端探测",
       "execution_profile": "{{preference}} -> {{backend}} · {{version}}",
       "resolving_backend": "正在解析执行后端",

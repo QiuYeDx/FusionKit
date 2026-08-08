@@ -283,6 +283,7 @@
       "runner": "Whisper runner",
       "ffmpeg": "FFmpeg",
       "not_ready": "Not ready",
+      "runtime_details": "Runtime details",
       "backends": "Backend probe",
       "execution_profile": "{{preference}} -> {{backend}} · {{version}}",
       "resolving_backend": "Resolving execution backend",

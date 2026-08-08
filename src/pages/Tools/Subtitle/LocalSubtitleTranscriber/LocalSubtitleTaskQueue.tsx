@@ -125,14 +125,16 @@ export function LocalSubtitleTaskQueue({
     return (
       <div
         data-testid="local-subtitle-task-queue"
-        className="flex min-h-48 items-center justify-center border-t px-4 py-8 text-center"
+        className="flex min-w-0 items-center gap-3 rounded-md border bg-muted/20 px-3 py-3 text-left"
       >
-        <div className="max-w-sm space-y-2">
-          <CheckCircle2 className="mx-auto h-6 w-6 text-muted-foreground" />
-          <div className="text-sm font-medium">
+        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-background text-muted-foreground shadow-xs">
+          <CheckCircle2 className="h-4 w-4" />
+        </div>
+        <div className="min-w-0">
+          <div className="text-xs font-medium">
             {t("subtitle:local_transcriber.queue.empty_title")}
           </div>
-          <div className="text-xs leading-relaxed text-muted-foreground">
+          <div className="mt-0.5 text-[11px] leading-relaxed text-muted-foreground">
             {t("subtitle:local_transcriber.queue.empty_description")}
           </div>
         </div>
@@ -141,8 +143,8 @@ export function LocalSubtitleTaskQueue({
   }
 
   return (
-    <div data-testid="local-subtitle-task-queue" className="border-t">
-      <div className="flex items-center justify-between gap-3 py-3">
+    <div data-testid="local-subtitle-task-queue" className="border-t pt-4">
+      <div className="flex items-center justify-between gap-3 pb-3">
         <h3 className="text-sm font-semibold">
           {t("subtitle:local_transcriber.queue.title")}
         </h3>
@@ -153,7 +155,7 @@ export function LocalSubtitleTaskQueue({
         </span>
       </div>
 
-      <div className="divide-y border-y">
+      <div className="divide-y overflow-hidden rounded-md border">
         {batches.map((batch) => {
           const completedTasks = batch.tasks.filter(
             (task) => task.status === "completed",

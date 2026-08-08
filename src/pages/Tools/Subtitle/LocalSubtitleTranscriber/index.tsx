@@ -15,7 +15,6 @@ import {
   SlidersHorizontal,
 } from "lucide-react";
 import ConfirmDialog from "@/components/ConfirmDialog";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -32,6 +31,7 @@ import ToolPageHeader from "@/pages/Tools/_shared/ToolPageHeader";
 import { TOOL_META } from "@/pages/Tools/_shared/toolMeta";
 import {
   ToolConfigPanel,
+  ToolConfigDisclosure,
   ToolDetailLayout,
   ToolField,
   ToolFileDropZone,
@@ -699,9 +699,6 @@ export default function LocalSubtitleTranscriber() {
       ...runtimeState.batches,
     ].sort((left, right) => right.createdAt.localeCompare(left.createdAt));
   }, [runtimeState.batches, submittedBatches]);
-  const latestActiveTask = visibleBatches
-    .flatMap((batch) => batch.tasks)
-    .find((task) => !["completed", "cancelled", "failed"].includes(task.status));
   const missingTranslationTaskIds = new Set(
     visibleBatches
       .flatMap((batch) => batch.tasks)
@@ -1178,13 +1175,6 @@ export default function LocalSubtitleTranscriber() {
     localSubtitleTaskActionKey("cpu-retry", cpuRetryCandidate.taskId),
   );
 
-  const environmentReady = !startIssue || [
-    "file_required",
-    "media_probe_loading",
-    "media_probe_failed",
-    "output_directory_required",
-  ].includes(startIssue);
-
   return (
     <div data-testid="local-subtitle-transcriber">
       <ToolDetailLayout
@@ -1193,18 +1183,15 @@ export default function LocalSubtitleTranscriber() {
             meta={TOOL_META.localSubtitleTranscriber}
             title={t("subtitle:local_transcriber.title")}
             description={t("subtitle:local_transcriber.description")}
-            right={
-              <Badge variant="outline">
-                {(latestActiveTask?.resolvedBackend ?? backendPreview.summary?.resolvedBackend ?? "auto")
-                  .toUpperCase()} · {preferences.outputFormats.join("+")}
-              </Badge>
-            }
           />
         }
+        asideClassName="order-2 lg:order-1"
+        mainClassName="order-1 lg:order-2"
         aside={
           <ToolConfigPanel
             icon={Settings2}
             title={t("subtitle:local_transcriber.config.title")}
+            contentClassName="space-y-4"
           >
             <ToolField label={t("subtitle:local_transcriber.config.model")}>
               <Select
@@ -1212,7 +1199,7 @@ export default function LocalSubtitleTranscriber() {
                 disabled={submissionLocked || readyModels.length === 0}
                 onValueChange={(modelId) => updatePreferences({ modelId })}
               >
-                <SelectTrigger data-testid="local-subtitle-model-select" className="h-8 text-xs">
+                <SelectTrigger data-testid="local-subtitle-model-select" className="h-8 w-full text-xs">
                   <SelectValue placeholder={t("subtitle:local_transcriber.config.no_model")} />
                 </SelectTrigger>
                 <SelectContent>
@@ -1245,7 +1232,7 @@ export default function LocalSubtitleTranscriber() {
                   devicePreference: devicePreference as typeof preferences.devicePreference,
                 })}
               >
-                <SelectTrigger data-testid="local-subtitle-device-select" className="h-8 text-xs">
+                <SelectTrigger data-testid="local-subtitle-device-select" className="h-8 w-full text-xs">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -1267,7 +1254,7 @@ export default function LocalSubtitleTranscriber() {
                 disabled={submissionLocked}
                 onValueChange={(language) => updatePreferences({ language })}
               >
-                <SelectTrigger data-testid="local-subtitle-language-select" className="h-8 text-xs">
+                <SelectTrigger data-testid="local-subtitle-language-select" className="h-8 w-full text-xs">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -1288,7 +1275,7 @@ export default function LocalSubtitleTranscriber() {
                   qualityPreset: qualityPreset as typeof preferences.qualityPreset,
                 })}
               >
-                <SelectTrigger data-testid="local-subtitle-quality-select" className="h-8 text-xs">
+                <SelectTrigger data-testid="local-subtitle-quality-select" className="h-8 w-full text-xs">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -1301,34 +1288,38 @@ export default function LocalSubtitleTranscriber() {
               </Select>
             </ToolField>
 
-            <ToolField
-              label={t("subtitle:local_transcriber.config.vad")}
-              htmlFor="local-subtitle-vad"
-              hint={t("subtitle:local_transcriber.config.vad_hint")}
-              action={
-                <Switch
-                  id="local-subtitle-vad"
-                  checked={preferences.vadEnabled}
-                  disabled={submissionLocked}
-                  onCheckedChange={(vadEnabled) => updatePreferences({ vadEnabled })}
-                />
-              }
-            >
-              <p className="text-[11px] leading-relaxed text-muted-foreground">
-                {t(
-                  vadReady
-                    ? "subtitle:local_transcriber.config.vad_ready"
-                    : "subtitle:local_transcriber.config.vad_not_ready",
+            <div data-testid="local-subtitle-advanced-settings">
+              <ToolConfigDisclosure
+                icon={SlidersHorizontal}
+                title={t("subtitle:local_transcriber.config.advanced")}
+                summary={t(
+                  draftTaskMode === "transcribe"
+                    ? "subtitle:local_transcriber.config.task_transcribe"
+                    : "subtitle:local_transcriber.config.task_translate_english",
                 )}
-              </p>
-            </ToolField>
+              >
+                <ToolField
+                  label={t("subtitle:local_transcriber.config.vad")}
+                  htmlFor="local-subtitle-vad"
+                  hint={t("subtitle:local_transcriber.config.vad_hint")}
+                  action={
+                    <Switch
+                      id="local-subtitle-vad"
+                      checked={preferences.vadEnabled}
+                      disabled={submissionLocked}
+                      onCheckedChange={(vadEnabled) => updatePreferences({ vadEnabled })}
+                    />
+                  }
+                >
+                  <p className="text-[11px] leading-relaxed text-muted-foreground">
+                    {t(
+                      vadReady
+                        ? "subtitle:local_transcriber.config.vad_ready"
+                        : "subtitle:local_transcriber.config.vad_not_ready",
+                    )}
+                  </p>
+                </ToolField>
 
-            <details data-testid="local-subtitle-advanced-settings" className="group border-t pt-3">
-              <summary className="flex cursor-pointer list-none items-center gap-2 text-xs font-medium [&::-webkit-details-marker]:hidden">
-                <SlidersHorizontal className="h-3.5 w-3.5 text-muted-foreground" />
-                {t("subtitle:local_transcriber.config.advanced")}
-              </summary>
-              <div className="mt-3 space-y-3">
                 <ToolField label={t("subtitle:local_transcriber.config.task_mode")}>
                   <ToolRadioButtonGroup
                     value={draftTaskMode}
@@ -1370,76 +1361,79 @@ export default function LocalSubtitleTranscriber() {
                   />
                 </ToolField>
                 <div className="grid grid-cols-2 gap-3">
-                <NumericPreferenceField
-                  id="local-subtitle-beam-size"
-                  label={t("subtitle:local_transcriber.config.beam_size")}
-                  value={preferences.beamSize}
-                  min={1}
-                  max={10}
-                  step={1}
-                  disabled={submissionLocked}
-                  onCommit={(beamSize) => updatePreferences({ beamSize })}
-                />
-                <NumericPreferenceField
-                  id="local-subtitle-temperature"
-                  label={t("subtitle:local_transcriber.config.temperature")}
-                  value={preferences.temperature}
-                  min={0}
-                  max={1}
-                  step={0.05}
-                  disabled={submissionLocked}
-                  onCommit={(temperature) => updatePreferences({ temperature })}
-                />
-                <NumericPreferenceField
-                  id="local-subtitle-vad-silence"
-                  label={t("subtitle:local_transcriber.config.vad_silence")}
-                  value={preferences.vadMinSilenceMs}
-                  min={100}
-                  max={5_000}
-                  step={100}
-                  disabled={submissionLocked || !preferences.vadEnabled}
-                  onCommit={(vadMinSilenceMs) => updatePreferences({ vadMinSilenceMs })}
-                />
-                <NumericPreferenceField
-                  id="local-subtitle-cue-duration"
-                  label={t("subtitle:local_transcriber.config.max_cue_duration")}
-                  value={preferences.maxCueDurationMs}
-                  min={500}
-                  max={LOCAL_SUBTITLE_PRODUCTION_CONTRACT.transcript.maxRawSegmentDurationMs}
-                  step={500}
-                  disabled={submissionLocked}
-                  onCommit={(maxCueDurationMs) => updatePreferences({ maxCueDurationMs })}
-                />
-                <NumericPreferenceField
-                  id="local-subtitle-cue-chars"
-                  label={t("subtitle:local_transcriber.config.max_cue_chars")}
-                  value={preferences.maxCueChars}
-                  min={20}
-                  max={LOCAL_SUBTITLE_LIMITS.maxCueTextChars}
-                  step={1}
-                  disabled={submissionLocked}
-                  onCommit={(maxCueChars) => updatePreferences({ maxCueChars })}
-                />
-                <NumericPreferenceField
-                  id="local-subtitle-line-chars"
-                  label={t("subtitle:local_transcriber.config.max_line_chars")}
-                  value={preferences.maxLineChars}
-                  min={10}
-                  max={LOCAL_SUBTITLE_LIMITS.maxLineChars}
-                  step={1}
-                  disabled={submissionLocked}
-                  onCommit={(maxLineChars) => updatePreferences({ maxLineChars })}
-                />
+                  <NumericPreferenceField
+                    id="local-subtitle-beam-size"
+                    label={t("subtitle:local_transcriber.config.beam_size")}
+                    value={preferences.beamSize}
+                    min={1}
+                    max={10}
+                    step={1}
+                    disabled={submissionLocked}
+                    onCommit={(beamSize) => updatePreferences({ beamSize })}
+                  />
+                  <NumericPreferenceField
+                    id="local-subtitle-temperature"
+                    label={t("subtitle:local_transcriber.config.temperature")}
+                    value={preferences.temperature}
+                    min={0}
+                    max={1}
+                    step={0.05}
+                    disabled={submissionLocked}
+                    onCommit={(temperature) => updatePreferences({ temperature })}
+                  />
+                  <NumericPreferenceField
+                    id="local-subtitle-vad-silence"
+                    label={t("subtitle:local_transcriber.config.vad_silence")}
+                    value={preferences.vadMinSilenceMs}
+                    min={100}
+                    max={5_000}
+                    step={100}
+                    disabled={submissionLocked || !preferences.vadEnabled}
+                    onCommit={(vadMinSilenceMs) => updatePreferences({ vadMinSilenceMs })}
+                  />
+                  <NumericPreferenceField
+                    id="local-subtitle-cue-duration"
+                    label={t("subtitle:local_transcriber.config.max_cue_duration")}
+                    value={preferences.maxCueDurationMs}
+                    min={500}
+                    max={LOCAL_SUBTITLE_PRODUCTION_CONTRACT.transcript.maxRawSegmentDurationMs}
+                    step={500}
+                    disabled={submissionLocked}
+                    onCommit={(maxCueDurationMs) => updatePreferences({ maxCueDurationMs })}
+                  />
+                  <NumericPreferenceField
+                    id="local-subtitle-cue-chars"
+                    label={t("subtitle:local_transcriber.config.max_cue_chars")}
+                    value={preferences.maxCueChars}
+                    min={20}
+                    max={LOCAL_SUBTITLE_LIMITS.maxCueTextChars}
+                    step={1}
+                    disabled={submissionLocked}
+                    onCommit={(maxCueChars) => updatePreferences({ maxCueChars })}
+                  />
+                  <NumericPreferenceField
+                    id="local-subtitle-line-chars"
+                    label={t("subtitle:local_transcriber.config.max_line_chars")}
+                    value={preferences.maxLineChars}
+                    min={10}
+                    max={LOCAL_SUBTITLE_LIMITS.maxLineChars}
+                    step={1}
+                    disabled={submissionLocked}
+                    onCommit={(maxLineChars) => updatePreferences({ maxLineChars })}
+                  />
                 </div>
-              </div>
-            </details>
+              </ToolConfigDisclosure>
+            </div>
 
-            <ToolField label={t("subtitle:local_transcriber.config.output_formats")}>
+            <ToolField
+              label={t("subtitle:local_transcriber.config.output_formats")}
+              className="border-t pt-4"
+            >
               <div className="grid grid-cols-2 gap-2">
                 {(["SRT", "LRC"] as const).map((format) => (
                   <label
                     key={format}
-                    className="flex min-w-0 cursor-pointer items-center gap-2 border px-2.5 py-2 text-xs"
+                    className="flex min-w-0 cursor-pointer items-center gap-2 rounded-md border bg-background px-2.5 py-2 text-xs transition-[background-color,border-color,transform] duration-150 hover:bg-muted/50 active:scale-[0.98] has-[[data-state=checked]]:border-foreground/25 has-[[data-state=checked]]:bg-muted/50 motion-reduce:transform-none"
                   >
                     <Checkbox
                       checked={preferences.outputFormats.includes(format)}
@@ -1503,91 +1497,72 @@ export default function LocalSubtitleTranscriber() {
               </ToolField>
             ) : null}
 
-            <ToolField label={t("subtitle:local_transcriber.post_action.mode")}>
-              <div className="divide-y border">
-                <label className="flex min-w-0 cursor-pointer items-center justify-between gap-3 px-2.5 py-2 text-xs">
-                  <span>{t("subtitle:local_transcriber.post_action.send_to_translation")}</span>
-                  <Checkbox
-                    checked={draftPostActionMode !== "export_only"}
-                    disabled={submissionLocked}
-                    onCheckedChange={(checked) =>
-                      setDraftPostActionMode(
-                        checked === true ? "enqueue_translation" : "export_only",
-                      )}
-                  />
-                </label>
-                <label className="flex min-w-0 cursor-pointer items-center justify-between gap-3 px-2.5 py-2 text-xs">
-                  <span>{t("subtitle:local_transcriber.post_action.start_automatically")}</span>
-                  <Checkbox
-                    checked={draftPostActionMode === "enqueue_and_start_translation"}
-                    disabled={submissionLocked || draftPostActionMode === "export_only"}
-                    onCheckedChange={(checked) =>
-                      setDraftPostActionMode(
-                        checked === true
-                          ? "enqueue_and_start_translation"
-                          : "enqueue_translation",
-                      )}
-                  />
-                </label>
-              </div>
-            </ToolField>
+            <ToolConfigDisclosure
+              title={t("subtitle:local_transcriber.post_action.mode")}
+              summary={t(
+                draftPostActionMode === "export_only"
+                  ? "subtitle:local_transcriber.post_action.export_only"
+                  : draftPostActionMode === "enqueue_translation"
+                    ? "subtitle:local_transcriber.post_action.enqueue"
+                    : "subtitle:local_transcriber.post_action.enqueue_and_start",
+              )}
+            >
+              <ToolRadioButtonGroup
+                value={draftPostActionMode}
+                orientation="vertical"
+                disabled={submissionLocked}
+                ariaLabel={t("subtitle:local_transcriber.post_action.mode")}
+                options={[
+                  {
+                    value: "export_only",
+                    label: t("subtitle:local_transcriber.post_action.export_only"),
+                  },
+                  {
+                    value: "enqueue_translation",
+                    label: t("subtitle:local_transcriber.post_action.enqueue"),
+                  },
+                  {
+                    value: "enqueue_and_start_translation",
+                    label: t("subtitle:local_transcriber.post_action.enqueue_and_start"),
+                  },
+                ]}
+                onValueChange={setDraftPostActionMode}
+              />
 
-            {draftPostActionMode !== "export_only" ? (
-              <ToolField
-                label={t("subtitle:local_transcriber.post_action.handoff_format")}
-              >
-                <Select
-                  value={draftPreferredHandoffFormat}
-                  disabled={submissionLocked}
-                  onValueChange={(format) =>
-                    setDraftPreferredHandoffFormat(format as LocalSubtitleFormat)}
+              {draftPostActionMode !== "export_only" ? (
+                <ToolField
+                  label={t("subtitle:local_transcriber.post_action.handoff_format")}
                 >
-                  <SelectTrigger
-                    data-testid="local-subtitle-handoff-format"
-                    className="h-8 text-xs"
+                  <Select
+                    value={draftPreferredHandoffFormat}
+                    disabled={submissionLocked}
+                    onValueChange={(format) =>
+                      setDraftPreferredHandoffFormat(format as LocalSubtitleFormat)}
                   >
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {preferences.outputFormats.map((format) => (
-                      <SelectItem key={format} value={format}>
-                        {format}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </ToolField>
-            ) : null}
+                    <SelectTrigger
+                      data-testid="local-subtitle-handoff-format"
+                      className="h-8 w-full text-xs"
+                    >
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {preferences.outputFormats.map((format) => (
+                        <SelectItem key={format} value={format}>
+                          {format}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </ToolField>
+              ) : null}
+            </ToolConfigDisclosure>
           </ToolConfigPanel>
         }
       >
-        <LocalSubtitleEnvironmentManager
-          loading={environment.loading}
-          runtime={environment.runtime}
-          backendPreviewStatus={backendPreview.status}
-          backendPreview={backendPreview.summary}
-          resources={environment.resources}
-          resourceJobs={runtimeState.resourceJobs}
-          pendingActionKeys={pendingResourceActions}
-          environmentError={environment.error}
-          resourceActionError={resourceActionError}
-          onRefresh={refreshEnvironmentManually}
-          onInstall={handleResourceInstall}
-          onCancel={handleResourceCancel}
-          onDelete={handleResourceDelete}
-          onImport={handleModelImport}
-        />
-
         <ToolPanel
           icon={FileVideo2}
           title={t("subtitle:local_transcriber.workspace.title")}
-          badge={
-            <EnvironmentBadge
-              ready={environmentReady}
-              loading={environment.loading || runtimeState.syncStatus === "syncing"}
-            />
-          }
-          bodyClassName="p-5"
+          bodyClassName="p-4 sm:p-5"
         >
           <div className="space-y-4">
             <ToolFileDropZone
@@ -1629,7 +1604,7 @@ export default function LocalSubtitleTranscriber() {
               <LocalSubtitleErrorNotice error={actionError ?? runtimeState.error!} />
             ) : null}
 
-            <div className="flex min-w-0 flex-wrap items-center gap-2">
+            <div className="flex min-w-0 flex-wrap items-center gap-2 border-t pt-4">
               <Button
                 data-testid="local-subtitle-start"
                 type="button"
@@ -1639,6 +1614,7 @@ export default function LocalSubtitleTranscriber() {
                   outputSelectionPending ||
                   submissionLocked
                 }
+                className="active:scale-[0.98] motion-reduce:transform-none"
                 onClick={handleStart}
               >
                 {submissionPending ? (
@@ -1677,6 +1653,23 @@ export default function LocalSubtitleTranscriber() {
             />
           </div>
         </ToolPanel>
+
+        <LocalSubtitleEnvironmentManager
+          loading={environment.loading}
+          runtime={environment.runtime}
+          backendPreviewStatus={backendPreview.status}
+          backendPreview={backendPreview.summary}
+          resources={environment.resources}
+          resourceJobs={runtimeState.resourceJobs}
+          pendingActionKeys={pendingResourceActions}
+          environmentError={environment.error}
+          resourceActionError={resourceActionError}
+          onRefresh={refreshEnvironmentManually}
+          onInstall={handleResourceInstall}
+          onCancel={handleResourceCancel}
+          onDelete={handleResourceDelete}
+          onImport={handleModelImport}
+        />
       </ToolDetailLayout>
 
       <ConfirmDialog
@@ -1713,22 +1706,6 @@ export default function LocalSubtitleTranscriber() {
         onConfirm={handlePreparedBatchConfirm}
       />
     </div>
-  );
-}
-
-function EnvironmentBadge({ ready, loading }: { ready: boolean; loading: boolean }) {
-  const { t } = useTranslation(["subtitle"]);
-  return (
-    <Badge variant={ready ? "secondary" : "outline"}>
-      {loading ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : null}
-      {t(
-        loading
-          ? "subtitle:local_transcriber.environment.checking"
-          : ready
-            ? "subtitle:local_transcriber.environment.ready"
-            : "subtitle:local_transcriber.environment.unavailable",
-      )}
-    </Badge>
   );
 }
 

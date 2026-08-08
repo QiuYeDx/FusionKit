@@ -1,7 +1,8 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   Cpu,
+  ChevronDown,
   Download,
   FileInput,
   HardDrive,
@@ -24,6 +25,7 @@ import {
 } from "@/components/ui/dialog";
 import { Progress } from "@/components/ui/progress";
 import {
+  ToolConfigDisclosure,
   ToolPanel,
   ToolRadioButtonGroup,
 } from "@/pages/Tools/_shared/ui";
@@ -165,6 +167,22 @@ export function LocalSubtitleEnvironmentManager({
     isLocalSubtitleResourceJobActive(modelJob) ||
     importPending;
   const runtimeError = environmentError ?? runtimeSummaryError(runtime);
+  const hasActiveResourceJob = resources.some((resource) =>
+    isLocalSubtitleResourceJobActive(
+      latestJobs.get(resource.resourceId) ?? null,
+    ),
+  );
+  const managerNeedsAttention = Boolean(
+    runtimeError ||
+    resourceActionError ||
+    hasActiveResourceJob ||
+    (modelResource && modelResource.status !== "ready"),
+  );
+  const [managerOpen, setManagerOpen] = useState(false);
+
+  useEffect(() => {
+    if (managerNeedsAttention) setManagerOpen(true);
+  }, [managerNeedsAttention]);
 
   const submitImport = async () => {
     if (!importFile || importDisabled) return;
@@ -184,42 +202,16 @@ export function LocalSubtitleEnvironmentManager({
       <ToolPanel
         icon={Server}
         title={t("subtitle:local_transcriber.environment.title")}
-        badge={<EnvironmentStatusBadge loading={loading} runtime={runtime} />}
-        actions={
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-sm"
-            disabled={loading}
-            onClick={onRefresh}
-            aria-label={t("subtitle:local_transcriber.actions.refresh")}
-            title={t("subtitle:local_transcriber.actions.refresh")}
-          >
-            <RefreshCw className="h-3.5 w-3.5" />
-          </Button>
-        }
-      >
-        <RuntimeSummary
-          runtime={runtime}
-          loading={loading}
-          backendPreviewStatus={backendPreviewStatus}
-          backendPreview={backendPreview}
-        />
-        {runtimeError ? (
-          <EnvironmentErrorNotice error={runtimeError} />
-        ) : null}
-      </ToolPanel>
-
-      <ToolPanel
-        icon={HardDrive}
-        title={t("subtitle:local_transcriber.resources.title")}
         badge={
-          <Badge variant="outline">
-            {t("subtitle:local_transcriber.resources.ready_count", {
-              ready: readyCount,
-              total: resources.length,
-            })}
-          </Badge>
+          <div className="flex items-center gap-1.5">
+            <EnvironmentStatusBadge loading={loading} runtime={runtime} />
+            <Badge variant="outline">
+              {t("subtitle:local_transcriber.resources.ready_count", {
+                ready: readyCount,
+                total: resources.length,
+              })}
+            </Badge>
+          </div>
         }
         actions={
           <>
@@ -245,47 +237,101 @@ export function LocalSubtitleEnvironmentManager({
               <FileInput className="h-3.5 w-3.5" />
               {t("subtitle:local_transcriber.actions.import_model")}
             </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              disabled={loading}
+              onClick={onRefresh}
+              aria-label={t("subtitle:local_transcriber.actions.refresh")}
+              title={t("subtitle:local_transcriber.actions.refresh")}
+            >
+              <RefreshCw className="h-3.5 w-3.5" />
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              aria-expanded={managerOpen}
+              aria-label={t("subtitle:local_transcriber.resources.title")}
+              title={t("subtitle:local_transcriber.resources.title")}
+              onClick={() => setManagerOpen((open) => !open)}
+            >
+              <ChevronDown
+                className={`h-3.5 w-3.5 transition-transform duration-150 motion-reduce:transition-none ${managerOpen ? "rotate-180" : ""}`}
+              />
+            </Button>
           </>
         }
       >
-        <div className="flex min-w-0 flex-wrap items-center justify-between gap-2 border-b px-4 py-2.5 text-[11px] text-muted-foreground">
-          <span>{t("subtitle:local_transcriber.resources.managed_only")}</span>
-          <span className="font-mono tabular-nums">
-            {t("subtitle:local_transcriber.resources.disk_usage", {
-              size: formatLocalSubtitleBytes(installedBytes),
-            })}
-          </span>
-        </div>
+        {managerOpen ? (
+          <div data-testid="local-subtitle-environment-manager">
+            <div className="flex min-w-0 flex-wrap items-center justify-between gap-2 border-b bg-muted/20 px-4 py-2.5 text-[11px] text-muted-foreground">
+              <span className="flex items-center gap-1.5">
+                <HardDrive className="h-3.5 w-3.5" />
+                {t("subtitle:local_transcriber.resources.managed_only")}
+              </span>
+              <span className="font-mono tabular-nums">
+                {t("subtitle:local_transcriber.resources.disk_usage", {
+                  size: formatLocalSubtitleBytes(installedBytes),
+                })}
+              </span>
+            </div>
 
-        {resourceActionError ? (
-          <div className="p-4 pb-0">
-            <LocalSubtitleErrorNotice error={resourceActionError} />
-          </div>
-        ) : null}
+            {runtimeError ? (
+              <EnvironmentErrorNotice error={runtimeError} />
+            ) : null}
 
-        <div className="divide-y">
-          {resources.length === 0 ? (
-            <div className="px-4 py-8 text-center text-xs text-muted-foreground">
-              {t(
-                loading
-                  ? "subtitle:local_transcriber.resources.loading"
-                  : "subtitle:local_transcriber.resources.empty",
+            {resourceActionError ? (
+              <div className="px-4 pt-4">
+                <LocalSubtitleErrorNotice error={resourceActionError} />
+              </div>
+            ) : null}
+
+            <div className="divide-y">
+              {resources.length === 0 ? (
+                <div className="px-4 py-6 text-center text-xs text-muted-foreground">
+                  {t(
+                    loading
+                      ? "subtitle:local_transcriber.resources.loading"
+                      : "subtitle:local_transcriber.resources.empty",
+                  )}
+                </div>
+              ) : (
+                resources.map((resource) => (
+                  <ResourceRow
+                    key={resource.resourceId}
+                    resource={resource}
+                    job={latestJobs.get(resource.resourceId) ?? null}
+                    pendingActionKeys={pendingActionKeys}
+                    onInstall={onInstall}
+                    onCancel={onCancel}
+                    onDelete={() => setDeleteTarget(resource)}
+                  />
+                ))
               )}
             </div>
-          ) : (
-            resources.map((resource) => (
-              <ResourceRow
-                key={resource.resourceId}
-                resource={resource}
-                job={latestJobs.get(resource.resourceId) ?? null}
-                pendingActionKeys={pendingActionKeys}
-                onInstall={onInstall}
-                onCancel={onCancel}
-                onDelete={() => setDeleteTarget(resource)}
-              />
-            ))
-          )}
-        </div>
+
+            <div className="border-t p-3">
+              <ToolConfigDisclosure
+                icon={Cpu}
+                title={t("subtitle:local_transcriber.environment.runtime_details")}
+                summary={
+                  runtime
+                    ? `${runtime.platform} · ${runtime.arch}`
+                    : t("subtitle:local_transcriber.environment.not_ready")
+                }
+              >
+                <RuntimeSummary
+                  runtime={runtime}
+                  loading={loading}
+                  backendPreviewStatus={backendPreviewStatus}
+                  backendPreview={backendPreview}
+                />
+              </ToolConfigDisclosure>
+            </div>
+          </div>
+        ) : null}
       </ToolPanel>
 
       <Dialog

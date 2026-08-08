@@ -283,6 +283,7 @@
       "runner": "Whisper ランナー",
       "ffmpeg": "FFmpeg",
       "not_ready": "準備未完了",
+      "runtime_details": "ランタイム詳細",
       "backends": "バックエンド検査",
       "execution_profile": "{{preference}} -> {{backend}} · {{version}}",
       "resolving_backend": "実行バックエンドを解決中",
