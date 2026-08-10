@@ -42,15 +42,15 @@ export function LocalSubtitleDraftMediaList({
   const { t } = useTranslation("subtitle");
 
   return (
-    <div data-testid="local-subtitle-draft-files" className="border-y">
-      <div className="flex min-w-0 items-center justify-between gap-3 border-b px-1 py-2.5">
-        <div className="text-xs font-medium">
+    <div data-testid="local-subtitle-draft-files" className="min-w-0">
+      <div className="flex min-w-0 items-center justify-between gap-3 px-1">
+        <div className="text-xs font-medium text-muted-foreground">
           {t("local_transcriber.file.selected_count", { count: files.length })}
         </div>
         <Button
           type="button"
           variant="ghost"
-          size="sm"
+          size="xs"
           disabled={disabled}
           onClick={onClear}
         >
@@ -58,14 +58,14 @@ export function LocalSubtitleDraftMediaList({
           {t("local_transcriber.actions.clear_files")}
         </Button>
       </div>
-      <div className="max-h-[28rem] divide-y overflow-y-auto">
+      <div className="mt-1 max-h-[28rem] space-y-1 overflow-y-auto">
         {files.map((file) => {
           const probe = probes.get(file.fileToken);
           return (
             <div
               key={file.fileToken}
               data-testid="local-subtitle-draft-file"
-              className="min-w-0 px-1 py-3"
+              className="min-w-0 rounded-lg px-2 py-2.5"
             >
               <div className="flex min-w-0 items-start gap-3">
                 <FileVideo2 className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />

@@ -1175,6 +1175,29 @@ export default function LocalSubtitleTranscriber() {
     localSubtitleTaskActionKey("cpu-retry", cpuRetryCandidate.taskId),
   );
 
+  const startTranscriptionAction = (
+    <Button
+      data-testid="local-subtitle-start"
+      type="button"
+      size="sm"
+      disabled={
+        Boolean(startIssue) ||
+        fileAuthorizationPending ||
+        outputSelectionPending ||
+        submissionLocked
+      }
+      className="active:scale-[0.98] motion-reduce:transform-none"
+      onClick={handleStart}
+    >
+      {submissionPending ? (
+        <Loader2 className="h-4 w-4 animate-spin" />
+      ) : (
+        <Play className="h-4 w-4" />
+      )}
+      {t("subtitle:local_transcriber.actions.start")}
+    </Button>
+  );
+
   return (
     <div data-testid="local-subtitle-transcriber">
       <ToolDetailLayout
@@ -1562,9 +1585,11 @@ export default function LocalSubtitleTranscriber() {
         <ToolPanel
           icon={FileVideo2}
           title={t("subtitle:local_transcriber.workspace.title")}
-          bodyClassName="p-4 sm:p-5"
+          actions={startTranscriptionAction}
+          headerClassName="border-b-0 pb-2"
+          bodyClassName="px-4 pb-4 pt-1 sm:px-5 sm:pb-5"
         >
-          <div className="space-y-4">
+          <div className="space-y-3">
             <ToolFileDropZone
               id="local-subtitle-file"
               inputTestId="local-subtitle-file-input"
@@ -1582,6 +1607,7 @@ export default function LocalSubtitleTranscriber() {
               })}
               actionLabel={t("subtitle:local_transcriber.actions.select_files")}
               icon={fileAuthorizationPending ? <Loader2 className="h-5 w-5 animate-spin" /> : undefined}
+              className="px-4 py-4"
               onDraggingChange={setDragging}
               onFiles={handleFiles}
             />
@@ -1604,32 +1630,11 @@ export default function LocalSubtitleTranscriber() {
               <LocalSubtitleErrorNotice error={actionError ?? runtimeState.error!} />
             ) : null}
 
-            <div className="flex min-w-0 flex-wrap items-center gap-2 border-t pt-4">
-              <Button
-                data-testid="local-subtitle-start"
-                type="button"
-                disabled={
-                  Boolean(startIssue) ||
-                  fileAuthorizationPending ||
-                  outputSelectionPending ||
-                  submissionLocked
-                }
-                className="active:scale-[0.98] motion-reduce:transform-none"
-                onClick={handleStart}
-              >
-                {submissionPending ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Play className="h-4 w-4" />
-                )}
-                {t("subtitle:local_transcriber.actions.start")}
-              </Button>
-              {startIssue ? (
-                <p className="min-w-0 flex-1 text-xs leading-relaxed text-muted-foreground">
-                  {t(START_ISSUE_KEYS[startIssue])}
-                </p>
-              ) : null}
-            </div>
+            {startIssue ? (
+              <p className="min-w-0 px-1 text-xs leading-relaxed text-muted-foreground">
+                {t(START_ISSUE_KEYS[startIssue])}
+              </p>
+            ) : null}
 
           </div>
         </ToolPanel>

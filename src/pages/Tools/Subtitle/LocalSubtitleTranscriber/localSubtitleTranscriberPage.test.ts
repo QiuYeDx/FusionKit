@@ -104,6 +104,14 @@ describe("local subtitle transcriber page wiring", () => {
     expect(source).not.toContain("border-l-");
   });
 
+  it("keeps the batch draft lightweight and places its primary action in the panel header", () => {
+    expect(pageSource).toContain("actions={startTranscriptionAction}");
+    expect(pageSource).not.toContain("gap-2 border-t pt-4");
+    expect(draftMediaSource).not.toContain('className="border-y"');
+    expect(draftMediaSource).not.toContain("divide-y");
+    expect(draftMediaSource).toContain("space-y-1");
+  });
+
   it("keeps runtime failures actionable without asking for system dependencies", () => {
     expect(environmentSource).toContain("runtimeSummaryError(runtime)");
     expect(environmentSource).toContain("environment.error.recovery");
