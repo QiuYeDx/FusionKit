@@ -179,6 +179,42 @@ describe("local subtitle transcriber store", () => {
     });
   });
 
+  it("appends later file selections without replacing the existing draft", () => {
+    const store = useLocalSubtitleTranscriberStore.getState();
+    store.setDraftInputFiles([
+      {
+        fileToken: "first-selection-token",
+        displayName: "first.wav",
+        byteSize: 128,
+        expiresAt: Date.now() + 60_000,
+      },
+    ]);
+    store.addDraftInputFiles([
+      {
+        fileToken: "second-selection-token",
+        displayName: "second.mp4",
+        byteSize: 256,
+        expiresAt: Date.now() + 60_000,
+      },
+      {
+        fileToken: "third-selection-token",
+        displayName: "third.wav",
+        byteSize: 512,
+        expiresAt: Date.now() + 60_000,
+      },
+    ]);
+
+    expect(
+      useLocalSubtitleTranscriberStore
+        .getState()
+        .draftInputFiles.map((file) => file.fileToken),
+    ).toEqual([
+      "first-selection-token",
+      "second-selection-token",
+      "third-selection-token",
+    ]);
+  });
+
   it("bounds in-memory prompts without persisting them", () => {
     useLocalSubtitleTranscriberStore
       .getState()

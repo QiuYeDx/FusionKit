@@ -416,6 +416,7 @@ userData/local-subtitle/
 | Page | 配置、批量添加、队列、进度、结果预览和产物操作 |
 | Renderer Store | 只持久化无敏感偏好；当前任务、token、路径和 segment 不持久化 |
 | Renderer Runtime Service | 在页面组件之外维护事件订阅、revision reducer、会话快照重同步和 capability cleanup retry；SPA 路由切换不能丢失已提交任务状态 |
+| Renderer Environment Service | 在 renderer app 初始化时静默执行一次 runtime/resource 探测，缓存环境快照和 identity-bound backend preview；路由挂载不得重新占用 native media admission |
 | IPC Service | 验证请求、owner、token、状态迁移与错误白名单 |
 | Job Manager | 串行 GPU 队列、逐文件失败隔离、取消、重试和应用退出清理 |
 | Production Executor | 在 main 内绑定 MEDIA PCM/window proof、Supervisor epoch/request、SUB raw gate/retry/canonical processing 与 exporter；只有 required cleanup 成功后才开始导出 |
@@ -453,7 +454,9 @@ interface LocalSubtitleEngineAdapter {
 
 ### 7.1 首次进入
 
-页面先完成本地环境探测：
+renderer app 初始化时先静默完成一次本地环境探测，页面只订阅应用级缓存；进入、离开或返回
+工具详情页不得重复触发自动探测。用户在任务空闲时可显式刷新，资源安装/导入/删除完成后
+只刷新受影响资源并使 backend preview 失效。探测内容为：
 
 1. runner 是否存在、签名/版本/协议是否匹配。
 2. 当前平台和架构。
@@ -502,6 +505,8 @@ interface LocalSubtitleEngineAdapter {
 ### 7.3 批量队列
 
 - 一次可添加多个音频/视频。
+- 后续再次选择文件必须追加到当前 draft 并保留既有顺序；达到100文件上限时只回收超出的
+  新 draft capability，不能用新选择整体替换旧列表。
 - 去重键使用本次授权的文件 identity，不只比较文件名。
 - 默认 GPU 并发为 1；模型仅加载一次，文件串行执行。
 - 每个任务展示：文件名、时长、状态、阶段、百分比、已用时间、实际 backend、输出格式和错误摘要。
@@ -517,6 +522,10 @@ interface LocalSubtitleEngineAdapter {
 #### 7.3.2 路由、会话与授权所有权
 
 - SPA 路由离开本工具页不取消已经 commit 的批次。Job Manager、事件订阅和 cleanup retry 属于会话级 service，不由页面组件的 mount/unmount 决定；返回页面时必须先订阅事件，再读取带单调 `revision` 的 main 会话快照，reducer 丢弃重复/旧 revision，补齐离页期间的状态变化。
+- 自动 runtime/resource probe 与共享 session observer 在 renderer app 初始化时幂等启动，页面
+  mount effect 不拥有它们。成功 backend preview 按 exact runtime generation、model 和 device
+  preference 跨路由复用；存在非终态 task 时不得发起新的 runtime probe/backend preview，
+  防止只读 preflight 与 `normalizeTask()` 争用同一 owner 的 native media operation ticket。
 - draft 阶段的 input/output capability 由 renderer draft 持有。批次 commit 时，main 在同一事务内重新校验 identity/TTL，并把所需权限原子转移为绑定 `batchId`/`taskId` 的 task lease；commit 成功后 renderer 只保留展示摘要，不能再撤销 active task lease。
 - 页面卸载只把仍属于 draft 的 capability 放进 renderer 级 pending-revocation queue；已转移 task lease 由 main 在任务终态、删除、owner session 结束或 TTL 到期时释放。revoke 的 Promise rejection、`ok:false` 与幂等 `revoked:false` 必须分别处理。
 - renderer reload、主框架导航、窗口销毁、render process crash、应用退出或更新会使 `ownerSessionId` 失效，并取消该 owner 尚未终态的本地任务；首版不跨 reload 继续推理。已原子提交的字幕仍保留，重启后只恢复脱敏诊断摘要。
@@ -1436,7 +1445,7 @@ Agent 迁移不能把任意模型参数中的 `roots`/`checkpointPaths` 直接�
 
 `CORE-004` 将 Store key 固定为 `fusionkit-local-subtitle-transcriber`，版本 1 的 persisted envelope 只包含经过逐字段 sanitize 的 `preferences`。安全白名单精确为 `modelId`、device preference、language、VAD enable、quality preset、beam size、temperature、VAD 最短静音、cue/line shaping、output formats、output mode 和不含分隔符的目录显示名。默认值固定为 beam `5`、temperature `0`、VAD silence `500 ms`、最大 cue `7000 ms / 84 chars`、最大行 `42 chars`；invalid/malformed 值逐字段回退。post-action、task mode、conflict policy、handoff format、初始提示词、File、token、task/batch/resource state、artifact、transcript、path、diagnostics 与 revision/tombstone 一律只存在当前 renderer session 内存或 main 权威状态，不进入 persist/migrate/merge。
 
-草稿文件或 custom output 被替换、截断、重置或切回 source mode 时，Store 必须先把 capability 交给 renderer runtime cleanup queue，再清理 UI 引用；batch commit 成功则只消费 draft 引用，不撤销已经转为 task lease 的 capability。cleanup 使用 capability 的权威最早 expiry、有限退避和单次超时；rejected Promise、`ok:false` 与 timeout 重试，`ok:true`（包括 `revoked:false`）、`owner_released` 和 `authorization_expired` 终止。singleton 不因 SPA 页面卸载而销毁；在真实 Job Manager/session handler 接入前不从应用入口急切启动。
+草稿文件或 custom output 被替换、截断、重置或切回 source mode 时，Store 必须先把 capability 交给 renderer runtime cleanup queue，再清理 UI 引用；batch commit 成功则只消费 draft 引用，不撤销已经转为 task lease 的 capability。cleanup 使用 capability 的权威最早 expiry、有限退避和单次超时；rejected Promise、`ok:false` 与 timeout 重试，`ok:true`（包括 `revoked:false`）、`owner_released` 和 `authorization_expired` 终止。runtime/environment singleton 不因 SPA 页面卸载而销毁；真实 Job Manager/session handler 已接入后由 renderer app 入口幂等启动 session observer，并只自动执行一次环境初始化。
 
 ### 15.2 任务恢复
 

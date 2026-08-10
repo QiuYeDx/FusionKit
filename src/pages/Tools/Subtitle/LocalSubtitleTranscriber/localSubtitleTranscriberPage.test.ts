@@ -26,7 +26,15 @@ const postActionServiceSource = readFileSync(
   new URL("../../../../services/local-subtitle/localSubtitlePostActionService.ts", import.meta.url),
   "utf8",
 );
-const source = `${pageSource}\n${environmentSource}\n${errorSource}\n${queueSource}\n${draftMediaSource}\n${detailsDialogSource}\n${postActionServiceSource}`;
+const environmentServiceSource = readFileSync(
+  new URL("../../../../services/local-subtitle/localSubtitleEnvironmentService.ts", import.meta.url),
+  "utf8",
+);
+const mainSource = readFileSync(
+  new URL("../../../../main.tsx", import.meta.url),
+  "utf8",
+);
+const source = `${pageSource}\n${environmentSource}\n${errorSource}\n${queueSource}\n${draftMediaSource}\n${detailsDialogSource}\n${postActionServiceSource}\n${environmentServiceSource}\n${mainSource}`;
 
 describe("local subtitle transcriber page wiring", () => {
   it("uses shared tool controls and the fixed local subtitle bridge", () => {
@@ -43,9 +51,6 @@ describe("local subtitle transcriber page wiring", () => {
     for (const method of [
       "authorizeInputFiles",
       "probeMedia",
-      "probeRuntime",
-      "previewBackend",
-      "listManagedResources",
       "startResourceInstall",
       "cancelResourceJob",
       "importModel",
@@ -60,6 +65,16 @@ describe("local subtitle transcriber page wiring", () => {
     ]) {
       expect(source).toContain(`window.localSubtitleApi.${method}`);
     }
+    for (const method of ["probeRuntime", "previewBackend", "listManagedResources"]) {
+      expect(environmentServiceSource).toContain(`.${method}(`);
+    }
+    expect(pageSource).not.toContain("window.localSubtitleApi.probeRuntime");
+    expect(pageSource).not.toContain("window.localSubtitleApi.previewBackend");
+    expect(pageSource).not.toContain("window.localSubtitleApi.listManagedResources");
+    expect(mainSource).toContain(
+      "getLocalSubtitleEnvironmentService().ensureInitialized()",
+    );
+    expect(mainSource).toContain("getLocalSubtitleRuntimeService().start()");
     expect(postActionServiceSource).toContain(".handoffArtifact");
     expect(postActionServiceSource).toContain(".completePostAction");
     expect(source).not.toContain("window.ipcRenderer");
@@ -132,6 +147,7 @@ describe("local subtitle transcriber page wiring", () => {
     expect(source).toContain('inputTestId="local-subtitle-file-input"');
     expect(pageSource).toContain("multiple");
     expect(pageSource).toContain("LOCAL_SUBTITLE_LIMITS.maxBatchFiles");
+    expect(pageSource).toContain("addDraftInputFiles(result.data)");
     expect(draftMediaSource).toContain('data-testid="local-subtitle-draft-files"');
     expect(source).toContain('data-testid="local-subtitle-start"');
     expect(source).toContain('data-testid="local-subtitle-task-queue"');

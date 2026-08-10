@@ -40,6 +40,9 @@ import {
   ToolRadioButtonGroup,
 } from "@/pages/Tools/_shared/ui";
 import {
+  getLocalSubtitleEnvironmentService,
+} from "@/services/local-subtitle/localSubtitleEnvironmentService";
+import {
   getLocalSubtitleRuntimeService,
 } from "@/services/local-subtitle/localSubtitleRuntimeService";
 import {
@@ -50,7 +53,6 @@ import useLocalSubtitleTranscriberStore from "@/store/tools/subtitle/useLocalSub
 import type {
   GeneratedSubtitleArtifactSummary,
   LocalSubtitleBatchSummary,
-  LocalSubtitleError,
   LocalSubtitleTaskSummary,
   LocalSubtitleFormat,
 } from "@/type/localSubtitle";
@@ -62,8 +64,6 @@ import type {
   LocalSubtitleIpcResult,
   LocalSubtitleAuthorizedMedia,
   LocalSubtitleBackendPreviewSummary,
-  LocalSubtitleManagedResourceSummary,
-  LocalSubtitleRuntimeSummary,
   EnqueueLocalSubtitleBatchRequest,
 } from "@/type/localSubtitleIpc";
 import type { SubtitleTranslationImportConfigSummary } from "@/type/generatedSubtitleImport";
@@ -75,6 +75,7 @@ import {
   deriveLocalSubtitleStartIssue,
   formatLocalSubtitleBytes,
   getReadyLocalSubtitleModels,
+  hasActiveLocalSubtitleTasks,
   shouldRequestLocalSubtitleBackendPreview,
   type LocalSubtitleDraftMediaProbe,
   type LocalSubtitleStartIssue,
@@ -140,23 +141,11 @@ const POST_ACTION_PREPARE_ERROR_KEYS = {
     "subtitle:local_transcriber.post_action.error.profile_required",
 } as const;
 
-interface EnvironmentState {
-  readonly loading: boolean;
-  readonly runtime: LocalSubtitleRuntimeSummary | null;
-  readonly resources: readonly LocalSubtitleManagedResourceSummary[];
-  readonly error: LocalSubtitleError | null;
-}
-
 interface BackendPreviewState {
   readonly status: "idle" | "loading" | "ready" | "error";
   readonly modelId: string | null;
   readonly devicePreference: LocalSubtitleBackendPreviewSummary["devicePreference"] | null;
   readonly summary: LocalSubtitleBackendPreviewSummary | null;
-}
-
-interface CachedBackendPreview {
-  readonly key: string;
-  readonly summary: LocalSubtitleBackendPreviewSummary;
 }
 
 const LOCAL_SUBTITLE_LANGUAGE_OPTIONS = [
@@ -178,12 +167,18 @@ interface PreparedTranslationBatch {
 
 export default function LocalSubtitleTranscriber() {
   const { t } = useTranslation(["subtitle", "common"]);
+  const environmentService = useMemo(getLocalSubtitleEnvironmentService, []);
   const runtimeService = useMemo(getLocalSubtitleRuntimeService, []);
   const postActionService = useMemo(getLocalSubtitlePostActionService, []);
   const runtimeState = useSyncExternalStore(
     runtimeService.subscribe,
     runtimeService.getState,
     runtimeService.getState,
+  );
+  const environment = useSyncExternalStore(
+    environmentService.subscribe,
+    environmentService.getState,
+    environmentService.getState,
   );
   const preferences = useLocalSubtitleTranscriberStore(
     (state) => state.preferences,
@@ -215,6 +210,9 @@ export default function LocalSubtitleTranscriber() {
   const setDraftInputFiles = useLocalSubtitleTranscriberStore(
     (state) => state.setDraftInputFiles,
   );
+  const addDraftInputFiles = useLocalSubtitleTranscriberStore(
+    (state) => state.addDraftInputFiles,
+  );
   const removeDraftInputFile = useLocalSubtitleTranscriberStore(
     (state) => state.removeDraftInputFile,
   );
@@ -244,19 +242,10 @@ export default function LocalSubtitleTranscriber() {
   );
 
   const mountedRef = useRef(true);
-  const refreshGenerationRef = useRef(0);
-  const resourceRefreshGenerationRef = useRef(0);
   const backendPreviewGenerationRef = useRef(0);
-  const backendPreviewCacheRef = useRef<CachedBackendPreview | null>(null);
   const mediaProbeGenerationRef = useRef(0);
   const mediaProbeQueueRef = useRef<Promise<void>>(Promise.resolve());
   const terminalResourceJobsRef = useRef("");
-  const [environment, setEnvironment] = useState<EnvironmentState>({
-    loading: true,
-    runtime: null,
-    resources: [],
-    error: null,
-  });
   const [backendPreview, setBackendPreview] = useState<BackendPreviewState>({
     status: "idle",
     modelId: null,
@@ -297,92 +286,49 @@ export default function LocalSubtitleTranscriber() {
   const [submittedBatches, setSubmittedBatches] = useState<
     readonly LocalSubtitleBatchSummary[]
   >([]);
-
-  const refreshEnvironment = useCallback(async () => {
-    const generation = ++refreshGenerationRef.current;
-    setEnvironment((current) => ({ ...current, loading: true, error: null }));
-    setResourceActionError(null);
-    try {
-      const [runtimeResult, resourceResult] = await Promise.all([
-        window.localSubtitleApi.probeRuntime(),
-        window.localSubtitleApi.listManagedResources(),
-      ]);
-      if (!mountedRef.current || generation !== refreshGenerationRef.current) return;
-      if (!runtimeResult.ok) {
-        setEnvironment({
-          loading: false,
-          runtime: null,
-          resources: resourceResult.ok ? resourceResult.data : [],
-          error: runtimeResult.error,
-        });
-        return;
-      }
-      if (!resourceResult.ok) {
-        setEnvironment({
-          loading: false,
-          runtime: runtimeResult.data,
-          resources: [],
-          error: resourceResult.error,
-        });
-        return;
-      }
-      setEnvironment({
-        loading: false,
-        runtime: runtimeResult.data,
-        resources: resourceResult.data,
-        error: null,
-      });
-      void runtimeService.refresh();
-    } catch (error) {
-      if (!mountedRef.current || generation !== refreshGenerationRef.current) return;
-      setEnvironment({
-        loading: false,
-        runtime: null,
-        resources: [],
-        error: null,
-      });
-      setResourceActionError(toDisplayError(error));
-    }
-  }, [runtimeService]);
+  const taskMediaOperationActive = useMemo(
+    () => hasActiveLocalSubtitleTasks(runtimeState.batches),
+    [runtimeState.batches],
+  );
 
   const refreshEnvironmentManually = useCallback(() => {
+    setResourceActionError(null);
+    void runtimeService.refresh();
+    if (taskMediaOperationActive) {
+      void environmentService.refreshManagedResources().then((result) => {
+        if (mountedRef.current && !result.ok) {
+          setResourceActionError(result.error);
+        }
+      });
+      return;
+    }
     backendPreviewGenerationRef.current += 1;
-    backendPreviewCacheRef.current = null;
     setBackendPreview((current) => ({
       ...current,
       status: "idle",
       summary: null,
     }));
-    void refreshEnvironment();
-  }, [refreshEnvironment]);
+    void environmentService.refresh();
+  }, [environmentService, runtimeService, taskMediaOperationActive]);
 
   const refreshManagedResources = useCallback(async () => {
-    const generation = ++resourceRefreshGenerationRef.current;
     try {
-      const result = await window.localSubtitleApi.listManagedResources();
-      if (!mountedRef.current || generation !== resourceRefreshGenerationRef.current) return;
+      const result = await environmentService.refreshManagedResources();
+      if (!mountedRef.current) return;
       if (!result.ok) {
         setResourceActionError(result.error);
-        return;
       }
-      setEnvironment((current) => ({
-        ...current,
-        resources: result.data,
-      }));
     } catch (error) {
-      if (mountedRef.current && generation === resourceRefreshGenerationRef.current) {
+      if (mountedRef.current) {
         setResourceActionError(toDisplayError(error));
       }
     }
-  }, []);
+  }, [environmentService]);
 
   useEffect(() => {
     mountedRef.current = true;
-    void refreshEnvironment();
     return () => {
       mountedRef.current = false;
-      refreshGenerationRef.current += 1;
-      resourceRefreshGenerationRef.current += 1;
       backendPreviewGenerationRef.current += 1;
       mediaProbeGenerationRef.current += 1;
       const prepared = preparedTranslationBatchRef.current;
@@ -392,7 +338,7 @@ export default function LocalSubtitleTranscriber() {
       }
       resetDraft();
     };
-  }, [postActionService, refreshEnvironment, resetDraft]);
+  }, [postActionService, resetDraft]);
 
   useEffect(() => {
     preparedTranslationBatchRef.current = preparedTranslationBatch;
@@ -451,10 +397,11 @@ export default function LocalSubtitleTranscriber() {
   });
 
   useEffect(() => {
-    const cached = backendPreviewCacheRef.current;
+    const cached = backendPreviewKey
+      ? environmentService.getCachedBackendPreview(backendPreviewKey)
+      : undefined;
     if (!backendPreviewKey || !selectedModelId) {
       backendPreviewGenerationRef.current += 1;
-      backendPreviewCacheRef.current = null;
       setBackendPreview((current) =>
         current.status === "idle" &&
         current.modelId === selectedModelId &&
@@ -474,20 +421,21 @@ export default function LocalSubtitleTranscriber() {
     const devicePreference = preferences.devicePreference;
     if (!shouldRequestLocalSubtitleBackendPreview({
       previewKey: backendPreviewKey,
-      cachedPreviewKey: cached?.key ?? null,
+      cachedPreviewKey: cached ? backendPreviewKey : null,
       environmentLoading: environment.loading,
       environmentError: Boolean(environment.error),
       runtimeSyncStatus: runtimeState.syncStatus,
+      taskMediaOperationActive,
     })) {
       setBackendPreview((current) => {
-        if (cached?.key === backendPreviewKey) {
-          return current.status === "ready" && current.summary === cached.summary
+        if (cached) {
+          return current.status === "ready" && current.summary === cached
             ? current
             : {
                 status: "ready",
                 modelId,
                 devicePreference,
-                summary: cached.summary,
+                summary: cached,
               };
         }
         if (
@@ -512,10 +460,10 @@ export default function LocalSubtitleTranscriber() {
       devicePreference,
       summary: null,
     });
-    void window.localSubtitleApi.previewBackend({
-      modelId,
-      devicePreference,
-    }).then((result) => {
+    void environmentService.requestBackendPreview(
+      backendPreviewKey,
+      { modelId, devicePreference },
+    ).then((result) => {
       if (
         !mountedRef.current ||
         generation !== backendPreviewGenerationRef.current
@@ -546,12 +494,6 @@ export default function LocalSubtitleTranscriber() {
             devicePreference,
             summary: null,
           });
-      if (result.ok) {
-        backendPreviewCacheRef.current = Object.freeze({
-          key: backendPreviewKey,
-          summary: result.data,
-        });
-      }
     }).catch(() => {
       if (
         !mountedRef.current ||
@@ -566,11 +508,14 @@ export default function LocalSubtitleTranscriber() {
     });
   }, [
     backendPreviewKey,
+    environment.backendPreviewRevision,
     environment.error,
     environment.loading,
+    environmentService,
     preferences.devicePreference,
     runtimeState.syncStatus,
     selectedModelId,
+    taskMediaOperationActive,
   ]);
 
   const enqueueMediaProbes = useCallback((
@@ -803,9 +748,14 @@ export default function LocalSubtitleTranscriber() {
   );
 
   const handleFiles = useCallback(async (files: FileList) => {
+    const remainingCapacity = Math.max(
+      0,
+      LOCAL_SUBTITLE_LIMITS.maxBatchFiles -
+        useLocalSubtitleTranscriberStore.getState().draftInputFiles.length,
+    );
     const selected = Array.from(files).slice(
       0,
-      LOCAL_SUBTITLE_LIMITS.maxBatchFiles,
+      remainingCapacity,
     );
     if (selected.length === 0) return;
     setFileAuthorizationPending(true);
@@ -824,13 +774,13 @@ export default function LocalSubtitleTranscriber() {
         setActionError(result.error);
         return;
       }
-      setDraftInputFiles(result.data);
+      addDraftInputFiles(result.data);
     } catch (error) {
       if (mountedRef.current) setActionError(toDisplayError(error));
     } finally {
       if (mountedRef.current) setFileAuthorizationPending(false);
     }
-  }, [runtimeService, setDraftInputFiles]);
+  }, [addDraftInputFiles, runtimeService]);
 
   const handleSelectOutput = useCallback(async () => {
     setOutputSelectionPending(true);

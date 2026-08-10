@@ -41,6 +41,7 @@ export interface LocalSubtitleTranscriberStore {
     patch: Partial<LocalSubtitleTranscriberPreferences>,
   ): void;
   setDraftInputFiles(files: readonly LocalSubtitleAuthorizedMedia[]): void;
+  addDraftInputFiles(files: readonly LocalSubtitleAuthorizedMedia[]): void;
   removeDraftInputFile(fileToken: string): void;
   setDraftOutputDirectory(output: ActiveOutputDirectory | null): void;
   setDraftInitialPrompt(prompt: string): void;
@@ -99,6 +100,24 @@ const useLocalSubtitleTranscriberStore = create<LocalSubtitleTranscriberStore>()
         const runtime = getLocalSubtitleRuntimeService();
         for (const cleanup of cleanupByToken.values()) {
           runtime.queueInputDraftRevocation(cleanup);
+        }
+        set({ draftInputFiles: nextFiles });
+      },
+      addDraftInputFiles: (files) => {
+        const currentFiles = get().draftInputFiles;
+        const combinedFiles = deduplicateAuthorizedMedia([
+          ...currentFiles,
+          ...files,
+        ]);
+        const nextFiles = combinedFiles.slice(
+          0,
+          LOCAL_SUBTITLE_LIMITS.maxBatchFiles,
+        );
+        const runtime = getLocalSubtitleRuntimeService();
+        for (const overflow of combinedFiles.slice(
+          LOCAL_SUBTITLE_LIMITS.maxBatchFiles,
+        )) {
+          runtime.queueInputDraftRevocation(overflow);
         }
         set({ draftInputFiles: nextFiles });
       },

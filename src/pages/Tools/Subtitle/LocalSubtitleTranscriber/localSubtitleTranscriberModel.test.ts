@@ -218,6 +218,7 @@ describe("local subtitle transcriber page model", () => {
       cachedPreviewKey: previewKey,
       environmentLoading: false,
       environmentError: false,
+      taskMediaOperationActive: false,
     };
 
     expect(shouldRequestLocalSubtitleBackendPreview({
@@ -233,6 +234,12 @@ describe("local subtitle transcriber page model", () => {
       cachedPreviewKey: null,
       runtimeSyncStatus: "ready",
     })).toBe(true);
+    expect(shouldRequestLocalSubtitleBackendPreview({
+      ...base,
+      cachedPreviewKey: null,
+      runtimeSyncStatus: "ready",
+      taskMediaOperationActive: true,
+    })).toBe(false);
     expect(createLocalSubtitleBackendPreviewKey({
       runtime: { ...runtime, runtimeGeneration: "b".repeat(64) },
       modelId: model.resourceId,

@@ -86,6 +86,7 @@ export interface LocalSubtitleBackendPreviewRequestState {
   readonly environmentLoading: boolean;
   readonly environmentError: boolean;
   readonly runtimeSyncStatus: LocalSubtitleRuntimeSyncStatus;
+  readonly taskMediaOperationActive: boolean;
 }
 
 export function createLocalSubtitleBackendPreviewKey(input: {
@@ -109,8 +110,17 @@ export function shouldRequestLocalSubtitleBackendPreview(
     !input.environmentLoading &&
     !input.environmentError &&
     input.runtimeSyncStatus === "ready" &&
+    !input.taskMediaOperationActive &&
     input.cachedPreviewKey !== input.previewKey,
   );
+}
+
+export function hasActiveLocalSubtitleTasks(
+  batches: readonly LocalSubtitleBatchSummary[],
+): boolean {
+  return batches.some((batch) => batch.tasks.some((task) =>
+    isLocalSubtitleTaskActive(task)
+  ));
 }
 
 export function getReadyLocalSubtitleModels(
