@@ -25,7 +25,6 @@ import {
 } from "@/components/ui/dialog";
 import { Progress } from "@/components/ui/progress";
 import {
-  ToolConfigDisclosure,
   ToolPanel,
   ToolRadioButtonGroup,
 } from "@/pages/Tools/_shared/ui";
@@ -179,6 +178,7 @@ export function LocalSubtitleEnvironmentManager({
     (modelResource && modelResource.status !== "ready"),
   );
   const [managerOpen, setManagerOpen] = useState(false);
+  const [runtimeDetailsOpen, setRuntimeDetailsOpen] = useState(false);
 
   useEffect(() => {
     if (managerNeedsAttention) setManagerOpen(true);
@@ -312,24 +312,43 @@ export function LocalSubtitleEnvironmentManager({
               )}
             </div>
 
-            <div className="border-t p-3">
-              <ToolConfigDisclosure
-                icon={Cpu}
-                title={t("subtitle:local_transcriber.environment.runtime_details")}
-                summary={
-                  runtime
-                    ? `${runtime.platform} · ${runtime.arch}`
-                    : t("subtitle:local_transcriber.environment.not_ready")
-                }
+            <section className="border-t">
+              <button
+                type="button"
+                data-testid="local-subtitle-runtime-toggle"
+                className="flex w-full min-w-0 items-center justify-between gap-4 px-4 py-3 text-left transition-colors hover:bg-muted/30 focus-visible:ring-ring/50 focus-visible:ring-[3px] focus-visible:outline-none"
+                aria-expanded={runtimeDetailsOpen}
+                aria-controls="local-subtitle-runtime-details"
+                onClick={() => setRuntimeDetailsOpen((open) => !open)}
               >
-                <RuntimeSummary
-                  runtime={runtime}
-                  loading={loading}
-                  backendPreviewStatus={backendPreviewStatus}
-                  backendPreview={backendPreview}
+                <span className="flex min-w-0 items-center gap-2.5">
+                  <Cpu className="h-4 w-4 shrink-0 text-muted-foreground" />
+                  <span className="min-w-0">
+                    <span className="block text-sm font-medium leading-5">
+                      {t("subtitle:local_transcriber.environment.runtime_details")}
+                    </span>
+                    <span className="block truncate text-[11px] leading-4 text-muted-foreground">
+                      {runtime
+                        ? `${runtime.platform} · ${runtime.arch}`
+                        : t("subtitle:local_transcriber.environment.not_ready")}
+                    </span>
+                  </span>
+                </span>
+                <ChevronDown
+                  className={`h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-150 motion-reduce:transition-none ${runtimeDetailsOpen ? "rotate-180" : ""}`}
                 />
-              </ToolConfigDisclosure>
-            </div>
+              </button>
+              {runtimeDetailsOpen ? (
+                <div id="local-subtitle-runtime-details" className="border-t">
+                  <RuntimeSummary
+                    runtime={runtime}
+                    loading={loading}
+                    backendPreviewStatus={backendPreviewStatus}
+                    backendPreview={backendPreview}
+                  />
+                </div>
+              ) : null}
+            </section>
           </div>
         ) : null}
       </ToolPanel>
@@ -534,54 +553,66 @@ function RuntimeSummary({
   backendPreview: LocalSubtitleBackendPreviewSummary | null;
 }) {
   const { t } = useTranslation(["subtitle"]);
+  const unavailableValue = loading
+    ? t("subtitle:local_transcriber.environment.checking")
+    : t("subtitle:local_transcriber.environment.not_ready");
   const values = [
     {
       label: t("subtitle:local_transcriber.environment.platform"),
-      value: runtime ? `${runtime.platform} · ${runtime.arch}` : "-",
+      value: runtime ? `${runtime.platform} · ${runtime.arch}` : unavailableValue,
     },
     {
       label: t("subtitle:local_transcriber.environment.contract"),
       value: runtime
         ? `HTTP v${LOCAL_SUBTITLE_SERVER_HTTP_CONTRACT_VERSION}`
-        : "-",
+        : unavailableValue,
     },
     {
       label: t("subtitle:local_transcriber.environment.runner"),
       value:
         runtime?.runner.version ??
         runtime?.runner.errorCode ??
-        t("subtitle:local_transcriber.environment.not_ready"),
+        unavailableValue,
     },
     {
       label: t("subtitle:local_transcriber.environment.ffmpeg"),
       value:
         runtime?.mediaRuntime.version ??
         runtime?.mediaRuntime.errorCode ??
-        t("subtitle:local_transcriber.environment.not_ready"),
+        unavailableValue,
     },
   ];
 
   return (
-    <div data-testid="local-subtitle-runtime-summary">
-      <div className="grid grid-cols-2 lg:grid-cols-4">
+    <div
+      data-testid="local-subtitle-runtime-summary"
+      className="min-w-0 bg-muted/[0.08]"
+    >
+      <dl className="divide-y px-4">
         {values.map((item) => (
-          <div key={item.label} className="min-w-0 border-b border-r px-4 py-3">
-            <div className="text-[10.5px] uppercase tracking-[0.05em] text-muted-foreground">
+          <div
+            key={item.label}
+            className="grid min-w-0 grid-cols-[minmax(6.5rem,0.4fr)_minmax(0,1fr)] items-baseline gap-x-5 py-2.5"
+          >
+            <dt className="text-xs leading-5 text-muted-foreground">
               {item.label}
-            </div>
-            <div className="mt-1 min-w-0 break-words font-mono text-xs font-semibold [overflow-wrap:anywhere]">
-              {loading ? <span className="animate-pulse">...</span> : item.value}
-            </div>
+            </dt>
+            <dd className="min-w-0 break-words text-right font-mono text-xs leading-5 [overflow-wrap:anywhere]">
+              {item.value}
+            </dd>
           </div>
         ))}
-      </div>
-      <div className="space-y-2 px-4 py-3">
-        <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
-          <div className="flex items-center gap-2 text-xs font-medium">
-            <Cpu className="h-3.5 w-3.5 text-muted-foreground" />
+      </dl>
+
+      <section className="border-t" aria-labelledby="local-subtitle-backends-title">
+        <div className="flex min-w-0 flex-wrap items-baseline justify-between gap-x-5 gap-y-1 px-4 py-3">
+          <h4
+            id="local-subtitle-backends-title"
+            className="text-xs font-medium leading-5"
+          >
             {t("subtitle:local_transcriber.environment.backends")}
-          </div>
-          <div className="min-w-0 break-words text-right text-[11px] text-muted-foreground [overflow-wrap:anywhere]">
+          </h4>
+          <p className="min-w-0 break-words text-right text-[11px] leading-5 text-muted-foreground [overflow-wrap:anywhere]">
             {backendPreviewStatus === "ready" && backendPreview
               ? t("subtitle:local_transcriber.environment.execution_profile", {
                   preference: backendPreview.devicePreference.toUpperCase(),
@@ -591,40 +622,36 @@ function RuntimeSummary({
               : backendPreviewStatus === "loading"
                 ? t("subtitle:local_transcriber.environment.resolving_backend")
                 : t("subtitle:local_transcriber.environment.unavailable_short")}
-          </div>
+          </p>
         </div>
-        <div className="grid gap-2 sm:grid-cols-3">
-          {runtime ? (
-            BACKENDS.map((backendId) => {
+        {runtime ? (
+          <ul className="divide-y border-t">
+            {BACKENDS.map((backendId) => {
               const backend = runtime.backends.find(
                 (entry) => entry.backend === backendId,
               );
               return (
-                <div
+                <li
                   key={backendId}
-                  className="min-w-0 border-l-2 pl-2.5 text-xs"
+                  className="grid min-w-0 grid-cols-[minmax(4.5rem,0.32fr)_minmax(0,1fr)_auto] items-center gap-x-4 px-4 py-2.5"
                 >
-                  <div className="flex min-w-0 items-center justify-between gap-2">
-                    <span className="font-medium">
-                      {t(BACKEND_KEYS[backendId])}
-                    </span>
-                    <BackendBadge status={backend?.status ?? null} />
-                  </div>
-                  {backend?.errorCode ? (
-                    <div className="mt-1 whitespace-pre-wrap break-words font-mono text-[10.5px] text-muted-foreground [overflow-wrap:anywhere]">
-                      {backend.errorCode}
-                    </div>
-                  ) : null}
-                </div>
+                  <span className="text-xs font-medium leading-5">
+                    {t(BACKEND_KEYS[backendId])}
+                  </span>
+                  <span className="min-w-0 whitespace-pre-wrap break-words font-mono text-[10.5px] leading-4 text-muted-foreground [overflow-wrap:anywhere]">
+                    {backend?.errorCode ?? ""}
+                  </span>
+                  <BackendStatus status={backend?.status ?? null} />
+                </li>
               );
-            })
-          ) : (
-            <div className="text-xs text-muted-foreground">
-              {t("subtitle:local_transcriber.environment.no_backend_data")}
-            </div>
-          )}
-        </div>
-      </div>
+            })}
+          </ul>
+        ) : (
+          <div className="border-t px-4 py-5 text-center text-xs text-muted-foreground">
+            {t("subtitle:local_transcriber.environment.no_backend_data")}
+          </div>
+        )}
+      </section>
     </div>
   );
 }
@@ -815,29 +842,38 @@ function EnvironmentStatusBadge({
   );
 }
 
-function BackendBadge({
+function BackendStatus({
   status,
 }: {
   status: LocalSubtitleRuntimeSummary["backends"][number]["status"] | null;
 }) {
   const { t } = useTranslation(["subtitle"]);
   return (
-    <Badge
-      variant="outline"
-      className={
+    <span
+      className={`flex shrink-0 items-center gap-1.5 text-[11px] leading-5 ${
         status === "available"
-          ? "border-emerald-500/30 text-emerald-700 dark:text-emerald-300"
+          ? "text-emerald-700 dark:text-emerald-300"
           : status === "unverified"
-            ? "border-amber-500/30 text-amber-700 dark:text-amber-300"
+            ? "text-amber-700 dark:text-amber-300"
             : "text-muted-foreground"
-      }
+      }`}
     >
+      <span
+        aria-hidden="true"
+        className={`h-1.5 w-1.5 rounded-full ${
+          status === "available"
+            ? "bg-emerald-500"
+            : status === "unverified"
+              ? "bg-amber-500"
+              : "bg-muted-foreground/50"
+        }`}
+      />
       {t(
         status
           ? `subtitle:local_transcriber.environment.backend_status.${status}`
           : "subtitle:local_transcriber.environment.backend_status.not_reported",
       )}
-    </Badge>
+    </span>
   );
 }
 
