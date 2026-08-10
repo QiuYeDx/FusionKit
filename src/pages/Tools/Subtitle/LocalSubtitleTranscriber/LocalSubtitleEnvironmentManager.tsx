@@ -803,7 +803,7 @@ function ResourceRow({
         </div>
       ) : null}
       {resource.errorCode ? (
-        <div className="mt-2 whitespace-pre-wrap break-words border-l-2 border-amber-500/70 bg-amber-500/5 px-2.5 py-2 font-mono text-[10.5px] text-muted-foreground [overflow-wrap:anywhere]">
+        <div className="mt-2 whitespace-pre-wrap break-words rounded-md border border-amber-500/20 bg-amber-500/5 px-2.5 py-2 font-mono text-[10.5px] text-muted-foreground [overflow-wrap:anywhere]">
           {resource.errorCode}
         </div>
       ) : null}

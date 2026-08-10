@@ -15,7 +15,7 @@ export function LocalSubtitleErrorNotice({
   return (
     <div
       data-testid="local-subtitle-error"
-      className="w-full min-w-0 max-w-full overflow-hidden border-l-2 border-destructive bg-destructive/5 px-3 py-2 text-xs"
+      className="w-full min-w-0 max-w-full overflow-hidden rounded-md border border-destructive/20 bg-destructive/5 px-3 py-2 text-xs"
     >
       <div className="whitespace-pre-wrap break-words [overflow-wrap:anywhere]">
         {error.message}

@@ -71,11 +71,11 @@ export function LocalSubtitleTranslationConfirmDialog({
               value={snapshot.outputDirectoryLabel ?? snapshot.outputMode}
             />
             {snapshot.handoffMode === "enqueue_and_start_translation" ? (
-              <div className="border-l-2 border-amber-500 bg-amber-500/5 px-3 py-2 text-xs leading-relaxed text-amber-800 dark:text-amber-200">
+              <div className="rounded-md border border-amber-500/20 bg-amber-500/5 px-3 py-2 text-xs leading-relaxed text-amber-800 dark:text-amber-200">
                 {t("subtitle:local_transcriber.post_action.cost_notice")}
               </div>
             ) : (
-              <div className="border-l-2 border-border px-3 py-2 text-xs leading-relaxed text-muted-foreground">
+              <div className="rounded-md border bg-muted/20 px-3 py-2 text-xs leading-relaxed text-muted-foreground">
                 {t("subtitle:local_transcriber.post_action.session_only_notice")}
               </div>
             )}

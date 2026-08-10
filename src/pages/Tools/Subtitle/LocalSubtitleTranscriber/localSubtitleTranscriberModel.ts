@@ -323,6 +323,23 @@ export function isLocalSubtitleTaskActive(
   );
 }
 
+export function createLocalSubtitleBatchNumberMap(
+  batches: readonly Pick<LocalSubtitleBatchSummary, "batchId" | "createdAt">[],
+): ReadonlyMap<string, string> {
+  return new Map(
+    [...batches]
+      .sort((left, right) => {
+        const createdAtOrder = left.createdAt.localeCompare(right.createdAt);
+        if (createdAtOrder !== 0) return createdAtOrder;
+        return left.batchId.localeCompare(right.batchId);
+      })
+      .map((batch, index) => [
+        batch.batchId,
+        String(index + 1).padStart(2, "0"),
+      ]),
+  );
+}
+
 export function canManuallyHandoffLocalSubtitleArtifact(
   task: Pick<LocalSubtitleTaskSummary, "postAction">,
   format: LocalSubtitleFormat,

@@ -1,7 +1,6 @@
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import {
-  CheckCircle2,
   Cpu,
   Eye,
   FolderOpen,
@@ -15,31 +14,22 @@ import {
 import { Link } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { ButtonGroup } from "@/components/ui/button-group";
 import { Progress } from "@/components/ui/progress";
+import { cn } from "@/lib/utils";
+import { ToolPanel } from "@/pages/Tools/_shared/ui";
 import type {
-  LocalSubtitleBatchStatus,
-  LocalSubtitleBatchSummary,
   GeneratedSubtitleArtifactSummary,
-  LocalSubtitleTaskStage,
+  LocalSubtitleBatchSummary,
   LocalSubtitleTaskStatus,
   LocalSubtitleTaskSummary,
 } from "@/type/localSubtitle";
 import type { LocalSubtitleManualHandoffResult } from "@/services/local-subtitle/localSubtitlePostActionService";
 import {
   canManuallyHandoffLocalSubtitleArtifact,
+  createLocalSubtitleBatchNumberMap,
   isLocalSubtitleTaskActive,
 } from "./localSubtitleTranscriberModel";
-import { LocalSubtitleErrorNotice } from "./LocalSubtitleErrorNotice";
-
-const TASK_STAGE_KEYS = {
-  queued: "subtitle:local_transcriber.stage.queued",
-  preparing_media: "subtitle:local_transcriber.stage.preparing_media",
-  loading_model: "subtitle:local_transcriber.stage.loading_model",
-  transcribing: "subtitle:local_transcriber.stage.transcribing",
-  post_processing: "subtitle:local_transcriber.stage.post_processing",
-  exporting: "subtitle:local_transcriber.stage.exporting",
-  cancelling: "subtitle:local_transcriber.stage.cancelling",
-} as const satisfies Record<LocalSubtitleTaskStage, string>;
 
 const TASK_STATUS_KEYS = {
   queued: "subtitle:local_transcriber.status.queued",
@@ -54,14 +44,32 @@ const TASK_STATUS_KEYS = {
   failed: "subtitle:local_transcriber.status.failed",
 } as const satisfies Record<LocalSubtitleTaskStatus, string>;
 
-const BATCH_STATUS_KEYS = {
-  queued: "subtitle:local_transcriber.batch_status.queued",
-  running: "subtitle:local_transcriber.batch_status.running",
-  cancelling: "subtitle:local_transcriber.batch_status.cancelling",
-  completed: "subtitle:local_transcriber.batch_status.completed",
-  cancelled: "subtitle:local_transcriber.batch_status.cancelled",
-  failed: "subtitle:local_transcriber.batch_status.failed",
-} as const satisfies Record<LocalSubtitleBatchStatus, string>;
+const TASK_STATUS_DOT_CLASS = {
+  queued: "bg-gray-500",
+  preparing_media: "bg-yellow-500",
+  loading_model: "bg-yellow-500",
+  transcribing: "bg-yellow-500",
+  post_processing: "bg-yellow-500",
+  exporting: "bg-yellow-500",
+  completed: "bg-green-500",
+  cancelling: "bg-yellow-500",
+  cancelled: "bg-gray-500",
+  failed: "bg-red-500",
+} as const satisfies Record<LocalSubtitleTaskStatus, string>;
+
+const IMPORT_STATUS_KEYS = {
+  pending: "subtitle:local_transcriber.post_action.status.pending",
+  importing: "subtitle:local_transcriber.post_action.status.importing",
+  queued: "subtitle:local_transcriber.post_action.status.queued",
+  skipped: "subtitle:local_transcriber.post_action.status.skipped",
+  failed: "subtitle:local_transcriber.post_action.status.failed",
+} as const;
+
+const START_STATUS_KEYS = {
+  started: "subtitle:local_transcriber.post_action.start.started",
+  waiting: "subtitle:local_transcriber.post_action.start.waiting",
+  failed: "subtitle:local_transcriber.post_action.start.failed",
+} as const;
 
 export type LocalSubtitleTaskAction =
   | "cancel"
@@ -120,90 +128,103 @@ export function LocalSubtitleTaskQueue({
   onShowError,
 }: LocalSubtitleTaskQueueProps) {
   const { t } = useTranslation(["subtitle"]);
-
-  if (batches.length === 0) {
-    return (
-      <div
-        data-testid="local-subtitle-task-queue"
-        className="flex min-w-0 items-center gap-3 rounded-md border bg-muted/20 px-3 py-3 text-left"
-      >
-        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-background text-muted-foreground shadow-xs">
-          <CheckCircle2 className="h-4 w-4" />
-        </div>
-        <div className="min-w-0">
-          <div className="text-xs font-medium">
-            {t("subtitle:local_transcriber.queue.empty_title")}
-          </div>
-          <div className="mt-0.5 text-[11px] leading-relaxed text-muted-foreground">
-            {t("subtitle:local_transcriber.queue.empty_description")}
-          </div>
-        </div>
-      </div>
-    );
-  }
+  const taskCount = batches.reduce(
+    (total, batch) => total + batch.tasks.length,
+    0,
+  );
+  const batchNumbers = createLocalSubtitleBatchNumberMap(batches);
 
   return (
-    <div data-testid="local-subtitle-task-queue" className="border-t pt-4">
-      <div className="flex items-center justify-between gap-3 pb-3">
-        <h3 className="text-sm font-semibold">
-          {t("subtitle:local_transcriber.queue.title")}
-        </h3>
-        <span className="text-[11px] text-muted-foreground">
-          {t("subtitle:local_transcriber.queue.batch_count", {
-            count: batches.length,
-          })}
-        </span>
-      </div>
+    <div data-testid="local-subtitle-task-queue">
+      <ToolPanel
+        title={t("subtitle:local_transcriber.queue.title")}
+        badge={
+          <Badge variant="secondary" className="font-mono text-[11px]">
+            {taskCount}
+          </Badge>
+        }
+        bodyClassName="divide-y"
+      >
+        {batches.length === 0 ? (
+          <div className="py-10 text-center text-sm text-muted-foreground">
+            <div className="font-medium text-foreground">
+              {t("subtitle:local_transcriber.queue.empty_title")}
+            </div>
+            <div className="mx-auto mt-1 max-w-lg text-xs leading-relaxed">
+              {t("subtitle:local_transcriber.queue.empty_description")}
+            </div>
+          </div>
+        ) : (
+          batches.map((batch) => {
+            const completedTasks = batch.tasks.filter(
+              (task) => task.status === "completed",
+            ).length;
+            const batchProgress = getBatchOverallProgress(batch);
 
-      <div className="divide-y overflow-hidden rounded-md border">
-        {batches.map((batch) => {
-          const completedTasks = batch.tasks.filter(
-            (task) => task.status === "completed",
-          ).length;
-          return (
-            <section key={batch.batchId} data-batch-id={batch.batchId}>
-              <div className="flex min-w-0 flex-wrap items-center justify-between gap-2 bg-muted/25 px-3 py-2.5">
-                <div className="min-w-0">
-                  <div className="text-xs font-medium">
-                    {t("subtitle:local_transcriber.queue.batch")}
+            return (
+              <section key={batch.batchId} data-batch-id={batch.batchId}>
+                <div className="flex min-w-0 flex-col gap-2 bg-muted/20 px-4 py-2.5 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
+                  <div className="flex min-w-0 items-baseline gap-2">
+                    <h3 className="shrink-0 text-sm font-semibold">
+                      {t("subtitle:local_transcriber.queue.batch")}{" "}
+                      {batchNumbers.get(batch.batchId) ?? "--"}
+                    </h3>
+                    <span className="truncate text-[11px] text-muted-foreground">
+                      {t("subtitle:local_transcriber.queue.batch_progress", {
+                        completed: completedTasks,
+                        total: batch.tasks.length,
+                      })}
+                    </span>
                   </div>
-                  <div className="mt-0.5 text-[11px] text-muted-foreground">
-                    {t("subtitle:local_transcriber.queue.batch_progress", {
-                      completed: completedTasks,
-                      total: batch.tasks.length,
-                    })}
+                  <div className="flex w-full min-w-0 items-center gap-2 sm:max-w-[280px]">
+                    <Progress
+                      value={batchProgress}
+                      className="h-1 min-w-0 flex-1"
+                    />
+                    <span className="w-8 shrink-0 text-right font-mono text-[10.5px] text-muted-foreground">
+                      {Math.round(batchProgress)}%
+                    </span>
                   </div>
                 </div>
-                <Badge variant="outline">
-                  {t(BATCH_STATUS_KEYS[batch.status])}
-                </Badge>
-              </div>
 
-              <div className="divide-y">
-                {batch.tasks.map((task) => (
-                  <TaskRow
-                    key={task.taskId}
-                    task={task}
-                    pendingActionKeys={pendingActionKeys}
-                    manualHandoffResults={manualHandoffResults}
-                    missingTranslationTaskIds={missingTranslationTaskIds}
-                    onCancel={onCancel}
-                    onRetry={onRetry}
-                    onRetryOnCpu={onRetryOnCpu}
-                    onRemove={onRemove}
-                    onPreview={onPreview}
-                    onReveal={onReveal}
-                    onHandoff={onHandoff}
-                    onShowError={onShowError}
-                  />
-                ))}
-              </div>
-            </section>
-          );
-        })}
-      </div>
+                <div className="divide-y">
+                  {batch.tasks.map((task) => (
+                    <TaskRow
+                      key={task.taskId}
+                      task={task}
+                      pendingActionKeys={pendingActionKeys}
+                      manualHandoffResults={manualHandoffResults}
+                      missingTranslationTaskIds={missingTranslationTaskIds}
+                      onCancel={onCancel}
+                      onRetry={onRetry}
+                      onRetryOnCpu={onRetryOnCpu}
+                      onRemove={onRemove}
+                      onPreview={onPreview}
+                      onReveal={onReveal}
+                      onHandoff={onHandoff}
+                      onShowError={onShowError}
+                    />
+                  ))}
+                </div>
+              </section>
+            );
+          })
+        )}
+      </ToolPanel>
     </div>
   );
+}
+
+function getBatchOverallProgress(batch: LocalSubtitleBatchSummary): number {
+  if (batch.tasks.length === 0) return 0;
+  const total = batch.tasks.reduce((sum, task) => {
+    if (task.status === "completed") return sum + 100;
+    const progress = Number.isFinite(task.progress.overallProgress)
+      ? task.progress.overallProgress
+      : 0;
+    return sum + Math.min(100, Math.max(0, progress));
+  }, 0);
+  return total / batch.tasks.length;
 }
 
 function TaskRow({
@@ -226,11 +247,17 @@ function TaskRow({
   const active = isLocalSubtitleTaskActive(task);
   const pending = (action: LocalSubtitleTaskAction) =>
     pendingActionKeys.has(localSubtitleTaskActionKey(action, task.taskId));
-  const automaticPostActionPending = task.status === "completed" &&
+  const translationTaskMissing = Boolean(
+    task.postAction.translationTaskId &&
+      missingTranslationTaskIds.has(task.postAction.translationTaskId),
+  );
+  const automaticPostActionPending =
+    task.status === "completed" &&
     task.postAction.mode !== "export_only" &&
     (task.postAction.importStatus === "pending" ||
       task.postAction.importStatus === "importing");
-  const anyActionPending = automaticPostActionPending ||
+  const anyActionPending =
+    automaticPostActionPending ||
     ([
       "cancel",
       "retry",
@@ -239,86 +266,180 @@ function TaskRow({
       "reveal",
       "handoff",
     ] as const).some(pending);
+  const completion = task.completion;
+  const committedResults =
+    completion?.artifacts.flatMap((result) =>
+      result.status === "committed" ? [result] : [],
+    ) ?? [];
+  const preferredFormat = task.postAction.preferredFormat ?? "SRT";
+  const primaryResult =
+    committedResults.find((result) => result.format === preferredFormat) ??
+    committedResults.find((result) => result.format === "SRT") ??
+    committedResults[0];
+  const handoffResult = committedResults.find((result) =>
+    canManuallyHandoffLocalSubtitleArtifact(
+      task,
+      result.format,
+      translationTaskMissing,
+    ),
+  );
+  const manualResult = manualHandoffResults.get(task.taskId);
+  const automaticStatus = summarizeAutomaticPostAction(
+    task,
+    translationTaskMissing,
+    t,
+  );
+  const manualStatus = manualResult
+    ? summarizeManualHandoffResult(manualResult, t)
+    : null;
+  const translationTaskId =
+    automaticStatus?.taskId ?? manualStatus?.taskId;
+  const postActionSummary = [
+    automaticStatus?.label,
+    automaticStatus?.detail,
+    manualStatus?.label,
+    manualStatus?.detail,
+  ]
+    .filter((value): value is string => Boolean(value))
+    .join(" · ");
+  const artifactSummary = completion
+    ? completion.artifacts.map((result) =>
+        result.status === "committed"
+          ? `${result.format} → ${result.artifact.displayName}`
+          : `${result.format} · ${t(
+              `subtitle:local_transcriber.result.${result.status}`,
+            )}${result.errorCode ? ` (${result.errorCode})` : ""}`,
+      ).join(" / ")
+    : "";
+  const statusLabel =
+    completion?.outcome === "partial"
+      ? t("subtitle:local_transcriber.result.partial")
+      : t(TASK_STATUS_KEYS[task.status]);
+  const metaItems: ReactNode[] = [
+    <span className="shrink-0 uppercase">{task.resolvedBackend}</span>,
+    <span className="shrink-0">{task.requestedFormats.join(" + ")}</span>,
+    task.durationMs !== undefined ? (
+      <span className="shrink-0">
+        {t("subtitle:local_transcriber.queue.duration", {
+          duration: formatDuration(task.durationMs),
+        })}
+      </span>
+    ) : null,
+    artifactSummary ? (
+      <span
+        className={cn(
+          "min-w-0 max-w-full truncate font-mono",
+          completion?.outcome === "partial"
+            ? "text-amber-700 dark:text-amber-300"
+            : "text-emerald-700 dark:text-emerald-300",
+        )}
+        title={artifactSummary}
+      >
+        {artifactSummary}
+      </span>
+    ) : null,
+    postActionSummary ? (
+      <span
+        className="inline-flex min-w-0 max-w-full items-center gap-1 truncate"
+        title={postActionSummary}
+      >
+        <Languages className="h-3 w-3 shrink-0" />
+        {t("subtitle:local_transcriber.post_action.receipt")} ·{" "}
+        {postActionSummary}
+      </span>
+    ) : null,
+    task.error ? (
+      <span className="min-w-0 truncate font-mono text-destructive">
+        {task.error.code}
+      </span>
+    ) : null,
+  ];
 
   return (
     <div
       data-testid="local-subtitle-task"
       data-task-id={task.taskId}
-      className="min-w-0 space-y-3 px-3 py-3"
+      className="min-w-0 px-4 py-3"
     >
-      <div className="flex min-w-0 flex-wrap items-start justify-between gap-2">
+      <div className="flex min-w-0 items-start gap-3">
+        <span
+          aria-hidden="true"
+          className={cn(
+            "mt-1 h-2.5 w-2.5 shrink-0 rounded-full",
+            TASK_STATUS_DOT_CLASS[task.status],
+          )}
+        />
         <div className="min-w-0 flex-1">
-          <div className="truncate text-sm font-medium">{task.displayName}</div>
-          <div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-muted-foreground">
-            <span>{t(TASK_STATUS_KEYS[task.status])}</span>
-            <span>{task.resolvedBackend.toUpperCase()}</span>
-            <span>{task.requestedFormats.join(" + ")}</span>
-            {task.durationMs !== undefined ? (
-              <span>
-                {t("subtitle:local_transcriber.queue.duration", {
-                  duration: formatDuration(task.durationMs),
-                })}
-              </span>
-            ) : null}
+          <div className="flex min-w-0 items-center gap-2">
+            <span className="min-w-0 truncate font-mono text-[13px] font-medium">
+              {task.displayName}
+            </span>
+            <Badge
+              variant="outline"
+              className="h-4 shrink-0 px-1.5 text-[10px] font-normal"
+            >
+              {statusLabel}
+            </Badge>
           </div>
+          <TaskMeta items={metaItems} />
         </div>
 
         <TaskActions
           task={task}
           anyActionPending={anyActionPending}
           pending={pending}
+          primaryArtifact={primaryResult?.artifact}
+          handoffArtifact={handoffResult?.artifact}
+          translationTaskId={translationTaskId}
           onCancel={onCancel}
           onRetry={onRetry}
           onRetryOnCpu={onRetryOnCpu}
           onRemove={onRemove}
+          onPreview={onPreview}
+          onReveal={onReveal}
+          onHandoff={onHandoff}
           onShowError={onShowError}
         />
       </div>
 
       {active ? (
-        <div className="space-y-1.5">
-          <div className="flex items-center justify-between gap-3 text-[11px] text-muted-foreground">
-            <span>
-              {t(TASK_STAGE_KEYS[task.progress.stage])} · {Math.round(task.progress.stageProgress)}%
-            </span>
-            <span>
-              {t("subtitle:local_transcriber.queue.overall_progress", {
-                progress: Math.round(task.progress.overallProgress),
-              })}
-            </span>
-          </div>
-          <Progress value={task.progress.overallProgress} />
+        <div className="mt-2 flex min-w-0 items-center gap-2">
+          <Progress
+            value={task.progress.overallProgress}
+            className="h-1 min-w-0 flex-1"
+          />
+          <span className="shrink-0 whitespace-nowrap text-right font-mono text-[10.5px] text-muted-foreground">
+            {task.progress.totalWindows
+              ? `${task.progress.completedWindows ?? 0}/${task.progress.totalWindows} · `
+              : ""}
+            {Math.round(task.progress.overallProgress)}%
+          </span>
         </div>
       ) : null}
+    </div>
+  );
+}
 
-      {task.status === "completed" && task.completion ? (
-        <TaskArtifactResults
-          task={task}
-          anyActionPending={anyActionPending}
-          revealPending={pending("reveal")}
-          handoffPending={pending("handoff")}
-          onPreview={onPreview}
-          onReveal={onReveal}
-          onHandoff={onHandoff}
-          translationTaskMissing={Boolean(
-            task.postAction.translationTaskId &&
-              missingTranslationTaskIds.has(task.postAction.translationTaskId),
-          )}
-        />
-      ) : null}
+function TaskMeta({
+  items,
+}: {
+  readonly items: readonly ReactNode[];
+}) {
+  const visibleItems = items.filter(
+    (item) => item !== null && item !== undefined && item !== false,
+  );
+  if (visibleItems.length === 0) return null;
 
-      {task.status === "completed" ? (
-        <TaskPostActionResult
-          task={task}
-          manualResult={manualHandoffResults.get(task.taskId)}
-          translationTaskMissing={Boolean(
-            task.postAction.translationTaskId &&
-              missingTranslationTaskIds.has(task.postAction.translationTaskId),
-          )}
-        />
-      ) : null}
-
-      {task.error ? <LocalSubtitleErrorNotice error={task.error} /> : null}
+  return (
+    <div className="mt-1 flex min-w-0 flex-nowrap items-center gap-x-2 overflow-hidden text-[11px] text-muted-foreground">
+      {visibleItems.map((item, index) => (
+        <span key={index} className="contents">
+          {index > 0 ? (
+            <span className="h-0.5 w-0.5 shrink-0 rounded-full bg-muted-foreground/40" />
+          ) : null}
+          {item}
+        </span>
+      ))}
     </div>
   );
 }
@@ -327,35 +448,117 @@ function TaskActions({
   task,
   anyActionPending,
   pending,
+  primaryArtifact,
+  handoffArtifact,
+  translationTaskId,
   onCancel,
   onRetry,
   onRetryOnCpu,
   onRemove,
+  onPreview,
+  onReveal,
+  onHandoff,
   onShowError,
 }: {
   readonly task: LocalSubtitleTaskSummary;
   readonly anyActionPending: boolean;
   readonly pending: (action: LocalSubtitleTaskAction) => boolean;
+  readonly primaryArtifact?: GeneratedSubtitleArtifactSummary;
+  readonly handoffArtifact?: GeneratedSubtitleArtifactSummary;
+  readonly translationTaskId?: string;
   readonly onCancel: (task: LocalSubtitleTaskSummary) => void;
   readonly onRetry: (task: LocalSubtitleTaskSummary) => void;
   readonly onRetryOnCpu: (task: LocalSubtitleTaskSummary) => void;
   readonly onRemove: (task: LocalSubtitleTaskSummary) => void;
+  readonly onPreview: (
+    task: LocalSubtitleTaskSummary,
+    artifact: GeneratedSubtitleArtifactSummary,
+  ) => void;
+  readonly onReveal: (
+    task: LocalSubtitleTaskSummary,
+    artifact: GeneratedSubtitleArtifactSummary,
+  ) => void;
+  readonly onHandoff: (
+    task: LocalSubtitleTaskSummary,
+    artifact: GeneratedSubtitleArtifactSummary,
+  ) => void;
   readonly onShowError: (task: LocalSubtitleTaskSummary) => void;
 }) {
   const { t } = useTranslation(["subtitle"]);
   const active = isLocalSubtitleTaskActive(task);
+  const hasAction =
+    Boolean(primaryArtifact) ||
+    Boolean(handoffArtifact) ||
+    Boolean(translationTaskId) ||
+    Boolean(task.error) ||
+    task.status === "failed" ||
+    task.cpuRetryAvailable === true ||
+    (active && task.status !== "cancelling") ||
+    !active;
+
+  if (!hasAction) return null;
 
   return (
-    <div className="flex shrink-0 flex-wrap items-center justify-end gap-1">
-      {active && task.status !== "cancelling" ? (
+    <ButtonGroup className="shrink-0">
+      {primaryArtifact ? (
         <TaskIconButton
-          label={t("subtitle:local_transcriber.actions.cancel_task", {
+          label={t("subtitle:local_transcriber.actions.preview_artifact", {
+            name: primaryArtifact.displayName,
+          })}
+          disabled={anyActionPending}
+          loading={false}
+          icon={<Eye className="h-3.5 w-3.5" />}
+          onClick={() => onPreview(task, primaryArtifact)}
+        />
+      ) : null}
+      {primaryArtifact ? (
+        <TaskIconButton
+          label={t("subtitle:local_transcriber.actions.reveal_task", {
+            name: primaryArtifact.displayName,
+          })}
+          disabled={anyActionPending}
+          loading={pending("reveal")}
+          icon={<FolderOpen className="h-3.5 w-3.5" />}
+          onClick={() => onReveal(task, primaryArtifact)}
+        />
+      ) : null}
+      {translationTaskId ? (
+        <Button
+          asChild
+          type="button"
+          variant="outline"
+          size="icon"
+          title={t("subtitle:local_transcriber.post_action.view_translation")}
+        >
+          <Link
+            to="/tools/subtitle/translator"
+            aria-label={t(
+              "subtitle:local_transcriber.post_action.view_translation",
+            )}
+          >
+            <Languages className="h-3.5 w-3.5" />
+          </Link>
+        </Button>
+      ) : handoffArtifact ? (
+        <TaskIconButton
+          label={t("subtitle:local_transcriber.actions.handoff_artifact", {
+            name: handoffArtifact.displayName,
+          })}
+          disabled={anyActionPending}
+          loading={pending("handoff")}
+          icon={<Languages className="h-3.5 w-3.5" />}
+          onClick={() => onHandoff(task, handoffArtifact)}
+        />
+      ) : null}
+      {task.error ? (
+        <TaskIconButton
+          label={t("subtitle:local_transcriber.actions.show_error_details", {
             name: task.displayName,
           })}
           disabled={anyActionPending}
-          loading={pending("cancel")}
-          icon={<XCircle className="h-3.5 w-3.5" />}
-          onClick={() => onCancel(task)}
+          loading={false}
+          icon={<Info className="h-3.5 w-3.5" />}
+          onClick={() => onShowError(task)}
         />
       ) : null}
       {task.status === "failed" ? (
@@ -380,15 +583,15 @@ function TaskActions({
           onClick={() => onRetryOnCpu(task)}
         />
       ) : null}
-      {task.error ? (
+      {active && task.status !== "cancelling" ? (
         <TaskIconButton
-          label={t("subtitle:local_transcriber.actions.show_error_details", {
+          label={t("subtitle:local_transcriber.actions.cancel_task", {
             name: task.displayName,
           })}
           disabled={anyActionPending}
-          loading={false}
-          icon={<Info className="h-3.5 w-3.5" />}
-          onClick={() => onShowError(task)}
+          loading={pending("cancel")}
+          icon={<XCircle className="h-3.5 w-3.5" />}
+          onClick={() => onCancel(task)}
         />
       ) : null}
       {!active ? (
@@ -402,209 +605,40 @@ function TaskActions({
           onClick={() => onRemove(task)}
         />
       ) : null}
-    </div>
+    </ButtonGroup>
   );
 }
 
-function TaskArtifactResults({
-  task,
-  anyActionPending,
-  revealPending,
-  handoffPending,
-  translationTaskMissing,
-  onPreview,
-  onReveal,
-  onHandoff,
-}: {
-  readonly task: LocalSubtitleTaskSummary;
-  readonly anyActionPending: boolean;
-  readonly revealPending: boolean;
-  readonly handoffPending: boolean;
-  readonly translationTaskMissing: boolean;
-  readonly onPreview: (
-    task: LocalSubtitleTaskSummary,
-    artifact: GeneratedSubtitleArtifactSummary,
-  ) => void;
-  readonly onReveal: (
-    task: LocalSubtitleTaskSummary,
-    artifact: GeneratedSubtitleArtifactSummary,
-  ) => void;
-  readonly onHandoff: (
-    task: LocalSubtitleTaskSummary,
-    artifact: GeneratedSubtitleArtifactSummary,
-  ) => void;
-}) {
-  const { t } = useTranslation(["subtitle"]);
-  const completion = task.completion!;
-  return (
-    <div className="min-w-0 border-y">
-      <div className="flex min-w-0 flex-wrap items-center gap-2 border-b px-2 py-2 text-xs">
-        <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-300" />
-        <span className="font-medium">
-          {t(completion.outcome === "full"
-            ? "subtitle:local_transcriber.result.full"
-            : "subtitle:local_transcriber.result.partial")}
-        </span>
-        {completion.warnings.map((warning) => (
-          <span
-            key={warning}
-            className="min-w-0 break-words text-amber-700 dark:text-amber-300 [overflow-wrap:anywhere]"
-          >
-            {t("subtitle:local_transcriber.result.cancelled_after_partial_commit")}
-          </span>
-        ))}
-      </div>
-      <div className="divide-y">
-        {completion.artifacts.map((result) => (
-          <div
-            key={result.format}
-            className="flex min-w-0 flex-wrap items-center justify-between gap-2 px-2 py-2 text-xs"
-          >
-            <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
-              <Badge variant="outline" className="shrink-0">
-                {result.format}
-              </Badge>
-              <span className={result.status === "committed"
-                ? "text-emerald-700 dark:text-emerald-300"
-                : result.status === "failed"
-                  ? "text-destructive"
-                  : "text-muted-foreground"}
-              >
-                {t(`subtitle:local_transcriber.result.${result.status}`)}
-              </span>
-              {result.status === "committed" ? (
-                <span className="min-w-0 truncate text-muted-foreground">
-                  {result.artifact.displayName}
-                </span>
-              ) : result.errorCode ? (
-                <span className="min-w-0 break-words font-mono text-[11px] text-muted-foreground [overflow-wrap:anywhere]">
-                  {result.errorCode}
-                </span>
-              ) : null}
-            </div>
-            {result.status === "committed" ? (
-              <div className="flex shrink-0 items-center gap-1">
-                <TaskIconButton
-                  label={t("subtitle:local_transcriber.actions.preview_artifact", {
-                    name: result.artifact.displayName,
-                  })}
-                  disabled={anyActionPending}
-                  loading={false}
-                  icon={<Eye className="h-3.5 w-3.5" />}
-                  onClick={() => onPreview(task, result.artifact)}
-                />
-                <TaskIconButton
-                  label={t("subtitle:local_transcriber.actions.reveal_task", {
-                    name: result.artifact.displayName,
-                  })}
-                  disabled={anyActionPending}
-                  loading={revealPending}
-                  icon={<FolderOpen className="h-3.5 w-3.5" />}
-                  onClick={() => onReveal(task, result.artifact)}
-                />
-                {canManuallyHandoffLocalSubtitleArtifact(
-                  task,
-                  result.format,
-                  translationTaskMissing,
-                ) ? (
-                  <TaskIconButton
-                    label={t("subtitle:local_transcriber.actions.handoff_artifact", {
-                      name: result.artifact.displayName,
-                    })}
-                    disabled={anyActionPending}
-                    loading={handoffPending}
-                    icon={<Languages className="h-3.5 w-3.5" />}
-                    onClick={() => onHandoff(task, result.artifact)}
-                  />
-                ) : null}
-              </div>
-            ) : null}
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
+function summarizeAutomaticPostAction(
+  task: LocalSubtitleTaskSummary,
+  translationTaskMissing: boolean,
+  t: (key: string) => string,
+): { readonly label: string; readonly detail?: string; readonly taskId?: string } | null {
+  if (
+    task.postAction.mode === "export_only" ||
+    task.postAction.importStatus === "not_requested"
+  ) {
+    return null;
+  }
 
-const IMPORT_STATUS_KEYS = {
-  pending: "subtitle:local_transcriber.post_action.status.pending",
-  importing: "subtitle:local_transcriber.post_action.status.importing",
-  queued: "subtitle:local_transcriber.post_action.status.queued",
-  skipped: "subtitle:local_transcriber.post_action.status.skipped",
-  failed: "subtitle:local_transcriber.post_action.status.failed",
-} as const;
-
-const START_STATUS_KEYS = {
-  started: "subtitle:local_transcriber.post_action.start.started",
-  waiting: "subtitle:local_transcriber.post_action.start.waiting",
-  failed: "subtitle:local_transcriber.post_action.start.failed",
-} as const;
-
-function TaskPostActionResult({
-  task,
-  manualResult,
-  translationTaskMissing,
-}: {
-  readonly task: LocalSubtitleTaskSummary;
-  readonly manualResult?: LocalSubtitleManualHandoffResult;
-  readonly translationTaskMissing: boolean;
-}) {
-  const { t } = useTranslation(["subtitle"]);
-  if (task.postAction.mode === "export_only" && !manualResult) return null;
-
-  const automaticStatus = task.postAction.mode === "export_only"
-    ? null
-    : task.postAction.importStatus === "not_requested"
-      ? null
-      : {
-          label: translationTaskMissing
-            ? t("subtitle:local_transcriber.post_action.status.translation_task_missing")
-            : t(IMPORT_STATUS_KEYS[task.postAction.importStatus]),
-          detail: translationTaskMissing
-            ? undefined
-            : task.postAction.importErrorCode ??
-              task.postAction.startFailureReason ??
-              (task.postAction.startStatus === "not_requested" ||
-                  task.postAction.startStatus === "requesting"
-                ? undefined
-                : t(START_STATUS_KEYS[task.postAction.startStatus])),
-          taskId: translationTaskMissing
-            ? undefined
-            : task.postAction.translationTaskId,
-        };
-  const manualStatus = manualResult
-    ? summarizeManualHandoffResult(manualResult, t)
-    : null;
-
-  return (
-    <div className="min-w-0 border-l-2 border-primary/40 bg-primary/5 px-3 py-2 text-xs">
-      <div className="flex min-w-0 flex-wrap items-center gap-2">
-        <Languages className="h-4 w-4 shrink-0 text-primary" />
-        <span className="font-medium">
-          {t("subtitle:local_transcriber.post_action.receipt")}
-        </span>
-        {automaticStatus ? <span>{automaticStatus.label}</span> : null}
-        {automaticStatus?.detail ? (
-          <span className="break-words font-mono text-[11px] text-muted-foreground [overflow-wrap:anywhere]">
-            {automaticStatus.detail}
-          </span>
-        ) : null}
-        {manualStatus ? (
-          <span className="break-words text-muted-foreground [overflow-wrap:anywhere]">
-            {manualStatus.label}
-            {manualStatus.detail ? ` · ${manualStatus.detail}` : ""}
-          </span>
-        ) : null}
-        {automaticStatus?.taskId || manualStatus?.taskId ? (
-          <Button asChild type="button" variant="link" size="sm" className="h-6 px-1 text-xs">
-            <Link to="/tools/subtitle/translator">
-              {t("subtitle:local_transcriber.post_action.view_translation")}
-            </Link>
-          </Button>
-        ) : null}
-      </div>
-    </div>
-  );
+  return {
+    label: translationTaskMissing
+      ? t(
+          "subtitle:local_transcriber.post_action.status.translation_task_missing",
+        )
+      : t(IMPORT_STATUS_KEYS[task.postAction.importStatus]),
+    detail: translationTaskMissing
+      ? undefined
+      : task.postAction.importErrorCode ??
+        task.postAction.startFailureReason ??
+        (task.postAction.startStatus === "not_requested" ||
+        task.postAction.startStatus === "requesting"
+          ? undefined
+          : t(START_STATUS_KEYS[task.postAction.startStatus])),
+    taskId: translationTaskMissing
+      ? undefined
+      : task.postAction.translationTaskId,
+  };
 }
 
 function summarizeManualHandoffResult(
@@ -662,8 +696,8 @@ function TaskIconButton({
   return (
     <Button
       type="button"
-      variant="ghost"
-      size="icon-sm"
+      variant="outline"
+      size="icon"
       disabled={disabled}
       aria-label={label}
       title={label}

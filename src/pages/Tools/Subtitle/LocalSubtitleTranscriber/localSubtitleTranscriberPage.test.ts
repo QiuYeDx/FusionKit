@@ -93,6 +93,17 @@ describe("local subtitle transcriber page wiring", () => {
     expect(environmentSource).toContain("break-words");
   });
 
+  it("keeps each queue task in one flat translator-style row", () => {
+    expect(queueSource).toContain("ToolPanel");
+    expect(queueSource).toContain("ButtonGroup");
+    expect(queueSource).toContain('bodyClassName="divide-y"');
+    expect(queueSource).toContain("completion.artifacts.map");
+    expect(queueSource).not.toContain("TaskArtifactResults");
+    expect(queueSource).not.toContain("TaskPostActionResult");
+    expect(queueSource).not.toMatch(/bg-(?:blue|sky)/);
+    expect(source).not.toContain("border-l-");
+  });
+
   it("keeps runtime failures actionable without asking for system dependencies", () => {
     expect(environmentSource).toContain("runtimeSummaryError(runtime)");
     expect(environmentSource).toContain("environment.error.recovery");

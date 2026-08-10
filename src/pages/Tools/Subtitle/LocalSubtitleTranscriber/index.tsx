@@ -1631,28 +1631,30 @@ export default function LocalSubtitleTranscriber() {
               ) : null}
             </div>
 
-            <LocalSubtitleTaskQueue
-              batches={visibleBatches}
-              pendingActionKeys={pendingTaskActions}
-              manualHandoffResults={manualHandoffResults}
-              missingTranslationTaskIds={missingTranslationTaskIds}
-              onCancel={handleCancel}
-              onRetry={handleRetry}
-              onPreview={(task, artifact) => setArtifactPreview({
-                taskName: task.displayName,
-                artifact,
-              })}
-              onReveal={handleReveal}
-              onHandoff={(task, artifact) => void handleHandoff(task, artifact)}
-              onShowError={setErrorDetailsTask}
-              onRetryOnCpu={setCpuRetryCandidate}
-              onRemove={handleRemove}
-            />
-            <LocalSubtitleRecoveredSession
-              summary={runtimeState.recoveredSession}
-            />
           </div>
         </ToolPanel>
+
+        <LocalSubtitleTaskQueue
+          batches={visibleBatches}
+          pendingActionKeys={pendingTaskActions}
+          manualHandoffResults={manualHandoffResults}
+          missingTranslationTaskIds={missingTranslationTaskIds}
+          onCancel={handleCancel}
+          onRetry={handleRetry}
+          onPreview={(task, artifact) => setArtifactPreview({
+            taskName: task.displayName,
+            artifact,
+          })}
+          onReveal={handleReveal}
+          onHandoff={(task, artifact) => void handleHandoff(task, artifact)}
+          onShowError={setErrorDetailsTask}
+          onRetryOnCpu={setCpuRetryCandidate}
+          onRemove={handleRemove}
+        />
+
+        <LocalSubtitleRecoveredSession
+          summary={runtimeState.recoveredSession}
+        />
 
         <LocalSubtitleEnvironmentManager
           loading={environment.loading}

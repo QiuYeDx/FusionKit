@@ -15,6 +15,7 @@ import { DEFAULT_LOCAL_SUBTITLE_TRANSCRIBER_PREFERENCES } from "@/store/tools/su
 import {
   canManuallyHandoffLocalSubtitleArtifact,
   createLocalSubtitleBackendPreviewKey,
+  createLocalSubtitleBatchNumberMap,
   createLocalSubtitleBatchRequest,
   deriveLocalSubtitleDraftMediaProbeStatus,
   deriveLocalSubtitleStartIssue,
@@ -60,6 +61,27 @@ const runtime: LocalSubtitleRuntimeSummary = {
 };
 
 describe("local subtitle transcriber page model", () => {
+  it("keeps older batch numbers stable when a newer batch is prepended", () => {
+    const olderBatch = {
+      batchId: "batch-older",
+      createdAt: "2026-08-10T08:00:00.000Z",
+    };
+    const newerBatch = {
+      batchId: "batch-newer",
+      createdAt: "2026-08-10T09:00:00.000Z",
+    };
+
+    expect(createLocalSubtitleBatchNumberMap([olderBatch]).get("batch-older"))
+      .toBe("01");
+
+    const numbers = createLocalSubtitleBatchNumberMap([
+      newerBatch,
+      olderBatch,
+    ]);
+    expect(numbers.get("batch-older")).toBe("01");
+    expect(numbers.get("batch-newer")).toBe("02");
+  });
+
   it("offers only managed models that are already ready", () => {
     expect(
       getReadyLocalSubtitleModels([
