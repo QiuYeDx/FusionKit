@@ -167,6 +167,34 @@ export function formatLocalSubtitleBytes(bytes: number): string {
   return `${value.toFixed(value >= 10 ? 1 : 2)} ${units[index]}`;
 }
 
+export function getLocalSubtitleFileFormatLabel(
+  displayName: string,
+): string | undefined {
+  const separator = displayName.lastIndexOf(".");
+  if (separator <= 0 || separator === displayName.length - 1) return undefined;
+  const extension = displayName.slice(separator + 1);
+  return /^[a-z0-9]{1,10}$/iu.test(extension)
+    ? extension.toUpperCase()
+    : undefined;
+}
+
+export function getLocalSubtitleTrackLanguageLabel(
+  language: string | undefined,
+): string | undefined {
+  const normalized = language?.trim();
+  if (!normalized || normalized.toLowerCase() === "und") return undefined;
+  return normalized;
+}
+
+export function getLocalSubtitleTrackCodecLabel(
+  codec: string | undefined,
+  fileFormat?: string,
+): string | undefined {
+  const normalized = codec?.trim().toUpperCase();
+  if (!normalized || normalized === fileFormat?.toUpperCase()) return undefined;
+  return normalized;
+}
+
 export function deriveLocalSubtitleStartIssue(
   input: LocalSubtitleStartReadinessInput,
 ): LocalSubtitleStartIssue | null {

@@ -22,6 +22,9 @@ import {
   findLocalSubtitleTask,
   formatLocalSubtitleBytes,
   formatLocalSubtitleDuration,
+  getLocalSubtitleFileFormatLabel,
+  getLocalSubtitleTrackCodecLabel,
+  getLocalSubtitleTrackLanguageLabel,
   getInstalledLocalSubtitleResourceBytes,
   getLatestLocalSubtitleResourceJobs,
   getReadyLocalSubtitleModels,
@@ -61,6 +64,20 @@ const runtime: LocalSubtitleRuntimeSummary = {
 };
 
 describe("local subtitle transcriber page model", () => {
+  it("separates the file format from audio track language metadata", () => {
+    expect(getLocalSubtitleFileFormatLabel("episode.mp4")).toBe("MP4");
+    expect(getLocalSubtitleFileFormatLabel("voice.WaV")).toBe("WAV");
+    expect(getLocalSubtitleFileFormatLabel("no-extension")).toBeUndefined();
+    expect(getLocalSubtitleFileFormatLabel("unsafe.aac/other")).toBeUndefined();
+
+    expect(getLocalSubtitleTrackLanguageLabel("und")).toBeUndefined();
+    expect(getLocalSubtitleTrackLanguageLabel(" UND ")).toBeUndefined();
+    expect(getLocalSubtitleTrackLanguageLabel("ja")).toBe("ja");
+
+    expect(getLocalSubtitleTrackCodecLabel("aac", "MP4")).toBe("AAC");
+    expect(getLocalSubtitleTrackCodecLabel("mp3", "MP3")).toBeUndefined();
+  });
+
   it("keeps older batch numbers stable when a newer batch is prepended", () => {
     const olderBatch = {
       batchId: "batch-older",

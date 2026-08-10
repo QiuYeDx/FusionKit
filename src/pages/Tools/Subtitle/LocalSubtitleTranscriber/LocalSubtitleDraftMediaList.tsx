@@ -11,6 +11,9 @@ import type {
 import {
   formatLocalSubtitleBytes,
   formatLocalSubtitleDuration,
+  getLocalSubtitleFileFormatLabel,
+  getLocalSubtitleTrackCodecLabel,
+  getLocalSubtitleTrackLanguageLabel,
   type LocalSubtitleDraftMediaProbe,
 } from "./localSubtitleTranscriberModel";
 
@@ -161,9 +164,14 @@ function DraftMediaSummary({
   }
 
   const { summary } = probe;
+  const fileFormat = getLocalSubtitleFileFormatLabel(file.displayName);
   const onlyTrack = summary.audioTracks.length === 1
-    ? trackMetadata(summary.audioTracks[0]!, t)
+    ? trackMetadata(summary.audioTracks[0]!, t, fileFormat)
     : null;
+  const mediaDetails = [
+    fileFormat,
+    onlyTrack,
+  ].filter((value): value is string => Boolean(value)).join(" · ");
   return (
     <div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-muted-foreground">
       <span>{formatLocalSubtitleBytes(file.byteSize)}</span>
@@ -173,7 +181,9 @@ function DraftMediaSummary({
           count: summary.audioTracks.length,
         })}
       </span>
-      {onlyTrack ? <span className="min-w-0 truncate">{onlyTrack}</span> : null}
+      {mediaDetails ? (
+        <span className="min-w-0 truncate">{mediaDetails}</span>
+      ) : null}
     </div>
   );
 }
@@ -231,11 +241,12 @@ function createTrackOptions(
 function trackMetadata(
   track: LocalSubtitleMediaProbeSummary["audioTracks"][number],
   t: TFunction<"subtitle">,
+  fileFormat?: string,
 ): string {
   return [
     track.title,
-    track.language,
-    track.codec?.toUpperCase(),
+    getLocalSubtitleTrackLanguageLabel(track.language),
+    getLocalSubtitleTrackCodecLabel(track.codec, fileFormat),
     track.channels === undefined
       ? undefined
       : t("local_transcriber.audio.channels", { count: track.channels }),

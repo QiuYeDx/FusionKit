@@ -110,6 +110,14 @@ describe("local subtitle transcriber page wiring", () => {
     expect(draftMediaSource).not.toContain('className="border-y"');
     expect(draftMediaSource).not.toContain("divide-y");
     expect(draftMediaSource).toContain("space-y-1");
+    expect(draftMediaSource).toContain("getLocalSubtitleFileFormatLabel");
+    expect(draftMediaSource).toContain("getLocalSubtitleTrackLanguageLabel");
+  });
+
+  it("removes the environment header divider while its body is collapsed", () => {
+    expect(environmentSource).toContain(
+      'headerClassName={managerOpen ? undefined : "border-b-0"}',
+    );
   });
 
   it("keeps runtime failures actionable without asking for system dependencies", () => {

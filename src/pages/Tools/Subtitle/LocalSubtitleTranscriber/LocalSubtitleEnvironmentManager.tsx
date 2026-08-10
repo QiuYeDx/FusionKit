@@ -202,6 +202,7 @@ export function LocalSubtitleEnvironmentManager({
       <ToolPanel
         icon={Server}
         title={t("subtitle:local_transcriber.environment.title")}
+        headerClassName={managerOpen ? undefined : "border-b-0"}
         badge={
           <div className="flex items-center gap-1.5">
             <EnvironmentStatusBadge loading={loading} runtime={runtime} />
