@@ -50,7 +50,7 @@ export interface LocalSubtitleTranscriberStore {
   setDraftPostActionMode(mode: SubtitleTranslationHandoffMode): void;
   setDraftPreferredHandoffFormat(format: LocalSubtitleFormat): void;
   resetDraft(): void;
-  consumeDraftCapabilitiesAfterCommit(): void;
+  consumeDraftCapabilitiesAfterCommit(fileTokens: readonly string[]): void;
 }
 
 const useLocalSubtitleTranscriberStore = create<LocalSubtitleTranscriberStore>()(
@@ -83,14 +83,16 @@ const useLocalSubtitleTranscriberStore = create<LocalSubtitleTranscriberStore>()
         });
       },
       setDraftInputFiles: (files) => {
-        const uniqueFiles = deduplicateAuthorizedMedia(files);
-        const nextFiles = uniqueFiles.slice(0, LOCAL_SUBTITLE_LIMITS.maxBatchFiles);
+        const { accepted: nextFiles, rejected } = partitionAuthorizedMedia(
+          files,
+          LOCAL_SUBTITLE_LIMITS.maxBatchFiles,
+        );
         const nextTokens = new Set(nextFiles.map((file) => file.fileToken));
         const cleanupByToken = new Map<string, LocalSubtitleAuthorizedMedia>();
-        for (const dropped of uniqueFiles.slice(
-          LOCAL_SUBTITLE_LIMITS.maxBatchFiles,
-        )) {
-          cleanupByToken.set(dropped.fileToken, dropped);
+        for (const dropped of rejected) {
+          if (!nextTokens.has(dropped.fileToken)) {
+            cleanupByToken.set(dropped.fileToken, dropped);
+          }
         }
         for (const current of get().draftInputFiles) {
           if (!nextTokens.has(current.fileToken)) {
@@ -105,19 +107,16 @@ const useLocalSubtitleTranscriberStore = create<LocalSubtitleTranscriberStore>()
       },
       addDraftInputFiles: (files) => {
         const currentFiles = get().draftInputFiles;
-        const combinedFiles = deduplicateAuthorizedMedia([
-          ...currentFiles,
-          ...files,
-        ]);
-        const nextFiles = combinedFiles.slice(
-          0,
+        const { accepted: nextFiles, rejected } = partitionAuthorizedMedia(
+          [...currentFiles, ...files],
           LOCAL_SUBTITLE_LIMITS.maxBatchFiles,
         );
         const runtime = getLocalSubtitleRuntimeService();
-        for (const overflow of combinedFiles.slice(
-          LOCAL_SUBTITLE_LIMITS.maxBatchFiles,
-        )) {
-          runtime.queueInputDraftRevocation(overflow);
+        const nextTokens = new Set(nextFiles.map((file) => file.fileToken));
+        for (const dropped of rejected) {
+          if (!nextTokens.has(dropped.fileToken)) {
+            runtime.queueInputDraftRevocation(dropped);
+          }
         }
         set({ draftInputFiles: nextFiles });
       },
@@ -176,8 +175,15 @@ const useLocalSubtitleTranscriberStore = create<LocalSubtitleTranscriberStore>()
         }
         set(createEmptyDraftState());
       },
-      consumeDraftCapabilitiesAfterCommit: () =>
-        set({ draftInputFiles: [], draftOutputDirectory: null }),
+      consumeDraftCapabilitiesAfterCommit: (fileTokens) => {
+        const committedTokens = new Set(fileTokens);
+        set((state) => ({
+          draftInputFiles: state.draftInputFiles.filter(
+            (file) => !committedTokens.has(file.fileToken),
+          ),
+          draftOutputDirectory: null,
+        }));
+      },
     }),
     {
       name: "fusionkit-local-subtitle-transcriber",
@@ -226,15 +232,31 @@ function createEmptyDraftState() {
   };
 }
 
-function deduplicateAuthorizedMedia(
+function partitionAuthorizedMedia(
   files: readonly LocalSubtitleAuthorizedMedia[],
-): LocalSubtitleAuthorizedMedia[] {
+  limit: number,
+): {
+  readonly accepted: LocalSubtitleAuthorizedMedia[];
+  readonly rejected: LocalSubtitleAuthorizedMedia[];
+} {
   const tokens = new Set<string>();
-  return files.filter((file) => {
-    if (tokens.has(file.fileToken)) return false;
+  const sourceKeys = new Set<string>();
+  const accepted: LocalSubtitleAuthorizedMedia[] = [];
+  const rejected: LocalSubtitleAuthorizedMedia[] = [];
+  for (const file of files) {
+    if (
+      accepted.length >= limit ||
+      tokens.has(file.fileToken) ||
+      sourceKeys.has(file.sourceKey)
+    ) {
+      rejected.push(file);
+      continue;
+    }
     tokens.add(file.fileToken);
-    return true;
-  });
+    sourceKeys.add(file.sourceKey);
+    accepted.push(file);
+  }
+  return { accepted, rejected };
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

@@ -510,6 +510,12 @@ describe("local subtitle fixed IPC surface", () => {
     ).toBe(false);
     expect(
       localSubtitleAuthorizedMediaListSchema.safeParse([
+        authorized,
+        { ...authorized, fileToken: "file-token-2" },
+      ]).success,
+    ).toBe(false);
+    expect(
+      localSubtitleAuthorizedMediaListSchema.safeParse([
         { ...authorized, displayName: "/private/sample.wav" },
       ]).success,
     ).toBe(false);
@@ -1366,6 +1372,7 @@ function validTaskSummary(): LocalSubtitleTaskSummary {
   return {
     taskId: "task-1",
     batchId: "batch-1",
+    sourceKey: "source-key-1",
     generation: 1,
     displayName: "sample.wav",
     durationMs: 60_000,
@@ -1644,6 +1651,7 @@ function validPublicOperationResults(): Record<
 function validAuthorizedMedia() {
   return {
     fileToken: "file-token-1",
+    sourceKey: "source-key-1",
     displayName: "sample.wav",
     byteSize: 1024,
     expiresAt: Date.parse(NOW) + 60_000,

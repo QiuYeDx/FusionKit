@@ -685,6 +685,7 @@ function assertImmutableTaskFields(
   if (
     next.taskId !== current.taskId ||
     next.batchId !== current.batchId ||
+    next.sourceKey !== current.sourceKey ||
     next.displayName !== current.displayName ||
     (!allowCpuRetryBackendChange &&
       next.resolvedBackend !== current.resolvedBackend) ||

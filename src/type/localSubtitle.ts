@@ -956,6 +956,7 @@ export interface LocalSubtitleTaskProgress {
 export interface LocalSubtitleTaskSummary {
   readonly taskId: string;
   readonly batchId: string;
+  readonly sourceKey: string;
   readonly generation: number;
   readonly displayName: string;
   readonly durationMs?: number;

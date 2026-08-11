@@ -115,18 +115,21 @@ describe("local subtitle transcriber page wiring", () => {
     expect(queueSource).toContain("completion.artifacts.map");
     expect(queueSource).not.toContain("TaskArtifactResults");
     expect(queueSource).not.toContain("TaskPostActionResult");
+    expect(queueSource).not.toContain("data-batch-id");
+    expect(queueSource).not.toContain("createLocalSubtitleBatchNumberMap");
     expect(queueSource).not.toMatch(/bg-(?:blue|sky)/);
     expect(source).not.toContain("border-l-");
   });
 
-  it("keeps the batch draft lightweight and places its primary action in the panel header", () => {
-    expect(pageSource).toContain("actions={startTranscriptionAction}");
-    expect(pageSource).not.toContain("gap-2 border-t pt-4");
-    expect(draftMediaSource).not.toContain('className="border-y"');
-    expect(draftMediaSource).not.toContain("divide-y");
-    expect(draftMediaSource).toContain("space-y-1");
-    expect(draftMediaSource).toContain("getLocalSubtitleFileFormatLabel");
-    expect(draftMediaSource).toContain("getLocalSubtitleTrackLanguageLabel");
+  it("adds files directly to the same flat task queue with queue-level actions", () => {
+    expect(pageSource).not.toContain("actions={startTranscriptionAction}");
+    expect(queueSource).toContain("draftFiles.map");
+    expect(queueSource).toContain("tasks.map");
+    expect(queueSource).toContain("actions.start_all");
+    expect(queueSource).toContain("actions.clear_completed");
+    expect(queueSource).toContain("actions.clear_all");
+    expect(queueSource).toContain("getLocalSubtitleFileFormatLabel");
+    expect(queueSource).toContain("getLocalSubtitleTrackLanguageLabel");
   });
 
   it("removes the environment header divider while its body is collapsed", () => {
@@ -143,12 +146,12 @@ describe("local subtitle transcriber page wiring", () => {
     expect(pageSource).toContain("resourceActionError={resourceActionError}");
   });
 
-  it("exposes stable hooks for batch drafts, task progress, and task actions", () => {
+  it("exposes stable hooks for draft tasks, task progress, and task actions", () => {
     expect(source).toContain('inputTestId="local-subtitle-file-input"');
     expect(pageSource).toContain("multiple");
     expect(pageSource).toContain("LOCAL_SUBTITLE_LIMITS.maxBatchFiles");
-    expect(pageSource).toContain("addDraftInputFiles(result.data)");
-    expect(draftMediaSource).toContain('data-testid="local-subtitle-draft-files"');
+    expect(pageSource).toContain("addDraftInputFiles(accepted)");
+    expect(queueSource).toContain('data-testid="local-subtitle-draft-file"');
     expect(source).toContain('data-testid="local-subtitle-start"');
     expect(source).toContain('data-testid="local-subtitle-task-queue"');
     expect(queueSource).toContain('data-testid="local-subtitle-task"');
@@ -161,7 +164,7 @@ describe("local subtitle transcriber page wiring", () => {
     expect(pageSource).toContain("candidate.generation");
     expect(pageSource).toContain("mediaProbeQueueRef");
     expect(pageSource).toContain("explicitAudioStreamIds");
-    expect(draftMediaSource).toContain('orientation="vertical"');
+    expect(queueSource).toContain("<Select");
     expect(pageSource).not.toContain("taskActive");
     expect(pageSource).toContain("draftPostActionMode");
     expect(pageSource).toContain("draftPreferredHandoffFormat");

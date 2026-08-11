@@ -1,3 +1,4 @@
+import type { TFunction } from "i18next";
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import {
@@ -7,6 +8,8 @@ import {
   Info,
   Languages,
   Loader2,
+  PlayCircle,
+  RefreshCw,
   RotateCcw,
   Trash2,
   XCircle,
@@ -16,20 +19,37 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ButtonGroup } from "@/components/ui/button-group";
 import { Progress } from "@/components/ui/progress";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { ToolPanel } from "@/pages/Tools/_shared/ui";
 import type {
   GeneratedSubtitleArtifactSummary,
-  LocalSubtitleBatchSummary,
   LocalSubtitleTaskStatus,
   LocalSubtitleTaskSummary,
 } from "@/type/localSubtitle";
+import type {
+  LocalSubtitleAuthorizedMedia,
+  LocalSubtitleMediaProbeSummary,
+} from "@/type/localSubtitleIpc";
 import type { LocalSubtitleManualHandoffResult } from "@/services/local-subtitle/localSubtitlePostActionService";
 import {
   canManuallyHandoffLocalSubtitleArtifact,
-  createLocalSubtitleBatchNumberMap,
+  formatLocalSubtitleBytes,
+  formatLocalSubtitleDuration,
+  getLocalSubtitleFileFormatLabel,
+  getLocalSubtitleTrackCodecLabel,
+  getLocalSubtitleTrackLanguageLabel,
   isLocalSubtitleTaskActive,
+  type LocalSubtitleDraftMediaProbe,
 } from "./localSubtitleTranscriberModel";
+
+const AUTO_TRACK_VALUE = "auto";
 
 const TASK_STATUS_KEYS = {
   queued: "subtitle:local_transcriber.status.queued",
@@ -87,13 +107,30 @@ export function localSubtitleTaskActionKey(
 }
 
 interface LocalSubtitleTaskQueueProps {
-  readonly batches: readonly LocalSubtitleBatchSummary[];
+  readonly tasks: readonly LocalSubtitleTaskSummary[];
+  readonly draftFiles: readonly LocalSubtitleAuthorizedMedia[];
+  readonly draftProbes: ReadonlyMap<string, LocalSubtitleDraftMediaProbe>;
+  readonly explicitAudioStreamIds: ReadonlyMap<string, string>;
+  readonly draftDisabled: boolean;
+  readonly probeQueuePending: boolean;
+  readonly startDisabled: boolean;
+  readonly startPending: boolean;
+  readonly clearPending: boolean;
   readonly pendingActionKeys: ReadonlySet<string>;
   readonly manualHandoffResults: ReadonlyMap<
     string,
     LocalSubtitleManualHandoffResult
   >;
   readonly missingTranslationTaskIds: ReadonlySet<string>;
+  readonly onStartAll: () => void;
+  readonly onClearCompleted: () => void;
+  readonly onClearAll: () => void;
+  readonly onRemoveDraft: (fileToken: string) => void;
+  readonly onRetryProbe: (file: LocalSubtitleAuthorizedMedia) => void;
+  readonly onAudioStreamChange: (
+    fileToken: string,
+    audioStreamId: string | null,
+  ) => void;
   readonly onCancel: (task: LocalSubtitleTaskSummary) => void;
   readonly onRetry: (task: LocalSubtitleTaskSummary) => void;
   readonly onRetryOnCpu: (task: LocalSubtitleTaskSummary) => void;
@@ -114,10 +151,24 @@ interface LocalSubtitleTaskQueueProps {
 }
 
 export function LocalSubtitleTaskQueue({
-  batches,
+  tasks,
+  draftFiles,
+  draftProbes,
+  explicitAudioStreamIds,
+  draftDisabled,
+  probeQueuePending,
+  startDisabled,
+  startPending,
+  clearPending,
   pendingActionKeys,
   manualHandoffResults,
   missingTranslationTaskIds,
+  onStartAll,
+  onClearCompleted,
+  onClearAll,
+  onRemoveDraft,
+  onRetryProbe,
+  onAudioStreamChange,
   onCancel,
   onRetry,
   onRetryOnCpu,
@@ -128,11 +179,10 @@ export function LocalSubtitleTaskQueue({
   onShowError,
 }: LocalSubtitleTaskQueueProps) {
   const { t } = useTranslation(["subtitle"]);
-  const taskCount = batches.reduce(
-    (total, batch) => total + batch.tasks.length,
-    0,
-  );
-  const batchNumbers = createLocalSubtitleBatchNumberMap(batches);
+  const taskCount = draftFiles.length + tasks.length;
+  const completedCount = tasks.filter(
+    (task) => task.status === "completed" && isTaskReadyToRemove(task),
+  ).length;
 
   return (
     <div data-testid="local-subtitle-task-queue">
@@ -143,9 +193,47 @@ export function LocalSubtitleTaskQueue({
             {taskCount}
           </Badge>
         }
+        actions={
+          <>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={completedCount === 0 || clearPending}
+              onClick={onClearCompleted}
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+              {t("subtitle:local_transcriber.actions.clear_completed")}
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={taskCount === 0 || clearPending}
+              onClick={onClearAll}
+            >
+              {clearPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
+              {t("subtitle:local_transcriber.actions.clear_all")}
+            </Button>
+            <Button
+              data-testid="local-subtitle-start"
+              type="button"
+              size="sm"
+              disabled={startDisabled || clearPending}
+              onClick={onStartAll}
+            >
+              {startPending ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <PlayCircle className="h-3.5 w-3.5" />
+              )}
+              {t("subtitle:local_transcriber.actions.start_all")}
+            </Button>
+          </>
+        }
         bodyClassName="divide-y"
       >
-        {batches.length === 0 ? (
+        {taskCount === 0 ? (
           <div className="py-10 text-center text-sm text-muted-foreground">
             <div className="font-medium text-foreground">
               {t("subtitle:local_transcriber.queue.empty_title")}
@@ -155,76 +243,258 @@ export function LocalSubtitleTaskQueue({
             </div>
           </div>
         ) : (
-          batches.map((batch) => {
-            const completedTasks = batch.tasks.filter(
-              (task) => task.status === "completed",
-            ).length;
-            const batchProgress = getBatchOverallProgress(batch);
-
-            return (
-              <section key={batch.batchId} data-batch-id={batch.batchId}>
-                <div className="flex min-w-0 flex-col gap-2 bg-muted/20 px-4 py-2.5 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
-                  <div className="flex min-w-0 items-baseline gap-2">
-                    <h3 className="shrink-0 text-sm font-semibold">
-                      {t("subtitle:local_transcriber.queue.batch")}{" "}
-                      {batchNumbers.get(batch.batchId) ?? "--"}
-                    </h3>
-                    <span className="truncate text-[11px] text-muted-foreground">
-                      {t("subtitle:local_transcriber.queue.batch_progress", {
-                        completed: completedTasks,
-                        total: batch.tasks.length,
-                      })}
-                    </span>
-                  </div>
-                  <div className="flex w-full min-w-0 items-center gap-2 sm:max-w-[280px]">
-                    <Progress
-                      value={batchProgress}
-                      className="h-1 min-w-0 flex-1"
-                    />
-                    <span className="w-8 shrink-0 text-right font-mono text-[10.5px] text-muted-foreground">
-                      {Math.round(batchProgress)}%
-                    </span>
-                  </div>
-                </div>
-
-                <div className="divide-y">
-                  {batch.tasks.map((task) => (
-                    <TaskRow
-                      key={task.taskId}
-                      task={task}
-                      pendingActionKeys={pendingActionKeys}
-                      manualHandoffResults={manualHandoffResults}
-                      missingTranslationTaskIds={missingTranslationTaskIds}
-                      onCancel={onCancel}
-                      onRetry={onRetry}
-                      onRetryOnCpu={onRetryOnCpu}
-                      onRemove={onRemove}
-                      onPreview={onPreview}
-                      onReveal={onReveal}
-                      onHandoff={onHandoff}
-                      onShowError={onShowError}
-                    />
-                  ))}
-                </div>
-              </section>
-            );
-          })
+          <>
+            {draftFiles.map((file) => (
+              <DraftTaskRow
+                key={file.fileToken}
+                file={file}
+                probe={draftProbes.get(file.fileToken)}
+                explicitAudioStreamId={explicitAudioStreamIds.get(file.fileToken)}
+                disabled={draftDisabled || clearPending}
+                probeQueuePending={probeQueuePending}
+                onRemove={onRemoveDraft}
+                onRetryProbe={onRetryProbe}
+                onAudioStreamChange={onAudioStreamChange}
+              />
+            ))}
+            {tasks.map((task) => (
+              <TaskRow
+                key={task.taskId}
+                task={task}
+                pendingActionKeys={pendingActionKeys}
+                manualHandoffResults={manualHandoffResults}
+                missingTranslationTaskIds={missingTranslationTaskIds}
+                onCancel={onCancel}
+                onRetry={onRetry}
+                onRetryOnCpu={onRetryOnCpu}
+                onRemove={onRemove}
+                onPreview={onPreview}
+                onReveal={onReveal}
+                onHandoff={onHandoff}
+                onShowError={onShowError}
+              />
+            ))}
+          </>
         )}
       </ToolPanel>
     </div>
   );
 }
 
-function getBatchOverallProgress(batch: LocalSubtitleBatchSummary): number {
-  if (batch.tasks.length === 0) return 0;
-  const total = batch.tasks.reduce((sum, task) => {
-    if (task.status === "completed") return sum + 100;
-    const progress = Number.isFinite(task.progress.overallProgress)
-      ? task.progress.overallProgress
-      : 0;
-    return sum + Math.min(100, Math.max(0, progress));
-  }, 0);
-  return total / batch.tasks.length;
+function DraftTaskRow({
+  file,
+  probe,
+  explicitAudioStreamId,
+  disabled,
+  probeQueuePending,
+  onRemove,
+  onRetryProbe,
+  onAudioStreamChange,
+}: {
+  readonly file: LocalSubtitleAuthorizedMedia;
+  readonly probe: LocalSubtitleDraftMediaProbe | undefined;
+  readonly explicitAudioStreamId: string | undefined;
+  readonly disabled: boolean;
+  readonly probeQueuePending: boolean;
+  readonly onRemove: (fileToken: string) => void;
+  readonly onRetryProbe: (file: LocalSubtitleAuthorizedMedia) => void;
+  readonly onAudioStreamChange: (
+    fileToken: string,
+    audioStreamId: string | null,
+  ) => void;
+}) {
+  const { t } = useTranslation(["subtitle"]);
+  const status = probe?.status ?? "loading";
+  const readySummary = probe?.status === "ready" ? probe.summary : null;
+  const trackOptions = readySummary && readySummary.audioTracks.length > 1
+    ? createTrackOptions(readySummary, t)
+    : [];
+  const meta = draftTaskMetadata(file, probe, t);
+
+  return (
+    <div
+      data-testid="local-subtitle-draft-file"
+      data-source-key={file.sourceKey}
+      className="min-w-0 px-4 py-3"
+    >
+      <div className="flex min-w-0 items-start gap-3">
+        <span
+          aria-hidden="true"
+          className={cn(
+            "mt-1 h-2.5 w-2.5 shrink-0 rounded-full",
+            status === "error"
+              ? "bg-red-500"
+              : status === "ready"
+                ? "bg-gray-500"
+                : "bg-yellow-500",
+          )}
+        />
+        <div className="min-w-0 flex-1">
+          <div className="flex min-w-0 items-center gap-2">
+            <span className="min-w-0 truncate font-mono text-[13px] font-medium">
+              {file.displayName}
+            </span>
+            <Badge
+              variant="outline"
+              className="h-4 shrink-0 px-1.5 text-[10px] font-normal"
+            >
+              {t(
+                status === "ready"
+                  ? "subtitle:local_transcriber.status.ready"
+                  : status === "error"
+                    ? "subtitle:local_transcriber.status.probe_failed"
+                    : "subtitle:local_transcriber.status.probing",
+              )}
+            </Badge>
+          </div>
+          <TaskMeta
+            items={[
+              formatLocalSubtitleBytes(file.byteSize),
+              ...meta,
+              probe?.status === "error" ? (
+                <span className="min-w-0 truncate text-destructive">
+                  {"kind" in probe.error
+                    ? t("subtitle:local_transcriber.file.probe_mismatch")
+                    : probe.error.message}
+                </span>
+              ) : null,
+            ]}
+          />
+        </div>
+
+        {trackOptions.length > 0 ? (
+          <Select
+            value={explicitAudioStreamId ?? AUTO_TRACK_VALUE}
+            disabled={disabled}
+            onValueChange={(value) =>
+              onAudioStreamChange(
+                file.fileToken,
+                value === AUTO_TRACK_VALUE ? null : value,
+              )}
+          >
+            <SelectTrigger
+              className="h-8 w-[9.5rem] shrink-0 text-xs"
+              aria-label={t("subtitle:local_transcriber.audio.group_label", {
+                name: file.displayName,
+              })}
+            >
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {trackOptions.map((option) => (
+                <SelectItem key={option.value} value={option.value}>
+                  {option.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        ) : null}
+
+        <ButtonGroup className="shrink-0">
+          {probe?.status === "error" ? (
+            <TaskIconButton
+              label={t("subtitle:local_transcriber.actions.retry_probe", {
+                name: file.displayName,
+              })}
+              disabled={disabled || probeQueuePending}
+              loading={false}
+              icon={<RefreshCw className="h-3.5 w-3.5" />}
+              onClick={() => onRetryProbe(file)}
+            />
+          ) : null}
+          <TaskIconButton
+            label={t("subtitle:local_transcriber.actions.remove_draft_file", {
+              name: file.displayName,
+            })}
+            disabled={disabled}
+            loading={false}
+            icon={<Trash2 className="h-3.5 w-3.5" />}
+            onClick={() => onRemove(file.fileToken)}
+          />
+        </ButtonGroup>
+      </div>
+    </div>
+  );
+}
+
+function isTaskReadyToRemove(task: LocalSubtitleTaskSummary): boolean {
+  if (isLocalSubtitleTaskActive(task)) return false;
+  return !(
+    task.status === "completed" &&
+    task.postAction.mode !== "export_only" &&
+    (task.postAction.importStatus === "pending" ||
+      task.postAction.importStatus === "importing")
+  );
+}
+
+function draftTaskMetadata(
+  file: LocalSubtitleAuthorizedMedia,
+  probe: LocalSubtitleDraftMediaProbe | undefined,
+  t: TFunction,
+): string[] {
+  if (probe?.status !== "ready") return [];
+  const format = getLocalSubtitleFileFormatLabel(file.displayName);
+  const onlyTrack = probe.summary.audioTracks.length === 1
+    ? trackMetadata(probe.summary.audioTracks[0]!, t, format)
+    : null;
+  return [
+    format,
+    formatLocalSubtitleDuration(probe.summary.durationMs),
+    t("subtitle:local_transcriber.audio.track_count", {
+      count: probe.summary.audioTracks.length,
+    }),
+    onlyTrack,
+  ].filter((value): value is string => Boolean(value));
+}
+
+function createTrackOptions(
+  summary: LocalSubtitleMediaProbeSummary,
+  t: TFunction,
+) {
+  const automatic = summary.audioTracks.find(
+    (track) => track.streamId === summary.autoSelectedStreamId,
+  )!;
+  return [
+    {
+      value: AUTO_TRACK_VALUE,
+      label: t("subtitle:local_transcriber.audio.auto", {
+        track: automatic.ordinal,
+      }),
+    },
+    ...summary.audioTracks.map((track) => ({
+      value: track.streamId,
+      label: t("subtitle:local_transcriber.audio.track", {
+        track: track.ordinal,
+      }),
+    })),
+  ];
+}
+
+function trackMetadata(
+  track: LocalSubtitleMediaProbeSummary["audioTracks"][number],
+  t: TFunction,
+  fileFormat?: string,
+): string {
+  return [
+    track.title,
+    getLocalSubtitleTrackLanguageLabel(track.language),
+    getLocalSubtitleTrackCodecLabel(track.codec, fileFormat),
+    track.channels === undefined
+      ? undefined
+      : t("subtitle:local_transcriber.audio.channels", {
+          count: track.channels,
+        }),
+    track.sampleRateHz === undefined
+      ? undefined
+      : t("subtitle:local_transcriber.audio.sample_rate", {
+          rate: formatSampleRate(track.sampleRateHz),
+        }),
+  ].filter((value): value is string => Boolean(value)).join(" · ");
+}
+
+function formatSampleRate(sampleRateHz: number): string {
+  if (sampleRateHz % 1_000 === 0) return `${sampleRateHz / 1_000} kHz`;
+  return `${sampleRateHz} Hz`;
 }
 
 function TaskRow({
@@ -240,7 +510,20 @@ function TaskRow({
   onReveal,
   onHandoff,
   onShowError,
-}: Omit<LocalSubtitleTaskQueueProps, "batches"> & {
+}: Pick<
+  LocalSubtitleTaskQueueProps,
+  | "pendingActionKeys"
+  | "manualHandoffResults"
+  | "missingTranslationTaskIds"
+  | "onCancel"
+  | "onRetry"
+  | "onRetryOnCpu"
+  | "onRemove"
+  | "onPreview"
+  | "onReveal"
+  | "onHandoff"
+  | "onShowError"
+> & {
   readonly task: LocalSubtitleTaskSummary;
 }) {
   const { t } = useTranslation(["subtitle"]);

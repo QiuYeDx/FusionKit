@@ -31,6 +31,7 @@ function renderDraftMedia(
 ): string {
   const file: LocalSubtitleAuthorizedMedia = {
     fileToken: "file-token",
+    sourceKey: "source-key",
     displayName,
     byteSize: 1024,
     expiresAt: 10_000,

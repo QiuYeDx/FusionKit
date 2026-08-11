@@ -8,9 +8,7 @@ import {
 } from "react";
 import { useTranslation } from "react-i18next";
 import {
-  FileVideo2,
   Loader2,
-  Play,
   Settings2,
   SlidersHorizontal,
 } from "lucide-react";
@@ -36,7 +34,6 @@ import {
   ToolField,
   ToolFileDropZone,
   ToolOutputPathPicker,
-  ToolPanel,
   ToolRadioButtonGroup,
 } from "@/pages/Tools/_shared/ui";
 import {
@@ -76,11 +73,11 @@ import {
   formatLocalSubtitleBytes,
   getReadyLocalSubtitleModels,
   hasActiveLocalSubtitleTasks,
+  isLocalSubtitleTaskActive,
   shouldRequestLocalSubtitleBackendPreview,
   type LocalSubtitleDraftMediaProbe,
   type LocalSubtitleStartIssue,
 } from "./localSubtitleTranscriberModel";
-import { LocalSubtitleDraftMediaList } from "./LocalSubtitleDraftMediaList";
 import {
   LocalSubtitleEnvironmentManager,
   localSubtitleResourceActionKey,
@@ -237,10 +234,6 @@ export default function LocalSubtitleTranscriber() {
   const consumeDraftCapabilitiesAfterCommit = useLocalSubtitleTranscriberStore(
     (state) => state.consumeDraftCapabilitiesAfterCommit,
   );
-  const resetDraft = useLocalSubtitleTranscriberStore(
-    (state) => state.resetDraft,
-  );
-
   const mountedRef = useRef(true);
   const backendPreviewGenerationRef = useRef(0);
   const mediaProbeGenerationRef = useRef(0);
@@ -256,6 +249,12 @@ export default function LocalSubtitleTranscriber() {
   const [fileAuthorizationPending, setFileAuthorizationPending] = useState(false);
   const [outputSelectionPending, setOutputSelectionPending] = useState(false);
   const [submissionPending, setSubmissionPending] = useState(false);
+  const [clearPending, setClearPending] = useState(false);
+  const [bulkRemovalInFlight, setBulkRemovalInFlight] = useState(false);
+  const [clearAllConfirmOpen, setClearAllConfirmOpen] = useState(false);
+  const [pendingClearTaskIds, setPendingClearTaskIds] = useState<
+    ReadonlySet<string>
+  >(() => new Set());
   const [preparedTranslationBatch, setPreparedTranslationBatch] =
     useState<PreparedTranslationBatch | null>(null);
   const preparedTranslationBatchRef = useRef<PreparedTranslationBatch | null>(null);
@@ -336,9 +335,8 @@ export default function LocalSubtitleTranscriber() {
       if (prepared && !preparedBatchCommitPendingRef.current) {
         void postActionService.releaseSnapshot(prepared.snapshot.snapshotId);
       }
-      resetDraft();
     };
-  }, [postActionService, resetDraft]);
+  }, [postActionService]);
 
   useEffect(() => {
     preparedTranslationBatchRef.current = preparedTranslationBatch;
@@ -644,9 +642,19 @@ export default function LocalSubtitleTranscriber() {
       ...runtimeState.batches,
     ].sort((left, right) => right.createdAt.localeCompare(left.createdAt));
   }, [runtimeState.batches, submittedBatches]);
-  const missingTranslationTaskIds = new Set(
-    visibleBatches
+  const visibleTasks = useMemo(
+    () => visibleBatches
       .flatMap((batch) => batch.tasks)
+      .sort((left, right) => {
+        const createdAtOrder = right.createdAt.localeCompare(left.createdAt);
+        return createdAtOrder !== 0
+          ? createdAtOrder
+          : right.taskId.localeCompare(left.taskId);
+      }),
+    [visibleBatches],
+  );
+  const missingTranslationTaskIds = new Set(
+    visibleTasks
       .map((task) => task.postAction.translationTaskId)
       .filter((taskId): taskId is string =>
         Boolean(taskId) && !postActionService.hasTranslationTask(taskId!)),
@@ -655,6 +663,9 @@ export default function LocalSubtitleTranscriber() {
   const mediaProbeStatus = deriveLocalSubtitleDraftMediaProbeStatus(
     selectedFiles,
     draftMediaProbes,
+  );
+  const startableFiles = selectedFiles.filter(
+    (file) => draftMediaProbes.get(file.fileToken)?.status === "ready",
   );
   const startIssue = deriveLocalSubtitleStartIssue({
     environmentLoading: environment.loading,
@@ -669,8 +680,8 @@ export default function LocalSubtitleTranscriber() {
     backendPreviewModelId: backendPreview.modelId,
     backendPreviewDevicePreference: backendPreview.devicePreference,
     devicePreference: preferences.devicePreference,
-    selectedFiles,
-    mediaProbeStatus,
+    selectedFiles: startableFiles,
+    mediaProbeStatus: startableFiles.length > 0 ? "ready" : mediaProbeStatus,
     outputMode: preferences.outputMode,
     outputDirectory,
   });
@@ -748,14 +759,9 @@ export default function LocalSubtitleTranscriber() {
   );
 
   const handleFiles = useCallback(async (files: FileList) => {
-    const remainingCapacity = Math.max(
-      0,
-      LOCAL_SUBTITLE_LIMITS.maxBatchFiles -
-        useLocalSubtitleTranscriberStore.getState().draftInputFiles.length,
-    );
     const selected = Array.from(files).slice(
       0,
-      remainingCapacity,
+      LOCAL_SUBTITLE_LIMITS.maxBatchFiles,
     );
     if (selected.length === 0) return;
     setFileAuthorizationPending(true);
@@ -774,13 +780,51 @@ export default function LocalSubtitleTranscriber() {
         setActionError(result.error);
         return;
       }
-      addDraftInputFiles(result.data);
+      const currentDraftFiles =
+        useLocalSubtitleTranscriberStore.getState().draftInputFiles;
+      const existingSourceKeys = new Set([
+        ...currentDraftFiles.map((file) => file.sourceKey),
+        ...visibleTasks.map((task) => task.sourceKey),
+      ]);
+      const availableSlots = Math.max(
+        0,
+        LOCAL_SUBTITLE_LIMITS.maxBatchFiles - currentDraftFiles.length,
+      );
+      const accepted: LocalSubtitleAuthorizedMedia[] = [];
+      const rejected: LocalSubtitleAuthorizedMedia[] = [];
+      for (const authorized of result.data) {
+        if (
+          existingSourceKeys.has(authorized.sourceKey) ||
+          accepted.length >= availableSlots
+        ) {
+          rejected.push(authorized);
+          continue;
+        }
+        existingSourceKeys.add(authorized.sourceKey);
+        accepted.push(authorized);
+      }
+      for (const duplicate of rejected) {
+        runtimeService.queueInputDraftRevocation(duplicate);
+      }
+      if (accepted.length > 0) addDraftInputFiles(accepted);
+      const duplicateCount = rejected.filter((file) =>
+        visibleTasks.some((task) => task.sourceKey === file.sourceKey) ||
+        currentDraftFiles.some((draft) => draft.sourceKey === file.sourceKey),
+      ).length;
+      if (duplicateCount > 0) {
+        showToast(
+          t("subtitle:local_transcriber.file.duplicate_skipped", {
+            count: duplicateCount,
+          }),
+          "warning",
+        );
+      }
     } catch (error) {
       if (mountedRef.current) setActionError(toDisplayError(error));
     } finally {
       if (mountedRef.current) setFileAuthorizationPending(false);
     }
-  }, [addDraftInputFiles, runtimeService]);
+  }, [addDraftInputFiles, runtimeService, t, visibleTasks]);
 
   const handleSelectOutput = useCallback(async () => {
     setOutputSelectionPending(true);
@@ -857,7 +901,7 @@ export default function LocalSubtitleTranscriber() {
         return;
       }
       if (result.data.tasks.length === 0) {
-        setActionError({ message: "The local subtitle batch did not return a task." });
+        setActionError({ message: "The local subtitle request did not return a task." });
         if (prepared) {
           preparedTranslationBatchRef.current = null;
           setPreparedTranslationBatch(null);
@@ -874,7 +918,9 @@ export default function LocalSubtitleTranscriber() {
       setPreparedTranslationBatch(null);
       preparedTranslationBatchRef.current = null;
       setSubmittedBatches((current) => [result.data, ...current]);
-      consumeDraftCapabilitiesAfterCommit();
+      consumeDraftCapabilitiesAfterCommit(
+        request.files.map((file) => file.fileToken),
+      );
       void runtimeService.refresh();
     } catch (error) {
       if (prepared) {
@@ -898,7 +944,7 @@ export default function LocalSubtitleTranscriber() {
       startIssue ||
       fileAuthorizationPending ||
       outputSelectionPending ||
-      selectedFiles.length === 0 ||
+      startableFiles.length === 0 ||
       !selectedModelId ||
       preparedTranslationBatch
     ) return;
@@ -907,7 +953,7 @@ export default function LocalSubtitleTranscriber() {
     try {
       if (draftPostActionMode === "export_only") {
         const request = createLocalSubtitleBatchRequest({
-          files: selectedFiles,
+          files: startableFiles,
           modelId: selectedModelId,
           preferences,
           initialPrompt: draftInitialPrompt,
@@ -938,7 +984,7 @@ export default function LocalSubtitleTranscriber() {
         return;
       }
       const request = createLocalSubtitleBatchRequest({
-        files: selectedFiles,
+        files: startableFiles,
         modelId: selectedModelId,
         preferences,
         initialPrompt: draftInitialPrompt,
@@ -976,7 +1022,7 @@ export default function LocalSubtitleTranscriber() {
     postActionService,
     preferences,
     preparedTranslationBatch,
-    selectedFiles,
+    startableFiles,
     selectedModelId,
     startIssue,
     t,
@@ -1053,6 +1099,117 @@ export default function LocalSubtitleTranscriber() {
     );
   }, [runTaskAction]);
 
+  const clearableCompletedTasks = useMemo(
+    () => visibleTasks.filter((task) =>
+      task.status === "completed" && isLocalSubtitleTaskReadyToRemove(task),
+    ),
+    [visibleTasks],
+  );
+
+  const handleClearCompleted = useCallback(() => {
+    if (clearPending || clearableCompletedTasks.length === 0) return;
+    setActionError(null);
+    setClearPending(true);
+    setPendingClearTaskIds(new Set(
+      clearableCompletedTasks.map((task) => task.taskId),
+    ));
+  }, [clearPending, clearableCompletedTasks]);
+
+  const executeClearAll = useCallback(async () => {
+    if (clearPending) return;
+    setClearAllConfirmOpen(false);
+    setActionError(null);
+    setClearPending(true);
+    setDraftInputFiles([]);
+    setPendingClearTaskIds(new Set(visibleTasks.map((task) => task.taskId)));
+
+    const activeTasks = visibleTasks.filter(isLocalSubtitleTaskActive);
+    const failedTaskIds = new Set<string>();
+    let firstError: LocalSubtitleDisplayError | null = null;
+    for (const task of activeTasks) {
+      try {
+        const result = await window.localSubtitleApi.cancelTask(task.taskId);
+        if (!result.ok) {
+          failedTaskIds.add(task.taskId);
+          firstError ??= result.error;
+        }
+      } catch (error) {
+        failedTaskIds.add(task.taskId);
+        firstError ??= toDisplayError(error);
+      }
+    }
+    if (!mountedRef.current) return;
+    if (failedTaskIds.size > 0) {
+      setPendingClearTaskIds((current) => {
+        const next = new Set(current);
+        for (const taskId of failedTaskIds) next.delete(taskId);
+        return next;
+      });
+    }
+    if (firstError) setActionError(firstError);
+    void runtimeService.refresh();
+  }, [clearPending, runtimeService, setDraftInputFiles, visibleTasks]);
+
+  const handleClearAll = useCallback(() => {
+    if (clearPending || selectedFiles.length + visibleTasks.length === 0) return;
+    if (visibleTasks.some(isLocalSubtitleTaskActive)) {
+      setClearAllConfirmOpen(true);
+      return;
+    }
+    void executeClearAll();
+  }, [clearPending, executeClearAll, selectedFiles.length, visibleTasks]);
+
+  useEffect(() => {
+    if (bulkRemovalInFlight || pendingClearTaskIds.size === 0) return;
+    const liveTaskIds = new Set(visibleTasks.map((task) => task.taskId));
+    const removableTasks = visibleTasks.filter((task) =>
+      pendingClearTaskIds.has(task.taskId) &&
+      isLocalSubtitleTaskReadyToRemove(task),
+    );
+    const vanishedTaskIds = [...pendingClearTaskIds].filter(
+      (taskId) => !liveTaskIds.has(taskId),
+    );
+    if (removableTasks.length === 0 && vanishedTaskIds.length === 0) return;
+
+    setBulkRemovalInFlight(true);
+    setPendingClearTaskIds((current) => {
+      const next = new Set(current);
+      for (const task of removableTasks) next.delete(task.taskId);
+      for (const taskId of vanishedTaskIds) next.delete(taskId);
+      return next;
+    });
+    void (async () => {
+      let firstError: LocalSubtitleDisplayError | null = null;
+      for (const task of removableTasks) {
+        try {
+          const result = await window.localSubtitleApi.removeTask(task.taskId);
+          if (!result.ok) firstError ??= result.error;
+        } catch (error) {
+          firstError ??= toDisplayError(error);
+        }
+      }
+      if (!mountedRef.current) return;
+      if (firstError) setActionError(firstError);
+      setBulkRemovalInFlight(false);
+      void runtimeService.refresh();
+    })();
+  }, [
+    bulkRemovalInFlight,
+    pendingClearTaskIds,
+    runtimeService,
+    visibleTasks,
+  ]);
+
+  useEffect(() => {
+    if (
+      clearPending &&
+      pendingClearTaskIds.size === 0 &&
+      !bulkRemovalInFlight
+    ) {
+      setClearPending(false);
+    }
+  }, [bulkRemovalInFlight, clearPending, pendingClearTaskIds]);
+
   const handleReveal = useCallback((
     task: LocalSubtitleTaskSummary,
     artifact: GeneratedSubtitleArtifactSummary,
@@ -1123,29 +1280,6 @@ export default function LocalSubtitleTranscriber() {
 
   const cpuRetryPending = cpuRetryCandidate !== null && pendingTaskActions.has(
     localSubtitleTaskActionKey("cpu-retry", cpuRetryCandidate.taskId),
-  );
-
-  const startTranscriptionAction = (
-    <Button
-      data-testid="local-subtitle-start"
-      type="button"
-      size="sm"
-      disabled={
-        Boolean(startIssue) ||
-        fileAuthorizationPending ||
-        outputSelectionPending ||
-        submissionLocked
-      }
-      className="active:scale-[0.98] motion-reduce:transform-none"
-      onClick={handleStart}
-    >
-      {submissionPending ? (
-        <Loader2 className="h-4 w-4 animate-spin" />
-      ) : (
-        <Play className="h-4 w-4" />
-      )}
-      {t("subtitle:local_transcriber.actions.start")}
-    </Button>
   );
 
   return (
@@ -1532,68 +1666,64 @@ export default function LocalSubtitleTranscriber() {
           </ToolConfigPanel>
         }
       >
-        <ToolPanel
-          icon={FileVideo2}
-          title={t("subtitle:local_transcriber.workspace.title")}
-          actions={startTranscriptionAction}
-          headerClassName="border-b-0 pb-2"
-          bodyClassName="px-4 pb-4 pt-1 sm:px-5 sm:pb-5"
-        >
-          <div className="space-y-3">
-            <ToolFileDropZone
-              id="local-subtitle-file"
-              inputTestId="local-subtitle-file-input"
-              accept={MEDIA_ACCEPT}
-              multiple
-              dragging={dragging}
-              disabled={submissionLocked || fileAuthorizationPending}
-              title={t(
-                fileAuthorizationPending
-                  ? "subtitle:local_transcriber.file.authorizing"
-                  : "subtitle:local_transcriber.file.title",
-              )}
-              description={t("subtitle:local_transcriber.file.description", {
-                max: LOCAL_SUBTITLE_LIMITS.maxBatchFiles,
-              })}
-              actionLabel={t("subtitle:local_transcriber.actions.select_files")}
-              icon={fileAuthorizationPending ? <Loader2 className="h-5 w-5 animate-spin" /> : undefined}
-              className="px-4 py-4"
-              onDraggingChange={setDragging}
-              onFiles={handleFiles}
-            />
+        <div className="space-y-3">
+          <ToolFileDropZone
+            id="local-subtitle-file"
+            inputTestId="local-subtitle-file-input"
+            accept={MEDIA_ACCEPT}
+            multiple
+            dragging={dragging}
+            disabled={submissionLocked || fileAuthorizationPending}
+            title={t(
+              fileAuthorizationPending
+                ? "subtitle:local_transcriber.file.authorizing"
+                : "subtitle:local_transcriber.file.title",
+            )}
+            description={t("subtitle:local_transcriber.file.description", {
+              max: LOCAL_SUBTITLE_LIMITS.maxBatchFiles,
+            })}
+            actionLabel={t("subtitle:local_transcriber.actions.select_files")}
+            icon={fileAuthorizationPending ? <Loader2 className="h-5 w-5 animate-spin" /> : undefined}
+            className="px-4 py-4"
+            onDraggingChange={setDragging}
+            onFiles={handleFiles}
+          />
 
-            {selectedFiles.length > 0 ? (
-              <LocalSubtitleDraftMediaList
-                files={selectedFiles}
-                probes={draftMediaProbes}
-                explicitAudioStreamIds={explicitAudioStreamIds}
-                disabled={submissionLocked}
-                probeQueuePending={mediaProbeQueuePending}
-                onClear={() => setDraftInputFiles([])}
-                onRemove={removeDraftInputFile}
-                onRetryProbe={handleRetryMediaProbe}
-                onAudioStreamChange={handleAudioStreamChange}
-              />
-            ) : null}
+          {actionError || runtimeState.error ? (
+            <LocalSubtitleErrorNotice error={actionError ?? runtimeState.error!} />
+          ) : null}
 
-            {actionError || runtimeState.error ? (
-              <LocalSubtitleErrorNotice error={actionError ?? runtimeState.error!} />
-            ) : null}
-
-            {startIssue ? (
-              <p className="min-w-0 px-1 text-xs leading-relaxed text-muted-foreground">
-                {t(START_ISSUE_KEYS[startIssue])}
-              </p>
-            ) : null}
-
-          </div>
-        </ToolPanel>
+          {startIssue && selectedFiles.length > 0 ? (
+            <p className="min-w-0 px-1 text-xs leading-relaxed text-muted-foreground">
+              {t(START_ISSUE_KEYS[startIssue])}
+            </p>
+          ) : null}
+        </div>
 
         <LocalSubtitleTaskQueue
-          batches={visibleBatches}
+          tasks={visibleTasks}
+          draftFiles={selectedFiles}
+          draftProbes={draftMediaProbes}
+          explicitAudioStreamIds={explicitAudioStreamIds}
+          draftDisabled={submissionLocked}
+          probeQueuePending={mediaProbeQueuePending}
+          startDisabled={
+            Boolean(startIssue) ||
+            fileAuthorizationPending ||
+            outputSelectionPending ||
+            submissionLocked
+          }
+          startPending={submissionPending}
+          clearPending={clearPending}
           pendingActionKeys={pendingTaskActions}
           manualHandoffResults={manualHandoffResults}
           missingTranslationTaskIds={missingTranslationTaskIds}
+          onStartAll={() => void handleStart()}
+          onClearCompleted={handleClearCompleted}
+          onClearAll={handleClearAll}
+          onRemoveDraft={removeDraftInputFile}
+          onRetryProbe={handleRetryMediaProbe}
+          onAudioStreamChange={handleAudioStreamChange}
           onCancel={handleCancel}
           onRetry={handleRetry}
           onPreview={(task, artifact) => setArtifactPreview({
@@ -1630,6 +1760,18 @@ export default function LocalSubtitleTranscriber() {
       </ToolDetailLayout>
 
       <ConfirmDialog
+        open={clearAllConfirmOpen}
+        onOpenChange={(open) => {
+          if (!clearPending) setClearAllConfirmOpen(open);
+        }}
+        title={t("subtitle:local_transcriber.clear_all.title")}
+        description={t("subtitle:local_transcriber.clear_all.description")}
+        confirmText={t("subtitle:local_transcriber.clear_all.confirm")}
+        cancelText={t("common:action.cancel")}
+        variant="destructive"
+        onConfirm={() => void executeClearAll()}
+      />
+      <ConfirmDialog
         open={cpuRetryCandidate !== null}
         onOpenChange={(open) => {
           if (!open && !cpuRetryPending) setCpuRetryCandidate(null);
@@ -1663,6 +1805,18 @@ export default function LocalSubtitleTranscriber() {
         onConfirm={handlePreparedBatchConfirm}
       />
     </div>
+  );
+}
+
+function isLocalSubtitleTaskReadyToRemove(
+  task: LocalSubtitleTaskSummary,
+): boolean {
+  if (isLocalSubtitleTaskActive(task)) return false;
+  return !(
+    task.status === "completed" &&
+    task.postAction.mode !== "export_only" &&
+    (task.postAction.importStatus === "pending" ||
+      task.postAction.importStatus === "importing")
   );
 }
 

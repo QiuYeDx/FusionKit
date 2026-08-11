@@ -682,7 +682,7 @@ export class LocalSubtitleJobManager {
         mediaSelectionReleased: false,
       }));
       const summaries = records.map((record, index) =>
-        createQueuedTaskSummary(record, inputs[index]!.displayName, createdAt)
+        createQueuedTaskSummary(record, inputs[index]!, createdAt)
       );
       const batch = createBatchSummary(batchRecord, summaries, createdAt);
 
@@ -2841,14 +2841,15 @@ function createTaskExecutionBinding(
 
 function createQueuedTaskSummary(
   record: TaskRecord,
-  displayName: string,
+  input: Pick<ResolvedLocalSubtitleInput, "displayName" | "sourceKey">,
   createdAt: string,
 ): LocalSubtitleTaskSummary {
   return {
     taskId: record.taskId,
     batchId: record.batch.batchId,
+    sourceKey: input.sourceKey,
     generation: record.generation,
-    displayName,
+    displayName: input.displayName,
     status: "queued",
     progress: queuedProgress(),
     model: record.batch.config.model,

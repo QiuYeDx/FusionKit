@@ -219,7 +219,7 @@
   },
   "local_transcriber": {
     "title": "Local Subtitle Transcriber",
-    "description": "Use an installed on-device model to transcribe audio and video files into SRT subtitles in batches.",
+    "description": "Use an installed on-device model to transcribe audio and video tasks into subtitles.",
     "config": {
       "title": "Transcription settings",
       "model": "Local model",
@@ -271,7 +271,7 @@
       "output_directory": "Output folder",
       "output_placeholder": "Select an output folder"
     },
-    "workspace": { "title": "Batch transcription" },
+    "workspace": { "title": "Transcription tasks" },
     "environment": {
       "title": "Local environment",
       "checking": "Checking",
@@ -316,8 +316,9 @@
       "probing": "Reading media details...",
       "probe_mismatch": "The media details did not match the selected file. Select the file again.",
       "title": "Add audio or video",
-      "description": "Drop media files here or select them from your device, up to {{max}} per batch",
-      "selected_count": "{{count}} files selected"
+      "description": "Drop media files here or select them from your device, up to {{max}} at a time",
+      "selected_count": "{{count}} files selected",
+      "duplicate_skipped": "Skipped {{count}} duplicate files that are still in the task list"
     },
     "audio": {
       "group_label": "Audio track for {{name}}",
@@ -342,6 +343,9 @@
       "delete_named_resource": "Delete {{name}}",
       "delete_resource": "Delete resource",
       "start": "Start transcription",
+      "start_all": "Start all",
+      "clear_completed": "Clear completed",
+      "clear_all": "Clear all",
       "retry_on_cpu": "Retry on CPU",
       "reveal": "Show in folder",
       "cancel_task": "Cancel {{name}}",
@@ -359,16 +363,16 @@
       "enqueue": "Add to subtitle translation",
       "enqueue_and_start": "Add and start translation",
       "send_to_translation": "Send generated subtitles to translation",
-      "start_automatically": "Start imported translation tasks automatically",
+      "start_automatically": "Start the imported translation tasks automatically",
       "handoff_format": "Translation format",
       "languages": "Translation languages",
       "profile": "Execution profile",
       "translation_output": "Translation output",
       "needs_configuration": "Configuration required before starting",
       "confirm_title": "Confirm translation handoff",
-      "confirm_description": "Review the frozen translation settings for this batch before it starts.",
+      "confirm_description": "Review the frozen translation settings before these tasks start.",
       "confirm": "Confirm and start",
-      "cost_notice": "Translation will start automatically after each selected subtitle is generated and may use a paid external API. Only tasks added by this batch will be started.",
+      "cost_notice": "Translation will start automatically after each selected subtitle is generated and may use a paid external API. Only the newly added tasks will be started.",
       "session_only_notice": "Imported tasks are added to the current subtitle translation session and are not restored after an app restart.",
       "receipt": "Translation handoff",
       "view_translation": "View translation task",
@@ -462,6 +466,9 @@
       "cancelling": "Cancelling"
     },
     "status": {
+      "probing": "Reading details",
+      "ready": "Not started",
+      "probe_failed": "Read failed",
       "queued": "Waiting",
       "preparing_media": "Preparing media",
       "loading_model": "Loading model",
@@ -474,29 +481,20 @@
       "failed": "Transcription failed",
       "interrupted": "Interrupted"
     },
-    "batch_status": {
-      "queued": "Waiting",
-      "running": "Running",
-      "cancelling": "Cancelling",
-      "completed": "Completed",
-      "cancelled": "Cancelled",
-      "failed": "Failed",
-      "interrupted": "Interrupted"
-    },
     "queue": {
       "title": "Task queue",
-      "batch_count": "{{count}} batches",
-      "batch": "Transcription batch",
-      "batch_progress": "{{completed}} of {{total}} tasks completed",
       "duration": "Media duration {{duration}}",
-      "overall_progress": "Overall {{progress}}%",
       "empty_title": "The task queue is empty",
-      "empty_description": "Submitted files will appear here in batches with task status and results."
+      "empty_description": "Selected files are added here immediately with their own status and results."
     },
     "recovered": {
       "title": "Previous session",
-      "summary": "{{count}} tasks · engine {{version}}",
-      "batch": "Previous batch · {{count}} tasks"
+      "summary": "{{count}} tasks · engine {{version}}"
+    },
+    "clear_all": {
+      "title": "Clear all tasks?",
+      "description": "Running tasks will be cancelled first, then removed with the rest of the list. Exported subtitle files will not be deleted.",
+      "confirm": "Clear all"
     },
     "result": {
       "full": "All formats generated",

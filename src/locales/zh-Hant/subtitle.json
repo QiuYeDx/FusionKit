@@ -219,7 +219,7 @@
   },
   "local_transcriber": {
     "title": "本機字幕轉寫",
-    "description": "使用裝置上已安裝的模型，批次將音訊或影片轉寫為 SRT 字幕。",
+    "description": "使用裝置上已安裝的模型，將音訊或影片任務轉寫為字幕。",
     "config": {
       "title": "轉寫設定",
       "model": "本機模型",
@@ -271,7 +271,7 @@
       "output_directory": "輸出目錄",
       "output_placeholder": "請選擇輸出目錄"
     },
-    "workspace": { "title": "批次轉寫" },
+    "workspace": { "title": "轉寫任務" },
     "environment": {
       "title": "本機環境",
       "checking": "檢查中",
@@ -316,8 +316,9 @@
       "probing": "正在讀取媒體資訊...",
       "probe_mismatch": "媒體資訊與所選檔案不符，請重新選擇檔案。",
       "title": "加入音訊或影片",
-      "description": "拖曳媒體檔案到這裡，或從裝置中選擇；每批最多 {{max}} 個",
-      "selected_count": "已選擇 {{count}} 個檔案"
+      "description": "拖曳媒體檔案到這裡，或從裝置中選擇；單次最多加入 {{max}} 個",
+      "selected_count": "已選擇 {{count}} 個檔案",
+      "duplicate_skipped": "已略過 {{count}} 個清單中尚未清除的重複檔案"
     },
     "audio": {
       "group_label": "{{name}} 的音軌",
@@ -342,6 +343,9 @@
       "delete_named_resource": "刪除 {{name}}",
       "delete_resource": "刪除資源",
       "start": "開始轉寫",
+      "start_all": "全部開始",
+      "clear_completed": "清除已完成",
+      "clear_all": "清空全部",
       "retry_on_cpu": "改用 CPU 重試",
       "reveal": "在資料夾中顯示",
       "cancel_task": "取消 {{name}}",
@@ -359,16 +363,16 @@
       "enqueue": "加入字幕翻譯",
       "enqueue_and_start": "加入並開始翻譯",
       "send_to_translation": "將產生的字幕交給字幕翻譯",
-      "start_automatically": "自動開始本批次匯入的翻譯任務",
+      "start_automatically": "自動開始本次匯入的翻譯任務",
       "handoff_format": "翻譯交接格式",
       "languages": "翻譯語言",
       "profile": "執行設定",
       "translation_output": "翻譯輸出",
       "needs_configuration": "開始前需要補充設定",
       "confirm_title": "確認翻譯交接",
-      "confirm_description": "開始批次前，請檢查本次凍結的字幕翻譯設定。",
+      "confirm_description": "開始任務前，請檢查本次凍結的字幕翻譯設定。",
       "confirm": "確認並開始",
-      "cost_notice": "每個所選字幕產生後會自動開始翻譯，可能呼叫付費外部 API；只會啟動本批次新增的任務。",
+      "cost_notice": "每個所選字幕產生後會自動開始翻譯，可能呼叫付費外部 API；只會啟動本次新增的任務。",
       "session_only_notice": "匯入任務只加入目前字幕翻譯工作階段，應用程式重新啟動後不會還原尚未開始的任務。",
       "receipt": "翻譯交接",
       "view_translation": "檢視翻譯任務",
@@ -462,6 +466,9 @@
       "cancelling": "正在取消"
     },
     "status": {
+      "probing": "讀取資訊中",
+      "ready": "待開始",
+      "probe_failed": "讀取失敗",
       "queued": "等待處理",
       "preparing_media": "準備媒體",
       "loading_model": "載入模型",
@@ -474,29 +481,20 @@
       "failed": "轉寫失敗",
       "interrupted": "已中斷"
     },
-    "batch_status": {
-      "queued": "等待處理",
-      "running": "處理中",
-      "cancelling": "正在取消",
-      "completed": "已完成",
-      "cancelled": "已取消",
-      "failed": "失敗",
-      "interrupted": "已中斷"
-    },
     "queue": {
       "title": "任務佇列",
-      "batch_count": "{{count}} 個批次",
-      "batch": "轉寫批次",
-      "batch_progress": "{{completed}} / {{total}} 個任務完成",
       "duration": "媒體時長 {{duration}}",
-      "overall_progress": "總進度 {{progress}}%",
       "empty_title": "任務佇列為空",
-      "empty_description": "提交檔案後，這裡會依批次顯示每個任務的狀態與結果。"
+      "empty_description": "選擇檔案後，任務會直接加入這裡並顯示各自的狀態與結果。"
     },
     "recovered": {
       "title": "上次工作階段",
-      "summary": "{{count}} 個任務 · 引擎 {{version}}",
-      "batch": "歷史批次 · {{count}} 個任務"
+      "summary": "{{count}} 個任務 · 引擎 {{version}}"
+    },
+    "clear_all": {
+      "title": "清空全部任務？",
+      "description": "執行中的任務會先取消，再與其他任務一同從清單清除。已匯出的字幕檔案不會被刪除。",
+      "confirm": "清空全部"
     },
     "result": {
       "full": "所有格式均已產生",

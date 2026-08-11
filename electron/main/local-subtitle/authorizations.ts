@@ -58,11 +58,15 @@ export type LocalSubtitleFileObjectIdentity =
 export type LocalSubtitleDirectoryIdentity =
   LocalSubtitleFilesystemObjectIdentity;
 
-interface FileDescriptor {
+interface InspectedFileDescriptor {
   readonly path: string;
   readonly displayName: string;
   readonly identity: LocalSubtitleFileIdentity;
   readonly sourceOutputDirectoryIdentity?: LocalSubtitleDirectoryIdentity;
+}
+
+interface FileDescriptor extends InspectedFileDescriptor {
+  readonly sourceKey: string;
 }
 
 interface DirectoryDescriptor {
@@ -73,6 +77,7 @@ interface DirectoryDescriptor {
 
 export interface AuthorizedLocalSubtitleInput {
   readonly fileToken: string;
+  readonly sourceKey: string;
   readonly displayName: string;
   readonly byteSize: number;
   readonly expiresAt: number;
@@ -80,6 +85,7 @@ export interface AuthorizedLocalSubtitleInput {
 
 export interface ResolvedLocalSubtitleInput {
   readonly filePath: string;
+  readonly sourceKey: string;
   readonly displayName: string;
   readonly byteSize: number;
   readonly identity: LocalSubtitleFileIdentity;
@@ -104,6 +110,7 @@ interface RegistryOptions {
   readonly leaseTtlMs?: number;
   readonly now?: () => number;
   readonly tokenFactory?: () => string;
+  readonly sourceKeyFactory?: () => string;
   readonly beforeVerify?: () => void | Promise<void>;
 }
 
@@ -514,9 +521,15 @@ export class LocalSubtitleInputAuthorizationRegistry {
     FileDescriptor,
     LocalSubtitleInputOperation
   >;
+  private readonly sourceKeysByOwner = new Map<string, Map<string, string>>();
+  private readonly sourceKeyFactory: () => string;
 
   constructor(options: RegistryOptions = {}) {
-    this.core = new DraftLeaseRegistry(options, verifyFile, "ls-input-");
+    this.core = new DraftLeaseRegistry<
+      FileDescriptor,
+      LocalSubtitleInputOperation
+    >(options, verifyFile, "ls-input-");
+    this.sourceKeyFactory = options.sourceKeyFactory ?? randomUUID;
   }
 
   async authorizeMany(
@@ -540,11 +553,18 @@ export class LocalSubtitleInputAuthorizationRegistry {
       descriptors.map((value) => identityKey(value.identity)),
     ).size;
     if (identityCount !== descriptors.length) throw invalid("files");
+    const authorizedDescriptors = descriptors.map((descriptor) =>
+      Object.freeze({
+        ...descriptor,
+        sourceKey: this.sourceKey(owner, descriptor),
+      }),
+    );
     return this.core
-      .authorizeMany(owner, descriptors, operations)
+      .authorizeMany(owner, authorizedDescriptors, operations)
       .map((entry) =>
         Object.freeze({
           fileToken: entry.token,
+          sourceKey: entry.descriptor.sourceKey,
           displayName: entry.descriptor.displayName,
           byteSize: entry.descriptor.identity.size,
           expiresAt: entry.expiresAt,
@@ -652,6 +672,7 @@ export class LocalSubtitleInputAuthorizationRegistry {
 
   releaseOwner(owner: LocalSubtitleOwnerKey) {
     this.core.releaseOwner(owner);
+    this.sourceKeysByOwner.delete(ownerKey(owner));
   }
 
   sweepExpired() {
@@ -660,6 +681,24 @@ export class LocalSubtitleInputAuthorizationRegistry {
 
   get leaseTtlMs() {
     return this.core.leaseTtlMs;
+  }
+
+  private sourceKey(
+    owner: LocalSubtitleOwnerKey,
+    descriptor: InspectedFileDescriptor,
+  ): string {
+    const ownerIdentity = ownerKey(owner);
+    let sourceKeys = this.sourceKeysByOwner.get(ownerIdentity);
+    if (!sourceKeys) {
+      sourceKeys = new Map();
+      this.sourceKeysByOwner.set(ownerIdentity, sourceKeys);
+    }
+    const canonicalIdentity = canonicalPathIdentity(descriptor.path);
+    const existing = sourceKeys.get(canonicalIdentity);
+    if (existing) return existing;
+    const sourceKey = `ls-source-${this.sourceKeyFactory()}`;
+    sourceKeys.set(canonicalIdentity, sourceKey);
+    return sourceKey;
   }
 
   _prepare(owner: LocalSubtitleOwnerKey, token: string, taskId: string) {
@@ -1221,7 +1260,7 @@ export function resolveSafeLocalSubtitleChildPath(root: string, leaf: string): s
   return child;
 }
 
-async function inspectFile(filePath: string): Promise<FileDescriptor> {
+async function inspectFile(filePath: string): Promise<InspectedFileDescriptor> {
   const absolute = absolutePath(filePath, "file");
   try {
     const before = await lstat(absolute, { bigint: true });
@@ -1273,7 +1312,7 @@ async function inspectFile(filePath: string): Promise<FileDescriptor> {
 async function inspectFileAuthorization(
   filePath: string,
   captureSourceOutputDirectory: boolean,
-): Promise<FileDescriptor> {
+): Promise<InspectedFileDescriptor> {
   const file = await inspectFile(filePath);
   if (!captureSourceOutputDirectory) return file;
   const directory = await inspectSourceOutputDirectory(file);
@@ -1284,7 +1323,9 @@ async function inspectFileAuthorization(
   });
 }
 
-async function verifyFile(value: FileDescriptor): Promise<void> {
+async function verifyFile(
+  value: Pick<FileDescriptor, "path" | "identity">,
+): Promise<void> {
   try {
     const before = await lstat(value.path, { bigint: true });
     if (
@@ -1358,7 +1399,7 @@ async function verifyDirectory(value: DirectoryDescriptor): Promise<void> {
 }
 
 async function inspectSourceOutputDirectory(
-  file: FileDescriptor,
+  file: Pick<FileDescriptor, "path">,
 ): Promise<DirectoryDescriptor> {
   const expectedParent = path.dirname(file.path);
   try {
@@ -1411,7 +1452,7 @@ async function inspectDirectoryObject(
 
 async function verifySourceOutputDirectory(
   value: DirectoryDescriptor,
-  file: FileDescriptor,
+  file: Pick<FileDescriptor, "path" | "identity">,
 ): Promise<void> {
   try {
     const before = await lstat(value.path);
@@ -1461,6 +1502,7 @@ function resolvedInput(
 ): ResolvedLocalSubtitleInput {
   return Object.freeze({
     filePath: entry.descriptor.path,
+    sourceKey: entry.descriptor.sourceKey,
     displayName: entry.descriptor.displayName,
     byteSize: entry.descriptor.identity.size,
     identity: entry.descriptor.identity,
@@ -1494,11 +1536,12 @@ function sameDirectoryIdentity(
 }
 
 function sameCanonicalPath(a: string, b: string) {
-  const left = path.normalize(a);
-  const right = path.normalize(b);
-  return process.platform === "win32"
-    ? left.toLowerCase() === right.toLowerCase()
-    : left === right;
+  return canonicalPathIdentity(a) === canonicalPathIdentity(b);
+}
+
+function canonicalPathIdentity(value: string): string {
+  const normalized = path.normalize(value);
+  return process.platform === "win32" ? normalized.toLowerCase() : normalized;
 }
 
 function identityKey(value: LocalSubtitleFileIdentity) {

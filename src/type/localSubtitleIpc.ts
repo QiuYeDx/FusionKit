@@ -538,6 +538,7 @@ export const localSubtitleTaskSummarySchema: z.ZodType<LocalSubtitleTaskSummary>
     .object({
       taskId: idSchema,
       batchId: idSchema,
+      sourceKey: opaqueRefSchema,
       generation: positiveSafeIntegerSchema,
       displayName: displayNameSchema,
       durationMs: positiveSafeIntegerSchema
@@ -1423,6 +1424,7 @@ const boundedMetadataStringSchema = z
 export const localSubtitleAuthorizedMediaSchema = z
   .object({
     fileToken: opaqueRefSchema,
+    sourceKey: opaqueRefSchema,
     displayName: displayNameSchema,
     byteSize: positiveSafeIntegerSchema.max(
       LOCAL_SUBTITLE_LIMITS.maxMediaFileBytes,
@@ -1439,6 +1441,12 @@ export const localSubtitleAuthorizedMediaListSchema = z
       context.addIssue({
         code: "custom",
         message: "Authorized media tokens must be unique.",
+      });
+    }
+    if (new Set(value.map((entry) => entry.sourceKey)).size !== value.length) {
+      context.addIssue({
+        code: "custom",
+        message: "Authorized media source keys must be unique.",
       });
     }
   });

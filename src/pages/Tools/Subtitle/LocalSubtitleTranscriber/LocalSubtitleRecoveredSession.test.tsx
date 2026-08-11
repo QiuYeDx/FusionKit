@@ -23,6 +23,8 @@ describe("LocalSubtitleRecoveredSession", () => {
     expect(markup).not.toContain("artifactRef");
     expect(markup).not.toContain("reveal");
     expect(markup).not.toContain("handoff");
+    expect(markup).not.toContain("batch_status");
+    expect(markup).not.toContain("recovered.batch");
   });
 
   it("does not render an empty recovered session", () => {

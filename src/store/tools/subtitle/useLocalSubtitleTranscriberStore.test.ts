@@ -56,6 +56,7 @@ describe("local subtitle transcriber store", () => {
     state.setDraftInputFiles([
       {
         fileToken: "private-input-token",
+        sourceKey: "private-source-key",
         displayName: "private-input.wav",
         byteSize: 128,
         expiresAt: Date.now() + 60_000,
@@ -148,14 +149,22 @@ describe("local subtitle transcriber store", () => {
     });
   });
 
-  it("clears committed capabilities without revoking or resetting preferences", () => {
+  it("consumes only committed capabilities without resetting preferences", () => {
     const state = useLocalSubtitleTranscriberStore.getState();
     state.updatePreferences({ language: "ja" });
     state.setDraftInputFiles([
       {
         fileToken: "leased-input-token",
+        sourceKey: "leased-source-key",
         displayName: "input.wav",
         byteSize: 128,
+        expiresAt: Date.now() + 60_000,
+      },
+      {
+        fileToken: "waiting-input-token",
+        sourceKey: "waiting-source-key",
+        displayName: "waiting.wav",
+        byteSize: 256,
         expiresAt: Date.now() + 60_000,
       },
     ]);
@@ -166,7 +175,7 @@ describe("local subtitle transcriber store", () => {
       expiresAt: Date.now() + 60_000,
     });
 
-    state.consumeDraftCapabilitiesAfterCommit();
+    state.consumeDraftCapabilitiesAfterCommit(["leased-input-token"]);
 
     expect(useLocalSubtitleTranscriberStore.getState()).toMatchObject({
       preferences: {
@@ -174,7 +183,9 @@ describe("local subtitle transcriber store", () => {
         outputMode: "custom",
         outputDirectoryDisplayLabel: "Exports",
       },
-      draftInputFiles: [],
+      draftInputFiles: [
+        expect.objectContaining({ fileToken: "waiting-input-token" }),
+      ],
       draftOutputDirectory: null,
     });
   });
@@ -184,6 +195,7 @@ describe("local subtitle transcriber store", () => {
     store.setDraftInputFiles([
       {
         fileToken: "first-selection-token",
+        sourceKey: "first-selection-source",
         displayName: "first.wav",
         byteSize: 128,
         expiresAt: Date.now() + 60_000,
@@ -192,12 +204,14 @@ describe("local subtitle transcriber store", () => {
     store.addDraftInputFiles([
       {
         fileToken: "second-selection-token",
+        sourceKey: "second-selection-source",
         displayName: "second.mp4",
         byteSize: 256,
         expiresAt: Date.now() + 60_000,
       },
       {
         fileToken: "third-selection-token",
+        sourceKey: "third-selection-source",
         displayName: "third.wav",
         byteSize: 512,
         expiresAt: Date.now() + 60_000,
@@ -213,6 +227,71 @@ describe("local subtitle transcriber store", () => {
       "second-selection-token",
       "third-selection-token",
     ]);
+  });
+
+  it("rejects and revokes a later authorization for the same source", async () => {
+    const revokeInputFile = vi.fn().mockResolvedValue({
+      ok: true,
+      data: { revoked: true },
+    });
+    Object.defineProperty(globalThis, "window", {
+      configurable: true,
+      value: {
+        localSubtitleApi: {
+          revokeInputFile,
+        } as unknown as LocalSubtitleRendererApi,
+      },
+    });
+    const store = useLocalSubtitleTranscriberStore.getState();
+    store.setDraftInputFiles([{
+      fileToken: "first-token",
+      sourceKey: "same-source",
+      displayName: "same.wav",
+      byteSize: 128,
+      expiresAt: Date.now() + 60_000,
+    }]);
+
+    store.addDraftInputFiles([{
+      fileToken: "duplicate-token",
+      sourceKey: "same-source",
+      displayName: "same.wav",
+      byteSize: 128,
+      expiresAt: Date.now() + 60_000,
+    }]);
+    await getLocalSubtitleRuntimeService().flushPendingDraftRevocations();
+
+    expect(useLocalSubtitleTranscriberStore.getState().draftInputFiles)
+      .toHaveLength(1);
+    expect(revokeInputFile).toHaveBeenCalledWith("duplicate-token");
+  });
+
+  it("does not revoke the accepted capability when the same token is repeated", async () => {
+    const revokeInputFile = vi.fn().mockResolvedValue({
+      ok: true,
+      data: { revoked: true },
+    });
+    Object.defineProperty(globalThis, "window", {
+      configurable: true,
+      value: {
+        localSubtitleApi: {
+          revokeInputFile,
+        } as unknown as LocalSubtitleRendererApi,
+      },
+    });
+    const file = {
+      fileToken: "shared-token",
+      sourceKey: "shared-source",
+      displayName: "same.wav",
+      byteSize: 128,
+      expiresAt: Date.now() + 60_000,
+    };
+
+    useLocalSubtitleTranscriberStore.getState().setDraftInputFiles([file, file]);
+    await getLocalSubtitleRuntimeService().flushPendingDraftRevocations();
+
+    expect(useLocalSubtitleTranscriberStore.getState().draftInputFiles)
+      .toEqual([file]);
+    expect(revokeInputFile).not.toHaveBeenCalled();
   });
 
   it("bounds in-memory prompts without persisting them", () => {
@@ -255,6 +334,7 @@ describe("local subtitle transcriber store", () => {
     store.setDraftInputFiles([
       {
         fileToken: "retry-input-token",
+        sourceKey: "retry-input-source",
         displayName: "input.wav",
         byteSize: 128,
         expiresAt: Date.now() + 60_000,
@@ -293,6 +373,7 @@ describe("local subtitle transcriber store", () => {
       { length: LOCAL_SUBTITLE_LIMITS.maxBatchFiles + 1 },
       (_, index) => ({
         fileToken: `input-${index}`,
+        sourceKey: `source-${index}`,
         displayName: `input-${index}.wav`,
         byteSize: 128,
         expiresAt: Date.now() + 60_000,

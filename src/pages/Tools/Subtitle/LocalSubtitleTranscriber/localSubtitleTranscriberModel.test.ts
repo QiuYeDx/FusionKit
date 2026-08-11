@@ -15,7 +15,6 @@ import { DEFAULT_LOCAL_SUBTITLE_TRANSCRIBER_PREFERENCES } from "@/store/tools/su
 import {
   canManuallyHandoffLocalSubtitleArtifact,
   createLocalSubtitleBackendPreviewKey,
-  createLocalSubtitleBatchNumberMap,
   createLocalSubtitleBatchRequest,
   deriveLocalSubtitleDraftMediaProbeStatus,
   deriveLocalSubtitleStartIssue,
@@ -35,6 +34,7 @@ import {
 
 const file: LocalSubtitleAuthorizedMedia = {
   fileToken: "file-token",
+  sourceKey: "source-key",
   displayName: "interview.mp4",
   byteSize: 1024,
   expiresAt: 10_000,
@@ -76,27 +76,6 @@ describe("local subtitle transcriber page model", () => {
 
     expect(getLocalSubtitleTrackCodecLabel("aac", "MP4")).toBe("AAC");
     expect(getLocalSubtitleTrackCodecLabel("mp3", "MP3")).toBeUndefined();
-  });
-
-  it("keeps older batch numbers stable when a newer batch is prepended", () => {
-    const olderBatch = {
-      batchId: "batch-older",
-      createdAt: "2026-08-10T08:00:00.000Z",
-    };
-    const newerBatch = {
-      batchId: "batch-newer",
-      createdAt: "2026-08-10T09:00:00.000Z",
-    };
-
-    expect(createLocalSubtitleBatchNumberMap([olderBatch]).get("batch-older"))
-      .toBe("01");
-
-    const numbers = createLocalSubtitleBatchNumberMap([
-      newerBatch,
-      olderBatch,
-    ]);
-    expect(numbers.get("batch-older")).toBe("01");
-    expect(numbers.get("batch-newer")).toBe("02");
   });
 
   it("offers only managed models that are already ready", () => {
@@ -445,6 +424,7 @@ function createTask(): LocalSubtitleTaskSummary {
   return {
     taskId: "task-1",
     batchId: "batch-1",
+    sourceKey: "source-key",
     generation: 1,
     displayName: "interview.mp4",
     status: "completed",

@@ -413,7 +413,7 @@ userData/local-subtitle/
 
 | 模块 | 职责 |
 | --- | --- |
-| Page | 配置、批量添加、队列、进度、结果预览和产物操作 |
+| Page | 配置、文件添加、扁平任务队列、进度、结果预览和产物操作 |
 | Renderer Store | 只持久化无敏感偏好；当前任务、token、路径和 segment 不持久化 |
 | Renderer Runtime Service | 在页面组件之外维护事件订阅、revision reducer、会话快照重同步和 capability cleanup retry；SPA 路由切换不能丢失已提交任务状态 |
 | Renderer Environment Service | 在 renderer app 初始化时静默执行一次 runtime/resource 探测，缓存环境快照和 identity-bound backend preview；路由挂载不得重新占用 native media admission |
@@ -479,7 +479,7 @@ renderer app 初始化时先静默完成一次本地环境探测，页面只订�
 建议双栏结构：
 
 - 左侧配置：模型、设备、语言、质量预设、VAD、输出格式、输出目录。
-- 右侧工作区：批量拖拽、任务队列、当前进度、识别片段预览和结果操作。
+- 右侧工作区：文件拖拽、扁平任务队列、当前进度、识别片段预览和结果操作。
 
 布局直接使用现有 `ToolDetailLayout`：`lg` 以上为 320px 配置栏 + `minmax(0,1fr)` 工作区，窄窗口为单列且配置在前、工作区在后。不得复制一套本地 grid/CSS；786×540 验收需分别覆盖首屏配置和滚动后的任务区，并检查主 ScrollArea 而不是假设 document 在滚动。
 
@@ -502,32 +502,34 @@ renderer app 初始化时先静默完成一次本地环境探测，页面只订�
 
 高级区只暴露有稳定产品意义的参数：初始提示词、beam size、temperature、VAD 最短静音、最大 cue 长度和每行最大字符。v1.9.1 的 VAD/非 VAD 模式均不暴露词时间戳开关；未来只有新的 runtime capability 取得独立原时间轴证据并进入版本化合同后才显示。其余参数保留在内部预设，不复制参考 GUI 的全量参数墙。
 
-### 7.3 批量队列
+### 7.3 扁平任务队列
 
 - 一次可添加多个音频/视频。
-- 后续再次选择文件必须追加到当前 draft 并保留既有顺序；达到100文件上限时只回收超出的
-  新 draft capability，不能用新选择整体替换旧列表。
-- 去重键使用本次授权的文件 identity，不只比较文件名。
+- 选择文件后立即以`读取信息中 / 待开始 / 读取失败`任务进入同一个任务列表；上传区不得再显示第二份文件列表。
+- 后续再次选择文件必须追加到当前 draft 并保留既有顺序；一次内部提交最多100个 ready draft，超出的新 capability 必须回收，不能用新选择整体替换旧列表。
+- 列表标题栏提供`全部开始 / 清空完成 / 清空全部`；运行中清空全部先确认、取消，再在终态安全移除。
+- 去重使用main按owner session与canonical path签发的随机opaque `sourceKey`，不能用文件名/大小猜测，也不能把raw path或path hash交给renderer。只要同路径任务尚未清除，后续授权就跳过并回收；任务清除后允许重新添加。
 - 默认 GPU 并发为 1；模型仅加载一次，文件串行执行。
 - 每个任务展示：文件名、时长、状态、阶段、百分比、已用时间、实际 backend、输出格式和错误摘要。
-- 一个文件失败不阻断后续文件，除非是 runner、模型损坏、磁盘不足等批次级错误。
+- draft、运行中和终态任务均为一个文件一个扁平行；多音轨使用行内Select，不展开子卡片或结果详情行。
+- 一个文件失败不阻断后续文件，除非是 runner、模型损坏、磁盘不足等执行波级错误。
 - 支持取消当前文件、移除等待任务、重试失败任务、清理已完成任务。
 
-#### 7.3.1 本地批次配置快照
+#### 7.3.1 内部执行配置快照（UI 不显示批次）
 
-点击“开始批次”时必须同时冻结成员列表和独立的 `LocalSubtitleBatchConfigSnapshot`：managed `modelId` + manifest/hash、device preference、语言、质量预设展开值、VAD/segment-only timeline policy/整形参数、输出格式、输出模式、冲突策略、`handoffFormat` 和 post-action mode。等待任务全部引用该不可变 snapshot；页面中途改模型、语言或预设只影响下一个批次，不能让同批文件悄悄使用不同参数。首版运行中新增的文件进入新的 draft batch，不加入 active batch；移除等待任务只做取消/释放，不改变其余成员的 snapshot。
+点击“全部开始”时必须同时冻结本次ready成员列表和独立的 `LocalSubtitleBatchConfigSnapshot`：managed `modelId` + manifest/hash、device preference、语言、质量预设展开值、VAD/segment-only timeline policy/整形参数、输出格式、输出模式、冲突策略、`handoffFormat` 和 post-action mode。main内部仍可使用`batchId`完成原子lease转移、配置固定和queue-admission runtime slice，但renderer必须把`batch.tasks`扁平展示，不能暴露batch标题、编号或进度。等待任务全部引用该不可变 snapshot；页面中途改模型、语言或预设只影响下次开始。运行中新增的文件继续作为新的draft task，不加入已经admit的执行波。
 
 `custom` 本地输出目录在 main 派生 batch-scoped write lease，和翻译目录 lease 分 registry、分权限、分生命周期；仅在同 owner/document session、批次 active 时有界续期。`source` 输出模式不伪造一个全局 lease，而是在每个文件开始前从其 authorized file identity 私下派生父目录写入目标并做权限/containment 检查；某一父目录不可写只失败该文件并给“选择自定义目录”CTA，不影响其他目录的文件。模型删除/替换、custom lease 过期或 snapshot 对应 manifest 改变属于批次级阻塞，停止启动新的等待项并给出重选/重新校验 CTA，不能切到其他模型或目录继续。失败任务默认按原 snapshot 重试；用户若要采用当前新配置，必须显式“用当前配置新建任务”，产生新 task generation。
 
 #### 7.3.2 路由、会话与授权所有权
 
-- SPA 路由离开本工具页不取消已经 commit 的批次。Job Manager、事件订阅和 cleanup retry 属于会话级 service，不由页面组件的 mount/unmount 决定；返回页面时必须先订阅事件，再读取带单调 `revision` 的 main 会话快照，reducer 丢弃重复/旧 revision，补齐离页期间的状态变化。
+- SPA 路由离开本工具页不取消已经 commit 的任务，也不清空仍显示在队列里的draft task。Job Manager、事件订阅、内存draft Store和cleanup retry属于会话级能力，不由页面组件的mount/unmount决定；返回页面时重新probe draft，并先订阅事件、再读取带单调`revision`的main会话快照，reducer丢弃重复/旧revision，补齐离页期间的状态变化。
 - 自动 runtime/resource probe 与共享 session observer 在 renderer app 初始化时幂等启动，页面
   mount effect 不拥有它们。成功 backend preview 按 exact runtime generation、model 和 device
   preference 跨路由复用；存在非终态 task 时不得发起新的 runtime probe/backend preview，
   防止只读 preflight 与 `normalizeTask()` 争用同一 owner 的 native media operation ticket。
 - draft 阶段的 input/output capability 由 renderer draft 持有。批次 commit 时，main 在同一事务内重新校验 identity/TTL，并把所需权限原子转移为绑定 `batchId`/`taskId` 的 task lease；commit 成功后 renderer 只保留展示摘要，不能再撤销 active task lease。
-- 页面卸载只把仍属于 draft 的 capability 放进 renderer 级 pending-revocation queue；已转移 task lease 由 main 在任务终态、删除、owner session 结束或 TTL 到期时释放。revoke 的 Promise rejection、`ok:false` 与幂等 `revoked:false` 必须分别处理。
+- 页面卸载不回收仍在扁平任务队列中的draft capability；显式移除、清空、授权后被sourceKey去重拒绝或过期时才进入renderer级pending-revocation queue。已转移task lease由main在任务终态、删除、owner session结束或TTL到期时释放。revoke的Promise rejection、`ok:false`与幂等`revoked:false`必须分别处理。
 - renderer reload、主框架导航、窗口销毁、render process crash、应用退出或更新会使 `ownerSessionId` 失效，并取消该 owner 尚未终态的本地任务；首版不跨 reload 继续推理。已原子提交的字幕仍保留，重启后只恢复脱敏诊断摘要。
 - 会话快照与事件都必须包含 `batchId`、`taskId`、`generation` 和 `revision`。页面不得仅依赖“刚好没漏”的增量事件推导权威状态。
 
@@ -540,9 +542,9 @@ renderer app 初始化时先静默完成一次本地环境探测，页面只订�
 3. 复制纯文本。
 4. 一键送入字幕翻译。
 
-批次配置区提供两个有依赖关系的开关：
+配置区提供两个有依赖关系的开关：
 
-1. `转写完成后自动加入字幕翻译任务列表`：默认关闭。开启后，每个文件的目标字幕产物导出成功即自动交接，无需等待整批转写结束。
+1. `转写完成后自动加入字幕翻译任务列表`：默认关闭。开启后，每个文件的目标字幕产物导出成功即自动交接，无需等待其他转写任务结束。
 2. `加入后自动开始翻译`：默认关闭，且只有第一个开关开启时才可用。开启时必须显示当前字幕翻译配置摘要和“将调用外部模型 API、可能产生费用”的明确提示。
 
 组合后的产品语义只有三种，不允许出现“未加入但自动开始”的无效状态：

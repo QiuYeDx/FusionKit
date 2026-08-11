@@ -301,6 +301,7 @@ function task(
   return {
     taskId: "task-1",
     batchId: "batch-1",
+    sourceKey: "source-key",
     generation: 1,
     displayName: "sample.wav",
     status: "queued",

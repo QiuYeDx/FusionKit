@@ -266,7 +266,7 @@ export function createLocalSubtitleBatchRequest(input: {
     input.files.length > LOCAL_SUBTITLE_LIMITS.maxBatchFiles
   ) {
     throw new Error(
-      `A local subtitle batch requires 1-${LOCAL_SUBTITLE_LIMITS.maxBatchFiles} files.`,
+      `A local subtitle request requires 1-${LOCAL_SUBTITLE_LIMITS.maxBatchFiles} files.`,
     );
   }
   const output = input.preferences.outputMode === "custom"
@@ -358,23 +358,6 @@ export function isLocalSubtitleTaskActive(
 ): boolean {
   return Boolean(
     task && !["completed", "cancelled", "failed"].includes(task.status),
-  );
-}
-
-export function createLocalSubtitleBatchNumberMap(
-  batches: readonly Pick<LocalSubtitleBatchSummary, "batchId" | "createdAt">[],
-): ReadonlyMap<string, string> {
-  return new Map(
-    [...batches]
-      .sort((left, right) => {
-        const createdAtOrder = left.createdAt.localeCompare(right.createdAt);
-        if (createdAtOrder !== 0) return createdAtOrder;
-        return left.batchId.localeCompare(right.batchId);
-      })
-      .map((batch, index) => [
-        batch.batchId,
-        String(index + 1).padStart(2, "0"),
-      ]),
   );
 }
 

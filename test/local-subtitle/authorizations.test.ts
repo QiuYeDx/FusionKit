@@ -62,12 +62,14 @@ describe("local subtitle input and output authorizations", () => {
     expect(authorized).toEqual([
       {
         fileToken: "ls-input-file-1",
+        sourceKey: expect.stringMatching(/^ls-source-/),
         displayName: "first.wav",
         byteSize: 5,
         expiresAt: expect.any(Number),
       },
       {
         fileToken: "ls-input-file-2",
+        sourceKey: expect.stringMatching(/^ls-source-/),
         displayName: "second.wav",
         byteSize: 6,
         expiresAt: expect.any(Number),
@@ -105,6 +107,25 @@ describe("local subtitle input and output authorizations", () => {
       ).rejects.toMatchObject({ code: "invalid_content" });
       expect(failedFactory).not.toHaveBeenCalled();
     }
+  });
+
+  it("reuses an opaque source key for the same owner and canonical file only", async () => {
+    const root = await tempRoot();
+    const input = await file(root, "same.wav", "audio");
+    const registry = new LocalSubtitleInputAuthorizationRegistry({
+      tokenFactory: sequence("token"),
+      sourceKeyFactory: sequence("source"),
+    });
+
+    const first = await registry.authorize(OWNER_A, input);
+    const second = await registry.authorize(OWNER_A, input);
+    const otherOwner = await registry.authorize(OWNER_B, input);
+
+    expect(first.fileToken).not.toBe(second.fileToken);
+    expect(first.sourceKey).toBe("ls-source-source-1");
+    expect(second.sourceKey).toBe(first.sourceKey);
+    expect(otherOwner.sourceKey).toBe("ls-source-source-2");
+    expect(JSON.stringify([first, second, otherOwner])).not.toContain(root);
   });
 
   it("enforces owner, operation, and exact TTL boundaries", async () => {
