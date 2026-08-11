@@ -1,6 +1,6 @@
 # 本地字幕转写工具 Execution Plan
 
-> 创建日期：2026-07-16；最近更新：2026-08-10
+> 创建日期：2026-07-16；最近更新：2026-08-11
 >
 > Feature Slug：`local-subtitle-transcriber`
 >
@@ -33,6 +33,8 @@
 > 2026-08-10 `FIX-LIFECYCLE-001`手工验收修复：确认详情页mount时重复`probeRuntime`与`previewBackend`会和committed task的`normalizeTask`争用同一owner单媒体operation ticket，使路由返回窗口中的任务出现`limit_exceeded`。新增app级environment service，在renderer初始化时幂等启动session observer并静默探测一次，环境快照和exact-key backend preview跨路由复用；active task期间禁止新preview，手动刷新只同步session/resource metadata。批量文件选择改为Store原子追加，保留既有draft并回收100上限外的新capability。聚焦4 files / 31 tests、TypeScript与renderer/main/preload三段Vite test build通过；扩大本地字幕回归中本次相关链路全部通过，8项既有环境/时序失败另行记录，不归因于本修复。
 >
 > 2026-08-10 `FE-003`扁平任务队列重构：产品层删除转写批次标题、编号、进度和嵌套分组，选择文件后立即以draft task进入与main task相同的translator-style列表；标题栏提供全部开始、清空完成、清空全部，多音轨改为行内Select。Start All只消费probe-ready成员，失败draft保留；清空全部cancel非终态并在安全终态remove。main内部batchId/config snapshot/atomic lease/queue-admission runtime slice保持不变。Input Authorization新增owner-session scoped随机opaque sourceKey，在authorized media与live task summary间保持同canonical path相等关系，renderer与Store双层拒绝尚未清除的重复任务且不暴露raw path。route unmount不再清空draft。设计见`feat/2026-08-10_local-subtitle-transcriber_flat-task-queue.md`，实施记录见`2026-08-10_FE-003_flat-task-queue-and-source-dedupe.md`。
+>
+> 2026-08-11 `FIX-LIFECYCLE-002`媒体准入与增量草稿修复：追加文件只按fileToken为新增draft执行probe，既有格式/时长/音轨状态和显式音轨选择保持不变；Media Normalizer继续维持同owner单原生操作，但把probe、enqueue runtime verification、normalization与PCM window改为有界abort-aware串行等待，真实队列饱和返回`resource_busy`，不再让正常并发误报`limit_exceeded`。同时移除扁平任务队列遗留的10个内部batch隐藏产品上限，改按最多1,000个总任务限制且不扩大原`10 × 100`最坏容量，artifact capacity同步改由任务总量推导。9 files / 249 focused tests、TypeScript、renderer/main/preload三段Vite test build、preload gate与隔离Electron增量文件DOM验收通过。修复记录见`fix/2026-08-11_local-subtitle-transcriber_serialize-media-admission-and-preserve-draft-metadata.md`。
 >
 > 2026-08-04 `FE-003` batch draft/task queue checkpoint：页面将单文件draft扩为最多100文件的完整授权与批次request，逐文件显示/移除，旧任务运行时可继续准备并提交下一批；提交成功只消费已转交main的draft capability，离页仍由既有cleanup retry回收未提交token。队列直接消费revisioned session batches，按batch显示逐task状态、stage/stageProgress/overallProgress、backend、格式、媒体时长、artifact与错误，并接通fixed cancel/retry/retry-on-CPU/remove/reveal API；enqueue回执只作为snapshot接管前的短期fallback，已被runtime观察的batch不会由fallback复活。四语言已改为批量语义。9 files / 65 tests、TypeScript、i18n、三段Vite test build与diff通过；多音轨probe/Radio、Electron窄窗口与键盘验收尚未完成，`FE-003`保持进行中。
 >

@@ -94,6 +94,7 @@ export const LOCAL_SUBTITLE_MEDIA_POLICY = deepFreeze({
   maxProbeMetadataBytes: 128 * 1024,
   maxProbeRecordsPerOwner: LOCAL_SUBTITLE_LIMITS.maxSessionResourceJobs,
   maxConcurrentOperationsPerOwner: 1,
+  maxPendingOperationsPerOwner: 8,
   diskReserveBytes: 64 * 1024 * 1024,
   decodeDurationToleranceMs: 2_000,
   decodeLimitSentinelMs: 1_000,
@@ -116,6 +117,7 @@ export type LocalSubtitleMediaErrorCode =
   | "decode_failed"
   | "unsupported_media"
   | "limit_exceeded"
+  | "resource_busy"
   | "insufficient_disk"
   | "aborted"
   | "timeout"
@@ -331,6 +333,7 @@ interface MediaOwnerState {
   status: "active" | "faulted" | "released";
   readonly controllers: Set<AbortController>;
   readonly operationSettlements: Set<Promise<void>>;
+  readonly pendingOperationSettlements: Set<Promise<void>>;
   readonly processCloseConfirmations: Set<Promise<void>>;
   readonly pendingSessions: Set<MediaSession>;
   readonly sessionCleanupPromises: Map<MediaSession, Promise<void>>;
@@ -420,9 +423,10 @@ export class LocalSubtitleMediaNormalizer {
     options: VerifyLocalSubtitleMediaRuntimeOptions,
   ): Promise<LocalSubtitleMediaRuntimeVerification> {
     assertOwner(options.owner);
-    const operation = this.#beginOwnerOperation(
+    const operation = await this.#beginOwnerOperation(
       ownerKey(options.owner),
       options.signal,
+      "runtime_launch_failed",
     );
     try {
       const tools = await this.#attestMediaRuntime(operation);
@@ -440,9 +444,10 @@ export class LocalSubtitleMediaNormalizer {
   ): Promise<LocalSubtitleMediaProbeSummary> {
     assertOwner(options.owner);
     assertOpaqueId(options.fileToken, "file token");
-    const operation = this.#beginOwnerOperation(
+    const operation = await this.#beginOwnerOperation(
       ownerKey(options.owner),
       options.signal,
+      "probe_failed",
     );
     try {
       throwIfAborted(operation.signal, "probe_failed");
@@ -549,7 +554,11 @@ export class LocalSubtitleMediaNormalizer {
       throw invalidMediaConfiguration("The selected media stream is invalid.");
     }
     const ownedBy = ownerKey(options.owner);
-    const operation = this.#beginOwnerOperation(ownedBy, options.signal);
+    const operation = await this.#beginOwnerOperation(
+      ownedBy,
+      options.signal,
+      "decode_failed",
+    );
     const emitProgress = monotonicProgressReporter(options.onProgress);
     try {
       throwIfAborted(operation.signal, "decode_failed");
@@ -751,7 +760,11 @@ export class LocalSubtitleMediaNormalizer {
     if (record.state !== "active") {
       throw invalidMediaConfiguration("The normalized PCM proof is inactive.");
     }
-    const operation = this.#beginOwnerOperation(record.ownerKey, options.signal);
+    const operation = await this.#beginOwnerOperation(
+      record.ownerKey,
+      options.signal,
+      "decode_failed",
+    );
     try {
       const descriptor = validateStructuralWindow(
         options.descriptor,
@@ -839,7 +852,11 @@ export class LocalSubtitleMediaNormalizer {
   ): Promise<LocalSubtitleResolvedPcmWindow> {
     const record = requireWindowRecord(window);
     const normalizedRecord = requireNormalizedRecord(record.normalized);
-    const operation = this.#beginOwnerOperation(normalizedRecord.ownerKey);
+    const operation = await this.#beginOwnerOperation(
+      normalizedRecord.ownerKey,
+      undefined,
+      "decode_failed",
+    );
     try {
       if (
         record.state !== "active" ||
@@ -1051,10 +1068,11 @@ export class LocalSubtitleMediaNormalizer {
     return operation;
   }
 
-  #beginOwnerOperation(
+  async #beginOwnerOperation(
     key: string,
-    externalSignal?: AbortSignal,
-  ): MediaOwnerOperation {
+    externalSignal: AbortSignal | undefined,
+    abortFallback: "probe_failed" | "decode_failed" | "runtime_launch_failed",
+  ): Promise<MediaOwnerOperation> {
     if (
       this.#terminalFence ||
       this.#shutdownOperation ||
@@ -1064,28 +1082,16 @@ export class LocalSubtitleMediaNormalizer {
     }
     const state = this.#ownerStates.get(key) ?? createMediaOwnerState();
     this.#ownerStates.set(key, state);
-    if (state.status === "released") throw ownerReleasedMediaFailure();
-    if (state.status === "faulted") throw ownerFaultedMediaFailure();
+    throwIfMediaOwnerUnavailable(state);
     if (
-      state.operationSettlements.size >=
-      LOCAL_SUBTITLE_MEDIA_POLICY.maxConcurrentOperationsPerOwner
+      state.pendingOperationSettlements.size >=
+      LOCAL_SUBTITLE_MEDIA_POLICY.maxPendingOperationsPerOwner
     ) {
       throw mediaFailure(
-        "limit_exceeded",
-        "limit_exceeded",
+        "resource_busy",
+        "resource_busy",
         "preflight",
-        "The local subtitle media owner already has an active operation.",
-      );
-    }
-    if (
-      state.processCloseConfirmations.size > 0 ||
-      state.sessionCleanupPromises.size > 0
-    ) {
-      throw mediaFailure(
-        "runtime_launch_failed",
-        "media_runtime_launch_failed",
-        "preflight",
-        "A prior native media process has not confirmed close.",
+        "The local subtitle media operation queue is full.",
       );
     }
 
@@ -1095,39 +1101,88 @@ export class LocalSubtitleMediaNormalizer {
     else externalSignal?.addEventListener("abort", forwardAbort, { once: true });
     state.controllers.add(controller);
 
-    let settle!: () => void;
-    const settlement = new Promise<void>((resolve) => {
-      settle = resolve;
+    let settlePending!: () => void;
+    const pendingSettlement = new Promise<void>((resolve) => {
+      settlePending = resolve;
     });
-    state.operationSettlements.add(settlement);
-    const unconfirmedClose = new Set<Promise<void>>();
-    let finished = false;
-    return {
-      signal: controller.signal,
-      get hasUnconfirmedClose() {
-        return unconfirmedClose.size > 0;
-      },
-      trackProcess: (result) => {
-        if (result.status === "closed") return;
-        const confirmation = result.closeConfirmed.catch(
-          () => new Promise<void>(() => undefined),
+    state.pendingOperationSettlements.add(pendingSettlement);
+
+    try {
+      while (
+        state.operationSettlements.size >=
+        LOCAL_SUBTITLE_MEDIA_POLICY.maxConcurrentOperationsPerOwner
+      ) {
+        await waitForOwnerOperationSlot(
+          state.operationSettlements,
+          controller.signal,
+          abortFallback,
         );
-        unconfirmedClose.add(confirmation);
-        state.processCloseConfirmations.add(confirmation);
-        void confirmation.then(() => {
-          state.processCloseConfirmations.delete(confirmation);
-        });
-      },
-      waitForClose: () => Promise.all([...unconfirmedClose]).then(() => undefined),
-      finish: () => {
-        if (finished) return;
-        finished = true;
-        externalSignal?.removeEventListener("abort", forwardAbort);
-        state.controllers.delete(controller);
-        state.operationSettlements.delete(settlement);
-        settle();
-      },
-    };
+        if (
+          this.#terminalFence ||
+          this.#shutdownOperation ||
+          this.#shutdownSucceeded ||
+          state.status !== "active"
+        ) {
+          throwIfMediaOwnerUnavailable(state);
+          throw ownerReleasedMediaFailure();
+        }
+        throwIfAborted(controller.signal, abortFallback);
+      }
+      if (
+        state.processCloseConfirmations.size > 0 ||
+        state.sessionCleanupPromises.size > 0
+      ) {
+        throw mediaFailure(
+          "runtime_launch_failed",
+          "media_runtime_launch_failed",
+          "preflight",
+          "A prior native media process has not confirmed close.",
+        );
+      }
+
+      let settle!: () => void;
+      const settlement = new Promise<void>((resolve) => {
+        settle = resolve;
+      });
+      state.operationSettlements.add(settlement);
+      state.pendingOperationSettlements.delete(pendingSettlement);
+      settlePending();
+      const unconfirmedClose = new Set<Promise<void>>();
+      let finished = false;
+      return {
+        signal: controller.signal,
+        get hasUnconfirmedClose() {
+          return unconfirmedClose.size > 0;
+        },
+        trackProcess: (result) => {
+          if (result.status === "closed") return;
+          const confirmation = result.closeConfirmed.catch(
+            () => new Promise<void>(() => undefined),
+          );
+          unconfirmedClose.add(confirmation);
+          state.processCloseConfirmations.add(confirmation);
+          void confirmation.then(() => {
+            state.processCloseConfirmations.delete(confirmation);
+          });
+        },
+        waitForClose: () =>
+          Promise.all([...unconfirmedClose]).then(() => undefined),
+        finish: () => {
+          if (finished) return;
+          finished = true;
+          externalSignal?.removeEventListener("abort", forwardAbort);
+          state.controllers.delete(controller);
+          state.operationSettlements.delete(settlement);
+          settle();
+        },
+      };
+    } catch (error) {
+      externalSignal?.removeEventListener("abort", forwardAbort);
+      state.controllers.delete(controller);
+      state.pendingOperationSettlements.delete(pendingSettlement);
+      settlePending();
+      throw error;
+    }
   }
 
   #startOwnerCleanup(key: string, state: MediaOwnerState): Promise<void> {
@@ -1185,7 +1240,10 @@ export class LocalSubtitleMediaNormalizer {
   }
 
   async #cleanupOwner(key: string, state: MediaOwnerState): Promise<void> {
-    await Promise.allSettled([...state.operationSettlements]);
+    await Promise.allSettled([
+      ...state.operationSettlements,
+      ...state.pendingOperationSettlements,
+    ]);
     await Promise.all([...state.processCloseConfirmations]);
     const failures: unknown[] = [];
     for (const normalized of [...(this.#normalizedByOwner.get(key) ?? [])]) {
@@ -2614,6 +2672,36 @@ function throwIfAborted(
   );
 }
 
+async function waitForOwnerOperationSlot(
+  activeSettlements: ReadonlySet<Promise<void>>,
+  signal: AbortSignal,
+  fallback: "probe_failed" | "decode_failed" | "runtime_launch_failed",
+): Promise<void> {
+  throwIfAborted(signal, fallback);
+  if (activeSettlements.size === 0) return;
+
+  let onAbort!: () => void;
+  const aborted = new Promise<never>((_resolve, reject) => {
+    onAbort = () => {
+      try {
+        throwIfAborted(signal, fallback);
+        reject(new Error("The media operation abort signal is invalid."));
+      } catch (error) {
+        reject(error);
+      }
+    };
+    signal.addEventListener("abort", onAbort, { once: true });
+  });
+  try {
+    await Promise.race([
+      Promise.race([...activeSettlements]),
+      aborted,
+    ]);
+  } finally {
+    signal.removeEventListener("abort", onAbort);
+  }
+}
+
 function ownerReleasedMediaFailure(): LocalSubtitleMediaError {
   return mediaFailure(
     "aborted",
@@ -2637,10 +2725,16 @@ function createMediaOwnerState(): MediaOwnerState {
     status: "active",
     controllers: new Set(),
     operationSettlements: new Set(),
+    pendingOperationSettlements: new Set(),
     processCloseConfirmations: new Set(),
     pendingSessions: new Set(),
     sessionCleanupPromises: new Map(),
   };
+}
+
+function throwIfMediaOwnerUnavailable(state: MediaOwnerState): void {
+  if (state.status === "released") throw ownerReleasedMediaFailure();
+  if (state.status === "faulted") throw ownerFaultedMediaFailure();
 }
 
 function mediaChanged(): LocalSubtitleMediaError {

@@ -332,6 +332,37 @@ export function deriveLocalSubtitleDraftMediaProbeStatus(
   return "ready";
 }
 
+export function reconcileLocalSubtitleDraftMediaProbes(
+  files: readonly LocalSubtitleAuthorizedMedia[],
+  current: ReadonlyMap<string, LocalSubtitleDraftMediaProbe>,
+): ReadonlyMap<string, LocalSubtitleDraftMediaProbe> {
+  let changed = current.size !== files.length;
+  const next = new Map<string, LocalSubtitleDraftMediaProbe>();
+  for (const file of files) {
+    const existing = current.get(file.fileToken);
+    if (existing) {
+      next.set(file.fileToken, existing);
+      continue;
+    }
+    changed = true;
+    next.set(file.fileToken, { status: "loading" });
+  }
+  return changed ? next : current;
+}
+
+export function pruneLocalSubtitleDraftAudioSelections(
+  files: readonly LocalSubtitleAuthorizedMedia[],
+  current: ReadonlyMap<string, string>,
+): ReadonlyMap<string, string> {
+  const selectedTokens = new Set(files.map((file) => file.fileToken));
+  if ([...current].every(([fileToken]) => selectedTokens.has(fileToken))) {
+    return current;
+  }
+  return new Map(
+    [...current].filter(([fileToken]) => selectedTokens.has(fileToken)),
+  );
+}
+
 export function formatLocalSubtitleDuration(durationMs: number): string {
   const totalSeconds = Math.max(0, Math.floor(durationMs / 1_000));
   const hours = Math.floor(totalSeconds / 3_600);

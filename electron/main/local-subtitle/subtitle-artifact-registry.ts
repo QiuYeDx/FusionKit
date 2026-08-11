@@ -39,8 +39,7 @@ import {
 
 const DEFAULT_ARTIFACT_TTL_MS = 24 * 60 * 60 * 1000;
 const DEFAULT_MAX_ENTRIES =
-  LOCAL_SUBTITLE_LIMITS.maxSessionBatches *
-  LOCAL_SUBTITLE_LIMITS.maxBatchFiles *
+  LOCAL_SUBTITLE_LIMITS.maxSessionTasks *
   LOCAL_SUBTITLE_FORMATS.length;
 const NOFOLLOW_READ = fsConstants.O_RDONLY | (fsConstants.O_NOFOLLOW ?? 0);
 const SHA256_PATTERN = /^[0-9a-f]{64}$/u;

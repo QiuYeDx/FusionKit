@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   LOCAL_SUBTITLE_DOMAIN_SCHEMA_VERSION,
+  LOCAL_SUBTITLE_LIMITS,
   LOCAL_SUBTITLE_MODEL_MANIFEST_VERSION,
   LOCAL_SUBTITLE_PRODUCTION_CONTRACT,
   createLocalSubtitleError,
@@ -85,6 +86,75 @@ describe("LocalSubtitleSessionRegistry", () => {
     expect(capture.mock.calls[1]?.[0]).toMatchObject([
       { tasks: [{ status: "preparing_media" }] },
     ]);
+  });
+
+  it("allows more than ten task submissions in the flat task queue", () => {
+    const registry = new LocalSubtitleSessionRegistry();
+
+    for (let index = 1; index <= 11; index += 1) {
+      const batchId = `batch-${index}`;
+      registry.addBatch(
+        OWNER_A,
+        batch({
+          batchId,
+          tasks: [task({
+            taskId: `task-${index}`,
+            batchId,
+            sourceKey: `source-key-${index}`,
+          })],
+        }),
+      );
+    }
+
+    expect(registry.getSnapshot(OWNER_A)).toMatchObject({
+      revision: 11,
+      batches: expect.arrayContaining([
+        expect.objectContaining({ batchId: "batch-11" }),
+      ]),
+    });
+    expect(registry.getSnapshot(OWNER_A).batches).toHaveLength(11);
+  });
+
+  it("bounds a flat session by total tasks instead of internal batches", () => {
+    const registry = new LocalSubtitleSessionRegistry();
+    const tasksPerBatch = LOCAL_SUBTITLE_LIMITS.maxBatchFiles;
+    const batchCount = LOCAL_SUBTITLE_LIMITS.maxSessionTasks / tasksPerBatch;
+
+    for (let batchIndex = 1; batchIndex <= batchCount; batchIndex += 1) {
+      const batchId = `batch-${batchIndex}`;
+      const taskOffset = (batchIndex - 1) * tasksPerBatch;
+      registry.addBatch(
+        OWNER_A,
+        batch({
+          batchId,
+          tasks: Array.from({ length: tasksPerBatch }, (_, taskIndex) => {
+            const ordinal = taskOffset + taskIndex + 1;
+            return task({
+              taskId: `task-${ordinal}`,
+              batchId,
+              sourceKey: `source-key-${ordinal}`,
+            });
+          }),
+        }),
+      );
+    }
+
+    expect(() =>
+      registry.addBatch(
+        OWNER_A,
+        batch({
+          batchId: "batch-overflow",
+          tasks: [task({
+            taskId: "task-overflow",
+            batchId: "batch-overflow",
+            sourceKey: "source-key-overflow",
+          })],
+        }),
+      )
+    ).toThrow(expect.objectContaining({
+      code: "limit_exceeded",
+      field: "tasks",
+    }));
   });
 
   it("increments one shared revision exactly once per update or removal", async () => {

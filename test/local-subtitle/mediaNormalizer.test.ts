@@ -213,7 +213,7 @@ describe("local subtitle media runtime and probing", () => {
     },
   );
 
-  it("aborts an in-flight probe and rejects late owner records on release", async () => {
+  it("aborts both active and queued probes when their owner is released", async () => {
     const sourcePath = await sourceFile("owner-release.mov", "owner-release");
     const authorized = await inputs.authorize(OWNER_A, sourcePath);
     const harness = createHarness({ waitForAbortKind: "media-probe" });
@@ -225,19 +225,21 @@ describe("local subtitle media runtime and probing", () => {
       harness.calls.some((call) => call.kind === "media-probe"),
     );
 
-    await expect(
-      harness.normalizer.probeDraft({
-        owner: OWNER_A,
-        fileToken: authorized.fileToken,
-      }),
-    ).rejects.toMatchObject({
-      code: "limit_exceeded",
-      localSubtitleCode: "limit_exceeded",
+    const queued = harness.normalizer.probeDraft({
+      owner: OWNER_A,
+      fileToken: authorized.fileToken,
     });
+    await Promise.resolve();
+    expect(harness.calls.filter((call) => call.kind === "media-probe"))
+      .toHaveLength(1);
 
     harness.normalizer.releaseOwner(OWNER_A);
 
     await expect(pending).rejects.toMatchObject({
+      code: "aborted",
+      localSubtitleCode: "owner_released",
+    });
+    await expect(queued).rejects.toMatchObject({
       code: "aborted",
       localSubtitleCode: "owner_released",
     });
@@ -247,6 +249,155 @@ describe("local subtitle media runtime and probing", () => {
         fileToken: authorized.fileToken,
       }),
     ).rejects.toMatchObject({ localSubtitleCode: "owner_released" });
+  });
+
+  it("serializes same-owner probes instead of failing the later operation", async () => {
+    const firstPath = await sourceFile("serial-first.mov", "serial-first");
+    const secondPath = await sourceFile("serial-second.mov", "serial-second");
+    const firstAuthorization = await inputs.authorize(OWNER_A, firstPath);
+    const secondAuthorization = await inputs.authorize(OWNER_A, secondPath);
+    const gate = deferred<void>();
+    let observedProbes = 0;
+    const harness = createHarness({
+      afterMediaProbe: async () => {
+        observedProbes += 1;
+        if (observedProbes === 1) await gate.promise;
+      },
+    });
+    const first = harness.normalizer.probeDraft({
+      owner: OWNER_A,
+      fileToken: firstAuthorization.fileToken,
+    });
+    await waitForCondition(() => observedProbes === 1, 2_000);
+
+    const second = harness.normalizer.probeDraft({
+      owner: OWNER_A,
+      fileToken: secondAuthorization.fileToken,
+    });
+    await Promise.resolve();
+    expect(observedProbes).toBe(1);
+
+    gate.resolve();
+    await expect(Promise.all([first, second])).resolves.toHaveLength(2);
+    expect(observedProbes).toBe(2);
+    expect(harness.maxActive).toBe(1);
+  });
+
+  it("serializes enqueue-time runtime verification behind active media work", async () => {
+    const sourcePath = await sourceFile("runtime-behind-active.mov", "runtime");
+    const authorized = await inputs.authorize(OWNER_A, sourcePath);
+    const gate = deferred<void>();
+    const harness = createHarness({
+      afterMediaProbe: () => gate.promise,
+    });
+    const active = harness.normalizer.probeDraft({
+      owner: OWNER_A,
+      fileToken: authorized.fileToken,
+    });
+    await waitForCondition(
+      () => harness.calls.some((call) => call.kind === "media-probe"),
+      2_000,
+    );
+
+    const verification = harness.normalizer.verifyRuntime({ owner: OWNER_A });
+    await Promise.resolve();
+    expect(harness.calls.filter((call) => call.kind === "ffmpeg-version"))
+      .toHaveLength(1);
+
+    gate.resolve();
+    await expect(active).resolves.toMatchObject({
+      fileToken: authorized.fileToken,
+    });
+    await expect(verification).resolves.toMatchObject({
+      runtimeGeneration: expect.any(String),
+    });
+    expect(harness.calls.filter((call) => call.kind === "ffmpeg-version"))
+      .toHaveLength(2);
+    expect(harness.maxActive).toBe(1);
+  });
+
+  it("lets committed media preparation wait behind a draft probe", async () => {
+    const draftPath = await sourceFile("draft-while-active.mov", "draft");
+    const taskPath = await sourceFile("committed-task.mov", "task");
+    const draftAuthorization = await inputs.authorize(OWNER_A, draftPath);
+    const taskAuthorization = await inputs.authorize(OWNER_A, taskPath);
+    await commitTaskLease(OWNER_A, taskAuthorization.fileToken, "task-queued-media");
+    const gate = deferred<void>();
+    let observedProbes = 0;
+    const harness = createHarness({
+      afterMediaProbe: async () => {
+        observedProbes += 1;
+        if (observedProbes === 1) await gate.promise;
+      },
+    });
+    const draftProbe = harness.normalizer.probeDraft({
+      owner: OWNER_A,
+      fileToken: draftAuthorization.fileToken,
+    });
+    await waitForCondition(() => observedProbes === 1);
+
+    const preparation = harness.normalizer.normalizeTask({
+      owner: OWNER_A,
+      fileToken: taskAuthorization.fileToken,
+      taskId: "task-queued-media",
+      taskGeneration: 1,
+    });
+    await Promise.resolve();
+    expect(harness.decodeCount).toBe(0);
+
+    gate.resolve();
+    await expect(draftProbe).resolves.toMatchObject({
+      fileToken: draftAuthorization.fileToken,
+    });
+    const normalized = await preparation;
+    expect(isLocalSubtitleNormalizedPcm(normalized)).toBe(true);
+    expect(harness.decodeCount).toBe(1);
+    expect(harness.maxActive).toBe(1);
+    await harness.normalizer.disposeNormalized(normalized);
+  });
+
+  it("reports bounded admission pressure as resource_busy instead of limit_exceeded", async () => {
+    const sourcePath = await sourceFile("bounded-queue.mov", "bounded-queue");
+    const authorized = await inputs.authorize(OWNER_A, sourcePath);
+    const harness = createHarness({ waitForAbortKind: "media-probe" });
+    const active = harness.normalizer.probeDraft({
+      owner: OWNER_A,
+      fileToken: authorized.fileToken,
+    });
+    await waitForCondition(() =>
+      harness.calls.some((call) => call.kind === "media-probe"),
+    );
+    const queued = Array.from(
+      { length: LOCAL_SUBTITLE_MEDIA_POLICY.maxPendingOperationsPerOwner },
+      () => harness.normalizer.probeDraft({
+        owner: OWNER_A,
+        fileToken: authorized.fileToken,
+      }),
+    );
+
+    await expect(harness.normalizer.probeDraft({
+      owner: OWNER_A,
+      fileToken: authorized.fileToken,
+    })).rejects.toMatchObject({
+      code: "resource_busy",
+      localSubtitleCode: "resource_busy",
+    });
+
+    harness.normalizer.releaseOwner(OWNER_A);
+    await expect(active).rejects.toMatchObject({
+      localSubtitleCode: "owner_released",
+    });
+    const queuedResults = await Promise.allSettled(queued);
+    expect(queuedResults).toHaveLength(
+      LOCAL_SUBTITLE_MEDIA_POLICY.maxPendingOperationsPerOwner,
+    );
+    expect(queuedResults.every(
+      (result) =>
+        result.status === "rejected" &&
+        result.reason instanceof Error &&
+        "localSubtitleCode" in result.reason &&
+        result.reason.localSubtitleCode === "owner_released",
+    )).toBe(true);
   });
 
   it("rejects a container with no audio stream", async () => {

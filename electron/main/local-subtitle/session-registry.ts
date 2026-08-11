@@ -207,13 +207,18 @@ export class LocalSubtitleSessionRegistry {
     if (session.batches.has(parsedBatch.batchId)) {
       throw invalidContent("batch.batchId");
     }
-    if (session.batches.size >= LOCAL_SUBTITLE_LIMITS.maxSessionBatches) {
-      throw failure("limit_exceeded", "batches");
-    }
-
     const taskIds = new Set<string>();
     for (const existingBatch of session.batches.values()) {
       for (const task of existingBatch.tasks) taskIds.add(task.taskId);
+    }
+    if (
+      parsedBatch.tasks.length >
+      LOCAL_SUBTITLE_LIMITS.maxSessionTasks - taskIds.size
+    ) {
+      throw failure("limit_exceeded", "tasks");
+    }
+    if (session.batches.size >= LOCAL_SUBTITLE_LIMITS.maxSessionBatches) {
+      throw failure("limit_exceeded", "batches");
     }
     for (const task of parsedBatch.tasks) {
       assertInitialTask(task);

@@ -74,6 +74,8 @@ import {
   getReadyLocalSubtitleModels,
   hasActiveLocalSubtitleTasks,
   isLocalSubtitleTaskActive,
+  pruneLocalSubtitleDraftAudioSelections,
+  reconcileLocalSubtitleDraftMediaProbes,
   shouldRequestLocalSubtitleBackendPreview,
   type LocalSubtitleDraftMediaProbe,
   type LocalSubtitleStartIssue,
@@ -238,6 +240,7 @@ export default function LocalSubtitleTranscriber() {
   const backendPreviewGenerationRef = useRef(0);
   const mediaProbeGenerationRef = useRef(0);
   const mediaProbeQueueRef = useRef<Promise<void>>(Promise.resolve());
+  const selectedDraftFileTokensRef = useRef<ReadonlySet<string>>(new Set());
   const terminalResourceJobsRef = useRef("");
   const [backendPreview, setBackendPreview] = useState<BackendPreviewState>({
     status: "idle",
@@ -330,6 +333,7 @@ export default function LocalSubtitleTranscriber() {
       mountedRef.current = false;
       backendPreviewGenerationRef.current += 1;
       mediaProbeGenerationRef.current += 1;
+      selectedDraftFileTokensRef.current = new Set();
       const prepared = preparedTranslationBatchRef.current;
       preparedTranslationBatchRef.current = null;
       if (prepared && !preparedBatchCommitPendingRef.current) {
@@ -528,6 +532,7 @@ export default function LocalSubtitleTranscriber() {
             !mountedRef.current ||
             generation !== mediaProbeGenerationRef.current
           ) return;
+          if (!selectedDraftFileTokensRef.current.has(file.fileToken)) continue;
 
           let next: LocalSubtitleDraftMediaProbe;
           try {
@@ -553,6 +558,7 @@ export default function LocalSubtitleTranscriber() {
             !mountedRef.current ||
             generation !== mediaProbeGenerationRef.current
           ) return;
+          if (!selectedDraftFileTokensRef.current.has(file.fileToken)) continue;
           setDraftMediaProbes((current) => {
             const updated = new Map(current);
             updated.set(file.fileToken, next);
@@ -564,7 +570,8 @@ export default function LocalSubtitleTranscriber() {
     void operation.finally(() => {
       if (
         mountedRef.current &&
-        generation === mediaProbeGenerationRef.current
+        generation === mediaProbeGenerationRef.current &&
+        mediaProbeQueueRef.current === operation
       ) {
         setMediaProbeQueuePending(false);
       }
@@ -572,22 +579,24 @@ export default function LocalSubtitleTranscriber() {
   }, []);
 
   useEffect(() => {
-    const generation = ++mediaProbeGenerationRef.current;
-    setExplicitAudioStreamIds(new Map());
-    setDraftMediaProbes(new Map(
-      selectedFiles.map((file) => [
-        file.fileToken,
-        { status: "loading" as const },
-      ]),
-    ));
-    setMediaProbeQueuePending(selectedFiles.length > 0);
-    if (selectedFiles.length > 0) enqueueMediaProbes(selectedFiles, generation);
+    const previousTokens = selectedDraftFileTokensRef.current;
+    const nextTokens = new Set(selectedFiles.map((file) => file.fileToken));
+    const addedFiles = selectedFiles.filter(
+      (file) => !previousTokens.has(file.fileToken),
+    );
+    selectedDraftFileTokensRef.current = nextTokens;
+    setDraftMediaProbes((current) =>
+      reconcileLocalSubtitleDraftMediaProbes(selectedFiles, current));
+    setExplicitAudioStreamIds((current) =>
+      pruneLocalSubtitleDraftAudioSelections(selectedFiles, current));
+    if (addedFiles.length === 0) return;
+    setMediaProbeQueuePending(true);
+    enqueueMediaProbes(addedFiles, mediaProbeGenerationRef.current);
   }, [enqueueMediaProbes, selectedFiles]);
 
   const handleRetryMediaProbe = useCallback((
     file: LocalSubtitleAuthorizedMedia,
   ) => {
-    const generation = ++mediaProbeGenerationRef.current;
     setMediaProbeQueuePending(true);
     setDraftMediaProbes((current) => {
       const updated = new Map(current);
@@ -599,7 +608,7 @@ export default function LocalSubtitleTranscriber() {
       updated.delete(file.fileToken);
       return updated;
     });
-    enqueueMediaProbes([file], generation);
+    enqueueMediaProbes([file], mediaProbeGenerationRef.current);
   }, [enqueueMediaProbes]);
 
   const handleAudioStreamChange = useCallback((

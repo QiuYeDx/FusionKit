@@ -90,6 +90,7 @@ Read this index first, then open only the detail files that plausibly match the 
 | FK-PIT-0084 | Frontend / collapsed ToolPanel borders | ToolPanel,collapsed,header-only,border-b,thick bottom border,extra line; Remove the header divider when a collapsible panel has no body so it does not sit directly against the panel border. | [remove-header-divider-from-collapsed-tool-panels.md](remove-header-divider-from-collapsed-tool-panels.md) |
 | FK-PIT-0085 | Local subtitle / media metadata display | MP4,und,AAC,WAV,container format,audio track language,codec; Display the filename-derived format separately from stream metadata and suppress ffprobe's undefined-language sentinel. | [separate-media-format-from-audio-track-metadata.md](separate-media-format-from-audio-track-metadata.md) |
 | FK-PIT-0086 | Electron / SPA lifecycle / local media admission | route remount,probeRuntime,previewBackend,active transcription,limit_exceeded; Run automatic preflight once at renderer-app scope and never let route navigation compete with committed media work. | [keep-route-preflight-out-of-active-media-admission.md](keep-route-preflight-out-of-active-media-admission.md) |
+| FK-PIT-0087 | Electron / local subtitle media admission | add file during transcription,start another task,draft metadata reloads,limit_exceeded; Preserve draft probe state by file token and serialize mixed draft/task media operations through one bounded owner queue. | [serialize-draft-and-task-media-admission.md](serialize-draft-and-task-media-admission.md) |
 
 ## Add new cases
 

@@ -29,6 +29,8 @@ import {
   getReadyLocalSubtitleModels,
   isLocalSubtitleResourceJobActive,
   isLocalSubtitleTaskActive,
+  pruneLocalSubtitleDraftAudioSelections,
+  reconcileLocalSubtitleDraftMediaProbes,
   shouldRequestLocalSubtitleBackendPreview,
 } from "./localSubtitleTranscriberModel";
 
@@ -343,6 +345,51 @@ describe("local subtitle transcriber page model", () => {
       }]]),
     )).toBe("error");
     expect(formatLocalSubtitleDuration(3_661_000)).toBe("1:01:01");
+  });
+
+  it("preserves existing draft metadata and audio selections when files are appended", () => {
+    const readyProbe = {
+      status: "ready" as const,
+      summary: {
+        fileToken: file.fileToken,
+        displayName: file.displayName,
+        durationMs: 10_000,
+        audioTracks: [
+          { streamId: "stream-1", ordinal: 1, isDefault: true },
+        ],
+        autoSelectedStreamId: "stream-1",
+      },
+    };
+    const appended = {
+      ...file,
+      fileToken: "file-token-2",
+      sourceKey: "source-key-2",
+      displayName: "second.wav",
+    };
+    const probes = new Map([[file.fileToken, readyProbe]]);
+    const selections = new Map([[file.fileToken, "stream-1"]]);
+
+    const nextProbes = reconcileLocalSubtitleDraftMediaProbes(
+      [file, appended],
+      probes,
+    );
+    expect(nextProbes.get(file.fileToken)).toBe(readyProbe);
+    expect(nextProbes.get(appended.fileToken)).toEqual({ status: "loading" });
+    expect(pruneLocalSubtitleDraftAudioSelections(
+      [file, appended],
+      selections,
+    )).toBe(selections);
+
+    expect(reconcileLocalSubtitleDraftMediaProbes(
+      [appended],
+      nextProbes,
+    )).toEqual(new Map([
+      [appended.fileToken, { status: "loading" }],
+    ]));
+    expect(pruneLocalSubtitleDraftAudioSelections(
+      [appended],
+      selections,
+    )).toEqual(new Map());
   });
 
   it("does not let another active task block a ready draft batch", () => {

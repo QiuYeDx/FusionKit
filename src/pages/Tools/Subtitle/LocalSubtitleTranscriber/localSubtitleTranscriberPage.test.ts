@@ -130,6 +130,10 @@ describe("local subtitle transcriber page wiring", () => {
     expect(queueSource).toContain("actions.clear_all");
     expect(queueSource).toContain("getLocalSubtitleFileFormatLabel");
     expect(queueSource).toContain("getLocalSubtitleTrackLanguageLabel");
+    expect(pageSource).toContain("reconcileLocalSubtitleDraftMediaProbes");
+    expect(pageSource).toContain("addedFiles");
+    expect(pageSource).not.toContain("setDraftMediaProbes(new Map(");
+    expect(pageSource).not.toContain("setExplicitAudioStreamIds(new Map())");
   });
 
   it("removes the environment header divider while its body is collapsed", () => {
