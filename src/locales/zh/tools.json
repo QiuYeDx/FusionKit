@@ -31,7 +31,7 @@
     "subtitle_translator": "使用AI模型翻译字幕文件",
     "subtitle_formatter": "转换字幕格式（SRT、ASS等）",
     "subtitle_language_extractor": "从双语字幕中提取指定语言",
-    "local_subtitle_transcriber": "使用本地模型将音视频转写为 SRT 字幕",
+    "local_subtitle_transcriber": "使用本地模型批量将音视频转写为 SRT / LRC 字幕",
     "name_translator": "批量翻译文件和文件夹名称，先预览再安全重命名",
     "text_translator": "通过任务模型翻译长篇 TXT / Markdown 文件，并保留可恢复工作区",
     "audio_transcriber": "用全局 ASR 配置转写本地音频文件",
@@ -52,8 +52,8 @@
     "realtime": "实时",
     "webrtc": "WebRTC",
     "duplex": "双向语音",
-    "local_cpu": "本地 · CPU",
-    "local_srt": "单文件 · SRT"
+    "local_offline": "离线转写",
+    "local_batch_formats": "批量 · SRT/LRC"
   },
   "coming_soon": {
     "title": "敬请期待",

@@ -53,8 +53,8 @@ const CATEGORIES: Category[] = [
         titleKey: "tools:fields.local_subtitle_transcriber",
         descKey: "tools:field_desc.local_subtitle_transcriber",
         chipKeys: [
-          "tools:chips.local_cpu",
-          "tools:chips.local_srt",
+          "tools:chips.local_offline",
+          "tools:chips.local_batch_formats",
         ],
       },
     ],
