@@ -225,8 +225,13 @@
       "model": "Local model",
       "no_model": "No model available",
       "model_details": "{{format}} · {{quantization}} · {{size}}",
-      "device": "Execution device",
-      "device_auto": "Select automatically",
+      "device": "Compute device",
+      "device_option": {
+        "auto": "Automatic (recommended)",
+        "cpu": "CPU (processor)",
+        "cuda": "NVIDIA GPU (CUDA)",
+        "metal": "Apple GPU (Metal)"
+      },
       "language": "Source language",
       "language_option": {
         "auto": "Detect automatically",
@@ -271,6 +276,7 @@
       "checking": "Checking",
       "ready": "Environment ready",
       "unavailable": "Environment unavailable",
+      "status_summary": "{{status}} · Resources {{ready}} / {{total}}",
       "unavailable_short": "Unavailable",
       "platform": "Platform",
       "contract": "Server contract",
@@ -393,7 +399,6 @@
     },
     "resources": {
       "title": "Managed resources",
-      "ready_count": "{{ready}} / {{total}} ready",
       "managed_only": "Resources from the built-in manifest",
       "disk_usage": "Installed: {{size}}",
       "loading": "Reading the managed resource manifest...",

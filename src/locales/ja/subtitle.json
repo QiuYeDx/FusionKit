@@ -225,8 +225,13 @@
       "model": "ローカルモデル",
       "no_model": "利用可能なモデルがありません",
       "model_details": "{{format}} · {{quantization}} · {{size}}",
-      "device": "実行デバイス",
-      "device_auto": "自動選択",
+      "device": "処理デバイス",
+      "device_option": {
+        "auto": "自動選択（推奨）",
+        "cpu": "CPU（プロセッサ）",
+        "cuda": "NVIDIA GPU（CUDA）",
+        "metal": "Apple GPU（Metal）"
+      },
       "language": "入力言語",
       "language_option": {
         "auto": "自動検出",
@@ -271,6 +276,7 @@
       "checking": "確認中",
       "ready": "環境利用可能",
       "unavailable": "環境利用不可",
+      "status_summary": "{{status}} · リソース {{ready}} / {{total}}",
       "unavailable_short": "利用不可",
       "platform": "プラットフォーム",
       "contract": "サーバー契約",
@@ -393,7 +399,6 @@
     },
     "resources": {
       "title": "管理対象リソース",
-      "ready_count": "{{ready}} / {{total}} 利用可能",
       "managed_only": "組み込みマニフェストの管理対象リソース",
       "disk_usage": "使用中：{{size}}",
       "loading": "管理対象リソースのマニフェストを読み込んでいます...",

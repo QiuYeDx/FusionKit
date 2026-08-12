@@ -27,6 +27,7 @@ import {
   getInstalledLocalSubtitleResourceBytes,
   getLatestLocalSubtitleResourceJobs,
   getReadyLocalSubtitleModels,
+  isLocalSubtitleDevicePreferenceAvailable,
   isLocalSubtitleResourceJobActive,
   isLocalSubtitleTaskActive,
   pruneLocalSubtitleDraftAudioSelections,
@@ -90,6 +91,33 @@ describe("local subtitle transcriber page model", () => {
     ).toEqual([LOCAL_SUBTITLE_PRODUCTION_CONTRACT.launchModel.id]);
   });
 
+  it("offers only execution devices reported as available", () => {
+    expect(isLocalSubtitleDevicePreferenceAvailable(runtime, "auto")).toBe(true);
+    expect(isLocalSubtitleDevicePreferenceAvailable(runtime, "cpu")).toBe(true);
+    expect(isLocalSubtitleDevicePreferenceAvailable(runtime, "metal")).toBe(true);
+    expect(isLocalSubtitleDevicePreferenceAvailable(runtime, "cuda")).toBe(false);
+
+    const unverifiedCuda = {
+      ...runtime,
+      platform: "win32" as const,
+      arch: "x64" as const,
+      backends: [
+        { backend: "cpu" as const, status: "available" as const },
+        {
+          backend: "cuda" as const,
+          status: "unverified" as const,
+          errorCode: "backend_unverified" as const,
+        },
+      ],
+    };
+    expect(isLocalSubtitleDevicePreferenceAvailable(unverifiedCuda, "cuda")).toBe(false);
+    expect(isLocalSubtitleDevicePreferenceAvailable(
+      { ...runtime, mediaRuntime: { status: "missing", errorCode: "media_runtime_missing" } },
+      "cpu",
+    )).toBe(false);
+    expect(isLocalSubtitleDevicePreferenceAvailable(null, "auto")).toBe(false);
+  });
+
   it("derives resource actions and disk usage from the latest session job", () => {
     const older = createResourceJob({
       jobId: "job-1",
@@ -150,6 +178,9 @@ describe("local subtitle transcriber page model", () => {
     expect(
       deriveLocalSubtitleStartIssue({ ...ready, runtime: null }),
     ).toBe("runtime_unavailable");
+    expect(
+      deriveLocalSubtitleStartIssue({ ...ready, devicePreference: "cuda" }),
+    ).toBe("backend_preview_unavailable");
     expect(
       deriveLocalSubtitleStartIssue({ ...ready, selectedModelId: "missing" }),
     ).toBe("model_required");
@@ -231,6 +262,11 @@ describe("local subtitle transcriber page model", () => {
       modelId: model.resourceId,
       devicePreference: "cpu",
     })).not.toBe(previewKey);
+    expect(createLocalSubtitleBackendPreviewKey({
+      runtime,
+      modelId: model.resourceId,
+      devicePreference: "cuda",
+    })).toBeNull();
   });
 
   it("builds one production request entry for every authorized batch file", () => {

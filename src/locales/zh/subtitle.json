@@ -225,8 +225,13 @@
       "model": "本地模型",
       "no_model": "没有可用模型",
       "model_details": "{{format}} · {{quantization}} · {{size}}",
-      "device": "运行设备",
-      "device_auto": "自动选择",
+      "device": "计算设备",
+      "device_option": {
+        "auto": "自动选择（推荐）",
+        "cpu": "CPU（处理器）",
+        "cuda": "NVIDIA GPU（CUDA）",
+        "metal": "Apple GPU（Metal）"
+      },
       "language": "源语言",
       "language_option": {
         "auto": "自动检测",
@@ -271,6 +276,7 @@
       "checking": "检查中",
       "ready": "环境可用",
       "unavailable": "环境不可用",
+      "status_summary": "{{status}} · 资源 {{ready}} / {{total}}",
       "unavailable_short": "不可用",
       "platform": "平台",
       "contract": "服务合同",
@@ -393,7 +399,6 @@
     },
     "resources": {
       "title": "托管资源",
-      "ready_count": "{{ready}} / {{total}} 可用",
       "managed_only": "来自内置清单的受控资源",
       "disk_usage": "已占用：{{size}}",
       "loading": "正在读取托管资源清单...",

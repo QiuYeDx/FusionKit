@@ -74,6 +74,7 @@ import {
   formatLocalSubtitleBytes,
   getReadyLocalSubtitleModels,
   hasActiveLocalSubtitleTasks,
+  isLocalSubtitleDevicePreferenceAvailable,
   isLocalSubtitleTaskActive,
   pruneLocalSubtitleDraftAudioSelections,
   reconcileLocalSubtitleDraftMediaProbes,
@@ -392,6 +393,32 @@ export default function LocalSubtitleTranscriber() {
   const vadReady = environment.resources.some(
     (resource) => resource.resourceType === "vad" && resource.status === "ready",
   );
+  const deviceAvailability = useMemo(
+    () => ({
+      auto: isLocalSubtitleDevicePreferenceAvailable(environment.runtime, "auto"),
+      cpu: isLocalSubtitleDevicePreferenceAvailable(environment.runtime, "cpu"),
+      cuda: isLocalSubtitleDevicePreferenceAvailable(environment.runtime, "cuda"),
+      metal: isLocalSubtitleDevicePreferenceAvailable(environment.runtime, "metal"),
+    }),
+    [environment.runtime],
+  );
+
+  useEffect(() => {
+    if (
+      environment.loading ||
+      !environment.runtime ||
+      deviceAvailability[preferences.devicePreference] ||
+      !deviceAvailability.auto
+    ) return;
+    updatePreferences({ devicePreference: "auto" });
+  }, [
+    deviceAvailability,
+    environment.loading,
+    environment.runtime,
+    preferences.devicePreference,
+    updatePreferences,
+  ]);
+
   const backendPreviewKey = createLocalSubtitleBackendPreviewKey({
     runtime: environment.runtime,
     modelId: selectedModelId,
@@ -1343,21 +1370,27 @@ export default function LocalSubtitleTranscriber() {
             <ToolField label={t("subtitle:local_transcriber.config.device")}>
               <Select
                 value={preferences.devicePreference}
-                disabled={submissionLocked}
-                onValueChange={(devicePreference) => updatePreferences({
-                  devicePreference: devicePreference as typeof preferences.devicePreference,
-                })}
+                disabled={submissionLocked || environment.loading || !deviceAvailability.auto}
+                onValueChange={(devicePreference) => {
+                  const nextPreference = devicePreference as typeof preferences.devicePreference;
+                  if (!deviceAvailability[nextPreference]) return;
+                  updatePreferences({ devicePreference: nextPreference });
+                }}
               >
                 <SelectTrigger data-testid="local-subtitle-device-select" className="h-8 w-full text-xs">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="auto">
-                    {t("subtitle:local_transcriber.config.device_auto")}
+                  <SelectItem value="auto" disabled={!deviceAvailability.auto}>
+                    {t("subtitle:local_transcriber.config.device_option.auto")}
                   </SelectItem>
                   {(["cpu", "cuda", "metal"] as const).map((backend) => (
-                    <SelectItem key={backend} value={backend}>
-                      {t(`subtitle:local_transcriber.environment.backend.${backend}`)}
+                    <SelectItem
+                      key={backend}
+                      value={backend}
+                      disabled={!deviceAvailability[backend]}
+                    >
+                      {t(`subtitle:local_transcriber.config.device_option.${backend}`)}
                     </SelectItem>
                   ))}
                 </SelectContent>

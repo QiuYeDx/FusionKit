@@ -204,15 +204,12 @@ export function LocalSubtitleEnvironmentManager({
         title={t("subtitle:local_transcriber.environment.title")}
         headerClassName={managerOpen ? undefined : "border-b-0"}
         badge={
-          <div className="flex items-center gap-1.5">
-            <EnvironmentStatusBadge loading={loading} runtime={runtime} />
-            <Badge variant="outline">
-              {t("subtitle:local_transcriber.resources.ready_count", {
-                ready: readyCount,
-                total: resources.length,
-              })}
-            </Badge>
-          </div>
+          <EnvironmentStatusBadge
+            loading={loading}
+            runtime={runtime}
+            readyResourceCount={readyCount}
+            totalResourceCount={resources.length}
+          />
         }
         actions={
           <>
@@ -317,7 +314,7 @@ export function LocalSubtitleEnvironmentManager({
               <button
                 type="button"
                 data-testid="local-subtitle-runtime-toggle"
-                className="flex w-full min-w-0 items-center justify-between gap-4 px-4 py-3 text-left transition-colors hover:bg-muted/30 focus-visible:ring-ring/50 focus-visible:ring-[3px] focus-visible:outline-none"
+                className="flex w-full min-w-0 cursor-pointer items-center justify-between gap-4 px-4 py-3 text-left transition-colors hover:bg-muted/30 focus-visible:ring-ring/50 focus-visible:ring-[3px] focus-visible:outline-none"
                 aria-expanded={runtimeDetailsOpen}
                 aria-controls="local-subtitle-runtime-details"
                 onClick={() => setRuntimeDetailsOpen((open) => !open)}
@@ -815,9 +812,13 @@ function ResourceRow({
 function EnvironmentStatusBadge({
   loading,
   runtime,
+  readyResourceCount,
+  totalResourceCount,
 }: {
   loading: boolean;
   runtime: LocalSubtitleRuntimeSummary | null;
+  readyResourceCount: number;
+  totalResourceCount: number;
 }) {
   const { t } = useTranslation(["subtitle"]);
   const ready = Boolean(
@@ -832,13 +833,17 @@ function EnvironmentStatusBadge({
   return (
     <Badge variant={ready ? "secondary" : "outline"}>
       {loading ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
-      {t(
-        loading
-          ? "subtitle:local_transcriber.environment.checking"
-          : ready
-            ? "subtitle:local_transcriber.environment.ready"
-            : "subtitle:local_transcriber.environment.unavailable",
-      )}
+      {loading
+        ? t("subtitle:local_transcriber.environment.checking")
+        : t("subtitle:local_transcriber.environment.status_summary", {
+            status: t(
+              ready
+                ? "subtitle:local_transcriber.environment.ready"
+                : "subtitle:local_transcriber.environment.unavailable",
+            ),
+            ready: readyResourceCount,
+            total: totalResourceCount,
+          })}
     </Badge>
   );
 }

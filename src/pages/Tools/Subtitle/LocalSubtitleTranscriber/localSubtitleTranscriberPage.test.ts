@@ -91,9 +91,15 @@ describe("local subtitle transcriber page wiring", () => {
     expect(pageSource).toContain("draftTaskMode");
     expect(pageSource).toContain('testId="local-subtitle-advanced-settings"');
     expect(pageSource).toContain('data-testid="local-subtitle-model-description"');
-    expect(pageSource).not.toContain('devicePreference: "auto"');
     expect(pageSource).not.toContain('vadEnabled: false');
     expect(environmentSource).not.toContain("cpuAvailable");
+  });
+
+  it("disables unavailable execution devices and falls back to automatic selection", () => {
+    expect(pageSource).toContain("isLocalSubtitleDevicePreferenceAvailable");
+    expect(pageSource).toContain("disabled={!deviceAvailability[backend]}");
+    expect(pageSource).toContain('updatePreferences({ devicePreference: "auto" })');
+    expect(pageSource).toContain("if (!deviceAvailability[nextPreference]) return");
   });
 
   it("uses a clear disclosure row for advanced settings", () => {
@@ -106,6 +112,14 @@ describe("local subtitle transcriber page wiring", () => {
     expect(disclosureSource).toContain('className={cn("-mx-4 border-y"');
     expect(disclosureSource).not.toContain("border-dashed");
     expect(disclosureSource).not.toContain("group-hover:bg-background");
+    expect(environmentSource).toMatch(
+      /data-testid="local-subtitle-runtime-toggle"[\s\S]*?className="[^"]*cursor-pointer/,
+    );
+  });
+
+  it("combines environment readiness and resource availability in one badge", () => {
+    expect(environmentSource).toContain("status_summary");
+    expect(environmentSource).not.toContain("resources.ready_count");
   });
 
   it("does not expose an inert quality preset", () => {

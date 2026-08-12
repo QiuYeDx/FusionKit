@@ -94,12 +94,37 @@ export function createLocalSubtitleBackendPreviewKey(input: {
   readonly modelId: string | null;
   readonly devicePreference: LocalSubtitleBackendPreviewSummary["devicePreference"];
 }): string | null {
-  if (!input.runtime || !input.modelId) return null;
+  if (
+    !input.runtime ||
+    !input.modelId ||
+    !isLocalSubtitleDevicePreferenceAvailable(
+      input.runtime,
+      input.devicePreference,
+    )
+  ) return null;
   return [
     input.runtime.runtimeGeneration,
     input.modelId,
     input.devicePreference,
   ].join(":");
+}
+
+export function isLocalSubtitleDevicePreferenceAvailable(
+  runtime: LocalSubtitleRuntimeSummary | null,
+  preference: LocalSubtitleDevicePreference,
+): boolean {
+  if (
+    !runtime ||
+    runtime.runner.status !== "ready" ||
+    runtime.mediaRuntime.status !== "ready"
+  ) return false;
+  if (preference === "auto") {
+    return runtime.backends.some((backend) => backend.status === "available");
+  }
+  return runtime.backends.some(
+    (backend) =>
+      backend.backend === preference && backend.status === "available",
+  );
 }
 
 export function shouldRequestLocalSubtitleBackendPreview(
@@ -211,6 +236,10 @@ export function deriveLocalSubtitleStartIssue(
   if (input.environmentLoading) return "environment_loading";
   if (input.environmentError) return "environment_unavailable";
   if (!isCpuRuntimeReady(input.runtime)) return "runtime_unavailable";
+  if (!isLocalSubtitleDevicePreferenceAvailable(
+    input.runtime,
+    input.devicePreference,
+  )) return "backend_preview_unavailable";
   if (input.runtimeSyncStatus !== "ready") return "session_unavailable";
   if (
     !input.selectedModelId ||
