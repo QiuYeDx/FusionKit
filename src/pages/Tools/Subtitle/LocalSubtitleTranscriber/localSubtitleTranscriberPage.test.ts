@@ -22,6 +22,10 @@ const detailsDialogSource = readFileSync(
   new URL("./LocalSubtitleTaskDetailsDialogs.tsx", import.meta.url),
   "utf8",
 );
+const disclosureSource = readFileSync(
+  new URL("../../_shared/ui/ToolConfigDisclosure.tsx", import.meta.url),
+  "utf8",
+);
 const postActionServiceSource = readFileSync(
   new URL("../../../../services/local-subtitle/localSubtitlePostActionService.ts", import.meta.url),
   "utf8",
@@ -85,11 +89,35 @@ describe("local subtitle transcriber page wiring", () => {
     expect(pageSource).toContain("preferences.vadEnabled");
     expect(pageSource).toContain("draftInitialPrompt");
     expect(pageSource).toContain("draftTaskMode");
-    expect(pageSource).toContain('data-testid="local-subtitle-advanced-settings"');
+    expect(pageSource).toContain('testId="local-subtitle-advanced-settings"');
     expect(pageSource).toContain('data-testid="local-subtitle-model-description"');
     expect(pageSource).not.toContain('devicePreference: "auto"');
     expect(pageSource).not.toContain('vadEnabled: false');
     expect(environmentSource).not.toContain("cpuAvailable");
+  });
+
+  it("uses a clear disclosure row for advanced settings", () => {
+    expect(pageSource.match(/<ToolConfigDisclosure/g)).toHaveLength(1);
+    expect(pageSource).toContain("icon={SlidersHorizontal}");
+    expect(disclosureSource).toContain("aria-expanded={isOpen}");
+    expect(disclosureSource).toContain("aria-controls={contentId}");
+    expect(disclosureSource).toContain("inert={!isOpen}");
+    expect(disclosureSource).toContain("cursor-pointer");
+    expect(disclosureSource).toContain('className={cn("-mx-4 border-y"');
+    expect(disclosureSource).not.toContain("border-dashed");
+    expect(disclosureSource).not.toContain("group-hover:bg-background");
+  });
+
+  it("renders the post-transcription action as a select below output settings", () => {
+    expect(pageSource).toContain('data-testid="local-subtitle-post-action-select"');
+    expect(pageSource).not.toContain('testId="local-subtitle-post-action-settings"');
+    expect(pageSource.indexOf('data-testid="local-subtitle-post-action-select"')).toBeGreaterThan(
+      pageSource.indexOf("subtitle:local_transcriber.config.output_mode"),
+    );
+    expect(pageSource).toContain('value="export_only"');
+    expect(pageSource).toContain('value="enqueue_translation"');
+    expect(pageSource).toContain('value="enqueue_and_start_translation"');
+    expect(pageSource).toContain('data-testid="local-subtitle-handoff-format"');
   });
 
   it("renders resource progress from the shared session snapshot", () => {

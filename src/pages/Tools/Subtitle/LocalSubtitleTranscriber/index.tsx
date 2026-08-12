@@ -52,6 +52,7 @@ import type {
   LocalSubtitleBatchSummary,
   LocalSubtitleTaskSummary,
   LocalSubtitleFormat,
+  SubtitleTranslationHandoffMode,
 } from "@/type/localSubtitle";
 import {
   LOCAL_SUBTITLE_LIMITS,
@@ -1403,8 +1404,9 @@ export default function LocalSubtitleTranscriber() {
               </Select>
             </ToolField>
 
-            <div data-testid="local-subtitle-advanced-settings">
+            <div>
               <ToolConfigDisclosure
+                testId="local-subtitle-advanced-settings"
                 icon={SlidersHorizontal}
                 title={t("subtitle:local_transcriber.config.advanced")}
                 summary={t(
@@ -1542,7 +1544,6 @@ export default function LocalSubtitleTranscriber() {
 
             <ToolField
               label={t("subtitle:local_transcriber.config.output_formats")}
-              className="border-t pt-4"
             >
               <div className="grid grid-cols-2 gap-2">
                 {(["SRT", "LRC"] as const).map((format) => (
@@ -1612,65 +1613,59 @@ export default function LocalSubtitleTranscriber() {
               </ToolField>
             ) : null}
 
-            <ToolConfigDisclosure
-              title={t("subtitle:local_transcriber.post_action.mode")}
-              summary={t(
-                draftPostActionMode === "export_only"
-                  ? "subtitle:local_transcriber.post_action.export_only"
-                  : draftPostActionMode === "enqueue_translation"
-                    ? "subtitle:local_transcriber.post_action.enqueue"
-                    : "subtitle:local_transcriber.post_action.enqueue_and_start",
-              )}
-            >
-              <ToolRadioButtonGroup
+            <ToolField label={t("subtitle:local_transcriber.post_action.mode")}>
+              <Select
                 value={draftPostActionMode}
-                orientation="vertical"
                 disabled={submissionLocked}
-                ariaLabel={t("subtitle:local_transcriber.post_action.mode")}
-                options={[
-                  {
-                    value: "export_only",
-                    label: t("subtitle:local_transcriber.post_action.export_only"),
-                  },
-                  {
-                    value: "enqueue_translation",
-                    label: t("subtitle:local_transcriber.post_action.enqueue"),
-                  },
-                  {
-                    value: "enqueue_and_start_translation",
-                    label: t("subtitle:local_transcriber.post_action.enqueue_and_start"),
-                  },
-                ]}
-                onValueChange={setDraftPostActionMode}
-              />
-
-              {draftPostActionMode !== "export_only" ? (
-                <ToolField
-                  label={t("subtitle:local_transcriber.post_action.handoff_format")}
+                onValueChange={(mode) =>
+                  setDraftPostActionMode(mode as SubtitleTranslationHandoffMode)}
+              >
+                <SelectTrigger
+                  data-testid="local-subtitle-post-action-select"
+                  className="h-8 w-full text-xs"
                 >
-                  <Select
-                    value={draftPreferredHandoffFormat}
-                    disabled={submissionLocked}
-                    onValueChange={(format) =>
-                      setDraftPreferredHandoffFormat(format as LocalSubtitleFormat)}
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="export_only">
+                    {t("subtitle:local_transcriber.post_action.export_only")}
+                  </SelectItem>
+                  <SelectItem value="enqueue_translation">
+                    {t("subtitle:local_transcriber.post_action.enqueue")}
+                  </SelectItem>
+                  <SelectItem value="enqueue_and_start_translation">
+                    {t("subtitle:local_transcriber.post_action.enqueue_and_start")}
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </ToolField>
+
+            {draftPostActionMode !== "export_only" ? (
+              <ToolField
+                label={t("subtitle:local_transcriber.post_action.handoff_format")}
+              >
+                <Select
+                  value={draftPreferredHandoffFormat}
+                  disabled={submissionLocked}
+                  onValueChange={(format) =>
+                    setDraftPreferredHandoffFormat(format as LocalSubtitleFormat)}
+                >
+                  <SelectTrigger
+                    data-testid="local-subtitle-handoff-format"
+                    className="h-8 w-full text-xs"
                   >
-                    <SelectTrigger
-                      data-testid="local-subtitle-handoff-format"
-                      className="h-8 w-full text-xs"
-                    >
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {preferences.outputFormats.map((format) => (
-                        <SelectItem key={format} value={format}>
-                          {format}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </ToolField>
-              ) : null}
-            </ToolConfigDisclosure>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {preferences.outputFormats.map((format) => (
+                      <SelectItem key={format} value={format}>
+                        {format}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </ToolField>
+            ) : null}
           </ToolConfigPanel>
         }
       >
