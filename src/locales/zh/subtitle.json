@@ -241,12 +241,6 @@
       "task_mode": "任务模式",
       "task_transcribe": "原文转写",
       "task_translate_english": "转为英文",
-      "quality": "质量预设",
-      "quality_option": {
-        "subtitle_quality": "字幕质量",
-        "balanced": "均衡",
-        "fast": "快速"
-      },
       "vad": "语音活动检测",
       "vad_hint": "减少静音片段中的误识别。",
       "vad_ready": "VAD 资源已就绪",

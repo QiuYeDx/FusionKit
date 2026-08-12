@@ -180,7 +180,6 @@ function batch(): LocalSubtitleBatchSummary {
       resolvedBackend: "cpu",
       language: "auto",
       taskMode: "transcribe",
-      qualityPreset: "balanced",
       vadEnabled: false,
       outputFormats: ["SRT"],
       outputMode: "source",

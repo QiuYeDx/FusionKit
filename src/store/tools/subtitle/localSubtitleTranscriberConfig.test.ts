@@ -18,6 +18,7 @@ describe("local subtitle transcriber preferences", () => {
         devicePreference: "cuda",
         language: "zh-Hans",
         vadEnabled: false,
+        // Removed v1 preference must not survive persisted-state sanitization.
         qualityPreset: "balanced",
         beamSize: 3,
         temperature: 0.25,
@@ -36,7 +37,6 @@ describe("local subtitle transcriber preferences", () => {
       devicePreference: "cuda",
       language: "zh-Hans",
       vadEnabled: false,
-      qualityPreset: "balanced",
       beamSize: 3,
       temperature: 0.25,
       vadMinSilenceMs: 750,
@@ -56,7 +56,6 @@ describe("local subtitle transcriber preferences", () => {
         devicePreference: "vulkan",
         language: "not a language",
         vadEnabled: "yes",
-        qualityPreset: "maximum",
         beamSize: 0,
         temperature: Number.NaN,
         vadMinSilenceMs: 99,

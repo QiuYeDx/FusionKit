@@ -591,7 +591,6 @@ function enqueueRequest(
       devicePreference: "auto" as const,
       language: "auto",
       taskMode: "transcribe" as const,
-      qualityPreset: "balanced" as const,
       vadEnabled: false,
       advanced: {
         beamSize: 5,

@@ -4,10 +4,8 @@ import {
   LOCAL_SUBTITLE_ENGINES,
   LOCAL_SUBTITLE_LIMITS,
   LOCAL_SUBTITLE_PRODUCTION_CONTRACT,
-  LOCAL_SUBTITLE_QUALITY_PRESETS,
   type LocalSubtitleErrorCode,
   type LocalSubtitleInferenceSnapshot,
-  type LocalSubtitleQualityPreset,
   type LocalSubtitleSegment,
   type LocalSubtitleTaskMode,
   type LocalSubtitleTranscript,
@@ -142,7 +140,6 @@ export interface LocalSubtitlePostProcessingWindowAttempt {
 
 export interface LocalSubtitlePostProcessPolicy {
   readonly schemaVersion: 1;
-  readonly qualityPreset: LocalSubtitleQualityPreset;
   readonly vadEnabled: boolean;
   readonly wordTimelineMode: "segment_only_v1";
   readonly qualityFingerprint: "nfkc-lowercase-without-punctuation-symbols-whitespace";
@@ -388,9 +385,6 @@ export function createSubtitlePostProcessPolicy(
     );
   }
   if (
-    !(LOCAL_SUBTITLE_QUALITY_PRESETS as readonly unknown[]).includes(
-      inference.qualityPreset,
-    ) ||
     !inference.vad ||
     typeof inference.vad.enabled !== "boolean" ||
     inference.vad.tokenTimestamps !== false ||
@@ -432,7 +426,6 @@ export function createSubtitlePostProcessPolicy(
 
   return deepFreeze({
     schemaVersion: 1,
-    qualityPreset: inference.qualityPreset,
     vadEnabled: inference.vad.enabled,
     wordTimelineMode: "segment_only_v1",
     qualityFingerprint: LOCAL_SUBTITLE_POST_PROCESSING_POLICY.qualityFingerprint,
@@ -2235,9 +2228,6 @@ function validatePolicy(policy: LocalSubtitlePostProcessPolicy): void {
   if (
     !isRecord(policy) ||
     policy.schemaVersion !== 1 ||
-    !(LOCAL_SUBTITLE_QUALITY_PRESETS as readonly unknown[]).includes(
-      policy.qualityPreset,
-    ) ||
     typeof policy.vadEnabled !== "boolean" ||
     policy.wordTimelineMode !== "segment_only_v1" ||
     policy.qualityFingerprint !==

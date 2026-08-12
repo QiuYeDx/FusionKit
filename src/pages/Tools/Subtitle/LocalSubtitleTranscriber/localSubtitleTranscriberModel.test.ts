@@ -278,7 +278,6 @@ describe("local subtitle transcriber page model", () => {
         ...DEFAULT_LOCAL_SUBTITLE_TRANSCRIBER_PREFERENCES,
         devicePreference: "cuda",
         vadEnabled: false,
-        qualityPreset: "fast",
         beamSize: 2,
         temperature: 0.35,
         outputFormats: ["SRT", "LRC"],
@@ -298,7 +297,6 @@ describe("local subtitle transcriber page model", () => {
     expect(request.config).toMatchObject({
       devicePreference: "cuda",
       taskMode: "translate_to_english",
-      qualityPreset: "fast",
       vadEnabled: false,
       advanced: {
         initialPrompt: "FusionKit product names",
@@ -424,7 +422,6 @@ describe("local subtitle transcriber page model", () => {
         resolvedBackend: "cpu",
         language: "auto",
         taskMode: "transcribe",
-        qualityPreset: "subtitle_quality",
         vadEnabled: false,
         outputFormats: ["SRT"],
         outputMode: "source",

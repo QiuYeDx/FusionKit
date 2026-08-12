@@ -78,6 +78,7 @@ describe("local subtitle transcriber store", () => {
       /private-(?:input|output)-token|private spoken names|draftInputFiles|draftOutputDirectory|expiresAt/,
     );
     expect(persisted).not.toContain("enqueue_and_start_translation");
+    expect(persisted).not.toContain("qualityPreset");
   });
 
   it("hydrates same-version dirty data without runtime or free-text state", async () => {
@@ -135,6 +136,7 @@ describe("local subtitle transcriber store", () => {
           preferences: {
             ...DEFAULT_LOCAL_SUBTITLE_TRANSCRIBER_PREFERENCES,
             language: "ja",
+            qualityPreset: "balanced",
           },
           fileToken: "legacy-token",
           initialPrompt: "legacy prompt",

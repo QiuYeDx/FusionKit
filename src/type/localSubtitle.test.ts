@@ -1047,7 +1047,6 @@ function createMutableBatchConfig(): MutableBatchConfig {
     language: "auto",
     taskMode: "transcribe",
     inference: {
-      qualityPreset: "subtitle_quality",
       advanced: {
         initialPrompt: "keep this prompt",
         beamSize: 5,

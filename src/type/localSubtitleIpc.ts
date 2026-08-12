@@ -16,7 +16,6 @@ import {
   LOCAL_SUBTITLE_OPERATION_STAGES,
   LOCAL_SUBTITLE_OUTPUT_MODES,
   LOCAL_SUBTITLE_PRODUCTION_CONTRACT,
-  LOCAL_SUBTITLE_QUALITY_PRESETS,
   LOCAL_SUBTITLE_RESOURCE_JOB_STATUSES,
   LOCAL_SUBTITLE_RESOURCE_TYPES,
   LOCAL_SUBTITLE_TASK_MODES,
@@ -783,7 +782,6 @@ const batchConfigSummarySchema = z
     resolvedBackend: z.enum(LOCAL_SUBTITLE_BACKENDS),
     language: languageSchema,
     taskMode: z.enum(LOCAL_SUBTITLE_TASK_MODES),
-    qualityPreset: z.enum(LOCAL_SUBTITLE_QUALITY_PRESETS),
     vadEnabled: z.boolean(),
     outputFormats: z
       .array(z.enum(LOCAL_SUBTITLE_FORMATS))
@@ -1096,7 +1094,6 @@ export const enqueueLocalSubtitleBatchRequestSchema = z
         devicePreference: z.enum(LOCAL_SUBTITLE_DEVICE_PREFERENCES),
         language: languageSchema,
         taskMode: z.enum(LOCAL_SUBTITLE_TASK_MODES),
-        qualityPreset: z.enum(LOCAL_SUBTITLE_QUALITY_PRESETS),
         vadEnabled: z.boolean(),
         advanced: advancedSettingsSchema,
         output: outputRequestSchema,

@@ -343,7 +343,6 @@ function createBatch(
       resolvedBackend: "cpu",
       language: "auto",
       taskMode: "transcribe",
-      qualityPreset: "subtitle_quality",
       vadEnabled: false,
       outputFormats: ["SRT", "LRC"],
       outputMode: "source",

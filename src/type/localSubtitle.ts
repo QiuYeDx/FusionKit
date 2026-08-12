@@ -94,14 +94,6 @@ export const LOCAL_SUBTITLE_TASK_MODES = [
 export type LocalSubtitleTaskMode =
   (typeof LOCAL_SUBTITLE_TASK_MODES)[number];
 
-export const LOCAL_SUBTITLE_QUALITY_PRESETS = [
-  "subtitle_quality",
-  "balanced",
-  "fast",
-] as const;
-export type LocalSubtitleQualityPreset =
-  (typeof LOCAL_SUBTITLE_QUALITY_PRESETS)[number];
-
 export const LOCAL_SUBTITLE_FORMATS = ["SRT", "LRC"] as const;
 export type LocalSubtitleFormat = (typeof LOCAL_SUBTITLE_FORMATS)[number];
 
@@ -155,7 +147,6 @@ export interface LocalSubtitleRawQualityGateSnapshot {
 }
 
 export interface LocalSubtitleInferenceSnapshot {
-  readonly qualityPreset: LocalSubtitleQualityPreset;
   readonly advanced: LocalSubtitleAdvancedSettings;
   readonly vad: LocalSubtitleVadSnapshot;
   readonly rawQualityGate: LocalSubtitleRawQualityGateSnapshot;
@@ -230,7 +221,6 @@ export function createLocalSubtitleBatchConfigSnapshot(
     ...input,
     model: { ...input.model },
     inference: {
-      qualityPreset: input.inference.qualityPreset,
       advanced: { ...input.inference.advanced },
       vad: { ...input.inference.vad },
       rawQualityGate: { ...input.inference.rawQualityGate },
@@ -1031,7 +1021,6 @@ export interface LocalSubtitleBatchConfigSummary {
   readonly resolvedBackend: LocalSubtitleBackend;
   readonly language: string;
   readonly taskMode: LocalSubtitleTaskMode;
-  readonly qualityPreset: LocalSubtitleQualityPreset;
   readonly vadEnabled: boolean;
   readonly outputFormats: readonly LocalSubtitleFormat[];
   readonly outputMode: LocalSubtitleOutputMode;

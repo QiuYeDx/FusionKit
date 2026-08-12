@@ -296,7 +296,6 @@ export function createLocalSubtitleBatchRequest(input: {
       devicePreference: input.preferences.devicePreference,
       language: input.preferences.language,
       taskMode: input.taskMode ?? "transcribe",
-      qualityPreset: input.preferences.qualityPreset,
       vadEnabled: input.preferences.vadEnabled,
       advanced: {
         ...(input.initialPrompt

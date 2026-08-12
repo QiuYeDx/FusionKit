@@ -4,11 +4,9 @@ import {
   LOCAL_SUBTITLE_LIMITS,
   LOCAL_SUBTITLE_OUTPUT_MODES,
   LOCAL_SUBTITLE_PRODUCTION_CONTRACT,
-  LOCAL_SUBTITLE_QUALITY_PRESETS,
   type LocalSubtitleDevicePreference,
   type LocalSubtitleFormat,
   type LocalSubtitleOutputMode,
-  type LocalSubtitleQualityPreset,
 } from "@/type/localSubtitle";
 
 export interface LocalSubtitleTranscriberPreferences {
@@ -16,7 +14,6 @@ export interface LocalSubtitleTranscriberPreferences {
   readonly devicePreference: LocalSubtitleDevicePreference;
   readonly language: string;
   readonly vadEnabled: boolean;
-  readonly qualityPreset: LocalSubtitleQualityPreset;
   readonly beamSize: number;
   readonly temperature: number;
   readonly vadMinSilenceMs: number;
@@ -33,7 +30,6 @@ export const DEFAULT_LOCAL_SUBTITLE_TRANSCRIBER_PREFERENCES = {
   devicePreference: "auto",
   language: "auto",
   vadEnabled: true,
-  qualityPreset: "subtitle_quality",
   beamSize: 5,
   temperature: 0,
   vadMinSilenceMs: 500,
@@ -69,11 +65,6 @@ export function sanitizeLocalSubtitleTranscriberPreferences(
     vadEnabled: booleanOr(
       record.vadEnabled,
       DEFAULT_LOCAL_SUBTITLE_TRANSCRIBER_PREFERENCES.vadEnabled,
-    ),
-    qualityPreset: oneOf(
-      record.qualityPreset,
-      LOCAL_SUBTITLE_QUALITY_PRESETS,
-      DEFAULT_LOCAL_SUBTITLE_TRANSCRIBER_PREFERENCES.qualityPreset,
     ),
     beamSize: boundedIntegerOr(
       record.beamSize,

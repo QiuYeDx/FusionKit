@@ -20,7 +20,7 @@ import {
   type LocalSubtitleTranscriberPreferences,
 } from "./localSubtitleTranscriberConfig";
 
-export const LOCAL_SUBTITLE_TRANSCRIBER_STORE_VERSION = 1;
+export const LOCAL_SUBTITLE_TRANSCRIBER_STORE_VERSION = 2;
 
 type ActiveOutputDirectory = Extract<
   LocalSubtitleOutputDirectorySelection,

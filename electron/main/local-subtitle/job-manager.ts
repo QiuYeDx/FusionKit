@@ -2780,7 +2780,6 @@ function createConfigSnapshot(
     language: request.config.language,
     taskMode: request.config.taskMode,
     inference: {
-      qualityPreset: request.config.qualityPreset,
       advanced: { ...request.config.advanced },
       vad: {
         enabled: request.config.vadEnabled,
@@ -2876,7 +2875,6 @@ function createBatchSummary(
       resolvedBackend: record.config.resolvedBackend,
       language: record.config.language,
       taskMode: record.config.taskMode,
-      qualityPreset: record.config.inference.qualityPreset,
       vadEnabled: record.config.inference.vad.enabled,
       outputFormats: [...record.config.output.formats],
       outputMode: record.config.output.mode,

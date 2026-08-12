@@ -610,6 +610,10 @@ describe("local subtitle IPC request contract", () => {
         (request) => (request.config.resolvedBackend = "cuda"),
       ],
       [
+        "removed quality preset",
+        (request) => (request.config.qualityPreset = "balanced"),
+      ],
+      [
         "executable",
         (request) => (request.config.executable = "/tmp/whisper-server"),
       ],
@@ -1337,7 +1341,6 @@ function validEnqueueRequest() {
       devicePreference: "auto" as const,
       language: "auto",
       taskMode: "transcribe" as const,
-      qualityPreset: "subtitle_quality" as const,
       vadEnabled: true,
       advanced: {
         initialPrompt: "optional prompt",
@@ -1456,7 +1459,6 @@ function validBatchSummary(): LocalSubtitleBatchSummary {
       resolvedBackend: "metal",
       language: "auto",
       taskMode: "transcribe",
-      qualityPreset: "subtitle_quality",
       vadEnabled: true,
       outputFormats: ["SRT", "LRC"],
       outputMode: "source",

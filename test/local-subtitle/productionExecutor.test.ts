@@ -1628,7 +1628,6 @@ function createConfig(
     language: "auto",
     taskMode,
     inference: {
-      qualityPreset: "balanced",
       advanced: {
         ...(initialPrompt === undefined ? {} : { initialPrompt }),
         beamSize: 5,

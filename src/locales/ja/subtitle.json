@@ -241,12 +241,6 @@
       "task_mode": "タスクモード",
       "task_transcribe": "文字起こし",
       "task_translate_english": "英語へ翻訳",
-      "quality": "品質プリセット",
-      "quality_option": {
-        "subtitle_quality": "字幕品質",
-        "balanced": "バランス",
-        "fast": "高速"
-      },
       "vad": "音声区間検出",
       "vad_hint": "無音区間での誤認識を減らします。",
       "vad_ready": "VAD リソースは使用できます",

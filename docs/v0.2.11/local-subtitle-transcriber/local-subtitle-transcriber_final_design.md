@@ -480,7 +480,7 @@ renderer app 初始化时先静默完成一次本地环境探测，页面只订�
 
 建议双栏结构：
 
-- 左侧配置：模型、设备、语言、质量预设、VAD、输出格式、输出目录。
+- 左侧配置：模型、设备、语言、VAD、输出格式、输出目录。
 - 右侧工作区：文件拖拽、扁平任务队列、当前进度、识别片段预览和结果操作。
 
 布局直接使用现有 `ToolDetailLayout`：`lg` 以上为 320px 配置栏 + `minmax(0,1fr)` 工作区，窄窗口为单列且配置在前、工作区在后。不得复制一套本地 grid/CSS；786×540 验收需分别覆盖首屏配置和滚动后的任务区，并检查主 ScrollArea 而不是假设 document 在滚动。
@@ -493,8 +493,7 @@ renderer app 初始化时先静默完成一次本地环境探测，页面只订�
 | 设备 | `auto`；展示实际解析为 CUDA/Metal/CPU |
 | 语言 | `auto`，允许显式指定 |
 | 任务 | `transcribe`；“翻译为英语”放高级区，避免与 FusionKit 字幕翻译混淆 |
-| 质量预设 | `字幕质量优先`、`平衡`、`快速`；具体底层值由 PoC 固化 |
-| VAD | 默认开启固定的 Silero v6.2.0 GGML 资源；阈值继续由质量预设控制 |
+| VAD | 默认开启固定的 Silero v6.2.0 GGML 资源；阈值由高级设置中的 VAD 最短静音直接控制 |
 | 词时间戳 | v1.9.1 的 VAD/非 VAD 请求均固定关闭；标准 SRT/LRC 只使用 segment 时间。首版不显示逐词时间戳开关 |
 | 输出格式 | SRT 默认；可多选 LRC |
 | 输出目录 | 源文件目录或自定义目录 |
@@ -519,7 +518,7 @@ renderer app 初始化时先静默完成一次本地环境探测，页面只订�
 
 #### 7.3.1 内部执行配置快照（UI 不显示批次）
 
-点击“全部开始”时必须同时冻结本次ready成员列表和独立的 `LocalSubtitleBatchConfigSnapshot`：managed `modelId` + manifest/hash、device preference、语言、质量预设展开值、VAD/segment-only timeline policy/整形参数、输出格式、输出模式、冲突策略、`handoffFormat` 和 post-action mode。main内部仍可使用`batchId`完成原子lease转移、配置固定和queue-admission runtime slice，但renderer必须把`batch.tasks`扁平展示，不能暴露batch标题、编号或进度。等待任务全部引用该不可变 snapshot；页面中途改模型、语言或预设只影响下次开始。运行中新增的文件继续作为新的draft task，不加入已经admit的执行波。
+点击“全部开始”时必须同时冻结本次ready成员列表和独立的 `LocalSubtitleBatchConfigSnapshot`：managed `modelId` + manifest/hash、device preference、语言、VAD/segment-only timeline policy/整形参数、输出格式、输出模式、冲突策略、`handoffFormat` 和 post-action mode。main内部仍可使用`batchId`完成原子lease转移、配置固定和queue-admission runtime slice，但renderer必须把`batch.tasks`扁平展示，不能暴露batch标题、编号或进度。等待任务全部引用该不可变 snapshot；页面中途改模型、语言或高级设置只影响下次开始。运行中新增的文件继续作为新的draft task，不加入已经admit的执行波。
 
 `custom` 本地输出目录在 main 派生 batch-scoped write lease，和翻译目录 lease 分 registry、分权限、分生命周期；仅在同 owner/document session、批次 active 时有界续期。`source` 输出模式不伪造一个全局 lease，而是在每个文件开始前从其 authorized file identity 私下派生父目录写入目标并做权限/containment 检查；某一父目录不可写只失败该文件并给“选择自定义目录”CTA，不影响其他目录的文件。模型删除/替换、custom lease 过期或 snapshot 对应 manifest 改变属于批次级阻塞，停止启动新的等待项并给出重选/重新校验 CTA，不能切到其他模型或目录继续。失败任务默认按原 snapshot 重试；用户若要采用当前新配置，必须显式“用当前配置新建任务”，产生新 task generation。
 
@@ -1437,7 +1436,7 @@ Agent 迁移不能把任意模型参数中的 `roots`/`checkpointPaths` 直接�
 
 - 最近模型 ID。
 - device preference（建议 `auto`）。
-- 语言、VAD、质量预设、字幕整形和输出格式偏好。
+- 语言、VAD、字幕整形和输出格式偏好。
 - 输出模式和安全的目录显示名，不保存授权 token。
 
 不保存：
@@ -1447,7 +1446,7 @@ Agent 迁移不能把任意模型参数中的 `roots`/`checkpointPaths` 直接�
 - segment/word 全量结果。
 - runner stderr、临时 WAV 路径。
 
-`CORE-004` 将 Store key 固定为 `fusionkit-local-subtitle-transcriber`，版本 1 的 persisted envelope 只包含经过逐字段 sanitize 的 `preferences`。安全白名单精确为 `modelId`、device preference、language、VAD enable、quality preset、beam size、temperature、VAD 最短静音、cue/line shaping、output formats、output mode 和不含分隔符的目录显示名。默认值固定为 beam `5`、temperature `0`、VAD silence `500 ms`、最大 cue `7000 ms / 84 chars`、最大行 `42 chars`；invalid/malformed 值逐字段回退。post-action、task mode、conflict policy、handoff format、初始提示词、File、token、task/batch/resource state、artifact、transcript、path、diagnostics 与 revision/tombstone 一律只存在当前 renderer session 内存或 main 权威状态，不进入 persist/migrate/merge。
+`CORE-004` 将 Store key 固定为 `fusionkit-local-subtitle-transcriber`。当前版本 2 的 persisted envelope 只包含经过逐字段 sanitize 的 `preferences`，迁移时会清除版本 1 中无执行作用的 `qualityPreset`。安全白名单精确为 `modelId`、device preference、language、VAD enable、beam size、temperature、VAD 最短静音、cue/line shaping、output formats、output mode 和不含分隔符的目录显示名。默认值固定为 beam `5`、temperature `0`、VAD silence `500 ms`、最大 cue `7000 ms / 84 chars`、最大行 `42 chars`；invalid/malformed 值逐字段回退。post-action、task mode、conflict policy、handoff format、初始提示词、File、token、task/batch/resource state、artifact、transcript、path、diagnostics 与 revision/tombstone 一律只存在当前 renderer session 内存或 main 权威状态，不进入 persist/migrate/merge。
 
 草稿文件或 custom output 被替换、截断、重置或切回 source mode 时，Store 必须先把 capability 交给 renderer runtime cleanup queue，再清理 UI 引用；batch commit 成功则只消费 draft 引用，不撤销已经转为 task lease 的 capability。cleanup 使用 capability 的权威最早 expiry、有限退避和单次超时；rejected Promise、`ok:false` 与 timeout 重试，`ok:true`（包括 `revoked:false`）、`owner_released` 和 `authorization_expired` 终止。runtime/environment singleton 不因 SPA 页面卸载而销毁；真实 Job Manager/session handler 已接入后由 renderer app 入口幂等启动 session observer，并只自动执行一次环境初始化。
 

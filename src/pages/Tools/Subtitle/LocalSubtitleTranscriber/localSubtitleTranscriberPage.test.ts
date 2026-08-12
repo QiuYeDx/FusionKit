@@ -108,6 +108,12 @@ describe("local subtitle transcriber page wiring", () => {
     expect(disclosureSource).not.toContain("group-hover:bg-background");
   });
 
+  it("does not expose an inert quality preset", () => {
+    expect(pageSource).not.toContain("local-subtitle-quality-select");
+    expect(pageSource).not.toContain("qualityPreset");
+    expect(pageSource).not.toContain("quality_option");
+  });
+
   it("renders the post-transcription action as a select below output settings", () => {
     expect(pageSource).toContain('data-testid="local-subtitle-post-action-select"');
     expect(pageSource).not.toContain('testId="local-subtitle-post-action-settings"');

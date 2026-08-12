@@ -1453,7 +1453,6 @@ function inferenceSnapshot(
   advanced: Partial<LocalSubtitleInferenceSnapshot["advanced"]> = {},
 ): LocalSubtitleInferenceSnapshot {
   return {
-    qualityPreset: "subtitle_quality",
     advanced: {
       initialPrompt: advanced.initialPrompt,
       beamSize: 5,

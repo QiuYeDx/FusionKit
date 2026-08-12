@@ -938,7 +938,7 @@ native backend 必须满足：
 - 开始前展示 auto 的 `resolvedBackend`；GPU commit 后失败只提供用户确认的 CPU 新 generation，不把失败任务静默显示为 CPU 成功。
 - 模型下载/导入/校验/取消/删除/磁盘占用；下载由用户单次操作发起，默认复制导入前展示预计新增占用，错误 CTA 可操作。
 - resource job 的进度/取消/失败/commit 状态由 fixed API 驱动；离页返回后从 snapshot 补齐，不能只靠页面内 Promise 或 toast。
-- 质量预设、模型说明和量化取舍不夸大；CTranslate2 目录给明确格式提示。
+- 只展示能改变实际执行参数的配置；模型说明和量化取舍不夸大，CTranslate2 目录给明确格式提示。
 - 长 hash/path/error 在 block surface 换行；长内容弹窗使用 ScrollableDialog。
 
 验收口径：真实 probe 驱动 UI；打开/离开页面只检查 resource manifest、不下载且不启动带模型的 server；所有异步状态可取消/重试；内置型号与 manifest 一致，自定义导入不被误标为内置支持；长诊断不撑破 Radix ScrollArea。

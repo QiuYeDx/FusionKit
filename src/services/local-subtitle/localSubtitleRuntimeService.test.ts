@@ -454,7 +454,6 @@ function batch(taskValue: LocalSubtitleTaskSummary): LocalSubtitleBatchSummary {
       resolvedBackend: "cpu",
       language: "auto",
       taskMode: "transcribe",
-      qualityPreset: "subtitle_quality",
       vadEnabled: true,
       outputFormats: ["SRT"],
       outputMode: "source",

@@ -476,7 +476,6 @@ function validEnqueueRequest() {
       devicePreference: "auto" as const,
       language: "auto",
       taskMode: "transcribe" as const,
-      qualityPreset: "subtitle_quality" as const,
       vadEnabled: true,
       advanced: {
         initialPrompt: "optional prompt",

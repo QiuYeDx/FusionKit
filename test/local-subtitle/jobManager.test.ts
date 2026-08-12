@@ -3810,7 +3810,6 @@ function enqueueRequest(
       devicePreference: "auto",
       language: "auto",
       taskMode: "transcribe",
-      qualityPreset: "balanced",
       vadEnabled: false,
       advanced: {
         initialPrompt: "original",

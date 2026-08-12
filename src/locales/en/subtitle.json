@@ -241,12 +241,6 @@
       "task_mode": "Task mode",
       "task_transcribe": "Transcribe",
       "task_translate_english": "Translate to English",
-      "quality": "Quality preset",
-      "quality_option": {
-        "subtitle_quality": "Subtitle quality",
-        "balanced": "Balanced",
-        "fast": "Fast"
-      },
       "vad": "Voice activity detection",
       "vad_hint": "Reduces false transcription during silence.",
       "vad_ready": "The VAD resource is ready",

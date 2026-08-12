@@ -1383,27 +1383,6 @@ export default function LocalSubtitleTranscriber() {
               </Select>
             </ToolField>
 
-            <ToolField label={t("subtitle:local_transcriber.config.quality")}>
-              <Select
-                value={preferences.qualityPreset}
-                disabled={submissionLocked}
-                onValueChange={(qualityPreset) => updatePreferences({
-                  qualityPreset: qualityPreset as typeof preferences.qualityPreset,
-                })}
-              >
-                <SelectTrigger data-testid="local-subtitle-quality-select" className="h-8 w-full text-xs">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {(["subtitle_quality", "balanced", "fast"] as const).map((preset) => (
-                    <SelectItem key={preset} value={preset}>
-                      {t(`subtitle:local_transcriber.config.quality_option.${preset}`)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </ToolField>
-
             <div>
               <ToolConfigDisclosure
                 testId="local-subtitle-advanced-settings"
