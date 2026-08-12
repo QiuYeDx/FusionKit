@@ -487,10 +487,6 @@
       "empty_title": "任務佇列為空",
       "empty_description": "選擇檔案後，任務會直接加入這裡並顯示各自的狀態與結果。"
     },
-    "recovered": {
-      "title": "上次工作階段",
-      "summary": "{{count}} 個任務 · 引擎 {{version}}"
-    },
     "clear_all": {
       "title": "清空全部任務？",
       "description": "執行中的任務會先取消，再與其他任務一同從清單清除。已匯出的字幕檔案不會被刪除。",

@@ -45,49 +45,6 @@ describe("LocalSubtitleSessionRegistry", () => {
     expect(Object.isFrozen(snapshot.resourceJobs)).toBe(true);
   });
 
-  it("captures task summaries without letting persistence failure break live authority", () => {
-    const capture = vi.fn()
-      .mockImplementationOnce(() => {
-        throw new Error("summary unavailable");
-      })
-      .mockImplementation(() => undefined);
-    const registry = new LocalSubtitleSessionRegistry({
-      summarySink: {
-        capture,
-        getRecoveredSessionSummary: () => ({
-          build: {
-            engine: LOCAL_SUBTITLE_PRODUCTION_CONTRACT.engine.id,
-            version: LOCAL_SUBTITLE_PRODUCTION_CONTRACT.engine.version,
-            commit: LOCAL_SUBTITLE_PRODUCTION_CONTRACT.engine.commit,
-          },
-          batches: [],
-          updatedAt: NOW,
-        }),
-      },
-    });
-
-    expect(() => registry.addBatch(OWNER_A, batch())).not.toThrow();
-    expect(registry.getTask(OWNER_A, "task-1")).toMatchObject({
-      status: "queued",
-    });
-    expect(registry.getSnapshot(OWNER_A).recoveredSession).toMatchObject({
-      batches: [],
-    });
-    registry.upsertTask(OWNER_A, task({
-      status: "preparing_media",
-      progress: {
-        stage: "preparing_media",
-        stageProgress: 10,
-        overallProgress: 5,
-      },
-    }));
-
-    expect(capture).toHaveBeenCalledTimes(2);
-    expect(capture.mock.calls[1]?.[0]).toMatchObject([
-      { tasks: [{ status: "preparing_media" }] },
-    ]);
-  });
-
   it("allows more than ten task submissions in the flat task queue", () => {
     const registry = new LocalSubtitleSessionRegistry();
 

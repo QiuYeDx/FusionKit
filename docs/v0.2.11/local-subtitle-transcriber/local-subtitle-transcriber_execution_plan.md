@@ -1,12 +1,12 @@
 # 本地字幕转写工具 Execution Plan
 
-> 创建日期：2026-07-16；最近更新：2026-08-11
+> 创建日期：2026-07-16；最近更新：2026-08-12
 >
 > Feature Slug：`local-subtitle-transcriber`
 >
 > 对应设计文档：`docs/v0.2.11/local-subtitle-transcriber/local-subtitle-transcriber_final_design.md`
 >
-> 当前状态：39个顶层包中33个已完成、5个未开始、1个进行中。`MODEL-002`已用固定生产模型、真实公网VAD和完整CUDA archive闭环资源校验、安装、原生load smoke、原子提交/解析/删除，并完成手工验收发现的 stalled response 下载取消修复；`FE-002`已在Windows x64 RTX 4070 Ti SUPER上闭环CPU/CUDA target smoke，并让managed-pack proof经过production resolver、Supervisor与exact-PID显存attestor。其余非QA代码包均已按职责完成；`DOC-001`已建立预发布说明并同步README/CHANGELOG/版本台账，但正式能力、平台、性能与许可声明仍等待`QA-005`证据后回填，故保持进行中。`QA-001`～`QA-005`未开始，Electron宽窄窗口、键盘、真实cancel/import竞态、外部API、installer和发布验收仍按QA边界处理
+> 当前状态：40个顶层包中34个已完成、5个未开始、1个进行中。`MODEL-002`已用固定生产模型、真实公网VAD和完整CUDA archive闭环资源校验、安装、原生load smoke、原子提交/解析/删除，并完成手工验收发现的 stalled response 下载取消修复；`FE-002`已在Windows x64 RTX 4070 Ti SUPER上闭环CPU/CUDA target smoke，并让managed-pack proof经过production resolver、Supervisor与exact-PID显存attestor。`FE-005`已删除上一会话持久化、recovered schema/runtime state和只读UI，并让启动清理删除旧版本遗留摘要文件。其余非QA代码包均已按职责完成；`DOC-001`已建立预发布说明并同步README/CHANGELOG/版本台账，但正式能力、平台、性能与许可声明仍等待`QA-005`证据后回填，故保持进行中。`QA-001`～`QA-005`未开始，Electron宽窄窗口、键盘、真实cancel/import竞态、外部API、installer和发布验收仍按QA边界处理
 >
 > 发布门禁：M0 已解除；正式实现必须遵守 `poc/pre006-production-decision.json`，不得静默更换引擎、平台、模型或 runtime acquisition policy
 >
@@ -35,6 +35,8 @@
 > 2026-08-10 `FE-003`扁平任务队列重构：产品层删除转写批次标题、编号、进度和嵌套分组，选择文件后立即以draft task进入与main task相同的translator-style列表；标题栏提供全部开始、清空完成、清空全部，多音轨改为行内Select。Start All只消费probe-ready成员，失败draft保留；清空全部cancel非终态并在安全终态remove。main内部batchId/config snapshot/atomic lease/queue-admission runtime slice保持不变。Input Authorization新增owner-session scoped随机opaque sourceKey，在authorized media与live task summary间保持同canonical path相等关系，renderer与Store双层拒绝尚未清除的重复任务且不暴露raw path。route unmount不再清空draft。设计见`feat/2026-08-10_local-subtitle-transcriber_flat-task-queue.md`，实施记录见`2026-08-10_FE-003_flat-task-queue-and-source-dedupe.md`。
 >
 > 2026-08-11 `FIX-LIFECYCLE-002`媒体准入与增量草稿修复：追加文件只按fileToken为新增draft执行probe，既有格式/时长/音轨状态和显式音轨选择保持不变；Media Normalizer继续维持同owner单原生操作，但把probe、enqueue runtime verification、normalization与PCM window改为有界abort-aware串行等待，真实队列饱和返回`resource_busy`，不再让正常并发误报`limit_exceeded`。同时移除扁平任务队列遗留的10个内部batch隐藏产品上限，改按最多1,000个总任务限制且不扩大原`10 × 100`最坏容量，artifact capacity同步改由任务总量推导。9 files / 249 focused tests、TypeScript、renderer/main/preload三段Vite test build、preload gate与隔离Electron增量文件DOM验收通过。修复记录见`fix/2026-08-11_local-subtitle-transcriber_serialize-media-admission-and-preserve-draft-metadata.md`。
+>
+> 2026-08-12 `FE-005`上一会话功能删除：完整移除`session-summary` repository/tests、Session Registry persistence sink、recovered shared schema、renderer reducer/runtime字段、只读组件和四语言文案；session snapshot恢复为只包含live batches/resource jobs。启动清理继续保留server/media orphan能力，并精确删除旧版`session-summary.v1.json`及owned temporary，避免升级后遗留无消费者数据。当前产品不保存或展示本地转写历史，已原子提交的字幕文件不受影响。设计变更见`feat/2026-08-12_local-subtitle-transcriber_remove-previous-session.md`，实施记录见`2026-08-12_FE-005_remove-previous-session.md`。
 >
 > 2026-08-04 `FE-003` batch draft/task queue checkpoint：页面将单文件draft扩为最多100文件的完整授权与批次request，逐文件显示/移除，旧任务运行时可继续准备并提交下一批；提交成功只消费已转交main的draft capability，离页仍由既有cleanup retry回收未提交token。队列直接消费revisioned session batches，按batch显示逐task状态、stage/stageProgress/overallProgress、backend、格式、媒体时长、artifact与错误，并接通fixed cancel/retry/retry-on-CPU/remove/reveal API；enqueue回执只作为snapshot接管前的短期fallback，已被runtime观察的batch不会由fallback复活。四语言已改为批量语义。9 files / 65 tests、TypeScript、i18n、三段Vite test build与diff通过；多音轨probe/Radio、Electron窄窗口与键盘验收尚未完成，`FE-003`保持进行中。
 >
@@ -294,7 +296,7 @@ flowchart TD
   FSTXN -.-> BE2
   MODEL1 --> BE2
   CORE3 --> BE2
-  BE2 --> BE3["BE-003 恢复与资源清理"]
+  BE2 --> BE3["BE-003 受控资源清理"]
   MODEL2 --> BE3
 
   CORE4 --> FE1["FE-001 路由与单文件 UI"]
@@ -417,11 +419,12 @@ flowchart TD
 | MODEL-001 | 已完成 | 2026-07-22 | BE-001/CORE-002 | 模型 manifest、managed 本地导入与 load smoke | `resources/local-subtitle/manifests/local-subtitle-models.v1.json`、`electron/main/local-subtitle/{model-manifest,ggml-model,model-manager,model-ipc,resource-job,session-registry,main-runtime,ipc,server-process-contract,server-supervisor}.ts`、`electron/main/index.ts`、tests/pitfall/docs | 聚焦 4 files / 50 tests；local-subtitle 29 pass + 2 skip files / 504 pass + 2 skip tests；全量 130 pass + 2 skip files / 1456 pass + 2 skip tests；TypeScript、三段 Vite test build、manifest 0/0、validator 17/17、diff/process cleanup | `docs/v0.2.11/local-subtitle-transcriber/local-subtitle-transcriber_implementation_records/2026-07-22_MODEL-001_managed-model-import.md` | 无 MODEL-001 blocker；下载/VAD/delete/accelerator=`MODEL-002`，final packaged bytes=`NATIVE-002`，Job Manager 依赖已解除 |
 | MODEL-002 | 已完成 | 2026-08-06 | MODEL-001/NATIVE-002 | 下载续传、VAD、删除、磁盘和 accelerator pack | MODEL-002A～D代码生命周期全部完成；真实公网VAD与完整固定CUDA archive闭环；下载取消同时销毁request/response、让chunk wait独立响应abort，并在IPC前合并progress；瞬时网络/临时HTTP/短响应在同一job内有限可取消重试 | 两项opt-in real tests各1/1；CPU/CUDA production-model smoke通过；本次修复聚焦3 files / 61 tests，本地字幕53 files / 1078 tests；TypeScript通过 | 既有MODEL-002A～D记录、`docs/v0.2.11/local-subtitle-transcriber/local-subtitle-transcriber_implementation_records/2026-08-06_MODEL-002_FE-002_windows-real-resource-admission-closure.md`、`docs/v0.2.11/local-subtitle-transcriber/local-subtitle-transcriber_implementation_records/2026-08-06_FIX-MODEL-001_interrupt-stalled-download-cancellation.md` | 代码/组件职责已完成；按要求未启动应用，真实1.08 GB UI取消由用户复验。installer生命周期归QA-003，许可归QA-005 |
 | BE-002 | 已完成 | 2026-08-03 | BE-001/MEDIA-001/SUB-002/MODEL-001/CORE-003 | Job Manager、批量队列、进度、取消和失败隔离 | `src/type/{localSubtitle,localSubtitleIpc}.ts`、`electron/main/local-subtitle/{authorizations,job-manager,job-ipc,session-ipc,session-registry,production-executor,session-lifecycle,server-supervisor}.ts`、media/server/export/runtime identity contract、main wiring、tests | 既有LRC/multi-format/partial、批量隔离和runtime pin矩阵通过；本轮补充custom/source conditional-overwrite、unsupported pre-consumption rejection与IPC无路径回归，聚焦4 files / 174 tests、TypeScript、diff check通过 | `docs/v0.2.11/local-subtitle-transcriber/local-subtitle-transcriber_implementation_records/2026-07-22_BE-002_job-manager-foundation.md`、`docs/v0.2.11/local-subtitle-transcriber/local-subtitle-transcriber_implementation_records/2026-07-22_BE-002_production-executor-slice.md`、`docs/v0.2.11/local-subtitle-transcriber/local-subtitle-transcriber_implementation_records/2026-07-22_BE-002_multi-file-batch-runtime-reuse.md`、`docs/v0.2.11/local-subtitle-transcriber/local-subtitle-transcriber_implementation_records/2026-07-22_BE-002_batch-runtime-pin.md`、`docs/v0.2.11/local-subtitle-transcriber/local-subtitle-transcriber_implementation_records/2026-07-22_BE-002_source-output-parent-isolation.md`、`docs/v0.2.11/local-subtitle-transcriber/local-subtitle-transcriber_implementation_records/2026-07-22_BE-002_lrc-multi-format-partial-output.md`、`docs/v0.2.11/local-subtitle-transcriber/local-subtitle-transcriber_implementation_records/2026-08-03_NATIVE-002_FS-TXN-001_BE-002_production-overwrite-closure.md` | 本包范围内的custom/source CPU/no-VAD批次、SRT/LRC、index/conditional-overwrite与失败隔离已完成；CUDA/Metal/VAD/translate/handoff/FE/native产品E2E归各自后续包；不支持中途断点续跑，SPA离页不取消committed batch |
-| BE-003 | 已完成 | 2026-08-04 | BE-002/MODEL-002 | 会话 manifest、启动清理、资源水位和诊断 | `electron/main/local-subtitle/{session-summary,session-registry,resource-startup-cleaner,server-session,media-normalizer}.ts`、main wiring、recovered session schema/runtime/UI/i18n/tests | 11 files / 199 tests；TypeScript、四语言各1706 keys/source usage、renderer/main/preload Vite test build、diff check通过 | `docs/v0.2.11/local-subtitle-transcriber/local-subtitle-transcriber_implementation_records/2026-08-04_BE-003_session-summary-startup-cleanup.md` | 代码职责已完成；真实crash/强杀/OOM/disk-full、app quit/update与Electron产品矩阵归QA；只恢复诊断摘要，不伪装续跑或恢复artifact authority |
+| BE-003 | 已完成 | 2026-08-04 | BE-002/MODEL-002 | 受控启动清理与进程资源诊断 | `electron/main/local-subtitle/{resource-startup-cleaner,server-session,media-normalizer}.ts`及tests；原会话摘要职责已由FE-005删除 | 原BE-003历史证据11 files / 199 tests；FE-005重新验证受控orphan与旧摘要清理 | `docs/v0.2.11/local-subtitle-transcriber/local-subtitle-transcriber_implementation_records/2026-08-04_BE-003_session-summary-startup-cleanup.md` | 历史session-summary实现不再是当前合同；server/media orphan cleanup和当前进程诊断继续保留 |
 | FE-001 | 已完成 | 2026-08-03 | CORE-004/BE-002 | 工具注册、route、i18n 与单文件 SRT 纵向 UI | `App.tsx`、router、toolMeta、locales、`LocalSubtitleTranscriber` page/model/tests、既有store/session runtime | 独立route/meta与Audio隔离；ready managed model选择；opaque单文件/目录授权；CPU/no-VAD/SRT/index/export-only frozen request；session阶段进度、取消、completed artifact reveal；5 files / 28 tests、TypeScript、四语言各1577 keys及usage、三段Vite test build、diff check通过 | `docs/v0.2.11/local-subtitle-transcriber/local-subtitle-transcriber_implementation_records/2026-08-03_FE-001_single-file-srt-ui.md` | 未运行真实模型Electron产品E2E，不提前声明M2 packaged/目标机验收；批量/GPU/VAD/model lifecycle/LRC/translation分别归FE-002/003、MODEL-002与LINK包 |
 | FE-002 | 已完成 | 2026-08-10 | FE-001/MODEL-002/BE-001 | 环境探测、设备、VAD与模型管理 UI | 环境/resource UI、完整配置、device-aware preview、managed VAD门禁、原文/转英文、macOS Metal、Windows managed CUDA与确认式CPU新generation均完成；2026-08-10把自动runtime/resource探测上移到renderer app级一次性service，缓存exact-key preview并禁止active task期间重复preflight | 既有auto/preview/Metal/CPU retry/CUDA矩阵；真实VAD native smoke；Windows x64 CPU/CUDA production-model smoke；FIX-LIFECYCLE聚焦31 tests、TypeScript与三段Vite build通过 | 既有FE-002记录、`docs/v0.2.11/local-subtitle-transcriber/local-subtitle-transcriber_implementation_records/2026-08-06_MODEL-002_FE-002_windows-real-resource-admission-closure.md`、`docs/v0.2.11/local-subtitle-transcriber/local-subtitle-transcriber_implementation_records/2026-08-10_FIX-LIFECYCLE-001_route-stable-runtime-and-additive-drafts.md` | 代码/target component职责已完成；packaged Electron、installer和产品UX矩阵归QA-002/003/005，不展示虚假GPU执行或静默fallback；路由切换不得影响committed task |
 | FE-003 | 已完成 | 2026-08-10 | FE-001/BE-002 | 文件授权、扁平任务队列、进度与取消 UI | `LocalSubtitleTranscriber/{index,LocalSubtitleTaskQueue,localSubtitleTranscriberModel}.tsx/ts`、Store、authorization/job/session domain与tests；完成选择即入队、flat draft/main rows、Start All/Clear Completed/Clear All、增量选择、owner-scoped opaque sourceKey精确去重、串行media probe、行内多音轨Select与task-owned selection proof；内部batch只保留事务/执行含义 | 最终聚焦12 files / 134 tests与sourceKey定向用例通过；扩大local-subtitle中本次相关链路通过；TypeScript、i18n、Vite与Electron宽窄验收通过，详见最新实施记录 | 既有FE-003记录；`docs/v0.2.11/local-subtitle-transcriber/feat/2026-08-10_local-subtitle-transcriber_flat-task-queue.md`；`docs/v0.2.11/local-subtitle-transcriber/local-subtitle-transcriber_implementation_records/2026-08-10_FE-003_flat-task-queue-and-source-dedupe.md` | 代码职责已完成；键盘/cancel race继续归`QA-002`；GPU并发固定1，UI不得重新暴露batch分组 |
 | FE-004 | 已完成 | 2026-08-05 | FE-003/BE-003/SUB-002 | 预览、结果操作、错误详情与手动交接入口 | `LocalSubtitleTaskQueue.tsx`、`LocalSubtitleTaskDetailsDialogs.tsx`、page/dialog tests、四语言；完成按格式full/partial结果、12k字符分页preview、validated plain-text copy、reveal、结构化error details、自动/手动回执与已删除翻译任务的新快照交接 | LINK-008聚焦12 files / 251 tests；TypeScript、四语言各1740 keys/source usage、三段Vite test build、diff check通过 | `docs/v0.2.11/local-subtitle-transcriber/local-subtitle-transcriber_implementation_records/2026-08-04_FE-004_artifact-results-preview.md`；`docs/v0.2.11/local-subtitle-transcriber/local-subtitle-transcriber_implementation_records/2026-08-05_LINK-008_three-mode-post-action-pipeline.md` | 代码职责已完成；Electron overflow/artifact expiry/copy failure与交接交互人工矩阵归QA-002 |
+| FE-005 | 已完成 | 2026-08-12 | BE-003/FE-004 | 删除上一会话摘要、持久化与UI | 删除session-summary store、recovered schema/runtime/UI/i18n及对应tests；Session Registry只发布live state；启动清理删除旧版exact summary与owned temporary | 定向7 files / 147 tests、扩大本地字幕67 files / 1256 tests通过，4个real-native skip；TypeScript、四语言各1783总键/622 subtitle键、1605 calls/1649 resolved keys、三段Vite test build与diff check通过 | `docs/v0.2.11/local-subtitle-transcriber/local-subtitle-transcriber_implementation_records/2026-08-12_FE-005_remove-previous-session.md` | 本地转写历史不持久化、不展示、不恢复；已提交SRT/LRC和独立的overwrite/字幕翻译恢复合同不受影响 |
 | LINK-001 | 已完成 | 2026-08-05 | CORE-001 | 字幕翻译当前配置 Store 与分阶段无损迁移 | 安全Store、translator page同步、pre-hydration bootstrap、配置快照与LINK-003～005全消费者path-free最终cutover | 配置/迁移与LINK-003～005回归均已通过；TypeScript、三段Vite test build、diff check通过 | `docs/v0.2.11/local-subtitle-transcriber/local-subtitle-transcriber_implementation_records/2026-08-04_LINK-001_LINK-007A_translator-config-snapshot.md`；`docs/v0.2.11/local-subtitle-transcriber/local-subtitle-transcriber_implementation_records/2026-08-05_LINK-005_path-free-recovery-final-cutover.md` | 代码职责已完成；API Key仍由`useModelStore`私有提供，失败的旧live Store迁移要求clean reload |
 | LINK-002 | 已完成 | 2026-08-04 | LINK-001 | 稳定 taskId、execution binding、批量回执与精确启动 | subtitle types/factory/queue/import ledger/Store/UI/Agent/renderer events、Electron translation main、tests | 21 test files / 127 tests；TypeScript、renderer/main/preload Vite test build、diff check通过 | `docs/v0.2.11/local-subtitle-transcriber/local-subtitle-transcriber_implementation_records/2026-08-04_LINK-002_task-identity-exact-start.md` | 代码职责已完成；本包未改目录授权，legacy path/恢复兼容保留到LINK-003～005；自动交接只能调用精确`startTasks(ids)` |
 | LINK-003 | 已完成 | 2026-08-04 | LINK-002/CORE-003 | 字幕翻译目录 capability 与无路径任务引用 | `subtitleTranslationIpc` contract、fixed preload API/policy、main directory registry/adapter/runtime guard、tests | 25 test files / 141 tests；TypeScript、renderer/main/preload Vite test build、diff check通过 | `docs/v0.2.11/local-subtitle-transcriber/local-subtitle-transcriber_implementation_records/2026-08-04_LINK-003_translation-directory-capability.md` | 代码职责已完成；页面/Agent生产者与恢复消费者仍等待LINK-004/005；legacy path与`outputURL`继续保留 |
@@ -668,7 +671,7 @@ Process descriptor 只接受完整 CORE-002 `LocalSubtitleVerifiedRuntimeBundle 
 - 16 kHz mono PCM16 的规范化、frame-aligned window 与 main-only branded window identity 属于 `MEDIA-001`。
 - raw transcript quality gate、overlap merge 与退化窗口有界拆短/retry 属于 `SUB-001`。
 - 窗口/任务排序、批量队列、revision event、任务取消编排和失败隔离属于 `BE-002`；BE-001 完成时这些依赖尚未齐，现已由 `MEDIA-001`、`SUB-002` 与 `MODEL-001` 解除，可进入 Job Manager 纵向切片。
-- 应用启动时扫描并清理历史 orphan `server-*` / temp，以及 crash 摘要和资源水位属于 `BE-003`；BE-001 只清理本进程持有 opaque identity 的 session。
+- 应用启动时扫描并清理历史orphan`server-*`/temp属于`BE-003`；BE-001只清理本进程持有opaque identity的session。本地转写不再写入crash摘要或资源水位历史。
 
 验收结果：session/supervisor/lifecycle 聚焦 3 files / 37 tests；default real test 1 skipped，显式 exact v1.9.1 CPU real test 1/1 通过，同一 PID 连续两次 inference 后 private session 为空。全量 Vitest 116 passed + 2 skipped files / 1146 passed + 2 skipped tests；TypeScript、renderer/main/preload Vite test build、manifest 0 error / 0 warning、validator 17/17、diff check 与进程清理通过。
 
@@ -898,18 +901,18 @@ native backend 必须满足：
 
 结项边界：本包完成Job Manager/Production Executor职责内的CPU/no-VAD批次、SRT/LRC、custom/source、index/conditional-overwrite、失败隔离和session cleanup。Windows packaged component证据已由`NATIVE-002D`完成；NSIS生命周期归`QA-003`。VAD、translate与非export-only路径分别留在MODEL/LINK工作包，完整renderer产品E2E留在FE/QA，均不阻塞本包结项。
 
-### BE-003：会话摘要、启动清理、资源水位与诊断
+### BE-003：受控启动清理与进程资源诊断
 
-目标：补齐长任务在 crash、OOM、磁盘不足和重启后的诚实行为。
+目标：补齐长任务在crash、OOM、磁盘不足后的受控资源清理和诚实错误行为。原会话摘要与上一会话UI已由`FE-005`删除。
 
 实施范围：
 
-- 会话 manifest 只保存 version、task/batch id、脱敏 display name、阶段/终态、格式、backend/build、时间与稳定错误 code；不得保存 source/output/model/temp path、token/capability、字幕内容、segment/word、命令行或 API Key。未完成任务标记 interrupted，不声称断点续跑；重启摘要不提供 reveal/自动交接。
+- 不写入本地转写任务历史或session manifest；应用启动兼容清理删除旧版本exact`session-summary.v1.json`及其owned temporary。
 - 启动只扫描受控 `<userData>/local-subtitle` roots，清理 orphan temp/`.part`/过期 token/download；已成功 artifact 保留。任意 user-output 目录不持久化 raw path，因此不能在重启后全局发现其中的 `.partial`；正常失败/取消清理由 SUB-002 保证，未来跨重启回收必须新增 main-only 授权 cleanup receipt。
-- 监控可用磁盘、进程退出、模型占用和内存水位；错误详情限制长度并隐藏路径/内容。
+- 监控可用磁盘、进程退出和模型占用；错误详情限制长度并隐藏路径/内容。
 - app quit/update/window destroyed 的 cleanup 可重入且有超时。
 
-验收口径：模拟 crash、强杀、OOM、disk full、cleanup 再入和启动恢复；manifest/log 扫描无 path/token/content/key，受控 temp 根清理不接受 manifest 任意路径，重启摘要无失效 artifact action，且无进程/临时文件/capability 泄漏。
+验收口径：模拟crash、强杀、OOM、disk full和cleanup再入；受控temp根只清理owned server/media leaf，旧摘要清理只接受exact legacy leaf/temporary合同，且无进程/临时文件/capability泄漏。
 
 ### FE-001：工具注册、route、i18n 与单文件 SRT 纵向 UI
 
@@ -1318,6 +1321,6 @@ git diff --check
 
 ## 12. 下一步建议
 
-`PRE-001`～`PRE-006`、`CORE-001`～`CORE-004`、`NATIVE-001`～`NATIVE-002`、`BE-001`～`BE-003`、`MEDIA-001`、`SUB-001`～`SUB-002`、`FS-TXN-001`、`MODEL-001`～`MODEL-002`、`FE-001`～`FE-004`与`LINK-001`～`LINK-008`已完成。39个顶层工作包中33个已完成、5个未开始，仅`DOC-001`进行中。`DOC-001`已形成README/CHANGELOG/隐私/资源/恢复/卸载/许可的预发布基线，最终发布声明继续依赖`QA-005`。下一步若继续非QA范围，只补文档一致性与最终证据占位；NSIS生命周期、CUDA分发许可、M2产品E2E、Electron窄窗口/键盘/cancel-import竞态与其余QA仍按原边界闭环。M3继续等待QA证据与DOC最终回填。
+`PRE-001`～`PRE-006`、`CORE-001`～`CORE-004`、`NATIVE-001`～`NATIVE-002`、`BE-001`～`BE-003`、`MEDIA-001`、`SUB-001`～`SUB-002`、`FS-TXN-001`、`MODEL-001`～`MODEL-002`、`FE-001`～`FE-005`与`LINK-001`～`LINK-008`已完成。40个顶层工作包中34个已完成、5个未开始，仅`DOC-001`进行中。`DOC-001`已形成README/CHANGELOG/隐私/资源/恢复/卸载/许可的预发布基线，最终发布声明继续依赖`QA-005`。下一步若继续非QA范围，只补文档一致性与最终证据占位；NSIS生命周期、CUDA分发许可、M2产品E2E、Electron窄窗口/键盘/cancel-import竞态与其余QA仍按原边界闭环。M3继续等待QA证据与DOC最终回填。
 
 模型和 official runtime 继续只下载到 Git 忽略目录，hash 只作来源/完整性门禁。系统 PATH 中的 FFmpeg 仍只作开发 PoC，不是发行资源或最终用户前置条件。正式开发继续由 Node 直接管理 official server；Windows 无需 CMake/MSVC，FusionKit C++ runner 不是当前方案依赖。Windows 保持 unsigned personal profile；QA-005 在分发前核对 notices/source offers/NVIDIA DLL，但不会要求证书或信任库变更。

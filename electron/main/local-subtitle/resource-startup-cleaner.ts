@@ -16,12 +16,12 @@ import {
   reconcileLocalSubtitleResourceDownloadState,
   type ReconcileLocalSubtitleResourceDownloadStateOptions,
 } from "./resource-download";
-import { LOCAL_SUBTITLE_SESSION_SUMMARY_POLICY } from "./session-summary";
 import { LOCAL_SUBTITLE_VAD_MANIFEST } from "./vad-manifest";
 
 const UUID_SOURCE =
   "[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}";
 const MKDTEMP_SUFFIX_SOURCE = "[A-Za-z0-9]{6}";
+const LEGACY_SESSION_SUMMARY_FILE_NAME = "session-summary.v1.json";
 
 export const LOCAL_SUBTITLE_RESOURCE_STARTUP_CLEANUP_POLICY = Object.freeze({
   downloadsDirectoryName: "downloads",
@@ -57,7 +57,7 @@ export interface LocalSubtitleResourceStartupCleanupResult {
   readonly preservedDownloads: number;
   readonly removedDownloadStates: number;
   readonly removedMetadataTemporaries: number;
-  readonly removedSessionSummaryTemporaries: number;
+  readonly removedLegacySessionSummaryFiles: number;
   readonly removedStagingDirectories: number;
   readonly removedServerSessions: number;
   readonly removedMediaSessions: number;
@@ -146,7 +146,7 @@ export async function cleanupLocalSubtitleResourceStartupOrphans(
   let preservedDownloads = 0;
   let removedDownloadStates = 0;
   let removedMetadataTemporaries = 0;
-  let removedSessionSummaryTemporaries = 0;
+  let removedLegacySessionSummaryFiles = 0;
   let removedStagingDirectories = 0;
   let removedServerSessions = 0;
   let removedMediaSessions = 0;
@@ -179,11 +179,11 @@ export async function cleanupLocalSubtitleResourceStartupOrphans(
     ));
   }
 
-  operations.push(cleanSessionSummaryTemporaries(
+  operations.push(cleanLegacySessionSummaryFiles(
     managed,
     platform,
     () => {
-      removedSessionSummaryTemporaries += 1;
+      removedLegacySessionSummaryFiles += 1;
     },
   ));
 
@@ -235,25 +235,26 @@ export async function cleanupLocalSubtitleResourceStartupOrphans(
     preservedDownloads,
     removedDownloadStates,
     removedMetadataTemporaries,
-    removedSessionSummaryTemporaries,
+    removedLegacySessionSummaryFiles,
     removedStagingDirectories,
     removedServerSessions,
     removedMediaSessions,
   });
 }
 
-async function cleanSessionSummaryTemporaries(
+async function cleanLegacySessionSummaryFiles(
   managed: PrivateDirectoryProof,
   platform: string,
   onRemoved: () => void,
 ): Promise<void> {
   await verifyRootProofs(managed, [], platform);
-  const pattern = ownedPattern(
-    `\\.${escapeRegExp(LOCAL_SUBTITLE_SESSION_SUMMARY_POLICY.fileName)}\\.${UUID_SOURCE}\\.tmp`,
+  const temporaryPattern = ownedPattern(
+    `\\.${escapeRegExp(LEGACY_SESSION_SUMMARY_FILE_NAME)}\\.${UUID_SOURCE}\\.tmp`,
   );
   const names = (await readdir(managed.absolutePath)).sort();
   const results = await Promise.allSettled(names
-    .filter((name) => pattern.test(name))
+    .filter((name) =>
+      name === LEGACY_SESSION_SUMMARY_FILE_NAME || temporaryPattern.test(name))
     .map(async (name) => {
       await verifyRootProofs(managed, [], platform);
       const absolutePath = path.join(managed.absolutePath, name);

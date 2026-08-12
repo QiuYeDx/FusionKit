@@ -4,7 +4,6 @@ import {
   type LocalSubtitleBatchSummary,
   type LocalSubtitleResourceEventEnvelope,
   type LocalSubtitleResourceJobSummary,
-  type LocalSubtitleRecoveredSessionSummary,
   type LocalSubtitleSessionSnapshot,
   type LocalSubtitleTaskEventEnvelope,
 } from "@/type/localSubtitle";
@@ -23,7 +22,6 @@ export interface LocalSubtitleSessionReducerState {
   readonly revision: number;
   readonly batches: readonly LocalSubtitleBatchSummary[];
   readonly resourceJobs: readonly LocalSubtitleResourceJobSummary[];
-  readonly recoveredSession?: LocalSubtitleRecoveredSessionSummary;
   readonly maxGenerationByTaskKey: ReadonlyMap<string, number>;
   readonly taskTombstones: ReadonlyMap<string, number>;
   readonly resourceTombstones: ReadonlyMap<string, number>;
@@ -157,9 +155,6 @@ export function mergeLocalSubtitleSessionSnapshot(
         tasks: [...batch.tasks],
       })),
       resourceJobs: [...snapshot.resourceJobs],
-      ...(snapshot.recoveredSession === undefined
-        ? {}
-        : { recoveredSession: snapshot.recoveredSession }),
       maxGenerationByTaskKey,
       taskTombstones,
       resourceTombstones,

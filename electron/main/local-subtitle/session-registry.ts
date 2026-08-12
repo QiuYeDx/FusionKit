@@ -23,7 +23,6 @@ import {
   localSubtitleTaskSummarySchema,
 } from "@/type/localSubtitleIpc";
 import type { LocalSubtitleOwnerKey } from "./authorizations";
-import type { LocalSubtitleSessionSummarySink } from "./session-summary";
 
 export type LocalSubtitleSessionRegistryErrorCode = Extract<
   LocalSubtitleErrorCode,
@@ -77,25 +76,8 @@ interface OwnerSessionState {
 export class LocalSubtitleSessionRegistry {
   readonly #sessions = new Map<string, OwnerSessionState>();
   readonly #releasedOwners = new Set<string>();
-  readonly #summarySink: LocalSubtitleSessionSummarySink | undefined;
   #shutDown = false;
   #shutdownOperation: Promise<void> | undefined;
-
-  constructor(options: {
-    readonly summarySink?: LocalSubtitleSessionSummarySink;
-  } = {}) {
-    if (
-      options.summarySink !== undefined &&
-      (
-        options.summarySink === null ||
-        typeof options.summarySink !== "object" ||
-        typeof options.summarySink.capture !== "function"
-      )
-    ) {
-      throw new TypeError("The local subtitle session summary sink is invalid.");
-    }
-    this.#summarySink = options.summarySink;
-  }
 
   assertOwnerActive(owner: LocalSubtitleOwnerKey): void {
     assertOwner(owner);
@@ -106,13 +88,11 @@ export class LocalSubtitleSessionRegistry {
 
   getSnapshot(owner: LocalSubtitleOwnerKey): LocalSubtitleSessionSnapshot {
     const session = this.#requireSession(owner);
-    const recoveredSession = this.#summarySink?.getRecoveredSessionSummary?.();
     return freezeDto(parseSnapshot({
       schemaVersion: LOCAL_SUBTITLE_DOMAIN_SCHEMA_VERSION,
       revision: session.revision,
       batches: [...session.batches.values()],
       resourceJobs: [...session.resourceJobs.values()],
-      ...(recoveredSession === undefined ? {} : { recoveredSession }),
     }));
   }
 
@@ -275,7 +255,6 @@ export class LocalSubtitleSessionRegistry {
           session.taskGenerations.set(task.taskId, task.generation);
         }
         session.revision = baseRevision + frozenEnvelopes.length;
-        this.#captureSummary();
         state = "committed";
         return frozenEnvelopes;
       },
@@ -296,7 +275,6 @@ export class LocalSubtitleSessionRegistry {
             else session.taskGenerations.set(taskId, generation);
           }
           session.revision = baseRevision;
-          this.#captureSummary();
         }
         state = "rolled_back";
       },
@@ -350,7 +328,6 @@ export class LocalSubtitleSessionRegistry {
     session.batches.set(updatedBatch.batchId, updatedBatch);
     session.taskGenerations.set(parsedTask.taskId, parsedTask.generation);
     session.revision = revision;
-    this.#captureSummary();
     this.#enqueueDeliveries(session, [{ kind: "task", envelope }]);
     return envelope;
   }
@@ -396,7 +373,6 @@ export class LocalSubtitleSessionRegistry {
     else session.batches.delete(batch.batchId);
     session.taskGenerations.set(taskId, task.generation);
     session.revision = revision;
-    this.#captureSummary();
     this.#enqueueDeliveries(session, [{ kind: "task", envelope }]);
     return envelope;
   }
@@ -459,7 +435,6 @@ export class LocalSubtitleSessionRegistry {
     if (this.#releasedOwners.has(key)) return false;
     this.#releasedOwners.add(key);
     const session = this.#sessions.get(key);
-    this.#captureSummary();
     session?.taskListeners.clear();
     session?.resourceListeners.clear();
     session?.deliveryQueue.splice(0);
@@ -472,7 +447,6 @@ export class LocalSubtitleSessionRegistry {
     const operation = Promise.resolve();
     this.#shutdownOperation = operation;
     this.#shutDown = true;
-    this.#captureSummary();
     for (const [key, session] of this.#sessions) {
       this.#releasedOwners.add(key);
       session.taskListeners.clear();
@@ -481,18 +455,6 @@ export class LocalSubtitleSessionRegistry {
     }
     this.#sessions.clear();
     return operation;
-  }
-
-  #captureSummary(): void {
-    if (!this.#summarySink) return;
-    const batches = [...this.#sessions.values()].flatMap((session) =>
-      [...session.batches.values()]
-    );
-    try {
-      this.#summarySink.capture(batches);
-    } catch {
-      // Session persistence must not break the live task authority.
-    }
   }
 
   #requireSession(owner: LocalSubtitleOwnerKey): OwnerSessionState {

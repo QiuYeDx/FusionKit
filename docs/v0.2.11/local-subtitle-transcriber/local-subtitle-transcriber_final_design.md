@@ -4,7 +4,7 @@
 >
 > Feature Slug：`local-subtitle-transcriber`
 >
-> 状态：39个顶层工作包中33个已完成、5个未开始、1个进行中。`MODEL-002`已闭环固定模型、真实公网VAD与完整CUDA archive的production资源生命周期；`FE-002`已闭环完整配置、managed VAD、device-aware preview、Metal/CPU/CUDA解析与确认式CPU新generation，并在Windows x64 RTX 4070 Ti SUPER上通过managed-pack production resolver、Supervisor与exact-PID CUDA attestation。`LINK-001`～`LINK-008`及其余非QA代码包均已按职责完成；`DOC-001`已建立只陈述既有证据的预发布说明，但最终平台、性能与许可声明仍等待QA-005。`QA-001`～`QA-005`尚未开始，不提前声明M2/M3或packaged产品验收完成
+> 状态：40个顶层工作包中34个已完成、5个未开始、1个进行中。`MODEL-002`已闭环固定模型、真实公网VAD与完整CUDA archive的production资源生命周期；`FE-002`已闭环完整配置、managed VAD、device-aware preview、Metal/CPU/CUDA解析与确认式CPU新generation，并在Windows x64 RTX 4070 Ti SUPER上通过managed-pack production resolver、Supervisor与exact-PID CUDA attestation。`FE-005`已删除上一会话持久化、恢复摘要与只读UI，任务队列只存在当前会话内存；`LINK-001`～`LINK-008`及其余非QA代码包均已按职责完成。`DOC-001`已建立只陈述既有证据的预发布说明，但最终平台、性能与许可声明仍等待QA-005。`QA-001`～`QA-005`尚未开始，不提前声明M2/M3或packaged产品验收完成
 >
 > 产品定位：使用本地算力把批量音频/视频转成可直接翻译的 SRT/LRC 字幕
 >
@@ -119,6 +119,8 @@
 > 2026-07-30 runtime fixture portability fix：3个测试文件改用宿主原生绝对路径、真实临时`where.exe`与canonical temp root，不修改生产校验；加入002C packaged tests后的完整runtime Node为123 passed、0 failed、1 expected Windows-only skip。
 
 > 2026-08-04 BE-003结项：新增strict private session summary repository，以`0700` root、`0600` temporary、fsync和atomic rename只保存匿名task label、状态/阶段、格式、backend/build、时间、稳定error code与数值资源水位；重启时非终态task转为`interrupted + runtime_crashed`，terminal摘要保持终态。公开recovered schema与只读UI不携带artifact ref、reveal、handoff或retry authority。启动清理只识别受控root中的exact server/media/session-summary temporary，未知叶名、symlink、replacement和成功artifact保持fail closed；Windows recursive removal使用有限重试。11 files / 199 tests、TypeScript、四语言各1706 keys/source usage、renderer/main/preload三段Vite test build与diff check通过；真实crash/强杀/OOM/disk-full及quit/update产品矩阵仍归QA。
+
+> 2026-08-12 FE-005产品简化：上一会话摘要对用户不可操作且易被误解为断点恢复，因此完整删除`session-summary` repository、recovered schema/runtime state、Session Registry持久化sink、四语言文案和只读UI。应用启动时只做一次兼容清理，删除旧版本遗留的exact `session-summary.v1.json`及其owned temporary；server/media orphan清理保持不变。当前合同不保存或展示本地转写历史，退出后仅保留已经原子提交到用户输出位置的SRT/LRC。
 
 ---
 
@@ -530,7 +532,7 @@ renderer app 初始化时先静默完成一次本地环境探测，页面只订�
   防止只读 preflight 与 `normalizeTask()` 争用同一 owner 的 native media operation ticket。
 - draft 阶段的 input/output capability 由 renderer draft 持有。批次 commit 时，main 在同一事务内重新校验 identity/TTL，并把所需权限原子转移为绑定 `batchId`/`taskId` 的 task lease；commit 成功后 renderer 只保留展示摘要，不能再撤销 active task lease。
 - 页面卸载不回收仍在扁平任务队列中的draft capability；显式移除、清空、授权后被sourceKey去重拒绝或过期时才进入renderer级pending-revocation queue。已转移task lease由main在任务终态、删除、owner session结束或TTL到期时释放。revoke的Promise rejection、`ok:false`与幂等`revoked:false`必须分别处理。
-- renderer reload、主框架导航、窗口销毁、render process crash、应用退出或更新会使 `ownerSessionId` 失效，并取消该 owner 尚未终态的本地任务；首版不跨 reload 继续推理。已原子提交的字幕仍保留，重启后只恢复脱敏诊断摘要。
+- renderer reload、窗口销毁、render process crash、应用退出或更新会使 `ownerSessionId` 失效，并取消该 owner 尚未终态的本地任务；首版不跨 reload 继续推理。普通SPA路由切换由app级session runtime保持当前任务；进程结束后不恢复或展示历史任务，已原子提交的字幕文件仍保留。
 - 会话快照与事件都必须包含 `batchId`、`taskId`、`generation` 和 `revision`。页面不得仅依赖“刚好没漏”的增量事件推导权威状态。
 
 ### 7.4 完成操作
@@ -1322,7 +1324,7 @@ interface SubtitleTranslationImportConfigSummary {
 
 2026-08-05完成`LINK-005`最终cutover：新checkpoint只写显式v2 `manifest_fragments`白名单字段，不保存source/target/checkpoint path、capability/token或模型密钥；历史v1仅由main compatibility reader读取，并在续跑写入前按顶层、options与fragment白名单转成v2，未知版本拒绝。main通过fixed目录/manifest picker签发owner/document-session-bound短TTL `recoveryScanId`与`checkpointRef`，复核manifest identity/size/mtime后才允许批量prepare，target始终重新选择授权；原子manifest发生rename后，失败收口会刷新ref绑定，保证同owner retry使用最新文件身份。RecoveryDialog、Agent恢复工具、renderer事件和Store只消费opaque ref、展示名与脱敏摘要，旧公开恢复IPC、`legacy_path_v1`新建入口和translator `outputURL`已删除。JSON、恢复artifact及最终译文使用同目录unique temporary、`fsync`、close、rename；恢复artifact按taskId hash隔离同名任务，成功后只留path-free完成摘要。用户删除任务时先复核task-bound目录并清理全部恢复artifact，清理失败保留authority有界重试且不影响最终译文。
 
-2026-08-05完成`LINK-008`产品接线：两个依赖Checkbox严格映射`export_only`、`enqueue_translation`、`enqueue_and_start_translation`三态，批次prepare后以ScrollableDialog展示冻结的语言、profile、输出与交接格式，auto-start明确外部费用且禁止静默降级。SRT/LRC可组合导出，单选交接格式必须属于当前输出；自动服务由renderer session singleton拥有，逐文件只交接首选已commit产物，其他格式失败不阻断也不替代。翻译协调器只启动receipt `addedTaskIds`，估算/start失败保留已有taskId；取消后的partial commit只记录skipped并开放显式手动交接，可重试转写失败保留snapshot直到重试、移除或owner结束。终态post-action回执通过fixed IPC一次写入并允许同值幂等重放，页面卸载/晚注册仍继续已commit批次；旧翻译任务被删除后隐藏查看入口，只对首选产物创建全新snapshot重新交接。snapshotId、路径、密钥和capability不进入local batch/session summary。
+2026-08-05完成`LINK-008`产品接线：两个依赖Checkbox严格映射`export_only`、`enqueue_translation`、`enqueue_and_start_translation`三态，批次prepare后以ScrollableDialog展示冻结的语言、profile、输出与交接格式，auto-start明确外部费用且禁止静默降级。SRT/LRC可组合导出，单选交接格式必须属于当前输出；自动服务由renderer session singleton拥有，逐文件只交接首选已commit产物，其他格式失败不阻断也不替代。翻译协调器只启动receipt `addedTaskIds`，估算/start失败保留已有taskId；取消后的partial commit只记录skipped并开放显式手动交接，可重试转写失败保留snapshot直到重试、移除或owner结束。终态post-action回执通过fixed IPC一次写入并允许同值幂等重放，页面卸载/晚注册仍继续已commit批次；旧翻译任务被删除后隐藏查看入口，只对首选产物创建全新snapshot重新交接。snapshotId、路径、密钥和capability不进入本地转写的live session snapshot。
 
 建议的协调器与回执合同：
 
@@ -1449,17 +1451,17 @@ Agent 迁移不能把任意模型参数中的 `roots`/`checkpointPaths` 直接�
 
 草稿文件或 custom output 被替换、截断、重置或切回 source mode 时，Store 必须先把 capability 交给 renderer runtime cleanup queue，再清理 UI 引用；batch commit 成功则只消费 draft 引用，不撤销已经转为 task lease 的 capability。cleanup 使用 capability 的权威最早 expiry、有限退避和单次超时；rejected Promise、`ok:false` 与 timeout 重试，`ok:true`（包括 `revoked:false`）、`owner_released` 和 `authorization_expired` 终止。runtime/environment singleton 不因 SPA 页面卸载而销毁；真实 Job Manager/session handler 已接入后由 renderer app 入口幂等启动 session observer，并只自动执行一次环境初始化。
 
-### 15.2 任务恢复
+### 15.2 会话结束与重启
 
-首版任务队列为会话级。异常退出后：
+本地转写任务队列只存在当前会话内存。退出、更新或异常终止后：
 
 - 已原子提交的 SRT/LRC 保留。
 - 受控 `<userData>/local-subtitle/temp` 内的临时 WAV/partial 可在下次启动按 identity/schema 清理。任意用户输出目录的真实路径不持久化，也不能在重启后全局扫描；SUB-002 保证正常失败、取消和未 commit 分支清理同目录 `.partial`，进程在写入与清理之间崩溃时仍可能留下隐藏的 `.fusionkit-local-subtitle-*.partial`。未来若要跨重启回收这类文件，必须使用 main-only、有界、经用户授权的 cleanup receipt，不能为方便扫描而把输出路径写入 renderer Store/session manifest。
 - overwrite recovery repository使用schema v2，只保存opaque recovery ID、owner fingerprint、task/generation/format、`rollback_unpublished | finalize_committed` decision、`not_started | pending | settled | retry_failed` native state与时间戳；不保存raw path、capability、token、leaf或Registry ref。原子rename后若parent sync失败，只有exact payload read-back一致才可接受，且不得把这项验证扩张为power-loss声明。重启后必须由用户重新选择输出目录并重验directory object，再按exact ID lazy recover；任何recovery `not_found`都保留recovery record和已选目录fence，只有已有durable settled proof后的acknowledgement `not_found`可幂等完成。native terminal marker必须在settled持久化成功后才ack，最后才删除record并释放fence。001I已将owner/repository接入strict IPC与app-scoped UI，但这些仍是component证据，不解除Job Manager/Executor双重`index-only` gate。
-- 未完成任务显示为上一会话中断的诊断摘要，用户需重新选择/授权源文件后从头重试。
+- 未完成任务不会恢复或显示为历史记录；用户需重新选择/授权源文件后从头重试。
 - 不声称支持文件中间断点续跑。
 
-写入磁盘的 session diagnostic manifest 只保存 schema version、task/batch id、脱敏 display name、阶段/终态、格式、backend/build id、时间与稳定错误 code；不得保存 source/output/model/temp 绝对路径、capability/token、字幕文本、segment/word、命令行或 API Key。内部 temp 清理只扫描受控 `<userData>/local-subtitle/temp` 根下符合 UUID/age/schema 的条目，不依赖持久化任意路径。由于 artifact registry 不跨重启，重启后的摘要不提供 reveal/自动交接；用户重新选择已生成字幕后再导入。
+本地转写不写入任务历史或session diagnostic manifest。内部temp清理只扫描受控`<userData>/local-subtitle/temp`根下符合owned leaf合同的条目，不依赖持久化任意用户路径；启动兼容清理会删除旧版本遗留的exact`session-summary.v1.json`及其owned temporary。由于Artifact Registry不跨重启，用户如需继续处理已生成字幕，应从输出位置重新选择并导入。
 
 ### 15.3 内存与显存
 
@@ -1539,7 +1541,7 @@ resources/local-subtitle/
 
 ## 18. 分期实施建议（高层阶段）
 
-本节保留架构层面的阶段划分；可认领的工作包、依赖、状态、验证和实施记录以 `local-subtitle-transcriber_execution_plan.md` 为唯一执行台账。Execution Plan 已于 2026-07-16 建立，当前39个顶层工作包中33个已完成、5个未开始、1个进行中。M1的schema、resource staging、IPC/capability、renderer session、official server contract、Supervisor生命周期、media normalization/PCM proof、canonical post-processing、标准字幕原子产物、managed model、会话恢复诊断与one-shot artifact handoff合同均已冻结。`BE-002`已完成最多100文件的managed model/optional managed VAD批次、原文或转英文、CPU/Metal/CUDA identity、失败隔离、SRT/LRC、custom/source及index/conditional-overwrite；`BE-003`已完成path/content-free会话摘要、受控temp启动清理、资源水位和只读重启诊断；`FS-TXN-001A`～`FS-TXN-001J`完成两平台transaction/recovery；`NATIVE-002A`～`NATIVE-002D`完成两平台canonical、target smoke与真实packaged component；`MODEL-002`已闭环固定模型、真实公网VAD与完整CUDA archive资源生命周期，`FE-001`～`FE-004`已闭环工具页、完整配置、backend门禁、批量队列和结果交接；`LINK-001`～`LINK-008`已接通安全配置迁移、稳定task identity、无路径generated/recovery ref、目录capability、one-shot token、target handle所有权转移、immutable receipt、exact start与三种逐文件后处理模式。`DOC-001`已形成预发布文档基线并明确候选/已验收边界。Windows personal distribution的unsigned profile已明确；NSIS生命周期归`QA-003`，真实模型Electron产品E2E归QA，CUDA delivery/notice最终closure归`QA-005`，Developer ID、公证和Gatekeeper accepted归`QA-004`。
+本节保留架构层面的阶段划分；可认领的工作包、依赖、状态、验证和实施记录以 `local-subtitle-transcriber_execution_plan.md` 为唯一执行台账。Execution Plan 已于 2026-07-16 建立，当前40个顶层工作包中34个已完成、5个未开始、1个进行中。M1的schema、resource staging、IPC/capability、renderer session、official server contract、Supervisor生命周期、media normalization/PCM proof、canonical post-processing、标准字幕原子产物、managed model与one-shot artifact handoff合同均已冻结。`BE-002`已完成最多100文件的managed model/optional managed VAD批次、原文或转英文、CPU/Metal/CUDA identity、失败隔离、SRT/LRC、custom/source及index/conditional-overwrite；`BE-003`保留受控temp启动清理，`FE-005`已删除会话摘要持久化和上一会话UI；`FS-TXN-001A`～`FS-TXN-001J`完成两平台transaction/recovery；`NATIVE-002A`～`NATIVE-002D`完成两平台canonical、target smoke与真实packaged component；`MODEL-002`已闭环固定模型、真实公网VAD与完整CUDA archive资源生命周期，`FE-001`～`FE-005`已闭环工具页、完整配置、backend门禁、批量队列、结果交接与会话历史简化；`LINK-001`～`LINK-008`已接通安全配置迁移、稳定task identity、无路径generated/recovery ref、目录capability、one-shot token、target handle所有权转移、immutable receipt、exact start与三种逐文件后处理模式。`DOC-001`已形成预发布文档基线并明确候选/已验收边界。Windows personal distribution的unsigned profile已明确；NSIS生命周期归`QA-003`，真实模型Electron产品E2E归QA，CUDA delivery/notice最终closure归`QA-005`，Developer ID、公证和Gatekeeper accepted归`QA-004`。
 
 其中本节原先汇总为一个 `PRE-001` 的跨平台 PoC，在 Execution Plan 中拆为 `PRE-001`～`PRE-006`，以避免把基准、CPU runner、Windows CUDA、macOS Metal、FFmpeg/打包许可和最终技术冻结塞进一个无法单会话闭环的工作包。其余高层包也在执行计划中按安全边界和可验证纵向切片进一步拆分。
 
@@ -1892,9 +1894,9 @@ Electron 视觉/交互验证必须等待 preload loading 完全退出。若启�
 
 ## 22. 推荐下一步
 
-`PRE-001`～`PRE-006`、`CORE-001`～`CORE-004`、`NATIVE-001`～`NATIVE-002`、`BE-001`～`BE-003`、`MEDIA-001`、`SUB-001`～`SUB-002`、`FS-TXN-001`、`MODEL-001`、`LINK-002`与`LINK-006`已完成，M1的共享schema、resource manifest/resolver/staging、preload/IPC/capability、renderer session runtime、official server transport/process contract、Supervisor生命周期、media normalization/PCM proof、canonical post-processing、标准字幕原子产物、managed model、会话恢复诊断、稳定翻译task identity与one-shot artifact handoff合同已冻结。唯一production decision record是`poc/pre006-production-decision.json`，后续实现不得静默更换引擎、平台矩阵、首发模型或media acquisition policy；SUB-001自有policy也不得伪装为PRE-006字段。
+`PRE-001`～`PRE-006`、`CORE-001`～`CORE-004`、`NATIVE-001`～`NATIVE-002`、`BE-001`～`BE-003`、`MEDIA-001`、`SUB-001`～`SUB-002`、`FS-TXN-001`、`MODEL-001`、`FE-001`～`FE-005`、`LINK-002`与`LINK-006`已完成，M1的共享schema、resource manifest/resolver/staging、preload/IPC/capability、renderer session runtime、official server transport/process contract、Supervisor生命周期、media normalization/PCM proof、canonical post-processing、标准字幕原子产物、managed model、稳定翻译task identity与one-shot artifact handoff合同已冻结。唯一production decision record是`poc/pre006-production-decision.json`，后续实现不得静默更换引擎、平台矩阵、首发模型或media acquisition policy；SUB-001自有policy也不得伪装为PRE-006字段。
 
-1. `BE-003`、`FE-003`～`FE-004`与`LINK-001`～`LINK-008`均已按代码职责完成；三种后处理模式、逐文件首选格式交接、精确启动、取消/partial failure、session singleton续跑、手动新快照和已删除翻译任务恢复入口已经闭环。下一步进入`QA-001`扩大自动化与Audio/Subtitle/Agent回归，再由`QA-002`处理Electron四语言、宽窄窗口、键盘与cancel/import人工竞态；目标机和packaged矩阵继续留在`QA-003`～`QA-005`。
+1. `BE-003`、`FE-003`～`FE-005`与`LINK-001`～`LINK-008`均已按代码职责完成；本地转写不再持久化或展示上一会话，三种后处理模式、逐文件首选格式交接、精确启动、取消/partial failure、session singleton续跑、手动新快照和已删除翻译任务恢复入口已经闭环。下一步进入`QA-001`扩大自动化与Audio/Subtitle/Agent回归，再由`QA-002`处理Electron四语言、宽窄窗口、键盘与cancel/import人工竞态；目标机和packaged矩阵继续留在`QA-003`～`QA-005`。
 2. 使用真实FFmpeg、official server、PRE-006模型与Electron页面完成单文件SRT/reveal产品E2E后，再记录M2 packaged/目标机验收；该QA证据不反向扩大`FE-001`职责。
 3. Developer ID、公证和 Gatekeeper accepted 只由 `QA-004` 验收 macOS 分发产物；QA-005 完成分发前第三方 notices/source-offer/NVIDIA DLL 核对。
 4. 仍无需 FusionKit 自写 C++ runner；只有 official server 出现产品必需能力的真实硬缺口，才通过独立工作包重新评估 native bridge。

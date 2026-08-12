@@ -487,10 +487,6 @@
       "empty_title": "The task queue is empty",
       "empty_description": "Selected files are added here immediately with their own status and results."
     },
-    "recovered": {
-      "title": "Previous session",
-      "summary": "{{count}} tasks · engine {{version}}"
-    },
     "clear_all": {
       "title": "Clear all tasks?",
       "description": "Running tasks will be cancelled first, then removed with the rest of the list. Exported subtitle files will not be deleted.",

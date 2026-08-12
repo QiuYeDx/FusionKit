@@ -170,6 +170,10 @@ describe("local subtitle resource startup cleaner", () => {
     const unknownServer = path.join(tempRoot, "server-not-owned");
     const unknownMedia = path.join(mediaRoot, "media-too-long");
     const successfulArtifact = path.join(fixture.managedRoot, "successful.srt");
+    const legacySummary = path.join(
+      fixture.managedRoot,
+      "session-summary.v1.json",
+    );
     const summaryTemporary = path.join(
       fixture.managedRoot,
       `.session-summary.v1.json.${uuid(39)}.tmp`,
@@ -182,6 +186,7 @@ describe("local subtitle resource startup cleaner", () => {
       mkdir(unknownServer, { mode: 0o700 }),
       mkdir(unknownMedia, { mode: 0o700 }),
       writeFile(successfulArtifact, "preserve me"),
+      writeFile(legacySummary, "obsolete", { mode: 0o600 }),
       writeFile(summaryTemporary, "incomplete", { mode: 0o600 }),
       writeFile(unknownSummaryTemporary, "preserve me", { mode: 0o600 }),
     ]);
@@ -193,7 +198,7 @@ describe("local subtitle resource startup cleaner", () => {
     expect(result).toMatchObject({
       removedServerSessions: 2,
       removedMediaSessions: 2,
-      removedSessionSummaryTemporaries: 1,
+      removedLegacySessionSummaryFiles: 2,
     });
     await Promise.all([...serverCandidates, ...mediaCandidates].map((candidate) =>
       expect(lstat(candidate)).rejects.toMatchObject({ code: "ENOENT" })));
@@ -204,6 +209,7 @@ describe("local subtitle resource startup cleaner", () => {
       isDirectory: expect.any(Function),
     });
     expect(await readFile(successfulArtifact, "utf8")).toBe("preserve me");
+    await expect(lstat(legacySummary)).rejects.toMatchObject({ code: "ENOENT" });
     await expect(lstat(summaryTemporary)).rejects.toMatchObject({ code: "ENOENT" });
     expect(await readFile(unknownSummaryTemporary, "utf8")).toBe("preserve me");
   });

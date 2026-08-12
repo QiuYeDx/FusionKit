@@ -882,6 +882,13 @@ describe("local subtitle event and snapshot schemas", () => {
     const injected = structuredClone(snapshot) as any;
     injected.batches[0].tasks[0].outputPath = "/private/subtitles/sample.srt";
     expect(validateLocalSubtitleSessionSnapshot(injected).ok).toBe(false);
+
+    const legacySnapshot = structuredClone(snapshot) as any;
+    legacySnapshot.recoveredSession = { batches: [] };
+    expect(validateLocalSubtitleSessionSnapshot(legacySnapshot)).toMatchObject({
+      ok: false,
+      error: { code: "invalid_ipc_request" },
+    });
   });
 
   it("requires snapshot batch status to match the shared task aggregate", () => {

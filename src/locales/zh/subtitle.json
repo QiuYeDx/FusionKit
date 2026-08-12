@@ -487,10 +487,6 @@
       "empty_title": "任务队列为空",
       "empty_description": "选择文件后，任务会直接加入这里，并显示各自的状态和结果。"
     },
-    "recovered": {
-      "title": "上次会话",
-      "summary": "{{count}} 个任务 · 引擎 {{version}}"
-    },
     "clear_all": {
       "title": "清空全部任务？",
       "description": "正在运行的任务会先取消，随后与其他任务一起从列表中清除。已导出的字幕文件不会被删除。",

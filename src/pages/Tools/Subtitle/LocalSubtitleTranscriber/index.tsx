@@ -98,7 +98,6 @@ import {
   LocalSubtitleErrorDetailsDialog,
   type LocalSubtitleArtifactPreviewSelection,
 } from "./LocalSubtitleTaskDetailsDialogs";
-import { LocalSubtitleRecoveredSession } from "./LocalSubtitleRecoveredSession";
 import { LocalSubtitleTranslationConfirmDialog } from "./LocalSubtitleTranslationConfirmDialog";
 
 const MEDIA_ACCEPT = [
@@ -1744,10 +1743,6 @@ export default function LocalSubtitleTranscriber() {
           onShowError={setErrorDetailsTask}
           onRetryOnCpu={setCpuRetryCandidate}
           onRemove={handleRemove}
-        />
-
-        <LocalSubtitleRecoveredSession
-          summary={runtimeState.recoveredSession}
         />
 
         <LocalSubtitleEnvironmentManager

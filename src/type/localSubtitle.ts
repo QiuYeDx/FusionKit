@@ -1049,69 +1049,6 @@ export interface LocalSubtitleBatchSummary {
   readonly updatedAt: string;
 }
 
-export const LOCAL_SUBTITLE_RECOVERED_TASK_STATUSES = [
-  "completed",
-  "cancelled",
-  "failed",
-  "interrupted",
-] as const;
-export type LocalSubtitleRecoveredTaskStatus =
-  (typeof LOCAL_SUBTITLE_RECOVERED_TASK_STATUSES)[number];
-
-export const LOCAL_SUBTITLE_RECOVERED_BATCH_STATUSES = [
-  "completed",
-  "cancelled",
-  "failed",
-  "interrupted",
-] as const;
-export type LocalSubtitleRecoveredBatchStatus =
-  (typeof LOCAL_SUBTITLE_RECOVERED_BATCH_STATUSES)[number];
-
-export interface LocalSubtitleRecoveredArtifactResult {
-  readonly format: LocalSubtitleFormat;
-  readonly status: LocalSubtitleArtifactStatus;
-  readonly errorCode?: LocalSubtitleErrorCode;
-}
-
-export interface LocalSubtitleRecoveredTaskSummary {
-  readonly taskId: string;
-  readonly batchId: string;
-  readonly generation: number;
-  readonly displayName: string;
-  readonly status: LocalSubtitleRecoveredTaskStatus;
-  readonly stage: LocalSubtitleTaskStage;
-  readonly formats: readonly LocalSubtitleFormat[];
-  readonly backend: LocalSubtitleBackend;
-  readonly artifactResults: readonly LocalSubtitleRecoveredArtifactResult[];
-  readonly errorCode?: LocalSubtitleErrorCode;
-  readonly createdAt: string;
-  readonly updatedAt: string;
-}
-
-export interface LocalSubtitleRecoveredBatchSummary {
-  readonly batchId: string;
-  readonly status: LocalSubtitleRecoveredBatchStatus;
-  readonly tasks: readonly LocalSubtitleRecoveredTaskSummary[];
-  readonly createdAt: string;
-  readonly updatedAt: string;
-}
-
-export interface LocalSubtitleRecoveredSessionSummary {
-  readonly build: Readonly<{
-    readonly engine: typeof LOCAL_SUBTITLE_PRODUCTION_CONTRACT.engine.id;
-    readonly version: typeof LOCAL_SUBTITLE_PRODUCTION_CONTRACT.engine.version;
-    readonly commit: typeof LOCAL_SUBTITLE_PRODUCTION_CONTRACT.engine.commit;
-  }>;
-  readonly batches: readonly LocalSubtitleRecoveredBatchSummary[];
-  readonly resourceWatermarks?: Readonly<{
-    readonly peakResidentBytes: number;
-    readonly peakHeapUsedBytes: number;
-    readonly minimumAvailableDiskBytes: number;
-    readonly sampledAt: string;
-  }>;
-  readonly updatedAt: string;
-}
-
 export const LOCAL_SUBTITLE_RESOURCE_TYPES = [
   "model",
   "vad",
@@ -1153,7 +1090,6 @@ export interface LocalSubtitleSessionSnapshot {
   readonly revision: number;
   readonly batches: readonly LocalSubtitleBatchSummary[];
   readonly resourceJobs: readonly LocalSubtitleResourceJobSummary[];
-  readonly recoveredSession?: LocalSubtitleRecoveredSessionSummary;
 }
 
 export type LocalSubtitleTaskEvent =
