@@ -22,6 +22,7 @@ import {
   ToolOutputPathPicker,
   ToolPanel,
   ToolSummaryLine,
+  ToolSwitchRow,
 } from "@/pages/Tools/_shared/ui";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -47,7 +48,6 @@ import { ButtonGroup } from "@/components/ui/button-group";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
-import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
   SelectContent,
@@ -434,30 +434,14 @@ function SubtitleConverter() {
             )}
 
             {/* Strip media ext */}
-            <label
-              htmlFor="stripMediaExt"
-              className={cn(
-                "flex items-start justify-between gap-3 rounded-lg border p-3 cursor-pointer transition-colors",
-                stripMediaExt
-                  ? "border-primary/40 bg-primary/5"
-                  : "hover:bg-accent/40"
-              )}
-            >
-              <div className="flex flex-col gap-0.5 min-w-0">
-                <span className="text-[12.5px] font-medium leading-tight">
-                  {t("subtitle:converter.fields.strip_media_ext_label")}
-                </span>
-                <span className="text-[11px] text-muted-foreground leading-snug">
-                  {t("subtitle:converter.fields.strip_media_ext_hint")}
-                </span>
-              </div>
-              <Checkbox
-                id="stripMediaExt"
-                checked={stripMediaExt}
-                onCheckedChange={(v) => setStripMediaExt(Boolean(v))}
-                className="mt-0.5"
-              />
-            </label>
+            <ToolSwitchRow
+              id="stripMediaExt"
+              testId="subtitle-converter-strip-media-extension"
+              label={t("subtitle:converter.fields.strip_media_ext_label")}
+              hint={t("subtitle:converter.fields.strip_media_ext_hint")}
+              checked={stripMediaExt}
+              onCheckedChange={setStripMediaExt}
+            />
 
             <ToolConfigDivider />
 

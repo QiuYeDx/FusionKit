@@ -42,6 +42,7 @@ import {
 import ToolPageHeader from "@/pages/Tools/_shared/ToolPageHeader";
 import { TOOL_META } from "@/pages/Tools/_shared/toolMeta";
 import {
+  ToolConfigDisclosure,
   ToolConfigDivider,
   ToolConfigPanel,
   ToolDetailLayout,
@@ -51,6 +52,7 @@ import {
   ToolPanel,
   ToolRadioButtonGroup,
   ToolSummaryLine,
+  ToolSwitchRow,
 } from "@/pages/Tools/_shared/ui";
 import { Badge } from "@/components/ui/badge";
 import { showToast } from "@/utils/toast";
@@ -79,7 +81,6 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { Calendar } from "@/components/ui/calendar";
-import { Checkbox } from "@/components/ui/checkbox";
 import {
   Popover,
   PopoverContent,
@@ -205,6 +206,11 @@ function SubtitleTranslator() {
   const intervalRef = useRef<number | null>(null);
   const [isScheduleOpen, setIsScheduleOpen] = useState<boolean>(false);
   const [expandedTasks, setExpandedTasks] = useState<Set<string>>(new Set());
+
+  const handleScheduleOpenChange = (open: boolean) => {
+    setIsScheduleOpen(open);
+    if (!open) setDatePopoverOpen(false);
+  };
 
   // 删除确认弹窗
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
@@ -1163,61 +1169,29 @@ function SubtitleTranslator() {
               <ToolConfigDivider />
 
               {/* Concurrent slices */}
-              <label
-                htmlFor="concurrent-slices"
-                className={cn(
-                  "flex items-start justify-between gap-3 rounded-lg border p-3 cursor-pointer transition-colors",
-                  concurrentSlices
-                    ? "border-primary/40 bg-primary/5"
-                    : "hover:bg-accent/40"
-                )}
-              >
-                <div className="flex flex-col gap-0.5 min-w-0">
-                  <span className="text-[12.5px] font-medium leading-tight">
-                    {t("subtitle:translator.fields.concurrent_slices")}
-                  </span>
-                  <span className="text-[11px] text-muted-foreground leading-snug">
-                    {t("subtitle:translator.fields.concurrent_slices_hint")}
-                  </span>
-                </div>
-                <Checkbox
-                  id="concurrent-slices"
-                  checked={concurrentSlices}
-                  onCheckedChange={(checked) =>
-                    setConcurrentSlices(checked as boolean)
+              <ToolSwitchRow
+                id="concurrent-slices"
+                testId="subtitle-translator-concurrent-slices"
+                label={t("subtitle:translator.fields.concurrent_slices")}
+                hint={t("subtitle:translator.fields.concurrent_slices_hint")}
+                checked={concurrentSlices}
+                onCheckedChange={setConcurrentSlices}
+              />
+
+              <div id="tour-schedule" className="-mb-4">
+                <ToolConfigDisclosure
+                  testId="subtitle-translator-schedule-settings"
+                  icon={Clock}
+                  className="border-b-0"
+                  title={t("subtitle:translator.schedule.title")}
+                  summary={
+                    scheduleEnabled
+                      ? `${t("subtitle:translator.schedule.enabled_countdown")} ${formatRemaining(remainingMs)}`
+                      : t("subtitle:translator.schedule.disabled")
                   }
-                  className="mt-0.5"
-                />
-              </label>
-
-              {/* Schedule (collapsible) */}
-              <button
-                id="tour-schedule"
-                type="button"
-                onClick={() => setIsScheduleOpen((v) => !v)}
-                className="flex items-center justify-between gap-3 w-full rounded-lg border border-dashed p-3 cursor-pointer hover:bg-accent/40 transition-colors text-left"
-              >
-                <span className="flex items-center gap-2">
-                  <Clock className="h-3.5 w-3.5 text-muted-foreground" />
-                  <span className="text-[12.5px] font-medium">
-                    {t("subtitle:translator.schedule.title")}
-                  </span>
-                  {scheduleEnabled && (
-                    <Badge variant="secondary" className="text-[10px] h-4 px-1.5">
-                      {formatRemaining(remainingMs)}
-                    </Badge>
-                  )}
-                </span>
-                <ChevronDown
-                  className={cn(
-                    "h-3.5 w-3.5 text-muted-foreground transition-transform",
-                    isScheduleOpen && "rotate-180"
-                  )}
-                />
-              </button>
-
-              {isScheduleOpen && (
-                <div className="space-y-3 pt-1">
+                  open={isScheduleOpen}
+                  onOpenChange={handleScheduleOpenChange}
+                >
                   <div className="grid grid-cols-2 gap-2">
                     <div className="space-y-1">
                       <Label className="text-[11px] text-muted-foreground">
@@ -1275,34 +1249,16 @@ function SubtitleTranslator() {
                     </div>
                   </div>
 
-                  <label
-                    htmlFor="prevent-sleep"
-                    className={cn(
-                      "flex items-start gap-2 rounded-md border p-2 cursor-pointer transition-colors",
-                      preventSleep
-                        ? "border-primary/40 bg-primary/5"
-                        : "hover:bg-accent/40"
+                  <ToolSwitchRow
+                    id="prevent-sleep"
+                    testId="subtitle-translator-prevent-sleep"
+                    label={t(
+                      "subtitle:translator.schedule.prevent_sleep_until_start"
                     )}
-                  >
-                    <Checkbox
-                      id="prevent-sleep"
-                      checked={preventSleep}
-                      onCheckedChange={(checked) =>
-                        setPreventSleep(checked as boolean)
-                      }
-                      className="mt-0.5"
-                    />
-                    <div className="flex flex-col gap-0.5 min-w-0">
-                      <span className="text-[11.5px] font-medium leading-tight">
-                        {t(
-                          "subtitle:translator.schedule.prevent_sleep_until_start"
-                        )}
-                      </span>
-                      <span className="text-[10.5px] text-muted-foreground leading-snug">
-                        {t("subtitle:translator.schedule.prevent_sleep_note")}
-                      </span>
-                    </div>
-                  </label>
+                    hint={t("subtitle:translator.schedule.prevent_sleep_note")}
+                    checked={preventSleep}
+                    onCheckedChange={setPreventSleep}
+                  />
 
                   <div className="flex items-center gap-2">
                     {!scheduleEnabled ? (
@@ -1374,8 +1330,8 @@ function SubtitleTranslator() {
                       </span>
                     )}
                   </div>
-                </div>
-              )}
+                </ToolConfigDisclosure>
+              </div>
           </ToolConfigPanel>
         </div>
       }
@@ -2025,15 +1981,12 @@ function SubtitleTranslator() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="flex items-center gap-2">
-              <Checkbox
-                checked={editConcurrentSlices}
-                onCheckedChange={(v) => setEditConcurrentSlices(!!v)}
-              />
-              <Label>
-                {t("subtitle:translator.fields.concurrent_slices")}
-              </Label>
-            </div>
+            <ToolSwitchRow
+              testId="subtitle-translator-edit-concurrent-slices"
+              label={t("subtitle:translator.fields.concurrent_slices")}
+              checked={editConcurrentSlices}
+              onCheckedChange={setEditConcurrentSlices}
+            />
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setEditTaskOpen(false)}>

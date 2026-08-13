@@ -4,6 +4,7 @@ import {
   ToolConfigDivider,
   ToolConfigPanel,
   ToolField,
+  ToolSwitchRow,
 } from "@/pages/Tools/_shared/ui";
 import { Button } from "@/components/ui/button";
 import { ButtonGroup } from "@/components/ui/button-group";
@@ -16,7 +17,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Switch } from "@/components/ui/switch";
 import type {
   NameNamingStyle,
   NameOutputMode,
@@ -281,7 +281,8 @@ export default function OptionsPanel({
       </ToolField>
 
       <div className="space-y-2">
-        <ToggleRow
+        <ToolSwitchRow
+          testId="name-translator-skip-hidden"
           label={t("options.skip_hidden_label")}
           hint={t("options.skip_hidden_hint")}
           checked={!options.includeHidden}
@@ -290,7 +291,8 @@ export default function OptionsPanel({
             onUpdateOptions({ includeHidden: !checked })
           }
         />
-        <ToggleRow
+        <ToolSwitchRow
+          testId="name-translator-preserve-extension"
           label={t("options.preserve_extension_label")}
           hint={t("options.preserve_extension_hint")}
           checked={options.preserveExtension}
@@ -299,7 +301,8 @@ export default function OptionsPanel({
             onUpdateOptions({ preserveExtension: checked })
           }
         />
-        <ToggleRow
+        <ToolSwitchRow
+          testId="name-translator-preserve-tokens"
           label={t("options.preserve_tokens_label")}
           hint={t("options.preserve_tokens_hint")}
           checked={options.preserveTechnicalTokens}
@@ -337,38 +340,5 @@ export default function OptionsPanel({
         </ButtonGroup>
       </ToolField>
     </ToolConfigPanel>
-  );
-}
-
-function ToggleRow({
-  label,
-  hint,
-  checked,
-  disabled,
-  onCheckedChange,
-}: {
-  label: string;
-  hint: string;
-  checked: boolean;
-  disabled?: boolean;
-  onCheckedChange: (checked: boolean) => void;
-}) {
-  return (
-    <label className="flex items-start justify-between gap-3 rounded-lg border p-3 transition-colors hover:bg-accent/40">
-      <span className="min-w-0">
-        <span className="block text-[12.5px] font-medium leading-tight">
-          {label}
-        </span>
-        <span className="mt-0.5 block text-[11px] leading-snug text-muted-foreground">
-          {hint}
-        </span>
-      </span>
-      <Switch
-        className="mt-0.5"
-        checked={checked}
-        disabled={disabled}
-        onCheckedChange={onCheckedChange}
-      />
-    </label>
   );
 }

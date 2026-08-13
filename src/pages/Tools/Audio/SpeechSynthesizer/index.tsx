@@ -23,7 +23,6 @@ import {
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -41,6 +40,7 @@ import {
   ToolOutputPathPicker,
   ToolPanel,
   ToolRadioButtonGroup,
+  ToolSwitchRow,
 } from "@/pages/Tools/_shared/ui";
 import { cn } from "@/lib/utils";
 import { showToast } from "@/utils/toast";
@@ -402,15 +402,15 @@ function SpeechConfig({
             }
           />
           {fields.optimizeTextPreview ? (
-            <label className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
-              <Checkbox
-                checked={preferences.optimizeTextPreview}
-                onCheckedChange={(checked) =>
-                  updatePreferences({ optimizeTextPreview: Boolean(checked) })
-                }
-              />
-              {t("audio:speech.fields.optimize_text_preview")}
-            </label>
+            <ToolSwitchRow
+              testId="speech-optimize-text-preview"
+              className="mt-2"
+              label={t("audio:speech.fields.optimize_text_preview")}
+              checked={preferences.optimizeTextPreview}
+              onCheckedChange={(optimizeTextPreview) =>
+                updatePreferences({ optimizeTextPreview })
+              }
+            />
           ) : null}
         </ToolField>
       ) : null}
