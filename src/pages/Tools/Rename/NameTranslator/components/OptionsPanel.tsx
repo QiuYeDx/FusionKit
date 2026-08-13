@@ -4,10 +4,9 @@ import {
   ToolConfigDivider,
   ToolConfigPanel,
   ToolField,
+  ToolRadioButtonGroup,
   ToolSwitchRow,
 } from "@/pages/Tools/_shared/ui";
-import { Button } from "@/components/ui/button";
-import { ButtonGroup } from "@/components/ui/button-group";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -104,47 +103,35 @@ export default function OptionsPanel({
   return (
     <ToolConfigPanel icon={Settings2} title={t("options.section_title")}>
       <ToolField label={t("options.scope_label")} className="space-y-2">
-        <div className="grid grid-cols-1 gap-2 xl:grid-cols-2">
-          {SCOPE_OPTIONS.map((scope) => (
-            <button
-              key={scope.value}
-              type="button"
-              disabled={disabled}
-              className={[
-                "rounded-lg border px-3 py-2 text-left transition-colors",
-                options.scope === scope.value
-                  ? "border-primary/50 bg-primary/5"
-                  : "hover:bg-accent/40",
-              ].join(" ")}
-              onClick={() => onUpdateOptions({ scope: scope.value })}
-            >
-              <div className="text-[12.5px] font-medium">
-                {t(scope.labelKey)}
-              </div>
-              <div className="mt-0.5 line-clamp-2 text-[11px] leading-snug text-muted-foreground">
-                {t(scope.hintKey)}
-              </div>
-            </button>
-          ))}
-        </div>
+        <ToolRadioButtonGroup
+          value={options.scope}
+          ariaLabel={t("options.scope_label")}
+          disabled={disabled}
+          options={SCOPE_OPTIONS.map((scope) => ({
+            value: scope.value,
+            label: t(scope.labelKey),
+          }))}
+          onValueChange={(scope) => onUpdateOptions({ scope })}
+        />
+        <p className="text-[11px] leading-snug text-muted-foreground">
+          {t(
+            SCOPE_OPTIONS.find((scope) => scope.value === options.scope)?.hintKey ??
+              SCOPE_OPTIONS[0].hintKey,
+          )}
+        </p>
       </ToolField>
 
       <ToolField label={t("options.target_kind_label")}>
-        <ButtonGroup className="w-full">
-          {TARGET_KIND_OPTIONS.map((kind) => (
-            <Button
-              key={kind.value}
-              type="button"
-              size="sm"
-              className="flex-1"
-              disabled={disabled}
-              variant={options.targetKind === kind.value ? "default" : "outline"}
-              onClick={() => onUpdateOptions({ targetKind: kind.value })}
-            >
-              {t(`options.target_kind.${kind.value}`)}
-            </Button>
-          ))}
-        </ButtonGroup>
+        <ToolRadioButtonGroup
+          value={options.targetKind}
+          ariaLabel={t("options.target_kind_label")}
+          disabled={disabled}
+          options={TARGET_KIND_OPTIONS.map((kind) => ({
+            value: kind.value,
+            label: t(`options.target_kind.${kind.value}`),
+          }))}
+          onValueChange={(targetKind) => onUpdateOptions({ targetKind })}
+        />
       </ToolField>
 
       <ToolField
@@ -314,30 +301,16 @@ export default function OptionsPanel({
       </div>
 
       <ToolField label={t("options.collision_label")}>
-        <ButtonGroup className="w-full">
-          <Button
-            type="button"
-            size="sm"
-            className="flex-1"
-            disabled={disabled}
-            variant={options.collisionPolicy === "fail" ? "default" : "outline"}
-            onClick={() => onUpdateOptions({ collisionPolicy: "fail" })}
-          >
-            {t("options.collision_fail")}
-          </Button>
-          <Button
-            type="button"
-            size="sm"
-            className="flex-1"
-            disabled={disabled}
-            variant={
-              options.collisionPolicy === "append_index" ? "default" : "outline"
-            }
-            onClick={() => onUpdateOptions({ collisionPolicy: "append_index" })}
-          >
-            {t("options.collision_append_index")}
-          </Button>
-        </ButtonGroup>
+        <ToolRadioButtonGroup
+          value={options.collisionPolicy}
+          ariaLabel={t("options.collision_label")}
+          disabled={disabled}
+          options={(["fail", "append_index"] as const).map((policy) => ({
+            value: policy,
+            label: t(`options.collision_${policy}`),
+          }))}
+          onValueChange={(collisionPolicy) => onUpdateOptions({ collisionPolicy })}
+        />
       </ToolField>
     </ToolConfigPanel>
   );

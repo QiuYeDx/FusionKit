@@ -21,6 +21,7 @@ import {
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { SegmentedControl } from "@/components/qiuye-ui/segmented-control";
 import {
   Card,
   CardContent,
@@ -676,28 +677,23 @@ function AudioApiProfileDialog({
             <FormSection
               title={t("setting:fields.audio.api.service_section")}
             >
-              <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-                {AUDIO_PROVIDER_PRESETS.map((preset) => (
-                  <Button
-                    key={preset}
-                    type="button"
-                    variant={form.providerPreset === preset ? "default" : "outline"}
-                    className="h-auto min-h-16 whitespace-normal px-3 py-2 text-left"
-                    onClick={() => handleProviderChange(preset)}
-                    aria-pressed={form.providerPreset === preset}
-                    data-testid={`audio-provider-${preset}`}
-                  >
-                    <span className="min-w-0">
-                      <span className="block text-sm font-medium">
-                        {t(`setting:fields.audio.provider.${preset}`)}
-                      </span>
-                      <span className="mt-0.5 block text-xs font-normal opacity-75">
-                        {t(`setting:fields.audio.provider.${preset}_hint`)}
-                      </span>
-                    </span>
-                  </Button>
-                ))}
-              </div>
+              <SegmentedControl
+                size="sm"
+                fullWidth
+                value={form.providerPreset}
+                aria-label={t("setting:fields.audio.api.service_section")}
+                items={AUDIO_PROVIDER_PRESETS.map((preset) => ({
+                  value: preset,
+                  testId: `audio-provider-${preset}`,
+                  label: t(`setting:fields.audio.provider.${preset}`),
+                }))}
+                onValueChange={(preset) =>
+                  handleProviderChange(preset as AudioProviderPreset)
+                }
+              />
+              <p className="text-xs text-muted-foreground">
+                {t(`setting:fields.audio.provider.${form.providerPreset}_hint`)}
+              </p>
             </FormSection>
 
             <FormSection

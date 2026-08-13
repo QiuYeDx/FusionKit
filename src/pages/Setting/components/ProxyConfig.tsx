@@ -2,8 +2,7 @@ import { useState, useCallback } from "react";
 import useProxyStore, { ProxyMode } from "@/store/useProxyStore";
 import { useTranslation } from "react-i18next";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ButtonGroup } from "@/components/ui/button-group";
-import { Button } from "@/components/ui/button";
+import { SegmentedControl } from "@/components/qiuye-ui/segmented-control";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import {
@@ -171,35 +170,20 @@ function ProxyConfig() {
           <Label className="text-sm font-medium min-w-[80px]">
             {t("setting:fields.proxy.mode")}
           </Label>
-          <ButtonGroup>
-            <Button
-              size="sm"
-              variant={
-                proxyConfig.mode === ProxyMode.NONE ? "default" : "outline"
-              }
-              onClick={() => setProxyMode(ProxyMode.NONE)}
-            >
-              {t("setting:fields.proxy.none")}
-            </Button>
-            <Button
-              size="sm"
-              variant={
-                proxyConfig.mode === ProxyMode.SYSTEM ? "default" : "outline"
-              }
-              onClick={() => setProxyMode(ProxyMode.SYSTEM)}
-            >
-              {t("setting:fields.proxy.system")}
-            </Button>
-            <Button
-              size="sm"
-              variant={
-                proxyConfig.mode === ProxyMode.CUSTOM ? "default" : "outline"
-              }
-              onClick={() => setProxyMode(ProxyMode.CUSTOM)}
-            >
-              {t("setting:fields.proxy.custom")}
-            </Button>
-          </ButtonGroup>
+          <SegmentedControl
+            size="sm"
+            fullWidth
+            className="min-w-0 flex-1"
+            value={proxyConfig.mode}
+            aria-label={t("setting:fields.proxy.mode")}
+            items={([ProxyMode.NONE, ProxyMode.SYSTEM, ProxyMode.CUSTOM] as const).map(
+              (mode) => ({
+                value: mode,
+                label: t(`setting:fields.proxy.${mode}`),
+              }),
+            )}
+            onValueChange={(mode) => setProxyMode(mode as ProxyMode)}
+          />
           <ProxyTestButton />
         </div>
 

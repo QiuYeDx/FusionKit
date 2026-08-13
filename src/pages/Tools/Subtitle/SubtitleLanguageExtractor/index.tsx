@@ -21,6 +21,7 @@ import {
   ToolFileDropZone,
   ToolOutputPathPicker,
   ToolPanel,
+  ToolRadioButtonGroup,
   ToolSummaryLine,
 } from "@/pages/Tools/_shared/ui";
 import { Badge } from "@/components/ui/badge";
@@ -415,24 +416,15 @@ function SubtitleLanguageExtractor() {
               id="ext-tour-output"
               label={t("subtitle:extractor.fields.output_mode")}
             >
-              <ButtonGroup className="w-full">
-                <Button
-                  size="sm"
-                  className="flex-1"
-                  variant={outputMode === "custom" ? "default" : "outline"}
-                  onClick={() => setOutputMode("custom")}
-                >
-                  {t("subtitle:extractor.fields.output_mode_custom")}
-                </Button>
-                <Button
-                  size="sm"
-                  className="flex-1"
-                  variant={outputMode === "source" ? "default" : "outline"}
-                  onClick={() => setOutputMode("source")}
-                >
-                  {t("subtitle:extractor.fields.output_mode_source")}
-                </Button>
-              </ButtonGroup>
+              <ToolRadioButtonGroup
+                value={outputMode}
+                ariaLabel={t("subtitle:extractor.fields.output_mode")}
+                options={(["custom", "source"] as const).map((mode) => ({
+                  value: mode,
+                  label: t(`subtitle:extractor.fields.output_mode_${mode}`),
+                }))}
+                onValueChange={setOutputMode}
+              />
               {outputMode === "custom" ? (
                 <ToolOutputPathPicker
                   className="mt-2"
@@ -454,26 +446,15 @@ function SubtitleLanguageExtractor() {
 
             {/* Conflict policy */}
             <ToolField label={t("subtitle:extractor.fields.conflict_policy")}>
-              <ButtonGroup className="w-full">
-                <Button
-                  size="sm"
-                  className="flex-1"
-                  variant={conflictPolicy === "index" ? "default" : "outline"}
-                  onClick={() => setConflictPolicy("index")}
-                >
-                  {t("subtitle:extractor.fields.conflict_policy_index")}
-                </Button>
-                <Button
-                  size="sm"
-                  className="flex-1"
-                  variant={
-                    conflictPolicy === "overwrite" ? "default" : "outline"
-                  }
-                  onClick={() => setConflictPolicy("overwrite")}
-                >
-                  {t("subtitle:extractor.fields.conflict_policy_overwrite")}
-                </Button>
-              </ButtonGroup>
+              <ToolRadioButtonGroup
+                value={conflictPolicy}
+                ariaLabel={t("subtitle:extractor.fields.conflict_policy")}
+                options={(["index", "overwrite"] as const).map((policy) => ({
+                  value: policy,
+                  label: t(`subtitle:extractor.fields.conflict_policy_${policy}`),
+                }))}
+                onValueChange={setConflictPolicy}
+              />
             </ToolField>
           </ToolConfigPanel>
         </div>
