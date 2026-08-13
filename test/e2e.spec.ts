@@ -379,6 +379,125 @@ if (shouldSkipElectronE2E) {
       expect(await hasHorizontalOverflow(page)).toBe(false)
     }, 60_000)
 
+    test('segmented indicators ignore unrelated configuration height changes', async () => {
+      await setWindowSize(mainWin, page, { width: 1280, height: 800 })
+      await page.evaluate(() => {
+        localStorage.clear()
+        localStorage.setItem('lang', 'zh')
+        localStorage.setItem('subtitle-translator-tour-done', '1')
+        window.location.hash = '#/tools/subtitle/translator'
+      })
+      await page.reload({ waitUntil: 'domcontentloaded' })
+      await waitForFusionKitLoadingToExit(page)
+
+      const sliceGroup = page.locator(
+        '#tour-slice-mode [data-slot="segmented-control"]',
+      )
+      await sliceGroup.waitFor({ state: 'visible' })
+      await sliceGroup.evaluate((element) => {
+        element.scrollIntoView({ block: 'center' })
+      })
+
+      const selectionAnimationOffsets = await sliceGroup.evaluate(async (group) => {
+        const customOption = group.querySelector<HTMLElement>(
+          '[data-value="CUSTOM"]',
+        )
+        if (!customOption) throw new Error('Custom slice option is missing')
+
+        customOption.click()
+        const offsets: number[] = []
+        for (let frameIndex = 0; frameIndex < 36; frameIndex++) {
+          await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
+          const selected = group.querySelector<HTMLElement>(
+            '[role="radio"][aria-checked="true"]',
+          )
+          const indicator = group.querySelector<HTMLElement>(
+            '[data-slot="segmented-control-indicator"]',
+          )
+          if (!selected || !indicator) {
+            offsets.push(Number.POSITIVE_INFINITY)
+            continue
+          }
+          const selectedRect = selected.getBoundingClientRect()
+          const indicatorRect = indicator.getBoundingClientRect()
+          offsets.push(Math.abs(selectedRect.left - indicatorRect.left))
+        }
+        return offsets
+      })
+      expect(Math.max(...selectionAnimationOffsets.slice(0, 12))).toBeGreaterThan(1)
+      await expect.poll(async () => {
+        return await sliceGroup.evaluate((group) => {
+          const selected = group.querySelector<HTMLElement>(
+            '[role="radio"][aria-checked="true"]',
+          )
+          const indicator = group.querySelector<HTMLElement>(
+            '[data-slot="segmented-control-indicator"]',
+          )
+          if (!selected || !indicator) return Number.POSITIVE_INFINITY
+          return Math.abs(
+            selected.getBoundingClientRect().left -
+              indicator.getBoundingClientRect().left,
+          )
+        })
+      }).toBeLessThanOrEqual(1)
+      await page.locator('#tour-slice-mode input[type="number"]').waitFor({
+        state: 'visible',
+      })
+
+      const alignmentSamples = await page.evaluate(async () => {
+        const normalOption = document.querySelector<HTMLElement>(
+          '#tour-slice-mode [data-value="NORMAL"]',
+        )
+        const stableGroups = [
+          document.querySelector<HTMLElement>(
+            '[role="radiogroup"][aria-label="输出位置"]',
+          ),
+          document.querySelector<HTMLElement>(
+            '[role="radiogroup"][aria-label="重名处理"]',
+          ),
+        ]
+        if (!normalOption || stableGroups.some((group) => !group)) {
+          throw new Error('Subtitle segmented-control fixtures are missing')
+        }
+
+        normalOption.click()
+        const samples: number[][] = []
+        for (let frameIndex = 0; frameIndex < 18; frameIndex++) {
+          await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
+          samples.push(stableGroups.map((group) => {
+            const selected = group!.querySelector<HTMLElement>(
+              '[role="radio"][aria-checked="true"]',
+            )
+            const indicator = group!.querySelector<HTMLElement>(
+              '[data-slot="segmented-control-indicator"]',
+            )
+            if (!selected || !indicator) return Number.POSITIVE_INFINITY
+            const selectedRect = selected.getBoundingClientRect()
+            const indicatorRect = indicator.getBoundingClientRect()
+            return Math.max(
+              Math.abs(selectedRect.top - indicatorRect.top),
+              Math.abs(selectedRect.bottom - indicatorRect.bottom),
+              Math.abs(selectedRect.left - indicatorRect.left),
+              Math.abs(selectedRect.right - indicatorRect.right),
+            )
+          }))
+        }
+        return samples
+      })
+
+      expect(Math.max(...alignmentSamples.flat())).toBeLessThanOrEqual(1)
+      await page.locator('#tour-slice-mode input[type="number"]').waitFor({
+        state: 'hidden',
+      })
+      await page.screenshot({
+        path: path.join(
+          testResultsDir,
+          'segmented-control-dynamic-height-alignment.png',
+        ),
+        animations: 'disabled',
+      })
+    }, 60_000)
+
     test('settings radio groups use the compact SegmentedControl without clipped labels', async () => {
       await setWindowSize(mainWin, page, { width: 786, height: 540 })
       await page.evaluate(() => {

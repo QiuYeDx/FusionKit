@@ -327,6 +327,7 @@ export const SegmentedControl = React.forwardRef<
                 <motion.span
                   data-slot="segmented-control-indicator"
                   layoutId={`${instanceId}-segmented-control-indicator`}
+                  layoutDependency={resolvedValue}
                   initial={false}
                   transition={transition}
                   className={cn(
