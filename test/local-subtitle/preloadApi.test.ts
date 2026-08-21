@@ -104,7 +104,11 @@ describe("local subtitle fixed preload API", () => {
       [LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.listManagedResources, {}],
       [LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.startResourceInstall, { resourceId: "model-1" }],
       [LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.cancelResourceJob, { jobId: "job-1" }],
-      [LOCAL_SUBTITLE_PRELOAD_INTERNAL_CHANNELS.importModel, { filePath: "/private/model.bin", mode: "copy" }],
+      [LOCAL_SUBTITLE_PRELOAD_INTERNAL_CHANNELS.importModel, {
+        filePath: "/private/model.bin",
+        mode: "copy",
+        modelId: "large-v3-q5_0",
+      }],
       [LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.deleteManagedResource, { resourceId: "model-1" }],
       [LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.getSessionSnapshot, {}],
       [LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.enqueue, validEnqueueRequest()],
@@ -204,14 +208,21 @@ describe("local subtitle fixed preload API", () => {
       new Map([[model, "/private/model.bin"]]),
     );
 
-    await api.importModel(model, { mode: "move" });
+    await api.importModel(model, {
+      mode: "move",
+      modelId: "large-v3",
+    });
 
     expect(getPathForFile.mock.calls[0]?.[0]).toBe(model);
     expect(invoke).toHaveBeenCalledWith(
       LOCAL_SUBTITLE_PRELOAD_INTERNAL_CHANNELS.importModel,
       {
         ownerSessionId: OWNER_SESSION_ID,
-        payload: { filePath: "/private/model.bin", mode: "move" },
+        payload: {
+          filePath: "/private/model.bin",
+          mode: "move",
+          modelId: "large-v3",
+        },
       },
     );
   });
@@ -430,7 +441,7 @@ async function callEveryCommand(
     api.listManagedResources(),
     api.startResourceInstall({ resourceId: "model-1" }),
     api.cancelResourceJob("job-1"),
-    api.importModel(model, { mode: "copy" }),
+    api.importModel(model, { mode: "copy", modelId: "large-v3-q5_0" }),
     api.deleteManagedResource("model-1"),
     api.getSessionSnapshot(),
     api.enqueue(validEnqueueRequest()),

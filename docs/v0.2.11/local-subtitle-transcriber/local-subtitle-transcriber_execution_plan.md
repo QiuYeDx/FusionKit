@@ -10,6 +10,8 @@
 >
 > 发布门禁：M0 已解除；正式实现必须遵守 `poc/pre006-production-decision.json`，不得静默更换引擎、平台、模型或 runtime acquisition policy
 >
+> 2026-08-22 模型清单增量：在不更换默认 `large-v3-q5_0`、引擎或 runtime acquisition policy 的前提下，新增 fixed official `large-v3` F16 可选项。manifest/manager/preload/IPC/renderer 均改为多模型显式身份链路，F16 的 revision、大小、SHA-256 与 GGML header 已固定；历史 PRE-006 仍作为 Q5 默认项的证据记录，不代表 F16 已取得相同的跨平台性能数据
+>
 > 2026-07-16 审查修订：补齐部分导出、会话 revision 重同步、resource job、runner 取消、无模型入队与 Agent/恢复消费者迁移；修正 pnpm/工具链事实，并把过大的 LINK 包拆为8个；2026-07-22新增`FS-TXN-001`后总计39个工作包；2026-07-23～2026-07-29完成`FS-TXN-001A`～`FS-TXN-001J` component checkpoints，2026-07-28完成`NATIVE-002A` macOS arm64 official runtime assembly及`NATIVE-002A1` unrestricted Metal production-model复验，2026-07-29完成`NATIVE-002B` Windows CPU/CUDA/media canonical assembly与target smoke，2026-07-30完成`NATIVE-002C` macOS arm64 packaged component，2026-08-01完成`NATIVE-002D` Windows x64 packaged consumption（app/NSIS/packaged validator/CPU+CUDA smoke/NTFS overwrite+recovery回归），均不增加顶层工作包数量；2026-08-03补齐production overwrite条件化接线并关闭`NATIVE-002`、`FS-TXN-001`与`BE-002`，随后完成`FE-001`的用户可见单文件CPU→SRT纵向实现
 
 > 2026-08-03 `FE-002`环境/资源管理checkpoint：LocalSubtitleTranscriber新增server contract、runner、FFmpeg、platform/arch与CPU/CUDA/Metal probe摘要，缺失或失败只显示稳定状态/error code；managed model/VAD/accelerator列表接通fixed `resourceId` install/cancel/delete与File-only GGML copy/move import，显示ready占用、预计导入占用、ResourceJob阶段/bytes/失败和可操作重试。页面只消费共享SPA runtime的revisioned `resourceJobs`并在终态重读manifest，离页返回由既有subscribe-before-snapshot reconciliation补齐；长错误、code与文件名使用block wrapping surface。打开页面只probe/list/snapshot，不自动下载或启动带模型server。production admission仍固定CPU/no-VAD，因此开始前如实显示CPU task profile，auto GPU resolution与确认式CPU新generation未伪装完成，`FE-002`保持进行中。

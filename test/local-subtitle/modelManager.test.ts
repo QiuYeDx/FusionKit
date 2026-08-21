@@ -320,6 +320,54 @@ describe("local subtitle model manager", () => {
     );
   });
 
+  it("requires and honors an explicit target for multi-model imports", async () => {
+    const fixture = await createFixture();
+    const secondModel: LocalSubtitleModelManifestEntry = {
+      ...fixture.model,
+      id: "test-large-v3",
+      fileName: "ggml-test-large-v3.bin",
+      quantization: "f16",
+      defaultRecommended: false,
+    };
+    const manager = new LocalSubtitleModelManager({
+      managedResourceRoot: fixture.managedRoot,
+      runtimeEnvironment: {
+        mode: "development",
+        appRoot: fixture.root,
+        platform: "darwin",
+        arch: "arm64",
+      },
+      supervisor: fixture.supervisor,
+      modelCatalog: [fixture.model, secondModel],
+      verifyServerRuntime: async () => fakeRuntime(),
+      availableBytes: async () => Number.MAX_SAFE_INTEGER,
+    });
+
+    expect(() => manager.importModel({
+      owner: OWNER,
+      filePath: fixture.sourcePath,
+      mode: "copy",
+    })).toThrow(expect.objectContaining({
+      localSubtitleCode: "invalid_ipc_request",
+    }));
+
+    expect(manager.importModel({
+      owner: OWNER,
+      filePath: fixture.sourcePath,
+      mode: "copy",
+      modelId: secondModel.id,
+    })).toMatchObject({
+      resourceId: secondModel.id,
+      status: "queued",
+    });
+    await manager.waitForIdle();
+
+    await expect(manager.resolveManagedModel(secondModel.id)).resolves.toMatchObject({
+      id: secondModel.id,
+      sha256: secondModel.sha256,
+    });
+  });
+
   it("deletes the source only after a successful explicit move commit", async () => {
     const fixture = await createFixture();
 

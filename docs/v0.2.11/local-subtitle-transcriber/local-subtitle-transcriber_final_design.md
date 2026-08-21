@@ -10,6 +10,8 @@
 >
 > 历史调研输入：`faster-whisper-GUI-main`；FusionKit 不复刻该应用，也不依赖其快照、配置、模型或输出一致性
 >
+> 2026-08-22 模型清单增量：保留跨平台实测的 `large-v3-q5_0` 为默认推荐，同时加入官方 `ggml-large-v3.bin`（F16）作为更大、未做 Q5 量化的可选 managed 模型。新条目固定 Hugging Face revision、3,095,033,483-byte 大小、SHA-256 与 GGML header；下载、导入、选择、烟测与执行均按显式 `modelId` 解析。该增量不把历史 PRE-006 的 Q5 性能数据外推为 F16 性能结论，目标平台真实 F16 性能与质量对比仍需单独验收
+>
 > 2026-07-16 修订：补充“仅导出 / 自动加入字幕翻译队列 / 自动加入并开始翻译”三种后处理模式及配置快照边界
 >
 > 2026-07-16 计划：已创建 `local-subtitle-transcriber_execution_plan.md`；审查后拆分为 38 个实现/验收工作包，2026-07-22 为目录句柄相对 overwrite 单独新增 `FS-TXN-001`，当前共 39 个

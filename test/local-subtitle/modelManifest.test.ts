@@ -9,7 +9,7 @@ import {
 } from "../../electron/main/local-subtitle/model-manifest";
 
 describe("local subtitle model manifest", () => {
-  it("loads the exact frozen PRE-006 launch model allowlist", () => {
+  it("loads the exact frozen production model allowlist", () => {
     expect(LOCAL_SUBTITLE_MODEL_MANIFEST).toEqual(rawModelManifest);
     expect(Object.isFrozen(LOCAL_SUBTITLE_MODEL_MANIFEST)).toBe(true);
     expect(Object.isFrozen(LOCAL_SUBTITLE_MODEL_MANIFEST.engine)).toBe(true);
@@ -22,7 +22,7 @@ describe("local subtitle model manifest", () => {
     expect(
       Object.isFrozen(LOCAL_SUBTITLE_MODEL_MANIFEST.models[0]!.ggml.headerInt32Le),
     ).toBe(true);
-    expect(LOCAL_SUBTITLE_MODEL_MANIFEST.models).toHaveLength(1);
+    expect(LOCAL_SUBTITLE_MODEL_MANIFEST.models).toHaveLength(2);
     expect(LOCAL_SUBTITLE_MODEL_MANIFEST.models[0]).toMatchObject({
       id: "large-v3-q5_0",
       byteSize: 1_081_140_203,
@@ -44,6 +44,31 @@ describe("local subtitle model manifest", () => {
           32,
           128,
           2_008,
+        ],
+      },
+    });
+    expect(LOCAL_SUBTITLE_MODEL_MANIFEST.models[1]).toMatchObject({
+      id: "large-v3",
+      byteSize: 3_095_033_483,
+      sha256:
+        "64d182b440b98d5203c4f9bd541544d84c605196c4f7b845dfa11fb23594d1e2",
+      sourceRevision: "c521a4b02f422512d734391fdf08bb08c0862f68",
+      quantization: "f16",
+      defaultRecommended: false,
+      ggml: {
+        magicHex: "6c6d6767",
+        headerInt32Le: [
+          51_866,
+          1_500,
+          1_280,
+          20,
+          32,
+          448,
+          1_280,
+          20,
+          32,
+          128,
+          1,
         ],
       },
     });
@@ -151,7 +176,7 @@ describe("local subtitle model manifest", () => {
     }
   });
 
-  it("rejects deferred model leakage into the launch allowlist", () => {
+  it("rejects unknown model leakage into the production allowlist", () => {
     const manifest = createManifest();
     const deferred = structuredClone(manifest.models[0]!);
     deferred.id = "large-v3-turbo";
@@ -164,8 +189,8 @@ describe("local subtitle model manifest", () => {
     expect(resolveLocalSubtitleModelManifestEntry("large-v3-q5_0")).toBe(
       LOCAL_SUBTITLE_MODEL_MANIFEST.models[0],
     );
-    expect(() => resolveLocalSubtitleModelManifestEntry("large-v3")).toThrowError(
-      LocalSubtitleModelError,
+    expect(resolveLocalSubtitleModelManifestEntry("large-v3")).toBe(
+      LOCAL_SUBTITLE_MODEL_MANIFEST.models[1],
     );
     expect(() => resolveLocalSubtitleModelManifestEntry("LARGE-V3-Q5_0")).toThrowError(
       LocalSubtitleModelError,

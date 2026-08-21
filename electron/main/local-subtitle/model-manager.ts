@@ -200,6 +200,7 @@ export interface ImportLocalSubtitleModelOptions {
   readonly owner: LocalSubtitleOwnerKey;
   readonly filePath: string;
   readonly mode: LocalSubtitleModelImportMode;
+  readonly modelId?: string;
 }
 
 interface FileIdentity {
@@ -420,7 +421,11 @@ export class LocalSubtitleModelManager {
           resourceJobs: this.#resourceJobs,
           supervisor: vadSupervisor,
           resolveSmokeModel: (signal) =>
-            this.resolveManagedModel(this.#catalog[0]!.id, signal),
+            this.resolveManagedModel(
+              this.#catalog.find((model) => model.defaultRecommended)?.id ??
+                this.#catalog[0]!.id,
+              signal,
+            ),
           verifyServerRuntime: this.#verifyServerRuntime,
           isResourceBusy: this.#isResourceBusy,
         });
@@ -456,7 +461,15 @@ export class LocalSubtitleModelManager {
     this.#assertOwnerAvailable(options.owner);
     validateImportMode(options.mode);
     const sourcePath = validateSourcePath(options.filePath);
-    const model = this.#catalog[0]!;
+    if (options.modelId === undefined && this.#catalog.length !== 1) {
+      throw managerFailure(
+        "invalid_ipc_request",
+        "A target model is required when the catalog contains multiple models.",
+      );
+    }
+    const model = options.modelId === undefined
+      ? this.#catalog[0]!
+      : this.#resolveCatalogEntry(options.modelId);
 
     return this.#startClaimedModelJob(
       options.owner,

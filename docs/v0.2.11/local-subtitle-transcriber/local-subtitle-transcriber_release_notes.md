@@ -13,7 +13,7 @@
 当前代码路径包含：
 
 - 一次选择 1～100 个音频或视频文件，逐文件探测媒体与选择音轨。
-- 使用 managed `large-v3-q5_0` GGML 模型，以 CPU、macOS Metal 或 Windows CUDA 候选 backend 执行本地转写。
+- 使用 managed `large-v3-q5_0`（默认推荐）或质量优先的 `large-v3` F16 GGML 模型，以 CPU、macOS Metal 或 Windows CUDA 候选 backend 执行本地转写。
 - 原文转写或 Whisper 内置“翻译为英语”模式。
 - 可选固定 Silero v6.2.0 VAD；VAD 与非 VAD 都使用段级时间轴，不开放逐词时间戳。
 - 输出 SRT、LRC 或两者；支持源目录/自定义目录、自动编号和受控覆盖。
@@ -38,6 +38,7 @@
 | --- | --- | ---: | --- |
 | whisper-server、FFmpeg、ffprobe | 随对应平台应用包提供 | 以安装包 manifest 为准 | 位于 asar 外并按平台、架构、大小和 SHA-256 校验；用户无需安装系统 FFmpeg |
 | `large-v3-q5_0` | 首次使用时按需下载，或导入完全匹配内置清单的 GGML 文件 | 1,081,140,203 bytes（约 1.01 GiB） | 不进入 Git 或默认安装包；下载支持续传、校验和失败清理 |
+| `large-v3`（F16） | 按需下载，或导入完全匹配内置清单的 GGML 文件 | 3,095,033,483 bytes（约 2.88 GiB） | 质量优先的可选模型；不进入 Git 或默认安装包 |
 | Silero VAD v6.2.0 GGML | 按需下载 | 885,098 bytes（约 0.84 MiB） | 启用 VAD 前必须处于 ready 状态并通过 load smoke |
 | Windows CUDA 12.4 候选包 | 按需下载 | 下载 677,887,125 bytes（约 0.63 GiB）；安装后 1,199,083,008 bytes（约 1.12 GiB） | 安装过程至少需要约 1.75 GiB 的 archive + installed payload 空间；当前分发许可门禁未关闭，不得对外提供该包 |
 

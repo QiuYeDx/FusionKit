@@ -77,7 +77,11 @@ export class LocalSubtitleModelIpcBridge {
         },
       }),
       importModel: (
-        request: { readonly filePath: string; readonly mode: "copy" | "move" },
+        request: {
+          readonly filePath: string;
+          readonly mode: "copy" | "move";
+          readonly modelId: string;
+        },
         context: LocalSubtitleIpcHandlerContext,
       ) => {
         this.#session.ensureEvents(context);
@@ -86,6 +90,7 @@ export class LocalSubtitleModelIpcBridge {
             owner: context.owner,
             filePath: request.filePath,
             mode: request.mode,
+            modelId: request.modelId,
           }),
         );
       },

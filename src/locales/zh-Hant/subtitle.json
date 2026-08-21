@@ -430,6 +430,8 @@
         "title": "匯入相容模型",
         "description": "選擇與內建清單相符的 GGML 模型檔案。FusionKit 會在提交前驗證檔案大小、雜湊與 CPU 載入能力。",
         "estimated_usage": "預計新增佔用：{{size}}",
+        "matched_model": "相符模型：{{name}}",
+        "unrecognized_model": "此檔案大小與尚未安裝的內建模型不符。",
         "mode": "匯入方式",
         "copy": "複製",
         "move": "移動",

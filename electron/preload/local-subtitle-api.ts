@@ -216,7 +216,7 @@ export function createLocalSubtitleRendererApi({
 
       return invokeInternal(
         LOCAL_SUBTITLE_PRELOAD_INTERNAL_CHANNELS.importModel,
-        { filePath, mode },
+        { filePath, mode, modelId: options.modelId },
       );
     },
     deleteManagedResource(resourceId) {

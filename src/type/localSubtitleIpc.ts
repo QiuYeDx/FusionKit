@@ -1240,6 +1240,7 @@ export const localSubtitleImportModelRequestSchema = z
   .object({
     filePath: privateFilePathSchema,
     mode: z.enum(["copy", "move"]),
+    modelId: idSchema,
   })
   .strict();
 
@@ -2243,7 +2244,10 @@ export interface LocalSubtitleRendererApi {
   >;
   importModel(
     file: File,
-    options: { readonly mode: "copy" | "move" },
+    options: {
+      readonly mode: "copy" | "move";
+      readonly modelId: string;
+    },
   ): Promise<LocalSubtitleIpcResult<LocalSubtitleResourceJobSummary>>;
   deleteManagedResource(
     resourceId: string,

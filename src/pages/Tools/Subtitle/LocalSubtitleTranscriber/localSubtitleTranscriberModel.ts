@@ -156,6 +156,19 @@ export function getReadyLocalSubtitleModels(
   );
 }
 
+export function getLocalSubtitleModelImportTarget(
+  resources: readonly LocalSubtitleManagedResourceSummary[],
+  fileSize: number,
+): LocalSubtitleManagedResourceSummary | null {
+  if (!Number.isSafeInteger(fileSize) || fileSize <= 0) return null;
+  return resources.find(
+    (resource) =>
+      resource.resourceType === "model" &&
+      resource.status !== "ready" &&
+      resource.byteSize === fileSize,
+  ) ?? null;
+}
+
 const TERMINAL_RESOURCE_JOB_STATUSES: ReadonlySet<
   LocalSubtitleResourceJobStatus
 > = new Set(["completed", "cancelled", "failed"] as const);

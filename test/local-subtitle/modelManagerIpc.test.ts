@@ -74,7 +74,11 @@ describe("local subtitle model manager IPC integration", () => {
     const imported = await fixture.service.handleInternal(
       LOCAL_SUBTITLE_PRELOAD_INTERNAL_CHANNELS.importModel,
       fixture.event,
-      fixture.envelope({ filePath: fixture.sourcePath, mode: "copy" }),
+      fixture.envelope({
+        filePath: fixture.sourcePath,
+        mode: "copy",
+        modelId: fixture.model.id,
+      }),
     );
     expect(imported).toMatchObject({
       ok: true,
@@ -263,7 +267,11 @@ describe("local subtitle model manager IPC integration", () => {
     await fixture.service.handleInternal(
       LOCAL_SUBTITLE_PRELOAD_INTERNAL_CHANNELS.importModel,
       fixture.event,
-      fixture.envelope({ filePath: fixture.sourcePath, mode: "copy" }),
+      fixture.envelope({
+        filePath: fixture.sourcePath,
+        mode: "copy",
+        modelId: fixture.model.id,
+      }),
     );
     await started;
 

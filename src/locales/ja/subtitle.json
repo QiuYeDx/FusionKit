@@ -430,6 +430,8 @@
         "title": "互換モデルを読み込む",
         "description": "組み込みマニフェストと一致する GGML モデルファイルを選択します。FusionKit は確定前にサイズ、ハッシュ、CPU 読み込みを検証します。",
         "estimated_usage": "追加使用量の目安：{{size}}",
+        "matched_model": "一致するモデル：{{name}}",
+        "unrecognized_model": "このファイルサイズは、未インストールの組み込みモデルと一致しません。",
         "mode": "読み込み方法",
         "copy": "コピー",
         "move": "移動",

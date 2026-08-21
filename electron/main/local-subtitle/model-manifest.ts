@@ -138,41 +138,78 @@ const EXPECTED_ENGINE = deepFreeze({
   commit: LOCAL_SUBTITLE_PRODUCTION_CONTRACT.engine.commit,
 } as const);
 
-const EXPECTED_LAUNCH_MODEL = deepFreeze({
-  id: LOCAL_SUBTITLE_PRODUCTION_CONTRACT.launchModel.id,
-  resourceType: "model",
-  fileName: "ggml-large-v3-q5_0.bin",
-  format: "ggml",
-  engineCompatibility: "whisper.cpp-v1.9.1",
-  sourceRevision: "c521a4b02f422512d734391fdf08bb08c0862f68",
-  downloadUrl:
-    "https://huggingface.co/ggerganov/whisper.cpp/resolve/c521a4b02f422512d734391fdf08bb08c0862f68/ggml-large-v3-q5_0.bin?download=true",
-  allowedDownloadHosts: ["huggingface.co", "*.hf.co"],
-  byteSize: 1_081_140_203,
-  sha256: LOCAL_SUBTITLE_PRODUCTION_CONTRACT.launchModel.sha256,
-  license: "MIT",
-  bundledInInstaller: false,
-  multilingual: true,
-  quantization: "q5_0",
-  defaultRecommended: true,
-  qualityLabel: "quantized-large-v3",
-  ggml: {
-    magicHex: "6c6d6767",
-    headerInt32Le: [
-      51_866,
-      1_500,
-      1_280,
-      20,
-      32,
-      448,
-      1_280,
-      20,
-      32,
-      128,
-      2_008,
-    ],
+const EXPECTED_MODELS = deepFreeze([
+  {
+    id: LOCAL_SUBTITLE_PRODUCTION_CONTRACT.launchModel.id,
+    resourceType: "model",
+    fileName: "ggml-large-v3-q5_0.bin",
+    format: "ggml",
+    engineCompatibility: "whisper.cpp-v1.9.1",
+    sourceRevision: "c521a4b02f422512d734391fdf08bb08c0862f68",
+    downloadUrl:
+      "https://huggingface.co/ggerganov/whisper.cpp/resolve/c521a4b02f422512d734391fdf08bb08c0862f68/ggml-large-v3-q5_0.bin?download=true",
+    allowedDownloadHosts: ["huggingface.co", "*.hf.co"],
+    byteSize: 1_081_140_203,
+    sha256: LOCAL_SUBTITLE_PRODUCTION_CONTRACT.launchModel.sha256,
+    license: "MIT",
+    bundledInInstaller: false,
+    multilingual: true,
+    quantization: "q5_0",
+    defaultRecommended: true,
+    qualityLabel: "quantized-large-v3",
+    ggml: {
+      magicHex: "6c6d6767",
+      headerInt32Le: [
+        51_866,
+        1_500,
+        1_280,
+        20,
+        32,
+        448,
+        1_280,
+        20,
+        32,
+        128,
+        2_008,
+      ],
+    },
   },
-} as const);
+  {
+    id: "large-v3",
+    resourceType: "model",
+    fileName: "ggml-large-v3.bin",
+    format: "ggml",
+    engineCompatibility: "whisper.cpp-v1.9.1",
+    sourceRevision: "c521a4b02f422512d734391fdf08bb08c0862f68",
+    downloadUrl:
+      "https://huggingface.co/ggerganov/whisper.cpp/resolve/c521a4b02f422512d734391fdf08bb08c0862f68/ggml-large-v3.bin?download=true",
+    allowedDownloadHosts: ["huggingface.co", "*.hf.co"],
+    byteSize: 3_095_033_483,
+    sha256: "64d182b440b98d5203c4f9bd541544d84c605196c4f7b845dfa11fb23594d1e2",
+    license: "MIT",
+    bundledInInstaller: false,
+    multilingual: true,
+    quantization: "f16",
+    defaultRecommended: false,
+    qualityLabel: "full-large-v3",
+    ggml: {
+      magicHex: "6c6d6767",
+      headerInt32Le: [
+        51_866,
+        1_500,
+        1_280,
+        20,
+        32,
+        448,
+        1_280,
+        20,
+        32,
+        128,
+        1,
+      ],
+    },
+  },
+] as const);
 
 export function parseLocalSubtitleModelManifest(
   input: unknown,
@@ -225,11 +262,13 @@ function validateManifestSemantics(
     );
   }
   if (
-    manifest.models.length !== 1 ||
-    !sameModel(manifest.models[0]!, EXPECTED_LAUNCH_MODEL)
+    manifest.models.length !== EXPECTED_MODELS.length ||
+    manifest.models.some(
+      (model, index) => !sameModel(model, EXPECTED_MODELS[index]!),
+    )
   ) {
     throw invalidManifest(
-      "The local subtitle launch model pins do not match PRE-006.",
+      "The local subtitle model pins do not match the production allowlist.",
     );
   }
 }
@@ -272,7 +311,7 @@ function sameEngine(
 
 function sameModel(
   actual: LocalSubtitleModelManifestEntry,
-  expected: typeof EXPECTED_LAUNCH_MODEL,
+  expected: (typeof EXPECTED_MODELS)[number],
 ): boolean {
   return (
     actual.id === expected.id &&

@@ -41,6 +41,7 @@ import type {
 } from "@/type/localSubtitleIpc";
 import {
   formatLocalSubtitleBytes,
+  getLocalSubtitleModelImportTarget,
   getInstalledLocalSubtitleResourceBytes,
   getLatestLocalSubtitleResourceJobs,
   isLocalSubtitleResourceJobActive,
@@ -117,7 +118,11 @@ interface LocalSubtitleEnvironmentManagerProps {
   readonly onInstall: (resourceId: string) => Promise<boolean>;
   readonly onCancel: (jobId: string) => Promise<boolean>;
   readonly onDelete: (resourceId: string) => Promise<boolean>;
-  readonly onImport: (file: File, mode: "copy" | "move") => Promise<boolean>;
+  readonly onImport: (
+    file: File,
+    mode: "copy" | "move",
+    modelId: string,
+  ) => Promise<boolean>;
 }
 
 export function LocalSubtitleEnvironmentManager({
@@ -150,20 +155,27 @@ export function LocalSubtitleEnvironmentManager({
   const readyCount = resources.filter(
     (resource) => resource.status === "ready",
   ).length;
-  const modelResource = resources.find(
+  const modelResources = resources.filter(
     (resource) => resource.resourceType === "model",
   );
-  const modelJob = modelResource
-    ? latestJobs.get(modelResource.resourceId) ?? null
+  const importTarget = importFile
+    ? getLocalSubtitleModelImportTarget(modelResources, importFile.size)
     : null;
   const importPending = pendingActionKeys.has(
-    localSubtitleResourceActionKey("import", modelResource?.resourceId ?? "model"),
+    localSubtitleResourceActionKey(
+      "import",
+      importTarget?.resourceId ?? "model",
+    ),
   );
   const importDisabled =
     loading ||
-    !modelResource ||
-    modelResource.status === "ready" ||
-    isLocalSubtitleResourceJobActive(modelJob) ||
+    modelResources.length === 0 ||
+    modelResources.every((resource) => resource.status === "ready") ||
+    modelResources.some((resource) =>
+      isLocalSubtitleResourceJobActive(
+        latestJobs.get(resource.resourceId) ?? null,
+      ),
+    ) ||
     importPending;
   const runtimeError = environmentError ?? runtimeSummaryError(runtime);
   const hasActiveResourceJob = resources.some((resource) =>
@@ -175,7 +187,8 @@ export function LocalSubtitleEnvironmentManager({
     runtimeError ||
     resourceActionError ||
     hasActiveResourceJob ||
-    (modelResource && modelResource.status !== "ready"),
+    (modelResources.length > 0 &&
+      !modelResources.some((resource) => resource.status === "ready")),
   );
   const [managerOpen, setManagerOpen] = useState(false);
   const [runtimeDetailsOpen, setRuntimeDetailsOpen] = useState(false);
@@ -185,8 +198,8 @@ export function LocalSubtitleEnvironmentManager({
   }, [managerNeedsAttention]);
 
   const submitImport = async () => {
-    if (!importFile || importDisabled) return;
-    if (await onImport(importFile, importMode)) {
+    if (!importFile || !importTarget || importDisabled) return;
+    if (await onImport(importFile, importMode, importTarget.resourceId)) {
       setImportFile(null);
       if (importInputRef.current) importInputRef.current.value = "";
     }
@@ -380,6 +393,13 @@ export function LocalSubtitleEnvironmentManager({
                     size: formatLocalSubtitleBytes(importFile.size),
                   })}
                 </div>
+                <div className="mt-1 text-xs text-muted-foreground">
+                  {importTarget
+                    ? t("subtitle:local_transcriber.resources.import.matched_model", {
+                        name: importTarget.displayName,
+                      })
+                    : t("subtitle:local_transcriber.resources.import.unrecognized_model")}
+                </div>
               </div>
               <ToolRadioButtonGroup
                 value={importMode}
@@ -414,7 +434,7 @@ export function LocalSubtitleEnvironmentManager({
             </DialogClose>
             <Button
               type="button"
-              disabled={!importFile || importPending}
+              disabled={!importFile || !importTarget || importPending}
               onClick={submitImport}
             >
               {importPending ? (

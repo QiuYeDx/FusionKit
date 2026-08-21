@@ -430,6 +430,8 @@
         "title": "导入兼容模型",
         "description": "选择与内置清单匹配的 GGML 模型文件。FusionKit 会在提交前验证文件大小、哈希和 CPU 加载能力。",
         "estimated_usage": "预计新增占用：{{size}}",
+        "matched_model": "匹配模型：{{name}}",
+        "unrecognized_model": "该文件大小与尚未安装的内置模型不匹配。",
         "mode": "导入方式",
         "copy": "复制",
         "move": "移动",

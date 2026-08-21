@@ -91,6 +91,9 @@ describe("local subtitle transcriber page wiring", () => {
     expect(pageSource).toContain("draftTaskMode");
     expect(pageSource).toContain('testId="local-subtitle-advanced-settings"');
     expect(pageSource).toContain('data-testid="local-subtitle-model-description"');
+    expect(pageSource).toContain("window.localSubtitleApi.importModel(file, { mode, modelId })");
+    expect(environmentSource).toContain("getLocalSubtitleModelImportTarget");
+    expect(environmentSource).toContain("importTarget.resourceId");
     expect(pageSource).not.toContain('vadEnabled: false');
     expect(environmentSource).not.toContain("cpuAvailable");
   });

@@ -26,6 +26,7 @@ import {
   getLocalSubtitleTrackLanguageLabel,
   getInstalledLocalSubtitleResourceBytes,
   getLatestLocalSubtitleResourceJobs,
+  getLocalSubtitleModelImportTarget,
   getReadyLocalSubtitleModels,
   isLocalSubtitleDevicePreferenceAvailable,
   isLocalSubtitleResourceJobActive,
@@ -89,6 +90,27 @@ describe("local subtitle transcriber page model", () => {
         { ...model, resourceId: "vad", resourceType: "vad" },
       ]).map((entry) => entry.resourceId),
     ).toEqual([LOCAL_SUBTITLE_PRODUCTION_CONTRACT.launchModel.id]);
+  });
+
+  it("matches imports to an exact uninstalled model size", () => {
+    const fullModel = {
+      ...model,
+      resourceId: "large-v3",
+      displayName: "Whisper large-v3 F16",
+      status: "not_installed" as const,
+      byteSize: 3_095_033_483,
+      isDefault: false,
+    };
+
+    expect(getLocalSubtitleModelImportTarget(
+      [model, fullModel],
+      fullModel.byteSize,
+    )).toBe(fullModel);
+    expect(getLocalSubtitleModelImportTarget(
+      [{ ...fullModel, status: "ready" }],
+      fullModel.byteSize,
+    )).toBeNull();
+    expect(getLocalSubtitleModelImportTarget([fullModel], 123)).toBeNull();
   });
 
   it("offers only execution devices reported as available", () => {

@@ -87,7 +87,11 @@ export interface LocalSubtitleIpcHandlers {
     Record<LocalSubtitlePublicInvokeChannel, LocalSubtitlePublicIpcHandler>
   >;
   readonly importModel?: (
-    request: { readonly filePath: string; readonly mode: "copy" | "move" },
+    request: {
+      readonly filePath: string;
+      readonly mode: "copy" | "move";
+      readonly modelId: string;
+    },
     context: LocalSubtitleIpcHandlerContext,
   ) => MaybePromise<LocalSubtitleIpcResult<unknown>>;
   readonly overwriteRecovery?:
@@ -521,6 +525,7 @@ export class LocalSubtitleIpcService {
         const importRequest = request as {
           readonly filePath: string;
           readonly mode: "copy" | "move";
+          readonly modelId: string;
         };
         if (!path.isAbsolute(importRequest.filePath)) {
           return invalidRequestFailure(

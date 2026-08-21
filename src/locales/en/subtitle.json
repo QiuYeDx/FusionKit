@@ -430,6 +430,8 @@
         "title": "Import compatible model",
         "description": "Select the GGML model file matching the built-in manifest. FusionKit verifies its size, hash, and CPU load before committing it.",
         "estimated_usage": "Estimated additional usage: {{size}}",
+        "matched_model": "Matched model: {{name}}",
+        "unrecognized_model": "This file size does not match an uninstalled built-in model.",
         "mode": "Import mode",
         "copy": "Copy",
         "move": "Move",

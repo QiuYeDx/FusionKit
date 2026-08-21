@@ -160,6 +160,7 @@ describe("local subtitle IPC service", () => {
         fixture.envelope({
           filePath: "/private/model.bin",
           mode: "copy",
+          modelId: "large-v3-q5_0",
           url: "https://example.invalid/model.bin",
         }),
       ),
@@ -176,6 +177,7 @@ describe("local subtitle IPC service", () => {
         fixture.envelope({
           filePath: "https://example.invalid/model.bin",
           mode: "copy",
+          modelId: "large-v3-q5_0",
         }),
       ),
     ).resolves.toMatchObject({
@@ -187,7 +189,11 @@ describe("local subtitle IPC service", () => {
     await fixture.service.handleInternal(
       LOCAL_SUBTITLE_PRELOAD_INTERNAL_CHANNELS.importModel,
       fixture.event,
-      fixture.envelope({ filePath: "/private/model.bin", mode: "copy" }),
+      fixture.envelope({
+        filePath: "/private/model.bin",
+        mode: "copy",
+        modelId: "large-v3-q5_0",
+      }),
     );
     expect(importModel).toHaveBeenCalledOnce();
   });
@@ -476,7 +482,11 @@ describe("local subtitle IPC service", () => {
     const pending = fixture.service.handleInternal(
       LOCAL_SUBTITLE_PRELOAD_INTERNAL_CHANNELS.importModel,
       fixture.event,
-      fixture.envelope({ filePath: path.resolve("model.bin"), mode: "copy" }),
+      fixture.envelope({
+        filePath: path.resolve("model.bin"),
+        mode: "copy",
+        modelId: "large-v3-q5_0",
+      }),
     );
     fixture.registry.release(fixture.ownerSessionId);
     deferred.reject(new Error("late private import failure"));

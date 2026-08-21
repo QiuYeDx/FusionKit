@@ -781,17 +781,14 @@ export default function LocalSubtitleTranscriber() {
   );
 
   const handleModelImport = useCallback(
-    (file: File, mode: "copy" | "move") => {
-      const modelId = environment.resources.find(
-        (resource) => resource.resourceType === "model",
-      )?.resourceId ?? "model";
+    (file: File, mode: "copy" | "move", modelId: string) => {
       return runResourceAction(
         localSubtitleResourceActionKey("import", modelId),
-        () => window.localSubtitleApi.importModel(file, { mode }),
+        () => window.localSubtitleApi.importModel(file, { mode, modelId }),
         true,
       );
     },
-    [environment.resources, runResourceAction],
+    [runResourceAction],
   );
 
   const handleFiles = useCallback(async (files: FileList) => {

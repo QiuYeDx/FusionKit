@@ -124,7 +124,10 @@ describe("local subtitle fixed IPC surface", () => {
     expectTypeOf<Parameters<LocalSubtitleRendererApi["importModel"]>>()
       .toEqualTypeOf<[
         file: File,
-        options: { readonly mode: "copy" | "move" },
+        options: {
+          readonly mode: "copy" | "move";
+          readonly modelId: string;
+        },
       ]>();
   });
 
@@ -304,6 +307,7 @@ describe("local subtitle fixed IPC surface", () => {
       localSubtitleImportModelRequestSchema.safeParse({
         filePath: "/private/model.bin",
         mode: "copy",
+        modelId: "large-v3-q5_0",
         executable: "/tmp/whisper-server",
       }).success,
     ).toBe(false);
@@ -1499,6 +1503,7 @@ function validInternalOperationRequests(): Record<
     [LOCAL_SUBTITLE_PRELOAD_INTERNAL_CHANNELS.importModel]: {
       filePath: "/private/model.bin",
       mode: "copy",
+      modelId: "large-v3-q5_0",
     },
     [LOCAL_SUBTITLE_PRELOAD_INTERNAL_CHANNELS.recoverOverwrite]: {
       recoveryId: "recovery-1",
