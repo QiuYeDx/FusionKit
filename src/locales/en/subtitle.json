@@ -42,6 +42,8 @@
       "conflict_policy_index": "Add index suffix",
       "concurrent_slices": "Concurrent Slice Translation",
       "concurrent_slices_hint": "When enabled, multiple slices of a single task will request the API concurrently, significantly improving translation speed but increasing burst concurrency",
+      "thinking_mode": "Enable Thinking Mode",
+      "thinking_mode_hint": "DeepSeek Chat Completions only. Disabled by default; when enabled, the model reasons before returning the translation",
       "no_model_selected": "No model selected"
     },
     "actions": {
@@ -94,6 +96,7 @@
       "language_pair": "Language Pair",
       "slice_mode": "Slice Mode",
       "api_model": "API Model",
+      "thinking_mode": "Thinking Mode",
       "api_endpoint": "API Endpoint",
       "source_file": "Source File",
       "output_path": "Output Path",

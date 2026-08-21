@@ -7,6 +7,7 @@ import {
   TaskStatus,
 } from "../../electron/main/translation/typing";
 import {
+  createChatCompletionBody,
   createResponsesBody,
   startFakeModelApiServer,
   type FakeModelApiServer,
@@ -115,5 +116,82 @@ describe("BaseTranslator runtime integration", () => {
       readFile(path.join(outputDir, "responses.lrc"), "utf-8"),
     ).resolves.toBe("[00:01.00]翻译结果");
     await rm(outputDir, { recursive: true, force: true });
+  });
+
+  it("defaults legacy DeepSeek subtitle tasks to thinking disabled", async () => {
+    const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    server = await startFakeModelApiServer();
+    server.enqueueRoute("chat_completions", {
+      body: createChatCompletionBody({ content: "[00:01.00]翻译结果" }),
+    });
+
+    const { BaseTranslator } = await import(
+      "../../electron/main/translation/class/base-translator"
+    );
+
+    class TestTranslator extends BaseTranslator {
+      constructor() {
+        super();
+        this.maxRetries = 1;
+        this.retryDelay = 0;
+      }
+
+      protected splitContent(content: string): string[] {
+        return [content];
+      }
+
+      protected formatPrompt(partialContent: string): string {
+        return partialContent;
+      }
+
+      protected async parseResponse(responseData: any): Promise<string> {
+        return responseData.content;
+      }
+
+      protected normalizeError(error: unknown): Error {
+        return error instanceof Error ? error : new Error(String(error));
+      }
+    }
+
+    const outputDir = await mkdtemp(
+      path.join(os.tmpdir(), "fusionkit-deepseek-"),
+    );
+    const task = {
+      taskId: "subtitle-task-deepseek-default-off",
+      fileName: "deepseek.lrc",
+      fileContent: "[00:01.00]source",
+      sliceType: SubtitleSliceType.NORMAL,
+      originFileURL: "/input/deepseek.lrc",
+      targetFileURL: outputDir,
+      status: TaskStatus.PENDING,
+      executionBinding: {
+        status: "ready" as const,
+        profileId: "profile-deepseek",
+        profileLabel: "DeepSeek",
+        apiKey: "test-key",
+        apiModel: "deepseek-v4-flash",
+        endPoint: server.baseUrl,
+        apiFormat: "chat_completions" as const,
+        outputTokenParameter: "max_tokens" as const,
+      },
+      concurrentSlices: false,
+    };
+
+    try {
+      await new TestTranslator().translate(task);
+      expect(server.requests[0]).toMatchObject({
+        method: "POST",
+        url: "/v1/chat/completions",
+        body: {
+          model: "deepseek-v4-flash",
+          thinking: { type: "disabled" },
+        },
+      });
+    } finally {
+      logSpy.mockRestore();
+      errorSpy.mockRestore();
+      await rm(outputDir, { recursive: true, force: true });
+    }
   });
 });

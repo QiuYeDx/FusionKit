@@ -77,6 +77,7 @@ describe("subtitle translator safe config store", () => {
           outputDirectoryDisplayLabel: "Subtitle Exports",
           conflictPolicy: "overwrite",
           concurrentSlices: false,
+          thinkingEnabled: false,
         },
       },
     });
@@ -111,6 +112,7 @@ describe("subtitle translator safe config store", () => {
     expect(sanitized.customSliceLength).toBe(
       DEFAULT_SUBTITLE_TRANSLATOR_CONFIG_PREFERENCES.customSliceLength,
     );
+    expect(sanitized.thinkingEnabled).toBe(false);
 
     useSubtitleTranslatorConfigStore.getState().updatePreferences({
       outputMode: "source",
@@ -121,6 +123,24 @@ describe("subtitle translator safe config store", () => {
     ) ?? "";
     expect(persisted).toContain('"sourceLang":"EN"');
     expect(persisted).not.toMatch(/private-(?:capability|api-key)|outputURL/u);
+  });
+
+  it("persists an explicit thinking preference while defaulting missing values off", () => {
+    expect(
+      sanitizeSubtitleTranslatorConfigPreferences({}).thinkingEnabled,
+    ).toBe(false);
+
+    useSubtitleTranslatorConfigStore.getState().updatePreferences({
+      thinkingEnabled: true,
+    });
+
+    expect(
+      JSON.parse(
+        storage.values.get(SUBTITLE_TRANSLATOR_CONFIG_STORAGE_KEY) ?? "{}",
+      ),
+    ).toMatchObject({
+      state: { preferences: { thinkingEnabled: true } },
+    });
   });
 
   it("derives only a safe display leaf from legacy paths", () => {

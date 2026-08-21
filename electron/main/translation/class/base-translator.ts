@@ -851,12 +851,20 @@ export abstract class BaseTranslator {
   private createRuntimeModelConfig(
     task: SubtitleTranslatorTask,
   ): ModelRuntimeConfig {
+    const execution = readyExecution(task);
+    const apiFormat = execution.apiFormat ?? "chat_completions";
+    const isDeepSeekChat =
+      apiFormat === "chat_completions" &&
+      execution.apiModel.trim().toLowerCase().startsWith("deepseek-");
     return {
-      apiKey: readyExecution(task).apiKey,
-      modelKey: readyExecution(task).apiModel,
-      endpoint: readyExecution(task).endPoint,
-      apiFormat: readyExecution(task).apiFormat ?? "chat_completions",
-      outputTokenParameter: readyExecution(task).outputTokenParameter,
+      apiKey: execution.apiKey,
+      modelKey: execution.apiModel,
+      endpoint: execution.endPoint,
+      apiFormat,
+      outputTokenParameter: execution.outputTokenParameter,
+      ...(isDeepSeekChat
+        ? { thinkingEnabled: execution.thinkingEnabled === true }
+        : {}),
     };
   }
 

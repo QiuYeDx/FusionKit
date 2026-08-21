@@ -184,12 +184,19 @@ export class GeneratedSubtitleImportSnapshotCoordinator {
           : {}),
         conflictPolicy: preferences.conflictPolicy,
         concurrentSlices: preferences.concurrentSlices,
+        thinkingEnabled: preferences.thinkingEnabled,
       }) satisfies SubtitleTranslationImportConfigSummary;
       const privateSnapshot = Object.freeze({
         summary,
         expiresAt,
         ...(profile
-          ? { modelFields: Object.freeze(createSubtitleTaskModelFields(profile)) }
+          ? {
+              modelFields: Object.freeze(
+                createSubtitleTaskModelFields(profile, {
+                  thinkingEnabled: preferences.thinkingEnabled,
+                }),
+              ),
+            }
           : {}),
         ...(profile?.tokenPricing
           ? { tokenPricing: Object.freeze({ ...profile.tokenPricing }) }

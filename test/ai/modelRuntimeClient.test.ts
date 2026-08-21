@@ -69,9 +69,64 @@ describe("ModelRuntimeClient Chat Completions adapter", () => {
       },
     });
     expect(activeServer.requests[0].body).not.toHaveProperty("max_tokens");
+    expect(activeServer.requests[0].body).not.toHaveProperty("thinking");
     expect(activeServer.requests[0].headers.authorization).toBe(
       "Bearer sk-runtime-secret",
     );
+  });
+
+  it("sends explicit DeepSeek thinking enable and disable controls", async () => {
+    const activeServer = requireServer(server);
+    activeServer.enqueueRoute("chat_completions", {
+      body: createChatCompletionBody({ content: "Disabled" }),
+    });
+    activeServer.enqueueRoute("chat_completions", {
+      body: createChatCompletionBody({ content: "Enabled" }),
+    });
+
+    for (const thinkingEnabled of [false, true]) {
+      await sendModelRuntimeText({
+        model: {
+          apiKey: "sk-runtime-secret",
+          modelKey: "deepseek-v4-flash",
+          endpoint: activeServer.baseUrl,
+          apiFormat: "chat_completions",
+          outputTokenParameter: "max_tokens",
+          thinkingEnabled,
+        },
+        messages: [{ role: "user", content: "Translate" }],
+        retry: { maxRetries: 0 },
+      });
+    }
+
+    expect(activeServer.requests[0].body).toMatchObject({
+      thinking: { type: "disabled" },
+    });
+    expect(activeServer.requests[1].body).toMatchObject({
+      thinking: { type: "enabled" },
+    });
+  });
+
+  it("omits DeepSeek thinking controls for non-DeepSeek models", async () => {
+    const activeServer = requireServer(server);
+    activeServer.enqueueRoute("chat_completions", {
+      body: createChatCompletionBody({ content: "Translated" }),
+    });
+
+    await sendModelRuntimeText({
+      model: {
+        apiKey: "sk-runtime-secret",
+        modelKey: "gpt-compatible",
+        endpoint: activeServer.baseUrl,
+        apiFormat: "chat_completions",
+        outputTokenParameter: "max_tokens",
+        thinkingEnabled: true,
+      },
+      messages: [{ role: "user", content: "Translate" }],
+      retry: { maxRetries: 0 },
+    });
+
+    expect(activeServer.requests[0].body).not.toHaveProperty("thinking");
   });
 
   it("keeps historical full chat endpoint inputs compatible", async () => {

@@ -25,7 +25,7 @@ describe("tool boolean controls", () => {
     const expectedCounts = new Map([
       ["Rename/NameTranslator/components/OptionsPanel.tsx", 3],
       ["Subtitle/SubtitleConverter/index.tsx", 1],
-      ["Subtitle/SubtitleTranslator/index.tsx", 3],
+      ["Subtitle/SubtitleTranslator/index.tsx", 5],
       ["Audio/SpeechSynthesizer/index.tsx", 1],
     ]);
 

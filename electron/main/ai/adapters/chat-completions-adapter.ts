@@ -87,6 +87,15 @@ function buildChatCompletionBody(
       request.maxOutputTokens;
   }
 
+  if (
+    request.model.modelKey.trim().toLowerCase().startsWith("deepseek-") &&
+    request.model.thinkingEnabled !== undefined
+  ) {
+    body.thinking = {
+      type: request.model.thinkingEnabled ? "enabled" : "disabled",
+    };
+  }
+
   if (request.responseFormat === "json_object") {
     body.response_format = { type: "json_object" };
   }

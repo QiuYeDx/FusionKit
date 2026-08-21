@@ -66,7 +66,9 @@ export function hasReadySubtitleTaskExecution(
       binding.outputTokenParameter === "max_completion_tokens") &&
     (binding.maxOutputTokens === undefined ||
       (Number.isSafeInteger(binding.maxOutputTokens) &&
-        binding.maxOutputTokens > 0));
+        binding.maxOutputTokens > 0)) &&
+    (binding.thinkingEnabled === undefined ||
+      typeof binding.thinkingEnabled === "boolean");
 }
 
 function defaultIdFactory(): string {

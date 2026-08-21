@@ -34,6 +34,7 @@ export interface SubtitleTranslationImportConfigSummary {
   readonly outputDirectoryLabel?: string;
   readonly conflictPolicy: OutputConflictPolicy;
   readonly concurrentSlices: boolean;
+  readonly thinkingEnabled?: boolean;
 }
 
 export type PrepareGeneratedSubtitleImportResult =

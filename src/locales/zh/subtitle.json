@@ -42,6 +42,8 @@
       "conflict_policy_index": "自动加序号",
       "concurrent_slices": "切片并发翻译",
       "concurrent_slices_hint": "开启后单个任务的多个切片将并发请求 API，显著提升翻译速度，但会增加瞬时并发数",
+      "thinking_mode": "启用 Thinking 模式",
+      "thinking_mode_hint": "仅用于 DeepSeek Chat Completions；默认关闭，开启后模型会先进行推理再输出译文",
       "no_model_selected": "未选择模型"
     },
     "actions": {
@@ -94,6 +96,7 @@
       "language_pair": "翻译语言",
       "slice_mode": "分片模式",
       "api_model": "API 模型",
+      "thinking_mode": "Thinking 模式",
       "api_endpoint": "API 地址",
       "source_file": "源文件",
       "output_path": "输出路径",

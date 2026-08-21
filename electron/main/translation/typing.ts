@@ -70,6 +70,7 @@ export type SubtitleTaskReadyExecutionBinding = Readonly<{
   apiFormat?: SubtitleModelApiFormat;
   outputTokenParameter?: SubtitleOutputTokenParameter;
   maxOutputTokens?: number;
+  thinkingEnabled?: boolean;
 }>;
 
 export type SubtitleTaskExecutionBinding =
@@ -99,7 +100,9 @@ export function isSubtitleTaskReadyExecutionBinding(
       value.outputTokenParameter === "max_tokens" ||
       value.outputTokenParameter === "max_completion_tokens") &&
     (value.maxOutputTokens === undefined ||
-      (Number.isSafeInteger(value.maxOutputTokens) && value.maxOutputTokens > 0));
+      (Number.isSafeInteger(value.maxOutputTokens) && value.maxOutputTokens > 0)) &&
+    (value.thinkingEnabled === undefined ||
+      typeof value.thinkingEnabled === "boolean");
 }
 
 function nonBlank(value: unknown): value is string {
@@ -224,6 +227,7 @@ export type TranslationCheckpointManifestV1 = {
     sourceLang: string;
     targetLang: string;
     translationOutputMode: "bilingual" | "target_only";
+    thinkingEnabled?: boolean;
   };
 
   fragments: CheckpointFragment[];
@@ -252,6 +256,7 @@ export type TranslationCheckpointManifestV2 = {
     sourceLang: string;
     targetLang: string;
     translationOutputMode: "bilingual" | "target_only";
+    thinkingEnabled?: boolean;
   };
 
   fragments: CheckpointFragment[];
@@ -317,6 +322,7 @@ export type TranslationRecoveryCandidate = {
     sourceLang: string;
     targetLang: string;
     translationOutputMode: "bilingual" | "target_only";
+    thinkingEnabled?: boolean;
   };
 
   resolvedFragments: number;

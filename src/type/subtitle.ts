@@ -56,6 +56,7 @@ export type SubtitleTaskReadyExecutionBinding = Readonly<{
   apiFormat?: SubtitleModelApiFormat;
   outputTokenParameter?: SubtitleOutputTokenParameter;
   maxOutputTokens?: number;
+  thinkingEnabled?: boolean;
 }>;
 
 export type SubtitleTaskExecutionBinding =

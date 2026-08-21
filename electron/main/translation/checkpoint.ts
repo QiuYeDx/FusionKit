@@ -134,6 +134,9 @@ export function createManifest(
       sourceLang: task.sourceLang || "JA",
       targetLang: task.targetLang || "ZH",
       translationOutputMode: task.translationOutputMode || "bilingual",
+      thinkingEnabled:
+        task.executionBinding.status === "ready" &&
+        task.executionBinding.thinkingEnabled === true,
     },
 
     fragments: fragments.map((src, i) => ({
@@ -191,6 +194,7 @@ export function toCurrentManifest(
       sourceLang: manifest.options.sourceLang,
       targetLang: manifest.options.targetLang,
       translationOutputMode: manifest.options.translationOutputMode,
+      thinkingEnabled: manifest.options.thinkingEnabled === true,
     },
     fragments: manifest.fragments.map((fragment) => ({
       index: fragment.index,
@@ -250,6 +254,9 @@ export function validateManifest(
     sourceLang: task.sourceLang || "JA",
     targetLang: task.targetLang || "ZH",
     translationOutputMode: task.translationOutputMode || "bilingual",
+    thinkingEnabled:
+      task.executionBinding.status === "ready" &&
+      task.executionBinding.thinkingEnabled === true,
     sliceType: task.sliceType,
     customSliceLength: task.customSliceLength,
   };
@@ -262,6 +269,9 @@ export function validateManifest(
   }
   if (opts.translationOutputMode !== taskLang.translationOutputMode) {
     return { valid: false, reason: "输出模式不一致" };
+  }
+  if ((opts.thinkingEnabled === true) !== taskLang.thinkingEnabled) {
+    return { valid: false, reason: "Thinking 模式不一致" };
   }
   if (opts.sliceType !== taskLang.sliceType) {
     return { valid: false, reason: "分片策略不一致" };
@@ -315,6 +325,8 @@ export function validateManifestSelfContained(
     options.targetLang.length > 16 ||
     !(["bilingual", "target_only"] as const)
       .includes(options.translationOutputMode) ||
+    (options.thinkingEnabled !== undefined &&
+      typeof options.thinkingEnabled !== "boolean") ||
     (options.sliceType === SubtitleSliceType.CUSTOM &&
       (!Number.isSafeInteger(options.customSliceLength) ||
         (options.customSliceLength ?? 0) <= 0))

@@ -37,6 +37,25 @@ describe("agent task model config", () => {
     ).toMatchObject({
       apiFormat: "chat_completions",
       outputTokenParameter: "max_tokens",
+      thinkingEnabled: false,
+    });
+  });
+
+  it("freezes an enabled DeepSeek thinking mode into subtitle tasks", () => {
+    expect(
+      createSubtitleTaskModelFields(
+        {
+          apiKey: "sk-compatible",
+          modelKey: "deepseek-v4-flash",
+          baseUrl: "https://api.deepseek.com/v1",
+          apiFormat: "chat_completions",
+          outputTokenParameter: "max_tokens",
+        },
+        { thinkingEnabled: true },
+      ),
+    ).toMatchObject({
+      apiModel: "deepseek-v4-flash",
+      thinkingEnabled: true,
     });
   });
 

@@ -91,6 +91,30 @@ describe("subtitle translation recovery capability", () => {
     );
   });
 
+  it("persists thinking mode and defaults legacy checkpoints to disabled", () => {
+    const manifest = createManifest({
+      taskId: "subtitle-task-thinking",
+      fileName: "thinking.srt",
+      fileContent: "subtitle content",
+      sliceType: SubtitleSliceType.NORMAL,
+      originFileURL: "/private/source/thinking.srt",
+      targetFileURL: "/private/output",
+      status: TaskStatus.PENDING,
+      executionBinding: {
+        status: "ready",
+        profileId: "deepseek-profile",
+        profileLabel: "DeepSeek",
+        apiKey: "private-key",
+        apiModel: "deepseek-v4-flash",
+        endPoint: "https://api.deepseek.com/v1",
+        thinkingEnabled: true,
+      },
+    }, ["subtitle content"]);
+
+    expect(manifest.options.thinkingEnabled).toBe(true);
+    expect(toCurrentManifest(v1Manifest()).options.thinkingEnabled).toBe(false);
+  });
+
   it("keeps scans main-owned and binds prepared tasks to a reauthorized target", async () => {
     const root = await tempRoot();
     const recoveryDirectory = path.join(root, "recovery-private");

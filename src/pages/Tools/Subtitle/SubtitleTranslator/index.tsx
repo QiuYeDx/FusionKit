@@ -57,6 +57,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { showToast } from "@/utils/toast";
 import useModelStore from "@/store/useModelStore";
+import { Model } from "@/type/model";
 import ErrorDetailModal from "@/components/ErrorDetailModal";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import {
@@ -150,6 +151,9 @@ function SubtitleTranslator() {
   const updateTranslatorConfig = useSubtitleTranslatorConfigStore(
     (state) => state.updatePreferences,
   );
+  const initialThinkingEnabled = useSubtitleTranslatorConfigStore(
+    (state) => state.preferences.thinkingEnabled,
+  );
 
   const [customLengthInput, setCustomLengthInput] = useState(
     sliceLengthMap?.[SubtitleSliceType.CUSTOM]?.toString() || "500"
@@ -169,6 +173,9 @@ function SubtitleTranslator() {
     const raw = localStorage.getItem("subtitle-translator-concurrent-slices");
     return raw === null ? true : raw === "true";
   });
+  const [thinkingEnabled, setThinkingEnabled] = useState(
+    initialThinkingEnabled,
+  );
 
   const [sourceLang, setSourceLang] = useState<TranslationLanguage>(() => {
     const raw = localStorage.getItem("subtitle-translator-source-lang");
@@ -323,6 +330,11 @@ function SubtitleTranslator() {
   const [editSliceType, setEditSliceType] = useState<SubtitleSliceType>(SubtitleSliceType.NORMAL);
   const [editConflictPolicy, setEditConflictPolicy] = useState<OutputConflictPolicy>("index");
   const [editConcurrentSlices, setEditConcurrentSlices] = useState(true);
+  const [editThinkingEnabled, setEditThinkingEnabled] = useState(false);
+
+  const supportsDeepSeekThinking =
+    taskProfile?.provider === Model.DeepSeek &&
+    taskProfile.apiFormat === "chat_completions";
 
   useEffect(() => {
     try {
@@ -390,6 +402,7 @@ function SubtitleTranslator() {
           : null,
       conflictPolicy,
       concurrentSlices,
+      thinkingEnabled,
     });
   }, [
     concurrentSlices,
@@ -400,6 +413,7 @@ function SubtitleTranslator() {
     sliceType,
     sourceLang,
     targetLang,
+    thinkingEnabled,
     translationOutputMode,
     updateTranslatorConfig,
   ]);
@@ -628,6 +642,11 @@ function SubtitleTranslator() {
     setEditSliceType(task.sliceType);
     setEditConflictPolicy(task.conflictPolicy || "index");
     setEditConcurrentSlices(task.concurrentSlices ?? true);
+    setEditThinkingEnabled(
+      task.executionBinding.status === "ready"
+        ? task.executionBinding.thinkingEnabled === true
+        : false,
+    );
     setEditTaskOpen(true);
   };
 
@@ -659,7 +678,11 @@ function SubtitleTranslator() {
       concurrentSlices: editConcurrentSlices,
       costEstimate: loadingCostEstimate,
       ...(taskProfile
-        ? { executionBinding: createSubtitleTaskExecutionBinding(taskProfile) }
+        ? {
+            executionBinding: createSubtitleTaskExecutionBinding(taskProfile, {
+              thinkingEnabled: editThinkingEnabled,
+            }),
+          }
         : {}),
     });
 
@@ -822,7 +845,9 @@ function SubtitleTranslator() {
           customSliceLength: customLen,
 
           executionBinding: taskProfile
-            ? createSubtitleTaskExecutionBinding(taskProfile)
+            ? createSubtitleTaskExecutionBinding(taskProfile, {
+                thinkingEnabled,
+              })
             : Object.freeze({ status: "needs_configuration" as const }),
           sourceLang,
           targetLang,
@@ -1167,6 +1192,17 @@ function SubtitleTranslator() {
               </ToolField>
 
               <ToolConfigDivider />
+
+              {supportsDeepSeekThinking && (
+                <ToolSwitchRow
+                  id="deepseek-thinking"
+                  testId="subtitle-translator-deepseek-thinking"
+                  label={t("subtitle:translator.fields.thinking_mode")}
+                  hint={t("subtitle:translator.fields.thinking_mode_hint")}
+                  checked={thinkingEnabled}
+                  onCheckedChange={setThinkingEnabled}
+                />
+              )}
 
               {/* Concurrent slices */}
               <ToolSwitchRow
@@ -1689,6 +1725,30 @@ function SubtitleTranslator() {
                                   "subtitle:translator.fields.no_model_selected",
                                 )}
                           </span>
+                          {task.executionBinding.status === "ready" &&
+                            (task.executionBinding.apiFormat ??
+                              "chat_completions") === "chat_completions" &&
+                            task.executionBinding.apiModel
+                              .trim()
+                              .toLowerCase()
+                              .startsWith("deepseek-") && (
+                              <>
+                                <span className="text-muted-foreground">
+                                  {t(
+                                    "subtitle:translator.task_detail.thinking_mode",
+                                  )}
+                                </span>
+                                <span>
+                                  {task.executionBinding.thinkingEnabled === true
+                                    ? t(
+                                        "subtitle:translator.task_detail.concurrent_on",
+                                      )
+                                    : t(
+                                        "subtitle:translator.task_detail.concurrent_off",
+                                      )}
+                                </span>
+                              </>
+                            )}
                           <span className="text-muted-foreground">
                             {t(
                               "subtitle:translator.task_detail.api_endpoint"
@@ -1987,6 +2047,15 @@ function SubtitleTranslator() {
               checked={editConcurrentSlices}
               onCheckedChange={setEditConcurrentSlices}
             />
+            {supportsDeepSeekThinking && (
+              <ToolSwitchRow
+                testId="subtitle-translator-edit-deepseek-thinking"
+                label={t("subtitle:translator.fields.thinking_mode")}
+                hint={t("subtitle:translator.fields.thinking_mode_hint")}
+                checked={editThinkingEnabled}
+                onCheckedChange={setEditThinkingEnabled}
+              />
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setEditTaskOpen(false)}>

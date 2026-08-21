@@ -46,6 +46,15 @@ const PROFILE = Object.freeze({
   outputTokenParameter: "max_tokens",
 } satisfies ModelProfile);
 
+const DEEPSEEK_PROFILE = Object.freeze({
+  ...PROFILE,
+  id: "deepseek-profile",
+  name: "DeepSeek translation profile",
+  provider: Model.DeepSeek,
+  baseUrl: "https://api.deepseek.com/v1",
+  modelKey: "deepseek-v4-flash",
+} satisfies ModelProfile);
+
 let idIndex = 0;
 
 beforeEach(() => {
@@ -194,6 +203,23 @@ describe("GeneratedSubtitleImportSnapshotCoordinator", () => {
         endPoint: "https://private.example/v1",
       }),
     });
+  });
+
+  it("freezes an enabled DeepSeek thinking preference into imported tasks", async () => {
+    const config = hydrationSource(preferences({
+      outputMode: "source",
+      thinkingEnabled: true,
+    }), true);
+    const model = hydrationSource<ModelProfile | null>(DEEPSEEK_PROFILE, true);
+    const coordinator = createCoordinator(config, model);
+    const prepared = await coordinator.prepareBatch("enqueue_translation");
+    if (!prepared.ok) throw new Error("Expected a config snapshot.");
+
+    expect(prepared.snapshot.thinkingEnabled).toBe(true);
+    await expect(
+      coordinator.withSnapshot(prepared.snapshot.snapshotId, (snapshot) =>
+        snapshot.modelFields?.thinkingEnabled),
+    ).resolves.toBe(true);
   });
 
   it("allows enqueue-only without a profile and rejects auto-start", async () => {

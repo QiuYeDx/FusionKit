@@ -216,6 +216,7 @@ export interface SubtitleTranslationRecoveryCandidateSummary {
     readonly sourceLang: string;
     readonly targetLang: string;
     readonly translationOutputMode: "bilingual" | "target_only";
+    readonly thinkingEnabled: boolean;
   };
   readonly resolvedFragments: number;
   readonly totalFragments: number;
@@ -256,6 +257,7 @@ export interface SubtitleTranslationPreparedRecoveredTask {
   readonly sourceLang: string;
   readonly targetLang: string;
   readonly translationOutputMode: "bilingual" | "target_only";
+  readonly thinkingEnabled: boolean;
   readonly resolvedFragments: number;
   readonly totalFragments: number;
   readonly progress: number;
@@ -742,6 +744,7 @@ export const subtitleTranslationRecoveryCandidateSummarySchema = z
       sourceLang: z.string().min(1).max(16),
       targetLang: z.string().min(1).max(16),
       translationOutputMode: z.enum(["bilingual", "target_only"]),
+      thinkingEnabled: z.boolean(),
     }).strict(),
     resolvedFragments: z.number().int().min(0),
     totalFragments: z.number().int().min(0),
@@ -788,6 +791,7 @@ export const subtitleTranslationPreparedRecoveredTaskSchema = z.object({
   sourceLang: z.string().min(1).max(16),
   targetLang: z.string().min(1).max(16),
   translationOutputMode: z.enum(["bilingual", "target_only"]),
+  thinkingEnabled: z.boolean(),
   resolvedFragments: z.number().int().min(0),
   totalFragments: z.number().int().positive(),
   progress: z.number().int().min(0).max(100),

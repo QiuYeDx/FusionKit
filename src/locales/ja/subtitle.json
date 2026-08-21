@@ -42,6 +42,8 @@
       "conflict_policy_index": "連番を付加",
       "concurrent_slices": "スライス並行翻訳",
       "concurrent_slices_hint": "有効にすると、1つのタスクの複数スライスがAPIへ並行リクエストされ、翻訳速度が大幅に向上しますが、瞬間的な同時リクエスト数が増加します",
+      "thinking_mode": "Thinking モードを有効化",
+      "thinking_mode_hint": "DeepSeek Chat Completions 専用です。既定では無効で、有効にすると翻訳を返す前にモデルが推論します",
       "no_model_selected": "モデルが選択されていません"
     },
     "actions": {
@@ -94,6 +96,7 @@
       "language_pair": "翻訳言語",
       "slice_mode": "分割モード",
       "api_model": "APIモデル",
+      "thinking_mode": "Thinking モード",
       "api_endpoint": "APIエンドポイント",
       "source_file": "ソースファイル",
       "output_path": "出力パス",

@@ -35,6 +35,7 @@ export interface SubtitleTranslatorConfigPreferences {
   readonly outputDirectoryDisplayLabel: string | null;
   readonly conflictPolicy: OutputConflictPolicy;
   readonly concurrentSlices: boolean;
+  readonly thinkingEnabled: boolean;
 }
 
 export interface SubtitleTranslatorConfigStore {
@@ -61,6 +62,7 @@ export const DEFAULT_SUBTITLE_TRANSLATOR_CONFIG_PREFERENCES = Object.freeze({
   outputDirectoryDisplayLabel: null,
   conflictPolicy: "index",
   concurrentSlices: true,
+  thinkingEnabled: false,
 } satisfies SubtitleTranslatorConfigPreferences);
 
 export function sanitizeSubtitleTranslatorConfigPreferences(
@@ -118,6 +120,10 @@ export function sanitizeSubtitleTranslatorConfigPreferences(
       typeof record.concurrentSlices === "boolean"
         ? record.concurrentSlices
         : DEFAULT_SUBTITLE_TRANSLATOR_CONFIG_PREFERENCES.concurrentSlices,
+    thinkingEnabled:
+      typeof record.thinkingEnabled === "boolean"
+        ? record.thinkingEnabled
+        : DEFAULT_SUBTITLE_TRANSLATOR_CONFIG_PREFERENCES.thinkingEnabled,
   });
 }
 
