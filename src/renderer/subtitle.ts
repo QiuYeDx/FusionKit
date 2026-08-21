@@ -2,6 +2,7 @@ import useSubtitleTranslatorStore from "@/store/tools/subtitle/useSubtitleTransl
 import { showSystemNotification } from "@/utils/notification";
 import i18n from "@/i18n";
 import type { SubtitleTranslationRecovery } from "@/type/subtitle";
+import type { SubtitleTranslationUsage } from "@/type/subtitleUsage";
 
 window.ipcRenderer.on(
   "update-progress",
@@ -17,6 +18,7 @@ window.ipcRenderer.on(
         SubtitleTranslationRecovery,
         "checkpointRef" | "resumable" | "resolvedFragments" | "totalFragments"
       >;
+      actualUsage?: SubtitleTranslationUsage;
     },
   ) => {
     const store = useSubtitleTranslatorStore.getState();
@@ -27,6 +29,7 @@ window.ipcRenderer.on(
       progressData.totalFragments,
       progressData.progress,
       progressData.recovery,
+      progressData.actualUsage,
     );
   },
 );
@@ -44,6 +47,7 @@ window.ipcRenderer.on(
       timestamp?: string;
       stackTrace?: string;
       recovery?: SubtitleTranslationRecovery;
+      actualUsage?: SubtitleTranslationUsage;
     },
   ) => {
     const store = useSubtitleTranslatorStore.getState();
@@ -59,9 +63,19 @@ window.ipcRenderer.on(
 
 window.ipcRenderer.on(
   "task-resolved",
-  (_, data: { taskId: string; fileName: string; outputFileName: string }) => {
+  (_, data: {
+    taskId: string;
+    fileName: string;
+    outputFileName: string;
+    actualUsage?: SubtitleTranslationUsage;
+  }) => {
     const store = useSubtitleTranslatorStore.getState();
-    store.markTaskResolved(data.taskId, data.fileName, data.outputFileName);
+    store.markTaskResolved(
+      data.taskId,
+      data.fileName,
+      data.outputFileName,
+      data.actualUsage,
+    );
     showSystemNotification(
       "FusionKit",
       i18n.t("setting:fields.notification.task_resolved", {

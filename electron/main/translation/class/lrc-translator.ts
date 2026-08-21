@@ -19,12 +19,6 @@ export class LRCTranslator extends BaseTranslator {
   protected fragmentSeparator = "\n";
 
   private readonly apiModel: string;
-  /** 费用单价（美元 / 百万 token） */
-  private readonly costPerInput: number;
-  private readonly costPerOutput: number;
-  /** 累计费用（美元），在 parseResponse 中逐片累加 */
-  private totalCost = 0;
-
   constructor(
     private config: {
       apiKey: string;
@@ -35,8 +29,6 @@ export class LRCTranslator extends BaseTranslator {
   ) {
     super();
     this.apiModel = config.apiModel || "gpt-3.5-turbo";
-    this.costPerInput = config.costRates?.input || 0.0015;
-    this.costPerOutput = config.costRates?.output || 0.002;
   }
 
   /**
@@ -112,17 +104,10 @@ export class LRCTranslator extends BaseTranslator {
     );
   }
 
-  /** 解析 LLM 响应，清洗 markdown 格式残留，并累计本次调用的费用 */
+  /** 解析 LLM 响应并清洗 markdown 格式残留。用量由 BaseTranslator 统一累计。 */
   protected async parseResponse(response: ModelRuntimeTextResult): Promise<string> {
     const content = response.content;
-    const cleanedContent = cleanTranslatedLrcContent(content);
-
-    const inputTokens = response.usage?.inputTokens || 0;
-    const outputTokens = response.usage?.outputTokens || 0;
-    this.totalCost += (inputTokens / 1_000_000) * this.costPerInput;
-    this.totalCost += (outputTokens / 1_000_000) * this.costPerOutput;
-
-    return cleanedContent;
+    return cleanTranslatedLrcContent(content);
   }
 
   protected normalizeError(error: unknown): Error {

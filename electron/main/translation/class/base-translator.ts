@@ -36,6 +36,7 @@ import {
   type ModelRuntimeConfig,
   type ModelRuntimeTextResult,
 } from "../../ai/model-runtime-client";
+import type { SubtitleTranslationUsage } from "@/type/subtitleUsage";
 import {
   createManifest,
   loadManifest,
@@ -60,6 +61,11 @@ import {
   buildFinalContent,
   cleanupOnSuccess,
 } from "../recovery-artifacts";
+import {
+  accumulateSubtitleTranslationUsage,
+  normalizeSubtitleTranslationUsage,
+  preferMoreCompleteSubtitleTranslationUsage,
+} from "../usage";
 
 /**
  * 当 execution binding 未设置 maxOutputTokens 时的默认最大输出 token 数。
@@ -104,6 +110,7 @@ export abstract class BaseTranslator {
   protected targetLang: string = "ZH";
   protected bilingualOutput: boolean = true;
   private maxResponseTokens: number = 4096;
+  private actualUsage: SubtitleTranslationUsage | undefined;
   protected fragmentSeparator: string = "\n\n";
 
   /**
@@ -126,6 +133,7 @@ export abstract class BaseTranslator {
     this.sourceLang = task.sourceLang || "JA";
     this.targetLang = task.targetLang || "ZH";
     this.bilingualOutput = task.translationOutputMode !== "target_only";
+    this.actualUsage = normalizeSubtitleTranslationUsage(task.actualUsage);
 
     const errorLogs: string[] = [];
     const startTime = new Date().toISOString();
@@ -233,6 +241,7 @@ export abstract class BaseTranslator {
       if (!manifest) {
         manifest = createManifest(task, fragments);
       }
+      this.restoreUsage(task, manifest);
 
       cpWriter = new CheckpointWriter(manifestPath);
       await cpWriter.write(manifest);
@@ -328,6 +337,7 @@ export abstract class BaseTranslator {
         taskId: task.taskId,
         fileName: task.fileName,
         outputFileName: path.basename(finalPath),
+        ...(this.actualUsage ? { actualUsage: this.actualUsage } : {}),
       });
 
       this.updateProgress(
@@ -353,6 +363,7 @@ export abstract class BaseTranslator {
       let recovery: SubtitleTranslationRecovery | undefined;
       if (manifest && cpWriter && manifestPath && artifactPaths) {
         try {
+          this.syncUsage(task, manifest);
           manifest.status = error instanceof Error && error.name === "AbortError"
             ? "cancelled"
             : "failed";
@@ -381,6 +392,7 @@ export abstract class BaseTranslator {
         timestamp: startTime,
         stackTrace: stackTrace,
         recovery,
+        ...(this.actualUsage ? { actualUsage: this.actualUsage } : {}),
       });
 
       console.error("[base-translator] error in translating:", error);
@@ -430,6 +442,7 @@ export abstract class BaseTranslator {
         );
 
         markFragmentResolved(cpFragment, result);
+        this.syncUsage(task, manifest);
         manifest.updatedAt = new Date().toISOString();
         await cpWriter.write(manifest);
         await flushRecoveryArtifacts(manifest, artifactPaths);
@@ -509,6 +522,7 @@ export abstract class BaseTranslator {
           );
 
           markFragmentResolved(cpFragment, result);
+          this.syncUsage(task, manifest);
           manifest.updatedAt = new Date().toISOString();
           await cpWriter.write(manifest);
           await flushRecoveryArtifacts(manifest, artifactPaths);
@@ -540,7 +554,13 @@ export abstract class BaseTranslator {
     };
 
     const workerCount = Math.min(this.maxSliceConcurrency, pendingIndexes.length);
-    await Promise.all(Array.from({ length: workerCount }, () => worker()));
+    const results = await Promise.allSettled(
+      Array.from({ length: workerCount }, () => worker()),
+    );
+    const failure = results.find(
+      (result): result is PromiseRejectedResult => result.status === "rejected",
+    );
+    if (failure) throw failure.reason;
   }
 
   /** 更新任务进度并通过 IPC "update-progress" 事件推送给渲染进程 */
@@ -562,6 +582,7 @@ export abstract class BaseTranslator {
       resolvedFragments: current,
       totalFragments: total,
       progress: task.progress,
+      ...(this.actualUsage ? { actualUsage: this.actualUsage } : {}),
     };
 
     if (manifest && checkpointRef) {
@@ -757,6 +778,12 @@ export abstract class BaseTranslator {
           signal,
           retry: { maxRetries: 0 },
         });
+        this.actualUsage = accumulateSubtitleTranslationUsage(
+          this.actualUsage,
+          response.usage,
+          readyExecution(task).tokenPricing,
+        );
+        task.actualUsage = this.actualUsage;
 
         console.log("翻译响应数据:", response);
         errorLogs.push(
@@ -786,6 +813,17 @@ export abstract class BaseTranslator {
 
         return parsedResult;
       } catch (error) {
+        if (
+          error instanceof ModelRuntimeClientError &&
+          Object.prototype.hasOwnProperty.call(error.details, "usage")
+        ) {
+          this.actualUsage = accumulateSubtitleTranslationUsage(
+            this.actualUsage,
+            error.details.usage,
+            readyExecution(task).tokenPricing,
+          );
+          task.actualUsage = this.actualUsage;
+        }
         const errorMessage =
           error instanceof Error ? error.message : String(error);
         errorLogs.push(
@@ -866,6 +904,26 @@ export abstract class BaseTranslator {
         ? { thinkingEnabled: execution.thinkingEnabled === true }
         : {}),
     };
+  }
+
+  private restoreUsage(
+    task: SubtitleTranslatorTask,
+    manifest: TranslationCheckpointManifest,
+  ): void {
+    this.actualUsage = preferMoreCompleteSubtitleTranslationUsage(
+      this.actualUsage,
+      manifest.usage,
+    );
+    this.syncUsage(task, manifest);
+  }
+
+  private syncUsage(
+    task: SubtitleTranslatorTask,
+    manifest: TranslationCheckpointManifest,
+  ): void {
+    if (!this.actualUsage) return;
+    task.actualUsage = this.actualUsage;
+    manifest.usage = this.actualUsage;
   }
 
   private resolveRetryDelay(error: unknown, attempt: number): number {

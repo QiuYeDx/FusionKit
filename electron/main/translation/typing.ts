@@ -1,4 +1,5 @@
-import type { ModelApiFormat, OutputTokenParameter } from "@/type/model";
+import type { ModelApiFormat, OutputTokenParameter, TokenPricing } from "@/type/model";
+import type { SubtitleTranslationUsage } from "@/type/subtitleUsage";
 
 /**
  * 字幕翻译模块 - 类型定义
@@ -71,6 +72,7 @@ export type SubtitleTaskReadyExecutionBinding = Readonly<{
   outputTokenParameter?: SubtitleOutputTokenParameter;
   maxOutputTokens?: number;
   thinkingEnabled?: boolean;
+  tokenPricing?: Readonly<TokenPricing>;
 }>;
 
 export type SubtitleTaskExecutionBinding =
@@ -102,7 +104,15 @@ export function isSubtitleTaskReadyExecutionBinding(
     (value.maxOutputTokens === undefined ||
       (Number.isSafeInteger(value.maxOutputTokens) && value.maxOutputTokens > 0)) &&
     (value.thinkingEnabled === undefined ||
-      typeof value.thinkingEnabled === "boolean");
+      typeof value.thinkingEnabled === "boolean") &&
+    (value.tokenPricing === undefined || validTokenPricing(value.tokenPricing));
+}
+
+function validTokenPricing(value: TokenPricing): boolean {
+  return Number.isFinite(value.inputTokensPerMillion) &&
+    value.inputTokensPerMillion >= 0 &&
+    Number.isFinite(value.outputTokensPerMillion) &&
+    value.outputTokensPerMillion >= 0;
 }
 
 function nonBlank(value: unknown): value is string {
@@ -136,6 +146,7 @@ export type SubtitleTranslatorTask = {
     estimatedCost: number;
     fragmentCount: number;
   };
+  actualUsage?: SubtitleTranslationUsage;
   /** 按时间顺序记录的日志，翻译失败时会随 task-failed 事件发给渲染进程 */
   errorLog?: string[];
 
@@ -230,6 +241,8 @@ export type TranslationCheckpointManifestV1 = {
     thinkingEnabled?: boolean;
   };
 
+  usage?: SubtitleTranslationUsage;
+
   fragments: CheckpointFragment[];
 };
 
@@ -258,6 +271,8 @@ export type TranslationCheckpointManifestV2 = {
     translationOutputMode: "bilingual" | "target_only";
     thinkingEnabled?: boolean;
   };
+
+  usage?: SubtitleTranslationUsage;
 
   fragments: CheckpointFragment[];
 };
@@ -324,6 +339,8 @@ export type TranslationRecoveryCandidate = {
     translationOutputMode: "bilingual" | "target_only";
     thinkingEnabled?: boolean;
   };
+
+  actualUsage?: SubtitleTranslationUsage;
 
   resolvedFragments: number;
   totalFragments: number;

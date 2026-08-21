@@ -68,7 +68,12 @@ export function hasReadySubtitleTaskExecution(
       (Number.isSafeInteger(binding.maxOutputTokens) &&
         binding.maxOutputTokens > 0)) &&
     (binding.thinkingEnabled === undefined ||
-      typeof binding.thinkingEnabled === "boolean");
+      typeof binding.thinkingEnabled === "boolean") &&
+    (binding.tokenPricing === undefined ||
+      (Number.isFinite(binding.tokenPricing.inputTokensPerMillion) &&
+        binding.tokenPricing.inputTokensPerMillion >= 0 &&
+        Number.isFinite(binding.tokenPricing.outputTokensPerMillion) &&
+        binding.tokenPricing.outputTokensPerMillion >= 0));
 }
 
 function defaultIdFactory(): string {

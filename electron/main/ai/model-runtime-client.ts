@@ -24,6 +24,7 @@ export interface ModelRuntimeUsage {
   outputTokens?: number;
   totalTokens?: number;
   reasoningTokens?: number;
+  cachedInputTokens?: number;
 }
 
 export interface ModelRuntimeTextRequest {

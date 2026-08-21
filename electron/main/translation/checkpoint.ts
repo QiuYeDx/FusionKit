@@ -21,6 +21,7 @@ import {
   SubtitleFileType,
   SubtitleSliceType,
 } from "./typing";
+import { normalizeSubtitleTranslationUsage } from "./usage";
 
 const CURRENT_SCHEMA_VERSION = 2 as const;
 
@@ -112,6 +113,7 @@ export function createManifest(
   fragments: string[],
 ): TranslationCheckpointManifest {
   const now = new Date().toISOString();
+  const usage = normalizeSubtitleTranslationUsage(task.actualUsage);
 
   return {
     schemaVersion: CURRENT_SCHEMA_VERSION,
@@ -138,6 +140,8 @@ export function createManifest(
         task.executionBinding.status === "ready" &&
         task.executionBinding.thinkingEnabled === true,
     },
+
+    ...(usage ? { usage } : {}),
 
     fragments: fragments.map((src, i) => ({
       index: i,
@@ -174,6 +178,7 @@ export function parseCheckpointManifest(
 export function toCurrentManifest(
   manifest: TranslationCheckpointManifest,
 ): TranslationCheckpointManifestV2 {
+  const usage = normalizeSubtitleTranslationUsage(manifest.usage);
   return {
     schemaVersion: CURRENT_SCHEMA_VERSION,
     taskId: manifest.taskId,
@@ -196,6 +201,7 @@ export function toCurrentManifest(
       translationOutputMode: manifest.options.translationOutputMode,
       thinkingEnabled: manifest.options.thinkingEnabled === true,
     },
+    ...(usage ? { usage } : {}),
     fragments: manifest.fragments.map((fragment) => ({
       index: fragment.index,
       sourceHash: fragment.sourceHash,
@@ -334,6 +340,13 @@ export function validateManifestSelfContained(
     return { valid: false, reason: "options 无效" };
   }
 
+  if (
+    manifest.usage !== undefined &&
+    !normalizeSubtitleTranslationUsage(manifest.usage)
+  ) {
+    return { valid: false, reason: "usage 无效" };
+  }
+
   if (!Array.isArray(manifest.fragments) || manifest.fragments.length === 0) {
     return { valid: false, reason: "fragments 为空" };
   }
@@ -432,6 +445,7 @@ export async function saveCompletionSummary(
   manifest: TranslationCheckpointManifest,
   finalFileName: string,
 ): Promise<void> {
+  const usage = normalizeSubtitleTranslationUsage(manifest.usage);
   await atomicWriteJSON(summaryPath, {
     schemaVersion: 1,
     taskId: manifest.taskId,
@@ -442,6 +456,7 @@ export async function saveCompletionSummary(
     finalFileName,
     resolvedFragments: getResolvedCount(manifest),
     totalFragments: manifest.fragments.length,
+    ...(usage ? { usage } : {}),
   });
 }
 

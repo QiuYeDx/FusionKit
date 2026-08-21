@@ -8,6 +8,7 @@ import {
   parseCheckpointManifest,
   saveManifest,
   toCurrentManifest,
+  validateManifestSelfContained,
 } from "../../electron/main/translation/checkpoint";
 import { SubtitleTranslationDirectoryCapabilityRegistry } from "../../electron/main/translation/directory-capability";
 import { SubtitleTranslationRecoveryCapabilityRegistry } from "../../electron/main/translation/recovery-capability";
@@ -64,12 +65,32 @@ describe("subtitle translation recovery capability", () => {
       targetFileURL: "/private/output",
       status: TaskStatus.PENDING,
       executionBinding: { status: "needs_configuration" },
+      actualUsage: {
+        inputTokens: 100,
+        outputTokens: 40,
+        totalTokens: 140,
+        reasoningTokens: 10,
+        cachedInputTokens: 20,
+        requestCount: 2,
+        reportedRequestCount: 2,
+        calculatedCost: 0.01,
+      },
     }, ["private subtitle content"]);
     expect(manifest.schemaVersion).toBe(2);
     const serialized = JSON.stringify(manifest);
     expect(serialized).not.toContain("/private/source");
     expect(serialized).not.toContain("/private/output");
     expect(serialized).not.toContain("apiKey");
+    expect(manifest.usage).toEqual({
+      inputTokens: 100,
+      outputTokens: 40,
+      totalTokens: 140,
+      reasoningTokens: 10,
+      cachedInputTokens: 20,
+      requestCount: 2,
+      reportedRequestCount: 2,
+      calculatedCost: 0.01,
+    });
 
     const converted = toCurrentManifest(v1Manifest());
     const convertedSerialized = JSON.stringify(converted);
@@ -77,6 +98,7 @@ describe("subtitle translation recovery capability", () => {
     expect(convertedSerialized).not.toContain("/legacy/source");
     expect(convertedSerialized).not.toContain("/legacy/output");
     expect(converted.fragments[0].sourceContent).toBe("legacy subtitle content");
+    expect(converted.usage).toBeUndefined();
 
     const tainted = v1Manifest() as TranslationCheckpointManifestV1 & {
       apiKey: string;
@@ -89,6 +111,10 @@ describe("subtitle translation recovery capability", () => {
     expect(() => parseCheckpointManifest({ schemaVersion: 3 })).toThrow(
       "Unsupported checkpoint schema version: 3",
     );
+    expect(validateManifestSelfContained({
+      ...manifest,
+      usage: { ...manifest.usage!, reportedRequestCount: 3 },
+    })).toEqual({ valid: false, reason: "usage 无效" });
   });
 
   it("persists thinking mode and defaults legacy checkpoints to disabled", () => {
@@ -133,6 +159,16 @@ describe("subtitle translation recovery capability", () => {
       targetFileURL: "/must/not/be/persisted",
       status: TaskStatus.PENDING,
       executionBinding: { status: "needs_configuration" },
+      actualUsage: {
+        inputTokens: 30,
+        outputTokens: 10,
+        totalTokens: 40,
+        reasoningTokens: 0,
+        cachedInputTokens: 5,
+        requestCount: 1,
+        reportedRequestCount: 1,
+        calculatedCost: 0.002,
+      },
     }, ["subtitle fragment that stays in main"]));
 
     const recovery = new SubtitleTranslationRecoveryCapabilityRegistry({
@@ -151,6 +187,11 @@ describe("subtitle translation recovery capability", () => {
         schemaVersion: 2,
         recoverability: "ready_from_manifest",
         outputDirectoryLabel: "recovery-private",
+        actualUsage: {
+          totalTokens: 40,
+          requestCount: 1,
+          reportedRequestCount: 1,
+        },
       }],
     });
     expect(JSON.stringify(scan)).not.toContain(root);
@@ -176,6 +217,13 @@ describe("subtitle translation recovery capability", () => {
         taskId: "subtitle-task-prepared",
         fileName: "sample.srt",
         checkpointRef: candidate.checkpointRef,
+        actualUsage: {
+          inputTokens: 30,
+          outputTokens: 10,
+          totalTokens: 40,
+          requestCount: 1,
+          reportedRequestCount: 1,
+        },
         reference: {
           kind: "generated_task_v1",
           target: { displayLabel: "new-output-private" },

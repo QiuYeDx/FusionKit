@@ -61,6 +61,10 @@ export interface ChatCompletionBodyOptions {
     completion_tokens_details?: {
       reasoning_tokens?: number;
     };
+    prompt_tokens_details?: {
+      cached_tokens?: number;
+    };
+    prompt_cache_hit_tokens?: number;
   };
   model?: string;
 }
@@ -77,6 +81,9 @@ export interface ResponsesBodyOptions {
     total_tokens: number;
     output_tokens_details?: {
       reasoning_tokens?: number;
+    };
+    input_tokens_details?: {
+      cached_tokens?: number;
     };
   };
   model?: string;

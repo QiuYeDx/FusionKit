@@ -1,4 +1,5 @@
-import type { ModelApiFormat, OutputTokenParameter } from "@/type/model";
+import type { ModelApiFormat, OutputTokenParameter, TokenPricing } from "@/type/model";
+import type { SubtitleTranslationUsage } from "./subtitleUsage";
 import type {
   SubtitleTranslationAuthorizedTaskReference,
   SubtitleTranslationGeneratedTaskReference,
@@ -57,6 +58,7 @@ export type SubtitleTaskReadyExecutionBinding = Readonly<{
   outputTokenParameter?: SubtitleOutputTokenParameter;
   maxOutputTokens?: number;
   thinkingEnabled?: boolean;
+  tokenPricing?: Readonly<TokenPricing>;
 }>;
 
 export type SubtitleTaskExecutionBinding =
@@ -140,6 +142,7 @@ export type SubtitleTranslatorTask = {
     fragmentCount: number;
     loading?: boolean;
   };
+  actualUsage?: SubtitleTranslationUsage;
   errorLog?: string[];
 
   executionBinding: SubtitleTaskExecutionBinding;

@@ -194,6 +194,7 @@ export class SubtitleTranslationRecoveryCapabilityRegistry {
         targetLang: manifest.options.targetLang,
         translationOutputMode: manifest.options.translationOutputMode,
         thinkingEnabled: manifest.options.thinkingEnabled === true,
+        ...(manifest.usage ? { actualUsage: manifest.usage } : {}),
         resolvedFragments,
         totalFragments: manifest.fragments.length,
         progress: Math.round((resolvedFragments / manifest.fragments.length) * 100),
@@ -530,6 +531,7 @@ function toPublicSummary(
       translationOutputMode: candidate.options.translationOutputMode,
       thinkingEnabled: candidate.options.thinkingEnabled === true,
     }),
+    ...(candidate.actualUsage ? { actualUsage: candidate.actualUsage } : {}),
     resolvedFragments: candidate.resolvedFragments,
     totalFragments: candidate.totalFragments,
     ...(candidate.failedFragmentIndexes?.length

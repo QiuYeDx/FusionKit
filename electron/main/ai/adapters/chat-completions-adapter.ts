@@ -115,6 +115,7 @@ function parseChatCompletionResponse(
       { attempt },
     );
   }
+  const usage = parseUsage(data.usage);
 
   const choice = Array.isArray(data.choices) ? data.choices[0] : undefined;
   if (!isRecord(choice)) {
@@ -122,7 +123,7 @@ function parseChatCompletionResponse(
       "invalid_response",
       "Model response does not contain a chat completion choice.",
       true,
-      { attempt },
+      { attempt, usage },
     );
   }
 
@@ -133,7 +134,7 @@ function parseChatCompletionResponse(
       "length_truncated",
       "Model response was truncated by the output-token limit. Consider reducing the slice token limit or using a model with a larger context window.",
       false,
-      { attempt },
+      { attempt, usage },
     );
   }
 
@@ -144,7 +145,7 @@ function parseChatCompletionResponse(
       "empty_response",
       "Model response content is empty.",
       true,
-      { attempt },
+      { attempt, usage },
     );
   }
 
@@ -155,7 +156,7 @@ function parseChatCompletionResponse(
         ? message.reasoning_content
         : undefined,
     finishReason,
-    usage: parseUsage(data.usage),
+    usage,
     responseId: typeof data.id === "string" ? data.id : undefined,
     model: typeof data.model === "string" ? data.model : undefined,
     apiFormat: "chat_completions",
@@ -192,12 +193,18 @@ function parseUsage(usage: unknown): ModelRuntimeUsage | undefined {
   const completionDetails = isRecord(usage.completion_tokens_details)
     ? usage.completion_tokens_details
     : undefined;
+  const promptDetails = isRecord(usage.prompt_tokens_details)
+    ? usage.prompt_tokens_details
+    : undefined;
 
   return {
     inputTokens: numberOrUndefined(usage.prompt_tokens),
     outputTokens: numberOrUndefined(usage.completion_tokens),
     totalTokens: numberOrUndefined(usage.total_tokens),
     reasoningTokens: numberOrUndefined(completionDetails?.reasoning_tokens),
+    cachedInputTokens:
+      numberOrUndefined(promptDetails?.cached_tokens) ??
+      numberOrUndefined(usage.prompt_cache_hit_tokens),
   };
 }
 

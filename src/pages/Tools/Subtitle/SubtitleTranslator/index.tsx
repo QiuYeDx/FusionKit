@@ -102,6 +102,7 @@ import {
 import { cn } from "@/lib/utils";
 import { Tour, type TourStep } from "@/components/qiuye-ui/tour";
 import RecoveryDialog from "./components/RecoveryDialog";
+import { calculateSubtitleUsageStats } from "@/services/subtitle/subtitleUsageStats";
 
 function CostEstimateHelp({ content }: { content: string }) {
   return (
@@ -542,7 +543,7 @@ function SubtitleTranslator() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // 计算总的token统计
+  // API usage and preflight estimates are intentionally kept separate.
   const tokenStats = useMemo(() => {
     const allTasks = [
       ...notStartedTaskQueue,
@@ -552,37 +553,7 @@ function SubtitleTranslator() {
       ...failedTaskQueue,
     ];
 
-    let totalTokens = 0;
-    let totalCost = 0;
-    let pendingTokens = 0;
-    let pendingCost = 0;
-
-    allTasks.forEach((task) => {
-      if (task.costEstimate) {
-        totalTokens += task.costEstimate.totalTokens || 0;
-        totalCost += task.costEstimate.estimatedCost || 0;
-
-        if (
-          task.status === TaskStatus.NOT_STARTED ||
-          task.status === TaskStatus.WAITING ||
-          task.status === TaskStatus.PENDING
-        ) {
-          pendingTokens += task.costEstimate.totalTokens || 0;
-          pendingCost += task.costEstimate.estimatedCost || 0;
-        }
-      }
-    });
-
-    const hasLoading = allTasks.some((task) => task.costEstimate?.loading);
-
-    return {
-      totalTokens,
-      totalCost,
-      pendingTokens,
-      pendingCost,
-      taskCount: allTasks.length,
-      hasLoading,
-    };
+    return calculateSubtitleUsageStats(allTasks);
   }, [
     notStartedTaskQueue,
     waitingTaskQueue,
@@ -1545,14 +1516,45 @@ function SubtitleTranslator() {
                           </span>
                           <span className="h-0.5 w-0.5 rounded-full bg-muted-foreground/40" />
                           <span>{formatTaskSliceMode(task)}</span>
-                          {task.costEstimate && (
+                          {task.actualUsage?.requestCount ? (
+                            <>
+                              <span className="h-0.5 w-0.5 rounded-full bg-muted-foreground/40" />
+                              <span className="font-mono inline-flex items-center gap-1">
+                                {formatTokens(task.actualUsage.totalTokens)}
+                                <span className="font-sans text-[10px] text-emerald-600 dark:text-emerald-400">
+                                  {t("subtitle:translator.task_detail.actual_short")}
+                                </span>
+                                <CostEstimateHelp
+                                  content={t(
+                                    task.actualUsage.reportedRequestCount <
+                                      task.actualUsage.requestCount
+                                      ? "subtitle:translator.token_stats.partial_usage_tooltip"
+                                      : "subtitle:translator.token_stats.actual_usage_tooltip",
+                                  )}
+                                />
+                              </span>
+                              {task.actualUsage.calculatedCost !== undefined && (
+                                <>
+                                  <span className="h-0.5 w-0.5 rounded-full bg-muted-foreground/40" />
+                                  <span className="font-mono inline-flex items-center gap-0.5 text-emerald-600 dark:text-emerald-400">
+                                    {formatCost(task.actualUsage.calculatedCost)}
+                                    <CostEstimateHelp
+                                      content={t(
+                                        "subtitle:translator.token_stats.calculated_cost_tooltip",
+                                      )}
+                                    />
+                                  </span>
+                                </>
+                              )}
+                            </>
+                          ) : task.costEstimate ? (
                             <>
                               <span className="h-0.5 w-0.5 rounded-full bg-muted-foreground/40" />
                               <span className="font-mono inline-flex items-center gap-1">
                                 {task.costEstimate.loading && (
                                   <RotateCw className="h-3 w-3 animate-spin text-muted-foreground/60" />
                                 )}
-                                {formatTokens(task.costEstimate.totalTokens)}
+                                ~{formatTokens(task.costEstimate.totalTokens)}
                               </span>
                               <span className="h-0.5 w-0.5 rounded-full bg-muted-foreground/40" />
                               <span className="font-mono inline-flex items-center gap-0.5 text-emerald-600 dark:text-emerald-400">
@@ -1564,7 +1566,7 @@ function SubtitleTranslator() {
                                 />
                               </span>
                             </>
-                          )}
+                          ) : null}
                           {task.status === TaskStatus.RESOLVED &&
                             task.extraInfo?.outputFileName && (
                               <>
@@ -1795,6 +1797,51 @@ function SubtitleTranslator() {
                                   "subtitle:translator.task_detail.concurrent_off"
                                 )}
                           </span>
+                          {task.actualUsage?.requestCount ? (
+                            <>
+                              <span className="text-muted-foreground">
+                                {t("subtitle:translator.task_detail.actual_usage")}
+                              </span>
+                              <span className="font-mono">
+                                {t("subtitle:translator.task_detail.input")} {formatTokens(task.actualUsage.inputTokens)} /{" "}
+                                {t("subtitle:translator.task_detail.output")} {formatTokens(task.actualUsage.outputTokens)}
+                              </span>
+                              <span className="text-muted-foreground">
+                                {t("subtitle:translator.task_detail.calculated_cost")}
+                              </span>
+                              <span className="font-mono">
+                                {task.actualUsage.calculatedCost === undefined
+                                  ? "--"
+                                  : formatCost(task.actualUsage.calculatedCost)}
+                              </span>
+                              <span className="text-muted-foreground">
+                                {t("subtitle:translator.task_detail.request_coverage")}
+                              </span>
+                              <span className="font-mono">
+                                {task.actualUsage.reportedRequestCount} / {task.actualUsage.requestCount}
+                              </span>
+                              {task.actualUsage.cachedInputTokens > 0 && (
+                                <>
+                                  <span className="text-muted-foreground">
+                                    {t("subtitle:translator.task_detail.cached_input")}
+                                  </span>
+                                  <span className="font-mono">
+                                    {formatTokens(task.actualUsage.cachedInputTokens)}
+                                  </span>
+                                </>
+                              )}
+                              {task.actualUsage.reasoningTokens > 0 && (
+                                <>
+                                  <span className="text-muted-foreground">
+                                    {t("subtitle:translator.task_detail.reasoning_output")}
+                                  </span>
+                                  <span className="font-mono">
+                                    {formatTokens(task.actualUsage.reasoningTokens)}
+                                  </span>
+                                </>
+                              )}
+                            </>
+                          ) : null}
                           {task.costEstimate && (
                             <>
                               <span className="text-muted-foreground">
@@ -1810,7 +1857,7 @@ function SubtitleTranslator() {
                               </span>
                               <span className="text-muted-foreground">
                                 {t(
-                                  "subtitle:translator.task_detail.token_estimate"
+                                  "subtitle:translator.task_detail.estimated_usage"
                                 )}
                               </span>
                               <span className="font-mono">
@@ -1848,21 +1895,36 @@ function SubtitleTranslator() {
                   value={tokenStats.taskCount}
                 />
                 <Stat
-                  label={t("subtitle:translator.token_stats.total_tokens")}
-                  value={formatTokens(tokenStats.totalTokens)}
-                  loading={tokenStats.hasLoading}
+                  label={t("subtitle:translator.token_stats.actual_tokens")}
+                  value={formatTokens(tokenStats.actualTokens)}
+                  helpContent={t(
+                    tokenStats.hasPartialUsage
+                      ? "subtitle:translator.token_stats.partial_usage_tooltip"
+                      : "subtitle:translator.token_stats.actual_usage_tooltip",
+                  )}
                 />
                 <Stat
-                  label={t("subtitle:translator.token_stats.total_cost")}
-                  value={formatCost(tokenStats.totalCost)}
+                  label={t("subtitle:translator.token_stats.calculated_cost")}
+                  value={
+                    tokenStats.calculatedCost === undefined
+                      ? "--"
+                      : formatCost(tokenStats.calculatedCost)
+                  }
                   accent
-                  helpContent={t("subtitle:translator.token_stats.cost_tooltip")}
+                  helpContent={t(
+                    tokenStats.calculatedCost === undefined
+                      ? "subtitle:translator.token_stats.unpriced_cost_tooltip"
+                      : "subtitle:translator.token_stats.calculated_cost_tooltip",
+                  )}
                 />
                 <Stat
-                  label={t("subtitle:translator.token_stats.pending_cost")}
-                  value={formatCost(tokenStats.pendingCost)}
+                  label={t("subtitle:translator.token_stats.remaining_estimated_cost")}
+                  value={formatCost(tokenStats.remainingEstimatedCost)}
                   tone="warn"
-                  helpContent={t("subtitle:translator.token_stats.cost_tooltip")}
+                  loading={tokenStats.hasLoading}
+                  helpContent={t(
+                    "subtitle:translator.token_stats.remaining_cost_tooltip",
+                  )}
                 />
               </div>
             </Card>

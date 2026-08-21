@@ -191,6 +191,7 @@ export default function RecoveryDialog({ open, onOpenChange }: RecoveryDialogPro
         resolvedFragments: draft.resolvedFragments,
         totalFragments: draft.totalFragments,
         progress: draft.progress,
+        ...(draft.actualUsage ? { actualUsage: draft.actualUsage } : {}),
         status: TaskStatus.NOT_STARTED,
         executionBinding: createSubtitleTaskExecutionBinding(taskProfile, {
           thinkingEnabled: draft.thinkingEnabled,

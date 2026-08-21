@@ -24,6 +24,7 @@ import {
 import {
   bootstrapLegacySubtitleTranslatorConfig,
 } from "./useSubtitleTranslatorConfigStore";
+import type { SubtitleTranslationUsage } from "@/type/subtitleUsage";
 import {
   SubtitleTranslatorImportLedger,
   type AddGeneratedSubtitleTasksRequest,
@@ -74,6 +75,7 @@ interface SubtitleTranslatorStore {
     timestamp?: string;
     stackTrace?: string;
     recovery?: SubtitleTranslationRecovery;
+    actualUsage?: SubtitleTranslationUsage;
   }) => void;
   updateTaskCostEstimate: (
     taskId: string,
@@ -95,11 +97,13 @@ interface SubtitleTranslatorStore {
       SubtitleTranslationRecovery,
       "checkpointRef" | "resumable" | "resolvedFragments" | "totalFragments"
     >,
+    actualUsage?: SubtitleTranslationUsage,
   ) => void;
   markTaskResolved: (
     taskId: string,
     fileName: string,
     outputFileName: string,
+    actualUsage?: SubtitleTranslationUsage,
   ) => void;
 }
 
@@ -312,6 +316,7 @@ const useSubtitleTranslatorStore = create<SubtitleTranslatorStore>()(
         totalFragments,
         progress,
         recovery,
+        actualUsage,
       ) => {
         const result = QueueService.completeTaskProgress(
           getQueueState(get()),
@@ -322,6 +327,7 @@ const useSubtitleTranslatorStore = create<SubtitleTranslatorStore>()(
             totalFragments,
             progress,
             recovery,
+            actualUsage,
           },
           MAX_CONCURRENCY,
         );
@@ -374,12 +380,13 @@ const useSubtitleTranslatorStore = create<SubtitleTranslatorStore>()(
         showToast(i18n.t("subtitle:translator.infos.task_deleted"), "success");
       },
 
-      markTaskResolved: (taskId, _fileName, outputFileName) => {
+      markTaskResolved: (taskId, _fileName, outputFileName, actualUsage) => {
         const result = QueueService.resolveTask(
           getQueueState(get()),
           taskId,
           outputFileName,
           MAX_CONCURRENCY,
+          actualUsage,
         );
         set(result.state);
         executeEffects(result.effects);

@@ -6,6 +6,7 @@ import {
   type TranslationRecoveryMode,
 } from "@/type/subtitle";
 import { hasReadySubtitleTaskExecution } from "./subtitleTranslatorTaskFactory";
+import type { SubtitleTranslationUsage } from "@/type/subtitleUsage";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -358,11 +359,18 @@ export function completeTaskProgress(
       SubtitleTranslationRecovery,
       "checkpointRef" | "resumable" | "resolvedFragments" | "totalFragments"
     >;
+    actualUsage?: SubtitleTranslationUsage;
   },
   maxConcurrency: number,
 ): TranslatorQueueResult {
-  const { taskId, resolvedFragments, totalFragments, progress, recovery } =
-    payload;
+  const {
+    taskId,
+    resolvedFragments,
+    totalFragments,
+    progress,
+    recovery,
+    actualUsage,
+  } = payload;
   const task = state.pendingTaskQueue.find((t) => t.taskId === taskId);
   if (!task) return { state, effects: [] };
 
@@ -376,6 +384,7 @@ export function completeTaskProgress(
       totalFragments,
       progress: 100,
       status: TaskStatus.RESOLVED,
+      ...(actualUsage ? { actualUsage } : {}),
     };
 
     const remainingPending = state.pendingTaskQueue.filter(
@@ -415,6 +424,7 @@ export function completeTaskProgress(
               resolvedFragments,
               totalFragments,
               progress,
+              ...(actualUsage ? { actualUsage } : {}),
               ...recoveryPatch,
             }
           : t,
@@ -434,6 +444,7 @@ export function resolveTask(
   taskId: string,
   outputFileName: string,
   maxConcurrency: number,
+  actualUsage?: SubtitleTranslationUsage,
 ): TranslatorQueueResult {
   const pendingTask = state.pendingTaskQueue.find(
     (t) => t.taskId === taskId,
@@ -444,6 +455,7 @@ export function resolveTask(
       ...pendingTask,
       status: TaskStatus.RESOLVED,
       progress: 100,
+      ...(actualUsage ? { actualUsage } : {}),
       extraInfo: { ...(pendingTask.extraInfo || {}), outputFileName },
     };
 
@@ -467,7 +479,11 @@ export function resolveTask(
         ...state,
         resolvedTaskQueue: state.resolvedTaskQueue.map((t) =>
           t.taskId === taskId
-            ? { ...t, extraInfo: { ...(t.extraInfo || {}), outputFileName } }
+            ? {
+                ...t,
+                ...(actualUsage ? { actualUsage } : {}),
+                extraInfo: { ...(t.extraInfo || {}), outputFileName },
+              }
             : t,
         ),
       },
@@ -496,6 +512,7 @@ export function failTask(
     timestamp?: string;
     stackTrace?: string;
     recovery?: SubtitleTranslationRecovery;
+    actualUsage?: SubtitleTranslationUsage;
   },
   maxConcurrency: number,
 ): TranslatorQueueResult {
@@ -509,6 +526,7 @@ export function failTask(
     status: TaskStatus.FAILED,
     errorLog: errorData.errorLogs || [],
     recovery: errorData.recovery,
+    ...(errorData.actualUsage ? { actualUsage: errorData.actualUsage } : {}),
     resolvedFragments: errorData.recovery?.resolvedFragments ?? task.resolvedFragments,
     totalFragments: errorData.recovery?.totalFragments ?? task.totalFragments,
     extraInfo: {

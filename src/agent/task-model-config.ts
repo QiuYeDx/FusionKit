@@ -13,11 +13,12 @@ export type SubtitleTaskModelFields = Pick<
   | "outputTokenParameter"
   | "maxOutputTokens"
   | "thinkingEnabled"
+  | "tokenPricing"
 >;
 
 type TaskModelProfile = Pick<
   ModelProfile,
-  "apiKey" | "modelKey" | "baseUrl" | "apiFormat" | "outputTokenParameter" | "maxOutputTokens"
+  "apiKey" | "modelKey" | "baseUrl" | "apiFormat" | "outputTokenParameter" | "maxOutputTokens" | "tokenPricing"
 >;
 
 type SubtitleTaskModelOptions = Readonly<{
@@ -38,6 +39,7 @@ export function createSubtitleTaskModelFields(
     apiFormat: profile.apiFormat,
     outputTokenParameter: profile.outputTokenParameter,
     maxOutputTokens: profile.maxOutputTokens ?? inferMaxOutputTokens(profile.modelKey),
+    tokenPricing: Object.freeze({ ...profile.tokenPricing }),
     ...(supportsDeepSeekThinking
       ? { thinkingEnabled: options.thinkingEnabled === true }
       : {}),

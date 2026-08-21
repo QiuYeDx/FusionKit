@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { SubtitleTranslationUsage } from "./subtitleUsage";
 
 export const SUBTITLE_TRANSLATION_PRELOAD_INTERNAL_CHANNELS = {
   registerOwnerSession:
@@ -218,6 +219,7 @@ export interface SubtitleTranslationRecoveryCandidateSummary {
     readonly translationOutputMode: "bilingual" | "target_only";
     readonly thinkingEnabled: boolean;
   };
+  readonly actualUsage?: SubtitleTranslationUsage;
   readonly resolvedFragments: number;
   readonly totalFragments: number;
   readonly failedFragmentIndexes?: readonly number[];
@@ -258,6 +260,7 @@ export interface SubtitleTranslationPreparedRecoveredTask {
   readonly targetLang: string;
   readonly translationOutputMode: "bilingual" | "target_only";
   readonly thinkingEnabled: boolean;
+  readonly actualUsage?: SubtitleTranslationUsage;
   readonly resolvedFragments: number;
   readonly totalFragments: number;
   readonly progress: number;
@@ -727,6 +730,20 @@ export const subtitleTranslationGeneratedImportCandidateSchema = z
   })
   .strict();
 
+export const subtitleTranslationUsageSchema = z.object({
+  inputTokens: z.number().finite().nonnegative(),
+  outputTokens: z.number().finite().nonnegative(),
+  totalTokens: z.number().finite().nonnegative(),
+  reasoningTokens: z.number().finite().nonnegative(),
+  cachedInputTokens: z.number().finite().nonnegative(),
+  requestCount: z.number().int().safe().nonnegative(),
+  reportedRequestCount: z.number().int().safe().nonnegative(),
+  calculatedCost: z.number().finite().nonnegative().optional(),
+}).strict().refine(
+  (usage) => usage.reportedRequestCount <= usage.requestCount,
+  { message: "reportedRequestCount exceeds requestCount" },
+);
+
 export const subtitleTranslationRecoveryCandidateSummarySchema = z
   .object({
     candidateId: subtitleTranslationOpaqueRefSchema,
@@ -746,6 +763,7 @@ export const subtitleTranslationRecoveryCandidateSummarySchema = z
       translationOutputMode: z.enum(["bilingual", "target_only"]),
       thinkingEnabled: z.boolean(),
     }).strict(),
+    actualUsage: subtitleTranslationUsageSchema.optional(),
     resolvedFragments: z.number().int().min(0),
     totalFragments: z.number().int().min(0),
     failedFragmentIndexes: z.array(z.number().int().min(0)).optional(),
@@ -792,6 +810,7 @@ export const subtitleTranslationPreparedRecoveredTaskSchema = z.object({
   targetLang: z.string().min(1).max(16),
   translationOutputMode: z.enum(["bilingual", "target_only"]),
   thinkingEnabled: z.boolean(),
+  actualUsage: subtitleTranslationUsageSchema.optional(),
   resolvedFragments: z.number().int().min(0),
   totalFragments: z.number().int().positive(),
   progress: z.number().int().min(0).max(100),

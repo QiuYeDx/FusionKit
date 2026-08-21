@@ -141,6 +141,7 @@ function parseResponsesResponse(
       { attempt },
     );
   }
+  const usage = parseUsage(data.usage);
 
   const status = typeof data.status === "string" ? data.status : undefined;
   if (status === "incomplete") {
@@ -152,7 +153,7 @@ function parseResponsesResponse(
         "length_truncated",
         "Model response was truncated by the output-token limit. Consider reducing the slice token limit or using a model with a larger context window.",
         false,
-        { attempt },
+        { attempt, usage },
       );
     }
   }
@@ -165,7 +166,7 @@ function parseResponsesResponse(
         ? responseError.message
         : "Model response failed.",
       false,
-      { attempt },
+      { attempt, usage },
     );
   }
 
@@ -175,14 +176,14 @@ function parseResponsesResponse(
       "empty_response",
       "Model response content is empty.",
       true,
-      { attempt },
+      { attempt, usage },
     );
   }
 
   return {
     content,
     finishReason: status,
-    usage: parseUsage(data.usage),
+    usage,
     responseId: typeof data.id === "string" ? data.id : undefined,
     model: typeof data.model === "string" ? data.model : undefined,
     apiFormat: "responses",
@@ -222,12 +223,16 @@ function parseUsage(usage: unknown): ModelRuntimeUsage | undefined {
   const outputDetails = isRecord(usage.output_tokens_details)
     ? usage.output_tokens_details
     : undefined;
+  const inputDetails = isRecord(usage.input_tokens_details)
+    ? usage.input_tokens_details
+    : undefined;
 
   return {
     inputTokens: numberOrUndefined(usage.input_tokens),
     outputTokens: numberOrUndefined(usage.output_tokens),
     totalTokens: numberOrUndefined(usage.total_tokens),
     reasoningTokens: numberOrUndefined(outputDetails?.reasoning_tokens),
+    cachedInputTokens: numberOrUndefined(inputDetails?.cached_tokens),
   };
 }
 

@@ -749,13 +749,16 @@ export async function executeQueueRecoveredSubtitleTranslate(
       ? {}
       : { customSliceLength: draft.customSliceLength }),
     status: TaskStatus.NOT_STARTED,
-    executionBinding: createSubtitleTaskExecutionBinding(taskProfile),
+    executionBinding: createSubtitleTaskExecutionBinding(taskProfile, {
+      thinkingEnabled: draft.thinkingEnabled,
+    }),
     sourceLang: draft.sourceLang as SubtitleTranslatorTask["sourceLang"],
     targetLang: draft.targetLang as SubtitleTranslatorTask["targetLang"],
     translationOutputMode: draft.translationOutputMode,
     resolvedFragments: draft.resolvedFragments,
     totalFragments: draft.totalFragments,
     progress: draft.progress,
+    ...(draft.actualUsage ? { actualUsage: draft.actualUsage } : {}),
     conflictPolicy: args.conflictPolicy ?? "index",
     concurrentSlices: args.concurrentSlices ?? true,
     recoveryMode: "resume",

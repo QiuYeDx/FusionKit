@@ -236,6 +236,7 @@ async function inspectManifestFile(
       translationOutputMode: manifest.options.translationOutputMode,
       thinkingEnabled: manifest.options.thinkingEnabled === true,
     },
+    ...(manifest.usage ? { actualUsage: manifest.usage } : {}),
     resolvedFragments: resolvedCount,
     totalFragments: totalCount,
     failedFragmentIndexes: failedIndexes.length > 0 ? failedIndexes : undefined,

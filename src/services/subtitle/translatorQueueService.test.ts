@@ -24,6 +24,16 @@ import {
 } from "@/type/subtitle";
 
 const MAX = 5;
+const ACTUAL_USAGE = Object.freeze({
+  inputTokens: 80,
+  outputTokens: 20,
+  totalTokens: 100,
+  reasoningTokens: 5,
+  cachedInputTokens: 10,
+  requestCount: 2,
+  reportedRequestCount: 2,
+  calculatedCost: 0.001,
+});
 
 function emptyState(): TranslatorQueueState {
   return {
@@ -279,12 +289,14 @@ describe("completeTaskProgress", () => {
         resolvedFragments: 3,
         totalFragments: 5,
         progress: 60,
+        actualUsage: ACTUAL_USAGE,
       },
       MAX,
     );
     expect(result.state.pendingTaskQueue[0].progress).toBe(60);
     expect(result.state.pendingTaskQueue[0].resolvedFragments).toBe(3);
     expect(result.state.pendingTaskQueue[0].costEstimate?.fragmentCount).toBe(5);
+    expect(result.state.pendingTaskQueue[0].actualUsage).toEqual(ACTUAL_USAGE);
     expect(result.effects).toHaveLength(0);
   });
 
@@ -357,10 +369,12 @@ describe("resolveTask", () => {
       taskId("a.srt"),
       "a_translated.srt",
       MAX,
+      ACTUAL_USAGE,
     );
     expect(result.state.resolvedTaskQueue[0].extraInfo?.outputFileName).toBe(
       "a_translated.srt",
     );
+    expect(result.state.resolvedTaskQueue[0].actualUsage).toEqual(ACTUAL_USAGE);
     expect(result.effects).toHaveLength(0);
   });
 
@@ -402,12 +416,14 @@ describe("failTask", () => {
         fileName: "p0.srt",
         error: "ERR",
         message: "fail",
+        actualUsage: ACTUAL_USAGE,
       },
       MAX,
     );
 
     expect(result.state.failedTaskQueue).toHaveLength(1);
     expect(result.state.failedTaskQueue[0].fileName).toBe("p0.srt");
+    expect(result.state.failedTaskQueue[0].actualUsage).toEqual(ACTUAL_USAGE);
     expect(result.state.pendingTaskQueue).toHaveLength(MAX);
     expect(
       result.state.pendingTaskQueue.some((t) => t.fileName === "w0.srt"),

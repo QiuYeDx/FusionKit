@@ -1,4 +1,5 @@
 import type { ModelApiFormat } from "@/type/model";
+import type { ModelRuntimeUsage } from "./model-runtime-client";
 
 export type ModelRuntimeErrorCode =
   | "aborted"
@@ -19,6 +20,7 @@ export interface ModelRuntimeErrorDetails {
   retryAfterMs?: number;
   attempt?: number;
   apiFormat?: ModelApiFormat;
+  usage?: ModelRuntimeUsage;
 }
 
 export class ModelRuntimeClientError extends Error {

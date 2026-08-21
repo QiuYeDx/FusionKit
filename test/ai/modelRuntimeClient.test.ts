@@ -32,6 +32,7 @@ describe("ModelRuntimeClient Chat Completions adapter", () => {
           completion_tokens: 7,
           total_tokens: 18,
           completion_tokens_details: { reasoning_tokens: 3 },
+          prompt_tokens_details: { cached_tokens: 4 },
         },
       }),
     });
@@ -58,6 +59,7 @@ describe("ModelRuntimeClient Chat Completions adapter", () => {
         outputTokens: 7,
         totalTokens: 18,
         reasoningTokens: 3,
+        cachedInputTokens: 4,
       },
     });
     expect(activeServer.requests[0]).toMatchObject({
@@ -164,6 +166,41 @@ describe("ModelRuntimeClient Chat Completions adapter", () => {
     );
   });
 
+  it("retains Chat Completions usage when the response is truncated", async () => {
+    const activeServer = requireServer(server);
+    activeServer.enqueueRoute("chat_completions", {
+      body: createChatCompletionBody({
+        content: "Partial",
+        finishReason: "length",
+        usage: {
+          prompt_tokens: 9,
+          completion_tokens: 6,
+          total_tokens: 15,
+        },
+      }),
+    });
+
+    await expect(sendModelRuntimeText({
+      model: {
+        apiKey: "sk-runtime-secret",
+        modelKey: "fake-chat-model",
+        endpoint: activeServer.baseUrl,
+        apiFormat: "chat_completions",
+      },
+      messages: [{ role: "user", content: "Translate" }],
+      retry: { maxRetries: 0 },
+    })).rejects.toMatchObject({
+      code: "length_truncated",
+      details: {
+        usage: {
+          inputTokens: 9,
+          outputTokens: 6,
+          totalTokens: 15,
+        },
+      },
+    });
+  });
+
   it("sends Responses text requests with store disabled and parses output_text", async () => {
     const activeServer = requireServer(server);
     activeServer.enqueueRoute("responses", {
@@ -174,6 +211,7 @@ describe("ModelRuntimeClient Chat Completions adapter", () => {
           output_tokens: 5,
           total_tokens: 18,
           output_tokens_details: { reasoning_tokens: 2 },
+          input_tokens_details: { cached_tokens: 6 },
         },
       }),
     });
@@ -202,6 +240,7 @@ describe("ModelRuntimeClient Chat Completions adapter", () => {
         outputTokens: 5,
         totalTokens: 18,
         reasoningTokens: 2,
+        cachedInputTokens: 6,
       },
     });
     expect(activeServer.requests[0]).toMatchObject({
@@ -266,6 +305,11 @@ describe("ModelRuntimeClient Chat Completions adapter", () => {
         outputText: "Partial",
         status: "incomplete",
         incompleteReason: "max_output_tokens",
+        usage: {
+          input_tokens: 14,
+          output_tokens: 8,
+          total_tokens: 22,
+        },
       }),
     });
 
@@ -283,6 +327,13 @@ describe("ModelRuntimeClient Chat Completions adapter", () => {
     ).rejects.toMatchObject({
       code: "length_truncated",
       retryable: false,
+      details: {
+        usage: {
+          inputTokens: 14,
+          outputTokens: 8,
+          totalTokens: 22,
+        },
+      },
     });
     expect(activeServer.requests).toHaveLength(1);
   });

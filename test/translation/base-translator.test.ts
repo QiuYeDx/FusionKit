@@ -5,8 +5,10 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   SubtitleSliceType,
   TaskStatus,
+  type SubtitleTranslatorTask,
 } from "../../electron/main/translation/typing";
 import { buildCheckpointPaths } from "../../electron/main/translation/checkpoint";
+import { ModelRuntimeClientError } from "../../electron/main/ai/model-runtime-errors";
 
 vi.mock("electron", () => ({
   BrowserWindow: {
@@ -65,14 +67,26 @@ describe("BaseTranslator empty result retry", () => {
       .mockResolvedValueOnce({
         content: "   ",
         apiFormat: "chat_completions",
+        usage: {
+          inputTokens: 10,
+          outputTokens: 5,
+          totalTokens: 15,
+          cachedInputTokens: 2,
+        },
       })
       .mockResolvedValueOnce({
         content: "[00:01.00]翻译结果",
         apiFormat: "chat_completions",
+        usage: {
+          inputTokens: 20,
+          outputTokens: 8,
+          totalTokens: 28,
+          reasoningTokens: 3,
+        },
       });
 
     const outputDir = await mkdtemp(path.join(os.tmpdir(), "fusionkit-lrc-"));
-    const task = {
+    const task: SubtitleTranslatorTask = {
       taskId: "subtitle-task-base-test",
       fileName: "sample.lrc",
       fileContent: "[00:01.00]source",
@@ -87,6 +101,10 @@ describe("BaseTranslator empty result retry", () => {
         apiKey: "test-key",
         apiModel: "test-model",
         endPoint: "https://example.test/chat/completions",
+        tokenPricing: {
+          inputTokensPerMillion: 1,
+          outputTokensPerMillion: 2,
+        },
       },
       concurrentSlices: false,
     };
@@ -99,6 +117,16 @@ describe("BaseTranslator empty result retry", () => {
     }
 
     expect(sendModelRuntimeText).toHaveBeenCalledTimes(2);
+    expect(task.actualUsage).toMatchObject({
+      inputTokens: 30,
+      outputTokens: 13,
+      totalTokens: 43,
+      reasoningTokens: 3,
+      cachedInputTokens: 2,
+      requestCount: 2,
+      reportedRequestCount: 2,
+    });
+    expect(task.actualUsage?.calculatedCost).toBeCloseTo(0.000056, 12);
     expect(sendModelRuntimeText).toHaveBeenCalledWith(
       expect.objectContaining({
         model: expect.objectContaining({
@@ -115,12 +143,22 @@ describe("BaseTranslator empty result retry", () => {
         .completionSummaryPath,
       "utf-8",
     );
-    expect(JSON.parse(completionSummary)).toMatchObject({
+    const parsedCompletionSummary = JSON.parse(completionSummary);
+    expect(parsedCompletionSummary).toMatchObject({
       schemaVersion: 1,
       status: "completed",
       fileName: "sample.lrc",
       finalFileName: "sample.lrc",
+      usage: {
+        inputTokens: 30,
+        outputTokens: 13,
+        totalTokens: 43,
+        requestCount: 2,
+        reportedRequestCount: 2,
+      },
     });
+    expect(parsedCompletionSummary.usage.calculatedCost)
+      .toBeCloseTo(0.000056, 12);
     expect(completionSummary).not.toContain("/input/sample.lrc");
     expect(completionSummary).not.toContain(outputDir);
     await rm(outputDir, { recursive: true, force: true });
@@ -151,11 +189,22 @@ describe("BaseTranslator empty result retry", () => {
       }
     }
     vi.mocked(sendModelRuntimeText).mockRejectedValueOnce(
-      new Error("provider unavailable"),
+      new ModelRuntimeClientError(
+        "length_truncated",
+        "provider output truncated",
+        false,
+        {
+          usage: {
+            inputTokens: 12,
+            outputTokens: 7,
+            totalTokens: 19,
+          },
+        },
+      ),
     );
     const outputDir = await mkdtemp(path.join(os.tmpdir(), "fusionkit-cp-"));
     const emitted: Array<{ channel: string; payload: unknown }> = [];
-    const task = {
+    const task: SubtitleTranslatorTask = {
       taskId: "subtitle-task-checkpoint-event",
       fileName: "checkpoint.srt",
       fileContent: "1\n00:00:00,000 --> 00:00:01,000\nSource\n",
@@ -170,6 +219,10 @@ describe("BaseTranslator empty result retry", () => {
         apiKey: "test-key",
         apiModel: "test-model",
         endPoint: "https://example.test/chat/completions",
+        tokenPricing: {
+          inputTokensPerMillion: 1,
+          outputTokensPerMillion: 2,
+        },
       },
     };
     try {
@@ -182,25 +235,145 @@ describe("BaseTranslator empty result retry", () => {
         releaseCheckpoint: vi.fn(),
         recordFinalOutput: async () => undefined,
         emit: (channel, payload) => emitted.push({ channel, payload }),
-      })).rejects.toThrow("provider unavailable");
+      })).rejects.toThrow("provider output truncated");
       const manifestPath = buildCheckpointPaths(
         outputDir,
         task.fileName,
         task.taskId,
       ).manifestPath;
       const serialized = await readFile(manifestPath, "utf-8");
-      expect(JSON.parse(serialized)).toMatchObject({
+      const parsedManifest = JSON.parse(serialized);
+      expect(parsedManifest).toMatchObject({
         schemaVersion: 2,
         status: "failed",
+        usage: {
+          inputTokens: 12,
+          outputTokens: 7,
+          totalTokens: 19,
+          requestCount: 1,
+          reportedRequestCount: 1,
+        },
       });
+      expect(parsedManifest.usage.calculatedCost).toBeCloseTo(0.000026, 12);
       expect(serialized).not.toContain("/private/source");
       expect(serialized).not.toContain(outputDir);
       const failure = emitted.find((event) => event.channel === "task-failed");
       expect(failure?.payload).toMatchObject({
         recovery: { checkpointRef: "checkpoint-ref-latest" },
+        actualUsage: {
+          inputTokens: 12,
+          outputTokens: 7,
+          totalTokens: 19,
+          requestCount: 1,
+          reportedRequestCount: 1,
+        },
       });
       expect(JSON.stringify(failure)).not.toContain(outputDir);
       expect(JSON.stringify(failure)).not.toContain("/private/source");
+    } finally {
+      logSpy.mockRestore();
+      errorSpy.mockRestore();
+      await rm(outputDir, { recursive: true, force: true });
+    }
+  });
+
+  it("waits for in-flight concurrent requests before reporting failed-task usage", async () => {
+    const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const { sendModelRuntimeText } = await import(
+      "../../electron/main/ai/model-runtime-client"
+    );
+    const { BaseTranslator } = await import(
+      "../../electron/main/translation/class/base-translator"
+    );
+    class ConcurrentTranslator extends BaseTranslator {
+      constructor() {
+        super();
+        this.maxRetries = 1;
+        this.retryDelay = 0;
+        this.maxSliceConcurrency = 2;
+      }
+      protected splitContent(): string[] { return ["first", "second"]; }
+      protected formatPrompt(content: string): string { return content; }
+      protected async parseResponse(response: any): Promise<string> {
+        return response.content;
+      }
+      protected normalizeError(error: unknown): Error {
+        return error instanceof Error ? error : new Error(String(error));
+      }
+    }
+
+    vi.mocked(sendModelRuntimeText)
+      .mockImplementationOnce(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 1));
+        throw new ModelRuntimeClientError(
+          "length_truncated",
+          "first fragment failed",
+          false,
+          {
+            usage: {
+              inputTokens: 10,
+              outputTokens: 5,
+              totalTokens: 15,
+            },
+          },
+        );
+      })
+      .mockImplementationOnce(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 10));
+        return {
+          content: "second translated",
+          apiFormat: "chat_completions",
+          usage: {
+            inputTokens: 20,
+            outputTokens: 10,
+            totalTokens: 30,
+          },
+        };
+      });
+
+    const outputDir = await mkdtemp(path.join(os.tmpdir(), "fusionkit-concurrent-"));
+    const emitted: Array<{ channel: string; payload: any }> = [];
+    const task: SubtitleTranslatorTask = {
+      taskId: "subtitle-task-concurrent-usage",
+      fileName: "concurrent.srt",
+      fileContent: "source",
+      sliceType: SubtitleSliceType.NORMAL,
+      originFileURL: "/private/source/concurrent.srt",
+      targetFileURL: outputDir,
+      status: TaskStatus.PENDING,
+      executionBinding: {
+        status: "ready",
+        profileId: "profile-test",
+        profileLabel: "Test profile",
+        apiKey: "test-key",
+        apiModel: "test-model",
+        endPoint: "https://example.test/chat/completions",
+      },
+      concurrentSlices: true,
+    };
+
+    try {
+      await expect(new ConcurrentTranslator().translate(task, undefined, {
+        revalidateTarget: async () => undefined,
+        validateOutputPath: async () => undefined,
+        authorizeCheckpoint: vi.fn()
+          .mockResolvedValueOnce("checkpoint-ref-initial")
+          .mockResolvedValueOnce("checkpoint-ref-latest"),
+        releaseCheckpoint: vi.fn(),
+        recordFinalOutput: async () => undefined,
+        emit: (channel, payload) => emitted.push({ channel, payload }),
+      })).rejects.toThrow("first fragment failed");
+
+      expect(task.actualUsage).toMatchObject({
+        inputTokens: 30,
+        outputTokens: 15,
+        totalTokens: 45,
+        requestCount: 2,
+        reportedRequestCount: 2,
+      });
+      expect(emitted.find((event) => event.channel === "task-failed")?.payload)
+        .toMatchObject({ actualUsage: task.actualUsage });
     } finally {
       logSpy.mockRestore();
       errorSpy.mockRestore();

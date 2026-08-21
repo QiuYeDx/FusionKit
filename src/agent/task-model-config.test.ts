@@ -14,6 +14,10 @@ describe("agent task model config", () => {
         baseUrl: "https://api.openai.com/v1",
         apiFormat: "responses",
         outputTokenParameter: "max_completion_tokens",
+        tokenPricing: {
+          inputTokensPerMillion: 1.25,
+          outputTokensPerMillion: 10,
+        },
       }),
     ).toEqual({
       apiKey: "sk-test",
@@ -22,6 +26,10 @@ describe("agent task model config", () => {
       apiFormat: "responses",
       outputTokenParameter: "max_completion_tokens",
       maxOutputTokens: 128_000,
+      tokenPricing: {
+        inputTokensPerMillion: 1.25,
+        outputTokensPerMillion: 10,
+      },
     });
   });
 
@@ -33,6 +41,10 @@ describe("agent task model config", () => {
         baseUrl: "https://api.example.com/v1/chat/completions",
         apiFormat: "chat_completions",
         outputTokenParameter: "max_tokens",
+        tokenPricing: {
+          inputTokensPerMillion: 0.44,
+          outputTokensPerMillion: 1.32,
+        },
       }),
     ).toMatchObject({
       apiFormat: "chat_completions",
@@ -50,6 +62,10 @@ describe("agent task model config", () => {
           baseUrl: "https://api.deepseek.com/v1",
           apiFormat: "chat_completions",
           outputTokenParameter: "max_tokens",
+          tokenPricing: {
+            inputTokensPerMillion: 0.44,
+            outputTokensPerMillion: 1.32,
+          },
         },
         { thinkingEnabled: true },
       ),
@@ -69,6 +85,10 @@ describe("agent task model config", () => {
       apiFormat: "responses",
       outputTokenParameter: "max_completion_tokens",
       maxOutputTokens: 32_000,
+      tokenPricing: {
+        inputTokensPerMillion: 2.5,
+        outputTokensPerMillion: 15,
+      },
     });
 
     expect(binding).toEqual({
@@ -81,6 +101,10 @@ describe("agent task model config", () => {
       apiFormat: "responses",
       outputTokenParameter: "max_completion_tokens",
       maxOutputTokens: 32_000,
+      tokenPricing: {
+        inputTokensPerMillion: 2.5,
+        outputTokensPerMillion: 15,
+      },
     });
     expect(Object.isFrozen(binding)).toBe(true);
     expect(hasReadySubtitleTaskExecution({ executionBinding: binding })).toBe(true);
