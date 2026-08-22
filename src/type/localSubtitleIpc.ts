@@ -89,6 +89,10 @@ export type LocalSubtitlePreloadInternalChannel =
 export type LocalSubtitleEventChannel =
   (typeof LOCAL_SUBTITLE_EVENT_CHANNELS)[keyof typeof LOCAL_SUBTITLE_EVENT_CHANNELS];
 
+export const LOCAL_SUBTITLE_INPUT_SELECTION_SOURCES = ["picker", "drop"] as const;
+export type LocalSubtitleInputSelectionSource =
+  (typeof LOCAL_SUBTITLE_INPUT_SELECTION_SOURCES)[number];
+
 export interface LocalSubtitleSecureIpcEnvelope<TPayload = unknown> {
   readonly ownerSessionId: string;
   readonly payload: TPayload;
@@ -1222,6 +1226,7 @@ export const localSubtitleOwnerSessionRegistrationSchema = z
   .strict();
 export const localSubtitleAuthorizeInputFilesRequestSchema = z
   .object({
+    source: z.enum(LOCAL_SUBTITLE_INPUT_SELECTION_SOURCES),
     files: z
       .array(z.object({ filePath: privateFilePathSchema }).strict())
       .min(1)
@@ -2240,6 +2245,7 @@ export interface LocalSubtitleRendererApi {
   captureInputFile(
     file: File,
     captureRef?: string,
+    source?: LocalSubtitleInputSelectionSource,
   ): LocalSubtitleIpcResult<LocalSubtitleInputFileCapture>;
   authorizeCapturedInputFiles(
     captureRef: string,

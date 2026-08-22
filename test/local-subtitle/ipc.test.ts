@@ -121,7 +121,10 @@ describe("local subtitle IPC service", () => {
     const result = await fixture.service.handleInternal(
       LOCAL_SUBTITLE_PRELOAD_INTERNAL_CHANNELS.authorizeInputFiles,
       fixture.event,
-      fixture.envelope({ files: [{ filePath: inputPath }] }),
+      fixture.envelope({
+        source: "picker",
+        files: [{ filePath: inputPath }],
+      }),
     );
     expect(result).toMatchObject({
       ok: true,
@@ -143,6 +146,36 @@ describe("local subtitle IPC service", () => {
         fixture.envelope({ fileToken }),
       ),
     ).resolves.toEqual({ ok: true, data: { revoked: true } });
+  });
+
+  it("authorizes the original path returned for an Explorer drop proxy", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "fusionkit-local-ipc-drop-"));
+    tempRoots.push(root);
+    const proxyPath = path.join(root, "sample (1).wav");
+    const originalPath = path.join(root, "sample.wav");
+    await Promise.all([
+      writeFile(proxyPath, "proxy-wave-bytes"),
+      writeFile(originalPath, "original-wave-bytes"),
+    ]);
+    const resolveInputPaths = vi.fn(async () => [originalPath]);
+    const fixture = createService({}, undefined, { resolveInputPaths });
+
+    const result = await fixture.service.handleInternal(
+      LOCAL_SUBTITLE_PRELOAD_INTERNAL_CHANNELS.authorizeInputFiles,
+      fixture.event,
+      fixture.envelope({
+        source: "drop",
+        files: [{ filePath: proxyPath }],
+      }),
+    );
+
+    expect(resolveInputPaths).toHaveBeenCalledWith([proxyPath], "drop");
+    expect(result).toMatchObject({
+      ok: true,
+      data: [{ displayName: "sample.wav", byteSize: 19 }],
+    });
+    expect(JSON.stringify(result)).not.toContain(originalPath);
+    expect(JSON.stringify(result)).not.toContain(proxyPath);
   });
 
   it("rejects resource URL and path injection before private import handlers", async () => {
@@ -595,6 +628,10 @@ function createService(
   capabilities?: ConstructorParameters<
     typeof LocalSubtitleIpcService
   >[0]["capabilities"],
+  overrides: Pick<
+    ConstructorParameters<typeof LocalSubtitleIpcService>[0],
+    "resolveInputPaths"
+  > = {},
 ) {
   const registry = new LocalSubtitleOwnerSessionRegistry({
     trustedSender: { devServerUrl: DEV_SERVER_URL },
@@ -607,6 +644,7 @@ function createService(
     ownerSessions: registry,
     handlers,
     capabilities,
+    ...overrides,
   });
   const registration = service.registerOwnerSession(event, {});
   if (!registration.ok) throw new Error("Could not register test owner.");

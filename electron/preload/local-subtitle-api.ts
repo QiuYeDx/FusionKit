@@ -17,6 +17,7 @@ import {
   validateLocalSubtitleTaskEventEnvelope,
   type LocalSubtitleIpcResult,
   type LocalSubtitleInputFileCapture,
+  type LocalSubtitleInputSelectionSource,
   type LocalSubtitleOwnerSessionRegistration,
   type LocalSubtitlePreloadInternalChannel,
   type LocalSubtitlePublicInvokeChannel,
@@ -39,6 +40,7 @@ const INPUT_CAPTURE_REF_PATTERN = /^local_subtitle_input_[0-9a-f]{32}$/u;
 
 interface PendingInputCapture {
   readonly files: ReadonlyArray<{ readonly filePath: string }>;
+  readonly source: LocalSubtitleInputSelectionSource;
   readonly expiresAt: number;
 }
 
@@ -154,8 +156,12 @@ export function createLocalSubtitleRendererApi({
   const captureNativeInputFile = (
     file: File,
     captureRef?: string,
+    source: LocalSubtitleInputSelectionSource = "picker",
   ): LocalSubtitleIpcResult<LocalSubtitleInputFileCapture> => {
     if (!ownerSessionId) return ownerReleasedFailure();
+    if (source !== "picker" && source !== "drop") {
+      return invalidRequestFailure("source");
+    }
     purgeExpiredInputCaptures();
 
     let capture: PendingInputCapture | undefined;
@@ -168,6 +174,10 @@ export function createLocalSubtitleRendererApi({
       }
       capture = pendingInputCaptures.get(captureRef);
       if (!capture) return fileAuthorizationFailure("captureRef");
+      if (capture.source !== source) {
+        pendingInputCaptures.delete(captureRef);
+        return invalidRequestFailure("source");
+      }
       if (capture.files.length >= LOCAL_SUBTITLE_LIMITS.maxBatchFiles) {
         pendingInputCaptures.delete(captureRef);
         return invalidRequestFailure("files");
@@ -197,6 +207,7 @@ export function createLocalSubtitleRendererApi({
       const files = Object.freeze([...capture.files, capturedFile]);
       pendingInputCaptures.set(captureRef, {
         files,
+        source: capture.source,
         expiresAt: capture.expiresAt,
       });
       return {
@@ -226,6 +237,7 @@ export function createLocalSubtitleRendererApi({
     if (pendingInputCaptures.has(nextCaptureRef)) return transportFailure();
     pendingInputCaptures.set(nextCaptureRef, {
       files: Object.freeze([capturedFile]),
+      source,
       expiresAt: now() + INPUT_CAPTURE_TTL_MS,
     });
     return {
@@ -239,11 +251,11 @@ export function createLocalSubtitleRendererApi({
 
   const api: LocalSubtitleRendererApi = {
     bridgeVersion: ownerSession?.bridgeVersion ?? 0,
-    captureInputFile(file, captureRef) {
+    captureInputFile(file, captureRef, source) {
       // Resolve exactly one native File synchronously while its originating
       // picker/drop event is still active. The renderer receives only a short-
       // lived opaque reference; the path remains private to preload and main.
-      return captureNativeInputFile(file, captureRef);
+      return captureNativeInputFile(file, captureRef, source);
     },
     authorizeCapturedInputFiles(captureRef) {
       if (!ownerSessionId) return Promise.resolve(ownerReleasedFailure());
@@ -263,7 +275,7 @@ export function createLocalSubtitleRendererApi({
 
       return invokeInternal(
         LOCAL_SUBTITLE_PRELOAD_INTERNAL_CHANNELS.authorizeInputFiles,
-        { files: capture.files },
+        { source: capture.source, files: capture.files },
       );
     },
     probeMedia(fileToken) {

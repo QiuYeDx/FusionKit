@@ -90,6 +90,7 @@ describe("local subtitle fixed preload API", () => {
       [
         LOCAL_SUBTITLE_PRELOAD_INTERNAL_CHANNELS.authorizeInputFiles,
         {
+          source: "picker",
           files: [
             { filePath: "/private/media-one.wav" },
             { filePath: "/private/media-two.mp4" },
@@ -190,21 +191,22 @@ describe("local subtitle fixed preload API", () => {
     expect(invoke).toHaveBeenCalledOnce();
   });
 
-  it("captures an Explorer batch one original File at a time", () => {
+  it("captures an Explorer drop batch and preserves its selection source", async () => {
     const mediaOne = {} as File;
     const mediaTwo = {} as File;
-    const { api, getPathForFile } = createHarness(
+    const { api, invoke, getPathForFile } = createHarness(
       new Map([
         [mediaOne, String.raw`H:\private\native-drop-one.wav`],
         [mediaTwo, String.raw`H:\private\native-drop-two.wav`],
       ]),
     );
 
-    const firstCapture = api.captureInputFile(mediaOne);
+    const firstCapture = api.captureInputFile(mediaOne, undefined, "drop");
     if (!firstCapture.ok) throw new Error("Expected the first File capture.");
     const captured = api.captureInputFile(
       mediaTwo,
       firstCapture.data.captureRef,
+      "drop",
     );
 
     expect(captured).toMatchObject({ ok: true, data: { fileCount: 2 } });
@@ -218,6 +220,41 @@ describe("local subtitle fixed preload API", () => {
       ok: false,
       error: { code: "authorization_expired", field: "files.0" },
     });
+
+    if (!captured.ok) throw new Error("Expected the complete drop capture.");
+    await api.authorizeCapturedInputFiles(captured.data.captureRef);
+    expect(invoke).toHaveBeenCalledWith(
+      LOCAL_SUBTITLE_PRELOAD_INTERNAL_CHANNELS.authorizeInputFiles,
+      {
+        ownerSessionId: OWNER_SESSION_ID,
+        payload: {
+          source: "drop",
+          files: [
+            { filePath: String.raw`H:\private\native-drop-one.wav` },
+            { filePath: String.raw`H:\private\native-drop-two.wav` },
+          ],
+        },
+      },
+    );
+  });
+
+  it("rejects mixing picker and drop authority in one capture", () => {
+    const first = {} as File;
+    const second = {} as File;
+    const { api, getPathForFile } = createHarness(new Map([
+      [first, String.raw`H:\private\first.wav`],
+      [second, String.raw`H:\private\second.wav`],
+    ]));
+
+    const captured = api.captureInputFile(first, undefined, "drop");
+    if (!captured.ok) throw new Error("Expected the first drop capture.");
+    expect(
+      api.captureInputFile(second, captured.data.captureRef, "picker"),
+    ).toMatchObject({
+      ok: false,
+      error: { code: "invalid_ipc_request", field: "source" },
+    });
+    expect(getPathForFile).toHaveBeenCalledOnce();
   });
 
   it("expires preload-private captures without ever forwarding their paths", async () => {
@@ -485,7 +522,7 @@ describe("local subtitle fixed preload API", () => {
       LOCAL_SUBTITLE_PRELOAD_INTERNAL_CHANNELS.authorizeInputFiles,
       {
         ownerSessionId: OWNER_SESSION_ID,
-        payload: { files: [{ filePath }] },
+        payload: { source: "picker", files: [{ filePath }] },
       },
     );
     expect(invoke).toHaveBeenNthCalledWith(

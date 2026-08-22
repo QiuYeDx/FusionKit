@@ -104,7 +104,7 @@ describe("local subtitle Job Manager IPC integration", () => {
     const authorized = await fixture.service.handleInternal(
       LOCAL_SUBTITLE_PRELOAD_INTERNAL_CHANNELS.authorizeInputFiles,
       fixture.event,
-      fixture.envelope({ files: [{ filePath: sourcePath }] }),
+      fixture.envelope({ source: "picker", files: [{ filePath: sourcePath }] }),
     );
     if (!authorized.ok) throw new Error("Expected input authorization.");
     const fileToken = (
@@ -201,7 +201,7 @@ describe("local subtitle Job Manager IPC integration", () => {
     const authorized = await fixture.service.handleInternal(
       LOCAL_SUBTITLE_PRELOAD_INTERNAL_CHANNELS.authorizeInputFiles,
       fixture.event,
-      fixture.envelope({ files: [{ filePath: sourcePath }] }),
+      fixture.envelope({ source: "picker", files: [{ filePath: sourcePath }] }),
     );
     if (!authorized.ok) throw new Error("Expected input authorization.");
     const fileToken = (
@@ -261,7 +261,7 @@ describe("local subtitle Job Manager IPC integration", () => {
     const authorized = await fixture.service.handleInternal(
       LOCAL_SUBTITLE_PRELOAD_INTERNAL_CHANNELS.authorizeInputFiles,
       fixture.event,
-      fixture.envelope({ files: [{ filePath: sourcePath }] }),
+      fixture.envelope({ source: "picker", files: [{ filePath: sourcePath }] }),
     );
     if (!authorized.ok) throw new Error("Expected input authorization.");
     const fileToken = (
@@ -304,7 +304,7 @@ describe("local subtitle Job Manager IPC integration", () => {
     const authorized = await fixture.service.handleInternal(
       LOCAL_SUBTITLE_PRELOAD_INTERNAL_CHANNELS.authorizeInputFiles,
       fixture.event,
-      fixture.envelope({ files: [{ filePath: sourcePath }] }),
+      fixture.envelope({ source: "picker", files: [{ filePath: sourcePath }] }),
     );
     if (!authorized.ok) throw new Error("Expected input authorization.");
     const fileToken = (
@@ -337,7 +337,7 @@ describe("local subtitle Job Manager IPC integration", () => {
     const authorized = await fixture.service.handleInternal(
       LOCAL_SUBTITLE_PRELOAD_INTERNAL_CHANNELS.authorizeInputFiles,
       fixture.event,
-      fixture.envelope({ files: [{ filePath: sourcePath }] }),
+      fixture.envelope({ source: "picker", files: [{ filePath: sourcePath }] }),
     );
     if (!authorized.ok) throw new Error("Expected input authorization.");
     const fileToken = (
@@ -388,7 +388,7 @@ describe("local subtitle Job Manager IPC integration", () => {
       const authorized = await fixture.service.handleInternal(
         LOCAL_SUBTITLE_PRELOAD_INTERNAL_CHANNELS.authorizeInputFiles,
         fixture.event,
-        fixture.envelope({ files: [{ filePath: sourcePath }] }),
+        fixture.envelope({ source: "picker", files: [{ filePath: sourcePath }] }),
       );
       if (!authorized.ok) throw new Error("Expected input authorization.");
       const fileToken = (

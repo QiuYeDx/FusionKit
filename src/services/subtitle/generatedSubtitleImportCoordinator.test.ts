@@ -32,7 +32,10 @@ import {
   type GeneratedSubtitleImportHydrationSource,
   type GeneratedSubtitleImportQueue,
 } from "./generatedSubtitleImportCoordinator";
-import { subtitleTranslationIpcSuccess } from "@/type/subtitleTranslationIpc";
+import {
+  subtitleTranslationIpcFailure,
+  subtitleTranslationIpcSuccess,
+} from "@/type/subtitleTranslationIpc";
 
 const PROFILE = Object.freeze({
   id: "profile-1",
@@ -443,6 +446,44 @@ describe("GeneratedSubtitleImportSnapshotCoordinator", () => {
 });
 
 describe("GeneratedSubtitleImportCoordinator", () => {
+  it.each([
+    "artifact_changed",
+    "invalid_ipc_request",
+    "owner_released",
+    "output_write_failed",
+  ] as const)(
+    "preserves the %s candidate failure instead of reporting invalid_content",
+    async (code) => {
+      const snapshots = createCoordinator(
+        hydrationSource(preferences({ outputMode: "source" }), true),
+        hydrationSource<ModelProfile | null>(PROFILE, true),
+      );
+      const prepared = await snapshots.prepareBatch("enqueue_translation");
+      if (!prepared.ok) throw new Error("Expected a snapshot.");
+      const coordinator = new GeneratedSubtitleImportCoordinator({
+        snapshots,
+        mainApi: {
+          createGeneratedImportCandidate: vi.fn(async () =>
+            subtitleTranslationIpcFailure(code, "Candidate creation failed.")),
+          commitGeneratedImportCandidate: vi.fn(async () =>
+            subtitleTranslationIpcSuccess({ committed: true })),
+          releaseGeneratedImportCandidate: vi.fn(async () =>
+            subtitleTranslationIpcSuccess({ released: true })),
+        },
+        queue: queue(),
+        receiptIdFactory: () => `candidate-failure-${code}`,
+      });
+
+      await expect(coordinator.importArtifact({
+        translationImportToken: "ls-import-candidate-failure",
+        snapshotId: prepared.snapshot.snapshotId,
+      })).resolves.toMatchObject({
+        addedTaskIds: [],
+        skipped: [{ reason: code }],
+      });
+    },
+  );
+
   it("commits one candidate and starts only the receipt task IDs", async () => {
     const snapshots = createCoordinator(
       hydrationSource(preferences({ outputMode: "source" }), true),

@@ -8,6 +8,8 @@ import {
 } from "@/type/subtitleTranslationIpc";
 import { SubtitleTranslationDirectoryCapabilityRegistry } from "../../electron/main/translation/directory-capability";
 import { buildCheckpointPaths } from "../../electron/main/translation/checkpoint";
+import { LocalSubtitleAuthorizationError } from "../../electron/main/local-subtitle/authorizations";
+import { LocalSubtitleArtifactRegistryError } from "../../electron/main/local-subtitle/subtitle-artifact-registry";
 
 vi.mock("electron", () => ({
   BrowserWindow: { getAllWindows: () => [] },
@@ -26,6 +28,72 @@ afterEach(async () => {
 });
 
 describe("subtitle translation IPC service", () => {
+  it.each([
+    {
+      failure: new LocalSubtitleArtifactRegistryError(
+        "artifact_changed",
+        "Artifact changed.",
+        "artifactRef",
+      ),
+      expectedCode: "artifact_changed",
+    },
+    {
+      failure: new LocalSubtitleArtifactRegistryError(
+        "invalid_ipc_request",
+        "Artifact request is invalid.",
+        "artifactRef",
+      ),
+      expectedCode: "invalid_ipc_request",
+    },
+    {
+      failure: new LocalSubtitleAuthorizationError(
+        "output_write_failed",
+        "Directory validation failed.",
+        "sourceDirectory",
+      ),
+      expectedCode: "output_write_failed",
+    },
+    {
+      failure: new LocalSubtitleAuthorizationError(
+        "limit_exceeded",
+        "Artifact is too large.",
+        "artifactRef",
+      ),
+      expectedCode: "content_too_large",
+    },
+  ])(
+    "preserves generated handoff failure $expectedCode",
+    async ({ failure, expectedCode }) => {
+      const { SubtitleTranslationIpcService } = await import(
+        "../../electron/main/translation/ipc"
+      );
+      const service = new SubtitleTranslationIpcService({
+        ownerSessions: fakeOwnerSessions() as never,
+        localOwnerSessions: fakeOwnerSessions() as never,
+        generatedImports: {
+          create: vi.fn(async () => {
+            throw failure;
+          }),
+        } as never,
+      });
+
+      await expect(service.handleInternal(
+        SUBTITLE_TRANSLATION_PRELOAD_INTERNAL_CHANNELS
+          .createGeneratedImportCandidate,
+        fakeEvent(30) as never,
+        envelope(OWNER_SESSION_A, {
+          localOwnerSessionId: OWNER_SESSION_B,
+          translationImportToken: "ls-import-diagnostics",
+          snapshotId: "snapshot-diagnostics",
+          outputMode: "source",
+        }),
+      )).resolves.toMatchObject({
+        ok: false,
+        error: { code: expectedCode, field: failure.field },
+      });
+    },
+  );
+
   it("cleans task-scoped recovery artifacts before releasing task authority", async () => {
     const output = await outputDirectory("task-cleanup");
     const capabilities = new SubtitleTranslationDirectoryCapabilityRegistry({

@@ -66,6 +66,9 @@ export type SubtitleTranslationImportSkipReason =
   | "artifact_expired"
   | "artifact_changed"
   | "content_too_large"
+  | "invalid_ipc_request"
+  | "owner_released"
+  | "output_write_failed"
   | "invalid_content";
 
 export interface SubtitleTranslationImportReceipt {

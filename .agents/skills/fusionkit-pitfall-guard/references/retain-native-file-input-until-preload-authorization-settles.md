@@ -24,6 +24,10 @@ Electron binds filesystem path authority to the native `File` retained by the fi
 
 Explorer drag has a separate runtime compatibility failure. On Windows with Electron 33.4.11, `webUtils.getPathForFile()` returned an empty string for a real Explorer `DataTransfer` file in all tested placements: renderer-to-preload batch calls, one-file synchronous calls, and a trusted preload capture-phase `drop` listener. The same WAV selected through the picker succeeded. Updating the project runtime to Electron 41.10.6 made that unchanged real Explorer drag succeed immediately; Electron 42.7.1 was independently validated as well, but is not required for this fix. Playwright/CDP injected files do not reproduce this runtime failure and therefore produce false positives.
 
+Electron 41 can also return a non-empty `%TEMP%` backing path for long Windows
+Shell items. That is a different failure from empty path authority and requires
+the original-source recovery described in FK-PIT-0099.
+
 ## Do
 
 - Await the complete file consumer/authorization Promise before clearing the input.

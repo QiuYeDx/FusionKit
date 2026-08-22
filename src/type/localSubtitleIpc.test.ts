@@ -123,7 +123,11 @@ describe("local subtitle fixed IPC surface", () => {
       Extract<keyof LocalSubtitleRendererApi, "invoke" | "send" | "channel">
     >().toEqualTypeOf<never>();
     expectTypeOf<Parameters<LocalSubtitleRendererApi["captureInputFile"]>>()
-      .toEqualTypeOf<[file: File, captureRef?: string]>();
+      .toEqualTypeOf<[
+        file: File,
+        captureRef?: string,
+        source?: "picker" | "drop",
+      ]>();
     expectTypeOf<
       Parameters<LocalSubtitleRendererApi["authorizeCapturedInputFiles"]>
     >().toEqualTypeOf<[captureRef: string]>();
@@ -296,11 +300,13 @@ describe("local subtitle fixed IPC surface", () => {
     const maxPath = "x".repeat(32_768);
     expect(
       localSubtitleAuthorizeInputFilesRequestSchema.safeParse({
+        source: "picker",
         files: [{ filePath: maxPath }],
       }).success,
     ).toBe(true);
     expect(
       localSubtitleAuthorizeInputFilesRequestSchema.safeParse({
+        source: "picker",
         files: [{ filePath: `${maxPath}x` }],
       }).success,
     ).toBe(false);
@@ -1518,6 +1524,7 @@ function validInternalOperationRequests(): Record<
   return {
     [LOCAL_SUBTITLE_PRELOAD_INTERNAL_CHANNELS.registerOwnerSession]: {},
     [LOCAL_SUBTITLE_PRELOAD_INTERNAL_CHANNELS.authorizeInputFiles]: {
+      source: "picker",
       files: [{ filePath: "/private/sample.wav" }],
     },
     [LOCAL_SUBTITLE_PRELOAD_INTERNAL_CHANNELS.revokeInputFile]: {

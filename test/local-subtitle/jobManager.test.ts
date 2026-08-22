@@ -2766,6 +2766,53 @@ describe("LocalSubtitleJobManager", () => {
     ).toBe(true);
   });
 
+  it("rejects a source already visible in the queue and admits it after removal", async () => {
+    const harness = await createHarness({
+      executor: executor(async (context) => successfulExecution(context)),
+      taskIds: ["task-1", "task-2", "task-3"],
+      batchIds: ["batch-1", "batch-2", "batch-3"],
+    });
+    const first = await harness.manager.enqueue(
+      OWNER_A,
+      await harness.createRequest(harness.fileToken),
+    );
+    const duplicate = await harness.inputs.authorize(
+      OWNER_A,
+      path.join(harness.root, "sample.wav"),
+    );
+    const duplicateRequest = await harness.createRequest(duplicate.fileToken);
+
+    await expect(
+      harness.manager.enqueue(OWNER_A, duplicateRequest),
+    ).rejects.toMatchObject({
+      localSubtitleCode: "invalid_ipc_request",
+      stage: "preflight",
+      field: "files",
+    });
+    expect(first.tasks[0]).toMatchObject({
+      sourceKey: duplicate.sourceKey,
+      displayName: "sample.wav",
+    });
+    expect(harness.inputs.revokeDraft(OWNER_A, duplicate.fileToken)).toBe(true);
+
+    const replacement = await harness.inputs.authorize(
+      OWNER_A,
+      path.join(harness.root, "sample.wav"),
+    );
+    const replacementRequest = await harness.createRequest(replacement.fileToken);
+    harness.flushScheduled();
+    await harness.manager.waitForIdle();
+    expect(harness.manager.removeTask(OWNER_A, first.tasks[0]!.taskId)).toEqual({
+      removed: true,
+    });
+
+    await expect(
+      harness.manager.enqueue(OWNER_A, replacementRequest),
+    ).resolves.toMatchObject({
+      tasks: [{ sourceKey: replacement.sourceKey, displayName: "sample.wav" }],
+    });
+  });
+
   it("rolls capability commit back to drafts when session publication fails", async () => {
     const harness = await createHarness({
       executor: executor(async (context) => successfulExecution(context)),

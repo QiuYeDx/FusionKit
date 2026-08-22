@@ -27,6 +27,7 @@ import {
   type SubtitleTranslationAuthorizedTaskRegistrationRequest,
   type SubtitleTranslationGeneratedImportCandidateControl,
   type SubtitleTranslationGeneratedImportCandidateRequest,
+  type SubtitleTranslationErrorCode,
   type SubtitleTranslationPreloadInternalChannel,
   type SubtitleTranslationTaskReference,
 } from "@/type/subtitleTranslationIpc";
@@ -825,34 +826,55 @@ function capabilityFailure(
   }
   if (error instanceof LocalSubtitleAuthorizationError) {
     return subtitleTranslationIpcFailure(
-      error.code === "authorization_expired"
-        ? "artifact_expired"
-        : error.code === "invalid_content"
-          ? "invalid_content"
-          : error.code === "owner_released"
-            ? "owner_released"
-            : "invalid_ipc_request",
+      mapLocalAuthorizationFailureCode(error.code),
       error.message,
       error.field,
     );
   }
   if (error instanceof LocalSubtitleArtifactRegistryError) {
     return subtitleTranslationIpcFailure(
-      error.code === "content_too_large"
-        ? "content_too_large"
-        : error.code === "artifact_expired"
-          ? "artifact_expired"
-          : error.code === "owner_released"
-            ? "owner_released"
-            : "invalid_content",
+      mapLocalArtifactFailureCode(error.code),
       error.message,
       error.field,
     );
   }
   return subtitleTranslationIpcFailure(
-        "output_write_failed",
-        "The subtitle translation directory operation failed.",
-      );
+    "output_write_failed",
+    "The subtitle translation directory operation failed.",
+  );
+}
+
+function mapLocalAuthorizationFailureCode(
+  code: LocalSubtitleAuthorizationError["code"],
+): SubtitleTranslationErrorCode {
+  switch (code) {
+    case "authorization_expired":
+    case "media_changed":
+      return "artifact_expired";
+    case "limit_exceeded":
+      return "content_too_large";
+    case "invalid_ipc_request":
+    case "owner_released":
+    case "output_write_failed":
+    case "invalid_content":
+      return code;
+  }
+}
+
+function mapLocalArtifactFailureCode(
+  code: LocalSubtitleArtifactRegistryError["code"],
+): SubtitleTranslationErrorCode {
+  switch (code) {
+    case "limit_exceeded":
+      return "content_too_large";
+    case "invalid_ipc_request":
+    case "owner_released":
+    case "artifact_expired":
+    case "artifact_changed":
+    case "content_too_large":
+    case "invalid_content":
+      return code;
+  }
 }
 
 function mapOwnerFailure(code: string): SubtitleTranslationIpcResult<never> {

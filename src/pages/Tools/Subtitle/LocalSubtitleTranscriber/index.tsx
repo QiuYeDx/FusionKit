@@ -33,6 +33,7 @@ import {
   ToolDetailLayout,
   ToolField,
   ToolFileDropZone,
+  type ToolFileSelectionSource,
   ToolOutputPathPicker,
   ToolRadioButtonGroup,
 } from "@/pages/Tools/_shared/ui";
@@ -832,7 +833,7 @@ export default function LocalSubtitleTranscriber() {
   );
 
   const handleFiles = useCallback(
-    (files: FileList) => {
+    (files: FileList, source: ToolFileSelectionSource) => {
       if (!bridgeCompatible) return;
       const fileCount = Math.min(
         files.length,
@@ -847,11 +848,12 @@ export default function LocalSubtitleTranscriber() {
         const file = files.item(index);
         if (!file) return;
         // Consume the original FileList synchronously and keep all native paths
-        // inside the fixed preload bridge. The validated Electron 42.7.1
-        // runtime preserves both picker and Windows Explorer drop authority.
+        // inside the fixed preload bridge. On Electron 41, main additionally
+        // resolves proven Explorer long-path sources before authorization.
         captured = window.localSubtitleApi.captureInputFile(
           file,
           captured?.ok ? captured.data.captureRef : undefined,
+          source,
         );
         if (!captured.ok) {
           setActionError(captured.error);

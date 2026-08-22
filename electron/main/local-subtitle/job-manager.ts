@@ -276,6 +276,7 @@ interface TaskRecord {
   readonly batch: BatchRecord;
   readonly taskId: string;
   readonly fileToken: string;
+  readonly sourceKey: string;
   readonly audioStreamId?: string;
   execution: TaskExecutionBinding;
   generation: number;
@@ -373,6 +374,7 @@ export class LocalSubtitleJobManager {
   readonly #tasks = new Map<string, TaskRecord>();
   readonly #pendingBatchIds = new Set<string>();
   readonly #pendingTaskIds = new Set<string>();
+  readonly #pendingSourceKeys = new Set<string>();
   readonly #queue: TaskRun[] = [];
   readonly #admissions: QueueAdmission[] = [];
   readonly #releasedOwners = new Set<string>();
@@ -566,6 +568,7 @@ export class LocalSubtitleJobManager {
       | undefined;
     let claimedBatchId: string | undefined;
     const claimedTaskIds: string[] = [];
+    const claimedSourceKeys: string[] = [];
     try {
       throwIfAborted(pending.controller.signal);
       const batchId = this.#claimId(
@@ -614,6 +617,9 @@ export class LocalSubtitleJobManager {
       assertManagedModel(managedModel, parsed.config.modelId);
       assertManagedVad(managedVad, parsed.config.vadEnabled);
       assertDistinctInputIdentities(inputs);
+      claimedSourceKeys.push(
+        ...this.#claimPendingSourceKeys(ownerKeyValue, inputs),
+      );
       const runtimeGeneration = assertRuntimeAdmission(runtimeAdmission);
       const backendResolution = await this.#backendResolver.resolveBackend({
         devicePreference: parsed.config.devicePreference,
@@ -670,6 +676,7 @@ export class LocalSubtitleJobManager {
         batch: batchRecord,
         taskId: taskIds[index]!,
         fileToken: file.fileToken,
+        sourceKey: inputs[index]!.sourceKey,
         ...(file.audioStreamId === undefined
           ? {}
           : { audioStreamId: file.audioStreamId }),
@@ -754,6 +761,9 @@ export class LocalSubtitleJobManager {
       this.#pendingEnqueues.delete(pending);
       if (claimedBatchId) this.#pendingBatchIds.delete(claimedBatchId);
       for (const taskId of claimedTaskIds) this.#pendingTaskIds.delete(taskId);
+      for (const sourceKey of claimedSourceKeys) {
+        this.#pendingSourceKeys.delete(sourceKey);
+      }
       this.#flushIdleWaiters();
     }
   }
@@ -1215,6 +1225,36 @@ export class LocalSubtitleJobManager {
     };
     this.#pendingEnqueues.add(pending);
     return pending;
+  }
+
+  #claimPendingSourceKeys(
+    ownerKeyValue: string,
+    inputs: readonly ResolvedLocalSubtitleInput[],
+  ): readonly string[] {
+    const claims = inputs.map((input) => ownedSourceKey(
+      ownerKeyValue,
+      input.sourceKey,
+    ));
+    const visibleSourceKeys = new Set(
+      [...this.#tasks.values()]
+        .filter((record) =>
+          record.ownerKey === ownerKeyValue && record.state !== "removed"
+        )
+        .map((record) => record.sourceKey),
+    );
+    if (
+      inputs.some((input) => visibleSourceKeys.has(input.sourceKey)) ||
+      claims.some((claim) => this.#pendingSourceKeys.has(claim))
+    ) {
+      throw managerFailure(
+        "invalid_ipc_request",
+        "The same source file is already visible in the local subtitle queue.",
+        "preflight",
+        "files",
+      );
+    }
+    for (const claim of claims) this.#pendingSourceKeys.add(claim);
+    return Object.freeze(claims);
   }
 
   #beginPendingBackendPreview(
@@ -2697,6 +2737,7 @@ function assertProductionBatchSliceRequest(
       "config",
     );
   }
+
   if (!executor.supportsOutputConflictPolicy(config.output.conflictPolicy)) {
     throw managerFailure(
       "invalid_ipc_request",
@@ -3178,6 +3219,10 @@ function managerFailure(
 
 function ownerKey(owner: LocalSubtitleOwnerKey): string {
   return JSON.stringify([owner.webContentsId, owner.ownerSessionId]);
+}
+
+function ownedSourceKey(ownerKeyValue: string, sourceKey: string): string {
+  return `${ownerKeyValue}\0${sourceKey}`;
 }
 
 function stripUndefined<T extends object>(value: T): T {

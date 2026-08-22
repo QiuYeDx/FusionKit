@@ -20,8 +20,9 @@ describe("consumeToolFileInputSelection", () => {
         inputValue = nextValue;
       },
     } as Pick<HTMLInputElement, "files" | "value">;
-    const onFiles = vi.fn(async (selected: FileList) => {
+    const onFiles = vi.fn(async (selected: FileList, source: "picker" | "drop") => {
       expect(selected).toBe(files);
+      expect(source).toBe("picker");
       expect(inputValue).not.toBe("");
       await authorization;
       expect(inputValue).not.toBe("");

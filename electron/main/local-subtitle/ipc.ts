@@ -25,6 +25,7 @@ import {
   validateLocalSubtitleResourceEventEnvelope,
   validateLocalSubtitleTaskEventEnvelope,
   type LocalSubtitleIpcResult,
+  type LocalSubtitleInputSelectionSource,
   type LocalSubtitlePreloadInternalChannel,
   type LocalSubtitlePublicInvokeChannel,
 } from "@/type/localSubtitleIpc";
@@ -65,6 +66,7 @@ import {
 import { LocalSubtitleModelError } from "./model-manifest";
 import { LocalSubtitleResourceError } from "./resource-manifest";
 import { LocalSubtitleSessionRegistryError } from "./session-registry";
+import { resolveLocalSubtitleInputPaths } from "./windows-explorer-drop-resolver";
 
 type MaybePromise<T> = T | Promise<T>;
 
@@ -132,6 +134,11 @@ export type LocalSubtitleOutputDirectorySelector = () => Promise<{
   readonly filePaths: readonly string[];
 }>;
 
+export type LocalSubtitleInputPathResolver = (
+  paths: readonly string[],
+  source: LocalSubtitleInputSelectionSource,
+) => Promise<readonly string[]>;
+
 export type LocalSubtitleOverwriteRecoveryDirectorySelector = (
   event: IpcMainInvokeEvent,
 ) => Promise<{
@@ -143,6 +150,7 @@ export interface LocalSubtitleIpcServiceOptions {
   readonly ownerSessions?: LocalSubtitleOwnerSessionRegistry;
   readonly capabilities?: Partial<LocalSubtitleIpcCapabilities>;
   readonly handlers?: LocalSubtitleIpcHandlers;
+  readonly resolveInputPaths?: LocalSubtitleInputPathResolver;
   readonly selectOutputDirectory?: LocalSubtitleOutputDirectorySelector;
   readonly selectOverwriteRecoveryDirectory?: LocalSubtitleOverwriteRecoveryDirectorySelector;
   readonly overwriteRecoveryAdmissions?: LocalSubtitleOverwriteRecoveryAdmissionCoordinator;
@@ -269,6 +277,7 @@ export class LocalSubtitleIpcService {
   readonly ownerSessions: LocalSubtitleOwnerSessionRegistry;
   readonly capabilities: LocalSubtitleIpcCapabilities;
   private readonly handlers: LocalSubtitleIpcHandlers;
+  private readonly resolveInputPathsImpl: LocalSubtitleInputPathResolver;
   private readonly selectOutputDirectoryImpl: LocalSubtitleOutputDirectorySelector;
   private readonly selectOverwriteRecoveryDirectoryImpl: LocalSubtitleOverwriteRecoveryDirectorySelector;
   private readonly overwriteRecoveryAdmissions: LocalSubtitleOverwriteRecoveryAdmissionCoordinator;
@@ -308,6 +317,8 @@ export class LocalSubtitleIpcService {
       handoffs,
     };
     this.handlers = options.handlers ?? {};
+    this.resolveInputPathsImpl =
+      options.resolveInputPaths ?? resolveLocalSubtitleInputPaths;
     this.selectOutputDirectoryImpl =
       options.selectOutputDirectory ??
       (() =>
@@ -469,12 +480,24 @@ export class LocalSubtitleIpcService {
   ): Promise<LocalSubtitleIpcResult<unknown>> {
     switch (channel) {
       case LOCAL_SUBTITLE_PRELOAD_INTERNAL_CHANNELS.authorizeInputFiles: {
-        const { files } = request as {
+        const { files, source } = request as {
           readonly files: readonly { readonly filePath: string }[];
+          readonly source: LocalSubtitleInputSelectionSource;
         };
+        const resolvedPaths = await this.resolveInputPathsImpl(
+          files.map((file) => file.filePath),
+          source,
+        );
+        if (resolvedPaths.length !== files.length) {
+          throw new LocalSubtitleAuthorizationError(
+            "invalid_ipc_request",
+            "Resolved local subtitle input count changed.",
+            "files",
+          );
+        }
         const authorizations = await this.capabilities.inputs.authorizeMany(
           context.owner,
-          files.map((file) => file.filePath),
+          resolvedPaths,
         );
         return localSubtitleIpcSuccess(authorizations);
       }

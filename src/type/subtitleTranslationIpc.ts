@@ -76,6 +76,7 @@ export const SUBTITLE_TRANSLATION_ERROR_CODES = [
   "task_not_active",
   "task_reference_conflict",
   "artifact_expired",
+  "artifact_changed",
   "content_too_large",
 ] as const;
 

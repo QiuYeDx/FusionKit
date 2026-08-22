@@ -662,8 +662,12 @@ function mapCandidateFailure(code: string): SubtitleTranslationImportSkipReason 
   if (code === "artifact_expired" || code === "authorization_expired") {
     return "artifact_expired";
   }
+  if (code === "artifact_changed") return "artifact_changed";
   if (code === "content_too_large") return "content_too_large";
   if (code === "task_reference_conflict") return "duplicate";
+  if (code === "invalid_ipc_request") return "invalid_ipc_request";
+  if (code === "owner_released") return "owner_released";
+  if (code === "output_write_failed") return "output_write_failed";
   return "invalid_content";
 }
 
