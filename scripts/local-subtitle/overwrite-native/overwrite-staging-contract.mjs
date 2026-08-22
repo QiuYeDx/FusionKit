@@ -96,6 +96,10 @@ const EXPECTED_TARGETS = deepFreeze({
       recipe:
         "scripts/local-subtitle/overwrite-native/build-addon-windows-x64.mjs",
       source: "native/local-subtitle-overwrite/src/addon-win32.cc",
+      delayLoadHook:
+        "native/local-subtitle-overwrite/src/win-delay-load-hook.cc",
+      nodeImportMode: "delay-load-current-host",
+      delayedHostBinary: "node.exe",
       cxxStandard: "c++17",
       minimumWindowsVersion: "10.0",
     },
@@ -252,6 +256,9 @@ export function parseOverwriteBuildReceipt(value, target) {
     : [
         "recipe",
         "source",
+        "delayLoadHook",
+        "nodeImportMode",
+        "delayedHostBinary",
         "nodeVersion",
         "napiVersion",
         "nativeProtocolVersion",
@@ -261,6 +268,7 @@ export function parseOverwriteBuildReceipt(value, target) {
         "compiler",
         "shell",
         "nodeImportLibrarySha256",
+        "delayLoadHookSha256",
       ];
   assertExactKeys(value.build, buildKeys, "build receipt build");
   for (const key of ["recipe", "source", "cxxStandard"]) {
@@ -288,6 +296,13 @@ export function parseOverwriteBuildReceipt(value, target) {
       throw invalidReceipt("The build receipt SDK version is invalid.");
     }
   } else {
+    for (const key of [
+      "delayLoadHook",
+      "nodeImportMode",
+      "delayedHostBinary",
+    ]) {
+      assertEqual(value.build[key], target.build[key], `build receipt ${key}`);
+    }
     assertEqual(
       value.build.minimumWindowsVersion,
       target.build.minimumWindowsVersion,
@@ -301,6 +316,10 @@ export function parseOverwriteBuildReceipt(value, target) {
     assertSha256(
       value.build.nodeImportLibrarySha256,
       "build receipt Node import library hash",
+    );
+    assertSha256(
+      value.build.delayLoadHookSha256,
+      "build receipt delay-load hook hash",
     );
   }
 

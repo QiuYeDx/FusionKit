@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   LOCAL_SUBTITLE_DOMAIN_SCHEMA_VERSION,
+  LOCAL_SUBTITLE_IPC_BRIDGE_VERSION,
   LOCAL_SUBTITLE_LIMITS,
   LOCAL_SUBTITLE_PRODUCTION_CONTRACT,
   createLocalSubtitleError,
@@ -27,12 +28,13 @@ const ACCEPTED_FAILURE = {
 };
 
 describe("local subtitle fixed preload API", () => {
-  it("freezes the complete fixed API without a generic transport or owner id", () => {
+  it("freezes the complete versioned API without a generic transport or owner id", () => {
     const { api } = createHarness();
 
     expect(Object.isFrozen(api)).toBe(true);
     expect(Object.keys(api).sort()).toEqual(
       [
+        "bridgeVersion",
         "authorizeInputFiles",
         "probeMedia",
         "revokeInputFile",
@@ -66,6 +68,7 @@ describe("local subtitle fixed preload API", () => {
     expect(api).not.toHaveProperty("send");
     expect(api).not.toHaveProperty("channel");
     expect(api).not.toHaveProperty("ownerSessionId");
+    expect(api.bridgeVersion).toBe(LOCAL_SUBTITLE_IPC_BRIDGE_VERSION);
   });
 
   it("maps every command to its exact channel and private owner envelope", async () => {
@@ -181,7 +184,11 @@ describe("local subtitle fixed preload API", () => {
       api.authorizeInputFiles([validFile, unavailableFile]),
     ).resolves.toMatchObject({
       ok: false,
-      error: { code: "invalid_ipc_request" },
+      error: {
+        code: "authorization_expired",
+        stage: "preflight",
+        field: "files.1",
+      },
     });
     await expect(
       api.authorizeInputFiles([validFile, duplicateFile]),
@@ -255,6 +262,7 @@ describe("local subtitle fixed preload API", () => {
     ).toBe(true);
     expect(invoke).not.toHaveBeenCalled();
     expect(getPathForFile).not.toHaveBeenCalled();
+    expect(api.bridgeVersion).toBe(0);
 
     api.onTaskEvent(vi.fn())();
     api.onResourceEvent(vi.fn())();
@@ -321,12 +329,61 @@ describe("local subtitle fixed preload API", () => {
     const rejected = await api.probeRuntime();
     expect(rejected).toMatchObject({
       ok: false,
-      error: { code: "invalid_ipc_request" },
+      error: { code: "runtime_protocol_mismatch", stage: "ipc" },
     });
     expect(JSON.stringify(rejected)).not.toContain("/private/runtime");
 
     invoke.mockResolvedValueOnce(ACCEPTED_FAILURE);
     await expect(api.probeRuntime()).resolves.toEqual(ACCEPTED_FAILURE);
+  });
+
+  it("forwards Unicode paths and enqueue-and-start translation through the versioned bridge", async () => {
+    const file = {} as File;
+    const filePath = String.raw`H:\我のNas\media\rrr\白嫖DLsite(asmr.one)\【RJ01567709】【已自翻】【藤村莉央&恋鈴桃歌】\wav\5.素っ気ない鳩羽のおまんこ借りて身勝手寝バックえっち♡.wav`;
+    const { api, invoke } = createHarness(new Map([[file, filePath]]));
+
+    await api.authorizeInputFiles([file]);
+    await api.enqueue({
+      ...validEnqueueRequest(),
+      config: {
+        ...validEnqueueRequest().config,
+        output: {
+          ...validEnqueueRequest().config.output,
+          conflictPolicy: "overwrite",
+        },
+        postAction: {
+          mode: "enqueue_and_start_translation",
+          preferredFormat: "LRC",
+          translationSnapshotId: "translation-snapshot-one",
+        },
+      },
+    });
+
+    expect(invoke).toHaveBeenNthCalledWith(
+      1,
+      LOCAL_SUBTITLE_PRELOAD_INTERNAL_CHANNELS.authorizeInputFiles,
+      {
+        ownerSessionId: OWNER_SESSION_ID,
+        payload: { files: [{ filePath }] },
+      },
+    );
+    expect(invoke).toHaveBeenNthCalledWith(
+      2,
+      LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.enqueue,
+      expect.objectContaining({
+        ownerSessionId: OWNER_SESSION_ID,
+        payload: expect.objectContaining({
+          config: expect.objectContaining({
+            output: expect.objectContaining({ conflictPolicy: "overwrite" }),
+            postAction: {
+              mode: "enqueue_and_start_translation",
+              preferredFormat: "LRC",
+              translationSnapshotId: "translation-snapshot-one",
+            },
+          }),
+        }),
+      }),
+    );
   });
 
   it("subscribes only to strict bounded event channels and unbinds exactly once", () => {
@@ -402,7 +459,10 @@ function createHarness(
   filePaths = new Map<File, string>(),
   ownerSessionRegistration: unknown = {
     ok: true,
-    data: { ownerSessionId: OWNER_SESSION_ID },
+    data: {
+      ownerSessionId: OWNER_SESSION_ID,
+      bridgeVersion: LOCAL_SUBTITLE_IPC_BRIDGE_VERSION,
+    },
   },
 ) {
   const invoke = vi.fn().mockResolvedValue(ACCEPTED_FAILURE);

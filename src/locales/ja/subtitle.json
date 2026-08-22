@@ -238,6 +238,9 @@
   "local_transcriber": {
     "title": "ローカル字幕文字起こし",
     "description": "端末にインストール済みのモデルで、音声や動画のタスクを字幕に文字起こしします。",
+    "error": {
+      "bridge_protocol_mismatch": "ローカル字幕コンポーネントが更新されましたが、このページは古いブリッジを使用しています。FusionKit を再起動して、もう一度お試しください。"
+    },
     "config": {
       "title": "文字起こし設定",
       "model": "ローカルモデル",

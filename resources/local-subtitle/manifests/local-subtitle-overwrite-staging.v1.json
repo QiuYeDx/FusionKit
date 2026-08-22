@@ -51,6 +51,9 @@
       "build": {
         "recipe": "scripts/local-subtitle/overwrite-native/build-addon-windows-x64.mjs",
         "source": "native/local-subtitle-overwrite/src/addon-win32.cc",
+        "delayLoadHook": "native/local-subtitle-overwrite/src/win-delay-load-hook.cc",
+        "nodeImportMode": "delay-load-current-host",
+        "delayedHostBinary": "node.exe",
         "cxxStandard": "c++17",
         "minimumWindowsVersion": "10.0"
       },

@@ -238,6 +238,9 @@
   "local_transcriber": {
     "title": "Local Subtitle Transcriber",
     "description": "Use an installed on-device model to transcribe audio and video tasks into subtitles.",
+    "error": {
+      "bridge_protocol_mismatch": "The local subtitle components were updated, but this page is still using an older bridge. Restart FusionKit and try again."
+    },
     "config": {
       "title": "Transcription settings",
       "model": "Local model",

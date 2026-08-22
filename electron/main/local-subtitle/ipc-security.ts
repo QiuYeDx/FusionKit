@@ -8,7 +8,10 @@ import type {
   WebFrameMain,
 } from "electron";
 import { z } from "zod";
-import { createLocalSubtitleError } from "@/type/localSubtitle";
+import {
+  LOCAL_SUBTITLE_IPC_BRIDGE_VERSION,
+  createLocalSubtitleError,
+} from "@/type/localSubtitle";
 import {
   localSubtitleSecureIpcEnvelopeSchema,
   localSubtitleIpcFailure,
@@ -29,6 +32,7 @@ export interface TrustedLocalSubtitleSenderOptions {
 
 export interface LocalSubtitleOwnerSessionRegistration {
   readonly ownerSessionId: string;
+  readonly bridgeVersion: typeof LOCAL_SUBTITLE_IPC_BRIDGE_VERSION;
 }
 
 export interface LocalSubtitleOwnerIdentity {
@@ -121,7 +125,10 @@ export class LocalSubtitleOwnerSessionRegistry {
     this.currentSessionBySender.set(record.senderId, ownerSessionId);
     record.disposeLifecycle = this.bindLifecycle(record);
 
-    return localSubtitleIpcSuccess({ ownerSessionId });
+    return localSubtitleIpcSuccess({
+      ownerSessionId,
+      bridgeVersion: LOCAL_SUBTITLE_IPC_BRIDGE_VERSION,
+    });
   }
 
   authorize<TPayload>(

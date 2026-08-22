@@ -850,6 +850,9 @@ function isReceiptBuild(value: unknown, target: TargetPolicy): boolean {
     : [
         "recipe",
         "source",
+        "delayLoadHook",
+        "nodeImportMode",
+        "delayedHostBinary",
         "nodeVersion",
         "napiVersion",
         "nativeProtocolVersion",
@@ -859,6 +862,7 @@ function isReceiptBuild(value: unknown, target: TargetPolicy): boolean {
         "compiler",
         "shell",
         "nodeImportLibrarySha256",
+        "delayLoadHookSha256",
       ];
   if (!isExactRecord(value, keys)) return false;
   if (
@@ -881,9 +885,14 @@ function isReceiptBuild(value: unknown, target: TargetPolicy): boolean {
       /^\d+(?:\.\d+){1,2}$/u.test(value.sdkVersion);
   }
   return value.minimumWindowsVersion === target.build.minimumWindowsVersion &&
+    value.delayLoadHook === target.build.delayLoadHook &&
+    value.nodeImportMode === target.build.nodeImportMode &&
+    value.delayedHostBinary === target.build.delayedHostBinary &&
     value.compiler === "portable llvm-mingw clang++" &&
     typeof value.nodeImportLibrarySha256 === "string" &&
-    SHA256_PATTERN.test(value.nodeImportLibrarySha256);
+    SHA256_PATTERN.test(value.nodeImportLibrarySha256) &&
+    typeof value.delayLoadHookSha256 === "string" &&
+    SHA256_PATTERN.test(value.delayLoadHookSha256);
 }
 
 function isReceiptArtifact(value: unknown, target: TargetPolicy): boolean {
@@ -1075,7 +1084,15 @@ function isExactBuildPolicy(value: unknown, platform: unknown): value is Record<
   return platform === "darwin"
     ? isExactRecord(value, ["recipe", "source", "cxxStandard", "deploymentTarget"])
     : platform === "win32" &&
-      isExactRecord(value, ["recipe", "source", "cxxStandard", "minimumWindowsVersion"]);
+      isExactRecord(value, [
+        "recipe",
+        "source",
+        "delayLoadHook",
+        "nodeImportMode",
+        "delayedHostBinary",
+        "cxxStandard",
+        "minimumWindowsVersion",
+      ]);
 }
 
 function sameStrings(value: readonly unknown[], expected: readonly string[]): boolean {

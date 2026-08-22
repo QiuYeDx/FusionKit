@@ -579,7 +579,10 @@ describe("local subtitle IPC service", () => {
     });
     expect(service.registerOwnerSession(event, {})).toMatchObject({
       ok: true,
-      data: { ownerSessionId: expect.any(String) },
+      data: {
+        ownerSessionId: expect.any(String),
+        bridgeVersion: 2,
+      },
     });
   });
 });

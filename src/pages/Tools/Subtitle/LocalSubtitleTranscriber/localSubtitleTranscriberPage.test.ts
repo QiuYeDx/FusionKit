@@ -75,6 +75,10 @@ describe("local subtitle transcriber page wiring", () => {
     expect(pageSource).not.toContain("window.localSubtitleApi.probeRuntime");
     expect(pageSource).not.toContain("window.localSubtitleApi.previewBackend");
     expect(pageSource).not.toContain("window.localSubtitleApi.listManagedResources");
+    expect(pageSource).toContain("LOCAL_SUBTITLE_IPC_BRIDGE_VERSION");
+    expect(pageSource).toContain("window.localSubtitleApi.bridgeVersion");
+    expect(pageSource).toContain("window.location.reload()");
+    expect(pageSource).toContain("!bridgeCompatible");
     expect(mainSource).toContain(
       "getLocalSubtitleEnvironmentService().ensureInitialized()",
     );

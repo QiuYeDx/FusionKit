@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { LOCAL_SUBTITLE_IPC_BRIDGE_VERSION } from "@/type/localSubtitle";
 import {
   SUBTITLE_TRANSLATION_PRELOAD_INTERNAL_CHANNELS,
   subtitleTranslationIpcSuccess,
@@ -165,6 +166,7 @@ describe("subtitle translation fixed preload API", () => {
       }),
       localSubtitleOwnerSessionRegistration: subtitleTranslationIpcSuccess({
         ownerSessionId: LOCAL_OWNER_SESSION_ID,
+        bridgeVersion: LOCAL_SUBTITLE_IPC_BRIDGE_VERSION,
       }),
     });
 

@@ -56,6 +56,7 @@ import type {
 } from "@/type/localSubtitle";
 import {
   LOCAL_SUBTITLE_LIMITS,
+  LOCAL_SUBTITLE_IPC_BRIDGE_VERSION,
   LOCAL_SUBTITLE_PRODUCTION_CONTRACT,
 } from "@/type/localSubtitle";
 import type {
@@ -120,6 +121,8 @@ const MEDIA_ACCEPT = [
   ".wav",
   ".webm",
 ].join(",");
+const BRIDGE_RELOAD_STORAGE_KEY =
+  "fusionkit-local-subtitle-bridge-reload-version";
 
 const START_ISSUE_KEYS = {
   environment_loading: "subtitle:local_transcriber.readiness.environment_loading",
@@ -171,6 +174,9 @@ interface PreparedTranslationBatch {
 
 export default function LocalSubtitleTranscriber() {
   const { t } = useTranslation(["subtitle", "common"]);
+  const bridgeCompatible =
+    window.localSubtitleApi.bridgeVersion ===
+      LOCAL_SUBTITLE_IPC_BRIDGE_VERSION;
   const environmentService = useMemo(getLocalSubtitleEnvironmentService, []);
   const runtimeService = useMemo(getLocalSubtitleRuntimeService, []);
   const postActionService = useMemo(getLocalSubtitlePostActionService, []);
@@ -683,6 +689,23 @@ export default function LocalSubtitleTranscriber() {
     () => flattenLocalSubtitleTasksInQueueOrder(visibleBatches),
     [visibleBatches],
   );
+
+  useEffect(() => {
+    if (bridgeCompatible) {
+      sessionStorage.removeItem(BRIDGE_RELOAD_STORAGE_KEY);
+      return;
+    }
+    const expected = String(LOCAL_SUBTITLE_IPC_BRIDGE_VERSION);
+    if (sessionStorage.getItem(BRIDGE_RELOAD_STORAGE_KEY) !== expected) {
+      sessionStorage.setItem(BRIDGE_RELOAD_STORAGE_KEY, expected);
+      window.location.reload();
+      return;
+    }
+    setActionError({
+      code: "runtime_protocol_mismatch",
+      message: t("subtitle:local_transcriber.error.bridge_protocol_mismatch"),
+    });
+  }, [bridgeCompatible, t]);
   const supportedConflictPolicies = supportedLocalSubtitleConflictPolicies(
     environment.runtime,
   );
@@ -808,6 +831,7 @@ export default function LocalSubtitleTranscriber() {
   );
 
   const handleFiles = useCallback(async (files: FileList) => {
+    if (!bridgeCompatible) return;
     const selected = Array.from(files).slice(
       0,
       LOCAL_SUBTITLE_LIMITS.maxBatchFiles,
@@ -873,7 +897,7 @@ export default function LocalSubtitleTranscriber() {
     } finally {
       if (mountedRef.current) setFileAuthorizationPending(false);
     }
-  }, [addDraftInputFiles, runtimeService, t, visibleTasks]);
+  }, [addDraftInputFiles, bridgeCompatible, runtimeService, t, visibleTasks]);
 
   const handleSelectOutput = useCallback(async () => {
     setOutputSelectionPending(true);
@@ -990,6 +1014,7 @@ export default function LocalSubtitleTranscriber() {
 
   const handleStart = useCallback(async () => {
     if (
+      !bridgeCompatible ||
       startIssue ||
       fileAuthorizationPending ||
       outputSelectionPending ||
@@ -1059,6 +1084,7 @@ export default function LocalSubtitleTranscriber() {
     }
   }, [
     commitBatchRequest,
+    bridgeCompatible,
     resolvedConflictPolicy,
     draftInitialPrompt,
     draftPostActionMode,
@@ -1707,7 +1733,9 @@ export default function LocalSubtitleTranscriber() {
             accept={MEDIA_ACCEPT}
             multiple
             dragging={dragging}
-            disabled={submissionLocked || fileAuthorizationPending}
+            disabled={
+              !bridgeCompatible || submissionLocked || fileAuthorizationPending
+            }
             title={t(
               fileAuthorizationPending
                 ? "subtitle:local_transcriber.file.authorizing"

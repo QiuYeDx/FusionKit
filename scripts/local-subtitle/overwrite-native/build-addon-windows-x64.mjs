@@ -29,12 +29,16 @@ const SCRIPT_PATH = fileURLToPath(import.meta.url);
 const PROJECT_ROOT = path.resolve(path.dirname(SCRIPT_PATH), "../../..");
 const SOURCE_RELATIVE_PATH =
   "native/local-subtitle-overwrite/src/addon-win32.cc";
+const DELAY_LOAD_HOOK_RELATIVE_PATH =
+  "native/local-subtitle-overwrite/src/win-delay-load-hook.cc";
 const LOGICAL_ARTIFACT_NAME = "local-subtitle-overwrite.node";
 const DEFAULT_OUTPUT_PATH = path.join(
   os.tmpdir(),
   "fusionkit-local-subtitle-overwrite-napi-v8-win32-x64.node",
 );
 const COMPILER_LEAF = "x86_64-w64-mingw32-clang++.exe";
+const INSPECTOR_LEAF = "llvm-readobj.exe";
+const DELAYED_HOST_BINARY = "node.exe";
 
 export const OVERWRITE_NATIVE_WINDOWS_BUILD_CONTRACT = deepFreeze({
   schemaVersion: 1,
@@ -47,6 +51,11 @@ export const OVERWRITE_NATIVE_WINDOWS_BUILD_CONTRACT = deepFreeze({
   cxxStandard: "c++17",
   minimumWindowsVersion: "10.0",
   sourceRelativePath: SOURCE_RELATIVE_PATH,
+  delayLoadHookRelativePath: DELAY_LOAD_HOOK_RELATIVE_PATH,
+  hostBinding: {
+    delayedBinary: DELAYED_HOST_BINARY,
+    resolution: "current-process-image",
+  },
   defaultOutputPath: DEFAULT_OUTPUT_PATH,
 });
 
@@ -61,6 +70,7 @@ const FIXED_COMPILE_FLAGS = Object.freeze([
   "-D_WIN32_WINNT=0x0A00",
   "-DWIN32_LEAN_AND_MEAN",
   "-DNOMINMAX",
+  `-DHOST_BINARY=\"${DELAYED_HOST_BINARY}\"`,
   "-fvisibility=hidden",
   "-Wall",
   "-Wextra",
@@ -88,12 +98,20 @@ export function createWindowsDryRunCommandDescriptor(options = {}) {
           outputPath: `<temporary-output>/${LOGICAL_ARTIFACT_NAME}`,
         }),
       ),
+      commandDescriptor(
+        `<toolchain-root>/bin/${INSPECTOR_LEAF}`,
+        [
+          "--coff-imports",
+          `<temporary-output>/${LOGICAL_ARTIFACT_NAME}`,
+        ],
+      ),
     ],
     paths: {
       source: SOURCE_RELATIVE_PATH,
       toolchainRoot: "<explicit-portable-llvm-mingw-root>",
       nodeHeaders: "<explicit-current-node-headers>",
       nodeImportLibrary: "<explicit-current-node-win-x64-node.lib>",
+      delayLoadHook: DELAY_LOAD_HOOK_RELATIVE_PATH,
       output: `<explicit-output-directory>/${path.basename(
         options.outputPath ?? DEFAULT_OUTPUT_PATH,
       )}`,
@@ -177,6 +195,7 @@ export async function buildWindowsX64OverwriteAddon(options = {}) {
     "toolchain_unavailable",
   );
   const compilerPath = path.join(toolchainRoot, "bin", COMPILER_LEAF);
+  const inspectorPath = path.join(toolchainRoot, "bin", INSPECTOR_LEAF);
   const headersPath = await realDirectory(
     normalizeAbsoluteDirectory(
       options.nodeHeadersPath ?? process.env.FUSIONKIT_NODE_HEADERS_DIR,
@@ -194,7 +213,11 @@ export async function buildWindowsX64OverwriteAddon(options = {}) {
   );
   await Promise.all([
     access(compilerPath, fsConstants.X_OK),
+    access(inspectorPath, fsConstants.X_OK),
     assertRegularSource(path.join(PROJECT_ROOT, SOURCE_RELATIVE_PATH)),
+    assertRegularSource(
+      path.join(PROJECT_ROOT, DELAY_LOAD_HOOK_RELATIVE_PATH),
+    ),
     access(path.join(headersPath, "node_api.h"), fsConstants.R_OK),
     access(path.join(headersPath, "node_version.h"), fsConstants.R_OK),
   ]);
@@ -220,7 +243,8 @@ export async function buildWindowsX64OverwriteAddon(options = {}) {
   let receiptWorkRoot;
   try {
     const temporaryOutput = path.join(workRoot, LOGICAL_ARTIFACT_NAME);
-    const compile = (options.commandRunner ?? runCommand)(
+    const commandRunner = options.commandRunner ?? runCommand;
+    const compile = commandRunner(
       compilerPath,
       createCompileArguments({
         headersPath,
@@ -234,6 +258,17 @@ export async function buildWindowsX64OverwriteAddon(options = {}) {
       },
     );
     assertCommandSuccess(compile);
+    const imports = commandRunner(
+      inspectorPath,
+      ["--coff-imports", temporaryOutput],
+      {
+        cwd: PROJECT_ROOT,
+        env: buildEnvironment(toolchainRoot),
+        timeoutMs: 30_000,
+      },
+    );
+    assertCommandSuccess(imports);
+    assertDelayLoadedHostImport(imports.stdout);
     const inspection = await inspectNativeBinaryFile(temporaryOutput);
     if (
       inspection.format !== "pe" ||
@@ -248,6 +283,9 @@ export async function buildWindowsX64OverwriteAddon(options = {}) {
     const bytes = await readFile(temporaryOutput);
     assertNoPrivateBuildPath(bytes);
     const nodeLibBytes = await readFile(nodeLibPath);
+    const delayLoadHookBytes = await readFile(
+      path.join(PROJECT_ROOT, DELAY_LOAD_HOOK_RELATIVE_PATH),
+    );
     const receipt = deepFreeze({
       schemaVersion: 1,
       workPackage: OVERWRITE_NATIVE_WINDOWS_BUILD_CONTRACT.workPackage,
@@ -257,6 +295,7 @@ export async function buildWindowsX64OverwriteAddon(options = {}) {
         recipe:
           "scripts/local-subtitle/overwrite-native/build-addon-windows-x64.mjs",
         source: SOURCE_RELATIVE_PATH,
+        delayLoadHook: DELAY_LOAD_HOOK_RELATIVE_PATH,
         nodeVersion,
         napiVersion: OVERWRITE_NATIVE_WINDOWS_BUILD_CONTRACT.napiVersion,
         nativeProtocolVersion:
@@ -268,8 +307,13 @@ export async function buildWindowsX64OverwriteAddon(options = {}) {
           OVERWRITE_NATIVE_WINDOWS_BUILD_CONTRACT.minimumWindowsVersion,
         compiler: "portable llvm-mingw clang++",
         shell: false,
+        nodeImportMode: "delay-load-current-host",
+        delayedHostBinary: DELAYED_HOST_BINARY,
         nodeImportLibrarySha256: createHash("sha256")
           .update(nodeLibBytes)
+          .digest("hex"),
+        delayLoadHookSha256: createHash("sha256")
+          .update(delayLoadHookBytes)
           .digest("hex"),
       },
       artifact: {
@@ -326,10 +370,26 @@ function createCompileArguments({ headersPath, nodeLibPath, outputPath }) {
     "-I",
     headersPath,
     SOURCE_RELATIVE_PATH,
+    DELAY_LOAD_HOOK_RELATIVE_PATH,
     nodeLibPath,
+    `-Wl,--delayload,${DELAYED_HOST_BINARY}`,
+    "-ldelayimp",
     "-o",
     outputPath,
   ];
+}
+
+function assertDelayLoadedHostImport(output) {
+  if (
+    typeof output !== "string" ||
+    !/DelayImport\s*\{\s*Name:\s*node\.exe\b/iu.test(output) ||
+    /(?:^|\n)Import\s*\{\s*Name:\s*node\.exe\b/iu.test(output)
+  ) {
+    throw buildError(
+      "artifact_contract_mismatch",
+      "The addon must delay-load Node APIs from the current host executable.",
+    );
+  }
 }
 
 function runCommand(command, args, options) {

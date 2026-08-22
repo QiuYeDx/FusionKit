@@ -3,6 +3,7 @@ import path from "node:path";
 import { describe, expect, expectTypeOf, it } from "vitest";
 import {
   LOCAL_SUBTITLE_DOMAIN_SCHEMA_VERSION,
+  LOCAL_SUBTITLE_IPC_BRIDGE_VERSION,
   LOCAL_SUBTITLE_LIMITS,
   LOCAL_SUBTITLE_MODEL_MANIFEST_VERSION,
   LOCAL_SUBTITLE_PRODUCTION_CONTRACT,
@@ -85,6 +86,7 @@ describe("local subtitle fixed IPC surface", () => {
 
   it("exposes only the fixed renderer methods without a generic transport", () => {
     type ExpectedRendererApiKey =
+      | "bridgeVersion"
       | "authorizeInputFiles"
       | "probeMedia"
       | "revokeInputFile"
@@ -273,11 +275,16 @@ describe("local subtitle fixed IPC surface", () => {
     expect(
       localSubtitleOwnerSessionRegistrationSchema.parse({
         ownerSessionId: "owner_session_1234567890",
+        bridgeVersion: LOCAL_SUBTITLE_IPC_BRIDGE_VERSION,
       }),
-    ).toEqual({ ownerSessionId: "owner_session_1234567890" });
+    ).toEqual({
+      ownerSessionId: "owner_session_1234567890",
+      bridgeVersion: LOCAL_SUBTITLE_IPC_BRIDGE_VERSION,
+    });
     expect(
       localSubtitleOwnerSessionRegistrationSchema.safeParse({
         ownerSessionId: "owner_session_1234567890",
+        bridgeVersion: LOCAL_SUBTITLE_IPC_BRIDGE_VERSION,
         senderId: 1,
       }).success,
     ).toBe(false);
@@ -1534,6 +1541,7 @@ function validInternalOperationResults(): Record<
   return {
     [LOCAL_SUBTITLE_PRELOAD_INTERNAL_CHANNELS.registerOwnerSession]: {
       ownerSessionId: "owner_session_1234567890",
+      bridgeVersion: LOCAL_SUBTITLE_IPC_BRIDGE_VERSION,
     },
     [LOCAL_SUBTITLE_PRELOAD_INTERNAL_CHANNELS.authorizeInputFiles]: [
       validAuthorizedMedia(),

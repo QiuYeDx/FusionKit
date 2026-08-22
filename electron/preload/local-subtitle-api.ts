@@ -1,5 +1,6 @@
 import type { IpcRenderer, WebUtils } from "electron";
 import {
+  LOCAL_SUBTITLE_IPC_BRIDGE_VERSION,
   LOCAL_SUBTITLE_LIMITS,
   createLocalSubtitleError,
   type LocalSubtitleResourceEventEnvelope,
@@ -37,7 +38,8 @@ export function createLocalSubtitleRendererApi({
   webUtils,
   ownerSessionRegistration,
 }: CreateLocalSubtitleRendererApiOptions): LocalSubtitleRendererApi {
-  const ownerSessionId = resolveOwnerSessionId(ownerSessionRegistration);
+  const ownerSession = resolveOwnerSession(ownerSessionRegistration);
+  const ownerSessionId = ownerSession?.ownerSessionId;
 
   const invokeOperation = async <TResult>(
     channel: LocalSubtitlePublicInvokeChannel | LocalSubtitlePreloadInternalChannel,
@@ -47,7 +49,9 @@ export function createLocalSubtitleRendererApi({
     if (!ownerSessionId) return ownerReleasedFailure();
 
     const parsedRequest = contract.requestSchema.safeParse(payload);
-    if (!parsedRequest.success) return invalidRequestFailure();
+    if (!parsedRequest.success) {
+      return invalidRequestFailure(validationField(parsedRequest.error));
+    }
 
     const parsedEnvelope = localSubtitleSecureIpcEnvelopeSchema(
       contract.requestSchema,
@@ -55,7 +59,9 @@ export function createLocalSubtitleRendererApi({
       ownerSessionId,
       payload: parsedRequest.data,
     });
-    if (!parsedEnvelope.success) return invalidRequestFailure();
+    if (!parsedEnvelope.success) {
+      return invalidRequestFailure(validationField(parsedEnvelope.error));
+    }
 
     let response: unknown;
     try {
@@ -121,6 +127,7 @@ export function createLocalSubtitleRendererApi({
   };
 
   const api: LocalSubtitleRendererApi = {
+    bridgeVersion: ownerSession?.bridgeVersion ?? 0,
     async authorizeInputFiles(files) {
       if (!ownerSessionId) return ownerReleasedFailure();
       if (
@@ -128,20 +135,21 @@ export function createLocalSubtitleRendererApi({
         files.length === 0 ||
         files.length > LOCAL_SUBTITLE_LIMITS.maxBatchFiles
       ) {
-        return invalidRequestFailure();
+        return invalidRequestFailure("files");
       }
 
       const authorizedFiles: Array<{ filePath: string }> = [];
-      try {
-        for (const file of files) {
+      for (let index = 0; index < files.length; index += 1) {
+        try {
+          const file = files[index]!;
           const filePath = webUtils.getPathForFile(file);
           if (typeof filePath !== "string" || filePath.length === 0) {
-            return invalidRequestFailure();
+            return fileAuthorizationFailure(`files.${index}`);
           }
           authorizedFiles.push({ filePath });
+        } catch {
+          return fileAuthorizationFailure(`files.${index}`);
         }
-      } catch {
-        return invalidRequestFailure();
       }
 
       return invokeInternal(
@@ -202,16 +210,18 @@ export function createLocalSubtitleRendererApi({
     async importModel(file, options) {
       if (!ownerSessionId) return ownerReleasedFailure();
       const mode = options?.mode;
-      if (mode !== "copy" && mode !== "move") return invalidRequestFailure();
+      if (mode !== "copy" && mode !== "move") {
+        return invalidRequestFailure("options.mode");
+      }
 
       let filePath = "";
       try {
         filePath = webUtils.getPathForFile(file);
       } catch {
-        return invalidRequestFailure();
+        return fileAuthorizationFailure("file");
       }
       if (typeof filePath !== "string" || filePath.length === 0) {
-        return invalidRequestFailure();
+        return fileAuthorizationFailure("file");
       }
 
       return invokeInternal(
@@ -318,7 +328,9 @@ export function createLocalSubtitleRendererApi({
   return Object.freeze(api);
 }
 
-function resolveOwnerSessionId(registration: unknown): string | undefined {
+function resolveOwnerSession(
+  registration: unknown,
+): LocalSubtitleOwnerSessionRegistration | undefined {
   const contract =
     LOCAL_SUBTITLE_INTERNAL_OPERATION_CONTRACTS[
       LOCAL_SUBTITLE_PRELOAD_INTERNAL_CHANNELS.registerOwnerSession
@@ -329,7 +341,7 @@ function resolveOwnerSessionId(registration: unknown): string | undefined {
   const result = parsed.data as LocalSubtitleIpcResult<
     LocalSubtitleOwnerSessionRegistration
   >;
-  return result.ok ? result.data.ownerSessionId : undefined;
+  return result.ok ? result.data : undefined;
 }
 
 function ownerReleasedFailure<T>(): LocalSubtitleIpcResult<T> {
@@ -342,12 +354,24 @@ function ownerReleasedFailure<T>(): LocalSubtitleIpcResult<T> {
   };
 }
 
-function invalidRequestFailure<T>(): LocalSubtitleIpcResult<T> {
+function invalidRequestFailure<T>(field?: string): LocalSubtitleIpcResult<T> {
   return {
     ok: false,
     error: createLocalSubtitleError(
       "invalid_ipc_request",
       "Local subtitle IPC request is invalid.",
+      { stage: "ipc", ...(field ? { field } : {}) },
+    ),
+  };
+}
+
+function fileAuthorizationFailure<T>(field: string): LocalSubtitleIpcResult<T> {
+  return {
+    ok: false,
+    error: createLocalSubtitleError(
+      "authorization_expired",
+      "The selected file is no longer available to the secure subtitle bridge. Select it again.",
+      { stage: "preflight", field },
     ),
   };
 }
@@ -356,10 +380,23 @@ function transportFailure<T>(): LocalSubtitleIpcResult<T> {
   return {
     ok: false,
     error: createLocalSubtitleError(
-      "invalid_ipc_request",
-      "Local subtitle IPC transport is unavailable.",
+      "runtime_protocol_mismatch",
+      "The local subtitle bridge is unavailable or out of date. Reload the app and retry.",
+      { stage: "ipc" },
     ),
   };
+}
+
+function validationField(error: {
+  readonly issues: readonly { readonly path: readonly PropertyKey[] }[];
+}): string | undefined {
+  const path = error.issues[0]?.path
+    .filter((segment): segment is string | number =>
+      typeof segment === "string" || typeof segment === "number"
+    )
+    .map(String)
+    .join(".");
+  return path && path.length <= 256 ? path : undefined;
 }
 
 function invalidContentFailure<T>(): LocalSubtitleIpcResult<T> {

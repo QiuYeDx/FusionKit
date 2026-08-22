@@ -238,6 +238,9 @@
   "local_transcriber": {
     "title": "本機字幕轉寫",
     "description": "使用裝置上已安裝的模型，將音訊或影片任務轉寫為字幕。",
+    "error": {
+      "bridge_protocol_mismatch": "本機字幕元件剛剛更新，但目前頁面仍在使用舊版本。請重新啟動 FusionKit 後再試一次。"
+    },
     "config": {
       "title": "轉寫設定",
       "model": "本機模型",

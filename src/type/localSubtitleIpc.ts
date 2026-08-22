@@ -11,6 +11,7 @@ import {
   LOCAL_SUBTITLE_ERROR_MANIFEST,
   LOCAL_SUBTITLE_FORMATS,
   LOCAL_SUBTITLE_HANDOFF_MODES,
+  LOCAL_SUBTITLE_IPC_BRIDGE_VERSION,
   LOCAL_SUBTITLE_LIMITS,
   LOCAL_SUBTITLE_MODEL_MANIFEST_VERSION,
   LOCAL_SUBTITLE_OPERATION_STAGES,
@@ -1214,7 +1215,10 @@ const privateFilePathSchema = z
   );
 
 export const localSubtitleOwnerSessionRegistrationSchema = z
-  .object({ ownerSessionId: ownerSessionIdSchema })
+  .object({
+    ownerSessionId: ownerSessionIdSchema,
+    bridgeVersion: z.literal(LOCAL_SUBTITLE_IPC_BRIDGE_VERSION),
+  })
   .strict();
 export const localSubtitleAuthorizeInputFilesRequestSchema = z
   .object({
@@ -2228,6 +2232,7 @@ export const LOCAL_SUBTITLE_INTERNAL_OPERATION_CONTRACTS: Record<
 };
 
 export interface LocalSubtitleRendererApi {
+  readonly bridgeVersion: number;
   authorizeInputFiles(
     files: File[],
   ): Promise<LocalSubtitleIpcResult<LocalSubtitleAuthorizedMedia[]>>;

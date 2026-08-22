@@ -12,7 +12,10 @@ import {
   type LocalSubtitleIpcEvent,
   type LocalSubtitleOwnerIdentity,
 } from "../../electron/main/local-subtitle/ipc-security";
-import { LOCAL_SUBTITLE_LIMITS } from "@/type/localSubtitle";
+import {
+  LOCAL_SUBTITLE_IPC_BRIDGE_VERSION,
+  LOCAL_SUBTITLE_LIMITS,
+} from "@/type/localSubtitle";
 
 const DEV_SERVER_URL = "http://127.0.0.1:5173/";
 const SESSION_ONE = "00000000-0000-4000-8000-000000000001";
@@ -90,7 +93,10 @@ describe("local subtitle owner session registry", () => {
     const registration = registry.register(fixture.event);
     expect(registration).toEqual({
       ok: true,
-      data: { ownerSessionId: SESSION_ONE },
+      data: {
+        ownerSessionId: SESSION_ONE,
+        bridgeVersion: LOCAL_SUBTITLE_IPC_BRIDGE_VERSION,
+      },
     });
 
     const authorization = registry.authorize<{ action: string }>(
@@ -190,7 +196,10 @@ describe("local subtitle owner session registry", () => {
     )[0] as (...args: unknown[]) => void;
     expect(registry.register(fixture.event)).toEqual({
       ok: true,
-      data: { ownerSessionId: SESSION_TWO },
+      data: {
+        ownerSessionId: SESSION_TWO,
+        bridgeVersion: LOCAL_SUBTITLE_IPC_BRIDGE_VERSION,
+      },
     });
     expect(oldAuthorization.data.signal.aborted).toBe(true);
     expect(released.map((owner) => owner.ownerSessionId)).toEqual([SESSION_ONE]);

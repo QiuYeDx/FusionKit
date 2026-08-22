@@ -238,6 +238,9 @@
   "local_transcriber": {
     "title": "本地字幕转写",
     "description": "使用设备上已安装的模型，将音频或视频任务转写为字幕。",
+    "error": {
+      "bridge_protocol_mismatch": "本地字幕组件刚刚更新，但当前页面仍在使用旧版本。请重新启动 FusionKit 后重试。"
+    },
     "config": {
       "title": "转写配置",
       "model": "本地模型",

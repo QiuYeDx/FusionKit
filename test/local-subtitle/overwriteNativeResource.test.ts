@@ -295,10 +295,15 @@ function createBuildReceipt(artifactBytes: Buffer): Record<string, unknown> {
         }
       : {
           ...commonBuild,
+          delayLoadHook:
+            "native/local-subtitle-overwrite/src/win-delay-load-hook.cc",
+          nodeImportMode: "delay-load-current-host",
+          delayedHostBinary: "node.exe",
           minimumWindowsVersion: "10.0",
           compiler: "portable llvm-mingw clang++",
           shell: false,
           nodeImportLibrarySha256: "1".repeat(64),
+          delayLoadHookSha256: "2".repeat(64),
         },
     artifact: {
       logicalFileName: "local-subtitle-overwrite.node",

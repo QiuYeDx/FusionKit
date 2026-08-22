@@ -33,10 +33,11 @@ export function createWindowsTestDryRunCommandDescriptor(options = {}) {
   const production = createWindowsDryRunCommandDescriptor(options);
   return deepFreeze({
     contract: OVERWRITE_NATIVE_WINDOWS_TEST_BUILD_CONTRACT,
-    commands: production.commands.map((entry) => ({
-      ...entry,
-      args: injectFaultDefinition(entry.args),
-    })),
+    commands: production.commands.map((entry) =>
+      entry.args.includes(SOURCE_RELATIVE_PATH)
+        ? { ...entry, args: injectFaultDefinition(entry.args) }
+        : entry
+    ),
     paths: production.paths,
   });
 }
@@ -100,7 +101,13 @@ export async function buildTestWindowsX64OverwriteAddon(options = {}) {
 
 function createTestCommandRunner(commandRunner) {
   return (command, args, options) =>
-    commandRunner(command, injectFaultDefinition(args), options);
+    commandRunner(
+      command,
+      args.includes(SOURCE_RELATIVE_PATH)
+        ? injectFaultDefinition(args)
+        : args,
+      options,
+    );
 }
 
 function injectFaultDefinition(args) {

@@ -475,6 +475,10 @@ function windowsReceipt(bytes) {
       recipe:
         "scripts/local-subtitle/overwrite-native/build-addon-windows-x64.mjs",
       source: "native/local-subtitle-overwrite/src/addon-win32.cc",
+      delayLoadHook:
+        "native/local-subtitle-overwrite/src/win-delay-load-hook.cc",
+      nodeImportMode: "delay-load-current-host",
+      delayedHostBinary: "node.exe",
       nodeVersion: "20.19.5",
       napiVersion: 8,
       nativeProtocolVersion: 4,
@@ -484,6 +488,7 @@ function windowsReceipt(bytes) {
       compiler: "portable llvm-mingw clang++",
       shell: false,
       nodeImportLibrarySha256: "c".repeat(64),
+      delayLoadHookSha256: "d".repeat(64),
     },
     artifact: {
       logicalFileName: "local-subtitle-overwrite.node",

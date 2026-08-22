@@ -41,7 +41,7 @@ test("freezes a shell-free Windows x64 N-API v8 build descriptor", () => {
   assert.equal(descriptor.contract.napiVersion, 8);
   assert.equal(descriptor.contract.nativeProtocolVersion, 4);
   assert.equal(descriptor.contract.journalVersion, 3);
-  assert.equal(descriptor.commands.length, 1);
+  assert.equal(descriptor.commands.length, 2);
   const compile = descriptor.commands[0];
   assert.match(compile.command, /x86_64-w64-mingw32-clang\+\+\.exe$/u);
   for (const required of [
@@ -50,10 +50,21 @@ test("freezes a shell-free Windows x64 N-API v8 build descriptor", () => {
     "-D_WIN32_WINNT=0x0A00",
     "-shared",
     "-static-libstdc++",
+    '-DHOST_BINARY="node.exe"',
+    "-Wl,--delayload,node.exe",
+    "-ldelayimp",
     "native/local-subtitle-overwrite/src/addon-win32.cc",
+    "native/local-subtitle-overwrite/src/win-delay-load-hook.cc",
   ]) {
     assert.ok(compile.args.includes(required), `missing compile argument: ${required}`);
   }
+  const inspect = descriptor.commands[1];
+  assert.match(inspect.command, /llvm-readobj\.exe$/u);
+  assert.deepEqual(inspect.args, [
+    "--coff-imports",
+    "<temporary-output>/local-subtitle-overwrite.node",
+  ]);
+  assert.equal(inspect.options.shell, false);
   assert.equal(compile.options.shell, false);
   assert.equal(
     JSON.stringify(descriptor).includes(process.env.USERNAME ?? "\0"),
@@ -174,6 +185,28 @@ test("freezes the Windows durable decision and acknowledgement source surface", 
   );
 });
 
+test("binds delayed Node imports to the renamed Electron host", async () => {
+  const hook = await readFile(
+    path.join(
+      PROJECT_ROOT,
+      OVERWRITE_NATIVE_WINDOWS_BUILD_CONTRACT.delayLoadHookRelativePath,
+    ),
+    "utf8",
+  );
+  assert.deepEqual(OVERWRITE_NATIVE_WINDOWS_BUILD_CONTRACT.hostBinding, {
+    delayedBinary: "node.exe",
+    resolution: "current-process-image",
+  });
+  for (const required of [
+    "dliNotePreLoadLibrary",
+    "GetModuleHandleW(L\"libnode.dll\")",
+    "GetModuleHandleW(nullptr)",
+    "__pfnDliNotifyHook2",
+  ]) {
+    assert.ok(hook.includes(required), `missing host binding: ${required}`);
+  }
+});
+
 test("parses only explicit absolute typed Windows build inputs", () => {
   const root = path.parse(process.cwd()).root;
   const output = path.join(root, "tmp", "overwrite.node");
@@ -237,6 +270,16 @@ test(
       assert.equal(productionReceipt.build.nodeVersion, process.versions.node);
       assert.equal(productionReceipt.build.nativeProtocolVersion, 4);
       assert.equal(productionReceipt.build.journalVersion, 3);
+      assert.equal(
+        productionReceipt.build.nodeImportMode,
+        "delay-load-current-host",
+      );
+      assert.equal(
+        productionReceipt.build.delayLoadHook,
+        "native/local-subtitle-overwrite/src/win-delay-load-hook.cc",
+      );
+      assert.equal(productionReceipt.build.delayedHostBinary, "node.exe");
+      assert.match(productionReceipt.build.delayLoadHookSha256, /^[a-f0-9]{64}$/u);
       assert.equal(testReceipt.build.nativeProtocolVersion, 4);
       assert.equal(testReceipt.build.journalVersion, 3);
       assert.equal(testReceipt.testFaultInjection, true);
