@@ -267,29 +267,89 @@ async function queryNvidiaSmiBytes(options: {
   return Number.isSafeInteger(bytes) && bytes > 0 ? bytes : undefined;
 }
 
-function runBoundedProbe(
+export function runBoundedProbe(
   command: string,
   args: readonly string[],
   environment: NodeJS.ProcessEnv,
   signal: AbortSignal,
+  testOptions: Readonly<{
+    timeoutMs?: number;
+    executeFile?: typeof execFile;
+  }> = {},
 ): Promise<string | undefined> {
+  const timeoutMs = testOptions.timeoutMs ??
+    LOCAL_SUBTITLE_PRODUCTION_BACKEND_ATTESTATION_POLICY.cudaProbeTimeoutMs;
+  const executeFile = testOptions.executeFile ?? execFile;
+  if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 1) {
+    throw new TypeError("The native probe timeout is invalid.");
+  }
+  if (signal.aborted) {
+    return Promise.reject(
+      signal.reason ?? new DOMException("Aborted", "AbortError"),
+    );
+  }
   return new Promise((resolve, reject) => {
-    execFile(command, [...args], {
-      env: environment,
-      timeout:
-        LOCAL_SUBTITLE_PRODUCTION_BACKEND_ATTESTATION_POLICY.cudaProbeTimeoutMs,
-      maxBuffer:
-        LOCAL_SUBTITLE_PRODUCTION_BACKEND_ATTESTATION_POLICY.cudaProbeMaxOutputBytes,
-      windowsHide: true,
-      shell: false,
-      signal,
-    }, (error, stdout) => {
-      if (signal.aborted) {
-        reject(signal.reason ?? new DOMException("Aborted", "AbortError"));
-        return;
+    let settled = false;
+    let child: ReturnType<typeof execFile> | undefined;
+    let timeout: NodeJS.Timeout | undefined;
+
+    const cleanup = () => {
+      if (timeout) clearTimeout(timeout);
+      signal.removeEventListener("abort", onAbort);
+    };
+    const settle = (
+      outcome: { readonly value: string | undefined } |
+        { readonly error: unknown },
+    ) => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      if ("error" in outcome) reject(outcome.error);
+      else resolve(outcome.value);
+    };
+    const terminateChild = () => {
+      try {
+        child?.kill();
+      } catch {
+        // The caller deadline is authoritative. Process cleanup is best effort.
       }
-      resolve(error ? undefined : String(stdout ?? ""));
-    });
+    };
+    const onAbort = () => {
+      terminateChild();
+      settle({
+        error: signal.reason ?? new DOMException("Aborted", "AbortError"),
+      });
+    };
+
+    signal.addEventListener("abort", onAbort, { once: true });
+    timeout = setTimeout(() => {
+      terminateChild();
+      settle({ value: undefined });
+    }, timeoutMs);
+    timeout.unref?.();
+
+    try {
+      child = executeFile(command, [...args], {
+        env: environment,
+        // Keep Node's native timeout as a cleanup aid, but do not depend on its
+        // callback: inherited Windows pipes can stay open after the child dies.
+        timeout: timeoutMs,
+        maxBuffer:
+          LOCAL_SUBTITLE_PRODUCTION_BACKEND_ATTESTATION_POLICY.cudaProbeMaxOutputBytes,
+        windowsHide: true,
+        shell: false,
+      }, (error, stdout) => {
+        if (settled) return;
+        if (signal.aborted) {
+          onAbort();
+          return;
+        }
+        settle({ value: error ? undefined : String(stdout ?? "") });
+      });
+      if (settled && signal.aborted) terminateChild();
+    } catch {
+      settle({ value: undefined });
+    }
   });
 }
 

@@ -49,4 +49,21 @@ describe("ToolRadioButtonGroup", () => {
     expect(markup).toContain("whitespace-normal");
     expect(markup).toContain('data-slot="segmented-control-label"');
   });
+
+  it("forwards per-option disabled capability state", () => {
+    const markup = renderToStaticMarkup(
+      <ToolRadioButtonGroup
+        value="index"
+        ariaLabel="Conflict policy"
+        options={[
+          { value: "index", label: "Index" },
+          { value: "overwrite", label: "Overwrite", disabled: true },
+        ]}
+        onValueChange={() => undefined}
+      />,
+    );
+
+    expect(markup).toContain('data-value="overwrite"');
+    expect(markup).toMatch(/data-value="overwrite"[^>]* disabled=""/u);
+  });
 });

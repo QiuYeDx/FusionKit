@@ -1426,6 +1426,11 @@ export const localSubtitleRuntimeSummarySchema = z
     runtimeGeneration: sha256Schema,
     runner: runtimeComponentSummarySchema,
     mediaRuntime: runtimeComponentSummarySchema,
+    supportedOutputConflictPolicies: z
+      .array(z.enum(LOCAL_SUBTITLE_CONFLICT_POLICIES))
+      .min(1)
+      .max(LOCAL_SUBTITLE_CONFLICT_POLICIES.length)
+      .optional(),
     backends: z
       .array(backendProbeSummarySchema)
       .min(1)
@@ -1451,6 +1456,19 @@ export const localSubtitleRuntimeSummarySchema = z
         code: "custom",
         path: ["backends"],
         message: "Runtime backend summaries must be unique.",
+      });
+    }
+    if (
+      value.supportedOutputConflictPolicies &&
+      (value.supportedOutputConflictPolicies[0] !== "index" ||
+        new Set(value.supportedOutputConflictPolicies).size !==
+          value.supportedOutputConflictPolicies.length)
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["supportedOutputConflictPolicies"],
+        message:
+          "Runtime output conflict policies must be unique and start with index.",
       });
     }
   });

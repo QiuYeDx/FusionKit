@@ -3,6 +3,7 @@ import {
   buildWindowsCudaProbeEnvironment,
   createLocalSubtitleProductionBackendAttestor,
   LOCAL_SUBTITLE_PRODUCTION_BACKEND_ATTESTATION_POLICY,
+  runBoundedProbe,
 } from "../../electron/main/local-subtitle/backend-attestor";
 import type {
   LocalSubtitleServerBackendAttestationContext,
@@ -99,6 +100,63 @@ describe("local subtitle production backend attestor", () => {
     ).toBeGreaterThanOrEqual(
       LOCAL_SUBTITLE_PRODUCTION_BACKEND_ATTESTATION_POLICY.cudaProbeTimeoutMs,
     );
+  });
+
+  it("settles at its own deadline when a Windows child keeps inherited pipes open", async () => {
+    vi.useFakeTimers();
+    try {
+      const kill = vi.fn(() => true);
+      let callback:
+        | ((error: Error | null, stdout?: string) => void)
+        | undefined;
+      const executeFile = vi.fn((...callArgs: unknown[]) => {
+        callback = callArgs.at(-1) as typeof callback;
+        return { kill };
+      }) as unknown as typeof import("node:child_process").execFile;
+
+      const result = runBoundedProbe(
+        "C:\\Windows\\System32\\probe.exe",
+        [],
+        {},
+        new AbortController().signal,
+        { executeFile, timeoutMs: 25 },
+      );
+
+      await vi.advanceTimersByTimeAsync(25);
+      await expect(result).resolves.toBeUndefined();
+      expect(kill).toHaveBeenCalledOnce();
+
+      callback?.(null, "late-success");
+      await expect(result).resolves.toBeUndefined();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("settles cancellation without waiting for the native probe callback", async () => {
+    vi.useFakeTimers();
+    try {
+      const kill = vi.fn(() => true);
+      const executeFile = vi.fn(() => ({ kill })) as unknown as
+        typeof import("node:child_process").execFile;
+      const controller = new AbortController();
+      const result = runBoundedProbe(
+        "C:\\Windows\\System32\\probe.exe",
+        [],
+        {},
+        controller.signal,
+        { executeFile, timeoutMs: 25 },
+      );
+      const reason = new DOMException("cancelled", "AbortError");
+
+      controller.abort(reason);
+
+      await expect(result).rejects.toBe(reason);
+      expect(kill).toHaveBeenCalledOnce();
+      expect(vi.getTimerCount()).toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 

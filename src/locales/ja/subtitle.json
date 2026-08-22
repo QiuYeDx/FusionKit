@@ -282,6 +282,7 @@
       "conflict_policy": "ファイル競合",
       "conflict_index": "連番を追加",
       "conflict_overwrite": "既存ファイルを上書き",
+      "conflict_overwrite_unavailable": "このアプリセッションでは安全な上書きコンポーネントを読み込めないため、連番追加に切り替えました。文字起こしは引き続き利用できます。",
       "output_mode": "出力先",
       "output_source": "元ファイルのフォルダー",
       "output_custom": "カスタムフォルダー",
@@ -503,6 +504,8 @@
     "queue": {
       "title": "タスクキュー",
       "duration": "メディア時間 {{duration}}",
+      "stage_progress": "段階 {{percent}}%",
+      "overall_progress": "全体 {{percent}}%",
       "empty_title": "タスクキューは空です",
       "empty_description": "選択したファイルはすぐに追加され、それぞれの状態と結果が表示されます。"
     },

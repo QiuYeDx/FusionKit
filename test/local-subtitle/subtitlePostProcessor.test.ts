@@ -130,15 +130,67 @@ describe("raw transcript quality gate", () => {
       segments: [rawSegment(29_000, 30_101, "outside")],
       issue: "out_of_window",
     },
-    {
-      label: "15001 ms segment",
-      segments: [rawSegment(0, 15_001, "overlong")],
-      issue: "overlong_segment",
-    },
   ])("rejects $label before formatting", ({ segments, issue }) => {
     const assessment = assess(segments);
     expect(assessment.valid).toBe(false);
     expect(assessment.issues).toContain(issue);
+  });
+
+  it("records a long sparse-speech segment without rejecting shapeable text", () => {
+    const window = oneWindow();
+    const segments = [
+      rawSegment(
+        1_000,
+        23_000,
+        "これはゆっくり話された有効な字幕なので、表示用の短い字幕へ安全に分割します。",
+      ),
+    ];
+    const assessment = assess(segments);
+    const attempt = leaf(window, segments);
+
+    expect(assessment).toMatchObject({
+      valid: true,
+      issues: [],
+      overlongSegmentCount: 1,
+      longestSegmentDurationMs: 22_000,
+    });
+    expect(
+      decideLocalSubtitleWindowRetry({
+        attempt,
+        assessment,
+        policy: policyFrom(),
+      }),
+    ).toMatchObject({ action: "accept", outcome: "speech" });
+
+    const result = process({ durationMs: 30_000, leaves: [attempt] });
+    expect(result.report.overlongRawSegmentCount).toBe(1);
+    expect(result.transcript.segments.length).toBeGreaterThan(1);
+    expect(
+      result.transcript.segments.every(
+        (segment) => segment.endMs - segment.startMs <= 7_000,
+      ),
+    ).toBe(true);
+  });
+
+  it("shortens a sparse raw timeline instead of duplicating text or failing", () => {
+    const attempt = leaf(oneWindow(), [rawSegment(1_000, 23_000, "うん")]);
+
+    const result = process({ durationMs: 30_000, leaves: [attempt] });
+
+    expect(result.transcript.segments).toEqual([
+      expect.objectContaining({
+        startMs: 1_000,
+        endMs: 8_000,
+        text: "うん",
+        estimatedTiming: true,
+      }),
+    ]);
+    expect(result.report.overlongRawSegmentCount).toBe(1);
+    expect(result.report.estimatedTimingSegmentCount).toBe(1);
+    expect(result.warnings).toContainEqual({
+      code: "estimated_timing_used",
+      count: 1,
+    });
   });
 
   it("requires both repetition thresholds after NFKC/case/punctuation folding", () => {

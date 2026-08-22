@@ -868,6 +868,82 @@ describe("LocalSubtitleSessionRegistry", () => {
     });
   });
 
+  it("preserves allowlisted quality diagnostics without leaking private additions", () => {
+    const registry = new LocalSubtitleSessionRegistry();
+    const privatePath = "/private/source/media.wav";
+    registry.addBatch(OWNER_A, batch());
+
+    const failed = registry.upsertTask(
+      OWNER_A,
+      task({
+        status: "failed",
+        progress: {
+          stage: "transcribing",
+          stageProgress: 78,
+          overallProgress: 68,
+        },
+        error: createLocalSubtitleError(
+          "transcript_quality_failed",
+          `failed at ${privatePath}`,
+          {
+            stage: "post_processing",
+            details: {
+              summary: `token=secret at ${privatePath}`,
+              lines: [
+                "post_processing_stage=window",
+                "reason=retry_exhausted",
+                "quality_issues=overlong_segment",
+                "window=700.000s-704.500s",
+                "split_retry_depth=3",
+                "automatic_quality_replays=1/1",
+                "raw_segments=1",
+                "unique_normalized_texts=1",
+                "longest_repeated_run=1 cues / 0 ms",
+                `internal_error_message=token=secret at ${privatePath}`,
+              ],
+              metadata: {
+                attempt: 14,
+                maxAttempts: 2,
+                observed: 1,
+                resourceId: privatePath,
+              },
+              truncated: false,
+            },
+          },
+        ),
+      }),
+    );
+
+    expect(JSON.stringify(failed)).not.toContain(privatePath);
+    expect(JSON.stringify(failed)).not.toContain("token=secret");
+    expect(failed).toMatchObject({
+      event: {
+        task: {
+          error: {
+            code: "transcript_quality_failed",
+            message:
+              "Local transcription remained unstable after automatic quality recovery. No unreliable subtitle file was exported.",
+            details: {
+              lines: [
+                "post_processing_stage=window",
+                "reason=retry_exhausted",
+                "quality_issues=overlong_segment",
+                "window=700.000s-704.500s",
+                "split_retry_depth=3",
+                "automatic_quality_replays=1/1",
+                "raw_segments=1",
+                "unique_normalized_texts=1",
+                "longest_repeated_run=1 cues / 0 ms",
+              ],
+              metadata: { attempt: 14, maxAttempts: 2, observed: 1 },
+              truncated: true,
+            },
+          },
+        },
+      },
+    });
+  });
+
   it("shares shutdown and fences both existing and unseen owners", async () => {
     const registry = new LocalSubtitleSessionRegistry();
     const listener = vi.fn();

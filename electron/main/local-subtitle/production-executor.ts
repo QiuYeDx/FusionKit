@@ -9,6 +9,7 @@ import {
   type LocalSubtitleError,
   type LocalSubtitleErrorCode,
   type LocalSubtitleConflictPolicy,
+  type LocalSubtitleDiagnostics,
   type LocalSubtitleFormat,
   type LocalSubtitleOperationStage,
 } from "@/type/localSubtitle";
@@ -68,6 +69,7 @@ import {
   sameLocalSubtitleFilesystemObjectIdentity,
 } from "./filesystem-object-identity";
 import {
+  LocalSubtitlePostProcessorError,
   assessLocalSubtitleRawWindow,
   createSubtitlePostProcessPolicy,
   decideLocalSubtitleWindowRetry,
@@ -88,6 +90,8 @@ export const LOCAL_SUBTITLE_PRODUCTION_EXECUTOR_POLICY = Object.freeze({
   maxRetainedRawSegments: LOCAL_SUBTITLE_LIMITS.maxTranscriptSegments,
   maxRetainedRawTextBytes:
     LOCAL_SUBTITLE_PRODUCTION_CONTRACT.transcript.maxServerResponseBytes,
+  maxQualityRecoveryReplays: 1,
+  qualityRecoveryTemperatureStep: 0.2,
 });
 
 interface LocalSubtitleRetainedRawBudget {
@@ -524,12 +528,20 @@ export class LocalSubtitleProductionExecutor
         durationMs,
       });
 
-      const dispatchWindow = async (
+      const executeWindowAttempt = async (
         window: LocalSubtitlePostProcessingWindow,
-      ): Promise<void> => {
+        qualityRecoveryAttempt: number,
+      ) => {
         throwIfCancelled(context.signal);
         let brand: LocalSubtitleBrandedPcmWindow | undefined;
         let operationError: unknown;
+        let outcome:
+          | Readonly<{
+              attempt: LocalSubtitlePostProcessingWindowAttempt;
+              assessment: ReturnType<typeof assessLocalSubtitleRawWindow>;
+              decision: ReturnType<typeof decideLocalSubtitleWindowRetry>;
+            }>
+          | undefined;
         try {
           brand = await this.#media.materializeWindow({
             normalized: normalized!,
@@ -559,7 +571,12 @@ export class LocalSubtitleProductionExecutor
           const requestGeneration = this.#claimRequestGeneration();
           const inference = await this.#runInference(
             lease!,
-            createInferenceRequest(context, before, requestGeneration),
+            createInferenceRequest(
+              context,
+              before,
+              requestGeneration,
+              qualityRecoveryAttempt,
+            ),
             context.signal,
           );
           throwIfCancelled(context.signal);
@@ -575,11 +592,7 @@ export class LocalSubtitleProductionExecutor
             requestGeneration,
             inference,
             consumedResponses,
-            retainedRawUsage,
-            retainedRawBudget: this.#retainedRawBudget,
           });
-          attempts.push(attempt);
-
           const assessment = assessLocalSubtitleRawWindow({
             window,
             result: attempt.response.result,
@@ -590,14 +603,7 @@ export class LocalSubtitleProductionExecutor
             assessment,
             policy,
           });
-          if (decision.action === "fail") {
-            throwLocalSubtitleWindowDecisionFailure(decision, assessment);
-          }
-          if (decision.action === "split") {
-            for (const child of decision.children) {
-              await dispatchWindow(child);
-            }
-          }
+          outcome = Object.freeze({ attempt, assessment, decision });
         } catch (error) {
           operationError = error;
         } finally {
@@ -610,6 +616,59 @@ export class LocalSubtitleProductionExecutor
           }
         }
         if (operationError !== undefined) throw operationError;
+        if (!outcome) {
+          throw createLocalSubtitleError(
+            "runtime_protocol_mismatch",
+            "The local inference attempt produced no quality assessment.",
+            { stage: "transcribing" },
+          );
+        }
+        return outcome;
+      };
+
+      const retainAttempt = (
+        attempt: LocalSubtitlePostProcessingWindowAttempt,
+      ): void => {
+        reserveRetainedRawResponse(
+          attempt.response,
+          retainedRawUsage,
+          this.#retainedRawBudget,
+        );
+        attempts.push(attempt);
+      };
+
+      const dispatchWindow = async (
+        window: LocalSubtitlePostProcessingWindow,
+      ): Promise<void> => {
+        let qualityRecoveryAttempts = 0;
+        while (true) {
+          const { attempt, assessment, decision } =
+            await executeWindowAttempt(window, qualityRecoveryAttempts);
+          if (decision.action === "accept") {
+            retainAttempt(attempt);
+            return;
+          }
+          if (decision.action === "split") {
+            retainAttempt(attempt);
+            for (const child of decision.children) {
+              await dispatchWindow(child);
+            }
+            return;
+          }
+          if (
+            decision.reason !== "contract_invalid" &&
+            qualityRecoveryAttempts <
+              LOCAL_SUBTITLE_PRODUCTION_EXECUTOR_POLICY.maxQualityRecoveryReplays
+          ) {
+            qualityRecoveryAttempts += 1;
+            continue;
+          }
+          throwLocalSubtitleWindowDecisionFailure(decision, assessment, {
+            qualityRecoveryAttempts,
+            maxQualityRecoveryAttempts:
+              LOCAL_SUBTITLE_PRODUCTION_EXECUTOR_POLICY.maxQualityRecoveryReplays,
+          });
+        }
       };
 
       for (const rootWindow of rootPlan.windows) {
@@ -693,7 +752,14 @@ export class LocalSubtitleProductionExecutor
       if (context.signal.aborted || pipelineError instanceof ExecutionCancelled) {
         return Object.freeze({ status: "cancelled", artifactResults: [], durationMs });
       }
-      return failedResult(code, stage, durationMs);
+      return failedResult(
+        code,
+        code === "transcript_quality_failed"
+          ? LOCAL_SUBTITLE_ERROR_MANIFEST[code].defaultStage
+          : stage,
+        durationMs,
+        pipelineError,
+      );
     }
     if (!transcript || context.signal.aborted) {
       return Object.freeze({ status: "cancelled", artifactResults: [], durationMs });
@@ -1097,7 +1163,21 @@ function createInferenceRequest(
   context: LocalSubtitleJobTaskExecutionContext,
   resolved: LocalSubtitleResolvedPcmWindow,
   requestGeneration: number,
+  qualityRecoveryAttempt = 0,
 ): LocalSubtitleServerInferenceRequest {
+  const configuredTemperature = context.config.inference.advanced.temperature;
+  const temperature =
+    qualityRecoveryAttempt === 0
+      ? configuredTemperature
+      : Math.min(
+          1,
+          Math.max(
+            LOCAL_SUBTITLE_PRODUCTION_EXECUTOR_POLICY.qualityRecoveryTemperatureStep,
+            configuredTemperature +
+              qualityRecoveryAttempt *
+                LOCAL_SUBTITLE_PRODUCTION_EXECUTOR_POLICY.qualityRecoveryTemperatureStep,
+          ),
+        );
   return Object.freeze({
     requestGeneration,
     filePath: resolved.filePath,
@@ -1110,7 +1190,7 @@ function createInferenceRequest(
     language: context.config.language,
     taskMode: context.config.taskMode,
     beamSize: context.config.inference.advanced.beamSize,
-    temperature: context.config.inference.advanced.temperature,
+    temperature,
     vadEnabled: context.config.inference.vad.enabled,
     vadMinSilenceMs: context.config.inference.advanced.vadMinSilenceMs,
     ...(context.config.inference.advanced.initialPrompt === undefined
@@ -1190,8 +1270,6 @@ function bindAttempt(input: {
   readonly requestGeneration: number;
   readonly inference: LocalSubtitleServerSupervisorInferenceResponse;
   readonly consumedResponses: Set<string>;
-  readonly retainedRawUsage: LocalSubtitleRetainedRawUsage;
-  readonly retainedRawBudget: LocalSubtitleRetainedRawBudget;
 }): LocalSubtitlePostProcessingWindowAttempt {
   const { inference, requestGeneration } = input;
   if (
@@ -1213,11 +1291,6 @@ function bindAttempt(input: {
       { stage: "transcribing" },
     );
   }
-  reserveRetainedRawResponse(
-    inference.response,
-    input.retainedRawUsage,
-    input.retainedRawBudget,
-  );
   input.consumedResponses.add(responseKey);
   const response = deepFreeze(structuredClone(inference.response));
   return deepFreeze({
@@ -1321,15 +1394,218 @@ function failedResult(
   code: LocalSubtitleErrorCode,
   stage: LocalSubtitleOperationStage,
   durationMs?: number,
+  cause?: unknown,
 ): LocalSubtitleJobTaskExecutionResult {
+  const qualityFailure = qualityFailurePresentation(code, cause);
   return Object.freeze({
     status: "failed",
-    error: createLocalSubtitleError(code, "The local subtitle task failed.", {
-      stage,
-    }),
+    error: createLocalSubtitleError(
+      code,
+      qualityFailure?.message ?? "The local subtitle task failed.",
+      {
+        stage,
+        ...(qualityFailure?.details === undefined
+          ? {}
+          : { details: qualityFailure.details }),
+      },
+    ),
     artifactResults: [],
     ...(durationMs === undefined ? {} : { durationMs }),
   });
+}
+
+function qualityFailurePresentation(
+  code: LocalSubtitleErrorCode,
+  cause: unknown,
+):
+  | Readonly<{
+      message: string;
+      details: LocalSubtitleDiagnostics;
+    }>
+  | undefined {
+  if (code !== "transcript_quality_failed") return undefined;
+
+  const failure = snapshotQualityFailure(cause);
+  if (!failure) {
+    const internal = snapshotInternalFailure(cause);
+    return Object.freeze({
+      message:
+        "Local transcript post-processing failed before a safe subtitle could be exported.",
+      details: Object.freeze({
+        summary:
+          "An internal post-processing error was caught after transcription. The source media was not modified; retrying alone may not resolve this error.",
+        lines: Object.freeze([
+          `internal_error_type=${internal.type}`,
+          `internal_error_message=${internal.message}`,
+        ]),
+        truncated: internal.truncated,
+      }),
+    });
+  }
+
+  const lines = [
+    `post_processing_stage=${failure.stage}`,
+    ...(failure.reason === undefined ? [] : [`reason=${failure.reason}`]),
+    ...(failure.issues.length
+      ? [`quality_issues=${failure.issues.join(",")}`]
+      : []),
+    ...(failure.windowStartMs === undefined ||
+    failure.windowEndMs === undefined
+      ? []
+      : [
+          `window=${formatDiagnosticSeconds(failure.windowStartMs)}-${formatDiagnosticSeconds(failure.windowEndMs)}`,
+        ]),
+    ...(failure.retryDepth === undefined
+      ? []
+      : [`split_retry_depth=${failure.retryDepth}`]),
+    ...(failure.qualityRecoveryAttempts === undefined ||
+    failure.maxQualityRecoveryAttempts === undefined
+      ? []
+      : [
+          `automatic_quality_replays=${failure.qualityRecoveryAttempts}/${failure.maxQualityRecoveryAttempts}`,
+        ]),
+    ...(failure.rawSegmentCount === undefined
+      ? []
+      : [
+          `raw_segments=${failure.rawSegmentCount}`,
+          `unique_normalized_texts=${failure.normalizedUniqueTextCount}`,
+          `longest_repeated_run=${failure.longestConsecutiveRepeatCueCount} cues / ${failure.longestConsecutiveRepeatSpanMs} ms`,
+        ]),
+  ];
+  const metadata: NonNullable<LocalSubtitleDiagnostics["metadata"]> = {
+    ...(failure.windowAttempt === undefined
+      ? {}
+      : { attempt: failure.windowAttempt }),
+    ...(failure.maxQualityRecoveryAttempts === undefined
+      ? {}
+      : { maxAttempts: failure.maxQualityRecoveryAttempts + 1 }),
+    ...(failure.rawSegmentCount === undefined
+      ? {}
+      : { observed: failure.rawSegmentCount }),
+    ...(failure.limit === undefined ? {} : { limit: failure.limit }),
+  };
+  return Object.freeze({
+    message:
+      "Local transcription remained unstable after automatic quality recovery. No unreliable subtitle file was exported.",
+    details: Object.freeze({
+      summary:
+        "The quality guard rejected a repeated or malformed transcript window after bounded automatic recovery. You can retry the task; the source media was not modified.",
+      lines: Object.freeze(lines),
+      metadata: Object.freeze(metadata),
+      truncated: false,
+    }),
+  });
+}
+
+interface QualityFailureSnapshot {
+  readonly stage: string;
+  readonly reason?: string;
+  readonly issues: readonly string[];
+  readonly windowStartMs?: number;
+  readonly windowEndMs?: number;
+  readonly retryDepth?: number;
+  readonly qualityRecoveryAttempts?: number;
+  readonly maxQualityRecoveryAttempts?: number;
+  readonly windowAttempt?: number;
+  readonly limit?: number;
+  readonly rawSegmentCount?: number;
+  readonly normalizedUniqueTextCount?: number;
+  readonly longestConsecutiveRepeatCueCount?: number;
+  readonly longestConsecutiveRepeatSpanMs?: number;
+}
+
+function snapshotQualityFailure(cause: unknown): QualityFailureSnapshot | undefined {
+  if (typeof cause !== "object" || cause === null) return undefined;
+  const record = cause as Record<string, unknown>;
+  if (
+    !(cause instanceof LocalSubtitlePostProcessorError) &&
+    record.name !== "LocalSubtitlePostProcessorError" &&
+    record.localSubtitleCode !== "transcript_quality_failed"
+  ) {
+    return undefined;
+  }
+  const details =
+    typeof record.details === "object" && record.details !== null
+      ? record.details as Record<string, unknown>
+      : undefined;
+  const assessment =
+    typeof details?.assessment === "object" && details.assessment !== null
+      ? details.assessment as Record<string, unknown>
+      : undefined;
+  const issues = Array.isArray(assessment?.issues)
+    ? assessment.issues.filter((value): value is string => typeof value === "string")
+    : [];
+  return Object.freeze({
+    stage: typeof record.stage === "string" ? record.stage : "unknown",
+    ...(typeof details?.reason === "string"
+      ? { reason: diagnosticText(details.reason).value }
+      : {}),
+    issues: Object.freeze(issues.map((value) => diagnosticText(value).value)),
+    ...optionalDiagnosticNumber(details, "windowStartMs"),
+    ...optionalDiagnosticNumber(details, "windowEndMs"),
+    ...optionalDiagnosticNumber(details, "retryDepth"),
+    ...optionalDiagnosticNumber(details, "qualityRecoveryAttempts"),
+    ...optionalDiagnosticNumber(details, "maxQualityRecoveryAttempts"),
+    ...optionalDiagnosticNumber(details, "windowAttempt"),
+    ...optionalDiagnosticNumber(details, "limit"),
+    ...optionalDiagnosticNumber(assessment, "rawSegmentCount"),
+    ...optionalDiagnosticNumber(assessment, "normalizedUniqueTextCount"),
+    ...optionalDiagnosticNumber(assessment, "longestConsecutiveRepeatCueCount"),
+    ...optionalDiagnosticNumber(assessment, "longestConsecutiveRepeatSpanMs"),
+  });
+}
+
+function optionalDiagnosticNumber(
+  record: Record<string, unknown> | undefined,
+  key: keyof QualityFailureSnapshot,
+): Partial<QualityFailureSnapshot> {
+  const value = record?.[key];
+  return typeof value === "number" && Number.isSafeInteger(value) && value >= 0
+    ? { [key]: value }
+    : {};
+}
+
+function snapshotInternalFailure(cause: unknown): Readonly<{
+  type: string;
+  message: string;
+  truncated: boolean;
+}> {
+  const record =
+    typeof cause === "object" && cause !== null
+      ? cause as Record<string, unknown>
+      : undefined;
+  const type = diagnosticText(
+    typeof record?.name === "string" ? record.name : typeof cause,
+  );
+  const message = diagnosticText(
+    typeof record?.message === "string"
+      ? record.message
+      : "No safe internal error message was available.",
+  );
+  return Object.freeze({
+    type: type.value,
+    message: message.value,
+    truncated: type.truncated || message.truncated,
+  });
+}
+
+function diagnosticText(value: string): Readonly<{
+  value: string;
+  truncated: boolean;
+}> {
+  const normalized = value
+    .replace(/[\u0000-\u001f\u007f-\u009f]+/gu, " ")
+    .replace(/\s+/gu, " ")
+    .trim();
+  const maximumLength = 300;
+  return Object.freeze({
+    value: normalized.slice(0, maximumLength) || "unknown",
+    truncated: normalized.length > maximumLength,
+  });
+}
+
+function formatDiagnosticSeconds(milliseconds: number): string {
+  return `${(milliseconds / 1_000).toFixed(3)}s`;
 }
 
 function cleanupFailure(

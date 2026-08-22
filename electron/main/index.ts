@@ -368,6 +368,10 @@ app.whenReady().then(async () => {
     environment: localSubtitleResourceEnvironment,
     mediaRuntimeVerifier: localSubtitleMediaNormalizer,
     supportedGpuBackends: localSubtitleBackendAttestor.supportedBackends,
+    supportedOutputConflictPolicies:
+      localSubtitleOverwriteRuntime.status === "ready"
+        ? ["index", "overwrite"]
+        : ["index"],
     resolveCudaAccelerator: resolveLocalSubtitleCudaAccelerator,
   });
   const localSubtitleOverwriteRecoveryIpcBridge =

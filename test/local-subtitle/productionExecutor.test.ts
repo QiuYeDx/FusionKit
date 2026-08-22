@@ -666,6 +666,64 @@ describe("local subtitle production executor", () => {
     expect(harness.media.disposeWindow).toHaveBeenCalledTimes(3);
   });
 
+  it("replays an unsplittable unstable window once with a fresh proof and temperature", async () => {
+    const harness = await createHarness({
+      totalFrames: 5 * 16_000,
+      inference: ({ request, window, index }) =>
+        index === 0
+          ? repeatedResponse(request, window)
+          : validResponse(request, window, "recovered"),
+    });
+
+    await expect(harness.executor.execute(harness.context)).resolves.toMatchObject({
+      status: "completed",
+    });
+    expect(harness.media.materializeWindow).toHaveBeenCalledTimes(2);
+    expect(harness.media.disposeWindow).toHaveBeenCalledTimes(2);
+    expect(harness.supervisor.beginInference).toHaveBeenCalledTimes(2);
+    expect(
+      harness.supervisor.beginInference.mock.calls.map(([, request]) => ({
+        generation: request.requestGeneration,
+        temperature: request.temperature,
+      })),
+    ).toEqual([
+      { generation: 1, temperature: 0 },
+      { generation: 2, temperature: 0.2 },
+    ]);
+  });
+
+  it("returns actionable diagnostics when bounded quality recovery still fails", async () => {
+    const harness = await createHarness({
+      totalFrames: 5 * 16_000,
+      inference: ({ request, window }) => repeatedResponse(request, window),
+    });
+
+    const result = await harness.executor.execute(harness.context);
+
+    expect(result).toMatchObject({
+      status: "failed",
+      error: {
+        code: "transcript_quality_failed",
+        stage: "post_processing",
+        retryable: true,
+        message:
+          "Local transcription remained unstable after automatic quality recovery. No unreliable subtitle file was exported.",
+        details: {
+          summary: expect.stringContaining("quality guard"),
+          lines: expect.arrayContaining([
+            "reason=unsplittable",
+            "automatic_quality_replays=1/1",
+          ]),
+          metadata: { attempt: 2, maxAttempts: 2, observed: 8 },
+          truncated: false,
+        },
+      },
+    });
+    expect(harness.supervisor.beginInference).toHaveBeenCalledTimes(2);
+    expect(harness.media.materializeWindow).toHaveBeenCalledTimes(2);
+    expect(harness.exporter.exportArtifacts).not.toHaveBeenCalled();
+  });
+
   it("rejects a post-response PCM proof change before post-processing or export", async () => {
     const harness = await createHarness({ mutateSecondResolve: true });
 

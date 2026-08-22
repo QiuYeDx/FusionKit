@@ -280,7 +280,7 @@ describe("local subtitle Job Manager IPC integration", () => {
       error: {
         code: "invalid_ipc_request",
         stage: "preflight",
-        field: "config",
+        field: "config.output.conflictPolicy",
       },
     });
     expect(JSON.stringify(rejected)).not.toContain(fileToken);
@@ -358,7 +358,7 @@ describe("local subtitle Job Manager IPC integration", () => {
       error: {
         code: "invalid_ipc_request",
         stage: "preflight",
-        field: "config",
+        field: "config.output.conflictPolicy",
       },
     });
     await expect(

@@ -148,6 +148,76 @@ export function hasActiveLocalSubtitleTasks(
   ));
 }
 
+/**
+ * Keep the renderer fallback behind the authoritative session snapshot.
+ * Both arrays are insertion ordered, which is also the FIFO admission order.
+ */
+export function mergeLocalSubtitleVisibleBatches(
+  liveBatches: readonly LocalSubtitleBatchSummary[],
+  submittedBatches: readonly LocalSubtitleBatchSummary[],
+): LocalSubtitleBatchSummary[] {
+  const liveBatchIds = new Set(liveBatches.map((batch) => batch.batchId));
+  return [
+    ...liveBatches,
+    ...submittedBatches.filter((batch) => !liveBatchIds.has(batch.batchId)),
+  ];
+}
+
+export function flattenLocalSubtitleTasksInQueueOrder(
+  batches: readonly LocalSubtitleBatchSummary[],
+): LocalSubtitleTaskSummary[] {
+  return batches.flatMap((batch) => batch.tasks);
+}
+
+export interface LocalSubtitleTaskProgressDisplay {
+  readonly stagePercent: number;
+  readonly overallPercent: number;
+  readonly completedWindows?: number;
+  readonly totalWindows?: number;
+}
+
+export function deriveLocalSubtitleTaskProgressDisplay(
+  task: Pick<LocalSubtitleTaskSummary, "progress">,
+): LocalSubtitleTaskProgressDisplay {
+  const progress = task.progress;
+  const hasWindowProgress =
+    Number.isSafeInteger(progress.completedWindows) &&
+    Number.isSafeInteger(progress.totalWindows) &&
+    progress.completedWindows !== undefined &&
+    progress.totalWindows !== undefined &&
+    progress.completedWindows >= 0 &&
+    progress.totalWindows > 0 &&
+    progress.completedWindows <= progress.totalWindows;
+  const stagePercent = hasWindowProgress
+    ? Math.round((progress.completedWindows! / progress.totalWindows!) * 100)
+    : Math.round(progress.stageProgress);
+  return {
+    stagePercent: clampPercentage(stagePercent),
+    overallPercent: clampPercentage(Math.round(progress.overallProgress)),
+    ...(hasWindowProgress
+      ? {
+          completedWindows: progress.completedWindows,
+          totalWindows: progress.totalWindows,
+        }
+      : {}),
+  };
+}
+
+export function supportedLocalSubtitleConflictPolicies(
+  runtime: LocalSubtitleRuntimeSummary | null,
+): readonly LocalSubtitleConflictPolicy[] {
+  const advertised = runtime?.supportedOutputConflictPolicies;
+  return advertised?.length ? advertised : ["index"];
+}
+
+export function resolveLocalSubtitleConflictPolicy(
+  runtime: LocalSubtitleRuntimeSummary | null,
+  requested: LocalSubtitleConflictPolicy,
+): LocalSubtitleConflictPolicy {
+  const supported = supportedLocalSubtitleConflictPolicies(runtime);
+  return supported.includes(requested) ? requested : supported[0] ?? "index";
+}
+
 export function getReadyLocalSubtitleModels(
   resources: readonly LocalSubtitleManagedResourceSummary[],
 ): LocalSubtitleManagedResourceSummary[] {
@@ -473,4 +543,9 @@ function compareResourceJobs(
   if (updated !== 0) return updated;
   const created = left.createdAt.localeCompare(right.createdAt);
   return created;
+}
+
+function clampPercentage(value: number): number {
+  if (!Number.isFinite(value)) return 0;
+  return Math.min(100, Math.max(0, value));
 }

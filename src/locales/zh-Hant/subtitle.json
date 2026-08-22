@@ -282,6 +282,7 @@
       "conflict_policy": "檔案衝突",
       "conflict_index": "自動編號",
       "conflict_overwrite": "覆寫原檔",
+      "conflict_overwrite_unavailable": "目前應用程式工作階段未能載入安全覆寫元件，已改用自動編號；轉寫功能仍可正常使用。",
       "output_mode": "輸出位置",
       "output_source": "來源檔案目錄",
       "output_custom": "自訂目錄",
@@ -503,6 +504,8 @@
     "queue": {
       "title": "任務佇列",
       "duration": "媒體時長 {{duration}}",
+      "stage_progress": "階段 {{percent}}%",
+      "overall_progress": "總體 {{percent}}%",
       "empty_title": "任務佇列為空",
       "empty_description": "選擇檔案後，任務會直接加入這裡並顯示各自的狀態與結果。"
     },

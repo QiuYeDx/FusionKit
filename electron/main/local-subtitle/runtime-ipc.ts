@@ -1,7 +1,9 @@
 import {
   LOCAL_SUBTITLE_BACKENDS,
+  LOCAL_SUBTITLE_CONFLICT_POLICIES,
   LOCAL_SUBTITLE_DOMAIN_SCHEMA_VERSION,
   type LocalSubtitleBackend,
+  type LocalSubtitleConflictPolicy,
   type LocalSubtitleErrorCode,
 } from "@/type/localSubtitle";
 import {
@@ -40,6 +42,7 @@ export interface LocalSubtitleRuntimeIpcBridgeOptions {
     }): Promise<{ readonly runtimeGeneration: string }>;
   };
   readonly supportedGpuBackends?: readonly Exclude<LocalSubtitleBackend, "cpu">[];
+  readonly supportedOutputConflictPolicies?: readonly LocalSubtitleConflictPolicy[];
   readonly resolveCudaAccelerator?: (
     signal?: AbortSignal,
   ) => Promise<LocalSubtitleVerifiedAcceleratorPack>;
@@ -60,6 +63,7 @@ export class LocalSubtitleRuntimeIpcBridge {
   readonly #environment: LocalSubtitleResourceEnvironment;
   readonly #verifyMediaRuntime: LocalSubtitleRuntimeIpcBridgeOptions["mediaRuntimeVerifier"]["verifyRuntime"];
   readonly #supportedGpuBackends: ReadonlySet<Exclude<LocalSubtitleBackend, "cpu">>;
+  readonly #supportedOutputConflictPolicies: readonly LocalSubtitleConflictPolicy[];
   readonly #resolveCudaAccelerator:
     | LocalSubtitleRuntimeIpcBridgeOptions["resolveCudaAccelerator"]
     | undefined;
@@ -97,6 +101,9 @@ export class LocalSubtitleRuntimeIpcBridge {
       options.mediaRuntimeVerifier,
     );
     this.#supportedGpuBackends = new Set(supportedGpuBackends);
+    this.#supportedOutputConflictPolicies = validateOutputConflictPolicies(
+      options.supportedOutputConflictPolicies ?? ["index"],
+    );
     this.#resolveCudaAccelerator = options.resolveCudaAccelerator;
     this.#loadRuntimeManifest = options.loadRuntimeManifest ??
       loadLocalSubtitleRuntimeManifest;
@@ -164,6 +171,9 @@ export class LocalSubtitleRuntimeIpcBridge {
       runtimeGeneration,
       runner,
       mediaRuntime,
+      supportedOutputConflictPolicies: [
+        ...this.#supportedOutputConflictPolicies,
+      ],
       backends: LOCAL_SUBTITLE_BACKENDS.map((backend) =>
         this.#backendSummary(backend, loaded, runner, cudaResult),
       ),
@@ -222,6 +232,24 @@ export class LocalSubtitleRuntimeIpcBridge {
       errorCode: "backend_unverified" as const,
     });
   }
+}
+
+function validateOutputConflictPolicies(
+  policies: readonly LocalSubtitleConflictPolicy[],
+): readonly LocalSubtitleConflictPolicy[] {
+  if (
+    !Array.isArray(policies) ||
+    policies.length < 1 ||
+    policies.length > LOCAL_SUBTITLE_CONFLICT_POLICIES.length ||
+    policies[0] !== "index" ||
+    new Set(policies).size !== policies.length ||
+    policies.some((policy) =>
+      !(LOCAL_SUBTITLE_CONFLICT_POLICIES as readonly string[]).includes(policy)
+    )
+  ) {
+    throw new TypeError("The local subtitle output conflict policy set is invalid.");
+  }
+  return Object.freeze([...policies]);
 }
 
 function runtimeProbeOwnerKey(

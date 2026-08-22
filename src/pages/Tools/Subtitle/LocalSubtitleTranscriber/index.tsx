@@ -71,14 +71,18 @@ import {
   createLocalSubtitleBackendPreviewKey,
   deriveLocalSubtitleDraftMediaProbeStatus,
   deriveLocalSubtitleStartIssue,
+  flattenLocalSubtitleTasksInQueueOrder,
   formatLocalSubtitleBytes,
   getReadyLocalSubtitleModels,
   hasActiveLocalSubtitleTasks,
   isLocalSubtitleDevicePreferenceAvailable,
   isLocalSubtitleTaskActive,
+  mergeLocalSubtitleVisibleBatches,
   pruneLocalSubtitleDraftAudioSelections,
   reconcileLocalSubtitleDraftMediaProbes,
+  resolveLocalSubtitleConflictPolicy,
   shouldRequestLocalSubtitleBackendPreview,
+  supportedLocalSubtitleConflictPolicies,
   type LocalSubtitleDraftMediaProbe,
   type LocalSubtitleStartIssue,
 } from "./localSubtitleTranscriberModel";
@@ -670,25 +674,37 @@ export default function LocalSubtitleTranscriber() {
   }, [runtimeState.batches]);
 
   const visibleBatches = useMemo(() => {
-    const liveBatchIds = new Set(
-      runtimeState.batches.map((batch) => batch.batchId),
+    return mergeLocalSubtitleVisibleBatches(
+      runtimeState.batches,
+      submittedBatches,
     );
-    return [
-      ...submittedBatches.filter((batch) => !liveBatchIds.has(batch.batchId)),
-      ...runtimeState.batches,
-    ].sort((left, right) => right.createdAt.localeCompare(left.createdAt));
   }, [runtimeState.batches, submittedBatches]);
   const visibleTasks = useMemo(
-    () => visibleBatches
-      .flatMap((batch) => batch.tasks)
-      .sort((left, right) => {
-        const createdAtOrder = right.createdAt.localeCompare(left.createdAt);
-        return createdAtOrder !== 0
-          ? createdAtOrder
-          : right.taskId.localeCompare(left.taskId);
-      }),
+    () => flattenLocalSubtitleTasksInQueueOrder(visibleBatches),
     [visibleBatches],
   );
+  const supportedConflictPolicies = supportedLocalSubtitleConflictPolicies(
+    environment.runtime,
+  );
+  const resolvedConflictPolicy = resolveLocalSubtitleConflictPolicy(
+    environment.runtime,
+    draftConflictPolicy,
+  );
+  const overwriteSupported = supportedConflictPolicies.includes("overwrite");
+
+  useEffect(() => {
+    if (
+      environment.runtime &&
+      resolvedConflictPolicy !== draftConflictPolicy
+    ) {
+      setDraftConflictPolicy(resolvedConflictPolicy);
+    }
+  }, [
+    draftConflictPolicy,
+    environment.runtime,
+    resolvedConflictPolicy,
+    setDraftConflictPolicy,
+  ]);
   const missingTranslationTaskIds = new Set(
     visibleTasks
       .map((task) => task.postAction.translationTaskId)
@@ -950,7 +966,7 @@ export default function LocalSubtitleTranscriber() {
       }
       setPreparedTranslationBatch(null);
       preparedTranslationBatchRef.current = null;
-      setSubmittedBatches((current) => [result.data, ...current]);
+      setSubmittedBatches((current) => [...current, result.data]);
       consumeDraftCapabilitiesAfterCommit(
         request.files.map((file) => file.fileToken),
       );
@@ -993,7 +1009,7 @@ export default function LocalSubtitleTranscriber() {
           taskMode: draftTaskMode,
           outputDirectory,
           explicitAudioStreamIds,
-          conflictPolicy: draftConflictPolicy,
+          conflictPolicy: resolvedConflictPolicy,
           postAction: { mode: "export_only" },
         });
         setSubmissionPending(false);
@@ -1024,7 +1040,7 @@ export default function LocalSubtitleTranscriber() {
         taskMode: draftTaskMode,
         outputDirectory,
         explicitAudioStreamIds,
-        conflictPolicy: draftConflictPolicy,
+        conflictPolicy: resolvedConflictPolicy,
         postAction: {
           mode: draftPostActionMode,
           preferredFormat: draftPreferredHandoffFormat,
@@ -1043,7 +1059,7 @@ export default function LocalSubtitleTranscriber() {
     }
   }, [
     commitBatchRequest,
-    draftConflictPolicy,
+    resolvedConflictPolicy,
     draftInitialPrompt,
     draftPostActionMode,
     draftPreferredHandoffFormat,
@@ -1585,10 +1601,16 @@ export default function LocalSubtitleTranscriber() {
                   {
                     value: "overwrite",
                     label: t("subtitle:local_transcriber.config.conflict_overwrite"),
+                    disabled: !overwriteSupported,
                   },
                 ]}
                 onValueChange={setDraftConflictPolicy}
               />
+              {!overwriteSupported && environment.runtime ? (
+                <p className="mt-1.5 text-[11px] leading-relaxed text-muted-foreground">
+                  {t("subtitle:local_transcriber.config.conflict_overwrite_unavailable")}
+                </p>
+              ) : null}
             </ToolField>
 
             <ToolField label={t("subtitle:local_transcriber.config.output_mode")}>

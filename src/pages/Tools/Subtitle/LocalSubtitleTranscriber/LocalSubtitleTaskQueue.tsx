@@ -40,6 +40,7 @@ import type {
 import type { LocalSubtitleManualHandoffResult } from "@/services/local-subtitle/localSubtitlePostActionService";
 import {
   canManuallyHandoffLocalSubtitleArtifact,
+  deriveLocalSubtitleTaskProgressDisplay,
   formatLocalSubtitleBytes,
   formatLocalSubtitleDuration,
   getLocalSubtitleFileFormatLabel,
@@ -528,6 +529,10 @@ function TaskRow({
 }) {
   const { t } = useTranslation(["subtitle"]);
   const active = isLocalSubtitleTaskActive(task);
+  const progressDisplay = deriveLocalSubtitleTaskProgressDisplay(task);
+  const showStageProgress =
+    progressDisplay.totalWindows !== undefined ||
+    progressDisplay.stagePercent !== progressDisplay.overallPercent;
   const pending = (action: LocalSubtitleTaskAction) =>
     pendingActionKeys.has(localSubtitleTaskActionKey(action, task.taskId));
   const translationTaskMissing = Boolean(
@@ -688,14 +693,21 @@ function TaskRow({
       {active ? (
         <div className="mt-2 flex min-w-0 items-center gap-2">
           <Progress
-            value={task.progress.overallProgress}
+            value={progressDisplay.overallPercent}
             className="h-1 min-w-0 flex-1"
           />
           <span className="shrink-0 whitespace-nowrap text-right font-mono text-[10.5px] text-muted-foreground">
-            {task.progress.totalWindows
-              ? `${task.progress.completedWindows ?? 0}/${task.progress.totalWindows} · `
+            {progressDisplay.totalWindows !== undefined
+              ? `${progressDisplay.completedWindows}/${progressDisplay.totalWindows} · `
               : ""}
-            {Math.round(task.progress.overallProgress)}%
+            {showStageProgress
+              ? `${t("subtitle:local_transcriber.queue.stage_progress", {
+                  percent: progressDisplay.stagePercent,
+                })} · `
+              : ""}
+            {t("subtitle:local_transcriber.queue.overall_progress", {
+              percent: progressDisplay.overallPercent,
+            })}
           </span>
         </div>
       ) : null}

@@ -138,6 +138,10 @@ describe("local subtitle overwrite production runtime composition", () => {
     expect(lifecycleInstall).toBeGreaterThan(-1);
     expect(recoveryIpcBridge).toBeGreaterThan(lifecycleInstall);
     expect(runtimeIpcBridge).toBeGreaterThan(lifecycleInstall);
+    expect(source).toContain("supportedOutputConflictPolicies:");
+    expect(source).toContain(
+      'localSubtitleOverwriteRuntime.status === "ready"',
+    );
     expect(recoveryPublicHandlers).toBeGreaterThan(recoveryIpcBridge);
     expect(runtimePublicHandlers).toBeGreaterThan(runtimeIpcBridge);
     expect(recoveryInternalHandler).toBeGreaterThan(recoveryIpcBridge);

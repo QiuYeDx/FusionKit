@@ -491,7 +491,7 @@ export const LOCAL_SUBTITLE_ERROR_MANIFEST = {
   transcript_quality_failed: defineError(
     "task",
     "post_processing",
-    false,
+    true,
     false,
   ),
   out_of_memory: defineError("batch", "transcribing", true, true),

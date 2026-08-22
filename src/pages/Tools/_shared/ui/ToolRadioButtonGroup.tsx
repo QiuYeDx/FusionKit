@@ -5,6 +5,7 @@ import { cn } from "@/lib/utils";
 export interface ToolRadioButtonOption<T extends string> {
   value: T;
   label: ReactNode;
+  disabled?: boolean;
   ariaLabel?: string;
   testId?: string;
 }
@@ -42,6 +43,7 @@ export function ToolRadioButtonGroup<T extends string>({
       items={options.map((option) => ({
         value: option.value,
         label: option.label,
+        disabled: option.disabled,
         ariaLabel: option.ariaLabel,
         testId: option.testId,
       }))}

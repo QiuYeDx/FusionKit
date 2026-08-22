@@ -2958,7 +2958,7 @@ describe("LocalSubtitleJobManager", () => {
 
       await expect(harness.manager.enqueue(OWNER_A, request)).rejects.toMatchObject({
         localSubtitleCode: "invalid_ipc_request",
-        field: "config",
+        field: "config.output.conflictPolicy",
       });
 
       expect(inputResolve).not.toHaveBeenCalled();

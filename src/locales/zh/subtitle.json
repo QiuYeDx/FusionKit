@@ -282,6 +282,7 @@
       "conflict_policy": "文件冲突",
       "conflict_index": "自动编号",
       "conflict_overwrite": "覆盖原文件",
+      "conflict_overwrite_unavailable": "当前应用会话未能加载安全覆盖组件，已改用自动编号；转写功能仍可正常使用。",
       "output_mode": "输出位置",
       "output_source": "源文件目录",
       "output_custom": "自定义目录",
@@ -503,6 +504,8 @@
     "queue": {
       "title": "任务队列",
       "duration": "媒体时长 {{duration}}",
+      "stage_progress": "阶段 {{percent}}%",
+      "overall_progress": "总体 {{percent}}%",
       "empty_title": "任务队列为空",
       "empty_description": "选择文件后，任务会直接加入这里，并显示各自的状态和结果。"
     },

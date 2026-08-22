@@ -34,6 +34,7 @@ describe("local subtitle runtime IPC bridge", () => {
         }),
       },
       supportedGpuBackends: ["metal"],
+      supportedOutputConflictPolicies: ["index", "overwrite"],
       verifyServerRuntime: () =>
         verifyLocalSubtitleRuntimeBundle({
           environment: fixture.environment,
@@ -53,6 +54,7 @@ describe("local subtitle runtime IPC bridge", () => {
         runtimeGeneration: loaded.manifestSha256,
         runner: { status: "ready", version: "v1.9.1+f049fff" },
         mediaRuntime: { status: "ready", version: "8.1.2" },
+        supportedOutputConflictPolicies: ["index", "overwrite"],
         backends: [
           { backend: "cpu", status: "available" },
           {

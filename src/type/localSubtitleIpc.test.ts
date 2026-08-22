@@ -556,6 +556,22 @@ describe("local subtitle fixed IPC surface", () => {
 
     expect(localSubtitleRuntimeSummarySchema.parse(validRuntimeSummary()))
       .toEqual(validRuntimeSummary());
+    expect(localSubtitleRuntimeSummarySchema.parse({
+      ...validRuntimeSummary(),
+      supportedOutputConflictPolicies: ["index", "overwrite"],
+    })).toMatchObject({
+      supportedOutputConflictPolicies: ["index", "overwrite"],
+    });
+    for (const supportedOutputConflictPolicies of [
+      ["overwrite"],
+      ["index", "index"],
+      ["overwrite", "index"],
+    ]) {
+      expect(localSubtitleRuntimeSummarySchema.safeParse({
+        ...validRuntimeSummary(),
+        supportedOutputConflictPolicies,
+      }).success).toBe(false);
+    }
     expect(
       localSubtitleManagedResourceListSchema.parse([validManagedResource()]),
     ).toEqual([validManagedResource()]);

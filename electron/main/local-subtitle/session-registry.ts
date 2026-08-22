@@ -7,6 +7,8 @@ import {
   isLocalSubtitleCpuRetryAvailable,
   transitionLocalSubtitleTaskState,
   type LocalSubtitleBatchSummary,
+  type LocalSubtitleDiagnostics,
+  type LocalSubtitleError,
   type LocalSubtitleErrorCode,
   type LocalSubtitleResourceEventEnvelope,
   type LocalSubtitleResourceJobSummary,
@@ -556,16 +558,84 @@ function sanitizeTask(task: LocalSubtitleTaskSummary): LocalSubtitleTaskSummary 
   if (task.error === undefined) return task;
   return {
     ...task,
-    error: createLocalSubtitleError(
-      task.error.code,
+    error: sanitizeTaskError(task.error),
+  };
+}
+
+const SAFE_TRANSCRIPT_QUALITY_DIAGNOSTIC_LINE_PATTERNS = Object.freeze([
+  /^post_processing_stage=(?:policy|window|coverage|merge|shaping|canonical|unknown)$/u,
+  /^reason=[a-z][a-z0-9_]{0,127}$/u,
+  /^quality_issues=[a-z][a-z0-9_]*(?:,[a-z][a-z0-9_]*)*$/u,
+  /^window=\d{1,12}(?:\.\d{3})?s-\d{1,12}(?:\.\d{3})?s$/u,
+  /^split_retry_depth=\d{1,3}$/u,
+  /^automatic_quality_replays=\d{1,3}\/\d{1,3}$/u,
+  /^raw_segments=\d{1,9}$/u,
+  /^unique_normalized_texts=\d{1,9}$/u,
+  /^longest_repeated_run=\d{1,9} cues \/ \d{1,12} ms$/u,
+  /^internal_error_type=[A-Za-z][A-Za-z0-9_.-]{0,127}$/u,
+] as const);
+
+function sanitizeTaskError(error: LocalSubtitleError): LocalSubtitleError {
+  const common = {
+    stage: error.stage,
+    ...(error.causeCode === undefined ? {} : { causeCode: error.causeCode }),
+  };
+  if (error.code !== "transcript_quality_failed") {
+    return createLocalSubtitleError(
+      error.code,
       "The local subtitle task failed.",
-      {
-        stage: task.error.stage,
-        ...(task.error.causeCode === undefined
-          ? {}
-          : { causeCode: task.error.causeCode }),
-      },
-    ),
+      common,
+    );
+  }
+
+  const details = sanitizeTranscriptQualityDiagnostics(error.details);
+  const internalFailure = details?.lines?.some((line) =>
+    line.startsWith("internal_error_type=")) ?? false;
+  return createLocalSubtitleError(
+    error.code,
+    internalFailure
+      ? "Local transcript post-processing encountered an internal error. No subtitle file was exported."
+      : "Local transcription remained unstable after automatic quality recovery. No unreliable subtitle file was exported.",
+    {
+      ...common,
+      ...(details === undefined ? {} : { details }),
+    },
+  );
+}
+
+function sanitizeTranscriptQualityDiagnostics(
+  details: LocalSubtitleDiagnostics | undefined,
+): LocalSubtitleDiagnostics | undefined {
+  if (!details) return undefined;
+  const sourceLines = details.lines ?? [];
+  const lines = sourceLines.filter((line) =>
+    SAFE_TRANSCRIPT_QUALITY_DIAGNOSTIC_LINE_PATTERNS.some((pattern) =>
+      pattern.test(line)));
+  const metadataSource = details.metadata;
+  const metadata: Partial<
+    Record<"attempt" | "maxAttempts" | "observed" | "limit", number>
+  > = {};
+  for (const key of ["attempt", "maxAttempts", "observed", "limit"] as const) {
+    const value = metadataSource?.[key];
+    if (typeof value === "number" && Number.isSafeInteger(value) && value >= 0) {
+      metadata[key] = value;
+    }
+  }
+  if (lines.length === 0 && Object.keys(metadata).length === 0) return undefined;
+  const internalFailure = lines.some((line) =>
+    line.startsWith("internal_error_type="));
+  const metadataTruncated = Object.keys(metadataSource ?? {}).length !==
+    Object.keys(metadata).length;
+  return {
+    summary: internalFailure
+      ? "An internal post-processing error was caught after transcription. The source media was not modified."
+      : "The quality guard rejected a repeated or malformed transcript window after bounded automatic recovery. The source media was not modified.",
+    ...(lines.length === 0 ? {} : { lines }),
+    ...(Object.keys(metadata).length === 0 ? {} : { metadata }),
+    truncated:
+      details.truncated ||
+      lines.length !== sourceLines.length ||
+      metadataTruncated,
   };
 }
 

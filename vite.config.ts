@@ -8,7 +8,8 @@ import pkg from './package.json'
 
 // https://vitejs.dev/config/
 export default defineConfig(({ command }) => {
-  rmSync('dist-electron', { recursive: true, force: true })
+  const isVitest = process.env.VITEST === 'true'
+  if (!isVitest) rmSync('dist-electron', { recursive: true, force: true })
 
   const isServe = command === 'serve'
   const isBuild = command === 'build'
@@ -29,7 +30,7 @@ export default defineConfig(({ command }) => {
     plugins: [
       react(),
       tailwindcss(),
-      electron({
+      ...(isVitest ? [] : [electron({
         main: {
           // Shortcut of `build.lib.entry`
           entry: 'electron/main/index.ts',
@@ -82,7 +83,7 @@ export default defineConfig(({ command }) => {
         // If you want use Node.js in Renderer process, the `nodeIntegration` needs to be enabled in the Main process.
         // See 👉 https://github.com/electron-vite/vite-plugin-electron-renderer
         renderer: {},
-      }),
+      })]),
     ],
     server: process.env.VSCODE_DEBUG && (() => {
       const url = new URL(pkg.debug.env.VITE_DEV_SERVER_URL)

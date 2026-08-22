@@ -172,6 +172,8 @@ export interface LocalSubtitleWindowRetryTarget {
   readonly windowKey: string;
   readonly windowAttempt: number;
   readonly retryDepth: number;
+  readonly windowStartMs: number;
+  readonly windowEndMs: number;
   readonly processEpoch: number;
   readonly requestGeneration: number;
 }
@@ -278,6 +280,10 @@ export interface LocalSubtitlePostProcessorErrorDetails {
   readonly windowKey?: string;
   readonly windowAttempt?: number;
   readonly retryDepth?: number;
+  readonly windowStartMs?: number;
+  readonly windowEndMs?: number;
+  readonly qualityRecoveryAttempts?: number;
+  readonly maxQualityRecoveryAttempts?: number;
   readonly processEpoch?: number;
   readonly requestGeneration?: number;
   readonly observed?: number;
@@ -925,7 +931,10 @@ function assessTimelineSegments(
     }
     if (segmentDurationMs > policy.maxRawSegmentDurationMs) {
       overlongSegmentCount += 1;
-      issues.add("overlong_segment");
+      // Whisper can legitimately emit a long segment for sparse speech. This
+      // is a shaping concern, not evidence that the transcript is corrupt.
+      // Canonical cue shaping below still enforces maxCueDurationMs, preserves
+      // the text once, and marks any adjusted display timing as estimated.
     }
     if (
       startMs < -policy.boundaryToleranceMs ||
@@ -1423,19 +1432,35 @@ function splitSegmentByTextAndDuration(
     );
   }
   const durationMs = segment.endMs - segment.startMs;
-  const minimumParts = Math.max(
+  const durationParts = Math.max(
     1,
     Math.ceil(durationMs / policy.maxCueDurationMs),
+  );
+  const textCapacityParts = Math.max(
+    1,
     Math.ceil(text.length / capacity),
   );
-  if (minimumParts > units.length || minimumParts > durationMs) {
+  const sparseTimeline = durationParts > units.length;
+  const minimumParts = sparseTimeline
+    ? textCapacityParts
+    : Math.max(durationParts, textCapacityParts);
+  const shapingDurationMs = sparseTimeline
+    ? Math.min(durationMs, minimumParts * policy.maxCueDurationMs)
+    : durationMs;
+  const shapingSegment = shapingDurationMs === durationMs
+    ? segment
+    : {
+        ...segment,
+        endMs: segment.startMs + shapingDurationMs,
+      };
+  if (minimumParts > units.length || minimumParts > shapingDurationMs) {
     throw qualityFailure("shaping", "text_cannot_cover_timeline_without_duplication");
   }
 
   for (let partCount = minimumParts; partCount <= units.length; partCount += 1) {
     const textParts = partitionText(units, partCount, capacity);
     if (!textParts) continue;
-    const timed = assignProportionalTimings(segment, textParts);
+    const timed = assignProportionalTimings(shapingSegment, textParts);
     if (
       timed.every(
         (part) => part.endMs - part.startMs <= policy.maxCueDurationMs,
@@ -1448,7 +1473,9 @@ function splitSegmentByTextAndDuration(
           policy.maxLineChars,
           policy.maxCueLines,
         ),
-        ...(textParts.length > 1 ? { estimatedTiming: true as const } : {}),
+        ...(textParts.length > 1 || shapingDurationMs !== durationMs
+          ? { estimatedTiming: true as const }
+          : {}),
       }));
     }
   }
@@ -1997,6 +2024,8 @@ function createRetryTarget(
     windowKey: attempt.window.windowKey,
     windowAttempt: attempt.windowAttempt,
     retryDepth: attempt.window.retryDepth,
+    windowStartMs: attempt.window.startMs,
+    windowEndMs: attempt.window.endMs,
     processEpoch: attempt.processEpoch,
     requestGeneration: attempt.requestGeneration,
   };
@@ -2489,6 +2518,10 @@ function graphFailure(
 export function throwLocalSubtitleWindowDecisionFailure(
   decision: Extract<LocalSubtitleWindowRetryDecision, { action: "fail" }>,
   assessment: LocalSubtitleRawQualityAssessment,
+  recovery: Readonly<{
+    qualityRecoveryAttempts: number;
+    maxQualityRecoveryAttempts: number;
+  }> = { qualityRecoveryAttempts: 0, maxQualityRecoveryAttempts: 0 },
 ): never {
   const contractInvalid = decision.reason === "contract_invalid";
   throw new LocalSubtitlePostProcessorError(
@@ -2506,6 +2539,7 @@ export function throwLocalSubtitleWindowDecisionFailure(
         ...decision.retryTarget,
         assessment,
         retryDecision: decision,
+        ...recovery,
       },
     },
   );

@@ -16,9 +16,11 @@ import {
   canManuallyHandoffLocalSubtitleArtifact,
   createLocalSubtitleBackendPreviewKey,
   createLocalSubtitleBatchRequest,
+  deriveLocalSubtitleTaskProgressDisplay,
   deriveLocalSubtitleDraftMediaProbeStatus,
   deriveLocalSubtitleStartIssue,
   findLocalSubtitleTask,
+  flattenLocalSubtitleTasksInQueueOrder,
   formatLocalSubtitleBytes,
   formatLocalSubtitleDuration,
   getLocalSubtitleFileFormatLabel,
@@ -31,9 +33,12 @@ import {
   isLocalSubtitleDevicePreferenceAvailable,
   isLocalSubtitleResourceJobActive,
   isLocalSubtitleTaskActive,
+  mergeLocalSubtitleVisibleBatches,
   pruneLocalSubtitleDraftAudioSelections,
   reconcileLocalSubtitleDraftMediaProbes,
+  resolveLocalSubtitleConflictPolicy,
   shouldRequestLocalSubtitleBackendPreview,
+  supportedLocalSubtitleConflictPolicies,
 } from "./localSubtitleTranscriberModel";
 
 const file: LocalSubtitleAuthorizedMedia = {
@@ -520,6 +525,74 @@ describe("local subtitle transcriber page model", () => {
       },
     }, "SRT", false)).toBe(true);
   });
+
+  it("keeps live batches and their tasks in FIFO admission order", () => {
+    const firstTask = {
+      ...createTask(),
+      taskId: "z-random-id",
+      batchId: "batch-first",
+      displayName: "first.wav",
+    };
+    const secondTask = {
+      ...createTask(),
+      taskId: "a-random-id",
+      batchId: "batch-first",
+      displayName: "second.wav",
+    };
+    const firstBatch = createBatch("batch-first", [firstTask, secondTask]);
+    const secondBatch = createBatch("batch-second", [{
+      ...createTask(),
+      taskId: "m-random-id",
+      batchId: "batch-second",
+      displayName: "third.wav",
+    }]);
+
+    const visible = mergeLocalSubtitleVisibleBatches(
+      [firstBatch],
+      [firstBatch, secondBatch],
+    );
+
+    expect(visible.map((batch) => batch.batchId)).toEqual([
+      "batch-first",
+      "batch-second",
+    ]);
+    expect(
+      flattenLocalSubtitleTasksInQueueOrder(visible).map((task) => task.displayName),
+    ).toEqual(["first.wav", "second.wav", "third.wav"]);
+  });
+
+  it("shows window progress separately from weighted overall progress", () => {
+    expect(deriveLocalSubtitleTaskProgressDisplay({
+      progress: {
+        stage: "transcribing",
+        stageProgress: 18,
+        overallProgress: 39,
+        completedWindows: 6,
+        totalWindows: 32,
+      },
+    })).toEqual({
+      stagePercent: 19,
+      overallPercent: 39,
+      completedWindows: 6,
+      totalWindows: 32,
+    });
+  });
+
+  it("falls back to automatic numbering when overwrite is unavailable", () => {
+    expect(supportedLocalSubtitleConflictPolicies(runtime)).toEqual(["index"]);
+    expect(resolveLocalSubtitleConflictPolicy(runtime, "overwrite")).toBe("index");
+
+    const overwriteRuntime: LocalSubtitleRuntimeSummary = {
+      ...runtime,
+      supportedOutputConflictPolicies: ["index", "overwrite"],
+    };
+    expect(supportedLocalSubtitleConflictPolicies(overwriteRuntime)).toEqual([
+      "index",
+      "overwrite",
+    ]);
+    expect(resolveLocalSubtitleConflictPolicy(overwriteRuntime, "overwrite"))
+      .toBe("overwrite");
+  });
 });
 
 function createTask(): LocalSubtitleTaskSummary {
@@ -580,6 +653,32 @@ function createTask(): LocalSubtitleTaskSummary {
     },
     createdAt: "2026-08-03T00:00:00.000Z",
     updatedAt: "2026-08-03T00:01:00.000Z",
+  };
+}
+
+function createBatch(
+  batchId: string,
+  tasks: readonly LocalSubtitleTaskSummary[],
+): LocalSubtitleBatchSummary {
+  const firstTask = tasks[0] ?? createTask();
+  return {
+    batchId,
+    status: "completed",
+    config: {
+      modelId: model.resourceId,
+      devicePreference: "cpu",
+      resolvedBackend: "cpu",
+      language: "auto",
+      taskMode: "transcribe",
+      vadEnabled: false,
+      outputFormats: ["SRT"],
+      outputMode: "source",
+      conflictPolicy: "index",
+      postActionMode: "export_only",
+    },
+    tasks,
+    createdAt: firstTask.createdAt,
+    updatedAt: firstTask.updatedAt,
   };
 }
 

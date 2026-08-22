@@ -2684,18 +2684,25 @@ function assertProductionBatchSliceRequest(
   executor: Pick<LocalSubtitleJobTaskExecutor, "supportsOutputConflictPolicy">,
 ): void {
   const config = request.config;
-  const supported =
+  const supportedContract =
     isSupportedProductionTaskMode(config.taskMode) &&
     typeof config.vadEnabled === "boolean" &&
     (config.output.mode === "custom" || config.output.mode === "source") &&
-    executor.supportsOutputConflictPolicy(config.output.conflictPolicy) &&
     isSupportedProductionFormats(config.output.formats);
-  if (!supported) {
+  if (!supportedContract) {
     throw managerFailure(
       "invalid_ipc_request",
-      "This local subtitle build supports managed-VAD SRT/LRC batches with an available output conflict policy.",
+      "The local subtitle request does not match the supported managed-VAD SRT/LRC contract.",
       "preflight",
       "config",
+    );
+  }
+  if (!executor.supportsOutputConflictPolicy(config.output.conflictPolicy)) {
+    throw managerFailure(
+      "invalid_ipc_request",
+      "The selected output conflict policy is unavailable in this app session. Choose automatic numbering and retry.",
+      "preflight",
+      "config.output.conflictPolicy",
     );
   }
 }

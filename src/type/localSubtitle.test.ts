@@ -838,7 +838,7 @@ describe("local subtitle error manifest", () => {
       transcript_quality_failed: {
         scope: "task",
         defaultStage: "post_processing",
-        retryable: false,
+        retryable: true,
         blocksBatchCommit: false,
       },
       cancelled_after_partial_commit: {
