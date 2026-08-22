@@ -84,7 +84,7 @@
     "@types/react-dom": "19.1.1",
     "@types/yauzl": "^3.4.0",
     "@vitejs/plugin-react": "^4.3.3",
-    "electron": "42.7.1",
+    "electron": "41.10.6",
     "electron-builder": "^24.13.3",
     "png-to-ico": "^3.0.1",
     "react": "19.1.1",

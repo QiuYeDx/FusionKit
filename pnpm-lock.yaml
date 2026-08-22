@@ -173,8 +173,8 @@ devDependencies:
     specifier: ^4.3.3
     version: 4.7.0(vite@5.4.21)
   electron:
-    specifier: 42.7.1
-    version: 42.7.1
+    specifier: 41.10.6
+    version: 41.10.6
   electron-builder:
     specifier: ^24.13.3
     version: 24.13.3(electron-builder-squirrel-windows@24.13.3)
@@ -4479,10 +4479,11 @@ packages:
       - supports-color
     dev: false
 
-  /electron@42.7.1:
-    resolution: {integrity: sha512-fmjFv4Ebbs/FNZg6a/IAu25lBb8vo/HBVa2vtE2GvYlgAC7/fu8dx1b2pL2wV1yWlfMI2q3Npe4eVYSFGirnwA==}
+  /electron@41.10.6:
+    resolution: {integrity: sha512-NEB7QnVpT2p8S9U5jOCPAtCyhl1WjRT/ODvJP6ec1/dZRUmf/EjYVOBb/dthCmJh4bISqpAroGJ/xRRxX7VwJw==}
     engines: {node: '>= 22.12.0'}
     hasBin: true
+    requiresBuild: true
     dependencies:
       '@electron-internal/extract-zip': 1.0.5
       '@electron/get': 5.1.0

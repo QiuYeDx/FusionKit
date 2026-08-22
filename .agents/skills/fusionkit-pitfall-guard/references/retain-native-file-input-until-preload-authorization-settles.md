@@ -6,7 +6,7 @@ Electron renderer/preload file selection and capability authorization.
 
 ## Triggers
 
-`input type=file`, `DataTransfer.files`, `webUtils.getPathForFile`, `authorization_expired`, `input.value = ""`, Windows file picker, Windows Explorer drag, Electron 33, Electron 42, Playwright `setInputFiles`, CDP `Input.dispatchDragEvent`.
+`input type=file`, `DataTransfer.files`, `webUtils.getPathForFile`, `authorization_expired`, `input.value = ""`, Windows file picker, Windows Explorer drag, Electron 33, Electron 41, Electron 42, Playwright `setInputFiles`, CDP `Input.dispatchDragEvent`.
 
 ## Symptoms
 
@@ -22,7 +22,7 @@ Electron renderer/preload file selection and capability authorization.
 
 Electron binds filesystem path authority to the native `File` retained by the file input or drag event. Clearing `input.value` immediately after starting an asynchronous contextBridge call can revoke picker authority before preload calls `webUtils.getPathForFile`.
 
-Explorer drag has a separate runtime compatibility failure. On Windows with Electron 33.4.11, `webUtils.getPathForFile()` returned an empty string for a real Explorer `DataTransfer` file in all tested placements: renderer-to-preload batch calls, one-file synchronous calls, and a trusted preload capture-phase `drop` listener. The same WAV selected through the picker succeeded. Updating the project runtime to Electron 42.7.1 made that unchanged real Explorer drag succeed immediately. Playwright/CDP injected files do not reproduce this runtime failure and therefore produce false positives.
+Explorer drag has a separate runtime compatibility failure. On Windows with Electron 33.4.11, `webUtils.getPathForFile()` returned an empty string for a real Explorer `DataTransfer` file in all tested placements: renderer-to-preload batch calls, one-file synchronous calls, and a trusted preload capture-phase `drop` listener. The same WAV selected through the picker succeeded. Updating the project runtime to Electron 41.10.6 made that unchanged real Explorer drag succeed immediately; Electron 42.7.1 was independently validated as well, but is not required for this fix. Playwright/CDP injected files do not reproduce this runtime failure and therefore produce false positives.
 
 ## Do
 
@@ -31,7 +31,7 @@ Explorer drag has a separate runtime compatibility failure. On Windows with Elec
 - Clear in `finally` after settlement so the same file can still be selected again after success or failure.
 - Add a lifecycle regression test that proves the input remains populated while authorization is pending.
 - In Electron validation, observe `getPathForFile` after the React change handler has returned, not only at event capture time.
-- Use an Electron release where real Windows Explorer `DataTransfer` files are supported; Electron 42.7.1 is the project-validated baseline.
+- Use an Electron release where real Windows Explorer `DataTransfer` files are supported; Electron 41.10.6 is the project's pinned and manually validated baseline, while Electron 42.7.1 is also known to work.
 - Resolve each native `File` synchronously through a fixed preload method and accumulate only preload-private paths behind a bounded, short-lived, one-time opaque reference.
 - Bump the fixed bridge version whenever the renderer API shape changes so a stale preload reloads instead of returning misleading request errors.
 - Require one real Windows Explorer drag before accepting the fix; keep CDP drag as an automated smoke test only.
