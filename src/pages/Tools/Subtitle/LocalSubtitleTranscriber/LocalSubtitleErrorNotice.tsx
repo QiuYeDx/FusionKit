@@ -2,6 +2,8 @@ import type { LocalSubtitleError } from "@/type/localSubtitle";
 
 export interface LocalSubtitleDisplayError {
   readonly code?: string;
+  readonly stage?: string;
+  readonly field?: string;
   readonly message: string;
 }
 
@@ -23,6 +25,16 @@ export function LocalSubtitleErrorNotice({
       {error.code ? (
         <div className="mt-1 whitespace-pre-wrap break-words font-mono text-[11px] text-muted-foreground [overflow-wrap:anywhere]">
           code: {error.code}
+        </div>
+      ) : null}
+      {error.stage || error.field ? (
+        <div className="mt-1 whitespace-pre-wrap break-words font-mono text-[11px] text-muted-foreground [overflow-wrap:anywhere]">
+          {[
+            error.stage ? `stage: ${error.stage}` : null,
+            error.field ? `field: ${error.field}` : null,
+          ]
+            .filter(Boolean)
+            .join(" · ")}
         </div>
       ) : null}
       {guidance ? (

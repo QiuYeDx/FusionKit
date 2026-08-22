@@ -53,7 +53,8 @@ describe("local subtitle transcriber page wiring", () => {
       expect(source).toContain(component);
     }
     for (const method of [
-      "authorizeInputFiles",
+      "captureInputFile",
+      "authorizeCapturedInputFiles",
       "probeMedia",
       "startResourceInstall",
       "cancelResourceJob",
@@ -79,6 +80,11 @@ describe("local subtitle transcriber page wiring", () => {
     expect(pageSource).toContain("window.localSubtitleApi.bridgeVersion");
     expect(pageSource).toContain("window.location.reload()");
     expect(pageSource).toContain("!bridgeCompatible");
+    expect(pageSource.indexOf("captureInputFile(")).toBeLessThan(
+      pageSource.indexOf("authorizeCapturedInputFiles("),
+    );
+    expect(pageSource).toContain("files.item(index)");
+    expect(pageSource).not.toContain("Array.from(files)");
     expect(mainSource).toContain(
       "getLocalSubtitleEnvironmentService().ensureInitialized()",
     );

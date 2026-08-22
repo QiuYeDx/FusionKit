@@ -4,7 +4,10 @@ import { mkdtemp, realpath, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { createLocalSubtitleError } from "@/type/localSubtitle";
+import {
+  LOCAL_SUBTITLE_IPC_BRIDGE_VERSION,
+  createLocalSubtitleError,
+} from "@/type/localSubtitle";
 import {
   LOCAL_SUBTITLE_PRELOAD_INTERNAL_CHANNELS,
   LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS,
@@ -581,7 +584,7 @@ describe("local subtitle IPC service", () => {
       ok: true,
       data: {
         ownerSessionId: expect.any(String),
-        bridgeVersion: 2,
+        bridgeVersion: LOCAL_SUBTITLE_IPC_BRIDGE_VERSION,
       },
     });
   });

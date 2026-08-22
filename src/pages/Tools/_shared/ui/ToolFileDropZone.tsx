@@ -79,9 +79,11 @@ export function ToolFileDropZone({
   );
 
   const handleFiles = React.useCallback(
-    async (files: FileList | null) => {
+    (files: FileList | null) => {
       if (disabled || !files || files.length === 0) return;
-      await onFiles(files);
+      // Invoke the consumer before returning from the native drop/change event.
+      // Some Electron File capabilities expire as soon as that event unwinds.
+      return onFiles(files);
     },
     [disabled, onFiles],
   );

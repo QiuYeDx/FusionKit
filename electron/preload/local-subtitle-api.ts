@@ -16,6 +16,7 @@ import {
   validateLocalSubtitleResourceEventEnvelope,
   validateLocalSubtitleTaskEventEnvelope,
   type LocalSubtitleIpcResult,
+  type LocalSubtitleInputFileCapture,
   type LocalSubtitleOwnerSessionRegistration,
   type LocalSubtitlePreloadInternalChannel,
   type LocalSubtitlePublicInvokeChannel,
@@ -27,6 +28,18 @@ export interface CreateLocalSubtitleRendererApiOptions {
   readonly ipcRenderer: Pick<IpcRenderer, "invoke" | "on" | "off">;
   readonly webUtils: Pick<WebUtils, "getPathForFile">;
   readonly ownerSessionRegistration: unknown;
+  readonly now?: () => number;
+  readonly createInputCaptureNonce?: () => string;
+}
+
+const INPUT_CAPTURE_TTL_MS = 30_000;
+const MAX_PENDING_INPUT_CAPTURES = 8;
+const INPUT_CAPTURE_NONCE_PATTERN = /^[0-9a-f]{32}$/u;
+const INPUT_CAPTURE_REF_PATTERN = /^local_subtitle_input_[0-9a-f]{32}$/u;
+
+interface PendingInputCapture {
+  readonly files: ReadonlyArray<{ readonly filePath: string }>;
+  readonly expiresAt: number;
 }
 
 type EventValidator<TEvent> = (
@@ -37,9 +50,21 @@ export function createLocalSubtitleRendererApi({
   ipcRenderer,
   webUtils,
   ownerSessionRegistration,
+  now = Date.now,
+  createInputCaptureNonce = defaultInputCaptureNonce,
 }: CreateLocalSubtitleRendererApiOptions): LocalSubtitleRendererApi {
   const ownerSession = resolveOwnerSession(ownerSessionRegistration);
   const ownerSessionId = ownerSession?.ownerSessionId;
+  const pendingInputCaptures = new Map<string, PendingInputCapture>();
+
+  const purgeExpiredInputCaptures = () => {
+    const currentTime = now();
+    for (const [captureRef, capture] of pendingInputCaptures) {
+      if (capture.expiresAt <= currentTime) {
+        pendingInputCaptures.delete(captureRef);
+      }
+    }
+  };
 
   const invokeOperation = async <TResult>(
     channel: LocalSubtitlePublicInvokeChannel | LocalSubtitlePreloadInternalChannel,
@@ -126,35 +151,119 @@ export function createLocalSubtitleRendererApi({
     };
   };
 
-  const api: LocalSubtitleRendererApi = {
-    bridgeVersion: ownerSession?.bridgeVersion ?? 0,
-    async authorizeInputFiles(files) {
-      if (!ownerSessionId) return ownerReleasedFailure();
+  const captureNativeInputFile = (
+    file: File,
+    captureRef?: string,
+  ): LocalSubtitleIpcResult<LocalSubtitleInputFileCapture> => {
+    if (!ownerSessionId) return ownerReleasedFailure();
+    purgeExpiredInputCaptures();
+
+    let capture: PendingInputCapture | undefined;
+    if (captureRef !== undefined) {
       if (
-        !Array.isArray(files) ||
-        files.length === 0 ||
-        files.length > LOCAL_SUBTITLE_LIMITS.maxBatchFiles
+        typeof captureRef !== "string" ||
+        !INPUT_CAPTURE_REF_PATTERN.test(captureRef)
       ) {
+        return invalidRequestFailure("captureRef");
+      }
+      capture = pendingInputCaptures.get(captureRef);
+      if (!capture) return fileAuthorizationFailure("captureRef");
+      if (capture.files.length >= LOCAL_SUBTITLE_LIMITS.maxBatchFiles) {
+        pendingInputCaptures.delete(captureRef);
         return invalidRequestFailure("files");
       }
+    }
 
-      const authorizedFiles: Array<{ filePath: string }> = [];
-      for (let index = 0; index < files.length; index += 1) {
-        try {
-          const file = files[index]!;
-          const filePath = webUtils.getPathForFile(file);
-          if (typeof filePath !== "string" || filePath.length === 0) {
-            return fileAuthorizationFailure(`files.${index}`);
-          }
-          authorizedFiles.push({ filePath });
-        } catch {
-          return fileAuthorizationFailure(`files.${index}`);
-        }
+    const fileIndex = capture?.files.length ?? 0;
+    let filePath = "";
+    try {
+      filePath = webUtils.getPathForFile(file);
+    } catch {
+      if (captureRef) pendingInputCaptures.delete(captureRef);
+      return fileAuthorizationFailure(`files.${fileIndex}`);
+    }
+    if (typeof filePath !== "string" || filePath.length === 0) {
+      if (captureRef) pendingInputCaptures.delete(captureRef);
+      return fileAuthorizationFailure(`files.${fileIndex}`);
+    }
+
+    if (capture?.files.some((candidate) => candidate.filePath === filePath)) {
+      if (captureRef) pendingInputCaptures.delete(captureRef);
+      return invalidRequestFailure("files");
+    }
+
+    const capturedFile = Object.freeze({ filePath });
+    if (capture && captureRef) {
+      const files = Object.freeze([...capture.files, capturedFile]);
+      pendingInputCaptures.set(captureRef, {
+        files,
+        expiresAt: capture.expiresAt,
+      });
+      return {
+        ok: true,
+        data: Object.freeze({
+          captureRef,
+          fileCount: files.length,
+        }) satisfies LocalSubtitleInputFileCapture,
+      };
+    }
+
+    while (pendingInputCaptures.size >= MAX_PENDING_INPUT_CAPTURES) {
+      const oldestCaptureRef = pendingInputCaptures.keys().next().value;
+      if (typeof oldestCaptureRef !== "string") break;
+      pendingInputCaptures.delete(oldestCaptureRef);
+    }
+
+    let nonce = "";
+    try {
+      nonce = createInputCaptureNonce();
+    } catch {
+      return transportFailure();
+    }
+    if (!INPUT_CAPTURE_NONCE_PATTERN.test(nonce)) return transportFailure();
+
+    const nextCaptureRef = `local_subtitle_input_${nonce}`;
+    if (pendingInputCaptures.has(nextCaptureRef)) return transportFailure();
+    pendingInputCaptures.set(nextCaptureRef, {
+      files: Object.freeze([capturedFile]),
+      expiresAt: now() + INPUT_CAPTURE_TTL_MS,
+    });
+    return {
+      ok: true,
+      data: Object.freeze({
+        captureRef: nextCaptureRef,
+        fileCount: 1,
+      }) satisfies LocalSubtitleInputFileCapture,
+    };
+  };
+
+  const api: LocalSubtitleRendererApi = {
+    bridgeVersion: ownerSession?.bridgeVersion ?? 0,
+    captureInputFile(file, captureRef) {
+      // Resolve exactly one native File synchronously while its originating
+      // picker/drop event is still active. The renderer receives only a short-
+      // lived opaque reference; the path remains private to preload and main.
+      return captureNativeInputFile(file, captureRef);
+    },
+    authorizeCapturedInputFiles(captureRef) {
+      if (!ownerSessionId) return Promise.resolve(ownerReleasedFailure());
+      if (
+        typeof captureRef !== "string" ||
+        !INPUT_CAPTURE_REF_PATTERN.test(captureRef)
+      ) {
+        return Promise.resolve(invalidRequestFailure("captureRef"));
+      }
+
+      purgeExpiredInputCaptures();
+      const capture = pendingInputCaptures.get(captureRef);
+      pendingInputCaptures.delete(captureRef);
+      if (!capture) {
+        return Promise.resolve(fileAuthorizationFailure("captureRef"));
       }
 
       return invokeInternal(
         LOCAL_SUBTITLE_PRELOAD_INTERNAL_CHANNELS.authorizeInputFiles,
-        { files: authorizedFiles },
+        { files: capture.files },
       );
     },
     probeMedia(fileToken) {
@@ -411,3 +520,7 @@ function invalidContentFailure<T>(): LocalSubtitleIpcResult<T> {
 }
 
 function noOp(): void {}
+
+function defaultInputCaptureNonce(): string {
+  return globalThis.crypto.randomUUID().replaceAll("-", "");
+}

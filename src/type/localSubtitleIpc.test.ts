@@ -87,7 +87,8 @@ describe("local subtitle fixed IPC surface", () => {
   it("exposes only the fixed renderer methods without a generic transport", () => {
     type ExpectedRendererApiKey =
       | "bridgeVersion"
-      | "authorizeInputFiles"
+      | "captureInputFile"
+      | "authorizeCapturedInputFiles"
       | "probeMedia"
       | "revokeInputFile"
       | "selectOutputDirectory"
@@ -121,8 +122,11 @@ describe("local subtitle fixed IPC surface", () => {
     expectTypeOf<
       Extract<keyof LocalSubtitleRendererApi, "invoke" | "send" | "channel">
     >().toEqualTypeOf<never>();
-    expectTypeOf<Parameters<LocalSubtitleRendererApi["authorizeInputFiles"]>>()
-      .toEqualTypeOf<[files: File[]]>();
+    expectTypeOf<Parameters<LocalSubtitleRendererApi["captureInputFile"]>>()
+      .toEqualTypeOf<[file: File, captureRef?: string]>();
+    expectTypeOf<
+      Parameters<LocalSubtitleRendererApi["authorizeCapturedInputFiles"]>
+    >().toEqualTypeOf<[captureRef: string]>();
     expectTypeOf<Parameters<LocalSubtitleRendererApi["importModel"]>>()
       .toEqualTypeOf<[
         file: File,

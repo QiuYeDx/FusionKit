@@ -1681,6 +1681,10 @@ export const localSubtitleRecoverOverwriteResultSchema = z.discriminatedUnion(
 export type LocalSubtitleAuthorizedMedia = z.infer<
   typeof localSubtitleAuthorizedMediaSchema
 >;
+export interface LocalSubtitleInputFileCapture {
+  readonly captureRef: string;
+  readonly fileCount: number;
+}
 export type LocalSubtitleMediaProbeSummary = z.infer<
   typeof localSubtitleMediaProbeSummarySchema
 >;
@@ -2233,8 +2237,12 @@ export const LOCAL_SUBTITLE_INTERNAL_OPERATION_CONTRACTS: Record<
 
 export interface LocalSubtitleRendererApi {
   readonly bridgeVersion: number;
-  authorizeInputFiles(
-    files: File[],
+  captureInputFile(
+    file: File,
+    captureRef?: string,
+  ): LocalSubtitleIpcResult<LocalSubtitleInputFileCapture>;
+  authorizeCapturedInputFiles(
+    captureRef: string,
   ): Promise<LocalSubtitleIpcResult<LocalSubtitleAuthorizedMedia[]>>;
   probeMedia(
     fileToken: string,

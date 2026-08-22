@@ -61,6 +61,7 @@ import {
 } from "@/type/localSubtitle";
 import type {
   LocalSubtitleIpcResult,
+  LocalSubtitleInputFileCapture,
   LocalSubtitleAuthorizedMedia,
   LocalSubtitleBackendPreviewSummary,
   EnqueueLocalSubtitleBatchRequest,
@@ -830,74 +831,105 @@ export default function LocalSubtitleTranscriber() {
     [runResourceAction],
   );
 
-  const handleFiles = useCallback(async (files: FileList) => {
-    if (!bridgeCompatible) return;
-    const selected = Array.from(files).slice(
-      0,
-      LOCAL_SUBTITLE_LIMITS.maxBatchFiles,
-    );
-    if (selected.length === 0) return;
-    setFileAuthorizationPending(true);
-    setActionError(null);
-    try {
-      const result = await window.localSubtitleApi.authorizeInputFiles(selected);
-      if (!mountedRef.current) {
-        if (result.ok) {
-          for (const authorized of result.data) {
-            runtimeService.queueInputDraftRevocation(authorized);
-          }
-        }
-        return;
-      }
-      if (!result.ok) {
-        setActionError(result.error);
-        return;
-      }
-      const currentDraftFiles =
-        useLocalSubtitleTranscriberStore.getState().draftInputFiles;
-      const existingSourceKeys = new Set([
-        ...currentDraftFiles.map((file) => file.sourceKey),
-        ...visibleTasks.map((task) => task.sourceKey),
-      ]);
-      const availableSlots = Math.max(
-        0,
-        LOCAL_SUBTITLE_LIMITS.maxBatchFiles - currentDraftFiles.length,
+  const handleFiles = useCallback(
+    (files: FileList) => {
+      if (!bridgeCompatible) return;
+      const fileCount = Math.min(
+        files.length,
+        LOCAL_SUBTITLE_LIMITS.maxBatchFiles,
       );
-      const accepted: LocalSubtitleAuthorizedMedia[] = [];
-      const rejected: LocalSubtitleAuthorizedMedia[] = [];
-      for (const authorized of result.data) {
-        if (
-          existingSourceKeys.has(authorized.sourceKey) ||
-          accepted.length >= availableSlots
-        ) {
-          rejected.push(authorized);
-          continue;
-        }
-        existingSourceKeys.add(authorized.sourceKey);
-        accepted.push(authorized);
-      }
-      for (const duplicate of rejected) {
-        runtimeService.queueInputDraftRevocation(duplicate);
-      }
-      if (accepted.length > 0) addDraftInputFiles(accepted);
-      const duplicateCount = rejected.filter((file) =>
-        visibleTasks.some((task) => task.sourceKey === file.sourceKey) ||
-        currentDraftFiles.some((draft) => draft.sourceKey === file.sourceKey),
-      ).length;
-      if (duplicateCount > 0) {
-        showToast(
-          t("subtitle:local_transcriber.file.duplicate_skipped", {
-            count: duplicateCount,
-          }),
-          "warning",
+      if (fileCount === 0) return;
+
+      let captured:
+        | LocalSubtitleIpcResult<LocalSubtitleInputFileCapture>
+        | undefined;
+      for (let index = 0; index < fileCount; index += 1) {
+        const file = files.item(index);
+        if (!file) return;
+        // Consume the original FileList synchronously and keep all native paths
+        // inside the fixed preload bridge. The validated Electron 42.7.1
+        // runtime preserves both picker and Windows Explorer drop authority.
+        captured = window.localSubtitleApi.captureInputFile(
+          file,
+          captured?.ok ? captured.data.captureRef : undefined,
         );
+        if (!captured.ok) {
+          setActionError(captured.error);
+          return;
+        }
       }
-    } catch (error) {
-      if (mountedRef.current) setActionError(toDisplayError(error));
-    } finally {
-      if (mountedRef.current) setFileAuthorizationPending(false);
-    }
-  }, [addDraftInputFiles, bridgeCompatible, runtimeService, t, visibleTasks]);
+      if (!captured?.ok) return;
+
+      setFileAuthorizationPending(true);
+      setActionError(null);
+      return (async () => {
+        try {
+          const result =
+            await window.localSubtitleApi.authorizeCapturedInputFiles(
+              captured.data.captureRef,
+            );
+          if (!mountedRef.current) {
+            if (result.ok) {
+              for (const authorized of result.data) {
+                runtimeService.queueInputDraftRevocation(authorized);
+              }
+            }
+            return;
+          }
+          if (!result.ok) {
+            setActionError(result.error);
+            return;
+          }
+          const currentDraftFiles =
+            useLocalSubtitleTranscriberStore.getState().draftInputFiles;
+          const existingSourceKeys = new Set([
+            ...currentDraftFiles.map((file) => file.sourceKey),
+            ...visibleTasks.map((task) => task.sourceKey),
+          ]);
+          const availableSlots = Math.max(
+            0,
+            LOCAL_SUBTITLE_LIMITS.maxBatchFiles - currentDraftFiles.length,
+          );
+          const accepted: LocalSubtitleAuthorizedMedia[] = [];
+          const rejected: LocalSubtitleAuthorizedMedia[] = [];
+          for (const authorized of result.data) {
+            if (
+              existingSourceKeys.has(authorized.sourceKey) ||
+              accepted.length >= availableSlots
+            ) {
+              rejected.push(authorized);
+              continue;
+            }
+            existingSourceKeys.add(authorized.sourceKey);
+            accepted.push(authorized);
+          }
+          for (const duplicate of rejected) {
+            runtimeService.queueInputDraftRevocation(duplicate);
+          }
+          if (accepted.length > 0) addDraftInputFiles(accepted);
+          const duplicateCount = rejected.filter((file) =>
+            visibleTasks.some((task) => task.sourceKey === file.sourceKey) ||
+            currentDraftFiles.some(
+              (draft) => draft.sourceKey === file.sourceKey,
+            ),
+          ).length;
+          if (duplicateCount > 0) {
+            showToast(
+              t("subtitle:local_transcriber.file.duplicate_skipped", {
+                count: duplicateCount,
+              }),
+              "warning",
+            );
+          }
+        } catch (error) {
+          if (mountedRef.current) setActionError(toDisplayError(error));
+        } finally {
+          if (mountedRef.current) setFileAuthorizationPending(false);
+        }
+      })();
+    },
+    [addDraftInputFiles, bridgeCompatible, runtimeService, t, visibleTasks],
+  );
 
   const handleSelectOutput = useCallback(async () => {
     setOutputSelectionPending(true);

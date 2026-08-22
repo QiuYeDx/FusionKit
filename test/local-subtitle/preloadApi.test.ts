@@ -35,7 +35,8 @@ describe("local subtitle fixed preload API", () => {
     expect(Object.keys(api).sort()).toEqual(
       [
         "bridgeVersion",
-        "authorizeInputFiles",
+        "captureInputFile",
+        "authorizeCapturedInputFiles",
         "probeMedia",
         "revokeInputFile",
         "selectOutputDirectory",
@@ -162,7 +163,85 @@ describe("local subtitle fixed preload API", () => {
     }
   });
 
-  it("fails closed for empty, partial, duplicate, or synthetic file selections", async () => {
+  it("captures native paths synchronously and exposes only an opaque one-time reference", async () => {
+    const file = {} as File;
+    const privatePath = "/private/dragged-media.wav";
+    const { api, invoke, getPathForFile } = createHarness(
+      new Map([[file, privatePath]]),
+    );
+
+    const captured = api.captureInputFile(file);
+
+    expect(captured).not.toBeInstanceOf(Promise);
+    expect(getPathForFile).toHaveBeenCalledWith(file);
+    expect(invoke).not.toHaveBeenCalled();
+    expect(JSON.stringify(captured)).not.toContain(privatePath);
+    if (!captured.ok) throw new Error("Expected synchronous input capture.");
+    expect(captured.data).toMatchObject({ fileCount: 1 });
+
+    await api.authorizeCapturedInputFiles(captured.data.captureRef);
+    expect(invoke).toHaveBeenCalledOnce();
+    await expect(
+      api.authorizeCapturedInputFiles(captured.data.captureRef),
+    ).resolves.toMatchObject({
+      ok: false,
+      error: { code: "authorization_expired", field: "captureRef" },
+    });
+    expect(invoke).toHaveBeenCalledOnce();
+  });
+
+  it("captures an Explorer batch one original File at a time", () => {
+    const mediaOne = {} as File;
+    const mediaTwo = {} as File;
+    const { api, getPathForFile } = createHarness(
+      new Map([
+        [mediaOne, String.raw`H:\private\native-drop-one.wav`],
+        [mediaTwo, String.raw`H:\private\native-drop-two.wav`],
+      ]),
+    );
+
+    const firstCapture = api.captureInputFile(mediaOne);
+    if (!firstCapture.ok) throw new Error("Expected the first File capture.");
+    const captured = api.captureInputFile(
+      mediaTwo,
+      firstCapture.data.captureRef,
+    );
+
+    expect(captured).toMatchObject({ ok: true, data: { fileCount: 2 } });
+    expect(getPathForFile.mock.calls.map(([file]) => file)).toEqual([
+      mediaOne,
+      mediaTwo,
+    ]);
+    expect(
+      api.captureInputFile([mediaOne, mediaTwo] as unknown as File),
+    ).toMatchObject({
+      ok: false,
+      error: { code: "authorization_expired", field: "files.0" },
+    });
+  });
+
+  it("expires preload-private captures without ever forwarding their paths", async () => {
+    const file = {} as File;
+    let currentTime = 1_000;
+    const { api, invoke } = createHarness(
+      new Map([[file, "/private/expiring.wav"]]),
+      undefined,
+      { now: () => currentTime },
+    );
+    const captured = api.captureInputFile(file);
+    if (!captured.ok) throw new Error("Expected synchronous input capture.");
+
+    currentTime += 30_001;
+    await expect(
+      api.authorizeCapturedInputFiles(captured.data.captureRef),
+    ).resolves.toMatchObject({
+      ok: false,
+      error: { code: "authorization_expired", field: "captureRef" },
+    });
+    expect(invoke).not.toHaveBeenCalled();
+  });
+
+  it("fails closed for malformed, partial, duplicate, or synthetic captures", async () => {
     const validFile = {} as File;
     const unavailableFile = {} as File;
     const duplicateFile = {} as File;
@@ -174,15 +253,17 @@ describe("local subtitle fixed preload API", () => {
       ]),
     );
 
-    await expect(api.authorizeInputFiles([])).resolves.toMatchObject({
+    expect(api.captureInputFile(validFile, "invalid-ref")).toMatchObject({
       ok: false,
       error: { code: "invalid_ipc_request" },
     });
     expect(getPathForFile).not.toHaveBeenCalled();
 
-    await expect(
-      api.authorizeInputFiles([validFile, unavailableFile]),
-    ).resolves.toMatchObject({
+    const partial = api.captureInputFile(validFile);
+    if (!partial.ok) throw new Error("Expected a partial capture.");
+    expect(
+      api.captureInputFile(unavailableFile, partial.data.captureRef),
+    ).toMatchObject({
       ok: false,
       error: {
         code: "authorization_expired",
@@ -191,22 +272,60 @@ describe("local subtitle fixed preload API", () => {
       },
     });
     await expect(
-      api.authorizeInputFiles([validFile, duplicateFile]),
+      api.authorizeCapturedInputFiles(partial.data.captureRef),
     ).resolves.toMatchObject({
+      ok: false,
+      error: { code: "authorization_expired", field: "captureRef" },
+    });
+
+    const duplicate = api.captureInputFile(validFile);
+    if (!duplicate.ok) throw new Error("Expected a duplicate test capture.");
+    expect(
+      api.captureInputFile(duplicateFile, duplicate.data.captureRef),
+    ).toMatchObject({
       ok: false,
       error: { code: "invalid_ipc_request" },
     });
     expect(invoke).not.toHaveBeenCalled();
+    expect(getPathForFile).toHaveBeenCalledTimes(4);
+  });
 
+  it("bounds incremental File captures to the batch limit", () => {
     const tooManyFiles = Array.from(
       { length: LOCAL_SUBTITLE_LIMITS.maxBatchFiles + 1 },
       () => ({} as File),
     );
-    await expect(api.authorizeInputFiles(tooManyFiles)).resolves.toMatchObject({
+    const { api, getPathForFile } = createHarness(
+      new Map(
+        tooManyFiles.map((file, index) => [
+          file,
+          `/private/media-${index}.wav`,
+        ]),
+      ),
+    );
+
+    let capture = api.captureInputFile(tooManyFiles[0]!);
+    for (let index = 1; index < LOCAL_SUBTITLE_LIMITS.maxBatchFiles; index += 1) {
+      if (!capture.ok) throw new Error("Expected a bounded batch capture.");
+      capture = api.captureInputFile(
+        tooManyFiles[index]!,
+        capture.data.captureRef,
+      );
+    }
+    if (!capture.ok) throw new Error("Expected a full batch capture.");
+
+    expect(
+      api.captureInputFile(
+        tooManyFiles[LOCAL_SUBTITLE_LIMITS.maxBatchFiles]!,
+        capture.data.captureRef,
+      ),
+    ).toMatchObject({
       ok: false,
       error: { code: "invalid_ipc_request" },
     });
-    expect(getPathForFile).toHaveBeenCalledTimes(4);
+    expect(getPathForFile).toHaveBeenCalledTimes(
+      LOCAL_SUBTITLE_LIMITS.maxBatchFiles,
+    );
   });
 
   it("uses webUtils for model imports and never reads renderer MIME metadata", async () => {
@@ -342,7 +461,9 @@ describe("local subtitle fixed preload API", () => {
     const filePath = String.raw`H:\我のNas\media\rrr\白嫖DLsite(asmr.one)\【RJ01567709】【已自翻】【藤村莉央&恋鈴桃歌】\wav\5.素っ気ない鳩羽のおまんこ借りて身勝手寝バックえっち♡.wav`;
     const { api, invoke } = createHarness(new Map([[file, filePath]]));
 
-    await api.authorizeInputFiles([file]);
+    const captured = api.captureInputFile(file);
+    if (!captured.ok) throw new Error("Expected synchronous input capture.");
+    await api.authorizeCapturedInputFiles(captured.data.captureRef);
     await api.enqueue({
       ...validEnqueueRequest(),
       config: {
@@ -464,6 +585,10 @@ function createHarness(
       bridgeVersion: LOCAL_SUBTITLE_IPC_BRIDGE_VERSION,
     },
   },
+  overrides: Pick<
+    CreateLocalSubtitleRendererApiOptions,
+    "now" | "createInputCaptureNonce"
+  > = {},
 ) {
   const invoke = vi.fn().mockResolvedValue(ACCEPTED_FAILURE);
   const on = vi.fn();
@@ -473,6 +598,7 @@ function createHarness(
     ipcRenderer: { invoke, on, off } as unknown as CreateLocalSubtitleRendererApiOptions["ipcRenderer"],
     webUtils: { getPathForFile },
     ownerSessionRegistration,
+    ...overrides,
   };
 
   return {
@@ -490,8 +616,15 @@ async function callEveryCommand(
   mediaTwo: File,
   model: File,
 ) {
+  const firstCapture = api.captureInputFile(mediaOne);
+  const captured = firstCapture.ok
+    ? api.captureInputFile(mediaTwo, firstCapture.data.captureRef)
+    : firstCapture;
+  const authorizeInputFiles = captured.ok
+    ? api.authorizeCapturedInputFiles(captured.data.captureRef)
+    : Promise.resolve(captured);
   return Promise.all([
-    api.authorizeInputFiles([mediaOne, mediaTwo]),
+    authorizeInputFiles,
     api.probeMedia("file-1"),
     api.revokeInputFile("file-1"),
     api.selectOutputDirectory(),
