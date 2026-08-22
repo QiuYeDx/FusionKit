@@ -32,6 +32,24 @@ function assignRef<T>(ref: React.Ref<T> | undefined, value: T | null) {
   (ref as React.MutableRefObject<T | null>).current = value;
 }
 
+export async function consumeToolFileInputSelection(
+  input: Pick<HTMLInputElement, "files" | "value">,
+  onFiles: (files: FileList) => void | Promise<void>,
+): Promise<void> {
+  const files = input.files;
+  if (!files || files.length === 0) return;
+
+  try {
+    await onFiles(files);
+  } finally {
+    // Electron ties webUtils.getPathForFile(file) to the native File object
+    // retained by this input. Clearing earlier revokes that authority before an
+    // async contextBridge call can consume it. Reset only after authorization
+    // settles so selecting the same file again remains possible and safe.
+    input.value = "";
+  }
+}
+
 export function ToolFileDropZone({
   id,
   inputTestId,
@@ -61,9 +79,9 @@ export function ToolFileDropZone({
   );
 
   const handleFiles = React.useCallback(
-    (files: FileList | null) => {
+    async (files: FileList | null) => {
       if (disabled || !files || files.length === 0) return;
-      void onFiles(files);
+      await onFiles(files);
     },
     [disabled, onFiles],
   );
@@ -102,7 +120,7 @@ export function ToolFileDropZone({
         event.preventDefault();
         if (disabled) return;
         onDraggingChange?.(false);
-        handleFiles(event.dataTransfer.files);
+        void handleFiles(event.dataTransfer.files);
       }}
     >
       <input
@@ -115,9 +133,7 @@ export function ToolFileDropZone({
         disabled={disabled}
         onChange={(event) => {
           const input = event.currentTarget;
-          const files = input.files;
-          handleFiles(files);
-          input.value = "";
+          void consumeToolFileInputSelection(input, handleFiles);
         }}
       />
       <div
