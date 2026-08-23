@@ -2,6 +2,56 @@
 
 本项目的所有重要更改都将记录在此文件中。
 
+## [0.3.0] - 2026-08-23
+
+### 新增
+
+- 新增独立的本地字幕转写工具：支持批量添加 1～100 个音频或视频、媒体探测与音轨选择、managed Whisper 模型、原文转写或翻译为英语、可选 VAD，以及 SRT/LRC 导出
+- 新增本地模型、VAD 和 Windows CUDA 候选加速包的受管资源生命周期，覆盖固定 manifest、续传下载、大小与 SHA-256 校验、占用门禁、删除和启动孤儿清理；模型与可选资源不进入默认安装包
+- 本地字幕结果支持源目录或自定义目录、自动编号或安全覆盖、分页预览、复制、定位文件、结构化错误详情、取消与重试，并可选择仅导出、加入字幕翻译队列或加入后立即开始翻译
+- 字幕 AI 翻译任务新增模型 API 实际 Token 用量累计与费用显示；失败、重试和检查点恢复会保留已发生用量，并与剩余预估明确区分
+- DeepSeek Chat Completions 字幕翻译新增 Thinking 模式开关，任务编辑、自动字幕导入和检查点恢复均保留任务创建时的选择
+
+### 优化
+
+- 本地转写任务队列按真实 FIFO 执行顺序稳定展示；字幕翻译任务改为“进行中、未开始、已完成”的优先级排序，避免运行任务沉到待处理任务之后
+- 本地转写进度只在耗时的转写阶段显示单一百分比，并统一分片数量、进度条和百分比的数据来源，移除容易误解的阶段/整体双百分比
+- 分离“任务列表源文件去重”和“输出字幕冲突策略”：同一路径文件在可见队列中拒绝重复添加，源媒体名称不再提前追加编号；仅在写出同名字幕时执行自动编号或安全覆盖
+- 改进稀疏语音、长静音和 ASMR 类音频的字幕时间线整形及质量判定；可恢复的转写/后处理异常会进行受控重试，并向错误详情保留安全、可定位的诊断信息
+- 统一工具配置中的分段选择器、布尔开关和折叠面板交互，补充本地环境资源状态、运行后端预览和 About/README 的实际 Electron 构建信息
+- 更新 DeepSeek V4 Flash / Pro 默认 Token 单价为官网 2026-08-22 高峰 cache-miss 价格；非高峰价格为默认值的一半，用户可按实际使用时段调整模型 profile
+
+### 修复
+
+- 修复从 Windows 资源管理器拖入文件时 shell 临时代理路径导致授权立即过期的问题；安全桥会恢复并绑定原始文件身份，文件选择与拖拽现在使用一致的任务授权链路
+- 修复开发重启、preload 能力差异和会话重建后可能出现 `invalid_ipc_request`、`authorization_expired` 或安全覆盖组件被错误降级的问题
+- 修复普通 WAV/长音频在后处理阶段被过严质量规则误判为 `transcript_quality_failed`、相同文件重试结果不稳定，以及错误详情缺少实际失败原因的问题
+- 修复转写已完成且预览可见、但字幕文件未落盘或输出名称被错误编号的问题，并完善自动编号与原子覆盖事务的恢复和清理
+- 修复自动字幕翻译交接中的 `invalid_content`、`owner_released` 和所有权提前释放问题，保证“转写 → 导出 → 加入翻译任务 → 精确启动新增任务”的链路使用不可变回执完成交接
+- 修复任务列表显示顺序与实际执行顺序不一致、转写进度分子分母与百分比不对应，以及已完成任务状态更新后排序不稳定的问题
+- 修复模型/VAD/CUDA 下载取消、瞬态网络失败、资源占用、严格模式重复探测和 WDDM 冷启动预算等场景下的卡住、误报或残留资源问题
+
+### 安全与隐私
+
+- 本地推理默认离线；媒体、字幕、时间戳和真实路径不上传，Renderer 持久化与公开 IPC 不暴露真实路径、模型 identity、临时 WAV、授权 token 或完整诊断
+- 文件、目录、输出和字幕交接采用绑定 renderer owner 的 capability；自动翻译只消费一次性 artifact token、冻结的翻译配置快照和不可变新增 taskId 回执
+- 资源下载仅接受内置 `resourceId`、固定 host allowlist、预期体积与 SHA-256，不允许 Renderer 提交任意下载 URL、可执行文件、路径或后端标志
+
+### 测试与文档
+
+- 新增本地字幕转写 Final Design、Execution Plan、逐工作包实施记录与发布说明，覆盖资源体积、磁盘、隐私、恢复、卸载保留、平台证据和第三方许可边界
+- 扩展本地字幕 domain/IPC、文件与目录授权、Windows 拖拽、资源下载、媒体规范化、字幕整形/导出、队列与进度、GPU admission、翻译交接、恢复和原子覆盖事务的自动化测试矩阵
+- 新增字幕翻译实际用量、DeepSeek Thinking、任务排序、翻译配置快照和 path-free 自动导入链路的回归测试
+
+### 依赖
+
+- Electron 更新并固定为 `41.10.6`，新增 preload bundle 完整性检查，同时同步 README、About 页和构建元数据测试中的运行时信息
+
+### 限制
+
+- Windows CUDA 12.4 候选包的第三方许可状态仍为 `pending`，禁止对外分发；Linux、Windows arm64 和 macOS x64 不在本地字幕首版范围
+- Windows x64 installer/目标 NVIDIA、macOS arm64 签名与公证、Electron 四语言与可访问性、长时稳定性和最终隐私/许可扫描仍需在正式发布前完成独立验收
+
 ## [0.2.11] - 2026-07-15
 
 ### 修复
@@ -14,11 +64,6 @@
 
 ### 新增
 
-- 字幕 AI 翻译任务支持累计并显示模型 API 返回的实际 Token 用量，失败、重试和检查点恢复继续保留已发生用量；费用按任务创建时冻结的模型单价计算，并与剩余预估明确区分
-- 字幕 AI 翻译在 DeepSeek Chat Completions 模型下新增 Thinking 模式开关，默认关闭；任务编辑、自动字幕导入和检查点恢复会保留任务创建时的选择
-- 新增独立“本地字幕转写”预发布实现，不复用远端音频 ASR：支持 1～100 个本地音频/视频、媒体探测与音轨选择、managed Whisper 模型、原文转写/翻译为英语、可选 VAD、SRT/LRC、批内失败隔离、取消与重试
-- 本地字幕结果支持源目录/自定义目录、自动编号/受控覆盖、分页预览、复制、定位文件和结构化错误详情；默认只导出，也可在确认当前配置和外部费用后精确加入或启动本次新增的字幕翻译任务
-- 新增模型、VAD 和 Windows CUDA 候选加速包的固定 manifest、续传下载、大小/SHA-256 校验、ResourceJob、占用门禁、删除与启动孤儿清理；模型与可选资源不进入默认安装包
 - 模型配置新增 API 格式选择，支持 OpenAI Responses API 与 Chat Completions / OpenAI Compatible 两种调用协议并存
 - OpenAI profile 新建时默认使用 Responses API，DeepSeek 和 Other profile 默认继续使用 Chat Completions，旧配置升级后保持原有调用格式
 - 新增统一模型运行时客户端，长文本翻译、字幕翻译、名称翻译和 HomeAgent 可按 profile 的 API 格式选择对应 adapter
@@ -36,9 +81,6 @@
 
 ### 安全与隐私
 
-- 本地字幕普通推理默认离线，媒体、字幕、时间戳和真实路径不上传；资源下载只接受内置 `resourceId`、固定 host allowlist、体积和 SHA-256，不接受 renderer 提交的任意 URL、executable、路径或 backend flag
-- 本地字幕使用独立 route、Store、preload API、`local-subtitle:*` IPC、capability registry 和 main runtime；真实文件/目录路径、token、模型 identity、临时 WAV 与完整诊断不进入 renderer 持久化或公开 IPC
-- 自动字幕翻译默认关闭，只能消费 one-shot artifact token 和字幕翻译模块冻结的配置快照，并且只启动不可变导入回执中的新增 taskId；仅入队模式不创建内容 checkpoint
 - Responses API 请求默认发送 `store:false`，降低模型服务端保存请求内容的风险
 - 任务恢复清单、工作区 manifest 和事件日志不持久化 API Key、Authorization header 或完整模型请求体
 - 模型运行时错误信息增加 API Key 脱敏与统一错误分类，避免敏感凭据泄露到 UI 或日志
@@ -52,7 +94,6 @@
 
 ### 优化
 
-- 更新 DeepSeek V4 Flash / Pro 默认 Token 单价为官网 2026-08-22 高峰 cache-miss 价格；非高峰价格为默认值的一半，用户可按实际使用时段调整模型 profile
 - 更新 OpenAI 模型预设列表，新增 `gpt-5.5`、`gpt-5.5-pro`、`gpt-5.4`、`gpt-5.4-pro`、`gpt-5.4-mini`、`gpt-5.4-nano`，并校准 GPT-5.5 / GPT-5.4 / GPT-5 系列默认上下文窗口与价格
 - 校准 DeepSeek V4 Flash / Pro、`deepseek-chat`、`deepseek-reasoner` 默认上下文窗口为 1M，并修正 DeepSeek V4 Pro 与兼容别名默认价格
 - 长文本翻译配置页的上下文预算提示、进度条、超限判断和任务参数改为跟随当前模型上下文窗口，避免 1M 上下文模型被固定 32K 默认值误导
@@ -85,8 +126,6 @@
 
 ### 测试与文档
 
-- 新增本地字幕转写 Final Design、Execution Plan、逐工作包实施记录和预发布说明，记录资源体积、磁盘、隐私、恢复、卸载保留、平台证据与第三方许可边界
-- 新增本地字幕 domain/IPC、文件与目录授权、资源下载、official server、媒体规范化、字幕整形/导出、批量队列、GPU admission、结果交接、恢复与原子覆盖事务的自动化矩阵；固定生产模型、真实公网VAD与Windows CUDA target component已通过，Electron产品、installer和最终发布矩阵仍单独验收
 - 新增 v0.2.11 文件名翻译体验修复设计文档、执行计划和实施记录
 - 新增清空选择保留配置的 store 单测，覆盖路径清空不重置用户配置的行为
 - 新增文件名翻译警告详情聚合与换行合同测试，并通过暗色 `786×540` Electron 场景验证摘要、确认弹窗和内部 ScrollArea 无横向溢出
@@ -107,8 +146,6 @@
 
 ### 限制
 
-- 本地字幕转写仍处于预发布阶段：Windows x64 installer/目标 NVIDIA、macOS arm64 Developer ID/公证/Gatekeeper、Electron 四语言与可访问性、长时稳定性、隐私扫描和第三方许可闭环尚未完成，不应把 CPU/CUDA/Metal 候选写成 stable 支持或承诺最低性能
-- Windows CUDA 12.4 候选包当前许可状态仍为 `pending` 且禁止对外分享；Linux、Windows arm64 和 macOS x64 不在首版范围，未完成文件也不支持单文件中途断点续跑
 - OpenAI/MiMo 真实供应商、Electron 麦克风/扬声器权限、OpenAI Realtime/WebRTC 远端音轨和 MiMo `voicedesign` / `voiceclone` 低延迟流式状态仍需发布前手工验收；fixture 与自动化矩阵不能替代真实供应商和设备验证
 - 独立音频 API 配置重构的专项自动化门禁 `TEST-R01` 与真实环境验收 `QA-R02` 仍待完成
 - MiMo Chat Audio 首版不提供原生 WebRTC 双向语音；双向语音页仅对配置了 `realtimeVoice` route 的音频 API 启用
