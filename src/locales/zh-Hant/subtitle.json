@@ -507,8 +507,6 @@
     "queue": {
       "title": "任務佇列",
       "duration": "媒體時長 {{duration}}",
-      "stage_progress": "階段 {{percent}}%",
-      "overall_progress": "總體 {{percent}}%",
       "empty_title": "任務佇列為空",
       "empty_description": "選擇檔案後，任務會直接加入這裡並顯示各自的狀態與結果。"
     },

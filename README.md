@@ -192,7 +192,7 @@ PS: 在 FusionKit 本地字幕转写完成正式发布验收前，现有稳定�
 
 | 分类 | 技术 |
 | --- | --- |
-| 框架 | Electron 33 + React 19 |
+| 框架 | Electron 41.10.6 + React 19.1.1 |
 | 语言 | TypeScript |
 | 构建工具 | Vite 5 |
 | 样式 | Tailwind CSS 4 |

@@ -561,8 +561,9 @@ describe("local subtitle transcriber page model", () => {
     ).toEqual(["first.wav", "second.wav", "third.wav"]);
   });
 
-  it("shows window progress separately from weighted overall progress", () => {
+  it("derives one transcription percentage from window progress", () => {
     expect(deriveLocalSubtitleTaskProgressDisplay({
+      status: "transcribing",
       progress: {
         stage: "transcribing",
         stageProgress: 18,
@@ -571,11 +572,59 @@ describe("local subtitle transcriber page model", () => {
         totalWindows: 32,
       },
     })).toEqual({
-      stagePercent: 19,
-      overallPercent: 39,
+      percent: 19,
       completedWindows: 6,
       totalWindows: 32,
     });
+  });
+
+  it("falls back to stage progress when transcription window counts are invalid", () => {
+    expect(deriveLocalSubtitleTaskProgressDisplay({
+      status: "transcribing",
+      progress: {
+        stage: "transcribing",
+        stageProgress: 42.6,
+        overallProgress: 61,
+        completedWindows: 7,
+        totalWindows: 0,
+      },
+    })).toEqual({ percent: 43 });
+  });
+
+  it.each([
+    "queued",
+    "preparing_media",
+    "loading_model",
+    "post_processing",
+    "exporting",
+    "cancelling",
+    "completed",
+    "cancelled",
+    "failed",
+  ] as const)("hides task progress while status is %s", (status) => {
+    const stage =
+      status === "completed" || status === "cancelled" || status === "failed"
+        ? "exporting"
+        : status;
+    expect(deriveLocalSubtitleTaskProgressDisplay({
+      status,
+      progress: {
+        stage,
+        stageProgress: 75,
+        overallProgress: 80,
+      },
+    })).toBeNull();
+  });
+
+  it("hides a stale non-transcription progress payload", () => {
+    expect(deriveLocalSubtitleTaskProgressDisplay({
+      status: "transcribing",
+      progress: {
+        stage: "loading_model",
+        stageProgress: 100,
+        overallProgress: 30,
+      },
+    })).toBeNull();
   });
 
   it("falls back to automatic numbering when overwrite is unavailable", () => {

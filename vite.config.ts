@@ -15,6 +15,8 @@ export default defineConfig(({ command }) => {
   const isBuild = command === 'build'
   const sourcemap = isServe || !!process.env.VSCODE_DEBUG
   const appVersion = process.env.VITE_APP_VERSION ?? pkg.version
+  const electronVersion = pkg.devDependencies.electron
+  const reactVersion = pkg.devDependencies.react
   const dependencyNames = Object.keys('dependencies' in pkg ? pkg.dependencies : {})
   const srcAlias = path.join(__dirname, 'src')
 
@@ -26,6 +28,8 @@ export default defineConfig(({ command }) => {
     },
     define: {
       'import.meta.env.VITE_APP_VERSION': JSON.stringify(appVersion),
+      'import.meta.env.VITE_ELECTRON_VERSION': JSON.stringify(electronVersion),
+      'import.meta.env.VITE_REACT_VERSION': JSON.stringify(reactVersion),
     },
     plugins: [
       react(),

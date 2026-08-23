@@ -28,6 +28,13 @@ const openExternal = (url: string) => {
 const About: React.FC = () => {
   const { t } = useTranslation();
   const appVersion = import.meta.env.VITE_APP_VERSION || "-";
+  const electronVersion = import.meta.env.VITE_ELECTRON_VERSION || "-";
+  const reactVersion = import.meta.env.VITE_REACT_VERSION || "-";
+  const reactMajorVersion = reactVersion.match(/^\d+/)?.[0];
+  const frameworkStack = `Electron ${electronVersion} + React ${reactVersion}`;
+  const stackSummary = reactMajorVersion
+    ? `Electron · React ${reactMajorVersion}`
+    : "Electron · React";
   const [updateChecking, setUpdateChecking] = useState(false);
 
   const handleManualCheck = () => {
@@ -154,7 +161,7 @@ const About: React.FC = () => {
             />
             <Stat
               label={t("about:stats.stack")}
-              value="Electron · React 19"
+              value={stackSummary}
             />
           </div>
         </div>
@@ -209,7 +216,7 @@ const About: React.FC = () => {
         <CardContent className="space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-7 gap-y-1">
             {[
-              [t("about:tech.framework"), "Electron 33 + React 19"],
+              [t("about:tech.framework"), frameworkStack],
               [t("about:tech.language"), "TypeScript 5.4"],
               [t("about:tech.build_tool"), "Vite 5"],
               [t("about:tech.style"), "Tailwind CSS 4 + shadcn/ui"],

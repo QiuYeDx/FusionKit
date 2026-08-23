@@ -2,6 +2,8 @@
 
 interface ImportMetaEnv {
   readonly VITE_APP_VERSION?: string
+  readonly VITE_ELECTRON_VERSION?: string
+  readonly VITE_REACT_VERSION?: string
 }
 
 interface ImportMeta {

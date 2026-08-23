@@ -284,8 +284,8 @@ export class LocalSubtitleOwnerSessionRegistry {
       if (isMainFrame && !isInPlace) releaseThisSession();
     };
 
-    // WebFrameMain is an EventEmitter at runtime, but Electron 33 omits its
-    // destruction event from the public TypeScript overloads.
+    // WebFrameMain is an EventEmitter at runtime, but Electron's public
+    // TypeScript overloads omit its destruction event.
     const frameLifecycle = record.frame as unknown as FrameLifecycleEmitter;
     record.sender.once("destroyed", releaseThisSession);
     record.sender.on("render-process-gone", releaseThisSession);

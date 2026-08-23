@@ -528,11 +528,7 @@ function TaskRow({
   readonly task: LocalSubtitleTaskSummary;
 }) {
   const { t } = useTranslation(["subtitle"]);
-  const active = isLocalSubtitleTaskActive(task);
   const progressDisplay = deriveLocalSubtitleTaskProgressDisplay(task);
-  const showStageProgress =
-    progressDisplay.totalWindows !== undefined ||
-    progressDisplay.stagePercent !== progressDisplay.overallPercent;
   const pending = (action: LocalSubtitleTaskAction) =>
     pendingActionKeys.has(localSubtitleTaskActionKey(action, task.taskId));
   const translationTaskMissing = Boolean(
@@ -690,24 +686,20 @@ function TaskRow({
         />
       </div>
 
-      {active ? (
-        <div className="mt-2 flex min-w-0 items-center gap-2">
+      {progressDisplay ? (
+        <div
+          className="mt-2 flex min-w-0 items-center gap-2"
+          data-testid="local-subtitle-transcription-progress"
+        >
           <Progress
-            value={progressDisplay.overallPercent}
+            value={progressDisplay.percent}
             className="h-1 min-w-0 flex-1"
           />
           <span className="shrink-0 whitespace-nowrap text-right font-mono text-[10.5px] text-muted-foreground">
             {progressDisplay.totalWindows !== undefined
               ? `${progressDisplay.completedWindows}/${progressDisplay.totalWindows} · `
               : ""}
-            {showStageProgress
-              ? `${t("subtitle:local_transcriber.queue.stage_progress", {
-                  percent: progressDisplay.stagePercent,
-                })} · `
-              : ""}
-            {t("subtitle:local_transcriber.queue.overall_progress", {
-              percent: progressDisplay.overallPercent,
-            })}
+            {progressDisplay.percent}%
           </span>
         </div>
       ) : null}

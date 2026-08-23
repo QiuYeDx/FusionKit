@@ -221,8 +221,15 @@ describe("local subtitle transcriber page wiring", () => {
     expect(source).toContain('data-testid="local-subtitle-task-queue"');
     expect(queueSource).toContain('data-testid="local-subtitle-task"');
     expect(queueSource).toContain("deriveLocalSubtitleTaskProgressDisplay(task)");
-    expect(queueSource).toContain("progressDisplay.stagePercent");
-    expect(queueSource).toContain("progressDisplay.overallPercent");
+    expect(queueSource).toContain(
+      'data-testid="local-subtitle-transcription-progress"',
+    );
+    expect(queueSource).toContain("value={progressDisplay.percent}");
+    expect(queueSource).toContain("{progressDisplay.percent}%");
+    expect(queueSource).not.toContain("progressDisplay.stagePercent");
+    expect(queueSource).not.toContain("progressDisplay.overallPercent");
+    expect(queueSource).not.toContain("queue.stage_progress");
+    expect(queueSource).not.toContain("queue.overall_progress");
     expect(queueSource).toContain('"cancel"');
     expect(queueSource).toContain('"retry"');
     expect(queueSource).toContain('"remove"');

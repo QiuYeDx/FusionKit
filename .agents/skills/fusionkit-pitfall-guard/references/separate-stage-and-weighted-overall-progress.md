@@ -1,4 +1,4 @@
-# FK-PIT-0095: Separate stage and weighted overall progress
+# FK-PIT-0095: Keep task progress scoped to the meaningful long-running stage
 
 ## Area
 
@@ -6,36 +6,39 @@ Frontend / staged task progress
 
 ## Triggers
 
-progress bar, i/n, completedWindows, totalWindows, stageProgress, overallProgress, weighted stages, percentage mismatch
+progress bar, i/n, completedWindows, totalWindows, stageProgress, overallProgress, transcription-only progress, percentage mismatch
 
 ## Symptoms
 
-- A task shows `6/32` beside `39%`, making the percentage or progress bar look mathematically wrong.
-- The backend progress payload is internally valid, but the UI places two different progress domains next to each other without labels.
-- Users cannot tell whether the bar represents the current stage or the entire multi-stage task.
+- A task shows `6/32`, a stage percentage, and an overall percentage even though only transcription takes meaningful time.
+- Fast preparation, model transition, post-processing, and export stages display short-lived progress bars that add visual noise.
+- Users cannot tell which of several percentages is the useful transcription estimate.
 
 ## Root cause
 
-Window counts describe completion inside the transcription stage, while `overallProgress` is a weighted projection across preparation, model loading, transcription, post-processing, and export. For example, transcription may occupy only the 30–80% range, so `6/32` can legitimately coexist with `39%` overall.
+Window counts and `stageProgress` describe completion inside transcription, while `overallProgress` is a weighted state-machine projection across every stage. Exposing both domains in the compact task list makes valid backend values look contradictory and gives fast stages more visual weight than their duration warrants.
 
 ## Do
 
-- Treat `stageProgress` and `overallProgress` as separate named values.
-- When valid `completedWindows/totalWindows` values exist, derive the displayed stage percentage directly from that fraction so the two stage indicators agree.
-- Label both percentages when they differ, for example `6/32 · Stage 19% · Overall 39%`.
-- Bind the progress bar to the explicitly labeled percentage it represents.
-- Clamp display values and test boundary/invalid-count fallbacks.
+- Keep the full staged payload in the backend for execution and diagnostics.
+- In the local-subtitle task list, return a progress display only while task status is `transcribing`.
+- When valid `completedWindows/totalWindows` values exist, derive the sole displayed percentage from that fraction; otherwise fall back to `stageProgress`.
+- Bind the bar and the single percentage label to the same clamped value. An aligned `i/n` window count may remain beside it.
+- Hide the entire progress row during queued, preparation, model-loading, post-processing, export, cancellation, and terminal states.
 
 ## Avoid
 
-- Do not present `i/n` and weighted `overallProgress` as if they share one denominator.
-- Do not change backend stage weights merely to make an unlabeled renderer display look plausible.
-- Do not hide which progress domain drives the bar.
+- Do not show both stage and weighted overall percentages in the compact queue.
+- Do not bind the bar to `overallProgress` while labeling it with transcription window counts.
+- Do not change backend stage weights just to simplify renderer presentation.
+- Do not leave a 0%/100% progress row flashing during fast non-transcription stages.
 
 ## Validation
 
-- Cover a weighted example such as `6/32`, stage progress near `19%`, and overall progress `39%`.
-- Verify that the label and bar both reference the intended derived display model.
+- Cover a weighted example such as `6/32`, transcription `19%`, and overall `39%`, asserting that the display contains only `19%`.
+- Cover invalid window counts falling back to clamped `stageProgress`.
+- Verify every non-transcription status returns no progress display.
+- Verify that the label and bar both reference the same `percent` field.
 - Run:
   - `vitest run src/pages/Tools/Subtitle/LocalSubtitleTranscriber/localSubtitleTranscriberModel.test.ts`
   - `vitest run src/pages/Tools/Subtitle/LocalSubtitleTranscriber/localSubtitleTranscriberPage.test.ts`

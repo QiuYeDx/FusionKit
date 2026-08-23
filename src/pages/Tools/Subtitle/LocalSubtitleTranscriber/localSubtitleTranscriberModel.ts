@@ -170,15 +170,19 @@ export function flattenLocalSubtitleTasksInQueueOrder(
 }
 
 export interface LocalSubtitleTaskProgressDisplay {
-  readonly stagePercent: number;
-  readonly overallPercent: number;
+  readonly percent: number;
   readonly completedWindows?: number;
   readonly totalWindows?: number;
 }
 
 export function deriveLocalSubtitleTaskProgressDisplay(
-  task: Pick<LocalSubtitleTaskSummary, "progress">,
-): LocalSubtitleTaskProgressDisplay {
+  task: Pick<LocalSubtitleTaskSummary, "status" | "progress">,
+): LocalSubtitleTaskProgressDisplay | null {
+  if (
+    task.status !== "transcribing" ||
+    task.progress.stage !== "transcribing"
+  ) return null;
+
   const progress = task.progress;
   const hasWindowProgress =
     Number.isSafeInteger(progress.completedWindows) &&
@@ -188,12 +192,11 @@ export function deriveLocalSubtitleTaskProgressDisplay(
     progress.completedWindows >= 0 &&
     progress.totalWindows > 0 &&
     progress.completedWindows <= progress.totalWindows;
-  const stagePercent = hasWindowProgress
+  const percent = hasWindowProgress
     ? Math.round((progress.completedWindows! / progress.totalWindows!) * 100)
     : Math.round(progress.stageProgress);
   return {
-    stagePercent: clampPercentage(stagePercent),
-    overallPercent: clampPercentage(Math.round(progress.overallProgress)),
+    percent: clampPercentage(percent),
     ...(hasWindowProgress
       ? {
           completedWindows: progress.completedWindows,

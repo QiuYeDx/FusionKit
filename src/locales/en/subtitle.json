@@ -507,8 +507,6 @@
     "queue": {
       "title": "Task queue",
       "duration": "Media duration {{duration}}",
-      "stage_progress": "Stage {{percent}}%",
-      "overall_progress": "Overall {{percent}}%",
       "empty_title": "The task queue is empty",
       "empty_description": "Selected files are added here immediately with their own status and results."
     },

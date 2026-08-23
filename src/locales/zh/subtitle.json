@@ -507,8 +507,6 @@
     "queue": {
       "title": "任务队列",
       "duration": "媒体时长 {{duration}}",
-      "stage_progress": "阶段 {{percent}}%",
-      "overall_progress": "总体 {{percent}}%",
       "empty_title": "任务队列为空",
       "empty_description": "选择文件后，任务会直接加入这里，并显示各自的状态和结果。"
     },
