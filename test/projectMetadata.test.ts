@@ -3,6 +3,7 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 
 interface ProjectManifest {
+  readonly version: string;
   readonly devDependencies: {
     readonly electron: string;
     readonly react: string;
@@ -17,6 +18,17 @@ const manifest = JSON.parse(
 ) as ProjectManifest;
 
 describe("project build metadata", () => {
+  it("keeps current release documentation synchronized with package.json", () => {
+    const appVersion = manifest.version;
+
+    expect(readProjectFile("README.md")).toContain(
+      `## ${appVersion} 版本亮点`,
+    );
+    expect(readProjectFile("CHANGELOG.md")).toContain(
+      `## [${appVersion}] -`,
+    );
+  });
+
   it("keeps current Electron documentation synchronized with package.json", () => {
     const electronVersion = manifest.devDependencies.electron;
     const reactVersion = manifest.devDependencies.react;
