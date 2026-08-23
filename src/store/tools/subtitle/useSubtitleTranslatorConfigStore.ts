@@ -107,10 +107,9 @@ export function sanitizeSubtitleTranslatorConfigPreferences(
       DEFAULT_SUBTITLE_TRANSLATOR_CONFIG_PREFERENCES.customSliceLength,
     ),
     outputMode,
-    outputDirectoryDisplayLabel:
-      outputMode === "custom"
-        ? sanitizeDirectoryDisplayLabel(record.outputDirectoryDisplayLabel)
-        : null,
+    outputDirectoryDisplayLabel: sanitizeDirectoryDisplayLabel(
+      record.outputDirectoryDisplayLabel,
+    ),
     conflictPolicy: oneOf(
       record.conflictPolicy,
       ["index", "overwrite"] as const,

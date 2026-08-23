@@ -1,7 +1,6 @@
 import useSubtitleTranslatorStore from "@/store/tools/subtitle/useSubtitleTranslatorStore";
-import useSubtitleTranslatorConfigStore, {
-  subtitleTranslatorDirectoryDisplayLabel,
-} from "@/store/tools/subtitle/useSubtitleTranslatorConfigStore";
+import useSubtitleTranslatorConfigStore from "@/store/tools/subtitle/useSubtitleTranslatorConfigStore";
+import { DEFAULT_SLICE_LENGTH_MAP } from "@/constants/subtitle";
 import {
   OutputConflictPolicy,
   OutputPathMode,
@@ -130,16 +129,12 @@ function SubtitleTranslator() {
   const { t } = useTranslation();
   const {
     // fileType,
-    sliceType,
-    sliceLengthMap,
     notStartedTaskQueue,
     waitingTaskQueue,
     pendingTaskQueue,
     resolvedTaskQueue,
     failedTaskQueue,
     // setFileType,
-    setSliceType,
-    setCustomSliceLength,
     addTask,
     startTask,
     retryTask,
@@ -152,50 +147,57 @@ function SubtitleTranslator() {
     updateTaskCostEstimate,
   } = useSubtitleTranslatorStore();
   const taskProfile = useModelStore((s) => s.getTaskProfile());
+  const translatorConfig = useSubtitleTranslatorConfigStore(
+    (state) => state.preferences,
+  );
   const updateTranslatorConfig = useSubtitleTranslatorConfigStore(
     (state) => state.updatePreferences,
   );
-  const initialThinkingEnabled = useSubtitleTranslatorConfigStore(
-    (state) => state.preferences.thinkingEnabled,
+  const {
+    sourceLang,
+    targetLang,
+    translationOutputMode,
+    sliceType,
+    customSliceLength,
+    outputMode,
+    outputDirectoryDisplayLabel,
+    conflictPolicy,
+    concurrentSlices,
+    thinkingEnabled,
+  } = translatorConfig;
+  const sliceLengthMap = useMemo(
+    () => ({
+      ...DEFAULT_SLICE_LENGTH_MAP,
+      [SubtitleSliceType.CUSTOM]: customSliceLength,
+    }),
+    [customSliceLength],
   );
+  const authorizedOutputLabel = outputDirectoryDisplayLabel ?? "";
+
+  const setSourceLang = (value: TranslationLanguage) =>
+    updateTranslatorConfig({ sourceLang: value });
+  const setTargetLang = (value: TranslationLanguage) =>
+    updateTranslatorConfig({ targetLang: value });
+  const setTranslationOutputMode = (value: TranslationOutputMode) =>
+    updateTranslatorConfig({ translationOutputMode: value });
+  const setSliceType = (value: SubtitleSliceType) =>
+    updateTranslatorConfig({ sliceType: value });
+  const setCustomSliceLength = (value: number) =>
+    updateTranslatorConfig({ customSliceLength: value });
+  const setOutputMode = (value: OutputPathMode) =>
+    updateTranslatorConfig({ outputMode: value });
+  const setAuthorizedOutputLabel = (value: string) =>
+    updateTranslatorConfig({ outputDirectoryDisplayLabel: value });
+  const setConflictPolicy = (value: OutputConflictPolicy) =>
+    updateTranslatorConfig({ conflictPolicy: value });
+  const setConcurrentSlices = (value: boolean) =>
+    updateTranslatorConfig({ concurrentSlices: value });
+  const setThinkingEnabled = (value: boolean) =>
+    updateTranslatorConfig({ thinkingEnabled: value });
 
   const [customLengthInput, setCustomLengthInput] = useState(
-    sliceLengthMap?.[SubtitleSliceType.CUSTOM]?.toString() || "500"
+    String(customSliceLength),
   );
-  const [outputMode, setOutputMode] = useState<OutputPathMode>(() => {
-    const raw = localStorage.getItem("subtitle-translator-output-mode");
-    return raw === "source" ? "source" : "custom";
-  });
-  const [authorizedOutputLabel, setAuthorizedOutputLabel] = useState("");
-  const [conflictPolicy, setConflictPolicy] =
-    useState<OutputConflictPolicy>(() => {
-      const raw = localStorage.getItem("subtitle-translator-conflict-policy");
-      return raw === "overwrite" ? "overwrite" : "index";
-    });
-
-  const [concurrentSlices, setConcurrentSlices] = useState<boolean>(() => {
-    const raw = localStorage.getItem("subtitle-translator-concurrent-slices");
-    return raw === null ? true : raw === "true";
-  });
-  const [thinkingEnabled, setThinkingEnabled] = useState(
-    initialThinkingEnabled,
-  );
-
-  const [sourceLang, setSourceLang] = useState<TranslationLanguage>(() => {
-    const raw = localStorage.getItem("subtitle-translator-source-lang");
-    return (raw as TranslationLanguage) || "JA";
-  });
-
-  const [targetLang, setTargetLang] = useState<TranslationLanguage>(() => {
-    const raw = localStorage.getItem("subtitle-translator-target-lang");
-    return (raw as TranslationLanguage) || "ZH";
-  });
-
-  const [translationOutputMode, setTranslationOutputMode] =
-    useState<TranslationOutputMode>(() => {
-      const raw = localStorage.getItem("subtitle-translator-translation-output-mode");
-      return raw === "target_only" ? "target_only" : "bilingual";
-    });
 
   const [isDragging, setIsDragging] = useState(false);
 
@@ -339,88 +341,6 @@ function SubtitleTranslator() {
   const supportsDeepSeekThinking =
     taskProfile?.provider === Model.DeepSeek &&
     taskProfile.apiFormat === "chat_completions";
-
-  useEffect(() => {
-    try {
-      localStorage.setItem("subtitle-translator-output-mode", outputMode);
-    } catch {}
-  }, [outputMode]);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem(
-        "subtitle-translator-conflict-policy",
-        conflictPolicy
-      );
-    } catch {}
-  }, [conflictPolicy]);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem(
-        "subtitle-translator-concurrent-slices",
-        String(concurrentSlices)
-      );
-    } catch {}
-  }, [concurrentSlices]);
-
-  useEffect(() => {
-    if (sourceLang === targetLang) {
-      const fallback = SUPPORTED_LANGUAGES.find((l) => l.code !== sourceLang);
-      if (fallback) setTargetLang(fallback.code);
-    }
-  }, [sourceLang, targetLang]);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem("subtitle-translator-source-lang", sourceLang);
-    } catch {}
-  }, [sourceLang]);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem("subtitle-translator-target-lang", targetLang);
-    } catch {}
-  }, [targetLang]);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem(
-        "subtitle-translator-translation-output-mode",
-        translationOutputMode
-      );
-    } catch {}
-  }, [translationOutputMode]);
-
-  useEffect(() => {
-    updateTranslatorConfig({
-      sourceLang,
-      targetLang,
-      translationOutputMode,
-      sliceType,
-      customSliceLength: sliceLengthMap[SubtitleSliceType.CUSTOM],
-      outputMode,
-      outputDirectoryDisplayLabel:
-        outputMode === "custom"
-          ? subtitleTranslatorDirectoryDisplayLabel(authorizedOutputLabel)
-          : null,
-      conflictPolicy,
-      concurrentSlices,
-      thinkingEnabled,
-    });
-  }, [
-    concurrentSlices,
-    conflictPolicy,
-    outputMode,
-    authorizedOutputLabel,
-    sliceLengthMap,
-    sliceType,
-    sourceLang,
-    targetLang,
-    thinkingEnabled,
-    translationOutputMode,
-    updateTranslatorConfig,
-  ]);
 
   const targetEpochMs = useMemo(() => {
     if (!scheduleTime) return NaN;

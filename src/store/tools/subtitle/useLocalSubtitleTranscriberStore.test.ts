@@ -20,7 +20,9 @@ import {
 } from "@/services/local-subtitle/localSubtitleRuntimeService";
 import type { LocalSubtitleRendererApi } from "@/type/localSubtitleIpc";
 import {
+  DEFAULT_LOCAL_SUBTITLE_TRANSCRIBER_DRAFT_PREFERENCES,
   DEFAULT_LOCAL_SUBTITLE_TRANSCRIBER_PREFERENCES,
+  sanitizeLocalSubtitleTranscriberDraftPreferences,
   sanitizeLocalSubtitleTranscriberPreferences,
 } from "./localSubtitleTranscriberConfig";
 import useLocalSubtitleTranscriberStore, {
@@ -50,7 +52,7 @@ afterEach(() => {
 });
 
 describe("local subtitle transcriber store", () => {
-  it("persists only the exact safe preference whitelist", () => {
+  it("persists reusable configuration without capabilities or runtime state", () => {
     const state = useLocalSubtitleTranscriberStore.getState();
     state.updatePreferences({ language: "ja", outputFormats: ["SRT", "LRC"] });
     state.setDraftInputFiles([
@@ -74,14 +76,17 @@ describe("local subtitle transcriber store", () => {
     const persisted = storage.get("fusionkit-local-subtitle-transcriber") ?? "";
     expect(persisted).toContain('"language":"ja"');
     expect(persisted).toContain('"outputDirectoryDisplayLabel":"Exports"');
-    expect(persisted).not.toMatch(
-      /private-(?:input|output)-token|private spoken names|draftInputFiles|draftOutputDirectory|expiresAt/,
+    expect(persisted).toContain('"initialPrompt":"private spoken names"');
+    expect(persisted).toContain(
+      '"postActionMode":"enqueue_and_start_translation"',
     );
-    expect(persisted).not.toContain("enqueue_and_start_translation");
+    expect(persisted).not.toMatch(
+      /private-(?:input|output)-token|draftInputFiles|draftOutputDirectory|expiresAt/,
+    );
     expect(persisted).not.toContain("qualityPreset");
   });
 
-  it("hydrates same-version dirty data without runtime or free-text state", async () => {
+  it("hydrates reusable draft configuration without runtime capabilities", async () => {
     localStorage.setItem(
       "fusionkit-local-subtitle-transcriber",
       JSON.stringify({
@@ -118,14 +123,14 @@ describe("local subtitle transcriber store", () => {
     expect(state).toMatchObject({
       draftInputFiles: [],
       draftOutputDirectory: null,
-      draftInitialPrompt: "",
+      draftInitialPrompt: "persisted private prompt",
       draftTaskMode: "transcribe",
       draftConflictPolicy: "index",
-      draftPostActionMode: "export_only",
+      draftPostActionMode: "enqueue_and_start_translation",
       draftPreferredHandoffFormat: "SRT",
     });
     expect(JSON.stringify(state)).not.toMatch(
-      /persisted-(?:input|output|task|artifact)|private prompt|subtitle text/,
+      /persisted-(?:input|output|task|artifact)|subtitle text/,
     );
   });
 
@@ -148,6 +153,7 @@ describe("local subtitle transcriber store", () => {
         ...DEFAULT_LOCAL_SUBTITLE_TRANSCRIBER_PREFERENCES,
         language: "ja",
       },
+      draftPreferences: DEFAULT_LOCAL_SUBTITLE_TRANSCRIBER_DRAFT_PREFERENCES,
     });
   });
 
@@ -296,7 +302,7 @@ describe("local subtitle transcriber store", () => {
     expect(revokeInputFile).not.toHaveBeenCalled();
   });
 
-  it("bounds in-memory prompts without persisting them", () => {
+  it("bounds persisted prompts and sanitizes every draft preference", () => {
     useLocalSubtitleTranscriberStore
       .getState()
       .setDraftInitialPrompt(
@@ -306,8 +312,34 @@ describe("local subtitle transcriber store", () => {
     expect(
       useLocalSubtitleTranscriberStore.getState().draftInitialPrompt,
     ).toHaveLength(LOCAL_SUBTITLE_LIMITS.maxInitialPromptChars);
-    expect(storage.get("fusionkit-local-subtitle-transcriber") ?? "").not.toContain(
-      '"draftInitialPrompt"',
+    expect(
+      storage.get("fusionkit-local-subtitle-transcriber") ?? "",
+    ).toContain(
+      `"initialPrompt":"${"x".repeat(
+        LOCAL_SUBTITLE_LIMITS.maxInitialPromptChars,
+      )}"`,
+    );
+    expect(
+      sanitizeLocalSubtitleTranscriberDraftPreferences({
+        initialPrompt: "ok",
+        taskMode: "invalid",
+        conflictPolicy: "invalid",
+        postActionMode: "invalid",
+        preferredHandoffFormat: "TXT",
+        fileToken: "must-not-survive",
+      }),
+    ).toEqual({
+      ...DEFAULT_LOCAL_SUBTITLE_TRANSCRIBER_DRAFT_PREFERENCES,
+      initialPrompt: "ok",
+    });
+    expect(
+      JSON.stringify(
+        sanitizeLocalSubtitleTranscriberDraftPreferences({
+          fileToken: "must-not-survive",
+        }),
+      ),
+    ).not.toContain(
+      "must-not-survive",
     );
   });
 

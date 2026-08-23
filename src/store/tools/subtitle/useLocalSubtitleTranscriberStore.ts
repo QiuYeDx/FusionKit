@@ -15,12 +15,15 @@ import type {
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 import {
+  DEFAULT_LOCAL_SUBTITLE_TRANSCRIBER_DRAFT_PREFERENCES,
   DEFAULT_LOCAL_SUBTITLE_TRANSCRIBER_PREFERENCES,
+  sanitizeLocalSubtitleTranscriberDraftPreferences,
   sanitizeLocalSubtitleTranscriberPreferences,
+  type LocalSubtitleTranscriberDraftPreferences,
   type LocalSubtitleTranscriberPreferences,
 } from "./localSubtitleTranscriberConfig";
 
-export const LOCAL_SUBTITLE_TRANSCRIBER_STORE_VERSION = 2;
+export const LOCAL_SUBTITLE_TRANSCRIBER_STORE_VERSION = 3;
 
 type ActiveOutputDirectory = Extract<
   LocalSubtitleOutputDirectorySelection,
@@ -193,17 +196,27 @@ const useLocalSubtitleTranscriberStore = create<LocalSubtitleTranscriberStore>()
         preferences: sanitizeLocalSubtitleTranscriberPreferences(
           state.preferences,
         ),
+        draftPreferences: sanitizeLocalSubtitleTranscriberDraftPreferences({
+          initialPrompt: state.draftInitialPrompt,
+          taskMode: state.draftTaskMode,
+          conflictPolicy: state.draftConflictPolicy,
+          postActionMode: state.draftPostActionMode,
+          preferredHandoffFormat: state.draftPreferredHandoffFormat,
+        }),
       }),
       migrate: (persisted, version) =>
         migrateLocalSubtitleTranscriberPersistedState(persisted, version),
       merge: (persisted, current) => {
         const saved = isRecord(persisted) ? persisted : {};
+        const draftPreferences = readPersistedDraftPreferences(saved);
         return {
           ...current,
           preferences: sanitizeLocalSubtitleTranscriberPreferences(
             saved.preferences,
           ),
-          ...createEmptyDraftState(),
+          draftInputFiles: [],
+          draftOutputDirectory: null,
+          ...draftPreferencesToState(draftPreferences),
         };
       },
     },
@@ -217,6 +230,7 @@ export function migrateLocalSubtitleTranscriberPersistedState(
   const saved = isRecord(persisted) ? persisted : {};
   return {
     preferences: sanitizeLocalSubtitleTranscriberPreferences(saved.preferences),
+    draftPreferences: readPersistedDraftPreferences(saved),
   };
 }
 
@@ -224,11 +238,36 @@ function createEmptyDraftState() {
   return {
     draftInputFiles: [] as readonly LocalSubtitleAuthorizedMedia[],
     draftOutputDirectory: null as ActiveOutputDirectory | null,
-    draftInitialPrompt: "",
-    draftTaskMode: "transcribe" as const,
-    draftConflictPolicy: "index" as const,
-    draftPostActionMode: "export_only" as const,
-    draftPreferredHandoffFormat: "SRT" as const,
+    ...draftPreferencesToState(
+      DEFAULT_LOCAL_SUBTITLE_TRANSCRIBER_DRAFT_PREFERENCES,
+    ),
+  };
+}
+
+function readPersistedDraftPreferences(
+  saved: Record<string, unknown>,
+): LocalSubtitleTranscriberDraftPreferences {
+  const legacyDraftPreferences = {
+    initialPrompt: saved.draftInitialPrompt,
+    taskMode: saved.draftTaskMode,
+    conflictPolicy: saved.draftConflictPolicy,
+    postActionMode: saved.draftPostActionMode,
+    preferredHandoffFormat: saved.draftPreferredHandoffFormat,
+  };
+  return sanitizeLocalSubtitleTranscriberDraftPreferences(
+    saved.draftPreferences ?? legacyDraftPreferences,
+  );
+}
+
+function draftPreferencesToState(
+  preferences: LocalSubtitleTranscriberDraftPreferences,
+) {
+  return {
+    draftInitialPrompt: preferences.initialPrompt,
+    draftTaskMode: preferences.taskMode,
+    draftConflictPolicy: preferences.conflictPolicy,
+    draftPostActionMode: preferences.postActionMode,
+    draftPreferredHandoffFormat: preferences.preferredHandoffFormat,
   };
 }
 

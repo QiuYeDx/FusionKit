@@ -1,12 +1,18 @@
 import {
+  LOCAL_SUBTITLE_CONFLICT_POLICIES,
   LOCAL_SUBTITLE_DEVICE_PREFERENCES,
   LOCAL_SUBTITLE_FORMATS,
+  LOCAL_SUBTITLE_HANDOFF_MODES,
   LOCAL_SUBTITLE_LIMITS,
   LOCAL_SUBTITLE_OUTPUT_MODES,
   LOCAL_SUBTITLE_PRODUCTION_CONTRACT,
+  LOCAL_SUBTITLE_TASK_MODES,
+  type LocalSubtitleConflictPolicy,
   type LocalSubtitleDevicePreference,
   type LocalSubtitleFormat,
   type LocalSubtitleOutputMode,
+  type LocalSubtitleTaskMode,
+  type SubtitleTranslationHandoffMode,
 } from "@/type/localSubtitle";
 
 export interface LocalSubtitleTranscriberPreferences {
@@ -25,6 +31,14 @@ export interface LocalSubtitleTranscriberPreferences {
   readonly outputDirectoryDisplayLabel: string | null;
 }
 
+export interface LocalSubtitleTranscriberDraftPreferences {
+  readonly initialPrompt: string;
+  readonly taskMode: LocalSubtitleTaskMode;
+  readonly conflictPolicy: LocalSubtitleConflictPolicy;
+  readonly postActionMode: SubtitleTranslationHandoffMode;
+  readonly preferredHandoffFormat: LocalSubtitleFormat;
+}
+
 export const DEFAULT_LOCAL_SUBTITLE_TRANSCRIBER_PREFERENCES = {
   modelId: LOCAL_SUBTITLE_PRODUCTION_CONTRACT.launchModel.id,
   devicePreference: "auto",
@@ -40,6 +54,14 @@ export const DEFAULT_LOCAL_SUBTITLE_TRANSCRIBER_PREFERENCES = {
   outputMode: "source",
   outputDirectoryDisplayLabel: null,
 } as const satisfies LocalSubtitleTranscriberPreferences;
+
+export const DEFAULT_LOCAL_SUBTITLE_TRANSCRIBER_DRAFT_PREFERENCES = {
+  initialPrompt: "",
+  taskMode: "transcribe",
+  conflictPolicy: "index",
+  postActionMode: "export_only",
+  preferredHandoffFormat: "SRT",
+} as const satisfies LocalSubtitleTranscriberDraftPreferences;
 
 export function sanitizeLocalSubtitleTranscriberPreferences(
   value: unknown,
@@ -108,6 +130,42 @@ export function sanitizeLocalSubtitleTranscriberPreferences(
       outputMode === "custom"
         ? sanitizeDisplayLabel(record.outputDirectoryDisplayLabel)
         : null,
+  };
+}
+
+export function sanitizeLocalSubtitleTranscriberDraftPreferences(
+  value: unknown,
+): LocalSubtitleTranscriberDraftPreferences {
+  const record = isRecord(value) ? value : {};
+  return {
+    initialPrompt:
+      typeof record.initialPrompt === "string"
+        ? record.initialPrompt.slice(
+            0,
+            LOCAL_SUBTITLE_LIMITS.maxInitialPromptChars,
+          )
+        : DEFAULT_LOCAL_SUBTITLE_TRANSCRIBER_DRAFT_PREFERENCES.initialPrompt,
+    taskMode: oneOf(
+      record.taskMode,
+      LOCAL_SUBTITLE_TASK_MODES,
+      DEFAULT_LOCAL_SUBTITLE_TRANSCRIBER_DRAFT_PREFERENCES.taskMode,
+    ),
+    conflictPolicy: oneOf(
+      record.conflictPolicy,
+      LOCAL_SUBTITLE_CONFLICT_POLICIES,
+      DEFAULT_LOCAL_SUBTITLE_TRANSCRIBER_DRAFT_PREFERENCES.conflictPolicy,
+    ),
+    postActionMode: oneOf(
+      record.postActionMode,
+      LOCAL_SUBTITLE_HANDOFF_MODES,
+      DEFAULT_LOCAL_SUBTITLE_TRANSCRIBER_DRAFT_PREFERENCES.postActionMode,
+    ),
+    preferredHandoffFormat: oneOf(
+      record.preferredHandoffFormat,
+      LOCAL_SUBTITLE_FORMATS,
+      DEFAULT_LOCAL_SUBTITLE_TRANSCRIBER_DRAFT_PREFERENCES
+        .preferredHandoffFormat,
+    ),
   };
 }
 

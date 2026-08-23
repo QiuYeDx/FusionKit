@@ -18,6 +18,67 @@ const LEGACY_KEYS = {
   stripMediaExt: "subtitle-converter-strip-media-ext",
 };
 
+export const SUBTITLE_CONVERTER_STORE_VERSION = 1;
+
+export interface SubtitleConverterPreferences {
+  toFormat: SubtitleFileType;
+  defaultDurationSec: string;
+  stripMediaExt: boolean;
+  outputURL: string;
+  outputMode: OutputPathMode;
+  conflictPolicy: OutputConflictPolicy;
+}
+
+export const DEFAULT_SUBTITLE_CONVERTER_PREFERENCES = {
+  toFormat: SubtitleFileType.SRT,
+  defaultDurationSec: "2",
+  stripMediaExt: true,
+  outputURL: "",
+  outputMode: "custom",
+  conflictPolicy: "index",
+} satisfies SubtitleConverterPreferences;
+
+export function sanitizeSubtitleConverterPreferences(
+  value: unknown,
+): SubtitleConverterPreferences {
+  const saved = isRecord(value) ? value : {};
+  const duration =
+    typeof saved.defaultDurationSec === "string" ||
+    typeof saved.defaultDurationSec === "number"
+      ? String(saved.defaultDurationSec)
+      : DEFAULT_SUBTITLE_CONVERTER_PREFERENCES.defaultDurationSec;
+  const durationNumber = Number(duration);
+  return {
+    toFormat: Object.values(SubtitleFileType).includes(
+      saved.toFormat as SubtitleFileType,
+    )
+      ? (saved.toFormat as SubtitleFileType)
+      : DEFAULT_SUBTITLE_CONVERTER_PREFERENCES.toFormat,
+    defaultDurationSec:
+      Number.isFinite(durationNumber) &&
+      durationNumber >= 1 &&
+      durationNumber <= 10
+        ? duration
+        : DEFAULT_SUBTITLE_CONVERTER_PREFERENCES.defaultDurationSec,
+    stripMediaExt:
+      typeof saved.stripMediaExt === "boolean"
+        ? saved.stripMediaExt
+        : DEFAULT_SUBTITLE_CONVERTER_PREFERENCES.stripMediaExt,
+    outputURL:
+      typeof saved.outputURL === "string"
+        ? saved.outputURL.slice(0, 32_768)
+        : DEFAULT_SUBTITLE_CONVERTER_PREFERENCES.outputURL,
+    outputMode:
+      saved.outputMode === "source" || saved.outputMode === "custom"
+        ? saved.outputMode
+        : DEFAULT_SUBTITLE_CONVERTER_PREFERENCES.outputMode,
+    conflictPolicy:
+      saved.conflictPolicy === "overwrite" || saved.conflictPolicy === "index"
+        ? saved.conflictPolicy
+        : DEFAULT_SUBTITLE_CONVERTER_PREFERENCES.conflictPolicy,
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Store 类型
 // ---------------------------------------------------------------------------
@@ -64,12 +125,7 @@ interface SubtitleConverterStore {
 const useSubtitleConverterStore = create<SubtitleConverterStore>()(
   persistMiddleware(
     (set, get) => ({
-  toFormat: SubtitleFileType.SRT,
-  defaultDurationSec: "2",
-  stripMediaExt: true,
-  outputURL: "",
-  outputMode: "custom" as OutputPathMode,
-  conflictPolicy: "index" as OutputConflictPolicy,
+  ...DEFAULT_SUBTITLE_CONVERTER_PREFERENCES,
 
   // 任务队列
   notStartedTasks: [],
@@ -298,11 +354,16 @@ const useSubtitleConverterStore = create<SubtitleConverterStore>()(
     {
       name: "fusionkit-subtitle-converter",
       storage: createJSONStorage(() => localStorage),
-      partialize: (state) => ({
-        outputURL: state.outputURL,
-        outputMode: state.outputMode,
-        conflictPolicy: state.conflictPolicy,
-        stripMediaExt: state.stripMediaExt,
+      version: SUBTITLE_CONVERTER_STORE_VERSION,
+      partialize: (state) => sanitizeSubtitleConverterPreferences(state),
+      migrate: (persisted) => sanitizeSubtitleConverterPreferences(persisted),
+      merge: (persisted, current) => ({
+        ...current,
+        ...sanitizeSubtitleConverterPreferences(persisted),
+        notStartedTasks: [],
+        pendingTasks: [],
+        resolvedTasks: [],
+        failedTasks: [],
       }),
       onRehydrateStorage: () => {
         // 一次性迁移：旧的分散 key → 新的统一 key
@@ -332,3 +393,7 @@ const useSubtitleConverterStore = create<SubtitleConverterStore>()(
 );
 
 export default useSubtitleConverterStore;
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}

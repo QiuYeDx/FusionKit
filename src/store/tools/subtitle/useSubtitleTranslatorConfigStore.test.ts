@@ -143,6 +143,47 @@ describe("subtitle translator safe config store", () => {
     });
   });
 
+  it("hydrates the complete saved configuration after a renderer restart", async () => {
+    localStorage.setItem(
+      SUBTITLE_TRANSLATOR_CONFIG_STORAGE_KEY,
+      JSON.stringify({
+        version: 1,
+        state: {
+          preferences: {
+            sourceLang: "EN",
+            targetLang: "JA",
+            translationOutputMode: "target_only",
+            sliceType: SubtitleSliceType.CUSTOM,
+            customSliceLength: 888,
+            outputMode: "source",
+            outputDirectoryDisplayLabel: "Last Exports",
+            conflictPolicy: "overwrite",
+            concurrentSlices: false,
+            thinkingEnabled: true,
+          },
+        },
+      }),
+    );
+
+    vi.resetModules();
+    const { default: hydratedStore } = await import(
+      "./useSubtitleTranslatorConfigStore"
+    );
+
+    expect(hydratedStore.getState().preferences).toEqual({
+      sourceLang: "EN",
+      targetLang: "JA",
+      translationOutputMode: "target_only",
+      sliceType: SubtitleSliceType.CUSTOM,
+      customSliceLength: 888,
+      outputMode: "source",
+      outputDirectoryDisplayLabel: "Last Exports",
+      conflictPolicy: "overwrite",
+      concurrentSlices: false,
+      thinkingEnabled: true,
+    });
+  });
+
   it("derives only a safe display leaf from legacy paths", () => {
     expect(
       subtitleTranslatorDirectoryDisplayLabel("/Users/private/Exports"),
