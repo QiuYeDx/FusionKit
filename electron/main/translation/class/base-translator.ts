@@ -59,6 +59,7 @@ import {
   flushRecoveryArtifacts,
   buildFinalContent,
   cleanupOnSuccess,
+  type RecoveryArtifactWriteFailure,
 } from "../recovery-artifacts";
 import {
   accumulateSubtitleTranslationUsage,
@@ -255,7 +256,11 @@ export abstract class BaseTranslator {
       checkpointRef = await runtimeAuthorization?.authorizeCheckpoint(
         manifestPath,
       );
-      await flushRecoveryArtifacts(manifest, paths);
+      await this.flushRecoveryArtifactsWithWarnings(
+        manifest,
+        paths,
+        errorLogs,
+      );
 
       const resolvedBefore = getResolvedCount(manifest);
       this.updateProgress(
@@ -376,7 +381,12 @@ export abstract class BaseTranslator {
               manifestPath,
             );
           }
-          await flushRecoveryArtifacts(manifest, artifactPaths, errorLogs);
+          await this.flushRecoveryArtifactsWithWarnings(
+            manifest,
+            artifactPaths,
+            errorLogs,
+            true,
+          );
           recovery = checkpointRef
             ? buildRecoverySummary(manifest, checkpointRef)
             : undefined;
@@ -447,7 +457,11 @@ export abstract class BaseTranslator {
         this.syncUsage(task, manifest);
         manifest.updatedAt = new Date().toISOString();
         await cpWriter.write(manifest);
-        await flushRecoveryArtifacts(manifest, artifactPaths);
+        await this.flushRecoveryArtifactsWithWarnings(
+          manifest,
+          artifactPaths,
+          errorLogs,
+        );
 
         const resolved = getResolvedCount(manifest);
         errorLogs.push(
@@ -527,7 +541,11 @@ export abstract class BaseTranslator {
           this.syncUsage(task, manifest);
           manifest.updatedAt = new Date().toISOString();
           await cpWriter.write(manifest);
-          await flushRecoveryArtifacts(manifest, artifactPaths);
+          await this.flushRecoveryArtifactsWithWarnings(
+            manifest,
+            artifactPaths,
+            errorLogs,
+          );
 
           const resolved = getResolvedCount(manifest);
           errorLogs.push(
@@ -600,6 +618,37 @@ export abstract class BaseTranslator {
     }
 
     this.emit(runtimeAuthorization, "update-progress", payload);
+  }
+
+  /**
+   * Recovery artifacts are human-facing conveniences; the serialized manifest
+   * remains the machine recovery authority. A failure to refresh one of these
+   * auxiliary files is therefore logged without turning a healthy model result
+   * into a failed translation task.
+   */
+  private async flushRecoveryArtifactsWithWarnings(
+    manifest: TranslationCheckpointManifest,
+    artifactPaths: CheckpointArtifactPaths,
+    errorLogs: string[],
+    includeErrorLog = false,
+  ): Promise<void> {
+    const failures = await flushRecoveryArtifacts(
+      manifest,
+      artifactPaths,
+      includeErrorLog ? errorLogs : undefined,
+    );
+    for (const failure of failures) {
+      this.recordRecoveryArtifactWarning(failure, errorLogs);
+    }
+  }
+
+  private recordRecoveryArtifactWarning(
+    failure: RecoveryArtifactWriteFailure,
+    errorLogs: string[],
+  ): void {
+    const warning = `Recovery ${failure.artifact} refresh skipped after bounded retries: ${failure.reason}`;
+    console.warn(`[base-translator] ${warning}`);
+    errorLogs.push(`[${new Date().toISOString()}] ${warning}`);
   }
 
   private emit(

@@ -1,4 +1,5 @@
 import { access, mkdtemp, readFile, rm, writeFile } from "fs/promises";
+import { promises as fs } from "fs";
 import os from "os";
 import path from "path";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -153,6 +154,86 @@ describe("BaseTranslator empty result retry", () => {
       expect(access(artifactPath)).rejects.toMatchObject({ code: "ENOENT" })
     ));
     await rm(outputDir, { recursive: true, force: true });
+  });
+
+  it("does not fail a healthy translation when an auxiliary recovery artifact cannot refresh", async () => {
+    const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const originalRename = fs.rename.bind(fs);
+    const renameSpy = vi.spyOn(fs, "rename").mockImplementation(async (from, to) => {
+      if (String(to).endsWith(".fusionkit.remaining.lrc")) {
+        throw Object.assign(new Error("EIO: injected recovery artifact failure"), {
+          code: "EIO",
+        });
+      }
+      await originalRename(from, to);
+    });
+    const { sendModelRuntimeText } = await import(
+      "../../electron/main/ai/model-runtime-client"
+    );
+    const { BaseTranslator } = await import(
+      "../../electron/main/translation/class/base-translator"
+    );
+
+    class TestTranslator extends BaseTranslator {
+      protected splitContent(content: string): string[] {
+        return [content];
+      }
+
+      protected formatPrompt(partialContent: string): string {
+        return partialContent;
+      }
+
+      protected async parseResponse(responseData: any): Promise<string> {
+        return responseData.content;
+      }
+
+      protected normalizeError(error: unknown): Error {
+        return error instanceof Error ? error : new Error(String(error));
+      }
+    }
+
+    vi.mocked(sendModelRuntimeText).mockResolvedValueOnce({
+      content: "[00:01.00]译文",
+      apiFormat: "chat_completions",
+    });
+
+    const outputDir = await mkdtemp(path.join(os.tmpdir(), "fusionkit-lrc-"));
+    const task: SubtitleTranslatorTask = {
+      taskId: "subtitle-task-auxiliary-recovery-warning",
+      fileName: "auxiliary-warning.lrc",
+      fileContent: "[00:01.00]source",
+      sliceType: SubtitleSliceType.NORMAL,
+      originFileURL: "/input/auxiliary-warning.lrc",
+      targetFileURL: outputDir,
+      status: TaskStatus.PENDING,
+      executionBinding: {
+        status: "ready" as const,
+        profileId: "profile-test",
+        profileLabel: "Test profile",
+        apiKey: "test-key",
+        apiModel: "test-model",
+        endPoint: "https://example.test/chat/completions",
+      },
+      concurrentSlices: false,
+    };
+
+    try {
+      await expect(new TestTranslator().translate(task)).resolves.toBeUndefined();
+      await expect(
+        readFile(path.join(outputDir, task.fileName), "utf8"),
+      ).resolves.toBe("[00:01.00]译文");
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining("Recovery remaining refresh skipped"),
+      );
+    } finally {
+      renameSpy.mockRestore();
+      logSpy.mockRestore();
+      warnSpy.mockRestore();
+      errorSpy.mockRestore();
+      await rm(outputDir, { recursive: true, force: true });
+    }
   });
 
   it("recovers within the same task after a longer transient provider outage", async () => {

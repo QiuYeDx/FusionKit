@@ -11,13 +11,19 @@
 
 import { promises as fs } from "fs";
 import path from "path";
-import { randomUUID } from "node:crypto";
 import type { TranslationCheckpointManifest } from "./typing";
 import type { CheckpointArtifactPaths } from "./checkpoint";
+import { atomicWriteUtf8File } from "./atomic-file";
 
 const CLEANUP_ATTEMPTS = 7;
 const CLEANUP_RETRY_BASE_DELAY_MS = 50;
 const CLEANUP_RETRY_MAX_DELAY_MS = 400;
+const artifactFlushQueues = new Map<string, Promise<void>>();
+
+export interface RecoveryArtifactWriteFailure {
+  readonly artifact: "remaining" | "error_log" | "completed";
+  readonly reason: string;
+}
 
 export interface RecoveryArtifactCleanupFailure {
   readonly artifact:
@@ -63,17 +69,13 @@ export function buildFinalContent(
 
 // ─── File writers ───────────────────────────────────────────────────────────
 
-async function ensureDir(filePath: string): Promise<void> {
-  await fs.mkdir(path.dirname(filePath), { recursive: true });
-}
-
 export async function writeCompletedFile(
   manifest: TranslationCheckpointManifest,
   paths: CheckpointArtifactPaths,
 ): Promise<void> {
   const content = buildCompletedContent(manifest);
   if (!content) return;
-  await atomicWriteFile(paths.completedPath, content);
+  await atomicWriteUtf8File(paths.completedPath, content);
 }
 
 export async function writeRemainingFile(
@@ -85,7 +87,7 @@ export async function writeRemainingFile(
     await deleteIfExists(paths.remainingPath);
     return;
   }
-  await atomicWriteFile(paths.remainingPath, content);
+  await atomicWriteUtf8File(paths.remainingPath, content);
 }
 
 export async function writeErrorLog(
@@ -93,7 +95,7 @@ export async function writeErrorLog(
   errorLogs: string[],
 ): Promise<void> {
   if (errorLogs.length === 0) return;
-  await atomicWriteFile(paths.errorLogPath, errorLogs.join("\n"));
+  await atomicWriteUtf8File(paths.errorLogPath, errorLogs.join("\n"));
 }
 
 /**
@@ -104,12 +106,55 @@ export async function flushRecoveryArtifacts(
   manifest: TranslationCheckpointManifest,
   paths: CheckpointArtifactPaths,
   errorLogs?: string[],
-): Promise<void> {
-  await Promise.all([
-    writeCompletedFile(manifest, paths),
-    writeRemainingFile(manifest, paths),
-    ...(errorLogs ? [writeErrorLog(paths, errorLogs)] : []),
-  ]);
+): Promise<readonly RecoveryArtifactWriteFailure[]> {
+  // Snapshot before entering the queue. Concurrent translation workers mutate
+  // the shared manifest while earlier publications are still settling.
+  const snapshot = Object.freeze({
+    completedContent: buildCompletedContent(manifest),
+    remainingContent: buildRemainingContent(manifest),
+    errorLogContent: errorLogs?.length ? errorLogs.join("\n") : undefined,
+  });
+  const queueKey = normalizeQueueKey(paths.manifestPath);
+
+  return enqueueArtifactFlush(queueKey, async () => {
+    const operations: Array<{
+      artifact: RecoveryArtifactWriteFailure["artifact"];
+      run(): Promise<string | undefined>;
+    }> = [];
+
+    if (snapshot.completedContent) {
+      operations.push({
+        artifact: "completed",
+        run: () => captureWriteFailure(
+          paths.completedPath,
+          snapshot.completedContent,
+        ),
+      });
+    }
+    operations.push({
+      artifact: "remaining",
+      run: snapshot.remainingContent
+        ? () => captureWriteFailure(paths.remainingPath, snapshot.remainingContent)
+        : () => deleteWithBoundedRetry(paths.remainingPath),
+    });
+    if (snapshot.errorLogContent) {
+      operations.push({
+        artifact: "error_log",
+        run: () => captureWriteFailure(
+          paths.errorLogPath,
+          snapshot.errorLogContent!,
+        ),
+      });
+    }
+
+    const results = await Promise.all(operations.map(async ({ artifact, run }) => {
+      const reason = await run();
+      return reason ? Object.freeze({ artifact, reason }) : undefined;
+    }));
+    return Object.freeze(results.filter(
+      (result): result is RecoveryArtifactWriteFailure => result !== undefined,
+    ));
+  });
 }
 
 // ─── Cleanup ────────────────────────────────────────────────────────────────
@@ -176,21 +221,36 @@ export async function cleanupOnTaskDeletion(
   ));
 }
 
-async function atomicWriteFile(filePath: string, content: string): Promise<void> {
-  await ensureDir(filePath);
-  const temporaryPath = `${filePath}.${process.pid}.${randomUUID()}.tmp`;
-  let handle: Awaited<ReturnType<typeof fs.open>> | undefined;
+async function captureWriteFailure(
+  filePath: string,
+  content: string,
+): Promise<string | undefined> {
   try {
-    handle = await fs.open(temporaryPath, "wx", 0o600);
-    await handle.writeFile(content, "utf-8");
-    await handle.sync();
-    await handle.close();
-    handle = undefined;
-    await fs.rename(temporaryPath, filePath);
-  } finally {
-    await handle?.close().catch(() => undefined);
-    await deleteIfExists(temporaryPath).catch(() => undefined);
+    await atomicWriteUtf8File(filePath, content);
+    return undefined;
+  } catch (error) {
+    return errorReason(error);
   }
+}
+
+function enqueueArtifactFlush<T>(
+  queueKey: string,
+  operation: () => Promise<T>,
+): Promise<T> {
+  const previous = artifactFlushQueues.get(queueKey) ?? Promise.resolve();
+  const job = previous.catch(() => undefined).then(operation);
+  const tail = job.then(() => undefined, () => undefined);
+  artifactFlushQueues.set(queueKey, tail);
+  return job.finally(() => {
+    if (artifactFlushQueues.get(queueKey) === tail) {
+      artifactFlushQueues.delete(queueKey);
+    }
+  });
+}
+
+function normalizeQueueKey(filePath: string): string {
+  const normalized = path.resolve(filePath);
+  return process.platform === "win32" ? normalized.toLowerCase() : normalized;
 }
 
 async function deleteWithBoundedRetry(filePath: string): Promise<string | undefined> {

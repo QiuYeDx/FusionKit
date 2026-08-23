@@ -12,6 +12,7 @@
 import { promises as fs } from "fs";
 import path from "path";
 import crypto from "crypto";
+import { atomicWriteUtf8File } from "./atomic-file";
 import {
   type TranslationCheckpointManifest,
   type TranslationCheckpointManifestV2,
@@ -84,20 +85,7 @@ export function buildCheckpointPaths(
  * 避免进程在写入中途退出导致 JSON 损坏。
  */
 async function atomicWriteJSON(filePath: string, data: unknown): Promise<void> {
-  await fs.mkdir(path.dirname(filePath), { recursive: true });
-  const tmpPath = `${filePath}.${process.pid}.${crypto.randomUUID()}.tmp`;
-  let handle: Awaited<ReturnType<typeof fs.open>> | undefined;
-  try {
-    handle = await fs.open(tmpPath, "wx", 0o600);
-    await handle.writeFile(JSON.stringify(data, null, 2), "utf-8");
-    await handle.sync();
-    await handle.close();
-    handle = undefined;
-    await fs.rename(tmpPath, filePath);
-  } finally {
-    await handle?.close().catch(() => undefined);
-    await fs.rm(tmpPath, { force: true }).catch(() => undefined);
-  }
+  await atomicWriteUtf8File(filePath, JSON.stringify(data, null, 2));
 }
 
 // ─── Create ─────────────────────────────────────────────────────────────────
@@ -425,8 +413,11 @@ export class CheckpointWriter {
   constructor(private manifestPath: string) {}
 
   write(manifest: TranslationCheckpointManifest): Promise<void> {
+    // Capture the state at enqueue time. Concurrent workers keep mutating the
+    // shared manifest while earlier writes are waiting in this queue.
+    const snapshot = JSON.stringify(manifest, null, 2);
     const job = this.queue.then(() =>
-      atomicWriteJSON(this.manifestPath, manifest),
+      atomicWriteUtf8File(this.manifestPath, snapshot),
     );
     this.queue = job.catch(() => {});
     return job;
