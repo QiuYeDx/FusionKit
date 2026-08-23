@@ -103,6 +103,9 @@ import { cn } from "@/lib/utils";
 import { Tour, type TourStep } from "@/components/qiuye-ui/tour";
 import RecoveryDialog from "./components/RecoveryDialog";
 import { calculateSubtitleUsageStats } from "@/services/subtitle/subtitleUsageStats";
+import {
+  orderSubtitleTranslatorTasksForDisplay,
+} from "./subtitleTranslatorTaskOrder";
 
 function CostEstimateHelp({ content }: { content: string }) {
   return (
@@ -544,23 +547,27 @@ function SubtitleTranslator() {
   }, []);
 
   // API usage and preflight estimates are intentionally kept separate.
-  const tokenStats = useMemo(() => {
-    const allTasks = [
-      ...notStartedTaskQueue,
-      ...waitingTaskQueue,
-      ...pendingTaskQueue,
-      ...resolvedTaskQueue,
-      ...failedTaskQueue,
-    ];
+  const allTasks = useMemo(
+    () => orderSubtitleTranslatorTasksForDisplay({
+      pendingTaskQueue,
+      waitingTaskQueue,
+      notStartedTaskQueue,
+      failedTaskQueue,
+      resolvedTaskQueue,
+    }),
+    [
+      pendingTaskQueue,
+      waitingTaskQueue,
+      notStartedTaskQueue,
+      failedTaskQueue,
+      resolvedTaskQueue,
+    ],
+  );
 
-    return calculateSubtitleUsageStats(allTasks);
-  }, [
-    notStartedTaskQueue,
-    waitingTaskQueue,
-    pendingTaskQueue,
-    resolvedTaskQueue,
-    failedTaskQueue,
-  ]);
+  const tokenStats = useMemo(
+    () => calculateSubtitleUsageStats(allTasks),
+    [allTasks],
+  );
 
   const hasRunningTasks =
     pendingTaskQueue.length > 0 || waitingTaskQueue.length > 0;
@@ -954,14 +961,6 @@ function SubtitleTranslator() {
   const modelDisplay =
     taskProfile?.modelKey ||
     t("subtitle:translator.fields.no_model_selected", "未选择模型");
-
-  const allTasks = [
-    ...notStartedTaskQueue,
-    ...waitingTaskQueue,
-    ...pendingTaskQueue,
-    ...resolvedTaskQueue,
-    ...failedTaskQueue,
-  ];
 
   return (
     <ToolDetailLayout
