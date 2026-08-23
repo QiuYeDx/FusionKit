@@ -364,6 +364,127 @@ describe("ModelRuntimeClient Chat Completions adapter", () => {
     expect(activeServer.requests).toHaveLength(2);
   });
 
+  it("does not retry permanent quota failures reported with HTTP 429", async () => {
+    const activeServer = requireServer(server);
+    activeServer.enqueueRoute("responses", {
+      status: 429,
+      body: createErrorBody(
+        "quota exhausted",
+        "insufficient_quota",
+        "insufficient_quota",
+      ),
+    });
+
+    await expect(sendModelRuntimeText({
+      model: {
+        apiKey: "sk-runtime-secret",
+        modelKey: "fake-responses-model",
+        endpoint: activeServer.baseUrl,
+        apiFormat: "responses",
+      },
+      messages: [{ role: "user", content: "Translate" }],
+      retry: { maxRetries: 3, baseDelayMs: 1, jitterRatio: 0 },
+    })).rejects.toMatchObject({
+      code: "http_non_retryable",
+      retryable: false,
+      details: { providerCode: "insufficient_quota" },
+    });
+    expect(activeServer.requests).toHaveLength(1);
+  });
+
+  it("retries transient Responses failed envelopes returned with HTTP 200", async () => {
+    const activeServer = requireServer(server);
+    activeServer.enqueueRoute("responses", {
+      body: {
+        ...createResponsesBody({ status: "failed" }),
+        error: {
+          message: "provider is temporarily unavailable",
+          code: "server_error",
+          type: "server_error",
+        },
+      },
+    });
+    activeServer.enqueueRoute("responses", {
+      body: createResponsesBody({ outputText: "Recovered response" }),
+    });
+
+    const result = await sendModelRuntimeText({
+      model: {
+        apiKey: "sk-runtime-secret",
+        modelKey: "fake-responses-model",
+        endpoint: activeServer.baseUrl,
+        apiFormat: "responses",
+      },
+      messages: [{ role: "user", content: "Translate" }],
+      retry: { maxRetries: 1, baseDelayMs: 1, jitterRatio: 0 },
+    });
+
+    expect(result.content).toBe("Recovered response");
+    expect(activeServer.requests).toHaveLength(2);
+  });
+
+  it("fails fast for permanent Responses failed envelopes", async () => {
+    const activeServer = requireServer(server);
+    activeServer.enqueueRoute("responses", {
+      body: {
+        ...createResponsesBody({ status: "failed" }),
+        error: {
+          message: "unsupported request field",
+          code: "unsupported_value",
+          type: "invalid_request_error",
+        },
+      },
+    });
+
+    await expect(sendModelRuntimeText({
+      model: {
+        apiKey: "sk-runtime-secret",
+        modelKey: "fake-responses-model",
+        endpoint: activeServer.baseUrl,
+        apiFormat: "responses",
+      },
+      messages: [{ role: "user", content: "Translate" }],
+      retry: { maxRetries: 3, baseDelayMs: 1, jitterRatio: 0 },
+    })).rejects.toMatchObject({
+      code: "invalid_response",
+      retryable: false,
+      details: {
+        providerCode: "unsupported_value",
+        providerType: "invalid_request_error",
+      },
+    });
+    expect(activeServer.requests).toHaveLength(1);
+  });
+
+  it("recovers when a compatible gateway reports a transient body with HTTP 400", async () => {
+    const activeServer = requireServer(server);
+    activeServer.enqueueRoute("chat_completions", {
+      status: 400,
+      body: createErrorBody(
+        "upstream provider is unavailable",
+        "server_error",
+        "server_error",
+      ),
+    });
+    activeServer.enqueueRoute("chat_completions", {
+      body: createChatCompletionBody({ content: "Recovered chat response" }),
+    });
+
+    const result = await sendModelRuntimeText({
+      model: {
+        apiKey: "sk-runtime-secret",
+        modelKey: "fake-chat-model",
+        endpoint: activeServer.baseUrl,
+        apiFormat: "chat_completions",
+      },
+      messages: [{ role: "user", content: "Translate" }],
+      retry: { maxRetries: 1, baseDelayMs: 1, jitterRatio: 0 },
+    });
+
+    expect(result.content).toBe("Recovered chat response");
+    expect(activeServer.requests).toHaveLength(2);
+  });
+
   it("keeps API keys redacted in runtime HTTP errors", async () => {
     const activeServer = requireServer(server);
     activeServer.enqueueRoute("chat_completions", {

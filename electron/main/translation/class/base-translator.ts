@@ -66,6 +66,11 @@ import {
   normalizeSubtitleTranslationUsage,
   preferMoreCompleteSubtitleTranslationUsage,
 } from "../usage";
+import {
+  DEFAULT_SUBTITLE_TRANSLATION_RETRY_POLICY,
+  resolveSubtitleTranslationRetryDelay,
+  type SubtitleTranslationRetryPolicy,
+} from "../retry-policy";
 
 /**
  * 当 execution binding 未设置 maxOutputTokens 时的默认最大输出 token 数。
@@ -100,9 +105,9 @@ export abstract class BaseTranslator {
     context: string,
   ): string;
 
-  protected maxRetries = 5;
-  /** 基础重试延迟（实际延迟 = retryDelay × 已尝试次数，线性退避） */
-  protected retryDelay = 1000;
+  /** 单分片重试策略；maxAttempts 包含首次请求。 */
+  protected retryPolicy: SubtitleTranslationRetryPolicy =
+    DEFAULT_SUBTITLE_TRANSLATION_RETRY_POLICY;
   /** 并发模式下同时翻译的最大分片数 */
   protected maxSliceConcurrency = 5;
 
@@ -236,6 +241,9 @@ export abstract class BaseTranslator {
       console.log("[04] fragments num:", fragments.length);
       errorLogs.push(
         `[${new Date().toISOString()}] 分片数量: ${fragments.length}`,
+      );
+      errorLogs.push(
+        `[${new Date().toISOString()}] 单分片失败恢复策略: 最多 ${this.retryPolicy.maxAttempts} 次请求尝试（${Math.max(0, this.retryPolicy.maxAttempts - 1)} 次重试），指数退避 ${this.retryPolicy.baseDelayMs}-${this.retryPolicy.maxDelayMs}ms，并发重试带随机间隔`,
       );
 
       if (!manifest) {
@@ -744,7 +752,7 @@ export abstract class BaseTranslator {
 
   /**
    * 翻译单个 fragment：构建 prompt → 调用 LLM API → 解析返回。
-   * 内置线性退避重试机制（最多 maxRetries 次），每次失败后延迟递增。
+   * 内置有界指数退避重试；请求总次数由 retryPolicy.maxAttempts 控制。
    *
    * 模型请求由 ModelRuntimeClient 负责 endpoint、API 格式、错误分类与 think 标签清理。
    */
@@ -757,13 +765,17 @@ export abstract class BaseTranslator {
     fragmentMeta?: TranslationFragmentMeta,
   ): Promise<string> {
     const prompt = this.formatPrompt(content, context);
+    const retryPolicy = this.retryPolicy;
+    const fragmentLabel = fragmentMeta
+      ? `第 ${fragmentMeta.index}/${fragmentMeta.total} 个分片`
+      : "当前分片";
 
-    for (let attempt = 1; attempt <= this.maxRetries; attempt++) {
+    for (let attempt = 1; attempt <= retryPolicy.maxAttempts; attempt++) {
       if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
 
       try {
         errorLogs.push(
-          `[${new Date().toISOString()}] 尝试第 ${attempt}/${this.maxRetries} 次翻译请求`,
+          `[${new Date().toISOString()}] ${fragmentLabel}：开始第 ${attempt}/${retryPolicy.maxAttempts} 次翻译请求`,
         );
 
         const response = await sendModelRuntimeText({
@@ -787,7 +799,7 @@ export abstract class BaseTranslator {
 
         console.log("翻译响应数据:", response);
         errorLogs.push(
-          `[${new Date().toISOString()}] 第 ${attempt} 次翻译请求成功`,
+          `[${new Date().toISOString()}] ${fragmentLabel}：第 ${attempt} 次翻译请求成功`,
         );
 
         const finishReason = response.finishReason;
@@ -827,16 +839,21 @@ export abstract class BaseTranslator {
         const errorMessage =
           error instanceof Error ? error.message : String(error);
         errorLogs.push(
-          `[${new Date().toISOString()}] 第 ${attempt} 次翻译尝试失败: ${errorMessage}`,
+          `[${new Date().toISOString()}] ${fragmentLabel}：第 ${attempt}/${retryPolicy.maxAttempts} 次翻译请求失败: ${errorMessage}`,
         );
 
         if (error instanceof ModelRuntimeClientError) {
           errorLogs.push(
-            `[${new Date().toISOString()}] 模型错误码: ${error.code}`,
+            `[${new Date().toISOString()}] ${fragmentLabel}：模型错误码 ${error.code}，可重试: ${error.retryable ? "是" : "否"}`,
           );
           if (error.details.status !== undefined) {
             errorLogs.push(
-              `[${new Date().toISOString()}] HTTP状态码: ${error.details.status}`,
+              `[${new Date().toISOString()}] ${fragmentLabel}：HTTP 状态码 ${error.details.status}`,
+            );
+          }
+          if (error.details.providerCode || error.details.providerType) {
+            errorLogs.push(
+              `[${new Date().toISOString()}] ${fragmentLabel}：服务错误标识 ${error.details.providerCode ?? "-"}/${error.details.providerType ?? "-"}`,
             );
           }
         }
@@ -845,10 +862,12 @@ export abstract class BaseTranslator {
 
         if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
 
+        let retryable =
+          !(error instanceof ModelRuntimeClientError) || error.retryable;
         if (error instanceof ModelRuntimeClientError && !error.retryable) {
           if (
             error.code === "length_truncated" &&
-            attempt < this.maxRetries
+            attempt < retryPolicy.maxAttempts
           ) {
             const increased = Math.min(
               this.maxResponseTokens * 2,
@@ -859,26 +878,39 @@ export abstract class BaseTranslator {
               errorLogs.push(
                 `[${new Date().toISOString()}] 输出被截断，自动提升输出token上限至 ${this.maxResponseTokens} 后重试`,
               );
+              retryable = true;
             } else {
               errorLogs.push(
                 `[${new Date().toISOString()}] 输出被截断且已达最大token上限 ${MAX_RESPONSE_TOKEN_CEILING}，无法继续`,
               );
               throw this.normalizeError(error);
             }
-          } else {
-            throw this.normalizeError(error);
           }
         }
 
-        if (attempt === this.maxRetries) {
+        if (!retryable) {
           errorLogs.push(
-            `[${new Date().toISOString()}] 已达到最大重试次数，翻译失败`,
+            `[${new Date().toISOString()}] ${fragmentLabel}：该错误属于确定性失败，不进行无意义重试`,
           );
           throw this.normalizeError(error);
         }
 
-        const delay = this.resolveRetryDelay(error, attempt);
-        errorLogs.push(`[${new Date().toISOString()}] 等待 ${delay}ms 后重试`);
+        if (attempt === retryPolicy.maxAttempts) {
+          errorLogs.push(
+            `[${new Date().toISOString()}] ${fragmentLabel}：已用尽 ${retryPolicy.maxAttempts} 次请求尝试（${Math.max(0, retryPolicy.maxAttempts - 1)} 次重试），翻译失败`,
+          );
+          throw this.normalizeError(error);
+        }
+
+        const delay = resolveSubtitleTranslationRetryDelay(
+          error,
+          attempt,
+          retryPolicy,
+        );
+        const retryNumber = attempt;
+        errorLogs.push(
+          `[${new Date().toISOString()}] ${fragmentLabel}：临时失败，将在 ${formatDelay(delay)} 后进行第 ${retryNumber}/${retryPolicy.maxAttempts - 1} 次重试`,
+        );
         await this.abortableDelay(delay, signal);
       }
     }
@@ -926,16 +958,6 @@ export abstract class BaseTranslator {
     manifest.usage = this.actualUsage;
   }
 
-  private resolveRetryDelay(error: unknown, attempt: number): number {
-    if (
-      error instanceof ModelRuntimeClientError &&
-      error.details.retryAfterMs !== undefined
-    ) {
-      return Math.max(0, error.details.retryAfterMs);
-    }
-    return this.retryDelay * attempt;
-  }
-
   /** 子类实现：从统一模型文本结果中后处理翻译文本 */
   protected abstract parseResponse(
     responseData: ModelRuntimeTextResult,
@@ -961,15 +983,15 @@ export abstract class BaseTranslator {
     });
   }
 
-  /** 处理 429 速率限制：读取 Retry-After 头并等待对应时间（预留扩展，当前未被调用） */
-  private async handleRateLimit(response: Response) {
-    const retryAfter = response.headers.get("Retry-After") || "5";
-    const delay = parseInt(retryAfter) * 1000;
-    await new Promise((r) => setTimeout(r, delay));
-  }
 }
 
 function buildTemporaryOutputLeaf(extension: string): string {
   const safeExtension = extension.length <= 16 ? extension : "";
   return `.fusionkit-${randomUUID()}${safeExtension}.tmp`;
+}
+
+function formatDelay(delayMs: number): string {
+  if (delayMs < 1_000) return `${delayMs}ms`;
+  const seconds = Math.round(delayMs / 100) / 10;
+  return `${seconds} 秒`;
 }

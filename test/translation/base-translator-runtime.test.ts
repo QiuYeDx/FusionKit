@@ -53,8 +53,13 @@ describe("BaseTranslator runtime integration", () => {
     class TestTranslator extends BaseTranslator {
       constructor() {
         super();
-        this.maxRetries = 1;
-        this.retryDelay = 0;
+        this.retryPolicy = {
+          ...this.retryPolicy,
+          maxAttempts: 1,
+          baseDelayMs: 0,
+          maxDelayMs: 0,
+          jitterRatio: 0,
+        };
       }
 
       protected splitContent(content: string): string[] {
@@ -133,8 +138,13 @@ describe("BaseTranslator runtime integration", () => {
     class TestTranslator extends BaseTranslator {
       constructor() {
         super();
-        this.maxRetries = 1;
-        this.retryDelay = 0;
+        this.retryPolicy = {
+          ...this.retryPolicy,
+          maxAttempts: 1,
+          baseDelayMs: 0,
+          maxDelayMs: 0,
+          jitterRatio: 0,
+        };
       }
 
       protected splitContent(content: string): string[] {

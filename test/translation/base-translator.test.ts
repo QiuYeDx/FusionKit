@@ -42,8 +42,13 @@ describe("BaseTranslator empty result retry", () => {
     class TestTranslator extends BaseTranslator {
       constructor() {
         super();
-        this.maxRetries = 2;
-        this.retryDelay = 0;
+        this.retryPolicy = {
+          ...this.retryPolicy,
+          maxAttempts: 2,
+          baseDelayMs: 0,
+          maxDelayMs: 0,
+          jitterRatio: 0,
+        };
       }
 
       protected splitContent(content: string): string[] {
@@ -164,6 +169,93 @@ describe("BaseTranslator empty result retry", () => {
     await rm(outputDir, { recursive: true, force: true });
   });
 
+  it("recovers within the same task after a longer transient provider outage", async () => {
+    const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const { sendModelRuntimeText } = await import(
+      "../../electron/main/ai/model-runtime-client"
+    );
+    const { BaseTranslator } = await import(
+      "../../electron/main/translation/class/base-translator"
+    );
+
+    class ResilientTranslator extends BaseTranslator {
+      constructor() {
+        super();
+        this.retryPolicy = {
+          ...this.retryPolicy,
+          baseDelayMs: 0,
+          maxDelayMs: 0,
+          jitterRatio: 0,
+        };
+      }
+
+      protected splitContent(content: string): string[] {
+        return [content];
+      }
+
+      protected formatPrompt(partialContent: string): string {
+        return partialContent;
+      }
+
+      protected async parseResponse(responseData: any): Promise<string> {
+        return responseData.content;
+      }
+
+      protected normalizeError(error: unknown): Error {
+        return error instanceof Error ? error : new Error(String(error));
+      }
+    }
+
+    const transientError = new ModelRuntimeClientError(
+      "provider_retryable",
+      "provider temporarily unavailable",
+      true,
+      { providerCode: "server_error" },
+    );
+    vi.mocked(sendModelRuntimeText)
+      .mockRejectedValueOnce(transientError)
+      .mockRejectedValueOnce(transientError)
+      .mockRejectedValueOnce(transientError)
+      .mockRejectedValueOnce(transientError)
+      .mockRejectedValueOnce(transientError)
+      .mockResolvedValueOnce({
+        content: "[00:01.00]recovered translation",
+        apiFormat: "chat_completions",
+      });
+
+    const outputDir = await mkdtemp(path.join(os.tmpdir(), "fusionkit-retry-"));
+    const task: SubtitleTranslatorTask = {
+      taskId: "subtitle-task-long-transient-retry",
+      fileName: "retry.lrc",
+      fileContent: "[00:01.00]source",
+      sliceType: SubtitleSliceType.NORMAL,
+      originFileURL: "/input/retry.lrc",
+      targetFileURL: outputDir,
+      status: TaskStatus.PENDING,
+      executionBinding: {
+        status: "ready",
+        profileId: "profile-test",
+        profileLabel: "Test profile",
+        apiKey: "test-key",
+        apiModel: "test-model",
+        endPoint: "https://example.test/chat/completions",
+      },
+      concurrentSlices: false,
+    };
+
+    try {
+      await new ResilientTranslator().translate(task);
+      expect(sendModelRuntimeText).toHaveBeenCalledTimes(6);
+      await expect(readFile(path.join(outputDir, "retry.lrc"), "utf-8"))
+        .resolves.toBe("[00:01.00]recovered translation");
+    } finally {
+      logSpy.mockRestore();
+      errorSpy.mockRestore();
+      await rm(outputDir, { recursive: true, force: true });
+    }
+  });
+
   it("retains a path-free v2 checkpoint and emits only its opaque ref on failure", async () => {
     const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
     const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
@@ -176,8 +268,13 @@ describe("BaseTranslator empty result retry", () => {
     class FailingTranslator extends BaseTranslator {
       constructor() {
         super();
-        this.maxRetries = 1;
-        this.retryDelay = 0;
+        this.retryPolicy = {
+          ...this.retryPolicy,
+          maxAttempts: 1,
+          baseDelayMs: 0,
+          maxDelayMs: 0,
+          jitterRatio: 0,
+        };
       }
       protected splitContent(content: string): string[] { return [content]; }
       protected formatPrompt(content: string): string { return content; }
@@ -289,8 +386,13 @@ describe("BaseTranslator empty result retry", () => {
     class ConcurrentTranslator extends BaseTranslator {
       constructor() {
         super();
-        this.maxRetries = 1;
-        this.retryDelay = 0;
+        this.retryPolicy = {
+          ...this.retryPolicy,
+          maxAttempts: 1,
+          baseDelayMs: 0,
+          maxDelayMs: 0,
+          jitterRatio: 0,
+        };
         this.maxSliceConcurrency = 2;
       }
       protected splitContent(): string[] { return ["first", "second"]; }

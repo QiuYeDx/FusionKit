@@ -9,8 +9,15 @@ import type {
 import {
   DEFAULT_MODEL_RUNTIME_RETRY_OPTIONS,
   ModelRuntimeClientError,
+  type ModelRuntimeErrorDetails,
   type ModelRuntimeRetryOptions,
 } from "../model-runtime-errors";
+import {
+  classifyProviderErrorRetryability,
+  extractProviderErrorMetadata,
+  isRetryableModelHttpStatus,
+  type ProviderErrorMetadata,
+} from "../provider-error-classification";
 
 export async function sendChatCompletionsText(
   request: ModelRuntimeTextRequest,
@@ -215,38 +222,55 @@ function httpErrorFromResponse(
   attempt: number,
   apiKey: string,
 ): ModelRuntimeClientError {
-  const message = sanitizeErrorMessage(extractHttpErrorMessage(body, status), apiKey);
+  const providerError = extractProviderErrorMetadata(body);
+  const providerDetails = toProviderErrorDetails(providerError);
+  const providerRetryability =
+    classifyProviderErrorRetryability(providerError);
+  const message = sanitizeErrorMessage(
+    extractHttpErrorMessage(providerError, status),
+    apiKey,
+  );
   if (status === 401) {
     return new ModelRuntimeClientError(
       "http_unauthorized",
       message,
       false,
-      { status, attempt },
+      { status, attempt, ...providerDetails },
     );
   }
   if (status === 403) {
     return new ModelRuntimeClientError("http_forbidden", message, false, {
       status,
       attempt,
+      ...providerDetails,
     });
   }
   if (status === 429) {
-    return new ModelRuntimeClientError("http_rate_limited", message, true, {
-      status,
-      retryAfterMs,
-      attempt,
-    });
+    const retryable = providerRetryability !== false;
+    return new ModelRuntimeClientError(
+      retryable ? "http_rate_limited" : "http_non_retryable",
+      message,
+      retryable,
+      {
+        status,
+        ...(retryable ? { retryAfterMs } : {}),
+        attempt,
+        ...providerDetails,
+      },
+    );
   }
-  if (status === 408 || status >= 500) {
+  if (isRetryableModelHttpStatus(status) || providerRetryability === true) {
     return new ModelRuntimeClientError("http_retryable", message, true, {
       status,
       retryAfterMs,
       attempt,
+      ...providerDetails,
     });
   }
   return new ModelRuntimeClientError("http_non_retryable", message, false, {
     status,
     attempt,
+    ...providerDetails,
   });
 }
 
@@ -333,14 +357,23 @@ function parseRetryAfter(value: unknown): number | undefined {
   return undefined;
 }
 
-function extractHttpErrorMessage(body: unknown, status: number): string {
-  if (isRecord(body)) {
-    const error = isRecord(body.error) ? body.error : undefined;
-    if (typeof error?.message === "string") {
-      return `Model request failed with HTTP ${status}: ${error.message}`;
-    }
+function extractHttpErrorMessage(
+  providerError: ProviderErrorMetadata,
+  status: number,
+): string {
+  if (providerError.message) {
+    return `Model request failed with HTTP ${status}: ${providerError.message}`;
   }
   return `Model request failed with HTTP ${status}.`;
+}
+
+function toProviderErrorDetails(
+  providerError: ProviderErrorMetadata,
+): Pick<ModelRuntimeErrorDetails, "providerCode" | "providerType"> {
+  return {
+    ...(providerError.code ? { providerCode: providerError.code } : {}),
+    ...(providerError.type ? { providerType: providerError.type } : {}),
+  };
 }
 
 function delay(ms: number, signal?: AbortSignal): Promise<void> {
