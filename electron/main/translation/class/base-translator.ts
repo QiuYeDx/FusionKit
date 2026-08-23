@@ -54,7 +54,6 @@ import {
   markFragmentResolved,
   markFragmentFailed,
   buildRecoverySummary,
-  saveCompletionSummary,
 } from "../checkpoint";
 import {
   flushRecoveryArtifacts,
@@ -327,11 +326,6 @@ export abstract class BaseTranslator {
       await cpWriter.write(manifest);
 
       await runtimeAuthorization?.recordFinalOutput(finalPath);
-      await saveCompletionSummary(
-        paths.completionSummaryPath,
-        manifest,
-        path.basename(finalPath),
-      );
       const cleanupFailures = await cleanupOnSuccess(paths);
       for (const failure of cleanupFailures) {
         const warning = `Recovery ${failure.artifact} cleanup failed after bounded retries: ${failure.reason}`;

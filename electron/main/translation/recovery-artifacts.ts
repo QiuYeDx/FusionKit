@@ -15,8 +15,9 @@ import { randomUUID } from "node:crypto";
 import type { TranslationCheckpointManifest } from "./typing";
 import type { CheckpointArtifactPaths } from "./checkpoint";
 
-const CLEANUP_ATTEMPTS = 3;
-const CLEANUP_RETRY_DELAY_MS = 25;
+const CLEANUP_ATTEMPTS = 7;
+const CLEANUP_RETRY_BASE_DELAY_MS = 50;
+const CLEANUP_RETRY_MAX_DELAY_MS = 400;
 
 export interface RecoveryArtifactCleanupFailure {
   readonly artifact:
@@ -127,7 +128,6 @@ async function deleteIfExists(filePath: string): Promise<void> {
  */
 export async function cleanupOnSuccess(
   paths: CheckpointArtifactPaths,
-  keepCompleted = false,
 ): Promise<readonly RecoveryArtifactCleanupFailure[]> {
   const artifacts: Array<{
     artifact: RecoveryArtifactCleanupFailure["artifact"];
@@ -135,10 +135,12 @@ export async function cleanupOnSuccess(
   }> = [
     { artifact: "remaining", filePath: paths.remainingPath },
     { artifact: "error_log", filePath: paths.errorLogPath },
-    ...(keepCompleted
-      ? []
-      : [{ artifact: "completed" as const, filePath: paths.completedPath }]),
+    { artifact: "completed", filePath: paths.completedPath },
     { artifact: "manifest", filePath: paths.manifestPath },
+    {
+      artifact: "completion_summary",
+      filePath: paths.completionSummaryPath,
+    },
   ];
   const results = await Promise.all(artifacts.map(async ({ artifact, filePath }) => {
     const failure = await deleteWithBoundedRetry(filePath);
@@ -202,7 +204,13 @@ async function deleteWithBoundedRetry(filePath: string): Promise<string | undefi
         return errorReason(error);
       }
       await new Promise<void>((resolve) => {
-        setTimeout(resolve, CLEANUP_RETRY_DELAY_MS * attempt);
+        setTimeout(
+          resolve,
+          Math.min(
+            CLEANUP_RETRY_MAX_DELAY_MS,
+            CLEANUP_RETRY_BASE_DELAY_MS * (2 ** (attempt - 1)),
+          ),
+        );
       });
     }
   }

@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm } from "fs/promises";
+import { access, mkdtemp, readFile, rm, writeFile } from "fs/promises";
 import os from "os";
 import path from "path";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -29,7 +29,7 @@ describe("BaseTranslator empty result retry", () => {
     vi.clearAllMocks();
   });
 
-  it("retries when a successful response parses to an empty result", async () => {
+  it("retries an empty result and leaves only the committed subtitle", async () => {
     const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
     const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
     const { sendModelRuntimeText } = await import(
@@ -113,6 +113,12 @@ describe("BaseTranslator empty result retry", () => {
       },
       concurrentSlices: false,
     };
+    const recoveryPaths = buildCheckpointPaths(
+      outputDir,
+      task.fileName,
+      task.taskId,
+    );
+    await writeFile(recoveryPaths.completionSummaryPath, "legacy summary");
 
     try {
       await new TestTranslator().translate(task);
@@ -143,29 +149,9 @@ describe("BaseTranslator empty result retry", () => {
     await expect(
       readFile(path.join(outputDir, "sample.lrc"), "utf-8"),
     ).resolves.toBe("[00:01.00]翻译结果");
-    const completionSummary = await readFile(
-      buildCheckpointPaths(outputDir, task.fileName, task.taskId)
-        .completionSummaryPath,
-      "utf-8",
-    );
-    const parsedCompletionSummary = JSON.parse(completionSummary);
-    expect(parsedCompletionSummary).toMatchObject({
-      schemaVersion: 1,
-      status: "completed",
-      fileName: "sample.lrc",
-      finalFileName: "sample.lrc",
-      usage: {
-        inputTokens: 30,
-        outputTokens: 13,
-        totalTokens: 43,
-        requestCount: 2,
-        reportedRequestCount: 2,
-      },
-    });
-    expect(parsedCompletionSummary.usage.calculatedCost)
-      .toBeCloseTo(0.000056, 12);
-    expect(completionSummary).not.toContain("/input/sample.lrc");
-    expect(completionSummary).not.toContain(outputDir);
+    await Promise.all(Object.values(recoveryPaths).map((artifactPath) =>
+      expect(access(artifactPath)).rejects.toMatchObject({ code: "ENOENT" })
+    ));
     await rm(outputDir, { recursive: true, force: true });
   });
 

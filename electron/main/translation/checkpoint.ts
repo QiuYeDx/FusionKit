@@ -440,26 +440,6 @@ export async function saveManifest(
   await atomicWriteJSON(manifestPath, manifest);
 }
 
-export async function saveCompletionSummary(
-  summaryPath: string,
-  manifest: TranslationCheckpointManifest,
-  finalFileName: string,
-): Promise<void> {
-  const usage = normalizeSubtitleTranslationUsage(manifest.usage);
-  await atomicWriteJSON(summaryPath, {
-    schemaVersion: 1,
-    taskId: manifest.taskId,
-    status: "completed",
-    createdAt: manifest.createdAt,
-    updatedAt: manifest.updatedAt,
-    fileName: manifest.fileName,
-    finalFileName,
-    resolvedFragments: getResolvedCount(manifest),
-    totalFragments: manifest.fragments.length,
-    ...(usage ? { usage } : {}),
-  });
-}
-
 // ─── Fragment helpers ───────────────────────────────────────────────────────
 
 export function getIncompleteIndexes(
