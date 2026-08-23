@@ -348,6 +348,52 @@ describe("subtitle translation IPC service", () => {
     });
   });
 
+  it("authorizes a dropped subtitle batch from resolved original paths", async () => {
+    const sourceDirectory = await outputDirectory("drop-original-source");
+    const proxyDirectory = await outputDirectory("drop-shell-proxy");
+    const sourcePath = path.join(sourceDirectory, "original-long-name.vtt");
+    const proxyPath = path.join(proxyDirectory, "original-long-name (1).vtt");
+    await Promise.all([
+      writeFile(sourcePath, "WEBVTT\n\n00:00.000 --> 00:01.000\nHello\n"),
+      writeFile(proxyPath, "WEBVTT\n\n00:00.000 --> 00:01.000\nHello\n"),
+    ]);
+    const resolveInputPaths = vi.fn(async (
+      paths: readonly string[],
+      source: "picker" | "drop",
+    ) => {
+      expect(paths).toEqual([proxyPath]);
+      expect(source).toBe("drop");
+      return [sourcePath];
+    });
+    const capabilities = new SubtitleTranslationDirectoryCapabilityRegistry({
+      tokenFactory: sequence("drop-input"),
+    });
+    const { SubtitleTranslationIpcService } = await import(
+      "../../electron/main/translation/ipc"
+    );
+    const service = new SubtitleTranslationIpcService({
+      ownerSessions: fakeOwnerSessions() as never,
+      directoryCapabilities: capabilities,
+      resolveInputPaths,
+    });
+
+    await expect(service.handleInternal(
+      SUBTITLE_TRANSLATION_PRELOAD_INTERNAL_CHANNELS.authorizeInputFiles,
+      fakeEvent(30) as never,
+      envelope(OWNER_SESSION_A, {
+        source: "drop",
+        files: [{ filePath: proxyPath }],
+      }),
+    )).resolves.toMatchObject({
+      ok: true,
+      data: [{
+        inputToken: "subtitle-translation-input-drop-input",
+        displayName: "original-long-name.vtt",
+      }],
+    });
+    expect(resolveInputPaths).toHaveBeenCalledOnce();
+  });
+
   it("binds selected files to path-free task authority and fixed reveal", async () => {
     const sourceDirectory = await outputDirectory("selected-source");
     const sourcePath = path.join(sourceDirectory, "selected.srt");

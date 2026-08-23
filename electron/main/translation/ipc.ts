@@ -28,12 +28,14 @@ import {
   type SubtitleTranslationGeneratedImportCandidateControl,
   type SubtitleTranslationGeneratedImportCandidateRequest,
   type SubtitleTranslationErrorCode,
+  type SubtitleTranslationInputSelectionSource,
   type SubtitleTranslationPreloadInternalChannel,
   type SubtitleTranslationTaskReference,
 } from "@/type/subtitleTranslationIpc";
 import { LocalSubtitleOwnerSessionRegistry } from "../local-subtitle/ipc-security";
 import { LocalSubtitleAuthorizationError } from "../local-subtitle/authorizations";
 import { LocalSubtitleArtifactRegistryError } from "../local-subtitle/subtitle-artifact-registry";
+import { resolveLocalSubtitleInputPaths } from "../local-subtitle/windows-explorer-drop-resolver";
 import { TranslationService } from "./translation-service";
 import {
   SubtitleSliceType,
@@ -61,6 +63,11 @@ type SubtitleTranslationInternalChannel = Exclude<
   typeof SUBTITLE_TRANSLATION_PRELOAD_INTERNAL_CHANNELS.registerOwnerSession
 >;
 
+export type SubtitleTranslationInputPathResolver = (
+  paths: readonly string[],
+  source: SubtitleTranslationInputSelectionSource,
+) => Promise<readonly string[]>;
+
 export interface SubtitleTranslationIpcServiceOptions {
   readonly ownerSessions?: LocalSubtitleOwnerSessionRegistry;
   readonly directoryCapabilities?: SubtitleTranslationDirectoryCapabilityRegistry;
@@ -71,6 +78,7 @@ export interface SubtitleTranslationIpcServiceOptions {
   readonly recoveryCapabilities?: SubtitleTranslationRecoveryCapabilityRegistry;
   readonly selectRecoveryDirectory?: () => Promise<DirectoryDialogResult>;
   readonly selectRecoveryManifest?: () => Promise<DirectoryDialogResult>;
+  readonly resolveInputPaths?: SubtitleTranslationInputPathResolver;
 }
 
 export class SubtitleTranslationIpcService {
@@ -83,6 +91,7 @@ export class SubtitleTranslationIpcService {
   readonly recoveryCapabilities: SubtitleTranslationRecoveryCapabilityRegistry;
   private readonly selectRecoveryDirectoryImpl: () => Promise<DirectoryDialogResult>;
   private readonly selectRecoveryManifestImpl: () => Promise<DirectoryDialogResult>;
+  private readonly resolveInputPathsImpl: SubtitleTranslationInputPathResolver;
 
   constructor(options: SubtitleTranslationIpcServiceOptions = {}) {
     this.ownerSessions = options.ownerSessions ??
@@ -115,6 +124,8 @@ export class SubtitleTranslationIpcService {
         filters: [{ name: "Recovery Manifest", extensions: ["json"] }],
         properties: ["openFile"],
       }));
+    this.resolveInputPathsImpl =
+      options.resolveInputPaths ?? resolveLocalSubtitleInputPaths;
   }
 
   registerOwnerSession(
@@ -165,6 +176,36 @@ export class SubtitleTranslationIpcService {
             break;
           }
           response = subtitleTranslationIpcSuccess(input);
+          break;
+        }
+        case SUBTITLE_TRANSLATION_PRELOAD_INTERNAL_CHANNELS.authorizeInputFiles: {
+          const batchRequest = request.data as {
+            readonly source: SubtitleTranslationInputSelectionSource;
+            readonly files: readonly { readonly filePath: string }[];
+          };
+          const resolvedPaths = await this.resolveInputPathsImpl(
+            batchRequest.files.map((file) => file.filePath),
+            batchRequest.source,
+          );
+          if (resolvedPaths.length !== batchRequest.files.length) {
+            throw new SubtitleTranslationCapabilityError(
+              "invalid_ipc_request",
+              "Resolved subtitle input count changed.",
+              "files",
+            );
+          }
+          const inputs = await this.directoryCapabilities.authorizeInputFiles(
+            owner,
+            resolvedPaths,
+          );
+          if (!this.ownerSessions.isCurrent(authorization.data)) {
+            for (const input of inputs) {
+              this.directoryCapabilities.revokeInputFile(owner, input.inputToken);
+            }
+            response = ownerReleasedFailure();
+            break;
+          }
+          response = subtitleTranslationIpcSuccess(inputs);
           break;
         }
         case SUBTITLE_TRANSLATION_PRELOAD_INTERNAL_CHANNELS.revokeInputFile:

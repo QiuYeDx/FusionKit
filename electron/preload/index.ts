@@ -6,6 +6,7 @@ import type {
   AudioIpcResult,
   AudioRendererApi,
   AudioOutputDirectorySelection,
+  AudioInputSelectionSource,
   AuthorizedAudioInputFile,
   RevokeAudioInputFileResult,
   RevokeAudioOutputDirectoryResult,
@@ -19,6 +20,8 @@ import { createSafeLegacyIpcBridge } from './legacy-ipc-bridge'
 import { assertLegacySubtitleTranslationChannelAllowed } from './subtitle-translation-channel-policy'
 import { createSubtitleTranslationRendererApi } from './subtitle-translation-api'
 import { SUBTITLE_TRANSLATION_PRELOAD_INTERNAL_CHANNELS } from '@/type/subtitleTranslationIpc'
+import { createNativeFileSelectionRendererApi } from './native-file-selection-api'
+import { assertLegacyNativeFileSelectionChannelAllowed } from './native-file-selection-channel-policy'
 
 const AUDIO_CHANNEL_PREFIX = 'audio:'
 const AUDIO_REGISTER_CAPABILITY_CHANNEL =
@@ -50,6 +53,7 @@ const subtitleTranslationOwnerSessionRegistration = ipcRenderer.sendSync(
 const assertLegacyIpcChannelAllowed = (channel: string) => {
   assertLegacyLocalSubtitleChannelAllowed(channel)
   assertLegacySubtitleTranslationChannelAllowed(channel)
+  assertLegacyNativeFileSelectionChannelAllowed(channel)
   if (channel.startsWith(AUDIO_CHANNEL_PREFIX)) {
     throw new Error(
       'Audio IPC is restricted. Use the preload audioApi capability instead.',
@@ -131,7 +135,7 @@ const audioApi: AudioRendererApi = {
   ) {
     return secureAudioInvoke<TResponse>(channel, payload, options)
   },
-  authorizeInputFile(file: File) {
+  authorizeInputFile(file: File, source: AudioInputSelectionSource = 'picker') {
     let filePath = ''
     try {
       filePath = webUtils.getPathForFile(file)
@@ -153,6 +157,7 @@ const audioApi: AudioRendererApi = {
       {
         filePath,
         mimeType: file.type,
+        source,
       },
     )
   },
@@ -224,6 +229,7 @@ contextBridge.exposeInMainWorld('electronUtils', {
   getPathForFile(file: File): string {
     return webUtils.getPathForFile(file)
   },
+  ...createNativeFileSelectionRendererApi({ ipcRenderer, webUtils }),
 })
 
 // --------- Preload scripts loading ---------

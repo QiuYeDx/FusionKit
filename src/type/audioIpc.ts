@@ -270,13 +270,18 @@ export interface CreateSpeechSynthesisStreamIpcRequest {
   payload: CreateSpeechSynthesisIpcRequest;
 }
 
+export type AudioInputSelectionSource = "picker" | "drop";
+
 export interface AudioRendererApi {
   invoke<TResponse>(
     channel: AudioIpcChannel,
     payload: unknown,
     options?: { configRevision?: string },
   ): Promise<AudioIpcResult<TResponse>>;
-  authorizeInputFile(file: File): Promise<AudioIpcResult<AuthorizedAudioInputFile>>;
+  authorizeInputFile(
+    file: File,
+    source?: AudioInputSelectionSource,
+  ): Promise<AudioIpcResult<AuthorizedAudioInputFile>>;
   revokeInputFile(
     fileToken: string,
   ): Promise<AudioIpcResult<RevokeAudioInputFileResult>>;

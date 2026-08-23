@@ -241,6 +241,35 @@ describe("AudioIpcService", () => {
     );
   });
 
+  it("authorizes the proven original path for a Windows drag proxy", async () => {
+    const fileAuthorizations = createFileAuthorizations();
+    const resolveInputPaths = vi.fn(async () => [
+      String.raw`\\?\H:\long\source\voice.wav`,
+    ]);
+    const service = createService(createRuntimeInvoker(), {
+      fileAuthorizations,
+      resolveInputPaths,
+    });
+
+    await expect(service.authorizeInputFile(
+      {
+        filePath: String.raw`C:\Users\example\AppData\Local\Temp\voice.wav`,
+        mimeType: "audio/wav",
+        source: "drop",
+      },
+      { senderId: TEST_OWNER_ID },
+    )).resolves.toMatchObject({ ok: true });
+    expect(resolveInputPaths).toHaveBeenCalledWith(
+      [String.raw`C:\Users\example\AppData\Local\Temp\voice.wav`],
+      "drop",
+    );
+    expect(fileAuthorizations.authorize).toHaveBeenCalledWith(
+      TEST_OWNER_ID,
+      String.raw`\\?\H:\long\source\voice.wav`,
+      "audio/wav",
+    );
+  });
+
   it("revokes an unused input token only through the renderer owner", () => {
     const fileAuthorizations = createFileAuthorizations();
     vi.mocked(fileAuthorizations.revoke)

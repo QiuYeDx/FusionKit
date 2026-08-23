@@ -32,6 +32,7 @@ import {
   InfoHint,
   ToolField,
   ToolFileDropZone,
+  type ToolFileSelectionSource,
   ToolOutputPathPicker,
   ToolPanel,
   ToolRadioButtonGroup,
@@ -150,7 +151,10 @@ export default function AudioTranscriber() {
 }
 
 interface AudioInputAuthorizationController {
-  selectFiles: (files: FileList) => Promise<void>;
+  selectFiles: (
+    files: FileList,
+    source: ToolFileSelectionSource,
+  ) => Promise<void>;
   clear: () => void;
   ensureAuthorized: () => Promise<SelectedAudioInput | null>;
   releaseToken: (fileToken: string, expiresAt?: number) => void;
@@ -1140,7 +1144,10 @@ function useAudioInputAuthorization(
     if (revocation) void revocation;
   }, [revokeTokenQuietly, setSelectedFile]);
 
-  const selectFiles = useCallback(async (files: FileList) => {
+  const selectFiles = useCallback(async (
+    files: FileList,
+    source: ToolFileSelectionSource,
+  ) => {
     const file = files[0];
     if (!file) return;
     const validation = validateAudioTranscriberFile(file, summary.audioDialect);
@@ -1163,7 +1170,7 @@ function useAudioInputAuthorization(
 
     let response: Awaited<ReturnType<typeof authorizeAudioInputFile>>;
     try {
-      response = await authorizeAudioInputFile(file);
+      response = await authorizeAudioInputFile(file, source);
     } catch (error) {
       if (generation !== generationRef.current) return;
       setFileAuthorizationPending(false);
@@ -1213,6 +1220,7 @@ function useAudioInputAuthorization(
 
     const selected: SelectedAudioInput = {
       sourceFile: file,
+      selectionSource: source,
       fileName: response.data.fileName || file.name,
       fileToken: response.data.fileToken,
       mimeType: validation.mimeType,
@@ -1253,7 +1261,10 @@ function useAudioInputAuthorization(
     setFileAuthorizationPending(true);
     let response: Awaited<ReturnType<typeof authorizeAudioInputFile>>;
     try {
-      response = await authorizeAudioInputFile(current.sourceFile);
+      response = await authorizeAudioInputFile(
+        current.sourceFile,
+        current.selectionSource ?? "picker",
+      );
     } catch (error) {
       if (generation !== generationRef.current) return null;
       setFileAuthorizationPending(false);

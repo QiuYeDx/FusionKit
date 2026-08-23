@@ -6,6 +6,8 @@ export const SUBTITLE_TRANSLATION_PRELOAD_INTERNAL_CHANNELS = {
     "subtitle-translation:internal:register-owner-session",
   authorizeInputFile:
     "subtitle-translation:internal:authorize-input-file",
+  authorizeInputFiles:
+    "subtitle-translation:internal:authorize-input-files",
   readInputFile:
     "subtitle-translation:internal:read-input-file",
   revokeInputFile:
@@ -80,6 +82,13 @@ export const SUBTITLE_TRANSLATION_ERROR_CODES = [
   "content_too_large",
 ] as const;
 
+export const SUBTITLE_TRANSLATION_INPUT_SELECTION_SOURCES = [
+  "picker",
+  "drop",
+] as const;
+export type SubtitleTranslationInputSelectionSource =
+  (typeof SUBTITLE_TRANSLATION_INPUT_SELECTION_SOURCES)[number];
+
 export type SubtitleTranslationErrorCode =
   (typeof SUBTITLE_TRANSLATION_ERROR_CODES)[number];
 
@@ -117,6 +126,11 @@ export interface SubtitleTranslationInputFileAuthorization {
   readonly inputToken: string;
   readonly displayName: string;
   readonly expiresAt: number;
+}
+
+export interface SubtitleTranslationInputFileCapture {
+  readonly captureRef: string;
+  readonly fileCount: number;
 }
 
 export interface SubtitleTranslationInputFileRevocation {
@@ -321,6 +335,16 @@ export interface SubtitleTranslationGeneratedImportCandidateControl {
 }
 
 export interface SubtitleTranslationRendererApi {
+  captureInputFile(
+    file: File,
+    captureRef?: string,
+    source?: SubtitleTranslationInputSelectionSource,
+  ): SubtitleTranslationIpcResult<SubtitleTranslationInputFileCapture>;
+  authorizeCapturedInputFiles(
+    captureRef: string,
+  ): Promise<
+    SubtitleTranslationIpcResult<readonly SubtitleTranslationInputFileAuthorization[]>
+  >;
   authorizeInputFile(file: File): Promise<
     SubtitleTranslationIpcResult<SubtitleTranslationInputFileAuthorization>
   >;
@@ -492,6 +516,15 @@ export const subtitleTranslationRegisterOwnerRequestSchema = z.object({}).strict
 export const subtitleTranslationAuthorizeInputFileRequestSchema = z
   .object({ filePath: legacyPathSchema })
   .strict();
+export const subtitleTranslationAuthorizeInputFilesRequestSchema = z
+  .object({
+    source: z.enum(SUBTITLE_TRANSLATION_INPUT_SELECTION_SOURCES),
+    files: z
+      .array(z.object({ filePath: legacyPathSchema }).strict())
+      .min(1)
+      .max(SUBTITLE_TRANSLATION_LIMITS.maxAgentSelectionFiles),
+  })
+  .strict();
 export const subtitleTranslationRevokeInputFileRequestSchema = z
   .object({ inputToken: subtitleTranslationOpaqueRefSchema })
   .strict();
@@ -660,6 +693,11 @@ export const subtitleTranslationInputFileAuthorizationSchema = z
     expiresAt: z.number().int().safe().positive(),
   })
   .strict();
+
+export const subtitleTranslationInputFileAuthorizationsSchema = z
+  .array(subtitleTranslationInputFileAuthorizationSchema)
+  .min(1)
+  .max(SUBTITLE_TRANSLATION_LIMITS.maxAgentSelectionFiles);
 
 export const subtitleTranslationInputFileRevocationSchema = z
   .object({ revoked: z.boolean() })
@@ -861,6 +899,12 @@ export const SUBTITLE_TRANSLATION_INTERNAL_OPERATION_CONTRACTS = {
     requestSchema: subtitleTranslationAuthorizeInputFileRequestSchema,
     resultSchema: subtitleTranslationIpcResultSchema(
       subtitleTranslationInputFileAuthorizationSchema,
+    ),
+  },
+  [SUBTITLE_TRANSLATION_PRELOAD_INTERNAL_CHANNELS.authorizeInputFiles]: {
+    requestSchema: subtitleTranslationAuthorizeInputFilesRequestSchema,
+    resultSchema: subtitleTranslationIpcResultSchema(
+      subtitleTranslationInputFileAuthorizationsSchema,
     ),
   },
   [SUBTITLE_TRANSLATION_PRELOAD_INTERNAL_CHANNELS.revokeInputFile]: {

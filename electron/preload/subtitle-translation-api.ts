@@ -6,6 +6,7 @@ import {
   subtitleTranslationOwnerSessionIdSchema,
   subtitleTranslationSecureIpcEnvelopeSchema,
   type SubtitleTranslationIpcResult,
+  type SubtitleTranslationInputFileCapture,
   type SubtitleTranslationAgentInputSelection,
   type SubtitleTranslationAgentInputSelectionRequest,
   type SubtitleTranslationAgentInputSelectionRevocation,
@@ -19,11 +20,13 @@ import {
   type SubtitleTranslationGeneratedImportCandidateRequest,
   type SubtitleTranslationImportDirectoryLease,
   type SubtitleTranslationInputFileAuthorization,
+  type SubtitleTranslationInputSelectionSource,
   type SubtitleTranslationInputFileContent,
   type SubtitleTranslationInputFileRevocation,
   type SubtitleTranslationOwnerSessionRegistration,
   type SubtitleTranslationPreloadInternalChannel,
   type SubtitleTranslationRendererApi,
+  SUBTITLE_TRANSLATION_LIMITS,
   type SubtitleTranslationPreparedRecoveryBatch,
   type SubtitleTranslationRecoveryScanSelection,
   type SubtitleTranslationTaskTargetReauthorization,
@@ -34,14 +37,39 @@ export interface CreateSubtitleTranslationRendererApiOptions {
   readonly ipcRenderer: Pick<IpcRenderer, "invoke">;
   readonly webUtils: Pick<WebUtils, "getPathForFile">;
   readonly ownerSessionRegistration: unknown;
+  readonly now?: () => number;
+  readonly createInputCaptureNonce?: () => string;
+}
+
+const INPUT_CAPTURE_TTL_MS = 30_000;
+const MAX_PENDING_INPUT_CAPTURES = 8;
+const INPUT_CAPTURE_NONCE_PATTERN = /^[0-9a-f]{32}$/u;
+const INPUT_CAPTURE_REF_PATTERN = /^subtitle_translation_input_[0-9a-f]{32}$/u;
+
+interface PendingInputCapture {
+  readonly files: ReadonlyArray<{ readonly filePath: string }>;
+  readonly source: SubtitleTranslationInputSelectionSource;
+  readonly expiresAt: number;
 }
 
 export function createSubtitleTranslationRendererApi({
   ipcRenderer,
   webUtils,
   ownerSessionRegistration,
+  now = Date.now,
+  createInputCaptureNonce = defaultInputCaptureNonce,
 }: CreateSubtitleTranslationRendererApiOptions): SubtitleTranslationRendererApi {
   const ownerSessionId = resolveOwnerSessionId(ownerSessionRegistration);
+  const pendingInputCaptures = new Map<string, PendingInputCapture>();
+
+  const purgeExpiredInputCaptures = () => {
+    const currentTime = now();
+    for (const [captureRef, capture] of pendingInputCaptures) {
+      if (capture.expiresAt <= currentTime) {
+        pendingInputCaptures.delete(captureRef);
+      }
+    }
+  };
 
   const invoke = async <TResult>(
     channel: Exclude<
@@ -71,7 +99,110 @@ export function createSubtitleTranslationRendererApi({
       : invalidContentFailure();
   };
 
+  const captureNativeInputFile = (
+    file: File,
+    captureRef?: string,
+    source: SubtitleTranslationInputSelectionSource = "picker",
+  ): SubtitleTranslationIpcResult<SubtitleTranslationInputFileCapture> => {
+    if (!ownerSessionId) return ownerReleasedFailure();
+    if (source !== "picker" && source !== "drop") {
+      return invalidRequestFailure();
+    }
+    purgeExpiredInputCaptures();
+
+    let capture: PendingInputCapture | undefined;
+    if (captureRef !== undefined) {
+      if (!INPUT_CAPTURE_REF_PATTERN.test(captureRef)) {
+        return invalidRequestFailure();
+      }
+      capture = pendingInputCaptures.get(captureRef);
+      if (!capture) return fileAuthorizationFailure("captureRef");
+      if (capture.source !== source) {
+        pendingInputCaptures.delete(captureRef);
+        return invalidRequestFailure();
+      }
+      if (capture.files.length >= SUBTITLE_TRANSLATION_LIMITS.maxAgentSelectionFiles) {
+        pendingInputCaptures.delete(captureRef);
+        return invalidRequestFailure();
+      }
+    }
+
+    const fileIndex = capture?.files.length ?? 0;
+    let filePath = "";
+    try {
+      filePath = webUtils.getPathForFile(file);
+    } catch {
+      if (captureRef) pendingInputCaptures.delete(captureRef);
+      return fileAuthorizationFailure(`files.${fileIndex}`);
+    }
+    if (!filePath) {
+      if (captureRef) pendingInputCaptures.delete(captureRef);
+      return fileAuthorizationFailure(`files.${fileIndex}`);
+    }
+    if (capture?.files.some((candidate) => candidate.filePath === filePath)) {
+      pendingInputCaptures.delete(captureRef!);
+      return invalidRequestFailure();
+    }
+
+    const capturedFile = Object.freeze({ filePath });
+    if (capture && captureRef) {
+      const files = Object.freeze([...capture.files, capturedFile]);
+      pendingInputCaptures.set(captureRef, {
+        files,
+        source: capture.source,
+        expiresAt: capture.expiresAt,
+      });
+      return {
+        ok: true,
+        data: Object.freeze({ captureRef, fileCount: files.length }),
+      };
+    }
+
+    while (pendingInputCaptures.size >= MAX_PENDING_INPUT_CAPTURES) {
+      const oldestCaptureRef = pendingInputCaptures.keys().next().value;
+      if (typeof oldestCaptureRef !== "string") break;
+      pendingInputCaptures.delete(oldestCaptureRef);
+    }
+    let nonce = "";
+    try {
+      nonce = createInputCaptureNonce();
+    } catch {
+      return transportFailure();
+    }
+    if (!INPUT_CAPTURE_NONCE_PATTERN.test(nonce)) return transportFailure();
+    const nextCaptureRef = `subtitle_translation_input_${nonce}`;
+    if (pendingInputCaptures.has(nextCaptureRef)) return transportFailure();
+    pendingInputCaptures.set(nextCaptureRef, {
+      files: Object.freeze([capturedFile]),
+      source,
+      expiresAt: now() + INPUT_CAPTURE_TTL_MS,
+    });
+    return {
+      ok: true,
+      data: Object.freeze({ captureRef: nextCaptureRef, fileCount: 1 }),
+    };
+  };
+
   const api: SubtitleTranslationRendererApi = {
+    captureInputFile(file, captureRef, source) {
+      return captureNativeInputFile(file, captureRef, source);
+    },
+    authorizeCapturedInputFiles(captureRef) {
+      if (!ownerSessionId) return Promise.resolve(ownerReleasedFailure());
+      if (!INPUT_CAPTURE_REF_PATTERN.test(captureRef)) {
+        return Promise.resolve(invalidRequestFailure());
+      }
+      purgeExpiredInputCaptures();
+      const capture = pendingInputCaptures.get(captureRef);
+      pendingInputCaptures.delete(captureRef);
+      if (!capture) {
+        return Promise.resolve(fileAuthorizationFailure("captureRef"));
+      }
+      return invoke<readonly SubtitleTranslationInputFileAuthorization[]>(
+        SUBTITLE_TRANSLATION_PRELOAD_INTERNAL_CHANNELS.authorizeInputFiles,
+        { source: capture.source, files: capture.files },
+      );
+    },
     authorizeInputFile(file: File) {
       let filePath = "";
       try {
@@ -268,6 +399,16 @@ function invalidRequestFailure<T>(): SubtitleTranslationIpcResult<T> {
   );
 }
 
+function fileAuthorizationFailure<T>(
+  field: string,
+): SubtitleTranslationIpcResult<T> {
+  return subtitleTranslationIpcFailure(
+    "authorization_expired",
+    "The selected subtitle files are no longer available. Select them again.",
+    field,
+  );
+}
+
 function ownerReleasedFailure<T>(): SubtitleTranslationIpcResult<T> {
   return subtitleTranslationIpcFailure(
     "owner_released",
@@ -287,4 +428,8 @@ function invalidContentFailure<T>(): SubtitleTranslationIpcResult<T> {
     "invalid_content",
     "The subtitle translation IPC response is invalid.",
   );
+}
+
+function defaultInputCaptureNonce(): string {
+  return globalThis.crypto.randomUUID().replaceAll("-", "");
 }

@@ -9,7 +9,10 @@ import {
   resolveTranscriptionRouteDefinition,
   type AudioTranscriptionRouteConstraints,
 } from "@/lib/audio-provider-registry";
-import type { CreateAudioTranscriptionIpcRequest } from "@/type/audioIpc";
+import type {
+  AudioInputSelectionSource,
+  CreateAudioTranscriptionIpcRequest,
+} from "@/type/audioIpc";
 import {
   normalizeAudioOutputDirectoryLabel,
   type AudioOutputDirectoryAuthorization,
@@ -27,6 +30,7 @@ export type AudioTranscriberOutputMode = "display_only" | Extract<
 
 export interface SelectedAudioInput {
   sourceFile: File;
+  selectionSource?: AudioInputSelectionSource;
   fileName: string;
   fileToken: string | null;
   mimeType: AudioTranscriberMimeType;

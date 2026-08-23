@@ -265,6 +265,45 @@ export class SubtitleTranslationDirectoryCapabilityRegistry {
     });
   }
 
+  async authorizeInputFiles(
+    owner: SubtitleTranslationOwnerKey,
+    filePaths: readonly string[],
+  ) {
+    assertOwner(owner);
+    this.assertOwnerActive(owner);
+    if (
+      filePaths.length === 0 ||
+      filePaths.length > SUBTITLE_TRANSLATION_LIMITS.maxAgentSelectionFiles
+    ) {
+      throw invalid("files");
+    }
+
+    const authorizations: Array<Readonly<{
+      inputToken: string;
+      displayName: string;
+      expiresAt: number;
+    }>> = [];
+    const canonicalFiles = new Set<string>();
+    try {
+      for (const filePath of filePaths) {
+        const authorization = await this.authorizeInputFile(owner, filePath);
+        authorizations.push(authorization);
+        const input = this.requireInputDraft(owner, authorization.inputToken);
+        if (canonicalFiles.has(input.filePath)) {
+          throw conflict("The subtitle input selection contains a duplicate file.");
+        }
+        canonicalFiles.add(input.filePath);
+      }
+      this.assertOwnerActive(owner);
+      return Object.freeze([...authorizations]);
+    } catch (error) {
+      for (const authorization of authorizations) {
+        this.revokeInputFile(owner, authorization.inputToken);
+      }
+      throw error;
+    }
+  }
+
   revokeInputFile(owner: SubtitleTranslationOwnerKey, token: string): boolean {
     assertOwner(owner);
     const entry = this.inputDrafts.get(token);

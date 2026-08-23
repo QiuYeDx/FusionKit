@@ -15,6 +15,7 @@ import { setupConversionIPC } from "./conversion/ipc";
 import { setupExtractionIPC } from "./extraction/ipc";
 import { setupProxyIPC } from "./proxy";
 import { setupFsIPC } from "./fs/ipc";
+import { setupNativeFileSelectionIPC } from "./fs/native-file-selection-ipc";
 import { setupRenameIPC } from "./rename/ipc";
 import {
   emitTextTranslationEvent,
@@ -430,6 +431,7 @@ app.whenReady().then(async () => {
   localSubtitleSessionIpcBridge.attach(localSubtitleIpcService);
   setupLocalSubtitleIPC(localSubtitleIpcService);
   setupTranslationIPC(translationService, subtitleTranslationIpcService);
+  setupNativeFileSelectionIPC();
   createWindow();
   setupPowerIPC(win);
   setupConversionIPC();

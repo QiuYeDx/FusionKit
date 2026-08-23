@@ -167,7 +167,9 @@ describe("subtitle translation fixed preload API", () => {
     expect(Object.isFrozen(api)).toBe(true);
     expect(Object.keys(api).sort()).toEqual([
       "acquireImportDirectoryLease",
+      "authorizeCapturedInputFiles",
       "authorizeInputFile",
+      "captureInputFile",
       "commitGeneratedImportCandidate",
       "createGeneratedImportCandidate",
       "prepareRecoveredTasks",
@@ -335,6 +337,77 @@ describe("subtitle translation fixed preload API", () => {
         payload: { taskId: "subtitle-task-one" },
       }],
     ]);
+  });
+
+  it("captures a complete Explorer drop before authorizing original paths", async () => {
+    const first = {} as File;
+    const second = {} as File;
+    const getPathForFile = vi.fn((file: File) =>
+      file === first
+        ? String.raw`C:\Users\example\AppData\Local\Temp\one.srt`
+        : String.raw`C:\Users\example\AppData\Local\Temp\two.srt`);
+    const invoke = vi.fn(async (channel: string) => {
+      expect(channel).toBe(
+        SUBTITLE_TRANSLATION_PRELOAD_INTERNAL_CHANNELS.authorizeInputFiles,
+      );
+      return subtitleTranslationIpcSuccess([
+        {
+          inputToken: "subtitle-input-one",
+          displayName: "original-one.srt",
+          expiresAt: 2_000,
+        },
+        {
+          inputToken: "subtitle-input-two",
+          displayName: "original-two.srt",
+          expiresAt: 2_000,
+        },
+      ]);
+    });
+    const api = createSubtitleTranslationRendererApi({
+      ipcRenderer: { invoke } as never,
+      webUtils: { getPathForFile } as never,
+      ownerSessionRegistration: subtitleTranslationIpcSuccess({
+        ownerSessionId: OWNER_SESSION_ID,
+      }),
+      createInputCaptureNonce: () => "c".repeat(32),
+    });
+
+    const firstCapture = api.captureInputFile(first, undefined, "drop");
+    if (!firstCapture.ok) throw new Error("Expected first capture.");
+    const secondCapture = api.captureInputFile(
+      second,
+      firstCapture.data.captureRef,
+      "drop",
+    );
+    if (!secondCapture.ok) throw new Error("Expected complete capture.");
+    expect(getPathForFile.mock.calls.map(([file]) => file)).toEqual([
+      first,
+      second,
+    ]);
+    expect(invoke).not.toHaveBeenCalled();
+
+    await expect(
+      api.authorizeCapturedInputFiles(secondCapture.data.captureRef),
+    ).resolves.toMatchObject({
+      ok: true,
+      data: [
+        { displayName: "original-one.srt" },
+        { displayName: "original-two.srt" },
+      ],
+    });
+    expect(invoke).toHaveBeenCalledWith(
+      SUBTITLE_TRANSLATION_PRELOAD_INTERNAL_CHANNELS.authorizeInputFiles,
+      {
+        ownerSessionId: OWNER_SESSION_ID,
+        payload: {
+          source: "drop",
+          files: [
+            { filePath: String.raw`C:\Users\example\AppData\Local\Temp\one.srt` },
+            { filePath: String.raw`C:\Users\example\AppData\Local\Temp\two.srt` },
+          ],
+        },
+      },
+    );
   });
 
   it("fails closed for malformed registration, request, and response data", async () => {

@@ -12,7 +12,10 @@ import {
   isAudioSpeechResponseFormat,
   isSpeechSynthesisMode,
 } from "@/type/audio";
-import type { CreateSpeechSynthesisIpcRequest } from "@/type/audioIpc";
+import type {
+  AudioInputSelectionSource,
+  CreateSpeechSynthesisIpcRequest,
+} from "@/type/audioIpc";
 import {
   getAvailableSpeechSynthesisModes,
   getSpeechRouteConstraints,
@@ -33,6 +36,7 @@ export type SpeechSynthesizerOutputMode = "temp" | "custom_dir";
 
 export interface SelectedVoiceSample {
   sourceFile?: File;
+  selectionSource?: AudioInputSelectionSource;
   fileToken: string | null;
   fileName: string;
   mimeType: "audio/wav" | "audio/mpeg" | "audio/mp3";

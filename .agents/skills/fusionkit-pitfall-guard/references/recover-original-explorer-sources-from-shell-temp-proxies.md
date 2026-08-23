@@ -19,6 +19,9 @@ long path, `%TEMP%`, numbered input name, subtitle written to Temp, handoff fail
   translation handoff can fail against the wrong directory authority.
 - File-picker input works because it exposes the original path, while the same
   long-path media behaves differently when dragged.
+- Legacy subtitle conversion/extraction or text translation can show `%TEMP%`
+  as the source directory, while a capability-based subtitle translator rejects
+  the same drag because the proxy is not valid source-directory authority.
 
 ## Root cause
 
@@ -32,6 +35,13 @@ name and source-output authority is derived from the temporary parent directory.
 
 - Mark native captures as picker or drop inside the fixed preload bridge and bump
   the bridge version when that request shape changes.
+- Put proxy recovery in one shared main-process selection resolver and route every
+  path-dependent tool through it; fixing only the local transcription namespace
+  leaves conversion, extraction, text translation, and other drop consumers on
+  the temporary backing path.
+- Capture every `FileList` item synchronously into a preload-private batch before
+  awaiting main. Secure tool namespaces should authorize that whole batch and
+  consume the main-returned original display names instead of proxy `File.name`.
 - For a Windows drop whose backing path is inside the canonical temp directory,
   query the still-selected Explorer Shell items in main and require one unique
   mapping by batch cardinality, original/numbered leaf rule, extension, and size.
@@ -61,10 +71,14 @@ name and source-output authority is derived from the temporary parent directory.
 
 ```text
 node_modules/.bin/vitest run test/local-subtitle/windowsExplorerDropResolver.test.ts \
+  test/native-file-selection/preload.test.ts \
+  test/native-file-selection/ipc.test.ts \
   test/local-subtitle/preloadApi.test.ts \
   test/local-subtitle/ipc.test.ts \
   test/local-subtitle/jobManager.test.ts \
-  test/local-subtitle/subtitleExporter.test.ts
+  test/local-subtitle/subtitleExporter.test.ts \
+  test/translation/subtitle-translation-preload.test.ts \
+  test/translation/subtitle-translation-ipc-service.test.ts
 node_modules/.bin/tsc --noEmit
 git diff --check
 ```
@@ -80,8 +94,16 @@ the source admissible again.
 - `src/pages/Tools/_shared/ui/ToolFileDropZone.tsx`
 - `src/pages/Tools/Subtitle/LocalSubtitleTranscriber/index.tsx`
 - `electron/preload/local-subtitle-api.ts`
+- `electron/preload/native-file-selection-api.ts`
+- `electron/preload/subtitle-translation-api.ts`
+- `electron/main/fs/native-file-selection-ipc.ts`
 - `electron/main/local-subtitle/windows-explorer-drop-resolver.ts`
 - `electron/main/local-subtitle/ipc.ts`
 - `electron/main/local-subtitle/job-manager.ts`
 - `electron/main/translation/ipc.ts`
+- `src/utils/filePath.ts`
+- `src/pages/Tools/Subtitle/SubtitleConverter/index.tsx`
+- `src/pages/Tools/Subtitle/SubtitleLanguageExtractor/index.tsx`
+- `src/pages/Tools/Subtitle/SubtitleTranslator/index.tsx`
+- `src/pages/Tools/Text/TextTranslator/index.tsx`
 - `test/local-subtitle/windowsExplorerDropResolver.test.ts`

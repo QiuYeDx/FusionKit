@@ -22,7 +22,10 @@ import {
   DialogDescription,
   DialogTitle,
 } from "@/components/qiuye-ui/scrollable-dialog";
-import { ToolDetailLayout } from "@/pages/Tools/_shared/ui";
+import {
+  ToolDetailLayout,
+  type ToolFileSelectionSource,
+} from "@/pages/Tools/_shared/ui";
 import useModelStore from "@/store/useModelStore";
 import useTextTranslatorStore, {
   type TextTranslatorUiError,
@@ -57,7 +60,7 @@ import {
   startTextTranslationTask,
   subscribeTextTranslationEvents,
 } from "@/services/text/textTranslatorExecutionService";
-import { getFilePathFromFile } from "@/utils/filePath";
+import { resolveSelectedNativeFiles } from "@/utils/filePath";
 import { showToast } from "@/utils/toast";
 import { cn } from "@/lib/utils";
 import ConfigPanel from "./components/ConfigPanel";
@@ -347,19 +350,21 @@ function TextTranslator() {
   }, [setLastError, setOutputPaths, setTask, t, upsertQueuedTask]);
 
   const handleFiles = useCallback(
-    (files: FileList | File[]) => {
-      const selected = Array.from(files);
-      if (selected.length === 0) return;
+    async (
+      files: FileList | File[],
+      source: ToolFileSelectionSource = "picker",
+    ) => {
+      const resolvedSelection = await resolveSelectedNativeFiles(files, source);
+      if (!resolvedSelection.ok) {
+        const message = t("translator.errors.file_path_unavailable");
+        setLastError({ code: "renderer_error", message, field: "sourcePath" });
+        showToast(message, "error");
+        return;
+      }
       const nextFiles: SelectedTextFile[] = [];
-      for (const file of selected) {
-        const sourcePath = getFilePathFromFile(file);
-        if (!sourcePath) {
-          const message = t("translator.errors.file_path_unavailable");
-          setLastError({ code: "renderer_error", message, field: "sourcePath" });
-          showToast(message, "error");
-          return;
-        }
-        const format = detectSelectedTextFileFormat(file.name);
+      for (const selected of resolvedSelection.data) {
+        const { file } = selected;
+        const format = detectSelectedTextFileFormat(selected.displayName);
         if (!format) {
           const message = t("translator.errors.unsupported_file");
           setLastError({ code: "renderer_error", message, field: "sourcePath" });
@@ -367,13 +372,13 @@ function TextTranslator() {
           return;
         }
         nextFiles.push({
-          fileName: file.name,
-          sourcePath,
+          fileName: selected.displayName,
+          sourcePath: selected.filePath,
           format,
           sizeBytes: file.size,
           modifiedAt: file.lastModified,
           order: 0,
-          relativePath: file.webkitRelativePath || file.name,
+          relativePath: file.webkitRelativePath || selected.displayName,
         });
       }
       setSelectedFiles(

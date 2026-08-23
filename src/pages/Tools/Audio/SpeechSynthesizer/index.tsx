@@ -37,6 +37,7 @@ import {
   InfoHint,
   ToolField,
   ToolFileDropZone,
+  type ToolFileSelectionSource,
   ToolOutputPathPicker,
   ToolPanel,
   ToolRadioButtonGroup,
@@ -174,7 +175,10 @@ export default function SpeechSynthesizer() {
 }
 
 interface VoiceSampleController {
-  selectFiles: (files: FileList) => Promise<void>;
+  selectFiles: (
+    files: FileList,
+    source: ToolFileSelectionSource,
+  ) => Promise<void>;
   clear: () => void;
   ensureAuthorized: () => Promise<SelectedVoiceSample | null>;
   releaseToken: (fileToken: string, expiresAt?: number) => Promise<void>;
@@ -1443,7 +1447,10 @@ function useVoiceSampleAuthorization(
     }
   }, [revokeTokenQuietly, setVoiceSample]);
 
-  const selectFiles = useCallback(async (files: FileList) => {
+  const selectFiles = useCallback(async (
+    files: FileList,
+    source: ToolFileSelectionSource,
+  ) => {
     const file = files[0];
     if (!file) return;
     const validation = validateVoiceSampleFile(file);
@@ -1459,7 +1466,7 @@ function useVoiceSampleAuthorization(
 
     let response: Awaited<ReturnType<typeof authorizeAudioInputFile>>;
     try {
-      response = await authorizeAudioInputFile(file);
+      response = await authorizeAudioInputFile(file, source);
     } catch (error) {
       if (generation !== generationRef.current) return;
       setVoiceSampleAuthorizationPending(false);
@@ -1496,6 +1503,7 @@ function useVoiceSampleAuthorization(
 
     const sample: SelectedVoiceSample = {
       sourceFile: file,
+      selectionSource: source,
       fileToken: response.data.fileToken,
       fileName: response.data.fileName || file.name,
       mimeType: validation.mimeType,
@@ -1534,7 +1542,10 @@ function useVoiceSampleAuthorization(
     setVoiceSampleAuthorizationPending(true);
     let response: Awaited<ReturnType<typeof authorizeAudioInputFile>>;
     try {
-      response = await authorizeAudioInputFile(current.sourceFile);
+      response = await authorizeAudioInputFile(
+        current.sourceFile,
+        current.selectionSource ?? "picker",
+      );
     } catch (error) {
       if (generation !== generationRef.current) return null;
       setVoiceSampleAuthorizationPending(false);

@@ -47,12 +47,17 @@ import {
   ToolDetailLayout,
   ToolField,
   ToolFileDropZone,
+  type ToolFileSelectionSource,
   ToolOutputPathPicker,
   ToolPanel,
   ToolRadioButtonGroup,
   ToolSummaryLine,
   ToolSwitchRow,
 } from "@/pages/Tools/_shared/ui";
+import type {
+  SubtitleTranslationInputFileCapture,
+  SubtitleTranslationIpcResult,
+} from "@/type/subtitleTranslationIpc";
 import { Badge } from "@/components/ui/badge";
 import { showToast } from "@/utils/toast";
 import useModelStore from "@/store/useModelStore";
@@ -667,7 +672,10 @@ function SubtitleTranslator() {
     }
   };
 
-  const handleFileUpload = async (files: FileList) => {
+  const handleFileUpload = async (
+    files: FileList,
+    source: ToolFileSelectionSource,
+  ) => {
     const customDirectory =
       getCurrentSubtitleTranslatorCustomDirectoryAuthorization();
     if (outputMode === "custom" && !customDirectory) {
@@ -680,165 +688,217 @@ function SubtitleTranslator() {
     if (!files || files.length === 0) return;
 
     const fileArray = Array.from(files);
-    for (let i = 0; i < fileArray.length; i++) {
-      const file = fileArray[i];
-      // 每处理一个文件后让步给事件循环，避免阻塞 UI 更新
-      if (i > 0) await new Promise((r) => setTimeout(r, 0));
-
-      const extension = file.name.split(".").pop()?.toUpperCase();
-
-      if (
-        !Object.values(SubtitleFileType).includes(extension as SubtitleFileType)
-      ) {
-        showToast(
-          t("subtitle:translator.errors.invalid_file_type").replace(
-            "{types}",
-            extension || " - "
-          ),
-          "error"
-        );
-        continue;
+    let capture:
+      | SubtitleTranslationIpcResult<SubtitleTranslationInputFileCapture>
+      | undefined;
+    for (const file of fileArray) {
+      capture = window.subtitleTranslationApi.captureInputFile(
+        file,
+        capture?.ok ? capture.data.captureRef : undefined,
+        source,
+      );
+      if (!capture.ok) {
+        showToast(t("subtitle:translator.errors.source_path_missing"), "error");
+        return;
       }
+    }
+    if (!capture?.ok) return;
 
-      try {
-        const inputAuthorization = await window.subtitleTranslationApi
-          .authorizeInputFile(file);
-        if (!inputAuthorization.ok) {
-          showToast(t("subtitle:translator.errors.source_path_missing"), "error");
-          continue;
-        }
-        const inputContent = await window.subtitleTranslationApi
-          .readInputFile(inputAuthorization.data.inputToken);
-        if (!inputContent.ok) {
+    const inputAuthorizations = await window.subtitleTranslationApi
+      .authorizeCapturedInputFiles(capture.data.captureRef);
+    if (
+      !inputAuthorizations.ok ||
+      inputAuthorizations.data.length !== fileArray.length
+    ) {
+      if (inputAuthorizations.ok) {
+        await Promise.all(
+          inputAuthorizations.data.map((input) =>
+            window.subtitleTranslationApi.revokeInputFile(input.inputToken),
+          ),
+        );
+      }
+      showToast(t("subtitle:translator.errors.source_path_missing"), "error");
+      return;
+    }
+
+    const pendingInputTokens = new Set(
+      inputAuthorizations.data.map((input) => input.inputToken),
+    );
+    try {
+      for (let i = 0; i < inputAuthorizations.data.length; i++) {
+        const inputAuthorization = inputAuthorizations.data[i]!;
+        const fileName = inputAuthorization.displayName;
+        if (i > 0) await new Promise((r) => setTimeout(r, 0));
+
+        const extension = fileName.split(".").pop()?.toUpperCase();
+        if (
+          !Object.values(SubtitleFileType).includes(extension as SubtitleFileType)
+        ) {
           await window.subtitleTranslationApi
-            .revokeInputFile(inputAuthorization.data.inputToken);
-          showToast(t("subtitle:translator.errors.source_path_missing"), "error");
-          continue;
-        }
-        const fileContent = inputContent.data.content;
-
-        const customLen =
-          sliceType === SubtitleSliceType.CUSTOM
-            ? sliceLengthMap[SubtitleSliceType.CUSTOM]
-            : undefined;
-
-        const loadingCostEstimate = taskProfile
-          ? {
-              inputTokens: 0,
-              outputTokens: 0,
-              totalTokens: 0,
-              estimatedCost: 0,
-              fragmentCount: 0,
-              loading: true,
-            }
-          : undefined;
-
-        const newTask = createSubtitleTranslatorTask({
-          fileName: file.name,
-          fileContent,
-          sliceType,
-          status: TaskStatus.NOT_STARTED,
-          progress: 0,
-          costEstimate: loadingCostEstimate,
-          customSliceLength: customLen,
-
-          executionBinding: taskProfile
-            ? createSubtitleTaskExecutionBinding(taskProfile, {
-                thinkingEnabled,
-              })
-            : Object.freeze({ status: "needs_configuration" as const }),
-          sourceLang,
-          targetLang,
-          translationOutputMode,
-          conflictPolicy,
-          concurrentSlices,
-        });
-        const registration = await window.subtitleTranslationApi
-          .registerAuthorizedTask({
-            taskId: newTask.taskId,
-            inputToken: inputAuthorization.data.inputToken,
-            outputMode,
-            outputFileName: file.name,
-            ...(outputMode === "custom" && customDirectory
-              ? { directoryToken: customDirectory.directoryToken }
-              : {}),
-          });
-        if (!registration.ok) {
-          await window.subtitleTranslationApi
-            .revokeInputFile(inputAuthorization.data.inputToken);
-          showToast(t("subtitle:translator.errors.source_path_missing"), "error");
-          continue;
-        }
-        const authorizedTask: SubtitleTranslatorTask = {
-          ...newTask,
-          taskReference: registration.data,
-        };
-        const addResult = addTask(authorizedTask);
-        if (!addResult.added) {
-          releaseSubtitleTranslationTaskAuthority(newTask.taskId);
-          continue;
-        }
-
-        if (taskProfile) {
-          const taskId = newTask.taskId;
-          const fileName = file.name;
-          const estimateKey = buildEstimateKey(
-            taskId,
-            sliceType,
-            customLen,
-            sourceLang,
-            targetLang,
-            translationOutputMode,
+            .revokeInputFile(inputAuthorization.inputToken);
+          pendingInputTokens.delete(inputAuthorization.inputToken);
+          showToast(
+            t("subtitle:translator.errors.invalid_file_type").replace(
+              "{types}",
+              extension || " - "
+            ),
+            "error"
           );
-          getEstimateWorkerClient().enqueue({
-            taskId,
-            fileName,
-            content: fileContent,
-            sliceType,
-            customSliceLength: customLen,
-            tokenPricing: taskProfile.tokenPricing,
-            sourceLang,
-            targetLang,
-            translationOutputMode,
-            onResult: (estimate) => {
-              const currentKey = buildEstimateKey(
-                taskId,
-                sliceType,
-                customLen,
-                sourceLang,
-                targetLang,
-                translationOutputMode,
-              );
-              if (currentKey === estimateKey) {
-                updateTaskCostEstimate(taskId, estimate);
-              }
-            },
-            onError: (error) => {
-              console.error(
-                `[TokenEstimate] failed for ${fileName}:`,
-                error,
-              );
-              updateTaskCostEstimate(taskId, {
+          continue;
+        }
+
+        try {
+          const inputContent = await window.subtitleTranslationApi
+            .readInputFile(inputAuthorization.inputToken);
+          if (!inputContent.ok) {
+            await window.subtitleTranslationApi
+              .revokeInputFile(inputAuthorization.inputToken);
+            pendingInputTokens.delete(inputAuthorization.inputToken);
+            showToast(
+              t("subtitle:translator.errors.source_path_missing"),
+              "error",
+            );
+            continue;
+          }
+          const fileContent = inputContent.data.content;
+
+          const customLen =
+            sliceType === SubtitleSliceType.CUSTOM
+              ? sliceLengthMap[SubtitleSliceType.CUSTOM]
+              : undefined;
+
+          const loadingCostEstimate = taskProfile
+            ? {
                 inputTokens: 0,
                 outputTokens: 0,
                 totalTokens: 0,
                 estimatedCost: 0,
                 fragmentCount: 0,
-                loading: false,
-              });
-            },
+                loading: true,
+              }
+            : undefined;
+
+          const newTask = createSubtitleTranslatorTask({
+            fileName,
+            fileContent,
+            sliceType,
+            status: TaskStatus.NOT_STARTED,
+            progress: 0,
+            costEstimate: loadingCostEstimate,
+            customSliceLength: customLen,
+
+            executionBinding: taskProfile
+              ? createSubtitleTaskExecutionBinding(taskProfile, {
+                  thinkingEnabled,
+                })
+              : Object.freeze({ status: "needs_configuration" as const }),
+            sourceLang,
+            targetLang,
+            translationOutputMode,
+            conflictPolicy,
+            concurrentSlices,
           });
+          const registration = await window.subtitleTranslationApi
+            .registerAuthorizedTask({
+              taskId: newTask.taskId,
+              inputToken: inputAuthorization.inputToken,
+              outputMode,
+              outputFileName: fileName,
+              ...(outputMode === "custom" && customDirectory
+                ? { directoryToken: customDirectory.directoryToken }
+                : {}),
+            });
+          if (!registration.ok) {
+            await window.subtitleTranslationApi
+              .revokeInputFile(inputAuthorization.inputToken);
+            pendingInputTokens.delete(inputAuthorization.inputToken);
+            showToast(
+              t("subtitle:translator.errors.source_path_missing"),
+              "error",
+            );
+            continue;
+          }
+          pendingInputTokens.delete(inputAuthorization.inputToken);
+          const authorizedTask: SubtitleTranslatorTask = {
+            ...newTask,
+            taskReference: registration.data,
+          };
+          const addResult = addTask(authorizedTask);
+          if (!addResult.added) {
+            releaseSubtitleTranslationTaskAuthority(newTask.taskId);
+            continue;
+          }
+
+          if (taskProfile) {
+            const taskId = newTask.taskId;
+            const estimateKey = buildEstimateKey(
+              taskId,
+              sliceType,
+              customLen,
+              sourceLang,
+              targetLang,
+              translationOutputMode,
+            );
+            getEstimateWorkerClient().enqueue({
+              taskId,
+              fileName,
+              content: fileContent,
+              sliceType,
+              customSliceLength: customLen,
+              tokenPricing: taskProfile.tokenPricing,
+              sourceLang,
+              targetLang,
+              translationOutputMode,
+              onResult: (estimate) => {
+                const currentKey = buildEstimateKey(
+                  taskId,
+                  sliceType,
+                  customLen,
+                  sourceLang,
+                  targetLang,
+                  translationOutputMode,
+                );
+                if (currentKey === estimateKey) {
+                  updateTaskCostEstimate(taskId, estimate);
+                }
+              },
+              onError: (error) => {
+                console.error(
+                  `[TokenEstimate] failed for ${fileName}:`,
+                  error,
+                );
+                updateTaskCostEstimate(taskId, {
+                  inputTokens: 0,
+                  outputTokens: 0,
+                  totalTokens: 0,
+                  estimatedCost: 0,
+                  fragmentCount: 0,
+                  loading: false,
+                });
+              },
+            });
+          }
+        } catch (error) {
+          console.error(t("subtitle:translator.errors.read_file_failed"), error);
+          if (pendingInputTokens.delete(inputAuthorization.inputToken)) {
+            await window.subtitleTranslationApi
+              .revokeInputFile(inputAuthorization.inputToken);
+          }
+          showToast(
+            t("subtitle:translator.errors.read_file_failed").replace(
+              "{file}",
+              fileName
+            ),
+            "error"
+          );
         }
-      } catch (error) {
-        console.error(t("subtitle:translator.errors.read_file_failed"), error);
-        showToast(
-          t("subtitle:translator.errors.read_file_failed").replace(
-            "{file}",
-            file.name
-          ),
-          "error"
-        );
       }
+    } finally {
+      await Promise.all(
+        [...pendingInputTokens].map((inputToken) =>
+          window.subtitleTranslationApi.revokeInputFile(inputToken),
+        ),
+      );
     }
   };
 

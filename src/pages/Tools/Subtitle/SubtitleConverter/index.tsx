@@ -19,6 +19,7 @@ import {
   ToolDetailLayout,
   ToolField,
   ToolFileDropZone,
+  type ToolFileSelectionSource,
   ToolOutputPathPicker,
   ToolPanel,
   ToolRadioButtonGroup,
@@ -33,7 +34,7 @@ import {
   TaskStatus,
 } from "@/type/subtitle";
 import { showToast } from "@/utils/toast";
-import { getSourceDirFromFile, getFilePathFromFile } from "@/utils/filePath";
+import { resolveSelectedNativeFiles } from "@/utils/filePath";
 import useSubtitleConverterStore from "@/store/tools/subtitle/useSubtitleConverterStore";
 import ErrorDetailModal from "@/components/ErrorDetailModal";
 import ConfirmDialog from "@/components/ConfirmDialog";
@@ -256,7 +257,10 @@ function SubtitleConverter() {
     }
   };
 
-  const handleFileUpload = async (files: FileList) => {
+  const handleFileUpload = async (
+    files: FileList,
+    source: ToolFileSelectionSource,
+  ) => {
     if (outputMode === "custom" && !outputURL) {
       showToast(
         t("subtitle:converter.errors.please_select_output_url"),
@@ -266,14 +270,22 @@ function SubtitleConverter() {
     }
     if (!files || files.length === 0) return;
 
+    const resolvedSelection = await resolveSelectedNativeFiles(files, source);
+    if (!resolvedSelection.ok) {
+      showToast(t("subtitle:converter.errors.source_path_missing"), "error");
+      return;
+    }
+
     const existingNames = allTasks.map((t) => t.fileName);
 
-    const fileArray = Array.from(files);
+    const fileArray = resolvedSelection.data;
     for (let i = 0; i < fileArray.length; i++) {
-      const file = fileArray[i];
+      const selected = fileArray[i];
+      const file = selected.file;
+      const fileName = selected.displayName;
       if (i > 0) await new Promise((r) => setTimeout(r, 0));
 
-      const ext = file.name.split(".").pop()?.toUpperCase();
+      const ext = fileName.split(".").pop()?.toUpperCase();
       if (
         !ext ||
         ![
@@ -291,11 +303,11 @@ function SubtitleConverter() {
         );
         continue;
       }
-      if (existingNames.includes(file.name)) {
+      if (existingNames.includes(fileName)) {
         showToast(
           t("subtitle:converter.errors.duplicate_file").replace(
             "{file}",
-            file.name
+            fileName
           ),
           "error"
         );
@@ -303,7 +315,7 @@ function SubtitleConverter() {
       }
 
       const outputDir =
-        outputMode === "source" ? getSourceDirFromFile(file) : outputURL;
+        outputMode === "source" ? selected.sourceDirectory : outputURL;
       if (!outputDir) {
         showToast(
           t("subtitle:converter.errors.source_path_missing"),
@@ -317,11 +329,11 @@ function SubtitleConverter() {
         const from = ext as SubtitleFileType;
 
         const newTask: SubtitleConverterTask = {
-          fileName: file.name,
+          fileName,
           fileContent,
           from,
           to: toFormat,
-          originFileURL: getFilePathFromFile(file) ?? file.name,
+          originFileURL: selected.filePath,
           targetFileURL: outputDir,
           status: TaskStatus.NOT_STARTED,
           progress: 0,
@@ -332,7 +344,7 @@ function SubtitleConverter() {
         showToast(
           t("subtitle:converter.errors.read_file_failed").replace(
             "{file}",
-            file.name
+            fileName
           ),
           "error"
         );

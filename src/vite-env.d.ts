@@ -17,7 +17,7 @@ interface Window {
   localSubtitleApi: import('@/type/localSubtitleIpc').LocalSubtitleRendererApi
   subtitleTranslationApi: import('@/type/subtitleTranslationIpc').SubtitleTranslationRendererApi
   // expose webUtils for file path access (Electron 24+)
-  electronUtils: {
+  electronUtils: import('@/type/nativeFileSelectionIpc').NativeFileSelectionRendererApi & {
     getPathForFile(file: File): string
   }
 }
