@@ -120,6 +120,19 @@ describe("local subtitle owner session registry", () => {
     expect(authorization.data.signal).toBeInstanceOf(AbortSignal);
     expect(authorization.data.signal.aborted).toBe(false);
 
+    expect(
+      registry.authorizeCurrent(fixture.event, { action: "handoff" }),
+    ).toMatchObject({
+      ok: true,
+      data: {
+        ownerSessionId: SESSION_ONE,
+        senderId: fixture.sender.id,
+        processId: fixture.frame.processId,
+        frameId: fixture.frame.routingId,
+        payload: { action: "handoff" },
+      },
+    });
+
     for (const envelope of [
       null,
       [],
@@ -174,6 +187,10 @@ describe("local subtitle owner session registry", () => {
     expect(registry.release(SESSION_ONE)).toBe(true);
     expect(registry.release(SESSION_ONE)).toBe(false);
     expect(registry.authorize(owner.event, envelope)).toMatchObject({
+      ok: false,
+      error: { code: "owner_released" },
+    });
+    expect(registry.authorizeCurrent(owner.event, {})).toMatchObject({
       ok: false,
       error: { code: "owner_released" },
     });

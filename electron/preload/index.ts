@@ -215,7 +215,6 @@ contextBridge.exposeInMainWorld(
     ipcRenderer,
     webUtils,
     ownerSessionRegistration: subtitleTranslationOwnerSessionRegistration,
-    localSubtitleOwnerSessionRegistration,
   }),
 )
 

@@ -126,7 +126,9 @@ export class SubtitleTranslationIpcService {
     }
     const registration = this.ownerSessions.register(event);
     if (!registration.ok) return mapOwnerFailure(registration.error.code);
-    return subtitleTranslationIpcSuccess(registration.data);
+    return subtitleTranslationIpcSuccess({
+      ownerSessionId: registration.data.ownerSessionId,
+    });
   }
 
   async handleInternal(
@@ -281,25 +283,14 @@ export class SubtitleTranslationIpcService {
             response = invalidRequestFailure();
             break;
           }
-          const candidateRequest = request.data as
-            SubtitleTranslationGeneratedImportCandidateRequest & {
-              readonly localOwnerSessionId: string;
-            };
-          const localAuthorization = this.localOwnerSessions.authorize(
+          const localAuthorization = this.localOwnerSessions.authorizeCurrent(
             event,
-            {
-              ownerSessionId: candidateRequest.localOwnerSessionId,
-              payload: {},
-            },
+            {},
           );
           if (!localAuthorization.ok) {
             response = mapOwnerFailure(localAuthorization.error.code);
             break;
           }
-          const {
-            localOwnerSessionId: _localOwnerSessionId,
-            ...mainRequest
-          } = candidateRequest;
           response = subtitleTranslationIpcSuccess(
             await this.generatedImports.create(
               {
@@ -307,7 +298,7 @@ export class SubtitleTranslationIpcService {
                 ownerSessionId: localAuthorization.data.ownerSessionId,
               },
               owner,
-              mainRequest,
+              request.data as SubtitleTranslationGeneratedImportCandidateRequest,
             ),
           );
           break;

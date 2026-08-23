@@ -28,6 +28,89 @@ afterEach(async () => {
 });
 
 describe("subtitle translation IPC service", () => {
+  it("returns the exact translation owner registration contract", async () => {
+    const ownerSessions = fakeOwnerSessions();
+    ownerSessions.register.mockReturnValue(subtitleTranslationIpcSuccess({
+      ownerSessionId: OWNER_SESSION_A,
+      bridgeVersion: 7,
+    }));
+    const { SubtitleTranslationIpcService } = await import(
+      "../../electron/main/translation/ipc"
+    );
+    const service = new SubtitleTranslationIpcService({
+      ownerSessions: ownerSessions as never,
+    });
+
+    expect(service.registerOwnerSession(fakeEvent(30) as never, {})).toEqual(
+      subtitleTranslationIpcSuccess({ ownerSessionId: OWNER_SESSION_A }),
+    );
+  });
+
+  it("binds generated imports to the current local owner in main", async () => {
+    const create = vi.fn(async () => ({
+      taskId: "subtitle-task-current-owner",
+      handoffKey: "subtitle-handoff-current-owner",
+      candidateBinding: "subtitle-candidate-current-owner",
+      displayName: "generated.srt",
+      format: "SRT" as const,
+      content: "1\n00:00:00,000 --> 00:00:01,000\nHello\n",
+      reference: {
+        kind: "generated_task_v1" as const,
+        source: {
+          kind: "generated_content" as const,
+          displayName: "generated.srt",
+        },
+        target: {
+          kind: "authorized_directory" as const,
+          token: "subtitle-target-current-owner",
+          displayLabel: "Source directory",
+        },
+      },
+    }));
+    const { SubtitleTranslationIpcService } = await import(
+      "../../electron/main/translation/ipc"
+    );
+    const service = new SubtitleTranslationIpcService({
+      ownerSessions: fakeOwnerSessions() as never,
+      localOwnerSessions: fakeOwnerSessions() as never,
+      generatedImports: { create } as never,
+    });
+    const request = {
+      translationImportToken: "ls-import-current-owner",
+      snapshotId: "snapshot-current-owner",
+      outputMode: "source" as const,
+    };
+
+    await expect(service.handleInternal(
+      SUBTITLE_TRANSLATION_PRELOAD_INTERNAL_CHANNELS
+        .createGeneratedImportCandidate,
+      fakeEvent(30) as never,
+      envelope(OWNER_SESSION_A, request),
+    )).resolves.toMatchObject({
+      ok: true,
+      data: { taskId: "subtitle-task-current-owner" },
+    });
+    expect(create).toHaveBeenCalledWith(
+      { webContentsId: 30, ownerSessionId: OWNER_SESSION_B },
+      { webContentsId: 30, ownerSessionId: OWNER_SESSION_A },
+      request,
+    );
+
+    await expect(service.handleInternal(
+      SUBTITLE_TRANSLATION_PRELOAD_INTERNAL_CHANNELS
+        .createGeneratedImportCandidate,
+      fakeEvent(30) as never,
+      envelope(OWNER_SESSION_A, {
+        ...request,
+        localOwnerSessionId: OWNER_SESSION_A,
+      }),
+    )).resolves.toMatchObject({
+      ok: false,
+      error: { code: "invalid_ipc_request" },
+    });
+    expect(create).toHaveBeenCalledTimes(1);
+  });
+
   it.each([
     {
       failure: new LocalSubtitleArtifactRegistryError(
@@ -82,7 +165,6 @@ describe("subtitle translation IPC service", () => {
           .createGeneratedImportCandidate,
         fakeEvent(30) as never,
         envelope(OWNER_SESSION_A, {
-          localOwnerSessionId: OWNER_SESSION_B,
           translationImportToken: "ls-import-diagnostics",
           snapshotId: "snapshot-diagnostics",
           outputMode: "source",
@@ -508,6 +590,16 @@ function fakeOwnerSessions() {
         processId: 1,
         frameId: 1,
         payload: request.payload,
+        signal: new AbortController().signal,
+      });
+    },
+    authorizeCurrent(event: { sender: { id: number } }, payload: unknown) {
+      return subtitleTranslationIpcSuccess({
+        ownerSessionId: OWNER_SESSION_B,
+        senderId: event.sender.id,
+        processId: 1,
+        frameId: 1,
+        payload,
         signal: new AbortController().signal,
       });
     },

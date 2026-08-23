@@ -1,5 +1,4 @@
 import type { IpcRenderer, WebUtils } from "electron";
-import { LOCAL_SUBTITLE_IPC_BRIDGE_VERSION } from "@/type/localSubtitle";
 import {
   SUBTITLE_TRANSLATION_INTERNAL_OPERATION_CONTRACTS,
   SUBTITLE_TRANSLATION_PRELOAD_INTERNAL_CHANNELS,
@@ -35,19 +34,14 @@ export interface CreateSubtitleTranslationRendererApiOptions {
   readonly ipcRenderer: Pick<IpcRenderer, "invoke">;
   readonly webUtils: Pick<WebUtils, "getPathForFile">;
   readonly ownerSessionRegistration: unknown;
-  readonly localSubtitleOwnerSessionRegistration?: unknown;
 }
 
 export function createSubtitleTranslationRendererApi({
   ipcRenderer,
   webUtils,
   ownerSessionRegistration,
-  localSubtitleOwnerSessionRegistration,
 }: CreateSubtitleTranslationRendererApiOptions): SubtitleTranslationRendererApi {
   const ownerSessionId = resolveOwnerSessionId(ownerSessionRegistration);
-  const localOwnerSessionId = resolveLocalSubtitleOwnerSessionId(
-    localSubtitleOwnerSessionRegistration,
-  );
 
   const invoke = async <TResult>(
     channel: Exclude<
@@ -176,10 +170,9 @@ export function createSubtitleTranslationRendererApi({
     createGeneratedImportCandidate(
       request: SubtitleTranslationGeneratedImportCandidateRequest,
     ) {
-      if (!localOwnerSessionId) return Promise.resolve(ownerReleasedFailure());
       return invoke<SubtitleTranslationGeneratedImportCandidate>(
         SUBTITLE_TRANSLATION_PRELOAD_INTERNAL_CHANNELS.createGeneratedImportCandidate,
-        { ...request, localOwnerSessionId },
+        request,
       );
     },
     commitGeneratedImportCandidate(
@@ -264,31 +257,6 @@ function resolveOwnerSessionId(value: unknown): string | undefined {
   const registration = value.data as SubtitleTranslationOwnerSessionRegistration;
   const parsed = subtitleTranslationOwnerSessionIdSchema.safeParse(
     registration.ownerSessionId,
-  );
-  return parsed.success ? parsed.data : undefined;
-}
-
-function resolveLocalSubtitleOwnerSessionId(value: unknown): string | undefined {
-  if (
-    typeof value !== "object" ||
-    value === null ||
-    Array.isArray(value) ||
-    Reflect.ownKeys(value).length !== 2 ||
-    !("ok" in value) ||
-    !("data" in value) ||
-    value.ok !== true ||
-    typeof value.data !== "object" ||
-    value.data === null ||
-    Array.isArray(value.data) ||
-    Reflect.ownKeys(value.data).length !== 2 ||
-    !("ownerSessionId" in value.data) ||
-    !("bridgeVersion" in value.data) ||
-    value.data.bridgeVersion !== LOCAL_SUBTITLE_IPC_BRIDGE_VERSION
-  ) {
-    return undefined;
-  }
-  const parsed = subtitleTranslationOwnerSessionIdSchema.safeParse(
-    value.data.ownerSessionId,
   );
   return parsed.success ? parsed.data : undefined;
 }

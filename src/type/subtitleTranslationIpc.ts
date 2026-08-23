@@ -566,7 +566,6 @@ export const subtitleTranslationReleaseImportDirectoryLeaseRequestSchema = z
   .strict();
 export const subtitleTranslationCreateGeneratedImportCandidateRequestSchema = z
   .object({
-    localOwnerSessionId: subtitleTranslationOwnerSessionIdSchema,
     translationImportToken: subtitleTranslationOpaqueRefSchema,
     snapshotId: subtitleTranslationOpaqueRefSchema,
     outputMode: z.enum(["source", "custom"]),

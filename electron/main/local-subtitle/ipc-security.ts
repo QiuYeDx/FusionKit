@@ -169,6 +169,15 @@ export class LocalSubtitleOwnerSessionRegistry {
     });
   }
 
+  authorizeCurrent<TPayload>(
+    event: LocalSubtitleIpcEvent,
+    payload: TPayload,
+  ): LocalSubtitleIpcResult<AuthorizedLocalSubtitleIpcRequest<TPayload>> {
+    const ownerSessionId = this.currentSessionBySender.get(event.sender.id);
+    if (!ownerSessionId) return ownerReleased();
+    return this.authorize<TPayload>(event, { ownerSessionId, payload });
+  }
+
   onOwnerReleased(listener: LocalSubtitleOwnerReleasedListener): () => void {
     this.ownerReleaseListeners.add(listener);
     return () => this.ownerReleaseListeners.delete(listener);

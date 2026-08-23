@@ -1,5 +1,4 @@
 import { describe, expect, it, vi } from "vitest";
-import { LOCAL_SUBTITLE_IPC_BRIDGE_VERSION } from "@/type/localSubtitle";
 import {
   SUBTITLE_TRANSLATION_PRELOAD_INTERNAL_CHANNELS,
   subtitleTranslationIpcSuccess,
@@ -11,7 +10,6 @@ import {
 import { createSubtitleTranslationRendererApi } from "../../electron/preload/subtitle-translation-api";
 
 const OWNER_SESSION_ID = "12345678-1234-4123-8123-123456789abc";
-const LOCAL_OWNER_SESSION_ID = "22345678-1234-4123-8123-123456789abc";
 
 describe("subtitle translation preload policy", () => {
   it("blocks the complete namespace from the legacy bridge", () => {
@@ -163,10 +161,6 @@ describe("subtitle translation fixed preload API", () => {
       webUtils: { getPathForFile: () => "/private/selected.srt" } as never,
       ownerSessionRegistration: subtitleTranslationIpcSuccess({
         ownerSessionId: OWNER_SESSION_ID,
-      }),
-      localSubtitleOwnerSessionRegistration: subtitleTranslationIpcSuccess({
-        ownerSessionId: LOCAL_OWNER_SESSION_ID,
-        bridgeVersion: LOCAL_SUBTITLE_IPC_BRIDGE_VERSION,
       }),
     });
 
@@ -323,7 +317,6 @@ describe("subtitle translation fixed preload API", () => {
       [SUBTITLE_TRANSLATION_PRELOAD_INTERNAL_CHANNELS.createGeneratedImportCandidate, {
         ownerSessionId: OWNER_SESSION_ID,
         payload: {
-          localOwnerSessionId: LOCAL_OWNER_SESSION_ID,
           translationImportToken: "ls-import-one",
           snapshotId: "snapshot-one",
           outputMode: "source",
