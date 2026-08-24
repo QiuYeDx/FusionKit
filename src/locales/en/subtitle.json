@@ -604,6 +604,21 @@
         "format": "Format",
         "created_at": "Created"
       }
+    },
+    "tour": {
+      "config_title": "Transcription settings",
+      "config_content": "Configure the local model, compute device, output formats, and post-transcription actions in the left panel. Settings are saved automatically.",
+      "model_title": "Choose a local model",
+      "model_content": "Select an installed, ready local Whisper model. Larger models are usually more accurate but need more storage and compute.",
+      "language_title": "Set the source language",
+      "language_content": "Choose the language in the media, or leave automatic detection enabled so the model can infer it from the audio.",
+      "upload_title": "Add audio or video",
+      "upload_content": "Drop audio or video files here, or click to select them. You can add up to 100 media files at once.",
+      "queue_title": "Task queue",
+      "queue_content": "This area shows media probe results, transcription progress, generated subtitles, and retry actions for failed tasks.",
+      "start_title": "Start transcription",
+      "start_content": "Once the environment, model, and media are ready, click here to start all pending tasks.",
+      "trigger": "Show guide"
     }
   },
   "extractor": {

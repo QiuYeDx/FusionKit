@@ -604,6 +604,21 @@
         "format": "格式",
         "created_at": "建立時間"
       }
+    },
+    "tour": {
+      "config_title": "轉寫設定",
+      "config_content": "在左側面板設定本機模型、運算裝置、輸出格式，以及轉寫完成後的處理方式。設定會自動儲存。",
+      "model_title": "選擇本機模型",
+      "model_content": "選擇已安裝且可用的本機 Whisper 模型。模型越大通常越準確，但需要更多儲存空間和運算資源。",
+      "language_title": "設定來源語言",
+      "language_content": "選擇媒體中的語言，或保留自動偵測，讓模型根據音訊內容判斷。",
+      "upload_title": "加入音訊或影片",
+      "upload_content": "將音訊或影片拖曳到這裡，或點擊選擇檔案。一次最多可加入 100 個媒體檔案。",
+      "queue_title": "任務佇列",
+      "queue_content": "這裡會顯示媒體探測結果、轉寫進度、產生的字幕，以及失敗任務的重試操作。",
+      "start_title": "開始轉寫",
+      "start_content": "確認環境、模型和媒體都準備好後，點擊這裡開始全部待處理任務。",
+      "trigger": "使用引導"
     }
   },
   "extractor": {

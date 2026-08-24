@@ -108,6 +108,8 @@ export function localSubtitleTaskActionKey(
 }
 
 interface LocalSubtitleTaskQueueProps {
+  readonly tourQueueId?: string;
+  readonly tourStartId?: string;
   readonly tasks: readonly LocalSubtitleTaskSummary[];
   readonly draftFiles: readonly LocalSubtitleAuthorizedMedia[];
   readonly draftProbes: ReadonlyMap<string, LocalSubtitleDraftMediaProbe>;
@@ -152,6 +154,8 @@ interface LocalSubtitleTaskQueueProps {
 }
 
 export function LocalSubtitleTaskQueue({
+  tourQueueId,
+  tourStartId,
   tasks,
   draftFiles,
   draftProbes,
@@ -186,7 +190,7 @@ export function LocalSubtitleTaskQueue({
   ).length;
 
   return (
-    <div data-testid="local-subtitle-task-queue">
+    <div id={tourQueueId} data-testid="local-subtitle-task-queue">
       <ToolPanel
         title={t("subtitle:local_transcriber.queue.title")}
         badge={
@@ -217,6 +221,7 @@ export function LocalSubtitleTaskQueue({
               {t("subtitle:local_transcriber.actions.clear_all")}
             </Button>
             <Button
+              id={tourStartId}
               data-testid="local-subtitle-start"
               type="button"
               size="sm"

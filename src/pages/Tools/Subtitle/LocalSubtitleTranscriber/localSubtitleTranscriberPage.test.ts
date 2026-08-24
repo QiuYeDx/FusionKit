@@ -247,6 +247,28 @@ describe("local subtitle transcriber page wiring", () => {
     expect(postActionServiceSource).not.toContain("startAllTasks");
   });
 
+  it("uses the shared first-run tour trigger and stable spotlight targets", () => {
+    expect(pageSource).toContain('import { Tour, type TourStep }');
+    expect(pageSource).toContain(
+      'localStorage.getItem("local-subtitle-transcriber-tour-done")',
+    );
+    expect(pageSource).toContain(
+      'localStorage.setItem("local-subtitle-transcriber-tour-done", "1")',
+    );
+    for (const target of [
+      "local-subtitle-tour-config",
+      "local-subtitle-tour-model",
+      "local-subtitle-tour-language",
+      "local-subtitle-tour-upload",
+      "local-subtitle-tour-queue",
+      "local-subtitle-tour-start",
+    ]) {
+      expect(source).toContain(target);
+    }
+    expect(pageSource).toContain('onClick={() => setTourOpen(true)}');
+    expect(pageSource).toContain("scrollIntoView");
+  });
+
   it("uses bounded ScrollableDialog surfaces for artifact and error details", () => {
     expect(detailsDialogSource).toContain("ScrollableDialog");
     expect(detailsDialogSource).toContain("createLocalSubtitleArtifactPreviewPage");

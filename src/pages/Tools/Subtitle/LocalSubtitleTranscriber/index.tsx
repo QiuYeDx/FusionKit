@@ -8,6 +8,7 @@ import {
 } from "react";
 import { useTranslation } from "react-i18next";
 import {
+  CircleHelp,
   Loader2,
   Settings2,
   SlidersHorizontal,
@@ -108,6 +109,7 @@ import {
   type LocalSubtitleArtifactPreviewSelection,
 } from "./LocalSubtitleTaskDetailsDialogs";
 import { LocalSubtitleTranslationConfirmDialog } from "./LocalSubtitleTranslationConfirmDialog";
+import { Tour, type TourStep } from "@/components/qiuye-ui/tour";
 
 const MEDIA_ACCEPT = [
   "audio/*",
@@ -301,6 +303,71 @@ export default function LocalSubtitleTranscriber() {
   const [submittedBatches, setSubmittedBatches] = useState<
     readonly LocalSubtitleBatchSummary[]
   >([]);
+  const [tourOpen, setTourOpen] = useState(false);
+  useEffect(() => {
+    if (localStorage.getItem("local-subtitle-transcriber-tour-done")) return;
+    const timer = setTimeout(() => setTourOpen(true), 400);
+    return () => clearTimeout(timer);
+  }, []);
+  const tourSteps: TourStep[] = useMemo(
+    () => [
+      {
+        target: "#local-subtitle-tour-config",
+        title: t("subtitle:local_transcriber.tour.config_title", "转写配置"),
+        content: t(
+          "subtitle:local_transcriber.tour.config_content",
+          "在左侧面板配置本地模型、计算设备、输出格式和转写完成后的处理方式。设置会自动保存。",
+        ),
+        placement: "right",
+      },
+      {
+        target: "#local-subtitle-tour-model",
+        title: t("subtitle:local_transcriber.tour.model_title", "选择本地模型"),
+        content: t(
+          "subtitle:local_transcriber.tour.model_content",
+          "选择已安装且可用的本地 Whisper 模型。模型越大通常越准确，但需要更多磁盘空间和计算资源。",
+        ),
+        placement: "right",
+      },
+      {
+        target: "#local-subtitle-tour-language",
+        title: t("subtitle:local_transcriber.tour.language_title", "设置源语言"),
+        content: t(
+          "subtitle:local_transcriber.tour.language_content",
+          "选择媒体中的语言，或保留自动检测，让模型根据音频内容判断。",
+        ),
+        placement: "right",
+      },
+      {
+        target: "#local-subtitle-tour-upload",
+        title: t("subtitle:local_transcriber.tour.upload_title", "添加音频或视频"),
+        content: t(
+          "subtitle:local_transcriber.tour.upload_content",
+          "将音频或视频拖到这里，或点击选择文件。一次最多可添加 100 个媒体文件。",
+        ),
+        placement: "bottom",
+      },
+      {
+        target: "#local-subtitle-tour-queue",
+        title: t("subtitle:local_transcriber.tour.queue_title", "任务队列"),
+        content: t(
+          "subtitle:local_transcriber.tour.queue_content",
+          "这里会显示媒体探测结果、转写进度、生成的字幕以及失败任务的重试操作。",
+        ),
+        placement: "top",
+      },
+      {
+        target: "#local-subtitle-tour-start",
+        title: t("subtitle:local_transcriber.tour.start_title", "开始转写"),
+        content: t(
+          "subtitle:local_transcriber.tour.start_content",
+          "确认环境、模型和媒体都准备好后，点击这里开始全部待处理任务。",
+        ),
+        placement: "bottom",
+      },
+    ],
+    [t],
+  );
   const taskMediaOperationActive = useMemo(
     () => hasActiveLocalSubtitleTasks(runtimeState.batches),
     [runtimeState.batches],
@@ -1399,17 +1466,32 @@ export default function LocalSubtitleTranscriber() {
             meta={TOOL_META.localSubtitleTranscriber}
             title={t("subtitle:local_transcriber.title")}
             description={t("subtitle:local_transcriber.description")}
+            right={
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                onClick={() => setTourOpen(true)}
+                title={t("subtitle:local_transcriber.tour.trigger", "使用引导")}
+              >
+                <CircleHelp className="h-4 w-4" />
+              </Button>
+            }
           />
         }
         asideClassName="order-2 lg:order-1"
         mainClassName="order-1 lg:order-2"
         aside={
-          <ToolConfigPanel
-            icon={Settings2}
-            title={t("subtitle:local_transcriber.config.title")}
-            contentClassName="space-y-4"
-          >
-            <ToolField label={t("subtitle:local_transcriber.config.model")}>
+          <div id="local-subtitle-tour-config">
+            <ToolConfigPanel
+              icon={Settings2}
+              title={t("subtitle:local_transcriber.config.title")}
+              contentClassName="space-y-4"
+            >
+            <ToolField
+              id="local-subtitle-tour-model"
+              label={t("subtitle:local_transcriber.config.model")}
+            >
               <Select
                 value={selectedModelId ?? undefined}
                 disabled={submissionLocked || readyModels.length === 0}
@@ -1470,7 +1552,10 @@ export default function LocalSubtitleTranscriber() {
               </Select>
             </ToolField>
 
-            <ToolField label={t("subtitle:local_transcriber.config.language")}>
+            <ToolField
+              id="local-subtitle-tour-language"
+              label={t("subtitle:local_transcriber.config.language")}
+            >
               <Select
                 value={preferences.language}
                 disabled={submissionLocked}
@@ -1757,33 +1842,36 @@ export default function LocalSubtitleTranscriber() {
                 </Select>
               </ToolField>
             ) : null}
-          </ToolConfigPanel>
+            </ToolConfigPanel>
+          </div>
         }
       >
         <div className="space-y-3">
-          <ToolFileDropZone
-            id="local-subtitle-file"
-            inputTestId="local-subtitle-file-input"
-            accept={MEDIA_ACCEPT}
-            multiple
-            dragging={dragging}
-            disabled={
-              !bridgeCompatible || submissionLocked || fileAuthorizationPending
-            }
-            title={t(
-              fileAuthorizationPending
-                ? "subtitle:local_transcriber.file.authorizing"
-                : "subtitle:local_transcriber.file.title",
-            )}
-            description={t("subtitle:local_transcriber.file.description", {
-              max: LOCAL_SUBTITLE_LIMITS.maxBatchFiles,
-            })}
-            actionLabel={t("subtitle:local_transcriber.actions.select_files")}
-            icon={fileAuthorizationPending ? <Loader2 className="h-5 w-5 animate-spin" /> : undefined}
-            className="px-4 py-4"
-            onDraggingChange={setDragging}
-            onFiles={handleFiles}
-          />
+          <div id="local-subtitle-tour-upload">
+            <ToolFileDropZone
+              id="local-subtitle-file"
+              inputTestId="local-subtitle-file-input"
+              accept={MEDIA_ACCEPT}
+              multiple
+              dragging={dragging}
+              disabled={
+                !bridgeCompatible || submissionLocked || fileAuthorizationPending
+              }
+              title={t(
+                fileAuthorizationPending
+                  ? "subtitle:local_transcriber.file.authorizing"
+                  : "subtitle:local_transcriber.file.title",
+              )}
+              description={t("subtitle:local_transcriber.file.description", {
+                max: LOCAL_SUBTITLE_LIMITS.maxBatchFiles,
+              })}
+              actionLabel={t("subtitle:local_transcriber.actions.select_files")}
+              icon={fileAuthorizationPending ? <Loader2 className="h-5 w-5 animate-spin" /> : undefined}
+              className="px-4 py-4"
+              onDraggingChange={setDragging}
+              onFiles={handleFiles}
+            />
+          </div>
 
           {actionError || runtimeState.error ? (
             <LocalSubtitleErrorNotice error={actionError ?? runtimeState.error!} />
@@ -1797,6 +1885,8 @@ export default function LocalSubtitleTranscriber() {
         </div>
 
         <LocalSubtitleTaskQueue
+          tourQueueId="local-subtitle-tour-queue"
+          tourStartId="local-subtitle-tour-start"
           tasks={visibleTasks}
           draftFiles={selectedFiles}
           draftProbes={draftMediaProbes}
@@ -1895,6 +1985,19 @@ export default function LocalSubtitleTranscriber() {
         pending={submissionPending}
         onCancel={handlePreparedBatchCancel}
         onConfirm={handlePreparedBatchConfirm}
+      />
+      <Tour
+        steps={tourSteps}
+        open={tourOpen}
+        onOpenChange={setTourOpen}
+        onFinish={() => {
+          localStorage.setItem("local-subtitle-transcriber-tour-done", "1");
+        }}
+        onSkip={() => {
+          localStorage.setItem("local-subtitle-transcriber-tour-done", "1");
+        }}
+        maskClosable
+        scrollIntoView
       />
     </div>
   );
