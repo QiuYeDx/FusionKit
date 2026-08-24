@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  chmod,
   link,
   lstat,
   mkdir,
@@ -107,6 +108,20 @@ describe("local subtitle input and output authorizations", () => {
       ).rejects.toMatchObject({ code: "invalid_content" });
       expect(failedFactory).not.toHaveBeenCalled();
     }
+  });
+
+  it("keeps a Darwin input lease valid across metadata-only ctime changes", async () => {
+    if (process.platform !== "darwin") return;
+    const root = await tempRoot();
+    const inputPath = await file(root, "metadata-change.wav", "audio");
+    const registry = new LocalSubtitleInputAuthorizationRegistry();
+    const input = await registry.authorize(OWNER_A, inputPath);
+
+    await chmod(inputPath, 0o600);
+
+    await expect(
+      registry.resolveDraft(OWNER_A, input.fileToken, "transcribe"),
+    ).resolves.toMatchObject({ filePath: await realpath(inputPath) });
   });
 
   it("reuses an opaque source key for the same owner and canonical file only", async () => {

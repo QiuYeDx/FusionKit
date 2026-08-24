@@ -5,6 +5,7 @@ import {
   localSubtitleFilesystemObjectIdentityForPathSync,
   localSubtitleWindowsObjectIdentityFromStats,
   sameLocalSubtitleFileIdentity,
+  sameLocalSubtitleInputFileIdentity,
   sameLocalSubtitleFilesystemObjectIdentity,
   snapshotLocalSubtitleFileIdentity,
   snapshotLocalSubtitleFilesystemObjectIdentity,
@@ -43,6 +44,29 @@ describe("local subtitle filesystem object identity", () => {
     const snapshot = snapshotLocalSubtitleFileIdentity(identity);
     expect(snapshot).toEqual(identity);
     expect(sameLocalSubtitleFileIdentity(identity, snapshot!)).toBe(true);
+  });
+
+  it("ignores Darwin metadata-only ctime drift for authorized inputs", () => {
+    const original = localSubtitleFileIdentityFromBigIntStats({
+      dev: 1n,
+      ino: 2n,
+      size: 44n,
+      birthtimeNs: 3_000_000n,
+      mtimeNs: 4_000_000n,
+      ctimeNs: 5_000_000n,
+    }, "darwin");
+    const metadataChanged = { ...original, ctimeMs: 6 };
+
+    expect(sameLocalSubtitleInputFileIdentity(original, metadataChanged, "darwin"))
+      .toBe(true);
+    expect(sameLocalSubtitleInputFileIdentity(original, metadataChanged, "win32"))
+      .toBe(false);
+    expect(sameLocalSubtitleFileIdentity(original, metadataChanged)).toBe(false);
+    expect(sameLocalSubtitleInputFileIdentity(
+      original,
+      { ...metadataChanged, mtimeMs: 7 },
+      "darwin",
+    )).toBe(false);
   });
 
   it("rejects negative or over-width Windows identity components", () => {

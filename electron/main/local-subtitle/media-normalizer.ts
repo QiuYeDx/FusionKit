@@ -42,6 +42,7 @@ import {
 import {
   localSubtitleFileIdentityForHandle,
   localSubtitleFileIdentityForPath,
+  sameLocalSubtitleInputFileIdentity as sameInputFileIdentity,
   sameLocalSubtitleFileIdentity as sameFileIdentity,
 } from "./filesystem-object-identity";
 import {
@@ -1499,7 +1500,7 @@ export class LocalSubtitleMediaNormalizer {
       record.fileToken !== input.fileToken ||
       selected.streamId !== input.audioStreamId ||
       record.runtimeGeneration !== input.runtimeGeneration ||
-      !sameFileIdentity(record.inputIdentity, input.input.identity) ||
+      !sameInputFileIdentity(record.inputIdentity, input.input.identity) ||
       record.durationMs !== input.parsed.durationMs ||
       record.trackTableSignature !== trackTableSignature(input.parsed.tracks)
     ) {
@@ -2082,7 +2083,7 @@ async function copyAuthorizedInputSnapshot(options: {
   try {
     source = await open(options.input.filePath, READ_ONLY_NOFOLLOW);
     const sourceIdentity = await localSubtitleFileIdentityForHandle(source);
-    if (!sameFileIdentity(sourceIdentity, options.input.identity)) {
+    if (!sameInputFileIdentity(sourceIdentity, options.input.identity)) {
       throw mediaChanged();
     }
     output = await open(
@@ -2130,7 +2131,7 @@ async function copyAuthorizedInputSnapshot(options: {
     if (
       !sameFileIdentity(
         await localSubtitleFileIdentityForHandle(source),
-        options.input.identity,
+        sourceIdentity,
       )
     ) {
       throw mediaChanged();
@@ -2169,7 +2170,7 @@ async function assertResolvedInputCurrent(
     if (
       !before.isFile() ||
       before.isSymbolicLink() ||
-      !sameFileIdentity(
+      !sameInputFileIdentity(
         await localSubtitleFileIdentityForPath(input.filePath),
         input.identity,
       )
@@ -2177,7 +2178,7 @@ async function assertResolvedInputCurrent(
       throw new Error();
     }
     handle = await open(input.filePath, READ_ONLY_NOFOLLOW);
-    if (!sameFileIdentity(
+    if (!sameInputFileIdentity(
       await localSubtitleFileIdentityForHandle(handle),
       input.identity,
     )) {

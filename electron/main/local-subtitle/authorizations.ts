@@ -6,7 +6,7 @@ import { LOCAL_SUBTITLE_LIMITS } from "@/type/localSubtitle";
 import {
   localSubtitleFileIdentityFromBigIntStats,
   localSubtitleFilesystemObjectIdentityForPath,
-  sameLocalSubtitleFileIdentity,
+  sameLocalSubtitleInputFileIdentity,
   sameLocalSubtitleFilesystemObjectIdentity,
   type LocalSubtitleFileIdentity as FilesystemFileIdentity,
   type LocalSubtitleFilesystemObjectIdentity,
@@ -1276,8 +1276,8 @@ async function inspectFile(filePath: string): Promise<InspectedFileDescriptor> {
       if (
         !opened.isFile() ||
         after.isSymbolicLink() ||
-        !sameLocalSubtitleFileIdentity(beforeIdentity, openedIdentity) ||
-        !sameLocalSubtitleFileIdentity(beforeIdentity, afterIdentity)
+        !sameLocalSubtitleInputFileIdentity(beforeIdentity, openedIdentity) ||
+        !sameLocalSubtitleInputFileIdentity(beforeIdentity, afterIdentity)
       ) {
         throw new Error();
       }
@@ -1331,7 +1331,7 @@ async function verifyFile(
     if (
       !before.isFile() ||
       before.isSymbolicLink() ||
-      !sameLocalSubtitleFileIdentity(
+      !sameLocalSubtitleInputFileIdentity(
         localSubtitleFileIdentityFromBigIntStats(before),
         value.identity,
       )
@@ -1340,7 +1340,7 @@ async function verifyFile(
     }
     const handle = await open(value.path, NOFOLLOW_READ);
     try {
-      if (!sameLocalSubtitleFileIdentity(
+      if (!sameLocalSubtitleInputFileIdentity(
         localSubtitleFileIdentityFromBigIntStats(
           await handle.stat({ bigint: true }),
         ),

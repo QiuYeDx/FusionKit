@@ -150,6 +150,28 @@ export function sameLocalSubtitleFileIdentity(
   );
 }
 
+/**
+ * Compare an authorized user input without treating a Darwin metadata-only
+ * ctime update as a media replacement. APFS exposes ctime as change time,
+ * rather than creation time; Finder and file-provider metadata operations can
+ * update it while the file object, size, and content mtime remain unchanged.
+ * Private snapshots and generated PCM files must continue using the strict
+ * identity above.
+ */
+export function sameLocalSubtitleInputFileIdentity(
+  left: LocalSubtitleFileIdentity,
+  right: LocalSubtitleFileIdentity,
+  platform: NodeJS.Platform | string = process.platform,
+): boolean {
+  return sameLocalSubtitleFilesystemObjectIdentity(
+    left.objectIdentity,
+    right.objectIdentity,
+  ) &&
+    left.size === right.size &&
+    left.mtimeMs === right.mtimeMs &&
+    (platform === "darwin" || left.ctimeMs === right.ctimeMs);
+}
+
 export function localSubtitlePosixObjectIdentityFromStats(
   value: Pick<Stats, "dev" | "ino" | "birthtimeMs">,
 ): LocalSubtitleOverwritePosixIdentity {
