@@ -130,7 +130,8 @@ async function createWindow() {
     show: false,
     titleBarStyle: "hidden",
     ...(process.platform === "darwin"
-      ? { trafficLightPosition: { x: 15, y: 11.5 } } // macOS 左上角的红黄绿圆点
+      // Native traffic lights are 14px tall; y=13 centers them in the 40px title bar.
+      ? { trafficLightPosition: { x: 15, y: 13 } }
       : {}),
     webPreferences: {
       preload,
