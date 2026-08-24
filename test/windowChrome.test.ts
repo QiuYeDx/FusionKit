@@ -11,11 +11,12 @@ const titleBarSource = readFileSync(
 );
 
 describe("window chrome", () => {
-  it("centers the macOS traffic lights in the 40px title bar", () => {
+  it("centers the macOS traffic lights in the title bar capsule", () => {
     expect(titleBarSource).toContain("app-region-drag h-10");
     expect(mainSource).toContain(
-      "trafficLightPosition: { x: 15, y: 13 }",
+      "trafficLightPosition: { x: 12, y: 12.5 }",
     );
     expect(mainSource).not.toContain("trafficLightPosition: { x: 15, y: 11.5 }");
+    expect(mainSource).not.toContain("trafficLightPosition: { x: 15, y: 13 }");
   });
 });

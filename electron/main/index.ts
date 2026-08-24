@@ -130,8 +130,8 @@ async function createWindow() {
     show: false,
     titleBarStyle: "hidden",
     ...(process.platform === "darwin"
-      // Native traffic lights are 14px tall; y=13 centers them in the 40px title bar.
-      ? { trafficLightPosition: { x: 15, y: 13 } }
+      // Align the native controls with the center of the title bar's glass capsule.
+      ? { trafficLightPosition: { x: 12, y: 12.5 } }
       : {}),
     webPreferences: {
       preload,
