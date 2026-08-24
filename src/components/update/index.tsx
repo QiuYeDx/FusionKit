@@ -86,7 +86,7 @@ const Update = ({
     }
   }, [emitUpdateStatus])
 
-  const onUpdateCanAvailable = useCallback((_event: Electron.IpcRendererEvent, arg1: VersionInfo) => {
+  const onUpdateCanAvailable = useCallback((_event: undefined, arg1: VersionInfo) => {
     setVersionInfo(arg1)
     setUpdateError(undefined)
     if (arg1.update) {
@@ -97,7 +97,7 @@ const Update = ({
     }
   }, [])
 
-  const onUpdateError = useCallback((_event: Electron.IpcRendererEvent, arg1: ErrorType) => {
+  const onUpdateError = useCallback((_event: undefined, arg1: ErrorType) => {
     setUpdateAvailable(false)
     setUpdateError(arg1)
     setModalOpen(true)

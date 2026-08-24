@@ -8,14 +8,16 @@ import pkg from './package.json'
 
 // https://vitejs.dev/config/
 export default defineConfig(({ command }) => {
-  rmSync('dist-electron', { recursive: true, force: true })
+  const isVitest = process.env.VITEST === 'true'
+  if (!isVitest) rmSync('dist-electron', { recursive: true, force: true })
 
   const isServe = command === 'serve'
   const isBuild = command === 'build'
   const sourcemap = isServe || !!process.env.VSCODE_DEBUG
   const appVersion = process.env.VITE_APP_VERSION ?? pkg.version
+  const electronVersion = pkg.devDependencies.electron
+  const reactVersion = pkg.devDependencies.react
   const dependencyNames = Object.keys('dependencies' in pkg ? pkg.dependencies : {})
-  const preloadExternal = dependencyNames.filter((dependencyName) => dependencyName !== 'motion')
   const srcAlias = path.join(__dirname, 'src')
 
   return {
@@ -26,11 +28,13 @@ export default defineConfig(({ command }) => {
     },
     define: {
       'import.meta.env.VITE_APP_VERSION': JSON.stringify(appVersion),
+      'import.meta.env.VITE_ELECTRON_VERSION': JSON.stringify(electronVersion),
+      'import.meta.env.VITE_REACT_VERSION': JSON.stringify(reactVersion),
     },
     plugins: [
       react(),
       tailwindcss(),
-      electron({
+      ...(isVitest ? [] : [electron({
         main: {
           // Shortcut of `build.lib.entry`
           entry: 'electron/main/index.ts',
@@ -72,7 +76,9 @@ export default defineConfig(({ command }) => {
               minify: isBuild,
               outDir: 'dist-electron/preload',
               rollupOptions: {
-                external: preloadExternal,
+                // Sandboxed preloads cannot require arbitrary npm packages.
+                // Bundle every imported runtime dependency and leave Electron external.
+                external: ['electron'],
               },
             },
           },
@@ -81,7 +87,7 @@ export default defineConfig(({ command }) => {
         // If you want use Node.js in Renderer process, the `nodeIntegration` needs to be enabled in the Main process.
         // See 👉 https://github.com/electron-vite/vite-plugin-electron-renderer
         renderer: {},
-      }),
+      })]),
     ],
     server: process.env.VSCODE_DEBUG && (() => {
       const url = new URL(pkg.debug.env.VITE_DEV_SERVER_URL)

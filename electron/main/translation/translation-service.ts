@@ -15,6 +15,9 @@ import {
   type SubtitleTranslatorTask,
   type TranslationLanguage,
   type TranslationOutputMode,
+  type SubtitleTranslationRuntimeAuthorization,
+  isSubtitleTaskReadyExecutionBinding,
+  isSubtitleTranslatorTaskId,
 } from "./typing";
 import { LRCTranslator } from "./class/lrc-translator";
 import { SRTTranslator } from "./class/srt-translator";
@@ -23,34 +26,53 @@ import { DEFAULT_SLICE_LENGTH_MAP } from "./constants";
 import { buildSubtitleTokenEstimate } from "../../../src/utils/subtitleTokenEstimateCore";
 
 export class TranslationService {
-  /** 以 fileName 为 key 追踪正在执行的任务，用于支持取消操作 */
+  /** 以 taskId 为 key 追踪正在执行的任务，用于支持取消操作 */
   private activeTasks = new Map<string, AbortController>();
 
   /**
    * 处理一个翻译任务：根据文件后缀选择翻译器 → 执行翻译 → 返回最终状态。
    * AbortController 贯穿整个翻译流程，任何阶段调用 cancelTask 都能中断。
    */
-  async processTask(task: SubtitleTranslatorTask) {
+  async processTask(
+    task: SubtitleTranslatorTask,
+    runtimeAuthorization?: SubtitleTranslationRuntimeAuthorization,
+  ) {
+    if (!isSubtitleTranslatorTaskId(task?.taskId)) {
+      return { status: "failed", error: "invalid_task_identity" };
+    }
+    if (!isSubtitleTaskReadyExecutionBinding(task.executionBinding)) {
+      return { status: "failed", error: "configuration_required" };
+    }
+    if (this.activeTasks.has(task.taskId)) {
+      return { status: "failed", error: "task_already_active" };
+    }
+    const execution = task.executionBinding;
     const controller = new AbortController();
-    this.activeTasks.set(task.fileName, controller);
+    this.activeTasks.set(task.taskId, controller);
 
     try {
       const translator = this.getTranslator(
         task.fileName.split(".").at(-1)?.toUpperCase() as SubtitleFileType,
         {
-          apiKey: task.apiKey,
-          apiModel: task.apiModel,
-          endpoint: task.endPoint,
+          apiKey: execution.apiKey,
+          apiModel: execution.apiModel,
+          endpoint: execution.endPoint,
         }
       );
-      console.info(">>> [processTask] task: ", task, translator);
-      await translator.translate(task, controller.signal);
+      console.info("[translation] task started", {
+        taskId: task.taskId,
+        fileName: task.fileName,
+        model: execution.apiModel,
+      });
+      await translator.translate(task, controller.signal, runtimeAuthorization);
       return { status: "completed" };
     } catch (error) {
       if (error instanceof Error && error.name === "AbortError") return { status: "cancelled" };
       return { status: "failed", error: error instanceof Error ? error.message : "未知错误" };
     } finally {
-      this.activeTasks.delete(task.fileName);
+      if (this.activeTasks.get(task.taskId) === controller) {
+        this.activeTasks.delete(task.taskId);
+      }
     }
   }
 
@@ -73,9 +95,9 @@ export class TranslationService {
     }[fileType];
   }
 
-  /** 通过 AbortController 取消指定文件的翻译任务 */
-  cancelTask(fileName: string) {
-    this.activeTasks.get(fileName)?.abort();
+  /** 通过 AbortController 取消指定任务 */
+  cancelTask(taskId: string) {
+    this.activeTasks.get(taskId)?.abort();
   }
 
   /**

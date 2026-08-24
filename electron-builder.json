@@ -10,13 +10,36 @@
     "dist-electron",
     "dist"
   ],
+  "extraResources": [
+    {
+      "from": "build/local-subtitle-resources/local-subtitle",
+      "to": "local-subtitle",
+      "filter": [
+        "**/*"
+      ]
+    }
+  ],
+  "beforePack": "scripts/local-subtitle/runtime/electron-builder-local-subtitle-before-pack.cjs",
   "mac": {
-    "artifactName": "${productName}_${version}.${ext}",
+    "artifactName": "${productName}_${version}_${arch}.${ext}",
     "target": [
-      "dmg",
-      "zip"
+      {
+        "target": "dmg",
+        "arch": [
+          "arm64"
+        ]
+      },
+      {
+        "target": "zip",
+        "arch": [
+          "arm64"
+        ]
+      }
     ],
-    "icon": "build/FusionKit.icns"
+    "icon": "build/FusionKit.icns",
+    "signIgnore": [
+      "Contents/Resources/local-subtitle/"
+    ]
   },
   "win": {
     "target": [
@@ -28,7 +51,7 @@
       }
     ],
     "icon": "build/FusionKit.ico",
-    "artifactName": "${productName}_${version}.${ext}"
+    "artifactName": "${productName}_${version}_${arch}.${ext}"
   },
   "nsis": {
     "oneClick": false,

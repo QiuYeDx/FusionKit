@@ -19,7 +19,7 @@
 - DeepSeek 官方模型与价格页：`https://api-docs.deepseek.com/quick_start/pricing`
   - `deepseek-v4-flash`、`deepseek-v4-pro` 默认上下文长度为 `1M`，最大输出为 `384K`。
   - `deepseek-chat` 与 `deepseek-reasoner` 将于 `2026/07/24 15:59 UTC` 废弃，并分别对应 `deepseek-v4-flash` 的 non-thinking / thinking mode 兼容别名。
-  - `deepseek-v4-flash` 价格为 cache miss input `$0.14` / output `$0.28` per 1M tokens；`deepseek-v4-pro` 为 cache miss input `$0.435` / output `$0.87` per 1M tokens。
+  - 2026-07-08 当时的价格快照：`deepseek-v4-flash` cache miss input `$0.14` / output `$0.28` per 1M tokens；`deepseek-v4-pro` 为 cache miss input `$0.435` / output `$0.87` per 1M tokens。当前价格见 `docs/v0.2.11/subtitle-actual-usage/subtitle-actual-usage_final_design.md`。
 
 ## 根因
 
@@ -31,7 +31,7 @@
 
 - OpenAI 预设列表按当前官方模型更新，默认新建 OpenAI profile 仍取列表首项，即 `gpt-5.5`。
 - OpenAI / DeepSeek 预设模型都在同一份 metadata 中维护 `contextWindow`，`inferContextWindowSize()` 优先精确匹配预设。
-- DeepSeek V4 Flash/Pro 以及 `deepseek-chat` / `deepseek-reasoner` 兼容别名均推断为默认 `1,000,000` token 上下文窗口。
+- DeepSeek V4 Flash/Pro 以及 `deepseek-chat` / `deepseek-reasoner` 兼容别名均推断为默认 `1,000,000` token 上下文窗口。价格为当时快照，2026-08-22 的最新分时价格见 `docs/v0.2.11/subtitle-actual-usage/subtitle-actual-usage_final_design.md`。
 - 长文本翻译预算提示、进度条、预算超限判断和任务创建 options 使用当前模型推断出的上下文窗口；仅在未选择模型时回退到 32K 默认值。
 
 ## 影响文件

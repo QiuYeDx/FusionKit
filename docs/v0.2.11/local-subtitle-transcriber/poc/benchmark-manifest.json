@@ -1,0 +1,203 @@
+{
+  "schemaVersion": 1,
+  "manifestId": "local-subtitle-poc-v1",
+  "status": "ready_for_development",
+  "requiredTargetProfiles": [
+    "mac-arm64-metal",
+    "windows-x64-cpu",
+    "windows-x64-cuda"
+  ],
+  "mediaPolicy": {
+    "commitMediaToRepository": false,
+    "commitSubtitleFilesToRepository": false,
+    "recordOnly": [
+      "stable_sha256",
+      "byte_size",
+      "duration_ms",
+      "local_storage_key",
+      "media_probe_summary",
+      "sample_subtitle_hash_and_timeline_summary"
+    ]
+  },
+  "acceptanceScope": {
+    "realSampleCount": 3,
+    "languages": ["ja", "zh"],
+    "containerKinds": ["audio", "video"],
+    "subtitleFormats": ["srt", "lrc"],
+    "validationMode": "development_smoke_and_manual_acceptance",
+    "textAccuracyGate": false
+  },
+  "durationClassRules": {
+    "short": {
+      "minInclusiveMs": 1,
+      "maxExclusiveMs": 120000
+    },
+    "medium": {
+      "minInclusiveMs": 120000,
+      "maxExclusiveMs": 3600000
+    },
+    "long": {
+      "minInclusiveMs": 3600000,
+      "maxExclusiveMs": null
+    }
+  },
+  "samples": [
+    {
+      "sampleId": "ja-character-pv-bgm-medium",
+      "sampleKind": "real",
+      "evidenceStatus": "ready",
+      "language": "ja",
+      "containerKind": "video",
+      "durationClass": "medium",
+      "pathCase": "non_ascii",
+      "acousticConditions": ["bgm"],
+      "durationMs": 230230,
+      "byteSize": 51775477,
+      "sha256": "7e9d02d35ba94ad26f42cedd6889b0db26d6e85de01bb98bfe7ed6b5a55769a6",
+      "localStorageKey": "LOCAL_SUBTITLE_SAMPLE_ROOT/ja-character-pv-bgm-medium",
+      "mediaEvidence": {
+        "status": "verified",
+        "observedAt": "2026-07-16",
+        "probeTool": "ffprobe",
+        "container": "mov,mp4,m4a,3gp,3g2,mj2",
+        "videoCodec": "h264",
+        "width": 1920,
+        "height": 810,
+        "audioCodec": "aac",
+        "sampleRateHz": 48000,
+        "channels": 2,
+        "audioDecodeStatus": "passed",
+        "silenceProbe": "-40dB/2s",
+        "silenceSegmentCount": 1,
+        "silenceTotalMs": 3014,
+        "longestSilenceMs": 3014,
+        "meanVolumeDb": -15.9,
+        "maxVolumeDb": -0.4
+      },
+      "comparisonSubtitle": {
+        "source": "user_provided_existing_output",
+        "purpose": "manual_smoke_reference_only",
+        "textAccuracyGate": false,
+        "format": "srt",
+        "byteSize": 5053,
+        "sha256": "d53eea82af9e0520f649be7ae0905761ec73c7e16b63816b9bde75576745ef62",
+        "encoding": "utf-8-bom",
+        "lineEndings": "lf",
+        "cueCount": 75,
+        "firstStartMs": 2610,
+        "lastEndMs": 221840,
+        "timelineValid": true
+      }
+    },
+    {
+      "sampleId": "ja-audio-drama-frequent-silence-medium",
+      "sampleKind": "real",
+      "evidenceStatus": "ready",
+      "language": "ja",
+      "containerKind": "audio",
+      "durationClass": "medium",
+      "pathCase": "non_ascii",
+      "acousticConditions": ["frequent_silence"],
+      "durationMs": 753390,
+      "byteSize": 216976508,
+      "sha256": "ff5d4e74846edb1ac90801e7b63d9a34411b25231f4b9581618ad8dbd4ce7ff3",
+      "localStorageKey": "LOCAL_SUBTITLE_SAMPLE_ROOT/ja-audio-drama-frequent-silence-medium",
+      "mediaEvidence": {
+        "status": "verified",
+        "observedAt": "2026-07-16",
+        "probeTool": "ffprobe",
+        "container": "wav",
+        "audioCodec": "pcm_s24le",
+        "sampleRateHz": 48000,
+        "channels": 2,
+        "audioDecodeStatus": "passed",
+        "silenceProbe": "-40dB/2s",
+        "silenceSegmentCount": 36,
+        "silenceTotalMs": 107893,
+        "longestSilenceMs": 5718,
+        "meanVolumeDb": -20.4,
+        "maxVolumeDb": -0.1
+      },
+      "comparisonSubtitle": {
+        "source": "user_provided_existing_output",
+        "purpose": "manual_smoke_reference_only",
+        "textAccuracyGate": false,
+        "format": "lrc",
+        "byteSize": 5959,
+        "sha256": "0b6deceb8f9d8d0b08fbcbc19870086eec0dfedb8a02abe81c82da09f3b6be2c",
+        "encoding": "utf-8-bom",
+        "lineEndings": "lf",
+        "timestampCount": 129,
+        "firstTimestampMs": 6320,
+        "lastTimestampMs": 732040,
+        "timelineValid": true
+      }
+    },
+    {
+      "sampleId": "zh-character-pv-bgm-medium",
+      "sampleKind": "real",
+      "evidenceStatus": "ready",
+      "language": "zh",
+      "containerKind": "video",
+      "durationClass": "medium",
+      "pathCase": "non_ascii",
+      "acousticConditions": ["bgm"],
+      "durationMs": 235222,
+      "byteSize": 55682295,
+      "sha256": "c15def591cc45ef00e2f8f4150d208d3d78e8b06b7cf110d48184d7b28a1c32c",
+      "localStorageKey": "LOCAL_SUBTITLE_SAMPLE_ROOT/zh-character-pv-bgm-medium",
+      "mediaEvidence": {
+        "status": "verified",
+        "observedAt": "2026-07-16",
+        "probeTool": "ffprobe",
+        "container": "mov,mp4,m4a,3gp,3g2,mj2",
+        "videoCodec": "h264",
+        "width": 1920,
+        "height": 1080,
+        "audioCodec": "aac",
+        "sampleRateHz": 48000,
+        "channels": 2,
+        "audioDecodeStatus": "passed",
+        "silenceProbe": "-40dB/2s",
+        "silenceSegmentCount": 1,
+        "silenceTotalMs": 7886,
+        "longestSilenceMs": 7886,
+        "meanVolumeDb": -15.6,
+        "maxVolumeDb": -0.2
+      },
+      "comparisonSubtitle": {
+        "source": "user_provided_existing_output",
+        "purpose": "manual_smoke_reference_only",
+        "textAccuracyGate": false,
+        "format": "srt",
+        "byteSize": 4539,
+        "sha256": "3933f9cc3b98eea1099a6413dd61776749f387f532120ec4313970046a7108bf",
+        "encoding": "utf-8-bom",
+        "lineEndings": "lf",
+        "cueCount": 74,
+        "firstStartMs": 7540,
+        "lastEndMs": 227780,
+        "timelineValid": true
+      }
+    },
+    {
+      "sampleId": "synthetic-silence-short",
+      "sampleKind": "synthetic",
+      "evidenceStatus": "ready",
+      "language": "und",
+      "containerKind": "audio",
+      "durationClass": "short",
+      "pathCase": "non_ascii",
+      "acousticConditions": ["silence_only"],
+      "durationMs": 10000,
+      "byteSize": 320044,
+      "sha256": "ee7bea4232762775f8fce9b3e27e4d3948c8ac6a45a87ca769f703d6eed0b448",
+      "localStorageKey": "LOCAL_SUBTITLE_SAMPLE_ROOT/synthetic-silence-short",
+      "generator": {
+        "script": "scripts/local-subtitle/benchmark/generate-synthetic-fixtures.mjs",
+        "fixtureVersion": 1,
+        "relativeFileName": "synthetic-静音-10s.wav"
+      }
+    }
+  ]
+}

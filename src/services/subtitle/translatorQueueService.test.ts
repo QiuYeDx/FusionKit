@@ -4,6 +4,7 @@ import {
   addTask,
   updateTaskCostEstimate,
   startTask,
+  startTasks,
   startAllTasks,
   retryTask,
   updateTask,
@@ -14,6 +15,7 @@ import {
   deleteTask,
   clearTasks,
   removeAllResolvedTasks,
+  addRecoveredTasks,
 } from "./translatorQueueService";
 import {
   SubtitleSliceType,
@@ -22,6 +24,16 @@ import {
 } from "@/type/subtitle";
 
 const MAX = 5;
+const ACTUAL_USAGE = Object.freeze({
+  inputTokens: 80,
+  outputTokens: 20,
+  totalTokens: 100,
+  reasoningTokens: 5,
+  cachedInputTokens: 10,
+  requestCount: 2,
+  reportedRequestCount: 2,
+  calculatedCost: 0.001,
+});
 
 function emptyState(): TranslatorQueueState {
   return {
@@ -35,17 +47,25 @@ function emptyState(): TranslatorQueueState {
 
 function makeTask(name: string, overrides?: Partial<SubtitleTranslatorTask>): SubtitleTranslatorTask {
   return {
+    taskId: taskId(name),
     fileName: name,
     fileContent: "",
     sliceType: SubtitleSliceType.NORMAL,
-    originFileURL: `/in/${name}`,
-    targetFileURL: `/out/${name}`,
     status: TaskStatus.NOT_STARTED,
-    apiKey: "key",
-    apiModel: "model",
-    endPoint: "http://localhost",
+    executionBinding: {
+      status: "ready",
+      profileId: "profile-1",
+      profileLabel: "Profile 1",
+      apiKey: "key",
+      apiModel: "model",
+      endPoint: "http://localhost",
+    },
     ...overrides,
   };
+}
+
+function taskId(name: string): string {
+  return `subtitle-task-${name.replace(/[^a-zA-Z0-9._-]/gu, "-")}`;
 }
 
 function pendingTask(
@@ -70,12 +90,28 @@ describe("addTask", () => {
     expect(result.effects).toHaveLength(0);
   });
 
-  it("returns isDuplicate when fileName already exists in any queue", () => {
+  it("allows the same fileName when task IDs differ", () => {
     const state: TranslatorQueueState = {
       ...emptyState(),
       pendingTaskQueue: [pendingTask("a.srt")],
     };
-    const result = addTask(state, makeTask("a.srt"));
+    const result = addTask(
+      state,
+      makeTask("a.srt", { taskId: "subtitle-task-second-a" }),
+    );
+    expect(result.isDuplicate).toBe(false);
+    expect(result.state.notStartedTaskQueue).toHaveLength(1);
+  });
+
+  it("rejects a duplicate taskId regardless of display name", () => {
+    const state: TranslatorQueueState = {
+      ...emptyState(),
+      pendingTaskQueue: [pendingTask("a.srt")],
+    };
+    const result = addTask(
+      state,
+      makeTask("different.srt", { taskId: taskId("a.srt") }),
+    );
     expect(result.isDuplicate).toBe(true);
     expect(result.state).toBe(state);
   });
@@ -89,7 +125,7 @@ describe("startTask", () => {
       ...emptyState(),
       notStartedTaskQueue: [makeTask("a.srt")],
     };
-    const result = startTask(state, "a.srt", MAX);
+    const result = startTask(state, taskId("a.srt"), MAX);
     expect(result.state.notStartedTaskQueue).toHaveLength(0);
     expect(result.state.pendingTaskQueue).toHaveLength(1);
     expect(result.state.pendingTaskQueue[0].status).toBe(TaskStatus.PENDING);
@@ -105,7 +141,7 @@ describe("startTask", () => {
         pendingTask(`p${i}.srt`),
       ),
     };
-    const result = startTask(state, "f.srt", MAX);
+    const result = startTask(state, taskId("f.srt"), MAX);
     expect(result.state.waitingTaskQueue).toHaveLength(1);
     expect(result.state.waitingTaskQueue[0].status).toBe(TaskStatus.WAITING);
     expect(result.effects).toHaveLength(0);
@@ -113,8 +149,27 @@ describe("startTask", () => {
 
   it("no-ops when fileName not found", () => {
     const state = emptyState();
-    const result = startTask(state, "nonexistent.srt", MAX);
+    const result = startTask(state, taskId("nonexistent.srt"), MAX);
     expect(result.state).toBe(state);
+    expect(result.startFailures).toEqual([
+      { taskId: taskId("nonexistent.srt"), reason: "start_rejected" },
+    ]);
+  });
+
+  it("keeps needs_configuration tasks out of start effects", () => {
+    const blocked = makeTask("blocked.srt", {
+      executionBinding: { status: "needs_configuration" },
+    });
+    const state = {
+      ...emptyState(),
+      notStartedTaskQueue: [blocked],
+    };
+    const result = startTask(state, blocked.taskId, MAX);
+    expect(result.state).toBe(state);
+    expect(result.effects).toEqual([]);
+    expect(result.startFailures).toEqual([
+      { taskId: blocked.taskId, reason: "configuration_required" },
+    ]);
   });
 });
 
@@ -149,6 +204,63 @@ describe("startAllTasks", () => {
     expect(result.state.waitingTaskQueue).toHaveLength(1);
     expect(result.effects).toHaveLength(0);
   });
+
+  it("starts ready tasks while leaving unconfigured tasks untouched", () => {
+    const ready = makeTask("ready.srt");
+    const blocked = makeTask("blocked.srt", {
+      executionBinding: { status: "needs_configuration" },
+    });
+    const result = startAllTasks(
+      { ...emptyState(), notStartedTaskQueue: [blocked, ready] },
+      MAX,
+    );
+    expect(result.state.pendingTaskQueue.map((task) => task.taskId)).toEqual([
+      ready.taskId,
+    ]);
+    expect(result.state.notStartedTaskQueue.map((task) => task.taskId)).toEqual([
+      blocked.taskId,
+    ]);
+    expect(result.startFailures).toEqual([
+      { taskId: blocked.taskId, reason: "configuration_required" },
+    ]);
+  });
+});
+
+describe("startTasks", () => {
+  it("partitions only the requested IDs into started, waiting, and not-started", () => {
+    const first = makeTask("first.srt");
+    const second = makeTask("second.srt");
+    const blocked = makeTask("blocked.srt", {
+      executionBinding: { status: "needs_configuration" },
+    });
+    const unrelated = makeTask("unrelated.srt");
+    const result = startTasks(
+      {
+        ...emptyState(),
+        notStartedTaskQueue: [first, second, blocked, unrelated],
+        pendingTaskQueue: Array.from({ length: MAX - 1 }, (_, index) =>
+          pendingTask(`existing-${index}.srt`),
+        ),
+      },
+      [first.taskId, second.taskId, blocked.taskId],
+      MAX,
+    );
+
+    expect(result.receipt).toEqual({
+      requestedTaskIds: [first.taskId, second.taskId, blocked.taskId],
+      startedTaskIds: [first.taskId],
+      waitingTaskIds: [second.taskId],
+      notStartedTaskIds: [blocked.taskId],
+      startFailures: [
+        { taskId: blocked.taskId, reason: "configuration_required" },
+      ],
+    });
+    expect(
+      result.state.notStartedTaskQueue.some(
+        (task) => task.taskId === unrelated.taskId,
+      ),
+    ).toBe(true);
+  });
 });
 
 // ─── completeTaskProgress ────────────────────────────────────────────────────
@@ -171,13 +283,48 @@ describe("completeTaskProgress", () => {
     };
     const result = completeTaskProgress(
       state,
-      { fileName: "a.srt", resolvedFragments: 3, totalFragments: 5, progress: 60 },
+      {
+        taskId: taskId("a.srt"),
+        fileName: "a.srt",
+        resolvedFragments: 3,
+        totalFragments: 5,
+        progress: 60,
+        actualUsage: ACTUAL_USAGE,
+      },
       MAX,
     );
     expect(result.state.pendingTaskQueue[0].progress).toBe(60);
     expect(result.state.pendingTaskQueue[0].resolvedFragments).toBe(3);
     expect(result.state.pendingTaskQueue[0].costEstimate?.fragmentCount).toBe(5);
+    expect(result.state.pendingTaskQueue[0].actualUsage).toEqual(ACTUAL_USAGE);
     expect(result.effects).toHaveLength(0);
+  });
+
+  it("isolates late progress events between tasks with the same display name", () => {
+    const first = pendingTask("same.srt", {
+      taskId: "subtitle-task-same-first",
+      progress: 10,
+    });
+    const second = pendingTask("same.srt", {
+      taskId: "subtitle-task-same-second",
+      progress: 20,
+    });
+    const result = completeTaskProgress(
+      { ...emptyState(), pendingTaskQueue: [first, second] },
+      {
+        taskId: first.taskId,
+        fileName: "same.srt",
+        resolvedFragments: 2,
+        totalFragments: 10,
+        progress: 20,
+      },
+      MAX,
+    );
+
+    expect(result.state.pendingTaskQueue).toEqual([
+      expect.objectContaining({ taskId: first.taskId, progress: 20 }),
+      second,
+    ]);
   });
 
   it("moves task to resolved and promotes waiting on completion", () => {
@@ -188,7 +335,13 @@ describe("completeTaskProgress", () => {
     };
     const result = completeTaskProgress(
       state,
-      { fileName: "a.srt", resolvedFragments: 5, totalFragments: 5, progress: 100 },
+      {
+        taskId: taskId("a.srt"),
+        fileName: "a.srt",
+        resolvedFragments: 5,
+        totalFragments: 5,
+        progress: 100,
+      },
       MAX,
     );
     expect(result.state.pendingTaskQueue).toHaveLength(1);
@@ -204,30 +357,42 @@ describe("completeTaskProgress", () => {
 // ─── resolveTask ─────────────────────────────────────────────────────────────
 
 describe("resolveTask", () => {
-  it("patches outputFilePath when task is already in resolved (progress arrived first)", () => {
+  it("patches outputFileName when task is already in resolved (progress arrived first)", () => {
     const state: TranslatorQueueState = {
       ...emptyState(),
       resolvedTaskQueue: [
         makeTask("a.srt", { status: TaskStatus.RESOLVED, progress: 100 }),
       ],
     };
-    const result = resolveTask(state, "a.srt", "/out/a_translated.srt", MAX);
-    expect(result.state.resolvedTaskQueue[0].extraInfo?.outputFilePath).toBe(
-      "/out/a_translated.srt",
+    const result = resolveTask(
+      state,
+      taskId("a.srt"),
+      "a_translated.srt",
+      MAX,
+      ACTUAL_USAGE,
     );
+    expect(result.state.resolvedTaskQueue[0].extraInfo?.outputFileName).toBe(
+      "a_translated.srt",
+    );
+    expect(result.state.resolvedTaskQueue[0].actualUsage).toEqual(ACTUAL_USAGE);
     expect(result.effects).toHaveLength(0);
   });
 
-  it("moves from pending to resolved with outputFilePath", () => {
+  it("moves from pending to resolved with outputFileName", () => {
     const state: TranslatorQueueState = {
       ...emptyState(),
       pendingTaskQueue: [pendingTask("a.srt")],
     };
-    const result = resolveTask(state, "a.srt", "/out/a_translated.srt", MAX);
+    const result = resolveTask(
+      state,
+      taskId("a.srt"),
+      "a_translated.srt",
+      MAX,
+    );
     expect(result.state.pendingTaskQueue).toHaveLength(0);
     expect(result.state.resolvedTaskQueue).toHaveLength(1);
-    expect(result.state.resolvedTaskQueue[0].extraInfo?.outputFilePath).toBe(
-      "/out/a_translated.srt",
+    expect(result.state.resolvedTaskQueue[0].extraInfo?.outputFileName).toBe(
+      "a_translated.srt",
     );
   });
 });
@@ -246,12 +411,19 @@ describe("failTask", () => {
 
     const result = failTask(
       state,
-      { fileName: "p0.srt", error: "ERR", message: "fail" },
+      {
+        taskId: taskId("p0.srt"),
+        fileName: "p0.srt",
+        error: "ERR",
+        message: "fail",
+        actualUsage: ACTUAL_USAGE,
+      },
       MAX,
     );
 
     expect(result.state.failedTaskQueue).toHaveLength(1);
     expect(result.state.failedTaskQueue[0].fileName).toBe("p0.srt");
+    expect(result.state.failedTaskQueue[0].actualUsage).toEqual(ACTUAL_USAGE);
     expect(result.state.pendingTaskQueue).toHaveLength(MAX);
     expect(
       result.state.pendingTaskQueue.some((t) => t.fileName === "w0.srt"),
@@ -268,7 +440,12 @@ describe("failTask", () => {
     };
     const result = failTask(
       state,
-      { fileName: "p0.srt", error: "ERR", message: "fail" },
+      {
+        taskId: taskId("p0.srt"),
+        fileName: "p0.srt",
+        error: "ERR",
+        message: "fail",
+      },
       MAX,
     );
     expect(result.state.pendingTaskQueue).toHaveLength(0);
@@ -285,11 +462,14 @@ describe("cancelTask", () => {
       ...emptyState(),
       pendingTaskQueue: [pendingTask("a.srt")],
     };
-    const result = cancelTask(state, "a.srt", "Canceled", MAX);
+    const result = cancelTask(state, taskId("a.srt"), "Canceled", MAX);
     expect(result.state.pendingTaskQueue).toHaveLength(0);
     expect(result.state.failedTaskQueue).toHaveLength(1);
     expect(result.state.failedTaskQueue[0].extraInfo?.error).toBe("CANCELED");
-    expect(result.effects[0]).toEqual({ type: "cancel", fileName: "a.srt" });
+    expect(result.effects[0]).toEqual({
+      type: "cancel",
+      taskId: taskId("a.srt"),
+    });
   });
 
   it("promotes waiting task after cancel", () => {
@@ -298,7 +478,7 @@ describe("cancelTask", () => {
       pendingTaskQueue: [pendingTask("a.srt")],
       waitingTaskQueue: [waitingTask("b.srt")],
     };
-    const result = cancelTask(state, "a.srt", "Canceled", MAX);
+    const result = cancelTask(state, taskId("a.srt"), "Canceled", MAX);
     expect(result.state.pendingTaskQueue).toHaveLength(1);
     expect(result.state.pendingTaskQueue[0].fileName).toBe("b.srt");
     expect(result.effects).toHaveLength(2);
@@ -309,7 +489,7 @@ describe("cancelTask", () => {
       ...emptyState(),
       waitingTaskQueue: [waitingTask("a.srt")],
     };
-    const result = cancelTask(state, "a.srt", "Canceled", MAX);
+    const result = cancelTask(state, taskId("a.srt"), "Canceled", MAX);
     expect(result.state.waitingTaskQueue).toHaveLength(0);
     expect(result.state.failedTaskQueue).toHaveLength(1);
     expect(result.state.failedTaskQueue[0].status).toBe(TaskStatus.FAILED);
@@ -345,7 +525,7 @@ describe("retryTask", () => {
       ...emptyState(),
       failedTaskQueue: [makeTask("a.srt", { status: TaskStatus.FAILED, progress: 50 })],
     };
-    const result = retryTask(state, "a.srt");
+    const result = retryTask(state, taskId("a.srt"));
     expect(result.state.failedTaskQueue).toHaveLength(0);
     expect(result.state.notStartedTaskQueue).toHaveLength(1);
     expect(result.state.notStartedTaskQueue[0].status).toBe(TaskStatus.NOT_STARTED);
@@ -363,15 +543,13 @@ describe("retryTask", () => {
           resolvedFragments: 1,
           totalFragments: 2,
           recovery: {
-            checkpointPath: "/tmp/a.resume.json",
-            completedOutputPath: "/tmp/a.completed.srt",
-            remainingOutputPath: "/tmp/a.remaining.srt",
+            checkpointRef: "checkpoint-a",
             failedFragmentIndexes: [],
           },
         }),
       ],
     };
-    const result = retryTask(state, "a.srt", "restart");
+    const result = retryTask(state, taskId("a.srt"), "restart");
 
     expect(result.state.failedTaskQueue).toHaveLength(0);
     expect(result.state.notStartedTaskQueue).toHaveLength(1);
@@ -395,7 +573,7 @@ describe("deleteTask", () => {
         makeTask("b.srt", { status: TaskStatus.RESOLVED }),
       ],
     };
-    const result = deleteTask(state, "a.srt");
+    const result = deleteTask(state, taskId("a.srt"));
     expect(result.state.resolvedTaskQueue).toHaveLength(1);
     expect(result.state.resolvedTaskQueue[0].fileName).toBe("b.srt");
   });
@@ -431,7 +609,7 @@ describe("updateTaskCostEstimate", () => {
       estimatedCost: 0.01,
       fragmentCount: 3,
     };
-    const result = updateTaskCostEstimate(state, "a.srt", estimate);
+    const result = updateTaskCostEstimate(state, taskId("a.srt"), estimate);
     expect(result.state.notStartedTaskQueue[0].costEstimate).toEqual(estimate);
   });
 });
@@ -444,7 +622,45 @@ describe("updateTask", () => {
       ...emptyState(),
       notStartedTaskQueue: [makeTask("a.srt")],
     };
-    const result = updateTask(state, "a.srt", { apiModel: "new-model" });
-    expect(result.state.notStartedTaskQueue[0].apiModel).toBe("new-model");
+    const result = updateTask(state, taskId("a.srt"), {
+      executionBinding: {
+        status: "ready",
+        profileId: "profile-1",
+        profileLabel: "Profile 1",
+        apiKey: "key",
+        apiModel: "new-model",
+        endPoint: "http://localhost",
+      },
+    });
+    expect(result.state.notStartedTaskQueue[0].executionBinding).toMatchObject({
+      status: "ready",
+      apiModel: "new-model",
+    });
+  });
+
+  it("keeps task identity immutable even for an untyped runtime patch", () => {
+    const original = makeTask("a.srt");
+    const result = updateTask(
+      { ...emptyState(), notStartedTaskQueue: [original] },
+      original.taskId,
+      { taskId: "subtitle-task-rebound" } as Partial<SubtitleTranslatorTask>,
+    );
+
+    expect(result.state.notStartedTaskQueue[0].taskId).toBe(original.taskId);
+  });
+});
+
+describe("addRecoveredTasks", () => {
+  it("returns the exact IDs added by the batch", () => {
+    const existing = makeTask("existing.srt");
+    const added = makeTask("added.srt");
+    const result = addRecoveredTasks(
+      { ...emptyState(), pendingTaskQueue: [pendingTask("running.srt")] },
+      [existing, added, existing],
+    );
+
+    expect(result.addedCount).toBe(2);
+    expect(result.skippedCount).toBe(1);
+    expect(result.addedTaskIds).toEqual([existing.taskId, added.taskId]);
   });
 });

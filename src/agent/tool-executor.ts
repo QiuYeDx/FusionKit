@@ -15,8 +15,6 @@ import {
   type SubtitleConverterTask,
   type SubtitleExtractorTask,
   type SubtitleTranslatorTask,
-  type TranslationRecoveryCandidate,
-  type TranslationRecoveryInputMode,
 } from "@/type/subtitle";
 import useSubtitleConverterStore from "@/store/tools/subtitle/useSubtitleConverterStore";
 import useSubtitleExtractorStore from "@/store/tools/subtitle/useSubtitleExtractorStore";
@@ -32,10 +30,6 @@ import {
   resolveQueueFileSelection,
   type QueueFileSelection,
 } from "./queue-batch";
-import {
-  createRecoveryScanResultPayload,
-  resolveRecoveryCandidateSelection,
-} from "./recovery-batch";
 import { resolveTranslationSliceConfig } from "./translation-slice-config";
 import type {
   SubtitleSliceType,
@@ -55,11 +49,14 @@ import {
 } from "@/services/rename/nameTypes";
 import { isExplicitRenameConfirmation } from "./name-plan-confirmation";
 import {
-  scanTranslationRecoveryArtifacts,
-  inspectTranslationRecoveryArtifact,
-  createRecoveredSubtitleTaskDraft,
+  prepareRecoveredSubtitleTasks,
+  revokeTranslationRecoveryScan,
+  selectTranslationRecoveryDirectory,
+  selectTranslationRecoveryManifest,
 } from "@/services/subtitle/translatorRecoveryService";
-import { createSubtitleTaskModelFields } from "./task-model-config";
+import { createSubtitleTaskExecutionBinding } from "./task-model-config";
+import { createSubtitleTranslatorTask } from "@/services/subtitle/subtitleTranslatorTaskFactory";
+import { releaseSubtitleTranslationTaskAuthority } from "@/services/subtitle/translatorExecutionService";
 
 // ---------------------------------------------------------------------------
 // Tool Executor — 工具执行函数（由 AI SDK tool() 的 execute 调用）
@@ -380,6 +377,13 @@ export async function executeApplyNameTranslationPlan(
 export async function executeQueueTranslate(
   args: QueueTranslateArgs
 ): Promise<ToolExecutionResult> {
+  if (containsLegacyAgentTranslateAuthority(args)) {
+    return {
+      success: false,
+      error:
+        "字幕翻译不接受 filePaths、scanId 或 outputDir。请通过 FusionKit 文件选择器重新授权。",
+    };
+  }
   const store = useSubtitleTranslatorStore.getState();
   const modelStore = useModelStore.getState();
   const taskProfile = modelStore.getTaskProfile();
@@ -391,15 +395,49 @@ export async function executeQueueTranslate(
     };
   }
 
-  let queued = 0;
-  const errors: string[] = [];
-  const selection = resolveQueueFileSelection(args);
-  if (!selection.ok) {
+  await flushPendingAgentTranslationRevocations();
+  const api = getSubtitleTranslationApi();
+  let directoryToken: string | undefined;
+  if (args.outputMode === "custom") {
+    const directorySelection = await api.selectOutputDirectory();
+    if (!directorySelection.ok) {
+      return {
+        success: false,
+        error: `无法授权字幕输出目录：${directorySelection.error.code}`,
+      };
+    }
+    if (directorySelection.data.cancelled) {
+      return {
+        success: false,
+        error: "已取消字幕输出目录选择，未创建翻译任务。",
+      };
+    }
+    directoryToken = directorySelection.data.directoryToken;
+  }
+
+  const selected = await api.selectAgentInputFiles();
+  if (!selected.ok) {
+    if (directoryToken) {
+      await scheduleAgentOutputDirectoryRevocation(directoryToken);
+    }
     return {
       success: false,
-      error: selection.error,
+      error: `无法授权字幕输入文件：${selected.error.code}`,
     };
   }
+  if (selected.data.cancelled) {
+    if (directoryToken) {
+      await scheduleAgentOutputDirectoryRevocation(directoryToken);
+    }
+    return {
+      success: false,
+      error: "已取消字幕文件选择，未创建翻译任务。",
+    };
+  }
+
+  const selection = selected.data;
+  let queued = 0;
+  const errors: string[] = [];
   const sliceConfig = resolveTranslationSliceConfig(
     args,
     getLatestUserMessageContent(),
@@ -409,62 +447,98 @@ export async function executeQueueTranslate(
   const translationOutputMode = (args.translationOutputMode ||
     "bilingual") as TranslationOutputMode;
 
-  for (let i = 0; i < selection.filePaths.length; i++) {
-    if (i > 0) await new Promise((r) => setTimeout(r, 0));
-    const filePath = selection.filePaths[i];
+  try {
+    for (let i = 0; i < selection.files.length; i++) {
+      if (i > 0) await new Promise((r) => setTimeout(r, 0));
+      const selectedFile = selection.files[i];
+      const inputContent = await api.readAgentInputFile({
+        selectionRef: selection.selectionRef,
+        itemRef: selectedFile.itemRef,
+      });
+      if (!inputContent.ok) {
+        errors.push(`Cannot read ${selectedFile.displayName}: ${inputContent.error.code}`);
+        continue;
+      }
+      if (inputContent.data.displayName !== selectedFile.displayName) {
+        errors.push(`Cannot read ${selectedFile.displayName}: selection_changed`);
+        continue;
+      }
+      const fileContent = inputContent.data.content;
+      const fileName = inputContent.data.displayName;
 
-    const fileContent = await readFileContent(filePath);
-    if (fileContent === null) {
-      errors.push(`Cannot read: ${filePath}`);
-      continue;
+      const fastEstimate = estimateSubtitleTokensFast(
+        fileContent,
+        sliceConfig.sliceType as SubtitleSliceType,
+        sliceConfig.customSliceLength,
+        taskProfile.provider,
+        taskProfile.tokenPricing,
+        { sourceLang, targetLang, translationOutputMode },
+      );
+
+      const task = createSubtitleTranslatorTask({
+        fileName,
+        fileContent,
+        sliceType: sliceConfig.sliceType as any,
+        customSliceLength: sliceConfig.customSliceLength,
+        status: TaskStatus.NOT_STARTED,
+        progress: 0,
+        costEstimate: fastEstimate,
+        executionBinding: createSubtitleTaskExecutionBinding(taskProfile),
+        sourceLang,
+        targetLang,
+        translationOutputMode,
+        conflictPolicy: args.conflictPolicy ?? "index",
+        concurrentSlices: args.concurrentSlices ?? true,
+      });
+      const registration = await api.registerAgentAuthorizedTask({
+        selectionRef: selection.selectionRef,
+        itemRef: selectedFile.itemRef,
+        taskId: task.taskId,
+        outputMode: args.outputMode,
+        outputFileName: fileName,
+        ...(directoryToken ? { directoryToken } : {}),
+      });
+      if (!registration.ok) {
+        errors.push(`Cannot authorize ${fileName}: ${registration.error.code}`);
+        continue;
+      }
+      const authorizedTask: SubtitleTranslatorTask = {
+        ...task,
+        taskReference: registration.data,
+      };
+      const addResult = store.addTask(authorizedTask);
+      if (!addResult.added) {
+        releaseSubtitleTranslationTaskAuthority(task.taskId);
+        continue;
+      }
+      queued++;
+
+      const capturedTaskId = task.taskId;
+      estimateSubtitleTokens(
+        fileContent,
+        sliceConfig.sliceType as SubtitleSliceType,
+        sliceConfig.customSliceLength,
+        taskProfile.provider,
+        taskProfile.tokenPricing,
+        { sourceLang, targetLang, translationOutputMode },
+      ).then((precise) => {
+        store.updateTaskCostEstimate(capturedTaskId, precise);
+      });
     }
-    const fileName = extractFileName(filePath);
-    const outputDir = resolveOutputDir(args.outputMode, args.outputDir, filePath);
-
-    const fastEstimate = estimateSubtitleTokensFast(
-      fileContent,
-      sliceConfig.sliceType as SubtitleSliceType,
-      sliceConfig.customSliceLength,
-      taskProfile.provider,
-      taskProfile.tokenPricing,
-      { sourceLang, targetLang, translationOutputMode },
-    );
-
-    store.addTask({
-      fileName,
-      fileContent,
-      sliceType: sliceConfig.sliceType as any,
-      customSliceLength: sliceConfig.customSliceLength,
-      originFileURL: filePath,
-      targetFileURL: outputDir,
-      status: TaskStatus.NOT_STARTED,
-      progress: 0,
-      costEstimate: fastEstimate,
-      ...createSubtitleTaskModelFields(taskProfile),
-      sourceLang,
-      targetLang,
-      translationOutputMode,
-      conflictPolicy: args.conflictPolicy ?? "index",
-      concurrentSlices: args.concurrentSlices ?? true,
-    });
-    queued++;
-
-    const capturedFileName = fileName;
-    estimateSubtitleTokens(
-      fileContent,
-      sliceConfig.sliceType as SubtitleSliceType,
-      sliceConfig.customSliceLength,
-      taskProfile.provider,
-      taskProfile.tokenPricing,
-      { sourceLang, targetLang, translationOutputMode },
-    ).then((precise) => {
-      store.updateTaskCostEstimate(capturedFileName, precise);
-    });
+  } finally {
+    await scheduleAgentSelectionRevocation(selection.selectionRef);
+    if (directoryToken) {
+      await scheduleAgentOutputDirectoryRevocation(directoryToken);
+    }
   }
 
   const result: ToolExecutionResult = {
     success: true,
-    data: createQueueResultData(selection, queued, errors),
+    data: {
+      queuedCount: queued,
+      totalFiles: selection.files.length,
+      ...(errors.length > 0 ? { errors } : {}),
+    },
   };
 
   return handlePostQueue("translate", queued, result);
@@ -587,102 +661,35 @@ export async function executeQueueExtract(
 export async function executeScanSubtitleRecoveryTasks(
   args: ScanSubtitleRecoveryTasksArgs,
 ): Promise<ToolExecutionResult> {
-  const roots: string[] = [...(args.roots ?? [])];
-
-  if (args.useCurrentOutputDir) {
-    const outputURL = useSubtitleTranslatorStore.getState().outputURL;
-    if (outputURL) {
-      roots.push(outputURL);
-    } else if (roots.length === 0 && !args.checkpointPaths?.length) {
-      return {
-        success: false,
-        error:
-          "当前字幕翻译输出目录为空，请提供要扫描的目录路径。",
-      };
-    }
-  }
-
-  const allCandidates: TranslationRecoveryCandidate[] = [];
-  const seenCheckpoints = new Set<string>();
-  const errors: string[] = [];
-
-  if (roots.length > 0) {
-    try {
-      const scanResult = await scanTranslationRecoveryArtifacts({
-        roots,
-        recursive: args.recursive,
-        maxDepth: args.maxDepth,
-        maxFiles: args.maxFiles,
-        includeCompleted: args.includeCompleted,
-      });
-      for (const c of scanResult.candidates) {
-        const key = c.checkpointPath.replace(/\\/g, "/");
-        if (!seenCheckpoints.has(key)) {
-          seenCheckpoints.add(key);
-          allCandidates.push(c);
-        }
-      }
-      for (const e of scanResult.errors) {
-        errors.push(`${e.path}: ${e.reason}`);
-      }
-    } catch (err: any) {
-      return {
-        success: false,
-        error: `Failed to scan recovery artifacts: ${err?.message || err}`,
-      };
-    }
-  }
-
-  if (args.checkpointPaths && args.checkpointPaths.length > 0) {
-    for (const cp of args.checkpointPaths) {
-      const key = cp.replace(/\\/g, "/");
-      if (seenCheckpoints.has(key)) continue;
-      try {
-        const candidate = await inspectTranslationRecoveryArtifact(cp);
-        seenCheckpoints.add(key);
-        allCandidates.push(candidate);
-      } catch (err: any) {
-        errors.push(`${cp}: ${err?.message || err}`);
-      }
-    }
-  }
-
-  if (roots.length === 0 && (!args.checkpointPaths || args.checkpointPaths.length === 0)) {
+  let payload;
+  try {
+    payload = args.selectionMode === "manifest"
+      ? await selectTranslationRecoveryManifest()
+      : await selectTranslationRecoveryDirectory(args.includeCompleted);
+  } catch (error) {
     return {
       success: false,
-      error:
-        "roots、checkpointPaths、useCurrentOutputDir 至少需要一个有效值。",
+      error: error instanceof Error ? error.message : String(error),
     };
   }
-
-  const scannedRoots = roots.length > 0 ? roots : args.checkpointPaths?.map(
-    (p) => p.replace(/\\/g, "/").split("/").slice(0, -1).join("/"),
-  ) ?? [];
-
-  const payload = createRecoveryScanResultPayload(allCandidates, scannedRoots);
+  if (payload.cancelled) {
+    return { success: false, error: "Recovery selection was cancelled." };
+  }
 
   useAgentStore.getState().appendLog(
     "subtitle_recovery_scan",
-    `Scanned ${allCandidates.length} candidates, ${payload.recoverableCount} recoverable`,
+    `Scanned ${payload.totalCount} candidates, ${payload.recoverableCount} recoverable`,
     {
       recoveryScanId: payload.recoveryScanId,
       totalCount: payload.totalCount,
       recoverableCount: payload.recoverableCount,
-      readyCount: payload.readyCount,
-      readyFromManifestCount: payload.readyFromManifestCount,
-      completedCount: payload.completedCount,
-      invalidCount: payload.invalidCount,
-      scannedRoots,
-      ...(errors.length > 0 ? { errors } : {}),
+      ...(payload.errors.length > 0 ? { errors: payload.errors } : {}),
     },
   );
 
   return {
     success: true,
-    data: {
-      ...payload,
-      ...(errors.length > 0 ? { errors } : {}),
-    },
+    data: payload,
   };
 }
 
@@ -703,97 +710,106 @@ export async function executeQueueRecoveredSubtitleTranslate(
     };
   }
 
-  const selection = resolveRecoveryCandidateSelection(args);
-
-  let candidatesToProcess: TranslationRecoveryCandidate[];
-
-  if (!selection.ok) {
-    return { success: false, error: selection.error };
-  }
-
-  if (selection.source === "checkpointPaths") {
-    candidatesToProcess = [];
-    for (const cp of args.checkpointPaths!) {
-      try {
-        const candidate = await inspectTranslationRecoveryArtifact(cp);
-        const recoverability = args.recoverability ?? "both";
-        const isRecoverable =
-          recoverability === "both"
-            ? candidate.recoverability === "ready" ||
-              candidate.recoverability === "ready_from_manifest"
-            : candidate.recoverability === recoverability;
-        if (isRecoverable) {
-          candidatesToProcess.push(candidate);
-        }
-      } catch {
-        /* skip unreadable checkpoints */
-      }
-    }
-  } else {
-    candidatesToProcess = selection.candidates;
-  }
-
+  await flushPendingAgentTranslationRevocations();
   let queuedCount = 0;
   let skippedCount = 0;
-  let readyCount = 0;
-  let readyFromManifestCount = 0;
-  const errors: string[] = [];
-  const tasks: SubtitleTranslatorTask[] = [];
-
-  for (let i = 0; i < candidatesToProcess.length; i++) {
-    if (i > 0) await new Promise((r) => setTimeout(r, 0));
-    const candidate = candidatesToProcess[i];
-
-    let recoveryInputMode: TranslationRecoveryInputMode;
-    if (candidate.recoverability === "ready") {
-      recoveryInputMode = "source_file";
-      readyCount++;
-    } else if (candidate.recoverability === "ready_from_manifest") {
-      recoveryInputMode = "manifest_fragments";
-      readyFromManifestCount++;
-    } else {
-      skippedCount++;
-      continue;
-    }
-
-    try {
-      const draft = await createRecoveredSubtitleTaskDraft({
-        checkpointPath: candidate.checkpointPath,
-        recoveryInputMode,
-      });
-
-      const task: SubtitleTranslatorTask = {
-        ...draft,
-        fileContent: draft.fileContent || "",
-        status: TaskStatus.NOT_STARTED,
-        ...createSubtitleTaskModelFields(taskProfile),
-        conflictPolicy: args.conflictPolicy ?? "index",
-        concurrentSlices: args.concurrentSlices ?? true,
-      };
-      tasks.push(task);
-    } catch (err: any) {
-      errors.push(`${candidate.checkpointPath}: ${err?.message || err}`);
-      skippedCount++;
+  const directory = await getSubtitleTranslationApi().selectOutputDirectory();
+  if (!directory.ok) return { success: false, error: directory.error.message };
+  if (directory.data.cancelled) {
+    return { success: false, error: "Recovery output selection was cancelled." };
+  }
+  const recoveryDirectoryToken = directory.data.directoryToken;
+  if (!recoveryDirectoryToken) {
+    return { success: false, error: "Recovery output authorization is unavailable." };
+  }
+  let prepared;
+  try {
+    prepared = await prepareRecoveredSubtitleTasks({
+      recoveryScanId: args.recoveryScanId,
+      directoryToken: recoveryDirectoryToken,
+      ...(args.candidateIds ? { candidateIds: args.candidateIds } : {}),
+      batchStart: args.batchStart,
+      batchSize: args.batchSize,
+    });
+  } catch (error) {
+    await scheduleAgentOutputDirectoryRevocation(
+      recoveryDirectoryToken,
+    );
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : String(error),
+    };
+  }
+  const tasks: SubtitleTranslatorTask[] = prepared.tasks.map((draft) => ({
+    taskId: draft.taskId,
+    fileName: draft.fileName,
+    fileContent: "",
+    sliceType: draft.sliceType as SubtitleTranslatorTask["sliceType"],
+    ...(draft.customSliceLength === undefined
+      ? {}
+      : { customSliceLength: draft.customSliceLength }),
+    status: TaskStatus.NOT_STARTED,
+    executionBinding: createSubtitleTaskExecutionBinding(taskProfile, {
+      thinkingEnabled: draft.thinkingEnabled,
+    }),
+    sourceLang: draft.sourceLang as SubtitleTranslatorTask["sourceLang"],
+    targetLang: draft.targetLang as SubtitleTranslatorTask["targetLang"],
+    translationOutputMode: draft.translationOutputMode,
+    resolvedFragments: draft.resolvedFragments,
+    totalFragments: draft.totalFragments,
+    progress: draft.progress,
+    ...(draft.actualUsage ? { actualUsage: draft.actualUsage } : {}),
+    conflictPolicy: args.conflictPolicy ?? "index",
+    concurrentSlices: args.concurrentSlices ?? true,
+    recoveryMode: "resume",
+    recoveryInputMode: "manifest_fragments",
+    checkpointRef: draft.checkpointRef,
+    recovery: {
+      checkpointRef: draft.checkpointRef,
+      resumable: true,
+      failedFragmentIndexes: draft.failedFragmentIndexes
+        ? [...draft.failedFragmentIndexes]
+        : undefined,
+      resolvedFragments: draft.resolvedFragments,
+      totalFragments: draft.totalFragments,
+    },
+    taskReference: draft.reference,
+  }));
+  const addResult = useSubtitleTranslatorStore.getState().addRecoveredTasks(tasks);
+  queuedCount = addResult.addedCount;
+  skippedCount = addResult.skippedCount;
+  const added = new Set(addResult.addedTaskIds);
+  for (const task of tasks) {
+    if (!added.has(task.taskId)) {
+      releaseSubtitleTranslationTaskAuthority(task.taskId);
     }
   }
-
-  if (tasks.length > 0) {
-    const addResult = useSubtitleTranslatorStore.getState().addRecoveredTasks(tasks);
-    queuedCount = addResult.addedCount;
-    skippedCount += addResult.skippedCount;
+  if (!prepared.hasMore) {
+    try {
+      await revokeTranslationRecoveryScan(args.recoveryScanId);
+    } catch {
+      // Scan authority is short-lived and task authority has already transferred.
+    }
   }
 
   const resultData: Record<string, unknown> = {
     queuedCount,
     skippedCount,
-    totalCandidates: candidatesToProcess.length,
-    readyCount,
-    readyFromManifestCount,
+    totalCandidates: prepared.totalCandidates,
+    readyCount: 0,
+    readyFromManifestCount: prepared.tasks.length,
     invalidCount: skippedCount,
-    sourceFileCount: readyCount,
-    manifestFragmentCount: readyFromManifestCount,
-    ...(selection.source === "scan" ? { batch: { ...selection.batch, queuedCount } } : {}),
-    ...(errors.length > 0 ? { errors } : {}),
+    sourceFileCount: 0,
+    manifestFragmentCount: prepared.tasks.length,
+    batch: {
+      recoveryScanId: args.recoveryScanId,
+      batchStart: prepared.batchStart,
+      batchEnd: prepared.batchEnd,
+      totalCandidates: prepared.totalCandidates,
+      hasMore: prepared.hasMore,
+      nextBatchStart: prepared.nextBatchStart,
+      queuedCount,
+    },
   };
 
   const result: ToolExecutionResult = {
@@ -807,11 +823,9 @@ export async function executeQueueRecoveredSubtitleTranslate(
     {
       queuedCount,
       skippedCount,
-      readyCount,
-      readyFromManifestCount,
-      ...(selection.source === "scan"
-        ? { recoveryScanId: selection.batch.recoveryScanId }
-        : {}),
+      readyCount: 0,
+      readyFromManifestCount: prepared.tasks.length,
+      recoveryScanId: args.recoveryScanId,
     },
   );
 
@@ -896,6 +910,69 @@ function getIpcRenderer(): Window["ipcRenderer"] {
     throw new Error("Electron IPC is not available in this environment.");
   }
   return window.ipcRenderer;
+}
+
+const pendingAgentSelectionRevocations = new Set<string>();
+const pendingAgentOutputDirectoryRevocations = new Set<string>();
+
+function containsLegacyAgentTranslateAuthority(value: unknown): boolean {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return true;
+  }
+  return ["filePaths", "scanId", "outputDir"].some((field) =>
+    Object.prototype.hasOwnProperty.call(value, field));
+}
+
+function getSubtitleTranslationApi(): Window["subtitleTranslationApi"] {
+  if (typeof window === "undefined" || !window.subtitleTranslationApi) {
+    throw new Error("Subtitle translation authorization is unavailable.");
+  }
+  return window.subtitleTranslationApi;
+}
+
+async function scheduleAgentSelectionRevocation(
+  selectionRef: string,
+): Promise<void> {
+  pendingAgentSelectionRevocations.add(selectionRef);
+  await flushPendingAgentTranslationRevocations();
+}
+
+async function scheduleAgentOutputDirectoryRevocation(
+  directoryToken: string,
+): Promise<void> {
+  pendingAgentOutputDirectoryRevocations.add(directoryToken);
+  await flushPendingAgentTranslationRevocations();
+}
+
+async function flushPendingAgentTranslationRevocations(): Promise<void> {
+  const api = getSubtitleTranslationApi();
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    for (const selectionRef of [...pendingAgentSelectionRevocations]) {
+      try {
+        const result = await api.revokeAgentInputSelection(selectionRef);
+        if (result.ok) pendingAgentSelectionRevocations.delete(selectionRef);
+      } catch {
+        // Retain the opaque ref for the next bounded flush.
+      }
+    }
+    for (const directoryToken of [...pendingAgentOutputDirectoryRevocations]) {
+      try {
+        const result = await api.revokeOutputDirectory(directoryToken);
+        if (result.ok) {
+          pendingAgentOutputDirectoryRevocations.delete(directoryToken);
+        }
+      } catch {
+        // Retain the opaque token for the next bounded flush.
+      }
+    }
+    if (
+      pendingAgentSelectionRevocations.size === 0 &&
+      pendingAgentOutputDirectoryRevocations.size === 0
+    ) {
+      return;
+    }
+    await Promise.resolve();
+  }
 }
 
 function enrichInspectedRenamePath(path: InspectedRenamePath) {

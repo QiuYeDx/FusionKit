@@ -19,6 +19,7 @@
     "subtitle_translator": "AI Translation",
     "subtitle_formatter": "Format Conversion",
     "subtitle_language_extractor": "Language Extraction",
+    "local_subtitle_transcriber": "Local Subtitle Transcriber",
     "name_translator": "Name Translator",
     "text_translator": "Long Text Translator",
     "audio_transcriber": "Audio to Text",
@@ -30,6 +31,7 @@
     "subtitle_translator": "Translate subtitle files with AI models",
     "subtitle_formatter": "Convert subtitle formats (SRT, ASS, etc.)",
     "subtitle_language_extractor": "Extract a specific language from bilingual subtitles",
+    "local_subtitle_transcriber": "Batch transcribe audio or video into SRT / LRC subtitles with an on-device model",
     "name_translator": "Batch translate file and folder names with a safe preview before renaming",
     "text_translator": "Translate long TXT / Markdown files in a resumable workspace with model execution",
     "audio_transcriber": "Transcribe local audio files with the global ASR configuration",
@@ -49,7 +51,9 @@
     "microphone": "Microphone",
     "realtime": "Realtime",
     "webrtc": "WebRTC",
-    "duplex": "Duplex"
+    "duplex": "Duplex",
+    "local_offline": "Offline transcription",
+    "local_batch_formats": "Batch · SRT/LRC"
   },
   "coming_soon": {
     "title": "Coming Soon",

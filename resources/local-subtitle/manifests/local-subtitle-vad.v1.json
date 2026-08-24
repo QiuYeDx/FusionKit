@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "engine": {
+    "id": "whisper.cpp",
+    "version": "v1.9.1",
+    "commit": "f049fff95a089aa9969deb009cdd4892b3e74916"
+  },
+  "vad": {
+    "id": "silero-vad-v6.2.0-ggml",
+    "resourceType": "vad",
+    "fileName": "for-tests-silero-v6.2.0-ggml.bin",
+    "format": "ggml",
+    "engineCompatibility": "whisper.cpp-v1.9.1",
+    "sourceRevision": "f049fff95a089aa9969deb009cdd4892b3e74916",
+    "downloadUrl": "https://raw.githubusercontent.com/ggml-org/whisper.cpp/f049fff95a089aa9969deb009cdd4892b3e74916/models/for-tests-silero-v6.2.0-ggml.bin",
+    "allowedDownloadHosts": [
+      "raw.githubusercontent.com"
+    ],
+    "byteSize": 885098,
+    "sha256": "2aa269b785eeb53a82983a20501ddf7c1d9c48e33ab63a41391ac6c9f7fb6987",
+    "license": "MIT",
+    "bundledInInstaller": false,
+    "defaultEnabled": true,
+    "tokenTimestampsAllowed": false,
+    "timelinePolicy": "mapped_segment_timestamps_only"
+  }
+}

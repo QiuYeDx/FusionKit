@@ -6,12 +6,22 @@ import type {
   AudioIpcResult,
   AudioRendererApi,
   AudioOutputDirectorySelection,
+  AudioInputSelectionSource,
   AuthorizedAudioInputFile,
   RevokeAudioInputFileResult,
   RevokeAudioOutputDirectoryResult,
   SelectAudioOutputDirectoryRequest,
 } from '@/type/audioIpc'
 import { isPublicAudioIpcChannel } from './audio-channel-policy'
+import { assertLegacyLocalSubtitleChannelAllowed } from './local-subtitle-channel-policy'
+import { createLocalSubtitleRendererApi } from './local-subtitle-api'
+import { LOCAL_SUBTITLE_PRELOAD_INTERNAL_CHANNELS } from '@/type/localSubtitleIpc'
+import { createSafeLegacyIpcBridge } from './legacy-ipc-bridge'
+import { assertLegacySubtitleTranslationChannelAllowed } from './subtitle-translation-channel-policy'
+import { createSubtitleTranslationRendererApi } from './subtitle-translation-api'
+import { SUBTITLE_TRANSLATION_PRELOAD_INTERNAL_CHANNELS } from '@/type/subtitleTranslationIpc'
+import { createNativeFileSelectionRendererApi } from './native-file-selection-api'
+import { assertLegacyNativeFileSelectionChannelAllowed } from './native-file-selection-channel-policy'
 
 const AUDIO_CHANNEL_PREFIX = 'audio:'
 const AUDIO_REGISTER_CAPABILITY_CHANNEL =
@@ -31,8 +41,19 @@ const audioCapabilityRegistered = ipcRenderer.sendSync(
   AUDIO_REGISTER_CAPABILITY_CHANNEL,
   audioPreloadCapability,
 ) === true
+const localSubtitleOwnerSessionRegistration = ipcRenderer.sendSync(
+  LOCAL_SUBTITLE_PRELOAD_INTERNAL_CHANNELS.registerOwnerSession,
+  {},
+)
+const subtitleTranslationOwnerSessionRegistration = ipcRenderer.sendSync(
+  SUBTITLE_TRANSLATION_PRELOAD_INTERNAL_CHANNELS.registerOwnerSession,
+  {},
+)
 
 const assertLegacyIpcChannelAllowed = (channel: string) => {
+  assertLegacyLocalSubtitleChannelAllowed(channel)
+  assertLegacySubtitleTranslationChannelAllowed(channel)
+  assertLegacyNativeFileSelectionChannelAllowed(channel)
   if (channel.startsWith(AUDIO_CHANNEL_PREFIX)) {
     throw new Error(
       'Audio IPC is restricted. Use the preload audioApi capability instead.',
@@ -40,42 +61,26 @@ const assertLegacyIpcChannelAllowed = (channel: string) => {
   }
 }
 
-// --------- Expose some API to the Renderer process ---------
-contextBridge.exposeInMainWorld('ipcRenderer', {
-  on(...args: Parameters<typeof ipcRenderer.on>) {
-    const [channel, listener] = args
-    if (
-      channel.startsWith(AUDIO_CHANNEL_PREFIX) &&
-      !AUDIO_EVENT_CHANNELS.has(channel as AudioEventChannel)
-    ) {
-      assertLegacyIpcChannelAllowed(channel)
-    }
-    return ipcRenderer.on(channel, (event, ...args) => listener(event, ...args))
-  },
-  off(...args: Parameters<typeof ipcRenderer.off>) {
-    const [channel, ...omit] = args
-    if (
-      channel.startsWith(AUDIO_CHANNEL_PREFIX) &&
-      !AUDIO_EVENT_CHANNELS.has(channel as AudioEventChannel)
-    ) {
-      assertLegacyIpcChannelAllowed(channel)
-    }
-    return ipcRenderer.off(channel, ...omit)
-  },
-  send(...args: Parameters<typeof ipcRenderer.send>) {
-    const [channel, ...omit] = args
+const assertLegacyListenChannelAllowed = (channel: string) => {
+  assertLegacyLocalSubtitleChannelAllowed(channel)
+  assertLegacySubtitleTranslationChannelAllowed(channel)
+  if (
+    channel.startsWith(AUDIO_CHANNEL_PREFIX) &&
+    !AUDIO_EVENT_CHANNELS.has(channel as AudioEventChannel)
+  ) {
     assertLegacyIpcChannelAllowed(channel)
-    return ipcRenderer.send(channel, ...omit)
-  },
-  invoke(...args: Parameters<typeof ipcRenderer.invoke>) {
-    const [channel, ...omit] = args
-    assertLegacyIpcChannelAllowed(channel)
-    return ipcRenderer.invoke(channel, ...omit)
-  },
+  }
+}
 
-  // You can expose other APTs you need here.
-  // ...
-})
+// --------- Expose some API to the Renderer process ---------
+contextBridge.exposeInMainWorld(
+  'ipcRenderer',
+  createSafeLegacyIpcBridge({
+    ipcRenderer,
+    assertListenChannelAllowed: assertLegacyListenChannelAllowed,
+    assertCommandChannelAllowed: assertLegacyIpcChannelAllowed,
+  }),
+)
 
 const audioEventListeners = new Map<
   AudioEventChannel,
@@ -130,7 +135,7 @@ const audioApi: AudioRendererApi = {
   ) {
     return secureAudioInvoke<TResponse>(channel, payload, options)
   },
-  authorizeInputFile(file: File) {
+  authorizeInputFile(file: File, source: AudioInputSelectionSource = 'picker') {
     let filePath = ''
     try {
       filePath = webUtils.getPathForFile(file)
@@ -152,6 +157,7 @@ const audioApi: AudioRendererApi = {
       {
         filePath,
         mimeType: file.type,
+        source,
       },
     )
   },
@@ -199,12 +205,31 @@ const audioApi: AudioRendererApi = {
 
 contextBridge.exposeInMainWorld('audioApi', audioApi)
 
+contextBridge.exposeInMainWorld(
+  'localSubtitleApi',
+  createLocalSubtitleRendererApi({
+    ipcRenderer,
+    webUtils,
+    ownerSessionRegistration: localSubtitleOwnerSessionRegistration,
+  }),
+)
+
+contextBridge.exposeInMainWorld(
+  'subtitleTranslationApi',
+  createSubtitleTranslationRendererApi({
+    ipcRenderer,
+    webUtils,
+    ownerSessionRegistration: subtitleTranslationOwnerSessionRegistration,
+  }),
+)
+
 // --------- Expose webUtils API for file path access ---------
 // From Electron 24+, use webUtils.getPathForFile() instead of File.path
 contextBridge.exposeInMainWorld('electronUtils', {
   getPathForFile(file: File): string {
     return webUtils.getPathForFile(file)
   },
+  ...createNativeFileSelectionRendererApi({ ipcRenderer, webUtils }),
 })
 
 // --------- Preload scripts loading ---------

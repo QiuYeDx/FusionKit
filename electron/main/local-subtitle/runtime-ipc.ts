@@ -1,0 +1,349 @@
+import {
+  LOCAL_SUBTITLE_BACKENDS,
+  LOCAL_SUBTITLE_CONFLICT_POLICIES,
+  LOCAL_SUBTITLE_DOMAIN_SCHEMA_VERSION,
+  type LocalSubtitleBackend,
+  type LocalSubtitleConflictPolicy,
+  type LocalSubtitleErrorCode,
+} from "@/type/localSubtitle";
+import {
+  LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS,
+  localSubtitleIpcSuccess,
+  type LocalSubtitleRuntimeSummary,
+} from "@/type/localSubtitleIpc";
+import {
+  isLocalSubtitleVerifiedAcceleratorPack,
+  type LocalSubtitleVerifiedAcceleratorPack,
+} from "./accelerator-manager";
+import type {
+  LocalSubtitleIpcHandlerContext,
+  LocalSubtitleIpcHandlers,
+} from "./ipc";
+import { LocalSubtitleMediaError } from "./media-normalizer";
+import {
+  loadLocalSubtitleRuntimeManifest,
+  selectLocalSubtitleCpuServerArtifactId,
+  verifyLocalSubtitleRuntimeBundle,
+  type LocalSubtitleLoadedRuntimeManifest,
+  type LocalSubtitleResourceEnvironment,
+  type LocalSubtitleVerifiedRuntimeBundle,
+} from "./resource-path";
+import { LocalSubtitleResourceError } from "./resource-manifest";
+
+type RuntimeComponentSummary = LocalSubtitleRuntimeSummary["runner"];
+type BackendSummary = LocalSubtitleRuntimeSummary["backends"][number];
+
+export interface LocalSubtitleRuntimeIpcBridgeOptions {
+  readonly environment: LocalSubtitleResourceEnvironment;
+  readonly mediaRuntimeVerifier: {
+    verifyRuntime(options: {
+      readonly owner: LocalSubtitleIpcHandlerContext["owner"];
+      readonly signal?: AbortSignal;
+    }): Promise<{ readonly runtimeGeneration: string }>;
+  };
+  readonly supportedGpuBackends?: readonly Exclude<LocalSubtitleBackend, "cpu">[];
+  readonly supportedOutputConflictPolicies?: readonly LocalSubtitleConflictPolicy[];
+  readonly resolveCudaAccelerator?: (
+    signal?: AbortSignal,
+  ) => Promise<LocalSubtitleVerifiedAcceleratorPack>;
+  readonly loadRuntimeManifest?: (
+    environment: LocalSubtitleResourceEnvironment,
+  ) => Promise<LocalSubtitleLoadedRuntimeManifest>;
+  readonly verifyServerRuntime?: () => Promise<LocalSubtitleVerifiedRuntimeBundle>;
+}
+
+export class LocalSubtitleRuntimeIpcBridge {
+  readonly handlers: LocalSubtitleIpcHandlers;
+  // React StrictMode and rapid refreshes can issue the same read-only probe twice.
+  // Share only in-flight work; settled probes are removed so rechecks stay fresh.
+  readonly #inFlightProbes = new Map<
+    string,
+    Promise<LocalSubtitleRuntimeSummary>
+  >();
+  readonly #environment: LocalSubtitleResourceEnvironment;
+  readonly #verifyMediaRuntime: LocalSubtitleRuntimeIpcBridgeOptions["mediaRuntimeVerifier"]["verifyRuntime"];
+  readonly #supportedGpuBackends: ReadonlySet<Exclude<LocalSubtitleBackend, "cpu">>;
+  readonly #supportedOutputConflictPolicies: readonly LocalSubtitleConflictPolicy[];
+  readonly #resolveCudaAccelerator:
+    | LocalSubtitleRuntimeIpcBridgeOptions["resolveCudaAccelerator"]
+    | undefined;
+  readonly #loadRuntimeManifest: NonNullable<
+    LocalSubtitleRuntimeIpcBridgeOptions["loadRuntimeManifest"]
+  >;
+  readonly #verifyServerRuntime: NonNullable<
+    LocalSubtitleRuntimeIpcBridgeOptions["verifyServerRuntime"]
+  >;
+
+  constructor(options: LocalSubtitleRuntimeIpcBridgeOptions) {
+    if (
+      !options?.environment ||
+      typeof options.mediaRuntimeVerifier?.verifyRuntime !== "function"
+    ) {
+      throw new TypeError("The local subtitle runtime IPC options are invalid.");
+    }
+    const supportedGpuBackends = options.supportedGpuBackends ?? [];
+    if (
+      !Array.isArray(supportedGpuBackends) ||
+      supportedGpuBackends.some(
+        (backend) => backend !== "metal" && backend !== "cuda",
+      )
+    ) {
+      throw new TypeError("The local subtitle runtime GPU capabilities are invalid.");
+    }
+    if (
+      options.resolveCudaAccelerator !== undefined &&
+      typeof options.resolveCudaAccelerator !== "function"
+    ) {
+      throw new TypeError("The local subtitle CUDA accelerator resolver is invalid.");
+    }
+    this.#environment = options.environment;
+    this.#verifyMediaRuntime = options.mediaRuntimeVerifier.verifyRuntime.bind(
+      options.mediaRuntimeVerifier,
+    );
+    this.#supportedGpuBackends = new Set(supportedGpuBackends);
+    this.#supportedOutputConflictPolicies = validateOutputConflictPolicies(
+      options.supportedOutputConflictPolicies ?? ["index"],
+    );
+    this.#resolveCudaAccelerator = options.resolveCudaAccelerator;
+    this.#loadRuntimeManifest = options.loadRuntimeManifest ??
+      loadLocalSubtitleRuntimeManifest;
+    this.#verifyServerRuntime = options.verifyServerRuntime ?? (() =>
+      verifyLocalSubtitleRuntimeBundle({
+        environment: this.#environment,
+        scope: "server",
+      }));
+    this.handlers = Object.freeze({
+      public: Object.freeze({
+        [LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.probeRuntime]: async (
+          _request: unknown,
+          context: LocalSubtitleIpcHandlerContext,
+        ) => localSubtitleIpcSuccess(await this.#probeShared(context)),
+      }),
+    });
+  }
+
+  async #probeShared(
+    context: LocalSubtitleIpcHandlerContext,
+  ): Promise<LocalSubtitleRuntimeSummary> {
+    throwIfAborted(context.signal);
+    const key = runtimeProbeOwnerKey(context);
+    const existing = this.#inFlightProbes.get(key);
+    if (existing) return existing;
+
+    let shared!: Promise<LocalSubtitleRuntimeSummary>;
+    shared = this.#probe(context).finally(() => {
+      if (this.#inFlightProbes.get(key) === shared) {
+        this.#inFlightProbes.delete(key);
+      }
+    });
+    this.#inFlightProbes.set(key, shared);
+    return shared;
+  }
+
+  async #probe(
+    context: LocalSubtitleIpcHandlerContext,
+  ): Promise<LocalSubtitleRuntimeSummary> {
+    const loaded = await this.#loadRuntimeManifest(this.#environment);
+    const runtimeGeneration = loaded.manifestSha256;
+    const [serverResult, mediaResult, cudaResult] = await Promise.allSettled([
+      this.#verifyServerRuntime(),
+      this.#verifyMediaRuntime({
+        owner: context.owner,
+        signal: context.signal,
+      }),
+      this.#supportedGpuBackends.has("cuda") && this.#resolveCudaAccelerator
+        ? this.#resolveCudaAccelerator(context.signal)
+        : Promise.resolve(undefined),
+    ] as const);
+    throwIfAborted(context.signal);
+
+    const runner = serverResult.status === "fulfilled"
+      ? runnerSummary(serverResult.value, runtimeGeneration)
+      : componentFailure(serverResult.reason, "runner");
+    const mediaRuntime = mediaResult.status === "fulfilled"
+      ? mediaSummary(loaded, mediaResult.value.runtimeGeneration, runtimeGeneration)
+      : componentFailure(mediaResult.reason, "media");
+
+    return Object.freeze({
+      schemaVersion: LOCAL_SUBTITLE_DOMAIN_SCHEMA_VERSION,
+      platform: loaded.manifest.target.platform,
+      arch: loaded.manifest.target.arch,
+      runtimeGeneration,
+      runner,
+      mediaRuntime,
+      supportedOutputConflictPolicies: [
+        ...this.#supportedOutputConflictPolicies,
+      ],
+      backends: LOCAL_SUBTITLE_BACKENDS.map((backend) =>
+        this.#backendSummary(backend, loaded, runner, cudaResult),
+      ),
+    });
+  }
+
+  #backendSummary(
+    backend: LocalSubtitleBackend,
+    loaded: LocalSubtitleLoadedRuntimeManifest,
+    runner: RuntimeComponentSummary,
+    cudaResult: PromiseSettledResult<
+      LocalSubtitleVerifiedAcceleratorPack | undefined
+    >,
+  ): BackendSummary {
+    if (runner.status !== "ready") {
+      return Object.freeze({
+        backend,
+        status: "unavailable" as const,
+        errorCode: runner.errorCode ?? "runtime_protocol_mismatch",
+      });
+    }
+    if (backend === "cpu") {
+      return Object.freeze({ backend, status: "available" as const });
+    }
+    if (backend === "metal") {
+      const serverSupportsMetal = loaded.manifest.artifacts.some(
+        (artifact) => artifact.kind === "server" && artifact.backend === "metal_cpu",
+      );
+      return this.#supportedGpuBackends.has("metal") && serverSupportsMetal
+        ? Object.freeze({ backend, status: "available" as const })
+        : Object.freeze({
+            backend,
+            status: "unavailable" as const,
+            errorCode: "accelerator_unavailable" as const,
+          });
+    }
+    if (!this.#supportedGpuBackends.has("cuda")) {
+      return Object.freeze({
+        backend,
+        status: "unavailable" as const,
+        errorCode: "accelerator_unavailable" as const,
+      });
+    }
+    if (
+      cudaResult.status === "fulfilled" &&
+      isLocalSubtitleVerifiedAcceleratorPack(cudaResult.value) &&
+      cudaResult.value.target.platform === loaded.manifest.target.platform &&
+      cudaResult.value.target.arch === loaded.manifest.target.arch &&
+      cudaResult.value.target.backend === "cuda"
+    ) {
+      return Object.freeze({ backend, status: "available" as const });
+    }
+    return Object.freeze({
+      backend,
+      status: "unverified" as const,
+      errorCode: "backend_unverified" as const,
+    });
+  }
+}
+
+function validateOutputConflictPolicies(
+  policies: readonly LocalSubtitleConflictPolicy[],
+): readonly LocalSubtitleConflictPolicy[] {
+  if (
+    !Array.isArray(policies) ||
+    policies.length < 1 ||
+    policies.length > LOCAL_SUBTITLE_CONFLICT_POLICIES.length ||
+    policies[0] !== "index" ||
+    new Set(policies).size !== policies.length ||
+    policies.some((policy) =>
+      !(LOCAL_SUBTITLE_CONFLICT_POLICIES as readonly string[]).includes(policy)
+    )
+  ) {
+    throw new TypeError("The local subtitle output conflict policy set is invalid.");
+  }
+  return Object.freeze([...policies]);
+}
+
+function runtimeProbeOwnerKey(
+  context: LocalSubtitleIpcHandlerContext,
+): string {
+  return JSON.stringify([
+    context.owner.webContentsId,
+    context.owner.ownerSessionId,
+    context.ownerIdentity.senderId,
+    context.ownerIdentity.processId,
+    context.ownerIdentity.frameId,
+  ]);
+}
+
+function runnerSummary(
+  runtime: LocalSubtitleVerifiedRuntimeBundle,
+  runtimeGeneration: string,
+): RuntimeComponentSummary {
+  if (runtime.runtimeGeneration !== runtimeGeneration) {
+    return Object.freeze({
+      status: "invalid" as const,
+      errorCode: "runtime_protocol_mismatch" as const,
+    });
+  }
+  const artifact = runtime.artifactPaths[
+    selectLocalSubtitleCpuServerArtifactId(runtime)
+  ];
+  if (!artifact) {
+    return Object.freeze({
+      status: "missing" as const,
+      errorCode: "runtime_missing" as const,
+    });
+  }
+  return Object.freeze({ status: "ready" as const, version: artifact.version });
+}
+
+function mediaSummary(
+  loaded: LocalSubtitleLoadedRuntimeManifest,
+  verifiedGeneration: string,
+  runtimeGeneration: string,
+): RuntimeComponentSummary {
+  if (verifiedGeneration !== runtimeGeneration) {
+    return Object.freeze({
+      status: "invalid" as const,
+      errorCode: "media_runtime_invalid" as const,
+    });
+  }
+  const artifact = loaded.manifest.artifacts.find(
+    (candidate) => candidate.kind === "ffmpeg",
+  );
+  if (!artifact) {
+    return Object.freeze({
+      status: "missing" as const,
+      errorCode: "media_runtime_missing" as const,
+    });
+  }
+  return Object.freeze({ status: "ready" as const, version: artifact.version });
+}
+
+function componentFailure(
+  error: unknown,
+  component: "runner" | "media",
+): RuntimeComponentSummary {
+  const code = componentErrorCode(error, component);
+  return Object.freeze({
+    status: componentStatus(code),
+    errorCode: code,
+  });
+}
+
+function componentErrorCode(
+  error: unknown,
+  component: "runner" | "media",
+): LocalSubtitleErrorCode {
+  if (error instanceof LocalSubtitleResourceError) return error.code;
+  if (error instanceof LocalSubtitleMediaError) {
+    if (error.localSubtitleCode === "owner_released") throw error;
+    return error.localSubtitleCode;
+  }
+  throw error;
+}
+
+function componentStatus(
+  code: LocalSubtitleErrorCode,
+): RuntimeComponentSummary["status"] {
+  if (code === "runtime_missing" || code === "media_runtime_missing") {
+    return "missing";
+  }
+  if (code === "media_runtime_launch_failed") return "launch_failed";
+  return "invalid";
+}
+
+function throwIfAborted(signal: AbortSignal): void {
+  if (signal.aborted) {
+    throw signal.reason ?? new DOMException("Aborted", "AbortError");
+  }
+}

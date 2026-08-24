@@ -11,13 +11,9 @@
  */
 
 import { encode } from "gpt-tokenizer";
-import { SubtitleTranslatorTask } from "../typing";
 import { BaseTranslator } from "./base-translator";
 import { getLanguageName } from "../constants";
-import type {
-  ModelRuntimeTextResult,
-  ModelRuntimeUsage,
-} from "../../ai/model-runtime-client";
+import type { ModelRuntimeTextResult } from "../../ai/model-runtime-client";
 
 type TranslatorConfig = {
   apiKey: string;
@@ -28,15 +24,9 @@ type TranslatorConfig = {
 
 export class SRTTranslator extends BaseTranslator {
   private apiModel: string;
-  private costPerInput: number;
-  private costPerOutput: number;
-  private totalCost = 0;
-
   constructor(private config: TranslatorConfig) {
     super();
     this.apiModel = config.apiModel || "gpt-3.5-turbo";
-    this.costPerInput = config.costRates?.input ?? 0.0015;
-    this.costPerOutput = config.costRates?.output ?? 0.002;
   }
 
   /**
@@ -121,7 +111,6 @@ export class SRTTranslator extends BaseTranslator {
 
   protected async parseResponse(response: ModelRuntimeTextResult): Promise<string> {
     const translated = response.content;
-    this.totalCost += this.calculateCost(response.usage);
     return this.postProcess(translated);
   }
 
@@ -130,23 +119,8 @@ export class SRTTranslator extends BaseTranslator {
     return new Error(`翻译错误: ${String(error)}`);
   }
 
-  /** 覆盖父类 translate，在翻译完成后执行 SRT 特有的收尾逻辑 */
-  async translate(task: SubtitleTranslatorTask, signal?: AbortSignal) {
-    await super.translate(task, signal);
-    task.progress = 100;
-    this.finalizeTranslation(task);
-  }
-
   private countTokens(text: string): number {
     return encode(text).length;
-  }
-
-  private calculateCost(usage: ModelRuntimeUsage | undefined): number {
-    if (!usage) return 0;
-    return (
-      ((usage.inputTokens ?? 0) * this.costPerInput) / 1000 +
-      ((usage.outputTokens ?? 0) * this.costPerOutput) / 1000
-    );
   }
 
   /**
@@ -159,7 +133,4 @@ export class SRTTranslator extends BaseTranslator {
     return content;
   }
 
-  private finalizeTranslation(task: SubtitleTranslatorTask) {
-    console.log(` 翻译完成，总费用：$${this.totalCost.toFixed(2)}`);
-  }
 }

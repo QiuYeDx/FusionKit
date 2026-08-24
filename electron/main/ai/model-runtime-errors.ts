@@ -1,4 +1,5 @@
 import type { ModelApiFormat } from "@/type/model";
+import type { ModelRuntimeUsage } from "./model-runtime-client";
 
 export type ModelRuntimeErrorCode =
   | "aborted"
@@ -6,6 +7,7 @@ export type ModelRuntimeErrorCode =
   | "request_timeout"
   | "http_rate_limited"
   | "http_retryable"
+  | "provider_retryable"
   | "http_unauthorized"
   | "http_forbidden"
   | "http_non_retryable"
@@ -19,6 +21,9 @@ export interface ModelRuntimeErrorDetails {
   retryAfterMs?: number;
   attempt?: number;
   apiFormat?: ModelApiFormat;
+  usage?: ModelRuntimeUsage;
+  providerCode?: string;
+  providerType?: string;
 }
 
 export class ModelRuntimeClientError extends Error {

@@ -1,0 +1,76 @@
+{
+  "schemaVersion": 1,
+  "component": "local-subtitle-overwrite",
+  "developmentRuntimeRoot": "build/local-subtitle-resources/local-subtitle",
+  "packagedRuntimeRoot": "local-subtitle",
+  "stagingSubtree": "overwrite/v1",
+  "manifestRelativePath": "overwrite/v1/local-subtitle-overwrite.v1.json",
+  "buildReceiptRelativePath": "build-receipt.v1.json",
+  "artifactLeafPattern": "local-subtitle-overwrite.<sha256>.node",
+  "targets": [
+    {
+      "id": "darwin-arm64",
+      "platform": "darwin",
+      "arch": "arm64",
+      "compatibility": {
+        "napiVersion": 8,
+        "nativeProtocolVersion": 4,
+        "journalVersion": 3
+      },
+      "build": {
+        "recipe": "scripts/local-subtitle/overwrite-native/build-addon-macos-arm64.mjs",
+        "source": "native/local-subtitle-overwrite/src/addon.cc",
+        "cxxStandard": "c++17",
+        "deploymentTarget": "11.0"
+      },
+      "artifact": {
+        "relativeDirectory": "native/darwin-arm64",
+        "format": "mach-o",
+        "architecture": "arm64",
+        "minimumOsVersion": "11.0.0",
+        "requiresLoadCommandUuid": true
+      },
+      "integrity": {
+        "algorithm": "sha256",
+        "binaryHashPhase": "after_nested_code_signing_before_outer_bundle_signing",
+        "allowedSignatureKinds": [
+          "adhoc",
+          "developer_id"
+        ]
+      }
+    },
+    {
+      "id": "win32-x64",
+      "platform": "win32",
+      "arch": "x64",
+      "compatibility": {
+        "napiVersion": 8,
+        "nativeProtocolVersion": 4,
+        "journalVersion": 3
+      },
+      "build": {
+        "recipe": "scripts/local-subtitle/overwrite-native/build-addon-windows-x64.mjs",
+        "source": "native/local-subtitle-overwrite/src/addon-win32.cc",
+        "delayLoadHook": "native/local-subtitle-overwrite/src/win-delay-load-hook.cc",
+        "nodeImportMode": "delay-load-current-host",
+        "delayedHostBinary": "node.exe",
+        "cxxStandard": "c++17",
+        "minimumWindowsVersion": "10.0"
+      },
+      "artifact": {
+        "relativeDirectory": "native/win32-x64",
+        "format": "pe",
+        "architecture": "x64",
+        "minimumOsVersion": null,
+        "requiresLoadCommandUuid": false
+      },
+      "integrity": {
+        "algorithm": "sha256",
+        "binaryHashPhase": "unsigned_final_bytes_before_outer_packaging",
+        "allowedSignatureKinds": [
+          "unsigned"
+        ]
+      }
+    }
+  ]
+}

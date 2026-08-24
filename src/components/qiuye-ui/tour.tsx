@@ -15,7 +15,7 @@ import {
   motion,
   useReducedMotion,
 } from "motion/react";
-import { ChevronLeft, ChevronRight, X } from "lucide-react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -1433,14 +1433,11 @@ export function Tour({
                       variant="ghost"
                       size="sm"
                       className={cn(
-                        "h-8 text-muted-foreground cursor-pointer",
-                        isCompactFooter
-                          ? "gap-1 px-1.5 text-xs"
-                          : "gap-1.5 px-2",
+                        "h-7 cursor-pointer px-2 text-muted-foreground",
+                        isCompactFooter && "text-xs",
                       )}
                       onClick={skip}
                     >
-                      <X className="size-3.5" />
                       Skip
                     </Button>
 
@@ -1455,10 +1452,10 @@ export function Tour({
                         variant="outline"
                         size="sm"
                         className={cn(
-                          "h-8 cursor-pointer",
+                          "h-7 cursor-pointer",
                           isCompactFooter
-                            ? "gap-1 px-2 text-xs"
-                            : "gap-1.5 px-2.5",
+                            ? "gap-1 pl-1.5 pr-2.5 text-xs has-[>svg]:pl-1.5 has-[>svg]:pr-2.5"
+                            : "gap-1.5 pl-2 pr-3 has-[>svg]:pl-2 has-[>svg]:pr-3",
                         )}
                         disabled={isFirstStep}
                         onClick={previous}
@@ -1470,10 +1467,15 @@ export function Tour({
                         type="button"
                         size="sm"
                         className={cn(
-                          "h-8 cursor-pointer",
-                          isCompactFooter
-                            ? "gap-1 px-2 text-xs"
-                            : "gap-1.5 px-3",
+                          "h-7 cursor-pointer",
+                          isCompactFooter && "text-xs",
+                          isLastStep
+                            ? isCompactFooter
+                              ? "px-2.5"
+                              : "px-3.5"
+                            : isCompactFooter
+                              ? "gap-1 pl-2.5 pr-1.5 has-[>svg]:pl-2.5 has-[>svg]:pr-1.5"
+                              : "gap-1.5 pl-3 pr-2 has-[>svg]:pl-3 has-[>svg]:pr-2",
                         )}
                         onClick={next}
                       >

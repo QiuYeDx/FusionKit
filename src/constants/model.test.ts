@@ -52,11 +52,18 @@ describe("model presets and context windows", () => {
       outputTokensPerMillion: 4.5,
     });
     expect(
+      DEEPSEEK_MODEL_OPTIONS.find((option) => option.value === "deepseek-v4-flash")
+        ?.pricing,
+    ).toEqual({
+      inputTokensPerMillion: 0.44,
+      outputTokensPerMillion: 1.32,
+    });
+    expect(
       DEEPSEEK_MODEL_OPTIONS.find((option) => option.value === "deepseek-v4-pro")
         ?.pricing,
     ).toEqual({
-      inputTokensPerMillion: 0.435,
-      outputTokensPerMillion: 0.87,
+      inputTokensPerMillion: 1.32,
+      outputTokensPerMillion: 3.96,
     });
   });
 

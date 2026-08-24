@@ -10,8 +10,12 @@ export { ToolConfigPanel } from "./ToolConfigPanel";
 export { ToolConfigDisclosure } from "./ToolConfigDisclosure";
 export { ToolPanel } from "./ToolPanel";
 export { ToolConfigDivider } from "./ToolConfigDivider";
-export { ToolFileDropZone } from "./ToolFileDropZone";
+export {
+  ToolFileDropZone,
+  type ToolFileSelectionSource,
+} from "./ToolFileDropZone";
 export { ToolSummaryLine } from "./ToolSummaryLine";
+export { ToolSwitchRow } from "./ToolSwitchRow";
 export { ToolStatBar, type ToolStatBarItem } from "./ToolStatBar";
 export { ToolDetailLayout } from "./ToolDetailLayout";
 export { ToolOutputPathPicker } from "./ToolOutputPathPicker";

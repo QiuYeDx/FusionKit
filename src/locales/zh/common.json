@@ -8,7 +8,8 @@
     "subtitle": {
       "translator": "字幕AI翻译",
       "converter": "字幕格式转换",
-      "extractor": "字幕语言提取"
+      "extractor": "字幕语言提取",
+      "local_transcriber": "本地字幕转写"
     },
     "rename": {
       "name_translator": "文件名/文件夹名翻译"

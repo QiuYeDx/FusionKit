@@ -42,6 +42,8 @@
       "conflict_policy_index": "連番を付加",
       "concurrent_slices": "スライス並行翻訳",
       "concurrent_slices_hint": "有効にすると、1つのタスクの複数スライスがAPIへ並行リクエストされ、翻訳速度が大幅に向上しますが、瞬間的な同時リクエスト数が増加します",
+      "thinking_mode": "Thinking モードを有効化",
+      "thinking_mode_hint": "DeepSeek Chat Completions 専用です。既定では無効で、有効にすると翻訳を返す前にモデルが推論します",
       "no_model_selected": "モデルが選択されていません"
     },
     "actions": {
@@ -83,17 +85,26 @@
     "task_management": "タスク管理",
     "output_path_section": "出力設定",
     "token_stats": {
-      "title": "トークン消費予測",
+      "title": "Token 使用量",
       "total_tokens": "トークン合計",
       "total_cost": "予測総コスト",
       "pending_tokens": "処理待ちトークン",
       "pending_cost": "処理待ちコスト",
-      "cost_tooltip": "これは概算費用です。実際の課金には入力 Token と出力 Token の両方が含まれ、出力 Token は翻訳前に正確には分かりません。翻訳結果が長いほど実際の費用が予測より高くなる可能性があり、最終的にはモデル提供元の請求が基準になります。"
+      "cost_tooltip": "翻訳前の推定値です。最終的にはプロバイダーが返す usage と請求を確認してください。",
+      "actual_tokens": "実際の Token",
+      "calculated_cost": "発生済み計算コスト",
+      "remaining_estimated_cost": "残りの推定コスト",
+      "actual_usage_tooltip": "Token 数は各モデル API 応答の usage フィールドから取得し、応答ごとに累積します。",
+      "partial_usage_tooltip": "一部のモデル応答に完全な usage がありません。表示値は報告済み Token のみで、実際より少ない可能性があります。",
+      "calculated_cost_tooltip": "API が報告した Token とタスク作成時に固定した単価から計算した値で、プロバイダーの請求額ではありません。DeepSeek のキャッシュと時間帯料金により差が生じます。",
+      "unpriced_cost_tooltip": "一部の実使用量はモデル単価が固定されていない旧タスクのため、信頼できる合計コストを計算できません。",
+      "remaining_cost_tooltip": "未開始タスクは推定全額、実行中タスクは発生済み計算コストを差し引きます。失敗・完了タスクは含みません。"
     },
     "task_detail": {
       "language_pair": "翻訳言語",
       "slice_mode": "分割モード",
       "api_model": "APIモデル",
+      "thinking_mode": "Thinking モード",
       "api_endpoint": "APIエンドポイント",
       "source_file": "ソースファイル",
       "output_path": "出力パス",
@@ -103,6 +114,13 @@
       "fragment_count": "分割数",
       "fragment_suffix": "個",
       "token_estimate": "トークン予測",
+      "actual_usage": "実際の使用量",
+      "estimated_usage": "タスク見積もり",
+      "calculated_cost": "計算コスト",
+      "request_coverage": "Usage 取得リクエスト",
+      "cached_input": "キャッシュ入力",
+      "reasoning_output": "推論 Token",
+      "actual_short": "実際",
       "input": "入力",
       "output": "出力",
       "concurrent_slices": "並行スライス",
@@ -214,6 +232,394 @@
       "queue_content": "追加した翻訳タスクがすべてここに表示されます。進捗の確認、設定の編集、失敗したタスクの再試行、タスクの削除ができます。",
       "start_title": "翻訳を開始",
       "start_content": "クリックすると、保留中の翻訳タスクをすべて開始します。完了した結果ファイルは出力先に保存されます。",
+      "trigger": "ガイドを表示"
+    }
+  },
+  "local_transcriber": {
+    "title": "ローカル字幕文字起こし",
+    "description": "端末にインストール済みのモデルで、音声や動画のタスクを字幕に文字起こしします。",
+    "error": {
+      "bridge_protocol_mismatch": "ローカル字幕コンポーネントが更新されましたが、このページは古いブリッジを使用しています。FusionKit を再起動して、もう一度お試しください。"
+    },
+    "config": {
+      "title": "文字起こし設定",
+      "model": "ローカルモデル",
+      "no_model": "利用可能なモデルがありません",
+      "model_details": "{{format}} · {{quantization}} · {{size}}",
+      "device": "処理デバイス",
+      "device_option": {
+        "auto": "自動選択（推奨）",
+        "cpu": "CPU（プロセッサ）",
+        "cuda": "NVIDIA GPU（CUDA）",
+        "metal": "Apple GPU（Metal）"
+      },
+      "language": "入力言語",
+      "language_option": {
+        "auto": "自動検出",
+        "zh": "中国語",
+        "en": "英語",
+        "ja": "日本語",
+        "ko": "韓国語",
+        "es": "スペイン語",
+        "fr": "フランス語",
+        "de": "ドイツ語"
+      },
+      "task_mode": "タスクモード",
+      "task_transcribe": "文字起こし",
+      "task_translate_english": "英語へ翻訳",
+      "vad": "音声区間検出",
+      "vad_hint": "無音区間での誤認識を減らします。",
+      "vad_ready": "VAD リソースは使用できます",
+      "vad_not_ready": "使用する前に VAD リソースをインストールしてください",
+      "initial_prompt": "初期プロンプト",
+      "initial_prompt_hint": "このページのセッション内だけで使用し、保存しません。",
+      "initial_prompt_placeholder": "人名、用語、コンテキスト",
+      "advanced": "詳細設定",
+      "beam_size": "Beam サイズ",
+      "temperature": "Temperature",
+      "vad_silence": "VAD 無音 (ms)",
+      "max_cue_duration": "字幕時間 (ms)",
+      "max_cue_chars": "字幕文字数",
+      "max_line_chars": "1行の文字数",
+      "output_formats": "字幕形式",
+      "conflict_policy": "ファイル競合",
+      "conflict_index": "連番を追加",
+      "conflict_overwrite": "既存ファイルを上書き",
+      "conflict_overwrite_unavailable": "このアプリセッションでは安全な上書きコンポーネントを読み込めないため、連番追加に切り替えました。文字起こしは引き続き利用できます。",
+      "output_mode": "出力先",
+      "output_source": "元ファイルのフォルダー",
+      "output_custom": "カスタムフォルダー",
+      "output_directory": "出力フォルダー",
+      "output_placeholder": "出力フォルダーを選択"
+    },
+    "workspace": { "title": "文字起こしタスク" },
+    "environment": {
+      "title": "ローカル環境",
+      "checking": "確認中",
+      "ready": "環境利用可能",
+      "unavailable": "環境利用不可",
+      "status_summary": "{{status}} · リソース {{ready}} / {{total}}",
+      "unavailable_short": "利用不可",
+      "platform": "プラットフォーム",
+      "contract": "サーバー契約",
+      "runner": "Whisper ランナー",
+      "ffmpeg": "FFmpeg",
+      "not_ready": "準備未完了",
+      "runtime_details": "ランタイム詳細",
+      "backends": "バックエンド検査",
+      "execution_profile": "{{preference}} -> {{backend}} · {{version}}",
+      "resolving_backend": "実行バックエンドを解決中",
+      "no_backend_data": "バックエンド検査データがありません",
+      "backend": {
+        "cpu": "CPU",
+        "cuda": "CUDA",
+        "metal": "Metal"
+      },
+      "backend_status": {
+        "available": "利用可能",
+        "unavailable": "利用不可",
+        "unverified": "未検証",
+        "not_reported": "報告なし"
+      },
+      "error": {
+        "unsupported_platform": "このプラットフォームはローカル字幕ランタイムでサポートされていません。",
+        "unsupported_architecture": "このデバイスのアーキテクチャはローカル字幕ランタイムと一致しません。",
+        "runtime_missing": "アプリに同梱されている Whisper ランナーが見つかりません。",
+        "runtime_protocol_mismatch": "同梱の Whisper ランナーが破損しているか、バージョンに互換性がありません。",
+        "media_runtime_missing": "アプリに同梱されている FFmpeg/ffprobe ランタイムが見つかりません。",
+        "media_runtime_invalid": "同梱の FFmpeg/ffprobe ランタイムが破損しているか、バージョンに互換性がありません。",
+        "media_runtime_launch_failed": "同梱の FFmpeg/ffprobe ランタイムを起動できませんでした。",
+        "unknown": "ローカル実行環境の確認を完了できませんでした。",
+        "recovery": "これらのコンポーネントは FusionKit に同梱されているため、FFmpeg や Whisper を別途インストールする必要はありません。まず再確認してください。問題が続く場合、ソースから実行しているときはリポジトリ内のローカルランタイムを再構成し、インストール版では FusionKit を更新または再インストールしてください。ダウンロード済みのモデルと書き出した字幕は保持されます。"
+      }
+    },
+    "file": {
+      "authorizing": "ファイルを承認しています...",
+      "probing": "メディア情報を読み込んでいます...",
+      "probe_mismatch": "メディア情報が選択したファイルと一致しません。ファイルを選択し直してください。",
+      "title": "音声または動画を追加",
+      "description": "メディアファイルをドロップするか端末から選択します。1回に最大 {{max}} 件追加できます",
+      "selected_count": "{{count}} 件のファイルを選択中",
+      "duplicate_skipped": "タスクリストに残っている重複ファイル {{count}} 件をスキップしました"
+    },
+    "audio": {
+      "group_label": "{{name}} の音声トラック",
+      "track_count": "音声トラック {{count}} 件",
+      "auto": "自動（トラック {{track}}）",
+      "track": "トラック {{track}}",
+      "track_aria": "トラック {{track}}、{{details}}",
+      "default": "既定",
+      "channels": "{{count}} チャンネル",
+      "sample_rate": "{{rate}}"
+    },
+    "actions": {
+      "select_files": "ファイルを選択",
+      "clear_files": "ファイルをクリア",
+      "remove_draft_file": "{{name}} を削除",
+      "retry_probe": "{{name}} のメディア情報を再読み込み",
+      "select_output": "出力フォルダーを選択",
+      "refresh": "環境を再確認",
+      "import_model": "モデルを読み込む",
+      "install_resource": "{{name}} をインストール",
+      "cancel_resource": "{{name}} のインストールをキャンセル",
+      "delete_named_resource": "{{name}} を削除",
+      "delete_resource": "リソースを削除",
+      "start": "文字起こしを開始",
+      "start_all": "すべて開始",
+      "clear_completed": "完了をクリア",
+      "clear_all": "すべてクリア",
+      "retry_on_cpu": "CPU で再試行",
+      "reveal": "フォルダーに表示",
+      "cancel_task": "{{name}} をキャンセル",
+      "retry_task": "{{name}} を再試行",
+      "retry_task_on_cpu": "{{name}} を CPU で再試行",
+      "remove_task": "{{name}} を削除",
+      "preview_artifact": "{{name}} をプレビュー",
+      "show_error_details": "{{name}} のエラー詳細を表示",
+      "reveal_task": "{{name}} をフォルダーに表示",
+      "handoff_artifact": "{{name}} を字幕翻訳に送る"
+    },
+    "post_action": {
+      "mode": "文字起こし完了後",
+      "export_only": "字幕のみを書き出す",
+      "enqueue": "字幕翻訳に追加",
+      "enqueue_and_start": "追加して翻訳を開始",
+      "send_to_translation": "生成した字幕を字幕翻訳に送る",
+      "start_automatically": "今回追加した翻訳タスクを自動開始",
+      "handoff_format": "翻訳に渡す形式",
+      "languages": "翻訳言語",
+      "profile": "実行プロファイル",
+      "translation_output": "翻訳の出力先",
+      "needs_configuration": "開始前に設定が必要です",
+      "confirm_title": "翻訳への引き渡しを確認",
+      "confirm_description": "タスクを開始する前に、今回固定される字幕翻訳設定を確認してください。",
+      "confirm": "確認して開始",
+      "cost_notice": "選択した字幕の生成後に翻訳を自動開始し、有料の外部 API を使用する場合があります。今回追加されたタスクだけを開始します。",
+      "session_only_notice": "インポートしたタスクは現在の字幕翻訳セッションにだけ追加され、アプリ再起動後は未開始タスクを復元しません。",
+      "receipt": "翻訳への引き渡し",
+      "view_translation": "翻訳タスクを表示",
+      "manual_complete": "字幕の引き渡しが完了しました。",
+      "manual_failed": "字幕を引き渡せませんでした。",
+      "status": {
+        "pending": "字幕の生成待ち",
+        "importing": "インポート中",
+        "queued": "翻訳に追加済み",
+        "translation_task_missing": "翻訳タスクはすでに存在しません",
+        "skipped": "引き渡しをスキップ",
+        "failed": "引き渡しに失敗"
+      },
+      "start": {
+        "started": "翻訳を開始しました",
+        "waiting": "翻訳キューで待機中",
+        "failed": "翻訳を開始できませんでした"
+      },
+      "error": {
+        "configuration_not_ready": "字幕翻訳設定を読み込み中です。翻訳ツールの準備後に再試行してください。",
+        "directory_authorization_required": "このモードを使う前に、字幕翻訳ツールで出力フォルダーを選択または再承認してください。",
+        "profile_required": "翻訳の自動開始には有効な翻訳プロファイルと API キーが必要です。"
+      }
+    },
+    "resources": {
+      "title": "管理対象リソース",
+      "managed_only": "組み込みマニフェストの管理対象リソース",
+      "disk_usage": "使用中：{{size}}",
+      "loading": "管理対象リソースのマニフェストを読み込んでいます...",
+      "empty": "このプラットフォームで利用できる管理対象リソースはありません。",
+      "type": {
+        "model": "モデル",
+        "vad": "音声区間検出",
+        "accelerator": "GPU アクセラレーター"
+      },
+      "status": {
+        "not_installed": "未インストール",
+        "installing": "インストール中",
+        "ready": "利用可能",
+        "invalid": "確認が必要"
+      },
+      "job": {
+        "queued": "開始待ち",
+        "acquiring": "ファイルを取得中",
+        "verifying": "整合性を検証中",
+        "load_smoke": "ランタイム互換性を確認中",
+        "signature_check": "署名を確認中",
+        "committing": "リソースを確定中",
+        "completed": "インストール済み",
+        "cancelling": "キャンセル中",
+        "cancelled": "キャンセル済み",
+        "failed": "インストールに失敗"
+      },
+      "import": {
+        "title": "互換モデルを読み込む",
+        "description": "組み込みマニフェストと一致する GGML モデルファイルを選択します。FusionKit は確定前にサイズ、ハッシュ、CPU 読み込みを検証します。",
+        "estimated_usage": "追加使用量の目安：{{size}}",
+        "matched_model": "一致するモデル：{{name}}",
+        "unrecognized_model": "このファイルサイズは、未インストールの組み込みモデルと一致しません。",
+        "mode": "読み込み方法",
+        "copy": "コピー",
+        "move": "移動",
+        "copy_hint": "検証済みコピーのインストール後も、選択した元ファイルを保持します。",
+        "move_hint": "モデルの検証と安全な確定が完了した場合にのみ、選択した元ファイルを削除します。"
+      },
+      "delete": {
+        "title": "管理対象リソースを削除しますか？",
+        "description": "{{name}} を FusionKit の管理ストレージから削除します。後から再インストールできます。"
+      }
+    },
+    "readiness": {
+      "environment_loading": "ローカル実行環境を確認しています。",
+      "environment_unavailable": "ローカル実行環境の状態を取得できません。",
+      "runtime_unavailable": "ローカル文字起こし環境または CPU バックエンドを利用できません。",
+      "session_unavailable": "タスクセッションの準備ができていません。環境を再確認してください。",
+      "model_required": "インストール済みで利用可能なローカルモデルが必要です。",
+      "vad_required": "音声区間検出が有効です。VAD リソースをインストールして検証してください。",
+      "backend_preview_loading": "選択したモデルの実行バックエンドを解決しています。",
+      "backend_preview_unavailable": "選択したモデルの実行バックエンドを検証できません。ローカル環境を再確認してください。",
+      "file_required": "音声または動画ファイルを1つ以上選択してください。",
+      "media_probe_loading": "選択したファイルのメディア情報を読み込んでいます。",
+      "media_probe_failed": "一部のファイルのメディア情報を読み込めませんでした。再試行するか削除してください。",
+      "output_directory_required": "カスタム出力フォルダーを選択してください。"
+    },
+    "stage": {
+      "queued": "待機中",
+      "preparing_media": "メディアを準備中",
+      "loading_model": "モデルを読み込み中",
+      "transcribing": "文字起こし中",
+      "post_processing": "字幕を処理中",
+      "exporting": "SRT を書き出し中",
+      "cancelling": "キャンセル中"
+    },
+    "status": {
+      "probing": "情報を読み込み中",
+      "ready": "開始待ち",
+      "probe_failed": "読み込み失敗",
+      "queued": "待機中",
+      "preparing_media": "メディアを準備中",
+      "loading_model": "モデルを読み込み中",
+      "transcribing": "文字起こし中",
+      "post_processing": "字幕を処理中",
+      "exporting": "字幕を書き出し中",
+      "completed": "完了",
+      "cancelling": "キャンセル中",
+      "cancelled": "キャンセル済み",
+      "failed": "文字起こしに失敗",
+      "interrupted": "中断"
+    },
+    "queue": {
+      "title": "タスクキュー",
+      "duration": "メディア時間 {{duration}}",
+      "empty_title": "タスクキューは空です",
+      "empty_description": "選択したファイルはすぐに追加され、それぞれの状態と結果が表示されます。"
+    },
+    "clear_all": {
+      "title": "すべてのタスクをクリアしますか？",
+      "description": "実行中のタスクを先にキャンセルし、その後ほかのタスクとともにリストから削除します。書き出し済みの字幕ファイルは削除されません。",
+      "confirm": "すべてクリア"
+    },
+    "result": {
+      "full": "すべての形式を生成しました",
+      "partial": "一部の形式を生成しました",
+      "committed": "生成済み",
+      "failed": "生成失敗",
+      "skipped": "スキップ済み",
+      "cancelled_after_partial_commit": "キャンセル前に生成済みの字幕を保持しました"
+    },
+    "preview": {
+      "title": "字幕プレビュー",
+      "description": "{{name}} · {{format}}",
+      "loading": "字幕内容を読み込み、検証しています...",
+      "read_failed": "字幕内容を読み込めませんでした。",
+      "retry": "再読み込み",
+      "cue_count": "{{count}} 件の字幕",
+      "page": "{{current}} / {{total}} ページ",
+      "previous_page": "前のページ",
+      "next_page": "次のページ",
+      "copy_plain_text": "プレーンテキストをコピー",
+      "copied": "プレーンテキストをコピーしました",
+      "copy_failed": "プレーンテキストをコピーできませんでした"
+    },
+    "error_details": {
+      "title": "エラー詳細",
+      "stage": "段階",
+      "retryable": "再試行可能",
+      "yes": "はい",
+      "no": "いいえ",
+      "field": "フィールド",
+      "cause": "原因コード",
+      "truncated": "診断は切り詰め済み",
+      "summary": "診断概要",
+      "lines": "診断ログ",
+      "metadata": "診断メタデータ"
+    },
+    "cpu_retry": {
+      "title": "CPU で文字起こしを再試行しますか？",
+      "description": "{{name}} の GPU タスクは失敗しました。FusionKit はその generation を保持したまま、新しい CPU generation を作成します。処理速度が大幅に低下する場合があります。",
+      "confirm": "CPU タスクを作成"
+    },
+    "overwrite_recovery": {
+      "title": "出力の復旧",
+      "trigger_label": "出力の復旧を開く、{{count}} 件保留中",
+      "pending_count": "{{count}} 件の出力操作に対応が必要です",
+      "loading": "出力の復旧状態を確認しています...",
+      "empty_title": "保留中の出力復旧はありません",
+      "refresh": "更新",
+      "close": "閉じる",
+      "item_title": "復旧 {{code}}",
+      "choose_original_directory": "元の出力フォルダを選択",
+      "retry": "復旧を再試行",
+      "working": "復旧しています...",
+      "selection_cancelled": "フォルダの選択をキャンセルしました",
+      "settled": {
+        "finalized": "出力の置換が完了しました",
+        "rolled_back": "以前の出力を復元しました"
+      },
+      "direction": {
+        "finalize": "置換を完了",
+        "rollback": "以前のファイルを復元"
+      },
+      "state": {
+        "not_started": "確認待ち",
+        "pending": "復旧待ち",
+        "retry_failed": "再試行が必要",
+        "settled": "クリーンアップ待ち"
+      },
+      "blocked": {
+        "title": "復旧状態を利用できません",
+        "description": "FusionKit は復旧状態を読み取れませんでした。既存のファイルは変更されていません。"
+      },
+      "unavailable": {
+        "title": "出力の復旧を利用できません",
+        "description": "必要な復旧コンポーネントを利用できません。既存のファイルは変更されていません。"
+      },
+      "error": {
+        "recovery_pending": "復旧はまだ完了していません。元の出力フォルダを選択して再試行してください。",
+        "directory_authorization_required": "元の出力フォルダを選択して復旧を続行してください。",
+        "persistence_failed": "復旧状態を安全に保存できませんでした。後でもう一度お試しください。",
+        "invalid_request": "この復旧項目は変更されています。更新してから再試行してください。",
+        "invalid_state": "この復旧項目は現在処理できません。更新してから再試行してください。",
+        "invalid_result": "復旧結果を確認できませんでした。ファイルは引き続き保護されます。",
+        "generic": "復旧を完了できませんでした。後でもう一度お試しください。"
+      },
+      "field": {
+        "recovery_code": "復旧コード",
+        "format": "形式",
+        "created_at": "作成日時"
+      }
+    },
+    "tour": {
+      "model_setup_title": "最初にローカルモデルを準備",
+      "model_setup_content": "文字起こしを開始するには、事前にモデルが必要です。ローカル環境で管理対象モデルをダウンロードするか、「モデルを読み込む」から互換性のある GGML モデルファイルを追加してください。",
+      "config_title": "文字起こし設定",
+      "config_content": "左側のパネルでローカルモデル、処理デバイス、出力形式、文字起こし後の処理を設定します。設定は自動的に保存されます。",
+      "model_title": "ローカルモデルを選択",
+      "model_content": "インストール済みで利用可能な Whisper モデルを選択します。大きいモデルほど通常は正確ですが、より多くの容量と計算資源が必要です。",
+      "language_title": "入力言語を設定",
+      "language_content": "メディアの言語を選択するか、自動検出のままにして音声から判定させます。",
+      "upload_title": "音声または動画を追加",
+      "upload_content": "音声や動画をここにドロップするか、クリックして選択します。一度に最大100件追加できます。",
+      "queue_title": "タスクキュー",
+      "queue_content": "メディア情報、文字起こしの進行状況、生成された字幕、失敗したタスクの再試行操作を確認できます。",
+      "start_title": "文字起こしを開始",
+      "start_content": "環境、モデル、メディアの準備ができたら、ここをクリックして保留中のタスクをすべて開始します。",
       "trigger": "ガイドを表示"
     }
   },

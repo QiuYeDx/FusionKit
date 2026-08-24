@@ -1,7 +1,5 @@
 import { useTranslation } from "react-i18next";
 import { ArrowRight, Settings2, Sparkles } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { ButtonGroup } from "@/components/ui/button-group";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import {
@@ -20,6 +18,7 @@ import {
   ToolConfigPanel,
   ToolField,
   ToolOutputPathPicker,
+  ToolRadioButtonGroup,
 } from "@/pages/Tools/_shared/ui";
 import {
   TEXT_TRANSLATION_TOKEN_LIMITS,
@@ -122,98 +121,52 @@ export default function ConfigPanel({
         </ToolField>
 
         <ToolField label={t("translator.config.output_content")}>
-          <ButtonGroup className="w-full">
-            <Button
-              size="sm"
-              className="flex-1"
-              variant={
-                preferences.outputMode === "target_only" ? "default" : "outline"
-              }
-              onClick={() => updatePreferences({ outputMode: "target_only" })}
-              disabled={disabled}
-            >
-              {t("translator.output.target_only")}
-            </Button>
-            <Button
-              size="sm"
-              className="flex-1"
-              variant={
-                preferences.outputMode === "bilingual" ? "default" : "outline"
-              }
-              onClick={() => updatePreferences({ outputMode: "bilingual" })}
-              disabled={disabled}
-            >
-              {t("translator.output.bilingual")}
-            </Button>
-          </ButtonGroup>
+          <ToolRadioButtonGroup
+            value={preferences.outputMode}
+            ariaLabel={t("translator.config.output_content")}
+            disabled={disabled}
+            options={(["target_only", "bilingual"] as const).map((mode) => ({
+              value: mode,
+              label: t(`translator.output.${mode}`),
+            }))}
+            onValueChange={(outputMode) => updatePreferences({ outputMode })}
+          />
         </ToolField>
 
         {preferences.outputMode === "bilingual" ? (
           <ToolField label={t("translator.config.bilingual_label_mode")}>
-            <ButtonGroup className="w-full">
-              <Button
-                size="sm"
-                className="flex-1"
-                variant={
-                  preferences.bilingualLabelMode === "none"
-                    ? "default"
-                    : "outline"
-                }
-                onClick={() => updatePreferences({ bilingualLabelMode: "none" })}
-                disabled={disabled}
-              >
-                {t("translator.output.bilingual_simple")}
-              </Button>
-              <Button
-                size="sm"
-                className="flex-1"
-                variant={
-                  preferences.bilingualLabelMode === "labels"
-                    ? "default"
-                    : "outline"
-                }
-                onClick={() =>
-                  updatePreferences({ bilingualLabelMode: "labels" })
-                }
-                disabled={disabled}
-              >
-                {t("translator.output.bilingual_labels")}
-              </Button>
-            </ButtonGroup>
+            <ToolRadioButtonGroup
+              value={preferences.bilingualLabelMode}
+              ariaLabel={t("translator.config.bilingual_label_mode")}
+              disabled={disabled}
+              options={[
+                { value: "none", label: t("translator.output.bilingual_simple") },
+                { value: "labels", label: t("translator.output.bilingual_labels") },
+              ]}
+              onValueChange={(bilingualLabelMode) =>
+                updatePreferences({ bilingualLabelMode })
+              }
+            />
           </ToolField>
         ) : null}
 
         <ToolConfigDivider />
 
         <ToolField label={t("translator.config.execution_mode")}>
-          <ButtonGroup className="w-full">
-            <Button
-              size="sm"
-              className="flex-1"
-              variant={
-                preferences.executionMode === "parallel" ? "default" : "outline"
-              }
-              onClick={() => updatePreferences({ executionMode: "parallel" })}
-              disabled={disabled}
-            >
-              {t("translator.execution.parallel")}
-            </Button>
-            <Button
-              size="sm"
-              className="flex-1"
-              variant={
-                preferences.executionMode === "sequential_context"
-                  ? "default"
-                  : "outline"
-              }
-              onClick={() =>
-                updatePreferences({ executionMode: "sequential_context" })
-              }
-              disabled={disabled}
-            >
-              {t("translator.execution.sequential_context")}
-            </Button>
-          </ButtonGroup>
+          <ToolRadioButtonGroup
+            value={preferences.executionMode}
+            ariaLabel={t("translator.config.execution_mode")}
+            disabled={disabled}
+            options={(["parallel", "sequential_context"] as const).map(
+              (mode) => ({
+                value: mode,
+                label: t(`translator.execution.${mode}`),
+              }),
+            )}
+            onValueChange={(executionMode) =>
+              updatePreferences({ executionMode })
+            }
+          />
           <p className="mt-1 text-[11px] leading-snug text-muted-foreground">
             {isSequential
               ? t("translator.execution.sequential_desc")
@@ -222,38 +175,22 @@ export default function ConfigPanel({
         </ToolField>
 
         <ToolField label={t("translator.config.project_mode")}>
-          <ButtonGroup className="w-full">
-            <Button
-              size="sm"
-              className="flex-1"
-              variant={
-                preferences.projectMode === "independent_files"
-                  ? "default"
-                  : "outline"
-              }
-              onClick={() =>
-                updatePreferences({ projectMode: "independent_files" })
-              }
-              disabled={disabled}
-            >
-              {t("translator.project.independent")}
-            </Button>
-            <Button
-              size="sm"
-              className="flex-1"
-              variant={
-                preferences.projectMode === "ordered_project"
-                  ? "default"
-                  : "outline"
-              }
-              onClick={() =>
-                updatePreferences({ projectMode: "ordered_project" })
-              }
-              disabled={disabled}
-            >
-              {t("translator.project.ordered")}
-            </Button>
-          </ButtonGroup>
+          <ToolRadioButtonGroup
+            value={preferences.projectMode}
+            ariaLabel={t("translator.config.project_mode")}
+            disabled={disabled}
+            options={[
+              {
+                value: "independent_files",
+                label: t("translator.project.independent"),
+              },
+              {
+                value: "ordered_project",
+                label: t("translator.project.ordered"),
+              },
+            ]}
+            onValueChange={(projectMode) => updatePreferences({ projectMode })}
+          />
         </ToolField>
 
         <div className="grid grid-cols-2 gap-3">
@@ -461,30 +398,18 @@ export default function ConfigPanel({
         <ToolConfigDivider />
 
         <ToolField label={t("translator.config.output_mode")}>
-          <ButtonGroup className="w-full">
-            <Button
-              size="sm"
-              className="flex-1"
-              variant={
-                preferences.outputPathMode === "source" ? "default" : "outline"
-              }
-              onClick={() => updatePreferences({ outputPathMode: "source" })}
-              disabled={disabled}
-            >
-              {t("translator.output.source")}
-            </Button>
-            <Button
-              size="sm"
-              className="flex-1"
-              variant={
-                preferences.outputPathMode === "custom" ? "default" : "outline"
-              }
-              onClick={() => updatePreferences({ outputPathMode: "custom" })}
-              disabled={disabled}
-            >
-              {t("translator.output.custom")}
-            </Button>
-          </ButtonGroup>
+          <ToolRadioButtonGroup
+            value={preferences.outputPathMode}
+            ariaLabel={t("translator.config.output_mode")}
+            disabled={disabled}
+            options={(["source", "custom"] as const).map((mode) => ({
+              value: mode,
+              label: t(`translator.output.${mode}`),
+            }))}
+            onValueChange={(outputPathMode) =>
+              updatePreferences({ outputPathMode })
+            }
+          />
         </ToolField>
 
         {preferences.outputPathMode === "custom" ? (
@@ -500,32 +425,18 @@ export default function ConfigPanel({
         ) : null}
 
         <ToolField label={t("translator.config.conflict_policy")}>
-          <ButtonGroup className="w-full">
-            <Button
-              size="sm"
-              className="flex-1"
-              variant={
-                preferences.conflictPolicy === "index" ? "default" : "outline"
-              }
-              onClick={() => updatePreferences({ conflictPolicy: "index" })}
-              disabled={disabled}
-            >
-              {t("translator.output.index")}
-            </Button>
-            <Button
-              size="sm"
-              className="flex-1"
-              variant={
-                preferences.conflictPolicy === "overwrite"
-                  ? "default"
-                  : "outline"
-              }
-              onClick={() => updatePreferences({ conflictPolicy: "overwrite" })}
-              disabled={disabled}
-            >
-              {t("translator.output.overwrite")}
-            </Button>
-          </ButtonGroup>
+          <ToolRadioButtonGroup
+            value={preferences.conflictPolicy}
+            ariaLabel={t("translator.config.conflict_policy")}
+            disabled={disabled}
+            options={(["index", "overwrite"] as const).map((policy) => ({
+              value: policy,
+              label: t(`translator.output.${policy}`),
+            }))}
+            onValueChange={(conflictPolicy) =>
+              updatePreferences({ conflictPolicy })
+            }
+          />
         </ToolField>
       </ToolConfigPanel>
     </div>

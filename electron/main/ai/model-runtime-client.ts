@@ -16,6 +16,7 @@ export interface ModelRuntimeConfig {
   endpoint: string;
   apiFormat: ModelApiFormat;
   outputTokenParameter?: OutputTokenParameter;
+  thinkingEnabled?: boolean;
 }
 
 export interface ModelRuntimeUsage {
@@ -23,6 +24,7 @@ export interface ModelRuntimeUsage {
   outputTokens?: number;
   totalTokens?: number;
   reasoningTokens?: number;
+  cachedInputTokens?: number;
 }
 
 export interface ModelRuntimeTextRequest {

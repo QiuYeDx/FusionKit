@@ -1,0 +1,149 @@
+{
+  "schemaVersion": 1,
+  "reportType": "local_subtitle_toolchain_preflight",
+  "generatedAt": "2026-07-16T07:07:34.879Z",
+  "target": {
+    "id": "mac-arm64-metal",
+    "expectedPlatform": "darwin",
+    "expectedArch": "arm64"
+  },
+  "readinessScope": "source_build_poc",
+  "host": {
+    "platform": "darwin",
+    "arch": "arm64",
+    "nodeVersion": "v20.19.5",
+    "availableDiskBytes": 38528163840
+  },
+  "repository": {
+    "packageManager": null,
+    "lockfileVersion": "6.0"
+  },
+  "tools": {
+    "cmake": {
+      "status": "available",
+      "version": "4.4.0"
+    },
+    "cxx": {
+      "status": "available",
+      "version": "Apple clang version 21.0.0"
+    },
+    "xcodebuild": {
+      "status": "available",
+      "version": "26.6"
+    },
+    "metalCompiler": {
+      "status": "available",
+      "version": "available"
+    },
+    "ffmpeg": {
+      "status": "available",
+      "version": "8.1.2"
+    },
+    "ffprobe": {
+      "status": "available",
+      "version": "8.1.2"
+    },
+    "pnpm": {
+      "status": "available",
+      "version": "8.7.0"
+    }
+  },
+  "checks": [
+    {
+      "id": "target_platform",
+      "passed": true,
+      "detail": "darwin/arm64 -> darwin/arm64"
+    },
+    {
+      "id": "target_arch",
+      "passed": true,
+      "detail": "arm64 -> arm64"
+    },
+    {
+      "id": "node_version",
+      "passed": true,
+      "detail": "v20.19.5"
+    },
+    {
+      "id": "pnpm_version",
+      "passed": true,
+      "detail": "8.7.0"
+    },
+    {
+      "id": "lockfile_version",
+      "passed": true,
+      "detail": "6.0"
+    },
+    {
+      "id": "tool_cmake",
+      "passed": true,
+      "detail": "4.4.0"
+    },
+    {
+      "id": "tool_cxx",
+      "passed": true,
+      "detail": "Apple clang version 21.0.0"
+    },
+    {
+      "id": "tool_xcodebuild",
+      "passed": true,
+      "detail": "26.6"
+    },
+    {
+      "id": "tool_metalCompiler",
+      "passed": true,
+      "detail": "available"
+    },
+    {
+      "id": "tool_ffmpeg",
+      "passed": true,
+      "detail": "8.1.2"
+    },
+    {
+      "id": "tool_ffprobe",
+      "passed": true,
+      "detail": "8.1.2"
+    }
+  ],
+  "sourceBuild": {
+    "requiredForPoc": true,
+    "checks": [
+      {
+        "id": "tool_cmake",
+        "passed": true,
+        "detail": "4.4.0"
+      },
+      {
+        "id": "tool_cxx",
+        "passed": true,
+        "detail": "Apple clang version 21.0.0"
+      },
+      {
+        "id": "tool_xcodebuild",
+        "passed": true,
+        "detail": "26.6"
+      },
+      {
+        "id": "tool_metalCompiler",
+        "passed": true,
+        "detail": "available"
+      }
+    ],
+    "blockers": [],
+    "ready": true
+  },
+  "warnings": [
+    {
+      "code": "package_manager_field_missing",
+      "detail": "package.json does not declare packageManager; keep pnpm 8.7.0 explicit in commands."
+    }
+  ],
+  "blockers": [],
+  "ready": true,
+  "privacy": {
+    "hostnameRecorded": false,
+    "usernameRecorded": false,
+    "absolutePathsRecorded": false,
+    "environmentAllowlistOnly": true
+  }
+}

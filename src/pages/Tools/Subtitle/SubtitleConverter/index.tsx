@@ -19,9 +19,12 @@ import {
   ToolDetailLayout,
   ToolField,
   ToolFileDropZone,
+  type ToolFileSelectionSource,
   ToolOutputPathPicker,
   ToolPanel,
+  ToolRadioButtonGroup,
   ToolSummaryLine,
+  ToolSwitchRow,
 } from "@/pages/Tools/_shared/ui";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -31,7 +34,7 @@ import {
   TaskStatus,
 } from "@/type/subtitle";
 import { showToast } from "@/utils/toast";
-import { getSourceDirFromFile, getFilePathFromFile } from "@/utils/filePath";
+import { resolveSelectedNativeFiles } from "@/utils/filePath";
 import useSubtitleConverterStore from "@/store/tools/subtitle/useSubtitleConverterStore";
 import ErrorDetailModal from "@/components/ErrorDetailModal";
 import ConfirmDialog from "@/components/ConfirmDialog";
@@ -47,7 +50,6 @@ import { ButtonGroup } from "@/components/ui/button-group";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
-import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
   SelectContent,
@@ -255,7 +257,10 @@ function SubtitleConverter() {
     }
   };
 
-  const handleFileUpload = async (files: FileList) => {
+  const handleFileUpload = async (
+    files: FileList,
+    source: ToolFileSelectionSource,
+  ) => {
     if (outputMode === "custom" && !outputURL) {
       showToast(
         t("subtitle:converter.errors.please_select_output_url"),
@@ -265,14 +270,22 @@ function SubtitleConverter() {
     }
     if (!files || files.length === 0) return;
 
+    const resolvedSelection = await resolveSelectedNativeFiles(files, source);
+    if (!resolvedSelection.ok) {
+      showToast(t("subtitle:converter.errors.source_path_missing"), "error");
+      return;
+    }
+
     const existingNames = allTasks.map((t) => t.fileName);
 
-    const fileArray = Array.from(files);
+    const fileArray = resolvedSelection.data;
     for (let i = 0; i < fileArray.length; i++) {
-      const file = fileArray[i];
+      const selected = fileArray[i];
+      const file = selected.file;
+      const fileName = selected.displayName;
       if (i > 0) await new Promise((r) => setTimeout(r, 0));
 
-      const ext = file.name.split(".").pop()?.toUpperCase();
+      const ext = fileName.split(".").pop()?.toUpperCase();
       if (
         !ext ||
         ![
@@ -290,11 +303,11 @@ function SubtitleConverter() {
         );
         continue;
       }
-      if (existingNames.includes(file.name)) {
+      if (existingNames.includes(fileName)) {
         showToast(
           t("subtitle:converter.errors.duplicate_file").replace(
             "{file}",
-            file.name
+            fileName
           ),
           "error"
         );
@@ -302,7 +315,7 @@ function SubtitleConverter() {
       }
 
       const outputDir =
-        outputMode === "source" ? getSourceDirFromFile(file) : outputURL;
+        outputMode === "source" ? selected.sourceDirectory : outputURL;
       if (!outputDir) {
         showToast(
           t("subtitle:converter.errors.source_path_missing"),
@@ -316,11 +329,11 @@ function SubtitleConverter() {
         const from = ext as SubtitleFileType;
 
         const newTask: SubtitleConverterTask = {
-          fileName: file.name,
+          fileName,
           fileContent,
           from,
           to: toFormat,
-          originFileURL: getFilePathFromFile(file) ?? file.name,
+          originFileURL: selected.filePath,
           targetFileURL: outputDir,
           status: TaskStatus.NOT_STARTED,
           progress: 0,
@@ -331,7 +344,7 @@ function SubtitleConverter() {
         showToast(
           t("subtitle:converter.errors.read_file_failed").replace(
             "{file}",
-            file.name
+            fileName
           ),
           "error"
         );
@@ -393,23 +406,16 @@ function SubtitleConverter() {
               id="cvt-tour-format"
               label={t("subtitle:converter.fields.target_format")}
             >
-              <ButtonGroup className="w-full">
-                {[
+              <ToolRadioButtonGroup
+                value={toFormat}
+                ariaLabel={t("subtitle:converter.fields.target_format")}
+                options={([
                   SubtitleFileType.LRC,
                   SubtitleFileType.SRT,
                   SubtitleFileType.VTT,
-                ].map((fmt) => (
-                  <Button
-                    key={fmt}
-                    size="sm"
-                    className="flex-1"
-                    variant={toFormat === fmt ? "default" : "outline"}
-                    onClick={() => setToFormat(fmt)}
-                  >
-                    {fmt}
-                  </Button>
-                ))}
-              </ButtonGroup>
+                ] as const).map((fmt) => ({ value: fmt, label: fmt }))}
+                onValueChange={setToFormat}
+              />
             </ToolField>
 
             {/* Default duration */}
@@ -434,30 +440,14 @@ function SubtitleConverter() {
             )}
 
             {/* Strip media ext */}
-            <label
-              htmlFor="stripMediaExt"
-              className={cn(
-                "flex items-start justify-between gap-3 rounded-lg border p-3 cursor-pointer transition-colors",
-                stripMediaExt
-                  ? "border-primary/40 bg-primary/5"
-                  : "hover:bg-accent/40"
-              )}
-            >
-              <div className="flex flex-col gap-0.5 min-w-0">
-                <span className="text-[12.5px] font-medium leading-tight">
-                  {t("subtitle:converter.fields.strip_media_ext_label")}
-                </span>
-                <span className="text-[11px] text-muted-foreground leading-snug">
-                  {t("subtitle:converter.fields.strip_media_ext_hint")}
-                </span>
-              </div>
-              <Checkbox
-                id="stripMediaExt"
-                checked={stripMediaExt}
-                onCheckedChange={(v) => setStripMediaExt(Boolean(v))}
-                className="mt-0.5"
-              />
-            </label>
+            <ToolSwitchRow
+              id="stripMediaExt"
+              testId="subtitle-converter-strip-media-extension"
+              label={t("subtitle:converter.fields.strip_media_ext_label")}
+              hint={t("subtitle:converter.fields.strip_media_ext_hint")}
+              checked={stripMediaExt}
+              onCheckedChange={setStripMediaExt}
+            />
 
             <ToolConfigDivider />
 
@@ -466,24 +456,15 @@ function SubtitleConverter() {
               id="cvt-tour-output"
               label={t("subtitle:converter.fields.output_mode")}
             >
-              <ButtonGroup className="w-full">
-                <Button
-                  size="sm"
-                  className="flex-1"
-                  variant={outputMode === "custom" ? "default" : "outline"}
-                  onClick={() => setOutputMode("custom")}
-                >
-                  {t("subtitle:converter.fields.output_mode_custom")}
-                </Button>
-                <Button
-                  size="sm"
-                  className="flex-1"
-                  variant={outputMode === "source" ? "default" : "outline"}
-                  onClick={() => setOutputMode("source")}
-                >
-                  {t("subtitle:converter.fields.output_mode_source")}
-                </Button>
-              </ButtonGroup>
+              <ToolRadioButtonGroup
+                value={outputMode}
+                ariaLabel={t("subtitle:converter.fields.output_mode")}
+                options={(["custom", "source"] as const).map((mode) => ({
+                  value: mode,
+                  label: t(`subtitle:converter.fields.output_mode_${mode}`),
+                }))}
+                onValueChange={setOutputMode}
+              />
               {outputMode === "custom" ? (
                 <ToolOutputPathPicker
                   className="mt-2"
@@ -503,26 +484,15 @@ function SubtitleConverter() {
 
             {/* Conflict policy */}
             <ToolField label={t("subtitle:converter.fields.conflict_policy")}>
-              <ButtonGroup className="w-full">
-                <Button
-                  size="sm"
-                  className="flex-1"
-                  variant={conflictPolicy === "index" ? "default" : "outline"}
-                  onClick={() => setConflictPolicy("index")}
-                >
-                  {t("subtitle:converter.fields.conflict_policy_index")}
-                </Button>
-                <Button
-                  size="sm"
-                  className="flex-1"
-                  variant={
-                    conflictPolicy === "overwrite" ? "default" : "outline"
-                  }
-                  onClick={() => setConflictPolicy("overwrite")}
-                >
-                  {t("subtitle:converter.fields.conflict_policy_overwrite")}
-                </Button>
-              </ButtonGroup>
+              <ToolRadioButtonGroup
+                value={conflictPolicy}
+                ariaLabel={t("subtitle:converter.fields.conflict_policy")}
+                options={(["index", "overwrite"] as const).map((policy) => ({
+                  value: policy,
+                  label: t(`subtitle:converter.fields.conflict_policy_${policy}`),
+                }))}
+                onValueChange={setConflictPolicy}
+              />
             </ToolField>
           </ToolConfigPanel>
         </div>

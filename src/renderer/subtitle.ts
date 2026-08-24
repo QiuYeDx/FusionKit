@@ -2,30 +2,34 @@ import useSubtitleTranslatorStore from "@/store/tools/subtitle/useSubtitleTransl
 import { showSystemNotification } from "@/utils/notification";
 import i18n from "@/i18n";
 import type { SubtitleTranslationRecovery } from "@/type/subtitle";
+import type { SubtitleTranslationUsage } from "@/type/subtitleUsage";
 
 window.ipcRenderer.on(
   "update-progress",
   (
     _,
     progressData: {
+      taskId: string;
       fileName: string;
       resolvedFragments: number;
       totalFragments: number;
       progress: number;
       recovery?: Pick<
         SubtitleTranslationRecovery,
-        "checkpointPath" | "completedOutputPath" | "remainingOutputPath"
+        "checkpointRef" | "resumable" | "resolvedFragments" | "totalFragments"
       >;
+      actualUsage?: SubtitleTranslationUsage;
     },
   ) => {
-    console.info(">>> 收到 updateProgress", progressData);
     const store = useSubtitleTranslatorStore.getState();
     store.updateProgress(
+      progressData.taskId,
       progressData.fileName,
       progressData.resolvedFragments,
       progressData.totalFragments,
       progressData.progress,
       progressData.recovery,
+      progressData.actualUsage,
     );
   },
 );
@@ -35,6 +39,7 @@ window.ipcRenderer.on(
   (
     _,
     errorData: {
+      taskId: string;
       fileName: string;
       error: string;
       message: string;
@@ -42,9 +47,9 @@ window.ipcRenderer.on(
       timestamp?: string;
       stackTrace?: string;
       recovery?: SubtitleTranslationRecovery;
+      actualUsage?: SubtitleTranslationUsage;
     },
   ) => {
-    console.info(">>> 收到 task-failed", errorData);
     const store = useSubtitleTranslatorStore.getState();
     store.addFailedTask(errorData);
     showSystemNotification(
@@ -58,10 +63,19 @@ window.ipcRenderer.on(
 
 window.ipcRenderer.on(
   "task-resolved",
-  (_, data: { fileName: string; outputFilePath: string }) => {
-    console.info(">>> 收到 task-resolved", data);
+  (_, data: {
+    taskId: string;
+    fileName: string;
+    outputFileName: string;
+    actualUsage?: SubtitleTranslationUsage;
+  }) => {
     const store = useSubtitleTranslatorStore.getState();
-    store.markTaskResolved(data.fileName, data.outputFilePath);
+    store.markTaskResolved(
+      data.taskId,
+      data.fileName,
+      data.outputFileName,
+      data.actualUsage,
+    );
     showSystemNotification(
       "FusionKit",
       i18n.t("setting:fields.notification.task_resolved", {

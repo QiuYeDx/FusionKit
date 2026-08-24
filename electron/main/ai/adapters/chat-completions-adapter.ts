@@ -9,8 +9,15 @@ import type {
 import {
   DEFAULT_MODEL_RUNTIME_RETRY_OPTIONS,
   ModelRuntimeClientError,
+  type ModelRuntimeErrorDetails,
   type ModelRuntimeRetryOptions,
 } from "../model-runtime-errors";
+import {
+  classifyProviderErrorRetryability,
+  extractProviderErrorMetadata,
+  isRetryableModelHttpStatus,
+  type ProviderErrorMetadata,
+} from "../provider-error-classification";
 
 export async function sendChatCompletionsText(
   request: ModelRuntimeTextRequest,
@@ -87,6 +94,15 @@ function buildChatCompletionBody(
       request.maxOutputTokens;
   }
 
+  if (
+    request.model.modelKey.trim().toLowerCase().startsWith("deepseek-") &&
+    request.model.thinkingEnabled !== undefined
+  ) {
+    body.thinking = {
+      type: request.model.thinkingEnabled ? "enabled" : "disabled",
+    };
+  }
+
   if (request.responseFormat === "json_object") {
     body.response_format = { type: "json_object" };
   }
@@ -106,6 +122,7 @@ function parseChatCompletionResponse(
       { attempt },
     );
   }
+  const usage = parseUsage(data.usage);
 
   const choice = Array.isArray(data.choices) ? data.choices[0] : undefined;
   if (!isRecord(choice)) {
@@ -113,7 +130,7 @@ function parseChatCompletionResponse(
       "invalid_response",
       "Model response does not contain a chat completion choice.",
       true,
-      { attempt },
+      { attempt, usage },
     );
   }
 
@@ -124,7 +141,7 @@ function parseChatCompletionResponse(
       "length_truncated",
       "Model response was truncated by the output-token limit. Consider reducing the slice token limit or using a model with a larger context window.",
       false,
-      { attempt },
+      { attempt, usage },
     );
   }
 
@@ -135,7 +152,7 @@ function parseChatCompletionResponse(
       "empty_response",
       "Model response content is empty.",
       true,
-      { attempt },
+      { attempt, usage },
     );
   }
 
@@ -146,7 +163,7 @@ function parseChatCompletionResponse(
         ? message.reasoning_content
         : undefined,
     finishReason,
-    usage: parseUsage(data.usage),
+    usage,
     responseId: typeof data.id === "string" ? data.id : undefined,
     model: typeof data.model === "string" ? data.model : undefined,
     apiFormat: "chat_completions",
@@ -183,12 +200,18 @@ function parseUsage(usage: unknown): ModelRuntimeUsage | undefined {
   const completionDetails = isRecord(usage.completion_tokens_details)
     ? usage.completion_tokens_details
     : undefined;
+  const promptDetails = isRecord(usage.prompt_tokens_details)
+    ? usage.prompt_tokens_details
+    : undefined;
 
   return {
     inputTokens: numberOrUndefined(usage.prompt_tokens),
     outputTokens: numberOrUndefined(usage.completion_tokens),
     totalTokens: numberOrUndefined(usage.total_tokens),
     reasoningTokens: numberOrUndefined(completionDetails?.reasoning_tokens),
+    cachedInputTokens:
+      numberOrUndefined(promptDetails?.cached_tokens) ??
+      numberOrUndefined(usage.prompt_cache_hit_tokens),
   };
 }
 
@@ -199,38 +222,55 @@ function httpErrorFromResponse(
   attempt: number,
   apiKey: string,
 ): ModelRuntimeClientError {
-  const message = sanitizeErrorMessage(extractHttpErrorMessage(body, status), apiKey);
+  const providerError = extractProviderErrorMetadata(body);
+  const providerDetails = toProviderErrorDetails(providerError);
+  const providerRetryability =
+    classifyProviderErrorRetryability(providerError);
+  const message = sanitizeErrorMessage(
+    extractHttpErrorMessage(providerError, status),
+    apiKey,
+  );
   if (status === 401) {
     return new ModelRuntimeClientError(
       "http_unauthorized",
       message,
       false,
-      { status, attempt },
+      { status, attempt, ...providerDetails },
     );
   }
   if (status === 403) {
     return new ModelRuntimeClientError("http_forbidden", message, false, {
       status,
       attempt,
+      ...providerDetails,
     });
   }
   if (status === 429) {
-    return new ModelRuntimeClientError("http_rate_limited", message, true, {
-      status,
-      retryAfterMs,
-      attempt,
-    });
+    const retryable = providerRetryability !== false;
+    return new ModelRuntimeClientError(
+      retryable ? "http_rate_limited" : "http_non_retryable",
+      message,
+      retryable,
+      {
+        status,
+        ...(retryable ? { retryAfterMs } : {}),
+        attempt,
+        ...providerDetails,
+      },
+    );
   }
-  if (status === 408 || status >= 500) {
+  if (isRetryableModelHttpStatus(status) || providerRetryability === true) {
     return new ModelRuntimeClientError("http_retryable", message, true, {
       status,
       retryAfterMs,
       attempt,
+      ...providerDetails,
     });
   }
   return new ModelRuntimeClientError("http_non_retryable", message, false, {
     status,
     attempt,
+    ...providerDetails,
   });
 }
 
@@ -317,14 +357,23 @@ function parseRetryAfter(value: unknown): number | undefined {
   return undefined;
 }
 
-function extractHttpErrorMessage(body: unknown, status: number): string {
-  if (isRecord(body)) {
-    const error = isRecord(body.error) ? body.error : undefined;
-    if (typeof error?.message === "string") {
-      return `Model request failed with HTTP ${status}: ${error.message}`;
-    }
+function extractHttpErrorMessage(
+  providerError: ProviderErrorMetadata,
+  status: number,
+): string {
+  if (providerError.message) {
+    return `Model request failed with HTTP ${status}: ${providerError.message}`;
   }
   return `Model request failed with HTTP ${status}.`;
+}
+
+function toProviderErrorDetails(
+  providerError: ProviderErrorMetadata,
+): Pick<ModelRuntimeErrorDetails, "providerCode" | "providerType"> {
+  return {
+    ...(providerError.code ? { providerCode: providerError.code } : {}),
+    ...(providerError.type ? { providerType: providerError.type } : {}),
+  };
 }
 
 function delay(ms: number, signal?: AbortSignal): Promise<void> {

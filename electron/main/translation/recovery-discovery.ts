@@ -18,12 +18,9 @@ import {
   type TranslationRecoveryScanRequest,
   type TranslationRecoveryScanResult,
   type TranslationRecoveryCandidate,
-  type TranslationRecoveryImportRequest,
-  type RecoveredSubtitleTaskDraft,
-  type TranslationRecoveryInputMode,
-  SubtitleSliceType,
 } from "./typing";
 import { hashContent, getResolvedCount, getIncompleteIndexes } from "./checkpoint";
+import { buildCheckpointPaths, parseCheckpointManifest } from "./checkpoint";
 
 const MANIFEST_SUFFIX = ".fusionkit.resume.json";
 const MAX_DEPTH_DEFAULT = 8;
@@ -176,7 +173,7 @@ async function inspectManifestFile(
 
   let manifest: TranslationCheckpointManifest;
   try {
-    manifest = JSON.parse(raw);
+    manifest = parseCheckpointManifest(JSON.parse(raw));
   } catch {
     return buildErrorCandidate(filePath, "corrupt_manifest", "JSON 解析失败");
   }
@@ -199,6 +196,16 @@ async function inspectManifestFile(
 
   const sourceState = await checkSourceFileState(manifest);
   const recoverability = determineRecoverability(manifest, sourceState, incompleteIndexes);
+  const outputDir = manifest.schemaVersion === 1
+    ? manifest.outputDir
+    : path.dirname(filePath);
+  const taskScopedPaths = manifest.schemaVersion === 2
+    ? buildCheckpointPaths(outputDir, manifest.fileName, manifest.taskId)
+    : undefined;
+  const paths = taskScopedPaths &&
+      path.resolve(taskScopedPaths.manifestPath) === path.resolve(filePath)
+    ? taskScopedPaths
+    : buildCheckpointPaths(outputDir, manifest.fileName);
 
   return {
     id: manifest.taskId || crypto.randomUUID(),
@@ -207,11 +214,19 @@ async function inspectManifestFile(
     manifestStatus: manifest.status,
     createdAt: manifest.createdAt,
     updatedAt: manifest.updatedAt,
-    outputDir: manifest.outputDir,
-    completedOutputPath: manifest.completedOutputPath,
-    remainingOutputPath: manifest.remainingOutputPath,
-    errorLogPath: manifest.errorLogPath,
-    finalOutputPath: manifest.finalOutputPath,
+    outputDir,
+    completedOutputPath: manifest.schemaVersion === 1
+      ? manifest.completedOutputPath
+      : paths.completedPath,
+    remainingOutputPath: manifest.schemaVersion === 1
+      ? manifest.remainingOutputPath
+      : paths.remainingPath,
+    errorLogPath: manifest.schemaVersion === 1
+      ? manifest.errorLogPath
+      : paths.errorLogPath,
+    finalOutputPath: manifest.schemaVersion === 1
+      ? manifest.finalOutputPath
+      : undefined,
     options: {
       fileType: manifest.options.fileType as "LRC" | "SRT",
       sliceType: manifest.options.sliceType as "NORMAL" | "SENSITIVE" | "CUSTOM",
@@ -219,80 +234,21 @@ async function inspectManifestFile(
       sourceLang: manifest.options.sourceLang,
       targetLang: manifest.options.targetLang,
       translationOutputMode: manifest.options.translationOutputMode,
+      thinkingEnabled: manifest.options.thinkingEnabled === true,
     },
+    ...(manifest.usage ? { actualUsage: manifest.usage } : {}),
     resolvedFragments: resolvedCount,
     totalFragments: totalCount,
     failedFragmentIndexes: failedIndexes.length > 0 ? failedIndexes : undefined,
     progress: totalCount > 0 ? Math.round((resolvedCount / totalCount) * 100) : 0,
-    sourceFilePath: manifest.sourceFilePath,
+    sourceFilePath: manifest.schemaVersion === 1
+      ? manifest.sourceFilePath
+      : undefined,
     sourceState,
     recoverability,
     blockingReason: recoverability === "ready" || recoverability === "ready_from_manifest"
       ? undefined
       : getBlockingReason(recoverability),
-  };
-}
-
-// ─── Create Draft ────────────────────────────────────────────────────────────
-
-export async function createRecoveredSubtitleTaskDraft(
-  request: TranslationRecoveryImportRequest,
-): Promise<RecoveredSubtitleTaskDraft> {
-  const { checkpointPath, recoveryInputMode } = request;
-
-  const raw = await fs.readFile(checkpointPath, "utf-8");
-  const manifest: TranslationCheckpointManifest = JSON.parse(raw);
-
-  const structureResult = validateManifestStructure(manifest);
-  if (!structureResult.valid) {
-    throw new Error(`Manifest 校验失败: ${structureResult.reason}`);
-  }
-
-  let fileContent: string | undefined;
-
-  if (recoveryInputMode === "source_file") {
-    if (!manifest.sourceFilePath) {
-      throw new Error("Manifest 中未记录源文件路径");
-    }
-    fileContent = await fs.readFile(manifest.sourceFilePath, "utf-8");
-    const currentHash = hashContent(fileContent);
-    if (currentHash !== manifest.sourceContentHash) {
-      throw new Error("源文件内容已变化，与 manifest 不一致");
-    }
-  }
-
-  const resolvedCount = getResolvedCount(manifest);
-  const totalCount = manifest.fragments.length;
-  const failedIndexes = manifest.fragments
-    .filter((f) => f.status === "failed")
-    .map((f) => f.index);
-
-  return {
-    fileName: manifest.fileName,
-    fileContent,
-    originFileURL: manifest.sourceFilePath || "",
-    targetFileURL: manifest.outputDir,
-    sliceType: manifest.options.sliceType as SubtitleSliceType,
-    customSliceLength: manifest.options.customSliceLength,
-    sourceLang: manifest.options.sourceLang as any,
-    targetLang: manifest.options.targetLang as any,
-    translationOutputMode: manifest.options.translationOutputMode,
-    resolvedFragments: resolvedCount,
-    totalFragments: totalCount,
-    progress: totalCount > 0 ? Math.round((resolvedCount / totalCount) * 100) : 0,
-    recoveryMode: "resume",
-    checkpointPath,
-    recoveryInputMode,
-    recovery: {
-      checkpointPath,
-      completedOutputPath: manifest.completedOutputPath,
-      remainingOutputPath: manifest.remainingOutputPath,
-      errorLogPath: manifest.errorLogPath,
-      resumable: true,
-      failedFragmentIndexes: failedIndexes.length > 0 ? failedIndexes : undefined,
-      resolvedFragments: resolvedCount,
-      totalFragments: totalCount,
-    },
   };
 }
 
@@ -311,12 +267,17 @@ function validateManifestStructure(
     return { valid: false, reason: "不是有效的 JSON 对象", recoverability: "corrupt_manifest" };
   }
 
-  if (manifest.schemaVersion !== 1) {
+  if (manifest.schemaVersion !== 1 && manifest.schemaVersion !== 2) {
     return { valid: false, reason: `不支持的 schema 版本: ${manifest.schemaVersion}`, recoverability: "unsupported_schema" };
   }
 
-  if (!manifest.fileName || !manifest.outputDir || !manifest.options || !manifest.fragments) {
-    return { valid: false, reason: "缺少必要字段 (fileName/outputDir/options/fragments)", recoverability: "invalid_manifest" };
+  if (
+    !manifest.fileName ||
+    !manifest.options ||
+    !manifest.fragments ||
+    (manifest.schemaVersion === 1 && !manifest.outputDir)
+  ) {
+    return { valid: false, reason: "缺少必要字段", recoverability: "invalid_manifest" };
   }
 
   if (!Array.isArray(manifest.fragments) || manifest.fragments.length === 0) {
@@ -350,6 +311,7 @@ function validateManifestStructure(
 async function checkSourceFileState(
   manifest: TranslationCheckpointManifest,
 ): Promise<TranslationRecoveryCandidate["sourceState"]> {
+  if (manifest.schemaVersion !== 1) return "unknown";
   if (!manifest.sourceFilePath) return "unknown";
 
   try {
@@ -411,6 +373,7 @@ function buildErrorCandidate(
       sourceLang: "",
       targetLang: "",
       translationOutputMode: "bilingual",
+      thinkingEnabled: false,
     },
     resolvedFragments: 0,
     totalFragments: 0,

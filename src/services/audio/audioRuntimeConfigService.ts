@@ -6,6 +6,7 @@ import {
   type AudioIpcChannel,
   type AudioIpcResult,
   type AudioRuntimeApiProfileSnapshot,
+  type AudioInputSelectionSource,
   type RevokeAudioInputFileResult,
   type RevokeAudioOutputDirectoryResult,
   type AuthorizedAudioInputFile,
@@ -191,8 +192,9 @@ export function invokeAudioIpc<TResponse>(
 
 export function authorizeAudioInputFile(
   file: File,
+  source: AudioInputSelectionSource = "picker",
 ): Promise<AudioIpcResult<AuthorizedAudioInputFile>> {
-  return getAudioApi().authorizeInputFile(file);
+  return getAudioApi().authorizeInputFile(file, source);
 }
 
 export function revokeAudioInputFile(

@@ -13,6 +13,8 @@ dist-ssr
 dist-electron
 release
 *.local
+/build/local-subtitle-resources/
+/build/local-subtitle-accelerators/
 
 # Editor directories and files
 .vscode/.debug.env

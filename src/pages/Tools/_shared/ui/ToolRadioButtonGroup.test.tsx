@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { ToolRadioButtonGroup } from "./ToolRadioButtonGroup";
 
 describe("ToolRadioButtonGroup", () => {
-  it("uses the shared subtitle ButtonGroup and small Button baseline", () => {
+  it("uses the shared small segmented control baseline", () => {
     const markup = renderToStaticMarkup(
       <ToolRadioButtonGroup
         value="first"
@@ -16,17 +16,54 @@ describe("ToolRadioButtonGroup", () => {
       />,
     );
 
-    expect(markup).toContain('data-slot="button-group"');
-    expect(markup.match(/data-slot="button"/g)).toHaveLength(2);
-    expect(markup.match(/data-size="sm"/g)).toHaveLength(2);
-    expect(markup.match(/min-w-0 flex-1/g)).toHaveLength(2);
+    expect(markup).toContain('data-slot="segmented-control"');
+    expect(markup).toContain('data-size="sm"');
+    expect(markup).toContain('data-variant="floating"');
+    expect(markup).toContain('data-orientation="horizontal"');
+    expect(markup.match(/data-slot="segmented-control-item"/g)).toHaveLength(2);
     expect(markup).toContain('role="radiogroup"');
     expect(markup.match(/role="radio"/g)).toHaveLength(2);
-    expect(markup).toContain('data-variant="default"');
-    expect(markup).toContain('data-variant="outline"');
-    expect(markup).toContain('data-state="checked"');
-    expect(markup).toContain('data-state="unchecked"');
+    expect(markup).toContain('data-state="active"');
+    expect(markup).toContain('data-state="inactive"');
     expect(markup.match(/tabindex="0"/g)).toHaveLength(1);
     expect(markup.match(/tabindex="-1"/g)).toHaveLength(1);
+  });
+
+  it("supports a vertical radio list and stable item test ids", () => {
+    const markup = renderToStaticMarkup(
+      <ToolRadioButtonGroup
+        value="first"
+        ariaLabel="Tracks"
+        orientation="vertical"
+        options={[
+          { value: "first", label: "First", testId: "first-track" },
+          { value: "second", label: "Second" },
+        ]}
+        onValueChange={() => undefined}
+      />,
+    );
+
+    expect(markup).toContain('data-orientation="vertical"');
+    expect(markup).toContain('data-testid="first-track"');
+    expect(markup.match(/justify-start/g)).toHaveLength(2);
+    expect(markup).toContain("whitespace-normal");
+    expect(markup).toContain('data-slot="segmented-control-label"');
+  });
+
+  it("forwards per-option disabled capability state", () => {
+    const markup = renderToStaticMarkup(
+      <ToolRadioButtonGroup
+        value="index"
+        ariaLabel="Conflict policy"
+        options={[
+          { value: "index", label: "Index" },
+          { value: "overwrite", label: "Overwrite", disabled: true },
+        ]}
+        onValueChange={() => undefined}
+      />,
+    );
+
+    expect(markup).toContain('data-value="overwrite"');
+    expect(markup).toMatch(/data-value="overwrite"[^>]* disabled=""/u);
   });
 });

@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { createJSONStorage, persist } from "zustand/middleware";
 import {
   getNameTranslationPlan,
   rememberNameTranslationPlan,
@@ -44,6 +45,11 @@ import {
   DEFAULT_NAME_TRANSLATION_OPTIONS,
   normalizeNameTranslationOptions,
 } from "@/services/rename/nameTypes";
+import {
+  NAME_TRANSLATOR_STORAGE_KEY,
+  NAME_TRANSLATOR_STORE_VERSION,
+  sanitizeNameTranslatorPreferences,
+} from "./nameTranslatorConfig";
 
 type OriginalSuggestion = Pick<
   NameTranslationPlanItem,
@@ -105,7 +111,9 @@ const pendingPlanLoads = new Map<string, Promise<boolean>>();
 let planningRequestSeq = 0;
 let activePlanningController: AbortController | null = null;
 
-const useNameTranslatorStore = create<NameTranslatorStore>((set, get) => ({
+const useNameTranslatorStore = create<NameTranslatorStore>()(
+  persist(
+    (set, get) => ({
   selectedPaths: [],
   options: {
     ...DEFAULT_NAME_TRANSLATION_OPTIONS,
@@ -587,7 +595,39 @@ const useNameTranslatorStore = create<NameTranslatorStore>((set, get) => ({
       originalSuggestions: {},
     });
   },
-}));
+    }),
+    {
+      name: NAME_TRANSLATOR_STORAGE_KEY,
+      storage: createJSONStorage(() => localStorage),
+      version: NAME_TRANSLATOR_STORE_VERSION,
+      partialize: (state) => ({
+        options: sanitizeNameTranslatorPreferences(state.options),
+      }),
+      migrate: (persisted) => ({
+        options: sanitizeNameTranslatorPreferences(
+          isRecord(persisted) ? persisted.options : undefined,
+        ),
+      }),
+      merge: (persisted, current) => ({
+        ...current,
+        options: sanitizeNameTranslatorPreferences(
+          isRecord(persisted) ? persisted.options : undefined,
+        ),
+        selectedPaths: [],
+        currentPlan: null,
+        isPlanning: false,
+        planningProgress: null,
+        isApplying: false,
+        applyProgress: null,
+        lastApplyResult: null,
+        lastRollbackResult: null,
+        lastValidation: null,
+        lastError: null,
+        originalSuggestions: {},
+      }),
+    },
+  ),
+);
 
 async function inspectRenamePaths(
   paths: string[]
@@ -1020,6 +1060,10 @@ function getIpcRenderer(): Window["ipcRenderer"] {
 
 function getErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 export { isPlanIncomplete };

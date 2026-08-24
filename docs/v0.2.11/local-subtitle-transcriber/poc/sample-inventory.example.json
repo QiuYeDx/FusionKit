@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "manifestId": "local-subtitle-poc-v1",
+  "files": [
+    {
+      "sampleId": "ja-character-pv-bgm-medium",
+      "mediaPath": "REPLACE_WITH_ABSOLUTE_MEDIA_PATH",
+      "subtitlePath": "REPLACE_WITH_ABSOLUTE_SUBTITLE_PATH"
+    },
+    {
+      "sampleId": "ja-audio-drama-frequent-silence-medium",
+      "mediaPath": "REPLACE_WITH_ABSOLUTE_MEDIA_PATH",
+      "subtitlePath": "REPLACE_WITH_ABSOLUTE_SUBTITLE_PATH"
+    },
+    {
+      "sampleId": "zh-character-pv-bgm-medium",
+      "mediaPath": "REPLACE_WITH_ABSOLUTE_MEDIA_PATH",
+      "subtitlePath": "REPLACE_WITH_ABSOLUTE_SUBTITLE_PATH"
+    },
+    {
+      "sampleId": "synthetic-silence-short",
+      "mediaPath": "REPLACE_WITH_ABSOLUTE_MEDIA_PATH"
+    }
+  ]
+}

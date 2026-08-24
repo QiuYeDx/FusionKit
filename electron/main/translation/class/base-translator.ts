@@ -16,13 +16,16 @@
 
 import { promises as fs } from "fs";
 import path from "path";
+import { randomUUID } from "node:crypto";
 import { DEFAULT_SLICE_LENGTH_MAP } from "../constants";
 import {
   SubtitleFileType,
   SubtitleSliceType,
   SubtitleTranslatorTask,
+  type SubtitleTaskReadyExecutionBinding,
   type TranslationCheckpointManifest,
   type SubtitleTranslationRecovery,
+  type SubtitleTranslationRuntimeAuthorization,
 } from "../typing";
 import { ipcMain, BrowserWindow } from "electron";
 import {
@@ -33,14 +36,17 @@ import {
   type ModelRuntimeConfig,
   type ModelRuntimeTextResult,
 } from "../../ai/model-runtime-client";
+import type { SubtitleTranslationUsage } from "@/type/subtitleUsage";
 import {
   createManifest,
   loadManifest,
   validateManifest,
   validateManifestSelfContained,
   getManifestFragments,
+  toCurrentManifest,
   CheckpointWriter,
   buildCheckpointPaths,
+  type CheckpointArtifactPaths,
   getIncompleteIndexes,
   getResolvedCount,
   allFragmentsResolved,
@@ -53,10 +59,21 @@ import {
   flushRecoveryArtifacts,
   buildFinalContent,
   cleanupOnSuccess,
+  type RecoveryArtifactWriteFailure,
 } from "../recovery-artifacts";
+import {
+  accumulateSubtitleTranslationUsage,
+  normalizeSubtitleTranslationUsage,
+  preferMoreCompleteSubtitleTranslationUsage,
+} from "../usage";
+import {
+  DEFAULT_SUBTITLE_TRANSLATION_RETRY_POLICY,
+  resolveSubtitleTranslationRetryDelay,
+  type SubtitleTranslationRetryPolicy,
+} from "../retry-policy";
 
 /**
- * 当 task.maxOutputTokens 未设置时的默认最大输出 token 数。
+ * 当 execution binding 未设置 maxOutputTokens 时的默认最大输出 token 数。
  * 8192 对大多数翻译场景足够；带有 inferMaxOutputTokens 推断的任务不会命中此值。
  */
 const DEFAULT_MAX_RESPONSE_TOKENS = 8192;
@@ -70,6 +87,15 @@ type TranslationFragmentMeta = {
   total: number;
 };
 
+function readyExecution(
+  task: SubtitleTranslatorTask,
+): SubtitleTaskReadyExecutionBinding {
+  if (task.executionBinding.status !== "ready") {
+    throw new Error("configuration_required");
+  }
+  return task.executionBinding;
+}
+
 export abstract class BaseTranslator {
   /** 子类实现：将字幕文本按 token 上限拆分为多个 fragment */
   protected abstract splitContent(content: string, maxTokens: number): string[];
@@ -79,9 +105,9 @@ export abstract class BaseTranslator {
     context: string,
   ): string;
 
-  protected maxRetries = 5;
-  /** 基础重试延迟（实际延迟 = retryDelay × 已尝试次数，线性退避） */
-  protected retryDelay = 1000;
+  /** 单分片重试策略；maxAttempts 包含首次请求。 */
+  protected retryPolicy: SubtitleTranslationRetryPolicy =
+    DEFAULT_SUBTITLE_TRANSLATION_RETRY_POLICY;
   /** 并发模式下同时翻译的最大分片数 */
   protected maxSliceConcurrency = 5;
 
@@ -89,6 +115,7 @@ export abstract class BaseTranslator {
   protected targetLang: string = "ZH";
   protected bilingualOutput: boolean = true;
   private maxResponseTokens: number = 4096;
+  private actualUsage: SubtitleTranslationUsage | undefined;
   protected fragmentSeparator: string = "\n\n";
 
   /**
@@ -103,10 +130,15 @@ export abstract class BaseTranslator {
    *   6. 全部分片完成后合并最终文件
    *   7. 通过 IPC 通知渲染进程翻译结果（成功/失败）
    */
-  async translate(task: SubtitleTranslatorTask, signal?: AbortSignal) {
+  async translate(
+    task: SubtitleTranslatorTask,
+    signal?: AbortSignal,
+    runtimeAuthorization?: SubtitleTranslationRuntimeAuthorization,
+  ) {
     this.sourceLang = task.sourceLang || "JA";
     this.targetLang = task.targetLang || "ZH";
     this.bilingualOutput = task.translationOutputMode !== "target_only";
+    this.actualUsage = normalizeSubtitleTranslationUsage(task.actualUsage);
 
     const errorLogs: string[] = [];
     const startTime = new Date().toISOString();
@@ -114,6 +146,8 @@ export abstract class BaseTranslator {
 
     let manifest: TranslationCheckpointManifest | undefined;
     let manifestPath: string | undefined;
+    let artifactPaths: CheckpointArtifactPaths | undefined;
+    let checkpointRef: string | undefined;
     let cpWriter: CheckpointWriter | undefined;
 
     try {
@@ -136,8 +170,10 @@ export abstract class BaseTranslator {
       let fragments: string[];
 
       // ── checkpoint 加载或创建 ─────────────────────────────────────────
+      await runtimeAuthorization?.revalidateTarget();
       await fs.mkdir(outputDir, { recursive: true });
-      const paths = buildCheckpointPaths(outputDir, task.fileName);
+      const paths = buildCheckpointPaths(outputDir, task.fileName, task.taskId);
+      artifactPaths = paths;
       manifestPath = paths.manifestPath;
 
       const recoveryMode = task.recoveryMode || "auto";
@@ -153,10 +189,9 @@ export abstract class BaseTranslator {
           const loaded = await loadManifest(task.checkpointPath);
           const selfValidation = validateManifestSelfContained(loaded);
           if (selfValidation.valid) {
-            manifest = loaded;
+            manifest = toCurrentManifest(loaded);
             manifest.status = "running";
             manifest.updatedAt = new Date().toISOString();
-            manifestPath = task.checkpointPath;
             fragments = getManifestFragments(manifest);
             errorLogs.push(
               `[${new Date().toISOString()}] manifest_fragments 模式续跑，已完成 ${getResolvedCount(manifest)}/${manifest.fragments.length} 个分片`,
@@ -179,10 +214,9 @@ export abstract class BaseTranslator {
             const loaded = await loadManifest(task.checkpointPath);
             const validation = validateManifest(loaded, task, fragments);
             if (validation.valid) {
-              manifest = loaded;
+              manifest = toCurrentManifest(loaded);
               manifest.status = "running";
               manifest.updatedAt = new Date().toISOString();
-              manifestPath = task.checkpointPath;
               errorLogs.push(
                 `[${new Date().toISOString()}] 从 checkpoint 续跑，已完成 ${getResolvedCount(manifest)}/${manifest.fragments.length} 个分片`,
               );
@@ -208,17 +242,35 @@ export abstract class BaseTranslator {
       errorLogs.push(
         `[${new Date().toISOString()}] 分片数量: ${fragments.length}`,
       );
+      errorLogs.push(
+        `[${new Date().toISOString()}] 单分片失败恢复策略: 最多 ${this.retryPolicy.maxAttempts} 次请求尝试（${Math.max(0, this.retryPolicy.maxAttempts - 1)} 次重试），指数退避 ${this.retryPolicy.baseDelayMs}-${this.retryPolicy.maxDelayMs}ms，并发重试带随机间隔`,
+      );
 
       if (!manifest) {
-        manifest = createManifest(task, fragments, outputDir);
+        manifest = createManifest(task, fragments);
       }
+      this.restoreUsage(task, manifest);
 
       cpWriter = new CheckpointWriter(manifestPath);
       await cpWriter.write(manifest);
-      await flushRecoveryArtifacts(manifest);
+      checkpointRef = await runtimeAuthorization?.authorizeCheckpoint(
+        manifestPath,
+      );
+      await this.flushRecoveryArtifactsWithWarnings(
+        manifest,
+        paths,
+        errorLogs,
+      );
 
       const resolvedBefore = getResolvedCount(manifest);
-      this.updateProgress(task, resolvedBefore, fragments.length, manifest, manifestPath);
+      this.updateProgress(
+        task,
+        resolvedBefore,
+        fragments.length,
+        manifest,
+        checkpointRef,
+        runtimeAuthorization,
+      );
 
       // ── 翻译分片 ─────────────────────────────────────────────────────
       if (task.concurrentSlices && fragments.length > 1) {
@@ -232,7 +284,9 @@ export abstract class BaseTranslator {
           errorLogs,
           manifest,
           cpWriter,
-          manifestPath,
+          paths,
+          checkpointRef,
+          runtimeAuthorization,
         );
       } else {
         await this.translateFragmentsSequentially(
@@ -242,7 +296,9 @@ export abstract class BaseTranslator {
           errorLogs,
           manifest,
           cpWriter,
-          manifestPath,
+          paths,
+          checkpointRef,
+          runtimeAuthorization,
         );
       }
 
@@ -256,35 +312,49 @@ export abstract class BaseTranslator {
       const translatedContent = buildFinalContent(manifest, this.fragmentSeparator);
 
       errorLogs.push(
-        `[${new Date().toISOString()}] 开始写入文件到: ${task.targetFileURL}`,
+        `[${new Date().toISOString()}] 开始写入最终字幕文件`,
       );
+      await runtimeAuthorization?.revalidateTarget();
       const finalPath = await this.writeFile(
         task.targetFileURL,
         translatedContent,
         task.fileName,
         task.conflictPolicy,
+        runtimeAuthorization,
       );
       errorLogs.push(
-        `[${new Date().toISOString()}] 文件写入完成: ${finalPath}`,
+        `[${new Date().toISOString()}] 最终字幕文件写入完成: ${path.basename(finalPath)}`,
       );
 
       manifest.status = "completed";
-      manifest.finalOutputPath = finalPath;
       manifest.updatedAt = new Date().toISOString();
       await cpWriter.write(manifest);
 
-      await cleanupOnSuccess(manifest, manifestPath);
-
-      const mainWindow = BrowserWindow.getAllWindows()[0];
-      if (mainWindow) {
-        mainWindow.webContents.send("task-resolved", {
-          fileName: task.fileName,
-          outputFilePath: finalPath,
-          finalFileName: path.basename(finalPath),
-        });
+      await runtimeAuthorization?.recordFinalOutput(finalPath);
+      const cleanupFailures = await cleanupOnSuccess(paths);
+      for (const failure of cleanupFailures) {
+        const warning = `Recovery ${failure.artifact} cleanup failed after bounded retries: ${failure.reason}`;
+        console.warn(`[base-translator] ${warning}`);
+        errorLogs.push(`[${new Date().toISOString()}] ${warning}`);
       }
+      runtimeAuthorization?.releaseCheckpoint();
+      checkpointRef = undefined;
 
-      this.updateProgress(task, fragments.length, fragments.length);
+      this.emit(runtimeAuthorization, "task-resolved", {
+        taskId: task.taskId,
+        fileName: task.fileName,
+        outputFileName: path.basename(finalPath),
+        ...(this.actualUsage ? { actualUsage: this.actualUsage } : {}),
+      });
+
+      this.updateProgress(
+        task,
+        fragments.length,
+        fragments.length,
+        undefined,
+        undefined,
+        runtimeAuthorization,
+      );
       errorLogs.push(`[${new Date().toISOString()}] 任务完成`);
     } catch (error) {
       const errorDetails =
@@ -298,34 +368,44 @@ export abstract class BaseTranslator {
 
       // flush checkpoint & recovery artifacts on failure
       let recovery: SubtitleTranslationRecovery | undefined;
-      if (manifest && cpWriter && manifestPath) {
+      if (manifest && cpWriter && manifestPath && artifactPaths) {
         try {
-          manifest.status = "failed";
+          this.syncUsage(task, manifest);
+          manifest.status = error instanceof Error && error.name === "AbortError"
+            ? "cancelled"
+            : "failed";
           manifest.updatedAt = new Date().toISOString();
           await cpWriter.write(manifest);
-          await flushRecoveryArtifacts(manifest, errorLogs);
-          recovery = buildRecoverySummary(manifest, manifestPath);
+          if (runtimeAuthorization) {
+            checkpointRef = await runtimeAuthorization.authorizeCheckpoint(
+              manifestPath,
+            );
+          }
+          await this.flushRecoveryArtifactsWithWarnings(
+            manifest,
+            artifactPaths,
+            errorLogs,
+            true,
+          );
+          recovery = checkpointRef
+            ? buildRecoverySummary(manifest, checkpointRef)
+            : undefined;
         } catch (flushErr) {
           console.error("[base-translator] flush checkpoint failed:", flushErr);
         }
       }
 
-      const mainWindow = BrowserWindow.getAllWindows()[0];
-      if (mainWindow) {
-        mainWindow.webContents.send("task-failed", {
-          fileName: task.fileName,
-          error: errorDetails,
-          message: "请求接口失败",
-          errorLogs: errorLogs,
-          timestamp: startTime,
-          stackTrace: stackTrace,
-          recovery,
-        });
-      } else {
-        console.error(
-          "[base-translator] main window not fount, updateProgress failed",
-        );
-      }
+      this.emit(runtimeAuthorization, "task-failed", {
+        taskId: task.taskId,
+        fileName: task.fileName,
+        error: errorDetails,
+        message: "请求接口失败",
+        errorLogs: errorLogs,
+        timestamp: startTime,
+        stackTrace: stackTrace,
+        recovery,
+        ...(this.actualUsage ? { actualUsage: this.actualUsage } : {}),
+      });
 
       console.error("[base-translator] error in translating:", error);
       throw error;
@@ -343,7 +423,9 @@ export abstract class BaseTranslator {
     errorLogs: string[],
     manifest: TranslationCheckpointManifest,
     cpWriter: CheckpointWriter,
-    manifestPath: string,
+    artifactPaths: CheckpointArtifactPaths,
+    checkpointRef: string | undefined,
+    runtimeAuthorization: SubtitleTranslationRuntimeAuthorization | undefined,
   ): Promise<void> {
     const incompleteSet = new Set(getIncompleteIndexes(manifest));
 
@@ -355,7 +437,7 @@ export abstract class BaseTranslator {
       }
 
       const cpFragment = manifest.fragments[index];
-      markFragmentRunning(cpFragment, task.apiModel);
+      markFragmentRunning(cpFragment, readyExecution(task).apiModel);
 
       try {
         errorLogs.push(
@@ -372,15 +454,27 @@ export abstract class BaseTranslator {
         );
 
         markFragmentResolved(cpFragment, result);
+        this.syncUsage(task, manifest);
         manifest.updatedAt = new Date().toISOString();
         await cpWriter.write(manifest);
-        await flushRecoveryArtifacts(manifest);
+        await this.flushRecoveryArtifactsWithWarnings(
+          manifest,
+          artifactPaths,
+          errorLogs,
+        );
 
         const resolved = getResolvedCount(manifest);
         errorLogs.push(
           `[${new Date().toISOString()}] 第 ${index + 1} 个分片翻译完成 (${resolved}/${fragments.length})`,
         );
-        this.updateProgress(task, resolved, fragments.length, manifest, manifestPath);
+        this.updateProgress(
+          task,
+          resolved,
+          fragments.length,
+          manifest,
+          checkpointRef,
+          runtimeAuthorization,
+        );
       } catch (fragmentError) {
         markFragmentFailed(
           cpFragment,
@@ -407,7 +501,9 @@ export abstract class BaseTranslator {
     errorLogs: string[],
     manifest: TranslationCheckpointManifest,
     cpWriter: CheckpointWriter,
-    manifestPath: string,
+    artifactPaths: CheckpointArtifactPaths,
+    checkpointRef: string | undefined,
+    runtimeAuthorization: SubtitleTranslationRuntimeAuthorization | undefined,
   ): Promise<void> {
     const pendingIndexes = getIncompleteIndexes(manifest);
     if (pendingIndexes.length === 0) return;
@@ -425,7 +521,7 @@ export abstract class BaseTranslator {
         const fragment = fragments[index];
         const context = index > 0 ? fragments[index - 1] : "";
         const cpFragment = manifest.fragments[index];
-        markFragmentRunning(cpFragment, task.apiModel);
+        markFragmentRunning(cpFragment, readyExecution(task).apiModel);
 
         try {
           errorLogs.push(
@@ -442,15 +538,27 @@ export abstract class BaseTranslator {
           );
 
           markFragmentResolved(cpFragment, result);
+          this.syncUsage(task, manifest);
           manifest.updatedAt = new Date().toISOString();
           await cpWriter.write(manifest);
-          await flushRecoveryArtifacts(manifest);
+          await this.flushRecoveryArtifactsWithWarnings(
+            manifest,
+            artifactPaths,
+            errorLogs,
+          );
 
           const resolved = getResolvedCount(manifest);
           errorLogs.push(
             `[${new Date().toISOString()}] [并发] 第 ${index + 1} 个分片翻译完成 (${resolved}/${fragments.length})`,
           );
-          this.updateProgress(task, resolved, fragments.length, manifest, manifestPath);
+          this.updateProgress(
+            task,
+            resolved,
+            fragments.length,
+            manifest,
+            checkpointRef,
+            runtimeAuthorization,
+          );
         } catch (err) {
           failed = true;
           markFragmentFailed(
@@ -466,7 +574,13 @@ export abstract class BaseTranslator {
     };
 
     const workerCount = Math.min(this.maxSliceConcurrency, pendingIndexes.length);
-    await Promise.all(Array.from({ length: workerCount }, () => worker()));
+    const results = await Promise.allSettled(
+      Array.from({ length: workerCount }, () => worker()),
+    );
+    const failure = results.find(
+      (result): result is PromiseRejectedResult => result.status === "rejected",
+    );
+    if (failure) throw failure.reason;
   }
 
   /** 更新任务进度并通过 IPC "update-progress" 事件推送给渲染进程 */
@@ -475,37 +589,79 @@ export abstract class BaseTranslator {
     current: number,
     total: number,
     manifest?: TranslationCheckpointManifest,
-    manifestPath?: string,
+    checkpointRef?: string,
+    runtimeAuthorization?: SubtitleTranslationRuntimeAuthorization,
   ) {
     task.resolvedFragments = current;
     task.totalFragments = total;
     task.progress = Math.round((current / total) * 100);
 
     const payload: Record<string, unknown> = {
+      taskId: task.taskId,
       fileName: task.fileName,
       resolvedFragments: current,
       totalFragments: total,
       progress: task.progress,
+      ...(this.actualUsage ? { actualUsage: this.actualUsage } : {}),
     };
 
-    if (manifest && manifestPath) {
+    if (manifest && checkpointRef) {
       payload.recovery = {
-        checkpointPath: manifestPath,
-        completedOutputPath: manifest.completedOutputPath,
-        remainingOutputPath: manifest.remainingOutputPath,
+        checkpointRef,
+        resumable: true,
+        resolvedFragments: getResolvedCount(manifest),
+        totalFragments: manifest.fragments.length,
       } satisfies Pick<
         SubtitleTranslationRecovery,
-        "checkpointPath" | "completedOutputPath" | "remainingOutputPath"
+        "checkpointRef" | "resumable" | "resolvedFragments" | "totalFragments"
       >;
     }
 
-    const mainWindow = BrowserWindow.getAllWindows()[0];
-    if (mainWindow) {
-      console.log("发送进度更新:", payload);
-      mainWindow.webContents.send("update-progress", payload);
-    } else {
-      console.error("未找到主窗口，无法发送进度更新");
+    this.emit(runtimeAuthorization, "update-progress", payload);
+  }
+
+  /**
+   * Recovery artifacts are human-facing conveniences; the serialized manifest
+   * remains the machine recovery authority. A failure to refresh one of these
+   * auxiliary files is therefore logged without turning a healthy model result
+   * into a failed translation task.
+   */
+  private async flushRecoveryArtifactsWithWarnings(
+    manifest: TranslationCheckpointManifest,
+    artifactPaths: CheckpointArtifactPaths,
+    errorLogs: string[],
+    includeErrorLog = false,
+  ): Promise<void> {
+    const failures = await flushRecoveryArtifacts(
+      manifest,
+      artifactPaths,
+      includeErrorLog ? errorLogs : undefined,
+    );
+    for (const failure of failures) {
+      this.recordRecoveryArtifactWarning(failure, errorLogs);
     }
+  }
+
+  private recordRecoveryArtifactWarning(
+    failure: RecoveryArtifactWriteFailure,
+    errorLogs: string[],
+  ): void {
+    const warning = `Recovery ${failure.artifact} refresh skipped after bounded retries: ${failure.reason}`;
+    console.warn(`[base-translator] ${warning}`);
+    errorLogs.push(`[${new Date().toISOString()}] ${warning}`);
+  }
+
+  private emit(
+    runtimeAuthorization: SubtitleTranslationRuntimeAuthorization | undefined,
+    channel: string,
+    payload: unknown,
+  ): void {
+    if (runtimeAuthorization) {
+      runtimeAuthorization.emit(channel, payload);
+      return;
+    }
+    const mainWindow = BrowserWindow.getAllWindows()[0];
+    mainWindow?.webContents.send(channel, payload);
   }
 
   /**
@@ -518,6 +674,7 @@ export abstract class BaseTranslator {
     content: string,
     fileName: string,
     conflictPolicy: OutputConflictPolicy = "index",
+    runtimeAuthorization?: SubtitleTranslationRuntimeAuthorization,
   ) {
     try {
       const absoluteOutputDir = path.resolve(fileURL);
@@ -541,7 +698,23 @@ export abstract class BaseTranslator {
         }
       }
 
-      await fs.writeFile(finalPath, content, "utf-8");
+      await runtimeAuthorization?.validateOutputPath(finalPath);
+      const temporaryLeaf = buildTemporaryOutputLeaf(parsed.ext);
+      const temporaryPath = path.join(absoluteOutputDir, temporaryLeaf);
+      await runtimeAuthorization?.validateOutputPath(temporaryPath);
+      let handle: Awaited<ReturnType<typeof fs.open>> | undefined;
+      try {
+        handle = await fs.open(temporaryPath, "wx", 0o600);
+        await handle.writeFile(content, "utf-8");
+        await handle.sync();
+        await handle.close();
+        handle = undefined;
+        await runtimeAuthorization?.revalidateTarget();
+        await fs.rename(temporaryPath, finalPath);
+      } finally {
+        await handle?.close().catch(() => undefined);
+        await fs.rm(temporaryPath, { force: true }).catch(() => undefined);
+      }
       console.log("文件已成功写入:", path.basename(finalPath));
       return finalPath;
     } catch (error) {
@@ -560,11 +733,11 @@ export abstract class BaseTranslator {
    */
   private resolveMaxResponseTokens(task: SubtitleTranslatorTask): number {
     if (
-      typeof task.maxOutputTokens === "number" &&
-      Number.isFinite(task.maxOutputTokens) &&
-      task.maxOutputTokens > 0
+      typeof readyExecution(task).maxOutputTokens === "number" &&
+      Number.isFinite(readyExecution(task).maxOutputTokens) &&
+      readyExecution(task).maxOutputTokens! > 0
     ) {
-      return task.maxOutputTokens;
+      return readyExecution(task).maxOutputTokens!;
     }
     return DEFAULT_MAX_RESPONSE_TOKENS;
   }
@@ -622,7 +795,7 @@ export abstract class BaseTranslator {
 
   /**
    * 翻译单个 fragment：构建 prompt → 调用 LLM API → 解析返回。
-   * 内置线性退避重试机制（最多 maxRetries 次），每次失败后延迟递增。
+   * 内置有界指数退避重试；请求总次数由 retryPolicy.maxAttempts 控制。
    *
    * 模型请求由 ModelRuntimeClient 负责 endpoint、API 格式、错误分类与 think 标签清理。
    */
@@ -635,13 +808,17 @@ export abstract class BaseTranslator {
     fragmentMeta?: TranslationFragmentMeta,
   ): Promise<string> {
     const prompt = this.formatPrompt(content, context);
+    const retryPolicy = this.retryPolicy;
+    const fragmentLabel = fragmentMeta
+      ? `第 ${fragmentMeta.index}/${fragmentMeta.total} 个分片`
+      : "当前分片";
 
-    for (let attempt = 1; attempt <= this.maxRetries; attempt++) {
+    for (let attempt = 1; attempt <= retryPolicy.maxAttempts; attempt++) {
       if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
 
       try {
         errorLogs.push(
-          `[${new Date().toISOString()}] 尝试第 ${attempt}/${this.maxRetries} 次翻译请求`,
+          `[${new Date().toISOString()}] ${fragmentLabel}：开始第 ${attempt}/${retryPolicy.maxAttempts} 次翻译请求`,
         );
 
         const response = await sendModelRuntimeText({
@@ -656,10 +833,16 @@ export abstract class BaseTranslator {
           signal,
           retry: { maxRetries: 0 },
         });
+        this.actualUsage = accumulateSubtitleTranslationUsage(
+          this.actualUsage,
+          response.usage,
+          readyExecution(task).tokenPricing,
+        );
+        task.actualUsage = this.actualUsage;
 
         console.log("翻译响应数据:", response);
         errorLogs.push(
-          `[${new Date().toISOString()}] 第 ${attempt} 次翻译请求成功`,
+          `[${new Date().toISOString()}] ${fragmentLabel}：第 ${attempt} 次翻译请求成功`,
         );
 
         const finishReason = response.finishReason;
@@ -685,19 +868,35 @@ export abstract class BaseTranslator {
 
         return parsedResult;
       } catch (error) {
+        if (
+          error instanceof ModelRuntimeClientError &&
+          Object.prototype.hasOwnProperty.call(error.details, "usage")
+        ) {
+          this.actualUsage = accumulateSubtitleTranslationUsage(
+            this.actualUsage,
+            error.details.usage,
+            readyExecution(task).tokenPricing,
+          );
+          task.actualUsage = this.actualUsage;
+        }
         const errorMessage =
           error instanceof Error ? error.message : String(error);
         errorLogs.push(
-          `[${new Date().toISOString()}] 第 ${attempt} 次翻译尝试失败: ${errorMessage}`,
+          `[${new Date().toISOString()}] ${fragmentLabel}：第 ${attempt}/${retryPolicy.maxAttempts} 次翻译请求失败: ${errorMessage}`,
         );
 
         if (error instanceof ModelRuntimeClientError) {
           errorLogs.push(
-            `[${new Date().toISOString()}] 模型错误码: ${error.code}`,
+            `[${new Date().toISOString()}] ${fragmentLabel}：模型错误码 ${error.code}，可重试: ${error.retryable ? "是" : "否"}`,
           );
           if (error.details.status !== undefined) {
             errorLogs.push(
-              `[${new Date().toISOString()}] HTTP状态码: ${error.details.status}`,
+              `[${new Date().toISOString()}] ${fragmentLabel}：HTTP 状态码 ${error.details.status}`,
+            );
+          }
+          if (error.details.providerCode || error.details.providerType) {
+            errorLogs.push(
+              `[${new Date().toISOString()}] ${fragmentLabel}：服务错误标识 ${error.details.providerCode ?? "-"}/${error.details.providerType ?? "-"}`,
             );
           }
         }
@@ -706,10 +905,12 @@ export abstract class BaseTranslator {
 
         if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
 
+        let retryable =
+          !(error instanceof ModelRuntimeClientError) || error.retryable;
         if (error instanceof ModelRuntimeClientError && !error.retryable) {
           if (
             error.code === "length_truncated" &&
-            attempt < this.maxRetries
+            attempt < retryPolicy.maxAttempts
           ) {
             const increased = Math.min(
               this.maxResponseTokens * 2,
@@ -720,26 +921,39 @@ export abstract class BaseTranslator {
               errorLogs.push(
                 `[${new Date().toISOString()}] 输出被截断，自动提升输出token上限至 ${this.maxResponseTokens} 后重试`,
               );
+              retryable = true;
             } else {
               errorLogs.push(
                 `[${new Date().toISOString()}] 输出被截断且已达最大token上限 ${MAX_RESPONSE_TOKEN_CEILING}，无法继续`,
               );
               throw this.normalizeError(error);
             }
-          } else {
-            throw this.normalizeError(error);
           }
         }
 
-        if (attempt === this.maxRetries) {
+        if (!retryable) {
           errorLogs.push(
-            `[${new Date().toISOString()}] 已达到最大重试次数，翻译失败`,
+            `[${new Date().toISOString()}] ${fragmentLabel}：该错误属于确定性失败，不进行无意义重试`,
           );
           throw this.normalizeError(error);
         }
 
-        const delay = this.resolveRetryDelay(error, attempt);
-        errorLogs.push(`[${new Date().toISOString()}] 等待 ${delay}ms 后重试`);
+        if (attempt === retryPolicy.maxAttempts) {
+          errorLogs.push(
+            `[${new Date().toISOString()}] ${fragmentLabel}：已用尽 ${retryPolicy.maxAttempts} 次请求尝试（${Math.max(0, retryPolicy.maxAttempts - 1)} 次重试），翻译失败`,
+          );
+          throw this.normalizeError(error);
+        }
+
+        const delay = resolveSubtitleTranslationRetryDelay(
+          error,
+          attempt,
+          retryPolicy,
+        );
+        const retryNumber = attempt;
+        errorLogs.push(
+          `[${new Date().toISOString()}] ${fragmentLabel}：临时失败，将在 ${formatDelay(delay)} 后进行第 ${retryNumber}/${retryPolicy.maxAttempts - 1} 次重试`,
+        );
         await this.abortableDelay(delay, signal);
       }
     }
@@ -750,23 +964,41 @@ export abstract class BaseTranslator {
   private createRuntimeModelConfig(
     task: SubtitleTranslatorTask,
   ): ModelRuntimeConfig {
+    const execution = readyExecution(task);
+    const apiFormat = execution.apiFormat ?? "chat_completions";
+    const isDeepSeekChat =
+      apiFormat === "chat_completions" &&
+      execution.apiModel.trim().toLowerCase().startsWith("deepseek-");
     return {
-      apiKey: task.apiKey,
-      modelKey: task.apiModel,
-      endpoint: task.endPoint,
-      apiFormat: task.apiFormat ?? "chat_completions",
-      outputTokenParameter: task.outputTokenParameter,
+      apiKey: execution.apiKey,
+      modelKey: execution.apiModel,
+      endpoint: execution.endPoint,
+      apiFormat,
+      outputTokenParameter: execution.outputTokenParameter,
+      ...(isDeepSeekChat
+        ? { thinkingEnabled: execution.thinkingEnabled === true }
+        : {}),
     };
   }
 
-  private resolveRetryDelay(error: unknown, attempt: number): number {
-    if (
-      error instanceof ModelRuntimeClientError &&
-      error.details.retryAfterMs !== undefined
-    ) {
-      return Math.max(0, error.details.retryAfterMs);
-    }
-    return this.retryDelay * attempt;
+  private restoreUsage(
+    task: SubtitleTranslatorTask,
+    manifest: TranslationCheckpointManifest,
+  ): void {
+    this.actualUsage = preferMoreCompleteSubtitleTranslationUsage(
+      this.actualUsage,
+      manifest.usage,
+    );
+    this.syncUsage(task, manifest);
+  }
+
+  private syncUsage(
+    task: SubtitleTranslatorTask,
+    manifest: TranslationCheckpointManifest,
+  ): void {
+    if (!this.actualUsage) return;
+    task.actualUsage = this.actualUsage;
+    manifest.usage = this.actualUsage;
   }
 
   /** 子类实现：从统一模型文本结果中后处理翻译文本 */
@@ -794,10 +1026,15 @@ export abstract class BaseTranslator {
     });
   }
 
-  /** 处理 429 速率限制：读取 Retry-After 头并等待对应时间（预留扩展，当前未被调用） */
-  private async handleRateLimit(response: Response) {
-    const retryAfter = response.headers.get("Retry-After") || "5";
-    const delay = parseInt(retryAfter) * 1000;
-    await new Promise((r) => setTimeout(r, delay));
-  }
+}
+
+function buildTemporaryOutputLeaf(extension: string): string {
+  const safeExtension = extension.length <= 16 ? extension : "";
+  return `.fusionkit-${randomUUID()}${safeExtension}.tmp`;
+}
+
+function formatDelay(delayMs: number): string {
+  if (delayMs < 1_000) return `${delayMs}ms`;
+  const seconds = Math.round(delayMs / 100) / 10;
+  return `${seconds} 秒`;
 }

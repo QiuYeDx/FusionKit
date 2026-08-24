@@ -9,7 +9,7 @@ import type {
 } from "@/type/model";
 import { useTranslation } from "react-i18next";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { ButtonGroup } from "@/components/ui/button-group";
+import { SegmentedControl } from "@/components/qiuye-ui/segmented-control";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -613,52 +613,36 @@ function ProfileEditDialog({ open, onOpenChange, profile }: ProfileDialogProps) 
           {/* Provider */}
           <div className="space-y-2">
             <Label>{t("setting:fields.model_type")}</Label>
-            <ButtonGroup>
-              <Button
-                size="sm"
-                variant={provider === Model.DeepSeek ? "default" : "outline"}
-                onClick={() => handleProviderChange(Model.DeepSeek)}
-              >
-                DeepSeek
-              </Button>
-              <Button
-                size="sm"
-                variant={provider === Model.OpenAI ? "default" : "outline"}
-                onClick={() => handleProviderChange(Model.OpenAI)}
-              >
-                OpenAI
-              </Button>
-              <Button
-                size="sm"
-                variant={provider === Model.Other ? "default" : "outline"}
-                onClick={() => handleProviderChange(Model.Other)}
-              >
-                {t("setting:fields.other")}
-              </Button>
-            </ButtonGroup>
+            <SegmentedControl
+              size="sm"
+              fullWidth
+              value={provider}
+              aria-label={t("setting:fields.model_type")}
+              items={[
+                { value: Model.DeepSeek, label: "DeepSeek" },
+                { value: Model.OpenAI, label: "OpenAI" },
+                { value: Model.Other, label: t("setting:fields.other") },
+              ]}
+              onValueChange={(value) => handleProviderChange(value as Model)}
+            />
           </div>
 
           {/* API Format */}
           <div className="space-y-2">
             <Label>{t("setting:fields.api_format.label")}</Label>
-            <ButtonGroup>
-              <Button
-                size="sm"
-                variant={apiFormat === "responses" ? "default" : "outline"}
-                onClick={() => setApiFormat("responses")}
-              >
-                {t("setting:fields.api_format.responses")}
-              </Button>
-              <Button
-                size="sm"
-                variant={
-                  apiFormat === "chat_completions" ? "default" : "outline"
-                }
-                onClick={() => setApiFormat("chat_completions")}
-              >
-                {t("setting:fields.api_format.chat_completions")}
-              </Button>
-            </ButtonGroup>
+            <SegmentedControl
+              size="sm"
+              fullWidth
+              value={apiFormat}
+              aria-label={t("setting:fields.api_format.label")}
+              items={(["responses", "chat_completions"] as const).map(
+                (value) => ({
+                  value,
+                  label: t(`setting:fields.api_format.${value}`),
+                }),
+              )}
+              onValueChange={(value) => setApiFormat(value as ModelApiFormat)}
+            />
             <p className="text-xs text-muted-foreground">
               {apiFormat === "responses"
                 ? t("setting:fields.api_format.responses_hint")

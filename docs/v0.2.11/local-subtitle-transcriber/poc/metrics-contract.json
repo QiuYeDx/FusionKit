@@ -1,0 +1,160 @@
+{
+  "schemaVersion": 1,
+  "contractId": "local-subtitle-poc-metrics-v1",
+  "requiredMetricIds": [
+    "language_detection_match",
+    "rtf",
+    "peak_ram_bytes",
+    "peak_vram_bytes",
+    "model_load_first_ms",
+    "model_load_reuse_ms",
+    "cancel_latency_ms",
+    "package_bytes",
+    "raw_transcript_validity",
+    "longest_consecutive_repeat_cue_count",
+    "longest_consecutive_repeat_duration_ms",
+    "invalid_raw_timeline_segment_count",
+    "word_timeline_fallback_count",
+    "window_execution_coverage",
+    "srt_parse_back",
+    "lrc_parse_back"
+  ],
+  "metrics": [
+    {
+      "id": "language_detection_match",
+      "unit": "boolean",
+      "scope": "sample",
+      "formula": "detected_language equals manifest language when the manifest language is not und",
+      "lowerIsBetter": false
+    },
+    {
+      "id": "rtf",
+      "unit": "ratio",
+      "scope": "sample",
+      "formula": "transcription_wall_clock_ms / source_duration_ms",
+      "lowerIsBetter": true
+    },
+    {
+      "id": "peak_ram_bytes",
+      "unit": "bytes",
+      "scope": "run",
+      "formula": "maximum resident set size observed for the official server process and its owned children",
+      "lowerIsBetter": true
+    },
+    {
+      "id": "peak_vram_bytes",
+      "unit": "bytes_or_null",
+      "scope": "run",
+      "formula": "maximum device memory observed; null only for a declared CPU run",
+      "lowerIsBetter": true
+    },
+    {
+      "id": "model_load_first_ms",
+      "unit": "milliseconds",
+      "scope": "run",
+      "formula": "first successful private health-ready time minus server spawn time",
+      "lowerIsBetter": true
+    },
+    {
+      "id": "model_load_reuse_ms",
+      "unit": "milliseconds",
+      "scope": "run",
+      "formula": "second compatible task start time minus task request time while reusing the same healthy server PID and model",
+      "lowerIsBetter": true
+    },
+    {
+      "id": "cancel_latency_ms",
+      "unit": "milliseconds",
+      "scope": "run",
+      "formula": "aborted request settlement time minus AbortController abort time",
+      "lowerIsBetter": true
+    },
+    {
+      "id": "package_bytes",
+      "unit": "bytes",
+      "scope": "artifact",
+      "formula": "sum of distributable official server, dynamic dependencies, FFmpeg and optional accelerator pack bytes by manifest",
+      "lowerIsBetter": true
+    },
+    {
+      "id": "raw_transcript_validity",
+      "unit": "boolean",
+      "scope": "sample",
+      "formula": "all planned windows have an explicit terminal outcome and raw segments pass repetition, positive-duration, monotonic, overlap, window-bound and media-bound checks before formatting",
+      "lowerIsBetter": false
+    },
+    {
+      "id": "longest_consecutive_repeat_cue_count",
+      "unit": "count",
+      "scope": "sample",
+      "formula": "maximum consecutive raw segment count after Unicode whitespace and punctuation normalization where normalized text is identical",
+      "lowerIsBetter": true
+    },
+    {
+      "id": "longest_consecutive_repeat_duration_ms",
+      "unit": "milliseconds",
+      "scope": "sample",
+      "formula": "absolute end minus start covered by the longest consecutive normalized-identical raw segment run",
+      "lowerIsBetter": true
+    },
+    {
+      "id": "invalid_raw_timeline_segment_count",
+      "unit": "count",
+      "scope": "sample",
+      "formula": "raw segments with zero or negative duration, reverse order, disallowed overlap, or timestamps outside their planned window or probed media duration",
+      "lowerIsBetter": true
+    },
+    {
+      "id": "word_timeline_fallback_count",
+      "unit": "count",
+      "scope": "sample",
+      "formula": "segments whose word timestamps are invalid, unordered or outside their parent segment and therefore use the parent segment timeline",
+      "lowerIsBetter": true
+    },
+    {
+      "id": "window_execution_coverage",
+      "unit": "ratio",
+      "scope": "sample",
+      "formula": "planned bounded windows with an explicit succeeded, verified-no-speech or failed outcome divided by all planned windows",
+      "lowerIsBetter": false
+    },
+    {
+      "id": "srt_parse_back",
+      "unit": "boolean",
+      "scope": "sample",
+      "formula": "independent SRT parser reproduces cue count, order and integer millisecond timestamps",
+      "lowerIsBetter": false
+    },
+    {
+      "id": "lrc_parse_back",
+      "unit": "boolean",
+      "scope": "sample",
+      "formula": "independent LRC parser reproduces line count, order and floor(start_ms / 10) timestamps",
+      "lowerIsBetter": false
+    }
+  ],
+  "runRecord": {
+    "requiredIdentityFields": [
+      "run_id",
+      "target_id",
+      "sample_id",
+      "engine_commit",
+      "server_build_hash",
+      "model_id",
+      "started_at",
+      "completed_at"
+    ],
+    "terminalOutcomes": ["completed", "cancelled", "failed"]
+  },
+  "privacy": {
+    "prohibitedFields": [
+      "absolutePath",
+      "mediaContent",
+      "subtitleContent",
+      "apiKey",
+      "authorizationHeader",
+      "commandLine"
+    ],
+    "allowedFileIdentity": ["sample_id", "sha256", "byte_size", "duration_ms"]
+  }
+}

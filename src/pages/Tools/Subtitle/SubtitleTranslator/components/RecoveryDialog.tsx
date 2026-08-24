@@ -23,22 +23,23 @@ import {
   Clock,
 } from "lucide-react";
 import { showToast } from "@/utils/toast";
-import { inferMaxOutputTokens } from "@/constants/model";
 import useSubtitleTranslatorStore from "@/store/tools/subtitle/useSubtitleTranslatorStore";
 import useModelStore from "@/store/useModelStore";
 import type { ModelProfile } from "@/type/model";
 import {
-  scanTranslationRecoveryArtifacts,
-  inspectTranslationRecoveryArtifact,
-  createRecoveredSubtitleTaskDraft,
+  prepareRecoveredSubtitleTasks,
+  revokeTranslationRecoveryScan,
+  selectTranslationRecoveryDirectory,
+  selectTranslationRecoveryManifest,
 } from "@/services/subtitle/translatorRecoveryService";
 import type {
   TranslationRecoveryCandidate,
   TranslationRecoveryScanResult,
   SubtitleTranslatorTask,
-  TranslationRecoveryInputMode,
 } from "@/type/subtitle";
 import { TaskStatus } from "@/type/subtitle";
+import { createSubtitleTaskExecutionBinding } from "@/agent/task-model-config";
+import { releaseSubtitleTranslationTaskAuthority } from "@/services/subtitle/translatorExecutionService";
 
 type RecoveryDialogState = "idle" | "scanning" | "ready" | "importing" | "error";
 
@@ -49,9 +50,8 @@ interface RecoveryDialogProps {
 
 export default function RecoveryDialog({ open, onOpenChange }: RecoveryDialogProps) {
   const { t } = useTranslation();
-  const outputURL = useSubtitleTranslatorStore((s) => s.outputURL);
   const addRecoveredTasks = useSubtitleTranslatorStore((s) => s.addRecoveredTasks);
-  const startAllTasks = useSubtitleTranslatorStore((s) => s.startAllTasks);
+  const startTasks = useSubtitleTranslatorStore((s) => s.startTasks);
 
   const [state, setState] = useState<RecoveryDialogState>("idle");
   const [candidates, setCandidates] = useState<TranslationRecoveryCandidate[]>([]);
@@ -60,61 +60,37 @@ export default function RecoveryDialog({ open, onOpenChange }: RecoveryDialogPro
   const [error, setError] = useState<string>("");
 
   const reset = useCallback(() => {
+    if (scanResult) {
+      void revokeTranslationRecoveryScan(scanResult.recoveryScanId);
+    }
     setState("idle");
     setCandidates([]);
     setScanResult(null);
     setSelected(new Set());
     setError("");
-  }, []);
+  }, [scanResult]);
 
   const handleOpenChange = useCallback((open: boolean) => {
     if (!open) reset();
     onOpenChange(open);
   }, [onOpenChange, reset]);
 
-  const handleScanCurrentOutput = useCallback(async () => {
-    if (!outputURL) return;
-    setState("scanning");
-    try {
-      const result = await scanTranslationRecoveryArtifacts({
-        roots: [outputURL],
-        recursive: true,
-      });
-      setScanResult(result);
-      setCandidates(result.candidates);
-      setState("ready");
-
-      const recoverable = result.candidates.filter(
-        (c) => c.recoverability === "ready" || c.recoverability === "ready_from_manifest"
-      );
-      setSelected(new Set(recoverable.map((c) => c.id)));
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-      setState("error");
-    }
-  }, [outputURL]);
-
   const handleSelectDirectory = useCallback(async () => {
     try {
-      const result = await window.ipcRenderer.invoke("select-output-directory", {
-        title: "Select Directory to Scan",
-        buttonLabel: "Scan",
-      });
-      if (!result || result.canceled || !result.filePaths?.length) return;
-
       setState("scanning");
-      const scanRes = await scanTranslationRecoveryArtifacts({
-        roots: [result.filePaths[0]],
-        recursive: true,
-      });
+      const scanRes = await selectTranslationRecoveryDirectory();
+      if (scanRes.cancelled) {
+        setState("idle");
+        return;
+      }
       setScanResult(scanRes);
-      setCandidates(scanRes.candidates);
+      setCandidates([...scanRes.candidates]);
       setState("ready");
 
       const recoverable = scanRes.candidates.filter(
-        (c) => c.recoverability === "ready" || c.recoverability === "ready_from_manifest"
+        (c) => c.recoverability === "ready_from_manifest"
       );
-      setSelected(new Set(recoverable.map((c) => c.id)));
+      setSelected(new Set(recoverable.map((c) => c.candidateId)));
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
       setState("error");
@@ -123,24 +99,19 @@ export default function RecoveryDialog({ open, onOpenChange }: RecoveryDialogPro
 
   const handleImportSingle = useCallback(async () => {
     try {
-      const filePath = await window.ipcRenderer.invoke("select-recovery-manifest-file");
-      if (!filePath) return;
-
       setState("scanning");
-      const candidate = await inspectTranslationRecoveryArtifact(filePath);
-      setScanResult({
-        candidates: [candidate],
-        scannedDirs: 1,
-        scannedFiles: 1,
-        skippedFiles: 0,
-        truncated: false,
-        errors: [],
-      });
-      setCandidates([candidate]);
+      const result = await selectTranslationRecoveryManifest();
+      if (result.cancelled) {
+        setState("idle");
+        return;
+      }
+      setScanResult(result);
+      setCandidates([...result.candidates]);
       setState("ready");
 
-      if (candidate.recoverability === "ready" || candidate.recoverability === "ready_from_manifest") {
-        setSelected(new Set([candidate.id]));
+      const candidate = result.candidates[0];
+      if (candidate?.recoverability === "ready_from_manifest") {
+        setSelected(new Set([candidate.candidateId]));
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -162,9 +133,9 @@ export default function RecoveryDialog({ open, onOpenChange }: RecoveryDialogPro
 
   const handleSelectAll = useCallback(() => {
     const recoverable = candidates.filter(
-      (c) => c.recoverability === "ready" || c.recoverability === "ready_from_manifest"
+      (c) => c.recoverability === "ready_from_manifest"
     );
-    setSelected(new Set(recoverable.map((c) => c.id)));
+    setSelected(new Set(recoverable.map((c) => c.candidateId)));
   }, [candidates]);
 
   const handleDeselectAll = useCallback(() => {
@@ -172,8 +143,9 @@ export default function RecoveryDialog({ open, onOpenChange }: RecoveryDialogPro
   }, []);
 
   const handleAddToQueue = useCallback(async (andStart = false) => {
-    const selectedCandidates = candidates.filter((c) => selected.has(c.id));
-    if (selectedCandidates.length === 0) return;
+    const selectedCandidates = candidates.filter((c) =>
+      selected.has(c.candidateId));
+    if (selectedCandidates.length === 0 || !scanResult) return;
 
     setState("importing");
 
@@ -185,36 +157,73 @@ export default function RecoveryDialog({ open, onOpenChange }: RecoveryDialogPro
       return;
     }
 
+    let recoveryDirectoryToken: string | undefined;
+    let preparedTaskIds: readonly string[] = [];
     try {
-      const tasks: SubtitleTranslatorTask[] = [];
-
-      for (const candidate of selectedCandidates) {
-        const inputMode: TranslationRecoveryInputMode =
-          candidate.recoverability === "ready" ? "source_file" : "manifest_fragments";
-
-        const draft = await createRecoveredSubtitleTaskDraft({
-          checkpointPath: candidate.checkpointPath,
-          recoveryInputMode: inputMode,
-        });
-
-        const task: SubtitleTranslatorTask = {
-          ...draft,
-          fileContent: draft.fileContent || "",
-          status: TaskStatus.NOT_STARTED,
-          apiKey: taskProfile.apiKey,
-          apiModel: taskProfile.modelKey,
-          endPoint: taskProfile.baseUrl,
-          apiFormat: taskProfile.apiFormat,
-          outputTokenParameter: taskProfile.outputTokenParameter,
-          maxOutputTokens: taskProfile.maxOutputTokens ?? inferMaxOutputTokens(taskProfile.modelKey),
-          conflictPolicy: "index",
-          concurrentSlices: true,
-        };
-
-        tasks.push(task);
+      const directory = await window.subtitleTranslationApi.selectOutputDirectory();
+      if (!directory.ok) throw new Error(directory.error.message);
+      if (directory.data.cancelled) {
+        setState("ready");
+        return;
       }
+      recoveryDirectoryToken = directory.data.directoryToken;
+      if (!recoveryDirectoryToken) {
+        throw new Error("Recovery output authorization is unavailable.");
+      }
+      const prepared = await prepareRecoveredSubtitleTasks({
+        recoveryScanId: scanResult.recoveryScanId,
+        directoryToken: recoveryDirectoryToken,
+        candidateIds: selectedCandidates.map((candidate) =>
+          candidate.candidateId),
+      });
+      preparedTaskIds = prepared.tasks.map((task) => task.taskId);
+      const tasks: SubtitleTranslatorTask[] = prepared.tasks.map((draft) => ({
+        taskId: draft.taskId,
+        fileName: draft.fileName,
+        fileContent: "",
+        sliceType: draft.sliceType as SubtitleTranslatorTask["sliceType"],
+        ...(draft.customSliceLength === undefined
+          ? {}
+          : { customSliceLength: draft.customSliceLength }),
+        sourceLang: draft.sourceLang as SubtitleTranslatorTask["sourceLang"],
+        targetLang: draft.targetLang as SubtitleTranslatorTask["targetLang"],
+        translationOutputMode: draft.translationOutputMode,
+        resolvedFragments: draft.resolvedFragments,
+        totalFragments: draft.totalFragments,
+        progress: draft.progress,
+        ...(draft.actualUsage ? { actualUsage: draft.actualUsage } : {}),
+        status: TaskStatus.NOT_STARTED,
+        executionBinding: createSubtitleTaskExecutionBinding(taskProfile, {
+          thinkingEnabled: draft.thinkingEnabled,
+        }),
+        conflictPolicy: "index",
+        concurrentSlices: true,
+        recoveryMode: "resume",
+        recoveryInputMode: "manifest_fragments",
+        checkpointRef: draft.checkpointRef,
+        recovery: {
+          checkpointRef: draft.checkpointRef,
+          resumable: true,
+          failedFragmentIndexes: draft.failedFragmentIndexes
+            ? [...draft.failedFragmentIndexes]
+            : undefined,
+          resolvedFragments: draft.resolvedFragments,
+          totalFragments: draft.totalFragments,
+        },
+        taskReference: draft.reference,
+      }));
 
-      const { addedCount, skippedCount } = addRecoveredTasks(tasks);
+      const { addedCount, skippedCount, addedTaskIds } =
+        addRecoveredTasks(tasks);
+      preparedTaskIds = [];
+      if (skippedCount > 0) {
+        const added = new Set(addedTaskIds);
+        for (const task of tasks) {
+          if (!added.has(task.taskId)) {
+            releaseSubtitleTranslationTaskAuthority(task.taskId);
+          }
+        }
+      }
 
       if (addedCount > 0) {
         showToast(
@@ -230,22 +239,29 @@ export default function RecoveryDialog({ open, onOpenChange }: RecoveryDialogPro
       }
 
       if (andStart && addedCount > 0) {
-        startAllTasks();
+        startTasks(addedTaskIds);
       }
 
       handleOpenChange(false);
     } catch (err) {
+      if (preparedTaskIds.length > 0) {
+        for (const taskId of preparedTaskIds) {
+          releaseSubtitleTranslationTaskAuthority(taskId);
+        }
+      } else if (recoveryDirectoryToken) {
+        await revokeRecoveryOutputDirectory(recoveryDirectoryToken);
+      }
       setError(err instanceof Error ? err.message : String(err));
       setState("error");
     }
-  }, [candidates, selected, addRecoveredTasks, startAllTasks, handleOpenChange, t]);
+  }, [candidates, selected, scanResult, addRecoveredTasks, startTasks, handleOpenChange, t]);
 
-  const handleOpenLocation = useCallback((dirPath: string) => {
-    window.ipcRenderer.invoke("show-item-in-folder", dirPath);
+  const handleOpenLocation = useCallback((checkpointRef: string) => {
+    void window.subtitleTranslationApi.revealRecoveryCheckpoint(checkpointRef);
   }, []);
 
   const recoverableCount = candidates.filter(
-    (c) => c.recoverability === "ready" || c.recoverability === "ready_from_manifest"
+    (c) => c.recoverability === "ready_from_manifest"
   ).length;
 
   return (
@@ -257,23 +273,6 @@ export default function RecoveryDialog({ open, onOpenChange }: RecoveryDialogPro
       <ScrollableDialogContent fadeMasks={state === "ready" && candidates.length > 0}>
         {state === "idle" && (
           <div className="flex flex-col gap-3">
-            {outputURL && (
-              <Button
-                variant="outline"
-                className="justify-start h-auto py-3 px-4"
-                onClick={handleScanCurrentOutput}
-              >
-                <FileSearch className="h-4 w-4 mr-3 shrink-0" />
-                <div className="text-left">
-                  <div className="text-sm font-medium">
-                    {t("subtitle:translator.recovery.scan_current_output")}
-                  </div>
-                  <div className="text-xs text-muted-foreground mt-0.5 truncate max-w-[400px]">
-                    {outputURL}
-                  </div>
-                </div>
-              </Button>
-            )}
             <Button
               variant="outline"
               className="justify-start h-auto py-3 px-4"
@@ -348,11 +347,12 @@ export default function RecoveryDialog({ open, onOpenChange }: RecoveryDialogPro
             <div className="min-w-0 divide-y rounded-md border">
               {candidates.map((candidate) => (
                 <CandidateRow
-                  key={candidate.id}
+                  key={candidate.candidateId}
                   candidate={candidate}
-                  isSelected={selected.has(candidate.id)}
-                  onToggle={() => handleToggleCandidate(candidate.id)}
-                  onOpenLocation={() => handleOpenLocation(candidate.outputDir)}
+                  isSelected={selected.has(candidate.candidateId)}
+                  onToggle={() => handleToggleCandidate(candidate.candidateId)}
+                  onOpenLocation={() =>
+                    handleOpenLocation(candidate.checkpointRef)}
                   t={t}
                 />
               ))}
@@ -400,6 +400,20 @@ export default function RecoveryDialog({ open, onOpenChange }: RecoveryDialogPro
   );
 }
 
+async function revokeRecoveryOutputDirectory(
+  directoryToken: string,
+): Promise<void> {
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      const result = await window.subtitleTranslationApi
+        .revokeOutputDirectory(directoryToken);
+      if (result.ok) return;
+    } catch {
+      // Retry the same opaque draft without weakening its authority boundary.
+    }
+  }
+}
+
 // ─── Candidate Row ───────────────────────────────────────────────────────────
 
 function CandidateRow({
@@ -415,8 +429,7 @@ function CandidateRow({
   onOpenLocation: () => void;
   t: (key: string) => string;
 }) {
-  const isRecoverable =
-    candidate.recoverability === "ready" || candidate.recoverability === "ready_from_manifest";
+  const isRecoverable = candidate.recoverability === "ready_from_manifest";
 
   return (
     <div className="flex min-w-0 items-start gap-3 overflow-hidden px-3 py-2.5 transition-colors hover:bg-muted/50">
@@ -435,7 +448,6 @@ function CandidateRow({
             className="flex-1 text-sm font-medium"
           />
           <RecoverabilityBadge recoverability={candidate.recoverability} t={t} />
-          <SourceStateBadge sourceState={candidate.sourceState} t={t} />
         </div>
 
         <div className="mt-1 flex min-w-0 items-center gap-3 overflow-hidden text-xs text-muted-foreground">
@@ -445,7 +457,10 @@ function CandidateRow({
           <span className="shrink-0">
             {candidate.resolvedFragments}/{candidate.totalFragments} ({candidate.progress}%)
           </span>
-          <MiddleEllipsisTooltip text={candidate.outputDir} className="flex-1 font-mono" />
+          <MiddleEllipsisTooltip
+            text={candidate.outputDirectoryLabel}
+            className="flex-1 font-mono"
+          />
         </div>
 
         {candidate.recoverability === "ready_from_manifest" && (
@@ -527,13 +542,6 @@ function RecoverabilityBadge({
   t: (key: string) => string;
 }) {
   switch (recoverability) {
-    case "ready":
-      return (
-        <Badge variant="default" className="text-[10px] px-1.5 py-0 gap-0.5 bg-green-600">
-          <CheckCircle2 className="h-2.5 w-2.5" />
-          {t("subtitle:translator.recovery.ready")}
-        </Badge>
-      );
     case "ready_from_manifest":
       return (
         <Badge variant="default" className="text-[10px] px-1.5 py-0 gap-0.5 bg-amber-600">
@@ -555,36 +563,5 @@ function RecoverabilityBadge({
           {t(`subtitle:translator.recovery.${recoverability}`)}
         </Badge>
       );
-  }
-}
-
-function SourceStateBadge({
-  sourceState,
-  t,
-}: {
-  sourceState: TranslationRecoveryCandidate["sourceState"];
-  t: (key: string) => string;
-}) {
-  switch (sourceState) {
-    case "matched":
-      return (
-        <Badge variant="outline" className="text-[10px] px-1.5 py-0 text-green-600 border-green-200">
-          {t("subtitle:translator.recovery.source_matched")}
-        </Badge>
-      );
-    case "missing":
-      return (
-        <Badge variant="outline" className="text-[10px] px-1.5 py-0 text-amber-600 border-amber-200">
-          {t("subtitle:translator.recovery.source_missing")}
-        </Badge>
-      );
-    case "changed":
-      return (
-        <Badge variant="outline" className="text-[10px] px-1.5 py-0 text-amber-600 border-amber-200">
-          {t("subtitle:translator.recovery.source_changed")}
-        </Badge>
-      );
-    default:
-      return null;
   }
 }

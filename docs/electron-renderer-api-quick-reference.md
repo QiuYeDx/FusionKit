@@ -1,6 +1,6 @@
 # Electron / Renderer 开发速查（优先使用的 API & 封装）
 
-适用范围：FusionKit（Electron 24+；当前依赖 `electron@^33`），默认安全配置（`contextIsolation: true`，不启用 `nodeIntegration`）。
+适用范围：FusionKit（Electron 24+；当前依赖 `electron@41.10.6`），默认安全配置（`contextIsolation: true`，不启用 `nodeIntegration`）。
 
 ## 分层原则（先记住这个）
 

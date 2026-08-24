@@ -11,6 +11,7 @@ type ToolConfigDisclosureProps = {
   defaultOpen?: boolean;
   onOpenChange?: (open: boolean) => void;
   children: React.ReactNode;
+  testId?: string;
   className?: string;
   contentClassName?: string;
 };
@@ -29,6 +30,7 @@ export function ToolConfigDisclosure({
   defaultOpen = false,
   onOpenChange,
   children,
+  testId,
   className,
   contentClassName,
 }: ToolConfigDisclosureProps) {
@@ -62,17 +64,18 @@ export function ToolConfigDisclosure({
   };
 
   return (
-    <div className={cn("rounded-lg", className)}>
+    <div className={cn("-mx-4 border-y", className)}>
       <button
         type="button"
-        className="flex w-full items-center justify-between gap-3 rounded-lg border border-dashed bg-muted/10 p-3 text-left transition-colors hover:bg-muted/40 focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] focus-visible:outline-none"
+        data-testid={testId}
+        className="group flex min-h-14 w-full cursor-pointer items-center justify-between gap-3 px-4 py-2.5 text-left transition-colors hover:bg-muted/30 focus-visible:bg-muted/30 focus-visible:ring-ring/50 focus-visible:ring-[3px] focus-visible:outline-none"
         aria-expanded={isOpen}
         aria-controls={contentId}
         onClick={handleToggle}
       >
-        <span className="flex min-w-0 items-start gap-2">
+        <span className="flex min-w-0 items-center gap-2.5">
           {Icon ? (
-            <Icon className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+            <Icon className="h-4 w-4 shrink-0 text-muted-foreground" />
           ) : null}
           <span className="min-w-0 space-y-0.5">
             <span className="block text-[12.5px] font-medium leading-5 text-foreground">
@@ -85,15 +88,19 @@ export function ToolConfigDisclosure({
             ) : null}
           </span>
         </span>
-        <ChevronDown
-          className={cn(
-            "h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform motion-reduce:transition-none",
-            isOpen && "rotate-180",
-          )}
-        />
+        <span className="flex h-7 w-7 shrink-0 items-center justify-center text-muted-foreground transition-colors group-hover:text-foreground group-focus-visible:text-foreground">
+          <ChevronDown
+            className={cn(
+              "h-4 w-4 transition-transform duration-200 motion-reduce:transition-none",
+              isOpen && "rotate-180",
+            )}
+          />
+        </span>
       </button>
       <div
         id={contentId}
+        aria-hidden={!isOpen}
+        inert={!isOpen}
         className={cn(
           "grid transition-[grid-template-rows] duration-200 motion-reduce:transition-none",
           isOpen ? "grid-rows-[1fr]" : "grid-rows-[0fr]",
@@ -112,7 +119,7 @@ export function ToolConfigDisclosure({
         >
           <div
             className={cn(
-              "space-y-3 pt-3",
+              "space-y-3 px-4 pb-4 pt-2",
               !isOpen && "pointer-events-none",
               contentClassName,
             )}

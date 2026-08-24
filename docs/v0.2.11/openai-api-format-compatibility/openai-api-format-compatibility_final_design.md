@@ -785,3 +785,18 @@ Responses 支持状态化/存储相关能力。FusionKit 是本地工具，默�
 - 本设计不要求用户已有 profile 自动切到 Responses。
 - 本设计不在没有验证的情况下引入新的 AI SDK provider major upgrade。
 - 本设计不改变已有翻译输出格式、命名规则、队列策略和恢复策略。
+
+## 18. DeepSeek 字幕 Thinking 控制
+
+字幕 AI 翻译提供工具级 thinkingEnabled 开关，仅在任务模型为 DeepSeek
+Chat Completions 时展示，默认关闭。该选项不是模型 profile 的全局属性，避免同一
+profile 在 HomeAgent、长文本翻译等模块中被意外改变。
+
+- 新任务、任务编辑、Agent 创建任务和本地字幕自动导入都将选项冻结到
+  SubtitleTaskReadyExecutionBinding。
+- checkpoint 的非敏感 options 保存该值，恢复任务沿用原模式；旧 checkpoint 和旧
+  DeepSeek 任务缺少字段时一律解释为 false。
+- Chat Completions adapter 只在 runtime 明确提供该布尔值时发送 DeepSeek 私有字段
+  thinking.type = enabled 或 disabled。
+- 非 DeepSeek 模型与 Responses API 不发送该字段。
+- 默认关闭必须表现为显式 thinking.type = disabled，不能依赖供应商默认值。

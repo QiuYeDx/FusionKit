@@ -1,0 +1,305 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-07-18",
+  "legalNotice": "This inventory records the PRE-006 engineering freeze and is not legal advice. QA-005 still verifies the exact notices, source offers and redistributable file inventory before artifacts are shared.",
+  "candidates": [
+    {
+      "id": "whisper-cpp-v1.9.1",
+      "category": "engine",
+      "candidateVersion": "v1.9.1",
+      "candidateCommit": "f049fff95a089aa9969deb009cdd4892b3e74916",
+      "sourceUrl": "https://github.com/ggml-org/whisper.cpp/releases/tag/v1.9.1",
+      "declaredLicense": "MIT",
+      "decisionStatus": "production_selected_whisper_cpp_v1_9_1_node_managed_server",
+      "nextDecisionWorkPackage": "NATIVE-001/NATIVE-002",
+      "pre001WindowsReleaseAssets": [
+        {
+          "targetProfile": "windows-x64-cpu",
+          "fileName": "whisper-bin-x64.zip",
+          "byteSize": 7982101,
+          "sha256": "7d8be46ecd31828e1eb7a2ecdd0d6b314feafd82163038ab6092594b0a063539",
+          "downloadUrl": "https://github.com/ggml-org/whisper.cpp/releases/download/v1.9.1/whisper-bin-x64.zip",
+          "localEvidenceStatus": "sha256_and_help_launch_verified",
+          "localEvidenceObservedAt": "2026-07-16",
+          "launchExitCode": 0
+        },
+        {
+          "targetProfile": "windows-x64-cuda",
+          "fileName": "whisper-cublas-12.4.0-bin-x64.zip",
+          "byteSize": 677887125,
+          "sha256": "106a2030eff8998e4ef320fe72e263a78449e9040386ee27c41ea80b001b601b",
+          "downloadUrl": "https://github.com/ggml-org/whisper.cpp/releases/download/v1.9.1/whisper-cublas-12.4.0-bin-x64.zip",
+          "localEvidenceStatus": "sha256_and_real_cuda_inference_verified",
+          "localEvidenceObservedAt": "2026-07-17",
+          "extractedByteSize": 1209487872,
+          "serverSha256": "c72f99b75ae4111d6e7ddb62e04d3c0c94fea2ba6536412e517f256b4388dd37"
+        }
+      ],
+      "releaseDigestEvidence": "https://api.github.com/repos/ggml-org/whisper.cpp/releases/341768502",
+      "pre002WindowsCpuServerEvidence": {
+        "runtime": "whisper-server.exe",
+        "transport": "node-owned-loopback-http",
+        "model": "ggml-base.bin",
+        "modelLoadCount": 1,
+        "completedRealSamples": 3,
+        "realtimeFactorRange": [0.0318, 0.0512],
+        "abortObservedMs": 5006,
+        "abortLatencyMs": 6,
+        "healthyAfterAbort": true,
+        "processReused": true,
+        "cleanupVerified": true
+      },
+      "pre003WindowsCudaEvidence": {
+        "modelId": "large-v3-q5_0",
+        "completedRealSamples": 3,
+        "realtimeFactorRange": [0.0509, 0.0735],
+        "finalStreamingHttpSmokeRealtimeFactor": 0.0488,
+        "peakRamBytes": 1124974592,
+        "peakVramBytes": 2117439488,
+        "backendEvidence": "exact_pid_windows_gpu_process_memory_counter",
+        "abortLatencyMs": 5,
+        "healthyAfterAbort": true,
+        "processReusedForNormalTasks": true,
+        "srtAndLrcParseBack": true
+      },
+      "pre003WindowsCpuEvidence": {
+        "modelId": "large-v3-q5_0",
+        "completedRealSamples": 3,
+        "realtimeFactorRange": [0.5063, 0.592],
+        "peakRamBytes": 2502635520,
+        "backendEvidence": "official-server-no-gpu-flag",
+        "longRequestElapsedMs": 446026,
+        "longRequestCrossedPreviousFetchHeaderTimeout": true,
+        "processReusedForTwoNormalTasks": true,
+        "abortLatencyMs": 3,
+        "srtAndLrcParseBack": true
+      },
+      "pre003BackendFailureEvidence": {
+        "injectedCondition": "cublas64_12.dll_missing",
+        "serverHealthy": true,
+        "peakVramBytes": 0,
+        "backendVerified": false,
+        "stableProductCode": "backend_unverified"
+      },
+      "pre004MacosArm64Evidence": {
+        "artifactSource": "exact_v1.9.1_commit_source_build",
+        "artifactSha256": "4a27a3058d43dff4f763aaf4fc8cb3726460dee145f55a4e520dc4e5a7354f1a",
+        "architectures": ["arm64"],
+        "metalLibraryEmbedded": true,
+        "systemOnlyDynamicDependencies": true,
+        "completedRealSamplesPerBackend": 3,
+        "metalRealtimeFactorRange": [0.0698, 0.0821],
+        "cpuRealtimeFactorRange": [0.1954, 0.2811],
+        "metalPeakRamBytes": 1870495744,
+        "cpuPeakRamBytes": 2034991104,
+        "backendEvidence": "metal_initialization_and_device_diagnostics_plus_explicit_no_gpu_cpu_flag",
+        "processReusedForNormalTasks": true,
+        "srtAndLrcStructuralParseBack": true,
+        "wholeFileTranscriptValidity": false,
+        "boundedWindowTranscriptValidity": true,
+        "historicalMetalLongestConsecutiveRepeatCount": 347,
+        "historicalCpuLongestConsecutiveRepeatCount": 43,
+        "finalLongestConsecutiveRepeatCount": 2,
+        "finalInvalidRawTimelineSegmentCount": 0,
+        "boundedWindowReplayRecoveredExpectedContent": true,
+        "finalTranscriptStrategy": "30s_pcm_windows_5s_overlap_vad_mapped_segment_timeline_raw_gate_and_bounded_retry",
+        "vadTokenTimestampsAllowed": false,
+        "packagedLikeReady": true,
+        "releaseReady": false,
+        "releaseReadinessPre004Gate": false,
+        "releaseOwningWorkPackage": "QA-004",
+        "unadoptedReleaseCapabilities": [
+          "developer_id_signature_missing",
+          "gatekeeper_not_accepted"
+        ]
+      },
+      "pre006Decision": {
+        "runtimeContractVersion": 1,
+        "adapter": "node-managed-official-server",
+        "progressContract": "phase-only",
+        "nativeBridgeRequired": false,
+        "windowsBaseRuntime": "official-cpu-prebuilt",
+        "windowsCudaRuntime": "official-on-demand-prebuilt-pack",
+        "macosArm64Runtime": "exact-commit-source-build-metal-and-cpu",
+        "macosX64Support": "unsupported"
+      },
+      "openQuestions": [],
+      "releaseGates": [
+        "QA-004 validates Developer ID, notarization and Gatekeeper only for a distributed macOS build.",
+        "QA-005 retains the MIT license text and exact source record beside shipped server artifacts."
+      ]
+    },
+    {
+      "id": "whisper-large-v3-ggml-family",
+      "category": "model",
+      "candidateVersion": "large-v3-q5_0 selected as the launch default; unquantized large-v3 and turbo variants remain deferred",
+      "candidateCommit": "c521a4b02f422512d734391fdf08bb08c0862f68",
+      "sourceUrl": "https://huggingface.co/ggerganov/whisper.cpp/blob/c521a4b02f422512d734391fdf08bb08c0862f68/ggml-large-v3-q5_0.bin",
+      "declaredLicense": "MIT on the exact official model repository revision; final notice review remains QA-005",
+      "decisionStatus": "production_selected_large_v3_q5_0_launch_default",
+      "nextDecisionWorkPackage": "MODEL-001/MODEL-002",
+      "pre003SelectedArtifact": {
+        "modelId": "large-v3-q5_0",
+        "fileName": "ggml-large-v3-q5_0.bin",
+        "byteSize": 1081140203,
+        "sha256": "d75795ecff3f83b5faa89d1900604ad8c780abd5739fae406de19f23ecd98ad1",
+        "downloadUrl": "https://huggingface.co/ggerganov/whisper.cpp/resolve/c521a4b02f422512d734391fdf08bb08c0862f68/ggml-large-v3-q5_0.bin?download=true",
+        "localEvidenceStatus": "backend_integrity_and_macos_bounded_window_transcript_validity_verified"
+      },
+      "pre006Decision": {
+        "launchDefault": "large-v3-q5_0",
+        "soleBuiltInLaunchModel": true,
+        "bundledInInstaller": false,
+        "deferredBuiltInModels": [
+          "large-v3",
+          "large-v3-turbo",
+          "large-v3-turbo-q5_0"
+        ]
+      },
+      "openQuestions": [],
+      "releaseGates": [
+        "QA-005 confirms the exact model-weight notice and redistribution record before the download manifest is released."
+      ]
+    },
+    {
+      "id": "silero-vad-v6.2.0-ggml",
+      "category": "vad",
+      "candidateVersion": "v6.2.0 GGML test model used by whisper.cpp v1.9.1",
+      "candidateCommit": null,
+      "sourceUrl": "https://github.com/ggml-org/whisper.cpp/blob/f049fff95a089aa9969deb009cdd4892b3e74916/models/for-tests-silero-v6.2.0-ggml.bin",
+      "declaredLicense": "MIT",
+      "decisionStatus": "production_selected_silero_v6_2_0_launch_default",
+      "nextDecisionWorkPackage": "MODEL-002",
+      "pre004Evidence": {
+        "byteSize": 885098,
+        "sha256": "2aa269b785eeb53a82983a20501ddf7c1d9c48e33ab63a41391ac6c9f7fb6987",
+        "silentWindowHallucinationSuppressed": true,
+        "segmentTimestampsMappedToOriginalTimeline": true,
+        "tokenTimestampsRemainSilenceCompressed": true,
+        "tokenTimestampsAllowedWithVad": false
+      },
+      "pre006Decision": {
+        "launchDefault": true,
+        "bundledInInstaller": false,
+        "timelinePolicy": "mapped-segment-timestamps-only",
+        "tokenTimestampsAllowed": false
+      },
+      "openQuestions": [],
+      "releaseGates": [
+        "QA-005 confirms the exact VAD model-weight notice and redistribution record before the download manifest is released."
+      ]
+    },
+    {
+      "id": "ffmpeg-n8.1.2-source",
+      "category": "media",
+      "candidateVersion": "macOS n8.1.2 pinned source build; Windows n8.1.2-21-gce3c09c101 immutable BtbN build",
+      "candidateCommit": "38b88335f99e76ed89ff3c93f877fdefce736c13",
+      "sourceUrl": "https://github.com/FFmpeg/FFmpeg/tree/n8.1.2",
+      "declaredLicense": "LGPL-2.1-or-later or GPL-2.0-or-later depending on build flags",
+      "decisionStatus": "production_selected_platform_specific_ffmpeg_8_1_2",
+      "nextDecisionWorkPackage": "NATIVE-002/QA-005",
+      "pre005MacosArm64Evidence": {
+        "sourceArchiveFileName": "ffmpeg-8.1.2.tar.xz",
+        "sourceArchiveByteSize": 11710924,
+        "sourceArchiveSha256": "464beb5e7bf0c311e68b45ae2f04e9cc2af88851abb4082231742a74d97b524c",
+        "detachedSignatureSha256": "0a0963fccd70597838073f3e31b20f4a4d8cc2b5e577472c9a5a1f22624246f8",
+        "expectedSigningKeyFingerprint": "FCF986EA15E6E293A5644F10B4322F04D67658D8",
+        "detachedSignatureVerification": "verified_on_windows_gpgv_2026-07-18",
+        "buildRecipe": "scripts/local-subtitle/runtime/build-ffmpeg-macos-arm64.mjs",
+        "logicalPrefix": "/opt/fusionkit/local-subtitle/ffmpeg/8.1.2",
+        "deploymentTarget": "11.0",
+        "gplEnabled": false,
+        "nonfreeEnabled": false,
+        "version3Enabled": false,
+        "networkEnabled": false,
+        "externalLibraries": [],
+        "systemOnlyDynamicDependencies": true,
+        "privateBuildPathScanPassed": true,
+        "packagedManifestSha256": "fa82588f3e272db2031af3ed263ba5104596295260dbe0b30c529fef283e8320",
+        "packagedFfmpegSha256": "55f36865bfedfef597c1c6462ec92fcab1392bf418815e66b416195493bacc53",
+        "packagedFfprobeSha256": "8dfe0a7aba414a65a284eca637b04713c0ad0cabaf290f9b5f2679664fb60d09",
+        "formatMatrixPassed": [
+          "mp3",
+          "wav",
+          "flac",
+          "aac",
+          "m4a",
+          "mp4",
+          "mkv",
+          "mov",
+          "webm"
+        ],
+        "packagedNoPathSmokePassed": true,
+        "beforePackMissingRuntimeGatePassed": true,
+        "runtimeFaultMatrixPassed": true,
+        "outerAdhocDeepStrictSignaturePassed": true,
+        "developerIdGateOwner": "QA-004"
+      },
+      "pre005WindowsX64Evidence": {
+        "provider": "BtbN/FFmpeg-Builds",
+        "releaseTag": "autobuild-2026-06-30-13-34",
+        "assetFileName": "ffmpeg-n8.1.2-21-gce3c09c101-win64-lgpl-8.1.zip",
+        "assetByteSize": 144332533,
+        "assetSha256": "3b9eceb438016b647e0755a51ce3a388cd4ed5679e2427cb83a01e1ae2cd0eba",
+        "version": "n8.1.2-21-gce3c09c101-20260630",
+        "ffmpegCommit": "ce3c09c101c83add623774d414a9f9498caf5c25",
+        "configurationSha256": "942a04ca7fafc83bb5ffaa5e40a4c74682b77e353b5d3e597d77219c54d04dc6",
+        "license": "LGPL-3.0-or-later",
+        "gplEnabled": false,
+        "nonfreeEnabled": false,
+        "externalLibraryFlagCount": 51,
+        "ffmpegSha256": "c623359f35e7db4820694b77d0f032f075e783a9c7207b81d908c28f148e8a68",
+        "ffprobeSha256": "35a823fb08470f6a1e91149e6c305ffbc5ee76c9901444c850f302ecee146a37",
+        "packagedNoPathSmokePassed": true,
+        "runtimeFaultMatrixPassed": true,
+        "distributionProfile": "unsigned_personal_distribution"
+      },
+      "pre006Decision": {
+        "macosArm64": "pinned-minimal-lgpl-source-build",
+        "windowsX64": "pinned-immutable-lgpl-prebuilt-initial-baseline",
+        "sourceBuildToolchainRequiredForWindows": false,
+        "networkAccessDuringElectronBuilder": false,
+        "packagedPathFallbackAllowed": false
+      },
+      "openQuestions": [],
+      "releaseGates": [
+        "QA-005 completes the exact Windows external-library notice/source-offer review and codec/patent review.",
+        "QA-004 validates final nested Developer ID signing and notarization only for a distributed macOS build."
+      ]
+    },
+    {
+      "id": "nvidia-cuda-runtime",
+      "category": "gpu_runtime",
+      "candidateVersion": "CUDA 12.4 user-mode DLL set from whisper.cpp v1.9.1; driver 610.62 target evidence",
+      "candidateCommit": null,
+      "sourceUrl": "https://docs.nvidia.com/cuda/archive/12.4.0/eula/index.html",
+      "declaredLicense": "NVIDIA CUDA Toolkit EULA",
+      "decisionStatus": "production_selected_optional_cuda_12_4_accelerator_pack",
+      "nextDecisionWorkPackage": "MODEL-002/QA-005",
+      "pre003Evidence": {
+        "archiveByteSize": 677887125,
+        "expandedByteSize": 1209487872,
+        "runtimeDirectoryContainsCudaDependencies": true,
+        "serverEnvironmentUsesRuntimeMediaAndSystemDirectoriesOnly": true,
+        "installedCudaToolkitPathVisible": false,
+        "cudaToolkitPathRequired": false,
+        "driverStillRequired": true
+      },
+      "pre006Decision": {
+        "delivery": "on-demand-pack",
+        "baseInstallerContainsCudaRuntime": false,
+        "cudaToolkitRequired": false,
+        "nvidiaDriverRequired": true,
+        "minimumWindowsDriverVersion": "551.61",
+        "validatedWindowsDriverVersion": "610.62",
+        "integrityProfile": "official-release-archive-size-sha256-and-per-file-manifest",
+        "operatingSystemCodeSigningRequiredForPersonalProfile": false
+      },
+      "openQuestions": [],
+      "releaseGates": [
+        "QA-005 verifies every redistributed NVIDIA DLL and required notice against the pinned CUDA 12.4 EULA.",
+        "QA-003 validates install, update and rollback behavior on the target NVIDIA machine; trusted signing is optional for the personal profile."
+      ]
+    }
+  ]
+}

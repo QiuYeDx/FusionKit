@@ -1,4 +1,12 @@
-import type { ModelApiFormat, OutputTokenParameter } from "@/type/model";
+import type { ModelApiFormat, OutputTokenParameter, TokenPricing } from "@/type/model";
+import type { SubtitleTranslationUsage } from "./subtitleUsage";
+import type {
+  SubtitleTranslationAuthorizedTaskReference,
+  SubtitleTranslationGeneratedTaskReference,
+  SubtitleTranslationPreparedRecoveredTask,
+  SubtitleTranslationRecoveryCandidateSummary,
+  SubtitleTranslationRecoveryScanSelection,
+} from "./subtitleTranslationIpc";
 
 export enum SubtitleFileType {
   LRC = "LRC",
@@ -38,6 +46,24 @@ export type TranslationOutputMode = "bilingual" | "target_only";
 
 export type SubtitleModelApiFormat = ModelApiFormat;
 export type SubtitleOutputTokenParameter = OutputTokenParameter;
+
+export type SubtitleTaskReadyExecutionBinding = Readonly<{
+  status: "ready";
+  profileId: string;
+  profileLabel: string;
+  apiKey: string;
+  apiModel: string;
+  endPoint: string;
+  apiFormat?: SubtitleModelApiFormat;
+  outputTokenParameter?: SubtitleOutputTokenParameter;
+  maxOutputTokens?: number;
+  thinkingEnabled?: boolean;
+  tokenPricing?: Readonly<TokenPricing>;
+}>;
+
+export type SubtitleTaskExecutionBinding =
+  | SubtitleTaskReadyExecutionBinding
+  | Readonly<{ status: "needs_configuration" }>;
 
 export const SUPPORTED_LANGUAGES: {
   code: TranslationLanguage;
@@ -86,10 +112,7 @@ export type TranslationRecoveryMode = "auto" | "resume" | "restart";
  * 保存在 SubtitleTranslatorTask.recovery 中供 UI 使用。
  */
 export type SubtitleTranslationRecovery = {
-  checkpointPath?: string;
-  completedOutputPath?: string;
-  remainingOutputPath?: string;
-  errorLogPath?: string;
+  checkpointRef?: string;
   resumable?: boolean;
   failedFragmentIndexes?: number[];
   resolvedFragments?: number;
@@ -101,12 +124,11 @@ export type TranslationRecoveryInputMode =
   | "manifest_fragments";
 
 export type SubtitleTranslatorTask = {
+  taskId: string;
   fileName: string;
   fileContent: string;
   sliceType: SubtitleSliceType;
   customSliceLength?: number;
-  originFileURL: string;
-  targetFileURL: string;
   status: TaskStatus;
   totalFragments?: number;
   resolvedFragments?: number;
@@ -120,15 +142,10 @@ export type SubtitleTranslatorTask = {
     fragmentCount: number;
     loading?: boolean;
   };
+  actualUsage?: SubtitleTranslationUsage;
   errorLog?: string[];
 
-  apiKey: string;
-  apiModel: string;
-  endPoint: string;
-  apiFormat?: SubtitleModelApiFormat;
-  outputTokenParameter?: SubtitleOutputTokenParameter;
-  /** 模型支持的最大输出 token 数，用于设置 API 请求的 max_tokens 上限 */
-  maxOutputTokens?: number;
+  executionBinding: SubtitleTaskExecutionBinding;
 
   sourceLang?: TranslationLanguage;
   targetLang?: TranslationLanguage;
@@ -142,101 +159,23 @@ export type SubtitleTranslatorTask = {
   recovery?: SubtitleTranslationRecovery;
   /** 续跑模式，仅在重试时设置 */
   recoveryMode?: TranslationRecoveryMode;
-  /** checkpoint 文件路径，续跑时传入主进程 */
-  checkpointPath?: string;
+  /** Owner-bound opaque checkpoint authority. */
+  checkpointRef?: string;
   /** 恢复输入模式：source_file 依赖源文件分片，manifest_fragments 直接使用 manifest 中的分片 */
   recoveryInputMode?: TranslationRecoveryInputMode;
+  /** Path-free authority for newly selected or generated subtitle tasks. */
+  taskReference?:
+    | SubtitleTranslationAuthorizedTaskReference
+    | SubtitleTranslationGeneratedTaskReference;
 };
 
-export type TranslationRecoveryScanRequest = {
-  roots: string[];
-  recursive?: boolean;
-  maxDepth?: number;
-  maxFiles?: number;
-  includeCompleted?: boolean;
-};
-
-export type TranslationRecoveryScanResult = {
-  candidates: TranslationRecoveryCandidate[];
-  scannedDirs: number;
-  scannedFiles: number;
-  skippedFiles: number;
-  truncated: boolean;
-  errors: Array<{ path: string; reason: string }>;
-};
-
-export type TranslationRecoveryCandidate = {
-  id: string;
-  checkpointPath: string;
-  fileName: string;
-  manifestStatus: "running" | "failed" | "cancelled" | "completed";
-  createdAt: string;
-  updatedAt: string;
-
-  outputDir: string;
-  completedOutputPath?: string;
-  remainingOutputPath?: string;
-  errorLogPath?: string;
-  finalOutputPath?: string;
-
-  options: {
-    fileType: "LRC" | "SRT";
-    sliceType: "NORMAL" | "SENSITIVE" | "CUSTOM";
-    customSliceLength?: number;
-    sourceLang: string;
-    targetLang: string;
-    translationOutputMode: "bilingual" | "target_only";
-  };
-
-  resolvedFragments: number;
-  totalFragments: number;
-  failedFragmentIndexes?: number[];
-  progress: number;
-
-  sourceFilePath?: string;
-  sourceState:
-    | "matched"
-    | "missing"
-    | "changed"
-    | "unknown"
-    | "not_checked";
-
-  recoverability:
-    | "ready"
-    | "ready_from_manifest"
-    | "completed"
-    | "no_pending_fragments"
-    | "unsupported_schema"
-    | "corrupt_manifest"
-    | "invalid_manifest"
-    | "too_large";
-
-  blockingReason?: string;
-};
-
-export type TranslationRecoveryImportRequest = {
-  checkpointPath: string;
-  recoveryInputMode: TranslationRecoveryInputMode;
-};
-
-export type RecoveredSubtitleTaskDraft = {
-  fileName: string;
-  fileContent?: string;
-  originFileURL: string;
-  targetFileURL: string;
-  sliceType: SubtitleSliceType;
-  customSliceLength?: number;
-  sourceLang: TranslationLanguage;
-  targetLang: TranslationLanguage;
-  translationOutputMode: TranslationOutputMode;
-  resolvedFragments: number;
-  totalFragments: number;
-  progress: number;
-  recoveryMode: "resume";
-  checkpointPath: string;
-  recoveryInputMode: TranslationRecoveryInputMode;
-  recovery: SubtitleTranslationRecovery;
-};
+export type TranslationRecoveryCandidate =
+  SubtitleTranslationRecoveryCandidateSummary;
+export type TranslationRecoveryScanResult = Exclude<
+  SubtitleTranslationRecoveryScanSelection,
+  { cancelled: true }
+>;
+export type RecoveredSubtitleTaskDraft = SubtitleTranslationPreparedRecoveredTask;
 
 export type SubtitleConverterTask = {
   fileName: string;

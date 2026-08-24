@@ -1,4 +1,5 @@
-import type { ModelApiFormat, OutputTokenParameter } from "@/type/model";
+import type { ModelApiFormat, OutputTokenParameter, TokenPricing } from "@/type/model";
+import type { SubtitleTranslationUsage } from "@/type/subtitleUsage";
 
 /**
  * 字幕翻译模块 - 类型定义
@@ -60,11 +61,70 @@ export type TranslationOutputMode = "bilingual" | "target_only";
 export type SubtitleModelApiFormat = ModelApiFormat;
 export type SubtitleOutputTokenParameter = OutputTokenParameter;
 
+export type SubtitleTaskReadyExecutionBinding = Readonly<{
+  status: "ready";
+  profileId: string;
+  profileLabel: string;
+  apiKey: string;
+  apiModel: string;
+  endPoint: string;
+  apiFormat?: SubtitleModelApiFormat;
+  outputTokenParameter?: SubtitleOutputTokenParameter;
+  maxOutputTokens?: number;
+  thinkingEnabled?: boolean;
+  tokenPricing?: Readonly<TokenPricing>;
+}>;
+
+export type SubtitleTaskExecutionBinding =
+  | SubtitleTaskReadyExecutionBinding
+  | Readonly<{ status: "needs_configuration" }>;
+
+export function isSubtitleTranslatorTaskId(value: unknown): value is string {
+  return typeof value === "string" &&
+    value.length > "subtitle-task-".length &&
+    value.length <= 160 &&
+    /^subtitle-task-[a-zA-Z0-9][a-zA-Z0-9._-]*$/u.test(value);
+}
+
+export function isSubtitleTaskReadyExecutionBinding(
+  value: SubtitleTaskExecutionBinding | undefined,
+): value is SubtitleTaskReadyExecutionBinding {
+  return value?.status === "ready" &&
+    nonBlank(value.profileId) &&
+    nonBlank(value.profileLabel) &&
+    nonBlank(value.apiKey) &&
+    nonBlank(value.apiModel) &&
+    nonBlank(value.endPoint) &&
+    (value.apiFormat === undefined ||
+      value.apiFormat === "chat_completions" ||
+      value.apiFormat === "responses") &&
+    (value.outputTokenParameter === undefined ||
+      value.outputTokenParameter === "max_tokens" ||
+      value.outputTokenParameter === "max_completion_tokens") &&
+    (value.maxOutputTokens === undefined ||
+      (Number.isSafeInteger(value.maxOutputTokens) && value.maxOutputTokens > 0)) &&
+    (value.thinkingEnabled === undefined ||
+      typeof value.thinkingEnabled === "boolean") &&
+    (value.tokenPricing === undefined || validTokenPricing(value.tokenPricing));
+}
+
+function validTokenPricing(value: TokenPricing): boolean {
+  return Number.isFinite(value.inputTokensPerMillion) &&
+    value.inputTokensPerMillion >= 0 &&
+    Number.isFinite(value.outputTokensPerMillion) &&
+    value.outputTokensPerMillion >= 0;
+}
+
+function nonBlank(value: unknown): value is string {
+  return typeof value === "string" && value.trim().length > 0;
+}
+
 /**
  * 单个字幕翻译任务的完整描述，由渲染进程构建后通过 IPC 发送到主进程。
  * 包含文件信息、API 配置、翻译选项、以及运行时状态（进度/错误日志等）。
  */
 export type SubtitleTranslatorTask = {
+  taskId: string;
   fileName: string;
   fileContent: string;
   sliceType: SubtitleSliceType;
@@ -86,18 +146,12 @@ export type SubtitleTranslatorTask = {
     estimatedCost: number;
     fragmentCount: number;
   };
+  actualUsage?: SubtitleTranslationUsage;
   /** 按时间顺序记录的日志，翻译失败时会随 task-failed 事件发给渲染进程 */
   errorLog?: string[];
 
   // ---- LLM API 配置 ----
-  apiKey: string;
-  apiModel: string;
-  /** OpenAI 兼容的 chat completions 端点 */
-  endPoint: string;
-  apiFormat?: SubtitleModelApiFormat;
-  outputTokenParameter?: SubtitleOutputTokenParameter;
-  /** 模型支持的最大输出 token 数，用于设置 API 请求的 max_tokens 上限 */
-  maxOutputTokens?: number;
+  executionBinding: SubtitleTaskExecutionBinding;
 
   sourceLang?: TranslationLanguage;
   targetLang?: TranslationLanguage;
@@ -115,9 +169,21 @@ export type SubtitleTranslatorTask = {
    *   - restart: 忽略 checkpoint，全部重新翻译
    */
   recoveryMode?: TranslationRecoveryMode;
-  /** 续跑清单文件路径，续跑时由 renderer 传入 */
+  /** Main-only resolved recovery input. Renderer tasks carry checkpointRef. */
   checkpointPath?: string;
+  /** Owner-bound opaque recovery reference supplied by renderer. */
+  checkpointRef?: string;
+  recoveryInputMode?: TranslationRecoveryInputMode;
 };
+
+export interface SubtitleTranslationRuntimeAuthorization {
+  revalidateTarget(): Promise<void>;
+  validateOutputPath(outputFilePath: string): Promise<void>;
+  authorizeCheckpoint(checkpointPath: string): Promise<string>;
+  releaseCheckpoint(): void;
+  recordFinalOutput(outputFilePath: string): Promise<void>;
+  emit(channel: string, payload: unknown): void;
+}
 
 // ─── Recovery & Checkpoint ──────────────────────────────────────────────────
 
@@ -146,7 +212,7 @@ export type CheckpointFragment = {
  * 翻译检查点清单，持久化到 `*.fusionkit.resume.json`。
  * 是任务恢复的唯一依据；不包含 apiKey 等敏感信息。
  */
-export type TranslationCheckpointManifest = {
+export type TranslationCheckpointManifestV1 = {
   schemaVersion: 1;
   taskId: string;
   status: "running" | "failed" | "cancelled" | "completed";
@@ -172,20 +238,55 @@ export type TranslationCheckpointManifest = {
     sourceLang: string;
     targetLang: string;
     translationOutputMode: "bilingual" | "target_only";
+    thinkingEnabled?: boolean;
   };
+
+  usage?: SubtitleTranslationUsage;
 
   fragments: CheckpointFragment[];
 };
+
+/**
+ * Current checkpoint contract. Paths, capabilities, tokens and model secrets
+ * are deliberately absent; main derives artifact paths from the authorized
+ * directory containing the manifest.
+ */
+export type TranslationCheckpointManifestV2 = {
+  schemaVersion: 2;
+  taskId: string;
+  status: "running" | "failed" | "cancelled" | "completed";
+  createdAt: string;
+  updatedAt: string;
+
+  fileName: string;
+  sourceContentHash: string;
+  sourceSize?: number;
+
+  options: {
+    fileType: SubtitleFileType;
+    sliceType: SubtitleSliceType;
+    customSliceLength?: number;
+    sourceLang: string;
+    targetLang: string;
+    translationOutputMode: "bilingual" | "target_only";
+    thinkingEnabled?: boolean;
+  };
+
+  usage?: SubtitleTranslationUsage;
+
+  fragments: CheckpointFragment[];
+};
+
+export type TranslationCheckpointManifest =
+  | TranslationCheckpointManifestV1
+  | TranslationCheckpointManifestV2;
 
 /**
  * 恢复信息摘要，附加到 task-failed / update-progress payload，
  * 也保存在 renderer 端的 SubtitleTranslatorTask.recovery 中。
  */
 export type SubtitleTranslationRecovery = {
-  checkpointPath?: string;
-  completedOutputPath?: string;
-  remainingOutputPath?: string;
-  errorLogPath?: string;
+  checkpointRef?: string;
   resumable?: boolean;
   failedFragmentIndexes?: number[];
   resolvedFragments?: number;
@@ -236,7 +337,10 @@ export type TranslationRecoveryCandidate = {
     sourceLang: string;
     targetLang: string;
     translationOutputMode: "bilingual" | "target_only";
+    thinkingEnabled?: boolean;
   };
+
+  actualUsage?: SubtitleTranslationUsage;
 
   resolvedFragments: number;
   totalFragments: number;
@@ -262,28 +366,4 @@ export type TranslationRecoveryCandidate = {
     | "too_large";
 
   blockingReason?: string;
-};
-
-export type TranslationRecoveryImportRequest = {
-  checkpointPath: string;
-  recoveryInputMode: TranslationRecoveryInputMode;
-};
-
-export type RecoveredSubtitleTaskDraft = {
-  fileName: string;
-  fileContent?: string;
-  originFileURL: string;
-  targetFileURL: string;
-  sliceType: SubtitleSliceType;
-  customSliceLength?: number;
-  sourceLang: TranslationLanguage;
-  targetLang: TranslationLanguage;
-  translationOutputMode: TranslationOutputMode;
-  resolvedFragments: number;
-  totalFragments: number;
-  progress: number;
-  recoveryMode: "resume";
-  checkpointPath: string;
-  recoveryInputMode: TranslationRecoveryInputMode;
-  recovery: SubtitleTranslationRecovery;
 };

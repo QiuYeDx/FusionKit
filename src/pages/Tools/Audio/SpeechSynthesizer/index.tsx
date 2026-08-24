@@ -23,7 +23,6 @@ import {
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -38,9 +37,11 @@ import {
   InfoHint,
   ToolField,
   ToolFileDropZone,
+  type ToolFileSelectionSource,
   ToolOutputPathPicker,
   ToolPanel,
   ToolRadioButtonGroup,
+  ToolSwitchRow,
 } from "@/pages/Tools/_shared/ui";
 import { cn } from "@/lib/utils";
 import { showToast } from "@/utils/toast";
@@ -174,7 +175,10 @@ export default function SpeechSynthesizer() {
 }
 
 interface VoiceSampleController {
-  selectFiles: (files: FileList) => Promise<void>;
+  selectFiles: (
+    files: FileList,
+    source: ToolFileSelectionSource,
+  ) => Promise<void>;
   clear: () => void;
   ensureAuthorized: () => Promise<SelectedVoiceSample | null>;
   releaseToken: (fileToken: string, expiresAt?: number) => Promise<void>;
@@ -402,15 +406,15 @@ function SpeechConfig({
             }
           />
           {fields.optimizeTextPreview ? (
-            <label className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
-              <Checkbox
-                checked={preferences.optimizeTextPreview}
-                onCheckedChange={(checked) =>
-                  updatePreferences({ optimizeTextPreview: Boolean(checked) })
-                }
-              />
-              {t("audio:speech.fields.optimize_text_preview")}
-            </label>
+            <ToolSwitchRow
+              testId="speech-optimize-text-preview"
+              className="mt-2"
+              label={t("audio:speech.fields.optimize_text_preview")}
+              checked={preferences.optimizeTextPreview}
+              onCheckedChange={(optimizeTextPreview) =>
+                updatePreferences({ optimizeTextPreview })
+              }
+            />
           ) : null}
         </ToolField>
       ) : null}
@@ -1443,7 +1447,10 @@ function useVoiceSampleAuthorization(
     }
   }, [revokeTokenQuietly, setVoiceSample]);
 
-  const selectFiles = useCallback(async (files: FileList) => {
+  const selectFiles = useCallback(async (
+    files: FileList,
+    source: ToolFileSelectionSource,
+  ) => {
     const file = files[0];
     if (!file) return;
     const validation = validateVoiceSampleFile(file);
@@ -1459,7 +1466,7 @@ function useVoiceSampleAuthorization(
 
     let response: Awaited<ReturnType<typeof authorizeAudioInputFile>>;
     try {
-      response = await authorizeAudioInputFile(file);
+      response = await authorizeAudioInputFile(file, source);
     } catch (error) {
       if (generation !== generationRef.current) return;
       setVoiceSampleAuthorizationPending(false);
@@ -1496,6 +1503,7 @@ function useVoiceSampleAuthorization(
 
     const sample: SelectedVoiceSample = {
       sourceFile: file,
+      selectionSource: source,
       fileToken: response.data.fileToken,
       fileName: response.data.fileName || file.name,
       mimeType: validation.mimeType,
@@ -1534,7 +1542,10 @@ function useVoiceSampleAuthorization(
     setVoiceSampleAuthorizationPending(true);
     let response: Awaited<ReturnType<typeof authorizeAudioInputFile>>;
     try {
-      response = await authorizeAudioInputFile(current.sourceFile);
+      response = await authorizeAudioInputFile(
+        current.sourceFile,
+        current.selectionSource ?? "picker",
+      );
     } catch (error) {
       if (generation !== generationRef.current) return null;
       setVoiceSampleAuthorizationPending(false);

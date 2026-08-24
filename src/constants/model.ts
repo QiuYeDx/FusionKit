@@ -28,9 +28,10 @@ export const DEEPSEEK_MODEL_OPTIONS: ModelOption[] = [
     badge: "recommended",
     contextWindow: 1_000_000,
     maxOutputTokens: 384_000,
+    // 2026-08-22 official peak cache-miss rate; off-peak is $0.22 / $0.66.
     pricing: {
-      inputTokensPerMillion: 0.14,
-      outputTokensPerMillion: 0.28,
+      inputTokensPerMillion: 0.44,
+      outputTokensPerMillion: 1.32,
     },
   },
   {
@@ -39,9 +40,10 @@ export const DEEPSEEK_MODEL_OPTIONS: ModelOption[] = [
     badge: "flagship",
     contextWindow: 1_000_000,
     maxOutputTokens: 384_000,
+    // 2026-08-22 official peak cache-miss rate; off-peak is $0.66 / $1.98.
     pricing: {
-      inputTokensPerMillion: 0.435,
-      outputTokensPerMillion: 0.87,
+      inputTokensPerMillion: 1.32,
+      outputTokensPerMillion: 3.96,
     },
   },
   {
@@ -51,8 +53,8 @@ export const DEEPSEEK_MODEL_OPTIONS: ModelOption[] = [
     contextWindow: 1_000_000,
     maxOutputTokens: 384_000,
     pricing: {
-      inputTokensPerMillion: 0.14,
-      outputTokensPerMillion: 0.28,
+      inputTokensPerMillion: 0.44,
+      outputTokensPerMillion: 1.32,
     },
   },
   {
@@ -62,8 +64,8 @@ export const DEEPSEEK_MODEL_OPTIONS: ModelOption[] = [
     contextWindow: 1_000_000,
     maxOutputTokens: 384_000,
     pricing: {
-      inputTokensPerMillion: 0.14,
-      outputTokensPerMillion: 0.28,
+      inputTokensPerMillion: 0.44,
+      outputTokensPerMillion: 1.32,
     },
   },
 ];

@@ -1,4 +1,6 @@
 import useSubtitleTranslatorStore from "@/store/tools/subtitle/useSubtitleTranslatorStore";
+import useSubtitleTranslatorConfigStore from "@/store/tools/subtitle/useSubtitleTranslatorConfigStore";
+import { DEFAULT_SLICE_LENGTH_MAP } from "@/constants/subtitle";
 import {
   OutputConflictPolicy,
   OutputPathMode,
@@ -10,7 +12,13 @@ import {
   type TranslationLanguage,
   type TranslationOutputMode,
 } from "@/type/subtitle";
-import { inferMaxOutputTokens } from "@/constants/model";
+import { createSubtitleTaskExecutionBinding } from "@/agent/task-model-config";
+import { createSubtitleTranslatorTask } from "@/services/subtitle/subtitleTranslatorTaskFactory";
+import {
+  getCurrentSubtitleTranslatorCustomDirectoryAuthorization,
+  selectGeneratedSubtitleImportCustomDirectory,
+} from "@/services/subtitle/generatedSubtitleImportCoordinator";
+import { releaseSubtitleTranslationTaskAuthority } from "@/services/subtitle/translatorExecutionService";
 import { useTranslation } from "react-i18next";
 import { useState, useMemo, useEffect, useRef } from "react";
 import {
@@ -33,20 +41,27 @@ import {
 import ToolPageHeader from "@/pages/Tools/_shared/ToolPageHeader";
 import { TOOL_META } from "@/pages/Tools/_shared/toolMeta";
 import {
+  ToolConfigDisclosure,
   ToolConfigDivider,
   ToolConfigPanel,
   ToolDetailLayout,
   ToolField,
   ToolFileDropZone,
+  type ToolFileSelectionSource,
   ToolOutputPathPicker,
   ToolPanel,
   ToolRadioButtonGroup,
   ToolSummaryLine,
+  ToolSwitchRow,
 } from "@/pages/Tools/_shared/ui";
+import type {
+  SubtitleTranslationInputFileCapture,
+  SubtitleTranslationIpcResult,
+} from "@/type/subtitleTranslationIpc";
 import { Badge } from "@/components/ui/badge";
 import { showToast } from "@/utils/toast";
-import { getSourceDirFromFile, getFilePathFromFile } from "@/utils/filePath";
 import useModelStore from "@/store/useModelStore";
+import { Model } from "@/type/model";
 import ErrorDetailModal from "@/components/ErrorDetailModal";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import {
@@ -71,7 +86,6 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { Calendar } from "@/components/ui/calendar";
-import { Checkbox } from "@/components/ui/checkbox";
 import {
   Popover,
   PopoverContent,
@@ -92,6 +106,10 @@ import {
 import { cn } from "@/lib/utils";
 import { Tour, type TourStep } from "@/components/qiuye-ui/tour";
 import RecoveryDialog from "./components/RecoveryDialog";
+import { calculateSubtitleUsageStats } from "@/services/subtitle/subtitleUsageStats";
+import {
+  orderSubtitleTranslatorTasksForDisplay,
+} from "./subtitleTranslatorTaskOrder";
 
 function CostEstimateHelp({ content }: { content: string }) {
   return (
@@ -116,18 +134,12 @@ function SubtitleTranslator() {
   const { t } = useTranslation();
   const {
     // fileType,
-    sliceType,
-    sliceLengthMap,
-    outputURL,
     notStartedTaskQueue,
     waitingTaskQueue,
     pendingTaskQueue,
     resolvedTaskQueue,
     failedTaskQueue,
     // setFileType,
-    setSliceType,
-    setCustomSliceLength,
-    setOutputURL,
     addTask,
     startTask,
     retryTask,
@@ -140,40 +152,57 @@ function SubtitleTranslator() {
     updateTaskCostEstimate,
   } = useSubtitleTranslatorStore();
   const taskProfile = useModelStore((s) => s.getTaskProfile());
+  const translatorConfig = useSubtitleTranslatorConfigStore(
+    (state) => state.preferences,
+  );
+  const updateTranslatorConfig = useSubtitleTranslatorConfigStore(
+    (state) => state.updatePreferences,
+  );
+  const {
+    sourceLang,
+    targetLang,
+    translationOutputMode,
+    sliceType,
+    customSliceLength,
+    outputMode,
+    outputDirectoryDisplayLabel,
+    conflictPolicy,
+    concurrentSlices,
+    thinkingEnabled,
+  } = translatorConfig;
+  const sliceLengthMap = useMemo(
+    () => ({
+      ...DEFAULT_SLICE_LENGTH_MAP,
+      [SubtitleSliceType.CUSTOM]: customSliceLength,
+    }),
+    [customSliceLength],
+  );
+  const authorizedOutputLabel = outputDirectoryDisplayLabel ?? "";
+
+  const setSourceLang = (value: TranslationLanguage) =>
+    updateTranslatorConfig({ sourceLang: value });
+  const setTargetLang = (value: TranslationLanguage) =>
+    updateTranslatorConfig({ targetLang: value });
+  const setTranslationOutputMode = (value: TranslationOutputMode) =>
+    updateTranslatorConfig({ translationOutputMode: value });
+  const setSliceType = (value: SubtitleSliceType) =>
+    updateTranslatorConfig({ sliceType: value });
+  const setCustomSliceLength = (value: number) =>
+    updateTranslatorConfig({ customSliceLength: value });
+  const setOutputMode = (value: OutputPathMode) =>
+    updateTranslatorConfig({ outputMode: value });
+  const setAuthorizedOutputLabel = (value: string) =>
+    updateTranslatorConfig({ outputDirectoryDisplayLabel: value });
+  const setConflictPolicy = (value: OutputConflictPolicy) =>
+    updateTranslatorConfig({ conflictPolicy: value });
+  const setConcurrentSlices = (value: boolean) =>
+    updateTranslatorConfig({ concurrentSlices: value });
+  const setThinkingEnabled = (value: boolean) =>
+    updateTranslatorConfig({ thinkingEnabled: value });
 
   const [customLengthInput, setCustomLengthInput] = useState(
-    sliceLengthMap?.[SubtitleSliceType.CUSTOM]?.toString() || "500"
+    String(customSliceLength),
   );
-  const [outputMode, setOutputMode] = useState<OutputPathMode>(() => {
-    const raw = localStorage.getItem("subtitle-translator-output-mode");
-    return raw === "source" ? "source" : "custom";
-  });
-  const [conflictPolicy, setConflictPolicy] =
-    useState<OutputConflictPolicy>(() => {
-      const raw = localStorage.getItem("subtitle-translator-conflict-policy");
-      return raw === "overwrite" ? "overwrite" : "index";
-    });
-
-  const [concurrentSlices, setConcurrentSlices] = useState<boolean>(() => {
-    const raw = localStorage.getItem("subtitle-translator-concurrent-slices");
-    return raw === null ? true : raw === "true";
-  });
-
-  const [sourceLang, setSourceLang] = useState<TranslationLanguage>(() => {
-    const raw = localStorage.getItem("subtitle-translator-source-lang");
-    return (raw as TranslationLanguage) || "JA";
-  });
-
-  const [targetLang, setTargetLang] = useState<TranslationLanguage>(() => {
-    const raw = localStorage.getItem("subtitle-translator-target-lang");
-    return (raw as TranslationLanguage) || "ZH";
-  });
-
-  const [translationOutputMode, setTranslationOutputMode] =
-    useState<TranslationOutputMode>(() => {
-      const raw = localStorage.getItem("subtitle-translator-translation-output-mode");
-      return raw === "target_only" ? "target_only" : "bilingual";
-    });
 
   const [isDragging, setIsDragging] = useState(false);
 
@@ -195,6 +224,11 @@ function SubtitleTranslator() {
   const intervalRef = useRef<number | null>(null);
   const [isScheduleOpen, setIsScheduleOpen] = useState<boolean>(false);
   const [expandedTasks, setExpandedTasks] = useState<Set<string>>(new Set());
+
+  const handleScheduleOpenChange = (open: boolean) => {
+    setIsScheduleOpen(open);
+    if (!open) setDatePopoverOpen(false);
+  };
 
   // 删除确认弹窗
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
@@ -307,58 +341,11 @@ function SubtitleTranslator() {
   const [editSliceType, setEditSliceType] = useState<SubtitleSliceType>(SubtitleSliceType.NORMAL);
   const [editConflictPolicy, setEditConflictPolicy] = useState<OutputConflictPolicy>("index");
   const [editConcurrentSlices, setEditConcurrentSlices] = useState(true);
+  const [editThinkingEnabled, setEditThinkingEnabled] = useState(false);
 
-  useEffect(() => {
-    try {
-      localStorage.setItem("subtitle-translator-output-mode", outputMode);
-    } catch {}
-  }, [outputMode]);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem(
-        "subtitle-translator-conflict-policy",
-        conflictPolicy
-      );
-    } catch {}
-  }, [conflictPolicy]);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem(
-        "subtitle-translator-concurrent-slices",
-        String(concurrentSlices)
-      );
-    } catch {}
-  }, [concurrentSlices]);
-
-  useEffect(() => {
-    if (sourceLang === targetLang) {
-      const fallback = SUPPORTED_LANGUAGES.find((l) => l.code !== sourceLang);
-      if (fallback) setTargetLang(fallback.code);
-    }
-  }, [sourceLang, targetLang]);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem("subtitle-translator-source-lang", sourceLang);
-    } catch {}
-  }, [sourceLang]);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem("subtitle-translator-target-lang", targetLang);
-    } catch {}
-  }, [targetLang]);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem(
-        "subtitle-translator-translation-output-mode",
-        translationOutputMode
-      );
-    } catch {}
-  }, [translationOutputMode]);
+  const supportsDeepSeekThinking =
+    taskProfile?.provider === Model.DeepSeek &&
+    taskProfile.apiFormat === "chat_completions";
 
   const targetEpochMs = useMemo(() => {
     if (!scheduleTime) return NaN;
@@ -484,68 +471,42 @@ function SubtitleTranslator() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // 计算总的token统计
-  const tokenStats = useMemo(() => {
-    const allTasks = [
-      ...notStartedTaskQueue,
-      ...waitingTaskQueue,
-      ...pendingTaskQueue,
-      ...resolvedTaskQueue,
-      ...failedTaskQueue,
-    ];
+  // API usage and preflight estimates are intentionally kept separate.
+  const allTasks = useMemo(
+    () => orderSubtitleTranslatorTasksForDisplay({
+      pendingTaskQueue,
+      waitingTaskQueue,
+      notStartedTaskQueue,
+      failedTaskQueue,
+      resolvedTaskQueue,
+    }),
+    [
+      pendingTaskQueue,
+      waitingTaskQueue,
+      notStartedTaskQueue,
+      failedTaskQueue,
+      resolvedTaskQueue,
+    ],
+  );
 
-    let totalTokens = 0;
-    let totalCost = 0;
-    let pendingTokens = 0;
-    let pendingCost = 0;
-
-    allTasks.forEach((task) => {
-      if (task.costEstimate) {
-        totalTokens += task.costEstimate.totalTokens || 0;
-        totalCost += task.costEstimate.estimatedCost || 0;
-
-        if (
-          task.status === TaskStatus.NOT_STARTED ||
-          task.status === TaskStatus.WAITING ||
-          task.status === TaskStatus.PENDING
-        ) {
-          pendingTokens += task.costEstimate.totalTokens || 0;
-          pendingCost += task.costEstimate.estimatedCost || 0;
-        }
-      }
-    });
-
-    const hasLoading = allTasks.some((task) => task.costEstimate?.loading);
-
-    return {
-      totalTokens,
-      totalCost,
-      pendingTokens,
-      pendingCost,
-      taskCount: allTasks.length,
-      hasLoading,
-    };
-  }, [
-    notStartedTaskQueue,
-    waitingTaskQueue,
-    pendingTaskQueue,
-    resolvedTaskQueue,
-    failedTaskQueue,
-  ]);
+  const tokenStats = useMemo(
+    () => calculateSubtitleUsageStats(allTasks),
+    [allTasks],
+  );
 
   const hasRunningTasks =
     pendingTaskQueue.length > 0 || waitingTaskQueue.length > 0;
 
   const handleDeleteTask = (task: SubtitleTranslatorTask) => {
-    getEstimateWorkerClient().cancelByFileName(task.fileName);
+    getEstimateWorkerClient().cancelByTaskId(task.taskId);
     if (
       task.status === TaskStatus.PENDING ||
       task.status === TaskStatus.WAITING
     ) {
-      setTaskToDelete(task.fileName);
+      setTaskToDelete(task.taskId);
       setConfirmDeleteOpen(true);
     } else {
-      deleteTask(task.fileName);
+      deleteTask(task.taskId);
     }
   };
 
@@ -558,12 +519,22 @@ function SubtitleTranslator() {
   };
 
 
-  const handleOpenFileLocation = (task: SubtitleTranslatorTask) => {
-    const filePath =
-      task.status === TaskStatus.RESOLVED && task.extraInfo?.outputFilePath
-        ? task.extraInfo.outputFilePath
-        : task.originFileURL;
-    window.ipcRenderer.invoke("show-item-in-folder", filePath);
+  const handleOpenFileLocation = async (task: SubtitleTranslatorTask) => {
+    if (task.status === TaskStatus.RESOLVED) {
+      await window.subtitleTranslationApi.revealTaskOutput(task.taskId);
+      return;
+    }
+    if (
+      task.taskReference?.kind === "authorized_task_v1"
+    ) {
+      await window.subtitleTranslationApi.revealTaskSource(task.taskId);
+      return;
+    }
+    if (task.recovery?.checkpointRef) {
+      await window.subtitleTranslationApi.revealRecoveryCheckpoint(
+        task.recovery.checkpointRef,
+      );
+    }
   };
 
   const handleOpenEditTask = (task: SubtitleTranslatorTask) => {
@@ -574,6 +545,11 @@ function SubtitleTranslator() {
     setEditSliceType(task.sliceType);
     setEditConflictPolicy(task.conflictPolicy || "index");
     setEditConcurrentSlices(task.concurrentSlices ?? true);
+    setEditThinkingEnabled(
+      task.executionBinding.status === "ready"
+        ? task.executionBinding.thinkingEnabled === true
+        : false,
+    );
     setEditTaskOpen(true);
   };
 
@@ -595,7 +571,7 @@ function SubtitleTranslator() {
         }
       : editingTask.costEstimate;
 
-    updateTask(editingTask.fileName, {
+    updateTask(editingTask.taskId, {
       sourceLang: editSourceLang,
       targetLang: editTargetLang,
       translationOutputMode: editOutputMode,
@@ -604,12 +580,20 @@ function SubtitleTranslator() {
       conflictPolicy: editConflictPolicy,
       concurrentSlices: editConcurrentSlices,
       costEstimate: loadingCostEstimate,
+      ...(taskProfile
+        ? {
+            executionBinding: createSubtitleTaskExecutionBinding(taskProfile, {
+              thinkingEnabled: editThinkingEnabled,
+            }),
+          }
+        : {}),
     });
 
     if (taskProfile) {
+      const taskId = editingTask.taskId;
       const fileName = editingTask.fileName;
       const estimateKey = buildEstimateKey(
-        fileName,
+        taskId,
         editSliceType,
         customLen,
         editSourceLang,
@@ -617,8 +601,9 @@ function SubtitleTranslator() {
         editOutputMode,
       );
 
-      getEstimateWorkerClient().cancelByFileName(fileName);
+      getEstimateWorkerClient().cancelByTaskId(taskId);
       getEstimateWorkerClient().enqueue({
+        taskId,
         fileName,
         content: editingTask.fileContent,
         sliceType: editSliceType,
@@ -629,7 +614,7 @@ function SubtitleTranslator() {
         translationOutputMode: editOutputMode,
         onResult: (estimate) => {
           const currentKey = buildEstimateKey(
-            fileName,
+            taskId,
             editSliceType,
             customLen,
             editSourceLang,
@@ -637,12 +622,12 @@ function SubtitleTranslator() {
             editOutputMode,
           );
           if (currentKey === estimateKey) {
-            updateTaskCostEstimate(fileName, estimate);
+            updateTaskCostEstimate(taskId, estimate);
           }
         },
         onError: (error) => {
           console.error(`[TokenEstimate] edit failed for ${fileName}:`, error);
-          updateTaskCostEstimate(fileName, {
+          updateTaskCostEstimate(taskId, {
             inputTokens: 0,
             outputTokens: 0,
             totalTokens: 0,
@@ -674,18 +659,9 @@ function SubtitleTranslator() {
   // 选择输出路径
   const handleSelectOutputPath = async () => {
     try {
-      // 通过 IPC 调用主进程的目录选择对话框
-      const result = await window.ipcRenderer.invoke(
-        "select-output-directory",
-        {
-          title: t("subtitle:translator.dialog.select_output_title"),
-          buttonLabel: t("subtitle:translator.dialog.select_output_confirm"),
-        }
-      );
-
-      if (result && !result.canceled && result.filePaths.length > 0) {
-        const selectedPath = result.filePaths[0];
-        setOutputURL(selectedPath);
+      const result = await selectGeneratedSubtitleImportCustomDirectory();
+      if (!result.cancelled && result.displayLabel) {
+        setAuthorizedOutputLabel(result.displayLabel);
         showToast(
           t("subtitle:translator.infos.output_path_selected"),
           "success"
@@ -696,8 +672,13 @@ function SubtitleTranslator() {
     }
   };
 
-  const handleFileUpload = async (files: FileList) => {
-    if (outputMode === "custom" && !outputURL) {
+  const handleFileUpload = async (
+    files: FileList,
+    source: ToolFileSelectionSource,
+  ) => {
+    const customDirectory =
+      getCurrentSubtitleTranslatorCustomDirectoryAuthorization();
+    if (outputMode === "custom" && !customDirectory) {
       showToast(
         t("subtitle:translator.errors.please_select_output_url"),
         "error"
@@ -706,159 +687,218 @@ function SubtitleTranslator() {
     }
     if (!files || files.length === 0) return;
 
-    // 获取已有的任务文件路径列表
-    const existingFileNames = [
-      ...notStartedTaskQueue,
-      ...waitingTaskQueue,
-      ...pendingTaskQueue,
-      ...resolvedTaskQueue,
-      ...failedTaskQueue,
-    ].map((task) => task.fileName);
-
     const fileArray = Array.from(files);
-    for (let i = 0; i < fileArray.length; i++) {
-      const file = fileArray[i];
-      // 每处理一个文件后让步给事件循环，避免阻塞 UI 更新
-      if (i > 0) await new Promise((r) => setTimeout(r, 0));
+    let capture:
+      | SubtitleTranslationIpcResult<SubtitleTranslationInputFileCapture>
+      | undefined;
+    for (const file of fileArray) {
+      capture = window.subtitleTranslationApi.captureInputFile(
+        file,
+        capture?.ok ? capture.data.captureRef : undefined,
+        source,
+      );
+      if (!capture.ok) {
+        showToast(t("subtitle:translator.errors.source_path_missing"), "error");
+        return;
+      }
+    }
+    if (!capture?.ok) return;
 
-      const extension = file.name.split(".").pop()?.toUpperCase();
-
-      if (
-        !Object.values(SubtitleFileType).includes(extension as SubtitleFileType)
-      ) {
-        showToast(
-          t("subtitle:translator.errors.invalid_file_type").replace(
-            "{types}",
-            extension || " - "
+    const inputAuthorizations = await window.subtitleTranslationApi
+      .authorizeCapturedInputFiles(capture.data.captureRef);
+    if (
+      !inputAuthorizations.ok ||
+      inputAuthorizations.data.length !== fileArray.length
+    ) {
+      if (inputAuthorizations.ok) {
+        await Promise.all(
+          inputAuthorizations.data.map((input) =>
+            window.subtitleTranslationApi.revokeInputFile(input.inputToken),
           ),
-          "error"
         );
-        continue;
       }
+      showToast(t("subtitle:translator.errors.source_path_missing"), "error");
+      return;
+    }
 
-      if (existingFileNames.includes(file.name)) {
-        showToast(
-          t("subtitle:translator.errors.duplicate_file").replace(
-            "{file}",
-            file.name
-          ),
-          "error"
-        );
-        continue;
-      }
+    const pendingInputTokens = new Set(
+      inputAuthorizations.data.map((input) => input.inputToken),
+    );
+    try {
+      for (let i = 0; i < inputAuthorizations.data.length; i++) {
+        const inputAuthorization = inputAuthorizations.data[i]!;
+        const fileName = inputAuthorization.displayName;
+        if (i > 0) await new Promise((r) => setTimeout(r, 0));
 
-      const outputDir =
-        outputMode === "source" ? getSourceDirFromFile(file) : outputURL;
-      if (!outputDir) {
-        showToast(
-          t("subtitle:translator.errors.source_path_missing"),
-          "error"
-        );
-        continue;
-      }
-
-      try {
-        const fileContent = await file.text();
-
-        const customLen =
-          sliceType === SubtitleSliceType.CUSTOM
-            ? sliceLengthMap[SubtitleSliceType.CUSTOM]
-            : undefined;
-
-        const loadingCostEstimate = taskProfile
-          ? {
-              inputTokens: 0,
-              outputTokens: 0,
-              totalTokens: 0,
-              estimatedCost: 0,
-              fragmentCount: 0,
-              loading: true,
-            }
-          : undefined;
-
-        const newTask: SubtitleTranslatorTask = {
-          fileName: file.name,
-          fileContent,
-          sliceType,
-          originFileURL: getFilePathFromFile(file) ?? file.name,
-          targetFileURL: outputDir,
-          status: TaskStatus.NOT_STARTED,
-          progress: 0,
-          costEstimate: loadingCostEstimate,
-          customSliceLength: customLen,
-
-          apiKey: taskProfile?.apiKey ?? "",
-          apiModel: taskProfile?.modelKey ?? "",
-          endPoint: taskProfile?.baseUrl ?? "",
-          apiFormat: taskProfile?.apiFormat,
-          outputTokenParameter: taskProfile?.outputTokenParameter,
-          maxOutputTokens: taskProfile?.maxOutputTokens ?? inferMaxOutputTokens(taskProfile?.modelKey ?? ""),
-          sourceLang,
-          targetLang,
-          translationOutputMode,
-          conflictPolicy,
-          concurrentSlices,
-        };
-        addTask(newTask);
-
-        if (taskProfile) {
-          const fileName = file.name;
-          const estimateKey = buildEstimateKey(
-            fileName,
-            sliceType,
-            customLen,
-            sourceLang,
-            targetLang,
-            translationOutputMode,
+        const extension = fileName.split(".").pop()?.toUpperCase();
+        if (
+          !Object.values(SubtitleFileType).includes(extension as SubtitleFileType)
+        ) {
+          await window.subtitleTranslationApi
+            .revokeInputFile(inputAuthorization.inputToken);
+          pendingInputTokens.delete(inputAuthorization.inputToken);
+          showToast(
+            t("subtitle:translator.errors.invalid_file_type").replace(
+              "{types}",
+              extension || " - "
+            ),
+            "error"
           );
-          getEstimateWorkerClient().enqueue({
-            fileName,
-            content: fileContent,
-            sliceType,
-            customSliceLength: customLen,
-            tokenPricing: taskProfile.tokenPricing,
-            sourceLang,
-            targetLang,
-            translationOutputMode,
-            onResult: (estimate) => {
-              const currentKey = buildEstimateKey(
-                fileName,
-                sliceType,
-                customLen,
-                sourceLang,
-                targetLang,
-                translationOutputMode,
-              );
-              if (currentKey === estimateKey) {
-                updateTaskCostEstimate(fileName, estimate);
-              }
-            },
-            onError: (error) => {
-              console.error(
-                `[TokenEstimate] failed for ${fileName}:`,
-                error,
-              );
-              updateTaskCostEstimate(fileName, {
+          continue;
+        }
+
+        try {
+          const inputContent = await window.subtitleTranslationApi
+            .readInputFile(inputAuthorization.inputToken);
+          if (!inputContent.ok) {
+            await window.subtitleTranslationApi
+              .revokeInputFile(inputAuthorization.inputToken);
+            pendingInputTokens.delete(inputAuthorization.inputToken);
+            showToast(
+              t("subtitle:translator.errors.source_path_missing"),
+              "error",
+            );
+            continue;
+          }
+          const fileContent = inputContent.data.content;
+
+          const customLen =
+            sliceType === SubtitleSliceType.CUSTOM
+              ? sliceLengthMap[SubtitleSliceType.CUSTOM]
+              : undefined;
+
+          const loadingCostEstimate = taskProfile
+            ? {
                 inputTokens: 0,
                 outputTokens: 0,
                 totalTokens: 0,
                 estimatedCost: 0,
                 fragmentCount: 0,
-                loading: false,
-              });
-            },
+                loading: true,
+              }
+            : undefined;
+
+          const newTask = createSubtitleTranslatorTask({
+            fileName,
+            fileContent,
+            sliceType,
+            status: TaskStatus.NOT_STARTED,
+            progress: 0,
+            costEstimate: loadingCostEstimate,
+            customSliceLength: customLen,
+
+            executionBinding: taskProfile
+              ? createSubtitleTaskExecutionBinding(taskProfile, {
+                  thinkingEnabled,
+                })
+              : Object.freeze({ status: "needs_configuration" as const }),
+            sourceLang,
+            targetLang,
+            translationOutputMode,
+            conflictPolicy,
+            concurrentSlices,
           });
+          const registration = await window.subtitleTranslationApi
+            .registerAuthorizedTask({
+              taskId: newTask.taskId,
+              inputToken: inputAuthorization.inputToken,
+              outputMode,
+              outputFileName: fileName,
+              ...(outputMode === "custom" && customDirectory
+                ? { directoryToken: customDirectory.directoryToken }
+                : {}),
+            });
+          if (!registration.ok) {
+            await window.subtitleTranslationApi
+              .revokeInputFile(inputAuthorization.inputToken);
+            pendingInputTokens.delete(inputAuthorization.inputToken);
+            showToast(
+              t("subtitle:translator.errors.source_path_missing"),
+              "error",
+            );
+            continue;
+          }
+          pendingInputTokens.delete(inputAuthorization.inputToken);
+          const authorizedTask: SubtitleTranslatorTask = {
+            ...newTask,
+            taskReference: registration.data,
+          };
+          const addResult = addTask(authorizedTask);
+          if (!addResult.added) {
+            releaseSubtitleTranslationTaskAuthority(newTask.taskId);
+            continue;
+          }
+
+          if (taskProfile) {
+            const taskId = newTask.taskId;
+            const estimateKey = buildEstimateKey(
+              taskId,
+              sliceType,
+              customLen,
+              sourceLang,
+              targetLang,
+              translationOutputMode,
+            );
+            getEstimateWorkerClient().enqueue({
+              taskId,
+              fileName,
+              content: fileContent,
+              sliceType,
+              customSliceLength: customLen,
+              tokenPricing: taskProfile.tokenPricing,
+              sourceLang,
+              targetLang,
+              translationOutputMode,
+              onResult: (estimate) => {
+                const currentKey = buildEstimateKey(
+                  taskId,
+                  sliceType,
+                  customLen,
+                  sourceLang,
+                  targetLang,
+                  translationOutputMode,
+                );
+                if (currentKey === estimateKey) {
+                  updateTaskCostEstimate(taskId, estimate);
+                }
+              },
+              onError: (error) => {
+                console.error(
+                  `[TokenEstimate] failed for ${fileName}:`,
+                  error,
+                );
+                updateTaskCostEstimate(taskId, {
+                  inputTokens: 0,
+                  outputTokens: 0,
+                  totalTokens: 0,
+                  estimatedCost: 0,
+                  fragmentCount: 0,
+                  loading: false,
+                });
+              },
+            });
+          }
+        } catch (error) {
+          console.error(t("subtitle:translator.errors.read_file_failed"), error);
+          if (pendingInputTokens.delete(inputAuthorization.inputToken)) {
+            await window.subtitleTranslationApi
+              .revokeInputFile(inputAuthorization.inputToken);
+          }
+          showToast(
+            t("subtitle:translator.errors.read_file_failed").replace(
+              "{file}",
+              fileName
+            ),
+            "error"
+          );
         }
-      } catch (error) {
-        console.error(t("subtitle:translator.errors.read_file_failed"), error);
-        showToast(
-          t("subtitle:translator.errors.read_file_failed").replace(
-            "{file}",
-            file.name
-          ),
-          "error"
-        );
       }
+    } finally {
+      await Promise.all(
+        [...pendingInputTokens].map((inputToken) =>
+          window.subtitleTranslationApi.revokeInputFile(inputToken),
+        ),
+      );
     }
   };
 
@@ -901,14 +941,6 @@ function SubtitleTranslator() {
   const modelDisplay =
     taskProfile?.modelKey ||
     t("subtitle:translator.fields.no_model_selected", "未选择模型");
-
-  const allTasks = [
-    ...notStartedTaskQueue,
-    ...waitingTaskQueue,
-    ...pendingTaskQueue,
-    ...resolvedTaskQueue,
-    ...failedTaskQueue,
-  ];
 
   return (
     <ToolDetailLayout
@@ -1076,7 +1108,7 @@ function SubtitleTranslator() {
                 {outputMode === "custom" ? (
                   <ToolOutputPathPicker
                     className="mt-2"
-                    value={outputURL}
+                    value={authorizedOutputLabel}
                     placeholder={t(
                       "subtitle:translator.fields.no_output_path_selected"
                     )}
@@ -1111,62 +1143,41 @@ function SubtitleTranslator() {
 
               <ToolConfigDivider />
 
+              {supportsDeepSeekThinking && (
+                <ToolSwitchRow
+                  id="deepseek-thinking"
+                  testId="subtitle-translator-deepseek-thinking"
+                  label={t("subtitle:translator.fields.thinking_mode")}
+                  hint={t("subtitle:translator.fields.thinking_mode_hint")}
+                  checked={thinkingEnabled}
+                  onCheckedChange={setThinkingEnabled}
+                />
+              )}
+
               {/* Concurrent slices */}
-              <label
-                htmlFor="concurrent-slices"
-                className={cn(
-                  "flex items-start justify-between gap-3 rounded-lg border p-3 cursor-pointer transition-colors",
-                  concurrentSlices
-                    ? "border-primary/40 bg-primary/5"
-                    : "hover:bg-accent/40"
-                )}
-              >
-                <div className="flex flex-col gap-0.5 min-w-0">
-                  <span className="text-[12.5px] font-medium leading-tight">
-                    {t("subtitle:translator.fields.concurrent_slices")}
-                  </span>
-                  <span className="text-[11px] text-muted-foreground leading-snug">
-                    {t("subtitle:translator.fields.concurrent_slices_hint")}
-                  </span>
-                </div>
-                <Checkbox
-                  id="concurrent-slices"
-                  checked={concurrentSlices}
-                  onCheckedChange={(checked) =>
-                    setConcurrentSlices(checked as boolean)
+              <ToolSwitchRow
+                id="concurrent-slices"
+                testId="subtitle-translator-concurrent-slices"
+                label={t("subtitle:translator.fields.concurrent_slices")}
+                hint={t("subtitle:translator.fields.concurrent_slices_hint")}
+                checked={concurrentSlices}
+                onCheckedChange={setConcurrentSlices}
+              />
+
+              <div id="tour-schedule" className="-mb-4">
+                <ToolConfigDisclosure
+                  testId="subtitle-translator-schedule-settings"
+                  icon={Clock}
+                  className="border-b-0"
+                  title={t("subtitle:translator.schedule.title")}
+                  summary={
+                    scheduleEnabled
+                      ? `${t("subtitle:translator.schedule.enabled_countdown")} ${formatRemaining(remainingMs)}`
+                      : t("subtitle:translator.schedule.disabled")
                   }
-                  className="mt-0.5"
-                />
-              </label>
-
-              {/* Schedule (collapsible) */}
-              <button
-                id="tour-schedule"
-                type="button"
-                onClick={() => setIsScheduleOpen((v) => !v)}
-                className="flex items-center justify-between gap-3 w-full rounded-lg border border-dashed p-3 cursor-pointer hover:bg-accent/40 transition-colors text-left"
-              >
-                <span className="flex items-center gap-2">
-                  <Clock className="h-3.5 w-3.5 text-muted-foreground" />
-                  <span className="text-[12.5px] font-medium">
-                    {t("subtitle:translator.schedule.title")}
-                  </span>
-                  {scheduleEnabled && (
-                    <Badge variant="secondary" className="text-[10px] h-4 px-1.5">
-                      {formatRemaining(remainingMs)}
-                    </Badge>
-                  )}
-                </span>
-                <ChevronDown
-                  className={cn(
-                    "h-3.5 w-3.5 text-muted-foreground transition-transform",
-                    isScheduleOpen && "rotate-180"
-                  )}
-                />
-              </button>
-
-              {isScheduleOpen && (
-                <div className="space-y-3 pt-1">
+                  open={isScheduleOpen}
+                  onOpenChange={handleScheduleOpenChange}
+                >
                   <div className="grid grid-cols-2 gap-2">
                     <div className="space-y-1">
                       <Label className="text-[11px] text-muted-foreground">
@@ -1224,34 +1235,16 @@ function SubtitleTranslator() {
                     </div>
                   </div>
 
-                  <label
-                    htmlFor="prevent-sleep"
-                    className={cn(
-                      "flex items-start gap-2 rounded-md border p-2 cursor-pointer transition-colors",
-                      preventSleep
-                        ? "border-primary/40 bg-primary/5"
-                        : "hover:bg-accent/40"
+                  <ToolSwitchRow
+                    id="prevent-sleep"
+                    testId="subtitle-translator-prevent-sleep"
+                    label={t(
+                      "subtitle:translator.schedule.prevent_sleep_until_start"
                     )}
-                  >
-                    <Checkbox
-                      id="prevent-sleep"
-                      checked={preventSleep}
-                      onCheckedChange={(checked) =>
-                        setPreventSleep(checked as boolean)
-                      }
-                      className="mt-0.5"
-                    />
-                    <div className="flex flex-col gap-0.5 min-w-0">
-                      <span className="text-[11.5px] font-medium leading-tight">
-                        {t(
-                          "subtitle:translator.schedule.prevent_sleep_until_start"
-                        )}
-                      </span>
-                      <span className="text-[10.5px] text-muted-foreground leading-snug">
-                        {t("subtitle:translator.schedule.prevent_sleep_note")}
-                      </span>
-                    </div>
-                  </label>
+                    hint={t("subtitle:translator.schedule.prevent_sleep_note")}
+                    checked={preventSleep}
+                    onCheckedChange={setPreventSleep}
+                  />
 
                   <div className="flex items-center gap-2">
                     {!scheduleEnabled ? (
@@ -1323,8 +1316,8 @@ function SubtitleTranslator() {
                       </span>
                     )}
                   </div>
-                </div>
-              )}
+                </ToolConfigDisclosure>
+              </div>
           </ToolConfigPanel>
         </div>
       }
@@ -1426,7 +1419,11 @@ function SubtitleTranslator() {
                   id="tour-start-all-btn"
                   size="sm"
                   onClick={() => startAllTasks()}
-                  disabled={notStartedTaskQueue.length === 0}
+                  disabled={
+                    !notStartedTaskQueue.some(
+                      (task) => task.executionBinding.status === "ready",
+                    )
+                  }
                 >
                   <PlayCircle className="h-3.5 w-3.5" />
                   {t("subtitle:translator.fields.start_all")}
@@ -1441,7 +1438,7 @@ function SubtitleTranslator() {
                 </div>
               ) : (
                 allTasks.map((task) => (
-                  <div key={task.fileName} className="px-4 py-3">
+                  <div key={task.taskId} className="px-4 py-3">
                     <div className="flex items-start gap-3">
                       <div
                         className={cn(
@@ -1464,6 +1461,17 @@ function SubtitleTranslator() {
                             {task.status === TaskStatus.PENDING &&
                               ` · ${task.totalFragments ? `${task.resolvedFragments ?? 0}/${task.totalFragments} · ` : ""}${Math.round(task.progress || 0)}%`}
                           </Badge>
+                          {task.executionBinding.status ===
+                            "needs_configuration" && (
+                            <Badge
+                              variant="secondary"
+                              className="text-[10px] h-4 px-1.5 font-normal shrink-0"
+                            >
+                              {t(
+                                "subtitle:translator.fields.no_model_selected",
+                              )}
+                            </Badge>
+                          )}
                         </div>
                         <div className="mt-1 flex items-center flex-wrap gap-x-2 gap-y-1 text-[11px] text-muted-foreground">
                           <span>
@@ -1487,14 +1495,45 @@ function SubtitleTranslator() {
                           </span>
                           <span className="h-0.5 w-0.5 rounded-full bg-muted-foreground/40" />
                           <span>{formatTaskSliceMode(task)}</span>
-                          {task.costEstimate && (
+                          {task.actualUsage?.requestCount ? (
+                            <>
+                              <span className="h-0.5 w-0.5 rounded-full bg-muted-foreground/40" />
+                              <span className="font-mono inline-flex items-center gap-1">
+                                {formatTokens(task.actualUsage.totalTokens)}
+                                <span className="font-sans text-[10px] text-emerald-600 dark:text-emerald-400">
+                                  {t("subtitle:translator.task_detail.actual_short")}
+                                </span>
+                                <CostEstimateHelp
+                                  content={t(
+                                    task.actualUsage.reportedRequestCount <
+                                      task.actualUsage.requestCount
+                                      ? "subtitle:translator.token_stats.partial_usage_tooltip"
+                                      : "subtitle:translator.token_stats.actual_usage_tooltip",
+                                  )}
+                                />
+                              </span>
+                              {task.actualUsage.calculatedCost !== undefined && (
+                                <>
+                                  <span className="h-0.5 w-0.5 rounded-full bg-muted-foreground/40" />
+                                  <span className="font-mono inline-flex items-center gap-0.5 text-emerald-600 dark:text-emerald-400">
+                                    {formatCost(task.actualUsage.calculatedCost)}
+                                    <CostEstimateHelp
+                                      content={t(
+                                        "subtitle:translator.token_stats.calculated_cost_tooltip",
+                                      )}
+                                    />
+                                  </span>
+                                </>
+                              )}
+                            </>
+                          ) : task.costEstimate ? (
                             <>
                               <span className="h-0.5 w-0.5 rounded-full bg-muted-foreground/40" />
                               <span className="font-mono inline-flex items-center gap-1">
                                 {task.costEstimate.loading && (
                                   <RotateCw className="h-3 w-3 animate-spin text-muted-foreground/60" />
                                 )}
-                                {formatTokens(task.costEstimate.totalTokens)}
+                                ~{formatTokens(task.costEstimate.totalTokens)}
                               </span>
                               <span className="h-0.5 w-0.5 rounded-full bg-muted-foreground/40" />
                               <span className="font-mono inline-flex items-center gap-0.5 text-emerald-600 dark:text-emerald-400">
@@ -1506,13 +1545,13 @@ function SubtitleTranslator() {
                                 />
                               </span>
                             </>
-                          )}
+                          ) : null}
                           {task.status === TaskStatus.RESOLVED &&
-                            task.extraInfo?.outputFilePath && (
+                            task.extraInfo?.outputFileName && (
                               <>
                                 <span className="h-0.5 w-0.5 rounded-full bg-muted-foreground/40" />
                                 <span className="font-mono text-emerald-600 dark:text-emerald-400 truncate max-w-[220px]">
-                                  → {task.extraInfo.outputFilePath}
+                                  → {task.extraInfo.outputFileName}
                                 </span>
                               </>
                             )}
@@ -1526,9 +1565,9 @@ function SubtitleTranslator() {
                           onClick={() => {
                             setExpandedTasks((prev) => {
                               const next = new Set(prev);
-                              if (next.has(task.fileName))
-                                next.delete(task.fileName);
-                              else next.add(task.fileName);
+                              if (next.has(task.taskId))
+                                next.delete(task.taskId);
+                              else next.add(task.taskId);
                               return next;
                             });
                           }}
@@ -1550,7 +1589,7 @@ function SubtitleTranslator() {
                           <Button
                             variant="outline"
                             size="icon"
-                            onClick={() => retryTask(task.fileName)}
+                            onClick={() => retryTask(task.taskId)}
                           >
                             <RotateCw className="h-3.5 w-3.5" />
                           </Button>
@@ -1559,7 +1598,17 @@ function SubtitleTranslator() {
                           <Button
                             variant="outline"
                             size="icon"
-                            onClick={() => startTask(task.fileName)}
+                            onClick={() => startTask(task.taskId)}
+                            disabled={
+                              task.executionBinding.status !== "ready"
+                            }
+                            title={
+                              task.executionBinding.status === "ready"
+                                ? t("subtitle:translator.actions.start")
+                                : t(
+                                    "subtitle:translator.fields.no_model_selected",
+                                  )
+                            }
                           >
                             <PlayCircle className="h-3.5 w-3.5" />
                           </Button>
@@ -1569,7 +1618,7 @@ function SubtitleTranslator() {
                           <Button
                             variant="outline"
                             size="icon"
-                            onClick={() => cancelTask(task.fileName)}
+                            onClick={() => cancelTask(task.taskId)}
                           >
                             <X className="h-3.5 w-3.5" />
                           </Button>
@@ -1578,6 +1627,11 @@ function SubtitleTranslator() {
                           variant="outline"
                           size="icon"
                           onClick={() => handleOpenFileLocation(task)}
+                          disabled={
+                            task.status !== TaskStatus.RESOLVED &&
+                            task.taskReference?.kind !== "authorized_task_v1" &&
+                            !task.recovery?.checkpointRef
+                          }
                         >
                           <FolderOpen className="h-3.5 w-3.5" />
                         </Button>
@@ -1613,7 +1667,7 @@ function SubtitleTranslator() {
                       </div>
                     )}
 
-                    {expandedTasks.has(task.fileName) && (
+                    {expandedTasks.has(task.taskId) && (
                       <div className="mt-3 pt-3 border-t border-border/50">
                         <div className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 text-xs">
                           <span className="text-muted-foreground">
@@ -1645,14 +1699,46 @@ function SubtitleTranslator() {
                           <span className="text-muted-foreground">
                             {t("subtitle:translator.task_detail.api_model")}
                           </span>
-                          <span className="font-mono">{task.apiModel}</span>
+                          <span className="font-mono">
+                            {task.executionBinding.status === "ready"
+                              ? task.executionBinding.apiModel
+                              : t(
+                                  "subtitle:translator.fields.no_model_selected",
+                                )}
+                          </span>
+                          {task.executionBinding.status === "ready" &&
+                            (task.executionBinding.apiFormat ??
+                              "chat_completions") === "chat_completions" &&
+                            task.executionBinding.apiModel
+                              .trim()
+                              .toLowerCase()
+                              .startsWith("deepseek-") && (
+                              <>
+                                <span className="text-muted-foreground">
+                                  {t(
+                                    "subtitle:translator.task_detail.thinking_mode",
+                                  )}
+                                </span>
+                                <span>
+                                  {task.executionBinding.thinkingEnabled === true
+                                    ? t(
+                                        "subtitle:translator.task_detail.concurrent_on",
+                                      )
+                                    : t(
+                                        "subtitle:translator.task_detail.concurrent_off",
+                                      )}
+                                </span>
+                              </>
+                            )}
                           <span className="text-muted-foreground">
                             {t(
                               "subtitle:translator.task_detail.api_endpoint"
                             )}
                           </span>
                           <span className="font-mono break-all">
-                            {task.endPoint}
+                            {task.executionBinding.status === "ready"
+                              ? task.executionBinding.endPoint
+                              : "-"}
                           </span>
                           <span className="text-muted-foreground">
                             {t(
@@ -1660,7 +1746,7 @@ function SubtitleTranslator() {
                             )}
                           </span>
                           <span className="font-mono break-all">
-                            {task.targetFileURL}
+                            {task.taskReference?.target.displayLabel || "-"}
                           </span>
                           <span className="text-muted-foreground">
                             {t(
@@ -1690,6 +1776,51 @@ function SubtitleTranslator() {
                                   "subtitle:translator.task_detail.concurrent_off"
                                 )}
                           </span>
+                          {task.actualUsage?.requestCount ? (
+                            <>
+                              <span className="text-muted-foreground">
+                                {t("subtitle:translator.task_detail.actual_usage")}
+                              </span>
+                              <span className="font-mono">
+                                {t("subtitle:translator.task_detail.input")} {formatTokens(task.actualUsage.inputTokens)} /{" "}
+                                {t("subtitle:translator.task_detail.output")} {formatTokens(task.actualUsage.outputTokens)}
+                              </span>
+                              <span className="text-muted-foreground">
+                                {t("subtitle:translator.task_detail.calculated_cost")}
+                              </span>
+                              <span className="font-mono">
+                                {task.actualUsage.calculatedCost === undefined
+                                  ? "--"
+                                  : formatCost(task.actualUsage.calculatedCost)}
+                              </span>
+                              <span className="text-muted-foreground">
+                                {t("subtitle:translator.task_detail.request_coverage")}
+                              </span>
+                              <span className="font-mono">
+                                {task.actualUsage.reportedRequestCount} / {task.actualUsage.requestCount}
+                              </span>
+                              {task.actualUsage.cachedInputTokens > 0 && (
+                                <>
+                                  <span className="text-muted-foreground">
+                                    {t("subtitle:translator.task_detail.cached_input")}
+                                  </span>
+                                  <span className="font-mono">
+                                    {formatTokens(task.actualUsage.cachedInputTokens)}
+                                  </span>
+                                </>
+                              )}
+                              {task.actualUsage.reasoningTokens > 0 && (
+                                <>
+                                  <span className="text-muted-foreground">
+                                    {t("subtitle:translator.task_detail.reasoning_output")}
+                                  </span>
+                                  <span className="font-mono">
+                                    {formatTokens(task.actualUsage.reasoningTokens)}
+                                  </span>
+                                </>
+                              )}
+                            </>
+                          ) : null}
                           {task.costEstimate && (
                             <>
                               <span className="text-muted-foreground">
@@ -1705,7 +1836,7 @@ function SubtitleTranslator() {
                               </span>
                               <span className="text-muted-foreground">
                                 {t(
-                                  "subtitle:translator.task_detail.token_estimate"
+                                  "subtitle:translator.task_detail.estimated_usage"
                                 )}
                               </span>
                               <span className="font-mono">
@@ -1743,21 +1874,36 @@ function SubtitleTranslator() {
                   value={tokenStats.taskCount}
                 />
                 <Stat
-                  label={t("subtitle:translator.token_stats.total_tokens")}
-                  value={formatTokens(tokenStats.totalTokens)}
-                  loading={tokenStats.hasLoading}
+                  label={t("subtitle:translator.token_stats.actual_tokens")}
+                  value={formatTokens(tokenStats.actualTokens)}
+                  helpContent={t(
+                    tokenStats.hasPartialUsage
+                      ? "subtitle:translator.token_stats.partial_usage_tooltip"
+                      : "subtitle:translator.token_stats.actual_usage_tooltip",
+                  )}
                 />
                 <Stat
-                  label={t("subtitle:translator.token_stats.total_cost")}
-                  value={formatCost(tokenStats.totalCost)}
+                  label={t("subtitle:translator.token_stats.calculated_cost")}
+                  value={
+                    tokenStats.calculatedCost === undefined
+                      ? "--"
+                      : formatCost(tokenStats.calculatedCost)
+                  }
                   accent
-                  helpContent={t("subtitle:translator.token_stats.cost_tooltip")}
+                  helpContent={t(
+                    tokenStats.calculatedCost === undefined
+                      ? "subtitle:translator.token_stats.unpriced_cost_tooltip"
+                      : "subtitle:translator.token_stats.calculated_cost_tooltip",
+                  )}
                 />
                 <Stat
-                  label={t("subtitle:translator.token_stats.pending_cost")}
-                  value={formatCost(tokenStats.pendingCost)}
+                  label={t("subtitle:translator.token_stats.remaining_estimated_cost")}
+                  value={formatCost(tokenStats.remainingEstimatedCost)}
                   tone="warn"
-                  helpContent={t("subtitle:translator.token_stats.cost_tooltip")}
+                  loading={tokenStats.hasLoading}
+                  helpContent={t(
+                    "subtitle:translator.token_stats.remaining_cost_tooltip",
+                  )}
                 />
               </div>
             </Card>
@@ -1936,15 +2082,21 @@ function SubtitleTranslator() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="flex items-center gap-2">
-              <Checkbox
-                checked={editConcurrentSlices}
-                onCheckedChange={(v) => setEditConcurrentSlices(!!v)}
+            <ToolSwitchRow
+              testId="subtitle-translator-edit-concurrent-slices"
+              label={t("subtitle:translator.fields.concurrent_slices")}
+              checked={editConcurrentSlices}
+              onCheckedChange={setEditConcurrentSlices}
+            />
+            {supportsDeepSeekThinking && (
+              <ToolSwitchRow
+                testId="subtitle-translator-edit-deepseek-thinking"
+                label={t("subtitle:translator.fields.thinking_mode")}
+                hint={t("subtitle:translator.fields.thinking_mode_hint")}
+                checked={editThinkingEnabled}
+                onCheckedChange={setEditThinkingEnabled}
               />
-              <Label>
-                {t("subtitle:translator.fields.concurrent_slices")}
-              </Label>
-            </div>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setEditTaskOpen(false)}>

@@ -41,6 +41,7 @@ import {
   validateTranscribeRecordedAudioChunkIpcRequest,
   type AudioIpcError,
   type AudioIpcResult,
+  type AudioInputSelectionSource,
   type AudioOutputDirectorySelection,
   type AuthorizedAudioTranscriptionResult,
   type AuthorizedAudioInputFile,
@@ -72,6 +73,8 @@ import {
   type TranscribeRecordedAudioChunkRequest,
   type TranscribeRecordedAudioChunkResult,
 } from "@/type/audioIpc";
+import { LocalSubtitleAuthorizationError } from "../local-subtitle/authorizations";
+import { resolveLocalSubtitleInputPaths } from "../local-subtitle/windows-explorer-drop-resolver";
 import {
   audioRouteIssueToIpcError,
   toAudioIpcError,
@@ -188,6 +191,10 @@ export interface AudioIpcServiceOptions {
   fileAuthorizations?: AudioInputFileAuthorizations;
   outputDirectoryAuthorizations?: AudioOutputDirectoryAuthorizations;
   selectOutputDirectory?: AudioOutputDirectorySelector;
+  resolveInputPaths?: (
+    paths: readonly string[],
+    source: AudioInputSelectionSource,
+  ) => Promise<readonly string[]>;
 }
 
 export class AudioIpcService {
@@ -197,6 +204,9 @@ export class AudioIpcService {
   private readonly fileAuthorizations: AudioInputFileAuthorizations;
   private readonly outputDirectoryAuthorizations: AudioOutputDirectoryAuthorizations;
   private readonly selectOutputDirectoryImpl: AudioOutputDirectorySelector;
+  private readonly resolveInputPathsImpl: NonNullable<
+    AudioIpcServiceOptions["resolveInputPaths"]
+  >;
   private readonly transcriptionControllers = new Map<string, ActiveAudioRequest>();
   private readonly chunkTranscriptionControllers = new Map<string, ActiveAudioRequest>();
   private readonly speechControllers = new Map<string, ActiveAudioRequest>();
@@ -233,6 +243,8 @@ export class AudioIpcService {
           ...(request.buttonLabel ? { buttonLabel: request.buttonLabel } : {}),
           properties: ["openDirectory", "createDirectory"],
         }));
+    this.resolveInputPathsImpl =
+      options.resolveInputPaths ?? resolveLocalSubtitleInputPaths;
   }
 
   async syncRuntimeConfig(
@@ -243,14 +255,29 @@ export class AudioIpcService {
   }
 
   async authorizeInputFile(
-    request: { filePath: string; mimeType?: string },
+    request: {
+      filePath: string;
+      mimeType?: string;
+      source?: AudioInputSelectionSource;
+    },
     context: AudioIpcClientContext,
   ): Promise<AudioIpcResult<AuthorizedAudioInputFile>> {
     const ownerGeneration = this.getOwnerGeneration(context.senderId);
     try {
+      const resolvedPaths = await this.resolveInputPathsImpl(
+        [request.filePath],
+        request.source ?? "picker",
+      );
+      if (resolvedPaths.length !== 1 || !resolvedPaths[0]) {
+        return audioIpcFailure({
+          code: "file_read_failed",
+          message: "The original selected audio file is unavailable.",
+          field: "file",
+        });
+      }
       const authorization = await this.fileAuthorizations.authorize(
         context.senderId,
-        request.filePath,
+        resolvedPaths[0],
         request.mimeType,
       );
       if (!this.isOwnerGenerationCurrent(context.senderId, ownerGeneration)) {
@@ -262,6 +289,13 @@ export class AudioIpcService {
       }
       return audioIpcSuccess(authorization);
     } catch (error) {
+      if (error instanceof LocalSubtitleAuthorizationError) {
+        return audioIpcFailure({
+          code: "file_read_failed",
+          message: error.message,
+          field: "file",
+        });
+      }
       return audioIpcFailure(toAudioIpcError(error));
     }
   }
@@ -1733,7 +1767,11 @@ function handleValidatedRequest<TRequest, TResponse>(
 
 function validateAuthorizeInputFileRequest(
   payload: unknown,
-): AudioIpcResult<{ filePath: string; mimeType?: string }> {
+): AudioIpcResult<{
+  filePath: string;
+  mimeType?: string;
+  source: AudioInputSelectionSource;
+}> {
   if (!isRecord(payload) || !isNonEmptyString(payload.filePath)) {
     return audioIpcFailure({
       code: "invalid_ipc_request",
@@ -1748,8 +1786,16 @@ function validateAuthorizeInputFileRequest(
       field: "mimeType",
     });
   }
+  if (payload.source !== "picker" && payload.source !== "drop") {
+    return audioIpcFailure({
+      code: "invalid_ipc_request",
+      message: "Authorized audio selection source is invalid.",
+      field: "source",
+    });
+  }
   return audioIpcSuccess({
     filePath: payload.filePath,
+    source: payload.source,
     ...(payload.mimeType ? { mimeType: payload.mimeType } : {}),
   });
 }

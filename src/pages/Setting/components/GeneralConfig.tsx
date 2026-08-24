@@ -5,8 +5,8 @@ import { showSystemNotification } from "@/utils/notification";
 import { LangEnum } from "@/type/lang";
 import { useTranslation } from "react-i18next";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ButtonGroup } from "@/components/ui/button-group";
 import { Button } from "@/components/ui/button";
+import { SegmentedControl } from "@/components/qiuye-ui/segmented-control";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Bell } from "lucide-react";
@@ -27,70 +27,56 @@ function GeneralConfig() {
       </CardHeader>
       <CardContent className="space-y-6">
         {/* 语言设置 */}
-        <div className="flex items-center gap-4">
+        <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:gap-4">
           <Label className="text-sm font-medium min-w-[80px]">
             {t("setting:fields.language")}
           </Label>
-          <ButtonGroup>
-            <Button
-              size="sm"
-              variant={language === LangEnum.ZH ? "default" : "outline"}
-              onClick={() => changeLanguage(LangEnum.ZH)}
-            >
-              {t("common:lang.zh", { defaultValue: "简体中文" })}
-            </Button>
-            <Button
-              size="sm"
-              variant={language === LangEnum.ZH_HANT ? "default" : "outline"}
-              onClick={() => changeLanguage(LangEnum.ZH_HANT)}
-            >
-              {t("common:lang.zh-Hant", { defaultValue: "繁體中文" })}
-            </Button>
-            <Button
-              size="sm"
-              variant={language === LangEnum.JA ? "default" : "outline"}
-              onClick={() => changeLanguage(LangEnum.JA)}
-            >
-              {t("common:lang.ja", { defaultValue: "日本語" })}
-            </Button>
-            <Button
-              size="sm"
-              variant={language === LangEnum.EN ? "default" : "outline"}
-              onClick={() => changeLanguage(LangEnum.EN)}
-            >
-              {t("common:lang.en", { defaultValue: "English" })}
-            </Button>
-          </ButtonGroup>
+          <SegmentedControl
+            size="sm"
+            fullWidth
+            className="min-w-0 flex-1"
+            itemClassName="px-0.5"
+            value={language}
+            aria-label={t("setting:fields.language")}
+            items={[
+              {
+                value: LangEnum.ZH,
+                label: t("common:lang.zh", { defaultValue: "简体中文" }),
+              },
+              {
+                value: LangEnum.ZH_HANT,
+                label: t("common:lang.zh-Hant", { defaultValue: "繁體中文" }),
+              },
+              {
+                value: LangEnum.JA,
+                label: t("common:lang.ja", { defaultValue: "日本語" }),
+              },
+              {
+                value: LangEnum.EN,
+                label: t("common:lang.en", { defaultValue: "English" }),
+              },
+            ]}
+            onValueChange={(value) => changeLanguage(value as LangEnum)}
+          />
         </div>
 
         {/* 主题设置 */}
-        <div className="flex items-center gap-4">
+        <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:gap-4">
           <Label className="text-sm font-medium min-w-[80px]">
             {t("setting:fields.theme")}
           </Label>
-          <ButtonGroup>
-            <Button
-              size="sm"
-              variant={theme === "light" ? "default" : "outline"}
-              onClick={() => setTheme("light")}
-            >
-              {t('setting:fields.light_mode')}
-            </Button>
-            <Button
-              size="sm"
-              variant={theme === "dark" ? "default" : "outline"}
-              onClick={() => setTheme("dark")}
-            >
-              {t('setting:fields.dark_mode')}
-            </Button>
-            <Button
-              size="sm"
-              variant={theme === "system" ? "default" : "outline"}
-              onClick={() => setTheme("system")}
-            >
-              {t('setting:fields.system_mode')}
-            </Button>
-          </ButtonGroup>
+          <SegmentedControl
+            size="sm"
+            fullWidth
+            className="min-w-0 flex-1"
+            value={theme}
+            aria-label={t("setting:fields.theme")}
+            items={(["light", "dark", "system"] as const).map((value) => ({
+              value,
+              label: t(`setting:fields.${value}_mode`),
+            }))}
+            onValueChange={(value) => setTheme(value as typeof theme)}
+          />
         </div>
 
         {/* 系统通知设置 */}
@@ -134,4 +120,3 @@ function GeneralConfig() {
 }
 
 export default GeneralConfig;
-

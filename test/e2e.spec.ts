@@ -152,6 +152,18 @@ if (shouldSkipElectronE2E) {
     test('startup', async () => {
       const title = await page.title()
       expect(title).eq('FusionKit')
+      expect(
+        await page.evaluate(() => ({
+          legacyIpcOn: typeof window.ipcRenderer?.on,
+          localSubtitleSubscribe: typeof window.localSubtitleApi?.onTaskEvent,
+          subtitleTranslationAuthorize:
+            typeof window.subtitleTranslationApi?.authorizeInputFile,
+        })),
+      ).toEqual({
+        legacyIpcOn: 'function',
+        localSubtitleSubscribe: 'function',
+        subtitleTranslationAuthorize: 'function',
+      })
     })
 
     test('name translator wraps warning details and explains them before high-risk apply', async () => {
@@ -319,7 +331,7 @@ if (shouldSkipElectronE2E) {
       await page.getByRole('button', { name: '取消' }).click()
     }, 60_000)
 
-    test('subtitle and audio radio groups share the same ButtonGroup baseline', async () => {
+    test('subtitle and audio radio groups share the same SegmentedControl baseline', async () => {
       const server = fakeAudioApiServer
       if (!server) {
         throw new Error('FIX-R07 radio baseline fixtures were not initialized')
@@ -339,9 +351,9 @@ if (shouldSkipElectronE2E) {
       await subtitleField.evaluate((element) => {
         element.scrollIntoView({ block: 'center' })
       })
-      const subtitleGroup = subtitleField.locator('[data-slot="button-group"]')
-      expect(await radioButtonGroupUsesSubtitleBaseline(subtitleGroup)).toBe(true)
-      const subtitleSignature = await readRadioButtonGroupVisualSignature(
+      const subtitleGroup = subtitleField.locator('[data-slot="segmented-control"]')
+      expect(await segmentedControlUsesSharedBaseline(subtitleGroup)).toBe(true)
+      const subtitleSignature = await readSegmentedControlVisualSignature(
         subtitleGroup,
       )
       await page.screenshot({
@@ -355,9 +367,9 @@ if (shouldSkipElectronE2E) {
       await audioField.evaluate((element) => {
         element.scrollIntoView({ block: 'center' })
       })
-      const audioGroup = audioField.locator('[data-slot="button-group"]')
-      expect(await radioButtonGroupUsesSubtitleBaseline(audioGroup)).toBe(true)
-      expect(await readRadioButtonGroupVisualSignature(audioGroup)).toEqual(
+      const audioGroup = audioField.locator('[data-slot="segmented-control"]')
+      expect(await segmentedControlUsesSharedBaseline(audioGroup)).toBe(true)
+      expect(await readSegmentedControlVisualSignature(audioGroup)).toEqual(
         subtitleSignature,
       )
       await page.screenshot({
@@ -365,6 +377,172 @@ if (shouldSkipElectronE2E) {
         animations: 'disabled',
       })
       expect(await hasHorizontalOverflow(page)).toBe(false)
+    }, 60_000)
+
+    test('segmented indicators ignore unrelated configuration height changes', async () => {
+      await setWindowSize(mainWin, page, { width: 1280, height: 800 })
+      await page.evaluate(() => {
+        localStorage.clear()
+        localStorage.setItem('lang', 'zh')
+        localStorage.setItem('subtitle-translator-tour-done', '1')
+        window.location.hash = '#/tools/subtitle/translator'
+      })
+      await page.reload({ waitUntil: 'domcontentloaded' })
+      await waitForFusionKitLoadingToExit(page)
+
+      const sliceGroup = page.locator(
+        '#tour-slice-mode [data-slot="segmented-control"]',
+      )
+      await sliceGroup.waitFor({ state: 'visible' })
+      await sliceGroup.evaluate((element) => {
+        element.scrollIntoView({ block: 'center' })
+      })
+
+      const selectionAnimationOffsets = await sliceGroup.evaluate(async (group) => {
+        const customOption = group.querySelector<HTMLElement>(
+          '[data-value="CUSTOM"]',
+        )
+        if (!customOption) throw new Error('Custom slice option is missing')
+
+        customOption.click()
+        const offsets: number[] = []
+        for (let frameIndex = 0; frameIndex < 36; frameIndex++) {
+          await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
+          const selected = group.querySelector<HTMLElement>(
+            '[role="radio"][aria-checked="true"]',
+          )
+          const indicator = group.querySelector<HTMLElement>(
+            '[data-slot="segmented-control-indicator"]',
+          )
+          if (!selected || !indicator) {
+            offsets.push(Number.POSITIVE_INFINITY)
+            continue
+          }
+          const selectedRect = selected.getBoundingClientRect()
+          const indicatorRect = indicator.getBoundingClientRect()
+          offsets.push(Math.abs(selectedRect.left - indicatorRect.left))
+        }
+        return offsets
+      })
+      expect(Math.max(...selectionAnimationOffsets.slice(0, 12))).toBeGreaterThan(1)
+      await expect.poll(async () => {
+        return await sliceGroup.evaluate((group) => {
+          const selected = group.querySelector<HTMLElement>(
+            '[role="radio"][aria-checked="true"]',
+          )
+          const indicator = group.querySelector<HTMLElement>(
+            '[data-slot="segmented-control-indicator"]',
+          )
+          if (!selected || !indicator) return Number.POSITIVE_INFINITY
+          return Math.abs(
+            selected.getBoundingClientRect().left -
+              indicator.getBoundingClientRect().left,
+          )
+        })
+      }).toBeLessThanOrEqual(1)
+      await page.locator('#tour-slice-mode input[type="number"]').waitFor({
+        state: 'visible',
+      })
+
+      const alignmentSamples = await page.evaluate(async () => {
+        const normalOption = document.querySelector<HTMLElement>(
+          '#tour-slice-mode [data-value="NORMAL"]',
+        )
+        const stableGroups = [
+          document.querySelector<HTMLElement>(
+            '[role="radiogroup"][aria-label="输出位置"]',
+          ),
+          document.querySelector<HTMLElement>(
+            '[role="radiogroup"][aria-label="重名处理"]',
+          ),
+        ]
+        if (!normalOption || stableGroups.some((group) => !group)) {
+          throw new Error('Subtitle segmented-control fixtures are missing')
+        }
+
+        normalOption.click()
+        const samples: number[][] = []
+        for (let frameIndex = 0; frameIndex < 18; frameIndex++) {
+          await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
+          samples.push(stableGroups.map((group) => {
+            const selected = group!.querySelector<HTMLElement>(
+              '[role="radio"][aria-checked="true"]',
+            )
+            const indicator = group!.querySelector<HTMLElement>(
+              '[data-slot="segmented-control-indicator"]',
+            )
+            if (!selected || !indicator) return Number.POSITIVE_INFINITY
+            const selectedRect = selected.getBoundingClientRect()
+            const indicatorRect = indicator.getBoundingClientRect()
+            return Math.max(
+              Math.abs(selectedRect.top - indicatorRect.top),
+              Math.abs(selectedRect.bottom - indicatorRect.bottom),
+              Math.abs(selectedRect.left - indicatorRect.left),
+              Math.abs(selectedRect.right - indicatorRect.right),
+            )
+          }))
+        }
+        return samples
+      })
+
+      expect(Math.max(...alignmentSamples.flat())).toBeLessThanOrEqual(1)
+      await page.locator('#tour-slice-mode input[type="number"]').waitFor({
+        state: 'hidden',
+      })
+      await page.screenshot({
+        path: path.join(
+          testResultsDir,
+          'segmented-control-dynamic-height-alignment.png',
+        ),
+        animations: 'disabled',
+      })
+    }, 60_000)
+
+    test('settings radio groups use the compact SegmentedControl without clipped labels', async () => {
+      await setWindowSize(mainWin, page, { width: 786, height: 540 })
+      await page.evaluate(() => {
+        localStorage.clear()
+        localStorage.setItem('lang', 'en')
+        window.location.hash = '#/setting?tab=general'
+      })
+      await page.reload({ waitUntil: 'domcontentloaded' })
+      await waitForFusionKitLoadingToExit(page)
+
+      const assertVisibleSegmentedControls = async (expectedCount: number) => {
+        const controls = page.locator('[data-slot="segmented-control"]')
+        expect(await controls.count()).toBe(expectedCount)
+        for (let index = 0; index < expectedCount; index++) {
+          const control = controls.nth(index)
+          await expect
+            .poll(() => segmentedControlUsesSharedBaseline(control))
+            .toBe(true)
+          const diagnostics = await readSegmentedControlDiagnostics(control)
+          expect(
+            await segmentedControlUsesSharedBaseline(control),
+            JSON.stringify(diagnostics),
+          ).toBe(true)
+        }
+        expect(await hasHorizontalOverflow(page)).toBe(false)
+      }
+
+      await page.getByTestId('setting-tab-general').waitFor({ state: 'visible' })
+      await assertVisibleSegmentedControls(2)
+
+      await page.getByTestId('setting-tab-proxy').click()
+      await page.getByRole('radiogroup', { name: 'Proxy Mode' }).waitFor({
+        state: 'visible',
+      })
+      await assertVisibleSegmentedControls(1)
+
+      await page.getByTestId('setting-tab-model').click()
+      await page.getByRole('button', { name: 'Add Profile' }).click()
+      await page.getByRole('dialog').waitFor({ state: 'visible' })
+      await assertVisibleSegmentedControls(2)
+      await page.screenshot({
+        path: path.join(testResultsDir, 'segmented-control-settings-786x540.png'),
+        animations: 'disabled',
+      })
+      await page.getByRole('button', { name: 'Cancel' }).click()
     }, 60_000)
 
     test('standalone audio settings support first MiMo setup, assignment undo, reassignment, and returnTo', async () => {
@@ -679,15 +857,15 @@ if (shouldSkipElectronE2E) {
 
       await seedSpeechAudioSettings(page, 'mimo', server.baseUrl)
       await page.getByTestId('speech-mode-group').waitFor({ state: 'visible' })
-      expect(await radioButtonGroupUsesSubtitleBaseline(
+      expect(await segmentedControlUsesSharedBaseline(
         page
           .getByTestId('speech-mode-group')
-          .locator('[data-slot="button-group"]'),
+          .locator('[data-slot="segmented-control"]'),
       )).toBe(true)
-      expect(await radioButtonGroupUsesSubtitleBaseline(
+      expect(await segmentedControlUsesSharedBaseline(
         page
           .getByTestId('speech-output-mode')
-          .locator('[data-slot="button-group"]'),
+          .locator('[data-slot="segmented-control"]'),
       )).toBe(true)
       expect(
         await page.getByTestId('speech-config-summary').textContent(),
@@ -1084,10 +1262,10 @@ if (shouldSkipElectronE2E) {
       const customDirectoryMode = page.getByTestId(
         'transcriber-output-mode-custom_dir',
       )
-      expect(await radioButtonGroupUsesSubtitleBaseline(
+      expect(await segmentedControlUsesSharedBaseline(
         page
           .getByTestId('transcriber-output-mode')
-          .locator('[data-slot="button-group"]'),
+          .locator('[data-slot="segmented-control"]'),
       )).toBe(true)
       await displayOnlyMode.click()
       await displayOnlyMode.focus()
@@ -1099,14 +1277,14 @@ if (shouldSkipElectronE2E) {
         ]),
       ).toEqual(['0', '-1', '-1'])
       await page.keyboard.press('ArrowRight')
-      expect(await sourceDirectoryMode.getAttribute('data-state')).toBe('checked')
+      expect(await sourceDirectoryMode.getAttribute('data-state')).toBe('active')
       expect(await sourceDirectoryMode.evaluate((element) =>
         document.activeElement === element,
       )).toBe(true)
       await page.keyboard.press('End')
-      expect(await customDirectoryMode.getAttribute('data-state')).toBe('checked')
+      expect(await customDirectoryMode.getAttribute('data-state')).toBe('active')
       await page.keyboard.press('Home')
-      expect(await displayOnlyMode.getAttribute('data-state')).toBe('checked')
+      expect(await displayOnlyMode.getAttribute('data-state')).toBe('active')
       expect(await displayOnlyMode.evaluate((element) =>
         document.activeElement === element,
       )).toBe(true)
@@ -1230,10 +1408,10 @@ if (shouldSkipElectronE2E) {
       expect(
         await page.getByTestId('captions-input-audio-format').isVisible(),
       ).toBe(true)
-      expect(await radioButtonGroupUsesSubtitleBaseline(
+      expect(await segmentedControlUsesSharedBaseline(
         page
           .getByTestId('captions-input-audio-format')
-          .locator('[data-slot="button-group"]'),
+          .locator('[data-slot="segmented-control"]'),
       )).toBe(true)
       expect(await page.locator('#captions-turn-detection').count()).toBe(0)
       expect(await page.locator('#captions-assistant-transcript').count()).toBe(0)
@@ -1252,13 +1430,13 @@ if (shouldSkipElectronE2E) {
         ]),
       ).toEqual(['0', '-1', '-1'])
       await page.keyboard.press('ArrowRight')
-      expect(await pcmu.getAttribute('data-state')).toBe('checked')
+      expect(await pcmu.getAttribute('data-state')).toBe('active')
       expect(await pcmu.evaluate((element) => document.activeElement === element))
         .toBe(true)
       await page.keyboard.press('End')
-      expect(await pcma.getAttribute('data-state')).toBe('checked')
+      expect(await pcma.getAttribute('data-state')).toBe('active')
       await page.keyboard.press('Home')
-      expect(await pcm16.getAttribute('data-state')).toBe('checked')
+      expect(await pcm16.getAttribute('data-state')).toBe('active')
       expect(await pcm16.evaluate((element) => document.activeElement === element))
         .toBe(true)
 
@@ -1394,15 +1572,15 @@ if (shouldSkipElectronE2E) {
       const inputPcm16 = page.getByTestId('voice-input-format-pcm16')
       const inputPcmu = page.getByTestId('voice-input-format-pcmu')
       const inputPcma = page.getByTestId('voice-input-format-pcma')
-      expect(await radioButtonGroupUsesSubtitleBaseline(
+      expect(await segmentedControlUsesSharedBaseline(
         page
           .getByTestId('voice-input-audio-format')
-          .locator('[data-slot="button-group"]'),
+          .locator('[data-slot="segmented-control"]'),
       )).toBe(true)
-      expect(await radioButtonGroupUsesSubtitleBaseline(
+      expect(await segmentedControlUsesSharedBaseline(
         page
           .getByTestId('voice-output-audio-format')
-          .locator('[data-slot="button-group"]'),
+          .locator('[data-slot="segmented-control"]'),
       )).toBe(true)
       await inputPcm16.click()
       await inputPcm16.focus()
@@ -1414,18 +1592,18 @@ if (shouldSkipElectronE2E) {
         ]),
       ).toEqual(['0', '-1', '-1'])
       await page.keyboard.press('ArrowRight')
-      expect(await inputPcmu.getAttribute('data-state')).toBe('checked')
+      expect(await inputPcmu.getAttribute('data-state')).toBe('active')
       expect(
         await inputPcmu.evaluate((element) => document.activeElement === element),
       ).toBe(true)
       await page.keyboard.press('End')
-      expect(await inputPcma.getAttribute('data-state')).toBe('checked')
+      expect(await inputPcma.getAttribute('data-state')).toBe('active')
       await page.keyboard.press('Home')
-      expect(await inputPcm16.getAttribute('data-state')).toBe('checked')
+      expect(await inputPcm16.getAttribute('data-state')).toBe('active')
 
       const outputPcmu = page.getByTestId('voice-output-format-pcmu')
       await outputPcmu.click()
-      expect(await outputPcmu.getAttribute('data-state')).toBe('checked')
+      expect(await outputPcmu.getAttribute('data-state')).toBe('active')
 
       await expect.poll(async () => {
         return await page.evaluate(() => {
@@ -2717,17 +2895,18 @@ async function speechModeButtonsFit(targetPage: Page): Promise<boolean> {
   })
 }
 
-async function radioButtonGroupUsesSubtitleBaseline(
+async function segmentedControlUsesSharedBaseline(
   group: Locator,
 ): Promise<boolean> {
   return await group.evaluate((root) => {
     const items = Array.from(root.querySelectorAll<HTMLElement>('[role="radio"]'))
     if (
-      root.getAttribute('data-slot') !== 'button-group' ||
+      root.getAttribute('data-slot') !== 'segmented-control' ||
+      root.getAttribute('data-size') !== 'sm' ||
+      root.getAttribute('data-variant') !== 'floating' ||
       items.length < 2 ||
       items.some((item) =>
-        item.getAttribute('data-slot') !== 'button' ||
-        item.getAttribute('data-size') !== 'sm'
+        item.getAttribute('data-slot') !== 'segmented-control-item'
       )
     ) {
       return false
@@ -2737,21 +2916,51 @@ async function radioButtonGroupUsesSubtitleBaseline(
     const connected = rects.slice(1).every((rect, index) =>
       Math.abs(rect.left - rects[index].right) <= 1,
     )
-    const firstStyle = getComputedStyle(items[0])
-    const lastStyle = getComputedStyle(items.at(-1)!)
     return connected &&
       root.scrollWidth <= root.clientWidth + 1 &&
-      items.every((item) => item.scrollWidth <= item.clientWidth + 1) &&
-      rects.every((rect) => Math.abs(rect.height - 32) <= 1) &&
-      items.every((item) => getComputedStyle(item).fontSize === '14px') &&
-      Number.parseFloat(firstStyle.borderTopLeftRadius) > 0 &&
-      Number.parseFloat(firstStyle.borderTopRightRadius) === 0 &&
-      Number.parseFloat(lastStyle.borderTopLeftRadius) === 0 &&
-      Number.parseFloat(lastStyle.borderTopRightRadius) > 0
+      items.every((item) => {
+        const label = item.querySelector<HTMLElement>(
+          '[data-slot="segmented-control-label"]',
+        )
+        return item.scrollWidth <= item.clientWidth + 1 &&
+          Boolean(label && label.scrollWidth <= label.clientWidth + 1)
+      }) &&
+      rects.every((rect) => Math.abs(rect.height - 28) <= 1) &&
+      items.every((item) => getComputedStyle(item).fontSize === '11px') &&
+      items.filter((item) => item.tabIndex === 0).length === 1 &&
+      items.filter((item) => item.getAttribute('aria-checked') === 'true').length === 1 &&
+      Boolean(root.querySelector('[data-slot="segmented-control-indicator"]'))
   })
 }
 
-async function readRadioButtonGroupVisualSignature(group: Locator) {
+async function readSegmentedControlDiagnostics(group: Locator) {
+  return await group.evaluate((root) => ({
+    root: {
+      slot: root.getAttribute('data-slot'),
+      size: root.getAttribute('data-size'),
+      variant: root.getAttribute('data-variant'),
+      scrollWidth: root.scrollWidth,
+      clientWidth: root.clientWidth,
+    },
+    items: Array.from(root.querySelectorAll<HTMLElement>('[role="radio"]')).map(
+      (item) => {
+        const label = item.querySelector<HTMLElement>(
+          '[data-slot="segmented-control-label"]',
+        )
+        return {
+          value: item.getAttribute('data-value'),
+          state: item.getAttribute('data-state'),
+          fontSize: getComputedStyle(item).fontSize,
+          itemWidth: `${item.scrollWidth}/${item.clientWidth}`,
+          labelWidth: label ? `${label.scrollWidth}/${label.clientWidth}` : null,
+          height: item.getBoundingClientRect().height,
+        }
+      },
+    ),
+  }))
+}
+
+async function readSegmentedControlVisualSignature(group: Locator) {
   return await group.evaluate((root) => {
     const rootStyle = getComputedStyle(root)
     const items = Array.from(root.querySelectorAll<HTMLElement>('[role="radio"]'))
@@ -2763,8 +2972,7 @@ async function readRadioButtonGroupVisualSignature(group: Locator) {
       const rect = item.getBoundingClientRect()
       return {
         slot: item.getAttribute('data-slot'),
-        size: item.getAttribute('data-size'),
-        variant: item.getAttribute('data-variant'),
+        state: item.getAttribute('data-state'),
         height: Math.round(rect.height),
         fontSize: style.fontSize,
         fontWeight: style.fontWeight,
@@ -2775,6 +2983,8 @@ async function readRadioButtonGroupVisualSignature(group: Locator) {
     }
     return {
       slot: root.getAttribute('data-slot'),
+      size: root.getAttribute('data-size'),
+      variant: root.getAttribute('data-variant'),
       display: rootStyle.display,
       alignItems: rootStyle.alignItems,
       selected: readButton(selected),

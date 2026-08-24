@@ -3,13 +3,19 @@ import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 import os from "node:os";
-import { setupTranslationIPC } from "./translation/ipc";
+import {
+  setupTranslationIPC,
+  SubtitleTranslationIpcService,
+} from "./translation/ipc";
+import { SubtitleTranslationDirectoryCapabilityRegistry } from "./translation/directory-capability";
+import { GeneratedSubtitleImportCandidateService } from "./translation/generated-import-candidate";
 import { update } from "./update";
 import { setupPowerIPC } from "./power";
 import { setupConversionIPC } from "./conversion/ipc";
 import { setupExtractionIPC } from "./extraction/ipc";
 import { setupProxyIPC } from "./proxy";
 import { setupFsIPC } from "./fs/ipc";
+import { setupNativeFileSelectionIPC } from "./fs/native-file-selection-ipc";
 import { setupRenameIPC } from "./rename/ipc";
 import {
   emitTextTranslationEvent,
@@ -17,6 +23,49 @@ import {
 } from "./text-translation/ipc";
 import { setupAudioIPC } from "./audio/ipc";
 import { setupAudioRealtimeIPC } from "./audio/realtime-ipc";
+import {
+  LocalSubtitleIpcService,
+  LocalSubtitleOverwriteRecoveryAdmissionCoordinator,
+  setupLocalSubtitleIPC,
+} from "./local-subtitle/ipc";
+import {
+  LocalSubtitleCapabilityLeaseCoordinator,
+  LocalSubtitleImportTokenRegistry,
+  LocalSubtitleInputAuthorizationRegistry,
+  LocalSubtitleOutputDirectoryAuthorizationRegistry,
+} from "./local-subtitle/authorizations";
+import {
+  LocalSubtitleArtifactHandoffService,
+  type LocalSubtitleTranslationImportTokenRegistry,
+} from "./local-subtitle/artifact-handoff";
+import { LocalSubtitleBackendResolver } from "./local-subtitle/backend-resolver";
+import {
+  LOCAL_SUBTITLE_WINDOWS_CUDA_PACK_DEFINITION,
+} from "./local-subtitle/accelerator-manager";
+import {
+  createLocalSubtitleProductionBackendAttestor,
+} from "./local-subtitle/backend-attestor";
+import { LocalSubtitleArtifactRegistry } from "./local-subtitle/subtitle-artifact-registry";
+import { LocalSubtitleExporter } from "./local-subtitle/subtitle-exporter";
+import { LocalSubtitleJobIpcBridge } from "./local-subtitle/job-ipc";
+import { LocalSubtitleJobManager } from "./local-subtitle/job-manager";
+import { LocalSubtitleMainRuntime } from "./local-subtitle/main-runtime";
+import { LocalSubtitleMediaNormalizer } from "./local-subtitle/media-normalizer";
+import { LocalSubtitleModelManager } from "./local-subtitle/model-manager";
+import { LocalSubtitleModelIpcBridge } from "./local-subtitle/model-ipc";
+import { LocalSubtitleProductionExecutor } from "./local-subtitle/production-executor";
+import { LocalSubtitleSessionIpcBridge } from "./local-subtitle/session-ipc";
+import { LocalSubtitleSessionLifecycle } from "./local-subtitle/session-lifecycle";
+import { LocalSubtitleSessionRegistry } from "./local-subtitle/session-registry";
+import { LocalSubtitleServerSupervisor } from "./local-subtitle/server-supervisor";
+import { LocalSubtitleServerAppLifecycle } from "./local-subtitle/server-app-lifecycle";
+import { initializeLocalSubtitleOverwriteProductionRuntime } from "./local-subtitle/overwrite-production-runtime";
+import { LocalSubtitleOverwriteRecoveryIpcBridge } from "./local-subtitle/overwrite-recovery-ipc";
+import { LocalSubtitleRuntimeIpcBridge } from "./local-subtitle/runtime-ipc";
+import {
+  LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS,
+  localSubtitleIpcSuccess,
+} from "@/type/localSubtitleIpc";
 import { TextTranslationService } from "./text-translation/text-translation-service";
 
 const require = createRequire(import.meta.url);
@@ -55,7 +104,10 @@ if (!app.requestSingleInstanceLock()) {
 }
 
 let win: BrowserWindow | null = null;
+let localSubtitleServerLifecycle: LocalSubtitleServerAppLifecycle | undefined;
 let translationService: TranslationService = new TranslationService();
+const subtitleTranslationDirectoryCapabilities =
+  new SubtitleTranslationDirectoryCapabilityRegistry();
 let textTranslationService = new TextTranslationService({
   eventSink: (event) => {
     if (!win || win.webContents.isDestroyed()) return;
@@ -78,7 +130,8 @@ async function createWindow() {
     show: false,
     titleBarStyle: "hidden",
     ...(process.platform === "darwin"
-      ? { trafficLightPosition: { x: 15, y: 11.5 } } // macOS 左上角的红黄绿圆点
+      // Align the native controls with the center of the title bar's glass capsule.
+      ? { trafficLightPosition: { x: 12, y: 12.5 } }
       : {}),
     webPreferences: {
       preload,
@@ -159,13 +212,228 @@ async function createWindow() {
 
   // Auto update
   if (win) {
-    update(win);
+    update(win, {
+      prepareQuitAndInstall: () =>
+        localSubtitleServerLifecycle?.prepareUpdateInstall() ??
+        Promise.resolve(),
+    });
   }
 }
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
+  const localSubtitleManagedResourceRoot = path.join(
+    app.getPath("userData"),
+    "local-subtitle",
+  );
+  const localSubtitleResourceEnvironment = app.isPackaged
+    ? ({ mode: "packaged", resourcesPath: process.resourcesPath } as const)
+    : ({
+        mode: "development",
+        appRoot: process.env.APP_ROOT!,
+      } as const);
+  const localSubtitleInputAuthorizations =
+    new LocalSubtitleInputAuthorizationRegistry();
+  const localSubtitleOutputAuthorizations =
+    new LocalSubtitleOutputDirectoryAuthorizationRegistry();
+  const localSubtitleCapabilityLeases =
+    new LocalSubtitleCapabilityLeaseCoordinator(
+      localSubtitleInputAuthorizations,
+      localSubtitleOutputAuthorizations,
+    );
+  const localSubtitleArtifacts = new LocalSubtitleArtifactRegistry({
+    revealFile: (filePath) => shell.showItemInFolder(filePath),
+  });
+  const localSubtitleImportTokens: LocalSubtitleTranslationImportTokenRegistry =
+    new LocalSubtitleImportTokenRegistry();
+  const localSubtitleArtifactHandoffs =
+    new LocalSubtitleArtifactHandoffService(
+      localSubtitleArtifacts,
+      localSubtitleImportTokens,
+    );
+  const localSubtitleMediaNormalizer = new LocalSubtitleMediaNormalizer({
+    environment: localSubtitleResourceEnvironment,
+    managedResourceRoot: localSubtitleManagedResourceRoot,
+    inputAuthorizations: localSubtitleInputAuthorizations,
+  });
+  const localSubtitleBackendAttestor =
+    createLocalSubtitleProductionBackendAttestor();
+  const localSubtitleServerSupervisor = new LocalSubtitleServerSupervisor({
+    managedResourceRoot: localSubtitleManagedResourceRoot,
+    dependencies: {
+      verifyBackend: localSubtitleBackendAttestor.verifyBackend,
+    },
+  });
+  const localSubtitleSessionRegistry = new LocalSubtitleSessionRegistry();
+  let localSubtitleJobManager: LocalSubtitleJobManager | undefined;
+  const localSubtitleModelManager = new LocalSubtitleModelManager({
+    managedResourceRoot: localSubtitleManagedResourceRoot,
+    runtimeEnvironment: localSubtitleResourceEnvironment,
+    supervisor: localSubtitleServerSupervisor,
+    sessionRegistry: localSubtitleSessionRegistry,
+    isResourceBusy: (resourceId) =>
+      Boolean(
+        localSubtitleJobManager?.isManagedModelBusy(resourceId) ||
+        localSubtitleJobManager?.isManagedVadBusy(resourceId) ||
+        localSubtitleJobManager?.isManagedAcceleratorBusy(resourceId) ||
+        localSubtitleServerSupervisor.isManagedAcceleratorBusy(resourceId) ||
+        localSubtitleServerSupervisor.snapshot.modelId === resourceId ||
+        localSubtitleServerSupervisor.snapshot.vadModelId === resourceId,
+      ),
+  });
+  await localSubtitleModelManager.initialize().catch(() => undefined);
+  const resolveLocalSubtitleCudaAccelerator = (signal?: AbortSignal) =>
+    localSubtitleModelManager.resolveManagedAccelerator(
+      LOCAL_SUBTITLE_WINDOWS_CUDA_PACK_DEFINITION.resourceId,
+      signal,
+    );
+  const localSubtitleOverwriteRuntime =
+    await initializeLocalSubtitleOverwriteProductionRuntime({
+      environment: localSubtitleResourceEnvironment,
+      managedResourceRoot: localSubtitleManagedResourceRoot,
+      artifacts: localSubtitleArtifacts,
+    });
+  const localSubtitleExporter = new LocalSubtitleExporter(
+    localSubtitleArtifacts,
+    localSubtitleOverwriteRuntime.status === "ready"
+      ? {
+          overwriteTransaction: localSubtitleOverwriteRuntime.transactions,
+          overwriteRecoveryOwner: localSubtitleOverwriteRuntime.recoveryOwner,
+        }
+      : {},
+  );
+  const localSubtitleProductionExecutor = new LocalSubtitleProductionExecutor({
+    media: localSubtitleMediaNormalizer,
+    supervisor: localSubtitleServerSupervisor,
+    inputs: localSubtitleInputAuthorizations,
+    outputs: localSubtitleOutputAuthorizations,
+    exporter: localSubtitleExporter,
+    runtimeEnvironment: localSubtitleResourceEnvironment,
+    resolveCudaAccelerator: resolveLocalSubtitleCudaAccelerator,
+  });
+  const localSubtitleBackendResolver = new LocalSubtitleBackendResolver({
+    runtimeEnvironment: localSubtitleResourceEnvironment,
+    metalAttestationAvailable:
+      localSubtitleBackendAttestor.supportedBackends.includes("metal"),
+    cudaAttestationAvailable:
+      localSubtitleBackendAttestor.supportedBackends.includes("cuda"),
+    resolveCudaAccelerator: resolveLocalSubtitleCudaAccelerator,
+  });
+  localSubtitleJobManager = new LocalSubtitleJobManager({
+    registry: localSubtitleSessionRegistry,
+    inputs: localSubtitleInputAuthorizations,
+    outputs: localSubtitleOutputAuthorizations,
+    leases: localSubtitleCapabilityLeases,
+    runtimeVerifier: localSubtitleMediaNormalizer,
+    backendResolver: localSubtitleBackendResolver,
+    modelResolver: localSubtitleModelManager,
+    mediaSelections: localSubtitleMediaNormalizer,
+    executor: localSubtitleProductionExecutor,
+    artifacts: localSubtitleArtifactHandoffs,
+  });
+  const localSubtitleOverwriteRecoveryAdmissions =
+    new LocalSubtitleOverwriteRecoveryAdmissionCoordinator(
+      localSubtitleOverwriteRuntime.lifecycleTarget,
+    );
+  const localSubtitleSessionLifecycle = new LocalSubtitleSessionLifecycle(
+    localSubtitleJobManager,
+    localSubtitleModelManager,
+    localSubtitleMediaNormalizer,
+    localSubtitleServerSupervisor,
+    localSubtitleSessionRegistry,
+    localSubtitleOverwriteRecoveryAdmissions,
+  );
+  const localSubtitleMainRuntime = new LocalSubtitleMainRuntime(
+    localSubtitleSessionLifecycle,
+  );
+  localSubtitleServerLifecycle = new LocalSubtitleServerAppLifecycle(
+    localSubtitleMainRuntime,
+  );
+  localSubtitleServerLifecycle.install({
+    onBeforeQuit: (listener) => app.on("before-quit", listener),
+    quit: () => app.quit(),
+  });
+
+  // The sync preload handshake must exist before any renderer starts loading.
+  const localSubtitleSessionIpcBridge = new LocalSubtitleSessionIpcBridge(
+    localSubtitleSessionRegistry,
+    localSubtitleArtifacts,
+  );
+  const localSubtitleJobIpcBridge = new LocalSubtitleJobIpcBridge(
+    localSubtitleJobManager,
+    localSubtitleSessionIpcBridge,
+  );
+  const localSubtitleModelIpcBridge = new LocalSubtitleModelIpcBridge(
+    localSubtitleModelManager,
+    localSubtitleSessionIpcBridge,
+  );
+  const localSubtitleRuntimeIpcBridge = new LocalSubtitleRuntimeIpcBridge({
+    environment: localSubtitleResourceEnvironment,
+    mediaRuntimeVerifier: localSubtitleMediaNormalizer,
+    supportedGpuBackends: localSubtitleBackendAttestor.supportedBackends,
+    supportedOutputConflictPolicies:
+      localSubtitleOverwriteRuntime.status === "ready"
+        ? ["index", "overwrite"]
+        : ["index"],
+    resolveCudaAccelerator: resolveLocalSubtitleCudaAccelerator,
+  });
+  const localSubtitleOverwriteRecoveryIpcBridge =
+    new LocalSubtitleOverwriteRecoveryIpcBridge(localSubtitleOverwriteRuntime);
+  const localSubtitleIpcService = new LocalSubtitleIpcService({
+    overwriteRecoveryAdmissions: localSubtitleOverwriteRecoveryAdmissions,
+    capabilities: {
+      inputs: localSubtitleInputAuthorizations,
+      outputs: localSubtitleOutputAuthorizations,
+      leases: localSubtitleCapabilityLeases,
+      artifacts: localSubtitleArtifacts,
+      importTokens: localSubtitleImportTokens,
+      handoffs: localSubtitleArtifactHandoffs,
+    },
+    handlers: {
+      public: {
+        [LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.probeMedia]: async (
+          request,
+          context,
+        ) => {
+          const { fileToken } = request as { readonly fileToken: string };
+          return localSubtitleIpcSuccess(
+            await localSubtitleMediaNormalizer.probeDraft({
+              owner: context.owner,
+              fileToken,
+              signal: context.signal,
+            }),
+          );
+        },
+        ...localSubtitleSessionIpcBridge.handlers.public,
+        ...localSubtitleRuntimeIpcBridge.handlers.public,
+        ...localSubtitleModelIpcBridge.handlers.public,
+        ...localSubtitleJobIpcBridge.handlers.public,
+        ...localSubtitleOverwriteRecoveryIpcBridge.handlers.public,
+      },
+      importModel: localSubtitleModelIpcBridge.handlers.importModel,
+      overwriteRecovery:
+        localSubtitleOverwriteRecoveryIpcBridge.handlers.overwriteRecovery,
+      onOwnerReleased: (owner) => {
+        localSubtitleSessionIpcBridge.releaseOwner(owner);
+        localSubtitleMainRuntime.releaseOwner({
+          webContentsId: owner.senderId,
+          ownerSessionId: owner.ownerSessionId,
+        });
+      },
+    },
+  });
+  const subtitleTranslationIpcService = new SubtitleTranslationIpcService({
+    directoryCapabilities: subtitleTranslationDirectoryCapabilities,
+    localOwnerSessions: localSubtitleIpcService.ownerSessions,
+    generatedImports: new GeneratedSubtitleImportCandidateService({
+      handoffs: localSubtitleArtifactHandoffs,
+      directoryCapabilities: subtitleTranslationDirectoryCapabilities,
+    }),
+  });
+  localSubtitleSessionIpcBridge.attach(localSubtitleIpcService);
+  setupLocalSubtitleIPC(localSubtitleIpcService);
+  setupTranslationIPC(translationService, subtitleTranslationIpcService);
+  setupNativeFileSelectionIPC();
   createWindow();
-  setupTranslationIPC(translationService);
   setupPowerIPC(win);
   setupConversionIPC();
   setupExtractionIPC();
@@ -175,6 +443,15 @@ app.whenReady().then(() => {
   setupTextTranslationIPC(textTranslationService);
   setupAudioIPC();
   setupAudioRealtimeIPC();
+
+  app.on("activate", () => {
+    const allWindows = BrowserWindow.getAllWindows();
+    if (allWindows.length) {
+      allWindows[0].focus();
+    } else {
+      createWindow();
+    }
+  });
 });
 
 app.on("window-all-closed", () => {
@@ -190,22 +467,13 @@ app.on("second-instance", () => {
   }
 });
 
-app.on("activate", () => {
-  const allWindows = BrowserWindow.getAllWindows();
-  if (allWindows.length) {
-    allWindows[0].focus();
-  } else {
-    createWindow();
-  }
-});
-
 // New window example arg: new windows url
 ipcMain.handle("open-win", (_, arg) => {
   const childWindow = new BrowserWindow({
     webPreferences: {
       preload,
-      nodeIntegration: true,
-      contextIsolation: false,
+      nodeIntegration: false,
+      contextIsolation: true,
     },
   });
 

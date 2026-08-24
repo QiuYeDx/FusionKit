@@ -11,8 +11,15 @@ import type {
 import {
   DEFAULT_MODEL_RUNTIME_RETRY_OPTIONS,
   ModelRuntimeClientError,
+  type ModelRuntimeErrorDetails,
   type ModelRuntimeRetryOptions,
 } from "../model-runtime-errors";
+import {
+  classifyProviderErrorRetryability,
+  extractProviderErrorMetadata,
+  isRetryableModelHttpStatus,
+  type ProviderErrorMetadata,
+} from "../provider-error-classification";
 
 export async function sendResponsesText(
   request: ModelRuntimeTextRequest,
@@ -69,7 +76,7 @@ async function sendOnce(
     );
   }
 
-  return parseResponsesResponse(response.data, attempt);
+  return parseResponsesResponse(response.data, attempt, request.model.apiKey);
 }
 
 function buildResponsesBody(
@@ -132,6 +139,7 @@ function mapMessagesToResponsesInput(messages: ModelRuntimeMessage[]): {
 function parseResponsesResponse(
   data: unknown,
   attempt: number,
+  apiKey: string,
 ): ModelRuntimeTextResult {
   if (!isRecord(data)) {
     throw new ModelRuntimeClientError(
@@ -141,6 +149,7 @@ function parseResponsesResponse(
       { attempt },
     );
   }
+  const usage = parseUsage(data.usage);
 
   const status = typeof data.status === "string" ? data.status : undefined;
   if (status === "incomplete") {
@@ -152,20 +161,22 @@ function parseResponsesResponse(
         "length_truncated",
         "Model response was truncated by the output-token limit. Consider reducing the slice token limit or using a model with a larger context window.",
         false,
-        { attempt },
+        { attempt, usage },
       );
     }
   }
 
   if (status === "failed") {
-    const responseError = isRecord(data.error) ? data.error : undefined;
+    const providerError = extractProviderErrorMetadata(data);
+    const retryable = classifyProviderErrorRetryability(providerError) !== false;
     throw new ModelRuntimeClientError(
-      "invalid_response",
-      typeof responseError?.message === "string"
-        ? responseError.message
-        : "Model response failed.",
-      false,
-      { attempt },
+      retryable ? "provider_retryable" : "invalid_response",
+      sanitizeErrorMessage(
+        providerError.message ?? "Model response failed.",
+        apiKey,
+      ),
+      retryable,
+      { attempt, usage, ...toProviderErrorDetails(providerError) },
     );
   }
 
@@ -175,14 +186,14 @@ function parseResponsesResponse(
       "empty_response",
       "Model response content is empty.",
       true,
-      { attempt },
+      { attempt, usage },
     );
   }
 
   return {
     content,
     finishReason: status,
-    usage: parseUsage(data.usage),
+    usage,
     responseId: typeof data.id === "string" ? data.id : undefined,
     model: typeof data.model === "string" ? data.model : undefined,
     apiFormat: "responses",
@@ -222,12 +233,16 @@ function parseUsage(usage: unknown): ModelRuntimeUsage | undefined {
   const outputDetails = isRecord(usage.output_tokens_details)
     ? usage.output_tokens_details
     : undefined;
+  const inputDetails = isRecord(usage.input_tokens_details)
+    ? usage.input_tokens_details
+    : undefined;
 
   return {
     inputTokens: numberOrUndefined(usage.input_tokens),
     outputTokens: numberOrUndefined(usage.output_tokens),
     totalTokens: numberOrUndefined(usage.total_tokens),
     reasoningTokens: numberOrUndefined(outputDetails?.reasoning_tokens),
+    cachedInputTokens: numberOrUndefined(inputDetails?.cached_tokens),
   };
 }
 
@@ -238,38 +253,55 @@ function httpErrorFromResponse(
   attempt: number,
   apiKey: string,
 ): ModelRuntimeClientError {
-  const message = sanitizeErrorMessage(extractHttpErrorMessage(body, status), apiKey);
+  const providerError = extractProviderErrorMetadata(body);
+  const providerDetails = toProviderErrorDetails(providerError);
+  const providerRetryability =
+    classifyProviderErrorRetryability(providerError);
+  const message = sanitizeErrorMessage(
+    extractHttpErrorMessage(providerError, status),
+    apiKey,
+  );
   if (status === 401) {
     return new ModelRuntimeClientError(
       "http_unauthorized",
       message,
       false,
-      { status, attempt },
+      { status, attempt, ...providerDetails },
     );
   }
   if (status === 403) {
     return new ModelRuntimeClientError("http_forbidden", message, false, {
       status,
       attempt,
+      ...providerDetails,
     });
   }
   if (status === 429) {
-    return new ModelRuntimeClientError("http_rate_limited", message, true, {
-      status,
-      retryAfterMs,
-      attempt,
-    });
+    const retryable = providerRetryability !== false;
+    return new ModelRuntimeClientError(
+      retryable ? "http_rate_limited" : "http_non_retryable",
+      message,
+      retryable,
+      {
+        status,
+        ...(retryable ? { retryAfterMs } : {}),
+        attempt,
+        ...providerDetails,
+      },
+    );
   }
-  if (status === 408 || status >= 500) {
+  if (isRetryableModelHttpStatus(status) || providerRetryability === true) {
     return new ModelRuntimeClientError("http_retryable", message, true, {
       status,
       retryAfterMs,
       attempt,
+      ...providerDetails,
     });
   }
   return new ModelRuntimeClientError("http_non_retryable", message, false, {
     status,
     attempt,
+    ...providerDetails,
   });
 }
 
@@ -356,14 +388,23 @@ function parseRetryAfter(value: unknown): number | undefined {
   return undefined;
 }
 
-function extractHttpErrorMessage(body: unknown, status: number): string {
-  if (isRecord(body)) {
-    const error = isRecord(body.error) ? body.error : undefined;
-    if (typeof error?.message === "string") {
-      return `Model request failed with HTTP ${status}: ${error.message}`;
-    }
+function extractHttpErrorMessage(
+  providerError: ProviderErrorMetadata,
+  status: number,
+): string {
+  if (providerError.message) {
+    return `Model request failed with HTTP ${status}: ${providerError.message}`;
   }
   return `Model request failed with HTTP ${status}.`;
+}
+
+function toProviderErrorDetails(
+  providerError: ProviderErrorMetadata,
+): Pick<ModelRuntimeErrorDetails, "providerCode" | "providerType"> {
+  return {
+    ...(providerError.code ? { providerCode: providerError.code } : {}),
+    ...(providerError.type ? { providerType: providerError.type } : {}),
+  };
 }
 
 function delay(ms: number, signal?: AbortSignal): Promise<void> {

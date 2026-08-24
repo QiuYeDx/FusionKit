@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import ToolPageHeader from "@/pages/Tools/_shared/ToolPageHeader";
 import {
+  ToolConfigDisclosure,
   ToolConfigPanel,
   ToolDetailLayout,
   ToolPanel,
@@ -181,22 +182,22 @@ export function AudioToolShell({
           />
         ) : null}
         {configSummary.audioDialect || configSummary.modelKey ? (
-          <details className="rounded-md border px-3 py-2 text-xs">
-            <summary className="cursor-pointer font-medium text-muted-foreground">
-              {t("audio:global.technical_details")}
-            </summary>
-            <div className="mt-2 space-y-2">
-              <ConfigLine
-                label={t("audio:global.dialect")}
-                value={dialectValue}
-              />
-              <ConfigLine
-                label={t("audio:global.model")}
-                value={modelValue}
-                mono
-              />
-            </div>
-          </details>
+          <ToolConfigDisclosure
+            testId={testIdPrefix ? `${testIdPrefix}-technical-details` : undefined}
+            icon={Cpu}
+            title={t("audio:global.technical_details")}
+            contentClassName="space-y-2"
+          >
+            <ConfigLine
+              label={t("audio:global.dialect")}
+              value={dialectValue}
+            />
+            <ConfigLine
+              label={t("audio:global.model")}
+              value={modelValue}
+              mono
+            />
+          </ToolConfigDisclosure>
         ) : null}
         {configSummary.availableModes?.length ? (
           <div className="space-y-1.5">

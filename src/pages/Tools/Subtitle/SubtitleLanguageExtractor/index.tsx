@@ -19,8 +19,10 @@ import {
   ToolDetailLayout,
   ToolField,
   ToolFileDropZone,
+  type ToolFileSelectionSource,
   ToolOutputPathPicker,
   ToolPanel,
+  ToolRadioButtonGroup,
   ToolSummaryLine,
 } from "@/pages/Tools/_shared/ui";
 import { Badge } from "@/components/ui/badge";
@@ -33,7 +35,7 @@ import {
   TaskStatus,
 } from "@/type/subtitle";
 import { showToast } from "@/utils/toast";
-import { getSourceDirFromFile, getFilePathFromFile } from "@/utils/filePath";
+import { resolveSelectedNativeFiles } from "@/utils/filePath";
 import useSubtitleExtractorStore from "@/store/tools/subtitle/useSubtitleExtractorStore";
 import ErrorDetailModal from "@/components/ErrorDetailModal";
 import ConfirmDialog from "@/components/ConfirmDialog";
@@ -258,7 +260,10 @@ function SubtitleLanguageExtractor() {
     }
   };
 
-  const handleFileUpload = async (files: FileList) => {
+  const handleFileUpload = async (
+    files: FileList,
+    source: ToolFileSelectionSource,
+  ) => {
     if (outputMode === "custom" && !outputURL) {
       showToast(
         t("subtitle:extractor.errors.please_select_output_url"),
@@ -268,14 +273,22 @@ function SubtitleLanguageExtractor() {
     }
     if (!files || files.length === 0) return;
 
+    const resolvedSelection = await resolveSelectedNativeFiles(files, source);
+    if (!resolvedSelection.ok) {
+      showToast(t("subtitle:extractor.errors.source_path_missing"), "error");
+      return;
+    }
+
     const existingNames = allTasks.map((t) => t.fileName);
 
-    const fileArray = Array.from(files);
+    const fileArray = resolvedSelection.data;
     for (let i = 0; i < fileArray.length; i++) {
-      const file = fileArray[i];
+      const selected = fileArray[i];
+      const file = selected.file;
+      const fileName = selected.displayName;
       if (i > 0) await new Promise((r) => setTimeout(r, 0));
 
-      const ext = file.name.split(".").pop()?.toUpperCase();
+      const ext = fileName.split(".").pop()?.toUpperCase();
       if (
         !ext ||
         ![SubtitleFileType.LRC, SubtitleFileType.SRT].includes(ext as any)
@@ -289,11 +302,11 @@ function SubtitleLanguageExtractor() {
         );
         continue;
       }
-      if (existingNames.includes(file.name)) {
+      if (existingNames.includes(fileName)) {
         showToast(
           t("subtitle:extractor.errors.duplicate_file").replace(
             "{file}",
-            file.name
+            fileName
           ),
           "error"
         );
@@ -301,7 +314,7 @@ function SubtitleLanguageExtractor() {
       }
 
       const outputDir =
-        outputMode === "source" ? getSourceDirFromFile(file) : outputURL;
+        outputMode === "source" ? selected.sourceDirectory : outputURL;
       if (!outputDir) {
         showToast(
           t("subtitle:extractor.errors.source_path_missing"),
@@ -314,10 +327,10 @@ function SubtitleLanguageExtractor() {
         const fileContent = await file.text();
         const fileType = ext as SubtitleFileType;
         const newTask: SubtitleExtractorTask = {
-          fileName: file.name,
+          fileName,
           fileContent,
           fileType,
-          originFileURL: getFilePathFromFile(file) ?? file.name,
+          originFileURL: selected.filePath,
           targetFileURL: outputDir,
           keep,
           status: TaskStatus.NOT_STARTED,
@@ -329,7 +342,7 @@ function SubtitleLanguageExtractor() {
         showToast(
           t("subtitle:extractor.errors.read_file_failed").replace(
             "{file}",
-            file.name
+            fileName
           ),
           "error"
         );
@@ -415,24 +428,15 @@ function SubtitleLanguageExtractor() {
               id="ext-tour-output"
               label={t("subtitle:extractor.fields.output_mode")}
             >
-              <ButtonGroup className="w-full">
-                <Button
-                  size="sm"
-                  className="flex-1"
-                  variant={outputMode === "custom" ? "default" : "outline"}
-                  onClick={() => setOutputMode("custom")}
-                >
-                  {t("subtitle:extractor.fields.output_mode_custom")}
-                </Button>
-                <Button
-                  size="sm"
-                  className="flex-1"
-                  variant={outputMode === "source" ? "default" : "outline"}
-                  onClick={() => setOutputMode("source")}
-                >
-                  {t("subtitle:extractor.fields.output_mode_source")}
-                </Button>
-              </ButtonGroup>
+              <ToolRadioButtonGroup
+                value={outputMode}
+                ariaLabel={t("subtitle:extractor.fields.output_mode")}
+                options={(["custom", "source"] as const).map((mode) => ({
+                  value: mode,
+                  label: t(`subtitle:extractor.fields.output_mode_${mode}`),
+                }))}
+                onValueChange={setOutputMode}
+              />
               {outputMode === "custom" ? (
                 <ToolOutputPathPicker
                   className="mt-2"
@@ -454,26 +458,15 @@ function SubtitleLanguageExtractor() {
 
             {/* Conflict policy */}
             <ToolField label={t("subtitle:extractor.fields.conflict_policy")}>
-              <ButtonGroup className="w-full">
-                <Button
-                  size="sm"
-                  className="flex-1"
-                  variant={conflictPolicy === "index" ? "default" : "outline"}
-                  onClick={() => setConflictPolicy("index")}
-                >
-                  {t("subtitle:extractor.fields.conflict_policy_index")}
-                </Button>
-                <Button
-                  size="sm"
-                  className="flex-1"
-                  variant={
-                    conflictPolicy === "overwrite" ? "default" : "outline"
-                  }
-                  onClick={() => setConflictPolicy("overwrite")}
-                >
-                  {t("subtitle:extractor.fields.conflict_policy_overwrite")}
-                </Button>
-              </ButtonGroup>
+              <ToolRadioButtonGroup
+                value={conflictPolicy}
+                ariaLabel={t("subtitle:extractor.fields.conflict_policy")}
+                options={(["index", "overwrite"] as const).map((policy) => ({
+                  value: policy,
+                  label: t(`subtitle:extractor.fields.conflict_policy_${policy}`),
+                }))}
+                onValueChange={setConflictPolicy}
+              />
             </ToolField>
           </ToolConfigPanel>
         </div>

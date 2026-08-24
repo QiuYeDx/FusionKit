@@ -2,6 +2,8 @@
 
 interface ImportMetaEnv {
   readonly VITE_APP_VERSION?: string
+  readonly VITE_ELECTRON_VERSION?: string
+  readonly VITE_REACT_VERSION?: string
 }
 
 interface ImportMeta {
@@ -10,10 +12,12 @@ interface ImportMeta {
 
 interface Window {
   // expose in the `electron/preload/index.ts`
-  ipcRenderer: import('electron').IpcRenderer
+  ipcRenderer: import('../electron/preload/legacy-ipc-bridge').SafeLegacyIpcBridge
   audioApi: import('@/type/audioIpc').AudioRendererApi
+  localSubtitleApi: import('@/type/localSubtitleIpc').LocalSubtitleRendererApi
+  subtitleTranslationApi: import('@/type/subtitleTranslationIpc').SubtitleTranslationRendererApi
   // expose webUtils for file path access (Electron 24+)
-  electronUtils: {
+  electronUtils: import('@/type/nativeFileSelectionIpc').NativeFileSelectionRendererApi & {
     getPathForFile(file: File): string
   }
 }

@@ -11,21 +11,32 @@ import { showToast } from "@/utils/toast";
 import i18n from "@/i18n";
 import * as QueueService from "@/services/subtitle/translatorQueueService";
 import type {
+  StartSubtitleTasksReceipt,
+  SubtitleTaskStartFailure,
   TranslatorQueueState,
   TranslatorQueueEffect,
 } from "@/services/subtitle/translatorQueueService";
 import {
   startSubtitleTranslation,
   cancelSubtitleTranslation,
+  releaseSubtitleTranslationTaskAuthority,
 } from "@/services/subtitle/translatorExecutionService";
+import {
+  bootstrapLegacySubtitleTranslatorConfig,
+} from "./useSubtitleTranslatorConfigStore";
+import type { SubtitleTranslationUsage } from "@/type/subtitleUsage";
+import {
+  SubtitleTranslatorImportLedger,
+  type AddGeneratedSubtitleTasksRequest,
+  type GeneratedSubtitleQueueReceipt,
+} from "@/services/subtitle/translatorImportLedger";
 
 const MAX_CONCURRENCY = 5;
+const importLedger = new SubtitleTranslatorImportLedger();
 
 interface SubtitleTranslatorStore {
   sliceType: SubtitleSliceType;
   sliceLengthMap: Record<SubtitleSliceType, number>;
-  outputURL: string;
-
   notStartedTaskQueue: SubtitleTranslatorTask[];
   waitingTaskQueue: SubtitleTranslatorTask[];
   pendingTaskQueue: SubtitleTranslatorTask[];
@@ -34,17 +45,29 @@ interface SubtitleTranslatorStore {
 
   setSliceType: (sliceType: SubtitleSliceType) => void;
   setCustomSliceLength: (length: number) => void;
-  setOutputURL: (url: string) => void;
   initializeSubtitleTranslatorStore: () => void;
-  addTask: (task: SubtitleTranslatorTask) => void;
+  addTask: (task: SubtitleTranslatorTask) => {
+    added: boolean;
+    taskId: string;
+  };
   addRecoveredTask: (task: SubtitleTranslatorTask) => { added: boolean; reason?: string };
-  addRecoveredTasks: (tasks: SubtitleTranslatorTask[]) => { addedCount: number; skippedCount: number };
-  startTask: (fileName: string) => void;
-  retryTask: (fileName: string, mode?: TranslationRecoveryMode) => void;
+  addRecoveredTasks: (tasks: SubtitleTranslatorTask[]) => {
+    addedCount: number;
+    skippedCount: number;
+    addedTaskIds: string[];
+  };
+  addImportedTasks: (
+    request: AddGeneratedSubtitleTasksRequest,
+  ) => GeneratedSubtitleQueueReceipt;
+  releaseImportSnapshot: (ownerId: string, snapshotId: string) => void;
+  startTask: (taskId: string) => SubtitleTaskStartFailure | undefined;
+  startTasks: (taskIds: readonly string[]) => StartSubtitleTasksReceipt;
+  retryTask: (taskId: string, mode?: TranslationRecoveryMode) => void;
   removeAllResolvedTask: () => void;
   clearAllTasks: () => void;
   startAllTasks: () => void;
   addFailedTask: (errorData: {
+    taskId: string;
     fileName: string;
     error: string;
     message: string;
@@ -52,25 +75,36 @@ interface SubtitleTranslatorStore {
     timestamp?: string;
     stackTrace?: string;
     recovery?: SubtitleTranslationRecovery;
+    actualUsage?: SubtitleTranslationUsage;
   }) => void;
   updateTaskCostEstimate: (
-    fileName: string,
+    taskId: string,
     costEstimate: SubtitleTranslatorTask["costEstimate"],
   ) => void;
-  updateTask: (fileName: string, updates: Partial<SubtitleTranslatorTask>) => void;
-  cancelTask: (fileName: string) => void;
-  deleteTask: (fileName: string) => void;
+  updateTask: (
+    taskId: string,
+    updates: Partial<Omit<SubtitleTranslatorTask, "taskId" | "taskReference">>,
+  ) => void;
+  cancelTask: (taskId: string) => void;
+  deleteTask: (taskId: string) => void;
   updateProgress: (
+    taskId: string,
     fileName: string,
     resolvedFragments: number,
     totalFragments: number,
     progress: number,
     recovery?: Pick<
       SubtitleTranslationRecovery,
-      "checkpointPath" | "completedOutputPath" | "remainingOutputPath"
+      "checkpointRef" | "resumable" | "resolvedFragments" | "totalFragments"
     >,
+    actualUsage?: SubtitleTranslationUsage,
   ) => void;
-  markTaskResolved: (fileName: string, outputFilePath: string) => void;
+  markTaskResolved: (
+    taskId: string,
+    fileName: string,
+    outputFileName: string,
+    actualUsage?: SubtitleTranslationUsage,
+  ) => void;
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -85,6 +119,16 @@ function getQueueState(state: SubtitleTranslatorStore): TranslatorQueueState {
   };
 }
 
+function allQueueTasks(state: TranslatorQueueState): SubtitleTranslatorTask[] {
+  return [
+    ...state.notStartedTaskQueue,
+    ...state.waitingTaskQueue,
+    ...state.pendingTaskQueue,
+    ...state.resolvedTaskQueue,
+    ...state.failedTaskQueue,
+  ];
+}
+
 function executeEffects(effects: TranslatorQueueEffect[]) {
   for (const effect of effects) {
     switch (effect.type) {
@@ -92,7 +136,7 @@ function executeEffects(effects: TranslatorQueueEffect[]) {
         startSubtitleTranslation(effect.task);
         break;
       case "cancel":
-        cancelSubtitleTranslation(effect.fileName);
+        cancelSubtitleTranslation(effect.taskId);
         break;
     }
   }
@@ -100,14 +144,19 @@ function executeEffects(effects: TranslatorQueueEffect[]) {
 
 // ─── Store ───────────────────────────────────────────────────────────────────
 
-const LEGACY_KEY = "subtitle-translator-output-url";
+try {
+  if (globalThis.localStorage) {
+    bootstrapLegacySubtitleTranslatorConfig(globalThis.localStorage);
+  }
+} catch {
+  // The source Store stays intact; the config coordinator will fail closed.
+}
 
 const useSubtitleTranslatorStore = create<SubtitleTranslatorStore>()(
   persist(
     (set, get) => ({
       sliceType: SubtitleSliceType.NORMAL,
       sliceLengthMap: DEFAULT_SLICE_LENGTH_MAP,
-      outputURL: "",
       notStartedTaskQueue: [],
       waitingTaskQueue: [],
       pendingTaskQueue: [],
@@ -123,8 +172,6 @@ const useSubtitleTranslatorStore = create<SubtitleTranslatorStore>()(
             [SubtitleSliceType.CUSTOM]: length,
           },
         })),
-
-      setOutputURL: (url) => set({ outputURL: url }),
 
       initializeSubtitleTranslatorStore: () =>
         set({
@@ -146,9 +193,10 @@ const useSubtitleTranslatorStore = create<SubtitleTranslatorStore>()(
               .replace("{file}", task.fileName),
             "error",
           );
-          return;
+          return { added: false, taskId: task.taskId };
         }
         set(result.state);
+        return { added: true, taskId: task.taskId };
       },
 
       addRecoveredTask: (task) => {
@@ -162,26 +210,52 @@ const useSubtitleTranslatorStore = create<SubtitleTranslatorStore>()(
       addRecoveredTasks: (tasks) => {
         const result = QueueService.addRecoveredTasks(getQueueState(get()), tasks);
         set(result.state);
-        return { addedCount: result.addedCount, skippedCount: result.skippedCount };
+        return {
+          addedCount: result.addedCount,
+          skippedCount: result.skippedCount,
+          addedTaskIds: [...result.addedTaskIds],
+        };
       },
 
-      updateTaskCostEstimate: (fileName, costEstimate) => {
+      addImportedTasks: (request) => {
+        const result = importLedger.addTasks(getQueueState(get()), request);
+        if (!result.replayed) set(result.state);
+        return result.receipt;
+      },
+
+      releaseImportSnapshot: (ownerId, snapshotId) => {
+        importLedger.releaseSnapshot(ownerId, snapshotId);
+      },
+
+      updateTaskCostEstimate: (taskId, costEstimate) => {
         const result = QueueService.updateTaskCostEstimate(
           getQueueState(get()),
-          fileName,
+          taskId,
           costEstimate,
         );
         set(result.state);
       },
 
-      startTask: (fileName) => {
+      startTask: (taskId) => {
         const result = QueueService.startTask(
           getQueueState(get()),
-          fileName,
+          taskId,
           MAX_CONCURRENCY,
         );
         set(result.state);
         executeEffects(result.effects);
+        return result.startFailures[0];
+      },
+
+      startTasks: (taskIds) => {
+        const result = QueueService.startTasks(
+          getQueueState(get()),
+          taskIds,
+          MAX_CONCURRENCY,
+        );
+        set(result.state);
+        executeEffects(result.effects);
+        return result.receipt;
       },
 
       startAllTasks: () => {
@@ -193,53 +267,68 @@ const useSubtitleTranslatorStore = create<SubtitleTranslatorStore>()(
         executeEffects(result.effects);
       },
 
-      retryTask: (fileName, mode = "resume") => {
+      retryTask: (taskId, mode = "resume") => {
         const result = QueueService.retryTask(
           getQueueState(get()),
-          fileName,
+          taskId,
           mode,
         );
         set(result.state);
       },
 
-      updateTask: (fileName, updates) => {
+      updateTask: (taskId, updates) => {
         const result = QueueService.updateTask(
           getQueueState(get()),
-          fileName,
+          taskId,
           updates,
         );
         set(result.state);
       },
 
       removeAllResolvedTask: () => {
-        const result = QueueService.removeAllResolvedTasks(getQueueState(get()));
+        const queueState = getQueueState(get());
+        for (const task of queueState.resolvedTaskQueue) {
+          if (task.taskReference) {
+            releaseSubtitleTranslationTaskAuthority(task.taskId);
+          }
+        }
+        const result = QueueService.removeAllResolvedTasks(queueState);
         set(result.state);
       },
 
       clearAllTasks: () => {
-        const result = QueueService.clearTasks(getQueueState(get()));
+        const queueState = getQueueState(get());
+        for (const task of allQueueTasks(queueState)) {
+          if (task.taskReference) {
+            releaseSubtitleTranslationTaskAuthority(task.taskId);
+          }
+        }
+        const result = QueueService.clearTasks(queueState);
         set(result.state);
         executeEffects(result.effects);
         showToast(i18n.t("subtitle:translator.infos.all_tasks_cleared"), "success");
       },
 
       updateProgress: (
+        taskId,
         fileName,
         resolvedFragments,
         totalFragments,
         progress,
         recovery,
+        actualUsage,
       ) => {
-        console.info(
-          ">>> 收到 updateProgress",
-          fileName,
-          resolvedFragments,
-          totalFragments,
-          progress,
-        );
         const result = QueueService.completeTaskProgress(
           getQueueState(get()),
-          { fileName, resolvedFragments, totalFragments, progress, recovery },
+          {
+            taskId,
+            fileName,
+            resolvedFragments,
+            totalFragments,
+            progress,
+            recovery,
+            actualUsage,
+          },
           MAX_CONCURRENCY,
         );
         set(result.state);
@@ -260,11 +349,11 @@ const useSubtitleTranslatorStore = create<SubtitleTranslatorStore>()(
         showToast(`${errorData.message}`, "error");
       },
 
-      cancelTask: (fileName) => {
+      cancelTask: (taskId) => {
         const queueState = getQueueState(get());
         const result = QueueService.cancelTask(
           queueState,
-          fileName,
+          taskId,
           i18n.t("subtitle:translator.infos.task_canceled"),
           MAX_CONCURRENCY,
         );
@@ -278,19 +367,26 @@ const useSubtitleTranslatorStore = create<SubtitleTranslatorStore>()(
         );
       },
 
-      deleteTask: (fileName) => {
-        const result = QueueService.deleteTask(getQueueState(get()), fileName);
+      deleteTask: (taskId) => {
+        const queueState = getQueueState(get());
+        const task = allQueueTasks(queueState)
+          .find((candidate) => candidate.taskId === taskId);
+        if (task?.taskReference) {
+          releaseSubtitleTranslationTaskAuthority(taskId);
+        }
+        const result = QueueService.deleteTask(queueState, taskId);
         set(result.state);
         executeEffects(result.effects);
         showToast(i18n.t("subtitle:translator.infos.task_deleted"), "success");
       },
 
-      markTaskResolved: (fileName, outputFilePath) => {
+      markTaskResolved: (taskId, _fileName, outputFileName, actualUsage) => {
         const result = QueueService.resolveTask(
           getQueueState(get()),
-          fileName,
-          outputFilePath,
+          taskId,
+          outputFileName,
           MAX_CONCURRENCY,
+          actualUsage,
         );
         set(result.state);
         executeEffects(result.effects);
@@ -299,20 +395,7 @@ const useSubtitleTranslatorStore = create<SubtitleTranslatorStore>()(
     {
       name: "fusionkit-subtitle-translator",
       storage: createJSONStorage(() => localStorage),
-      partialize: (state) => ({ outputURL: state.outputURL }),
-      onRehydrateStorage: () => {
-        if (
-          localStorage.getItem(LEGACY_KEY) !== null &&
-          localStorage.getItem("fusionkit-subtitle-translator") === null
-        ) {
-          const saved = localStorage.getItem(LEGACY_KEY) || "";
-          localStorage.setItem(
-            "fusionkit-subtitle-translator",
-            JSON.stringify({ state: { outputURL: saved }, version: 0 }),
-          );
-          localStorage.removeItem(LEGACY_KEY);
-        }
-      },
+      partialize: () => ({}),
     },
   ),
 );

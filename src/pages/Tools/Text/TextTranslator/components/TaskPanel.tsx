@@ -23,6 +23,7 @@ import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
 import {
   ToolFileDropZone,
+  type ToolFileSelectionSource,
   ToolPanel,
   ToolSummaryLine,
   ToolStatBar,
@@ -109,7 +110,10 @@ type TaskPanelProps = {
   summaryItems: ReactNode[];
   locale: string;
   fileInputRef: RefObject<HTMLInputElement | null>;
-  onFiles: (files: FileList | File[]) => void;
+  onFiles: (
+    files: FileList | File[],
+    source: ToolFileSelectionSource,
+  ) => void | Promise<void>;
   onClearFiles: () => void;
   onMoveFile: (
     files: SelectedTextFile[],
@@ -275,7 +279,7 @@ export default function TaskPanel({
         dragging={isDragging}
         disabled={isBusy}
         onDraggingChange={setIsDragging}
-        onFiles={(files) => onFiles(files)}
+        onFiles={onFiles}
         icon={
           sourceFile ? (
             <FileText className="h-5 w-5" />
