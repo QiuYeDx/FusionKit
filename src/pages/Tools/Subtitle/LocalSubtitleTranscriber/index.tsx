@@ -312,6 +312,18 @@ export default function LocalSubtitleTranscriber() {
   const tourSteps: TourStep[] = useMemo(
     () => [
       {
+        target: "#local-subtitle-tour-model-setup",
+        title: t(
+          "subtitle:local_transcriber.tour.model_setup_title",
+          "先准备本地模型",
+        ),
+        content: t(
+          "subtitle:local_transcriber.tour.model_setup_content",
+          "首次使用前必须先准备模型，否则无法开始转写。可在本地环境中下载托管模型，或点击“导入模型”添加兼容的 GGML 模型文件。",
+        ),
+        placement: "top",
+      },
+      {
         target: "#local-subtitle-tour-config",
         title: t("subtitle:local_transcriber.tour.config_title", "转写配置"),
         content: t(
@@ -1924,6 +1936,7 @@ export default function LocalSubtitleTranscriber() {
         />
 
         <LocalSubtitleEnvironmentManager
+          tourId="local-subtitle-tour-model-setup"
           loading={environment.loading}
           runtime={environment.runtime}
           backendPreviewStatus={backendPreview.status}

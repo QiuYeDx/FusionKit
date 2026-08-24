@@ -105,6 +105,7 @@ export function localSubtitleResourceActionKey(
 }
 
 interface LocalSubtitleEnvironmentManagerProps {
+  readonly tourId?: string;
   readonly loading: boolean;
   readonly runtime: LocalSubtitleRuntimeSummary | null;
   readonly backendPreviewStatus: "idle" | "loading" | "ready" | "error";
@@ -126,6 +127,7 @@ interface LocalSubtitleEnvironmentManagerProps {
 }
 
 export function LocalSubtitleEnvironmentManager({
+  tourId,
   loading,
   runtime,
   backendPreviewStatus,
@@ -213,6 +215,7 @@ export function LocalSubtitleEnvironmentManager({
   return (
     <>
       <ToolPanel
+        id={tourId}
         icon={Server}
         title={t("subtitle:local_transcriber.environment.title")}
         headerClassName={managerOpen ? undefined : "border-b-0"}

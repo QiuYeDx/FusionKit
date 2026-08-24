@@ -606,6 +606,8 @@
       }
     },
     "tour": {
+      "model_setup_title": "Prepare a local model first",
+      "model_setup_content": "A model is required before transcription can start. Download a managed model in Local environment, or click Import model to add a compatible GGML model file.",
       "config_title": "Transcription settings",
       "config_content": "Configure the local model, compute device, output formats, and post-transcription actions in the left panel. Settings are saved automatically.",
       "model_title": "Choose a local model",

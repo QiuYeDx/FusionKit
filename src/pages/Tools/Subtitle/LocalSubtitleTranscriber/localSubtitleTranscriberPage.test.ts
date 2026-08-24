@@ -256,6 +256,7 @@ describe("local subtitle transcriber page wiring", () => {
       'localStorage.setItem("local-subtitle-transcriber-tour-done", "1")',
     );
     for (const target of [
+      "local-subtitle-tour-model-setup",
       "local-subtitle-tour-config",
       "local-subtitle-tour-model",
       "local-subtitle-tour-language",
@@ -265,6 +266,8 @@ describe("local subtitle transcriber page wiring", () => {
     ]) {
       expect(source).toContain(target);
     }
+    expect(pageSource).toContain("local_transcriber.tour.model_setup_content");
+    expect(environmentSource).toContain("id={tourId}");
     expect(pageSource).toContain('onClick={() => setTourOpen(true)}');
     expect(pageSource).toContain("scrollIntoView");
   });
