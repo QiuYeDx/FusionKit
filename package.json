@@ -28,7 +28,7 @@
     "i18n:check:usage": "node scripts/check-i18n-usage.mjs"
   },
   "dependencies": {
-    "@ai-sdk/openai-compatible": "^1.0.0",
+    "@ai-sdk/openai-compatible": "^3.0.34",
     "@qiuyedx/smooth-corners": "^0.1.0",
     "@radix-ui/react-checkbox": "^1.3.3",
     "@radix-ui/react-dialog": "^1.1.15",
