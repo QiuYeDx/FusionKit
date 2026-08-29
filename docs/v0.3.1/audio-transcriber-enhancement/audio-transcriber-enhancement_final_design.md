@@ -1,7 +1,7 @@
 # 音频转文本工具增强 Final Design
 
 > 版本目标：v0.3.1 及后续兼容版本
-> 文档状态：设计冻结，待拆分执行计划
+> 文档状态：设计冻结，已完成 OpenAI / MiMo 双供应商兼容性复审，待拆分执行计划
 > 调研与设计日期：2026-08-30
 > 适用范围：`/tools/audio/transcriber` 远程大模型 API 音频转文本工具
 
@@ -9,12 +9,13 @@
 
 这次增强不能只在页面上增加 `srt/lrc` 两个选项，也不能只在文件过大时按固定字节截断。现有实现把“用户要保存什么格式”与“供应商接口返回什么格式”都放在 `responseFormat` 中，并在文件授权阶段直接套用供应商格式与大小限制，因此默认 GPT 转写模型只返回 JSON 时，页面也只能提供 JSON；MiMo 只接受 WAV/MP3 时，用户在选择阶段就无法加入其他媒体；超过单次请求上限的文件则直接失败。
 
-最终方案冻结为以下四项：
+最终方案冻结为以下五项：
 
-1. **用户导出格式与供应商响应格式解耦。** 用户选择 `TXT / JSON / SRT / VTT / LRC`；Electron main 根据可信的 provider route、模型、时间戳能力和任务模式，私下选择供应商 `response_format`。所有响应先归一化为 FusionKit canonical transcript，再由本地 exporter 生成最终格式。
+1. **用户导出格式与供应商响应合同解耦。** 用户选择 `TXT / JSON / SRT / VTT / LRC`；Electron main 根据可信的 provider route、模型、响应包络、时间戳能力和任务模式协商请求。只有确实支持 `response_format` 的 route 才发送该字段；MiMo 等固定返回 Chat Completion 文本包络的 route 走专属 parser。所有响应先归一化为 FusionKit canonical transcript，再由本地 exporter 生成最终格式。
 2. **文件选择不再等于供应商上传。** 页面接受常见音频和视频媒体；main 先做 sender-bound 授权、ffprobe 探测和音轨选择，再决定直传、抽取音轨、转码或分片。供应商不支持原媒体格式时，由 bundled FFmpeg 转为该 route 接受的 MP3 或 WAV。
 3. **大文件由一个可取消的 main-process 任务编排。** 任务拥有媒体准备、边界检测、分片、逐片请求、合并和导出阶段。传输分片以供应商 payload 上限为边界，VAD 只辅助寻找自然切点；任何分片都必须保留原始媒体的绝对时间域。
 4. **远程音频转写与本地字幕转写继续隔离。** 不把远程 ASR 变成本地字幕工具的另一种 engine，也不让 `audio:*` 调用本地 Whisper Job Manager。可以抽取 bundled FFmpeg resolver、受控子进程、媒体探测、原子文本产物等无 provider 语义的基础设施，但两套 route、Store、IPC、任务和 capability registry 仍保持独立。
+5. **MiMo 是一等 route，不是 OpenAI Transcriptions 的兼容别名。** `mimo-v2.5-asr` 走 `/v1/chat/completions`、单音频 Base64、固定文本响应和独立的语言、输出 token、流式、限流、计费合同。MiMo 没有原生时间戳时，字幕格式只使用明确标注的本地估算时间轴。
 
 ### 0.1 必须遵守的约束
 
@@ -84,7 +85,7 @@
 | 文件授权 | `electron/main/audio/audio-file.ts` | 授权时即验证供应商格式和单次请求大小；大文件无法成为合法 draft |
 | Main IPC | `electron/main/audio/ipc.ts` | 消费文件 token 后直接调用一次 runtime；取消只管理当前 HTTP request controller |
 | OpenAI adapter | `electron/main/audio/adapters/openai-audio-adapter.ts` | multipart 单文件请求；将整个已受限文件读入内存；可解析 JSON/text/SRT/VTT/verbose JSON |
-| MiMo adapter | `electron/main/audio/adapters/mimo-chat-audio-adapter.ts` | 将整个文件编码为 data URI；只返回 JSON/text 语义，没有时间戳 |
+| MiMo adapter | `electron/main/audio/adapters/mimo-chat-audio-adapter.ts` | 将整个文件编码为 data URI；供应商固定返回 Chat Completion 文本，当前再按用户 JSON/text 偏好包装；未校验 finish reason，也没有时间戳 |
 | 保存 | `src/services/audio/audioTranscriptionService.ts` | 按供应商响应格式保存；尚无 LRC，也没有统一 canonical exporter |
 
 ### 2.2 已经存在但不能直接复制合同的能力
@@ -125,26 +126,62 @@
 
 因此本文不把“OpenAI 只支持 WAV/MP3”写入产品结论，也不把 25 MB 写成所有供应商永远不变的常量。它只作为内置 OpenAI route 在当前版本的已验证默认值。
 
-### 3.2 MiMo 与自定义兼容 API
+### 3.2 MiMo 当前事实与兼容结论
 
-当前仓库把 MiMo ASR 建模为：
+调研日 2026-08-30，MiMo 官方文档的公开合同如下：
 
-- 输入只接受 WAV/MP3 MIME。
-- data URI/Base64 总预算 10 MiB。
-- 输出只接受 JSON/text。
-- 没有 provider-native timestamp。
+- ASR 端点是 `POST https://api.xiaomimimo.com/v1/chat/completions`，当前只列出 `mimo-v2.5-asr`：<https://mimo.mi.com/docs/en-US/api/audio/Speech-Recognition>。
+- 每次请求只支持一个 `input_audio`；音频可以是 data URL 或纯 Base64。data URL 的 `format` 可省略，纯 Base64 必须提供 `format`；若 MIME 与 `format` 同时存在，两者必须匹配。
+- 输入只支持 MP3/WAV。MP3 MIME 只能是 `audio/mpeg` 或 `audio/mp3`，WAV MIME 只能是 `audio/wav`。
+- 官方 usage guide 写的是“Base64 编码字符串不超过 10 MB”，不是原文件 10 MB，也没有写成 10 MiB：<https://mimo.mi.com/docs/en-US/quick-start/usage-guide/audio/Speech-Recognition>。
+- `asr_options.language` 只有 `auto / zh / en`；支持 SSE 文本流式响应，但流式不会改变请求体仍需一次提交完整 Base64 音频的事实。
+- 非流式结果是 Chat Completion JSON，转写正文位于 `choices[0].message.content`；流式正文位于 `choices[].delta.content`。公开响应没有 `response_format`、segment/word timestamp、prompt、diarization 或 server-side chunking 参数。
+- 响应的 `finish_reason` 可能是 `stop / length / content_filter`；`usage.seconds` 是供应商统计的输入音频秒数，但不能当作字幕时间戳。
+- 模型目录给出 8K context、最大输出 2K、100 RPM 与 10K TPM：<https://mimo.mi.com/docs/en-US/quick-start/model>。官方限流页说明高负载时仍可能返回 429，应尊重 `Retry-After` 并退避：<https://mimo.mi.com/docs/en-US/api/guidance/rate-limit>。
+- MiMo ASR 按输入音频时长计费，秒级统计后换算为小时，而不是按请求次数计费：<https://mimo.mi.com/docs/en-US/price/pay-as-you-go>。
 
-这组值是当前实现合同，不应散落在 renderer 和 `audio-file.ts`。实施前只需做一次范围明确的供应商文档/真实 fixture 复核；若真实值变化，更新 route registry 与 fixture，不改变通用 pipeline。
+因此，原设计中“MiMo 输出只接受 JSON/text”需要纠正：MiMo 供应商响应只有固定的 `chat_completion_text` 合同；JSON/TXT 是 FusionKit 的本地导出选择。当前 adapter 用 data URL、`api-key`、`asr_options.language` 和单音频请求的方向与官方合同兼容，但还需要补齐以下保护：
 
-自定义 OpenAI-compatible route 必须 fail closed：默认只假设 JSON、无时间戳、无 stream，并要求高级配置显式声明输入 MIME、transfer encoding 和 payload budget 后才开放自动转码/分片。
+1. 10 MB 按保守的十进制 `10_000_000` 个 ASCII Base64 字符建模，不继续使用乐观的 `10 * 1024 * 1024`；实际 Base64 段与完整序列化 JSON 都在发送前复核。
+2. 每个 prepared unit 必须只有一个音频；不得把多个 chunk 塞进同一 `messages[].content`，也不得把 streaming 误当作流式上传。
+3. MP3 使用 `audio/mpeg + format=mp3`，WAV 使用 `audio/wav + format=wav`；data URL MIME、显式 format、文件签名和 route profile 必须一致。
+4. `finish_reason=stop` 才能提交成功检查点；`length` 表示可能截断，必须把当前原时间区间重规划为更短 unit 后有限重试；`content_filter` 作为不可重试供应商拒绝，不发布残缺文本。
+5. 上传 byte 预算只是一个上限。MiMo 还受 2K 最大输出约束，低码率长音频即使 Base64 未超限，也必须按更短的 duration/output budget 分片。
+6. TXT/JSON 使用较短的 MiMo transport unit 合并文本；SRT/VTT/LRC 使用 30 秒以内的 boundary-aligned unit 生成 `local_vad_estimated` 或 `fixed_window_estimated` 时间轴。
+7. 费用预览显示预计计费音频时长（包含 overlap）和请求数；任务完成后可汇总安全的 `usage.seconds`，但它只用于用量诊断，不参与时间轴映射。
 
-### 3.3 Route 约束的新职责
+| 用户需求 | MiMo 原生能力 | FusionKit 适配 | 最终结果 |
+| --- | --- | --- | --- |
+| WAV/MP3 小文件 | 单音频 Base64 | 同时满足 9,000,000 字符安全预算和 5 分钟 hard max 时才允许直传 | 兼容 |
+| M4A/MP4/MKV/MOV 等媒体 | 不原生接受 | main 探测音轨并用 verified FFmpeg 转为经 fixture 验证的 MP3/WAV profile | 兼容 |
+| 超过单次限制的长媒体 | 无客户端大文件接口 | 原时间轴 VAD/energy 边界 + 4 分钟目标 unit + 单片精确复核 | 兼容 |
+| TXT | 固定 Chat Completion text | 多片正文按原顺序 canonical merge | 兼容 |
+| JSON | 没有可选 JSON transcript schema | 本地导出 FusionKit canonical JSON，不暴露 raw provider envelope | 兼容 |
+| SRT/VTT/LRC | 无 timestamp | 30 秒内 boundary-aligned unit + 明示的估算时间轴 | 有限兼容，不宣称原生精度 |
+| speaker diarization / word timestamp / prompt | 未公开支持 | 不显示、不伪造、不发送 | 不支持 |
+
+MiMo 兼容性结论是：广媒体输入、大文件、TXT/JSON 和估算 SRT/VTT/LRC 都可以兼容；不会获得 provider-native 时间戳、speaker diarization 或 prompt continuity。只要按上述合同实现，使用 `mimo-v2.5-asr` 不会因 OpenAI 专属字段、错误 MIME、10 MB 误算或 2K 输出截断而产生结构性问题。
+
+### 3.3 自定义兼容 API
+
+自定义 OpenAI-compatible route 必须 fail closed：默认只假设一个有界文本响应、无时间戳、无 stream，并要求高级配置显式声明 response envelope、输入 MIME、transfer encoding、payload budget、单次音频数和成功终止条件后才开放自动转码/分片。不能因为端点路径包含 `/v1` 或使用 Chat Completions 就继承 MiMo 合同。
+
+### 3.4 Route 约束的新职责
 
 `AudioTranscriptionRouteConstraints` 扩展为单一事实来源：
 
 ```ts
 interface AudioTranscriptionRouteConstraints {
-  providerResponseFormats: readonly AudioProviderTranscriptionResponseFormat[];
+  responseContract:
+    | {
+        kind: "openai_transcription";
+        formats: readonly AudioProviderTranscriptionResponseFormat[];
+      }
+    | {
+        kind: "chat_completion_text";
+        maxOutputTokens?: number;
+        acceptedFinishReasons: readonly string[];
+      };
   languages?: readonly string[];
   supportsPrompt: boolean;
   supportsStreaming: boolean;
@@ -153,14 +190,25 @@ interface AudioTranscriptionRouteConstraints {
   upload: {
     transfer: "multipart_file" | "base64_data_uri";
     acceptedMimeTypes: readonly string[];
+    maxAudioItemsPerRequest: number;
     maxRawFileBytes?: number;
-    maxEncodedPayloadBytes?: number;
+    maxBase64Chars?: number;
+    maxSerializedBodyBytes?: number;
     preferredNormalizedProfiles: readonly AudioUploadProfileId[];
   };
+  planning: {
+    targetUnitDurationMs?: number;
+    maxUnitDurationMs?: number;
+    splitOnOutputTruncation: boolean;
+  };
+  billing: {
+    metric: "audio_duration" | "request" | "tokens" | "provider_defined";
+  };
+  rateLimitHints?: { rpm?: number; tpm?: number };
 }
 ```
 
-约束解析仍必须由现有 `resolveTranscriptionRouteDefinition({ providerPreset, transport, model })` 完成。renderer 只消费脱敏后的能力摘要；main 在开始任务时重新解析并冻结可信快照；adapter 在每个分片请求前再做 defense-in-depth 校验。
+内置 MiMo 初始 route snapshot 使用 `chat_completion_text`、`maxOutputTokens=2_000`、`acceptedFinishReasons=["stop"]`、`maxAudioItemsPerRequest=1`、`maxBase64Chars=10_000_000`、`billing.metric="audio_duration"` 和文档化限流 hint。约束解析仍必须由现有 `resolveTranscriptionRouteDefinition({ providerPreset, transport, model })` 完成。renderer 只消费脱敏后的能力摘要；main 在开始任务时重新解析并冻结可信快照；adapter 在每个分片请求前再做 defense-in-depth 校验。
 
 ## 4. 最终用户体验
 
@@ -209,7 +257,7 @@ SRT/VTT/LRC 不再因为供应商只返回 JSON 而从选择框消失。页面�
 - `固定窗口估算时间轴`
 - `无时间轴`（只能 TXT/JSON）
 
-当 route 没有原生时间戳而用户选择字幕格式时，页面必须在开始前显示预计请求数和“时间为本地估算”的非阻断提示；超过费用保护阈值时需要显式二次确认。
+当 route 没有原生时间戳而用户选择字幕格式时，页面必须在开始前显示预计请求数和“时间为本地估算”的非阻断提示；超过费用保护阈值时需要显式二次确认。费用保护使用 route 的计费维度：MiMo 显示包含 overlap 的预计计费音频时长，不能用“请求越多就一定越贵”的错误假设代替。
 
 ### 4.4 执行预览
 
@@ -219,7 +267,7 @@ SRT/VTT/LRC 不再因为供应商只返回 JSON 而从选择框消失。页面�
 - 处理：`提取音轨 → 16 kHz mono MP3`
 - 分片：`智能静音边界，预计 10 个上传分片`
 - 输出：`SRT · 原生段级时间戳` 或 `LRC · 智能估算`
-- 费用提示：`预计约 10 次 API 请求；实际以供应商计费为准`
+- 费用提示：OpenAI-compatible 未知计费 route 显示 `预计约 10 次 API 请求；实际以供应商计费为准`；MiMo 显示 `预计请求 10 次 · 预计计费音频 02:15:10（含边界重叠）`
 
 摘要由 main 的 probe/plan preview 返回，renderer 不自行计算 payload budget 或时间边界。preview 不是执行授权；开始时 main 必须重新验证媒体身份、route revision、runtime generation 和输出 capability，并生成新的权威计划。
 
@@ -290,7 +338,7 @@ interface AudioTranscriberPreferencesV5 {
 }
 ```
 
-- 移除用户层 `responseFormat`；provider response format 由 main 协商。
+- 移除用户层 `responseFormat`；provider request/response contract 由 main 协商。MiMo 不生成虚构的 provider `response_format`。
 - 文件 `stream` 不再作为通用持久化开关。只有单请求直传且 route 支持时可作为高级选项；进入转码/多片模式后使用“按完成分片逐步显示”，不混合多个 SSE token 流。
 - `prompt` 不持久化，避免把可能包含用户内容的自由文本写入 localStorage；页面重开后清空。
 
@@ -312,6 +360,8 @@ interface AudioTranscriptionPlanPreview {
   planKind: "direct" | "normalized_single" | "chunked" | "timed_estimation";
   uploadProfile: AudioUploadProfileId;
   estimatedRequestCount: number;
+  estimatedBillableAudioMs?: number;
+  billingMetric: "audio_duration" | "request" | "tokens" | "provider_defined";
   timingQuality: AudioTranscriptTimingQuality;
   requiresTranscode: boolean;
   requiresExplicitConfirmation: boolean;
@@ -372,6 +422,12 @@ interface CanonicalAudioTranscript {
     endMs: number;
     status: "transcribed" | "no_speech";
   }>;
+  usage: {
+    billingMetric: "audio_duration" | "request" | "tokens" | "provider_defined";
+    requestCount: number;
+    plannedUploadAudioMs: number;
+    providerReportedAudioMs?: number;
+  };
   warnings: AudioTranscriptionWarningCode[];
 }
 ```
@@ -455,6 +511,7 @@ Windows Explorer drag 必须复用现有 native selection resolver，识别 `%TE
 - 不含需要丢弃的视频流；视频容器始终抽取音频，避免上传无用视频字节。
 - 文件签名/MIME 在当前 route `acceptedMimeTypes` 内。
 - 实际 byte size 小于 route 的安全 raw budget。
+- duration 同时小于 route 的单次 duration/output budget；不能让低码率超长 MP3 仅因 byte 小就直传 MiMo。
 - 用户输出不要求该 route 无法提供的时间轴估算模式。
 - route 与当前 adapter 已有真实 fixture 证明该格式可用。
 
@@ -469,10 +526,11 @@ type AudioUploadProfileId =
   | "speech_wav_pcm16_16k_mono";
 ```
 
-- 默认优先 `speech_mp3_16k_mono_64k`，因为对长语音有较稳定的字节预算且 OpenAI/MiMo 都可接受。
+- 默认优先 `speech_mp3_16k_mono_64k`，因为对长语音有较稳定的字节预算且 OpenAI/MiMo 都接受 MP3 容器。MiMo 的具体 16 kHz mono 64 kbps 编码组合仍必须由最小真实 fixture 证明后才能成为 built-in route 默认值。
 - 只有 route 不接受 MP3 或 fixture 证明 WAV 更可靠时使用 PCM16 WAV。
 - codec、采样率、声道、bitrate 与容器由 main 的 profile 固定；renderer 不提交 FFmpeg 参数。
-- 每个生成 upload unit 在发送前重新检查实际 MIME、byte size、duration、source interval 和 task identity；干净 FFmpeg exit 不是完整性证明。
+- MiMo MP3 固定发 `audio/mpeg + format=mp3`，WAV 固定发 `audio/wav + format=wav`；不得把 ffprobe 的 codec 名、浏览器 MIME 或 `.wave` 扩展名直接拼进 data URL。
+- 每个生成 upload unit 在发送前重新检查文件签名、实际 MIME、byte size、Base64 字符数、duration、source interval 和 task identity；干净 FFmpeg exit 不是完整性证明。
 
 ### 7.4 FFmpeg/ffprobe 运行合同
 
@@ -519,12 +577,15 @@ type AudioUploadProfileId =
 multipart:
   effectiveRawBytes = floor(maxRawFileBytes * safetyRatio)
 
-base64 data URI:
-  effectiveRawBytes = floor((maxEncodedPayloadBytes - fixedJsonOverhead) * 3 / 4)
-  effectiveRawBytes = floor(effectiveRawBytes * safetyRatio)
+Base64 encoded-string limit:
+  effectiveBase64Chars = floor(maxBase64Chars * safetyRatio)
+  effectiveRawBytes = floor(effectiveBase64Chars / 4) * 3
+
+optional serialized-body guard:
+  actualJsonUtf8Bytes <= maxSerializedBodyBytes
 ```
 
-`safetyRatio`、`fixedJsonOverhead` 和 route max 都是版本化 main policy。当前建议安全比例为 0.90；实际 encoded payload 仍必须在请求前精确复核，不能只依赖 bitrate 估算。
+`safetyRatio` 和 route max 都是版本化 main policy。当前建议安全比例为 0.90。MiMo 官方约束的是 Base64 编码字符串，因此 data URI prefix/JSON overhead 不应从这 10 MB 中臆算扣除；完整 JSON body 仍受独立 app-owned memory/body guard。实际 Base64 ASCII 字符数、序列化 UTF-8 byte 与生成文件 byte 都必须在请求前精确复核，不能只依赖 bitrate 估算。
 
 如果供应商仍返回 payload-too-large：
 
@@ -559,14 +620,14 @@ interface SpeechBoundaryDetector {
 默认 planner 规则：
 
 1. 以 source PCM frame 区间 `[0, totalFrames)` 为权威覆盖域。
-2. 根据 upload profile bitrate 与有效 payload budget 算出目标时长，同时受版本化最大请求时长限制。
+2. 根据 upload profile bitrate 与有效 payload budget 算出目标时长，再取 route duration/output budget 和产品最大请求时长的最小值。
 3. 在目标切点附近的有界搜索窗口中选择最长可信静音中心。
 4. 找不到静音时在目标时长硬切，并添加小 overlap。
 5. 所有 chunk 保留绝对 `startFrame/endFrame/coreStartFrame/coreEndFrame`；首尾连续覆盖，不遗漏、不倒序。
 6. 生成实际 MP3/WAV 后检查 byte size；超预算则重规划当前区间。
 7. 每个计划项最终必须是 `transcribed`、可信 `no_speech` 或显式失败。
 
-建议初始 policy：transport 目标最长 15 分钟；自然切点搜索窗口不超过前后 15 秒；硬切 overlap 初始 750 ms。数值属于实现 policy，必须由 fixture 与真实样本校准后冻结，不能散落在 UI。
+通用建议初始 policy：transport 目标最长 15 分钟；自然切点搜索窗口不超过前后 15 秒；硬切 overlap 初始 750 ms。MiMo 不能直接使用这个通用上限：由于 `mimo-v2.5-asr` 最大输出 2K，`mimo_v2_5_asr_v1` 在真实 fixture 冻结前使用 4 分钟 target、5 分钟 hard max；如果 `finish_reason=length`，仅把当前区间按自然边界二分并有限重试。字幕估算仍使用下一节更短的 30 秒上限。所有数值属于版本化 main policy，不能散落在 UI。
 
 ### 8.5 字幕格式且 provider 无时间戳
 
@@ -576,9 +637,9 @@ interface SpeechBoundaryDetector {
 2. 每个 request unit 的返回文本只归属于该绝对时间区间。
 3. 按标点和 grapheme-safe 文本边界分成 cue，再按区间内 voiced duration 与字符权重分配整数毫秒。
 4. cue 标记 `local_vad_estimated`；若使用固定窗口则标记 `fixed_window_estimated`。
-5. 页面在开始前展示预计请求数；超过版本化费用保护阈值必须确认。
+5. 页面在开始前展示预计请求数、预计上传音频总时长与 route 计费维度；超过版本化费用保护阈值必须确认。
 
-这种模式用更多请求换取可用时间轴，但不会伪装成 provider 原生词级时间戳。若用户不接受估算，应改选 TXT/JSON 或切换到支持 timestamp 的 route/model。
+这种模式用更多请求换取可用时间轴，但不会伪装成 provider 原生词级时间戳。对按音频时长计费的 MiMo，额外费用主要来自 overlap 的重复音频，而不是请求条数本身；请求条数仍影响耗时和限流。若用户不接受估算，应改选 TXT/JSON 或切换到支持 timestamp 的 route/model。
 
 ### 8.6 原时间轴与 VAD
 
@@ -593,7 +654,7 @@ interface SpeechBoundaryDetector {
 - 无 provider timestamp 时，只在相邻 overlap 边界做 suffix/prefix token 相似度去重，不做全文件字符串去重。
 - 对支持 prompt 的 route，可把上一 chunk 的有界尾部文本作为 continuity hint；用户 prompt 与 continuity hint 分字段组合，不能把模型输出无限累积进 prompt。
 - 不支持 prompt 的 route 保持顺序请求，不伪造上下文字段。
-- 默认分片并发为 1，以保持顺序、上下文和费用可预测性；后续并发必须按 route rate limit 与无上下文模式另行设计。
+- 默认分片并发为 1，以保持顺序、上下文和费用可预测性。MiMo route 使用官方 100 RPM / 10K TPM 作为调度 hint，遇到 429 尊重合法 `Retry-After` 并加抖动退避；hint 不是本地硬许可，高负载仍可被限流。后续并发必须按 route rate limit 与无上下文模式另行设计。
 
 ### 8.8 Server-side chunking
 
@@ -605,12 +666,13 @@ route 若明确支持 `chunking_strategy=auto/server_vad`，adapter 可以在单
 
 | 用户目标 | Route 能力 | Main 请求策略 |
 | --- | --- | --- |
-| TXT/JSON | 任意 route | 优先结构化 JSON；只支持 text 时解析 text |
+| TXT/JSON | OpenAI transcription response contract | 优先结构化 JSON；只支持 text 时解析 text |
+| TXT/JSON | MiMo `chat_completion_text` | 解析 Chat Completion 正文，canonical 后本地导出 TXT 或 JSON；不发送 `response_format` |
 | SRT/VTT/LRC | provider word timestamp | 请求支持 word/segment 的结构化格式，canonical 后本地导出 |
 | SRT/VTT/LRC | provider segment timestamp | 请求 segment 结构化格式，canonical 后本地导出 |
 | SRT/VTT/LRC | 无 provider timestamp | boundary-aligned request + 本地估算时间轴 |
 
-Whisper 即使可直接返回 SRT/VTT，也优先请求 `verbose_json` 并由本地 exporter 输出，避免多分片时拼接供应商文本文件。GPT/MiMo 的 JSON/text 同样进入 canonicalizer。
+Whisper 即使可直接返回 SRT/VTT，也优先请求 `verbose_json` 并由本地 exporter 输出，避免多分片时拼接供应商文本文件。GPT 的结构化/文本响应和 MiMo 的 Chat Completion 文本分别由各自 parser 进入 canonicalizer；MiMo 的本地 JSON 导出不得保存为未经约束的 raw provider body。
 
 ### 9.2 Adapter 边界
 
@@ -625,20 +687,47 @@ interface AudioPreparedTranscriptionUnit {
   byteSize: number;
   sourceStartMs: number;
   sourceEndMs: number;
-  providerResponseFormat: AudioProviderTranscriptionResponseFormat;
+  providerRequest:
+    | {
+        kind: "openai_transcription";
+        responseFormat: AudioProviderTranscriptionResponseFormat;
+      }
+    | {
+        kind: "mimo_chat_audio";
+        inputAudioFormat: "mp3" | "wav";
+        language: "auto" | "zh" | "en";
+        stream: boolean;
+      };
 }
 ```
 
-adapter 不负责源媒体 probe、FFmpeg、跨片进度、总任务状态、本地 SRT/LRC 或最终文件名。每次请求前必须复核 route、实际 file bytes、MIME、transfer budget 和 AbortSignal。
+adapter 不负责源媒体 probe、FFmpeg、跨片进度、总任务状态、本地 SRT/LRC 或最终文件名。每次请求前必须复核 route、实际 file bytes、MIME、transfer budget、单音频约束、response contract 和 AbortSignal。
 
-### 9.3 重试所有权
+### 9.3 MiMo prepared-unit 合同
+
+`mimo-chat-audio-adapter.ts` 对每个 prepared unit 必须执行以下流程：
+
+1. 只接受 built-in `providerPreset=mimo + transport=mimo_chat_audio + model=mimo-v2.5-asr` 的冻结 route snapshot；其他模型 fail closed。
+2. 从文件签名和 upload profile 得到 `mp3/wav`，构造唯一一个 `input_audio`。data URL 使用标准 Base64，不插入换行；同时发送与 MIME 一致的显式 `format`。
+3. 在读入内存前复核 raw byte cap；编码后精确测量逗号后的 Base64 ASCII 字符数并限制在 route 有效预算内；序列化 JSON 再过 app body/memory guard。
+4. 只发送 `model/messages/asr_options.language/stream` 白名单字段，不发送 OpenAI Transcriptions 的 `response_format`、`timestamp_granularities`、`prompt` 或 `chunking_strategy`。
+5. 非流式严格解析单 choice 的 `message.content`；流式有界累计 `delta.content`，等待 `[DONE]`/终止 chunk 后再判定。普通文件 unit 的空文本仍失败。
+6. 只有 `finish_reason=stop` 且 schema/text 通过校验时写成功检查点。`length` 转为 `provider_response_truncated` 并由 planner 缩短当前 unit；`content_filter` 转为稳定的不可重试错误。
+7. `usage.seconds`、audio/input/output token 和 request ID 只保留有界、脱敏的 main-private usage receipt；canonical JSON 只写汇总后的安全 usage，不写完整 provider envelope。
+8. 文件任务默认使用非流式请求以简化原子检查点。若以后开放 MiMo 文件流式预览，SSE delta 只能作为未提交预览；取消、`length`、parse error 或终态前断流时全部丢弃，绝不能成为已完成 chunk。
+
+MiMo 的上传是完整 JSON + Base64，因此当前 adapter 的 `readFile(...).toString("base64")` 会同时持有原 bytes、Base64 字符串和 Axios body。prepared unit 必须足够小，并在 route memory guard 中按峰值至少估算 `raw + base64 + serialized body`；不能只依据 10 MB 网络限制判断内存安全。
+
+### 9.4 重试所有权
 
 - HTTP 瞬时错误、`Retry-After`、连接重置和 5xx 的指数退避仍由现有 audio HTTP retry owner 负责。
 - Job Manager 不再套一层同类盲重试，避免双重重试风暴。
-- Job Manager 只处理语义不同的动作：payload-too-large 触发重规划；用户点击重试恢复失败 unit；stale config/media 需要重新 prepare。
+- Job Manager 只处理语义不同的动作：payload-too-large 或 MiMo `finish_reason=length` 触发当前区间重规划；用户点击重试恢复失败 unit；stale config/media 需要重新 prepare。
 - 4xx 鉴权、余额、字段或永久格式错误立即失败，并通过稳定 code 显示设置 CTA。
 
-### 9.4 分片检查点
+MiMo 的 402/余额不足不得重试；429/5xx/连接错误由唯一 retry owner 处理。route-specific duration-based timeout 取代当前固定 60 秒默认值，并由真实 4/5 分钟 fixture 校准；超时始终可取消且不与 adapter 内第二套重试叠加。
+
+### 9.5 分片检查点
 
 每个成功 unit 在 main 私有任务目录写入有界结果与 hash；检查点绑定：
 
@@ -647,13 +736,13 @@ adapter 不负责源媒体 probe、FFmpeg、跨片进度、总任务状态、本
 - route profile/revision/transport/model
 - language、prompt hash、upload profile
 - chunk planner policy version 与 exact interval
-- provider response negotiation version
+- provider request/response contract version 与终止原因
 
 同会话重试只有上述 identity 完全匹配时复用成功 unit。route、prompt、语言、源文件或分片 policy 改变时，从头生成新 generation，不能混合旧结果。
 
 应用重启不恢复任务，也不持久化源路径/API Key；启动只清理受控 stale job directories。
 
-### 9.5 空响应
+### 9.6 空响应
 
 - planner 预先判定的可信静音区间可以记为 `no_speech`，不发 API 请求。
 - 对已判定含语音并已发送的普通文件/unit，空响应仍是 `empty_response`，不能静默当作 no-speech。
@@ -802,6 +891,8 @@ app shutdown 的每个 phase 都必须无条件执行并保存首错；不能用
 - 输出格式不再直接等于 route response formats。
 - `timingPreference=word` 只有 provider 支持可信 word timestamp 时可选；否则回退 `auto` 并显示一次说明。
 - `boundaryStrategy=smart` 默认开启；Silero 不可用时可以透明回退 `pcm_energy_v1`，但 execution preview 必须显示实际策略。
+- MiMo 只显示 `auto / 中文 / English` 语言选项，不显示 prompt、provider response format、word timestamp 或 diarization；方言识别能力不扩展为未文档化的 language 枚举。
+- MiMo 文件转写默认不显示通用 `stream` 开关；任务进度来自完成的 prepared unit。供应商 SSE 只有在未来实现未提交预览合同后才能作为高级能力开放。
 - output directory 仍使用不透明 token；切换 output mode 时按现有 cleanup retry 规则撤销旧 token。
 
 ### 12.3 开始门禁
@@ -820,7 +911,7 @@ app shutdown 的每个 phase 都必须无条件执行并保存首错；不能用
 
 ### 12.4 结果状态
 
-- 结果卡显示输出格式、时间轴质量、媒体时长、cue 数、请求数和 warning。
+- 结果卡显示输出格式、时间轴质量、媒体时长、cue 数、请求数和 warning；MiMo 额外显示供应商回报的总 `usage.seconds` 与计划上传时长差异摘要，但不把它展示为字幕时间轴精度。
 - preview 只显示有界开头/结尾；复制全文通过 main output token。
 - 失败卡显示失败阶段、分片 `i/n`、是否可重试和安全诊断；不暴露路径、HTTP body、stderr 或 token。
 - “重试失败分片”只有 exact checkpoint 仍有效时显示；配置或媒体改变后显示“重新开始”。
@@ -849,6 +940,8 @@ type AudioTranscriptionPipelineErrorCode =
   | "boundary_detection_failed"
   | "chunk_plan_failed"
   | "provider_payload_too_large"
+  | "provider_response_truncated"
+  | "provider_content_filtered"
   | "chunk_transcription_failed"
   | "transcript_timeline_invalid"
   | "transcript_merge_failed"
@@ -885,13 +978,14 @@ type AudioTranscriptionPipelineErrorCode =
 | 源媒体最大时长 | 24 h | 防止意外产生不可控费用；仍覆盖常见会议/视频 |
 | 音轨数 | 128 | 与现有 ffprobe 合同一致 |
 | Transport chunk 最长 | 15 min | 限制单请求延迟/超时并保留上下文 |
+| MiMo 普通文本 unit target / hard max | 4 min / 5 min | 在 2K 最大输出与延迟之间保守取值，真实 fixture 后才可上调 |
 | 无原生时间戳 request unit 最长 | 30 s | 提供可解释估算字幕时间轴 |
 | 最大 request unit | 2,000 | 阻止极端碎片化和费用失控 |
 | 有界 preview | 256 KiB | 控制 snapshot/IPC |
 | Canonical artifact | 64 MiB | 控制内存和磁盘 |
 | 同 owner 活动转写任务 | 1 | 避免本地媒体与远程费用竞争 |
 
-这些是 FusionKit 产品边界，不等于供应商限制。真正的单次 upload budget 始终来自 route constraints。
+这些是 FusionKit 产品边界，不等于供应商限制。真正的单次 unit budget 取 route upload、duration、response output、memory 与产品边界的最小值。MiMo 10 MB Base64 只是其中一项，不能覆盖 2K 输出限制。
 
 内存要求：
 
@@ -961,14 +1055,14 @@ type AudioTranscriptionPipelineErrorCode =
 
 | 文件 | 调整 |
 | --- | --- |
-| `src/lib/audio-provider-registry.ts` | route 输入 MIME、transfer、payload、timestamp/server chunking 能力 |
+| `src/lib/audio-provider-registry.ts` | route response contract、输入 MIME、transfer、payload、duration/output、billing、rate-limit、timestamp/server chunking 能力 |
 | `src/type/audio.ts` | 导出格式、canonical、route upload 约束 |
 | `src/type/audioIpc.ts` | task fixed API、event/snapshot/error schema |
 | `electron/preload/index.ts`、`audio-channel-policy.ts` | fixed bridge、内部/公开 channel 策略与 bridge version |
 | `electron/main/audio/audio-file.ts` | 通用 media draft authorization 与 task lease；移除授权期供应商上限 |
 | `electron/main/audio/ipc.ts` | probe/preview/start/snapshot/cancel/retry/output handler |
 | `electron/main/audio/adapters/openai-audio-adapter.ts` | 单 prepared unit、main-only response negotiation |
-| `electron/main/audio/adapters/mimo-chat-audio-adapter.ts` | 单 prepared unit、精确 Base64 payload 复核 |
+| `electron/main/audio/adapters/mimo-chat-audio-adapter.ts` | 单 prepared unit、MIME/format、精确 Base64、finish reason、usage 与 SSE 终态复核 |
 | `electron/main/index.ts` | app singleton 与 production IPC composition |
 | `src/store/tools/audio/audioTranscriberConfig.ts` | outputFormat、timing/boundary 偏好、Store v5 migration |
 | `src/store/tools/audio/useAudioTranscriberStore.ts` | task summary/snapshot，不持久化正文和 token |
@@ -993,7 +1087,7 @@ type AudioTranscriptionPipelineErrorCode =
 Provider/route：
 
 - 同一 OpenAI provider 下 GPT、Whisper、diarization/未知模型解析不同 response/timestamp/upload 能力。
-- MiMo multipart/base64 budget 与自定义 compatible fail-closed。
+- MiMo `chat_completion_text`、单音频、MP3/WAV MIME/format、十进制 10 MB Base64、2K 输出、duration policy、billing/limit hint 与自定义 compatible fail-closed。
 - renderer、main、adapter 使用同一 route definition，不保留第二份 MIME/size 表。
 
 媒体：
@@ -1033,9 +1127,12 @@ Canonical/export：
 
 扩展 `test/audio/fakeAudioApiServer.ts`：
 
-- 每个 upload unit 记录 byte/MIME/model/response format。
+- 每个 upload unit 记录 byte/MIME/model/response contract。
 - 返回相对 segment/word timestamp fixture。
-- MiMo text/json 无时间戳 fixture。
+- MiMo 非流式/流式 Chat Completion text 无时间戳 fixture；断言请求没有 `response_format/prompt/timestamp_granularities/chunking_strategy`。
+- MiMo 单 `input_audio`、MP3/WAV MIME 与显式 format 一致、纯 Base64/data URL 规则、`9_000_000` 安全预算内成功和越界拒绝。
+- MiMo `finish_reason=stop/length/content_filter`、空内容、断流、缺失 choice、usage.seconds 与超大 SSE 累计的分类。
+- MiMo `length` 只重规划当前 unit，较短请求成功后才提交；402 不重试，429 尊重 `Retry-After`，5xx 由唯一 retry owner 处理。
 - 413 后更小 chunk 成功。
 - 指定 chunk 5xx/Retry-After/鉴权/余额/空响应/invalid schema。
 - 延迟响应与 cancel 后 late response。
@@ -1045,7 +1142,8 @@ Canonical/export：
 ### 17.3 Renderer/Electron 验收
 
 - picker 与真实 Windows Explorer drag，包括长路径 `%TEMP%` proxy。
-- 单/多音轨视频、超单次上限长媒体、MiMo 不支持的 M4A 自动转 MP3。
+- 单/多音轨视频、超单次上限长媒体、MiMo 不支持的 M4A 自动转为经真实 fixture 验证的 MP3 profile。
+- MiMo 最小真实矩阵至少覆盖原生短 WAV、原生短 MP3、M4A→MP3、5 分钟高文本密度样本和一个多片任务；只记录脱敏 status/finish_reason/usage，不提交音频或 raw body。
 - 直传、单文件转码、多片、无原生时间戳估算四种 preview。
 - 页面导航后任务继续，返回后 snapshot 恢复。
 - 取消响应、费用确认、时间轴质量标签、错误 CTA、窄窗口和键盘操作。
@@ -1085,7 +1183,7 @@ git diff --check
 
 本文只冻结设计，不代替后续 execution plan。建议按以下依赖顺序拆包：
 
-1. `PRE-001`：冻结 route upload/timestamp 矩阵、官方 runtime VAD 能力与最小真实 fixture。
+1. `PRE-001`：冻结 OpenAI/MiMo route response/upload/timestamp/billing/limit 矩阵、官方 runtime VAD 能力与最小真实 fixture；MiMo 必须先验证 MP3 profile、finish reason、usage.seconds 和 4/5 分钟 policy。
 2. `CORE-001`：导出格式、canonical、task/event/error/Store v5 类型。
 3. `MEDIA-001`：抽取 shared media runtime/process/probe，不改变本地字幕行为。
 4. `MEDIA-002`：Audio generic media authorization、probe、音轨与 task lease。
@@ -1107,6 +1205,11 @@ git diff --check
 | 误认为当前只支持 WAV/MP3 | OpenAI 已支持更多格式；输入能力按完整 route 建模，用户层仍允许更广媒体并本地转换 |
 | 用户输出被 provider response format 限制 | 两层格式解耦，统一 canonical + exporter |
 | 25 MB 常量未来变化 | 内置 route 当前值 + fixture；通用 pipeline 不写死供应商 |
+| 把 MiMo 当成 OpenAI Transcriptions API | MiMo 使用独立 `chat_completion_text` 合同，禁止发送 OpenAI 专属字段 |
+| 把 MiMo 10 MB 当成原文件或 10 MiB | 按十进制 Base64 字符上限建模，编码后与序列化后分别复核 |
+| 低码率 MiMo 音频未超 byte 但正文超过 2K | route duration/output budget；4/5 分钟初始 policy；`finish_reason=length` 缩片重试且不提交截断文本 |
+| MiMo SSE 被误当成流式上传或完成证据 | 请求仍一次提交完整 Base64；仅终止原因为 `stop` 时提交 chunk，delta 只是临时预览 |
+| MiMo 请求数被错误换算为费用 | 按预计/回报音频时长展示，request count 只用于耗时和限流，overlap 单独计入 |
 | Server-side VAD 被误当成上传分片 | 只在一个合规 upload unit 内使用；客户端仍拥有 transport planner |
 | Silero 没有独立可调用 runtime | 先审计 pinned official surface；energy/fixed fallback 保证基础功能，不先写 native bridge |
 | VAD 后字幕整体提前 | 只保存原 PCM frame interval，不拼接压缩时间轴 |
@@ -1142,6 +1245,10 @@ git diff --check
 18. 不得在存在缺失 chunk 时发布正常完成的最终字幕。
 19. 不得用直接覆盖已有目标文件来简化输出；首版使用 no-clobber index。
 20. 不得用浏览器测试替代 Electron fixed preload、真实 Windows picker/Explorer drag 和 packaged resource 验收。
+21. 不得向 MiMo ASR 发送 `response_format`、timestamp、prompt、server chunking 或多音频请求。
+22. 不得按 raw file byte 或 10 MiB 估算 MiMo 上限；必须精确检查十进制 Base64 字符预算并同时应用 2K 输出/duration policy。
+23. 不得把 MiMo `finish_reason=length/content_filter`、SSE 断流或空文本写成成功检查点。
+24. 不得把 MiMo `usage.seconds` 当成 cue 时间轴，也不得只按请求数推断 MiMo 费用。
 
 ## 21. 下一步
 
