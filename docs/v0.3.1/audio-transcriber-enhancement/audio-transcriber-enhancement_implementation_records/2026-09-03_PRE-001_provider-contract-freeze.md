@@ -3,7 +3,7 @@
 ## 基本信息
 
 - 日期：2026-09-03
-- 状态：阻塞
+- 状态：废弃（整批需求于 2026-09-03 搁置归档）
 - 模块：PROVIDER
 - 关联需求：BR-01、BR-03、BR-04、BR-06、BR-11、BR-15
 - 对应设计：`audio-transcriber-enhancement_final_design.md` 第 1.7、3、19 节
@@ -47,7 +47,7 @@
 
 ## 未完成事项与风险
 
-- Owner：用户提供本机密钥/额度与非提交样本，后续 PROVIDER 会话完成真实矩阵；通过后才最终冻结 OpenAI cap、MiMo MP3 profile 与 4/5 分钟策略并解锁 `CORE-001`。
+- 本记录创建时因缺少密钥阻塞；随后用户决定搁置整批需求，因此不再等待凭据，也不解锁 `CORE-001`。未来恢复时由新计划重新分配 owner 并复核全部外部合同。
 - `VAD-001` 已有终止依据；后续若引入 pinned official executor，应作为新需求审查 runtime、许可、取消和 packaged/no-PATH。
 
 ## Definition of Done
@@ -59,5 +59,5 @@
 
 ## 下一步建议
 
-- 下一可领取工作包：真实证据解除后继续 `PRE-001`；`CORE-001` 仍受阻。
-- 开始前必须复核：密钥只由本机环境读取，样本与 raw response 不进入 Git。
+- 下一可领取工作包：无；本记录随归档分支只读保留。
+- 若未来重新立项：密钥只由本机环境读取，样本与 raw response 不进入 Git。
