@@ -10,7 +10,7 @@
 >
 > 实施记录目录：`docs/v0.3.1/audio-transcriber-enhancement/audio-transcriber-enhancement_implementation_records/`
 >
-> 当前状态：`CP-SPEC-01` 已于 2026-09-03 获用户确认，25 个顶层工作包全部未开始；下一工作包为 `PRE-001`。基础发布链路不依赖 `VAD-001`；Silero 只有在 `PRE-001` 证明现有 official runtime surface 可直接、可打包、可取消地复用后才进入首版。
+> 当前状态：`CP-SPEC-01` 已于 2026-09-03 获用户确认；`PRE-001` 因缺少真实供应商凭据阻塞，`VAD-001` 已废弃，其余 23 个顶层工作包未开始。基础发布链路使用 `pcm_energy_v1 + fixed_window`。
 
 本文是工作包、进度台账和多会话交接合同，不重复定义产品行为。产品范围、OpenAI/MiMo route 合同、时间轴语义、输出格式、安全边界与错误语义以 Final Design 为准；若实现发现两份文档不能同时满足，必须先修订设计，再继续编码。
 
@@ -302,7 +302,7 @@ flowchart TD
 
 | 工作包 | 模块 | 关联需求 | 状态 | 完成日期 | 依赖 | 目标 | 变更文件 | 验证 | 实施记录 | 问题 |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| PRE-001 | PROVIDER | BR-01/03/04/06/11/15 | 未开始 | — | — | 冻结 OpenAI/MiMo route、真实 fixture、MiMo 4/5 分钟 policy 与 Silero 决策 | 计划：`poc/`、fake provider fixtures、设计/计划 | 计划：有界真实请求、脱敏证据、fixture tests | — | 不提交媒体、密钥或 raw body；无 official Silero surface 时不阻塞基础链路 |
+| PRE-001 | PROVIDER | BR-01/03/04/06/11/15 | 阻塞 | — | — | 冻结 OpenAI/MiMo route、真实 fixture、MiMo 4/5 分钟 policy 与 Silero 决策 | fake provider fixture/tests、PRE 证据、设计/计划/记录 | fixture 1 file / 10 tests、tsc 通过；官方合同/runtime 审计完成；真实矩阵未运行 | `2026-09-03_PRE-001_provider-contract-freeze.md` | 解除条件：本机配置可用 OpenAI/MiMo 密钥、额度和非提交样本，完成真实矩阵 |
 | CORE-001 | COMMON | BR-01/07/08/15 | 未开始 | — | PRE-001 | route upload/response/timestamp/billing 合同、canonical/output 类型和 pipeline limits | 计划：`src/lib/audio-provider-registry.ts`、`src/type/audio.ts` 及 tests | 计划：registry/type/fixture tests、tsc | — | renderer/main/adapter 必须共享单一 route definition |
 | CORE-002 | COMMON | BR-10/11/12 | 未开始 | — | CORE-001 | task/event/snapshot/error/generation 状态合同 | 计划：`src/type/audioIpc.ts`、domain/state tests | 计划：schema/transition/sanitization tests、tsc | — | 先定合同，不接页面或 public handler |
 | MEDIA-001 | MEDIA | BR-02/03/15 | 未开始 | — | CORE-001 | 抽取 verified media runtime/process/probe primitive 且本地字幕行为不变 | 计划：`electron/main/media/*`、local-subtitle adapters/tests | 计划：local-subtitle media 全回归、no-PATH/fault tests | — | 不迁移 local-subtitle Job Manager/model/subtitle contract |
@@ -310,7 +310,7 @@ flowchart TD
 | MEDIA-003 | MEDIA | BR-03/04/15 | 未开始 | — | MEDIA-001/CORE-001 | route-driven 直传/转码 profile 与 prepared-unit 物化 | 计划：transcription media pipeline、shared media tests | 计划：WAV/MP3/M4A/视频、`-t/-fs`、size/disk/abort tests | — | prepared unit 必须在生成后复核实际 byte/Base64 预算 |
 | CHUNK-001 | MEDIA | BR-04/09/15 | 未开始 | — | CORE-001 | upload/output/duration/request 预算与 frame-complete planner | 计划：`transcription-chunk-planner.ts`、tests | 计划：预算公式、core/overlap/首尾/短尾/有限重规划 tests | — | MiMo byte 预算按十进制 Base64；请求数上限 2,000 |
 | CHUNK-002 | MEDIA | BR-05/06 | 未开始 | — | MEDIA-003/CHUNK-001 | `pcm_energy_v1`、`fixed_window` 与 smart fallback | 计划：`transcription-boundary-detector.ts`、tests | 计划：静音/无静音/后段语音/取消/原时间轴 tests | — | 不消费压缩 VAD word timeline |
-| VAD-001 | MEDIA | BR-06 | 未开始 | — | PRE-001/CHUNK-002 | 条件式 Silero detector adapter 与透明 fallback | 计划：boundary detector adapter、runtime manifest/tests | 计划：official surface、packaged/no-PATH、取消、schema tests | — | 非关键路径；不得新造未经证明的 native bridge |
+| VAD-001 | MEDIA | BR-06 | 废弃 | 2026-09-03 | PRE-001/CHUNK-002 | 条件式 Silero detector adapter 与透明 fallback | PRE 证据、Final Design、Execution Plan | 仓库/runtime 静态审计：无 standalone official Electron surface | `2026-09-03_PRE-001_provider-contract-freeze.md` | 后续若引入 pinned official executor 重新立项；v0.3.1 使用 energy/fixed |
 | PROV-001 | PROVIDER | BR-01/03/07/11 | 未开始 | — | CORE-001/MEDIA-003 | OpenAI prepared-unit adapter 与 response negotiation | 计划：`openai-audio-adapter.ts`、registry/fake server tests | 计划：GPT/Whisper/diarization、MIME、timestamp、413/retry tests | — | route 决定 response contract，不能按 provider 名称写死 |
 | PROV-002 | PROVIDER | BR-01/03/04/07/11/15 | 未开始 | — | PRE-001/CORE-001/MEDIA-003 | MiMo Chat Completion prepared-unit adapter | 计划：`mimo-chat-audio-adapter.ts`、fake server tests | 计划：单音频、MIME/format、Base64、finish reason、usage/SSE tests | — | 禁止 OpenAI 专属字段；length 只触发当前 unit 缩片 |
 | OUT-001 | RUNTIME | BR-05/07 | 未开始 | — | CORE-001/CHUNK-001 | response → canonical、原时间映射、overlap 合并与质量门禁 | 计划：`transcription-canonicalizer.ts`、tests | 计划：segment/word/estimated、边界重复、空响应、coverage tests | — | 不做全文去重；含语音 unit 的空文本必须失败 |
@@ -963,7 +963,7 @@ docs/v0.3.1/audio-transcriber-enhancement/audio-transcriber-enhancement_implemen
 | 需求门 | 已通过 | Final Design 第 1.5～1.7 节已包含单一角色/权限、BR-01～BR-15、优先级、可测 AC、范围外、具体边界、A-01～A-11、Q-01～Q-03；用户于 2026-09-03 确认 |
 | 设计门 | 已通过 | Final Design 已包含代码落点、模块边界、数据模型、完整状态机、fixed IPC、错误/CTA、前端组件树/五态/交互/响应式/i18n/a11y、测试与风险；用户于 2026-09-03 确认 |
 | 任务门 | 已通过 | 本文 25 个包均有模块、关联 BR、依赖、文件范围、实现要点、完成条件和验证；会话预算固定为 ≤8 files/≤300 LOC；用户于 2026-09-03 确认 |
-| 完成门 | 未开始 | 每个实现包必须通过第 9 节、自带测试、台账 + record 同步和无 mock/TODO/范围外改动后才能完成 |
+| 完成门 | 进行中 | PRE-001 已有 fixture/证据/record，但真实供应商矩阵未通过，故保持阻塞；其他实现包尚未开始 |
 
 | 检查点 | 状态 | 日期 | 结论 |
 | --- | --- | --- | --- |
@@ -975,4 +975,4 @@ docs/v0.3.1/audio-transcriber-enhancement/audio-transcriber-enhancement_implemen
 
 ## 11. 下一步建议
 
-`CP-SPEC-01` 已获用户确认。下一会话领取 `PRE-001`，只做有界供应商/fixture 证据冻结；完成后领取 `CORE-001`，冻结 route、canonical 和 output 类型。首个编码会话不得修改 AudioTranscriber 页面、不得删除 legacy `audio:transcribe`、不得提前接入 Silero，也不得把 MiMo 填入 OpenAI Transcriptions 请求模板。
+下一会话继续 `PRE-001`：从本机环境读取可用 OpenAI/MiMo 密钥，使用不进入 Git 的短 WAV/MP3、M4A→MP3、约 5 分钟高文本密度与多片样本补齐脱敏真实证据。全部通过后才能把 PRE 标为完成并领取 `CORE-001`；不得修改 AudioTranscriber 页面、不得接入 Silero，也不得把 MiMo 填入 OpenAI Transcriptions 请求模板。

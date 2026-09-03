@@ -72,10 +72,27 @@ export interface OpenAIRealtimeClientSecretOptions {
   model?: string;
 }
 
+export type MimoAsrFinishReason = "stop" | "length" | "content_filter" | null;
+
+export interface MimoAsrUsageOptions {
+  seconds: number;
+}
+
 export interface MimoAsrBodyOptions {
-  text: string;
+  text?: string;
   model?: string;
-  finishReason?: string | null;
+  finishReason?: MimoAsrFinishReason;
+  usage?: MimoAsrUsageOptions;
+  omitChoices?: boolean;
+}
+
+export interface MimoStreamingAsrOptions {
+  textChunks: readonly string[];
+  model?: string;
+  finishReason?: Exclude<MimoAsrFinishReason, null>;
+  usage?: MimoAsrUsageOptions;
+  includeTerminalChunk?: boolean;
+  includeDone?: boolean;
 }
 
 export interface MimoSpeechBodyOptions {
@@ -141,22 +158,67 @@ export function createOpenAIRealtimeClientSecretBody(
 export function createMimoAsrBody(
   options: MimoAsrBodyOptions,
 ): Record<string, unknown> {
+  const choices = options.omitChoices
+    ? []
+    : [
+        {
+          index: 0,
+          message: {
+            role: "assistant",
+            content: options.text ?? "",
+          },
+          finish_reason: options.finishReason === undefined
+            ? "stop"
+            : options.finishReason,
+        },
+      ];
+
   return {
     id: "chatcmpl-fusionkit-fake-asr",
     object: "chat.completion",
     created: 1_750_000_000,
     model: options.model ?? "mimo-v2.5-asr",
-    choices: [
-      {
-        index: 0,
-        message: {
-          role: "assistant",
-          content: options.text,
-        },
-        finish_reason: options.finishReason ?? "stop",
-      },
-    ],
+    choices,
+    ...(options.usage ? { usage: { seconds: options.usage.seconds } } : {}),
   };
+}
+
+export function createMimoStreamingAsrEvents(
+  options: MimoStreamingAsrOptions,
+): Array<Record<string, unknown> | string> {
+  const model = options.model ?? "mimo-v2.5-asr";
+  const events: Array<Record<string, unknown> | string> = options.textChunks.map(
+    (content, index) => ({
+      id: "chatcmpl-fusionkit-fake-asr-stream",
+      object: "chat.completion.chunk",
+      created: 1_750_000_000 + index,
+      model,
+      choices: [{ index: 0, delta: { content }, finish_reason: null }],
+    }),
+  );
+
+  if (options.includeTerminalChunk ?? true) {
+    events.push({
+      id: "chatcmpl-fusionkit-fake-asr-stream",
+      object: "chat.completion.chunk",
+      created: 1_750_000_000 + options.textChunks.length,
+      model,
+      choices: [
+        {
+          index: 0,
+          delta: {},
+          finish_reason: options.finishReason ?? "stop",
+        },
+      ],
+      ...(options.usage ? { usage: { seconds: options.usage.seconds } } : {}),
+    });
+  }
+
+  if (options.includeDone ?? true) {
+    events.push("[DONE]");
+  }
+
+  return events;
 }
 
 export function createMimoSpeechBody(

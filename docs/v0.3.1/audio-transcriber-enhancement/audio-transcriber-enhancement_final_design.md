@@ -2,9 +2,9 @@
 
 > 版本目标：v0.3.1 及后续兼容版本
 >
-> 文档版本：2.0.0
+> 文档版本：2.0.1
 >
-> 文档状态：Spec-Driven 规划已确认；下一工作包为 `PRE-001`
+> 文档状态：Spec-Driven 规划已确认；`PRE-001` 等待真实供应商凭据，`VAD-001` 已后移
 >
 > 调研与设计日期：2026-08-30；Spec 质量复审日期：2026-09-03
 >
@@ -21,6 +21,7 @@
 | 1.0.0 | 2026-08-30 | 冻结多格式、媒体规范化、智能分片、OpenAI/MiMo 双 route 方案 | 已归档为初始设计 |
 | 1.1.0 | 2026-08-30 | 补强 MiMo Chat Completion、Base64、2K 输出、finish reason 与 usage 合同 | 已归档为兼容性复审 |
 | 2.0.0 | 2026-09-03 | 按 Spec-Driven 质量门补齐编号需求、角色权限、假设/问题、模块边界、UI 五态、接口/错误映射和追踪矩阵 | 用户已确认 `CP-SPEC-01` |
+| 2.0.1 | 2026-09-03 | 登记 PRE-001 官方合同/fixture 证据、真实矩阵阻塞与 Silero 后移结论 | 不改变 BR 基线；等待真实供应商验证 |
 
 ## 0. 评审结论
 
@@ -142,11 +143,11 @@
 
 | ID | 未决问题 | 影响需求 | 默认方案与解除条件 |
 | --- | --- | --- | --- |
-| Q-01 | 当前 pinned runtime 是否存在可直接复用的 official Silero executor surface | BR-06、BR-15 | 默认不接 Silero；PRE-001 证明版本、调用面、取消、打包和许可后解除 |
+| Q-01 | 已决：当前 pinned runtime 不存在可直接复用的 official standalone Silero executor surface | BR-06、BR-15 | `VAD-001` 不进入 v0.3.1；保留 `pcm_energy_v1 + fixed_window`，未来引入新 runtime 时重新立项 |
 | Q-02 | MiMo 的 MP3 profile 与 4/5 分钟 policy 是否能稳定避免 10 MB Base64 和 2K 输出截断 | BR-03、BR-04、BR-11 | 使用保守 profile/policy；PRE-001 的短 WAV/MP3、M4A→MP3、5 分钟密集文本和多片真实结果解除 |
 | Q-03 | 自定义 OpenAI-compatible route 如何声明 upload/response/timestamp contract | BR-01、BR-03 | 无显式版本化 contract 时 fail closed；未来若开放，先修改 BR-01 和 route schema |
 
-这些问题不阻塞 Spec 质量确认；它们是 `PRE-001` 的产品决策输入。若结果改变 P0 用户能力，先升级本文件版本并取得确认，再调整后续工作包。
+这些问题不阻塞 Spec 质量确认；Q-01 已由 `PRE-001` 静态审计关闭，Q-02 仍等待真实供应商矩阵，Q-03 保持 fail-closed。若结果改变 P0 用户能力，先升级本文件版本并取得确认，再调整后续工作包。
 
 ## 2. 当前实现与可复用资产
 
@@ -286,6 +287,8 @@ interface AudioTranscriptionRouteConstraints {
 ```
 
 内置 MiMo 初始 route snapshot 使用 `chat_completion_text`、`maxOutputTokens=2_000`、`acceptedFinishReasons=["stop"]`、`maxAudioItemsPerRequest=1`、`maxBase64Chars=10_000_000`、`billing.metric="audio_duration"` 和文档化限流 hint。约束解析仍必须由现有 `resolveTranscriptionRouteDefinition({ providerPreset, transport, model })` 完成。renderer 只消费脱敏后的能力摘要；main 在开始任务时重新解析并冻结可信快照；adapter 在每个分片请求前再做 defense-in-depth 校验。
+
+`PRE-001` 的官方依据、十进制 Base64 公式、候选 OpenAI byte cap、MiMo profile/policy、真实矩阵阻塞和 Silero 审计见 [`poc/2026-09-03_PRE-001_provider-contract-evidence.md`](./poc/2026-09-03_PRE-001_provider-contract-evidence.md)。没有真实凭据时，上述 MP3 profile、4/5 分钟策略和 OpenAI 边界仍是保守候选值，不能被 fake fixture 宣称为供应商实证。
 
 ## 4. 最终用户体验
 
@@ -1598,7 +1601,7 @@ git diff --check
 3. `MEDIA-001`：抽取 shared media runtime/process/probe，不改变本地字幕行为。
 4. `MEDIA-002`：Audio generic media authorization、probe、音轨与 task lease。
 5. `CHUNK-001`：upload profiles、payload budget、frame planner、energy/fixed detector。
-6. `VAD-001`：只有 PRE 证明现有官方 runtime surface 足够时接入 Silero；否则保持可插拔 backlog，不阻塞基础链路。
+6. `VAD-001`：PRE 已确认没有可直接复用的 official standalone surface；该包退出 v0.3.1，基础链路使用 `pcm_energy_v1 + fixed_window`。
 7. `BE-001`：Job Manager、orchestrator、prepared-unit adapter、checkpoint/cancel。
 8. `OUT-001`：canonical merge 与 TXT/JSON/SRT/VTT/LRC exporter。
 9. `IPC-001`：fixed preload、public policy、snapshot/event 与 production composition。
@@ -1621,7 +1624,7 @@ git diff --check
 | MiMo SSE 被误当成流式上传或完成证据 | 请求仍一次提交完整 Base64；仅终止原因为 `stop` 时提交 chunk，delta 只是临时预览 |
 | MiMo 请求数被错误换算为费用 | 按预计/回报音频时长展示，request count 只用于耗时和限流，overlap 单独计入 |
 | Server-side VAD 被误当成上传分片 | 只在一个合规 upload unit 内使用；客户端仍拥有 transport planner |
-| Silero 没有独立可调用 runtime | 先审计 pinned official surface；energy/fixed fallback 保证基础功能，不先写 native bridge |
+| Silero 没有独立可调用 runtime | PRE 静态审计已确认；`VAD-001` 后移，energy/fixed 保证基础功能，不新造 native bridge |
 | VAD 后字幕整体提前 | 只保存原 PCM frame interval，不拼接压缩时间轴 |
 | 无 timestamp provider 的 SRT/LRC 不准 | 短 boundary-aligned requests + estimated timing + 明确标签/费用预览 |
 | 大量小片导致费用或限流 | 默认顺序、请求数预览、确认/硬上限、优先原生 timestamp route |
@@ -1671,7 +1674,7 @@ git diff --check
 | BR-03 | 7.2～7.5 | MEDIA-001、MEDIA-003、PROV-001、PROV-002 | direct/transcode、实际 byte/MIME/duration/Base64、abort/cleanup |
 | BR-04 | 8.1、8.2、8.4、9.4 | CHUNK-001、BE-002、PROV-002 | frame coverage、预算公式、413/length 有限重规划、多片 E2E |
 | BR-05 | 8.3～8.7、10.1 | CHUNK-002、OUT-001 | 长静音/后段语音、无静音 hard cut、estimated timing、overlap fixtures |
-| BR-06 | 8.3、8.6 | PRE-001、VAD-001 | official surface 决策、packaged/no-PATH、原 frame interval、fallback |
+| BR-06 | 8.3、8.6 | PRE-001（`VAD-001` 已废弃） | official surface 否定证据、energy/fixed 原 frame interval 与 fallback |
 | BR-07 | 6.3、9、10.1 | CORE-001、OUT-001、BE-002 | canonical golden、word/segment fallback、空响应/coverage/merge 反例 |
 | BR-08 | 4.3、10.2～10.7 | OUT-002、FE-001、FE-003 | TXT/JSON/SRT/VTT/LRC golden + parse-back + Electron 结果操作 |
 | BR-09 | 4.4、6.2、12.3、12.7 | MEDIA-002、CHUNK-001、FE-002 | preview identity/stale race、费用确认、所有开始门禁 |
@@ -1689,7 +1692,7 @@ git diff --check
 | 检查点 | 状态 | 达成条件 | 当前结论 |
 | --- | --- | --- | --- |
 | `CP-SPEC-01` 需求与设计确认 | 已完成 | BR-01～BR-15、A-01～A-11、Q-01～Q-03、模块边界、UI/接口/错误合同和 Execution Plan 追踪无矛盾，并获用户确认 | 2026-09-03 用户确认需求、设计、任务拆分与默认假设 |
-| `CP-DEV-01` 最小纵向链路 | 未开始 | Execution Plan M2 完成，可演示 M4A/MP4→MP3→多片 fake provider→TXT/canonical JSON | `CP-SPEC-01` 已完成；从 `PRE-001` 开始推进 |
+| `CP-DEV-01` 最小纵向链路 | 未开始 | Execution Plan M2 完成，可演示 M4A/MP4→MP3→多片 fake provider→TXT/canonical JSON | `PRE-001` 等待本机真实供应商凭据与样本，解除前不领取 `CORE-001` |
 | `CP-ACCEPT-01` 阶段验收 | 未开始 | M4 自动化与 Electron 候选通过，已生成逐 BR 的人工测试清单 | 等实现完成后进入 |
 
-用户确认 `CP-SPEC-01` 后，下一会话先领取 `PRE-001`；首个编码包 `CORE-001` 只冻结 route/canonical/output 合同，不改 AudioTranscriber 页面、不删除 legacy `audio:transcribe`，也不提前接入 Silero。
+下一会话先用本机环境密钥与非提交样本解除 `PRE-001`；完成后再领取 `CORE-001`，只冻结 route/canonical/output 合同，不改 AudioTranscriber 页面、不删除 legacy `audio:transcribe`，也不接入 Silero。
