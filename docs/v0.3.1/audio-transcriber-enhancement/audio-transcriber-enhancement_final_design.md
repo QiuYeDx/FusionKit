@@ -1,9 +1,26 @@
 # 音频转文本工具增强 Final Design
 
 > 版本目标：v0.3.1 及后续兼容版本
-> 文档状态：设计冻结，已完成 OpenAI / MiMo 双供应商兼容性复审，待拆分执行计划
-> 调研与设计日期：2026-08-30
+>
+> 文档版本：2.0.0
+>
+> 文档状态：Spec-Driven 规划已确认；下一工作包为 `PRE-001`
+>
+> 调研与设计日期：2026-08-30；Spec 质量复审日期：2026-09-03
+>
 > 适用范围：`/tools/audio/transcriber` 远程大模型 API 音频转文本工具
+>
+> 工作流：L 级、旧格式兼容模式；保留 `*_final_design.md` / `*_execution_plan.md`，不建立第二套 BRD/module 文档
+
+## 文档治理与需求来源
+
+`spec-driven-ai-coding` 对已有旧格式项目要求沿用旧格式。本文件继续承担“需求基底 + 设计合同”双重职责，其中只有第 1.6 节 `BR-*` 表是本功能的唯一需求基底；其他章节是对这些需求的设计实现。任何新增或修改需求必须先更新第 1.6 节和下表版本记录，再更新设计章节、Execution Plan 与代码。
+
+| 文档版本 | 日期 | 变更 | 状态 |
+| --- | --- | --- | --- |
+| 1.0.0 | 2026-08-30 | 冻结多格式、媒体规范化、智能分片、OpenAI/MiMo 双 route 方案 | 已归档为初始设计 |
+| 1.1.0 | 2026-08-30 | 补强 MiMo Chat Completion、Base64、2K 输出、finish reason 与 usage 合同 | 已归档为兼容性复审 |
+| 2.0.0 | 2026-09-03 | 按 Spec-Driven 质量门补齐编号需求、角色权限、假设/问题、模块边界、UI 五态、接口/错误映射和追踪矩阵 | 用户已确认 `CP-SPEC-01` |
 
 ## 0. 评审结论
 
@@ -43,12 +60,12 @@
 
 ### 1.2 目标
 
-1. 用户可选择常见音频和视频媒体，工具自动探测音轨并在必要时转码。
+1. 用户可选择 BR-02 列出的九类音频和视频媒体，工具自动探测音轨；原容器/编码不满足当前 route 时按第 7 节转码。
 2. 用户可稳定导出 TXT、canonical JSON、SRT、VTT 和标准行级 LRC。
 3. 超过供应商单次 payload 上限的媒体自动按可信预算分片，不要求用户手工裁剪。
 4. 优先在静音/语音边界切片，避免句中硬切；无法取得可靠语音边界时有明确、可用的固定窗口 fallback。
 5. 合并后文本顺序、原始时间轴、取消、错误、临时文件与输出提交都有可验证合同。
-6. 用户在开始前能看到是否会转码、预计请求数、时间轴质量和可能的额外费用/耗时。
+6. 用户在开始前能看到是否会转码、预计请求数、时间轴质量，以及当前 route 的计费维度和预计上传音频时长。
 7. 保留现有 Audio API profile、assignment、provider route 和 renderer 安全边界。
 
 ### 1.3 成功标准
@@ -70,6 +87,66 @@
 - 不保证无时间戳 provider 的估算字幕达到强制对齐工具的精度；必须通过 `timingQuality` 和 UI 标签如实表达。
 - 不在首版跨应用重启恢复未完成的远程任务；同会话失败可复用已完成分片，应用重启后用户需重新授权源文件。
 - 不把供应商原始 JSON 作为稳定公开 schema；稳定合同是 FusionKit canonical JSON。
+
+### 1.5 用户角色与权限边界
+
+本功能只有一个产品角色：`U-01 本机桌面用户`。不新增管理员、审核员、团队成员或远程账户权限；API 服务侧的账号与计费权限由用户配置的现有 Audio API profile 决定。
+
+| 主体 | 可以查看 | 可以创建或修改 | 可以取消或删除 | 明确禁止 |
+| --- | --- | --- | --- | --- |
+| `U-01` 本机桌面用户 | 自己当前窗口 owner 下的媒体摘要、计划、任务进度、结果摘要和安全诊断 | 选择一个媒体、选择音轨、修改未提交偏好、开始任务、保存或复制结果 | 取消自己的活动任务；清除自己的终态任务和临时结果 | 查看 API Key、真实路径、FFmpeg 参数、raw provider body、其他 owner 的 task/token |
+| Renderer 页面 | 已脱敏 route 能力、probe/plan/task snapshot 和有界 preview | 通过 fixed preload 提交类型化意图 | 通过 `taskId + generation` 请求 cancel/retry/clear | 解析真实路径、计算 provider payload、执行 FFmpeg、直接读写 artifact |
+| Electron main | 当前 sender/owner 已授权的媒体、route private snapshot、临时文件和 provider response | 签发/提升 capability，执行 probe/normalize/chunk/request/merge/export | owner release 或用户操作时 fence、abort、清理 | 向 renderer 泄漏密钥、路径、token、stderr、raw body 或跨 owner 资源 |
+
+所有公开操作都必须从 Electron sender 推导 owner；renderer 不能提交 owner ID，也不能凭展示名访问资源。
+
+### 1.6 编号需求基线
+
+以下 `BR-*` 是本功能唯一需求列表。优先级定义：`P0` 为 v0.3.1 发布必需，`P1` 为不阻塞基础链路的增强。每条验收标准都使用可观测结果，不以“代码已写完”作为完成依据。
+
+| ID | 标题 | 优先级 | 角色/入口 | 可测验收标准 |
+| --- | --- | --- | --- | --- |
+| BR-01 | 按完整 route 解析供应商能力 | P0 | U-01；全局 Audio 配置 + 转写页 | 同一 OpenAI provider 下 GPT transcription 与 Whisper 显示不同输入/响应/时间戳能力；MiMo 使用独立 Chat Completion 合同；未知内置模型和无 upload contract 的 compatible route 在开始前 fail closed |
+| BR-02 | 接受并探测明确的音视频输入 | P0 | U-01；文件选择/拖放区 | WAV、MP3、M4A、FLAC、OGG、WebM、MP4、MKV、MOV 可被授权和探测；无音轨时禁止开始；多音轨时可选择一个音轨；renderer 不接收真实路径 |
+| BR-03 | 自动生成 route-safe 上传媒体 | P0 | U-01；开始任务 | route 原生支持的合规输入可直传；其他输入由 bundled FFmpeg 转成 route 声明的 WAV 或 MP3；实际产物在请求前重新校验 MIME、byte、duration 和 Base64 预算 |
+| BR-04 | 大媒体自动分片 | P0 | U-01；计划预览/任务 | 大于供应商单次预算的源媒体可以进入 draft；main 生成有限数量的 request units；每个实际请求均低于 route byte/Base64/duration/output 上限；越界只重规划当前 unit 且不会无限缩片 |
+| BR-05 | 自然边界与原媒体时间轴 | P0 | U-01；智能分片开关/结果 | 默认 `smart` 使用 `pcm_energy_v1`，失败时回退 `fixed_window`；所有 core frame 无洞覆盖；长静音后的语音仍保持原绝对毫秒；无原生时间戳时结果标记 `estimated` |
+| BR-06 | 条件式 Silero VAD | P1 | U-01；计划预览 | 只有 PRE-001 证明现有 official surface 可打包、可取消且返回原 PCM interval 时才启用 `silero_vad`；缺失或失败时透明回退 energy/fixed 并在预览显示实际策略；不得阻塞 BR-01～BR-05 |
+| BR-07 | 统一 Canonical Transcript | P0 | U-01；结果 | OpenAI segment/word 与 MiMo 文本都转换为 `schemaVersion: 1` canonical；时间为整数毫秒且单调有界；相邻 overlap 只做局部仲裁；缺失必需 chunk、含语音空响应或无效时间轴不产生完成结果 |
+| BR-08 | 导出五种用户格式 | P0 | U-01；输出格式/结果操作 | 任一可用 route 均可导出 TXT、canonical JSON；存在原生或 estimated 时间轴时可导出 SRT、VTT、标准行级 LRC；五种格式均通过 parse-back；LRC 相同量化标签保序且不丢文本 |
+| BR-09 | 开始前提供权威计划和费用提示 | P0 | U-01；执行预览 | 预览显示 direct/转码/多片、实际边界策略、时间轴质量、预计请求数、预计上传时长和 warning；达到费用确认阈值时必须确认；媒体、route、runtime 或输出 capability 改变后旧预览不能授权开始 |
+| BR-10 | 长任务跨页面持续与重同步 | P0 | U-01；任务卡 | start 后由 main Job Manager 持有任务；页面离开后任务继续，返回后通过 subscribe-before-snapshot/revision 恢复；同 owner 同时最多一个活动任务；窗口 owner release 才统一取消和清理 |
+| BR-11 | 可取消、可重试且错误可操作 | P0 | U-01；任务/失败卡 | cancel 覆盖 FFmpeg、boundary、HTTP、merge/export 并等待底层收敛；exact checkpoint 有效时只重试失败 unit；402、429、5xx、413、MiMo length/filter/空响应映射为稳定分类和明确 CTA |
+| BR-12 | 安全输出、隐私与完整提交 | P0 | U-01；输出位置/结果 | display/source/custom 均由 main 的 task-owned authority 处理；同目录 partial 经 flush/close/parse-back 后 no-clobber 发布；preview 最大 256 KiB；路径、密钥、token、stderr 和 raw body 不进入 Store、公开 IPC 或 canonical JSON |
+| BR-13 | 偏好迁移与兼容切换 | P0 | U-01；配置区 | Store v4 的 text/json/verbose_json/srt/vtt 按第 15.1 节幂等迁移到 v5；prompt 和运行态不持久化；新页面完全切到 task API 前保留 legacy `audio:transcribe`，但一次操作绝不同时调用两条路径 |
+| BR-14 | 桌面 UX、四语言与可访问性 | P1 | U-01；`/tools/audio/transcriber` | loading/empty/error/ready/running/completed/cancelled 状态可实际触发；zh/zh-Hant/en/ja 键值一致且 source usage 通过；786×540 与 1080×786 无横向溢出；选择、音轨、开始、取消、重试和结果操作可键盘完成 |
+| BR-15 | Packaged runtime 与资源/费用边界 | P0 | U-01；开始门禁/发布包 | packaged app 在空 media-tool PATH 下使用 manifest 校验的 FFmpeg/ffprobe；源媒体上限 64 GiB/24 h/128 tracks，请求单元上限 2,000，canonical artifact 上限 64 MiB；缺失、hash 错、错架构和启动失败在任务 admission 前分类拒绝 |
+
+### 1.7 约束、假设与未决问题
+
+假设在用户确认或 PRE 证据闭环前不能被实现 silently 扩大。默认方案选择最保守、最可逆的行为。
+
+| ID | 假设 | 当前默认 | 验证/确认责任 |
+| --- | --- | --- | --- |
+| A-01 | 首版一次只准备一个源媒体，同 owner 只有一个活动转写任务 | 保持单文件 UI 和 owner 并发 1 | 用户确认；BE-001 验证 |
+| A-02 | 首版每个任务只请求一个最终输出格式 | 不实现多格式事务或 partial 多格式状态 | 用户确认；OUT-002 验证 |
+| A-03 | 第 14 节产品边界可作为 v0.3.1 初始值 | 64 GiB、24 h、128 tracks、2,000 units、256 KiB preview、64 MiB artifact | PRE-001/QA-004 以有界样本复核 |
+| A-04 | MiMo 普通文本 unit 使用 4 分钟 target、5 分钟 hard max，M4A 转为固定 MP3 profile | 未获真实证据前不提高时长或码率 | PRE-001 真实最小矩阵 |
+| A-05 | 首版 provider units 顺序执行 | 不并行发送，request count 只用于耗时/限流估计 | 用户确认；BE-002/QA-004 验证 |
+| A-06 | `pcm_energy_v1 + fixed_window` 足以构成首版智能分片基础链路 | Silero 为 P1 条件包 | 用户确认；CHUNK-002/QA-001 验证 |
+| A-07 | 首版不跨应用重启恢复远程转写 | app 重启后重新选择媒体；仅同会话 checkpoint 可重试 | 用户确认；BE-001 验证 |
+| A-08 | 稳定 JSON 指 FusionKit canonical JSON，不保留旧 raw provider JSON 语义 | raw response 仅 main-private、有界、短生命周期 | 用户确认；OUT-002/DOC-001 验证 |
+| A-09 | 首版费用确认阈值按计划上传时长、请求数和计费可解释性共同决定 | `plannedUploadAudioMs > 30 min`、`estimatedRequestCount > 10` 或 `billingMetric=provider_defined` 任一成立时要求确认；确认绑定 preview revision | 用户确认；FE-002/QA-002 验证 |
+| A-10 | 新安装使用面向普通用户的安全默认偏好 | `language=auto`、`outputFormat=txt`、`timingPreference=auto`、`boundaryStrategy=smart`、`outputMode=display_only` | 用户确认；FE-001 验证 |
+| A-11 | 自由文本 prompt 需要产品硬上限，route 可进一步收紧 | 最多 4,000 个 Unicode scalar values；route 不支持 prompt 时 main 拒绝非空值 | 用户确认；CORE-001/FE-001 验证 |
+
+| ID | 未决问题 | 影响需求 | 默认方案与解除条件 |
+| --- | --- | --- | --- |
+| Q-01 | 当前 pinned runtime 是否存在可直接复用的 official Silero executor surface | BR-06、BR-15 | 默认不接 Silero；PRE-001 证明版本、调用面、取消、打包和许可后解除 |
+| Q-02 | MiMo 的 MP3 profile 与 4/5 分钟 policy 是否能稳定避免 10 MB Base64 和 2K 输出截断 | BR-03、BR-04、BR-11 | 使用保守 profile/policy；PRE-001 的短 WAV/MP3、M4A→MP3、5 分钟密集文本和多片真实结果解除 |
+| Q-03 | 自定义 OpenAI-compatible route 如何声明 upload/response/timestamp contract | BR-01、BR-03 | 无显式版本化 contract 时 fail closed；未来若开放，先修改 BR-01 和 route schema |
+
+这些问题不阻塞 Spec 质量确认；它们是 `PRE-001` 的产品决策输入。若结果改变 P0 用户能力，先升级本文件版本并取得确认，再调整后续工作包。
 
 ## 2. 当前实现与可复用资产
 
@@ -311,6 +388,19 @@ Electron main: audio transcription namespace
 | Canonicalizer | 时间域映射、response schema 校验、边界重复仲裁、文本/时间规范化 |
 | Exporter | 从同一 canonical 生成 TXT/JSON/SRT/VTT/LRC，parse-back、原子提交与 output token |
 
+为满足一 Agent 一模块的 Spec 开发边界，旧格式 Execution Plan 中的工作包按以下六个文档模块归属。这里的模块只用于职责和改动范围管理，不在源码创建 `module-*` 目录。
+
+| 模块短码 | 职责 | 不负责 | 主要代码落点 | 对外只通过 |
+| --- | --- | --- | --- | --- |
+| `COMMON` | route constraints、canonical/task/event/error/limits 共享合同 | 媒体执行、HTTP 请求、页面状态 | `src/lib/audio-provider-registry.ts`、`src/type/audio.ts`、`src/type/audioIpc.ts` | 版本化 TypeScript schema、稳定 error code |
+| `MEDIA` | runtime/probe/track proof、规范化、payload planner、boundary detector | provider 字段、task/session、用户输出 | `electron/main/media/*`、`electron/main/audio/transcription-media-*`、`transcription-chunk-planner.ts`、`transcription-boundary-detector.ts` | prepared unit、原 PCM frame interval、media proof |
+| `PROVIDER` | OpenAI/MiMo 单 prepared-unit 请求与严格响应解析 | 源文件切分、跨请求 retry、canonical merge、export | `electron/main/audio/adapters/*`、`test/audio/fakeAudioApiServer.ts` | provider result/error，不暴露 raw body |
+| `RUNTIME` | Job Manager、orchestrator、checkpoint、artifact、fixed IPC、owner lifecycle | provider 专属字段、页面组件、持久化偏好 | `electron/main/audio/*`、`electron/preload/*` | task/event/snapshot/output-token fixed API |
+| `UI` | Store v5、app-level runtime service、页面五态、计划/进度/结果交互和 i18n | payload/FFmpeg 计算、真实路径、任务权威状态 | `src/store/tools/audio/*`、`src/services/audio/*`、`src/pages/Tools/Audio/AudioTranscriber/*`、`src/locales/*/audio.json` | COMMON schema + fixed preload API |
+| `RELEASE` | 自动化整合、Electron/packaged/真实供应商验收和发布说明 | 在验收包中静默修业务代码 | `test/audio/*`、packaged validators、`README.md`、`CHANGELOG.md`、验收记录 | 缺陷转成独立 `FIX-*` 包 |
+
+任一实现会话只能认领一个模块的一个工作包；若需要修改 `COMMON` 或另一个模块，先更新 Execution Plan 的依赖和范围，再由对应模块任务完成。
+
 ### 5.2 为什么新增 Job Manager
 
 单个大媒体可能经历数十分钟和多个本地/网络阶段。继续让 React 组件 `await audio:transcribe` 会导致：
@@ -318,7 +408,7 @@ Electron main: audio transcription namespace
 - 页面卸载后缺少可靠进度 owner。
 - 只能取消当前 HTTP，无法统一取消 FFmpeg、VAD、后续分片和导出。
 - 无法重试一个失败分片而复用已完成结果。
-- 全量 canonical JSON/字幕可能超过合理 IPC payload。
+- 全量 canonical JSON/字幕可能超过 256 KiB 的公开 preview 上限。
 
 Job Manager 仍属于 `audio:*`，不复用本地字幕 Job Manager；它只管理当前 renderer session 的远程转写任务。
 
@@ -337,6 +427,16 @@ interface AudioTranscriberPreferencesV5 {
   outputDir: string; // 仅安全显示名，真实目录仍是 token
 }
 ```
+
+| 字段 | 必填 | 新安装默认 | 允许值/范围 | 是否持久化 |
+| --- | --- | --- | --- | --- |
+| `language` | 是 | `auto` | 当前完整 route 明确声明的语言枚举；MiMo 仅 `auto/zh/en` | 是 |
+| `outputFormat` | 是 | `txt` | `txt/json/srt/vtt/lrc` | 是 |
+| `timingPreference` | 是 | `auto` | `auto/segment/word`；route 不支持可信 word 时 sanitize 为 `auto` | 是 |
+| `boundaryStrategy` | 是 | `smart` | `smart/fixed` | 是 |
+| `prompt` | 是 | 空字符串 | 0～4,000 个 Unicode scalar values，并受 route max 二次限制 | 否；页面/renderer session 结束即清空 |
+| `outputMode` | 是 | `display_only` | `display_only/source_dir/custom_dir` | 是 |
+| `outputDir` | 是 | 空字符串 | 仅 main 返回的安全目录显示名，最多 256 个 Unicode scalar values；`custom_dir` token 另存 session state | 是；只存显示名 |
 
 - 移除用户层 `responseFormat`；provider request/response contract 由 main 协商。MiMo 不生成虚构的 provider `response_format`。
 - 文件 `stream` 不再作为通用持久化开关。只有单请求直传且 route 支持时可作为高级选项；进入转码/多片模式后使用“按完成分片逐步显示”，不混合多个 SSE token 流。
@@ -459,6 +559,23 @@ interface AudioTranscriptionTaskProgress {
   totalChunks?: number;
 }
 ```
+
+状态迁移由 main 唯一触发；renderer 只能提交 start/cancel/retry/clear 意图：
+
+| 当前状态 | 可迁移到 | 触发者与条件 | 不可逆点/非法行为 |
+| --- | --- | --- | --- |
+| `queued` | `preparing_media`、`cancelling`、`failed` | Job Manager 获得 admission；用户取消；前置 proof 失效 | 不得跳过媒体重新验证直接进入请求 |
+| `preparing_media` | `detecting_speech`、`planning_chunks`、`cancelling`、`failed` | normalization 完成后按实际 strategy；用户取消；媒体失败 | prepared unit 未通过实际 byte/duration 校验不得继续 |
+| `detecting_speech` | `planning_chunks`、`cancelling`、`failed` | detector 返回有效原 frame interval；用户取消；所有 fallback 失败 | 不得发布压缩时间轴 |
+| `planning_chunks` | `transcribing`、`cancelling`、`failed` | core 完整覆盖且 request count/预算通过；用户取消；计划失败 | 缺 coverage 或超过 2,000 units 不得请求 provider |
+| `transcribing` | `merging`、`cancelling`、`failed` | 全部 unit 为 `transcribed/no_speech`；用户取消；不可重试错误/重试耗尽 | 缺 unit、MiMo 非 `stop`、含语音空文本不得合并 |
+| `merging` | `exporting`、`cancelling`、`failed` | canonical 结构、时间轴和内容门禁通过；用户取消；合并失败 | canonical 未通过不得生成 artifact |
+| `exporting` | `completed`、`cancelling`、`failed` | parse-back + atomic commit 成功；commit 前取消；输出失败 | artifact commit 是用户文件不可逆点 |
+| `cancelling` | `cancelled`、`completed`、`failed` | 底层全部 settle 且 commit 前无产物；已 commit 则 completed + warning；cleanup 失败 | 不得在 child/request 未 settle 时谎报 cancelled |
+| `failed` | 新 generation 的 `queued` | 仅用户 retry 且 exact checkpoint/source/route/profile identity 仍有效 | 不允许原 generation 复活；不满足资格时只能新建 task |
+| `completed`、`cancelled` | 被 `clearTask` 移除 | 用户清除；main 完成 token/temp cleanup | 终态不能回到运行态 |
+
+`failed`、`completed`、`cancelled` 是 generation 终态。`clearTask` 删除的是 registry 实体，不是状态迁移；已提交的用户输出文件不会被 clear 删除。
 
 UI 同时只显示一个与当前阶段一致的进度条：
 
@@ -585,7 +702,7 @@ optional serialized-body guard:
   actualJsonUtf8Bytes <= maxSerializedBodyBytes
 ```
 
-`safetyRatio` 和 route max 都是版本化 main policy。当前建议安全比例为 0.90。MiMo 官方约束的是 Base64 编码字符串，因此 data URI prefix/JSON overhead 不应从这 10 MB 中臆算扣除；完整 JSON body 仍受独立 app-owned memory/body guard。实际 Base64 ASCII 字符数、序列化 UTF-8 byte 与生成文件 byte 都必须在请求前精确复核，不能只依赖 bitrate 估算。
+`safetyRatio` 和 route max 都是版本化 main policy。首版安全比例固定为 0.90。MiMo 官方约束的是 Base64 编码字符串，因此 data URI prefix/JSON overhead 不从这 10 MB 中臆算扣除；完整 JSON body 仍受独立 app-owned memory/body guard。实际 Base64 ASCII 字符数、序列化 UTF-8 byte 与生成文件 byte 都必须在请求前精确复核，不能只依赖 bitrate 估算。
 
 如果供应商仍返回 payload-too-large：
 
@@ -627,13 +744,13 @@ interface SpeechBoundaryDetector {
 6. 生成实际 MP3/WAV 后检查 byte size；超预算则重规划当前区间。
 7. 每个计划项最终必须是 `transcribed`、可信 `no_speech` 或显式失败。
 
-通用建议初始 policy：transport 目标最长 15 分钟；自然切点搜索窗口不超过前后 15 秒；硬切 overlap 初始 750 ms。MiMo 不能直接使用这个通用上限：由于 `mimo-v2.5-asr` 最大输出 2K，`mimo_v2_5_asr_v1` 在真实 fixture 冻结前使用 4 分钟 target、5 分钟 hard max；如果 `finish_reason=length`，仅把当前区间按自然边界二分并有限重试。字幕估算仍使用下一节更短的 30 秒上限。所有数值属于版本化 main policy，不能散落在 UI。
+首版通用 policy 固定为：transport 目标最长 15 分钟；自然切点搜索窗口为候选边界前后各 15 秒；硬切 overlap 为 750 ms。MiMo 不能直接使用这个通用上限：由于 `mimo-v2.5-asr` 最大输出 2K，`mimo_v2_5_asr_v1` 在真实 fixture 冻结前使用 4 分钟 target、5 分钟 hard max；如果 `finish_reason=length`，仅把当前区间按自然边界二分并有限重试。字幕估算仍使用下一节更短的 30 秒上限。所有数值属于版本化 main policy，不能散落在 UI。
 
 ### 8.5 字幕格式且 provider 无时间戳
 
 当用户选择 SRT/VTT/LRC，而 route `timestampCapability === "none"`：
 
-1. planner 使用 VAD/能量 interval 生成更短的 boundary-aligned request unit，初始上限建议 30 秒。
+1. planner 使用 VAD/能量 interval 生成更短的 boundary-aligned request unit，首版上限固定为 30 秒。
 2. 每个 request unit 的返回文本只归属于该绝对时间区间。
 3. 按标点和 grapheme-safe 文本边界分成 cue，再按区间内 voiced duration 与字符权重分配整数毫秒。
 4. cue 标记 `local_vad_estimated`；若使用固定窗口则标记 `fixed_window_estimated`。
@@ -817,22 +934,157 @@ provider response
 
 ### 11.1 新的 fixed API
 
-计划新增或替换为以下固定方法：
+计划新增或替换为以下固定方法。所有 Promise 结果使用项目既有 `AudioIpcResult<T>` 成功/失败判别联合；失败结构只允许第 13 节列出的稳定 code 与安全字段。
 
 ```ts
+interface AuthorizedAudioMediaReceipt {
+  fileToken: string;
+  displayName: string;
+  source: "picker" | "drop";
+  expiresAt: number;
+}
+
+interface AudioTranscriptionTaskIntent {
+  language: string;
+  outputFormat: AudioTranscriptionExportFormat;
+  timingPreference: "auto" | "segment" | "word";
+  boundaryStrategy: "smart" | "fixed";
+  prompt: string;
+  outputMode: "display_only" | "source_dir" | "custom_dir";
+  outputDirToken?: string;
+}
+
+interface AudioTranscriptionPlanPreviewRequest {
+  probeId: string;
+  selectedTrackId?: string;
+  intent: AudioTranscriptionTaskIntent;
+}
+
+interface StartAudioTranscriptionTaskRequest
+  extends AudioTranscriptionPlanPreviewRequest {
+  clientRequestId: string;
+  previewRevision: number;
+  costConfirmed: boolean;
+}
+
+interface AudioTranscriptionTaskPublicState {
+  taskId: string;
+  generation: number;
+  revision: number;
+  status: AudioTranscriptionTaskStatus;
+  progress?: AudioTranscriptionTaskProgress;
+  result?: AudioTranscriptionTaskResultSummary;
+  error?: {
+    code: AudioTranscriptionPipelineErrorCode;
+    stage: AudioTranscriptionTaskStatus;
+    retryable: boolean;
+    chunkIndex?: number;
+    totalChunks?: number;
+    reason?: AudioTranscriptionFailureReason;
+    details?: AudioTranscriptionSafeDiagnostics;
+  };
+}
+
+type AudioTranscriptionTaskEvent =
+  | {
+      type: "task_updated";
+      taskId: string;
+      generation: number;
+      revision: number;
+      status: AudioTranscriptionTaskStatus;
+      task: AudioTranscriptionTaskPublicState;
+    }
+  | {
+      type: "task_removed";
+      taskId: string;
+      generation: number;
+      revision: number;
+      status: "completed" | "cancelled" | "failed";
+    };
+
+interface AudioTranscriptionMutationReceipt {
+  taskId: string;
+  generation: number;
+  accepted: boolean;
+  status: AudioTranscriptionTaskStatus;
+  revision: number;
+}
+
 interface AudioTranscriptionApi {
-  authorizeMedia(file: File, source: "picker" | "drop"): Promise<...>;
-  probeMedia(request: { fileToken: string }): Promise<...>;
-  previewPlan(request: AudioTranscriptionPlanPreviewRequest): Promise<...>;
-  startTask(request: StartAudioTranscriptionTaskRequest): Promise<...>;
-  getTaskSnapshot(request: { taskId: string }): Promise<...>;
+  authorizeMedia(
+    file: File,
+    source: "picker" | "drop",
+  ): Promise<AudioIpcResult<AuthorizedAudioMediaReceipt>>;
+  probeMedia(request: {
+    fileToken: string;
+  }): Promise<AudioIpcResult<AudioTranscriptionMediaProbeSummary>>;
+  previewPlan(
+    request: AudioTranscriptionPlanPreviewRequest,
+  ): Promise<AudioIpcResult<AudioTranscriptionPlanPreview & { revision: number }>>;
+  startTask(
+    request: StartAudioTranscriptionTaskRequest,
+  ): Promise<AudioIpcResult<AudioTranscriptionMutationReceipt>>;
+  getTaskSnapshot(request: {
+    taskId: string;
+  }): Promise<AudioIpcResult<AudioTranscriptionTaskPublicState | null>>;
   subscribeTask(listener: (event: AudioTranscriptionTaskEvent) => void): () => void;
-  cancelTask(request: { taskId: string; generation: number }): Promise<...>;
-  retryTask(request: { taskId: string; generation: number }): Promise<...>;
-  copyOutput(request: { outputToken: string }): Promise<...>;
-  saveOutput(request: { outputToken: string }): Promise<...>;
-  revealOutput(request: { outputToken: string }): Promise<...>;
-  clearTask(request: { taskId: string }): Promise<...>;
+  cancelTask(request: {
+    taskId: string;
+    generation: number;
+  }): Promise<AudioIpcResult<AudioTranscriptionMutationReceipt>>;
+  retryTask(request: {
+    taskId: string;
+    generation: number;
+  }): Promise<AudioIpcResult<AudioTranscriptionMutationReceipt>>;
+  copyOutput(request: {
+    outputToken: string;
+  }): Promise<AudioIpcResult<{ copied: true; characterCount: number }>>;
+  saveOutput(request: {
+    outputToken: string;
+  }): Promise<AudioIpcResult<{ saved: boolean; outputFileName?: string }>>;
+  revealOutput(request: {
+    outputToken: string;
+  }): Promise<AudioIpcResult<{ revealed: true }>>;
+  clearTask(request: {
+    taskId: string;
+  }): Promise<AudioIpcResult<{ cleared: true }>>;
+}
+```
+
+`selectedTrackId` 只能取 probe summary 中的 ID；省略表示使用 main 返回的 `autoSelectedTrackId`。`previewRevision` 只用于检测陈旧预览，不是执行授权；`startTask` 必须重新验证 probe、source identity、route/config revision、runtime generation 和 output capability。`clientRequestId` 是 renderer session 内随机 ID，同 owner 重复提交相同 ID 必须返回同一 task receipt，禁止重复创建付费任务。
+
+| 方法 | 所有权与幂等性 | 主要成功结果 | 必测失败 |
+| --- | --- | --- | --- |
+| `authorizeMedia` | sender + preload owner；一次 File capture，不可用 renderer path 重放 | 短 TTL `fileToken` 与安全显示名 | `authorization_expired`、不支持来源、Explorer proxy 无法唯一恢复 |
+| `probeMedia` | token 有效期内幂等；同 owner media admission 串行 | `AudioTranscriptionMediaProbeSummary` | runtime missing/invalid/launch、probe failed、no audio、media changed、产品上限 |
+| `previewPlan` | 同 exact probe/track/intent/config revision 幂等；不占用 task | 带 revision 的 plan summary | stale proof、unknown route、custom contract 缺失、request count 超限、custom output token 缺失 |
+| `startTask` | `owner + clientRequestId` 幂等；成功后消费/提升 draft authority | task/generation/revision receipt | stale preview、费用未确认、owner busy、route/media/runtime/output 已变化 |
+| `getTaskSnapshot` | 只读幂等；仅当前 owner | 当前 task 或 `null` | owner mismatch、invalid task id |
+| `subscribeTask` | 每个 renderer app service 建立一个 listener；unsubscribe 幂等 | revisioned event | malformed/foreign owner event 必须丢弃 |
+| `cancelTask` | `taskId + generation` 幂等 | cancelling/terminal receipt | stale generation、foreign owner、底层 cleanup `cancel_failed` |
+| `retryTask` | 原 generation 只允许签发一个新 generation | 新 generation receipt | checkpoint/source/route/profile 失效、不可重试错误、owner busy |
+| `copyOutput` | token 有效期内幂等；不返回全文 | copied + character count | token 过期/owner mismatch、超 clipboard policy 时引导保存 |
+| `saveOutput` | 每次可打开一次系统保存流程；取消返回 `saved:false` | 安全文件名，不返回路径 | token 过期、目标不可写、用户取消不是错误 |
+| `revealOutput` | 已提交且 token 有效时幂等 | `revealed:true` | display-only 未保存、token/owner 失效、shell 打开失败 |
+| `clearTask` | 终态 task 幂等清除 | `cleared:true` | 活动 task 必须先 cancel；cleanup 失败保留可重试 authority |
+
+示例：开始一个已确认的 MiMo 多片任务时，renderer 只提交意图和 opaque proof，不提交 provider 参数或路径。
+
+```json
+{
+  "clientRequestId": "01J7Y6Q4NKR1E6B9W4X2DA8T0M",
+  "probeId": "probe_opaque",
+  "selectedTrackId": "track_opaque",
+  "previewRevision": 12,
+  "costConfirmed": true,
+  "intent": {
+    "language": "zh",
+    "outputFormat": "srt",
+    "timingPreference": "auto",
+    "boundaryStrategy": "smart",
+    "prompt": "",
+    "outputMode": "display_only"
+  }
 }
 ```
 
@@ -881,6 +1133,8 @@ app shutdown 的每个 phase 都必须无条件执行并保存首错；不能用
 
 继续使用现有 `AudioToolShell` 与标准工具详情布局：
 
+- 页面路由固定为 `/tools/audio/transcriber`，入口继续使用工具首页现有“音频转文本”卡片；配置缺失时 CTA 前往 `/setting?tab=audio&returnTo=%2Ftools%2Faudio%2Ftranscriber`。
+- 页面只面向 `U-01` 本机桌面用户，不新增登录态或页面级角色分支；资源归属由 fixed preload/main owner 校验。
 - 配置区：语言、输出格式、时间精度、智能分片、prompt、输出位置。
 - 工作区：文件投放、媒体/音轨摘要、执行预览、开始/取消、阶段进度、结果预览。
 - 高级说明只在实际 plan 需要时出现，不展示 FFmpeg 参数、bitrate 或供应商内部 response format。
@@ -907,7 +1161,7 @@ app shutdown 的每个 phase 都必须无条件执行并保存首错；不能用
 - timed output 的预计请求数超过硬上限。
 - 自定义 compatible route 没有明确 upload contract。
 
-费用保护阈值只要求用户确认，不把合理长媒体误报为 `limit_exceeded`。
+费用保护按 A-09：预计上传音频超过 30 分钟、预计请求超过 10 个或 route 的 `billingMetric=provider_defined` 时要求用户确认；仍符合 BR-15 产品边界的媒体不得因此误报为 `limit_exceeded`。
 
 ### 12.4 结果状态
 
@@ -920,8 +1174,98 @@ app shutdown 的每个 phase 都必须无条件执行并保存首错；不能用
 
 - 音轨与有限枚举使用语义化 RadioGroup/Select，键盘可完整操作。
 - 开始/取消状态使用 `aria-live` 的简短阶段文本，不连续播报每个百分比。
-- 窄窗口保持工作区先于配置区；长文件名和诊断在卡片内可换行，不制造横向滚动。
+- `lg`（1024 CSS px）及以上沿用 `ToolDetailLayout` 的 `320px 配置区 + minmax(0,1fr) 工作区`；低于 `lg` 时工作区必须排在配置区之前，两区都取消 sticky。
+- 发布验收视口固定覆盖 1080×786 与 786×540；低于 786×540 不是首版承诺尺寸，但页面仍必须可纵向滚动，主按钮不能被固定层遮挡。
+- 长文件名、诊断和 provider/model 名称在卡片内 `min-width:0` 并可换行，不制造横向滚动。
 - 所有新增用户文案进入 `src/locales/{zh,zh-Hant,en,ja}/audio.json` 并通过 source usage 检查。
+
+### 12.6 组件树、复用与数据流
+
+```text
+AudioTranscriber route (/tools/audio/transcriber)
+└─ AudioToolShell
+   └─ ToolDetailLayout
+      ├─ AudioTranscriberWorkspace（窄窗口第一、桌面右侧）
+      │  ├─ ToolFileDropZone
+      │  ├─ MediaSummaryCard
+      │  │  └─ AudioTrackSelector（ToolRadioButtonGroup / Select）
+      │  ├─ TranscriptionPlanPreviewCard
+      │  ├─ TranscriptionTaskCard
+      │  │  └─ Progress / Button / Alert
+      │  ├─ TranscriptionResultCard
+      │  └─ TranscriptionErrorCard
+      └─ AudioTranscriberConfig（窄窗口第二、桌面左侧）
+         ├─ ToolField + Select：语言、输出格式、时间精度
+         ├─ ToolField + Switch：智能分片
+         ├─ ToolField + Textarea：prompt（route 支持时）
+         └─ ToolRadioButtonGroup + ToolOutputPathPicker：输出位置
+```
+
+- 复用现有 `AudioToolShell`、`ToolDetailLayout`、`ToolPanel`、`ToolField`、`ToolFileDropZone`、`ToolRadioButtonGroup`、`ToolOutputPathPicker`、Radix Select、Switch、Alert、Progress 和 Button；不建立第二套表单/卡片视觉系统。
+- 配置由 `useAudioTranscriberStore` 的 v5 持久化 preference 直接驱动；不复制到页面 local state 再回写。
+- draft file、probe/plan、task summary 和 output token 是 session-only runtime state。app-level `audioTranscriptionRuntimeService` 唯一订阅 main event/snapshot；route component 只订阅该 service 的视图快照。
+- 所有 async 结果以 `probeId`、task `generation/revision` 和当前 intent identity 防止陈旧响应覆盖；不使用乐观 task completion。
+- route change 会使未提交 preview 失效；已经提交的 task 使用 main 冻结的 route snapshot，不因页面当前设置改变而变更。
+
+### 12.7 页面五态与表单状态
+
+| 状态 | 触发条件 | 页面必须显示 | 允许操作 | 禁止/隐藏 |
+| --- | --- | --- | --- | --- |
+| `loading` | app service 初次 snapshot、文件授权、probe 或 plan preview 尚未 settle | 原布局内 spinner/骨架、具体阶段短文案；不得清空已知配置 | 取消文件选择流程；返回其他页面 | start、重复 picker、重复 preview |
+| `empty` | route 可用但没有媒体 draft | 文件投放区、支持格式摘要、“选择文件”主按钮 | picker、drop、前往设置 | start、音轨、结果操作 |
+| `error` | route/runtime/probe/plan/task/output 任一失败 | 固定标题、安全原因、受影响阶段、`i/n`（如适用）和错误映射表规定的 CTA | 对应的重试、重新选择、前往设置或保存操作 | raw message、路径、HTTP body、stderr、token |
+| `ready` | probe、音轨、plan 和输出 capability 均有效 | 媒体摘要、音轨、执行预览、时间轴质量、请求数/费用确认和“开始转写” | 修改配置后重算 preview、开始、移除媒体 | 同一 preview 的重复并发 start |
+| `running` | task 为 queued 至 exporting | 当前阶段；只有 meaningful stage 显示一条 bar/百分比；分片 `i/n` 可并列 | 取消、离开页面 | 修改已冻结 task、重新 start、清除 task |
+| `completed` | artifact 已完整提交 | 结果摘要、有界 preview、格式/timing/cue/request/warning；MiMo usage 差异摘要 | 复制、保存、显示文件、清除、选择新媒体 | retry、raw provider JSON |
+| `cancelled` | commit 前取消且全部底层工作已收敛 | “已取消转写”、已清理说明 | 清除、选择新媒体 | 结果操作；若 commit 已发生则不得进入此态 |
+
+表单还必须覆盖：
+
+- `validating`：字段值已变化但 preview 尚未返回；保持输入，start 禁用。
+- `submitting`：`startTask` 等待幂等 receipt；开始按钮显示 spinner 并禁用，失败后保留媒体、配置和 preview failure context。
+- `validation_failed`：错误紧邻字段或计划卡显示；不能只 toast，也不能清空用户输入。
+- `disabled`：route 不支持的字段不渲染；因当前任务锁定的字段保留可见值并禁用，旁边说明“本次任务已使用提交时配置”。
+- `partial preview`：`previewTruncated=true` 只表示显示文本被截断，不是任务部分成功；必须提供保存/复制策略且不能显示“部分完成”。
+
+### 12.8 交互清单
+
+| 用户操作 | 系统行为 | 成功反馈 | 失败后的可恢复动作 |
+| --- | --- | --- | --- |
+| 点击“选择文件” | native picker 返回 File；保持 input 到 preload 授权 settle；main 签发 token 并 probe | 媒体摘要和实际文件名出现 | 授权/探测失败时保留配置，显示“重新选择”或“重试探测” |
+| 从 Explorer 拖入 | fixed preload 同步捕获 FileList；main 唯一证明原始 Shell source | 与 picker 相同，不显示 `%TEMP%` proxy 名 | 无法唯一恢复时 fail closed，并提示改用选择文件 |
+| 选择音轨 | 只提交 probe 中的 track ID，触发新 plan preview | 摘要高亮目标 codec/language/channels | stale track 时重新 probe，不静默切回另一音轨 |
+| 修改输出/时间/边界/prompt | Store 更新安全偏好，旧 preview 立即标记 stale | 新 preview settle 后恢复 start | preview 失败保留修改值并显示字段/计划级错误 |
+| 点击“开始转写” | 若需费用确认先打开项目 Dialog；确认后使用 `clientRequestId` 幂等提交 | task 卡进入 queued/阶段状态 | receipt 失败恢复 ready；未知结果可用同 ID 查询/重试，不新建重复付费任务 |
+| 点击“取消” | 立刻禁用重复点击并进入 cancelling；main abort/settle/cleanup | commit 前显示 cancelled；commit 后显示 completed + warning | `cancel_failed` 显示“重试清理”，保留 main authority |
+| 点击“重试失败分片” | main 验证 checkpoint/source/route/profile identity，创建新 generation | 新 generation 从 queued 开始并复用 exact 成功 chunks | identity 失效时按钮变为“重新开始”并解释原因 |
+| 点击“复制全文” | main 用 output token 读取并写 clipboard，不经 renderer 传全文 | 非阻塞 toast“已复制” | 内容超过 clipboard policy 时 CTA 改为“保存文件” |
+| 点击“保存文件” | main 打开系统保存流程并执行 no-clobber/atomic copy | toast“已保存”，显示安全文件名 | 用户取消不报错；写入失败保留 token 供重试 |
+| 点击“在文件夹中显示” | 仅已提交 source/custom artifact 调用 shell reveal | 文件管理器打开 | display-only 未保存时引导先保存 |
+| 点击“清除” | terminal task 先完成 token/temp cleanup，再从 registry 移除 | 页面回到 empty/ready draft | cleanup 失败保留任务和“重试清理” |
+
+破坏性操作只有“取消活动任务”和“清除终态结果”。取消必须说明已发生的供应商请求可能已计费；清除只移除 FusionKit 当前会话记录和私有临时结果，不删除用户已经保存的文件。
+
+### 12.9 文案与视觉基准
+
+中文源文案及四语言 key 语义固定如下；具体 key 名由 `FE-002/FE-003` 在 `audio:transcriber` namespace 下建立并通过 source-usage 检查。
+
+| 场景 | 标题/正文 | 主操作 |
+| --- | --- | --- |
+| empty | “选择一个音频或视频文件开始转写” | “选择文件” |
+| route 缺失 | “尚未配置可用的音频转写模型” | “前往设置” |
+| authorizing/probing | “正在读取媒体信息…” | 无 |
+| estimated timing | “字幕时间为智能估算，精度低于模型原生时间戳” | 无 |
+| cost confirmation | “预计发送 {requestCount} 次请求，上传音频约 {duration}。当前模型按 {billingMetricLabel} 计费；实际费用以供应商账单为准。” | “确认并开始” |
+| running | “正在{stageLabel}” + 可选 “{completed}/{total} 个片段” | “取消” |
+| failed chunk | “第 {index}/{total} 个片段转写失败” | “重试失败分片”或“重新开始” |
+| cancelled | “已取消转写” | “清除” |
+| completed | “转写完成” | “复制全文”/“保存文件” |
+| runtime unavailable | “媒体处理组件不可用，请修复或重新安装 FusionKit” | 无；start 禁用 |
+
+- 视觉使用现有主题 token、圆角、边框、`muted` 层级和工具页密度；计划/结果/错误各只使用一层主卡片，不嵌套多层边框。
+- 阶段变化允许 150–200 ms opacity/height 过渡，但不得延迟按钮响应；`prefers-reduced-motion` 时取消非必要位移。
+- 焦点顺序固定为主工作区文件操作 → 音轨/计划 → 开始/取消/结果操作 → 配置区；Dialog 关闭后焦点返回触发按钮。
+- 图标按钮必须有本地化 `aria-label`，状态不能只靠颜色区分；进度 bar 提供 `aria-valuenow/min/max`。
 
 ## 13. 错误合同
 
@@ -948,6 +1292,46 @@ type AudioTranscriptionPipelineErrorCode =
   | "artifact_too_large"
   | "output_validation_failed"
   | "cancel_failed";
+
+type AudioTranscriptionFailureReason =
+  | "not_found"
+  | "integrity_mismatch"
+  | "wrong_architecture"
+  | "launch_timeout"
+  | "invalid_container"
+  | "no_matching_track"
+  | "identity_changed"
+  | "source_limit_exceeded"
+  | "request_limit_exceeded"
+  | "payload_limit_exceeded"
+  | "duration_limit_exceeded"
+  | "response_output_limit_exceeded"
+  | "finish_reason_length"
+  | "finish_reason_content_filter"
+  | "empty_content"
+  | "invalid_schema"
+  | "request_timeout"
+  | "rate_limited"
+  | "authentication_failed"
+  | "balance_insufficient"
+  | "server_error"
+  | "network_error"
+  | "timeline_out_of_bounds"
+  | "coverage_incomplete"
+  | "parse_back_failed"
+  | "write_failed"
+  | "cleanup_failed";
+
+interface AudioTranscriptionSafeDiagnostics {
+  actualBytes?: number;
+  maximumBytes?: number;
+  actualDurationMs?: number;
+  maximumDurationMs?: number;
+  requestCount?: number;
+  maximumRequestCount?: number;
+  retryAfterMs?: number;
+  providerStatus?: number;
+}
 ```
 
 公开 error 只允许以下安全字段：
@@ -961,7 +1345,33 @@ type AudioTranscriptionPipelineErrorCode =
 
 任意 `Error.message`、路径、URL query、API Key、Authorization header、native stderr、完整供应商 response 和未知 metadata 都在 IPC 边界丢弃。UI summary 从固定 i18n 文案重建。
 
-### 13.1 失败与部分结果
+### 13.1 错误到 UI 与恢复动作映射
+
+| Error code | 用户看到的固定语义 | 默认 CTA | 可重试条件 |
+| --- | --- | --- | --- |
+| `media_runtime_missing` | “媒体处理组件缺失，请修复或重新安装 FusionKit” | 无；禁用开始 | 安装/修复后重新探测 |
+| `media_runtime_invalid` | “媒体处理组件校验失败，请修复或重新安装 FusionKit” | 无；禁用开始 | 资源 generation 更新后重新探测 |
+| `media_runtime_launch_failed` | “媒体处理组件无法启动” | “重试探测” | runtime identity 未变化时允许一次用户触发重试；重复失败引导修复 |
+| `media_probe_failed` | “无法读取该媒体的信息” | “重试探测”/“重新选择” | source identity 有效时可重试 |
+| `no_audio_stream` | “该媒体没有可用音轨” | “重新选择” | 不重试同一 probe |
+| `media_changed` | “媒体文件已发生变化，请重新选择” | “重新选择” | 原 proof 不可重试 |
+| `disk_space_insufficient` | “可用磁盘空间不足，无法准备音频” | “释放空间后重试” | 重新做磁盘预算后可重试 |
+| `media_normalization_failed` | “音频转换失败” | “重试”/“重新选择” | 仅 timeout/临时锁可重试；invalid media 不可重试 |
+| `boundary_detection_failed` | “无法检测语音边界，将使用固定分片”或“分片准备失败” | 自动 fallback；全部策略失败时“重试” | energy/fixed 仍可用时不终止；全部失败才重试 |
+| `chunk_plan_failed` | “无法在当前限制内生成安全的分片计划” | “调整输出格式或重新选择” | intent/route/source 改变后新建任务 |
+| `provider_payload_too_large` | “片段仍超过模型单次请求限制” | 先自动缩片；耗尽后“重新开始” | 只允许当前 unit 有限重规划 |
+| `provider_response_truncated` | “模型返回内容被截断” | “重试失败分片” | exact checkpoint 有效，且缩短当前 unit 后可重试 |
+| `provider_content_filtered` | “模型未返回该片段的内容” | “重新开始”或更换模型 | 默认不可自动重试 |
+| `chunk_transcription_failed` | “第 {index}/{total} 个片段转写失败” | “重试失败分片” | 429/timeout/network/5xx 且 checkpoint 有效；402/auth 不可重试 |
+| `transcript_timeline_invalid` | “模型返回的时间轴无效” | “重新开始”或更换模型 | 同 response 不重试；更短 unit/route 改变后新建 generation |
+| `transcript_merge_failed` | “无法完整合并所有转写片段” | “重新开始” | 只有新的计划或 route 才可重试 |
+| `artifact_too_large` | “结果超过 FusionKit 可安全处理的大小” | “调整分片/输出后重新开始” | 不复用当前 artifact |
+| `output_validation_failed` | “输出文件校验失败，未发布结果” | “重试导出” | canonical/checkpoint 完整且输出 authority 仍有效 |
+| `cancel_failed` | “任务已停止，但临时资源尚未完全清理” | “重试清理” | main 保留 cleanup authority 直到成功或 owner shutdown |
+
+402/`balance_insufficient` 和 401/403/`authentication_failed` 使用现有 Audio 配置错误体系补充标题与“前往设置”CTA，不包装成媒体启动问题。用户文案不能展示 provider 原始 message。
+
+### 13.2 失败与部分结果
 
 - 任一必需 chunk 缺失时任务是 `failed`，不自动发布“部分完成”的 TXT/SRT/LRC。
 - 已成功 chunk 的 main-private checkpoint 可用于同会话重试。
@@ -970,9 +1380,9 @@ type AudioTranscriptionPipelineErrorCode =
 
 ## 14. 性能与资源边界
 
-建议建立 `AUDIO_TRANSCRIPTION_PIPELINE_LIMITS` 单一常量，初始值通过 fixture/真实样本冻结：
+建立 `AUDIO_TRANSCRIPTION_PIPELINE_LIMITS` 单一常量，初始合同值通过 fixture/真实样本复核：
 
-| 边界 | 建议初始值 | 目的 |
+| 边界 | 首版合同值 | 目的 |
 | --- | ---: | --- |
 | 源媒体最大 byte | 64 GiB | 与现有媒体基础设施的安全上限一致 |
 | 源媒体最大时长 | 24 h | 防止意外产生不可控费用；仍覆盖常见会议/视频 |
@@ -1179,9 +1589,9 @@ git diff --check
 
 这些样本不进入 Git；只记录脱敏的格式、时长、请求数、timeline/parse-back 与人工结论。
 
-## 18. 实施顺序建议
+## 18. 实施顺序摘要
 
-本文只冻结设计，不代替后续 execution plan。建议按以下依赖顺序拆包：
+本文冻结需求与设计，不代替已经存在的 `audio-transcriber-enhancement_execution_plan.md`。下列顺序是架构级依赖摘要；实际领取、模块范围、状态和实施记录以 Execution Plan 为准：
 
 1. `PRE-001`：冻结 OpenAI/MiMo route response/upload/timestamp/billing/limit 矩阵、官方 runtime VAD 能力与最小真实 fixture；MiMo 必须先验证 MP3 profile、finish reason、usage.seconds 和 4/5 分钟 policy。
 2. `CORE-001`：导出格式、canonical、task/event/error/Store v5 类型。
@@ -1250,6 +1660,36 @@ git diff --check
 23. 不得把 MiMo `finish_reason=length/content_filter`、SSE 断流或空文本写成成功检查点。
 24. 不得把 MiMo `usage.seconds` 当成 cue 时间轴，也不得只按请求数推断 MiMo 费用。
 
-## 21. 下一步
+## 21. 需求追踪与规划检查点
 
-下一会话应基于本文创建 `audio-transcriber-enhancement_execution_plan.md`，把第 18 节拆成单会话工作包和状态台账。首个实现包应只冻结 route/canonical/task 类型与 shared media 抽取边界，不立即改页面或删除 legacy `audio:transcribe`。
+### 21.1 BR → 设计 → 工作包 → 验收追踪
+
+| 需求 | 主要设计章节 | Execution Plan 工作包 | 最终验收证据 |
+| --- | --- | --- | --- |
+| BR-01 | 3、6、9 | PRE-001、CORE-001、PROV-001、PROV-002 | route matrix tests、fake provider 字段断言、OpenAI/MiMo 真实最小矩阵 |
+| BR-02 | 4.2、7.1、7.2 | MEDIA-001、MEDIA-002、FE-002 | 九类媒体 fixture、多音轨、无音轨、picker/Explorer drag |
+| BR-03 | 7.2～7.5 | MEDIA-001、MEDIA-003、PROV-001、PROV-002 | direct/transcode、实际 byte/MIME/duration/Base64、abort/cleanup |
+| BR-04 | 8.1、8.2、8.4、9.4 | CHUNK-001、BE-002、PROV-002 | frame coverage、预算公式、413/length 有限重规划、多片 E2E |
+| BR-05 | 8.3～8.7、10.1 | CHUNK-002、OUT-001 | 长静音/后段语音、无静音 hard cut、estimated timing、overlap fixtures |
+| BR-06 | 8.3、8.6 | PRE-001、VAD-001 | official surface 决策、packaged/no-PATH、原 frame interval、fallback |
+| BR-07 | 6.3、9、10.1 | CORE-001、OUT-001、BE-002 | canonical golden、word/segment fallback、空响应/coverage/merge 反例 |
+| BR-08 | 4.3、10.2～10.7 | OUT-002、FE-001、FE-003 | TXT/JSON/SRT/VTT/LRC golden + parse-back + Electron 结果操作 |
+| BR-09 | 4.4、6.2、12.3、12.7 | MEDIA-002、CHUNK-001、FE-002 | preview identity/stale race、费用确认、所有开始门禁 |
+| BR-10 | 5.2、6.4、11.2、12.7 | CORE-002、BE-001、IPC-001、RT-001、FE-003 | 状态迁移、revision race、导航恢复、owner release |
+| BR-11 | 9.4～9.6、11.3、13 | CORE-002、BE-002、PROV-001、PROV-002、FE-003 | 分阶段 cancel、checkpoint identity、HTTP/finish reason/error CTA |
+| BR-12 | 6.5、10.7、11、15.2 | OUT-002、BE-001、IPC-001、FE-003 | atomic/no-clobber、token owner/expiry、preview cap、敏感数据扫描 |
+| BR-13 | 15.1～15.4 | FE-001、IPC-001、QA-001、DOC-001 | v4→v5 fixture、hydration、legacy 单路径 cutover、release note |
+| BR-14 | 12 | FE-002、FE-003、QA-002 | 七种页面状态、四语言、786×540/1080×786、键盘/aria |
+| BR-15 | 7.4、14、17.3～17.5 | MEDIA-001、CHUNK-001、QA-003、QA-004、DOC-001 | packaged/no-PATH、fault injection、产品上限、真实长媒体/费用/隐私 |
+
+每条 P0 需求至少映射一个实现包和一个真实验收证据；`QA-*` 不得替代各实现包自带的单元/合同测试。需求、设计或工作包发生变化时，本表与 Execution Plan 台账必须在同一提交更新。
+
+### 21.2 规划检查点
+
+| 检查点 | 状态 | 达成条件 | 当前结论 |
+| --- | --- | --- | --- |
+| `CP-SPEC-01` 需求与设计确认 | 已完成 | BR-01～BR-15、A-01～A-11、Q-01～Q-03、模块边界、UI/接口/错误合同和 Execution Plan 追踪无矛盾，并获用户确认 | 2026-09-03 用户确认需求、设计、任务拆分与默认假设 |
+| `CP-DEV-01` 最小纵向链路 | 未开始 | Execution Plan M2 完成，可演示 M4A/MP4→MP3→多片 fake provider→TXT/canonical JSON | `CP-SPEC-01` 已完成；从 `PRE-001` 开始推进 |
+| `CP-ACCEPT-01` 阶段验收 | 未开始 | M4 自动化与 Electron 候选通过，已生成逐 BR 的人工测试清单 | 等实现完成后进入 |
+
+用户确认 `CP-SPEC-01` 后，下一会话先领取 `PRE-001`；首个编码包 `CORE-001` 只冻结 route/canonical/output 合同，不改 AudioTranscriber 页面、不删除 legacy `audio:transcribe`，也不提前接入 Silero。

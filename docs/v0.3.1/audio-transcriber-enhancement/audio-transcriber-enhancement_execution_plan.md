@@ -2,15 +2,27 @@
 
 > 创建日期：2026-08-30
 >
+> Spec 质量复审：2026-09-03
+>
 > Feature Slug：`audio-transcriber-enhancement`
 >
 > 对应设计文档：`docs/v0.3.1/audio-transcriber-enhancement/audio-transcriber-enhancement_final_design.md`
 >
 > 实施记录目录：`docs/v0.3.1/audio-transcriber-enhancement/audio-transcriber-enhancement_implementation_records/`
 >
-> 当前状态：25 个顶层工作包全部未开始。基础发布链路不依赖 `VAD-001`；Silero 只有在 `PRE-001` 证明现有官方 runtime surface 可直接、可打包、可取消地复用后才进入首版。
+> 当前状态：`CP-SPEC-01` 已于 2026-09-03 获用户确认，25 个顶层工作包全部未开始；下一工作包为 `PRE-001`。基础发布链路不依赖 `VAD-001`；Silero 只有在 `PRE-001` 证明现有 official runtime surface 可直接、可打包、可取消地复用后才进入首版。
 
 本文是工作包、进度台账和多会话交接合同，不重复定义产品行为。产品范围、OpenAI/MiMo route 合同、时间轴语义、输出格式、安全边界与错误语义以 Final Design 为准；若实现发现两份文档不能同时满足，必须先修订设计，再继续编码。
+
+## 0. Spec-Driven 兼容模式
+
+本功能在引入 `spec-driven-ai-coding` 前已经存在 `*_final_design.md` 和 `*_execution_plan.md`。按该 Skill 的入口规则继续使用旧格式，不再创建平行的 `brd.md`、`modules/*`、`task-list-overall.md`；否则同一需求会出现两个 source of truth。
+
+- Final Design 第 1.6 节 `BR-01`～`BR-15` 是唯一需求基底。
+- Final Design 第 5.1 节定义 `COMMON/MEDIA/PROVIDER/RUNTIME/UI/RELEASE` 六个模块边界。
+- 本文第 7 节同时承担 task list overall 与状态台账职责；每个工作包就是一个可领取任务。
+- Final Design 第 21 节是需求追踪矩阵和检查点记录。
+- `CP-SPEC-01` 获用户确认前不得把任何工作包改为 `进行中`，不得修改业务代码。
 
 ---
 
@@ -20,18 +32,20 @@
 
 每次实现会话必须按顺序完成：
 
-1. 完整阅读 Final Design 和本 Execution Plan，不能只依赖聊天摘要或上一会话实施记录。
+1. 完整阅读 Final Design 的文档治理、第 1.6 节需求基线、第 1.7 节假设/问题、第 5.1 节模块边界和本 Execution Plan，不能只依赖聊天摘要或上一会话实施记录。
 2. 阅读 `.agents/skills/fusionkit-pitfall-guard/references/index.md`，再按工作包读取相关条目；至少覆盖本计划第 4 节列出的规则。
-3. 检查第 7 节进度台账，只认领一个能在单次聚焦会话中完成实现、验证和记录的工作包。确需跨包时，先在台账问题列说明不可拆原因。
+3. 检查 Final Design 的 `CP-SPEC-01` 已获确认，并检查第 7 节进度台账。一次只认领一个模块中的一个工作包；强耦合任务最多同时领取 3 个，必须先写明不可拆原因。
 4. 运行 `git status --short --branch`，识别并保留用户已有修改；只暂存本工作包文件，禁止使用 `git add -A` 混入无关内容。
-5. 在编辑前把工作包状态改为 `进行中`，并明确本次文件范围、验证命令、不涉及范围和外部依赖。
+5. 核对工作包的“模块/关联需求/依赖/代码落点/验收/测试”。在编辑前把工作包状态改为 `进行中`，并在回复开头声明任务 ID、关联 BR、产出、文件范围、验收标准、测试和停点。
 6. 若工作包依赖尚未完成，只能进行无歧义的准备或测试夹具工作；不得用临时复制合同、mock ready 状态或 renderer 私有常量绕过依赖。
 7. 若需变更依赖或 lockfile，先确认 `pnpm --version`。仓库当前使用 pnpm 8.x 与 lockfile v6；普通验证优先直接调用 `node_modules/.bin/*`，不得让不兼容 pnpm 重写 lockfile。
+8. 预估本包新增/修改超过 8 个文件或 300 行有效变更时，不得直接开工；先把它拆为 `<ID>A/<ID>B` 等可独立验证任务，并同步依赖图、台账、详情和 BR 覆盖。纯只读/命令型 QA 可以读取更多文件，但发现缺陷后必须新增 `FIX-*`，不能在 QA 包内跨模块修代码。
 
 ### 1.2 实施中
 
-- Final Design 是产品与架构 source of truth；本计划只决定切包、顺序、验收与交接。
+- Final Design 第 1.6 节是需求 source of truth，其他章节是设计合同；本计划只决定切包、顺序、验收与交接。
 - 每个包必须保持单一职责。发现独立缺陷时新增 `FIX-*` 工作包和 `fix/` 文档，不把无关修复塞进当前包。
+- 一个 Agent 在一次会话中只能修改当前模块的代码落点。需要改 COMMON 或其他模块时先走文档变更管理，不得顺手跨模块修复。
 - 新增产品能力时优先闭合纵向可运行切片，不能留下永远使用 mock 的 handler、没有消费者的类型或只在开发机 PATH 下可运行的媒体流程。
 - OpenAI 与 MiMo 共用 prepared-unit/canonical 基础设施，但必须保留各自 route contract 和 adapter；不得用 OpenAI 字段或响应假设实现 MiMo。
 - 本地字幕工具只复用无业务语义的媒体 primitive。其 Job Manager、session、模型、字幕类型和 IPC namespace 必须继续独立。
@@ -47,6 +61,7 @@
 5. 运行 `git diff --check` 与 `git status --short`，确认没有媒体、密钥、路径、token、临时文件、打包二进制或用户改动被误纳入提交。
 6. 若启动 Vite、Electron、fake server、FFmpeg/ffprobe 或真实供应商请求，结束前关闭所有进程并等待 child `close`、请求和 cleanup 收敛。
 7. 只有代码、测试、文档、台账和实施记录全部闭环后才可标记 `已完成`；真实供应商或 packaged 平台门禁不能被 fake server 或开发态构建替代。
+8. 按关联 `BR-*` 的验收标准逐条记录结果；实现偏离设计时先升级 Final Design 版本并更新需求/追踪矩阵，再改代码。
 
 ---
 
@@ -70,7 +85,7 @@
 
 补充规则：
 
-- `VAD-001` 是条件包。若 `PRE-001` 证明无合适官方 surface，应通过设计修订把它标为 `废弃` 或移入后续版本；`pcm_energy_v1` 与 `fixed_v1` 仍须完成基础链路。
+- `VAD-001` 是条件包。若 `PRE-001` 证明无合适 official surface，应通过设计修订把它标为 `废弃` 或移入后续版本；`pcm_energy_v1` 与 `fixed_window` 仍须完成基础链路。
 - `DOC-001` 可以提前建立草稿，但只有 QA 证据齐全并且文档没有超额声明后才能标记 `已完成`。
 - 工作包需要多个 checkpoint 时保持 `进行中`，每个 checkpoint 都写实施记录；不得为了显示进度拆出没有独立验收价值的伪完成包。
 
@@ -151,7 +166,7 @@
 2. 冻结 route/canonical/task 类型，再抽取 shared media primitive；首个编码包不改页面、不删除 legacy IPC。
 3. 先闭环 `M4A/MP4 → MP3 prepared units → fake provider → TXT/canonical JSON` 的 main-only 纵向链路，再开放 SRT/LRC 和完整页面。
 4. MiMo adapter 独立完成 Base64、finish reason、usage 与缩片重试合同；不能等 OpenAI 完成后用字段替换方式“兼容”。
-5. `pcm_energy_v1` 与 `fixed_v1` 是首版基础能力；Silero 是经过 `PRE-001` 决策的可插拔增强。
+5. `pcm_energy_v1` 与 `fixed_window` 是首版基础能力；Silero 是经过 `PRE-001` 决策的可插拔增强。
 6. fixed IPC、app-level runtime service 和 renderer 状态都建立在 main Job Manager 已有稳定 snapshot/event 合同之后。
 7. 自动化门禁通过后再做 Electron、packaged/no-PATH 和真实供应商矩阵；最后同步发布文档。
 
@@ -221,6 +236,19 @@ flowchart TD
 - `QA-002` 与 `QA-003` 可在 `QA-001` 后并行；`QA-004` 必须消费两者证据。
 - `VAD-001` 不在关键路径；它不能阻塞 energy/fixed 基础闭环、MiMo 兼容或首轮 UI 验收。
 
+### 5.4 Agent 模块边界
+
+| 模块 | 工作包 | 允许修改的主要范围 | 跨模块规则 |
+| --- | --- | --- | --- |
+| `COMMON` | CORE-001、CORE-002 | `src/lib/audio-provider-registry*`、`src/type/audio*` 与直接合同测试 | 其他模块只能消费已冻结类型；要改字段/错误码必须先回到 COMMON 包 |
+| `MEDIA` | MEDIA-001～003、CHUNK-001/002、VAD-001 | `electron/main/media/*`、audio media/planner/detector 与对应 tests | 不导入 provider/page/session 私有模块；shared 抽取先保持 local-subtitle 回归 |
+| `PROVIDER` | PRE-001、PROV-001、PROV-002 | audio adapters、route evidence、fake provider fixture | adapter 只接 prepared unit，不拥有跨请求 retry 或 exporter |
+| `RUNTIME` | OUT-001/002、BE-001/002、IPC-001、RT-001 | main audio job/orchestrator/output、preload fixed API、renderer app service | 通过 COMMON schema 与 MEDIA/PROVIDER 接口集成；不修改页面表现或持久化偏好 |
+| `UI` | FE-001～003 | audio Store/service/page/components 和四语言 audio locale | 不计算 payload/FFmpeg/route 私有字段；只消费 fixed API |
+| `RELEASE` | QA-001～004、DOC-001 | 集成验证、Electron/packaged/真实供应商证据和发布文档 | 验收发现代码问题时新增归属模块的 `FIX-*`，不在 QA 内直接跨模块修复 |
+
+并行开发时推荐一模块一分支。任何 Agent 只更新自己工作包所在的台账行；`COMMON` 合同未完成前，其他模块只能做只读调研或独立 fixture 准备。
+
 ---
 
 ## 6. 里程碑与纵向闭环
@@ -272,39 +300,43 @@ flowchart TD
 
 > 每个工作包完成后必须更新本表。日期使用 `YYYY-MM-DD`；文件、验证和问题写实际结果，不保留计划性占位描述。
 
-| 工作包 | 状态 | 完成日期 | 依赖 | 目标 | 变更文件 | 验证 | 实施记录 | 问题 |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| PRE-001 | 未开始 | — | — | 冻结 OpenAI/MiMo route、真实 fixture、MiMo 4/5 分钟 policy 与 Silero 决策 | 计划：`poc/`、fake provider fixtures、设计/计划 | 计划：有界真实请求、脱敏证据、fixture tests | — | 不提交媒体、密钥或 raw body；无官方 Silero surface 时不阻塞基础链路 |
-| CORE-001 | 未开始 | — | PRE-001 | route upload/response/timestamp/billing 合同、canonical/output 类型和 pipeline limits | 计划：`src/lib/audio-provider-registry.ts`、`src/type/audio.ts` 及 tests | 计划：registry/type/fixture tests、tsc | — | renderer/main/adapter 必须共享单一 route definition |
-| CORE-002 | 未开始 | — | CORE-001 | task/event/snapshot/error/generation 状态合同 | 计划：`src/type/audioIpc.ts`、domain/state tests | 计划：schema/transition/sanitization tests、tsc | — | 先定合同，不接页面或 public handler |
-| MEDIA-001 | 未开始 | — | CORE-001 | 抽取 verified media runtime/process/probe primitive且本地字幕行为不变 | 计划：`electron/main/media/*`、local-subtitle adapters/tests | 计划：local-subtitle media 全回归、no-PATH/fault tests | — | 不迁移 local-subtitle Job Manager/model/subtitle contract |
-| MEDIA-002 | 未开始 | — | MEDIA-001/CORE-002 | 通用媒体授权、probe、音轨选择 proof 与 task lease | 计划：`electron/main/audio/audio-file.ts`、media pipeline、tests | 计划：picker/drop/proxy、多音轨、changed identity、lease tests | — | draft 不应用 provider 单次 payload 上限 |
-| MEDIA-003 | 未开始 | — | MEDIA-001/CORE-001 | route-driven 直传/转码 profile 与 prepared-unit 物化 | 计划：transcription media pipeline、shared media tests | 计划：WAV/MP3/M4A/视频、`-t/-fs`、size/disk/abort tests | — | prepared unit 必须在生成后复核实际 byte/Base64 预算 |
-| CHUNK-001 | 未开始 | — | CORE-001 | upload/output/duration/request 预算与 frame-complete planner | 计划：`transcription-chunk-planner.ts`、tests | 计划：预算公式、core/overlap/首尾/短尾/有限重规划 tests | — | MiMo byte 预算按十进制 Base64；请求数上限 2,000 |
-| CHUNK-002 | 未开始 | — | MEDIA-003/CHUNK-001 | `pcm_energy_v1`、`fixed_v1` 与 smart fallback | 计划：`transcription-boundary-detector.ts`、tests | 计划：静音/无静音/后段语音/取消/原时间轴 tests | — | 不消费压缩 VAD word timeline |
-| VAD-001 | 未开始 | — | PRE-001/CHUNK-002 | 条件式 Silero detector adapter 与透明 fallback | 计划：boundary detector adapter、runtime manifest/tests | 计划：official surface、packaged/no-PATH、取消、schema tests | — | 非关键路径；不得新造未经证明的 native bridge |
-| PROV-001 | 未开始 | — | CORE-001/MEDIA-003 | OpenAI prepared-unit adapter 与 response negotiation | 计划：`openai-audio-adapter.ts`、registry/fake server tests | 计划：GPT/Whisper/diarization、MIME、timestamp、413/retry tests | — | route 决定 response contract，不能按 provider 名称写死 |
-| PROV-002 | 未开始 | — | PRE-001/CORE-001/MEDIA-003 | MiMo Chat Completion prepared-unit adapter | 计划：`mimo-chat-audio-adapter.ts`、fake server tests | 计划：单音频、MIME/format、Base64、finish reason、usage/SSE tests | — | 禁止 OpenAI 专属字段；length 只触发当前 unit 缩片 |
-| OUT-001 | 未开始 | — | CORE-001/CHUNK-001 | response → canonical、原时间映射、overlap 合并与质量门禁 | 计划：`transcription-canonicalizer.ts`、tests | 计划：segment/word/estimated、边界重复、空响应、coverage tests | — | 不做全文去重；含语音 unit 的空文本必须失败 |
-| OUT-002 | 未开始 | — | OUT-001/BE-001 | 五种 exporter、parse-back、artifact/token/no-clobber commit | 计划：`transcription-exporter.ts`、artifact registry、tests | 计划：TXT/JSON/SRT/VTT/LRC golden、large preview、atomic tests | — | JSON 改为 canonical schemaVersion 1；不混入 raw response |
-| BE-001 | 未开始 | — | CORE-002/MEDIA-002 | Job Manager、owner/generation、session registry 与 cleanup 骨架 | 计划：`transcription-job-manager.ts`、lifecycle/tests | 计划：状态迁移、late event、owner release、shutdown/reentrancy tests | — | app singleton + owner isolation；route unmount 不取消 task |
-| BE-002 | 未开始 | — | BE-001/MEDIA-003/CHUNK-001/PROV-001/PROV-002/OUT-001 | orchestrator、checkpoint、单一 retry owner、重规划与取消 | 计划：`transcription-orchestrator.ts`、job integration/tests | 计划：分阶段 cancel、413/429/5xx/length、resume identity tests | — | checkpoint 绑定 route/source/prompt/profile identity |
-| IPC-001 | 未开始 | — | MEDIA-002/BE-002/OUT-002 | fixed audio task API、preload policy 与 production composition | 计划：`audioIpc.ts`、`electron/preload/*`、`audio/ipc.ts`、main wiring | 计划：public/private policy、preload bundle、production handler tests | — | 内部 authorize/revoke 不进 generic invoke allowlist |
-| RT-001 | 未开始 | — | IPC-001 | app-level task runtime service、subscribe-before-snapshot 与 cleanup retry | 计划：`audioTranscriptionRuntimeService.ts`、service tests | 计划：revision buffer、导航恢复、StrictMode、revoke retry tests | — | 服务归 app 生命周期，不归 route component 生命周期 |
-| FE-001 | 未开始 | — | CORE-001/CORE-002 | Store v5 迁移、配置 source of truth 与 route-aware controls | 计划：audio transcriber config/store、locale/tests | 计划：v4→v5 fixture、sanitize/hydration、i18n tests | — | 不持久化 prompt、token、正文、path 或 runtime snapshot |
-| FE-002 | 未开始 | — | FE-001/IPC-001 | 文件选择/拖放、媒体/音轨摘要、plan preview 与开始门禁 | 计划：AudioTranscriber page/model、service、locale/tests | 计划：probe identity、track select、preview race、admission tests | — | MiMo UI 不显示 prompt/timestamp/stream 等不支持能力 |
-| FE-003 | 未开始 | — | FE-002/RT-001 | 阶段进度、取消/重试、结果、诊断和 output-token 操作 | 计划：AudioTranscriber page/components/store/service/tests | 计划：stage/overall、导航恢复、preview bounds、a11y/i18n tests | — | usage.seconds 只作费用摘要；公开错误从固定 i18n 重建 |
-| QA-001 | 未开始 | — | BE-002/OUT-002/FE-003 | 自动化合同、fake provider、回归与 build 门禁 | 计划：`test/audio/*`、相关 src/local-subtitle tests | 计划：聚焦 + 全相关 vitest、tsc、i18n、三段 build、preload | — | VAD-001 未纳入首版时必须验证 energy/fixed fallback |
-| QA-002 | 未开始 | — | QA-001 | Electron 四语言、宽窄窗口、键盘、picker/drag、导航与取消 | 计划：E2E/截图/验收记录 | 计划：Windows Explorer、proxy、明暗主题、loading/overflow/process cleanup | — | 浏览器 DOM 证据不替代 Electron；媒体不进 Git |
-| QA-003 | 未开始 | — | QA-001/MEDIA-001 | packaged/no-PATH、媒体 runtime、安装路径与平台组件验收 | 计划：packaged validators、验收记录 | 计划：Windows x64 与声明平台的 FFmpeg/ffprobe、hash/arch/fault tests | — | 需要真实打包产物；不能回退系统 PATH |
-| QA-004 | 未开始 | — | QA-002/QA-003 | 真实 OpenAI/MiMo、长媒体、稳定性、隐私与费用矩阵 | 计划：脱敏验收记录、必要 fix 包 | 计划：短 WAV/MP3、M4A→MP3、5 分钟密集、多片、cancel/soak/log audit | — | 需要用户可用账号/额度；不提交 audio、key、raw body |
-| DOC-001 | 未开始 | — | QA-004 | README、CHANGELOG、release note、隐私/费用/格式说明 | 计划：发布文档与版本台账 | 计划：Markdown/link、manifest/license、diff check | — | 只陈述 QA 已证明的 route、平台、格式和时间轴质量 |
+| 工作包 | 模块 | 关联需求 | 状态 | 完成日期 | 依赖 | 目标 | 变更文件 | 验证 | 实施记录 | 问题 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| PRE-001 | PROVIDER | BR-01/03/04/06/11/15 | 未开始 | — | — | 冻结 OpenAI/MiMo route、真实 fixture、MiMo 4/5 分钟 policy 与 Silero 决策 | 计划：`poc/`、fake provider fixtures、设计/计划 | 计划：有界真实请求、脱敏证据、fixture tests | — | 不提交媒体、密钥或 raw body；无 official Silero surface 时不阻塞基础链路 |
+| CORE-001 | COMMON | BR-01/07/08/15 | 未开始 | — | PRE-001 | route upload/response/timestamp/billing 合同、canonical/output 类型和 pipeline limits | 计划：`src/lib/audio-provider-registry.ts`、`src/type/audio.ts` 及 tests | 计划：registry/type/fixture tests、tsc | — | renderer/main/adapter 必须共享单一 route definition |
+| CORE-002 | COMMON | BR-10/11/12 | 未开始 | — | CORE-001 | task/event/snapshot/error/generation 状态合同 | 计划：`src/type/audioIpc.ts`、domain/state tests | 计划：schema/transition/sanitization tests、tsc | — | 先定合同，不接页面或 public handler |
+| MEDIA-001 | MEDIA | BR-02/03/15 | 未开始 | — | CORE-001 | 抽取 verified media runtime/process/probe primitive 且本地字幕行为不变 | 计划：`electron/main/media/*`、local-subtitle adapters/tests | 计划：local-subtitle media 全回归、no-PATH/fault tests | — | 不迁移 local-subtitle Job Manager/model/subtitle contract |
+| MEDIA-002 | MEDIA | BR-02/09/10/12 | 未开始 | — | MEDIA-001/CORE-002 | 通用媒体授权、probe、音轨选择 proof 与 task lease | 计划：`electron/main/audio/audio-file.ts`、media pipeline、tests | 计划：picker/drop/proxy、多音轨、changed identity、lease tests | — | draft 不应用 provider 单次 payload 上限 |
+| MEDIA-003 | MEDIA | BR-03/04/15 | 未开始 | — | MEDIA-001/CORE-001 | route-driven 直传/转码 profile 与 prepared-unit 物化 | 计划：transcription media pipeline、shared media tests | 计划：WAV/MP3/M4A/视频、`-t/-fs`、size/disk/abort tests | — | prepared unit 必须在生成后复核实际 byte/Base64 预算 |
+| CHUNK-001 | MEDIA | BR-04/09/15 | 未开始 | — | CORE-001 | upload/output/duration/request 预算与 frame-complete planner | 计划：`transcription-chunk-planner.ts`、tests | 计划：预算公式、core/overlap/首尾/短尾/有限重规划 tests | — | MiMo byte 预算按十进制 Base64；请求数上限 2,000 |
+| CHUNK-002 | MEDIA | BR-05/06 | 未开始 | — | MEDIA-003/CHUNK-001 | `pcm_energy_v1`、`fixed_window` 与 smart fallback | 计划：`transcription-boundary-detector.ts`、tests | 计划：静音/无静音/后段语音/取消/原时间轴 tests | — | 不消费压缩 VAD word timeline |
+| VAD-001 | MEDIA | BR-06 | 未开始 | — | PRE-001/CHUNK-002 | 条件式 Silero detector adapter 与透明 fallback | 计划：boundary detector adapter、runtime manifest/tests | 计划：official surface、packaged/no-PATH、取消、schema tests | — | 非关键路径；不得新造未经证明的 native bridge |
+| PROV-001 | PROVIDER | BR-01/03/07/11 | 未开始 | — | CORE-001/MEDIA-003 | OpenAI prepared-unit adapter 与 response negotiation | 计划：`openai-audio-adapter.ts`、registry/fake server tests | 计划：GPT/Whisper/diarization、MIME、timestamp、413/retry tests | — | route 决定 response contract，不能按 provider 名称写死 |
+| PROV-002 | PROVIDER | BR-01/03/04/07/11/15 | 未开始 | — | PRE-001/CORE-001/MEDIA-003 | MiMo Chat Completion prepared-unit adapter | 计划：`mimo-chat-audio-adapter.ts`、fake server tests | 计划：单音频、MIME/format、Base64、finish reason、usage/SSE tests | — | 禁止 OpenAI 专属字段；length 只触发当前 unit 缩片 |
+| OUT-001 | RUNTIME | BR-05/07 | 未开始 | — | CORE-001/CHUNK-001 | response → canonical、原时间映射、overlap 合并与质量门禁 | 计划：`transcription-canonicalizer.ts`、tests | 计划：segment/word/estimated、边界重复、空响应、coverage tests | — | 不做全文去重；含语音 unit 的空文本必须失败 |
+| OUT-002 | RUNTIME | BR-08/12 | 未开始 | — | OUT-001/BE-001 | 五种 exporter、parse-back、artifact/token/no-clobber commit | 计划：`transcription-exporter.ts`、artifact registry、tests | 计划：TXT/JSON/SRT/VTT/LRC golden、large preview、atomic tests | — | JSON 改为 canonical schemaVersion 1；不混入 raw response |
+| BE-001 | RUNTIME | BR-10/11/12 | 未开始 | — | CORE-002/MEDIA-002 | Job Manager、owner/generation、session registry 与 cleanup 骨架 | 计划：`transcription-job-manager.ts`、lifecycle/tests | 计划：状态迁移、late event、owner release、shutdown/reentrancy tests | — | app singleton + owner isolation；route unmount 不取消 task |
+| BE-002 | RUNTIME | BR-04/07/10/11 | 未开始 | — | BE-001/MEDIA-003/CHUNK-001/PROV-001/PROV-002/OUT-001 | orchestrator、checkpoint、单一 retry owner、重规划与取消 | 计划：`transcription-orchestrator.ts`、job integration/tests | 计划：分阶段 cancel、413/429/5xx/length、resume identity tests | — | checkpoint 绑定 route/source/prompt/profile identity |
+| IPC-001 | RUNTIME | BR-09/10/11/12/13 | 未开始 | — | MEDIA-002/BE-002/OUT-002 | fixed audio task API、preload policy 与 production composition | 计划：`audioIpc.ts`、`electron/preload/*`、`audio/ipc.ts`、main wiring | 计划：public/private policy、preload bundle、production handler tests | — | 内部 authorize/revoke 不进 generic invoke allowlist |
+| RT-001 | RUNTIME | BR-10/11/12 | 未开始 | — | IPC-001 | app-level task runtime service、subscribe-before-snapshot 与 cleanup retry | 计划：`audioTranscriptionRuntimeService.ts`、service tests | 计划：revision buffer、导航恢复、StrictMode、revoke retry tests | — | 服务归 app 生命周期，不归 route component 生命周期 |
+| FE-001 | UI | BR-01/08/13/14 | 未开始 | — | CORE-001/CORE-002 | Store v5 迁移、配置 source of truth 与 route-aware controls | 计划：audio transcriber config/store、locale/tests | 计划：v4→v5 fixture、sanitize/hydration、i18n tests | — | 不持久化 prompt、token、正文、path 或 runtime snapshot |
+| FE-002 | UI | BR-02/09/14 | 未开始 | — | FE-001/IPC-001 | 文件选择/拖放、媒体/音轨摘要、plan preview 与开始门禁 | 计划：AudioTranscriber page/model、service、locale/tests | 计划：probe identity、track select、preview race、admission tests | — | MiMo UI 不显示 prompt/timestamp/stream 等不支持能力 |
+| FE-003 | UI | BR-08/10/11/12/14 | 未开始 | — | FE-002/RT-001 | 阶段进度、取消/重试、结果、诊断和 output-token 操作 | 计划：AudioTranscriber page/components/store/service/tests | 计划：stage/overall、导航恢复、preview bounds、a11y/i18n tests | — | usage.seconds 只作费用摘要；公开错误从固定 i18n 重建 |
+| QA-001 | RELEASE | BR-01/02/03/04/05/06/07/08/09/10/11/12/13/14/15 | 未开始 | — | BE-002/OUT-002/FE-003 | 自动化合同、fake provider、回归与 build 门禁 | 计划：`test/audio/*`、相关 src/local-subtitle tests | 计划：聚焦 + 全相关 vitest、tsc、i18n、root build、preload | — | VAD-001 未纳入首版时必须验证 energy/fixed fallback |
+| QA-002 | RELEASE | BR-02/09/10/11/12/14 | 未开始 | — | QA-001 | Electron 四语言、宽窄窗口、键盘、picker/drag、导航与取消 | 计划：E2E/截图/验收记录 | 计划：Windows Explorer、proxy、明暗主题、loading/overflow/process cleanup | — | 浏览器 DOM 证据不替代 Electron；媒体不进 Git |
+| QA-003 | RELEASE | BR-03/06/12/15 | 未开始 | — | QA-001/MEDIA-001 | packaged/no-PATH、媒体 runtime、安装路径与平台组件验收 | 计划：packaged validators、验收记录 | 计划：Windows x64 与声明平台的 FFmpeg/ffprobe、hash/arch/fault tests | — | 需要真实打包产物；不能回退系统 PATH |
+| QA-004 | RELEASE | BR-01/03/04/05/07/08/11/12/15 | 未开始 | — | QA-002/QA-003 | 真实 OpenAI/MiMo、长媒体、稳定性、隐私与费用矩阵 | 计划：脱敏验收记录；缺陷另建 FIX 包 | 计划：短 WAV/MP3、M4A→MP3、5 分钟密集、多片、cancel/soak/log audit | — | 需要用户可用账号/额度；不提交 audio、key、raw body |
+| DOC-001 | RELEASE | BR-08/11/12/13/15 | 未开始 | — | QA-004 | README、CHANGELOG、release note、隐私/费用/格式说明 | 计划：发布文档与版本台账 | 计划：Markdown/link、manifest/license、diff check | — | 只陈述 QA 已证明的 route、平台、格式和时间轴质量 |
 
 ---
 
 ## 8. 工作包详情
 
+以下每个工作包的完整任务定义由“第 7 节对应台账行 + 本节同名详情”共同组成：台账提供模块、关联需求、依赖、计划文件和测试，详情提供目标、实现要点、不涉及范围与完成条件。每包均以“新增/修改不超过 8 个文件且有效变更不超过 300 行”为认领预算，测试和 locale 文件计入文件数。若只读调研后确认超出，先拆包并更新本文，不得边实现边扩大范围。每包的模块与关联需求同时记录在标题下和第 7 节台账，二者必须保持一致。
+
 ### PRE-001：供应商合同、真实 fixture 与可选 VAD 决策
+
+**模块 / 关联需求**：`PROVIDER` / BR-01、BR-03、BR-04、BR-06、BR-11、BR-15
 
 **目标**
 
@@ -329,6 +361,8 @@ flowchart TD
 
 ### CORE-001：Route、Canonical 与输出合同
 
+**模块 / 关联需求**：`COMMON` / BR-01、BR-07、BR-08、BR-15
+
 **目标**
 
 - 建立唯一 route capability source 和稳定 `CanonicalAudioTranscript schemaVersion: 1`，把用户输出格式与供应商 response contract 解耦。
@@ -346,6 +380,8 @@ flowchart TD
 
 ### CORE-002：Task、Event、Snapshot 与错误合同
 
+**模块 / 关联需求**：`COMMON` / BR-10、BR-11、BR-12
+
 **目标**
 
 - 在实现 Job Manager 前冻结 generation/revision、状态机、progress、snapshot、公开错误和 fixed API request/response schema。
@@ -361,6 +397,8 @@ flowchart TD
 - 所有公开 schema 有严格解析和有界字段；任意 Error、路径、URL query、header、stderr/raw body 被丢弃。
 
 ### MEDIA-001：Shared Verified Media Primitives
+
+**模块 / 关联需求**：`MEDIA` / BR-02、BR-03、BR-15
 
 **目标**
 
@@ -378,6 +416,8 @@ flowchart TD
 
 ### MEDIA-002：通用媒体授权、Probe、音轨与 Task Lease
 
+**模块 / 关联需求**：`MEDIA` / BR-02、BR-09、BR-10、BR-12
+
 **目标**
 
 - 允许用户选择常见媒体而不提前套用 provider 单次上限，并把 draft selection proof 安全提升为 task authority。
@@ -393,6 +433,8 @@ flowchart TD
 - 大源文件可以授权；无音轨、媒体变化、过期 proof、重复准入和 owner release 均有稳定结果。
 
 ### MEDIA-003：Route-driven 规范化与 Prepared Unit
+
+**模块 / 关联需求**：`MEDIA` / BR-03、BR-04、BR-15
 
 **目标**
 
@@ -410,6 +452,8 @@ flowchart TD
 
 ### CHUNK-001：预算模型与 Frame-complete Transport Planner
 
+**模块 / 关联需求**：`MEDIA` / BR-04、BR-09、BR-15
+
 **目标**
 
 - 统一计算 route upload、duration、response output、memory、请求数和产品边界，并生成完整覆盖原 PCM 的 transport/request units。
@@ -426,13 +470,15 @@ flowchart TD
 
 ### CHUNK-002：PCM Energy 与 Fixed Boundary Detector
 
+**模块 / 关联需求**：`MEDIA` / BR-05、BR-06
+
 **目标**
 
 - 提供不依赖 Silero 的首版 smart boundary，并始终保留原媒体绝对时间。
 
 **实施范围**
 
-- 定义 detector interface、interval schema 和严格校验；实现 `pcm_energy_v1`、`fixed_v1` 与透明 fallback。
+- 定义 detector interface、interval schema 和严格校验；实现 `pcm_energy_v1`、`fixed_window` 与透明 fallback。
 - 处理长静音、后段语音、连续演讲、极短声音、无 speech、取消和 detector failure。
 - boundary 只影响切点，不删除时间；estimated cue 使用原 frame interval。
 
@@ -441,6 +487,8 @@ flowchart TD
 - 后段语音时间不提前；fallback 的实际策略进入 plan/result summary；基础链路不依赖 `VAD-001`。
 
 ### VAD-001：条件式 Silero Adapter
+
+**模块 / 关联需求**：`MEDIA` / BR-06
 
 **目标**
 
@@ -458,6 +506,8 @@ flowchart TD
 
 ### PROV-001：OpenAI Prepared-unit Adapter
 
+**模块 / 关联需求**：`PROVIDER` / BR-01、BR-03、BR-07、BR-11
+
 **目标**
 
 - 让 OpenAI adapter 只接收 route-safe prepared unit，并按 model family 协商真实 response/timestamp contract。
@@ -473,6 +523,8 @@ flowchart TD
 - fake provider 断言每个请求 byte/MIME/model/字段正确；route constraint 变化无需修改 renderer 表。
 
 ### PROV-002：MiMo Prepared-unit Adapter
+
+**模块 / 关联需求**：`PROVIDER` / BR-01、BR-03、BR-04、BR-07、BR-11、BR-15
 
 **目标**
 
@@ -490,6 +542,8 @@ flowchart TD
 
 ### OUT-001：Canonical Mapping、Overlap Merge 与质量门禁
 
+**模块 / 关联需求**：`RUNTIME` / BR-05、BR-07
+
 **目标**
 
 - 把两类 provider result 统一映射到原媒体绝对毫秒时间轴，并在相邻边界安全合并。
@@ -505,6 +559,8 @@ flowchart TD
 - native/estimated 两种 timeline fixtures、合法重复台词和边界重复均通过；没有全局字符串去重。
 
 ### OUT-002：Exporter、Artifact 与 Output Token
+
+**模块 / 关联需求**：`RUNTIME` / BR-08、BR-12
 
 **目标**
 
@@ -522,6 +578,8 @@ flowchart TD
 
 ### BE-001：Job Manager、Session Registry 与 Lifecycle
 
+**模块 / 关联需求**：`RUNTIME` / BR-10、BR-11、BR-12
+
 **目标**
 
 - 建立 app singleton、owner-bound task、generation、状态机、revision event/snapshot 和可证明的资源清理骨架。
@@ -537,6 +595,8 @@ flowchart TD
 - 状态、重入、窗口 owner、shutdown 首错与后续清理 tests 通过；路由组件卸载不会结束 main task。
 
 ### BE-002：Orchestrator、Checkpoint、Retry、Replan 与 Cancel
+
+**模块 / 关联需求**：`RUNTIME` / BR-04、BR-07、BR-10、BR-11
 
 **目标**
 
@@ -554,6 +614,8 @@ flowchart TD
 
 ### IPC-001：Fixed API、Preload Policy 与 Production Composition
 
+**模块 / 关联需求**：`RUNTIME` / BR-09、BR-10、BR-11、BR-12、BR-13
+
 **目标**
 
 - 把 main pipeline 以固定、最小、sender-bound API 暴露给 renderer，并证明生产启动确实注册全部 handler。
@@ -569,6 +631,8 @@ flowchart TD
 - preload shape/policy、sender/owner、invalid payload、production wiring、bundle validator 与三段 Vite test build 通过。
 
 ### RT-001：App-level Renderer Runtime Service
+
+**模块 / 关联需求**：`RUNTIME` / BR-10、BR-11、BR-12
 
 **目标**
 
@@ -586,6 +650,8 @@ flowchart TD
 
 ### FE-001：Store v5 Migration 与配置 Source of Truth
 
+**模块 / 关联需求**：`UI` / BR-01、BR-08、BR-13、BR-14
+
 **目标**
 
 - 完成旧 responseFormat 到 output/timing/boundary 偏好的安全迁移，并让 route-aware 配置只从持久化 Store 读取。
@@ -601,6 +667,8 @@ flowchart TD
 - legacy fixtures、重复 hydration、无效字段和 source-of-truth tests 通过；四语言配置文案齐全。
 
 ### FE-002：媒体选择、Probe、音轨与 Plan Preview
+
+**模块 / 关联需求**：`UI` / BR-02、BR-09、BR-14
 
 **目标**
 
@@ -618,6 +686,8 @@ flowchart TD
 
 ### FE-003：Task Progress、结果、错误与输出操作
 
+**模块 / 关联需求**：`UI` / BR-08、BR-10、BR-11、BR-12、BR-14
+
 **目标**
 
 - 呈现可恢复、可取消、可重试且不过度暴露内部实现的任务体验。
@@ -633,6 +703,8 @@ flowchart TD
 - 导航恢复不重复提交；取消/terminal race、checkpoint retry eligibility、长名称/诊断换行、窄窗口和键盘单测通过。
 
 ### QA-001：自动化与 Build 门禁
+
+**模块 / 关联需求**：`RELEASE` / BR-01、BR-02、BR-03、BR-04、BR-05、BR-06、BR-07、BR-08、BR-09、BR-10、BR-11、BR-12、BR-13、BR-14、BR-15
 
 **目标**
 
@@ -650,6 +722,8 @@ flowchart TD
 
 ### QA-002：Electron UX 与 Windows 输入验收
 
+**模块 / 关联需求**：`RELEASE` / BR-02、BR-09、BR-10、BR-11、BR-12、BR-14
+
 **目标**
 
 - 在真实 Electron 中验证桌面文件输入、任务生命周期、四语言和可访问性，不依赖浏览器模拟。
@@ -665,6 +739,8 @@ flowchart TD
 - 验收记录列出实际 build、输入来源、状态/结果和未覆盖项；所有 Vite/Electron/FFmpeg 进程清理。
 
 ### QA-003：Packaged / No-PATH 媒体运行时验收
+
+**模块 / 关联需求**：`RELEASE` / BR-03、BR-06、BR-12、BR-15
 
 **目标**
 
@@ -682,6 +758,8 @@ flowchart TD
 
 ### QA-004：真实供应商、长媒体、稳定性与隐私验收
 
+**模块 / 关联需求**：`RELEASE` / BR-01、BR-03、BR-04、BR-05、BR-07、BR-08、BR-11、BR-12、BR-15
+
 **目标**
 
 - 用最小付费矩阵确认 OpenAI/MiMo 兼容、长媒体分片、时间轴、费用提示、取消和隐私边界。
@@ -698,6 +776,8 @@ flowchart TD
 - 每个实际请求低于 route budget，MiMo 未发送 OpenAI 字段且无截断结果提交；输出保持原绝对时间并通过 parse-back。
 
 ### DOC-001：发布文档与能力声明
+
+**模块 / 关联需求**：`RELEASE` / BR-08、BR-11、BR-12、BR-13、BR-15
 
 **目标**
 
@@ -804,6 +884,8 @@ docs/v0.3.1/audio-transcriber-enhancement/audio-transcriber-enhancement_implemen
 
 - 日期：YYYY-MM-DD
 - 状态：进行中 / 已完成 / 阻塞
+- 模块：COMMON / MEDIA / PROVIDER / RUNTIME / UI / RELEASE
+- 关联需求：BR-xx
 - 对应设计：`audio-transcriber-enhancement_final_design.md` 第 <N> 节
 - 对应计划：`audio-transcriber-enhancement_execution_plan.md` / `<ID>`
 - 前置依赖：<IDs 与已验证状态>
@@ -857,14 +939,40 @@ docs/v0.3.1/audio-transcriber-enhancement/audio-transcriber-enhancement_implemen
 
 - <必须有 owner、解除条件和后续工作包；没有则写“无”>
 
+## Definition of Done
+
+- [ ] 关联 BR 的验收标准逐条通过
+- [ ] 生产路径无 TODO、FIXME、placeholder、mock、`console.log` 或 `debugger`
+- [ ] 正常与异常路径均按合同验证
+- [ ] focused tests、TypeScript、受影响 build/i18n 门禁通过
+- [ ] 本模块 tasks/台账/record 同步且无跨模块未登记改动
+- [ ] UI 包完成 Electron 五态/键盘/响应式自检；接口包完成正反例/权限/幂等验证
+
 ## 下一步建议
 
 - 下一可领取工作包：`<ID>`
 - 开始前必须复核：<合同/坑位/外部条件>
 ```
 
+### 10.5 Spec 质量门与检查点记录
+
+旧格式兼容模式不运行只识别 `brd.md/modules/tasks.md` 目录的 `check_spec.py`。本功能使用等价的机械检查：Final Design 的 15 个唯一 `BR-*` 必须全部出现在第 7 节台账和 Final Design 第 21.1 节；台账 25 个工作包必须各有同名详情、合法状态、已存在的依赖 ID、模块和关联需求。
+
+| 质量门 | 结果 | 证据/待办 |
+| --- | --- | --- |
+| 需求门 | 已通过 | Final Design 第 1.5～1.7 节已包含单一角色/权限、BR-01～BR-15、优先级、可测 AC、范围外、具体边界、A-01～A-11、Q-01～Q-03；用户于 2026-09-03 确认 |
+| 设计门 | 已通过 | Final Design 已包含代码落点、模块边界、数据模型、完整状态机、fixed IPC、错误/CTA、前端组件树/五态/交互/响应式/i18n/a11y、测试与风险；用户于 2026-09-03 确认 |
+| 任务门 | 已通过 | 本文 25 个包均有模块、关联 BR、依赖、文件范围、实现要点、完成条件和验证；会话预算固定为 ≤8 files/≤300 LOC；用户于 2026-09-03 确认 |
+| 完成门 | 未开始 | 每个实现包必须通过第 9 节、自带测试、台账 + record 同步和无 mock/TODO/范围外改动后才能完成 |
+
+| 检查点 | 状态 | 日期 | 结论 |
+| --- | --- | --- | --- |
+| `CP-SPEC-01` 需求/设计/任务确认 | 已完成 | 2026-09-03 | 用户确认 BR-01～BR-15、A-01～A-11、Q-01～Q-03、设计合同和 25 个工作包拆分；下一包为 `PRE-001` |
+| `CP-DEV-01` 最小端到端链路 | 未开始 | — | M4A/MP4→MP3→多片 fake provider→TXT/canonical JSON 可演示后登记 |
+| `CP-ACCEPT-01` 阶段验收 | 未开始 | — | 自动化、Electron、packaged 与逐 BR 人工清单完成后登记 |
+
 ---
 
 ## 11. 下一步建议
 
-下一会话先领取 `PRE-001`，只做有界供应商/fixture 证据冻结；完成后领取 `CORE-001`，冻结 route、canonical 和 output 类型。首个编码会话不得修改 AudioTranscriber 页面、不得删除 legacy `audio:transcribe`、不得提前接入 Silero，也不得把 MiMo 填入 OpenAI Transcriptions 请求模板。
+`CP-SPEC-01` 已获用户确认。下一会话领取 `PRE-001`，只做有界供应商/fixture 证据冻结；完成后领取 `CORE-001`，冻结 route、canonical 和 output 类型。首个编码会话不得修改 AudioTranscriber 页面、不得删除 legacy `audio:transcribe`、不得提前接入 Silero，也不得把 MiMo 填入 OpenAI Transcriptions 请求模板。
