@@ -50,3 +50,9 @@ The pinned upstream server copies default request parameters for each call, defa
 - `scripts/local-subtitle/whisper-server/supervisor.mjs`
 - `scripts/local-subtitle/benchmark/speech-coverage-diagnostics.mjs`
 - `docs/v0.2.11/subtitle-quality-harness/phase2-design-and-execution.md`
+
+## Independent no-VAD witnesses must not inherit decoder state
+
+T-SEG-05A (2026-09-06) added a fixed 20–40 second seam witness. Running it before existing no-VAD DTW separator requests changed previously accepted text/times. Moving it after them preserved the baseline but changed the witness enough to fail its unchanged evidence gate. Do not fix this by accepting favorable output, loosening the matcher, or trying more crops. Preserve the original request sequence and acquire a fresh inference state for each independent witness, using the pinned separator load identity; unused epochs may still be reused. The existing resource-pin, busy-lease, cancellation and cleanup fences apply.
+
+The final actual six-file batch preserved every prior cue except the explicitly evidenced duplicate observation, with the same 24960–31230 ms resolution in short and full inputs. Fifty-six supervisor tests and eighty-seven executor tests passed, including request order, shared budget and fresh-witness startup failure. This is validated isolation of a observed same-mode effect, not identification or repair of its upstream native cause. A qualifying seam now costs an extra model load; cap it and report that tradeoff. See phase12 T-SEG-05A overlap implementation record.

@@ -148,11 +148,11 @@ export interface LocalSubtitleRawQualityGateSnapshot {
   readonly maxRetryDepth: typeof LOCAL_SUBTITLE_PRODUCTION_CONTRACT.transcript.maxRetryDepth;
 }
 
-export const LOCAL_SUBTITLE_CUE_POLICY = "sentence_readable_v2" as const;
+export const LOCAL_SUBTITLE_CUE_POLICY = "sentence_readable_dtw_v3" as const;
 
 export interface LocalSubtitleInferenceSnapshot {
   /** Older snapshots omit this; newly created tasks always record the active policy. */
-  readonly cuePolicy?: typeof LOCAL_SUBTITLE_CUE_POLICY;
+  readonly cuePolicy?: typeof LOCAL_SUBTITLE_CUE_POLICY | "sentence_readable_v2";
   readonly advanced: LocalSubtitleAdvancedSettings;
   readonly vad: LocalSubtitleVadSnapshot;
   readonly rawQualityGate: LocalSubtitleRawQualityGateSnapshot;

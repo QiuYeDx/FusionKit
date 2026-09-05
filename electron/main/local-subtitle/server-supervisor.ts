@@ -775,25 +775,24 @@ export class LocalSubtitleServerSupervisor {
     this.#scheduleIdleShutdown();
   }
 
-  /** Keep resource pins while retiring the VAD epoch before a text-only candidate. */
+  /** Retain resource pins while deriving an isolated separator/DTW candidate mode. */
   async acquirePinnedSeparatorLease(
     pin: LocalSubtitleServerRuntimePin,
     signal?: AbortSignal,
+    options?: Readonly<{ freshInferenceState: boolean }>,
   ): Promise<LocalSubtitleServerLease> {
     const record = this.#requireRuntimePin(pin);
     this.#assertRuntimePinCurrent(record);
     if (this.#activeLeaseCount() > 0 || this.#activeRequest) {
       throw resourceBusyError();
     }
-    const options = { ...record.loadOptions };
-    delete options.vadModel;
+    const loadOptions = separatorLoadOptions(record.loadOptions);
     // #acquire still rejects other active leases/requests and incompatible pins.
-    return this.#acquire(record.owner, options, signal, record, true);
+    return this.#acquire(record.owner, loadOptions, signal, record, true, options?.freshInferenceState === true);
   }
 
   #separatorLoadIdentity(record: RuntimePinRecord): LocalSubtitleServerLoadIdentity {
-    const options = { ...record.loadOptions };
-    delete options.vadModel;
+    const options = separatorLoadOptions(record.loadOptions);
     return createSupervisorLoadIdentity(options, this.#managedResourceRoot);
   }
 
@@ -840,6 +839,9 @@ export class LocalSubtitleServerSupervisor {
     }
     validateLocalSubtitleServerInferenceRequest(request);
     const canonicalRequest = snapshotInferenceRequest(request);
+    if (canonicalRequest.timingMode !== leaseRecord.loadIdentity.timingMode) {
+      throw invalidConfigurationError("The inference timing mode does not match the loaded identity.");
+    }
     if (
       canonicalRequest.vadEnabled !==
         (leaseRecord.loadIdentity.vadModel !== undefined)
@@ -2213,6 +2215,15 @@ function validateManagedRoot(value: string): string {
   return value;
 }
 
+function separatorLoadOptions(source: LocalSubtitleServerInferenceLoadOptions): LocalSubtitleServerInferenceLoadOptions {
+  const options = { ...source };
+  delete options.vadModel;
+  if (options.backend === "cuda" && options.verifiedRuntime.target.platform === "win32" && options.model.id === "large-v3") {
+    options.timingMode = "dtw_large_v3";
+  }
+  return options;
+}
+
 function snapshotLoadOptions(
   options: LocalSubtitleServerSupervisorLoadOptions,
 ): LocalSubtitleServerSupervisorLoadOptions {
@@ -2220,6 +2231,7 @@ function snapshotLoadOptions(
     ? undefined
     : Object.freeze({ ...options.sourceEnvironment });
   const common = {
+    ...(options.timingMode === undefined ? {} : { timingMode: options.timingMode }),
     verifiedRuntime: options.verifiedRuntime,
     serverArtifactId: options.serverArtifactId,
     threads: options.threads,
@@ -2321,6 +2333,7 @@ function snapshotInferenceRequest(
     throw new TypeError("The normalized inference window identity is invalid.");
   }
   return Object.freeze({
+    ...(request.timingMode === undefined ? {} : { timingMode: request.timingMode }),
     requestGeneration: request.requestGeneration,
     filePath: request.filePath,
     expectedFileIdentity,

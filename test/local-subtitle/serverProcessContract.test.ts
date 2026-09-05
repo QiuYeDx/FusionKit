@@ -678,6 +678,14 @@ describe("local subtitle server process contract", () => {
         },
       });
       expectDeeplyFrozen(descriptor);
+      const dtwOptions = { ...options, timingMode: "dtw_large_v3" as const,
+        model: { ...options.model, id: "large-v3", absolutePath: path.join(accelerator.managedRoot, "models", "large-v3", "model.bin") } };
+      const dtw = createLocalSubtitleServerProcessDescriptor(dtwOptions);
+      expect(dtw.args.slice(-3)).toEqual(["--dtw", "large.v3", "--no-flash-attn"]);
+      expect(dtw.loadIdentity.timingMode).toBe("dtw_large_v3");
+      const ordinary = createLocalSubtitleServerLoadIdentity({ ...dtwOptions, timingMode: undefined });
+      expect(canReuseLocalSubtitleServerLoadIdentity(ordinary, dtw.loadIdentity)).toBe(false);
+      expect(() => createLocalSubtitleServerProcessDescriptor({ ...options, timingMode: "dtw_large_v3" })).toThrow(/DTW/);
     } finally {
       await accelerator.cleanup();
       await windowsRuntimeFixture.cleanup();

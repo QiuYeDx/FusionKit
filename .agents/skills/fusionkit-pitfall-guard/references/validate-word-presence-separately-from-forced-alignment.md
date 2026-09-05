@@ -38,6 +38,14 @@ Phase 7 added 22 encodings / 42 fixed-text audio-ablation scores on the same iso
 
 Phase 12 added full large-v3 free-decoding controls. A conditioned nonverbal input produced false words with positive, in-parent, text-covering word intervals: structural validity still did not establish speech presence. Other candidates returned zero-duration words and multi-second lexical spans. Six offline audit tests preserve the non-acceptance contract. The user's FP32-stored model and the official FP16-stored candidate had identical tensor names/shapes; the same user model at explicit FP16 and FP32 compute produced identical text and segment boundaries on all three fixed inputs. Record storage dtype, actual compute type, model configuration and runtime version separately; larger files alone do not establish greater model capacity or quality. This finding does not establish numerical weight equality or universal precision equivalence.
 
+## Separate whisper.cpp DTW points from ordinary word edges
+
+In phase12 T-SEG-03D/03E (2026-09-06), ordinary word edges drifted 540/600 ms across fixed shifted crops despite exact local text. The existing runtime's separately enabled DTW points were stable within 20/40 ms on two boundaries. Neither figure is a measured onset error. Native `t_dtw` is a token-interior point in 10 ms units, distinct from verbose_json `start/end`; preserve that semantic distinction in contracts and review pages.
+
+At pinned commit f049fff95a089aa9969deb009cdd4892b3e74916, enabling flash attention disables DTW. The capability probe must use a fresh `--dtw large.v3 --no-flash-attn` process and inspect effective data; do not claim that setting token_timestamps alone enables DTW. Production load identity must include these context-level modes if adopted. See [pinned native initialization](https://github.com/ggml-org/whisper.cpp/blob/f049fff95a089aa9969deb009cdd4892b3e74916/src/whisper.cpp#L3404).
+
+Keep every planned crop in the comparison, validate -1/uncomputed, units, original-media offsets, ordering and collapsed adjacent points, and require entire exact candidate groups rather than extracting matching substrings through wrong words. A nonverbal DTW control still produced repeated false words; stable alignment cannot authorize a replacement transcript. The offline audit's automaticAcceptance remains false. Sixteen ordinary/DTW audit tests and thirteen existing local-evidence tests passed; a two-cut listening proposal preserved the actual baseline SRT text and was not shipped as production timing.
+
 ## Related files
 
 - `electron/main/local-subtitle/local-review.ts`

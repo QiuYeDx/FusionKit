@@ -85,6 +85,7 @@ export interface LocalSubtitleServerManagedResourceIdentity<
 }
 
 interface LocalSubtitleServerLoadIdentityBase {
+  readonly timingMode?: "dtw_large_v3";
   readonly contractVersion: typeof LOCAL_SUBTITLE_SERVER_HTTP_CONTRACT_VERSION;
   readonly engineVersion: typeof LOCAL_SUBTITLE_PRODUCTION_CONTRACT.engine.version;
   readonly engineCommit: typeof LOCAL_SUBTITLE_PRODUCTION_CONTRACT.engine.commit;
@@ -147,6 +148,7 @@ export type LocalSubtitleServerLoadIdentity =
     });
 
 interface CreateLocalSubtitleServerLoadIdentityOptionsBase {
+  readonly timingMode?: "dtw_large_v3";
   readonly verifiedRuntime: LocalSubtitleVerifiedRuntimeBundle;
   readonly serverArtifactId: string;
   readonly managedResourceRoot: string;
@@ -268,6 +270,7 @@ export function createLocalSubtitleServerLoadIdentity(
 ): LocalSubtitleServerLoadIdentity {
   const artifact = validateLoadOptions(options);
   const common = {
+    ...(options.timingMode === undefined ? {} : { timingMode: options.timingMode }),
     contractVersion: LOCAL_SUBTITLE_SERVER_HTTP_CONTRACT_VERSION,
     engineVersion: LOCAL_SUBTITLE_PRODUCTION_CONTRACT.engine.version,
     engineCommit: LOCAL_SUBTITLE_PRODUCTION_CONTRACT.engine.commit,
@@ -377,6 +380,7 @@ export function createLocalSubtitleServerProcessDescriptor(
       ? ["--vad-model", loadIdentity.vadModel.absolutePath]
       : []),
     ...(loadIdentity.process.noGpu ? ["--no-gpu"] : []),
+    ...(loadIdentity.timingMode === "dtw_large_v3" ? ["--dtw", "large.v3", "--no-flash-attn"] : []),
   ];
   const command = loadIdentity.serverArtifact.absolutePath;
   const environment = buildLocalSubtitleServerEnvironment({
@@ -471,6 +475,12 @@ export function isLocalSubtitleServerBackendCompatible(
 function validateLoadOptions(
   options: CreateLocalSubtitleServerLoadIdentityOptions,
 ): LocalSubtitleVerifiedRuntimeArtifact {
+  if (options.timingMode !== undefined && (options.timingMode !== "dtw_large_v3" ||
+      options.purpose !== "inference" || options.backend !== "cuda" ||
+      options.verifiedRuntime.target.platform !== "win32" || options.model.id !== "large-v3" ||
+      options.vadModel !== undefined)) {
+    throw invalidConfiguration("The DTW inference load mode is invalid.");
+  }
   if (
     !(LOCAL_SUBTITLE_SERVER_PURPOSES as readonly string[]).includes(options.purpose)
   ) {
@@ -769,6 +779,7 @@ function validateManagedResource(
 
 function loadIdentityKey(identity: LocalSubtitleServerLoadIdentity): string {
   return JSON.stringify([
+    identity.timingMode ?? "segment_only",
     identity.contractVersion,
     identity.purpose,
     identity.engineVersion,

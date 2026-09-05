@@ -33,7 +33,7 @@ const PUNCTUATION_ONLY_PATTERN = /^[\p{P}\s]+$/u;
 const CJK_PATTERN = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}]/u;
 
 export const LOCAL_SUBTITLE_POST_PROCESSING_POLICY = deepFreeze({
-  schemaVersion: 2,
+  schemaVersion: 3,
   cuePolicy: LOCAL_SUBTITLE_CUE_POLICY,
   pcmSampleRateHz: 16_000,
   rootWindowOverlapMs: LOCAL_SUBTITLE_PRODUCTION_CONTRACT.transcript.overlapMs,
@@ -139,7 +139,7 @@ export interface LocalSubtitlePostProcessingWindowAttempt {
 }
 
 export interface LocalSubtitlePostProcessPolicy {
-  readonly schemaVersion: 2;
+  readonly schemaVersion: 3;
   readonly cuePolicy: typeof LOCAL_SUBTITLE_CUE_POLICY;
   readonly vadEnabled: boolean;
   readonly wordTimelineMode: "segment_only_v1";
@@ -395,7 +395,7 @@ export function createSubtitlePostProcessPolicy(
     );
   }
   if (
-    (inference.cuePolicy !== undefined && inference.cuePolicy !== LOCAL_SUBTITLE_CUE_POLICY) ||
+    (inference.cuePolicy !== undefined && inference.cuePolicy !== "sentence_readable_v2" && inference.cuePolicy !== LOCAL_SUBTITLE_CUE_POLICY) ||
     !inference.vad ||
     typeof inference.vad.enabled !== "boolean" ||
     inference.vad.tokenTimestamps !== false ||
@@ -436,7 +436,7 @@ export function createSubtitlePostProcessPolicy(
   }
 
   return deepFreeze({
-    schemaVersion: 2,
+    schemaVersion: 3,
     cuePolicy: LOCAL_SUBTITLE_CUE_POLICY,
     vadEnabled: inference.vad.enabled,
     wordTimelineMode: "segment_only_v1",
@@ -1958,7 +1958,7 @@ function validateSourceAndModel(input: LocalSubtitlePostProcessingRequest): void
 function validatePolicy(policy: LocalSubtitlePostProcessPolicy): void {
   if (
     !isRecord(policy) ||
-    policy.schemaVersion !== 2 ||
+    policy.schemaVersion !== 3 ||
     policy.cuePolicy !== LOCAL_SUBTITLE_CUE_POLICY ||
     typeof policy.vadEnabled !== "boolean" ||
     policy.wordTimelineMode !== "segment_only_v1" ||

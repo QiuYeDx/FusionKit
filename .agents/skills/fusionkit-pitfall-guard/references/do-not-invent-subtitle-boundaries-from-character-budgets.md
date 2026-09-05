@@ -49,3 +49,7 @@ T-SEG-03C found that ICU word segmentation can split a Japanese pronoun into ind
 - `test/local-subtitle/subtitlePostProcessor.test.ts`
 - `docs/v0.2.11/subtitle-quality-harness/phase12-sentence-boundaries/requirements.md`
 - `docs/v0.2.11/subtitle-quality-harness/phase12-sentence-boundaries/design.md`
+
+T-SEG-05 follow-up (2026-09-06): keep punctuation-restoration eligibility separate from timing-refinement eligibility. A single existing question mark does not make an entire long cue well segmented. However, widening candidate requests produced no real gains in the six-fixture run, so punctuated siblings only reuse an already-needed root response. Do not ship extra decoding cost based solely on synthetic positive tests.
+
+A closed Japanese demonstrative-pronoun class plus a following particle can restore the complete word start when ICU emits individual kana. It must not admit the middle of that pronoun or independently authorize a sentence break/time. Five whole-word cases, five fragment/near-miss cases, missing-time fallback and same-native-segment negatives guard the rule. Actual default opening/full-track exports gained the same 22020 ms boundary without changing words or prior accepted times; this new activation remains pending listening. See the phase12 T-SEG-05 punctuated-cues record for the measured scope.

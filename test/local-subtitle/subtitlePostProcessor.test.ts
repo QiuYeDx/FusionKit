@@ -42,8 +42,8 @@ describe("local subtitle post-processing policy", () => {
     });
 
     expect(policy).toMatchObject({
-      schemaVersion: 2,
-      cuePolicy: "sentence_readable_v2",
+      schemaVersion: 3,
+      cuePolicy: "sentence_readable_dtw_v3",
       wordTimelineMode: "segment_only_v1",
       qualityFingerprint:
         "nfkc-lowercase-without-punctuation-symbols-whitespace",
@@ -90,7 +90,8 @@ describe("local subtitle post-processing policy", () => {
   it("maps legacy snapshots to the active cue policy and rejects an unsupported identity", () => {
     const inference = inferenceSnapshot();
     expect(inference).not.toHaveProperty("cuePolicy");
-    expect(createSubtitlePostProcessPolicy(inference).cuePolicy).toBe("sentence_readable_v2");
+    expect(createSubtitlePostProcessPolicy(inference).cuePolicy).toBe("sentence_readable_dtw_v3");
+    expect(createSubtitlePostProcessPolicy({ ...inference, cuePolicy: "sentence_readable_v2" }).cuePolicy).toBe("sentence_readable_dtw_v3");
     expect(() => createSubtitlePostProcessPolicy({
       ...inference,
       cuePolicy: "character_proportional_v1" as LocalSubtitleInferenceSnapshot["cuePolicy"],

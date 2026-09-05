@@ -285,6 +285,7 @@ export class LocalSubtitleServerHttpClient {
         errorContext: "inference",
       });
       const result = parseLocalSubtitleServerVerboseJson(body, {
+        timingMode: request.timingMode,
         taskMode: request.taskMode,
         vadEnabled: request.vadEnabled,
       });

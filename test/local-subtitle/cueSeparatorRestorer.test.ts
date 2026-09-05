@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { needsLocalSubtitleSeparators, restoreLocalSubtitleCueSeparators } from "../../electron/main/local-subtitle/cue-separator-restorer";
+import { needsLocalSubtitleSeparators, needsLocalSubtitleDtwRefinement, restoreLocalSubtitleCueSeparators, refineLocalSubtitleCueWithDtw } from "../../electron/main/local-subtitle/cue-separator-restorer";
 import type { LocalSubtitleServerRawSegment } from "../../electron/main/local-subtitle/server-contract";
 
 const text = "今日はいい天気ですね明日は家で休みます";
@@ -12,6 +12,120 @@ const primary = [raw(text, 0, 10000)];
 const candidate = [raw("今日は、いい天気ですね", 0, 4000), raw("明日は家で休みます", 4000, 10000, 1)];
 const restore = (patch: Partial<Parameters<typeof restoreLocalSubtitleCueSeparators>[0]> = {}) =>
   restoreLocalSubtitleCueSeparators({ cue, primary, candidate, windowStartMs: 1000, targets, ...patch });
+
+const timed = (): LocalSubtitleServerRawSegment[] => [
+  { ...raw("今日は、いい天気ですね", 0, 4000), dtwTokens: [
+    { text: "今日は", pointMs: 1000 }, { text: "、", pointMs: null },
+    { text: "いい天気ですね", pointMs: 3700 },
+  ] },
+  { ...raw("明日は家で休みます", 4000, 10000, 1), dtwTokens: [
+    { text: "明日", pointMs: 4500 }, { text: "は家で休みます", pointMs: 6800 },
+  ] },
+];
+const refine = (parts = timed(), patch: Partial<Parameters<typeof refineLocalSubtitleCueWithDtw>[0]> = {}) =>
+  refineLocalSubtitleCueWithDtw({ cue, primary, candidate: parts, windowStartMs: 1000, windowDurationMs: 10000, targets, ...patch });
+
+describe("DTW cue activation with exact source coverage", () => {
+  it.each(["そなたが", "あなたは", "こなたに", "どなたを", "あそこで"])("keeps a complete demonstrative together when ICU splits its kana: %s", prefix => {
+    const left = "お話は聞きました", right = prefix + "お待ちください";
+    const original = left + right;
+    const parts = [
+      { ...raw(left, 0, 4000), dtwTokens: [{ text: left, pointMs: 3700 }] },
+      { ...raw(right, 4000, 10000), dtwTokens: [{ text: right.slice(0, 1), pointMs: 4500 }, { text: right.slice(1), pointMs: 6800 }] },
+    ];
+    const result = refine(parts, { cue: { ...cue, text: original }, primary: [raw(original, 0, 10000)] });
+    expect(result.map(c => c.text)).toEqual([left, right]);
+    expect(result.map(c => [c.startMs, c.endMs])).toEqual([[1000, 5500], [5500, 11000]]);
+    const noTiming = parts.map(part => ({ ...part, dtwTokens: undefined }));
+    expect(refine(noTiming, { cue: { ...cue, text: original }, primary: [raw(original, 0, 10000)] }))
+      .toEqual([{ ...cue, text: left + " " + right }]);
+    const withinOneNativeSegment = [{ ...raw(original, 0, 10000), dtwTokens: parts.flatMap(part => part.dtwTokens) }];
+    expect(refine(withinOneNativeSegment, { cue: { ...cue, text: original }, primary: [raw(original, 0, 10000)] }))
+      .toEqual([{ ...cue, text: original }]);
+  });
+  it.each([["そ", "なたが"], ["そな", "たが"], ["そ", "うだと"], ["", "あこが"], ["", "そなたちが"]])("rejects kana fragments and near-miss pronouns despite valid times: %s / %s", (tail, head) => {
+    const left = "お話は聞きました" + tail, right = head + "お待ちください";
+    const original = left + right, custom = { ...cue, text: original };
+    const parts = [
+      { ...raw(left, 0, 4000), dtwTokens: [{ text: left, pointMs: 3700 }] },
+      { ...raw(right, 4000, 10000), dtwTokens: [{ text: right.slice(0, 1), pointMs: 4500 }, { text: right.slice(1), pointMs: 6800 }] },
+    ];
+    expect(refine(parts, { cue: custom, primary: [raw(original, 0, 10000)] })).toEqual([custom]);
+  });
+  it.each(["。", "?", "！"])("uses an existing sentence boundary without dropping its punctuation: %s", punctuation => {
+    const original = "今日はいい天気ですね" + punctuation + "明日は家で休みます";
+    const custom = { ...cue, text: original };
+    const parts = timed();
+    parts[0] = { ...parts[0]!, text: "今日はいい天気ですね" + punctuation, dtwTokens: [
+      { text: "今日はいい天気ですね", pointMs: 3700 }, { text: punctuation, pointMs: null },
+    ] };
+    const result = refine(parts, { cue: custom, primary: [raw(original, 0, 10000)] });
+    expect(needsLocalSubtitleSeparators(custom)).toBe(false);
+    expect(needsLocalSubtitleDtwRefinement(custom)).toBe(true);
+    expect(result.map(c => c.text)).toEqual(["今日はいい天気ですね" + punctuation, "明日は家で休みます"]);
+    expect(result.map(c => [c.startMs, c.endMs])).toEqual([[1000, 5500], [5500, 11000]]);
+    expect(restore({ cue: custom, primary: [raw(original, 0, 10000)], candidate: parts })).toBe(custom);
+    parts[1] = { ...parts[1]!, dtwTokens: [] };
+    expect(refine(parts, { cue: custom, primary: [raw(original, 0, 10000)] }).map(c => [c.startMs, c.endMs])).toEqual([[1000, 11000]]);
+  });
+  it("does not let existing punctuation authorize deletion, short-cue requests or quoted-sentence cuts", () => {
+    const original = "今日はいい天気ですね。明日は家で休みます";
+    const custom = { ...cue, text: original };
+    expect(refine(timed(), { cue: custom, primary: [raw(original, 0, 10000)] })).toEqual([custom]);
+    expect(needsLocalSubtitleDtwRefinement({ ...custom, endMs: 4000 })).toBe(false);
+    for (const text of ["「今日はいい天気ですね。明日は家で休みます」", "今日はいい天気ですね（明日は家で休みます?）"])
+      expect(needsLocalSubtitleDtwRefinement({ ...custom, text })).toBe(false);
+  });
+  it("can separate a later unpunctuated sentence even if an earlier sentence already has punctuation", () => {
+    const original = "今日はいい天気ですね。明日は家で休みます";
+    const parts = [{ ...raw(original, 0, 10000), dtwTokens: [
+      { text: "今日はいい天気ですね", pointMs: 3700 }, { text: "。", pointMs: null },
+      { text: "明日は家で休みます", pointMs: 4500 },
+    ] }];
+    const result = refine(parts, { cue: { ...cue, text: original }, primary: [raw(original, 0, 10000)] });
+    expect(result.map(c => c.text).join("")).toBe(original);
+    expect(result).toHaveLength(2);
+  });
+  it("splits at the independent token point and keeps parent bounds and original words", () => {
+    const result = refine();
+    expect(result).toEqual([
+      { id: "cue-1.dtw1", startMs: 1000, endMs: 5500, text: "今日は、いい天気ですね" },
+      { id: "cue-1.dtw2", startMs: 5500, endMs: 11000, text: "明日は家で休みます" },
+    ]);
+    expect(result.map(c => c.text).join("").replace("、", "")).toBe(text);
+    expect(refine(timed(), { targets: { ...targets, maxCueDurationMs: 2000 } }).map(c => [c.startMs, c.endMs])).toEqual(result.map(c => [c.startMs, c.endMs]));
+  });
+  it.each([null, -1, 3700, 6700, 11000, 4000.5])("retains text separators when a point is missing, degenerate or invalid: %s", pointMs => {
+    const parts = timed(); parts[1] = { ...parts[1]!, dtwTokens: [{ text: "明日", pointMs }, { text: "は家で休みます", pointMs: 6800 }] };
+    expect(refine(parts)).toEqual([restore()]);
+  });
+  it("rejects incomplete word coverage and contradictory earlier points", () => {
+    const parts = timed(); parts[0] = { ...parts[0]!, dtwTokens: [{ text: parts[0]!.text, pointMs: 8000 }] };
+    expect(refine(parts)).toEqual([restore()]);
+    parts[0] = { ...parts[0]!, dtwTokens: [{ text: "wrong", pointMs: 1000 }] };
+    expect(refine(parts)).toEqual([restore()]);
+  });
+  it("does not cut on a comma or through a token even when DTW values are valid", () => {
+    const parts = [{ ...raw("今日は、いい天気ですね、明日は家で休みます", 0, 10000), dtwTokens: [
+      { text: "今日は", pointMs: 1000 }, { text: "、", pointMs: null }, { text: "いい天気ですね", pointMs: 3700 },
+      { text: "、", pointMs: null }, { text: "明日は家で休みます", pointMs: 4500 },
+    ] }];
+    expect(refine(parts)).toHaveLength(1);
+  });
+  it("requires primary ownership and never replaces changed candidate words", () => {
+    const parts = timed(); parts[1] = { ...parts[1]!, text: "明日は外で遊びます" };
+    expect(refine(parts)).toEqual([cue]);
+    expect(refine(timed(), { primary: [] })).toEqual([cue]);
+  });
+  it("does not trim original whitespace by moving it onto a new cue edge", () => {
+    const original = "今日はいい天気ですね 明日は家で休みます";
+    const parts = [{ ...raw("今日はいい天気ですね 。明日は家で休みます", 0, 10000), dtwTokens: [
+      { text: "今日はいい天気ですね ", pointMs: 3700 }, { text: "。", pointMs: null },
+      { text: "明日は家で休みます", pointMs: 4500 },
+    ] }];
+    expect(refine(parts, { cue: { ...cue, text: original }, primary: [raw(original, 0, 10000)] })).toEqual([{ ...cue, text: original }]);
+  });
+});
 
 describe("insertion-only Japanese cue separators", () => {
   it("uses exact primary text plus native separators without changing parent times", () => {

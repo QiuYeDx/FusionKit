@@ -1,7 +1,8 @@
 import { randomUUID } from "node:crypto";
 import path from "node:path";
 import { shouldRetryUnconditionedAudio } from "./quiet-audio";
-import { needsLocalSubtitleSeparators, restoreLocalSubtitleCueSeparators } from "./cue-separator-restorer";
+import { planLocalSubtitleOverlapReview, resolveLocalSubtitleOverlap } from "./cue-overlap-resolver";
+import { needsLocalSubtitleSeparators, needsLocalSubtitleDtwRefinement, restoreLocalSubtitleCueSeparators, refineLocalSubtitleCueWithDtw } from "./cue-separator-restorer";
 import {
   LOCAL_SUBTITLE_ERROR_MANIFEST,
   LOCAL_SUBTITLE_LIMITS,
@@ -545,6 +546,7 @@ export class LocalSubtitleProductionExecutor
         qualityRecoveryAttempt: number,
         conditionQuietAudio = context.config.inference.vad.enabled,
         separatorCandidate = false,
+        budgetRootWindowKey = window.rootWindowKey,
       ) => {
         throwIfCancelled(context.signal);
         let brand: LocalSubtitleBrandedPcmWindow | undefined;
@@ -585,7 +587,7 @@ export class LocalSubtitleProductionExecutor
             "windowAttempt",
           );
           const requestGeneration = this.#claimRequestGeneration();
-          requestsPerRoot.set(window.rootWindowKey, (requestsPerRoot.get(window.rootWindowKey) ?? 0) + 1);
+          requestsPerRoot.set(budgetRootWindowKey, (requestsPerRoot.get(budgetRootWindowKey) ?? 0) + 1);
           const request = createInferenceRequest(context, before, requestGeneration,
             qualityRecoveryAttempt, separatorCandidate);
           let inference: LocalSubtitleServerSupervisorInferenceResponse;
@@ -624,13 +626,19 @@ export class LocalSubtitleProductionExecutor
             consumedResponses,
           });
           const attemptPolicy = separatorCandidate ? Object.freeze({ ...policy, vadEnabled: false }) : policy;
+          // Quality assessment remains segment-only; DTW points never become primary ASR evidence.
+          const qualityAttempt = separatorCandidate && attempt.response.result.wordTimelineStatus === "dtw_token_points"
+            ? { ...attempt, response: { ...attempt.response, result: { ...attempt.response.result,
+              wordTimelineStatus: "not_requested" as const,
+              segments: attempt.response.result.segments.map(({ dtwTokens: _points, ...segment }) => segment),
+            } } } : attempt;
           const assessment = assessLocalSubtitleRawWindow({
             window,
-            result: attempt.response.result,
+            result: qualityAttempt.response.result,
             policy: attemptPolicy,
           });
           const decision = decideLocalSubtitleWindowRetry({
-            attempt,
+            attempt: qualityAttempt,
             assessment,
             policy: attemptPolicy,
           });
@@ -755,22 +763,41 @@ export class LocalSubtitleProductionExecutor
         rootPlan,
         attempts,
       }).transcript;
-      // A separate text-only pass retains the accepted primary transcript and times.
+      // One optional pass retains primary words; qualified DTW points may divide a parent cue.
       // Non-Windows/backends remain on the previously verified production path.
       if (runtime.target.platform === "win32" && context.config.resolvedBackend === "cuda" &&
           context.config.taskMode === "transcribe" && context.config.inference.vad.enabled) {
         const segments = [...transcript.segments];
+        const replacements = new Map<number, readonly typeof segments[number][]>();
+        let extraCueBudget = LOCAL_SUBTITLE_LIMITS.maxTranscriptSegments - segments.length;
+        const needsRefinement = context.config.model.modelId === "large-v3"
+          ? needsLocalSubtitleDtwRefinement : needsLocalSubtitleSeparators;
+        const seamReviews = context.config.model.modelId === "large-v3" ? rootPlan.windows.slice(1).flatMap((rightWindow, index) => {
+          const leftWindow = rootPlan.windows[index]!;
+          if (requestsPerRoot.get(leftWindow.rootWindowKey) !== 1 || requestsPerRoot.get(rightWindow.rootWindowKey) !== 1) return [];
+          const left = attempts.find(a => a.window.windowKey === leftWindow.windowKey);
+          const right = attempts.find(a => a.window.windowKey === rightWindow.windowKey);
+          if (!left || !right || ![left, right].every(a => ["ja", "japanese"].includes(a.response.result.language.toLowerCase()))) return [];
+          const review = planLocalSubtitleOverlapReview({ leftWindow, rightWindow, leftRaw: left.response.result.segments,
+            rightRaw: right.response.result.segments, cues: segments });
+          return review ? [review] : [];
+        }).slice(0, 2) : [];
+        const reservedSeamRoots = new Set(seamReviews.map(review => review.budgetRootWindowKey));
+        const seamCueIndices = new Set(seamReviews.flatMap(review => [review.leftIndex, review.rightIndex]));
         const eligible = rootPlan.windows.flatMap(window => {
-          if (requestsPerRoot.get(window.rootWindowKey) !== 1) return [];
+          if (requestsPerRoot.get(window.rootWindowKey) !== 1 || reservedSeamRoots.has(window.rootWindowKey)) return [];
           const primary = attempts.find(attempt => attempt.window.windowKey === window.windowKey);
           if (!primary || !["ja", "japanese"].includes(primary.response.result.language.toLowerCase())) return [];
-          const cueIndices = segments.flatMap((cue, index) => needsLocalSubtitleSeparators(cue) &&
+          const cueIndices = segments.flatMap((cue, index) => !seamCueIndices.has(index) && needsRefinement(cue) &&
             cue.startMs >= window.startMs && cue.endMs <= window.endMs &&
             primary.response.result.segments.some(raw => raw.text === cue.text &&
               raw.startMs + window.startMs === cue.startMs && raw.endMs + window.startMs === cue.endMs) ? [index] : []);
-          return cueIndices.length ? [{ window, primary, cueIndices }] : [];
+          // Reuse this response for punctuated siblings; do not spend an extra
+          // request solely on the expanded eligibility without a measured benefit.
+          return cueIndices.some(index => needsLocalSubtitleSeparators(segments[index]!))
+            ? [{ window, primary, cueIndices }] : [];
         });
-        if (eligible.length) {
+        if (eligible.length || seamReviews.length) {
           await this.#supervisor.release(lease!);
           lease = undefined;
           try {
@@ -800,12 +827,16 @@ export class LocalSubtitleProductionExecutor
               let changed = false;
               for (const cueIndex of cueIndices) {
                 const cue = segments[cueIndex]!;
-                const restored = restoreLocalSubtitleCueSeparators({ cue,
+                const enhancement = { cue,
                   primary: primary.response.result.segments,
                   candidate: candidate.attempt.response.result.segments,
-                  windowStartMs: window.startMs, targets: policy });
-                changed ||= restored !== cue;
-                segments[cueIndex] = restored;
+                  windowStartMs: window.startMs, windowDurationMs: window.endMs - window.startMs, targets: policy };
+                let restored = candidate.attempt.response.result.wordTimelineStatus === "dtw_token_points"
+                  ? refineLocalSubtitleCueWithDtw(enhancement) : [restoreLocalSubtitleCueSeparators(enhancement)];
+                if (restored.length - 1 > extraCueBudget) restored = [restoreLocalSubtitleCueSeparators(enhancement)];
+                extraCueBudget -= restored.length - 1;
+                changed ||= restored.length !== 1 || restored[0] !== cue;
+                replacements.set(cueIndex, restored);
               }
               unchanged = changed ? 0 : unchanged + 1;
               context.update({ status: "post_processing", progress: {
@@ -814,7 +845,36 @@ export class LocalSubtitleProductionExecutor
               }, durationMs });
               if (unchanged >= LOCAL_SUBTITLE_PRODUCTION_EXECUTOR_POLICY.maxConsecutiveUnchangedSeparatorWindows) break;
             }
-            transcript = Object.freeze({ ...transcript, segments: Object.freeze(segments) });
+            // Keep the established separator request order; native decoding is stateful.
+            for (const review of seamReviews) {
+              throwIfCancelled(context.signal);
+              // One bounded witness uses the right root's shared optional request.
+              if (requestsPerRoot.get(review.budgetRootWindowKey) !== 1) continue;
+              await this.#supervisor.release(lease!);
+              lease = undefined;
+              try {
+                lease = await this.#supervisor.acquirePinnedSeparatorLease(pin, context.signal, { freshInferenceState: true });
+              } catch (error) {
+                if (context.signal.aborted || isCleanupFailureCode(publicErrorCode(error, "loading_model"))) throw error;
+                break;
+              }
+              try {
+                const candidate = await executeWindowAttempt(review.window, 0, false, true, review.budgetRootWindowKey);
+                if (candidate.decision.action !== "accept" || candidate.attempt.response.result.wordTimelineStatus !== "dtw_token_points") continue;
+                try { reserveRetainedRawResponse(candidate.attempt.response, retainedRawUsage, this.#retainedRawBudget); }
+                catch { break; }
+                const decision = resolveLocalSubtitleOverlap(review, candidate.attempt.response.result.segments);
+                if (decision) {
+                  replacements.set(review.leftIndex, [decision.replacement]);
+                  replacements.set(review.rightIndex, []);
+                  extraCueBudget++;
+                }
+              } catch (error) {
+                if (error instanceof SeparatorCandidateUnavailable) break;
+                throw error;
+              }
+            }
+            transcript = Object.freeze({ ...transcript, segments: Object.freeze(segments.flatMap((cue, index) => replacements.get(index) ?? [cue])) });
           }
         }
       }
@@ -1266,6 +1326,7 @@ function createInferenceRequest(
   qualityRecoveryAttempt = 0,
   separatorCandidate = false,
 ): LocalSubtitleServerInferenceRequest {
+  const dtw = separatorCandidate && context.config.resolvedBackend === "cuda" && context.config.model.modelId === "large-v3";
   const configuredTemperature = context.config.inference.advanced.temperature;
   const temperature =
     qualityRecoveryAttempt === 0
@@ -1288,7 +1349,8 @@ function createInferenceRequest(
       mtimeMs: resolved.fileIdentity.mtimeMs,
       ctimeMs: resolved.fileIdentity.ctimeMs,
     }),
-    language: context.config.language,
+    language: dtw ? "ja" : context.config.language,
+    ...(dtw ? { timingMode: "dtw_large_v3" as const } : {}),
     taskMode: context.config.taskMode,
     beamSize: context.config.inference.advanced.beamSize,
     temperature,
@@ -1430,7 +1492,8 @@ function reserveRetainedRawResponse(
     );
   }
   for (const segment of response.result.segments) {
-    const segmentBytes = Buffer.byteLength(segment.text, "utf8");
+    const segmentBytes = Buffer.byteLength(segment.text, "utf8") +
+      (segment.dtwTokens?.reduce((size, token) => size + Buffer.byteLength(token.text, "utf8") + 32, 0) ?? 0);
     if (segmentBytes > budget.maxTextBytes - usage.textBytes - responseTextBytes) {
       throw createLocalSubtitleError(
         "limit_exceeded",

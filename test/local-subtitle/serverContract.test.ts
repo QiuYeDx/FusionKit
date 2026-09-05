@@ -270,6 +270,29 @@ describe("local subtitle official server contract", () => {
   });
 });
 
+it("requests DTW points only for explicit Japanese non-VAD transcription", () => {
+  const request = { ...validRequest(), vadEnabled: false, timingMode: "dtw_large_v3" as const };
+  expect(createLocalSubtitleServerInferenceFields(request)).toMatchObject({ token_timestamps: "true", temperature_inc: "0.2" });
+  for (const patch of [{ vadEnabled: true }, { language: "en" }, { taskMode: "translate_to_english" as const }]) {
+    expect(() => createLocalSubtitleServerInferenceFields({ ...request, ...patch })).toThrow(/DTW/);
+  }
+});
+
+it("preserves separate DTW points while ordinary and VAD requests discard them", () => {
+  const raw = validVerboseJson(); raw.segments[0]!.words[0]!.t_dtw = 42;
+  const options = { taskMode: "transcribe" as const, vadEnabled: false, timingMode: "dtw_large_v3" as const };
+  const result = parseLocalSubtitleServerVerboseJson(raw, options);
+  expect(result.wordTimelineStatus).toBe("dtw_token_points");
+  expect(result.segments[0]!.dtwTokens).toEqual([{ text: "hello", pointMs: 420 }]);
+  expect(result.segments[0]!.dtwTokens?.[0]).not.toHaveProperty("startMs");
+  for (const value of [-1, 0.5, Number.MAX_SAFE_INTEGER]) {
+    raw.segments[0]!.words[0]!.t_dtw = value;
+    expect(parseLocalSubtitleServerVerboseJson(raw, options).segments[0]!.dtwTokens?.[0]?.pointMs).toBeNull();
+  }
+  expect(() => parseLocalSubtitleServerVerboseJson(raw, { ...options, vadEnabled: true })).toThrow(/DTW/);
+  expect(parseLocalSubtitleServerVerboseJson(raw, { taskMode: "transcribe", vadEnabled: false }).segments[0]).not.toHaveProperty("dtwTokens");
+});
+
 function validRequest() {
   return {
     requestGeneration: 1,

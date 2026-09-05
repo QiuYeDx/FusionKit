@@ -77,6 +77,107 @@ afterEach(async () => {
 });
 
 describe("local subtitle production executor", () => {
+  it.each(["valid", "shared_budget", "ordering", "changed", "missing", "startup_failure", "native_failure", "cancel", "cleanup_failure"] as const)("reconciles a clipped cross-window variant with a bounded witness: %s", async scenario => {
+    const accelerator = await createAcceleratorFixture();
+    try {
+      const left = "ん?なんだどうして", right = "ん?何だ?どうしたのって何がだ?";
+      const sibling = scenario === "shared_budget" ? [rawSegment(1, 10000, 20000, "今日はいい天気ですね明日は家で休みます")] : [];
+      const leading = scenario === "ordering" ? [rawSegment(0, 0, 10000, "今日はいい天気ですね明日は家で休みます")] : [];
+      const harness = await createHarness({ backend: "cuda", acceleratorPack: accelerator.proof, modelId: "large-v3",
+        totalFrames: 55 * 16000, vadEnabled: true, formats: ["SRT", "LRC"],
+        inference: ({ request, window }) => {
+          if (!request.vadEnabled && scenario === "native_failure") throw new Error("witness unavailable");
+          if (!request.vadEnabled && scenario === "cancel") harness.controller.abort();
+          const segments = request.vadEnabled ? window.startMs === 0
+            ? [...leading, rawSegment(leading.length, 24960, 30000, left)] : [rawSegment(0, 1350, 6230, right), ...sibling]
+            : scenario === "ordering" && window.startMs === 0 ? [
+              { ...rawSegment(0, 0, 4000, "今日はいい天気ですね"), dtwTokens: [{ text: "今日はいい天気ですね", pointMs: 3700 }] },
+              { ...rawSegment(1, 4000, 10000, "明日は家で休みます"), dtwTokens: [{ text: "明日は家で休みます", pointMs: 4500 }] },
+            ]
+            : [{ ...rawSegment(0, 4920, 11300, scenario === "changed" ? "別の話をしています" : "ん?なんだ どうしたのって何がだ"),
+              dtwTokens: scenario === "missing" ? [] : [{ text: "ん?なんだ", pointMs: 6420 }, { text: " どうしたのって何がだ", pointMs: 11060 }] }];
+          const response = serverResponse(request, window.endMs - window.startMs, segments);
+          return { processEpoch: request.vadEnabled ? 1 : 2, response: { ...response, result: { ...response.result,
+            language: "ja", wordTimelineStatus: request.vadEnabled ? "discarded_vad_compressed_timeline" : "dtw_token_points" } } };
+        } });
+      if (scenario === "cleanup_failure") harness.media.disposeWindow.mockImplementationOnce(async () => ({ removed: true }))
+        .mockImplementationOnce(async () => ({ removed: true })).mockRejectedValueOnce(new Error("cleanup failed"));
+      if (scenario === "startup_failure") {
+        const acquire = harness.supervisor.acquirePinnedSeparatorLease;
+        acquire.mockImplementationOnce(acquire.getMockImplementation()!).mockRejectedValueOnce(new Error("fresh witness unavailable"));
+      }
+      const result = await harness.executor.execute(harness.context);
+      expect(harness.supervisor.beginInference).toHaveBeenCalledTimes(scenario === "ordering" ? 4 : scenario === "startup_failure" ? 2 : 3);
+      expect(harness.supervisor.acquirePinnedSeparatorLease).toHaveBeenLastCalledWith(expect.anything(), harness.context.signal, { freshInferenceState: true });
+      if (scenario === "ordering") expect(harness.media.materializeWindow.mock.calls[2]![0]).toMatchObject({ descriptor: { windowKey: "w000000" } });
+      if (scenario !== "startup_failure") expect(harness.media.materializeWindow.mock.calls.at(-1)![0]).toMatchObject({ conditionQuietAudio: false,
+        descriptor: { startMs: 20000, endMs: 40000, windowKey: "w000001.seam", rootWindowKey: "w000001.seam" } });
+      if (scenario === "cancel" || scenario === "cleanup_failure") {
+        expect(result.status).toBe(scenario === "cancel" ? "cancelled" : "failed");
+        expect(harness.exporter.exportArtifacts).not.toHaveBeenCalled();
+      } else {
+        expect(result.status).toBe("completed");
+        const cues = harness.exporter.exportArtifacts.mock.calls[0]![0].transcript.segments;
+        const accepted = ["valid", "shared_budget", "ordering"].includes(scenario);
+        expect(cues.map(c => c.text)).toEqual([...(scenario === "ordering" ? ["今日はいい天気ですね", "明日は家で休みます"] : []),
+          ...(accepted ? [right] : [left, right]), ...sibling.map(s => s.text)]);
+        if (accepted) expect(cues[scenario === "ordering" ? 2 : 0]).toMatchObject({ startMs: 24960, endMs: 31230 });
+        expect(result.artifactResults).toHaveLength(2);
+      }
+    } finally { await accelerator.cleanup(); }
+  });
+  it.each(["large-v3", undefined])("does not spend a request solely on a punctuated cue: %s", async modelId => {
+    const accelerator = await createAcceleratorFixture();
+    try {
+      const harness = await createHarness({ backend: "cuda", acceleratorPack: accelerator.proof,
+        modelId, vadEnabled: true, inference: ({ request, window }) => {
+          const response = serverResponse(request, window.endMs - window.startMs,
+            [rawSegment(0, 0, 10000, "今日はいい天気ですね。明日は家で休みます")]);
+          return { processEpoch: 1, response: { ...response, result: { ...response.result, language: "ja" } } };
+        } });
+      expect((await harness.executor.execute(harness.context)).status).toBe("completed");
+      expect(harness.supervisor.beginInference).toHaveBeenCalledTimes(1);
+      expect(harness.supervisor.acquirePinnedSeparatorLease).not.toHaveBeenCalled();
+    } finally { await accelerator.cleanup(); }
+  });
+  it.each(["valid", "missing", "changed", "punctuated"] as const)("exports bounded DTW enhancement through the default path: %s", async scenario => {
+    const accelerator = await createAcceleratorFixture();
+    const firstText = "今日はいい天気ですね" + (scenario === "punctuated" ? "。" : "");
+    const text = firstText + "明日は家で休みます";
+    const siblings = scenario === "punctuated"
+      ? [rawSegment(1, 12000, 22000, "今日は読書をしていました明日は外で遊びます")] : [];
+    try {
+      const harness = await createHarness({ backend: "cuda", acceleratorPack: accelerator.proof,
+        modelId: "large-v3", vadEnabled: true, formats: ["SRT", "LRC"],
+        totalFrames: (scenario === "punctuated" ? 22 : 10) * 16000,
+        inference: ({ request, window }) => {
+          const segments = request.vadEnabled ? [rawSegment(0, 0, 10000, text), ...siblings] : [
+            { ...rawSegment(0, 0, 4000, firstText), dtwTokens: [
+              { text: "今日は", pointMs: 1200 }, { text: "いい天気ですね", pointMs: 3700 },
+              ...(scenario === "punctuated" ? [{ text: "。", pointMs: null }] : [])] },
+            { ...rawSegment(1, 4000, 10000, scenario === "changed" ? "明日は外で遊びます" : "明日は家で休みます"), dtwTokens: [
+              { text: "明日", pointMs: scenario === "missing" ? null : 4500 }, { text: "は家で休みます", pointMs: 6800 }] },
+            ...siblings.map(segment => ({ ...segment, id: 2 })),
+          ];
+          const response = serverResponse(request, window.endMs - window.startMs, segments);
+          return { processEpoch: request.vadEnabled ? 1 : 2, response: { ...response,
+            result: { ...response.result, language: "ja", wordTimelineStatus: request.vadEnabled ? "discarded_vad_compressed_timeline" : "dtw_token_points" } } };
+        } });
+      const result = await harness.executor.execute(harness.context);
+      expect(result.status).toBe("completed");
+      expect(harness.supervisor.beginInference).toHaveBeenCalledTimes(2);
+      expect(harness.supervisor.beginInference.mock.calls[0]![1].timingMode).toBeUndefined();
+      expect(harness.supervisor.beginInference.mock.calls[1]![1]).toMatchObject({ timingMode: "dtw_large_v3", vadEnabled: false, language: "ja" });
+      const cues = harness.exporter.exportArtifacts.mock.calls[0]![0].transcript.segments;
+      expect(cues.map(c => [c.startMs, c.endMs])).toEqual([
+        ...(["valid", "punctuated"].includes(scenario) ? [[0, 4500], [4500, 10000]] : [[0, 10000]]),
+        ...siblings.map(c => [c.startMs, c.endMs]),
+      ]);
+      expect(cues.map(c => c.text).join("").replace(/ /g, "")).toBe(text + siblings.map(c => c.text).join(""));
+      expect(result.artifactResults).toHaveLength(2);
+    } finally { await accelerator.cleanup(); }
+  });
+
   it.each(["accept", "changed_text", "native_failure", "startup_failure", "stale_response", "cancel", "cleanup_failure"] as const)(
     "handles a bounded text-only separator candidate: %s", async (scenario) => {
       const accelerator = await createAcceleratorFixture();
@@ -1480,6 +1581,7 @@ describe("local subtitle production executor", () => {
 });
 
 interface HarnessOptions {
+  readonly modelId?: string;
   readonly quietAudioGainDb?: number;
   readonly backend?: "cpu" | "cuda" | "metal";
   readonly acceleratorPack?: LocalSubtitleVerifiedAcceleratorPack;
@@ -1740,10 +1842,11 @@ async function createHarness(options: HarnessOptions = {}) {
     options.vadEnabled === true,
     options.taskMode,
     options.initialPrompt,
+    options.modelId,
   );
   const managedModel = Object.freeze({
     storage: "managed" as const,
-    id: LOCAL_SUBTITLE_PRODUCTION_CONTRACT.launchModel.id,
+    id: options.modelId ?? LOCAL_SUBTITLE_PRODUCTION_CONTRACT.launchModel.id,
     absolutePath: path.join(os.tmpdir(), "managed-model.bin"),
     byteSize: 1024,
     sha256: MODEL_HASH,
@@ -1902,6 +2005,7 @@ function createConfig(
   vadEnabled = false,
   taskMode: LocalSubtitleBatchConfigSnapshot["taskMode"] = "transcribe",
   initialPrompt?: string,
+  modelId: string = LOCAL_SUBTITLE_PRODUCTION_CONTRACT.launchModel.id,
 ): LocalSubtitleBatchConfigSnapshot {
   return createLocalSubtitleBatchConfigSnapshot({
     schemaVersion: LOCAL_SUBTITLE_DOMAIN_SCHEMA_VERSION,
@@ -1913,7 +2017,7 @@ function createConfig(
       engineVersion: LOCAL_SUBTITLE_PRODUCTION_CONTRACT.engine.version,
       engineCommit: LOCAL_SUBTITLE_PRODUCTION_CONTRACT.engine.commit,
       modelManifestVersion: LOCAL_SUBTITLE_MODEL_MANIFEST_VERSION,
-      modelId: LOCAL_SUBTITLE_PRODUCTION_CONTRACT.launchModel.id,
+      modelId,
       modelHash: MODEL_HASH,
     },
     devicePreference: "auto",

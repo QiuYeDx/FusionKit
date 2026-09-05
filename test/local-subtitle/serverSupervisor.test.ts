@@ -220,6 +220,8 @@ describe("LocalSubtitleServerSupervisor", () => {
     expect(harness.supervisor.snapshot).toMatchObject({ runtimePinCount: 1, leaseCount: 1 });
     expect(harness.supervisor.snapshot.vadModelId).toBeUndefined();
     expect(() => harness.supervisor.beginInference(candidateLease, inferenceRequest(1))).toThrow();
+    expect(() => harness.supervisor.beginInference(candidateLease, { ...inferenceRequest(1),
+      language: "ja", vadEnabled: false, timingMode: "dtw_large_v3" })).toThrow(/timing mode/);
     await harness.supervisor.beginInference(candidateLease, { ...inferenceRequest(2), vadEnabled: false }).result;
     await harness.supervisor.release(candidateLease);
     const restored = await harness.supervisor.acquirePinnedTaskLease(pin);
@@ -228,6 +230,26 @@ describe("LocalSubtitleServerSupervisor", () => {
     expect(harness.supervisor.snapshot.vadModelId).toBeDefined();
     await harness.supervisor.beginInference(restored, inferenceRequest(3)).result;
     await harness.supervisor.release(restored);
+    harness.supervisor.releaseBatchRuntimePin(pin);
+  });
+
+  it("resets used separator state for independent witnesses while retaining the pin", async () => {
+    const harness = createHarness();
+    const pin = await harness.supervisor.acquireBatchRuntimePin(OWNER_A, "batch-witness", loadOptions());
+    const fresh = { freshInferenceState: true };
+    const first = await harness.supervisor.acquirePinnedSeparatorLease(pin, undefined, fresh);
+    await expect(harness.supervisor.acquirePinnedSeparatorLease(pin, undefined, fresh)).rejects.toMatchObject({ code: "resource_busy" });
+    const initialSpawns = harness.spawnRecords.length;
+    await harness.supervisor.release(first);
+    const unused = await harness.supervisor.acquirePinnedSeparatorLease(pin, undefined, fresh);
+    expect(harness.spawnRecords).toHaveLength(initialSpawns);
+    await harness.supervisor.beginInference(unused, { ...inferenceRequest(1), vadEnabled: false }).result;
+    await harness.supervisor.release(unused);
+    const next = await harness.supervisor.acquirePinnedSeparatorLease(pin, undefined, fresh);
+    expect(harness.spawnRecords).toHaveLength(initialSpawns + 1);
+    expect(harness.children[initialSpawns - 1]?.killSignals).toContain("SIGTERM");
+    expect(harness.supervisor.snapshot.runtimePinCount).toBe(1);
+    await harness.supervisor.release(next);
     harness.supervisor.releaseBatchRuntimePin(pin);
   });
 

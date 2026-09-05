@@ -87,6 +87,7 @@ export class LocalSubtitleServerContractError extends Error {
 }
 
 export interface LocalSubtitleServerInferenceRequest {
+  readonly timingMode?: "dtw_large_v3";
   readonly requestGeneration: number;
   readonly filePath: string;
   readonly expectedFileIdentity: LocalSubtitleServerExpectedFileIdentity;
@@ -114,7 +115,7 @@ export interface LocalSubtitleServerInferenceFields {
   readonly language: string;
   readonly translate: "true" | "false";
   readonly vad: "true" | "false";
-  readonly token_timestamps: "false";
+  readonly token_timestamps: "true" | "false";
   readonly no_language_probabilities: "true";
   readonly beam_size: string;
   readonly temperature: string;
@@ -126,6 +127,8 @@ export interface LocalSubtitleServerInferenceFields {
 }
 
 export interface LocalSubtitleServerRawSegment {
+  /** Token-interior positions in the uncompressed request window, never word edges. */
+  readonly dtwTokens?: readonly Readonly<{ text: string; pointMs: number | null }>[];
   readonly id: number;
   readonly startMs: number;
   readonly endMs: number;
@@ -144,6 +147,7 @@ export interface LocalSubtitleServerInferenceResult {
   readonly segments: readonly LocalSubtitleServerRawSegment[];
   readonly wordTimelineStatus:
     | "not_requested"
+    | "dtw_token_points"
     | "discarded_vad_compressed_timeline";
 }
 
@@ -249,7 +253,7 @@ export function createLocalSubtitleServerInferenceFields(
     translate:
       request.taskMode === "translate_to_english" ? "true" : "false",
     vad: request.vadEnabled ? "true" : "false",
-    token_timestamps: "false",
+    token_timestamps: request.timingMode === "dtw_large_v3" ? "true" : "false",
     no_language_probabilities: "true",
     beam_size: String(request.beamSize),
     temperature: String(request.temperature),
@@ -395,8 +399,13 @@ export function parseLocalSubtitleServerVerboseJson(
   options: {
     readonly taskMode: LocalSubtitleTaskMode;
     readonly vadEnabled: boolean;
+    readonly timingMode?: "dtw_large_v3";
   },
 ): LocalSubtitleServerInferenceResult {
+  if (options.timingMode !== undefined && (options.timingMode !== "dtw_large_v3" ||
+      options.vadEnabled || options.taskMode !== "transcribe")) {
+    throw invalidConfiguration("The DTW response mode is invalid.");
+  }
   const parsed = verboseJsonSchema.safeParse(input);
   if (!parsed.success) {
     throw invalidResponse("The local inference response does not match contract v1.");
@@ -429,10 +438,15 @@ export function parseLocalSubtitleServerVerboseJson(
       temperature: segment.temperature,
       averageLogProbability: segment.avg_logprob,
       noSpeechProbability: segment.no_speech_prob,
+      ...(options.timingMode === "dtw_large_v3" ? { dtwTokens: (segment.words ?? []).map(word => ({
+        text: word.word,
+        pointMs: Number.isSafeInteger(word.t_dtw) && word.t_dtw! >= 0 &&
+          word.t_dtw! <= LOCAL_SUBTITLE_LIMITS.maxDurationMs / 10 ? word.t_dtw! * 10 : null,
+      })) } : {}),
     })),
     wordTimelineStatus: options.vadEnabled
       ? "discarded_vad_compressed_timeline"
-      : "not_requested",
+      : options.timingMode === "dtw_large_v3" ? "dtw_token_points" : "not_requested",
   });
 }
 
@@ -461,6 +475,10 @@ export function invalidLocalSubtitleServerResponse(
 function validateInferenceOptions(
   request: Omit<LocalSubtitleServerInferenceRequest, "filePath" | "signal">,
 ): void {
+  if (request.timingMode !== undefined && (request.timingMode !== "dtw_large_v3" ||
+      request.vadEnabled || request.taskMode !== "transcribe" || request.language !== "ja")) {
+    throw invalidConfiguration("The DTW inference request mode is invalid.");
+  }
   if (!Number.isSafeInteger(request.requestGeneration) || request.requestGeneration < 1) {
     throw invalidConfiguration("The inference generation must be a positive integer.");
   }
