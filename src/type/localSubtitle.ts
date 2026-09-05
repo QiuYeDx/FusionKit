@@ -128,6 +128,7 @@ export interface LocalSubtitleAdvancedSettings {
   readonly beamSize: number;
   readonly temperature: number;
   readonly vadMinSilenceMs: number;
+  /** Display targets; segment-only evidence may require exceeding these values. */
   readonly maxCueDurationMs: number;
   readonly maxCueChars: number;
   readonly maxLineChars: number;
@@ -147,7 +148,11 @@ export interface LocalSubtitleRawQualityGateSnapshot {
   readonly maxRetryDepth: typeof LOCAL_SUBTITLE_PRODUCTION_CONTRACT.transcript.maxRetryDepth;
 }
 
+export const LOCAL_SUBTITLE_CUE_POLICY = "sentence_readable_v2" as const;
+
 export interface LocalSubtitleInferenceSnapshot {
+  /** Older snapshots omit this; newly created tasks always record the active policy. */
+  readonly cuePolicy?: typeof LOCAL_SUBTITLE_CUE_POLICY;
   readonly advanced: LocalSubtitleAdvancedSettings;
   readonly vad: LocalSubtitleVadSnapshot;
   readonly rawQualityGate: LocalSubtitleRawQualityGateSnapshot;
@@ -222,6 +227,7 @@ export function createLocalSubtitleBatchConfigSnapshot(
     ...input,
     model: { ...input.model },
     inference: {
+      cuePolicy: LOCAL_SUBTITLE_CUE_POLICY,
       advanced: { ...input.inference.advanced },
       vad: { ...input.inference.vad },
       rawQualityGate: { ...input.inference.rawQualityGate },

@@ -36,6 +36,11 @@ Display budgets were treated as permission to introduce semantic and acoustic bo
 
 On 2026-09-05, two local full large-v3/CUDA/VAD requests over a 55-second opening reproduced all six user-reported LRC lines exactly. The first raw segment was 28 characters over 14.09 seconds; the default 7000 ms limit forced 9/10/9 characters and generated 7029/12061 ms boundaries. A second 38-character, 8.37-second segment produced a 20775 ms boundary. There were two split raw segments, five estimated cues and zero short-cue merges. Raising only the limit to 15000 ms removed the word cuts but retained unreadable unpunctuated blocks. All three NAS file hashes were unchanged, four exported subtitles parsed back, and the native process exited. This is diagnosis evidence; the replacement planner was not implemented in that turn.
 
+The subsequent T-SEG-01/02 implementation removes character-proportional splitting and unknown-relation joins. Saved 55-second opening and 175.993-second prior accepted-track responses retain the same non-whitespace text and punctuation, with invented-timing cues falling from 5/19 to zero. A production-executor replay of the two opening JSON responses exports identical SRT/LRC content with two dependency calls. 380 relevant tests pass. Original unpunctuated blocks remain; this milestone does not close sentence restoration or acoustic timing work.
+
+
+T-SEG-03C found that ICU word segmentation can split a Japanese pronoun into individual kana; a word-mode boundary alone is therefore not permission to break. Thirteen offline tests now include single-kana and dependent-ending rejection, exact insertion-only coverage, and a contradicting third observation. Native boundaries at 18.44/18.42 seconds in two long views did not establish reliable timing: a shifted local crop returned one segment and a zero-duration word at 19.18 seconds. Do not select only the favorable pair. Separator evidence may still support a punctuation/space preview while every parent timestamp remains unchanged; this does not qualify a new time cut or a production default.
+
 ## Related files
 
 - `electron/main/local-subtitle/subtitle-post-processor.ts`

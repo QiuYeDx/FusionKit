@@ -32,10 +32,12 @@ interval then leaves only two bad choices: duplicate text or reject valid media.
   repetition as transcript-validity checks.
 - Record overlong raw segments for diagnostics, but pass valid text to canonical
   shaping.
-- Split a long segment across its original interval when enough text exists.
-  When the interval is too sparse, retain the text once, cap its display interval
-  to the configured cue duration, allow the remaining audio to have no cue, and
-  mark the timing as estimated.
+- Preserve the accepted segment's interval when no supported internal acoustic
+  boundary exists. Display duration and character settings are soft targets.
+  Do not split by character count or cap a sparse cue's end by the display budget.
+  Retain text once and report the long span for bounded review.
+- The earlier estimated split/cap workaround was superseded on 2026-09-05 by
+  `sentence_readable_v2`; see FK-PIT-0116 for timing provenance requirements.
 - Prove the exact failing media completes inference, shaping, serialization and
   export; a synthetic unit test alone is not enough for this class of failure.
 
@@ -50,8 +52,9 @@ interval then leaves only two bad choices: duplicate text or reject valid media.
 ## Validation
 
 - Assess a 22-second valid segment as accepted while reporting it as overlong.
-- Shape a 22-second `うん` segment into one estimated cue no longer than the
-  configured display duration, with no duplicated text.
+- Preserve a 22-second `うん` segment once at its accepted start/end, with a
+  preserved-segment diagnostic and no invented timing. This does not prove that
+  speech occupies its whole raw interval.
 - Keep malformed, reversed, overlapping, out-of-window and repeated-loop fixtures
   failing closed.
 - Run the real sparse-speech media through the Electron workflow and validate the

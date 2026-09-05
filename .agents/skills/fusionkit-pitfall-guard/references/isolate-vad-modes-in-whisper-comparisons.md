@@ -36,6 +36,13 @@ Sources: [server request parameters](https://github.com/ggml-org/whisper.cpp/blo
 
 On 2026-09-05, isolated no-VAD A controls matched; a mixed-mode A run differed. B current/current and current/relaxed/current controls matched for current-mode responses. FusionKit production already rejects VAD mode mismatches and retires incompatible load identities; 51 serverSupervisor tests passed. No production cross-mode failure was established.
 
+
+## Same-mode task order also needs validation
+
+T-SEG-04A/04B on 2026-09-05 reproduced changed text and timestamps even with VAD enabled throughout: opening -> conditioned quiet control -> nonverbal control -> the same opening. A fresh process reproduced the first opening exactly. The real 216-second file also differed when run alone versus after unrelated tasks. This demonstrates process-reuse order dependence; it does not identify the precise native tensor/decoder state responsible.
+
+The pinned upstream server copies default request parameters for each call, defaults no_context to true, and invokes VAD reset. Do not guess that an omitted padding field or prompt is leaking and change inference settings without evidence. Test the whole preceding sequence, not only isolated requests. In the verified Windows CUDA VAD production path, acquire a task lease with freshInferenceState: retire an already-used process while keeping resource pins, but reuse an unused loaded process. Reuse within one file remains allowed. Preserve strict cancellation/cleanup and active-lease fences, and measure the per-file reload overhead.
+
 ## Related files
 
 - `electron/main/local-subtitle/server-supervisor.ts`

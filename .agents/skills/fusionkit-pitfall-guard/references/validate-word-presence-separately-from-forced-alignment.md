@@ -35,6 +35,9 @@ Forced alignment optimizes a path conditioned on supplied tokens; it is not inde
 Eight fixed-text CPU/int8 small-model experiments on 2026-09-05 preserved their input text. One B candidate assigned 23.56 seconds to its first word while mean lexical probability was about 0.718. Nonverbal and unrelated-text controls also returned timelines. No automatic replacement was accepted; the original ASR runtime remained unchanged.
 
 Phase 7 added 22 encodings / 42 fixed-text audio-ablation scores on the same isolated small model. A nonverbal false-word control scored higher on real audio than equal-length silence (mean log contrast +1.4737); an unrelated sentence showed a first-token masking peak despite negative whole-text contrast. Audio dependence and local masking peaks are therefore review signals, not independent word verification or exact onset. Six Python tests cover masking invariants, score validation, budgets, origin mapping, non-acceptance and output protection. All three workspace WAV fingerprints were unchanged.
+
+Phase 12 added full large-v3 free-decoding controls. A conditioned nonverbal input produced false words with positive, in-parent, text-covering word intervals: structural validity still did not establish speech presence. Other candidates returned zero-duration words and multi-second lexical spans. Six offline audit tests preserve the non-acceptance contract. The user's FP32-stored model and the official FP16-stored candidate had identical tensor names/shapes; the same user model at explicit FP16 and FP32 compute produced identical text and segment boundaries on all three fixed inputs. Record storage dtype, actual compute type, model configuration and runtime version separately; larger files alone do not establish greater model capacity or quality. This finding does not establish numerical weight equality or universal precision equivalence.
+
 ## Related files
 
 - `electron/main/local-subtitle/local-review.ts`

@@ -42,7 +42,8 @@ describe("local subtitle post-processing policy", () => {
     });
 
     expect(policy).toMatchObject({
-      schemaVersion: 1,
+      schemaVersion: 2,
+      cuePolicy: "sentence_readable_v2",
       wordTimelineMode: "segment_only_v1",
       qualityFingerprint:
         "nfkc-lowercase-without-punctuation-symbols-whitespace",
@@ -61,8 +62,6 @@ describe("local subtitle post-processing policy", () => {
       boundaryTextGapMs: 500,
       boundaryTextMinCjkChars: 2,
       boundaryTextMinLatinChars: 4,
-      shortCueMergeGapMs: 300,
-      shortCueMergeMaxDurationMs: 1000,
     });
     expect(JSON.stringify(policy)).not.toContain("private prompt");
     expect(Object.isFrozen(policy)).toBe(true);
@@ -86,6 +85,20 @@ describe("local subtitle post-processing policy", () => {
         policy: copied,
       }),
     ).toThrow(/policy is invalid/u);
+  });
+
+  it("maps legacy snapshots to the active cue policy and rejects an unsupported identity", () => {
+    const inference = inferenceSnapshot();
+    expect(inference).not.toHaveProperty("cuePolicy");
+    expect(createSubtitlePostProcessPolicy(inference).cuePolicy).toBe("sentence_readable_v2");
+    expect(() => createSubtitlePostProcessPolicy({
+      ...inference,
+      cuePolicy: "character_proportional_v1" as LocalSubtitleInferenceSnapshot["cuePolicy"],
+    })).toThrow(LocalSubtitlePostProcessorError);
+    expect(() => assessLocalSubtitleRawWindow({
+      window: oneWindow(), result: serverResult([], 30000),
+      policy: {...policyFrom(), cuePolicy: "unknown" as LocalSubtitlePostProcessPolicy["cuePolicy"]},
+    })).toThrow(/policy is invalid/u);
   });
 });
 
@@ -137,13 +150,13 @@ describe("raw transcript quality gate", () => {
     expect(assessment.issues).toContain(issue);
   });
 
-  it("records a long sparse-speech segment without rejecting shapeable text", () => {
+  it("preserves a long raw segment and reports it for review", () => {
     const window = oneWindow();
     const segments = [
       rawSegment(
         1_000,
         23_000,
-        "これはゆっくり話された有効な字幕なので、表示用の短い字幕へ安全に分割します。",
+        "これはゆっくり話された字幕なので、内部の時間を推測せずに元の区間を保ちます。",
       ),
     ];
     const assessment = assess(segments);
@@ -165,15 +178,13 @@ describe("raw transcript quality gate", () => {
 
     const result = process({ durationMs: 30_000, leaves: [attempt] });
     expect(result.report.overlongRawSegmentCount).toBe(1);
-    expect(result.transcript.segments.length).toBeGreaterThan(1);
-    expect(
-      result.transcript.segments.every(
-        (segment) => segment.endMs - segment.startMs <= 7_000,
-      ),
-    ).toBe(true);
+    expect(result.transcript.segments).toHaveLength(1);
+    expect(result.transcript.segments[0]).toMatchObject({startMs: 1000, endMs: 23000});
+    expect(result.report.preservedSegmentCount).toBe(1);
+    expect(result.report.estimatedTimingSegmentCount).toBe(0);
   });
 
-  it("shortens a sparse raw timeline instead of duplicating text or failing", () => {
+  it("keeps sparse raw timing pending evidence instead of inventing an earlier end", () => {
     const attempt = leaf(oneWindow(), [rawSegment(1_000, 23_000, "うん")]);
 
     const result = process({ durationMs: 30_000, leaves: [attempt] });
@@ -181,15 +192,15 @@ describe("raw transcript quality gate", () => {
     expect(result.transcript.segments).toEqual([
       expect.objectContaining({
         startMs: 1_000,
-        endMs: 8_000,
+        endMs: 23_000,
         text: "うん",
-        estimatedTiming: true,
       }),
     ]);
     expect(result.report.overlongRawSegmentCount).toBe(1);
-    expect(result.report.estimatedTimingSegmentCount).toBe(1);
+    expect(result.report.estimatedTimingSegmentCount).toBe(0);
+    expect(result.transcript.segments[0]).not.toHaveProperty("estimatedTiming");
     expect(result.warnings).toContainEqual({
-      code: "estimated_timing_used",
+      code: "segment_boundaries_preserved",
       count: 1,
     });
   });
@@ -1141,7 +1152,7 @@ describe("canonical subtitle shaping", () => {
     ]);
   });
 
-  it("normalizes CRLF/CR, splits CJK and Latin at grapheme-safe boundaries, and marks estimates", () => {
+  it("reflows mixed-language text without creating internal timestamps", () => {
     const policy = policyFrom({
       maxCueDurationMs: 3_000,
       maxCueChars: 20,
@@ -1157,13 +1168,13 @@ describe("canonical subtitle shaping", () => {
       ],
     });
 
-    expect(result.transcript.segments.length).toBeGreaterThanOrEqual(3);
+    expect(result.transcript.segments).toHaveLength(1);
+    expect(result.transcript.segments[0]).toMatchObject({startMs: 1000, endMs: 10000});
     for (const segment of result.transcript.segments) {
-      expect(segment.endMs - segment.startMs).toBeLessThanOrEqual(3_000);
-      expect(segment.estimatedTiming).toBe(true);
+      expect(segment.estimatedTiming).toBeUndefined();
       expect(segment.text).not.toMatch(/\r/u);
       expect(segment.text.split("\n").length).toBeLessThanOrEqual(4);
-      expect(segment.text.split("\n").every((line) => line.length <= 10)).toBe(
+      expect(segment.text.split("\n").every((line) => line.length <= LOCAL_SUBTITLE_LIMITS.maxLineChars)).toBe(
         true,
       );
     }
@@ -1173,7 +1184,7 @@ describe("canonical subtitle shaping", () => {
       ),
     ).toBe(compactText(sourceText));
     expect(result.warnings).toContainEqual({
-      code: "estimated_timing_used",
+      code: "segment_boundaries_preserved",
       count: result.transcript.segments.length,
     });
     expect(validateLocalSubtitleTranscript(result.transcript).ok).toBe(true);
@@ -1192,7 +1203,7 @@ describe("canonical subtitle shaping", () => {
     expect(validateLocalSubtitleTranscript(result.transcript).ok).toBe(true);
   });
 
-  it("merges nearby continuation cues but keeps sentence-final cues separate", () => {
+  it("keeps adjacent raw cues separate when their semantic relationship is unknown", () => {
     const merged = process({
       durationMs: 30_000,
       leaves: [
@@ -1202,9 +1213,8 @@ describe("canonical subtitle shaping", () => {
         ]),
       ],
     });
-    expect(merged.transcript.segments).toHaveLength(1);
-    expect(merged.transcript.segments[0]!.text).toBe("Hello world.");
-    expect(merged.report.shortCueMergeCount).toBe(1);
+    expect(merged.transcript.segments.map(cue => cue.text)).toEqual(["Hello", "world."]);
+    expect(merged.report.shortCueMergeCount).toBe(0);
 
     const separate = process({
       durationMs: 30_000,
@@ -1218,7 +1228,7 @@ describe("canonical subtitle shaping", () => {
     expect(separate.transcript.segments).toHaveLength(2);
   });
 
-  it("uses the versioned 300 ms short-cue merge boundary", () => {
+  it("does not treat a 300 ms gap as proof of a continuation", () => {
     const atLimit = process({
       durationMs: 30_000,
       leaves: [
@@ -1237,8 +1247,8 @@ describe("canonical subtitle shaping", () => {
         ]),
       ],
     });
-    expect(atLimit.report.shortCueMergeCount).toBe(1);
-    expect(atLimit.transcript.segments).toHaveLength(1);
+    expect(atLimit.report.shortCueMergeCount).toBe(0);
+    expect(atLimit.transcript.segments).toHaveLength(2);
     expect(outside.report.shortCueMergeCount).toBe(0);
     expect(outside.transcript.segments).toHaveLength(2);
   });
@@ -1304,7 +1314,7 @@ describe("canonical subtitle shaping", () => {
   it("reports long raw spans for bounded review without replacing or duplicating their text", () => {
     const result = process({durationMs: 30000, leaves: [leaf(oneWindow(), [rawSegment(3840, 25340, "private speech")])]});
     expect(result.report.localReview.concerns).toContainEqual({startMs: 3840, endMs: 25340, kind: "long_segment"});
-    expect(result.report.localReview.concerns.some(concern => concern.kind === "estimated_display_timing")).toBe(true);
+    expect(result.report.localReview.concerns.some(concern => concern.kind === "estimated_display_timing")).toBe(false);
     expect(result.report.localReview.windows).toHaveLength(1);
     expect(JSON.stringify(result.report.localReview)).not.toContain("private speech");
     expect(result.transcript.segments.map(segment => segment.text).join("").replace(/\s/gu, "")).toBe("privatespeech");

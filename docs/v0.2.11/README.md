@@ -51,7 +51,7 @@ docs/v0.2.11/
 
 | Feature Slug | 状态 | 入口 |
 | --- | --- | --- |
-| `subtitle-quality-harness` | 阶段 9～11 已提交 `9a4c2ea` 并获阶段认可；第十二阶段断句问题精确复现，需求/设计/任务已完成，业务实现未开始 | [句界重整设计](subtitle-quality-harness/phase12-sentence-boundaries/design.md)、[任务](subtitle-quality-harness/phase12-sentence-boundaries/tasks.md) |
+| `subtitle-quality-harness` | 阶段 9～11 已提交 `9a4c2ea` 并获阶段认可；第十二阶段 T-SEG-01/02 已停止比例切轴和无依据合并；04A 已将有界分隔恢复接入默认转写，实际开头增加 6 处分隔，完成五素材应用批次；新时间与残留连写未解决，暂不适配较大模型 | [句界重整设计](subtitle-quality-harness/phase12-sentence-boundaries/design.md)、[任务](subtitle-quality-harness/phase12-sentence-boundaries/tasks.md) |
 | `name-translator-ux` | 已完成 `NT-UX-001`、`NT-UX-002`；计划警告换行与高风险确认详情已通过暗色窄窗口 Electron 验证 | `docs/v0.2.11/name-translator-ux/name-translator-ux-execution-plan.md` |
 | `qiuye-ui-refresh` | 已完成 `QIUYE-UI-001` | `docs/v0.2.11/qiuye-ui-refresh/qiuye-ui-refresh-execution-plan.md` |
 | `openai-api-format-compatibility` | 已完成 `PRE-001`、`CORE-001`、`CORE-002`、`BE-001`、`BE-002`、`BE-003`、`BE-004`、`BE-005`、`FE-001`、`FE-002`、`AGENT-001`、`AGENT-002`、`FIX-001`；`DOC-001` 发布说明部分完成，下一步 `QA-001` / 补齐 README 与隐私说明 | `docs/v0.2.11/openai-api-format-compatibility/openai-api-format-compatibility_execution_plan.md` |

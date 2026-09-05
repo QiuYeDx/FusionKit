@@ -527,6 +527,8 @@ export class LocalSubtitleServerSupervisor {
     loadOptions: LocalSubtitleServerSupervisorLoadOptions,
     signal?: AbortSignal,
     runtimePin?: RuntimePinRecord,
+    separatorCandidate = false,
+    freshInferenceState = false,
   ): Promise<LocalSubtitleServerLease> {
     this.#assertAvailable();
     if (this.#shutdownPromise) throw resourceBusyError();
@@ -534,6 +536,7 @@ export class LocalSubtitleServerSupervisor {
     if (this.#releasedOwners.has(ownerKey)) throw ownerReleasedError();
     if (signal?.aborted) throw abortedSupervisorError();
     if (runtimePin) this.#assertRuntimePinCurrent(runtimePin);
+    if (freshInferenceState && (this.#activeLeaseCount() > 0 || this.#activeRequest)) throw resourceBusyError();
     const canonicalLoadOptions = snapshotLoadOptions(loadOptions);
     const loadIdentity = createSupervisorLoadIdentity(
       canonicalLoadOptions,
@@ -543,14 +546,18 @@ export class LocalSubtitleServerSupervisor {
       runtimePin &&
       (runtimePin.ownerKey !== ownerKey ||
         !canReuseLocalSubtitleServerLoadIdentity(
-          runtimePin.loadIdentity,
+          separatorCandidate
+            ? this.#separatorLoadIdentity(runtimePin)
+            : runtimePin.loadIdentity,
           loadIdentity,
         ))
     ) {
       throw ownerReleasedError();
     }
     this.#assertLoadCompatibleWithLeases(loadIdentity);
-    this.#assertLoadCompatibleWithRuntimePins(loadIdentity);
+    this.#assertLoadCompatibleWithRuntimePins(
+      loadIdentity, separatorCandidate ? runtimePin : undefined,
+    );
 
     const lease = createLease();
     const record: LeaseRecord = {
@@ -569,6 +576,7 @@ export class LocalSubtitleServerSupervisor {
     if (
       loadIdentity.purpose === "inference" &&
       current?.state === "ready" &&
+      (!freshInferenceState || current.requestCount === 0) &&
       canReuseLocalSubtitleServerLoadIdentity(current.loadIdentity, loadIdentity)
     ) {
       if (signal?.aborted) {
@@ -594,7 +602,7 @@ export class LocalSubtitleServerSupervisor {
       resolveStartOperation = resolve;
     });
     this.#startPromise = startOperation;
-    const start = this.#ensureEpoch(record, controller.signal, false);
+    const start = this.#ensureEpoch(record, controller.signal, false, freshInferenceState);
     let smokeRetirementStarted = false;
     try {
       const epoch = await start;
@@ -726,6 +734,7 @@ export class LocalSubtitleServerSupervisor {
   async acquirePinnedTaskLease(
     pin: LocalSubtitleServerRuntimePin,
     signal?: AbortSignal,
+    options?: Readonly<{ freshInferenceState: boolean }>,
   ): Promise<LocalSubtitleServerLease> {
     const record = this.#requireRuntimePin(pin);
     this.#assertRuntimePinCurrent(record);
@@ -735,6 +744,8 @@ export class LocalSubtitleServerSupervisor {
       record.loadOptions,
       signal,
       record,
+      false,
+      options?.freshInferenceState === true,
     );
     try {
       this.#assertRuntimePinCurrent(record);
@@ -762,6 +773,28 @@ export class LocalSubtitleServerSupervisor {
     if (!record?.active) return;
     this.#deactivateRuntimePin(record);
     this.#scheduleIdleShutdown();
+  }
+
+  /** Keep resource pins while retiring the VAD epoch before a text-only candidate. */
+  async acquirePinnedSeparatorLease(
+    pin: LocalSubtitleServerRuntimePin,
+    signal?: AbortSignal,
+  ): Promise<LocalSubtitleServerLease> {
+    const record = this.#requireRuntimePin(pin);
+    this.#assertRuntimePinCurrent(record);
+    if (this.#activeLeaseCount() > 0 || this.#activeRequest) {
+      throw resourceBusyError();
+    }
+    const options = { ...record.loadOptions };
+    delete options.vadModel;
+    // #acquire still rejects other active leases/requests and incompatible pins.
+    return this.#acquire(record.owner, options, signal, record, true);
+  }
+
+  #separatorLoadIdentity(record: RuntimePinRecord): LocalSubtitleServerLoadIdentity {
+    const options = { ...record.loadOptions };
+    delete options.vadModel;
+    return createSupervisorLoadIdentity(options, this.#managedResourceRoot);
   }
 
   async smokeModelLoad(
@@ -1069,6 +1102,7 @@ export class LocalSubtitleServerSupervisor {
     lease: LeaseRecord,
     signal: AbortSignal,
     checkRuntimeHealth: boolean,
+    freshInferenceState = false,
   ): Promise<ServerProcessEpoch> {
     this.#assertLeaseCurrent(lease);
     if (signal.aborted) throw abortedSupervisorError();
@@ -1086,6 +1120,7 @@ export class LocalSubtitleServerSupervisor {
     }
     if (
       current?.state === "ready" &&
+      (!freshInferenceState || current.requestCount === 0) &&
       canReuseLocalSubtitleServerLoadIdentity(
         current.loadIdentity,
         lease.loadIdentity,
@@ -1632,11 +1667,15 @@ export class LocalSubtitleServerSupervisor {
 
   #assertLoadCompatibleWithRuntimePins(
     requested: LocalSubtitleServerLoadIdentity,
+    separatorPin?: RuntimePinRecord,
   ): void {
     for (const record of this.#runtimePins.values()) {
       if (
         record.active &&
-        !canReuseLocalSubtitleServerLoadIdentity(record.loadIdentity, requested)
+        !canReuseLocalSubtitleServerLoadIdentity(
+          record === separatorPin ? this.#separatorLoadIdentity(record) : record.loadIdentity,
+          requested,
+        )
       ) {
         throw resourceBusyError();
       }

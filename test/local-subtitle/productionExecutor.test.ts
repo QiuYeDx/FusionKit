@@ -77,6 +77,130 @@ afterEach(async () => {
 });
 
 describe("local subtitle production executor", () => {
+  it.each(["accept", "changed_text", "native_failure", "startup_failure", "stale_response", "cancel", "cleanup_failure"] as const)(
+    "handles a bounded text-only separator candidate: %s", async (scenario) => {
+      const accelerator = await createAcceleratorFixture();
+      const text = "今日はいい天気ですね明日は家で休みます";
+      try {
+        const harness = await createHarness({
+          backend: "cuda", acceleratorPack: accelerator.proof, vadEnabled: true,
+          formats: ["SRT", "LRC"],
+          inference: ({ request, window }) => {
+            if (!request.vadEnabled && scenario === "native_failure") throw new Error("candidate crashed");
+            if (!request.vadEnabled && scenario === "cancel") harness.controller.abort();
+            const response = serverResponse(request, window.endMs - window.startMs,
+              request.vadEnabled ? [rawSegment(0, 0, 10000, text)] : [
+                rawSegment(0, 0, 4000, scenario === "changed_text" ? "今日は悪い天気ですね" : "今日は、いい天気ですね"),
+                rawSegment(1, 4000, 10000, "明日は家で休みます"),
+              ]);
+            return { processEpoch: request.vadEnabled ? 1 : 2, response: {
+              ...response, result: { ...response.result, language: "japanese" },
+              ...(!request.vadEnabled && scenario === "stale_response" ? { requestGeneration: request.requestGeneration + 1 } : {}),
+            } };
+          },
+        });
+        if (scenario === "cleanup_failure") {
+          harness.media.disposeWindow.mockImplementationOnce(async () => ({ removed: true }))
+            .mockRejectedValueOnce(new Error("candidate cleanup failed"));
+        }
+        if (scenario === "startup_failure") harness.supervisor.acquirePinnedSeparatorLease.mockRejectedValueOnce(new Error("candidate unavailable"));
+        const result = await harness.executor.execute(harness.context);
+        expect(harness.supervisor.acquirePinnedTaskLease).toHaveBeenCalledWith(
+          expect.anything(), harness.context.signal, { freshInferenceState: true });
+        expect(harness.supervisor.beginInference).toHaveBeenCalledTimes(scenario === "startup_failure" ? 1 : 2);
+        expect(harness.supervisor.acquirePinnedSeparatorLease).toHaveBeenCalledTimes(1);
+        if (scenario !== "startup_failure") {
+          const request = harness.supervisor.beginInference.mock.calls[1]![1];
+          expect(request.vadEnabled).toBe(false);
+          expect(request.vadSpeechPadMs).toBeUndefined();
+          expect(harness.media.materializeWindow.mock.calls[1]![0].conditionQuietAudio).toBe(false);
+        }
+        expect(harness.supervisor.release.mock.invocationCallOrder[0]).toBeLessThan(
+          harness.supervisor.acquirePinnedSeparatorLease.mock.invocationCallOrder[0]!);
+        if (scenario === "cancel" || scenario === "cleanup_failure" || scenario === "stale_response") {
+          expect(result.status).toBe(scenario === "cancel" ? "cancelled" : "failed");
+          expect(harness.exporter.exportArtifacts).not.toHaveBeenCalled();
+        } else {
+          expect(result.status).toBe("completed");
+          const exported = harness.exporter.exportArtifacts.mock.calls[0]![0].transcript.segments;
+          expect(exported).toHaveLength(1);
+          expect(exported[0]).toMatchObject({ startMs: 0, endMs: 10000,
+            text: scenario === "accept" ? "今日は、いい天気ですね 明日は家で休みます" : text });
+          expect(result.artifactResults).toHaveLength(2);
+        }
+      } finally { await accelerator.cleanup(); }
+    },
+  );
+
+  it("stops separator decoding after two consecutive unchanged windows", async () => {
+    const accelerator = await createAcceleratorFixture();
+    try {
+      const harness = await createHarness({ backend: "cuda", acceleratorPack: accelerator.proof,
+        vadEnabled: true, totalFrames: 90 * 16000,
+        inference: ({ request, window }) => {
+          const text = `今日はいい天気ですね明日は家で休みます${window.startMs}`;
+          const response = serverResponse(request, window.endMs - window.startMs,
+            [rawSegment(0, 5000, 15000, request.vadEnabled ? text : `違う${text}`)]);
+          return { processEpoch: request.vadEnabled ? 1 : 2,
+            response: { ...response, result: { ...response.result, language: "ja" } } };
+        },
+      });
+      expect((await harness.executor.execute(harness.context)).status).toBe("completed");
+      const requests = harness.supervisor.beginInference.mock.calls.map(call => call[1]);
+      expect(requests.filter(request => request.vadEnabled).length).toBeGreaterThan(2);
+      expect(requests.filter(request => !request.vadEnabled)).toHaveLength(2);
+    } finally { await accelerator.cleanup(); }
+  });
+
+  it.each(["reject", "late_success"] as const)("discards a timed-out candidate (%s) and exports the primary result", async (outcome) => {
+    const accelerator = await createAcceleratorFixture();
+    const nativeSetTimeout = globalThis.setTimeout;
+    const timer = vi.spyOn(globalThis, "setTimeout").mockImplementation(((callback: (...args: unknown[]) => void, ms?: number, ...args: unknown[]) =>
+      nativeSetTimeout(callback, ms === 30_000 ? 5 : ms, ...args)) as typeof setTimeout);
+    try {
+      const text = "今日はいい天気ですね明日は家で休みます";
+      const harness = await createHarness({ backend: "cuda", acceleratorPack: accelerator.proof,
+        vadEnabled: true, beginInference: request => {
+          const response = serverResponse(request, 10000, [rawSegment(0, 0, 10000, text)]);
+          return { ticket: Object.freeze({}) as LocalSubtitleServerRequestTicket,
+            result: request.vadEnabled ? Promise.resolve({ processEpoch: 1,
+              response: { ...response, result: { ...response.result, language: "ja" } } }) :
+              new Promise((resolve, reject) => request.signal!.addEventListener("abort", () => {
+                if (outcome === "reject") reject(new Error("candidate deadline"));
+                else {
+                  const candidate = serverResponse(request, 10000, [rawSegment(0, 0, 10000, "今日は、いい天気ですね明日は家で休みます")]);
+                  resolve({ processEpoch: 2, response: { ...candidate, result: { ...candidate.result, language: "ja" } } });
+                }
+              }, { once: true })),
+          };
+        },
+      });
+      expect((await harness.executor.execute(harness.context)).status).toBe("completed");
+      expect(harness.supervisor.cancelRequest).toHaveBeenCalledOnce();
+      expect(harness.supervisor.beginInference.mock.calls[1]![1].signal!.aborted).toBe(true);
+      expect(harness.exporter.exportArtifacts.mock.calls[0]![0].transcript.segments[0]!.text).toBe(text);
+    } finally { timer.mockRestore(); await accelerator.cleanup(); }
+  });
+
+  it("shares the extra request budget with quiet-audio recovery", async () => {
+    const accelerator = await createAcceleratorFixture();
+    const text = "今日はいい天気ですね明日は家で休みます";
+    try {
+      const harness = await createHarness({ backend: "cuda", acceleratorPack: accelerator.proof,
+        vadEnabled: true, quietAudioGainDb: 12, totalFrames: 30 * 16000,
+        inference: ({ request, window, index }) => {
+          const response = serverResponse(request, window.endMs - window.startMs,
+            [rawSegment(0, 0, index === 0 ? 12000 : 10000, text)]);
+          return { processEpoch: 1, response: { ...response, result: { ...response.result, language: "ja" } } };
+        },
+      });
+      const result = await harness.executor.execute(harness.context);
+      expect(result.status).toBe("completed");
+      expect(harness.supervisor.beginInference).toHaveBeenCalledTimes(2);
+      expect(harness.supervisor.acquirePinnedSeparatorLease).not.toHaveBeenCalled();
+    } finally { await accelerator.cleanup(); }
+  });
+
   it.each(["long", "repeat"])("retries a risky conditioned %s candidate on original audio once", async (risk) => {
     const harness = await createHarness({
       totalFrames: 30 * 16000, vadEnabled: true, quietAudioGainDb: 12,
@@ -118,6 +242,8 @@ describe("local subtitle production executor", () => {
   it.each([true, false])("binds quiet-window padding to actual conditioning and VAD (%s)", async (vadEnabled) => {
     const harness = await createHarness({vadEnabled, quietAudioGainDb: 12});
     await expect(harness.executor.execute(harness.context)).resolves.toMatchObject({status: "completed"});
+    expect(harness.supervisor.acquirePinnedTaskLease).toHaveBeenCalledWith(
+      expect.anything(), harness.context.signal, { freshInferenceState: false });
     expect(harness.media.materializeWindow.mock.calls[0]?.[0]).toMatchObject({conditionQuietAudio: vadEnabled});
     const request = harness.supervisor.beginInference.mock.calls[0]?.[1];
     if (vadEnabled) expect(request).toMatchObject({vadSpeechPadMs: 1000});
@@ -143,6 +269,42 @@ describe("local subtitle production executor", () => {
     expect(exported.rawText).toContain("00:00:04,000 --> 00:00:06,000");
     expect(exported.rawText).not.toContain("First words Following words");
     expect(harness.supervisor.beginInference).toHaveBeenCalledOnce();
+  });
+
+  it("exports long unpunctuated raw segments intact to both formats without extra inference", async () => {
+    const text = "ああもしもし私だそうだイオリだお前は誰だそうかお兄さんか";
+    const harness = await createHarness({
+      totalFrames: 30 * 16000, formats: ["SRT", "LRC"], vadEnabled: true,
+      inference: ({request, window}) => ({processEpoch: 1,
+        response: serverResponse(request, window.endMs - window.startMs, [
+          rawSegment(0, 2500, 16590, text),
+          rawSegment(1, 17000, 17500, "うん"),
+          rawSegment(2, 17700, 18200, "そうか"),
+        ]),
+      }),
+    });
+    const result = await harness.executor.execute(harness.context);
+    expect(result.status).toBe("completed");
+    if (result.status !== "completed") throw new Error("Expected completion.");
+    expect(result.artifactResults).toHaveLength(2);
+    for (const artifact of result.artifactResults) {
+      if (artifact.status !== "committed") throw new Error("Expected artifact.");
+      const exported = await harness.artifacts.readText(OWNER, artifact.artifact.artifactRef);
+      expect(exported.rawText).toContain(text);
+      expect(exported.rawText).not.toContain("うんそうか");
+      if (artifact.format === "SRT") {
+        expect(exported.rawText).toContain("00:00:02,500 --> 00:00:16,590");
+        expect(exported.rawText).toContain("00:00:17,000 --> 00:00:17,500");
+        expect(exported.rawText).toContain("00:00:17,700 --> 00:00:18,200");
+      } else {
+        expect(exported.rawText).toContain(`[00:02.50]${text}`);
+        expect(exported.rawText).toContain("[00:17.00]うん");
+        expect(exported.rawText).toContain("[00:17.70]そうか");
+        expect(exported.rawText).not.toContain("[00:07.02]");
+      }
+    }
+    expect(harness.supervisor.beginInference).toHaveBeenCalledOnce();
+    expect(harness.supervisor.beginInference.mock.calls[0]?.[1]).toMatchObject({vadEnabled: true});
   });
 
   it("accepts a frozen translation post action without executing it locally", async () => {
@@ -1471,6 +1633,7 @@ async function createHarness(options: HarnessOptions = {}) {
       options.acquireBatchRuntimePin ?? (async () => runtimePin),
     ),
     acquirePinnedTaskLease: vi.fn(async () => lease),
+    acquirePinnedSeparatorLease: vi.fn(async () => lease),
     beginInference: vi.fn((
       _lease: LocalSubtitleServerLease,
       request: LocalSubtitleServerInferenceRequest,

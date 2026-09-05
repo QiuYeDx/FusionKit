@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import path from "node:path";
 import { shouldRetryUnconditionedAudio } from "./quiet-audio";
+import { needsLocalSubtitleSeparators, restoreLocalSubtitleCueSeparators } from "./cue-separator-restorer";
 import {
   LOCAL_SUBTITLE_ERROR_MANIFEST,
   LOCAL_SUBTITLE_LIMITS,
@@ -93,6 +94,8 @@ export const LOCAL_SUBTITLE_PRODUCTION_EXECUTOR_POLICY = Object.freeze({
     LOCAL_SUBTITLE_PRODUCTION_CONTRACT.transcript.maxServerResponseBytes,
   maxQualityRecoveryReplays: 1,
   qualityRecoveryTemperatureStep: 0.2,
+  separatorRequestTimeoutMs: 30_000,
+  maxConsecutiveUnchangedSeparatorWindows: 2,
 });
 
 interface LocalSubtitleRetainedRawBudget {
@@ -118,6 +121,7 @@ type ProductionSupervisor = Pick<
   LocalSubtitleServerSupervisor,
   | "acquireBatchRuntimePin"
   | "acquirePinnedTaskLease"
+  | "acquirePinnedSeparatorLease"
   | "beginInference"
   | "cancelRequest"
   | "release"
@@ -230,6 +234,7 @@ export class LocalSubtitleProductionExecutor
       !hasMethods(options?.supervisor, [
         "acquireBatchRuntimePin",
         "acquirePinnedTaskLease",
+        "acquirePinnedSeparatorLease",
         "beginInference",
         "cancelRequest",
         "release",
@@ -495,7 +500,12 @@ export class LocalSubtitleProductionExecutor
         acceleratorPack,
         context.signal,
       );
-      lease = await this.#supervisor.acquirePinnedTaskLease(pin, context.signal);
+      lease = await this.#supervisor.acquirePinnedTaskLease(pin, context.signal, {
+        // Native process reuse changed the same audio after unrelated VAD requests.
+        // Reuse within a file; start each affected task without prior inference state.
+        freshInferenceState: runtime.target.platform === "win32" &&
+          context.config.resolvedBackend === "cuda" && context.config.inference.vad.enabled,
+      });
       throwIfCancelled(context.signal);
       context.update({
         status: "loading_model",
@@ -509,6 +519,7 @@ export class LocalSubtitleProductionExecutor
 
       stage = "transcribing";
       const attempts: LocalSubtitlePostProcessingWindowAttempt[] = [];
+      const requestsPerRoot = new Map<string, number>();
       const consumedBrands = new WeakSet<object>();
       const consumedResponses = new Set<string>();
       const retainedRawUsage: LocalSubtitleRetainedRawUsage = {
@@ -533,6 +544,7 @@ export class LocalSubtitleProductionExecutor
         window: LocalSubtitlePostProcessingWindow,
         qualityRecoveryAttempt: number,
         conditionQuietAudio = context.config.inference.vad.enabled,
+        separatorCandidate = false,
       ) => {
         throwIfCancelled(context.signal);
         let brand: LocalSubtitleBrandedPcmWindow | undefined;
@@ -573,16 +585,30 @@ export class LocalSubtitleProductionExecutor
             "windowAttempt",
           );
           const requestGeneration = this.#claimRequestGeneration();
-          const inference = await this.#runInference(
-            lease!,
-            createInferenceRequest(
-              context,
-              before,
-              requestGeneration,
-              qualityRecoveryAttempt,
-            ),
-            context.signal,
-          );
+          requestsPerRoot.set(window.rootWindowKey, (requestsPerRoot.get(window.rootWindowKey) ?? 0) + 1);
+          const request = createInferenceRequest(context, before, requestGeneration,
+            qualityRecoveryAttempt, separatorCandidate);
+          let inference: LocalSubtitleServerSupervisorInferenceResponse;
+          const deadline = separatorCandidate ? new AbortController() : undefined;
+          const cancelDeadline = () => deadline?.abort();
+          const timeout = deadline ? setTimeout(cancelDeadline,
+            LOCAL_SUBTITLE_PRODUCTION_EXECUTOR_POLICY.separatorRequestTimeoutMs) : undefined;
+          if (context.signal.aborted) cancelDeadline();
+          else if (deadline) context.signal.addEventListener("abort", cancelDeadline, { once: true });
+          try {
+            const signal = deadline?.signal ?? context.signal;
+            inference = await this.#runInference(lease!, { ...request, signal }, signal);
+            if (deadline?.signal.aborted) throw new SeparatorCandidateUnavailable();
+          } catch (error) {
+            if (separatorCandidate && !context.signal.aborted &&
+                !isCleanupFailureCode(publicErrorCode(error, "transcribing"))) {
+              throw new SeparatorCandidateUnavailable();
+            }
+            throw error;
+          } finally {
+            if (timeout !== undefined) clearTimeout(timeout);
+            context.signal.removeEventListener("abort", cancelDeadline);
+          }
           throwIfCancelled(context.signal);
           const after = await this.#media.resolveWindow(brand, {
             taskId: context.taskId,
@@ -597,15 +623,16 @@ export class LocalSubtitleProductionExecutor
             inference,
             consumedResponses,
           });
+          const attemptPolicy = separatorCandidate ? Object.freeze({ ...policy, vadEnabled: false }) : policy;
           const assessment = assessLocalSubtitleRawWindow({
             window,
             result: attempt.response.result,
-            policy,
+            policy: attemptPolicy,
           });
           const decision = decideLocalSubtitleWindowRetry({
             attempt,
             assessment,
-            policy,
+            policy: attemptPolicy,
           });
           outcome = Object.freeze({ attempt, assessment, decision,
             quietAudioConditioned: before.quietAudioGainDb !== undefined });
@@ -728,6 +755,69 @@ export class LocalSubtitleProductionExecutor
         rootPlan,
         attempts,
       }).transcript;
+      // A separate text-only pass retains the accepted primary transcript and times.
+      // Non-Windows/backends remain on the previously verified production path.
+      if (runtime.target.platform === "win32" && context.config.resolvedBackend === "cuda" &&
+          context.config.taskMode === "transcribe" && context.config.inference.vad.enabled) {
+        const segments = [...transcript.segments];
+        const eligible = rootPlan.windows.flatMap(window => {
+          if (requestsPerRoot.get(window.rootWindowKey) !== 1) return [];
+          const primary = attempts.find(attempt => attempt.window.windowKey === window.windowKey);
+          if (!primary || !["ja", "japanese"].includes(primary.response.result.language.toLowerCase())) return [];
+          const cueIndices = segments.flatMap((cue, index) => needsLocalSubtitleSeparators(cue) &&
+            cue.startMs >= window.startMs && cue.endMs <= window.endMs &&
+            primary.response.result.segments.some(raw => raw.text === cue.text &&
+              raw.startMs + window.startMs === cue.startMs && raw.endMs + window.startMs === cue.endMs) ? [index] : []);
+          return cueIndices.length ? [{ window, primary, cueIndices }] : [];
+        });
+        if (eligible.length) {
+          await this.#supervisor.release(lease!);
+          lease = undefined;
+          try {
+            lease = await this.#supervisor.acquirePinnedSeparatorLease(pin, context.signal);
+          } catch (error) {
+            if (context.signal.aborted || isCleanupFailureCode(publicErrorCode(error, "loading_model"))) throw error;
+            // Optional model startup failure leaves all accepted primary cues available.
+          }
+          if (lease) {
+            let unchanged = 0;
+            for (let index = 0; index < eligible.length; index++) {
+              throwIfCancelled(context.signal);
+              const { window, primary, cueIndices } = eligible[index]!;
+              let candidate: Awaited<ReturnType<typeof executeWindowAttempt>>;
+              try {
+                candidate = await executeWindowAttempt(window, 0, false, true);
+              } catch (error) {
+                if (error instanceof SeparatorCandidateUnavailable) break;
+                throw error;
+              }
+              if (candidate.decision.action !== "accept") break;
+              try {
+                reserveRetainedRawResponse(candidate.attempt.response, retainedRawUsage, this.#retainedRawBudget);
+              } catch {
+                break;
+              }
+              let changed = false;
+              for (const cueIndex of cueIndices) {
+                const cue = segments[cueIndex]!;
+                const restored = restoreLocalSubtitleCueSeparators({ cue,
+                  primary: primary.response.result.segments,
+                  candidate: candidate.attempt.response.result.segments,
+                  windowStartMs: window.startMs, targets: policy });
+                changed ||= restored !== cue;
+                segments[cueIndex] = restored;
+              }
+              unchanged = changed ? 0 : unchanged + 1;
+              context.update({ status: "post_processing", progress: {
+                stage: "post_processing", stageProgress: Math.floor((index + 1) / eligible.length * 100),
+                overallProgress: 80 + Math.floor((index + 1) / eligible.length * 10),
+              }, durationMs });
+              if (unchanged >= LOCAL_SUBTITLE_PRODUCTION_EXECUTOR_POLICY.maxConsecutiveUnchangedSeparatorWindows) break;
+            }
+            transcript = Object.freeze({ ...transcript, segments: Object.freeze(segments) });
+          }
+        }
+      }
       context.update({
         status: "post_processing",
         progress: {
@@ -1174,6 +1264,7 @@ function createInferenceRequest(
   resolved: LocalSubtitleResolvedPcmWindow,
   requestGeneration: number,
   qualityRecoveryAttempt = 0,
+  separatorCandidate = false,
 ): LocalSubtitleServerInferenceRequest {
   const configuredTemperature = context.config.inference.advanced.temperature;
   const temperature =
@@ -1201,9 +1292,9 @@ function createInferenceRequest(
     taskMode: context.config.taskMode,
     beamSize: context.config.inference.advanced.beamSize,
     temperature,
-    vadEnabled: context.config.inference.vad.enabled,
+    vadEnabled: separatorCandidate ? false : context.config.inference.vad.enabled,
     vadMinSilenceMs: context.config.inference.advanced.vadMinSilenceMs,
-    ...(context.config.inference.vad.enabled && resolved.quietAudioGainDb !== undefined
+    ...(!separatorCandidate && context.config.inference.vad.enabled && resolved.quietAudioGainDb !== undefined
       ? {vadSpeechPadMs: 1000 as const} : {}),
     ...(context.config.inference.advanced.initialPrompt === undefined
       ? {}
@@ -1874,6 +1965,10 @@ function throwIfCancelled(signal: AbortSignal): void {
 
 class ExecutionCancelled extends Error {
   readonly name = "ExecutionCancelled";
+}
+
+class SeparatorCandidateUnavailable extends Error {
+  readonly name = "SeparatorCandidateUnavailable";
 }
 
 function hasMethods(

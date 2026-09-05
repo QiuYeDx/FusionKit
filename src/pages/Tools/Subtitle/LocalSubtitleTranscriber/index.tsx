@@ -1721,6 +1721,9 @@ export default function LocalSubtitleTranscriber() {
                     onCommit={(maxLineChars) => updatePreferences({ maxLineChars })}
                   />
                 </div>
+                <p className="text-xs leading-relaxed text-muted-foreground" data-testid="local-subtitle-cue-targets-hint">
+                  {t("subtitle:local_transcriber.config.cue_targets_hint")}
+                </p>
               </ToolConfigDisclosure>
             </div>
 

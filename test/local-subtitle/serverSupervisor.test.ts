@@ -208,6 +208,61 @@ describe("LocalSubtitleServerSupervisor", () => {
     });
   });
 
+  it("isolates a pinned separator lease and reloads the original VAD identity afterwards", async () => {
+    const harness = createHarness();
+    const pin = await harness.supervisor.acquireBatchRuntimePin(OWNER_A, "batch-separator", loadOptions());
+    const mainLease = await harness.supervisor.acquirePinnedTaskLease(pin);
+    await expect(harness.supervisor.acquirePinnedSeparatorLease(pin)).rejects.toMatchObject({ code: "resource_busy" });
+    await harness.supervisor.release(mainLease);
+    const candidateLease = await harness.supervisor.acquirePinnedSeparatorLease(pin);
+    await expect(harness.supervisor.acquirePinnedSeparatorLease(pin)).rejects.toMatchObject({ code: "resource_busy" });
+    expect(harness.children[0]?.killSignals).toContain("SIGTERM");
+    expect(harness.supervisor.snapshot).toMatchObject({ runtimePinCount: 1, leaseCount: 1 });
+    expect(harness.supervisor.snapshot.vadModelId).toBeUndefined();
+    expect(() => harness.supervisor.beginInference(candidateLease, inferenceRequest(1))).toThrow();
+    await harness.supervisor.beginInference(candidateLease, { ...inferenceRequest(2), vadEnabled: false }).result;
+    await harness.supervisor.release(candidateLease);
+    const restored = await harness.supervisor.acquirePinnedTaskLease(pin);
+    expect(harness.spawnRecords).toHaveLength(3);
+    expect(harness.children[1]?.killSignals).toContain("SIGTERM");
+    expect(harness.supervisor.snapshot.vadModelId).toBeDefined();
+    await harness.supervisor.beginInference(restored, inferenceRequest(3)).result;
+    await harness.supervisor.release(restored);
+    harness.supervisor.releaseBatchRuntimePin(pin);
+  });
+
+  it("resets used inference state between isolated tasks but keeps an unused loaded epoch", async () => {
+    const harness = createHarness();
+    const pin = await harness.supervisor.acquireBatchRuntimePin(OWNER_A, "batch-fresh", loadOptions());
+    const options = { freshInferenceState: true };
+    const first = await harness.supervisor.acquirePinnedTaskLease(pin, undefined, options);
+    expect(harness.spawnRecords).toHaveLength(1);
+    await expect(harness.supervisor.acquirePinnedTaskLease(pin, undefined, options)).rejects.toMatchObject({ code: "resource_busy" });
+    await harness.supervisor.beginInference(first, inferenceRequest(1)).result;
+    await harness.supervisor.release(first);
+    const normal = await harness.supervisor.acquirePinnedTaskLease(pin);
+    expect(harness.spawnRecords).toHaveLength(1);
+    await harness.supervisor.release(normal);
+    const fresh = await harness.supervisor.acquirePinnedTaskLease(pin, undefined, options);
+    expect(harness.spawnRecords).toHaveLength(2);
+    expect(harness.children[0]?.killSignals).toContain("SIGTERM");
+    await harness.supervisor.beginInference(fresh, inferenceRequest(2)).result;
+    await harness.supervisor.release(fresh);
+    harness.supervisor.releaseBatchRuntimePin(pin);
+  });
+
+  it("cannot use the separator exception to bypass another pin or a released owner", async () => {
+    const harness = createHarness();
+    const first = await harness.supervisor.acquireBatchRuntimePin(OWNER_A, "batch-sep-a", loadOptions());
+    const second = await harness.supervisor.acquireBatchRuntimePin(OWNER_B, "batch-sep-b", loadOptions());
+    await expect(harness.supervisor.acquirePinnedSeparatorLease(first)).rejects.toMatchObject({ code: "resource_busy" });
+    harness.supervisor.releaseBatchRuntimePin(second);
+    const controller = new AbortController(); controller.abort();
+    await expect(harness.supervisor.acquirePinnedSeparatorLease(first, controller.signal)).rejects.toBeDefined();
+    harness.supervisor.releaseOwner(OWNER_A);
+    await expect(harness.supervisor.acquirePinnedSeparatorLease(first)).rejects.toMatchObject({ code: "owner_released" });
+  });
+
   it("publishes pin authority before startup awaits readiness", async () => {
     const readiness = deferred<LocalSubtitleServerHealthResponse>();
     const client = new FakeHttpClient({ readiness: [() => readiness.promise] });

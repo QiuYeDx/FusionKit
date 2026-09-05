@@ -1,4 +1,5 @@
 import {
+  LOCAL_SUBTITLE_CUE_POLICY,
   LOCAL_SUBTITLE_BACKENDS,
   LOCAL_SUBTITLE_DOMAIN_SCHEMA_VERSION,
   LOCAL_SUBTITLE_ENGINES,
@@ -10,6 +11,7 @@ import {
   type LocalSubtitleTaskMode,
   type LocalSubtitleTranscript,
 } from "@/type/localSubtitle";
+import { LocalSubtitleCuePlanError, planLocalSubtitleSegmentCue } from "./cue-boundary-planner";
 import { validateLocalSubtitleTranscript } from "@/type/localSubtitleIpc";
 import { planLocalSubtitleReview, type LocalSubtitleReviewPlan } from "./local-review";
 import type {
@@ -29,12 +31,10 @@ const QUALITY_COMPARISON_IGNORED_PATTERN = /[\p{P}\p{S}\s]+/gu;
 const BOUNDARY_COMPARISON_IGNORED_PATTERN = /[\p{P}\s]+/gu;
 const PUNCTUATION_ONLY_PATTERN = /^[\p{P}\s]+$/u;
 const CJK_PATTERN = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}]/u;
-const TERMINAL_PUNCTUATION_PATTERN = /[。！？.!?][”’」』】）)]*$/u;
-const LEADING_PUNCTUATION_PATTERN = /^[\p{P}]/u;
-const PREFERRED_BOUNDARY_PATTERN = /[。！？!?；;：:，,、…]/u;
 
 export const LOCAL_SUBTITLE_POST_PROCESSING_POLICY = deepFreeze({
-  schemaVersion: 1,
+  schemaVersion: 2,
+  cuePolicy: LOCAL_SUBTITLE_CUE_POLICY,
   pcmSampleRateHz: 16_000,
   rootWindowOverlapMs: LOCAL_SUBTITLE_PRODUCTION_CONTRACT.transcript.overlapMs,
   boundaryToleranceMs:
@@ -53,8 +53,6 @@ export const LOCAL_SUBTITLE_POST_PROCESSING_POLICY = deepFreeze({
   boundaryTextGapMs: 500,
   boundaryTextMinCjkChars: 2,
   boundaryTextMinLatinChars: 4,
-  shortCueMergeGapMs: 300,
-  shortCueMergeMaxDurationMs: 1_000,
   maxCueLines: LOCAL_SUBTITLE_LIMITS.maxCueLines,
   qualityFingerprint: "nfkc-lowercase-without-punctuation-symbols-whitespace",
   boundaryFingerprint: "nfkc-lowercase-without-punctuation-whitespace",
@@ -141,7 +139,8 @@ export interface LocalSubtitlePostProcessingWindowAttempt {
 }
 
 export interface LocalSubtitlePostProcessPolicy {
-  readonly schemaVersion: 1;
+  readonly schemaVersion: 2;
+  readonly cuePolicy: typeof LOCAL_SUBTITLE_CUE_POLICY;
   readonly vadEnabled: boolean;
   readonly wordTimelineMode: "segment_only_v1";
   readonly qualityFingerprint: "nfkc-lowercase-without-punctuation-symbols-whitespace";
@@ -164,8 +163,6 @@ export interface LocalSubtitlePostProcessPolicy {
   readonly boundaryTextGapMs: number;
   readonly boundaryTextMinCjkChars: number;
   readonly boundaryTextMinLatinChars: number;
-  readonly shortCueMergeGapMs: number;
-  readonly shortCueMergeMaxDurationMs: number;
 }
 
 export interface LocalSubtitleWindowRetryTarget {
@@ -218,7 +215,8 @@ export type LocalSubtitleWindowRetryDecision =
 
 export type LocalSubtitlePostProcessingWarningCode =
   | "timeline_boundary_clamped"
-  | "estimated_timing_used";
+  | "estimated_timing_used"
+  | "segment_boundaries_preserved";
 
 export interface LocalSubtitlePostProcessingWarning {
   readonly code: LocalSubtitlePostProcessingWarningCode;
@@ -251,6 +249,7 @@ export interface LocalSubtitlePostProcessingReport {
   readonly splitSegmentCount: number;
   readonly shortCueMergeCount: number;
   readonly estimatedTimingSegmentCount: number;
+  readonly preservedSegmentCount: number;
   readonly finalSegmentCount: number;
   readonly firstFinalStartMs: number;
   readonly lastFinalEndMs: number;
@@ -364,6 +363,7 @@ interface ShapingDiagnostics {
   splitSegmentCount: number;
   shortCueMergeCount: number;
   estimatedTimingSegmentCount: number;
+  preservedSegmentCount: number;
 }
 
 export function createSubtitlePostProcessPolicy(
@@ -395,6 +395,7 @@ export function createSubtitlePostProcessPolicy(
     );
   }
   if (
+    (inference.cuePolicy !== undefined && inference.cuePolicy !== LOCAL_SUBTITLE_CUE_POLICY) ||
     !inference.vad ||
     typeof inference.vad.enabled !== "boolean" ||
     inference.vad.tokenTimestamps !== false ||
@@ -435,7 +436,8 @@ export function createSubtitlePostProcessPolicy(
   }
 
   return deepFreeze({
-    schemaVersion: 1,
+    schemaVersion: 2,
+    cuePolicy: LOCAL_SUBTITLE_CUE_POLICY,
     vadEnabled: inference.vad.enabled,
     wordTimelineMode: "segment_only_v1",
     qualityFingerprint: LOCAL_SUBTITLE_POST_PROCESSING_POLICY.qualityFingerprint,
@@ -470,10 +472,6 @@ export function createSubtitlePostProcessPolicy(
       LOCAL_SUBTITLE_POST_PROCESSING_POLICY.boundaryTextMinCjkChars,
     boundaryTextMinLatinChars:
       LOCAL_SUBTITLE_POST_PROCESSING_POLICY.boundaryTextMinLatinChars,
-    shortCueMergeGapMs:
-      LOCAL_SUBTITLE_POST_PROCESSING_POLICY.shortCueMergeGapMs,
-    shortCueMergeMaxDurationMs:
-      LOCAL_SUBTITLE_POST_PROCESSING_POLICY.shortCueMergeMaxDurationMs,
   });
 }
 
@@ -739,6 +737,7 @@ export function postProcessLocalSubtitleTranscript(
     splitSegmentCount: 0,
     shortCueMergeCount: 0,
     estimatedTimingSegmentCount: 0,
+    preservedSegmentCount: 0,
   };
   const shaped = shapeCanonicalSegments(
     merged,
@@ -811,6 +810,9 @@ export function postProcessLocalSubtitleTranscript(
       count: mergeDiagnostics.timelineBoundaryClampCount,
     });
   }
+  if (shapingDiagnostics.preservedSegmentCount > 0) {
+    warnings.push({ code: "segment_boundaries_preserved", count: shapingDiagnostics.preservedSegmentCount });
+  }
   if (shapingDiagnostics.estimatedTimingSegmentCount > 0) {
     warnings.push({
       code: "estimated_timing_used",
@@ -870,6 +872,7 @@ export function postProcessLocalSubtitleTranscript(
         mergeDiagnostics.timelineBoundaryClampCount,
       splitSegmentCount: shapingDiagnostics.splitSegmentCount,
       shortCueMergeCount: shapingDiagnostics.shortCueMergeCount,
+      preservedSegmentCount: shapingDiagnostics.preservedSegmentCount,
       estimatedTimingSegmentCount:
         shapingDiagnostics.estimatedTimingSegmentCount,
       finalSegmentCount: validated.data.segments.length,
@@ -1370,349 +1373,32 @@ function shapeCanonicalSegments(
   policy: LocalSubtitlePostProcessPolicy,
   diagnostics: ShapingDiagnostics,
 ): WorkingSegment[] {
-  const split: WorkingSegment[] = [];
-  for (const segment of merged) {
-    const parts = splitSegmentByTextAndDuration(segment, policy);
-    if (parts.length > 1) diagnostics.splitSegmentCount += 1;
-    split.push(...parts);
-  }
-
-  const combined: WorkingSegment[] = [];
-  for (const source of split) {
-    const candidate = { ...source };
-    const previous = combined.at(-1);
-    if (previous && canMergeShortCues(previous, candidate, policy)) {
-      const joined = joinCueText(previous.text, candidate.text);
-      const wrapped = wrapCueText(joined, policy.maxLineChars, policy.maxCueLines);
-      if (
-        subtitleTextLength(wrapped) <= policy.maxCueChars &&
-        wrapped.split("\n").length <= policy.maxCueLines
-      ) {
-        previous.endMs = candidate.endMs;
-        previous.text = wrapped;
-        if (previous.estimatedTiming || candidate.estimatedTiming) {
-          previous.estimatedTiming = true;
-        }
-        diagnostics.shortCueMergeCount += 1;
-        continue;
-      }
-    }
-    combined.push(candidate);
-  }
-
   let previousEndMs = -1;
-  for (const segment of combined) {
-    if (
-      segment.startMs < 0 ||
-      segment.endMs <= segment.startMs ||
-      segment.startMs < previousEndMs ||
-      segment.endMs - segment.startMs > policy.maxCueDurationMs ||
-      subtitleTextLength(segment.text) > policy.maxCueChars ||
-      segment.text.split("\n").length > policy.maxCueLines ||
-      segment.text
-        .split("\n")
-        .some((line) => line.length > policy.maxLineChars)
-    ) {
-      throw qualityFailure("shaping", "canonical_shaping_limit_failed");
+  const planned = merged.map(segment => {
+    if (segment.startMs < previousEndMs) {
+      throw qualityFailure("shaping", "canonical_shaping_order_failed");
     }
     previousEndMs = segment.endMs;
-  }
-  diagnostics.estimatedTimingSegmentCount = combined.filter(
-    (segment) => segment.estimatedTiming,
-  ).length;
-  return combined;
-}
-
-function splitSegmentByTextAndDuration(
-  segment: WorkingSegment,
-  policy: LocalSubtitlePostProcessPolicy,
-): WorkingSegment[] {
-  const text = flattenSubtitleText(segment.text);
-  const units = graphemes(text);
-  if (units.length === 0) return [];
-  const capacity = Math.min(
-    policy.maxCueChars,
-    policy.maxLineChars * policy.maxCueLines,
-  );
-  if (units.some((unit) => unit.length > policy.maxLineChars)) {
-    throw limitExceeded(
-      "A subtitle grapheme exceeds the configured line limit.",
-      "shaping",
-      Math.max(...units.map((unit) => unit.length)),
-      policy.maxLineChars,
-    );
-  }
-  const durationMs = segment.endMs - segment.startMs;
-  const durationParts = Math.max(
-    1,
-    Math.ceil(durationMs / policy.maxCueDurationMs),
-  );
-  const textCapacityParts = Math.max(
-    1,
-    Math.ceil(text.length / capacity),
-  );
-  const sparseTimeline = durationParts > units.length;
-  const minimumParts = sparseTimeline
-    ? textCapacityParts
-    : Math.max(durationParts, textCapacityParts);
-  const shapingDurationMs = sparseTimeline
-    ? Math.min(durationMs, minimumParts * policy.maxCueDurationMs)
-    : durationMs;
-  const shapingSegment = shapingDurationMs === durationMs
-    ? segment
-    : {
-        ...segment,
-        endMs: segment.startMs + shapingDurationMs,
-      };
-  if (minimumParts > units.length || minimumParts > shapingDurationMs) {
-    throw qualityFailure("shaping", "text_cannot_cover_timeline_without_duplication");
-  }
-
-  for (let partCount = minimumParts; partCount <= units.length; partCount += 1) {
-    const textParts = partitionText(units, partCount, capacity);
-    if (!textParts) continue;
-    const timed = assignProportionalTimings(shapingSegment, textParts);
-    if (
-      timed.every(
-        (part) => part.endMs - part.startMs <= policy.maxCueDurationMs,
-      )
-    ) {
-      return timed.map((part) => ({
-        ...part,
-        text: wrapCueText(
-          part.text,
-          policy.maxLineChars,
-          policy.maxCueLines,
-        ),
-        ...(textParts.length > 1 || shapingDurationMs !== durationMs
-          ? { estimatedTiming: true as const }
-          : {}),
-      }));
-    }
-  }
-  throw qualityFailure("shaping", "text_cannot_cover_timeline_without_duplication");
-}
-
-function partitionText(
-  units: readonly string[],
-  partCount: number,
-  capacity: number,
-): string[] | undefined {
-  const prefixLengths = [0];
-  for (const unit of units) {
-    prefixLengths.push(prefixLengths.at(-1)! + unit.length);
-  }
-  const parts: string[] = [];
-  let start = 0;
-  for (let partIndex = 0; partIndex < partCount; partIndex += 1) {
-    const remainingParts = partCount - partIndex;
-    if (remainingParts === 1) {
-      const tail = units.slice(start).join("").trim();
-      if (!tail || tail.length > capacity) return undefined;
-      parts.push(tail);
-      break;
-    }
-    const minimumEnd = Math.max(
-      start + 1,
-      findFirstEndThatLeavesCapacity(
-        prefixLengths,
-        start,
-        units.length,
-        remainingParts - 1,
-        capacity,
-      ),
-    );
-    const maximumEnd = findMaximumEndWithinCapacity(
-      prefixLengths,
-      start,
-      units.length - (remainingParts - 1),
-      capacity,
-    );
-    if (maximumEnd < minimumEnd) return undefined;
-    const remainingLength =
-      prefixLengths[units.length]! - prefixLengths[start]!;
-    const targetLength = remainingLength / remainingParts;
-    let bestEnd = minimumEnd;
-    let bestScore = Number.POSITIVE_INFINITY;
-    for (let end = minimumEnd; end <= maximumEnd; end += 1) {
-      const partLength = prefixLengths[end]! - prefixLengths[start]!;
-      const boundaryBonus = isPreferredTextBoundary(units, end) ? -0.25 : 0;
-      const score = Math.abs(partLength - targetLength) + boundaryBonus;
-      if (score < bestScore || (score === bestScore && end > bestEnd)) {
-        bestEnd = end;
-        bestScore = score;
+    try {
+      const cue = planLocalSubtitleSegmentCue({
+        timelineDomain: "original_media",
+        startMs: segment.startMs,
+        endMs: segment.endMs,
+        text: flattenSubtitleText(segment.text),
+      }, policy);
+      if (cue.exceedsDisplayTarget) diagnostics.preservedSegmentCount += 1;
+      return { ...segment, text: cue.text };
+    } catch (error) {
+      if (!(error instanceof LocalSubtitleCuePlanError)) throw error;
+      if (error.reason === "limit_exceeded") {
+        throw limitExceeded("A preserved subtitle cue exceeds the format limit.",
+          "shaping", error.observed!, error.limit!);
       }
+      throw qualityFailure("shaping", error.reason);
     }
-    const part = units.slice(start, bestEnd).join("").trim();
-    if (!part || part.length > capacity) return undefined;
-    parts.push(part);
-    start = bestEnd;
-    while (start < units.length && /^\s$/u.test(units[start]!)) start += 1;
-  }
-  return parts.length === partCount ? parts : undefined;
-}
-
-function assignProportionalTimings(
-  segment: WorkingSegment,
-  textParts: readonly string[],
-): WorkingSegment[] {
-  const totalWeight = textParts.reduce((sum, part) => sum + part.length, 0);
-  const durationMs = segment.endMs - segment.startMs;
-  let cumulativeWeight = 0;
-  let startMs = segment.startMs;
-  return textParts.map((text, index) => {
-    cumulativeWeight += text.length;
-    const endMs =
-      index === textParts.length - 1
-        ? segment.endMs
-        : segment.startMs +
-          Math.round((durationMs * cumulativeWeight) / totalWeight);
-    if (endMs <= startMs) {
-      throw qualityFailure("shaping", "zero_length_estimated_timing");
-    }
-    const part: WorkingSegment = {
-      ...segment,
-      startMs,
-      endMs,
-      text,
-      ...(textParts.length > 1 || segment.estimatedTiming
-        ? { estimatedTiming: true }
-        : {}),
-    };
-    startMs = endMs;
-    return part;
   });
-}
-
-function wrapCueText(
-  value: string,
-  maxLineChars: number,
-  maxLines: number,
-): string {
-  const units = graphemes(flattenSubtitleText(value));
-  const lines: string[] = [];
-  let start = 0;
-  while (start < units.length) {
-    let end = start;
-    let length = 0;
-    let preferredEnd: number | undefined;
-    while (end < units.length && length + units[end]!.length <= maxLineChars) {
-      length += units[end]!.length;
-      end += 1;
-      if (isPreferredTextBoundary(units, end)) preferredEnd = end;
-    }
-    if (end === start) {
-      throw limitExceeded(
-        "A subtitle grapheme exceeds the configured line limit.",
-        "shaping",
-        units[start]!.length,
-        maxLineChars,
-      );
-    }
-    if (end < units.length && preferredEnd !== undefined && preferredEnd > start) {
-      end = preferredEnd;
-    }
-    const line = units.slice(start, end).join("").trim();
-    if (line) lines.push(line);
-    start = end;
-    while (start < units.length && /^\s$/u.test(units[start]!)) start += 1;
-  }
-  if (lines.length > maxLines) {
-    throw limitExceeded(
-      "A subtitle cue exceeds the configured line count.",
-      "shaping",
-      lines.length,
-      maxLines,
-    );
-  }
-  return lines.join("\n");
-}
-
-function canMergeShortCues(
-  left: WorkingSegment,
-  right: WorkingSegment,
-  policy: LocalSubtitlePostProcessPolicy,
-): boolean {
-  const gapMs = right.startMs - left.endMs;
-  if (
-    gapMs < 0 ||
-    gapMs > policy.shortCueMergeGapMs ||
-    // A readable decoder cue already has a boundary. Merging it would expose
-    // the following words early, even when the combined cue fits the limits.
-    left.endMs - left.startMs > policy.shortCueMergeMaxDurationMs ||
-    right.endMs - right.startMs > policy.shortCueMergeMaxDurationMs ||
-    boundaryFingerprint(left.text) === boundaryFingerprint(right.text) ||
-    right.endMs - left.startMs > policy.maxCueDurationMs ||
-    TERMINAL_PUNCTUATION_PATTERN.test(left.text)
-  ) {
-    return false;
-  }
-  const joined = joinCueText(left.text, right.text);
-  return (
-    subtitleTextLength(joined) <=
-    Math.min(
-      policy.maxCueChars,
-      policy.maxLineChars * policy.maxCueLines,
-    )
-  );
-}
-
-function joinCueText(left: string, right: string): string {
-  const normalizedLeft = flattenSubtitleText(left);
-  const normalizedRight = flattenSubtitleText(right);
-  if (!normalizedLeft) return normalizedRight;
-  if (!normalizedRight) return normalizedLeft;
-  const separator =
-    LEADING_PUNCTUATION_PATTERN.test(normalizedRight) ||
-    CJK_PATTERN.test(normalizedLeft.at(-1) ?? "") ||
-    CJK_PATTERN.test(normalizedRight.at(0) ?? "")
-      ? ""
-      : " ";
-  return `${normalizedLeft}${separator}${normalizedRight}`;
-}
-
-function findFirstEndThatLeavesCapacity(
-  prefixLengths: readonly number[],
-  start: number,
-  totalUnits: number,
-  remainingParts: number,
-  capacity: number,
-): number {
-  for (let end = start + 1; end <= totalUnits - remainingParts; end += 1) {
-    const tailLength = prefixLengths[totalUnits]! - prefixLengths[end]!;
-    if (tailLength <= remainingParts * capacity) return end;
-  }
-  return totalUnits;
-}
-
-function findMaximumEndWithinCapacity(
-  prefixLengths: readonly number[],
-  start: number,
-  maximumEnd: number,
-  capacity: number,
-): number {
-  let end = start;
-  while (
-    end < maximumEnd &&
-    prefixLengths[end + 1]! - prefixLengths[start]! <= capacity
-  ) {
-    end += 1;
-  }
-  return end;
-}
-
-function isPreferredTextBoundary(
-  units: readonly string[],
-  end: number,
-): boolean {
-  if (end <= 0 || end > units.length) return false;
-  const previous = units[end - 1]!;
-  const next = units[end] ?? "";
-  return (
-    /^\s$/u.test(previous) ||
-    PREFERRED_BOUNDARY_PATTERN.test(previous) ||
-    (previous === "." && (next === "" || /^\s$/u.test(next)))
-  );
+  diagnostics.estimatedTimingSegmentCount = planned.filter(segment => segment.estimatedTiming).length;
+  return planned;
 }
 
 function findBoundaryTextOverlap(
@@ -2272,7 +1958,8 @@ function validateSourceAndModel(input: LocalSubtitlePostProcessingRequest): void
 function validatePolicy(policy: LocalSubtitlePostProcessPolicy): void {
   if (
     !isRecord(policy) ||
-    policy.schemaVersion !== 1 ||
+    policy.schemaVersion !== 2 ||
+    policy.cuePolicy !== LOCAL_SUBTITLE_CUE_POLICY ||
     typeof policy.vadEnabled !== "boolean" ||
     policy.wordTimelineMode !== "segment_only_v1" ||
     policy.qualityFingerprint !==
@@ -2308,10 +1995,6 @@ function validatePolicy(policy: LocalSubtitlePostProcessPolicy): void {
       LOCAL_SUBTITLE_POST_PROCESSING_POLICY.boundaryTextMinCjkChars ||
     policy.boundaryTextMinLatinChars !==
       LOCAL_SUBTITLE_POST_PROCESSING_POLICY.boundaryTextMinLatinChars ||
-    policy.shortCueMergeGapMs !==
-      LOCAL_SUBTITLE_POST_PROCESSING_POLICY.shortCueMergeGapMs ||
-    policy.shortCueMergeMaxDurationMs !==
-      LOCAL_SUBTITLE_POST_PROCESSING_POLICY.shortCueMergeMaxDurationMs ||
     !isSafeIntegerBetween(
       policy.maxCueDurationMs,
       500,

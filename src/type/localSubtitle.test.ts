@@ -172,6 +172,7 @@ describe("local subtitle batch config snapshots", () => {
     expect(snapshot).toMatchObject({
       model: { modelId: "large-v3-q5_0" },
       inference: {
+        cuePolicy: "sentence_readable_v2",
         advanced: { initialPrompt: "keep this prompt" },
         vad: { enabled: true },
         rawQualityGate: { maxRetryDepth: 3 },
