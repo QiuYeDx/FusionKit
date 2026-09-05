@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import path from "node:path";
+import { shouldRetryUnconditionedAudio } from "./quiet-audio";
 import {
   LOCAL_SUBTITLE_ERROR_MANIFEST,
   LOCAL_SUBTITLE_LIMITS,
@@ -531,6 +532,7 @@ export class LocalSubtitleProductionExecutor
       const executeWindowAttempt = async (
         window: LocalSubtitlePostProcessingWindow,
         qualityRecoveryAttempt: number,
+        conditionQuietAudio = context.config.inference.vad.enabled,
       ) => {
         throwIfCancelled(context.signal);
         let brand: LocalSubtitleBrandedPcmWindow | undefined;
@@ -540,6 +542,7 @@ export class LocalSubtitleProductionExecutor
               attempt: LocalSubtitlePostProcessingWindowAttempt;
               assessment: ReturnType<typeof assessLocalSubtitleRawWindow>;
               decision: ReturnType<typeof decideLocalSubtitleWindowRetry>;
+              quietAudioConditioned: boolean;
             }>
           | undefined;
         try {
@@ -547,6 +550,7 @@ export class LocalSubtitleProductionExecutor
             normalized: normalized!,
             descriptor: window,
             signal: context.signal,
+            conditionQuietAudio,
           });
           assertWindowBrand(
             brand,
@@ -603,7 +607,8 @@ export class LocalSubtitleProductionExecutor
             assessment,
             policy,
           });
-          outcome = Object.freeze({ attempt, assessment, decision });
+          outcome = Object.freeze({ attempt, assessment, decision,
+            quietAudioConditioned: before.quietAudioGainDb !== undefined });
         } catch (error) {
           operationError = error;
         } finally {
@@ -642,8 +647,13 @@ export class LocalSubtitleProductionExecutor
       ): Promise<void> => {
         let qualityRecoveryAttempts = 0;
         while (true) {
-          const { attempt, assessment, decision } =
-            await executeWindowAttempt(window, qualityRecoveryAttempts);
+          let outcome = await executeWindowAttempt(window, qualityRecoveryAttempts);
+          if (outcome.quietAudioConditioned && shouldRetryUnconditionedAudio(outcome.assessment)) {
+            // Retry the original audio once, without recursively conditioning it.
+            // Discard this candidate rather than letting display shaping hide it.
+            outcome = await executeWindowAttempt(window, qualityRecoveryAttempts, false);
+          }
+          const { attempt, assessment, decision } = outcome;
           if (decision.action === "accept") {
             retainAttempt(attempt);
             return;
@@ -1193,6 +1203,8 @@ function createInferenceRequest(
     temperature,
     vadEnabled: context.config.inference.vad.enabled,
     vadMinSilenceMs: context.config.inference.advanced.vadMinSilenceMs,
+    ...(context.config.inference.vad.enabled && resolved.quietAudioGainDb !== undefined
+      ? {vadSpeechPadMs: 1000 as const} : {}),
     ...(context.config.inference.advanced.initialPrompt === undefined
       ? {}
       : { initialPrompt: context.config.inference.advanced.initialPrompt }),
@@ -1236,6 +1248,7 @@ function assertResolvedWindowMatchesBrand(
     !path.isAbsolute(resolved.filePath) ||
     resolved.byteSize !== brand.byteSize ||
     resolved.sha256 !== brand.sha256 ||
+    resolved.quietAudioGainDb !== brand.quietAudioGainDb ||
     resolved.fileIdentity.size !== brand.byteSize
   ) {
     throw createLocalSubtitleError(
@@ -1254,6 +1267,7 @@ function assertSameResolvedWindow(
     before.filePath !== after.filePath ||
     before.byteSize !== after.byteSize ||
     before.sha256 !== after.sha256 ||
+    before.quietAudioGainDb !== after.quietAudioGainDb ||
     !sameFileIdentity(before.fileIdentity, after.fileIdentity)
   ) {
     throw createLocalSubtitleError(

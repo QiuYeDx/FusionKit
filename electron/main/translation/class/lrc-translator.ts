@@ -9,10 +9,20 @@
  *   [00:01.50]奔向夜晚
  */
 
+import {
+  coalesceEmptyLrcFragments,
+  parseSubtitleCueDocument,
+  renderSubtitleCueResponse,
+  subtitleWithoutTranslation,
+  validateCommittedSubtitle,
+} from "@/utils/subtitleCueProtocol";
 import { BaseTranslator } from "./base-translator";
 import { encode } from "gpt-tokenizer";
-import { getLanguageName } from "../constants";
-import { cleanTranslatedLrcContent } from "../lrc-utils";
+import {
+  boundSubtitleContext,
+  buildSubtitleTranslationPrompt,
+  type SubtitleTranslationContext,
+} from "@/utils/subtitleTranslationPrompt";
 import type { ModelRuntimeTextResult } from "../../ai/model-runtime-client";
 
 export class LRCTranslator extends BaseTranslator {
@@ -71,7 +81,7 @@ export class LRCTranslator extends BaseTranslator {
       parts.push(currentPart.join("\n"));
     }
 
-    return parts;
+    return coalesceEmptyLrcFragments(parts);
   }
 
   /**
@@ -79,35 +89,42 @@ export class LRCTranslator extends BaseTranslator {
    * 双语模式：要求 LLM 在每行原文后紧跟一行译文（使用相同时间标签）
    * 仅译文模式：直接替换原文为译文
    */
-  protected formatPrompt(partialContent: string, context: string): string {
-    const srcName = getLanguageName(this.sourceLang);
-    const tgtName = getLanguageName(this.targetLang);
-    const outputRules =
-      "Output only valid LRC lines. Every output line must start with a timestamp or metadata tag in [] format. Do not add markdown formatting or explanations.\n";
+  protected formatPrompt(
+    partialContent: string,
+    context: SubtitleTranslationContext,
+  ): string {
+    const countTokens = (text: string) => encode(text).length;
+    return buildSubtitleTranslationPrompt({
+      format: "LRC",
+      content: partialContent,
+      context: {
+        previousSource: boundSubtitleContext(context.previousSource, "LRC", countTokens),
+        previousTranslation: boundSubtitleContext(context.previousTranslation, "LRC", countTokens),
+      },
+      sourceLang: this.sourceLang,
+      targetLang: this.targetLang,
+      translationOutputMode: this.bilingualOutput ? "bilingual" : "target_only",
+    });
+  }
 
-    if (this.bilingualOutput) {
-      return (
-        `Translate the following ${srcName} subtitle content into bilingual format with ${srcName} and ${tgtName}. Each ${srcName} line should be immediately followed by the ${tgtName} translation with the same timestamp. Maintain coherence. Example format:\n` +
-        `[00:00.05]<${srcName} text>\n` +
-        `[00:00.05]<${tgtName} translation>\n` +
-        outputRules +
-        (context ? `Previous translated content:\n${context}\n` : "") +
-        `Translate the following content:\n\n${partialContent}`
-      );
-    }
-
-    return (
-      `Translate the following ${srcName} subtitle content into ${tgtName}. Replace all ${srcName} text with ${tgtName} translation. Maintain the LRC format and timestamps. Maintain coherence.\n` +
-      outputRules +
-      (context ? `Previous translated content:\n${context}\n` : "") +
-      `Translate the following content:\n\n${partialContent}`
+  /** 校验完整 ID 覆盖后，由程序重建源时间轴。 */
+  protected async parseResponse(
+    response: ModelRuntimeTextResult,
+    sourceContent: string,
+  ): Promise<string> {
+    return renderSubtitleCueResponse(
+      parseSubtitleCueDocument(sourceContent, "LRC"),
+      response.content,
+      this.bilingualOutput,
     );
   }
 
-  /** 解析 LLM 响应并清洗 markdown 格式残留。用量由 BaseTranslator 统一累计。 */
-  protected async parseResponse(response: ModelRuntimeTextResult): Promise<string> {
-    const content = response.content;
-    return cleanTranslatedLrcContent(content);
+  protected translateWithoutModel(content: string): string | undefined {
+    return subtitleWithoutTranslation(parseSubtitleCueDocument(content, "LRC"));
+  }
+
+  protected validateCommittedTranslation(source: string, translated: string): void {
+    validateCommittedSubtitle(parseSubtitleCueDocument(source, "LRC"), translated, this.bilingualOutput);
   }
 
   protected normalizeError(error: unknown): Error {
@@ -115,10 +132,5 @@ export class LRCTranslator extends BaseTranslator {
       return error;
     }
     return new Error(`Translation failed: ${String(error)}`);
-  }
-
-  /** 上下文窗口大小：保留最后 N 句作为下一片翻译的 context（预留扩展） */
-  protected getContextWindowSize(): number {
-    return 2;
   }
 }

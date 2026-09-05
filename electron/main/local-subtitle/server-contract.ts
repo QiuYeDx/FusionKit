@@ -96,6 +96,8 @@ export interface LocalSubtitleServerInferenceRequest {
   readonly temperature: number;
   readonly vadEnabled: boolean;
   readonly vadMinSilenceMs: number;
+  /** Main-process conditioning only; ordinary windows retain native padding. */
+  readonly vadSpeechPadMs?: 1000;
   readonly initialPrompt?: string;
   readonly signal?: AbortSignal;
 }
@@ -119,6 +121,7 @@ export interface LocalSubtitleServerInferenceFields {
   readonly temperature_inc: "0.2";
   readonly no_timestamps: "false";
   readonly vad_min_silence_duration_ms?: string;
+  readonly vad_speech_pad_ms?: "1000";
   readonly prompt?: string;
 }
 
@@ -255,6 +258,7 @@ export function createLocalSubtitleServerInferenceFields(
     ...(request.vadEnabled
       ? { vad_min_silence_duration_ms: String(request.vadMinSilenceMs) }
       : {}),
+    ...(request.vadSpeechPadMs === undefined ? {} : {vad_speech_pad_ms: "1000" as const}),
     ...(request.initialPrompt === undefined
       ? {}
       : { prompt: request.initialPrompt }),
@@ -502,6 +506,10 @@ function validateInferenceOptions(
     request.vadMinSilenceMs > 5_000
   ) {
     throw invalidConfiguration("The VAD silence duration is invalid.");
+  }
+  if (request.vadSpeechPadMs !== undefined &&
+      (!request.vadEnabled || request.vadSpeechPadMs !== 1000)) {
+    throw invalidConfiguration("The conditioned VAD padding is invalid.");
   }
   if (
     request.initialPrompt !== undefined &&

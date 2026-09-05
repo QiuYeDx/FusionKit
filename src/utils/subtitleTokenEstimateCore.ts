@@ -1,3 +1,11 @@
+import { coalesceEmptyLrcFragments, parseSubtitleCueDocument } from "./subtitleCueProtocol";
+import {
+  boundSubtitleContext,
+  buildSubtitleTranslationPrompt,
+  formatSubtitleReferences,
+  SUBTITLE_CONTEXT_TOKEN_LIMIT,
+} from "./subtitleTranslationPrompt";
+
 export type SubtitleEstimateOutputMode = "bilingual" | "target_only";
 
 export type SubtitleTokenPricingLike = {
@@ -27,23 +35,6 @@ export type SubtitleTokenEstimateCoreOptions = {
 };
 
 type SubtitleEstimateFormat = "LRC" | "SRT";
-
-const LANGUAGE_NAMES: Record<string, string> = {
-  JA: "Japanese",
-  ZH: "Chinese",
-  EN: "English",
-  KO: "Korean",
-  FR: "French",
-  DE: "German",
-  ES: "Spanish",
-  RU: "Russian",
-  PT: "Portuguese",
-};
-
-function getLanguageName(code?: string): string {
-  if (!code) return "";
-  return LANGUAGE_NAMES[code] || code;
-}
 
 function getFileExtension(fileName?: string): string {
   return fileName?.split(".").pop()?.toUpperCase() || "";
@@ -113,7 +104,7 @@ function splitSrtContent(
 ): string[] {
   const fragments: string[] = [];
   let currentFragment = "";
-  const subtitleBlocks = content.trim().split(/\n\n+/);
+  const subtitleBlocks = content.trim().split(/\r?\n[ \t]*\r?\n(?:[ \t]*\r?\n)*/);
 
   for (const block of subtitleBlocks) {
     if (!block.trim()) continue;
@@ -163,108 +154,7 @@ export function splitSubtitleContentForEstimate(
     return splitSrtContent(content, safeMaxTokens, countTokens);
   }
 
-  return splitLrcContent(content, safeMaxTokens, countTokens);
-}
-
-function buildLrcPrompt(
-  partialContent: string,
-  context: string,
-  sourceLang?: string,
-  targetLang?: string,
-  translationOutputMode: SubtitleEstimateOutputMode = "bilingual",
-): string {
-  const srcName = getLanguageName(sourceLang || "JA");
-  const tgtName = getLanguageName(targetLang || "ZH");
-  const outputRules =
-    "Output only valid LRC lines. Every output line must start with a timestamp or metadata tag in [] format. Do not add markdown formatting or explanations.\n";
-
-  if (translationOutputMode === "bilingual") {
-    return (
-      `Translate the following ${srcName} subtitle content into bilingual format with ${srcName} and ${tgtName}. Each ${srcName} line should be immediately followed by the ${tgtName} translation with the same timestamp. Maintain coherence. Example format:\n` +
-      `[00:00.05]<${srcName} text>\n` +
-      `[00:00.05]<${tgtName} translation>\n` +
-      outputRules +
-      (context ? `Previous translated content:\n${context}\n` : "") +
-      `Translate the following content:\n\n${partialContent}`
-    );
-  }
-
-  return (
-    `Translate the following ${srcName} subtitle content into ${tgtName}. Replace all ${srcName} text with ${tgtName} translation. Maintain the LRC format and timestamps. Maintain coherence.\n` +
-    outputRules +
-    (context ? `Previous translated content:\n${context}\n` : "") +
-    `Translate the following content:\n\n${partialContent}`
-  );
-}
-
-function buildSrtPrompt(
-  partialContent: string,
-  context: string,
-  sourceLang?: string,
-  targetLang?: string,
-  translationOutputMode: SubtitleEstimateOutputMode = "bilingual",
-): string {
-  const srcName = getLanguageName(sourceLang || "JA");
-  const tgtName = getLanguageName(targetLang || "ZH");
-
-  if (translationOutputMode === "bilingual") {
-    return (
-      `You are a professional subtitle translator. Translate the following ${srcName} subtitles into bilingual format: keep each original ${srcName} line, then immediately follow it with the ${tgtName} translation on the next line. Maintain coherence and accuracy.\n\n` +
-      (context
-        ? `Previous translated content (for reference only, do NOT translate again):\n${context}\n\n`
-        : "") +
-      `Translate the following subtitle content (only this part, ensure coherence with context above, maintain SRT format):\n\n${partialContent}\n\n` +
-      `Output format must match the original. Each ${srcName} text line must be immediately followed by its ${tgtName} translation. Do not add any extra explanations or markdown formatting.`
-    );
-  }
-
-  return (
-    `You are a professional subtitle translator. Translate the following ${srcName} subtitles into ${tgtName}. Replace all ${srcName} text with the ${tgtName} translation. Maintain coherence and accuracy.\n\n` +
-    (context
-      ? `Previous translated content (for reference only, do NOT translate again):\n${context}\n\n`
-      : "") +
-    `Translate the following subtitle content (only this part, ensure coherence with context above, maintain SRT format):\n\n${partialContent}\n\n` +
-    `Output only the ${tgtName} translations in the original SRT format. Do not add any extra explanations or markdown formatting.`
-  );
-}
-
-function buildPromptForEstimate(
-  partialContent: string,
-  context: string,
-  options: Pick<
-    SubtitleTokenEstimateCoreOptions,
-    "content" | "fileName" | "sourceLang" | "targetLang" | "translationOutputMode"
-  >,
-): string {
-  const format = detectSubtitleFormat(options.content, options.fileName);
-
-  if (format === "SRT") {
-    return buildSrtPrompt(
-      partialContent,
-      context,
-      options.sourceLang,
-      options.targetLang,
-      options.translationOutputMode,
-    );
-  }
-
-  return buildLrcPrompt(
-    partialContent,
-    context,
-    options.sourceLang,
-    options.targetLang,
-    options.translationOutputMode,
-  );
-}
-
-function estimateOutputTokens(
-  sourceTokens: number,
-  translationOutputMode: SubtitleEstimateOutputMode = "bilingual",
-): number {
-  const translatedTokens = Math.ceil(sourceTokens * 1.5);
-  return translationOutputMode === "target_only"
-    ? translatedTokens
-    : sourceTokens + translatedTokens;
+  return coalesceEmptyLrcFragments(splitLrcContent(content, safeMaxTokens, countTokens));
 }
 
 export function buildSubtitleTokenEstimate({
@@ -284,20 +174,34 @@ export function buildSubtitleTokenEstimate({
     countTokens,
     fileName,
   );
-  const sourceTokens = countTokens(content);
+  let outputTokens = 0;
   const inputTokens = fragments.reduce((sum, fragment, index) => {
-    const context = index > 0 ? fragments[index - 1] : "";
-    const prompt = buildPromptForEstimate(fragment, context, {
-      content,
-      fileName,
+    const format = detectSubtitleFormat(content, fileName);
+    let document;
+    try { document = parseSubtitleCueDocument(fragment, format); } catch {
+      // The UI can estimate a not-yet-valid file; execution rejects malformed source before a model call.
+      outputTokens += Math.ceil(countTokens(fragment) * 1.5);
+      return sum + countTokens(fragment) + 300;
+    }
+    if (document.cues.length === 0) return sum;
+    const wireScaffold = JSON.stringify({cues: document.cues.map(cue => ({id: cue.id, lines: cue.lines.map(() => "")}))});
+    outputTokens += countTokens(wireScaffold) + document.cues.reduce((tokens, cue) => tokens + cue.lines.reduce((lineTokens, line) => lineTokens + Math.ceil(countTokens(line) * 1.5), 0), 0);
+    const previousSource = boundSubtitleContext(index > 0 ? fragments[index - 1] : "", format, countTokens);
+    const prompt = buildSubtitleTranslationPrompt({
+      format,
+      content: fragment,
+      context: { previousSource, previousTranslation: "" },
       sourceLang,
       targetLang,
       translationOutputMode,
     });
-
-    return sum + countTokens(prompt);
+    // Future model output is unknown. Reserve its full context budget and reference labels.
+    // This is deliberately conservative for concurrent mode, which uses source context only.
+    const translationReserve = index > 0
+      ? SUBTITLE_CONTEXT_TOKEN_LIMIT + countTokens(formatSubtitleReferences({previousSource: "", previousTranslation: " "}))
+      : 0;
+    return sum + countTokens(prompt) + translationReserve;
   }, 0);
-  const outputTokens = estimateOutputTokens(sourceTokens, translationOutputMode);
   const totalTokens = inputTokens + outputTokens;
 
   const inputPrice = tokenPricing?.inputTokensPerMillion ?? 1.5;

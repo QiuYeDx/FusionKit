@@ -623,6 +623,16 @@ describe("LocalSubtitleServerSupervisor", () => {
     expect(harness.children[1]?.killSignals).toEqual(["SIGTERM"]);
   });
 
+  it("preserves conditioned VAD padding in the immutable inference snapshot", async () => {
+    const client = new FakeHttpClient();
+    const harness = createHarness({ clients: [client] });
+    const lease = await harness.supervisor.acquire(OWNER_A, loadOptions());
+    await harness.supervisor.beginInference(lease, {...inferenceRequest(1), vadSpeechPadMs: 1000}).result;
+    expect(client.inferenceRequests[0]).toMatchObject({vadSpeechPadMs: 1000, vadEnabled: true});
+    expect(Object.isFrozen(client.inferenceRequests[0])).toBe(true);
+    await harness.supervisor.release(lease);
+  });
+
   it("runs an explicitly no-VAD inference without loading a VAD model", async () => {
     const client = new FakeHttpClient();
     const harness = createHarness({ clients: [client] });

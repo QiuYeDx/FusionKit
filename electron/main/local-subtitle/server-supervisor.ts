@@ -2291,6 +2291,7 @@ function snapshotInferenceRequest(
     temperature: request.temperature,
     vadEnabled: request.vadEnabled,
     vadMinSilenceMs: request.vadMinSilenceMs,
+    ...(request.vadSpeechPadMs === undefined ? {} : {vadSpeechPadMs: request.vadSpeechPadMs}),
     ...(request.initialPrompt === undefined
       ? {}
       : { initialPrompt: request.initialPrompt }),

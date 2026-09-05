@@ -62,6 +62,7 @@ describe("local subtitle post-processing policy", () => {
       boundaryTextMinCjkChars: 2,
       boundaryTextMinLatinChars: 4,
       shortCueMergeGapMs: 300,
+      shortCueMergeMaxDurationMs: 1000,
     });
     expect(JSON.stringify(policy)).not.toContain("private prompt");
     expect(Object.isFrozen(policy)).toBe(true);
@@ -1298,6 +1299,48 @@ describe("canonical subtitle shaping", () => {
       "no_speech_detected",
       "canonical",
     );
+  });
+
+  it("reports long raw spans for bounded review without replacing or duplicating their text", () => {
+    const result = process({durationMs: 30000, leaves: [leaf(oneWindow(), [rawSegment(3840, 25340, "private speech")])]});
+    expect(result.report.localReview.concerns).toContainEqual({startMs: 3840, endMs: 25340, kind: "long_segment"});
+    expect(result.report.localReview.concerns.some(concern => concern.kind === "estimated_display_timing")).toBe(true);
+    expect(result.report.localReview.windows).toHaveLength(1);
+    expect(JSON.stringify(result.report.localReview)).not.toContain("private speech");
+    expect(result.transcript.segments.map(segment => segment.text).join("").replace(/\s/gu, "")).toBe("privatespeech");
+    expect(result.transcript).not.toHaveProperty("localReview");
+  });
+
+  it.each([
+    [0, 3000, 3000, 3800],
+    [0, 800, 800, 3800],
+    [0, 1001, 1001, 1800],
+  ])("preserves readable cue boundaries instead of exposing following text early (%i-%i)", (start, end, nextStart, nextEnd) => {
+    const result = process({durationMs: 30000, leaves: [leaf(oneWindow(), [
+      rawSegment(start, end, "最初の言葉", 0), rawSegment(nextStart, nextEnd, "次の言葉", 1),
+    ])]});
+    expect(result.transcript.segments.map(({startMs, endMs, text}) => ({startMs, endMs, text}))).toEqual([
+      {startMs: start, endMs: end, text: "最初の言葉"}, {startMs: nextStart, endMs: nextEnd, text: "次の言葉"},
+    ]);
+    expect(result.report.shortCueMergeCount).toBe(0);
+  });
+
+  it("keeps repeated short utterances distinct without deleting real repetition", () => {
+    const result = process({durationMs: 30000, leaves: [leaf(oneWindow(), [
+      rawSegment(0, 500, "同じ", 0), rawSegment(500, 1000, "同じ", 1),
+    ])]});
+    expect(result.transcript.segments).toHaveLength(2);
+    expect(result.transcript.segments.map(segment => segment.text)).toEqual(["同じ", "同じ"]);
+  });
+
+  it("preserves repeated raw text and its review hint without joining it into a long repeated caption", () => {
+    const result = process({durationMs: 30000, leaves: [leaf(oneWindow(),
+      Array.from({length: 4}, (_, index) => rawSegment(index * 2000, (index + 1) * 2000, "同じ", index))
+    )]});
+    expect(result.transcript.segments).toHaveLength(4);
+    expect(result.report.localReview.concerns).toContainEqual({startMs: 0, endMs: 8000, kind: "repeated_text"});
+    expect(result.report.localReview.evidence).toBe("review_hints_only");
+    expect(result.transcript.segments.map(segment => segment.text).join("")).toBe("同じ".repeat(4));
   });
 
   it("keeps rich reports private and errors free of transcript text and paths", () => {

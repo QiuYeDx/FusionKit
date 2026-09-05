@@ -37,6 +37,21 @@ afterEach(async () => {
 });
 
 describe("local subtitle PCM16 WAV inspection", () => {
+  it("conditions only the private window while preserving the source and frame range", async () => {
+    const payload=Buffer.alloc(32000);
+    for(let i=0;i<16000;i++)payload.writeInt16LE(i%2 ? 500 : -500,i*2);
+    const sourcePath=path.join(fixtureRoot,"quiet.wav"),outputPath=path.join(fixtureRoot,"conditioned.wav");
+    const original=Buffer.concat([createLocalSubtitlePcm16WavHeader(payload.length),payload]);
+    await writeFile(sourcePath,original);
+    const metadata=await inspectLocalSubtitlePcm16Wav(sourcePath);
+    const result=await writeLocalSubtitlePcmWindow({sourcePath,sourceIdentity:metadata.fileIdentity,metadata,startFrame:0,endFrame:16000,outputPath,conditionQuietAudio:true});
+    expect(result.quietAudioGainDb).toBe(12);
+    expect(result.metadata.totalFrames).toBe(16000);
+    expect((await readFile(sourcePath)).equals(original)).toBe(true);
+    const output=await readFile(outputPath);
+    expect(result.sha256).toBe(createHash("sha256").update(output).digest("hex"));
+    expect(output.readInt16LE(44)).toBe(Math.round(-500*10**.6));
+  });
   it("strictly inspects a canonical RIFF PCM16 file", async () => {
     const filePath = path.join(fixtureRoot, "source.wav");
     const payload = Buffer.alloc(16_000 * 2, 0x2a);

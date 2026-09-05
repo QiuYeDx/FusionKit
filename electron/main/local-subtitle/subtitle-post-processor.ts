@@ -11,6 +11,7 @@ import {
   type LocalSubtitleTranscript,
 } from "@/type/localSubtitle";
 import { validateLocalSubtitleTranscript } from "@/type/localSubtitleIpc";
+import { planLocalSubtitleReview, type LocalSubtitleReviewPlan } from "./local-review";
 import type {
   LocalSubtitleServerInferenceResponse,
   LocalSubtitleServerInferenceResult,
@@ -53,6 +54,7 @@ export const LOCAL_SUBTITLE_POST_PROCESSING_POLICY = deepFreeze({
   boundaryTextMinCjkChars: 2,
   boundaryTextMinLatinChars: 4,
   shortCueMergeGapMs: 300,
+  shortCueMergeMaxDurationMs: 1_000,
   maxCueLines: LOCAL_SUBTITLE_LIMITS.maxCueLines,
   qualityFingerprint: "nfkc-lowercase-without-punctuation-symbols-whitespace",
   boundaryFingerprint: "nfkc-lowercase-without-punctuation-whitespace",
@@ -163,6 +165,7 @@ export interface LocalSubtitlePostProcessPolicy {
   readonly boundaryTextMinCjkChars: number;
   readonly boundaryTextMinLatinChars: number;
   readonly shortCueMergeGapMs: number;
+  readonly shortCueMergeMaxDurationMs: number;
 }
 
 export interface LocalSubtitleWindowRetryTarget {
@@ -223,6 +226,7 @@ export interface LocalSubtitlePostProcessingWarning {
 }
 
 export interface LocalSubtitlePostProcessingReport {
+  readonly localReview: LocalSubtitleReviewPlan;
   readonly policy: LocalSubtitlePostProcessPolicy;
   readonly attemptedWindowCount: number;
   readonly acceptedLeafWindowCount: number;
@@ -468,6 +472,8 @@ export function createSubtitlePostProcessPolicy(
       LOCAL_SUBTITLE_POST_PROCESSING_POLICY.boundaryTextMinLatinChars,
     shortCueMergeGapMs:
       LOCAL_SUBTITLE_POST_PROCESSING_POLICY.shortCueMergeGapMs,
+    shortCueMergeMaxDurationMs:
+      LOCAL_SUBTITLE_POST_PROCESSING_POLICY.shortCueMergeMaxDurationMs,
   });
 }
 
@@ -816,6 +822,11 @@ export function postProcessLocalSubtitleTranscript(
     transcript: validated.data,
     warnings,
     report: {
+      localReview: planLocalSubtitleReview({
+        durationMs: input.source.durationMs,
+        segments: merged,
+        estimatedTimingConcerns: shaped.filter(segment => segment.estimatedTiming),
+      }),
       policy: input.policy,
       attemptedWindowCount: input.attempts.length,
       acceptedLeafWindowCount: leaves.length,
@@ -1626,6 +1637,11 @@ function canMergeShortCues(
   if (
     gapMs < 0 ||
     gapMs > policy.shortCueMergeGapMs ||
+    // A readable decoder cue already has a boundary. Merging it would expose
+    // the following words early, even when the combined cue fits the limits.
+    left.endMs - left.startMs > policy.shortCueMergeMaxDurationMs ||
+    right.endMs - right.startMs > policy.shortCueMergeMaxDurationMs ||
+    boundaryFingerprint(left.text) === boundaryFingerprint(right.text) ||
     right.endMs - left.startMs > policy.maxCueDurationMs ||
     TERMINAL_PUNCTUATION_PATTERN.test(left.text)
   ) {
@@ -2294,6 +2310,8 @@ function validatePolicy(policy: LocalSubtitlePostProcessPolicy): void {
       LOCAL_SUBTITLE_POST_PROCESSING_POLICY.boundaryTextMinLatinChars ||
     policy.shortCueMergeGapMs !==
       LOCAL_SUBTITLE_POST_PROCESSING_POLICY.shortCueMergeGapMs ||
+    policy.shortCueMergeMaxDurationMs !==
+      LOCAL_SUBTITLE_POST_PROCESSING_POLICY.shortCueMergeMaxDurationMs ||
     !isSafeIntegerBetween(
       policy.maxCueDurationMs,
       500,

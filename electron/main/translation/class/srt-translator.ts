@@ -10,9 +10,19 @@
  * 这比 LRC 的逐行分片更复杂，因为 SRT 一个块可能包含多行文本。
  */
 
+import {
+  parseSubtitleCueDocument,
+  renderSubtitleCueResponse,
+  subtitleWithoutTranslation,
+  validateCommittedSubtitle,
+} from "@/utils/subtitleCueProtocol";
 import { encode } from "gpt-tokenizer";
 import { BaseTranslator } from "./base-translator";
-import { getLanguageName } from "../constants";
+import {
+  boundSubtitleContext,
+  buildSubtitleTranslationPrompt,
+  type SubtitleTranslationContext,
+} from "@/utils/subtitleTranslationPrompt";
 import type { ModelRuntimeTextResult } from "../../ai/model-runtime-client";
 
 type TranslatorConfig = {
@@ -41,7 +51,7 @@ export class SRTTranslator extends BaseTranslator {
     let currentFragment = "";
     const safeMaxTokens = Math.max(1, Math.floor(maxTokens));
 
-    const subtitleBlocks = content.trim().split(/\n\n+/);
+    const subtitleBlocks = content.trim().split(/\r?\n[ \t]*\r?\n(?:[ \t]*\r?\n)*/);
 
     for (const block of subtitleBlocks) {
       if (!block.trim()) continue;
@@ -80,38 +90,44 @@ export class SRTTranslator extends BaseTranslator {
 
   /**
    * 构建 SRT 翻译 prompt。
-   * 与 LRC 的区别：SRT prompt 要求 LLM 以"专业字幕翻译者"角色回答，
-   * 并强调保持 SRT 格式、不添加额外说明。
-   * context 参数提供上一片的翻译结果，帮助 LLM 保持术语和语气一致性。
+   * 只提交带 ID 的文本；源编号与时间轴保留在本地。
+   * context 分别提供上一片原文和已提交模型译文，保留有界参考。
    */
-  protected formatPrompt(partialContent: string, context: string): string {
-    const srcName = getLanguageName(this.sourceLang);
-    const tgtName = getLanguageName(this.targetLang);
+  protected formatPrompt(
+    partialContent: string,
+    context: SubtitleTranslationContext,
+  ): string {
+    const countTokens = (text: string) => encode(text).length;
+    return buildSubtitleTranslationPrompt({
+      format: "SRT",
+      content: partialContent,
+      context: {
+        previousSource: boundSubtitleContext(context.previousSource, "SRT", countTokens),
+        previousTranslation: boundSubtitleContext(context.previousTranslation, "SRT", countTokens),
+      },
+      sourceLang: this.sourceLang,
+      targetLang: this.targetLang,
+      translationOutputMode: this.bilingualOutput ? "bilingual" : "target_only",
+    });
+  }
 
-    if (this.bilingualOutput) {
-      return (
-        `You are a professional subtitle translator. Translate the following ${srcName} subtitles into bilingual format: keep each original ${srcName} line, then immediately follow it with the ${tgtName} translation on the next line. Maintain coherence and accuracy.\n\n` +
-        (context
-          ? `Previous translated content (for reference only, do NOT translate again):\n${context}\n\n`
-          : "") +
-        `Translate the following subtitle content (only this part, ensure coherence with context above, maintain SRT format):\n\n${partialContent}\n\n` +
-        `Output format must match the original. Each ${srcName} text line must be immediately followed by its ${tgtName} translation. Do not add any extra explanations or markdown formatting.`
-      );
-    }
-
-    return (
-      `You are a professional subtitle translator. Translate the following ${srcName} subtitles into ${tgtName}. Replace all ${srcName} text with the ${tgtName} translation. Maintain coherence and accuracy.\n\n` +
-      (context
-        ? `Previous translated content (for reference only, do NOT translate again):\n${context}\n\n`
-        : "") +
-      `Translate the following subtitle content (only this part, ensure coherence with context above, maintain SRT format):\n\n${partialContent}\n\n` +
-      `Output only the ${tgtName} translations in the original SRT format. Do not add any extra explanations or markdown formatting.`
+  protected async parseResponse(
+    response: ModelRuntimeTextResult,
+    sourceContent: string,
+  ): Promise<string> {
+    return renderSubtitleCueResponse(
+      parseSubtitleCueDocument(sourceContent, "SRT"),
+      response.content,
+      this.bilingualOutput,
     );
   }
 
-  protected async parseResponse(response: ModelRuntimeTextResult): Promise<string> {
-    const translated = response.content;
-    return this.postProcess(translated);
+  protected translateWithoutModel(content: string): string | undefined {
+    return subtitleWithoutTranslation(parseSubtitleCueDocument(content, "SRT"));
+  }
+
+  protected validateCommittedTranslation(source: string, translated: string): void {
+    validateCommittedSubtitle(parseSubtitleCueDocument(source, "SRT"), translated, this.bilingualOutput);
   }
 
   protected normalizeError(error: unknown): Error {
@@ -121,16 +137,6 @@ export class SRTTranslator extends BaseTranslator {
 
   private countTokens(text: string): number {
     return encode(text).length;
-  }
-
-  /**
-   * SRT 后处理。
-   * 注释掉的代码是之前尝试用正则提取 SRT 块的逻辑，
-   * 但由于 LLM 返回格式不稳定（双语模式下块结构变化），
-   * 改为直接返回原始内容，由前端或用户侧处理格式问题。
-   */
-  private postProcess(content: string): string {
-    return content;
   }
 
 }

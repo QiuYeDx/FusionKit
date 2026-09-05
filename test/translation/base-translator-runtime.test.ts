@@ -31,6 +31,42 @@ describe("BaseTranslator runtime integration", () => {
     server = undefined;
   });
 
+  it.each(["responses", "chat_completions"] as const)("reconstructs real SRT translator output through %s", async apiFormat => {
+    const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    server = await startFakeModelApiServer();
+    const content = JSON.stringify({cues: [{id: "cue-2", lines: ["再见"]}, {id: "cue-1", lines: ["你好"]}]});
+    server.enqueueRoute(apiFormat, {
+      body: apiFormat === "responses" ? createResponsesBody({outputText: content}) : createChatCompletionBody({content}),
+    });
+    const { SRTTranslator } = await import("../../electron/main/translation/class/srt-translator");
+    const outputDir = await mkdtemp(path.join(os.tmpdir(), "fusionkit-cue-runtime-"));
+    try {
+      const translator = new (class extends SRTTranslator {
+        constructor() {
+          super({apiKey: "test-key", endpoint: server!.baseUrl, apiModel: "test-model"});
+          this.retryPolicy = {...this.retryPolicy, maxAttempts: 1};
+        }
+      })();
+      await translator.translate({
+        taskId: "subtitle-task-cue-runtime", fileName: "locked.srt",
+        fileContent: "8\n00:00:01,250 --> 00:00:02,500\nHello\n\n9\n00:00:05,500 --> 00:00:06,000\nGoodbye",
+        sliceType: SubtitleSliceType.NORMAL, originFileURL: "/input/locked.srt", targetFileURL: outputDir,
+        status: TaskStatus.PENDING, sourceLang: "EN", targetLang: "ZH", translationOutputMode: "bilingual",
+        executionBinding: {status: "ready", profileId: "profile-test", profileLabel: "Test", apiKey: "test-key", apiModel: "test-model", endPoint: server.baseUrl, apiFormat},
+      });
+      expect(server.requests).toHaveLength(1);
+      expect(JSON.stringify(server.requests[0].body)).toContain("cue-1");
+      expect(await readFile(path.join(outputDir, "locked.srt"), "utf8")).toBe("8\n00:00:01,250 --> 00:00:02,500\nHello\n你好\n\n9\n00:00:05,500 --> 00:00:06,000\nGoodbye\n再见");
+    } finally {
+      logSpy.mockRestore();
+      errorSpy.mockRestore();
+      const relative = path.relative(os.tmpdir(), outputDir);
+      if (!relative.startsWith("fusionkit-cue-runtime-") || relative.includes(path.sep)) throw Error("Unexpected cleanup path");
+      await rm(outputDir, {recursive: true, force: true});
+    }
+  });
+
   it("translates an LRC-like fragment through the Responses runtime adapter", async () => {
     const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
     const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});

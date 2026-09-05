@@ -975,6 +975,26 @@ describe("local subtitle stream binding and normalization", () => {
 });
 
 describe("local subtitle PCM proof, window integrity, and cleanup", () => {
+  it("binds conditioning metadata to the private PCM proof and resolved bytes", async () => {
+    const harness = createHarness({afterDecodeOutput: async ({outputPath}) => {
+      const data=Buffer.alloc(16000*2);
+      for(let i=0;i<16000;i++)data.writeInt16LE(i%2 ? 500 : -500,i*2);
+      await writeFile(outputPath,Buffer.concat([createLocalSubtitlePcm16WavHeader(data.length),data]));
+    }});
+    const normalized = await normalizeSource(harness, OWNER_A, "quiet.wav", "quiet-task");
+    const descriptor=structuralWindow(0,16000);
+    const window=await harness.normalizer.materializeWindow({normalized,descriptor,conditionQuietAudio:true});
+    const resolved=await harness.normalizer.resolveWindow(window,{taskId:"quiet-task",taskGeneration:1,descriptor});
+    expect(window.quietAudioGainDb).toBe(12);
+    expect(resolved.quietAudioGainDb).toBe(12);
+    expect(resolved.sha256).toBe(window.sha256);
+    const bytes=await readFile(resolved.filePath);
+    expect(bytes.readInt16LE(44)).toBe(Math.round(-500*10**.6));
+    expect(bytes.length).toBe(32044);
+    expect(isLocalSubtitleBrandedPcmWindow({...window,quietAudioGainDb:0})).toBe(false);
+    await harness.normalizer.disposeWindow(window);
+    await harness.normalizer.disposeNormalized(normalized);
+  });
   it("rejects cloned normalized and window proofs while resolving exact hash bytes", async () => {
     const { harness, normalized } = await normalizedFixture(
       OWNER_A,

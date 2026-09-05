@@ -10,6 +10,13 @@ import {
 } from "../../electron/main/local-subtitle/server-contract";
 
 describe("local subtitle official server contract", () => {
+  it("only forwards conditioned padding with VAD and keeps ordinary requests unchanged", () => {
+    expect(createLocalSubtitleServerInferenceFields({...validRequest(), vadSpeechPadMs: 1000}))
+      .toMatchObject({vad_speech_pad_ms: "1000", token_timestamps: "false"});
+    expect(createLocalSubtitleServerInferenceFields(validRequest())).not.toHaveProperty("vad_speech_pad_ms");
+    expect(() => createLocalSubtitleServerInferenceFields({...validRequest(), vadSpeechPadMs: 1000, vadEnabled: false})).toThrow();
+    expect(() => createLocalSubtitleServerInferenceFields({...validRequest(), vadSpeechPadMs: 2000} as never)).toThrow();
+  });
   it("pins the accepted upstream release and transport limits", () => {
     expect(LOCAL_SUBTITLE_SERVER_HTTP_POLICY).toMatchObject({
       contractVersion: 1,

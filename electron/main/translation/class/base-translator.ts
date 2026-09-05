@@ -16,6 +16,10 @@
 
 import { promises as fs } from "fs";
 import path from "path";
+import {
+  SUBTITLE_CONTEXT_POLICY_VERSION,
+  type SubtitleTranslationContext,
+} from "@/utils/subtitleTranslationPrompt";
 import { randomUUID } from "node:crypto";
 import { DEFAULT_SLICE_LENGTH_MAP } from "../constants";
 import {
@@ -102,7 +106,7 @@ export abstract class BaseTranslator {
   /** 子类实现：根据当前 fragment 和上文 context 构建发给 LLM 的 prompt */
   protected abstract formatPrompt(
     partialContent: string,
-    context: string,
+    context: SubtitleTranslationContext,
   ): string;
 
   /** 单分片重试策略；maxAttempts 包含首次请求。 */
@@ -248,6 +252,17 @@ export abstract class BaseTranslator {
 
       if (!manifest) {
         manifest = createManifest(task, fragments);
+      }
+      // Revalidate even legacy checkpoints before they can supply context or final output.
+      for (const fragment of manifest.fragments) {
+        if (fragment.status !== "resolved" || !fragment.translatedContent) continue;
+        try {
+          this.validateCommittedTranslation(fragment.sourceContent, fragment.translatedContent);
+        } catch (error) {
+          fragment.status = "pending";
+          fragment.error = error instanceof Error ? error.message : String(error);
+          errorLogs.push(`第 ${fragment.index + 1} 个已完成分片结构校验未通过，保留旧译文并重新翻译：${fragment.error}`);
+        }
       }
       this.restoreUsage(task, manifest);
 
@@ -413,7 +428,7 @@ export abstract class BaseTranslator {
   }
 
   /**
-   * 顺序翻译：逐片调用 LLM，前一片的原文作为 context 传入下一片的 prompt。
+   * 顺序翻译：原文与已提交的上一片模型译文分别传递，恢复时沿用 checkpoint。
    * 已在 checkpoint 中标记为 resolved 的分片会被跳过。
    */
   private async translateFragmentsSequentially(
@@ -446,7 +461,13 @@ export abstract class BaseTranslator {
 
         const result = await this.translateFragment(
           fragment,
-          index > 0 ? fragments[index - 1] : "",
+          {
+            previousSource: index > 0 ? fragments[index - 1] : "",
+            previousTranslation:
+              index > 0 && manifest.fragments[index - 1].status === "resolved"
+                ? manifest.fragments[index - 1].translatedContent ?? ""
+                : "",
+          },
           task,
           errorLogs,
           signal,
@@ -519,7 +540,11 @@ export abstract class BaseTranslator {
         if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
 
         const fragment = fragments[index];
-        const context = index > 0 ? fragments[index - 1] : "";
+        // Never read concurrently completed translations: context must not depend on worker order.
+        const context: SubtitleTranslationContext = {
+          previousSource: index > 0 ? fragments[index - 1] : "",
+          previousTranslation: "",
+        };
         const cpFragment = manifest.fragments[index];
         markFragmentRunning(cpFragment, readyExecution(task).apiModel);
 
@@ -801,13 +826,18 @@ export abstract class BaseTranslator {
    */
   private async translateFragment(
     content: string,
-    context: string,
+    context: SubtitleTranslationContext,
     task: SubtitleTranslatorTask,
     errorLogs: string[],
     signal?: AbortSignal,
     fragmentMeta?: TranslationFragmentMeta,
   ): Promise<string> {
+    const localResult = this.translateWithoutModel(content);
+    if (localResult !== undefined) return localResult;
     const prompt = this.formatPrompt(content, context);
+    errorLogs.push(
+      `Subtitle context policy v${SUBTITLE_CONTEXT_POLICY_VERSION}: previousSource=${Boolean(context.previousSource)}, previousCommittedTranslation=${Boolean(context.previousTranslation)}`,
+    );
     const retryPolicy = this.retryPolicy;
     const fragmentLabel = fragmentMeta
       ? `第 ${fragmentMeta.index}/${fragmentMeta.total} 个分片`
@@ -852,7 +882,7 @@ export abstract class BaseTranslator {
           );
         }
 
-        const parsedResult = await this.parseResponse(response);
+        const parsedResult = await this.parseResponse(response, content);
         if (
           typeof parsedResult !== "string" ||
           parsedResult.trim().length === 0
@@ -1002,8 +1032,15 @@ export abstract class BaseTranslator {
   }
 
   /** 子类实现：从统一模型文本结果中后处理翻译文本 */
+  protected translateWithoutModel(_content: string): string | undefined {
+    return undefined;
+  }
+
+  protected validateCommittedTranslation(_source: string, _translated: string): void {}
+
   protected abstract parseResponse(
     responseData: ModelRuntimeTextResult,
+    sourceContent: string,
   ): Promise<string>;
   /** 子类实现：将未知错误标准化为 Error 对象 */
   protected abstract normalizeError(error: unknown): Error;

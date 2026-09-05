@@ -174,6 +174,7 @@ export interface LocalSubtitleNormalizedPcm {
 }
 
 export interface LocalSubtitleBrandedPcmWindow {
+  readonly quietAudioGainDb?: number;
   readonly schemaVersion: 1;
   readonly windowId: string;
   readonly normalizationId: string;
@@ -187,6 +188,7 @@ export interface LocalSubtitleBrandedPcmWindow {
 }
 
 export interface LocalSubtitleResolvedPcmWindow {
+  readonly quietAudioGainDb?: number;
   readonly filePath: string;
   readonly fileIdentity: LocalSubtitleFileIdentity;
   readonly byteSize: number;
@@ -243,6 +245,7 @@ export interface BindLocalSubtitleTaskMediaSelectionOptions {
 }
 
 export interface MaterializeLocalSubtitlePcmWindowOptions {
+  readonly conditionQuietAudio?: boolean;
   readonly normalized: LocalSubtitleNormalizedPcm;
   readonly descriptor: LocalSubtitleMediaStructuralWindow;
   readonly signal?: AbortSignal;
@@ -784,6 +787,7 @@ export class LocalSubtitleMediaNormalizer {
           endFrame: descriptor.endFrame,
           outputPath,
           signal: operation.signal,
+          conditionQuietAudio: options.conditionQuietAudio === true,
         });
         const frameCount = descriptor.endFrame - descriptor.startFrame;
         if (written.metadata.totalFrames !== frameCount) {
@@ -804,6 +808,7 @@ export class LocalSubtitleMediaNormalizer {
           durationMs: framesToMilliseconds(frameCount),
           byteSize: written.metadata.fileSize,
           sha256: written.sha256,
+          ...(written.quietAudioGainDb === undefined ? {} : {quietAudioGainDb: written.quietAudioGainDb}),
         });
         WINDOW_PROOFS.set(facade, {
           normalized: options.normalized,
@@ -915,6 +920,7 @@ export class LocalSubtitleMediaNormalizer {
         fileIdentity: { ...record.fileIdentity },
         byteSize: window.byteSize,
         sha256: record.sha256,
+        ...(window.quietAudioGainDb === undefined ? {} : {quietAudioGainDb: window.quietAudioGainDb}),
       });
     } finally {
       operation.finish();

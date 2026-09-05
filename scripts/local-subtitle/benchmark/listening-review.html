@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="zh-CN">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; media-src data: blob:; connect-src 'none'">
+<title>ASMR 字幕听校</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#f4f6f8;color:#202735;font:15px/1.6 system-ui,'Microsoft YaHei',sans-serif}main{max-width:1080px;margin:auto;padding:32px 24px}h1{margin:0;font-size:28px}p{color:#596475;margin:8px 0 18px}header{margin-bottom:24px}.panel{background:white;border:1px solid #dbe2eb;border-radius:14px;padding:22px;margin-bottom:18px}.bar{display:flex;align-items:center;flex-wrap:wrap;gap:12px}button,select,input,textarea{font:inherit}button,select{border:1px solid #c3cfdf;background:white;color:#27384e;border-radius:8px;padding:8px 14px}button{cursor:pointer}button:hover{background:#edf3fc}button.primary{background:#215eb8;border-color:#215eb8;color:white}button:focus-visible,select:focus-visible,textarea:focus-visible{outline:3px solid #87b6ff;outline-offset:2px}audio{display:block;width:100%;margin:15px 0}canvas{display:block;width:100%;height:130px;border-radius:8px;background:#f4f7fc}.status{font-size:13px;color:#57677a;margin-left:auto}.range{font-variant-numeric:tabular-nums;color:#47607d}.list{display:grid;gap:12px}.item{background:white;border:1px solid #dbe2eb;border-radius:12px;padding:18px}.item.active{border-color:#3477d4;box-shadow:0 0 0 2px #dceaff}.item h2{font-size:16px;margin:0}.fields{display:grid;grid-template-columns:180px 1fr;gap:16px;margin-top:12px}.fields label{display:block;font-size:13px;color:#4c5c70}.fields select{width:100%;margin-top:5px}.fields textarea{width:100%;resize:vertical;min-height:70px;border:1px solid #c3cfdf;border-radius:8px;padding:8px;margin-top:5px}.hint{font-size:13px;color:#66768a}.badge{background:#e7eef9;color:#35577f;border-radius:6px;padding:2px 8px;font-size:12px}#position{font-variant-numeric:tabular-nums}footer{font-size:13px;color:#66768a;margin-top:20px}@media(max-width:600px){main{padding:20px 12px}.fields{grid-template-columns:1fr}.panel{padding:16px}.status{width:100%;margin-left:0}}
+</style>
+<main>
+<header><h1>ASMR 字幕听校</h1><p>关注区间只是定位线索。可以前后拖动寻找完整语句；备注用于记录听感，不会被当成精确句首、句尾标注。</p></header>
+<section class="panel" aria-label="试听控制">
+ <div class="bar"><label>当前切片 <select id="clip" aria-label="当前切片"></select></label><span id="position">0.00 s</span><span class="status" id="progress"></span></div>
+ <audio id="audio" controls preload="metadata"></audio><canvas id="wave" width="1000" height="130" aria-label="音频振幅与当前听校区间"></canvas>
+ <div class="bar" style="margin-top:14px"><button id="replay" class="primary">试听当前区间</button><button id="stop">停止</button><label><input type="checkbox" id="loop" checked> 循环</label><label>前后文 <select id="padding"><option value="1" selected>各 1 秒</option><option value="2">各 2 秒</option><option value="0">不扩展</option></select></label><label>速度 <select id="speed"><option value="1">1×</option><option value="0.8">0.8×</option><option value="0.65">0.65×</option></select></label></div>
+ <p class="hint" id="selection"></p>
+ <p class="hint" id="playbackRange" role="status"></p>
+</section>
+<div class="bar" style="margin-bottom:16px"><strong>待听校区间</strong><span class="badge">听感记录</span><button id="export" style="margin-left:auto">导出标注 JSON</button></div>
+<section id="regions" class="list" aria-label="听校条目"></section>
+<footer><span id="saveState" role="status"></span><br>音频嵌入此文件，离线可用。网页不发送网络请求。导出文件包含区间、标注与音频指纹，不包含音频或原始 NAS 路径。建议结束前导出保存。</footer>
+</main>
+<script>
+'use strict';
+const data = /* REVIEW_DATA */;
+const storageKey='fusionkit-listening-review:'+data.datasetId;
+const audio=document.querySelector('#audio'),canvas=document.querySelector('#wave'),ctx=canvas.getContext('2d');
+const clipSelect=document.querySelector('#clip'),regionHost=document.querySelector('#regions');
+const verdicts=[['unreviewed','未标注'],['speech','真实语音'],['non_speech','呼吸 / 音效 / 无词句'],['uncertain','不确定']];
+let annotations={...data.initialAnnotations},selected=data.regions[0],loopActive=false,activeBounds=null,playGeneration=0;
+function validPlayback(value,region){const item=data.clips.find(c=>c.id===region.clipId);return value&&value.evidence==='playback_request_only'&&[0,1000,2000].includes(value.paddingMs)&&[1,.8,.65].includes(value.rate)&&['requested','started','failed'].includes(value.status)&&typeof value.requestedAt==='string'&&value.startMs===Math.round(Math.max(0,region.startMs-value.paddingMs))&&value.endMs===Math.round(Math.min(item.durationMs,region.endMs+value.paddingMs));}
+try{const saved=JSON.parse(localStorage.getItem(storageKey)||'{}');for(const region of data.regions){const value=saved[region.id];if(value&&verdicts.some(([key])=>key===value.verdict))annotations[region.id]={verdict:value.verdict,note:typeof value.note==='string'?value.note.slice(0,4000):'',lastPlaybackRequest:validPlayback(value.lastPlaybackRequest,region)?value.lastPlaybackRequest:null};}}catch{}
+const clip=()=>data.clips.find(item=>item.id===clipSelect.value);
+const seconds=ms=>(ms/1000).toFixed(2)+' s';
+for(const item of data.clips){const option=document.createElement('option');option.value=item.id;option.textContent='切片 '+item.id+' · '+seconds(item.durationMs);clipSelect.append(option);}
+function save(){try{localStorage.setItem(storageKey,JSON.stringify(annotations));document.querySelector('#saveState').textContent='标注已保存在此浏览器。';}catch{document.querySelector('#saveState').textContent='此浏览器未允许自动保存，请使用导出按钮保存。';}updateProgress();}
+function updateProgress(){const count=data.regions.filter(r=>annotations[r.id]?.verdict&&annotations[r.id].verdict!=='unreviewed').length;document.querySelector('#progress').textContent='已标注 '+count+' / '+data.regions.length;}
+function bounds(){const pad=Number(document.querySelector('#padding').value)*1000;return {start:Math.max(0,selected.startMs-pad)/1000,end:Math.min(clip().durationMs,selected.endMs+pad)/1000};}
+function updatePlaybackRange(){const range=bounds();document.querySelector('#playbackRange').textContent='关注区间：'+seconds(selected.startMs)+'–'+seconds(selected.endMs)+'；下次区间试听：'+seconds(range.start*1000)+'–'+seconds(range.end*1000)+'。可自由拖动播放器寻找完整句子；导出只记录区间试听请求，不证明实际听过的全部范围。';}
+function stopRegion(){playGeneration++;loopActive=false;activeBounds=null;audio.pause();}
+function draw(){const item=clip();ctx.clearRect(0,0,1000,130);ctx.fillStyle='#e2ebfa';if(selected?.clipId===item.id)ctx.fillRect(selected.startMs/item.durationMs*1000,0,(selected.endMs-selected.startMs)/item.durationMs*1000,130);const max=Math.max(.02,...item.peaks);ctx.strokeStyle='#5179a9';ctx.beginPath();item.peaks.forEach((peak,i)=>{const x=i/item.peaks.length*1000;ctx.moveTo(x,65-peak/max*52);ctx.lineTo(x,65+peak/max*52);});ctx.stroke();ctx.strokeStyle='#1d59ba';const x=audio.currentTime*1000/item.durationMs*1000;ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,130);ctx.stroke();}
+function selectRegion(region){stopRegion();selected=region;if(clipSelect.value!==region.clipId){clipSelect.value=region.clipId;audio.src=clip().audio;}document.querySelector('#selection').textContent=region.reason+'；关注位置在原音频 '+seconds(clip().sourceStartMs+region.startMs)+'–'+seconds(clip().sourceStartMs+region.endMs)+'。波形按本切片峰值缩放，不代表语音概率。';for(const row of regionHost.children)row.classList.toggle('active',row.dataset.id===region.id);updatePlaybackRange();draw();}
+async function playRegion(){
+ if(!selected)return;
+ const region=selected,generation=++playGeneration,range=bounds(),rate=Number(document.querySelector('#speed').value);
+ const request={evidence:'playback_request_only',startMs:Math.round(range.start*1000),endMs:Math.round(range.end*1000),paddingMs:Number(document.querySelector('#padding').value)*1000,rate,requestedAt:new Date().toISOString(),status:'requested'};
+ annotations[region.id]={verdict:'unreviewed',note:'',...annotations[region.id],lastPlaybackRequest:request};save();
+ activeBounds=range;audio.currentTime=range.start;audio.playbackRate=rate;loopActive=true;
+ try{await audio.play();if(generation===playGeneration){request.status='started';save();}}
+ catch{if(generation===playGeneration){request.status='failed';loopActive=false;activeBounds=null;save();document.querySelector('#saveState').textContent='播放未开始，请使用播放器的播放按钮重试。';}}
+}
+for(const region of data.regions){const item=document.createElement('article');item.className='item';item.dataset.id=region.id;const bar=document.createElement('div');bar.className='bar';const title=document.createElement('h2');title.textContent=region.id+' · 切片 '+region.clipId;const range=document.createElement('span');range.className='range';range.textContent=seconds(region.startMs)+'–'+seconds(region.endMs);const play=document.createElement('button');play.textContent='试听 '+region.id;play.style.marginLeft='auto';play.onclick=()=>{selectRegion(region);void playRegion();};bar.append(title,range,play);const reason=document.createElement('div');reason.className='hint';reason.textContent=region.reason;const fields=document.createElement('div');fields.className='fields';const label=document.createElement('label');label.textContent='判断';const select=document.createElement('select');select.setAttribute('aria-label',region.id+' 判断');for(const [value,text]of verdicts){const option=document.createElement('option');option.value=value;option.textContent=text;select.append(option);}select.value=annotations[region.id]?.verdict||'unreviewed';const noteLabel=document.createElement('label');noteLabel.textContent='听到的词句 / 判断依据';const note=document.createElement('textarea');note.maxLength=4000;note.setAttribute('aria-label',region.id+' 备注');note.placeholder='可写原文或说明；听不清就保留不确定。';note.value=annotations[region.id]?.note||'';const changed=()=>{annotations[region.id]={...annotations[region.id],verdict:select.value,note:note.value};save();};select.onchange=changed;note.oninput=changed;label.append(select);noteLabel.append(note);fields.append(label,noteLabel);item.append(bar,reason,fields);regionHost.append(item);}
+clipSelect.onchange=()=>{audio.pause();audio.src=clip().audio;selectRegion(data.regions.find(r=>r.clipId===clipSelect.value));};
+document.querySelector('#replay').onclick=()=>void playRegion();document.querySelector('#stop').onclick=stopRegion;
+document.querySelector('#speed').onchange=event=>{stopRegion();audio.playbackRate=Number(event.target.value);updatePlaybackRange();};
+document.querySelector('#padding').onchange=()=>{stopRegion();updatePlaybackRange();};
+audio.ontimeupdate=()=>{document.querySelector('#position').textContent=audio.currentTime.toFixed(2)+' s';if(loopActive&&activeBounds&&audio.currentTime>=activeBounds.end-.015){if(document.querySelector('#loop').checked){audio.currentTime=activeBounds.start;void audio.play().catch(()=>{});}else{stopRegion();}}draw();};
+audio.onloadedmetadata=draw;
+// Native player interaction switches to free listening; request history is not a seek log.
+audio.onpointerdown=audio.onkeydown=()=>{playGeneration++;loopActive=false;activeBounds=null;};
+audio.onended=()=>{if(loopActive&&activeBounds&&document.querySelector('#loop').checked){audio.currentTime=activeBounds.start;void audio.play().catch(()=>{});}};
+document.querySelector('#export').onclick=()=>{const report={schemaVersion:2,datasetId:data.datasetId,exportedAt:new Date().toISOString(),annotationScope:'qualitative_listening_notes_not_exact_speech_boundaries',clips:data.clips.map(({id,sha256,durationMs,sourceStartMs})=>({id,sha256,durationMs,sourceStartMs})),regions:data.regions.map(region=>({...region,lastPlaybackRequest:null,...(annotations[region.id]||{verdict:'unreviewed',note:''})}))};const url=URL.createObjectURL(new Blob([JSON.stringify(report,null,2)],{type:'application/json'}));const link=document.createElement('a');link.href=url;link.download='asmr-listening-annotations.json';link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);};
+audio.src=clip().audio;selectRegion(selected);updateProgress();document.querySelector('#saveState').textContent='标注仅保存在本地；建议结束前导出。';
+</script>
+</html>

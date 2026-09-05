@@ -7,6 +7,7 @@ import {
   type FileHandle,
 } from "node:fs/promises";
 import path from "node:path";
+import { conditionQuietPcm16 } from "./quiet-audio";
 import {
   LOCAL_SUBTITLE_LIMITS,
   LOCAL_SUBTITLE_PRODUCTION_CONTRACT,
@@ -91,6 +92,7 @@ export interface LocalSubtitlePcm16WavMetadata {
 }
 
 export interface WriteLocalSubtitlePcmWindowOptions {
+  readonly conditionQuietAudio?: boolean;
   readonly sourcePath: string;
   readonly sourceIdentity: LocalSubtitlePcmFileIdentity;
   readonly metadata: LocalSubtitlePcm16WavMetadata;
@@ -101,6 +103,7 @@ export interface WriteLocalSubtitlePcmWindowOptions {
 }
 
 export interface LocalSubtitleWrittenPcmWindow {
+  readonly quietAudioGainDb?: number;
   readonly sha256: string;
   readonly metadata: LocalSubtitlePcm16WavMetadata;
 }
@@ -277,29 +280,17 @@ export async function writeLocalSubtitlePcmWindow(
     expectedHash.update(header);
     await writeExactly(outputHandle, header, 0);
 
-    const buffer = Buffer.alloc(Math.min(IO_CHUNK_BYTES, dataBytes));
-    let copiedBytes = 0;
+    // The complete production window is bounded to 30 seconds (<1 MB).
+    // Use one gain throughout it, preserving pauses and sample positions.
+    const buffer = Buffer.alloc(dataBytes);
     const sourceDataStart =
       options.metadata.dataOffset + options.startFrame * PCM_BLOCK_ALIGN;
-    while (copiedBytes < dataBytes) {
-      throwIfAborted(options.signal);
-      const requested = Math.min(buffer.length, dataBytes - copiedBytes);
-      const bytes = buffer.subarray(0, requested);
-      await readIntoExactly(
-        sourceHandle,
-        bytes,
-        sourceDataStart + copiedBytes,
-        "source_identity_mismatch",
-        "The normalized PCM source ended unexpectedly.",
-      );
-      expectedHash.update(bytes);
-      await writeExactly(
-        outputHandle,
-        bytes,
-        CANONICAL_RIFF_HEADER_BYTES + copiedBytes,
-      );
-      copiedBytes += requested;
-    }
+    await readIntoExactly(sourceHandle, buffer, sourceDataStart,
+      "source_identity_mismatch", "The normalized PCM source ended unexpectedly.");
+    throwIfAborted(options.signal);
+    const conditioned = options.conditionQuietAudio ? conditionQuietPcm16(buffer) : {pcm: buffer, gainDb: 0};
+    expectedHash.update(conditioned.pcm);
+    await writeExactly(outputHandle, conditioned.pcm, CANONICAL_RIFF_HEADER_BYTES);
     throwIfAborted(options.signal);
 
     await assertOpenAndPathIdentity(
@@ -379,7 +370,8 @@ export async function writeLocalSubtitlePcmWindow(
       );
     }
     throwIfAborted(options.signal);
-    return Object.freeze({ sha256: actualHash, metadata: parsed });
+    return Object.freeze({ sha256: actualHash, metadata: parsed,
+      ...(conditioned.gainDb > 0 ? {quietAudioGainDb: conditioned.gainDb} : {}) });
   } catch (error) {
     if (outputHandle) await outputHandle.close().catch(() => undefined);
     if (sourceHandle) await sourceHandle.close().catch(() => undefined);
@@ -695,6 +687,9 @@ async function parseDs64Chunk(
 function validateWriteOptions(options: WriteLocalSubtitlePcmWindowOptions): void {
   if (!options || typeof options !== "object") {
     throw failure("invalid_configuration", "The PCM window request is invalid.");
+  }
+  if (options.conditionQuietAudio !== undefined && typeof options.conditionQuietAudio !== "boolean") {
+    throw failure("invalid_configuration", "The PCM conditioning option is invalid.");
   }
   assertAbsolutePath(options.sourcePath, "The PCM source path is invalid.");
   assertAbsolutePath(options.outputPath, "The PCM output path is invalid.");

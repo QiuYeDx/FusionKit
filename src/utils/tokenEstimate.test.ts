@@ -30,10 +30,11 @@ describe("subtitle token estimate", () => {
 
     expect(estimate.fragmentCount).toBeGreaterThan(1);
     expect(estimate.fragmentCount).toBeLessThan(20);
-    expect(estimate.inputTokens).toBeLessThan(5000);
+    // The added committed-translation reference reserves up to 500 tokens per later slice.
+    expect(estimate.inputTokens - (estimate.fragmentCount - 1) * 500).toBeLessThan(5000);
   });
 
-  it("counts bilingual output as original plus translated text", () => {
+  it("does not charge model output tokens for locally copied bilingual source", () => {
     const content = makeLrcLines(12);
     const targetOnly = estimateSubtitleTokensFast(
       content,
@@ -58,7 +59,7 @@ describe("subtitle token estimate", () => {
       },
     );
 
-    expect(bilingual.outputTokens).toBeGreaterThan(targetOnly.outputTokens);
+    expect(bilingual.outputTokens).toBe(targetOnly.outputTokens);
   });
 
   it("keeps precise sensitive estimates in the same order of magnitude as real chunks", async () => {

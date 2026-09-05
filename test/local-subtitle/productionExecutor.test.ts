@@ -77,6 +77,74 @@ afterEach(async () => {
 });
 
 describe("local subtitle production executor", () => {
+  it.each(["long", "repeat"])("retries a risky conditioned %s candidate on original audio once", async (risk) => {
+    const harness = await createHarness({
+      totalFrames: 30 * 16000, vadEnabled: true, quietAudioGainDb: 12,
+      inference: ({request, window, index}) => ({
+        processEpoch: 1,
+        response: serverResponse(request, window.endMs - window.startMs,
+          index === 0
+            ? risk === "long" ? [rawSegment(0, 0, 12000, "Discarded candidate")]
+              : [0, 1, 2].map(i => rawSegment(i, i * 1000, (i + 1) * 1000, "Discarded candidate"))
+            : [rawSegment(0, 0, 12000, "Original output")]),
+      }),
+    });
+    const result = await harness.executor.execute(harness.context);
+    expect(result.status).toBe("completed");
+    if (result.status !== "completed") throw new Error("Expected completion");
+    const artifact = result.artifactResults[0];
+    if (artifact?.status !== "committed") throw new Error("Expected artifact");
+    const exported = await harness.artifacts.readText(OWNER, artifact.artifact.artifactRef);
+    expect(exported.rawText).toContain("Original");
+    expect(exported.rawText).not.toContain("Discarded");
+    expect(harness.supervisor.beginInference).toHaveBeenCalledTimes(2);
+    expect(harness.media.materializeWindow.mock.calls.map(([r]) => r.conditionQuietAudio)).toEqual([true, false]);
+    expect(harness.supervisor.beginInference.mock.calls[0]?.[1]).toMatchObject({vadSpeechPadMs: 1000});
+    expect(harness.supervisor.beginInference.mock.calls[1]?.[1]).not.toHaveProperty("vadSpeechPadMs");
+  });
+
+  it("does not retry an empty conditioned negative control", async () => {
+    const harness = await createHarness({
+      vadEnabled: true, quietAudioGainDb: 12,
+      inference: ({request, window}) => ({processEpoch: 1,
+        response: serverResponse(request, window.endMs - window.startMs, [])}),
+    });
+    await expect(harness.executor.execute(harness.context)).resolves.toMatchObject({
+      status: "failed", error: {code: "no_speech_detected"},
+    });
+    expect(harness.supervisor.beginInference).toHaveBeenCalledOnce();
+  });
+
+  it.each([true, false])("binds quiet-window padding to actual conditioning and VAD (%s)", async (vadEnabled) => {
+    const harness = await createHarness({vadEnabled, quietAudioGainDb: 12});
+    await expect(harness.executor.execute(harness.context)).resolves.toMatchObject({status: "completed"});
+    expect(harness.media.materializeWindow.mock.calls[0]?.[0]).toMatchObject({conditionQuietAudio: vadEnabled});
+    const request = harness.supervisor.beginInference.mock.calls[0]?.[1];
+    if (vadEnabled) expect(request).toMatchObject({vadSpeechPadMs: 1000});
+    else expect(request).not.toHaveProperty("vadSpeechPadMs");
+  });
+  it("exports readable decoder cues separately in the default transcription path", async () => {
+    const harness = await createHarness({
+      inference: ({request, window}) => ({
+        processEpoch: 1,
+        response: serverResponse(request, window.endMs - window.startMs, [
+          rawSegment(0, 1000, 4000, "First words"),
+          rawSegment(1, 4000, 6000, "Following words"),
+        ]),
+      }),
+    });
+    const result = await harness.executor.execute(harness.context);
+    expect(result.status).toBe("completed");
+    if (result.status !== "completed") throw new Error("Expected completion.");
+    const artifact = result.artifactResults[0];
+    if (artifact?.status !== "committed") throw new Error("Expected artifact.");
+    const exported = await harness.artifacts.readText(OWNER, artifact.artifact.artifactRef);
+    expect(exported.rawText).toContain("00:00:01,000 --> 00:00:04,000");
+    expect(exported.rawText).toContain("00:00:04,000 --> 00:00:06,000");
+    expect(exported.rawText).not.toContain("First words Following words");
+    expect(harness.supervisor.beginInference).toHaveBeenCalledOnce();
+  });
+
   it("accepts a frozen translation post action without executing it locally", async () => {
     const harness = await createHarness({
       postAction: {
@@ -1250,6 +1318,7 @@ describe("local subtitle production executor", () => {
 });
 
 interface HarnessOptions {
+  readonly quietAudioGainDb?: number;
   readonly backend?: "cpu" | "cuda" | "metal";
   readonly acceleratorPack?: LocalSubtitleVerifiedAcceleratorPack;
   readonly totalFrames?: number;
@@ -1339,6 +1408,7 @@ async function createHarness(options: HarnessOptions = {}) {
       });
     }),
     materializeWindow: vi.fn(async (request: {
+      conditionQuietAudio?: boolean;
       normalized: LocalSubtitleNormalizedPcm;
       descriptor: LocalSubtitleMediaStructuralWindow;
     }) => {
@@ -1357,6 +1427,7 @@ async function createHarness(options: HarnessOptions = {}) {
         durationMs: request.descriptor.endMs - request.descriptor.startMs,
         byteSize,
         sha256: WINDOW_HASH,
+        ...(request.conditionQuietAudio && options.quietAudioGainDb !== undefined ? {quietAudioGainDb: options.quietAudioGainDb} : {}),
       });
       firstBrand = brand;
       windowByPath.set(path.join(root, `${windowId}.wav`), request.descriptor);
@@ -1379,6 +1450,7 @@ async function createHarness(options: HarnessOptions = {}) {
           ctimeMs: 10,
         }),
         byteSize: brand.byteSize,
+        ...(brand.quietAudioGainDb === undefined ? {} : {quietAudioGainDb: brand.quietAudioGainDb}),
         sha256:
           options.mutateSecondResolve && count === 2
             ? "c".repeat(64)
