@@ -2,6 +2,8 @@
 
 日期：2026-09-05。阶段：分析评审，方案尚未实施。
 
+> 进度说明：本文保留首次评审基线，后续实现与验收见各阶段记录。阶段 9～11 已作为 `9a4c2ea` 提交并获得用户阶段认可。最新反馈已精确复现“无标点原始长段被按字数拆时”的问题；下一阶段需求基底为[句界与时间依据重整](phase12-sentence-boundaries/requirements.md)，[根因和设计](phase12-sentence-boundaries/design.md)、[执行顺序](phase12-sentence-boundaries/tasks.md)已完成，本轮未实施。
+
 FusionKit 基线：`fdd5e9d`，`package.json` 版本 `0.3.0`。文档沿用现有 `docs/v0.2.11` 功能目录，不代表版本发布安排。
 
 参考快照：`C:/Users/Administrator/Documents/GitHub/temp/subtitle_tools/finesub-main`，`VERSION=0.5.0`；目录没有独立 `.git`，不声称其等于某个远端提交。用户提供的 `temp/subtitle/_tools/finesub-main` 在本机不存在。

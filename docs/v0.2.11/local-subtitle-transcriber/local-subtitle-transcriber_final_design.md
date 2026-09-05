@@ -1,5 +1,7 @@
 # 本地字幕转写工具调研与 Final Design
 
+> 2026-09-05 句界设计修订提案：已复现 13.2 节 v1 字符比例拆时制造日语词中截断。后续替代需求以[第十二阶段需求](../subtitle-quality-harness/phase12-sentence-boundaries/requirements.md)为准，采用句界与时间证据分层、显示软目标、无内部时间时保留原段。当前只完成方案，13.2 节仍描述基线实现，不能将提案当作已经接入。
+
 > 日期：2026-07-16
 >
 > Feature Slug：`local-subtitle-transcriber`
