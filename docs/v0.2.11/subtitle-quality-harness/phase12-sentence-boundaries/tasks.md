@@ -43,7 +43,13 @@
 | T-SEG-06A | 已导出句界到翻译落盘的结构回归 | 已完成 | R-SEG-06、R-SEG-07 | T-SEG-05T | 2026-09-06 | records/2026-09-06_T-SEG-06A_translation_handoff.md |
 | T-SEG-06B | 最终超建议值计数与任务说明 | 已完成 | R-SEG-06、R-SEG-07 | T-SEG-06A | 2026-09-06 | records/2026-09-06_T-SEG-06B_cue_summary.md |
 | T-SEG-06C | 紧凑任务行、数字提示和详情展开 | 已完成 | R-SEG-06、R-SEG-07；用户截图补充要求 | T-SEG-06B | 2026-09-06 | records/2026-09-06_T-SEG-06C_task_details.md |
-| T-SEG-07 | 全轨回归与实际应用人工验收包 | 未开始 | R-SEG-01、R-SEG-02、R-SEG-03、R-SEG-04、R-SEG-05、R-SEG-06、R-SEG-07 | T-SEG-06 | — | — |
+| T-SEG-07 | 全轨回归与实际应用人工验收包 | 本轮收束，分项通过及已知可读性不足保留 | R-SEG-01、R-SEG-02、R-SEG-03、R-SEG-04、R-SEG-05、R-SEG-06、R-SEG-07 | T-SEG-06 | — | records/2026-09-06_T-SEG-08C_context_stop_decision.md |
+| T-SEG-07A | 汇总已有证据并交付综合听校包 | 已完成（非人工验收结论） | R-SEG-01～07 | T-SEG-05T、T-SEG-06C | 2026-09-06 | records/2026-09-06_T-SEG-07A_stage_listening.md |
+| T-SEG-07B | 综合附件归档、验收分项与剩余问题定位 | 已完成 | R-SEG-02、R-SEG-03、R-SEG-07 | T-SEG-07A | 2026-09-06 | records/2026-09-06_T-SEG-07B_stage_feedback.md |
+| T-SEG-08 | 最终字幕的短语分隔与已有观察复用 | 本轮收束，已修复两处、保留三处不足 | R-SEG-02、R-SEG-04、R-SEG-05、R-SEG-06、R-SEG-07 | T-SEG-07B | — | records/2026-09-06_T-SEG-08C_context_stop_decision.md |
+| T-SEG-08A | 复用成功去重观察补最终显示分隔 | 已完成 | R-SEG-02、R-SEG-04、R-SEG-05、R-SEG-06、R-SEG-07 | T-SEG-07B | 2026-09-06 | records/2026-09-06_T-SEG-08A_final_display_separators.md |
+| T-SEG-08B | 剩余三处固定观察与异文审计 | 已完成（诊断） | R-SEG-02、R-SEG-04、R-SEG-07 | T-SEG-08A | 2026-09-06 | records/2026-09-06_T-SEG-08B_remaining_separator_probe.md |
+| T-SEG-08C | 邻接完整上下文的有界回放与停止决策 | 已完成（诊断，无新增生产改动） | R-SEG-02、R-SEG-04、R-SEG-05、R-SEG-07 | T-SEG-08B | 2026-09-06 | records/2026-09-06_T-SEG-08C_context_stop_decision.md |
 
 ## 任务范围
 
@@ -201,3 +207,5 @@ T-SEG-05R 人工附件已核对并原字节归档：主观词首 7380 ms、clear
 06B已完成：按最终导出计划统计总条数与超建议值条数，经JobManager/严格IPC进入任务行，旧任务不补0，四语言解释已接入。294项相关测试及类型/构建通过；真实opening13/0、independent27/10，两份SRT/LRC与05T完全一致，桌面/窄屏展开检查及进程清理完成。source usage保留Q-SEG-CHECK-01旧问题。下一步收束05/06的总体验收映射并准备07综合听校包，不能把计数说明称为新的识别质量提升。06A/06B尚未提交。
 
 06A/06B 已提交 5290731 并推送 origin/v0.3.1。按本轮用户截图继续完成 06C：元信息行合并总数、移除输出文件名、数字 tooltip 和每个已入队任务的详情展开；真实位置经限定显示字段提供，操作仍使用原有引用。450 项测试、类型/构建与实际 Electron 桌面/窄屏检查通过，两个样本四个字幕文件与 05T 保持一致，进程和复制资源已清理。06C 尚未提交；下一步回到 05/06 验收映射和 07 综合验收。见 [06C 记录](records/2026-09-06_T-SEG-06C_task_details.md)。
+
+06C 已提交 8950e15 并推送 origin/v0.3.1。按用户本轮要求完成 07A 综合包：两段全长加三段对照，约 7 分 50 秒、98 条字幕；8 个旧局部确认点只作导航，四维整体反馈初始留空。沿用 05T 实际输出和 06C 两素材字节保持证据，不新增推理；NAS 指纹保持，离线播放/跟随/保存/导入导出及桌面/窄屏通过。机器与局部证据映射已归集，T-SEG-05/06 总体质量不因包准备完成而自动关闭，T-SEG-07 等待用户综合附件。新包工具与文档尚未提交，详见 [07A 记录](records/2026-09-06_T-SEG-07A_stage_listening.md)。

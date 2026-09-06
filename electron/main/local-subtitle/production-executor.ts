@@ -1,5 +1,6 @@
 import { hasVariantOverlapBudget, planVariantOverlapReview } from "./cue-variant-overlap-resolver";
 import { summarizeLocalSubtitleCues } from "./cue-summary";
+import { restoreFinalLocalSubtitleSeparators } from "./cue-display-separators";
 import { inspectVariantOverlapTiming } from "./cue-variant-overlap-evidence";
 import { inspectShortOnsetSource, inspectShortOnsetView, inspectShortOnsetConsensus, type ShortOnsetAudio, type ShortOnsetView } from "./cue-short-onset-evidence";
 import { hasContainedOverlapBudget, planContainedOverlapReview } from "./cue-contained-overlap-resolver";
@@ -788,6 +789,9 @@ export class LocalSubtitleProductionExecutor
         const replacements = new Map<number, readonly typeof segments[number][]>();
         const appliedMultiRoots = new Set<string>();
         const appliedContainedRoots = new Set<string>();
+        // References to budgeted observations from accepted repairs only. This
+        // final display consumer makes no requests and retains no extra raw data.
+        const displayViews: PrefixOverlapView[] = [];
         let firstOnsetView: ShortOnsetView | undefined;
         let extraCueBudget = LOCAL_SUBTITLE_LIMITS.maxTranscriptSegments - segments.length;
         const needsRefinement = context.config.model.modelId === "large-v3"
@@ -942,7 +946,10 @@ export class LocalSubtitleProductionExecutor
               }
             }
             const decision = inspectPrefixOverlapTiming(review.source, views);
-            if (decision.status === "supported") replacements.set(review.rightIndex, [Object.freeze(decision.replacement)]);
+            if (decision.status === "supported") {
+              displayViews.push(...views);
+              replacements.set(review.rightIndex, [Object.freeze(decision.replacement)]);
+            }
             transcript = Object.freeze({ ...transcript, segments: Object.freeze(segments.flatMap((cue, index) => replacements.get(index) ?? [cue])) });
           }
         }
@@ -986,6 +993,7 @@ export class LocalSubtitleProductionExecutor
             }
             const decision = inspectMultiOverlapTiming(review.source, views);
             if (decision.status === "supported") {
+              displayViews.push(...views);
               review.budgetRoots.forEach(root => appliedMultiRoots.add(root));
               replacements.set(review.indices[0], [Object.freeze(decision.replacements[0])]);
               replacements.set(review.indices[1], []);
@@ -1034,6 +1042,7 @@ export class LocalSubtitleProductionExecutor
             }
             const decision = inspectContainedOverlapTiming(review.source, views);
             if (decision.status === "supported") {
+              displayViews.push(...views);
               review.budgetRoots.forEach(root => appliedContainedRoots.add(root));
               replacements.set(review.indices[0], [Object.freeze(decision.replacements[0])]);
               replacements.set(review.indices[1], [Object.freeze(decision.replacements[1])]);
@@ -1082,6 +1091,7 @@ export class LocalSubtitleProductionExecutor
             }
             const decision = inspectVariantOverlapTiming(review.source, views);
             if (decision.status === "supported") {
+              displayViews.push(...views);
               replacements.set(review.indices[0], [Object.freeze(decision.replacements[0])]);
               replacements.set(review.indices[1], [Object.freeze(decision.replacements[1])]);
               review.indices.slice(2).forEach(i => replacements.set(i, []));
@@ -1139,6 +1149,9 @@ export class LocalSubtitleProductionExecutor
             }
           }
         }
+        if (displayViews.length) transcript = Object.freeze({ ...transcript,
+          segments: Object.freeze(transcript.segments.map(cue =>
+            restoreFinalLocalSubtitleSeparators(cue, normalized!.normalizationId, displayViews))) });
       }
       context.update({
         status: "post_processing",

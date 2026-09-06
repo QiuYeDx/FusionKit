@@ -272,7 +272,7 @@ describe("local subtitle production executor", () => {
     } finally {await accelerator.cleanup();}
   });
 
-  it.each(["valid", "quoted", "unstable", "missing", "startup_failure", "native_failure", "cancel", "cleanup_failure"] as const)("preserves prefix repair while applying one bounded multi-parent group: %s", async scenario => {
+  it.each(["valid", "display_separator", "quoted", "unstable", "missing", "startup_failure", "native_failure", "cancel", "cleanup_failure"] as const)("preserves prefix repair while applying one bounded multi-parent group: %s", async scenario => {
     const accelerator = await createAcceleratorFixture();
     try {
       const a = "説明を聞いた後で順番に", b = "手順を確認する必要", rest = "があると伝えました";
@@ -288,6 +288,11 @@ describe("local subtitle production executor", () => {
             const seg = (id: number, text: string, start: number, end: number, pairs: [string, number][]) => ({ ...rawSegment(id, start-window.startMs, end-window.startMs,text),dtwTokens:pairs.map(([text,point])=>({text,pointMs:point-window.startMs})) });
             segments = [seg(0,a+b+rest,window.startMs,132000,[["説明を聞いた後で",123000],["順番に",125900],[b,128000],[rest,131000]]),
               seg(1,next,132000,143440,[["次は",second ? scenario === "unstable" ? 134000 : 133240 : 133200],["資料を読んで",134000],["内容を詳しく確認してから提出してください",140000]])];
+            if (scenario === "display_separator") {
+              segments[1].text = next.replace("内容", " 内容");
+              segments[1].dtwTokens.splice(2, 1, { text: " 内容", pointMs: 140000-window.startMs },
+                { text: "を詳しく確認してから提出してください", pointMs: 140300-window.startMs });
+            }
             if (second && scenario === "missing") segments[1].dtwTokens = [];
             if (second && scenario === "quoted") { segments[0].text = "「"+segments[0].text;segments[0].dtwTokens.unshift({text:"「",pointMs:0});segments[1].text+="」";segments[1].dtwTokens.push({text:"」",pointMs:24000}); }
           } else if (prefix) {
@@ -314,7 +319,7 @@ describe("local subtitle production executor", () => {
       else {
         expect(result.status).toBe("completed");const cues=harness.exporter.exportArtifacts.mock.calls[0]![0].transcript.segments;
         expect(cues.find(c=>c.startMs===55880)?.text).toBe("確認してから始めます");
-        if(scenario==="valid"||scenario==="quoted") {expect(cues.find(c=>c.startMs===121980)).toMatchObject({text:a+b+rest,endMs:133200});expect(cues.find(c=>c.startMs===133200)).toMatchObject({text:next,endMs:143440});expect(cues.some(c=>c.startMs===127500)).toBe(false);}
+        if(scenario==="valid"||scenario==="quoted"||scenario==="display_separator") {expect(cues.find(c=>c.startMs===121980)).toMatchObject({text:a+b+rest,endMs:133200});expect(cues.find(c=>c.startMs===133200)).toMatchObject({text:scenario==="display_separator"?next.replace("内容", " 内容"):next,endMs:143440});expect(cues.some(c=>c.startMs===127500)).toBe(false);}
         else {expect(cues.find(c=>c.startMs===126880)?.text).toBe(b);expect(cues.find(c=>c.startMs===127500)?.text.replace(/\s/gu,"")).toBe(right.replace(/\s/gu,""));}
       }
     } finally {await accelerator.cleanup();}
