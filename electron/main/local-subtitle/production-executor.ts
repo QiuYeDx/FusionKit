@@ -1,3 +1,7 @@
+import { hasVariantOverlapBudget, planVariantOverlapReview } from "./cue-variant-overlap-resolver";
+import { inspectVariantOverlapTiming } from "./cue-variant-overlap-evidence";
+import { hasContainedOverlapBudget, planContainedOverlapReview } from "./cue-contained-overlap-resolver";
+import { inspectContainedOverlapTiming } from "./cue-contained-overlap-evidence";
 import { randomUUID } from "node:crypto";
 import path from "node:path";
 import { shouldRetryUnconditionedAudio } from "./quiet-audio";
@@ -779,6 +783,8 @@ export class LocalSubtitleProductionExecutor
           context.config.taskMode === "transcribe" && context.config.inference.vad.enabled) {
         const segments = [...transcript.segments];
         const replacements = new Map<number, readonly typeof segments[number][]>();
+        const appliedMultiRoots = new Set<string>();
+        const appliedContainedRoots = new Set<string>();
         let extraCueBudget = LOCAL_SUBTITLE_LIMITS.maxTranscriptSegments - segments.length;
         const needsRefinement = context.config.model.modelId === "large-v3"
           ? needsLocalSubtitleDtwRefinement : needsLocalSubtitleSeparators;
@@ -970,9 +976,105 @@ export class LocalSubtitleProductionExecutor
             }
             const decision = inspectMultiOverlapTiming(review.source, views);
             if (decision.status === "supported") {
+              review.budgetRoots.forEach(root => appliedMultiRoots.add(root));
               replacements.set(review.indices[0], [Object.freeze(decision.replacements[0])]);
               replacements.set(review.indices[1], []);
               replacements.set(review.indices[2], [Object.freeze(decision.replacements[1])]);
+            }
+            transcript = Object.freeze({ ...transcript, segments: Object.freeze(segments.flatMap((cue, index) => replacements.get(index) ?? [cue])) });
+          }
+        }
+        // Preserve established repairs before considering one window-edge contained group.
+        if (context.config.model.modelId === "large-v3") {
+          const review = rootPlan.windows.slice(1).flatMap((rightWindow, index) => {
+            const leftWindow = rootPlan.windows[index]!;
+            if (!hasContainedOverlapBudget([leftWindow.rootWindowKey, rightWindow.rootWindowKey],
+              rootPlan.windows.length, acceptedPrimaryCounts, requestsPerRoot, appliedMultiRoots)) return [];
+            const left = attempts.find(a => a.window.windowKey === leftWindow.windowKey);
+            const right = attempts.find(a => a.window.windowKey === rightWindow.windowKey);
+            if (!left || !right || ![left, right].every(a => ["ja", "japanese"].includes(a.response.result.language.toLowerCase()))) return [];
+            const proposal = planContainedOverlapReview({ sourceIdentity: normalized!.normalizationId, durationMs: normalized!.durationMs,
+              leftWindow, rightWindow, leftRaw: left.response.result.segments, rightRaw: right.response.result.segments, cues: segments });
+            return proposal && proposal.indices.every(i => !replacements.has(i)) ? [proposal] : [];
+          })[0];
+          if (review) {
+            const views: PrefixOverlapView[] = [];
+            for (const [index, window] of review.windows.entries()) {
+              throwIfCancelled(context.signal);
+              if (lease) await this.#supervisor.release(lease);
+              lease = undefined;
+              try {
+                lease = await this.#supervisor.acquirePinnedSeparatorLease(pin, context.signal, { freshInferenceState: true });
+              } catch (error) {
+                if (context.signal.aborted || isCleanupFailureCode(publicErrorCode(error, "loading_model"))) throw error;
+                break;
+              }
+              try {
+                const candidate = await executeWindowAttempt(window, 0, false, true, review.budgetRoots[index]);
+                if (candidate.decision.action !== "accept" || candidate.attempt.response.result.wordTimelineStatus !== "dtw_token_points" ||
+                    !["ja", "japanese"].includes(candidate.attempt.response.result.language.toLowerCase())) break;
+                try { reserveRetainedRawResponse(candidate.attempt.response, retainedRawUsage, this.#retainedRawBudget); }
+                catch { break; }
+                views.push({ id: window.windowKey, sourceIdentity: normalized!.normalizationId, mode: "uncompressed_non_vad",
+                  windowStartMs: window.startMs, windowEndMs: window.endMs, segments: candidate.attempt.response.result.segments });
+              } catch (error) {
+                if (error instanceof SeparatorCandidateUnavailable) break;
+                throw error;
+              }
+            }
+            const decision = inspectContainedOverlapTiming(review.source, views);
+            if (decision.status === "supported") {
+              review.budgetRoots.forEach(root => appliedContainedRoots.add(root));
+              replacements.set(review.indices[0], [Object.freeze(decision.replacements[0])]);
+              replacements.set(review.indices[1], [Object.freeze(decision.replacements[1])]);
+              replacements.set(review.indices[2], [Object.freeze(decision.replacements[2])]);
+            }
+            transcript = Object.freeze({ ...transcript, segments: Object.freeze(segments.flatMap((cue, index) => replacements.get(index) ?? [cue])) });
+          }
+        }
+        // Preserve established repairs before considering one terminal-variant sentence group.
+        if (context.config.model.modelId === "large-v3") {
+          const review = rootPlan.windows.slice(1).flatMap((rightWindow, index) => {
+            const leftWindow = rootPlan.windows[index]!;
+            if (!hasVariantOverlapBudget([leftWindow.rootWindowKey, rightWindow.rootWindowKey],
+              rootPlan.windows.length, acceptedPrimaryCounts, requestsPerRoot, new Set([...appliedMultiRoots, ...appliedContainedRoots]))) return [];
+            const left = attempts.find(a => a.window.windowKey === leftWindow.windowKey);
+            const right = attempts.find(a => a.window.windowKey === rightWindow.windowKey);
+            if (!left || !right || ![left, right].every(a => ["ja", "japanese"].includes(a.response.result.language.toLowerCase()))) return [];
+            const proposal = planVariantOverlapReview({ sourceIdentity: normalized!.normalizationId, durationMs: normalized!.durationMs,
+              leftWindow, rightWindow, leftRaw: left.response.result.segments, rightRaw: right.response.result.segments, cues: segments });
+            return proposal && proposal.indices.every(i => !replacements.has(i)) ? [proposal] : [];
+          })[0];
+          if (review) {
+            const views: PrefixOverlapView[] = [];
+            for (const [index, window] of review.windows.entries()) {
+              throwIfCancelled(context.signal);
+              if (lease) await this.#supervisor.release(lease);
+              lease = undefined;
+              try {
+                lease = await this.#supervisor.acquirePinnedSeparatorLease(pin, context.signal, { freshInferenceState: true });
+              } catch (error) {
+                if (context.signal.aborted || isCleanupFailureCode(publicErrorCode(error, "loading_model"))) throw error;
+                break;
+              }
+              try {
+                const candidate = await executeWindowAttempt(window, 0, false, true, review.budgetRoots[index]);
+                if (candidate.decision.action !== "accept" || candidate.attempt.response.result.wordTimelineStatus !== "dtw_token_points" ||
+                    !["ja", "japanese"].includes(candidate.attempt.response.result.language.toLowerCase())) break;
+                try { reserveRetainedRawResponse(candidate.attempt.response, retainedRawUsage, this.#retainedRawBudget); }
+                catch { break; }
+                views.push({ id: window.windowKey, sourceIdentity: normalized!.normalizationId, mode: "uncompressed_non_vad",
+                  windowStartMs: window.startMs, windowEndMs: window.endMs, segments: candidate.attempt.response.result.segments });
+              } catch (error) {
+                if (error instanceof SeparatorCandidateUnavailable) break;
+                throw error;
+              }
+            }
+            const decision = inspectVariantOverlapTiming(review.source, views);
+            if (decision.status === "supported") {
+              replacements.set(review.indices[0], [Object.freeze(decision.replacements[0])]);
+              replacements.set(review.indices[1], [Object.freeze(decision.replacements[1])]);
+              review.indices.slice(2).forEach(i => replacements.set(i, []));
             }
             transcript = Object.freeze({ ...transcript, segments: Object.freeze(segments.flatMap((cue, index) => replacements.get(index) ?? [cue])) });
           }
