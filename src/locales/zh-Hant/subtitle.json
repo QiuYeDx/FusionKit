@@ -236,6 +236,11 @@
     }
   },
   "local_transcriber": {
+    "cue_summary": {
+      "total": "共 {{count}} 條字幕",
+      "exceeds": "{{count}} 條超過分句建議值",
+      "explanation": "部分字幕的時長、總字數或行長超過了本次任務的建議值。已保留現有分段，避免無依據拆句；可結合原音檢查。這不代表這些字幕一定有錯。"
+    },
     "title": "本機字幕轉寫",
     "description": "使用裝置上已安裝的模型，將音訊或影片任務轉寫為字幕。",
     "error": {

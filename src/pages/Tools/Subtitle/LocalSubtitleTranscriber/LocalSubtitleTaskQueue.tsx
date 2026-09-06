@@ -1,4 +1,5 @@
 import type { TFunction } from "i18next";
+import { LocalSubtitleCueSummary } from "./LocalSubtitleCueSummary";
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import {
@@ -671,6 +672,7 @@ function TaskRow({
             </Badge>
           </div>
           <TaskMeta items={metaItems} />
+          {task.status === "completed" && task.cueSummary ? <LocalSubtitleCueSummary summary={task.cueSummary} /> : null}
         </div>
 
         <TaskActions

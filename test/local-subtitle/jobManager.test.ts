@@ -54,6 +54,20 @@ afterEach(async () => {
 });
 
 describe("LocalSubtitleJobManager", () => {
+  it("publishes projected final cue counts through task events and session snapshots", async () => {
+    const harness = await createHarness({executor:executor(async context => ({...await successfulExecution(context),
+      cueSummary:{cueCount:13,exceedsTargetCount:2,privatePath:"must not cross IPC"},
+    }))});
+    const events:any[]=[];harness.manager.onTaskEvent(OWNER_A,event=>events.push(event));
+    const request=await harness.createRequest(harness.fileToken);
+    const batch=await harness.manager.enqueue(OWNER_A,request);
+    expect(batch.tasks[0].cueSummary).toBeUndefined();
+    harness.flushScheduled();await harness.manager.waitForIdle();
+    const completed=events.find(event=>event.event.task?.status==="completed");
+    expect(completed?.event.task.cueSummary).toEqual({cueCount:13,exceedsTargetCount:2});
+    expect(harness.manager.getSessionSnapshot(OWNER_A).batches[0].tasks[0].cueSummary).toEqual({cueCount:13,exceedsTargetCount:2});
+    expect(JSON.stringify(events)).not.toContain("must not cross IPC");
+  });
   it("reports pending and queued model usage to resource deletion guards", async () => {
     const resolution = deferred<void>();
     const harness = await createHarness({

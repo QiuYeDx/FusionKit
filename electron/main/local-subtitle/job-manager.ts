@@ -13,6 +13,8 @@ import {
   isLocalSubtitleErrorCode,
   isLocalSubtitleCpuRetryAvailable,
   transitionLocalSubtitleTaskState,
+  sanitizeLocalSubtitleCueSummary,
+  type LocalSubtitleCueSummary,
   type LocalSubtitleArtifactResult,
   type LocalSubtitleBatchConfigSnapshot,
   type LocalSubtitleBatchSummary,
@@ -200,6 +202,7 @@ export type LocalSubtitleJobTaskExecutionResult =
   | {
       readonly status: "completed";
       readonly artifactResults: readonly LocalSubtitleArtifactResult[];
+      readonly cueSummary?: LocalSubtitleCueSummary;
       readonly durationMs?: number;
       readonly postAction?: LocalSubtitlePostActionState;
     }
@@ -1353,6 +1356,7 @@ export class LocalSubtitleJobManager {
       updatedAt: timestamp,
       ...(current.durationMs === undefined ? {} : { durationMs: current.durationMs }),
       completion: undefined,
+      cueSummary: undefined,
       error: undefined,
       cpuRetryAvailable: undefined,
     };
@@ -1832,6 +1836,7 @@ export class LocalSubtitleJobManager {
           : { durationMs: current.durationMs }
         : { durationMs: result.durationMs }),
       postAction: result.postAction ?? current.postAction,
+      cueSummary: sanitizeLocalSubtitleCueSummary(result.cueSummary),
       updatedAt: this.#timestamp(),
       error: undefined,
     });

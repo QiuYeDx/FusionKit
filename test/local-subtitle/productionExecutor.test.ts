@@ -141,10 +141,12 @@ describe("local subtitle production executor", () => {
       if (!["silence","pcm_failure","media_changed"].includes(scenario)) expect(harness.supervisor.acquirePinnedSeparatorLease.mock.calls.at(-1)?.[2]).toEqual({freshInferenceState:true});
       if (["media_changed","cancel","cleanup_failure"].includes(scenario)) {
         expect(result.status).toBe(scenario === "cancel" ? "cancelled" : "failed");
+        expect(result).not.toHaveProperty("cueSummary");
         expect(harness.exporter.exportArtifacts).not.toHaveBeenCalled();
       } else {
         expect(result.status, JSON.stringify(result)).toBe("completed");
         const cues = harness.exporter.exportArtifacts.mock.calls[0]![0].transcript.segments;
+        expect(result).toMatchObject({cueSummary:{cueCount:cues.length,exceedsTargetCount:1}});
         expect(cues.map(c=>c.text.replace(/\s/gu," ")).join("").replace(/\s/gu,"")).toBe(prefix+target+next);
         expect(cues.map(c=>[c.startMs,c.endMs,c.text])).toEqual(scenario === "valid" ?
           [[2000,5100,prefix],[5100,7000,target],[7000,15000,next]] : [[2000,7000,prefix+" "+target],[7000,15000,next]]);

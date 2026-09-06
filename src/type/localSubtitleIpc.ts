@@ -534,6 +534,11 @@ const taskProgressSchema = z
     }
   });
 
+export const localSubtitleCueSummarySchema = z.object({
+  cueCount: positiveSafeIntegerSchema.max(LOCAL_SUBTITLE_LIMITS.maxTranscriptSegments),
+  exceedsTargetCount: z.number().int().min(0).max(LOCAL_SUBTITLE_LIMITS.maxTranscriptSegments),
+}).strict().refine(value => value.exceedsTargetCount <= value.cueCount);
+
 export const localSubtitleTaskSummarySchema: z.ZodType<LocalSubtitleTaskSummary> =
   z
     .object({
@@ -557,6 +562,7 @@ export const localSubtitleTaskSummarySchema: z.ZodType<LocalSubtitleTaskSummary>
         .array(artifactResultSchema)
         .max(LOCAL_SUBTITLE_FORMATS.length),
       completion: completionResultSchema.optional(),
+      cueSummary: localSubtitleCueSummarySchema.optional(),
       postAction: postActionStateSchema,
       error: localSubtitleErrorSchema.optional(),
       cpuRetryAvailable: z.literal(true).optional(),
@@ -571,6 +577,9 @@ export const localSubtitleTaskSummarySchema: z.ZodType<LocalSubtitleTaskSummary>
           path: ["requestedFormats"],
           message: "Requested formats must be unique.",
         });
+      }
+      if (value.cueSummary !== undefined && value.status !== "completed") {
+        context.addIssue({code:"custom",path:["cueSummary"],message:"Only completed tasks may include final cue counts."});
       }
       const terminal = resolveLocalSubtitleTerminalOutcome({
         requestedFormats: value.requestedFormats,

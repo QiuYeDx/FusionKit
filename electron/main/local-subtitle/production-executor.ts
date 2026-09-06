@@ -1,4 +1,5 @@
 import { hasVariantOverlapBudget, planVariantOverlapReview } from "./cue-variant-overlap-resolver";
+import { summarizeLocalSubtitleCues } from "./cue-summary";
 import { inspectVariantOverlapTiming } from "./cue-variant-overlap-evidence";
 import { inspectShortOnsetSource, inspectShortOnsetView, inspectShortOnsetConsensus, type ShortOnsetAudio, type ShortOnsetView } from "./cue-short-onset-evidence";
 import { hasContainedOverlapBudget, planContainedOverlapReview } from "./cue-contained-overlap-resolver";
@@ -1208,7 +1209,10 @@ export class LocalSubtitleProductionExecutor
         resolveOutputDirectory,
         signal: context.signal,
       });
-      return mapExportResult(result, durationMs, context.signal.aborted);
+      const outcome = mapExportResult(result, durationMs, context.signal.aborted);
+      return outcome.status === "completed" ? Object.freeze({ ...outcome,
+        cueSummary: summarizeLocalSubtitleCues(transcript.segments, createSubtitlePostProcessPolicy(context.config.inference)),
+      }) : outcome;
     } catch (error) {
       const rawCode = publicErrorCode(error, stage);
       const code = normalizeCleanupErrorCode(rawCode, context.signal.aborted);

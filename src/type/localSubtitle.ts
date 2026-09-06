@@ -951,6 +951,20 @@ export interface LocalSubtitleTaskProgress {
   readonly totalWindows?: number;
 }
 
+export interface LocalSubtitleCueSummary {
+  readonly cueCount: number;
+  readonly exceedsTargetCount: number;
+}
+
+/** Project only bounded counts; never expose private executor diagnostics. */
+export function sanitizeLocalSubtitleCueSummary(value: unknown): LocalSubtitleCueSummary | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
+  const {cueCount, exceedsTargetCount} = value as LocalSubtitleCueSummary;
+  if (!Number.isSafeInteger(cueCount) || cueCount < 1 || cueCount > LOCAL_SUBTITLE_LIMITS.maxTranscriptSegments ||
+      !Number.isSafeInteger(exceedsTargetCount) || exceedsTargetCount < 0 || exceedsTargetCount > cueCount) return undefined;
+  return Object.freeze({cueCount, exceedsTargetCount});
+}
+
 export interface LocalSubtitleTaskSummary {
   readonly taskId: string;
   readonly batchId: string;
@@ -965,6 +979,7 @@ export interface LocalSubtitleTaskSummary {
   readonly requestedFormats: readonly LocalSubtitleFormat[];
   readonly artifactResults: readonly LocalSubtitleArtifactResult[];
   readonly completion?: LocalSubtitleCompletionResult;
+  readonly cueSummary?: LocalSubtitleCueSummary;
   readonly postAction: LocalSubtitlePostActionState;
   readonly error?: LocalSubtitleError;
   readonly cpuRetryAvailable?: true;

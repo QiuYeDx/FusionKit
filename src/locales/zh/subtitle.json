@@ -236,6 +236,11 @@
     }
   },
   "local_transcriber": {
+    "cue_summary": {
+      "total": "共 {{count}} 条字幕",
+      "exceeds": "{{count}} 条超过分句建议值",
+      "explanation": "部分字幕的时长、总字数或行长超过了本次任务的建议值。已保留现有分段，避免无依据拆句；可结合原音检查。这不代表这些字幕一定有错。"
+    },
     "title": "本地字幕转写",
     "description": "使用设备上已安装的模型，将音频或视频任务转写为字幕。",
     "error": {

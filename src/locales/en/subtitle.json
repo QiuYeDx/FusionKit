@@ -236,6 +236,11 @@
     }
   },
   "local_transcriber": {
+    "cue_summary": {
+      "total": "Cues: {{count}}",
+      "exceeds": "Above suggested limits: {{count}}",
+      "explanation": "Some cues exceed this task's suggested duration, total text length, or line length. Their current boundaries are retained to avoid unsupported splits. Review them with the audio if needed; exceeding a suggestion does not necessarily mean a cue is incorrect."
+    },
     "title": "Local Subtitle Transcriber",
     "description": "Use an installed on-device model to transcribe audio and video tasks into subtitles.",
     "error": {

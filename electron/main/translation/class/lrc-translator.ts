@@ -86,8 +86,8 @@ export class LRCTranslator extends BaseTranslator {
 
   /**
    * 构建 LRC 翻译 prompt。
-   * 双语模式：要求 LLM 在每行原文后紧跟一行译文（使用相同时间标签）
-   * 仅译文模式：直接替换原文为译文
+   * 模型只返回带 ID 的译文；本地程序重建时间标签和双语行。
+   * 同时间标签的不同源行仍各自拥有独立 ID。
    */
   protected formatPrompt(
     partialContent: string,

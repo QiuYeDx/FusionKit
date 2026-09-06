@@ -1798,6 +1798,18 @@ function validTranscript(): Mutable<LocalSubtitleTranscript> {
   } as Mutable<LocalSubtitleTranscript>;
 }
 
+it("keeps final cue statistics optional and restricts them to completed tasks", () => {
+  const task = completedTaskSummary();
+  expect(localSubtitleTaskSummarySchema.safeParse(task).success).toBe(true);
+  task.cueSummary = {cueCount:13,exceedsTargetCount:2};
+  expect(localSubtitleTaskSummarySchema.safeParse(task).success).toBe(true);
+  for (const status of ["queued","failed","cancelled"] as const) {
+    const result=localSubtitleTaskSummarySchema.safeParse({...task,status});
+    expect(result.success).toBe(false);
+    if(!result.success) expect(result.error.issues.some(issue=>issue.path[0]==="cueSummary")).toBe(true);
+  }
+});
+
 type Mutable<T> = {
   -readonly [K in keyof T]: T[K] extends readonly (infer U)[]
     ? Array<Mutable<U>>
