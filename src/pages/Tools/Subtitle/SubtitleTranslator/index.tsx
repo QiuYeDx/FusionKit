@@ -1448,9 +1448,16 @@ function SubtitleTranslator() {
                       />
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
-                          <span className="font-mono text-[13px] font-medium truncate">
-                            {task.fileName}
-                          </span>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <span tabIndex={0} className="min-w-0 truncate rounded-sm font-mono text-[13px] font-medium outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                                {task.fileName}
+                              </span>
+                            </TooltipTrigger>
+                            <TooltipContent side="top" align="start" sideOffset={6} className="max-w-[min(32rem,calc(100vw-2rem))] whitespace-normal text-left [overflow-wrap:anywhere]">
+                              {task.fileName}
+                            </TooltipContent>
+                          </Tooltip>
                           <Badge
                             variant="outline"
                             className="text-[10px] h-4 px-1.5 font-normal shrink-0"
@@ -1550,9 +1557,16 @@ function SubtitleTranslator() {
                             task.extraInfo?.outputFileName && (
                               <>
                                 <span className="h-0.5 w-0.5 rounded-full bg-muted-foreground/40" />
-                                <span className="font-mono text-emerald-600 dark:text-emerald-400 truncate max-w-[220px]">
-                                  → {task.extraInfo.outputFileName}
-                                </span>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <span tabIndex={0} className="min-w-0 max-w-[min(220px,100%)] truncate rounded-sm font-mono text-emerald-600 outline-none focus-visible:ring-2 focus-visible:ring-ring dark:text-emerald-400">
+                                      → {task.extraInfo.outputFileName}
+                                    </span>
+                                  </TooltipTrigger>
+                                  <TooltipContent side="top" align="start" sideOffset={6} className="max-w-[min(32rem,calc(100vw-2rem))] whitespace-normal text-left [overflow-wrap:anywhere]">
+                                    {task.extraInfo.outputFileName}
+                                  </TooltipContent>
+                                </Tooltip>
                               </>
                             )}
                         </div>
