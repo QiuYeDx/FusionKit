@@ -2235,10 +2235,9 @@ describe("LocalSubtitleJobManager", () => {
       }),
       metalBackend: true,
     });
-    await harness.manager.enqueue(
-      OWNER_A,
-      await harness.createRequest(harness.fileToken),
-    );
+    const request = await harness.createRequest(harness.fileToken);
+    await harness.manager.enqueue(OWNER_A, { ...request,
+      config: { ...request.config, windowStrategy: "acoustic_quiet_v1", vadEnabled: true } });
     harness.flushScheduled();
     await harness.manager.waitForIdle();
     expect(harness.manager.getSessionSnapshot(OWNER_A)).toMatchObject({
@@ -2268,6 +2267,7 @@ describe("LocalSubtitleJobManager", () => {
     const contexts = harness.executor.execute.mock.calls.map(([context]) => context);
     expect(contexts).toHaveLength(2);
     expect(contexts[1]?.config).toBe(contexts[0]?.config);
+    expect(contexts.map(context => context.config.inference.windowStrategy)).toEqual(["acoustic_quiet_v1", "acoustic_quiet_v1"]);
     expect(contexts.map((context) => context.config.resolvedBackend)).toEqual([
       "metal",
       "metal",
@@ -2293,10 +2293,9 @@ describe("LocalSubtitleJobManager", () => {
       executor: taskExecutor,
       metalBackend: true,
     });
-    await harness.manager.enqueue(
-      OWNER_A,
-      await harness.createRequest(harness.fileToken),
-    );
+    const request = await harness.createRequest(harness.fileToken);
+    await harness.manager.enqueue(OWNER_A, { ...request,
+      config: { ...request.config, windowStrategy: "acoustic_quiet_v1", vadEnabled: true } });
     harness.flushScheduled();
     await harness.manager.waitForIdle();
 
@@ -2330,6 +2329,7 @@ describe("LocalSubtitleJobManager", () => {
       { generation: 2, devicePreference: "cpu", resolvedBackend: "cpu" },
     ]);
     expect(contexts[1]?.config).not.toBe(contexts[0]?.config);
+    expect(contexts.map(context => context.config.inference.windowStrategy)).toEqual(["acoustic_quiet_v1", "acoustic_quiet_v1"]);
     expect(taskExecutor.beginBatchSlice).toHaveBeenCalledTimes(2);
     expect(taskExecutor.endBatchSlice).toHaveBeenCalledTimes(2);
     expect(harness.manager.getSessionSnapshot(OWNER_A)).toMatchObject({
@@ -2973,8 +2973,9 @@ describe("LocalSubtitleJobManager", () => {
     });
     const request = await harness.createRequest(harness.fileToken);
     request.config.vadEnabled = true;
+    const configuredRequest = { ...request, config: { ...request.config, windowStrategy: "acoustic_quiet_v1" as const } };
 
-    const enqueue = harness.manager.enqueue(OWNER_A, request);
+    const enqueue = harness.manager.enqueue(OWNER_A, configuredRequest);
     await waitFor(() => harness.modelResolver.resolveManagedVad.mock.calls.length === 1);
     expect(harness.manager.isManagedVadBusy(
       LOCAL_SUBTITLE_PRODUCTION_CONTRACT.vad.id,
@@ -2982,6 +2983,7 @@ describe("LocalSubtitleJobManager", () => {
     vadResolution.resolve();
     const batch = await enqueue;
     expect(batch.config.vadEnabled).toBe(true);
+    expect(batch.config.windowStrategy).toBe("acoustic_quiet_v1");
 
     harness.flushScheduled();
     await harness.manager.waitForIdle();
@@ -2991,11 +2993,13 @@ describe("LocalSubtitleJobManager", () => {
       config: expect.objectContaining({
         inference: expect.objectContaining({
           vad: expect.objectContaining({ enabled: true }),
+          windowStrategy: "acoustic_quiet_v1",
         }),
       }),
     }));
     expect(taskExecutor.execute).toHaveBeenCalledWith(expect.objectContaining({
       managedVad: harness.managedVad,
+      config: expect.objectContaining({ inference: expect.objectContaining({ windowStrategy: "acoustic_quiet_v1" }) }),
     }));
     expect(harness.manager.isManagedVadBusy(
       LOCAL_SUBTITLE_PRODUCTION_CONTRACT.vad.id,

@@ -23,6 +23,7 @@ import {
   LOCAL_SUBTITLE_TASK_STAGES,
   LOCAL_SUBTITLE_TASK_STATUSES,
   LOCAL_SUBTITLE_WARNING_CODES,
+  LOCAL_SUBTITLE_WINDOW_STRATEGIES,
   SUBTITLE_TRANSLATION_IMPORT_STATUSES,
   SUBTITLE_TRANSLATION_START_FAILURE_REASONS,
   SUBTITLE_TRANSLATION_START_STATUSES,
@@ -799,6 +800,7 @@ const batchConfigSummarySchema = z
     language: languageSchema,
     taskMode: z.enum(LOCAL_SUBTITLE_TASK_MODES),
     vadEnabled: z.boolean(),
+    windowStrategy: z.enum(LOCAL_SUBTITLE_WINDOW_STRATEGIES).optional(),
     outputFormats: z
       .array(z.enum(LOCAL_SUBTITLE_FORMATS))
       .min(1)
@@ -1111,6 +1113,7 @@ export const enqueueLocalSubtitleBatchRequestSchema = z
         language: languageSchema,
         taskMode: z.enum(LOCAL_SUBTITLE_TASK_MODES),
         vadEnabled: z.boolean(),
+        windowStrategy: z.enum(LOCAL_SUBTITLE_WINDOW_STRATEGIES).optional(),
         advanced: advancedSettingsSchema,
         output: outputRequestSchema,
         postAction: postActionRequestSchema,
@@ -1120,6 +1123,13 @@ export const enqueueLocalSubtitleBatchRequestSchema = z
   .strict()
   .superRefine((value, context) => {
     const fileTokens = new Set<string>();
+    if (value.config.windowStrategy === "acoustic_quiet_v1" && !value.config.vadEnabled) {
+      context.addIssue({
+        code: "custom",
+        path: ["config", "vadEnabled"],
+        message: "Pause-based chunking requires VAD.",
+      });
+    }
     value.files.forEach((file, index) => {
       if (fileTokens.has(file.fileToken)) {
         context.addIssue({

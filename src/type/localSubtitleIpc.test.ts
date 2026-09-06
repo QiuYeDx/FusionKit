@@ -615,6 +615,19 @@ describe("local subtitle fixed IPC surface", () => {
 });
 
 describe("local subtitle IPC request contract", () => {
+  it("rejects pauses without VAD but permits fixed and legacy VAD-off requests", () => {
+    const request = validEnqueueRequest();
+    for (const windowStrategy of [undefined, "fixed_v1", "acoustic_quiet_v1"]) {
+      const result = validateEnqueueLocalSubtitleBatchRequest({...request, config: {...request.config, windowStrategy, vadEnabled: false}});
+      expect(result.ok).toBe(windowStrategy !== "acoustic_quiet_v1");
+    }
+  });
+  it.each(["fixed_v1", "acoustic_quiet_v1", "unknown", null])("validates task window strategy %s", windowStrategy => {
+    const request = validEnqueueRequest();
+    const result = validateEnqueueLocalSubtitleBatchRequest({ ...request, config: { ...request.config, windowStrategy } });
+    expect(result.ok).toBe(windowStrategy === "fixed_v1" || windowStrategy === "acoustic_quiet_v1");
+    if (result.ok) expect(result.data.config.windowStrategy).toBe(windowStrategy);
+  });
   it("accepts the versioned metadata-only enqueue request", () => {
     const request = validEnqueueRequest();
     const result = validateEnqueueLocalSubtitleBatchRequest(request);

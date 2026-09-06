@@ -52,6 +52,29 @@ afterEach(() => {
 });
 
 describe("local subtitle transcriber store", () => {
+  it("enables and retains VAD for pauses, but permits VAD off with fixed windows", () => {
+    const state = useLocalSubtitleTranscriberStore.getState();
+    state.updatePreferences({windowStrategy: "fixed_v1", vadEnabled: false});
+    expect(useLocalSubtitleTranscriberStore.getState().preferences.vadEnabled).toBe(false);
+    state.updatePreferences({windowStrategy: "acoustic_quiet_v1"});
+    expect(useLocalSubtitleTranscriberStore.getState().preferences.vadEnabled).toBe(true);
+    state.updatePreferences({vadEnabled: false});
+    expect(useLocalSubtitleTranscriberStore.getState().preferences.vadEnabled).toBe(true);
+  });
+
+  it("migrates existing installations once while preserving other preferences and later fixed choices", async () => {
+    localStorage.setItem("fusionkit-local-subtitle-transcriber", JSON.stringify({version: 3, state: {
+      preferences: {windowStrategy: "fixed_v1", vadEnabled: false, language: "ja", beamSize: 3},
+      draftPreferences: {initialPrompt: "names"},
+    }}));
+    await useLocalSubtitleTranscriberStore.persist.rehydrate();
+    expect(useLocalSubtitleTranscriberStore.getState().preferences).toMatchObject({windowStrategy: "acoustic_quiet_v1", vadEnabled: true, language: "ja", beamSize: 3});
+    expect(useLocalSubtitleTranscriberStore.getState().draftInitialPrompt).toBe("names");
+    expect(JSON.parse(localStorage.getItem("fusionkit-local-subtitle-transcriber")!).version).toBe(4);
+    useLocalSubtitleTranscriberStore.getState().updatePreferences({windowStrategy: "fixed_v1", vadEnabled: false});
+    await useLocalSubtitleTranscriberStore.persist.rehydrate();
+    expect(useLocalSubtitleTranscriberStore.getState().preferences).toMatchObject({windowStrategy: "fixed_v1", vadEnabled: false});
+  });
   it("persists reusable configuration without capabilities or runtime state", () => {
     const state = useLocalSubtitleTranscriberStore.getState();
     state.updatePreferences({ language: "ja", outputFormats: ["SRT", "LRC"] });

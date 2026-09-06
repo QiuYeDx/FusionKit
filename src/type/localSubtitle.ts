@@ -149,8 +149,12 @@ export interface LocalSubtitleRawQualityGateSnapshot {
 }
 
 export const LOCAL_SUBTITLE_CUE_POLICY = "sentence_readable_dtw_v3" as const;
+export const LOCAL_SUBTITLE_WINDOW_STRATEGIES = ["fixed_v1", "acoustic_quiet_v1"] as const;
+export type LocalSubtitleWindowStrategy = typeof LOCAL_SUBTITLE_WINDOW_STRATEGIES[number];
 
 export interface LocalSubtitleInferenceSnapshot {
+  /** Missing on historical tasks; those retain fixed windows. */
+  readonly windowStrategy?: LocalSubtitleWindowStrategy;
   /** Older snapshots omit this; newly created tasks always record the active policy. */
   readonly cuePolicy?: typeof LOCAL_SUBTITLE_CUE_POLICY | "sentence_readable_v2";
   readonly advanced: LocalSubtitleAdvancedSettings;
@@ -228,6 +232,7 @@ export function createLocalSubtitleBatchConfigSnapshot(
     model: { ...input.model },
     inference: {
       cuePolicy: LOCAL_SUBTITLE_CUE_POLICY,
+      windowStrategy: input.inference.windowStrategy ?? "fixed_v1",
       advanced: { ...input.inference.advanced },
       vad: { ...input.inference.vad },
       rawQualityGate: { ...input.inference.rawQualityGate },
@@ -1042,6 +1047,7 @@ export function deriveLocalSubtitleBatchStatus(
 }
 
 export interface LocalSubtitleBatchConfigSummary {
+  readonly windowStrategy?: LocalSubtitleWindowStrategy;
   readonly modelId: string;
   readonly devicePreference: LocalSubtitleDevicePreference;
   readonly resolvedBackend: LocalSubtitleBackend;

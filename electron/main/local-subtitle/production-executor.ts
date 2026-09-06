@@ -196,7 +196,7 @@ type ProductionExporter = Pick<
 >;
 
 export interface LocalSubtitleProductionExecutorOptions {
-  /** Internal rollout choice; renderer task settings cannot override this. */
+  /** Optional internal test override. Normal application tasks use their frozen snapshot. */
   readonly rootWindowStrategy?: "fixed_v1" | "acoustic_quiet_v1";
   readonly media: ProductionMedia;
   readonly supervisor: ProductionSupervisor;
@@ -220,7 +220,7 @@ export class LocalSubtitleProductionExecutor
   implements LocalSubtitleJobTaskExecutor
 {
   readonly #media: ProductionMedia;
-  readonly #rootWindowStrategy: "fixed_v1" | "acoustic_quiet_v1";
+  readonly #rootWindowStrategy: "fixed_v1" | "acoustic_quiet_v1" | undefined;
   readonly #supervisor: ProductionSupervisor;
   readonly #inputs: ProductionInputs;
   readonly #outputs: ProductionOutputs;
@@ -308,7 +308,7 @@ export class LocalSubtitleProductionExecutor
       throw new TypeError("The local subtitle retained raw response budget is invalid.");
     }
     this.#media = options.media;
-    this.#rootWindowStrategy = options.rootWindowStrategy ?? "fixed_v1";
+    this.#rootWindowStrategy = options.rootWindowStrategy;
     this.#supervisor = options.supervisor;
     this.#inputs = options.inputs;
     this.#outputs = options.outputs;
@@ -452,7 +452,8 @@ export class LocalSubtitleProductionExecutor
 
       const policy = createSubtitlePostProcessPolicy(context.config.inference);
       // Keep the unvalidated >24h and VAD-off routes on their existing policy.
-      const pauseCandidates = this.#rootWindowStrategy === "acoustic_quiet_v1" &&
+      const windowStrategy = this.#rootWindowStrategy ?? context.config.inference.windowStrategy ?? "fixed_v1";
+      const pauseCandidates = windowStrategy === "acoustic_quiet_v1" &&
         context.config.inference.vad.enabled && normalized.totalFrames > 30 * 16000 &&
         normalized.totalFrames <= 24 * 60 * 60 * 16000
         ? await this.#media.readQuietCandidates(normalized, context.signal) : undefined;
@@ -1117,7 +1118,7 @@ export class LocalSubtitleProductionExecutor
             transcript = Object.freeze({ ...transcript, segments: Object.freeze(segments.flatMap((cue, index) => replacements.get(index) ?? [cue])) });
           }
         }
-        // Experimental pause plans only. Preserve established repairs and reject lexical
+        // Pause plans only. Preserve established repairs and reject lexical
         // differences before spending a bounded pair of fresh observations.
         if (rootPlan.schemaVersion === 2 && context.config.model.modelId === "large-v3") {
           const review = rootPlan.windows.slice(1).flatMap((rightWindow, index) => {

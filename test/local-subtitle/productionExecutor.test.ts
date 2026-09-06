@@ -127,7 +127,7 @@ describe("local subtitle production executor", () => {
     } finally {await accelerator.cleanup();}
   });
   it("executes an explicitly selected pause plan through materialization and export", async () => {
-    const harness = await createHarness({ rootWindowStrategy: "acoustic_quiet_v1", totalFrames: 65 * 16000, vadEnabled: true });
+    const harness = await createHarness({ taskWindowStrategy: "acoustic_quiet_v1", totalFrames: 65 * 16000, vadEnabled: true });
     harness.media.readQuietCandidates.mockResolvedValue([{ startFrame: 24400 * 16, endFrame: 25600 * 16 }]);
     const result = await harness.executor.execute(harness.context);
     expect(result.status, JSON.stringify(result)).toBe("completed");
@@ -139,14 +139,14 @@ describe("local subtitle production executor", () => {
   });
 
   it.each(["default", "short", "vad_off"])("keeps %s on the unchanged fixed route", async mode => {
-    const harness = await createHarness({ rootWindowStrategy: mode === "default" ? undefined : "acoustic_quiet_v1",
+    const harness = await createHarness({ taskWindowStrategy: mode === "default" ? undefined : "acoustic_quiet_v1",
       totalFrames: (mode === "short" ? 30 : 65) * 16000, vadEnabled: mode !== "vad_off" });
     expect((await harness.executor.execute(harness.context)).status).toBe("completed");
     expect(harness.media.readQuietCandidates).not.toHaveBeenCalled();
   });
 
   it.each(["cancel", "changed"])("stops on %s during scanning before loading or export", async mode => {
-    const harness = await createHarness({ rootWindowStrategy: "acoustic_quiet_v1", totalFrames: 65 * 16000, vadEnabled: true });
+    const harness = await createHarness({ taskWindowStrategy: "acoustic_quiet_v1", totalFrames: 65 * 16000, vadEnabled: true });
     harness.media.readQuietCandidates.mockImplementation(async () => {
       if (mode === "cancel") { harness.controller.abort(); return []; }
       throw Object.assign(new Error("changed"), { localSubtitleCode: "media_changed" });
@@ -1988,6 +1988,7 @@ describe("local subtitle production executor", () => {
 });
 
 interface HarnessOptions {
+  readonly taskWindowStrategy?: "fixed_v1" | "acoustic_quiet_v1";
   readonly rootWindowStrategy?: "fixed_v1" | "acoustic_quiet_v1";
   readonly modelId?: string;
   readonly quietAudioGainDb?: number;
@@ -2254,6 +2255,7 @@ async function createHarness(options: HarnessOptions = {}) {
     options.taskMode,
     options.initialPrompt,
     options.modelId,
+    options.taskWindowStrategy,
   );
   const managedModel = Object.freeze({
     storage: "managed" as const,
@@ -2417,6 +2419,7 @@ function createConfig(
   taskMode: LocalSubtitleBatchConfigSnapshot["taskMode"] = "transcribe",
   initialPrompt?: string,
   modelId: string = LOCAL_SUBTITLE_PRODUCTION_CONTRACT.launchModel.id,
+  windowStrategy?: "fixed_v1" | "acoustic_quiet_v1",
 ): LocalSubtitleBatchConfigSnapshot {
   return createLocalSubtitleBatchConfigSnapshot({
     schemaVersion: LOCAL_SUBTITLE_DOMAIN_SCHEMA_VERSION,
@@ -2436,6 +2439,7 @@ function createConfig(
     language: "auto",
     taskMode,
     inference: {
+      windowStrategy,
       advanced: {
         ...(initialPrompt === undefined ? {} : { initialPrompt }),
         beamSize: 5,

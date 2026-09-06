@@ -23,7 +23,7 @@ import {
   type LocalSubtitleTranscriberPreferences,
 } from "./localSubtitleTranscriberConfig";
 
-export const LOCAL_SUBTITLE_TRANSCRIBER_STORE_VERSION = 3;
+export const LOCAL_SUBTITLE_TRANSCRIBER_STORE_VERSION = 4;
 
 type ActiveOutputDirectory = Extract<
   LocalSubtitleOutputDirectorySelection,
@@ -225,11 +225,17 @@ const useLocalSubtitleTranscriberStore = create<LocalSubtitleTranscriberStore>()
 
 export function migrateLocalSubtitleTranscriberPersistedState(
   persisted: unknown,
-  _version: number,
+  version: number,
 ): Record<string, unknown> {
   const saved = isRecord(persisted) ? persisted : {};
   return {
-    preferences: sanitizeLocalSubtitleTranscriberPreferences(saved.preferences),
+    // Roll out the new default once for existing installations. Later explicit
+    // fixed-window choices survive hydration. Already queued tasks are separate.
+    preferences: sanitizeLocalSubtitleTranscriberPreferences(version < 4 ? {
+      ...(isRecord(saved.preferences) ? saved.preferences : {}),
+      windowStrategy: "acoustic_quiet_v1",
+      vadEnabled: true,
+    } : saved.preferences),
     draftPreferences: readPersistedDraftPreferences(saved),
   };
 }

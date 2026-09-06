@@ -31,6 +31,8 @@ export function LocalSubtitleTaskInfo({ id, task, config, statusLabel }: {
     [t("subtitle:local_transcriber.config.language"), language ? languageLabels[language as keyof typeof languageLabels] ?? language : missing],
     [t("subtitle:local_transcriber.config.task_mode"), config ? t(config.taskMode === "transcribe" ? "subtitle:local_transcriber.config.task_transcribe" : "subtitle:local_transcriber.config.task_translate_english") : missing],
     [t("subtitle:local_transcriber.config.vad"), config ? t(config.vadEnabled ? "subtitle:local_transcriber.task_details.enabled" : "subtitle:local_transcriber.task_details.disabled") : missing],
+    [t("subtitle:local_transcriber.config.window_strategy"), config ? t(config.windowStrategy === "acoustic_quiet_v1"
+      ? "subtitle:local_transcriber.config.window_pause" : "subtitle:local_transcriber.config.window_fixed") : missing],
     [t("subtitle:local_transcriber.config.output_formats"), task.requestedFormats.join(" + ")],
     [t("subtitle:local_transcriber.config.conflict_policy"), config ? t(config.conflictPolicy === "index" ? "subtitle:local_transcriber.config.conflict_index" : "subtitle:local_transcriber.config.conflict_overwrite") : missing],
     [t("subtitle:local_transcriber.task_details.outputs"), task.artifactResults.length ? (

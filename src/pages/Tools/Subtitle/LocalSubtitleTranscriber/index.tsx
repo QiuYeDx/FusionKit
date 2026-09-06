@@ -1586,6 +1586,35 @@ export default function LocalSubtitleTranscriber() {
               </Select>
             </ToolField>
 
+            <ToolField
+              label={t("subtitle:local_transcriber.config.window_strategy")}
+              hint={t("subtitle:local_transcriber.config.window_strategy_hint")}
+            >
+              <Select
+                value={preferences.windowStrategy}
+                disabled={submissionLocked}
+                onValueChange={(value) => {
+                  if (value === "fixed_v1" || value === "acoustic_quiet_v1") {
+                    updatePreferences({ windowStrategy: value });
+                  }
+                }}
+              >
+                <SelectTrigger data-testid="local-subtitle-window-strategy" className="h-8 w-full text-xs"
+                  aria-label={t("subtitle:local_transcriber.config.window_strategy")}>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="fixed_v1">{t("subtitle:local_transcriber.config.window_fixed")}</SelectItem>
+                  <SelectItem value="acoustic_quiet_v1">{t("subtitle:local_transcriber.config.window_pause")}</SelectItem>
+                </SelectContent>
+              </Select>
+              {preferences.windowStrategy === "acoustic_quiet_v1" ? (
+                <p className="mt-1.5 text-[11px] leading-relaxed text-muted-foreground">
+                  {t("subtitle:local_transcriber.config.window_pause_note")}
+                </p>
+              ) : null}
+            </ToolField>
+
             <div>
               <ToolConfigDisclosure
                 testId="local-subtitle-advanced-settings"
@@ -1600,12 +1629,14 @@ export default function LocalSubtitleTranscriber() {
                 <ToolField
                   label={t("subtitle:local_transcriber.config.vad")}
                   htmlFor="local-subtitle-vad"
-                  hint={t("subtitle:local_transcriber.config.vad_hint")}
+                  hint={t(preferences.windowStrategy === "acoustic_quiet_v1"
+                    ? "subtitle:local_transcriber.config.window_pause_vad_required"
+                    : "subtitle:local_transcriber.config.vad_hint")}
                   action={
                     <Switch
                       id="local-subtitle-vad"
                       checked={preferences.vadEnabled}
-                      disabled={submissionLocked}
+                      disabled={submissionLocked || preferences.windowStrategy === "acoustic_quiet_v1"}
                       onCheckedChange={(vadEnabled) => updatePreferences({ vadEnabled })}
                     />
                   }

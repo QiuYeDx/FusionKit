@@ -305,7 +305,7 @@ describe("local subtitle transcriber page model", () => {
     const request = createLocalSubtitleBatchRequest({
       files,
       modelId: model.resourceId,
-      preferences: DEFAULT_LOCAL_SUBTITLE_TRANSCRIBER_PREFERENCES,
+      preferences: { ...DEFAULT_LOCAL_SUBTITLE_TRANSCRIBER_PREFERENCES, windowStrategy: "acoustic_quiet_v1" },
       outputDirectory: null,
       explicitAudioStreamIds: new Map([["file-token-2", "stream-track-2"]]),
       postAction: { mode: "export_only" },
@@ -323,6 +323,7 @@ describe("local subtitle transcriber page model", () => {
         devicePreference: "auto",
         taskMode: "transcribe",
         vadEnabled: true,
+        windowStrategy: "acoustic_quiet_v1",
         output: {
           mode: "source",
           formats: ["SRT"],
@@ -341,6 +342,7 @@ describe("local subtitle transcriber page model", () => {
         ...DEFAULT_LOCAL_SUBTITLE_TRANSCRIBER_PREFERENCES,
         devicePreference: "cuda",
         vadEnabled: false,
+        windowStrategy: "fixed_v1",
         beamSize: 2,
         temperature: 0.35,
         outputFormats: ["SRT", "LRC"],

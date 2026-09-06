@@ -22,6 +22,10 @@ const detailsDialogSource = readFileSync(
   new URL("./LocalSubtitleTaskDetailsDialogs.tsx", import.meta.url),
   "utf8",
 );
+const artifactPreviewSource = readFileSync(
+  new URL("./LocalSubtitleArtifactPreviewDialog.tsx", import.meta.url),
+  "utf8",
+);
 const disclosureSource = readFileSync(
   new URL("../../_shared/ui/ToolConfigDisclosure.tsx", import.meta.url),
   "utf8",
@@ -38,7 +42,7 @@ const mainSource = readFileSync(
   new URL("../../../../main.tsx", import.meta.url),
   "utf8",
 );
-const source = `${pageSource}\n${environmentSource}\n${errorSource}\n${queueSource}\n${draftMediaSource}\n${detailsDialogSource}\n${postActionServiceSource}\n${environmentServiceSource}\n${mainSource}`;
+const source = `${pageSource}\n${environmentSource}\n${errorSource}\n${queueSource}\n${draftMediaSource}\n${detailsDialogSource}\n${artifactPreviewSource}\n${postActionServiceSource}\n${environmentServiceSource}\n${mainSource}`;
 
 describe("local subtitle transcriber page wiring", () => {
   it("uses shared tool controls and the fixed local subtitle bridge", () => {
@@ -277,7 +281,7 @@ describe("local subtitle transcriber page wiring", () => {
   it("uses bounded ScrollableDialog surfaces for artifact and error details", () => {
     expect(detailsDialogSource).toContain("ScrollableDialog");
     expect(detailsDialogSource).toContain("createLocalSubtitleArtifactPreviewPage");
-    expect(detailsDialogSource).toContain("navigator.clipboard.writeText");
+    expect(artifactPreviewSource).toContain("navigator.clipboard.writeText");
     expect(detailsDialogSource).toContain("[overflow-wrap:anywhere]");
     expect(detailsDialogSource).toContain("[data-slot=scroll-area-viewport]>div");
     expect(detailsDialogSource).not.toContain('from "@/components/ui/dialog"');

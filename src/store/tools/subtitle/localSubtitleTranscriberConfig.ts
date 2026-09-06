@@ -7,6 +7,8 @@ import {
   LOCAL_SUBTITLE_OUTPUT_MODES,
   LOCAL_SUBTITLE_PRODUCTION_CONTRACT,
   LOCAL_SUBTITLE_TASK_MODES,
+  LOCAL_SUBTITLE_WINDOW_STRATEGIES,
+  type LocalSubtitleWindowStrategy,
   type LocalSubtitleConflictPolicy,
   type LocalSubtitleDevicePreference,
   type LocalSubtitleFormat,
@@ -20,6 +22,7 @@ export interface LocalSubtitleTranscriberPreferences {
   readonly devicePreference: LocalSubtitleDevicePreference;
   readonly language: string;
   readonly vadEnabled: boolean;
+  readonly windowStrategy: LocalSubtitleWindowStrategy;
   readonly beamSize: number;
   readonly temperature: number;
   readonly vadMinSilenceMs: number;
@@ -44,6 +47,7 @@ export const DEFAULT_LOCAL_SUBTITLE_TRANSCRIBER_PREFERENCES = {
   devicePreference: "auto",
   language: "auto",
   vadEnabled: true,
+  windowStrategy: "acoustic_quiet_v1",
   beamSize: 5,
   temperature: 0,
   vadMinSilenceMs: 500,
@@ -72,6 +76,8 @@ export function sanitizeLocalSubtitleTranscriberPreferences(
     LOCAL_SUBTITLE_OUTPUT_MODES,
     DEFAULT_LOCAL_SUBTITLE_TRANSCRIBER_PREFERENCES.outputMode,
   );
+  const windowStrategy = oneOf(record.windowStrategy, LOCAL_SUBTITLE_WINDOW_STRATEGIES,
+    DEFAULT_LOCAL_SUBTITLE_TRANSCRIBER_PREFERENCES.windowStrategy);
   return {
     modelId: isSafeId(record.modelId)
       ? record.modelId
@@ -84,10 +90,11 @@ export function sanitizeLocalSubtitleTranscriberPreferences(
     language: isLanguage(record.language)
       ? record.language
       : DEFAULT_LOCAL_SUBTITLE_TRANSCRIBER_PREFERENCES.language,
-    vadEnabled: booleanOr(
+    vadEnabled: windowStrategy === "acoustic_quiet_v1" || booleanOr(
       record.vadEnabled,
       DEFAULT_LOCAL_SUBTITLE_TRANSCRIBER_PREFERENCES.vadEnabled,
     ),
+    windowStrategy,
     beamSize: boundedIntegerOr(
       record.beamSize,
       1,

@@ -5,6 +5,12 @@ import {
 } from "./localSubtitleTranscriberConfig";
 
 describe("local subtitle transcriber preferences", () => {
+  it("defaults missing or invalid choices to pauses and enforces its VAD dependency", () => {
+    expect(sanitizeLocalSubtitleTranscriberPreferences({ windowStrategy: "acoustic_quiet_v1" }).windowStrategy).toBe("acoustic_quiet_v1");
+    for (const windowStrategy of [undefined, "arbitrary", null]) {
+      expect(sanitizeLocalSubtitleTranscriberPreferences({ windowStrategy, vadEnabled: false })).toMatchObject({windowStrategy: "acoustic_quiet_v1", vadEnabled: true});
+    }
+  });
   it("uses the frozen safe defaults", () => {
     expect(sanitizeLocalSubtitleTranscriberPreferences(undefined)).toEqual(
       DEFAULT_LOCAL_SUBTITLE_TRANSCRIBER_PREFERENCES,
@@ -18,6 +24,7 @@ describe("local subtitle transcriber preferences", () => {
         devicePreference: "cuda",
         language: "zh-Hans",
         vadEnabled: false,
+        windowStrategy: "fixed_v1",
         // Removed v1 preference must not survive persisted-state sanitization.
         qualityPreset: "balanced",
         beamSize: 3,
@@ -37,6 +44,7 @@ describe("local subtitle transcriber preferences", () => {
       devicePreference: "cuda",
       language: "zh-Hans",
       vadEnabled: false,
+      windowStrategy: "fixed_v1",
       beamSize: 3,
       temperature: 0.25,
       vadMinSilenceMs: 750,

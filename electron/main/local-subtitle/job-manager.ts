@@ -2833,6 +2833,7 @@ function createConfigSnapshot(
     language: request.config.language,
     taskMode: request.config.taskMode,
     inference: {
+      windowStrategy: request.config.windowStrategy ?? "fixed_v1",
       advanced: { ...request.config.advanced },
       vad: {
         enabled: request.config.vadEnabled,
@@ -2930,6 +2931,7 @@ function createBatchSummary(
       language: record.config.language,
       taskMode: record.config.taskMode,
       vadEnabled: record.config.inference.vad.enabled,
+      windowStrategy: record.config.inference.windowStrategy ?? "fixed_v1",
       outputFormats: [...record.config.output.formats],
       outputMode: record.config.output.mode,
       conflictPolicy: record.config.output.conflictPolicy,
