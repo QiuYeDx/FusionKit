@@ -975,6 +975,29 @@ describe("local subtitle stream binding and normalization", () => {
 });
 
 describe("local subtitle PCM proof, window integrity, and cleanup", () => {
+  it("scans owned PCM across chunks and rejects forged, changed, cancelled and retired proofs", async () => {
+    let pcmPath = "";
+    const data = Buffer.alloc(16000 * 8);
+    for (let i = 16000; i < 17000; i++) data.writeInt16LE(300, i * 2);
+    const harness = createHarness({ afterDecodeOutput: async ({ outputPath }) => {
+      pcmPath = outputPath;
+      await writeFile(outputPath, Buffer.concat([createLocalSubtitlePcm16WavHeader(data.length), data]));
+    } });
+    const normalized = await normalizeSource(harness, OWNER_A, "pause.wav", "pause-task");
+    const before = await readFile(pcmPath);
+    expect(await harness.normalizer.readQuietCandidates(normalized)).toEqual([
+      { startFrame: 0, endFrame: 16000 }, { startFrame: 17120, endFrame: 64000 },
+    ]);
+    expect(await readFile(pcmPath)).toEqual(before);
+    await expect(harness.normalizer.readQuietCandidates({ ...normalized })).rejects.toMatchObject({ code: "invalid_configuration" });
+    const cancelled = new AbortController(); cancelled.abort();
+    await expect(harness.normalizer.readQuietCandidates(normalized, cancelled.signal)).rejects.toBeDefined();
+    await writeFile(pcmPath, Buffer.concat([before, Buffer.from([0, 0])]));
+    await expect(harness.normalizer.readQuietCandidates(normalized)).rejects.toMatchObject({ code: "media_changed" });
+    await harness.normalizer.disposeNormalized(normalized);
+    await expect(harness.normalizer.readQuietCandidates(normalized)).rejects.toMatchObject({ code: "invalid_configuration" });
+  });
+
   it("rejects an owned PCM changed after normalization before prefix analysis", async () => {
     let pcmPath = "";
     const harness = createHarness({afterDecodeOutput: ({outputPath}) => { pcmPath = outputPath; }});

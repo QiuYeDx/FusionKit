@@ -12,6 +12,8 @@ import {
   type LocalSubtitleTranscript,
 } from "@/type/localSubtitle";
 import { LocalSubtitleCuePlanError, planLocalSubtitleSegmentCue } from "./cue-boundary-planner";
+import { LOCAL_SUBTITLE_PAUSE_POLICY, planLocalSubtitlePauseRanges,
+  type LocalSubtitleQuietCandidate } from "./pause-window-plan";
 import { validateLocalSubtitleTranscript } from "@/type/localSubtitleIpc";
 import { planLocalSubtitleReview, type LocalSubtitleReviewPlan } from "./local-review";
 import type {
@@ -124,11 +126,20 @@ export interface LocalSubtitlePostProcessingWindow {
   readonly coreEndMs: number;
 }
 
-export interface LocalSubtitleRootWindowPlan {
+export type LocalSubtitleRootWindowPlan = {
   readonly schemaVersion: 1;
   readonly rootPlanId: string;
   readonly windows: readonly LocalSubtitlePostProcessingWindow[];
-}
+} | {
+  readonly schemaVersion: 2;
+  readonly rootPlanId: string;
+  readonly windows: readonly LocalSubtitlePostProcessingWindow[];
+  readonly planning: {
+    readonly strategy: typeof LOCAL_SUBTITLE_PAUSE_POLICY.id;
+    readonly totalFrames: number;
+    readonly quietCandidates: readonly LocalSubtitleQuietCandidate[];
+  };
+};
 
 export interface LocalSubtitlePostProcessingWindowAttempt {
   readonly window: LocalSubtitlePostProcessingWindow;
@@ -479,6 +490,7 @@ export function planLocalSubtitleRootWindows(input: {
   readonly rootPlanId: string;
   readonly totalFrames: number;
   readonly policy: LocalSubtitlePostProcessPolicy;
+  readonly pauseCandidates?: readonly LocalSubtitleQuietCandidate[];
 }): LocalSubtitleRootWindowPlan {
   validatePolicy(input.policy);
   validateSafeId(input.rootPlanId, "root_plan_id_invalid", "coverage");
@@ -503,6 +515,22 @@ export function planLocalSubtitleRootWindows(input: {
       roundedDurationMs,
       LOCAL_SUBTITLE_LIMITS.maxDurationMs,
     );
+  }
+  if (input.pauseCandidates !== undefined) {
+    let ranges;
+    try { ranges = planLocalSubtitlePauseRanges(input.totalFrames, input.pauseCandidates); }
+    catch { throw invalidConfiguration("The pause window candidates are invalid.", "coverage", "pause_candidates_invalid"); }
+    const windows = ranges.map((range, index) => {
+      const key = `w${String(index).padStart(6, "0")}`;
+      return { ...range, windowKey: key, rootWindowKey: key, rootPlanId: input.rootPlanId, retryDepth: 0,
+        startMs: framesToMilliseconds(range.startFrame, input.policy.pcmSampleRateHz),
+        endMs: framesToMilliseconds(range.endFrame, input.policy.pcmSampleRateHz),
+        coreStartMs: framesToMilliseconds(range.coreStartFrame, input.policy.pcmSampleRateHz),
+        coreEndMs: framesToMilliseconds(range.coreEndFrame, input.policy.pcmSampleRateHz) };
+    });
+    return deepFreeze({ schemaVersion: 2, rootPlanId: input.rootPlanId, windows,
+      planning: { strategy: LOCAL_SUBTITLE_PAUSE_POLICY.id, totalFrames: input.totalFrames,
+        quietCandidates: input.pauseCandidates.map(c => ({ startFrame: c.startFrame, endFrame: c.endFrame })) } });
   }
   const windows = planWindowRange({
     rootPlanId: input.rootPlanId,
@@ -1643,8 +1671,8 @@ function validateRootPlan(input: LocalSubtitlePostProcessingRequest): void {
   const plan = input.rootPlan;
   if (
     !isRecord(plan) ||
-    !hasOnlyKeys(plan, ["schemaVersion", "rootPlanId", "windows"]) ||
-    plan.schemaVersion !== 1 ||
+    !hasOnlyKeys(plan, ["schemaVersion", "rootPlanId", "windows", ...(plan.schemaVersion === 2 ? ["planning"] : [])]) ||
+    (plan.schemaVersion !== 1 && plan.schemaVersion !== 2) ||
     typeof plan.rootPlanId !== "string" ||
     !Array.isArray(plan.windows) ||
     plan.windows.length === 0
@@ -1652,10 +1680,18 @@ function validateRootPlan(input: LocalSubtitlePostProcessingRequest): void {
     throw graphFailure("root_plan_invalid");
   }
   validateSafeId(plan.rootPlanId, "root_plan_id_invalid", "coverage");
+  for (const window of plan.windows) validateWindowDescriptor(window, input.policy, "coverage");
+  if (plan.schemaVersion === 2 && (!isRecord(plan.planning) ||
+      !hasOnlyKeys(plan.planning, ["strategy", "totalFrames", "quietCandidates"]) ||
+      plan.planning.strategy !== LOCAL_SUBTITLE_PAUSE_POLICY.id ||
+      plan.planning.totalFrames !== input.source.totalFrames || !Array.isArray(plan.planning.quietCandidates))) {
+    throw graphFailure("pause_plan_invalid");
+  }
   const expected = planLocalSubtitleRootWindows({
     rootPlanId: plan.rootPlanId,
     totalFrames: input.source.totalFrames,
     policy: input.policy,
+    ...(plan.schemaVersion === 2 ? { pauseCandidates: plan.planning.quietCandidates } : {}),
   });
   if (
     expected.windows.length !== plan.windows.length ||

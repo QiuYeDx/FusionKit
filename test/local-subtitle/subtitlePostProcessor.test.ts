@@ -1510,6 +1510,61 @@ describe("canonical subtitle shaping", () => {
   });
 });
 
+describe("versioned pause root plans", () => {
+  const candidate = { startFrame: frames(24_400), endFrame: frames(25_600) };
+  const make = () => planLocalSubtitleRootWindows({ rootPlanId: "plan-001", totalFrames: frames(65_000) + 1,
+    policy: policyFrom(), pauseCandidates: [candidate] });
+  const request = (plan = make()): LocalSubtitlePostProcessingRequest => ({
+    source: { displayName: "pause.wav", durationMs: 65_000, totalFrames: frames(65_000) + 1, sampleRateHz: 16_000 },
+    model: MODEL, taskMode: "transcribe", policy: policyFrom(), rootPlan: plan,
+    attempts: plan.windows.map((w, i) => leaf(w, [rawSegment(i ? 4000 : 22000, i ? 5000 : 23000, "本当です。")], { windowAttempt: i + 1 })),
+  });
+
+  it("preserves complete sample ownership through mixed cuts and real post-processing", () => {
+    const plan = make();
+    expect(plan.schemaVersion).toBe(2);
+    expect(plan.windows.map(w => [w.startMs, w.endMs, w.coreStartMs, w.coreEndMs])).toEqual([
+      [0, 25000, 0, 25000], [25000, 55000, 25000, 52500], [50000, 65000, 52500, 65000],
+    ]);
+    expect(plan.windows.at(-1)!.endFrame).toBe(frames(65000) + 1);
+    expect(postProcessLocalSubtitleTranscript(request(plan)).transcript.segments.map(c => c.text))
+      .toEqual(["本当です。", "本当です。", "本当です。"]);
+    expect(Object.isFrozen(plan.windows[0])).toBe(true);
+    expect(Object.isFrozen(candidate)).toBe(false);
+  });
+
+  it("keeps v1 unchanged and reproduces its windows when no pause is found", () => {
+    const fixed = rootPlan(65_000);
+    expect(fixed.schemaVersion).toBe(1);
+    expect(fixed).not.toHaveProperty("planning");
+    const adaptive = planLocalSubtitleRootWindows({ rootPlanId: "plan-001", totalFrames: frames(65_000),
+      policy: policyFrom(), pauseCandidates: [] });
+    expect(adaptive.windows).toEqual(fixed.windows);
+  });
+
+  it.each(["version", "strategy", "totalFrames", "candidate", "window", "window_field", "unknown"])("rejects %s tampering", kind => {
+    const plan = structuredClone(make()) as any;
+    if (kind === "version") { plan.schemaVersion = 1; delete plan.planning; }
+    if (kind === "strategy") plan.planning.strategy = "future";
+    if (kind === "totalFrames") plan.planning.totalFrames--;
+    if (kind === "candidate") plan.planning.quietCandidates[0].endFrame = frames(24_500);
+    if (kind === "window") plan.windows[1].coreStartFrame++;
+    if (kind === "window_field") plan.windows[1].trusted = true;
+    if (kind === "unknown") plan.planning.trusted = true;
+    expect(() => postProcessLocalSubtitleTranscript(request(plan))).toThrow(LocalSubtitlePostProcessorError);
+  });
+
+  it("retains retry children within a variable parent and its owned core", () => {
+    const parent = make().windows[1];
+    const children = planLocalSubtitleRetryChildren({ parent, policy: policyFrom(), splitPolicy: { windowMs: 16000, overlapMs: 2000 } });
+    expect(children[0].startFrame).toBe(parent.startFrame);
+    expect(children[1].endFrame).toBe(parent.endFrame);
+    expect(children[0].coreStartFrame).toBe(parent.coreStartFrame);
+    expect(children[1].coreEndFrame).toBe(parent.coreEndFrame);
+    expect(children[0].coreEndFrame).toBe(children[1].coreStartFrame);
+  });
+});
+
 function assess(segments: readonly LocalSubtitleServerRawSegment[]) {
   return assessLocalSubtitleRawWindow({
     window: oneWindow(),

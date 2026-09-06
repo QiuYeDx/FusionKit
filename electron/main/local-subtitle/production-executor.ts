@@ -1,4 +1,6 @@
 import { hasVariantOverlapBudget, planVariantOverlapReview } from "./cue-variant-overlap-resolver";
+import { planOverlapGroupReview } from "./overlap-group-review";
+import { overlapGroupSourceOptions, selectOverlapGroupSource } from "./overlap-group-selection";
 import { summarizeLocalSubtitleCues } from "./cue-summary";
 import { restoreFinalLocalSubtitleSeparators } from "./cue-display-separators";
 import { inspectVariantOverlapTiming } from "./cue-variant-overlap-evidence";
@@ -126,6 +128,7 @@ type ProductionMedia = Pick<
   | "materializeWindow"
   | "resolveWindow"
   | "readPrefixSamples"
+  | "readQuietCandidates"
   | "disposeWindow"
   | "disposeNormalized"
 >;
@@ -193,6 +196,8 @@ type ProductionExporter = Pick<
 >;
 
 export interface LocalSubtitleProductionExecutorOptions {
+  /** Internal rollout choice; renderer task settings cannot override this. */
+  readonly rootWindowStrategy?: "fixed_v1" | "acoustic_quiet_v1";
   readonly media: ProductionMedia;
   readonly supervisor: ProductionSupervisor;
   readonly inputs: ProductionInputs;
@@ -215,6 +220,7 @@ export class LocalSubtitleProductionExecutor
   implements LocalSubtitleJobTaskExecutor
 {
   readonly #media: ProductionMedia;
+  readonly #rootWindowStrategy: "fixed_v1" | "acoustic_quiet_v1";
   readonly #supervisor: ProductionSupervisor;
   readonly #inputs: ProductionInputs;
   readonly #outputs: ProductionOutputs;
@@ -236,6 +242,10 @@ export class LocalSubtitleProductionExecutor
   #nextRequestGeneration = 1;
 
   constructor(options: LocalSubtitleProductionExecutorOptions) {
+    if (options.rootWindowStrategy !== undefined && options.rootWindowStrategy !== "fixed_v1" && options.rootWindowStrategy !== "acoustic_quiet_v1")
+      throw new TypeError("The local subtitle window strategy is invalid.");
+    if (options.rootWindowStrategy === "acoustic_quiet_v1" && !hasMethods(options.media, ["readQuietCandidates"]))
+      throw new TypeError("The local subtitle pause scanner is unavailable.");
     if (
       !hasMethods(options?.media, [
         "normalizeTask",
@@ -298,6 +308,7 @@ export class LocalSubtitleProductionExecutor
       throw new TypeError("The local subtitle retained raw response budget is invalid.");
     }
     this.#media = options.media;
+    this.#rootWindowStrategy = options.rootWindowStrategy ?? "fixed_v1";
     this.#supervisor = options.supervisor;
     this.#inputs = options.inputs;
     this.#outputs = options.outputs;
@@ -440,10 +451,17 @@ export class LocalSubtitleProductionExecutor
       throwIfCancelled(context.signal);
 
       const policy = createSubtitlePostProcessPolicy(context.config.inference);
+      // Keep the unvalidated >24h and VAD-off routes on their existing policy.
+      const pauseCandidates = this.#rootWindowStrategy === "acoustic_quiet_v1" &&
+        context.config.inference.vad.enabled && normalized.totalFrames > 30 * 16000 &&
+        normalized.totalFrames <= 24 * 60 * 60 * 16000
+        ? await this.#media.readQuietCandidates(normalized, context.signal) : undefined;
+      throwIfCancelled(context.signal);
       const rootPlan = planLocalSubtitleRootWindows({
         rootPlanId: this.#rootPlanIdFactory(),
         totalFrames: normalized.totalFrames,
         policy,
+        ...(pauseCandidates === undefined ? {} : { pauseCandidates }),
       });
 
       stage = "loading_model";
@@ -1097,6 +1115,53 @@ export class LocalSubtitleProductionExecutor
               review.indices.slice(2).forEach(i => replacements.set(i, []));
             }
             transcript = Object.freeze({ ...transcript, segments: Object.freeze(segments.flatMap((cue, index) => replacements.get(index) ?? [cue])) });
+          }
+        }
+        // Experimental pause plans only. Preserve established repairs and reject lexical
+        // differences before spending a bounded pair of fresh observations.
+        if (rootPlan.schemaVersion === 2 && context.config.model.modelId === "large-v3") {
+          const review = rootPlan.windows.slice(1).flatMap((rightWindow, index) => {
+            const leftWindow = rootPlan.windows[index]!;
+            if (!hasVariantOverlapBudget([leftWindow.rootWindowKey, rightWindow.rootWindowKey],
+              rootPlan.windows.length, acceptedPrimaryCounts, requestsPerRoot, new Set())) return [];
+            const left = attempts.find(a => a.window.windowKey === leftWindow.windowKey);
+            const right = attempts.find(a => a.window.windowKey === rightWindow.windowKey);
+            if (!left || !right || ![left, right].every(a => ["ja", "japanese"].includes(a.response.result.language.toLowerCase()))) return [];
+            const proposal = planOverlapGroupReview({sourceIdentity: normalized!.normalizationId, durationMs: normalized!.durationMs,
+              leftWindow, rightWindow, leftRaw: left.response.result.segments, rightRaw: right.response.result.segments, cues: segments});
+            return proposal && proposal.indices.every(i => !replacements.has(i)) && overlapGroupSourceOptions(proposal, segments).length ? [proposal] : [];
+          })[0];
+          if (review) {
+            const views: PrefixOverlapView[] = [];
+            for (const [index, window] of review.windows.entries()) {
+              throwIfCancelled(context.signal);
+              if (lease) await this.#supervisor.release(lease);
+              lease = undefined;
+              try {
+                lease = await this.#supervisor.acquirePinnedSeparatorLease(pin, context.signal, {freshInferenceState: true});
+              } catch (error) {
+                if (context.signal.aborted || isCleanupFailureCode(publicErrorCode(error, "loading_model"))) throw error;
+                break;
+              }
+              try {
+                const candidate = await executeWindowAttempt(window, 0, false, true, review.budgetRoots[index]);
+                if (candidate.decision.action !== "accept" || candidate.attempt.response.result.wordTimelineStatus !== "dtw_token_points" ||
+                    !["ja", "japanese"].includes(candidate.attempt.response.result.language.toLowerCase())) break;
+                try { reserveRetainedRawResponse(candidate.attempt.response, retainedRawUsage, this.#retainedRawBudget); }
+                catch { break; }
+                views.push({id: window.windowKey, sourceIdentity: normalized!.normalizationId, mode: "uncompressed_non_vad",
+                  windowStartMs: window.startMs, windowEndMs: window.endMs, segments: candidate.attempt.response.result.segments});
+              } catch (error) {
+                if (error instanceof SeparatorCandidateUnavailable) break;
+                throw error;
+              }
+            }
+            const selected = selectOverlapGroupSource(review, segments, views);
+            if (selected.status === "supported") {
+              replacements.set(review.indices[0], selected.draft.replacements);
+              review.indices.slice(1).forEach(i => replacements.set(i, []));
+            }
+            transcript = Object.freeze({...transcript, segments: Object.freeze(segments.flatMap((cue, index) => replacements.get(index) ?? [cue]))});
           }
         }
         // Reuse the first established observation, then spend at most one fresh short witness.

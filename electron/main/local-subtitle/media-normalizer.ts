@@ -56,6 +56,8 @@ import {
 
 const READ_ONLY_NOFOLLOW =
   fsConstants.O_RDONLY | (fsConstants.O_NOFOLLOW ?? 0);
+import { LocalSubtitleQuietScanner, LOCAL_SUBTITLE_PAUSE_POLICY, type LocalSubtitleQuietCandidate } from "./pause-window-plan";
+
 const PRIVATE_DIRECTORY_MODE = 0o700;
 const PRIVATE_FILE_MODE = 0o600;
 const SAFE_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]*$/u;
@@ -777,6 +779,44 @@ export class LocalSubtitleMediaNormalizer {
       const samples = new Int16Array(frameCount);
       for (let i = 0; i < frameCount; i++) samples[i] = bytes.readInt16LE(i * 2);
       return samples;
+    } finally {
+      try { await handle?.close(); }
+      catch (error) { throw mediaFailure("cleanup_failed", "cleanup_failed", "cleanup", "The PCM analysis handle could not close.", error); }
+      finally { operation.finish(); }
+    }
+  }
+
+  /** Scan only this active normalization, with bounded memory and owner cancellation. */
+  async readQuietCandidates(normalized: LocalSubtitleNormalizedPcm, signal?: AbortSignal): Promise<readonly LocalSubtitleQuietCandidate[]> {
+    const record = requireNormalizedRecord(normalized);
+    if (record.state !== "active" || record.metadata.totalFrames > LOCAL_SUBTITLE_PAUSE_POLICY.maxTotalFrames)
+      throw invalidMediaConfiguration("The PCM pause analysis proof is invalid.");
+    const operation = await this.#beginOwnerOperation(record.ownerKey, signal, "decode_failed");
+    let handle: FileHandle | undefined;
+    try {
+      throwIfAborted(operation.signal, "decode_failed");
+      await assertPathFileIdentity(record.filePath, record.fileIdentity);
+      handle = await open(record.filePath, READ_ONLY_NOFOLLOW);
+      if (!sameFileIdentity(await localSubtitleFileIdentityForHandle(handle), record.fileIdentity)) throw mediaChanged();
+      const scanner = new LocalSubtitleQuietScanner(), bytes = Buffer.alloc(64 * 1024);
+      let offset = 0;
+      while (offset < record.metadata.dataSize) {
+        throwIfAborted(operation.signal, "decode_failed");
+        const length = Math.min(bytes.length, record.metadata.dataSize - offset);
+        let received = 0;
+        while (received < length) {
+          throwIfAborted(operation.signal, "decode_failed");
+          const { bytesRead } = await handle.read(bytes, received, length - received, record.metadata.dataOffset + offset + received);
+          if (!bytesRead) throw mediaChanged();
+          received += bytesRead;
+        }
+        scanner.push(bytes.subarray(0, length));
+        offset += length;
+      }
+      if (!sameFileIdentity(await localSubtitleFileIdentityForHandle(handle), record.fileIdentity)) throw mediaChanged();
+      await assertPathFileIdentity(record.filePath, record.fileIdentity);
+      throwIfAborted(operation.signal, "decode_failed");
+      return scanner.finish();
     } finally {
       try { await handle?.close(); }
       catch (error) { throw mediaFailure("cleanup_failed", "cleanup_failed", "cleanup", "The PCM analysis handle could not close.", error); }

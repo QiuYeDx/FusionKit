@@ -77,6 +77,88 @@ afterEach(async () => {
 });
 
 describe("local subtitle production executor", () => {
+  it.each(["valid", "two_groups", "default", "lexical", "budget", "missing", "unstable", "startup_failure", "native_failure", "cancel", "cleanup_failure"] as const)("selects complete overlap groups only in the bounded pause experiment: %s", async scenario => {
+    const accelerator = await createAcceleratorFixture();
+    try {
+      const first = "最初のお知らせ", last = "続きのお知らせ", text = first+last;
+      const harness = await createHarness({backend:"cuda", acceleratorPack:accelerator.proof, modelId:"large-v3", totalFrames:(scenario === "two_groups"?80:55)*16000,
+        vadEnabled:true, rootWindowStrategy:scenario === "default" ? undefined : "acoustic_quiet_v1",
+        inference:({request,window}) => {
+          const group=window.windowKey.includes(".group-"), second=window.windowKey.endsWith("group-1");
+          if(group && second && scenario === "native_failure")throw new Error("group request failed");
+          if(group && second && scenario === "cancel")harness.controller.abort();
+          let segments;
+          if(group) {
+            const points=[...first].map((_,i)=>26100+i*180).concat([...last].map((_,i)=>28000+i*100));
+            segments=[{...rawSegment(0,25800-window.startMs,29000-window.startMs,text),dtwTokens:[...text].map((text,i)=>({text,
+              pointMs:points[i]-window.startMs+(second&&scenario === "unstable"?350:0)}))}];
+            if(second&&scenario === "missing")segments[0].dtwTokens=[];
+          } else if(window.startMs === 0) {
+            segments=[...(scenario === "budget" ? [rawSegment(0,1000,10000,"これから詳しい説明を始めますので静かに聞いてください")] : []),rawSegment(1,25800,29000,text)];
+          } else segments=[rawSegment(0,800,2800,scenario === "lexical" ? "最初の御知らせ" : first),rawSegment(1,2800,4000,last),
+            ...(scenario === "two_groups" && window.startMs === 25000 ? [rawSegment(2,25800,29000,text)] : [])];
+          const response=serverResponse(request,window.endMs-window.startMs,segments);
+          return {processEpoch:group?second?3:2:1,response:{...response,result:{...response.result,language:"ja",
+            wordTimelineStatus:group?"dtw_token_points":"discarded_vad_compressed_timeline"}}};
+        }});
+      if(scenario === "startup_failure")harness.supervisor.acquirePinnedSeparatorLease.mockRejectedValueOnce(new Error("load failed"));
+      if(scenario === "cleanup_failure")harness.media.disposeWindow.mockImplementation(async brand=>{if(brand.descriptor.windowKey.endsWith("group-1"))throw new Error("cleanup failed");return {removed:true};});
+      const result=await harness.executor.execute(harness.context);
+      const groupWindows=harness.media.materializeWindow.mock.calls.map(([r])=>r).filter(r=>r.descriptor.windowKey.includes(".group-"));
+      if(["default","lexical","budget","startup_failure"].includes(scenario))expect(groupWindows).toHaveLength(0);
+      else expect(groupWindows).toHaveLength(2);
+      expect(groupWindows.every(w=>w.conditionQuietAudio===false)).toBe(true);
+      expect(groupWindows.every(w=>w.descriptor.endMs-w.descriptor.startMs===20000)).toBe(true);
+      if(scenario === "valid" || scenario === "two_groups")expect(harness.supervisor.acquirePinnedSeparatorLease.mock.calls.filter(c=>c[2]?.freshInferenceState===true)).toHaveLength(2);
+      if(scenario === "cancel" || scenario === "cleanup_failure") {
+        expect(result.status).toBe(scenario === "cancel" ? "cancelled" : "failed");
+        expect(harness.exporter.exportArtifacts).not.toHaveBeenCalled();
+      } else {
+        expect(result.status,JSON.stringify(result)).toBe("completed");
+        const cues=harness.exporter.exportArtifacts.mock.calls[0]![0].transcript.segments;
+        if(scenario === "two_groups") {
+          expect(cues.filter(c=>c.startMs<50000).map(c=>({text:c.text,startMs:c.startMs,endMs:c.endMs}))).toEqual([{text,startMs:25800,endMs:29000}]);
+          expect(cues.filter(c=>c.startMs>=50000)).toHaveLength(3);
+        } else if(scenario === "valid")expect(cues.map(c=>({text:c.text,startMs:c.startMs,endMs:c.endMs}))).toEqual([{text,startMs:25800,endMs:29000}]);
+        else expect(cues.filter(c=>c.startMs>=25800).length).toBe(3);
+      }
+      expect(harness.media.disposeNormalized).toHaveBeenCalledOnce();
+      expect(harness.supervisor.acquirePinnedSeparatorLease.mock.calls.filter(c=>c[2]?.freshInferenceState===true).length).toBeLessThanOrEqual(2);
+    } finally {await accelerator.cleanup();}
+  });
+  it("executes an explicitly selected pause plan through materialization and export", async () => {
+    const harness = await createHarness({ rootWindowStrategy: "acoustic_quiet_v1", totalFrames: 65 * 16000, vadEnabled: true });
+    harness.media.readQuietCandidates.mockResolvedValue([{ startFrame: 24400 * 16, endFrame: 25600 * 16 }]);
+    const result = await harness.executor.execute(harness.context);
+    expect(result.status, JSON.stringify(result)).toBe("completed");
+    expect(harness.media.readQuietCandidates).toHaveBeenCalledOnce();
+    expect(harness.media.materializeWindow.mock.calls.map(([r]) => [r.descriptor.startMs, r.descriptor.endMs]))
+      .toEqual([[0, 25000], [25000, 55000], [50000, 65000]]);
+    expect(harness.exporter.exportArtifacts).toHaveBeenCalledOnce();
+    expect(harness.media.disposeNormalized).toHaveBeenCalledOnce();
+  });
+
+  it.each(["default", "short", "vad_off"])("keeps %s on the unchanged fixed route", async mode => {
+    const harness = await createHarness({ rootWindowStrategy: mode === "default" ? undefined : "acoustic_quiet_v1",
+      totalFrames: (mode === "short" ? 30 : 65) * 16000, vadEnabled: mode !== "vad_off" });
+    expect((await harness.executor.execute(harness.context)).status).toBe("completed");
+    expect(harness.media.readQuietCandidates).not.toHaveBeenCalled();
+  });
+
+  it.each(["cancel", "changed"])("stops on %s during scanning before loading or export", async mode => {
+    const harness = await createHarness({ rootWindowStrategy: "acoustic_quiet_v1", totalFrames: 65 * 16000, vadEnabled: true });
+    harness.media.readQuietCandidates.mockImplementation(async () => {
+      if (mode === "cancel") { harness.controller.abort(); return []; }
+      throw Object.assign(new Error("changed"), { localSubtitleCode: "media_changed" });
+    });
+    const result = await harness.executor.execute(harness.context);
+    expect(result.status).toBe(mode === "cancel" ? "cancelled" : "failed");
+    expect(harness.media.materializeWindow).not.toHaveBeenCalled();
+    expect(harness.supervisor.beginInference).not.toHaveBeenCalled();
+    expect(harness.exporter.exportArtifacts).not.toHaveBeenCalled();
+    expect(harness.media.disposeNormalized).toHaveBeenCalledOnce();
+  });
+
   it("keeps a lone short-suffix cue without reading PCM or requesting a forward witness", async () => {
     const accelerator = await createAcceleratorFixture();
     try {
@@ -1906,6 +1988,7 @@ describe("local subtitle production executor", () => {
 });
 
 interface HarnessOptions {
+  readonly rootWindowStrategy?: "fixed_v1" | "acoustic_quiet_v1";
   readonly modelId?: string;
   readonly quietAudioGainDb?: number;
   readonly backend?: "cpu" | "cuda" | "metal";
@@ -1979,6 +2062,7 @@ async function createHarness(options: HarnessOptions = {}) {
   let nextWindow = 0;
   let firstBrand: LocalSubtitleBrandedPcmWindow | undefined;
   const media = {
+    readQuietCandidates: vi.fn(async (_normalized: LocalSubtitleNormalizedPcm, _signal?: AbortSignal): Promise<Array<{ startFrame: number; endFrame: number }>> => []),
     readPrefixSamples: vi.fn(async (_normalized: LocalSubtitleNormalizedPcm, frameCount: number, _signal?: AbortSignal) => new Int16Array(frameCount)),
     normalizeTask: vi.fn(async (request: {
       taskId: string;
@@ -2137,6 +2221,7 @@ async function createHarness(options: HarnessOptions = {}) {
     return options.acceleratorPack;
   });
   const executor = new LocalSubtitleProductionExecutor({
+    rootWindowStrategy: options.rootWindowStrategy,
     media,
     supervisor,
     inputs,
