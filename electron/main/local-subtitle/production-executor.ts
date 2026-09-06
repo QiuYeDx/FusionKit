@@ -1,5 +1,6 @@
 import { hasVariantOverlapBudget, planVariantOverlapReview } from "./cue-variant-overlap-resolver";
 import { inspectVariantOverlapTiming } from "./cue-variant-overlap-evidence";
+import { inspectShortOnsetSource, inspectShortOnsetView, inspectShortOnsetConsensus, type ShortOnsetAudio, type ShortOnsetView } from "./cue-short-onset-evidence";
 import { hasContainedOverlapBudget, planContainedOverlapReview } from "./cue-contained-overlap-resolver";
 import { inspectContainedOverlapTiming } from "./cue-contained-overlap-evidence";
 import { randomUUID } from "node:crypto";
@@ -122,6 +123,7 @@ type ProductionMedia = Pick<
   | "normalizeTask"
   | "materializeWindow"
   | "resolveWindow"
+  | "readPrefixSamples"
   | "disposeWindow"
   | "disposeNormalized"
 >;
@@ -785,6 +787,7 @@ export class LocalSubtitleProductionExecutor
         const replacements = new Map<number, readonly typeof segments[number][]>();
         const appliedMultiRoots = new Set<string>();
         const appliedContainedRoots = new Set<string>();
+        let firstOnsetView: ShortOnsetView | undefined;
         let extraCueBudget = LOCAL_SUBTITLE_LIMITS.maxTranscriptSegments - segments.length;
         const needsRefinement = context.config.model.modelId === "large-v3"
           ? needsLocalSubtitleDtwRefinement : needsLocalSubtitleSeparators;
@@ -841,6 +844,12 @@ export class LocalSubtitleProductionExecutor
                 break;
               }
               let changed = false;
+              if (index === 0 && window.startMs === 0 && window.endMs === 30000 &&
+                  candidate.attempt.response.result.wordTimelineStatus === "dtw_token_points" &&
+                  ["ja", "japanese"].includes(candidate.attempt.response.result.language.toLowerCase())) {
+                firstOnsetView = { id: `${window.windowKey}.short-reference`, sourceIdentity: normalized.normalizationId,
+                  originMs: 0, durationMs: 30000, segments: candidate.attempt.response.result.segments };
+              }
               for (const cueIndex of cueIndices) {
                 const cue = segments[cueIndex]!;
                 const enhancement = { cue,
@@ -1077,6 +1086,56 @@ export class LocalSubtitleProductionExecutor
               review.indices.slice(2).forEach(i => replacements.set(i, []));
             }
             transcript = Object.freeze({ ...transcript, segments: Object.freeze(segments.flatMap((cue, index) => replacements.get(index) ?? [cue])) });
+          }
+        }
+        // Reuse the first established observation, then spend at most one fresh short witness.
+        const firstRoot = rootPlan.windows[0];
+        if (firstOnsetView && context.config.model.modelId === "large-v3" && normalized.totalFrames >= 18 * 16000 &&
+            acceptedPrimaryCounts.get(firstRoot.rootWindowKey) === 1 && requestsPerRoot.get(firstRoot.rootWindowKey) === 2 &&
+            transcript.segments.length < LOCAL_SUBTITLE_LIMITS.maxTranscriptSegments) {
+          const cue = transcript.segments[0], following: typeof transcript.segments[number][] = [];
+          for (const item of transcript.segments.slice(1, 5)) {
+            following.push(item);
+            if (Array.from(following.map(c => c.text).join("").replace(/[、。！？!?，,；;：:\s]/gu, "")).length >= 12) break;
+          }
+          const source = { sourceIdentity: normalized.normalizationId, cue, following };
+          if (cue && following.length && following.at(-1)!.endMs <= 17600 &&
+              !transcript.segments.some(c => c.id === cue.id + "-short") &&
+              inspectShortOnsetSource(source).status === "short_source") {
+            let audio: ShortOnsetAudio | undefined;
+            try { audio = { sourceIdentity: normalized.normalizationId, originMs: 0,
+              samples: await this.#media.readPrefixSamples(normalized, 18 * 16000, context.signal) }; }
+            catch (error) {
+              const code = publicErrorCode(error, "post_processing");
+              if (context.signal.aborted || code === "media_changed" || code === "owner_released" || isCleanupFailureCode(code)) throw error;
+            }
+            if (audio && inspectShortOnsetView(source, audio, firstOnsetView).status === "short_onset_supported") {
+              if (lease) await this.#supervisor.release(lease);
+              lease = undefined;
+              try { lease = await this.#supervisor.acquirePinnedSeparatorLease(pin, context.signal, { freshInferenceState: true }); }
+              catch (error) { if (context.signal.aborted || isCleanupFailureCode(publicErrorCode(error, "loading_model"))) throw error; }
+              if (lease) {
+                const window: LocalSubtitlePostProcessingWindow = { ...firstRoot,
+                  windowKey: `${firstRoot.windowKey}.short-onset`, rootWindowKey: `${firstRoot.windowKey}.short-onset`,
+                  startMs: 0, endMs: 18000, coreStartMs: 0, coreEndMs: 18000,
+                  startFrame: 0, endFrame: 18 * 16000, coreStartFrame: 0, coreEndFrame: 18 * 16000 };
+                try {
+                  const candidate = await executeWindowAttempt(window, 0, false, true, firstRoot.rootWindowKey);
+                  if (candidate.decision.action === "accept" && candidate.attempt.response.result.wordTimelineStatus === "dtw_token_points" &&
+                      ["ja", "japanese"].includes(candidate.attempt.response.result.language.toLowerCase())) {
+                    let retained = false;
+                    try { reserveRetainedRawResponse(candidate.attempt.response, retainedRawUsage, this.#retainedRawBudget);retained = true; } catch { /* Optional evidence exceeded its bound. */ }
+                    if (retained) {
+                      const decision = inspectShortOnsetConsensus(source, audio, [firstOnsetView,
+                        { id: window.windowKey, sourceIdentity: normalized.normalizationId, originMs: 0, durationMs: 18000,
+                          segments: candidate.attempt.response.result.segments }]);
+                      if (decision.status === "supported") transcript = Object.freeze({ ...transcript,
+                        segments: Object.freeze([...decision.replacements.map(c => Object.freeze(c)), ...transcript.segments.slice(1)]) });
+                    }
+                  }
+                } catch (error) { if (!(error instanceof SeparatorCandidateUnavailable)) throw error; }
+              }
+            }
           }
         }
       }

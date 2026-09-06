@@ -77,6 +77,81 @@ afterEach(async () => {
 });
 
 describe("local subtitle production executor", () => {
+  it("keeps a lone short-suffix cue without reading PCM or requesting a forward witness", async () => {
+    const accelerator = await createAcceleratorFixture();
+    try {
+      const text = "こちらから案内します 僕だ";
+      const harness = await createHarness({backend:"cuda", acceleratorPack:accelerator.proof, modelId:"large-v3", totalFrames:30*16000, vadEnabled:true,
+        inference:({request,window}) => {
+          const response=serverResponse(request,window.endMs-window.startMs,[rawSegment(0,2000,10000,text)]);
+          return {processEpoch:request.vadEnabled?1:2,response:{...response,result:{...response.result,language:"ja",wordTimelineStatus:request.vadEnabled?"discarded_vad_compressed_timeline":"dtw_token_points"}}};
+        }});
+      expect((await harness.executor.execute(harness.context)).status).toBe("completed");
+      expect(harness.media.readPrefixSamples).not.toHaveBeenCalled();
+      expect(harness.supervisor.beginInference).toHaveBeenCalledTimes(2);
+      expect(harness.exporter.exportArtifacts.mock.calls[0]![0].transcript.segments.map(c=>c.text)).toEqual([text]);
+    } finally {await accelerator.cleanup();}
+  });
+
+  it.each(["valid", "unstable", "missing", "silence", "pcm_failure", "media_changed", "startup_failure", "native_failure", "cancel", "cleanup_failure"] as const)("bounds the final short-onset witness and preserves accepted text: %s", async scenario => {
+    const accelerator = await createAcceleratorFixture();
+    try {
+      const prefix = "こちらから案内します", target = "僕だ", next = "次の説明を始めます静かに聞いてください";
+      const harness = await createHarness({ backend: "cuda", acceleratorPack: accelerator.proof, modelId: "large-v3",
+        totalFrames: 30 * 16000, vadEnabled: true, formats: ["SRT", "LRC"],
+        inference: ({request, window}) => {
+          const witness = window.windowKey.includes(".short-onset");
+          if (witness && scenario === "native_failure") throw new Error("short witness unavailable");
+          if (witness && scenario === "cancel") harness.controller.abort();
+          const segments = request.vadEnabled ? [rawSegment(0, 2000, 7000, prefix + " " + target), rawSegment(1, 7000, 15000, next)] : [
+            { ...rawSegment(0, 2000, 7000, "ん ん 僕だ"), dtwTokens: [
+              {text:"ん ", pointMs:2550}, {text:"ん ", pointMs:3300},
+              {text:"僕", pointMs:witness && scenario === "unstable" ? 5550 : 5100},
+              {text:"だ", pointMs:witness && scenario === "unstable" ? 5650 : 5500},
+            ] },
+            { ...rawSegment(1, 7000, 15000, next), dtwTokens: [{text:next, pointMs:7200}] },
+          ];
+          if (witness && scenario === "missing") (segments[0] as any).dtwTokens = [];
+          const response = serverResponse(request, window.endMs-window.startMs, segments);
+          return {processEpoch:request.vadEnabled ? 1 : witness ? 3 : 2, response:{...response, result:{...response.result, language:"ja", wordTimelineStatus:request.vadEnabled ? "discarded_vad_compressed_timeline" : "dtw_token_points"}}};
+        },
+      });
+      harness.media.readPrefixSamples.mockImplementation(async (_normalized, frames) => {
+        if (scenario === "pcm_failure") throw new Error("optional PCM read failed");
+        if (scenario === "media_changed") throw Object.assign(new Error("PCM changed"), {code:"media_changed"});
+        const samples = new Int16Array(frames);
+        if (scenario !== "silence") for (const [start,end] of [[2100,2400],[2500,2800],[3200,3450],[5000,5800],[7000,8500]])
+          for (let i=start*16;i<end*16;i++) samples[i]=Math.round(3000*Math.sin(i/8));
+        return samples;
+      });
+      if (scenario === "startup_failure") {
+        const acquire = harness.supervisor.acquirePinnedSeparatorLease;
+        acquire.mockImplementationOnce(acquire.getMockImplementation()!).mockRejectedValueOnce(new Error("fresh startup unavailable"));
+      }
+      if (scenario === "cleanup_failure") harness.media.disposeWindow.mockImplementation(async (window?: any) => {
+        if (window?.descriptor.windowKey.includes(".short-onset")) throw Object.assign(new Error("cleanup failed"),{code:"cleanup_failed"});
+        return {removed:true};
+      });
+      const result = await harness.executor.execute(harness.context);
+      expect(harness.media.readPrefixSamples).toHaveBeenCalledWith(expect.anything(), 288000, harness.controller.signal);
+      const witnesses = harness.media.materializeWindow.mock.calls.filter(([r]) => r.descriptor.windowKey.includes(".short-onset"));
+      expect(witnesses.length).toBe(["silence","pcm_failure","media_changed","startup_failure"].includes(scenario) ? 0 : 1);
+      expect(harness.supervisor.beginInference.mock.calls.length).toBeLessThanOrEqual(3);
+      for (const [request] of witnesses) expect(request.conditionQuietAudio).toBe(false);
+      if (!["silence","pcm_failure","media_changed"].includes(scenario)) expect(harness.supervisor.acquirePinnedSeparatorLease.mock.calls.at(-1)?.[2]).toEqual({freshInferenceState:true});
+      if (["media_changed","cancel","cleanup_failure"].includes(scenario)) {
+        expect(result.status).toBe(scenario === "cancel" ? "cancelled" : "failed");
+        expect(harness.exporter.exportArtifacts).not.toHaveBeenCalled();
+      } else {
+        expect(result.status, JSON.stringify(result)).toBe("completed");
+        const cues = harness.exporter.exportArtifacts.mock.calls[0]![0].transcript.segments;
+        expect(cues.map(c=>c.text.replace(/\s/gu," ")).join("").replace(/\s/gu,"")).toBe(prefix+target+next);
+        expect(cues.map(c=>[c.startMs,c.endMs,c.text])).toEqual(scenario === "valid" ?
+          [[2000,5100,prefix],[5100,7000,target],[7000,15000,next]] : [[2000,7000,prefix+" "+target],[7000,15000,next]]);
+      }
+    } finally { await accelerator.cleanup(); }
+  });
+
   it.each(["valid", "unstable", "missing", "startup_failure", "native_failure", "cancel", "cleanup_failure"] as const)("preserves all three earlier repairs while applying one terminal variant group: %s", async scenario => {
     const accelerator = await createAcceleratorFixture();
     try {
@@ -1897,6 +1972,7 @@ async function createHarness(options: HarnessOptions = {}) {
   let nextWindow = 0;
   let firstBrand: LocalSubtitleBrandedPcmWindow | undefined;
   const media = {
+    readPrefixSamples: vi.fn(async (_normalized: LocalSubtitleNormalizedPcm, frameCount: number, _signal?: AbortSignal) => new Int16Array(frameCount)),
     normalizeTask: vi.fn(async (request: {
       taskId: string;
       taskGeneration: number;

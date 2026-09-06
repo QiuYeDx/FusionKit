@@ -975,6 +975,35 @@ describe("local subtitle stream binding and normalization", () => {
 });
 
 describe("local subtitle PCM proof, window integrity, and cleanup", () => {
+  it("rejects an owned PCM changed after normalization before prefix analysis", async () => {
+    let pcmPath = "";
+    const harness = createHarness({afterDecodeOutput: ({outputPath}) => { pcmPath = outputPath; }});
+    const normalized = await normalizeSource(harness, OWNER_A, "changed-prefix.wav", "changed-prefix-task");
+    const bytes = await readFile(pcmPath);
+    await writeFile(pcmPath, Buffer.concat([bytes, Buffer.from([0,0])]));
+    await expect(harness.normalizer.readPrefixSamples(normalized,16000)).rejects.toMatchObject({code:"media_changed"});
+  });
+
+  it("reads bounded original samples without conditioning, and rejects invalid or inactive proofs", async () => {
+    const harness = createHarness({afterDecodeOutput: async ({outputPath}) => {
+      const data=Buffer.alloc(16000*2);
+      for(let i=0;i<16000;i++)data.writeInt16LE(i%2 ? 500 : -500,i*2);
+      await writeFile(outputPath,Buffer.concat([createLocalSubtitlePcm16WavHeader(data.length),data]));
+    }});
+    const normalized = await normalizeSource(harness, OWNER_A, "prefix.wav", "prefix-task");
+    const samples = await harness.normalizer.readPrefixSamples(normalized, 16000);
+    expect(samples.length).toBe(16000);
+    expect([...samples.slice(0,4)]).toEqual([-500,500,-500,500]);
+    samples.fill(0);
+    expect((await harness.normalizer.readPrefixSamples(normalized,16000))[0]).toBe(-500);
+    for (const count of [0,15999,16000.5,16001,480001]) await expect(harness.normalizer.readPrefixSamples(normalized,count)).rejects.toMatchObject({code:"invalid_configuration"});
+    await expect(harness.normalizer.readPrefixSamples({...normalized},16000)).rejects.toMatchObject({code:"invalid_configuration"});
+    const controller = new AbortController(); controller.abort();
+    await expect(harness.normalizer.readPrefixSamples(normalized,16000,controller.signal)).rejects.toBeDefined();
+    await harness.normalizer.disposeNormalized(normalized);
+    await expect(harness.normalizer.readPrefixSamples(normalized,16000)).rejects.toMatchObject({code:"invalid_configuration"});
+  });
+
   it("binds conditioning metadata to the private PCM proof and resolved bytes", async () => {
     const harness = createHarness({afterDecodeOutput: async ({outputPath}) => {
       const data=Buffer.alloc(16000*2);

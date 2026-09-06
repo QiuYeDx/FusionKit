@@ -1,0 +1,17 @@
+import assert from 'node:assert/strict';
+import test from 'node:test';
+import {validateOnsetManifest,validateOnsetAnnotations} from './onset-listening-contract.mjs';
+function fixture(){const manifest={schema:'fusionkit-onset-review-v1',reviewId:'a'.repeat(64),mediaSha256:'b'.repeat(64),audioSha256:'c'.repeat(64),target:'次の言葉',audioStartMs:2000,audioDurationMs:10000,playbackRangeMs:[4000,6000],markRangeMs:[4500,5500],waveform:{startMs:4000,endMs:6000,binMs:100,peaks:Array.from({length:20},()=>[-.1,.2])}};const result={schema:'fusionkit-onset-listening-v1',reviewId:manifest.reviewId,mediaSha256:manifest.mediaSha256,audioSha256:manifest.audioSha256,target:manifest.target,exportedAt:'2026-09-06T00:00:00Z',automaticAcceptance:false,estimatedOnsetMs:5000,preceding:'two',confidence:'approximate',note:'主观估计，不是精确声学标签',historyIsNotListeningProof:true,history:[{kind:'request',at:1,positionMs:4000,rate:1,fromMs:4000,toMs:6000},{kind:'seek',origin:'manual',at:2,positionMs:5000,rate:1},{kind:'mark',at:3,positionMs:5000,rate:1}],droppedHistoryCount:0};return{manifest,result};}
+test('round trips binding, subjective estimate and separate event history',()=>{const f=fixture(),copy=structuredClone(f);assert.deepEqual(validateOnsetAnnotations(JSON.parse(JSON.stringify(f.result)),f.manifest),{valid:true,automaticAcceptance:false,onsetIsSubjective:true});assert.deepEqual(f,copy);});
+test('allows uncertainty without inventing an onset',()=>{const f=fixture();f.result.estimatedOnsetMs=null;f.result.confidence='uncertain';f.result.preceding='uncertain';assert.equal(validateOnsetAnnotations(f.result,f.manifest).valid,true);});
+for(const kind of ['reviewId','mediaSha256','audioSha256','target','schema','automaticAcceptance','exportedAt','unanswered','confidence','note','null_mark','nan','fraction','range','proof','logs','event','event_time','event_position','event_rate','request_range','dropped'])test(`rejects invalid feedback: ${kind}`,()=>{const {manifest,result:r}=fixture();
+if(['reviewId','mediaSha256','audioSha256','target','schema'].includes(kind))r[kind]='wrong';
+if(kind==='automaticAcceptance')r.automaticAcceptance=true;
+if(kind==='exportedAt')r.exportedAt='not a date';
+if(kind==='unanswered')r.preceding='';if(kind==='confidence')r.confidence='certain';if(kind==='note')r.note='x'.repeat(2001);
+if(kind==='null_mark')r.estimatedOnsetMs=null;if(kind==='nan')r.estimatedOnsetMs=NaN;if(kind==='fraction')r.estimatedOnsetMs=5000.1;if(kind==='range')r.estimatedOnsetMs=5600;
+if(kind==='proof')r.historyIsNotListeningProof=false;if(kind==='logs')r.history=Array(101).fill(r.history[0]);
+if(kind==='event')r.history[0].kind='heard';if(kind==='event_time')r.history[0].at=-1;if(kind==='event_position')r.history[0].positionMs=1;if(kind==='event_rate')r.history[0].rate=0;
+if(kind==='request_range')r.history[0].toMs=3000;if(kind==='dropped')r.droppedHistoryCount=-1;
+assert.throws(()=>validateOnsetAnnotations(r,manifest));});
+for(const kind of ['hash','duration','overflow','range','mark','peaks','amplitude','bin'])test(`rejects invalid manifest: ${kind}`,()=>{const {manifest:m}=fixture();if(kind==='hash')m.reviewId='';if(kind==='duration')m.audioDurationMs=0;if(kind==='overflow')m.audioStartMs=Number.MAX_SAFE_INTEGER;if(kind==='range')m.playbackRangeMs=[4000,3000];if(kind==='mark')m.markRangeMs=[3900,5500];if(kind==='peaks')m.waveform.peaks.pop();if(kind==='amplitude')m.waveform.peaks[0][1]=Infinity;if(kind==='bin')m.waveform.binMs=0;assert.throws(()=>validateOnsetManifest(m));});

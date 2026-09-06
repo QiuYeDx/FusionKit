@@ -757,6 +757,33 @@ export class LocalSubtitleMediaNormalizer {
     }
   }
 
+  /** Bounded read of the owned original PCM; no window file or enhanced audio is created. */
+  async readPrefixSamples(normalized: LocalSubtitleNormalizedPcm, frameCount: number, signal?: AbortSignal): Promise<Int16Array> {
+    const record = requireNormalizedRecord(normalized);
+    if (record.state !== "active" || !Number.isSafeInteger(frameCount) || frameCount < 16000 || frameCount > 480000 || frameCount > record.metadata.totalFrames)
+      throw invalidMediaConfiguration("The PCM analysis prefix is invalid.");
+    const operation = await this.#beginOwnerOperation(record.ownerKey, signal, "decode_failed");
+    let handle: FileHandle | undefined;
+    try {
+      throwIfAborted(operation.signal, "decode_failed");
+      await assertPathFileIdentity(record.filePath, record.fileIdentity);
+      handle = await open(record.filePath, READ_ONLY_NOFOLLOW);
+      if (!sameFileIdentity(await localSubtitleFileIdentityForHandle(handle), record.fileIdentity)) throw mediaChanged();
+      const bytes = Buffer.alloc(frameCount * 2);
+      const result = await handle.read(bytes, 0, bytes.length, record.metadata.dataOffset);
+      if (result.bytesRead !== bytes.length || !sameFileIdentity(await localSubtitleFileIdentityForHandle(handle), record.fileIdentity)) throw mediaChanged();
+      await assertPathFileIdentity(record.filePath, record.fileIdentity);
+      throwIfAborted(operation.signal, "decode_failed");
+      const samples = new Int16Array(frameCount);
+      for (let i = 0; i < frameCount; i++) samples[i] = bytes.readInt16LE(i * 2);
+      return samples;
+    } finally {
+      try { await handle?.close(); }
+      catch (error) { throw mediaFailure("cleanup_failed", "cleanup_failed", "cleanup", "The PCM analysis handle could not close.", error); }
+      finally { operation.finish(); }
+    }
+  }
+
   async materializeWindow(
     options: MaterializeLocalSubtitlePcmWindowOptions,
   ): Promise<LocalSubtitleBrandedPcmWindow> {
