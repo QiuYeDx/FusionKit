@@ -553,7 +553,21 @@
       "next_page": "Next page",
       "copy_plain_text": "Copy plain text",
       "copied": "Plain text copied",
-      "copy_failed": "Plain text could not be copied"
+      "copy_failed": "Could not copy content. Please try again.",
+      "view_label": "Preview view",
+      "reading": "Reading",
+      "raw": "Source file",
+      "search": "Search subtitles or time…",
+      "clear_search": "Clear search",
+      "raw_hint": "Original formatting and timestamps",
+      "no_matches": "No matching subtitles",
+      "search_hint": "Try another phrase or timestamp.",
+      "raw_fallback": "Reading view is unavailable. The original content is shown instead.",
+      "read_only": "Read only",
+      "matches": "{{count}} matches",
+      "copy_done": "Copied",
+      "copy_raw": "Copy source",
+      "copy_all": "Copy all text"
     },
     "error_details": {
       "title": "Error details",

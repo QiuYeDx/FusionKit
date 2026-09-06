@@ -553,7 +553,21 @@
       "next_page": "次のページ",
       "copy_plain_text": "プレーンテキストをコピー",
       "copied": "プレーンテキストをコピーしました",
-      "copy_failed": "プレーンテキストをコピーできませんでした"
+      "copy_failed": "コピーできませんでした。もう一度お試しください。",
+      "view_label": "プレビュー表示",
+      "reading": "字幕を読む",
+      "raw": "元のファイル",
+      "search": "字幕や時刻を検索…",
+      "clear_search": "検索をクリア",
+      "raw_hint": "元の書式とタイムスタンプを保持",
+      "no_matches": "一致する字幕がありません",
+      "search_hint": "別の語句や時刻をお試しください。",
+      "raw_fallback": "読み取り表示を作成できないため、元の内容を表示しています。",
+      "read_only": "読み取り専用",
+      "matches": "{{count}} 件一致",
+      "copy_done": "コピーしました",
+      "copy_raw": "元の内容をコピー",
+      "copy_all": "本文をすべてコピー"
     },
     "error_details": {
       "title": "エラー詳細",

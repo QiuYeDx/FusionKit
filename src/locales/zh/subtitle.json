@@ -553,7 +553,21 @@
       "next_page": "下一页",
       "copy_plain_text": "复制纯文本",
       "copied": "已复制纯文本",
-      "copy_failed": "无法复制纯文本"
+      "copy_failed": "无法复制内容，请重试",
+      "view_label": "预览视图",
+      "reading": "字幕阅读",
+      "raw": "原始文件",
+      "search": "搜索字幕或时间…",
+      "clear_search": "清除搜索",
+      "raw_hint": "保留原始格式与时间标签",
+      "no_matches": "没有找到匹配的字幕",
+      "search_hint": "试试其他词语或时间。",
+      "raw_fallback": "无法生成阅读视图，已显示完整原始内容。",
+      "read_only": "只读",
+      "matches": "找到 {{count}} 条",
+      "copy_done": "已复制",
+      "copy_raw": "复制原始内容",
+      "copy_all": "复制全部正文"
     },
     "error_details": {
       "title": "错误详情",

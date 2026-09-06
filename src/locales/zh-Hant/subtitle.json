@@ -553,7 +553,21 @@
       "next_page": "下一頁",
       "copy_plain_text": "複製純文字",
       "copied": "已複製純文字",
-      "copy_failed": "無法複製純文字"
+      "copy_failed": "無法複製內容，請重試",
+      "view_label": "預覽檢視",
+      "reading": "字幕閱讀",
+      "raw": "原始檔案",
+      "search": "搜尋字幕或時間…",
+      "clear_search": "清除搜尋",
+      "raw_hint": "保留原始格式與時間標籤",
+      "no_matches": "沒有找到符合的字幕",
+      "search_hint": "試試其他詞語或時間。",
+      "raw_fallback": "無法產生閱讀檢視，已顯示完整原始內容。",
+      "read_only": "唯讀",
+      "matches": "找到 {{count}} 條",
+      "copy_done": "已複製",
+      "copy_raw": "複製原始內容",
+      "copy_all": "複製全部正文"
     },
     "error_details": {
       "title": "錯誤詳情",

@@ -20,6 +20,7 @@ interface ScrollableDialogProps {
   className?: string;
   contentClassName?: string;
   onOpenAutoFocus?: (e: Event) => void;
+  onCloseAutoFocus?: (e: Event) => void;
   /** 对话框最大宽度，默认 'sm:max-w-md' */
   maxWidth?: string;
 }
@@ -79,6 +80,7 @@ function ScrollableDialog({
   className,
   contentClassName,
   onOpenAutoFocus = (e) => e.preventDefault(),
+  onCloseAutoFocus,
   maxWidth = "sm:max-w-md",
 }: // ! 如果内容很宽, 需要手动设置 maxWidth 为合适的值
 // ! 如 "sm:max-w-[calc(100%-2rem)]" "sm:max-w-[600px] md:max-w-[728px] lg:max-w-4xl xl:max-w-5xl"等
@@ -92,6 +94,7 @@ ScrollableDialogProps) {
           contentClassName
         )}
         onOpenAutoFocus={onOpenAutoFocus}
+        onCloseAutoFocus={onCloseAutoFocus}
       >
         <div className={cn("contents", className)}>{children}</div>
       </DialogContent>
