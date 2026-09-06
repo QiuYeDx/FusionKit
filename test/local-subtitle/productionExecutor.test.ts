@@ -77,6 +77,106 @@ afterEach(async () => {
 });
 
 describe("local subtitle production executor", () => {
+  it.each(["valid", "quoted", "unstable", "missing", "startup_failure", "native_failure", "cancel", "cleanup_failure"] as const)("preserves prefix repair while applying one bounded multi-parent group: %s", async scenario => {
+    const accelerator = await createAcceleratorFixture();
+    try {
+      const a = "説明を聞いた後で順番に", b = "手順を確認する必要", rest = "があると伝えました";
+      const next = "次は資料を読んで内容を詳しく確認してから提出してください", right = "順番に" + b + rest + " " + next;
+      const harness = await createHarness({ backend: "cuda", acceleratorPack: accelerator.proof, modelId: "large-v3",
+        totalFrames: 175 * 16000, vadEnabled: true, quietAudioGainDb: 12, formats: ["SRT", "LRC"],
+        inference: ({ request, window }) => {
+          const multi = window.windowKey.includes(".multi-"), prefix = window.windowKey.includes(".prefix-"), second = window.windowKey.endsWith("-1");
+          if (multi && second && scenario === "native_failure") throw new Error("multi witness failed");
+          if (multi && second && scenario === "cancel") harness.controller.abort();
+          let segments;
+          if (multi) {
+            const seg = (id: number, text: string, start: number, end: number, pairs: [string, number][]) => ({ ...rawSegment(id, start-window.startMs, end-window.startMs,text),dtwTokens:pairs.map(([text,point])=>({text,pointMs:point-window.startMs})) });
+            segments = [seg(0,a+b+rest,window.startMs,132000,[["説明を聞いた後で",123000],["順番に",125900],[b,128000],[rest,131000]]),
+              seg(1,next,132000,143440,[["次は",second ? scenario === "unstable" ? 134000 : 133240 : 133200],["資料を読んで",134000],["内容を詳しく確認してから提出してください",140000]])];
+            if (second && scenario === "missing") segments[1].dtwTokens = [];
+            if (second && scenario === "quoted") { segments[0].text = "「"+segments[0].text;segments[0].dtwTokens.unshift({text:"「",pointMs:0});segments[1].text+="」";segments[1].dtwTokens.push({text:"」",pointMs:24000}); }
+          } else if (prefix) {
+            segments = [{...rawSegment(0,0,7000,"前置き説明をもう一度"),dtwTokens:[{text:"前置き",pointMs:1000},{text:"説明をもう一度",pointMs:51000-window.startMs}]},
+              {...rawSegment(1,7000,61230-window.startMs,"確認してから始めます"),dtwTokens:[{text:"確認",pointMs:(second?56000:55880)-window.startMs},{text:"してから",pointMs:58000-window.startMs},{text:"始めます",pointMs:60500-window.startMs}]}];
+          } else if ([25000,50000,75000,100000,125000].includes(window.startMs) && request.vadSpeechPadMs !== undefined) segments=[0,1,2].map(i=>rawSegment(i,i*1000,i*1000+1000,"はい"));
+          else if (window.startMs===25000) segments=[rawSegment(0,20570,26720,"前置き説明をもう一度")];
+          else if (window.startMs===50000) segments=[rawSegment(0,160,11230,"説明をもう一度 確認してから始めます")];
+          else if (window.startMs===100000) segments=[rawSegment(0,21980,26880,a),rawSegment(1,26880,30000,b)];
+          else if (window.startMs===125000) segments=[rawSegment(0,710,18440,right)];
+          else segments=[rawSegment(0,3000,4000,"こんにちは。")];
+          const response=serverResponse(request,window.endMs-window.startMs,segments);
+          return {processEpoch:multi?second?5:4:prefix?second?3:2:1,response:{...response,result:{...response.result,language:"ja",wordTimelineStatus:multi||prefix?"dtw_token_points":"discarded_vad_compressed_timeline"}}};
+        } });
+      if (scenario === "startup_failure") {const acquire=harness.supervisor.acquirePinnedSeparatorLease;const original=acquire.getMockImplementation()!;acquire.mockImplementationOnce(original).mockImplementationOnce(original).mockImplementationOnce(original).mockRejectedValueOnce(new Error("second multi load failed"));}
+      if (scenario === "cleanup_failure") harness.media.disposeWindow.mockImplementation(async brand=>{if(brand.descriptor.windowKey.endsWith("multi-1"))throw new Error("cleanup failed");return {removed:true};});
+      const result=await harness.executor.execute(harness.context);
+      const optional=harness.media.materializeWindow.mock.calls.map(([r])=>r).filter(r=>/\.(prefix|multi)-/u.test(r.descriptor.windowKey));
+      expect(optional.map(r=>r.descriptor.startMs)).toEqual(scenario==="startup_failure"?[45000,44000,120000]:[45000,44000,120000,119000]);
+      expect(harness.supervisor.beginInference).toHaveBeenCalledTimes(scenario==="startup_failure"?15:16);
+      expect(optional.every(r=>!r.conditionQuietAudio)).toBe(true);
+      for(const call of harness.supervisor.acquirePinnedSeparatorLease.mock.calls) expect(call[2]).toEqual({freshInferenceState:true});
+      if(scenario==="cancel"||scenario==="cleanup_failure") {expect(result.status).toBe(scenario==="cancel"?"cancelled":"failed");expect(harness.exporter.exportArtifacts).not.toHaveBeenCalled();}
+      else {
+        expect(result.status).toBe("completed");const cues=harness.exporter.exportArtifacts.mock.calls[0]![0].transcript.segments;
+        expect(cues.find(c=>c.startMs===55880)?.text).toBe("確認してから始めます");
+        if(scenario==="valid"||scenario==="quoted") {expect(cues.find(c=>c.startMs===121980)).toMatchObject({text:a+b+rest,endMs:133200});expect(cues.find(c=>c.startMs===133200)).toMatchObject({text:next,endMs:143440});expect(cues.some(c=>c.startMs===127500)).toBe(false);}
+        else {expect(cues.find(c=>c.startMs===126880)?.text).toBe(b);expect(cues.find(c=>c.startMs===127500)?.text.replace(/\s/gu,"")).toBe(right.replace(/\s/gu,""));}
+      }
+    } finally {await accelerator.cleanup();}
+  });
+
+  it.each(["valid", "unstable", "missing", "budget", "startup_failure", "native_failure", "cancel", "cleanup_failure"] as const)("applies a two-observation prefix group after primary fallback: %s", async scenario => {
+    const accelerator = await createAcceleratorFixture();
+    try {
+      const left = "前置き説明をもう一度", right = "説明をもう一度 確認してから始めます";
+      const harness = await createHarness({ backend: "cuda", acceleratorPack: accelerator.proof, modelId: "large-v3",
+        totalFrames: 105 * 16000, vadEnabled: true, quietAudioGainDb: 12, formats: ["SRT", "LRC"],
+        inference: ({ request, window }) => {
+          const witness = window.windowKey.includes(".prefix-");
+          const second = window.windowKey.endsWith("prefix-1");
+          if (witness && second && scenario === "native_failure") throw new Error("second witness failed");
+          if (witness && second && scenario === "cancel") harness.controller.abort();
+          const needsFallback = [25000, 50000].includes(window.startMs) || scenario === "budget" && window.startMs === 0;
+          const segments = witness ? [
+            { ...rawSegment(0, 0, 7000, left), dtwTokens: [{ text: "前置き", pointMs: 1000 }, { text: "説明をもう一度", pointMs: 51000 - window.startMs }] },
+            { ...rawSegment(1, 7000, 61230 - window.startMs, "確認してから始めます"), dtwTokens: scenario === "missing" && second ? [] : [
+              { text: "確認", pointMs: (second ? scenario === "unstable" ? 56800 : 56000 : 55880) - window.startMs },
+              { text: "してから", pointMs: 58000 - window.startMs }, { text: "始めます", pointMs: 60500 - window.startMs }] },
+          ] : needsFallback && request.vadSpeechPadMs !== undefined ? [0, 1, 2].map(i => rawSegment(i, i * 1000, i * 1000 + 1000, "はい"))
+            : window.startMs === 25000 ? [rawSegment(0, 20570, 26720, left)]
+              : window.startMs === 50000 ? [rawSegment(0, 160, 11230, right)] : [rawSegment(0, 3000, 4000, "こんにちは。")];
+          const response = serverResponse(request, window.endMs - window.startMs, segments);
+          return { processEpoch: witness ? second ? 3 : 2 : 1, response: { ...response, result: { ...response.result,
+            language: "ja", wordTimelineStatus: witness ? "dtw_token_points" : "discarded_vad_compressed_timeline" } } };
+        } });
+      if (scenario === "startup_failure") {
+        const acquire = harness.supervisor.acquirePinnedSeparatorLease;
+        acquire.mockImplementationOnce(acquire.getMockImplementation()!).mockRejectedValueOnce(new Error("second load failed"));
+      }
+      if (scenario === "cleanup_failure") harness.media.disposeWindow.mockImplementation(async brand => {
+        if (brand.descriptor.windowKey.endsWith("prefix-1")) throw new Error("cleanup failed");
+        return { removed: true };
+      });
+      const result = await harness.executor.execute(harness.context);
+      const witnessCalls = harness.media.materializeWindow.mock.calls.map(([r]) => r).filter(r => r.descriptor.windowKey.includes(".prefix-"));
+      expect(witnessCalls.length).toBe(scenario === "budget" ? 0 : scenario === "startup_failure" ? 1 : 2);
+      for (const call of witnessCalls) expect(call.conditionQuietAudio).toBe(false);
+      expect(harness.supervisor.beginInference).toHaveBeenCalledTimes(scenario === "budget" || scenario === "startup_failure" ? 7 : 8);
+      for (const call of harness.supervisor.acquirePinnedSeparatorLease.mock.calls) expect(call[2]).toEqual({ freshInferenceState: true });
+      if (scenario === "cancel" || scenario === "cleanup_failure") {
+        expect(result.status).toBe(scenario === "cancel" ? "cancelled" : "failed");
+        expect(harness.exporter.exportArtifacts).not.toHaveBeenCalled();
+      } else {
+        expect(result.status).toBe("completed");
+        const cues = harness.exporter.exportArtifacts.mock.calls[0]![0].transcript.segments;
+        expect(cues).toHaveLength(4);
+        expect(cues[1]).toMatchObject({ text: left, startMs: 45570, endMs: 51720 });
+        expect(cues[2]).toMatchObject({ text: scenario === "valid" ? "確認してから始めます" : right,
+          startMs: scenario === "valid" ? 55880 : 52500, endMs: 61230 });
+      }
+    } finally { await accelerator.cleanup(); }
+  });
+
   it.each(["valid", "changed", "other_words"] as const)("uses complete witness groups within the existing seam budget: %s", async scenario => {
     const accelerator = await createAcceleratorFixture();
     try {
