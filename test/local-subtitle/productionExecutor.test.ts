@@ -77,6 +77,31 @@ afterEach(async () => {
 });
 
 describe("local subtitle production executor", () => {
+  it.each(["valid", "changed", "other_words"] as const)("uses complete witness groups within the existing seam budget: %s", async scenario => {
+    const accelerator = await createAcceleratorFixture();
+    try {
+      const left = "は?でも調子になんで", right = "は?でも女子になんてこと聞くんだ";
+      const part = (id: number, text: string, start: number, end: number) => ({ ...rawSegment(id, start, end, text), dtwTokens: [{ text, pointMs: start + 40 }] });
+      const harness = await createHarness({ backend: "cuda", acceleratorPack: accelerator.proof, modelId: "large-v3",
+        totalFrames: 55 * 16000, vadEnabled: true, formats: ["SRT", "LRC"], inference: ({ request, window }) => {
+          const segments = request.vadEnabled ? window.startMs === 0 ? [rawSegment(0, 24610, 30000, left)] : [rawSegment(0, 2370, 6000, right)]
+            : [part(0, "ね?", 4380, 4620), ...(scenario === "other_words" ? [part(1, "もう一度", 5000, 6000)] : []),
+              part(2, "は?", 7280, 7520), part(3, "でも", 8020, 8360),
+              part(4, scenario === "changed" ? "男子になんてこと聞くんだ" : "女子になんてこと聞くんだ", 8360, 11000)];
+          const response = serverResponse(request, window.endMs - window.startMs, segments);
+          return { processEpoch: request.vadEnabled ? 1 : 2, response: { ...response, result: { ...response.result,
+            language: "ja", wordTimelineStatus: request.vadEnabled ? "discarded_vad_compressed_timeline" : "dtw_token_points" } } };
+        } });
+      const result = await harness.executor.execute(harness.context);
+      expect(result.status).toBe("completed");
+      expect(harness.supervisor.beginInference).toHaveBeenCalledTimes(3);
+      expect(harness.supervisor.acquirePinnedSeparatorLease).toHaveBeenLastCalledWith(expect.anything(), harness.context.signal, { freshInferenceState: true });
+      const cues = harness.exporter.exportArtifacts.mock.calls[0]![0].transcript.segments;
+      expect(cues.map(c => c.text)).toEqual(scenario === "valid" ? [right] : [left, right]);
+      if (scenario === "valid") expect(cues[0]).toMatchObject({ startMs: 27370, endMs: 31000 });
+      expect(result.artifactResults).toHaveLength(2);
+    } finally { await accelerator.cleanup(); }
+  });
   it.each(["valid", "shared_budget", "ordering", "changed", "missing", "startup_failure", "native_failure", "cancel", "cleanup_failure"] as const)("reconciles a clipped cross-window variant with a bounded witness: %s", async scenario => {
     const accelerator = await createAcceleratorFixture();
     try {

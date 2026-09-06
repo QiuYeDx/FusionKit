@@ -20,6 +20,9 @@ function inspect(source, offset, view, timing) {
   }
   if (view.segments.reduce((sum, s) => sum + s.text.length, 0) > 8192) return fail("text_budget_exceeded");
   const groups = [];
+  // Explain rejected coverage without mining or accepting fragments of wrong text.
+  const coverage = { uniqueGroups: 0, ambiguousGroups: 0, shortGroups: 0,
+    atGroupStart: 0, atGroupEnd: 0, insideGroup: 0 };
   let budget = 200000;
   for (let first = 0; first < view.segments.length; first++) {
     let text = "";
@@ -30,14 +33,24 @@ function inspect(source, offset, view, timing) {
       if (budget < 0) return fail("comparison_budget_exceeded");
       const matches = findInsertionOnlySpans(source.text, text);
       // Uniqueness is checked in the entire parent, never by choosing a nearby time.
-      if (matches.length !== 1) continue;
+      if (matches.length !== 1) {
+        if (matches.length > 1) coverage.ambiguousGroups++;
+        continue;
+      }
       const match = matches[0];
-      if (match.end - match.start >= 12 && match.start < offset && offset < match.end) groups.push({ first, last, match });
+      coverage.uniqueGroups++;
+      if (match.end - match.start < 12) { coverage.shortGroups++; continue; }
+      if (match.start === offset) coverage.atGroupStart++;
+      if (match.end === offset) coverage.atGroupEnd++;
+      if (match.start < offset && offset < match.end) {
+        coverage.insideGroup++;
+        groups.push({ first, last, match });
+      }
     }
   }
   groups.sort((a, b) => (b.match.end - b.match.start) - (a.match.end - a.match.start));
   const best = groups[0];
-  if (!best) return fail("no_exact_complete_group");
+  if (!best) return { ...fail("no_exact_complete_group"), coverage };
   if (groups[1] && groups[1].match.end - groups[1].match.start === best.match.end - best.match.start) return fail("ambiguous_group");
   const words = [];
   let candidateOffset = 0;
@@ -73,7 +86,10 @@ function inspect(source, offset, view, timing) {
     if (points.leftPointMs >= points.rightPointMs) reasons.push("degenerate_dtw_boundary");
     if (points.leftPointMs <= source.startMs || points.rightPointMs >= source.endMs) reasons.push("outside_parent");
     return { id: view.id, group: [best.first, best.last], sourceSpan: [best.match.start, best.match.end],
-      points, reasons, semantics: "token_interior_points_not_speech_edges" };
+      points, reasons, coverage,
+      nativeBoundaryMs: left.segmentIndex !== right.segmentIndex
+        ? view.windowStartMs + millis(view.segments[right.segmentIndex].start) : null,
+      semantics: "token_interior_points_not_speech_edges" };
   }
   const interval = { leftEndMs: view.windowStartMs + left.end, rightStartMs: view.windowStartMs + right.start };
   const reasons = [];
@@ -93,7 +109,7 @@ function audit(source, offset, observations, timing) {
       !Number.isSafeInteger(source.startMs) || !Number.isSafeInteger(source.endMs) ||
       source.startMs < 0 || source.endMs <= source.startMs ||
       !Number.isSafeInteger(offset) || offset <= 0 || offset >= units(source.text).length ||
-      !Array.isArray(observations) || observations.length < 2 || observations.length > 4 ||
+      !Array.isArray(observations) || observations.length < 2 || observations.length > 8 ||
       observations.some(v => typeof v?.id !== "string" || !v.id)) throw new Error("invalid_audit_input");
   const reasons = [];
   if (new Set(observations.map(v => v.id)).size !== observations.length ||

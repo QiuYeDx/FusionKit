@@ -17,6 +17,23 @@ const witness = (): LocalSubtitleServerRawSegment => ({ ...raw("ん?なんだ �
 const plan = () => planLocalSubtitleOverlapReview(input())!;
 
 describe("cross-window variant arbitration", () => {
+  it.each(["valid", "changed", "other_words", "late", "repeated"])("handles a complete multi-segment witness: %s", scenario => {
+    const data = input();
+    const l = "は?でも調子になんで", r = "は?でも女子になんてこと聞くんだ";
+    data.leftRaw = [raw(l, 24610, 30000)]; data.rightRaw = [raw(r, 2370, 6000)];
+    data.cues = [{ id: "left", text: l, startMs: 24610, endMs: 27500 }, { id: "right", text: r, startMs: 27500, endMs: 31000 }];
+    const part = (text: string, startMs: number, endMs: number) => ({ ...raw(text, startMs, endMs), dtwTokens: [{ text, pointMs: startMs + 40 }] });
+    const candidate = [part("ね?", 4380, 4620), part("は?", 7280, 7520), part("でも", 8020, 8360),
+      part(scenario === "changed" ? "男子になんてこと聞くんだ" : "女子になんてこと聞くんだ", 8360, 11000)];
+    if (scenario === "other_words") candidate.splice(1, 0, part("もう一度", 5000, 6000));
+    if (scenario === "late") data.rightRaw[0] = raw(r, 3000, 6000);
+    if (scenario === "repeated") candidate.push(part(r, 12000, 18000));
+    const review = planLocalSubtitleOverlapReview(data)!;
+    expect(review.rightWindowStartMs).toBe(25000);
+    const result = resolveLocalSubtitleOverlap(review, candidate);
+    if (scenario === "valid") expect(result?.replacement).toEqual({ id: "left.seam", text: r, startMs: 27370, endMs: 31000 });
+    else expect(result).toBeUndefined();
+  });
   it("requires a third observation and selects the existing complete text once", () => {
     const review = plan();
     expect(review.window).toMatchObject({ startMs: 20000, endMs: 40000, rootWindowKey: "w1.seam", windowKey: "w1.seam" });

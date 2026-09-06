@@ -1,6 +1,7 @@
 import type { LocalSubtitleSegment } from "@/type/localSubtitle";
 import type { LocalSubtitleServerRawSegment } from "./server-contract";
 import type { LocalSubtitlePostProcessingWindow as Window } from "./subtitle-post-processor";
+import { inspectCompleteOverlapWitness } from "./cue-complete-overlap-evidence";
 
 const fingerprint = (text: string) => text.normalize("NFKC").toLocaleLowerCase("und").replace(/[\p{P}\s]/gu, "");
 const occurrences = (text: string, part: string) => {
@@ -11,6 +12,7 @@ const occurrences = (text: string, part: string) => {
 
 export interface LocalSubtitleOverlapReview {
   readonly window: Window;
+  readonly rightWindowStartMs: number;
   readonly budgetRootWindowKey: string;
   readonly leftIndex: number;
   readonly rightIndex: number;
@@ -48,12 +50,26 @@ export function planLocalSubtitleOverlapReview(input: {
   const window: Window = Object.freeze({ ...b, windowKey: `${b.windowKey}.seam`, rootWindowKey: `${b.windowKey}.seam`,
     startMs, endMs, coreStartMs: startMs, coreEndMs: endMs,
     startFrame: startMs * 16, endFrame: endMs * 16, coreStartFrame: startMs * 16, coreEndFrame: endMs * 16 });
-  return Object.freeze({ window, budgetRootWindowKey: b.rootWindowKey, leftIndex: leftIndices[0]!, rightIndex: rightIndices[0]!,
+  return Object.freeze({ window, rightWindowStartMs: b.startMs, budgetRootWindowKey: b.rootWindowKey, leftIndex: leftIndices[0]!, rightIndex: rightIndices[0]!,
     left: cues[leftIndices[0]!]!, right: cues[rightIndices[0]!]!, leftObservation: left, rightObservation: right });
 }
 
-/** Select an existing complete observation only with a unique, two-sided audio witness. */
+/** Keep established two-sided evidence first, then inspect an exact complete group. */
 export function resolveLocalSubtitleOverlap(review: LocalSubtitleOverlapReview,
+  candidate: readonly LocalSubtitleServerRawSegment[]) {
+  const established = resolveTwoSidedOverlap(review, candidate);
+  if (established) return established;
+  const complete = inspectCompleteOverlapWitness({ review, candidate, rightWindowStartMs: review.rightWindowStartMs });
+  if (!complete.supported) return;
+  return Object.freeze({
+    replacement: Object.freeze({ ...complete.replacement, id: `${review.left.id}.seam` }),
+    evidence: Object.freeze({ ...complete.evidence, mode: "complete_group" as const,
+      discarded: review.leftObservation, selected: review.rightObservation,
+      witness: candidate.slice(complete.evidence.first, complete.evidence.last + 1), window: review.window }),
+  });
+}
+
+function resolveTwoSidedOverlap(review: LocalSubtitleOverlapReview,
   candidate: readonly LocalSubtitleServerRawSegment[]) {
   if (candidate.length > 128 || candidate.reduce((n, s) => n + s.text.length, 0) > 4096) return;
   const { left, right, window } = review;

@@ -20,6 +20,12 @@
 | T-SEG-04 | 通过资格验证的时间能力接入与有界执行 | 已完成 | R-SEG-03、R-SEG-04、R-SEG-05、R-SEG-07 | T-SEG-03E | 2026-09-06 | records/2026-09-06_T-SEG-04-05_production_dtw.md |
 | T-SEG-05 | 句界候选、分隔恢复与统一规划接线 | 进行中 | R-SEG-01、R-SEG-02、R-SEG-03、R-SEG-04、R-SEG-05 | T-SEG-04 | — | records/2026-09-06_T-SEG-05_punctuated_cues.md |
 | T-SEG-05A | 跨窗同次发言的异文重复仲裁（25～31 秒实样） | 已完成 | R-SEG-02、R-SEG-03、R-SEG-04、R-SEG-05、R-SEG-07 | T-SEG-04 | 2026-09-06 | records/2026-09-06_T-SEG-05A_overlap_implementation.md |
+| T-SEG-05B | 开头问候与身份回答连写的局部证据核对 | 已完成 | R-SEG-02、R-SEG-03、R-SEG-05、R-SEG-07 | T-SEG-05A | 2026-09-06 | records/2026-09-06_T-SEG-05B_opening_phrases.md |
+| T-SEG-05C | 双侧精确锚点的局部时间资格与听校 | 已完成 | R-SEG-02、R-SEG-03、R-SEG-05、R-SEG-07 | T-SEG-05B | 2026-09-06 | records/2026-09-06_T-SEG-05C_local_anchors.md |
+| T-SEG-05D | 完整组首局部锚点默认接线及实际回归 | 已完成 | R-SEG-02、R-SEG-03、R-SEG-05、R-SEG-07 | T-SEG-05C | 2026-09-06 | records/2026-09-06_T-SEG-05D_production_anchors.md |
+| T-SEG-05E | 未定时前缀的中性分隔与实际回归 | 已完成 | R-SEG-02、R-SEG-03、R-SEG-05、R-SEG-07 | T-SEG-05D | 2026-09-06 | records/2026-09-06_T-SEG-05E_prefix_separators.md |
+| T-SEG-05F | 整轨接缝诊断与第二处重复资格 | 已完成 | R-SEG-02、R-SEG-03、R-SEG-04、R-SEG-07 | T-SEG-05E | 2026-09-06 | records/2026-09-06_T-SEG-05F_full_seams.md |
+| T-SEG-05G | 完整候选组接缝默认消费及实际验证 | 已完成 | R-SEG-02、R-SEG-03、R-SEG-04、R-SEG-07 | T-SEG-05F | 2026-09-06 | records/2026-09-06_T-SEG-05G_complete_overlap.md |
 | T-SEG-06 | 任务说明、设置兼容与格式/翻译交接 | 未开始 | R-SEG-02、R-SEG-06、R-SEG-07 | T-SEG-05 | — | — |
 | T-SEG-07 | 全轨回归与实际应用人工验收包 | 未开始 | R-SEG-01、R-SEG-02、R-SEG-03、R-SEG-04、R-SEG-05、R-SEG-06、R-SEG-07 | T-SEG-06 | — | — |
 
@@ -123,3 +129,13 @@
 - T-SEG-05A（原 P0，现已完成本例验收）：先完成重叠观察的同次发言资格、完整候选选择及时间覆盖设计，再接线。接受整句一条或有时间依据的两条；拒绝“残缺变体 + 完整句”的重复输出。开发范围和正反例见[反馈与初诊记录](records/2026-09-06_T-SEG-05A_overlap_feedback.md)。后续本轮已完成默认接线及六素材精确回归：该段只出现一次完整句，其他输出保持；2026-09-06 用户反馈 resolved，本例人工听校通过，见[实现记录](records/2026-09-06_T-SEG-05A_overlap_implementation.md)。
 
 - Q-SEG-CHECK-01：全库 i18n usage 检查仍受重命名工具既有表达式/清单不匹配影响（2 项）；字幕新键无错误，详情见首批实施记录。本批不关闭该既有检查问题。
+
+T-SEG-05B 已完成四次固定探针与全部观察审计，未通过自动时间资格；完成的是核对和否定采用决定，开头连写仍未修复。后续先设计局部字词差异下的安全时间对应，不能直接放宽现有整段匹配门或继续换裁窗。见 [05B 记录](records/2026-09-06_T-SEG-05B_opening_phrases.md)。
+
+T-SEG-05C：离线双侧锚点审计及 53 项相关测试完成，新增 9660 ms 实验分句，用户 aligned 反馈已核对，局部资格与听校完成。仅生成保持正文的预览，默认消费者和实际应用输出未修改；问候/身份回答仍有连写，不能关闭 T-SEG-05。见 [05C 记录](records/2026-09-06_T-SEG-05C_local_anchors.md)。
+
+T-SEG-05D 已完成：新构建实际应用六素材严格回归，仅开头/全轨新增同一个 9660 ms 分句，已验收的其他文字/时间与去重保持。默认复用旧候选，没有新增模型请求路径。相同位置沿用已通过听校；其余开头连写仍属 T-SEG-05 未完成范围。见 [05D 记录](records/2026-09-06_T-SEG-05D_production_anchors.md)。
+
+T-SEG-05E 已完成默认中性分隔及六素材验证，问候/身份回答有空格，独立时间未解决。T-SEG-05F 已完成全轨第二处跨窗疑似重复的诊断和实验包：77370～81000 ms 一次完整句，其他 65 条保持，默认输出未改。下一检查点为该候选的内容/时间听校；通过后安排单独的生产接线任务，详见 [05F 记录](records/2026-09-06_T-SEG-05F_full_seams.md)。
+
+T-SEG-05G 已完成：05F 用户内容 resolved / 时间 aligned，默认完整候选组消费者已接线；新构建实际六素材严格比较仅 full 复现同一 77370～81000 ms 修复，其余完全保持。此处无需重复听校，T-SEG-05 的其他范围继续推进。见 [05G 记录](records/2026-09-06_T-SEG-05G_complete_overlap.md)。

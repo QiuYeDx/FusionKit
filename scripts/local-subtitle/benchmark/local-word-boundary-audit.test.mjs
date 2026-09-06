@@ -42,12 +42,36 @@ test("whole local groups can map without allowing incorrect neighboring segments
 test("never mines an exact substring inside a segment with changed words", () => {
   const a = view("a"); a.segments[0].text = "誤" + a.segments[0].text;
   assert.deepEqual(audit(a).observations[0].reasons, ["no_exact_complete_group"]);
+  assert.equal(audit(a).observations[0].coverage.uniqueGroups, 0);
 });
 
 test("ambiguous repeated phrases cannot be resolved by their apparent timestamps", () => {
   const result = audit(view("a"), view("b", 500), { ...source, text: text + text });
   assert.equal(result.stableWordEvidence, false);
   assert.deepEqual(result.observations[0].reasons, ["no_exact_complete_group"]);
+  assert.equal(result.observations[0].coverage.ambiguousGroups, 1);
+});
+
+test("reports a complete group's leading edge without granting a two-sided time cut", () => {
+  const a = view("a");
+  const s = { ...source, text: "前文" + source.text };
+  const result = audit(a, view("b", 500), s, 2);
+  assert.equal(result.stableWordEvidence, false);
+  assert.equal(result.automaticAcceptance, false);
+  assert.equal(result.observations[0].coverage.atGroupStart, 1);
+  assert.equal(result.observations[0].coverage.insideGroup, 0);
+  assert.equal(result.observations[0].interval, null);
+});
+
+test("distinguishes short matches and trailing edges from a covered interior", () => {
+  const a = view("a");
+  a.segments[0].text = "今日は雨です";
+  const short = audit(a).observations[0];
+  assert.equal(short.coverage.shortGroups, 1);
+  assert.deepEqual(short.reasons, ["no_exact_complete_group"]);
+  const trailing = audit(view("a"), view("b", 500), { ...source, text: text + "後文" }, text.length);
+  assert.equal(trailing.observations[0].coverage.atGroupEnd, 1);
+  assert.equal(trailing.stableWordEvidence, false);
 });
 
 test("same-start and duplicate observations do not establish independent stability", () => {
@@ -135,4 +159,24 @@ test("DTW reports disagreeing points without converting them into duration inter
   assert.ok(result.reasons.includes("window_disagreement"));
   assert.deepEqual(result.spread, { leftPointMs: 0, rightPointMs: 400 });
   assert.equal(result.observations[0].interval, undefined);
+});
+
+test("DTW keeps native segment boundaries separate from token points", () => {
+  const a = dtwView("a");
+  a.segments = [{ text: "昨日は晴れ。", start: 1, end: 3.1, words: a.segments[0].words.slice(0, 2) },
+    { text: "今日は雨です。明日は晴れ", start: 3.1, end: 8, words: a.segments[0].words.slice(2) }];
+  const result = dtwAudit(a);
+  assert.equal(result.observations[0].nativeBoundaryMs, 3100);
+  assert.equal(result.observations[0].points.rightPointMs, 4100);
+  assert.equal(result.observations[1].nativeBoundaryMs, null);
+});
+
+test("keeps up to eight observations, including late failures, with a fixed hard cap", () => {
+  const views = Array.from({ length: 8 }, (_, i) => dtwView(`view-${i}`, i * 100));
+  views[7].segments[0].text = "誤" + views[7].segments[0].text;
+  const result = auditLocalDtwBoundary(source, 5, views);
+  assert.equal(result.observations.length, 8);
+  assert.equal(result.stableDtwEvidence, false);
+  assert.equal(result.observations[7].coverage.uniqueGroups, 0);
+  assert.throws(() => auditLocalDtwBoundary(source, 5, [...views, dtwView("ninth", 800)]), /invalid_audit_input/);
 });

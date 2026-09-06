@@ -1,6 +1,7 @@
 import type { LocalSubtitleSegment } from "@/type/localSubtitle";
 import type { LocalSubtitleServerRawSegment } from "./server-contract";
 import { planLocalSubtitleSegmentCue, type LocalSubtitleCueTargets } from "./cue-boundary-planner";
+import { inspectLocalAnchorEvidence, inspectLocalPrefixSeparators } from "./cue-local-anchor-evidence";
 
 const GRAPHEMES = new Intl.Segmenter("und", { granularity: "grapheme" });
 const JAPANESE_WORDS = new Intl.Segmenter("ja", { granularity: "word" });
@@ -131,6 +132,11 @@ function enhance(input: CueEnhancementInput, allowTiming: boolean): readonly Loc
   };
   for (const item of best.map.insertions) insert(item.offset, item.insert);
   for (const end of best.parts.slice(0, -1)) insert(best.map.offsets[end]!, " ");
+  // Prefix text may have clear separation even when its time evidence is unusable.
+  const prefixSeparators = inspectLocalPrefixSeparators({ text: cue.text, startMs: cue.startMs, endMs: cue.endMs, contextText },
+    { windowStartMs, windowEndMs: windowStartMs + (input.windowDurationMs ?? Math.max(0, ...candidate.map(s => s.endMs))), segments: candidate },
+    best.map.start - sourceStart);
+  for (const separator of prefixSeparators) if (safeOffsets.has(separator.offset)) insertions.set(separator.offset, " ");
   const cuts = new Map<number, number>();
   if (allowTiming) {
     const words: { from: number; to: number; pointMs: number }[] = [];
@@ -174,13 +180,29 @@ function enhance(input: CueEnhancementInput, allowTiming: boolean): readonly Loc
       }
     }
   }
+  // Extend only the head of an already accepted complete group. The existing
+  // group and all its internal cuts remain authoritative; this never rewrites words.
+  const head = best.map.start - sourceStart;
+  if (allowTiming && head > 0 && best.map.end <= sourceEnd && best.map.end - best.map.start >= 12 &&
+      safeOffsets.has(head) && cuts.size < 8 && Number.isSafeInteger(input.windowDurationMs)) {
+    const evidence = inspectLocalAnchorEvidence({ text: cue.text, startMs: cue.startMs, endMs: cue.endMs, contextText },
+      { windowStartMs, windowEndMs: windowStartMs + input.windowDurationMs!, segments: candidate });
+    const heads = evidence.boundaries.filter(boundary => boundary.offset === head);
+    if (!evidence.reasons.length && heads.length === 1) {
+      const point = heads[0]!.rightPointMs;
+      const neighbors = [cue.startMs, ...cuts.values(), cue.endMs];
+      if (neighbors.every(time => Math.abs(time - point) >= 600) &&
+          [...cuts].every(([offset, time]) => (offset < head) === (time < point))) cuts.set(head, point);
+    }
+  }
   if (!insertions.size && !cuts.size) return [cue];
   const text = source.map((unit, offset) => (insertions.get(offset) ?? "") + unit).join("");
   try {
     const planned = planLocalSubtitleSegmentCue({ timelineDomain: "original_media", startMs: cue.startMs, endMs: cue.endMs, text }, targets);
     if (!cuts.size) return [Object.freeze({ ...cue, text: planned.text })];
-    const offsets = [0, ...cuts.keys(), source.length];
-    const times = [cue.startMs, ...cuts.values(), cue.endMs];
+    const orderedCuts = [...cuts].sort(([a], [b]) => a - b);
+    const offsets = [0, ...orderedCuts.map(([offset]) => offset), source.length];
+    const times = [cue.startMs, ...orderedCuts.map(([, time]) => time), cue.endMs];
     return Object.freeze(offsets.slice(0, -1).map((start, index) => {
       const end = offsets[index + 1]!;
       // An inserted separator at a new cue boundary belongs to the preceding cue.
