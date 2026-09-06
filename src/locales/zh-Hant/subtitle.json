@@ -236,6 +236,18 @@
     }
   },
   "local_transcriber": {
+    "task_details": {
+      "title": "任務詳情",
+      "action": "檢視 {{name}} 的任務詳情",
+      "source": "來源檔案位置",
+      "outputs": "輸出檔案",
+      "status": "任務狀態",
+      "created": "建立時間",
+      "updated": "更新時間",
+      "unavailable": "未記錄",
+      "enabled": "已開啟",
+      "disabled": "未開啟"
+    },
     "cue_summary": {
       "total": "共 {{count}} 條字幕",
       "exceeds": "{{count}} 條超過分句建議值",

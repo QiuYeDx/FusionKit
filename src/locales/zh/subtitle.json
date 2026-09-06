@@ -236,6 +236,18 @@
     }
   },
   "local_transcriber": {
+    "task_details": {
+      "title": "任务详情",
+      "action": "查看 {{name}} 的任务详情",
+      "source": "源文件位置",
+      "outputs": "输出文件",
+      "status": "任务状态",
+      "created": "创建时间",
+      "updated": "更新时间",
+      "unavailable": "未记录",
+      "enabled": "已开启",
+      "disabled": "未开启"
+    },
     "cue_summary": {
       "total": "共 {{count}} 条字幕",
       "exceeds": "{{count}} 条超过分句建议值",

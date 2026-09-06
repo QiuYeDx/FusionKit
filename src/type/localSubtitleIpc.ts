@@ -297,6 +297,7 @@ const artifactSummarySchema = z
   .object({
     artifactRef: opaqueRefSchema,
     displayName: displayNameSchema,
+    outputPathDisplay: z.string().min(1).max(32768).refine(value => !value.includes("\u0000")).optional(),
     format: z.enum(LOCAL_SUBTITLE_FORMATS),
     expiresAt: positiveSafeIntegerSchema,
   })
@@ -547,6 +548,7 @@ export const localSubtitleTaskSummarySchema: z.ZodType<LocalSubtitleTaskSummary>
       sourceKey: opaqueRefSchema,
       generation: positiveSafeIntegerSchema,
       displayName: displayNameSchema,
+      sourcePathDisplay: z.string().min(1).max(32768).refine(value => !value.includes("\u0000")).optional(),
       durationMs: positiveSafeIntegerSchema
         .max(LOCAL_SUBTITLE_LIMITS.maxDurationMs)
         .optional(),

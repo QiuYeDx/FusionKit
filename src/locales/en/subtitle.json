@@ -236,6 +236,18 @@
     }
   },
   "local_transcriber": {
+    "task_details": {
+      "title": "Task details",
+      "action": "View task details for {{name}}",
+      "source": "Source file location",
+      "outputs": "Output files",
+      "status": "Task status",
+      "created": "Created",
+      "updated": "Updated",
+      "unavailable": "Not recorded",
+      "enabled": "Enabled",
+      "disabled": "Disabled"
+    },
     "cue_summary": {
       "total": "Cues: {{count}}",
       "exceeds": "Above suggested limits: {{count}}",

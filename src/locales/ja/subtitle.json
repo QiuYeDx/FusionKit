@@ -236,6 +236,18 @@
     }
   },
   "local_transcriber": {
+    "task_details": {
+      "title": "タスクの詳細",
+      "action": "{{name}} のタスク詳細を表示",
+      "source": "元ファイルの場所",
+      "outputs": "出力ファイル",
+      "status": "タスクの状態",
+      "created": "作成日時",
+      "updated": "更新日時",
+      "unavailable": "記録なし",
+      "enabled": "有効",
+      "disabled": "無効"
+    },
     "cue_summary": {
       "total": "字幕数：{{count}}",
       "exceeds": "推奨値を超える字幕：{{count}}",

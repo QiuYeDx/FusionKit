@@ -287,6 +287,8 @@ export type LocalSubtitleArtifactStatus =
 export interface GeneratedSubtitleArtifactSummary {
   readonly artifactRef: string;
   readonly displayName: string;
+  /** Display only; filesystem operations must continue to use artifactRef. */
+  readonly outputPathDisplay?: string;
   readonly format: LocalSubtitleFormat;
   readonly expiresAt: number;
 }
@@ -971,6 +973,8 @@ export interface LocalSubtitleTaskSummary {
   readonly sourceKey: string;
   readonly generation: number;
   readonly displayName: string;
+  /** Authorized source location for display only, never an input capability. */
+  readonly sourcePathDisplay?: string;
   readonly durationMs?: number;
   readonly status: LocalSubtitleTaskStatus;
   readonly progress: LocalSubtitleTaskProgress;

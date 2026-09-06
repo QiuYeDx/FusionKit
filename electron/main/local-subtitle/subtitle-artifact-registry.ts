@@ -755,12 +755,13 @@ export class LocalSubtitleArtifactRegistry {
 function artifactSummary(
   entry: Pick<
     ActiveArtifactEntry,
-    "artifactRef" | "displayName" | "format" | "expiresAt"
+    "artifactRef" | "displayName" | "format" | "expiresAt" | "record"
   >,
 ): GeneratedSubtitleArtifactSummary {
   return Object.freeze({
     artifactRef: entry.artifactRef,
     displayName: entry.displayName,
+    outputPathDisplay: entry.record.filePath,
     format: entry.format,
     expiresAt: entry.expiresAt,
   });

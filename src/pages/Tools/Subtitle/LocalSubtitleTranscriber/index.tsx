@@ -1903,6 +1903,7 @@ export default function LocalSubtitleTranscriber() {
           tourQueueId="local-subtitle-tour-queue"
           tourStartId="local-subtitle-tour-start"
           tasks={visibleTasks}
+          batchConfigs={new Map(visibleBatches.map(batch => [batch.batchId, batch.config]))}
           draftFiles={selectedFiles}
           draftProbes={draftMediaProbes}
           explicitAudioStreamIds={explicitAudioStreamIds}

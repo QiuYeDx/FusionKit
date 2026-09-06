@@ -2893,7 +2893,7 @@ function createTaskExecutionBinding(
 
 function createQueuedTaskSummary(
   record: TaskRecord,
-  input: Pick<ResolvedLocalSubtitleInput, "displayName" | "sourceKey">,
+  input: Pick<ResolvedLocalSubtitleInput, "displayName" | "sourceKey" | "filePath">,
   createdAt: string,
 ): LocalSubtitleTaskSummary {
   return {
@@ -2902,6 +2902,7 @@ function createQueuedTaskSummary(
     sourceKey: input.sourceKey,
     generation: record.generation,
     displayName: input.displayName,
+    sourcePathDisplay: input.filePath,
     status: "queued",
     progress: queuedProgress(),
     model: record.batch.config.model,

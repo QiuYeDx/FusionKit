@@ -62,9 +62,11 @@ describe("LocalSubtitleJobManager", () => {
     const request=await harness.createRequest(harness.fileToken);
     const batch=await harness.manager.enqueue(OWNER_A,request);
     expect(batch.tasks[0].cueSummary).toBeUndefined();
+    expect(path.isAbsolute(batch.tasks[0].sourcePathDisplay!)).toBe(true);
     harness.flushScheduled();await harness.manager.waitForIdle();
     const completed=events.find(event=>event.event.task?.status==="completed");
     expect(completed?.event.task.cueSummary).toEqual({cueCount:13,exceedsTargetCount:2});
+    expect(completed?.event.task.sourcePathDisplay).toBe(batch.tasks[0].sourcePathDisplay);
     expect(harness.manager.getSessionSnapshot(OWNER_A).batches[0].tasks[0].cueSummary).toEqual({cueCount:13,exceedsTargetCount:2});
     expect(JSON.stringify(events)).not.toContain("must not cross IPC");
   });

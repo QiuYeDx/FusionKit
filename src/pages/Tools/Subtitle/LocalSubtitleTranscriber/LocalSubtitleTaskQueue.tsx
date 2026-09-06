@@ -1,8 +1,10 @@
 import type { TFunction } from "i18next";
 import { LocalSubtitleCueSummary } from "./LocalSubtitleCueSummary";
-import type { ReactNode } from "react";
+import { useId, useState, type ReactNode } from "react";
+import { LocalSubtitleTaskInfo } from "./LocalSubtitleTaskInfo";
 import { useTranslation } from "react-i18next";
 import {
+  AlertTriangle,
   Cpu,
   Eye,
   FolderOpen,
@@ -31,6 +33,7 @@ import { cn } from "@/lib/utils";
 import { ToolPanel } from "@/pages/Tools/_shared/ui";
 import type {
   GeneratedSubtitleArtifactSummary,
+  LocalSubtitleBatchConfigSummary,
   LocalSubtitleTaskStatus,
   LocalSubtitleTaskSummary,
 } from "@/type/localSubtitle";
@@ -112,6 +115,7 @@ interface LocalSubtitleTaskQueueProps {
   readonly tourQueueId?: string;
   readonly tourStartId?: string;
   readonly tasks: readonly LocalSubtitleTaskSummary[];
+  readonly batchConfigs?: ReadonlyMap<string, LocalSubtitleBatchConfigSummary>;
   readonly draftFiles: readonly LocalSubtitleAuthorizedMedia[];
   readonly draftProbes: ReadonlyMap<string, LocalSubtitleDraftMediaProbe>;
   readonly explicitAudioStreamIds: ReadonlyMap<string, string>;
@@ -158,6 +162,7 @@ export function LocalSubtitleTaskQueue({
   tourQueueId,
   tourStartId,
   tasks,
+  batchConfigs,
   draftFiles,
   draftProbes,
   explicitAudioStreamIds,
@@ -268,6 +273,7 @@ export function LocalSubtitleTaskQueue({
               <TaskRow
                 key={task.taskId}
                 task={task}
+                config={batchConfigs?.get(task.batchId)}
                 pendingActionKeys={pendingActionKeys}
                 manualHandoffResults={manualHandoffResults}
                 missingTranslationTaskIds={missingTranslationTaskIds}
@@ -506,6 +512,7 @@ function formatSampleRate(sampleRateHz: number): string {
 
 function TaskRow({
   task,
+  config,
   pendingActionKeys,
   manualHandoffResults,
   missingTranslationTaskIds,
@@ -532,7 +539,10 @@ function TaskRow({
   | "onShowError"
 > & {
   readonly task: LocalSubtitleTaskSummary;
+  readonly config?: LocalSubtitleBatchConfigSummary;
 }) {
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const detailsId = useId();
   const { t } = useTranslation(["subtitle"]);
   const progressDisplay = deriveLocalSubtitleTaskProgressDisplay(task);
   const pending = (action: LocalSubtitleTaskAction) =>
@@ -592,15 +602,6 @@ function TaskRow({
   ]
     .filter((value): value is string => Boolean(value))
     .join(" · ");
-  const artifactSummary = completion
-    ? completion.artifacts.map((result) =>
-        result.status === "committed"
-          ? `${result.format} → ${result.artifact.displayName}`
-          : `${result.format} · ${t(
-              `subtitle:local_transcriber.result.${result.status}`,
-            )}${result.errorCode ? ` (${result.errorCode})` : ""}`,
-      ).join(" / ")
-    : "";
   const statusLabel =
     completion?.outcome === "partial"
       ? t("subtitle:local_transcriber.result.partial")
@@ -615,17 +616,9 @@ function TaskRow({
         })}
       </span>
     ) : null,
-    artifactSummary ? (
-      <span
-        className={cn(
-          "min-w-0 max-w-full truncate font-mono",
-          completion?.outcome === "partial"
-            ? "text-amber-700 dark:text-amber-300"
-            : "text-emerald-700 dark:text-emerald-300",
-        )}
-        title={artifactSummary}
-      >
-        {artifactSummary}
+    task.status === "completed" && task.cueSummary ? (
+      <span className="shrink-0" data-testid="local-subtitle-cue-total">
+        {t("subtitle:local_transcriber.cue_summary.total", { count: task.cueSummary.cueCount })}
       </span>
     ) : null,
     postActionSummary ? (
@@ -651,7 +644,7 @@ function TaskRow({
       data-task-id={task.taskId}
       className="min-w-0 px-4 py-3"
     >
-      <div className="flex min-w-0 items-start gap-3">
+      <div className="flex min-w-0 flex-wrap items-start gap-x-3 gap-y-0 sm:flex-nowrap">
         <span
           aria-hidden="true"
           className={cn(
@@ -659,7 +652,7 @@ function TaskRow({
             TASK_STATUS_DOT_CLASS[task.status],
           )}
         />
-        <div className="min-w-0 flex-1">
+        <div className="min-w-0 flex-1 max-sm:basis-[calc(100%-1.5rem)]">
           <div className="flex min-w-0 items-center gap-2">
             <span className="min-w-0 truncate font-mono text-[13px] font-medium">
               {task.displayName}
@@ -670,12 +663,15 @@ function TaskRow({
             >
               {statusLabel}
             </Badge>
+            {task.status === "completed" && task.cueSummary ? <LocalSubtitleCueSummary summary={task.cueSummary} /> : null}
           </div>
           <TaskMeta items={metaItems} />
-          {task.status === "completed" && task.cueSummary ? <LocalSubtitleCueSummary summary={task.cueSummary} /> : null}
         </div>
 
         <TaskActions
+          detailsOpen={detailsOpen}
+          detailsId={detailsId}
+          onToggleDetails={() => setDetailsOpen(value => !value)}
           task={task}
           anyActionPending={anyActionPending}
           pending={pending}
@@ -692,6 +688,8 @@ function TaskRow({
           onShowError={onShowError}
         />
       </div>
+
+      {detailsOpen ? <LocalSubtitleTaskInfo id={detailsId} task={task} config={config} statusLabel={statusLabel} /> : null}
 
       {progressDisplay ? (
         <div
@@ -725,7 +723,7 @@ function TaskMeta({
   if (visibleItems.length === 0) return null;
 
   return (
-    <div className="mt-1 flex min-w-0 flex-nowrap items-center gap-x-2 overflow-hidden text-[11px] text-muted-foreground">
+    <div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-muted-foreground">
       {visibleItems.map((item, index) => (
         <span key={index} className="contents">
           {index > 0 ? (
@@ -740,6 +738,9 @@ function TaskMeta({
 
 function TaskActions({
   task,
+  detailsOpen,
+  detailsId,
+  onToggleDetails,
   anyActionPending,
   pending,
   primaryArtifact,
@@ -755,6 +756,9 @@ function TaskActions({
   onShowError,
 }: {
   readonly task: LocalSubtitleTaskSummary;
+  readonly detailsOpen: boolean;
+  readonly detailsId: string;
+  readonly onToggleDetails: () => void;
   readonly anyActionPending: boolean;
   readonly pending: (action: LocalSubtitleTaskAction) => boolean;
   readonly primaryArtifact?: GeneratedSubtitleArtifactSummary;
@@ -780,20 +784,15 @@ function TaskActions({
 }) {
   const { t } = useTranslation(["subtitle"]);
   const active = isLocalSubtitleTaskActive(task);
-  const hasAction =
-    Boolean(primaryArtifact) ||
-    Boolean(handoffArtifact) ||
-    Boolean(translationTaskId) ||
-    Boolean(task.error) ||
-    task.status === "failed" ||
-    task.cpuRetryAvailable === true ||
-    (active && task.status !== "cancelling") ||
-    !active;
-
-  if (!hasAction) return null;
-
   return (
-    <ButtonGroup className="shrink-0">
+    <ButtonGroup className="shrink-0 max-sm:ml-auto max-sm:mt-2 max-sm:max-w-full max-sm:flex-wrap">
+      <Button type="button" variant="outline" size="icon"
+        aria-label={t("subtitle:local_transcriber.task_details.action", { name: task.displayName })}
+        title={t("subtitle:local_transcriber.task_details.title")}
+        aria-expanded={detailsOpen} aria-controls={detailsOpen ? detailsId : undefined}
+        onClick={onToggleDetails}>
+        <Info className="h-3.5 w-3.5" />
+      </Button>
       {primaryArtifact ? (
         <TaskIconButton
           label={t("subtitle:local_transcriber.actions.preview_artifact", {
@@ -851,7 +850,7 @@ function TaskActions({
           })}
           disabled={anyActionPending}
           loading={false}
-          icon={<Info className="h-3.5 w-3.5" />}
+          icon={<AlertTriangle className="h-3.5 w-3.5" />}
           onClick={() => onShowError(task)}
         />
       ) : null}

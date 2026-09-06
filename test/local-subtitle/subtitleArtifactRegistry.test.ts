@@ -91,10 +91,13 @@ describe("LocalSubtitleArtifactRegistry", () => {
       displayName: "sample.srt",
       format: "SRT",
       expiresAt: reserved.expiresAt,
+      outputPathDisplay: activation.filePath,
     });
     expect(Object.isFrozen(summary)).toBe(true);
     expect(summary).not.toBeInstanceOf(Promise);
-    expect(JSON.stringify(summary)).not.toContain(root);
+    expect(summary.outputPathDisplay).toBe(activation.filePath);
+    expect(Object.keys(summary).sort()).toEqual(["artifactRef", "displayName", "expiresAt", "format", "outputPathDisplay"]);
+    await expect(registry.readText(OWNER_A, summary.outputPathDisplay!)).rejects.toMatchObject({ code: "invalid_ipc_request" });
     expect(registry.revokeReservation(reserved.reservation)).toBe(false);
     await expect(registry.readText(OWNER_A, summary.artifactRef)).resolves
       .toEqual({
@@ -242,6 +245,7 @@ describe("LocalSubtitleArtifactRegistry", () => {
     expect(first).toEqual({
       artifactRef: "ls-artifact-ref-2",
       displayName: "refresh.srt",
+      outputPathDisplay: path.join(root, "refresh.srt"),
       format: "SRT",
       expiresAt: 120,
     });
@@ -279,6 +283,7 @@ describe("LocalSubtitleArtifactRegistry", () => {
     await expect(registry.refreshSummary(OWNER_A, artifact)).resolves.toEqual({
       artifactRef: "ls-artifact-ref-2",
       displayName: "refresh-during-read.srt",
+      outputPathDisplay: path.join(root, "refresh-during-read.srt"),
       format: "SRT",
       expiresAt: 120,
     });

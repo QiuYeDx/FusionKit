@@ -173,7 +173,8 @@ describe("local subtitle transcriber page wiring", () => {
     expect(queueSource).toContain("ToolPanel");
     expect(queueSource).toContain("ButtonGroup");
     expect(queueSource).toContain('bodyClassName="divide-y"');
-    expect(queueSource).toContain("completion.artifacts.map");
+    expect(queueSource).not.toContain("artifactSummary");
+    expect(queueSource).toContain("<LocalSubtitleTaskInfo");
     expect(queueSource).not.toContain("TaskArtifactResults");
     expect(queueSource).not.toContain("TaskPostActionResult");
     expect(queueSource).not.toContain("data-batch-id");
@@ -234,7 +235,8 @@ describe("local subtitle transcriber page wiring", () => {
     expect(queueSource).toContain('"retry"');
     expect(queueSource).toContain('"remove"');
     expect(queueSource).toContain('"reveal"');
-    expect(queueSource).toContain("completion.artifacts.map");
+    expect(queueSource).not.toContain("artifactSummary");
+    expect(queueSource).toContain("<LocalSubtitleTaskInfo");
     expect(pageSource).toContain("candidate.generation");
     expect(pageSource).toContain("mediaProbeQueueRef");
     expect(pageSource).toContain("explicitAudioStreamIds");

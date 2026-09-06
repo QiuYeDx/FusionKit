@@ -1798,6 +1798,16 @@ function validTranscript(): Mutable<LocalSubtitleTranscript> {
   } as Mutable<LocalSubtitleTranscript>;
 }
 
+it("accepts bounded display paths without granting path-based artifact access", () => {
+  const task = validTaskSummary();
+  expect(localSubtitleTaskSummarySchema.parse({ ...task, sourcePathDisplay: "C:\\media\\音声.wav" }).sourcePathDisplay).toBe("C:\\media\\音声.wav");
+  for (const sourcePathDisplay of ["", "x".repeat(32769), "invalid\u0000path", 42]) {
+    expect(localSubtitleTaskSummarySchema.safeParse({ ...task, sourcePathDisplay }).success).toBe(false);
+  }
+  expect(localSubtitleTaskSummarySchema.safeParse({ ...task, fileToken: "secret", sourcePathDisplay: "C:\\media\\音声.wav" }).success).toBe(false);
+  expect(localSubtitleArtifactRefRequestSchema.safeParse({ outputPathDisplay: "C:\\media\\音声.srt" }).success).toBe(false);
+});
+
 it("keeps final cue statistics optional and restricts them to completed tasks", () => {
   const task = completedTaskSummary();
   expect(localSubtitleTaskSummarySchema.safeParse(task).success).toBe(true);
