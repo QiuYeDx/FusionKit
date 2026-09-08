@@ -1,4 +1,8 @@
 {
+  "delete_document": "Delete document",
+  "delete_description": "Delete this document and its translations and stop its tasks. The original subtitle file and exported files will be kept.",
+  "cancel": "Cancel",
+  "cleanup_pending": "Document deleted. Some local files still need cleanup; refreshing or restarting will retry.",
   "import_settings": "Upload settings",
   "title": "Subtitle Studio",
   "documents": "Subtitle documents",

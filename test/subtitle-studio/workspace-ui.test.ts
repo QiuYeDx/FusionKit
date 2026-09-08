@@ -25,6 +25,7 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_E2E === '1')('Subtitle Studio worksp
     await app!.evaluate(({ dialog }, selected) => { dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [selected] }); }, path.join(root, name));
     await page.getByRole('button', { name: '打开字幕文件', exact: true }).click();
     await uiExpect(page.getByRole('heading', { name, exact: true })).toBeVisible();
+    await ready();
   }
   afterAll(async () => {
     try { await app?.close(); }
@@ -119,6 +120,7 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_E2E === '1')('Subtitle Studio worksp
       });
       expect(layout).toEqual({ truncated: true, ellipsis: 'ellipsis', endVisible: true, fits: true, sameLine: true });
       await uiExpect(filename.locator('.studio-file-name-end')).toHaveText(name.slice(-12));
+      await page.locator('.studio-cue-table th').first().hover();
       await filename.hover();
       await uiExpect(page.getByRole('tooltip', { name, exact: true })).toBeVisible();
       const tooltipLayout = await page.locator('[data-slot=tooltip-content]').evaluate(element => {

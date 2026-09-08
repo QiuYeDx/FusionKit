@@ -65,5 +65,13 @@ export function validateDocument(value: unknown): SubtitleDocument {
   for (const cue of doc.cues) {
     if (cueNodes.get(cue.id) !== cue.nodeId || new TextEncoder().encode(cue.source.plain).length > LIMITS.cueBytes || cue.source.spans.map(span => span.text).join('') !== cue.source.plain) throw new StudioError('invalid_input');
   }
+  const tracks = new Set<string>();
+  for (const track of doc.translationTracks) {
+    if (tracks.has(track.id)) throw new StudioError('invalid_input');
+    tracks.add(track.id);
+    for (const [cueId, entry] of Object.entries(track.entries)) {
+      if (!ids.has(cueId) || entry.text.spans.map(span => span.text).join('') !== entry.text.plain || new TextEncoder().encode(entry.text.plain).length > LIMITS.cueBytes) throw new StudioError('invalid_input');
+    }
+  }
   return doc;
 }

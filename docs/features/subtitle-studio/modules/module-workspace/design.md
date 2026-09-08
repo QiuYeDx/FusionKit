@@ -32,6 +32,12 @@ T-WORKSPACE-01 先提供一个最小真实入口：用户选择 SRT/LRC → 主�
 
 文档 directory id 由 main 生成，路径不接受 renderer 拼接。磁盘 generation 包含文档、该文档任务检查点和 schema，内容上限在序列化前验证。索引可重建。文档分页快照和更新事件带 documentRevision；订阅先于 snapshot，缓冲事件按版本归并，删除墓碑不能被旧 snapshot/晚到事件覆盖。跨会话事件不是持久存储。
 
+2026-09-08 T-WORKSPACE-02 实际实现：同一仓库根共享串行队列；严格 document/tasks 快照写入不可变 generation，文件 sync 后发布带 SHA-256 的 current 指针。发布前保存最后一个有效指针到 previous；读取只尝试这两个已发布指针，不扫描孤立 generation。兼容 T01 无 digest 指针，后续提交补齐摘要。列表直接从自有 UUID 目录重建，不依赖 index.json；两个指针都损坏时报错，不冒充空文档库。
+
+删除先发布独立 `.deleted/<documentId>.json` 墓碑，再取消内存活动并清理自有文档目录。墓碑永久保留，同 ID 的晚到提交/重建被拒绝；清理失败通过墓碑与残留目录保留待办，列表刷新/重启读取时自动重试。源文件、用户导出和 v1 数据不属于清理目录。源导出发布与删除共用串行队列，并在对话框返回后重新核对存在性与修订。owner 在发布指针前再次检查，避免异步 I/O 期间的导航撤权遗漏。
+
+桥增加 deleteDocument、removeTask 和固定 subscribe；事件只传文档 ID、修订、序列和删除标记，preload 不传 Electron event 或私有 capability。主进程核对已挂接 WebContents、主 frame、精确应用 URL、私有 capability、严格 DTO、文档 grant 和修订。UI 订阅先于列表读取，持续保留跨页修订观察与删除墓碑；过旧列表重新读取，过旧详情不进入视图。删除入口复用 StudioIconButton 和 ScrollableDialog，初始焦点在取消，取消后返回触发按钮。
+
 源修订/hash、目标轨修订与 task generation 在同一提交事务核对；新文档建立稳定 cue ID，不复用分片序号。删除任务保留文档，删除文档才执行停机和墓碑流程。
 
 ## 导入能力矩阵与资源边界

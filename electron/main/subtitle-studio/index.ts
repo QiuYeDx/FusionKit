@@ -1,6 +1,7 @@
 import { app, BrowserWindow, dialog, ipcMain, type IpcMainInvokeEvent, type WebContents } from 'electron';
 import { randomUUID } from 'node:crypto';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { z } from 'zod';
 import { LIMITS, StudioError } from '../../../src/subtitle-studio/domain';
 import { STUDIO_CHANNELS, requestSchemas, summarizeDocument, type StudioResult } from '../../../src/subtitle-studio/ipc-contract';
@@ -12,9 +13,22 @@ export function registerSubtitleStudio() {
   const repository = new DocumentRepository(path.join(app.getPath('userData'), 'subtitle-studio', 'documents'));
   const owners = new Map<number, { sender: WebContents; capability: string; documents: Set<string> }>();
   const allowed = new Set<number>();
+  const rendererUrl = process.env.VITE_DEV_SERVER_URL || pathToFileURL(path.join(app.getAppPath(), 'dist', 'index.html')).href;
+  const trusted = (url: string) => {
+    try { const target = new URL(url); target.hash = ''; const expected = new URL(rendererUrl); expected.hash = ''; return target.href === expected.href; }
+    catch { return false; }
+  };
+  const unsubscribe = repository.subscribe(event => {
+    for (const owner of owners.values()) {
+      if (!owner.sender.isDestroyed() && trusted(owner.sender.mainFrame.url)) {
+        owner.sender.send(STUDIO_CHANNELS.changed, { capability: owner.capability, event });
+        if (event.deleted) owner.documents.delete(event.documentId);
+      }
+    }
+  });
   const envelope = z.object({ capability: z.string().uuid(), payload: z.unknown() }).strict();
   ipcMain.on(STUDIO_CHANNELS.register, (event, request) => {
-    if (!allowed.has(event.sender.id) || event.senderFrame !== event.sender.mainFrame || !z.object({}).strict().safeParse(request).success) { event.returnValue = null; return; }
+    if (!allowed.has(event.sender.id) || event.senderFrame !== event.sender.mainFrame || !trusted(event.senderFrame.url) || !z.object({}).strict().safeParse(request).success) { event.returnValue = null; return; }
     const owner = { sender: event.sender, capability: randomUUID(), documents: new Set<string>() };
     owners.set(event.sender.id, owner);
     event.returnValue = owner.capability;
@@ -23,7 +37,7 @@ export function registerSubtitleStudio() {
   function ownerFor(event: IpcMainInvokeEvent, input: unknown) {
     const parsed = envelope.safeParse(input);
     const owner = owners.get(event.sender.id);
-    if (!parsed.success || !owner || owner.sender !== event.sender || event.senderFrame !== event.sender.mainFrame || owner.capability !== parsed.data.capability) throw new StudioError('access_denied');
+    if (!parsed.success || !owner || owner.sender !== event.sender || event.senderFrame !== event.sender.mainFrame || !trusted(event.senderFrame.url) || owner.capability !== parsed.data.capability) throw new StudioError('access_denied');
     return { owner, payload: parsed.data.payload };
   }
   for (const method of Object.keys(requestSchemas) as (keyof typeof requestSchemas)[]) {
@@ -32,13 +46,13 @@ export function registerSubtitleStudio() {
         const { owner, payload } = ownerFor(event, input);
         const parsed = requestSchemas[method].safeParse(payload);
         if (!parsed.success) throw new StudioError('invalid_input');
-        const alive = () => { if (owners.get(event.sender.id) !== owner || event.sender.isDestroyed()) throw new StudioError('access_denied'); };
+        const alive = () => { if (owners.get(event.sender.id) !== owner || event.sender.isDestroyed() || !trusted(event.sender.mainFrame.url)) throw new StudioError('access_denied'); };
         if (method === 'listDocuments') {
           const { offset } = requestSchemas.listDocuments.parse(payload);
-          const documents = await repository.list(); alive();
+          const { documents, sequence } = await repository.listSnapshot(); alive();
           const page = documents.slice(offset, offset + LIMITS.pageSize);
           page.forEach(doc => owner.documents.add(doc.id));
-          return { ok: true, value: { documents: page.map(summarizeDocument), total: documents.length } };
+          return { ok: true, value: { documents: page.map(summarizeDocument), total: documents.length, sequence } };
         }
         if (method === 'importSubtitle') {
           const window = BrowserWindow.fromWebContents(event.sender);
@@ -46,11 +60,20 @@ export function registerSubtitleStudio() {
           const selection = await dialog.showOpenDialog(window, { properties: ['openFile'], filters: [{ name: 'SRT / LRC', extensions: ['srt', 'lrc'] }] }); alive();
           if (selection.canceled || !selection.filePaths.length) return { ok: true, value: null };
           const doc = await readSubtitle(selection.filePaths[0], requestSchemas.importSubtitle.parse(payload).encoding); alive();
-          await repository.create(doc); alive(); owner.documents.add(doc.id);
+          await repository.create(doc, alive); alive(); owner.documents.add(doc.id);
           return { ok: true, value: summarizeDocument(doc) };
         }
         const request = requestSchemas.exportSource.parse({ documentId: (parsed.data as { documentId: string }).documentId, revision: (parsed.data as { revision: number }).revision });
         if (!owner.documents.has(request.documentId)) throw new StudioError('access_denied');
+        if (method === 'deleteDocument') {
+          const value = await repository.delete(request.documentId, request.revision, alive); alive();
+          return { ok: true, value };
+        }
+        if (method === 'removeTask') {
+          const { taskId } = requestSchemas.removeTask.parse(payload);
+          const snapshot = await repository.removeTask(request.documentId, request.revision, taskId, alive); alive();
+          return { ok: true, value: summarizeDocument(snapshot.document) };
+        }
         const doc = await repository.read(request.documentId); alive();
         if (doc.revision !== request.revision) throw new StudioError('revision_conflict');
         if (method === 'readDocumentPage') {
@@ -63,7 +86,10 @@ export function registerSubtitleStudio() {
         if (!window) throw new StudioError('access_denied');
         const selection = await dialog.showSaveDialog(window, { defaultPath: await unusedOutputPath(app.getPath('downloads'), doc.origin.displayName), filters: [{ name: doc.origin.format.toUpperCase(), extensions: [doc.origin.format] }] }); alive();
         if (selection.canceled || !selection.filePath) return { ok: true, value: null };
-        await publishSource(doc, selection.filePath);
+        await repository.withDocument(request.documentId, request.revision, async current => {
+          alive();
+          await publishSource(current, selection.filePath!, alive);
+        });
         return { ok: true, value: { fileName: path.basename(selection.filePath) } };
       } catch (error) { return { ok: false, error: error instanceof StudioError ? error.code : 'document_unavailable' }; }
     });
@@ -75,6 +101,7 @@ export function registerSubtitleStudio() {
       sender.once('destroyed', () => { owners.delete(sender.id); allowed.delete(sender.id); });
     },
     dispose() {
+      unsubscribe();
       owners.clear(); allowed.clear();
       ipcMain.removeAllListeners(STUDIO_CHANNELS.register);
       for (const method of Object.keys(requestSchemas) as (keyof typeof requestSchemas)[]) ipcMain.removeHandler(STUDIO_CHANNELS[method]);

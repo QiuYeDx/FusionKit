@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { AlertCircle, ArrowDownToLine, ArrowRight, Check, CheckCheck, ChevronDown, Code2, Copy, FileText, FolderOpen, Library, List, LoaderCircle, RefreshCw, Settings, Subtitles, X } from 'lucide-react';
+import { AlertCircle, ArrowDownToLine, ArrowRight, Check, CheckCheck, ChevronDown, Code2, Copy, FileText, FolderOpen, Library, List, LoaderCircle, RefreshCw, Settings, Subtitles, Trash2, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -14,6 +14,8 @@ import { ToolPanel } from '../../_shared/ui/ToolPanel';
 import { ToolFilePickerSurface } from '../../_shared/ui/ToolFilePickerSurface';
 import { useStudioPreferences } from '@/store/tools/subtitle-studio/preferences';
 import { unwrapStudio } from '@/services/subtitle-studio/client';
+import { StudioObservations } from '@/services/subtitle-studio/observations';
+import { ScrollableDialog, ScrollableDialogHeader, ScrollableDialogContent, ScrollableDialogFooter, DialogTitle, DialogDescription } from '@/components/qiuye-ui/scrollable-dialog';
 import { encodingSchema, LIMITS, StudioError, type Diagnostic, type ErrorCode } from '@/subtitle-studio/domain';
 import type { DocumentPage, DocumentSummary } from '@/subtitle-studio/ipc-contract';
 import { formatStudioTime, StudioFileName, StudioIconButton, StudioPagination } from './StudioControls';
@@ -25,7 +27,7 @@ const errorKeys: Record<ErrorCode, string> = {
 const diagnosticKeys: Record<Diagnostic['code'], string> = {
   empty_document: 'studio:diagnostics.empty_document', unsupported_markup: 'studio:diagnostics.unsupported_markup', enhanced_lrc: 'studio:diagnostics.enhanced_lrc', negative_time: 'studio:diagnostics.negative_time', zero_duration: 'studio:diagnostics.zero_duration', untimed_text: 'studio:diagnostics.untimed_text',
 };
-type Activity = 'load' | 'import' | 'select' | 'export';
+type Activity = 'load' | 'import' | 'select' | 'export' | 'delete';
 
 export default function SubtitleStudio() {
   const { t } = useTranslation();
@@ -40,6 +42,14 @@ export default function SubtitleStudio() {
   const [view, setView] = useState('preview');
   const [copied, setCopied] = useState<string | null>(null);
   const [copyFailed, setCopyFailed] = useState(false);
+  const [deleting, setDeleting] = useState<DocumentSummary | null>(null);
+  const [cleanupPending, setCleanupPending] = useState(false);
+  const observations = useRef(new StudioObservations());
+  const currentPage = useRef<DocumentPage | null>(null);
+  const currentOffset = useRef(0);
+  const dirty = useRef(false);
+  const refreshPending = useRef<() => void>(() => {});
+  const showPage = (value: DocumentPage | null) => { currentPage.current = value; setPage(value); };
   const mounted = useRef(true);
   const operation = useRef(false);
   const retry = useRef<(() => void) | null>(null);
@@ -59,21 +69,47 @@ export default function SubtitleStudio() {
     retry.current = () => void run(kind, action);
     try { await action(); }
     catch (failure) { if (mounted.current) setError(failure instanceof StudioError ? failure.code : 'document_unavailable'); }
-    finally { operation.current = false; if (mounted.current) setActivity(null); }
+    finally { operation.current = false; if (mounted.current) { setActivity(null); if (dirty.current) queueMicrotask(() => refreshPending.current()); } }
   };
   const select = async (doc: DocumentSummary, offset = 0, nodeOffset = 0) => {
     const result = await unwrapStudio(window.subtitleStudio.readDocumentPage({ documentId: doc.id, revision: doc.revision, offset, nodeOffset }));
-    if (mounted.current) { setPage(result); setCopied(null); setCopyFailed(false); reader.current?.scrollTo({ top: 0 }); }
+    if (mounted.current && observations.current.acceptsDocument(result.summary)) { showPage(result); setCopied(null); setCopyFailed(false); reader.current?.scrollTo({ top: 0 }); }
   };
-  const load = async (offset: number, openFirst = false) => {
-    const result = await unwrapStudio(window.subtitleStudio.listDocuments({ offset }));
-    if (!mounted.current) return;
-    setDocuments(result.documents); setTotal(result.total); setListOffset(offset);
-    if (openFirst && result.documents[0]) await select(result.documents[0]);
-    else if (page) {
-      const refreshed = result.documents.find(doc => doc.id === page.summary.id);
-      if (refreshed) await select(refreshed, page.offset, page.nodeOffset);
+  const load = async (offset: number, openFirst = false): Promise<void> => {
+    let result = await unwrapStudio(window.subtitleStudio.listDocuments({ offset }));
+    for (let attempt = 0; !observations.current.acceptSnapshot(result); attempt++) {
+      if (!mounted.current) return;
+      if (attempt >= 3) throw new StudioError('revision_conflict');
+      result = await unwrapStudio(window.subtitleStudio.listDocuments({ offset }));
     }
+    if (!mounted.current) return;
+    if (offset > 0 && offset >= result.total) return load(Math.max(0, Math.floor((result.total - 1) / LIMITS.pageSize) * LIMITS.pageSize), openFirst);
+    currentOffset.current = offset;
+    setDocuments(result.documents); setTotal(result.total); setListOffset(offset);
+    const selected = currentPage.current;
+    if (selected) {
+      const refreshed = result.documents.find(doc => doc.id === selected.summary.id);
+      if (refreshed) await select(refreshed, selected.offset, selected.nodeOffset);
+    } else if (openFirst && result.documents[0]) {
+      await select(result.documents[0]);
+    }
+  };
+  refreshPending.current = () => {
+    if (!mounted.current || operation.current || !dirty.current) return;
+    dirty.current = false;
+    void run('load', () => load(currentOffset.current, !currentPage.current));
+  };
+  const deleteDocument = () => {
+    if (!deleting) return;
+    const document = deleting;
+    setDeleting(null);
+    void run('delete', async () => {
+      const result = await unwrapStudio(window.subtitleStudio.deleteDocument({ documentId: document.id, revision: document.revision }));
+      if (!mounted.current) return;
+      setCleanupPending(result.cleanupPending);
+      if (currentPage.current?.summary.id === document.id) showPage(null);
+      await load(currentOffset.current, true);
+    });
   };
   const importDocument = () => void run('import', async () => {
     const doc = await unwrapStudio(window.subtitleStudio.importSubtitle({ encoding }));
@@ -86,8 +122,18 @@ export default function SubtitleStudio() {
   };
   useEffect(() => {
     mounted.current = true;
+    const unsubscribe = window.subtitleStudio.subscribe(event => {
+      if (!mounted.current || !observations.current.observe(event)) return;
+      if (event.deleted) {
+        setDocuments(items => items.filter(item => item.id !== event.documentId));
+        if (currentPage.current?.summary.id === event.documentId) showPage(null);
+        setDeleting(value => value?.id === event.documentId ? null : value);
+      }
+      dirty.current = true;
+      refreshPending.current();
+    });
     void run('load', () => load(0, true));
-    return () => { mounted.current = false; };
+    return () => { mounted.current = false; unsubscribe(); };
   }, []);
   useEffect(() => {
     if (!copied) return;
@@ -136,6 +182,7 @@ export default function SubtitleStudio() {
       </div>
       {error && <div role="alert" className="studio-notice text-destructive border-destructive/20 bg-destructive/5"><AlertCircle /><span>{t(errorKeys[error])}</span><Button size="sm" variant="ghost" disabled={busy} onClick={() => retry.current?.()}>{t('studio:retry')}</Button><StudioIconButton label={t('studio:dismiss')} onClick={() => setError(null)}><X /></StudioIconButton></div>}
       {exported && <div role="status" className="studio-notice"><CheckCheck className="text-emerald-600 dark:text-emerald-400" /><span>{t('studio:exported', { name: exported })}</span><StudioIconButton label={t('studio:dismiss')} onClick={() => setExported('')}><X /></StudioIconButton></div>}
+      {cleanupPending && <div role="status" className="studio-notice"><AlertCircle /><span>{t('studio:cleanup_pending')}</span><StudioIconButton label={t('studio:dismiss')} onClick={() => setCleanupPending(false)}><X /></StudioIconButton></div>}
       <span className="sr-only" role="status">{busy ? t('studio:loading') : copied ? t('studio:copied') : ''}</span>
       {copyFailed && <div role="alert" className="studio-notice text-destructive"><AlertCircle /><span>{t('studio:copy_failed')}</span><StudioIconButton label={t('studio:dismiss')} onClick={() => setCopyFailed(false)}><X /></StudioIconButton></div>}
       <div aria-busy={busy} className="studio-preview-region">
@@ -143,10 +190,10 @@ export default function SubtitleStudio() {
           title={t('studio:preview')}
           icon={Subtitles}
           badge={page ? <Badge variant="secondary" className="font-mono text-[11px]">{page.summary.cueCount}</Badge> : undefined}
-          actions={page ? <Button variant="outline" size="sm" disabled={busy} onClick={() => void run('export', async () => {
+          actions={page ? <><StudioIconButton id="studio-delete-trigger" label={t('studio:delete_document')} disabled={busy} onClick={() => setDeleting(page.summary)}><Trash2 /></StudioIconButton><Button variant="outline" size="sm" disabled={busy} onClick={() => void run('export', async () => {
             const result = await unwrapStudio(window.subtitleStudio.exportSource({ documentId: page.summary.id, revision: page.summary.revision }));
             if (result && mounted.current) setExported(result.fileName);
-          })}>{activity === 'export' ? <LoaderCircle className="studio-spin" /> : <ArrowDownToLine />}{t('studio:export_source')}</Button> : undefined}
+          })}>{activity === 'export' ? <LoaderCircle className="studio-spin" /> : <ArrowDownToLine />}{t('studio:export_source')}</Button></> : undefined}
           className="studio-preview-panel"
           footer={page ? <div className="studio-reader-footer"><span className="flex items-center gap-1.5 text-[11px] text-muted-foreground studio-footer-status">{busy ? <LoaderCircle className="h-3.5 w-3.5 studio-spin" /> : <CheckCheck className="h-3.5 w-3.5" />}{busy ? t('studio:loading') : t('studio:source_preserved')}</span><StudioPagination offset={view === 'raw' ? page.nodeOffset : page.offset} total={view === 'raw' ? page.nodeCount : page.summary.cueCount} busy={busy} onChange={offset => void run('select', () => select(page.summary, view === 'raw' ? page.offset : offset, view === 'raw' ? offset : page.nodeOffset))} /></div> : undefined}
         >
@@ -180,5 +227,10 @@ export default function SubtitleStudio() {
         </ToolPanel>
       </div>
     </ToolDetailLayout>
+    <ScrollableDialog open={!!deleting} onOpenChange={open => { if (!open) setDeleting(null); }} onOpenAutoFocus={event => { event.preventDefault(); document.getElementById('studio-delete-cancel')?.focus(); }} onCloseAutoFocus={event => { event.preventDefault(); document.getElementById('studio-delete-trigger')?.focus(); }}>
+      <ScrollableDialogHeader><DialogTitle className="pr-6">{t('studio:delete_document')}</DialogTitle><DialogDescription>{t('studio:delete_description')}</DialogDescription></ScrollableDialogHeader>
+      <ScrollableDialogContent><p className="break-all text-sm">{deleting?.origin.displayName}</p></ScrollableDialogContent>
+      <ScrollableDialogFooter><div className="flex justify-end gap-2"><Button id="studio-delete-cancel" variant="outline" onClick={() => setDeleting(null)}>{t('studio:cancel')}</Button><Button variant="destructive" disabled={busy} onClick={deleteDocument}><Trash2 />{t('studio:delete_document')}</Button></div></ScrollableDialogFooter>
+    </ScrollableDialog>
   </div>;
 }

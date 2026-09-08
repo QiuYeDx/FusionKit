@@ -2,7 +2,7 @@
 
 本文件是唯一任务状态源。依赖完成不等于已集成，实施时须登记实际版本。当前只展开 I1，按以下顺序连续推进；真实实施授权登记于 spec.json。
 
-执行暂停：2026-09-08 用户明确要求“先不要继续后续的开发工作”。首项完成记录已收尾，T-WORKSPACE-02 及后续未领取，等待用户恢复指令。
+执行恢复：2026-09-08 用户在 UI 优化后明确回复“好，继续推进工作吧”；暂停历史与恢复来源登记于 spec.json。
 
 ### T-WORKSPACE-01 新版最小文档链路与格式核心
 
@@ -18,7 +18,7 @@
 | 依赖确认 | 无前置任务；已核对 v0.3.1 基线 4791e10cd8443a0aecbfe7ad5bd05ad2b57555b2，初始工作树干净 |
 | 完成日期 | 2026-09-08 |
 | 实施记录 | records/2026-09-08-i1-implementation.md |
-| 集成版本 | 当前未提交工作树；基线 4791e10；源码/测试快照 SHA-256 3ec1f0f301f49c241229314199a40abb46cf8e3ac51621dc2242eef6cf016807；未合并或提交 |
+| 集成版本 | a8e2eea72ea08c6ed40e684fbbc9c2de3e529774（含已完成 UI 优化）；此前验证快照保留在实施记录 |
 
 #### 实现要点
 
@@ -43,21 +43,23 @@
 
 | 字段 | 值 |
 | --- | --- |
-| 状态 | 未开始 |
+| 状态 | 已完成 |
 | 批次 | I1 |
 | 需求 | R-WORKSPACE-03, R-WORKSPACE-07 |
 | 验收 | AC-WORKSPACE-03-1, AC-WORKSPACE-03-2, AC-WORKSPACE-07-2 |
 | 依赖 | T-WORKSPACE-01 |
-| 写集 | src/subtitle-studio/, electron/main/subtitle-studio/, electron/preload/subtitle-studio-api.ts, electron/preload/subtitle-studio-channel-policy.ts, src/services/subtitle-studio/, src/store/tools/subtitle-studio/, src/pages/Tools/Subtitle/SubtitleStudio/, test/subtitle-studio/, electron/electron-env.d.ts |
-| 负责人 | - |
-| 依赖确认 | - |
-| 完成日期 | - |
-| 实施记录 | - |
-| 集成版本 | - |
+| 写集 | src/subtitle-studio/, electron/main/subtitle-studio/, electron/preload/subtitle-studio-api.ts, electron/preload/subtitle-studio-channel-policy.ts, src/services/subtitle-studio/, src/store/tools/subtitle-studio/, src/pages/Tools/Subtitle/SubtitleStudio/, test/subtitle-studio/, electron/electron-env.d.ts, src/locales/, scripts/subtitle-studio/boundaries.json |
+| 负责人 | Codex（串行实施） |
+| 依赖确认 | T-WORKSPACE-01 已完成且集成于 a8e2eea；已核对当前 repository、IPC、UI 和测试，开始时工作区干净 |
+| 完成日期 | 2026-09-08 |
+| 实施记录 | records/2026-09-08-workspace-02.md |
+| 集成版本 | a8e2eea 加当前工作树，源码摘要见实施记录；未提交 |
 
 #### 实现要点
 
 落实 generation 快照、文档/检查点一致提交、current 指针恢复、索引重建和尺寸边界；建立删除墓碑和清理归属。完整 IPC DTO/owner/revision 校验、精确公开 allowlist、快照/事件归并；不持久化凭据或租约。先补故障注入与跨 owner 反例，再完善可靠性。
+
+实际扩展写集仅用于四语言删除操作文案，以及审计 ScrollableDialog 的既有第三方依赖后登记 allowlist；未安装依赖。42 项自动化、生产 Electron 恢复/删除与既有 UI 回归通过。全局原配置 tsc 和 i18n usage 仍有已核对的既有失败，详见实施记录，未据此宣称 I1 整体验收完成。
 
 #### 验证计划
 

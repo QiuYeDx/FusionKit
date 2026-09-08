@@ -19,14 +19,15 @@ export async function unusedOutputPath(directory: string, displayName: string): 
   throw new StudioError('output_write_failed');
 }
 
-export async function publishSource(doc: SubtitleDocument, authorizedPath: string) {
+export async function publishSource(doc: SubtitleDocument, authorizedPath: string, beforePublish: () => void = () => {}) {
   const bytes = sourceBytes(doc);
   const temporary = path.join(path.dirname(authorizedPath), `.subtitle-studio-${randomUUID()}.tmp`);
   try {
     const handle = await open(temporary, 'wx', 0o600);
     try { await handle.writeFile(bytes); await handle.sync(); }
     finally { await handle.close(); }
+    beforePublish();
     await rename(temporary, authorizedPath);
-  } catch { throw new StudioError('output_write_failed'); }
+  } catch (error) { throw error instanceof StudioError ? error : new StudioError('output_write_failed'); }
   finally { await rm(temporary, { force: true }).catch(() => undefined); }
 }

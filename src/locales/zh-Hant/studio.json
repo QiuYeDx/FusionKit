@@ -1,4 +1,8 @@
 {
+  "delete_document": "刪除文件",
+  "delete_description": "將刪除此文件及其譯文，並停止相關任務。原字幕檔案和已匯出的檔案會保留。",
+  "cancel": "取消",
+  "cleanup_pending": "文件已刪除，部分本機快取待清理。重新整理或重啟後會自動重試。",
   "import_settings": "上傳設定",
   "title": "字幕工作台",
   "documents": "字幕文件",

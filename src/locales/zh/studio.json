@@ -1,4 +1,8 @@
 {
+  "delete_document": "删除文档",
+  "delete_description": "将删除此文档及其译文，并停止相关任务。原字幕文件和已导出的文件会保留。",
+  "cancel": "取消",
+  "cleanup_pending": "文档已删除，部分本地缓存待清理。刷新或重启后会自动重试。",
   "import_settings": "上传设置",
   "title": "字幕工作台",
   "documents": "字幕文档",
