@@ -1,0 +1,127 @@
+{
+  "schema_version": 2,
+  "feature": "subtitle-studio",
+  "tier": "L",
+  "risk": "medium",
+  "current_increment": "I1",
+  "modules": [
+    {
+      "slug": "workspace",
+      "code": "WORKSPACE",
+      "path": "modules/module-workspace"
+    }
+  ],
+  "increments": [
+    {
+      "id": "I1",
+      "title": "独立字幕文档、翻译与再导出",
+      "status": "planning",
+      "approval": {
+        "state": "pending",
+        "by": "",
+        "basis": "2026-09-08 用户要求落实独立新版设计文档并说明下一步；方向已认可，本轮未要求开始业务实现。",
+        "digest": ""
+      },
+      "acceptance": {
+        "state": "pending",
+        "by": "",
+        "basis": "",
+        "digest": "",
+        "record": ""
+      }
+    },
+    {
+      "title": "继承现有本地转写并完成原生隔离",
+      "approval": {
+        "by": "",
+        "digest": "",
+        "state": "pending",
+        "basis": ""
+      },
+      "status": "planning",
+      "acceptance": {
+        "by": "",
+        "digest": "",
+        "state": "pending",
+        "record": "",
+        "basis": ""
+      },
+      "id": "I2"
+    },
+    {
+      "title": "ASS 与扩展格式能力",
+      "approval": {
+        "by": "",
+        "digest": "",
+        "state": "pending",
+        "basis": ""
+      },
+      "status": "planning",
+      "acceptance": {
+        "by": "",
+        "digest": "",
+        "state": "pending",
+        "record": "",
+        "basis": ""
+      },
+      "id": "I3"
+    },
+    {
+      "title": "校正、时间编辑与译文版本",
+      "approval": {
+        "by": "",
+        "digest": "",
+        "state": "pending",
+        "basis": ""
+      },
+      "status": "planning",
+      "acceptance": {
+        "by": "",
+        "digest": "",
+        "state": "pending",
+        "record": "",
+        "basis": ""
+      },
+      "id": "I4"
+    }
+  ],
+  "decisions": [
+    {
+      "id": "A-01",
+      "state": "resolved",
+      "blocking": false,
+      "resolution": "依据 2026-09-08 用户明确要求，新建 subtitleStudio 工具；保留 v1 路由、协议、状态和实现。",
+      "increment": "I1",
+      "text": "独立新版而非原地重构。"
+    },
+    {
+      "id": "A-02",
+      "state": "resolved",
+      "blocking": false,
+      "resolution": "依据用户允许复制的要求，冻结生产基线并复制完整依赖、资源、测试闭包；不通过旧实例/IPC/共享可写模型目录复用。",
+      "increment": "I2",
+      "text": "怎样继承转写效果且允许未来删除 v1。"
+    },
+    {
+      "id": "A-03",
+      "state": "resolved",
+      "blocking": false,
+      "resolution": "沿用用户的统一文档目标，工作名为字幕工作台；I1 先交付 SRT/LRC 文档翻译再导出，转写 I2、ASS I3、编辑 I4。名称是可逆默认，不强制改变 v1。",
+      "increment": "I1",
+      "text": "首批范围与新工具名称。"
+    },
+    {
+      "id": "Q-01",
+      "state": "open",
+      "blocking": false,
+      "resolution": "已在 transcription-fork.md 第 5 节选择新增构建组合及新版验证副本方案；I2 细化时实测 Windows/macOS，缺平台证据不声明发布就绪。",
+      "increment": "I2",
+      "text": "旧 builder 校验仅允许单资源，双工具构建与独立签名需要验证。"
+    }
+  ],
+  "parallel": {
+    "enabled": false,
+    "integrator": "",
+    "shared_files": []
+  }
+}
