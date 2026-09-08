@@ -155,6 +155,7 @@ export default function SubtitleStudio() {
 
   return <div data-testid="subtitle-studio" className={page ? 'studio studio-has-document' : 'studio'}>
     <ToolDetailLayout
+      className="studio-layout"
       header={<ToolPageHeader meta={TOOL_META.subtitleStudio} title={t('studio:title')} right={<Badge variant="secondary" className="font-mono text-[11px] font-normal">SRT / LRC</Badge>} />}
       asideClassName="hidden lg:block"
       mainClassName="studio-main"

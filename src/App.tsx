@@ -86,7 +86,7 @@ function App() {
 
       {/* 使用 ScrollArea 替代 HTML 滚动 */}
       <ScrollArea className="flex-1 h-full">
-        <div className="pt-10 w-screen overflow-x-clip">
+        <div className={location.pathname === '/tools/subtitle/studio' ? 'w-screen overflow-x-clip' : 'pt-10 w-screen overflow-x-clip'}>
           <AnimatePresence
             mode="wait"
             custom={directionRef.current}
