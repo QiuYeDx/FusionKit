@@ -1,28 +1,34 @@
 # I1 任务台账
 
-本文件是唯一任务状态源。所有任务未开始；依赖完成不等于已集成，实施时须登记实际版本。当前只展开 I1，按以下顺序连续推进。
+本文件是唯一任务状态源。依赖完成不等于已集成，实施时须登记实际版本。当前只展开 I1，按以下顺序连续推进；真实实施授权登记于 spec.json。
+
+执行暂停：2026-09-08 用户明确要求“先不要继续后续的开发工作”。首项完成记录已收尾，T-WORKSPACE-02 及后续未领取，等待用户恢复指令。
 
 ### T-WORKSPACE-01 新版最小文档链路与格式核心
 
 | 字段 | 值 |
 | --- | --- |
-| 状态 | 未开始 |
+| 状态 | 已完成 |
 | 批次 | I1 |
 | 需求 | R-WORKSPACE-01, R-WORKSPACE-02 |
 | 验收 | AC-WORKSPACE-02-1, AC-WORKSPACE-02-2 |
 | 依赖 | - |
 | 写集 | src/subtitle-studio/, electron/main/subtitle-studio/, electron/preload/subtitle-studio-api.ts, electron/preload/subtitle-studio-channel-policy.ts, src/pages/Tools/Subtitle/SubtitleStudio/, src/services/subtitle-studio/, src/store/tools/subtitle-studio/, test/subtitle-studio/, scripts/subtitle-studio/, src/App.tsx, src/constants/router.ts, src/pages/Tools/index.tsx, src/pages/Tools/_shared/toolMeta.ts, electron/main/index.ts, electron/preload/index.ts, electron/electron-env.d.ts, src/locales/, src/i18n/resources.ts |
-| 负责人 | - |
-| 依赖确认 | - |
-| 完成日期 | - |
-| 实施记录 | - |
-| 集成版本 | - |
+| 负责人 | Codex（当前任务，串行实施） |
+| 依赖确认 | 无前置任务；已核对 v0.3.1 基线 4791e10cd8443a0aecbfe7ad5bd05ad2b57555b2，初始工作树干净 |
+| 完成日期 | 2026-09-08 |
+| 实施记录 | records/2026-09-08-i1-implementation.md |
+| 集成版本 | 当前未提交工作树；基线 4791e10；源码/测试快照 SHA-256 3ec1f0f301f49c241229314199a40abb46cf8e3ac51621dc2242eef6cf016807；未合并或提交 |
 
 #### 实现要点
 
 先盘点新入口必需的应用公共依赖并建立禁止依赖清单/静态检查，禁止导入旧 subtitleCueProtocol。定义带版本的文档与严格校验，实现 SRT/LRC 原节点保留和格式诊断；建立最小真实 import→保存→只读详情→source 导出链路。仅做此链路需要的仓库/IPC，不先实现全部后台服务。
 
 在新测试目录创建独立 fixture，不调用旧测试 helper；保留已存在未提交文件。源码细分可按职责调整，但不能扩展到 v1 专属目录。任务涉及应用壳的新增贡献，必须留存增量清单供最后移除演练。
+
+#### 当前验证进展
+
+2026-09-08 用户先后补充几百 KB LRC 导入/显示正常、原生保存导出正常；结合原有受控 Electron 重启及源字节一致性验证，V-WORKSPACE-01-3 证据已补齐。首项任务完成，不代表 I1 整体验收。
 
 #### 验证计划
 

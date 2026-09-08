@@ -1,5 +1,9 @@
 /// <reference types="vite-electron-plugin/electron-env" />
 
+interface Window {
+  subtitleStudio: import('../src/subtitle-studio/ipc-contract').SubtitleStudioApi
+}
+
 declare namespace NodeJS {
   interface ProcessEnv {
     VSCODE_DEBUG?: 'true'

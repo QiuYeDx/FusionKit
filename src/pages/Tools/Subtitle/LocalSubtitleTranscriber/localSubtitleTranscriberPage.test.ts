@@ -126,7 +126,7 @@ describe("local subtitle transcriber page wiring", () => {
     expect(disclosureSource).toContain("aria-controls={contentId}");
     expect(disclosureSource).toContain("inert={!isOpen}");
     expect(disclosureSource).toContain("cursor-pointer");
-    expect(disclosureSource).toContain('className={cn("-mx-4 border-y"');
+    expect(disclosureSource).toContain('className={cn("-mx-3 border-y"');
     expect(disclosureSource).not.toContain("border-dashed");
     expect(disclosureSource).not.toContain("group-hover:bg-background");
     expect(environmentSource).toMatch(

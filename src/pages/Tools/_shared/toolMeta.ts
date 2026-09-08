@@ -15,6 +15,7 @@ import {
 import { LOCAL_SUBTITLE_TRANSCRIBER_ROUTE } from "@/constants/router";
 
 export type ToolKey =
+  | "subtitleStudio"
   | "translator"
   | "converter"
   | "extractor"
@@ -38,6 +39,14 @@ export type ToolMeta = {
 };
 
 export const TOOL_META: Record<ToolKey, ToolMeta> = {
+  subtitleStudio: {
+    id: "subtitleStudio",
+    toneVar: "--tool-text",
+    icon: Captions,
+    category: "subtitle",
+    status: "stable",
+    route: "/tools/subtitle/studio",
+  },
   translator: {
     id: "translator",
     toneVar: "--tool-translator",

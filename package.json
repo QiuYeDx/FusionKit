@@ -49,6 +49,7 @@
     "chardet": "2.2.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "cn": "^0.2.6",
     "electron-updater": "^6.6.2",
     "gpt-tokenizer": "^3.4.0",
     "i18next": "^24.2.2",

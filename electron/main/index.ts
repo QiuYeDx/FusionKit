@@ -67,6 +67,7 @@ import {
   localSubtitleIpcSuccess,
 } from "@/type/localSubtitleIpc";
 import { TextTranslationService } from "./text-translation/text-translation-service";
+import { registerSubtitleStudio } from "./subtitle-studio";
 
 const require = createRequire(import.meta.url);
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -104,6 +105,7 @@ if (!app.requestSingleInstanceLock()) {
 }
 
 let win: BrowserWindow | null = null;
+let subtitleStudio: ReturnType<typeof registerSubtitleStudio> | undefined;
 let localSubtitleServerLifecycle: LocalSubtitleServerAppLifecycle | undefined;
 let translationService: TranslationService = new TranslationService();
 const subtitleTranslationDirectoryCapabilities =
@@ -144,6 +146,7 @@ async function createWindow() {
     },
   });
 
+  subtitleStudio?.attach(win.webContents);
   const startLoadingProgress = () => {
     if (!win || win.webContents.isDestroyed()) return;
     win.webContents.send(START_LOADING_PROGRESS_CHANNEL);
@@ -221,6 +224,12 @@ async function createWindow() {
 }
 
 app.whenReady().then(async () => {
+  try {
+    subtitleStudio = registerSubtitleStudio();
+    app.once("before-quit", () => subtitleStudio?.dispose());
+  } catch {
+    console.error("Subtitle Studio initialization failed.");
+  }
   const localSubtitleManagedResourceRoot = path.join(
     app.getPath("userData"),
     "local-subtitle",

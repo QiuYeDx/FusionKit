@@ -263,7 +263,7 @@ export function AudioToolShell({
               {t(`audio:status.${configSummary.status}`)}
             </Badge>
           }
-          bodyClassName="p-6"
+          bodyClassName="p-3"
         >
           <div className="flex min-h-[220px] items-center justify-center rounded-lg border border-dashed bg-muted/20 px-4 py-8 text-center">
             <div className="max-w-md space-y-3">

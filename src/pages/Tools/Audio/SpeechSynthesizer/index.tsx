@@ -1035,7 +1035,7 @@ function SpeechWorkspace({
         icon={Volume2}
         title={t("audio:pages.speech.workspace")}
         badge={<SpeechStatusBadge status="idle" />}
-        bodyClassName="p-5"
+        bodyClassName="p-3"
       >
         <div className="flex min-h-[280px] items-center justify-center rounded-lg border border-dashed bg-muted/20 px-4 py-8 text-center">
           <div className="max-w-md space-y-4">
@@ -1078,7 +1078,7 @@ function SpeechWorkspace({
       icon={Volume2}
       title={t("audio:pages.speech.workspace")}
       badge={<SpeechStatusBadge status={status} />}
-      bodyClassName="p-5"
+      bodyClassName="p-3"
     >
       <div className="space-y-4">
         <ToolField

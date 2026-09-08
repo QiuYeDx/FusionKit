@@ -64,11 +64,11 @@ export function ToolConfigDisclosure({
   };
 
   return (
-    <div className={cn("-mx-4 border-y", className)}>
+    <div data-slot="tool-config-disclosure" className={cn("-mx-3 border-y", className)}>
       <button
         type="button"
         data-testid={testId}
-        className="group flex min-h-14 w-full cursor-pointer items-center justify-between gap-3 px-4 py-2.5 text-left transition-colors hover:bg-muted/30 focus-visible:bg-muted/30 focus-visible:ring-ring/50 focus-visible:ring-[3px] focus-visible:outline-none"
+        className="group flex min-h-12 w-full cursor-pointer items-center justify-between gap-3 px-3 py-2.5 text-left transition-colors hover:bg-muted/30 focus-visible:bg-muted/30 focus-visible:ring-ring/50 focus-visible:ring-[3px] focus-visible:outline-none"
         aria-expanded={isOpen}
         aria-controls={contentId}
         onClick={handleToggle}
@@ -119,7 +119,7 @@ export function ToolConfigDisclosure({
         >
           <div
             className={cn(
-              "space-y-3 px-4 pb-4 pt-2",
+              "space-y-3 px-3 pb-3 pt-2",
               !isOpen && "pointer-events-none",
               contentClassName,
             )}

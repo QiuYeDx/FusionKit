@@ -36,6 +36,7 @@ export function ToolPanel({
 }: ToolPanelProps) {
   return (
     <SmoothCorners
+      data-slot="tool-panel"
       id={id}
       radius={16}
       smoothing={0.72}
@@ -45,8 +46,9 @@ export function ToolPanel({
       )}
     >
       <div
+        data-slot="tool-panel-header"
         className={cn(
-          "flex flex-wrap items-center justify-between gap-3 border-b px-4 py-3",
+          "flex flex-wrap items-center justify-between gap-3 border-b p-3",
           headerClassName,
         )}
       >
@@ -63,8 +65,8 @@ export function ToolPanel({
           </div>
         ) : null}
       </div>
-      <div className={bodyClassName}>{children}</div>
-      {footer ? <div className="border-t px-4 py-3">{footer}</div> : null}
+      <div data-slot="tool-panel-body" className={bodyClassName}>{children}</div>
+      {footer ? <div data-slot="tool-panel-footer" className="border-t px-3 py-1">{footer}</div> : null}
     </SmoothCorners>
   );
 }

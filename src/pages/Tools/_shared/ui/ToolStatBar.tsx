@@ -64,7 +64,7 @@ export function ToolStatBar({
       )}
     >
       {title || icon ? (
-        <div className="flex items-center gap-2 border-b px-4 py-2.5 text-[12px] font-medium text-foreground/90">
+        <div className="flex items-center gap-2 border-b px-3 py-2.5 text-[12px] font-medium text-foreground/90">
           {icon ? (
             <span className="flex size-3.5 shrink-0 items-center justify-center text-muted-foreground [&>svg]:size-3.5">
               {icon}
@@ -83,7 +83,7 @@ export function ToolStatBar({
         {visibleItems.map((item, index) => (
           <div
             key={index}
-            className="min-w-0 border-b border-r border-border/70 px-4 py-3"
+            className="min-w-0 border-b border-r border-border/70 p-3"
           >
             <div className="flex min-w-0 items-center gap-1.5 text-[10.5px] uppercase tracking-[0.05em] text-muted-foreground">
               <span className="min-w-0 truncate">{item.label}</span>

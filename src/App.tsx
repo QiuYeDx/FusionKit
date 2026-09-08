@@ -10,6 +10,7 @@ import Tools from "@/pages/Tools";
 import BottomNavigation from "@/pages/components/BottomNavigation";
 import AppTitleBar from "@/pages/components/AppTitleBar";
 import SubtitleTranslator from "./pages/Tools/Subtitle/SubtitleTranslator";
+import SubtitleStudio from "./pages/Tools/Subtitle/SubtitleStudio";
 import SubtitleConverter from "./pages/Tools/Subtitle/SubtitleConverter";
 import SubtitleLanguageExtractor from "./pages/Tools/Subtitle/SubtitleLanguageExtractor";
 import LocalSubtitleTranscriber from "./pages/Tools/Subtitle/LocalSubtitleTranscriber";
@@ -110,6 +111,7 @@ function App() {
                 <Route path="/setting" element={<Setting />} />
 
                 {/* 二级页面 */}
+                <Route path="/tools/subtitle/studio" element={<SubtitleStudio />} />
                 <Route
                   path="/tools/subtitle/translator"
                   element={<SubtitleTranslator />}

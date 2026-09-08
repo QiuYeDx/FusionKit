@@ -1913,7 +1913,6 @@ export default function LocalSubtitleTranscriber() {
               })}
               actionLabel={t("subtitle:local_transcriber.actions.select_files")}
               icon={fileAuthorizationPending ? <Loader2 className="h-5 w-5 animate-spin" /> : undefined}
-              className="px-4 py-4"
               onDraggingChange={setDragging}
               onFiles={handleFiles}
             />

@@ -328,7 +328,7 @@ function DraftTaskRow({
     <div
       data-testid="local-subtitle-draft-file"
       data-source-key={file.sourceKey}
-      className="min-w-0 px-4 py-3"
+      className="min-w-0 p-3"
     >
       <div className="flex min-w-0 items-start gap-3">
         <span
@@ -642,7 +642,7 @@ function TaskRow({
     <div
       data-testid="local-subtitle-task"
       data-task-id={task.taskId}
-      className="min-w-0 px-4 py-3"
+      className="min-w-0 p-3"
     >
       <div className="flex min-w-0 flex-wrap items-start gap-x-3 gap-y-0 sm:flex-nowrap">
         <span

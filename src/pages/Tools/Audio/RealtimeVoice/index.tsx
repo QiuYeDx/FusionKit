@@ -705,7 +705,7 @@ function RealtimeVoiceWorkspace({
             {t("audio:voice.status.idle")}
           </Badge>
         }
-        bodyClassName="p-5"
+        bodyClassName="p-3"
       >
         <div className="flex min-h-[280px] items-center justify-center rounded-lg border border-dashed bg-muted/20 px-4 py-8 text-center">
           <div className="max-w-md space-y-4">
@@ -744,7 +744,7 @@ function RealtimeVoiceWorkspace({
           {t(`audio:voice.status.${status}`)}
         </Badge>
       }
-      bodyClassName="space-y-4 p-4"
+      bodyClassName="space-y-3 p-3"
     >
       <audio ref={remoteAudioRef} autoPlay playsInline className="hidden" />
       <div data-testid="voice-workspace" className="scroll-mt-20 space-y-4">

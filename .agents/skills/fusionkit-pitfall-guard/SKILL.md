@@ -51,6 +51,7 @@ Keep each case focused on one reusable lesson. If one incident produced several 
 
 ## Repository-specific defaults
 
+- For tool-page design, visual consistency, spacing, density, or alignment work, also read [FusionKit UI Design](../fusionkit-ui-design/SKILL.md). It owns the project visual contract; this guard owns runtime and implementation pitfalls.
 - Before using visual screenshots as proof, check whether FusionKit’s global preload loading screen has fully exited.
 - Before ending any turn that starts Vite/Electron/frontend services, close them and confirm the process table is clean.
 - For UI detail page work, prefer Electron-based validation over plain browser validation because the app depends on preload APIs.

@@ -112,7 +112,7 @@ export default function PathPickerPanel({
         <div
           data-testid="rename-path-dropzone"
           className={cn(
-            "relative flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed px-4 py-5 text-center transition-colors",
+            "relative flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed p-3 text-center transition-colors",
             isDragging
               ? "border-primary bg-primary/5"
               : "border-border hover:bg-muted/40"

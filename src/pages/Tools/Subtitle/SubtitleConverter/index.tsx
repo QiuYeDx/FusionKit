@@ -583,7 +583,7 @@ function SubtitleConverter() {
           </div>
         ) : (
           allTasks.map((task) => (
-            <div key={task.fileName} className="px-4 py-3">
+            <div key={task.fileName} className="p-3">
               <div className="flex items-start gap-3">
                 <div
                   className={cn(

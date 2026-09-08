@@ -1,0 +1,4 @@
+interface:
+  display_name: "FusionKit 界面设计"
+  short_description: "遵循 FusionKit 视觉、组件和间距约定，检查信息密度、对齐及真实 Electron 交互。"
+  default_prompt: "使用 $fusionkit-ui-design 实现或打磨这个 FusionKit 工具页，遵循项目组件和视觉约定，自检空间、密度、对齐与交互后交付。"

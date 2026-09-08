@@ -413,7 +413,7 @@ export default function TaskPanel({
             </Button>
           </>
         }
-        bodyClassName="space-y-4 p-4"
+        bodyClassName="space-y-3 p-3"
       >
         <p className="text-sm text-muted-foreground">
           {sourceFile
@@ -514,7 +514,7 @@ export default function TaskPanel({
               {sourceFiles.map((file, index) => (
                 <div
                   key={`${file.sourcePath}-${index}`}
-                  className="flex items-center gap-3 border-b px-4 py-2.5 last:border-b-0"
+                  className="flex items-center gap-3 border-b px-3 py-2.5 last:border-b-0"
                 >
                   <span className="w-5 shrink-0 text-center font-mono text-[11px] text-muted-foreground">
                     {index + 1}
@@ -811,7 +811,7 @@ function CompactTaskRow({
     </>
   );
   const rowClassName = cn(
-    "w-full px-4 py-3 text-left transition-colors",
+    "w-full p-3 text-left transition-colors",
     embedded ? "border-b last:border-b-0" : "rounded-lg border",
     active ? "bg-primary/5" : "bg-background",
     onClick ? "hover:bg-muted/40" : null,

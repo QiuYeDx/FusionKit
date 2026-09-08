@@ -5,7 +5,7 @@ type ToolConfigDividerProps = {
 };
 
 export function ToolConfigDivider({ className }: ToolConfigDividerProps) {
-  return <div className={cn("h-px bg-border -mx-4", className)} />;
+  return <div className={cn("h-px bg-border -mx-3", className)} />;
 }
 
 export default ToolConfigDivider;

@@ -28,6 +28,7 @@ export function ToolConfigPanel({
 }: ToolConfigPanelProps) {
   return (
     <SmoothCorners
+      data-slot="tool-config-panel"
       radius={16}
       smoothing={0.72}
       className={cn(
@@ -35,7 +36,7 @@ export function ToolConfigPanel({
         className,
       )}
     >
-      <div className="flex items-center justify-between gap-2 border-b bg-muted/40 px-4 py-3">
+      <div data-slot="tool-config-header" className="flex items-center justify-between gap-2 border-b bg-muted/40 p-3">
         <div className="flex min-w-0 items-center gap-2">
           {Icon ? (
             <Icon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
@@ -46,7 +47,7 @@ export function ToolConfigPanel({
         </div>
         {action ? <div className="shrink-0">{action}</div> : null}
       </div>
-      <div className={cn("p-4 space-y-5", contentClassName)}>{children}</div>
+      <div data-slot="tool-config-body" className={cn("p-3 space-y-4", contentClassName)}>{children}</div>
     </SmoothCorners>
   );
 }

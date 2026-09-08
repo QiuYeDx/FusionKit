@@ -1164,7 +1164,7 @@ function SubtitleTranslator() {
                 onCheckedChange={setConcurrentSlices}
               />
 
-              <div id="tour-schedule" className="-mb-4">
+              <div id="tour-schedule" className="-mb-3">
                 <ToolConfigDisclosure
                   testId="subtitle-translator-schedule-settings"
                   icon={Clock}
@@ -1438,7 +1438,7 @@ function SubtitleTranslator() {
                 </div>
               ) : (
                 allTasks.map((task) => (
-                  <div key={task.taskId} className="px-4 py-3">
+                  <div key={task.taskId} className="p-3">
                     <div className="flex items-start gap-3">
                       <div
                         className={cn(
@@ -1876,7 +1876,7 @@ function SubtitleTranslator() {
           {/* Summary stat bar */}
           {tokenStats.taskCount > 0 && (
             <Card className="p-0">
-              <div className="flex items-center gap-2 px-4 py-3 border-b">
+              <div className="flex items-center gap-2 p-3 border-b">
                 <Cpu className="h-3.5 w-3.5 text-muted-foreground" />
                 <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-foreground/80">
                   {t("subtitle:translator.token_stats.title")}
@@ -2161,7 +2161,7 @@ function Stat({
   helpContent?: string;
 }) {
   return (
-    <div className="px-4 py-3 flex flex-col gap-1">
+    <div className="p-3 flex flex-col gap-1">
       <div className="text-[10.5px] font-medium uppercase tracking-[0.05em] text-muted-foreground inline-flex items-center gap-1">
         <span>{label}</span>
         {helpContent && <CostEstimateHelp content={helpContent} />}

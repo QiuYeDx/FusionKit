@@ -280,7 +280,7 @@ export function LocalSubtitleEnvironmentManager({
       >
         {managerOpen ? (
           <div data-testid="local-subtitle-environment-manager">
-            <div className="flex min-w-0 flex-wrap items-center justify-between gap-2 border-b bg-muted/20 px-4 py-2.5 text-[11px] text-muted-foreground">
+            <div className="flex min-w-0 flex-wrap items-center justify-between gap-2 border-b bg-muted/20 px-3 py-2.5 text-[11px] text-muted-foreground">
               <span className="flex items-center gap-1.5">
                 <HardDrive className="h-3.5 w-3.5" />
                 {t("subtitle:local_transcriber.resources.managed_only")}
@@ -297,14 +297,14 @@ export function LocalSubtitleEnvironmentManager({
             ) : null}
 
             {resourceActionError ? (
-              <div className="px-4 pt-4">
+              <div className="px-3 pt-3">
                 <LocalSubtitleErrorNotice error={resourceActionError} />
               </div>
             ) : null}
 
             <div className="divide-y">
               {resources.length === 0 ? (
-                <div className="px-4 py-6 text-center text-xs text-muted-foreground">
+                <div className="px-3 py-6 text-center text-xs text-muted-foreground">
                   {t(
                     loading
                       ? "subtitle:local_transcriber.resources.loading"
@@ -330,7 +330,7 @@ export function LocalSubtitleEnvironmentManager({
               <button
                 type="button"
                 data-testid="local-subtitle-runtime-toggle"
-                className="flex w-full min-w-0 cursor-pointer items-center justify-between gap-4 px-4 py-3 text-left transition-colors hover:bg-muted/30 focus-visible:ring-ring/50 focus-visible:ring-[3px] focus-visible:outline-none"
+                className="flex w-full min-w-0 cursor-pointer items-center justify-between gap-3 p-3 text-left transition-colors hover:bg-muted/30 focus-visible:ring-ring/50 focus-visible:ring-[3px] focus-visible:outline-none"
                 aria-expanded={runtimeDetailsOpen}
                 aria-controls="local-subtitle-runtime-details"
                 onClick={() => setRuntimeDetailsOpen((open) => !open)}
@@ -514,7 +514,7 @@ function EnvironmentErrorNotice({
   const { t } = useTranslation(["subtitle"]);
   const messageKey = environmentErrorMessageKey(error.code);
   return (
-    <div className="border-t p-4">
+    <div className="border-t p-3">
       <LocalSubtitleErrorNotice
         error={{
           code: error.code,
@@ -609,7 +609,7 @@ function RuntimeSummary({
       data-testid="local-subtitle-runtime-summary"
       className="min-w-0 bg-muted/[0.08]"
     >
-      <dl className="divide-y px-4">
+      <dl className="divide-y px-3">
         {values.map((item) => (
           <div
             key={item.label}
@@ -626,7 +626,7 @@ function RuntimeSummary({
       </dl>
 
       <section className="border-t" aria-labelledby="local-subtitle-backends-title">
-        <div className="flex min-w-0 flex-wrap items-baseline justify-between gap-x-5 gap-y-1 px-4 py-3">
+        <div className="flex min-w-0 flex-wrap items-baseline justify-between gap-x-3 gap-y-1 p-3">
           <h4
             id="local-subtitle-backends-title"
             className="text-xs font-medium leading-5"
@@ -654,7 +654,7 @@ function RuntimeSummary({
               return (
                 <li
                   key={backendId}
-                  className="grid min-w-0 grid-cols-[minmax(4.5rem,0.32fr)_minmax(0,1fr)_auto] items-center gap-x-4 px-4 py-2.5"
+                  className="grid min-w-0 grid-cols-[minmax(4.5rem,0.32fr)_minmax(0,1fr)_auto] items-center gap-x-3 px-3 py-2.5"
                 >
                   <span className="text-xs font-medium leading-5">
                     {t(BACKEND_KEYS[backendId])}
@@ -668,7 +668,7 @@ function RuntimeSummary({
             })}
           </ul>
         ) : (
-          <div className="border-t px-4 py-5 text-center text-xs text-muted-foreground">
+          <div className="border-t px-3 py-3 text-center text-xs text-muted-foreground">
             {t("subtitle:local_transcriber.environment.no_backend_data")}
           </div>
         )}
@@ -712,7 +712,7 @@ function ResourceRow({
   return (
     <div
       data-testid={`local-subtitle-resource-${resource.resourceId}`}
-      className="min-w-0 px-4 py-3"
+      className="min-w-0 p-3"
     >
       <div className="flex min-w-0 items-start gap-3">
         <div className="min-w-0 flex-1">

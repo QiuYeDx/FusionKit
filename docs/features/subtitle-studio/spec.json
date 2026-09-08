@@ -15,12 +15,12 @@
     {
       "id": "I1",
       "title": "独立字幕文档、翻译与再导出",
-      "status": "planning",
+      "status": "implementing",
       "approval": {
-        "state": "pending",
-        "by": "",
-        "basis": "2026-09-08 用户要求落实独立新版设计文档并说明下一步；方向已认可，本轮未要求开始业务实现。",
-        "digest": ""
+        "state": "approved",
+        "by": "用户（当前 Codex 任务）",
+        "basis": "2026-09-08 当前任务用户原文：请在当前 FusionKit 仓库开始实现独立新版“字幕工作台”的 I1。先阅读 docs/features/subtitle-studio/README.md，按其中索引读 spec.json、BRD、整体架构、转写继承边界和 I1 的 requirements/design/tasks。本条消息授权按已定义的 I1 范围开始实施；登记真实授权并更新任务台账。",
+        "digest": "26bde5f69e3431a2ff3329f8b0cbdf006aba57e7e2f29ced6ef37d87d0206013"
       },
       "acceptance": {
         "state": "pending",
@@ -86,6 +86,14 @@
     }
   ],
   "decisions": [
+    {
+      "id": "A-04",
+      "state": "resolved",
+      "blocking": false,
+      "resolution": "2026-09-08 用户在补充原生保存导出验证后明确要求：先不要继续后续的开发工作。保留此前 I1 授权历史，执行暂停；T-WORKSPACE-02 及后续不得自动领取，等待用户恢复指令。此为执行暂停，不是业务需求或实施授权缺失。",
+      "increment": "I1",
+      "text": "首项完成后的用户暂停指令。"
+    },
     {
       "id": "A-01",
       "state": "resolved",

@@ -30,6 +30,7 @@ export function ToolDetailLayout({
 }: ToolDetailLayoutProps) {
   return (
     <div
+      data-slot="tool-detail-layout"
       className={cn(
         "mx-auto max-w-7xl px-4 pb-[100px] pt-6 sm:px-8",
         className,

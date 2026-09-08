@@ -77,7 +77,7 @@ export default function ApplySummaryPanel({
           </Badge>
         ) : null
       }
-      bodyClassName="space-y-4 p-4"
+      bodyClassName="space-y-3 p-3"
     >
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
         <Metric label={t("apply.metrics.ready")} value={plan?.readyCount ?? 0} />

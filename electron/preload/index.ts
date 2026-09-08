@@ -22,6 +22,8 @@ import { createSubtitleTranslationRendererApi } from './subtitle-translation-api
 import { SUBTITLE_TRANSLATION_PRELOAD_INTERNAL_CHANNELS } from '@/type/subtitleTranslationIpc'
 import { createNativeFileSelectionRendererApi } from './native-file-selection-api'
 import { assertLegacyNativeFileSelectionChannelAllowed } from './native-file-selection-channel-policy'
+import { createSubtitleStudioApi } from './subtitle-studio-api'
+import { assertLegacyStudioChannelAllowed } from './subtitle-studio-channel-policy'
 
 const AUDIO_CHANNEL_PREFIX = 'audio:'
 const AUDIO_REGISTER_CAPABILITY_CHANNEL =
@@ -51,6 +53,7 @@ const subtitleTranslationOwnerSessionRegistration = ipcRenderer.sendSync(
 )
 
 const assertLegacyIpcChannelAllowed = (channel: string) => {
+  assertLegacyStudioChannelAllowed(channel)
   assertLegacyLocalSubtitleChannelAllowed(channel)
   assertLegacySubtitleTranslationChannelAllowed(channel)
   assertLegacyNativeFileSelectionChannelAllowed(channel)
@@ -62,6 +65,7 @@ const assertLegacyIpcChannelAllowed = (channel: string) => {
 }
 
 const assertLegacyListenChannelAllowed = (channel: string) => {
+  assertLegacyStudioChannelAllowed(channel)
   assertLegacyLocalSubtitleChannelAllowed(channel)
   assertLegacySubtitleTranslationChannelAllowed(channel)
   if (
@@ -73,6 +77,7 @@ const assertLegacyListenChannelAllowed = (channel: string) => {
 }
 
 // --------- Expose some API to the Renderer process ---------
+contextBridge.exposeInMainWorld('subtitleStudio', createSubtitleStudioApi(ipcRenderer))
 contextBridge.exposeInMainWorld(
   'ipcRenderer',
   createSafeLegacyIpcBridge({

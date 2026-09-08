@@ -17,7 +17,7 @@ describe("tool configuration disclosure consumers", () => {
       'testId="subtitle-translator-schedule-settings"',
     );
     expect(subtitleTranslatorSource).toContain(
-      'id="tour-schedule" className="-mb-4"',
+      'id="tour-schedule" className="-mb-3"',
     );
     expect(subtitleTranslatorSource).toMatch(
       /testId="subtitle-translator-schedule-settings"[\s\S]*?className="border-b-0"/,

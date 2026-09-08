@@ -20,6 +20,12 @@ T-WORKSPACE-01 先提供一个最小真实入口：用户选择 SRT/LRC → 主�
 
 ## 代码落点
 
+2026-09-08 T-WORKSPACE-01 实际落点：`src/subtitle-studio/domain.ts`（类型与校验）、`formats/import.ts`（两个格式解析）、`ipc-contract.ts`；主进程为 `input-service.ts`、`document-repository.ts`、`export-service.ts`、`index.ts`。本阶段仓库只创建不可变 generation 和 current 指针，不将其描述为 T-WORKSPACE-02 的完整故障恢复实现。输入只使用主进程原生 picker，不接受 renderer 文件路径；公开 bridge 只有已实现的四个固定方法。
+
+资源边界补充：最多 200000 个原节点（空行也计数），在对象分配前检查，避免只检查字节仍产生过多对象。原节点与 cue 各自分页，确保 LRC 元数据与无时间正文可查看。新版偏好仅保存经过校验的编码；运行文档不进入前端 Store。
+
+复用审计：UI 仅经 ToolPageHeader/ToolBadge/toolMeta、Button、lib/utils；这些传递依赖通过新版 checker。toolMeta/router 为共存组合贡献，未引入旧实现。第三方 iconv-lite 用于严格往返解码与源格式导出，Zod 用于边界校验，TypeScript AST 只在开发期边界检查使用；未新增依赖或修改 lockfile。
+
 拟议纯代码：`src/subtitle-studio/domain.ts`、`validation.ts`、`formats/srt.ts`、`formats/lrc.ts`、`formats/preservation.ts`、`translation-protocol.ts`、`export-plan.ts`、`ipc-contract.ts`。Node FS、密钥、进程不能进入此目录。
 
 拟议主进程：`electron/main/subtitle-studio/{index,ipc,document-repository,document-service,input-service,translation-service,export-service}.ts` 及 planning/、persistence/；后续转写目录单独接入。实际拆文件由实现决定，职责与禁止依赖不变。

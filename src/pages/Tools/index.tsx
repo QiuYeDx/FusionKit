@@ -31,6 +31,12 @@ const CATEGORIES: Category[] = [
     hintKey: "tools:sub_desc.subtitle_tools",
     items: [
       {
+        id: "subtitleStudio",
+        titleKey: "studio:title",
+        descKey: "studio:documents",
+        chips: ["SRT · LRC"],
+      },
+      {
         id: "translator",
         titleKey: "tools:fields.subtitle_translator",
         descKey: "tools:field_desc.subtitle_translator",

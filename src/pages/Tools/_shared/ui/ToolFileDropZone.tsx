@@ -1,8 +1,5 @@
 import * as React from "react";
-import { FolderOpen, Upload } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { SmoothCorners } from "@/components/qiuye-ui/smooth-corners";
-import { cn } from "@/lib/utils";
+import { ToolFilePickerSurface } from './ToolFilePickerSurface';
 
 type ToolFileDropZoneProps = {
   id?: string;
@@ -97,24 +94,18 @@ export function ToolFileDropZone({
   );
 
   return (
-    <SmoothCorners
+    <ToolFilePickerSurface
       id={id}
-      radius={18}
-      smoothing={0.74}
-      className={cn(
-        "relative flex items-center gap-4 border-2 border-dashed px-5 py-5 transition-colors",
-        layout === "stacked" && "flex-col items-stretch gap-3 text-center",
-        disabled
-          ? "cursor-not-allowed border-border/70 opacity-60"
-          : "cursor-pointer",
-        dragging
-          ? "border-primary bg-primary/5"
-          : "border-border hover:bg-muted/40",
-        className,
-      )}
-      onClick={() => {
-        if (!disabled) internalInputRef.current?.click();
-      }}
+      title={title}
+      description={description}
+      actionLabel={actionLabel}
+      icon={icon}
+      secondaryAction={secondaryAction}
+      layout={layout}
+      disabled={disabled}
+      dragging={dragging}
+      className={className}
+      onSelect={() => internalInputRef.current?.click()}
       onDragEnter={(event) => {
         event.preventDefault();
         if (!disabled) onDraggingChange?.(true);
@@ -146,43 +137,7 @@ export function ToolFileDropZone({
           void consumeToolFileInputSelection(input, handleFiles);
         }}
       />
-      <div
-        className={cn(
-          "flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border bg-muted/40 text-foreground/70",
-          layout === "stacked" && "self-center",
-        )}
-      >
-        {icon ?? (dragging ? <FolderOpen className="h-5 w-5" /> : <Upload className="h-5 w-5" />)}
-      </div>
-      <div className="min-w-0 flex-1">
-        <div className="text-sm font-semibold">{title}</div>
-        <div className="mt-0.5 text-xs text-muted-foreground">
-          {description}
-        </div>
-      </div>
-      <div
-        className={cn(
-          "flex shrink-0 flex-wrap items-center justify-end gap-2",
-          layout === "stacked" && "justify-center",
-        )}
-      >
-        {secondaryAction}
-        <Button
-          variant="outline"
-          size="sm"
-          type="button"
-          disabled={disabled}
-          onClick={(event) => {
-            event.preventDefault();
-            event.stopPropagation();
-            internalInputRef.current?.click();
-          }}
-        >
-          <FolderOpen className="h-3.5 w-3.5" />
-          {actionLabel}
-        </Button>
-      </div>
-    </SmoothCorners>
+    </ToolFilePickerSurface>
   );
 }
 

@@ -165,7 +165,7 @@ export default function PlanPreviewTable({
         </div>
       ) : null}
 
-      <div className="flex flex-wrap items-center gap-1.5 border-b px-4 py-2">
+      <div className="flex flex-wrap items-center gap-1.5 border-b px-3 py-2">
         <SummaryBadge
           label={t("preview.summary.ready")}
           value={plan.readyCount}
@@ -196,7 +196,7 @@ export default function PlanPreviewTable({
       </div>
 
       {plan.clarificationRequired ? (
-        <div className="p-4">
+        <div className="p-3">
           <Alert variant="destructive">
             <AlertTriangle className="h-4 w-4" />
             <AlertTitle>{t("preview.clarification_title")}</AlertTitle>
@@ -217,7 +217,7 @@ export default function PlanPreviewTable({
       ) : null}
 
       {isPlanIncomplete(plan) ? (
-        <div className="p-4 pt-0">
+        <div className="p-3 pt-0">
           <Alert>
             <AlertTriangle className="h-4 w-4" />
             <AlertTitle>{t("preview.incomplete_warning_title")}</AlertTitle>
@@ -232,7 +232,7 @@ export default function PlanPreviewTable({
       ) : null}
 
       {plan.items.length === 0 && !plan.clarificationRequired ? (
-        <div className="p-4">
+        <div className="p-3">
           <Alert>
             <AlertTriangle className="h-4 w-4" />
             <AlertTitle>{t("preview.no_targets_title")}</AlertTitle>
@@ -420,7 +420,7 @@ export default function PlanPreviewTable({
         <ScrollBar orientation="horizontal" />
       </ScrollArea>
 
-      <div className="flex items-center justify-between gap-3 border-t px-4 py-3">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-t px-3 py-1">
         <div className="text-[11px] text-muted-foreground">
           {t("preview.pagination_hint", { count: PAGE_SIZE })}
         </div>
@@ -469,7 +469,7 @@ function PlanningProgressPanel({
   const detail = getPlanningProgressDetail(progress, t);
 
   return (
-    <div className="px-4 py-4">
+    <div className="p-3">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
