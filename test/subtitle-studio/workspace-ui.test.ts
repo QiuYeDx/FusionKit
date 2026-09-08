@@ -169,6 +169,17 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_E2E === '1')('Subtitle Studio worksp
     await page.waitForTimeout(250);
     expect(await page.locator('[data-slot=clip-path-tabs-active-layer]').evaluate(element => getComputedStyle(element).clipPath)).toMatch(/^inset\(/);
     await uiExpect(page.locator('.studio-raw pre').first()).toContainText('00:00:00,000');
+    expect(await page.locator('.studio-raw pre').first().textContent()).toBe(source.slice(0, source.indexOf('\n\n') + 2));
+    const rawDensity = await page.locator('.studio-raw li').evaluateAll(rows => ({
+      shortHeight: rows[0].getBoundingClientRect().height,
+      wrappedHeight: rows[2].getBoundingClientRect().height,
+      multilineHeight: rows[3].getBoundingClientRect().height,
+    }));
+    expect(rawDensity.shortHeight).toBeLessThanOrEqual(76);
+    expect(rawDensity.wrappedHeight).toBeGreaterThan(rawDensity.shortHeight);
+    expect(rawDensity.multilineHeight).toBeGreaterThan(rawDensity.shortHeight);
+    console.log('Raw content density:', rawDensity);
+    await capture('original-content-first-page');
     await page.getByRole('button', { name: '下一页', exact: true }).click();
     await uiExpect(page.locator('.studio-raw li > span').first()).toHaveText('101');
     await capture('original-content');
@@ -223,6 +234,9 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_E2E === '1')('Subtitle Studio worksp
         await assertFilename('.studio-mobile-picker .studio-file-name');
       }
       await capture(`${theme}-${lang}-${width}`);
+      await page.getByRole('tab').nth(1).click();
+      await capture(`original-content-${theme}-${lang}-${width}`);
+      await page.getByRole('tab').first().click();
     }
     // The desktop application has a 786px minimum, but the view also survives a smaller renderer.
     await page.setViewportSize({ width: 390, height: 844 });

@@ -69,10 +69,10 @@
 .studio-cue-text { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 13px; line-height: 20px; user-select: text; }
 .studio-cue-table .studio-cue-action { padding: 4px 8px 4px 0; }
 @media (hover: hover) and (pointer: fine) { .studio-copy { opacity: 0; } tr:hover .studio-copy, tr:focus-within .studio-copy, .studio-copy.is-copied { opacity: 1; } }
-.studio-raw li { display: grid; grid-template-columns: 44px minmax(0, 1fr); padding: 12px 12px 12px 0; border-bottom: 1px solid var(--border); }
+.studio-raw li { display: grid; grid-template-columns: 36px minmax(0, 1fr); padding: 4px 12px 4px 0; border-bottom: 1px solid var(--border); }
 .studio-raw li:last-child { border-bottom: 0; }
-.studio-raw li > span { font: 10px/1.8 ui-monospace, monospace; color: var(--muted-foreground); text-align: center; }
-.studio-raw pre { white-space: pre-wrap; overflow-wrap: anywhere; font: 11px/1.8 ui-monospace, monospace; user-select: text; }
+.studio-raw li > span { padding-right: 12px; font: 10px/16px ui-monospace, monospace; color: var(--muted-foreground); text-align: right; font-variant-numeric: tabular-nums; }
+.studio-raw pre { white-space: pre-wrap; overflow-wrap: anywhere; font: 11px/16px ui-monospace, monospace; user-select: text; }
 .studio-reader-footer { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
 .studio-pagination { display: flex; align-items: center; justify-content: flex-end; gap: 12px; font-size: 11px; font-variant-numeric: tabular-nums; }
 .studio-range { white-space: nowrap; }
