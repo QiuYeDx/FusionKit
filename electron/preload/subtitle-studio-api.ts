@@ -14,6 +14,11 @@ export function createSubtitleStudioApi(ipc: { sendSync(channel: string, payload
     exportSource: request => invoke(STUDIO_CHANNELS.exportSource, request),
     deleteDocument: request => invoke(STUDIO_CHANNELS.deleteDocument, request),
     removeTask: request => invoke(STUDIO_CHANNELS.removeTask, request),
+    planTranslation: request => invoke(STUDIO_CHANNELS.planTranslation, request),
+    createTranslation: request => invoke(STUDIO_CHANNELS.createTranslation, request),
+    previewBilingual: request => invoke(STUDIO_CHANNELS.previewBilingual, request),
+    applyBilingual: request => invoke(STUDIO_CHANNELS.applyBilingual, request),
+    removeTranslationTrack: request => invoke(STUDIO_CHANNELS.removeTranslationTrack, request),
     subscribe: listener => {
       if (typeof capability !== 'string') return () => {};
       const receive = (_event: unknown, input: unknown) => {

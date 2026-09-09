@@ -190,7 +190,7 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_E2E === '1')('Subtitle Studio worksp
     await uiExpect(page.getByRole('tab', { name: '字幕预览' })).toHaveAttribute('aria-selected', 'true');
 
     await app.evaluate(({ dialog }, selected) => { dialog.showSaveDialog = async () => ({ canceled: false, filePath: selected }); }, path.join(root, 'export.srt'));
-    await page.getByRole('button', { name: '下载原文', exact: true }).click();
+    await page.getByRole('button', { name: '下载原文件', exact: true }).click();
     await uiExpect(page.getByRole('status').filter({ hasText: '已下载' })).toBeVisible();
     expect(await readFile(path.join(root, 'export.srt'), 'utf8')).toBe(source);
     await page.getByRole('button', { name: '关闭提示' }).click();

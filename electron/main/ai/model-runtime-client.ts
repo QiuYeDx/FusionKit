@@ -32,6 +32,7 @@ export interface ModelRuntimeTextRequest {
   messages: ModelRuntimeMessage[];
   temperature?: number;
   maxOutputTokens?: number;
+  maxResponseBytes?: number;
   responseFormat?: "text" | "json_object";
   timeoutMs?: number;
   signal?: AbortSignal;

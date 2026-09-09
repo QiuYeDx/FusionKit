@@ -71,16 +71,39 @@ describe('document generations and lifecycle', () => {
     await expect(repo.transact(doc.id, 1, translated)).rejects.toThrow('revision_conflict');
     await expect(repo.transact(doc.id, 2, (() => Promise.resolve()) as never)).rejects.toThrow('invalid_input');
   });
-  it('clears terminal task checkpoints while keeping translation, source and exports', async () => {
+  it.each(['completed', 'failed', 'cancelled'] as const)('clears %s task checkpoints while keeping translation, source and exports', async status => {
     const { repo, doc, root, raw } = await fixture();
-    await repo.transact(doc.id, 1, translated);
+    await repo.transact(doc.id, 1, snapshot => { translated(snapshot); snapshot.tasks[0].status = status; });
     const snapshot = await repo.readSnapshot(doc.id);
     await writeFile(path.join(root, 'export.lrc'), raw);
     await repo.removeTask(doc.id, 2, snapshot.tasks[0].id);
     const restored = await repo.readSnapshot(doc.id);
     expect(restored.tasks).toEqual([]);
-    expect(restored.document.translationTracks).toHaveLength(1);
+    expect(restored.document.translationTracks).toEqual(snapshot.document.translationTracks);
+    expect(restored.document.cues).toEqual(snapshot.document.cues);
+    expect(sourceBytes(restored.document).toString()).toBe(raw);
     expect(await readFile(path.join(root, 'export.lrc'), 'utf8')).toBe(raw);
+  });
+  it.each(['queued', 'running'] as const)('preserves terminal checkpoints and the document revision while another task is %s', async status => {
+    const { directory, repo, doc } = await fixture();
+    const before = await repo.transact(doc.id, 1, snapshot => {
+      translated(snapshot);
+      translated(snapshot);
+      snapshot.tasks[1].status = status;
+      snapshot.tasks[1].completedBatchIds = [];
+      snapshot.tasks[1].attempts = status === 'queued' ? 0 : 1;
+    });
+    await expect(repo.removeTask(doc.id, before.document.revision, before.tasks[0].id)).rejects.toThrow('revision_conflict');
+    expect(await new DocumentRepository(directory).readSnapshot(doc.id)).toEqual(before);
+    const completed = await repo.transact(doc.id, before.document.revision, snapshot => {
+      snapshot.tasks[1].status = 'completed';
+      snapshot.tasks[1].completedBatchIds = ['b1'];
+    });
+    const cleared = await repo.removeTask(doc.id, completed.document.revision, before.tasks[0].id);
+    expect(cleared.tasks).toEqual([completed.tasks[1]]);
+    expect(cleared.document.translationTracks).toEqual(completed.document.translationTracks);
+    expect(cleared.document.cues).toEqual(completed.document.cues);
+    expect(cleared.document.preservation).toEqual(completed.document.preservation);
   });
   it('publishes a tombstone before cancellation/cleanup and rejects late commits or recreation', async () => {
     const { directory, repo, doc, root, raw } = await fixture();

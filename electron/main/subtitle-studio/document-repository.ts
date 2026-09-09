@@ -178,6 +178,7 @@ export class DocumentRepository {
     return this.transact(id, expectedRevision, snapshot => {
       const task = snapshot.tasks.find(item => item.id === taskId);
       if (!task || !['completed', 'failed', 'cancelled'].includes(task.status)) throw new StudioError('invalid_input');
+      if (snapshot.tasks.some(item => item.status === 'queued' || item.status === 'running')) throw new StudioError('revision_conflict');
       snapshot.tasks = snapshot.tasks.filter(item => item.id !== taskId);
     }, guard);
   }

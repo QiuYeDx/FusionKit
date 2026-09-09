@@ -19,9 +19,13 @@ import { ScrollableDialog, ScrollableDialogHeader, ScrollableDialogContent, Scro
 import { encodingSchema, LIMITS, StudioError, type Diagnostic, type ErrorCode } from '@/subtitle-studio/domain';
 import type { DocumentPage, DocumentSummary } from '@/subtitle-studio/ipc-contract';
 import { formatStudioTime, StudioFileName, StudioIconButton, StudioPagination } from './StudioControls';
+import { StudioTranslation, StudioTranslationStatus } from './StudioTranslation';
+import { StudioBilingual, StudioRemoveTranslation } from './StudioBilingual';
 import './studio.css';
 
 const errorKeys: Record<ErrorCode, string> = {
+  translation_output_limit: 'studio:errors.translation_output_limit',
+  needs_configuration: 'studio:errors.needs_configuration', translation_protocol_invalid: 'studio:errors.translation_protocol_invalid', translation_failed: 'studio:errors.translation_failed', interrupted: 'studio:errors.interrupted',
   invalid_input: 'studio:errors.invalid_input', unsupported_feature: 'studio:errors.unsupported_feature', encoding_required: 'studio:errors.encoding_required', limit_exceeded: 'studio:errors.limit_exceeded', revision_conflict: 'studio:errors.revision_conflict', access_denied: 'studio:errors.access_denied', document_unavailable: 'studio:errors.document_unavailable', output_write_failed: 'studio:errors.output_write_failed',
 };
 const diagnosticKeys: Record<Diagnostic['code'], string> = {
@@ -44,6 +48,9 @@ export default function SubtitleStudio() {
   const [copyFailed, setCopyFailed] = useState(false);
   const [deleting, setDeleting] = useState<DocumentSummary | null>(null);
   const [cleanupPending, setCleanupPending] = useState(false);
+  const [trackId, setTrackId] = useState('');
+  const [importedId, setImportedId] = useState('');
+  const track = page?.translationTracks.find(item => item.id === trackId) ?? page?.translationTracks.at(-1);
   const observations = useRef(new StudioObservations());
   const currentPage = useRef<DocumentPage | null>(null);
   const currentOffset = useRef(0);
@@ -72,8 +79,12 @@ export default function SubtitleStudio() {
     finally { operation.current = false; if (mounted.current) { setActivity(null); if (dirty.current) queueMicrotask(() => refreshPending.current()); } }
   };
   const select = async (doc: DocumentSummary, offset = 0, nodeOffset = 0) => {
+    const previous = currentPage.current;
     const result = await unwrapStudio(window.subtitleStudio.readDocumentPage({ documentId: doc.id, revision: doc.revision, offset, nodeOffset }));
-    if (mounted.current && observations.current.acceptsDocument(result.summary)) { showPage(result); setCopied(null); setCopyFailed(false); reader.current?.scrollTo({ top: 0 }); }
+    if (mounted.current && observations.current.acceptsDocument(result.summary)) {
+      showPage(result); setCopied(null); setCopyFailed(false);
+      if (previous?.summary.id !== doc.id || previous.offset !== offset || previous.nodeOffset !== nodeOffset) reader.current?.scrollTo({ top: 0 });
+    }
   };
   const load = async (offset: number, openFirst = false): Promise<void> => {
     let result = await unwrapStudio(window.subtitleStudio.listDocuments({ offset }));
@@ -113,7 +124,7 @@ export default function SubtitleStudio() {
   };
   const importDocument = () => void run('import', async () => {
     const doc = await unwrapStudio(window.subtitleStudio.importSubtitle({ encoding }));
-    if (doc && mounted.current) { await load(0); await select(doc); setView('preview'); }
+    if (doc && mounted.current) { await load(0); await select(doc); setView('preview'); setImportedId(doc.id); }
   });
   const chooseDocument = (doc: DocumentSummary) => void run('select', async () => { await select(doc); if (mounted.current) setView('preview'); });
   const copyCue = async (id: string, text: string) => {
@@ -181,7 +192,7 @@ export default function SubtitleStudio() {
         {page && <StudioIconButton label={t('studio:open_file')} disabled={busy} onClick={importDocument}>{activity === 'import' ? <LoaderCircle className="studio-spin" /> : <FolderOpen />}</StudioIconButton>}
         {refresh}{libraryPagination}
       </div>
-      {error && <div role="alert" className="studio-notice text-destructive border-destructive/20 bg-destructive/5"><AlertCircle /><span>{t(errorKeys[error])}</span><Button size="sm" variant="ghost" disabled={busy} onClick={() => retry.current?.()}>{t('studio:retry')}</Button><StudioIconButton label={t('studio:dismiss')} onClick={() => setError(null)}><X /></StudioIconButton></div>}
+      {error && <div role="alert" className="studio-notice text-destructive border-destructive/20 bg-destructive/5"><AlertCircle /><span>{t(errorKeys[error])}</span>{retry.current && <Button size="sm" variant="ghost" disabled={busy} onClick={() => retry.current?.()}>{t('studio:retry')}</Button>}<StudioIconButton label={t('studio:dismiss')} onClick={() => setError(null)}><X /></StudioIconButton></div>}
       {exported && <div role="status" className="studio-notice"><CheckCheck className="text-emerald-600 dark:text-emerald-400" /><span>{t('studio:exported', { name: exported })}</span><StudioIconButton label={t('studio:dismiss')} onClick={() => setExported('')}><X /></StudioIconButton></div>}
       {cleanupPending && <div role="status" className="studio-notice"><AlertCircle /><span>{t('studio:cleanup_pending')}</span><StudioIconButton label={t('studio:dismiss')} onClick={() => setCleanupPending(false)}><X /></StudioIconButton></div>}
       <span className="sr-only" role="status">{busy ? t('studio:loading') : copied ? t('studio:copied') : ''}</span>
@@ -191,7 +202,7 @@ export default function SubtitleStudio() {
           title={t('studio:preview')}
           icon={Subtitles}
           badge={page ? <Badge variant="secondary" className="font-mono text-[11px]">{page.summary.cueCount}</Badge> : undefined}
-          actions={page ? <><StudioIconButton id="studio-delete-trigger" label={t('studio:delete_document')} disabled={busy} onClick={() => setDeleting(page.summary)}><Trash2 /></StudioIconButton><Button variant="outline" size="sm" disabled={busy} onClick={() => void run('export', async () => {
+          actions={page ? <><StudioBilingual page={page} busy={busy} autoOpen={importedId === page.summary.id} onError={code => { retry.current = null; setError(code); }} onChanged={doc => { setImportedId(''); void run('select', async () => { await select(doc); await load(currentOffset.current); }); }} /><StudioTranslation page={page} busy={busy} onError={code => { retry.current = null; setError(code); }} onStarted={() => { dirty.current = true; refreshPending.current(); }} /><StudioIconButton id="studio-delete-trigger" label={t('studio:delete_document')} disabled={busy} onClick={() => setDeleting(page.summary)}><Trash2 /></StudioIconButton><Button variant="outline" size="sm" disabled={busy} onClick={() => void run('export', async () => {
             const result = await unwrapStudio(window.subtitleStudio.exportSource({ documentId: page.summary.id, revision: page.summary.revision }));
             if (result && mounted.current) setExported(result.fileName);
           })}>{activity === 'export' ? <LoaderCircle className="studio-spin" /> : <ArrowDownToLine />}{t('studio:export_source')}</Button></> : undefined}
@@ -199,6 +210,11 @@ export default function SubtitleStudio() {
           footer={page ? <div className="studio-reader-footer"><span className="flex items-center gap-1.5 text-[11px] text-muted-foreground studio-footer-status">{busy ? <LoaderCircle className="h-3.5 w-3.5 studio-spin" /> : <CheckCheck className="h-3.5 w-3.5" />}{busy ? t('studio:loading') : t('studio:source_preserved')}</span><StudioPagination offset={view === 'raw' ? page.nodeOffset : page.offset} total={view === 'raw' ? page.nodeCount : page.summary.cueCount} busy={busy} onChange={offset => void run('select', () => select(page.summary, view === 'raw' ? page.offset : offset, view === 'raw' ? offset : page.nodeOffset))} /></div> : undefined}
         >
           {page ? <>
+            {track && <div className="studio-translation-toolbar">
+              <Select value={track.id} onValueChange={setTrackId}><SelectTrigger aria-label={t('studio:translation_track')} className="h-7 w-[160px] shrink-0 text-xs"><SelectValue /></SelectTrigger><SelectContent>{page.translationTracks.map((item, index) => <SelectItem key={item.id} value={item.id}>{item.language === 'und' ? t('studio:language_unknown') : item.language} · {index + 1}</SelectItem>)}</SelectContent></Select>
+              <StudioRemoveTranslation page={page} track={track} busy={busy} onError={code => { retry.current = null; setError(code); }} onChanged={doc => { setTrackId(''); void run('select', async () => { await select(doc); await load(currentOffset.current); }); }} />
+              <StudioTranslationStatus page={page} trackId={track.id} />
+            </div>}
             <ClipPathTabs value={view} onValueChange={setView} ariaLabel={t('studio:document_view')} shape="rounded" smoothCorners size="sm" className="studio-tabs w-full gap-0" transitionDuration={200} transitionEasing="ease-out" items={[
               { value: 'preview', label: t('studio:preview'), icon: <List /> },
               { value: 'raw', label: t('studio:original_nodes'), icon: <Code2 /> },
@@ -208,16 +224,16 @@ export default function SubtitleStudio() {
                 <div className="studio-document-meta text-[11px] text-muted-foreground">
                   <Badge variant="outline" className="font-mono text-[10px] font-normal">{page.summary.origin.format.toUpperCase()}</Badge>
                   <span>{page.summary.origin.encoding.toUpperCase()}</span>
-                  <span>{t('studio:source_only')}</span>
+                  <span>{track ? t(track.origin === 'imported' ? 'studio:translation_imported' : 'studio:translation_unreviewed') : t('studio:source_only')}</span>
                 </div>
               </div>
               {diagnostics.length > 0 && <details className="studio-diagnostics border-t bg-muted/30" key={page.summary.id}><summary><AlertCircle className="text-amber-600 dark:text-amber-400" /><span>{t('studio:document_checks')}</span><Badge variant="secondary" className="font-mono text-[10px]">{page.summary.diagnostics.length}</Badge><ChevronDown className="studio-disclosure" /></summary><ul>{diagnostics.map(([code, count]) => <li key={code}><span>{t(diagnosticKeys[code])}</span><span className="shrink-0 font-mono text-[10px]">{count}</span></li>)}</ul></details>}
               <div className="studio-reader border-t" ref={reader}>
                 <ClipPathTabsContent value="preview">
-                  {page.cues.length ? <table aria-label={t('studio:preview')} className="studio-cue-table"><thead><tr><th scope="col">#</th><th scope="col">{t('studio:time')}</th><th scope="col">{t('studio:source')}</th><th scope="col"><span className="sr-only">{t('studio:copy')}</span></th></tr></thead><tbody>{page.cues.map((cue, index) => <tr key={cue.id} data-warning={flaggedNodes.has(cue.nodeId) || undefined}>
+                  {page.cues.length ? <table aria-label={t('studio:preview')} className={track ? 'studio-cue-table studio-translated-table' : 'studio-cue-table'}><thead><tr><th scope="col">#</th><th scope="col">{t('studio:time')}</th><th scope="col">{track ? <div className="studio-parallel-text"><span>{t('studio:source')}</span><span>{t('studio:target')}</span></div> : t('studio:source')}</th><th scope="col"><span className="sr-only">{t('studio:copy')}</span></th></tr></thead><tbody>{page.cues.map((cue, index) => <tr key={cue.id} data-warning={flaggedNodes.has(cue.nodeId) || undefined}>
                     <td className="studio-cue-number">{page.offset + index + 1}</td>
                     <td className="studio-cue-time"><div className="studio-time-range"><span>{formatStudioTime(cue.timing.startMs)}</span><ArrowRight aria-hidden="true" /><span className="text-muted-foreground/70">{cue.timing.endMs === null ? t('studio:unknown_end') : formatStudioTime(cue.timing.endMs)}</span></div></td>
-                    <td className="studio-cue-text">{cue.source.spans.map((span, i) => <span key={i} style={{ fontWeight: span.marks.includes('b') ? 650 : undefined, fontStyle: span.marks.includes('i') ? 'italic' : undefined, textDecoration: span.marks.includes('u') ? 'underline' : undefined }}>{span.text}</span>)}</td>
+                    <td className="studio-cue-text"><div className={track ? 'studio-parallel-text' : undefined}><div>{cue.source.spans.map((span, i) => <span key={i} style={{ fontWeight: span.marks.includes('b') ? 650 : undefined, fontStyle: span.marks.includes('i') ? 'italic' : undefined, textDecoration: span.marks.includes('u') ? 'underline' : undefined }}>{span.text}</span>)}</div>{track && <div className="studio-target-text">{track.entries[cue.id] ? <>{track.entries[cue.id].sourceRevision !== cue.sourceRevision && <span className="block text-xs text-amber-600">{t('studio:translation_stale')}</span>}{track.entries[cue.id].text.spans.map((span, i) => <span key={i} style={{ fontWeight: span.marks.includes('b') ? 650 : undefined, fontStyle: span.marks.includes('i') ? 'italic' : undefined, textDecoration: span.marks.includes('u') ? 'underline' : undefined }}>{span.text}</span>)}</> : <span className="text-xs text-muted-foreground">{cue.source.plain.trim() ? t('studio:translation_missing') : ''}</span>}</div>}</div></td>
                     <td className="studio-cue-action"><StudioIconButton size="icon-xs" className={copied === cue.id ? 'studio-copy text-emerald-600 dark:text-emerald-400 is-copied' : 'studio-copy text-muted-foreground'} label={copied === cue.id ? t('studio:copied') : t('studio:copy')} onClick={() => void copyCue(cue.id, cue.source.plain)}>{copied === cue.id ? <Check /> : <Copy />}</StudioIconButton></td>
                   </tr>)}</tbody></table> : <div className="studio-content-empty"><Subtitles /><p>{t('studio:diagnostics.empty_document')}</p></div>}
                 </ClipPathTabsContent>

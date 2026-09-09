@@ -58,6 +58,20 @@ I1 实现：
 
 ## AI 和导出
 
+双语导入跟进（T07）：`bilingual.ts` 本地分析候选与原文顺序，主进程 `previewBilingual` 分页返回原译文候选，`applyBilingual` 根据相同选项重算并在 revision 事务内提交，拒绝已有任务/译轨或已整理文档。界面沿用 ScrollableDialog、Select、Checkbox 与紧凑工具按钮；单行拆分默认关闭，逐条可跳过或选空格位置，不引入模型检测。只有至少三组且占候选 80% 的稳定语言顺序/结构证据才在新导入时自动打开可取消预览，已有文档提供手动入口。同时间配对仅用于不同节点的单行正文；本身双行的 SRT 分别拆分，同节点重复 LRC 标签保持原样。同行混排、同文/字种不明和偏离主要语言顺序的候选进入复核筛选。最多 1000 项人工覆盖，超限保留有效预览并允许撤回已有选择。
+
+导入轨显示来源，不误标 AI。`removeTranslationTrack` 原子移除指定轨和关联终态任务：任意轨有 queued/running 任务，或选中轨有 interrupted/needs_configuration 任务时拒绝，防止修订冲突和恢复写回。公开 removeTask 同样禁止在同文档有 queued/running 时清除历史任务。当前 exportSource IPC 继续输出原文件，UI 改称“下载原文件”；T05 负责真实 source/target/bilingual 序列化。整理确认后暂不重解释；需更改方向时重新导入原文件，I4 再提供编辑/历史。
+
+2026-09-09 T03 实际设计：`translation-protocol.ts` 将正文投影为短 ID 与局部 `<mN>` 样式标记，SHA-256 与源修订映射保留在 main。`translation-planner.ts` 使用通用两个 adapter 的同一 body builder 做完整 JSON 预算；tokenizer 为本地估算，64 token 协议余量，输出预留与前文译文预留单独计入。前后原文最多各两条、各 256 tokens；前文 AI 译文最多两条、512 tokens，进一步按完整请求序列化检查，超限整条移除可选上下文，不截正文。
+
+`translation-service.ts` 保存 owner 绑定、15 分钟有效的内存计划；开始翻译须提供同 owner 计划及匹配文档 revision。主进程冻结配置，API key 仅进入当前执行闭包；文档快照新增可选 translation 进度以兼容 T02 快照。通用客户端内部重试固定为 0，新服务每批最多两次尝试，整批校验后与检查点一起提交。实际 usage 累加，缺失或非法值记 null；修订冲突也保留已收到的用量。重启恢复、取消控制与跨文档调度完整契约仍由 T04 负责。
+
+DeepSeek Chat 的缺省 thinking 在主进程规划入口显式设为 false，再统一用于预算、计划快照和执行；显式布尔配置保留，其他模型/API 格式不变。避免供应商默认深度思考消耗正文输出预算，通用 adapter 的默认行为不改。供应商 `length_truncated` 或 Chat `finish_reason: length` 归类为 `translation_output_limit`，不提交半批、不按相同预算重试，已收到的用量照常累计；已明确收到截断响应不新增未知执行标记。UI 显示调整每批字幕数量或输出上限的固定文案，不透传响应内容或私有错误详情。
+
+UI 以现有工作台/ToolPanel 和 `qiuye-ui-quality`、`fusionkit-ui-design` 为依据：header 仅新增 outline/sm 翻译按钮，使用 ScrollableDialog 配置模型、语言、翻译要求和折叠预算；计划预估后才显示开始动作。模型取应用公共 useModelStore，不新增密钥偏好。选择译文轨及状态栏仅在产生轨道后出现；桌面原译文并排，窄窗口在同一行单元内上下显示，长文按实际内容增长。原始内容和分页继续使用原布局；后台提交刷新保留当前滚动位置。状态按所选轨道关联，模型结果标明未经人工复核。验证覆盖多行、长文本、错误后重新规划、未知用量、深浅主题、1280/786 窗口和原有纵向空间回归。
+
+公共依赖审计：精确允许两个通用 adapter、model-runtime-client/errors、provider-error-classification、proxy、模型类型/常量/Store 与音频类型；tokenizer/axios 使用现有依赖。通用 useModelStore 导入时有应用级音频配置兼容初始化，传递链不含 v1 字幕实现；未改该初始化或访问旧字幕目录。两个 adapter 仅导出原 body builder 并增加可选响应字节上限，默认请求行为不变，已有模型客户端回归已验证。实际写集包含这三处通用文件、preload allowlist/API 和新版边界清单。
+
 文本 planner 为每批冻结短 ID 映射、源修订、上下文、模型配置摘要和预算；内部任务持久化不存密钥。翻译默认一文档单活动任务、顺序批次，不做随机响应顺序对应。标记不匹配和结构错误走受限协议重试，最终错误保留已提交批次。
 
 暂不接高级语义记忆系统、术语自动提炼或跨文档翻译缓存。必要提示包含用户翻译要求、有界前后原文与上一批已提交译文；用户要求进入任务配置快照。不同语言/模型可创建新译文轨，导出显式选轨。
@@ -89,6 +103,7 @@ export planner 固定 revision，先检查缺失、过期、结束时间和格�
 | R-WORKSPACE-05 | 持久检查点、源/轨/任务修订、单重试拥有者 |
 | R-WORKSPACE-06 | 导出计划、固定快照、格式能力和原子发布 |
 | R-WORKSPACE-07 | 分页预览、精确 IPC、转义与 owner 检查 |
+| R-WORKSPACE-08 | 双语候选分页确认、importedPair 保真映射、导入译轨与清轨事务、原文件/原文轨导出区分 |
 
 ## 验证与风险
 

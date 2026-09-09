@@ -19,8 +19,8 @@
       "approval": {
         "state": "approved",
         "by": "用户（当前 Codex 任务）",
-        "basis": "2026-09-08 当前任务用户原文：请在当前 FusionKit 仓库开始实现独立新版“字幕工作台”的 I1。先阅读 docs/features/subtitle-studio/README.md，按其中索引读 spec.json、BRD、整体架构、转写继承边界和 I1 的 requirements/design/tasks。本条消息授权按已定义的 I1 范围开始实施；登记真实授权并更新任务台账。",
-        "digest": "26bde5f69e3431a2ff3329f8b0cbdf006aba57e7e2f29ced6ef37d87d0206013"
+        "basis": "2026-09-08 当前任务用户原文：请在当前 FusionKit 仓库开始实现独立新版“字幕工作台”的 I1。先阅读 docs/features/subtitle-studio/README.md，按其中索引读 spec.json、BRD、整体架构、转写继承边界和 I1 的 requirements/design/tasks。本条消息授权按已定义的 I1 范围开始实施；登记真实授权并更新任务台账。2026-09-09 用户进一步要求对已是双语的 SRT/LRC 智能识别原文/译文，支持清除旧译文后重新翻译，并明确：完善一下本工具的设计，并完善/实现一下相关代码和逻辑吧；后续计划中的导出等功能只需更新设计以免打乱计划。新增 R-WORKSPACE-08/T-WORKSPACE-07，T05 补导出区分；不开展 I2/I4。",
+        "digest": "3d99de12c0481ca432a77e13865132bcc120f51db162c8a54f26d546f6bdaad1"
       },
       "acceptance": {
         "state": "pending",
@@ -90,7 +90,7 @@
       "id": "A-04",
       "state": "resolved",
       "blocking": false,
-      "resolution": "2026-09-08 用户先要求暂停后续开发；在阅读下一步说明后，于当前任务明确回复：好，继续推进工作吧。依据此真实恢复指令解除执行暂停，继续已批准的 I1 范围，I2 不在授权内。",
+      "resolution": "2026-09-08 用户先要求暂停后续开发；随后回复：好，继续推进工作吧。2026-09-09 在 T03 下一步说明后再次明确回复：好的，那继续推进后续的工作吧。继续已批准的 I1 范围，I2 不在授权内。",
       "increment": "I1",
       "text": "首项完成后的用户暂停指令。"
     },

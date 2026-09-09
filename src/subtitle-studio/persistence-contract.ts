@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { documentSchema, idSchema, StudioError, validateDocument } from './domain';
+import { translationProgressSchema } from './translation-contract';
 
 export const taskCheckpointSchema = z.object({
   id: idSchema, generation: z.number().int().positive().safe(), trackId: idSchema,
@@ -7,6 +8,7 @@ export const taskCheckpointSchema = z.object({
   completedBatchIds: z.array(z.string().min(1).max(100)).max(100000),
   uncertainBatchIds: z.array(z.string().min(1).max(100)).max(100000),
   attempts: z.number().int().nonnegative().safe(),
+  translation: translationProgressSchema.optional(),
 }).strict();
 const snapshotSchema = z.object({ schemaVersion: z.literal(1), document: documentSchema, tasks: z.array(taskCheckpointSchema).max(1000) }).strict();
 export type DocumentSnapshot = z.infer<typeof snapshotSchema>;

@@ -58,6 +58,9 @@ async function sendOnce(
       timeout: request.timeoutMs ?? 60_000,
       signal: request.signal,
       validateStatus: () => true,
+      ...(request.maxResponseBytes !== undefined
+        ? { maxContentLength: request.maxResponseBytes }
+        : {}),
       ...(request.proxy !== undefined
         ? { proxy: request.proxy }
         : getAxiosProxyConfig()),
@@ -77,7 +80,7 @@ async function sendOnce(
   return parseChatCompletionResponse(response.data, attempt);
 }
 
-function buildChatCompletionBody(
+export function buildChatCompletionBody(
   request: ModelRuntimeTextRequest,
 ): Record<string, unknown> {
   const body: Record<string, unknown> = {

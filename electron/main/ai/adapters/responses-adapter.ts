@@ -60,6 +60,9 @@ async function sendOnce(
       timeout: request.timeoutMs ?? 60_000,
       signal: request.signal,
       validateStatus: () => true,
+      ...(request.maxResponseBytes !== undefined
+        ? { maxContentLength: request.maxResponseBytes }
+        : {}),
       ...(request.proxy !== undefined
         ? { proxy: request.proxy }
         : getAxiosProxyConfig()),
@@ -79,7 +82,7 @@ async function sendOnce(
   return parseResponsesResponse(response.data, attempt, request.model.apiKey);
 }
 
-function buildResponsesBody(
+export function buildResponsesBody(
   request: ModelRuntimeTextRequest,
 ): Record<string, unknown> {
   const { instructions, input } = mapMessagesToResponsesInput(request.messages);

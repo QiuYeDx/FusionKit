@@ -8,9 +8,13 @@ import { STUDIO_CHANNELS, requestSchemas, summarizeDocument, type StudioResult }
 import { DocumentRepository } from './document-repository';
 import { readSubtitle } from './input-service';
 import { publishSource, unusedOutputPath } from './export-service';
+import { TranslationService } from './translation-service';
+import { BilingualService } from './bilingual-service';
 
 export function registerSubtitleStudio() {
   const repository = new DocumentRepository(path.join(app.getPath('userData'), 'subtitle-studio', 'documents'));
+  const translation = new TranslationService(repository);
+  const bilingual = new BilingualService(repository);
   const owners = new Map<number, { sender: WebContents; capability: string; documents: Set<string> }>();
   const allowed = new Set<number>();
   const rendererUrl = process.env.VITE_DEV_SERVER_URL || pathToFileURL(path.join(app.getAppPath(), 'dist', 'index.html')).href;
@@ -30,6 +34,7 @@ export function registerSubtitleStudio() {
   ipcMain.on(STUDIO_CHANNELS.register, (event, request) => {
     if (!allowed.has(event.sender.id) || event.senderFrame !== event.sender.mainFrame || !trusted(event.senderFrame.url) || !z.object({}).strict().safeParse(request).success) { event.returnValue = null; return; }
     const owner = { sender: event.sender, capability: randomUUID(), documents: new Set<string>() };
+    translation.forgetOwner(event.sender.id);
     owners.set(event.sender.id, owner);
     event.returnValue = owner.capability;
   });
@@ -65,6 +70,31 @@ export function registerSubtitleStudio() {
         }
         const request = requestSchemas.exportSource.parse({ documentId: (parsed.data as { documentId: string }).documentId, revision: (parsed.data as { revision: number }).revision });
         if (!owner.documents.has(request.documentId)) throw new StudioError('access_denied');
+        if (method === 'previewBilingual') {
+          const { options, offset, reviewOnly } = requestSchemas.previewBilingual.parse(payload);
+          const value = await bilingual.preview(request.documentId, request.revision, options, offset, alive, reviewOnly); alive();
+          return { ok: true, value };
+        }
+        if (method === 'applyBilingual') {
+          const { options } = requestSchemas.applyBilingual.parse(payload);
+          const value = await bilingual.apply(request.documentId, request.revision, options, alive); alive();
+          return { ok: true, value: summarizeDocument(value) };
+        }
+        if (method === 'removeTranslationTrack') {
+          const { trackId } = requestSchemas.removeTranslationTrack.parse(payload);
+          const value = await bilingual.removeTrack(request.documentId, request.revision, trackId, alive); alive();
+          return { ok: true, value: summarizeDocument(value) };
+        }
+        if (method === 'planTranslation') {
+          const { config } = requestSchemas.planTranslation.parse(payload);
+          const value = await translation.plan(event.sender.id, request.documentId, request.revision, config, alive); alive();
+          return { ok: true, value };
+        }
+        if (method === 'createTranslation') {
+          const { planId, apiKey } = requestSchemas.createTranslation.parse(payload);
+          const value = await translation.start(event.sender.id, request.documentId, request.revision, planId, apiKey, alive); alive();
+          return { ok: true, value };
+        }
         if (method === 'deleteDocument') {
           const value = await repository.delete(request.documentId, request.revision, alive); alive();
           return { ok: true, value };
@@ -74,13 +104,16 @@ export function registerSubtitleStudio() {
           const snapshot = await repository.removeTask(request.documentId, request.revision, taskId, alive); alive();
           return { ok: true, value: summarizeDocument(snapshot.document) };
         }
-        const doc = await repository.read(request.documentId); alive();
+        const snapshot = await repository.readSnapshot(request.documentId); alive();
+        const doc = snapshot.document;
         if (doc.revision !== request.revision) throw new StudioError('revision_conflict');
         if (method === 'readDocumentPage') {
           const { offset, nodeOffset = 0 } = requestSchemas.readDocumentPage.parse(payload);
           const cues = doc.cues.slice(offset, offset + LIMITS.pageSize);
           const nodes = doc.preservation.nodes.slice(nodeOffset, nodeOffset + LIMITS.pageSize);
-          return { ok: true, value: { summary: summarizeDocument(doc), cues, offset, nodeOffset, nodeCount: doc.preservation.nodes.length, rawNodes: nodes.map(node => ({ id: node.id, text: doc.preservation.rawText.slice(node.start, node.end) })) } };
+          const cueIds = new Set(cues.map(cue => cue.id));
+          const translationTracks = doc.translationTracks.map(track => ({ ...track, entries: Object.fromEntries(Object.entries(track.entries).filter(([id]) => cueIds.has(id))) }));
+          return { ok: true, value: { summary: summarizeDocument(doc), cues, offset, nodeOffset, nodeCount: doc.preservation.nodes.length, rawNodes: nodes.map(node => ({ id: node.id, text: doc.preservation.rawText.slice(node.start, node.end) })), translationTracks, tasks: snapshot.tasks } };
         }
         const window = BrowserWindow.fromWebContents(event.sender);
         if (!window) throw new StudioError('access_denied');
@@ -97,10 +130,11 @@ export function registerSubtitleStudio() {
   return {
     attach(sender: WebContents) {
       allowed.add(sender.id);
-      sender.on('did-start-navigation', (_event, _url, inPlace, mainFrame) => { if (mainFrame && !inPlace) owners.delete(sender.id); });
-      sender.once('destroyed', () => { owners.delete(sender.id); allowed.delete(sender.id); });
+      sender.on('did-start-navigation', (_event, _url, inPlace, mainFrame) => { if (mainFrame && !inPlace) { owners.delete(sender.id); translation.forgetOwner(sender.id); } });
+      sender.once('destroyed', () => { owners.delete(sender.id); allowed.delete(sender.id); translation.forgetOwner(sender.id); });
     },
     dispose() {
+      void translation.dispose();
       unsubscribe();
       owners.clear(); allowed.clear();
       ipcMain.removeAllListeners(STUDIO_CHANNELS.register);

@@ -4,7 +4,7 @@
 
 执行恢复：2026-09-08 用户在 UI 优化后明确回复“好，继续推进工作吧”；暂停历史与恢复来源登记于 spec.json。
 
-2026-09-08 UI 跟进：按用户“提交代码并推送，然后修一下”上下空白的指令，先推送 T02，再修复工作台纵向布局；实现与 Electron 验证见 [布局记录](../../records/2026-09-08-layout-height.md)。纵向布局已按后续用户指令提交为 `ddf178b`；随后优化原始内容密度，见 [密度记录](../../records/2026-09-08-raw-density.md)，该项尚未提交。T03 未开始。
+2026-09-08 UI 跟进：按用户“提交代码并推送，然后修一下”上下空白的指令，先推送 T02，再修复工作台纵向布局；实现与 Electron 验证见 [布局记录](../../records/2026-09-08-layout-height.md)。纵向布局已按后续用户指令提交为 `ddf178b`；随后优化原始内容密度，见 [密度记录](../../records/2026-09-08-raw-density.md)，已提交为 `5afc695` 并推送。2026-09-09 T03 实现与验证已完成，当前改动未提交，详见该任务块及实施记录。
 
 ### T-WORKSPACE-01 新版最小文档链路与格式核心
 
@@ -75,21 +75,23 @@
 
 | 字段 | 值 |
 | --- | --- |
-| 状态 | 未开始 |
+| 状态 | 已完成 |
 | 批次 | I1 |
 | 需求 | R-WORKSPACE-04 |
 | 验收 | AC-WORKSPACE-04-1, AC-WORKSPACE-04-2 |
 | 依赖 | T-WORKSPACE-02 |
-| 写集 | src/subtitle-studio/, electron/main/subtitle-studio/, src/pages/Tools/Subtitle/SubtitleStudio/, src/services/subtitle-studio/, src/store/tools/subtitle-studio/, test/subtitle-studio/, src/locales/ |
-| 负责人 | - |
-| 依赖确认 | - |
-| 完成日期 | - |
-| 实施记录 | - |
-| 集成版本 | - |
+| 写集 | src/subtitle-studio/, electron/main/subtitle-studio/, src/pages/Tools/Subtitle/SubtitleStudio/, src/services/subtitle-studio/, src/store/tools/subtitle-studio/, test/subtitle-studio/, src/locales/, electron/preload/subtitle-studio-api.ts, electron/preload/subtitle-studio-channel-policy.ts, scripts/subtitle-studio/boundaries.json, electron/main/ai/model-runtime-client.ts, electron/main/ai/adapters/chat-completions-adapter.ts, electron/main/ai/adapters/responses-adapter.ts, test/ai/model-runtime-response-limit.test.ts |
+| 负责人 | Codex root（计划/服务/IPC/集成）；translation_protocol（协议与单测）；translation_ui（独立组件与四语言）；model_audit（通用 adapter 限额与只读评审） |
+| 依赖确认 | 2026-09-09 核对 T-WORKSPACE-02 提交 b8eac4c 已包含于基线 5afc695；repository 事务、墓碑、IPC owner 校验可用，工作树干净 |
+| 完成日期 | 2026-09-09 |
+| 实施记录 | records/2026-09-09-workspace-03.md |
+| 集成版本 | 基线 5afc695 加当前共享工作树，源码摘要与验证证据见实施记录；未提交 |
 
 #### 实现要点
 
 审计应用通用模型客户端及重试层，不改旧翻译模块。新 planner 生成带源修订映射的短 ID 和文本上下文，共用实际请求序列化做预算与预估。支持普通文本和声明过的简单内联保护，不要求译文视觉行数与原文一致。完整批次校验后写入译文轨；显示实际或未知 usage。
+
+2026-09-09 用户报告实际 DeepSeek 翻译 52 条 LRC 失败，T03 曾退回进行中。现已统一主进程 thinking 默认策略、区分输出截断诊断，并用用户指定的同一文件完成真实 API 翻译（52 条、2 批、2 次请求），139 项回归及 Electron 验证通过后恢复完成。保留原验收标准，修复证据见实施记录的 DeepSeek 跟进部分。
 
 #### 验证计划
 
@@ -98,6 +100,36 @@
 | V-WORKSPACE-03-1 | unit | required | 捕获请求正文与上下文、比较 planner 估算/执行输入；响应乱序、源时间不变、usage 缺失；覆盖 AC-WORKSPACE-04-1 | - |
 | V-WORKSPACE-03-2 | unit | required | 漏/重复/未知 ID、截断 JSON、保护标记漂移、Unicode/超长单元反例；确认整批拒绝及只重试该批，覆盖 AC-WORKSPACE-04-2 | - |
 | V-WORKSPACE-03-3 | integration | required | 用明确配置并允许发送的合成短字幕做真实 API 请求，核对译文对应、用量及 source 不变；缺配置记录待验证，不上传用户文件替代 | - |
+| V-WORKSPACE-03-4 | browser | required | 隔离 Electron 导入合成字幕，配置/预算/提交/用量/译文轨预览，检查错误恢复、1280 与 786 窗口、主题和原工作台空间回归；实际查看最终截图 | - |
+
+### T-WORKSPACE-07 双语导入解释与清轨
+
+| 字段 | 值 |
+| --- | --- |
+| 状态 | 已完成 |
+| 批次 | I1 |
+| 需求 | R-WORKSPACE-08 |
+| 验收 | AC-WORKSPACE-08-1, AC-WORKSPACE-08-2, AC-WORKSPACE-08-3 |
+| 依赖 | T-WORKSPACE-03 |
+| 写集 | src/subtitle-studio/, electron/main/subtitle-studio/, electron/preload/subtitle-studio-api.ts, electron/preload/subtitle-studio-channel-policy.ts, src/pages/Tools/Subtitle/SubtitleStudio/, src/locales/, test/subtitle-studio/, scripts/subtitle-studio/boundaries.json, docs/features/subtitle-studio/ |
+| 负责人 | Codex root（规格/IPC/仓库/集成/验证）；translation_protocol（分析转换核心与领域）；translation_ui（独立确认组件与四语言）；model_audit（只读样本/评审） |
+| 依赖确认 | 2026-09-09 已核对 T-WORKSPACE-03 在基线 5afc695 加当前工作树中可用，源码摘要 3c21da04b3eef8dd96577e5625694f1b6ae6ec6b697b163a9007d058e5fcad71；用户反馈翻译已正常，事务/源hash/译文轨已读验 |
+| 完成日期 | 2026-09-09 |
+| 实施记录 | records/2026-09-09-workspace-07.md |
+| 集成版本 | 基线 5afc695 加当前共享工作树；源码摘要 bee5f2b006126bd89a589594e93ebefe91a47957fdb0362ae013d1a3c984f169，未提交 |
+
+#### 实现要点
+
+新增本地候选分析、分页预览及 revision 保护的双语解释提交；原始证据不变，导入译文为 imported/unreviewed。用稳定节点/字符范围记录双方来源；既有无双语字段快照兼容。既有文档可选择整理，新导入满足稳定结构推荐时自动预览确认；单行混排明确启用、可改边界/跳过。清除单轨与关联终态任务同事务；同文档任意排队/运行任务，或选中轨可继续任务存在时拒绝。历史任务清理入口同样保护运行中的其他任务。主页面沿用紧凑图标工具栏与 ScrollableDialog，区分原文件下载文案，导出序列化后续 T05。
+
+#### 验证计划
+
+| 检查 | 类型 | 要求 | 命令或步骤 | 不适用理由 |
+| --- | --- | --- | --- | --- |
+| V-WORKSPACE-07-1 | unit | required | 结构/字种/同文/顺序/空白/样式/多标签/歧义/反向/非法覆盖矩阵；原节点range、源hash及输入不变，覆盖 AC-WORKSPACE-08-1, AC-WORKSPACE-08-2 | - |
+| V-WORKSPACE-07-2 | interface | required | 生产IPC跨owner、过期revision、已有任务拒绝；转换/清轨重启、原文件导出字节不变、原文再翻译及迟到写入拒绝，覆盖 AC-WORKSPACE-08-1, AC-WORKSPACE-08-2, AC-WORKSPACE-08-3 | - |
+| V-WORKSPACE-07-3 | browser | required | 隔离Electron双语LRC/SRT导入→候选预览/方向/混排选择→确认→清轨→模型fixture重新翻译；桌面/窄窗、错误状态、最终截图人工审阅，覆盖 AC-WORKSPACE-08-1, AC-WORKSPACE-08-2, AC-WORKSPACE-08-3 | - |
+| V-WORKSPACE-07-4 | integration | required | 用户指定两文件仅本地分析和隔离转换，不发送API；记录数量、未匹配和复核项，重读/保真导出核对；相关vitest、构建、边界、i18n、类型检查及进程清理 | - |
 
 ### T-WORKSPACE-04 批次恢复、取消与旧结果防护
 
@@ -107,7 +139,7 @@
 | 批次 | I1 |
 | 需求 | R-WORKSPACE-05 |
 | 验收 | AC-WORKSPACE-05-1, AC-WORKSPACE-05-2 |
-| 依赖 | T-WORKSPACE-03 |
+| 依赖 | T-WORKSPACE-03, T-WORKSPACE-07 |
 | 写集 | electron/main/subtitle-studio/, src/subtitle-studio/, src/services/subtitle-studio/, src/pages/Tools/Subtitle/SubtitleStudio/, test/subtitle-studio/, src/locales/ |
 | 负责人 | - |
 | 依赖确认 | - |
@@ -132,8 +164,8 @@
 | --- | --- |
 | 状态 | 未开始 |
 | 批次 | I1 |
-| 需求 | R-WORKSPACE-06 |
-| 验收 | AC-WORKSPACE-06-1, AC-WORKSPACE-06-2, AC-WORKSPACE-06-3 |
+| 需求 | R-WORKSPACE-06, R-WORKSPACE-08 |
+| 验收 | AC-WORKSPACE-06-1, AC-WORKSPACE-06-2, AC-WORKSPACE-06-3, AC-WORKSPACE-08-4 |
 | 依赖 | T-WORKSPACE-04 |
 | 写集 | src/subtitle-studio/, electron/main/subtitle-studio/, src/pages/Tools/Subtitle/SubtitleStudio/, src/services/subtitle-studio/, src/store/tools/subtitle-studio/, test/subtitle-studio/, src/locales/ |
 | 负责人 | - |
@@ -146,6 +178,8 @@
 
 完善 source/target/bilingual、顺序、SRT/LRC 与编码/换行，固定导出修订。提供估算结束时间、损失列表和不完整译文策略，不更改 source evidence。使用新版自有发布与清理，默认索引命名；不得依赖旧 exporter 或覆盖 addon。
 
+original 继续导出原文件保留字节；source 始终以当前原文 cue 序列化，尤其双语导入/清轨后不得直接使用 rawText 夹回旧译文。imported 轨与 AI 轨均可 target/bilingual；无译轨或缺失项沿用显式不完整策略。
+
 #### 验证计划
 
 | 检查 | 类型 | 要求 | 命令或步骤 | 不适用理由 |
@@ -153,6 +187,7 @@
 | V-WORKSPACE-05-1 | integration | required | 一次翻译后重启，切模式/顺序/格式导出并 parse-back；捕获模型调用计数始终不增长，覆盖 AC-WORKSPACE-06-1 | - |
 | V-WORKSPACE-05-2 | unit | required | LRC 同起点/末条/offset、缺失/过期译文、格式精度/样式损失；用户选择前后计划对照，源时间 provenance 不变，覆盖 AC-WORKSPACE-06-2 | - |
 | V-WORKSPACE-05-3 | integration | required | 临时目录同名、原生保存取消、写入失败/Windows 锁定、导出中提交新译文；核对目标完整性与单修订快照，覆盖 AC-WORKSPACE-06-3 | - |
+| V-WORKSPACE-05-4 | integration | required | 双语文件整理后分别 original/source/target/bilingual 导出并 parse-back；清轨后 source 不夹带旧译文、target 拒绝，调用次数不增长，覆盖 AC-WORKSPACE-08-4 | - |
 
 ### T-WORKSPACE-06 UI 完整验收、v1 共存与移除演练
 
