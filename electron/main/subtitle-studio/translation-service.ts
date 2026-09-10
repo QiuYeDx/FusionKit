@@ -82,7 +82,11 @@ export class TranslationService {
           for (const task of value.tasks) if (activeStatus(task)) interruptTask(task, 'interrupted');
         });
       }
-    })();
+    })().catch(error => {
+      // Share an in-flight initialization, but allow retry after a temporary storage failure.
+      this.initialized = undefined;
+      throw error;
+    });
     return this.initialized;
   }
   private assertOpen() { if (this.closed) throw new StudioError('interrupted'); }

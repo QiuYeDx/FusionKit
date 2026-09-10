@@ -21,6 +21,10 @@ export default defineConfig(({ command }) => {
   const srcAlias = path.join(__dirname, 'src')
 
   return {
+    // Only the application is an entry; reports and HTML templates are not executable pages.
+    optimizeDeps: {
+      entries: ['index.html'],
+    },
     resolve: {
       alias: {
         '@': srcAlias

@@ -127,6 +127,9 @@ Read this index first, then open only the detail files that plausibly match the 
 | FK-PIT-0121 | Windows native model move | NTFS,ctime,unlink,FileHandle.close,model_corrupt; Reverify pinned content after the final Windows source handle closes before deleting the quarantine. | [reverify-windows-model-source-after-final-handle-close.md](reverify-windows-model-source-after-final-handle-close.md) |
 | FK-PIT-0122 | Windows build and acceptance | ADMINI~1,temporary directory,Rollup emitted chunks,realpathSync.native; Normalize isolated build roots with the native Windows path resolver before passing them as child-process cwd. | [canonicalize-windows-isolated-build-roots-with-native-realpath.md](canonicalize-windows-isolated-build-roots-with-native-realpath.md) |
 
+| FK-PIT-0123 | Subtitle Studio / startup recovery | pnpm dev,document_unavailable,incompatible history,import never opens; Isolate failed documents and release rejected initialization attempts while preserving original data. | [isolate-unreadable-documents-during-library-startup.md](isolate-unreadable-documents-during-library-startup.md) |
+| FK-PIT-0124 | Vite / development dependency scanning | Failed to scan,HTML template,STAGE_DATA,release reports; Restrict dependency entries to the application HTML and verify forced scanning. | [restrict-vite-scanning-to-application-html-entries.md](restrict-vite-scanning-to-application-html-entries.md) |
+
 ## Add new cases
 
 Use `scripts/add_pitfall.py` from the skill root when possible. Each pitfall should live as one Markdown file directly under `references/`, and every new file must have one index row here.

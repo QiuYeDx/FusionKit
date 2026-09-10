@@ -6,6 +6,7 @@
   "import_settings": "上傳設定",
   "title": "字幕工作台",
   "documents": "字幕文件",
+  "unavailable_documents": "有 {{count}} 份文件暫時無法還原，原始資料已保留。你可以繼續使用其他文件，或重新開啟原字幕檔案。",
   "encoding": "檔案編碼",
   "import": "上傳字幕",
   "refresh": "重新整理",

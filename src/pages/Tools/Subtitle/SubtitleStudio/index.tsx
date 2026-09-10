@@ -40,6 +40,7 @@ export default function SubtitleStudio() {
   const { encoding, setEncoding } = useStudioPreferences();
   const [documents, setDocuments] = useState<DocumentSummary[]>([]);
   const [total, setTotal] = useState(0);
+  const [unavailableDocuments, setUnavailableDocuments] = useState(0);
   const [listOffset, setListOffset] = useState(0);
   const [page, setPage] = useState<DocumentPage | null>(null);
   const [activity, setActivity] = useState<Activity | null>('load');
@@ -99,6 +100,7 @@ export default function SubtitleStudio() {
     if (offset > 0 && offset >= result.total) return load(Math.max(0, Math.floor((result.total - 1) / LIMITS.pageSize) * LIMITS.pageSize), openFirst);
     currentOffset.current = offset;
     setDocuments(result.documents); setTotal(result.total); setListOffset(offset);
+    setUnavailableDocuments(result.unavailableDocuments);
     const selected = currentPage.current;
     if (selected) {
       const refreshed = result.documents.find(doc => doc.id === selected.summary.id);
@@ -195,6 +197,7 @@ export default function SubtitleStudio() {
         {refresh}{libraryPagination}
       </div>
       {error && <div role="alert" className="studio-notice text-destructive border-destructive/20 bg-destructive/5"><AlertCircle /><span>{t(errorKeys[error])}</span>{retry.current && <Button size="sm" variant="ghost" disabled={busy} onClick={() => retry.current?.()}>{t('studio:retry')}</Button>}<StudioIconButton label={t('studio:dismiss')} onClick={() => setError(null)}><X /></StudioIconButton></div>}
+      {unavailableDocuments > 0 && <div role="status" data-testid="studio-recovery-warning" className="studio-notice"><AlertCircle className="text-amber-600 dark:text-amber-400" /><span>{t('studio:unavailable_documents', { count: unavailableDocuments })}</span></div>}
       {exported && <div role="status" className="studio-notice"><CheckCheck className="text-emerald-600 dark:text-emerald-400" /><span>{t('studio:exported', { name: exported })}</span><StudioIconButton label={t('studio:dismiss')} onClick={() => setExported('')}><X /></StudioIconButton></div>}
       {cleanupPending && <div role="status" className="studio-notice"><AlertCircle /><span>{t('studio:cleanup_pending')}</span><StudioIconButton label={t('studio:dismiss')} onClick={() => setCleanupPending(false)}><X /></StudioIconButton></div>}
       <span className="sr-only" role="status">{busy ? t('studio:loading') : copied ? t('studio:copied') : ''}</span>

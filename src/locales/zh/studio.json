@@ -6,6 +6,7 @@
   "import_settings": "上传设置",
   "title": "字幕工作台",
   "documents": "字幕文档",
+  "unavailable_documents": "有 {{count}} 份文档暂时无法恢复，原数据已保留。你可以继续使用其他文档，或重新打开原字幕文件。",
   "encoding": "文件编码",
   "import": "上传字幕",
   "refresh": "刷新",

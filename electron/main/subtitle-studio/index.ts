@@ -57,10 +57,10 @@ export function registerSubtitleStudio() {
         await translation.initialize(); alive();
         if (method === 'listDocuments') {
           const { offset } = requestSchemas.listDocuments.parse(payload);
-          const { documents, sequence } = await repository.listSnapshot(); alive();
+          const { documents, unavailableDocuments, sequence } = await repository.listSnapshot(); alive();
           const page = documents.slice(offset, offset + LIMITS.pageSize);
           page.forEach(doc => owner.documents.add(doc.id));
-          return { ok: true, value: { documents: page.map(summarizeDocument), total: documents.length, sequence } };
+          return { ok: true, value: { documents: page.map(summarizeDocument), total: documents.length, unavailableDocuments, sequence } };
         }
         if (method === 'importSubtitle') {
           const window = BrowserWindow.fromWebContents(event.sender);

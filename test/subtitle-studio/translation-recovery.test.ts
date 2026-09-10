@@ -67,6 +67,21 @@ afterEach(async () => {
 });
 
 describe('translation checkpoint recovery', () => {
+  it('shares initialization attempts and permits retry after a temporary repository failure', async () => {
+    const current = await fixture();
+    const { taskId } = await seedCrash(current);
+    const send = vi.fn(async (request: ModelRuntimeTextRequest) => success(request));
+    const service = current.service(send);
+    const listing = vi.spyOn(current.repository, 'list').mockRejectedValueOnce(Object.assign(new Error('temporary lock'), { code: 'EBUSY' }));
+    const first = service.initialize();
+    expect(service.initialize()).toBe(first);
+    await expect(first).rejects.toThrow('temporary lock');
+    await service.initialize();
+    await service.initialize();
+    expect(listing).toHaveBeenCalledTimes(2);
+    expect((await current.repository.readSnapshot(current.doc.id)).tasks.find(task => task.id === taskId)?.status).toBe('interrupted');
+    expect(send).not.toHaveBeenCalled();
+  });
   it.each(['queued', 'running'] as const)('initializes crashed %s state once without dispatch and resumes only frozen unfinished batches', async status => {
     const current = await fixture();
     const seeded = await seedCrash(current, status);

@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { EventEmitter } from 'node:events';
 import { randomUUID } from 'node:crypto';
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { tmpdir } from 'node:os';
 import { pathToFileURL } from 'node:url';
@@ -51,6 +51,27 @@ afterEach(async () => {
 });
 
 describe('production Subtitle Studio IPC handler composition', () => {
+  it('reports an unreadable historical document without blocking native import, preview or restart', async () => {
+    adapter.directory = await mkdtemp(path.join(tmpdir(), 'studio-ipc-'));
+    const brokenId = randomUUID();
+    const folder = path.join(adapter.directory, 'subtitle-studio', 'documents', brokenId);
+    await mkdir(folder, { recursive: true });
+    const pointer = JSON.stringify({ schemaVersion: 1, generation: randomUUID() });
+    await writeFile(path.join(folder, 'current.json'), pointer);
+    const source = path.join(adapter.directory, 'new.lrc');
+    await writeFile(source, '[00:01]Still usable\n');
+    adapter.open.mockResolvedValue({ canceled: false, filePaths: [source] });
+    registration = registerSubtitleStudio();
+    const owner = attach();
+    expect(await owner.invoke(STUDIO_CHANNELS.listDocuments, { offset: 0 })).toMatchObject({ ok: true, value: { total: 0, unavailableDocuments: 1 } });
+    const imported = await owner.invoke(STUDIO_CHANNELS.importSubtitle, { encoding: 'utf-8' });
+    expect(imported.ok).toBe(true);
+    expect(adapter.open).toHaveBeenCalledTimes(1);
+    expect(await owner.invoke(STUDIO_CHANNELS.readDocumentPage, { documentId: imported.value.id, revision: 1, offset: 0 })).toMatchObject({ ok: true, value: { cues: [{ source: { plain: 'Still usable' } }] } });
+    registration.dispose(); registration = registerSubtitleStudio();
+    expect(await attach().invoke(STUDIO_CHANNELS.listDocuments, { offset: 0 })).toMatchObject({ ok: true, value: { total: 1, unavailableDocuments: 1 } });
+    expect(await readFile(path.join(folder, 'current.json'), 'utf8')).toBe(pointer);
+  });
   const exportOptions: ExportOptions = { mode: 'source', format: 'lrc', order: 'source-first', encoding: 'utf-8', bom: false, newline: 'lf', incomplete: 'block', missingEnd: { mode: 'block' } };
   it('validates export plans and exposes only fixed public export methods', async () => {
     const { owner, request } = await setup('[00:01.00]Original\n');

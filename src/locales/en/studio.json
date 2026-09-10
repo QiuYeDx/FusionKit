@@ -6,6 +6,7 @@
   "import_settings": "Upload settings",
   "title": "Subtitle Studio",
   "documents": "Subtitle documents",
+  "unavailable_documents": "Unable to restore {{count}} document(s). Their original data is preserved. You can use other documents or reopen the original subtitle files.",
   "encoding": "File encoding",
   "import": "Upload subtitles",
   "refresh": "Refresh",

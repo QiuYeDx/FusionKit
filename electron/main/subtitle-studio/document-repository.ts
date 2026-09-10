@@ -160,10 +160,18 @@ export class DocumentRepository {
       } catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error; }
       const entries = await readdir(this.root, { withFileTypes: true });
       const documents: SubtitleDocument[] = [];
+      let unavailableDocuments = 0;
       for (const entry of entries.sort((a, b) => a.name.localeCompare(b.name))) {
-        if (entry.isDirectory() && idSchema.safeParse(entry.name).success && !await this.isDeleted(entry.name)) documents.push((await this.committed(entry.name)).snapshot.document);
+        if (!entry.isDirectory() || !idSchema.safeParse(entry.name).success || await this.isDeleted(entry.name)) continue;
+        try { documents.push((await this.committed(entry.name)).snapshot.document); }
+        catch (error) {
+          // A broken or incompatible document must not disable the whole library or import.
+          // Keep its published files untouched; callers still see an explicit recovery warning.
+          if (!(error instanceof StudioError) || error.code !== 'document_unavailable') throw error;
+          unavailableDocuments++;
+        }
       }
-      return { documents, sequence: this.state.sequence };
+      return { documents, unavailableDocuments, sequence: this.state.sequence };
     });
   }
   async list() { return (await this.listSnapshot()).documents; }

@@ -44,7 +44,7 @@ export const requestSchemas = {
 };
 export const studioEventSchema = z.object({ documentId: idSchema, revision: z.number().int().positive().safe(), sequence: z.number().int().positive().safe(), deleted: z.boolean() }).strict();
 export type StudioEvent = z.infer<typeof studioEventSchema>;
-export type DocumentListSnapshot = { documents: DocumentSummary[]; total: number; sequence: number };
+export type DocumentListSnapshot = { documents: DocumentSummary[]; total: number; unavailableDocuments: number; sequence: number };
 export type DocumentSummary = Pick<SubtitleDocument, 'id' | 'revision' | 'origin' | 'capabilities' | 'diagnostics' | 'bilingualImport'> & { cueCount: number; bilingualAvailable?: boolean; bilingualRecommended?: boolean };
 type StoredTask = DocumentSnapshot['tasks'][number];
 export type DocumentTask = Omit<StoredTask, 'translation'> & { translation?: Omit<NonNullable<StoredTask['translation']>, 'checkpoint'> & { checkpoint?: { version: 1 } } };

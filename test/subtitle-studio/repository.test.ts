@@ -26,6 +26,13 @@ function translated(snapshot: DocumentSnapshot) {
 afterEach(async () => { for (const root of roots.splice(0)) await rm(root, { recursive: true, force: true }); });
 
 describe('document generations and lifecycle', () => {
+  it('still reports a repository-wide storage failure instead of returning an empty library', async () => {
+    const { root } = await fixture();
+    const blocked = path.join(root, 'blocked');
+    await writeFile(blocked, 'not a directory');
+    await expect(new DocumentRepository(blocked).listSnapshot()).rejects.toThrow();
+    expect(await readFile(blocked, 'utf8')).toBe('not a directory');
+  });
   it.each<CommitStage>(['generation-write', 'generation-sync', 'generation-ready', 'previous-ready', 'current-write', 'current-sync', 'current-publish'])('keeps the previous complete commit after %s fails', async stage => {
     const { directory, repo, doc, raw } = await fixture();
     await repo.transact(doc.id, 1, translated);
@@ -62,7 +69,21 @@ describe('document generations and lifecycle', () => {
     await writeFile(path.join(folder, 'current.json'), '{}');
     await writeFile(path.join(folder, 'previous.json'), '{}');
     await expect(repo.read(doc.id)).rejects.toThrow('document_unavailable');
-    await expect(repo.list()).rejects.toThrow('document_unavailable');
+    expect(await repo.listSnapshot()).toMatchObject({ documents: [], unavailableDocuments: 1 });
+    expect(await readFile(path.join(folder, 'current.json'), 'utf8')).toBe('{}');
+    expect(await readFile(path.join(folder, 'previous.json'), 'utf8')).toBe('{}');
+  });
+  it('keeps healthy documents usable beside an incompatible document and preserves its published files', async () => {
+    const { directory, repo, doc } = await fixture();
+    const brokenId = randomUUID();
+    const folder = path.join(directory, brokenId); await mkdir(folder);
+    const pointer = JSON.stringify({ schemaVersion: 1, generation: randomUUID() });
+    await writeFile(path.join(folder, 'current.json'), pointer);
+    expect(await repo.listSnapshot()).toMatchObject({ documents: [doc], unavailableDocuments: 1 });
+    await expect(repo.read(brokenId)).rejects.toThrow('document_unavailable');
+    await repo.transact(doc.id, 1, translated);
+    expect((await repo.read(doc.id)).revision).toBe(2);
+    expect(await readFile(path.join(folder, 'current.json'), 'utf8')).toBe(pointer);
   });
   it('serializes competing instances and rejects stale revisions and asynchronous mutations', async () => {
     const { directory, repo, doc } = await fixture();
