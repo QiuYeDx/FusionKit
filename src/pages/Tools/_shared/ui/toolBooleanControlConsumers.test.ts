@@ -15,7 +15,7 @@ function collectCheckboxConsumers(directory: string): string[] {
     if (entry.isDirectory()) return collectCheckboxConsumers(absolutePath);
     if (!entry.name.endsWith(".tsx")) return [];
     return readFileSync(absolutePath, "utf8").includes("<Checkbox")
-      ? [path.relative(toolsRoot, absolutePath)]
+      ? [path.relative(toolsRoot, absolutePath).split(path.sep).join("/")]
       : [];
   });
 }

@@ -124,6 +124,8 @@ Read this index first, then open only the detail files that plausibly match the 
 | FK-PIT-0118 | Frontend / Tailwind | rounded-2xl,square corners,custom radius; Verify resolved tokens and settled Electron rendering, not utility names alone. | [verify-radius-tokens-in-computed-styles.md](verify-radius-tokens-in-computed-styles.md) |
 | FK-PIT-0119 | Local subtitles / seam provenance | raw last segment,core clipping,multi-to-one,25-second repeats; Select actual projected boundary sources and distinguish admission from deletion evidence. | [select-seam-sources-after-core-projection.md](select-seam-sources-after-core-projection.md) |
 | FK-PIT-0120 | Local subtitle rollout | experimental output, pnpm dev, constructor-only strategy, frozen retry; Trace a policy through user settings and task execution before calling it available. | [trace-experimental-policy-through-user-task-settings.md](trace-experimental-policy-through-user-task-settings.md) |
+| FK-PIT-0121 | Windows native model move | NTFS,ctime,unlink,FileHandle.close,model_corrupt; Reverify pinned content after the final Windows source handle closes before deleting the quarantine. | [reverify-windows-model-source-after-final-handle-close.md](reverify-windows-model-source-after-final-handle-close.md) |
+| FK-PIT-0122 | Windows build and acceptance | ADMINI~1,temporary directory,Rollup emitted chunks,realpathSync.native; Normalize isolated build roots with the native Windows path resolver before passing them as child-process cwd. | [canonicalize-windows-isolated-build-roots-with-native-realpath.md](canonicalize-windows-isolated-build-roots-with-native-realpath.md) |
 
 ## Add new cases
 

@@ -15,7 +15,7 @@ const filesystem = vi.hoisted(() => ({
 }));
 vi.mock('node:fs/promises', async importOriginal => {
   const actual = await importOriginal<typeof import('node:fs/promises')>();
-  const temporary = (name: unknown) => /(?:^|\/)\.subtitle-studio-[^/]+\.tmp$/.test(String(name));
+  const temporary = (name: unknown) => /(?:^|[\\/])\.subtitle-studio-[^\\/]+\.tmp$/.test(String(name));
   const failure = () => Object.assign(new Error('synthetic locked output'), { code: 'EACCES' });
   return {
     ...actual,

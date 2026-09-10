@@ -2,7 +2,7 @@
 """Create an audited I1-only removal rehearsal. Never edits the source checkout.
 
 Usage: python3 scripts/subtitle-studio/prepare-removal-rehearsal.py [--build]
-The destination is always a newly-created /private/tmp/fusionkit-studio-removal-*.
+The destination is always a newly-created fusionkit-studio-removal-* in the OS temp directory.
 Dependencies are reused through one node_modules symlink; source files are copies.
 No Electron process, package installation, packaging or publication is performed.
 """
@@ -36,6 +36,8 @@ REMOVAL_FILES = {
     "src/agent/translation-slice-config.ts", "src/agent/translation-slice-config.test.ts",
     "src/agent/tool-executor-translation.test.ts", "src/agent/subtitle-recovery-intent.ts",
     "test/subtitle-studio/i1-coexistence-ui.test.ts",
+    "test/subtitle-studio/i1-legacy-real-ui.test.ts",
+    "test/subtitle-studio/i1-legacy-recovery-ui.test.ts",
 }
 STORE_KEEP = {"useSubtitleConverterStore.ts", "useSubtitleConverterStore.test.ts", "useSubtitleExtractorStore.ts"}
 
@@ -52,7 +54,7 @@ def removed(name):
 
 def run(command, cwd, logfile=None):
     if logfile:
-        with logfile.open("w") as output:
+        with logfile.open("w", encoding="utf-8") as output:
             result = subprocess.run(command, cwd=cwd, stdout=output, stderr=subprocess.STDOUT, check=False)
         return result.returncode
     return subprocess.check_output(command, cwd=cwd, text=True).strip()
@@ -125,24 +127,25 @@ def main():
     options = args.parse_args()
     if not (SOURCE / ".git").exists() or not (SOURCE / "node_modules/typescript").exists():
         raise SystemExit("Run from a FusionKit checkout with its existing dependencies available.")
-    destination = Path(tempfile.mkdtemp(prefix=PREFIX, dir="/private/tmp")).resolve()
-    if destination.parent != Path("/private/tmp") or not destination.name.startswith(PREFIX) or destination == SOURCE:
+    temporary_root = Path(tempfile.gettempdir()).resolve()
+    destination = Path(tempfile.mkdtemp(prefix=PREFIX, dir=temporary_root)).resolve()
+    if destination.parent != temporary_root or not destination.name.startswith(PREFIX) or destination == SOURCE:
         raise RuntimeError("Unsafe rehearsal destination")
     marker = destination / ".subtitle-studio-removal-owner.json"
-    marker.write_text(json.dumps({"source": str(SOURCE), "created": time.time()}, indent=2) + "\n")
+    marker.write_text(json.dumps({"source": str(SOURCE), "created": time.time()}, indent=2) + "\n", encoding="utf-8")
     print(str(destination), flush=True)
     manifest = {"source": str(SOURCE), "destination": str(destination), "head": run(["git", "rev-parse", "HEAD"], SOURCE),
                 "copied": {}, "removed": {}, "modified": {}, "created": {}, "checks": {},
                 "scope": "I1 source-only removal rehearsal; no packaging, real ASR, Electron or root checkout changes"}
     manifest_path = destination / "removal-manifest.json"
     def save_manifest():
-        manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n")
+        manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     def read(name):
-        return (destination / name).read_text()
+        return (destination / name).read_text(encoding="utf-8")
     def write(name, text):
         file = destination / name
         file.parent.mkdir(parents=True, exist_ok=True)
-        file.write_text(text)
+        file.write_text(text, encoding="utf-8")
     def replace(name, old, new, count=1):
         text = read(name)
         if text.count(old) != count:
@@ -176,12 +179,15 @@ def main():
             target.write_bytes(data)
             shutil.copymode(original, target)
             manifest["copied"][name] = sha(data)
-        (destination / "node_modules").symlink_to(SOURCE / "node_modules", target_is_directory=True)
+        if os.name == "nt":
+            subprocess.run(["node", "-e", "require('node:fs').symlinkSync(process.argv[1],process.argv[2],'junction')", str(SOURCE / "node_modules"), str(destination / "node_modules")], check=True)
+        else:
+            (destination / "node_modules").symlink_to(SOURCE / "node_modules", target_is_directory=True)
         manifest["dependencies"] = {"path": str(SOURCE / "node_modules"), "lockSha256": sha((SOURCE / "pnpm-lock.yaml").read_bytes()), "installationPerformed": False}
 
         # Preserve the complete shared Explorer resolver, without its legacy service dependencies.
         resolver_source = SOURCE / "electron/main/local-subtitle/windows-explorer-drop-resolver.ts"
-        resolver = resolver_source.read_text()
+        resolver = resolver_source.read_text(encoding="utf-8")
         resolver = resolver.replace('import { LOCAL_SUBTITLE_LIMITS } from "@/type/localSubtitle";\n', '')
         resolver = resolver.replace('import type { LocalSubtitleInputSelectionSource } from "@/type/localSubtitleIpc";\n', '')
         resolver = resolver.replace('import { LocalSubtitleAuthorizationError } from "./authorizations";',
@@ -190,7 +196,7 @@ def main():
         if "local-subtitle" in resolver or "@/type/localSubtitle" in resolver:
             raise RuntimeError("Shared resolver still depends on the removed implementation")
         write("electron/main/fs/windows-explorer-drop-resolver.ts", resolver)
-        authorizations = (SOURCE / "electron/main/local-subtitle/authorizations.ts").read_text()
+        authorizations = (SOURCE / "electron/main/local-subtitle/authorizations.ts").read_text(encoding="utf-8")
         error = authorizations[authorizations.index("export type LocalSubtitleAuthorizationErrorCode ="):authorizations.index("export type LocalSubtitleInputOperation =")]
         write("electron/main/fs/input-path-error.ts", error.replace("LocalSubtitleAuthorizationError", "NativeInputPathError"))
         manifest["retainedSharedResolver"] = {"source": str(resolver_source.relative_to(SOURCE)), "sourceSha256": sha(resolver_source.read_bytes()),
@@ -199,7 +205,7 @@ def main():
         for name in ["electron/main/audio/ipc.ts", "electron/main/fs/native-file-selection-ipc.ts"]:
             text = read(name).replace('"../local-subtitle/authorizations"', '"../fs/input-path-error"').replace('"../local-subtitle/windows-explorer-drop-resolver"', '"../fs/windows-explorer-drop-resolver"')
             write(name, text.replace("LocalSubtitleAuthorizationError", "NativeInputPathError").replace("resolveLocalSubtitleInputPaths", "resolveNativeInputPaths"))
-        resolver_test = (SOURCE / "test/local-subtitle/windowsExplorerDropResolver.test.ts").read_text()
+        resolver_test = (SOURCE / "test/local-subtitle/windowsExplorerDropResolver.test.ts").read_text(encoding="utf-8")
         write("test/native-file-selection/windowsExplorerDropResolver.test.ts", resolver_test.replace("../../electron/main/local-subtitle/windows-explorer-drop-resolver", "../../electron/main/fs/windows-explorer-drop-resolver").replace("../../electron/main/local-subtitle/authorizations", "../../electron/main/fs/input-path-error").replace("LocalSubtitleAuthorizationError", "NativeInputPathError").replace("resolveLocalSubtitleInputPaths", "resolveNativeInputPaths"))
         name = "test/native-file-selection/ipc.test.ts"
         write(name, read(name).replace("../../electron/main/local-subtitle/windows-explorer-drop-resolver", "../../electron/main/fs/windows-explorer-drop-resolver").replace("resolveLocalSubtitleInputPaths", "resolveNativeInputPaths"))
@@ -274,7 +280,11 @@ def main():
         config["mac"]["signIgnore"] = [item for item in config["mac"].get("signIgnore", []) if item != "Contents/Resources/local-subtitle/"]
         write("electron-builder.json", json.dumps(config, ensure_ascii=False, indent=2) + "\n")
 
-        for file in destination.rglob("*"):
+        source_files = []
+        for directory, children, files in os.walk(destination, followlinks=False):
+            children[:] = [name for name in children if name != "node_modules"]
+            source_files.extend(Path(directory) / name for name in files)
+        for file in source_files:
             if not file.is_file() or file.is_symlink() or file == marker:
                 continue
             name = file.relative_to(destination).as_posix()
@@ -287,11 +297,11 @@ def main():
         save_manifest()
         if options.build:
             checks = [
-                ("types", ["node_modules/.bin/tsc", "--noEmit", "--pretty", "false", "--moduleResolution", "bundler", "--module", "esnext"]),
-                ("build", ["node_modules/.bin/vite", "build", "--mode=test"]),
+                ("types", ["node", "node_modules/typescript/bin/tsc", "--noEmit", "--pretty", "false"]),
+                ("build", ["node", "node_modules/vite/bin/vite.js", "build", "--mode=test"]),
                 ("preload", ["node", "scripts/check-preload-bundle.mjs"]),
                 ("boundaries", ["node", "scripts/subtitle-studio/check-boundaries.mjs"]),
-                ("retained-tools", ["node_modules/.bin/vitest", "run", "test/native-file-selection", "test/audio/audioIpcService.test.ts", "src/store/tools/subtitle/useSubtitleConverterStore.test.ts", "src/pages/Tools/_shared/ui/toolConfigDisclosureConsumers.test.ts", "src/pages/Tools/_shared/ui/toolBooleanControlConsumers.test.ts", "src/agent/tool-schemas.test.ts", "src/agent/queue-batch.test.ts"]),
+                ("retained-tools", ["node", "node_modules/vitest/vitest.mjs", "run", "test/native-file-selection", "test/audio/audioIpcService.test.ts", "src/store/tools/subtitle/useSubtitleConverterStore.test.ts", "src/pages/Tools/_shared/ui/toolConfigDisclosureConsumers.test.ts", "src/pages/Tools/_shared/ui/toolBooleanControlConsumers.test.ts", "src/agent/tool-schemas.test.ts", "src/agent/queue-batch.test.ts"]),
             ]
             for name, command in checks:
                 log = destination / f"removal-{name}.log"

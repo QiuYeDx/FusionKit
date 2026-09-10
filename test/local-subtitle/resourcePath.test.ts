@@ -284,7 +284,8 @@ describe("local subtitle runtime verification", () => {
     ).rejects.toMatchObject({ code: "media_runtime_invalid" });
   });
 
-  it("rejects a non-executable macOS program", async () => {
+  // Windows chmod cannot remove POSIX executable bits. This requires a POSIX host.
+  it.skipIf(process.platform === "win32")("rejects a non-executable macOS program", async () => {
     const fixture = await trackedFixture();
     await chmod(fixture.artifactPaths["ffprobe-mac-arm64"]!, 0o644);
     await expect(

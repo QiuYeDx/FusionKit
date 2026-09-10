@@ -20,14 +20,14 @@
         "state": "approved",
         "by": "用户（当前 Codex 任务）",
         "basis": "2026-09-08 当前任务用户原文：请在当前 FusionKit 仓库开始实现独立新版“字幕工作台”的 I1。先阅读 docs/features/subtitle-studio/README.md，按其中索引读 spec.json、BRD、整体架构、转写继承边界和 I1 的 requirements/design/tasks。本条消息授权按已定义的 I1 范围开始实施；登记真实授权并更新任务台账。2026-09-09 用户进一步要求对已是双语的 SRT/LRC 智能识别原文/译文，支持清除旧译文后重新翻译，并明确：完善一下本工具的设计，并完善/实现一下相关代码和逻辑吧；后续计划中的导出等功能只需更新设计以免打乱计划。新增 R-WORKSPACE-08/T-WORKSPACE-07，T05 补导出区分；不开展 I2/I4。",
-        "digest": "3d99de12c0481ca432a77e13865132bcc120f51db162c8a54f26d546f6bdaad1"
+        "digest": "2ab0a035f81fb9b2f63d86e1c3b1fa4ce43d490fb809a57905f24161b6fbbf45"
       },
       "acceptance": {
         "state": "pending",
         "by": "",
-        "basis": "",
+        "basis": "T06 技术验证已完成，证据见收尾记录；等待用户最终确认，未代签验收，不进入 I2。",
         "digest": "",
-        "record": ""
+        "record": "records/2026-09-10-i1-closeout.md"
       }
     },
     {
@@ -86,6 +86,14 @@
     }
   ],
   "decisions": [
+    {
+      "id": "A-06",
+      "state": "resolved",
+      "blocking": false,
+      "resolution": "2026-09-10 用户对 T06 真实转写/历史恢复验证和 I1 回归/验收记录收尾明确授权：进行这两项工作吧，做完以后就停下来，先不要进入l2的开发工作。本轮仅完成 I1 验证及必要修复，不进入 I2，不代替用户签署整体验收。",
+      "increment": "I1",
+      "text": "I1 收尾授权及完成后停止边界。"
+    },
     {
       "id": "A-05",
       "state": "resolved",

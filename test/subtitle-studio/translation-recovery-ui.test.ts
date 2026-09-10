@@ -4,6 +4,7 @@ import { createServer, type Server, type ServerResponse } from 'node:http';
 import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import { execFileSync } from 'node:child_process';
 import { DocumentRepository } from '../../electron/main/subtitle-studio/document-repository';
 import type { DocumentPage } from '../../src/subtitle-studio/ipc-contract';
 
@@ -124,9 +125,16 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_E2E === '1')('Subtitle Studio transl
     const crashedProcess = app!.process();
     const crashed = new Promise<void>((resolve, reject) => {
       const timer = setTimeout(() => reject(new Error('Synthetic Electron crash did not terminate')), 10000);
-      crashedProcess.once('exit', () => { clearTimeout(timer); resolve(); });
+      crashedProcess.once('close', () => { clearTimeout(timer); resolve(); });
     });
-    expect(crashedProcess.kill('SIGKILL')).toBe(true);
+    if (process.platform === 'win32') {
+      // Killing only Electron's main process leaves Chromium holding the profile
+      // singleton on Windows. Crash the entire owned test process tree.
+      expect(crashedProcess.pid).toBeGreaterThan(0);
+      execFileSync('taskkill.exe', ['/PID', String(crashedProcess.pid), '/T', '/F'], { windowsHide: true });
+    } else {
+      expect(crashedProcess.kill('SIGKILL')).toBe(true);
+    }
     await crashed;
     app = undefined;
     mode = 'success';

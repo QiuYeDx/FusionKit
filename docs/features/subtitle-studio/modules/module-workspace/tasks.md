@@ -199,17 +199,17 @@ original 继续导出原文件保留字节；source 始终以当前原文 cue �
 
 | 字段 | 值 |
 | --- | --- |
-| 状态 | 待验证 |
+| 状态 | 已完成 |
 | 批次 | I1 |
 | 需求 | R-WORKSPACE-01, R-WORKSPACE-07 |
 | 验收 | AC-WORKSPACE-01-1, AC-WORKSPACE-01-2, AC-WORKSPACE-07-1 |
 | 依赖 | T-WORKSPACE-05 |
-| 写集 | src/pages/Tools/Subtitle/SubtitleStudio/, src/pages/Tools/_shared/ui/toolBooleanControlConsumers.test.ts, src/services/subtitle-studio/, src/store/tools/subtitle-studio/, test/subtitle-studio/, scripts/subtitle-studio/, src/locales/, src/i18n/resources.ts, tsconfig.json, tsconfig.node.json, scripts/i18n-usage-manifest.mjs, test/local-subtitle/jobManager.test.ts, test/local-subtitle/jobManagerIpc.test.ts, test/local-subtitle/subtitleExporter.test.ts, docs/features/subtitle-studio/ |
-| 负责人 | Codex root（集成/记录/边界/最终检查）；model_audit（隔离移除脚本与构建）；translation_protocol（旧版受控回归）；translation_ui（四语言及共存 UI 场景） |
-| 依赖确认 | 2026-09-10 T-WORKSPACE-05 已在共享工作树完成 69 项针对性测试和 3 项 Electron 验证，源码摘要 fcf8008d9bbb4b33f1ba3db0a27742cd94109928ab739c71281f34e0728597fc；已核对删除演练第6节、混合文件和 staged资源，当前无已配置真实 ASR 模型/音频，该项保持待验证不伪称通过 |
-| 完成日期 | - |
-| 实施记录 | records/2026-09-10-check-failures.md |
-| 集成版本 | recovery/export 与原集成验证已包含于 27cdca3；检查修复随本次 fix: resolve baseline type and validation failures 提交集成，非文档源码摘要 5b1cd0e11cf8b2838e478a131195d09453a9943a77fc8e47046f0334cfba09ce；T06 仍待验证 |
+| 写集 | src/pages/Tools/Subtitle/SubtitleStudio/, src/pages/Tools/_shared/ui/toolBooleanControlConsumers.test.ts, src/services/subtitle-studio/, src/store/tools/subtitle-studio/, test/subtitle-studio/, scripts/subtitle-studio/, src/locales/, src/i18n/resources.ts, tsconfig.json, tsconfig.node.json, scripts/i18n-usage-manifest.mjs, test/local-subtitle/jobManager.test.ts, test/local-subtitle/jobManagerIpc.test.ts, test/local-subtitle/subtitleExporter.test.ts, docs/features/subtitle-studio/, electron/main/local-subtitle/model-manager.ts, test/local-subtitle/authorizations.test.ts, test/local-subtitle/modelManager.test.ts, test/local-subtitle/resourcePath.test.ts, .agents/skills/fusionkit-pitfall-guard/references/ |
+| 负责人 | Codex root（本次 Windows 收尾串行执行；历史协作分工保留于前序记录） |
+| 依赖确认 | T-WORKSPACE-05 已在 27cdca3 集成且包含于当前 3173616；通过最终新版导出与重启场景复核依赖可用。本次 A-06 明确授权仅补 T06/I1 收尾。Windows 最终隔离共存与实际移除副本均由本轮源码重新构建；旧模型/限定音频已具备并实际验证 |
+| 完成日期 | 2026-09-10 |
+| 实施记录 | records/2026-09-10-i1-closeout.md |
+| 集成版本 | 随 fix(subtitle-studio): complete I1 Windows acceptance 提交集成，父提交 3173616，实际 SHA 以 Git 历史为准；最终 927 文件验证摘要 ef0be604e4b0a56967a0f248168e5a139081f851a23bb7d09ea70e80526997d7。任务技术完成，用户最终确认仍 pending |
 
 #### 实现要点
 
@@ -220,6 +220,8 @@ original 继续导出原文件保留字节；source 始终以当前原文 cue �
 2026-09-10 已完成新版 313 项本地测试、四语言/长文/空文/键盘 Electron 验证，以及共存和实际移除构建的导入→三批合成翻译→重启→12 组合导出。旧文件/偏好未改，移除副本保留工具 83 项通过；新版生产源码与最终共存构建逐字节一致。旧版相关回归 620 通过、5 失败，后者在未修改 HEAD 同样复现；旧转写未配置真实模型/音频，旧恢复仅验证空目录扫描及受控服务回归。默认 tsc 和 i18n usage 的既有失败仍在，故不标完成。所启动进程已清理。
 
 2026-09-10 检查跟进：用户明确授权只处理默认 TypeScript、NameTranslator i18n 清单及旧字幕 5 项路径显示断言，验证后提交推送；复杂且影响面大的既有问题允许后置，禁止继续其他工作。在干净基线 27cdca3 上核对后完成这三项：两个 tsconfig 采用 Bundler 读取真实包类型，更新一条精确 i18n selector，按 8950e15 已定义的仅显示路径契约修复三个测试文件。root 独占 tsconfig/文档与集成，translation_ui 独占 i18n 清单，translation_protocol 独占上述三个旧测试文件，model_audit 只读复核模块解析。默认及构建配置 TypeScript、隔离 Vite/preload、i18n 与 282 项相关回归通过；未降低路径/token 保护或修改旧工具生产实现。此前记录中的失败为历史结果，本次结果见检查修复记录。保留原 AC，T06 因真实 ASR/历史恢复缺证据保持待验证，本轮到此停止。
+
+2026-09-10 最终收尾：A-06 授权下完成真实旧版 CPU 转写与原生历史恢复（1/4 → 4/4，已提交分片未重译），2069 项相关回归通过；Windows 模型 move 的关闭句柄 ctime 问题及测试/演练可移植性问题已修复。最终共存构建四项 Electron 流程通过，移除构建独立流程及 87 项保留工具测试通过。默认/构建配置 TypeScript、i18n、边界和最终截图已核验。T06 技术完成，I1 用户最终确认仍 pending；不推进 I2。用户随后明确要求提交并推送，本轮随上述提交集成。
 
 #### 验证计划
 

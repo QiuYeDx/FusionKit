@@ -368,6 +368,31 @@ describe("local subtitle model manager", () => {
     });
   });
 
+  it.runIf(process.platform === "win32")("restores a move when post-close pinned content verification fails", async () => {
+    const removeSourceFile = vi.fn(async (file: string) => unlink(file));
+    const verifyModelFile = vi.fn<typeof verifyLocalSubtitleGgmlModelFile>(async (...args) => {
+      if (path.basename(args[0]).startsWith(".fusionkit-model-move-")) {
+        throw new LocalSubtitleModelError("model_corrupt", "integrity", "Synthetic post-close hash mismatch");
+      }
+      return verifyLocalSubtitleGgmlModelFile(...args);
+    });
+    const fixture = await createFixture({ verifyModelFile, removeSourceFile });
+    fixture.manager.importModel({ owner: OWNER, filePath: fixture.sourcePath, mode: "move" });
+    await fixture.manager.waitForIdle();
+    expect(verifyModelFile.mock.calls.some(([file, expected]) =>
+      path.basename(file).startsWith(".fusionkit-model-move-") && expected.sha256 === fixture.model.sha256,
+    )).toBe(true);
+    expect(removeSourceFile).not.toHaveBeenCalled();
+    expect(await readFile(fixture.sourcePath)).toEqual(fixture.bytes);
+    expect(fixture.manager.getSessionSnapshot(OWNER).resourceJobs[0]).toMatchObject({
+      status: "failed", error: { code: "model_corrupt" },
+    });
+    await expect(fixture.manager.resolveManagedModel(fixture.model.id)).rejects.toMatchObject({
+      localSubtitleCode: "model_missing",
+    });
+    expect(await stagingEntries(fixture.managedRoot)).toEqual([]);
+  });
+
   it("deletes the source only after a successful explicit move commit", async () => {
     const fixture = await createFixture();
 

@@ -14,6 +14,7 @@ import {
 } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { execFileSync } from "node:child_process";
 import {
   LocalSubtitleArtifactAuthorizationRegistry,
   LocalSubtitleAuthorizationError,
@@ -91,6 +92,10 @@ describe("local subtitle input and output authorizations", () => {
     });
     expect(failedFactory).not.toHaveBeenCalled();
     const oversized = await file(root, "oversized.wav", "x");
+    // NTFS otherwise allocates the entire 64 GiB fixture instead of a sparse hole.
+    if (process.platform === "win32") {
+      execFileSync("fsutil.exe", ["sparse", "setflag", oversized], { windowsHide: true });
+    }
     await truncate(oversized, 64 * 1024 * 1024 * 1024 + 1);
     await expect(failedRegistry.authorize(OWNER_A, oversized)).rejects.toMatchObject({
       code: "limit_exceeded",

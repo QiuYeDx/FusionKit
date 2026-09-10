@@ -1207,7 +1207,7 @@ export class LocalSubtitleModelManager {
       });
       if (mode === "move") {
         try {
-          await this.#removeVerifiedSource(source);
+          await this.#removeVerifiedSource(source, model);
         } catch (error) {
           this.#verifiedModels.delete(model.id);
           if (error instanceof SourceRestorePendingError) {
@@ -1646,7 +1646,7 @@ export class LocalSubtitleModelManager {
     }
   }
 
-  async #removeVerifiedSource(source: SourceReceipt): Promise<void> {
+  async #removeVerifiedSource(source: SourceReceipt, model: LocalSubtitleModelManifestEntry): Promise<void> {
     const handle = source.handle;
     if (!handle) {
       throw managerFailure(
@@ -1701,6 +1701,23 @@ export class LocalSubtitleModelManager {
       source.identity = unlinkedIdentity;
       await assertPathStillNamesFile(quarantinePath, source.identity);
       await closeSourceHandle(source);
+      if (process.platform === "win32") {
+        // NTFS can finalize the unlinked name's metadata when its last handle
+        // closes. Accept that ctime transition only after checking the same
+        // object/content metadata and re-verifying the pinned model hash.
+        const closedStats = await lstat(quarantinePath);
+        if (!closedStats.isFile() || closedStats.isSymbolicLink()) {
+          throw managerFailure("model_corrupt", "The source quarantine changed after close.");
+        }
+        const closedIdentity = fileIdentity(closedStats);
+        assertSameFileObjectAndContent(source.identity, closedIdentity);
+        const verified = await this.#verifyModelFile(quarantinePath, {
+          modelId: model.id, byteSize: model.byteSize, sha256: model.sha256, ggml: model.ggml,
+        });
+        assertVerifiedModelMatches(verified, model, quarantinePath);
+        assertSameFileIdentity(closedIdentity, verified.fileIdentity);
+        source.identity = verified.fileIdentity;
+      }
       await assertPathStillNamesFile(quarantinePath, source.identity);
       await this.#removeSourceFile(quarantinePath);
       if (await pathExistsNoFollow(quarantinePath)) {
