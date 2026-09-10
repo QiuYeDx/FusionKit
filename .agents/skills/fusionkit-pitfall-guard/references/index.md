@@ -130,6 +130,8 @@ Read this index first, then open only the detail files that plausibly match the 
 | FK-PIT-0123 | Subtitle Studio / startup recovery | pnpm dev,document_unavailable,incompatible history,import never opens; Isolate failed documents and release rejected initialization attempts while preserving original data. | [isolate-unreadable-documents-during-library-startup.md](isolate-unreadable-documents-during-library-startup.md) |
 | FK-PIT-0124 | Vite / development dependency scanning | Failed to scan,HTML template,STAGE_DATA,release reports; Restrict dependency entries to the application HTML and verify forced scanning. | [restrict-vite-scanning-to-application-html-entries.md](restrict-vite-scanning-to-application-html-entries.md) |
 
+| FK-PIT-0125 | Windows / Vite networking | listen EACCES,5173,no listener,excludedportrange; Check Windows reserved TCP ranges and use a verified available port without changing host networking services. | [diagnose-windows-vite-eacces-as-a-reserved-port.md](diagnose-windows-vite-eacces-as-a-reserved-port.md) |
+
 ## Add new cases
 
 Use `scripts/add_pitfall.py` from the skill root when possible. Each pitfall should live as one Markdown file directly under `references/`, and every new file must have one index row here.
