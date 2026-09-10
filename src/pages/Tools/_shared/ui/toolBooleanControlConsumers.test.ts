@@ -36,10 +36,13 @@ describe("tool boolean controls", () => {
     }
   });
 
-  it("keeps checkboxes only for multi-selection semantics", () => {
+  it("keeps checkboxes for selections and explicit staged confirmations", () => {
     expect(collectCheckboxConsumers(toolsRoot).sort()).toEqual([
       "Audio/AudioTranscriber/index.tsx",
       "Subtitle/LocalSubtitleTranscriber/index.tsx",
+      // Studio stages file interpretations and export choices before a separate confirmation.
+      "Subtitle/SubtitleStudio/StudioBilingual.tsx",
+      "Subtitle/SubtitleStudio/StudioExport.tsx",
       "Subtitle/SubtitleTranslator/components/RecoveryDialog.tsx",
     ]);
 

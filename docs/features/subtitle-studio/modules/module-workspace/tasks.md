@@ -4,7 +4,7 @@
 
 执行恢复：2026-09-08 用户在 UI 优化后明确回复“好，继续推进工作吧”；暂停历史与恢复来源登记于 spec.json。
 
-2026-09-08 UI 跟进：按用户“提交代码并推送，然后修一下”上下空白的指令，先推送 T02，再修复工作台纵向布局；实现与 Electron 验证见 [布局记录](../../records/2026-09-08-layout-height.md)。纵向布局已按后续用户指令提交为 `ddf178b`；随后优化原始内容密度，见 [密度记录](../../records/2026-09-08-raw-density.md)，已提交为 `5afc695` 并推送。2026-09-09 T03 实现与验证已完成，当前改动未提交，详见该任务块及实施记录。
+2026-09-08 UI 跟进：按用户“提交代码并推送，然后修一下”上下空白的指令，先推送 T02，再修复工作台纵向布局；实现与 Electron 验证见 [布局记录](../../records/2026-09-08-layout-height.md)。纵向布局已按后续用户指令提交为 `ddf178b`；随后优化原始内容密度，见 [密度记录](../../records/2026-09-08-raw-density.md)，已提交为 `5afc695` 并推送。T03/T07 与后续双语修复已集成于 `9c88565`；2026-09-10 本轮继续完成 T04/T05，T06 验证进展及未执行项见其任务块。本轮随 `feat(subtitle-studio): add recovery and multi-mode export` 提交集成，父提交为 `9c88565`，实际提交 SHA 以 Git 历史为准。
 
 ### T-WORKSPACE-01 新版最小文档链路与格式核心
 
@@ -85,7 +85,7 @@
 | 依赖确认 | 2026-09-09 核对 T-WORKSPACE-02 提交 b8eac4c 已包含于基线 5afc695；repository 事务、墓碑、IPC owner 校验可用，工作树干净 |
 | 完成日期 | 2026-09-09 |
 | 实施记录 | records/2026-09-09-workspace-03.md |
-| 集成版本 | 基线 5afc695 加当前共享工作树，源码摘要与验证证据见实施记录；未提交 |
+| 集成版本 | 已包含于 9c88565276349955d23df1b926092634346f6413；实施记录保留当时验证源码摘要 |
 
 #### 实现要点
 
@@ -116,7 +116,7 @@
 | 依赖确认 | 2026-09-09 已核对 T-WORKSPACE-03 在基线 5afc695 加当前工作树中可用，源码摘要 3c21da04b3eef8dd96577e5625694f1b6ae6ec6b697b163a9007d058e5fcad71；用户反馈翻译已正常，事务/源hash/译文轨已读验 |
 | 完成日期 | 2026-09-10 |
 | 实施记录 | records/2026-09-10-workspace-07-preview.md |
-| 集成版本 | 初版集成于 019bb3b；混合双语和预览/分页修复为此基线加当前共享工作树，源码摘要 84bd5c7cff1e1d459f159fcea35668581d917bae56b03660d55793db1547902c，未提交 |
+| 集成版本 | 初版集成于 019bb3b；混合双语与预览/分页修复均已包含于 9c88565276349955d23df1b926092634346f6413，历史源码摘要保留在实施记录 |
 
 #### 实现要点
 
@@ -139,17 +139,17 @@
 
 | 字段 | 值 |
 | --- | --- |
-| 状态 | 未开始 |
+| 状态 | 已完成 |
 | 批次 | I1 |
 | 需求 | R-WORKSPACE-05 |
 | 验收 | AC-WORKSPACE-05-1, AC-WORKSPACE-05-2 |
 | 依赖 | T-WORKSPACE-03, T-WORKSPACE-07 |
-| 写集 | electron/main/subtitle-studio/, src/subtitle-studio/, src/services/subtitle-studio/, src/pages/Tools/Subtitle/SubtitleStudio/, test/subtitle-studio/, src/locales/ |
-| 负责人 | - |
-| 依赖确认 | - |
-| 完成日期 | - |
-| 实施记录 | - |
-| 集成版本 | - |
+| 写集 | electron/main/subtitle-studio/, electron/preload/subtitle-studio-api.ts, electron/preload/subtitle-studio-channel-policy.ts, src/subtitle-studio/, src/services/subtitle-studio/, src/pages/Tools/Subtitle/SubtitleStudio/, test/subtitle-studio/, src/locales/, docs/features/subtitle-studio/ |
+| 负责人 | Codex root（契约/IPC/仓库校验/文档/集成）；translation_protocol（执行服务/冻结计划/恢复测试）；translation_ui（状态操作/四语言/UI场景）；model_audit（只读并发与恢复审计） |
+| 依赖确认 | 2026-09-10 在干净基线 9c88565 核对 T-WORKSPACE-03 与 T-WORKSPACE-07 均已集成，已读取 planner/service/checkpoint/preview/clear 实现及验证记录；用户明确要求核对后继续 I1 |
+| 完成日期 | 2026-09-10 |
+| 实施记录 | records/2026-09-10-workspace-04.md |
+| 集成版本 | 随本轮 recovery/export 提交集成（父提交 9c88565）；T04 阶段验证源码摘要 14d442b718cfb028fffbd3148c85c9c48ffa73714d0bad4b5c34eb235b609bd5 |
 
 #### 实现要点
 
@@ -161,22 +161,23 @@
 | --- | --- | --- | --- | --- |
 | V-WORKSPACE-04-1 | integration | required | 两批以上：第一批提交后故障/进程关闭，重启继续；捕获调用次数；配置删除/变化、取消与迟到结果，覆盖 AC-WORKSPACE-05-1 | - |
 | V-WORKSPACE-04-2 | unit | required | 注入源/轨修订和 generation 冲突、重复启动、多文档同时运行；限流/退避取消与重试计数，覆盖 AC-WORKSPACE-05-2 | - |
+| V-WORKSPACE-04-3 | browser | required | 隔离 Electron 翻译第一批后重启，恢复只处理未提交批次；取消与迟到响应、模型缺失/变化修复入口、未知请求提示、深浅主题和窄窗口，检查截图及清理测试实例 | - |
 
 ### T-WORKSPACE-05 多模式导出与发布一致性
 
 | 字段 | 值 |
 | --- | --- |
-| 状态 | 未开始 |
+| 状态 | 已完成 |
 | 批次 | I1 |
 | 需求 | R-WORKSPACE-06, R-WORKSPACE-08 |
 | 验收 | AC-WORKSPACE-06-1, AC-WORKSPACE-06-2, AC-WORKSPACE-06-3, AC-WORKSPACE-08-4 |
 | 依赖 | T-WORKSPACE-04 |
-| 写集 | src/subtitle-studio/, electron/main/subtitle-studio/, src/pages/Tools/Subtitle/SubtitleStudio/, src/services/subtitle-studio/, src/store/tools/subtitle-studio/, test/subtitle-studio/, src/locales/ |
-| 负责人 | - |
-| 依赖确认 | - |
-| 完成日期 | - |
-| 实施记录 | - |
-| 集成版本 | - |
+| 写集 | src/subtitle-studio/, electron/main/subtitle-studio/, electron/preload/subtitle-studio-api.ts, electron/preload/subtitle-studio-channel-policy.ts, src/pages/Tools/Subtitle/SubtitleStudio/, src/services/subtitle-studio/, src/store/tools/subtitle-studio/, test/subtitle-studio/, src/locales/, scripts/subtitle-studio/boundaries.json, docs/features/subtitle-studio/ |
+| 负责人 | Codex root（统一契约/IPC/发布/文档/集成）；translation_protocol（本地导出规划/序列化与测试）；translation_ui（导出弹窗/四语言/Electron场景）；model_audit（独立发布与边界审计） |
+| 依赖确认 | 2026-09-10 T-WORKSPACE-04 已在同一共享工作树通过 125 项回归与实际强制退出/重启 Electron 场景，验证源码摘要 14d442b718cfb028fffbd3148c85c9c48ffa73714d0bad4b5c34eb235b609bd5；已核对 sourceBytes 实属 original、repository/IPC/原生保存实际落点，按同一 I1 授权继续 |
+| 完成日期 | 2026-09-10 |
+| 实施记录 | records/2026-09-10-workspace-05.md |
+| 集成版本 | 随本轮 recovery/export 提交集成（父提交 9c88565）；T05 阶段验证源码摘要 fcf8008d9bbb4b33f1ba3db0a27742cd94109928ab739c71281f34e0728597fc |
 
 #### 实现要点
 
@@ -192,28 +193,31 @@ original 继续导出原文件保留字节；source 始终以当前原文 cue �
 | V-WORKSPACE-05-2 | unit | required | LRC 同起点/末条/offset、缺失/过期译文、格式精度/样式损失；用户选择前后计划对照，源时间 provenance 不变，覆盖 AC-WORKSPACE-06-2 | - |
 | V-WORKSPACE-05-3 | integration | required | 临时目录同名、原生保存取消、写入失败/Windows 锁定、导出中提交新译文；核对目标完整性与单修订快照，覆盖 AC-WORKSPACE-06-3 | - |
 | V-WORKSPACE-05-4 | integration | required | 双语文件整理后分别 original/source/target/bilingual 导出并 parse-back；清轨后 source 不夹带旧译文、target 拒绝，调用次数不增长，覆盖 AC-WORKSPACE-08-4 | - |
+| V-WORKSPACE-05-5 | browser | required | 隔离 Electron 操作导出模式、格式/顺序、缺失策略、时长估算与损失确认；保存取消及真实文件读验，深浅主题/窄窗/键盘、最终截图审阅并清理实例 | - |
 
 ### T-WORKSPACE-06 UI 完整验收、v1 共存与移除演练
 
 | 字段 | 值 |
 | --- | --- |
-| 状态 | 未开始 |
+| 状态 | 待验证 |
 | 批次 | I1 |
 | 需求 | R-WORKSPACE-01, R-WORKSPACE-07 |
 | 验收 | AC-WORKSPACE-01-1, AC-WORKSPACE-01-2, AC-WORKSPACE-07-1 |
 | 依赖 | T-WORKSPACE-05 |
-| 写集 | src/pages/Tools/Subtitle/SubtitleStudio/, src/services/subtitle-studio/, src/store/tools/subtitle-studio/, test/subtitle-studio/, scripts/subtitle-studio/, src/locales/, src/i18n/resources.ts, docs/features/subtitle-studio/ |
-| 负责人 | - |
-| 依赖确认 | - |
+| 写集 | src/pages/Tools/Subtitle/SubtitleStudio/, src/pages/Tools/_shared/ui/toolBooleanControlConsumers.test.ts, src/services/subtitle-studio/, src/store/tools/subtitle-studio/, test/subtitle-studio/, scripts/subtitle-studio/, src/locales/, src/i18n/resources.ts, docs/features/subtitle-studio/ |
+| 负责人 | Codex root（集成/记录/边界/最终检查）；model_audit（隔离移除脚本与构建）；translation_protocol（旧版受控回归）；translation_ui（四语言及共存 UI 场景） |
+| 依赖确认 | 2026-09-10 T-WORKSPACE-05 已在共享工作树完成 69 项针对性测试和 3 项 Electron 验证，源码摘要 fcf8008d9bbb4b33f1ba3db0a27742cd94109928ab739c71281f34e0728597fc；已核对删除演练第6节、混合文件和 staged资源，当前无已配置真实 ASR 模型/音频，该项保持待验证不伪称通过 |
 | 完成日期 | - |
-| 实施记录 | - |
-| 集成版本 | - |
+| 实施记录 | records/2026-09-10-workspace-06.md |
+| 集成版本 | 随本轮 recovery/export 提交集成（父提交 9c88565）；最终验证源码摘要 03c64252876caeb2d4cb0e0e2592f74c94d252190c51fe30debf9f688cbd6ec8，T06 仍待验证 |
 
 #### 实现要点
 
 完成状态、分页、窄窗口、键盘和 i18n。依照 transcription-fork.md 第 6 节在隔离副本移除 v1 与组合层旧贡献，彻底重建；本任务不授权删除用户工作树中的旧文件。若发现集成缺陷，将相应任务退回并记录实际写集，不在测试任务里绕过边界。
 
 共存与移除演练分别取证。I1 不声称原生资源打包独立性已通过；I2 再补全。记录真实 API/UI/文件结果和待人工确认项，不把所有任务完成当作用户已验收。
+
+2026-09-10 已完成新版 313 项本地测试、四语言/长文/空文/键盘 Electron 验证，以及共存和实际移除构建的导入→三批合成翻译→重启→12 组合导出。旧文件/偏好未改，移除副本保留工具 83 项通过；新版生产源码与最终共存构建逐字节一致。旧版相关回归 620 通过、5 失败，后者在未修改 HEAD 同样复现；旧转写未配置真实模型/音频，旧恢复仅验证空目录扫描及受控服务回归。默认 tsc 和 i18n usage 的既有失败仍在，故不标完成。所启动进程已清理。
 
 #### 验证计划
 

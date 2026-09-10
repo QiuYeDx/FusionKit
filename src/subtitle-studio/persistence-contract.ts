@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { documentSchema, idSchema, StudioError, validateDocument } from './domain';
+import { documentSchema, idSchema, LIMITS, StudioError, validateDocument } from './domain';
 import { translationProgressSchema } from './translation-contract';
 
 export const taskCheckpointSchema = z.object({
@@ -23,6 +23,19 @@ export function validateSnapshot(value: unknown): DocumentSnapshot {
   for (const task of snapshot.tasks) {
     const completed = new Set(task.completedBatchIds);
     if (!tracks.has(task.trackId) || completed.size !== task.completedBatchIds.length || new Set(task.uncertainBatchIds).size !== task.uncertainBatchIds.length || task.uncertainBatchIds.some(id => completed.has(id))) throw new StudioError('invalid_input');
+    const progress = task.translation;
+    const checkpoint = progress?.checkpoint;
+    if (progress?.inFlightBatchId && (!checkpoint || completed.has(progress.inFlightBatchId))) throw new StudioError('invalid_input');
+    if (checkpoint) {
+      const ids = new Set(checkpoint.batches.map(batch => batch.id));
+      const cueIds = checkpoint.batches.flatMap(batch => batch.cueIds);
+      if (ids.size !== checkpoint.batches.length || cueIds.length > LIMITS.cues || new Set(cueIds).size !== cueIds.length
+        || progress.totalBatches !== checkpoint.batches.length
+        || task.completedBatchIds.some((id, index) => id !== checkpoint.batches[index]?.id)
+        || task.uncertainBatchIds.some(id => !ids.has(id))
+        || (progress.inFlightBatchId && !ids.has(progress.inFlightBatchId))
+        || (task.status === 'completed' && completed.size !== checkpoint.batches.length)) throw new StudioError('invalid_input');
+    }
   }
   return snapshot;
 }

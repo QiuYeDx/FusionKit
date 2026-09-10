@@ -1,12 +1,19 @@
 import { randomUUID } from 'node:crypto';
 import { StudioError } from '../../../src/subtitle-studio/domain';
 import type { DocumentSnapshot } from '../../../src/subtitle-studio/persistence-contract';
-import type { TranslationConfig, TranslationPlanSummary, TranslationUsage } from '../../../src/subtitle-studio/translation-contract';
+import type { TranslationConfig, TranslationModel, TranslationPlanSummary, TranslationUsage } from '../../../src/subtitle-studio/translation-contract';
 import { validateTranslationResponse } from '../../../src/subtitle-studio/translation-protocol';
 import { sendModelRuntimeText, type ModelRuntimeTextRequest, type ModelRuntimeTextResult, type ModelRuntimeUsage } from '../ai/model-runtime-client';
 import { ModelRuntimeClientError } from '../ai/model-runtime-errors';
 import { DocumentRepository } from './document-repository';
-import { buildTranslationRequest, planTranslation, requestTokenEstimate, sourceDigest, type TranslationPlan } from './translation-planner';
+import { buildTranslationRequest, planTranslation, requestTokenEstimate, type TranslationPlan } from './translation-planner';
+import { checkpointForPlan, documentSourceDigest, publishTransaction, restoreTranslationPlan, sameTranslationModel, translationScheduler, type TranslationScheduler } from './translation-recovery';
+
+type Task = DocumentSnapshot['tasks'][number];
+type AttemptReceipt = { batchId: string; attempt: number; usage: TranslationUsage; uncertain: boolean };
+type Run = { taskId: string; documentId: string; generation: number; controller: AbortController; done: Promise<void>; receipt?: AttemptReceipt };
+const activeStatus = (task: Task) => ['queued', 'running'].includes(task.status);
+const canResume = (task: Task) => ['failed', 'interrupted', 'needs_configuration'].includes(task.status);
 
 export function normalizeUsage(usage?: ModelRuntimeUsage): TranslationUsage {
   const valid = (value: number | undefined) => typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 ? value : null;
@@ -17,6 +24,27 @@ function addUsage(total: TranslationUsage, usage: TranslationUsage) {
     const sum = total[key] === null || usage[key] === null ? null : total[key]! + usage[key]!;
     total[key] = sum !== null && Number.isSafeInteger(sum) ? sum : null;
   }
+}
+function accountAttempt(task: Task, usage: TranslationUsage, uncertain: boolean) {
+  const progress = task.translation!;
+  const batchId = progress.inFlightBatchId;
+  if (!batchId) return;
+  addUsage(progress.usage, usage);
+  if (uncertain) {
+    progress.uncertainAttempts = (progress.uncertainAttempts ?? 0) + 1;
+    if (!task.uncertainBatchIds.includes(batchId)) task.uncertainBatchIds.push(batchId);
+  }
+  delete progress.inFlightBatchId;
+}
+function interruptTask(task: Task, status: 'interrupted' | 'cancelled', receipt?: AttemptReceipt) {
+  if (task.translation) {
+    const received = receipt?.batchId === task.translation.inFlightBatchId && receipt?.attempt === task.attempts ? receipt : undefined;
+    accountAttempt(task, received?.usage ?? normalizeUsage(), received?.uncertain ?? true);
+    if (status === 'interrupted') task.translation.error = 'interrupted';
+    else delete task.translation.error;
+  }
+  task.status = status;
+  task.generation++;
 }
 function failureCode(error: unknown): 'needs_configuration' | 'translation_protocol_invalid' | 'translation_output_limit' | 'translation_failed' | 'limit_exceeded' | 'revision_conflict' | 'interrupted' {
   if (error instanceof StudioError && ['needs_configuration', 'translation_protocol_invalid', 'translation_output_limit', 'limit_exceeded', 'revision_conflict', 'interrupted'].includes(error.code)) return error.code as ReturnType<typeof failureCode>;
@@ -37,10 +65,31 @@ const wait = (ms: number, signal: AbortSignal) => new Promise<void>((resolve, re
 
 export class TranslationService {
   private plans = new Map<string, { owner: number; created: number; plan: TranslationPlan }>();
-  private running = new Map<string, { controller: AbortController; done: Promise<void> }>();
-  constructor(private repository: DocumentRepository, private send: (request: ModelRuntimeTextRequest) => Promise<ModelRuntimeTextResult> = sendModelRuntimeText) {}
+  private running = new Map<string, Run>();
+  private handles = new Set<Run>();
+  private initialized?: Promise<void>;
+  private shutdown?: Promise<void>;
+  private closed = false;
+  constructor(private repository: DocumentRepository, private send: (request: ModelRuntimeTextRequest) => Promise<ModelRuntimeTextResult> = sendModelRuntimeText,
+    private scheduler: TranslationScheduler = translationScheduler) {}
+
+  initialize(): Promise<void> {
+    if (!this.initialized) this.initialized = (async () => {
+      for (const document of await this.repository.list()) {
+        const current = await this.repository.readSnapshot(document.id);
+        if (!current.tasks.some(activeStatus)) continue;
+        await publishTransaction(this.repository, document.id, current.document.revision, value => {
+          for (const task of value.tasks) if (activeStatus(task)) interruptTask(task, 'interrupted');
+        });
+      }
+    })();
+    return this.initialized;
+  }
+  private assertOpen() { if (this.closed) throw new StudioError('interrupted'); }
   forgetOwner(owner: number) { for (const [id, entry] of this.plans) if (entry.owner === owner) this.plans.delete(id); }
+
   async plan(owner: number, documentId: string, revision: number, config: TranslationConfig, guard: () => void = () => {}): Promise<TranslationPlanSummary> {
+    this.assertOpen(); await this.initialize(); this.assertOpen();
     const doc = await this.repository.read(documentId);
     guard();
     if (doc.revision !== revision) throw new StudioError('revision_conflict');
@@ -53,113 +102,203 @@ export class TranslationService {
       estimatedInputTokens: plan.batches.reduce((n, batch) => n + batch.estimatedInputTokens, 0), outputTokenReserve: plan.batches.length * config.maxOutputTokens,
       contextTokenReserve: plan.batches.reduce((n, batch) => n + batch.priorContextReserve, 0) };
   }
+
   async start(owner: number, documentId: string, revision: number, planId: string, apiKey: string, guard: () => void = () => {}) {
+    this.assertOpen(); await this.initialize(); this.assertOpen();
     const entry = this.plans.get(planId);
     if (!entry || entry.owner !== owner) throw new StudioError('access_denied');
     const { plan } = entry;
     if (Date.now() - entry.created > 15 * 60000 || plan.documentId !== documentId || plan.revision !== revision) throw new StudioError('revision_conflict');
     if (!apiKey.trim() || apiKey.length > 8000) throw new StudioError('needs_configuration');
     const taskId = randomUUID(); const trackId = randomUUID();
-    const snapshot = await this.repository.transact(documentId, revision, value => {
-      if (value.tasks.some(task => ['queued', 'running'].includes(task.status))) throw new StudioError('revision_conflict');
+    const snapshot = await publishTransaction(this.repository, documentId, revision, value => {
+      if (value.tasks.some(activeStatus)) throw new StudioError('revision_conflict');
       value.document.translationTracks.push({ id: trackId, language: plan.config.language, revision: 1, entries: {} });
       value.tasks.push({ id: taskId, trackId, generation: 1, status: 'queued', completedBatchIds: [], uncertainBatchIds: [], attempts: 0,
-        translation: { config: plan.config, totalBatches: plan.batches.length, estimatedInputTokens: plan.batches.reduce((n, batch) => n + batch.estimatedInputTokens, 0), outputTokenReserve: plan.batches.length * plan.config.maxOutputTokens, usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 } } });
-    }, guard);
+        translation: { config: plan.config, totalBatches: plan.batches.length, estimatedInputTokens: plan.batches.reduce((n, batch) => n + batch.estimatedInputTokens, 0), outputTokenReserve: plan.batches.length * plan.config.maxOutputTokens,
+          usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 }, checkpoint: checkpointForPlan(plan, value.document), uncertainAttempts: 0 } });
+    }, () => { this.assertOpen(); guard(); });
     this.plans.delete(planId);
-    const controller = new AbortController();
-    const unregister = this.repository.registerActivity(documentId, controller);
-    const done = this.execute(plan, snapshot, taskId, apiKey, controller.signal).finally(() => { unregister(); this.running.delete(taskId); });
-    this.running.set(taskId, { controller, done });
+    this.launch(plan, snapshot, taskId, apiKey);
     return { taskId };
   }
-  async settled(taskId: string) { await this.running.get(taskId)?.done; }
-  async dispose() {
-    this.plans.clear();
-    for (const value of this.running.values()) value.controller.abort();
-    await Promise.allSettled([...this.running.values()].map(value => value.done));
-  }
-  private async execute(plan: TranslationPlan, initial: DocumentSnapshot, taskId: string, apiKey: string, signal: AbortSignal) {
-    let snapshot = initial;
-    let trackRevision = 1;
-    let pendingUsage: TranslationUsage | undefined;
-    const ensureActive = (value: DocumentSnapshot) => {
-      if (signal.aborted) throw new StudioError('interrupted');
+
+  async cancel(documentId: string, revision: number, taskId: string, guard: () => void = () => {}): Promise<{ taskId: string }> {
+    this.assertOpen(); await this.initialize(); this.assertOpen();
+    await publishTransaction(this.repository, documentId, revision, value => {
       const task = value.tasks.find(item => item.id === taskId);
-      const track = value.document.translationTracks.find(item => item.id === task?.trackId);
-      if (!task || task.generation !== 1 || !['queued', 'running'].includes(task.status) || !track || track.revision !== trackRevision) throw new StudioError('revision_conflict');
+      if (!task || (!activeStatus(task) && !canResume(task))) throw new StudioError('invalid_input');
+      const run = this.running.get(taskId);
+      interruptTask(task, 'cancelled', run?.generation === task.generation ? run.receipt : undefined);
+    }, guard);
+    for (const handle of this.handles) if (handle.taskId === taskId) handle.controller.abort();
+    return { taskId };
+  }
+
+  async resume(documentId: string, revision: number, taskId: string, model: TranslationModel | null, apiKey: string, guard: () => void = () => {}): Promise<{ taskId: string }> {
+    this.assertOpen(); await this.initialize(); this.assertOpen();
+    const current = await this.repository.readSnapshot(documentId);
+    if (current.document.revision !== revision) throw new StudioError('revision_conflict');
+    const task = current.tasks.find(item => item.id === taskId);
+    if (!task || !canResume(task) || !task.translation?.checkpoint) throw new StudioError('invalid_input');
+    const plan = restoreTranslationPlan(current, taskId);
+    const configured = !!apiKey.trim() && apiKey.length <= 8000 && sameTranslationModel(model, plan.config.model);
+    const snapshot = await publishTransaction(this.repository, documentId, revision, value => {
+      const currentTask = value.tasks.find(item => item.id === taskId)!;
+      if (!canResume(currentTask) || value.tasks.some(item => item.id !== taskId && activeStatus(item))) throw new StudioError('revision_conflict');
+      currentTask.generation++;
+      currentTask.status = configured ? 'queued' : 'needs_configuration';
+      if (configured) delete currentTask.translation!.error;
+      else currentTask.translation!.error = 'needs_configuration';
+    }, () => { this.assertOpen(); guard(); });
+    for (const handle of this.handles) if (handle.taskId === taskId) handle.controller.abort();
+    if (configured) this.launch(plan, snapshot, taskId, apiKey);
+    return { taskId };
+  }
+
+  private launch(plan: TranslationPlan, snapshot: DocumentSnapshot, taskId: string, apiKey: string) {
+    const controller = new AbortController();
+    const generation = snapshot.tasks.find(task => task.id === taskId)!.generation;
+    const unregister = this.repository.registerActivity(plan.documentId, controller);
+    const run: Run = { taskId, documentId: plan.documentId, generation, controller, done: Promise.resolve() };
+    this.running.set(taskId, run); this.handles.add(run);
+    if (this.closed) controller.abort();
+    run.done = this.execute(plan, snapshot, run, apiKey).finally(() => {
+      unregister(); this.handles.delete(run);
+      if (this.running.get(taskId) === run) this.running.delete(taskId);
+    });
+  }
+  async settled(taskId: string) { await this.running.get(taskId)?.done; }
+  dispose(): Promise<void> {
+    if (this.shutdown) return this.shutdown;
+    this.closed = true; this.plans.clear();
+    this.shutdown = Promise.resolve().then(() => this.interruptOwnedRuns());
+    return this.shutdown;
+  }
+  private async interruptOwnedRuns() {
+    const runs = [...this.handles];
+    for (const run of runs) {
+      for (let attempt = 0; attempt < 3; attempt++) {
+        try {
+          const current = await this.repository.readSnapshot(run.documentId);
+          const task = current.tasks.find(item => item.id === run.taskId);
+          if (task?.generation === run.generation && activeStatus(task)) await publishTransaction(this.repository, run.documentId, current.document.revision, value => {
+            const task = value.tasks.find(item => item.id === run.taskId)!;
+            if (task.generation === run.generation && activeStatus(task)) interruptTask(task, 'interrupted', run.receipt);
+          });
+          break;
+        } catch (error) {
+          // A concurrent commit can move the revision without taking ownership of this run.
+          if (!(error instanceof StudioError) || error.code !== 'revision_conflict') break;
+        }
+      }
+      run.controller.abort();
+    }
+  }
+
+  private async execute(plan: TranslationPlan, initial: DocumentSnapshot, run: Run, apiKey: string) {
+    let snapshot = initial;
+    const signal = run.controller.signal;
+    let trackRevision = initial.tasks.find(task => task.id === run.taskId)!.translation!.checkpoint!.trackRevision;
+    const digest = initial.tasks.find(task => task.id === run.taskId)!.translation!.checkpoint!.sourceDigest;
+    const sameGeneration = (value: DocumentSnapshot) => {
+      const task = value.tasks.find(item => item.id === run.taskId);
+      if (!task || task.generation !== run.generation || !activeStatus(task)) throw new StudioError('revision_conflict');
+      return task;
+    };
+    const ensureActive = (value: DocumentSnapshot) => {
+      if (signal.aborted || this.closed) throw new StudioError('interrupted');
+      const task = sameGeneration(value);
+      const track = value.document.translationTracks.find(item => item.id === task.trackId);
+      if (!track || track.revision !== trackRevision || task.translation!.checkpoint!.trackRevision !== trackRevision || documentSourceDigest(value.document) !== digest) throw new StudioError('revision_conflict');
       return { task, track };
     };
-    const mutate = async (action: (value: DocumentSnapshot) => void) => {
-      snapshot = await this.repository.transact(plan.documentId, snapshot.document.revision, action, () => { if (signal.aborted) throw new StudioError('interrupted'); });
+    // A failure after current-pointer publication can still represent a complete commit.
+    const mutate = async (action: (value: DocumentSnapshot) => void, published: (value: DocumentSnapshot) => boolean) => {
+      try {
+        snapshot = await this.repository.transact(plan.documentId, snapshot.document.revision, action, () => { if (signal.aborted) throw new StudioError('interrupted'); });
+      } catch (error) {
+        const current = await this.repository.readSnapshot(plan.documentId);
+        if (!signal.aborted && current.tasks.find(task => task.id === run.taskId)?.generation === run.generation && published(current)) { snapshot = current; return; }
+        throw error;
+      }
     };
+    const progressOf = (value: DocumentSnapshot) => value.tasks.find(task => task.id === run.taskId)?.translation;
     try {
-      for (let index = 0; index < plan.batches.length; index++) {
-        const batch = plan.batches[index];
+      const notBefore = progressOf(snapshot)?.notBefore ?? 0;
+      while (notBefore > Date.now()) await wait(Math.min(60000, notBefore - Date.now()), signal);
+      for (const [index, batch] of plan.batches.entries()) {
+        if (snapshot.tasks.find(task => task.id === run.taskId)!.completedBatchIds.includes(batch.id)) continue;
         const { track } = ensureActive(snapshot);
         const previous = index ? plan.batches[index - 1].units.slice(-2).map(unit => track.entries[unit.cueId]?.text.plain).filter((text): text is string => text !== undefined) : [];
         const request = buildTranslationRequest(plan.config, batch, previous, apiKey, signal);
         if (requestTokenEstimate(request) > batch.estimatedInputTokens || requestTokenEstimate(request) + plan.config.maxOutputTokens > plan.config.contextWindow) throw new StudioError('limit_exceeded');
         for (let attempt = 0; ; attempt++) {
-          await mutate(value => { const { task } = ensureActive(value); task.status = 'running'; task.attempts++; });
-          let usage: ModelRuntimeUsage | undefined;
+          const release = await this.scheduler.acquire(signal);
           let responseReceived = false;
+          let usage: ModelRuntimeUsage | undefined;
+          let attempted = false;
+          const attemptNumber = snapshot.tasks.find(task => task.id === run.taskId)!.attempts + 1;
           try {
-            pendingUsage = normalizeUsage();
-            const result = await this.send(request);
+            await mutate(value => {
+              const { task } = ensureActive(value);
+              task.status = 'running'; task.attempts++; task.translation!.inFlightBatchId = batch.id;
+              delete task.translation!.notBefore;
+            }, value => progressOf(value)?.inFlightBatchId === batch.id && value.tasks.find(task => task.id === run.taskId)?.attempts === attemptNumber);
+            attempted = true; run.receipt = { batchId: batch.id, attempt: attemptNumber, usage: normalizeUsage(), uncertain: true };
+            if (signal.aborted || this.closed) throw new StudioError('interrupted');
+            let result: ModelRuntimeTextResult;
+            try { result = await this.send(request); } finally { release(); }
             responseReceived = true; usage = result.usage;
-            pendingUsage = normalizeUsage(usage);
+            run.receipt = { batchId: batch.id, attempt: attemptNumber, usage: normalizeUsage(usage), uncertain: false };
+            if (signal.aborted) throw new StudioError('interrupted');
             if (result.apiFormat === 'chat_completions' && result.finishReason === 'length') throw new StudioError('translation_output_limit');
             if ((result.apiFormat === 'responses' && result.rawStatus && result.rawStatus !== 'completed') || (result.apiFormat === 'chat_completions' && result.finishReason && result.finishReason !== 'stop')) throw new StudioError('translation_protocol_invalid');
             const translations = validateTranslationResponse(result.content, batch.units, plan.config.maxOutputTokens * 16);
             await mutate(value => {
               const { task, track } = ensureActive(value);
-              for (const unit of batch.units) {
-                const cue = value.document.cues.find(item => item.id === unit.cueId);
-                if (!cue || cue.sourceRevision !== unit.sourceRevision || sourceDigest(cue) !== unit.sourceHash) throw new StudioError('revision_conflict');
-                track.entries[unit.cueId] = { sourceRevision: unit.sourceRevision, sourceHash: unit.sourceHash, text: translations.get(unit.cueId)!, origin: 'ai', reviewStatus: 'unreviewed' };
-              }
-              track.revision++;
+              for (const unit of batch.units) track.entries[unit.cueId] = { sourceRevision: unit.sourceRevision, sourceHash: unit.sourceHash, text: translations.get(unit.cueId)!, origin: 'ai', reviewStatus: 'unreviewed' };
+              track.revision++; task.translation!.checkpoint!.trackRevision = track.revision;
+              accountAttempt(task, normalizeUsage(usage), false);
               task.completedBatchIds.push(batch.id);
               task.uncertainBatchIds = task.uncertainBatchIds.filter(id => id !== batch.id);
-              addUsage(task.translation!.usage, normalizeUsage(usage));
               if (index === plan.batches.length - 1) task.status = 'completed';
-            });
-            pendingUsage = undefined;
-            trackRevision++;
+            }, value => value.tasks.find(task => task.id === run.taskId)?.completedBatchIds.includes(batch.id) === true);
+            delete run.receipt; trackRevision++;
             break;
           } catch (error) {
-            if (error instanceof ModelRuntimeClientError) {
-              usage = error.details.usage;
-              if (error.code === 'length_truncated') responseReceived = true;
-            }
-            pendingUsage = normalizeUsage(usage);
+            release();
+            if (!attempted) throw error;
+            if (error instanceof ModelRuntimeClientError) { usage = error.details.usage; if (error.code === 'length_truncated') responseReceived = true; }
+            run.receipt = { batchId: batch.id, attempt: attemptNumber, usage: normalizeUsage(usage), uncertain: !responseReceived };
             if (signal.aborted) throw new StudioError('interrupted');
+            const suppliedDelay = error instanceof ModelRuntimeClientError ? error.details.retryAfterMs : undefined;
+            const hasSupplierDelay = typeof suppliedDelay === 'number' && Number.isFinite(suppliedDelay) && suppliedDelay >= 0;
+            const retryable = error instanceof StudioError ? error.code === 'translation_protocol_invalid' : error instanceof ModelRuntimeClientError && error.code !== 'length_truncated' && error.retryable;
+            const backoff = 500 * 2 ** attempt + Math.floor(Math.random() * 100);
+            const delay = Math.max(hasSupplierDelay ? suppliedDelay : 0, backoff);
             await mutate(value => {
               const { task } = ensureActive(value);
-              addUsage(task.translation!.usage, normalizeUsage(usage));
-              if (!responseReceived && !task.uncertainBatchIds.includes(batch.id)) task.uncertainBatchIds.push(batch.id);
-            });
-            pendingUsage = undefined;
-            const retryable = error instanceof StudioError ? error.code === 'translation_protocol_invalid' : error instanceof ModelRuntimeClientError && error.code !== 'length_truncated' && error.retryable;
-            const delay = error instanceof ModelRuntimeClientError ? error.details.retryAfterMs ?? 500 : 500;
+              accountAttempt(task, normalizeUsage(usage), !responseReceived);
+              if (hasSupplierDelay || (retryable && attempt < 1)) task.translation!.notBefore = Math.min(Number.MAX_SAFE_INTEGER, Date.now() + Math.ceil(delay));
+            }, value => !progressOf(value)?.inFlightBatchId && value.tasks.find(task => task.id === run.taskId)?.attempts === attemptNumber);
+            delete run.receipt;
             if (!retryable || attempt >= 1 || delay > 30000) throw error;
-            await wait(Math.max(0, delay), signal);
+            await wait(delay, signal);
           }
         }
       }
     } catch (error) {
       try {
         const current = await this.repository.readSnapshot(plan.documentId);
-        await this.repository.transact(plan.documentId, current.document.revision, value => {
-          const task = value.tasks.find(item => item.id === taskId);
-          if (!task || task.generation !== 1 || !['queued', 'running'].includes(task.status)) throw new StudioError('revision_conflict');
+        await publishTransaction(this.repository, plan.documentId, current.document.revision, value => {
+          const task = sameGeneration(value);
           const code = failureCode(error);
+          if (run.receipt) accountAttempt(task, run.receipt.usage, run.receipt.uncertain);
           task.status = code === 'interrupted' ? 'interrupted' : code === 'needs_configuration' ? 'needs_configuration' : 'failed';
           task.translation!.error = code;
-          if (pendingUsage) addUsage(task.translation!.usage, pendingUsage);
         });
-      } catch { /* Deletion or a newer task generation owns the state now. */ }
+      } catch { /* A tombstone or a newer generation owns the document; late responses cannot write. */ }
     }
   }
 }

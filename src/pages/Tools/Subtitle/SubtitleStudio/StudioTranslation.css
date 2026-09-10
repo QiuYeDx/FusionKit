@@ -24,6 +24,14 @@
 .studio-translation-plan dd { margin-top: 4px; font-family: var(--font-mono); font-size: 13px; line-height: 20px; overflow-wrap: anywhere; }
 .studio-translation-status { display: flex; align-items: center; flex-wrap: wrap; gap: 3px 12px; min-width: 0; color: var(--muted-foreground); font-size: 11px; line-height: 18px; }
 .studio-translation-status > span { display: inline-flex; align-items: center; gap: 5px; min-width: 0; overflow-wrap: anywhere; }
+.studio-translation-task-controls { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 6px; min-width: 0; }
+.studio-translation-task-note { display: inline-flex; align-items: center; gap: 5px; color: var(--muted-foreground); font-size: 11px; line-height: 18px; overflow-wrap: anywhere; }
+.studio-translation-task-note > svg, .studio-translation-recovery-note > svg { flex-shrink: 0; }
+.studio-translation-recovery { display: grid; min-width: 0; gap: 12px; }
+.studio-translation-frozen { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px; }
+.studio-translation-frozen dt { color: var(--muted-foreground); font-size: 11px; line-height: 18px; }
+.studio-translation-frozen dd { margin-top: 4px; font-size: 12px; line-height: 18px; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+.studio-translation-recovery-note { display: flex; align-items: flex-start; gap: 8px; color: var(--muted-foreground); font-size: 12px; line-height: 18px; overflow-wrap: anywhere; }
 @media (max-width: 480px) {
   .studio-translation-fields { grid-template-columns: minmax(0, 1fr); gap: 12px; }
   .studio-translation-budget-fields { grid-template-columns: minmax(0, 1fr); }

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { idSchema, LIMITS, StudioError } from './domain';
 
 const tokenCount = z.number().int().nonnegative().safe();
 export const translationModelSchema = z.object({
@@ -12,6 +13,14 @@ export const translationModelSchema = z.object({
   outputTokenParameter: z.enum(['max_tokens', 'max_completion_tokens']).optional(),
   thinkingEnabled: z.boolean().optional(),
 }).strict();
+export type TranslationModel = z.infer<typeof translationModelSchema>;
+export function normalizeTranslationModel(input: TranslationModel): TranslationModel {
+  const parsed = translationModelSchema.safeParse(input);
+  if (!parsed.success) throw new StudioError('invalid_input');
+  const model = parsed.data;
+  if (model.apiFormat === 'chat_completions' && model.modelKey.toLowerCase().startsWith('deepseek-')) model.thinkingEnabled ??= false;
+  return model;
+}
 export const translationConfigSchema = z.object({
   model: translationModelSchema,
   language: z.string().trim().min(1).max(100),
@@ -23,12 +32,30 @@ export const translationConfigSchema = z.object({
 export const translationUsageSchema = z.object({
   inputTokens: tokenCount.nullable(), outputTokens: tokenCount.nullable(), totalTokens: tokenCount.nullable(),
 }).strict();
+export const translationCheckpointSchema = z.object({
+  version: z.literal(1),
+  sourceDigest: z.string().regex(/^[a-f0-9]{64}$/),
+  trackRevision: z.number().int().positive().safe(),
+  batches: z.array(z.object({
+    id: z.string().min(1).max(100),
+    cueIds: z.array(idSchema).min(1).max(100),
+    before: z.array(z.string().max(LIMITS.cueBytes)).max(2),
+    after: z.array(z.string().max(LIMITS.cueBytes)).max(2),
+    estimatedInputTokens: tokenCount,
+    priorContextReserve: tokenCount,
+  }).strict()).min(1).max(LIMITS.cues),
+}).strict();
+export type TranslationCheckpoint = z.infer<typeof translationCheckpointSchema>;
 export const translationProgressSchema = z.object({
   config: translationConfigSchema,
   totalBatches: z.number().int().positive().max(100000),
   estimatedInputTokens: tokenCount,
   outputTokenReserve: tokenCount,
   usage: translationUsageSchema,
+  checkpoint: translationCheckpointSchema.optional(),
+  inFlightBatchId: z.string().min(1).max(100).optional(),
+  uncertainAttempts: tokenCount.optional(),
+  notBefore: tokenCount.optional(),
   error: z.enum(['needs_configuration', 'translation_protocol_invalid', 'translation_output_limit', 'translation_failed', 'limit_exceeded', 'revision_conflict', 'interrupted']).optional(),
 }).strict();
 export type TranslationConfig = z.infer<typeof translationConfigSchema>;

@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { encode } from 'gpt-tokenizer';
 import { StudioError, type SubtitleDocument } from '../../../src/subtitle-studio/domain';
-import { translationConfigSchema, type TranslationConfig } from '../../../src/subtitle-studio/translation-contract';
+import { normalizeTranslationModel, translationConfigSchema, type TranslationConfig } from '../../../src/subtitle-studio/translation-contract';
 import { projectTranslationUnits, sourceFingerprint, type TranslationUnit } from '../../../src/subtitle-studio/translation-protocol';
 import type { ModelRuntimeTextRequest } from '../ai/model-runtime-client';
 import { buildChatCompletionBody } from '../ai/adapters/chat-completions-adapter';
@@ -56,10 +56,7 @@ export function planTranslation(document: SubtitleDocument, input: TranslationCo
   const parsed = translationConfigSchema.safeParse(input);
   if (!parsed.success) throw new StudioError('invalid_input');
   const config = parsed.data;
-  // DeepSeek V4 defaults to thinking, which shares the translated-output budget.
-  if (config.model.apiFormat === 'chat_completions' && config.model.modelKey.trim().toLowerCase().startsWith('deepseek-')) {
-    config.model.thinkingEnabled ??= false;
-  }
+  config.model = normalizeTranslationModel(config.model);
   const cues = new Map(document.cues.map(cue => [cue.id, cue]));
   const units = projectTranslationUnits(document).map(unit => ({ ...unit, sourceHash: sourceDigest(cues.get(unit.cueId)!) }));
   const batches: TranslationBatch[] = [];

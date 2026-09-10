@@ -78,6 +78,30 @@ UI 以现有工作台/ToolPanel 和 `qiuye-ui-quality`、`fusionkit-ui-design` �
 
 暂不接高级语义记忆系统、术语自动提炼或跨文档翻译缓存。必要提示包含用户翻译要求、有界前后原文与上一批已提交译文；用户要求进入任务配置快照。不同语言/模型可创建新译文轨，导出显式选轨。
 
+### T04 恢复、取消与并发设计（2026-09-10）
+
+持久检查点增加可选 version=1 的冻结批次清单：整文 cue 身份/源修订/hash 摘要、期望轨修订，以及每批固定 id、cueIds、前后文与预算。恢复用现存原文投影重建相同短 ID 与保护标记，再验证摘要和批次映射，不对剩余正文重新切批。原 T03 快照缺此清单时仍可预览/下载已有结果，但不能猜测恢复；界面引导创建新翻译。
+
+服务 initialize 幂等地将遗留 queued/running 转 interrupted、增加 generation，保存原进度，不自动联网。恢复只能继续 failed/interrupted/needs_configuration 的任务，保留 taskId/trackId、已提交批次和冻结参数，创建新 generation；对源摘要、期望轨修订和当前任务状态做事务验证。所有派发、结果、错误收尾及内存句柄清理绑定执行代次，取消先发布 cancelled 和 generation 栅栏，再 abort；不等待不合作的网络响应才返回，迟到响应无权写入。退出时拒绝新任务，启动修复覆盖强制退出而未完成 dispose 的场景。
+
+每次请求派发前持久 inFlightBatchId，结果和 completedBatchIds 同事务发布；启动发现残留 in-flight 记入 uncertainBatchIds/累计 uncertainAttempts。后续成功可解决未提交批次，但不能抹掉历史未知计费次数。提交结果若出现已发布但调用失败的窗口，先读实际发布检查点，禁止重发已提交批次或重复累计用量。实际 usage 无法确定时保持 unknown。
+
+应用内最多两个模型请求并发；等待队列不占仓库串行锁，等待/退避可取消，实际未结束的请求仍占用并发名额。每文档只允许一个 queued/running 任务；通用客户端 retry 固定 0，由新版服务负责有限退避，Retry-After 是等待下限。超过短等待上限时保留 notBefore，用户继续也不能绕过供应商时限。
+
+resumeTask 输入只含 documentId/revision/taskId、当前对应模型身份及内存 apiKey；cancelTask 使用 documentId/revision/taskId，仍经过精确 owner/文档 grant/schema 保护。恢复只按冻结 profileId 匹配配置，统一 DeepSeek thinking 默认值后比较 endpoint/modelKey/apiFormat/outputTokenParameter/thinking，密钥轮换允许；缺失或路由变化保存 needs_configuration，禁止回退默认模型，API key 不持久化。
+
+前端沿用 StudioTranslationStatus 的紧凑状态条、Button ghost/outline sm 与现有 ScrollableDialog/模型设置入口：进行中提供取消，已中断/失败提供继续翻译，配置不符提供明确修复入口，已取消保留结果且不提供原任务恢复。状态与操作按当前译轨任务绑定；显示已提交批次数、实际用量和未知尝试提示，窄窗自然换行。异步回调只刷新同一文档，不让旧操作关闭新文档弹窗。以真实 Electron 合成三批字幕、重启、慢响应/取消、配置删除/变化、长状态文案为样本；1280×860 和 786×540、深浅主题审查有效工作区、按钮可达和焦点。
+
+### T05 导出计划与界面（2026-09-10）
+
+保留下载原文件（original）的独立入口；新增导出字幕 source/target/bilingual。原文始终从当前 cue.source 序列化，不能复用 rawText 夹回旧译文。选中 imported 或 AI 轨均按 sourceRevision/hash 判断有效。选项固定格式、轨、双语顺序、编码/BOM/换行、不完整策略和缺失结束时间策略，完全不调用模型。
+
+planExport 在 main 验证当前修订，生成有界冻结输出字节与诊断，缓存 owner 绑定的限时计划；返回计划 ID、条数、字节数、诊断数量和少量预览，不传文件路径或整份文档。exportDocument 接受计划 ID 与确认的损失类别，打开原生保存框；保存期间新译文提交不影响所选字节，删除墓碑和 owner 撤权仍拒绝发布。原生对话框不能占仓库串行锁；最终发布仅在短时存在性保护内进行。
+
+缺失/过期译文默认阻止 target/bilingual；明确选择 skip 或 source-fallback 后保留不完整标记，无轨时仍拒绝。LRC→SRT 估算须显式启用，使用完整源时间集合中严格更晚起点，末组时长默认 2000ms 且可调整，不修改任何源时间/provenance。LRC 输出使用毫秒精度、实际起点和零 offset，避免重复应用原 offset；负时间或超出格式范围拒绝。SRT 保留 b/i/u 安全 span，LRC 样式、多行折行、未计时元数据及不能无歧义表达的正文分别诊断；编码必须严格往返，不能静默替换字符。
+
+UI 参照现有工作台按钮、ToolField/Select、ScrollableDialog 与 12px 内间距。约 600px 弹窗首层两列模式/格式；仅相关时出现译轨与双语顺序。编码/BOM/换行置更多选项；阻断诊断紧接对应修复选项，计划摘要展示输出条数与格式影响。显式接受时长估算和不完整策略后重新计划，其余损失统一勾选确认且绑定当前计划；无损计划无需额外确认。底栏取消和保存字幕，原生取消保持当前计划可重试。后台译文变化保留已选快照并提示可重新检查，选项改变才使计划失效。以 1280×860/786×540、深浅主题、长文案、缺失/清轨/导出中并发提交为验证样本。
+
 export planner 固定 revision，先检查缺失、过期、结束时间和格式损失，再执行本地 serializer。具体双语、LRC→SRT 推导和不完整导出策略见整体架构第 6 节。目标语言视觉折行可重排，时间轴不因字数被重新发明。
 
 发布默认索引命名，采用新版自有临时文件、内容校验和最终发布；取消/失败清理只作用于当前操作拥有的文件。主动覆盖经原生保存选择，Windows 锁定/替换失败保留旧目标。I1 不借用 local-subtitle overwrite-native。

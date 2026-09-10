@@ -4,10 +4,10 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { z } from 'zod';
 import { LIMITS, StudioError } from '../../../src/subtitle-studio/domain';
-import { STUDIO_CHANNELS, requestSchemas, summarizeDocument, type StudioResult } from '../../../src/subtitle-studio/ipc-contract';
+import { STUDIO_CHANNELS, requestSchemas, summarizeDocument, summarizeTask, type StudioResult } from '../../../src/subtitle-studio/ipc-contract';
 import { DocumentRepository } from './document-repository';
 import { readSubtitle } from './input-service';
-import { publishSource, unusedOutputPath } from './export-service';
+import { ExportService, publishSource, unusedOutputPath } from './export-service';
 import { TranslationService } from './translation-service';
 import { BilingualService } from './bilingual-service';
 
@@ -15,6 +15,7 @@ export function registerSubtitleStudio() {
   const repository = new DocumentRepository(path.join(app.getPath('userData'), 'subtitle-studio', 'documents'));
   const translation = new TranslationService(repository);
   const bilingual = new BilingualService(repository);
+  const exports = new ExportService(repository);
   const owners = new Map<number, { sender: WebContents; capability: string; documents: Set<string> }>();
   const allowed = new Set<number>();
   const rendererUrl = process.env.VITE_DEV_SERVER_URL || pathToFileURL(path.join(app.getAppPath(), 'dist', 'index.html')).href;
@@ -35,6 +36,7 @@ export function registerSubtitleStudio() {
     if (!allowed.has(event.sender.id) || event.senderFrame !== event.sender.mainFrame || !trusted(event.senderFrame.url) || !z.object({}).strict().safeParse(request).success) { event.returnValue = null; return; }
     const owner = { sender: event.sender, capability: randomUUID(), documents: new Set<string>() };
     translation.forgetOwner(event.sender.id);
+    exports.forgetOwner(event.sender.id);
     owners.set(event.sender.id, owner);
     event.returnValue = owner.capability;
   });
@@ -52,6 +54,7 @@ export function registerSubtitleStudio() {
         const parsed = requestSchemas[method].safeParse(payload);
         if (!parsed.success) throw new StudioError('invalid_input');
         const alive = () => { if (owners.get(event.sender.id) !== owner || event.sender.isDestroyed() || !trusted(event.sender.mainFrame.url)) throw new StudioError('access_denied'); };
+        await translation.initialize(); alive();
         if (method === 'listDocuments') {
           const { offset } = requestSchemas.listDocuments.parse(payload);
           const { documents, sequence } = await repository.listSnapshot(); alive();
@@ -70,6 +73,32 @@ export function registerSubtitleStudio() {
         }
         const request = requestSchemas.exportSource.parse({ documentId: (parsed.data as { documentId: string }).documentId, revision: (parsed.data as { revision: number }).revision });
         if (!owner.documents.has(request.documentId)) throw new StudioError('access_denied');
+        if (method === 'planExport') {
+          const { options } = requestSchemas.planExport.parse(payload);
+          const value = await exports.plan(event.sender.id, request.documentId, request.revision, options, alive); alive();
+          return { ok: true, value };
+        }
+        if (method === 'exportDocument') {
+          const { planId, acceptedLosses } = requestSchemas.exportDocument.parse(payload);
+          const plan = exports.inspect(event.sender.id, request.documentId, request.revision, planId, acceptedLosses);
+          const window = BrowserWindow.fromWebContents(event.sender);
+          if (!window) throw new StudioError('access_denied');
+          const defaultPath = await unusedOutputPath(app.getPath('downloads'), plan.fileName); alive();
+          const selection = await dialog.showSaveDialog(window, { defaultPath, filters: [{ name: plan.options.format.toUpperCase(), extensions: [plan.options.format] }] }); alive();
+          if (selection.canceled || !selection.filePath) return { ok: true, value: null };
+          const value = await exports.publish(event.sender.id, request.documentId, request.revision, planId, acceptedLosses, selection.filePath, alive, path.resolve(selection.filePath) === path.resolve(defaultPath) ? 'indexed' : 'replace');
+          return { ok: true, value };
+        }
+        if (method === 'cancelTask') {
+          const { taskId } = requestSchemas.cancelTask.parse(payload);
+          const value = await translation.cancel(request.documentId, request.revision, taskId, alive); alive();
+          return { ok: true, value };
+        }
+        if (method === 'resumeTask') {
+          const { taskId, model, apiKey } = requestSchemas.resumeTask.parse(payload);
+          const value = await translation.resume(request.documentId, request.revision, taskId, model, apiKey, alive); alive();
+          return { ok: true, value };
+        }
         if (method === 'previewBilingual') {
           const { options, offset, reviewOnly } = requestSchemas.previewBilingual.parse(payload);
           const value = await bilingual.preview(request.documentId, request.revision, options, offset, alive, reviewOnly); alive();
@@ -113,28 +142,31 @@ export function registerSubtitleStudio() {
           const nodes = doc.preservation.nodes.slice(nodeOffset, nodeOffset + LIMITS.pageSize);
           const cueIds = new Set(cues.map(cue => cue.id));
           const translationTracks = doc.translationTracks.map(track => ({ ...track, entries: Object.fromEntries(Object.entries(track.entries).filter(([id]) => cueIds.has(id))) }));
-          return { ok: true, value: { summary: summarizeDocument(doc), cues, offset, nodeOffset, nodeCount: doc.preservation.nodes.length, rawNodes: nodes.map(node => ({ id: node.id, text: doc.preservation.rawText.slice(node.start, node.end) })), translationTracks, tasks: snapshot.tasks } };
+          return { ok: true, value: { summary: summarizeDocument(doc), cues, offset, nodeOffset, nodeCount: doc.preservation.nodes.length, rawNodes: nodes.map(node => ({ id: node.id, text: doc.preservation.rawText.slice(node.start, node.end) })), translationTracks, tasks: snapshot.tasks.map(summarizeTask) } };
         }
+        if (method !== 'exportSource') throw new StudioError('invalid_input');
         const window = BrowserWindow.fromWebContents(event.sender);
         if (!window) throw new StudioError('access_denied');
-        const selection = await dialog.showSaveDialog(window, { defaultPath: await unusedOutputPath(app.getPath('downloads'), doc.origin.displayName), filters: [{ name: doc.origin.format.toUpperCase(), extensions: [doc.origin.format] }] }); alive();
+        const defaultPath = await unusedOutputPath(app.getPath('downloads'), doc.origin.displayName); alive();
+        const selection = await dialog.showSaveDialog(window, { defaultPath, filters: [{ name: doc.origin.format.toUpperCase(), extensions: [doc.origin.format] }] }); alive();
         if (selection.canceled || !selection.filePath) return { ok: true, value: null };
-        await repository.withDocument(request.documentId, request.revision, async current => {
+        const output = await repository.withExistingDocument(request.documentId, async () => {
           alive();
-          await publishSource(current, selection.filePath!, alive);
+          return publishSource(doc, selection.filePath!, alive, path.resolve(selection.filePath!) === path.resolve(defaultPath) ? 'indexed' : 'replace');
         });
-        return { ok: true, value: { fileName: path.basename(selection.filePath) } };
+        return { ok: true, value: { fileName: path.basename(output) } };
       } catch (error) { return { ok: false, error: error instanceof StudioError ? error.code : 'document_unavailable' }; }
     });
   }
   return {
     attach(sender: WebContents) {
       allowed.add(sender.id);
-      sender.on('did-start-navigation', (_event, _url, inPlace, mainFrame) => { if (mainFrame && !inPlace) { owners.delete(sender.id); translation.forgetOwner(sender.id); } });
-      sender.once('destroyed', () => { owners.delete(sender.id); allowed.delete(sender.id); translation.forgetOwner(sender.id); });
+      sender.on('did-start-navigation', (_event, _url, inPlace, mainFrame) => { if (mainFrame && !inPlace) { owners.delete(sender.id); translation.forgetOwner(sender.id); exports.forgetOwner(sender.id); } });
+      sender.once('destroyed', () => { owners.delete(sender.id); allowed.delete(sender.id); translation.forgetOwner(sender.id); exports.forgetOwner(sender.id); });
     },
     dispose() {
       void translation.dispose();
+      exports.dispose();
       unsubscribe();
       owners.clear(); allowed.clear();
       ipcMain.removeAllListeners(STUDIO_CHANNELS.register);

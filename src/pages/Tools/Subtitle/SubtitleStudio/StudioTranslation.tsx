@@ -96,6 +96,8 @@ export function StudioTranslation({ page, busy, onStarted, onError }: StudioTran
   const identity = JSON.stringify([page.summary.id, page.summary.revision, config.success ? config.data : null]);
   const currentIdentity = useRef(identity);
   currentIdentity.current = identity;
+  const currentDocumentId = useRef(page.summary.id);
+  currentDocumentId.current = page.summary.id;
   const currentPlan = plan?.identity === identity ? plan.value : null;
   const activeTask = page.tasks.some(task => task.status === 'queued' || task.status === 'running');
   const unavailable = !page.summary.capabilities.translate || page.summary.cueCount === 0;
@@ -144,7 +146,7 @@ export function StudioTranslation({ page, busy, onStarted, onError }: StudioTran
         documentId: page.summary.id, revision: page.summary.revision,
         planId: currentPlan.planId, apiKey: selected.apiKey,
       }));
-      if (mounted.current) { setOpen(false); setPlan(null); onStarted(); }
+      if (mounted.current && currentDocumentId.current === page.summary.id) { setOpen(false); setPlan(null); onStarted(); }
     } catch (failure) {
       if (mounted.current && currentIdentity.current === requestIdentity) { setPlan(null); reportError(failure); }
     } finally {
@@ -158,8 +160,8 @@ export function StudioTranslation({ page, busy, onStarted, onError }: StudioTran
       <Languages />{t('studio:translation.action')}
     </Button>
     <ScrollableDialog open={open} onOpenChange={value => { if (!pending) setOpen(value); }} maxWidth="sm:max-w-[560px]" contentClassName="studio-translation-dialog" onOpenAutoFocus={event => {
-      event.preventDefault(); document.getElementById(`${controlId}-${profiles.length ? 'model' : 'language'}`)?.focus();
-    }} onCloseAutoFocus={event => { event.preventDefault(); trigger.current?.focus(); }}>
+      event.preventDefault(); document.getElementById(`${controlId}-${profiles.length ? 'model' : 'language'}`)?.focus({ preventScroll: true });
+    }} onCloseAutoFocus={event => { event.preventDefault(); trigger.current?.focus({ preventScroll: true }); }}>
       <ScrollableDialogHeader className="relative p-3 pr-12">
         <DialogTitle className="flex items-center gap-2 text-base"><Languages className="size-4" />{t('studio:translation.title')}</DialogTitle>
         <DialogDescription className="sr-only">{page.summary.origin.displayName}</DialogDescription>
@@ -237,6 +239,7 @@ export function StudioTranslationStatus({ page, trackId }: { page: DocumentPage;
     <span className={failed ? 'text-destructive' : ''}>{running ? <LoaderCircle className="size-3.5 studio-spin" /> : failed ? <AlertCircle className="size-3.5" /> : <CheckCheck className="size-3.5" />}{t(statusKeys[task.status])}</span>
     <span>{t('studio:translation.batch_progress', { completed: task.completedBatchIds.length, total: task.translation.totalBatches })}</span>
     <span>{t('studio:translation.actual_usage', { input: count(task.translation.usage.inputTokens), output: count(task.translation.usage.outputTokens) })}</span>
+    {(task.translation.uncertainAttempts ?? task.uncertainBatchIds.length) > 0 && <span>{t('studio:translation.uncertain_usage', { count: task.translation.uncertainAttempts ?? task.uncertainBatchIds.length })}</span>}
     {task.translation.error && <span className="text-destructive">{t(errorKeys[task.translation.error])}</span>}
   </div>;
 }

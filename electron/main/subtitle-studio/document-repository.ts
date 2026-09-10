@@ -140,6 +140,13 @@ export class DocumentRepository {
       return action(snapshot.document);
     });
   }
+  /** Publish already frozen output without rejecting newer translation commits. */
+  withExistingDocument<T>(id: string, action: () => Promise<T>) {
+    return this.serial(async () => {
+      await this.committed(id);
+      return action();
+    });
+  }
   listSnapshot() {
     return this.serial(async () => {
       await mkdir(this.root, { recursive: true });

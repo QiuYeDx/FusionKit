@@ -20,6 +20,8 @@ import { encodingSchema, LIMITS, StudioError, type Diagnostic, type ErrorCode } 
 import type { DocumentPage, DocumentSummary } from '@/subtitle-studio/ipc-contract';
 import { formatStudioTime, StudioFileName, StudioIconButton, StudioPagination } from './StudioControls';
 import { StudioTranslation, StudioTranslationStatus } from './StudioTranslation';
+import { StudioTranslationTask } from './StudioTranslationTask';
+import { StudioExport } from './StudioExport';
 import { StudioBilingual, StudioRemoveTranslation } from './StudioBilingual';
 import './studio.css';
 
@@ -205,7 +207,7 @@ export default function SubtitleStudio() {
           actions={page ? <><StudioBilingual page={page} busy={busy} autoOpen={importedId === page.summary.id} onError={code => { retry.current = null; setError(code); }} onChanged={doc => { setImportedId(''); void run('select', async () => { await select(doc); await load(currentOffset.current); }); }} /><StudioTranslation page={page} busy={busy} onError={code => { retry.current = null; setError(code); }} onStarted={() => { dirty.current = true; refreshPending.current(); }} /><StudioIconButton id="studio-delete-trigger" label={t('studio:delete_document')} disabled={busy} onClick={() => setDeleting(page.summary)}><Trash2 /></StudioIconButton><Button variant="outline" size="sm" disabled={busy} onClick={() => void run('export', async () => {
             const result = await unwrapStudio(window.subtitleStudio.exportSource({ documentId: page.summary.id, revision: page.summary.revision }));
             if (result && mounted.current) setExported(result.fileName);
-          })}>{activity === 'export' ? <LoaderCircle className="studio-spin" /> : <ArrowDownToLine />}{t('studio:export_source')}</Button></> : undefined}
+          })}>{activity === 'export' ? <LoaderCircle className="studio-spin" /> : <ArrowDownToLine />}{t('studio:export_source')}</Button><StudioExport page={page} trackId={track?.id} busy={busy} onError={code => { retry.current = null; setError(code); }} onExported={setExported} /></> : undefined}
           className="studio-preview-panel"
           footer={page ? <div className="studio-reader-footer"><span className="flex items-center gap-1.5 text-[11px] text-muted-foreground studio-footer-status">{busy ? <LoaderCircle className="h-3.5 w-3.5 studio-spin" /> : <CheckCheck className="h-3.5 w-3.5" />}{busy ? t('studio:loading') : t('studio:source_preserved')}</span><StudioPagination offset={view === 'raw' ? page.nodeOffset : page.offset} total={view === 'raw' ? page.nodeCount : page.summary.cueCount} busy={busy} onChange={offset => void run('select', () => select(page.summary, view === 'raw' ? page.offset : offset, view === 'raw' ? offset : page.nodeOffset))} /></div> : undefined}
         >
@@ -213,7 +215,8 @@ export default function SubtitleStudio() {
             {track && <div className="studio-translation-toolbar">
               <Select value={track.id} onValueChange={setTrackId}><SelectTrigger aria-label={t('studio:translation_track')} className="h-7 w-[160px] shrink-0 text-xs"><SelectValue /></SelectTrigger><SelectContent>{page.translationTracks.map((item, index) => <SelectItem key={item.id} value={item.id}>{item.language === 'und' ? t('studio:language_unknown') : item.language} · {index + 1}</SelectItem>)}</SelectContent></Select>
               <StudioRemoveTranslation page={page} track={track} busy={busy} onError={code => { retry.current = null; setError(code); }} onChanged={doc => { setTrackId(''); void run('select', async () => { await select(doc); await load(currentOffset.current); }); }} />
-              <StudioTranslationStatus page={page} trackId={track.id} />
+            <StudioTranslationStatus page={page} trackId={track.id} />
+            <StudioTranslationTask page={page} trackId={track.id} busy={busy} onError={code => { retry.current = null; setError(code); }} onChanged={() => { dirty.current = true; refreshPending.current(); }} />
             </div>}
             <ClipPathTabs value={view} onValueChange={setView} ariaLabel={t('studio:document_view')} shape="rounded" smoothCorners size="sm" className="studio-tabs w-full gap-0" transitionDuration={200} transitionEasing="ease-out" items={[
               { value: 'preview', label: t('studio:preview'), icon: <List /> },
