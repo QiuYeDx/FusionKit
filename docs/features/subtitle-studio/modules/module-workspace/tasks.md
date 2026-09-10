@@ -114,13 +114,17 @@
 | 写集 | src/subtitle-studio/, electron/main/subtitle-studio/, electron/preload/subtitle-studio-api.ts, electron/preload/subtitle-studio-channel-policy.ts, src/pages/Tools/Subtitle/SubtitleStudio/, src/locales/, test/subtitle-studio/, scripts/subtitle-studio/boundaries.json, docs/features/subtitle-studio/ |
 | 负责人 | Codex root（规格/IPC/仓库/集成/验证）；translation_protocol（分析转换核心与领域）；translation_ui（独立确认组件与四语言）；model_audit（只读样本/评审） |
 | 依赖确认 | 2026-09-09 已核对 T-WORKSPACE-03 在基线 5afc695 加当前工作树中可用，源码摘要 3c21da04b3eef8dd96577e5625694f1b6ae6ec6b697b163a9007d058e5fcad71；用户反馈翻译已正常，事务/源hash/译文轨已读验 |
-| 完成日期 | 2026-09-09 |
-| 实施记录 | records/2026-09-09-workspace-07.md |
-| 集成版本 | 基线 5afc695 加当前共享工作树；源码摘要 bee5f2b006126bd89a589594e93ebefe91a47957fdb0362ae013d1a3c984f169，未提交 |
+| 完成日期 | 2026-09-10 |
+| 实施记录 | records/2026-09-10-workspace-07-preview.md |
+| 集成版本 | 初版集成于 019bb3b；混合双语和预览/分页修复为此基线加当前共享工作树，源码摘要 84bd5c7cff1e1d459f159fcea35668581d917bae56b03660d55793db1547902c，未提交 |
 
 #### 实现要点
 
 新增本地候选分析、分页预览及 revision 保护的双语解释提交；原始证据不变，导入译文为 imported/unreviewed。用稳定节点/字符范围记录双方来源；既有无双语字段快照兼容。既有文档可选择整理，新导入满足稳定结构推荐时自动预览确认；单行混排明确启用、可改边界/跳过。清除单轨与关联终态任务同事务；同文档任意排队/运行任务，或选中轨可继续任务存在时拒绝。历史任务清理入口同样保护运行中的其他任务。主页面沿用紧凑图标工具栏与 ScrollableDialog，区分原文件下载文案，导出序列化后续 T05。
+
+2026-09-09 用户报告同时间双行中第一行同时含行内译文，开启空格拆分后原文仍夹带旧译文。按用户要求复开修复，保留原 AC；结构配对后组合执行有证据的行内重复分离，并完成正文正确性回归和真实文件 Electron 验证。用户 LRC 的 282 处重复尾段已修正，59 组相同原译文保留；不能只用配对数或双列存在作为通过条件。旧版已整理文档需重新导入原文件并确认，历史初版证据保留于 records/2026-09-09-workspace-07.md。
+
+2026-09-10 用户要求修复预览中未拆分的混排双语，并增加页码输入跳转，授权在 T07 内复开，现已完成。实际文件另有 46 组双方均为完整混排的相同正文，显式开启行内拆分后提供有字种证据的分界并统一预览/提交；13 组普通同文继续保留。两份文件共 830 条需复核预览已逐页比对最终整理正文；Electron 验证用户截图位置、数字页码跳转、筛选后页数更新、默认主表分页和窄窗底栏通过。前次 282 处重复尾段修复未回退，历史证据保留于 records/2026-09-09-workspace-07-mixed.md。
 
 #### 验证计划
 

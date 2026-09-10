@@ -17,7 +17,7 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_E2E === '1')('Subtitle Studio biling
   });
   it('confirms local candidates, clears an imported track, and translates only the separated source', async () => {
     root = await mkdtemp(path.join(tmpdir(), 'studio-bilingual-ui-'));
-    const artifacts = path.resolve('test-results/subtitle-studio-bilingual');
+    const artifacts = path.resolve('test-results/subtitle-studio-bilingual-preview');
     await mkdir(artifacts, { recursive: true });
     const requests: any[] = [];
     server = createServer(async (request, response) => {
@@ -29,7 +29,7 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_E2E === '1')('Subtitle Studio biling
     });
     await new Promise<void>(resolve => server!.listen(0, '127.0.0.1', resolve));
     const port = (server.address() as { port: number }).port;
-    const source = `${Array.from({ length: 4 }, (_, i) => `[00:0${i}.00]今日は道具を使います${i}\n[00:0${i}.00]旧译文${i}`).join('\n')}\n[00:05.00]ここで 作業をします 旧译文混排\n[00:06.00]音楽\n[00:06.00]音乐\n`;
+    const source = `${Array.from({ length: 4 }, (_, i) => `[00:0${i}.00]今日は道具を使います${i}${i === 0 ? ' 旧译文0' : ''}\n[00:0${i}.00]旧译文${i}`).join('\n')}\n[00:05.00]ここで 作業をします 旧译文混排\n[00:06.00]音楽\n[00:06.00]音乐\n`;
     const name = '双语字幕-同时间与单行混排-September-2026.lrc';
     const input = path.join(root, name); await writeFile(input, source);
     app = await electron.launch({ args: ['.', `--user-data-dir=${path.join(root, 'profile')}`], cwd: process.cwd(), env: { ...process.env, VITE_DEV_SERVER_URL: '', NODE_ENV: 'test' } });
@@ -53,15 +53,22 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_E2E === '1')('Subtitle Studio biling
     const dialog = page.getByRole('dialog');
     await uiExpect(dialog).toBeVisible();
     await uiExpect(page.locator('.studio-bilingual-candidates > li')).toHaveCount(5);
+    const firstSource = page.locator('.studio-bilingual-pair').first().locator('dd').first();
+    await uiExpect(firstSource).toHaveText('今日は道具を使います0 旧译文0');
     const dialogViewport = dialog.locator('[data-slot="scroll-area-viewport"]');
     await uiExpect.poll(() => dialogViewport.evaluate(element => element.scrollTop)).toBe(0);
     await dialog.getByRole('checkbox', { name: '按空格拆分单行双语' }).check();
     await uiExpect(page.locator('.studio-bilingual-candidates > li')).toHaveCount(6);
     await uiExpect(page.locator('.studio-bilingual-candidates')).toHaveAttribute('aria-busy', 'false');
+    await uiExpect(firstSource).toHaveText('今日は道具を使います0');
+    await dialog.getByRole('checkbox', { name: '按空格拆分单行双语' }).uncheck();
+    await uiExpect(firstSource).toHaveText('今日は道具を使います0 旧译文0');
+    await dialog.getByRole('checkbox', { name: '按空格拆分单行双语' }).check();
+    await uiExpect(firstSource).toHaveText('今日は道具を使います0');
     await uiExpect.poll(() => dialogViewport.evaluate(element => element.scrollTop)).toBe(0);
     await page.screenshot({ path: path.join(artifacts, 'preview-desktop.png'), animations: 'disabled' });
     await dialog.getByRole('checkbox', { name: '只看需确认' }).check();
-    await uiExpect(page.locator('.studio-bilingual-candidates > li')).toHaveCount(2);
+    await uiExpect(page.locator('.studio-bilingual-candidates > li')).toHaveCount(3);
     const inlineCandidate = page.locator('.studio-bilingual-candidates > li').filter({ hasText: '旧译文混排' });
     await inlineCandidate.getByRole('combobox').click();
     await page.getByRole('option', { name: 'ここで | 作業をします 旧译文混排', exact: true }).click();
@@ -82,6 +89,7 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_E2E === '1')('Subtitle Studio biling
     await dialog.getByRole('button', { name: '确认整理', exact: true }).click();
     await uiExpect(dialog).toHaveCount(0);
     await uiExpect(page.locator('.studio-cue-table tbody tr')).toHaveCount(6);
+    await uiExpect(page.locator('.studio-parallel-text > div:first-child').first()).toHaveText('今日は道具を使います0');
     await uiExpect(page.locator('.studio-target-text').filter({ hasText: '旧译文混排' })).toBeVisible();
     await uiExpect(page.locator('.studio-document-meta')).toContainText('导入译文');
     expect(requests).toHaveLength(0);
@@ -111,17 +119,19 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_E2E === '1')('Subtitle Studio biling
     await page.screenshot({ path: path.join(artifacts, 'retranslated-desktop.png'), animations: 'disabled' });
 
     const srtName = '双语字幕-后段原文.srt';
-    const srt = Array.from({ length: 4 }, (_, i) => `${i + 7}\n00:00:0${i},000 --> 00:00:0${i + 1},000\n旧译文${i}\n今日は道具を使います${i}\n`).join('\n');
+    const srt = Array.from({ length: 4 }, (_, i) => `${i + 7}\n00:00:0${i},000 --> 00:00:0${i + 1},000\n旧译文${i}\n今日は道具を使います${i} 旧译文${i}\n`).join('\n');
     await writeFile(path.join(root, srtName), srt);
     await openFile(path.join(root, srtName));
     await uiExpect(dialog).toBeVisible();
     await dialog.getByRole('combobox', { name: '原文顺序', exact: true }).click();
     await page.getByRole('option', { name: '后段为原文', exact: true }).click();
+    await dialog.getByRole('checkbox', { name: '按空格拆分单行双语' }).check();
     await uiExpect(page.locator('.studio-bilingual-candidates')).toHaveAttribute('aria-busy', 'false');
     await uiExpect(page.locator('.studio-bilingual-pair').first().locator('dd').first()).toHaveText('今日は道具を使います0');
     await dialog.getByRole('button', { name: '确认整理', exact: true }).click();
     await uiExpect(dialog).toHaveCount(0);
     await uiExpect(page.locator('.studio-cue-table tbody tr')).toHaveCount(4);
+    await uiExpect(page.locator('.studio-parallel-text > div:first-child').first()).toHaveText('今日は道具を使います0');
     await uiExpect(page.locator('.studio-target-text').first()).toHaveText('旧译文0');
     await page.evaluate(() => localStorage.setItem('fusionkit-theme', JSON.stringify({ state: { theme: 'dark' }, version: 0 })));
     await page.reload();
@@ -132,6 +142,82 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_E2E === '1')('Subtitle Studio biling
     await uiExpect(page.locator('.studio-target-text').first()).toHaveText('旧译文0');
     expect(requests).toHaveLength(1);
     await page.screenshot({ path: path.join(artifacts, 'imported-dark-narrow.png'), animations: 'disabled' });
+
+    // Whole bilingual bodies can be repeated on BOTH timestamped lines.
+    // Exercise later preview pages, not only the final document's first page.
+    await window.evaluate(win => win.setSize(1280, 860));
+    const repeatedName = '重复双语与页码跳转.lrc';
+    const repeatedFile = path.join(root, repeatedName);
+    const repeatedInput = Array.from({ length: 45 }, (_, i) => {
+      const time = `[00:${String(i).padStart(2, '0')}.00]`;
+      const source = `今日は道具を使います${i}`;
+      const target = `已有译文${i}`;
+      return i < 40 ? `${time}${source}\n${time}${target}` : `${time}${source} ${target}\n${time}${source} ${target}`;
+    }).join('\n');
+    await writeFile(repeatedFile, repeatedInput);
+    await openFile(repeatedFile);
+    await uiExpect(dialog).toBeVisible();
+    await dialog.getByRole('checkbox', { name: '按空格拆分单行双语' }).check();
+    const jump = dialog.getByRole('spinbutton', { name: '页码' });
+    const range = dialog.locator('.studio-range');
+    await uiExpect(jump).toBeEnabled();
+    await uiExpect(jump).toHaveAttribute('max', '3');
+    await jump.fill('3'); await jump.press('Enter');
+    await uiExpect(range).toHaveText('41–45 / 45');
+    await uiExpect(jump).toHaveValue('3');
+    await uiExpect(dialog.getByRole('button', { name: '下一页', exact: true })).toBeDisabled();
+    const repeatedCandidate = dialog.locator('.studio-bilingual-candidates > li').first();
+    await uiExpect(repeatedCandidate.locator('dd')).toHaveText(['今日は道具を使います40', '已有译文40']);
+    for (const invalid of ['0', '4', '1.5', '']) {
+      await jump.fill(invalid); await jump.press('Enter');
+      await uiExpect(range).toHaveText('41–45 / 45');
+      await jump.blur(); await uiExpect(jump).toHaveValue('3');
+    }
+    await repeatedCandidate.getByRole('combobox').click();
+    await page.getByRole('option', { name: '保持原样', exact: true }).click();
+    await uiExpect(repeatedCandidate).toHaveAttribute('data-kept', 'true');
+    await uiExpect(repeatedCandidate.locator('dd')).toHaveText(['今日は道具を使います40 已有译文40', '今日は道具を使います40 已有译文40']);
+    await repeatedCandidate.getByRole('combobox').click();
+    await page.getByRole('option', { name: '今日は道具を使います40 | 已有译文40', exact: true }).click();
+    await uiExpect(repeatedCandidate.locator('dd')).toHaveText(['今日は道具を使います40', '已有译文40']);
+    await dialog.getByRole('checkbox', { name: '按空格拆分单行双语' }).uncheck();
+    await uiExpect(jump).toHaveValue('1');
+    await jump.fill('3'); await jump.press('Enter');
+    await uiExpect(repeatedCandidate.locator('dd')).toHaveText(['今日は道具を使います40 已有译文40', '今日は道具を使います40 已有译文40']);
+    await dialog.getByRole('checkbox', { name: '按空格拆分单行双语' }).check();
+    await uiExpect(jump).toHaveValue('1');
+    await uiExpect(jump).toBeEnabled();
+    await jump.fill('3'); await jump.press('Enter');
+    await uiExpect(range).toHaveText('41–45 / 45');
+    await dialogViewport.evaluate(element => element.scrollTo({ top: element.scrollHeight }));
+    await dialog.getByRole('button', { name: '上一页', exact: true }).click();
+    await uiExpect(range).toHaveText('21–40 / 45');
+    await uiExpect.poll(() => dialogViewport.evaluate(element => element.scrollTop)).toBe(0);
+    await dialog.getByRole('checkbox', { name: '只看需确认' }).check();
+    await uiExpect(range).toHaveText('1–5 / 5');
+    await uiExpect(jump).toHaveCount(0);
+    await uiExpect(repeatedCandidate.locator('dd')).toHaveText(['今日は道具を使います40', '已有译文40']);
+    await dialog.getByRole('combobox', { name: '原文顺序', exact: true }).click();
+    await page.getByRole('option', { name: '后段为原文', exact: true }).click();
+    await uiExpect(repeatedCandidate.locator('dd')).toHaveText(['已有译文40', '今日は道具を使います40']);
+    await dialog.getByRole('combobox', { name: '原文顺序', exact: true }).click();
+    await page.getByRole('option', { name: '前段为原文', exact: true }).click();
+    await uiExpect(repeatedCandidate.locator('dd')).toHaveText(['今日は道具を使います40', '已有译文40']);
+    await dialog.getByRole('checkbox', { name: '只看需确认' }).uncheck();
+    await uiExpect(jump).toBeEnabled();
+    await jump.fill('3'); await jump.press('Enter');
+    await uiExpect(range).toHaveText('41–45 / 45');
+    await page.screenshot({ path: path.join(artifacts, 'pagination-desktop.png'), animations: 'disabled' });
+    await window.evaluate(win => win.setSize(786, 540));
+    expect(await dialog.evaluate(element => element.scrollWidth <= element.clientWidth + 1)).toBe(true);
+    await uiExpect(jump).toBeVisible();
+    await uiExpect(dialog.getByRole('button', { name: '确认整理', exact: true })).toBeVisible();
+    await page.screenshot({ path: path.join(artifacts, 'pagination-narrow.png'), animations: 'disabled' });
+    await dialog.getByRole('button', { name: '确认整理', exact: true }).click();
+    await uiExpect(dialog).toHaveCount(0);
+    await uiExpect(page.locator('.studio-cue-table tbody tr')).toHaveCount(45);
+    await uiExpect(page.locator('.studio-cue-table tbody tr').nth(40).locator('.studio-parallel-text > div')).toHaveText(['今日は道具を使います40', '已有译文40']);
+    expect(requests).toHaveLength(1);
     if (process.env.FUSIONKIT_STUDIO_BILINGUAL_INPUT_BASE) {
       await window.evaluate(win => win.setSize(1280, 860));
       for (const format of ['lrc', 'srt']) {
@@ -142,19 +228,47 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_E2E === '1')('Subtitle Studio biling
         await uiExpect(page.locator('.studio-bilingual-candidates')).toHaveAttribute('aria-busy', 'false');
         await dialog.getByRole('checkbox', { name: '只看需确认' }).check();
         await uiExpect(page.locator('.studio-bilingual-candidates')).toHaveAttribute('aria-busy', 'false');
+        if (format === 'lrc') {
+          const reviewJump = dialog.getByRole('spinbutton', { name: '页码' });
+          await reviewJump.fill('3'); await reviewJump.press('Enter');
+          await uiExpect(dialog.locator('.studio-range')).toHaveText('41–60 / 695');
+          const reported = dialog.locator('.studio-bilingual-candidates > li').filter({ hasText: '00:29:05.840' });
+          await uiExpect(reported).toHaveCount(1);
+          const pair = await reported.locator('dd').allTextContents();
+          expect(pair).toHaveLength(2);
+          expect(pair[0]).toMatch(/[\p{Script=Hiragana}\p{Script=Katakana}]/u);
+          expect(pair[1]).not.toMatch(/[\p{Script=Hiragana}\p{Script=Katakana}]/u);
+          expect(pair[0]).not.toContain(pair[1]);
+          await page.screenshot({ path: path.join(artifacts, 'real-lrc-reported-preview.png'), animations: 'disabled' });
+          await reviewJump.fill('1'); await reviewJump.press('Enter');
+          await uiExpect(dialog.locator('.studio-range')).toHaveText('1–20 / 695');
+        }
         await page.screenshot({ path: path.join(artifacts, `real-${format}-review.png`), animations: 'disabled' });
         await dialogViewport.evaluate(element => element.scrollTo({ top: element.scrollHeight }));
         await dialog.getByRole('button', { name: '下一页', exact: true }).click();
-        await uiExpect(dialog.locator('.studio-bilingual-pagination')).toContainText('21-40');
+        await uiExpect(dialog.locator('.studio-bilingual-pagination')).toContainText('21–40');
         await uiExpect.poll(() => dialogViewport.evaluate(element => element.scrollTop)).toBe(0);
         await dialog.getByRole('button', { name: '确认整理', exact: true }).click();
         await uiExpect(dialog).toHaveCount(0);
         await uiExpect(page.locator('.studio-cue-table tbody tr')).toHaveCount(100);
         await uiExpect(page.locator('.studio-document-meta')).toContainText('导入译文');
+        if (format === 'lrc') {
+          const jump = page.getByRole('spinbutton', { name: '页码' });
+          await jump.fill('30'); await jump.press('Enter');
+          await uiExpect(page.locator('.studio-cue-number').first()).toHaveText('2901');
+          const affected = page.locator('.studio-cue-table tbody tr').filter({ has: page.locator('.studio-cue-number', { hasText: /^2972$/ }) });
+          await affected.scrollIntoViewIfNeeded();
+          const texts = await page.locator('.studio-cue-table tbody tr').evaluateAll(rows => rows.slice(71, 77).map(row => ({
+            source: row.querySelector('.studio-parallel-text > div:first-child')!.textContent!,
+            target: row.querySelector('.studio-target-text')!.textContent!,
+          })));
+          expect(texts).toHaveLength(6);
+          expect(texts.every(item => !!item.source && !!item.target && !item.source.includes(item.target))).toBe(true);
+        }
         await page.screenshot({ path: path.join(artifacts, `real-${format}-imported.png`), animations: 'disabled' });
         expect(requests).toHaveLength(1);
       }
     }
     expect(errors).toEqual([]);
-  }, 90000);
+  }, 120000);
 });

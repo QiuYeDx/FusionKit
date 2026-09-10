@@ -27,30 +27,30 @@ export function StudioIconButton({ label, children, ...props }: ComponentProps<t
   </Tooltip>;
 }
 
-export function StudioPagination({ offset, total, busy, onChange, compact = false }: {
-  offset: number; total: number; busy: boolean; onChange: (offset: number) => void; compact?: boolean;
+export function StudioPagination({ offset, total, busy, onChange, compact = false, pageSize = LIMITS.pageSize }: {
+  offset: number; total: number; busy: boolean; onChange: (offset: number) => void; compact?: boolean; pageSize?: number;
 }) {
   const { t } = useTranslation();
-  const current = Math.floor(offset / LIMITS.pageSize) + 1;
-  const pages = Math.max(1, Math.ceil(total / LIMITS.pageSize));
+  const current = Math.floor(offset / pageSize) + 1;
+  const pages = Math.max(1, Math.ceil(total / pageSize));
   const [draft, setDraft] = useState(String(current));
   useEffect(() => setDraft(String(current)), [current]);
   const commit = () => {
     const requested = Number(draft);
-    if (Number.isInteger(requested) && requested >= 1 && requested <= pages && requested !== current) {
-      onChange((requested - 1) * LIMITS.pageSize);
+    if (!busy && Number.isInteger(requested) && requested >= 1 && requested <= pages && requested !== current) {
+      onChange((requested - 1) * pageSize);
     }
     setDraft(String(current));
   };
   return <div className="studio-pagination">
-    {!compact && <span className="studio-range">{total ? offset + 1 : 0}–{Math.min(offset + LIMITS.pageSize, total)} <span>/ {total.toLocaleString()}</span></span>}
+    {!compact && <span className="studio-range">{total ? offset + 1 : 0}–{Math.min(offset + pageSize, total)} <span>/ {total.toLocaleString()}</span></span>}
     <div className="studio-page-controls">
-      <StudioIconButton label={t('studio:previous')} disabled={busy || offset === 0} onClick={() => onChange(Math.max(0, offset - LIMITS.pageSize))}><ChevronLeft /></StudioIconButton>
+      <StudioIconButton label={t('studio:previous')} disabled={busy || offset === 0} onClick={() => onChange(Math.max(0, offset - pageSize))}><ChevronLeft /></StudioIconButton>
       {pages > 1 && <form onSubmit={event => { event.preventDefault(); commit(); }} className="studio-page-jump">
         <input aria-label={t('studio:page_number')} type="number" min={1} max={pages} value={draft} disabled={busy} onChange={event => setDraft(event.target.value)} onBlur={() => setDraft(String(current))} />
         <span>/ {pages}</span>
       </form>}
-      <StudioIconButton label={t('studio:next')} disabled={busy || offset + LIMITS.pageSize >= total} onClick={() => onChange(offset + LIMITS.pageSize)}><ChevronRight /></StudioIconButton>
+      <StudioIconButton label={t('studio:next')} disabled={busy || offset + pageSize >= total} onClick={() => onChange(offset + pageSize)}><ChevronRight /></StudioIconButton>
     </div>
   </div>;
 }

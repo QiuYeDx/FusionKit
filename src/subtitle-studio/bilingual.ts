@@ -64,6 +64,86 @@ function candidatePair(first: TextRange, second: TextRange, kind: BilingualCandi
   };
 }
 
+function stableLanguageOrder(pairs: Pair[]): string | undefined {
+  const structural = pairs.filter(pair => pair.candidate.kind !== 'inline');
+  const orders = new Map<string, number>();
+  for (const { candidate } of structural) {
+    const first = language(candidate.first);
+    const second = language(candidate.second);
+    if (first === second || first === 'und' || second === 'und') continue;
+    const order = `${first}:${second}`;
+    orders.set(order, (orders.get(order) ?? 0) + 1);
+  }
+  const dominant = [...orders].sort((a, b) => b[1] - a[1])[0];
+  return dominant && dominant[1] >= 3 && dominant[1] / structural.length >= 0.8 ? dominant[0] : undefined;
+}
+
+function withoutRepeatedCounterpart(range: TextRange, counterpart: TextRange, allowHan: boolean): TextRange | undefined {
+  const body = range.cue.source.plain.slice(range.start, range.end).trimEnd();
+  const repeated = counterpart.cue.source.plain.slice(counterpart.start, counterpart.end).trim();
+  if (!repeated || !body.endsWith(repeated)) return;
+  const suffixStart = body.length - repeated.length;
+  const separator = /[^\S\r\n]+$/u.exec(body.slice(0, suffixStart));
+  if (!separator) return;
+  const end = suffixStart - separator[0].length;
+  const prefix = body.slice(0, end);
+  const prefixLanguage = language(prefix);
+  const repeatedLanguage = language(repeated);
+  if (!nonempty(prefix) || prefixLanguage === 'und' || repeatedLanguage === 'und') return;
+  if (prefixLanguage === repeatedLanguage && !(allowHan && prefixLanguage === 'zh')) return;
+  return { ...range, end: range.start + end };
+}
+
+function repeatedPairChoices(pair: Pair) {
+  const first = pair.first.cue.source.plain.slice(pair.first.start, pair.first.end);
+  const second = pair.second.cue.source.plain.slice(pair.second.start, pair.second.end);
+  if (first !== second) return [];
+  return inlineChoices(first).filter(choice => {
+    const before = language(first.slice(0, choice.offset));
+    const after = language(first.slice(choice.end));
+    return before !== 'und' && after !== 'und' && before !== after;
+  });
+}
+
+function separateRepeatedInlineText(pairs: Pair[], options: BilingualOptions) {
+  if (!options.splitInline && !options.overrides.some(item => typeof item.splitAt === 'number')) return;
+  const order = options.splitInline ? stableLanguageOrder(pairs) : undefined;
+  const allowHan = order === 'ja:zh' || order === 'zh:ja';
+  const overrides = new Map(options.overrides.map(item => [item.cueId, item.splitAt]));
+  for (const pair of pairs) {
+    if (pair.candidate.kind === 'inline') continue;
+    const custom = overrides.get(pair.candidate.id);
+    if (!options.splitInline && typeof custom !== 'number') continue;
+    const choices = repeatedPairChoices(pair);
+    const selected = custom === undefined || custom === null ? undefined : choices.find(choice => pair.first.start + choice.offset === custom);
+    if (typeof custom === 'number' && !selected && !(pair.candidate.kind === 'lines' && custom === pair.first.end)) throw new StudioError('invalid_input');
+    if (!options.splitInline) continue;
+    if (choices.length) {
+      pair.candidate.splitChoices = choices.map(choice => ({ offset: pair.first.start + choice.offset, label: choice.label }));
+      if (pair.skipped) continue;
+      const firstText = pair.first.cue.source.plain.slice(pair.first.start, pair.first.end);
+      const choice = selected ?? choices.find(item => language(firstText.slice(0, item.offset)) === 'ja' && language(firstText.slice(item.end)) === 'zh') ?? choices[0];
+      pair.candidate.splitAt = pair.first.start + choice.offset;
+      pair.first = { ...pair.first, end: pair.first.start + choice.offset };
+      pair.second = { ...pair.second, start: pair.second.start + choice.end };
+      pair.candidate.first = pair.first.cue.source.plain.slice(pair.first.start, pair.first.end);
+      pair.candidate.second = pair.second.cue.source.plain.slice(pair.second.start, pair.second.end);
+      pair.candidate.needsReview = true;
+      continue;
+    }
+    if (pair.skipped) continue;
+    // Structural pairs can still contain a second, inline copy of their counterpart.
+    const first = withoutRepeatedCounterpart(pair.first, pair.second, allowHan);
+    const second = withoutRepeatedCounterpart(pair.second, pair.first, allowHan);
+    if (!first && !second) continue;
+    pair.first = first ?? pair.first;
+    pair.second = second ?? pair.second;
+    pair.candidate.first = pair.first.cue.source.plain.slice(pair.first.start, pair.first.end);
+    pair.candidate.second = pair.second.cue.source.plain.slice(pair.second.start, pair.second.end);
+    pair.candidate.needsReview = true;
+  }
+}
+
 function collectPairs(doc: SubtitleDocument, options: BilingualOptions): Pair[] {
   const pairs: Pair[] = [];
   const overrides = new Map(options.overrides.map(item => [item.cueId, item.splitAt]));
@@ -73,9 +153,8 @@ function collectPairs(doc: SubtitleDocument, options: BilingualOptions): Pair[] 
     while (runEnd < doc.cues.length && sameTime(cue, doc.cues[runEnd], doc.origin.format)) runEnd++;
     if (runEnd - index === 2 && separateSingleLineBodies(cue, doc.cues[index + 1])) {
       const second = doc.cues[index + 1];
-      if (overrides.has(cue.id) && overrides.get(cue.id) !== null) throw new StudioError('invalid_input');
       const pair = candidatePair({ cue, start: 0, end: cue.source.plain.length }, { cue: second, start: 0, end: second.source.plain.length }, 'same_time', null, []);
-      pair.skipped = overrides.has(cue.id);
+      pair.skipped = overrides.get(cue.id) === null;
       overrides.delete(cue.id);
       pairs.push(pair);
     } else {
@@ -85,8 +164,7 @@ function collectPairs(doc: SubtitleDocument, options: BilingualOptions): Pair[] 
         const lines = lineRanges(current);
         const custom = overrides.get(current.id);
         if (lines) {
-          if (custom !== undefined && custom !== null && custom !== lines[0].end) throw new StudioError('invalid_input');
-          pair = candidatePair(lines[0], lines[1], 'lines', lines[0].end, [{ offset: lines[0].end, label: '\\n' }]);
+          pair = candidatePair(lines[0], lines[1], 'lines', lines[0].end, []);
         } else if (options.splitInline) {
           const choices = inlineChoices(current.source.plain);
           if (choices.length) {
@@ -107,6 +185,7 @@ function collectPairs(doc: SubtitleDocument, options: BilingualOptions): Pair[] 
     index = runEnd;
   }
   if (overrides.size) throw new StudioError('invalid_input');
+  separateRepeatedInlineText(pairs, options);
   return pairs;
 }
 

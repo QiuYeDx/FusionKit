@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { AlertCircle, Check, ChevronLeft, ChevronRight, Columns2, Eraser, LoaderCircle, RefreshCw } from 'lucide-react';
+import { AlertCircle, Check, Columns2, Eraser, LoaderCircle, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -10,7 +10,7 @@ import { unwrapStudio } from '@/services/subtitle-studio/client';
 import { StudioError, type ErrorCode, type SubtitleDocument } from '@/subtitle-studio/domain';
 import type { DocumentPage, DocumentSummary } from '@/subtitle-studio/ipc-contract';
 import type { BilingualCandidate, BilingualOptions, BilingualPreview } from '@/subtitle-studio/bilingual-contract';
-import { formatStudioTime, StudioFileName, StudioIconButton } from './StudioControls';
+import { formatStudioTime, StudioFileName, StudioIconButton, StudioPagination } from './StudioControls';
 import './StudioBilingual.css';
 
 const errorKeys = {
@@ -122,7 +122,7 @@ function StudioBilingualDocument({ page, busy, onChanged, onError, autoOpen = fa
     setSelectionLimit(false);
     setOptions(value => ({
       ...value, ...patch,
-      overrides: patch.splitInline === false ? value.overrides.filter(item => overrideKinds.current.get(item.cueId) !== 'inline') : value.overrides,
+      overrides: patch.splitInline === false ? value.overrides.filter(item => item.splitAt === null && overrideKinds.current.get(item.cueId) !== 'inline') : value.overrides,
     })); changePage(0);
   };
   const choose = (candidate: BilingualCandidate, value: string) => {
@@ -210,7 +210,7 @@ function StudioBilingualDocument({ page, busy, onChanged, onError, autoOpen = fa
                     <SelectTrigger aria-label={t('studio:bilingual.candidate_action', { number: visiblePreview.offset + index + 1 })} className="h-7 w-[148px] min-w-0 text-xs"><SelectValue /></SelectTrigger>
                     <SelectContent className="max-w-[min(28rem,calc(100vw-2rem))]">
                       <SelectItem value="suggested">{t('studio:bilingual.use_suggested')}</SelectItem>
-                      {candidate.kind === 'inline' && candidate.splitChoices.map(choice => <SelectItem key={choice.offset} value={`split:${choice.offset}`} className="whitespace-normal break-all">{choice.label}</SelectItem>)}
+                      {candidate.splitChoices.map(choice => <SelectItem key={choice.offset} value={`split:${choice.offset}`} className="whitespace-normal break-all">{choice.label}</SelectItem>)}
                       <SelectItem value="keep">{t('studio:bilingual.keep')}</SelectItem>
                     </SelectContent>
                   </Select>
@@ -226,9 +226,7 @@ function StudioBilingualDocument({ page, busy, onChanged, onError, autoOpen = fa
       </ScrollableDialogContent>
       <ScrollableDialogFooter className="studio-bilingual-footer p-3">
         <div className="studio-bilingual-pagination">
-          <StudioIconButton label={t('studio:previous')} disabled={pending || !currentPreview || offset === 0} onClick={() => changePage(Math.max(0, offset - PAGE_SIZE))}><ChevronLeft /></StudioIconButton>
-          <span>{visiblePreview ? `${visiblePreview.totalCandidates ? visiblePreview.offset + 1 : 0}-${Math.min(visiblePreview.offset + PAGE_SIZE, visiblePreview.totalCandidates)} / ${visiblePreview.totalCandidates}` : '0 / 0'}</span>
-          <StudioIconButton label={t('studio:next')} disabled={pending || !currentPreview || offset + PAGE_SIZE >= currentPreview.totalCandidates} onClick={() => changePage(offset + PAGE_SIZE)}><ChevronRight /></StudioIconButton>
+          <StudioPagination offset={visiblePreview?.offset ?? 0} total={visiblePreview?.totalCandidates ?? 0} pageSize={PAGE_SIZE} busy={pending || !currentPreview} onChange={changePage} />
         </div>
         <div className="studio-bilingual-actions"><Button variant="ghost" size="sm" disabled={applying} onClick={() => setOpen(false)}>{t('studio:cancel')}</Button><Button size="sm" disabled={pending || !eligible || !currentPreview || currentPreview.pairedCount === 0} onClick={() => void apply()}>{applying ? <LoaderCircle className="studio-spin" /> : <Check />}{t('studio:bilingual.apply')}</Button></div>
       </ScrollableDialogFooter>

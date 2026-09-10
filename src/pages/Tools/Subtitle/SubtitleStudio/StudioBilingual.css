@@ -31,7 +31,7 @@
 .studio-bilingual-loading, .studio-bilingual-empty { display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 180px; font-size: 12px; color: var(--muted-foreground); }
 .studio-bilingual-footer { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
 .studio-bilingual-pagination, .studio-bilingual-actions { display: flex; align-items: center; gap: 6px; }
-.studio-bilingual-pagination > span { min-width: 90px; text-align: center; font-size: 11px; color: var(--muted-foreground); font-variant-numeric: tabular-nums; }
+.studio-bilingual-pagination .studio-pagination { flex-wrap: wrap; justify-content: flex-start; gap: 6px 12px; }
 @media (max-width: 520px) {
   .studio-bilingual-options { grid-template-columns: minmax(0, 1fr); gap: 8px; }
   .studio-bilingual-candidate-heading { flex-wrap: wrap; }
