@@ -1,16 +1,20 @@
 import { EventEmitter } from "node:events";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, realpath, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   LOCAL_SUBTITLE_DOMAIN_SCHEMA_VERSION,
   LOCAL_SUBTITLE_PRODUCTION_CONTRACT,
+  type LocalSubtitleTaskSummary,
 } from "../../src/type/localSubtitle";
 import {
   LOCAL_SUBTITLE_EVENT_CHANNELS,
   LOCAL_SUBTITLE_PRELOAD_INTERNAL_CHANNELS,
   LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS,
+  localSubtitleBatchSummarySchema,
+  localSubtitleSessionSnapshotSchema,
+  localSubtitleTaskEventEnvelopeSchema,
   type EnqueueLocalSubtitleBatchRequest,
 } from "../../src/type/localSubtitleIpc";
 import {
@@ -138,7 +142,9 @@ describe("local subtitle Job Manager IPC integration", () => {
         tasks: [{ taskId: "task-ipc", status: "queued" }],
       },
     });
-    expect(JSON.stringify(enqueued)).not.toContain(root);
+    if (!enqueued.ok) throw new Error("Expected a queued batch.");
+    const displayPath = await realpath(sourcePath);
+    const pathFreeEnqueued = withoutSourceDisplayInBatch(enqueued.data, displayPath);
     await fixture.manager.waitForIdle();
 
     const snapshot = await fixture.service.handlePublic(
@@ -158,7 +164,7 @@ describe("local subtitle Job Manager IPC integration", () => {
         ],
       },
     });
-    expect(JSON.stringify(snapshot)).not.toContain(root);
+    if (!snapshot.ok) throw new Error("Expected a session snapshot.");
     const taskEvents = fixture.frame.send.mock.calls.filter(
       ([channel]) => channel === LOCAL_SUBTITLE_EVENT_CHANNELS.taskEvent,
     );
@@ -171,7 +177,14 @@ describe("local subtitle Job Manager IPC integration", () => {
       6,
       7,
     ]);
-    expect(JSON.stringify(taskEvents)).not.toContain(root);
+    const publicState = JSON.stringify({
+      enqueued: { ...enqueued, data: pathFreeEnqueued },
+      snapshot: { ...snapshot, data: withoutSourceDisplayInSnapshot(snapshot.data, displayPath) },
+      taskEvents: taskEvents.map(([channel, event]) => [channel, withoutSourceDisplayInEvent(event, displayPath)]),
+    });
+    for (const privateValue of [root, displayPath, fileToken, output.outputDirToken, "fileToken", "outputDirToken", "private-managed-model.bin", "private-managed-vad.bin"]) {
+      expect(publicState).not.toContain(JSON.stringify(privateValue).slice(1, -1));
+    }
 
     await expect(
       fixture.service.handlePublic(
@@ -189,7 +202,7 @@ describe("local subtitle Job Manager IPC integration", () => {
     ).resolves.toEqual({ ok: true, data: { removed: true } });
   });
 
-  it("keeps source output capabilities and raw paths out of IPC state", async () => {
+  it("exposes only the authorized source display path while keeping capabilities and internal paths out of IPC state", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "fusionkit-job-ipc-source-"));
     tempRoots.push(root);
     const sourcePath = path.join(root, "private-source.wav");
@@ -242,14 +255,39 @@ describe("local subtitle Job Manager IPC integration", () => {
     const taskEvents = fixture.frame.send.mock.calls.filter(
       ([channel]) => channel === LOCAL_SUBTITLE_EVENT_CHANNELS.taskEvent,
     );
-    const publicState = JSON.stringify({ enqueued, snapshot, taskEvents });
-    expect(publicState).not.toContain(fileToken);
-    expect(publicState).not.toContain(sourcePath);
-    expect(publicState).not.toContain(root);
-    expect(publicState).not.toContain("outputDirToken");
+    if (!enqueued.ok || !snapshot.ok) throw new Error("Expected public task state.");
+    const displayPath = await realpath(sourcePath);
+    const publicState = JSON.stringify({
+      enqueued: { ...enqueued, data: withoutSourceDisplayInBatch(enqueued.data, displayPath) },
+      snapshot: { ...snapshot, data: withoutSourceDisplayInSnapshot(snapshot.data, displayPath) },
+      taskEvents: taskEvents.map(([channel, event]) => [channel, withoutSourceDisplayInEvent(event, displayPath)]),
+    });
+    for (const privateValue of [fileToken, sourcePath, displayPath, root, "fileToken", "outputDirToken", "private-managed-model.bin", "private-managed-vad.bin"]) {
+      expect(publicState).not.toContain(JSON.stringify(privateValue).slice(1, -1));
+    }
     expect(outputResolve).not.toHaveBeenCalled();
     expect(outputRenew).not.toHaveBeenCalled();
     expect(outputRelease).not.toHaveBeenCalled();
+
+    // A display string cannot replace the input token or add path authority to an
+    // otherwise valid request. Rejections must not echo either path or token.
+    for (const request of [
+      sourceEnqueueRequest(displayPath),
+      { ...sourceEnqueueRequest(fileToken), files: [{ fileToken, sourcePathDisplay: displayPath }] },
+    ]) {
+      const rejected = await fixture.service.handlePublic(
+        LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.enqueue,
+        fixture.event,
+        fixture.envelope(request),
+      );
+      expect(rejected).toMatchObject({ ok: false, error: { code: "invalid_ipc_request" } });
+      for (const privateValue of [root, displayPath, fileToken]) expect(JSON.stringify(rejected)).not.toContain(JSON.stringify(privateValue).slice(1, -1));
+    }
+    await expect(fixture.service.handlePublic(
+      LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.getSessionSnapshot,
+      fixture.event,
+      fixture.envelope({}),
+    )).resolves.toEqual(snapshot);
   });
 
   it("rejects source overwrite over IPC without consuming the input capability", async () => {
@@ -323,9 +361,13 @@ describe("local subtitle Job Manager IPC integration", () => {
       ok: true,
       data: { config: { conflictPolicy: "overwrite", outputMode: "source" } },
     });
-    expect(JSON.stringify(enqueued)).not.toContain(fileToken);
-    expect(JSON.stringify(enqueued)).not.toContain(sourcePath);
-    expect(JSON.stringify(enqueued)).not.toContain(root);
+    if (!enqueued.ok) throw new Error("Expected a queued batch.");
+    const displayPath = await realpath(sourcePath);
+    const publicState = JSON.stringify({ ...enqueued, data: withoutSourceDisplayInBatch(enqueued.data, displayPath) });
+    for (const privateValue of [fileToken, sourcePath, displayPath, root, "fileToken", "outputDirToken", "private-managed-model.bin", "private-managed-vad.bin"]) {
+      expect(publicState).not.toContain(JSON.stringify(privateValue).slice(1, -1));
+    }
+    await fixture.manager.waitForIdle();
   });
 
   it("maps first-slice rejections without consuming input capabilities", async () => {
@@ -425,6 +467,30 @@ describe("local subtitle Job Manager IPC integration", () => {
     },
   );
 });
+
+function withoutSourceDisplay(task: LocalSubtitleTaskSummary, expectedPath: string) {
+  expect(task.sourcePathDisplay).toBe(expectedPath);
+  const { sourcePathDisplay: _displayOnly, ...rest } = task;
+  return rest;
+}
+
+function withoutSourceDisplayInBatch(value: unknown, expectedPath: string) {
+  const batch = localSubtitleBatchSummarySchema.parse(value);
+  return { ...batch, tasks: batch.tasks.map(task => withoutSourceDisplay(task, expectedPath)) };
+}
+
+function withoutSourceDisplayInSnapshot(value: unknown, expectedPath: string) {
+  const snapshot = localSubtitleSessionSnapshotSchema.parse(value);
+  return { ...snapshot, batches: snapshot.batches.map(batch => withoutSourceDisplayInBatch(batch, expectedPath)) };
+}
+
+function withoutSourceDisplayInEvent(value: unknown, expectedPath: string) {
+  const envelope = localSubtitleTaskEventEnvelopeSchema.parse(value);
+  expect(envelope.event.type).toBe("task-updated");
+  return envelope.event.type === "task-updated"
+    ? { ...envelope, event: { ...envelope.event, task: withoutSourceDisplay(envelope.event.task, expectedPath) } }
+    : envelope;
+}
 
 function createFixture(root: string, supportsOverwrite = false) {
   const ownerSessions = new LocalSubtitleOwnerSessionRegistry({

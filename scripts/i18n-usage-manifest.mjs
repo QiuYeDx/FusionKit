@@ -178,7 +178,7 @@ export const I18N_USAGE_MANIFEST = [
   },
   {
     selector:
-      "src/pages/Tools/Rename/NameTranslator/components/OptionsPanel.tsx#scope.hintKey",
+      "src/pages/Tools/Rename/NameTranslator/components/OptionsPanel.tsx#SCOPE_OPTIONS.find((scope)=>scope.value===options.scope)?.hintKey??SCOPE_OPTIONS[0].hintKey",
     keys: [
       "rename:options.scope.self.hint",
       "rename:options.scope.children.hint",

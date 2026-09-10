@@ -200,7 +200,41 @@ describe("local subtitle artifact export", () => {
       cueCount: 2,
     });
     expect(second).toEqual(first);
-    expect(JSON.stringify(result)).not.toContain(fixtureRoot);
+    const outputPath = await realpath(path.join(fixtureRoot, "registry.lrc"));
+    const withoutOutputDisplay = (artifact: GeneratedSubtitleArtifactSummary) => {
+      expect(artifact).toEqual({
+        artifactRef: "ls-artifact-export-integration-ref",
+        displayName: "registry.lrc",
+        outputPathDisplay: outputPath,
+        format: "LRC",
+        expiresAt: expect.any(Number),
+      });
+      const { outputPathDisplay: _displayOnly, ...rest } = artifact;
+      return rest;
+    };
+    const withoutArtifactDisplay = (entry: typeof artifactResult) => ({
+      ...entry, artifact: withoutOutputDisplay(entry.artifact),
+    });
+    const publicState = JSON.stringify({
+      ...result,
+      artifactResults: result.artifactResults.map(entry => entry.status === "committed" ? withoutArtifactDisplay(entry) : entry),
+      completion: {
+        ...result.completion,
+        artifacts: result.completion.artifacts.map(entry => entry.status === "committed" ? withoutArtifactDisplay(entry) : entry),
+      },
+    });
+    for (const privateValue of [fixtureRoot, outputPath, "export-integration-reservation"]) {
+      expect(publicState).not.toContain(JSON.stringify(privateValue).slice(1, -1));
+    }
+    for (const privateField of ["filePath", "reservation", "sha256", "directoryIdentity", "fileObjectIdentity"]) {
+      expect(publicState).not.toContain(`"${privateField}"`);
+    }
+    await expect(registry.readText(OWNER, artifactResult.artifact.outputPathDisplay!))
+      .rejects.toMatchObject({ code: "invalid_ipc_request" });
+    await expect(registry.reveal(OWNER, artifactResult.artifact.outputPathDisplay!))
+      .rejects.toMatchObject({ code: "invalid_ipc_request" });
+    expect(await registry.readText(OWNER, artifactResult.artifact.artifactRef)).toEqual(first);
+    expect(JSON.stringify(first)).not.toContain(JSON.stringify(outputPath).slice(1, -1));
   });
 
   it("keeps existing files and chooses the next indexed leaf", async () => {

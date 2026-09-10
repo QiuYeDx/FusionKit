@@ -19,7 +19,10 @@ import {
   type LocalSubtitleConflictPolicy,
   type LocalSubtitleFormat,
 } from "../../src/type/localSubtitle";
-import type { EnqueueLocalSubtitleBatchRequest } from "../../src/type/localSubtitleIpc";
+import {
+  localSubtitleTaskEventEnvelopeSchema,
+  type EnqueueLocalSubtitleBatchRequest,
+} from "../../src/type/localSubtitleIpc";
 import {
   LocalSubtitleCapabilityLeaseCoordinator,
   LocalSubtitleInputAuthorizationRegistry,
@@ -3138,10 +3141,31 @@ describe("LocalSubtitleJobManager", () => {
         },
       ],
     });
-    const publicState = JSON.stringify({ batch, events, snapshot });
-    expect(publicState).not.toContain(harness.fileToken);
-    expect(publicState).not.toContain(harness.root);
-    expect(publicState).not.toContain("outputDirToken");
+    const sourcePath = await realpath(path.join(harness.root, "sample.wav"));
+    const withoutSourceDisplay = (task: typeof batch.tasks[number]) => {
+      expect(task.sourcePathDisplay).toBe(sourcePath);
+      const { sourcePathDisplay: _displayOnly, ...rest } = task;
+      return rest;
+    };
+    // Only the declared task location may display the authorized path. Everything
+    // else, including nested model/progress/artifact data, remains path-free.
+    const publicState = JSON.stringify({
+      batch: { ...batch, tasks: batch.tasks.map(withoutSourceDisplay) },
+      events: events.map(value => {
+        const envelope = localSubtitleTaskEventEnvelopeSchema.parse(value);
+        expect(envelope.event.type).toBe("task-updated");
+        return envelope.event.type === "task-updated"
+          ? { ...envelope, event: { ...envelope.event, task: withoutSourceDisplay(envelope.event.task) } }
+          : envelope;
+      }),
+      snapshot: {
+        ...snapshot,
+        batches: snapshot.batches.map(value => ({ ...value, tasks: value.tasks.map(withoutSourceDisplay) })),
+      },
+    });
+    for (const privateValue of [harness.fileToken, harness.root, sourcePath, harness.managedModel.absolutePath, harness.managedVad.absolutePath, "fileToken", "outputDirToken"]) {
+      expect(publicState).not.toContain(JSON.stringify(privateValue).slice(1, -1));
+    }
   });
 
   it.each([

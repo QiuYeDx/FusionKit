@@ -204,12 +204,12 @@ original 继续导出原文件保留字节；source 始终以当前原文 cue �
 | 需求 | R-WORKSPACE-01, R-WORKSPACE-07 |
 | 验收 | AC-WORKSPACE-01-1, AC-WORKSPACE-01-2, AC-WORKSPACE-07-1 |
 | 依赖 | T-WORKSPACE-05 |
-| 写集 | src/pages/Tools/Subtitle/SubtitleStudio/, src/pages/Tools/_shared/ui/toolBooleanControlConsumers.test.ts, src/services/subtitle-studio/, src/store/tools/subtitle-studio/, test/subtitle-studio/, scripts/subtitle-studio/, src/locales/, src/i18n/resources.ts, docs/features/subtitle-studio/ |
+| 写集 | src/pages/Tools/Subtitle/SubtitleStudio/, src/pages/Tools/_shared/ui/toolBooleanControlConsumers.test.ts, src/services/subtitle-studio/, src/store/tools/subtitle-studio/, test/subtitle-studio/, scripts/subtitle-studio/, src/locales/, src/i18n/resources.ts, tsconfig.json, tsconfig.node.json, scripts/i18n-usage-manifest.mjs, test/local-subtitle/jobManager.test.ts, test/local-subtitle/jobManagerIpc.test.ts, test/local-subtitle/subtitleExporter.test.ts, docs/features/subtitle-studio/ |
 | 负责人 | Codex root（集成/记录/边界/最终检查）；model_audit（隔离移除脚本与构建）；translation_protocol（旧版受控回归）；translation_ui（四语言及共存 UI 场景） |
 | 依赖确认 | 2026-09-10 T-WORKSPACE-05 已在共享工作树完成 69 项针对性测试和 3 项 Electron 验证，源码摘要 fcf8008d9bbb4b33f1ba3db0a27742cd94109928ab739c71281f34e0728597fc；已核对删除演练第6节、混合文件和 staged资源，当前无已配置真实 ASR 模型/音频，该项保持待验证不伪称通过 |
 | 完成日期 | - |
-| 实施记录 | records/2026-09-10-workspace-06.md |
-| 集成版本 | 随本轮 recovery/export 提交集成（父提交 9c88565）；最终验证源码摘要 03c64252876caeb2d4cb0e0e2592f74c94d252190c51fe30debf9f688cbd6ec8，T06 仍待验证 |
+| 实施记录 | records/2026-09-10-check-failures.md |
+| 集成版本 | recovery/export 与原集成验证已包含于 27cdca3；检查修复随本次 fix: resolve baseline type and validation failures 提交集成，非文档源码摘要 5b1cd0e11cf8b2838e478a131195d09453a9943a77fc8e47046f0334cfba09ce；T06 仍待验证 |
 
 #### 实现要点
 
@@ -218,6 +218,8 @@ original 继续导出原文件保留字节；source 始终以当前原文 cue �
 共存与移除演练分别取证。I1 不声称原生资源打包独立性已通过；I2 再补全。记录真实 API/UI/文件结果和待人工确认项，不把所有任务完成当作用户已验收。
 
 2026-09-10 已完成新版 313 项本地测试、四语言/长文/空文/键盘 Electron 验证，以及共存和实际移除构建的导入→三批合成翻译→重启→12 组合导出。旧文件/偏好未改，移除副本保留工具 83 项通过；新版生产源码与最终共存构建逐字节一致。旧版相关回归 620 通过、5 失败，后者在未修改 HEAD 同样复现；旧转写未配置真实模型/音频，旧恢复仅验证空目录扫描及受控服务回归。默认 tsc 和 i18n usage 的既有失败仍在，故不标完成。所启动进程已清理。
+
+2026-09-10 检查跟进：用户明确授权只处理默认 TypeScript、NameTranslator i18n 清单及旧字幕 5 项路径显示断言，验证后提交推送；复杂且影响面大的既有问题允许后置，禁止继续其他工作。在干净基线 27cdca3 上核对后完成这三项：两个 tsconfig 采用 Bundler 读取真实包类型，更新一条精确 i18n selector，按 8950e15 已定义的仅显示路径契约修复三个测试文件。root 独占 tsconfig/文档与集成，translation_ui 独占 i18n 清单，translation_protocol 独占上述三个旧测试文件，model_audit 只读复核模块解析。默认及构建配置 TypeScript、隔离 Vite/preload、i18n 与 282 项相关回归通过；未降低路径/token 保护或修改旧工具生产实现。此前记录中的失败为历史结果，本次结果见检查修复记录。保留原 AC，T06 因真实 ASR/历史恢复缺证据保持待验证，本轮到此停止。
 
 #### 验证计划
 

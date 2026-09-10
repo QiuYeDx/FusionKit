@@ -87,6 +87,14 @@
   ],
   "decisions": [
     {
+      "id": "A-05",
+      "state": "resolved",
+      "blocking": false,
+      "resolution": "2026-09-10 用户要求先解决已有默认 TypeScript smooth-corners/observer 解析失败、文件名翻译 i18n 动态 key/清单失败、旧字幕 5 项路径显示断言；需要核对契约决定修实现还是测试。复杂且影响其他模块的既有问题可后置。本轮只处理这些问题，不擅自推进其他工作或后续工作；完成后没大问题就提交并推送。",
+      "increment": "I1",
+      "text": "I1 检查失败跟进的限定范围与停止条件。"
+    },
+    {
       "id": "A-04",
       "state": "resolved",
       "blocking": false,
