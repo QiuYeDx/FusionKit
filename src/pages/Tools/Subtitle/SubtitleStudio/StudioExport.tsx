@@ -16,6 +16,7 @@ import { exportOptionsSchema, type ExportIssueCode, type ExportOptions, type Exp
 import type { DocumentPage, DocumentSummary } from '@/subtitle-studio/ipc-contract';
 import { STUDIO_BATCH_LIMIT, type ExportBatchPlan, type ExportBatchResult, type SourceBatchResult } from '@/subtitle-studio/batch-contract';
 import { StudioFileName } from './StudioControls';
+import { StudioSelectedDocuments } from './StudioSelectedDocuments';
 import './StudioExport.css';
 import './StudioBatch.css';
 
@@ -241,7 +242,7 @@ export function StudioExport({ page, documents, triggerContainer, trackId, busy,
       <ScrollableDialogContent className="studio-export-content" fadeMaskHeight={16}>
         <div className="studio-export-form">
           {!sourceMode && !batchResult && <>
-          {batch && <details className="studio-batch-documents"><summary>{t('studio:batch.selected_documents', { count: batchDocuments.length })}</summary><ul>{batchDocuments.map(document => <li key={document.id}><StudioFileName name={document.origin.displayName} focusable /></li>)}</ul></details>}
+          {batch && <StudioSelectedDocuments documents={batchDocuments} />}
           <div className="studio-export-fields">
             <ToolField label={t('studio:export.mode')} htmlFor={`${controlId}-mode`}>
               <Select value={mode} onValueChange={value => setMode(value as ExportOptions['mode'])} disabled={pending}>

@@ -4,9 +4,6 @@
 .studio-batch-items > li > span:last-child { text-align: right; color: var(--muted-foreground); overflow-wrap: anywhere; }
 .studio-batch-items > li[data-state="failed"] > span:last-child { color: var(--destructive); }
 .studio-batch-items > li > .studio-batch-issues { grid-column: 1 / -1; }
-.studio-batch-documents { min-width: 0; font-size: 12px; }
-.studio-batch-documents > summary { color: var(--muted-foreground); cursor: pointer; }
-.studio-batch-documents > ul { display: grid; gap: 6px; max-height: 180px; overflow-y: auto; padding: 8px 0 0; }
 .studio-batch-tracks { display: grid; min-width: 0; gap: 8px; max-height: 250px; overflow-y: auto; overscroll-behavior: contain; }
 .studio-batch-track { display: grid; grid-template-columns: minmax(0, 1fr) minmax(100px, 40%); align-items: center; gap: 10px; min-width: 0; }
 .studio-batch-track > .studio-file-name { font-size: 12px; }

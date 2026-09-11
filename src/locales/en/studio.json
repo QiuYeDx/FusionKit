@@ -277,6 +277,7 @@
     "download_sources": "Download original files",
     "export": "Export selected subtitles",
     "document_count": "Processing {{count}} documents",
+    "selected_title": "Selected documents",
     "selected_documents": "View {{count}} selected documents",
     "ready": "Ready",
     "blocked": "Cannot export",

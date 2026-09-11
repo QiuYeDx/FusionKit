@@ -277,6 +277,7 @@
     "download_sources": "批量下载原文件",
     "export": "批量导出字幕",
     "document_count": "本次处理 {{count}} 份文档",
+    "selected_title": "已选文档",
     "selected_documents": "查看已选的 {{count}} 份文档",
     "ready": "已就绪",
     "blocked": "无法导出",

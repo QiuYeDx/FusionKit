@@ -90,3 +90,15 @@
 最终根Vite test构建与Sandboxed preload external module检查通过，日志test-results/studio-footer-build.log。构建版另外导入100份隔离字幕，在简中/英文/日文1280宽及繁中786窄窗、深浅主题下逐一全选并打开更多菜单；各语言计数完整可见、底栏均45px、所有按钮/页码单行且无溢出、pageerror为空。首轮窄窗基线在入场缩放中采样导致高度比较失败；仅修正验证脚本，在截图等待动画完成后测量，没有更改生产代码或放宽0.5px容差，第二轮四语全通过。证据test-results/studio-footer-review/evidence.json；同目录zh-light-1280、ja-light-1280、zh-Hant-dark-786截图已亲自查看。
 
 2026-09-11 18:11 +08:00 清理审计test-results/studio-footer-cleanup.json显示本轮Electron/Vite进程为空、7777无监听，测试隔离目录由finally回收。规格done/approval检查0 error/0 warning，范围/批次指纹不变；git diff --check通过。未提交或推送，未开始I2。项目视觉规范补充整行状态与固定底栏规则，并新增FK-PIT-0129，保留原批量控制器常驻约束。
+
+## 已选文档预览模块跟进
+
+用户认可并要求提交前轮成果，FusionKit的I1文档库改进已在 `a742746` 推送到 `origin/v0.3.1`；随后按用户要求将通用UI Skill改进 `6ab5ac7` 推送至独立的qiuye-skills仓库。此次新增需求是优化多个批量弹窗中的“查看已选文档”区域，仍为AC-WORKSPACE-09-6范围内的局部UI完善，不进入I2。
+
+根因是翻译和导出各自使用一份只有三条基础样式的原生details列表。两处现统一为本模块共用的 `StudioSelectedDocuments`：保留原生折叠语义和默认折叠，入口采用图标、短标题、数量标记及右侧箭头；列表用序号、StudioFileName完整名称入口和格式Badge，标题与名称对齐，限制高度并保留内部滚动。未改动业务请求、计划/结果或逐文档译轨选择，也未扩展到其他确认弹窗。root实现，selected_documents_review先只读评审，再仅编写忽略目录的局部Electron验收脚本。
+
+TypeScript通过，四语272个studio键一致、1980个源码已解析键通过，保留18条既有同值提示；根Vite test构建及preload external module检查通过。真实构建版Electron使用隔离profile导入100份不同的SRT/LRC，覆盖简中浅色1280×860/15份、英文深色1280×860/100份、日文浅色786×540/15份、繁中深色786×540/1份，两种弹窗共8组检查通过：默认折叠、鼠标/Space/Enter切换、完整范围名称、表单值保留、标题/名称同列、内部末项可达、底部按钮无覆盖、文件名鼠标及键盘Tooltip。只对15份执行翻译用量与原文LRC导出计划，均15份就绪；没有启动翻译或保存导出，最终100份文档无任务/译文，pageerror为空。证据test-results/studio-selected-review/evidence.json及同目录截图，日志studio-selected-electron-final.log。
+
+首轮在100份场景遇到Tooltip的hover grace区域导致移出检查不稳定，按实际鼠标路径补充移出事件后通过，没有改共享Tooltip逻辑或放宽判断。截图复查还修正了Windows滚动条箭头与焦点框转角：原生summary的border-radius:inherit实测为0px，父details为10px；改为显式有效token后，最终计算为9px/9px/0px/0px，保留可见内侧焦点框与强制颜色模式的outline。最后这个局部圆角修改后重建并复验两种弹窗，详情test-results/studio-selected-final-focus/evidence.json；未重复未受影响业务的全量回归。
+
+root已亲自查看四语矩阵的展开、折叠与名称提示截图，以及最终两种弹窗的普通/键盘焦点截图，确认共用外壳、行内信息层次与圆角。项目FK-PIT-0118补充实际圆角检查，项目视觉约定补充共享范围预览，未扩写通用Skill。测试profile由finally回收，进程与端口清理审计见test-results/studio-selected-cleanup.json。此次新UI改动尚未提交，I2未开始。

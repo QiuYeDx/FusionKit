@@ -277,6 +277,7 @@
     "download_sources": "元ファイルを一括ダウンロード",
     "export": "字幕を一括書き出し",
     "document_count": "{{count}} 件のドキュメントを処理",
+    "selected_title": "選択したドキュメント",
     "selected_documents": "選択した {{count}} 件を確認",
     "ready": "準備完了",
     "blocked": "書き出し不可",

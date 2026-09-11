@@ -14,6 +14,7 @@ import { unwrapStudio } from '@/services/subtitle-studio/client';
 import { StudioError, type ErrorCode } from '@/subtitle-studio/domain';
 import type { DocumentPage, DocumentSummary } from '@/subtitle-studio/ipc-contract';
 import { StudioFileName, StudioIconButton } from './StudioControls';
+import { StudioSelectedDocuments } from './StudioSelectedDocuments';
 import { translationConfigSchema, translationModelSchema, type TranslationPlanSummary } from '@/subtitle-studio/translation-contract';
 import { STUDIO_BATCH_LIMIT, type TranslationBatchPlan, type TranslationBatchResult } from '@/subtitle-studio/batch-contract';
 import './StudioTranslation.css';
@@ -201,7 +202,7 @@ export function StudioTranslation({ page, documents, triggerContainer, busy, onS
       <ScrollableDialogContent className="studio-translation-content" fadeMaskHeight={16}>
         <div className="studio-translation-form">
           {!batchResult && <>
-          {batch && !batchPlan && !batchResult && <details className="studio-batch-documents"><summary>{t('studio:batch.selected_documents', { count: batchDocuments.length })}</summary><ul>{batchDocuments.map(document => <li key={document.id}><StudioFileName name={document.origin.displayName} focusable /></li>)}</ul></details>}
+          {batch && !batchPlan && !batchResult && <StudioSelectedDocuments documents={batchDocuments} />}
           <div className="studio-translation-fields">
             <ToolField label={t('studio:translation.model')} htmlFor={`${controlId}-model`}>
               <Select value={selected?.id ?? ''} onValueChange={setProfileId} disabled={pending || !profiles.length}>
