@@ -482,7 +482,7 @@ it.runIf(Boolean(devUrl))('manages a paginated subtitle library and batch work t
     const startBatch = async () => {
       await page.getByTestId('studio-batch-toolbar').getByRole('button', { name: label('batch.translation'), exact: true }).click();
       const dialog = page.getByRole('dialog', { name: label('batch.translation'), exact: true });
-      await dialog.locator('.studio-translation-advanced summary').click();
+      await dialog.getByTestId('studio-translation-advanced').click();
       await dialog.getByRole('spinbutton', { name: '每批字幕上限', exact: true }).fill('1');
       await dialog.getByRole('button', { name: '计算用量', exact: true }).click();
       await uiExpect(dialog.getByTestId('studio-batch-plan').locator('[data-state="ready"]')).toHaveCount(2);

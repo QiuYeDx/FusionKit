@@ -102,3 +102,13 @@ TypeScript通过，四语272个studio键一致、1980个源码已解析键通过
 首轮在100份场景遇到Tooltip的hover grace区域导致移出检查不稳定，按实际鼠标路径补充移出事件后通过，没有改共享Tooltip逻辑或放宽判断。截图复查还修正了Windows滚动条箭头与焦点框转角：原生summary的border-radius:inherit实测为0px，父details为10px；改为显式有效token后，最终计算为9px/9px/0px/0px，保留可见内侧焦点框与强制颜色模式的outline。最后这个局部圆角修改后重建并复验两种弹窗，详情test-results/studio-selected-final-focus/evidence.json；未重复未受影响业务的全量回归。
 
 root已亲自查看四语矩阵的展开、折叠与名称提示截图，以及最终两种弹窗的普通/键盘焦点截图，确认共用外壳、行内信息层次与圆角。项目FK-PIT-0118补充实际圆角检查，项目视觉约定补充共享范围预览，未扩写通用Skill。测试profile由finally回收，进程与端口清理审计见test-results/studio-selected-cleanup.json。此次新UI改动尚未提交，I2未开始。
+
+## 配置折叠与批量确认跟进
+
+按用户要求先提交并推送上一轮范围预览改进，提交 `2878b94` 已同步 `origin/v0.3.1`。本轮仍为I1局部打磨：单份/批量翻译高级设置和导出编码换行，直接复用字幕AI翻译“定时开始”的 `ToolConfigDisclosure`，移除各自的原生summary样式，成对处理12px正文内边距、负边距及末项底部补偿。批量删除/恢复确认复用 `StudioSelectedDocuments` 静态清单，直接展示受影响文档，保留名称Tooltip、格式、内部滚动、取消初始焦点和关闭回焦；操作栏固定右对齐。共享折叠组件和业务请求实现未改。
+
+TypeScript、根Vite test构建及preload检查通过。三个既有原生回归（translation-ui、export-ui、translation-recovery-ui）全部通过，涵盖实际翻译、导出及重启恢复；四个关联测试文件仅适配触发按钮选择器。i18n两个检查脚本直接以Node运行通过，四语272个studio键一致、1980个源码键可解析，保留18条既有同值提示。本机默认pnpm包装器意外尝试自动安装并因旧lockfile中止，未接受模块清理或改动依赖；只清除了已核对为本次新建的.pnpm-store，项目FK-PIT-0024补充该命令入口问题。
+
+构建版Electron局部验收使用100份合成字幕和隔离profile：四语/深浅主题、1280×860与786×540共8组配置弹窗，检查默认折叠、鼠标/Space/Enter、快速反复切换、收起inert、参数保留、实际滚动与底部可点；另检查5组删除/恢复确认、1/15/100份范围、完整名称、末项滚动及取消回焦。简中15份翻译/导出计划均就绪，无外部模型请求；最后真实删除1份含合成历史任务的测试文档，剩99份且原字幕字节保留。pageerror为空。证据test-results/studio-disclosure-review/evidence.json，日志studio-disclosure-electron-final.log。
+
+初轮验收脚本误将右上关闭按钮算作底栏控件，修正选择范围后通过，未放宽几何容差；同时改为截取参考折叠组件本身，避免整页截图中参考内容在视口外。root已亲自查看参考、两类配置区、深色100份删除及日语恢复确认截图；补验小窗口滚动到底部后的参数区和减少动态效果模式全部通过，证据test-results/studio-disclosure-narrow/evidence.json及expanded-bottom截图。独立只读审查未发现新增业务或语义问题。20:08 +08:00进程/7777端口审计为空，测试profile均回收，见studio-disclosure-cleanup.json。规格done/approval检查0 error/0 warning、指纹保持；此次新UI改动未提交，未开始I2。

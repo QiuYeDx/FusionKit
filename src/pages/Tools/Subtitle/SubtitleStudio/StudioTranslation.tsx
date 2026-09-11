@@ -2,13 +2,14 @@ import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
-import { AlertCircle, Calculator, CheckCheck, ChevronDown, Languages, LoaderCircle, Play, Settings } from 'lucide-react';
+import { AlertCircle, Calculator, CheckCheck, Languages, LoaderCircle, Play, Settings, SlidersHorizontal } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ScrollableDialog, ScrollableDialogHeader, ScrollableDialogContent, ScrollableDialogFooter, DialogTitle, DialogDescription } from '@/components/qiuye-ui/scrollable-dialog';
 import { ToolField } from '../../_shared/ui/ToolField';
+import { ToolConfigDisclosure } from '../../_shared/ui/ToolConfigDisclosure';
 import useModelStore from '@/store/useModelStore';
 import { unwrapStudio } from '@/services/subtitle-studio/client';
 import { StudioError, type ErrorCode } from '@/subtitle-studio/domain';
@@ -227,8 +228,7 @@ export function StudioTranslation({ page, documents, triggerContainer, busy, onS
           <ToolField label={t('studio:translation.instructions')} htmlFor={`${controlId}-instructions`}>
             <Textarea id={`${controlId}-instructions`} className="studio-translation-instructions text-xs" value={instructions} onChange={event => setInstructions(event.target.value)} maxLength={4000} disabled={pending} />
           </ToolField>
-          <details className="studio-translation-advanced">
-            <summary>{t('studio:translation.advanced')}<ChevronDown className="size-3.5" /></summary>
+          <ToolConfigDisclosure testId="studio-translation-advanced" className="studio-translation-advanced border-b-0" icon={SlidersHorizontal} title={t('studio:translation.advanced')}>
             <div className="studio-translation-budget-fields">
               <ToolField label={t('studio:translation.context_window')} htmlFor={`${controlId}-context`}>
                 <Input id={`${controlId}-context`} type="number" min={2048} max={1000000} step={1} className="h-8 font-mono text-xs" value={contextWindow} onChange={event => setContextWindow(event.target.value)} disabled={pending} />
@@ -240,7 +240,7 @@ export function StudioTranslation({ page, documents, triggerContainer, busy, onS
                 <Input id={`${controlId}-batch`} type="number" min={1} max={100} step={1} className="h-8 font-mono text-xs" value={maxBatchCues} onChange={event => setMaxBatchCues(event.target.value)} disabled={pending} />
               </ToolField>
             </div>
-          </details>
+          </ToolConfigDisclosure>
           {!needsConfiguration && !config.success && <p className="studio-translation-error" role="alert">{t('studio:translation.invalid_options')}</p>}
           {error && <p className="studio-translation-error" role="alert"><AlertCircle className="size-4" />{t(errorKeys[error])}</p>}
           {currentPlan && <div className="studio-translation-plan" aria-live="polite">

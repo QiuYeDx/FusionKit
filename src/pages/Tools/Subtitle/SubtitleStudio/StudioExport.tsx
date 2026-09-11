@@ -1,7 +1,7 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
-import { AlertCircle, ArrowDownToLine, CheckCheck, ChevronDown, ClipboardCheck, LoaderCircle } from 'lucide-react';
+import { AlertCircle, ArrowDownToLine, CheckCheck, ChevronDown, ClipboardCheck, FileCog, LoaderCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
@@ -10,6 +10,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { ScrollableDialog, ScrollableDialogHeader, ScrollableDialogContent, ScrollableDialogFooter, DialogTitle, DialogDescription } from '@/components/qiuye-ui/scrollable-dialog';
 import { ToolField } from '../../_shared/ui/ToolField';
+import { ToolConfigDisclosure } from '../../_shared/ui/ToolConfigDisclosure';
 import { unwrapStudio } from '@/services/subtitle-studio/client';
 import { encodingSchema, StudioError, type Encoding, type ErrorCode } from '@/subtitle-studio/domain';
 import { exportOptionsSchema, type ExportIssueCode, type ExportOptions, type ExportPlanSummary } from '@/subtitle-studio/export-contract';
@@ -283,8 +284,7 @@ export function StudioExport({ page, documents, triggerContainer, trackId, busy,
               <Input id={`${controlId}-duration`} type="number" min={1} max={3600000} step={1} className="h-8 font-mono text-xs" value={finalDuration} onChange={event => setFinalDuration(event.target.value)} disabled={pending} />
             </ToolField>}
           </div>}
-          <details className="studio-export-advanced">
-            <summary>{t('studio:export.advanced')}<ChevronDown className="size-3.5" /></summary>
+          <ToolConfigDisclosure testId="studio-export-advanced" className="studio-export-advanced border-b-0" icon={FileCog} title={t('studio:export.advanced')}>
             <div className="studio-export-fields">
               <ToolField label={t('studio:encoding')} htmlFor={`${controlId}-encoding`}>
                 <Select value={encoding} onValueChange={value => { setEncoding(encodingSchema.parse(value)); if (value !== 'utf-8' && value !== 'utf-16le') setBom(false); }} disabled={pending}>
@@ -299,8 +299,8 @@ export function StudioExport({ page, documents, triggerContainer, trackId, busy,
                 </Select>
               </ToolField>
             </div>
-            <label className="studio-export-check studio-export-bom" htmlFor={`${controlId}-bom`}><Checkbox id={`${controlId}-bom`} checked={unicode && bom} onCheckedChange={value => setBom(value === true)} disabled={pending || !unicode} /><span>{t('studio:export.bom')}</span></label>
-          </details>
+            <label className="studio-export-check" htmlFor={`${controlId}-bom`}><Checkbox id={`${controlId}-bom`} checked={unicode && bom} onCheckedChange={value => setBom(value === true)} disabled={pending || !unicode} /><span>{t('studio:export.bom')}</span></label>
+          </ToolConfigDisclosure>
           {!options.success && <p className="studio-export-error" role="alert">{t('studio:export.invalid_options')}</p>}
           </>}
           {error && <p className="studio-export-error" role="alert"><AlertCircle className="size-4" />{t(errorKeys[error])}</p>}

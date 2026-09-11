@@ -130,12 +130,12 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_E2E === '1')('Subtitle Studio local 
     await uiExpect(page.locator('[data-issue="metadata_omitted"]')).toBeVisible();
     await uiExpect(exportDialog().getByRole('button', { name: '保存字幕…', exact: true })).toBeDisabled();
     await acceptLosses();
-    await exportDialog().locator('.studio-export-advanced summary').click();
+    await exportDialog().getByTestId('studio-export-advanced').click();
     await select('文件编码', 'GB18030');
     await uiExpect(page.locator('.studio-export-plan')).toHaveCount(0);
     await uiExpect(exportDialog().getByRole('checkbox', { name: '添加 Unicode BOM', exact: true })).toBeDisabled();
     await select('文件编码', 'UTF-8');
-    await exportDialog().locator('.studio-export-advanced summary').click();
+    await exportDialog().getByTestId('studio-export-advanced').click();
     await check();
     await uiExpect(exportDialog().getByRole('checkbox', { name: '接受以上格式变化', exact: true })).not.toBeChecked();
     await acceptLosses();
@@ -209,7 +209,7 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_E2E === '1')('Subtitle Studio local 
     await select('字幕格式', 'srt'.toUpperCase());
     await select('缺失或过期的译文', '未完成处使用原文');
     await exportDialog().getByRole('checkbox', { name: '允许估算缺失的结束时间', exact: true }).check();
-    await exportDialog().locator('.studio-export-advanced summary').click();
+    await exportDialog().getByTestId('studio-export-advanced').click();
     await select('文件编码', 'UTF-16LE');
     await select('换行方式', 'CRLF');
     await exportDialog().getByRole('checkbox', { name: '添加 Unicode BOM', exact: true }).check();
@@ -236,7 +236,7 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_E2E === '1')('Subtitle Studio local 
     await select('导出内容', '仅译文');
     await select('字幕格式', 'LRC');
     await select('缺失或过期的译文', '仅导出已有有效译文的字幕');
-    await exportDialog().locator('.studio-export-advanced summary').click();
+    await exportDialog().getByTestId('studio-export-advanced').click();
     await select('文件编码', 'UTF-8');
     await exportDialog().getByRole('checkbox', { name: '添加 Unicode BOM', exact: true }).uncheck();
     await check(); await acceptLosses();

@@ -168,4 +168,8 @@
   .studio-time-range > svg { display: none; }
   .studio-cue-text { font-size: 12px; }
 }
+.studio-batch-confirm-dialog { min-width: 0; }
+.studio-batch-confirm-content { min-height: 0; }
+.studio-batch-confirm-content [data-slot="scroll-area-viewport"] > div { display: block !important; width: 100%; min-width: 0; }
+.studio-batch-confirm-content [data-slot="scroll-area-viewport"] > div > div { padding: 12px; }
 @media (prefers-reduced-motion: reduce) { .studio button, .studio-disclosure { transition: none; } .studio-spin { animation: none; } }

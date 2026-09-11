@@ -61,7 +61,7 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_E2E === '1')('Subtitle Studio transl
     await page.getByRole('button', { name: '打开字幕文件', exact: true }).click();
     await uiExpect(page.locator('.studio-cue-table tbody tr')).toHaveCount(6);
     await page.getByRole('button', { name: '翻译', exact: true }).click();
-    await page.locator('.studio-translation-advanced summary').click();
+    await page.getByTestId('studio-translation-advanced').click();
     await page.getByRole('spinbutton', { name: '上下文窗口（tokens）' }).fill('2048');
     await page.getByRole('spinbutton', { name: '每批输出上限（tokens）' }).fill('256');
     await page.getByRole('textbox', { name: '翻译要求（可选）' }).fill('预算'.repeat(1900));
@@ -73,7 +73,7 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_E2E === '1')('Subtitle Studio transl
     expect(requests).toHaveLength(0);
     await page.getByRole('button', { name: '翻译', exact: true }).click();
     await page.getByRole('textbox', { name: '翻译要求（可选）' }).fill('');
-    await page.locator('.studio-translation-advanced summary').click();
+    await page.getByTestId('studio-translation-advanced').click();
     await page.getByRole('spinbutton', { name: '上下文窗口（tokens）' }).fill('32768');
     await page.getByRole('spinbutton', { name: '每批输出上限（tokens）' }).fill('4096');
     await page.getByRole('spinbutton', { name: '每批字幕上限' }).fill('2');

@@ -41,6 +41,10 @@ removing both from an otherwise minimal environment makes `nvidia-smi` fail.
 - Add deterministic tests for the platform-specific command and environment
   allowlist without recording actual local paths.
 
+## Package-manager wrapper check
+
+Check the resolved executable as well as its suffix/version before invoking project scripts. The desktop runtime fallback `pnpm.cmd` can resolve to a newer pnpm than this checkout's installed dependency tree: even `pnpm run i18n:check` attempted an automatic install, rejected the older lockfile, and created a local `.pnpm-store` before aborting. For a read-only check, invoke the existing script with Node or use the project's compatible pnpm. Do not enable `CI`/automatic module purging or reinstall dependencies to get a UI validation command to run. Confirm package/lockfiles and installed dependencies stayed unchanged; remove only a cache proven to have been created by the failed attempt.
+
 ## Avoid
 
 - Do not treat a PowerShell success as proof that a shell-free Node spawn will
