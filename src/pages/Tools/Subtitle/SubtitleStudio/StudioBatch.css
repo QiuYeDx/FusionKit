@@ -1,5 +1,17 @@
 .studio-batch-note { margin-top: 10px; color: var(--muted-foreground); font-size: 12px; line-height: 18px; overflow-wrap: anywhere; }
-.studio-batch-items { display: grid; gap: 4px; min-width: 0; max-height: 250px; overflow-y: auto; overscroll-behavior: contain; margin-top: 10px; padding: 0; list-style: none; }
+.studio-batch-scroll { position: relative; isolation: isolate; min-width: 0; margin-top: 10px; }
+.studio-batch-viewport { max-height: 250px; overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; }
+.studio-batch-viewport::-webkit-scrollbar { width: 6px; }
+.studio-batch-viewport::-webkit-scrollbar-track { background: transparent; }
+.studio-batch-viewport::-webkit-scrollbar-thumb { border-radius: 999px; background: var(--border); }
+.studio-batch-viewport::-webkit-scrollbar-thumb:hover { background: color-mix(in srgb, var(--foreground) 25%, transparent); }
+.studio-batch-viewport::-webkit-scrollbar-button { display: none; }
+.studio-batch-fade { position: absolute; left: 0; right: 6px; z-index: 1; height: 20px; pointer-events: none; opacity: 0; transition: opacity 150ms ease; }
+.studio-batch-fade[data-edge="top"] { top: 0; background: linear-gradient(to bottom, var(--background), transparent); }
+.studio-batch-fade[data-edge="bottom"] { bottom: 0; background: linear-gradient(to top, var(--background), transparent); }
+.studio-batch-scroll[data-fade-top="true"] > [data-edge="top"], .studio-batch-scroll[data-fade-bottom="true"] > [data-edge="bottom"] { opacity: 1; }
+@media (prefers-reduced-motion: reduce) { .studio-batch-fade { transition: none; } }
+.studio-batch-items { display: grid; gap: 4px; min-width: 0; margin: 0; padding: 0; list-style: none; }
 .studio-batch-items > li { display: grid; grid-template-columns: minmax(0, 1fr) minmax(80px, 40%); align-items: start; gap: 6px 12px; min-width: 0; padding: 7px 8px; border-radius: 6px; background: var(--muted); font-size: 12px; line-height: 18px; }
 .studio-batch-items > li > span:last-child { text-align: right; color: var(--muted-foreground); overflow-wrap: anywhere; }
 .studio-batch-items > li[data-state="failed"] > span:last-child { color: var(--destructive); }

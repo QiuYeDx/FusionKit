@@ -10,12 +10,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { ScrollableDialog, ScrollableDialogHeader, ScrollableDialogContent, ScrollableDialogFooter, DialogTitle, DialogDescription } from '@/components/qiuye-ui/scrollable-dialog';
 import { ToolField } from '../../_shared/ui/ToolField';
 import { ToolConfigDisclosure } from '../../_shared/ui/ToolConfigDisclosure';
+import { ToolStatBar } from '../../_shared/ui/ToolStatBar';
 import useModelStore from '@/store/useModelStore';
 import { unwrapStudio } from '@/services/subtitle-studio/client';
 import { StudioError, type ErrorCode } from '@/subtitle-studio/domain';
 import type { DocumentPage, DocumentSummary } from '@/subtitle-studio/ipc-contract';
 import { StudioFileName, StudioIconButton } from './StudioControls';
 import { StudioSelectedDocuments } from './StudioSelectedDocuments';
+import { StudioBatchItems } from './StudioBatchItems';
 import { translationConfigSchema, translationModelSchema, type TranslationPlanSummary } from '@/subtitle-studio/translation-contract';
 import { STUDIO_BATCH_LIMIT, type TranslationBatchPlan, type TranslationBatchResult } from '@/subtitle-studio/batch-contract';
 import './StudioTranslation.css';
@@ -115,6 +117,11 @@ export function StudioTranslation({ page, documents, triggerContainer, busy, onS
   const currentDocumentId = useRef(page?.summary.id);
   currentDocumentId.current = page?.summary.id;
   const currentPlan = plan?.identity === identity ? plan.value : null;
+  const estimate = batchPlan ? {
+    estimatedInputTokens: batchPlan.totalEstimatedInputTokens,
+    batchCount: batchPlan.items.reduce((sum, item) => sum + (item.ok ? item.plan.batchCount : 0), 0),
+    outputTokenReserve: batchPlan.totalOutputTokenReserve,
+  } : currentPlan;
   const activeTask = page?.tasks.some(task => task.status === 'queued' || task.status === 'running') ?? false;
   const unavailable = batch ? !documents?.length || documents.length > STUDIO_BATCH_LIMIT : !page?.summary.capabilities.translate || page.summary.cueCount === 0;
   const pending = activity !== null;
@@ -243,24 +250,24 @@ export function StudioTranslation({ page, documents, triggerContainer, busy, onS
           </ToolConfigDisclosure>
           {!needsConfiguration && !config.success && <p className="studio-translation-error" role="alert">{t('studio:translation.invalid_options')}</p>}
           {error && <p className="studio-translation-error" role="alert"><AlertCircle className="size-4" />{t(errorKeys[error])}</p>}
-          {currentPlan && <div className="studio-translation-plan" aria-live="polite">
-            <h3>{t('studio:translation.estimate')}</h3>
-            <dl>
-              <div><dt>{t('studio:translation.estimated_input')}</dt><dd>{currentPlan.estimatedInputTokens.toLocaleString(i18n.language)}</dd></div>
-              <div><dt>{t('studio:translation.batch_count')}</dt><dd>{currentPlan.batchCount.toLocaleString(i18n.language)}</dd></div>
-              <div><dt>{t('studio:translation.output_reserve')}</dt><dd>{currentPlan.outputTokenReserve.toLocaleString(i18n.language)}</dd></div>
-            </dl>
-          </div>}
-          {batchPlan && <section className="studio-translation-plan" aria-live="polite" data-testid="studio-batch-plan">
-            <h3>{t('studio:batch.ready_count', { count: batchPlan.items.filter(item => item.ok).length, total: batchPlan.items.length })}</h3>
-            <dl><div><dt>{t('studio:translation.estimated_input')}</dt><dd>{batchPlan.totalEstimatedInputTokens.toLocaleString(i18n.language)}</dd></div><div><dt>{t('studio:translation.batch_count')}</dt><dd>{batchPlan.items.reduce((sum, item) => sum + (item.ok ? item.plan.batchCount : 0), 0).toLocaleString(i18n.language)}</dd></div><div><dt>{t('studio:translation.output_reserve')}</dt><dd>{batchPlan.totalOutputTokenReserve.toLocaleString(i18n.language)}</dd></div></dl>
+          {estimate && <section className="studio-translation-plan" aria-live="polite" data-testid={batchPlan ? 'studio-batch-plan' : undefined}>
+            <ToolStatBar columns={3} className="studio-translation-estimate shadow-none" gridClassName="studio-translation-estimate-grid"
+              title={batchPlan ? t('studio:batch.ready_count', { count: batchPlan.items.filter(item => item.ok).length, total: batchPlan.items.length }) : t('studio:translation.estimate')}
+              icon={batchPlan ? batchPlan.items.some(item => !item.ok) ? <AlertCircle className="text-amber-600 dark:text-amber-400" /> : <CheckCheck className="text-emerald-600 dark:text-emerald-400" /> : <Calculator />}
+              items={[
+                { label: t('studio:translation.estimated_input'), value: estimate.estimatedInputTokens.toLocaleString(i18n.language) },
+                { label: t('studio:translation.batch_count'), value: estimate.batchCount.toLocaleString(i18n.language) },
+                { label: t('studio:translation.output_reserve'), value: estimate.outputTokenReserve.toLocaleString(i18n.language) },
+              ]} />
+            {batchPlan && <>
             <p className="studio-batch-note">{t('studio:batch.translation_queue_note')}</p>
-            <ul className="studio-batch-items">{batchPlan.items.map(item => <li key={item.documentId} data-document-id={item.documentId} data-state={item.ok ? 'ready' : 'failed'}><StudioFileName name={item.displayName} focusable /><span>{item.ok ? t('studio:batch.ready') : t(errorKeys[item.error])}</span></li>)}</ul>
+            <StudioBatchItems>{batchPlan.items.map(item => <li key={item.documentId} data-document-id={item.documentId} data-state={item.ok ? 'ready' : 'failed'}><StudioFileName name={item.displayName} focusable /><span>{item.ok ? t('studio:batch.ready') : t(errorKeys[item.error])}</span></li>)}</StudioBatchItems>
+            </>}
           </section>}
           </>}
           {batchResult && <section aria-live="polite" data-testid="studio-batch-result">
             <p className="studio-batch-note">{t('studio:batch.translation_result', { count: batchResult.items.filter(item => item.ok).length, failed: batchResult.items.filter(item => !item.ok).length })}</p>
-            <ul className="studio-batch-items">{batchResult.items.map(item => <li key={item.documentId} data-document-id={item.documentId} data-state={item.ok ? 'success' : 'failed'}><StudioFileName name={item.displayName} focusable /><span>{item.ok ? t('studio:batch.queued') : t(errorKeys[item.error])}</span></li>)}</ul>
+            <StudioBatchItems>{batchResult.items.map(item => <li key={item.documentId} data-document-id={item.documentId} data-state={item.ok ? 'success' : 'failed'}><StudioFileName name={item.displayName} focusable /><span>{item.ok ? t('studio:batch.queued') : t(errorKeys[item.error])}</span></li>)}</StudioBatchItems>
           </section>}
         </div>
       </ScrollableDialogContent>

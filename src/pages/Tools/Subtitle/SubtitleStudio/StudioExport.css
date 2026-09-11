@@ -20,7 +20,8 @@
 .studio-export-preview summary:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; border-radius: 4px; }
 .studio-export-error { display: flex; align-items: flex-start; gap: 6px; color: var(--destructive); font-size: 12px; line-height: 18px; overflow-wrap: anywhere; }
 .studio-export-error svg { flex-shrink: 0; }
-.studio-export-plan { display: grid; gap: 10px; min-width: 0; border-top: 1px solid var(--border); padding-top: 12px; }
+.studio-export-plan { display: grid; gap: 10px; min-width: 0; margin-inline: -12px; border-top: 1px solid var(--border); padding: 12px 12px 0; }
+.studio-export-advanced + .studio-export-plan { margin-top: -16px; }
 .studio-export-summary { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 4px 12px; font-size: 12px; line-height: 18px; }
 .studio-export-summary h3 { font-weight: 500; }
 .studio-export-summary > span { color: var(--muted-foreground); font-size: 11px; font-variant-numeric: tabular-nums; }

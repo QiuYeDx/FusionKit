@@ -112,3 +112,13 @@ TypeScript、根Vite test构建及preload检查通过。三个既有原生回归
 构建版Electron局部验收使用100份合成字幕和隔离profile：四语/深浅主题、1280×860与786×540共8组配置弹窗，检查默认折叠、鼠标/Space/Enter、快速反复切换、收起inert、参数保留、实际滚动与底部可点；另检查5组删除/恢复确认、1/15/100份范围、完整名称、末项滚动及取消回焦。简中15份翻译/导出计划均就绪，无外部模型请求；最后真实删除1份含合成历史任务的测试文档，剩99份且原字幕字节保留。pageerror为空。证据test-results/studio-disclosure-review/evidence.json，日志studio-disclosure-electron-final.log。
 
 初轮验收脚本误将右上关闭按钮算作底栏控件，修正选择范围后通过，未放宽几何容差；同时改为截取参考折叠组件本身，避免整页截图中参考内容在视口外。root已亲自查看参考、两类配置区、深色100份删除及日语恢复确认截图；补验小窗口滚动到底部后的参数区和减少动态效果模式全部通过，证据test-results/studio-disclosure-narrow/evidence.json及expanded-bottom截图。独立只读审查未发现新增业务或语义问题。20:08 +08:00进程/7777端口审计为空，测试profile均回收，见studio-disclosure-cleanup.json。规格done/approval检查0 error/0 warning、指纹保持；此次新UI改动未提交，未开始I2。
+
+## 用量概览与列表渐变跟进
+
+上一轮改进按用户要求提交为 `d5e98d4` 并推送至 `origin/v0.3.1`。本轮针对批量翻译计划区继续I1打磨：计划分隔线与配置折叠区通栏对齐，消除紧邻区域重复gap；单份/批量翻译复用 `ToolStatBar` 展示状态与三项用量，局部允许长标签换行、数字底部对齐。导出计划同步修正同源分隔线。翻译/导出计划及结果四处清单共用 `StudioBatchItems`，保留原li内容和状态；渐变与实际滚动视口同级固定，20px边缘按首中尾显隐，不溢出时消失，避开6px原生滚动条，同时观察视口和内容尺寸、正确清理监听。
+
+TypeScript、根Vite test构建及preload检查、i18n两个Node入口通过，未使用pnpm包装器或改动依赖。既有 translation-ui / export-ui 原生回归均通过；无需重复未受影响的恢复全链路。独立只读审查确认统计表达式、业务行和按钮执行逻辑保持，未修改共用 `ToolStatBar` 或全局样式。
+
+真实构建版Electron使用100份隔离合成字幕，覆盖四语深浅主题、1280×860和786×540，共8组翻译/导出计划。验收1/15/100项、首中尾渐变及定位、无滚动时双边隐藏、长标签/数字、Tooltip、分隔线外沿、底部按钮、100份窗口缩放和重新计算。利用一条超长字幕及较小预算，真实形成14/15就绪，再调整预算恢复15/15；取消导出仍保留计划。全程无外部模型请求、无翻译任务、无导出写入，最终100份文档无译轨，pageerror为空。首轮按钮命中断言在尚未确认格式损失时误判禁用按钮，修正为先验证禁用、确认后验证可点，没有改动产品保护逻辑。证据test-results/studio-plan-review/evidence.json，日志studio-plan-electron-final.log及studio-plan-regression.log。
+
+root已亲自检查简中完整/部分就绪、英文深色100份、日语窄窗、繁中单份及列表中部渐变截图；内容、遮罩和操作栏符合本轮要求。项目视觉约定同步共用组件与边界关系。测试profile由finally回收，进程/端口清理记录见test-results/studio-plan-cleanup.json；规格done/approval检查0 error/0 warning，范围/批次指纹不变。此次新增UI优化尚未提交，I2未开始。

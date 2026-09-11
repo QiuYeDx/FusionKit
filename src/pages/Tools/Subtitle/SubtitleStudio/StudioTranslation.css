@@ -13,12 +13,17 @@
 .studio-translation-budget-fields { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: end; gap: 12px; }
 .studio-translation-error { display: flex; align-items: flex-start; gap: 6px; color: var(--destructive); font-size: 12px; line-height: 18px; overflow-wrap: anywhere; }
 .studio-translation-error svg { flex-shrink: 0; }
-.studio-translation-plan { border-top: 1px solid var(--border); padding-top: 12px; }
-.studio-translation-plan h3 { margin: 0 0 10px; font-size: 12px; font-weight: 500; }
-.studio-translation-plan dl { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
-.studio-translation-plan dl > div { min-width: 0; }
-.studio-translation-plan dt { color: var(--muted-foreground); font-size: 11px; line-height: 16px; }
-.studio-translation-plan dd { margin-top: 4px; font-family: var(--font-mono); font-size: 13px; line-height: 20px; overflow-wrap: anywhere; }
+.studio-translation-plan { min-width: 0; margin-inline: -12px; border-top: 1px solid var(--border); padding: 12px 12px 0; }
+.studio-translation-advanced + .studio-translation-plan { margin-top: -16px; }
+.studio-translation-estimate { background: color-mix(in srgb, var(--muted) 35%, var(--background)); }
+.studio-translation-estimate > div:first-child { padding-block: 8px; }
+.studio-translation-estimate > div:first-child > span:last-child { white-space: normal; overflow-wrap: anywhere; }
+.studio-translation-estimate-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.studio-translation-estimate-grid > div { display: flex; flex-direction: column; border-bottom: 0; padding-block: 10px; }
+.studio-translation-estimate-grid > div:last-child { border-right: 0; }
+.studio-translation-estimate-grid > div > div:first-child { text-transform: none; letter-spacing: normal; }
+.studio-translation-estimate-grid > div > div:first-child > span { white-space: normal; overflow-wrap: anywhere; }
+.studio-translation-estimate-grid > div > div:last-child { margin-top: auto; padding-top: 4px; white-space: normal; overflow-wrap: anywhere; font-size: 16px; line-height: 22px; }
 .studio-translation-status { display: flex; align-items: center; flex-wrap: wrap; gap: 3px 12px; min-width: 0; color: var(--muted-foreground); font-size: 11px; line-height: 18px; }
 .studio-translation-status > span { display: inline-flex; align-items: center; gap: 5px; min-width: 0; overflow-wrap: anywhere; }
 .studio-translation-task-controls { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 6px; min-width: 0; }
@@ -32,5 +37,4 @@
 @media (max-width: 480px) {
   .studio-translation-fields { grid-template-columns: minmax(0, 1fr); gap: 12px; }
   .studio-translation-budget-fields { grid-template-columns: minmax(0, 1fr); }
-  .studio-translation-plan dl { gap: 8px; }
 }
