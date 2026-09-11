@@ -1,5 +1,34 @@
 # I1 任务台账
 
+### T-WORKSPACE-08 文档库、异常管理与批量工作流
+
+| 字段 | 值 |
+| --- | --- |
+| 状态 | 已完成 |
+| 批次 | I1 |
+| 需求 | R-WORKSPACE-09 |
+| 验收 | AC-WORKSPACE-09-1, AC-WORKSPACE-09-2, AC-WORKSPACE-09-3, AC-WORKSPACE-09-4, AC-WORKSPACE-09-5, AC-WORKSPACE-09-6 |
+| 依赖 | T-WORKSPACE-06 |
+| 写集 | electron/main/subtitle-studio/, electron/preload/subtitle-studio-api.ts, src/subtitle-studio/, src/pages/Tools/Subtitle/SubtitleStudio/, src/store/tools/subtitle-studio/, src/locales/, test/subtitle-studio/, docs/features/subtitle-studio/, .agents/skills/fusionkit-pitfall-guard/references/ |
+| 负责人 | Codex root 集成；backend_audit 后端/IPC契约及仓库测试；ux_audit 翻译/导出组件；batch_verification 新 library-ui 验证；root 文档库/异常UI、偏好、四语言与其余集成 |
+| 依赖确认 | T-WORKSPACE-06 已在002be2d集成并包含于b68477a；git历史和实际源码核对b68477a含开发启动修复6157cbd，起始工作树干净；本轮用户明确要求 I2 前改进，属于新增 R09 行为授权 |
+| 完成日期 | 2026-09-11 |
+| 实施记录 | records/2026-09-11-library-batch.md |
+| 集成版本 | 已集成并验证的未提交工作树，基线 b68477a；证据见实施记录 |
+
+#### 实现要点
+
+根任务独占 index.tsx/studio.css/StudioLibrary 与恢复UI、偏好、locale和规格台账；backend_audit 独占主进程新服务、IPC契约/preload和仓库/IPC测试；ux_audit 独占 StudioTranslation/StudioExport/StudioBilingual触发器及配套新batch组件；batch_verification 独占新 library-ui.test.ts。共享树在 root 协调消息中领取，契约先同步再实现，不并行启动同端口服务。既有 AC 不降低，I2 保持未批准。
+
+#### 验证计划
+
+| 检查 | 类型 | 要求 | 命令或步骤 | 不适用理由 |
+| --- | --- | --- | --- | --- |
+| V-WORKSPACE-08-1 | integration | required | 仓库与IPC测试：坏文档token/恢复竞争/目录约束，部分导入，全库查询，跨owner/非法参数；批量计划、失败隔离、revision、同名、取消与恢复 | - |
+| V-WORKSPACE-08-2 | browser | required | 开发版隔离Electron完成多导入、搜索/排序/筛选/跨页选择、批量翻译导出删除、关闭提示重启与异常清除；查看最终深浅/窄窗口截图并复验发现 | - |
+| V-WORKSPACE-08-3 | static | required | 两套默认TypeScript、i18n locale/usage、preload、git diff --check及spec checker | - |
+| V-WORKSPACE-08-4 | integration | required | 字幕工作台模块回归与受影响原有单文件UI；记录真实输出和进程清理，无真实用户数据变更 | - |
+
 本文件是唯一任务状态源。依赖完成不等于已集成，实施时须登记实际版本。当前只展开 I1，按以下顺序连续推进；真实实施授权登记于 spec.json。
 
 执行恢复：2026-09-08 用户在 UI 优化后明确回复“好，继续推进工作吧”；暂停历史与恢复来源登记于 spec.json。

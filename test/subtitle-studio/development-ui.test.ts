@@ -57,7 +57,8 @@ it.runIf(Boolean(devUrl))('uses the dev renderer to import, preview and export a
     expect(list).toMatchObject({ ok: true, value: { total: 1, unavailableDocuments: 1 } });
     const output = path.join(root, 'exported.srt');
     await application!.evaluate(({ dialog }, output) => { dialog.showSaveDialog = async () => ({ canceled: false, filePath: output }); }, output);
-    await page.getByRole('button', { name: '下载原文件', exact: true }).click();
+    await page.getByRole('button', { name: '下载', exact: true }).click();
+    await page.getByRole('menuitem', { name: '下载原文件', exact: true }).click();
     await uiExpect(page.getByText('已下载：exported.srt', { exact: true })).toBeVisible();
     expect(await readFile(output, 'utf8')).toBe(content);
     await application!.evaluate(({ BrowserWindow }) => { BrowserWindow.getAllWindows()[0].setSize(786, 540); });

@@ -5,6 +5,7 @@ import path from 'node:path';
 import { z } from 'zod';
 import { idSchema, LIMITS, StudioError, type SubtitleDocument } from '../../../src/subtitle-studio/domain';
 import { validateSnapshot, type DocumentSnapshot } from '../../../src/subtitle-studio/persistence-contract';
+import type { UnavailableDocument } from '../../../src/subtitle-studio/batch-contract';
 
 export type CommitStage = 'generation-write' | 'generation-sync' | 'generation-ready' | 'previous-ready' | 'current-write' | 'current-sync' | 'current-publish' | 'delete-publish' | 'delete-cleanup';
 export type RepositoryEvent = { documentId: string; revision: number; sequence: number; deleted: boolean };
@@ -72,7 +73,7 @@ export class DocumentRepository {
       await rename(temporary, filePath);
     } finally { await rm(temporary, { force: true }).catch(() => undefined); }
   }
-  private async committed(id: string): Promise<{ snapshot: DocumentSnapshot; pointer: Pointer }> {
+  private async committed(id: string): Promise<{ snapshot: DocumentSnapshot; pointer: Pointer; updatedAt: number }> {
     const directory = this.directory(id);
     if (await this.isDeleted(id)) throw new StudioError('document_unavailable');
     try { await this.assertDirectory(directory); } catch { throw new StudioError('document_unavailable'); }
@@ -84,7 +85,7 @@ export class DocumentRepository {
         if (pointer.digest && digest(json) !== pointer.digest) throw new Error('Digest mismatch');
         const snapshot = validateSnapshot(JSON.parse(json));
         if (snapshot.document.id !== id) throw new Error('Identity mismatch');
-        return { snapshot, pointer: { ...pointer, digest: digest(json) } };
+        return { snapshot, pointer: { ...pointer, digest: digest(json) }, updatedAt: (await lstat(path.join(directory, name))).mtimeMs };
       } catch { /* Try the previous published commit. */ }
     }
     throw new StudioError('document_unavailable');
@@ -160,21 +161,66 @@ export class DocumentRepository {
       } catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error; }
       const entries = await readdir(this.root, { withFileTypes: true });
       const documents: SubtitleDocument[] = [];
-      let unavailableDocuments = 0;
+      const records: { snapshot: DocumentSnapshot; updatedAt: number }[] = [];
+      const unavailable: UnavailableDocument[] = [];
       for (const entry of entries.sort((a, b) => a.name.localeCompare(b.name))) {
         if (!entry.isDirectory() || !idSchema.safeParse(entry.name).success || await this.isDeleted(entry.name)) continue;
-        try { documents.push((await this.committed(entry.name)).snapshot.document); }
+        try { const record = await this.committed(entry.name); documents.push(record.snapshot.document); records.push(record); }
         catch (error) {
           // A broken or incompatible document must not disable the whole library or import.
           // Keep its published files untouched; callers still see an explicit recovery warning.
           if (!(error instanceof StudioError) || error.code !== 'document_unavailable') throw error;
-          unavailableDocuments++;
+          unavailable.push(await this.unavailableInfo(entry.name));
         }
       }
-      return { documents, unavailableDocuments, sequence: this.state.sequence };
+      return { documents, records, unavailable, unavailableDocuments: unavailable.length, sequence: this.state.sequence };
     });
   }
   async list() { return (await this.listSnapshot()).documents; }
+  /** A recovery token describes the app-owned directory, never a renderer-provided path. */
+  private async unavailableInfo(id: string): Promise<UnavailableDocument> {
+    const directory = this.directory(id);
+    const state: unknown[] = [];
+    const record = async (name: string) => {
+      try {
+        const stat = await lstat(name ? path.join(directory, name) : directory);
+        state.push([name, stat.dev, stat.ino, stat.size, stat.birthtimeMs, stat.mtimeMs, stat.ctimeMs, stat.isSymbolicLink()]);
+        return stat;
+      } catch (error) { state.push([name, (error as NodeJS.ErrnoException).code ?? 'unavailable']); return null; }
+    };
+    const directoryStat = await record('');
+    if (directoryStat?.isDirectory() && !directoryStat.isSymbolicLink()) {
+      try { for (const name of (await readdir(directory)).sort()) await record(name); }
+      catch (error) { state.push(['entries', (error as NodeJS.ErrnoException).code ?? 'unavailable']); }
+    }
+    return { id, token: digest(JSON.stringify(state)), directory, reason: 'document_unavailable' };
+  }
+  private async verifyUnavailable(id: string, token: string) {
+    if (await this.isDeleted(id)) throw new StudioError('document_unavailable');
+    await this.assertDirectory(this.directory(id));
+    let readable = false;
+    try { await this.committed(id); readable = true; }
+    catch (error) { if (!(error instanceof StudioError) || error.code !== 'document_unavailable') throw error; }
+    if (readable) throw new StudioError('revision_conflict');
+    const entry = await this.unavailableInfo(id);
+    if (entry.token !== token) throw new StudioError('revision_conflict');
+    return entry;
+  }
+  revealUnavailable(id: string, token: string, guard: () => void = () => {}) {
+    return this.serial(async () => { const entry = await this.verifyUnavailable(id, token); guard(); return entry.directory; });
+  }
+  deleteUnavailable(id: string, token: string, guard: () => void = () => {}) {
+    return this.serial(async () => {
+      await this.verifyUnavailable(id, token);
+      const folder = path.join(this.root, '.deleted');
+      await mkdir(folder, { recursive: true }); await this.assertDirectory(folder);
+      // Unreadable records have no trusted revision. Their tombstone is a distinct lifecycle record.
+      await this.publish(this.tombstone(id), JSON.stringify({ schemaVersion: 1, documentId: id, kind: 'unavailable' }), 'delete-publish', guard);
+      await this.syncDirectory(folder);
+      this.state.sequence++;
+      return this.cleanup(id);
+    });
+  }
   transact(id: string, expectedRevision: number, mutate: (snapshot: DocumentSnapshot) => void, guard: () => void = () => {}): Promise<DocumentSnapshot> {
     return this.serial(async () => {
       const { snapshot, pointer } = await this.committed(id);

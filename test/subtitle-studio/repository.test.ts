@@ -92,6 +92,48 @@ describe('document generations and lifecycle', () => {
     await expect(repo.transact(doc.id, 1, translated)).rejects.toThrow('revision_conflict');
     await expect(repo.transact(doc.id, 2, (() => Promise.resolve()) as never)).rejects.toThrow('invalid_input');
   });
+  it('identifies unreadable records consistently across restart and removes only the selected app record', async () => {
+    const { directory, root, repo, doc } = await fixture();
+    const brokenId = randomUUID(); const folder = path.join(directory, brokenId); await mkdir(folder);
+    await writeFile(path.join(folder, 'current.json'), '{}');
+    await writeFile(path.join(root, 'source.lrc'), 'source must stay');
+    const record = (await repo.listSnapshot()).unavailable[0];
+    expect(record).toMatchObject({ id: brokenId, directory: folder, reason: 'document_unavailable' });
+    expect(record.token).toMatch(/^[a-f0-9]{64}$/);
+    expect((await new DocumentRepository(directory).listSnapshot()).unavailable).toEqual([record]);
+    expect(await repo.revealUnavailable(brokenId, record.token)).toBe(folder);
+    expect(await repo.deleteUnavailable(brokenId, record.token)).toEqual({ cleanupPending: false });
+    expect((await new DocumentRepository(directory).listSnapshot()).unavailable).toEqual([]);
+    expect((await repo.read(doc.id)).id).toBe(doc.id);
+    expect(await readFile(path.join(root, 'source.lrc'), 'utf8')).toBe('source must stay');
+    expect(JSON.parse(await readFile(path.join(directory, '.deleted', `${brokenId}.json`), 'utf8'))).toEqual({ schemaVersion: 1, documentId: brokenId, kind: 'unavailable' });
+  });
+  it('rejects stale recovery tokens and will not delete a document that has become readable', async () => {
+    const { directory, repo, doc } = await fixture();
+    const file = path.join(directory, doc.id, 'current.json'); const pointer = await readFile(file, 'utf8');
+    await writeFile(file, '{}');
+    const first = (await repo.listSnapshot()).unavailable[0];
+    await writeFile(file, '{"changed":true}');
+    await expect(repo.revealUnavailable(doc.id, first.token)).rejects.toThrow('revision_conflict');
+    await expect(repo.deleteUnavailable(doc.id, first.token)).rejects.toThrow('revision_conflict');
+    const second = (await repo.listSnapshot()).unavailable[0];
+    expect(second.token).not.toBe(first.token);
+    await writeFile(file, pointer);
+    await expect(repo.deleteUnavailable(doc.id, second.token)).rejects.toThrow('revision_conflict');
+    expect((await repo.read(doc.id)).revision).toBe(1);
+  });
+  it('retains unreadable data after authorization failure and retries published recovery cleanup on restart', async () => {
+    const { directory, repo, doc } = await fixture();
+    await writeFile(path.join(directory, doc.id, 'current.json'), '{}');
+    const record = (await repo.listSnapshot()).unavailable[0];
+    await expect(repo.deleteUnavailable(doc.id, record.token, () => { throw new Error('revoked'); })).rejects.toThrow('revoked');
+    expect((await repo.listSnapshot()).unavailable).toEqual([record]);
+    const failing = new DocumentRepository(directory, { fault: stage => { if (stage === 'delete-cleanup') throw new Error('locked'); } });
+    expect(await failing.deleteUnavailable(doc.id, record.token)).toEqual({ cleanupPending: true });
+    expect(await readFile(path.join(directory, doc.id, 'current.json'), 'utf8')).toBe('{}');
+    expect((await new DocumentRepository(directory).listSnapshot()).unavailable).toEqual([]);
+    await expect(readFile(path.join(directory, doc.id, 'current.json'))).rejects.toThrow();
+  });
   it.each(['completed', 'failed', 'cancelled'] as const)('clears %s task checkpoints while keeping translation, source and exports', async status => {
     const { repo, doc, root, raw } = await fixture();
     await repo.transact(doc.id, 1, snapshot => { translated(snapshot); snapshot.tasks[0].status = status; });

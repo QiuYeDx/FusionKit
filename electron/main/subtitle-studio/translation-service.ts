@@ -113,6 +113,21 @@ export class TranslationService {
     if (!entry || entry.owner !== owner) throw new StudioError('access_denied');
     const { plan } = entry;
     if (Date.now() - entry.created > 15 * 60000 || plan.documentId !== documentId || plan.revision !== revision) throw new StudioError('revision_conflict');
+    const result = await this.admit(plan, apiKey, guard);
+    this.plans.delete(planId);
+    return result;
+  }
+
+  /** Main-only batch admission; independent of the single-document preview cache. */
+  async startConfigured(documentId: string, revision: number, config: TranslationConfig, apiKey: string, guard: () => void = () => {}) {
+    this.assertOpen(); await this.initialize(); this.assertOpen();
+    const doc = await this.repository.read(documentId); guard();
+    if (doc.revision !== revision) throw new StudioError('revision_conflict');
+    return this.admit(planTranslation(doc, config), apiKey, guard);
+  }
+
+  private async admit(plan: TranslationPlan, apiKey: string, guard: () => void) {
+    const { documentId, revision } = plan;
     if (!apiKey.trim() || apiKey.length > 8000) throw new StudioError('needs_configuration');
     const taskId = randomUUID(); const trackId = randomUUID();
     const snapshot = await publishTransaction(this.repository, documentId, revision, value => {
@@ -122,7 +137,6 @@ export class TranslationService {
         translation: { config: plan.config, totalBatches: plan.batches.length, estimatedInputTokens: plan.batches.reduce((n, batch) => n + batch.estimatedInputTokens, 0), outputTokenReserve: plan.batches.length * plan.config.maxOutputTokens,
           usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 }, checkpoint: checkpointForPlan(plan, value.document), uncertainAttempts: 0 } });
     }, () => { this.assertOpen(); guard(); });
-    this.plans.delete(planId);
     this.launch(plan, snapshot, taskId, apiKey);
     return { taskId };
   }

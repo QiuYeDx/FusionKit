@@ -91,7 +91,8 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_E2E === '1')('Subtitle Studio local 
 
     const exportDialog = () => page.getByRole('dialog', { name: '导出字幕', exact: true });
     const openExport = async () => {
-      await page.getByRole('button', { name: '导出字幕', exact: true }).click();
+      await page.getByRole('button', { name: '下载', exact: true }).click();
+      await page.getByRole('menuitem', { name: '导出字幕', exact: true }).click();
       await uiExpect(exportDialog()).toBeVisible();
       await uiExpect(exportDialog().getByRole('combobox', { name: '导出内容', exact: true })).toBeFocused();
     };
@@ -116,13 +117,14 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_E2E === '1')('Subtitle Studio local 
     };
     const originalDownload = path.join(root, 'original-evidence.lrc');
     await app!.evaluate(({ dialog }, file) => { dialog.showSaveDialog = async () => ({ canceled: false, filePath: file }); }, originalDownload);
-    await page.getByRole('button', { name: '下载原文件', exact: true }).click();
+    await page.getByRole('button', { name: '下载', exact: true }).click();
+    await page.getByRole('menuitem', { name: '下载原文件', exact: true }).click();
     await uiExpect.poll(async () => readFile(originalDownload, 'utf8').catch(() => '')).toBe(original);
 
     await openExport();
     await page.keyboard.press('Escape');
     await uiExpect(exportDialog()).toHaveCount(0);
-    await uiExpect(page.getByRole('button', { name: '导出字幕', exact: true })).toBeFocused();
+    await uiExpect(page.getByRole('button', { name: '下载', exact: true })).toBeFocused();
     await openExport();
     await check();
     await uiExpect(page.locator('[data-issue="metadata_omitted"]')).toBeVisible();
@@ -191,7 +193,8 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_E2E === '1')('Subtitle Studio local 
     await page.evaluate(() => { localStorage.setItem('lang', 'en'); });
     await page.reload(); await openStudio(page);
     await window.evaluate(win => win.setSize(786, 540));
-    await page.getByRole('button', { name: 'Export subtitles', exact: true }).click();
+    await page.getByRole('button', { name: 'Download', exact: true }).click();
+    await page.getByRole('menuitem', { name: 'Export subtitles', exact: true }).click();
     const englishDialog = page.getByRole('dialog', { name: 'Export subtitles', exact: true });
     await englishDialog.getByRole('combobox', { name: 'Content', exact: true }).click();
     await page.getByRole('option', { name: 'Bilingual', exact: true }).click();

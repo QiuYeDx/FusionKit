@@ -131,6 +131,12 @@ Read this index first, then open only the detail files that plausibly match the 
 | FK-PIT-0124 | Vite / development dependency scanning | Failed to scan,HTML template,STAGE_DATA,release reports; Restrict dependency entries to the application HTML and verify forced scanning. | [restrict-vite-scanning-to-application-html-entries.md](restrict-vite-scanning-to-application-html-entries.md) |
 
 | FK-PIT-0125 | Windows / Vite networking | listen EACCES,5173,no listener,excludedportrange; Check Windows reserved TCP ranges and use a verified available port without changing host networking services. | [diagnose-windows-vite-eacces-as-a-reserved-port.md](diagnose-windows-vite-eacces-as-a-reserved-port.md) |
+| FK-PIT-0126 | Subtitle Studio / batch admission / export memory | forgetOwner,batch planning,planId invalidation,per-file results,export bytes; Give batches their own bounded owner-scoped plan and validate each document without accumulating complete output buffers. | [separate-batch-plans-from-single-document-plan-replacement.md](separate-batch-plans-from-single-document-plan-replacement.md) |
+| FK-PIT-0127 | Frontend / responsive layout / async lifecycle | batch result lost,resize,dialog unmount,conditional aside,portal,debounced selection; Keep long-running operation state outside replaceable layout branches and lock stale query results until the new scope arrives. | [keep-batch-controllers-mounted-across-responsive-library-layouts.md](keep-batch-controllers-mounted-across-responsive-library-layouts.md) |
+
+| FK-PIT-0128 | Frontend / repeated controls / geometry | master checkbox,row checkbox,nested padding,animated dialog; Share the selection column origin and measure related frames in one DOM sample. | [align-repeated-selection-controls-from-one-layout-origin.md](align-repeated-selection-controls-from-one-layout-origin.md) |
+
+| FK-PIT-0129 | Frontend / selectable lists / state composition | nested hover,current preview,multiselection,checkbox outside highlight; A row wrapper owns the single state surface while child controls stay transparent. | [give-combined-row-states-one-visual-surface.md](give-combined-row-states-one-visual-surface.md) |
 
 ## Add new cases
 

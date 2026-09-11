@@ -9,6 +9,14 @@ export function createSubtitleStudioApi(ipc: { sendSync(channel: string, payload
   };
   return Object.freeze({
     importSubtitle: request => invoke(STUDIO_CHANNELS.importSubtitle, request),
+    importSubtitles: request => invoke(STUDIO_CHANNELS.importSubtitles, request),
+    revealUnavailable: request => invoke(STUDIO_CHANNELS.revealUnavailable, request),
+    deleteUnavailable: request => invoke(STUDIO_CHANNELS.deleteUnavailable, request),
+    planTranslationBatch: request => invoke(STUDIO_CHANNELS.planTranslationBatch, request),
+    createTranslationBatch: request => invoke(STUDIO_CHANNELS.createTranslationBatch, request),
+    planExportBatch: request => invoke(STUDIO_CHANNELS.planExportBatch, request),
+    exportBatch: request => invoke(STUDIO_CHANNELS.exportBatch, request),
+    exportSources: request => invoke(STUDIO_CHANNELS.exportSources, request),
     listDocuments: request => invoke(STUDIO_CHANNELS.listDocuments, request),
     readDocumentPage: request => invoke(STUDIO_CHANNELS.readDocumentPage, request),
     exportSource: request => invoke(STUDIO_CHANNELS.exportSource, request),

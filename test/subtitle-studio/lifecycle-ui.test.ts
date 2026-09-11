@@ -60,7 +60,8 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_E2E === '1')('Subtitle Studio recove
     await uiExpect(page.locator('.studio-cue-text').first()).toContainText('<script>');
     const exported = path.join(root, 'export.lrc');
     await app!.evaluate(({ dialog }, selected) => { dialog.showSaveDialog = async () => ({ canceled: false, filePath: selected }); }, exported);
-    await page.getByRole('button', { name: '下载原文件', exact: true }).click();
+    await page.getByRole('button', { name: '下载', exact: true }).click();
+    await page.getByRole('menuitem', { name: '下载原文件', exact: true }).click();
     await uiExpect(page.getByRole('status').filter({ hasText: '已下载' })).toBeVisible();
     expect(await readFile(exported, 'utf8')).toBe(source);
     const window = await app!.browserWindow(page);

@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, type IpcMainInvokeEvent, type WebContents } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, shell, type IpcMainInvokeEvent, type WebContents } from 'electron';
 import { randomUUID } from 'node:crypto';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -10,13 +10,17 @@ import { readSubtitle } from './input-service';
 import { ExportService, publishSource, unusedOutputPath } from './export-service';
 import { TranslationService } from './translation-service';
 import { BilingualService } from './bilingual-service';
+import { BatchService } from './batch-service';
+import { selectLibrary } from './library-service';
+import { STUDIO_BATCH_LIMIT, type BatchImportResult } from '../../../src/subtitle-studio/batch-contract';
 
 export function registerSubtitleStudio() {
   const repository = new DocumentRepository(path.join(app.getPath('userData'), 'subtitle-studio', 'documents'));
   const translation = new TranslationService(repository);
   const bilingual = new BilingualService(repository);
   const exports = new ExportService(repository);
-  const owners = new Map<number, { sender: WebContents; capability: string; documents: Set<string> }>();
+  const batches = new BatchService(repository, translation);
+  const owners = new Map<number, { sender: WebContents; capability: string; documents: Set<string>; unavailable: Map<string, string> }>();
   const allowed = new Set<number>();
   const rendererUrl = process.env.VITE_DEV_SERVER_URL || pathToFileURL(path.join(app.getAppPath(), 'dist', 'index.html')).href;
   const trusted = (url: string) => {
@@ -34,9 +38,10 @@ export function registerSubtitleStudio() {
   const envelope = z.object({ capability: z.string().uuid(), payload: z.unknown() }).strict();
   ipcMain.on(STUDIO_CHANNELS.register, (event, request) => {
     if (!allowed.has(event.sender.id) || event.senderFrame !== event.sender.mainFrame || !trusted(event.senderFrame.url) || !z.object({}).strict().safeParse(request).success) { event.returnValue = null; return; }
-    const owner = { sender: event.sender, capability: randomUUID(), documents: new Set<string>() };
+    const owner = { sender: event.sender, capability: randomUUID(), documents: new Set<string>(), unavailable: new Map<string, string>() };
     translation.forgetOwner(event.sender.id);
     exports.forgetOwner(event.sender.id);
+    batches.forgetOwner(event.sender.id);
     owners.set(event.sender.id, owner);
     event.returnValue = owner.capability;
   });
@@ -56,11 +61,41 @@ export function registerSubtitleStudio() {
         const alive = () => { if (owners.get(event.sender.id) !== owner || event.sender.isDestroyed() || !trusted(event.sender.mainFrame.url)) throw new StudioError('access_denied'); };
         await translation.initialize(); alive();
         if (method === 'listDocuments') {
-          const { offset } = requestSchemas.listDocuments.parse(payload);
-          const { documents, unavailableDocuments, sequence } = await repository.listSnapshot(); alive();
-          const page = documents.slice(offset, offset + LIMITS.pageSize);
-          page.forEach(doc => owner.documents.add(doc.id));
-          return { ok: true, value: { documents: page.map(summarizeDocument), total: documents.length, unavailableDocuments, sequence } };
+          const snapshot = await repository.listSnapshot(); alive();
+          const value = selectLibrary(snapshot, requestSchemas.listDocuments.parse(payload));
+          value.documents.forEach(doc => owner.documents.add(doc.id));
+          owner.unavailable = new Map(snapshot.unavailable.map(item => [item.id, item.token]));
+          return { ok: true, value };
+        }
+        if (method === 'revealUnavailable' || method === 'deleteUnavailable') {
+          const request = requestSchemas.revealUnavailable.parse(payload);
+          if (owner.unavailable.get(request.documentId) !== request.token) throw new StudioError('access_denied');
+          if (method === 'revealUnavailable') {
+            const directory = await repository.revealUnavailable(request.documentId, request.token, alive); alive();
+            shell.showItemInFolder(directory);
+            return { ok: true, value: null };
+          }
+          const value = await repository.deleteUnavailable(request.documentId, request.token, alive); alive();
+          owner.unavailable.delete(request.documentId);
+          return { ok: true, value };
+        }
+        if (method === 'importSubtitles') {
+          const window = BrowserWindow.fromWebContents(event.sender);
+          if (!window) throw new StudioError('access_denied');
+          const selection = await dialog.showOpenDialog(window, { properties: ['openFile', 'multiSelections'], filters: [{ name: 'SRT / LRC', extensions: ['srt', 'lrc'] }] }); alive();
+          if (selection.canceled || !selection.filePaths.length) return { ok: true, value: null };
+          const paths = [...new Set(selection.filePaths.map(file => path.resolve(file)))];
+          if (paths.length > STUDIO_BATCH_LIMIT) throw new StudioError('limit_exceeded');
+          const value: BatchImportResult = { items: [] };
+          const { encoding } = requestSchemas.importSubtitles.parse(payload);
+          for (const file of paths) {
+            try {
+              const doc = await readSubtitle(file, encoding); alive();
+              await repository.create(doc, alive); alive(); owner.documents.add(doc.id);
+              value.items.push({ fileName: path.basename(file), ok: true, document: summarizeDocument(doc) });
+            } catch (error) { alive(); value.items.push({ fileName: path.basename(file), ok: false, error: error instanceof StudioError ? error.code : 'document_unavailable' }); }
+          }
+          return { ok: true, value };
         }
         if (method === 'importSubtitle') {
           const window = BrowserWindow.fromWebContents(event.sender);
@@ -70,6 +105,30 @@ export function registerSubtitleStudio() {
           const doc = await readSubtitle(selection.filePaths[0], requestSchemas.importSubtitle.parse(payload).encoding); alive();
           await repository.create(doc, alive); alive(); owner.documents.add(doc.id);
           return { ok: true, value: summarizeDocument(doc) };
+        }
+        if (method === 'planTranslationBatch' || method === 'planExportBatch' || method === 'exportSources') {
+          const input = requestSchemas[method].parse(payload);
+          if (input.documents.some(doc => !owner.documents.has(doc.documentId))) throw new StudioError('access_denied');
+          if (method === 'planTranslationBatch') return { ok: true, value: await batches.planTranslation(event.sender.id, requestSchemas.planTranslationBatch.parse(payload), alive) };
+          if (method === 'planExportBatch') return { ok: true, value: await batches.planExport(event.sender.id, requestSchemas.planExportBatch.parse(payload), alive) };
+          const window = BrowserWindow.fromWebContents(event.sender);
+          if (!window) throw new StudioError('access_denied');
+          const selection = await dialog.showOpenDialog(window, { properties: ['openDirectory', 'createDirectory'] }); alive();
+          if (selection.canceled || !selection.filePaths.length) return { ok: true, value: null };
+          return { ok: true, value: await batches.exportSources(input.documents, selection.filePaths[0], alive) };
+        }
+        if (method === 'createTranslationBatch') {
+          const { batchId, apiKey } = requestSchemas.createTranslationBatch.parse(payload);
+          return { ok: true, value: await batches.createTranslation(event.sender.id, batchId, apiKey, alive) };
+        }
+        if (method === 'exportBatch') {
+          const { batchId, acceptedLosses } = requestSchemas.exportBatch.parse(payload);
+          batches.inspectExport(event.sender.id, batchId, acceptedLosses);
+          const window = BrowserWindow.fromWebContents(event.sender);
+          if (!window) throw new StudioError('access_denied');
+          const selection = await dialog.showOpenDialog(window, { properties: ['openDirectory', 'createDirectory'] }); alive();
+          if (selection.canceled || !selection.filePaths.length) return { ok: true, value: null };
+          return { ok: true, value: await batches.export(event.sender.id, batchId, acceptedLosses, selection.filePaths[0], alive) };
         }
         const request = requestSchemas.exportSource.parse({ documentId: (parsed.data as { documentId: string }).documentId, revision: (parsed.data as { revision: number }).revision });
         if (!owner.documents.has(request.documentId)) throw new StudioError('access_denied');
@@ -142,7 +201,7 @@ export function registerSubtitleStudio() {
           const nodes = doc.preservation.nodes.slice(nodeOffset, nodeOffset + LIMITS.pageSize);
           const cueIds = new Set(cues.map(cue => cue.id));
           const translationTracks = doc.translationTracks.map(track => ({ ...track, entries: Object.fromEntries(Object.entries(track.entries).filter(([id]) => cueIds.has(id))) }));
-          return { ok: true, value: { summary: summarizeDocument(doc), cues, offset, nodeOffset, nodeCount: doc.preservation.nodes.length, rawNodes: nodes.map(node => ({ id: node.id, text: doc.preservation.rawText.slice(node.start, node.end) })), translationTracks, tasks: snapshot.tasks.map(summarizeTask) } };
+          return { ok: true, value: { summary: summarizeDocument(doc, snapshot.tasks), cues, offset, nodeOffset, nodeCount: doc.preservation.nodes.length, rawNodes: nodes.map(node => ({ id: node.id, text: doc.preservation.rawText.slice(node.start, node.end) })), translationTracks, tasks: snapshot.tasks.map(summarizeTask) } };
         }
         if (method !== 'exportSource') throw new StudioError('invalid_input');
         const window = BrowserWindow.fromWebContents(event.sender);
@@ -161,12 +220,13 @@ export function registerSubtitleStudio() {
   return {
     attach(sender: WebContents) {
       allowed.add(sender.id);
-      sender.on('did-start-navigation', (_event, _url, inPlace, mainFrame) => { if (mainFrame && !inPlace) { owners.delete(sender.id); translation.forgetOwner(sender.id); exports.forgetOwner(sender.id); } });
-      sender.once('destroyed', () => { owners.delete(sender.id); allowed.delete(sender.id); translation.forgetOwner(sender.id); exports.forgetOwner(sender.id); });
+      sender.on('did-start-navigation', (_event, _url, inPlace, mainFrame) => { if (mainFrame && !inPlace) { owners.delete(sender.id); translation.forgetOwner(sender.id); exports.forgetOwner(sender.id); batches.forgetOwner(sender.id); } });
+      sender.once('destroyed', () => { owners.delete(sender.id); allowed.delete(sender.id); translation.forgetOwner(sender.id); exports.forgetOwner(sender.id); batches.forgetOwner(sender.id); });
     },
     dispose() {
       void translation.dispose();
       exports.dispose();
+      batches.dispose();
       unsubscribe();
       owners.clear(); allowed.clear();
       ipcMain.removeAllListeners(STUDIO_CHANNELS.register);

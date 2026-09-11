@@ -97,7 +97,8 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_E2E === '1')('Subtitle Studio biling
     await page.screenshot({ path: path.join(artifacts, 'imported-desktop.png'), animations: 'disabled' });
     const download = path.join(root, 'original-download.lrc');
     await app.evaluate(({ dialog }, file) => { dialog.showSaveDialog = async () => ({ canceled: false, filePath: file }); }, download);
-    await page.getByRole('button', { name: '下载原文件', exact: true }).click();
+    await page.getByRole('button', { name: '下载', exact: true }).click();
+    await page.getByRole('menuitem', { name: '下载原文件', exact: true }).click();
     await uiExpect(page.getByRole('status').filter({ hasText: '已下载' })).toBeVisible();
     expect(await readFile(download, 'utf8')).toBe(source);
     await page.getByRole('button', { name: '清除译文', exact: true }).click();

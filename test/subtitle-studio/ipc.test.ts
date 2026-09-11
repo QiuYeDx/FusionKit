@@ -12,11 +12,12 @@ import { planTranslation } from '../../electron/main/subtitle-studio/translation
 import { checkpointForPlan } from '../../electron/main/subtitle-studio/translation-recovery';
 import type { ExportOptions } from '../../src/subtitle-studio/export-contract';
 
-const adapter = vi.hoisted(() => ({ handlers: new Map<string, Function>(), listeners: new Map<string, Function>(), directory: '', open: vi.fn(), save: vi.fn() }));
+const adapter = vi.hoisted(() => ({ handlers: new Map<string, Function>(), listeners: new Map<string, Function>(), directory: '', open: vi.fn(), save: vi.fn(), reveal: vi.fn() }));
 vi.mock('electron', () => ({
   app: { getPath: () => adapter.directory, getAppPath: () => process.cwd() },
   BrowserWindow: { fromWebContents: () => ({}) },
   dialog: { showOpenDialog: adapter.open, showSaveDialog: adapter.save },
+  shell: { showItemInFolder: adapter.reveal },
   ipcMain: { on: (channel: string, handler: Function) => adapter.listeners.set(channel, handler), handle: (channel: string, handler: Function) => adapter.handlers.set(channel, handler), removeAllListeners: (channel: string) => adapter.listeners.delete(channel), removeHandler: (channel: string) => adapter.handlers.delete(channel) },
 }));
 import { registerSubtitleStudio } from '../../electron/main/subtitle-studio';
@@ -47,7 +48,7 @@ async function setup(content = '[00:01.00]<script>window.injected=true</script>\
 afterEach(async () => {
   registration?.dispose(); registration = undefined;
   if (adapter.directory) await rm(adapter.directory, { recursive: true, force: true });
-  adapter.open.mockReset(); adapter.save.mockReset();
+  adapter.open.mockReset(); adapter.save.mockReset(); adapter.reveal.mockReset();
 });
 
 describe('production Subtitle Studio IPC handler composition', () => {
@@ -73,6 +74,63 @@ describe('production Subtitle Studio IPC handler composition', () => {
     expect(await readFile(path.join(folder, 'current.json'), 'utf8')).toBe(pointer);
   });
   const exportOptions: ExportOptions = { mode: 'source', format: 'lrc', order: 'source-first', encoding: 'utf-8', bom: false, newline: 'lf', incomplete: 'block', missingEnd: { mode: 'block' } };
+  it('imports a native multiple selection with ordered independent failures and a bounded selection size', async () => {
+    const { owner } = await setup();
+    const valid = path.join(adapter.directory, '日本語.lrc'); await writeFile(valid, '[00:01]Japanese\n');
+    const invalid = path.join(adapter.directory, 'broken.lrc'); await writeFile(invalid, Buffer.from([0xff, 0xfe, 0xff]));
+    const other = path.join(adapter.directory, 'second.srt'); await writeFile(other, '1\n00:00:01,000 --> 00:00:02,000\nSecond\n');
+    adapter.open.mockResolvedValueOnce({ canceled: false, filePaths: [valid, invalid, other] });
+    const result = await owner.invoke(STUDIO_CHANNELS.importSubtitles, { encoding: 'utf-8' });
+    expect(adapter.open.mock.calls.at(-1)?.[1].properties).toEqual(['openFile', 'multiSelections']);
+    expect(result).toMatchObject({ ok: true, value: { items: [{ fileName: '日本語.lrc', ok: true }, { fileName: 'broken.lrc', ok: false, error: 'encoding_required' }, { fileName: 'second.srt', ok: true }] } });
+    expect(await owner.invoke(STUDIO_CHANNELS.listDocuments, { offset: 0 })).toMatchObject({ ok: true, value: { total: 3 } });
+    const before = adapter.open.mock.calls.length;
+    expect(await owner.invoke(STUDIO_CHANNELS.importSubtitles, { encoding: 'utf-8', paths: [valid] })).toEqual({ ok: false, error: 'invalid_input' });
+    expect(adapter.open).toHaveBeenCalledTimes(before);
+    adapter.open.mockResolvedValueOnce({ canceled: false, filePaths: Array.from({ length: 101 }, (_, index) => path.join(adapter.directory, `${index}.lrc`)) });
+    expect(await owner.invoke(STUDIO_CHANNELS.importSubtitles, { encoding: 'utf-8' })).toEqual({ ok: false, error: 'limit_exceeded' });
+    adapter.open.mockResolvedValueOnce({ canceled: true, filePaths: [] });
+    expect(await owner.invoke(STUDIO_CHANNELS.importSubtitles, { encoding: 'utf-8' })).toEqual({ ok: true, value: null });
+  });
+  it('reveals and deletes only an enumerated unreadable record using its exact owner grant and recovery token', async () => {
+    const { owner, doc } = await setup();
+    const brokenId = randomUUID(); const directory = path.join(adapter.directory, 'subtitle-studio', 'documents', brokenId);
+    await mkdir(directory); await writeFile(path.join(directory, 'current.json'), '{}');
+    const listed = await owner.invoke(STUDIO_CHANNELS.listDocuments, { offset: 0 }); const record = listed.value.unavailable[0];
+    const request = { documentId: record.id, token: record.token };
+    const other = attach();
+    for (const method of [STUDIO_CHANNELS.revealUnavailable, STUDIO_CHANNELS.deleteUnavailable]) {
+      expect(await other.invoke(method, request)).toEqual({ ok: false, error: 'access_denied' });
+      expect(await owner.invoke(method, { ...request, path: adapter.directory })).toEqual({ ok: false, error: 'invalid_input' });
+      expect(await owner.invoke(method, { ...request, token: 'a'.repeat(64) })).toEqual({ ok: false, error: 'access_denied' });
+      expect(await owner.invoke(method, { ...request, documentId: doc.id })).toEqual({ ok: false, error: 'access_denied' });
+    }
+    expect(await owner.invoke(STUDIO_CHANNELS.revealUnavailable, request)).toEqual({ ok: true, value: null });
+    expect(adapter.reveal).toHaveBeenCalledTimes(1); expect(adapter.reveal).toHaveBeenCalledWith(directory);
+    expect(await owner.invoke(STUDIO_CHANNELS.deleteUnavailable, request)).toEqual({ ok: true, value: { cleanupPending: false } });
+    expect(await owner.invoke(STUDIO_CHANNELS.listDocuments, { offset: 0 })).toMatchObject({ ok: true, value: { total: 1, unavailableDocuments: 0, unavailable: [] } });
+    registration!.dispose(); registration = registerSubtitleStudio();
+    expect(await attach().invoke(STUDIO_CHANNELS.listDocuments, { offset: 0 })).toMatchObject({ ok: true, value: { total: 1, unavailableDocuments: 0 } });
+    expect(await readFile(path.join(adapter.directory, 'sample.lrc'), 'utf8')).toContain('window.injected');
+  });
+  it('uses one native directory selection for a batch, preserves cancelled plans and rejects revoked or other owners', async () => {
+    const { owner, request } = await setup('[00:01]Original\n');
+    const planned = await owner.invoke(STUDIO_CHANNELS.planExportBatch, { documents: [request], options: exportOptions });
+    expect(planned).toMatchObject({ ok: true, value: { items: [{ ok: true }] } });
+    const execute = { batchId: planned.value.batchId, acceptedLosses: [] };
+    expect(await attach().invoke(STUDIO_CHANNELS.exportBatch, execute)).toEqual({ ok: false, error: 'access_denied' });
+    adapter.open.mockResolvedValueOnce({ canceled: true, filePaths: [] });
+    expect(await owner.invoke(STUDIO_CHANNELS.exportBatch, execute)).toEqual({ ok: true, value: null });
+    adapter.open.mockResolvedValueOnce({ canceled: false, filePaths: [adapter.directory] });
+    expect(await owner.invoke(STUDIO_CHANNELS.exportBatch, execute)).toMatchObject({ ok: true, value: { items: [{ ok: true, result: { fileName: 'sample.source.lrc' } }] } });
+    expect(adapter.open.mock.calls.at(-1)?.[1].properties).toEqual(['openDirectory', 'createDirectory']);
+    expect(adapter.save).not.toHaveBeenCalled();
+    expect(await readFile(path.join(adapter.directory, 'sample.source.lrc'), 'utf8')).toBe('[00:01.000]Original\n');
+    const next = await owner.invoke(STUDIO_CHANNELS.planExportBatch, { documents: [request], options: exportOptions });
+    adapter.open.mockImplementationOnce(async () => { owner.client.emit('did-start-navigation', {}, rendererUrl, false, true); return { canceled: false, filePaths: [adapter.directory] }; });
+    expect(await owner.invoke(STUDIO_CHANNELS.exportBatch, { batchId: next.value.batchId, acceptedLosses: [] })).toEqual({ ok: false, error: 'access_denied' });
+    await expect(readFile(path.join(adapter.directory, 'sample.source (1).lrc'))).rejects.toThrow();
+  });
   it('validates export plans and exposes only fixed public export methods', async () => {
     const { owner, request } = await setup('[00:01.00]Original\n');
     const other = attach();

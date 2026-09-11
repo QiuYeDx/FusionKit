@@ -19,13 +19,13 @@
       "approval": {
         "state": "approved",
         "by": "用户（当前 Codex 任务）",
-        "basis": "2026-09-08 当前任务用户原文：请在当前 FusionKit 仓库开始实现独立新版“字幕工作台”的 I1。先阅读 docs/features/subtitle-studio/README.md，按其中索引读 spec.json、BRD、整体架构、转写继承边界和 I1 的 requirements/design/tasks。本条消息授权按已定义的 I1 范围开始实施；登记真实授权并更新任务台账。2026-09-09 用户进一步要求对已是双语的 SRT/LRC 智能识别原文/译文，支持清除旧译文后重新翻译，并明确：完善一下本工具的设计，并完善/实现一下相关代码和逻辑吧；后续计划中的导出等功能只需更新设计以免打乱计划。新增 R-WORKSPACE-08/T-WORKSPACE-07，T05 补导出区分；不开展 I2/I4。",
-        "digest": "2ab0a035f81fb9b2f63d86e1c3b1fa4ce43d490fb809a57905f24161b6fbbf45"
+        "basis": "2026-09-08 当前任务用户原文：请在当前 FusionKit 仓库开始实现独立新版“字幕工作台”的 I1。先阅读 docs/features/subtitle-studio/README.md，按其中索引读 spec.json、BRD、整体架构、转写继承边界和 I1 的 requirements/design/tasks。本条消息授权按已定义的 I1 范围开始实施；登记真实授权并更新任务台账。2026-09-09 用户进一步要求对已是双语的 SRT/LRC 智能识别原文/译文，支持清除旧译文后重新翻译，并明确：完善一下本工具的设计，并完善/实现一下相关代码和逻辑吧；后续计划中的导出等功能只需更新设计以免打乱计划。新增 R-WORKSPACE-08/T-WORKSPACE-07，T05 补导出区分；不开展 I2/I4。 2026-09-11 用户要求在 I2 前优化异常文档管理、多文件导入、搜索排序筛选分页与批量操作、统一预览按钮；据此新增 R-WORKSPACE-09/T-WORKSPACE-08，授权本次范围内连续实施和隔离验证，I2 保持未批准。",
+        "digest": "d8f56a7103c5cac415bd148833a56fae595e0cd00bd4db826ca2c2c7198e9f4a"
       },
       "acceptance": {
         "state": "pending",
         "by": "",
-        "basis": "T06 技术验证已完成，证据见收尾记录；等待用户最终确认，未代签验收，不进入 I2。",
+        "basis": "T06 技术验证及 T08 文档库/批量体验改进已完成，证据见收尾记录和 records/2026-09-11-library-batch.md；等待用户最终确认，未代签验收，不进入 I2。",
         "digest": "",
         "record": "records/2026-09-10-i1-closeout.md"
       }
@@ -144,8 +144,8 @@
     }
   ],
   "parallel": {
-    "enabled": false,
-    "integrator": "",
+    "enabled": true,
+    "integrator": "Codex root",
     "shared_files": []
   }
 }
