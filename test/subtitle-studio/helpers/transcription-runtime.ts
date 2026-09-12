@@ -34,7 +34,9 @@ export class SyntheticChild extends EventEmitter {
 }
 
 export async function runtimeFixture(dependencies: TranscriptionRuntimeDependencies = {}) {
-  const bundle = await createRuntimeFixture({ mode: 'development', platform: 'darwin', arch: 'arm64' });
+  // These tests exercise real filesystem lifecycle rules, so the target must match the host.
+  const platform = process.platform === 'win32' ? 'win32' : 'darwin';
+  const bundle = await createRuntimeFixture({ mode: 'development', platform, arch: platform === 'win32' ? 'x64' : 'arm64' });
   const userDataRoot = path.join(bundle.tempRoot, 'user-data');
   await mkdir(userDataRoot);
   const bytes = Buffer.alloc(48 + 256, 0x37);

@@ -13,12 +13,14 @@ const compare = (a, b) => a < b ? -1 : a > b ? 1 : 0;
 const moduleExtension = /\.[cm]?[jt]sx?$/;
 const literalEditsPath = fileURLToPath(new URL('./copy-literals.json', import.meta.url));
 const jsonEditsPath = fileURLToPath(new URL('./copy-json.json', import.meta.url));
+export const COMPOSITION_AUDIT_PATH = 'scripts/subtitle-studio-provenance/current-composition-audits.json';
 
 function gitRead(root, args) {
   return execFileSync('git', ['-C', root, ...args], { maxBuffer: 128 * 1024 * 1024, timeout: 10_000, killSignal: 'SIGKILL', stdio: ['ignore', 'pipe', 'pipe'], env: { ...process.env, GIT_OPTIONAL_LOCKS: '0' } });
 }
 
 export function checkCopyWorktree(root, baseline, policy = BASELINE_POLICY) {
+  const compositionAudits = readCompositionAudits(root, baseline);
   const errors = [], registered = new Set(baseline.files.map(file => file.sourcePath));
   const current = gitRead(root, ['ls-files', '--cached', '--others', '--exclude-standard', '-z']).toString().split('\0').filter(Boolean);
   for (const name of new Set(current)) if (!registered.has(name) && policy.roots.some(selection => selection.endsWith('/') ? name.startsWith(selection) : name === selection)) errors.push(`Added selected source: ${name}`);
@@ -35,10 +37,44 @@ export function checkCopyWorktree(root, baseline, policy = BASELINE_POLICY) {
       // Read directly from the checked file: large spawnSync stdin pipes can hang
       // on this host. Git still owns canonical CRLF/encoding normalization.
       const oid = gitRead(root, ['hash-object', `--path=${file.sourcePath}`, '--', file.sourcePath]).toString().trim();
-      if (oid !== file.blobOid) errors.push(`Changed source: ${file.sourcePath}`);
+      const compositionAudit = compositionAudits.get(file.sourcePath);
+      if (compositionAudit ? oid !== compositionAudit.currentBlobOid : oid !== file.blobOid) {
+        errors.push(`${compositionAudit ? 'Changed audited composition source' : 'Changed source'}: ${file.sourcePath}`);
+      }
     } catch (error) { errors.push(error.code === 'ENOENT' ? `Deleted source: ${file.sourcePath}` : error.message); }
   }
   if (errors.length) throw new Error(`Worktree drift:\n${errors.sort(compare).join('\n')}`);
+}
+
+function readCompositionAudits(root, baseline) {
+  let absolute = root;
+  for (const part of COMPOSITION_AUDIT_PATH.split('/')) {
+    absolute = path.join(absolute, part);
+    if (!fs.existsSync(absolute)) return new Map();
+    if (fs.lstatSync(absolute).isSymbolicLink()) throw new Error('Composition audit path is a symlink');
+  }
+  const document = JSON.parse(fs.readFileSync(absolute, 'utf8'));
+  const exactKeys = (value, keys) => value && typeof value === 'object' && !Array.isArray(value)
+    && Object.keys(value).length === keys.length && keys.every(key => Object.hasOwn(value, key));
+  if (!exactKeys(document, ['schemaVersion', 'sourceCommit', 'entries']) || document.schemaVersion !== 1
+    || document.sourceCommit !== baseline.sourceCommit || !Array.isArray(document.entries)) throw new Error('Composition audit header differs');
+  const audits = new Map();
+  for (const audit of document.entries) {
+    if (!exactKeys(audit, ['sourcePath', 'sourceBlobOid', 'sourceSha256', 'currentBlobOid', 'reason'])
+      || typeof audit.reason !== 'string' || !audit.reason.trim()
+      || !/^[a-f0-9]{40}$/.test(audit.currentBlobOid)) throw new Error('Invalid composition audit entry');
+    const sourcePath = relativePath(audit.sourcePath);
+    const source = baseline.files.find(file => file.sourcePath === sourcePath);
+    // Only explicitly inventoried application-composition evidence can evolve.
+    // Copied v1 code, build inputs and the frozen replay graph retain their pins.
+    if (!source || source.category !== 'application-composition' || source.disposition !== 'reference-only'
+      || source.plannedDestination !== null) throw new Error(`Composition audit is not reference-only application evidence: ${sourcePath}`);
+    if (audits.has(sourcePath)) throw new Error(`Duplicate composition audit: ${sourcePath}`);
+    if (audit.sourceBlobOid !== source.blobOid || audit.sourceSha256 !== source.sha256
+      || audit.currentBlobOid === source.blobOid) throw new Error(`Stale composition audit source identity: ${sourcePath}`);
+    audits.set(sourcePath, audit);
+  }
+  return audits;
 }
 
 function relativePath(value) {

@@ -10,9 +10,15 @@ I1 的 T-WORKSPACE-01 至 T-WORKSPACE-08 功能均已完成。涵盖 SRT/LRC 文
 
 本次盘点发现新增通用 UI 依赖未同步边界清单，独立 CLI 报三处未审计引用，而原来的边界测试只覆盖合成负例。现已补准确包项和真实仓库回归；本次收尾与最终验证见 [I1 门禁收尾](records/2026-09-11-boundary-closeout.md)。
 
-用户随后多次回复“好的，继续往后推进工作吧”，继续指令承接先 I1 收尾、再 I2 的建议。当前已完成 **I2 来源冻结、独立副本/确定性回放、独立runtime及本机原生验证、最终转录文档生产者**，来源以 `3a0f50ed15c1b63451402cecf27240182235e567` 为准。120文件转写副本之外新增16份native/构建副本、4份runtime校验副本；新工厂拥有私有资源、owner权限及可重试关闭，macOS addon真实编译/ad-hoc签名/Electron事务恢复通过。T04另建派生executor与内部producer/sink，清理后直接提交完整转录的schema2媒体文档，兼容现有分页/翻译/SRT与LRC导出。任务准入、应用接线和转写UI仍待下一阶段。当前I2改动仍在未提交共享工作树，I1/I2用户整体验收独立保持pending。
+I2 的 T01–T04 已随今天的 `e80ef6b` 集成到 `feat/subtitle-studio-transcription`。当前继续指令下，**T05任务准入/接线和T06转写工作区均已完成**：媒体多选/音轨与探测重试、独立资源准备、参数设置、FIFO队列进度/取消和完成文档入口已经接通。草稿与观察状态保留至本renderer会话的SPA切换，发布后的文档继续持久化。T05–T08纳入本次提交，I1/I2用户整体验收仍pending；各实施记录中的未提交状态保留为验证当时事实。
 
-来源闭包审查见[I2基线冻结记录](records/2026-09-11-transcription-baseline.md)；复制规则、新旧回放、真实品牌隔离见[I2独立副本记录](records/2026-09-11-transcription-copy-replay.md)；私有runtime、双资源预检及实际原生证据见[I2运行时与原生验证](records/2026-09-12-transcription-runtime-native.md)；完整证据映射、容量及提交边界见[I2转录文档生产者](records/2026-09-12-transcription-document.md)。最新1094项普通回归、49项来源/回放、1项实际Electron场景及两套TS/i18n/298文件实际边界通过；T03原生/packaging历史证据和环境专属跳过项分别记录，未冒充本轮重跑。
+T01来源冻结、T02独立副本和T03原生证据分别见对应历史记录；T04见[I2转录文档生产者](records/2026-09-12-transcription-document.md)。[T05任务准入与应用接线](records/2026-09-12-transcription-admission.md)保留当时1137项普通回归、75项来源/配对回放、1项实际Windows Electron桥接和两套TS/i18n/306文件边界证据。合成推理及桥接验证不代表真实ASR或GPU通过。
+
+T06证据见[转写工作区](records/2026-09-12-transcription-ui.md)：1161项相关普通回归、75项来源/回放，2项新转写实际Electron场景及2项既有工作台/媒体导出Electron回归通过；两套TS/i18n、316文件边界和真实preload构建通过。已审阅1280×860浅色、786×540深色、长名称/键盘/高级参数/资源弹窗。该轮完整流程仅以受控runtime验证UI/main/仓库交接；另用真实生产runtime证明资源缺失时正确阻止执行。
+
+**T07 Windows独立资源与真实CPU对照已完成**，见[当前实施记录](records/2026-09-12-transcription-windows-runtime.md)。新版15个FFmpeg/Whisper制品和原生addon已在本机独立staging，实际双资源beforePack预检通过；Windows Electron原生83案例通过。真实30秒音频、large-v3-q5_0、CPU/VAD关闭/fixed_v1下，新旧均输出6条字幕且文本/时间完全一致，新文档关闭后重开成功。源音频/模型及旧staging未变，测试进程已退出。I1/I2用户整体验收仍pending。
+
+**T08默认VAD与CPU/CUDA固定样本对照已完成**，见[默认配置与设备实测](records/2026-09-12-transcription-default-devices.md)。六样本两设备新旧24次加CUDA A固定重复2次，共26次真实运行；22次成功、4次无识别真实失败，13组配对终态一致，11组完整canonical无差异，11份新文档关闭后重开通过。实际模型/VAD/CUDA安装、精确PID设备证明及卸载完成，相关278项普通检查、类型/边界/规格通过。full接缝重复及C字幕过长等共同局限保留，不代签整体质量接受；CPU/CUDA本身也有分句差异。测试原生进程及独占资源根已清理，本轮实测未改生产源码与原有资源。
 
 ## 阅读顺序与权威位置
 
@@ -31,9 +37,9 @@ I1 的 T-WORKSPACE-01 至 T-WORKSPACE-08 功能均已完成。涵盖 SRT/LRC 文
 
 ## 下一步
 
-下一项细化新版转写任务准入/队列与应用runtime、main/preload接线，再接转写UI。T04生产者目前消费已准入的内部上下文；Q-02已解决：文档保持100000 cues/128MiB上限、超限整体拒绝，完整保留已有转录证据，不经SRT往返。完整新版FFmpeg/Whisper构建输入和回执仍待准备，现有双资源beforePack会在旧贡献通过后正确拒绝缺失的新版staging。
+下一项展开Windows完整共存/移除应用包演练，核对两工具共存及隔离副本移除v1后的完整构建运行闭包。本机新版Windows原生staging已经就绪；T08临时模型/VAD/CUDA已卸载，实际开发版仍通过资源页明确导入模型及准备VAD/加速资源。任务状态只在本会话保留；新文档继续持久化，容量保持100000 cues/128MiB、超限整体拒绝。
 
-Windows原生实跑、完整ASR/真实音频GPU、有界新旧效果对照、共存/删除后的完整应用包、外层签名/公证仍待后续验证。后续不得以清单hash、合成模型或本机ad-hoc addon验证代替这些证据。
+T07短样本与T08固定Windows矩阵不替代所有媒体质量、macOS完整资源、共存/移除后的完整应用包或签名/公证验证；这些仍待后续任务。build实物被Git忽略，换机需按固定来源重新制作，不能只凭清单hash宣称就绪。
 
 保留旧版已经接受的转写质量局限；I3 ASS、I4 编辑继续后置。全产品安装更新卸载、分发许可、音频真实设备/供应商验收独立安排，不从旧研究台账重启无限调参。
 
@@ -48,7 +54,7 @@ Windows原生实跑、完整ASR/真实音频GPU、有界新旧效果对照、共
 
 ## 换机器接续
 
-先保护未提交改动，再拉取 `v0.3.1`。源码、当前规格和项目级避坑技能随 Git 同步；用户级技能、模型设置、凭据、node_modules、test-results、模型及本机原生资源不随 Git 同步。使用兼容旧 lockfile 的 pnpm；只需检查时优先直接调用已安装工具的 Node 入口，不触发包装器自动安装。
+先保护未提交改动，再拉取 `feat/subtitle-studio-transcription`（T01–T04已在e80ef6b；T05–T08由本次提交接续）。源码、当前规格和项目级避坑技能随 Git 同步；用户级技能、模型设置、凭据、node_modules、test-results、模型及本机原生资源不随 Git 同步。使用兼容旧 lockfile 的 pnpm；只需检查时优先直接调用已安装工具的 Node 入口，不触发包装器自动安装。
 
 Windows/macOS 历史绝对路径只作为当时环境证据。新平台按当前任务执行适用检查，缺环境如实登记；原生资源身份不等于本机实测通过。没有用户级规格 checker 时可按本仓库明确的 R/AC/T/V 人工核验并记录工具缺失，不制造业务阻塞。
 

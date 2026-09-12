@@ -12,7 +12,17 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_E2E === '1')('Subtitle Studio worksp
   const errors: string[] = [];
   async function ready() {
     await page.getByTestId('subtitle-studio').waitFor();
-    await page.waitForFunction(() => !document.querySelector('.app-loading-wrap') && !document.querySelector('#app-loading-style'));
+    try { await page.waitForFunction(() => !document.querySelector('.app-loading-wrap') && !document.querySelector('#app-loading-style')); }
+    catch (error) {
+      await writeFile(path.join(artifacts, 'loading-failure.json'), JSON.stringify(await page.evaluate(() => ({
+        url: location.href, readyState: document.readyState,
+        loading: document.querySelector('.app-loading-wrap')?.textContent,
+        loadingStyle: !!document.querySelector('#app-loading-style'),
+        language: localStorage.getItem('lang'), alerts: [...document.querySelectorAll('[role=alert]')].map(el => el.textContent),
+      })), null, 2));
+      await page.screenshot({ path: path.join(artifacts, 'loading-failure.png') });
+      throw error;
+    }
     await uiExpect(page.locator('.studio-preview-region')).toHaveAttribute('aria-busy', 'false');
     await page.waitForTimeout(350);
   }
@@ -69,7 +79,7 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_E2E === '1')('Subtitle Studio worksp
     await capture('empty-light');
     await importFile(name);
     await uiExpect(page.locator('.studio-cue-table tbody tr')).toHaveCount(100);
-    await uiExpect(page.locator('[data-slot=clip-path-tabs]')).toHaveAttribute('data-shape', 'rounded');
+    await uiExpect(page.locator('.studio-tabs[data-slot=clip-path-tabs]')).toHaveAttribute('data-shape', 'rounded');
     const density = await page.locator('.studio-cue-table tbody').evaluate(body => {
       const rows = [...body.querySelectorAll('tr')];
       const short = rows[0];
@@ -167,7 +177,7 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_E2E === '1')('Subtitle Studio worksp
 
     await page.getByRole('tab', { name: '原始内容' }).click();
     await page.waitForTimeout(250);
-    expect(await page.locator('[data-slot=clip-path-tabs-active-layer]').evaluate(element => getComputedStyle(element).clipPath)).toMatch(/^inset\(/);
+    expect(await page.locator('.studio-tabs [data-slot=clip-path-tabs-active-layer]').evaluate(element => getComputedStyle(element).clipPath)).toMatch(/^inset\(/);
     await uiExpect(page.locator('.studio-raw pre').first()).toContainText('00:00:00,000');
     expect(await page.locator('.studio-raw pre').first().textContent()).toBe(source.slice(0, source.indexOf('\n\n') + 2));
     const rawDensity = await page.locator('.studio-raw li').evaluateAll(rows => ({
@@ -235,9 +245,9 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_E2E === '1')('Subtitle Studio worksp
         await assertFilename('.studio-mobile-picker .studio-file-name');
       }
       await capture(`${theme}-${lang}-${width}`);
-      await page.getByRole('tab').nth(1).click();
+      await page.locator('.studio-tabs').getByRole('tab').nth(1).click();
       await capture(`original-content-${theme}-${lang}-${width}`);
-      await page.getByRole('tab').first().click();
+      await page.locator('.studio-tabs').getByRole('tab').first().click();
     }
     // The desktop application has a 786px minimum, but the view also survives a smaller renderer.
     await page.setViewportSize({ width: 390, height: 844 });

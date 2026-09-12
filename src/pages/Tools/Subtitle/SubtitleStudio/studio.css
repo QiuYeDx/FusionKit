@@ -1,4 +1,16 @@
 .studio { letter-spacing: 0; }
+.studio-workspace-tabs { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0; max-width: 1280px; margin-inline: auto; }
+.studio-workspace-header { grid-area: 1 / 1; padding: 24px 16px 0; }
+.studio-workspace-header h1 { padding-right: 220px; }
+.studio-workspace-tabs > [data-slot=clip-path-tabs-stage] { grid-area: 1 / 1; align-self: start; justify-self: end; margin: 30px 16px 20px; z-index: 1; }
+.studio-workspace-content { grid-area: 2 / 1; min-width: 0; }
+.studio-workspace-content[hidden] { display: none; }
+.studio-workspace-content > .studio-layout { height: calc(100dvh - 128px); min-height: 392px; padding-top: 0; }
+.studio-workspace-content > .studio-transcription-layout { padding-top: 0; }
+@media (min-width: 640px) {
+  .studio-workspace-header { padding-inline: 32px; }
+  .studio-workspace-tabs > [data-slot=clip-path-tabs-stage] { margin-inline: 32px; }
+}
 .studio-library-panel { height: 100%; }
 .studio-library-panel > [data-slot=tool-panel-body] { display: flex; flex: 1; flex-direction: column; overflow: hidden; }
 .studio-library-panel > [data-slot=tool-panel-body] > [data-testid=studio-recovery-manage] { align-self: flex-start; margin: 6px 12px 0; }

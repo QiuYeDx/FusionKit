@@ -1,0 +1,196 @@
+{
+  "schemaVersion": 1,
+  "baseCommit": "e80ef6b6460a2c3a27c9f102078543ba07d29352",
+  "files": [
+    {
+      "path": ".agents/skills/fusionkit-pitfall-guard/references/audit-application-composition-separately-from-frozen-copy-sources.md",
+      "byteSize": 3580,
+      "sha256": "b45bbb0fdfa44418ee65766e227881bb790e25070b39b4e9466ab7bbed8c42a5"
+    },
+    {
+      "path": ".agents/skills/fusionkit-pitfall-guard/references/index.md",
+      "byteSize": 52467,
+      "sha256": "23a6362492d12e6bab784e944943e43c1d176de991396fefe4af6c7a4a97f60e"
+    },
+    {
+      "path": ".agents/skills/fusionkit-pitfall-guard/references/match-filesystem-runtime-fixtures-to-the-host-target.md",
+      "byteSize": 3082,
+      "sha256": "0e6ada2592b375e37e6937b1cb019ef70d509634c7432d1f1fce45ea02c3c528"
+    },
+    {
+      "path": ".agents/skills/fusionkit-pitfall-guard/references/pin-exact-studio-text-hashes-to-lf-checkout-bytes.md",
+      "byteSize": 3801,
+      "sha256": "3578e17297c1c3eb29891c6a7fe91c95c9c3bb61d4157c83082c28da061c7a42"
+    },
+    {
+      "path": ".gitattributes",
+      "byteSize": 1115,
+      "sha256": "9f5a117b6ffd3ba580d09a895be79e995067dea2792176e1c56015058a8e2e09"
+    },
+    {
+      "path": "electron/main/app-shutdown.ts",
+      "byteSize": 1213,
+      "sha256": "e2c71d7c33a8905388df7ba459918eb733ac0987420736ee50baa22bc467d8d7"
+    },
+    {
+      "path": "electron/main/index.ts",
+      "byteSize": 20972,
+      "sha256": "2d49f3e0786fa5e40a4526ee7e8070d80b08cfe5db7451760011ac14d52e3371"
+    },
+    {
+      "path": "electron/main/subtitle-studio/index.ts",
+      "byteSize": 19962,
+      "sha256": "ad0a0a714f1de110d1cf409e622cf8ea60d22bb57350d9d5e106ed33b6191ce3"
+    },
+    {
+      "path": "electron/main/subtitle-studio/transcription-ipc.ts",
+      "byteSize": 6080,
+      "sha256": "4da31f11cf600cb0c845a35d63a303b65651ae91cee6fd9fb20b1d0bb4490d9c"
+    },
+    {
+      "path": "electron/main/subtitle-studio/transcription/runtime.ts",
+      "byteSize": 23346,
+      "sha256": "581d715f78ebe9fe2bc0847f6cb16d65580ea6039773f8fd573031b89901af0f"
+    },
+    {
+      "path": "electron/main/subtitle-studio/transcription/task-service.ts",
+      "byteSize": 31214,
+      "sha256": "96358a6c973b278084977a7a2cf07bf410b031db0e3a4e88cc707556851e84cc"
+    },
+    {
+      "path": "electron/preload/subtitle-studio-api.ts",
+      "byteSize": 4503,
+      "sha256": "155b083b1f3be4b84eaaf2b7e9455b03e9cf1cb979b193c7cfa3a7fd489faaa5"
+    },
+    {
+      "path": "electron/preload/subtitle-studio-channel-policy.ts",
+      "byteSize": 1292,
+      "sha256": "a68866a5921355c1f368e79a3e6205010b134240e90d40993d6aeb9da0d17eeb"
+    },
+    {
+      "path": "scripts/subtitle-studio-provenance/copy.mjs",
+      "byteSize": 17753,
+      "sha256": "8b3d4e0ba471902ea7b9d6491e1f3b2c14beae6408158fef2fe1933fb1650cbd"
+    },
+    {
+      "path": "scripts/subtitle-studio-provenance/current-composition-audits.json",
+      "byteSize": 800,
+      "sha256": "cc7ce4b00b52af2c86536f7526f46f15a1ef3b46e39c4b889e19bc9543973b0a"
+    },
+    {
+      "path": "src/locales/en/studio.json",
+      "byteSize": 15988,
+      "sha256": "1e2c84daaaf6eeb5b24b4f55e116df10d67d7a83234599f0d30d0b67ff713bfe"
+    },
+    {
+      "path": "src/locales/ja/studio.json",
+      "byteSize": 19188,
+      "sha256": "64dff9676add05fbb434e936a803212eff0abb60bf02f0f377aff100b799911c"
+    },
+    {
+      "path": "src/locales/zh-Hant/studio.json",
+      "byteSize": 14954,
+      "sha256": "a86788d0fc794e5b6aab8f8fe02ca485dc1ef4790040fe3ef53644fe702d3e47"
+    },
+    {
+      "path": "src/locales/zh/studio.json",
+      "byteSize": 14882,
+      "sha256": "483233d152d8c1ff346c504662c784b94a82110c61a0370778eb5130d327062f"
+    },
+    {
+      "path": "src/pages/Tools/Subtitle/SubtitleStudio/StudioBilingual.tsx",
+      "byteSize": 19878,
+      "sha256": "0cdb1e83248ae9b4738a7238249f951789e902e2ef52020bbdc99168c1412e23"
+    },
+    {
+      "path": "src/pages/Tools/Subtitle/SubtitleStudio/StudioExport.tsx",
+      "byteSize": 29563,
+      "sha256": "bf0fb21a900efc92816c92c9adadcf5b0f8bfc98ea155a72bdaefd90ddfe4a2b"
+    },
+    {
+      "path": "src/pages/Tools/Subtitle/SubtitleStudio/StudioTranslation.tsx",
+      "byteSize": 21905,
+      "sha256": "428b2a66d3d8f79e293c6dfe14706ab96f454a4b38d87691dde0fe603951bcce"
+    },
+    {
+      "path": "src/pages/Tools/Subtitle/SubtitleStudio/StudioTranslationTask.tsx",
+      "byteSize": 10324,
+      "sha256": "7b8b558b56390af8d09c4cdde341466cb5f4b9a5053c4bf487a6f45b83c0f6e5"
+    },
+    {
+      "path": "src/pages/Tools/Subtitle/SubtitleStudio/index.tsx",
+      "byteSize": 41618,
+      "sha256": "6a39929882196b6327f85b14208ecb9b82478b8860e5dd33683820fb19ab16ba"
+    },
+    {
+      "path": "src/subtitle-studio/domain.ts",
+      "byteSize": 9583,
+      "sha256": "90d1fbc69ccd6e3695eddcfd43740dbf8f1e2fdc9bb631ac743d529382754ad5"
+    },
+    {
+      "path": "src/subtitle-studio/ipc-contract.ts",
+      "byteSize": 16057,
+      "sha256": "ef5567cc5eb05dec75f0ef86e466bbed429d70176e3e2faabb92fcda115ca7c3"
+    },
+    {
+      "path": "src/subtitle-studio/transcription/task-contract.ts",
+      "byteSize": 3438,
+      "sha256": "2be573c5958299072ee8bc16065b875bbf9899c9d2fb5e2ce8da9cfcbbd0a169"
+    },
+    {
+      "path": "test/app-shutdown.test.ts",
+      "byteSize": 1784,
+      "sha256": "845452625462800e1aa5f5a699760e506ab7acf41466f230a3574d98441d5027"
+    },
+    {
+      "path": "test/subtitle-studio-provenance/checkout-bytes.test.ts",
+      "byteSize": 2873,
+      "sha256": "9d7340dd286f04a4cdc3e22c226d70b0cfc7847f255122dc61f8bb4ddb758f6d"
+    },
+    {
+      "path": "test/subtitle-studio-provenance/copy.test.ts",
+      "byteSize": 14252,
+      "sha256": "db4a487d337b5f1c46e672cdff670b705f7717fdbeae3f46276db7757a59a7c4"
+    },
+    {
+      "path": "test/subtitle-studio/helpers/transcription-runtime.ts",
+      "byteSize": 6508,
+      "sha256": "1f4bad50331d1a26a365dcb44a8000b6d5edf07827cd164b5307b136f7bd4eb5"
+    },
+    {
+      "path": "test/subtitle-studio/ipc.test.ts",
+      "byteSize": 34337,
+      "sha256": "58fe8d8d77a544d94b9aae6ee2076aa650b7826dfe7adb740bc0f5608cae68a5"
+    },
+    {
+      "path": "test/subtitle-studio/transcription-bridge.test.ts",
+      "byteSize": 4238,
+      "sha256": "cc33cb3233328167bb14b92bf7d188c9c3887f990073115b5f7c54dbef23ba63"
+    },
+    {
+      "path": "test/subtitle-studio/transcription-ipc.test.ts",
+      "byteSize": 13322,
+      "sha256": "79911053acf796cd5e49514caebefcbe2b03d3ed8b8f3a122c8eb92ef8e71f7a"
+    },
+    {
+      "path": "test/subtitle-studio/transcription-runtime-lifecycle.test.ts",
+      "byteSize": 10229,
+      "sha256": "582d5a11a5a2512f660acb31e3908ca687a18799a35416aa3680c9a42b095517"
+    },
+    {
+      "path": "test/subtitle-studio/transcription-runtime.test.ts",
+      "byteSize": 19864,
+      "sha256": "8f30b41c43785e3342ce9f44d7d60887fdbbe6b034d9711beb17cb6637b5edeb"
+    },
+    {
+      "path": "test/subtitle-studio/transcription-task-contract.test.ts",
+      "byteSize": 2234,
+      "sha256": "ba4a298c876dde7968bb8f9efb84338a1ba05e871859d5d14378683de2c019f2"
+    },
+    {
+      "path": "test/subtitle-studio/transcription-task-service.test.ts",
+      "byteSize": 23784,
+      "sha256": "eff46e857385e704bfcb6905d587e58eeaa4902cab2d0d73b88f2326bceed59f"
+    }
+  ]
+}

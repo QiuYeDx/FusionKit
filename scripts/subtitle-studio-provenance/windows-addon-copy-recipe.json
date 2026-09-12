@@ -1,0 +1,254 @@
+{
+  "schemaVersion": 1,
+  "sourceCommit": "3a0f50ed15c1b63451402cecf27240182235e567",
+  "files": [
+    {
+      "sourcePath": "scripts/local-subtitle/overwrite-native/build-addon-windows-x64.mjs",
+      "destinationPath": "scripts/subtitle-studio/transcription/overwrite-native/build-addon-windows-x64.mjs"
+    },
+    {
+      "sourcePath": "scripts/local-subtitle/overwrite-native/build-test-addon-windows-x64.mjs",
+      "destinationPath": "scripts/subtitle-studio/transcription/overwrite-native/build-test-addon-windows-x64.mjs"
+    },
+    {
+      "sourcePath": "scripts/local-subtitle/overwrite-native/build-addon-windows-x64.test.mjs",
+      "destinationPath": "scripts/subtitle-studio/transcription/overwrite-native/build-addon-windows-x64.test.mjs"
+    },
+    {
+      "sourcePath": "scripts/local-subtitle/overwrite-native/run-addon-windows-integration.mjs",
+      "destinationPath": "scripts/subtitle-studio/transcription/overwrite-native/run-addon-windows-integration.mjs"
+    },
+    {
+      "sourcePath": "scripts/local-subtitle/overwrite-native/run-addon-windows-recovery-integration.mjs",
+      "destinationPath": "scripts/subtitle-studio/transcription/overwrite-native/run-addon-windows-recovery-integration.mjs"
+    },
+    {
+      "sourcePath": "scripts/local-subtitle/overwrite-native/run-addon-windows-recovery-child.mjs",
+      "destinationPath": "scripts/subtitle-studio/transcription/overwrite-native/run-addon-windows-recovery-child.mjs"
+    }
+  ],
+  "dependencies": [
+    {
+      "sourcePath": "scripts/local-subtitle/runtime/runtime-manifest.mjs",
+      "destinationPath": "scripts/subtitle-studio/transcription/runtime/runtime-manifest.mjs",
+      "provenancePath": "resources/subtitle-studio/provenance/transcription-tooling-fork.json"
+    },
+    {
+      "sourcePath": "scripts/local-subtitle/overwrite-native/build-addon-macos-arm64.mjs",
+      "destinationPath": "scripts/subtitle-studio/transcription/overwrite-native/build-addon-macos-arm64.mjs",
+      "provenancePath": "resources/subtitle-studio/provenance/transcription-native-fork.json"
+    },
+    {
+      "sourcePath": "native/local-subtitle-overwrite/README.md",
+      "destinationPath": "native/subtitle-studio-overwrite/README.md",
+      "provenancePath": "resources/subtitle-studio/provenance/transcription-native-fork.json"
+    },
+    {
+      "sourcePath": "native/local-subtitle-overwrite/binding.gyp",
+      "destinationPath": "native/subtitle-studio-overwrite/binding.gyp",
+      "provenancePath": "resources/subtitle-studio/provenance/transcription-native-fork.json"
+    },
+    {
+      "sourcePath": "native/local-subtitle-overwrite/src/addon-win32.cc",
+      "destinationPath": "native/subtitle-studio-overwrite/src/addon-win32.cc",
+      "provenancePath": "resources/subtitle-studio/provenance/transcription-native-fork.json"
+    },
+    {
+      "sourcePath": "native/local-subtitle-overwrite/src/addon.cc",
+      "destinationPath": "native/subtitle-studio-overwrite/src/addon.cc",
+      "provenancePath": "resources/subtitle-studio/provenance/transcription-native-fork.json"
+    },
+    {
+      "sourcePath": "native/local-subtitle-overwrite/src/win-delay-load-hook.cc",
+      "destinationPath": "native/subtitle-studio-overwrite/src/win-delay-load-hook.cc",
+      "provenancePath": "resources/subtitle-studio/provenance/transcription-native-fork.json"
+    },
+    {
+      "sourcePath": "scripts/local-subtitle/runtime/staging-contract.mjs",
+      "destinationPath": "scripts/subtitle-studio/transcription/runtime/staging-contract.mjs",
+      "provenancePath": "resources/subtitle-studio/provenance/transcription-tooling-fork.json"
+    },
+    {
+      "sourcePath": "resources/local-subtitle/manifests/local-subtitle-models.v1.json",
+      "destinationPath": "resources/subtitle-studio/transcription/manifests/subtitle-studio-models.v1.json",
+      "provenancePath": "resources/subtitle-studio/provenance/transcription-fork.json"
+    },
+    {
+      "sourcePath": "resources/local-subtitle/manifests/local-subtitle-overwrite-staging.v1.json",
+      "destinationPath": "resources/subtitle-studio/transcription/manifests/subtitle-studio-overwrite-staging.v1.json",
+      "provenancePath": "resources/subtitle-studio/provenance/transcription-fork.json"
+    },
+    {
+      "sourcePath": "resources/local-subtitle/manifests/local-subtitle-staging.v1.json",
+      "destinationPath": "resources/subtitle-studio/transcription/manifests/subtitle-studio-staging.v1.json",
+      "provenancePath": "resources/subtitle-studio/provenance/transcription-fork.json"
+    },
+    {
+      "sourcePath": "resources/local-subtitle/manifests/local-subtitle-vad.v1.json",
+      "destinationPath": "resources/subtitle-studio/transcription/manifests/subtitle-studio-vad.v1.json",
+      "provenancePath": "resources/subtitle-studio/provenance/transcription-fork.json"
+    },
+    {
+      "sourcePath": "resources/local-subtitle/manifests/local-subtitle-windows-cuda-pack.v1.json",
+      "destinationPath": "resources/subtitle-studio/transcription/manifests/subtitle-studio-windows-cuda-pack.v1.json",
+      "provenancePath": "resources/subtitle-studio/provenance/transcription-fork.json"
+    }
+  ],
+  "literalEdits": [
+    {
+      "sourcePath": "scripts/local-subtitle/overwrite-native/build-addon-windows-x64.mjs",
+      "fromText": "scripts/local-subtitle/",
+      "toText": "scripts/subtitle-studio/transcription/",
+      "count": 1,
+      "reason": "Own the Windows script references in the Studio namespace."
+    },
+    {
+      "sourcePath": "scripts/local-subtitle/overwrite-native/build-addon-windows-x64.mjs",
+      "fromText": "local-subtitle-overwrite",
+      "toText": "subtitle-studio-overwrite",
+      "count": 5,
+      "reason": "Own the native source, output artifact and build receipt component without changing native behavior."
+    },
+    {
+      "sourcePath": "scripts/local-subtitle/overwrite-native/build-addon-windows-x64.mjs",
+      "fromText": "local_subtitle_overwrite",
+      "toText": "subtitle_studio_overwrite",
+      "count": 1,
+      "reason": "Use the independent Studio native build module identity."
+    },
+    {
+      "sourcePath": "scripts/local-subtitle/overwrite-native/build-addon-windows-x64.mjs",
+      "fromText": "fusionkit-overwrite",
+      "toText": "fusionkit-subtitle-studio-overwrite",
+      "count": 2,
+      "reason": "Exercise the independent Studio journal and temporary workspace namespace."
+    },
+    {
+      "sourcePath": "scripts/local-subtitle/overwrite-native/build-addon-windows-x64.mjs",
+      "fromText": "\"../../..\"",
+      "toText": "\"../../../..\"",
+      "count": 1,
+      "reason": "Account for the deeper Studio script directory when resolving repository source inputs."
+    },
+    {
+      "sourcePath": "scripts/local-subtitle/overwrite-native/build-addon-windows-x64.mjs",
+      "fromText": "  let receiptWorkRoot;\n  try {",
+      "toText": "  let receiptWorkRoot;\n  let primaryFailure;\n  try {",
+      "count": 1,
+      "reason": "Remember the primary build/publication failure before attempting every owned temporary-directory cleanup."
+    },
+    {
+      "sourcePath": "scripts/local-subtitle/overwrite-native/build-addon-windows-x64.mjs",
+      "fromText": "  } finally {\n    await rm(workRoot, { recursive: true, force: true });\n    if (receiptWorkRoot) {\n      await rm(receiptWorkRoot, { recursive: true, force: true });\n    }\n  }",
+      "toText": "  } catch (error) {\n    primaryFailure = error;\n    throw error;\n  } finally {\n    await cleanupWindowsBuildWorkspaces([workRoot, receiptWorkRoot].filter(Boolean), primaryFailure);\n  }",
+      "count": 1,
+      "reason": "A failed first rm must not abandon the receipt workspace or mask the primary native build error; join all cleanup attempts with bounded Windows retries."
+    },
+    {
+      "sourcePath": "scripts/local-subtitle/overwrite-native/build-addon-windows-x64.mjs",
+      "fromText": "function createCompileArguments({ headersPath, nodeLibPath, outputPath }) {",
+      "toText": "export async function cleanupWindowsBuildWorkspaces(directories, primaryFailure, remove = rm) {\n  const results = await Promise.allSettled(directories.map(directory => Promise.resolve().then(() =>\n    remove(directory, { recursive: true, force: true, maxRetries: 3, retryDelay: 20 }))));\n  const failures = results.filter(result => result.status === \"rejected\").map(result => result.reason);\n  if (failures.length) {\n    const error = new AggregateError(primaryFailure === undefined ? failures : [primaryFailure, ...failures],\n      \"Windows native build workspace cleanup failed.\", primaryFailure === undefined ? undefined : { cause: primaryFailure });\n    error.code = primaryFailure?.code ?? \"build_cleanup_failed\";\n    throw error;\n  }\n}\n\nfunction createCompileArguments({ headersPath, nodeLibPath, outputPath }) {",
+      "count": 1,
+      "reason": "Make complete cleanup joining and preservation of the primary error independently testable without running a compiler or weakening native semantics."
+    },
+    {
+      "sourcePath": "scripts/local-subtitle/overwrite-native/build-test-addon-windows-x64.mjs",
+      "fromText": "scripts/local-subtitle/",
+      "toText": "scripts/subtitle-studio/transcription/",
+      "count": 1,
+      "reason": "Own the Windows script references in the Studio namespace."
+    },
+    {
+      "sourcePath": "scripts/local-subtitle/overwrite-native/build-test-addon-windows-x64.mjs",
+      "fromText": "local-subtitle-overwrite",
+      "toText": "subtitle-studio-overwrite",
+      "count": 2,
+      "reason": "Own the native source, output artifact and build receipt component without changing native behavior."
+    },
+    {
+      "sourcePath": "scripts/local-subtitle/overwrite-native/build-test-addon-windows-x64.mjs",
+      "fromText": "export async function buildTestWindowsX64OverwriteAddon(options = {}) {\n",
+      "toText": "export async function buildTestWindowsX64OverwriteAddon(options = {}) {\n  if (Object.hasOwn(options, \"receiptPath\")) {\n    throw buildError(\"invalid_arguments\", \"Fault-test builds cannot publish a production-shaped receipt.\");\n  }\n",
+      "count": 1,
+      "reason": "Reject the API-only receiptPath escape before compilation; the test artifact must never receive a disk receipt shaped as production."
+    },
+    {
+      "sourcePath": "scripts/local-subtitle/overwrite-native/build-addon-windows-x64.test.mjs",
+      "fromText": "local-subtitle-overwrite",
+      "toText": "subtitle-studio-overwrite",
+      "count": 4,
+      "reason": "Own the native source, output artifact and build receipt component without changing native behavior."
+    },
+    {
+      "sourcePath": "scripts/local-subtitle/overwrite-native/build-addon-windows-x64.test.mjs",
+      "fromText": "fusionkit-overwrite",
+      "toText": "fusionkit-subtitle-studio-overwrite",
+      "count": 1,
+      "reason": "Exercise the independent Studio journal and temporary workspace namespace."
+    },
+    {
+      "sourcePath": "scripts/local-subtitle/overwrite-native/build-addon-windows-x64.test.mjs",
+      "fromText": "\"../../..\"",
+      "toText": "\"../../../..\"",
+      "count": 1,
+      "reason": "Account for the deeper Studio script directory when resolving repository source inputs."
+    },
+    {
+      "sourcePath": "scripts/local-subtitle/overwrite-native/run-addon-windows-integration.mjs",
+      "fromText": "local-subtitle-overwrite",
+      "toText": "subtitle-studio-overwrite",
+      "count": 1,
+      "reason": "Own the native source, output artifact and build receipt component without changing native behavior."
+    },
+    {
+      "sourcePath": "scripts/local-subtitle/overwrite-native/run-addon-windows-integration.mjs",
+      "fromText": ".fusionkit-local-subtitle-",
+      "toText": ".fusionkit-subtitle-studio-",
+      "count": 1,
+      "reason": "Exercise only the Studio prepared-file namespace frozen in T03."
+    },
+    {
+      "sourcePath": "scripts/local-subtitle/overwrite-native/run-addon-windows-integration.mjs",
+      "fromText": "fusionkit-overwrite",
+      "toText": "fusionkit-subtitle-studio-overwrite",
+      "count": 3,
+      "reason": "Exercise the independent Studio journal and temporary workspace namespace."
+    },
+    {
+      "sourcePath": "scripts/local-subtitle/overwrite-native/run-addon-windows-recovery-integration.mjs",
+      "fromText": ".fusionkit-local-subtitle-",
+      "toText": ".fusionkit-subtitle-studio-",
+      "count": 1,
+      "reason": "Exercise only the Studio prepared-file namespace frozen in T03."
+    },
+    {
+      "sourcePath": "scripts/local-subtitle/overwrite-native/run-addon-windows-recovery-integration.mjs",
+      "fromText": "fusionkit-overwrite",
+      "toText": "fusionkit-subtitle-studio-overwrite",
+      "count": 2,
+      "reason": "Exercise the independent Studio journal and temporary workspace namespace."
+    },
+    {
+      "sourcePath": "scripts/local-subtitle/overwrite-native/run-addon-windows-recovery-integration.mjs",
+      "fromText": "  const systemRoot = process.env.SystemRoot ?? \"C:\\\\Windows\";\n  const childArguments",
+      "toText": "  const childArguments",
+      "count": 1,
+      "reason": "Move the original minimal environment construction into its independently testable host-mode-preserving helper."
+    },
+    {
+      "sourcePath": "scripts/local-subtitle/overwrite-native/run-addon-windows-recovery-integration.mjs",
+      "fromText": "    env: {\n      SystemRoot: systemRoot,\n      WINDIR: systemRoot,\n      PATH: `${path.join(systemRoot, \"System32\")};${systemRoot}`,\n      PATHEXT: \".COM;.EXE;.BAT;.CMD\",\n      TEMP: os.tmpdir(),\n      TMP: os.tmpdir(),\n      ...(faultAction\n        ? {\n            FUSIONKIT_OVERWRITE_TEST_FAULT_ACTION: faultAction,\n            FUSIONKIT_OVERWRITE_TEST_FAULT_POINT: faultPoint,\n          }\n        : {}),\n    },",
+      "toText": "    env: createWindowsRecoveryChildEnvironment(faultAction, faultPoint),",
+      "count": 1,
+      "reason": "Keep fresh recovery children in Node mode when process.execPath is the actual Electron host; the original minimal environment discarded ELECTRON_RUN_AS_NODE."
+    },
+    {
+      "sourcePath": "scripts/local-subtitle/overwrite-native/run-addon-windows-recovery-integration.mjs",
+      "fromText": "function assertCrash(result) {",
+      "toText": "export function createWindowsRecoveryChildEnvironment(faultAction, faultPoint, hostEnvironment = process.env) {\n  const systemRoot = hostEnvironment.SystemRoot ?? \"C:\\\\Windows\";\n  return {\n    SystemRoot: systemRoot,\n    WINDIR: systemRoot,\n    PATH: `${path.join(systemRoot, \"System32\")};${systemRoot}`,\n    PATHEXT: \".COM;.EXE;.BAT;.CMD\",\n    TEMP: os.tmpdir(),\n    TMP: os.tmpdir(),\n    ...(hostEnvironment.ELECTRON_RUN_AS_NODE === \"1\" ? { ELECTRON_RUN_AS_NODE: \"1\" } : {}),\n    ...(faultAction ? { FUSIONKIT_OVERWRITE_TEST_FAULT_ACTION: faultAction, FUSIONKIT_OVERWRITE_TEST_FAULT_POINT: faultPoint } : {}),\n  };\n}\n\nfunction assertCrash(result) {",
+      "count": 1,
+      "reason": "Preserve only the explicit Electron Node-mode flag while continuing to exclude NODE_OPTIONS, application secrets and proxy variables from recovery children."
+    }
+  ],
+  "deferred": []
+}

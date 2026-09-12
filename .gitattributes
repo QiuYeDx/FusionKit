@@ -1,0 +1,17 @@
+# Subtitle Studio records and copied/audited text are verified as exact LF bytes.
+# Keep checkout bytes stable under core.autocrlf without normalizing in verifiers.
+/resources/subtitle-studio/provenance/*.json text eol=lf
+/electron/main/subtitle-studio/transcription/native/*.ts text eol=lf
+/electron/main/subtitle-studio/transcription/transcript-executor.ts text eol=lf
+/src/subtitle-studio/transcription/*.ts text eol=lf
+/test/subtitle-studio/transcription/*.ts text eol=lf
+/test/subtitle-studio/transcription/fixtures/poc/*.json text eol=lf
+/scripts/subtitle-studio/transcription/runtime/*.mjs text eol=lf
+/scripts/subtitle-studio/transcription/overwrite-native/*.mjs text eol=lf
+/native/subtitle-studio-overwrite/*.md text eol=lf
+/native/subtitle-studio-overwrite/*.gyp text eol=lf
+/native/subtitle-studio-overwrite/src/*.cc text eol=lf
+/resources/subtitle-studio/transcription/manifests/*.json text eol=lf
+/resources/subtitle-studio/transcription/licenses/*.json text eol=lf
+/resources/subtitle-studio/transcription/licenses/*.md text eol=lf
+/resources/subtitle-studio/transcription/licenses/*.txt text eol=lf

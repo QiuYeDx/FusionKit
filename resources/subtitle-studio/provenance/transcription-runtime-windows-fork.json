@@ -1,0 +1,232 @@
+{
+  "schemaVersion": 1,
+  "status": "independent-verifier-sources",
+  "sourceCommit": "3a0f50ed15c1b63451402cecf27240182235e567",
+  "sourceBaselineSha256": "c6367bddd06cf2e31ecf04dbbe8766f70edff888775fbd14a46114ea8c29ac66",
+  "recipeSha256": "e54cabc43393a66cc96c5aebcf8f2d6e30991c162b695ed197dbb3ec6d26c58e",
+  "files": [
+    {
+      "sourcePath": "scripts/local-subtitle/runtime/stage-runtime-windows-x64.mjs",
+      "sourceBlobOid": "0e097613c93eaa1cb6c4e596f00e123b52cd6022",
+      "sourceSha256": "0c78e96cd18bf96e628cf547fc3a2973de3fbd8ac39cc7b1dc8f063a994addad",
+      "destinationPath": "scripts/subtitle-studio/transcription/runtime/stage-runtime-windows-x64.mjs",
+      "destinationSha256": "d9803fcdb0bf0af7202376feb6c4b59bd469d9c8da8a57132549e33051cdf1f2",
+      "byteSize": 22135,
+      "transforms": [
+        {
+          "start": 77,
+          "end": 89,
+          "from": "  copyFile,\n",
+          "to": "",
+          "count": 1,
+          "reason": "Independent Studio Windows staging namespace and dependency closure."
+        },
+        {
+          "start": 110,
+          "end": 120,
+          "from": "  rename,\n",
+          "to": "",
+          "count": 1,
+          "reason": "Independent Studio Windows staging namespace and dependency closure."
+        },
+        {
+          "start": 120,
+          "end": 126,
+          "from": "  rm,\n",
+          "to": "",
+          "count": 1,
+          "reason": "Independent Studio Windows staging namespace and dependency closure."
+        },
+        {
+          "start": 808,
+          "end": 837,
+          "from": "} from \"./stage-runtime.mjs\";",
+          "to": "  assertRuntimeOutputMissing,\n  copyRuntimeArtifact,\n  withRuntimePublication,\n} from \"./stage-runtime-windows-helpers.mjs\";",
+          "count": 1,
+          "reason": "Independent Studio Windows staging namespace and dependency closure."
+        },
+        {
+          "start": 1079,
+          "end": 1121,
+          "from": "path.resolve(SCRIPT_DIRECTORY, \"../../..\")",
+          "to": "path.resolve(SCRIPT_DIRECTORY, \"../../../..\")",
+          "count": 1,
+          "reason": "Independent Studio Windows staging namespace and dependency closure."
+        },
+        {
+          "start": 1174,
+          "end": 1209,
+          "from": "\"resources/local-subtitle/licenses\"",
+          "to": "\"resources/subtitle-studio/transcription/licenses\"",
+          "count": 1,
+          "reason": "Independent Studio Windows staging namespace and dependency closure."
+        },
+        {
+          "start": 1214,
+          "end": 1302,
+          "from": "const SIGNING_SCRIPT = path.join(\n  SCRIPT_DIRECTORY,\n  \"authenticode-sign-file.ps1\",\n);",
+          "to": "const SIGNING_SCRIPT = null; // The frozen Windows contract admits only unsigned final bytes.",
+          "count": 1,
+          "reason": "Independent Studio Windows staging namespace and dependency closure."
+        },
+        {
+          "start": 6362,
+          "end": 6723,
+          "from": "  const finalRoot = path.join(outputParent, \"local-subtitle\");\n  const partialRoot = path.join(\n    outputParent,\n    `local-subtitle.partial-${process.pid}-${Date.now()}`,\n  );\n  await assertMissing(finalRoot, \"The final runtime staging directory already exists.\");\n  await assertMissing(partialRoot, \"The temporary runtime staging directory already exists.\");",
+          "to": "  await assertRuntimeOutputMissing(outputParent);",
+          "count": 1,
+          "reason": "Reject existing files/directories/links before reading inputs; reserve a private output only after validation."
+        },
+        {
+          "start": 7919,
+          "end": 7977,
+          "from": "  try {\n    await mkdir(partialRoot, { recursive: true });",
+          "to": "  return withRuntimePublication(outputParent, async ({ partialRoot, finalRoot, publish }) => {",
+          "count": 1,
+          "reason": "A new reviewed helper claims the publisher lock and owns bounded cleanup of a unique private staging directory."
+        },
+        {
+          "start": 9641,
+          "end": 9684,
+          "from": "await copyFile(input.inputPath, outputPath)",
+          "to": "await copyRuntimeArtifact(input.inputPath, outputPath)",
+          "count": 1,
+          "reason": "Copy bytes with COPYFILE_EXCL; never hardlink or overwrite an existing leaf."
+        },
+        {
+          "start": 11316,
+          "end": 11353,
+          "from": "\"local-subtitle-runtime-win32-x64-v1\"",
+          "to": "\"subtitle-studio-runtime-win32-x64-v1\"",
+          "count": 1,
+          "reason": "Independent Studio Windows staging namespace and dependency closure."
+        },
+        {
+          "start": 12051,
+          "end": 12087,
+          "from": "await rename(partialRoot, finalRoot)",
+          "to": "await publish()",
+          "count": 1,
+          "reason": "Recheck no-clobber publication under the new Studio publisher lock."
+        },
+        {
+          "start": 13211,
+          "end": 13248,
+          "from": "\"local-subtitle-production-freeze-v1\"",
+          "to": "\"subtitle-studio-t07-windows-runtime-v1\"",
+          "count": 1,
+          "reason": "Independent Studio Windows staging namespace and dependency closure."
+        },
+        {
+          "start": 13361,
+          "end": 13464,
+          "from": "  } catch (error) {\n    await rm(partialRoot, { recursive: true, force: true });\n    throw error;\n  }\n}",
+          "to": "  });\n}",
+          "count": 1,
+          "reason": "Publication helper joins cleanup and preserves the primary failure."
+        }
+      ]
+    },
+    {
+      "sourcePath": "scripts/local-subtitle/runtime/audit-ffmpeg-windows-x64.mjs",
+      "sourceBlobOid": "bcf04cc2632a44a7f9654bba4e7b2446d9aed386",
+      "sourceSha256": "2888904df1988b500d50e823c4335f915f2ceca8128cc5b748c9703c2dc3752e",
+      "destinationPath": "scripts/subtitle-studio/transcription/runtime/audit-ffmpeg-windows-x64.mjs",
+      "destinationSha256": "8edfa84ecfb4a48273a05ae3e6f6b19fcab9e4639a56edbc8bd409e151434561",
+      "byteSize": 10878,
+      "transforms": [
+        {
+          "start": 4062,
+          "end": 4080,
+          "from": "cwd: expandedRoot,",
+          "to": "cwd: path.dirname(process.execPath),",
+          "count": 1,
+          "reason": "Use the short installed Node directory for native probes; expanded input paths remain explicit."
+        },
+        {
+          "start": 6546,
+          "end": 6623,
+          "from": "await writeFile(outputPath, `${JSON.stringify(receipt, null, 2)}\\n`, \"utf8\");",
+          "to": "await writeFile(outputPath, `${JSON.stringify(receipt, null, 2)}\\n`, { encoding: \"utf8\", flag: \"wx\" });",
+          "count": 1,
+          "reason": "New audit receipts must not overwrite historical evidence."
+        }
+      ]
+    },
+    {
+      "sourcePath": "scripts/local-subtitle/runtime/ffmpeg-source-release.mjs",
+      "sourceBlobOid": "8a8ca8223c0ad0d8082ba657a712cf163a37e745",
+      "sourceSha256": "88daaeda66ef712f7f5d008c51767c06370c3689fc68c07237c742365d6e83a0",
+      "destinationPath": "scripts/subtitle-studio/transcription/runtime/ffmpeg-source-release.mjs",
+      "destinationSha256": "f1dd9488df6c041ba098a495f48c517704ab8b14c67e448564c085fdc1fe22c9",
+      "byteSize": 7884,
+      "transforms": [
+        {
+          "start": 3013,
+          "end": 3043,
+          "from": "fusionkit-ffmpeg-gpgv-windows-",
+          "to": "fusionkit-studio-ffmpeg-gpgv-windows-",
+          "count": 1,
+          "reason": "Independent Studio Windows staging namespace and dependency closure."
+        },
+        {
+          "start": 4548,
+          "end": 4580,
+          "from": "{ recursive: true, force: true }",
+          "to": "{ recursive: true, force: true, maxRetries: 5, retryDelay: 100 }",
+          "count": 2,
+          "reason": "Bound Windows private GPG workspace cleanup retries without changing verification."
+        },
+        {
+          "start": 4694,
+          "end": 4715,
+          "from": "fusionkit-ffmpeg-gpg-",
+          "to": "fusionkit-studio-ffmpeg-gpg-",
+          "count": 1,
+          "reason": "Independent Studio Windows staging namespace and dependency closure."
+        },
+        {
+          "start": 5593,
+          "end": 5625,
+          "from": "{ recursive: true, force: true }",
+          "to": "{ recursive: true, force: true, maxRetries: 5, retryDelay: 100 }",
+          "count": 2,
+          "reason": "Bound Windows private GPG workspace cleanup retries without changing verification."
+        }
+      ]
+    },
+    {
+      "sourcePath": "scripts/local-subtitle/runtime/stage-runtime-windows-x64.test.mjs",
+      "sourceBlobOid": "1e097c9e52ae9fd7288dc148a14528cce90e122a",
+      "sourceSha256": "4b6dabf40523eac26685fda0a37666d0ce06463f1f5b16a62487bb4c8fd6559e",
+      "destinationPath": "scripts/subtitle-studio/transcription/runtime/stage-runtime-windows-x64.test.mjs",
+      "destinationSha256": "4b6dabf40523eac26685fda0a37666d0ce06463f1f5b16a62487bb4c8fd6559e",
+      "byteSize": 3777,
+      "transforms": []
+    },
+    {
+      "sourcePath": "scripts/local-subtitle/runtime/audit-ffmpeg-windows-x64.test.mjs",
+      "sourceBlobOid": "37a4ce97a4adcf7946806a1d166c9ab9b0bc86f2",
+      "sourceSha256": "c450bb1c5aea5122b2a71f4ad01ae8c06674eabc4e1f45c213a96a70651d6550",
+      "destinationPath": "scripts/subtitle-studio/transcription/runtime/audit-ffmpeg-windows-x64.test.mjs",
+      "destinationSha256": "c450bb1c5aea5122b2a71f4ad01ae8c06674eabc4e1f45c213a96a70651d6550",
+      "byteSize": 1755,
+      "transforms": []
+    },
+    {
+      "sourcePath": "scripts/local-subtitle/runtime/ffmpeg-source-release.test.mjs",
+      "sourceBlobOid": "83a73c9278bd9ac186cfe6b54d42ca9f123f39e1",
+      "sourceSha256": "70095a06b19345fa955318e52cf8b5218a582824b64474c6acfc02c17a608354",
+      "destinationPath": "scripts/subtitle-studio/transcription/runtime/ffmpeg-source-release.test.mjs",
+      "destinationSha256": "70095a06b19345fa955318e52cf8b5218a582824b64474c6acfc02c17a608354",
+      "byteSize": 1115,
+      "transforms": []
+    }
+  ],
+  "deferred": [
+    "stage-runtime-windows-helpers.mjs is a new reviewed composition helper, not a mechanically copied baseline file.",
+    "Windows CPU official binaries only; model health, real transcription, CUDA execution and complete Electron packaging need separate evidence.",
+    "The native overwrite addon is staged independently after this runtime publisher completes.",
+    "Pinned upstream source/release/evidence bytes remain unchanged; historical provenance strings are not runtime dependencies."
+  ]
+}

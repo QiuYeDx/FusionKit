@@ -1,0 +1,362 @@
+{
+  "schemaVersion": 1,
+  "task": "T-TRANSCRIPTION-08",
+  "baseCommit": "e80ef6b6460a2c3a27c9f102078543ba07d29352",
+  "previousSnapshot": {
+    "path": "docs/features/subtitle-studio/records/2026-09-12-transcription-windows-runtime.snapshot.json",
+    "byteSize": 14351,
+    "sha256": "dfd09dceaf788427f23b17198b0708e95c3e4bed920a8bb869e6be73d88f2ea4"
+  },
+  "files": [
+    {
+      "path": ".agents/skills/fusionkit-pitfall-guard/references/budget-windows-managed-resource-staging-paths.md",
+      "byteSize": 3063,
+      "sha256": "837fa96e684ef690ec3bec87bedc6deac0530321e9ca3bb06a8ae36178c55165"
+    },
+    {
+      "path": ".agents/skills/fusionkit-pitfall-guard/references/index.md",
+      "byteSize": 54203,
+      "sha256": "85c6c4fb85f6cd8e5bb3d9f1f94efac58465558d611565f3577d5798fbc4a3c3"
+    },
+    {
+      "path": ".agents/skills/fusionkit-pitfall-guard/references/keep-cleanup-single-flight-after-deadlines.md",
+      "byteSize": 2611,
+      "sha256": "9a333bf7143a9b42c6792b0edf9efe5927bf5e5e2162d624534af8036d7c8e32"
+    },
+    {
+      "path": "test/subtitle-studio-provenance/real-default-comparison-analysis.test.ts",
+      "byteSize": 18189,
+      "sha256": "e04c3522358f8499201121710644e174bbd50d965e498b00befe3e4d4e688179"
+    },
+    {
+      "path": "test/subtitle-studio-provenance/real-default-comparison-analysis.ts",
+      "byteSize": 17102,
+      "sha256": "2a31eb9136af58ce93d828eda95279ac45298ff1fae33362b845b24daca429dd"
+    },
+    {
+      "path": "test/subtitle-studio-provenance/real-default-comparison-harness.ts",
+      "byteSize": 43277,
+      "sha256": "d799271b0b67d77c2df3d3b481ef3e108b324836d0fc530bf415329408fb5387"
+    },
+    {
+      "path": "test/subtitle-studio-provenance/real-default-comparison.test.ts",
+      "byteSize": 4693,
+      "sha256": "73c8272d1dd0cff12f50d3402bf30eb2232f18a2c292a2426ae153b981b6e968"
+    },
+    {
+      "path": "test/subtitle-studio-provenance/real-default-resource-fixture.test.ts",
+      "byteSize": 9677,
+      "sha256": "18a469660623bd8a6629e19fb52838f146be3eadfa2db6a8e27c145f1e99007d"
+    },
+    {
+      "path": "test/subtitle-studio-provenance/real-default-resource-fixture.ts",
+      "byteSize": 32142,
+      "sha256": "07c747efa102b7dd12075ab23257ccdd0f5fe3ce0eb91568319bdd98fb485306"
+    }
+  ],
+  "previousSnapshotVerification": {
+    "unchangedSourceFiles": 29,
+    "intendedSourceChanges": [
+      {
+        "path": ".agents/skills/fusionkit-pitfall-guard/references/index.md",
+        "beforeSha256": "9157ce00bd3816ef9bd8b29e197b1945f9a1396076a8e9ce1d83bdfec5db613f",
+        "afterSha256": "85c6c4fb85f6cd8e5bb3d9f1f94efac58465558d611565f3577d5798fbc4a3c3",
+        "reason": "Append FK-PIT-0142 and FK-PIT-0143 index entries only"
+      }
+    ],
+    "unchangedRuntimeArtifacts": 25,
+    "unchangedLegacyStagingFiles": 28,
+    "unchangedPackageFiles": 2,
+    "unexpectedChanges": []
+  },
+  "fixedInputs": [
+    {
+      "path": "docs/v0.2.11/local-subtitle-transcriber/poc/runtime-smoke.local/models/ggml-large-v3-q5_0.bin",
+      "byteSize": 1081140203,
+      "sha256": "d75795ecff3f83b5faa89d1900604ad8c780abd5739fae406de19f23ecd98ad1"
+    },
+    {
+      "path": "test-results/subtitle-quality-review/vad-baseline-isolated/A.wav",
+      "byteSize": 960078,
+      "sha256": "196a524c3805cdc5cccd9711711220bc5591c04906be442c6fa00955874798c5"
+    },
+    {
+      "path": "test-results/subtitle-quality-review/vad-baseline-isolated/B.wav",
+      "byteSize": 960078,
+      "sha256": "43e4541f77f7c9e0b9351431da61ff6912814f963159b17d5a51b1ba3b14bd93"
+    },
+    {
+      "path": "test-results/subtitle-quality-review/vad-baseline-isolated/C.wav",
+      "byteSize": 960078,
+      "sha256": "e57ad65505ebb1e8042939cb71023807d6761810c112fdcefc2653c54433b8b7"
+    },
+    {
+      "path": "test-results/subtitle-quality-review/annotation-followup/B-noise.wav",
+      "byteSize": 576078,
+      "sha256": "2f979f0bbb50c3a3896cee437e9b9ea7bd7745bb55bbd4b6decf24280da0d510"
+    },
+    {
+      "path": "test-results/subtitle-quality-review/phase12/final-separators-production/app-inputs-isolated/independent.wav",
+      "byteSize": 5631844,
+      "sha256": "9c80350769700f72edc5bd7e7428122f42b1c8eede81967dbe723e5fb7c4fc10"
+    },
+    {
+      "path": "test-results/subtitle-quality-review/phase12/final-separators-production/app-inputs-isolated/full.wav",
+      "byteSize": 83025744,
+      "sha256": "9ae30957514dd75faa08464f3aeee6025cb2d9bdb98ae98bd703649451ded527"
+    },
+    {
+      "path": "test-results/studio-t08/inputs/for-tests-silero-v6.2.0-ggml.bin",
+      "byteSize": 885098,
+      "sha256": "2aa269b785eeb53a82983a20501ddf7c1d9c48e33ab63a41391ac6c9f7fb6987"
+    },
+    {
+      "path": "build/local-subtitle-resources/windows-v4-dev/downloads/whisper-cublas-12.4.0-bin-x64.zip",
+      "byteSize": 677887125,
+      "sha256": "106a2030eff8998e4ef320fe72e263a78449e9040386ee27c41ea80b001b601b"
+    }
+  ],
+  "evidence": [
+    {
+      "path": "test-results/studio-t08/real-default-comparison/run-dvZ4vI/report.json",
+      "byteSize": 3832603,
+      "sha256": "87e8351f23f3d2ae0ef011207b5da9eeaa9f9a71c30545d899bb138f5e7072d1"
+    },
+    {
+      "path": "test-results/studio-t08/real-default-comparison/run-dvZ4vI/source-snapshot.json",
+      "byteSize": 1556,
+      "sha256": "3f398f08e755763a73d28864a736592cc44f80791d8ed94cddebbc0d0938ca1c"
+    },
+    {
+      "path": "test-results/studio-t08/real-default-comparison/run-6m5eEe/report.json",
+      "byteSize": 99894,
+      "sha256": "52b7e6b18698a7708817e5e3d5f7f8d5a5942686aa356d1a92dd4a45ace99777"
+    },
+    {
+      "path": "test-results/studio-t08/real-default-comparison/run-6m5eEe/source-snapshot.json",
+      "byteSize": 1556,
+      "sha256": "caa8e444d394d34b01d2d9a3d818b7b0c7d3a50e703454600a1f3904e775a8c5"
+    },
+    {
+      "path": "test-results/studio-t08/real-default-comparison.log",
+      "byteSize": 36943,
+      "sha256": "f23dd0e3dbb833b9b9ac575c82c8d13cd02748f723ff18b38de6b25f6679536e"
+    },
+    {
+      "path": "test-results/studio-t08/initial-resource-failure.log",
+      "byteSize": 4065,
+      "sha256": "78be0fa7e8b0e162ca32c0cc43dd6b0e116b8491b43b07ed03ebcc1c23bdff09"
+    },
+    {
+      "path": "test-results/studio-t08/windows-cuda-path-probe.json",
+      "byteSize": 927,
+      "sha256": "a58c07216c2521f2c8ef620899cd09f9e30339af529fa67ff2a1d9d5897cf3c1"
+    },
+    {
+      "path": "test-results/studio-t08/core-regression.log",
+      "byteSize": 1393,
+      "sha256": "bad51b78b7933adb63a685fdfb5bd8297ebf8d855213312d482ef7511b980629"
+    },
+    {
+      "path": "test-results/studio-t08/frozen-regression.log",
+      "byteSize": 5181,
+      "sha256": "b3fbb59d567903ab8a15c5c284b3aaf2e088f20d38bea0f84f5409433946b03c"
+    },
+    {
+      "path": "test-results/studio-t08/checkout-boundaries.log",
+      "byteSize": 590,
+      "sha256": "badc8a4e29da6a7fd412f99cff887489d57745380fbb6d4142d3f3c5bdf92304"
+    },
+    {
+      "path": "test-results/studio-t08/boundaries.log",
+      "byteSize": 39,
+      "sha256": "26dc75d25c579cffb9b158cabd8a23a97229903c9e9262686986f8f5e1799fde"
+    },
+    {
+      "path": "test-results/studio-t08/tooling-unit-final.log",
+      "byteSize": 555,
+      "sha256": "f3972e5b3c34650cd2e95d49bcc4e84e4c2fc27f5a2f80753119ba2eda1e2cfe"
+    },
+    {
+      "path": "test-results/studio-t08/typescript-root.log",
+      "byteSize": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "test-results/studio-t08/typescript-node.log",
+      "byteSize": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "test-results/studio-t08/typescript-harness-final.log",
+      "byteSize": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "test-results/studio-t08/tsconfig-harness.json",
+      "byteSize": 297,
+      "sha256": "7ce2303ef4db1d855777e1cd3c5debaf479f57048c562e8edb669e10426770da"
+    },
+    {
+      "path": "test-results/studio-t08/device-before.json",
+      "byteSize": 310,
+      "sha256": "cb051851c3c0d925c6c7b55a433f2af068bdbe70ecf00f27b2a5774c9016503c"
+    },
+    {
+      "path": "test-results/studio-t08/isolation-before.json",
+      "byteSize": 6933,
+      "sha256": "2023728a27509cc8fcd22c1759ad3c4f00fb83567aa6f2ca7230a8abc31685eb"
+    },
+    {
+      "path": "test-results/studio-t08/isolation-current.json",
+      "byteSize": 550,
+      "sha256": "a84dcbd3b9d3ac5b6624ce21c050016dba02b7a58f0a522119745df8d33bf24c"
+    },
+    {
+      "path": "test-results/studio-t08/final-process-source-check.json",
+      "byteSize": 1198,
+      "sha256": "e77a494b9ec4552e704d28ddda5be4c4428b0cbdabd04aca63277b8b1946043f"
+    },
+    {
+      "path": "test-results/studio-t08/store-cleanup.json",
+      "byteSize": 317,
+      "sha256": "187cfc45ff561f1efcf1ef954ea4b4553864f5ebe9fabb1c20fda8d201b1e965"
+    },
+    {
+      "path": "test-results/studio-t08/final-quality-review.json",
+      "byteSize": 23522,
+      "sha256": "9d2104e434b0557e0724fa314a62dcdafa5e8d2753a4062dde465acfd43de08d"
+    }
+  ],
+  "documentFiles": [
+    {
+      "path": "test-results/studio-t08/real-default-comparison/run-dvZ4vI/cases/cpu-A-studio/documents/635b442b-3573-4afd-a431-c9189468b247/7875ae3e-70b4-48cb-8b36-9a514d097193.json",
+      "byteSize": 2761,
+      "sha256": "c505b50118e95ac557ae008242994c8d082c501bc266653dc6edc950640d3342"
+    },
+    {
+      "path": "test-results/studio-t08/real-default-comparison/run-dvZ4vI/cases/cpu-A-studio/documents/635b442b-3573-4afd-a431-c9189468b247/current.json",
+      "byteSize": 231,
+      "sha256": "d3a6a62e11e62ed66f869d99a5176f4d0eb3e57c137a1f5a00e7e5fd759f073a"
+    },
+    {
+      "path": "test-results/studio-t08/real-default-comparison/run-dvZ4vI/cases/cpu-B-studio/documents/29eea04f-8504-4e78-84c6-4134027421d2/44e8604e-9c7b-40d4-80f4-1127c1fa2d42.json",
+      "byteSize": 1073,
+      "sha256": "0c8f9f1ed6f9d9c652abcf54d4fe44ac22ce712a2dc5d63aeff409ba5f2e65f7"
+    },
+    {
+      "path": "test-results/studio-t08/real-default-comparison/run-dvZ4vI/cases/cpu-B-studio/documents/29eea04f-8504-4e78-84c6-4134027421d2/current.json",
+      "byteSize": 231,
+      "sha256": "d75127200566ec8910643abc6680f79d3ad8c6ebcb8883b3163fc848b40844ef"
+    },
+    {
+      "path": "test-results/studio-t08/real-default-comparison/run-dvZ4vI/cases/cpu-C-studio/documents/a76396d9-8910-453e-a421-b0d50053c37e/0568414c-c12b-4113-b247-9a48c67afe27.json",
+      "byteSize": 1874,
+      "sha256": "f19d8d0cc86ef0c816501a482104fb939e64873703810e1b8457c3f015adc287"
+    },
+    {
+      "path": "test-results/studio-t08/real-default-comparison/run-dvZ4vI/cases/cpu-C-studio/documents/a76396d9-8910-453e-a421-b0d50053c37e/current.json",
+      "byteSize": 231,
+      "sha256": "1b49190c623da4c8e6717b44c216e5d7678ce735079a93ccc43f9ed9f409683c"
+    },
+    {
+      "path": "test-results/studio-t08/real-default-comparison/run-dvZ4vI/cases/cpu-full-studio/documents/439a9efd-bba0-4e6e-885c-9f512b1fc9b4/b7410bc5-4bb6-40bf-a434-476580c78c50.json",
+      "byteSize": 23839,
+      "sha256": "14c4f562f9b774dcf4ef5bc4efa291b1e0fcdafd9167b8f5a58e3f1dee948fdd"
+    },
+    {
+      "path": "test-results/studio-t08/real-default-comparison/run-dvZ4vI/cases/cpu-full-studio/documents/439a9efd-bba0-4e6e-885c-9f512b1fc9b4/current.json",
+      "byteSize": 231,
+      "sha256": "e3b8a7cf306c8b5fa2466a6a57fa5a4b6b1acdc875ac15cc8f4850ec258820f1"
+    },
+    {
+      "path": "test-results/studio-t08/real-default-comparison/run-dvZ4vI/cases/cpu-independent-studio/documents/677fef9b-3066-47fe-be73-561e8de77356/8006339c-b6cd-4cbf-ab48-f190f9703119.json",
+      "byteSize": 16436,
+      "sha256": "16a02bfd46a030e99481d42d6c5d55c71f69d75ccb4f18eb1a261451576173d8"
+    },
+    {
+      "path": "test-results/studio-t08/real-default-comparison/run-dvZ4vI/cases/cpu-independent-studio/documents/677fef9b-3066-47fe-be73-561e8de77356/current.json",
+      "byteSize": 231,
+      "sha256": "8e3e8c1ed8d54d35d9789f38258d8cdcb5747c8d2541a6a198bc795080dcf916"
+    },
+    {
+      "path": "test-results/studio-t08/real-default-comparison/run-dvZ4vI/cases/cuda-A-studio/documents/71f0f6bb-96bb-4dff-b1d5-173978c58e81/9be088ab-f001-4eed-9010-4a5e565d9dca.json",
+      "byteSize": 3166,
+      "sha256": "7491334e186142c5fe4f76823360d17a7b6471251d6a999303c2a7d2001adc75"
+    },
+    {
+      "path": "test-results/studio-t08/real-default-comparison/run-dvZ4vI/cases/cuda-A-studio/documents/71f0f6bb-96bb-4dff-b1d5-173978c58e81/current.json",
+      "byteSize": 231,
+      "sha256": "56c40e813f5995a2a9d75aea7cdd1c9893ff78925232be3bb6d979b1f8c4127a"
+    },
+    {
+      "path": "test-results/studio-t08/real-default-comparison/run-dvZ4vI/cases/cuda-A-studio-repeat/documents/8d299a03-81d4-476a-8670-dc6b65596813/68b28ccf-3e9a-4b2c-8908-de29197ccdc8.json",
+      "byteSize": 3166,
+      "sha256": "2664c67c89805a60bafdc4c8832fad4db098a32fdf7d348f9606a46fea217bfb"
+    },
+    {
+      "path": "test-results/studio-t08/real-default-comparison/run-dvZ4vI/cases/cuda-A-studio-repeat/documents/8d299a03-81d4-476a-8670-dc6b65596813/current.json",
+      "byteSize": 231,
+      "sha256": "d88cd3fc663ebf1081b24c0e7d854530902751b90b56ce2152458b712ce3ab0b"
+    },
+    {
+      "path": "test-results/studio-t08/real-default-comparison/run-dvZ4vI/cases/cuda-B-studio/documents/3e708e28-6c2b-4f69-a8a7-b6c5d7ba88f1/a9479810-c72b-485f-b2b0-c9259e07996d.json",
+      "byteSize": 1074,
+      "sha256": "2de51e6dbab0e8b91f279f675c6a57258f1378276417c4dc6f4475ea12dcf038"
+    },
+    {
+      "path": "test-results/studio-t08/real-default-comparison/run-dvZ4vI/cases/cuda-B-studio/documents/3e708e28-6c2b-4f69-a8a7-b6c5d7ba88f1/current.json",
+      "byteSize": 231,
+      "sha256": "299f563b4b3a4102e72012f342eea45b0e53b82b7e366a998265e56731e46500"
+    },
+    {
+      "path": "test-results/studio-t08/real-default-comparison/run-dvZ4vI/cases/cuda-C-studio/documents/2f93b10c-7b21-4d2d-abce-0daf04e75329/b71c4aee-d8a0-4a0d-932e-0a49fb76fa36.json",
+      "byteSize": 1875,
+      "sha256": "d9a9e920732e7ae5c93c539c4795f0b3c1823705205d86f4b2949ceea21672c2"
+    },
+    {
+      "path": "test-results/studio-t08/real-default-comparison/run-dvZ4vI/cases/cuda-C-studio/documents/2f93b10c-7b21-4d2d-abce-0daf04e75329/current.json",
+      "byteSize": 231,
+      "sha256": "9bddb13ffedc9c04eacf4f1e6d9efe5097675f21c4a25dc107a8802292ec2202"
+    },
+    {
+      "path": "test-results/studio-t08/real-default-comparison/run-dvZ4vI/cases/cuda-full-studio/documents/52b53286-1382-4627-b81c-549149fdd9b2/c9945bb4-8b7b-4e96-823e-a0bd0d202633.json",
+      "byteSize": 24960,
+      "sha256": "e0e6fad87dbed03e6415eef043364430b3bacae3a14f4c67fd6f2a8688004057"
+    },
+    {
+      "path": "test-results/studio-t08/real-default-comparison/run-dvZ4vI/cases/cuda-full-studio/documents/52b53286-1382-4627-b81c-549149fdd9b2/current.json",
+      "byteSize": 231,
+      "sha256": "12add16b166086ea403e60da4f1f283ab36a40b6560a9e684e5dc90029768f77"
+    },
+    {
+      "path": "test-results/studio-t08/real-default-comparison/run-dvZ4vI/cases/cuda-independent-studio/documents/37393082-0bcf-4703-8956-887966864a8f/cc7a3b35-2477-4141-b97f-f133dff5d73e.json",
+      "byteSize": 16437,
+      "sha256": "8be012d0c3729ccb6be3a51966eb34b5aba1b2e1c142f250646584061a9c20e6"
+    },
+    {
+      "path": "test-results/studio-t08/real-default-comparison/run-dvZ4vI/cases/cuda-independent-studio/documents/37393082-0bcf-4703-8956-887966864a8f/current.json",
+      "byteSize": 231,
+      "sha256": "e1786d7512c6a868d8dc2217a8eedceb1e441d0b0aad50024cc44faf7631cae1"
+    }
+  ],
+  "matrix": {
+    "startedAt": "2026-09-12T10:09:45.412Z",
+    "completedAt": "2026-09-12T10:29:23.918Z",
+    "chains": 26,
+    "completed": 22,
+    "noSpeechDetected": 4,
+    "pairedOutcomes": 13,
+    "canonicalComparisons": 11,
+    "sameSideRepeatComparisons": 2,
+    "newDocumentsReopened": 11,
+    "sameBackendPairDifferences": 0,
+    "automaticQualityStatus": "requires_review",
+    "qualityScope": "Fixed Windows migration comparison; shared seam/readability limitations remain; no whole-feature acceptance",
+    "resourcesUninstalled": true,
+    "ownedTemporaryRootRemoved": true,
+    "nativeProcessesRemaining": 0,
+    "sourcesUnchanged": true
+  },
+  "evidenceNote": "Evidence/input/build paths are local ignored artifacts; their hashes do not imply availability on another host. Raw transcripts and absolute system paths are omitted from this snapshot."
+}

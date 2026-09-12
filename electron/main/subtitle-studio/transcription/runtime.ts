@@ -26,6 +26,10 @@ import {
   type LocalSubtitleRuntimeVerificationScope, type LocalSubtitleSignatureVerifier,
 } from './native/resource-path';
 import type { LocalSubtitleMainRuntimeShutdownReason, LocalSubtitleMainRuntimeTarget } from './native/main-runtime';
+import { DocumentRepository } from '../document-repository';
+import { TranscriptionExecutor } from './transcript-executor';
+import { createTranscriptionTaskService, type TranscriptionTaskService } from './task-service';
+import type { EnqueueTranscriptionRequest } from '../../../../src/subtitle-studio/transcription/task-contract';
 
 export interface TranscriptionRuntimeOptions {
   readonly userDataRoot: string;
@@ -62,12 +66,13 @@ const roots = new Map<string, object>();
 type Phase = 'new' | 'initializing' | 'initialized' | 'failed' | 'closing' | 'closed';
 
 /** Construction is inert. Initialization owns private storage; native work remains explicit. */
-export function createTranscriptionRuntime(options: TranscriptionRuntimeOptions, dependencies: TranscriptionRuntimeDependencies = {}) {
+export function createTranscriptionRuntime(options: TranscriptionRuntimeOptions, dependencies: TranscriptionRuntimeDependencies = {}, repository?: DocumentRepository) {
   const parsedOptions = optionsSchema.safeParse(options);
   if (!parsedOptions.success || path.parse(options.userDataRoot).root === path.resolve(options.userDataRoot)) {
     throw new TranscriptionRuntimeError('invalid_configuration');
   }
   const environment = Object.freeze({ ...parsedOptions.data.environment });
+  if (repository !== undefined && !(repository instanceof DocumentRepository)) throw new TranscriptionRuntimeError('invalid_configuration');
   try { assertSupportedLocalSubtitleRuntimeTarget(environment.platform ?? process.platform, environment.arch ?? process.arch); }
   catch { throw new TranscriptionRuntimeError('invalid_configuration'); }
   const userDataRoot = path.resolve(options.userDataRoot);
@@ -80,6 +85,7 @@ export function createTranscriptionRuntime(options: TranscriptionRuntimeOptions,
   let shutdownOperation: Promise<void> | undefined;
   let terminal = false;
   let services: ReturnType<typeof compose> | undefined;
+  const ownerReleases = new Map<string, Promise<void>>();
   const partial: { jobs?: LocalSubtitleJobManager; models?: LocalSubtitleModelManager; media?: LocalSubtitleMediaNormalizer;
     server?: LocalSubtitleServerSupervisor; registry?: LocalSubtitleSessionRegistry } = {};
 
@@ -119,26 +125,35 @@ export function createTranscriptionRuntime(options: TranscriptionRuntimeOptions,
       dependencies: { verifyBackend: attestor.verifyBackend, ...dependencies.server?.dependencies } });
     const registry = partial.registry = new LocalSubtitleSessionRegistry();
     let jobs: LocalSubtitleJobManager | undefined;
+    let tasks: TranscriptionTaskService | undefined;
     const models = partial.models = new LocalSubtitleModelManager({ ...dependencies.resources,
       managedResourceRoot, runtimeEnvironment: environment, supervisor: server, sessionRegistry: registry,
       // The factory ran this exact cleanup before composing any service that could own live work.
       startupCleanup: async () => undefined,
       verifyServerRuntime: () => verifyRuntime('server'),
-      isResourceBusy: id => Boolean(jobs?.isManagedModelBusy(id) || jobs?.isManagedVadBusy(id)
+      isResourceBusy: id => Boolean(tasks?.isResourceBusy(id) || jobs?.isManagedModelBusy(id) || jobs?.isManagedVadBusy(id)
         || jobs?.isManagedAcceleratorBusy(id) || server.isManagedAcceleratorBusy(id)
         || server.snapshot.modelId === id || server.snapshot.vadModelId === id),
     });
     const resolveCudaAccelerator = (signal?: AbortSignal) => models.resolveManagedAccelerator(LOCAL_SUBTITLE_WINDOWS_CUDA_PACK_DEFINITION.resourceId, signal);
-    const exporter = new LocalSubtitleExporter(artifacts);
-    const executor = new LocalSubtitleProductionExecutor({ media, supervisor: server, inputs, outputs, exporter,
-      runtimeEnvironment: environment, resolveCudaAccelerator });
     const backendResolver = new LocalSubtitleBackendResolver({ runtimeEnvironment: environment,
       verifyServerRuntime: () => verifyRuntime('server'), resolveCudaAccelerator,
       metalAttestationAvailable: attestor.supportedBackends.includes('metal'), cudaAttestationAvailable: attestor.supportedBackends.includes('cuda') });
-    jobs = partial.jobs = new LocalSubtitleJobManager({ registry, inputs, outputs, leases, runtimeVerifier: media,
-      backendResolver, modelResolver: models, mediaSelections: media, executor, artifacts: handoffs });
-    const lifecycle = new LocalSubtitleSessionLifecycle(jobs, models, media, server, registry);
-    return { inputs, outputs, artifacts, importTokens, media, server, models, registry, lifecycle };
+    if (repository) {
+      const executor = new TranscriptionExecutor({ media, supervisor: server, runtimeEnvironment: environment, resolveCudaAccelerator });
+      tasks = createTranscriptionTaskService({ repository, inputs, leases, media, modelResolver: models, backendResolver, executor });
+    } else {
+      // Retain the resource-only T03 host contract; no legacy job API is exposed.
+      const exporter = new LocalSubtitleExporter(artifacts);
+      const executor = new LocalSubtitleProductionExecutor({ media, supervisor: server, inputs, outputs, exporter,
+        runtimeEnvironment: environment, resolveCudaAccelerator });
+      jobs = partial.jobs = new LocalSubtitleJobManager({ registry, inputs, outputs, leases, runtimeVerifier: media,
+        backendResolver, modelResolver: models, mediaSelections: media, executor, artifacts: handoffs });
+    }
+    // Document tasks are joined explicitly before resource/media shutdown begins.
+    const taskTarget = jobs ?? { releaseOwner() {}, async shutdown() {} };
+    const lifecycle = new LocalSubtitleSessionLifecycle(taskTarget, models, media, server, registry);
+    return { inputs, outputs, artifacts, importTokens, media, server, models, registry, lifecycle, tasks };
   }
 
   function releaseCapabilities(owner: LocalSubtitleOwnerKey) {
@@ -156,6 +171,10 @@ export function createTranscriptionRuntime(options: TranscriptionRuntimeOptions,
   async function closeServices(reason: LocalSubtitleMainRuntimeShutdownReason) {
     const failures: unknown[] = [];
     if (services) {
+      try { await services.tasks?.shutdown(reason); } catch (error) { failures.push(error); }
+      // Existing owner releases must finish before closing their backing services.
+      const releases = await Promise.allSettled([...ownerReleases.values()]);
+      for (const result of releases) if (result.status === 'rejected') failures.push(result.reason);
       try { await services.lifecycle.shutdown(reason); } catch (error) { failures.push(error); }
     } else {
       for (const targets of [[partial.jobs, partial.models], [partial.media, partial.server], [partial.registry]]) {
@@ -170,6 +189,7 @@ export function createTranscriptionRuntime(options: TranscriptionRuntimeOptions,
       try { releaseCapabilities(record.owner); } catch (error) { failures.push(error); }
     }
     if (failures.length) throw new AggregateError(failures, 'Transcription runtime cleanup failed.');
+    services?.tasks?.confirmCleanup();
     releaseLock();
   }
 
@@ -211,13 +231,14 @@ export function createTranscriptionRuntime(options: TranscriptionRuntimeOptions,
     if (shutdownOperation) return shutdownOperation;
     if (phase === 'closed') return Promise.resolve();
     terminal = true; phase = 'closing';
-    for (const record of owners.values()) record.controller.abort();
     shutdownOperation = Promise.resolve().then(async () => {
       // Initialization reports its own error and cleans partial construction before this joins it.
       if (initialization) await Promise.allSettled([initialization]);
       await closeServices(reason);
       phase = 'closed';
     }).catch(error => { phase = 'failed'; shutdownOperation = undefined; throw error; });
+    // Cache before synchronous abort callbacks can re-enter shutdown.
+    for (const record of owners.values()) record.controller.abort();
     return shutdownOperation;
   }
 
@@ -226,13 +247,39 @@ export function createTranscriptionRuntime(options: TranscriptionRuntimeOptions,
     snapshot: () => Object.freeze({ phase, server: services?.server.snapshot ?? null }),
     releaseOwner(value: LocalSubtitleOwnerKey) {
       const owner = Object.freeze(ownerSchema.parse(value));
-      const record = owners.get(ownerKey(owner));
-      if (record) { record.released = true; record.controller.abort(); }
-      else { const controller = new AbortController(); controller.abort(); owners.set(ownerKey(owner), { owner, released: true, controller }); }
+      const key = ownerKey(owner);
+      const fence = () => {
+        const record = owners.get(key);
+        if (record) { record.released = true; record.controller.abort(); }
+        else { const controller = new AbortController(); owners.set(key, { owner, released: true, controller }); controller.abort(); }
+      };
       const failures: unknown[] = [];
-      try { services?.lifecycle.releaseOwner(owner); } catch (error) { failures.push(error); }
+      if (!services?.tasks) {
+        fence();
+        try { releaseCapabilities(owner); } catch (error) { failures.push(error); }
+        try { services?.lifecycle.releaseOwner(owner); } catch (error) { failures.push(error); }
+        if (failures.length) throw new AggregateError(failures, 'Transcription owner release failed.');
+        return Promise.resolve();
+      }
+      if (ownerReleases.has(key)) return ownerReleases.get(key)!;
+      const current = services;
+      let resolveRelease!: () => void;
+      let rejectRelease!: (error: unknown) => void;
+      const operation = new Promise<void>((resolve, reject) => { resolveRelease = resolve; rejectRelease = reject; });
+      ownerReleases.set(key, operation);
+      void operation.then(() => { if (ownerReleases.get(key) === operation) ownerReleases.delete(key); },
+        () => { if (ownerReleases.get(key) === operation) ownerReleases.delete(key); });
+      // Both owner abort and task release can synchronously re-enter this facade.
+      fence();
       try { releaseCapabilities(owner); } catch (error) { failures.push(error); }
-      if (failures.length) throw new AggregateError(failures, 'Transcription owner release failed.');
+      let joined: Promise<void> | undefined;
+      try { joined = current.tasks!.releaseOwner(owner); } catch (error) { failures.push(error); }
+      void Promise.resolve().then(async () => {
+        try { await joined; } catch (error) { failures.push(error); }
+        try { current.lifecycle.releaseOwner(owner); } catch (error) { failures.push(error); }
+        if (failures.length) throw new AggregateError(failures, 'Transcription owner release failed.');
+      }).then(resolveRelease, rejectRelease);
+      return operation;
     },
     async inspectRuntime(scope: LocalSubtitleRuntimeVerificationScope = 'all') {
       requireReady();
@@ -250,12 +297,39 @@ export function createTranscriptionRuntime(options: TranscriptionRuntimeOptions,
     media: Object.freeze({
       authorizeInput(value: LocalSubtitleOwnerKey, filePath: string) {
         const { current, owner } = requireOwner(value);
-        return completeOwner(owner, current.inputs.authorize(owner, filePath));
+        return completeOwner(owner, current.inputs.authorize(owner, filePath, ['probe', 'transcribe']));
+      },
+      revokeInput(value: LocalSubtitleOwnerKey, fileToken: string) {
+        const { current, owner } = requireOwner(value);
+        return current.inputs.revokeDraft(owner, fileToken);
       },
       probe(value: LocalSubtitleOwnerKey, fileToken: string, signal?: AbortSignal) {
         const { current, owner, signal: lifetime } = requireOwner(value);
         return completeOwner(owner, current.media.probeDraft({ owner, fileToken, signal: ownerSignal(lifetime, signal) }));
       },
+    }),
+    tasks: Object.freeze({
+      enqueue(value: LocalSubtitleOwnerKey, request: EnqueueTranscriptionRequest) {
+        const { current, owner, signal } = requireOwner(value);
+        if (!current.tasks) throw new TranscriptionRuntimeError('invalid_configuration');
+        return completeOwner(owner, current.tasks.enqueue(owner, request, signal));
+      },
+      list(value: LocalSubtitleOwnerKey) {
+        const { current, owner } = requireOwner(value);
+        if (!current.tasks) throw new TranscriptionRuntimeError('invalid_configuration');
+        return current.tasks.list(owner);
+      },
+      cancel(value: LocalSubtitleOwnerKey, taskId: string) {
+        const { current, owner } = requireOwner(value);
+        if (!current.tasks) throw new TranscriptionRuntimeError('invalid_configuration');
+        return current.tasks.cancel(owner, taskId);
+      },
+      remove(value: LocalSubtitleOwnerKey, taskId: string) {
+        const { current, owner } = requireOwner(value);
+        if (!current.tasks) throw new TranscriptionRuntimeError('invalid_configuration');
+        return current.tasks.remove(owner, taskId);
+      },
+      waitForIdle() { return requireReady().tasks?.waitForIdle() ?? Promise.resolve(); },
     }),
     resources: Object.freeze({
       list(value: LocalSubtitleOwnerKey, signal?: AbortSignal) {

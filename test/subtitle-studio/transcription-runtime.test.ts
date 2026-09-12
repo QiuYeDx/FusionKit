@@ -6,6 +6,8 @@ import { LocalSubtitleInputAuthorizationRegistry, LocalSubtitleOutputDirectoryAu
   LocalSubtitleImportTokenRegistry } from '../../electron/main/subtitle-studio/transcription/native/authorizations';
 import { LocalSubtitleArtifactRegistry } from '../../electron/main/subtitle-studio/transcription/native/subtitle-artifact-registry';
 import { runtimeFixture, eventually } from './helpers/transcription-runtime';
+import { DocumentRepository } from '../../electron/main/subtitle-studio/document-repository';
+import { LocalSubtitleModelManager } from '../../electron/main/subtitle-studio/transcription/native/model-manager';
 
 const OWNER = { webContentsId: 51, ownerSessionId: 'runtime-owner' };
 const OTHER = { webContentsId: 52, ownerSessionId: 'runtime-other' };
@@ -22,13 +24,70 @@ afterEach(async () => {
 });
 
 describe('independent transcription runtime composition', () => {
+  it('composes document tasks lazily against the supplied private repository', async () => {
+    const item = await fixture();
+    const repository = new DocumentRepository(path.join(item.userDataRoot, 'subtitle-studio', 'documents'));
+    const runtime = createTranscriptionRuntime({ userDataRoot: item.userDataRoot, environment: item.bundle.environment }, item.adapters, repository);
+    extraRuntimes.push(runtime);
+    expect(() => runtime.tasks.list(OWNER)).toThrowError(expect.objectContaining({ code: 'not_initialized' }));
+    expect(await readdir(item.userDataRoot)).toEqual([]);
+    await runtime.initialize();
+    expect(runtime.tasks.list(OWNER)).toEqual([]);
+    await runtime.tasks.waitForIdle();
+    expect(item.spawnProcess).not.toHaveBeenCalled();
+    expect(item.mediaRunner).not.toHaveBeenCalled();
+    await runtime.releaseOwner(OWNER);
+    expect(() => runtime.tasks.list(OWNER)).toThrowError(expect.objectContaining({ code: 'owner_released' }));
+    expect(runtime.tasks.list(OTHER)).toEqual([]);
+    await runtime.shutdown();
+    expect(runtime.snapshot().phase).toBe('closed');
+  });
+
+  it('rejects an untrusted repository object and never exposes tasks from resource-only hosts', async () => {
+    const item = await fixture();
+    expect(() => createTranscriptionRuntime({ userDataRoot: item.userDataRoot, environment: item.bundle.environment }, item.adapters, {} as never))
+      .toThrowError(expect.objectContaining({ code: 'invalid_configuration' }));
+    await item.runtime.initialize();
+    expect(() => item.runtime.tasks.list(OWNER)).toThrowError(expect.objectContaining({ code: 'invalid_configuration' }));
+    expect(item.spawnProcess).not.toHaveBeenCalled();
+  });
+
+  it('issues only read/transcribe authority and exposes owner-bound idempotent draft revocation', async () => {
+    const authorization = vi.spyOn(LocalSubtitleInputAuthorizationRegistry.prototype, 'authorize');
+    const item = await fixture(); await item.runtime.initialize();
+    const token = await item.runtime.media.authorizeInput(OWNER, item.sourcePath);
+    const issuer = authorization.mock.contexts[0]!;
+    await expect(issuer.resolveDraft(OWNER, token.fileToken, 'transcribe')).resolves.toBeDefined();
+    await expect(issuer.resolveDraft(OWNER, token.fileToken, 'derive_source_output')).rejects.toBeDefined();
+    expect(item.runtime.media.revokeInput(OTHER, token.fileToken)).toBe(false);
+    await expect(issuer.resolveDraft(OWNER, token.fileToken, 'probe')).resolves.toBeDefined();
+    expect(item.runtime.media.revokeInput(OWNER, token.fileToken)).toBe(true);
+    expect(item.runtime.media.revokeInput(OWNER, token.fileToken)).toBe(false);
+    await expect(issuer.resolveDraft(OWNER, token.fileToken, 'probe')).rejects.toBeDefined();
+  });
+
+  it('publishes the one shutdown promise before synchronous owner abort callbacks', async () => {
+    const item = await fixture(); await item.runtime.initialize();
+    let reentrant: Promise<void> | undefined;
+    vi.spyOn(LocalSubtitleModelManager.prototype, 'listManagedResources').mockImplementationOnce((_owner, signal) =>
+      new Promise(resolve => signal!.addEventListener('abort', () => {
+        reentrant = item.runtime.shutdown(); resolve([]);
+      }, { once: true })));
+    const pending = item.runtime.resources.list(OWNER).catch(error => error);
+    const closing = item.runtime.shutdown();
+    expect(reentrant).toBe(closing);
+    expect(item.runtime.shutdown()).toBe(closing);
+    await closing;
+    expect(await pending).toMatchObject({ code: 'runtime_closed' });
+  });
+
   it('rejects invalid options and mismatched targets before creating directories', async () => {
     const item = await fixture();
     const options = { userDataRoot: item.userDataRoot, environment: item.bundle.environment };
     for (const invalid of [null, { ...options, userDataRoot: 'relative' }, { ...options, userDataRoot: '/bad\0path' },
       { ...options, environment: {} }, { ...options, environment: { mode: 'development', appRoot: 'relative' } },
       { ...options, environment: { ...item.bundle.environment, platform: 'linux' } },
-      { ...options, environment: { ...item.bundle.environment, arch: 'x64' } },
+      { ...options, environment: { ...item.bundle.environment, arch: item.bundle.environment.platform === 'win32' ? 'arm64' : 'x64' } },
       { ...options, managedResourceRoot: '/arbitrary' }]) {
       expect(() => createTranscriptionRuntime(invalid as never)).toThrowError(expect.objectContaining({ code: 'invalid_configuration' }));
     }
@@ -77,7 +136,7 @@ describe('independent transcription runtime composition', () => {
 
   it('reports missing and tampered new runtime resources without probing adjacent old resources', async () => {
     const item = await fixture(); await item.runtime.initialize();
-    expect(await item.runtime.inspectRuntime()).toMatchObject({ status: 'verified', target: { platform: 'darwin', arch: 'arm64' } });
+    expect(await item.runtime.inspectRuntime()).toMatchObject({ status: 'verified', target: item.bundle.manifest.target });
     const oldRoot = path.join(item.bundle.tempRoot, 'runtime', 'local-subtitle');
     await mkdir(path.dirname(oldRoot), { recursive: true });
     await rename(item.bundle.runtimeRoot, oldRoot);

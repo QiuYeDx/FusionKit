@@ -1,6 +1,7 @@
-import { STUDIO_CHANNELS } from '../../src/subtitle-studio/ipc-contract';
+import { STUDIO_CHANNELS, transcriptionRequestSchemas } from '../../src/subtitle-studio/ipc-contract';
 
 export function isPublicStudioChannel(channel: string) {
+  if ((Object.keys(transcriptionRequestSchemas) as (keyof typeof transcriptionRequestSchemas)[]).some(method => STUDIO_CHANNELS[method] === channel)) return true;
   return [STUDIO_CHANNELS.importSubtitle, STUDIO_CHANNELS.importSubtitles, STUDIO_CHANNELS.revealUnavailable, STUDIO_CHANNELS.deleteUnavailable, STUDIO_CHANNELS.planTranslationBatch, STUDIO_CHANNELS.createTranslationBatch, STUDIO_CHANNELS.planExportBatch, STUDIO_CHANNELS.exportBatch, STUDIO_CHANNELS.exportSources, STUDIO_CHANNELS.listDocuments, STUDIO_CHANNELS.readDocumentPage, STUDIO_CHANNELS.exportSource, STUDIO_CHANNELS.planExport, STUDIO_CHANNELS.exportDocument, STUDIO_CHANNELS.deleteDocument, STUDIO_CHANNELS.removeTask, STUDIO_CHANNELS.planTranslation, STUDIO_CHANNELS.createTranslation, STUDIO_CHANNELS.cancelTask, STUDIO_CHANNELS.resumeTask, STUDIO_CHANNELS.previewBilingual, STUDIO_CHANNELS.applyBilingual, STUDIO_CHANNELS.removeTranslationTrack].some(value => value === channel);
 }
 

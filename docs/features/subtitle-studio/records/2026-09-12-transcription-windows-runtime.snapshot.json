@@ -1,0 +1,341 @@
+{
+  "schemaVersion": 1,
+  "baseCommit": "e80ef6b6460a2c3a27c9f102078543ba07d29352",
+  "previousSnapshotSha256": "0ed05341d32e5b287bb86ba51c0097ee99fb4ccfb5a995ef5502c0a824d2eaae",
+  "files": [
+    {
+      "path": ".agents/skills/fusionkit-pitfall-guard/references/index.md",
+      "byteSize": 53487,
+      "sha256": "9157ce00bd3816ef9bd8b29e197b1945f9a1396076a8e9ce1d83bdfec5db613f"
+    },
+    {
+      "path": ".agents/skills/fusionkit-pitfall-guard/references/preserve-electron-node-mode-in-recovery-children.md",
+      "byteSize": 2240,
+      "sha256": "947daffd66cd49ed3036cadb082ec24b50a0fb2516b641a586f3fdc7c2f7a3e4"
+    },
+    {
+      "path": "resources/subtitle-studio/provenance/transcription-runtime-windows-fork.json",
+      "byteSize": 10594,
+      "sha256": "3f3e868015529fe4ee729bea51461712c9a437892efaaf59435f65409a8f11a5"
+    },
+    {
+      "path": "resources/subtitle-studio/provenance/transcription-windows-addon-fork.json",
+      "byteSize": 20455,
+      "sha256": "51ed81a910c523e593ee66201170be05b5041368af934f16834d55cc4c70c691"
+    },
+    {
+      "path": "scripts/subtitle-studio-provenance/runtime-windows-copy-recipe.mjs",
+      "byteSize": 4793,
+      "sha256": "c668e5efb4e5867c9348f44ba4c8978529ba1c9a2d2ff8fc96fa812a1e537f84"
+    },
+    {
+      "path": "scripts/subtitle-studio-provenance/runtime-windows-copy.mjs",
+      "byteSize": 1186,
+      "sha256": "ed35f99bd56ee039e9d3c9006101fc20a15b0a1e2f8e79ead1e806b63c86bc57"
+    },
+    {
+      "path": "scripts/subtitle-studio-provenance/windows-addon-copy-recipe.json",
+      "byteSize": 15220,
+      "sha256": "5596e4a41d0858cab44cd36759d9b9e51541bdb88bb3a772523d807cdd76ff71"
+    },
+    {
+      "path": "scripts/subtitle-studio-provenance/windows-addon-copy.mjs",
+      "byteSize": 2603,
+      "sha256": "53637cf2cfbd3e44fe3e28366c9d8dda3bdb91c0176e000e015102ad10b76083"
+    },
+    {
+      "path": "scripts/subtitle-studio/boundaries.json",
+      "byteSize": 12852,
+      "sha256": "f928ec923796518cf52e90eb2cfcd1661b0c2b3c5ed5c3399babeba9d76d640d"
+    },
+    {
+      "path": "scripts/subtitle-studio/transcription/overwrite-native/build-addon-windows-x64.mjs",
+      "byteSize": 19236,
+      "sha256": "497c29c85649f47759326be5d9a3b416be6367eef415668d977b6cec0d4e2f6d"
+    },
+    {
+      "path": "scripts/subtitle-studio/transcription/overwrite-native/build-addon-windows-x64.test.mjs",
+      "byteSize": 12636,
+      "sha256": "f4002afe867c7790310b8a93252d29a91a6c14df5ecaa83e3551b5c23cf5f1ed"
+    },
+    {
+      "path": "scripts/subtitle-studio/transcription/overwrite-native/build-test-addon-windows-x64.mjs",
+      "byteSize": 5990,
+      "sha256": "6811734ec59b675d90ce88f881fd4843166b435fa1ba3f375e8eb0789d2ecc2b"
+    },
+    {
+      "path": "scripts/subtitle-studio/transcription/overwrite-native/run-addon-windows-integration.mjs",
+      "byteSize": 21073,
+      "sha256": "a67e52ee96609b70ed8f55f66e51bbf5317225e875d534c099fcf19b9e3d219d"
+    },
+    {
+      "path": "scripts/subtitle-studio/transcription/overwrite-native/run-addon-windows-namespace-integration.mjs",
+      "byteSize": 6262,
+      "sha256": "7400719a1dee9bc0ff35c43d14f1a217c7d3eec3df09617478f0b1eb661f08a2"
+    },
+    {
+      "path": "scripts/subtitle-studio/transcription/overwrite-native/run-addon-windows-recovery-child.mjs",
+      "byteSize": 3818,
+      "sha256": "8c336f55f88c0df62e2641c7f857fcfa37d820e2cec64cd7d1f872d23ba5b191"
+    },
+    {
+      "path": "scripts/subtitle-studio/transcription/overwrite-native/run-addon-windows-recovery-integration.mjs",
+      "byteSize": 27155,
+      "sha256": "1dec5badee6ef2aae215b1073bf78799a0932bc7b740441b5bf6a1f38ddd9bc7"
+    },
+    {
+      "path": "scripts/subtitle-studio/transcription/overwrite-native/windows-build-cleanup.test.mjs",
+      "byteSize": 2548,
+      "sha256": "812a0328a86b7ec5a0613f614a9be518eb49c5e44cfb9e430746adf3a5b8964e"
+    },
+    {
+      "path": "scripts/subtitle-studio/transcription/overwrite-native/windows-electron-host.test.mjs",
+      "byteSize": 3364,
+      "sha256": "62b7b5319b93796de007db5475e61e8c171216eca706651986addaad345c43ce"
+    },
+    {
+      "path": "scripts/subtitle-studio/transcription/runtime/audit-ffmpeg-windows-x64.mjs",
+      "byteSize": 10878,
+      "sha256": "8edfa84ecfb4a48273a05ae3e6f6b19fcab9e4639a56edbc8bd409e151434561"
+    },
+    {
+      "path": "scripts/subtitle-studio/transcription/runtime/audit-ffmpeg-windows-x64.test.mjs",
+      "byteSize": 1755,
+      "sha256": "c450bb1c5aea5122b2a71f4ad01ae8c06674eabc4e1f45c213a96a70651d6550"
+    },
+    {
+      "path": "scripts/subtitle-studio/transcription/runtime/ffmpeg-source-release.mjs",
+      "byteSize": 7884,
+      "sha256": "f1dd9488df6c041ba098a495f48c517704ab8b14c67e448564c085fdc1fe22c9"
+    },
+    {
+      "path": "scripts/subtitle-studio/transcription/runtime/ffmpeg-source-release.test.mjs",
+      "byteSize": 1115,
+      "sha256": "70095a06b19345fa955318e52cf8b5218a582824b64474c6acfc02c17a608354"
+    },
+    {
+      "path": "scripts/subtitle-studio/transcription/runtime/stage-runtime-windows-helpers.mjs",
+      "byteSize": 4443,
+      "sha256": "a90c8179a87b2f898df6bbaf8b3f26e5e349cbaf6ad0edf9ee185fd96144826a"
+    },
+    {
+      "path": "scripts/subtitle-studio/transcription/runtime/stage-runtime-windows-helpers.test.mjs",
+      "byteSize": 6605,
+      "sha256": "8ba611a6e3891b2a4e3785b0839c918e8da7fb107b8f25f8e0de9946c7fe500d"
+    },
+    {
+      "path": "scripts/subtitle-studio/transcription/runtime/stage-runtime-windows-x64.mjs",
+      "byteSize": 22135,
+      "sha256": "d9803fcdb0bf0af7202376feb6c4b59bd469d9c8da8a57132549e33051cdf1f2"
+    },
+    {
+      "path": "scripts/subtitle-studio/transcription/runtime/stage-runtime-windows-x64.test.mjs",
+      "byteSize": 3777,
+      "sha256": "4b6dabf40523eac26685fda0a37666d0ce06463f1f5b16a62487bb4c8fd6559e"
+    },
+    {
+      "path": "test/subtitle-studio-provenance/real-cpu-comparison-harness.ts",
+      "byteSize": 24206,
+      "sha256": "55bc69a3d5f6b8e7eeda786ec07c69a421011278642b7b0665dc8e35d857e178"
+    },
+    {
+      "path": "test/subtitle-studio-provenance/real-cpu-comparison.test.ts",
+      "byteSize": 888,
+      "sha256": "9813575ba6b1c69cdbfa1ea503723fc0d655e0cfc9d807eed1dd6c574bac8834"
+    },
+    {
+      "path": "test/subtitle-studio-provenance/runtime-windows-copy.test.ts",
+      "byteSize": 3650,
+      "sha256": "8660697a2d0d341ad7980bf64577a7a6cb3d51e7f8bdb4c0e40aea63412d777b"
+    },
+    {
+      "path": "test/subtitle-studio-provenance/windows-addon-copy.test.ts",
+      "byteSize": 5137,
+      "sha256": "6fb961bbcd39548923250828be87b71c267f2bc32bc6ffe04575f4252bdeb6d1"
+    }
+  ],
+  "previousSnapshotUnchangedFiles": 22,
+  "previousSnapshotIntendedChanges": [
+    ".agents/skills/fusionkit-pitfall-guard/references/index.md",
+    "scripts/subtitle-studio/boundaries.json"
+  ],
+  "runtimeArtifacts": [
+    {
+      "path": "build/subtitle-studio-resources/transcription/licenses/FFmpeg-COPYING.LGPLv3.txt",
+      "byteSize": 7651,
+      "sha256": "da7eabb7bafdf7d3ae5e9f223aa5bdc1eece45ac569dc21b3b037520b4464768"
+    },
+    {
+      "path": "build/subtitle-studio-resources/transcription/licenses/FFmpeg-LICENSE.md",
+      "byteSize": 4346,
+      "sha256": "2e1d16c72fd74e12063776371da757322f8b77589386532f4fd8634bde7de1af"
+    },
+    {
+      "path": "build/subtitle-studio-resources/transcription/licenses/FFmpeg-n8.1.2-windows-x64-btbn-source.json",
+      "byteSize": 2112,
+      "sha256": "4ffb9eaaa28c32e7a2a82243a81df72b5b02bc3e445a782f466d0716d50f4510"
+    },
+    {
+      "path": "build/subtitle-studio-resources/transcription/licenses/THIRD_PARTY_NOTICES.local-subtitle.md",
+      "byteSize": 1968,
+      "sha256": "3febd4b011d5176e3f304c39aac46ca3b9be6b0654ec1249c6d1cc98106d87b6"
+    },
+    {
+      "path": "build/subtitle-studio-resources/transcription/licenses/whisper.cpp-MIT.txt",
+      "byteSize": 1078,
+      "sha256": "94f29bbed6a22c35b992c5c6ebf0e7c92f13b836b90f36f461c9cf2f0f1d010d"
+    },
+    {
+      "path": "build/subtitle-studio-resources/transcription/licenses/whisper.cpp-v1.9.1-windows-x64-release.json",
+      "byteSize": 1365,
+      "sha256": "63b2e7df33a46627defae9d2ec420b5d5f5209dde920578970b2f6fdcdcc8e5d"
+    },
+    {
+      "path": "build/subtitle-studio-resources/transcription/manifests/subtitle-studio-runtime.v1.json",
+      "byteSize": 10383,
+      "sha256": "3a2ac09dfc9bf21119e57977fc95bbce582622896e410770c53e72dac32302dd"
+    },
+    {
+      "path": "build/subtitle-studio-resources/transcription/overwrite/v1/build-receipt.v1.json",
+      "byteSize": 1306,
+      "sha256": "2b6e9561e1051735d878886b3042ba17547b746c95820fb171c5332535a8289b"
+    },
+    {
+      "path": "build/subtitle-studio-resources/transcription/overwrite/v1/native/win32-x64/subtitle-studio-overwrite.bcbb8f476d37cff3bc1b1f29b061e492c27bfda341916e946f70af10697e7dc1.node",
+      "byteSize": 866304,
+      "sha256": "bcbb8f476d37cff3bc1b1f29b061e492c27bfda341916e946f70af10697e7dc1"
+    },
+    {
+      "path": "build/subtitle-studio-resources/transcription/overwrite/v1/subtitle-studio-overwrite.v1.json",
+      "byteSize": 980,
+      "sha256": "098ac203acf2ab3979ba0473f1d9144de4a396cb87e7de746f3ffd7c657d2d14"
+    },
+    {
+      "path": "build/subtitle-studio-resources/transcription/win-x64/cpu/ggml-base.dll",
+      "byteSize": 656384,
+      "sha256": "8be6f3e06388b3a9aac75d29bec86363e2e2f5b0cee86ce6438866bcac0bcf86"
+    },
+    {
+      "path": "build/subtitle-studio-resources/transcription/win-x64/cpu/ggml-cpu-alderlake.dll",
+      "byteSize": 790528,
+      "sha256": "323408503da53ccc67248b26d711f16d73d2d6239f7703a00a6a18b60ed5b8b8"
+    },
+    {
+      "path": "build/subtitle-studio-resources/transcription/win-x64/cpu/ggml-cpu-cannonlake.dll",
+      "byteSize": 833536,
+      "sha256": "0f659d98b823bb871c7845787bba7485facd220099cf58aa773652b9b842ab2e"
+    },
+    {
+      "path": "build/subtitle-studio-resources/transcription/win-x64/cpu/ggml-cpu-cascadelake.dll",
+      "byteSize": 830976,
+      "sha256": "8116b0e516134139de29400c536ecf06fe708ce1a078a96d30b562b30d524fbe"
+    },
+    {
+      "path": "build/subtitle-studio-resources/transcription/win-x64/cpu/ggml-cpu-haswell.dll",
+      "byteSize": 791552,
+      "sha256": "e5925923a47672392f9e9c8c92e4b9b65ea473948bf4f568a0300a3a42485135"
+    },
+    {
+      "path": "build/subtitle-studio-resources/transcription/win-x64/cpu/ggml-cpu-icelake.dll",
+      "byteSize": 830976,
+      "sha256": "b726d528bee0c811c6b2ad8775357379d651cabb487bbf800331697fe73da187"
+    },
+    {
+      "path": "build/subtitle-studio-resources/transcription/win-x64/cpu/ggml-cpu-sandybridge.dll",
+      "byteSize": 783360,
+      "sha256": "1c49c64817233b2447ca305b41c66afa4bed31b058bc190a98af2a30cc703542"
+    },
+    {
+      "path": "build/subtitle-studio-resources/transcription/win-x64/cpu/ggml-cpu-skylakex.dll",
+      "byteSize": 833536,
+      "sha256": "06082dc62a09a82fbba4aab49b2c049b96db84c5fc561a446a8ddbfb9b20bf86"
+    },
+    {
+      "path": "build/subtitle-studio-resources/transcription/win-x64/cpu/ggml-cpu-sse42.dll",
+      "byteSize": 772096,
+      "sha256": "9a8f55ff1dfad231aa6250ac52c330c5bfa5c4c37691c8b591a68b52090ce40c"
+    },
+    {
+      "path": "build/subtitle-studio-resources/transcription/win-x64/cpu/ggml-cpu-x64.dll",
+      "byteSize": 776704,
+      "sha256": "45ff644d301b8a1fffc7c5e3864205047360eb197814c7311f366d106bb5b19f"
+    },
+    {
+      "path": "build/subtitle-studio-resources/transcription/win-x64/cpu/ggml.dll",
+      "byteSize": 67584,
+      "sha256": "db753141098018ab482796052a61e727ee0106cbc280f28397f6a111b5e667d7"
+    },
+    {
+      "path": "build/subtitle-studio-resources/transcription/win-x64/cpu/whisper-server.exe",
+      "byteSize": 725504,
+      "sha256": "2c1ef08694756eda280e79b8217da63ee2af33c87ac3d5f27d68f9f3f966fd32"
+    },
+    {
+      "path": "build/subtitle-studio-resources/transcription/win-x64/cpu/whisper.dll",
+      "byteSize": 1366016,
+      "sha256": "b31690c12461517fe9774e61318ab63a69972b948151feed98b913be35f708b6"
+    },
+    {
+      "path": "build/subtitle-studio-resources/transcription/win-x64/media/ffmpeg.exe",
+      "byteSize": 112509440,
+      "sha256": "c623359f35e7db4820694b77d0f032f075e783a9c7207b81d908c28f148e8a68"
+    },
+    {
+      "path": "build/subtitle-studio-resources/transcription/win-x64/media/ffprobe.exe",
+      "byteSize": 112303104,
+      "sha256": "35a823fb08470f6a1e91149e6c305ffbc5ee76c9901444c850f302ecee146a37"
+    }
+  ],
+  "evidence": [
+    {
+      "path": "test-results/studio-t07/ffmpeg-audit-receipt.json",
+      "byteSize": 3735,
+      "sha256": "2456ab3a9795dea193fab3f0870c43ef8115c1d3c21f919a629db63f77b782f9"
+    },
+    {
+      "path": "test-results/studio-t07/windows-runtime-staging.json",
+      "byteSize": 6509,
+      "sha256": "2a72a3a159df9e38aeb5d9bfdf1ffa8e1eb1cd526a8399526edc7149242ff891"
+    },
+    {
+      "path": "test-results/studio-t07/windows-runtime-no-clobber.json",
+      "byteSize": 174,
+      "sha256": "78fa436491c7c95d957cfd6f9868f14ea4963ad2163a2fa259e422de2fb24220"
+    },
+    {
+      "path": "test-results/studio-t07/native/revised/final-toolchain-evidence.json",
+      "byteSize": 6878,
+      "sha256": "bcf2107fcfda6fac84879e8d12f5c2fa684c8f214162693be6ab628c557c424b"
+    },
+    {
+      "path": "test-results/studio-t07/native/revised/acceptance-evidence.json",
+      "byteSize": 1058,
+      "sha256": "520e0cd4a7b2a1fb501a22a7b8eac16a8610a1f5812fcb45d9c00cff03dc4fb6"
+    },
+    {
+      "path": "test-results/studio-t07/native/revised/staging-report.json",
+      "byteSize": 913,
+      "sha256": "1cfdd72f3381759007528b0f16cf2c8caf6602102cefbede0e2b5003a52f37e6"
+    },
+    {
+      "path": "test-results/studio-t07/real-cpu-comparison/run-d343xv/report.json",
+      "byteSize": 69105,
+      "sha256": "992b321400cb51a6ee344bd2b250dc505e634897691f0f5b2fd160ba21f9c5fe"
+    },
+    {
+      "path": "test-results/studio-t07/real-cpu-comparison-final.log",
+      "byteSize": 444,
+      "sha256": "bcd561e0eac1a63cbeee404eae670cf546fb2e97378dbef4bd043212d4f05804"
+    },
+    {
+      "path": "test-results/studio-t07/dual-contribution-preflight.json",
+      "byteSize": 15741,
+      "sha256": "45f47d47ff9199ca61927d0dacf5fd3ecf44a2c50adb38aadac1636fc619a7f2"
+    },
+    {
+      "path": "test-results/studio-t07/isolation-final.json",
+      "byteSize": 129,
+      "sha256": "b02cf4485b66189c105df699b8052812c79268b5994b7ee8ed6e5f45b7c4d195"
+    }
+  ]
+}

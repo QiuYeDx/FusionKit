@@ -4,7 +4,7 @@ import { localSubtitleTranscriptSchema } from './transcription/ipc-contract';
 export const LIMITS = { inputBytes: 16 * 1024 * 1024, cues: 100000, nodes: 200000, cueBytes: 64 * 1024, snapshotBytes: 128 * 1024 * 1024, pageSize: 100 } as const;
 export const idSchema = z.string().uuid();
 export const encodingSchema = z.enum(['utf-8', 'gb18030', 'shift_jis', 'utf-16le']);
-export const errorCodeSchema = z.enum(['invalid_input', 'unsupported_feature', 'encoding_required', 'limit_exceeded', 'revision_conflict', 'access_denied', 'document_unavailable', 'output_write_failed', 'needs_configuration', 'translation_protocol_invalid', 'translation_output_limit', 'translation_failed', 'interrupted']);
+export const errorCodeSchema = z.enum(['invalid_input', 'unsupported_feature', 'encoding_required', 'limit_exceeded', 'revision_conflict', 'access_denied', 'document_unavailable', 'output_write_failed', 'needs_configuration', 'translation_protocol_invalid', 'translation_output_limit', 'translation_failed', 'transcription_failed', 'interrupted']);
 export type ErrorCode = z.infer<typeof errorCodeSchema>;
 export class StudioError extends Error {
   constructor(public readonly code: ErrorCode) { super(code); }

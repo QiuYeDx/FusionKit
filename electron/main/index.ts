@@ -68,6 +68,7 @@ import {
 } from "@/type/localSubtitleIpc";
 import { TextTranslationService } from "./text-translation/text-translation-service";
 import { registerSubtitleStudio } from "./subtitle-studio";
+import { createApplicationShutdown } from "./app-shutdown";
 
 const require = createRequire(import.meta.url);
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -226,7 +227,6 @@ async function createWindow() {
 app.whenReady().then(async () => {
   try {
     subtitleStudio = registerSubtitleStudio();
-    app.once("before-quit", () => subtitleStudio?.dispose());
   } catch {
     console.error("Subtitle Studio initialization failed.");
   }
@@ -355,7 +355,10 @@ app.whenReady().then(async () => {
     localSubtitleSessionLifecycle,
   );
   localSubtitleServerLifecycle = new LocalSubtitleServerAppLifecycle(
-    localSubtitleMainRuntime,
+    createApplicationShutdown([
+      localSubtitleMainRuntime,
+      { shutdown: reason => subtitleStudio?.dispose(reason) ?? Promise.resolve() },
+    ]),
   );
   localSubtitleServerLifecycle.install({
     onBeforeQuit: (listener) => app.on("before-quit", listener),

@@ -8,6 +8,18 @@ export function createSubtitleStudioApi(ipc: { sendSync(channel: string, payload
     return ipc.invoke(channel, { capability, payload });
   };
   return Object.freeze({
+    selectTranscriptionMedia: request => invoke(STUDIO_CHANNELS.selectTranscriptionMedia, request),
+    probeTranscriptionMedia: request => invoke(STUDIO_CHANNELS.probeTranscriptionMedia, request),
+    revokeTranscriptionMedia: request => invoke(STUDIO_CHANNELS.revokeTranscriptionMedia, request),
+    inspectTranscriptionRuntime: request => invoke(STUDIO_CHANNELS.inspectTranscriptionRuntime, request),
+    listTranscriptionResources: request => invoke(STUDIO_CHANNELS.listTranscriptionResources, request),
+    importTranscriptionModel: request => invoke(STUDIO_CHANNELS.importTranscriptionModel, request),
+    installTranscriptionResource: request => invoke(STUDIO_CHANNELS.installTranscriptionResource, request),
+    cancelTranscriptionResourceJob: request => invoke(STUDIO_CHANNELS.cancelTranscriptionResourceJob, request),
+    enqueueTranscription: request => invoke(STUDIO_CHANNELS.enqueueTranscription, request),
+    listTranscriptionTasks: request => invoke(STUDIO_CHANNELS.listTranscriptionTasks, request),
+    cancelTranscriptionTask: request => invoke(STUDIO_CHANNELS.cancelTranscriptionTask, request),
+    removeTranscriptionTask: request => invoke(STUDIO_CHANNELS.removeTranscriptionTask, request),
     importSubtitle: request => invoke(STUDIO_CHANNELS.importSubtitle, request),
     importSubtitles: request => invoke(STUDIO_CHANNELS.importSubtitles, request),
     revealUnavailable: request => invoke(STUDIO_CHANNELS.revealUnavailable, request),

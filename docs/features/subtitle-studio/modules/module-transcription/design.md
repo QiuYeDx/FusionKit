@@ -2,7 +2,7 @@
 
 ## 现状与约束
 
-当前生产基线是 `3a0f50ed15c1b63451402cecf27240182235e567`，不再机械使用 9 月 8 日设计查阅快照。I1 门禁修复仅调整第三方 UI 包审计与回归测试，不修改旧转写源码。120文件转写副本和独立runtime已建立；T04新增输出独立的派生executor、内部文档生产者及schema2媒体文档，兼容现有翻译/预览/导出。转写任务准入、应用组合及产品入口尚待接入。
+当前生产基线是 `3a0f50ed15c1b63451402cecf27240182235e567`，不再机械使用 9 月 8 日设计查阅快照。I1 门禁修复仅调整第三方 UI 包审计与回归测试，不修改旧转写源码。120文件转写副本和独立runtime已建立；T04新增输出独立的派生executor、内部文档生产者及schema2媒体文档，兼容现有翻译/预览/导出。T05已接任务准入/应用组合，T06已接转写工作区；完整原生资源和真实ASR仍待后续验证。
 
 ## 方案与取舍
 
@@ -31,6 +31,10 @@
 
 | 需求 | 设计元素 |
 | --- | --- |
+| R-TRANSCRIPTION-08 | 固定六样本/两设备真实矩阵、独立生产资源安装、精确PID设备证明、canonical差异与持久文档重开、固定重复控制和有界清理 |
+| R-TRANSCRIPTION-06 | 会话级转写controller、有界草稿和撤销重试、资源与参数准备、任务轮询及文档发现、共享工作区UI与真实Electron隔离验收 |
+| R-TRANSCRIPTION-07 | 独立Windows资源stager与固定来源配方、生产addon构建/真实Electron事务验证、显式短音频和同配置旧新CPU对照 |
+| R-TRANSCRIPTION-05 | 输出独立的有界准入与FIFO队列、资源及租约身份复核、T04文档生产者组合、固定IPC和owner撤销、双运行时关闭与LF精确来源检验 |
 | R-TRANSCRIPTION-01 | 固定 Git 来源、内容摘要、传递依赖及资源/默认值审计、只读校验和负例 |
 | R-TRANSCRIPTION-02 | T02精确机械复制策略与fork来源记录、隔离临时树配对回放、真实品牌交叉拒绝、实际业务边界门禁 |
 | R-TRANSCRIPTION-04 | 媒体文档schema与完整transcript保留、100k承接边界、独立派生输出executor、绑定操作的guarded sink和可恢复提交、现有文档消费兼容 |
@@ -100,3 +104,61 @@ sink绑定main创建的operation/document身份与有效性guard，内存合并�
 root独占规格、最终集成测试和记录；workspace_progress独占domain/adapter与文档consumer兼容；baseline_checks独占派生executor、其来源工具/清单和回放测试；broader_roadmap独占repository创建语义与document-sink及对应测试。agent先确认导出接口，跨写集仅消息协调。
 
 T04渲染验收采用现有字幕工作台1280×860浅色布局，媒体105条含长正文与旧SRT各一份：正文100条分页、下一页5条、媒体无伪编码/原文件下载、导出默认SRT且损失确认可见、旧字幕菜单保持可下载；按项目UI技能审阅隔离Electron截图，无新CSS/组件/动效。
+
+## T05 准入、队列与应用组合（R-TRANSCRIPTION-05）
+
+新增 `src/subtitle-studio/transcription/task-contract.ts` 定义有界请求及安全摘要；不修改 T02 冻结 DTO。新增 `transcription/task-service.ts`，依赖私有 inputs/leases/media/models/backendResolver、派生 executor 和同一 DocumentRepository。每次最多20文件，配置不含 output/postAction；准入在异步工作前领取 FIFO 序号，严格解析请求、resolveDraft、模型/VAD及运行时验证，取得真实 backend proof 后冻结配置、原子 reserveBatch 并绑定已探测音轨。失败回滚全部 input reservation，不发布半批。重复源/并发请求受有界任务数约束，串行调度和续租不依赖 renderer 在线轮询。
+
+执行前复核有效 owner、租约和资源身份；每任务独立 producer/sink 与 batch pin，清理结束才入库。完成保存 documentId/durability；迟到取消不能覆盖已提交结果。公开状态排除私有路径和原始错误。队列提供 enqueue/list/cancel/remove/waitForIdle 与资源忙检查；失败清理保留锁，终态删除不能丢失待清理句柄。当前无持久任务记录或推理重试；文档本身继续由既有仓库持久化。
+
+runtime 保持惰性构造，第三个 main-only repository 参数选择启用文档队列，旧资源测试不需仓库。服务只用当前工厂创建的依赖；资源管理 busy predicate 同时覆盖任务的准入与队列/执行。关闭先同步 fence/abort，再等待任务准入和执行收敛，之后依阶段清理 models/media/server/registry，完整成功后才清除清理锁和 canonical 根锁。关闭 Promise 必须在 abort 回调前缓存，失败保留重试。owner 释放先 fence，异步清理结果由应用组合保留并在退出重试。
+
+Studio 注册层延迟创建 runtime 并传入现有 repository；原生选择器返回 token 与已消毒 probe，模型导入固定 copy，资源安装只接受固定资源 ID。新增固定 preload 方法和严格 schema，复用现有 capability envelope；在 documentId 通用分支前分派转写操作。ownerSessionId 取 main 发出的 capability，禁止 renderer 自报。先使用显式查询资源/任务快照，不新增事件总线。重复注册、主 frame 导航、destroyed 同步撤销旧 owner。独立应用 shutdown 组合等待旧版及 Studio，两者失败均尝试，更新和退出共用该组合。没有转写页面；仅为新增错误码补齐现有错误映射和四语言文案，本任务没有 UI 布局验收；构建真实 preload 并验证固定通道与拒绝反例。
+
+root 独占规格、runtime、集成验证和证据；admission_design 独占 task-service/task-contract 及测试；ipc_design 独占 Studio IPC/preload/main 生命周期及测试；windows_baseline 独占 LF 属性和回归。冻结副本仅在 CRLF→LF 后逐字节等于 HEAD 时修复本机字节，不改摘要规则或清单。实际验证使用隔离仓库/合成媒体和推理协议、真实生产者和文档仓库；缺新版实物时拒绝真实 ASR，记录不可宣称端到端设备验收。
+
+T05集成审查补充：并发启动的模型/VAD/runtime/媒体验证即使其中之一先失败，也必须等待所有已经启动的验证完成；按owner追踪续租，取消等待不遗失原续租Promise。已释放owner的干净终态记录及时回收，清理失败记录继续保留资源锁。来源检查对reference-only应用组合采用独立的准确内容审计，冻结副本与T01/T02清单保持原样。
+
+## T06 转写工作区（R-TRANSCRIPTION-06）
+
+现有工作台为视觉基线，已在隔离Electron导入24行字幕并审阅1280×860浅色截图（test-results/studio-t06-ui/reference-documents.png）。保持中性工作区、工具青色图标、12px面板留白、16px列距及现有字级；新增文档/转写ClipPathTabs rounded/smooth/sm放在同一标题区域，文档内部原文Tab不混用。转写使用独立ToolDetailLayout类，桌面320px配置列+主区，窄窗口媒体和队列在前，设置可直达并后置，避免沿用文档固定阅读器高度。
+
+主区依次为共享水平媒体选择面、待转写列表（名称/时长/音轨/移除）、开始操作及任务队列；靠角控件保持12px横纵等距。配置采用ToolConfigPanel/ToolField/ToolSwitchRow，高级参数默认折叠，资源集中在ScrollableDialog；长文件名复用StudioFileName，状态与动作有可访问名称，进度数值不持续轰炸live region。使用生产默认auto/auto/transcribe/VAD/acoustic_quiet_v1及beam5/temperature0/silence500/cue7000/84/42，不引入旧输出选项。
+
+renderer独立singleton controller首次进入转写时惰性启动，通过useSyncExternalStore订阅；SPA离开保留草稿、任务和待撤销注册表，只有活跃任务/资源作业或当前视图需要时有界轮询。文件token/sourceKey去重、过期拒绝、音轨明确且有界；移除先登记撤销再隐藏，ok:false与异常都可重试直到过期。重新探测新增固定probeTranscriptionMedia({fileToken})，main绑定owner并清洗结果，拒绝任意路径。提交同步单飞并捕获不可变快照，明确成功后清除对应草稿并撤销草稿能力；结果未知保留阻止重复提交的状态供用户核对。通过单飞读取与mutation generation避免迟到快照回滚本地写入。
+
+资源UI展示真实缺失/校验/导入/下载状态，调用动作均来自用户按钮；运行时缺失与模型缺失分别说明。任务摘要只消费安全DTO，取消持续显示至终态，cleanupPending阻止移除，durability未知提示保留文档并核对。查看完成文档先使用既有listDocuments在默认筛选中分页发现目标，获得合法read授权后选择；取消或过期发现不能误打开别的文档。文档区域的既有任务控制器保持挂载，视图切换不改变其身份。
+
+root独占规格/入口/四语言/新增probe IPC和集成验证；admission_design独占src/services/subtitle-studio/transcription-controller.ts及其单测；ipc_design独占StudioTranscription.tsx/css；windows_baseline独占转写UI测试及隔离main runtime夹具。测试依赖esbuild仅用于从实际main构建隔离测试入口，保留真实renderer/preload/注册/IPC/仓库，仅按精确路径替换新版runtime，不写生产bundle或用户数据。先约定controller接口再并行，跨写集消息协调。最终截图亲自检查空/繁忙/完成/失败、两主题及实际窄窗口、长名Tooltip/键盘焦点、资源dialog和滚动容器；不把合成资源视为真实ASR。
+
+## T07 Windows 独立实物与 CPU 短样本（R-TRANSCRIPTION-07）
+
+Windows合同选用官方Whisper v1.9.1 CPU release及固定BtbN FFmpeg n8.1.2，FFmpeg/Whisper本体无需MSVC重编译。显式读取仓库历史上游缓存和FFmpeg审计回执，严格复核每个实际文件与固定合同；新版stager复制全部15个二进制到build/subtitle-studio-resources/transcription，校验许可/来源并生成独立manifest。使用已有无覆盖发布/探针语义；新资源制作脚本和Windows addon脚本分别新增T07派生recipe和provenance，借用已有纯维护计划生成器但不改T03配方或已有精确副本。
+
+Windows addon使用独立新版C++源、与构建host版本匹配的headers、兼容Electron的import library及delay-load hook，沿既有portable LLVM-MinGW配方记录工具版本/参数/hash。N-API8兼容性须在实际Electron41.10.6证明，不能仅凭Node构建成功推断。生产与故障测试构建分开，最终生产addon经既有新版内容寻址stager和真实Electron host验证；旧前缀不能被当新版事务授权。只在本轮隔离文件中验证事务/恢复，保留原输入及旧staginghash，输出目录不覆盖已有非同一产物。
+
+真实ASR使用有来源记录的仓库短音频、相同固定模型/backend/language/beam/VAD/window配置。旧链路从冻结生产入口执行并写隔离输出；新版使用真实runtime/tasks/producer/repository，不替换ASR、媒体或backend返回值。显式复制模型/VAD到各自独立managed根，输出保留完整转录及schema2文档并重开核对。按样本时长设置有界等待，超时取消并join清理；对比文本、关键时间、重复/遗漏和耗时，任何差异如实保留。当前不新加UI，已有T06渲染证据不被当真实推理证据。
+
+root独占规格、总集成/边界和最终证据；admission_design独占T07 Windows runtime staging闭包及其recipe/provenance/测试；windows_baseline独占新增Windows addon构建/实物验证闭包及其recipe/provenance/测试；ipc_design独占真实短样本对照harness及测试。各自先公布文件集合，原T02/T03目标禁止改写，跨写集先消息协调；新脚本只引用新namespace，历史文件名/许可内容作为来源证据保留不代表运行依赖。
+
+T07审阅修正：新版Windows构建清理须等待所有自有工作目录清理并保留主错误、加入Windows有界删除重试；故障测试构建拒绝透传production receiptPath。恢复子进程只额外保留明确的ELECTRON_RUN_AS_NODE=1，实证实际Electron的宿主差异。真实比较两侧使用生产允许的120000ms启动上限，单侧总工作10分钟有界，失败仍执行关闭并核对进程；不改变生产构造器边界。
+
+## T08 默认 VAD 与设备矩阵（R-TRANSCRIPTION-08）
+
+新增维护侧real-default-comparison-harness/test，不抽取或改写T07快照文件。固定A/B/C各30秒、B-noise18秒、independent175.993秒和原始float32/stereo/48k full216秒；输入hash在执行前后核对，full走实际规范化。每设备先旧后新顺序运行，同配置q5/ja/transcribe/VAD=true/acoustic_quiet_v1、beam5/temperature0/silence500/cue7000/84/42；CPU与CUDA总共24次，再固定追加CUDA A每侧一次。禁止并发GPU推理。使用独立服务状态，不能在同一污染的VAD/nonVAD进程间交错；模型资源根可复用但每次重新验证品牌和输入身份。
+
+模型经真实copy-import；固定VAD可从原提交URL下载到test-results输入缓存，CUDA使用已核对677887125字节官方完整ZIP。维护fixture构建独立新旧资源管理器，低层downloadResource只搬运固定实际字节，其余校验/解压/探针/提交流程保持生产实现。runtime资源注入并不透传acceleratorOptions，因此在同一隔离managed根先使用该侧实际accelerator manager安装并shutdown，再由正式runtime重新解析，禁止制造ready文件。结束使用真实删除接口验证移除，不影响原缓存/旧开发staging。
+
+旧链路显式接production backend attestor、executor和backendResolver的resolveManagedAccelerator闭包及cudaAttestationAvailable；新版直接用现有runtime组合。观察真实verifyBackend返回和启动PID，不覆盖原生结论，WDDM允许已有5秒单探针/10秒宽限。每项任务15分钟预算与finally清理45秒，资源10分钟，整体90分钟；先检查构造器数值合同，超时仍等待owned清理并记录未退出进程。
+
+保留每侧canonical转录、真实进程与请求/窗口诊断、全量差异和新文档schema2重开结果；只生成有界文字差异摘要，不做近似去重或猜测文本真值。历史CUDA/full-large-v3质量标注用于定位已知风险，不作为CPU/CUDA q5逐字预期。长样本必须实际触发分块观察；VAD时间轴使用映射segment、禁token_timestamps。A固定重复控制每侧CUDA一次，其差异按真实非确定性报告。未解决新回归不能更新为通过；原先接受的两处seam重复及分隔不足不在本轮精修。
+
+root独占规格、集成、实际串行推理调度和最终报告；ipc_design独占real-default-comparison-harness.ts/.test.ts；windows_baseline独占real-default-resource-fixture.ts及单测；admission_design独占real-default-comparison-analysis.ts及单测并只读审阅质量证据。维护文件可引用新旧生产入口，产品边界不放宽；先互相确认类型接口再实现，冻结T07/T02副本和旧生产代码不改。本轮没有UI或前端服务。
+
+T08观察约定：维护测试串行安装可恢复的call-through观察器，记录各域MediaNormalizer的readQuietCandidates/materializeWindow/resolveWindow及真实server/backend attestor调用；保留原始this、实参、返回值和异常，finally恢复。只读观察不注入窗口或推理结果，不修改生产源码；观察器失败应使测试失败。
+
+T08审查补充：固定的是任务主配置，既有executor的separator no-VAD辅助识别与temperature恢复仍按原条件执行，须从真实调用证据区分主请求/恢复/辅助请求，不能强制所有内部请求为VAD=true/temperature=0。VAD主请求的segment映射与no-VAD辅助时间证据分别审查，不把它们混成同一时间轴。无语音结果也须列入完整配对状态表，缺少canonical比较不代表无差异。成功文档的完整canonical/cue映射属于正确性门禁；ASR文本差异属于人工审查，不混同二者。
+
+清理的对外等待预算与底层操作锁分别维护：超时明确未join，原操作实际settled前不得新建清理或开启下一样本；未join场景不得卸载资源。观察器退出也有界并恢复原方法。已加入受控Promise负例验证超时后的单飞保持，实跑正常结束仍须核对真实PID退出。
+
+Windows实物预检修正：首轮旧版CUDA安装在mkdtemp时ENAMETOOLONG，真实长目录253字符失败、短目录206字符成功；空间/URL并非原因。报告、文档和输入缓存仍在test-results，物理managed资源改用本轮mkdtemp创建的系统临时短根及l/s子根，保留各自生产命名空间。准备前计算完整receipt/ZIP/最长artifact路径预算，超过245字符即拒绝；不得改生产UUID、弱化校验或使用路径链接。只记录并清理本轮实际持有身份的临时根，真实卸载后先核验没有文件/链接，再移除空目录；不扫描或删除其他系统临时内容。

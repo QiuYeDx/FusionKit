@@ -148,6 +148,21 @@ Read this index first, then open only the detail files that plausibly match the 
 
 | FK-PIT-0135 | Subtitle Studio / durable publication | document sink,current pointer,post-publish fsync,late cancellation; Preserve a published document and its creation identity when later cancellation or durability confirmation fails. | [distinguish-document-publication-from-late-cancellation.md](distinguish-document-publication-from-late-cancellation.md) |
 
+| FK-PIT-0136 | Subtitle Studio / Windows provenance | core.autocrlf, CRLF, audited source changed, baseline differs, frozen copy mismatch; Pin exact frozen/audited text to LF checkout bytes and preserve verifier hashes. | [pin-exact-studio-text-hashes-to-lf-checkout-bytes.md](pin-exact-studio-text-hashes-to-lf-checkout-bytes.md) |
+
+| FK-PIT-0137 | Native runtime tests / Windows filesystem | Darwin fixture on Windows, 0700, startup cleanup directory not private; Match real filesystem fixture targets to the host and keep production permission guards intact. | [match-filesystem-runtime-fixtures-to-the-host-target.md](match-filesystem-runtime-fixtures-to-the-host-target.md) |
+
+| FK-PIT-0138 | Subtitle Studio / source provenance | reference-only composition, main wiring, Worktree drift; Pin reviewed application integration separately while preserving exact frozen copy sources. | [audit-application-composition-separately-from-frozen-copy-sources.md](audit-application-composition-separately-from-frozen-copy-sources.md) |
+
+| FK-PIT-0139 | Subtitle Studio / async navigation | completed document, auto-refresh, revision_conflict, filters, page two; Join the current reader operation before discovering and opening the exact completed document. | [join-library-refresh-before-opening-task-documents.md](join-library-refresh-before-opening-task-documents.md) |
+
+| FK-PIT-0140 | Frontend / workspace geometry | ClipPathTabs, w-fit, empty gutters, shrinking page, filename tail, indicator transition; Size full workspace tabs independently of their contents and verify stable width in short and long states. | [size-workspace-tabs-independently-of-content.md](size-workspace-tabs-independently-of-content.md) |
+| FK-PIT-0141 | Windows native acceptance / Electron children | ELECTRON_RUN_AS_NODE, process.execPath, fresh-process recovery, minimal environment; Preserve the exact Node-mode flag while keeping other host values excluded. | [preserve-electron-node-mode-in-recovery-children.md](preserve-electron-node-mode-in-recovery-children.md) |
+
+| FK-PIT-0142 | Real ASR acceptance / resource cleanup | Promise.race, cleanup deadline, pending native work, uninstall retry; Keep the underlying cleanup operation locked after a caller timeout and never erase leftovers to manufacture successful cleanup. | [keep-cleanup-single-flight-after-deadlines.md](keep-cleanup-single-flight-after-deadlines.md) |
+
+| FK-PIT-0143 | Windows / real resource install | ENAMETOOLONG, mkdtemp, CUDA preflight, UUID receipt, long test root; Budget complete production staging paths and use a short owned temporary resource root without altering namespace or installer guards. | [budget-windows-managed-resource-staging-paths.md](budget-windows-managed-resource-staging-paths.md) |
+
 ## Add new cases
 
 Use `scripts/add_pitfall.py` from the skill root when possible. Each pitfall should live as one Markdown file directly under `references/`, and every new file must have one index row here.

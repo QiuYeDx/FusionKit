@@ -14,6 +14,23 @@ describe('studio boundaries', () => {
   it('keeps the current repository within audited dependency boundaries', () => {
     expect(checkBoundaries(repositoryRoot).errors).toEqual([]);
   });
+  it('restricts a test build dependency to its exact audited source and package', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'studio-scoped-package-'));
+    try {
+      await mkdir(path.join(root, 'scripts/subtitle-studio'), { recursive: true });
+      const config = JSON.parse(await readFile(path.join(repositoryRoot, 'scripts/subtitle-studio/boundaries.json'), 'utf8'));
+      config.roots = ['entry.ts']; config.scopedPackages = [{ source: 'entry.ts', package: 'esbuild' }];
+      const policy = path.join(root, 'scripts/subtitle-studio/boundaries.json');
+      await writeFile(policy, JSON.stringify(config));
+      await writeFile(path.join(root, 'entry.ts'), 'import { build } from "esbuild";');
+      expect(checkBoundaries(root).errors).toEqual([]);
+      await writeFile(path.join(root, 'entry.ts'), 'import "esbuild/internal";');
+      expect(checkBoundaries(root).errors.join(' ')).toContain('Unaudited package');
+      config.roots = ['other.ts']; await writeFile(policy, JSON.stringify(config));
+      await writeFile(path.join(root, 'other.ts'), 'import { build } from "esbuild";');
+      expect(checkBoundaries(root).errors.join(' ')).toContain('Unaudited package');
+    } finally { await rm(root, { recursive: true, force: true }); }
+  });
   it('allows only fixed public methods', () => {
     expect(isPublicStudioChannel(STUDIO_CHANNELS.register)).toBe(false);
     expect(isPublicStudioChannel(STUDIO_CHANNELS.importSubtitle)).toBe(true);

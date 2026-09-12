@@ -4,7 +4,7 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { z } from 'zod';
 import { LIMITS, StudioError } from '../../../src/subtitle-studio/domain';
-import { STUDIO_CHANNELS, requestSchemas, summarizeDocument, summarizeTask, type StudioResult } from '../../../src/subtitle-studio/ipc-contract';
+import { STUDIO_CHANNELS, requestSchemas, transcriptionRequestSchemas, summarizeDocument, summarizeTask, type StudioResult } from '../../../src/subtitle-studio/ipc-contract';
 import { DocumentRepository } from './document-repository';
 import { readSubtitle } from './input-service';
 import { ExportService, publishSource, unusedOutputPath } from './export-service';
@@ -13,6 +13,8 @@ import { BilingualService } from './bilingual-service';
 import { BatchService } from './batch-service';
 import { selectLibrary } from './library-service';
 import { STUDIO_BATCH_LIMIT, type BatchImportResult } from '../../../src/subtitle-studio/batch-contract';
+import { createTranscriptionRuntime, type TranscriptionRuntime } from './transcription/runtime';
+import { handleTranscriptionRequest, transcriptionIpcError } from './transcription-ipc';
 
 export function registerSubtitleStudio() {
   const repository = new DocumentRepository(path.join(app.getPath('userData'), 'subtitle-studio', 'documents'));
@@ -22,6 +24,34 @@ export function registerSubtitleStudio() {
   const batches = new BatchService(repository, translation);
   const owners = new Map<number, { sender: WebContents; capability: string; documents: Set<string>; unavailable: Map<string, string> }>();
   const allowed = new Set<number>();
+  let runtime: TranscriptionRuntime | undefined;
+  let closed = false;
+  let shutdown: Promise<void> | undefined;
+  const retirements = new Set<Promise<void>>();
+  let retirementFailures: unknown[] = [];
+  async function ensureRuntime() {
+    if (closed) throw new StudioError('access_denied');
+    runtime ??= createTranscriptionRuntime({ userDataRoot: app.getPath('userData'), environment: app.isPackaged
+      ? { mode: 'packaged', resourcesPath: process.resourcesPath }
+      : { mode: 'development', appRoot: app.getAppPath() } }, {}, repository);
+    await runtime.initialize();
+    if (closed) throw new StudioError('access_denied');
+    return runtime;
+  }
+  function forgetOwner(id: number) {
+    const owner = owners.get(id);
+    owners.delete(id);
+    for (const service of [translation, exports, batches]) {
+      try { service.forgetOwner(id); } catch (error) { retirementFailures.push(error); }
+    }
+    if (!owner || !runtime) return;
+    try {
+      // releaseOwner fences synchronously, while its Promise retains asynchronous cleanup.
+      const pending = runtime.releaseOwner({ webContentsId: id, ownerSessionId: owner.capability });
+      retirements.add(pending);
+      void pending.then(() => { retirements.delete(pending); }, error => { retirements.delete(pending); retirementFailures.push(error); });
+    } catch (error) { retirementFailures.push(error); }
+  }
   const rendererUrl = process.env.VITE_DEV_SERVER_URL || pathToFileURL(path.join(app.getAppPath(), 'dist', 'index.html')).href;
   const trusted = (url: string) => {
     try { const target = new URL(url); target.hash = ''; const expected = new URL(rendererUrl); expected.hash = ''; return target.href === expected.href; }
@@ -37,11 +67,9 @@ export function registerSubtitleStudio() {
   });
   const envelope = z.object({ capability: z.string().uuid(), payload: z.unknown() }).strict();
   ipcMain.on(STUDIO_CHANNELS.register, (event, request) => {
-    if (!allowed.has(event.sender.id) || event.senderFrame !== event.sender.mainFrame || !trusted(event.senderFrame.url) || !z.object({}).strict().safeParse(request).success) { event.returnValue = null; return; }
+    if (closed || !allowed.has(event.sender.id) || event.senderFrame !== event.sender.mainFrame || !trusted(event.senderFrame.url) || !z.object({}).strict().safeParse(request).success) { event.returnValue = null; return; }
     const owner = { sender: event.sender, capability: randomUUID(), documents: new Set<string>(), unavailable: new Map<string, string>() };
-    translation.forgetOwner(event.sender.id);
-    exports.forgetOwner(event.sender.id);
-    batches.forgetOwner(event.sender.id);
+    forgetOwner(event.sender.id);
     owners.set(event.sender.id, owner);
     event.returnValue = owner.capability;
   });
@@ -49,7 +77,7 @@ export function registerSubtitleStudio() {
   function ownerFor(event: IpcMainInvokeEvent, input: unknown) {
     const parsed = envelope.safeParse(input);
     const owner = owners.get(event.sender.id);
-    if (!parsed.success || !owner || owner.sender !== event.sender || event.senderFrame !== event.sender.mainFrame || !trusted(event.senderFrame.url) || owner.capability !== parsed.data.capability) throw new StudioError('access_denied');
+    if (closed || !parsed.success || !owner || owner.sender !== event.sender || event.senderFrame !== event.sender.mainFrame || !trusted(event.senderFrame.url) || owner.capability !== parsed.data.capability) throw new StudioError('access_denied');
     return { owner, payload: parsed.data.payload };
   }
   for (const method of Object.keys(requestSchemas) as (keyof typeof requestSchemas)[]) {
@@ -58,7 +86,14 @@ export function registerSubtitleStudio() {
         const { owner, payload } = ownerFor(event, input);
         const parsed = requestSchemas[method].safeParse(payload);
         if (!parsed.success) throw new StudioError('invalid_input');
-        const alive = () => { if (owners.get(event.sender.id) !== owner || event.sender.isDestroyed() || !trusted(event.sender.mainFrame.url)) throw new StudioError('access_denied'); };
+        const alive = () => { if (closed || owners.get(event.sender.id) !== owner || event.sender.isDestroyed() || !trusted(event.sender.mainFrame.url)) throw new StudioError('access_denied'); };
+        if (Object.hasOwn(transcriptionRequestSchemas, method)) {
+          const current = await ensureRuntime(); alive();
+          const value = await handleTranscriptionRequest({ method, payload, sender: event.sender,
+            owner: { webContentsId: event.sender.id, ownerSessionId: owner.capability }, runtime: current, alive });
+          alive();
+          return { ok: true, value };
+        }
         await translation.initialize(); alive();
         if (method === 'listDocuments') {
           const snapshot = await repository.listSnapshot(); alive();
@@ -216,23 +251,38 @@ export function registerSubtitleStudio() {
           return publishSource(doc, selection.filePath!, alive, path.resolve(selection.filePath!) === path.resolve(defaultPath) ? 'indexed' : 'replace');
         });
         return { ok: true, value: { fileName: path.basename(output) } };
-      } catch (error) { return { ok: false, error: error instanceof StudioError ? error.code : 'document_unavailable' }; }
+      } catch (error) { return { ok: false, error: Object.hasOwn(transcriptionRequestSchemas, method) ? transcriptionIpcError(error) : error instanceof StudioError ? error.code : 'document_unavailable' }; }
     });
   }
   return {
     attach(sender: WebContents) {
+      if (closed || allowed.has(sender.id)) return;
       allowed.add(sender.id);
-      sender.on('did-start-navigation', (_event, _url, inPlace, mainFrame) => { if (mainFrame && !inPlace) { owners.delete(sender.id); translation.forgetOwner(sender.id); exports.forgetOwner(sender.id); batches.forgetOwner(sender.id); } });
-      sender.once('destroyed', () => { owners.delete(sender.id); allowed.delete(sender.id); translation.forgetOwner(sender.id); exports.forgetOwner(sender.id); batches.forgetOwner(sender.id); });
+      sender.on('did-start-navigation', (_event, _url, inPlace, mainFrame) => { if (mainFrame && !inPlace) forgetOwner(sender.id); });
+      sender.once('destroyed', () => { forgetOwner(sender.id); allowed.delete(sender.id); });
     },
-    dispose() {
-      void translation.dispose();
-      exports.dispose();
-      batches.dispose();
-      unsubscribe();
-      owners.clear(); allowed.clear();
-      ipcMain.removeAllListeners(STUDIO_CHANNELS.register);
-      for (const method of Object.keys(requestSchemas) as (keyof typeof requestSchemas)[]) ipcMain.removeHandler(STUDIO_CHANNELS[method]);
+    dispose(reason: 'app_quit' | 'update' | 'fatal' = 'app_quit'): Promise<void> {
+      if (shutdown) return shutdown;
+      closed = true;
+      // Cache before owner cancellation can dispatch synchronous abort listeners.
+      shutdown = Promise.resolve().then(async () => {
+        const failures = retirementFailures; retirementFailures = [];
+        const results = await Promise.allSettled([
+          Promise.resolve().then(() => translation.dispose()),
+          Promise.resolve().then(() => runtime?.shutdown(reason)),
+          ...retirements,
+        ]);
+        for (const result of results) if (result.status === 'rejected') failures.push(result.reason);
+        retirementFailures = [];
+        if (failures.length) throw new AggregateError(failures, 'Subtitle Studio cleanup failed.');
+      }).catch(error => { shutdown = undefined; throw error; });
+      for (const id of owners.keys()) forgetOwner(id);
+      for (const cleanup of [() => exports.dispose(), () => batches.dispose(), unsubscribe,
+        () => allowed.clear(), () => ipcMain.removeAllListeners(STUDIO_CHANNELS.register),
+        ...(Object.keys(requestSchemas) as (keyof typeof requestSchemas)[]).map(method => () => ipcMain.removeHandler(STUDIO_CHANNELS[method]))]) {
+        try { cleanup(); } catch (error) { retirementFailures.push(error); }
+      }
+      return shutdown;
     },
   };
 }

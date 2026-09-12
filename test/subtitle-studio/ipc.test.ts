@@ -46,7 +46,7 @@ async function setup(content = '[00:01.00]<script>window.injected=true</script>\
   return { owner, doc: imported.value, request: { documentId: imported.value.id, revision: imported.value.revision } };
 }
 afterEach(async () => {
-  registration?.dispose(); registration = undefined;
+  await registration?.dispose(); registration = undefined;
   if (adapter.directory) await rm(adapter.directory, { recursive: true, force: true });
   adapter.open.mockReset(); adapter.save.mockReset(); adapter.reveal.mockReset();
 });

@@ -6,6 +6,9 @@ import { bilingualOptionsSchema, type BilingualPreview } from './bilingual-contr
 import { hasBilingualCandidates, isBilingualRecommended } from './bilingual';
 import { exportOptionsSchema, exportIssueCodeSchema, type ExportPlanSummary, type ExportResult } from './export-contract';
 import { batchRequestSchemas, type BatchImportResult, type TranslationBatchPlan, type TranslationBatchResult, type ExportBatchPlan, type ExportBatchResult, type SourceBatchResult, type UnavailableDocument } from './batch-contract';
+import { enqueueTranscriptionRequestSchema, type TranscriptionTaskSummary, type TranscriptionBatchAdmission } from './transcription/task-contract';
+import type { LocalSubtitleAuthorizedMedia, LocalSubtitleMediaProbeSummary, LocalSubtitleManagedResourceSummary } from './transcription/ipc-contract';
+import type { LocalSubtitleResourceJobSummary } from './transcription/domain';
 
 export const STUDIO_CHANNELS = {
   register: 'subtitle-studio:internal:register',
@@ -33,8 +36,36 @@ export const STUDIO_CHANNELS = {
   applyBilingual: 'subtitle-studio:apply-bilingual',
   removeTranslationTrack: 'subtitle-studio:remove-translation-track',
   changed: 'subtitle-studio:changed',
+  selectTranscriptionMedia: 'subtitle-studio:select-transcription-media',
+  probeTranscriptionMedia: 'subtitle-studio:probe-transcription-media',
+  revokeTranscriptionMedia: 'subtitle-studio:revoke-transcription-media',
+  inspectTranscriptionRuntime: 'subtitle-studio:inspect-transcription-runtime',
+  listTranscriptionResources: 'subtitle-studio:list-transcription-resources',
+  importTranscriptionModel: 'subtitle-studio:import-transcription-model',
+  installTranscriptionResource: 'subtitle-studio:install-transcription-resource',
+  cancelTranscriptionResourceJob: 'subtitle-studio:cancel-transcription-resource-job',
+  enqueueTranscription: 'subtitle-studio:enqueue-transcription',
+  listTranscriptionTasks: 'subtitle-studio:list-transcription-tasks',
+  cancelTranscriptionTask: 'subtitle-studio:cancel-transcription-task',
+  removeTranscriptionTask: 'subtitle-studio:remove-transcription-task',
 } as const;
+const transcriptionRefSchema = z.string().min(1).max(256).regex(/^[a-zA-Z0-9][a-zA-Z0-9._-]*$/).refine(value => value !== '.' && value !== '..');
+export const transcriptionRequestSchemas = {
+  selectTranscriptionMedia: z.object({}).strict(),
+  probeTranscriptionMedia: z.object({ fileToken: transcriptionRefSchema }).strict(),
+  revokeTranscriptionMedia: z.object({ fileToken: transcriptionRefSchema }).strict(),
+  inspectTranscriptionRuntime: z.object({}).strict(),
+  listTranscriptionResources: z.object({}).strict(),
+  importTranscriptionModel: z.object({ modelId: transcriptionRefSchema }).strict(),
+  installTranscriptionResource: z.object({ resourceId: transcriptionRefSchema }).strict(),
+  cancelTranscriptionResourceJob: z.object({ jobId: transcriptionRefSchema }).strict(),
+  enqueueTranscription: enqueueTranscriptionRequestSchema,
+  listTranscriptionTasks: z.object({}).strict(),
+  cancelTranscriptionTask: z.object({ taskId: idSchema }).strict(),
+  removeTranscriptionTask: z.object({ taskId: idSchema }).strict(),
+};
 export const requestSchemas = {
+  ...transcriptionRequestSchemas,
   importSubtitle: z.object({ encoding: encodingSchema }).strict(),
   importSubtitles: z.object({ encoding: encodingSchema }).strict(),
   revealUnavailable: z.object({ documentId: idSchema, token: z.string().regex(/^[a-f0-9]{64}$/) }).strict(),
@@ -68,7 +99,27 @@ type StoredTask = DocumentSnapshot['tasks'][number];
 export type DocumentTask = Omit<StoredTask, 'translation'> & { translation?: Omit<NonNullable<StoredTask['translation']>, 'checkpoint'> & { checkpoint?: { version: 1 } } };
 export type DocumentPage = { summary: DocumentSummary; offset: number; cues: SubtitleDocument['cues']; nodeOffset: number; nodeCount: number; rawNodes: { id: string; text: string }[]; translationTracks: SubtitleDocument['translationTracks']; tasks: DocumentTask[] };
 export type StudioResult<T> = { ok: true; value: T } | { ok: false; error: ErrorCode };
+export type TranscriptionMediaSelection = { items: Array<
+  { displayName: string; ok: true; media: LocalSubtitleAuthorizedMedia; probe: LocalSubtitleMediaProbeSummary }
+  | { displayName: string; ok: false; error: ErrorCode; media?: LocalSubtitleAuthorizedMedia }
+> };
+export type TranscriptionResourceJob = Omit<LocalSubtitleResourceJobSummary, 'error'> & { error?: Pick<NonNullable<LocalSubtitleResourceJobSummary['error']>, 'code'> };
+export type TranscriptionResources = { resources: LocalSubtitleManagedResourceSummary[]; jobs: TranscriptionResourceJob[] };
+export type TranscriptionRuntimeSummary = { status: 'verified'; runtimeGeneration: string; target: { platform: 'darwin' | 'win32'; arch: 'arm64' | 'x64' } }
+  | { status: 'missing' | 'invalid'; code: string; stage: string };
 export interface SubtitleStudioApi {
+  selectTranscriptionMedia(request: z.infer<typeof requestSchemas.selectTranscriptionMedia>): Promise<StudioResult<TranscriptionMediaSelection | null>>;
+  probeTranscriptionMedia(request: z.infer<typeof requestSchemas.probeTranscriptionMedia>): Promise<StudioResult<LocalSubtitleMediaProbeSummary>>;
+  revokeTranscriptionMedia(request: z.infer<typeof requestSchemas.revokeTranscriptionMedia>): Promise<StudioResult<{ revoked: boolean }>>;
+  inspectTranscriptionRuntime(request: z.infer<typeof requestSchemas.inspectTranscriptionRuntime>): Promise<StudioResult<TranscriptionRuntimeSummary>>;
+  listTranscriptionResources(request: z.infer<typeof requestSchemas.listTranscriptionResources>): Promise<StudioResult<TranscriptionResources>>;
+  importTranscriptionModel(request: z.infer<typeof requestSchemas.importTranscriptionModel>): Promise<StudioResult<TranscriptionResourceJob | null>>;
+  installTranscriptionResource(request: z.infer<typeof requestSchemas.installTranscriptionResource>): Promise<StudioResult<TranscriptionResourceJob>>;
+  cancelTranscriptionResourceJob(request: z.infer<typeof requestSchemas.cancelTranscriptionResourceJob>): Promise<StudioResult<{ cancelled: boolean }>>;
+  enqueueTranscription(request: z.infer<typeof requestSchemas.enqueueTranscription>): Promise<StudioResult<TranscriptionBatchAdmission>>;
+  listTranscriptionTasks(request: z.infer<typeof requestSchemas.listTranscriptionTasks>): Promise<StudioResult<readonly TranscriptionTaskSummary[]>>;
+  cancelTranscriptionTask(request: z.infer<typeof requestSchemas.cancelTranscriptionTask>): Promise<StudioResult<TranscriptionTaskSummary>>;
+  removeTranscriptionTask(request: z.infer<typeof requestSchemas.removeTranscriptionTask>): Promise<StudioResult<null>>;
   importSubtitle(request: z.infer<typeof requestSchemas.importSubtitle>): Promise<StudioResult<DocumentSummary | null>>;
   importSubtitles(request: z.infer<typeof requestSchemas.importSubtitles>): Promise<StudioResult<BatchImportResult | null>>;
   revealUnavailable(request: z.infer<typeof requestSchemas.revealUnavailable>): Promise<StudioResult<null>>;

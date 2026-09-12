@@ -1,0 +1,127 @@
+{
+  "schemaVersion": 1,
+  "baseCommit": "e80ef6b6460a2c3a27c9f102078543ba07d29352",
+  "previousSnapshotSha256": "691dfa0d687968d85f21e3c51f6b80df99d5df9bcf4ddf4a9fa5efaa23fecc02",
+  "files": [
+    {
+      "path": ".agents/skills/fusionkit-pitfall-guard/references/index.md",
+      "byteSize": 53150,
+      "sha256": "9a6aad9b69fdc7d24036aaac8b7b758db4673ca3523bd04b3fa304dbcacb3441"
+    },
+    {
+      "path": ".agents/skills/fusionkit-pitfall-guard/references/join-library-refresh-before-opening-task-documents.md",
+      "byteSize": 2015,
+      "sha256": "e639ced9cd146d581b662a0c0dac2f72d60ff58ece2aa6a5e5465a8e106ed145"
+    },
+    {
+      "path": ".agents/skills/fusionkit-pitfall-guard/references/size-workspace-tabs-independently-of-content.md",
+      "byteSize": 1901,
+      "sha256": "da2b2c9d28213a2f9f17fc5758a357ebfb3cf96a6c7be47bda3389e5ee1ebe1b"
+    },
+    {
+      "path": "electron/main/subtitle-studio/transcription-ipc.ts",
+      "byteSize": 6349,
+      "sha256": "0014201eea289dd8df110ca69c2adae637bb62d27b0e0d46ae489f9fe7e29c07"
+    },
+    {
+      "path": "electron/preload/subtitle-studio-api.ts",
+      "byteSize": 4601,
+      "sha256": "2d763d27c6c3260753ffa895ce96256258dd0d3b9d4aeb5d1ab928e6464603c4"
+    },
+    {
+      "path": "scripts/subtitle-studio/boundaries.json",
+      "byteSize": 9940,
+      "sha256": "f573c49b9c485efbd8acab3fea9cdbbefba8221ec25e72731c689b5288bb2619"
+    },
+    {
+      "path": "scripts/subtitle-studio/check-boundaries.mjs",
+      "byteSize": 9108,
+      "sha256": "58f5ed02c31166c98053fd76ff0d2f27e5c4677efc8f5ce63f317fd4601fa2a9"
+    },
+    {
+      "path": "src/locales/en/studio.json",
+      "byteSize": 21237,
+      "sha256": "e7ba235af341a4519717a504469ae70a68f7386c086095b82c7280344c6e65fa"
+    },
+    {
+      "path": "src/locales/ja/studio.json",
+      "byteSize": 25812,
+      "sha256": "14d6bd1134686d03b0fa0e7ed635a201182c5d69ae37d5453329332043336c85"
+    },
+    {
+      "path": "src/locales/zh-Hant/studio.json",
+      "byteSize": 20085,
+      "sha256": "588c5facfd7a6010d0c94d6e8100774118ba0b7f8433556caf7f406a9b3c5ed4"
+    },
+    {
+      "path": "src/locales/zh/studio.json",
+      "byteSize": 19998,
+      "sha256": "06de975791626a978fe10620d3029128b8deecb0274e036b5abe9dc557841392"
+    },
+    {
+      "path": "src/pages/Tools/Subtitle/SubtitleStudio/StudioTranscription.css",
+      "byteSize": 7916,
+      "sha256": "81620d8d30052abaa6a6d35f5800a291f273d6cd916c1e51babbabc7b310d630"
+    },
+    {
+      "path": "src/pages/Tools/Subtitle/SubtitleStudio/StudioTranscription.tsx",
+      "byteSize": 27280,
+      "sha256": "57e0c4e12e7a62af83cd56fcc3ab1a1ee163fb734841564a520781d5162a06c9"
+    },
+    {
+      "path": "src/pages/Tools/Subtitle/SubtitleStudio/index.tsx",
+      "byteSize": 44705,
+      "sha256": "d00e65ec189bf9de39ea6b3da9080f4768b7004ee30ed630b8fdd93348ab392c"
+    },
+    {
+      "path": "src/pages/Tools/Subtitle/SubtitleStudio/studio.css",
+      "byteSize": 17543,
+      "sha256": "069ef26e545a47b7f48456da7ddf861ba779e7609dbaa9624d7765ea0586ce2a"
+    },
+    {
+      "path": "src/services/subtitle-studio/transcription-controller.ts",
+      "byteSize": 27620,
+      "sha256": "5d5678556196a9d18fe14addbc9cdf422d3a6460cb6f9d10637d2a676586e258"
+    },
+    {
+      "path": "src/subtitle-studio/ipc-contract.ts",
+      "byteSize": 16361,
+      "sha256": "33ebcfb9bf046e56d75a232368d2693796bf95dab5f0dd758429c50fa72b0bb5"
+    },
+    {
+      "path": "test/subtitle-studio/boundaries.test.ts",
+      "byteSize": 11280,
+      "sha256": "7d402a01671037d7af3c08a4f82e915b0c7b26a541f472853dc4cb067000fb12"
+    },
+    {
+      "path": "test/subtitle-studio/helpers/transcription-ui-build.ts",
+      "byteSize": 4646,
+      "sha256": "751c646db797c60aacd354143ca2286a577a30098f44609cf6631574e7dc95f9"
+    },
+    {
+      "path": "test/subtitle-studio/helpers/transcription-ui-runtime.ts",
+      "byteSize": 12324,
+      "sha256": "624efb0c6f08a64e574f13d365b3f50506dfe6b15bbede520dfc0e92f6ebc8b9"
+    },
+    {
+      "path": "test/subtitle-studio/transcription-controller.test.ts",
+      "byteSize": 22576,
+      "sha256": "ac2518d23ceaeb37ea6b321a4535d723d7c8cf02629521e65e1feb37a4de1fa9"
+    },
+    {
+      "path": "test/subtitle-studio/transcription-ipc.test.ts",
+      "byteSize": 15215,
+      "sha256": "57508847077c93705398e3248425d12191d146d6a9cd8a4d2b0c2a3041a98a8a"
+    },
+    {
+      "path": "test/subtitle-studio/transcription-ui.test.ts",
+      "byteSize": 22632,
+      "sha256": "c5b47745fc0bf37f201d2b9eda2f648f81a56e1ef6622f42381f588974dc25e6"
+    },
+    {
+      "path": "test/subtitle-studio/workspace-ui.test.ts",
+      "byteSize": 17924,
+      "sha256": "3c5035ae84257f25353d48a3ffeea854c5d1e5b55d11cce8f1478f53a2c19f5a"
+    }
+  ]
+}

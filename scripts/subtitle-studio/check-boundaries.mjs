@@ -109,7 +109,8 @@ export function checkBoundaries(root, extraRoots = []) {
         if (target.startsWith('../')) { errors.push(`Outside repository: ${name} -> ${target}`); return; }
         if (![...config.roots, ...config.infrastructure].some(prefix => target === prefix || target.startsWith(prefix.endsWith('/') ? prefix : `${prefix}/`)) && !forbidden(target)) errors.push(`Unaudited infrastructure: ${name} -> ${target}`);
         visit(target, [...trail, name]);
-      } else if (!specifier.startsWith('node:') && !config.packages.some(pkg => specifier === pkg || specifier.startsWith(`${pkg}/`))) errors.push(`Unaudited package: ${name} -> ${specifier}`);
+      } else if (!specifier.startsWith('node:') && !config.packages.some(pkg => specifier === pkg || specifier.startsWith(`${pkg}/`))
+        && !(config.scopedPackages ?? []).some(audit => audit.source === name && audit.package === specifier)) errors.push(`Unaudited package: ${name} -> ${specifier}`);
     }
     function walk(node) {
       if ((ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) && node.moduleSpecifier && ts.isStringLiteral(node.moduleSpecifier)) dependency(node.moduleSpecifier.text);

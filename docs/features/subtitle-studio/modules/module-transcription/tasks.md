@@ -1,6 +1,126 @@
 # I2 任务台账
 
-当前已完成T01来源冻结、T02独立副本/回放、T03独立runtime/本机原生验证及T04最终转录文档生产者。下一项细化任务准入/队列及应用接线，再接转写UI；完整ASR资源及真实对照仍待后续，见requirements.md与transcription-fork.md。
+T01–T04 已集成于 e80ef6b。T05任务准入/接线、T06转写工作区、T07 Windows独立资源/真实CPU短样本及T08默认VAD/CPU/CUDA固定矩阵均已完成于当前工作树。下一项沿既定路线展开Windows完整应用共存/移除包演练；用户整体验收仍单独记录。
+
+### T-TRANSCRIPTION-08 默认 VAD 与 CPU/CUDA 有界真实对照
+
+| 字段 | 值 |
+| --- | --- |
+| 状态 | 已完成 |
+| 批次 | I2 |
+| 需求 | R-TRANSCRIPTION-08 |
+| 验收 | AC-TRANSCRIPTION-08-1, AC-TRANSCRIPTION-08-2, AC-TRANSCRIPTION-08-3, AC-TRANSCRIPTION-08-4, AC-TRANSCRIPTION-08-5 |
+| 依赖 | T-TRANSCRIPTION-07 |
+| 写集 | test/subtitle-studio-provenance/, docs/features/subtitle-studio/, .agents/skills/fusionkit-pitfall-guard/references/, test-results/, 本轮mkdtemp独占系统临时资源根 |
+| 负责人 | Codex root |
+| 依赖确认 | T-TRANSCRIPTION-07已在e80ef6b加共享工作树完成；开工逐项复核30源文件/25资源文件匹配快照dfd09dceaf788427f23b17198b0708e95c3e4bed920a8bb869e6be73d88f2ea4，无漂移。固定六样本/模型/CUDA ZIP均只读hash核对，RTX4070TiSUPER/驱动610.62可用；保留T05–T07未提交结果 |
+| 完成日期 | 2026-09-12 |
+| 实施记录 | records/2026-09-12-transcription-default-devices.md |
+| 集成版本 | e80ef6b加既有T05–T07和本轮工作树；9源文件/22证据/22文档文件快照165ef2e9fb88355f8d0ab2b6f840dcad38b8493a682278f7f56fbc15ce90846b；26次真实链路已验证，未提交 |
+
+#### 实现要点
+
+依design T08单写分工。新维护harness保留T07冻结，真实生产安装/推理/文档持久化，只有下载传输允许本地固定字节适配。全部真实ASR由root串行调度，agent不并发占用GPU或改生产参数。
+
+#### 验证计划
+
+| 检查 | 类型 | 要求 | 命令或步骤 | 不适用理由 |
+| --- | --- | --- | --- | --- |
+| V-TRANSCRIPTION-08-1 | integration | required | 固定输入hash；新旧真实模型/VAD/CUDA安装、全包布局/验证/探针/重新解析/删除证据，原资源不变 | - |
+| V-TRANSCRIPTION-08-2 | integration | required | 六样本两设备24项真实配对、CUDA精确PID正显存、默认VAD/长样本真实窗口/回退；固定CUDA A每侧重复一次 | - |
+| V-TRANSCRIPTION-08-3 | integration | required | 新版实际任务成功入库、canonical完整映射、关闭后重开；无识别内容保留真实失败且无文档；输出/差异/耗时保存并按历史局限人工审阅 | - |
+| V-TRANSCRIPTION-08-4 | unit | required | 资源适配器固定输入拒绝/安全路径及差异分析时间或词证据变化反例，harness默认跳过与真实超时合同 | - |
+| V-TRANSCRIPTION-08-5 | static | required | 相关任务/文档回归、冻结来源/T07实物、实际边界、两套TS与新harness类型、spec/diff/最终进程清理与快照 | - |
+
+### T-TRANSCRIPTION-07 Windows 独立资源与真实 CPU 对照
+
+| 字段 | 值 |
+| --- | --- |
+| 状态 | 已完成 |
+| 批次 | I2 |
+| 需求 | R-TRANSCRIPTION-07 |
+| 验收 | AC-TRANSCRIPTION-07-1, AC-TRANSCRIPTION-07-2, AC-TRANSCRIPTION-07-3, AC-TRANSCRIPTION-07-4, AC-TRANSCRIPTION-07-5 |
+| 依赖 | T-TRANSCRIPTION-03, T-TRANSCRIPTION-06 |
+| 写集 | scripts/subtitle-studio-provenance/, scripts/subtitle-studio/, resources/subtitle-studio/provenance/, test/subtitle-studio-provenance/, test/subtitle-studio/, docs/features/subtitle-studio/, .gitattributes, .agents/skills/fusionkit-pitfall-guard/references/, build/subtitle-studio-resources/, test-results/ |
+| 负责人 | Codex root |
+| 依赖确认 | T-TRANSCRIPTION-03已集成于e80ef6b；T-TRANSCRIPTION-06在共享工作树可用，24文件逐项hash匹配快照0ed05341d32e5b287bb86ba51c0097ee99fb4ccfb5a995ef5502c0a824d2eaae；保留既有T05/T06未提交结果。已核对Windows固定资源合同及本机历史FFmpeg审计回执 |
+| 完成日期 | 2026-09-12 |
+| 实施记录 | records/2026-09-12-transcription-windows-runtime.md |
+| 集成版本 | e80ef6b加既有T05/T06和本轮工作树；30源文件/25资源文件快照dfd09dceaf788427f23b17198b0708e95c3e4bed920a8bb869e6be73d88f2ea4 |
+
+#### 实现要点
+
+依design T07分工单写，root维护规格/集成；分别补齐Windows资源工具和Windows addon工具的独立派生闭包。真实媒体验证采用显式只读输入和隔离资源/文档根，不注入推理结果。现有冻结校验器不放宽。
+
+#### 验证计划
+
+| 检查 | 类型 | 要求 | 命令或步骤 | 不适用理由 |
+| --- | --- | --- | --- | --- |
+| V-TRANSCRIPTION-07-1 | unit | required | 新资源及Windows addon工具反例、固定来源/精确变换重建、旧T02/T03无漂移 | - |
+| V-TRANSCRIPTION-07-2 | integration | required | 固定完整资源输入逐项hash、审计回执、独立staging/manifest、实际FFmpeg/ffprobe/Whisper启动探针 | - |
+| V-TRANSCRIPTION-07-3 | integration | required | 实际LLVM-MinGW构建及Electron addon加载、隔离事务/恢复/命名空间、新版贡献完整验证 | - |
+| V-TRANSCRIPTION-07-4 | integration | required | 固定真实短音频/模型，旧生产链路及新版任务→真实文档，保存原始输出/同配置差异/耗时/隔离与清理证据 | - |
+| V-TRANSCRIPTION-07-5 | static | required | 相关任务文档回归、实际边界、两套TS、spec/diff、实物快照及进程清理 | - |
+
+### T-TRANSCRIPTION-06 转写工作区与文档交接
+
+| 字段 | 值 |
+| --- | --- |
+| 状态 | 已完成 |
+| 批次 | I2 |
+| 需求 | R-TRANSCRIPTION-06 |
+| 验收 | AC-TRANSCRIPTION-06-1, AC-TRANSCRIPTION-06-2, AC-TRANSCRIPTION-06-3, AC-TRANSCRIPTION-06-4, AC-TRANSCRIPTION-06-5 |
+| 依赖 | T-TRANSCRIPTION-05, T-WORKSPACE-08 |
+| 写集 | src/services/subtitle-studio/, src/pages/Tools/Subtitle/SubtitleStudio/, src/locales/, src/subtitle-studio/ipc-contract.ts, electron/main/subtitle-studio/transcription-ipc.ts, electron/preload/subtitle-studio-api.ts, test/subtitle-studio/, scripts/subtitle-studio/, docs/features/subtitle-studio/, .agents/skills/fusionkit-pitfall-guard/references/ |
+| 负责人 | Codex root |
+| 依赖确认 | T-TRANSCRIPTION-05已在e80ef6b加共享工作树集成，38文件快照691dfa0d687968d85f21e3c51f6b80df99d5df9bcf4ddf4a9fa5efaa23fecc02；T-WORKSPACE-08已在HEAD祖先。核对固定API/队列/现有页面实物与1137项回归记录，保留既有未提交结果 |
+| 完成日期 | 2026-09-12 |
+| 实施记录 | records/2026-09-12-transcription-ui.md |
+| 集成版本 | e80ef6b加既有T05和本轮工作树；最终文件摘要见records/2026-09-12-transcription-ui.snapshot.json |
+
+#### 实现要点
+
+依design T06单写分工，根节点集成；不改冻结副本，先补probe接口并公布controller类型。既有文档消费控制器常驻；清理和未知提交状态在SPA切换后仍可恢复观察。
+
+#### 验证计划
+
+| 检查 | 类型 | 要求 | 命令或步骤 | 不适用理由 |
+| --- | --- | --- | --- | --- |
+| V-TRANSCRIPTION-06-1 | unit | required | controller去重/限额/过期/重探测/撤销重试、惰性及SPA订阅、参数就绪、单飞和未知提交、迟到快照及取消清理反例 | - |
+| V-TRANSCRIPTION-06-2 | interface | required | probe固定方法/严格schema/owner与frame校验、sanitized结果、legacy拒绝，现有IPC回归 | - |
+| V-TRANSCRIPTION-06-3 | browser | required | 隔离Electron真实renderer/preload/main注册及仓库，受控runtime完成媒体→资源→队列→真实文档；缺失/失败/取消、视图切换与筛选交接 | - |
+| V-TRANSCRIPTION-06-4 | browser | required | 对照现有布局审阅1280×860浅色、786×540深色、长名称Tooltip、键盘/焦点、资源Dialog、窄屏滚动和等距几何，修复后复验截图 | - |
+| V-TRANSCRIPTION-06-5 | static | required | 相关工作区/转写/来源回归、实际边界、两套TS、i18n、根Vite构建/preload、spec与diff检查，关闭隔离进程 | - |
+
+### T-TRANSCRIPTION-05 任务准入、文档队列与应用接线
+
+| 字段 | 值 |
+| --- | --- |
+| 状态 | 已完成 |
+| 批次 | I2 |
+| 需求 | R-TRANSCRIPTION-05 |
+| 验收 | AC-TRANSCRIPTION-05-1, AC-TRANSCRIPTION-05-2, AC-TRANSCRIPTION-05-3, AC-TRANSCRIPTION-05-4, AC-TRANSCRIPTION-05-5 |
+| 依赖 | T-TRANSCRIPTION-03, T-TRANSCRIPTION-04 |
+| 写集 | src/subtitle-studio/, src/pages/Tools/Subtitle/SubtitleStudio/, src/locales/, electron/main/subtitle-studio/, electron/main/index.ts, electron/main/app-shutdown.ts, electron/preload/subtitle-studio-api.ts, electron/preload/subtitle-studio-channel-policy.ts, test/subtitle-studio/, test/app-shutdown.test.ts, test/subtitle-studio-provenance/, scripts/subtitle-studio-provenance/, .gitattributes, docs/features/subtitle-studio/, .agents/skills/fusionkit-pitfall-guard/references/ |
+| 负责人 | Codex root |
+| 依赖确认 | T-TRANSCRIPTION-03 与 T-TRANSCRIPTION-04 均已集成于 e80ef6b；当前分支跟踪 origin/feat/subtitle-studio-transcription，开工工作树干净。已实际读取 runtime/executor/producer/sink/repository；本机两套TS和298文件边界通过 |
+| 完成日期 | 2026-09-12 |
+| 实施记录 | records/2026-09-12-transcription-admission.md |
+| 集成版本 | e80ef6b加本轮工作树；最终代码摘要见records/2026-09-12-transcription-admission.snapshot.json |
+
+#### 实现要点
+
+依 design T05 分工单写。以任务准入至文档仓库为当前集成链路，不提供旧式文件输出/转写UI，不声明真实ASR或重启恢复。同步 fence/异步 join、失败重试清理及发布回执语义不得简化。
+
+#### 验证计划
+
+| 检查 | 类型 | 要求 | 命令或步骤 | 不适用理由 |
+| --- | --- | --- | --- | --- |
+| V-TRANSCRIPTION-05-1 | interface | required | 请求/摘要schema、固定preload方法、legacy拒绝、非法frame/URL/capability、原生picker/copy-only、owner替换和迟到授权拒绝 | - |
+| V-TRANSCRIPTION-05-2 | integration | required | 准入/FIFO/多文件回滚、续租、资源忙/身份失效、跨owner、取消、终态移除及清理失败测试 | - |
+| V-TRANSCRIPTION-05-3 | integration | required | 实际队列→T04 producer/sink→真实仓库及文档读回，取消/发布故障/能力与资源清理反例 | - |
+| V-TRANSCRIPTION-05-4 | integration | required | runtime与应用双运行时关闭/更新，重入、失败重试和根锁；I1功能懒初始化不依赖ASR资源 | - |
+| V-TRANSCRIPTION-05-5 | static | required | 相关I1/T02/T04回归、来源/实际边界、两套TS、i18n、Vite test构建/preload、LF属性/规格/diff；清理本轮测试进程 | - |
 
 ### T-TRANSCRIPTION-01 生产基线、依赖与资源来源冻结
 

@@ -5,7 +5,49 @@
   "infrastructure": ["src/components/ui/", "src/components/qiuye-ui/", "src/lib/", "src/constants/router.ts", "src/pages/Tools/_shared/", "electron/main/ai/model-runtime-client.ts", "electron/main/ai/model-runtime-errors.ts", "electron/main/ai/provider-error-classification.ts", "electron/main/ai/adapters/chat-completions-adapter.ts", "electron/main/ai/adapters/responses-adapter.ts", "electron/main/proxy.ts", "src/type/model.ts", "src/type/audio.ts", "src/constants/model.ts", "src/store/useModelStore.ts"],
   "packages": ["yauzl", "zod", "react", "react-dom", "react-i18next", "lucide-react", "zustand", "electron", "iconv-lite", "vitest", "@playwright/test", "playwright", "radix-ui", "@radix-ui/react-tooltip", "@radix-ui/react-select", "@radix-ui/react-tabs", "@radix-ui/react-slot", "@radix-ui/react-label", "@radix-ui/react-popover", "@radix-ui/react-dialog", "@radix-ui/react-checkbox", "@radix-ui/react-dropdown-menu", "motion", "@qiuyedx/smooth-corners", "class-variance-authority", "clsx", "tailwind-merge", "typescript", "axios", "gpt-tokenizer", "react-router-dom"],
   "composition": ["src/App.tsx", "src/main.tsx", "src/vite-env.d.ts", "src/constants/router.ts", "src/pages/Tools/index.tsx", "src/pages/Tools/_shared/toolMeta.ts", "electron/main/index.ts", "electron/preload/index.ts", "electron/electron-env.d.ts", "src/i18n/resources.ts", "src/type/subtitle.ts", "src/agent/tools.ts", "src/agent/tool-executor.ts", "src/agent/tool-schemas.ts", "src/store/agent/useAgentStore.ts", "electron-builder.json", "electron-builder.subtitle-studio.json", "scripts/packaging/"],
+  "scopedPackages": [
+    {
+      "source": "test/subtitle-studio/helpers/transcription-ui-build.ts",
+      "package": "esbuild",
+      "reason": "Test-only isolated Electron application build replaces exactly the new transcription runtime module, retaining real renderer, preload, Studio IPC and document repository. No production import is permitted by this scoped entry."
+    }
+  ],
   "dynamicAudits": [
+    {
+      "source": "scripts/subtitle-studio/transcription/overwrite-native/run-addon-windows-integration.mjs",
+      "sha256": "a67e52ee96609b70ed8f55f66e51bbf5317225e875d534c099fcf19b9e3d219d",
+      "expression": "require(canonicalAddonPath)",
+      "count": 1,
+      "reason": "T07 isolated Windows Electron acceptance loads only its explicitly supplied Studio production or fault-test addon; fixed source bytes and exact loader counts are reviewed, with no legacy module dependency."
+    },
+    {
+      "source": "scripts/subtitle-studio/transcription/overwrite-native/run-addon-windows-recovery-integration.mjs",
+      "sha256": "1dec5badee6ef2aae215b1073bf78799a0932bc7b740441b5bf6a1f38ddd9bc7",
+      "expression": "require(canonicalAddonPath)",
+      "count": 1,
+      "reason": "T07 isolated Windows Electron acceptance loads only its explicitly supplied Studio production or fault-test addon; fixed source bytes and exact loader counts are reviewed, with no legacy module dependency."
+    },
+    {
+      "source": "scripts/subtitle-studio/transcription/overwrite-native/run-addon-windows-recovery-integration.mjs",
+      "sha256": "1dec5badee6ef2aae215b1073bf78799a0932bc7b740441b5bf6a1f38ddd9bc7",
+      "expression": "require(addonPath)",
+      "count": 3,
+      "reason": "T07 isolated Windows Electron acceptance loads only its explicitly supplied Studio production or fault-test addon; fixed source bytes and exact loader counts are reviewed, with no legacy module dependency."
+    },
+    {
+      "source": "scripts/subtitle-studio/transcription/overwrite-native/run-addon-windows-recovery-child.mjs",
+      "sha256": "8c336f55f88c0df62e2641c7f857fcfa37d820e2cec64cd7d1f872d23ba5b191",
+      "expression": "require(input.addonPath)",
+      "count": 1,
+      "reason": "T07 isolated Windows Electron acceptance loads only its explicitly supplied Studio production or fault-test addon; fixed source bytes and exact loader counts are reviewed, with no legacy module dependency."
+    },
+    {
+      "source": "scripts/subtitle-studio/transcription/overwrite-native/run-addon-windows-namespace-integration.mjs",
+      "sha256": "7400719a1dee9bc0ff35c43d14f1a217c7d3eec3df09617478f0b1eb661f08a2",
+      "expression": "require(addonPath)",
+      "count": 1,
+      "reason": "T07 isolated Windows Electron acceptance loads only its explicitly supplied Studio production or fault-test addon; fixed source bytes and exact loader counts are reviewed, with no legacy module dependency."
+    },
     {
       "source": "scripts/subtitle-studio/transcription/overwrite-native/run-addon-namespace-integration.mjs",
       "expression": "require(addonPath)",
@@ -50,6 +92,11 @@
     }
   ],
   "auditedSources": [
+    {
+      "source": "scripts/subtitle-studio/transcription/overwrite-native/windows-electron-host.test.mjs",
+      "sha256": "62b7b5319b93796de007db5475e61e8c171216eca706651986addaad345c43ce",
+      "reason": "T07 test-only module factory resolves exactly the installed Electron executable and package version to prove interpreter-mode selection; no computed native addon path is loaded in this source."
+    },
     {
       "source": "electron/main/subtitle-studio/transcription/native/overwrite-native-host-preflight.ts",
       "sha256": "693ea89371a57ab4b5eac4d9157a89353349f7b29f78c83fdd0848357421cd89",
