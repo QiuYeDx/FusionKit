@@ -15,8 +15,9 @@ import { selectLibrary } from './library-service';
 import { STUDIO_BATCH_LIMIT, type BatchImportResult } from '../../../src/subtitle-studio/batch-contract';
 import { createTranscriptionRuntime, type TranscriptionRuntime } from './transcription/runtime';
 import { handleTranscriptionRequest, transcriptionIpcError } from './transcription-ipc';
+import type { SpeechResourceService } from '../speech-resources/service';
 
-export function registerSubtitleStudio() {
+export function registerSubtitleStudio(sharedResources?: SpeechResourceService) {
   const repository = new DocumentRepository(path.join(app.getPath('userData'), 'subtitle-studio', 'documents'));
   const translation = new TranslationService(repository);
   const bilingual = new BilingualService(repository);
@@ -33,7 +34,7 @@ export function registerSubtitleStudio() {
     if (closed) throw new StudioError('access_denied');
     runtime ??= createTranscriptionRuntime({ userDataRoot: app.getPath('userData'), environment: app.isPackaged
       ? { mode: 'packaged', resourcesPath: process.resourcesPath }
-      : { mode: 'development', appRoot: app.getAppPath() } }, {}, repository);
+      : { mode: 'development', appRoot: app.getAppPath() } }, { sharedResources }, repository);
     await runtime.initialize();
     if (closed) throw new StudioError('access_denied');
     return runtime;

@@ -11,6 +11,7 @@ interface ImportMeta {
 }
 
 interface Window {
+  speechResources: import('./speech-resources/events').SpeechResourcesNotifications;
   // expose in the `electron/preload/index.ts`
   ipcRenderer: import('../electron/preload/legacy-ipc-bridge').SafeLegacyIpcBridge
   audioApi: import('@/type/audioIpc').AudioRendererApi

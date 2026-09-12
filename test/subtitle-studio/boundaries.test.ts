@@ -136,6 +136,32 @@ describe('studio boundaries', () => {
       expect(checkBoundaries(root).errors.join(' ')).toContain('Forbidden resource string');
     } finally { await rm(root, { recursive: true, force: true }); }
   });
+  it('limits retained historical resource values to the exact JSON pointer, value and full file bytes', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'studio-resource-value-audit-'));
+    try {
+      await mkdir(path.join(root, 'scripts/subtitle-studio'), { recursive: true });
+      const config = JSON.parse(await readFile(path.join(repositoryRoot, 'scripts/subtitle-studio/boundaries.json'), 'utf8'));
+      config.roots = ['receipt.json']; config.immutableEvidence = [];
+      const oldPath = ['build', 'local-subtitle-resources', 'local-subtitle'].join('/');
+      const receipt = JSON.stringify({ staging: { historicalRoot: oldPath }, safe: true });
+      const digest = createHash('sha256').update(receipt).digest('hex');
+      const audit = { source: 'receipt.json', sha256: digest, pointer: '/staging/historicalRoot', value: oldPath };
+      config.auditedResourceValues = [audit];
+      const policy = path.join(root, 'scripts/subtitle-studio/boundaries.json');
+      await writeFile(policy, JSON.stringify(config)); await writeFile(path.join(root, 'receipt.json'), receipt);
+      expect(checkBoundaries(root).errors).toEqual([]);
+      await writeFile(path.join(root, 'receipt.json'), `${receipt}\n`);
+      expect(checkBoundaries(root).errors.join(' ')).toContain('Resource value audit changed');
+      await writeFile(path.join(root, 'receipt.json'), receipt);
+      config.auditedResourceValues = [{ ...audit, pointer: '/other' }];
+      await writeFile(policy, JSON.stringify(config));
+      expect(checkBoundaries(root).errors.join(' ')).toContain('Forbidden resource string');
+      const expanded = JSON.stringify({ staging: { historicalRoot: oldPath }, runtimeRoot: oldPath });
+      config.auditedResourceValues = [{ ...audit, sha256: createHash('sha256').update(expanded).digest('hex') }];
+      await writeFile(policy, JSON.stringify(config)); await writeFile(path.join(root, 'receipt.json'), expanded);
+      expect(checkBoundaries(root).errors.join(' ')).toContain('Forbidden resource string');
+    } finally { await rm(root, { recursive: true, force: true }); }
+  });
   it('binds native sources to reviewed bytes and rejects new unaudited native files', async () => {
     const root = await mkdtemp(path.join(tmpdir(), 'studio-native-boundary-'));
     try {

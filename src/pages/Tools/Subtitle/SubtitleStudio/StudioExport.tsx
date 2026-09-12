@@ -48,7 +48,7 @@ const errorKeys = {
   document_unavailable: 'studio:errors.document_unavailable', output_write_failed: 'studio:errors.output_write_failed',
   needs_configuration: 'studio:errors.needs_configuration', translation_protocol_invalid: 'studio:errors.translation_protocol_invalid',
   translation_output_limit: 'studio:errors.translation_output_limit', translation_failed: 'studio:errors.translation_failed',
-  transcription_failed: 'studio:errors.transcription_failed',
+  transcription_failed: 'studio:errors.transcription_failed', resource_busy: 'studio:errors.resource_busy',
   interrupted: 'studio:errors.interrupted',
 } as const satisfies Record<ErrorCode, string>;
 

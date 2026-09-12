@@ -15,3 +15,15 @@
 /resources/subtitle-studio/transcription/licenses/*.json text eol=lf
 /resources/subtitle-studio/transcription/licenses/*.md text eol=lf
 /resources/subtitle-studio/transcription/licenses/*.txt text eol=lf
+
+# Neutral resource extraction outputs are verified as exact LF bytes.
+/electron/main/speech-resources/engine/*.ts text eol=lf
+/electron/main/speech-resources/catalog.ts text eol=lf
+/src/speech-resources/contracts.ts text eol=lf
+/src/speech-resources/schemas.ts text eol=lf
+/test/speech-resources/engine/*.ts text eol=lf
+/resources/speech-resources/manifests/*.json text eol=lf
+/resources/speech-resources/provenance/*.json text eol=lf
+# Historical migration receipts preserve their initial, audited checkout bytes.
+/resources/speech-resources/migration/legacy/*.json text eol=crlf
+/resources/speech-resources/migration/studio/*.json text eol=lf

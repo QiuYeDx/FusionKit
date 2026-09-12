@@ -15,6 +15,7 @@ export function createSubtitleStudioApi(ipc: { sendSync(channel: string, payload
     listTranscriptionResources: request => invoke(STUDIO_CHANNELS.listTranscriptionResources, request),
     importTranscriptionModel: request => invoke(STUDIO_CHANNELS.importTranscriptionModel, request),
     installTranscriptionResource: request => invoke(STUDIO_CHANNELS.installTranscriptionResource, request),
+    deleteTranscriptionResource: request => invoke(STUDIO_CHANNELS.deleteTranscriptionResource, request),
     cancelTranscriptionResourceJob: request => invoke(STUDIO_CHANNELS.cancelTranscriptionResourceJob, request),
     enqueueTranscription: request => invoke(STUDIO_CHANNELS.enqueueTranscription, request),
     listTranscriptionTasks: request => invoke(STUDIO_CHANNELS.listTranscriptionTasks, request),

@@ -38,7 +38,7 @@ v1 不在生产依赖链中。SubtitleDocument 是内部版本化数据契约，
 
 可复用经检查的 UI 基础组件、i18n、应用模型档案、`electron/main/ai/` 通用客户端；检查覆盖传递依赖、事件注册和初始化副作用。`src/utils/subtitleCueProtocol.ts` 虽在 utils 仍属 v1，新工具不能直接 import；有价值的策略复制后独立维护。
 
-禁止依赖 `electron/main/translation/`、`electron/main/local-subtitle/`、旧字幕类型/Store/服务/页面/preload、v1 资源路径和恢复文件。类型导入、动态 import、IPC 字符串、资源 URL、测试 helper、脚本调用均算依赖。
+禁止依赖 `electron/main/translation/`、`electron/main/local-subtitle/`、旧字幕类型/Store/服务/页面/preload、v1 资源路径和恢复文件。类型导入、动态 import、IPC 字符串、资源 URL、测试 helper、脚本调用均算依赖。2026-09-12用户授权T09后，应用级`electron/main/speech-resources/`及其公共类型/固定清单作为新的独立基础设施；仅该层受控迁移器可读取两个固定旧资源根以接管已有下载，工具代码不得直接回读旧资源。共享层不导入任一工具实现，转写执行仍通过各域适配器和原校验器。
 
 应用壳可同时注册两套工具，新版只导出自己的 register/start/dispose；不反向查询旧实例。新版初始化失败不得阻止 v1，关闭时只清理自有任务与进程。
 

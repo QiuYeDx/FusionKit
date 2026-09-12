@@ -7,21 +7,22 @@ import type {
   LocalSubtitleIpcHandlers,
   LocalSubtitleIpcService,
 } from "./ipc";
-import { LocalSubtitleModelManager } from "./model-manager";
+import type { LocalSubtitleModelManager } from "./model-manager";
 import type { LocalSubtitleOwnerIdentity } from "./ipc-security";
 import { LocalSubtitleSessionIpcBridge } from "./session-ipc";
 
 export class LocalSubtitleModelIpcBridge {
   readonly handlers: LocalSubtitleIpcHandlers;
-  readonly #manager: LocalSubtitleModelManager;
+  readonly #manager: LocalSubtitleModelIpcClient;
   readonly #session: LocalSubtitleSessionIpcBridge;
 
   constructor(
-    manager: LocalSubtitleModelManager,
+    manager: LocalSubtitleModelIpcClient,
     session: LocalSubtitleSessionIpcBridge,
   ) {
     if (
-      !(manager instanceof LocalSubtitleModelManager) ||
+      !manager || ['listManagedResources', 'startResourceInstall', 'cancelResourceJob', 'deleteManagedResource', 'importModel']
+        .some(method => typeof manager[method as keyof LocalSubtitleModelIpcClient] !== 'function') ||
       !(session instanceof LocalSubtitleSessionIpcBridge)
     ) {
       throw new TypeError("The local subtitle model IPC manager is invalid.");
@@ -105,3 +106,7 @@ export class LocalSubtitleModelIpcBridge {
     this.#session.releaseOwner(owner);
   }
 }
+
+/** App-created resource clients preserve the existing validated IPC surface. */
+export type LocalSubtitleModelIpcClient = Pick<LocalSubtitleModelManager,
+  'listManagedResources' | 'startResourceInstall' | 'cancelResourceJob' | 'deleteManagedResource' | 'importModel'>;

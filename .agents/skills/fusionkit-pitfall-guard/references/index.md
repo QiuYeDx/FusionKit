@@ -163,6 +163,8 @@ Read this index first, then open only the detail files that plausibly match the 
 
 | FK-PIT-0143 | Windows / real resource install | ENAMETOOLONG, mkdtemp, CUDA preflight, UUID receipt, long test root; Budget complete production staging paths and use a short owned temporary resource root without altering namespace or installer guards. | [budget-windows-managed-resource-staging-paths.md](budget-windows-managed-resource-staging-paths.md) |
 
+| FK-PIT-0144 | Shared resources / consumer shutdown | completed records become fenced, permanent resource_busy, cleanup failed; Release shared occupancy only after complete consumer shutdown joins, preserving busy after failure. | [release-resource-occupancy-only-after-consumer-shutdown-joins.md](release-resource-occupancy-only-after-consumer-shutdown-joins.md) |
+
 ## Add new cases
 
 Use `scripts/add_pitfall.py` from the skill root when possible. Each pitfall should live as one Markdown file directly under `references/`, and every new file must have one index row here.

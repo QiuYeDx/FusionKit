@@ -14,6 +14,7 @@ import type {
 import type { LocalSubtitleOwnerIdentity } from "./ipc-security";
 import { LocalSubtitleArtifactRegistry } from "./subtitle-artifact-registry";
 import { LocalSubtitleSessionRegistry } from "./session-registry";
+import type { LocalSubtitleOwnerKey } from './authorizations';
 
 interface OwnerEventSubscriptions {
   readonly unsubscribeTask: () => void;
@@ -26,10 +27,12 @@ export class LocalSubtitleSessionIpcBridge {
   readonly #artifacts: LocalSubtitleArtifactRegistry | undefined;
   readonly #subscriptions = new Map<string, OwnerEventSubscriptions>();
   #service: LocalSubtitleIpcService | undefined;
+  readonly #resourceClient: { attachOwner(owner: LocalSubtitleOwnerKey): void } | undefined;
 
   constructor(
     registry: LocalSubtitleSessionRegistry,
     artifacts?: LocalSubtitleArtifactRegistry,
+    resourceClient?: { attachOwner(owner: LocalSubtitleOwnerKey): void },
   ) {
     if (!(registry instanceof LocalSubtitleSessionRegistry)) {
       throw new TypeError("The local subtitle session IPC registry is invalid.");
@@ -42,6 +45,7 @@ export class LocalSubtitleSessionIpcBridge {
     }
     this.#registry = registry;
     this.#artifacts = artifacts;
+    this.#resourceClient = resourceClient;
     this.handlers = Object.freeze({
       public: Object.freeze({
         [LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS.getSessionSnapshot]: async (
@@ -82,6 +86,7 @@ export class LocalSubtitleSessionIpcBridge {
       context.owner.ownerSessionId,
     );
     if (this.#subscriptions.has(key)) return;
+    this.#resourceClient?.attachOwner(context.owner);
 
     const unsubscribeTask = this.#registry.onTaskEvent(
       context.owner,

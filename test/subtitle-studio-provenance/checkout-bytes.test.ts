@@ -9,7 +9,7 @@ const projectRoot = fileURLToPath(new URL('../../', import.meta.url));
 const roots: string[] = [];
 afterEach(() => { for (const root of roots.splice(0)) fs.rmSync(root, { recursive: true, force: true }); });
 
-it('checks out every frozen or audited Studio text path as LF under core.autocrlf', () => {
+it('preserves frozen Studio LF and exact neutral extraction/receipt line endings under core.autocrlf', () => {
   const provenanceRoot = 'resources/subtitle-studio/provenance';
   const targets = new Set<string>();
   for (const name of fs.readdirSync(path.join(projectRoot, provenanceRoot))) {
@@ -21,6 +21,19 @@ it('checks out every frozen or audited Studio text path as LF under core.autocrl
   }
   const boundaries = JSON.parse(fs.readFileSync(path.join(projectRoot, 'scripts/subtitle-studio/boundaries.json'), 'utf8'));
   for (const audit of [...boundaries.auditedSources, ...boundaries.dynamicAudits, ...boundaries.immutableEvidence]) targets.add(audit.source);
+  const extractionPath = 'resources/speech-resources/provenance/resource-engine-extraction.v1.json';
+  const extraction = JSON.parse(fs.readFileSync(path.join(projectRoot, extractionPath), 'utf8'));
+  targets.add(extractionPath);
+  for (const output of extraction.outputs) targets.add(output.path);
+  const receiptsPath = 'resources/speech-resources/provenance/migration-receipts.v1.json';
+  const receipts = JSON.parse(fs.readFileSync(path.join(projectRoot, receiptsPath), 'utf8'));
+  targets.add(receiptsPath);
+  const crlfReceipts = new Set<string>([
+    'resources/speech-resources/migration/legacy/local-subtitle-models.v1.json',
+    'resources/speech-resources/migration/legacy/local-subtitle-vad.v1.json',
+    'resources/speech-resources/migration/legacy/local-subtitle-windows-cuda-pack.v1.json',
+  ]);
+  for (const receipt of receipts.entries) targets.add(receipt.destinationPath);
 
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'studio-checkout-'));
   roots.push(root);
@@ -46,7 +59,8 @@ it('checks out every frozen or audited Studio text path as LF under core.autocrl
   for (const target of [...targets, unrelated, binary]) fs.unlinkSync(path.join(root, target));
   git('checkout-index', '--all', '--force');
 
-  for (const target of targets) expect(fs.readFileSync(path.join(root, target), 'utf8'), target).toBe(canonical);
+  for (const target of targets) expect(fs.readFileSync(path.join(root, target), 'utf8'), target)
+    .toBe(crlfReceipts.has(target) ? canonical.replaceAll('\n', '\r\n') : canonical);
   expect(fs.readFileSync(path.join(root, unrelated), 'utf8')).toBe(canonical.replaceAll('\n', '\r\n'));
   expect(fs.readFileSync(path.join(root, binary))).toEqual(binaryBytes);
 });

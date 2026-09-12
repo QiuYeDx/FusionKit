@@ -316,7 +316,9 @@
       "output_directory": "输出目录",
       "output_placeholder": "请选择输出目录"
     },
-    "workspace": { "title": "转写任务" },
+    "workspace": {
+      "title": "转写任务"
+    },
     "environment": {
       "title": "本地环境",
       "checking": "检查中",
@@ -487,7 +489,13 @@
       "delete": {
         "title": "删除托管资源？",
         "description": "将从 FusionKit 的托管存储中删除 {{name}}，之后仍可重新安装。"
-      }
+      },
+      "shared_hint": "模型、语音检测与 CUDA 资源保存在应用共享目录，两个字幕工具共用一份，安装一次即可使用。",
+      "migration_issues": "部分旧资源未能安全迁移，原文件已保留。可重新打开应用重试；若仍未就绪，请检查资源状态。",
+      "shared_cleanup_pending": "共享资源仍在清理，请等待清理完成后再安装或删除。",
+      "shared_busy": "资源正被字幕任务或资源操作占用。",
+      "shared_busy_error": "共享资源正被使用，请等待两个字幕工具中的任务或资源操作结束后重试。",
+      "shared_delete_confirmation": "删除“{{name}}”的共享资源？本地字幕转写和字幕工作室都会失去此资源；再次使用前需要重新安装。已有字幕文档不受影响。"
     },
     "readiness": {
       "environment_loading": "正在检查本地运行环境。",

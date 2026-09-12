@@ -316,7 +316,9 @@
       "output_directory": "Output folder",
       "output_placeholder": "Select an output folder"
     },
-    "workspace": { "title": "Transcription tasks" },
+    "workspace": {
+      "title": "Transcription tasks"
+    },
     "environment": {
       "title": "Local environment",
       "checking": "Checking",
@@ -487,7 +489,13 @@
       "delete": {
         "title": "Delete managed resource?",
         "description": "{{name}} will be removed from FusionKit's managed storage. You can install it again later."
-      }
+      },
+      "shared_hint": "Models, speech detection and CUDA resources are stored in the app’s shared directory. Both subtitle tools use one installation.",
+      "migration_issues": "Some older resources could not be migrated safely. Their original files were kept. Restart the app to retry, then check resource status if needed.",
+      "shared_cleanup_pending": "Shared resources are still being cleaned up. Wait before installing or deleting resources.",
+      "shared_busy": "A subtitle task or resource operation is using this resource.",
+      "shared_busy_error": "This shared resource is in use. Wait for tasks or resource operations in both subtitle tools to finish, then retry.",
+      "shared_delete_confirmation": "Delete the shared “{{name}}” resource? Local transcription and Subtitle Studio will both need it installed again before use. Existing subtitle documents are kept."
     },
     "readiness": {
       "environment_loading": "Checking the local runtime.",

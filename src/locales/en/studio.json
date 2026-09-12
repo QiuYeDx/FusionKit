@@ -194,7 +194,8 @@
     "translation_output_limit": "The batch output limit was reached. This batch was not saved. Reduce cues per batch or raise the output limit.",
     "translation_failed": "The translation request failed. Check the model service and try again.",
     "transcription_failed": "Transcription failed. Check the media and local resources, then try again.",
-    "interrupted": "Translation was interrupted. Completed translations have been kept."
+    "interrupted": "Translation was interrupted. Completed translations have been kept.",
+    "resource_busy": "This shared resource is in use. Wait for tasks or resource operations in both subtitle tools to finish, then retry."
   },
   "diagnostics": {
     "empty_document": "No timed subtitle text",
@@ -403,6 +404,13 @@
     "status_failed": "Failed",
     "active_count": "{{active}} active · {{completed}} completed",
     "task_failed": "Transcription failed. Check the media and local resources.",
-    "close": "Close"
+    "close": "Close",
+    "shared_hint": "Models, speech detection and CUDA resources are stored in the app’s shared directory. Both subtitle tools use one installation.",
+    "migration_issues": "Some older resources could not be migrated safely. Their original files were kept. Restart the app to retry, then check resource status if needed.",
+    "shared_cleanup_pending": "Shared resources are still being cleaned up. Wait before installing or deleting resources.",
+    "shared_busy": "A subtitle task or resource operation is using this resource.",
+    "shared_busy_error": "This shared resource is in use. Wait for tasks or resource operations in both subtitle tools to finish, then retry.",
+    "delete_resource": "Delete resource",
+    "delete_shared_confirmation": "Delete the shared “{{name}}” resource? Local transcription and Subtitle Studio will both need it installed again before use. Existing subtitle documents are kept."
   }
 }

@@ -43,7 +43,7 @@ beforeEach(async () => {
     initialize: vi.fn(async () => {}), shutdown: vi.fn(async () => {}), releaseOwner: vi.fn(async () => {}),
     inspectRuntime: vi.fn(async () => ({ status: 'missing', code: 'runtime_missing', stage: 'manifest' })),
     media: { authorizeInput: vi.fn(async () => media), probe: vi.fn(async () => probe), revokeInput: vi.fn(() => true) },
-    resources: { list: vi.fn(async () => []), snapshot: vi.fn(() => ({ resourceJobs: [] })), importModel: vi.fn(), install: vi.fn(), cancel: vi.fn(() => ({ cancelled: true })) },
+    resources: { list: vi.fn(async () => []), status: vi.fn(() => undefined), delete: vi.fn(async () => ({ deleted: true })), snapshot: vi.fn(() => ({ resourceJobs: [] })), importModel: vi.fn(), install: vi.fn(), cancel: vi.fn(() => ({ cancelled: true })) },
     tasks: { enqueue: vi.fn(async () => ({ batchId: randomUUID(), tasks: [] })), list: vi.fn(() => []), cancel: vi.fn(), remove: vi.fn() },
   };
   registration = registerSubtitleStudio();
@@ -54,6 +54,23 @@ afterEach(async () => {
 });
 
 describe('Subtitle Studio transcription application IPC', () => {
+  it('exposes only the narrow shared status DTO through the resource list', async () => {
+    const client = attach();
+    adapter.runtime.resources.status.mockReturnValue({ shared: true, revision: 3, busyResourceIds: ['model'], cleanupPending: false,
+      migrationIssues: [{ code: 'invalid_source', resourceId: 'model', sourceRoot: 'private-source', message: adapter.directory }] });
+    expect(await client.invoke('listTranscriptionResources', {})).toEqual({ ok: true, value: { resources: [], jobs: [],
+      shared: { shared: true, revision: 3, busyResourceIds: ['model'], migrationIssues: [{ code: 'invalid_source', resourceId: 'model' }], cleanupPending: false } } });
+  });
+  it('authorizes fixed shared deletion, rejects paths and keeps busy errors explicit', async () => {
+    const client = attach();
+    expect(await client.invoke('deleteTranscriptionResource', { resourceId: 'model', path: '/forged.bin' })).toEqual({ ok: false, error: 'invalid_input' });
+    expect(adapter.runtime.resources.delete).not.toHaveBeenCalled();
+    expect(await client.invoke('deleteTranscriptionResource', { resourceId: 'model' })).toEqual({ ok: true, value: { deleted: true } });
+    expect(adapter.runtime.resources.delete).toHaveBeenCalledWith(client.key, 'model');
+    adapter.runtime.resources.delete.mockRejectedValue({ code: 'resource_busy', message: 'private details' });
+    expect(await client.invoke('deleteTranscriptionResource', { resourceId: 'model' })).toEqual({ ok: false, error: 'resource_busy' });
+    expect(await client.invoke('deleteTranscriptionResource', { resourceId: 'model' }, { senderFrame: { url: rendererUrl } })).toEqual({ ok: false, error: 'access_denied' });
+  });
   it('constructs no runtime until transcription is requested and keeps paths inside main pickers', async () => {
     const client = attach(); expect(adapter.create).not.toHaveBeenCalled();
     adapter.open.mockResolvedValue({ canceled: false, filePaths: [path.join(adapter.directory, 'voice.wav')] });

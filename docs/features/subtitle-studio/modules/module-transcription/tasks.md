@@ -1,6 +1,37 @@
 # I2 任务台账
 
-T01–T04 已集成于 e80ef6b。T05任务准入/接线、T06转写工作区、T07 Windows独立资源/真实CPU短样本及T08默认VAD/CPU/CUDA固定矩阵均已完成于当前工作树。下一项沿既定路线展开Windows完整应用共存/移除包演练；用户整体验收仍单独记录。
+T01–T04已集成于e80ef6b，T05–T08已集成并推送99d0647。T09应用级共享资源、实际已有安装接管及两工具真实验证已完成；用户明确暂停打包演练，用户整体验收仍单独记录。
+
+### T-TRANSCRIPTION-09 共享资源、迁移与两工具统一维护
+
+| 字段 | 值 |
+| --- | --- |
+| 状态 | 已完成 |
+| 批次 | I2 |
+| 需求 | R-TRANSCRIPTION-09 |
+| 验收 | AC-TRANSCRIPTION-09-1, AC-TRANSCRIPTION-09-2, AC-TRANSCRIPTION-09-3, AC-TRANSCRIPTION-09-4, AC-TRANSCRIPTION-09-5, AC-TRANSCRIPTION-09-6 |
+| 依赖 | T-TRANSCRIPTION-08 |
+| 写集 | electron/main/speech-resources/, src/speech-resources/, resources/speech-resources/, electron/main/index.ts, electron/main/app-shutdown.ts, electron/main/local-subtitle/, electron/main/subtitle-studio/, electron/preload/, src/subtitle-studio/, src/vite-env.d.ts, src/services/local-subtitle/, src/services/subtitle-studio/, src/pages/Tools/Subtitle/, src/components/local-subtitle/, src/locales/, scripts/subtitle-studio/, scripts/subtitle-studio-provenance/, resources/subtitle-studio/provenance/, test/speech-resources/, test/local-subtitle/, test/subtitle-studio/, test/subtitle-studio-provenance/, test/app-shutdown.test.ts, docs/features/subtitle-studio/, .gitattributes, .agents/skills/fusionkit-pitfall-guard/references/, test-results/, userData中固定转写资源与独占测试目录 |
+| 负责人 | Codex root |
+| 依赖确认 | T-TRANSCRIPTION-08已在99d064719d7ec93dea02944a9bfde31c4afec221及远端集成，开工工作树干净。已读两域管理器、真实资源清单、任务/IPC/生命周期、T08共享前实测及快照；两款模型与VAD完整定义相同，CUDA20文件相同而包ID/回执不同 |
+| 完成日期 | 2026-09-12 |
+| 实施记录 | records/2026-09-12-transcription-shared-resources.md |
+| 集成版本 | 99d064719d7ec93dea02944a9bfde31c4afec221加本轮未提交工作树；源码与证据见records/2026-09-12-transcription-shared-resources.snapshot.json |
+
+#### 实现要点
+
+按design T09分工单写：windows负责中立资源引擎/清单及renderer/preload/UI，admission负责目录迁移及恢复，ipc负责两域主进程适配与接线，root负责共享服务/租约、来源审计、规格及集成验证。新共享资源作业为应用所有；业务任务仍按owner隔离。固定ASR副本保留，资源抽取和组合变更独立来源审计。
+
+#### 验证计划
+
+| 检查 | 类型 | 要求 | 命令或步骤 | 不适用理由 |
+| --- | --- | --- | --- | --- |
+| V-TRANSCRIPTION-09-1 | unit | required | 中立资源引擎精确校验/下载/ZIP/probe/取消/清理、纯依赖闭包与固定来源；同包别名和错误版本拒绝 | - |
+| V-TRANSCRIPTION-09-2 | integration | required | 实际文件系统迁移、各持久断点恢复/去重/损坏/未知/符号链接/身份变化/目标冲突/权限失败；保留最后有效副本及完整源码资源hash | - |
+| V-TRANSCRIPTION-09-3 | integration | required | 两域共享安装/删除互斥、准入租约/排队/驻留busy、全局作业与页面释放、事件revision、应用先fence后join和失败重试 | - |
+| V-TRANSCRIPTION-09-4 | browser | required | 隔离Electron两页面共享状态、跨页更新、取消/删除确认/busy/错误、窄屏与键盘、迁移后就绪和真实renderer/preload/main接线；实际看最终截图 | - |
+| V-TRANSCRIPTION-09-5 | integration | required | 固定真实已有模型/VAD/CUDA无网络接管，两域相同资源路径/内容、CPU/CUDA短样本实际转写及新版文档重开，移除模拟旧资源根仍可用、精确PID及清理证据 | - |
+| V-TRANSCRIPTION-09-6 | static | required | 旧/新任务与资源接口回归、冻结来源和新增抽取/组合审计、真实边界、两套TS/i18n、spec/diff、最终源码与证据快照 | - |
 
 ### T-TRANSCRIPTION-08 默认 VAD 与 CPU/CUDA 有界真实对照
 

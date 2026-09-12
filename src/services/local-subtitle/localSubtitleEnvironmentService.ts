@@ -2,6 +2,7 @@ import {
   createLocalSubtitleError,
   type LocalSubtitleError,
 } from "@/type/localSubtitle";
+import type { SpeechResourcesNotifications, SpeechResourcesStatus } from "@/speech-resources/events";
 import {
   localSubtitleIpcFailure,
   localSubtitleIpcSuccess,
@@ -19,10 +20,12 @@ export interface LocalSubtitleEnvironmentState {
   readonly resources: readonly LocalSubtitleManagedResourceSummary[];
   readonly error: LocalSubtitleError | null;
   readonly backendPreviewRevision: number;
+  readonly sharedResources?: SpeechResourcesStatus;
 }
 
 export interface LocalSubtitleEnvironmentServiceOptions {
   readonly getApi: () => LocalSubtitleRendererApi;
+  readonly sharedResources?: SpeechResourcesNotifications;
 }
 
 export class LocalSubtitleEnvironmentService {
@@ -49,9 +52,23 @@ export class LocalSubtitleEnvironmentService {
     | Promise<LocalSubtitleIpcResult<LocalSubtitleManagedResourceSummary[]>>
     | undefined;
   #backendPreviewEpoch = 0;
+  readonly #sharedApi?: SpeechResourcesNotifications;
+  #unsubscribeShared?: () => void;
+  #sharedRevision = -1;
+  #resourceDirty = false;
+  #sharedStatusRequest?: Promise<void>;
+  #resourceSignature = '';
 
   constructor(options: LocalSubtitleEnvironmentServiceOptions) {
     this.#getApi = options.getApi;
+    this.#sharedApi = options.sharedResources ?? (typeof window === 'undefined' ? undefined : window.speechResources);
+    this.#unsubscribeShared = this.#sharedApi?.onChanged(({ revision }) => {
+      if (revision <= this.#sharedRevision) return;
+      this.#sharedRevision = revision;
+      this.#resourceDirty = true;
+      void this.refreshSharedStatus();
+      if (this.#initialized) void this.refreshManagedResources();
+    });
   }
 
   getState = (): LocalSubtitleEnvironmentState => this.#state;
@@ -77,6 +94,7 @@ export class LocalSubtitleEnvironmentService {
     LocalSubtitleIpcResult<LocalSubtitleManagedResourceSummary[]>
   > {
     if (this.#resourceRefreshPromise) return this.#resourceRefreshPromise;
+    this.#resourceDirty = false;
 
     let request!: Promise<
       LocalSubtitleIpcResult<LocalSubtitleManagedResourceSummary[]>
@@ -88,19 +106,34 @@ export class LocalSubtitleEnvironmentService {
       ))
       .then((result) => {
         if (result.ok) {
-          this.#invalidateBackendPreviews(false);
+          // Progress and shared occupancy do not invalidate expensive backend proofs.
+          const signature = resourceSignature(result.data);
+          const terminalChange = !result.data.some(resource => resource.status === 'installing') && signature !== this.#resourceSignature;
+          if (terminalChange) this.#invalidateBackendPreviews(false);
+          this.#resourceSignature = signature;
           this.#publish({ ...this.#state, resources: result.data });
+          if (terminalChange && this.#initialized) void this.#runRefresh(true);
         }
         return result;
       })
       .finally(() => {
         if (this.#resourceRefreshPromise === request) {
           this.#resourceRefreshPromise = undefined;
+          if (this.#resourceDirty) void this.refreshManagedResources();
         }
       });
     this.#resourceRefreshPromise = request;
     return request;
   }
+
+  refreshSharedStatus = (): Promise<void> => {
+    if (!this.#sharedApi) return Promise.resolve();
+    if (this.#sharedStatusRequest) return this.#sharedStatusRequest;
+    this.#sharedStatusRequest = this.#sharedApi.getStatus().then(status => {
+      if (JSON.stringify(status) !== JSON.stringify(this.#state.sharedResources)) this.#publish({ ...this.#state, sharedResources: status });
+    }).catch(() => { /* Existing environment operations surface transport failures. */ }).finally(() => { this.#sharedStatusRequest = undefined; });
+    return this.#sharedStatusRequest;
+  };
 
   getCachedBackendPreview(
     key: string,
@@ -153,6 +186,9 @@ export class LocalSubtitleEnvironmentService {
   #invalidateBackendPreviews(publish: boolean): void {
     this.#backendPreviewEpoch += 1;
     this.#backendPreviews.clear();
+    // A new revision must not join a pending preview of resources that were removed.
+    // Existing callers still own and join their requests; the epoch prevents stale caching.
+    this.#backendPreviewRequests.clear();
     const state = {
       ...this.#state,
       backendPreviewRevision: this.#state.backendPreviewRevision + 1,
@@ -162,6 +198,8 @@ export class LocalSubtitleEnvironmentService {
   }
 
   resetForTests(): void {
+    this.#unsubscribeShared?.(); this.#unsubscribeShared = undefined;
+    this.#resourceDirty = false;
     this.#initialized = false;
     this.#refreshPromise = undefined;
     this.#resourceRefreshPromise = undefined;
@@ -183,6 +221,7 @@ export class LocalSubtitleEnvironmentService {
     if (!force && this.#initialized) return Promise.resolve(this.#state);
 
     this.#publish({ ...this.#state, loading: true, error: null });
+    void this.refreshSharedStatus();
     let operation!: Promise<LocalSubtitleEnvironmentState>;
     operation = Promise.resolve()
       .then(async () => {
@@ -199,6 +238,7 @@ export class LocalSubtitleEnvironmentService {
             ? (resourceResult.ok ? null : resourceResult.error)
             : runtimeResult.error,
           backendPreviewRevision: this.#state.backendPreviewRevision,
+          sharedResources: this.#state.sharedResources,
         });
       })
       .catch((error: unknown) => Object.freeze({
@@ -210,15 +250,18 @@ export class LocalSubtitleEnvironmentService {
           error,
         ),
         backendPreviewRevision: this.#state.backendPreviewRevision,
+        sharedResources: this.#state.sharedResources,
       }))
       .then((state) => {
         this.#initialized = true;
+        this.#resourceSignature = resourceSignature(state.resources);
         this.#publish(state);
         return state;
       })
       .finally(() => {
         if (this.#refreshPromise === operation) {
           this.#refreshPromise = undefined;
+          if (this.#resourceDirty) void this.refreshManagedResources();
         }
       });
     this.#refreshPromise = operation;
@@ -235,6 +278,10 @@ export class LocalSubtitleEnvironmentService {
       }
     }
   }
+}
+
+function resourceSignature(resources: readonly LocalSubtitleManagedResourceSummary[]): string {
+  return resources.map(resource => `${resource.resourceId}:${resource.status}`).sort().join('|');
 }
 
 let environmentService: LocalSubtitleEnvironmentService | undefined;

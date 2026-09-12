@@ -7,6 +7,7 @@ import ts from 'typescript';
 import { BASELINE_PATH, POLICY as BASELINE_POLICY } from './policy.mjs';
 import { checkBaseline, serialize } from './generate.mjs';
 import { COPY_POLICY, FORK_PATH } from './copy-policy.mjs';
+import { readSharedResourceIntegrationAudits } from './shared-resource-integration.mjs';
 
 const sha256 = bytes => createHash('sha256').update(bytes).digest('hex');
 const compare = (a, b) => a < b ? -1 : a > b ? 1 : 0;
@@ -21,9 +22,10 @@ function gitRead(root, args) {
 
 export function checkCopyWorktree(root, baseline, policy = BASELINE_POLICY) {
   const compositionAudits = readCompositionAudits(root, baseline);
+  const sharedIntegrationAudits = readSharedResourceIntegrationAudits(root, baseline);
   const errors = [], registered = new Set(baseline.files.map(file => file.sourcePath));
   const current = gitRead(root, ['ls-files', '--cached', '--others', '--exclude-standard', '-z']).toString().split('\0').filter(Boolean);
-  for (const name of new Set(current)) if (!registered.has(name) && policy.roots.some(selection => selection.endsWith('/') ? name.startsWith(selection) : name === selection)) errors.push(`Added selected source: ${name}`);
+  for (const name of new Set(current)) if (!registered.has(name) && !sharedIntegrationAudits.has(name) && policy.roots.some(selection => selection.endsWith('/') ? name.startsWith(selection) : name === selection)) errors.push(`Added selected source: ${name}`);
   for (const file of baseline.files) {
     try {
       let absolute = root;
@@ -37,7 +39,7 @@ export function checkCopyWorktree(root, baseline, policy = BASELINE_POLICY) {
       // Read directly from the checked file: large spawnSync stdin pipes can hang
       // on this host. Git still owns canonical CRLF/encoding normalization.
       const oid = gitRead(root, ['hash-object', `--path=${file.sourcePath}`, '--', file.sourcePath]).toString().trim();
-      const compositionAudit = compositionAudits.get(file.sourcePath);
+      const compositionAudit = compositionAudits.get(file.sourcePath) ?? sharedIntegrationAudits.get(file.sourcePath);
       if (compositionAudit ? oid !== compositionAudit.currentBlobOid : oid !== file.blobOid) {
         errors.push(`${compositionAudit ? 'Changed audited composition source' : 'Changed source'}: ${file.sourcePath}`);
       }

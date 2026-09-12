@@ -316,7 +316,9 @@
       "output_directory": "輸出目錄",
       "output_placeholder": "請選擇輸出目錄"
     },
-    "workspace": { "title": "轉寫任務" },
+    "workspace": {
+      "title": "轉寫任務"
+    },
     "environment": {
       "title": "本機環境",
       "checking": "檢查中",
@@ -487,7 +489,13 @@
       "delete": {
         "title": "刪除託管資源？",
         "description": "將從 FusionKit 的託管儲存空間中刪除 {{name}}，之後仍可重新安裝。"
-      }
+      },
+      "shared_hint": "模型、語音偵測與 CUDA 資源儲存在應用程式共用目錄，兩個字幕工具共用一份，安裝一次即可使用。",
+      "migration_issues": "部分舊資源無法安全移轉，原始檔案已保留。可重新開啟應用程式重試；若仍未就緒，請檢查資源狀態。",
+      "shared_cleanup_pending": "共用資源仍在清理，請等待清理完成後再安裝或刪除。",
+      "shared_busy": "字幕工作或資源操作正在使用此資源。",
+      "shared_busy_error": "共用資源正在使用中，請等待兩個字幕工具中的工作或資源操作結束後重試。",
+      "shared_delete_confirmation": "刪除「{{name}}」的共用資源？本機字幕轉寫與字幕工作室都會失去此資源；再次使用前需要重新安裝。現有字幕文件不受影響。"
     },
     "readiness": {
       "environment_loading": "正在檢查本機執行環境。",

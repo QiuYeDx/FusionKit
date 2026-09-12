@@ -9,6 +9,7 @@ import { batchRequestSchemas, type BatchImportResult, type TranslationBatchPlan,
 import { enqueueTranscriptionRequestSchema, type TranscriptionTaskSummary, type TranscriptionBatchAdmission } from './transcription/task-contract';
 import type { LocalSubtitleAuthorizedMedia, LocalSubtitleMediaProbeSummary, LocalSubtitleManagedResourceSummary } from './transcription/ipc-contract';
 import type { LocalSubtitleResourceJobSummary } from './transcription/domain';
+import type { SpeechResourcesStatus } from '../speech-resources/events';
 
 export const STUDIO_CHANNELS = {
   register: 'subtitle-studio:internal:register',
@@ -43,6 +44,7 @@ export const STUDIO_CHANNELS = {
   listTranscriptionResources: 'subtitle-studio:list-transcription-resources',
   importTranscriptionModel: 'subtitle-studio:import-transcription-model',
   installTranscriptionResource: 'subtitle-studio:install-transcription-resource',
+  deleteTranscriptionResource: 'subtitle-studio:delete-transcription-resource',
   cancelTranscriptionResourceJob: 'subtitle-studio:cancel-transcription-resource-job',
   enqueueTranscription: 'subtitle-studio:enqueue-transcription',
   listTranscriptionTasks: 'subtitle-studio:list-transcription-tasks',
@@ -58,6 +60,7 @@ export const transcriptionRequestSchemas = {
   listTranscriptionResources: z.object({}).strict(),
   importTranscriptionModel: z.object({ modelId: transcriptionRefSchema }).strict(),
   installTranscriptionResource: z.object({ resourceId: transcriptionRefSchema }).strict(),
+  deleteTranscriptionResource: z.object({ resourceId: transcriptionRefSchema }).strict(),
   cancelTranscriptionResourceJob: z.object({ jobId: transcriptionRefSchema }).strict(),
   enqueueTranscription: enqueueTranscriptionRequestSchema,
   listTranscriptionTasks: z.object({}).strict(),
@@ -104,7 +107,7 @@ export type TranscriptionMediaSelection = { items: Array<
   | { displayName: string; ok: false; error: ErrorCode; media?: LocalSubtitleAuthorizedMedia }
 > };
 export type TranscriptionResourceJob = Omit<LocalSubtitleResourceJobSummary, 'error'> & { error?: Pick<NonNullable<LocalSubtitleResourceJobSummary['error']>, 'code'> };
-export type TranscriptionResources = { resources: LocalSubtitleManagedResourceSummary[]; jobs: TranscriptionResourceJob[] };
+export type TranscriptionResources = { resources: LocalSubtitleManagedResourceSummary[]; jobs: TranscriptionResourceJob[]; shared?: SpeechResourcesStatus };
 export type TranscriptionRuntimeSummary = { status: 'verified'; runtimeGeneration: string; target: { platform: 'darwin' | 'win32'; arch: 'arm64' | 'x64' } }
   | { status: 'missing' | 'invalid'; code: string; stage: string };
 export interface SubtitleStudioApi {
@@ -115,6 +118,7 @@ export interface SubtitleStudioApi {
   listTranscriptionResources(request: z.infer<typeof requestSchemas.listTranscriptionResources>): Promise<StudioResult<TranscriptionResources>>;
   importTranscriptionModel(request: z.infer<typeof requestSchemas.importTranscriptionModel>): Promise<StudioResult<TranscriptionResourceJob | null>>;
   installTranscriptionResource(request: z.infer<typeof requestSchemas.installTranscriptionResource>): Promise<StudioResult<TranscriptionResourceJob>>;
+  deleteTranscriptionResource(request: z.infer<typeof requestSchemas.deleteTranscriptionResource>): Promise<StudioResult<{ deleted: boolean }>>;
   cancelTranscriptionResourceJob(request: z.infer<typeof requestSchemas.cancelTranscriptionResourceJob>): Promise<StudioResult<{ cancelled: boolean }>>;
   enqueueTranscription(request: z.infer<typeof requestSchemas.enqueueTranscription>): Promise<StudioResult<TranscriptionBatchAdmission>>;
   listTranscriptionTasks(request: z.infer<typeof requestSchemas.listTranscriptionTasks>): Promise<StudioResult<readonly TranscriptionTaskSummary[]>>;

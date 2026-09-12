@@ -1,4 +1,5 @@
 import { StudioError, type ErrorCode } from '../../subtitle-studio/domain';
+import { speechResourceIsBusy, type SpeechResourcesNotifications, type SpeechResourcesStatus } from '../../speech-resources/events';
 import type { StudioResult, SubtitleStudioApi, TranscriptionResourceJob, TranscriptionResources,
   TranscriptionRuntimeSummary } from '../../subtitle-studio/ipc-contract';
 import { LOCAL_SUBTITLE_PRODUCTION_CONTRACT } from '../../subtitle-studio/transcription/domain';
@@ -10,7 +11,7 @@ import { enqueueTranscriptionRequestSchema, transcriptionTaskConfigSchema, trans
 type Config = EnqueueTranscriptionRequest['config'];
 type Api = Pick<SubtitleStudioApi, 'selectTranscriptionMedia' | 'probeTranscriptionMedia' | 'revokeTranscriptionMedia'
   | 'inspectTranscriptionRuntime' | 'listTranscriptionResources' | 'importTranscriptionModel' | 'installTranscriptionResource'
-  | 'cancelTranscriptionResourceJob' | 'enqueueTranscription' | 'listTranscriptionTasks' | 'cancelTranscriptionTask' | 'removeTranscriptionTask'>;
+  | 'deleteTranscriptionResource' | 'cancelTranscriptionResourceJob' | 'enqueueTranscription' | 'listTranscriptionTasks' | 'cancelTranscriptionTask' | 'removeTranscriptionTask'>;
 type Timer = () => void;
 export interface StudioTranscriptionDraft {
   readonly id: string; readonly displayName: string;
@@ -24,6 +25,7 @@ export interface StudioTranscriptionState {
   readonly runtime: TranscriptionRuntimeSummary | null;
   readonly resources: readonly LocalSubtitleManagedResourceSummary[];
   readonly resourceJobs: readonly TranscriptionResourceJob[];
+  readonly sharedResources?: SpeechResourcesStatus;
   readonly drafts: readonly StudioTranscriptionDraft[];
   readonly tasks: readonly TranscriptionTaskSummary[];
   readonly config: Config;
@@ -33,6 +35,7 @@ export interface StudioTranscriptionState {
   readonly cancellingTaskIds: readonly string[]; readonly cleanupPendingCount: number;
 }
 export interface StudioTranscriptionControllerOptions {
+  readonly sharedResources?: SpeechResourcesNotifications;
   readonly getApi?: () => Api; readonly now?: () => number;
   readonly schedule?: (callback: () => void, delayMs: number) => Timer;
   readonly taskPollIntervalMs?: number; readonly resourcePollIntervalMs?: number;
@@ -105,6 +108,10 @@ export class StudioTranscriptionController {
   private disposed = false;
   private configTouched = false;
   private receivedResources = false;
+  private readonly sharedApi?: SpeechResourcesNotifications;
+  private readonly unsubscribeShared?: () => void;
+  private sharedRevision = -1;
+  private sharedStatusRead?: Promise<void>;
 
   constructor(options: StudioTranscriptionControllerOptions = {}) {
     this.api = options.getApi ?? (() => window.subtitleStudio);
@@ -114,6 +121,13 @@ export class StudioTranscriptionController {
     this.resourceInterval = options.resourcePollIntervalMs ?? 2000;
     this.retryDelays = options.cleanupRetryDelaysMs ?? [250, 1000, 5000, 15000, 60000];
     this.revokeTimeout = options.cleanupAttemptTimeoutMs ?? 5000;
+    this.sharedApi = options.sharedResources ?? (typeof window === 'undefined' ? undefined : window.speechResources);
+    this.unsubscribeShared = this.sharedApi?.onChanged(({ revision }) => {
+      if (revision <= this.sharedRevision || this.disposed) return;
+      this.sharedRevision = revision;
+      this.resourceVersion++; this.resourceDirty = true; this.nextResourcesAt = this.now();
+      if (this.startOperation) void this.readResources();
+    });
   }
   getState = (): StudioTranscriptionState => this.state;
   subscribe = (listener: () => void): (() => void) => {
@@ -203,8 +217,16 @@ export class StudioTranscriptionController {
     }
     this.receivedResources = true;
     this.emit({ resources: Object.freeze(result.resources.map(resource => Object.freeze({ ...resource }))),
-      resourceJobs: Object.freeze(result.jobs.map(job => Object.freeze({ ...job }))), config });
+      resourceJobs: Object.freeze(result.jobs.map(job => Object.freeze({ ...job }))), sharedResources: result.shared, config });
   }
+  refreshSharedStatus = (): Promise<void> => {
+    if (!this.sharedApi || this.disposed) return Promise.resolve();
+    if (this.sharedStatusRead) return this.sharedStatusRead;
+    this.sharedStatusRead = this.sharedApi.getStatus().then(status => {
+      if (JSON.stringify(status) !== JSON.stringify(this.state.sharedResources)) this.emit({ sharedResources: status });
+    }).catch(() => { /* Resource reads and mutations report actionable errors. */ }).finally(() => { this.sharedStatusRead = undefined; });
+    return this.sharedStatusRead;
+  };
   private armPoll() {
     this.pollTimer?.(); this.pollTimer = undefined;
     if (this.disposed || this.state.phase !== 'ready') return;
@@ -362,8 +384,17 @@ export class StudioTranscriptionController {
   importModel = (modelId: string): Promise<void> => this.mutateResource(modelId, () => unwrap(this.api().importTranscriptionModel({ modelId })));
   installResource = (resourceId: string): Promise<void> => this.mutateResource(resourceId, () => unwrap(this.api().installTranscriptionResource({ resourceId })));
   cancelResourceJob = (jobId: string): Promise<void> => this.mutateResource(jobId, async () => { await unwrap(this.api().cancelTranscriptionResourceJob({ jobId })); return null; });
+  deleteResource = async (resourceId: string): Promise<boolean> => {
+    if (this.resourceActions.has(resourceId)) return false;
+    if (speechResourceIsBusy(this.state.sharedResources, resourceId)) { this.emit({ error: 'resource_busy' }); return false; }
+    this.resourceActions.add(resourceId); this.resourceVersion++; this.emit({ error: null });
+    try { return (await unwrap(this.api().deleteTranscriptionResource({ resourceId }))).deleted; }
+    catch (error) { this.emit({ error: asError(error) }); return false; }
+    finally { this.resourceActions.delete(resourceId); this.resourceVersion++; this.resourceDirty = true; this.emit(); void this.readResources(); this.armPoll(); }
+  };
   private async mutateResource(id: string, action: () => Promise<TranscriptionResourceJob | null>) {
     if (this.resourceActions.has(id)) return;
+    if (this.state.resources.some(resource => resource.resourceId === id) && speechResourceIsBusy(this.state.sharedResources, id)) { this.emit({ error: 'resource_busy' }); return; }
     this.resourceActions.add(id); this.resourceVersion++; this.emit({ error: null });
     try {
       const job = await action();
@@ -400,6 +431,7 @@ export class StudioTranscriptionController {
   };
   /** Test/application teardown only; never use this for a route unmount. */
   dispose = (): void => {
+    this.unsubscribeShared?.();
     this.disposed = true; this.pollTimer?.(); this.pollTimer = undefined;
     for (const entry of this.revocations.values()) entry.timer?.();
     this.subscribers.clear();

@@ -37,7 +37,7 @@ function resources(): TranscriptionResources {
       isDefault: false, compatibleBackends: ['cuda'] },
   ], jobs: [] };
 }
-function fixture() {
+function fixture(sharedResources?: import('../../src/speech-resources/events').SpeechResourcesNotifications) {
   const api = {
     selectTranscriptionMedia: vi.fn<SubtitleStudioApi['selectTranscriptionMedia']>().mockResolvedValue(ok(null)),
     probeTranscriptionMedia: vi.fn<SubtitleStudioApi['probeTranscriptionMedia']>().mockResolvedValue(ok(probe())),
@@ -49,15 +49,54 @@ function fixture() {
     cancelTranscriptionTask: vi.fn<SubtitleStudioApi['cancelTranscriptionTask']>().mockResolvedValue(ok(task(undefined, 'cancelled'))),
     removeTranscriptionTask: vi.fn<SubtitleStudioApi['removeTranscriptionTask']>().mockResolvedValue(ok(null)),
     importTranscriptionModel: vi.fn<SubtitleStudioApi['importTranscriptionModel']>().mockResolvedValue(ok(null)),
+    deleteTranscriptionResource: vi.fn<SubtitleStudioApi['deleteTranscriptionResource']>().mockResolvedValue(ok({ deleted: true })),
     installTranscriptionResource: vi.fn<SubtitleStudioApi['installTranscriptionResource']>().mockResolvedValue(ok({ jobId: 'job-1', resourceId: 'cuda-pack', resourceType: 'accelerator',
       status: 'queued', progress: 0, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() })),
     cancelTranscriptionResourceJob: vi.fn<SubtitleStudioApi['cancelTranscriptionResourceJob']>().mockResolvedValue(ok({ cancelled: true })),
   };
-  const controller = createStudioTranscriptionController({ getApi: () => api, cleanupRetryDelaysMs: [100, 200], cleanupAttemptTimeoutMs: 500 });
+  const controller = createStudioTranscriptionController({ getApi: () => api, sharedResources, cleanupRetryDelaysMs: [100, 200], cleanupAttemptTimeoutMs: 500 });
   controllers.push(controller);
   const choose = async (...inputs: LocalSubtitleAuthorizedMedia[]) => { api.selectTranscriptionMedia.mockResolvedValueOnce(ok(selected(...inputs))); await controller.selectMedia(); };
   return { controller, api, choose };
 }
+
+it('keeps shared invalidation during a pending read and refreshes off-route without runtime probes', async () => {
+  let changed!: (event: { revision: number }) => void;
+  const unsubscribe = vi.fn();
+  const status = { shared: true as const, revision: 0, busyResourceIds: [], migrationIssues: [], cleanupPending: false };
+  const f = fixture({ onChanged: listener => { changed = listener; return unsubscribe; }, getStatus: vi.fn(async () => status) });
+  await f.controller.start();
+  const pending = deferred<StudioResult<TranscriptionResources>>();
+  f.api.listTranscriptionResources.mockReturnValueOnce(pending.promise);
+  changed({ revision: 1 }); await tick();
+  changed({ revision: 2 });
+  const next = resources(); next.resources[0].status = 'not_installed'; next.shared = { ...status, revision: 2 };
+  f.api.listTranscriptionResources.mockResolvedValue(ok(next));
+  pending.resolve(ok(resources())); await tick(); await vi.advanceTimersByTimeAsync(2); await tick();
+  expect(f.controller.getState().resources[0].status).toBe('not_installed');
+  expect(f.api.inspectTranscriptionRuntime).toHaveBeenCalledOnce();
+  expect(f.api.listTranscriptionResources).toHaveBeenCalledTimes(3);
+  changed({ revision: 1 }); await tick(); expect(f.api.listTranscriptionResources).toHaveBeenCalledTimes(3);
+  f.controller.dispose(); expect(unsubscribe).toHaveBeenCalledOnce();
+});
+
+it('reads shared occupancy without catalog hashing and prevents busy delete/import/install', async () => {
+  const id = LOCAL_SUBTITLE_PRODUCTION_CONTRACT.launchModel.id;
+  const status = { shared: true as const, revision: 1, busyResourceIds: [id], migrationIssues: [], cleanupPending: false };
+  const getStatus = vi.fn(async () => status);
+  const f = fixture({ onChanged: () => () => {}, getStatus });
+  await f.controller.start(); await f.controller.refreshSharedStatus();
+  await f.controller.installResource(id); await f.controller.importModel(id);
+  expect(await f.controller.deleteResource(id)).toBe(false);
+  expect(f.api.installTranscriptionResource).not.toHaveBeenCalled(); expect(f.api.importTranscriptionModel).not.toHaveBeenCalled();
+  expect(f.api.deleteTranscriptionResource).not.toHaveBeenCalled(); expect(f.controller.getState().error).toBe('resource_busy');
+  expect(f.api.listTranscriptionResources).toHaveBeenCalledOnce(); expect(f.api.inspectTranscriptionRuntime).toHaveBeenCalledOnce();
+  getStatus.mockResolvedValue({ ...status, busyResourceIds: [] }); await f.controller.refreshSharedStatus();
+  f.api.deleteTranscriptionResource.mockResolvedValueOnce({ ok: false, error: 'resource_busy' });
+  expect(await f.controller.deleteResource(id)).toBe(false); expect(f.controller.getState().error).toBe('resource_busy');
+  await tick(); expect(await f.controller.deleteResource(id)).toBe(true);
+  expect(f.api.deleteTranscriptionResource).toHaveBeenLastCalledWith({ resourceId: id });
+});
 
 it('initializes once, preserves drafts and config across SPA subscriptions, and refreshes idle viewed task state', async () => {
   const f = fixture(); const detach = f.controller.subscribe(vi.fn()); await f.controller.start();

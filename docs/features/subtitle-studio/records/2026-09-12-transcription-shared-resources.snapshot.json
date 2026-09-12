@@ -1,0 +1,1067 @@
+{
+  "schemaVersion": 1,
+  "task": "T-TRANSCRIPTION-09",
+  "baseCommit": "99d064719d7ec93dea02944a9bfde31c4afec221",
+  "previousSnapshot": {
+    "path": "docs/features/subtitle-studio/records/2026-09-12-transcription-default-devices.snapshot.json",
+    "byteSize": 16748,
+    "sha256": "165ef2e9fb88355f8d0ab2b6f840dcad38b8493a682278f7f56fbc15ce90846b"
+  },
+  "snapshotBasis": "Actual working-tree bytes on Windows; exact provenance checkout rules are verified separately. No snapshot self-hash.",
+  "files": [
+    {
+      "path": ".agents/skills/fusionkit-pitfall-guard/references/index.md",
+      "byteSize": 54571,
+      "sha256": "b71d99f8a419a3acaeefc0478d7229bdc3c128717fc69e6fc05d942b20997bda"
+    },
+    {
+      "path": ".agents/skills/fusionkit-pitfall-guard/references/release-resource-occupancy-only-after-consumer-shutdown-joins.md",
+      "byteSize": 5996,
+      "sha256": "7e56c0599050d7302d002cc71b46a96690f8b34d9076474abd5524a39b3f5663"
+    },
+    {
+      "path": ".gitattributes",
+      "byteSize": 1761,
+      "sha256": "940ca77015a359b02608f2c9541eb5cd7cbb8bd52d2015ae692572fc7f1acac7"
+    },
+    {
+      "path": "docs/features/subtitle-studio/architecture.md",
+      "byteSize": 14560,
+      "sha256": "aa12f527a103e2eb4ac27bd025ba7faae43dbfe23df0256f76b3ee0fc3a865f5"
+    },
+    {
+      "path": "docs/features/subtitle-studio/modules/module-transcription/design.md",
+      "byteSize": 34405,
+      "sha256": "f55f284e3b17b976143b25427c8ecdda25150cc014361f99e4fa6b63a978135c"
+    },
+    {
+      "path": "docs/features/subtitle-studio/modules/module-transcription/requirements.md",
+      "byteSize": 26884,
+      "sha256": "108abf8f85d29679e3055ff7ead657f2c3cb92b25e6c8502591eabdc671df2ad"
+    },
+    {
+      "path": "docs/features/subtitle-studio/modules/module-transcription/tasks.md",
+      "byteSize": 25208,
+      "sha256": "cfff8dbf2fe3794d4d0c17c6315163ec26a05670f04089d1a7dd42de0db0f83b"
+    },
+    {
+      "path": "docs/features/subtitle-studio/README.md",
+      "byteSize": 9336,
+      "sha256": "ebd641a1772acea9453e5a047e34b82e31f53659e7896fc22ea50a143dbc50e4"
+    },
+    {
+      "path": "docs/features/subtitle-studio/records/2026-09-12-transcription-shared-resources.md",
+      "byteSize": 13120,
+      "sha256": "f0b5fe912840336658ac263f9155391780224de2ec7c5b695f72dc513b8050cb"
+    },
+    {
+      "path": "docs/features/subtitle-studio/spec.json",
+      "byteSize": 11746,
+      "sha256": "803e03e39fc5519f234522eef201be5079d05989b6df0c88031266a2a2c2f300"
+    },
+    {
+      "path": "docs/features/subtitle-studio/transcription-fork.md",
+      "byteSize": 12300,
+      "sha256": "3fd9c364bfe584036e6d5c48e179b4ca0d39b8b67f5f3c168ba698ec313b1a9d"
+    },
+    {
+      "path": "electron/main/app-shutdown.ts",
+      "byteSize": 3154,
+      "sha256": "26ed63847f375e9b2b9a3f09b3be112dbd3b2eda502542809fd79342ab415a8a"
+    },
+    {
+      "path": "electron/main/index.ts",
+      "byteSize": 23299,
+      "sha256": "35659535d8367eeca60acdca9450caa68323911751b7aeb1f51dbc09ab4e9ff6"
+    },
+    {
+      "path": "electron/main/local-subtitle/model-ipc.ts",
+      "byteSize": 4103,
+      "sha256": "1a62d4008d29b67a7ef69062d792d90afec05e128716b4398201f65b3ba96921"
+    },
+    {
+      "path": "electron/main/local-subtitle/session-ipc.ts",
+      "byteSize": 6834,
+      "sha256": "3eb9b76dfcd81a0c41a9f2a16a27aea0ccbf87bcee7b705794b8147d8fe89760"
+    },
+    {
+      "path": "electron/main/local-subtitle/shared-resources.ts",
+      "byteSize": 10231,
+      "sha256": "bf8cbd0bd5cf1d06e7057ac3ea4d11cdfe22f291bddcd6f05b01482e4ab26d51"
+    },
+    {
+      "path": "electron/main/speech-resources/catalog-migration.ts",
+      "byteSize": 5343,
+      "sha256": "839d80b9da9e48aa2a906f02f45a63af077cf2a9fad64b3a00b22b5e7ebc9f8e"
+    },
+    {
+      "path": "electron/main/speech-resources/catalog.ts",
+      "byteSize": 709,
+      "sha256": "d1ec145fe8cb4b4461ced2f7057141eb06e4c9a386eeaa80221c1d3a695ef1b7"
+    },
+    {
+      "path": "electron/main/speech-resources/engine/accelerator-archive.ts",
+      "byteSize": 22069,
+      "sha256": "94c782b604f3a3f1c2c3188563a83d7b51af714db1f2b6e87c4e2102b20cfe7c"
+    },
+    {
+      "path": "electron/main/speech-resources/engine/accelerator-manager.ts",
+      "byteSize": 64519,
+      "sha256": "63f5a4a38c590c532c270ab26faefeb8f2f2b75998679acf0a88b1414774e41e"
+    },
+    {
+      "path": "electron/main/speech-resources/engine/accelerator-manifest.ts",
+      "byteSize": 12960,
+      "sha256": "e739f1ab1938b2f4d4e0cc84ce8f3ff5e640a2e0e74bd326e047aa242c562181"
+    },
+    {
+      "path": "electron/main/speech-resources/engine/directory-identity.ts",
+      "byteSize": 2860,
+      "sha256": "c51cdf49c9fcd9d4b075f7cd2ab7864bb4eab6715a3f5558b31699b10826ecce"
+    },
+    {
+      "path": "electron/main/speech-resources/engine/filesystem-object-identity.ts",
+      "byteSize": 8332,
+      "sha256": "9f376d5f8aeab84e790d7cc8457f0f360abcaa7064b287b825d17ae6c4e81c12"
+    },
+    {
+      "path": "electron/main/speech-resources/engine/ggml-model.ts",
+      "byteSize": 12135,
+      "sha256": "7dc537ac7a6a004d795c57550162913f23384faf5d7b98e470e19cce9b4dbb20"
+    },
+    {
+      "path": "electron/main/speech-resources/engine/model-manager.ts",
+      "byteSize": 90064,
+      "sha256": "e803835806d8c8405cf422c7a3a23c439f051445f9d5482530e6729c33f0bf1d"
+    },
+    {
+      "path": "electron/main/speech-resources/engine/model-manifest.ts",
+      "byteSize": 11617,
+      "sha256": "0d375ce23da0ef2fda3fef9fc900165829c50c8c6a9ca8315f9d2e35f4b11acb"
+    },
+    {
+      "path": "electron/main/speech-resources/engine/native-binary-inspection.ts",
+      "byteSize": 3334,
+      "sha256": "423f11f9ba6d29cbde16687f1eb78d3cf8579829ab760e667364c1e0c2acdec9"
+    },
+    {
+      "path": "electron/main/speech-resources/engine/resource-download.ts",
+      "byteSize": 42521,
+      "sha256": "10ea4770a5dc72e8dd731ee77b6323c4f78b6f0a2d0313be559d374ea8ea356a"
+    },
+    {
+      "path": "electron/main/speech-resources/engine/resource-job.ts",
+      "byteSize": 16791,
+      "sha256": "06494253f5c4e6f4e77afb7b78857f6ce8d004536e71e6724096c0d758191796"
+    },
+    {
+      "path": "electron/main/speech-resources/engine/resource-startup-cleaner.ts",
+      "byteSize": 25343,
+      "sha256": "de8872e3f62853779503e6f6469a7b4387d5bf55a76dfb8caa5fd6d1cc20567d"
+    },
+    {
+      "path": "electron/main/speech-resources/engine/session-registry.ts",
+      "byteSize": 11055,
+      "sha256": "c82ea7ca54f31102ceb9433198257d469215b7517e61a80d26f6bf4006ac3a0f"
+    },
+    {
+      "path": "electron/main/speech-resources/engine/vad-manager.ts",
+      "byteSize": 40654,
+      "sha256": "6baf361e270945826b0687cb3c592d284e145665e23a0a095ca26b8cd6bd7a62"
+    },
+    {
+      "path": "electron/main/speech-resources/engine/vad-manifest.ts",
+      "byteSize": 5770,
+      "sha256": "dc48e66ca1a8ecf0b539016dfdb53ed6d03e565bd4c1df8ffe6ca2ad99f16b9d"
+    },
+    {
+      "path": "electron/main/speech-resources/migration.ts",
+      "byteSize": 36821,
+      "sha256": "cba4911aee9b355b4d78ec911d5f35efd48d33f14e389260fc7613e29cd7523a"
+    },
+    {
+      "path": "electron/main/speech-resources/service.ts",
+      "byteSize": 18743,
+      "sha256": "6f564a40b7f774e8ffbf63c56532e60cf8c1507fd1e6beb3c3acf27b5a2b5649"
+    },
+    {
+      "path": "electron/main/subtitle-studio/index.ts",
+      "byteSize": 20091,
+      "sha256": "b02a8d6f8ee792166c3df6d066ef767f018edd626240af9a3233b6e5559a74c5"
+    },
+    {
+      "path": "electron/main/subtitle-studio/transcription/runtime.ts",
+      "byteSize": 25713,
+      "sha256": "da837cab36e4c340692883bd114118611d92cb1938385d67c10782a3e6df0692"
+    },
+    {
+      "path": "electron/main/subtitle-studio/transcription/shared-resources.ts",
+      "byteSize": 11120,
+      "sha256": "41f02bffe581eb74bc5e19f1231b434baec65eab1cbb786a6a444afd582e206b"
+    },
+    {
+      "path": "electron/main/subtitle-studio/transcription-ipc.ts",
+      "byteSize": 7057,
+      "sha256": "83c08e20f9c71e19fa26316ad83d9520506452cb9dec8eeda4784b64f51661fb"
+    },
+    {
+      "path": "electron/preload/index.ts",
+      "byteSize": 25994,
+      "sha256": "8d759e5b336858bc0677e3e5ed1b139cb587eef121e851d20211e025f8dcf124"
+    },
+    {
+      "path": "electron/preload/speech-resources-api.ts",
+      "byteSize": 1498,
+      "sha256": "794a4ca839429cb481a3ae3feaa103781eae6f4265112784660d66e563c83f2a"
+    },
+    {
+      "path": "electron/preload/subtitle-studio-api.ts",
+      "byteSize": 4707,
+      "sha256": "456fe999846ae632aba5d1e290ac61f6f7ff63c75812a153d4204424fe9c7098"
+    },
+    {
+      "path": "resources/speech-resources/manifests/speech-models.v1.json",
+      "byteSize": 2282,
+      "sha256": "09f49bb3b41bb7dd20b13341d8333ceebcdf834590edb32550f9d3fc3a28e712"
+    },
+    {
+      "path": "resources/speech-resources/manifests/speech-vad.v1.json",
+      "byteSize": 929,
+      "sha256": "0313951e6908f0d6f01be5e3836512e2dc35b148a0a53edacf71f30129c05118"
+    },
+    {
+      "path": "resources/speech-resources/manifests/speech-windows-cuda-pack.v1.json",
+      "byteSize": 12359,
+      "sha256": "96eee2a1cf5b73ff4f6ac183ba498a31a03b1f6e8e3d3189782410bfdf370a82"
+    },
+    {
+      "path": "resources/speech-resources/migration/legacy/local-subtitle-models.v1.json",
+      "byteSize": 2366,
+      "sha256": "9b2f342c9bf41a27a30c2e2c52275e042bbe3f0e42c252e6c2a3f6df0eeb5ce9"
+    },
+    {
+      "path": "resources/speech-resources/migration/legacy/local-subtitle-vad.v1.json",
+      "byteSize": 956,
+      "sha256": "dd8ca330413c12534ef2ea6a31729aea8dc7249568c75459a2751744d7966956"
+    },
+    {
+      "path": "resources/speech-resources/migration/legacy/local-subtitle-windows-cuda-pack.v1.json",
+      "byteSize": 12751,
+      "sha256": "9e68d5de3566d9d75273f042aab7e5f2d18dbc07ac444f9a8301093c7e0713c4"
+    },
+    {
+      "path": "resources/speech-resources/migration/studio/subtitle-studio-models.v1.json",
+      "byteSize": 2282,
+      "sha256": "09f49bb3b41bb7dd20b13341d8333ceebcdf834590edb32550f9d3fc3a28e712"
+    },
+    {
+      "path": "resources/speech-resources/migration/studio/subtitle-studio-vad.v1.json",
+      "byteSize": 929,
+      "sha256": "0313951e6908f0d6f01be5e3836512e2dc35b148a0a53edacf71f30129c05118"
+    },
+    {
+      "path": "resources/speech-resources/migration/studio/subtitle-studio-windows-cuda-pack.v1.json",
+      "byteSize": 12378,
+      "sha256": "cdf12c71912de60702d7ed4f989ddd87c6bfcdb91119de4dd3586621938f4079"
+    },
+    {
+      "path": "resources/speech-resources/provenance/current-integration-audits.v1.json",
+      "byteSize": 7677,
+      "sha256": "48de0d260c28667fbfe11fa942d8ff4ed8d07737bd4f110e5634c51cce779e1d"
+    },
+    {
+      "path": "resources/speech-resources/provenance/migration-receipts.v1.json",
+      "byteSize": 3451,
+      "sha256": "4d6eb6a3e8994da1727064d19d74f16ab690024d3a60eea651ddb8f06e50e396"
+    },
+    {
+      "path": "resources/speech-resources/provenance/resource-engine-extraction.v1.json",
+      "byteSize": 97419,
+      "sha256": "eb7d2628a665f618118004959013b888326dbac6b06ea9d545fc0bb6641cd39b"
+    },
+    {
+      "path": "scripts/subtitle-studio/boundaries.json",
+      "byteSize": 19782,
+      "sha256": "8232450601ae86321331859b37399e77d05348845141757507e55a331794e656"
+    },
+    {
+      "path": "scripts/subtitle-studio/check-boundaries.mjs",
+      "byteSize": 9589,
+      "sha256": "5c20a31b67bb39bb09833c92ecb8241c60ba75af7e22fa6636c4ddef37fdf232"
+    },
+    {
+      "path": "scripts/subtitle-studio-provenance/copy.mjs",
+      "byteSize": 18013,
+      "sha256": "b1f5574fdeb31c32d7ae587dbdff85d8186bf9e3a88727f6092d01a603a41d1c"
+    },
+    {
+      "path": "scripts/subtitle-studio-provenance/current-composition-audits.json",
+      "byteSize": 1291,
+      "sha256": "bbe5493166d3c4375a241b562a67051c3f991dc24e02e800f26b0c593dce5e16"
+    },
+    {
+      "path": "scripts/subtitle-studio-provenance/shared-migration-receipts.mjs",
+      "byteSize": 5675,
+      "sha256": "f8f00684361e1e52c9189ba11c25a9b2f04f0c0b9d80fdb60a6721f3f2083c6b"
+    },
+    {
+      "path": "scripts/subtitle-studio-provenance/shared-resource-extraction.mjs",
+      "byteSize": 8316,
+      "sha256": "68d46bf6851d83c5c3523695d2980c467f8230c930cc907f321ca92ed3d810fe"
+    },
+    {
+      "path": "scripts/subtitle-studio-provenance/shared-resource-integration.mjs",
+      "byteSize": 6025,
+      "sha256": "ab1cd1dc6f4751cad4ec02e271bf2fad2c14eeedc9cf23297f49873963f2a4ab"
+    },
+    {
+      "path": "src/locales/en/studio.json",
+      "byteSize": 21893,
+      "sha256": "fc761ae420dc3796167d869d77505567abe22332d90f524134565c9e07424e49"
+    },
+    {
+      "path": "src/locales/en/subtitle.json",
+      "byteSize": 41671,
+      "sha256": "5e434fc9eb66b3841b68251db0e0576cbbeac31c7e70a4db6ba3811f7da0e6f7"
+    },
+    {
+      "path": "src/locales/ja/studio.json",
+      "byteSize": 26772,
+      "sha256": "a0a6525f3ff74cf8f3211e0541c0da74f3bad11a2a965d83eec55e9de35cda33"
+    },
+    {
+      "path": "src/locales/ja/subtitle.json",
+      "byteSize": 49579,
+      "sha256": "38b2aaaef8dda51497fd146313a74fd04f2f318523ae58b933aad37d642fdadc"
+    },
+    {
+      "path": "src/locales/zh/studio.json",
+      "byteSize": 20569,
+      "sha256": "e6f5a38c8bd02ce26e42a72ab4ed419618380068155f2683731add71443f1719"
+    },
+    {
+      "path": "src/locales/zh/subtitle.json",
+      "byteSize": 39734,
+      "sha256": "8a39457b3196c84bdcd1bfdeda3dfbf0ecbbbb62b78fb9c19313af2579a60984"
+    },
+    {
+      "path": "src/locales/zh-Hant/studio.json",
+      "byteSize": 20680,
+      "sha256": "29bde8c4c59c028c25c6de5902d70ce62eba726cc2fe88f8eb2a088bcd57198a"
+    },
+    {
+      "path": "src/locales/zh-Hant/subtitle.json",
+      "byteSize": 39953,
+      "sha256": "0110f02b481cb2f0404ab3aca9eb359daa7c0a254118ec4f2f9bd1af447e2387"
+    },
+    {
+      "path": "src/pages/Tools/Subtitle/LocalSubtitleTranscriber/LocalSubtitleEnvironmentManager.tsx",
+      "byteSize": 36230,
+      "sha256": "67a0fcd19c91bd31be0d92e9aaed289261f2b8e3a53dd655262ef733695d29da"
+    },
+    {
+      "path": "src/pages/Tools/Subtitle/SubtitleStudio/index.tsx",
+      "byteSize": 44752,
+      "sha256": "e374fe1c963c4d75ce254bc74e4427af69266df08ce3cedb36c0750a190f4460"
+    },
+    {
+      "path": "src/pages/Tools/Subtitle/SubtitleStudio/StudioBilingual.tsx",
+      "byteSize": 19926,
+      "sha256": "a6ee7385b0e9a85a863139f68b6f7a924bf94d2e111969f7b61f59d76cb3f0f2"
+    },
+    {
+      "path": "src/pages/Tools/Subtitle/SubtitleStudio/StudioExport.tsx",
+      "byteSize": 29611,
+      "sha256": "c27ef4e280325fbd70da34da80a5a0bc03a348f69d2dde7bbd66763859d979f8"
+    },
+    {
+      "path": "src/pages/Tools/Subtitle/SubtitleStudio/StudioTranscription.tsx",
+      "byteSize": 30307,
+      "sha256": "ac964232a7730d9f5b2469175db8525b93280319718b3d63302c55606f5d85eb"
+    },
+    {
+      "path": "src/pages/Tools/Subtitle/SubtitleStudio/StudioTranslation.tsx",
+      "byteSize": 22057,
+      "sha256": "a2f6f8d437cc63ebadf0a350632db19ee9ddd60a49b0668c9e46cac5ca27d967"
+    },
+    {
+      "path": "src/pages/Tools/Subtitle/SubtitleStudio/StudioTranslationTask.tsx",
+      "byteSize": 10372,
+      "sha256": "7100d4a0321df970f6989a754e86d7487eadff6f0cfaec1fb198d3b3a1942981"
+    },
+    {
+      "path": "src/services/local-subtitle/localSubtitleEnvironmentService.test.ts",
+      "byteSize": 7368,
+      "sha256": "8365b933d33171723c9fc89a169a437f49c3c229058d17ea9beef964be432ba7"
+    },
+    {
+      "path": "src/services/local-subtitle/localSubtitleEnvironmentService.ts",
+      "byteSize": 11625,
+      "sha256": "f44c4e0abcd55e7cc453a6a06bef68342fcb456db5a52bb444bba94084f4f128"
+    },
+    {
+      "path": "src/services/subtitle-studio/transcription-controller.ts",
+      "byteSize": 30026,
+      "sha256": "7565efb993c47f129f196bbf40abc6e58a8194e998a9169eee05d830daac56a1"
+    },
+    {
+      "path": "src/speech-resources/contracts.ts",
+      "byteSize": 14118,
+      "sha256": "8b8aa1c4c32748d508d89fba7090ea64e6bf88d626ee3dfd643003d45a34c88c"
+    },
+    {
+      "path": "src/speech-resources/events.ts",
+      "byteSize": 1367,
+      "sha256": "e40c6d828f54598fe89ed27b1e0b2dff665849126fed491a9ffc946daf81b9f2"
+    },
+    {
+      "path": "src/speech-resources/schemas.ts",
+      "byteSize": 8905,
+      "sha256": "362c3d6a5b6c98fb8e9215bc910b6d05f115e7ef831a170c49b04995c2704c30"
+    },
+    {
+      "path": "src/subtitle-studio/domain.ts",
+      "byteSize": 9600,
+      "sha256": "5afd4757b5410785eaa0b43ecc465277b1b8d4eb528de7661273e9a737e2b72d"
+    },
+    {
+      "path": "src/subtitle-studio/ipc-contract.ts",
+      "byteSize": 16781,
+      "sha256": "f37dea344e9c7df7b5a129122fc75a9a2362e06c84c5cb7746dc644d981057ce"
+    },
+    {
+      "path": "src/vite-env.d.ts",
+      "byteSize": 923,
+      "sha256": "4b720e5d3210d2c7b8548bd430b1be6c15980d72d6846bd716c29579f367e9ea"
+    },
+    {
+      "path": "test/speech-resources/catalog-migration.test.ts",
+      "byteSize": 4902,
+      "sha256": "852e839c9316e0ff1f5e80d3df240061159a01427d720053d6659334a05a7d05"
+    },
+    {
+      "path": "test/speech-resources/engine/acceleratorArchive.test.ts",
+      "byteSize": 12875,
+      "sha256": "9412a5b6b21abb0e4722e71c1fd15816d0a92670c7120e412616d89dae376e9d"
+    },
+    {
+      "path": "test/speech-resources/engine/acceleratorManager.test.ts",
+      "byteSize": 25072,
+      "sha256": "ebbee2ea333b128fd599e99be530d64b11afa28b24b6be5bb342a3db5ffbd7b3"
+    },
+    {
+      "path": "test/speech-resources/engine/catalog.test.ts",
+      "byteSize": 3509,
+      "sha256": "c818d4cfe3b21f1103ca6968e3f8a48ecbd8f42536205a7f3cddf745ca12e39b"
+    },
+    {
+      "path": "test/speech-resources/engine/ggmlModel.test.ts",
+      "byteSize": 9201,
+      "sha256": "e229615393e8a4089bad8b8035ccc734d1cc9b29699c9008a625b1ef8ca081af"
+    },
+    {
+      "path": "test/speech-resources/engine/modelManager.test.ts",
+      "byteSize": 50932,
+      "sha256": "b14724698659cb2605f004cf2e11a912135442a6af0543e570f4afe74840aedf"
+    },
+    {
+      "path": "test/speech-resources/engine/resourceDownload.test.ts",
+      "byteSize": 20311,
+      "sha256": "c4e925226418aa3fd5cb0b6fa5e8693c6b951f0314a4695abf6ce943a6529272"
+    },
+    {
+      "path": "test/speech-resources/engine/resourceJob.test.ts",
+      "byteSize": 15477,
+      "sha256": "a0748a770f095766e77c7138aa2deeba0a04b8495f2657990e84451c79b2733f"
+    },
+    {
+      "path": "test/speech-resources/engine/resourceStartupCleaner.test.ts",
+      "byteSize": 17232,
+      "sha256": "ca0bd8a31d985b33df2990a7ffdc13827cee55b29ac29253ed4637c80786e79c"
+    },
+    {
+      "path": "test/speech-resources/engine/sessionRegistry.test.ts",
+      "byteSize": 3282,
+      "sha256": "26426e2695a7c50679cbd7c6d0373a1e3008a8e1e2195958b0acc0dd1d8f17bc"
+    },
+    {
+      "path": "test/speech-resources/engine/vadManager.test.ts",
+      "byteSize": 13190,
+      "sha256": "d690e3b8d0b85ff02247582f6676ddc06cbb902c4d42ce32d051eeb9a6cbef68"
+    },
+    {
+      "path": "test/speech-resources/helpers/shared-ui-build.ts",
+      "byteSize": 6267,
+      "sha256": "baa35fb98cd31a0ab0f83d1ae067d07514b2a2b14d393db4ef437de580e7ff20"
+    },
+    {
+      "path": "test/speech-resources/helpers/shared-ui-data.ts",
+      "byteSize": 1194,
+      "sha256": "8853a2d36fadf7c7929932a1b529a1b9f57be5f3cd7fe03f72ecf13122963439"
+    },
+    {
+      "path": "test/speech-resources/helpers/shared-ui-service.ts",
+      "byteSize": 2686,
+      "sha256": "f3bcf9876d6eb54972339e87a84d4fb0568fd52170491c4821db31382fe4ccc4"
+    },
+    {
+      "path": "test/speech-resources/integration/adapters.test.ts",
+      "byteSize": 8390,
+      "sha256": "e5ec116100dee253cd9b2ef3d494bc8333dbb86c16ccd463d927671df7e251d1"
+    },
+    {
+      "path": "test/speech-resources/integration/admission.test.ts",
+      "byteSize": 2471,
+      "sha256": "81ed1e61c6a3d8b07dcd2f7d902aeeb81924a2fa88a9f22f12d007c96e272b29"
+    },
+    {
+      "path": "test/speech-resources/integration/app-shutdown.test.ts",
+      "byteSize": 3234,
+      "sha256": "a9027e804fdabc940880ab2f92657a944aa48777822228c6f27bdd74048bf9bb"
+    },
+    {
+      "path": "test/speech-resources/integration/consumer-shutdown.test.ts",
+      "byteSize": 5999,
+      "sha256": "eed296174dfa7d2267b4dd64f1adcbea2ecce2bb8e727666c941efde33308764"
+    },
+    {
+      "path": "test/speech-resources/integration/private-sessions.test.ts",
+      "byteSize": 3843,
+      "sha256": "e0f1b0f515237b3d3fd48bbfd6c19cf6bf918a915ce17f8d9b27d52a82275ef0"
+    },
+    {
+      "path": "test/speech-resources/integration/real-shared-comparison-harness.ts",
+      "byteSize": 38830,
+      "sha256": "82d3c725d1c6a1f67032580ec1b66224d6ebf3e06e8cfadf957cf33652757f6f"
+    },
+    {
+      "path": "test/speech-resources/integration/real-shared-comparison.test.ts",
+      "byteSize": 2505,
+      "sha256": "2247854f4890a8e30aff1d7c5bb5b69c91ac390c349379f43d109ef1fa9daba8"
+    },
+    {
+      "path": "test/speech-resources/integration/smoke-startup.test.ts",
+      "byteSize": 4418,
+      "sha256": "335b67fcbeca30745931d33f08378c9f96dc623c53873facaf3c9c5e47b08917"
+    },
+    {
+      "path": "test/speech-resources/integration/window-bridge.test.ts",
+      "byteSize": 2385,
+      "sha256": "381488a3e1819a92b4ae1f526556f49433b2d019f6a70f3a947f525264f7384f"
+    },
+    {
+      "path": "test/speech-resources/migration.test.ts",
+      "byteSize": 16539,
+      "sha256": "647b9eed52aa0b478b964a963271a78843d04bb6fa3e2d239beea2ddf52ecfec"
+    },
+    {
+      "path": "test/speech-resources/preload.test.ts",
+      "byteSize": 2515,
+      "sha256": "198404bbae257eb5d76a2bf474d3b9cec42035394c746a442c8028d9b96e1da3"
+    },
+    {
+      "path": "test/speech-resources/service.test.ts",
+      "byteSize": 13974,
+      "sha256": "baeee5f9802693493dfd9fcc9dcd1b29434b42d45582a9d52f1deeaf16584425"
+    },
+    {
+      "path": "test/speech-resources/shared-ui.test.ts",
+      "byteSize": 12750,
+      "sha256": "6f238515163eb54708fa7062baf844e12038ebf0bb26dc911293f451a51aa0f3"
+    },
+    {
+      "path": "test/subtitle-studio/boundaries.test.ts",
+      "byteSize": 13392,
+      "sha256": "b70610603ff2f8b175fa102ec0820f9f60dcf12047eb9b2d484db56c7d003c44"
+    },
+    {
+      "path": "test/subtitle-studio/transcription-controller.test.ts",
+      "byteSize": 25697,
+      "sha256": "95db885618634ac3d788751835d03fd232fdafad36bb08c32c78c7a89577b698"
+    },
+    {
+      "path": "test/subtitle-studio/transcription-ipc.test.ts",
+      "byteSize": 16986,
+      "sha256": "741344db7104ef8dfa69c61c7687d6de16e28c9595fe38b7e0e37869280cc404"
+    },
+    {
+      "path": "test/subtitle-studio-provenance/checkout-bytes.test.ts",
+      "byteSize": 3852,
+      "sha256": "8a5970757fb8b733b3692c1b4e37f0369de8065f931c9d7d2d5bcbeecebf8bc1"
+    },
+    {
+      "path": "test/subtitle-studio-provenance/shared-resources.test.ts",
+      "byteSize": 9212,
+      "sha256": "4488ba81b4ef58237afcaabef2a7b38915a42d88de7323aacb1beb7efd2ed042"
+    }
+  ],
+  "evidenceFiles": [
+    {
+      "path": "test-results/studio-t09/boundary-audit-final.log",
+      "byteSize": 39,
+      "sha256": "985b72740f52e1483b5a1103b31b406e21b528c0088e3fc0906846f7b6e60c4c"
+    },
+    {
+      "path": "test-results/studio-t09/cleanup-temporary-runs.cjs",
+      "byteSize": 3280,
+      "sha256": "fb8ebe0ecd50db599b111a046a7603b44cd7bbff4a609cf3fdfbcfb4f804f571"
+    },
+    {
+      "path": "test-results/studio-t09/copy-audit-final.log",
+      "byteSize": 106,
+      "sha256": "dbcdb7d011f34a0ba7a5375c3de3559e3cb1342bec34807eb8a41fe5865c822f"
+    },
+    {
+      "path": "test-results/studio-t09/create-closeout-snapshot.py",
+      "byteSize": 3856,
+      "sha256": "b5ee59167882381006ebcd5209ff58df2a16bfa2396d4a143a9e00f7a6bc9e5b"
+    },
+    {
+      "path": "test-results/studio-t09/engine-audit-final.log",
+      "byteSize": 139,
+      "sha256": "2e72e1ebf7c9d0effcf57bbbd04fc2e03f2c5ebf29dca8d2f3ec5aea97dc81f8"
+    },
+    {
+      "path": "test-results/studio-t09/engine-source-map.json",
+      "byteSize": 19915,
+      "sha256": "40da9d2a7fd5713a56be4330d72b932849e6a2924c7c07d8612596fcb5c57e8a"
+    },
+    {
+      "path": "test-results/studio-t09/engine-tests-final.log",
+      "byteSize": 1024,
+      "sha256": "0ccbd5f427d7f0fcbcebbaf8947aa686b015714761d9cf14a925882299ef5841"
+    },
+    {
+      "path": "test-results/studio-t09/engine-tests.log",
+      "byteSize": 885,
+      "sha256": "739f37b24dfa8fd8d175deb04c7854767f215a9073a3d4e5a4baf12362c6177f"
+    },
+    {
+      "path": "test-results/studio-t09/failed-run-cleanup.json",
+      "byteSize": 468,
+      "sha256": "64eb2d435a9100057e813ef34849ab4e2195e60543a1c1ffafd1d1c6064225a9"
+    },
+    {
+      "path": "test-results/studio-t09/final-process-check.json",
+      "byteSize": 205,
+      "sha256": "de86d36cbf82029417dee775beaadfc1f5fa2e06b623c0818fdcc621df671c37"
+    },
+    {
+      "path": "test-results/studio-t09/git-diff-check.log",
+      "byteSize": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "test-results/studio-t09/i18n-final.log",
+      "byteSize": 3200,
+      "sha256": "5d57c5e336487d65c27d8d0c389924de702d583faba097eea01529df12ce283c"
+    },
+    {
+      "path": "test-results/studio-t09/i18n-usage-final.log",
+      "byteSize": 208,
+      "sha256": "4b70623fbdc2c33c03a7db125ac52583848d7bad3a99cc948c4b62b5456dda2d"
+    },
+    {
+      "path": "test-results/studio-t09/integration-audit-final.log",
+      "byteSize": 71,
+      "sha256": "6ac4c4b03844fad525b2167721ad7d01f834d6357d05dfc540c507bb5c19cde2"
+    },
+    {
+      "path": "test-results/studio-t09/media-isolated.log",
+      "byteSize": 11698,
+      "sha256": "2640cfb7d995e58d455547800b1c3c0b2f5bf93b58867c486f37b65b1ffde0f2"
+    },
+    {
+      "path": "test-results/studio-t09/migrate-installed-resources.mjs",
+      "byteSize": 1057861,
+      "sha256": "0abe2f3900108aa3116330809ad5562a952986c98c505a1129c5c0a632a22116"
+    },
+    {
+      "path": "test-results/studio-t09/migrate-installed-resources.ts",
+      "byteSize": 10020,
+      "sha256": "e34c7efe66a36db5845f4e7f3ccfbb885e023b675a11829eb63a1ad708f69059"
+    },
+    {
+      "path": "test-results/studio-t09/preload-after-shutdown.log",
+      "byteSize": 60,
+      "sha256": "ca64392e6e43b16992913fce2934117614016aa494b917e01b72c77ec5e12ca5"
+    },
+    {
+      "path": "test-results/studio-t09/preload-final.log",
+      "byteSize": 60,
+      "sha256": "ca64392e6e43b16992913fce2934117614016aa494b917e01b72c77ec5e12ca5"
+    },
+    {
+      "path": "test-results/studio-t09/provenance-audit-final.log",
+      "byteSize": 4825,
+      "sha256": "e66b32eca0656f08b5025128c0941cc843bd902654fe0dab43011289adeb478f"
+    },
+    {
+      "path": "test-results/studio-t09/real-shared-comparison-final.log",
+      "byteSize": 4533,
+      "sha256": "28bbb6cf4b6ccbed33f147d4d16cc87694aa8f1d687af2302b7ea7b1fcc32548"
+    },
+    {
+      "path": "test-results/studio-t09/real-shared-comparison.log",
+      "byteSize": 6399,
+      "sha256": "e1652c2465886f788ffef7f44a091f35ad06e41e8685089bf992f96f8afd7afc"
+    },
+    {
+      "path": "test-results/studio-t09/real-shared-Idlbo2/report.json",
+      "byteSize": 216679,
+      "sha256": "4513b27a67319a73a1c2de5cfaecc0f846901dfdc130e881bb5fb1081c8d02dc"
+    },
+    {
+      "path": "test-results/studio-t09/real-shared-sMRxt5/cpu-legacy-A/exports/A.srt",
+      "byteSize": 437,
+      "sha256": "4fac768d48842acb9a3c03a76cc7bee6947a5ec66604280f15354d1ccfc60ad8"
+    },
+    {
+      "path": "test-results/studio-t09/real-shared-sMRxt5/cpu-legacy-A.json",
+      "byteSize": 18346,
+      "sha256": "b7b0bc15777a8d68c08f178db153e0174697653da39f927ce4c8faaebb9a39b4"
+    },
+    {
+      "path": "test-results/studio-t09/real-shared-sMRxt5/cpu-studio-A.json",
+      "byteSize": 16860,
+      "sha256": "930b952d2bc013d903077d7ad8bf8d70433607fa4dedf6eb4a6672681760edd3"
+    },
+    {
+      "path": "test-results/studio-t09/real-shared-sMRxt5/cuda-legacy-A/exports/A.srt",
+      "byteSize": 509,
+      "sha256": "fa641c75e8bb371ff032a89d8706aaff820e94f26e80f8dab475056c23ba3acf"
+    },
+    {
+      "path": "test-results/studio-t09/real-shared-sMRxt5/cuda-legacy-A.json",
+      "byteSize": 46023,
+      "sha256": "87fb775d2e9b34327d5ccd8485952a3279453ad88e5075ba4b8ff6aeea6eb36f"
+    },
+    {
+      "path": "test-results/studio-t09/real-shared-sMRxt5/cuda-studio-A.json",
+      "byteSize": 44827,
+      "sha256": "ccc02124047bcc7b1519ca3b3c6cdf142f18a9d1ff70bd18e317dc25987bad58"
+    },
+    {
+      "path": "test-results/studio-t09/real-shared-sMRxt5/documents/c75a9f95-38ae-4efc-93b6-56de3839f63c/5f02538f-a1a9-40a4-8cb5-be4fb6b79201.json",
+      "byteSize": 3166,
+      "sha256": "39aaaa5e8fb25b39096b0f97d1d5e835a9f1fc4075c0fb6ab7f106ff739a83fd"
+    },
+    {
+      "path": "test-results/studio-t09/real-shared-sMRxt5/documents/c75a9f95-38ae-4efc-93b6-56de3839f63c/current.json",
+      "byteSize": 231,
+      "sha256": "34a6fb04a44ed4aa93e641c4f0e35ca75609dbf03274a8c4d7ee91d5426286b4"
+    },
+    {
+      "path": "test-results/studio-t09/real-shared-sMRxt5/documents/d7d83caa-90b1-4204-b7c5-5bb8355b63a4/a930e5ea-5e30-48de-8a41-258dd0f1a473.json",
+      "byteSize": 2761,
+      "sha256": "818c744209db06ba8874477692bd8c8cdab2000882d008ba88c5936d2f6c5507"
+    },
+    {
+      "path": "test-results/studio-t09/real-shared-sMRxt5/documents/d7d83caa-90b1-4204-b7c5-5bb8355b63a4/current.json",
+      "byteSize": 231,
+      "sha256": "f98518121e9ce18ed34900e05e20ceb5681ff7cc32cfa404c4573b0978d35f7a"
+    },
+    {
+      "path": "test-results/studio-t09/real-shared-sMRxt5/report.json",
+      "byteSize": 234361,
+      "sha256": "3de15611a6684cc67d9fdb4a086da66f0efa14a3d04c45028bf2e3890d8407b7"
+    },
+    {
+      "path": "test-results/studio-t09/receipts-audit-final.log",
+      "byteSize": 104,
+      "sha256": "82722a9c08bda3d45103b8fe0340fdc266ca04ca4d13e33b4738d1fbba84fb8d"
+    },
+    {
+      "path": "test-results/studio-t09/regression-bounded.log",
+      "byteSize": 11566,
+      "sha256": "fa99426d8fbaf2a7b5a79000a3437ddbec91a2666552dd09e0c6af99bcb1b99e"
+    },
+    {
+      "path": "test-results/studio-t09/regression-first.log",
+      "byteSize": 24122,
+      "sha256": "09be366022f4094ad6d172362b92f1305e045b04f7ff0879a2e9e4d791d58b93"
+    },
+    {
+      "path": "test-results/studio-t09/shared-regression-final.log",
+      "byteSize": 2398,
+      "sha256": "1bf3ec22e1a0150d7c662294c02bb76caa11cabb83cb3f245d91f99a6c2a426d"
+    },
+    {
+      "path": "test-results/studio-t09/shared-ui-final.log",
+      "byteSize": 486,
+      "sha256": "5a0c138bf05f1e6f395212696b753df0e6404d19e8d9a1385e1de67b34ff772e"
+    },
+    {
+      "path": "test-results/studio-t09/shared-ui-fourth.log",
+      "byteSize": 486,
+      "sha256": "a9c3d230558a4455403ef487d3bc4fca85006bdc856c1b22e3bae04e100429af"
+    },
+    {
+      "path": "test-results/studio-t09/shared-ui-second.log",
+      "byteSize": 1560,
+      "sha256": "5b7fe07c3ff576a7568d947cd0c0eb7f6724a30ec4bcaae7c71705d96b9bbb53"
+    },
+    {
+      "path": "test-results/studio-t09/shared-ui-third.log",
+      "byteSize": 1082,
+      "sha256": "4622daf0a3bfa3e539e0970d8001edf36f5a683e38723e0262625b6f036ae98d"
+    },
+    {
+      "path": "test-results/studio-t09/shared-ui-types.log",
+      "byteSize": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "test-results/studio-t09/shared-ui.log",
+      "byteSize": 1516,
+      "sha256": "e51c59dac7559ca71e19b48b292763c82ad574ec18533a52a4ef708b09af6a9b"
+    },
+    {
+      "path": "test-results/studio-t09/spec-done.json",
+      "byteSize": 1994,
+      "sha256": "2f0f88eb0bf340d83fef2d5dfc53eb07fda804d83b6bbf4eafba6d7eea104702"
+    },
+    {
+      "path": "test-results/studio-t09/spec-ready-final.json",
+      "byteSize": 1995,
+      "sha256": "3363cf0e402409db89d80e359fbf9946100713249c109314a412893b56bd4cab"
+    },
+    {
+      "path": "test-results/studio-t09/tsc-after-shutdown.log",
+      "byteSize": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "test-results/studio-t09/tsc-final.log",
+      "byteSize": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "test-results/studio-t09/tsc-integration-final.log",
+      "byteSize": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "test-results/studio-t09/tsc-node-final.log",
+      "byteSize": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "test-results/studio-t09/tsconfig.engine.json",
+      "byteSize": 347,
+      "sha256": "48323378211630481f00fe83e463709a048e02630a36372122aa1c1bc78f2bc2"
+    },
+    {
+      "path": "test-results/studio-t09/tsconfig.integration.json",
+      "byteSize": 689,
+      "sha256": "c1db4b180ab5065cb022750d553ac64adf02068f0aa9ead57167d9d806d7341a"
+    },
+    {
+      "path": "test-results/studio-t09/tsconfig.service.json",
+      "byteSize": 195,
+      "sha256": "794bd5a41c7521287b7b16e5de9e3517f2979f11edfe1e39ee59b2643ada1ef2"
+    },
+    {
+      "path": "test-results/studio-t09/tsconfig.shared-ui.json",
+      "byteSize": 488,
+      "sha256": "0371e23b53143fd1cca2bb0fda62dcd17cd42a320ff1a7b3a660fe7753a4d85f"
+    },
+    {
+      "path": "test-results/studio-t09/tsconfig.user-migration.json",
+      "byteSize": 198,
+      "sha256": "15ce829f34da7c07088cef6ed96732e6eaea63a8511aab3cf1727180591b91b9"
+    },
+    {
+      "path": "test-results/studio-t09/ui-locale-usage.log",
+      "byteSize": 208,
+      "sha256": "4b70623fbdc2c33c03a7db125ac52583848d7bad3a99cc948c4b62b5456dda2d"
+    },
+    {
+      "path": "test-results/studio-t09/ui-locales.log",
+      "byteSize": 3200,
+      "sha256": "5d57c5e336487d65c27d8d0c389924de702d583faba097eea01529df12ce283c"
+    },
+    {
+      "path": "test-results/studio-t09/ui-tests-final.log",
+      "byteSize": 552,
+      "sha256": "2cbace5e42c0c2225bdb2f97fb1c64c4f8cf5132e193d2b5f4b491c58a90af93"
+    },
+    {
+      "path": "test-results/studio-t09/ui-tests.log",
+      "byteSize": 552,
+      "sha256": "b94bafdd3fd58a663d416fc9c4da7b99f71e949ac7fdd6a2bead8763708b3d01"
+    },
+    {
+      "path": "test-results/studio-t09/ui-types-final.log",
+      "byteSize": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "test-results/studio-t09/ui-types.log",
+      "byteSize": 13346,
+      "sha256": "9d9f3a5c9395de0e392b49d17c2c12388e37b1d9128913ac510d7751a67572e4"
+    },
+    {
+      "path": "test-results/studio-t09/user-migration-final.log",
+      "byteSize": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "test-results/studio-t09/user-migration-types-final.log",
+      "byteSize": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "test-results/studio-t09/user-resource-payloads-before.json",
+      "byteSize": 5947,
+      "sha256": "edbe220d044a199b47ae00e02fe35f474f908f9be7ec4fc7e427fab0b37dfb49"
+    },
+    {
+      "path": "test-results/studio-t09/user-resources-before.json",
+      "byteSize": 7139,
+      "sha256": "7a95c62c38ecbae8ba9de8470f45556ca739b1ac6372f7a96e3d6bce5f7bb3ae"
+    },
+    {
+      "path": "test-results/studio-t09/user-resources-migration.json",
+      "byteSize": 10686,
+      "sha256": "21481d8a1d7de7b725a54c7fbc5531a7c5d0296f9704a0ff748c00f09e4797ea"
+    },
+    {
+      "path": "test-results/studio-t09/vite-build-after-shutdown.log",
+      "byteSize": 2683,
+      "sha256": "1f4c19d3acc9563dc848aa9824202aea5547356d6bb01ea4516ca0dcb50b6c97"
+    },
+    {
+      "path": "test-results/studio-t09/vite-build-final.log",
+      "byteSize": 2683,
+      "sha256": "f471d869c609fbd62dee468926d29ee7f22d44b99b832df4a525a44242ea255a"
+    },
+    {
+      "path": "test-results/studio-t09/vite-build.log",
+      "byteSize": 2683,
+      "sha256": "b0e5227233c49b95386ec3d9493bda4968cd1609485ebdec68b0e58d8eafa109"
+    },
+    {
+      "path": "test-results/studio-t09-ui/run-dh9UJ4/01-light-studio-shared-geometry.json",
+      "byteSize": 263,
+      "sha256": "5b3cd00f87a995273d9bfdd7a78a5f661b35ff5f6ecc84f8b899c4e3923f8ca5"
+    },
+    {
+      "path": "test-results/studio-t09-ui/run-dh9UJ4/01-light-studio-shared.png",
+      "byteSize": 236210,
+      "sha256": "c4e7cddf678a2747b69c72b395978c5a0883c0ba40a6ba74d714b21b52616ba1"
+    },
+    {
+      "path": "test-results/studio-t09-ui/run-dh9UJ4/02-light-legacy-shared-job-geometry.json",
+      "byteSize": 106,
+      "sha256": "ff9b32af60c993325b97530e1e4fd6b01a3e5cb53f4304309e237ff2c175264b"
+    },
+    {
+      "path": "test-results/studio-t09-ui/run-dh9UJ4/02-light-legacy-shared-job.png",
+      "byteSize": 350549,
+      "sha256": "d13cedc0497f023869567ad2b2f0df341c4fb874dae4c7ba2eb8270dea80ad11"
+    },
+    {
+      "path": "test-results/studio-t09-ui/run-dh9UJ4/03-light-studio-busy-geometry.json",
+      "byteSize": 235,
+      "sha256": "98188f2110e4d44b8797a1b9486b7e8c5b352116a7c9fd5510b18318cbde4483"
+    },
+    {
+      "path": "test-results/studio-t09-ui/run-dh9UJ4/03-light-studio-busy.png",
+      "byteSize": 236991,
+      "sha256": "6ea70dab69a035f6cc700090f8f47ab215d66ea92cba50d64dcc39bd20affc70"
+    },
+    {
+      "path": "test-results/studio-t09-ui/run-dh9UJ4/04-light-shared-delete-confirmation-geometry.json",
+      "byteSize": 434,
+      "sha256": "4f74c40855bde896cf9b10d8cfac1526fc86db32c97091d7df385ed2a01facc0"
+    },
+    {
+      "path": "test-results/studio-t09-ui/run-dh9UJ4/04-light-shared-delete-confirmation.png",
+      "byteSize": 230936,
+      "sha256": "a58d842056f8da533a3b7483a71cebad28153f26a15d915b922803ab43fab4e1"
+    },
+    {
+      "path": "test-results/studio-t09-ui/run-dh9UJ4/05-dark-narrow-studio-shared-geometry.json",
+      "byteSize": 261,
+      "sha256": "0f1c552133d19092766f0ded80408e28a10832f1733532107442e885346d3172"
+    },
+    {
+      "path": "test-results/studio-t09-ui/run-dh9UJ4/05-dark-narrow-studio-shared.png",
+      "byteSize": 139878,
+      "sha256": "f0533aed6391947c16bf4b03a14f9f91ba67c6143e5c8546ab910adddeb9d517"
+    },
+    {
+      "path": "test-results/studio-t09-ui/run-dh9UJ4/05b-dark-narrow-resource-actions-geometry.json",
+      "byteSize": 233,
+      "sha256": "4a9ae08d97b31a5012d02808481d8d4e68edce671bc63cf2587c05ca07c9f5cb"
+    },
+    {
+      "path": "test-results/studio-t09-ui/run-dh9UJ4/05b-dark-narrow-resource-actions.png",
+      "byteSize": 126416,
+      "sha256": "d5baef1a8aac50f3e7de1190f72414e12dac5afd24f813e715d70c14a7b10f5e"
+    },
+    {
+      "path": "test-results/studio-t09-ui/run-dh9UJ4/06-dark-narrow-legacy-shared-geometry.json",
+      "byteSize": 105,
+      "sha256": "fe57a2c967e283e2ffed1195aa3ea7753a7bdecd326904abb153a341b30860f2"
+    },
+    {
+      "path": "test-results/studio-t09-ui/run-dh9UJ4/06-dark-narrow-legacy-shared.png",
+      "byteSize": 159447,
+      "sha256": "5a3ca064479998d0879c543b831920154afb0d66b2a5175c3ec265d79c4230b7"
+    },
+    {
+      "path": "test-results/studio-t09-ui/run-dh9UJ4/build-evidence.json",
+      "byteSize": 1096,
+      "sha256": "2eceed6e6508c788ebf694baddc73f4ee3bbee8f9c8e9a69c507c58233b2d50d"
+    },
+    {
+      "path": "test-results/studio-t09-ui/run-dh9UJ4/cleanup.json",
+      "byteSize": 49,
+      "sha256": "b9773d176d78293efcc9cf8dfdaa8e3b396c4d0c209b4915690efb92858c38c8"
+    },
+    {
+      "path": "test-results/studio-t09-ui/run-dh9UJ4/electron.log",
+      "byteSize": 63,
+      "sha256": "3fe02d69418606c0cc88d370642d6ef01c61938ccfb3253af819f8205515f232"
+    },
+    {
+      "path": "test-results/studio-t09-ui/run-dh9UJ4/final-window.png",
+      "byteSize": 159940,
+      "sha256": "bbaad2d83a74b33ae8f4c4efd85401126abf784b47c3e36e5d9e71def195a193"
+    },
+    {
+      "path": "test-results/studio-t09-ui/run-dh9UJ4/fixture-trace.json",
+      "byteSize": 979,
+      "sha256": "7c5b5cd49af092d7fc606fdb4751a9e7e8156e74bd764ab38d537840d39682de"
+    },
+    {
+      "path": "test-results/studio-t09-ui/run-dh9UJ4/main-metafile.json",
+      "byteSize": 317558,
+      "sha256": "c343a0b2f2810cfdff5ba8424a87c3012e9856fe371e0556d7db50ae4c808430"
+    },
+    {
+      "path": "test-results/studio-t09-ui/run-dh9UJ4/renderer-errors.json",
+      "byteSize": 2,
+      "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    }
+  ],
+  "verificationSummary": {
+    "relevantRegressionPassed": 2598,
+    "finalSharedRegressionPassed": 232,
+    "finalSourceRegressionPassed": 121,
+    "testCountsOverlap": true,
+    "dependencyGraphFiles": 377,
+    "realChainsCompleted": 4,
+    "sameBackendCanonicalPairsEqual": 2,
+    "studioDocumentsReopened": 2,
+    "actualElectronUiFlowsPassed": 1,
+    "installedUserResourcesReadyInBothTools": 4,
+    "installedPayloadObjectsPreserved": 23,
+    "installedPayloadBytes": 5376141792,
+    "migrationNetworkRequests": 0,
+    "allObservedNativeProcessesExited": true,
+    "packagingPerformed": false
+  }
+}

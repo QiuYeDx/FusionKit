@@ -45,11 +45,17 @@ export function checkBoundaries(root, extraRoots = []) {
         if (evidence.sha256 !== sourceHash) errors.push(`Immutable evidence changed: ${name}`);
         return;
       }
-      function inspect(value) {
-        if (typeof value === 'string' && forbiddenValue(value)) errors.push(`Forbidden resource string: ${name}: ${value}`);
-        else if (value && typeof value === 'object') Object.values(value).forEach(inspect);
+      const resourceAudits = (config.auditedResourceValues ?? []).filter(audit => audit.source === name);
+      const matchedResourceAudits = new Set();
+      function inspect(value, pointer = '') {
+        if (typeof value === 'string' && forbiddenValue(value)) {
+          const audit = resourceAudits.find(audit => audit.pointer === pointer && audit.value === value && audit.sha256 === sourceHash);
+          if (audit) matchedResourceAudits.add(audit);
+          else errors.push(`Forbidden resource string: ${name}: ${value}`);
+        } else if (value && typeof value === 'object') Object.entries(value).forEach(([key, child]) => inspect(child, `${pointer}/${key.replaceAll('~', '~0').replaceAll('/', '~1')}`));
       }
       inspect(value);
+      for (const audit of resourceAudits) if (!matchedResourceAudits.has(audit)) errors.push(`Resource value audit changed: ${name}#${audit.pointer}`);
       return;
     }
     if (!code.test(name)) return;

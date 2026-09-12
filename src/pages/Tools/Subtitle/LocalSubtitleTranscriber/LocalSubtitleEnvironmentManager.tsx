@@ -1,4 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { getLocalSubtitleEnvironmentService } from '@/services/local-subtitle/localSubtitleEnvironmentService';
+import { speechResourceIsBusy } from '@/speech-resources/events';
 import { useTranslation } from "react-i18next";
 import {
   Cpu,
@@ -144,6 +146,8 @@ export function LocalSubtitleEnvironmentManager({
   onImport,
 }: LocalSubtitleEnvironmentManagerProps) {
   const { t } = useTranslation(["subtitle", "common"]);
+  const environmentService = getLocalSubtitleEnvironmentService();
+  const sharedResources = useSyncExternalStore(environmentService.subscribe, environmentService.getState).sharedResources;
   const importInputRef = useRef<HTMLInputElement>(null);
   const [importFile, setImportFile] = useState<File | null>(null);
   const [importMode, setImportMode] = useState<"copy" | "move">("copy");
@@ -171,6 +175,7 @@ export function LocalSubtitleEnvironmentManager({
   );
   const importDisabled =
     loading ||
+    modelResources.some(resource => speechResourceIsBusy(sharedResources, resource.resourceId)) ||
     modelResources.length === 0 ||
     modelResources.every((resource) => resource.status === "ready") ||
     modelResources.some((resource) =>
@@ -193,6 +198,12 @@ export function LocalSubtitleEnvironmentManager({
       !modelResources.some((resource) => resource.status === "ready")),
   );
   const [managerOpen, setManagerOpen] = useState(false);
+  useEffect(() => {
+    if (!managerOpen) return;
+    void environmentService.refreshSharedStatus();
+    const timer = setInterval(() => void environmentService.refreshSharedStatus(), 2000);
+    return () => clearInterval(timer);
+  }, [environmentService, managerOpen]);
   const [runtimeDetailsOpen, setRuntimeDetailsOpen] = useState(false);
 
   useEffect(() => {
@@ -292,13 +303,16 @@ export function LocalSubtitleEnvironmentManager({
               </span>
             </div>
 
+            {sharedResources && <p className="px-3 pt-3 text-xs leading-5 text-muted-foreground">{t('subtitle:local_transcriber.resources.shared_hint')}</p>}
+            {!!sharedResources?.migrationIssues.length && <p role="status" className="px-3 pt-3 text-xs leading-5 text-amber-700 dark:text-amber-400">{t('subtitle:local_transcriber.resources.migration_issues')}</p>}
+            {sharedResources?.cleanupPending && <p role="status" className="px-3 pt-3 text-xs leading-5 text-amber-700 dark:text-amber-400">{t('subtitle:local_transcriber.resources.shared_cleanup_pending')}</p>}
             {runtimeError ? (
               <EnvironmentErrorNotice error={runtimeError} />
             ) : null}
 
             {resourceActionError ? (
               <div className="px-3 pt-3">
-                <LocalSubtitleErrorNotice error={resourceActionError} />
+                <LocalSubtitleErrorNotice error={resourceActionError.code === 'resource_busy' ? { ...resourceActionError, message: t('subtitle:local_transcriber.resources.shared_busy_error') } : resourceActionError} />
               </div>
             ) : null}
 
@@ -318,6 +332,7 @@ export function LocalSubtitleEnvironmentManager({
                     resource={resource}
                     job={latestJobs.get(resource.resourceId) ?? null}
                     pendingActionKeys={pendingActionKeys}
+                    busy={speechResourceIsBusy(sharedResources, resource.resourceId)}
                     onInstall={onInstall}
                     onCancel={onCancel}
                     onDelete={() => setDeleteTarget(resource)}
@@ -437,7 +452,7 @@ export function LocalSubtitleEnvironmentManager({
             </DialogClose>
             <Button
               type="button"
-              disabled={!importFile || !importTarget || importPending}
+              disabled={!importFile || !importTarget || importPending || speechResourceIsBusy(sharedResources, importTarget.resourceId)}
               onClick={submitImport}
             >
               {importPending ? (
@@ -471,11 +486,12 @@ export function LocalSubtitleEnvironmentManager({
               {t("subtitle:local_transcriber.resources.delete.title")}
             </DialogTitle>
             <DialogDescription className="break-words [overflow-wrap:anywhere]">
-              {t("subtitle:local_transcriber.resources.delete.description", {
+              {t(sharedResources ? "subtitle:local_transcriber.resources.shared_delete_confirmation" : "subtitle:local_transcriber.resources.delete.description", {
                 name: deleteTarget?.displayName ?? "",
               })}
             </DialogDescription>
           </DialogHeader>
+          {resourceActionError?.code === 'resource_busy' && <LocalSubtitleErrorNotice error={{ ...resourceActionError, message: t('subtitle:local_transcriber.resources.shared_busy_error') }} />}
           <DialogFooter>
             <DialogClose asChild>
               <Button type="button" variant="outline">
@@ -485,7 +501,7 @@ export function LocalSubtitleEnvironmentManager({
             <Button
               type="button"
               variant="destructive"
-              disabled={!deleteTarget || pendingActionKeys.has(
+              disabled={!deleteTarget || speechResourceIsBusy(sharedResources, deleteTarget.resourceId) || pendingActionKeys.has(
                 localSubtitleResourceActionKey("delete", deleteTarget.resourceId),
               )}
               onClick={submitDelete}
@@ -679,6 +695,7 @@ function RuntimeSummary({
 
 function ResourceRow({
   resource,
+  busy,
   job,
   pendingActionKeys,
   onInstall,
@@ -686,6 +703,7 @@ function ResourceRow({
   onDelete,
 }: {
   resource: LocalSubtitleManagedResourceSummary;
+  busy: boolean;
   job: LocalSubtitleResourceJobSummary | null;
   pendingActionKeys: ReadonlySet<string>;
   onInstall: (resourceId: string) => Promise<boolean>;
@@ -721,6 +739,7 @@ function ResourceRow({
               {resource.displayName}
             </span>
             <ResourceStatusBadge resource={resource} />
+            {busy && <span className="text-[11px] text-muted-foreground">{t('subtitle:local_transcriber.resources.shared_busy')}</span>}
           </div>
           <div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1 text-[11px] text-muted-foreground">
             <span>{t(RESOURCE_TYPE_KEYS[resource.resourceType])}</span>
@@ -767,7 +786,7 @@ function ResourceRow({
               type="button"
               variant="ghost"
               size="icon-sm"
-              disabled={installPending}
+              disabled={installPending || busy}
               onClick={() => void onInstall(resource.resourceId)}
               aria-label={t("subtitle:local_transcriber.actions.install_resource", {
                 name: resource.displayName,
@@ -789,6 +808,7 @@ function ResourceRow({
               variant="ghost"
               size="icon-sm"
               onClick={onDelete}
+              disabled={busy}
               aria-label={t(
                 "subtitle:local_transcriber.actions.delete_named_resource",
                 { name: resource.displayName },

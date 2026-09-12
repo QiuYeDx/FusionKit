@@ -30,6 +30,12 @@ import { DocumentRepository } from '../document-repository';
 import { TranscriptionExecutor } from './transcript-executor';
 import { createTranscriptionTaskService, type TranscriptionTaskService } from './task-service';
 import type { EnqueueTranscriptionRequest } from '../../../../src/subtitle-studio/transcription/task-contract';
+import { enqueueTranscriptionRequestSchema } from '../../../../src/subtitle-studio/transcription/task-contract';
+import type { SpeechResourceService } from '../../speech-resources/service';
+import { canonicalResourceId, SPEECH_CUDA_RESOURCE_ID } from '../../speech-resources/catalog';
+import { createStudioSharedResources, type StudioSharedResources } from './shared-resources';
+import { createLocalSubtitleServerSession } from './native/server-session';
+import { cleanupSpeechResourceSessionStartupOrphans } from '../../speech-resources/engine/resource-startup-cleaner';
 
 export interface TranscriptionRuntimeOptions {
   readonly userDataRoot: string;
@@ -38,6 +44,7 @@ export interface TranscriptionRuntimeOptions {
 
 /** Low-level adapters for isolated hosts/tests; composed services cannot be supplied. */
 export interface TranscriptionRuntimeDependencies {
+  readonly sharedResources?: SpeechResourceService;
   readonly signatureVerifier?: LocalSubtitleSignatureVerifier;
   readonly media?: Pick<LocalSubtitleMediaNormalizerOptions, 'processRunner' | 'availableBytes' | 'sourceEnvironment'>;
   readonly server?: Omit<LocalSubtitleServerSupervisorOptions, 'managedResourceRoot'>;
@@ -86,7 +93,7 @@ export function createTranscriptionRuntime(options: TranscriptionRuntimeOptions,
   let terminal = false;
   let services: ReturnType<typeof compose> | undefined;
   const ownerReleases = new Map<string, Promise<void>>();
-  const partial: { jobs?: LocalSubtitleJobManager; models?: LocalSubtitleModelManager; media?: LocalSubtitleMediaNormalizer;
+  const partial: { jobs?: LocalSubtitleJobManager; models?: LocalSubtitleModelManager | StudioSharedResources; media?: LocalSubtitleMediaNormalizer;
     server?: LocalSubtitleServerSupervisor; registry?: LocalSubtitleSessionRegistry } = {};
 
   function ownerKey(owner: LocalSubtitleOwnerKey) { return `${owner.webContentsId}:${owner.ownerSessionId}`; }
@@ -121,19 +128,24 @@ export function createTranscriptionRuntime(options: TranscriptionRuntimeOptions,
     const media = partial.media = new LocalSubtitleMediaNormalizer({ ...dependencies.media, environment, managedResourceRoot,
       inputAuthorizations: inputs, signatureVerifier: dependencies.signatureVerifier });
     const attestor = createLocalSubtitleProductionBackendAttestor({ platform: environment.platform, arch: environment.arch });
-    const server = partial.server = new LocalSubtitleServerSupervisor({ ...dependencies.server, managedResourceRoot,
-      dependencies: { verifyBackend: attestor.verifyBackend, ...dependencies.server?.dependencies } });
+    const server = partial.server = new LocalSubtitleServerSupervisor({ ...dependencies.server,
+      managedResourceRoot: dependencies.sharedResources?.managedResourceRoot ?? managedResourceRoot,
+      dependencies: { verifyBackend: attestor.verifyBackend, ...dependencies.server?.dependencies,
+        ...(dependencies.sharedResources ? { createSession: () => createLocalSubtitleServerSession(managedResourceRoot) } : {}) } });
     const registry = partial.registry = new LocalSubtitleSessionRegistry();
     let jobs: LocalSubtitleJobManager | undefined;
     let tasks: TranscriptionTaskService | undefined;
-    const models = partial.models = new LocalSubtitleModelManager({ ...dependencies.resources,
+    const isResourceBusy = (id: string) => phase !== 'closed' && Boolean(tasks?.isResourceBusy(id)
+      || (id === SPEECH_CUDA_RESOURCE_ID && tasks?.isResourceBusy(LOCAL_SUBTITLE_WINDOWS_CUDA_PACK_DEFINITION.resourceId))
+      || jobs?.isManagedModelBusy(id) || jobs?.isManagedVadBusy(id) || jobs?.isManagedAcceleratorBusy(id)
+      || server.isManagedAcceleratorBusy(id) || server.snapshot.modelId === id || server.snapshot.vadModelId === id);
+    const models = partial.models = dependencies.sharedResources ? createStudioSharedResources({ service: dependencies.sharedResources,
+      isResourceBusy, platform: environment.platform, arch: environment.arch }) : new LocalSubtitleModelManager({ ...dependencies.resources,
       managedResourceRoot, runtimeEnvironment: environment, supervisor: server, sessionRegistry: registry,
       // The factory ran this exact cleanup before composing any service that could own live work.
       startupCleanup: async () => undefined,
       verifyServerRuntime: () => verifyRuntime('server'),
-      isResourceBusy: id => Boolean(tasks?.isResourceBusy(id) || jobs?.isManagedModelBusy(id) || jobs?.isManagedVadBusy(id)
-        || jobs?.isManagedAcceleratorBusy(id) || server.isManagedAcceleratorBusy(id)
-        || server.snapshot.modelId === id || server.snapshot.vadModelId === id),
+      isResourceBusy,
     });
     const resolveCudaAccelerator = (signal?: AbortSignal) => models.resolveManagedAccelerator(LOCAL_SUBTITLE_WINDOWS_CUDA_PACK_DEFINITION.resourceId, signal);
     const backendResolver = new LocalSubtitleBackendResolver({ runtimeEnvironment: environment,
@@ -198,6 +210,8 @@ export function createTranscriptionRuntime(options: TranscriptionRuntimeOptions,
     if (initialization) return initialization;
     phase = 'initializing';
     initialization = Promise.resolve().then(async () => {
+      // The app's shared migration completes before any per-domain startup cleaner runs.
+      await dependencies.sharedResources?.initialize();
       await mkdir(userDataRoot, { recursive: true, mode: 0o700 });
       const rootStat = await lstat(userDataRoot);
       if (!rootStat.isDirectory() || rootStat.isSymbolicLink()) throw new TranscriptionRuntimeError('invalid_configuration');
@@ -211,8 +225,10 @@ export function createTranscriptionRuntime(options: TranscriptionRuntimeOptions,
         if (!stat.isDirectory() || stat.isSymbolicLink()) throw new TranscriptionRuntimeError('invalid_configuration');
       }
       if (terminal) throw new TranscriptionRuntimeError('runtime_closed');
-      await (dependencies.startupCleanup ?? cleanupLocalSubtitleResourceStartupOrphans)({ managedResourceRoot,
+      // The frozen cleaner also removes resource staging; preserve shared migration sources.
+      if (!dependencies.sharedResources) await (dependencies.startupCleanup ?? cleanupLocalSubtitleResourceStartupOrphans)({ managedResourceRoot,
         platform: environment.platform ?? process.platform, arch: environment.arch ?? process.arch });
+      else await cleanupSpeechResourceSessionStartupOrphans({ managedResourceRoot, platform: environment.platform ?? process.platform });
       if (terminal) throw new TranscriptionRuntimeError('runtime_closed');
       services = compose();
       await services.models.initialize();
@@ -312,7 +328,13 @@ export function createTranscriptionRuntime(options: TranscriptionRuntimeOptions,
       enqueue(value: LocalSubtitleOwnerKey, request: EnqueueTranscriptionRequest) {
         const { current, owner, signal } = requireOwner(value);
         if (!current.tasks) throw new TranscriptionRuntimeError('invalid_configuration');
-        return completeOwner(owner, current.tasks.enqueue(owner, request, signal));
+        if (!dependencies.sharedResources) return completeOwner(owner, current.tasks.enqueue(owner, request, signal));
+        const parsed = enqueueTranscriptionRequestSchema.parse(request), config = parsed.config;
+        const use = dependencies.sharedResources.reserveUse([config.modelId,
+          ...(config.vadEnabled ? ['silero-vad-v6.2.0-ggml'] : []),
+          ...((environment.platform ?? process.platform) === 'win32' && ['auto', 'cuda'].includes(config.devicePreference) ? [SPEECH_CUDA_RESOURCE_ID] : [])].map(canonicalResourceId));
+        try { return completeOwner(owner, current.tasks.enqueue(owner, parsed, signal)).finally(() => use.release()); }
+        catch (error) { use.release(); throw error; }
       },
       list(value: LocalSubtitleOwnerKey) {
         const { current, owner } = requireOwner(value);
@@ -332,6 +354,7 @@ export function createTranscriptionRuntime(options: TranscriptionRuntimeOptions,
       waitForIdle() { return requireReady().tasks?.waitForIdle() ?? Promise.resolve(); },
     }),
     resources: Object.freeze({
+      status() { const { models } = requireReady(); return 'status' in models ? models.status() : undefined; },
       list(value: LocalSubtitleOwnerKey, signal?: AbortSignal) {
         const { current, owner, signal: lifetime } = requireOwner(value);
         return completeOwner(owner, current.models.listManagedResources(owner, ownerSignal(lifetime, signal)));

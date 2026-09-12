@@ -11,6 +11,7 @@ export function transcriptionIpcError(error: unknown): ErrorCode {
   const value = error && typeof error === 'object' ? error as { code?: unknown; localSubtitleCode?: unknown } : {};
   const code = value.localSubtitleCode ?? value.code;
   if (typeof code !== 'string') return 'transcription_failed';
+  if (code === 'resource_busy') return 'resource_busy';
   if (['owner_released', 'authorization_expired', 'authorization_invalid', 'invalid_token', 'token_expired', 'runtime_closed'].includes(code)) return 'access_denied';
   if (['limit_exceeded', 'queue_full', 'insufficient_disk'].includes(code)) return 'limit_exceeded';
   if (['invalid_configuration', 'invalid_input', 'invalid_ipc_request', 'resource_not_allowed'].includes(code)) return 'invalid_input';
@@ -70,7 +71,12 @@ export async function handleTranscriptionRequest(input: {
   if (method === 'inspectTranscriptionRuntime') return runtime.inspectRuntime();
   if (method === 'listTranscriptionResources') {
     const resources = localSubtitleManagedResourceListSchema.parse(await runtime.resources.list(owner)); alive();
-    return { resources, jobs: runtime.resources.snapshot(owner).resourceJobs.map(resourceJob) };
+    const status = runtime.resources.status();
+    const shared = status && { shared: true as const, revision: status.revision,
+      busyResourceIds: [...status.busyResourceIds], ...(status.mutationResourceId ? { mutationResourceId: status.mutationResourceId } : {}),
+      migrationIssues: status.migrationIssues.map(issue => ({ code: issue.code, ...(issue.resourceId ? { resourceId: issue.resourceId } : {}) })),
+      cleanupPending: status.cleanupPending };
+    return { resources, jobs: runtime.resources.snapshot(owner).resourceJobs.map(resourceJob), ...(shared ? { shared } : {}) };
   }
   if (method === 'importTranscriptionModel') {
     const { modelId } = requestSchemas.importTranscriptionModel.parse(payload);
@@ -81,6 +87,7 @@ export async function handleTranscriptionRequest(input: {
     return resourceJob(await runtime.resources.importModel({ owner, filePath: selection.filePaths[0], modelId }));
   }
   if (method === 'installTranscriptionResource') return resourceJob(await runtime.resources.install(owner, requestSchemas.installTranscriptionResource.parse(payload).resourceId));
+  if (method === 'deleteTranscriptionResource') return runtime.resources.delete(owner, requestSchemas.deleteTranscriptionResource.parse(payload).resourceId);
   if (method === 'cancelTranscriptionResourceJob') return runtime.resources.cancel(owner, requestSchemas.cancelTranscriptionResourceJob.parse(payload).jobId);
   if (method === 'enqueueTranscription') return runtime.tasks.enqueue(owner, requestSchemas.enqueueTranscription.parse(payload));
   if (method === 'listTranscriptionTasks') return runtime.tasks.list(owner);

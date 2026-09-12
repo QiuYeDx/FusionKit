@@ -1,0 +1,95 @@
+{
+  "schemaVersion": 1,
+  "sourceCommit": "99d064719d7ec93dea02944a9bfde31c4afec221",
+  "purpose": "Current shared-resource composition only; frozen source manifests, copied files and replay remain unchanged.",
+  "entries": [
+    {
+      "sourcePath": "electron/main/index.ts",
+      "role": "composition",
+      "sourceBlobOid": "c74aed165160ae323f8f212f19027e0f9b7d299c",
+      "sourceSha256": "53a9f5816bec159d33f0707d7ff9f818104e3dcebc51d1533605e98efaf2bb62",
+      "currentBlobOid": "4bd3f2c6272e4b08dc112bd4acc53cbcac81285c",
+      "reason": "T09 reviewed shared-resource integration: one neutral authority and client-owned jobs/reservations, sanitized global revision observation, domain-private session cleanup and joined shutdown. This audit approves only current composition/bridge bytes; the frozen ASR, source baseline and independent copied implementation remain unchanged."
+    },
+    {
+      "sourcePath": "electron/preload/index.ts",
+      "role": "composition",
+      "sourceBlobOid": "baf7d05a0ccbe0a075403d4b91ab32b412410b2f",
+      "sourceSha256": "b78a51436d4185b558f1b2afec6175166b30e2d086279e64926ea75bcb668be5",
+      "currentBlobOid": "816082faf88d8078d505b62687d6509a80a1a5bc",
+      "reason": "T09 reviewed shared-resource integration: one neutral authority and client-owned jobs/reservations, sanitized global revision observation, domain-private session cleanup and joined shutdown. This audit approves only current composition/bridge bytes; the frozen ASR, source baseline and independent copied implementation remain unchanged."
+    },
+    {
+      "sourcePath": "electron/main/app-shutdown.ts",
+      "role": "composition",
+      "sourceBlobOid": "cc08ca2af23649352365fbefda5ce8acb35e8bdf",
+      "sourceSha256": "e2c71d7c33a8905388df7ba459918eb733ac0987420736ee50baa22bc467d8d7",
+      "currentBlobOid": "5744f5a559fa75c068c43a9fab46b1f9f9b24c57",
+      "reason": "T09 reviewed shared-resource integration: one neutral authority and client-owned jobs/reservations, sanitized global revision observation, domain-private session cleanup and joined shutdown. This audit approves only current composition/bridge bytes; the frozen ASR, source baseline and independent copied implementation remain unchanged."
+    },
+    {
+      "sourcePath": "electron/main/local-subtitle/model-ipc.ts",
+      "role": "legacy-bridge",
+      "sourceBlobOid": "1801b30616200d1ab9fed0325dec1239c5e785e5",
+      "sourceSha256": "c470e78048e1f5b0463f161928c34309a0a823aa42a8f294622ce29f0d7750d8",
+      "currentBlobOid": "ed5900083fd38164f10379ed58f53084baacf860",
+      "reason": "T09 reviewed shared-resource integration: one neutral authority and client-owned jobs/reservations, sanitized global revision observation, domain-private session cleanup and joined shutdown. This audit approves only current composition/bridge bytes; the frozen ASR, source baseline and independent copied implementation remain unchanged."
+    },
+    {
+      "sourcePath": "electron/main/local-subtitle/session-ipc.ts",
+      "role": "legacy-bridge",
+      "sourceBlobOid": "26c6c563ac14214c64d8949392903d72a6ecb231",
+      "sourceSha256": "9063819fbd308df47fae885784d84134b4d3a39bb554b4f69882cdd1a3c81263",
+      "currentBlobOid": "a0170cc81186ce7956d0a4797920575dbcdcde7c",
+      "reason": "T09 reviewed shared-resource integration: one neutral authority and client-owned jobs/reservations, sanitized global revision observation, domain-private session cleanup and joined shutdown. This audit approves only current composition/bridge bytes; the frozen ASR, source baseline and independent copied implementation remain unchanged."
+    },
+    {
+      "sourcePath": "electron/main/local-subtitle/shared-resources.ts",
+      "role": "legacy-adapter",
+      "sourceBlobOid": null,
+      "sourceSha256": null,
+      "currentBlobOid": "eb3fb2c3a7dc96fd8a77dfe1230ef766e09e9f31",
+      "reason": "T09 reviewed shared-resource integration: one neutral authority and client-owned jobs/reservations, sanitized global revision observation, domain-private session cleanup and joined shutdown. This audit approves only current composition/bridge bytes; the frozen ASR, source baseline and independent copied implementation remain unchanged."
+    },
+    {
+      "sourcePath": "src/services/local-subtitle/localSubtitleEnvironmentService.ts",
+      "role": "legacy-observer",
+      "sourceBlobOid": "e38e4194d6bb0bd41fa68ed1ee6c146a41fd0f5a",
+      "sourceSha256": "bc414f92a8eb9f4e9ba9128cb143a658ccf6d7bb188a4eaec377250056f1fa15",
+      "currentBlobOid": "c03901689111acc2044683f1ca0e8ba424edbf28",
+      "reason": "T09 reviewed shared-resource integration: one neutral authority and client-owned jobs/reservations, sanitized global revision observation, domain-private session cleanup and joined shutdown. This audit approves only current composition/bridge bytes; the frozen ASR, source baseline and independent copied implementation remain unchanged."
+    },
+    {
+      "sourcePath": "src/services/local-subtitle/localSubtitleEnvironmentService.test.ts",
+      "role": "legacy-observer-test",
+      "sourceBlobOid": "071e9b187d0d41f3cddcd9e59d2e8954910d24d2",
+      "sourceSha256": "69c29c53b8d6af0d86accf488e7c9dc471d0cbbd783e9cd496385dc4eef06352",
+      "currentBlobOid": "8a62db9c52bfd7bf4e1af2b6aa0dccff22c1d9bb",
+      "reason": "T09 reviewed shared-resource integration: one neutral authority and client-owned jobs/reservations, sanitized global revision observation, domain-private session cleanup and joined shutdown. This audit approves only current composition/bridge bytes; the frozen ASR, source baseline and independent copied implementation remain unchanged."
+    },
+    {
+      "sourcePath": "electron/main/subtitle-studio/index.ts",
+      "role": "studio-composition",
+      "sourceBlobOid": "1b6d9a13912fe67cfb435552030a3ab9bd0727e0",
+      "sourceSha256": "1d6275e6f14fd4e065b2d1e534b8f423a4d0943a27b4005a5600287944179917",
+      "currentBlobOid": "a97d157dadac0996bfed042913a939d552dad6ec",
+      "reason": "T09 reviewed shared-resource integration: one neutral authority and client-owned jobs/reservations, sanitized global revision observation, domain-private session cleanup and joined shutdown. This audit approves only current composition/bridge bytes; the frozen ASR, source baseline and independent copied implementation remain unchanged."
+    },
+    {
+      "sourcePath": "electron/main/subtitle-studio/transcription/runtime.ts",
+      "role": "studio-composition",
+      "sourceBlobOid": "9979ba89730f8ae79bf5f2637a4c927de4ac37ac",
+      "sourceSha256": "5abc364a15680a137fd09b47c24e9f369d991702676fc0597b4420bdf079634e",
+      "currentBlobOid": "686210e9d0bdd5c187553cc449c1114453861ae0",
+      "reason": "T09 reviewed shared-resource integration: one neutral authority and client-owned jobs/reservations, sanitized global revision observation, domain-private session cleanup and joined shutdown. This audit approves only current composition/bridge bytes; the frozen ASR, source baseline and independent copied implementation remain unchanged."
+    },
+    {
+      "sourcePath": "electron/main/subtitle-studio/transcription/shared-resources.ts",
+      "role": "studio-adapter",
+      "sourceBlobOid": null,
+      "sourceSha256": null,
+      "currentBlobOid": "7ef45fe7fa25d64e85aa63f2bd5b510244b7be6b",
+      "reason": "T09 reviewed shared-resource integration: one neutral authority and client-owned jobs/reservations, sanitized global revision observation, domain-private session cleanup and joined shutdown. This audit approves only current composition/bridge bytes; the frozen ASR, source baseline and independent copied implementation remain unchanged."
+    }
+  ]
+}

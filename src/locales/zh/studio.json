@@ -194,7 +194,8 @@
     "translation_output_limit": "已达每批输出上限，本批译文未保存。请减少每批字幕或提高输出上限。",
     "translation_failed": "翻译请求失败，请检查模型服务后重试。",
     "transcription_failed": "转写失败，请检查媒体和本地资源后重试。",
-    "interrupted": "翻译已中断，已完成的译文已保留。"
+    "interrupted": "翻译已中断，已完成的译文已保留。",
+    "resource_busy": "共享资源正被使用，请等待两个字幕工具中的任务或资源操作结束后重试。"
   },
   "diagnostics": {
     "empty_document": "没有带时间的字幕正文",
@@ -403,6 +404,13 @@
     "status_failed": "失败",
     "active_count": "{{active}} 个进行中 · {{completed}} 个已完成",
     "task_failed": "转写失败，请检查媒体和本地资源。",
-    "close": "关闭"
+    "close": "关闭",
+    "shared_hint": "模型、语音检测与 CUDA 资源保存在应用共享目录，两个字幕工具共用一份，安装一次即可使用。",
+    "migration_issues": "部分旧资源未能安全迁移，原文件已保留。可重新打开应用重试；若仍未就绪，请检查资源状态。",
+    "shared_cleanup_pending": "共享资源仍在清理，请等待清理完成后再安装或删除。",
+    "shared_busy": "资源正被字幕任务或资源操作占用。",
+    "shared_busy_error": "共享资源正被使用，请等待两个字幕工具中的任务或资源操作结束后重试。",
+    "delete_resource": "删除资源",
+    "delete_shared_confirmation": "删除“{{name}}”的共享资源？本地字幕转写和字幕工作室都会失去此资源；再次使用前需要重新安装。已有字幕文档不受影响。"
   }
 }

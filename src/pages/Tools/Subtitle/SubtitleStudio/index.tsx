@@ -34,6 +34,7 @@ import { StudioTranscription } from './StudioTranscription';
 import './studio.css';
 
 const errorKeys: Record<ErrorCode, string> = {
+  resource_busy: 'studio:errors.resource_busy',
   translation_output_limit: 'studio:errors.translation_output_limit',
   needs_configuration: 'studio:errors.needs_configuration', translation_protocol_invalid: 'studio:errors.translation_protocol_invalid', translation_failed: 'studio:errors.translation_failed', interrupted: 'studio:errors.interrupted',
   transcription_failed: 'studio:errors.transcription_failed',

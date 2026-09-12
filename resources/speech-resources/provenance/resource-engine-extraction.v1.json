@@ -1,0 +1,1766 @@
+{
+  "schemaVersion": 1,
+  "kind": "audited-neutral-resource-extraction",
+  "sourceCommit": "99d064719d7ec93dea02944a9bfde31c4afec221",
+  "sourceMapSha256": "40da9d2a7fd5713a56be4330d72b932849e6a2924c7c07d8612596fcb5c57e8a",
+  "transformations": [
+    "Preserve existing installation, source copy/move recovery, directory/file identity, SHA-256, no-follow, exact-tree, ZIP and download cancellation/cleanup logic in new modules; replace tool-domain imports with neutral local modules.",
+    "Extract only declarations required by resource catalogs/errors/job/event schemas; no task execution, batch state machine, runtime bundle verifier, server supervisor or overwrite transaction implementation is included.",
+    "Replace model/VAD runtime and supervisor dependencies with required neutral smoke callbacks. Keep staged-file guards before and after callback; external production adapters own exact runtime validation and native smoke.",
+    "Extract only resource registry methods and delivery helpers; retain revision ordering, reentrant delivery, owner fencing, error sanitization and bounds; snapshots contain an empty batches array.",
+    "Extract pure native-binary inspection and directory identity validation helpers; do not include transaction fencing or native addon loading.",
+    "The two model definitions and VAD manifest remain byte-equivalent after LF normalization. CUDA changes only packId to speech-windows-x64-cuda-12.4-v1 and metadata path to manifests/speech-windows-cuda-pack.v1.json; all 20 executable/library pins remain unchanged.",
+    "Adapt existing pure unit suites to neutral imports and callback signatures, remove synthetic runtime bundle setup, use host platform for filesystem fixtures, retain POSIX-only permission skip on Windows. Add fixed-catalog, resource-registry reentry and smoke-error cleanup checks.",
+    "T09 reviewed follow-up: expose a session-only wrapper using empty download and staging definitions, retaining the same fixed server/media/session-summary paths, identity guards and joined cleanup; add preservation, junction and replacement tests.",
+    "T09 reviewed follow-up: catalog contract tests read neutral-owned exact historical receipt snapshots, eliminating old resource-tree module dependencies."
+  ],
+  "sources": [
+    {
+      "path": "src/type/localSubtitle.ts",
+      "blobOid": "05a0f0fc30294781d5722b19ea66c0efb172c067",
+      "byteSize": 42396,
+      "sha256": "8ded47f259c06abddeae1a9db6bd53a51b9349f92edaf96607e9d60ec63396f2"
+    },
+    {
+      "path": "src/type/localSubtitleIpc.ts",
+      "blobOid": "a27acbf8c4db2e612fb43560d1ae67623ffa1e52",
+      "byteSize": 81223,
+      "sha256": "ee391fe62d52ea20ca7e93498b8aa6010a224091bd2ead3afb3ef7325e77e176"
+    },
+    {
+      "path": "electron/main/local-subtitle/resource-download.ts",
+      "blobOid": "f9043a097f5630cce4834a803a26f90977fd4cc5",
+      "byteSize": 42521,
+      "sha256": "10ea4770a5dc72e8dd731ee77b6323c4f78b6f0a2d0313be559d374ea8ea356a"
+    },
+    {
+      "path": "electron/main/local-subtitle/accelerator-archive.ts",
+      "blobOid": "4e57828a567fa49552f4c489e7a66c85144f371a",
+      "byteSize": 22069,
+      "sha256": "94c782b604f3a3f1c2c3188563a83d7b51af714db1f2b6e87c4e2102b20cfe7c"
+    },
+    {
+      "path": "electron/main/local-subtitle/ggml-model.ts",
+      "blobOid": "adbad4ab4745cc8056945f89fe7e2d2b1d4bd625",
+      "byteSize": 12113,
+      "sha256": "a1916871c2acb6412990bc53eca0ffef9ee588ed159fb85a706e401673dfc5fe"
+    },
+    {
+      "path": "electron/main/local-subtitle/resource-job.ts",
+      "blobOid": "68ef6204116f8e66c9a67008e9c9a2e79b68c1b4",
+      "byteSize": 16743,
+      "sha256": "35b01eb06f3b999c1466526cdc2aeef44346f01de8ab257eee476dedee2746c7"
+    },
+    {
+      "path": "electron/main/local-subtitle/resource-startup-cleaner.ts",
+      "blobOid": "90113fabbe7e918b7fbce6a36049ebd5b5ec1908",
+      "byteSize": 24588,
+      "sha256": "70c6656bf9ccd27d817209141116ddb6d6eb63512a6e95a81130b9d5ecdb82d8"
+    },
+    {
+      "path": "electron/main/local-subtitle/model-manifest.ts",
+      "blobOid": "4e7946371493924612a3c8f56d2af29db03e020f",
+      "byteSize": 11598,
+      "sha256": "a6564a4f44acf61d7cbdd96f01881a83b126a8380750a19be13ac721c1e683d0"
+    },
+    {
+      "path": "electron/main/local-subtitle/vad-manifest.ts",
+      "blobOid": "ab44b45841f3f4209eb060a84eadd0b793049877",
+      "byteSize": 5751,
+      "sha256": "8bb95cacd2bb3694fef715d25cb08daaed52fcaa77c124d9b32c7bf66c5a970a"
+    },
+    {
+      "path": "electron/main/local-subtitle/accelerator-manifest.ts",
+      "blobOid": "9d0e4ae8b389df93d819c62c2f8c5c7ec7859083",
+      "byteSize": 12979,
+      "sha256": "88b3ddeb89ab70ade9413fdec20fa78d66e56c108baa7c030b4544477e1fdb42"
+    },
+    {
+      "path": "electron/main/local-subtitle/accelerator-manager.ts",
+      "blobOid": "002a2c621e10ea43b47c7690b41289d0770bb73a",
+      "byteSize": 64447,
+      "sha256": "9e5288063b1d3b160d569e48c749f228e734057a4ae9c964a606f81f790174f0"
+    },
+    {
+      "path": "resources/local-subtitle/manifests/local-subtitle-models.v1.json",
+      "blobOid": "3a6d28b960ea0f78cc557176c2a0a9e63af45275",
+      "byteSize": 2282,
+      "sha256": "09f49bb3b41bb7dd20b13341d8333ceebcdf834590edb32550f9d3fc3a28e712"
+    },
+    {
+      "path": "resources/local-subtitle/manifests/local-subtitle-vad.v1.json",
+      "blobOid": "3e71ebc595f0e140cc8d81c0f96b49fd863e5edd",
+      "byteSize": 929,
+      "sha256": "0313951e6908f0d6f01be5e3836512e2dc35b148a0a53edacf71f30129c05118"
+    },
+    {
+      "path": "resources/local-subtitle/manifests/local-subtitle-windows-cuda-pack.v1.json",
+      "blobOid": "624f2f4a3cbde2afaef0404df1f87d767b497f58",
+      "byteSize": 12375,
+      "sha256": "8036c8053606c16adcfd126b0afc963944afa29e4958b12faeb358ce299e7852"
+    },
+    {
+      "path": "electron/main/local-subtitle/resource-manifest.ts",
+      "blobOid": "f8db271e384e6682028e2adcb399e7074a0a98d4",
+      "byteSize": 28902,
+      "sha256": "e0a5cf37fd91717cb6f28103fe811075b72a511a6a55390ed609c5b01cf8de3c"
+    },
+    {
+      "path": "electron/main/local-subtitle/overwrite-transaction.ts",
+      "blobOid": "be5ec369f3c43912efa0cf92f57279c22bfa1d5a",
+      "byteSize": 15938,
+      "sha256": "40f2655b54a885b593eaacbc0595eb92d311591af0a0ac7b334793fa41f94aac"
+    },
+    {
+      "path": "electron/main/local-subtitle/overwrite-directory-coordinator.ts",
+      "blobOid": "ecc58d2f0a29a9ceaa2ce4435b776a00e24bd22f",
+      "byteSize": 4762,
+      "sha256": "92fe9c4ebe57dd4609b12e6b50449a9219418b0e4881e974dc4c0ed477e742f2"
+    },
+    {
+      "path": "electron/main/local-subtitle/filesystem-object-identity.ts",
+      "blobOid": "6768501f5f4b07af1b88d5229a7dc7c4ebc05e6a",
+      "byteSize": 8348,
+      "sha256": "c1a66f69d5dea89a7e0c203fe0b3132ac679aa2c922c98f6253b877ec0ad469d"
+    },
+    {
+      "path": "electron/main/local-subtitle/model-manager.ts",
+      "blobOid": "6957b2596d263ac479c1f1dffdfb5c38628ea05e",
+      "byteSize": 92476,
+      "sha256": "05d2349a00e1b2703c635628ecf51078286d39e9c88c66ffc89c79281ccffcf8"
+    },
+    {
+      "path": "electron/main/local-subtitle/vad-manager.ts",
+      "blobOid": "917336142f6a558d651d283c8fbfece34af4af19",
+      "byteSize": 41615,
+      "sha256": "5e3c4d2f4d70f0c990cad7eed672a8d93a3027d177e9565f4f8d51223c91fe80"
+    },
+    {
+      "path": "electron/main/local-subtitle/session-registry.ts",
+      "blobOid": "4fb78c1eb2c0b56db286ffd21997c64a972ce7c1",
+      "byteSize": 31099,
+      "sha256": "294857bb7dff92f123bfd1269f255d554c08579dcd1629976ab43f82d160e7b5"
+    },
+    {
+      "path": "test/local-subtitle/modelManager.test.ts",
+      "blobOid": "db4a5dd4bce766889e6bdff32feb26bd01fb7035",
+      "byteSize": 52212,
+      "sha256": "a7e2c90e23645d1454377efcfad576e48ca8ffb6d3e31bb31bfde8322a00b242"
+    },
+    {
+      "path": "test/local-subtitle/vadManager.test.ts",
+      "blobOid": "83801b487094429d0d1ff74afe59c41d56a7e9f8",
+      "byteSize": 13261,
+      "sha256": "bc2c976111ffe902b670cad93cb1d8d5db3857e2ee2154ab1772a1a6213007ef"
+    },
+    {
+      "path": "test/local-subtitle/acceleratorManager.test.ts",
+      "blobOid": "f763549d6dbe1fca791eb2e3c249a616507049a7",
+      "byteSize": 25007,
+      "sha256": "a9dd8cd63c051162a0a19baa3359e9e9ea6eb83d673c3b64d95701c139c61681"
+    },
+    {
+      "path": "test/local-subtitle/resourceJob.test.ts",
+      "blobOid": "afd1576bc124107a08a95bca986219059cfc6415",
+      "byteSize": 15446,
+      "sha256": "0b86774fb96410d638a373798e92ad13c08f3cd80427f4af37db460e69ad4adc"
+    },
+    {
+      "path": "test/local-subtitle/resourceDownload.test.ts",
+      "blobOid": "35ff26cca190c4eac88accff2fd5defb5fefb26d",
+      "byteSize": 20244,
+      "sha256": "567602eaef1803201f5d94295fb5738799af73ac402aad3904577969da3e9959"
+    },
+    {
+      "path": "test/local-subtitle/acceleratorArchive.test.ts",
+      "blobOid": "a4171efedfe1ff234348cdd0f67908c3cedfaf47",
+      "byteSize": 12843,
+      "sha256": "1b3002e64867961f263b81f5ecef76296b7510b0706d647472335ce378290cdd"
+    },
+    {
+      "path": "test/local-subtitle/resourceStartupCleaner.test.ts",
+      "blobOid": "45fd16a84258cf4f77e4c25441ba0dfbe15e98d6",
+      "byteSize": 12458,
+      "sha256": "ac8de86f60b0615561b9d58a512b95c781cb2d3e65f97b7ea5480f08b3797061"
+    },
+    {
+      "path": "test/local-subtitle/ggmlModel.test.ts",
+      "blobOid": "159200be52508c653d8d563558fdac270c14bcb9",
+      "byteSize": 9169,
+      "sha256": "a34299e9c5190a01e612cf9840fc488a70150b8eac167dc678f735df7e4709da"
+    }
+  ],
+  "outputs": [
+    {
+      "path": "src/speech-resources/contracts.ts",
+      "kind": "derived",
+      "sourcePaths": [
+        "src/type/localSubtitle.ts"
+      ],
+      "baseSourcePath": "src/type/localSubtitle.ts",
+      "byteSize": 14118,
+      "sha256": "8b8aa1c4c32748d508d89fba7090ea64e6bf88d626ee3dfd643003d45a34c88c",
+      "edits": [
+        {
+          "startByte": 64,
+          "endByte": 345,
+          "removedSha256": "3ae2f0249a1a4216057fe8f09decb94fdff2a24665b9095c179b3843e5a3be70",
+          "insertedText": "\n"
+        },
+        {
+          "startByte": 410,
+          "endByte": 410,
+          "removedSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "insertedText": "\n"
+        },
+        {
+          "startByte": 2458,
+          "endByte": 2744,
+          "removedSha256": "b48d3e24a7e84010094e0ec4ae51de9066188b1f4fbe471c586860b5899cea08",
+          "insertedText": ""
+        },
+        {
+          "startByte": 2818,
+          "endByte": 9298,
+          "removedSha256": "d19a558febd618922f20f144a6e291f95c3dd5e75d707fd7de32a2dab85686e7",
+          "insertedText": ""
+        },
+        {
+          "startByte": 9477,
+          "endByte": 9561,
+          "removedSha256": "505517314582b57698d684ccc47688cffbf1aaa288a5de031bc29d0558f177ed",
+          "insertedText": ""
+        },
+        {
+          "startByte": 9734,
+          "endByte": 9734,
+          "removedSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "insertedText": "\n"
+        },
+        {
+          "startByte": 9828,
+          "endByte": 12287,
+          "removedSha256": "131e473f7a8b5e19857c6959783417d8fb62c0abd10e2699427d06e63fbdce4f",
+          "insertedText": ""
+        },
+        {
+          "startByte": 13625,
+          "endByte": 13625,
+          "removedSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "insertedText": "\n"
+        },
+        {
+          "startByte": 13709,
+          "endByte": 14328,
+          "removedSha256": "8116665b803abd2be5f4da6f57381067a506bbc2ba1d9ea7f2eefec087324bdf",
+          "insertedText": ""
+        },
+        {
+          "startByte": 14474,
+          "endByte": 14474,
+          "removedSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "insertedText": "\n"
+        },
+        {
+          "startByte": 19334,
+          "endByte": 19334,
+          "removedSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "insertedText": "\n"
+        },
+        {
+          "startByte": 19443,
+          "endByte": 19443,
+          "removedSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "insertedText": "\n"
+        },
+        {
+          "startByte": 21084,
+          "endByte": 34973,
+          "removedSha256": "2157a460fb9bd2b86caed8d0f72c2900a5207a7f212bf3fd8b4cef2a55312367",
+          "insertedText": ""
+        },
+        {
+          "startByte": 35069,
+          "endByte": 35069,
+          "removedSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "insertedText": "\n"
+        },
+        {
+          "startByte": 35379,
+          "endByte": 35379,
+          "removedSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "insertedText": "\n"
+        },
+        {
+          "startByte": 35889,
+          "endByte": 36595,
+          "removedSha256": "ceef9f94072f17cd0e77677a2d9df2b4bb3f36dab8841525b13089eaffc563e3",
+          "insertedText": ""
+        },
+        {
+          "startByte": 37004,
+          "endByte": 40038,
+          "removedSha256": "902021598d2281c7e41db03450208c912d327e302e4cafe12f16d051efa12a18",
+          "insertedText": ""
+        },
+        {
+          "startByte": 40310,
+          "endByte": 42092,
+          "removedSha256": "abda3cba7eab2b82760658ee446abcdebea643cf73d155f107898bee03611fb6",
+          "insertedText": ""
+        },
+        {
+          "startByte": 42396,
+          "endByte": 42396,
+          "removedSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "insertedText": "\nexport interface LocalSubtitleOwnerKey { readonly webContentsId: number; readonly ownerSessionId: string; }\nexport interface LocalSubtitleSessionSnapshot { readonly schemaVersion: 1; readonly revision: number; readonly batches: readonly never[]; readonly resourceJobs: readonly LocalSubtitleResourceJobSummary[]; }\nexport interface LocalSubtitleServerManagedResourceIdentity<Storage extends 'managed' | 'managed_staging' = 'managed' | 'managed_staging'> { readonly storage: Storage; readonly id: string; readonly absolutePath: string; readonly byteSize: number; readonly sha256: string; }\nexport type SpeechResourceModelSmoke = (input: Readonly<{ owner: LocalSubtitleOwnerKey; model: LocalSubtitleServerManagedResourceIdentity<'managed_staging'>; signal: AbortSignal }>) => Promise<void>;\nexport type SpeechResourceVadSmoke = (input: Readonly<{ owner: LocalSubtitleOwnerKey; model: LocalSubtitleServerManagedResourceIdentity<'managed'>; vad: LocalSubtitleServerManagedResourceIdentity<'managed_staging'>; signal: AbortSignal }>) => Promise<void>;\nexport class SpeechResourceSmokeError extends Error {\n  readonly localSubtitleCode: LocalSubtitleErrorCode;\n  constructor(readonly code: LocalSubtitleErrorCode, message: string) {\n    super(message);\n    this.name = 'SpeechResourceSmokeError';\n    this.localSubtitleCode = code;\n  }\n}\n"
+        }
+      ],
+      "reason": "Reviewed neutral resource extraction: fixed catalog metadata, neutral imports, resource-only declarations and smoke callbacks; installation, verification and cleanup semantics retained"
+    },
+    {
+      "path": "src/speech-resources/schemas.ts",
+      "kind": "derived",
+      "sourcePaths": [
+        "src/type/localSubtitleIpc.ts",
+        "src/type/localSubtitle.ts"
+      ],
+      "baseSourcePath": "src/type/localSubtitleIpc.ts",
+      "byteSize": 8905,
+      "sha256": "362c3d6a5b6c98fb8e9215bc910b6d05f115e7ef831a170c49b04995c2704c30",
+      "edits": [
+        {
+          "startByte": 25,
+          "endByte": 4823,
+          "removedSha256": "96384f9174d931caf1dd3c75ab695c0f2473e933521b0db2814d9a4463ae6a84",
+          "insertedText": "import { LOCAL_SUBTITLE_LIMITS, LOCAL_SUBTITLE_BACKENDS, LOCAL_SUBTITLE_OPERATION_STAGES, LOCAL_SUBTITLE_ERROR_CODES, LOCAL_SUBTITLE_ERROR_MANIFEST, LOCAL_SUBTITLE_DIAGNOSTIC_METADATA_KEYS, LOCAL_SUBTITLE_RESOURCE_TYPES, LOCAL_SUBTITLE_RESOURCE_JOB_STATUSES, LocalSubtitleResourceJobSummary, LocalSubtitleResourceEventEnvelope } from \"./contracts\";\n"
+        },
+        {
+          "startByte": 5106,
+          "endByte": 5500,
+          "removedSha256": "4b894cdb9a44fdc5be871438b98e106736d11ed0bc4b256e7139b6cbb46d9bfa",
+          "insertedText": "\n"
+        },
+        {
+          "startByte": 5883,
+          "endByte": 5940,
+          "removedSha256": "7d9400b48dc06adf14260b35ad496cdea091fc953ce0b47a35eb4d60f8b26a68",
+          "insertedText": "\n"
+        },
+        {
+          "startByte": 6006,
+          "endByte": 6006,
+          "removedSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "insertedText": "\n"
+        },
+        {
+          "startByte": 6057,
+          "endByte": 6057,
+          "removedSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "insertedText": "\n"
+        },
+        {
+          "startByte": 6121,
+          "endByte": 6121,
+          "removedSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "insertedText": "\n"
+        },
+        {
+          "startByte": 6191,
+          "endByte": 6191,
+          "removedSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "insertedText": "\n"
+        },
+        {
+          "startByte": 6253,
+          "endByte": 7760,
+          "removedSha256": "7d807b2786c9fda49ff905ee60b4f606ff448c7dc579a0a26825549f105f72ef",
+          "insertedText": ""
+        },
+        {
+          "startByte": 9782,
+          "endByte": 29483,
+          "removedSha256": "e364dc43c3e96f5b9c2a861992d54c67f3d1fa6ca08d5bc492fb96277acf9f71",
+          "insertedText": ""
+        },
+        {
+          "startByte": 30777,
+          "endByte": 33322,
+          "removedSha256": "4aad4f9a642bfa751783153f3bcc9a17648474b6b926dc62310acf603b045655",
+          "insertedText": ""
+        },
+        {
+          "startByte": 33891,
+          "endByte": 41300,
+          "removedSha256": "ef934ccd68d264c792540998027a066eb123aaf92dbaa28377e6e5ae65df3df1",
+          "insertedText": ""
+        },
+        {
+          "startByte": 41684,
+          "endByte": 48746,
+          "removedSha256": "654e03c0aa81061074eca1f5004c1b094cec67244142f22b15046fb04353d23c",
+          "insertedText": ""
+        },
+        {
+          "startByte": 50714,
+          "endByte": 80333,
+          "removedSha256": "f254d2074772747e28dbb59d0917a370dc6e08bddf418418a58ddbdd34dac59b",
+          "insertedText": ""
+        },
+        {
+          "startByte": 81223,
+          "endByte": 81223,
+          "removedSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "insertedText": "\nexport type LocalSubtitleManagedResourceSummary = z.infer<typeof localSubtitleManagedResourceSummarySchema>;\n\nexport const localSubtitleSessionSnapshotSchema = z.object({\n  schemaVersion: z.literal(1),\n  revision: z.number().int().safe().nonnegative(),\n  batches: z.array(z.never()).max(0),\n  resourceJobs: z.array(localSubtitleResourceJobSummarySchema).max(LOCAL_SUBTITLE_LIMITS.maxSessionResourceJobs),\n}).strict();\n"
+        }
+      ],
+      "reason": "Reviewed neutral resource extraction: fixed catalog metadata, neutral imports, resource-only declarations and smoke callbacks; installation, verification and cleanup semantics retained"
+    },
+    {
+      "path": "electron/main/speech-resources/engine/resource-download.ts",
+      "kind": "derived",
+      "sourcePaths": [
+        "electron/main/local-subtitle/resource-download.ts"
+      ],
+      "baseSourcePath": "electron/main/local-subtitle/resource-download.ts",
+      "byteSize": 42521,
+      "sha256": "10ea4770a5dc72e8dd731ee77b6323c4f78b6f0a2d0313be559d374ea8ea356a",
+      "edits": [],
+      "reason": "Reviewed neutral resource extraction: fixed catalog metadata, neutral imports, resource-only declarations and smoke callbacks; installation, verification and cleanup semantics retained"
+    },
+    {
+      "path": "electron/main/speech-resources/engine/accelerator-archive.ts",
+      "kind": "derived",
+      "sourcePaths": [
+        "electron/main/local-subtitle/accelerator-archive.ts"
+      ],
+      "baseSourcePath": "electron/main/local-subtitle/accelerator-archive.ts",
+      "byteSize": 22069,
+      "sha256": "94c782b604f3a3f1c2c3188563a83d7b51af714db1f2b6e87c4e2102b20cfe7c",
+      "edits": [],
+      "reason": "Reviewed neutral resource extraction: fixed catalog metadata, neutral imports, resource-only declarations and smoke callbacks; installation, verification and cleanup semantics retained"
+    },
+    {
+      "path": "electron/main/speech-resources/engine/ggml-model.ts",
+      "kind": "derived",
+      "sourcePaths": [
+        "electron/main/local-subtitle/ggml-model.ts"
+      ],
+      "baseSourcePath": "electron/main/local-subtitle/ggml-model.ts",
+      "byteSize": 12135,
+      "sha256": "7dc537ac7a6a004d795c57550162913f23384faf5d7b98e470e19cce9b4dbb20",
+      "edits": [
+        {
+          "startByte": 201,
+          "endByte": 263,
+          "removedSha256": "dbe939e62aaf57e1dd34f0125797a3bc9c723442647d036f4112307d873f76f6",
+          "insertedText": "import { LOCAL_SUBTITLE_LIMITS } from \"../../../../src/speech-resources/contracts\";\n"
+        }
+      ],
+      "reason": "Reviewed neutral resource extraction: fixed catalog metadata, neutral imports, resource-only declarations and smoke callbacks; installation, verification and cleanup semantics retained"
+    },
+    {
+      "path": "electron/main/speech-resources/engine/resource-job.ts",
+      "kind": "derived",
+      "sourcePaths": [
+        "electron/main/local-subtitle/resource-job.ts"
+      ],
+      "baseSourcePath": "electron/main/local-subtitle/resource-job.ts",
+      "byteSize": 16791,
+      "sha256": "06494253f5c4e6f4e77afb7b78857f6ce8d004536e71e6724096c0d758191796",
+      "edits": [
+        {
+          "startByte": 219,
+          "endByte": 313,
+          "removedSha256": "4aa4bea63e82a7ed572752c076f0d73a3dd826c5bd26829fdc4e535fd7838de9",
+          "insertedText": "} from \"../../../../src/speech-resources/contracts\";\nimport type { LocalSubtitleOwnerKey } from \"../../../../src/speech-resources/contracts\";\n"
+        }
+      ],
+      "reason": "Reviewed neutral resource extraction: fixed catalog metadata, neutral imports, resource-only declarations and smoke callbacks; installation, verification and cleanup semantics retained"
+    },
+    {
+      "path": "electron/main/speech-resources/engine/resource-startup-cleaner.ts",
+      "kind": "derived",
+      "sourcePaths": [
+        "electron/main/local-subtitle/resource-startup-cleaner.ts"
+      ],
+      "baseSourcePath": "electron/main/local-subtitle/resource-startup-cleaner.ts",
+      "byteSize": 25343,
+      "sha256": "de8872e3f62853779503e6f6469a7b4387d5bf55a76dfb8caa5fd6d1cc20567d",
+      "edits": [
+        {
+          "startByte": 1952,
+          "endByte": 1952,
+          "removedSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "insertedText": "export type CleanupSpeechResourceSessionStartupOptions = Omit<\n  CleanupLocalSubtitleResourceStartupOptions,\n  \"downloadDefinitions\" | \"arch\"\n>;\n\n"
+        },
+        {
+          "startByte": 2987,
+          "endByte": 2987,
+          "removedSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "insertedText": "  return cleanupStartupOrphans(options, false);\n}\n\n/** Domain-private orphan sessions only; shared resource and acquisition trees are never opened. */\nexport async function cleanupSpeechResourceSessionStartupOrphans(\n  options: CleanupSpeechResourceSessionStartupOptions,\n): Promise<Readonly<LocalSubtitleResourceStartupCleanupResult>> {\n  return cleanupStartupOrphans(options, true);\n}\n\nasync function cleanupStartupOrphans(\n  options: CleanupLocalSubtitleResourceStartupOptions,\n  sessionOnly: boolean,\n): Promise<Readonly<LocalSubtitleResourceStartupCleanupResult>> {\n"
+        },
+        {
+          "startByte": 3171,
+          "endByte": 3222,
+          "removedSha256": "a1241f3d0f295bf546a19c46ab52ed720f94f5e50b628c8b81c52c544a3ae970",
+          "insertedText": "  const definitions = sessionOnly ? [] : validateDownloadDefinitions(\n"
+        },
+        {
+          "startByte": 3309,
+          "endByte": 3384,
+          "removedSha256": "e6df4acc938fdc77245882fb7fb410a21eafc61efad519389bec0bf8f61b43bb",
+          "insertedText": "  const stagingDefinitions = sessionOnly ? [] : productionStagingDefinitions(platform, arch);\n"
+        }
+      ],
+      "reason": "Reviewed neutral resource extraction: fixed catalog metadata, neutral imports, resource-only declarations and smoke callbacks; installation, verification and cleanup semantics retained"
+    },
+    {
+      "path": "electron/main/speech-resources/engine/model-manifest.ts",
+      "kind": "derived",
+      "sourcePaths": [
+        "electron/main/local-subtitle/model-manifest.ts"
+      ],
+      "baseSourcePath": "electron/main/local-subtitle/model-manifest.ts",
+      "byteSize": 11617,
+      "sha256": "0d375ce23da0ef2fda3fef9fc900165829c50c8c6a9ca8315f9d2e35f4b11acb",
+      "edits": [
+        {
+          "startByte": 25,
+          "endByte": 131,
+          "removedSha256": "3eb66f0a0fa2563edd9737ab5888300a1b794a4dd2110af088607f2db95ba094",
+          "insertedText": "import rawModelManifest from \"../../../../resources/speech-resources/manifests/speech-models.v1.json\";\n"
+        },
+        {
+          "startByte": 275,
+          "endByte": 306,
+          "removedSha256": "ac0d009bda00562c0b0661e383144c971a204e6b429a842d3c346ac860734189",
+          "insertedText": "} from \"../../../../src/speech-resources/contracts\";\n"
+        }
+      ],
+      "reason": "Reviewed neutral resource extraction: fixed catalog metadata, neutral imports, resource-only declarations and smoke callbacks; installation, verification and cleanup semantics retained"
+    },
+    {
+      "path": "electron/main/speech-resources/engine/vad-manifest.ts",
+      "kind": "derived",
+      "sourcePaths": [
+        "electron/main/local-subtitle/vad-manifest.ts"
+      ],
+      "baseSourcePath": "electron/main/local-subtitle/vad-manifest.ts",
+      "byteSize": 5770,
+      "sha256": "dc48e66ca1a8ecf0b539016dfdb53ed6d03e565bd4c1df8ffe6ca2ad99f16b9d",
+      "edits": [
+        {
+          "startByte": 25,
+          "endByte": 126,
+          "removedSha256": "086cd50792cf0e5377bc06c301c6ab123afd52739fcd1a66ceac4c00bb8a60aa",
+          "insertedText": "import rawVadManifest from \"../../../../resources/speech-resources/manifests/speech-vad.v1.json\";\n"
+        },
+        {
+          "startByte": 268,
+          "endByte": 299,
+          "removedSha256": "ac0d009bda00562c0b0661e383144c971a204e6b429a842d3c346ac860734189",
+          "insertedText": "} from \"../../../../src/speech-resources/contracts\";\n"
+        }
+      ],
+      "reason": "Reviewed neutral resource extraction: fixed catalog metadata, neutral imports, resource-only declarations and smoke callbacks; installation, verification and cleanup semantics retained"
+    },
+    {
+      "path": "electron/main/speech-resources/engine/accelerator-manifest.ts",
+      "kind": "derived",
+      "sourcePaths": [
+        "electron/main/local-subtitle/accelerator-manifest.ts"
+      ],
+      "baseSourcePath": "electron/main/local-subtitle/accelerator-manifest.ts",
+      "byteSize": 12960,
+      "sha256": "e739f1ab1938b2f4d4e0cc84ce8f3ff5e640a2e0e74bd326e047aa242c562181",
+      "edits": [
+        {
+          "startByte": 97,
+          "endByte": 220,
+          "removedSha256": "3314d83fdad4daba96b2cf001554d5fc1b95efacac45adb4728a17c1bf655740",
+          "insertedText": "import rawWindowsCudaManifest from \"../../../../resources/speech-resources/manifests/speech-windows-cuda-pack.v1.json\";\n"
+        },
+        {
+          "startByte": 5677,
+          "endByte": 5745,
+          "removedSha256": "aedd36693ba52b0f4b6f4af0965eab27a56d72dd6f87413e2c72c80f65a087bb",
+          "insertedText": "const EXPECTED_PACK_ID = \"speech-windows-x64-cuda-12.4-v1\";\n"
+        },
+        {
+          "startByte": 8365,
+          "endByte": 8427,
+          "removedSha256": "0445cf25edd673e46a348ac06101ad8515ba28ffef46df76877e4ead7a985c55",
+          "insertedText": "      \"manifests/speech-windows-cuda-pack.v1.json\" ||\n"
+        }
+      ],
+      "reason": "Reviewed neutral resource extraction: fixed catalog metadata, neutral imports, resource-only declarations and smoke callbacks; installation, verification and cleanup semantics retained"
+    },
+    {
+      "path": "electron/main/speech-resources/engine/accelerator-manager.ts",
+      "kind": "derived",
+      "sourcePaths": [
+        "electron/main/local-subtitle/accelerator-manager.ts"
+      ],
+      "baseSourcePath": "electron/main/local-subtitle/accelerator-manager.ts",
+      "byteSize": 64519,
+      "sha256": "63f5a4a38c590c532c270ab26faefeb8f2f2b75998679acf0a88b1414774e41e",
+      "edits": [
+        {
+          "startByte": 480,
+          "endByte": 595,
+          "removedSha256": "5d3755fa97f695c8b2f5146717cf7253884698b75881acd70eaa980e6ea7a03d",
+          "insertedText": "} from \"../../../../src/speech-resources/contracts\";\nimport type { LocalSubtitleManagedResourceSummary } from \"../../../../src/speech-resources/schemas\";\n"
+        },
+        {
+          "startByte": 991,
+          "endByte": 1054,
+          "removedSha256": "6e52507195fc38e526b78d7ba0a9360bd87397e816a3c78db0c9c3d4834b3657",
+          "insertedText": "import type { LocalSubtitleOwnerKey } from \"../../../../src/speech-resources/contracts\";\n"
+        },
+        {
+          "startByte": 1462,
+          "endByte": 1534,
+          "removedSha256": "c75a99826a5a58700fcaaf50a29aab07bc2b96eb2063d586f3e066e39769195a",
+          "insertedText": "import { inspectLocalSubtitleNativeBinary } from \"./native-binary-inspection\";\n"
+        }
+      ],
+      "reason": "Reviewed neutral resource extraction: fixed catalog metadata, neutral imports, resource-only declarations and smoke callbacks; installation, verification and cleanup semantics retained"
+    },
+    {
+      "path": "resources/speech-resources/manifests/speech-models.v1.json",
+      "kind": "derived",
+      "sourcePaths": [
+        "resources/local-subtitle/manifests/local-subtitle-models.v1.json"
+      ],
+      "baseSourcePath": "resources/local-subtitle/manifests/local-subtitle-models.v1.json",
+      "byteSize": 2282,
+      "sha256": "09f49bb3b41bb7dd20b13341d8333ceebcdf834590edb32550f9d3fc3a28e712",
+      "edits": [],
+      "reason": "Reviewed neutral resource extraction: fixed catalog metadata, neutral imports, resource-only declarations and smoke callbacks; installation, verification and cleanup semantics retained"
+    },
+    {
+      "path": "resources/speech-resources/manifests/speech-vad.v1.json",
+      "kind": "derived",
+      "sourcePaths": [
+        "resources/local-subtitle/manifests/local-subtitle-vad.v1.json"
+      ],
+      "baseSourcePath": "resources/local-subtitle/manifests/local-subtitle-vad.v1.json",
+      "byteSize": 929,
+      "sha256": "0313951e6908f0d6f01be5e3836512e2dc35b148a0a53edacf71f30129c05118",
+      "edits": [],
+      "reason": "Reviewed neutral resource extraction: fixed catalog metadata, neutral imports, resource-only declarations and smoke callbacks; installation, verification and cleanup semantics retained"
+    },
+    {
+      "path": "resources/speech-resources/manifests/speech-windows-cuda-pack.v1.json",
+      "kind": "derived",
+      "sourcePaths": [
+        "resources/local-subtitle/manifests/local-subtitle-windows-cuda-pack.v1.json"
+      ],
+      "baseSourcePath": "resources/local-subtitle/manifests/local-subtitle-windows-cuda-pack.v1.json",
+      "byteSize": 12359,
+      "sha256": "96eee2a1cf5b73ff4f6ac183ba498a31a03b1f6e8e3d3189782410bfdf370a82",
+      "edits": [
+        {
+          "startByte": 24,
+          "endByte": 79,
+          "removedSha256": "366585ab563b95045f70b2559be4c374f88ba0d77b490f53fd5122547ae504ef",
+          "insertedText": "  \"packId\": \"speech-windows-x64-cuda-12.4-v1\",\n"
+        },
+        {
+          "startByte": 1228,
+          "endByte": 1310,
+          "removedSha256": "63b7a6986a36604f3cd3d5680cdc268667592b3fecdf4e090470a5c7cd29101d",
+          "insertedText": "    \"manifestRelativePath\": \"manifests/speech-windows-cuda-pack.v1.json\",\n"
+        }
+      ],
+      "reason": "Reviewed neutral resource extraction: fixed catalog metadata, neutral imports, resource-only declarations and smoke callbacks; installation, verification and cleanup semantics retained"
+    },
+    {
+      "path": "electron/main/speech-resources/engine/native-binary-inspection.ts",
+      "kind": "derived",
+      "sourcePaths": [
+        "electron/main/local-subtitle/resource-manifest.ts"
+      ],
+      "baseSourcePath": "electron/main/local-subtitle/resource-manifest.ts",
+      "byteSize": 3334,
+      "sha256": "423f11f9ba6d29cbde16687f1eb78d3cf8579829ab760e667364c1e0c2acdec9",
+      "edits": [
+        {
+          "startByte": 0,
+          "endByte": 9860,
+          "removedSha256": "93ba839e59816490073e562d4cb20c03bab7302af9494ca6a7574d9ba20f6206",
+          "insertedText": ""
+        },
+        {
+          "startByte": 10110,
+          "endByte": 12761,
+          "removedSha256": "73fc887a92d9533f26702a38c88b7e6a4264c7709e7efde0c83789cf546ce0a6",
+          "insertedText": ""
+        },
+        {
+          "startByte": 15368,
+          "endByte": 28150,
+          "removedSha256": "6f221f12889faf3897f50626471f81413172469bd80264861b571e2fedc150c7",
+          "insertedText": ""
+        },
+        {
+          "startByte": 28627,
+          "endByte": 28902,
+          "removedSha256": "a811b87b2bfe0894792db6cefca8b01a2500bf8c7453995e42bf2081e0ac7172",
+          "insertedText": ""
+        }
+      ],
+      "reason": "Reviewed neutral resource extraction: fixed catalog metadata, neutral imports, resource-only declarations and smoke callbacks; installation, verification and cleanup semantics retained"
+    },
+    {
+      "path": "electron/main/speech-resources/engine/directory-identity.ts",
+      "kind": "derived",
+      "sourcePaths": [
+        "electron/main/local-subtitle/overwrite-transaction.ts",
+        "electron/main/local-subtitle/overwrite-directory-coordinator.ts"
+      ],
+      "baseSourcePath": "electron/main/local-subtitle/overwrite-transaction.ts",
+      "byteSize": 2860,
+      "sha256": "c51cdf49c9fcd9d4b075f7cd2ab7864bb4eab6715a3f5558b31699b10826ecce",
+      "edits": [
+        {
+          "startByte": 0,
+          "endByte": 897,
+          "removedSha256": "a99e7ff58c01cc01ab3e006ab57c8ee4216ff4b3dd415ad3742f86e364b7e5a7",
+          "insertedText": ""
+        },
+        {
+          "startByte": 1392,
+          "endByte": 1770,
+          "removedSha256": "914139d9a793c85d6c896b8196b35fb9de00f40016896e90ccd8a5fb77c36785",
+          "insertedText": "import { isProxy } from \"node:util/types\";\nexport function snapshotLocalSubtitleOverwriteDirectoryIdentity(\n  value: unknown,\n): LocalSubtitleOverwriteDirectoryIdentity | undefined {\n  if (\n    typeof value !== \"object\" ||\n    value === null ||\n    Array.isArray(value) ||\n    isProxy(value)\n  ) {\n    return undefined;\n  }\n  const keys = Reflect.ownKeys(value);\n  if (\n    keys.length === 2 &&\n    [\"volumeSerialHex\", \"fileIdHex\"].every((key) =>\n      keys.includes(key)\n    )\n  ) {\n    const volumeSerialHex = ownDataValue(value, \"volumeSerialHex\");\n    const fileIdHex = ownDataValue(value, \"fileIdHex\");\n    if (\n      typeof volumeSerialHex !== \"string\" ||\n      !/^[0-9a-f]{8}$/u.test(volumeSerialHex) ||\n      typeof fileIdHex !== \"string\" ||\n      !/^[0-9a-f]{32}$/u.test(fileIdHex)\n    ) {\n      return undefined;\n    }\n    return Object.freeze({ volumeSerialHex, fileIdHex });\n  }\n  if (\n    keys.length !== 3 ||\n    ![\"dev\", \"ino\", \"birthtimeMs\"].every((key) => keys.includes(key))\n  ) {\n    return undefined;\n  }\n  const dev = ownDataValue(value, \"dev\");\n  const ino = ownDataValue(value, \"ino\");\n  const birthtimeMs = ownDataValue(value, \"birthtimeMs\");\n  if (\n    !isNonNegativeSafeInteger(dev) ||\n    !isNonNegativeSafeInteger(ino) ||\n    typeof birthtimeMs !== \"number\" ||\n    !Number.isFinite(birthtimeMs) ||\n    birthtimeMs < 0 ||\n    Object.is(birthtimeMs, -0)\n  ) {\n    return undefined;\n  }\n  return Object.freeze({ dev, ino, birthtimeMs });\n"
+        },
+        {
+          "startByte": 1773,
+          "endByte": 4655,
+          "removedSha256": "04045bd50ce82f59973c3f3c4bf1cc2bba504484a409584db86fb531c4bb49eb",
+          "insertedText": "export function sameLocalSubtitleOverwriteDirectoryIdentity(\n  left: LocalSubtitleOverwriteDirectoryIdentity,\n  right: LocalSubtitleOverwriteDirectoryIdentity,\n): boolean {\n  if (\"volumeSerialHex\" in left || \"volumeSerialHex\" in right) {\n    return \"volumeSerialHex\" in left &&\n      \"volumeSerialHex\" in right &&\n      left.volumeSerialHex === right.volumeSerialHex &&\n      left.fileIdHex === right.fileIdHex;\n"
+        },
+        {
+          "startByte": 4659,
+          "endByte": 14718,
+          "removedSha256": "de4d23d3b1aec2ac0bf2282d436bd8202aa1805873d1700cb4a52755ef486b65",
+          "insertedText": "  return left.dev === right.dev &&\n    left.ino === right.ino &&\n    left.birthtimeMs === right.birthtimeMs;\n"
+        },
+        {
+          "startByte": 14928,
+          "endByte": 15157,
+          "removedSha256": "0c28d2da003f32644009cd16651c6a496e45bbd334b965bd240fea22250650e2",
+          "insertedText": "function isNonNegativeSafeInteger(value: unknown): value is number {\n  return Number.isSafeInteger(value) && (value as number) >= 0 &&\n    !Object.is(value, -0);\n"
+        },
+        {
+          "startByte": 15159,
+          "endByte": 15938,
+          "removedSha256": "ee27c9e513f33f52e0079551da287b7897ccf76566adab4ab629460043a90726",
+          "insertedText": ""
+        }
+      ],
+      "reason": "Reviewed neutral resource extraction: fixed catalog metadata, neutral imports, resource-only declarations and smoke callbacks; installation, verification and cleanup semantics retained"
+    },
+    {
+      "path": "electron/main/speech-resources/engine/filesystem-object-identity.ts",
+      "kind": "derived",
+      "sourcePaths": [
+        "electron/main/local-subtitle/filesystem-object-identity.ts"
+      ],
+      "baseSourcePath": "electron/main/local-subtitle/filesystem-object-identity.ts",
+      "byteSize": 8332,
+      "sha256": "9f376d5f8aeab84e790d7cc8457f0f360abcaa7064b287b825d17ae6c4e81c12",
+      "edits": [
+        {
+          "startByte": 262,
+          "endByte": 306,
+          "removedSha256": "7c241091ede24441f7c0ea829a4283e0209b568d6f012451f9cdd33465fbe290",
+          "insertedText": "} from \"./directory-identity\";\n"
+        },
+        {
+          "startByte": 438,
+          "endByte": 472,
+          "removedSha256": "d5df310d5c27c1651d2e0bd1e29d97b2b55d4429cbec367318e6d386c5c0ec5e",
+          "insertedText": "} from \"./directory-identity\";\n"
+        }
+      ],
+      "reason": "Reviewed neutral resource extraction: fixed catalog metadata, neutral imports, resource-only declarations and smoke callbacks; installation, verification and cleanup semantics retained"
+    },
+    {
+      "path": "electron/main/speech-resources/engine/model-manager.ts",
+      "kind": "derived",
+      "sourcePaths": [
+        "electron/main/local-subtitle/model-manager.ts"
+      ],
+      "baseSourcePath": "electron/main/local-subtitle/model-manager.ts",
+      "byteSize": 90064,
+      "sha256": "e803835806d8c8405cf422c7a3a23c439f051445f9d5482530e6729c33f0bf1d",
+      "edits": [
+        {
+          "startByte": 0,
+          "endByte": 0,
+          "removedSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "insertedText": "import { SpeechResourceSmokeError, type SpeechResourceModelSmoke, type SpeechResourceVadSmoke } from \"../../../../src/speech-resources/contracts\";\n"
+        },
+        {
+          "startByte": 554,
+          "endByte": 732,
+          "removedSha256": "1fff1144864059df492f20f373267f27cf5e0b0b356c743259c5df785c86a224",
+          "insertedText": "} from \"../../../../src/speech-resources/contracts\";\nimport type { LocalSubtitleManagedResourceSummary } from \"../../../../src/speech-resources/schemas\";\nimport type { LocalSubtitleOwnerKey } from \"../../../../src/speech-resources/contracts\";\n"
+        },
+        {
+          "startByte": 1759,
+          "endByte": 2022,
+          "removedSha256": "7d9e256c40f31d5578bac2072021d4f91c02e2f5db9c65b433a9730e541fdad2",
+          "insertedText": ""
+        },
+        {
+          "startByte": 2082,
+          "endByte": 2244,
+          "removedSha256": "26bda4ff2c0292580a73d358133c2288d741cfc9cbc0863ba5ae931bafa26f93",
+          "insertedText": "} from \"../../../../src/speech-resources/contracts\";\n"
+        },
+        {
+          "startByte": 2462,
+          "endByte": 2502,
+          "removedSha256": "53ff3685f1964f3fa1825673c062bca9a1cdefe39619595366b0537436c8faa0",
+          "insertedText": ""
+        },
+        {
+          "startByte": 4046,
+          "endByte": 4387,
+          "removedSha256": "9d3bd1be7305dc784d9519b089df0a0dea308fab7ce541c717688ec0e1092e28",
+          "insertedText": ""
+        },
+        {
+          "startByte": 4479,
+          "endByte": 4601,
+          "removedSha256": "2c5bb8c18da4452a44ea1011c5816a726ea6907637442a800c28ccb85d687969",
+          "insertedText": "  readonly platform?: NodeJS.Platform | string;\n  readonly arch?: string;\n  readonly smokeModel: SpeechResourceModelSmoke;\n  readonly smokeVad: SpeechResourceVadSmoke;\n"
+        },
+        {
+          "startByte": 5110,
+          "endByte": 5129,
+          "removedSha256": "ab821e0ee51859a2e47f7f35a04d1627ad01e87d735072a2d33571bf07a7a398",
+          "insertedText": "    | \"smokeVad\"\n"
+        },
+        {
+          "startByte": 5155,
+          "endByte": 5183,
+          "removedSha256": "191d7f2d74028f18828ceaca64f671f24bc24142ca5e3af6621c09d648fd8fef",
+          "insertedText": ""
+        },
+        {
+          "startByte": 5351,
+          "endByte": 5435,
+          "removedSha256": "2f5a9cfff2d3e35a715767b63024e5fbddeda48e887f8e3398350b5fea78a7f0",
+          "insertedText": ""
+        },
+        {
+          "startByte": 8594,
+          "endByte": 8719,
+          "removedSha256": "e576cd997b4e0651dbcc861734f233060f2908c8b596e785340bcc120a896efa",
+          "insertedText": "  readonly #smokeModel: SpeechResourceModelSmoke;\n"
+        },
+        {
+          "startByte": 9103,
+          "endByte": 9187,
+          "removedSha256": "271e17e3682f5a2f09ade0fa823b036019c1fd703456f484e8875ca4d575018f",
+          "insertedText": ""
+        },
+        {
+          "startByte": 10748,
+          "endByte": 10791,
+          "removedSha256": "6a7f7b8d8e042902237f09b3d52985b4f7b11890b51318de1502125c61dcbd34",
+          "insertedText": "    if (!options || typeof options.smokeModel !== \"function\" || typeof options.smokeVad !== \"function\") {\n"
+        },
+        {
+          "startByte": 11395,
+          "endByte": 11497,
+          "removedSha256": "dd3df6c638f5a720172d5fd8c153ad1d84df7ce2a993d4c2bb835688c2973388",
+          "insertedText": "    this.#smokeModel = options.smokeModel;\n"
+        },
+        {
+          "startByte": 12059,
+          "endByte": 12203,
+          "removedSha256": "699d8a03b68d4e0c7a108db617f082cb2a1e3040c23428aa9328d99b44636a58",
+          "insertedText": "    const platform = options.platform ?? process.platform;\n    const arch = options.arch ?? process.arch;\n"
+        },
+        {
+          "startByte": 12881,
+          "endByte": 13075,
+          "removedSha256": "bf1520fed1aab3d3060d3c37bf7df9d0c6e34bba62be9ffe409a28d7781861f6",
+          "insertedText": ""
+        },
+        {
+          "startByte": 14066,
+          "endByte": 14244,
+          "removedSha256": "41ba9efe468bdd800057c2e807ec92924d4f21c8f43b8a4aa3b554b9ade7ac9b",
+          "insertedText": "    this.#vadManager = options.vadManager === false\n"
+        },
+        {
+          "startByte": 14455,
+          "endByte": 14492,
+          "removedSha256": "e147973c00ebe39dd51255b00dff3bb8adaeff1bd7696e9af0c7ced2d14b9fa0",
+          "insertedText": "          smokeVad: options.smokeVad,\n"
+        },
+        {
+          "startByte": 14723,
+          "endByte": 14781,
+          "removedSha256": "29127b9e743bce110e9acb1f7e3f7b6a79e5aed0685454b8f99ba4c35d96dba9",
+          "insertedText": ""
+        },
+        {
+          "startByte": 32827,
+          "endByte": 33202,
+          "removedSha256": "325889230273638bba8d9fa1bbc68767f1f911206f4540c8cb77b7eb08519dbc",
+          "insertedText": "        await this.#smokeModel({ owner, model: {\n"
+        },
+        {
+          "startByte": 33403,
+          "endByte": 33524,
+          "removedSha256": "81376214684b570b01aed77f4b34becace9e374ecf97f1e5b3d11b81e83edc4c",
+          "insertedText": "          signal: context.signal,\n        });\n"
+        },
+        {
+          "startByte": 38225,
+          "endByte": 38600,
+          "removedSha256": "325889230273638bba8d9fa1bbc68767f1f911206f4540c8cb77b7eb08519dbc",
+          "insertedText": "        await this.#smokeModel({ owner, model: {\n"
+        },
+        {
+          "startByte": 38801,
+          "endByte": 38922,
+          "removedSha256": "81376214684b570b01aed77f4b34becace9e374ecf97f1e5b3d11b81e83edc4c",
+          "insertedText": "          signal: context.signal,\n        });\n"
+        },
+        {
+          "startByte": 86360,
+          "endByte": 86725,
+          "removedSha256": "43d63c1227ec65ead5811a3ade6bb9865bd7a25948b2c60298276173a7906f51",
+          "insertedText": "  if (error instanceof SpeechResourceSmokeError) {\n    return createLocalSubtitleError(error.code, \"The speech resource load smoke failed.\");\n"
+        },
+        {
+          "startByte": 88126,
+          "endByte": 88334,
+          "removedSha256": "73953d07bb4a2424497a2d2fd7e72364a2ca8916b76e45beb415107cc25a69c0",
+          "insertedText": ""
+        }
+      ],
+      "reason": "Reviewed neutral resource extraction: fixed catalog metadata, neutral imports, resource-only declarations and smoke callbacks; installation, verification and cleanup semantics retained"
+    },
+    {
+      "path": "electron/main/speech-resources/engine/vad-manager.ts",
+      "kind": "derived",
+      "sourcePaths": [
+        "electron/main/local-subtitle/vad-manager.ts"
+      ],
+      "baseSourcePath": "electron/main/local-subtitle/vad-manager.ts",
+      "byteSize": 40654,
+      "sha256": "6baf361e270945826b0687cb3c592d284e145665e23a0a095ca26b8cd6bd7a62",
+      "edits": [
+        {
+          "startByte": 0,
+          "endByte": 0,
+          "removedSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "insertedText": "import { type SpeechResourceVadSmoke } from \"../../../../src/speech-resources/contracts\";\n"
+        },
+        {
+          "startByte": 461,
+          "endByte": 639,
+          "removedSha256": "1fff1144864059df492f20f373267f27cf5e0b0b356c743259c5df785c86a224",
+          "insertedText": "} from \"../../../../src/speech-resources/contracts\";\nimport type { LocalSubtitleManagedResourceSummary } from \"../../../../src/speech-resources/schemas\";\nimport type { LocalSubtitleOwnerKey } from \"../../../../src/speech-resources/contracts\";\n"
+        },
+        {
+          "startByte": 1047,
+          "endByte": 1343,
+          "removedSha256": "95aaf1fc7b921a8043406f8408c80361852341c4d42bdedecad4000287b6afa9",
+          "insertedText": "import type { LocalSubtitleServerManagedResourceIdentity } from \"../../../../src/speech-resources/contracts\";\n"
+        },
+        {
+          "startByte": 2545,
+          "endByte": 2752,
+          "removedSha256": "5f2f7bce6d1c930ca8d3935119fc01d2e1f2c87e611de1a025e08437086bc4ff",
+          "insertedText": ""
+        },
+        {
+          "startByte": 2948,
+          "endByte": 3004,
+          "removedSha256": "53b1a5a2bc247e989c74c5b69a386b5d68e796b4fd4a30c0715529d5953ee79c",
+          "insertedText": "  readonly smokeVad: SpeechResourceVadSmoke;\n"
+        },
+        {
+          "startByte": 3133,
+          "endByte": 3216,
+          "removedSha256": "9ba4c076317dc27bb68574cb420cb3ade0339803c0be24298a26d3a4d94e2ecf",
+          "insertedText": ""
+        },
+        {
+          "startByte": 5364,
+          "endByte": 5421,
+          "removedSha256": "85098f8576d69175f2f099fb0e8f87a905e5bee0259a46e3f31482494f6ce30b",
+          "insertedText": "  readonly #smokeVad: SpeechResourceVadSmoke;\n"
+        },
+        {
+          "startByte": 5505,
+          "endByte": 5593,
+          "removedSha256": "cf281965458c2eeada7777e3910c5dd44ece7eca1ec1ac60d27526336c17240f",
+          "insertedText": ""
+        },
+        {
+          "startByte": 6822,
+          "endByte": 6999,
+          "removedSha256": "d86cbddc5651cf5eeef94cc49509084ef6e4cb1c706ab03c7acf376c5462628b",
+          "insertedText": "      typeof options.smokeVad !== \"function\" ||\n      typeof options.resolveSmokeModel !== \"function\"\n"
+        },
+        {
+          "startByte": 7659,
+          "endByte": 7702,
+          "removedSha256": "080cb75c9ca10dcb4f331ba4fc16163bd94ab0d2b516db06062701a3cbfdfa02",
+          "insertedText": "    this.#smokeVad = options.smokeVad;\n"
+        },
+        {
+          "startByte": 7759,
+          "endByte": 7820,
+          "removedSha256": "08fa94b97113a54f8aa1e272a4f06a771bee506f6fe48d9e53463b284f438fb2",
+          "insertedText": ""
+        },
+        {
+          "startByte": 17626,
+          "endByte": 18009,
+          "removedSha256": "43dc4048293aea90af947d321fe1e42123bc06a50007f09a44f9d4fef9dbe34d",
+          "insertedText": "      await this.#smokeVad({ owner, model: smokeModel, vad: {\n"
+        },
+        {
+          "startByte": 18224,
+          "endByte": 18335,
+          "removedSha256": "04e1db6dca4cce3502476f1185d799d0d0f9956bff0262ee4669fbbee38981cf",
+          "insertedText": "        signal: context.signal,\n      });\n"
+        }
+      ],
+      "reason": "Reviewed neutral resource extraction: fixed catalog metadata, neutral imports, resource-only declarations and smoke callbacks; installation, verification and cleanup semantics retained"
+    },
+    {
+      "path": "electron/main/speech-resources/catalog.ts",
+      "kind": "new",
+      "sourcePaths": [],
+      "baseSourcePath": null,
+      "byteSize": 709,
+      "sha256": "d1ec145fe8cb4b4461ced2f7057141eb06e4c9a386eeaa80221c1d3a695ef1b7",
+      "edits": [
+        {
+          "startByte": 0,
+          "endByte": 0,
+          "removedSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "insertedText": "export { LOCAL_SUBTITLE_MODEL_MANIFEST as SPEECH_MODEL_MANIFEST } from './engine/model-manifest';\nexport { LOCAL_SUBTITLE_VAD_MANIFEST as SPEECH_VAD_MANIFEST } from './engine/vad-manifest';\nexport { LOCAL_SUBTITLE_WINDOWS_CUDA_MANIFEST as SPEECH_CUDA_MANIFEST } from './engine/accelerator-manifest';\nexport { LOCAL_SUBTITLE_WINDOWS_CUDA_PACK_DEFINITION as SPEECH_CUDA_PACK_DEFINITION } from './engine/accelerator-manager';\nexport const SPEECH_CUDA_RESOURCE_ID = 'speech-windows-x64-cuda-12.4-v1' as const;\nexport function canonicalResourceId(id: string): string {\n  return id === 'local-subtitle-windows-x64-cuda-12.4-v1' || id === 'subtitle-studio-windows-x64-cuda-12.4-v1' ? SPEECH_CUDA_RESOURCE_ID : id;\n}\n"
+        }
+      ],
+      "reason": "Reviewed neutral resource extraction: fixed catalog metadata, neutral imports, resource-only declarations and smoke callbacks; installation, verification and cleanup semantics retained"
+    },
+    {
+      "path": "electron/main/speech-resources/engine/session-registry.ts",
+      "kind": "derived",
+      "sourcePaths": [
+        "electron/main/local-subtitle/session-registry.ts"
+      ],
+      "baseSourcePath": "electron/main/local-subtitle/session-registry.ts",
+      "byteSize": 11055,
+      "sha256": "c82ea7ca54f31102ceb9433198257d469215b7517e61a80d26f6bf4006ac3a0f",
+      "edits": [
+        {
+          "startByte": 0,
+          "endByte": 942,
+          "removedSha256": "0dca0a8145b0d6f2c5d15a692923bb9b2353f61f5413b7daab8379e938038d11",
+          "insertedText": "import { LOCAL_SUBTITLE_DOMAIN_SCHEMA_VERSION, LOCAL_SUBTITLE_LIMITS, createLocalSubtitleError, type LocalSubtitleErrorCode, type LocalSubtitleOwnerKey, type LocalSubtitleSessionSnapshot, type LocalSubtitleResourceJobSummary, type LocalSubtitleResourceEventEnvelope } from '../../../../src/speech-resources/contracts';\nimport { localSubtitleResourceJobSummarySchema, localSubtitleResourceEventEnvelopeSchema } from '../../../../src/speech-resources/schemas';\nexport type LocalSubtitleResourceEventListener = (envelope: LocalSubtitleResourceEventEnvelope) => void;\ninterface OwnerSessionDelivery { readonly kind: 'resource'; readonly envelope: LocalSubtitleResourceEventEnvelope; }\ninterface OwnerSessionState { readonly key: string; revision: number; readonly resourceJobs: Map<string,LocalSubtitleResourceJobSummary>; readonly resourceListeners: Set<LocalSubtitleResourceEventListener>; readonly deliveryQueue: OwnerSessionDelivery[]; delivering: boolean; }\nexport class LocalSubtitleSessionRegistry {\nreadonly #sessions = new Map<string, OwnerSessionState>();\n"
+        },
+        {
+          "startByte": 943,
+          "endByte": 1115,
+          "removedSha256": "521693db036babcf6ad9b57150cd50fbcd3206296b48be702ae77fb4d8f3a331",
+          "insertedText": "readonly #releasedOwners = new Set<string>();\n"
+        },
+        {
+          "startByte": 1116,
+          "endByte": 1303,
+          "removedSha256": "304653915e0046725844bbc1dcba1587955bceb684c14c8d465a76ff2da5e58b",
+          "insertedText": "#shutDown = false;\n"
+        },
+        {
+          "startByte": 1304,
+          "endByte": 1494,
+          "removedSha256": "2f925f5a9baa0613627339f15993c676093f01f6e397b5b83a2b2122ace19322",
+          "insertedText": "#shutdownOperation: Promise<void> | undefined;\n"
+        },
+        {
+          "startByte": 1495,
+          "endByte": 2689,
+          "removedSha256": "a96bea253b8310637d76a2cead5b3fe42784bd3eab016b9263db50229d3a4ab1",
+          "insertedText": "assertOwnerActive(owner: LocalSubtitleOwnerKey): void {\n"
+        },
+        {
+          "startByte": 2824,
+          "endByte": 2900,
+          "removedSha256": "eaa30d00b4f092c6eac44c01404831d0d4e175431fb83fd30e94834f279ca563",
+          "insertedText": "getSnapshot(owner: LocalSubtitleOwnerKey): LocalSubtitleSessionSnapshot {\n"
+        },
+        {
+          "startByte": 3079,
+          "endByte": 3125,
+          "removedSha256": "ccfc1aaa638b51171b380bde1502c8a49622b59f5f3c9970fbb8b4af1391c2ab",
+          "insertedText": "      batches: [],\n"
+        },
+        {
+          "startByte": 3195,
+          "endByte": 3213,
+          "removedSha256": "6214e8dac96775e76358e8a76cc79044bb73ae7858c8a31ef7250f5f569cf180",
+          "insertedText": "getResourceJob(\n"
+        },
+        {
+          "startByte": 3460,
+          "endByte": 4630,
+          "removedSha256": "771d09ad65c9440a7fe8ea7285b02abbc448ec30601054216e2eb230068d5dfa",
+          "insertedText": "onResourceEvent(\n"
+        },
+        {
+          "startByte": 5058,
+          "endByte": 12781,
+          "removedSha256": "484b6bc5386745183632b7c0686e4d049309af6456edf009fa49b45126ef5f35",
+          "insertedText": "upsertResourceJob(\n"
+        },
+        {
+          "startByte": 13658,
+          "endByte": 13679,
+          "removedSha256": "8e57137583169dc1c92db32cc50dd4aa1b9b9d52ce01067be937c9bf493293c6",
+          "insertedText": "removeResourceJob(\n"
+        },
+        {
+          "startByte": 14571,
+          "endByte": 14627,
+          "removedSha256": "7ff0b84c89a9318133e2c57c35ffdb3e1263315c12d74d7886cdb6f2f8731c40",
+          "insertedText": "releaseOwner(owner: LocalSubtitleOwnerKey): boolean {\n"
+        },
+        {
+          "startByte": 14817,
+          "endByte": 14853,
+          "removedSha256": "bdeaddb23b1f5f0ff64444721d34f681185705af7649a0fc443009dba792aa14",
+          "insertedText": ""
+        },
+        {
+          "startByte": 14985,
+          "endByte": 15015,
+          "removedSha256": "2a08697b88721f3deb7a5d01d45a01cafd9edf07866f8ec7d2d902178c94522c",
+          "insertedText": "shutdown(): Promise<void> {\n"
+        },
+        {
+          "startByte": 15277,
+          "endByte": 15314,
+          "removedSha256": "b924b326d9218f3d75ded5ba5687336d6a268ef373f1247cd6b7f20888d7ed0f",
+          "insertedText": ""
+        },
+        {
+          "startByte": 15455,
+          "endByte": 15524,
+          "removedSha256": "b407f3be8a6429534ef4f609fdb27e2a70953dc9ece0b18bb1244ba3b5b1ccdc",
+          "insertedText": "#requireSession(owner: LocalSubtitleOwnerKey): OwnerSessionState {\n"
+        },
+        {
+          "startByte": 15744,
+          "endByte": 15804,
+          "removedSha256": "1a7dd45c2a8cd83deef137c7c27c9ff1b48854b937263275b5b8788f7b277f64",
+          "insertedText": ""
+        },
+        {
+          "startByte": 15835,
+          "endByte": 15867,
+          "removedSha256": "746b6243f93693825d876fcd4479a799ac2ff3fab61fcbc5fa12c818adb35214",
+          "insertedText": ""
+        },
+        {
+          "startByte": 16023,
+          "endByte": 16045,
+          "removedSha256": "12022cca6c2d60391b596ac103085f94a8402e4af1f8c4d002cf50eb07183687",
+          "insertedText": "#enqueueDeliveries(\n"
+        },
+        {
+          "startByte": 16287,
+          "endByte": 16342,
+          "removedSha256": "774f3341e185fcec2aab906576100e702b9b785b1457c12fd6ebcecc05a6d8af",
+          "insertedText": "#drainDeliveries(session: OwnerSessionState): void {\n"
+        },
+        {
+          "startByte": 16596,
+          "endByte": 16789,
+          "removedSha256": "cad1c036a7c8ea33f157ac5b69539100695bf293ba45e3e6a9b6114ce8873081",
+          "insertedText": ""
+        },
+        {
+          "startByte": 16929,
+          "endByte": 16939,
+          "removedSha256": "e6b04491469722e8363a94e4044538e013a2a217e36b1e568ba60acb7b4c8f2e",
+          "insertedText": "\n"
+        },
+        {
+          "startByte": 17114,
+          "endByte": 17140,
+          "removedSha256": "0f32b5ff5398e254874399c9144a9b1bd43c873361618f503e3745e1050d3ade",
+          "insertedText": "#deliverToListeners<T>(\n"
+        },
+        {
+          "startByte": 17680,
+          "endByte": 17680,
+          "removedSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "insertedText": "export type LocalSubtitleSessionRegistryErrorCode = Extract<\n  LocalSubtitleErrorCode,\n  \"invalid_ipc_request\" | \"owner_released\" | \"limit_exceeded\" | \"invalid_content\"\n>;\n"
+        },
+        {
+          "startByte": 17681,
+          "endByte": 17953,
+          "removedSha256": "9194d602679369194c6cd2e03390a45964c9136706ecf3ae81aac9978b69a5f0",
+          "insertedText": "export class LocalSubtitleSessionRegistryError extends Error {\n  readonly name = \"LocalSubtitleSessionRegistryError\";\n  readonly localSubtitleCode: LocalSubtitleSessionRegistryErrorCode;\n"
+        },
+        {
+          "startByte": 17954,
+          "endByte": 19348,
+          "removedSha256": "52810159b5304ac7e9c96c8a25c6d1c241871a493eb94bc2ef692d22d03737a4",
+          "insertedText": "  constructor(\n    readonly code: LocalSubtitleSessionRegistryErrorCode,\n    message: string,\n    readonly field?: string,\n  ) {\n    super(message);\n    this.localSubtitleCode = code;\n"
+        },
+        {
+          "startByte": 19352,
+          "endByte": 27270,
+          "removedSha256": "d60ed539927010053785b9cf842705159a569da5ddd4f74c073bacc376dfd73d",
+          "insertedText": ""
+        },
+        {
+          "startByte": 28138,
+          "endByte": 28361,
+          "removedSha256": "cfad4aa6ed1b39e752c6dcd0b7eaaf00842ee4e64190f1c9208d30c5f9ad8477",
+          "insertedText": ""
+        },
+        {
+          "startByte": 28594,
+          "endByte": 28908,
+          "removedSha256": "227c0ad2922b764492b68d69764b35a0bcb679b872afc3a5cd62f6c74126da83",
+          "insertedText": ""
+        },
+        {
+          "startByte": 31099,
+          "endByte": 31099,
+          "removedSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "insertedText": "\nfunction parseSnapshot(value: LocalSubtitleSessionSnapshot): LocalSubtitleSessionSnapshot {\n  if (Buffer.byteLength(JSON.stringify(value),'utf8') > LOCAL_SUBTITLE_LIMITS.maxSessionSnapshotBytes) throw failure('limit_exceeded','snapshot');\n  return value;\n}\n"
+        }
+      ],
+      "reason": "Reviewed neutral resource extraction: fixed catalog metadata, neutral imports, resource-only declarations and smoke callbacks; installation, verification and cleanup semantics retained"
+    },
+    {
+      "path": "test/speech-resources/engine/acceleratorArchive.test.ts",
+      "kind": "derived",
+      "sourcePaths": [
+        "test/local-subtitle/acceleratorArchive.test.ts"
+      ],
+      "baseSourcePath": "test/local-subtitle/acceleratorArchive.test.ts",
+      "byteSize": 12875,
+      "sha256": "9412a5b6b21abb0e4722e71c1fd15816d0a92670c7120e412616d89dae376e9d",
+      "edits": [
+        {
+          "startByte": 339,
+          "endByte": 404,
+          "removedSha256": "41f8529f52a3762581f2bb00a49284a0262fc8c3e5c9a173290831941e9d686e",
+          "insertedText": "} from \"../../../electron/main/speech-resources/engine/accelerator-archive\";\n"
+        },
+        {
+          "startByte": 509,
+          "endByte": 575,
+          "removedSha256": "5c2650fe3da7f849ccd6efb448a52e4cf9e8bdaab7cf5083f2858fdb9557873d",
+          "insertedText": "} from \"../../../electron/main/speech-resources/engine/accelerator-manifest\";\n"
+        },
+        {
+          "startByte": 774,
+          "endByte": 829,
+          "removedSha256": "839fbbf7cee5e76cc2769802c1253a50a6ac90c5ed81b430ab30e0254465cf93",
+          "insertedText": "describe(\"speech resource engine accelerator archive\", () => {\n"
+        }
+      ],
+      "reason": "Reviewed neutral resource extraction: controlled unit fixture imports and resource-only callback signatures"
+    },
+    {
+      "path": "test/speech-resources/engine/acceleratorManager.test.ts",
+      "kind": "derived",
+      "sourcePaths": [
+        "test/local-subtitle/acceleratorManager.test.ts"
+      ],
+      "baseSourcePath": "test/local-subtitle/acceleratorManager.test.ts",
+      "byteSize": 25072,
+      "sha256": "ebbee2ea333b128fd599e99be530d64b11afa28b24b6be5bb342a3db5ffbd7b3",
+      "edits": [
+        {
+          "startByte": 492,
+          "endByte": 833,
+          "removedSha256": "50db57f2b047f7cd5d5a545f50f50fdc6e28cbe2d8b5e4ae54c79d304936efa5",
+          "insertedText": "} from \"../../../electron/main/speech-resources/engine/accelerator-manager\";\nimport { LOCAL_SUBTITLE_PRODUCTION_CONTRACT } from \"../../../src/speech-resources/contracts\";\nimport { LOCAL_SUBTITLE_MODEL_MANIFEST } from \"../../../electron/main/speech-resources/engine/model-manifest\";\nimport { LocalSubtitleModelManager } from \"../../../electron/main/speech-resources/engine/model-manager\";\n"
+        },
+        {
+          "startByte": 890,
+          "endByte": 1161,
+          "removedSha256": "5499955821ad086295715e50b24bbf7f371fad53351f9f33fca0e43418b6743e",
+          "insertedText": "} from \"../../../electron/main/speech-resources/engine/filesystem-object-identity\";\nimport { LocalSubtitleResourceJobManager } from \"../../../electron/main/speech-resources/engine/resource-job\";\nimport { LocalSubtitleSessionRegistry } from \"../../../electron/main/speech-resources/engine/session-registry\";\n"
+        },
+        {
+          "startByte": 1652,
+          "endByte": 1707,
+          "removedSha256": "38a01150cb00d02aa032a87c25b4e75f3233174882eebeca86c35f7f23bbe8f4",
+          "insertedText": "describe(\"speech resource engine accelerator manager\", () => {\n"
+        },
+        {
+          "startByte": 2155,
+          "endByte": 2360,
+          "removedSha256": "05e1e9cd050a9805007d644f7ebcacd59f4f7c97ab06c0e209add222adc3b7f7",
+          "insertedText": "      platform: process.platform, arch: process.arch,\n      smokeModel: vi.fn(async () => undefined), smokeVad: vi.fn(async () => undefined), vadManager: false,\n"
+        },
+        {
+          "startByte": 21878,
+          "endByte": 21974,
+          "removedSha256": "78301accda72beec59c4058b10f8e8cacee56a17d33d612f2d9cc479f42f58ee",
+          "insertedText": "    target: { platform: \"win32\", arch: \"x64\", backend: \"cuda\" } as const,\n    signatureKind: \"unsigned\" as const,\n"
+        }
+      ],
+      "reason": "Reviewed neutral resource extraction: controlled unit fixture imports and resource-only callback signatures"
+    },
+    {
+      "path": "test/speech-resources/engine/catalog.test.ts",
+      "kind": "new",
+      "sourcePaths": [],
+      "baseSourcePath": null,
+      "byteSize": 3509,
+      "sha256": "c818d4cfe3b21f1103ca6968e3f8a48ecbd8f42536205a7f3cddf745ca12e39b",
+      "edits": [
+        {
+          "startByte": 0,
+          "endByte": 0,
+          "removedSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "insertedText": "import { createHash } from 'node:crypto';\nimport { describe, expect, it } from 'vitest';\nimport modelSource from '../../../resources/speech-resources/migration/legacy/local-subtitle-models.v1.json';\nimport vadSource from '../../../resources/speech-resources/migration/legacy/local-subtitle-vad.v1.json';\nimport cudaSource from '../../../resources/speech-resources/migration/legacy/local-subtitle-windows-cuda-pack.v1.json';\nimport studioCudaSource from '../../../resources/speech-resources/migration/studio/subtitle-studio-windows-cuda-pack.v1.json';\nimport {\n  SPEECH_CUDA_MANIFEST, SPEECH_CUDA_PACK_DEFINITION, SPEECH_CUDA_RESOURCE_ID,\n  SPEECH_MODEL_MANIFEST, SPEECH_VAD_MANIFEST, canonicalResourceId,\n} from '../../../electron/main/speech-resources/catalog';\nimport { parseLocalSubtitleAcceleratorManifest } from '../../../electron/main/speech-resources/engine/accelerator-manifest';\nimport { LocalSubtitleModelManager } from '../../../electron/main/speech-resources/engine/model-manager';\nimport { localSubtitleSessionSnapshotSchema } from '../../../src/speech-resources/schemas';\n\ndescribe('neutral resource catalog', () => {\n  it('retains the exact fixed model and VAD definitions independently of the retired tool', () => {\n    expect(SPEECH_MODEL_MANIFEST).toEqual(modelSource);\n    expect(SPEECH_VAD_MANIFEST).toEqual(vadSource);\n  });\n\n  it('changes only CUDA package identity and metadata path, retaining every payload pin', () => {\n    const expected = structuredClone(cudaSource);\n    expected.packId = SPEECH_CUDA_RESOURCE_ID;\n    expected.staging.manifestRelativePath = 'manifests/speech-windows-cuda-pack.v1.json';\n    expect(SPEECH_CUDA_MANIFEST).toEqual(expected);\n    expect(SPEECH_CUDA_MANIFEST.artifacts).toEqual(studioCudaSource.artifacts);\n    expect(SPEECH_CUDA_PACK_DEFINITION.artifacts).toHaveLength(20);\n    expect(JSON.parse(SPEECH_CUDA_PACK_DEFINITION.manifestBytes.toString('utf8'))).toEqual(expected);\n    expect(createHash('sha256').update(SPEECH_CUDA_PACK_DEFINITION.manifestBytes).digest('hex')).toMatch(/^[a-f0-9]{64}$/);\n  });\n\n  it('maps only the two exact legacy CUDA aliases into the single canonical installation', () => {\n    for (const id of [cudaSource.packId, studioCudaSource.packId, SPEECH_CUDA_RESOURCE_ID]) {\n      expect(canonicalResourceId(id)).toBe(SPEECH_CUDA_RESOURCE_ID);\n    }\n    for (const id of ['large-v3', SPEECH_VAD_MANIFEST.vad.id, `${cudaSource.packId}-unknown`, '../models']) {\n      expect(canonicalResourceId(id)).toBe(id);\n    }\n  });\n\n  it('rejects a renamed old manifest or a modified payload pin', () => {\n    expect(() => parseLocalSubtitleAcceleratorManifest(cudaSource)).toThrow();\n    const changed = structuredClone(SPEECH_CUDA_MANIFEST);\n    changed.artifacts[0]!.sha256 = 'a'.repeat(64);\n    expect(() => parseLocalSubtitleAcceleratorManifest(changed)).toThrow();\n  });\n\n  it('requires real composition to supply both smoke callbacks', () => {\n    expect(() => new LocalSubtitleModelManager(undefined as never)).toThrow(TypeError);\n    expect(() => new LocalSubtitleModelManager({ smokeModel: async () => undefined } as never)).toThrow(TypeError);\n  });\n\n  it('keeps batch and task state outside the resource registry DTO', () => {\n    expect(localSubtitleSessionSnapshotSchema.safeParse({ schemaVersion: 1, revision: 0, batches: [], resourceJobs: [] }).success).toBe(true);\n    expect(localSubtitleSessionSnapshotSchema.safeParse({ schemaVersion: 1, revision: 0, batches: [{}], resourceJobs: [] }).success).toBe(false);\n  });\n});\n"
+        }
+      ],
+      "reason": "Reviewed neutral resource extraction: controlled unit fixture imports and resource-only callback signatures"
+    },
+    {
+      "path": "test/speech-resources/engine/ggmlModel.test.ts",
+      "kind": "derived",
+      "sourcePaths": [
+        "test/local-subtitle/ggmlModel.test.ts"
+      ],
+      "baseSourcePath": "test/local-subtitle/ggmlModel.test.ts",
+      "byteSize": 9201,
+      "sha256": "e229615393e8a4089bad8b8035ccc734d1cc9b29699c9008a625b1ef8ca081af",
+      "edits": [
+        {
+          "startByte": 312,
+          "endByte": 372,
+          "removedSha256": "0e7c150b506d822f2444767392a06f4a8ccb05c9d444f93320a6ad1d46c7e5db",
+          "insertedText": "} from \"../../../electron/main/speech-resources/engine/model-manifest\";\n"
+        },
+        {
+          "startByte": 574,
+          "endByte": 630,
+          "removedSha256": "d7ec309541487af3223760d4d5cf3674ce5d5e38d49563bd383098a5db345a3a",
+          "insertedText": "} from \"../../../electron/main/speech-resources/engine/ggml-model\";\n"
+        },
+        {
+          "startByte": 695,
+          "endByte": 754,
+          "removedSha256": "4ff4008010d0e84c4d4f101fcae7b494b48457b3b2affad0719d13ce3bf02647",
+          "insertedText": "describe(\"speech resource engine GGML model verification\", () => {\n"
+        }
+      ],
+      "reason": "Reviewed neutral resource extraction: controlled unit fixture imports and resource-only callback signatures"
+    },
+    {
+      "path": "test/speech-resources/engine/modelManager.test.ts",
+      "kind": "derived",
+      "sourcePaths": [
+        "test/local-subtitle/modelManager.test.ts"
+      ],
+      "baseSourcePath": "test/local-subtitle/modelManager.test.ts",
+      "byteSize": 50932,
+      "sha256": "b14724698659cb2605f004cf2e11a912135442a6af0543e570f4afe74840aedf",
+      "edits": [
+        {
+          "startByte": 0,
+          "endByte": 0,
+          "removedSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "insertedText": "import { SpeechResourceSmokeError, type SpeechResourceModelSmoke } from \"../../../src/speech-resources/contracts\";\n"
+        },
+        {
+          "startByte": 351,
+          "endByte": 431,
+          "removedSha256": "08b2f86f99236bac6fa2c2030caa1fc2536a98ccbc46d760d5beed78d75f28ba",
+          "insertedText": "import type { LocalSubtitleResourceEventEnvelope } from \"@/speech-resources/contracts\";\n"
+        },
+        {
+          "startByte": 540,
+          "endByte": 600,
+          "removedSha256": "0e7c150b506d822f2444767392a06f4a8ccb05c9d444f93320a6ad1d46c7e5db",
+          "insertedText": "} from \"../../../electron/main/speech-resources/engine/model-manifest\";\n"
+        },
+        {
+          "startByte": 645,
+          "endByte": 701,
+          "removedSha256": "d7ec309541487af3223760d4d5cf3674ce5d5e38d49563bd383098a5db345a3a",
+          "insertedText": "} from \"../../../electron/main/speech-resources/engine/ggml-model\";\n"
+        },
+        {
+          "startByte": 780,
+          "endByte": 881,
+          "removedSha256": "68f4f01f5b3371acc11f42c17d58560a79482138c4d9ac288e41d4d9e8154b73",
+          "insertedText": "} from \"../../../electron/main/speech-resources/engine/model-manager\";\n"
+        },
+        {
+          "startByte": 961,
+          "endByte": 1367,
+          "removedSha256": "f0c9e283c0025e75d1d01c0795aa52f24357f79a52c963569aac133208e9d597",
+          "insertedText": "} from \"../../../electron/main/speech-resources/engine/resource-download\";\nimport { LocalSubtitleSessionRegistry } from \"../../../electron/main/speech-resources/engine/session-registry\";\n"
+        },
+        {
+          "startByte": 1572,
+          "endByte": 2171,
+          "removedSha256": "26f604254eb086625fac12b293615b97ac2fa9b8426e9f7969779ec8694a8bf4",
+          "insertedText": ""
+        },
+        {
+          "startByte": 2309,
+          "endByte": 2370,
+          "removedSha256": "22caad57e0552efea4a4892f7672d32a0793ee6ec23b91ee5616cf2ea2d8961a",
+          "insertedText": ""
+        },
+        {
+          "startByte": 2371,
+          "endByte": 2420,
+          "removedSha256": "9beff27e41814e6f6185347107fb249d859a3c2b332797b5380851781bc00441",
+          "insertedText": "describe(\"speech resource engine model manager\", () => {\n"
+        },
+        {
+          "startByte": 9403,
+          "endByte": 9521,
+          "removedSha256": "fa1b19e9d85d77b208b1fa580ba98bcf86856da0342da3a10e2a8af6c9ff5967",
+          "insertedText": "    expect(fixture.smoke.mock.calls[0]?.[0]).toMatchObject({\n"
+        },
+        {
+          "startByte": 9619,
+          "endByte": 9696,
+          "removedSha256": "82e3ecb071c5e2340009d5014590970e8686cddf4c62fc77bb38eb9ffe4640ae",
+          "insertedText": "    expect(fixture.smoke.mock.calls[0]?.[0]).not.toHaveProperty(\"vadModel\");\n"
+        },
+        {
+          "startByte": 11005,
+          "endByte": 11191,
+          "removedSha256": "5f6b915c9f07dc53a29fdf6d49836675b19e03765befc4ae04808f2b4248c5a2",
+          "insertedText": "      platform: process.platform, arch: process.arch,\n      smokeModel: fixture.smoke, smokeVad: async () => undefined, vadManager: false, acceleratorManager: false,\n"
+        },
+        {
+          "startByte": 11241,
+          "endByte": 11295,
+          "removedSha256": "4425ef4609b64eaaf77c50643cae5bccdc87412c914b3b9d44fe8654b687c659",
+          "insertedText": ""
+        },
+        {
+          "startByte": 14968,
+          "endByte": 15029,
+          "removedSha256": "de1377ffe7064ba4dfd10140a750c5e1d875ce49065ca2795d515b79effea22f",
+          "insertedText": "      smokeModel: async () => { throw new SpeechResourceSmokeError(\"runtime_missing\", \"CPU runtime unavailable\"); },\n"
+        },
+        {
+          "startByte": 21887,
+          "endByte": 21938,
+          "removedSha256": "87b13ee5e859b751a3fca65a9556200ecf3d033a7344428eddb54acb1efae05f",
+          "insertedText": "      smoke: vi.fn(({ signal }) => {\n"
+        },
+        {
+          "startByte": 25503,
+          "endByte": 25622,
+          "removedSha256": "b2bea8ef1aa669bf7a65f74961ec503795cb258ee3b795d3b918d05a28078196",
+          "insertedText": "    const smoke = vi.fn(async () => undefined);\n"
+        },
+        {
+          "startByte": 25772,
+          "endByte": 25944,
+          "removedSha256": "9e75f931c75d22b8aa5a37a270a9690b4f6a76ca656a1e63380d47fb2501ba35",
+          "insertedText": "        platform: process.platform, arch: process.arch,\n        smokeModel: smoke, smokeVad: async () => undefined, vadManager: false, acceleratorManager: false,\n"
+        },
+        {
+          "startByte": 31143,
+          "endByte": 31191,
+          "removedSha256": "e502bd3de0cc90fe4288ce94a62522454eb7b1b2ced3391019347ef05dcf8d84",
+          "insertedText": "      smoke: vi.fn(async (options) => {\n"
+        },
+        {
+          "startByte": 42778,
+          "endByte": 42964,
+          "removedSha256": "5f6b915c9f07dc53a29fdf6d49836675b19e03765befc4ae04808f2b4248c5a2",
+          "insertedText": "      platform: process.platform, arch: process.arch,\n      smokeModel: fixture.smoke, smokeVad: async () => undefined, vadManager: false, acceleratorManager: false,\n"
+        },
+        {
+          "startByte": 44074,
+          "endByte": 44260,
+          "removedSha256": "5f6b915c9f07dc53a29fdf6d49836675b19e03765befc4ae04808f2b4248c5a2",
+          "insertedText": "      platform: process.platform, arch: process.arch,\n      smokeModel: fixture.smoke, smokeVad: async () => undefined, vadManager: false, acceleratorManager: false,\n"
+        },
+        {
+          "startByte": 45777,
+          "endByte": 45963,
+          "removedSha256": "5f6b915c9f07dc53a29fdf6d49836675b19e03765befc4ae04808f2b4248c5a2",
+          "insertedText": "      platform: process.platform, arch: process.arch,\n      smokeModel: fixture.smoke, smokeVad: async () => undefined, vadManager: false, acceleratorManager: false,\n"
+        },
+        {
+          "startByte": 47217,
+          "endByte": 47307,
+          "removedSha256": "307d5bcbe7310288eac6cdb31bc12912570571892f9e032cd150d384b3fd425e",
+          "insertedText": "  readonly smokeModel?: SpeechResourceModelSmoke;\n"
+        },
+        {
+          "startByte": 48332,
+          "endByte": 48422,
+          "removedSha256": "fc41758d196a9f727ba373d8ee1ce967c906fbe5e44069e65dd547bf58402298",
+          "insertedText": ""
+        },
+        {
+          "startByte": 48510,
+          "endByte": 48654,
+          "removedSha256": "6b3560f603e9ef9da4aea822277c11f54ac22acd8b63060c2e243d626c521401",
+          "insertedText": "    platform: process.platform, arch: process.arch,\n    smokeModel: options.smokeModel ?? smoke, smokeVad: async () => undefined, vadManager: false, acceleratorManager: false,\n"
+        },
+        {
+          "startByte": 48793,
+          "endByte": 48878,
+          "removedSha256": "ea9250429e3009a82ca6e3bf9566c815df606c3331a97ef09d359bc7c04e2eab",
+          "insertedText": ""
+        },
+        {
+          "startByte": 49989,
+          "endByte": 50005,
+          "removedSha256": "550e0f64bfef4bef1d98338fe454c333b52b476c913f12e9af75c273f6907ab4",
+          "insertedText": ""
+        },
+        {
+          "startByte": 51861,
+          "endByte": 51950,
+          "removedSha256": "68911126bb0444cd8adee45d77fbd9a62ee04e9a75715569234ed67830f534da",
+          "insertedText": ""
+        }
+      ],
+      "reason": "Reviewed neutral resource extraction: controlled unit fixture imports and resource-only callback signatures"
+    },
+    {
+      "path": "test/speech-resources/engine/resourceDownload.test.ts",
+      "kind": "derived",
+      "sourcePaths": [
+        "test/local-subtitle/resourceDownload.test.ts"
+      ],
+      "baseSourcePath": "test/local-subtitle/resourceDownload.test.ts",
+      "byteSize": 20311,
+      "sha256": "c4e925226418aa3fd5cb0b6fa5e8693c6b951f0314a4695abf6ce943a6529272",
+      "edits": [
+        {
+          "startByte": 343,
+          "endByte": 406,
+          "removedSha256": "2f18fefce4628978002e3b3051d43122052221560cec68422364be413277bc34",
+          "insertedText": "} from \"../../../electron/main/speech-resources/engine/resource-download\";\n"
+        },
+        {
+          "startByte": 780,
+          "endByte": 833,
+          "removedSha256": "79409389f737a55970cec5e4239c98e8c89f4ba25154282c062f689487dc5e84",
+          "insertedText": "describe(\"speech resource engine resource download\", () => {\n"
+        },
+        {
+          "startByte": 3124,
+          "endByte": 3202,
+          "removedSha256": "9bb15517c75776e6dd6b113cffd56f7b7ffeb9d31f74495e1f93f9ed9f4c2fbc",
+          "insertedText": "    const openResponse = vi.fn<OpenLocalSubtitleDownloadResponse>(async (): ReturnType<OpenLocalSubtitleDownloadResponse> =>\n"
+        }
+      ],
+      "reason": "Reviewed neutral resource extraction: controlled unit fixture imports and resource-only callback signatures"
+    },
+    {
+      "path": "test/speech-resources/engine/resourceJob.test.ts",
+      "kind": "derived",
+      "sourcePaths": [
+        "test/local-subtitle/resourceJob.test.ts"
+      ],
+      "baseSourcePath": "test/local-subtitle/resourceJob.test.ts",
+      "byteSize": 15477,
+      "sha256": "a0748a770f095766e77c7138aa2deeba0a04b8495f2657990e84451c79b2733f",
+      "edits": [
+        {
+          "startByte": 51,
+          "endByte": 306,
+          "removedSha256": "e7192aed71862f512f5ecfb3199ee596c0b1808fa9d69c89d6cd219d12570c6a",
+          "insertedText": "import { createLocalSubtitleError } from \"../../../src/speech-resources/contracts\";\nimport { localSubtitleSessionSnapshotSchema } from \"../../../src/speech-resources/schemas\";\nimport type { LocalSubtitleOwnerKey } from \"../../../src/speech-resources/contracts\";\n"
+        },
+        {
+          "startByte": 392,
+          "endByte": 550,
+          "removedSha256": "15682c4458e130348fba0965811522ffae30a35e43434f5c8263d4edad52dce5",
+          "insertedText": "} from \"../../../electron/main/speech-resources/engine/resource-job\";\nimport { LocalSubtitleSessionRegistry } from \"../../../electron/main/speech-resources/engine/session-registry\";\n"
+        }
+      ],
+      "reason": "Reviewed neutral resource extraction: controlled unit fixture imports and resource-only callback signatures"
+    },
+    {
+      "path": "test/speech-resources/engine/resourceStartupCleaner.test.ts",
+      "kind": "derived",
+      "sourcePaths": [
+        "test/local-subtitle/resourceStartupCleaner.test.ts"
+      ],
+      "baseSourcePath": "test/local-subtitle/resourceStartupCleaner.test.ts",
+      "byteSize": 17232,
+      "sha256": "ca0bd8a31d985b33df2990a7ffdc13827cee55b29ac29253ed4637c80786e79c",
+      "edits": [
+        {
+          "startByte": 246,
+          "endByte": 358,
+          "removedSha256": "80b025b69e837cb5e86a91edefffae482d35fd771a2f2a8e83664dc663876ab8",
+          "insertedText": "import { LOCAL_SUBTITLE_WINDOWS_CUDA_MANIFEST } from \"../../../electron/main/speech-resources/engine/accelerator-manifest\";\n"
+        },
+        {
+          "startByte": 413,
+          "endByte": 413,
+          "removedSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "insertedText": "  cleanupSpeechResourceSessionStartupOrphans,\n"
+        },
+        {
+          "startByte": 511,
+          "endByte": 676,
+          "removedSha256": "f153e78ae84d0941074746558b4bab3913e6391435c3862ad2de351ad80ef7f8",
+          "insertedText": "} from \"../../../electron/main/speech-resources/engine/resource-startup-cleaner\";\nimport { LOCAL_SUBTITLE_VAD_MANIFEST } from \"../../../electron/main/speech-resources/engine/vad-manifest\";\n"
+        },
+        {
+          "startByte": 1025,
+          "endByte": 1085,
+          "removedSha256": "bdc988770ce3d5e9f4687b5cb36e2dcd2df52d924e586d49fa811ce820a05d93",
+          "insertedText": "describe(\"domain-private session startup cleanup\", () => {\n  it(\"removes only owned sessions and fixed summaries while leaving every resource tree unopened\", async () => {\n    const root = await mkdtemp(path.join(os.tmpdir(), \"fusionkit-session-cleaner-\"));\n    roots.push(root);\n    const managedResourceRoot = path.join(root, \"domain\");\n    await mkdir(managedResourceRoot, { mode: 0o700 });\n    const keep = [\"models/model.bin\", \"vad/manifest.json\", \"accelerators/manifest.json\",\n      \"downloads/test.part\", \"accelerator-downloads/test.part\", \"model-staging/.cleanup-\" + uuid(1) + \"/payload\",\n      \"vad-staging/.delete-\" + uuid(2) + \"/payload\", \"accelerator-staging/.cleanup-\" + uuid(3) + \"/payload\",\n      \"temp/server-not-owned/payload\", \"temp/media/media-too-long/payload\", \".session-summary.v1.json.not-owned.tmp\"];\n    for (const name of keep) {\n      await mkdir(path.dirname(path.join(managedResourceRoot, name)), { recursive: true, mode: 0o700 });\n      await writeFile(path.join(managedResourceRoot, name), name);\n    }\n    const shared = path.join(root, \"speech-resources\");\n    await mkdir(shared, { mode: 0o700 });\n    await writeFile(path.join(shared, \"shared.bin\"), \"shared\");\n    const sessions = [\"temp/server-Ab12Cd\", \"temp/server-Zz99Yy.cleanup-0123456789abcdef0123456789abcdef\",\n      \"temp/media/media-Qw12Er\", \"temp/media/.startup-cleanup-\" + uuid(4)];\n    for (const name of sessions) await mkdir(path.join(managedResourceRoot, name), { recursive: true, mode: 0o700 });\n    await writeFile(path.join(managedResourceRoot, \"session-summary.v1.json\"), \"old\");\n    await writeFile(path.join(managedResourceRoot, `.session-summary.v1.json.${uuid(5)}.tmp`), \"old\");\n\n    const result = await cleanupSpeechResourceSessionStartupOrphans({ managedResourceRoot,\n      quarantineIdFactory: sequentialUuidFactory(10),\n      // Even an untyped caller cannot enable resource cleanup through this entry point.\n      ...{ downloadDefinitions: [definition(\"test\", 10)], arch: \"x64\" },\n    });\n    expect(result).toEqual({ preservedDownloads: 0, removedDownloadStates: 0, removedMetadataTemporaries: 0,\n      removedLegacySessionSummaryFiles: 2, removedStagingDirectories: 0, removedServerSessions: 2, removedMediaSessions: 2 });\n    for (const name of keep) expect(await readFile(path.join(managedResourceRoot, name), \"utf8\")).toBe(name);\n    for (const name of sessions) await expect(lstat(path.join(managedResourceRoot, name))).rejects.toMatchObject({ code: \"ENOENT\" });\n    expect(await readFile(path.join(shared, \"shared.bin\"), \"utf8\")).toBe(\"shared\");\n  });\n\n  it(\"does not create acquisition directories and refuses linked session roots without touching their target\", async () => {\n    const root = await mkdtemp(path.join(os.tmpdir(), \"fusionkit-session-cleaner-\"));\n    roots.push(root);\n    const managedResourceRoot = path.join(root, \"domain\");\n    await cleanupSpeechResourceSessionStartupOrphans({ managedResourceRoot });\n    expect(await readdir(managedResourceRoot)).toEqual([\"temp\"]);\n    const outside = path.join(root, \"outside\");\n    await mkdir(path.join(outside, \"server-Ab12Cd\"), { recursive: true, mode: 0o700 });\n    await rename(path.join(managedResourceRoot, \"temp\"), path.join(managedResourceRoot, \"original-temp\"));\n    await symlink(outside, path.join(managedResourceRoot, \"temp\"), process.platform === \"win32\" ? \"junction\" : \"dir\");\n    await expect(cleanupSpeechResourceSessionStartupOrphans({ managedResourceRoot })).rejects.toThrow();\n    expect((await lstat(path.join(outside, \"server-Ab12Cd\"))).isDirectory()).toBe(true);\n  });\n\n  it(\"retains a replaced quarantine directory when its identity no longer matches the session\", async () => {\n    const root = await mkdtemp(path.join(os.tmpdir(), \"fusionkit-session-cleaner-\"));\n    roots.push(root);\n    const managedResourceRoot = path.join(root, \"domain\");\n    await mkdir(path.join(managedResourceRoot, \"temp\", \"server-Ab12Cd\"), { recursive: true, mode: 0o700 });\n    const removeDirectory = vi.fn();\n    await expect(cleanupSpeechResourceSessionStartupOrphans({ managedResourceRoot,\n      quarantineIdFactory: () => uuid(11), removeDirectory,\n      renameDirectory: async (source, destination) => {\n        await rename(source, destination);\n        await rename(destination, destination + \".preserved\");\n        await mkdir(destination, { mode: 0o700 });\n        await writeFile(path.join(destination, \"replacement\"), \"keep\");\n      },\n    })).rejects.toThrow(\"object changed identity\");\n    expect(removeDirectory).not.toHaveBeenCalled();\n    expect(await readFile(path.join(managedResourceRoot, \"temp\", `.startup-cleanup-${uuid(11)}`, \"replacement\"), \"utf8\")).toBe(\"keep\");\n  });\n});\n\ndescribe(\"speech resource engine resource startup cleaner\", () => {\n"
+        }
+      ],
+      "reason": "Reviewed neutral resource extraction: controlled unit fixture imports and resource-only callback signatures"
+    },
+    {
+      "path": "test/speech-resources/engine/sessionRegistry.test.ts",
+      "kind": "new",
+      "sourcePaths": [],
+      "baseSourcePath": null,
+      "byteSize": 3282,
+      "sha256": "26426e2695a7c50679cbd7c6d0373a1e3008a8e1e2195958b0acc0dd1d8f17bc",
+      "edits": [
+        {
+          "startByte": 0,
+          "endByte": 0,
+          "removedSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "insertedText": "import { describe, expect, it } from 'vitest';\nimport { LocalSubtitleSessionRegistry } from '../../../electron/main/speech-resources/engine/session-registry';\nimport type { LocalSubtitleResourceJobSummary } from '../../../src/speech-resources/contracts';\n\nconst owner = Object.freeze({ webContentsId: 711, ownerSessionId: 'shared-resource-registry' });\nconst job = (jobId: string): LocalSubtitleResourceJobSummary => ({\n  jobId, resourceId: 'large-v3-q5_0', resourceType: 'model', status: 'queued', progress: 0,\n  createdAt: '2026-09-12T00:00:00.000Z', updatedAt: '2026-09-12T00:00:00.000Z',\n});\n\ndescribe('resource-only registry publication', () => {\n  it('orders nested publication after all listeners of the current revision', () => {\n    const registry = new LocalSubtitleSessionRegistry();\n    const delivered: string[] = [];\n    registry.onResourceEvent(owner, event => {\n      delivered.push(`a${event.revision}`);\n      if (event.revision === 1) registry.upsertResourceJob(owner, job('nested'));\n    });\n    registry.onResourceEvent(owner, event => { delivered.push(`b${event.revision}`); });\n    registry.upsertResourceJob(owner, job('first'));\n    expect(delivered).toEqual(['a1', 'b1', 'a2', 'b2']);\n    expect(registry.getSnapshot(owner)).toMatchObject({ revision: 2, batches: [], resourceJobs: [job('first'), job('nested')] });\n  });\n\n  it('fences owner release during delivery and discards already queued events', () => {\n    const registry = new LocalSubtitleSessionRegistry();\n    const delivered: number[] = [];\n    registry.onResourceEvent(owner, event => {\n      delivered.push(event.revision);\n      registry.upsertResourceJob(owner, job('nested'));\n      registry.releaseOwner(owner);\n    });\n    registry.onResourceEvent(owner, () => { delivered.push(99); });\n    registry.upsertResourceJob(owner, job('first'));\n    expect(delivered).toEqual([1]);\n    expect(() => registry.upsertResourceJob(owner, job('late'))).toThrow(expect.objectContaining({ code: 'owner_released' }));\n  });\n\n  it('keeps authoritative resource state despite a throwing or rejecting subscriber', async () => {\n    const registry = new LocalSubtitleSessionRegistry();\n    const delivered: number[] = [];\n    registry.onResourceEvent(owner, () => { throw new Error('subscriber unavailable'); });\n    registry.onResourceEvent(owner, async () => { throw new Error('asynchronous subscriber unavailable'); });\n    registry.onResourceEvent(owner, event => { delivered.push(event.revision); });\n    registry.upsertResourceJob(owner, job('one'));\n    await Promise.resolve();\n    expect(delivered).toEqual([1]);\n    expect(registry.getResourceJob(owner, 'one')).toEqual(job('one'));\n  });\n\n  it('bounds resources per owner and keeps shutdown promise identity', async () => {\n    const registry = new LocalSubtitleSessionRegistry();\n    for (let index = 0; index < 100; index++) registry.upsertResourceJob(owner, job(`job-${index}`));\n    expect(() => registry.upsertResourceJob(owner, job('overflow'))).toThrow(expect.objectContaining({ code: 'limit_exceeded' }));\n    const operation = registry.shutdown();\n    expect(registry.shutdown()).toBe(operation);\n    await operation;\n    expect(() => registry.getSnapshot(owner)).toThrow(expect.objectContaining({ code: 'owner_released' }));\n  });\n});\n"
+        }
+      ],
+      "reason": "Reviewed neutral resource extraction: controlled unit fixture imports and resource-only callback signatures"
+    },
+    {
+      "path": "test/speech-resources/engine/vadManager.test.ts",
+      "kind": "derived",
+      "sourcePaths": [
+        "test/local-subtitle/vadManager.test.ts"
+      ],
+      "baseSourcePath": "test/local-subtitle/vadManager.test.ts",
+      "byteSize": 13190,
+      "sha256": "d690e3b8d0b85ff02247582f6676ddc06cbb902c4d42ce32d051eeb9a6cbef68",
+      "edits": [
+        {
+          "startByte": 289,
+          "endByte": 482,
+          "removedSha256": "8c6cca2828379f07121bfac15eea6d013675ed170eaeaa8d0e8515ea63178d45",
+          "insertedText": "import { SpeechResourceSmokeError } from \"../../../src/speech-resources/contracts\";\nimport { LOCAL_SUBTITLE_MODEL_MANIFEST } from \"../../../electron/main/speech-resources/engine/model-manifest\";\nimport { LocalSubtitleModelManager } from \"../../../electron/main/speech-resources/engine/model-manager\";\n"
+        },
+        {
+          "startByte": 526,
+          "endByte": 831,
+          "removedSha256": "bb90427ed22b1261557729155dae757a471dc967c1984f1030c537b5c977f263",
+          "insertedText": "} from \"../../../electron/main/speech-resources/engine/resource-job\";\nimport { LocalSubtitleSessionRegistry } from \"../../../electron/main/speech-resources/engine/session-registry\";\n"
+        },
+        {
+          "startByte": 973,
+          "endByte": 1126,
+          "removedSha256": "f4f07468141c497c049aa5e211a0d7d07378067cba4462aa08d43d305a6352d8",
+          "insertedText": "} from \"../../../electron/main/speech-resources/engine/vad-manager\";\n"
+        },
+        {
+          "startByte": 1341,
+          "endByte": 1700,
+          "removedSha256": "a38c4a65a2e9dbb28d2f984e15bbce0c287f93dbf1d4102db483afbef48bde9f",
+          "insertedText": ""
+        },
+        {
+          "startByte": 1880,
+          "endByte": 1941,
+          "removedSha256": "22caad57e0552efea4a4892f7672d32a0793ee6ec23b91ee5616cf2ea2d8961a",
+          "insertedText": ""
+        },
+        {
+          "startByte": 1942,
+          "endByte": 1989,
+          "removedSha256": "3550c46bc12f9a62d208e2d91211894aa429481b5506625cae935b21313b5035",
+          "insertedText": "describe(\"speech resource engine VAD manager\", () => {\n  it(\"preserves a neutral smoke runtime failure and removes the uncommitted VAD\", async () => {\n    const fixture = await createFixture({\n      smokeVad: async () => { throw new SpeechResourceSmokeError(\"runtime_missing\", \"CPU runtime is unavailable\"); },\n    });\n    fixture.manager.startResourceInstall(OWNER_A, fixture.definition.resourceId);\n    await fixture.manager.waitForIdle();\n    expect(fixture.registry.getSnapshot(OWNER_A).resourceJobs[0]).toMatchObject({\n      status: \"failed\", error: { code: \"runtime_missing\" },\n    });\n    await expect(fixture.manager.resolveManagedVad(fixture.definition.resourceId)).rejects.toMatchObject({ localSubtitleCode: \"model_missing\" });\n    expect(await readdir(path.join(fixture.managedRoot, \"vad-staging\"))).toEqual([]);\n  });\n\n"
+        },
+        {
+          "startByte": 2933,
+          "endByte": 3056,
+          "removedSha256": "f49a2cb4328d393d633eb6200f70158ea8d0e16069dfd84d1c28ed0af67eef07",
+          "insertedText": "    expect(fixture.smokeVadLoad.mock.calls[0]?.[0]).toMatchObject({\n"
+        },
+        {
+          "startByte": 3114,
+          "endByte": 3132,
+          "removedSha256": "73883f9c0c72db0923f8529f5effac8c8d15555c605ddb3d79f3b0512dcf8dad",
+          "insertedText": "      vad: {\n"
+        },
+        {
+          "startByte": 3310,
+          "endByte": 3328,
+          "removedSha256": "fde81e4d9ca1929ce261a500bd3d132ca3ed01e5f35c48e96e65796d030590bb",
+          "insertedText": ""
+        },
+        {
+          "startByte": 9127,
+          "endByte": 9482,
+          "removedSha256": "a824604c84994a271e3f4e095296a34070f1c7921492fd88e20602e8c6bc67eb",
+          "insertedText": "      platform: process.platform, arch: process.arch,\n      smokeModel: vi.fn(async () => undefined),\n      smokeVad: vi.fn(async () => undefined),\n"
+        },
+        {
+          "startByte": 9579,
+          "endByte": 9635,
+          "removedSha256": "456ee0ca1652fd4141ce5051a3e4bb25ee599bdb8c5aa0037541e7422d5d4bd8",
+          "insertedText": ""
+        },
+        {
+          "startByte": 11221,
+          "endByte": 11274,
+          "removedSha256": "6d5bd46447ea85e67493d9419e339c8ce83564b8023c068ae08cebd4d24edbfb",
+          "insertedText": "  const smokeVadLoad = vi.fn(async (_input: Parameters<LocalSubtitleVadManagerOptions[\"smokeVad\"]>[0]) => undefined);\n"
+        },
+        {
+          "startByte": 11650,
+          "endByte": 11684,
+          "removedSha256": "9334ce21aaffa56ce5553ed0ca94d8ce744faa27aad8465e25ea0648991e8fb7",
+          "insertedText": "    smokeVad: smokeVadLoad,\n"
+        },
+        {
+          "startByte": 11746,
+          "endByte": 11800,
+          "removedSha256": "6f8ee51b6ec8029b9c33808f829425a67552f4be4199f8c39c92c7aee7225afd",
+          "insertedText": ""
+        }
+      ],
+      "reason": "Reviewed neutral resource extraction: controlled unit fixture imports and resource-only callback signatures"
+    }
+  ],
+  "sourceCheckoutPolicy": "Git blobs are authoritative; source checkout permits only CRLF-to-LF normalization. Output bytes must match exactly.",
+  "scopeRoots": [
+    "electron/main/speech-resources/engine/",
+    "test/speech-resources/engine/",
+    "resources/speech-resources/manifests/"
+  ]
+}

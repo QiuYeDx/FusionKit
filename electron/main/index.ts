@@ -1,6 +1,6 @@
 import { app, BrowserWindow, shell, ipcMain, dialog, Notification, Menu } from "electron";
 import { createRequire } from "node:module";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import path from "node:path";
 import os from "node:os";
 import {
@@ -51,7 +51,8 @@ import { LocalSubtitleJobIpcBridge } from "./local-subtitle/job-ipc";
 import { LocalSubtitleJobManager } from "./local-subtitle/job-manager";
 import { LocalSubtitleMainRuntime } from "./local-subtitle/main-runtime";
 import { LocalSubtitleMediaNormalizer } from "./local-subtitle/media-normalizer";
-import { LocalSubtitleModelManager } from "./local-subtitle/model-manager";
+import { createLegacySharedResources, protectLegacyResourceAdmissions } from "./local-subtitle/shared-resources";
+import { createLocalSubtitleServerSession } from "./local-subtitle/server-session";
 import { LocalSubtitleModelIpcBridge } from "./local-subtitle/model-ipc";
 import { LocalSubtitleProductionExecutor } from "./local-subtitle/production-executor";
 import { LocalSubtitleSessionIpcBridge } from "./local-subtitle/session-ipc";
@@ -68,7 +69,11 @@ import {
 } from "@/type/localSubtitleIpc";
 import { TextTranslationService } from "./text-translation/text-translation-service";
 import { registerSubtitleStudio } from "./subtitle-studio";
-import { createApplicationShutdown } from "./app-shutdown";
+import { createSharedResourceApplicationShutdown, createResourceConsumerLifecycle } from "./app-shutdown";
+import { SpeechResourceService } from "./speech-resources/service";
+import { SPEECH_CUDA_RESOURCE_ID } from "./speech-resources/catalog";
+import { cleanupSpeechResourceSessionStartupOrphans } from "./speech-resources/engine/resource-startup-cleaner";
+import { createSpeechResourceSmoke, installSpeechResourceWindowBridge } from "./subtitle-studio/transcription/shared-resources";
 
 const require = createRequire(import.meta.url);
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -225,11 +230,6 @@ async function createWindow() {
 }
 
 app.whenReady().then(async () => {
-  try {
-    subtitleStudio = registerSubtitleStudio();
-  } catch {
-    console.error("Subtitle Studio initialization failed.");
-  }
   const localSubtitleManagedResourceRoot = path.join(
     app.getPath("userData"),
     "local-subtitle",
@@ -240,6 +240,22 @@ app.whenReady().then(async () => {
         mode: "development",
         appRoot: process.env.APP_ROOT!,
       } as const);
+  const speechResourceSmoke = createSpeechResourceSmoke({
+    managedResourceRoot: path.join(app.getPath("userData"), "speech-resources"),
+    sessionRoot: path.join(app.getPath("userData"), "speech-resource-smoke"),
+    environment: localSubtitleResourceEnvironment,
+  });
+  const speechResources = new SpeechResourceService({ userDataRoot: app.getPath("userData"),
+    smokeModel: speechResourceSmoke.smokeModel, smokeVad: speechResourceSmoke.smokeVad });
+  // A failed migration remains visible through status; consumers cannot use uninitialized resources.
+  const speechResourcesInitialized = await speechResources.initialize().then(() => true, () => {
+    console.error("Shared speech resource initialization failed."); return false;
+  });
+  if (speechResourcesInitialized) await cleanupSpeechResourceSessionStartupOrphans({ managedResourceRoot: localSubtitleManagedResourceRoot });
+  const detachSpeechResources = installSpeechResourceWindowBridge({ service: speechResources, ipc: ipcMain,
+    getWindow: () => win, rendererUrl: VITE_DEV_SERVER_URL || pathToFileURL(indexHtml).href });
+  try { subtitleStudio = registerSubtitleStudio(speechResources); }
+  catch { console.error("Subtitle Studio initialization failed."); }
   const localSubtitleInputAuthorizations =
     new LocalSubtitleInputAuthorizationRegistry();
   const localSubtitleOutputAuthorizations =
@@ -267,28 +283,29 @@ app.whenReady().then(async () => {
   const localSubtitleBackendAttestor =
     createLocalSubtitleProductionBackendAttestor();
   const localSubtitleServerSupervisor = new LocalSubtitleServerSupervisor({
-    managedResourceRoot: localSubtitleManagedResourceRoot,
+    managedResourceRoot: speechResources.managedResourceRoot,
     dependencies: {
       verifyBackend: localSubtitleBackendAttestor.verifyBackend,
+      createSession: () => createLocalSubtitleServerSession(localSubtitleManagedResourceRoot),
     },
   });
   const localSubtitleSessionRegistry = new LocalSubtitleSessionRegistry();
   let localSubtitleJobManager: LocalSubtitleJobManager | undefined;
-  const localSubtitleModelManager = new LocalSubtitleModelManager({
-    managedResourceRoot: localSubtitleManagedResourceRoot,
-    runtimeEnvironment: localSubtitleResourceEnvironment,
-    supervisor: localSubtitleServerSupervisor,
-    sessionRegistry: localSubtitleSessionRegistry,
+  const localSubtitleResourceConsumer = createResourceConsumerLifecycle({
+    shutdown: reason => localSubtitleMainRuntime.shutdown(reason),
     isResourceBusy: (resourceId) =>
       Boolean(
         localSubtitleJobManager?.isManagedModelBusy(resourceId) ||
         localSubtitleJobManager?.isManagedVadBusy(resourceId) ||
         localSubtitleJobManager?.isManagedAcceleratorBusy(resourceId) ||
+        (resourceId === SPEECH_CUDA_RESOURCE_ID && localSubtitleJobManager?.isManagedAcceleratorBusy(LOCAL_SUBTITLE_WINDOWS_CUDA_PACK_DEFINITION.resourceId)) ||
         localSubtitleServerSupervisor.isManagedAcceleratorBusy(resourceId) ||
         localSubtitleServerSupervisor.snapshot.modelId === resourceId ||
         localSubtitleServerSupervisor.snapshot.vadModelId === resourceId,
       ),
   });
+  const localSubtitleModelManager = createLegacySharedResources({ service: speechResources, registry: localSubtitleSessionRegistry,
+    isResourceBusy: localSubtitleResourceConsumer.isResourceBusy });
   await localSubtitleModelManager.initialize().catch(() => undefined);
   const resolveLocalSubtitleCudaAccelerator = (signal?: AbortSignal) =>
     localSubtitleModelManager.resolveManagedAccelerator(
@@ -355,10 +372,11 @@ app.whenReady().then(async () => {
     localSubtitleSessionLifecycle,
   );
   localSubtitleServerLifecycle = new LocalSubtitleServerAppLifecycle(
-    createApplicationShutdown([
-      localSubtitleMainRuntime,
-      { shutdown: reason => subtitleStudio?.dispose(reason) ?? Promise.resolve() },
-    ]),
+    createSharedResourceApplicationShutdown({
+      resources: { fence: () => speechResources.fence(), async shutdown() { await speechResources.shutdown(); detachSpeechResources(); } },
+      runtimes: [localSubtitleResourceConsumer, { shutdown: reason => subtitleStudio?.dispose(reason) ?? Promise.resolve() }],
+      smokeServer: speechResourceSmoke,
+    }),
   );
   localSubtitleServerLifecycle.install({
     onBeforeQuit: (listener) => app.on("before-quit", listener),
@@ -369,6 +387,7 @@ app.whenReady().then(async () => {
   const localSubtitleSessionIpcBridge = new LocalSubtitleSessionIpcBridge(
     localSubtitleSessionRegistry,
     localSubtitleArtifacts,
+    localSubtitleModelManager,
   );
   const localSubtitleJobIpcBridge = new LocalSubtitleJobIpcBridge(
     localSubtitleJobManager,
@@ -418,7 +437,8 @@ app.whenReady().then(async () => {
         ...localSubtitleSessionIpcBridge.handlers.public,
         ...localSubtitleRuntimeIpcBridge.handlers.public,
         ...localSubtitleModelIpcBridge.handlers.public,
-        ...localSubtitleJobIpcBridge.handlers.public,
+        ...protectLegacyResourceAdmissions({ handlers: localSubtitleJobIpcBridge.handlers.public!,
+          resources: localSubtitleModelManager, registry: localSubtitleSessionRegistry }),
         ...localSubtitleOverwriteRecoveryIpcBridge.handlers.public,
       },
       importModel: localSubtitleModelIpcBridge.handlers.importModel,

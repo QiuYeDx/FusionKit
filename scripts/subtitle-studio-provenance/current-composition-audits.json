@@ -6,8 +6,15 @@
       "sourcePath": "electron/main/index.ts",
       "sourceBlobOid": "ed4ba596e22176c94e65b946008aa2b1bed0fc27",
       "sourceSha256": "fee4e67693be2185c217629739d92f69490905c58e9c02b2e67f619ed352a06b",
-      "currentBlobOid": "c74aed165160ae323f8f212f19027e0f9b7d299c",
-      "reason": "T05 full-file review: import createApplicationShutdown, remove the unjoined Studio before-quit disposal, and compose legacy plus Studio shutdown under the existing application lifecycle. This reference-only entry is not copied or used by replay. The current Git blob OID pins the complete reviewed file with Git checkout normalization; no copied v1 source or frozen SHA-256 manifest changes."
+      "currentBlobOid": "4bd3f2c6272e4b08dc112bd4acc53cbcac81285c",
+      "reason": "T09 full-file current composition review: compose neutral shared resources and global sanitized resource revision/status events while retaining domain-private runtime sessions and coordinated shutdown. Reference-only application evidence; frozen copied source and replay remain unchanged."
+    },
+    {
+      "sourcePath": "electron/preload/index.ts",
+      "sourceBlobOid": "baf7d05a0ccbe0a075403d4b91ab32b412410b2f",
+      "sourceSha256": "b78a51436d4185b558f1b2afec6175166b30e2d086279e64926ea75bcb668be5",
+      "currentBlobOid": "816082faf88d8078d505b62687d6509a80a1a5bc",
+      "reason": "T09 full-file current composition review: compose neutral shared resources and global sanitized resource revision/status events while retaining domain-private runtime sessions and coordinated shutdown. Reference-only application evidence; frozen copied source and replay remain unchanged."
     }
   ]
 }

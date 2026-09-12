@@ -1,4 +1,6 @@
-import { useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
+import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
+import { speechResourceIsBusy } from '@/speech-resources/events';
+import type { LocalSubtitleManagedResourceSummary } from '@/subtitle-studio/transcription/ipc-contract';
 import { useTranslation } from 'react-i18next';
 import { AlertCircle, AudioLines, Check, Download, FolderOpen, HardDrive, ListOrdered, LoaderCircle, Play, RefreshCw, Settings2, SlidersHorizontal, Square, Subtitles, Trash2, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -58,6 +60,13 @@ export function StudioTranscription({ header, onOpenDocument }: { header: ReactN
   const state = useSyncExternalStore(controller.subscribe, controller.getState);
   const readiness = getTranscriptionReadiness(state);
   const [resourcesOpen, setResourcesOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<LocalSubtitleManagedResourceSummary | null>(null);
+  useEffect(() => {
+    if (!resourcesOpen) return;
+    void controller.refreshSharedStatus();
+    const timer = setInterval(() => void controller.refreshSharedStatus(), 2000);
+    return () => clearInterval(timer);
+  }, [controller, resourcesOpen]);
   const [opening, setOpening] = useState<string | null>(null);
   const [openError, setOpenError] = useState(false);
   const [numericDrafts, setNumericDrafts] = useState(() => Object.fromEntries(numericFields.map(([key]) => [key, String(state.config.advanced[key])])) as Record<NumericKey, string>);
@@ -84,7 +93,7 @@ export function StudioTranscription({ header, onOpenDocument }: { header: ReactN
     <div><p>{t(state.runtime?.status === 'verified' ? 'studio:transcription.runtime_ready' : !state.runtime && state.phase === 'loading' ? 'studio:transcription.runtime_checking' : 'studio:transcription.runtime_unavailable')}</p>
       {state.runtime && state.runtime.status !== 'verified' && <p className="studio-transcription-help">{t('studio:transcription.runtime_missing_hint')}</p>}</div>
   </div>;
-  const errorMessage = state.error === 'access_denied' ? 'studio:errors.access_denied' : state.error === 'limit_exceeded' ? 'studio:errors.limit_exceeded' : state.error === 'invalid_input' ? 'studio:errors.invalid_input' : state.error === 'needs_configuration' ? 'studio:errors.needs_configuration' : 'studio:errors.transcription_failed';
+  const errorMessage = state.error === 'resource_busy' ? 'studio:errors.resource_busy' : state.error === 'access_denied' ? 'studio:errors.access_denied' : state.error === 'limit_exceeded' ? 'studio:errors.limit_exceeded' : state.error === 'invalid_input' ? 'studio:errors.invalid_input' : state.error === 'needs_configuration' ? 'studio:errors.needs_configuration' : 'studio:errors.transcription_failed';
 
   return <>
     <ToolDetailLayout header={header} className="studio-transcription-layout" asideClassName="studio-transcription-aside order-2 lg:order-1" mainClassName="studio-transcription-main order-1 lg:order-2"
@@ -155,17 +164,29 @@ export function StudioTranscription({ header, onOpenDocument }: { header: ReactN
     </ToolDetailLayout>
     <ScrollableDialog open={resourcesOpen} onOpenChange={setResourcesOpen} maxWidth="sm:max-w-[640px]" contentClassName="studio-transcription-resource-dialog" onCloseAutoFocus={event => { event.preventDefault(); resourceTrigger.current?.focus({ preventScroll: true }); }}>
       <ScrollableDialogHeader><DialogTitle className="flex items-center gap-2 text-sm"><HardDrive className="size-4" />{t('studio:transcription.resources')}</DialogTitle><DialogDescription className="text-xs leading-5">{t('studio:transcription.resource_description')}</DialogDescription></ScrollableDialogHeader>
-      <ScrollableDialogContent><div data-testid="studio-transcription-resources" className="studio-transcription-resource-content">{runtimeNotice}{state.resources.length ? <ul className="studio-transcription-resource-list">{state.resources.map(resource => {
+      <ScrollableDialogContent><div data-testid="studio-transcription-resources" className="studio-transcription-resource-content">{runtimeNotice}
+        {state.sharedResources && <p className="studio-transcription-help" data-testid="studio-shared-resource-hint">{t('studio:transcription.shared_hint')}</p>}
+        {!!state.sharedResources?.migrationIssues.length && <p role="status" className="studio-transcription-row-warning">{t('studio:transcription.migration_issues')}</p>}
+        {state.sharedResources?.cleanupPending && <p role="status" className="studio-transcription-row-warning">{t('studio:transcription.shared_cleanup_pending')}</p>}
+        {state.error && <p role="alert" className="studio-transcription-row-warning">{t(errorMessage)}</p>}
+        {state.resources.length ? <ul className="studio-transcription-resource-list">{state.resources.map(resource => {
         const job = [...state.resourceJobs].reverse().find(item => item.resourceId === resource.resourceId);
         const running = !!job && activeResource(job.status);
         const pending = state.resourceActions.includes(resource.resourceId) || (!!job && state.resourceActions.includes(job.jobId));
+        const busy = speechResourceIsBusy(state.sharedResources, resource.resourceId);
         return <li key={resource.resourceId} data-resource-id={resource.resourceId} data-state={resource.status}><div className="studio-transcription-resource-heading"><div><p>{resource.displayName}</p><span>{bytes(resource.byteSize)} · {t(resource.resourceType === 'model' ? 'studio:transcription.resource_model' : resource.resourceType === 'vad' ? 'studio:transcription.resource_vad' : 'studio:transcription.resource_accelerator')}</span></div><Badge variant={resource.status === 'ready' ? 'secondary' : 'outline'}>{t(resourceStatusKeys[resource.status])}</Badge></div>
           {running && <progress max={100} value={job.progress} aria-label={resource.displayName} className="studio-transcription-progress" />}
           {job?.error && !running && resource.status !== 'ready' && <p className="studio-transcription-row-warning">{t('studio:transcription.resource_failed')}</p>}
-          <div className="studio-transcription-resource-actions">{running ? <Button variant="outline" size="sm" disabled={pending} onClick={() => void controller.cancelResourceJob(job.jobId)}><Square />{t('studio:transcription.cancel_download')}</Button> : resource.status !== 'ready' ? <><Button variant="outline" size="sm" disabled={pending} onClick={() => void controller.installResource(resource.resourceId)}>{pending ? <LoaderCircle className="studio-spin" /> : <Download />}{t('studio:transcription.download')}</Button>{resource.resourceType === 'model' && <Button variant="ghost" size="sm" disabled={pending} onClick={() => void controller.importModel(resource.resourceId)}><FolderOpen />{t('studio:transcription.import_model')}</Button>}</> : null}</div>
+          {busy && <p className="studio-transcription-help">{t('studio:transcription.shared_busy')}</p>}
+          <div className="studio-transcription-resource-actions">{running ? <Button variant="outline" size="sm" disabled={pending} onClick={() => void controller.cancelResourceJob(job.jobId)}><Square />{t('studio:transcription.cancel_download')}</Button> : resource.status !== 'ready' ? <><Button variant="outline" size="sm" disabled={pending || busy} onClick={() => void controller.installResource(resource.resourceId)}>{pending ? <LoaderCircle className="studio-spin" /> : <Download />}{t('studio:transcription.download')}</Button>{resource.resourceType === 'model' && <Button variant="ghost" size="sm" disabled={pending || busy} onClick={() => void controller.importModel(resource.resourceId)}><FolderOpen />{t('studio:transcription.import_model')}</Button>}</> : <Button variant="ghost" size="sm" disabled={pending || busy} onClick={() => { controller.clearError(); setDeleteTarget(resource); }}><Trash2 />{t('studio:transcription.delete_resource')}</Button>}</div>
         </li>;
       })}</ul> : <p className="studio-transcription-help">{t('studio:transcription.resource_empty')}</p>}</div></ScrollableDialogContent>
       <ScrollableDialogFooter className="flex flex-wrap justify-between gap-2 p-3"><Button variant="ghost" size="sm" disabled={state.refreshing} onClick={() => void controller.refresh()}><RefreshCw className={state.refreshing ? 'studio-spin' : undefined} />{t('studio:transcription.check_again')}</Button><Button variant="outline" size="sm" onClick={() => setResourcesOpen(false)}>{t('studio:transcription.close')}</Button></ScrollableDialogFooter>
+    </ScrollableDialog>
+    <ScrollableDialog open={!!deleteTarget} onOpenChange={open => { if (!open && (!deleteTarget || !state.resourceActions.includes(deleteTarget.resourceId))) setDeleteTarget(null); }} maxWidth="sm:max-w-[480px]">
+      <ScrollableDialogHeader><DialogTitle className="text-sm">{t('studio:transcription.delete_resource')}</DialogTitle><DialogDescription className="text-xs leading-5 break-words">{t('studio:transcription.delete_shared_confirmation', { name: deleteTarget?.displayName ?? '' })}</DialogDescription></ScrollableDialogHeader>
+      {state.error && <ScrollableDialogContent><p role="alert" className="studio-transcription-row-warning">{t(errorMessage)}</p></ScrollableDialogContent>}
+      <ScrollableDialogFooter className="p-3"><Button variant="outline" size="sm" disabled={!!deleteTarget && state.resourceActions.includes(deleteTarget.resourceId)} onClick={() => setDeleteTarget(null)}>{t('studio:cancel')}</Button><Button variant="destructive" size="sm" data-testid="studio-confirm-delete-resource" disabled={!deleteTarget || state.resourceActions.includes(deleteTarget.resourceId) || speechResourceIsBusy(state.sharedResources, deleteTarget.resourceId)} onClick={async () => { if (deleteTarget && await controller.deleteResource(deleteTarget.resourceId)) setDeleteTarget(null); }}><Trash2 />{t('studio:transcription.delete_resource')}</Button></ScrollableDialogFooter>
     </ScrollableDialog>
   </>;
 }
