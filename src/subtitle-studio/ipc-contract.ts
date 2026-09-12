@@ -4,7 +4,7 @@ import { translationConfigSchema, translationModelSchema, type TranslationPlanSu
 import type { DocumentSnapshot } from './persistence-contract';
 import { bilingualOptionsSchema, type BilingualPreview } from './bilingual-contract';
 import { hasBilingualCandidates, isBilingualRecommended } from './bilingual';
-import { exportOptionsSchema, exportIssueCodeSchema, type ExportPlanSummary, type ExportResult } from './export-contract';
+import { exportOptionsSchema, exportIssueCodeSchema, exportDestinationSchema, type SourceLocationSummary, type ExportPlanSummary, type ExportResult } from './export-contract';
 import { batchRequestSchemas, type BatchImportResult, type TranslationBatchPlan, type TranslationBatchResult, type ExportBatchPlan, type ExportBatchResult, type SourceBatchResult, type UnavailableDocument } from './batch-contract';
 import { enqueueTranscriptionRequestSchema, type TranscriptionTaskSummary, type TranscriptionBatchAdmission } from './transcription/task-contract';
 import type { LocalSubtitleAuthorizedMedia, LocalSubtitleMediaProbeSummary, LocalSubtitleManagedResourceSummary } from './transcription/ipc-contract';
@@ -13,6 +13,10 @@ import type { SpeechResourcesStatus } from '../speech-resources/events';
 
 export const STUDIO_CHANNELS = {
   register: 'subtitle-studio:internal:register',
+  importDroppedSubtitles: 'subtitle-studio:internal:import-dropped-subtitles',
+  listTranslationTasks: 'subtitle-studio:list-translation-tasks',
+  getSourceLocation: 'subtitle-studio:get-source-location',
+  selectSourceDirectory: 'subtitle-studio:select-source-directory',
   importSubtitle: 'subtitle-studio:import',
   importSubtitles: 'subtitle-studio:import-many',
   revealUnavailable: 'subtitle-studio:reveal-unavailable',
@@ -67,18 +71,26 @@ export const transcriptionRequestSchemas = {
   cancelTranscriptionTask: z.object({ taskId: idSchema }).strict(),
   removeTranscriptionTask: z.object({ taskId: idSchema }).strict(),
 };
+// Paths are sent only by the dedicated preload File method, never public invoke.
+export const droppedSubtitlesRequestSchema = z.object({
+  encoding: encodingSchema,
+  paths: z.array(z.string().min(1).max(32768).refine(value => !value.includes('\0'))).min(1).max(100),
+}).strict();
 export const requestSchemas = {
   ...transcriptionRequestSchemas,
+  listTranslationTasks: z.object({ offset: z.number().int().min(0).max(100000000), pageSize: z.number().int().min(1).max(100), taskIds: z.array(idSchema).max(100).refine(ids => new Set(ids).size === ids.length).optional() }).strict(),
+  getSourceLocation: z.object({ documentId: idSchema }).strict(),
+  selectSourceDirectory: z.object({ documentId: idSchema }).strict(),
   importSubtitle: z.object({ encoding: encodingSchema }).strict(),
   importSubtitles: z.object({ encoding: encodingSchema }).strict(),
   revealUnavailable: z.object({ documentId: idSchema, token: z.string().regex(/^[a-f0-9]{64}$/) }).strict(),
   deleteUnavailable: z.object({ documentId: idSchema, token: z.string().regex(/^[a-f0-9]{64}$/) }).strict(),
   ...batchRequestSchemas,
-  listDocuments: z.object({ offset: z.number().int().min(0).max(LIMITS.cues), query: z.string().max(500).optional(), format: z.enum(['all', 'srt', 'lrc', 'media']).optional(), status: z.enum(['all', 'untranslated', 'translated', 'active', 'attention']).optional(), sort: z.enum(['default', 'name-asc', 'name-desc', 'cue-count-asc', 'cue-count-desc', 'recent', 'oldest']).optional(), pageSize: z.number().int().min(1).max(LIMITS.pageSize).optional() }).strict(),
+  listDocuments: z.object({ offset: z.number().int().min(0).max(LIMITS.cues), query: z.string().max(500).optional(), format: z.enum(['all', 'srt', 'lrc', 'vtt', 'ass', 'media']).optional(), status: z.enum(['all', 'untranslated', 'translated', 'active', 'attention']).optional(), sort: z.enum(['default', 'name-asc', 'name-desc', 'cue-count-asc', 'cue-count-desc', 'recent', 'oldest']).optional(), pageSize: z.number().int().min(1).max(LIMITS.pageSize).optional() }).strict(),
   readDocumentPage: z.object({ documentId: idSchema, revision: z.number().int().positive().safe(), offset: z.number().int().min(0).max(LIMITS.cues), nodeOffset: z.number().int().min(0).max(LIMITS.nodes).optional() }).strict(),
-  exportSource: z.object({ documentId: idSchema, revision: z.number().int().positive().safe() }).strict(),
+  exportSource: z.object({ documentId: idSchema, revision: z.number().int().positive().safe(), destination: exportDestinationSchema.optional() }).strict(),
   planExport: z.object({ documentId: idSchema, revision: z.number().int().positive().safe(), options: exportOptionsSchema }).strict(),
-  exportDocument: z.object({ documentId: idSchema, revision: z.number().int().positive().safe(), planId: idSchema, acceptedLosses: z.array(exportIssueCodeSchema).max(32) }).strict(),
+  exportDocument: z.object({ documentId: idSchema, revision: z.number().int().positive().safe(), planId: idSchema, acceptedLosses: z.array(exportIssueCodeSchema).max(32), destination: exportDestinationSchema.optional() }).strict(),
   deleteDocument: z.object({ documentId: idSchema, revision: z.number().int().positive().safe() }).strict(),
   removeTask: z.object({ documentId: idSchema, revision: z.number().int().positive().safe(), taskId: idSchema }).strict(),
   planTranslation: z.object({ documentId: idSchema, revision: z.number().int().positive().safe(), config: translationConfigSchema }).strict(),
@@ -99,6 +111,18 @@ export type DocumentSummary = Pick<SubtitleDocument, 'id' | 'revision' | 'origin
   task?: { id: string; status: DocumentSnapshot['tasks'][number]['status']; model?: z.infer<typeof translationModelSchema>; completedBatches: number; totalBatches: number } | null;
 };
 type StoredTask = DocumentSnapshot['tasks'][number];
+export type TranslationTaskStatus = StoredTask['status'];
+export type TranslationTaskSummary = {
+  documentId: string; revision: number; taskId: string; trackId: string;
+  displayName: string; status: TranslationTaskStatus; language: string; modelKey: string;
+  completedBatches: number; totalBatches: number; notBefore?: number; canResume: boolean;
+  error?: NonNullable<StoredTask['translation']>['error'];
+};
+export type TranslationTasksSnapshot = {
+  sequence: number; total: number; unavailableDocuments: number;
+  counts: Record<TranslationTaskStatus, number>; completedBatches: number; totalBatches: number;
+  items: TranslationTaskSummary[];
+};
 export type DocumentTask = Omit<StoredTask, 'translation'> & { translation?: Omit<NonNullable<StoredTask['translation']>, 'checkpoint'> & { checkpoint?: { version: 1 } } };
 export type DocumentPage = { summary: DocumentSummary; offset: number; cues: SubtitleDocument['cues']; nodeOffset: number; nodeCount: number; rawNodes: { id: string; text: string }[]; translationTracks: SubtitleDocument['translationTracks']; tasks: DocumentTask[] };
 export type StudioResult<T> = { ok: true; value: T } | { ok: false; error: ErrorCode };
@@ -111,6 +135,10 @@ export type TranscriptionResources = { resources: LocalSubtitleManagedResourceSu
 export type TranscriptionRuntimeSummary = { status: 'verified'; runtimeGeneration: string; target: { platform: 'darwin' | 'win32'; arch: 'arm64' | 'x64' } }
   | { status: 'missing' | 'invalid'; code: string; stage: string };
 export interface SubtitleStudioApi {
+  getSourceLocation(request: z.infer<typeof requestSchemas.getSourceLocation>): Promise<StudioResult<SourceLocationSummary>>;
+  selectSourceDirectory(request: z.infer<typeof requestSchemas.selectSourceDirectory>): Promise<StudioResult<SourceLocationSummary | null>>;
+  importDroppedSubtitles(files: readonly File[], request: z.infer<typeof requestSchemas.importSubtitles>): Promise<StudioResult<BatchImportResult>>;
+  listTranslationTasks(request: z.infer<typeof requestSchemas.listTranslationTasks>): Promise<StudioResult<TranslationTasksSnapshot>>;
   selectTranscriptionMedia(request: z.infer<typeof requestSchemas.selectTranscriptionMedia>): Promise<StudioResult<TranscriptionMediaSelection | null>>;
   probeTranscriptionMedia(request: z.infer<typeof requestSchemas.probeTranscriptionMedia>): Promise<StudioResult<LocalSubtitleMediaProbeSummary>>;
   revokeTranscriptionMedia(request: z.infer<typeof requestSchemas.revokeTranscriptionMedia>): Promise<StudioResult<{ revoked: boolean }>>;

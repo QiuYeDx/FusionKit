@@ -20,7 +20,9 @@ T06证据见[转写工作区](records/2026-09-12-transcription-ui.md)：1161项�
 
 **T08默认VAD与CPU/CUDA固定样本对照已完成**，见[默认配置与设备实测](records/2026-09-12-transcription-default-devices.md)。六样本两设备新旧24次加CUDA A固定重复2次，共26次真实运行；22次成功、4次无识别真实失败，13组配对终态一致，11组完整canonical无差异，11份新文档关闭后重开通过。实际模型/VAD/CUDA安装、精确PID设备证明及卸载完成，相关278项普通检查、类型/边界/规格通过。full接缝重复及C字幕过长等共同局限保留，不代签整体质量接受；CPU/CUDA本身也有分句差异。测试原生进程及独占资源根已清理，本轮实测未改生产源码与原有资源。
 
-**T09共享资源与已有安装接管已完成**，见[共享资源实施记录](records/2026-09-12-transcription-shared-resources.md)。模型、VAD、兼容CUDA由应用级唯一服务维护，两工具共用文件和安装状态，下载/取消/删除跨页同步，任务占用阻止资源删除。实际已有4项资源、23个payload共约5.38GB已无下载迁入共享目录，文件内容与对象身份保持，两个入口均ready。共享资源CPU/CUDA四条真实链路、新旧同设备完整结果一致、两份文档重开及退出清理通过；实际Electron交互、232项最终共享回归、121项来源回归及377文件边界通过。T09当前为未提交工作树，用户整体验收仍pending。
+**T09共享资源与已有安装接管已完成**，见[共享资源实施记录](records/2026-09-12-transcription-shared-resources.md)。模型、VAD、兼容CUDA由应用级唯一服务维护，两工具共用文件和安装状态，下载/取消/删除跨页同步，任务占用阻止资源删除。实际已有4项资源、23个payload共约5.38GB已无下载迁入共享目录，文件内容与对象身份保持，两个入口均ready。共享资源CPU/CUDA四条真实链路、新旧同设备完整结果一致、两份文档重开及退出清理通过；实际Electron交互、232项最终共享回归、121项来源回归及377文件边界通过。T09已提交并推送15340fd，用户整体验收仍pending。
+
+**I3六项人工验收完善已完成**：字幕拖入、转写队列批量维护、全库翻译总览与本轮进度、VTT/ASS完整工作流、字幕/媒体来源目录导出、默认无后缀及可选命名均已接通。最终3项实际Electron综合场景、两套生产与测试严格TS、i18n/边界/相关来源回归通过，小窗口遮挡和Windows默认保存路径大小写保护已修复。见[原始问题](records/2026-09-12-manual-acceptance-findings.md)、[综合收尾记录](records/2026-09-12-acceptance-closeout.md)、[需求](modules/module-acceptance/requirements.md)、[设计](modules/module-acceptance/design.md)、[任务](modules/module-acceptance/tasks.md)。本轮工作树未提交；用户整体验收仍pending。
 
 ## 阅读顺序与权威位置
 
@@ -30,6 +32,7 @@ T06证据见[转写工作区](records/2026-09-12-transcription-ui.md)：1161项�
 | [业务范围](brd.md) | 用户约束、产品边界、分期目标 |
 | [整体架构](architecture.md) | 独立边界、字幕模型、持久化、翻译与格式契约 |
 | [转写继承与 v1 删除验证](transcription-fork.md) | 生产基线、效果保护、资源与打包归属、移除演练 |
+| [I3 需求](modules/module-acceptance/requirements.md) / [设计](modules/module-acceptance/design.md) / [任务](modules/module-acceptance/tasks.md) | 本轮六项人工问题及其完成证据 |
 | [I2 需求](modules/module-transcription/requirements.md) | 当前转写继承阶段的唯一需求与 AC |
 | [I2 设计](modules/module-transcription/design.md) | 当前阶段方案、工具与审查边界 |
 | [I2 任务](modules/module-transcription/tasks.md) | 当前阶段任务状态、依赖、验证与下一步 |
@@ -43,7 +46,7 @@ T06证据见[转写工作区](records/2026-09-12-transcription-ui.md)：1161项�
 
 T07短样本与T08固定Windows矩阵不替代所有媒体质量、macOS完整资源、共存/移除后的完整应用包或签名/公证验证；这些仍待后续任务。build实物被Git忽略，换机需按固定来源重新制作，不能只凭清单hash宣称就绪。
 
-保留旧版已经接受的转写质量局限；I3 ASS、I4 编辑继续后置。全产品安装更新卸载、分发许可、音频真实设备/供应商验收独立安排，不从旧研究台账重启无限调参。
+保留旧版已经接受的转写质量局限；I3六项已完成，下一步为用户复验；I4编辑继续后置。全产品安装更新卸载、分发许可、音频真实设备/供应商验收独立安排，不从旧研究台账重启无限调参。
 
 ## I1 证据索引
 

@@ -116,6 +116,7 @@ export function createTranscriptionRuntime(_options: unknown, _dependencies: unk
       },
     },
     resources: {
+      status() { return undefined; },
       async list(owner: Owner) { check(owner); trace('list-resources'); return structuredClone(resources); },
       snapshot(owner: Owner) { return { resourceJobs: structuredClone(jobs.filter(job => job.owner === check(owner)).map(job => job.value)) }; },
       async importModel(input: { owner: Owner; modelId: string; filePath: string }) { trace('import-model', { modelId: input.modelId }); return startResource(input.owner, input.modelId); },
@@ -146,7 +147,14 @@ export function createTranscriptionRuntime(_options: unknown, _dependencies: unk
         if (task.owner !== check(owner)) throw Object.assign(new Error('Wrong owner'), { code: 'owner_released' });
         task.value = { ...task.value, status: 'cancelled', updatedAt: new Date().toISOString() }; trace('cancel-task', { taskId }); return structuredClone(task.value);
       },
-      async remove(owner: Owner, taskId: string) { const index = tasks.findIndex(task => task.owner === check(owner) && task.value.taskId === taskId); if (index >= 0) tasks.splice(index, 1); trace('remove-task'); },
+      async remove(owner: Owner, taskId: string) {
+        const index = tasks.findIndex(task => task.owner === check(owner) && task.value.taskId === taskId);
+        if (index >= 0) {
+          if (active(tasks[index].value.status) || tasks[index].value.cleanupPending) throw Object.assign(new Error('Task is still active or cleaning up'), { code: 'invalid_input' });
+          tasks.splice(index, 1);
+        }
+        trace('remove-task', { taskId });
+      },
       async waitForIdle() {},
     },
   };

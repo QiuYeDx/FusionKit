@@ -4,6 +4,7 @@ import path from 'node:path';
 import iconv from 'iconv-lite';
 import { LIMITS, StudioError, type Encoding } from '../../../src/subtitle-studio/domain';
 import { importSubtitleText } from '../../../src/subtitle-studio/formats/import';
+import { captureSourceInput, verifySourceLocation } from './source-location-service';
 
 export function decodeSubtitle(bytes: Buffer, encoding: Encoding): { text: string; bom: boolean } {
   if (bytes.length > LIMITS.inputBytes) throw new StudioError('limit_exceeded');
@@ -18,7 +19,7 @@ export function decodeSubtitle(bytes: Buffer, encoding: Encoding): { text: strin
 
 export async function readSubtitle(filePath: string, encoding: Encoding) {
   const format = path.extname(filePath).slice(1).toLowerCase();
-  if (format !== 'srt' && format !== 'lrc') throw new StudioError('unsupported_feature');
+  if (!['srt', 'lrc', 'vtt', 'ass'].includes(format)) throw new StudioError('unsupported_feature');
   const file = await open(filePath, 'r');
   try {
     const stat = await file.stat();
@@ -35,6 +36,14 @@ export async function readSubtitle(filePath: string, encoding: Encoding) {
     if (size > stat.size) throw new StudioError('invalid_input');
     const content = bytes.subarray(0, size);
     const { text, bom } = decodeSubtitle(content, encoding);
-    return importSubtitleText(text, { format, displayName: path.basename(filePath), encoding, digest: createHash('sha256').update(content).digest('hex') }, randomUUID, bom);
+    return importSubtitleText(text, { format: format as 'srt' | 'lrc' | 'vtt' | 'ass', displayName: path.basename(filePath), encoding, digest: createHash('sha256').update(content).digest('hex') }, randomUUID, bom);
   } finally { await file.close(); }
+}
+
+/** Native picker and private File-drop callers share this bounded read and source identity capture. */
+export async function readSubtitleWithSource(filePath: string, encoding: Encoding) {
+  const sourceLocation = await captureSourceInput(filePath);
+  const document = await readSubtitle(sourceLocation.origin === 'input' ? sourceLocation.inputPath : filePath, encoding);
+  await verifySourceLocation(sourceLocation);
+  return { document, sourceLocation };
 }

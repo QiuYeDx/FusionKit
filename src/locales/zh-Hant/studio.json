@@ -177,8 +177,36 @@
       "empty_output": "目前選項下沒有可匯出的字幕。",
       "encoding_unrepresentable": "所選編碼無法完整表示正文，請改用 UTF-8 或 UTF-16LE。",
       "skipped_cues": "將略過 {{count}} 條沒有有效譯文的字幕。",
-      "source_fallback": "{{count}} 條沒有有效譯文的字幕將使用原文。"
-    }
+      "source_fallback": "{{count}} 條沒有有效譯文的字幕將使用原文。",
+      "timing_precision_changed": "ASS 將把 {{count}} 條字幕的時間取整至 10 毫秒。",
+      "positioning_omitted": "將省略 {{count}} 項位置或版面設定。",
+      "effects_omitted": "將省略 {{count}} 項特效或繪圖內容。",
+      "opaque_omitted": "將省略 {{count}} 項非正文或不透明結構；原始檔案仍保留。",
+      "encoding_not_supported": "VTT 與新產生的 ASS 需要 UTF-8 編碼。"
+    },
+    "destination": "儲存位置",
+    "destination_source": "來源檔案所在目錄",
+    "destination_choose": "選擇其他位置",
+    "destination_source_note": "每份檔案儲存至各自的來源目錄；重名時自動新增序號。",
+    "destination_choose_note": "儲存時選擇檔案或目錄。",
+    "source_ready": "來源目錄可用",
+    "source_missing": "此文件尚未記錄來源目錄。",
+    "source_unavailable": "來源檔案或目錄無法使用，請重新指定目錄或選擇其他位置。",
+    "source_rebound": "使用你重新指定的來源目錄",
+    "select_source_directory": "重新指定來源目錄…",
+    "source_loading": "正在檢查來源目錄…",
+    "suffix": "檔案名稱後綴",
+    "suffix_none": "無",
+    "suffix_content_mode": "內容類型",
+    "suffix_target_language": "目標語言",
+    "suffix_custom": "自訂",
+    "suffix_value": "自訂後綴",
+    "suffix_placeholder": "例如 zh-CN",
+    "suffix_invalid": "後綴最多 40 個字元，不能包含路徑符號、控制字元或以點、空格結尾。",
+    "file_name_preview": "輸出檔案名稱：{{name}}",
+    "save_to_source": "儲存至來源目錄",
+    "save_original": "儲存原始檔案…",
+    "source_recheck": "來源位置已更新，請重新檢查匯出。"
   },
   "errors": {
     "invalid_input": "字幕結構無效。",
@@ -203,11 +231,15 @@
     "enhanced_lrc": "已保留增強型 LRC，無法翻譯",
     "negative_time": "偏移量導致負起始時間",
     "zero_duration": "存在零時長字幕",
-    "untimed_text": "無時間標籤的正文已保留在原始來源節點中"
+    "untimed_text": "無時間標籤的正文已保留在原始來源節點中",
+    "opaque_structure": "非正文結構已保留",
+    "ass_drawing": "ASS 繪圖已保留；混合正文與繪圖時無法安全翻譯",
+    "ass_karaoke": "含逐字卡拉 OK 時序，無法安全翻譯",
+    "vtt_payload_unsupported": "VTT 正文含複雜標記或時間戳，無法安全翻譯"
   },
   "library": {
     "batch_actions": "批次操作",
-    "import_hint": "SRT / LRC · 支援多選，最多 100 份",
+    "import_hint": "拖入字幕檔案，或點擊選擇；支援 SRT / LRC / VTT / ASS",
     "search": "搜尋文件",
     "clear_search": "清空搜尋",
     "open": "開啟文件庫",
@@ -257,7 +289,9 @@
     "result_summary": "成功 {{success}} 份，略過 {{skipped}} 份，失敗 {{failed}} 份",
     "succeeded": "已完成",
     "no_cancel_task": "沒有可取消的翻譯任務",
-    "no_resume_task": "沒有可繼續的翻譯任務"
+    "no_resume_task": "沒有可繼續的翻譯任務",
+    "drop_hint": "放開以匯入字幕",
+    "drop_busy": "正在處理，請稍後再拖入"
   },
   "recovery": {
     "title": "處理無法還原的文件",
@@ -288,7 +322,7 @@
     "queued": "已加入翻譯佇列",
     "ready_count": "{{total}} 份文件中，{{count}} 份已就緒",
     "translation_queue_note": "開始後，就緒文件將加入翻譯佇列。未就緒項目保持原樣，可根據逐項提示處理。",
-    "translation_result": "已為 {{count}} 份文件建立翻譯任務，{{failed}} 份未能啟動。可關閉此視窗，在文件庫查看後續進度。",
+    "translation_result": "已提交 {{count}} 項翻譯任務，{{failed}} 份未能啟動。任務將繼續執行，可在翻譯總覽查看實際進度。",
     "start_ready": "開始翻譯 {{count}} 份就緒文件",
     "export_ready": "匯出 {{count}} 份就緒文件",
     "export_directory_note": "統一選擇儲存資料夾，只匯出就緒文件。同名檔案會自動編號，不覆寫既有檔案。檢查後內容發生變化的文件需要重新檢查。",
@@ -411,6 +445,31 @@
     "shared_busy": "字幕工作或資源操作正在使用此資源。",
     "shared_busy_error": "共用資源正在使用中，請等待兩個字幕工具中的工作或資源操作結束後重試。",
     "delete_resource": "刪除資源",
-    "delete_shared_confirmation": "刪除「{{name}}」的共用資源？本機字幕轉寫與字幕工作室都會失去此資源；再次使用前需要重新安裝。現有字幕文件不受影響。"
+    "delete_shared_confirmation": "刪除「{{name}}」的共用資源？本機字幕轉寫與字幕工作室都會失去此資源；再次使用前需要重新安裝。現有字幕文件不受影響。",
+    "clear_completed": "清理已完成",
+    "clear_terminal": "清理已結束",
+    "queue_actions": "佇列操作",
+    "cancel_all": "取消所有未完成",
+    "confirm_cancel_all": "確認取消",
+    "cancel_all_confirmation": "取消目前這 {{count}} 項未完成任務？僅傳送取消請求，任務會保留至實際停止；之後加入的任務不受影響。既有字幕文件不會刪除。",
+    "clear_result": "已清理 {{count}} 項，{{failed}} 項失敗，{{skipped}} 項仍在處理。既有字幕文件不受影響。",
+    "cancel_result": "已請求取消 {{count}} 項，{{failed}} 項失敗，{{skipped}} 項狀態已變更。任務將在實際停止後顯示為已結束。"
+  },
+  "overview": {
+    "title": "翻譯任務",
+    "details": "查看全部",
+    "empty": "暫無翻譯任務",
+    "loading": "正在讀取任務…",
+    "description": "所有文件的翻譯任務，不受文件庫分頁或篩選影響。進度只統計已儲存的批次。",
+    "round_submitted": "最近提交 {{count}} 項",
+    "confirmed_progress": "已確認批次進度",
+    "round_unavailable": "部分已提交任務暫時無法使用，無法計算完整進度",
+    "round_counts": "完成 {{completed}} · 未完成 {{active}} · 待處理 {{attention}} · 取消 {{cancelled}}",
+    "unavailable": "{{count}} 份文件暫時無法讀取，未計入任務總數。",
+    "read_error": "任務總覽暫時無法更新，正在顯示上次結果。可重新整理。",
+    "open_error": "無法開啟此文件，請重新整理後重試。",
+    "open_document": "開啟文件",
+    "can_resume": "可在文件中檢查並繼續",
+    "view_progress": "查看翻譯進度"
   }
 }

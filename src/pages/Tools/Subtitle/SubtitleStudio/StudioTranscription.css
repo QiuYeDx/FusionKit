@@ -47,6 +47,8 @@
 .studio-transcription-progress::-webkit-progress-value { background: var(--primary); border-radius: 4px; transition: width 150ms ease-out; }
 .studio-transcription-progress::-moz-progress-bar { background: var(--primary); border-radius: 4px; }
 .studio-transcription-session-note { padding: 8px 20px 12px; font-size: 10px; line-height: 16px; color: var(--muted-foreground); }
+.studio-transcription-queue-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 2px; }
+.studio-transcription-queue-result { padding: 10px 20px 0; color: var(--muted-foreground); font-size: 11px; line-height: 18px; overflow-wrap: anywhere; }
 .studio-transcription-empty { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 28px 16px; color: var(--muted-foreground); text-align: center; }
 .studio-transcription-empty > svg { width: 24px; height: 24px; opacity: .55; margin-bottom: 3px; }
 .studio-transcription-empty > p { font-size: 12px; }

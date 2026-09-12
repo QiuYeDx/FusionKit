@@ -2,9 +2,10 @@ import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } fro
 import { speechResourceIsBusy } from '@/speech-resources/events';
 import type { LocalSubtitleManagedResourceSummary } from '@/subtitle-studio/transcription/ipc-contract';
 import { useTranslation } from 'react-i18next';
-import { AlertCircle, AudioLines, Check, Download, FolderOpen, HardDrive, ListOrdered, LoaderCircle, Play, RefreshCw, Settings2, SlidersHorizontal, Square, Subtitles, Trash2, X } from 'lucide-react';
+import { AlertCircle, AudioLines, Check, Download, Ellipsis, FolderOpen, HardDrive, ListOrdered, LoaderCircle, Play, RefreshCw, Settings2, SlidersHorizontal, Square, Subtitles, Trash2, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -61,6 +62,7 @@ export function StudioTranscription({ header, onOpenDocument }: { header: ReactN
   const readiness = getTranscriptionReadiness(state);
   const [resourcesOpen, setResourcesOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<LocalSubtitleManagedResourceSummary | null>(null);
+  const [cancelTargets, setCancelTargets] = useState<readonly string[] | null>(null);
   useEffect(() => {
     if (!resourcesOpen) return;
     void controller.refreshSharedStatus();
@@ -82,6 +84,10 @@ export function StudioTranscription({ header, onOpenDocument }: { header: ReactN
   const setAdvanced = (key: keyof Config['advanced'], value: number | string) => setConfig({ advanced: { ...state.config.advanced, [key]: value } });
   const activeCount = state.tasks.filter(task => !terminal(task)).length;
   const completedCount = state.tasks.filter(task => task.status === 'completed').length;
+  const queueBusy = !!state.queueAction || state.taskActions.length > 0;
+  const clearableCompleted = state.tasks.filter(task => task.status === 'completed' && !task.cleanupPending).length;
+  const clearableTerminal = state.tasks.filter(task => terminal(task) && !task.cleanupPending).length;
+  const cancellableTasks = state.tasks.filter(task => !terminal(task) && !state.cancellingTaskIds.includes(task.taskId));
   const settings = () => { settingsRef.current?.scrollIntoView({ block: 'start', behavior: 'instant' }); settingsRef.current?.focus({ preventScroll: true }); };
   const openDocument = async (id: string) => {
     if (opening) return;
@@ -149,11 +155,14 @@ export function StudioTranscription({ header, onOpenDocument }: { header: ReactN
           </li>)}</ul>}
         </ToolPanel>
         <ToolPanel title={t('studio:transcription.queue')} icon={ListOrdered} badge={state.tasks.length ? <Badge variant="secondary" className="font-mono text-[11px]">{state.tasks.length}</Badge> : undefined} className="studio-transcription-queue"
-          actions={<StudioIconButton label={t('studio:refresh')} disabled={state.refreshing} onClick={() => void controller.refresh()}><RefreshCw className={state.refreshing ? 'studio-spin' : undefined} /></StudioIconButton>}>
+          actions={<div className="studio-transcription-queue-actions"><Button variant="ghost" size="sm" data-testid="studio-queue-clear-completed" disabled={queueBusy || !clearableCompleted} onClick={() => void controller.clearCompleted()}>{state.queueAction === 'clear_completed' ? <LoaderCircle className="studio-spin" /> : <Trash2 />}{t('studio:transcription.clear_completed')}</Button>
+            <DropdownMenu><DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="size-8" aria-label={t('studio:transcription.queue_actions')} disabled={queueBusy || !state.tasks.length}><Ellipsis className="size-4" /></Button></DropdownMenuTrigger><DropdownMenuContent align="end"><DropdownMenuItem disabled={!clearableTerminal} onSelect={() => void controller.clearTerminal()}><Trash2 />{t('studio:transcription.clear_terminal')}</DropdownMenuItem><DropdownMenuSeparator /><DropdownMenuItem variant="destructive" disabled={!cancellableTasks.length} onSelect={() => setCancelTargets(cancellableTasks.map(task => task.taskId))}><Square />{t('studio:transcription.cancel_all')}</DropdownMenuItem></DropdownMenuContent></DropdownMenu>
+            <StudioIconButton label={t('studio:refresh')} disabled={state.refreshing || queueBusy} onClick={() => void controller.refresh()}><RefreshCw className={state.refreshing ? 'studio-spin' : undefined} /></StudioIconButton></div>}>
           <span className="sr-only" role="status">{t('studio:transcription.active_count', { active: activeCount, completed: completedCount })}</span>
+          {state.queueResult && <p className="studio-transcription-queue-result" role="status" data-testid="studio-queue-result">{t(state.queueResult.action === 'cancel_active' ? 'studio:transcription.cancel_result' : 'studio:transcription.clear_result', { count: state.queueResult.succeeded, failed: state.queueResult.failed, skipped: state.queueResult.skipped })}</p>}
           {state.tasks.length ? <><ul className="studio-transcription-task-list">{state.tasks.map(task => <li key={task.taskId} data-testid="studio-transcription-task-row" data-task-id={task.taskId} data-state={task.status}>
             <div className="studio-transcription-task-heading"><div className="studio-transcription-task-name">{task.status === 'completed' ? <Check className="text-emerald-600 dark:text-emerald-400" /> : task.status === 'failed' ? <AlertCircle className="text-destructive" /> : terminal(task) ? <Square className="text-muted-foreground" /> : <LoaderCircle className={task.status === 'queued' ? 'text-muted-foreground' : 'studio-spin text-muted-foreground'} />}<StudioFileName name={task.displayName} focusable /></div>
-              <div className="studio-transcription-row-actions">{task.documentId && <Button variant="outline" size="sm" disabled={opening !== null} onClick={() => void openDocument(task.documentId!)}>{opening === task.documentId ? <LoaderCircle className="studio-spin" /> : <Subtitles />}{t('studio:transcription.open_document')}</Button>}{terminal(task) ? <StudioIconButton label={`${t('studio:transcription.remove_task')} · ${task.displayName}`} disabled={state.taskActions.includes(task.taskId) || !!task.cleanupPending} onClick={() => void controller.removeTask(task.taskId)}><Trash2 /></StudioIconButton> : <StudioIconButton label={`${t('studio:transcription.cancel_task')} · ${task.displayName}`} disabled={state.taskActions.includes(task.taskId) || state.cancellingTaskIds.includes(task.taskId)} onClick={() => void controller.cancelTask(task.taskId)}>{state.cancellingTaskIds.includes(task.taskId) ? <LoaderCircle className="studio-spin" /> : <Square />}</StudioIconButton>}</div>
+              <div className="studio-transcription-row-actions">{task.documentId && <Button variant="outline" size="sm" disabled={opening !== null} onClick={() => void openDocument(task.documentId!)}>{opening === task.documentId ? <LoaderCircle className="studio-spin" /> : <Subtitles />}{t('studio:transcription.open_document')}</Button>}{terminal(task) ? <StudioIconButton label={`${t('studio:transcription.remove_task')} · ${task.displayName}`} disabled={!!state.queueAction || state.taskActions.includes(task.taskId) || !!task.cleanupPending} onClick={() => void controller.removeTask(task.taskId)}><Trash2 /></StudioIconButton> : <StudioIconButton label={`${t('studio:transcription.cancel_task')} · ${task.displayName}`} disabled={!!state.queueAction || state.taskActions.includes(task.taskId) || state.cancellingTaskIds.includes(task.taskId)} onClick={() => void controller.cancelTask(task.taskId)}>{state.cancellingTaskIds.includes(task.taskId) ? <LoaderCircle className="studio-spin" /> : <Square />}</StudioIconButton>}</div>
             </div>
             <div className="studio-transcription-task-meta"><span>{state.cancellingTaskIds.includes(task.taskId) ? t('studio:transcription.cancelling') : t(taskStatusKeys[task.status])}</span><span>{models.find(resource => resource.resourceId === task.modelId)?.displayName ?? task.modelId} · {task.resolvedBackend.toUpperCase()}</span>{task.durationMs !== undefined && <span>{duration(task.durationMs)}</span>}{!terminal(task) && <span className="studio-transcription-task-percentage">{Math.round(task.progress)}%</span>}</div>
             {!terminal(task) && <progress max={100} value={task.progress} aria-label={`${t(taskStatusKeys[task.status])} · ${task.displayName}`} className="studio-transcription-progress" />}
@@ -162,6 +171,10 @@ export function StudioTranscription({ header, onOpenDocument }: { header: ReactN
         </ToolPanel>
       </div>
     </ToolDetailLayout>
+    <ScrollableDialog open={cancelTargets !== null} onOpenChange={open => { if (!open && !state.queueAction) setCancelTargets(null); }} maxWidth="sm:max-w-[480px]">
+      <ScrollableDialogHeader><DialogTitle className="text-sm">{t('studio:transcription.cancel_all')}</DialogTitle><DialogDescription className="text-xs leading-5">{t('studio:transcription.cancel_all_confirmation', { count: cancelTargets?.length ?? 0 })}</DialogDescription></ScrollableDialogHeader>
+      <ScrollableDialogFooter className="p-3"><Button variant="outline" size="sm" disabled={!!state.queueAction} onClick={() => setCancelTargets(null)}>{t('studio:cancel')}</Button><Button variant="destructive" size="sm" data-testid="studio-queue-confirm-cancel" disabled={queueBusy || !cancelTargets?.length} onClick={() => { if (cancelTargets) { void controller.cancelTasks(cancelTargets); setCancelTargets(null); } }}><Square />{t('studio:transcription.confirm_cancel_all')}</Button></ScrollableDialogFooter>
+    </ScrollableDialog>
     <ScrollableDialog open={resourcesOpen} onOpenChange={setResourcesOpen} maxWidth="sm:max-w-[640px]" contentClassName="studio-transcription-resource-dialog" onCloseAutoFocus={event => { event.preventDefault(); resourceTrigger.current?.focus({ preventScroll: true }); }}>
       <ScrollableDialogHeader><DialogTitle className="flex items-center gap-2 text-sm"><HardDrive className="size-4" />{t('studio:transcription.resources')}</DialogTitle><DialogDescription className="text-xs leading-5">{t('studio:transcription.resource_description')}</DialogDescription></ScrollableDialogHeader>
       <ScrollableDialogContent><div data-testid="studio-transcription-resources" className="studio-transcription-resource-content">{runtimeNotice}

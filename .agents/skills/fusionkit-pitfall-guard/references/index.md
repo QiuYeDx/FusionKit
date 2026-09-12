@@ -164,6 +164,8 @@ Read this index first, then open only the detail files that plausibly match the 
 | FK-PIT-0143 | Windows / real resource install | ENAMETOOLONG, mkdtemp, CUDA preflight, UUID receipt, long test root; Budget complete production staging paths and use a short owned temporary resource root without altering namespace or installer guards. | [budget-windows-managed-resource-staging-paths.md](budget-windows-managed-resource-staging-paths.md) |
 
 | FK-PIT-0144 | Shared resources / consumer shutdown | completed records become fenced, permanent resource_busy, cleanup failed; Release shared occupancy only after complete consumer shutdown joins, preserving busy after failure. | [release-resource-occupancy-only-after-consumer-shutdown-joins.md](release-resource-occupancy-only-after-consumer-shutdown-joins.md) |
+| FK-PIT-0145 | Frontend / Electron layout | translation overview, nested grid, minmax, reader footer overlap, narrow window; Adding a header summary can expose an inner fixed minimum row that extends behind the footer; measure the reader and its parent, preserve header alignment, and let nested tracks shrink. | [size-nested-readers-against-the-remaining-workspace-height.md](size-nested-readers-against-the-remaining-workspace-height.md) |
+| FK-PIT-0146 | Windows / export publication | SaveDialog, drive-letter case, defaultFilePath, indexed output, replacement race; A native dialog may return the default path with a different drive-letter case; strict string equality incorrectly treats it as an explicit replace choice. | [compare-native-default-save-paths-with-platform-path-semantics.md](compare-native-default-save-paths-with-platform-path-semantics.md) |
 
 ## Add new cases
 

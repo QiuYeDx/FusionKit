@@ -6,6 +6,9 @@ import { LIMITS, StudioError, validateDocument, type SubtitleDocument } from '..
 import { exportOptionsSchema, type ExportIssueCode, type ExportOptions, type ExportPlanSummary, type ExportResult } from '../../../src/subtitle-studio/export-contract';
 import type { DocumentRepository } from './document-repository';
 import { planSubtitleExport } from './export-planner';
+import { SourceLocationService } from './source-location-service';
+import { localSubtitleFilesystemObjectIdentityForHandle, localSubtitleFilesystemObjectIdentityForPath, sameLocalSubtitleFilesystemObjectIdentity,
+  type LocalSubtitleFilesystemObjectIdentity } from './transcription/native/filesystem-object-identity';
 
 export function sourceBytes(value: SubtitleDocument): Buffer {
   const doc = validateDocument(value);
@@ -24,12 +27,16 @@ export async function unusedOutputPath(directory: string, displayName: string): 
 }
 
 type PublishPolicy = 'replace' | 'indexed';
-export async function publishBytes(bytes: Buffer, authorizedPath: string, beforePublish: () => void = () => {}, policy: PublishPolicy = 'replace', commit: (action: () => Promise<string>) => Promise<string> = action => action()): Promise<string> {
+export async function publishBytes(bytes: Buffer, authorizedPath: string, beforePublish: () => void | Promise<void> = () => {}, policy: PublishPolicy = 'replace', commit: (action: () => Promise<string>) => Promise<string> = action => action()): Promise<string> {
   if (bytes.byteLength > LIMITS.snapshotBytes) throw new StudioError('limit_exceeded');
   const temporary = path.join(path.dirname(authorizedPath), `.subtitle-studio-${randomUUID()}.tmp`);
+  let identity: LocalSubtitleFilesystemObjectIdentity | undefined;
   try {
+    await beforePublish();
     const handle = await open(temporary, 'wx+', 0o600);
     try {
+      identity = await localSubtitleFilesystemObjectIdentityForHandle(handle);
+      await beforePublish();
       await handle.writeFile(bytes); await handle.sync();
       if ((await handle.stat()).size !== bytes.byteLength) throw new StudioError('output_write_failed');
       const checked = Buffer.alloc(Math.min(65536, bytes.byteLength));
@@ -41,29 +48,35 @@ export async function publishBytes(bytes: Buffer, authorizedPath: string, before
     }
     finally { await handle.close(); }
     return await commit(async () => {
-      beforePublish();
+      await beforePublish();
+      if (!identity || !sameLocalSubtitleFilesystemObjectIdentity(identity, await localSubtitleFilesystemObjectIdentityForPath(temporary))) throw new StudioError('output_write_failed');
       if (policy === 'replace') { await rename(temporary, authorizedPath); return authorizedPath; }
       const name = path.parse(authorizedPath);
       for (let index = 0; index < 10000; index++) {
         const candidate = path.join(name.dir, `${name.name}${index ? ` (${index})` : ''}${name.ext}`);
-        beforePublish();
+        await beforePublish();
         try { await link(temporary, candidate); return candidate; }
         catch (error) { if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error; }
       }
       throw new StudioError('output_write_failed');
     });
   } catch (error) { throw error instanceof StudioError ? error : new StudioError('output_write_failed'); }
-  finally { await rm(temporary, { force: true }).catch(() => undefined); }
+  finally {
+    if (identity) try {
+      if (sameLocalSubtitleFilesystemObjectIdentity(identity, await localSubtitleFilesystemObjectIdentityForPath(temporary))) await rm(temporary, { force: true });
+    } catch { /* Never remove a replaced or unavailable temporary path. */ }
+  }
 }
 
 export async function publishSource(doc: SubtitleDocument, authorizedPath: string, beforePublish: () => void = () => {}, policy: PublishPolicy = 'replace') {
   return publishBytes(sourceBytes(doc), authorizedPath, beforePublish, policy);
 }
 
-type CachedExport = { owner: number; created: number; summary: ExportPlanSummary; bytes: Buffer; publishing: boolean };
+type CachedExport = { owner: number; created: number; summary: ExportPlanSummary; bytes: Buffer; publishing: boolean; sourceBindingId?: string };
 export class ExportService {
   private plans = new Map<string, CachedExport>();
-  constructor(private readonly repository: DocumentRepository) {}
+  private readonly sources: SourceLocationService;
+  constructor(private readonly repository: DocumentRepository) { this.sources = new SourceLocationService(repository); }
   forgetOwner(owner: number) { for (const [id, plan] of this.plans) if (plan.owner === owner) this.plans.delete(id); }
   dispose() { this.plans.clear(); }
   private prune() { for (const [id, plan] of this.plans) if (Date.now() - plan.created > 15 * 60000) this.plans.delete(id); }
@@ -72,13 +85,15 @@ export class ExportService {
     if (!parsed.success) throw new StudioError('invalid_input');
     const doc = await this.repository.read(documentId); guard();
     if (doc.revision !== revision) throw new StudioError('revision_conflict');
-    const { bytes, ...summary } = planSubtitleExport(doc, parsed.data);
+    const { bytes, ...metadata } = planSubtitleExport(doc, parsed.data);
+    const location = await this.sources.inspect(documentId, guard); guard();
+    const summary = { ...metadata, sourceLocation: location.summary };
     this.prune(); this.forgetOwner(owner);
     if (!bytes || summary.issues.some(issue => issue.blocking)) return { ...summary, planId: null };
     if (this.plans.size >= 8 || [...this.plans.values()].reduce((total, entry) => total + entry.bytes.byteLength, bytes.byteLength) > LIMITS.snapshotBytes) throw new StudioError('limit_exceeded');
     const planId = randomUUID();
     const result = { ...summary, planId };
-    this.plans.set(planId, { owner, created: Date.now(), summary: structuredClone(result), bytes: Buffer.from(bytes), publishing: false });
+    this.plans.set(planId, { owner, created: Date.now(), summary: structuredClone(result), bytes: Buffer.from(bytes), publishing: false, sourceBindingId: location.bindingId });
     return result;
   }
   inspect(owner: number, documentId: string, revision: number, planId: string, acceptedLosses: ExportIssueCode[]): ExportPlanSummary {
@@ -103,5 +118,25 @@ export class ExportService {
       this.plans.delete(planId);
       return { fileName: path.basename(output), revision, partial: plan.summary.partial, mode: plan.summary.options.mode, incomplete: plan.summary.options.incomplete };
     } finally { plan.publishing = false; }
+  }
+  async publishToSource(owner: number, documentId: string, revision: number, planId: string, acceptedLosses: ExportIssueCode[], guard: () => void = () => {}): Promise<ExportResult> {
+    const plan = this.resolve(owner, documentId, revision, planId, acceptedLosses);
+    if (plan.publishing) throw new StudioError('revision_conflict');
+    plan.publishing = true;
+    const alive = () => { guard(); if (this.plans.get(planId) !== plan) throw new StudioError('access_denied'); };
+    try {
+      const output = await this.sources.publish(documentId, plan.sourceBindingId,
+        (directory, verify) => publishBytes(plan.bytes, path.join(directory, plan.summary.fileName), verify, 'indexed'), alive);
+      this.plans.delete(planId);
+      return { fileName: path.basename(output), revision, partial: plan.summary.partial, mode: plan.summary.options.mode, incomplete: plan.summary.options.incomplete };
+    } finally { plan.publishing = false; }
+  }
+  async exportOriginalToSource(documentId: string, revision: number, guard: () => void = () => {}) {
+    const doc = await this.repository.read(documentId); guard();
+    if (doc.revision !== revision) throw new StudioError('revision_conflict');
+    const location = await this.sources.inspect(documentId, guard);
+    const output = await this.sources.publish(documentId, location.bindingId,
+      (directory, verify) => publishBytes(sourceBytes(doc), path.join(directory, path.basename(doc.origin.displayName)), verify, 'indexed'), guard, revision);
+    return { fileName: path.basename(output) };
   }
 }

@@ -52,6 +52,51 @@ afterEach(async () => {
 });
 
 describe('production Subtitle Studio IPC handler composition', () => {
+  it('imports native dropped files with per-file results and rejects other frames and forged payload fields', async () => {
+    const parent = path.resolve('test-results'); await mkdir(parent, { recursive: true });
+    adapter.directory = await mkdtemp(path.join(parent, 'studio-drop-ipc-'));
+    const first = path.join(adapter.directory, 'one.vtt'); const second = path.join(adapter.directory, 'two.lrc');
+    const unsupported = path.join(adapter.directory, 'notes.txt'); const folder = path.join(adapter.directory, 'folder');
+    await writeFile(first, 'WEBVTT\n\n00:00:01.000 --> 00:00:02.000\nOne\n'); await writeFile(second, '[00:01]Two\n');
+    await writeFile(unsupported, 'not subtitles'); await mkdir(folder);
+    registration = registerSubtitleStudio(); const owner = attach();
+    const input = { encoding: 'utf-8', paths: [first, second, unsupported, folder] };
+    expect(await owner.invoke(STUDIO_CHANNELS.importDroppedSubtitles, input, { senderFrame: { url: rendererUrl } })).toEqual({ ok: false, error: 'access_denied' });
+    expect(await owner.invoke(STUDIO_CHANNELS.importDroppedSubtitles, { ...input, source: 'picker' })).toEqual({ ok: false, error: 'invalid_input' });
+    const imported = await owner.invoke(STUDIO_CHANNELS.importDroppedSubtitles, input);
+    expect(imported).toMatchObject({ ok: true, value: { items: [{ ok: true, document: { origin: { format: 'vtt' } } }, { ok: true }, { ok: false, error: 'unsupported_feature' }, { ok: false, error: 'invalid_input' }] } });
+    expect(adapter.open).not.toHaveBeenCalled();
+    const summary = imported.value.items[0].document;
+    expect(await owner.invoke(STUDIO_CHANNELS.getSourceLocation, { documentId: summary.id })).toEqual({ ok: true, value: { status: 'ready', origin: 'input' } });
+    expect(JSON.stringify(imported)).not.toContain(adapter.directory);
+    expect(await readFile(first, 'utf8')).toContain('WEBVTT');
+  });
+
+  it('exports beside the persisted source without a picker and fences source rebinding against old plans', async () => {
+    const { owner, request } = await setup('[00:01]Preserve input\n');
+    const other = attach();
+    expect(await other.invoke(STUDIO_CHANNELS.getSourceLocation, { documentId: request.documentId })).toEqual({ ok: false, error: 'access_denied' });
+    expect(await owner.invoke(STUDIO_CHANNELS.selectSourceDirectory, { documentId: request.documentId, path: 'C:\\forged' })).toEqual({ ok: false, error: 'invalid_input' });
+    const options: ExportOptions = { mode: 'source', format: 'lrc', order: 'source-first', encoding: 'utf-8', bom: false, newline: 'lf', incomplete: 'block', missingEnd: { mode: 'block' } };
+    const planned = await owner.invoke(STUDIO_CHANNELS.planExport, { ...request, options });
+    expect(planned).toMatchObject({ ok: true, value: { fileName: 'sample.lrc', sourceLocation: { status: 'ready', origin: 'input' } } });
+    const openCount = adapter.open.mock.calls.length;
+    const exported = await owner.invoke(STUDIO_CHANNELS.exportDocument, { ...request, planId: planned.value.planId, acceptedLosses: [], destination: 'source-directory' });
+    expect(exported).toMatchObject({ ok: true, value: { fileName: 'sample (1).lrc' } });
+    expect(adapter.open).toHaveBeenCalledTimes(openCount); expect(adapter.save).not.toHaveBeenCalled();
+    expect(await readFile(path.join(adapter.directory, 'sample.lrc'), 'utf8')).toBe('[00:01]Preserve input\n');
+    expect(await owner.invoke(STUDIO_CHANNELS.exportSource, { ...request, destination: 'source-directory' })).toMatchObject({ ok: true, value: { fileName: 'sample (2).lrc' } });
+    expect(await readFile(path.join(adapter.directory, 'sample (2).lrc'), 'utf8')).toBe('[00:01]Preserve input\n');
+    const next = await owner.invoke(STUDIO_CHANNELS.planExport, { ...request, options });
+    const replacement = path.join(adapter.directory, 'chosen'); await mkdir(replacement);
+    adapter.open.mockResolvedValueOnce({ canceled: false, filePaths: [replacement] });
+    expect(await owner.invoke(STUDIO_CHANNELS.selectSourceDirectory, { documentId: request.documentId })).toMatchObject({ ok: true, value: { status: 'ready', origin: 'user-selected-directory' } });
+    expect(await owner.invoke(STUDIO_CHANNELS.exportDocument, { ...request, planId: next.value.planId, acceptedLosses: [], destination: 'source-directory' })).toEqual({ ok: false, error: 'revision_conflict' });
+    await registration!.dispose(); registration = registerSubtitleStudio();
+    const reopened = attach(); await reopened.invoke(STUDIO_CHANNELS.listDocuments, { offset: 0 });
+    expect(await reopened.invoke(STUDIO_CHANNELS.getSourceLocation, { documentId: request.documentId })).toMatchObject({ ok: true, value: { status: 'ready', origin: 'user-selected-directory' } });
+  });
+
   it('reports an unreadable historical document without blocking native import, preview or restart', async () => {
     adapter.directory = await mkdtemp(path.join(tmpdir(), 'studio-ipc-'));
     const brokenId = randomUUID();
@@ -122,10 +167,10 @@ describe('production Subtitle Studio IPC handler composition', () => {
     adapter.open.mockResolvedValueOnce({ canceled: true, filePaths: [] });
     expect(await owner.invoke(STUDIO_CHANNELS.exportBatch, execute)).toEqual({ ok: true, value: null });
     adapter.open.mockResolvedValueOnce({ canceled: false, filePaths: [adapter.directory] });
-    expect(await owner.invoke(STUDIO_CHANNELS.exportBatch, execute)).toMatchObject({ ok: true, value: { items: [{ ok: true, result: { fileName: 'sample.source.lrc' } }] } });
+    expect(await owner.invoke(STUDIO_CHANNELS.exportBatch, execute)).toMatchObject({ ok: true, value: { items: [{ ok: true, result: { fileName: 'sample (1).lrc' } }] } });
     expect(adapter.open.mock.calls.at(-1)?.[1].properties).toEqual(['openDirectory', 'createDirectory']);
     expect(adapter.save).not.toHaveBeenCalled();
-    expect(await readFile(path.join(adapter.directory, 'sample.source.lrc'), 'utf8')).toBe('[00:01.000]Original\n');
+    expect(await readFile(path.join(adapter.directory, 'sample (1).lrc'), 'utf8')).toBe('[00:01.000]Original\n');
     const next = await owner.invoke(STUDIO_CHANNELS.planExportBatch, { documents: [request], options: exportOptions });
     adapter.open.mockImplementationOnce(async () => { owner.client.emit('did-start-navigation', {}, rendererUrl, false, true); return { canceled: false, filePaths: [adapter.directory] }; });
     expect(await owner.invoke(STUDIO_CHANNELS.exportBatch, { batchId: next.value.batchId, acceptedLosses: [] })).toEqual({ ok: false, error: 'access_denied' });
@@ -200,10 +245,33 @@ describe('production Subtitle Studio IPC handler composition', () => {
       return { canceled: false, filePath: claimed };
     });
     const result = await owner.invoke(STUDIO_CHANNELS.exportDocument, { ...request, planId: planned.value.planId, acceptedLosses: [] });
-    expect(result).toMatchObject({ ok: true, value: { fileName: 'sample.source (1).lrc' } });
+    expect(result).toMatchObject({ ok: true, value: { fileName: 'sample (2).lrc' } });
     expect(await readFile(claimed, 'utf8')).toBe('another export');
     expect(await readFile(path.join(adapter.directory, result.value.fileName), 'utf8')).toBe('[00:01.000]Original\n');
   });
+  it.skipIf(process.platform !== 'win32').each(['exportDocument', 'exportSource'] as const)(
+    'preserves a claimed Windows default path when native %s returns different path casing', async method => {
+      const original = '[00:01.00]Original\n';
+      const { owner, request } = await setup(original);
+      const payload = method === 'exportDocument'
+        ? { ...request, planId: (await owner.invoke(STUDIO_CHANNELS.planExport, { ...request, options: exportOptions })).value.planId, acceptedLosses: [] }
+        : request;
+      let claimed = '';
+      adapter.save.mockImplementationOnce(async (_window, options) => {
+        claimed = options.defaultPath;
+        await writeFile(claimed, 'another export');
+        const filePath = claimed.replace(/^[a-z]:/i, (drive: string) => drive === drive.toUpperCase() ? drive.toLowerCase() : drive.toUpperCase());
+        expect(filePath).not.toBe(claimed);
+        return { canceled: false, filePath };
+      });
+      const result = await owner.invoke(STUDIO_CHANNELS[method], payload);
+      expect(result).toMatchObject({ ok: true, value: { fileName: 'sample (2).lrc' } });
+      expect(await readFile(claimed, 'utf8')).toBe('another export');
+      expect(await readFile(path.join(adapter.directory, 'sample.lrc'), 'utf8')).toBe(original);
+      expect(await readFile(path.join(adapter.directory, result.value.fileName), 'utf8'))
+        .toBe(method === 'exportSource' ? original : '[00:01.000]Original\n');
+    },
+  );
   it('rejects cross-owner grants, forged senders/frames/tokens, paths and revisions', async () => {
     const { owner, request } = await setup();
     const other = attach();

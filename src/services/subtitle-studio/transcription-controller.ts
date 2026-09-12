@@ -33,6 +33,12 @@ export interface StudioTranscriptionState {
   readonly selecting: boolean; readonly submitting: boolean; readonly refreshing: boolean;
   readonly resourceActions: readonly string[]; readonly taskActions: readonly string[];
   readonly cancellingTaskIds: readonly string[]; readonly cleanupPendingCount: number;
+  readonly queueAction: QueueAction | null;
+  readonly queueResult: QueueActionResult | null;
+}
+export type QueueAction = 'clear_completed' | 'clear_terminal' | 'cancel_active';
+export interface QueueActionResult {
+  readonly action: QueueAction; readonly succeeded: number; readonly failed: number; readonly skipped: number;
 }
 export interface StudioTranscriptionControllerOptions {
   readonly sharedResources?: SpeechResourcesNotifications;
@@ -90,7 +96,8 @@ export class StudioTranscriptionController {
   private readonly probing = new Map<string, object>();
   private state: StudioTranscriptionState = Object.freeze({ phase: 'idle', runtime: null, resources: [], resourceJobs: [], drafts: [], tasks: [],
     config: DEFAULT_STUDIO_TRANSCRIPTION_CONFIG, error: null, selecting: false, submitting: false, refreshing: false,
-    resourceActions: [], taskActions: [], cancellingTaskIds: [], cleanupPendingCount: 0 });
+    resourceActions: [], taskActions: [], cancellingTaskIds: [], cleanupPendingCount: 0, queueAction: null, queueResult: null });
+  private queueOperation?: Promise<QueueActionResult>;
   private startOperation?: Promise<void>;
   private refreshOperation?: Promise<void>;
   private taskRead?: Promise<void>;
@@ -375,8 +382,54 @@ export class StudioTranscriptionController {
     await unwrap(this.api().removeTranscriptionTask({ taskId })); this.cancelling.delete(taskId);
     this.emit({ tasks: Object.freeze(this.state.tasks.filter(task => task.taskId !== taskId)) });
   });
+  clearCompleted = (): Promise<QueueActionResult> => this.mutateQueue('clear_completed');
+  clearTerminal = (): Promise<QueueActionResult> => this.mutateQueue('clear_terminal');
+  /** IDs come from the confirmation snapshot; tasks admitted afterwards are never cancelled. */
+  cancelTasks = (taskIds: readonly string[]): Promise<QueueActionResult> => this.mutateQueue('cancel_active', taskIds);
+  private mutateQueue(action: QueueAction, taskIds?: readonly string[]): Promise<QueueActionResult> {
+    if (this.queueOperation) return this.queueOperation;
+    const requested = taskIds && new Set(taskIds);
+    const candidates = this.state.tasks.filter(task => action === 'cancel_active' ? requested?.has(task.taskId)
+      : action === 'clear_completed' ? task.status === 'completed' : !activeTask(task));
+    const targets = candidates.filter(task => !this.taskActions.has(task.taskId)
+      && (action === 'cancel_active' ? activeTask(task) && !this.cancelling.has(task.taskId) : !task.cleanupPending));
+    const result: QueueActionResult = { action, succeeded: 0, failed: 0,
+      skipped: (requested?.size ?? candidates.length) - targets.length };
+    for (const task of targets) this.taskActions.add(task.taskId);
+    this.taskVersion++;
+    this.queueOperation = Promise.resolve().then(async () => {
+      let succeeded = 0, failed = 0;
+      for (const { taskId } of targets) {
+        try {
+          if (action === 'cancel_active') {
+            this.cancelling.add(taskId); this.emit();
+            const task = transcriptionTaskSummarySchema.parse(await unwrap(this.api().cancelTranscriptionTask({ taskId })));
+            if (!activeTask(task)) this.cancelling.delete(taskId);
+            this.emit({ tasks: Object.freeze(this.state.tasks.map(current => current.taskId === taskId ? Object.freeze(task) : current)) });
+          } else {
+            await unwrap(this.api().removeTranscriptionTask({ taskId }));
+            this.cancelling.delete(taskId);
+            this.emit({ tasks: Object.freeze(this.state.tasks.filter(task => task.taskId !== taskId)) });
+          }
+          succeeded++;
+        } catch (error) {
+          if (action === 'cancel_active') this.cancelling.delete(taskId);
+          failed++; this.emit({ error: asError(error) });
+        }
+      }
+      const completed = Object.freeze({ ...result, succeeded, failed });
+      this.emit({ queueResult: completed });
+      return completed;
+    }).finally(() => {
+      for (const task of targets) this.taskActions.delete(task.taskId);
+      this.queueOperation = undefined; this.taskVersion++; this.taskDirty = true;
+      this.emit({ queueAction: null }); void this.readTasks(); this.armPoll();
+    });
+    this.emit({ queueAction: action, queueResult: null, error: null });
+    return this.queueOperation;
+  }
   private async mutateTask(taskId: string, action: () => Promise<void>) {
-    if (this.taskActions.has(taskId)) return;
+    if (this.queueOperation || this.taskActions.has(taskId)) return;
     this.taskActions.add(taskId); this.taskVersion++; this.emit({ error: null });
     try { await action(); } catch (error) { this.emit({ error: asError(error) }); }
     finally { this.taskActions.delete(taskId); this.taskVersion++; this.taskDirty = true; this.emit(); void this.readTasks(); this.armPoll(); }

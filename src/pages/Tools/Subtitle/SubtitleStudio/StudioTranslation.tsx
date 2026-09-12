@@ -13,6 +13,7 @@ import { ToolConfigDisclosure } from '../../_shared/ui/ToolConfigDisclosure';
 import { ToolStatBar } from '../../_shared/ui/ToolStatBar';
 import useModelStore from '@/store/useModelStore';
 import { unwrapStudio } from '@/services/subtitle-studio/client';
+import { getStudioTranslationOverviewController } from '@/services/subtitle-studio/translation-overview-controller';
 import { StudioError, type ErrorCode } from '@/subtitle-studio/domain';
 import type { DocumentPage, DocumentSummary } from '@/subtitle-studio/ipc-contract';
 import { StudioFileName, StudioIconButton } from './StudioControls';
@@ -181,12 +182,14 @@ export function StudioTranslation({ page, documents, triggerContainer, busy, onS
     try {
       if (batch && batchPlan) {
         const value = await unwrapStudio(window.subtitleStudio.createTranslationBatch({ batchId: batchPlan.batchId, apiKey: selected.apiKey }));
+        getStudioTranslationOverviewController().trackStarted(value.items.flatMap(item => item.ok ? [item.taskId] : []));
         if (mounted.current) { setBatchResult(value); setBatchPlan(null); onStarted(); }
       } else if (page && currentPlan) {
-        await unwrapStudio(window.subtitleStudio.createTranslation({
+        const value = await unwrapStudio(window.subtitleStudio.createTranslation({
           documentId: page.summary.id, revision: page.summary.revision,
           planId: currentPlan.planId, apiKey: selected.apiKey,
         }));
+        getStudioTranslationOverviewController().trackStarted([value.taskId]);
         if (mounted.current && currentDocumentId.current === page.summary.id) { setOpen(false); setPlan(null); onStarted(); }
       }
     } catch (failure) {
@@ -268,6 +271,7 @@ export function StudioTranslation({ page, documents, triggerContainer, busy, onS
           </>}
           {batchResult && <section aria-live="polite" data-testid="studio-batch-result">
             <p className="studio-batch-note">{t('studio:batch.translation_result', { count: batchResult.items.filter(item => item.ok).length, failed: batchResult.items.filter(item => !item.ok).length })}</p>
+            {batchResult.items.some(item => item.ok) && <Button variant="ghost" size="sm" className="studio-translation-view-progress" onClick={() => { setOpen(false); getStudioTranslationOverviewController().setDetailsOpen(true); }}>{t('studio:overview.view_progress')}</Button>}
             <StudioBatchItems>{batchResult.items.map(item => <li key={item.documentId} data-document-id={item.documentId} data-state={item.ok ? 'success' : 'failed'}><StudioFileName name={item.displayName} focusable /><span>{item.ok ? t('studio:batch.queued') : t(errorKeys[item.error])}</span></li>)}</StudioBatchItems>
           </section>}
         </div>

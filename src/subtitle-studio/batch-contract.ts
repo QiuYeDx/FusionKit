@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { idSchema, type ErrorCode } from './domain';
-import { exportIssueCodeSchema, exportOptionsSchema, type ExportPlanSummary, type ExportResult } from './export-contract';
+import { exportDestinationSchema, exportIssueCodeSchema, exportOptionsSchema, type ExportPlanSummary, type ExportResult } from './export-contract';
 import { translationConfigSchema, type TranslationPlanSummary } from './translation-contract';
 import type { DocumentSummary } from './ipc-contract';
 
@@ -14,9 +14,9 @@ export const batchRequestSchemas = {
   planTranslationBatch: z.object({ documents: documentReferencesSchema, config: translationConfigSchema }).strict(),
   createTranslationBatch: z.object({ batchId: idSchema, apiKey: z.string().min(1).max(8000) }).strict(),
   planExportBatch: z.object({ documents: exportReferencesSchema, options: exportOptionsSchema.omit({ trackId: true }).strict() }).strict(),
-  exportBatch: z.object({ batchId: idSchema, acceptedLosses: z.array(z.object({ documentId: idSchema, codes: z.array(exportIssueCodeSchema).max(32) }).strict()).max(STUDIO_BATCH_LIMIT)
+  exportBatch: z.object({ batchId: idSchema, destination: exportDestinationSchema.optional(), acceptedLosses: z.array(z.object({ documentId: idSchema, codes: z.array(exportIssueCodeSchema).max(32) }).strict()).max(STUDIO_BATCH_LIMIT)
     .refine(items => new Set(items.map(item => item.documentId)).size === items.length) }).strict(),
-  exportSources: z.object({ documents: documentReferencesSchema }).strict(),
+  exportSources: z.object({ documents: documentReferencesSchema, destination: exportDestinationSchema.optional() }).strict(),
 };
 export type DocumentReference = z.infer<typeof documentReferenceSchema>;
 export type BatchFailure = { documentId: string; displayName: string; ok: false; error: ErrorCode };

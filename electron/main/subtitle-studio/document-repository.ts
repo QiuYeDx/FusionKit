@@ -6,6 +6,7 @@ import { z } from 'zod';
 import { idSchema, LIMITS, StudioError, type SubtitleDocument } from '../../../src/subtitle-studio/domain';
 import { validateSnapshot, type DocumentSnapshot } from '../../../src/subtitle-studio/persistence-contract';
 import type { UnavailableDocument } from '../../../src/subtitle-studio/batch-contract';
+import { bindSourceLocation, validateSourceLocationRecord, SOURCE_LOCATION_FILE, type SourceLocationCapture, type SourceLocationRecord } from './source-location-service';
 
 export type CommitStage = 'generation-write' | 'generation-sync' | 'generation-ready' | 'previous-ready' | 'current-write' | 'current-sync' | 'current-publish' | 'current-directory-sync' | 'create-cleanup' | 'delete-publish' | 'delete-cleanup';
 export type RepositoryEvent = { documentId: string; revision: number; sequence: number; deleted: boolean };
@@ -137,14 +138,49 @@ export class DocumentRepository {
     this.state.listeners.add(listener);
     return () => { this.state.listeners.delete(listener); };
   }
-  create(value: SubtitleDocument, guard: () => void = () => {}): Promise<SubtitleDocument> {
+  private async initialSource(document: SubtitleDocument, capture?: SourceLocationCapture) {
+    if (!capture) return;
+    const file = path.join(this.directory(document.id), SOURCE_LOCATION_FILE);
+    const record = bindSourceLocation(document, capture);
+    try { await this.synced(file, JSON.stringify(record)); }
+    catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error;
+      const previous = validateSourceLocationRecord(document, JSON.parse(await this.readFile(file, 128 * 1024)));
+      if (JSON.stringify(previous.capture) !== JSON.stringify(record.capture)) throw new StudioError('revision_conflict');
+    }
+  }
+  private async sourceLocation(document: SubtitleDocument): Promise<SourceLocationRecord | null> {
+    try { return validateSourceLocationRecord(document, JSON.parse(await this.readFile(path.join(this.directory(document.id), SOURCE_LOCATION_FILE), 128 * 1024))); }
+    catch (error) { if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null; throw new StudioError('output_write_failed'); }
+  }
+  readSourceLocation(id: string) {
+    return this.serial(async () => this.sourceLocation((await this.committed(id)).snapshot.document));
+  }
+  setSourceLocation(id: string, capture: SourceLocationCapture, guard: () => void = () => {}) {
+    return this.serial(async () => {
+      const document = (await this.committed(id)).snapshot.document;
+      const record = bindSourceLocation(document, capture);
+      await this.publish(path.join(this.directory(id), SOURCE_LOCATION_FILE), JSON.stringify(record), undefined, guard);
+      await this.syncDirectory(this.directory(id));
+    });
+  }
+  withSourceLocation<T>(id: string, bindingId: string, action: (record: SourceLocationRecord) => Promise<T>, revision?: number) {
+    return this.serial(async () => {
+      const document = (await this.committed(id)).snapshot.document;
+      if (revision !== undefined && document.revision !== revision) throw new StudioError('revision_conflict');
+      const record = await this.sourceLocation(document);
+      if (!record || record.bindingId !== bindingId) throw new StudioError('revision_conflict');
+      return action(record);
+    });
+  }
+  create(value: SubtitleDocument, guard: () => void = () => {}, sourceLocation?: SourceLocationCapture): Promise<SubtitleDocument> {
     return this.serial(async () => {
       const snapshot = validateRepositorySnapshot({ schemaVersion: 1, document: value, tasks: [] });
       const directory = this.directory(value.id);
       if (await this.isDeleted(value.id)) throw new StudioError('document_unavailable');
       await mkdir(this.root, { recursive: true });
       await mkdir(directory);
-      try { return (await this.commit(snapshot, undefined, guard)).document; }
+      try { await this.initialSource(snapshot.document, sourceLocation); return (await this.commit(snapshot, undefined, guard)).document; }
       catch (error) { await rm(directory, { recursive: true, force: true }).catch(() => undefined); throw error; }
     });
   }
@@ -157,7 +193,7 @@ export class DocumentRepository {
     } catch { return 'uncertain'; }
   }
   /** Confirm one creation identity. A published document is never rolled back after a sync failure. */
-  createConfirmed(value: SubtitleDocument, guard: () => void = () => {}): Promise<DocumentCreationReceipt> {
+  createConfirmed(value: SubtitleDocument, guard: () => void = () => {}, sourceLocation?: SourceLocationCapture): Promise<DocumentCreationReceipt> {
     let snapshot: DocumentSnapshot;
     try { snapshot = validateRepositorySnapshot({ schemaVersion: 1, document: value, tasks: [] }); }
     catch (error) { return Promise.reject(error); }
@@ -194,6 +230,7 @@ export class DocumentRepository {
       try {
         const stat = await lstat(directory);
         this.state.pendingCreations.set(id, { digest: identity.digest, dev: stat.dev, ino: stat.ino });
+        await this.initialSource(snapshot.document, sourceLocation);
         await this.commit(snapshot, undefined, guard, publication);
         this.state.pendingCreations.delete(id);
         return Object.freeze({ status: 'committed', documentId: id, revision: identity.revision, durability: publication.durability, replayed: false });

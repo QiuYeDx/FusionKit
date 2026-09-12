@@ -53,7 +53,7 @@ async function fixture() {
     const files = [];
     for (let index = 0; index < count; index++) {
       const filePath = path.join(bundle.tempRoot, `input-${++sequence}.wav`); await writeFile(filePath, `audio-${sequence}`);
-      const input = await inputs.authorize(owner, filePath, ['probe', 'transcribe']);
+      const input = await inputs.authorize(owner, filePath, ['probe', 'transcribe', 'derive_source_output']);
       files.push({ fileToken: input.fileToken, ...(streams ? { audioStreamId: `audio-${index}` } : {}) });
     }
     return { files, config: structuredClone(config) };

@@ -1,13 +1,27 @@
-import { STUDIO_CHANNELS, studioEventSchema, type SubtitleStudioApi } from '../../src/subtitle-studio/ipc-contract';
+import { STUDIO_CHANNELS, studioEventSchema, requestSchemas, droppedSubtitlesRequestSchema, type SubtitleStudioApi } from '../../src/subtitle-studio/ipc-contract';
 import { isPublicStudioChannel } from './subtitle-studio-channel-policy';
 
-export function createSubtitleStudioApi(ipc: { sendSync(channel: string, payload: unknown): unknown; invoke(channel: string, payload: unknown): Promise<any>; on(channel: string, listener: (event: unknown, input: any) => void): unknown; removeListener(channel: string, listener: (event: unknown, input: any) => void): unknown }): SubtitleStudioApi {
+export function createSubtitleStudioApi(ipc: { sendSync(channel: string, payload: unknown): unknown; invoke(channel: string, payload: unknown): Promise<any>; on(channel: string, listener: (event: unknown, input: any) => void): unknown; removeListener(channel: string, listener: (event: unknown, input: any) => void): unknown }, webUtils?: { getPathForFile(file: File): string }): SubtitleStudioApi {
   const capability = ipc.sendSync(STUDIO_CHANNELS.register, {});
   const invoke = (channel: string, payload: unknown) => {
     if (typeof capability !== 'string' || !isPublicStudioChannel(channel)) return Promise.resolve({ ok: false, error: 'access_denied' } as const);
     return ipc.invoke(channel, { capability, payload });
   };
   return Object.freeze({
+    getSourceLocation: request => invoke(STUDIO_CHANNELS.getSourceLocation, request),
+    selectSourceDirectory: request => invoke(STUDIO_CHANNELS.selectSourceDirectory, request),
+    importDroppedSubtitles: (files, request) => {
+      if (typeof capability !== 'string' || !webUtils) return Promise.resolve({ ok: false, error: 'access_denied' } as const);
+      if (!Array.isArray(files) || !files.length || files.length > 100 || !requestSchemas.importSubtitles.safeParse(request).success) return Promise.resolve({ ok: false, error: files?.length > 100 ? 'limit_exceeded' : 'invalid_input' } as const);
+      // Capture all native paths before yielding: FileList lifetime belongs to the drop.
+      let paths: string[];
+      try { paths = files.map(file => webUtils.getPathForFile(file)); }
+      catch { return Promise.resolve({ ok: false, error: 'access_denied' } as const); }
+      const parsed = droppedSubtitlesRequestSchema.safeParse({ ...request, paths });
+      if (!parsed.success) return Promise.resolve({ ok: false, error: 'access_denied' } as const);
+      return ipc.invoke(STUDIO_CHANNELS.importDroppedSubtitles, { capability, payload: parsed.data });
+    },
+    listTranslationTasks: request => invoke(STUDIO_CHANNELS.listTranslationTasks, request),
     selectTranscriptionMedia: request => invoke(STUDIO_CHANNELS.selectTranscriptionMedia, request),
     probeTranscriptionMedia: request => invoke(STUDIO_CHANNELS.probeTranscriptionMedia, request),
     revokeTranscriptionMedia: request => invoke(STUDIO_CHANNELS.revokeTranscriptionMedia, request),

@@ -1,4 +1,5 @@
 import { LIMITS, StudioError, validateDocument, type TextSubtitleDocument, type SubtitleText } from '../domain';
+import { preservedStructure } from './structure';
 
 function parseText(raw: string): { text: SubtitleText; supported: boolean } {
   const spans: SubtitleText['spans'] = [];
@@ -29,9 +30,11 @@ function srtTime(raw: string): number {
 
 export function importSubtitleText(rawText: string, origin: TextSubtitleDocument['origin'], newId: () => string, bom = false): TextSubtitleDocument {
   if (new TextEncoder().encode(rawText).length > LIMITS.inputBytes) throw new StudioError('limit_exceeded');
+  const crlf = rawText.includes('\r\n'); const cr = /\r(?!\n)/.test(rawText); const lf = /(^|[^\r])\n/.test(rawText);
+  const newline = Number(crlf) + Number(cr) + Number(lf) > 1 ? 'mixed' : cr ? 'cr' : crlf ? 'crlf' : 'lf';
   const doc: TextSubtitleDocument = {
     schemaVersion: 1, id: newId(), revision: 1, origin, cues: [], translationTracks: [], capabilities: { translate: true, preserveSource: true }, diagnostics: [],
-    preservation: { schemaVersion: 1, rawText, bom, newline: rawText.includes('\r\n') ? /(^|[^\r])\n/.test(rawText) ? 'mixed' : 'crlf' : 'lf', offsetMs: 0, nodes: [] },
+    preservation: { schemaVersion: 1, rawText, bom, newline, offsetMs: 0, nodes: [] },
   };
   const add = (node: TextSubtitleDocument['preservation']['nodes'][number], text: string, startMs: number, endMs: number | null, sourceLabel?: string) => {
     if (doc.cues.length >= LIMITS.cues || new TextEncoder().encode(text).length > LIMITS.cueBytes) throw new StudioError('limit_exceeded');
@@ -45,7 +48,24 @@ export function importSubtitleText(rawText: string, origin: TextSubtitleDocument
     const id = newId(); node.cueIds.push(id);
     doc.cues.push({ id, sourceRevision: 1, timingRevision: 1, timing: { startMs, endMs, provenance: origin.format === 'srt' ? 'srt' : 'lrc_offset' }, source: parsed.text, nodeId: node.id, ...(sourceLabel === undefined ? {} : { sourceLabel }) });
   };
-  if (origin.format === 'srt') {
+  if (origin.format === 'vtt' || origin.format === 'ass') {
+    const structure = preservedStructure(origin.format, rawText);
+    for (const parsed of structure.nodes) {
+      const node = { id: newId(), start: parsed.start, end: parsed.end, cueIds: [] as string[] };
+      doc.preservation.nodes.push(node);
+      for (const code of parsed.diagnostics) doc.diagnostics.push({ code, nodeId: node.id });
+      if (!parsed.body) continue;
+      if (doc.cues.length >= LIMITS.cues) throw new StudioError('limit_exceeded');
+      const body = parsed.body;
+      if (!body.safe) doc.capabilities.translate = false;
+      if (body.endMs === body.startMs) doc.diagnostics.push({ code: 'zero_duration', nodeId: node.id });
+      const id = newId(); node.cueIds.push(id);
+      doc.cues.push({ id, sourceRevision: 1, timingRevision: 1, nodeId: node.id,
+        timing: { startMs: body.startMs, endMs: body.endMs, provenance: origin.format }, source: body.text,
+        ...(body.label === undefined ? {} : { sourceLabel: body.label }) });
+    }
+    if (structure.nodes.some(node => node.opaque)) doc.diagnostics.push({ code: 'opaque_structure' });
+  } else if (origin.format === 'srt') {
     // Ranges cover every original character, including separators and line endings.
     const blocks = /[\s\S]*?(?:(?:\r?\n)[ \t]*(?:\r?\n)+|$)/g;
     for (const match of rawText.matchAll(blocks)) {

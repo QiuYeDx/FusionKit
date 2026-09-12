@@ -177,8 +177,36 @@
       "empty_output": "この設定では書き出せる字幕がありません。",
       "encoding_unrepresentable": "この文字コードではすべての文字を保持できません。UTF-8 または UTF-16LE を使ってください。",
       "skipped_cues": "有効な訳文がない字幕 {{count}} 件を省略します。",
-      "source_fallback": "有効な訳文がない字幕 {{count}} 件には原文を使います。"
-    }
+      "source_fallback": "有効な訳文がない字幕 {{count}} 件には原文を使います。",
+      "timing_precision_changed": "ASS は {{count}} 件の字幕時刻を 10 ミリ秒単位に丸めます。",
+      "positioning_omitted": "{{count}} 件の位置またはレイアウト設定を省略します。",
+      "effects_omitted": "{{count}} 件のエフェクトまたは描画を省略します。",
+      "opaque_omitted": "{{count}} 件の本文以外または不透明な構造を省略します。元ファイルは保持されます。",
+      "encoding_not_supported": "VTT と新しく生成する ASS には UTF-8 が必要です。"
+    },
+    "destination": "保存先",
+    "destination_source": "元ファイルのフォルダー",
+    "destination_choose": "別の場所を選択",
+    "destination_source_note": "各ファイルをそれぞれの元フォルダーに保存します。同名のファイルがある場合は番号を追加します。",
+    "destination_choose_note": "保存時にファイルまたはフォルダーを選択します。",
+    "source_ready": "元フォルダーを利用できます",
+    "source_missing": "この文書の元フォルダーは記録されていません。",
+    "source_unavailable": "元ファイルまたはフォルダーを利用できません。フォルダーを再指定するか、別の場所を選択してください。",
+    "source_rebound": "指定し直した元フォルダーを使用します",
+    "select_source_directory": "元フォルダーを再指定…",
+    "source_loading": "元フォルダーを確認中…",
+    "suffix": "ファイル名の接尾辞",
+    "suffix_none": "なし",
+    "suffix_content_mode": "内容の種類",
+    "suffix_target_language": "翻訳先言語",
+    "suffix_custom": "カスタム",
+    "suffix_value": "カスタム接尾辞",
+    "suffix_placeholder": "例：zh-CN",
+    "suffix_invalid": "40 文字以内で、パス区切りや制御文字を含めず、末尾にピリオドや空白を付けないでください。",
+    "file_name_preview": "出力ファイル名：{{name}}",
+    "save_to_source": "元フォルダーに保存",
+    "save_original": "元ファイルを保存…",
+    "source_recheck": "元の場所が更新されました。書き出しを再確認してください。"
   },
   "errors": {
     "invalid_input": "字幕の構造が無効です。",
@@ -203,11 +231,15 @@
     "enhanced_lrc": "拡張 LRC を保持しています。翻訳は利用できません",
     "negative_time": "オフセットにより開始時間が負になっています",
     "zero_duration": "長さがゼロの字幕があります",
-    "untimed_text": "時間タグのない本文は元のソースノードに保持されています"
+    "untimed_text": "時間タグのない本文は元のソースノードに保持されています",
+    "opaque_structure": "本文以外の構造は保持されています",
+    "ass_drawing": "ASS 描画は保持されています。本文と描画の混在は安全に翻訳できません",
+    "ass_karaoke": "単語単位のカラオケ時刻を含むため、安全に翻訳できません",
+    "vtt_payload_unsupported": "複雑な VTT マークアップや時刻を含むため、安全に翻訳できません"
   },
   "library": {
     "batch_actions": "一括操作",
-    "import_hint": "SRT / LRC · 一度に 100 件まで選択可能",
+    "import_hint": "字幕ファイルをドロップ、またはクリックして選択 · SRT / LRC / VTT / ASS",
     "search": "ドキュメントを検索",
     "clear_search": "検索をクリア",
     "open": "ドキュメントライブラリを開く",
@@ -257,7 +289,9 @@
     "result_summary": "成功 {{success}} 件、スキップ {{skipped}} 件、失敗 {{failed}} 件",
     "succeeded": "完了",
     "no_cancel_task": "キャンセルできる翻訳タスクはありません",
-    "no_resume_task": "再開できる翻訳タスクはありません"
+    "no_resume_task": "再開できる翻訳タスクはありません",
+    "drop_hint": "離して字幕を読み込む",
+    "drop_busy": "処理中です。しばらくしてからドロップしてください。"
   },
   "recovery": {
     "title": "復元できないドキュメントの管理",
@@ -288,7 +322,7 @@
     "queued": "翻訳キューに追加済み",
     "ready_count": "{{total}} 件中 {{count}} 件の準備が完了",
     "translation_queue_note": "準備が整ったドキュメントを翻訳キューに追加します。それ以外は変更せず、個別のメッセージに対応できます。",
-    "translation_result": "{{count}} 件の翻訳タスクを作成しました。{{failed}} 件は開始できませんでした。この画面を閉じると、ライブラリで進捗を確認できます。",
+    "translation_result": "翻訳タスク {{count}} 件を送信し、{{failed}} 件は開始できませんでした。処理は続行されます。翻訳タスク一覧で実際の進捗を確認できます。",
     "start_ready": "準備済み {{count}} 件を翻訳",
     "export_ready": "準備済み {{count}} 件を書き出す",
     "export_directory_note": "保存先フォルダーを一度選択し、準備済みのドキュメントを書き出します。同名ファイルには番号を付け、既存ファイルは保持します。確認後に内容が変わった場合は再確認が必要です。",
@@ -411,6 +445,31 @@
     "shared_busy": "字幕タスクまたはリソース操作がこのリソースを使用中です。",
     "shared_busy_error": "共有リソースは使用中です。両方の字幕ツールのタスクやリソース操作が終了してから再試行してください。",
     "delete_resource": "リソースを削除",
-    "delete_shared_confirmation": "共有リソース「{{name}}」を削除しますか？ローカル文字起こしと字幕スタジオの両方で、使用前に再インストールが必要になります。既存の字幕文書は保持されます。"
+    "delete_shared_confirmation": "共有リソース「{{name}}」を削除しますか？ローカル文字起こしと字幕スタジオの両方で、使用前に再インストールが必要になります。既存の字幕文書は保持されます。",
+    "clear_completed": "完了済みを削除",
+    "clear_terminal": "終了済みを削除",
+    "queue_actions": "キュー操作",
+    "cancel_all": "未完了をすべてキャンセル",
+    "confirm_cancel_all": "キャンセルを確定",
+    "cancel_all_confirmation": "現在の未完了タスク {{count}} 件をキャンセルしますか？停止要求を送信し、実際に停止するまでタスクを保持します。後から追加したタスクと既存の字幕文書には影響しません。",
+    "clear_result": "{{count}} 件を削除、{{failed}} 件が失敗、{{skipped}} 件は処理中です。既存の字幕文書には影響しません。",
+    "cancel_result": "{{count}} 件に停止を要求、{{failed}} 件が失敗、{{skipped}} 件は状態が変わりました。実際に停止した後に終了状態になります。"
+  },
+  "overview": {
+    "title": "翻訳タスク",
+    "details": "すべて表示",
+    "empty": "翻訳タスクはありません",
+    "loading": "タスクを読み込み中…",
+    "description": "ライブラリのページや絞り込みに関係なく、すべての文書の翻訳タスクを表示します。進捗は保存済みのバッチのみを数えます。",
+    "round_submitted": "直近の送信：{{count}} 件",
+    "confirmed_progress": "確定済みバッチの進捗",
+    "round_unavailable": "一部の送信済みタスクが利用できないため、全体の進捗を計算できません",
+    "round_counts": "完了 {{completed}} · 未完了 {{active}} · 要確認 {{attention}} · キャンセル {{cancelled}}",
+    "unavailable": "{{count}} 件の文書を読み込めず、タスク総数に含まれていません。",
+    "read_error": "タスク一覧を更新できません。前回の結果を表示しています。再読み込みしてください。",
+    "open_error": "文書を開けませんでした。再読み込みしてお試しください。",
+    "open_document": "文書を開く",
+    "can_resume": "文書で確認して再開できます",
+    "view_progress": "翻訳の進捗を表示"
   }
 }

@@ -7,6 +7,7 @@ import { LOCAL_SUBTITLE_CUE_POLICY, LOCAL_SUBTITLE_DOMAIN_SCHEMA_VERSION, LOCAL_
 import { enqueueTranscriptionRequestSchema, transcriptionTaskSummarySchema, type EnqueueTranscriptionRequest,
   type TranscriptionTaskSummary, type TranscriptionBatchAdmission } from '../../../../src/subtitle-studio/transcription/task-contract';
 import type { DocumentRepository } from '../document-repository';
+import { captureSourceInput } from '../source-location-service';
 import { createTranscriptionDocumentSink } from './document-sink';
 import { createTranscriptionDocumentProducer } from './document-producer';
 import type { TranscriptionExecutor, TranscriptionBatchExecutionContext, TranscriptionTaskExecutionContext } from './transcript-executor';
@@ -218,7 +219,13 @@ export function createTranscriptionTaskService(options: TranscriptionTaskService
         },
       });
       const sink = createTranscriptionDocumentSink({ repository: options.repository, owner: record.owner,
-        taskId: record.taskId, generation: 1, assertActive: () => assertActive(record) });
+        taskId: record.taskId, generation: 1, assertActive: () => assertActive(record),
+        async resolveSourceLocation() {
+          const input = await options.inputs.resolveTaskLease(record.owner, record.taskId, 'transcribe', record.fileToken);
+          const directory = await options.inputs.resolveTaskSourceOutputDirectory(record.owner, record.taskId, record.fileToken);
+          const capture = await captureSourceInput(input.filePath, input.identity, directory.identity);
+          assertActive(record); return capture;
+        } });
       const executor = { beginBatchSlice: options.executor.beginBatchSlice.bind(options.executor),
         execute: options.executor.execute.bind(options.executor),
         async endBatchSlice(runtime: Parameters<TranscriptionExecutor['endBatchSlice']>[0]) {

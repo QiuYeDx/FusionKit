@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { ScrollableDialog, ScrollableDialogHeader, ScrollableDialogContent, ScrollableDialogFooter, DialogTitle, DialogDescription } from '@/components/qiuye-ui/scrollable-dialog';
 import useModelStore from '@/store/useModelStore';
 import { unwrapStudio } from '@/services/subtitle-studio/client';
+import { getStudioTranslationOverviewController } from '@/services/subtitle-studio/translation-overview-controller';
 import { StudioError, type ErrorCode } from '@/subtitle-studio/domain';
 import type { DocumentPage } from '@/subtitle-studio/ipc-contract';
 import { normalizeTranslationModel, translationModelSchema } from '@/subtitle-studio/translation-contract';
@@ -97,7 +98,10 @@ function TranslationTaskControls({ page, busy, onChanged, onError, task }: Props
     operation.current = true; setActivity(kind); setError(null);
     try {
       if (kind === 'cancel') await unwrapStudio(window.subtitleStudio.cancelTask(request));
-      else await unwrapStudio(window.subtitleStudio.resumeTask({ ...request, model: resolved, apiKey: profile!.apiKey }));
+      else {
+        await unwrapStudio(window.subtitleStudio.resumeTask({ ...request, model: resolved, apiKey: profile!.apiKey }));
+        getStudioTranslationOverviewController().trackStarted([request.taskId]);
+      }
       if (mounted.current && latest.current.page.summary.id === request.documentId && latest.current.task.id === request.taskId) {
         setOpen(false); onChanged();
       }

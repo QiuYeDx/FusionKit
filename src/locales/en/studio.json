@@ -177,8 +177,36 @@
       "empty_output": "There are no cues to export with these options.",
       "encoding_unrepresentable": "This encoding cannot preserve all text. Use UTF-8 or UTF-16LE.",
       "skipped_cues": "{{count}} cues without valid translations will be skipped.",
-      "source_fallback": "Source text will be used for {{count}} cues without valid translations."
-    }
+      "source_fallback": "Source text will be used for {{count}} cues without valid translations.",
+      "timing_precision_changed": "ASS will round the timing of {{count}} cues to 10 milliseconds.",
+      "positioning_omitted": "{{count}} positioning or layout settings will be omitted.",
+      "effects_omitted": "{{count}} effects or drawing elements will be omitted.",
+      "opaque_omitted": "{{count}} non-text or opaque structures will be omitted. The original file is retained.",
+      "encoding_not_supported": "VTT and newly generated ASS files require UTF-8 encoding."
+    },
+    "destination": "Save location",
+    "destination_source": "Source file folder",
+    "destination_choose": "Choose another location",
+    "destination_source_note": "Each file is saved to its source folder. A number is added if the name already exists.",
+    "destination_choose_note": "Choose a file or folder when saving.",
+    "source_ready": "Source folder available",
+    "source_missing": "No source folder has been recorded for this document.",
+    "source_unavailable": "The source file or folder is unavailable. Set its folder again or choose another location.",
+    "source_rebound": "Using the source folder you selected",
+    "select_source_directory": "Set source folder again…",
+    "source_loading": "Checking source folder…",
+    "suffix": "Filename suffix",
+    "suffix_none": "None",
+    "suffix_content_mode": "Content type",
+    "suffix_target_language": "Target language",
+    "suffix_custom": "Custom",
+    "suffix_value": "Custom suffix",
+    "suffix_placeholder": "e.g. zh-CN",
+    "suffix_invalid": "Use at most 40 characters, without path separators or control characters, and no trailing dot or space.",
+    "file_name_preview": "Output filename: {{name}}",
+    "save_to_source": "Save to source folder",
+    "save_original": "Save original file…",
+    "source_recheck": "The source location changed. Check the export again."
   },
   "errors": {
     "invalid_input": "Invalid subtitle structure.",
@@ -203,11 +231,15 @@
     "enhanced_lrc": "Enhanced LRC is preserved; translation is unavailable",
     "negative_time": "Offset produces negative start times",
     "zero_duration": "Zero-duration subtitle",
-    "untimed_text": "Untimed text is preserved in original source nodes"
+    "untimed_text": "Untimed text is preserved in original source nodes",
+    "opaque_structure": "Non-text structures are preserved",
+    "ass_drawing": "ASS drawings are preserved; mixed text and drawings cannot be translated safely",
+    "ass_karaoke": "Contains word-level karaoke timing that cannot be translated safely",
+    "vtt_payload_unsupported": "Complex VTT markup or timestamps cannot be translated safely"
   },
   "library": {
     "batch_actions": "Batch actions",
-    "import_hint": "SRT / LRC · Select up to 100 files at once",
+    "import_hint": "Drop subtitle files or click to select · SRT / LRC / VTT / ASS",
     "search": "Search documents",
     "clear_search": "Clear search",
     "open": "Open document library",
@@ -257,7 +289,9 @@
     "result_summary": "{{success}} succeeded, {{skipped}} skipped, {{failed}} failed",
     "succeeded": "Done",
     "no_cancel_task": "No translation task to cancel",
-    "no_resume_task": "No translation task to resume"
+    "no_resume_task": "No translation task to resume",
+    "drop_hint": "Release to import subtitles",
+    "drop_busy": "An operation is in progress. Try dropping files again shortly."
   },
   "recovery": {
     "title": "Manage unavailable documents",
@@ -288,7 +322,7 @@
     "queued": "Translation queued",
     "ready_count": "{{count}} of {{total}} documents are ready",
     "translation_queue_note": "Ready documents will be added to the translation queue. Other documents stay unchanged; review their individual messages.",
-    "translation_result": "Translation tasks created for {{count}} documents; {{failed}} could not start. Close this window and follow progress in the library.",
+    "translation_result": "Submitted {{count}} translation tasks; {{failed}} could not start. Tasks keep running. View actual progress in the translation overview.",
     "start_ready": "Translate {{count}} ready documents",
     "export_ready": "Export {{count}} ready documents",
     "export_directory_note": "Choose one destination folder for ready documents. Duplicate names receive a number; existing files are kept. Documents changed since the check must be checked again.",
@@ -411,6 +445,31 @@
     "shared_busy": "A subtitle task or resource operation is using this resource.",
     "shared_busy_error": "This shared resource is in use. Wait for tasks or resource operations in both subtitle tools to finish, then retry.",
     "delete_resource": "Delete resource",
-    "delete_shared_confirmation": "Delete the shared “{{name}}” resource? Local transcription and Subtitle Studio will both need it installed again before use. Existing subtitle documents are kept."
+    "delete_shared_confirmation": "Delete the shared “{{name}}” resource? Local transcription and Subtitle Studio will both need it installed again before use. Existing subtitle documents are kept.",
+    "clear_completed": "Clear completed",
+    "clear_terminal": "Clear finished",
+    "queue_actions": "Queue actions",
+    "cancel_all": "Cancel all unfinished",
+    "confirm_cancel_all": "Confirm cancellation",
+    "cancel_all_confirmation": "Cancel these {{count}} unfinished tasks? This sends cancellation requests; tasks stay in the queue until they stop. Tasks added later and existing subtitle documents are unaffected.",
+    "clear_result": "Cleared {{count}}; {{failed}} failed; {{skipped}} still being processed. Existing subtitle documents are unaffected.",
+    "cancel_result": "Cancellation requested for {{count}}; {{failed}} failed; {{skipped}} changed state. Tasks are marked finished only after they stop."
+  },
+  "overview": {
+    "title": "Translation tasks",
+    "details": "View all",
+    "empty": "No translation tasks",
+    "loading": "Loading tasks…",
+    "description": "Translation tasks across all documents, independent of library pages and filters. Progress counts saved batches only.",
+    "round_submitted": "Latest submission: {{count}}",
+    "confirmed_progress": "Confirmed batch progress",
+    "round_unavailable": "Some submitted tasks are unavailable; complete progress cannot be calculated",
+    "round_counts": "Done {{completed}} · Unfinished {{active}} · Needs attention {{attention}} · Cancelled {{cancelled}}",
+    "unavailable": "{{count}} documents could not be read and are excluded from task totals.",
+    "read_error": "The task overview could not be updated. Showing the previous results; try refreshing.",
+    "open_error": "This document could not be opened. Refresh and try again.",
+    "open_document": "Open document",
+    "can_resume": "Review and resume in the document",
+    "view_progress": "View translation progress"
   }
 }

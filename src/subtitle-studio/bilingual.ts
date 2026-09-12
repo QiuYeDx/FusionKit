@@ -1,5 +1,6 @@
 import { StudioError, validateDocument, type TextSubtitleCue as SubtitleCue, type TextSubtitleDocument, type SubtitleDocument, type SubtitleText } from './domain';
 import { bilingualOptionsSchema, type BilingualCandidate, type BilingualOptions, type BilingualPreview } from './bilingual-contract';
+import { preservedBodies } from './formats/structure';
 
 type Language = BilingualPreview['sourceLanguage'];
 type TextRange = { cue: SubtitleCue; start: number; end: number };
@@ -281,14 +282,14 @@ function mapRawBody(doc: TextSubtitleDocument, node: TextSubtitleDocument['prese
     if (firstBreak < 0 || secondBreak < 0) throw new StudioError('invalid_input');
     bodyStart = secondBreak + 1;
     bodyEnd = raw.replace(/(?:\r?\n[ \t]*)+$/, '').length;
-  } else {
+  } else if (doc.origin.format === 'lrc') {
     bodyEnd = raw.replace(/\r?\n$/, '').length;
     while (true) {
       const match = /^\[\d+:[0-5]\d(?:\.\d{1,3})?\]/.exec(raw.slice(bodyStart));
       if (!match) break;
       bodyStart += match[0].length;
     }
-  }
+  } else throw new StudioError('unsupported_feature');
   const starts: number[] = [];
   const ends: number[] = [];
   const plain: string[] = [];
@@ -312,9 +313,10 @@ export function applyBilingual(doc: SubtitleDocument, options: BilingualOptions,
   if (!analysis.pairedCount) throw new StudioError('invalid_input');
   const nodes = new Map(validated.preservation.nodes.map(node => [node.id, node]));
   const mappings = new Map<string, RawMapping>();
+  const structured = preservedBodies(validated);
   const originalRange = (range: TextRange) => {
     let mapping = mappings.get(range.cue.nodeId);
-    if (!mapping) { mapping = mapRawBody(validated, nodes.get(range.cue.nodeId)!); mappings.set(range.cue.nodeId, mapping); }
+    if (!mapping) { mapping = structured?.get(range.cue.nodeId) ?? mapRawBody(validated, nodes.get(range.cue.nodeId)!); mappings.set(range.cue.nodeId, mapping); }
     if (mapping.plain !== range.cue.source.plain) throw new StudioError('invalid_input');
     return { nodeId: range.cue.nodeId, start: range.start === 0 ? mapping.bodyStart : mapping.ends[range.start - 1], end: range.end === mapping.plain.length ? mapping.bodyEnd : mapping.starts[range.end] };
   };

@@ -7,7 +7,7 @@ import { applyBilingual } from '../../src/subtitle-studio/bilingual';
 import { importSubtitleText } from '../../src/subtitle-studio/formats/import';
 import { planSubtitleExport } from '../../electron/main/subtitle-studio/export-planner';
 
-const parse = (text: string, format: 'srt' | 'lrc' = 'lrc') => importSubtitleText(text, { format, displayName: `synthetic.${format}`, encoding: 'utf-8', digest: 'a'.repeat(64) }, randomUUID);
+const parse = (text: string, format: 'srt' | 'lrc' | 'vtt' | 'ass' = 'lrc') => importSubtitleText(text, { format, displayName: `synthetic.${format}`, encoding: 'utf-8', digest: 'a'.repeat(64) }, randomUUID);
 const options = (changes: Partial<ExportOptions> = {}): ExportOptions => ({ mode: 'source', format: 'lrc', order: 'source-first', encoding: 'utf-8', bom: false, newline: 'lf', incomplete: 'block', missingEnd: { mode: 'block' }, ...changes });
 const digest = (cue: SubtitleCue) => createHash('sha256').update(JSON.stringify(cue.source)).digest('hex');
 const plain = (text: string): SubtitleText => ({ plain: text, spans: text ? [{ text, marks: [] }] : [] });
@@ -67,7 +67,7 @@ describe('local subtitle export projection', () => {
       expect(blocked.issues.filter(issue => ['translation_missing', 'translation_stale'].includes(issue.code)).every(issue => issue.blocking)).toBe(true);
       const skipped = back(doc, options({ mode, trackId, incomplete: 'skip' }));
       expect(skipped.plan).toMatchObject({ cueCount: 1, partial: true, missingCount: 1, staleCount: 1 });
-      expect(skipped.plan.fileName).toContain('.partial.lrc');
+      expect(skipped.plan.fileName).toBe('synthetic.lrc');
       const fallback = back(doc, options({ mode, trackId, incomplete: 'source-fallback' }));
       expect(fallback.plan).toMatchObject({ cueCount: 3, partial: true });
       expect(fallback.doc.cues.slice(-2).map(cue => cue.source.plain)).toEqual(['two', 'three']);
@@ -224,6 +224,6 @@ describe('export encoding and output bounds', () => {
   it('does not mark complete output partial merely because fallback is available and sanitizes generated names', () => {
     const doc = parse('[00:01]Hello'); const trackId = translated(doc); doc.origin.displayName = '../unsafe/name.lrc';
     const result = planSubtitleExport(doc, options({ mode: 'target', trackId, incomplete: 'source-fallback' }));
-    expect(result).toMatchObject({ partial: false, fileName: 'name.target.lrc' });
+    expect(result).toMatchObject({ partial: false, fileName: 'name.lrc' });
   });
 });

@@ -16,8 +16,8 @@
       "role": "composition",
       "sourceBlobOid": "baf7d05a0ccbe0a075403d4b91ab32b412410b2f",
       "sourceSha256": "b78a51436d4185b558f1b2afec6175166b30e2d086279e64926ea75bcb668be5",
-      "currentBlobOid": "816082faf88d8078d505b62687d6509a80a1a5bc",
-      "reason": "T09 reviewed shared-resource integration: one neutral authority and client-owned jobs/reservations, sanitized global revision observation, domain-private session cleanup and joined shutdown. This audit approves only current composition/bridge bytes; the frozen ASR, source baseline and independent copied implementation remain unchanged."
+      "currentBlobOid": "4a80f3a2537f15c32df5d957ccd48b8a432ff8e2",
+      "reason": "T09 reviewed shared-resource integration: one neutral authority and client-owned jobs/reservations, sanitized global revision observation, domain-private session cleanup and joined shutdown. This audit approves only current composition/bridge bytes; the frozen ASR, source baseline and independent copied implementation remain unchanged. 2026-09-12 I3 adds webUtils only to the fixed native File drop bridge; generic protected namespace routing remains denied."
     },
     {
       "sourcePath": "electron/main/app-shutdown.ts",
@@ -72,16 +72,16 @@
       "role": "studio-composition",
       "sourceBlobOid": "1b6d9a13912fe67cfb435552030a3ab9bd0727e0",
       "sourceSha256": "1d6275e6f14fd4e065b2d1e534b8f423a4d0943a27b4005a5600287944179917",
-      "currentBlobOid": "a97d157dadac0996bfed042913a939d552dad6ec",
-      "reason": "T09 reviewed shared-resource integration: one neutral authority and client-owned jobs/reservations, sanitized global revision observation, domain-private session cleanup and joined shutdown. This audit approves only current composition/bridge bytes; the frozen ASR, source baseline and independent copied implementation remain unchanged."
+      "currentBlobOid": "f56567a7413ec6c12619dccc0865cbf5bb9a41bd",
+      "reason": "T09 reviewed shared-resource integration: one neutral authority and client-owned jobs/reservations, sanitized global revision observation, domain-private session cleanup and joined shutdown. This audit approves only current composition/bridge bytes; the frozen ASR, source baseline and independent copied implementation remain unchanged. 2026-09-12 I3 wires owner-bound native subtitle drops, safe global translation summaries and per-document source-directory selection/export; ASR algorithms and shared resource leases remain unchanged. Final I3 review keeps native default-save paths indexed under Windows case-insensitive path spelling, with two real-file collision regressions; explicit alternate-save authorization remains unchanged."
     },
     {
       "sourcePath": "electron/main/subtitle-studio/transcription/runtime.ts",
       "role": "studio-composition",
       "sourceBlobOid": "9979ba89730f8ae79bf5f2637a4c927de4ac37ac",
       "sourceSha256": "5abc364a15680a137fd09b47c24e9f369d991702676fc0597b4420bdf079634e",
-      "currentBlobOid": "686210e9d0bdd5c187553cc449c1114453861ae0",
-      "reason": "T09 reviewed shared-resource integration: one neutral authority and client-owned jobs/reservations, sanitized global revision observation, domain-private session cleanup and joined shutdown. This audit approves only current composition/bridge bytes; the frozen ASR, source baseline and independent copied implementation remain unchanged."
+      "currentBlobOid": "baaa9ae0384faa88a4e032feb9ee09db4524fa8f",
+      "reason": "T09 reviewed shared-resource integration: one neutral authority and client-owned jobs/reservations, sanitized global revision observation, domain-private session cleanup and joined shutdown. This audit approves only current composition/bridge bytes; the frozen ASR, source baseline and independent copied implementation remain unchanged. 2026-09-12 I3 includes derive_source_output when authorizing selected media, so source-parent identity is pinned before a task-owned lease and document publication; no ASR configuration or executor changes."
     },
     {
       "sourcePath": "electron/main/subtitle-studio/transcription/shared-resources.ts",

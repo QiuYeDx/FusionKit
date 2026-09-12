@@ -12,7 +12,7 @@ export class StudioError extends Error {
 const integer = z.number().int().safe();
 const revision = integer.positive();
 export const diagnosticSchema = z.object({
-  code: z.enum(['empty_document', 'unsupported_markup', 'enhanced_lrc', 'negative_time', 'zero_duration', 'untimed_text']),
+  code: z.enum(['empty_document', 'unsupported_markup', 'enhanced_lrc', 'negative_time', 'zero_duration', 'untimed_text', 'opaque_structure', 'ass_drawing', 'ass_karaoke', 'vtt_payload_unsupported']),
   nodeId: idSchema.optional(),
 }).strict();
 export type Diagnostic = z.infer<typeof diagnosticSchema>;
@@ -21,13 +21,13 @@ export const textSchema = z.object({ plain: z.string().max(LIMITS.cueBytes), spa
 const importedRangeSchema = z.object({ nodeId: idSchema, start: integer.nonnegative(), end: integer.nonnegative() }).strict().refine(value => value.end > value.start);
 export const textCueSchema = z.object({
   id: idSchema, sourceRevision: revision, timingRevision: revision,
-  timing: z.object({ startMs: integer, endMs: integer.nullable(), provenance: z.enum(['srt', 'lrc_offset']) }).strict(),
-  source: textSchema, sourceLabel: z.string().max(100).optional(), nodeId: idSchema,
+  timing: z.object({ startMs: integer, endMs: integer.nullable(), provenance: z.enum(['srt', 'lrc_offset', 'vtt', 'ass']) }).strict(),
+  source: textSchema, sourceLabel: z.string().max(LIMITS.cueBytes).optional(), nodeId: idSchema,
   importedPair: z.object({ source: importedRangeSchema, target: importedRangeSchema }).strict().optional(),
 }).strict().refine(cue => cue.timing.endMs === null || cue.timing.endMs >= cue.timing.startMs);
 const textDocumentSchema = z.object({
   schemaVersion: z.literal(1), id: idSchema, revision,
-  origin: z.object({ format: z.enum(['srt', 'lrc']), displayName: z.string().min(1).max(255), encoding: encodingSchema, digest: z.string().regex(/^[a-f0-9]{64}$/) }).strict(),
+  origin: z.object({ format: z.enum(['srt', 'lrc', 'vtt', 'ass']), displayName: z.string().min(1).max(255), encoding: encodingSchema, digest: z.string().regex(/^[a-f0-9]{64}$/) }).strict(),
   cues: z.array(textCueSchema).max(LIMITS.cues),
   translationTracks: z.array(z.object({
     id: idSchema, language: z.string().max(100), revision,
@@ -38,7 +38,7 @@ const textDocumentSchema = z.object({
   capabilities: z.object({ translate: z.boolean(), preserveSource: z.literal(true) }).strict(),
   diagnostics: z.array(diagnosticSchema).max(LIMITS.cues * 2 + 1),
   preservation: z.object({
-    schemaVersion: z.literal(1), rawText: z.string().max(LIMITS.inputBytes), bom: z.boolean(), newline: z.enum(['lf', 'crlf', 'mixed']), offsetMs: integer,
+    schemaVersion: z.literal(1), rawText: z.string().max(LIMITS.inputBytes), bom: z.boolean(), newline: z.enum(['lf', 'crlf', 'cr', 'mixed']), offsetMs: integer,
     nodes: z.array(z.object({ id: idSchema, start: integer.nonnegative(), end: integer.nonnegative(), cueIds: z.array(idSchema).max(LIMITS.cues) }).strict()).max(LIMITS.nodes),
   }).strict(),
 }).strict();

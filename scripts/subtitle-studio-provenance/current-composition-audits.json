@@ -13,8 +13,8 @@
       "sourcePath": "electron/preload/index.ts",
       "sourceBlobOid": "baf7d05a0ccbe0a075403d4b91ab32b412410b2f",
       "sourceSha256": "b78a51436d4185b558f1b2afec6175166b30e2d086279e64926ea75bcb668be5",
-      "currentBlobOid": "816082faf88d8078d505b62687d6509a80a1a5bc",
-      "reason": "T09 full-file current composition review: compose neutral shared resources and global sanitized resource revision/status events while retaining domain-private runtime sessions and coordinated shutdown. Reference-only application evidence; frozen copied source and replay remain unchanged."
+      "currentBlobOid": "4a80f3a2537f15c32df5d957ccd48b8a432ff8e2",
+      "reason": "T09 full-file current composition review: compose neutral shared resources and global sanitized resource revision/status events while retaining domain-private runtime sessions and coordinated shutdown. Reference-only application evidence; frozen copied source and replay remain unchanged. 2026-09-12 I3 adds webUtils only to the fixed native File drop bridge; generic protected namespace routing remains denied."
     }
   ]
 }

@@ -1,11 +1,15 @@
-.studio { letter-spacing: 0; }
+.studio { position: relative; letter-spacing: 0; }
+.studio-drop-overlay { position: absolute; inset: 12px; z-index: 15; pointer-events: none; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 8px; border: 2px dashed var(--primary); border-radius: 18px; background: color-mix(in srgb, var(--background) 94%, transparent); color: var(--primary); font-size: 14px; }
+.studio-drop-overlay > span { color: var(--muted-foreground); font-size: 12px; }
 .studio-workspace-tabs { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0; max-width: 1280px; margin-inline: auto; }
 .studio-workspace-header { grid-area: 1 / 1; padding: 24px 16px 0; }
+.studio-workspace-header > :first-child { margin-bottom: 8px; }
 .studio-workspace-header h1 { padding-right: 220px; }
 .studio-workspace-tabs > [data-slot=clip-path-tabs-stage] { grid-area: 1 / 1; align-self: start; justify-self: end; margin: 30px 16px 20px; z-index: 1; }
-.studio-workspace-content { grid-area: 2 / 1; min-width: 0; }
+.studio[data-workspace-view=documents] .studio-workspace-tabs { height: calc(100dvh - 32px); grid-template-rows: auto minmax(0, 1fr); }
+.studio-workspace-content { grid-area: 2 / 1; min-width: 0; min-height: 0; }
 .studio-workspace-content[hidden] { display: none; }
-.studio-workspace-content > .studio-layout { height: calc(100dvh - 128px); min-height: 392px; padding-top: 0; }
+.studio-workspace-content > .studio-layout { height: 100%; min-height: 0; padding-top: 0; }
 .studio-workspace-content > .studio-transcription-layout { padding-top: 0; }
 @media (min-width: 640px) {
   .studio-workspace-header { padding-inline: 32px; }
@@ -94,7 +98,10 @@
 .studio-notice { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-width: 1px; border-radius: 8px; font-size: 12px; }
 .studio-notice > svg { width: 15px; height: 15px; flex-shrink: 0; }
 .studio-notice > span { flex: 1; min-width: 0; overflow-wrap: anywhere; }
-.studio-tabs { display: grid; flex: 1; min-height: 0; height: 100%; grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: auto auto minmax(120px, 1fr); align-items: center; }
+.studio-tabs { display: grid; flex: 1; min-height: 0; height: 100%; grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: auto auto minmax(0, 1fr); align-items: center; }
+/* An explicitly expanded diagnostic list uses the panel's outer scroll area,
+   keeping a readable cue viewport reachable below its messages. */
+.studio-tabs:has(.studio-diagnostics[open]) { grid-template-rows: auto auto minmax(120px, 1fr); }
 .studio-tabs > [data-slot=clip-path-tabs-stage] { grid-area: 1 / 2; margin: 10px 12px; }
 .studio-document-heading { grid-area: 1 / 1; display: flex; align-items: center; gap: 12px; min-width: 0; padding: 10px 0 10px 12px; }
 .studio-document-heading h2 { flex: 1; min-width: 0; }
@@ -185,3 +192,10 @@
 .studio-batch-confirm-content [data-slot="scroll-area-viewport"] > div { display: block !important; width: 100%; min-width: 0; }
 .studio-batch-confirm-content [data-slot="scroll-area-viewport"] > div > div { padding: 12px; }
 @media (prefers-reduced-motion: reduce) { .studio button, .studio-disclosure { transition: none; } .studio-spin { animation: none; } }
+
+/* Leave the reader its actual remaining space when task summaries occupy two rows. */
+@media (max-height: 650px) {
+  .studio-workspace-header { padding-top: 20px; }
+  .studio-workspace-tabs > [data-slot=clip-path-tabs-stage] { margin-top: 26px; margin-bottom: 8px; }
+  .studio-main { gap: 8px; }
+}

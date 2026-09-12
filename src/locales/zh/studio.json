@@ -177,8 +177,36 @@
       "empty_output": "当前选项下没有可导出的字幕。",
       "encoding_unrepresentable": "所选编码无法完整表示正文，请改用 UTF-8 或 UTF-16LE。",
       "skipped_cues": "将跳过 {{count}} 条没有有效译文的字幕。",
-      "source_fallback": "{{count}} 条没有有效译文的字幕将使用原文。"
-    }
+      "source_fallback": "{{count}} 条没有有效译文的字幕将使用原文。",
+      "timing_precision_changed": "ASS 将把 {{count}} 条字幕的时间取整到 10 毫秒。",
+      "positioning_omitted": "将省略 {{count}} 项位置或布局设置。",
+      "effects_omitted": "将省略 {{count}} 项特效或绘图内容。",
+      "opaque_omitted": "将省略 {{count}} 项非正文或不透明结构；原始文件仍保留。",
+      "encoding_not_supported": "VTT 和新生成的 ASS 需要 UTF-8 编码。"
+    },
+    "destination": "保存位置",
+    "destination_source": "来源文件所在目录",
+    "destination_choose": "选择其他位置",
+    "destination_source_note": "每份文件保存到各自的来源目录；重名时自动添加序号。",
+    "destination_choose_note": "保存时选择文件或目录。",
+    "source_ready": "来源目录可用",
+    "source_missing": "此文档尚未记录来源目录。",
+    "source_unavailable": "来源文件或目录不可用，请重新指定目录或选择其他位置。",
+    "source_rebound": "使用你重新指定的来源目录",
+    "select_source_directory": "重新指定来源目录…",
+    "source_loading": "正在检查来源目录…",
+    "suffix": "文件名后缀",
+    "suffix_none": "无",
+    "suffix_content_mode": "内容类型",
+    "suffix_target_language": "目标语言",
+    "suffix_custom": "自定义",
+    "suffix_value": "自定义后缀",
+    "suffix_placeholder": "例如 zh-CN",
+    "suffix_invalid": "后缀最多 40 个字符，不能包含路径符号、控制字符或以点、空格结尾。",
+    "file_name_preview": "输出文件名：{{name}}",
+    "save_to_source": "保存到来源目录",
+    "save_original": "保存原始文件…",
+    "source_recheck": "来源位置已更新，请重新检查导出。"
   },
   "errors": {
     "invalid_input": "字幕结构无效。",
@@ -203,11 +231,15 @@
     "enhanced_lrc": "已保留增强型 LRC，无法翻译",
     "negative_time": "偏移量导致负起始时间",
     "zero_duration": "存在零时长字幕",
-    "untimed_text": "无时间标签的正文已保留在原始源节点中"
+    "untimed_text": "无时间标签的正文已保留在原始源节点中",
+    "opaque_structure": "非正文结构已保留",
+    "ass_drawing": "ASS 绘图已保留；混合正文与绘图时无法安全翻译",
+    "ass_karaoke": "含逐字卡拉 OK 时序，无法安全翻译",
+    "vtt_payload_unsupported": "VTT 正文含复杂标记或时间戳，无法安全翻译"
   },
   "library": {
     "batch_actions": "批量操作",
-    "import_hint": "SRT / LRC · 支持多选，最多 100 份",
+    "import_hint": "拖入字幕文件，或点击选择；支持 SRT / LRC / VTT / ASS",
     "search": "搜索文档",
     "clear_search": "清空搜索",
     "open": "打开文档库",
@@ -257,7 +289,9 @@
     "result_summary": "成功 {{success}} 份，跳过 {{skipped}} 份，失败 {{failed}} 份",
     "succeeded": "已完成",
     "no_cancel_task": "没有可取消的翻译任务",
-    "no_resume_task": "没有可继续的翻译任务"
+    "no_resume_task": "没有可继续的翻译任务",
+    "drop_hint": "松开以导入字幕",
+    "drop_busy": "正在处理，请稍后再拖入"
   },
   "recovery": {
     "title": "处理无法恢复的文档",
@@ -288,7 +322,7 @@
     "queued": "已加入翻译队列",
     "ready_count": "{{total}} 份文档中，{{count}} 份已就绪",
     "translation_queue_note": "开始后，就绪文档将加入翻译队列。未就绪项保持原样，可根据逐项提示处理。",
-    "translation_result": "已为 {{count}} 份文档创建翻译任务，{{failed}} 份未能启动。可关闭此窗口，在文档库查看后续进度。",
+    "translation_result": "已提交 {{count}} 项翻译任务，{{failed}} 份未能启动。任务将继续执行，可在翻译总览查看实际进度。",
     "start_ready": "开始翻译 {{count}} 份就绪文档",
     "export_ready": "导出 {{count}} 份就绪文档",
     "export_directory_note": "统一选择保存文件夹，只导出就绪文档。同名文件会自动编号，不覆盖已有文件。检查后内容发生变化的文档需要重新检查。",
@@ -411,6 +445,31 @@
     "shared_busy": "资源正被字幕任务或资源操作占用。",
     "shared_busy_error": "共享资源正被使用，请等待两个字幕工具中的任务或资源操作结束后重试。",
     "delete_resource": "删除资源",
-    "delete_shared_confirmation": "删除“{{name}}”的共享资源？本地字幕转写和字幕工作室都会失去此资源；再次使用前需要重新安装。已有字幕文档不受影响。"
+    "delete_shared_confirmation": "删除“{{name}}”的共享资源？本地字幕转写和字幕工作室都会失去此资源；再次使用前需要重新安装。已有字幕文档不受影响。",
+    "clear_completed": "清理已完成",
+    "clear_terminal": "清理已结束",
+    "queue_actions": "队列操作",
+    "cancel_all": "取消所有未完成",
+    "confirm_cancel_all": "确认取消",
+    "cancel_all_confirmation": "取消当前这 {{count}} 项未完成任务？仅发送取消请求，任务会保留到实际停止；之后加入的任务不受影响。已有字幕文档不会删除。",
+    "clear_result": "已清理 {{count}} 项，{{failed}} 项失败，{{skipped}} 项仍在处理。已有字幕文档不受影响。",
+    "cancel_result": "已请求取消 {{count}} 项，{{failed}} 项失败，{{skipped}} 项状态已变化。任务将在实际停止后显示为已结束。"
+  },
+  "overview": {
+    "title": "翻译任务",
+    "details": "查看全部",
+    "empty": "暂无翻译任务",
+    "loading": "正在读取任务…",
+    "description": "所有文档的翻译任务，不受文档库分页或筛选影响。进度只统计已保存的批次。",
+    "round_submitted": "最近提交 {{count}} 项",
+    "confirmed_progress": "已确认批次进度",
+    "round_unavailable": "部分已提交任务暂不可用，无法计算完整进度",
+    "round_counts": "完成 {{completed}} · 未完成 {{active}} · 待处理 {{attention}} · 取消 {{cancelled}}",
+    "unavailable": "{{count}} 份文档暂不可读，未计入任务总数。",
+    "read_error": "任务总览暂时无法更新，正在显示上次结果。可重新刷新。",
+    "open_error": "无法打开此文档，请刷新后重试。",
+    "open_document": "打开文档",
+    "can_resume": "可在文档中检查并继续",
+    "view_progress": "查看翻译进度"
   }
 }

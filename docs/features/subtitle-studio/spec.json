@@ -3,7 +3,7 @@
   "feature": "subtitle-studio",
   "tier": "L",
   "risk": "medium",
-  "current_increment": "I2",
+  "current_increment": "I3",
   "modules": [
     {
       "slug": "workspace",
@@ -14,6 +14,11 @@
       "slug": "transcription",
       "code": "TRANSCRIPTION",
       "path": "modules/module-transcription"
+    },
+    {
+      "slug": "acceptance",
+      "code": "ACCEPTANCE",
+      "path": "modules/module-acceptance"
     }
   ],
   "increments": [
@@ -54,20 +59,20 @@
       "id": "I2"
     },
     {
-      "title": "ASS 与扩展格式能力",
+      "title": "人工验收完善与VTT/ASS格式扩展",
       "approval": {
-        "by": "",
-        "digest": "",
-        "state": "pending",
-        "basis": ""
+        "state": "approved",
+        "by": "用户（当前 Codex 任务）",
+        "basis": "2026-09-12用户在15340fd提交推送后明确提出六项人工验收问题：拖入字幕、转写队列批量维护、翻译任务总览、VTT/ASS导入导出、输出到字幕或转写媒体来源目录、默认移除额外文件名后缀并提供可选配置；原文结尾“可以先记录一下有上述的这么多人工验收出来的问题需要解决、优化和完善，记录清楚后开始逐一解决。”据此登记并完整连续实施I3六项范围及必要隔离验证，不代签整体验收，不打包发布，不自动提交推送本轮改动。",
+        "digest": "d72f5d521a79b0ee73d2bd171a4576842824d646c11550f14f8c853f78e877bf"
       },
-      "status": "planning",
+      "status": "verifying",
       "acceptance": {
         "by": "",
         "digest": "",
         "state": "pending",
-        "record": "",
-        "basis": ""
+        "record": "records/2026-09-12-acceptance-closeout.md",
+        "basis": "六项人工问题的实现和必要技术验证已完成，四项任务台账及最终集成证据完整；用户整体验收保留pending，未代签。打包继续暂停，本轮工作树尚未提交推送。"
       },
       "id": "I3"
     },
@@ -186,6 +191,22 @@
       },
       {
         "path": "electron/main/subtitle-studio/transcription/runtime.ts",
+        "owner": "Codex root"
+      },
+      {
+        "path": "src/subtitle-studio/ipc-contract.ts",
+        "owner": "Codex root"
+      },
+      {
+        "path": "electron/main/subtitle-studio/index.ts",
+        "owner": "Codex root"
+      },
+      {
+        "path": "electron/preload/index.ts",
+        "owner": "Codex root"
+      },
+      {
+        "path": "src/pages/Tools/Subtitle/SubtitleStudio/index.tsx",
         "owner": "Codex root"
       }
     ]

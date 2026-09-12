@@ -24,14 +24,14 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_E2E === '1')('Subtitle Studio vertic
     await page.evaluate(() => { localStorage.setItem('lang', 'zh'); localStorage.setItem('subtitle-converter-tour-done', '1'); location.hash = '/tools/subtitle/studio'; });
     await page.getByTestId('subtitle-studio').waitFor();
     await page.waitForFunction(() => !document.querySelector('.app-loading-wrap') && !document.querySelector('#app-loading-style'));
-    const window = await app.browserWindow(page);
-    await window.evaluate(win => win.setSize(1280, 860));
+    const nativeWindow = await app.browserWindow(page);
+    await nativeWindow.evaluate(win => win.setSize(1280, 860));
     await app.evaluate(({ dialog }, selected) => { dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [selected] }); }, path.join(root, name));
     await page.getByRole('button', { name: '打开字幕文件', exact: true }).click();
     await uiExpect(page.locator('.studio-cue-table tbody tr')).toHaveCount(100);
     await uiExpect(page.locator('.studio-preview-region')).toHaveAttribute('aria-busy', 'false');
     for (const [width, height] of [[1280, 860], [1106, 756], [786, 540], [786, 900], [1440, 1100]]) {
-      await window.evaluate((win, size) => win.setSize(...size), [width, height] as [number, number]);
+      await nativeWindow.evaluate((win, size) => win.setSize(...size), [width, height] as [number, number]);
       await page.locator('.studio').evaluate(element => {
         const viewport = element.closest('[data-radix-scroll-area-viewport]')!;
         viewport.scrollTop = 0;
@@ -58,7 +58,7 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_E2E === '1')('Subtitle Studio vertic
     await page.getByRole('tab', { name: '原始内容' }).click();
     await uiExpect(page.locator('.studio-raw pre').first()).toContainText('[00:00.00]');
     const before = await page.locator('.studio-reader').evaluate(element => element.clientHeight);
-    await page.getByRole('button', { name: '下一页', exact: true }).click();
+    await page.locator('.studio-reader-footer').getByRole('button', { name: '下一页', exact: true }).click();
     await uiExpect(page.locator('.studio-raw li > span').first()).toHaveText('101');
     expect(await page.locator('.studio-reader').evaluate(element => element.clientHeight)).toBe(before);
     await page.evaluate(async () => {
@@ -68,7 +68,7 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_E2E === '1')('Subtitle Studio vertic
       }
     });
     await uiExpect(page.locator('.studio-document')).toHaveCount(13);
-    await window.evaluate(win => win.setSize(1280, 650));
+    await nativeWindow.evaluate(win => win.setSize(1280, 650));
     await page.waitForTimeout(350);
     expect(await page.locator('.studio').evaluate(element => {
       const viewport = element.closest('[data-radix-scroll-area-viewport]')!;
@@ -83,7 +83,7 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_E2E === '1')('Subtitle Studio vertic
     await writeFile(path.join(root, name), '[offset:-1500]\n[00:01.00]A <00:00.10>word\nUntimed text\n');
     await page.getByRole('button', { name: '打开字幕文件', exact: true }).click();
     await uiExpect(page.locator('.studio-diagnostics')).toBeVisible();
-    await window.evaluate(win => win.setSize(786, 540));
+    await nativeWindow.evaluate(win => win.setSize(786, 540));
     await page.locator('.studio-diagnostics summary').click();
     await page.waitForTimeout(350);
     expect(await page.locator('.studio-reader').evaluate(element => element.getBoundingClientRect().height)).toBeGreaterThanOrEqual(120);

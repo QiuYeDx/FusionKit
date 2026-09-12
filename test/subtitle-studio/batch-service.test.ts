@@ -90,16 +90,16 @@ describe('bounded document batches', () => {
   });
   it('numbers colliding output names without replacing existing files and retains per-item revision failures', async () => {
     const current = await fixture();
-    await writeFile(path.join(current.output, 'same.source.lrc'), 'keep prior output');
+    await writeFile(path.join(current.output, 'same.lrc'), 'keep prior output');
     const planned = await current.batches.planExport(1, { documents: current.references, options });
     await current.repository.transact(current.documents[1].id, 1, () => {});
     const result = await current.batches.export(1, planned.batchId, [], current.output);
-    expect(result.items[0]).toMatchObject({ ok: true, result: { fileName: 'same.source (1).lrc' } });
+    expect(result.items[0]).toMatchObject({ ok: true, result: { fileName: 'same (1).lrc' } });
     expect(result.items[1]).toMatchObject({ ok: false, error: 'revision_conflict' });
-    expect(result.items[2]).toMatchObject({ ok: true, result: { fileName: 'same.source (2).lrc' } });
-    expect(await readFile(path.join(current.output, 'same.source.lrc'), 'utf8')).toBe('keep prior output');
-    expect(await readFile(path.join(current.output, 'same.source (1).lrc'), 'utf8')).toContain('Source 0');
-    expect(await readFile(path.join(current.output, 'same.source (2).lrc'), 'utf8')).toContain('Source 2');
+    expect(result.items[2]).toMatchObject({ ok: true, result: { fileName: 'same (2).lrc' } });
+    expect(await readFile(path.join(current.output, 'same.lrc'), 'utf8')).toBe('keep prior output');
+    expect(await readFile(path.join(current.output, 'same (1).lrc'), 'utf8')).toContain('Source 0');
+    expect(await readFile(path.join(current.output, 'same (2).lrc'), 'utf8')).toContain('Source 2');
     expect((await readdir(current.output)).some(name => name.endsWith('.tmp'))).toBe(false);
     await expect(current.batches.export(1, planned.batchId, [], current.output)).rejects.toThrow('access_denied');
   });
@@ -112,8 +112,8 @@ describe('bounded document batches', () => {
     expect(() => current.batches.inspectExport(1, planned.batchId, [{ documentId: randomUUID(), codes: [] }])).toThrow('invalid_input');
     expect((await current.batches.export(1, planned.batchId, accepted, current.output)).items.every(item => item.ok)).toBe(true);
     const source = await current.batches.exportSources(current.references, current.output);
-    expect(source.items.map(item => item.ok && item.fileName)).toEqual(['same.lrc', 'same (1).lrc', 'same (2).lrc']);
-    expect(await readFile(path.join(current.output, 'same.lrc'), 'utf8')).toBe(current.documents[0].preservation.rawText);
+    expect(source.items.map(item => item.ok && item.fileName)).toEqual(['same (3).lrc', 'same (4).lrc', 'same (5).lrc']);
+    expect(await readFile(path.join(current.output, 'same (3).lrc'), 'utf8')).toBe(current.documents[0].preservation.rawText);
   });
   it('keeps blocked export items visible while publishing ready siblings', async () => {
     const current = await fixture();
@@ -122,9 +122,9 @@ describe('bounded document batches', () => {
     const planned = await current.batches.planExport(1, { documents: current.references, options: { ...options, format: 'srt' } });
     expect(planned.items[1]).toMatchObject({ ok: true, plan: { issues: expect.arrayContaining([expect.objectContaining({ code: 'missing_end', blocking: true })]) } });
     const result = await current.batches.export(1, planned.batchId, [], current.output);
-    expect(result.items[0]).toMatchObject({ ok: true, result: { fileName: 'same.source.srt' } });
+    expect(result.items[0]).toMatchObject({ ok: true, result: { fileName: 'same.srt' } });
     expect(result.items.slice(1)).toEqual(expect.arrayContaining([expect.objectContaining({ ok: false, error: 'unsupported_feature' })]));
-    expect(await readdir(current.output)).toEqual(['same.source.srt']);
+    expect(await readdir(current.output)).toEqual(['same.srt']);
   });
   it('rejects duplicate documents and batches beyond the admission bound', () => {
     const ref = { documentId: randomUUID(), revision: 1 };

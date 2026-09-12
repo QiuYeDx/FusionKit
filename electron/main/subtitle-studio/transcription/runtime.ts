@@ -313,7 +313,7 @@ export function createTranscriptionRuntime(options: TranscriptionRuntimeOptions,
     media: Object.freeze({
       authorizeInput(value: LocalSubtitleOwnerKey, filePath: string) {
         const { current, owner } = requireOwner(value);
-        return completeOwner(owner, current.inputs.authorize(owner, filePath, ['probe', 'transcribe']));
+        return completeOwner(owner, current.inputs.authorize(owner, filePath, ['probe', 'transcribe', 'derive_source_output']));
       },
       revokeInput(value: LocalSubtitleOwnerKey, fileToken: string) {
         const { current, owner } = requireOwner(value);

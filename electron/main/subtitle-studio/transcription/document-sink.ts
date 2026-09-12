@@ -4,6 +4,7 @@ import { StudioError, type MediaSubtitleDocument } from '../../../../src/subtitl
 import { DocumentRepository, type DocumentCreationReceipt } from '../document-repository';
 import { transcriptToDocument } from './document-adapter';
 import type { LocalSubtitleOwnerKey } from './native/authorizations';
+import { sourceLocationCaptureSchema, type SourceLocationCapture } from '../source-location-service';
 
 export interface TranscriptionDocumentSinkOptions {
   readonly repository: DocumentRepository;
@@ -11,6 +12,8 @@ export interface TranscriptionDocumentSinkOptions {
   readonly taskId: string;
   readonly generation: number;
   readonly assertActive: () => void;
+  readonly sourceLocation?: SourceLocationCapture;
+  readonly resolveSourceLocation?: () => Promise<SourceLocationCapture>;
 }
 
 const identityString = z.string().min(1).max(128).refine(value => value.trim() === value && !/[\u0000-\u001f\u007f]/.test(value));
@@ -20,13 +23,16 @@ const optionsSchema = z.object({
   taskId: identityString,
   generation: z.number().int().positive().safe(),
   assertActive: z.custom<() => void>(value => typeof value === 'function'),
-}).strict();
+  sourceLocation: sourceLocationCaptureSchema.optional(),
+  resolveSourceLocation: z.custom<() => Promise<SourceLocationCapture>>(value => typeof value === 'function').optional(),
+}).strict().refine(value => !value.sourceLocation || !value.resolveSourceLocation);
 
 /** Main-process authority for one final transcript. No owner credentials enter the document. */
 export function createTranscriptionDocumentSink(options: TranscriptionDocumentSinkOptions) {
   const parsed = optionsSchema.safeParse(options);
   if (!parsed.success) throw new StudioError('invalid_input');
-  const { repository, assertActive } = parsed.data;
+  const { repository, assertActive, resolveSourceLocation } = parsed.data;
+  let sourceLocation = parsed.data.sourceLocation;
   const identity = Object.freeze({ owner: Object.freeze(parsed.data.owner), taskId: parsed.data.taskId, generation: parsed.data.generation });
   const documentId = randomUUID();
   const cueIds: string[] = [];
@@ -50,7 +56,11 @@ export function createTranscriptionDocumentSink(options: TranscriptionDocumentSi
         if (!committed && request.signal?.aborted) throw new StudioError('interrupted');
       };
       // Replays visit the repository again: a cached success cannot resurrect a deleted document.
-      const pending = repository.createConfirmed(document, guard).then(receipt => {
+      const pending = Promise.resolve().then(async () => {
+        sourceLocation ??= await resolveSourceLocation?.();
+        guard();
+        return repository.createConfirmed(document!, guard, sourceLocation);
+      }).then(receipt => {
         committed = true;
         // Publication wins over a cancellation or owner release arriving after the final guard.
         return receipt;

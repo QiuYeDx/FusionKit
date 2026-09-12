@@ -4,9 +4,12 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { z } from 'zod';
 import { LIMITS, StudioError } from '../../../src/subtitle-studio/domain';
-import { STUDIO_CHANNELS, requestSchemas, transcriptionRequestSchemas, summarizeDocument, summarizeTask, type StudioResult } from '../../../src/subtitle-studio/ipc-contract';
+import { STUDIO_CHANNELS, requestSchemas, droppedSubtitlesRequestSchema, transcriptionRequestSchemas, summarizeDocument, summarizeTask, type StudioResult } from '../../../src/subtitle-studio/ipc-contract';
 import { DocumentRepository } from './document-repository';
-import { readSubtitle } from './input-service';
+import { readSubtitleWithSource } from './input-service';
+import { resolveDroppedSubtitlePaths, type SubtitleInputSelection } from './drop-input-service';
+import { selectTranslationTasks } from './translation-overview';
+import { SourceLocationService } from './source-location-service';
 import { ExportService, publishSource, unusedOutputPath } from './export-service';
 import { TranslationService } from './translation-service';
 import { BilingualService } from './bilingual-service';
@@ -23,6 +26,7 @@ export function registerSubtitleStudio(sharedResources?: SpeechResourceService) 
   const bilingual = new BilingualService(repository);
   const exports = new ExportService(repository);
   const batches = new BatchService(repository, translation);
+  const sources = new SourceLocationService(repository);
   const owners = new Map<number, { sender: WebContents; capability: string; documents: Set<string>; unavailable: Map<string, string> }>();
   const allowed = new Set<number>();
   let runtime: TranscriptionRuntime | undefined;
@@ -81,6 +85,36 @@ export function registerSubtitleStudio(sharedResources?: SpeechResourceService) 
     if (closed || !parsed.success || !owner || owner.sender !== event.sender || event.senderFrame !== event.sender.mainFrame || !trusted(event.senderFrame.url) || owner.capability !== parsed.data.capability) throw new StudioError('access_denied');
     return { owner, payload: parsed.data.payload };
   }
+  async function importSelections(selections: readonly SubtitleInputSelection[], encoding: z.infer<typeof requestSchemas.importSubtitles>['encoding'], owner: { documents: Set<string> }, alive: () => void): Promise<BatchImportResult> {
+    if (selections.length > STUDIO_BATCH_LIMIT) throw new StudioError('limit_exceeded');
+    const value: BatchImportResult = { items: [] };
+    const seen = new Set<string>();
+    for (const selection of selections) {
+      alive();
+      if (selection.path === undefined) { value.items.push({ fileName: selection.fileName, ok: false, error: selection.error }); continue; }
+      const identity = path.resolve(selection.path);
+      const key = process.platform === 'win32' ? identity.toLocaleLowerCase('en-US') : identity;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      try {
+        const { document, sourceLocation } = await readSubtitleWithSource(identity, encoding); alive();
+        await repository.create(document, alive, sourceLocation); alive(); owner.documents.add(document.id);
+        value.items.push({ fileName: document.origin.displayName, ok: true, document: summarizeDocument(document) });
+      } catch (error) { alive(); value.items.push({ fileName: selection.fileName, ok: false, error: error instanceof StudioError ? error.code : 'document_unavailable' }); }
+    }
+    return value;
+  }
+  ipcMain.handle(STUDIO_CHANNELS.importDroppedSubtitles, async (event, input): Promise<StudioResult<unknown>> => {
+    try {
+      const { owner, payload } = ownerFor(event, input);
+      const parsed = droppedSubtitlesRequestSchema.safeParse(payload);
+      if (!parsed.success) throw new StudioError('invalid_input');
+      const alive = () => { if (closed || owners.get(event.sender.id) !== owner || event.sender.isDestroyed() || !trusted(event.sender.mainFrame.url)) throw new StudioError('access_denied'); };
+      await translation.initialize(); alive();
+      const selections = await resolveDroppedSubtitlePaths(parsed.data.paths); alive();
+      return { ok: true, value: await importSelections(selections, parsed.data.encoding, owner, alive) };
+    } catch (error) { return { ok: false, error: error instanceof StudioError ? error.code : 'document_unavailable' }; }
+  });
   for (const method of Object.keys(requestSchemas) as (keyof typeof requestSchemas)[]) {
     ipcMain.handle(STUDIO_CHANNELS[method], async (event, input): Promise<StudioResult<unknown>> => {
       try {
@@ -96,12 +130,29 @@ export function registerSubtitleStudio(sharedResources?: SpeechResourceService) 
           return { ok: true, value };
         }
         await translation.initialize(); alive();
+        if (method === 'listTranslationTasks') {
+          const snapshot = await repository.listSnapshot(); alive();
+          const value = selectTranslationTasks(snapshot, requestSchemas.listTranslationTasks.parse(payload));
+          // Opening an overview row uses the same per-document capability as library selection.
+          value.items.forEach(item => owner.documents.add(item.documentId));
+          return { ok: true, value };
+        }
         if (method === 'listDocuments') {
           const snapshot = await repository.listSnapshot(); alive();
           const value = selectLibrary(snapshot, requestSchemas.listDocuments.parse(payload));
           value.documents.forEach(doc => owner.documents.add(doc.id));
           owner.unavailable = new Map(snapshot.unavailable.map(item => [item.id, item.token]));
           return { ok: true, value };
+        }
+        if (method === 'getSourceLocation' || method === 'selectSourceDirectory') {
+          const { documentId } = requestSchemas.getSourceLocation.parse(payload);
+          if (!owner.documents.has(documentId)) throw new StudioError('access_denied');
+          if (method === 'getSourceLocation') return { ok: true, value: await sources.get(documentId, alive) };
+          const window = BrowserWindow.fromWebContents(event.sender);
+          if (!window) throw new StudioError('access_denied');
+          const selection = await dialog.showOpenDialog(window, { properties: ['openDirectory', 'createDirectory'] }); alive();
+          if (selection.canceled || !selection.filePaths.length) return { ok: true, value: null };
+          return { ok: true, value: await sources.selectDirectory(documentId, selection.filePaths[0], alive) };
         }
         if (method === 'revealUnavailable' || method === 'deleteUnavailable') {
           const request = requestSchemas.revealUnavailable.parse(payload);
@@ -115,38 +166,23 @@ export function registerSubtitleStudio(sharedResources?: SpeechResourceService) 
           owner.unavailable.delete(request.documentId);
           return { ok: true, value };
         }
-        if (method === 'importSubtitles') {
+        if (method === 'importSubtitles' || method === 'importSubtitle') {
           const window = BrowserWindow.fromWebContents(event.sender);
           if (!window) throw new StudioError('access_denied');
-          const selection = await dialog.showOpenDialog(window, { properties: ['openFile', 'multiSelections'], filters: [{ name: 'SRT / LRC', extensions: ['srt', 'lrc'] }] }); alive();
+          const selection = await dialog.showOpenDialog(window, { properties: method === 'importSubtitles' ? ['openFile', 'multiSelections'] : ['openFile'], filters: [{ name: 'SRT / LRC / VTT / ASS', extensions: ['srt', 'lrc', 'vtt', 'ass'] }] }); alive();
           if (selection.canceled || !selection.filePaths.length) return { ok: true, value: null };
-          const paths = [...new Set(selection.filePaths.map(file => path.resolve(file)))];
-          if (paths.length > STUDIO_BATCH_LIMIT) throw new StudioError('limit_exceeded');
-          const value: BatchImportResult = { items: [] };
-          const { encoding } = requestSchemas.importSubtitles.parse(payload);
-          for (const file of paths) {
-            try {
-              const doc = await readSubtitle(file, encoding); alive();
-              await repository.create(doc, alive); alive(); owner.documents.add(doc.id);
-              value.items.push({ fileName: path.basename(file), ok: true, document: summarizeDocument(doc) });
-            } catch (error) { alive(); value.items.push({ fileName: path.basename(file), ok: false, error: error instanceof StudioError ? error.code : 'document_unavailable' }); }
-          }
-          return { ok: true, value };
-        }
-        if (method === 'importSubtitle') {
-          const window = BrowserWindow.fromWebContents(event.sender);
-          if (!window) throw new StudioError('access_denied');
-          const selection = await dialog.showOpenDialog(window, { properties: ['openFile'], filters: [{ name: 'SRT / LRC', extensions: ['srt', 'lrc'] }] }); alive();
-          if (selection.canceled || !selection.filePaths.length) return { ok: true, value: null };
-          const doc = await readSubtitle(selection.filePaths[0], requestSchemas.importSubtitle.parse(payload).encoding); alive();
-          await repository.create(doc, alive); alive(); owner.documents.add(doc.id);
-          return { ok: true, value: summarizeDocument(doc) };
+          const value = await importSelections(selection.filePaths.map(file => ({ path: file, fileName: path.basename(file) })), requestSchemas.importSubtitles.parse(payload).encoding, owner, alive);
+          if (method === 'importSubtitles') return { ok: true, value };
+          const item = value.items[0];
+          if (!item?.ok) throw new StudioError(item?.error ?? 'invalid_input');
+          return { ok: true, value: item.document };
         }
         if (method === 'planTranslationBatch' || method === 'planExportBatch' || method === 'exportSources') {
           const input = requestSchemas[method].parse(payload);
           if (input.documents.some(doc => !owner.documents.has(doc.documentId))) throw new StudioError('access_denied');
           if (method === 'planTranslationBatch') return { ok: true, value: await batches.planTranslation(event.sender.id, requestSchemas.planTranslationBatch.parse(payload), alive) };
           if (method === 'planExportBatch') return { ok: true, value: await batches.planExport(event.sender.id, requestSchemas.planExportBatch.parse(payload), alive) };
+          if (requestSchemas.exportSources.parse(payload).destination === 'source-directory') return { ok: true, value: await batches.exportSources(input.documents, undefined, alive, 'source-directory') };
           const window = BrowserWindow.fromWebContents(event.sender);
           if (!window) throw new StudioError('access_denied');
           const selection = await dialog.showOpenDialog(window, { properties: ['openDirectory', 'createDirectory'] }); alive();
@@ -158,15 +194,16 @@ export function registerSubtitleStudio(sharedResources?: SpeechResourceService) 
           return { ok: true, value: await batches.createTranslation(event.sender.id, batchId, apiKey, alive) };
         }
         if (method === 'exportBatch') {
-          const { batchId, acceptedLosses } = requestSchemas.exportBatch.parse(payload);
+          const { batchId, acceptedLosses, destination } = requestSchemas.exportBatch.parse(payload);
           batches.inspectExport(event.sender.id, batchId, acceptedLosses);
+          if (destination === 'source-directory') return { ok: true, value: await batches.export(event.sender.id, batchId, acceptedLosses, undefined, alive, destination) };
           const window = BrowserWindow.fromWebContents(event.sender);
           if (!window) throw new StudioError('access_denied');
           const selection = await dialog.showOpenDialog(window, { properties: ['openDirectory', 'createDirectory'] }); alive();
           if (selection.canceled || !selection.filePaths.length) return { ok: true, value: null };
           return { ok: true, value: await batches.export(event.sender.id, batchId, acceptedLosses, selection.filePaths[0], alive) };
         }
-        const request = requestSchemas.exportSource.parse({ documentId: (parsed.data as { documentId: string }).documentId, revision: (parsed.data as { revision: number }).revision });
+        const request = requestSchemas.exportSource.pick({ documentId: true, revision: true }).strip().parse(payload);
         if (!owner.documents.has(request.documentId)) throw new StudioError('access_denied');
         if (method === 'planExport') {
           const { options } = requestSchemas.planExport.parse(payload);
@@ -174,14 +211,20 @@ export function registerSubtitleStudio(sharedResources?: SpeechResourceService) 
           return { ok: true, value };
         }
         if (method === 'exportDocument') {
-          const { planId, acceptedLosses } = requestSchemas.exportDocument.parse(payload);
+          const { planId, acceptedLosses, destination } = requestSchemas.exportDocument.parse(payload);
           const plan = exports.inspect(event.sender.id, request.documentId, request.revision, planId, acceptedLosses);
+          if (destination === 'source-directory') return { ok: true, value: await exports.publishToSource(event.sender.id, request.documentId, request.revision, planId, acceptedLosses, alive) };
           const window = BrowserWindow.fromWebContents(event.sender);
           if (!window) throw new StudioError('access_denied');
           const defaultPath = await unusedOutputPath(app.getPath('downloads'), plan.fileName); alive();
           const selection = await dialog.showSaveDialog(window, { defaultPath, filters: [{ name: plan.options.format.toUpperCase(), extensions: [plan.options.format] }] }); alive();
           if (selection.canceled || !selection.filePath) return { ok: true, value: null };
-          const value = await exports.publish(event.sender.id, request.documentId, request.revision, planId, acceptedLosses, selection.filePath, alive, path.resolve(selection.filePath) === path.resolve(defaultPath) ? 'indexed' : 'replace');
+          const usingDefault = process.platform === 'win32'
+            ? path.resolve(selection.filePath).toLowerCase() === path.resolve(defaultPath).toLowerCase()
+            : path.resolve(selection.filePath) === path.resolve(defaultPath);
+          // Re-evaluate indices from the original leaf if a competing export claimed the suggestion.
+          const outputPath = usingDefault ? path.join(path.dirname(defaultPath), plan.fileName) : selection.filePath;
+          const value = await exports.publish(event.sender.id, request.documentId, request.revision, planId, acceptedLosses, outputPath, alive, usingDefault ? 'indexed' : 'replace');
           return { ok: true, value };
         }
         if (method === 'cancelTask') {
@@ -242,6 +285,7 @@ export function registerSubtitleStudio(sharedResources?: SpeechResourceService) 
         }
         if (method !== 'exportSource') throw new StudioError('invalid_input');
         if (!doc.capabilities.preserveSource) throw new StudioError('unsupported_feature');
+        if (requestSchemas.exportSource.parse(payload).destination === 'source-directory') return { ok: true, value: await exports.exportOriginalToSource(request.documentId, request.revision, alive) };
         const window = BrowserWindow.fromWebContents(event.sender);
         if (!window) throw new StudioError('access_denied');
         const defaultPath = await unusedOutputPath(app.getPath('downloads'), doc.origin.displayName); alive();
@@ -249,7 +293,10 @@ export function registerSubtitleStudio(sharedResources?: SpeechResourceService) 
         if (selection.canceled || !selection.filePath) return { ok: true, value: null };
         const output = await repository.withExistingDocument(request.documentId, async () => {
           alive();
-          return publishSource(doc, selection.filePath!, alive, path.resolve(selection.filePath!) === path.resolve(defaultPath) ? 'indexed' : 'replace');
+          const usingDefault = process.platform === 'win32'
+            ? path.resolve(selection.filePath!).toLowerCase() === path.resolve(defaultPath).toLowerCase()
+            : path.resolve(selection.filePath!) === path.resolve(defaultPath);
+          return publishSource(doc, usingDefault ? path.join(path.dirname(defaultPath), doc.origin.displayName) : selection.filePath!, alive, usingDefault ? 'indexed' : 'replace');
         });
         return { ok: true, value: { fileName: path.basename(output) } };
       } catch (error) { return { ok: false, error: Object.hasOwn(transcriptionRequestSchemas, method) ? transcriptionIpcError(error) : error instanceof StudioError ? error.code : 'document_unavailable' }; }
@@ -279,7 +326,7 @@ export function registerSubtitleStudio(sharedResources?: SpeechResourceService) 
       }).catch(error => { shutdown = undefined; throw error; });
       for (const id of owners.keys()) forgetOwner(id);
       for (const cleanup of [() => exports.dispose(), () => batches.dispose(), unsubscribe,
-        () => allowed.clear(), () => ipcMain.removeAllListeners(STUDIO_CHANNELS.register),
+        () => allowed.clear(), () => ipcMain.removeAllListeners(STUDIO_CHANNELS.register), () => ipcMain.removeHandler(STUDIO_CHANNELS.importDroppedSubtitles),
         ...(Object.keys(requestSchemas) as (keyof typeof requestSchemas)[]).map(method => () => ipcMain.removeHandler(STUDIO_CHANNELS[method]))]) {
         try { cleanup(); } catch (error) { retirementFailures.push(error); }
       }

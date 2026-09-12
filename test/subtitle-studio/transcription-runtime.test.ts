@@ -3,7 +3,8 @@ import { lstat, mkdir, readFile, readdir, realpath, rename, rm, stat, symlink, w
 import path from 'node:path';
 import { createTranscriptionRuntime } from '../../electron/main/subtitle-studio/transcription/runtime';
 import { LocalSubtitleInputAuthorizationRegistry, LocalSubtitleOutputDirectoryAuthorizationRegistry,
-  LocalSubtitleImportTokenRegistry } from '../../electron/main/subtitle-studio/transcription/native/authorizations';
+  LocalSubtitleImportTokenRegistry, LocalSubtitleCapabilityLeaseCoordinator } from '../../electron/main/subtitle-studio/transcription/native/authorizations';
+import { localSubtitleFilesystemObjectIdentityForPath } from '../../electron/main/subtitle-studio/transcription/native/filesystem-object-identity';
 import { LocalSubtitleArtifactRegistry } from '../../electron/main/subtitle-studio/transcription/native/subtitle-artifact-registry';
 import { runtimeFixture, eventually } from './helpers/transcription-runtime';
 import { DocumentRepository } from '../../electron/main/subtitle-studio/document-repository';
@@ -52,18 +53,43 @@ describe('independent transcription runtime composition', () => {
     expect(item.spawnProcess).not.toHaveBeenCalled();
   });
 
-  it('issues only read/transcribe authority and exposes owner-bound idempotent draft revocation', async () => {
+  it('issues source-parent authority bound to the input lease and exposes owner-bound idempotent draft revocation', async () => {
     const authorization = vi.spyOn(LocalSubtitleInputAuthorizationRegistry.prototype, 'authorize');
     const item = await fixture(); await item.runtime.initialize();
     const token = await item.runtime.media.authorizeInput(OWNER, item.sourcePath);
-    const issuer = authorization.mock.contexts[0]!;
+    const issuer = authorization.mock.contexts[0];
+    if (!(issuer instanceof LocalSubtitleInputAuthorizationRegistry)) throw new TypeError('The runtime did not use the input authorization registry.');
     await expect(issuer.resolveDraft(OWNER, token.fileToken, 'transcribe')).resolves.toBeDefined();
-    await expect(issuer.resolveDraft(OWNER, token.fileToken, 'derive_source_output')).rejects.toBeDefined();
+    await expect(issuer.resolveDraft(OWNER, token.fileToken, 'derive_source_output')).resolves.toBeDefined();
+    await expect(issuer.resolveDraft(OTHER, token.fileToken, 'derive_source_output')).rejects.toBeDefined();
     expect(item.runtime.media.revokeInput(OTHER, token.fileToken)).toBe(false);
     await expect(issuer.resolveDraft(OWNER, token.fileToken, 'probe')).resolves.toBeDefined();
     expect(item.runtime.media.revokeInput(OWNER, token.fileToken)).toBe(true);
     expect(item.runtime.media.revokeInput(OWNER, token.fileToken)).toBe(false);
     await expect(issuer.resolveDraft(OWNER, token.fileToken, 'probe')).rejects.toBeDefined();
+    await expect(issuer.resolveDraft(OWNER, token.fileToken, 'derive_source_output')).rejects.toBeDefined();
+
+    const taskInput = await item.runtime.media.authorizeInput(OWNER, item.sourcePath);
+    const transaction = await new LocalSubtitleCapabilityLeaseCoordinator(
+      issuer, new LocalSubtitleOutputDirectoryAuthorizationRegistry(),
+    ).reserveBatch({ owner: OWNER, batchId: 'source-parent-batch',
+      inputs: [{ fileToken: taskInput.fileToken, taskId: 'source-parent-task' }] });
+    const lease = transaction.commit();
+    try {
+      const directoryPath = path.dirname(await realpath(item.sourcePath));
+      await expect(issuer.resolveTaskSourceOutputDirectory(OWNER, 'source-parent-task', taskInput.fileToken))
+        .resolves.toEqual({ directoryPath, directoryName: path.basename(directoryPath),
+          identity: await localSubtitleFilesystemObjectIdentityForPath(directoryPath), expiresAt: lease.expiresAt });
+      await expect(issuer.resolveTaskSourceOutputDirectory(OTHER, 'source-parent-task', taskInput.fileToken))
+        .rejects.toBeDefined();
+      await expect(issuer.resolveTaskSourceOutputDirectory(OWNER, 'source-parent-task', token.fileToken))
+        .rejects.toBeDefined();
+      expect(JSON.stringify(taskInput)).not.toContain(directoryPath);
+    } finally {
+      issuer.releaseTaskLease(OWNER, 'source-parent-task');
+    }
+    await expect(issuer.resolveTaskSourceOutputDirectory(OWNER, 'source-parent-task', taskInput.fileToken))
+      .rejects.toBeDefined();
   });
 
   it('publishes the one shutdown promise before synchronous owner abort callbacks', async () => {
@@ -179,7 +205,8 @@ describe('independent transcription runtime composition', () => {
     const importRelease = vi.spyOn(LocalSubtitleImportTokenRegistry.prototype, 'releaseOwner');
     const item = await fixture(); await item.runtime.initialize();
     const token = await item.runtime.media.authorizeInput(OWNER, item.sourcePath);
-    const issuer = authorizations.mock.contexts[0]!;
+    const issuer = authorizations.mock.contexts[0];
+    if (!(issuer instanceof LocalSubtitleInputAuthorizationRegistry)) throw new TypeError('The runtime did not use the input authorization registry.');
     await expect(issuer.resolveDraft(OWNER, token.fileToken, 'probe')).resolves.toMatchObject({ filePath: await realpath(item.sourcePath) });
     inputRelease.mockImplementationOnce(() => { throw new Error('Injected capability revocation failure.'); });
     expect(() => item.runtime.releaseOwner(OWNER)).toThrow('owner release failed');

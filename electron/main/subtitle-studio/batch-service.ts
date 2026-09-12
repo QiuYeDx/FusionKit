@@ -3,17 +3,18 @@ import path from 'node:path';
 import type { z } from 'zod';
 import { StudioError } from '../../../src/subtitle-studio/domain';
 import { batchRequestSchemas, type BatchFailure, type DocumentReference, type TranslationBatchPlan, type TranslationBatchResult, type ExportBatchPlan, type ExportBatchResult, type SourceBatchResult } from '../../../src/subtitle-studio/batch-contract';
-import type { ExportOptions, ExportIssueCode, ExportPlanSummary } from '../../../src/subtitle-studio/export-contract';
+import type { ExportOptions, ExportIssueCode, ExportPlanSummary, ExportDestination } from '../../../src/subtitle-studio/export-contract';
 import type { TranslationConfig } from '../../../src/subtitle-studio/translation-contract';
 import type { DocumentRepository } from './document-repository';
 import type { TranslationService } from './translation-service';
 import { planTranslation } from './translation-planner';
 import { planSubtitleExport } from './export-planner';
-import { publishBytes, publishSource } from './export-service';
+import { publishBytes, publishSource, sourceBytes } from './export-service';
+import { SourceLocationService } from './source-location-service';
 
 type EntryBase = { owner: number; created: number; executing: boolean };
 type TranslationEntry = EntryBase & { kind: 'translation'; config: TranslationConfig; summary: TranslationBatchPlan; documents: DocumentReference[] };
-type ExportEntry = EntryBase & { kind: 'export'; summary: ExportBatchPlan; prepared: Map<string, { reference: DocumentReference; options: ExportOptions; digest: string | null }> };
+type ExportEntry = EntryBase & { kind: 'export'; summary: ExportBatchPlan; prepared: Map<string, { reference: DocumentReference; options: ExportOptions; digest: string | null; sourceBindingId?: string }> };
 type BatchEntry = TranslationEntry | ExportEntry;
 const failure = (documentId: string, displayName: string, error: unknown): BatchFailure => ({ documentId, displayName, ok: false, error: error instanceof StudioError ? error.code : 'document_unavailable' });
 const contentDigest = (bytes: Buffer) => createHash('sha256').update(bytes).digest('hex');
@@ -21,7 +22,8 @@ const contentDigest = (bytes: Buffer) => createHash('sha256').update(bytes).dige
 /** Batch plans retain bounded metadata. Only one document's export bytes exist at a time. */
 export class BatchService {
   private plans = new Map<string, BatchEntry>();
-  constructor(private repository: DocumentRepository, private translation: TranslationService) {}
+  private readonly sources: SourceLocationService;
+  constructor(private repository: DocumentRepository, private translation: TranslationService) { this.sources = new SourceLocationService(repository); }
   forgetOwner(owner: number) { for (const [id, entry] of this.plans) if (entry.owner === owner) this.plans.delete(id); }
   dispose() { this.plans.clear(); }
   private remember(id: string, entry: BatchEntry) {
@@ -90,8 +92,9 @@ export class BatchService {
         if (doc.revision !== ref.revision) throw new StudioError('revision_conflict');
         const options: ExportOptions = { ...request.options, ...(ref.trackId ? { trackId: ref.trackId } : {}) };
         const { bytes, ...metadata } = planSubtitleExport(doc, options);
-        const plan: ExportPlanSummary = { ...metadata, planId: null };
-        prepared.set(ref.documentId, { reference: { documentId: ref.documentId, revision: ref.revision }, options, digest: bytes ? contentDigest(bytes) : null });
+        const location = await this.sources.inspect(ref.documentId, guard); guard();
+        const plan: ExportPlanSummary = { ...metadata, planId: null, sourceLocation: location.summary };
+        prepared.set(ref.documentId, { reference: { documentId: ref.documentId, revision: ref.revision }, options, digest: bytes ? contentDigest(bytes) : null, sourceBindingId: location.bindingId });
         summary.items.push({ documentId: ref.documentId, displayName, ok: true, plan });
       } catch (error) { guard(); summary.items.push(failure(ref.documentId, displayName, error)); }
     }
@@ -111,7 +114,8 @@ export class BatchService {
     }
     return structuredClone(entry.summary);
   }
-  async export(owner: number, batchId: string, accepted: { documentId: string; codes: ExportIssueCode[] }[], directory: string, guard: () => void = () => {}): Promise<ExportBatchResult> {
+  async export(owner: number, batchId: string, accepted: { documentId: string; codes: ExportIssueCode[] }[], directory: string | undefined, guard: () => void = () => {}, destination: ExportDestination = 'choose-location'): Promise<ExportBatchResult> {
+    if (destination !== 'source-directory' && (!directory || !path.isAbsolute(directory))) throw new StudioError('invalid_input');
     this.inspectExport(owner, batchId, accepted);
     const entry = this.resolve(owner, batchId, 'export') as ExportEntry;
     entry.executing = true;
@@ -128,8 +132,11 @@ export class BatchService {
           if (doc.revision !== prepared.reference.revision) throw new StudioError('revision_conflict');
           const rebuilt = planSubtitleExport(doc, prepared.options);
           if (!rebuilt.bytes || contentDigest(rebuilt.bytes) !== prepared.digest) throw new StudioError('revision_conflict');
-          const output = await publishBytes(rebuilt.bytes, path.join(directory, path.basename(item.plan.fileName)), alive, 'indexed',
-            action => this.repository.withDocument(item.documentId, prepared.reference.revision, async () => action()));
+          const output = destination === 'source-directory'
+            ? await this.sources.publish(item.documentId, prepared.sourceBindingId,
+              (directory, verify) => publishBytes(rebuilt.bytes!, path.join(directory, path.basename(item.plan.fileName)), verify, 'indexed'), alive, prepared.reference.revision)
+            : await publishBytes(rebuilt.bytes, path.join(directory!, path.basename(item.plan.fileName)), alive, 'indexed',
+              action => this.repository.withDocument(item.documentId, prepared.reference.revision, async () => action()));
           result.items.push({ documentId: item.documentId, displayName: item.displayName, ok: true, result: { fileName: path.basename(output), revision: prepared.reference.revision, partial: item.plan.partial, mode: item.plan.options.mode, incomplete: item.plan.options.incomplete } });
         } catch (error) { alive(); result.items.push(failure(item.documentId, item.displayName, error)); }
       }
@@ -137,14 +144,19 @@ export class BatchService {
       return result;
     } finally { entry.executing = false; }
   }
-  async exportSources(documents: DocumentReference[], directory: string, guard: () => void = () => {}): Promise<SourceBatchResult> {
+  async exportSources(documents: DocumentReference[], directory: string | undefined, guard: () => void = () => {}, destination: ExportDestination = 'choose-location'): Promise<SourceBatchResult> {
+    if (destination !== 'source-directory' && (!directory || !path.isAbsolute(directory))) throw new StudioError('invalid_input');
     const result: SourceBatchResult = { items: [] };
     for (const ref of documents) {
       let displayName = ref.documentId;
       try {
         const doc = await this.repository.read(ref.documentId); guard(); displayName = doc.origin.displayName;
         if (doc.revision !== ref.revision) throw new StudioError('revision_conflict');
-        const output = await this.repository.withDocument(ref.documentId, ref.revision, async () => publishSource(doc, path.join(directory, path.basename(displayName)), guard, 'indexed'));
+        const location = destination === 'source-directory' ? await this.sources.inspect(ref.documentId, guard) : null;
+        const output = destination === 'source-directory'
+          ? await this.sources.publish(ref.documentId, location?.bindingId,
+            (directory, verify) => publishBytes(sourceBytes(doc), path.join(directory, path.basename(displayName)), verify, 'indexed'), guard, ref.revision)
+          : await this.repository.withDocument(ref.documentId, ref.revision, async () => publishSource(doc, path.join(directory!, path.basename(displayName)), guard, 'indexed'));
         result.items.push({ documentId: ref.documentId, displayName, ok: true, fileName: path.basename(output) });
       } catch (error) { guard(); result.items.push(failure(ref.documentId, displayName, error)); }
     }

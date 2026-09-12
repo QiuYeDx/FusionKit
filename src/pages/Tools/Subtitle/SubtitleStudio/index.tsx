@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type DragEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { AlertCircle, ArrowRight, AudioLines, Check, CheckCheck, ChevronDown, Code2, Copy, Ellipsis, FolderOpen, Library, List, LoaderCircle, RefreshCw, Subtitles, Trash2, X, Play, Square } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -18,13 +18,14 @@ import { StudioObservations } from '@/services/subtitle-studio/observations';
 import { ScrollableDialog, ScrollableDialogHeader, ScrollableDialogContent, ScrollableDialogFooter, DialogTitle, DialogDescription } from '@/components/qiuye-ui/scrollable-dialog';
 import { encodingSchema, StudioError, type Diagnostic, type ErrorCode } from '@/subtitle-studio/domain';
 import type { DocumentPage, DocumentSummary } from '@/subtitle-studio/ipc-contract';
-import { STUDIO_BATCH_LIMIT, type UnavailableDocument } from '@/subtitle-studio/batch-contract';
+import { STUDIO_BATCH_LIMIT, type UnavailableDocument, type BatchImportResult } from '@/subtitle-studio/batch-contract';
 import { matchesLibraryQuery } from '@/subtitle-studio/library-query';
 import useModelStore from '@/store/useModelStore';
 import { translationModelSchema, normalizeTranslationModel } from '@/subtitle-studio/translation-contract';
 import { formatStudioTime, StudioFileName, StudioIconButton, StudioPagination } from './StudioControls';
 import { StudioTranslation, StudioTranslationStatus, StudioBatchTranslation } from './StudioTranslation';
 import { StudioTranslationTask } from './StudioTranslationTask';
+import { StudioTranslationOverview } from './StudioTranslationOverview';
 import { StudioExport, StudioBatchExport } from './StudioExport';
 import { StudioLibrary, LIBRARY_PAGE_SIZE, defaultLibraryQuery, type LibraryQuery } from './StudioLibrary';
 import { StudioRecovery } from './StudioRecovery';
@@ -41,6 +42,7 @@ const errorKeys: Record<ErrorCode, string> = {
   invalid_input: 'studio:errors.invalid_input', unsupported_feature: 'studio:errors.unsupported_feature', encoding_required: 'studio:errors.encoding_required', limit_exceeded: 'studio:errors.limit_exceeded', revision_conflict: 'studio:errors.revision_conflict', access_denied: 'studio:errors.access_denied', document_unavailable: 'studio:errors.document_unavailable', output_write_failed: 'studio:errors.output_write_failed',
 };
 const diagnosticKeys: Record<Diagnostic['code'], string> = {
+  opaque_structure: 'studio:diagnostics.opaque_structure', ass_drawing: 'studio:diagnostics.ass_drawing', ass_karaoke: 'studio:diagnostics.ass_karaoke', vtt_payload_unsupported: 'studio:diagnostics.vtt_payload_unsupported',
   empty_document: 'studio:diagnostics.empty_document', unsupported_markup: 'studio:diagnostics.unsupported_markup', enhanced_lrc: 'studio:diagnostics.enhanced_lrc', negative_time: 'studio:diagnostics.negative_time', zero_duration: 'studio:diagnostics.zero_duration', untimed_text: 'studio:diagnostics.untimed_text',
 };
 type Activity = 'load' | 'import' | 'select' | 'export' | 'delete' | 'batch';
@@ -50,10 +52,12 @@ let lastWorkspaceView: WorkspaceView = 'documents';
 
 export default function SubtitleStudio() {
   const { t } = useTranslation();
+  const [dragging, setDragging] = useState(false);
+  const dragDepth = useRef(0);
   const [workspaceView, setWorkspaceView] = useState<WorkspaceView>(lastWorkspaceView);
   const changeWorkspaceView = (value: string) => {
     if (value !== 'documents' && value !== 'transcription') return;
-    lastWorkspaceView = value; setWorkspaceView(value);
+    lastWorkspaceView = value; setWorkspaceView(value); dragDepth.current = 0; setDragging(false);
   };
   const { encoding, setEncoding, dismissedRecoveryKey, dismissRecovery } = useStudioPreferences();
   const [documents, setDocuments] = useState<DocumentSummary[]>([]);
@@ -183,8 +187,7 @@ export default function SubtitleStudio() {
       await load(currentOffset.current, true);
     });
   };
-  const importDocument = () => void run('import', async () => {
-    const result = await unwrapStudio(window.subtitleStudio.importSubtitles({ encoding }));
+  const acceptImportResult = async (result: BatchImportResult | null) => {
     if (!result || !mounted.current) return;
     const onlyItem = result.items.length === 1 ? result.items[0] : undefined;
     if (onlyItem && !onlyItem.ok) throw new StudioError(onlyItem.error);
@@ -193,9 +196,24 @@ export default function SubtitleStudio() {
     await load(0);
     if (added[0]) { await select(added[0]); setView('preview'); setImportedId(result.items.length === 1 ? added[0].id : ''); }
     if (result.items.length > 1 || result.items.some(item => !item.ok)) setResults({ title: t('studio:library.import_result'), items: result.items.map(item => ({ name: item.fileName, ...(item.ok ? { documentId: item.document.id } : { error: item.error }) })) });
-  });
+  };
+  const importDocument = () => void run('import', async () => acceptImportResult(await unwrapStudio(window.subtitleStudio.importSubtitles({ encoding }))));
+  const fileDrag = (event: DragEvent) => Array.from(event.dataTransfer.types).includes('Files');
+  const canDrop = (event: DragEvent) => workspaceView === 'documents' && !((event.target as HTMLElement).closest?.('[role=dialog]'));
+  const dropFiles = (event: DragEvent) => {
+    if (!fileDrag(event)) return;
+    event.preventDefault(); dragDepth.current = 0; setDragging(false);
+    if (!canDrop(event) || busy || operation.current) return;
+    const files = Array.from(event.dataTransfer.files);
+    if (!files.length) { retry.current = null; setError('invalid_input'); return; }
+    // Invoke while the drop FileList is alive; do not retain Files in a retry closure.
+    void run('import', async () => {
+      retry.current = null;
+      await acceptImportResult(await unwrapStudio(window.subtitleStudio.importDroppedSubtitles(files, { encoding })));
+    });
+  };
   const chooseDocument = (doc: DocumentSummary) => void run('select', async () => { await select(doc); if (mounted.current) { setView('preview'); setLibraryOpen(false); } });
-  const openTranscriptionDocument = async (documentId: string): Promise<void> => {
+  const openTranscriptionDocument = async (documentId: string, preferredTrackId?: string): Promise<void> => {
     // Completion can coincide with the document-created refresh; join it before taking the reader.
     while (operation.current) await operationSettled.current;
     if (!mounted.current) return;
@@ -213,6 +231,7 @@ export default function SubtitleStudio() {
           changeQuery(nextQuery);
           await load(offset);
           await select(document);
+          if (mounted.current && preferredTrackId) setTrackId(preferredTrackId);
           if (mounted.current) { setError(null); setView('preview'); setLibraryOpen(false); changeWorkspaceView('documents'); }
           return;
         }
@@ -362,12 +381,17 @@ export default function SubtitleStudio() {
   const recoveryButton = unavailable.length > 0 ? <Button data-testid="studio-recovery-manage" variant="ghost" size="sm" onClick={() => setRecoveryOpen(true)}><AlertCircle className="text-amber-600 dark:text-amber-400" />{t('studio:recovery.count', { count: unavailable.length })}</Button> : null;
   const library = <StudioLibrary documents={documents} selected={selected} previewId={page?.summary.id} query={query} onQuery={changeQuery} total={total} allTotal={allTotal} offset={listOffset} busy={busy} onPage={offset => void run('load', () => load(offset))} onPreview={chooseDocument} onToggle={toggleDocument} onSelectPage={selectPage} onSelectAll={selectAll} onClearScope={() => setSelected(items => items.filter(doc => !matchesLibraryQuery(doc, queryRef.current)))} onClear={() => setSelected([])} selectionLimit={selectionLimit} onDismissLimit={() => setSelectionLimit(false)} encoding={encodingField} actions={batchActions} />;
 
-  return <div data-testid="subtitle-studio" className={page && workspaceView === 'documents' ? 'studio studio-has-document' : 'studio'}>
+  return <div data-testid="subtitle-studio" data-workspace-view={workspaceView} className={page && workspaceView === 'documents' ? 'studio studio-has-document' : 'studio'}
+    onDragEnter={event => { if (!fileDrag(event) || !canDrop(event)) return; event.preventDefault(); dragDepth.current++; setDragging(true); }}
+    onDragOver={event => { if (!fileDrag(event)) return; event.preventDefault(); event.dataTransfer.dropEffect = canDrop(event) && !busy ? 'copy' : 'none'; }}
+    onDragLeave={event => { if (!fileDrag(event)) return; dragDepth.current = Math.max(0, dragDepth.current - 1); if (!dragDepth.current) setDragging(false); }}
+    onDrop={dropFiles}>
+    {dragging && <div className="studio-drop-overlay" role="status" data-testid="studio-drop-overlay"><Subtitles className="size-7" /><strong>{t(busy ? 'studio:library.drop_busy' : 'studio:library.drop_hint')}</strong><span>SRT · LRC · VTT · ASS</span></div>}
     <ClipPathTabs value={workspaceView} onValueChange={changeWorkspaceView} ariaLabel={t('studio:workspace_view')} shape="rounded" smoothCorners size="sm" transitionDuration={200} transitionEasing="ease-out" className="studio-workspace-tabs w-full" items={[
       { value: 'documents', label: t('studio:workspace_documents'), icon: <Library /> },
       { value: 'transcription', label: t('studio:workspace_transcription'), icon: <AudioLines /> },
     ]}>
-    <div className="studio-workspace-header"><ToolPageHeader meta={TOOL_META.subtitleStudio} title={t('studio:title')} /></div>
+    <div className="studio-workspace-header"><ToolPageHeader meta={TOOL_META.subtitleStudio} title={t('studio:title')} /><StudioTranslationOverview onOpenDocument={openTranscriptionDocument} /></div>
     <ClipPathTabsContent value="documents" forceMount hidden={workspaceView !== 'documents'} className="studio-workspace-content">
     <ToolDetailLayout
       className="studio-layout"
@@ -376,7 +400,7 @@ export default function SubtitleStudio() {
       mainClassName="studio-main"
       aside={wide ? <div className="studio-library"><ToolPanel className="studio-library-panel" title={t('studio:documents')} icon={Library} badge={<Badge variant="secondary" className="font-mono text-[11px]">{allTotal}</Badge>} actions={refresh}>{recoveryButton}{library}</ToolPanel></div> : undefined}
     >
-      <ToolFilePickerSurface title={t('studio:import')} description={t('studio:library.import_hint')} actionLabel={t('studio:open_file')} disabled={busy} onSelect={importDocument} icon={activity === 'import' ? <LoaderCircle className="h-5 w-5 studio-spin" /> : undefined} className="studio-import" />
+      <ToolFilePickerSurface title={t('studio:import')} description={t('studio:library.import_hint')} dragging={dragging && !busy} actionLabel={t('studio:open_file')} disabled={busy} onSelect={importDocument} icon={activity === 'import' ? <LoaderCircle className="h-5 w-5 studio-spin" /> : undefined} className="studio-import" />
       <div className="studio-mobile-controls lg:hidden">
         <StudioIconButton id="studio-library-trigger" label={t('studio:library.open')} onClick={() => setLibraryOpen(true)}><Library /></StudioIconButton>
         <div className="min-w-0 flex-1 studio-mobile-picker">{documentPicker}</div>

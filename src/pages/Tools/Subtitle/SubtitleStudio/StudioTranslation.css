@@ -27,6 +27,7 @@
 .studio-translation-status { display: flex; align-items: center; flex-wrap: wrap; gap: 3px 12px; min-width: 0; color: var(--muted-foreground); font-size: 11px; line-height: 18px; }
 .studio-translation-status > span { display: inline-flex; align-items: center; gap: 5px; min-width: 0; overflow-wrap: anywhere; }
 .studio-translation-task-controls { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 6px; min-width: 0; }
+.studio-translation-view-progress { margin-block: 4px; }
 .studio-translation-task-note { display: inline-flex; align-items: center; gap: 5px; color: var(--muted-foreground); font-size: 11px; line-height: 18px; overflow-wrap: anywhere; }
 .studio-translation-task-note > svg, .studio-translation-recovery-note > svg { flex-shrink: 0; }
 .studio-translation-recovery { display: grid; min-width: 0; gap: 12px; }
