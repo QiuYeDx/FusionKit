@@ -184,6 +184,8 @@
       "opaque_omitted": "將省略 {{count}} 項非正文或不透明結構；原始檔案仍保留。",
       "encoding_not_supported": "VTT 與新產生的 ASS 需要 UTF-8 編碼。"
     },
+    "source_attention": "{{count}} 份文件的來源目錄無法使用，請展開下方文件清單重新指定，或選擇其他儲存位置。",
+    "no_translation_fallback": "尚無譯文的文件將使用原文匯出。",
     "destination": "儲存位置",
     "destination_source": "來源檔案所在目錄",
     "destination_choose": "選擇其他位置",
@@ -206,7 +208,40 @@
     "file_name_preview": "輸出檔案名稱：{{name}}",
     "save_to_source": "儲存至來源目錄",
     "save_original": "儲存原始檔案…",
-    "source_recheck": "來源位置已更新，請重新檢查匯出。"
+    "source_recheck": "來源位置已更新，請重新檢查匯出。",
+    "review_title": "確認匯出",
+    "review_description": "檢查已完成。確認輸出設定與下列變化後，再寫入檔案。",
+    "review_output": "輸出設定",
+    "review_changes": "檢查摘要",
+    "review_back": "返回設定",
+    "review_confirm": "確認並匯出 {{count}} 份",
+    "review_accept": "點擊「確認並匯出」即表示接受以上格式變化。",
+    "review_not_ready": "未就緒的文件不會匯出，可返回設定處理。",
+    "review_details": "檔案詳細資訊",
+    "change_types": {
+      "track_missing": "缺少譯文軌",
+      "translation_missing": "缺失譯文",
+      "translation_stale": "過期譯文",
+      "missing_end": "缺失結束時間",
+      "estimated_end": "推算結束時間",
+      "end_times_omitted": "省略結束時間",
+      "invalid_time": "無效時間",
+      "styles_removed": "移除樣式",
+      "line_breaks_flattened": "合併換行",
+      "metadata_omitted": "省略中繼資料",
+      "transcription_evidence_omitted": "省略轉寫依據",
+      "unsupported_text": "不支援的正文",
+      "empty_output": "無可匯出內容",
+      "encoding_unrepresentable": "編碼無法表示",
+      "skipped_cues": "略過字幕",
+      "source_fallback": "使用原文",
+      "timing_precision_changed": "調整時間精度",
+      "positioning_omitted": "省略配置",
+      "effects_omitted": "省略特效",
+      "opaque_omitted": "省略非正文結構",
+      "encoding_not_supported": "不支援的編碼"
+    },
+    "result_title": "匯出結果"
   },
   "errors": {
     "invalid_input": "字幕結構無效。",
@@ -291,7 +326,12 @@
     "no_cancel_task": "沒有可取消的翻譯任務",
     "no_resume_task": "沒有可繼續的翻譯任務",
     "drop_hint": "放開以匯入字幕",
-    "drop_busy": "正在處理，請稍後再拖入"
+    "drop_busy": "正在處理，請稍後再拖入",
+    "resume_requested_count": "已請求繼續翻譯 {{count}} 份",
+    "resume_requested": "已請求繼續翻譯",
+    "cancel_requested_count": "已請求取消 {{count}} 份",
+    "cancel_requested": "已請求取消",
+    "selecting": "正在選擇文件…"
   },
   "recovery": {
     "title": "處理無法還原的文件",
@@ -335,6 +375,16 @@
   "workspace_documents": "文件",
   "workspace_transcription": "轉寫",
   "transcription": {
+    "auto_translation": "轉寫完成後自動翻譯",
+    "auto_translation_hint": "僅翻譯本次成功產生的字幕，提交後離開頁面也會繼續。",
+    "auto_translation_model": "翻譯模型",
+    "auto_translation_language": "目標語言",
+    "auto_translation_configuration": "請選擇可用的翻譯模型並填寫目標語言。",
+    "auto_translation_pending": "轉寫完成後將建立翻譯任務",
+    "auto_translation_admitted": "自動翻譯已交接，可在文件中查看進度",
+    "auto_translation_recovery": "字幕已儲存，請在文件中恢復自動翻譯",
+    "media_drop_hint": "放開以新增音訊或影片",
+    "media_drop_busy": "目前正在處理選入或提交，請稍候",
     "configuration": "轉寫設定",
     "settings": "設定",
     "media": "媒體",
@@ -453,7 +503,10 @@
     "confirm_cancel_all": "確認取消",
     "cancel_all_confirmation": "取消目前這 {{count}} 項未完成任務？僅傳送取消請求，任務會保留至實際停止；之後加入的任務不受影響。既有字幕文件不會刪除。",
     "clear_result": "已清理 {{count}} 項，{{failed}} 項失敗，{{skipped}} 項仍在處理。既有字幕文件不受影響。",
-    "cancel_result": "已請求取消 {{count}} 項，{{failed}} 項失敗，{{skipped}} 項狀態已變更。任務將在實際停止後顯示為已結束。"
+    "cancel_result": "已請求取消 {{count}} 項，{{failed}} 項失敗，{{skipped}} 項狀態已變更。任務將在實際停止後顯示為已結束。",
+    "auto_translation_pending_short": "自動翻譯",
+    "auto_translation_admitted_short": "翻譯已交接",
+    "auto_translation_recovery_short": "翻譯待恢復"
   },
   "overview": {
     "title": "翻譯任務",
@@ -471,5 +524,26 @@
     "open_document": "開啟文件",
     "can_resume": "可在文件中檢查並繼續",
     "view_progress": "查看翻譯進度"
+  },
+  "copy_options": {
+    "choose": "選擇複製內容",
+    "source": "複製原文",
+    "target": "複製譯文",
+    "bilingual": "複製雙語",
+    "with_time": "包含時間資訊複製",
+    "start_only": "結束時間未知，僅包含開始時間。",
+    "stale": "目前譯文已過期，將複製此處顯示的譯文。",
+    "no_translation": "這條字幕尚無譯文。"
+  },
+  "operation_result": {
+    "success": "成功 {{count}} 份",
+    "failed": "失敗 {{count}} 份",
+    "skipped": "略過 {{count}} 份",
+    "success_details": "查看成功詳情",
+    "failure_details": "查看失敗詳情",
+    "skipped_details": "查看略過詳情",
+    "details": "查看檔案詳情",
+    "queued": "已提交 {{count}} 個翻譯任務",
+    "empty": "沒有需要處理的項目"
   }
 }

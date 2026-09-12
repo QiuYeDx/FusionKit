@@ -12,6 +12,9 @@ import type { TranscriptionTaskExecutionContext, TranscriptExecutionResult } fro
 import type { EnqueueTranscriptionRequest } from '../../src/subtitle-studio/transcription/task-contract';
 import { createRuntimeFixture } from './transcription/runtimeFixture';
 import { StudioError } from '../../src/subtitle-studio/domain';
+import { TranslationService } from '../../electron/main/subtitle-studio/translation-service';
+import { createAutomaticTranslationCoordinator } from '../../electron/main/subtitle-studio/automatic-translation';
+import type { AutomaticTranslationRequest } from '../../src/subtitle-studio/automatic-translation-contract';
 
 const disposals: (() => Promise<void>)[] = [];
 afterEach(async () => { vi.restoreAllMocks(); for (const dispose of disposals.splice(0)) await dispose(); });
@@ -21,6 +24,7 @@ const config: EnqueueTranscriptionRequest['config'] = { modelId: 'test-model', d
   taskMode: 'transcribe', vadEnabled: false, advanced: { beamSize: 5, temperature: 0, vadMinSilenceMs: 500,
     maxCueDurationMs: 7000, maxCueChars: 80, maxLineChars: 40 } };
 const deferred = () => { let resolve!: () => void; const promise = new Promise<void>(done => { resolve = done; }); return { promise, resolve }; };
+const automaticRequest = (): AutomaticTranslationRequest => ({ config: { model: { profileId: 'profile', modelKey: 'model', endpoint: 'https://example.invalid/v1', apiFormat: 'chat_completions' }, language: 'ja', instructions: '', contextWindow: 8192, maxOutputTokens: 1024, maxBatchCues: 32 }, apiKey: 'private-task-key' });
 async function eventually(predicate: () => boolean) {
   for (let index = 0; index < 100; index++) { if (predicate()) return; await new Promise(resolve => setTimeout(resolve, 5)); }
   throw new Error('Condition did not occur.');
@@ -83,6 +87,42 @@ it('admits bounded media capabilities and sequentially publishes complete docume
   expect(document.origin.format).toBe('media'); expect(document.cues[0]!.source.plain).toBe('Hello world.');
   await expect(f.inputs.resolveTaskLease(ownerA, admission.tasks[0]!.taskId, 'transcribe')).rejects.toBeDefined();
   expect(f.service.isResourceBusy(config.modelId)).toBe(false);
+});
+
+it('hands two real published intents to one real translation service with one task each and no credentials in summaries', async () => {
+  const f = await fixture();
+  const send = vi.fn(async (request: import('../../electron/main/ai/model-runtime-client').ModelRuntimeTextRequest) => ({ apiFormat: request.model.apiFormat, content: JSON.stringify({ items: JSON.parse(request.messages[1].content).items.map((item: { id: string; text: string }) => ({ ...item, text: `Translated ${item.text}` })) }), finishReason: 'stop', usage: { inputTokens: 10, outputTokens: 5, totalTokens: 15 } }));
+  const translation = new TranslationService(f.repository, send), automatic = createAutomaticTranslationCoordinator({ repository: f.repository, translation });
+  Object.assign(f.options, { automaticTranslation: automatic });
+  try {
+    await automatic.initialize(); const request = { ...await f.request(ownerA, 2), autoTranslation: automaticRequest() };
+    await f.service.enqueue(ownerA, request); await f.service.waitForIdle();
+    const tasks = f.service.list(ownerA); expect(tasks.map(task => task.status)).toEqual(['completed', 'completed']);
+    for (const task of tasks) {
+      expect(task.automaticTranslation?.status).toBe('admitted'); await translation.settled(task.automaticTranslation!.taskId!);
+      const snapshot = await f.repository.readSnapshot(task.documentId!);
+      expect(snapshot.automaticTranslation).toMatchObject({ state: 'admitted', sourceTaskId: task.taskId, translationTaskId: task.automaticTranslation!.taskId });
+      expect(snapshot.tasks).toHaveLength(1); expect(snapshot.tasks[0].status).toBe('completed');
+      expect(JSON.stringify(snapshot)).not.toContain(request.autoTranslation.apiKey);
+    }
+    expect(send).toHaveBeenCalledTimes(2); expect(JSON.stringify(tasks)).not.toContain(request.autoTranslation.apiKey);
+  } finally { await automatic.shutdown(); await translation.dispose(); }
+});
+it('keeps successful ASR publication when automatic handoff fails and clears automatic plans on cancellation', async () => {
+  const f = await fixture(), handoff = vi.fn(async () => { throw new Error('controlled handoff failure'); }); Object.assign(f.options, { automaticTranslation: { handoff } });
+  await f.service.enqueue(ownerA, { ...await f.request(), autoTranslation: automaticRequest() }); await f.service.waitForIdle();
+  const completed = f.service.list(ownerA)[0]; expect(completed).toMatchObject({ status: 'completed', automaticTranslation: { status: 'needs_configuration' } });
+  expect((await f.repository.readSnapshot(completed.documentId!)).automaticTranslation?.state).toBe('pending');
+  f.executor.execute.mockResolvedValueOnce({ status: 'cancelled' });
+  await f.service.enqueue(ownerA, { ...await f.request(), autoTranslation: automaticRequest() }); await f.service.waitForIdle();
+  expect(f.service.list(ownerA)[1]).toMatchObject({ status: 'cancelled' }); expect(f.service.list(ownerA)[1].automaticTranslation).toBeUndefined();
+  expect(handoff).toHaveBeenCalledOnce(); expect(await f.repository.list()).toHaveLength(1);
+});
+it('rejects enabled automatic translation without a coordinator before creating input leases', async () => {
+  const f = await fixture(), request = { ...await f.request(), autoTranslation: automaticRequest() };
+  await expect(f.service.enqueue(ownerA, request)).rejects.toMatchObject({ code: 'needs_configuration' });
+  expect(f.executor.execute).not.toHaveBeenCalled(); expect(f.service.list(ownerA)).toEqual([]);
+  await expect(f.inputs.resolveDraft(ownerA, request.files[0].fileToken, 'transcribe')).resolves.toBeDefined();
 });
 
 it('claims FIFO before await even when the later owner finishes admission first', async () => {

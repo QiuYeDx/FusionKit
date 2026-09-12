@@ -7,9 +7,15 @@ import { localSubtitleAuthorizedMediaSchema, localSubtitleMediaProbeSummarySchem
   type LocalSubtitleMediaProbeSummary, type LocalSubtitleManagedResourceSummary } from '../../subtitle-studio/transcription/ipc-contract';
 import { enqueueTranscriptionRequestSchema, transcriptionTaskConfigSchema, transcriptionTaskSummarySchema,
   type EnqueueTranscriptionRequest, type TranscriptionBatchAdmission, type TranscriptionTaskSummary } from '../../subtitle-studio/transcription/task-contract';
+import { automaticTranslationRequestSchema, type AutomaticTranslationRequest } from '../../subtitle-studio/automatic-translation-contract';
+import { DEFAULT_STUDIO_TRANSCRIPTION_CONFIG, DEFAULT_TRANSCRIPTION_PREFERENCES, automaticTranslationPreferencesSchema, readTranscriptionPreferences,
+  type AutomaticTranslationPreferences, type TranscriptionPreferences } from '../../subtitle-studio/transcription/preferences-contract';
+import { useStudioPreferences } from '../../store/tools/subtitle-studio/preferences';
+import useModelStore from '../../store/useModelStore';
+export { DEFAULT_STUDIO_TRANSCRIPTION_CONFIG } from '../../subtitle-studio/transcription/preferences-contract';
 
 type Config = EnqueueTranscriptionRequest['config'];
-type Api = Pick<SubtitleStudioApi, 'selectTranscriptionMedia' | 'probeTranscriptionMedia' | 'revokeTranscriptionMedia'
+type Api = Pick<SubtitleStudioApi, 'selectTranscriptionMedia' | 'dropTranscriptionMedia' | 'probeTranscriptionMedia' | 'revokeTranscriptionMedia'
   | 'inspectTranscriptionRuntime' | 'listTranscriptionResources' | 'importTranscriptionModel' | 'installTranscriptionResource'
   | 'deleteTranscriptionResource' | 'cancelTranscriptionResourceJob' | 'enqueueTranscription' | 'listTranscriptionTasks' | 'cancelTranscriptionTask' | 'removeTranscriptionTask'>;
 type Timer = () => void;
@@ -29,6 +35,8 @@ export interface StudioTranscriptionState {
   readonly drafts: readonly StudioTranscriptionDraft[];
   readonly tasks: readonly TranscriptionTaskSummary[];
   readonly config: Config;
+  readonly autoTranslation: AutomaticTranslationPreferences;
+  readonly autoTranslationReady: boolean;
   readonly error: ErrorCode | null;
   readonly selecting: boolean; readonly submitting: boolean; readonly refreshing: boolean;
   readonly resourceActions: readonly string[]; readonly taskActions: readonly string[];
@@ -46,12 +54,9 @@ export interface StudioTranscriptionControllerOptions {
   readonly schedule?: (callback: () => void, delayMs: number) => Timer;
   readonly taskPollIntervalMs?: number; readonly resourcePollIntervalMs?: number;
   readonly cleanupRetryDelaysMs?: readonly number[]; readonly cleanupAttemptTimeoutMs?: number;
+  readonly preferences?: { read(): unknown; write(value: TranscriptionPreferences): void };
+  readonly resolveAutomaticTranslation?: (value: AutomaticTranslationPreferences) => AutomaticTranslationRequest | null;
 }
-export const DEFAULT_STUDIO_TRANSCRIPTION_CONFIG: Config = Object.freeze({
-  modelId: LOCAL_SUBTITLE_PRODUCTION_CONTRACT.launchModel.id, devicePreference: 'auto', language: 'auto', taskMode: 'transcribe',
-  vadEnabled: true, windowStrategy: 'acoustic_quiet_v1', advanced: Object.freeze({ beamSize: 5, temperature: 0,
-    vadMinSilenceMs: 500, maxCueDurationMs: 7000, maxCueChars: 84, maxLineChars: 42 }),
-});
 const activeTask = (task: TranscriptionTaskSummary) => !['completed', 'failed', 'cancelled'].includes(task.status);
 const activeResource = (job: TranscriptionResourceJob) => !['completed', 'failed', 'cancelled'].includes(job.status);
 const asError = (error: unknown): ErrorCode => error instanceof StudioError ? error.code : 'transcription_failed';
@@ -62,12 +67,13 @@ async function unwrap<T>(operation: Promise<StudioResult<T>>): Promise<T> {
   return result.value;
 }
 export type TranscriptionReadinessReason = 'busy' | 'uncertain_submission' | 'configuration_invalid' | 'runtime_not_ready'
-  | 'model_not_ready' | 'vad_not_ready' | 'accelerator_not_ready' | 'no_media';
+  | 'model_not_ready' | 'vad_not_ready' | 'accelerator_not_ready' | 'no_media' | 'automatic_translation_not_ready';
 export function getTranscriptionReadiness(state: StudioTranscriptionState): { canEnqueue: boolean; readyCount: number; reason: TranscriptionReadinessReason | null } {
   const readyCount = state.drafts.filter(draft => draft.status === 'ready').length;
   const reason: TranscriptionReadinessReason | null = state.submitting || state.selecting ? 'busy'
     : state.drafts.some(draft => draft.status === 'submission_unknown') ? 'uncertain_submission'
       : !enqueueTranscriptionRequestSchema.safeParse({ files: [{ fileToken: 'validation-token' }], config: state.config }).success ? 'configuration_invalid'
+        : state.autoTranslation.enabled && !state.autoTranslationReady ? 'automatic_translation_not_ready'
         : state.runtime?.status !== 'verified' ? 'runtime_not_ready'
           : !state.resources.some(resource => resource.resourceType === 'model' && resource.resourceId === state.config.modelId && resource.status === 'ready') ? 'model_not_ready'
             : state.config.vadEnabled && !state.resources.some(resource => resource.resourceId === LOCAL_SUBTITLE_PRODUCTION_CONTRACT.vad.id && resource.status === 'ready') ? 'vad_not_ready'
@@ -95,7 +101,8 @@ export class StudioTranscriptionController {
   private readonly cancelling = new Set<string>();
   private readonly probing = new Map<string, object>();
   private state: StudioTranscriptionState = Object.freeze({ phase: 'idle', runtime: null, resources: [], resourceJobs: [], drafts: [], tasks: [],
-    config: DEFAULT_STUDIO_TRANSCRIPTION_CONFIG, error: null, selecting: false, submitting: false, refreshing: false,
+    config: DEFAULT_STUDIO_TRANSCRIPTION_CONFIG, autoTranslation: DEFAULT_TRANSCRIPTION_PREFERENCES.autoTranslation, autoTranslationReady: true,
+    error: null, selecting: false, submitting: false, refreshing: false,
     resourceActions: [], taskActions: [], cancellingTaskIds: [], cleanupPendingCount: 0, queueAction: null, queueResult: null });
   private queueOperation?: Promise<QueueActionResult>;
   private startOperation?: Promise<void>;
@@ -119,8 +126,18 @@ export class StudioTranscriptionController {
   private readonly unsubscribeShared?: () => void;
   private sharedRevision = -1;
   private sharedStatusRead?: Promise<void>;
+  private readonly preferences?: StudioTranscriptionControllerOptions['preferences'];
+  private readonly resolveAutomatic?: StudioTranscriptionControllerOptions['resolveAutomaticTranslation'];
 
   constructor(options: StudioTranscriptionControllerOptions = {}) {
+    this.preferences = options.preferences; this.resolveAutomatic = options.resolveAutomaticTranslation;
+    if (this.preferences) {
+      let value: unknown;
+      try { value = this.preferences.read(); } catch { /* Defaults keep the tool usable. */ }
+      const saved = readTranscriptionPreferences(value);
+      this.state = Object.freeze({ ...this.state, config: freezeConfig(saved.config), autoTranslation: Object.freeze(saved.autoTranslation) });
+      this.configTouched = true;
+    }
     this.api = options.getApi ?? (() => window.subtitleStudio);
     this.now = options.now ?? Date.now;
     this.schedule = options.schedule ?? ((callback, delay) => { const timer = setTimeout(callback, delay); return () => clearTimeout(timer); });
@@ -135,6 +152,7 @@ export class StudioTranscriptionController {
       this.resourceVersion++; this.resourceDirty = true; this.nextResourcesAt = this.now();
       if (this.startOperation) void this.readResources();
     });
+    this.refreshTranslationConfiguration();
   }
   getState = (): StudioTranscriptionState => this.state;
   subscribe = (listener: () => void): (() => void) => {
@@ -267,19 +285,48 @@ export class StudioTranscriptionController {
     if (!parsed.success) { this.emit({ error: 'invalid_input' }); return; }
     this.configTouched = true;
     this.emit({ config: freezeConfig(parsed.data), error: null });
+    this.savePreferences();
+  };
+  setAutoTranslation = (value: AutomaticTranslationPreferences): void => {
+    const parsed = automaticTranslationPreferencesSchema.safeParse(value);
+    if (!parsed.success) { this.emit({ error: 'invalid_input' }); return; }
+    this.emit({ autoTranslation: Object.freeze(parsed.data), error: null });
+    this.refreshTranslationConfiguration(); this.savePreferences();
+  };
+  private savePreferences() {
+    try { this.preferences?.write({ version: 1, config: this.state.config, autoTranslation: this.state.autoTranslation }); }
+    catch { /* The in-memory choice and current operation remain valid. */ }
+  }
+  private automaticRequest(): AutomaticTranslationRequest | undefined {
+    if (!this.state.autoTranslation.enabled) return;
+    try {
+      const result = automaticTranslationRequestSchema.safeParse(this.resolveAutomatic?.(this.state.autoTranslation));
+      if (result.success) return result.data;
+    } catch { /* Readiness exposes missing or invalid model configuration. */ }
+  }
+  refreshTranslationConfiguration = (): void => {
+    const ready = !this.state.autoTranslation.enabled || !!this.automaticRequest();
+    if (ready !== this.state.autoTranslationReady) this.emit({ autoTranslationReady: ready });
   };
   setAudioStream = (id: string, streamId: string): void => {
     const draft = this.state.drafts.find(row => row.id === id);
     if (!draft || draft.status !== 'ready' || !draft.probe?.audioTracks.some(track => track.streamId === streamId)) { this.emit({ error: 'invalid_input' }); return; }
     this.replaceDraft(id, { ...draft, audioStreamId: streamId });
   };
-  selectMedia = (): Promise<void> => {
+  selectMedia = (): Promise<void> => this.selectMediaUsing(() => this.api().selectTranscriptionMedia({}));
+  dropMedia = (files: readonly File[]): Promise<void> => {
+    const captured = [...files];
+    if (!captured.length) return Promise.resolve();
+    if (captured.length > 20) { this.emit({ error: 'limit_exceeded' }); return Promise.resolve(); }
+    return this.selectMediaUsing(() => this.api().dropTranscriptionMedia(captured));
+  };
+  private selectMediaUsing(select: () => ReturnType<Api['selectTranscriptionMedia']>): Promise<void> {
     if (this.selection) return this.selection;
-    if (this.state.submitting || this.state.selecting) return Promise.resolve();
-    this.emit({ selecting: true, error: null });
+    if (this.disposed || this.state.submitting || this.state.selecting) return Promise.resolve();
+    let selected!: ReturnType<Api['selectTranscriptionMedia']>;
     this.selection = Promise.resolve().then(async () => {
+      const result = await unwrap(selected);
       await this.start();
-      const result = await unwrap(this.api().selectTranscriptionMedia({}));
       if (!result) return;
       const drafts = [...this.state.drafts];
       let exceeded = false;
@@ -300,8 +347,11 @@ export class StudioTranscriptionController {
     }).catch(error => { this.emit({ error: asError(error) }); }).finally(() => {
       this.selection = undefined; this.emit({ selecting: false }); this.armPoll();
     });
+    this.emit({ selecting: true, error: null });
+    // Native File authority must be captured in the originating drop event.
+    try { selected = select(); } catch (error) { selected = Promise.reject(error); }
     return this.selection;
-  };
+  }
   private replaceDraft(id: string, replacement: StudioTranscriptionDraft) {
     this.emit({ drafts: Object.freeze(this.state.drafts.map(draft => draft.id === id ? Object.freeze(replacement) : draft)) });
   }
@@ -331,11 +381,15 @@ export class StudioTranscriptionController {
   clearDrafts = (): void => { for (const draft of this.state.drafts) this.removeDraft(draft.id); };
   enqueue = (): Promise<TranscriptionBatchAdmission | null> => {
     if (this.enqueueOperation) return this.enqueueOperation;
+    this.refreshTranslationConfiguration();
     this.expireDrafts();
     if (!getTranscriptionReadiness(this.state).canEnqueue) return Promise.resolve(null);
     const drafts = this.state.drafts.filter(draft => draft.status === 'ready' && draft.media && draft.probe);
     const ids = new Set(drafts.map(draft => draft.id));
-    const request = enqueueTranscriptionRequestSchema.parse({ files: drafts.map(draft => ({ fileToken: draft.media!.fileToken, audioStreamId: draft.audioStreamId })), config: this.state.config });
+    const automatic = this.automaticRequest();
+    if (this.state.autoTranslation.enabled && !automatic) { this.emit({ error: 'needs_configuration' }); return Promise.resolve(null); }
+    const request = enqueueTranscriptionRequestSchema.parse({ files: drafts.map(draft => ({ fileToken: draft.media!.fileToken, audioStreamId: draft.audioStreamId })), config: this.state.config,
+      ...(automatic ? { autoTranslation: automatic } : {}) });
     this.taskVersion++; this.emit({ submitting: true, error: null, drafts: Object.freeze(this.state.drafts.map(draft => ids.has(draft.id) ? Object.freeze({ ...draft, status: 'submitting' as const }) : draft)) });
     this.enqueueOperation = Promise.resolve().then(async () => {
       let response: Awaited<ReturnType<Api['enqueueTranscription']>>;
@@ -492,4 +546,17 @@ export class StudioTranscriptionController {
 }
 export const createStudioTranscriptionController = (options: StudioTranscriptionControllerOptions = {}) => new StudioTranscriptionController(options);
 let controller: StudioTranscriptionController | undefined;
-export function getStudioTranscriptionController(): StudioTranscriptionController { return controller ??= createStudioTranscriptionController(); }
+export function getStudioTranscriptionController(): StudioTranscriptionController {
+  return controller ??= createStudioTranscriptionController({
+    preferences: { read: () => useStudioPreferences.getState().transcription, write: value => useStudioPreferences.getState().setTranscription(value) },
+    resolveAutomaticTranslation(value) {
+      const modelState = useModelStore.getState();
+      const profile = modelState.profiles.find(item => item.id === (value.profileId || modelState.assignment.taskExecution))
+        ?? (!value.profileId ? modelState.profiles[0] : undefined);
+      if (!profile) return null;
+      return { config: { model: { profileId: profile.id, modelKey: profile.modelKey, endpoint: profile.baseUrl,
+        apiFormat: profile.apiFormat, outputTokenParameter: profile.outputTokenParameter }, language: value.language,
+        instructions: value.instructions, contextWindow: value.contextWindow, maxOutputTokens: value.maxOutputTokens, maxBatchCues: value.maxBatchCues }, apiKey: profile.apiKey };
+    },
+  });
+}

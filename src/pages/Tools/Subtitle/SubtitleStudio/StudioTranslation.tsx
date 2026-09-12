@@ -2,7 +2,7 @@ import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
-import { AlertCircle, Calculator, CheckCheck, Languages, LoaderCircle, Play, Settings, SlidersHorizontal } from 'lucide-react';
+import { AlertCircle, Calculator, CheckCheck, ChevronDown, Languages, LoaderCircle, Play, Settings, SlidersHorizontal } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -16,9 +16,11 @@ import { unwrapStudio } from '@/services/subtitle-studio/client';
 import { getStudioTranslationOverviewController } from '@/services/subtitle-studio/translation-overview-controller';
 import { StudioError, type ErrorCode } from '@/subtitle-studio/domain';
 import type { DocumentPage, DocumentSummary } from '@/subtitle-studio/ipc-contract';
-import { StudioFileName, StudioIconButton } from './StudioControls';
+import { StudioIconButton } from './StudioControls';
 import { StudioSelectedDocuments } from './StudioSelectedDocuments';
 import { StudioBatchItems } from './StudioBatchItems';
+import { StudioDocumentRow } from './StudioDocumentList';
+import { StudioOperationResult } from './StudioOperationResult';
 import { translationConfigSchema, translationModelSchema, type TranslationPlanSummary } from '@/subtitle-studio/translation-contract';
 import { STUDIO_BATCH_LIMIT, type TranslationBatchPlan, type TranslationBatchResult } from '@/subtitle-studio/batch-contract';
 import './StudioTranslation.css';
@@ -265,14 +267,13 @@ export function StudioTranslation({ page, documents, triggerContainer, busy, onS
               ]} />
             {batchPlan && <>
             <p className="studio-batch-note">{t('studio:batch.translation_queue_note')}</p>
-            <StudioBatchItems>{batchPlan.items.map(item => <li key={item.documentId} data-document-id={item.documentId} data-state={item.ok ? 'ready' : 'failed'}><StudioFileName name={item.displayName} focusable /><span>{item.ok ? t('studio:batch.ready') : t(errorKeys[item.error])}</span></li>)}</StudioBatchItems>
+            <details key={batchPlan.batchId} className="studio-translation-plan-details"><summary>{t('studio:operation_result.details')}<ChevronDown aria-hidden="true" /></summary><StudioBatchItems>{batchPlan.items.map(item => <StudioDocumentRow key={item.documentId} data-document-id={item.documentId} data-state={item.ok ? 'ready' : 'failed'} name={item.displayName} status={item.ok ? t('studio:batch.ready') : t(errorKeys[item.error])} />)}</StudioBatchItems></details>
             </>}
           </section>}
           </>}
-          {batchResult && <section aria-live="polite" data-testid="studio-batch-result">
-            <p className="studio-batch-note">{t('studio:batch.translation_result', { count: batchResult.items.filter(item => item.ok).length, failed: batchResult.items.filter(item => !item.ok).length })}</p>
+          {batchResult && <section data-testid="studio-batch-result">
+            <StudioOperationResult items={batchResult.items.map(item => ({ id: item.documentId, name: item.displayName, state: item.ok ? 'success' : 'failed', detail: item.ok ? t('studio:batch.queued') : t(errorKeys[item.error]) }))} successLabel={count => t('studio:operation_result.queued', { count })} />
             {batchResult.items.some(item => item.ok) && <Button variant="ghost" size="sm" className="studio-translation-view-progress" onClick={() => { setOpen(false); getStudioTranslationOverviewController().setDetailsOpen(true); }}>{t('studio:overview.view_progress')}</Button>}
-            <StudioBatchItems>{batchResult.items.map(item => <li key={item.documentId} data-document-id={item.documentId} data-state={item.ok ? 'success' : 'failed'}><StudioFileName name={item.displayName} focusable /><span>{item.ok ? t('studio:batch.queued') : t(errorKeys[item.error])}</span></li>)}</StudioBatchItems>
           </section>}
         </div>
       </ScrollableDialogContent>

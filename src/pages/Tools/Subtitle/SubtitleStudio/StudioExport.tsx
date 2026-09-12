@@ -1,7 +1,7 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
-import { AlertCircle, ArrowDownToLine, CheckCheck, ChevronDown, ClipboardCheck, FileCog, LoaderCircle } from 'lucide-react';
+import { AlertCircle, ArrowDownToLine, CheckCheck, ChevronDown, ClipboardCheck, FileCog, FolderOpen, LoaderCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
@@ -13,13 +13,14 @@ import { ToolField } from '../../_shared/ui/ToolField';
 import { ToolConfigDisclosure } from '../../_shared/ui/ToolConfigDisclosure';
 import { unwrapStudio } from '@/services/subtitle-studio/client';
 import { encodingSchema, StudioError, type Encoding, type ErrorCode } from '@/subtitle-studio/domain';
-import { exportOptionsSchema, fileNameSuffixSchema, type ExportDestination, type SourceLocationSummary, type ExportIssueCode, type ExportOptions, type ExportPlanSummary } from '@/subtitle-studio/export-contract';
+import { exportOptionsSchema, fileNameSuffixSchema, type ExportDestination, type SourceLocationSummary, type ExportIssue, type ExportIssueCode, type ExportOptions, type ExportPlanSummary } from '@/subtitle-studio/export-contract';
 import { subtitleExportFileName } from '@/subtitle-studio/export-filename';
 import type { DocumentPage, DocumentSummary } from '@/subtitle-studio/ipc-contract';
 import { STUDIO_BATCH_LIMIT, type ExportBatchPlan, type ExportBatchResult, type SourceBatchResult } from '@/subtitle-studio/batch-contract';
-import { StudioFileName } from './StudioControls';
-import { StudioSelectedDocuments } from './StudioSelectedDocuments';
-import { StudioBatchItems } from './StudioBatchItems';
+import { StudioPlanDocuments } from './StudioPlanDocuments';
+import { StudioDocumentList, StudioDocumentRow } from './StudioDocumentList';
+import { StudioIconButton } from './StudioControls';
+import { StudioOperationResult, type StudioOperationResultItem } from './StudioOperationResult';
 import './StudioExport.css';
 import './StudioBatch.css';
 
@@ -44,6 +45,29 @@ const issueKeys = {
   timing_precision_changed: 'studio:export.issues.timing_precision_changed', positioning_omitted: 'studio:export.issues.positioning_omitted',
   effects_omitted: 'studio:export.issues.effects_omitted', opaque_omitted: 'studio:export.issues.opaque_omitted',
   encoding_not_supported: 'studio:export.issues.encoding_not_supported',
+} as const satisfies Record<ExportIssueCode, string>;
+const changeKeys = {
+  track_missing: 'studio:export.change_types.track_missing',
+  translation_missing: 'studio:export.change_types.translation_missing',
+  translation_stale: 'studio:export.change_types.translation_stale',
+  missing_end: 'studio:export.change_types.missing_end',
+  estimated_end: 'studio:export.change_types.estimated_end',
+  end_times_omitted: 'studio:export.change_types.end_times_omitted',
+  invalid_time: 'studio:export.change_types.invalid_time',
+  styles_removed: 'studio:export.change_types.styles_removed',
+  line_breaks_flattened: 'studio:export.change_types.line_breaks_flattened',
+  metadata_omitted: 'studio:export.change_types.metadata_omitted',
+  transcription_evidence_omitted: 'studio:export.change_types.transcription_evidence_omitted',
+  unsupported_text: 'studio:export.change_types.unsupported_text',
+  empty_output: 'studio:export.change_types.empty_output',
+  encoding_unrepresentable: 'studio:export.change_types.encoding_unrepresentable',
+  skipped_cues: 'studio:export.change_types.skipped_cues',
+  source_fallback: 'studio:export.change_types.source_fallback',
+  timing_precision_changed: 'studio:export.change_types.timing_precision_changed',
+  positioning_omitted: 'studio:export.change_types.positioning_omitted',
+  effects_omitted: 'studio:export.change_types.effects_omitted',
+  opaque_omitted: 'studio:export.change_types.opaque_omitted',
+  encoding_not_supported: 'studio:export.change_types.encoding_not_supported',
 } as const satisfies Record<ExportIssueCode, string>;
 const errorKeys = {
   invalid_input: 'studio:errors.invalid_input', unsupported_feature: 'studio:errors.unsupported_feature',
@@ -81,27 +105,29 @@ export function StudioExport({ page, documents, triggerContainer, trackId, busy,
   const [batchDocuments, setBatchDocuments] = useState<DocumentSummary[]>([]);
   const [batchTracks, setBatchTracks] = useState<Record<string, string>>({});
   const [batchPlan, setBatchPlan] = useState<ExportBatchPlan | null>(null);
-  const [batchResult, setBatchResult] = useState<ExportBatchResult | SourceBatchResult | null>(null);
+  const [step, setStep] = useState<'settings' | 'review' | 'result'>('settings');
+  const [resultItems, setResultItems] = useState<StudioOperationResultItem[] | null>(null);
+  const [reviewDetailsOpen, setReviewDetailsOpen] = useState(false);
+  const stepTitle = useRef<HTMLHeadingElement>(null);
   const [sourceMode, setSourceMode] = useState(false);
-  const [destination, setDestination] = useState<ExportDestination>('choose-location');
+  const [destination, setDestination] = useState<ExportDestination>('source-directory');
   const [suffixMode, setSuffixMode] = useState<'none' | 'content-mode' | 'target-language' | 'custom'>('none');
   const [customSuffix, setCustomSuffix] = useState('');
   const [sourceLocations, setSourceLocations] = useState<Record<string, SourceLocationSummary>>({});
   const [locationsLoading, setLocationsLoading] = useState(false);
   const [rebinding, setRebinding] = useState<string | null>(null);
   const locationEpoch = useRef(0);
-  const [mode, setMode] = useState<ExportOptions['mode']>('source');
+  const [mode, setMode] = useState<ExportOptions['mode']>('bilingual');
   const [format, setFormat] = useState<ExportOptions['format']>(page?.summary.origin.format && page.summary.origin.format !== 'media' ? page.summary.origin.format : 'srt');
   const [selectedTrackId, setSelectedTrackId] = useState(trackId ?? page?.translationTracks.at(-1)?.id ?? '');
   const [order, setOrder] = useState<ExportOptions['order']>('source-first');
   const [encoding, setEncoding] = useState<Encoding>('utf-8');
   const [bom, setBom] = useState(false);
   const [newline, setNewline] = useState<ExportOptions['newline']>('lf');
-  const [incomplete, setIncomplete] = useState<ExportOptions['incomplete']>('block');
+  const [incomplete, setIncomplete] = useState<ExportOptions['incomplete']>('source-fallback');
   const [estimateEnd, setEstimateEnd] = useState(false);
   const [finalDuration, setFinalDuration] = useState('2000');
   const [plan, setPlan] = useState<{ identity: string; value: ExportPlanSummary } | null>(null);
-  const [acceptedIdentity, setAcceptedIdentity] = useState<string | null>(null);
   const [activity, setActivity] = useState<'plan' | 'save' | 'source' | null>(null);
   const [error, setError] = useState<ErrorCode | null>(null);
   const pending = activity !== null || rebinding !== null;
@@ -122,14 +148,12 @@ export function StudioExport({ page, documents, triggerContainer, trackId, busy,
   dialogOpen.current = open;
   const currentPlan = plan?.identity === identity ? plan.value : null;
   const confirmations = currentPlan?.issues.filter(issue => issue.confirmation) ?? [];
-  const lossesAccepted = !!currentPlan?.planId && acceptedIdentity === currentPlan.planId;
   const hasBlocking = currentPlan?.issues.some(issue => issue.blocking) ?? false;
   const batchContentReady = batchPlan?.items.filter(item => item.ok && !item.plan.issues.some(issue => issue.blocking)) ?? [];
   const batchReady = batchContentReady.filter(item => item.ok && (destination !== 'source-directory' || item.plan.sourceLocation?.status === 'ready'));
   const batchConfirmations = batchContentReady.some(item => item.ok && item.plan.issues.some(issue => issue.confirmation));
-  const batchLossesAccepted = !!batchPlan && acceptedIdentity === batchPlan.batchId;
   const canPlan = !busy && !pending && options.success;
-  const canSave = canPlan && (batch ? batchReady.length > 0 && (!batchConfirmations || batchLossesAccepted) : !!currentPlan?.planId && !hasBlocking && (!confirmations.length || lossesAccepted)
+  const canSave = step === 'review' && canPlan && (batch ? batchReady.length > 0 : !!currentPlan?.planId && !hasBlocking
     && (destination !== 'source-directory' || currentPlan.sourceLocation?.status === 'ready'));
   const newerRevision = !!currentPlan && currentPlan.revision !== page?.summary.revision;
   const missingEnds = format !== 'lrc' && (batch ? batchDocuments.some(document => document.origin.format === 'lrc') : page?.summary.origin.format === 'lrc' || page?.cues.some(cue => cue.timing.endMs === null));
@@ -156,15 +180,19 @@ export function StudioExport({ page, documents, triggerContainer, trackId, busy,
     return () => { locationEpoch.current++; };
   }, [open, sourceScope]);
   useEffect(() => {
-    if (batch && (activity === 'save' || activity === 'source' || batchResult)) return;
-    setPlan(null); setBatchPlan(null); setBatchResult(null); setAcceptedIdentity(null); setError(null);
+    if (activity === 'save' || activity === 'source' || resultItems) return;
+    setPlan(null); setBatchPlan(null); setStep('settings'); setError(null);
   }, [identity]);
-  useEffect(() => { if (batchResult) document.getElementById(`${controlId}-close`)?.focus({ preventScroll: true }); }, [batchResult, controlId]);
+  useEffect(() => {
+    if (!open || step === 'settings') return;
+    const frame = requestAnimationFrame(() => stepTitle.current?.focus({ preventScroll: true }));
+    return () => cancelAnimationFrame(frame);
+  }, [step, open]);
   useEffect(() => {
     if (batch) return;
-    setOpen(false); setMode('source'); setFormat(page?.summary.origin.format && page.summary.origin.format !== 'media' ? page.summary.origin.format : 'srt');
+    setOpen(false); setMode('bilingual'); setDestination('source-directory'); setFormat(page?.summary.origin.format && page.summary.origin.format !== 'media' ? page.summary.origin.format : 'srt');
     setSelectedTrackId(trackId ?? page?.translationTracks.at(-1)?.id ?? '');
-    setEstimateEnd(false); setIncomplete('block');
+    setEstimateEnd(false); setIncomplete('source-fallback');
     // Reset only on document selection, never for a background revision change.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page?.summary.id]);
@@ -176,7 +204,7 @@ export function StudioExport({ page, documents, triggerContainer, trackId, busy,
   const prepare = async () => {
     if (operation.current || !canPlan || !options.success) return;
     operation.current = true;
-    setActivity('plan'); setError(null); setPlan(null); setBatchPlan(null); setBatchResult(null); setAcceptedIdentity(null);
+    setActivity('plan'); setError(null); setPlan(null); setBatchPlan(null); setResultItems(null); setReviewDetailsOpen(false);
     const requestIdentity = identity;
     try {
       if (batch) {
@@ -185,12 +213,12 @@ export function StudioExport({ page, documents, triggerContainer, trackId, busy,
         const value = await unwrapStudio(window.subtitleStudio.planExportBatch({
           documents: targets.map(item => ({ documentId: item.id, revision: item.revision, ...(mode !== 'source' && batchTracks[item.id] ? { trackId: batchTracks[item.id] } : {}) })), options: sharedOptions,
         }));
-        if (mounted.current && dialogOpen.current && currentIdentity.current === requestIdentity) { setBatchDocuments(targets); setBatchPlan(value); }
+        if (mounted.current && dialogOpen.current && currentIdentity.current === requestIdentity) { setBatchDocuments(targets); setBatchPlan(value); setStep('review'); }
       } else if (page) {
         const value = await unwrapStudio(window.subtitleStudio.planExport({
           documentId: page.summary.id, revision: page.summary.revision, options: options.data,
         }));
-        if (mounted.current && dialogOpen.current && currentIdentity.current === requestIdentity) setPlan({ identity: requestIdentity, value });
+        if (mounted.current && dialogOpen.current && currentIdentity.current === requestIdentity) { setPlan({ identity: requestIdentity, value }); setStep('review'); }
       }
     } catch (failure) {
       if (mounted.current && dialogOpen.current && currentIdentity.current === requestIdentity) reportError(failure);
@@ -207,20 +235,21 @@ export function StudioExport({ page, documents, triggerContainer, trackId, busy,
     try {
       if (batch && batchPlan) {
         const result = await unwrapStudio(window.subtitleStudio.exportBatch({ batchId: batchPlan.batchId, destination, acceptedLosses: batchContentReady.flatMap(item => item.ok ? [{ documentId: item.documentId, codes: item.plan.issues.filter(issue => issue.confirmation).map(issue => issue.code) }] : []) }));
-        if (result && mounted.current) { setBatchResult(result); setBatchPlan(null); setAcceptedIdentity(null); }
+        if (result && mounted.current && dialogOpen.current && currentIdentity.current === requestIdentity) { setResultItems(toResultItems(result)); setBatchPlan(null); setStep('result'); }
       } else if (currentPlan?.planId) {
         const result = await unwrapStudio(window.subtitleStudio.exportDocument({
           documentId: currentPlan.documentId, revision: currentPlan.revision, planId: currentPlan.planId,
           acceptedLosses: confirmations.map(issue => issue.code),
           destination,
         }));
-        if (result && mounted.current && currentDocumentId.current === currentPlan.documentId) {
-          setOpen(false); setPlan(null); setAcceptedIdentity(null); onExported(result.fileName);
+        if (result && mounted.current && dialogOpen.current && currentDocumentId.current === currentPlan.documentId && currentIdentity.current === requestIdentity) {
+          setResultItems([{ id: currentPlan.documentId, name: page?.summary.origin.displayName ?? result.fileName, state: 'success', detail: result.fileName }]);
+          setPlan(null); setStep('result'); onExported(result.fileName);
         }
       }
     } catch (failure) {
       if (mounted.current && dialogOpen.current && currentIdentity.current === requestIdentity) {
-        if (failure instanceof StudioError && (failure.code === 'revision_conflict' || failure.code === 'access_denied')) { setPlan(null); setBatchPlan(null); }
+        if (failure instanceof StudioError && (failure.code === 'revision_conflict' || failure.code === 'access_denied')) { setPlan(null); setBatchPlan(null); setStep('settings'); }
         reportError(failure);
       }
     } finally {
@@ -232,12 +261,12 @@ export function StudioExport({ page, documents, triggerContainer, trackId, busy,
     if (pending) return;
     dialogOpen.current = value;
     if (value) {
-      setSourceMode(false);
+      setSourceMode(false); setMode('bilingual'); setDestination('source-directory'); setIncomplete('source-fallback');
       setSelectedTrackId(trackId ?? page?.translationTracks.at(-1)?.id ?? '');
       setBatchDocuments(documents ? [...documents] : []);
       setBatchTracks(Object.fromEntries((documents ?? []).map(item => [item.id, item.translationTracks?.at(-1)?.id ?? ''])));
     }
-    setOpen(value); setPlan(null); setBatchPlan(null); setBatchResult(null); setAcceptedIdentity(null); setError(null);
+    setOpen(value); setStep('settings'); setPlan(null); setBatchPlan(null); setResultItems(null); setReviewDetailsOpen(false); setError(null);
   };
 
   const rebindSource = async (documentId: string) => {
@@ -248,27 +277,53 @@ export function StudioExport({ page, documents, triggerContainer, trackId, busy,
       const value = await unwrapStudio(window.subtitleStudio.selectSourceDirectory({ documentId }));
       if (value && mounted.current && locationEpoch.current === epoch) {
         setSourceLocations(previous => ({ ...previous, [documentId]: value }));
-        setPlan(null); setBatchPlan(null); setAcceptedIdentity(null);
+        setPlan(null); setBatchPlan(null);
       }
     } catch (failure) { if (mounted.current && locationEpoch.current === epoch) reportError(failure); }
     finally { operation.current = false; if (mounted.current) setRebinding(null); }
   };
+  const backToSettings = () => {
+    if (operation.current || pending) return;
+    setPlan(null); setBatchPlan(null); setReviewDetailsOpen(false); setError(null); setStep('settings');
+    requestAnimationFrame(() => document.getElementById(`${controlId}-mode`)?.focus({ preventScroll: true }));
+  };
+  const toResultItems = (result: ExportBatchResult | SourceBatchResult): StudioOperationResultItem[] => result.items.map(item => ({
+    id: item.documentId, name: item.displayName, state: item.ok ? 'success' : 'failed',
+    detail: item.ok ? 'result' in item ? item.result.fileName : item.fileName : t(errorKeys[item.error]),
+  }));
   const openSource = () => { changeOpen(true); setSourceMode(true); };
   const downloadSource = async () => {
     if (operation.current || !canSaveOriginal) return;
     operation.current = true; setActivity('source'); setError(null);
     const selected = batchDocuments;
+    const requestIdentity = identity;
     try {
       if (batch) {
         const result = await unwrapStudio(window.subtitleStudio.exportSources({ documents: selected.map(item => ({ documentId: item.id, revision: item.revision })), destination }));
-        if (mounted.current && result) setBatchResult(result);
+        if (mounted.current && dialogOpen.current && currentIdentity.current === requestIdentity && result) { setResultItems(toResultItems(result)); setStep('result'); }
       } else if (page) {
         const result = await unwrapStudio(window.subtitleStudio.exportSource({ documentId: page.summary.id, revision: page.summary.revision, destination }));
-        if (result && mounted.current) { setOpen(false); onExported(result.fileName); }
+        if (result && mounted.current && dialogOpen.current && currentIdentity.current === requestIdentity) {
+          setResultItems([{ id: page.summary.id, name: page.summary.origin.displayName, state: 'success', detail: result.fileName }]);
+          setStep('result'); onExported(result.fileName);
+        }
       }
-    } catch (failure) { if (mounted.current) reportError(failure); }
+    } catch (failure) { if (mounted.current && dialogOpen.current && currentIdentity.current === requestIdentity) reportError(failure); }
     finally { operation.current = false; if (mounted.current) setActivity(null); }
   };
+
+  const checkedPlans = batch ? (batchPlan?.items.flatMap(item => item.ok ? [item.plan] : []) ?? []) : currentPlan ? [currentPlan] : [];
+  const mergedIssues = Array.from(checkedPlans.reduce((map, item) => {
+    for (const issue of item.issues) {
+      const existing = map.get(issue.code);
+      map.set(issue.code, existing ? { ...issue, count: existing.count + issue.count, blocking: existing.blocking || issue.blocking, confirmation: existing.confirmation || issue.confirmation } : { ...issue });
+    }
+    return map;
+  }, new Map<ExportIssueCode, ExportIssue>()).values());
+  const reviewedOptions = checkedPlans[0]?.options ?? (options.success ? options.data : null);
+  const readyCount = batch ? batchReady.length : currentPlan?.planId && !hasBlocking && (destination !== 'source-directory' || currentPlan.sourceLocation?.status === 'ready') ? 1 : 0;
+  const outputCueCount = batch ? batchReady.reduce((total, item) => total + (item.ok ? item.plan.cueCount : 0), 0) : readyCount ? currentPlan!.cueCount : 0;
+  const needsAcceptance = batch ? batchConfirmations : confirmations.length > 0 && !hasBlocking;
 
   const triggerControl = <DropdownMenu>
       <Tooltip delayDuration={350}><TooltipTrigger asChild><DropdownMenuTrigger asChild><Button ref={trigger} variant="ghost" size="icon-sm" aria-label={t(batch ? 'studio:batch.download' : 'studio:batch.download_single')} disabled={busy || pending || (batch ? !documents?.length || documents.length > STUDIO_BATCH_LIMIT : !page)}>{activity === 'source' ? <LoaderCircle className="studio-spin" /> : <ArrowDownToLine />}</Button></DropdownMenuTrigger></TooltipTrigger><TooltipContent sideOffset={6}>{t(batch ? 'studio:batch.download' : 'studio:batch.download_single')}</TooltipContent></Tooltip>
@@ -284,71 +339,61 @@ export function StudioExport({ page, documents, triggerContainer, trackId, busy,
       if (!sourceMode) { event.preventDefault(); document.getElementById(`${controlId}-mode`)?.focus({ preventScroll: true }); }
     }} onCloseAutoFocus={event => { event.preventDefault(); trigger.current?.focus({ preventScroll: true }); }}>
       <ScrollableDialogHeader className="relative p-3 pr-12">
-        <DialogTitle className="flex items-center gap-2 text-base"><ArrowDownToLine className="size-4" />{t(sourceMode ? batch ? 'studio:batch.download_sources' : 'studio:export_source' : batch ? 'studio:batch.export' : 'studio:export.action')}</DialogTitle>
+        <DialogTitle ref={stepTitle} tabIndex={-1} className="studio-export-step-title flex items-center gap-2 text-base"><ArrowDownToLine className="size-4" />{t(step === 'review' ? 'studio:export.review_title' : step === 'result' ? 'studio:export.result_title' : sourceMode ? batch ? 'studio:batch.download_sources' : 'studio:export_source' : batch ? 'studio:batch.export' : 'studio:export.action')}</DialogTitle>
         <DialogDescription className={batch ? 'text-xs' : 'sr-only'}>{batch ? t('studio:batch.document_count', { count: batchDocuments.length }) : page?.summary.origin.displayName}</DialogDescription>
       </ScrollableDialogHeader>
-      <ScrollableDialogContent className="studio-export-content" fadeMaskHeight={16}>
-        <div className="studio-export-form">
-          {!batchResult && <>
-            {sourceMode && batch && <StudioSelectedDocuments documents={batchDocuments} />}
-            <ToolField label={t('studio:export.destination')} htmlFor={`${controlId}-destination`}>
-              <Select value={destination} onValueChange={value => setDestination(value as ExportDestination)} disabled={pending}>
-                <SelectTrigger id={`${controlId}-destination`} className="h-8 w-full text-xs"><SelectValue /></SelectTrigger>
-                <SelectContent><SelectItem value="choose-location">{t('studio:export.destination_choose')}</SelectItem><SelectItem value="source-directory">{t('studio:export.destination_source')}</SelectItem></SelectContent>
-              </Select>
-              <p className="studio-export-note">{t(destination === 'source-directory' ? 'studio:export.destination_source_note' : 'studio:export.destination_choose_note')}</p>
-            </ToolField>
-            {destination === 'source-directory' && <div className="studio-export-locations" aria-live="polite">
-              {locationsLoading ? <p className="studio-export-note">{t('studio:export.source_loading')}</p> : <>
-                {sourceDocuments.filter(document => !batch || sourceLocations[document.id]?.status !== 'ready').map(document => {
-                  const location = sourceLocations[document.id];
-                  return <div key={document.id} className="studio-export-location" data-testid="studio-source-location" data-document-id={document.id} data-state={location?.status ?? 'missing'}>
-                    {batch && <StudioFileName name={document.origin.displayName} focusable />}
-                    <p className="studio-export-note">{t(location?.status === 'ready' ? location.origin === 'user-selected-directory' ? 'studio:export.source_rebound' : 'studio:export.source_ready'
-                      : location?.status === 'unavailable' ? 'studio:export.source_unavailable' : 'studio:export.source_missing')}</p>
-                    <Button size="sm" variant="outline" className="justify-self-start" onClick={() => void rebindSource(document.id)} disabled={pending}>
-                      {rebinding === document.id && <LoaderCircle className="studio-spin" />}{t('studio:export.select_source_directory')}
-                    </Button>
-                  </div>;
-                })}
-              </>}
-            </div>}
-          </>}
-          {!sourceMode && !batchResult && <>
-          {batch && <StudioSelectedDocuments documents={batchDocuments} />}
-          <div className="studio-export-fields">
-            <ToolField label={t('studio:export.mode')} htmlFor={`${controlId}-mode`}>
+      <ScrollableDialogContent key={step} className="studio-export-content" fadeMaskHeight={16}>
+        <div className="studio-export-form" data-step={step}>
+          {step === 'settings' && <>
+            <div className="studio-export-fields">
+              {!sourceMode && <><ToolField label={t('studio:export.mode')} htmlFor={`${controlId}-mode`}>
               <Select value={mode} onValueChange={value => setMode(value as ExportOptions['mode'])} disabled={pending}>
                 <SelectTrigger id={`${controlId}-mode`} className="h-8 w-full text-xs"><SelectValue /></SelectTrigger>
                 <SelectContent>{(Object.keys(modeKeys) as ExportOptions['mode'][]).map(value => <SelectItem key={value} value={value}>{t(modeKeys[value])}</SelectItem>)}</SelectContent>
               </Select>
-            </ToolField>
-            <ToolField label={t('studio:export.format')} htmlFor={`${controlId}-format`}>
+            </ToolField><ToolField label={t('studio:export.format')} htmlFor={`${controlId}-format`}>
               <Select value={format} onValueChange={value => setFormat(value as ExportOptions['format'])} disabled={pending}>
                 <SelectTrigger id={`${controlId}-format`} className="h-8 w-full text-xs"><SelectValue /></SelectTrigger>
                 <SelectContent>{(['srt', 'lrc', 'vtt', 'ass'] as const).map(value => <SelectItem key={value} value={value}>{value.toUpperCase()}</SelectItem>)}</SelectContent>
               </Select>
-            </ToolField>
-            {!batch && mode !== 'source' && <ToolField label={t('studio:translation_track')} htmlFor={`${controlId}-track`}>
-              <Select value={selectedTrackId} onValueChange={setSelectedTrackId} disabled={pending || !page?.translationTracks.length}>
-                <SelectTrigger id={`${controlId}-track`} className="h-8 w-full min-w-0 text-xs"><SelectValue placeholder={t('studio:export.no_track')} /></SelectTrigger>
-                <SelectContent>{page?.translationTracks.map((track, index) => <SelectItem key={track.id} value={track.id}>{track.language === 'und' ? t('studio:language_unknown') : track.language} · {index + 1}</SelectItem>)}</SelectContent>
+            </ToolField></>}
+              <ToolField label={t('studio:export.destination')} htmlFor={`${controlId}-destination`}>
+              <Select value={destination} onValueChange={value => setDestination(value as ExportDestination)} disabled={pending}>
+                <SelectTrigger id={`${controlId}-destination`} className="h-8 w-full text-xs"><SelectValue /></SelectTrigger>
+                <SelectContent><SelectItem value="choose-location">{t('studio:export.destination_choose')}</SelectItem><SelectItem value="source-directory">{t('studio:export.destination_source')}</SelectItem></SelectContent>
               </Select>
-            </ToolField>}
-            {mode === 'bilingual' && <ToolField label={t('studio:export.order')} htmlFor={`${controlId}-order`}>
+            </ToolField>
+              {!sourceMode && <><ToolField label={t('studio:export.suffix')} htmlFor={`${controlId}-suffix`}>
+              <Select value={suffixMode} onValueChange={value => setSuffixMode(value as typeof suffixMode)} disabled={pending}>
+                <SelectTrigger id={`${controlId}-suffix`} className="h-8 w-full text-xs"><SelectValue /></SelectTrigger>
+                <SelectContent><SelectItem value="none">{t('studio:export.suffix_none')}</SelectItem><SelectItem value="content-mode">{t('studio:export.suffix_content_mode')}</SelectItem><SelectItem value="target-language">{t('studio:export.suffix_target_language')}</SelectItem><SelectItem value="custom">{t('studio:export.suffix_custom')}</SelectItem></SelectContent>
+              </Select>
+            </ToolField>
+
+                {mode === 'bilingual' && <ToolField label={t('studio:export.order')} htmlFor={`${controlId}-order`}>
               <Select value={order} onValueChange={value => setOrder(value as ExportOptions['order'])} disabled={pending}>
                 <SelectTrigger id={`${controlId}-order`} className="h-8 w-full text-xs"><SelectValue /></SelectTrigger>
                 <SelectContent><SelectItem value="source-first">{t('studio:export.source_first')}</SelectItem><SelectItem value="target-first">{t('studio:export.target_first')}</SelectItem></SelectContent>
               </Select>
             </ToolField>}
-          </div>
-          {batch && mode !== 'source' && <div className="studio-batch-tracks" role="group" aria-label={t('studio:batch.track_choices')}><p className="studio-batch-note">{t('studio:batch.track_choices')}</p>{batchDocuments.map(document => <div className="studio-batch-track" key={document.id} data-document-id={document.id}><StudioFileName name={document.origin.displayName} focusable /><Select value={batchTracks[document.id] ?? ''} onValueChange={value => setBatchTracks(current => ({ ...current, [document.id]: value }))} disabled={pending || !document.translationTracks?.length}><SelectTrigger aria-label={t('studio:batch.track_for', { name: document.origin.displayName })} className="h-8 min-w-0 text-xs"><SelectValue placeholder={t('studio:export.no_track')} /></SelectTrigger><SelectContent>{document.translationTracks?.map((track, index) => <SelectItem key={track.id} value={track.id}>{track.language === 'und' ? t('studio:language_unknown') : track.language} · {index + 1}</SelectItem>)}</SelectContent></Select></div>)}</div>}
-          {mode !== 'source' && <ToolField label={t('studio:export.incomplete')} htmlFor={`${controlId}-incomplete`}>
+                {mode !== 'source' && <ToolField label={t('studio:export.incomplete')} htmlFor={`${controlId}-incomplete`}>
             <Select value={incomplete} onValueChange={value => setIncomplete(value as ExportOptions['incomplete'])} disabled={pending}>
               <SelectTrigger id={`${controlId}-incomplete`} className="h-8 w-full text-xs"><SelectValue /></SelectTrigger>
               <SelectContent><SelectItem value="block">{t('studio:export.incomplete_block')}</SelectItem><SelectItem value="skip">{t('studio:export.incomplete_skip')}</SelectItem><SelectItem value="source-fallback">{t('studio:export.incomplete_fallback')}</SelectItem></SelectContent>
             </Select>
           </ToolField>}
+                {suffixMode === 'custom' && <ToolField label={t('studio:export.suffix_value')} htmlFor={`${controlId}-suffix-value`}>
+              <Input id={`${controlId}-suffix-value`} value={customSuffix} onChange={event => setCustomSuffix(event.target.value)} maxLength={40} placeholder={t('studio:export.suffix_placeholder')}
+                className="h-8 text-xs" disabled={pending} aria-invalid={!suffixValid} aria-describedby={!suffixValid ? `${controlId}-suffix-error` : undefined} />
+            </ToolField>}
+              </>}
+            </div>
+            <p className="studio-export-note">{t(destination === 'source-directory' ? 'studio:export.destination_source_note' : 'studio:export.destination_choose_note')}</p>
+            {destination === 'source-directory' && (locationsLoading || sourceDocuments.some(document => sourceLocations[document.id]?.status !== 'ready')) && <p className="studio-export-note" role="status">{locationsLoading ? t('studio:export.source_loading')
+              : sourceDocuments.some(document => sourceLocations[document.id]?.status !== 'ready') ? t('studio:export.source_attention', { count: sourceDocuments.filter(document => sourceLocations[document.id]?.status !== 'ready').length }) : null}</p>}
+            {!sourceMode && mode !== 'source' && incomplete === 'source-fallback' && sourceDocuments.some(document => !document.translationTracks?.length) && <p className="studio-export-note" role="status">{t('studio:export.no_translation_fallback')}</p>}
+          </>}
+          {!sourceMode && step === 'settings' && <>
           {missingEnds && <div className="studio-export-estimate">
             <label className="studio-export-check" htmlFor={`${controlId}-estimate`}><Checkbox id={`${controlId}-estimate`} checked={estimateEnd} onCheckedChange={value => setEstimateEnd(value === true)} disabled={pending} /><span>{t('studio:export.estimate_end')}</span></label>
             <p className="studio-export-note">{t('studio:export.estimate_rule')}</p>
@@ -356,20 +401,34 @@ export function StudioExport({ page, documents, triggerContainer, trackId, busy,
               <Input id={`${controlId}-duration`} type="number" min={1} max={3600000} step={1} className="h-8 font-mono text-xs" value={finalDuration} onChange={event => setFinalDuration(event.target.value)} disabled={pending} />
             </ToolField>}
           </div>}
-          <div className="studio-export-fields">
-            <ToolField label={t('studio:export.suffix')} htmlFor={`${controlId}-suffix`}>
-              <Select value={suffixMode} onValueChange={value => setSuffixMode(value as typeof suffixMode)} disabled={pending}>
-                <SelectTrigger id={`${controlId}-suffix`} className="h-8 w-full text-xs"><SelectValue /></SelectTrigger>
-                <SelectContent><SelectItem value="none">{t('studio:export.suffix_none')}</SelectItem><SelectItem value="content-mode">{t('studio:export.suffix_content_mode')}</SelectItem><SelectItem value="target-language">{t('studio:export.suffix_target_language')}</SelectItem><SelectItem value="custom">{t('studio:export.suffix_custom')}</SelectItem></SelectContent>
-              </Select>
-            </ToolField>
-            {suffixMode === 'custom' && <ToolField label={t('studio:export.suffix_value')} htmlFor={`${controlId}-suffix-value`}>
-              <Input id={`${controlId}-suffix-value`} value={customSuffix} onChange={event => setCustomSuffix(event.target.value)} maxLength={40} placeholder={t('studio:export.suffix_placeholder')}
-                className="h-8 text-xs" disabled={pending} aria-invalid={!suffixValid} aria-describedby={!suffixValid ? `${controlId}-suffix-error` : undefined} />
-            </ToolField>}
-          </div>
           {!suffixValid && <p id={`${controlId}-suffix-error`} className="studio-export-error" role="alert">{t('studio:export.suffix_invalid')}</p>}
           {!batch && page && options.success && <p className="studio-export-note studio-export-file-name" data-testid="studio-export-file-name">{t('studio:export.file_name_preview', { name: subtitleExportFileName({ origin: page.summary.origin, translationTracks: page.translationTracks }, options.data) })}</p>}
+          {!options.success && <p className="studio-export-error" role="alert">{t('studio:export.invalid_options')}</p>}
+          </>}
+          {step === 'settings' && <StudioPlanDocuments documents={sourceDocuments}
+            renderActions={destination === 'source-directory' ? document => <span data-testid="studio-source-location" data-document-id={document.id} data-state={locationsLoading ? 'loading' : sourceLocations[document.id]?.status ?? 'missing'}>
+              <StudioIconButton label={t('studio:export.select_source_directory')} onClick={() => void rebindSource(document.id)} disabled={pending || locationsLoading}>
+                {rebinding === document.id ? <LoaderCircle className="studio-spin" /> : <FolderOpen />}
+              </StudioIconButton>
+            </span> : undefined}
+            tracks={!sourceMode && mode !== 'source' ? {
+              selected: batch ? batchTracks : page ? { [page.summary.id]: selectedTrackId } : {},
+              onChange: (documentId, value) => batch ? setBatchTracks(current => ({ ...current, [documentId]: value })) : setSelectedTrackId(value),
+              disabled: pending,
+              emptyNote: t(incomplete === 'source-fallback' ? 'studio:export.no_translation_fallback' : 'studio:export.no_track'),
+            } : undefined}
+            renderDetails={document => {
+              const location = sourceLocations[document.id];
+              const showLocation = destination === 'source-directory' && !locationsLoading && (location?.status !== 'ready' || location.origin === 'user-selected-directory');
+              if (!showLocation) return null;
+              return <>
+                {showLocation && <div className="studio-export-location">
+                  {location?.status !== 'ready' && <p className="studio-export-note">{t(location?.status === 'unavailable' ? 'studio:export.source_unavailable' : 'studio:export.source_missing')}</p>}
+                  {location?.status === 'ready' && location.origin === 'user-selected-directory' && <p className="studio-export-note">{t('studio:export.source_rebound')}</p>}
+                </div>}
+              </>;
+            }} />}
+          {!sourceMode && step === 'settings' && <>
           <ToolConfigDisclosure testId="studio-export-advanced" className="studio-export-advanced border-b-0" icon={FileCog} title={t('studio:export.advanced')}>
             <div className="studio-export-fields">
               <ToolField label={t('studio:encoding')} htmlFor={`${controlId}-encoding`}>
@@ -387,43 +446,65 @@ export function StudioExport({ page, documents, triggerContainer, trackId, busy,
             </div>
             <label className="studio-export-check" htmlFor={`${controlId}-bom`}><Checkbox id={`${controlId}-bom`} checked={unicode && bom} onCheckedChange={value => setBom(value === true)} disabled={pending || !unicode} /><span>{t('studio:export.bom')}</span></label>
           </ToolConfigDisclosure>
-          {!options.success && <p className="studio-export-error" role="alert">{t('studio:export.invalid_options')}</p>}
           </>}
-          {error && <p className="studio-export-error" role="alert"><AlertCircle className="size-4" />{t(errorKeys[error])}</p>}
-          {currentPlan && <section className="studio-export-plan" aria-live="polite" data-revision={currentPlan.revision} data-partial={currentPlan.partial}>
-            <div className="studio-export-summary"><h3>{t(currentPlan.partial ? 'studio:export.partial_result' : 'studio:export.result')}</h3><span>{t('studio:export.output_cues', { count: currentPlan.cueCount })} · {number(currentPlan.byteLength)} B</span></div>
+          {step === 'review' && reviewedOptions && <section className="studio-export-plan studio-export-review" data-testid={batch ? 'studio-batch-plan' : 'studio-export-review'} data-revision={currentPlan?.revision} data-partial={currentPlan?.partial}>
+            <p className="studio-export-note">{t('studio:export.review_description')}</p>
+            <div className="studio-export-summary"><h3>{t('studio:batch.ready_count', { count: readyCount, total: sourceDocuments.length })}</h3>
+              <span>{t('studio:export.output_cues', { count: outputCueCount })}</span>
+            </div>
+            <section className="studio-export-review-output" aria-label={t('studio:export.review_output')}>
+              <h3>{t('studio:export.review_output')}</h3>
+              <dl>
+                <div><dt>{t('studio:export.mode')}</dt><dd>{t(modeKeys[reviewedOptions.mode])} · {reviewedOptions.format.toUpperCase()}</dd></div>
+                <div><dt>{t('studio:export.destination')}</dt><dd>{t(destination === 'source-directory' ? 'studio:export.destination_source' : 'studio:export.destination_choose')}</dd></div>
+                {reviewedOptions.mode === 'bilingual' && <div><dt>{t('studio:export.order')}</dt><dd>{t(reviewedOptions.order === 'source-first' ? 'studio:export.source_first' : 'studio:export.target_first')}</dd></div>}
+                {reviewedOptions.mode !== 'source' && <div><dt>{t('studio:export.incomplete')}</dt><dd>{t(reviewedOptions.incomplete === 'block' ? 'studio:export.incomplete_block' : reviewedOptions.incomplete === 'skip' ? 'studio:export.incomplete_skip' : 'studio:export.incomplete_fallback')}</dd></div>}
+                <div><dt>{t('studio:encoding')}</dt><dd>{reviewedOptions.encoding.toUpperCase()}{reviewedOptions.bom ? ' · BOM' : ''} · {reviewedOptions.newline.toUpperCase()}</dd></div>
+                <div><dt>{t('studio:export.suffix')}</dt><dd>{reviewedOptions.fileNameSuffix?.mode === 'custom' ? reviewedOptions.fileNameSuffix.value : t(reviewedOptions.fileNameSuffix?.mode !== 'preset' ? 'studio:export.suffix_none' : reviewedOptions.fileNameSuffix.preset === 'content-mode' ? 'studio:export.suffix_content_mode' : 'studio:export.suffix_target_language')}</dd></div>
+              </dl>
+            </section>
             {newerRevision && <p className="studio-export-note studio-export-frozen">{t('studio:export.frozen_revision')}</p>}
-            {!!currentPlan.issues.length && <ul className="studio-export-issues">{currentPlan.issues.map(issue => <li key={issue.code} data-blocking={issue.blocking} data-issue={issue.code}>
-              {issue.blocking ? <AlertCircle className="size-3.5" /> : <span className="studio-export-issue-dot" aria-hidden="true" />}<span>{t(issueKeys[issue.code], { count: issue.count })}</span>
-            </li>)}</ul>}
-            {!!confirmations.length && !hasBlocking && <label className="studio-export-check" htmlFor={`${controlId}-accept`}><Checkbox id={`${controlId}-accept`} checked={lossesAccepted} onCheckedChange={value => setAcceptedIdentity(value === true ? currentPlan.planId : null)} disabled={pending} /><span>{t('studio:export.accept_losses')}</span></label>}
-            {currentPlan.preview && <details className="studio-export-preview"><summary>{t('studio:export.preview')}<ChevronDown className="size-3.5" /></summary><pre>{currentPlan.preview}</pre></details>}
-            {!currentPlan.issues.length && <p className="studio-export-ready"><CheckCheck className="size-3.5" />{t('studio:export.ready')}</p>}
+            {!!mergedIssues.length ? <section className="studio-export-review-changes" aria-label={t('studio:export.review_changes')}>
+              <h3>{t('studio:export.review_changes')}</h3>
+              <ul className="studio-export-change-types">{mergedIssues.map(issue => <li key={issue.code} data-blocking={issue.blocking} data-issue={issue.code}>
+                <Tooltip delayDuration={350}><TooltipTrigger asChild><span tabIndex={0}>{t(changeKeys[issue.code])}<span className="studio-export-change-count">{number(issue.count)}</span></span></TooltipTrigger>
+                  <TooltipContent className="max-w-72" sideOffset={6}>{t(issueKeys[issue.code], { count: issue.count })}</TooltipContent></Tooltip>
+              </li>)}</ul>
+            </section> : readyCount > 0 && <p className="studio-export-ready"><CheckCheck className="size-3.5" />{t('studio:export.ready')}</p>}
+            {readyCount < sourceDocuments.length && <p className="studio-export-note" role="status">{t('studio:export.review_not_ready')}</p>}
+            {needsAcceptance && <p className="studio-export-note">{t('studio:export.review_accept')}</p>}
+            <details className="studio-export-review-details" data-testid="studio-export-review-details" onToggle={event => setReviewDetailsOpen(event.currentTarget.open)}>
+              <summary>{t('studio:export.review_details')}<ChevronDown className="size-3.5" /></summary>
+              {reviewDetailsOpen && <StudioDocumentList label={t('studio:export.review_details')} maxHeight="min(280px, 42vh)">
+                {sourceDocuments.map((document, index) => {
+                  const batchItem = batchPlan?.items.find(item => item.documentId === document.id);
+                  const checked = batch ? batchItem?.ok ? batchItem.plan : undefined : currentPlan ?? undefined;
+                  const ready = batch ? batchReady.some(item => item.documentId === document.id) : readyCount > 0;
+                  const locationUnavailable = destination === 'source-directory' && checked?.sourceLocation?.status !== 'ready';
+                  return <StudioDocumentRow key={document.id} index={index + 1} name={document.origin.displayName} data-document-id={document.id} data-state={ready ? 'ready' : 'failed'}
+                    status={batchItem && !batchItem.ok ? t(errorKeys[batchItem.error]) : locationUnavailable ? t(checked?.sourceLocation?.status === 'missing' ? 'studio:export.source_missing' : 'studio:export.source_unavailable') : t(ready ? 'studio:batch.ready' : 'studio:batch.blocked')}>
+                    {checked && <><p className="studio-export-note">{checked.fileName} · {number(checked.byteLength)} B</p>
+                      {!!checked.issues.length && <ul className="studio-export-issues">{checked.issues.map(issue => <li key={issue.code} data-blocking={issue.blocking}><span>{t(issueKeys[issue.code], { count: issue.count })}</span></li>)}</ul>}
+                      {checked.preview && <details className="studio-export-preview"><summary>{t('studio:export.preview')}<ChevronDown className="size-3.5" /></summary><pre>{checked.preview}</pre></details>}
+                    </>}
+                  </StudioDocumentRow>;
+                })}
+              </StudioDocumentList>}
+            </details>
           </section>}
-          {batchPlan && <section className="studio-export-plan" aria-live="polite" data-testid="studio-batch-plan">
-            <h3 className="text-xs font-medium">{t('studio:batch.ready_count', { count: batchReady.length, total: batchPlan.items.length })}</h3>
-            <p className="studio-batch-note">{t(destination === 'source-directory' ? 'studio:export.destination_source_note' : 'studio:batch.export_directory_note')}</p>
-            <StudioBatchItems>{batchPlan.items.map(item => {
-              const sourceUnavailable = item.ok && destination === 'source-directory' && item.plan.sourceLocation?.status !== 'ready';
-              const ready = item.ok && !sourceUnavailable && !item.plan.issues.some(issue => issue.blocking);
-              return <li key={item.documentId} data-document-id={item.documentId} data-state={ready ? 'ready' : 'failed'}>
-                <StudioFileName name={item.displayName} focusable />
-                <span>{!item.ok ? t(errorKeys[item.error]) : sourceUnavailable ? t(item.plan.sourceLocation?.status === 'missing' ? 'studio:export.source_missing' : 'studio:export.source_unavailable') : t(ready ? 'studio:batch.ready' : 'studio:batch.blocked')}</span>
-                {item.ok && <div className="studio-batch-issues"><p className="studio-export-note">{item.plan.fileName} · {number(item.plan.byteLength)} B</p>{item.plan.issues.length > 0 && <ul className="studio-export-issues">{item.plan.issues.map(issue => <li key={issue.code} data-blocking={issue.blocking} data-issue={issue.code}><span>{t(issueKeys[issue.code], { count: issue.count })}</span></li>)}</ul>}</div>}
-              </li>;
-            })}</StudioBatchItems>
-            {batchConfirmations && <label className="studio-export-check" htmlFor={`${controlId}-batch-accept`}><Checkbox id={`${controlId}-batch-accept`} checked={batchLossesAccepted} onCheckedChange={value => setAcceptedIdentity(value === true ? batchPlan.batchId : null)} disabled={pending} /><span>{t('studio:export.accept_losses')}</span></label>}
-          </section>}
+          {error && <p className="studio-export-error" role="alert"><AlertCircle className="size-4" />{t(errorKeys[error])}</p>}
           {sourceMode && pending && <p role="status" className="studio-batch-note">{t('studio:loading')}</p>}
-          {batchResult && <section aria-live="polite" data-testid="studio-batch-result"><p className="studio-batch-note">{t('studio:batch.export_result', { count: batchResult.items.filter(item => item.ok).length, failed: batchResult.items.filter(item => !item.ok).length })}</p><StudioBatchItems>{batchResult.items.map(item => <li key={item.documentId} data-document-id={item.documentId} data-state={item.ok ? 'success' : 'failed'}><StudioFileName name={item.displayName} focusable /><span>{item.ok ? 'result' in item ? item.result.fileName : item.fileName : t(errorKeys[item.error])}</span></li>)}</StudioBatchItems></section>}
+          {step === 'result' && resultItems && <StudioOperationResult items={resultItems} testId={batch ? 'studio-batch-result' : 'studio-export-result'} />}
         </div>
       </ScrollableDialogContent>
       <ScrollableDialogFooter className="studio-export-footer flex flex-wrap items-center justify-end gap-2 p-3">
-        <Button id={`${controlId}-close`} variant="ghost" size="sm" onClick={() => changeOpen(false)} disabled={pending}>{t(batchResult || sourceMode ? 'studio:batch.close' : 'studio:cancel')}</Button>
-        {sourceMode && !batchResult && <Button size="sm" onClick={() => void downloadSource()} disabled={!canSaveOriginal}>{activity === 'source' ? <LoaderCircle className="studio-spin" /> : <ArrowDownToLine />}{t(destination === 'source-directory' ? 'studio:export.save_to_source' : 'studio:export.save_original')}</Button>}
-        {!sourceMode && !batchResult && <>
-          {(currentPlan?.planId || batchPlan) && <Button variant="outline" size="sm" onClick={() => void prepare()} disabled={!canPlan}>{t('studio:export.recheck')}</Button>}
-          {currentPlan?.planId || batchPlan ? <Button size="sm" onClick={() => void save()} disabled={!canSave}>{activity === 'save' ? <LoaderCircle className="studio-spin" /> : <ArrowDownToLine />}{batchPlan ? t('studio:batch.export_ready', { count: batchReady.length }) : t(destination === 'source-directory' ? 'studio:export.save_to_source' : 'studio:export.save')}</Button> : <Button size="sm" onClick={() => void prepare()} disabled={!canPlan}>{activity === 'plan' ? <LoaderCircle className="studio-spin" /> : <ClipboardCheck />}{t('studio:export.prepare')}</Button>}
+        <Button id={`${controlId}-close`} variant="ghost" size="sm" onClick={() => changeOpen(false)} disabled={pending}>{t(step === 'result' || sourceMode ? 'studio:batch.close' : 'studio:cancel')}</Button>
+        {step === 'settings' && (sourceMode
+          ? <Button size="sm" onClick={() => void downloadSource()} disabled={!canSaveOriginal}>{activity === 'source' ? <LoaderCircle className="studio-spin" /> : <ArrowDownToLine />}{t(destination === 'source-directory' ? 'studio:export.save_to_source' : 'studio:export.save_original')}</Button>
+          : <Button size="sm" onClick={() => void prepare()} disabled={!canPlan}>{activity === 'plan' ? <LoaderCircle className="studio-spin" /> : <ClipboardCheck />}{t('studio:export.prepare')}</Button>)}
+        {step === 'review' && <>
+          <Button variant="outline" size="sm" onClick={backToSettings} disabled={pending}>{t('studio:export.review_back')}</Button>
+          <Button size="sm" onClick={() => void save()} disabled={!canSave}>{activity === 'save' ? <LoaderCircle className="studio-spin" /> : <ArrowDownToLine />}{t('studio:export.review_confirm', { count: readyCount })}</Button>
         </>}
       </ScrollableDialogFooter>
     </ScrollableDialog>

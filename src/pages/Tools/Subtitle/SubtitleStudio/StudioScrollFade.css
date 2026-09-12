@@ -1,0 +1,11 @@
+.studio-scroll-fade { position: relative; isolation: isolate; min-width: 0; }
+.studio-scroll-fade-viewport { min-width: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; }
+.studio-scroll-fade-content { min-width: 0; display: flow-root; }
+.studio-scroll-fade-viewport::-webkit-scrollbar { width: 6px; }
+.studio-scroll-fade-viewport::-webkit-scrollbar-thumb { border-radius: 3px; background: color-mix(in srgb, var(--muted-foreground) 25%, transparent); }
+.studio-scroll-fade-viewport::-webkit-scrollbar-thumb:hover { background: color-mix(in srgb, var(--muted-foreground) 40%, transparent); }
+.studio-scroll-fade-edge { position: absolute; left: 0; right: 6px; height: 16px; z-index: 1; pointer-events: none; opacity: 0; transition: opacity 150ms ease; }
+.studio-scroll-fade-edge[data-edge="top"] { top: 0; background: linear-gradient(to bottom, var(--background), transparent); }
+.studio-scroll-fade-edge[data-edge="bottom"] { bottom: 0; background: linear-gradient(to top, var(--background), transparent); }
+.studio-scroll-fade[data-fade-top="true"] > [data-edge="top"], .studio-scroll-fade[data-fade-bottom="true"] > [data-edge="bottom"] { opacity: 1; }
+@media (prefers-reduced-motion: reduce) { .studio-scroll-fade-edge { transition: none; } }

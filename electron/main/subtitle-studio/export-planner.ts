@@ -78,7 +78,9 @@ export function planSubtitleExport(value: SubtitleDocument, input: ExportOptions
     issues.set(code, { code, count: (previous?.count ?? 0) + count, blocking: blocking || !!previous?.blocking, confirmation: confirmation || !!previous?.confirmation });
   };
   const track = options.mode === 'source' ? undefined : doc.translationTracks.find(item => item.id === options.trackId);
-  if (options.mode !== 'source' && !track) issue('track_missing', 1, true);
+  // No track is different from an explicit stale/wrong selection: only the former may fall back.
+  const untrackedFallback = !doc.translationTracks.length && options.trackId === undefined && options.incomplete === 'source-fallback';
+  if (options.mode !== 'source' && !track && !untrackedFallback) issue('track_missing', 1, true);
   // Targets preserved only as original evidence after bilingual separation are not metadata.
   const pairedTargets = new Set(doc.cues.flatMap(cue => cue.importedPair ? [cue.importedPair.target.nodeId] : []));
   const bodies = doc.schemaVersion === 1 ? preservedBodies(doc) : undefined;
@@ -114,8 +116,8 @@ export function planSubtitleExport(value: SubtitleDocument, input: ExportOptions
     if (preserve && cue.nodeId) replacements.set(cue.nodeId, null);
     let texts = [cue.source];
     if (options.mode !== 'source') {
-      if (!track) continue;
-      const entry = track.entries[cue.id];
+      if (!track && !untrackedFallback) continue;
+      const entry = track?.entries[cue.id];
       // Empty source events are omitted from model requests and need no invented translation.
       const missing = !!cue.source.plain.trim() && (!entry || !entry.text.plain.trim());
       const stale = !!entry && !missing && (entry.sourceRevision !== cue.sourceRevision || entry.sourceHash !== sourceHash(cue));

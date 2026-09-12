@@ -5,6 +5,7 @@ import { requestSchemas, type TranscriptionMediaSelection, type TranscriptionRes
 import { localSubtitleAuthorizedMediaSchema, localSubtitleMediaProbeSummarySchema, localSubtitleManagedResourceListSchema, localSubtitleResourceJobSummarySchema } from '../../../src/subtitle-studio/transcription/ipc-contract';
 import type { LocalSubtitleOwnerKey } from './transcription/native/authorizations';
 import type { TranscriptionRuntime } from './transcription/runtime';
+import type { NativeInputSelection } from './drop-input-service';
 
 export function transcriptionIpcError(error: unknown): ErrorCode {
   if (error instanceof StudioError) return error.code;
@@ -26,6 +27,33 @@ function resourceJob(value: unknown): TranscriptionResourceJob {
   return { ...job, ...(error ? { error: { code: error.code } } : {}) };
 }
 
+/** Both native selection surfaces share authorization, probing and partial results. */
+export async function authorizeTranscriptionMedia(selections: readonly NativeInputSelection[], runtime: TranscriptionRuntime, owner: LocalSubtitleOwnerKey, alive: () => void): Promise<TranscriptionMediaSelection> {
+  if (selections.length > 20) throw new StudioError('limit_exceeded');
+  const result: TranscriptionMediaSelection = { items: [] };
+  const seen = new Set<string>();
+  for (const selection of selections) {
+    alive();
+    const displayName = selection.fileName.replace(/[\u0000-\u001f\u007f]/g, '\ufffd').slice(0, 256);
+    if (selection.path === undefined) { result.items.push({ displayName, ok: false, error: selection.error }); continue; }
+    const filePath = path.resolve(selection.path);
+    const identity = process.platform === 'win32' ? filePath.toLowerCase() : filePath;
+    if (seen.has(identity)) continue;
+    seen.add(identity);
+    let media: ReturnType<typeof localSubtitleAuthorizedMediaSchema.parse> | undefined;
+    try {
+      media = localSubtitleAuthorizedMediaSchema.parse(await runtime.media.authorizeInput(owner, filePath)); alive();
+      const probe = localSubtitleMediaProbeSummarySchema.parse(await runtime.media.probe(owner, media.fileToken)); alive();
+      result.items.push({ displayName, ok: true, media, probe });
+    } catch (error) {
+      alive();
+      // Keep issued handles visible after probe failures so retry/revoke remains possible.
+      result.items.push({ displayName, ok: false, error: transcriptionIpcError(error), ...(media ? { media } : {}) });
+    }
+  }
+  return result;
+}
+
 /** Main-selected paths never become renderer inputs; every operation is owner-bound. */
 export async function handleTranscriptionRequest(input: {
   method: string; payload: unknown; sender: WebContents; owner: LocalSubtitleOwnerKey;
@@ -40,23 +68,7 @@ export async function handleTranscriptionRequest(input: {
       filters: [{ name: 'Audio / Video', extensions: ['wav', 'mp3', 'm4a', 'aac', 'flac', 'ogg', 'opus', 'mp4', 'mkv', 'mov', 'webm', 'avi'] }] });
     alive();
     if (selection.canceled || !selection.filePaths.length) return null;
-    const paths = [...new Set(selection.filePaths.map(file => path.resolve(file)))];
-    if (paths.length > 20) throw new StudioError('limit_exceeded');
-    const result: TranscriptionMediaSelection = { items: [] };
-    for (const filePath of paths) {
-      const displayName = path.basename(filePath).replace(/[\u0000-\u001f\u007f]/g, '\ufffd').slice(0, 256);
-      let media: ReturnType<typeof localSubtitleAuthorizedMediaSchema.parse> | undefined;
-      try {
-        media = localSubtitleAuthorizedMediaSchema.parse(await runtime.media.authorizeInput(owner, filePath)); alive();
-        const probe = localSubtitleMediaProbeSummarySchema.parse(await runtime.media.probe(owner, media.fileToken)); alive();
-        result.items.push({ displayName, ok: true, media, probe });
-      } catch (error) {
-        alive();
-        // Return any issued handle even when probing fails so the caller can retry or revoke it.
-        result.items.push({ displayName, ok: false, error: transcriptionIpcError(error), ...(media ? { media } : {}) });
-      }
-    }
-    return result;
+    return authorizeTranscriptionMedia(selection.filePaths.map(filePath => ({ path: filePath, fileName: path.basename(filePath) })), runtime, owner, alive);
   }
   if (method === 'probeTranscriptionMedia') {
     const { fileToken } = requestSchemas.probeTranscriptionMedia.parse(payload);

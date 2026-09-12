@@ -184,6 +184,8 @@
       "opaque_omitted": "{{count}} non-text or opaque structures will be omitted. The original file is retained.",
       "encoding_not_supported": "VTT and newly generated ASS files require UTF-8 encoding."
     },
+    "source_attention": "Source folders are unavailable for {{count}} documents. Expand the document list below to select folders, or choose another save location.",
+    "no_translation_fallback": "Documents without a translation will export their original text.",
     "destination": "Save location",
     "destination_source": "Source file folder",
     "destination_choose": "Choose another location",
@@ -206,7 +208,40 @@
     "file_name_preview": "Output filename: {{name}}",
     "save_to_source": "Save to source folder",
     "save_original": "Save original file…",
-    "source_recheck": "The source location changed. Check the export again."
+    "source_recheck": "The source location changed. Check the export again.",
+    "review_title": "Confirm export",
+    "review_description": "The check is complete. Review the output settings and changes below before writing files.",
+    "review_output": "Output settings",
+    "review_changes": "Check summary",
+    "review_back": "Back to settings",
+    "review_confirm": "Confirm and export {{count}} files",
+    "review_accept": "Selecting “Confirm and export” accepts the format changes shown above.",
+    "review_not_ready": "Documents that are not ready will not be exported. Return to settings to resolve them.",
+    "review_details": "File details",
+    "change_types": {
+      "track_missing": "Missing track",
+      "translation_missing": "Missing translation",
+      "translation_stale": "Stale translation",
+      "missing_end": "Missing end time",
+      "estimated_end": "Estimated end time",
+      "end_times_omitted": "End time omitted",
+      "invalid_time": "Invalid timing",
+      "styles_removed": "Styles removed",
+      "line_breaks_flattened": "Line breaks merged",
+      "metadata_omitted": "Metadata omitted",
+      "transcription_evidence_omitted": "Transcription evidence omitted",
+      "unsupported_text": "Unsupported text",
+      "empty_output": "Empty output",
+      "encoding_unrepresentable": "Unrepresentable encoding",
+      "skipped_cues": "Cues skipped",
+      "source_fallback": "Original text used",
+      "timing_precision_changed": "Timing precision changed",
+      "positioning_omitted": "Layout omitted",
+      "effects_omitted": "Effects omitted",
+      "opaque_omitted": "Non-text structure omitted",
+      "encoding_not_supported": "Unsupported encoding"
+    },
+    "result_title": "Export result"
   },
   "errors": {
     "invalid_input": "Invalid subtitle structure.",
@@ -291,7 +326,12 @@
     "no_cancel_task": "No translation task to cancel",
     "no_resume_task": "No translation task to resume",
     "drop_hint": "Release to import subtitles",
-    "drop_busy": "An operation is in progress. Try dropping files again shortly."
+    "drop_busy": "An operation is in progress. Try dropping files again shortly.",
+    "resume_requested_count": "Resume requested for {{count}} documents",
+    "resume_requested": "Resume requested",
+    "cancel_requested_count": "Cancellation requested for {{count}} documents",
+    "cancel_requested": "Cancellation requested",
+    "selecting": "Selecting documents…"
   },
   "recovery": {
     "title": "Manage unavailable documents",
@@ -335,6 +375,16 @@
   "workspace_documents": "Documents",
   "workspace_transcription": "Transcription",
   "transcription": {
+    "auto_translation": "Translate automatically after transcription",
+    "auto_translation_hint": "Translate subtitles created by this submission, including after leaving this page.",
+    "auto_translation_model": "Translation model",
+    "auto_translation_language": "Target language",
+    "auto_translation_configuration": "Choose a configured translation model and target language.",
+    "auto_translation_pending": "Translation will be queued after transcription",
+    "auto_translation_admitted": "Automatic translation handed off; open the document for progress",
+    "auto_translation_recovery": "Subtitles are saved; open the document to recover automatic translation",
+    "media_drop_hint": "Drop to add audio or video",
+    "media_drop_busy": "Wait for media selection or submission to finish",
     "configuration": "Transcription settings",
     "settings": "Settings",
     "media": "Media",
@@ -453,7 +503,10 @@
     "confirm_cancel_all": "Confirm cancellation",
     "cancel_all_confirmation": "Cancel these {{count}} unfinished tasks? This sends cancellation requests; tasks stay in the queue until they stop. Tasks added later and existing subtitle documents are unaffected.",
     "clear_result": "Cleared {{count}}; {{failed}} failed; {{skipped}} still being processed. Existing subtitle documents are unaffected.",
-    "cancel_result": "Cancellation requested for {{count}}; {{failed}} failed; {{skipped}} changed state. Tasks are marked finished only after they stop."
+    "cancel_result": "Cancellation requested for {{count}}; {{failed}} failed; {{skipped}} changed state. Tasks are marked finished only after they stop.",
+    "auto_translation_pending_short": "Auto translate",
+    "auto_translation_admitted_short": "Translation linked",
+    "auto_translation_recovery_short": "Needs attention"
   },
   "overview": {
     "title": "Translation tasks",
@@ -471,5 +524,26 @@
     "open_document": "Open document",
     "can_resume": "Review and resume in the document",
     "view_progress": "View translation progress"
+  },
+  "copy_options": {
+    "choose": "Choose what to copy",
+    "source": "Copy source",
+    "target": "Copy translation",
+    "bilingual": "Copy bilingual text",
+    "with_time": "Copy with timestamps",
+    "start_only": "End time is unknown; only the start time is included.",
+    "stale": "This translation is outdated. The text shown here will be copied.",
+    "no_translation": "This subtitle has no translation."
+  },
+  "operation_result": {
+    "success": "{{count}} succeeded",
+    "failed": "{{count}} failed",
+    "skipped": "{{count}} skipped",
+    "success_details": "View successful items",
+    "failure_details": "View failed items",
+    "skipped_details": "View skipped items",
+    "details": "View file details",
+    "queued": "{{count}} translation tasks submitted",
+    "empty": "No items to process"
   }
 }

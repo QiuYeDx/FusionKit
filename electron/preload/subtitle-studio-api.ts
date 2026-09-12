@@ -1,4 +1,4 @@
-import { STUDIO_CHANNELS, studioEventSchema, requestSchemas, droppedSubtitlesRequestSchema, type SubtitleStudioApi } from '../../src/subtitle-studio/ipc-contract';
+import { STUDIO_CHANNELS, studioEventSchema, requestSchemas, droppedSubtitlesRequestSchema, droppedTranscriptionMediaRequestSchema, type SubtitleStudioApi } from '../../src/subtitle-studio/ipc-contract';
 import { isPublicStudioChannel } from './subtitle-studio-channel-policy';
 
 export function createSubtitleStudioApi(ipc: { sendSync(channel: string, payload: unknown): unknown; invoke(channel: string, payload: unknown): Promise<any>; on(channel: string, listener: (event: unknown, input: any) => void): unknown; removeListener(channel: string, listener: (event: unknown, input: any) => void): unknown }, webUtils?: { getPathForFile(file: File): string }): SubtitleStudioApi {
@@ -23,6 +23,17 @@ export function createSubtitleStudioApi(ipc: { sendSync(channel: string, payload
     },
     listTranslationTasks: request => invoke(STUDIO_CHANNELS.listTranslationTasks, request),
     selectTranscriptionMedia: request => invoke(STUDIO_CHANNELS.selectTranscriptionMedia, request),
+    dropTranscriptionMedia: files => {
+      if (typeof capability !== 'string' || !webUtils) return Promise.resolve({ ok: false, error: 'access_denied' } as const);
+      if (!Array.isArray(files) || !files.length || files.length > 20) return Promise.resolve({ ok: false, error: files?.length > 20 ? 'limit_exceeded' : 'invalid_input' } as const);
+      let paths: string[];
+      // File objects belong to this drop; consume every native handle before awaiting.
+      try { paths = files.map(file => webUtils.getPathForFile(file)); }
+      catch { return Promise.resolve({ ok: false, error: 'access_denied' } as const); }
+      const parsed = droppedTranscriptionMediaRequestSchema.safeParse({ paths });
+      if (!parsed.success) return Promise.resolve({ ok: false, error: 'access_denied' } as const);
+      return ipc.invoke(STUDIO_CHANNELS.dropTranscriptionMedia, { capability, payload: parsed.data });
+    },
     probeTranscriptionMedia: request => invoke(STUDIO_CHANNELS.probeTranscriptionMedia, request),
     revokeTranscriptionMedia: request => invoke(STUDIO_CHANNELS.revokeTranscriptionMedia, request),
     inspectTranscriptionRuntime: request => invoke(STUDIO_CHANNELS.inspectTranscriptionRuntime, request),

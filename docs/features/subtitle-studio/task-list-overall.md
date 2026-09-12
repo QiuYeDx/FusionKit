@@ -3,7 +3,7 @@
 
 由各模块 tasks.md 生成；它不是第二份任务状态来源。
 
-规模：L；风险：medium；当前批次：I3。
+规模：L；风险：medium；当前批次：I6。
 
 | 任务 | 模块 | 标题 | 状态 | 批次 | 需求 | 依赖 | 负责人 | 实施记录 | 集成版本 |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -11,6 +11,14 @@
 | T-ACCEPTANCE-02 | ACCEPTANCE | 转写队列批量操作与翻译总览 | 已完成 | I3 | R-ACCEPTANCE-02, R-ACCEPTANCE-03 | - | windows_baseline | records/2026-09-12-acceptance-02.md | 15340fd74752484df9982ab7ca894b7410577273加本轮未提交工作树；records/2026-09-12-acceptance.snapshot.json |
 | T-ACCEPTANCE-04 | ACCEPTANCE | VTT和ASS格式工作流 | 已完成 | I3 | R-ACCEPTANCE-04 | - | admission_design | records/2026-09-12-acceptance-04.md | 15340fd74752484df9982ab7ca894b7410577273加本轮未提交工作树；records/2026-09-12-acceptance.snapshot.json |
 | T-ACCEPTANCE-05 | ACCEPTANCE | 来源目录和可选文件名后缀 | 已完成 | I3 | R-ACCEPTANCE-05, R-ACCEPTANCE-06 | - | ipc_design | records/2026-09-12-acceptance-05.md | 15340fd74752484df9982ab7ca894b7410577273加本轮未提交工作树；records/2026-09-12-acceptance.snapshot.json |
+| T-EXPERIENCE-01 | EXPERIENCE | 媒体拖入与整体接线 | 已完成 | I5 | R-EXPERIENCE-02 | - | Codex root | records/2026-09-13-experience-01.md | 3855c2c72bfa45740f248406f7266cf0342ae1f6加本轮未提交工作树；records/2026-09-13-experience.snapshot.json |
+| T-EXPERIENCE-02 | EXPERIENCE | 转写设置与自动翻译 | 已完成 | I5 | R-EXPERIENCE-01, R-EXPERIENCE-03, R-EXPERIENCE-04, R-EXPERIENCE-05 | - | admission_design | records/2026-09-13-experience-02.md | 3855c2c72bfa45740f248406f7266cf0342ae1f6加本轮未提交工作树；records/2026-09-13-experience.snapshot.json |
+| T-EXPERIENCE-03 | EXPERIENCE | 静默刷新与译文工具条 | 已完成 | I5 | R-EXPERIENCE-08, R-EXPERIENCE-09 | - | ipc_design | records/2026-09-13-experience-03.md | 3855c2c72bfa45740f248406f7266cf0342ae1f6加本轮未提交工作树；records/2026-09-13-experience.snapshot.json |
+| T-EXPERIENCE-04 | EXPERIENCE | 导出默认值与统一文档列表 | 已完成 | I5 | R-EXPERIENCE-06, R-EXPERIENCE-07, R-EXPERIENCE-10 | - | windows_baseline | records/2026-09-13-experience-04.md | 3855c2c72bfa45740f248406f7266cf0342ae1f6加本轮未提交工作树；records/2026-09-13-experience.snapshot.json |
+| T-INTERACTION-01 | INTERACTION | 队列密度与进度反馈 | 已完成 | I6 | R-INTERACTION-01, R-INTERACTION-02 | - | admission_design | records/2026-09-13-interaction-01.md | feat/subtitle-studio-transcription，3855c2c72bfa45740f248406f7266cf0342ae1f6加I5及I6未提交工作树；精确源码和证据见2026-09-13-interaction.snapshot.json |
+| T-INTERACTION-02 | INTERACTION | 复制菜单与结果反馈 | 已完成 | I6 | R-INTERACTION-03, R-INTERACTION-06 | - | Codex root | records/2026-09-13-interaction-02.md | feat/subtitle-studio-transcription，3855c2c72bfa45740f248406f7266cf0342ae1f6加I5及I6未提交工作树；精确源码和证据见2026-09-13-interaction.snapshot.json |
+| T-INTERACTION-03 | INTERACTION | 导出检查与结果步骤 | 已完成 | I6 | R-INTERACTION-04, R-INTERACTION-05, R-INTERACTION-06 | - | windows_baseline | records/2026-09-13-interaction-03.md | feat/subtitle-studio-transcription，3855c2c72bfa45740f248406f7266cf0342ae1f6加I5及I6未提交工作树；精确源码和证据见2026-09-13-interaction.snapshot.json |
+| T-INTERACTION-04 | INTERACTION | 工作区布局与局部选择 | 已完成 | I6 | R-INTERACTION-07, R-INTERACTION-08, R-INTERACTION-09, R-INTERACTION-10 | - | ipc_design | records/2026-09-13-interaction-04.md | feat/subtitle-studio-transcription，3855c2c72bfa45740f248406f7266cf0342ae1f6加I5及I6未提交工作树；精确源码和证据见2026-09-13-interaction.snapshot.json |
 | T-TRANSCRIPTION-01 | TRANSCRIPTION | 生产基线、依赖与资源来源冻结 | 已完成 | I2 | R-TRANSCRIPTION-01 | T-WORKSPACE-06, T-WORKSPACE-08 | Codex root | records/2026-09-11-transcription-baseline.md | 3a0f50e加本轮未提交维护工具/规格工作树；最终基线SHA-256 c6367bddd06cf2e31ecf04dbbe8766f70edff888775fbd14a46114ea8c29ac66，完整工具摘要见记录 |
 | T-TRANSCRIPTION-02 | TRANSCRIPTION | 独立源码副本与等价回放 | 已完成 | I2 | R-TRANSCRIPTION-02 | T-TRANSCRIPTION-01 | Codex root | records/2026-09-11-transcription-copy-replay.md | 3a0f50e加本次未提交共享工作树；120文件副本，fork SHA-256 993e57a72b3a191e8ba6afe50d90899baefd4f6af4f8f62ad25cc3d6371befa3；完整工具及回放证据摘要见记录 |
 | T-TRANSCRIPTION-03 | TRANSCRIPTION | 独立资源工厂与原生构建组合 | 已完成 | I2 | R-TRANSCRIPTION-03 | T-TRANSCRIPTION-02 | Codex root | records/2026-09-12-transcription-runtime-native.md | 3a0f50e加T01/T02及本次共享工作树；42文件集成快照SHA-256 cfba72e89fc0320771051c2484aac4273d0fec6fd5f2194c13d2ce403a52d86b；新版native/tooling fork和真实签名后addon摘要见实施记录 |
@@ -36,4 +44,6 @@
 | I1 | 独立字幕文档、翻译与再导出 | verifying | approved | pending |
 | I2 | 继承现有本地转写并完成原生隔离 | verifying | approved | pending |
 | I3 | 人工验收完善与VTT/ASS格式扩展 | verifying | approved | pending |
+| I5 | 第二轮体验完善与可选自动翻译 | verifying | approved | pending |
+| I6 | 第三轮交互简化与布局稳定 | verifying | approved | pending |
 | I4 | 校正、时间编辑与译文版本 | planning | pending | pending |

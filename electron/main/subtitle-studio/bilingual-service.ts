@@ -38,6 +38,7 @@ export class BilingualService {
       if (tasks.some(task => !['completed', 'failed', 'cancelled'].includes(task.status))) throw new StudioError('revision_conflict');
       value.document.translationTracks = value.document.translationTracks.filter(track => track.id !== trackId);
       value.tasks = value.tasks.filter(task => task.trackId !== trackId);
+      if (value.automaticTranslation && tasks.some(task => task.id === value.automaticTranslation!.translationTaskId)) value.automaticTranslation.state = 'cancelled';
     }, guard);
     return snapshot.document;
   }

@@ -3,21 +3,24 @@ import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import type { DocumentRepository } from '../../../electron/main/subtitle-studio/document-repository';
 import { transcriptToDocument } from '../../../electron/main/subtitle-studio/transcription/document-adapter';
+import { createTranscriptionDocumentSink, type TranscriptionDocumentSink } from '../../../electron/main/subtitle-studio/transcription/document-sink';
+import type { AutomaticTranslationIntent } from '../../../src/subtitle-studio/automatic-translation-contract';
+import type { AutomaticTranslationCoordinator } from '../../../electron/main/subtitle-studio/automatic-translation';
 import type { LocalSubtitleOwnerKey } from '../../../electron/main/subtitle-studio/transcription/native/authorizations';
 import type { EnqueueTranscriptionRequest, TranscriptionTaskSummary } from '../../../src/subtitle-studio/transcription/task-contract';
 import { localSubtitleManagedResourceListSchema, localSubtitleResourceJobSummarySchema } from '../../../src/subtitle-studio/transcription/ipc-contract';
 
 type Owner = LocalSubtitleOwnerKey;
-type Task = { owner: string; value: TranscriptionTaskSummary };
+type Task = { owner: string; value: TranscriptionTaskSummary; sink: TranscriptionDocumentSink; automatic?: { intent: AutomaticTranslationIntent; apiKey?: string } };
 type Job = { owner: string; value: ReturnType<typeof localSubtitleResourceJobSummarySchema.parse> };
 type Command = { operation: 'snapshot' } | { operation: 'resources-ready' } | { operation: 'probe-recovered' }
   | { operation: 'revoke-failures'; count: number }
   | { operation: 'resource-complete'; resourceId: string }
   | { operation: 'task-state'; taskId: string; status: 'preparing_media' | 'loading_model' | 'transcribing' | 'post_processing' | 'failed'; progress?: number; cleanupPending?: true }
-  | { operation: 'complete'; taskId: string }
+  | { operation: 'complete'; taskId: string; cueCount?: number }
   | { operation: 'seed-newer-documents' };
 
-export function createTranscriptionRuntime(_options: unknown, _dependencies: unknown, repository?: DocumentRepository) {
+export function createTranscriptionRuntime(_options: unknown, dependencies: { automaticTranslation?: Pick<AutomaticTranslationCoordinator, 'handoff'> }, repository?: DocumentRepository) {
   if (!repository) throw new Error('The UI fixture requires the production document repository.');
   const resources = localSubtitleManagedResourceListSchema.parse([
     { resourceId: 'large-v3-q5_0', resourceType: 'model', displayName: 'Large v3 · Q5', status: 'not_installed',
@@ -68,13 +71,22 @@ export function createTranscriptionRuntime(_options: unknown, _dependencies: unk
     }
     if (command.operation === 'complete') {
       const task = getTask(command.taskId);
-      const document = transcriptToDocument({ schemaVersion: 1, source: { displayName: task.value.displayName, durationMs: 315000 },
+      if (task.value.status === 'cancelled' || task.value.status === 'failed') throw new Error('Terminal native failure cannot publish.');
+      const transcript = { schemaVersion: 1, source: { displayName: task.value.displayName, durationMs: 315000 },
         model: { engine: 'whisper_cpp', modelId: task.value.modelId, modelHash: 'a'.repeat(64), backend: 'cpu' }, detectedLanguage: 'en',
-        segments: Array.from({ length: 105 }, (_, index) => ({ id: `segment-${index}`, startMs: index * 3000, endMs: index * 3000 + 2000,
-          text: index === 2 ? 'A detailed interview keeps the full original words, punctuation, pauses, and context in the stored document.' : `Recorded interview sentence ${index + 1}.` })) });
-      await repository.create(document);
-      task.value = { ...task.value, status: 'completed', progress: 100, documentId: document.id, documentDurability: 'confirmed', updatedAt: new Date().toISOString() };
-      trace('document-created', { documentId: document.id });
+        segments: Array.from({ length: command.cueCount ?? 105 }, (_, index) => ({ id: `segment-${index}`, startMs: index * 3000, endMs: index * 3000 + 2000,
+          text: index === 2 ? 'A detailed interview keeps the full original words, punctuation, pauses, and context in the stored document.' : `Recorded interview sentence ${index + 1}.` })) };
+      const receipt = await task.sink.publish(transcript);
+      task.value = { ...task.value, status: 'completed', progress: 100, documentId: receipt.documentId, documentDurability: receipt.durability, updatedAt: new Date().toISOString() };
+      trace('document-created', { documentId: receipt.documentId });
+      if (task.automatic) {
+        const apiKey = task.automatic.apiKey ?? ''; task.automatic.apiKey = undefined;
+        try {
+          const result = await dependencies.automaticTranslation!.handoff(receipt.documentId, task.automatic.intent.intentId, apiKey);
+          task.value = { ...task.value, automaticTranslation: { status: 'admitted', taskId: result.taskId } };
+          trace('automatic-handoff', { documentId: receipt.documentId, taskId: result.taskId });
+        } catch { task.value = { ...task.value, automaticTranslation: { status: 'needs_configuration' } }; }
+      }
     }
     if (command.operation === 'seed-newer-documents') {
       for (let index = 0; index < 21; index++) await repository.create(transcriptToDocument({ schemaVersion: 1,
@@ -135,17 +147,22 @@ export function createTranscriptionRuntime(_options: unknown, _dependencies: unk
         const created = request.files.map(file => {
           const media = tokens.get(file.fileToken);
           if (!media || media.owner !== check(owner)) throw Object.assign(new Error('Unknown token'), { code: 'invalid_token' });
-          const value: TranscriptionTaskSummary = { taskId: randomUUID(), batchId, generation: 1, displayName: media.displayName,
+          let value: TranscriptionTaskSummary = { taskId: randomUUID(), batchId, generation: 1, displayName: media.displayName,
             status: 'queued', progress: 0, createdAt: now, updatedAt: now, modelId: request.config.modelId, resolvedBackend: 'cpu', durationMs: 315000 };
-          tasks.push({ owner: check(owner), value }); return value;
+          const automatic = request.autoTranslation ? { intent: { intentId: randomUUID(), sourceTaskId: value.taskId, generation: 1 as const, state: 'pending' as const, config: structuredClone(request.autoTranslation.config) }, apiKey: request.autoTranslation.apiKey } : undefined;
+          if (automatic && !dependencies.automaticTranslation) throw new Error('Real automatic translation coordinator is required.');
+          if (automatic) value = { ...value, automaticTranslation: { status: 'pending' } };
+          const sink = createTranscriptionDocumentSink({ repository, owner, taskId: value.taskId, generation: 1, assertActive: () => {}, ...(automatic ? { automaticTranslation: automatic.intent } : {}) });
+          tasks.push({ owner: check(owner), value, sink, automatic }); return value;
         });
-        trace('enqueue', structuredClone(request)); return structuredClone({ batchId, tasks: created });
+        trace('enqueue', structuredClone({ ...request, ...(request.autoTranslation ? { autoTranslation: { config: request.autoTranslation.config } } : {}) })); return structuredClone({ batchId, tasks: created });
       },
       async list(owner: Owner) { check(owner); trace('list-tasks'); return structuredClone(tasks.filter(task => task.owner === key(owner)).map(task => task.value)); },
       async cancel(owner: Owner, taskId: string) {
         const task = getTask(taskId);
         if (task.owner !== check(owner)) throw Object.assign(new Error('Wrong owner'), { code: 'owner_released' });
-        task.value = { ...task.value, status: 'cancelled', updatedAt: new Date().toISOString() }; trace('cancel-task', { taskId }); return structuredClone(task.value);
+        if (task.automatic) task.automatic.apiKey = undefined;
+        task.value = { ...task.value, status: 'cancelled', automaticTranslation: undefined, updatedAt: new Date().toISOString() }; trace('cancel-task', { taskId }); return structuredClone(task.value);
       },
       async remove(owner: Owner, taskId: string) {
         const index = tasks.findIndex(task => task.owner === check(owner) && task.value.taskId === taskId);

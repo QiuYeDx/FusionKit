@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import { AlertCircle, Check, ChevronDown, ListFilter, Search, Settings2, X } from 'lucide-react';
+import { AlertCircle, Check, ChevronDown, ListFilter, LoaderCircle, Search, Settings2, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -34,7 +34,7 @@ type Props = {
   onPage: (offset: number) => void; onPreview: (doc: DocumentSummary) => void;
   onToggle: (doc: DocumentSummary) => void; onSelectPage: () => void;
   onSelectAll: () => void; onClearScope: () => void; onClear: () => void;
-  selectionLimit: boolean; onDismissLimit: () => void;
+  selectionPending: boolean; selectionLimit: boolean; onDismissLimit: () => void;
   encoding: ReactNode; actions: ReactNode;
 };
 
@@ -77,12 +77,12 @@ export function StudioLibrary(props: Props) {
           <DropdownMenuItem disabled={busy || !total} onSelect={props.onSelectAll}>{t(filtered ? 'studio:library.select_results' : 'studio:library.select_all')}<span className="ml-auto pl-3 text-muted-foreground tabular-nums">{total}</span></DropdownMenuItem>
           <DropdownMenuItem disabled={busy || !documents.length} onSelect={props.onSelectPage}>{t('studio:library.select_page')}<span className="ml-auto pl-3 text-muted-foreground tabular-nums">{documents.length}</span></DropdownMenuItem>
           <DropdownMenuSeparator />
-          <DropdownMenuItem disabled={busy || !selected.length} onSelect={props.onClear}>{t('studio:library.clear_selection')}</DropdownMenuItem>
+          <DropdownMenuItem disabled={busy || (!selected.length && !props.selectionPending)} onSelect={props.onClear}>{t('studio:library.clear_selection')}</DropdownMenuItem>
           <DropdownMenuSeparator />
           <p className="px-2 py-1.5 text-[11px] leading-5 text-muted-foreground">{t('studio:library.selection_rule')} {t('studio:library.limit_hint', { count: STUDIO_BATCH_LIMIT })}</p>
         </DropdownMenuContent>
       </DropdownMenu>
-      <span className="studio-library-selection-scope">{t('studio:library.scope_count', { count: total })}</span>
+      <span className="studio-library-selection-scope">{props.selectionPending && <span role="status" data-testid="studio-library-selection-pending"><LoaderCircle aria-hidden="true" className="studio-spin size-3" /><span className="sr-only">{t('studio:library.selecting')}</span></span>}{t('studio:library.scope_count', { count: total })}</span>
     </div>
     {props.selectionLimit && <div role="status" data-testid="studio-library-selection-limit" className="studio-library-selection-notice"><span>{t('studio:library.limit', { count: STUDIO_BATCH_LIMIT })}</span><StudioIconButton size="icon-xs" label={t('studio:dismiss')} onClick={props.onDismissLimit}><X /></StudioIconButton></div>}
     <div className="studio-library-scroll" aria-busy={busy}>

@@ -7,6 +7,8 @@ import { LOCAL_SUBTITLE_CUE_POLICY, LOCAL_SUBTITLE_DOMAIN_SCHEMA_VERSION, LOCAL_
 import { enqueueTranscriptionRequestSchema, transcriptionTaskSummarySchema, type EnqueueTranscriptionRequest,
   type TranscriptionTaskSummary, type TranscriptionBatchAdmission } from '../../../../src/subtitle-studio/transcription/task-contract';
 import type { DocumentRepository } from '../document-repository';
+import type { AutomaticTranslationCoordinator } from '../automatic-translation';
+import type { AutomaticTranslationIntent } from '../../../../src/subtitle-studio/automatic-translation-contract';
 import { captureSourceInput } from '../source-location-service';
 import { createTranscriptionDocumentSink } from './document-sink';
 import { createTranscriptionDocumentProducer } from './document-producer';
@@ -29,6 +31,7 @@ interface Record {
   readonly execution: Execution; readonly controller: AbortController;
   summary: TranscriptionTaskSummary; running: boolean; leased: boolean; selectionBound: boolean; cleanupPending: boolean;
   leaseFailure?: unknown;
+  automatic?: { intent: AutomaticTranslationIntent; apiKey?: string };
 }
 interface Admission {
   readonly ownerKey: string; readonly modelId: string; readonly vad: boolean; readonly device: string;
@@ -50,6 +53,7 @@ export interface TranscriptionTaskServiceOptions {
   readonly executor: Pick<TranscriptionExecutor, 'beginBatchSlice' | 'execute' | 'endBatchSlice'>;
   readonly leaseRenewalIntervalMs?: number;
   readonly scheduleLeaseRenewal?: (operation: () => void, delayMs: number) => () => void;
+  readonly automaticTranslation?: Pick<AutomaticTranslationCoordinator, 'handoff'>;
 }
 
 const ownerSchema = z.object({ webContentsId: z.number().int().positive().safe(),
@@ -132,7 +136,8 @@ export function createTranscriptionTaskService(options: TranscriptionTaskService
     return failures;
   }
   function finish(record: Record, change: Partial<TranscriptionTaskSummary>) {
-    update(record, change);
+    update(record, { ...change, ...(record.automatic && change.status !== 'completed' ? { automaticTranslation: undefined } : {}) });
+    if (record.automatic && change.status !== 'completed') record.automatic.apiKey = undefined;
     if (record.summary.error?.code === 'cleanup_failed' || record.summary.error?.code === 'cancel_failed') record.cleanupPending = true;
     const failures = releaseBindings(record);
     if (record.cleanupPending) update(record, { cleanupPending: true,
@@ -220,6 +225,7 @@ export function createTranscriptionTaskService(options: TranscriptionTaskService
       });
       const sink = createTranscriptionDocumentSink({ repository: options.repository, owner: record.owner,
         taskId: record.taskId, generation: 1, assertActive: () => assertActive(record),
+        ...(record.automatic ? { automaticTranslation: record.automatic.intent } : {}),
         async resolveSourceLocation() {
           const input = await options.inputs.resolveTaskLease(record.owner, record.taskId, 'transcribe', record.fileToken);
           const directory = await options.inputs.resolveTaskSourceOutputDirectory(record.owner, record.taskId, record.fileToken);
@@ -236,8 +242,21 @@ export function createTranscriptionTaskService(options: TranscriptionTaskService
         assertActive: () => assertActive(record) });
       const result = await producer.run();
       const duration = validDuration(result.durationMs) ? { durationMs: result.durationMs } : {};
-      if (result.status === 'committed') finish(record, { status: 'completed', progress: 100, documentId: result.documentId,
-        documentDurability: result.durability, ...duration });
+      if (result.status === 'committed') {
+        finish(record, { status: 'completed', progress: 100, documentId: result.documentId, documentDurability: result.durability, ...duration });
+        if (record.automatic) {
+          const apiKey = record.automatic.apiKey ?? ''; record.automatic.apiKey = undefined;
+          try {
+            // Publication transferred ownership to the durable document. A late ASR
+            // owner release must not invalidate its already-authorized translation.
+            const translation = await options.automaticTranslation!.handoff(result.documentId, record.automatic.intent.intentId, apiKey);
+            update(record, { automaticTranslation: { status: 'admitted', taskId: translation.taskId } });
+          } catch {
+            // Never turn a committed transcription into a retryable ASR failure.
+            update(record, { automaticTranslation: { status: 'needs_configuration' } });
+          }
+        }
+      }
       else if (result.status === 'failed') finish(record, { status: 'failed', error: publicError(result.error), ...duration });
       else finish(record, { status: record.leaseFailure ? 'failed' : 'cancelled',
         ...(record.leaseFailure ? { error: publicError(record.leaseFailure) } : {}), ...duration });
@@ -253,6 +272,7 @@ export function createTranscriptionTaskService(options: TranscriptionTaskService
     const owner = ownerFor(value);
     const parsed = enqueueTranscriptionRequestSchema.safeParse(request);
     if (!parsed.success) return Promise.reject(new StudioError('invalid_input'));
+    if (parsed.data.autoTranslation && !options.automaticTranslation) return Promise.reject(new StudioError('needs_configuration'));
     if (signal?.aborted) return Promise.reject(new StudioError('interrupted'));
     if (records.size + [...admissions].reduce((sum, admission) => sum + admission.count, 0) + parsed.data.files.length > LOCAL_SUBTITLE_LIMITS.maxSessionTasks)
       return Promise.reject(new StudioError('limit_exceeded'));
@@ -311,8 +331,11 @@ export function createTranscriptionTaskService(options: TranscriptionTaskService
         created.push({ owner: owner.owner, ownerKey: owner.key, taskId, fileToken: file.fileToken, sourceKey: input.sourceKey,
           inputIdentity: input.identity, ...(file.audioStreamId ? { audioStreamId: file.audioStreamId } : {}), execution,
           controller: new AbortController(), running: false, leased: false, selectionBound: false, cleanupPending: false,
+          ...(request.autoTranslation ? { automatic: { apiKey: request.autoTranslation.apiKey,
+            intent: { intentId: randomUUID(), sourceTaskId: taskId, generation: 1 as const, config: structuredClone(request.autoTranslation.config), state: 'pending' as const } } } : {}),
           summary: publicSummary({ taskId, batchId, generation: 1, displayName: input.displayName, status: 'queued', progress: 0,
-            createdAt: now, updatedAt: now, modelId: managedModel.id, resolvedBackend: backendResolution.resolvedBackend }) });
+            createdAt: now, updatedAt: now, modelId: managedModel.id, resolvedBackend: backendResolution.resolvedBackend,
+            ...(request.autoTranslation ? { automaticTranslation: { status: 'pending' as const } } : {}) }) });
       }
       transaction = await options.leases.reserveBatch({ owner: owner.owner, batchId,
         inputs: created.map(record => ({ fileToken: record.fileToken, taskId: record.taskId })) });

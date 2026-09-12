@@ -1,0 +1,13 @@
+.studio-operation-result { display: grid; gap: 12px; min-width: 0; font-size: 12px; line-height: 18px; }
+.studio-operation-result-summary { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 16px; }
+.studio-operation-result-summary p { display: inline-flex; align-items: center; gap: 6px; min-width: 0; overflow-wrap: anywhere; }
+.studio-operation-result-summary svg { width: 15px; height: 15px; flex-shrink: 0; }
+.studio-operation-result-failed { color: var(--destructive); }
+.studio-operation-result-details { min-width: 0; }
+.studio-operation-result-details > summary { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 32px; list-style: none; cursor: pointer; color: var(--muted-foreground); border-radius: 4px; }
+.studio-operation-result-details > summary::-webkit-details-marker { display: none; }
+.studio-operation-result-details > summary:hover { color: var(--foreground); }
+.studio-operation-result-details > summary:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+.studio-operation-result-details > summary > svg { width: 14px; height: 14px; flex-shrink: 0; }
+.studio-operation-result-details[open] > summary { margin-bottom: 6px; }
+.studio-operation-result-details[open] > summary > svg { transform: rotate(180deg); }

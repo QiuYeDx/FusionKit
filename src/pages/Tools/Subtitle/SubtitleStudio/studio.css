@@ -1,12 +1,16 @@
 .studio { position: relative; letter-spacing: 0; }
+/* Long transcription content scrolls below the actual title bar instead of shrinking its spacer. */
+.app:has(.studio) > .h-10:not(.app-region-drag) { flex-shrink: 0; }
+.app:has(.studio) > [data-slot=scroll-area] { min-height: 0; }
 .studio-drop-overlay { position: absolute; inset: 12px; z-index: 15; pointer-events: none; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 8px; border: 2px dashed var(--primary); border-radius: 18px; background: color-mix(in srgb, var(--background) 94%, transparent); color: var(--primary); font-size: 14px; }
 .studio-drop-overlay > span { color: var(--muted-foreground); font-size: 12px; }
-.studio-workspace-tabs { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0; max-width: 1280px; margin-inline: auto; }
+.studio-workspace-tabs { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: max-content minmax(0, 1fr); align-content: start; gap: 0; max-width: 1280px; margin-inline: auto; }
 .studio-workspace-header { grid-area: 1 / 1; padding: 24px 16px 0; }
-.studio-workspace-header > :first-child { margin-bottom: 8px; }
+.studio-workspace-header > :first-child { margin-bottom: 12px; }
 .studio-workspace-header h1 { padding-right: 220px; }
-.studio-workspace-tabs > [data-slot=clip-path-tabs-stage] { grid-area: 1 / 1; align-self: start; justify-self: end; margin: 30px 16px 20px; z-index: 1; }
-.studio[data-workspace-view=documents] .studio-workspace-tabs { height: calc(100dvh - 32px); grid-template-rows: auto minmax(0, 1fr); }
+.studio-workspace-tabs > [data-slot=clip-path-tabs-stage] { grid-area: 1 / 1; align-self: start; justify-self: end; margin: 30px 16px 12px; z-index: 1; }
+/* Match App's 40px title-bar spacer so the document pane cannot shrink that flex item. */
+.studio[data-workspace-view=documents] .studio-workspace-tabs { height: calc(100dvh - 40px); }
 .studio-workspace-content { grid-area: 2 / 1; min-width: 0; min-height: 0; }
 .studio-workspace-content[hidden] { display: none; }
 .studio-workspace-content > .studio-layout { height: 100%; min-height: 0; padding-top: 0; }
@@ -15,7 +19,8 @@
   .studio-workspace-header { padding-inline: 32px; }
   .studio-workspace-tabs > [data-slot=clip-path-tabs-stage] { margin-inline: 32px; }
 }
-.studio-library-panel { height: 100%; }
+.studio :is([data-slot=tool-panel-header], [data-slot=tool-config-header]) { padding-block: 8px; }
+.studio-library-panel { flex: 1; min-height: 0; }
 .studio-library-panel > [data-slot=tool-panel-body] { display: flex; flex: 1; flex-direction: column; overflow: hidden; }
 .studio-library-panel > [data-slot=tool-panel-body] > [data-testid=studio-recovery-manage] { align-self: flex-start; margin: 6px 12px 0; }
 .studio-library-content { --studio-library-inset: 12px; --studio-row-inset: 8px; display: flex; flex: 1; flex-direction: column; min-height: 0; }
@@ -27,7 +32,7 @@
 .studio-library-selection, .studio-library-filter-summary { display: flex; align-items: center; justify-content: space-between; gap: 6px; padding: 0 var(--studio-library-inset) 4px; font-size: 11px; flex-shrink: 0; }
 .studio-library-selection { justify-content: flex-start; gap: 2px; padding-inline: calc(var(--studio-library-inset) + var(--studio-row-inset)); }
 .studio-library-selection label { display: flex; align-items: center; gap: 8px; min-height: 28px; cursor: pointer; }
-.studio-library-selection-scope { margin-left: auto; padding-left: 6px; color: var(--muted-foreground); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.studio-library-selection-scope { display: inline-flex; align-items: center; gap: 5px; margin-left: auto; padding-left: 6px; color: var(--muted-foreground); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .studio-library-selection-notice { display: flex; align-items: flex-start; gap: 6px; margin: 0 var(--studio-library-inset) 6px; padding: 8px; border-radius: 8px; background: var(--muted); font-size: 11px; line-height: 18px; }
 .studio-library-selection-notice > span { flex: 1; }
 .studio-library-items { padding: 4px var(--studio-library-inset) var(--studio-library-inset); }
@@ -66,8 +71,6 @@
 .studio-recovery-path code { overflow-wrap: anywhere; user-select: text; line-height: 1.6; }
 .studio-recovery-confirm { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); font-size: 12px; line-height: 1.6; }
 .studio-recovery-confirm > div { display: flex; justify-content: flex-end; gap: 6px; margin-top: 8px; }
-.studio-operation-results { display: grid; gap: 12px; }
-.studio-operation-results > li { display: grid; gap: 4px; font-size: 12px; border-bottom: 1px solid var(--border); padding-bottom: 10px; }
 /* Reserve the 40px title bar and 64px bottom navigation; the reader owns the remaining height. */
 .studio-layout { display: flex; flex-direction: column; height: calc(100dvh - 40px); min-height: 480px; padding-bottom: 64px; }
 .studio-layout > :first-child { flex-shrink: 0; }
@@ -79,8 +82,8 @@
 .studio-preview-panel > :is([data-slot=tool-panel-header], [data-slot=tool-panel-footer]) { flex-shrink: 0; }
 .studio-preview-panel > [data-slot=tool-panel-body] { display: flex; flex-direction: column; flex: 1; min-height: 0; overflow: auto; }
 .studio-preview-panel > [data-slot=tool-panel-body] > .studio-content-empty { height: 100%; min-height: 0; }
-.studio-library { display: flex; flex-direction: column; height: 100%; min-height: 0; }
-.studio-library > :first-child { flex-shrink: 0; }
+.studio-library { display: flex; flex-direction: column; gap: 12px; height: 100%; min-height: 0; }
+.studio-library > .studio-translation-overview { flex-shrink: 0; }
 .studio-library > [data-slot=tool-panel] { min-height: 0; }
 .studio-library [data-slot=tool-panel-header], .studio-library [data-slot=tool-panel-footer] { flex-shrink: 0; }
 .studio-library [data-slot=tool-panel-body] { min-height: 0; overflow-y: auto; }
@@ -142,7 +145,13 @@
 .studio-raw li:last-child { border-bottom: 0; }
 .studio-raw li > span { padding-right: 12px; font: 10px/16px ui-monospace, monospace; color: var(--muted-foreground); text-align: right; font-variant-numeric: tabular-nums; }
 .studio-raw pre { white-space: pre-wrap; overflow-wrap: anywhere; font: 11px/16px ui-monospace, monospace; user-select: text; }
-.studio-translation-toolbar { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; flex-shrink: 0; padding: 4px 12px; border-bottom: 1px solid var(--border); }
+.studio-translation-toolbar { display: flex; align-items: flex-start; flex-wrap: wrap; gap: 6px 12px; flex-shrink: 0; padding: 6px 12px; border-bottom: 1px solid var(--border); }
+.studio-translation-track-controls { display: flex; align-items: center; gap: 6px; min-width: 0; flex-shrink: 0; }
+.studio-translation-progress-controls { display: flex; align-items: flex-start; justify-content: flex-end; flex-wrap: wrap; flex: 1 1 280px; gap: 4px 8px; min-width: 0; margin-left: auto; }
+.studio-translation-progress-controls:empty { display: none; }
+.studio-translation-progress-controls .studio-translation-status { justify-content: flex-end; font-variant-numeric: tabular-nums; }
+.studio-translation-progress-controls .studio-translation-status > span:first-child { min-height: 32px; }
+.studio-translation-progress-controls .studio-translation-task-controls { flex-shrink: 0; max-width: 100%; }
 .studio-translation-toolbar [data-slot=select-trigger] { height: 28px; min-height: 28px; }
 .studio-parallel-text { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; }
 .studio-target-text { min-width: 0; }
@@ -160,7 +169,7 @@
 .studio-spin { animation: studio-spin 1s linear infinite; }
 @keyframes studio-spin { to { transform: rotate(360deg); } }
 @media (max-width: 1023px) {
-  .studio-translation-toolbar { padding-block: 2px; }
+  .studio-translation-toolbar { padding-block: 6px; }
   .studio-translation-toolbar + .studio-tabs > [data-slot=clip-path-tabs-stage] { margin-block: 6px; }
   .studio-translated-table th:nth-child(2) { width: 170px; }
   .studio-translated-table .studio-time-range { flex-wrap: wrap; gap: 0 4px; }

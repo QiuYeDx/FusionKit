@@ -14,6 +14,7 @@ import type { SpeechResourcesStatus } from '../speech-resources/events';
 export const STUDIO_CHANNELS = {
   register: 'subtitle-studio:internal:register',
   importDroppedSubtitles: 'subtitle-studio:internal:import-dropped-subtitles',
+  dropTranscriptionMedia: 'subtitle-studio:internal:drop-transcription-media',
   listTranslationTasks: 'subtitle-studio:list-translation-tasks',
   getSourceLocation: 'subtitle-studio:get-source-location',
   selectSourceDirectory: 'subtitle-studio:select-source-directory',
@@ -75,6 +76,9 @@ export const transcriptionRequestSchemas = {
 export const droppedSubtitlesRequestSchema = z.object({
   encoding: encodingSchema,
   paths: z.array(z.string().min(1).max(32768).refine(value => !value.includes('\0'))).min(1).max(100),
+}).strict();
+export const droppedTranscriptionMediaRequestSchema = z.object({
+  paths: z.array(z.string().min(1).max(32768).refine(value => !value.includes('\0'))).min(1).max(20),
 }).strict();
 export const requestSchemas = {
   ...transcriptionRequestSchemas,
@@ -140,6 +144,7 @@ export interface SubtitleStudioApi {
   importDroppedSubtitles(files: readonly File[], request: z.infer<typeof requestSchemas.importSubtitles>): Promise<StudioResult<BatchImportResult>>;
   listTranslationTasks(request: z.infer<typeof requestSchemas.listTranslationTasks>): Promise<StudioResult<TranslationTasksSnapshot>>;
   selectTranscriptionMedia(request: z.infer<typeof requestSchemas.selectTranscriptionMedia>): Promise<StudioResult<TranscriptionMediaSelection | null>>;
+  dropTranscriptionMedia(files: readonly File[]): Promise<StudioResult<TranscriptionMediaSelection>>;
   probeTranscriptionMedia(request: z.infer<typeof requestSchemas.probeTranscriptionMedia>): Promise<StudioResult<LocalSubtitleMediaProbeSummary>>;
   revokeTranscriptionMedia(request: z.infer<typeof requestSchemas.revokeTranscriptionMedia>): Promise<StudioResult<{ revoked: boolean }>>;
   inspectTranscriptionRuntime(request: z.infer<typeof requestSchemas.inspectTranscriptionRuntime>): Promise<StudioResult<TranscriptionRuntimeSummary>>;

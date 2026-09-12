@@ -3,10 +3,11 @@ import path from 'node:path';
 import { resolveLocalSubtitleInputPaths } from './transcription/native/windows-explorer-drop-resolver';
 import type { ErrorCode } from '../../../src/subtitle-studio/domain';
 
-export type SubtitleInputSelection = { fileName: string; path: string; error?: never } | { fileName: string; error: ErrorCode; path?: never };
+export type NativeInputSelection = { fileName: string; path: string; error?: never } | { fileName: string; error: ErrorCode; path?: never };
+export type SubtitleInputSelection = NativeInputSelection;
 
 /** Keep file failures separate while resolving a Shell proxy batch as one authority. */
-export async function resolveDroppedSubtitlePaths(paths: readonly string[]): Promise<SubtitleInputSelection[]> {
+export async function resolveDroppedInputPaths(paths: readonly string[]): Promise<NativeInputSelection[]> {
   const selections: SubtitleInputSelection[] = await Promise.all(paths.map(async input => {
     const fileName = path.basename(input).slice(0, 1000) || '—';
     try {
@@ -28,3 +29,5 @@ export async function resolveDroppedSubtitlePaths(paths: readonly string[]): Pro
     return selections.map(item => item.path === undefined ? item : { fileName: item.fileName, error: 'access_denied' });
   }
 }
+
+export const resolveDroppedSubtitlePaths = resolveDroppedInputPaths;

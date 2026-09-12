@@ -4,25 +4,27 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { z } from 'zod';
 import { LIMITS, StudioError } from '../../../src/subtitle-studio/domain';
-import { STUDIO_CHANNELS, requestSchemas, droppedSubtitlesRequestSchema, transcriptionRequestSchemas, summarizeDocument, summarizeTask, type StudioResult } from '../../../src/subtitle-studio/ipc-contract';
+import { STUDIO_CHANNELS, requestSchemas, droppedSubtitlesRequestSchema, droppedTranscriptionMediaRequestSchema, transcriptionRequestSchemas, summarizeDocument, summarizeTask, type StudioResult } from '../../../src/subtitle-studio/ipc-contract';
 import { DocumentRepository } from './document-repository';
 import { readSubtitleWithSource } from './input-service';
-import { resolveDroppedSubtitlePaths, type SubtitleInputSelection } from './drop-input-service';
+import { resolveDroppedInputPaths, resolveDroppedSubtitlePaths, type SubtitleInputSelection } from './drop-input-service';
 import { selectTranslationTasks } from './translation-overview';
 import { SourceLocationService } from './source-location-service';
 import { ExportService, publishSource, unusedOutputPath } from './export-service';
 import { TranslationService } from './translation-service';
+import { createAutomaticTranslationCoordinator } from './automatic-translation';
 import { BilingualService } from './bilingual-service';
 import { BatchService } from './batch-service';
 import { selectLibrary } from './library-service';
 import { STUDIO_BATCH_LIMIT, type BatchImportResult } from '../../../src/subtitle-studio/batch-contract';
 import { createTranscriptionRuntime, type TranscriptionRuntime } from './transcription/runtime';
-import { handleTranscriptionRequest, transcriptionIpcError } from './transcription-ipc';
+import { authorizeTranscriptionMedia, handleTranscriptionRequest, transcriptionIpcError } from './transcription-ipc';
 import type { SpeechResourceService } from '../speech-resources/service';
 
 export function registerSubtitleStudio(sharedResources?: SpeechResourceService) {
   const repository = new DocumentRepository(path.join(app.getPath('userData'), 'subtitle-studio', 'documents'));
   const translation = new TranslationService(repository);
+  const automaticTranslation = createAutomaticTranslationCoordinator({ repository, translation });
   const bilingual = new BilingualService(repository);
   const exports = new ExportService(repository);
   const batches = new BatchService(repository, translation);
@@ -38,7 +40,7 @@ export function registerSubtitleStudio(sharedResources?: SpeechResourceService) 
     if (closed) throw new StudioError('access_denied');
     runtime ??= createTranscriptionRuntime({ userDataRoot: app.getPath('userData'), environment: app.isPackaged
       ? { mode: 'packaged', resourcesPath: process.resourcesPath }
-      : { mode: 'development', appRoot: app.getAppPath() } }, { sharedResources }, repository);
+      : { mode: 'development', appRoot: app.getAppPath() } }, { sharedResources, automaticTranslation }, repository);
     await runtime.initialize();
     if (closed) throw new StudioError('access_denied');
     return runtime;
@@ -115,6 +117,19 @@ export function registerSubtitleStudio(sharedResources?: SpeechResourceService) 
       return { ok: true, value: await importSelections(selections, parsed.data.encoding, owner, alive) };
     } catch (error) { return { ok: false, error: error instanceof StudioError ? error.code : 'document_unavailable' }; }
   });
+  ipcMain.handle(STUDIO_CHANNELS.dropTranscriptionMedia, async (event, input): Promise<StudioResult<unknown>> => {
+    try {
+      const { owner, payload } = ownerFor(event, input);
+      const parsed = droppedTranscriptionMediaRequestSchema.safeParse(payload);
+      if (!parsed.success) throw new StudioError('invalid_input');
+      const alive = () => { if (closed || owners.get(event.sender.id) !== owner || event.sender.isDestroyed() || !trusted(event.sender.mainFrame.url)) throw new StudioError('access_denied'); };
+      const selections = await resolveDroppedInputPaths(parsed.data.paths); alive();
+      const current = await ensureRuntime(); alive();
+      const value = await authorizeTranscriptionMedia(selections, current, { webContentsId: event.sender.id, ownerSessionId: owner.capability }, alive);
+      alive();
+      return { ok: true, value };
+    } catch (error) { return { ok: false, error: transcriptionIpcError(error) }; }
+  });
   for (const method of Object.keys(requestSchemas) as (keyof typeof requestSchemas)[]) {
     ipcMain.handle(STUDIO_CHANNELS[method], async (event, input): Promise<StudioResult<unknown>> => {
       try {
@@ -123,6 +138,9 @@ export function registerSubtitleStudio(sharedResources?: SpeechResourceService) 
         if (!parsed.success) throw new StudioError('invalid_input');
         const alive = () => { if (closed || owners.get(event.sender.id) !== owner || event.sender.isDestroyed() || !trusted(event.sender.mainFrame.url)) throw new StudioError('access_denied'); };
         if (Object.hasOwn(transcriptionRequestSchemas, method)) {
+          if (method === 'enqueueTranscription' && requestSchemas.enqueueTranscription.parse(payload).autoTranslation) {
+            await automaticTranslation.initialize(); alive();
+          }
           const current = await ensureRuntime(); alive();
           const value = await handleTranscriptionRequest({ method, payload, sender: event.sender,
             owner: { webContentsId: event.sender.id, ownerSessionId: owner.capability }, runtime: current, alive });
@@ -312,11 +330,16 @@ export function registerSubtitleStudio(sharedResources?: SpeechResourceService) 
     dispose(reason: 'app_quit' | 'update' | 'fatal' = 'app_quit'): Promise<void> {
       if (shutdown) return shutdown;
       closed = true;
+      let automaticCleanup: Promise<void> | undefined;
       // Cache before owner cancellation can dispatch synchronous abort listeners.
       shutdown = Promise.resolve().then(async () => {
         const failures = retirementFailures; retirementFailures = [];
         const results = await Promise.allSettled([
-          Promise.resolve().then(() => translation.dispose()),
+          Promise.resolve().then(async () => {
+            // Stop and join admissions before interrupting the translation runs they created.
+            try { await automaticCleanup; } catch (error) { failures.push(error); }
+            await translation.dispose();
+          }),
           Promise.resolve().then(() => runtime?.shutdown(reason)),
           ...retirements,
         ]);
@@ -324,9 +347,10 @@ export function registerSubtitleStudio(sharedResources?: SpeechResourceService) 
         retirementFailures = [];
         if (failures.length) throw new AggregateError(failures, 'Subtitle Studio cleanup failed.');
       }).catch(error => { shutdown = undefined; throw error; });
+      try { automaticCleanup = automaticTranslation.shutdown(); } catch (error) { retirementFailures.push(error); }
       for (const id of owners.keys()) forgetOwner(id);
       for (const cleanup of [() => exports.dispose(), () => batches.dispose(), unsubscribe,
-        () => allowed.clear(), () => ipcMain.removeAllListeners(STUDIO_CHANNELS.register), () => ipcMain.removeHandler(STUDIO_CHANNELS.importDroppedSubtitles),
+        () => allowed.clear(), () => ipcMain.removeAllListeners(STUDIO_CHANNELS.register), () => ipcMain.removeHandler(STUDIO_CHANNELS.importDroppedSubtitles), () => ipcMain.removeHandler(STUDIO_CHANNELS.dropTranscriptionMedia),
         ...(Object.keys(requestSchemas) as (keyof typeof requestSchemas)[]).map(method => () => ipcMain.removeHandler(STUDIO_CHANNELS[method]))]) {
         try { cleanup(); } catch (error) { retirementFailures.push(error); }
       }

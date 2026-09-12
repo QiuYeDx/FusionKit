@@ -184,6 +184,8 @@
       "opaque_omitted": "{{count}} 件の本文以外または不透明な構造を省略します。元ファイルは保持されます。",
       "encoding_not_supported": "VTT と新しく生成する ASS には UTF-8 が必要です。"
     },
+    "source_attention": "{{count}} 件の元のフォルダーを使用できません。下の文書一覧を開いて再指定するか、別の保存先を選んでください。",
+    "no_translation_fallback": "訳文がない文書は原文で書き出します。",
     "destination": "保存先",
     "destination_source": "元ファイルのフォルダー",
     "destination_choose": "別の場所を選択",
@@ -206,7 +208,40 @@
     "file_name_preview": "出力ファイル名：{{name}}",
     "save_to_source": "元フォルダーに保存",
     "save_original": "元ファイルを保存…",
-    "source_recheck": "元の場所が更新されました。書き出しを再確認してください。"
+    "source_recheck": "元の場所が更新されました。書き出しを再確認してください。",
+    "review_title": "書き出しの確認",
+    "review_description": "確認が完了しました。出力設定と以下の変更内容を確認してからファイルを書き込みます。",
+    "review_output": "出力設定",
+    "review_changes": "確認結果",
+    "review_back": "設定に戻る",
+    "review_confirm": "確認して {{count}} 件を書き出す",
+    "review_accept": "「確認して書き出す」を押すと、上記の形式変更に同意します。",
+    "review_not_ready": "準備ができていない文書は書き出しません。設定に戻って修正できます。",
+    "review_details": "ファイルの詳細",
+    "change_types": {
+      "track_missing": "訳文トラックなし",
+      "translation_missing": "訳文なし",
+      "translation_stale": "古い訳文",
+      "missing_end": "終了時刻なし",
+      "estimated_end": "終了時刻の推定",
+      "end_times_omitted": "終了時刻の省略",
+      "invalid_time": "無効な時刻",
+      "styles_removed": "スタイルの除去",
+      "line_breaks_flattened": "改行の結合",
+      "metadata_omitted": "メタデータの省略",
+      "transcription_evidence_omitted": "文字起こし情報の省略",
+      "unsupported_text": "非対応の本文",
+      "empty_output": "出力可能な内容なし",
+      "encoding_unrepresentable": "文字コードで表現不可",
+      "skipped_cues": "字幕のスキップ",
+      "source_fallback": "原文の使用",
+      "timing_precision_changed": "時刻精度の変更",
+      "positioning_omitted": "配置の省略",
+      "effects_omitted": "効果の省略",
+      "opaque_omitted": "本文以外の構造の省略",
+      "encoding_not_supported": "非対応の文字コード"
+    },
+    "result_title": "書き出し結果"
   },
   "errors": {
     "invalid_input": "字幕の構造が無効です。",
@@ -291,7 +326,12 @@
     "no_cancel_task": "キャンセルできる翻訳タスクはありません",
     "no_resume_task": "再開できる翻訳タスクはありません",
     "drop_hint": "離して字幕を読み込む",
-    "drop_busy": "処理中です。しばらくしてからドロップしてください。"
+    "drop_busy": "処理中です。しばらくしてからドロップしてください。",
+    "resume_requested_count": "{{count}} 件の翻訳再開を要求しました",
+    "resume_requested": "翻訳再開を要求しました",
+    "cancel_requested_count": "{{count}} 件のキャンセルを要求しました",
+    "cancel_requested": "キャンセルを要求しました",
+    "selecting": "ドキュメントを選択中…"
   },
   "recovery": {
     "title": "復元できないドキュメントの管理",
@@ -335,6 +375,16 @@
   "workspace_documents": "文書",
   "workspace_transcription": "文字起こし",
   "transcription": {
+    "auto_translation": "文字起こし後に自動翻訳",
+    "auto_translation_hint": "今回の操作で作成できた字幕を翻訳します。ページを離れた後も続行します。",
+    "auto_translation_model": "翻訳モデル",
+    "auto_translation_language": "翻訳先の言語",
+    "auto_translation_configuration": "設定済みの翻訳モデルと翻訳先の言語を選んでください。",
+    "auto_translation_pending": "文字起こし後に翻訳タスクを作成します",
+    "auto_translation_admitted": "自動翻訳に引き継ぎました。文書で進捗を確認できます",
+    "auto_translation_recovery": "字幕は保存済みです。文書で自動翻訳を再開してください",
+    "media_drop_hint": "ドロップして音声・動画を追加",
+    "media_drop_busy": "ファイルの選択または送信が完了するまでお待ちください",
     "configuration": "文字起こし設定",
     "settings": "設定",
     "media": "メディア",
@@ -453,7 +503,10 @@
     "confirm_cancel_all": "キャンセルを確定",
     "cancel_all_confirmation": "現在の未完了タスク {{count}} 件をキャンセルしますか？停止要求を送信し、実際に停止するまでタスクを保持します。後から追加したタスクと既存の字幕文書には影響しません。",
     "clear_result": "{{count}} 件を削除、{{failed}} 件が失敗、{{skipped}} 件は処理中です。既存の字幕文書には影響しません。",
-    "cancel_result": "{{count}} 件に停止を要求、{{failed}} 件が失敗、{{skipped}} 件は状態が変わりました。実際に停止した後に終了状態になります。"
+    "cancel_result": "{{count}} 件に停止を要求、{{failed}} 件が失敗、{{skipped}} 件は状態が変わりました。実際に停止した後に終了状態になります。",
+    "auto_translation_pending_short": "自動翻訳",
+    "auto_translation_admitted_short": "翻訳へ引き継ぎ済み",
+    "auto_translation_recovery_short": "翻訳の再開が必要"
   },
   "overview": {
     "title": "翻訳タスク",
@@ -471,5 +524,26 @@
     "open_document": "文書を開く",
     "can_resume": "文書で確認して再開できます",
     "view_progress": "翻訳の進捗を表示"
+  },
+  "copy_options": {
+    "choose": "コピーする内容を選択",
+    "source": "原文をコピー",
+    "target": "訳文をコピー",
+    "bilingual": "原文と訳文をコピー",
+    "with_time": "時刻付きでコピー",
+    "start_only": "終了時刻は不明のため、開始時刻のみ含めます。",
+    "stale": "この訳文は更新前のものです。ここに表示された訳文をコピーします。",
+    "no_translation": "この字幕にはまだ訳文がありません。"
+  },
+  "operation_result": {
+    "success": "{{count}} 件成功",
+    "failed": "{{count}} 件失敗",
+    "skipped": "{{count}} 件スキップ",
+    "success_details": "成功した項目を表示",
+    "failure_details": "失敗した項目を表示",
+    "skipped_details": "スキップした項目を表示",
+    "details": "ファイルの詳細を表示",
+    "queued": "{{count}} 件の翻訳タスクを送信しました",
+    "empty": "処理対象の項目はありません"
   }
 }

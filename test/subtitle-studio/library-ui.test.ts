@@ -12,6 +12,7 @@ import type { DocumentPage, DocumentSummary } from '../../src/subtitle-studio/ip
 // The root task owns the real development server. This test owns only its
 // isolated Electron profile and loopback model fixture.
 const devUrl = process.env.FUSIONKIT_STUDIO_DEV_URL;
+const packaged = process.env.FUSIONKIT_STUDIO_PACKAGED_UI === '1';
 const artifacts = path.resolve('test-results/studio-library');
 type ModelRequest = { messages: { content: string }[]; model: string };
 
@@ -32,6 +33,13 @@ async function listDocuments(page: Page): Promise<DocumentSummary[]> {
       if (offset >= result.value.total || result.value.documents.length === 0) return documents;
     }
   });
+}
+
+async function expandOperationResult(page: Page, testId = 'studio-library-result') {
+  const result = page.getByTestId(testId);
+  await uiExpect(result).toBeVisible();
+  await uiExpect(result.locator('li')).toHaveCount(0);
+  for (const disclosure of await result.locator('details > summary').all()) await disclosure.click();
 }
 
 async function documentPage(page: Page, id: string): Promise<DocumentPage> {
@@ -117,7 +125,7 @@ function respond(response: ServerResponse, body: ModelRequest) {
   } }], usage: { prompt_tokens: 120, completion_tokens: 60, total_tokens: 180 } }));
 }
 
-it.runIf(Boolean(devUrl))('manages a paginated subtitle library and batch work through the real development renderer', async () => {
+it.runIf(Boolean(devUrl) || packaged)('manages a paginated subtitle library and batch work through the real renderer', async () => {
   const messages = JSON.parse(await readFile(path.resolve('src/locales/zh/studio.json'), 'utf8')) as Record<string, unknown>;
   const label = (key: string) => {
     const value = key.split('.').reduce<unknown>((value, segment) => (value as Record<string, unknown>)[segment], messages);
@@ -171,7 +179,7 @@ it.runIf(Boolean(devUrl))('manages a paginated subtitle library and batch work t
     const port = (server.address() as { port: number }).port;
     const launch = async (configure = false) => {
       application = await electron.launch({ args: ['.', `--user-data-dir=${profile}`], cwd: process.cwd(),
-        env: { ...process.env, VITE_DEV_SERVER_URL: devUrl!, NODE_ENV: 'development' }, timeout: 60000 });
+        env: { ...process.env, VITE_DEV_SERVER_URL: packaged ? '' : devUrl!, NODE_ENV: packaged ? 'test' : 'development' }, timeout: 60000 });
       const page = await application.firstWindow();
       page.on('pageerror', error => errors.push(error.message));
       await page.evaluate(({ port, configure }) => {
@@ -189,7 +197,8 @@ it.runIf(Boolean(devUrl))('manages a paginated subtitle library and batch work t
       if (configure) await page.reload();
       await ready(page);
       await application.evaluate(({ BrowserWindow }) => { BrowserWindow.getAllWindows()[0].setSize(1280, 860); });
-      expect(new URL(page.url()).origin).toBe(new URL(devUrl!).origin);
+      if (packaged) expect(new URL(page.url()).protocol).toBe('file:');
+      else expect(new URL(page.url()).origin).toBe(new URL(devUrl!).origin);
       return page;
     };
     let page = await launch(true);
@@ -210,14 +219,14 @@ it.runIf(Boolean(devUrl))('manages a paginated subtitle library and batch work t
     });
     await page.locator('aside').getByTestId('studio-recovery-manage').click();
     await uiExpect(page.getByTestId('studio-recovery-dialog')).toContainText(broken);
-    await page.locator('.studio-recovery-item-heading').getByRole('button').first().click();
+    await page.locator('.studio-recovery-content .studio-document-row-actions').getByRole('button').first().click();
     expect(await application!.evaluate(() => (globalThis as typeof globalThis & { studioRevealed?: string[] }).studioRevealed)).toEqual([broken]);
     await capture(page, 'recovery-management-desktop');
     await page.getByRole('button', { name: '清除残留文档', exact: true }).click();
     await uiExpect(page.getByRole('button', { name: '确认清除', exact: true })).toBeVisible();
     expect(await readFile(path.join(broken, 'current.json'), 'utf8')).toBe(pointer);
     await page.getByRole('button', { name: '确认清除', exact: true }).click();
-    await uiExpect(page.locator('.studio-recovery-item')).toHaveCount(0);
+    await uiExpect(page.locator('.studio-recovery-content .studio-document-row')).toHaveCount(0);
     await uiExpect.poll(async () => readdir(broken).then(() => true).catch(() => false)).toBe(false);
     await page.locator('#studio-recovery-close').click();
 
@@ -227,9 +236,9 @@ it.runIf(Boolean(devUrl))('manages a paginated subtitle library and batch work t
     await page.getByRole('button', { name: '打开字幕文件', exact: true }).click();
     expect(await listDocuments(page)).toHaveLength(0);
     await application!.evaluate(({ dialog }, files) => {
-      dialog.showOpenDialog = async (...args) => {
-        const options = args.at(-1) as { properties?: string[] };
-        (globalThis as typeof globalThis & { studioPickerProperties?: string[] }).studioPickerProperties = options.properties;
+      dialog.showOpenDialog = async (first: Electron.BrowserWindow | Electron.OpenDialogOptions, second?: Electron.OpenDialogOptions) => {
+        const options = second ?? ('webContents' in first ? undefined : first);
+        (globalThis as typeof globalThis & { studioPickerProperties?: string[] }).studioPickerProperties = options?.properties;
         return { canceled: false, filePaths: files };
       };
     }, chosen);
@@ -237,6 +246,7 @@ it.runIf(Boolean(devUrl))('manages a paginated subtitle library and batch work t
     await uiExpect.poll(async () => (await listDocuments(page)).length, { timeout: 30000 }).toBe(41);
     await uiExpect(page.getByTestId('studio-library-row')).toHaveCount(20);
     expect(await application!.evaluate(() => (globalThis as typeof globalThis & { studioPickerProperties?: string[] }).studioPickerProperties)).toContain('multiSelections');
+    await expandOperationResult(page);
     await uiExpect(page.getByTestId('studio-library-result')).toContainText('无效字幕.srt');
     await uiExpect(page.getByTestId('studio-library-result').locator('li')).toHaveCount(42);
     await page.getByRole('dialog', { name: label('library.import_result'), exact: true }).getByRole('button', { name: label('recovery.close'), exact: true }).click();
@@ -375,6 +385,7 @@ it.runIf(Boolean(devUrl))('manages a paginated subtitle library and batch work t
     expect(requests).toHaveLength(0);
     await capture(page, 'batch-translation-plan-desktop');
     await translation.getByRole('button', { name: label('batch.start_ready').replace('{{count}}', '2'), exact: true }).click();
+    await expandOperationResult(page, 'studio-batch-result');
     await uiExpect(translation.getByTestId('studio-batch-result').locator('[data-state="success"]')).toHaveCount(2);
     await translation.getByRole('button', { name: label('batch.close'), exact: true }).click();
     await uiExpect.poll(async () => (await listDocuments(page)).filter(document => document.id === firstId || document.id === secondId).map(document => document.task?.status), { timeout: 30000 }).toEqual(['completed', 'completed']);
@@ -408,33 +419,40 @@ it.runIf(Boolean(devUrl))('manages a paginated subtitle library and batch work t
 
     await page.getByTestId('studio-batch-toolbar').getByRole('button', { name: label('batch.download'), exact: true }).click();
     await page.getByTestId('studio-download-menu').getByRole('menuitem', { name: label('batch.export'), exact: true }).click();
-    const exporting = page.getByRole('dialog', { name: label('batch.export'), exact: true });
+    const exporting = page.getByRole('dialog');
+    await uiExpect(exporting).toHaveAccessibleName(label('batch.export'));
+    await exporting.getByRole('combobox', { name: '保存位置', exact: true }).click();
+    await page.getByRole('option', { name: '选择其他位置', exact: true }).click();
     await exporting.getByRole('combobox', { name: '导出内容', exact: true }).click();
     await page.getByRole('option', { name: '仅译文', exact: true }).click();
     await exporting.getByRole('combobox', { name: '字幕格式', exact: true }).click();
     await page.getByRole('option', { name: 'SRT', exact: true }).click();
     await exporting.getByRole('button', { name: '检查导出', exact: true }).click();
-    await uiExpect(exporting.getByTestId('studio-batch-plan').locator('[data-state="ready"]')).toHaveCount(2);
-    const acceptLosses = exporting.getByRole('checkbox', { name: '接受以上格式变化', exact: true });
-    if (await acceptLosses.count()) await acceptLosses.check();
-    const save = exporting.getByRole('button', { name: label('batch.export_ready').replace('{{count}}', '2'), exact: true });
+    await uiExpect(exporting).toHaveAccessibleName('确认导出');
+    const reviewDetails = exporting.getByTestId('studio-export-review-details');
+    await uiExpect(reviewDetails.locator('.studio-document-row')).toHaveCount(0);
+    await reviewDetails.locator('summary').click();
+    await uiExpect(reviewDetails.locator('.studio-document-row[data-state="ready"]')).toHaveCount(2);
+    const save = exporting.getByRole('button', { name: '确认并导出 2 份', exact: true });
     await application!.evaluate(({ dialog }) => { dialog.showOpenDialog = async () => ({ canceled: true, filePaths: [] }); });
     await save.click();
     await uiExpect(save).toBeEnabled();
     expect(await readdir(outputs)).toHaveLength(0);
-    const proposed = (await exporting.getByTestId('studio-batch-plan').locator('.studio-export-note').first().textContent())!.split(' · ')[0];
+    const proposed = (await reviewDetails.locator('.studio-export-note').first().textContent())!.split(' · ')[0];
     expect(proposed).toMatch(/\.srt$/);
     const collision = path.join(outputs, proposed);
     await writeFile(collision, 'Existing output must survive.');
     await application!.evaluate(({ dialog }, directory) => {
-      dialog.showOpenDialog = async (...args) => {
-        const options = args.at(-1) as { properties?: string[] };
-        (globalThis as typeof globalThis & { studioDirectoryProperties?: string[] }).studioDirectoryProperties = options.properties;
+      dialog.showOpenDialog = async (first: Electron.BrowserWindow | Electron.OpenDialogOptions, second?: Electron.OpenDialogOptions) => {
+        const options = second ?? ('webContents' in first ? undefined : first);
+        (globalThis as typeof globalThis & { studioDirectoryProperties?: string[] }).studioDirectoryProperties = options?.properties;
         return { canceled: false, filePaths: [directory] };
       };
     }, outputs);
     await capture(page, 'batch-export-plan-desktop');
     await save.click();
+    await uiExpect(exporting).toHaveAccessibleName('导出结果');
+    await expandOperationResult(page, 'studio-batch-result');
     await uiExpect(exporting.getByTestId('studio-batch-result').locator('[data-state="success"]')).toHaveCount(2);
     await application!.evaluate(({ BrowserWindow }) => { BrowserWindow.getAllWindows()[0].setSize(786, 540); });
     await uiExpect(exporting.getByTestId('studio-batch-result').locator('[data-state="success"]')).toHaveCount(2);
@@ -456,6 +474,7 @@ it.runIf(Boolean(devUrl))('manages a paginated subtitle library and batch work t
     const removing = page.getByRole('dialog', { name: label('library.delete_selected'), exact: true });
     expect(await listDocuments(page)).toHaveLength(41);
     await removing.getByRole('button', { name: label('library.confirm_delete'), exact: true }).click();
+    await expandOperationResult(page);
     await uiExpect(page.getByTestId('studio-library-result').locator('li')).toHaveCount(2);
     await page.getByRole('dialog', { name: label('library.delete_result'), exact: true }).getByRole('button', { name: label('recovery.close'), exact: true }).click();
     expect(await listDocuments(page)).toHaveLength(39);
@@ -487,6 +506,7 @@ it.runIf(Boolean(devUrl))('manages a paginated subtitle library and batch work t
       await dialog.getByRole('button', { name: '计算用量', exact: true }).click();
       await uiExpect(dialog.getByTestId('studio-batch-plan').locator('[data-state="ready"]')).toHaveCount(2);
       await dialog.getByRole('button', { name: label('batch.start_ready').replace('{{count}}', '2'), exact: true }).click();
+      await expandOperationResult(page, 'studio-batch-result');
       await uiExpect(dialog.getByTestId('studio-batch-result').locator('[data-state="success"]')).toHaveCount(2);
       await dialog.getByRole('button', { name: label('batch.close'), exact: true }).click();
     };
@@ -531,6 +551,7 @@ it.runIf(Boolean(devUrl))('manages a paginated subtitle library and batch work t
     expect(requests).toHaveLength(requestCountAtRestart);
     await capture(page, 'batch-resume-confirmation');
     await resuming.getByRole('button', { name: label('library.confirm_resume'), exact: true }).click();
+    await expandOperationResult(page);
     await uiExpect(page.getByTestId('studio-library-result').locator('li')).toHaveCount(2);
     await page.getByRole('dialog', { name: label('library.resume_result'), exact: true }).getByRole('button', { name: label('recovery.close'), exact: true }).click();
     await uiExpect.poll(async () => (await listDocuments(page)).filter(document => resumeIds.includes(document.id)).map(document => document.task?.status), { timeout: 30000 }).toEqual(['completed', 'completed']);
@@ -551,6 +572,7 @@ it.runIf(Boolean(devUrl))('manages a paginated subtitle library and batch work t
     await startBatch();
     await uiExpect.poll(() => requests.length, { timeout: 15000 }).toBeGreaterThan(beforeCancelRequests);
     await batchAction('library.cancel_selected');
+    await expandOperationResult(page);
     await uiExpect(page.getByTestId('studio-library-result').locator('li')).toHaveCount(2);
     await page.getByRole('dialog', { name: label('library.cancel_result'), exact: true }).getByRole('button', { name: label('recovery.close'), exact: true }).click();
     await uiExpect.poll(async () => (await listDocuments(page)).filter(document => cancelIds.includes(document.id)).map(document => document.task?.status)).toEqual(['cancelled', 'cancelled']);

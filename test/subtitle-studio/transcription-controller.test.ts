@@ -5,6 +5,7 @@ import type { LocalSubtitleAuthorizedMedia, LocalSubtitleMediaProbeSummary } fro
 import type { TranscriptionTaskSummary } from '../../src/subtitle-studio/transcription/task-contract';
 import { LOCAL_SUBTITLE_PRODUCTION_CONTRACT } from '../../src/subtitle-studio/transcription/domain';
 import { DEFAULT_LOCAL_SUBTITLE_TRANSCRIBER_PREFERENCES, DEFAULT_LOCAL_SUBTITLE_TRANSCRIBER_DRAFT_PREFERENCES } from '../../src/subtitle-studio/transcription/config';
+import { DEFAULT_TRANSCRIPTION_PREFERENCES } from '../../src/subtitle-studio/transcription/preferences-contract';
 
 const controllers: StudioTranscriptionController[] = [];
 const ok = <T>(value: T): StudioResult<T> => ({ ok: true, value });
@@ -37,9 +38,10 @@ function resources(): TranscriptionResources {
       isDefault: false, compatibleBackends: ['cuda'] },
   ], jobs: [] };
 }
-function fixture(sharedResources?: import('../../src/speech-resources/events').SpeechResourcesNotifications) {
+function fixture(sharedResources?: import('../../src/speech-resources/events').SpeechResourcesNotifications, options: import('../../src/services/subtitle-studio/transcription-controller').StudioTranscriptionControllerOptions = {}) {
   const api = {
     selectTranscriptionMedia: vi.fn<SubtitleStudioApi['selectTranscriptionMedia']>().mockResolvedValue(ok(null)),
+    dropTranscriptionMedia: vi.fn<SubtitleStudioApi['dropTranscriptionMedia']>().mockResolvedValue(ok({ items: [] })),
     probeTranscriptionMedia: vi.fn<SubtitleStudioApi['probeTranscriptionMedia']>().mockResolvedValue(ok(probe())),
     revokeTranscriptionMedia: vi.fn<SubtitleStudioApi['revokeTranscriptionMedia']>().mockResolvedValue(ok({ revoked: true })),
     inspectTranscriptionRuntime: vi.fn<SubtitleStudioApi['inspectTranscriptionRuntime']>().mockResolvedValue(ok({ status: 'verified', runtimeGeneration: 'a'.repeat(64), target: { platform: 'win32', arch: 'x64' } })),
@@ -54,11 +56,52 @@ function fixture(sharedResources?: import('../../src/speech-resources/events').S
       status: 'queued', progress: 0, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() })),
     cancelTranscriptionResourceJob: vi.fn<SubtitleStudioApi['cancelTranscriptionResourceJob']>().mockResolvedValue(ok({ cancelled: true })),
   };
-  const controller = createStudioTranscriptionController({ getApi: () => api, sharedResources, cleanupRetryDelaysMs: [100, 200], cleanupAttemptTimeoutMs: 500 });
+  const controller = createStudioTranscriptionController({ getApi: () => api, sharedResources, cleanupRetryDelaysMs: [100, 200], cleanupAttemptTimeoutMs: 500, ...options });
   controllers.push(controller);
   const choose = async (...inputs: LocalSubtitleAuthorizedMedia[]) => { api.selectTranscriptionMedia.mockResolvedValueOnce(ok(selected(...inputs))); await controller.selectMedia(); };
   return { controller, api, choose };
 }
+
+it('captures native dropped Files synchronously before initialization and shares selection ownership', async () => {
+  const f = fixture(), pending = deferred<StudioResult<TranscriptionMediaSelection>>();
+  f.api.dropTranscriptionMedia.mockReturnValueOnce(pending.promise);
+  const files = [{ name: 'native.wav' }] as File[];
+  const dropped = f.controller.dropMedia(files);
+  expect(f.api.dropTranscriptionMedia).toHaveBeenCalledWith(files);
+  expect(f.api.listTranscriptionTasks).not.toHaveBeenCalled();
+  expect(f.controller.selectMedia()).toBe(dropped); expect(f.api.selectTranscriptionMedia).not.toHaveBeenCalled();
+  pending.resolve(ok(selected(media()))); await dropped;
+  expect(f.controller.getState().drafts[0].status).toBe('ready');
+  await f.controller.dropMedia(Array.from({ length: 21 }, () => files[0]));
+  expect(f.api.dropTranscriptionMedia).toHaveBeenCalledOnce(); expect(f.controller.getState().error).toBe('limit_exceeded');
+});
+it('hydrates transcription config before the first snapshot and saves no transient authority', async () => {
+  const saved = structuredClone(DEFAULT_TRANSCRIPTION_PREFERENCES); saved.config.language = 'ja'; saved.config.advanced.beamSize = 8;
+  const write = vi.fn(); const f = fixture(undefined, { preferences: { read: () => saved, write } });
+  expect(f.controller.getState().config).toEqual(saved.config);
+  await f.choose(media()); f.controller.setConfig({ ...saved.config, language: 'en' });
+  expect(write).toHaveBeenLastCalledWith({ ...saved, config: { ...saved.config, language: 'en' } });
+  expect(JSON.stringify(write.mock.calls)).not.toContain('ls-input');
+  expect(JSON.stringify(write.mock.calls)).not.toContain('drafts');
+});
+it('omits default-off automatic translation and freezes enabled model configuration and credentials at submission', async () => {
+  const automatic = { config: { model: { profileId: 'p', modelKey: 'deepseek-chat', endpoint: 'https://example.invalid/v1', apiFormat: 'chat_completions' as const, thinkingEnabled: true }, language: 'ja', instructions: '', contextWindow: 8192, maxOutputTokens: 1024, maxBatchCues: 32 }, apiKey: 'first-key' };
+  const resolver = vi.fn(() => automatic);
+  const f = fixture(undefined, { resolveAutomaticTranslation: resolver }); await f.choose(media());
+  await f.controller.enqueue(); expect(f.api.enqueueTranscription.mock.calls[0][0]).not.toHaveProperty('autoTranslation'); expect(resolver).not.toHaveBeenCalled();
+  await f.choose(media('2')); f.controller.setAutoTranslation({ ...DEFAULT_TRANSCRIPTION_PREFERENCES.autoTranslation, enabled: true, profileId: 'p' });
+  const pending = f.controller.enqueue(); automatic.apiKey = 'changed-key'; automatic.config.language = 'en'; await pending;
+  expect(f.api.enqueueTranscription.mock.calls[1][0].autoTranslation).toMatchObject({ apiKey: 'first-key', config: { language: 'ja', model: { thinkingEnabled: true } } });
+  expect(JSON.stringify(f.controller.getState())).not.toContain('first-key');
+});
+it('blocks missing automatic configuration before enqueue and allows disabling it without losing drafts', async () => {
+  const f = fixture(undefined, { resolveAutomaticTranslation: () => null }); await f.choose(media());
+  f.controller.setAutoTranslation({ ...DEFAULT_TRANSCRIPTION_PREFERENCES.autoTranslation, enabled: true });
+  expect(getTranscriptionReadiness(f.controller.getState()).reason).toBe('automatic_translation_not_ready');
+  expect(await f.controller.enqueue()).toBeNull(); expect(f.api.enqueueTranscription).not.toHaveBeenCalled();
+  f.controller.setAutoTranslation({ ...f.controller.getState().autoTranslation, enabled: false });
+  expect(f.controller.getState().drafts).toHaveLength(1); expect(getTranscriptionReadiness(f.controller.getState()).canEnqueue).toBe(true);
+});
 
 it('keeps shared invalidation during a pending read and refreshes off-route without runtime probes', async () => {
   let changed!: (event: { revision: number }) => void;

@@ -113,6 +113,9 @@ function TranslationTaskControls({ page, busy, onChanged, onError, task }: Props
     } finally { operation.current = false; if (mounted.current) setActivity(null); }
   };
 
+  const hasNote = (stopped && !progress.checkpoint) || (waiting && (running || recoverable)) || task.status === 'cancelled';
+  if (!hasNote && !recoverable && !canCancel) return null;
+
   return <div className="studio-translation-task-controls">
     {stopped && !progress.checkpoint && <span className="studio-translation-task-note">{t('studio:translation.legacy_restart')}</span>}
     {waiting && (running || recoverable) && <span className="studio-translation-task-note"><Clock3 className="size-3.5" />{t('studio:translation.provider_wait', { seconds: seconds.toLocaleString(i18n.language) })}</span>}

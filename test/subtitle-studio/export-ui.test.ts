@@ -76,7 +76,7 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_E2E === '1')('Subtitle Studio local 
       }], assignment: { taskExecution: 'studio-export-unused-model', agent: null }, audioProfiles: [], audioAssignment: {} } }));
     }, port);
     await page.reload(); await openStudio(page);
-    let window = await app!.browserWindow(page); await window.evaluate(win => win.setSize(1280, 860));
+    let nativeWindow = await app!.browserWindow(page); await nativeWindow.evaluate(win => win.setSize(1280, 860));
     await app!.evaluate(({ dialog }, file) => { dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [file] }); }, input);
     await page.getByRole('button', { name: '打开字幕文件', exact: true }).click();
     const bilingualDialog = page.getByRole('dialog', { name: '整理双语字幕', exact: true });
@@ -89,14 +89,19 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_E2E === '1')('Subtitle Studio local 
     expect(organized.cues.map(cue => cue.source.plain)).toEqual(sourceLines);
     expect(organized.translationTracks).toHaveLength(1);
 
-    const exportDialog = () => page.getByRole('dialog', { name: '导出字幕', exact: true });
+    const exportDialog = () => page.getByRole('dialog');
     const openExport = async () => {
       await page.getByRole('button', { name: '下载', exact: true }).click();
       await page.getByRole('menuitem', { name: '导出字幕', exact: true }).click();
       await uiExpect(exportDialog()).toBeVisible();
       await uiExpect(exportDialog().getByRole('combobox', { name: '导出内容', exact: true })).toBeFocused();
+      // These projection cases explicitly exercise blocking and a chosen output path; I5 covers the new defaults.
+      await select('保存位置', '选择其他位置');
+      await select('缺失或过期的译文', '阻止导出，等待译文完整');
+      await select('导出内容', '仅原文');
     };
     const select = async (name: string, value: string) => {
+      if (await exportDialog().locator('[data-step="review"]').count()) await exportDialog().getByRole('button', { name: '返回设置', exact: true }).click();
       await exportDialog().getByRole('combobox', { name, exact: true }).click();
       await page.getByRole('option', { name: value, exact: true }).click();
     };
@@ -105,13 +110,15 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_E2E === '1')('Subtitle Studio local 
       await uiExpect(page.locator('.studio-export-plan')).toBeVisible();
     };
     const acceptLosses = async () => {
-      const checkbox = exportDialog().getByRole('checkbox', { name: '接受以上格式变化', exact: true });
-      if (await checkbox.count()) await checkbox.check();
+      await uiExpect(exportDialog().getByRole('checkbox')).toHaveCount(0);
+      await uiExpect(exportDialog().getByRole('button', { name: '确认并导出 1 份', exact: true })).toBeEnabled();
     };
     const saveFile = async (name: string) => {
       const file = path.join(root, name);
       await app!.evaluate(({ dialog }, file) => { dialog.showSaveDialog = async () => ({ canceled: false, filePath: file }); }, file);
-      await exportDialog().getByRole('button', { name: '保存字幕…', exact: true }).click();
+      await exportDialog().getByRole('button', { name: '确认并导出 1 份', exact: true }).click();
+      await uiExpect(page.getByTestId('studio-export-result')).toContainText('成功 1 份');
+      await exportDialog().getByRole('button', { name: '关闭', exact: true }).click();
       await uiExpect(exportDialog()).toHaveCount(0);
       return file;
     };
@@ -119,7 +126,11 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_E2E === '1')('Subtitle Studio local 
     await app!.evaluate(({ dialog }, file) => { dialog.showSaveDialog = async () => ({ canceled: false, filePath: file }); }, originalDownload);
     await page.getByRole('button', { name: '下载', exact: true }).click();
     await page.getByRole('menuitem', { name: '下载原文件', exact: true }).click();
+    await page.getByRole('dialog').getByRole('combobox', { name: '保存位置', exact: true }).click();
+    await page.getByRole('option', { name: '选择其他位置', exact: true }).click();
+    await page.getByRole('dialog').getByRole('button', { name: '保存原始文件…', exact: true }).click();
     await uiExpect.poll(async () => readFile(originalDownload, 'utf8').catch(() => '')).toBe(original);
+    await exportDialog().getByRole('button', { name: '关闭', exact: true }).click();
 
     await openExport();
     await page.keyboard.press('Escape');
@@ -128,8 +139,9 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_E2E === '1')('Subtitle Studio local 
     await openExport();
     await check();
     await uiExpect(page.locator('[data-issue="metadata_omitted"]')).toBeVisible();
-    await uiExpect(exportDialog().getByRole('button', { name: '保存字幕…', exact: true })).toBeDisabled();
+    await uiExpect(exportDialog().getByRole('button', { name: '确认并导出 1 份', exact: true })).toBeEnabled();
     await acceptLosses();
+    await exportDialog().getByRole('button', { name: '返回设置', exact: true }).click();
     await exportDialog().getByTestId('studio-export-advanced').click();
     await select('文件编码', 'GB18030');
     await uiExpect(page.locator('.studio-export-plan')).toHaveCount(0);
@@ -137,12 +149,12 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_E2E === '1')('Subtitle Studio local 
     await select('文件编码', 'UTF-8');
     await exportDialog().getByTestId('studio-export-advanced').click();
     await check();
-    await uiExpect(exportDialog().getByRole('checkbox', { name: '接受以上格式变化', exact: true })).not.toBeChecked();
+    await uiExpect(exportDialog().getByRole('checkbox', { name: '接受以上格式变化', exact: true })).toHaveCount(0);
     await acceptLosses();
     const selectedRevision = await page.locator('.studio-export-plan').getAttribute('data-revision');
-    await app!.evaluate(({ dialog }) => { dialog.showSaveDialog = async () => ({ canceled: true, filePath: undefined }); });
-    await exportDialog().getByRole('button', { name: '保存字幕…', exact: true }).click();
-    await uiExpect(exportDialog().getByRole('button', { name: '保存字幕…', exact: true })).toBeEnabled();
+    await app!.evaluate(({ dialog }) => { dialog.showSaveDialog = async () => ({ canceled: true, filePath: '' }); });
+    await exportDialog().getByRole('button', { name: '确认并导出 1 份', exact: true }).click();
+    await uiExpect(exportDialog().getByRole('button', { name: '确认并导出 1 份', exact: true })).toBeEnabled();
     await uiExpect(page.locator('.studio-export-plan')).toHaveAttribute('data-revision', selectedRevision!);
     await page.screenshot({ path: path.join(artifacts, 'source-desktop.png'), animations: 'disabled' });
     const sourceLrc = await parsedFile(await saveFile('source.lrc'), 'lrc');
@@ -152,7 +164,7 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_E2E === '1')('Subtitle Studio local 
     // All transformed modes still work after reopening the same document library.
     await app!.close(); app = undefined;
     page = await launch();
-    window = await app!.browserWindow(page); await window.evaluate(win => win.setSize(1280, 860));
+    nativeWindow = await app!.browserWindow(page); await nativeWindow.evaluate(win => win.setSize(1280, 860));
     await uiExpect(page.locator('.studio-cue-table tbody tr')).toHaveCount(4);
     for (const format of ['lrc', 'srt'] as const) {
       for (const mode of ['source', 'target', 'bilingual'] as const) {
@@ -163,8 +175,8 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_E2E === '1')('Subtitle Studio local 
         if (mode !== 'source') {
           await select('缺失或过期的译文', '阻止导出，等待译文完整');
           await check();
-          await uiExpect(page.locator('[data-issue="translation_missing"]')).toContainText('1 条');
-          await uiExpect(exportDialog().getByRole('button', { name: '保存字幕…', exact: true })).toHaveCount(0);
+          await uiExpect(page.locator('[data-issue="translation_missing"]')).toContainText('1');
+          await uiExpect(exportDialog().getByRole('button', { name: '确认并导出 1 份', exact: true })).toHaveCount(0);
           await select('缺失或过期的译文', '仅导出已有有效译文的字幕');
         }
         if (format === 'srt') {
@@ -172,6 +184,7 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_E2E === '1')('Subtitle Studio local 
           await estimate.uncheck();
           await check();
           await uiExpect(page.locator('[data-issue="missing_end"]')).toBeVisible();
+          await exportDialog().getByRole('button', { name: '返回设置', exact: true }).click();
           await estimate.check();
           await exportDialog().getByRole('spinbutton', { name: '最后一组时长（毫秒）', exact: true }).fill('2500');
         }
@@ -192,7 +205,7 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_E2E === '1')('Subtitle Studio local 
 
     await page.evaluate(() => { localStorage.setItem('lang', 'en'); });
     await page.reload(); await openStudio(page);
-    await window.evaluate(win => win.setSize(786, 540));
+    await nativeWindow.evaluate(win => win.setSize(786, 540));
     await page.getByRole('button', { name: 'Download', exact: true }).click();
     await page.getByRole('menuitem', { name: 'Export subtitles', exact: true }).click();
     const englishDialog = page.getByRole('dialog', { name: 'Export subtitles', exact: true });
@@ -203,7 +216,7 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_E2E === '1')('Subtitle Studio local 
     await page.keyboard.press('Escape');
     await page.evaluate(() => { localStorage.setItem('lang', 'zh'); localStorage.setItem('fusionkit-theme', JSON.stringify({ state: { theme: 'dark' }, version: 0 })); });
     await page.reload(); await openStudio(page);
-    await window.evaluate(win => win.setSize(786, 540));
+    await nativeWindow.evaluate(win => win.setSize(786, 540));
     await openExport();
     await select('导出内容', '双语');
     await select('字幕格式', 'srt'.toUpperCase());
@@ -214,12 +227,12 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_E2E === '1')('Subtitle Studio local 
     await select('换行方式', 'CRLF');
     await exportDialog().getByRole('checkbox', { name: '添加 Unicode BOM', exact: true }).check();
     await check();
-    await uiExpect(page.locator('[data-issue="source_fallback"]')).toContainText('1 条');
+    await uiExpect(page.locator('[data-issue="source_fallback"]')).toContainText('1');
     await acceptLosses();
     const viewport = exportDialog().locator('[data-slot="scroll-area-viewport"]');
     await viewport.evaluate(element => { element.scrollTop = 0; });
     expect(await exportDialog().evaluate(element => element.scrollWidth <= element.clientWidth + 1)).toBe(true);
-    expect(await exportDialog().getByRole('button', { name: '保存字幕…', exact: true }).evaluate(element => {
+    expect(await exportDialog().getByRole('button', { name: '确认并导出 1 份', exact: true }).evaluate(element => {
       const bounds = element.getBoundingClientRect(); return bounds.bottom <= globalThis.innerHeight && bounds.top >= 0;
     })).toBe(true);
     await page.screenshot({ path: path.join(artifacts, 'bilingual-dark-narrow-options.png'), animations: 'disabled' });
@@ -247,7 +260,7 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_E2E === '1')('Subtitle Studio local 
         (globalThis as typeof globalThis & { studioExportSave?: typeof resolve }).studioExportSave = resolve;
       });
     });
-    await exportDialog().getByRole('button', { name: '保存字幕…', exact: true }).click();
+    await exportDialog().getByRole('button', { name: '确认并导出 1 份', exact: true }).click();
     await uiExpect.poll(() => app!.evaluate(() => !!(globalThis as typeof globalThis & { studioExportSave?: unknown }).studioExportSave)).toBe(true);
     const beforeClear = await snapshot(page);
     await page.evaluate(async ({ summary, translationTracks }) => {
@@ -260,13 +273,15 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_E2E === '1')('Subtitle Studio local 
       const globals = globalThis as typeof globalThis & { studioExportSave?: (result: { canceled: boolean; filePath: string }) => void };
       globals.studioExportSave!({ canceled: false, filePath: file }); delete globals.studioExportSave;
     }, frozenFile);
+    await uiExpect(page.getByTestId('studio-export-result')).toContainText('成功 1 份');
+    await exportDialog().getByRole('button', { name: '关闭', exact: true }).click();
     await uiExpect(exportDialog()).toHaveCount(0);
     expect((await parsedFile(frozenFile, 'lrc')).document.cues.map(cue => cue.source.plain)).toEqual(targetLines);
     await openExport();
     await select('导出内容', '仅译文');
     await check();
     await uiExpect(page.locator('[data-issue="track_missing"]')).toBeVisible();
-    await uiExpect(exportDialog().getByRole('button', { name: '保存字幕…', exact: true })).toHaveCount(0);
+    await uiExpect(exportDialog().getByRole('button', { name: '确认并导出 1 份', exact: true })).toHaveCount(0);
     await page.screenshot({ path: path.join(artifacts, 'missing-track-dark-narrow.png'), animations: 'disabled' });
     await select('导出内容', '仅原文');
     await check(); await acceptLosses();

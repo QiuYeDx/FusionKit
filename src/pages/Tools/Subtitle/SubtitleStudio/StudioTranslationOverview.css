@@ -1,8 +1,8 @@
-.studio-translation-overview { width: 100%; min-width: 0; padding-block: 4px; font-size: 11px; line-height: 18px; }
-.studio-translation-overview-line { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 8px; min-width: 0; }
-.studio-translation-overview-line > strong { font-size: 12px; font-weight: 500; }
-.studio-translation-overview-line > button { margin-left: auto; height: 28px; }
-.studio-translation-overview-counts { display: flex; flex: 1; flex-wrap: wrap; gap: 2px 12px; color: var(--muted-foreground); min-width: 160px; }
+.studio-translation-overview { width: 100%; min-width: 0; font-size: 11px; line-height: 18px; }
+.studio-translation-overview [data-slot=tool-panel-header] button { height: 28px; font-size: 11px; }
+.studio-translation-overview [data-slot=tool-panel-body] { padding: 8px 12px; }
+.studio-translation-overview-counts { display: flex; flex-wrap: wrap; gap: 2px 12px; color: var(--muted-foreground); min-width: 0; }
+.studio-translation-overview-compact { height: 32px; padding-inline: 8px; gap: 5px; flex-shrink: 0; font-size: 11px; font-variant-numeric: tabular-nums; }
 .studio-translation-overview-counts > span { display: inline-flex; gap: 5px; }
 .studio-translation-overview-counts b { color: var(--foreground); font-weight: 500; font-variant-numeric: tabular-nums; }
 .studio-translation-overview-round { display: flex; align-items: center; flex-wrap: wrap; gap: 3px 8px; min-width: 0; color: var(--muted-foreground); padding-block: 2px; }
@@ -13,13 +13,8 @@
 .studio-translation-overview progress::-webkit-progress-bar, .studio-translation-overview-list progress::-webkit-progress-bar { background: var(--muted); }
 .studio-translation-overview progress::-webkit-progress-value, .studio-translation-overview-list progress::-webkit-progress-value { background: var(--primary); border-radius: 4px; }
 .studio-translation-overview-dialog [data-slot=scroll-area-viewport] > div { display: block !important; min-width: 0; width: 100%; }
-.studio-translation-overview-content { padding: 12px; min-width: 0; }
-.studio-translation-overview-list { display: flex; flex-direction: column; margin: 0; padding: 0; list-style: none; }
-.studio-translation-overview-list > li { padding: 12px 0; min-width: 0; }
-.studio-translation-overview-list > li:first-child { padding-top: 0; }
-.studio-translation-overview-list > li + li { border-top: 1px solid var(--border); }
-.studio-translation-overview-task-heading { display: flex; align-items: center; gap: 12px; min-width: 0; font-size: 12px; }
-.studio-translation-overview-task-heading > .studio-file-name { flex: 1; }
+.studio-translation-overview-dialog [data-slot=scroll-area-viewport] > div > div { padding: 12px; }
+.studio-translation-overview-content { min-width: 0; }
 .studio-translation-overview-task-meta { display: flex; flex-wrap: wrap; gap: 3px 12px; margin-block: 5px 8px; color: var(--muted-foreground); font-size: 11px; line-height: 18px; overflow-wrap: anywhere; }
 .studio-translation-overview-list progress { width: 100%; }
 .studio-translation-overview-task-note, .studio-translation-overview-warning { display: flex; align-items: flex-start; gap: 5px; margin-top: 6px; font-size: 11px; line-height: 18px; overflow-wrap: anywhere; }

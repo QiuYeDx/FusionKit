@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { errorCodeSchema } from '../domain';
+import { automaticTranslationRequestSchema } from '../automatic-translation-contract';
 import { LOCAL_SUBTITLE_DEVICE_PREFERENCES, LOCAL_SUBTITLE_ERROR_CODES, LOCAL_SUBTITLE_LIMITS,
   LOCAL_SUBTITLE_PRODUCTION_CONTRACT, LOCAL_SUBTITLE_WINDOW_STRATEGIES } from './domain';
 
@@ -28,6 +29,7 @@ export const transcriptionTaskConfigSchema = z.object({
 export const enqueueTranscriptionRequestSchema = z.object({
   files: z.array(z.object({ fileToken: opaqueId, audioStreamId: opaqueId.optional() }).strict()).min(1).max(20),
   config: transcriptionTaskConfigSchema,
+  autoTranslation: automaticTranslationRequestSchema.optional(),
 }).strict().superRefine((value, context) => {
   if (new Set(value.files.map(file => file.fileToken)).size !== value.files.length)
     context.addIssue({ code: 'custom', path: ['files'], message: 'File tokens must be unique.' });
@@ -44,6 +46,7 @@ export const transcriptionTaskSummarySchema = z.object({
   resolvedBackend: z.enum(['cpu', 'metal', 'cuda']),
   durationMs: z.number().int().safe().nonnegative().max(LOCAL_SUBTITLE_LIMITS.maxDurationMs).optional(),
   documentId: z.string().uuid().optional(), documentDurability: z.enum(['confirmed', 'uncertain']).optional(),
+  automaticTranslation: z.object({ status: z.enum(['pending', 'admitted', 'needs_configuration']), taskId: z.string().uuid().optional() }).strict().optional(),
   error: z.object({ code: z.union([z.enum(LOCAL_SUBTITLE_ERROR_CODES), errorCodeSchema]) }).strict().optional(),
   cleanupPending: z.literal(true).optional(),
 }).strict();

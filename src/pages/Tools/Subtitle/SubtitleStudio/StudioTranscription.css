@@ -21,7 +21,7 @@
 .studio-transcription-start-meta { display: flex; flex-direction: column; gap: 3px; min-width: 160px; flex: 1; font-size: 12px; }
 .studio-transcription-start-meta > :last-child { color: var(--muted-foreground); font-size: 11px; line-height: 16px; }
 .studio-transcription-start-bar > button { flex-shrink: 0; }
-.studio-transcription-media-list { display: flex; flex-direction: column; gap: 4px; max-height: 290px; overflow-y: auto; overscroll-behavior: contain; margin: 0; padding: 8px 12px; list-style: none; }
+.studio-transcription-media-list { display: flex; flex-direction: column; gap: 4px; margin: 0; padding: 8px 12px; list-style: none; }
 .studio-transcription-media-list > li { display: flex; align-items: flex-start; gap: 8px; padding: 8px; min-width: 0; border-radius: 8px; }
 .studio-transcription-media-list > li:hover { background: var(--muted); }
 .studio-transcription-row-icon { width: 15px; height: 15px; flex-shrink: 0; margin-top: 3px; color: var(--muted-foreground); }
@@ -33,17 +33,26 @@
 .studio-transcription-row-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; flex-shrink: 0; }
 .studio-transcription-row-actions > button { min-height: 28px; }
 .studio-transcription-track { width: 140px; height: 28px; flex-shrink: 1; min-width: 96px; font-size: 11px; }
-.studio-transcription-task-list { list-style: none; display: flex; flex-direction: column; gap: 4px; margin: 0; padding: 8px 12px; max-height: 460px; overflow-y: auto; overscroll-behavior: contain; }
+.studio-transcription-task-list { list-style: none; display: flex; flex-direction: column; gap: 4px; margin: 0; padding: 8px 12px; }
 .studio-transcription-task-list > li { min-width: 0; padding: 8px; border-radius: 8px; }
 .studio-transcription-task-list > li:hover { background: var(--muted); }
-.studio-transcription-task-heading { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
-.studio-transcription-task-name { display: flex; flex: 1; min-width: 120px; align-items: center; gap: 8px; font-size: 12px; line-height: 20px; }
+.studio-transcription-task-heading { display: flex; gap: 8px; align-items: center; }
+.studio-transcription-task-heading > .studio-transcription-row-actions { flex-wrap: nowrap; }
+.studio-transcription-task-name { display: flex; flex: 1; min-width: 0; align-items: center; gap: 8px; font-size: 12px; line-height: 20px; }
 .studio-transcription-task-name > svg { width: 15px; height: 15px; flex-shrink: 0; }
 .studio-transcription-task-name > .studio-file-name { flex: 1; }
-.studio-transcription-task-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; margin-top: 3px; padding-left: 23px; font-size: 11px; line-height: 18px; color: var(--muted-foreground); overflow-wrap: anywhere; }
-.studio-transcription-task-percentage { margin-left: auto; font-variant-numeric: tabular-nums; }
-.studio-transcription-progress { display: block; width: 100%; height: 4px; overflow: hidden; border: 0; border-radius: 4px; margin-top: 8px; appearance: none; background: var(--muted); }
-.studio-transcription-progress::-webkit-progress-bar { background: var(--muted); border-radius: 4px; }
+.studio-transcription-task-meta { display: flex; align-items: center; gap: 8px; margin-top: 3px; padding-left: 23px; font-size: 11px; line-height: 18px; color: var(--muted-foreground); }
+.studio-transcription-task-meta > * { flex-shrink: 0; white-space: nowrap; }
+.studio-transcription-task-meta > .studio-transcription-task-model { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.studio-transcription-task-percentage { margin-left: auto; min-width: 3ch; text-align: right; font-variant-numeric: tabular-nums; }
+.studio-transcription-auto-label { display: inline-flex; align-items: center; gap: 3px; padding: 0 4px; border: 1px solid var(--border); border-radius: 4px; font-size: 10px; line-height: 16px; }
+.studio-transcription-auto-label > svg { width: 11px; height: 11px; flex-shrink: 0; }
+.studio-transcription-auto-label[data-state=needs_configuration] { color: var(--color-amber-700); }
+.dark .studio-transcription-auto-label[data-state=needs_configuration] { color: var(--color-amber-400); }
+.studio-transcription-auto-label:focus-visible, .studio-transcription-task-model:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+.studio-transcription-task-progress { --studio-transcription-progress-track: color-mix(in srgb, var(--foreground) 18%, var(--card)); }
+.studio-transcription-progress { display: block; width: 100%; height: 4px; overflow: hidden; border: 0; border-radius: 4px; margin-top: 8px; appearance: none; background: var(--studio-transcription-progress-track, var(--muted)); }
+.studio-transcription-progress::-webkit-progress-bar { background: var(--studio-transcription-progress-track, var(--muted)); border-radius: 4px; }
 .studio-transcription-progress::-webkit-progress-value { background: var(--primary); border-radius: 4px; transition: width 150ms ease-out; }
 .studio-transcription-progress::-moz-progress-bar { background: var(--primary); border-radius: 4px; }
 .studio-transcription-session-note { padding: 8px 20px 12px; font-size: 10px; line-height: 16px; color: var(--muted-foreground); }
@@ -72,6 +81,12 @@
   .studio-transcription-media-list > li { flex-wrap: wrap; }
   .studio-transcription-row-content { flex-basis: calc(100% - 60px); }
   .studio-transcription-track { width: calc(100% - 62px); margin-left: 23px; }
-  .studio-transcription-task-heading > .studio-transcription-row-actions { margin-left: 23px; }
 }
 @media (prefers-reduced-motion: reduce) { .studio-transcription-progress::-webkit-progress-value { transition: none; } }
+
+.studio-transcription-runtime-row { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 6px 8px; }
+.studio-transcription-runtime-row > .studio-transcription-runtime { flex: 1 1 150px; }
+.studio-transcription-runtime-row > button { flex: 0 0 auto; margin-left: auto; height: 28px; padding-inline: 6px; font-size: 11px; }
+.studio-transcription-stop:not(:disabled):hover { background: color-mix(in srgb, var(--destructive) 14%, transparent); color: var(--destructive); }
+.studio-transcription-stop:not(:disabled):active { background: color-mix(in srgb, var(--destructive) 23%, transparent); color: var(--destructive); }
+.studio-transcription-stop:focus-visible { outline: 2px solid var(--destructive); outline-offset: 2px; }

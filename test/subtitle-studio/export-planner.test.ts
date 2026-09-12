@@ -7,7 +7,11 @@ import { applyBilingual } from '../../src/subtitle-studio/bilingual';
 import { importSubtitleText } from '../../src/subtitle-studio/formats/import';
 import { planSubtitleExport } from '../../electron/main/subtitle-studio/export-planner';
 
-const parse = (text: string, format: 'srt' | 'lrc' | 'vtt' | 'ass' = 'lrc') => importSubtitleText(text, { format, displayName: `synthetic.${format}`, encoding: 'utf-8', digest: 'a'.repeat(64) }, randomUUID);
+const parse = (text: string, format: 'srt' | 'lrc' | 'vtt' | 'ass' = 'lrc') => {
+  const document = importSubtitleText(text, { format, displayName: `synthetic.${format}`, encoding: 'utf-8', digest: 'a'.repeat(64) }, randomUUID);
+  if (document.schemaVersion !== 1) throw new Error('Text fixture must produce a schema 1 document');
+  return document;
+};
 const options = (changes: Partial<ExportOptions> = {}): ExportOptions => ({ mode: 'source', format: 'lrc', order: 'source-first', encoding: 'utf-8', bom: false, newline: 'lf', incomplete: 'block', missingEnd: { mode: 'block' }, ...changes });
 const digest = (cue: SubtitleCue) => createHash('sha256').update(JSON.stringify(cue.source)).digest('hex');
 const plain = (text: string): SubtitleText => ({ plain: text, spans: text ? [{ text, marks: [] }] : [] });
@@ -24,6 +28,50 @@ function back(doc: SubtitleDocument, config: ExportOptions) {
 }
 
 describe('local subtitle export projection', () => {
+  it.each(['target', 'bilingual'] as const)('exports an untracked document as source under %s fallback without inventing a track', mode => {
+    const doc = parse('1\n00:00:01,000 --> 00:00:02,000\n<b>First</b>\n\n2\n00:00:03,000 --> 00:00:04,000\nSecond\n', 'srt');
+    const before = structuredClone(doc);
+    const result = back(doc, options({ mode, format: 'srt', incomplete: 'source-fallback' }));
+    expect(result.doc.cues.map(cue => cue.source)).toEqual(doc.cues.map(cue => cue.source));
+    expect(result.plan).toMatchObject({ cueCount: 2, missingCount: 2, partial: true, staleCount: 0 });
+    expect(result.plan.issues).toContainEqual({ code: 'source_fallback', count: 2, blocking: false, confirmation: false });
+    expect(result.plan.issues.some(issue => issue.code === 'track_missing')).toBe(false);
+    expect(doc).toEqual(before);
+  });
+
+  it.each(['block', 'skip'] as const)('keeps a missing track blocking for the explicit %s policy', incomplete => {
+    const plan = planSubtitleExport(parse('[00:01]source'), options({ mode: 'bilingual', incomplete }));
+    expect(plan.bytes).toBeNull();
+    expect(plan.issues).toContainEqual({ code: 'track_missing', count: 1, blocking: true, confirmation: false });
+  });
+
+  it('never treats an explicit wrong/removed track or an omitted selection among existing tracks as no-track fallback', () => {
+    const doc = parse('[00:01]source');
+    const trackId = randomUUID();
+    const check = (selected?: string) => {
+      const plan = planSubtitleExport(doc, options({ mode: 'bilingual', incomplete: 'source-fallback', ...(selected ? { trackId: selected } : {}) }));
+      expect(plan.bytes).toBeNull();
+      expect(plan.issues).toContainEqual({ code: 'track_missing', count: 1, blocking: true, confirmation: false });
+    };
+    check(trackId);
+    translated(doc);
+    check(trackId); check();
+    const removed = doc.translationTracks.pop()!.id;
+    check(removed);
+  });
+
+  it.each([
+    ['vtt', 'WEBVTT\n\nNOTE retain me\n\n00:00:01.000 --> 00:00:02.000 align:start\n<b>Keep me</b>\n'],
+    ['ass', '[Script Info]\nScriptType: v4.00+\nTitle: Keep\n[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\nDialogue: 0,0:00:01.00,0:00:02.00,Default,,0,0,0,,{\\b1}Keep me\n'],
+  ] as const)('preserves %s structure and styles when an untracked document falls back to source', (format, raw) => {
+    const doc = parse(raw, format); const before = structuredClone(doc);
+    const plan = planSubtitleExport(doc, options({ mode: 'bilingual', format, incomplete: 'source-fallback' }));
+    expect(plan.bytes?.toString()).toBe(raw);
+    expect(plan.issues.some(issue => issue.blocking)).toBe(false);
+    expect(plan.issues).toContainEqual({ code: 'source_fallback', count: 1, blocking: false, confirmation: false });
+    expect(doc).toEqual(before);
+  });
+
   it('writes target and both bilingual orders as one SRT block or two equal LRC tags without modifying the document', () => {
     const doc = parse('9\r\n00:00:01,125 --> 00:00:02,500\r\nHello\r\nworld\r\n\r\n23\r\n00:00:01,125 --> 00:00:03,000\r\nAgain\r\n', 'srt');
     const trackId = translated(doc); const before = structuredClone(doc);
@@ -55,6 +103,7 @@ describe('local subtitle export projection', () => {
       const plan = planSubtitleExport(doc, options({ format, mode, trackId, incomplete }));
       expect(plan.bytes).toBeNull(); expect(plan.issues).toContainEqual({ code: 'track_missing', count: 1, blocking: true, confirmation: false });
     }
+    if (doc.schemaVersion !== 1) throw new Error('Bilingual text fixture must retain schema 1');
     expect(doc.preservation.rawText).toBe(raw); expect(doc).toEqual(before);
   });
 

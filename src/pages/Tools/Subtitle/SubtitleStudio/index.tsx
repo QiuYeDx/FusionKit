@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useRef, useState, type DragEvent } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type DragEvent } from 'react';
 import { useTranslation } from 'react-i18next';
-import { AlertCircle, ArrowRight, AudioLines, Check, CheckCheck, ChevronDown, Code2, Copy, Ellipsis, FolderOpen, Library, List, LoaderCircle, RefreshCw, Subtitles, Trash2, X, Play, Square } from 'lucide-react';
+import { AlertCircle, ArrowRight, AudioLines, CheckCheck, ChevronDown, Code2, Ellipsis, FolderOpen, Library, List, LoaderCircle, RefreshCw, Subtitles, Trash2, X, Play, Square } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
@@ -15,9 +15,10 @@ import { ToolFilePickerSurface } from '../../_shared/ui/ToolFilePickerSurface';
 import { useStudioPreferences } from '@/store/tools/subtitle-studio/preferences';
 import { unwrapStudio } from '@/services/subtitle-studio/client';
 import { StudioObservations } from '@/services/subtitle-studio/observations';
+import { StudioRefreshCoordinator } from '@/services/subtitle-studio/refresh-coordinator';
 import { ScrollableDialog, ScrollableDialogHeader, ScrollableDialogContent, ScrollableDialogFooter, DialogTitle, DialogDescription } from '@/components/qiuye-ui/scrollable-dialog';
 import { encodingSchema, StudioError, type Diagnostic, type ErrorCode } from '@/subtitle-studio/domain';
-import type { DocumentPage, DocumentSummary } from '@/subtitle-studio/ipc-contract';
+import type { DocumentListSnapshot, DocumentPage, DocumentSummary } from '@/subtitle-studio/ipc-contract';
 import { STUDIO_BATCH_LIMIT, type UnavailableDocument, type BatchImportResult } from '@/subtitle-studio/batch-contract';
 import { matchesLibraryQuery } from '@/subtitle-studio/library-query';
 import useModelStore from '@/store/useModelStore';
@@ -30,8 +31,11 @@ import { StudioExport, StudioBatchExport } from './StudioExport';
 import { StudioLibrary, LIBRARY_PAGE_SIZE, defaultLibraryQuery, type LibraryQuery } from './StudioLibrary';
 import { StudioRecovery } from './StudioRecovery';
 import { StudioSelectedDocuments } from './StudioSelectedDocuments';
+import { StudioDocumentList, StudioDocumentRow } from './StudioDocumentList';
 import { StudioBilingual, StudioRemoveTranslation } from './StudioBilingual';
 import { StudioTranscription } from './StudioTranscription';
+import { StudioCueCopy } from './StudioCueCopy';
+import { StudioOperationResult } from './StudioOperationResult';
 import './studio.css';
 
 const errorKeys: Record<ErrorCode, string> = {
@@ -55,12 +59,22 @@ export default function SubtitleStudio() {
   const [dragging, setDragging] = useState(false);
   const dragDepth = useRef(0);
   const [workspaceView, setWorkspaceView] = useState<WorkspaceView>(lastWorkspaceView);
+  const workspaceRoot = useRef<HTMLDivElement>(null);
+  const resetWorkspaceScroll = () => {
+    const viewport = workspaceRoot.current?.closest('[data-radix-scroll-area-viewport]');
+    if (viewport) viewport.scrollTop = 0;
+  };
   const changeWorkspaceView = (value: string) => {
     if (value !== 'documents' && value !== 'transcription') return;
+    if (value === workspaceView) return;
+    invalidateSelectionRequest();
+    resetWorkspaceScroll();
     lastWorkspaceView = value; setWorkspaceView(value); dragDepth.current = 0; setDragging(false);
   };
+  useLayoutEffect(resetWorkspaceScroll, [workspaceView]);
   const { encoding, setEncoding, dismissedRecoveryKey, dismissRecovery } = useStudioPreferences();
   const [documents, setDocuments] = useState<DocumentSummary[]>([]);
+  const librarySnapshot = useRef<DocumentListSnapshot | null>(null);
   const [total, setTotal] = useState(0);
   const [allTotal, setAllTotal] = useState(0);
   const [unavailable, setUnavailable] = useState<UnavailableDocument[]>([]);
@@ -76,7 +90,19 @@ export default function SubtitleStudio() {
   const [exportSlot, setExportSlot] = useState<HTMLSpanElement | null>(null);
   const selectedRef = useRef(selected);
   selectedRef.current = selected;
-  const [results, setResults] = useState<{ title: string; items: OperationResult[] } | null>(null);
+  const selectionGeneration = useRef(0);
+  const selectionRequest = useRef<{ generation: number; query: LibraryQuery } | null>(null);
+  const [selectionPending, setSelectionPending] = useState(false);
+  const invalidateSelectionRequest = () => {
+    selectionGeneration.current++; selectionRequest.current = null;
+    if (mounted.current) setSelectionPending(false);
+  };
+  const updateSelection = (update: (items: DocumentSummary[]) => DocumentSummary[]) => {
+    const next = update(selectedRef.current);
+    selectedRef.current = next; setSelected(next);
+  };
+  const clearSelection = () => { invalidateSelectionRequest(); updateSelection(() => []); };
+  const [results, setResults] = useState<{ title: string; kind: 'import' | 'delete' | 'cancel' | 'resume'; items: OperationResult[] } | null>(null);
   const [batchConfirm, setBatchConfirm] = useState<'delete' | 'resume' | null>(null);
   const [selectionLimit, setSelectionLimit] = useState(false);
   const observedRevisions = useRef(new Map<string, number>());
@@ -97,6 +123,8 @@ export default function SubtitleStudio() {
   const currentPage = useRef<DocumentPage | null>(null);
   const currentOffset = useRef(0);
   const dirty = useRef(false);
+  const coordinator = useRef<StudioRefreshCoordinator | null>(null);
+  const backgroundRead = useRef<() => Promise<void>>(async () => {});
   const refreshPending = useRef<() => void>(() => {});
   const showPage = (value: DocumentPage | null) => { currentPage.current = value; setPage(value); if (value && !value.summary.capabilities.preserveSource) setView('preview'); };
   const mounted = useRef(true);
@@ -105,6 +133,7 @@ export default function SubtitleStudio() {
   const retry = useRef<(() => void) | null>(null);
   const reader = useRef<HTMLDivElement>(null);
   const busy = activity !== null || query !== loadedQuery;
+  const readerIsCurrent = (value: StudioRefreshCoordinator | null): value is StudioRefreshCoordinator => !!value && !value.disposed && mounted.current && coordinator.current === value;
   const diagnostics = useMemo(() => {
     const counts = new Map<Diagnostic['code'], number>();
     for (const diagnostic of page?.summary.diagnostics ?? []) counts.set(diagnostic.code, (counts.get(diagnostic.code) ?? 0) + 1);
@@ -112,38 +141,45 @@ export default function SubtitleStudio() {
   }, [page?.summary]);
   const flaggedNodes = useMemo(() => new Set(page?.summary.diagnostics.map(item => item.nodeId).filter(Boolean)), [page?.summary]);
 
-  const run = async (kind: Activity, action: () => Promise<void>) => {
-    if (operation.current) return;
+  const run = async (kind: Activity, action: () => Promise<void>, retryable = true) => {
+    const owner = coordinator.current;
+    if (operation.current || !readerIsCurrent(owner)) return;
     operation.current = true;
     let settle!: () => void;
     operationSettled.current = new Promise<void>(resolve => { settle = resolve; });
     setActivity(kind); setError(null); setExported('');
-    retry.current = () => void run(kind, action);
-    try { await action(); }
-    catch (failure) { if (mounted.current) setError(failure instanceof StudioError ? failure.code : 'document_unavailable'); }
-    finally { operation.current = false; settle(); if (mounted.current) { setActivity(null); if (dirty.current) queueMicrotask(() => refreshPending.current()); } }
+    retry.current = retryable ? () => void run(kind, action) : null;
+    try { await owner.runForeground(action); }
+    catch (failure) { if (readerIsCurrent(owner)) setError(failure instanceof StudioError ? failure.code : 'document_unavailable'); }
+    finally { settle(); if (readerIsCurrent(owner)) { operation.current = false; setActivity(null); if (dirty.current) queueMicrotask(() => refreshPending.current()); } }
   };
-  const select = async (doc: DocumentSummary, offset = 0, nodeOffset = 0) => {
+  const select = async (doc: DocumentSummary, offset = 0, nodeOffset = 0, options: { silent?: boolean; query?: LibraryQuery } = {}) => {
+    const owner = coordinator.current;
     const previous = currentPage.current;
-    const result = await unwrapStudio(window.subtitleStudio.readDocumentPage({ documentId: doc.id, revision: doc.revision, offset, nodeOffset }));
-    if (mounted.current && observations.current.acceptsDocument(result.summary)) {
-      showPage(result); setCopied(null); setCopyFailed(false);
+    const revision = Math.max(doc.revision, observedRevisions.current.get(doc.id) ?? 0);
+    const result = await unwrapStudio(window.subtitleStudio.readDocumentPage({ documentId: doc.id, revision, offset, nodeOffset }));
+    if (options.query && options.query !== queryRef.current) { dirty.current = true; return; }
+    if (readerIsCurrent(owner) && observations.current.acceptsDocument(result.summary)) {
+      showPage(result);
+      if (!options.silent) { setCopied(null); setCopyFailed(false); }
       if (previous?.summary.id !== doc.id || previous.offset !== offset || previous.nodeOffset !== nodeOffset) reader.current?.scrollTo({ top: 0 });
     }
   };
-  const load = async (offset: number, openFirst = false): Promise<void> => {
+  const load = async (offset: number, openFirst = false, silent = false): Promise<void> => {
+    const owner = coordinator.current;
     const requestedQuery = queryRef.current;
     const request = { ...requestedQuery, offset, pageSize: LIBRARY_PAGE_SIZE };
     let result = await unwrapStudio(window.subtitleStudio.listDocuments(request));
     for (let attempt = 0; !observations.current.acceptSnapshot(result); attempt++) {
-      if (!mounted.current) return;
+      if (!readerIsCurrent(owner)) return;
       if (attempt >= 3) throw new StudioError('revision_conflict');
       result = await unwrapStudio(window.subtitleStudio.listDocuments(request));
     }
-    if (!mounted.current) return;
+    if (!readerIsCurrent(owner)) return;
     if (requestedQuery !== queryRef.current) { dirty.current = true; return; }
-    if (offset > 0 && offset >= result.total) return load(Math.max(0, Math.floor((result.total - 1) / LIBRARY_PAGE_SIZE) * LIBRARY_PAGE_SIZE), openFirst);
+    if (offset > 0 && offset >= result.total) return load(Math.max(0, Math.floor((result.total - 1) / LIBRARY_PAGE_SIZE) * LIBRARY_PAGE_SIZE), openFirst, silent);
     currentOffset.current = offset;
+    librarySnapshot.current = result;
     setLoadedQuery(requestedQuery);
     setDocuments(result.documents); setTotal(result.total); setListOffset(offset);
     setAllTotal(result.allTotal ?? result.total); setUnavailable(result.unavailable ?? []);
@@ -153,27 +189,34 @@ export default function SubtitleStudio() {
       if (refreshedSelection.has(item.id) || !revision || revision <= item.revision) continue;
       try {
         const updated = await unwrapStudio(window.subtitleStudio.readDocumentPage({ documentId: item.id, revision, offset: 0 }));
+        if (!readerIsCurrent(owner)) return;
         if (observations.current.acceptsDocument(updated.summary)) refreshedSelection.set(item.id, updated.summary);
       } catch (failure) {
         if (!(failure instanceof StudioError) || !['revision_conflict', 'document_unavailable', 'access_denied'].includes(failure.code)) throw failure;
         // An event racing this read schedules the next refresh; deleted items are removed by the subscription.
       }
     }
-    setSelected(items => items.map(item => refreshedSelection.get(item.id) ?? item));
+    if (!readerIsCurrent(owner)) return;
+    if (requestedQuery !== queryRef.current) { dirty.current = true; return; }
+    updateSelection(items => items.map(item => refreshedSelection.get(item.id) ?? item));
     const preview = currentPage.current;
     if (preview) {
       const refreshed = result.documents.find(doc => doc.id === preview.summary.id);
       const revision = observedRevisions.current.get(preview.summary.id);
-      if (refreshed) await select(refreshed, preview.offset, preview.nodeOffset);
-      else if (revision && revision > preview.summary.revision) await select({ ...preview.summary, revision }, preview.offset, preview.nodeOffset);
+      if (refreshed && refreshed.revision > preview.summary.revision) await select(refreshed, preview.offset, preview.nodeOffset, { silent, query: requestedQuery });
+      else if (revision && revision > preview.summary.revision) await select({ ...preview.summary, revision }, preview.offset, preview.nodeOffset, { silent, query: requestedQuery });
     } else if (openFirst && result.documents[0]) {
-      await select(result.documents[0]);
+      await select(result.documents[0], 0, 0, { silent, query: requestedQuery });
     }
   };
-  refreshPending.current = () => {
-    if (!mounted.current || operation.current || !dirty.current) return;
+  backgroundRead.current = async () => {
+    if (!mounted.current || !dirty.current) return;
     dirty.current = false;
-    void run('load', () => load(currentOffset.current, !currentPage.current));
+    await load(currentOffset.current, !currentPage.current, true);
+  };
+  refreshPending.current = () => {
+    if (!mounted.current || !dirty.current) return;
+    coordinator.current?.requestRefresh();
   };
   const deleteDocument = () => {
     if (!deleting) return;
@@ -192,10 +235,10 @@ export default function SubtitleStudio() {
     const onlyItem = result.items.length === 1 ? result.items[0] : undefined;
     if (onlyItem && !onlyItem.ok) throw new StudioError(onlyItem.error);
     const added = result.items.flatMap(item => item.ok ? [item.document] : []);
-    changeQuery(defaultLibraryQuery); setSelected([]);
+    changeQuery(defaultLibraryQuery); clearSelection();
     await load(0);
     if (added[0]) { await select(added[0]); setView('preview'); setImportedId(result.items.length === 1 ? added[0].id : ''); }
-    if (result.items.length > 1 || result.items.some(item => !item.ok)) setResults({ title: t('studio:library.import_result'), items: result.items.map(item => ({ name: item.fileName, ...(item.ok ? { documentId: item.document.id } : { error: item.error }) })) });
+    if (result.items.length > 1 || result.items.some(item => !item.ok)) setResults({ title: t('studio:library.import_result'), kind: 'import', items: result.items.map(item => ({ name: item.fileName, ...(item.ok ? { documentId: item.document.id } : { error: item.error }) })) });
   };
   const importDocument = () => void run('import', async () => acceptImportResult(await unwrapStudio(window.subtitleStudio.importSubtitles({ encoding }))));
   const fileDrag = (event: DragEvent) => Array.from(event.dataTransfer.types).includes('Files');
@@ -206,21 +249,29 @@ export default function SubtitleStudio() {
     if (!canDrop(event) || busy || operation.current) return;
     const files = Array.from(event.dataTransfer.files);
     if (!files.length) { retry.current = null; setError('invalid_input'); return; }
-    // Invoke while the drop FileList is alive; do not retain Files in a retry closure.
+    // Capture native File paths inside this event, before a queued reader action can yield.
+    let submitted: ReturnType<typeof window.subtitleStudio.importDroppedSubtitles>;
+    try { submitted = window.subtitleStudio.importDroppedSubtitles(files, { encoding }); }
+    catch (failure) { retry.current = null; setError(failure instanceof StudioError ? failure.code : 'document_unavailable'); return; }
+    // A rejection can arrive while the background reader is still settling; observe it immediately.
+    const captured = submitted.then(value => ({ ok: true as const, value }), failure => ({ ok: false as const, failure }));
     void run('import', async () => {
-      retry.current = null;
-      await acceptImportResult(await unwrapStudio(window.subtitleStudio.importDroppedSubtitles(files, { encoding })));
-    });
+      const result = await captured;
+      if (!result.ok) throw result.failure;
+      await acceptImportResult(await unwrapStudio(Promise.resolve(result.value)));
+    }, false);
   };
   const chooseDocument = (doc: DocumentSummary) => void run('select', async () => { await select(doc); if (mounted.current) { setView('preview'); setLibraryOpen(false); } });
   const openTranscriptionDocument = async (documentId: string, preferredTrackId?: string): Promise<void> => {
     // Completion can coincide with the document-created refresh; join it before taking the reader.
     while (operation.current) await operationSettled.current;
-    if (!mounted.current) return;
+    const owner = coordinator.current;
+    if (!readerIsCurrent(owner)) return;
     operation.current = true; setActivity('select');
     let settle!: () => void;
     operationSettled.current = new Promise<void>(resolve => { settle = resolve; });
     try {
+      await owner.runForeground(async () => {
       // Task IDs grant no document authority: discover the exact result through the library first.
       const nextQuery: LibraryQuery = { ...defaultLibraryQuery, sort: 'recent' };
       for (let offset = 0; offset <= 100_000; offset += LIBRARY_PAGE_SIZE) {
@@ -238,10 +289,10 @@ export default function SubtitleStudio() {
         if (offset + LIBRARY_PAGE_SIZE >= snapshot.total || snapshot.documents.length === 0) break;
       }
       throw new StudioError('document_unavailable');
+      });
     } finally {
-      operation.current = false;
       settle();
-      if (mounted.current) { setActivity(null); if (dirty.current) queueMicrotask(() => refreshPending.current()); }
+      if (readerIsCurrent(owner)) { operation.current = false; setActivity(null); if (dirty.current) queueMicrotask(() => refreshPending.current()); }
     }
   };
   const copyCue = async (id: string, text: string) => {
@@ -250,10 +301,19 @@ export default function SubtitleStudio() {
   };
   useEffect(() => {
     mounted.current = true;
+    const owner = new StudioRefreshCoordinator(() => backgroundRead.current(), failure => {
+      if (!readerIsCurrent(owner)) return;
+      // A newer observed revision already requests another read; do not flash a stale-read error.
+      if (failure instanceof StudioError && failure.code === 'revision_conflict' && dirty.current) return;
+      setError(failure instanceof StudioError ? failure.code : 'document_unavailable');
+      retry.current = () => void run('load', () => load(currentOffset.current, !currentPage.current));
+    });
+    coordinator.current = owner;
+    operation.current = false;
     const unsubscribe = window.subtitleStudio.subscribe(event => {
       if (!mounted.current || !observations.current.observe(event)) return;
       observedRevisions.current.set(event.documentId, event.revision);
-      if (event.deleted) setSelected(items => items.filter(item => item.id !== event.documentId));
+      if (event.deleted) updateSelection(items => items.filter(item => item.id !== event.documentId));
       if (event.deleted) {
         setDocuments(items => items.filter(item => item.id !== event.documentId));
         if (currentPage.current?.summary.id === event.documentId) showPage(null);
@@ -263,7 +323,7 @@ export default function SubtitleStudio() {
       refreshPending.current();
     });
     void run('load', () => load(0, true));
-    return () => { mounted.current = false; unsubscribe(); };
+    return () => { mounted.current = false; invalidateSelectionRequest(); owner.dispose(); unsubscribe(); if (coordinator.current === owner) coordinator.current = null; };
   }, []);
   useEffect(() => {
     if (!copied) return;
@@ -278,7 +338,8 @@ export default function SubtitleStudio() {
     return () => media.removeEventListener('change', change);
   }, []);
   const changeQuery = (next: LibraryQuery) => {
-    if (next.query !== queryRef.current.query || next.format !== queryRef.current.format || next.status !== queryRef.current.status) setSelected([]);
+    invalidateSelectionRequest();
+    if (next.query !== queryRef.current.query || next.format !== queryRef.current.format || next.status !== queryRef.current.status) updateSelection(() => []);
     queryRef.current = next; setQuery(next); currentOffset.current = 0;
     dirty.current = true;
   };
@@ -288,33 +349,57 @@ export default function SubtitleStudio() {
   }, [query]);
 
   const toggleDocument = (doc: DocumentSummary) => {
-    if (selected.some(item => item.id === doc.id)) setSelected(items => items.filter(item => item.id !== doc.id));
-    else if (selected.length >= STUDIO_BATCH_LIMIT) setSelectionLimit(true);
-    else setSelected(items => [...items, doc]);
+    invalidateSelectionRequest();
+    if (selectedRef.current.some(item => item.id === doc.id)) updateSelection(items => items.filter(item => item.id !== doc.id));
+    else if (selectedRef.current.length >= STUDIO_BATCH_LIMIT) setSelectionLimit(true);
+    else updateSelection(items => [...items, doc]);
   };
   const selectPage = () => {
-    const additions = documents.filter(doc => !selected.some(item => item.id === doc.id));
-    if (selected.length + additions.length > STUDIO_BATCH_LIMIT) setSelectionLimit(true);
-    else setSelected(items => [...items, ...additions]);
+    invalidateSelectionRequest();
+    const additions = documents.filter(doc => !selectedRef.current.some(item => item.id === doc.id) && observations.current.acceptsDocument(doc));
+    if (selectedRef.current.length + additions.length > STUDIO_BATCH_LIMIT) setSelectionLimit(true);
+    else updateSelection(items => [...items, ...additions]);
   };
   const selectAll = () => {
+    const owner = coordinator.current;
+    if (busy || !readerIsCurrent(owner)) return;
     if (total > STUDIO_BATCH_LIMIT) { setSelectionLimit(true); return; }
-    void run('select', async () => {
-      const requested = queryRef.current;
+    const requested = queryRef.current;
+    if (selectionRequest.current?.query === requested) return;
+    const generation = ++selectionGeneration.current;
+    const isCurrent = () => readerIsCurrent(owner) && requested === queryRef.current && selectionGeneration.current === generation;
+    const apply = (matches: DocumentSummary[]) => {
+      if (!isCurrent()) return;
+      // The subscription already removes deletions. A newer revision alone must not clear selection.
+      const merged = new Map(selectedRef.current.map(doc => [doc.id, doc]));
+      for (const doc of matches) if (observations.current.acceptsDocument(doc)) merged.set(doc.id, doc);
+      if (merged.size > STUDIO_BATCH_LIMIT) { setSelectionLimit(true); return; }
+      updateSelection(() => [...merged.values()]);
+    };
+    // A complete, current page already has the bounded selection summaries.
+    if (listOffset === 0 && documents.length === total && librarySnapshot.current && observations.current.acceptSnapshot(librarySnapshot.current)) {
+      apply(documents); return;
+    }
+    selectionRequest.current = { generation, query: requested };
+    setSelectionPending(true);
+    void (async () => {
       const request = { ...requested, offset: 0, pageSize: STUDIO_BATCH_LIMIT };
       let result = await unwrapStudio(window.subtitleStudio.listDocuments(request));
-      for (let attempt = 0; !observations.current.acceptSnapshot(result); attempt++) {
-        if (!mounted.current) return;
+      for (let attempt = 0; isCurrent() && !observations.current.acceptSnapshot(result); attempt++) {
+        if (!isCurrent()) return;
         if (attempt >= 3) throw new StudioError('revision_conflict');
         result = await unwrapStudio(window.subtitleStudio.listDocuments(request));
       }
-      if (!mounted.current) return;
-      if (requested !== queryRef.current) { dirty.current = true; return; }
+      if (!isCurrent()) return;
       if (result.total > STUDIO_BATCH_LIMIT) { setSelectionLimit(true); return; }
-      const merged = new Map(selectedRef.current.map(doc => [doc.id, doc]));
-      for (const doc of result.documents) merged.set(doc.id, doc);
-      if (merged.size > STUDIO_BATCH_LIMIT) { setSelectionLimit(true); return; }
-      setSelected([...merged.values()]);
+      apply(result.documents);
+    })().catch(failure => {
+      if (isCurrent()) { retry.current = null; setError(failure instanceof StudioError ? failure.code : 'document_unavailable'); }
+    }).finally(() => {
+      if (selectionRequest.current?.generation === generation) {
+        selectionRequest.current = null;
+        if (readerIsCurrent(owner)) setSelectionPending(false);
+      }
     });
   };
   const processSelected = (kind: 'delete' | 'cancel' | 'resume') => {
@@ -348,8 +433,8 @@ export default function SubtitleStudio() {
         } catch (failure) { items.push({ name: target.origin.displayName, documentId: target.id, error: failure instanceof StudioError ? failure.code : 'document_unavailable' }); }
       }
       if (!mounted.current) return;
-      if (kind === 'delete') setSelected(values => values.filter(value => !items.some(item => item.documentId === value.id && !item.error)));
-      setResults({ title: t(kind === 'delete' ? 'studio:library.delete_result' : kind === 'resume' ? 'studio:library.resume_result' : 'studio:library.cancel_result'), items });
+      if (kind === 'delete') updateSelection(values => values.filter(value => !items.some(item => item.documentId === value.id && !item.error)));
+      setResults({ title: t(kind === 'delete' ? 'studio:library.delete_result' : kind === 'resume' ? 'studio:library.resume_result' : 'studio:library.cancel_result'), kind, items });
       await load(currentOffset.current, true);
     });
   };
@@ -374,14 +459,14 @@ export default function SubtitleStudio() {
         <DropdownMenuItem disabled={busy || !selected.some(doc => doc.task && ['queued', 'running', 'failed', 'interrupted', 'needs_configuration'].includes(doc.task.status))} onSelect={() => processSelected('cancel')}><Square />{t('studio:library.cancel_selected')}</DropdownMenuItem>
         <DropdownMenuItem disabled={busy || !selected.length} onSelect={() => setBatchConfirm('delete')}><Trash2 />{t('studio:library.delete_selected')}</DropdownMenuItem>
         <DropdownMenuSeparator />
-        <DropdownMenuItem disabled={busy || !selected.length} onSelect={() => setSelected([])}><X />{t('studio:library.clear_selection')}</DropdownMenuItem>
+        <DropdownMenuItem disabled={busy || !selected.length} onSelect={clearSelection}><X />{t('studio:library.clear_selection')}</DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   </>;
   const recoveryButton = unavailable.length > 0 ? <Button data-testid="studio-recovery-manage" variant="ghost" size="sm" onClick={() => setRecoveryOpen(true)}><AlertCircle className="text-amber-600 dark:text-amber-400" />{t('studio:recovery.count', { count: unavailable.length })}</Button> : null;
-  const library = <StudioLibrary documents={documents} selected={selected} previewId={page?.summary.id} query={query} onQuery={changeQuery} total={total} allTotal={allTotal} offset={listOffset} busy={busy} onPage={offset => void run('load', () => load(offset))} onPreview={chooseDocument} onToggle={toggleDocument} onSelectPage={selectPage} onSelectAll={selectAll} onClearScope={() => setSelected(items => items.filter(doc => !matchesLibraryQuery(doc, queryRef.current)))} onClear={() => setSelected([])} selectionLimit={selectionLimit} onDismissLimit={() => setSelectionLimit(false)} encoding={encodingField} actions={batchActions} />;
+  const library = <StudioLibrary documents={documents} selected={selected} previewId={page?.summary.id} query={query} onQuery={changeQuery} total={total} allTotal={allTotal} offset={listOffset} busy={busy} onPage={offset => void run('load', () => load(offset))} onPreview={chooseDocument} onToggle={toggleDocument} onSelectPage={selectPage} onSelectAll={selectAll} onClearScope={() => { invalidateSelectionRequest(); updateSelection(items => items.filter(doc => !matchesLibraryQuery(doc, queryRef.current))); }} onClear={clearSelection} selectionPending={selectionPending} selectionLimit={selectionLimit} onDismissLimit={() => setSelectionLimit(false)} encoding={encodingField} actions={batchActions} />;
 
-  return <div data-testid="subtitle-studio" data-workspace-view={workspaceView} className={page && workspaceView === 'documents' ? 'studio studio-has-document' : 'studio'}
+  return <div ref={workspaceRoot} data-testid="subtitle-studio" data-workspace-view={workspaceView} className={page && workspaceView === 'documents' ? 'studio studio-has-document' : 'studio'}
     onDragEnter={event => { if (!fileDrag(event) || !canDrop(event)) return; event.preventDefault(); dragDepth.current++; setDragging(true); }}
     onDragOver={event => { if (!fileDrag(event)) return; event.preventDefault(); event.dataTransfer.dropEffect = canDrop(event) && !busy ? 'copy' : 'none'; }}
     onDragLeave={event => { if (!fileDrag(event)) return; dragDepth.current = Math.max(0, dragDepth.current - 1); if (!dragDepth.current) setDragging(false); }}
@@ -391,18 +476,19 @@ export default function SubtitleStudio() {
       { value: 'documents', label: t('studio:workspace_documents'), icon: <Library /> },
       { value: 'transcription', label: t('studio:workspace_transcription'), icon: <AudioLines /> },
     ]}>
-    <div className="studio-workspace-header"><ToolPageHeader meta={TOOL_META.subtitleStudio} title={t('studio:title')} /><StudioTranslationOverview onOpenDocument={openTranscriptionDocument} /></div>
+    <div className="studio-workspace-header"><ToolPageHeader meta={TOOL_META.subtitleStudio} title={t('studio:title')} /></div>
     <ClipPathTabsContent value="documents" forceMount hidden={workspaceView !== 'documents'} className="studio-workspace-content">
     <ToolDetailLayout
       className="studio-layout"
       header={null}
       asideClassName="hidden lg:block"
       mainClassName="studio-main"
-      aside={wide ? <div className="studio-library"><ToolPanel className="studio-library-panel" title={t('studio:documents')} icon={Library} badge={<Badge variant="secondary" className="font-mono text-[11px]">{allTotal}</Badge>} actions={refresh}>{recoveryButton}{library}</ToolPanel></div> : undefined}
+      aside={wide ? <div className="studio-library">{workspaceView === 'documents' && <StudioTranslationOverview onOpenDocument={openTranscriptionDocument} />}<ToolPanel className="studio-library-panel" title={t('studio:documents')} icon={Library} badge={<Badge variant="secondary" className="font-mono text-[11px]">{allTotal}</Badge>} actions={refresh}>{recoveryButton}{library}</ToolPanel></div> : undefined}
     >
       <ToolFilePickerSurface title={t('studio:import')} description={t('studio:library.import_hint')} dragging={dragging && !busy} actionLabel={t('studio:open_file')} disabled={busy} onSelect={importDocument} icon={activity === 'import' ? <LoaderCircle className="h-5 w-5 studio-spin" /> : undefined} className="studio-import" />
       <div className="studio-mobile-controls lg:hidden">
         <StudioIconButton id="studio-library-trigger" label={t('studio:library.open')} onClick={() => setLibraryOpen(true)}><Library /></StudioIconButton>
+        {!wide && workspaceView === 'documents' && <StudioTranslationOverview compact onOpenDocument={openTranscriptionDocument} />}
         <div className="min-w-0 flex-1 studio-mobile-picker">{documentPicker}</div>
         <div className="w-[116px] shrink-0">{encodingField}</div>
         {page && <StudioIconButton label={t('studio:open_file')} disabled={busy} onClick={importDocument}>{activity === 'import' ? <LoaderCircle className="studio-spin" /> : <FolderOpen />}</StudioIconButton>}
@@ -425,10 +511,14 @@ export default function SubtitleStudio() {
         >
           {page ? <>
             {track && <div className="studio-translation-toolbar">
+              <div className="studio-translation-track-controls">
               <Select value={track.id} onValueChange={setTrackId}><SelectTrigger aria-label={t('studio:translation_track')} className="h-7 w-[160px] shrink-0 text-xs"><SelectValue /></SelectTrigger><SelectContent>{page.translationTracks.map((item, index) => <SelectItem key={item.id} value={item.id}>{item.language === 'und' ? t('studio:language_unknown') : item.language} · {index + 1}</SelectItem>)}</SelectContent></Select>
               <StudioRemoveTranslation page={page} track={track} busy={busy} onError={code => { retry.current = null; setError(code); }} onChanged={doc => { setTrackId(''); void run('select', async () => { await select(doc); await load(currentOffset.current); }); }} />
-            <StudioTranslationStatus page={page} trackId={track.id} />
-            <StudioTranslationTask page={page} trackId={track.id} busy={busy} onError={code => { retry.current = null; setError(code); }} onChanged={() => { dirty.current = true; refreshPending.current(); }} />
+              </div>
+              <div className="studio-translation-progress-controls">
+                <StudioTranslationStatus page={page} trackId={track.id} />
+                <StudioTranslationTask page={page} trackId={track.id} busy={busy} onError={code => { retry.current = null; setError(code); }} onChanged={() => { dirty.current = true; refreshPending.current(); }} />
+              </div>
             </div>}
             <ClipPathTabs value={view} onValueChange={setView} ariaLabel={t('studio:document_view')} shape="rounded" smoothCorners size="sm" className="studio-tabs w-full gap-0" transitionDuration={200} transitionEasing="ease-out" items={[
               { value: 'preview', label: t('studio:preview'), icon: <List /> },
@@ -449,7 +539,7 @@ export default function SubtitleStudio() {
                     <td className="studio-cue-number">{page.offset + index + 1}</td>
                     <td className="studio-cue-time"><div className="studio-time-range"><span>{formatStudioTime(cue.timing.startMs)}</span><ArrowRight aria-hidden="true" /><span className="text-muted-foreground/70">{cue.timing.endMs === null ? t('studio:unknown_end') : formatStudioTime(cue.timing.endMs)}</span></div></td>
                     <td className="studio-cue-text"><div className={track ? 'studio-parallel-text' : undefined}><div>{cue.source.spans.map((span, i) => <span key={i} style={{ fontWeight: span.marks.includes('b') ? 650 : undefined, fontStyle: span.marks.includes('i') ? 'italic' : undefined, textDecoration: span.marks.includes('u') ? 'underline' : undefined }}>{span.text}</span>)}</div>{track && <div className="studio-target-text">{track.entries[cue.id] ? <>{track.entries[cue.id].sourceRevision !== cue.sourceRevision && <span className="block text-xs text-amber-600">{t('studio:translation_stale')}</span>}{track.entries[cue.id].text.spans.map((span, i) => <span key={i} style={{ fontWeight: span.marks.includes('b') ? 650 : undefined, fontStyle: span.marks.includes('i') ? 'italic' : undefined, textDecoration: span.marks.includes('u') ? 'underline' : undefined }}>{span.text}</span>)}</> : <span className="text-xs text-muted-foreground">{cue.source.plain.trim() ? t('studio:translation_missing') : ''}</span>}</div>}</div></td>
-                    <td className="studio-cue-action"><StudioIconButton size="icon-xs" className={copied === cue.id ? 'studio-copy text-emerald-600 dark:text-emerald-400 is-copied' : 'studio-copy text-muted-foreground'} label={copied === cue.id ? t('studio:copied') : t('studio:copy')} onClick={() => void copyCue(cue.id, cue.source.plain)}>{copied === cue.id ? <Check /> : <Copy />}</StudioIconButton></td>
+                    <td className="studio-cue-action"><StudioCueCopy cue={cue} translation={track?.entries[cue.id]} copied={copied === cue.id} onCopy={text => copyCue(cue.id, text)} /></td>
                   </tr>)}</tbody></table> : <div className="studio-content-empty"><Subtitles /><p>{t('studio:diagnostics.empty_document')}</p></div>}
                 </ClipPathTabsContent>
                 <ClipPathTabsContent value="raw" className="studio-raw"><ol start={page.nodeOffset + 1}>{page.rawNodes.map((node, index) => <li key={node.id}><span aria-hidden="true">{page.nodeOffset + index + 1}</span><pre>{node.text}</pre></li>)}</ol>{!page.rawNodes.length && <div className="studio-content-empty"><Code2 /><p>{t('studio:no_source_content')}</p></div>}</ClipPathTabsContent>
@@ -474,13 +564,13 @@ export default function SubtitleStudio() {
       <ScrollableDialogFooter className="flex flex-wrap items-center justify-end gap-2 p-3"><Button id="studio-batch-cancel" variant="ghost" size="sm" onClick={() => setBatchConfirm(null)}>{t('studio:cancel')}</Button><Button size="sm" variant={batchConfirm === 'delete' ? 'destructive' : 'default'} disabled={busy} onClick={() => batchConfirm && processSelected(batchConfirm)}>{t(batchConfirm === 'delete' ? 'studio:library.confirm_delete' : 'studio:library.confirm_resume')}</Button></ScrollableDialogFooter>
     </ScrollableDialog>
     <ScrollableDialog open={!!results} onOpenChange={open => { if (!open) setResults(null); }} maxWidth="sm:max-w-[600px]" onOpenAutoFocus={event => { event.preventDefault(); document.getElementById('studio-result-close')?.focus(); }}>
-      <ScrollableDialogHeader><DialogTitle>{results?.title}</DialogTitle><DialogDescription>{t('studio:library.result_summary', { success: results?.items.filter(item => !item.error && !item.skipped).length ?? 0, skipped: results?.items.filter(item => item.skipped).length ?? 0, failed: results?.items.filter(item => item.error).length ?? 0 })}</DialogDescription></ScrollableDialogHeader>
-      <ScrollableDialogContent><ul data-testid="studio-library-result" className="studio-operation-results">{results?.items.map((item, index) => <li key={`${item.name}:${index}`}><span className="break-all">{item.name}</span><span className={item.error ? 'text-destructive' : 'text-muted-foreground'}>{item.error ? t(errorKeys[item.error]) : item.skipped ? t(item.skipped) : t('studio:library.succeeded')}</span></li>)}</ul></ScrollableDialogContent>
+      <ScrollableDialogHeader><DialogTitle>{results?.title}</DialogTitle><DialogDescription className="sr-only">{t('studio:library.result_summary', { success: results?.items.filter(item => !item.error && !item.skipped).length ?? 0, skipped: results?.items.filter(item => item.skipped).length ?? 0, failed: results?.items.filter(item => item.error).length ?? 0 })}</DialogDescription></ScrollableDialogHeader>
+      <ScrollableDialogContent><StudioOperationResult testId="studio-library-result" successLabel={results?.kind === 'resume' ? count => t('studio:library.resume_requested_count', { count }) : results?.kind === 'cancel' ? count => t('studio:library.cancel_requested_count', { count }) : undefined} items={results?.items.map((item, index) => ({ id: `${item.documentId ?? item.name}:${index}`, name: item.name, state: item.error ? 'failed' : item.skipped ? 'skipped' : 'success', detail: item.error ? t(errorKeys[item.error]) : item.skipped ? t(item.skipped) : t(results.kind === 'resume' ? 'studio:library.resume_requested' : results.kind === 'cancel' ? 'studio:library.cancel_requested' : 'studio:library.succeeded') })) ?? []} /></ScrollableDialogContent>
       <ScrollableDialogFooter className="flex justify-end"><Button id="studio-result-close" variant="outline" size="sm" onClick={() => setResults(null)}>{t('studio:recovery.close')}</Button></ScrollableDialogFooter>
     </ScrollableDialog>
     <ScrollableDialog open={!!deleting} onOpenChange={open => { if (!open) setDeleting(null); }} onOpenAutoFocus={event => { event.preventDefault(); document.getElementById('studio-delete-cancel')?.focus(); }} onCloseAutoFocus={event => { event.preventDefault(); document.getElementById('studio-delete-trigger')?.focus(); }}>
       <ScrollableDialogHeader><DialogTitle className="pr-6">{t('studio:delete_document')}</DialogTitle><DialogDescription>{t('studio:delete_description')}</DialogDescription></ScrollableDialogHeader>
-      <ScrollableDialogContent><p className="break-all text-sm">{deleting?.origin.displayName}</p></ScrollableDialogContent>
+      <ScrollableDialogContent><StudioDocumentList scroll={false}>{deleting && <StudioDocumentRow name={deleting.origin.displayName} />}</StudioDocumentList></ScrollableDialogContent>
       <ScrollableDialogFooter><div className="flex justify-end gap-2"><Button id="studio-delete-cancel" variant="outline" onClick={() => setDeleting(null)}>{t('studio:cancel')}</Button><Button variant="destructive" disabled={busy} onClick={deleteDocument}><Trash2 />{t('studio:delete_document')}</Button></div></ScrollableDialogFooter>
     </ScrollableDialog>
   </div>;

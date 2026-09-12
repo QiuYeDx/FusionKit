@@ -1,0 +1,6 @@
+.studio-plan-documents-body { padding: 4px; min-width: 0; }
+.studio-plan-documents-body .studio-document-row { background: transparent; }
+.studio-plan-documents-body .studio-document-row:hover, .studio-plan-documents-body .studio-document-row:focus-within { background: var(--muted); }
+.studio-plan-document-track { width: 140px; max-width: 100%; min-width: 0; }
+.studio-plan-document-status { display: inline-flex; justify-content: flex-end; align-items: center; flex-wrap: wrap; gap: 4px 6px; }
+.studio-plan-documents-note { color: var(--muted-foreground); font-size: 11px; line-height: 17px; }

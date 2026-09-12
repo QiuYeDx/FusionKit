@@ -1,0 +1,1015 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-09-13",
+  "branch": "feat/subtitle-studio-transcription",
+  "baselineCommit": "3855c2c72bfa45740f248406f7266cf0342ae1f6",
+  "status": "I6 technical implementation and required checks completed; user acceptance pending; I5 and I6 uncommitted",
+  "scopeDigest": "c96c217848ebd05e9633a4b1a2ebe8a4835099464868af1cf3b1331474feb4d7",
+  "incrementDigest": "7fc9aa5bb90850b98902bbf1b97e7fb651e9be228183eafa756c591d8c213002",
+  "environment": {
+    "platform": "Windows x64",
+    "node": "20.19.4",
+    "electron": "41.10.6",
+    "vitest": "2.1.9",
+    "typescript": "5.9.3"
+  },
+  "previousSnapshot": {
+    "path": "docs/features/subtitle-studio/records/2026-09-13-experience.snapshot.json",
+    "bytes": 34717,
+    "sha256": "bfdbf79f73a042e5f7b7711498487c405b19b55d7c8a790e14a465331e231cdf"
+  },
+  "evidenceNotes": [
+    "Source hashes describe the complete uncommitted I5+I6 tree against 3855c2c. changeSinceI5 compares the previous 65-file source snapshot, checked identical before I6 implementation. Docs are excluded to avoid self-reference.",
+    "Unit groups overlap: 56 related tests and 30 export-guard tests share 7 cases and must not be added without deduplication.",
+    "UI runs use isolated Electron profiles and generated input files. Root, workspace, queue and export runs are serialized to avoid focus conflicts.",
+    "Controlled ASR/HTTP or read-view timing/revision decorations are explicitly described in the closeout; they are not real supplier/ASR quality or I4 editing evidence.",
+    "Failed attempts are described separately from final passing evidence. Main/preload bytes were unchanged across I6 renderer refinements.",
+    "Local artifacts are ignored by Git; this versioned snapshot retains exact relative paths and hashes. Packaging and I4 remain paused; user acceptance remains pending.",
+    "During the user-authorized commit, git diff --cached --check found extra EOF blank lines in eight new files. Only trailing line endings were normalized. Four source entries retain their exact tested identity as validatedBeforeEofCleanup; their current bytes/hash reflect this formatting-only cleanup. Technical behavior and build inputs before the trailing empty lines are byte-identical."
+  ],
+  "files": [
+    {
+      "path": ".agents/skills/fusionkit-pitfall-guard/references/capture-native-drop-authority-before-queuing-reader-work.md",
+      "bytes": 2294,
+      "sha256": "10858d99320db4fe64acaa5d930a3b84a878fba9332caedbb5f6f87ceb2c05d2",
+      "changeSinceI5": "unchanged"
+    },
+    {
+      "path": ".agents/skills/fusionkit-pitfall-guard/references/index.md",
+      "bytes": 56555,
+      "sha256": "c30ade75f66b4066687c0d1be0064c115ed80ffeac18461e0feadb6b26d0f195",
+      "changeSinceI5": "modified"
+    },
+    {
+      "path": ".agents/skills/fusionkit-pitfall-guard/references/keep-background-reconciliation-separate-from-foreground-activity.md",
+      "bytes": 2225,
+      "sha256": "444ce6a70c4925211699328c535e53a2823e05582e3b67600829e0f40dfdd650",
+      "changeSinceI5": "unchanged"
+    },
+    {
+      "path": ".agents/skills/fusionkit-pitfall-guard/references/keep-document-selection-local-and-cancel-stale-bulk-reads.md",
+      "bytes": 2392,
+      "sha256": "4bcf891700a6480f243a74804a27570d61ccae537b48d68d5157d10f09ee95c9",
+      "changeSinceI5": "new"
+    },
+    {
+      "path": "electron/main/subtitle-studio/automatic-translation.ts",
+      "bytes": 2253,
+      "sha256": "4786002389fdd1afc0980f806e31d63eba10a7f8c5930ca4ee7cfc74169f859d",
+      "changeSinceI5": "unchanged"
+    },
+    {
+      "path": "electron/main/subtitle-studio/bilingual-service.ts",
+      "bytes": 2822,
+      "sha256": "996625f92357d7945ee09b7b7a2a90798cb2d474c7dbdb789fa2cb7904843c07",
+      "changeSinceI5": "unchanged"
+    },
+    {
+      "path": "electron/main/subtitle-studio/document-repository.ts",
+      "bytes": 24873,
+      "sha256": "df94ab47b6b8f44531ddf74626fd26fd9068e433a4a88b1399ea206fd6ff8080",
+      "changeSinceI5": "unchanged"
+    },
+    {
+      "path": "electron/main/subtitle-studio/drop-input-service.ts",
+      "bytes": 2004,
+      "sha256": "ef256ccc7a48a285dd102c7001749ebb34665c436fe3b21119e188b3d8af8194",
+      "changeSinceI5": "unchanged"
+    },
+    {
+      "path": "electron/main/subtitle-studio/export-planner.ts",
+      "bytes": 14616,
+      "sha256": "792d946645a98a0d2f0dc725f57c3802eace9bdee1b6641dc9dd7b1f26e96c18",
+      "changeSinceI5": "unchanged"
+    },
+    {
+      "path": "electron/main/subtitle-studio/index.ts",
+      "bytes": 26385,
+      "sha256": "c0cc0653dc65d5818e18220a38ec07f36d83199fc98c286e055c8dbfb893a72e",
+      "changeSinceI5": "unchanged"
+    },
+    {
+      "path": "electron/main/subtitle-studio/transcription-ipc.ts",
+      "bytes": 7841,
+      "sha256": "e52fa6b04e3cc6626e28f76f2696999ee878bf104d650a44ee3f9e4db64fe74e",
+      "changeSinceI5": "unchanged"
+    },
+    {
+      "path": "electron/main/subtitle-studio/transcription/document-sink.ts",
+      "bytes": 4892,
+      "sha256": "869315719273c2019db8f48292ecdef0516a9d1281c44cd6d37b4028b116a59c",
+      "changeSinceI5": "unchanged"
+    },
+    {
+      "path": "electron/main/subtitle-studio/transcription/runtime.ts",
+      "bytes": 26104,
+      "sha256": "490226e831ab052cae065497aabfe5a7254f5d8236c6b224eec18a08ed9adb75",
+      "changeSinceI5": "unchanged"
+    },
+    {
+      "path": "electron/main/subtitle-studio/transcription/task-service.ts",
+      "bytes": 33676,
+      "sha256": "0281ea63cd18dded3fd017e7503aaf0892992bf283741db8ac99f31c032c1a81",
+      "changeSinceI5": "unchanged"
+    },
+    {
+      "path": "electron/main/subtitle-studio/translation-service.ts",
+      "bytes": 26768,
+      "sha256": "efb3aeab787764c9762b7d858eaa0a913990bc90a3c979be3c076188e2815e41",
+      "changeSinceI5": "unchanged"
+    },
+    {
+      "path": "electron/preload/subtitle-studio-api.ts",
+      "bytes": 7062,
+      "sha256": "f0013410fbac4407bc826916438b87417426bb66543ec27a6197b5840f19acf4",
+      "changeSinceI5": "unchanged"
+    },
+    {
+      "path": "resources/speech-resources/provenance/current-integration-audits.v1.json",
+      "bytes": 9033,
+      "sha256": "fb51ccd16a87bba959d42293de68fd4017f828fa9d138146cffbc2fdebcc5c4c",
+      "changeSinceI5": "unchanged"
+    },
+    {
+      "path": "src/locales/en/studio.json",
+      "bytes": 30606,
+      "sha256": "76a70effc912cc5bbc809912fd214aa744dc14c68b021d07a515229004fce5b9",
+      "changeSinceI5": "modified"
+    },
+    {
+      "path": "src/locales/ja/studio.json",
+      "bytes": 36866,
+      "sha256": "71ae26a909d1a86fb23e02babdcacc2b9a7a2a9853f039aa6d0adfe58cfe6d56",
+      "changeSinceI5": "modified"
+    },
+    {
+      "path": "src/locales/zh-Hant/studio.json",
+      "bytes": 28870,
+      "sha256": "b23376f3b8edffb1f86d2312245284c5bf7db3fe311f6ada48b6664fe19ba314",
+      "changeSinceI5": "modified"
+    },
+    {
+      "path": "src/locales/zh/studio.json",
+      "bytes": 28711,
+      "sha256": "fea35e4d79405212638ae90203993dec3da128d2b301ed9367e47bcca7540867",
+      "changeSinceI5": "modified"
+    },
+    {
+      "path": "src/pages/Tools/Subtitle/SubtitleStudio/StudioBatch.css",
+      "bytes": 293,
+      "sha256": "15705f7cbe7410ec347b62a56927a4474e4fe5ceb34799d6f3bd35901e746bce",
+      "changeSinceI5": "unchanged"
+    },
+    {
+      "path": "src/pages/Tools/Subtitle/SubtitleStudio/StudioBatchItems.tsx",
+      "bytes": 310,
+      "sha256": "c6fb3079740a76119fa74086314d5d20053707835068c88f0184672474d65f5d",
+      "changeSinceI5": "unchanged"
+    },
+    {
+      "path": "src/pages/Tools/Subtitle/SubtitleStudio/StudioCueCopy.css",
+      "bytes": 280,
+      "sha256": "cb0e9777c30bfaae731412a81fb12eb8b018cf6e5f984e982d20f3cf1728d1f6",
+      "changeSinceI5": "new",
+      "validatedBeforeEofCleanup": {
+        "bytes": 281,
+        "sha256": "4593f1ea5a8f0e25d527f10a89153e655e24eccac8bc415a3915d9dc7070680e"
+      }
+    },
+    {
+      "path": "src/pages/Tools/Subtitle/SubtitleStudio/StudioCueCopy.tsx",
+      "bytes": 3358,
+      "sha256": "4593c2ba38c430ecec94ee027f1b1264c9e40e520a9f852acc23ea2232a16abc",
+      "changeSinceI5": "new",
+      "validatedBeforeEofCleanup": {
+        "bytes": 3359,
+        "sha256": "344535f3fdde4429d72b3c66e23ba7026c53398c52ffa2bbec868a0b04c61539"
+      }
+    },
+    {
+      "path": "src/pages/Tools/Subtitle/SubtitleStudio/StudioDocumentList.css",
+      "bytes": 1565,
+      "sha256": "af9ee30f448cd1fcd889d4f3a5561effebdd45bf25a5a68bab87a248bd89b566",
+      "changeSinceI5": "modified"
+    },
+    {
+      "path": "src/pages/Tools/Subtitle/SubtitleStudio/StudioDocumentList.tsx",
+      "bytes": 1945,
+      "sha256": "4b975687b60364e625bce2256b06392571d71997c4c0bbfc6ecb2363897f8c55",
+      "changeSinceI5": "unchanged"
+    },
+    {
+      "path": "src/pages/Tools/Subtitle/SubtitleStudio/StudioExport.css",
+      "bytes": 5972,
+      "sha256": "505ed504e849c128aa49a8be8ae3b2172f30dd6899ac9a1199d1eede33ed1fd7",
+      "changeSinceI5": "modified"
+    },
+    {
+      "path": "src/pages/Tools/Subtitle/SubtitleStudio/StudioExport.tsx",
+      "bytes": 43152,
+      "sha256": "0ea46e2cbf129f6ee35d25e2a5fa786ac4b9a6735dd1f2c1c372c8f23788de16",
+      "changeSinceI5": "modified"
+    },
+    {
+      "path": "src/pages/Tools/Subtitle/SubtitleStudio/StudioLibrary.tsx",
+      "bytes": 13037,
+      "sha256": "4185e6c430c7be705909d4702e5c00dce412b6540fb393ef1967f467da62187f",
+      "changeSinceI5": "new"
+    },
+    {
+      "path": "src/pages/Tools/Subtitle/SubtitleStudio/StudioOperationResult.css",
+      "bytes": 1303,
+      "sha256": "adfc60de7cb6cb2e48357614cbfea5f2c908eb82cb5b894a6ef84b5cc0b5422e",
+      "changeSinceI5": "new"
+    },
+    {
+      "path": "src/pages/Tools/Subtitle/SubtitleStudio/StudioOperationResult.tsx",
+      "bytes": 3072,
+      "sha256": "d18abbc87c4280cc9bd078e0b485beb3184e1b26b94ca0033aad2f9432757048",
+      "changeSinceI5": "new"
+    },
+    {
+      "path": "src/pages/Tools/Subtitle/SubtitleStudio/StudioPlanDocuments.css",
+      "bytes": 597,
+      "sha256": "61f83c3f55966f3a1613f0c1a43dccb547a99f4668ff9c2d83f18788f5cf8d07",
+      "changeSinceI5": "unchanged"
+    },
+    {
+      "path": "src/pages/Tools/Subtitle/SubtitleStudio/StudioPlanDocuments.tsx",
+      "bytes": 3837,
+      "sha256": "8c018179ea162c09ed08fe750c2418304ff291aabb4bb5a28064b518fbde66da",
+      "changeSinceI5": "unchanged"
+    },
+    {
+      "path": "src/pages/Tools/Subtitle/SubtitleStudio/StudioRecovery.tsx",
+      "bytes": 4473,
+      "sha256": "9818eb8473ec1f29fea51568c1dbe01b0d3785450c1c61049bc8ae3430cbad12",
+      "changeSinceI5": "unchanged"
+    },
+    {
+      "path": "src/pages/Tools/Subtitle/SubtitleStudio/StudioScrollFade.css",
+      "bytes": 1274,
+      "sha256": "0051775a8e722cf923d88b03bed7ecb6a549ca4e52cfd0f4a2544c4b6bb3e23e",
+      "changeSinceI5": "unchanged"
+    },
+    {
+      "path": "src/pages/Tools/Subtitle/SubtitleStudio/StudioScrollFade.tsx",
+      "bytes": 1959,
+      "sha256": "18658546f4450fcd05f1fc2088f38956c13bdbef1f94b6d1666a2cf9ae03408e",
+      "changeSinceI5": "unchanged"
+    },
+    {
+      "path": "src/pages/Tools/Subtitle/SubtitleStudio/StudioSelectedDocuments.css",
+      "bytes": 2139,
+      "sha256": "82250ab226bf844a8d75ed915d4ca650a5925c2d5ebefa8ba8bbeb2e59fee589",
+      "changeSinceI5": "unchanged"
+    },
+    {
+      "path": "src/pages/Tools/Subtitle/SubtitleStudio/StudioSelectedDocuments.tsx",
+      "bytes": 441,
+      "sha256": "dc084bf78777b7e97f8b9470ad029a74edf467120459945a040257a91505d5ce",
+      "changeSinceI5": "unchanged"
+    },
+    {
+      "path": "src/pages/Tools/Subtitle/SubtitleStudio/StudioTranscription.css",
+      "bytes": 9848,
+      "sha256": "cf9652155786e97ef74d0bc02d9f58fec5805491aa54f7fc6e8cd8c06fb0a885",
+      "changeSinceI5": "modified"
+    },
+    {
+      "path": "src/pages/Tools/Subtitle/SubtitleStudio/StudioTranscription.tsx",
+      "bytes": 39597,
+      "sha256": "2c4cdfe19e0e2c82ec70f9762bb6491cf9c3ec50d132617c2dc7a8b15ad8a0cc",
+      "changeSinceI5": "modified"
+    },
+    {
+      "path": "src/pages/Tools/Subtitle/SubtitleStudio/StudioTranslation.css",
+      "bytes": 5068,
+      "sha256": "6bc272c0ea61a409f04950165e7a25ad27ad381f7d2dd6fe3fb4a3aa6711cf7b",
+      "changeSinceI5": "modified"
+    },
+    {
+      "path": "src/pages/Tools/Subtitle/SubtitleStudio/StudioTranslation.tsx",
+      "bytes": 22407,
+      "sha256": "4fbb9544a9a202e98aeec1a156d1eb37114993bb3b98f4bb76b83f3eb74fb28e",
+      "changeSinceI5": "modified"
+    },
+    {
+      "path": "src/pages/Tools/Subtitle/SubtitleStudio/StudioTranslationOverview.css",
+      "bytes": 3078,
+      "sha256": "879eddf61dd63e6cac7f833ad95048d8c3eef59ae6cb29d6398517bbc07fc03c",
+      "changeSinceI5": "modified"
+    },
+    {
+      "path": "src/pages/Tools/Subtitle/SubtitleStudio/StudioTranslationOverview.tsx",
+      "bytes": 10762,
+      "sha256": "fd1b770f91aabd2d9b059df107647603b747fde35ee841c2936bbfb18c5c760c",
+      "changeSinceI5": "modified"
+    },
+    {
+      "path": "src/pages/Tools/Subtitle/SubtitleStudio/StudioTranslationTask.tsx",
+      "bytes": 10770,
+      "sha256": "d6f1a5246af5ab23c410211a02c698aca3fe14cc61c51eacd856d49ef882de6d",
+      "changeSinceI5": "unchanged"
+    },
+    {
+      "path": "src/pages/Tools/Subtitle/SubtitleStudio/index.tsx",
+      "bytes": 53385,
+      "sha256": "94a07770bdef97d4a42723943e4b5f6fd4595ca164b868cbaa58ce7a1d5ec1c2",
+      "changeSinceI5": "modified"
+    },
+    {
+      "path": "src/pages/Tools/Subtitle/SubtitleStudio/studio.css",
+      "bytes": 19834,
+      "sha256": "33cd00de9eeacf81197f63ef411063a458412cdd936fc67e4a7c625623260f48",
+      "changeSinceI5": "modified"
+    },
+    {
+      "path": "src/services/subtitle-studio/cue-copy.ts",
+      "bytes": 1088,
+      "sha256": "a298b303700546b5b1254138314e92c4b7f297130469faee6f214d2ace9fa1da",
+      "changeSinceI5": "new",
+      "validatedBeforeEofCleanup": {
+        "bytes": 1089,
+        "sha256": "e26117ebd91b9bb9479b20979595a1745526abbe49c505d54efd75eb069fca6e"
+      }
+    },
+    {
+      "path": "src/services/subtitle-studio/refresh-coordinator.ts",
+      "bytes": 2257,
+      "sha256": "8a64acc2c99dfa81a2d0774ebb761d07c8e31728f37d8c0a12f42a31e3f842b5",
+      "changeSinceI5": "unchanged"
+    },
+    {
+      "path": "src/services/subtitle-studio/transcription-controller.ts",
+      "bytes": 38011,
+      "sha256": "d4be5eb3ffe3c71d5aaa11c95c02fed040f111a3e0fc28d97db6c7fe2a49c26c",
+      "changeSinceI5": "unchanged"
+    },
+    {
+      "path": "src/store/tools/subtitle-studio/preferences.ts",
+      "bytes": 2316,
+      "sha256": "c0e285f7484347252119b8c868f79ace0249ea68147fb17d82b823eff3fed14d",
+      "changeSinceI5": "unchanged"
+    },
+    {
+      "path": "src/subtitle-studio/automatic-translation-contract.ts",
+      "bytes": 946,
+      "sha256": "87b8219012a6df4d03a034f1f6a0686fbab60d77a4194edbea405dbce833c6a6",
+      "changeSinceI5": "unchanged"
+    },
+    {
+      "path": "src/subtitle-studio/ipc-contract.ts",
+      "bytes": 19522,
+      "sha256": "c980e1faaeaa3225307cfc406ce3e55df1f36b5cdfa75fec33fde9a6644ff555",
+      "changeSinceI5": "unchanged"
+    },
+    {
+      "path": "src/subtitle-studio/persistence-contract.ts",
+      "bytes": 3206,
+      "sha256": "75adb0f9e0b5986a2ff8c1a90296898fd8182a7681f89bd61816bf8f5fd27067",
+      "changeSinceI5": "unchanged"
+    },
+    {
+      "path": "src/subtitle-studio/transcription/preferences-contract.ts",
+      "bytes": 2050,
+      "sha256": "547f019b1627da60bc4c1c9044b308b5a163facdd4315ea62ebddb9af0ad1664",
+      "changeSinceI5": "unchanged"
+    },
+    {
+      "path": "src/subtitle-studio/transcription/task-contract.ts",
+      "bytes": 3750,
+      "sha256": "52d5ad38393486947532c87cdda42d632cdd5a30474fd2e210b14b0642a4b200",
+      "changeSinceI5": "unchanged"
+    },
+    {
+      "path": "test/subtitle-studio/acceptance-files-ui.test.ts",
+      "bytes": 18591,
+      "sha256": "77671604f5ae47ee66ae874d2d7c1cde5025dfc2d806ca638167f1ea17904d64",
+      "changeSinceI5": "modified"
+    },
+    {
+      "path": "test/subtitle-studio/acceptance-live-refresh-ui.test.ts",
+      "bytes": 23498,
+      "sha256": "d2315ebb3d1c777a6ac05d13beaf937dde73d343cd0162671f69bb5e40cf6e42",
+      "changeSinceI5": "modified"
+    },
+    {
+      "path": "test/subtitle-studio/automatic-translation.test.ts",
+      "bytes": 10472,
+      "sha256": "5f786db8865c099d05a5118a7a9d6d6cf04df347f61156356a78e7010dd7e2c1",
+      "changeSinceI5": "unchanged"
+    },
+    {
+      "path": "test/subtitle-studio/cue-copy.test.ts",
+      "bytes": 2248,
+      "sha256": "4be28322c97e3136ee3976b3a44be77cab1662bf72db7c33b330251a7ed7ecd3",
+      "changeSinceI5": "new",
+      "validatedBeforeEofCleanup": {
+        "bytes": 2249,
+        "sha256": "95bf71168314b9ec877c954a0df82541e2376c577c9633475537904476d8a61a"
+      }
+    },
+    {
+      "path": "test/subtitle-studio/experience-export-ui.test.ts",
+      "bytes": 18154,
+      "sha256": "6021dec7d11ddedd58c166031ae727c7550534156d0194b30ac97fc147e2cf89",
+      "changeSinceI5": "modified"
+    },
+    {
+      "path": "test/subtitle-studio/experience-transcription-ui.test.ts",
+      "bytes": 17879,
+      "sha256": "0f78f91f9d2d5f8113b47769f2accda1deea3cae5eceffe854ecbd0d941abe16",
+      "changeSinceI5": "unchanged"
+    },
+    {
+      "path": "test/subtitle-studio/export-planner.test.ts",
+      "bytes": 19063,
+      "sha256": "47c92323f732e38437745d0ef13ce1f0c06deac2e0076b86e5af632fbcfc5e2b",
+      "changeSinceI5": "unchanged"
+    },
+    {
+      "path": "test/subtitle-studio/export-ui.test.ts",
+      "bytes": 20143,
+      "sha256": "e6daf578d899524a34bb52e76d03606234f9427332b539a3cf82672b90da9c24",
+      "changeSinceI5": "modified"
+    },
+    {
+      "path": "test/subtitle-studio/helpers/transcription-ui-runtime.ts",
+      "bytes": 14877,
+      "sha256": "300c91a0c532a568e1b65be4a4c9be2d033d8995cd37bc40c297d7bc465a8490",
+      "changeSinceI5": "unchanged"
+    },
+    {
+      "path": "test/subtitle-studio/interaction-copy-ui.test.ts",
+      "bytes": 14388,
+      "sha256": "ac234eac94a5e9ffb7c5e317a5983502ba574a8136ebe4bfbadd24ea806d7bb8",
+      "changeSinceI5": "new"
+    },
+    {
+      "path": "test/subtitle-studio/interaction-export-ui.test.ts",
+      "bytes": 15936,
+      "sha256": "e76883a254e3d8bbbd2089b9adfeaa919adb6595354d50b31aadcd9a63fcfd17",
+      "changeSinceI5": "new"
+    },
+    {
+      "path": "test/subtitle-studio/interaction-queue-ui.test.ts",
+      "bytes": 17848,
+      "sha256": "96fafe1bc205b1b8b04f8f7e4c06b0d919ea246e8981b5c7752b331f259cbd0c",
+      "changeSinceI5": "new"
+    },
+    {
+      "path": "test/subtitle-studio/interaction-workspace-ui.test.ts",
+      "bytes": 22029,
+      "sha256": "a35bdf03f58c8d0530d023febeb4fe308cbe143b68ce87f26e23e79e4f6001c3",
+      "changeSinceI5": "new"
+    },
+    {
+      "path": "test/subtitle-studio/library-ui.test.ts",
+      "bytes": 45796,
+      "sha256": "0766f5fd61ecd20760fd2f6e107148eb8183afb71e2290a3845ae934e9bd4953",
+      "changeSinceI5": "modified"
+    },
+    {
+      "path": "test/subtitle-studio/media-drop.test.ts",
+      "bytes": 3128,
+      "sha256": "aae3f245beec6564f5a48697a74b4d95bd055ba1e7d48fe164622c5849ad5074",
+      "changeSinceI5": "unchanged"
+    },
+    {
+      "path": "test/subtitle-studio/refresh-coordinator.test.ts",
+      "bytes": 5319,
+      "sha256": "369c7fb053f99df817d7736da12033656a57c666289ade7755860f9957b7eed2",
+      "changeSinceI5": "unchanged"
+    },
+    {
+      "path": "test/subtitle-studio/transcription-controller.test.ts",
+      "bytes": 29824,
+      "sha256": "29dc1c45bf60dff1006cb25ba9631e1d2b6dd4b52b15ad6dd9d5bb6862de754f",
+      "changeSinceI5": "unchanged"
+    },
+    {
+      "path": "test/subtitle-studio/transcription-ipc.test.ts",
+      "bytes": 23734,
+      "sha256": "cc7c4bf71109d05aaf4258382fe3daf20b49cdc2e9a63f3686df4b593b2fb7b6",
+      "changeSinceI5": "unchanged"
+    },
+    {
+      "path": "test/subtitle-studio/transcription-preferences.test.ts",
+      "bytes": 3443,
+      "sha256": "8cdfd99be55b4fdae52fd64d699d0a212371641c7971fefe4d10f7a6c9ff7c72",
+      "changeSinceI5": "unchanged"
+    },
+    {
+      "path": "test/subtitle-studio/transcription-task-service.test.ts",
+      "bytes": 28050,
+      "sha256": "e14b11d382e34c615cfd5fae06a137c1ac1c23ac190bda19108c7aee8342b8e6",
+      "changeSinceI5": "unchanged"
+    },
+    {
+      "path": "test/subtitle-studio/vertical-layout.test.ts",
+      "bytes": 7882,
+      "sha256": "bee314aedbf0a9d7680ce784b43b29388e2ee78cd6b34f92a56956a287fae99d",
+      "changeSinceI5": "new"
+    }
+  ],
+  "builtArtifacts": [
+    {
+      "path": "dist/index.html",
+      "bytes": 570,
+      "sha256": "7b7349b017a01018c4205e4234efce2af9a45b47ce1716f683b61f3a5bea0ae6"
+    },
+    {
+      "path": "dist-electron/main/index.js",
+      "bytes": 2923081,
+      "sha256": "d66e2542ae4250bdf1f20965f2bf6bf1d77c71b266a90b912e1f07d2db4571f5"
+    },
+    {
+      "path": "dist-electron/preload/index.mjs",
+      "bytes": 272268,
+      "sha256": "275415b2c7d1c5470461e687810c5534f91ddbaaae5f73f6cfe11ff0b4ed3cdd"
+    },
+    {
+      "path": "dist/assets/index-CevJ6Vg-.js",
+      "bytes": 5198388,
+      "sha256": "40b7c44f387561ff05dd66dd8f8a7019bd59e220dfa55434c2c1eba3bc764cb2"
+    },
+    {
+      "path": "dist/assets/index-k4Tr7WaQ.css",
+      "bytes": 205692,
+      "sha256": "61352f390762be634bcbc0c81ec39f244e76a05d00abb3c85bfa2874549cfe90"
+    }
+  ],
+  "evidenceFiles": [
+    {
+      "path": "test-results/studio-i3-files/run-rN1OoS/01-native-drop-light.png",
+      "bytes": 103444,
+      "sha256": "f11f4944367d1ab30da58419721433a221a135a730feb7b39b2bda80f964359c"
+    },
+    {
+      "path": "test-results/studio-i3-files/run-rN1OoS/02-translated-workspace-light.png",
+      "bytes": 173011,
+      "sha256": "6c294d278cafd78c91073708b573bc25993dc80ad97088270f07a98a01aa23a3"
+    },
+    {
+      "path": "test-results/studio-i3-files/run-rN1OoS/03-vtt-source-export.png",
+      "bytes": 214819,
+      "sha256": "ad4c7c269c2acb55138d705dca2be0dc7eb4ed07e06c68566e32ecd7b737c3ed"
+    },
+    {
+      "path": "test-results/studio-i3-files/run-rN1OoS/04-ass-custom-export-narrow-dark.png",
+      "bytes": 111041,
+      "sha256": "57c5188108d89ebc1a3c2dbbbaf750c86dbcf957d5a252452c30292276942c3b"
+    },
+    {
+      "path": "test-results/studio-i3-files/run-rN1OoS/05-batch-separate-source-folders.png",
+      "bytes": 174599,
+      "sha256": "6c52bd71193dd85ef5e880008dff3b9c754c52170cb6e8ef58380d99cbeb0eb4"
+    },
+    {
+      "path": "test-results/studio-i3-files/run-rN1OoS/06-historical-source-rebound.png",
+      "bytes": 198523,
+      "sha256": "ae5476cd194a45133c360c9d3354c0e8b51fe24afe44072d4f3a1a6725fd1bb5"
+    },
+    {
+      "path": "test-results/studio-i3-files/run-rN1OoS/result.json",
+      "bytes": 451,
+      "sha256": "5ad759367b69d361d5af5e1a07c3449c4172e899b155c9b8179a1d9936b472dd"
+    },
+    {
+      "path": "test-results/studio-i5-export/run-0OKPhv/01-import-shared-rows-light.png",
+      "bytes": 215384,
+      "sha256": "6016a9b1a7b1c1c48a07f3679739d2181bb04fd851bdf420741799cb889ada2c"
+    },
+    {
+      "path": "test-results/studio-i5-export/run-0OKPhv/02-defaults-collapsed-light.png",
+      "bytes": 251116,
+      "sha256": "b480bd490ab3c2067a44e4eb8c42e024d614823012bf17a4d2a21a631a9120fa"
+    },
+    {
+      "path": "test-results/studio-i5-export/run-0OKPhv/03-batch-defaults-light.png",
+      "bytes": 234797,
+      "sha256": "855160ea9e5557a93b601f96d0572f409e7067916e0379574a76871f361b50a3"
+    },
+    {
+      "path": "test-results/studio-i5-export/run-0OKPhv/04-batch-tracks-scroll-light.png",
+      "bytes": 260219,
+      "sha256": "6fe6ef5a26cde24dde17f27f6c48921a7ec76ede01a0720489b4d8b4f1da9781"
+    },
+    {
+      "path": "test-results/studio-i5-export/run-0OKPhv/05-batch-scroll-narrow-dark.png",
+      "bytes": 104433,
+      "sha256": "9e7a2409e07ed9559f09cbef5383e9d2086bac17ed309e2becc99c60302d7814"
+    },
+    {
+      "path": "test-results/studio-i5-export/run-0OKPhv/06-batch-plan-narrow-dark.png",
+      "bytes": 124261,
+      "sha256": "ed63b3673b5ab2261eec9263a4fa8b6b5dc1c7df93c5cf7ddef4311345736cfa"
+    },
+    {
+      "path": "test-results/studio-i5-export/run-0OKPhv/07-batch-result-narrow-dark.png",
+      "bytes": 110856,
+      "sha256": "406ecc927747c66df5473feb10d36914b41dc173135876cb16d288227bc5f0d0"
+    },
+    {
+      "path": "test-results/studio-i5-export/run-0OKPhv/08-source-rebind-dark.png",
+      "bytes": 240551,
+      "sha256": "ed2bf735135f92d375b5adb97dd9e73b5e33b43f0ce4edd2ad5e9512c15052e8"
+    },
+    {
+      "path": "test-results/studio-i5-export/run-0OKPhv/09-translation-overview-shared-rows-dark.png",
+      "bytes": 252026,
+      "sha256": "e9d0646ed08c709e887b168700603d6dbcacde324b85e50107b7676ee2fec447"
+    },
+    {
+      "path": "test-results/studio-i5-export/run-0OKPhv/10-translation-scope-shared-rows-dark.png",
+      "bytes": 244190,
+      "sha256": "3f26503fc3181d3d2b8a0a4642f804fc9eb0812953c3e8a9552def189430c8d2"
+    },
+    {
+      "path": "test-results/studio-i5-export/run-0OKPhv/11-translation-plan-shared-rows-dark.png",
+      "bytes": 228741,
+      "sha256": "363efcb7e648a53d6c0fb7b8779a354c1cbe73432a4536afca444c5ed9be9d46"
+    },
+    {
+      "path": "test-results/studio-i5-export/run-0OKPhv/cleanup.json",
+      "bytes": 65,
+      "sha256": "5555c819e656b5352d5c6a05bfb512bce78be2ff7c0bac0def8f13d111dde2b7"
+    },
+    {
+      "path": "test-results/studio-i5-export/run-0OKPhv/result.json",
+      "bytes": 3088,
+      "sha256": "2902c57c03d14b9c86c78d8c915ba08c38c97d4ef4d8e82634349140013769fc"
+    },
+    {
+      "path": "test-results/studio-i5-refresh/run-eQwP6m/01-running-light-stable-toolbar.png",
+      "bytes": 230028,
+      "sha256": "f5b03ac8ba3633afb725d7085ab00678cd2fa858ee9ca65f2e383cc8f4b6d3bb"
+    },
+    {
+      "path": "test-results/studio-i5-refresh/run-eQwP6m/02-failed-dark-narrow-toolbar.png",
+      "bytes": 109102,
+      "sha256": "e3e68855d774791f1486f3392345dcf4b61e473e006244e2a81c7a0917b53673"
+    },
+    {
+      "path": "test-results/studio-i5-refresh/run-eQwP6m/03-completed-empty-controls.png",
+      "bytes": 305727,
+      "sha256": "ed2f7138cfa95c3347b14cc07d7dce384099676152774c163e690c8ba7bec37d"
+    },
+    {
+      "path": "test-results/studio-i5-refresh/run-eQwP6m/result.json",
+      "bytes": 783,
+      "sha256": "edd7bf82a8a7d770da3b290449c84467115bc3fbc9cfac8ba700394c732e4cf0"
+    },
+    {
+      "path": "test-results/studio-i6-copy/run-DuwGwO/01-copy-options-light.png",
+      "bytes": 194552,
+      "sha256": "1a1dafffcdfb72a3e156f469c3074a2eca4b64832cc20e0fd2b7292a11f2d288"
+    },
+    {
+      "path": "test-results/studio-i6-copy/run-DuwGwO/02-import-result-summary.png",
+      "bytes": 171863,
+      "sha256": "3e7e497648549e376aa955ec7276476c3e50c51159e6cc743cc8c751179e5f81"
+    },
+    {
+      "path": "test-results/studio-i6-copy/run-DuwGwO/03-translation-submitted-summary.png",
+      "bytes": 196528,
+      "sha256": "f76fb7957b89bde0d0b19b9ead09473a6ae40dc455083301653c94c5e110c594"
+    },
+    {
+      "path": "test-results/studio-i6-copy/run-DuwGwO/04-copy-narrow-dark.png",
+      "bytes": 109041,
+      "sha256": "de6061ac22a86d948958baa3bc4f49b1e1e5d1e875ea45ea0cf8e050d4f0d7f3"
+    },
+    {
+      "path": "test-results/studio-i6-copy/run-DuwGwO/cleanup.json",
+      "bytes": 90,
+      "sha256": "46f9d3b3155abe39d1dc08f4a7b8158a77fd761350f72e52a825a228ee841760"
+    },
+    {
+      "path": "test-results/studio-i6-copy/run-DuwGwO/result.json",
+      "bytes": 630,
+      "sha256": "254e1e7d5cbe5d82bea32c8023f1fc4c2a2ca1fab760bace422349eaa2d229d5"
+    },
+    {
+      "path": "test-results/studio-i6-export/run-cMYu0E/01-import-result-light.png",
+      "bytes": 169387,
+      "sha256": "debf14458d9106e39ac35b7aaf70d7957ccf6b90326d7fb47ce47773234c7e53"
+    },
+    {
+      "path": "test-results/studio-i6-export/run-cMYu0E/02-settings-documents-before-encoding-light.png",
+      "bytes": 219232,
+      "sha256": "615564908708d782680b91f7035e3f820d85af969ad573b509132fb531fa3dd2"
+    },
+    {
+      "path": "test-results/studio-i6-export/run-cMYu0E/03-review-summary-light.png",
+      "bytes": 210261,
+      "sha256": "783386023e4098d6e19031d79de73377f9dcc26dd50436b2f7312b6a3e9adf05"
+    },
+    {
+      "path": "test-results/studio-i6-export/run-cMYu0E/04-expired-plan-requires-check-light.png",
+      "bytes": 201197,
+      "sha256": "42084e78396b82d9157cf7f47d8667a24f0cbb089bda66c3b8c52567a23403da"
+    },
+    {
+      "path": "test-results/studio-i6-export/run-cMYu0E/05-single-result-light.png",
+      "bytes": 158517,
+      "sha256": "c6875d27fd47f8bae3cf11701df47c21850af367d090bfb892376f134a11c2a5"
+    },
+    {
+      "path": "test-results/studio-i6-export/run-cMYu0E/06-partial-review-narrow-dark.png",
+      "bytes": 128296,
+      "sha256": "6136a8e8ff454d026b8190f0943c86bde514f0f1609c4d7990e2fa6ff7e5f26d"
+    },
+    {
+      "path": "test-results/studio-i6-export/run-cMYu0E/07-partial-details-narrow-dark.png",
+      "bytes": 137193,
+      "sha256": "339f7d76060d7290eade411ae5de837268d1f76457d872784808a2911b31d1dc"
+    },
+    {
+      "path": "test-results/studio-i6-export/run-cMYu0E/08-partial-result-narrow-dark.png",
+      "bytes": 70935,
+      "sha256": "89b450af98d677c0bd56bca34ee39a6c332af98ed4c553dae33bbb3d98531df4"
+    },
+    {
+      "path": "test-results/studio-i6-export/run-cMYu0E/09-failure-details-narrow-dark.png",
+      "bytes": 76353,
+      "sha256": "80d0fd85cc7ec9cfbb9b152f197c8648b6250b6296ea1579766df5cb377a3d09"
+    },
+    {
+      "path": "test-results/studio-i6-export/run-cMYu0E/10-all-failed-original-result-narrow-dark.png",
+      "bytes": 67629,
+      "sha256": "da0e4130879c2b6f3990bd06f9c5062fbda456c7900e98ff981e4b91e6d95517"
+    },
+    {
+      "path": "test-results/studio-i6-export/run-cMYu0E/cleanup.json",
+      "bytes": 45,
+      "sha256": "e7620d35feebd62f9277cb6316ab0677b08cff7cf5c075324bad56864263d87a"
+    },
+    {
+      "path": "test-results/studio-i6-export/run-cMYu0E/result.json",
+      "bytes": 3030,
+      "sha256": "ac122142d27567a8b5d7965f68d7fe31a9a5f66c8a7bc8a9e8a0f1a62e9291bc"
+    },
+    {
+      "path": "test-results/studio-i6-workspace/attempt-notes.json",
+      "bytes": 1693,
+      "sha256": "0644f92712a36c7324081812e3613866add36fd9477459d7b46ea49a29d0a092"
+    },
+    {
+      "path": "test-results/studio-i6-workspace/cleanup.json",
+      "bytes": 872,
+      "sha256": "b31755faf8be6421729eba1bc7b5205652bbcf3ac1ee2040d819fe6b7c6c1316"
+    },
+    {
+      "path": "test-results/studio-i6-workspace/library-attempt-01.log",
+      "bytes": 415,
+      "sha256": "78aec61ae7a2b11b397a9549bb8c1cdefc55499cf53f09cf8ffb0801b3bfcce2"
+    },
+    {
+      "path": "test-results/studio-i6-workspace/live-refresh-attempt-01.log",
+      "bytes": 481,
+      "sha256": "96ae42af94748967f91ff7f741939c4c72c41a93df5981a8d9457d611d3a357b"
+    },
+    {
+      "path": "test-results/studio-i6-workspace/run-Z3MnOD/1280-documents.png",
+      "bytes": 299644,
+      "sha256": "a5df2ce7fc7110133df98d75db06c2d17227c36b661eb57c263036744af40afa"
+    },
+    {
+      "path": "test-results/studio-i6-workspace/run-Z3MnOD/1280-transcription.png",
+      "bytes": 187338,
+      "sha256": "b3ae14464284451368e93a69af065af7978a8f3a1fe926649e67d94ad1ee547c"
+    },
+    {
+      "path": "test-results/studio-i6-workspace/run-Z3MnOD/786-documents.png",
+      "bytes": 95872,
+      "sha256": "3de80ddbc295404457654b5d6dd853f5d277e7d8c59730246b45a94bed6a94dc"
+    },
+    {
+      "path": "test-results/studio-i6-workspace/run-Z3MnOD/786-transcription-scroll-end.png",
+      "bytes": 75171,
+      "sha256": "5ca091386c231ed5dab5f18fb24f0525a0a6be47b75b3264e90fb3a3cf6e47ad"
+    },
+    {
+      "path": "test-results/studio-i6-workspace/run-Z3MnOD/786-transcription.png",
+      "bytes": 100952,
+      "sha256": "46a430737202c495185670e2e30e6ea4ba59a820a288bf9c2b39a2f7da03f8dc"
+    },
+    {
+      "path": "test-results/studio-i6-workspace/run-Z3MnOD/result.json",
+      "bytes": 5820,
+      "sha256": "ce7e23e38f2e63f02302bb9180149e71154491577b3fedc46b2f713008381639"
+    },
+    {
+      "path": "test-results/studio-i6-workspace/typescript-final.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "test-results/studio-i6-workspace/vertical-layout-attempt-01.log",
+      "bytes": 1715,
+      "sha256": "51ef51ecfb6d01cda9983d843683e62238ca50c65c6f95e3f8f6071d9110d732"
+    },
+    {
+      "path": "test-results/studio-i6-workspace/workspace-ui-complete.log",
+      "bytes": 2774,
+      "sha256": "cb19758462c76e4547fa50aa64b8ba22e1423993f939b73af8f27e23d348bea7"
+    },
+    {
+      "path": "test-results/studio-i6/boundaries-final.log",
+      "bytes": 39,
+      "sha256": "639b7b810b29eaa5a5f693032f3b4b57e61fb0d40b62d2dfcd641d9e6cba5d9b"
+    },
+    {
+      "path": "test-results/studio-i6/build-layout-final.log",
+      "bytes": 2924,
+      "sha256": "a1ba9465d6bd7b8385c3064f7556ee99fa663247f5bc56eb23d25a91f5d842f7"
+    },
+    {
+      "path": "test-results/studio-i6/copy-ui-final.log",
+      "bytes": 459,
+      "sha256": "55a0ba75d29545d06c08a8bd2a7d0926bf9b1337c645971dc7705bdded6ba6ee"
+    },
+    {
+      "path": "test-results/studio-i6/export-guard-unit.log",
+      "bytes": 392,
+      "sha256": "ef7678ed71d67952ad50ae4468e44d5f5d25845beb172ae47c4527c1d13520f6"
+    },
+    {
+      "path": "test-results/studio-i6/export-regression-ui.log",
+      "bytes": 947,
+      "sha256": "23a5f8f99e704193232116ab20ce8483589d86f61443a33328acd3dd5e9541ab"
+    },
+    {
+      "path": "test-results/studio-i6/export-source-snapshot.json",
+      "bytes": 3256,
+      "sha256": "506542f7164032ca35fa11cced3f38a3de6fc6120e83b083ef629ad7a45457cb"
+    },
+    {
+      "path": "test-results/studio-i6/export-ui-rerun4.log",
+      "bytes": 505,
+      "sha256": "31f5c9f761ca41c40fd74923b41d782c5b10470dd9fcc9a64073030c06c1d700"
+    },
+    {
+      "path": "test-results/studio-i6/frontend-types-final.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "test-results/studio-i6/i18n-locales-final.log",
+      "bytes": 3200,
+      "sha256": "1eb4fd828214e270f3ef9831623d72e55b22e37c6ff13dc71293903e0b44392c"
+    },
+    {
+      "path": "test-results/studio-i6/i18n-usage-final.log",
+      "bytes": 208,
+      "sha256": "3d99cd30ad8f8bf026285519c931cc7b4f4eaca98ff79856e65647cc1d767015"
+    },
+    {
+      "path": "test-results/studio-i6/node-types.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "test-results/studio-i6/preload-final.log",
+      "bytes": 60,
+      "sha256": "ca64392e6e43b16992913fce2934117614016aa494b917e01b72c77ec5e12ca5"
+    },
+    {
+      "path": "test-results/studio-i6/process-cleanup.json",
+      "bytes": 310,
+      "sha256": "b6a99604ee7d1759035d15c3f47d8a411d19a43c09211087267e3e53b7e80979"
+    },
+    {
+      "path": "test-results/studio-i6/queue-ui-final.log",
+      "bytes": 489,
+      "sha256": "158a76fa415269403f54f4688b8a94a5b759670000ee3d9b0b9c6a6c0fc39da0"
+    },
+    {
+      "path": "test-results/studio-i6/related-unit.log",
+      "bytes": 869,
+      "sha256": "9deaecdc2c1a481a5506eeb141106762cff51a9c452f554e802ea9200c3b3502"
+    },
+    {
+      "path": "test-results/studio-i6/spec-ready-final.json",
+      "bytes": 3103,
+      "sha256": "80df3359884cbe0aaa4e1f2a68119d7fa4c02a0a39d47418579c590fbb27c5b8"
+    },
+    {
+      "path": "test-results/studio-i6/test-types-final.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "test-results/studio-library/evidence.json",
+      "bytes": 6946,
+      "sha256": "2abe5030fd9466918d529030059413dfc58f8a31b7b33ccce1b57f91ae9e6ede"
+    },
+    {
+      "path": "test-results/studio-library/library-narrow-dark-management.png",
+      "bytes": 98456,
+      "sha256": "bd7977f9368f04621e3c527714592cbe2db0711c7757cf3a473c1d823e2a484a"
+    },
+    {
+      "path": "test-results/studio-t06-ui/controlled-wKEdLm/build-evidence.json",
+      "bytes": 609,
+      "sha256": "f60ceeaf2722e5fdb9381919b303414afa93753d10677dcd4897052736562616"
+    },
+    {
+      "path": "test-results/studio-t06-ui/controlled-wKEdLm/i6-queue-cleanup.json",
+      "bytes": 200,
+      "sha256": "9efe74068fb8f5793c2528e627045a377ecee446aa68e85024eab6a9364b5812"
+    },
+    {
+      "path": "test-results/studio-t06-ui/controlled-wKEdLm/i6-queue-dark.png",
+      "bytes": 124414,
+      "sha256": "5da39663a79ec2be09c93bd920da7b59c8399657b83a5ca0f5ad1c8accf50f61"
+    },
+    {
+      "path": "test-results/studio-t06-ui/controlled-wKEdLm/i6-queue-light.png",
+      "bytes": 261452,
+      "sha256": "313a55ab0529a7fe9eb56aa3b6dcc3e8f750c5e0331c59bedbf44e69dac20685"
+    },
+    {
+      "path": "test-results/studio-t06-ui/controlled-wKEdLm/i6-queue-result.json",
+      "bytes": 17309,
+      "sha256": "261379fbfe3ffe7e4de182b1f75b781c00c195b23288e3f1e4e2031ec11922b0"
+    },
+    {
+      "path": "test-results/studio-t06-ui/controlled-wKEdLm/i6-queue-stop-dark.png",
+      "bytes": 124958,
+      "sha256": "04f0ed2d46d9d4d3942f4f219af250fd82abeeb66f7fea31ad6c58d3b97336f8"
+    },
+    {
+      "path": "test-results/studio-t06-ui/controlled-wKEdLm/i6-queue-stop-light.png",
+      "bytes": 262025,
+      "sha256": "3b01e05e8c706eac5f852bd9422a9c0fad58d0cd4e1980b175ea886443434c07"
+    },
+    {
+      "path": "test-results/studio-t06-ui/controlled-wKEdLm/i6-queue-visual-review.json",
+      "bytes": 1285,
+      "sha256": "ec53e3e00f4211012757178d8be553a72940e60803bb85e356f4a8d461d54cff"
+    },
+    {
+      "path": "test-results/studio-t06-ui/controlled-wKEdLm/i6-queue-warnings-dark.png",
+      "bytes": 120529,
+      "sha256": "c428f542eca5207ea50ab6795582dc201c8aad875c86452bd0868a829995988b"
+    },
+    {
+      "path": "test-results/studio-t06-ui/controlled-wKEdLm/i6-queue-warnings-light.png",
+      "bytes": 256320,
+      "sha256": "7cad48a8850e071e0e141ead1eb9a0837c1dda4034b450e37ff1dbe94dd4fbd0"
+    },
+    {
+      "path": "test-results/studio-t06-ui/controlled-wKEdLm/main-metafile.json",
+      "bytes": 271128,
+      "sha256": "e2cd1ea5ebf229bc42cf4cb22ced77bac1f3a627e3b40848c6ef2711841ea1e1"
+    },
+    {
+      "path": "test-results/subtitle-studio-export/bilingual-dark-narrow-check.png",
+      "bytes": 116443,
+      "sha256": "75d00b456b6d812df748726b5e53e3c6a9eef24553f0c85d23fa1141ff7cda1d"
+    },
+    {
+      "path": "test-results/subtitle-studio-export/bilingual-dark-narrow-options.png",
+      "bytes": 124460,
+      "sha256": "0870fd78b92fa2ba5cc627fca9c0f1cf7fd2c212ae55e1d6085cdb60c80dc226"
+    },
+    {
+      "path": "test-results/subtitle-studio-export/bilingual-english-narrow.png",
+      "bytes": 106628,
+      "sha256": "cf66e9742cf7417879c625d63ea7647a009a783929fdab2c307d11335858b37e"
+    },
+    {
+      "path": "test-results/subtitle-studio-export/missing-track-dark-narrow.png",
+      "bytes": 121478,
+      "sha256": "a29819375be5f50723447ac97f7fb1cf44cc76c84c1d3bc3ef0bbe1198e93d53"
+    },
+    {
+      "path": "test-results/subtitle-studio-export/source-desktop.png",
+      "bytes": 196962,
+      "sha256": "7f1fe9ee3fdf104102b1948d323e6a5d0b80088eea388bacd2949c8b39f81a50"
+    },
+    {
+      "path": "test-results/subtitle-studio-height/narrow-diagnostics-reader.png",
+      "bytes": 95508,
+      "sha256": "0b662e425b271b1d2d423b9752d6006560d464dd1074c2fc9502dd0618404fd4"
+    },
+    {
+      "path": "test-results/studio-i6/spec-done.json",
+      "bytes": 3102,
+      "sha256": "84c29ed92398c67526044773bdd369497f5a4a19b82501ad84ff2673e1d085a3"
+    },
+    {
+      "path": "test-results/studio-i6/diff-check.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "test-results/studio-i6/commit-whitespace-check.json",
+      "bytes": 3010,
+      "sha256": "072fcae86d286a2d08ab2cd19c769432b6c1b10a6447986d0955d0a246b2920e"
+    }
+  ]
+}

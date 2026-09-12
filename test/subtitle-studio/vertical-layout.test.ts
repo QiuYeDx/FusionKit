@@ -75,7 +75,7 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_E2E === '1')('Subtitle Studio vertic
       return viewport.scrollHeight - viewport.clientHeight;
     })).toBeLessThanOrEqual(1);
     expect(await page.locator('.studio-library').evaluate(element => {
-      const panel = element.querySelector('[data-slot=tool-panel]')!.getBoundingClientRect();
+      const panel = element.querySelector('.studio-library-panel')!.getBoundingClientRect();
       const nav = document.querySelector('.fixed.bottom-0')!.getBoundingClientRect();
       return panel.bottom <= nav.top - 6;
     })).toBe(true);

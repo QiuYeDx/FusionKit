@@ -5,6 +5,7 @@ import path from 'node:path';
 import { z } from 'zod';
 import { idSchema, LIMITS, StudioError, type SubtitleDocument } from '../../../src/subtitle-studio/domain';
 import { validateSnapshot, type DocumentSnapshot } from '../../../src/subtitle-studio/persistence-contract';
+import type { AutomaticTranslationIntent } from '../../../src/subtitle-studio/automatic-translation-contract';
 import type { UnavailableDocument } from '../../../src/subtitle-studio/batch-contract';
 import { bindSourceLocation, validateSourceLocationRecord, SOURCE_LOCATION_FILE, type SourceLocationCapture, type SourceLocationRecord } from './source-location-service';
 
@@ -193,9 +194,10 @@ export class DocumentRepository {
     } catch { return 'uncertain'; }
   }
   /** Confirm one creation identity. A published document is never rolled back after a sync failure. */
-  createConfirmed(value: SubtitleDocument, guard: () => void = () => {}, sourceLocation?: SourceLocationCapture): Promise<DocumentCreationReceipt> {
+  createConfirmed(value: SubtitleDocument, guard: () => void = () => {}, sourceLocation?: SourceLocationCapture,
+    initial?: { automaticTranslation?: AutomaticTranslationIntent }): Promise<DocumentCreationReceipt> {
     let snapshot: DocumentSnapshot;
-    try { snapshot = validateRepositorySnapshot({ schemaVersion: 1, document: value, tasks: [] }); }
+    try { snapshot = validateRepositorySnapshot({ schemaVersion: 1, document: value, tasks: [], ...(initial?.automaticTranslation ? { automaticTranslation: initial.automaticTranslation } : {}) }); }
     catch (error) { return Promise.reject(error); }
     const identity = { digest: digest(JSON.stringify(snapshot)), revision: snapshot.document.revision };
     return this.serial(async () => {
@@ -359,6 +361,7 @@ export class DocumentRepository {
       if (!task || !['completed', 'failed', 'cancelled'].includes(task.status)) throw new StudioError('invalid_input');
       if (snapshot.tasks.some(item => item.status === 'queued' || item.status === 'running')) throw new StudioError('revision_conflict');
       snapshot.tasks = snapshot.tasks.filter(item => item.id !== taskId);
+      if (snapshot.automaticTranslation?.translationTaskId === taskId) snapshot.automaticTranslation.state = 'cancelled';
     }, guard);
   }
   registerActivity(id: string, controller: AbortController) {

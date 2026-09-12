@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { EventEmitter } from 'node:events';
 import { randomUUID } from 'node:crypto';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { tmpdir } from 'node:os';
 import { pathToFileURL } from 'node:url';
@@ -10,6 +10,8 @@ import { createSubtitleStudioApi } from '../../electron/preload/subtitle-studio-
 import { assertLegacyStudioChannelAllowed, isPublicStudioChannel } from '../../electron/preload/subtitle-studio-channel-policy';
 
 const adapter = vi.hoisted(() => ({ handlers: new Map<string, Function>(), listeners: new Map<string, Function>(), directory: '', open: vi.fn(), runtime: undefined as any, create: vi.fn() }));
+const dropResolver = vi.hoisted(() => vi.fn(async (paths: readonly string[]) => paths));
+vi.mock('../../electron/main/subtitle-studio/transcription/native/windows-explorer-drop-resolver', () => ({ resolveLocalSubtitleInputPaths: dropResolver }));
 vi.mock('electron', () => ({
   app: { getPath: () => adapter.directory, getAppPath: () => process.cwd(), isPackaged: false },
   BrowserWindow: { fromWebContents: () => ({}) }, dialog: { showOpenDialog: adapter.open }, shell: {},
@@ -17,6 +19,7 @@ vi.mock('electron', () => ({
 }));
 vi.mock('../../electron/main/subtitle-studio/transcription/runtime', () => ({ createTranscriptionRuntime: (...args: unknown[]) => { adapter.create(...args); return adapter.runtime; } }));
 import { registerSubtitleStudio } from '../../electron/main/subtitle-studio';
+import { TranslationService } from '../../electron/main/subtitle-studio/translation-service';
 
 let registration: ReturnType<typeof registerSubtitleStudio> | undefined;
 let sequence = 0;
@@ -39,6 +42,7 @@ const request = { files: [{ fileToken }], config };
 beforeEach(async () => {
   adapter.directory = await mkdtemp(path.join(tmpdir(), 'studio-transcription-ipc-'));
   adapter.create.mockClear(); adapter.open.mockReset();
+  dropResolver.mockReset(); dropResolver.mockImplementation(async paths => paths);
   adapter.runtime = {
     initialize: vi.fn(async () => {}), shutdown: vi.fn(async () => {}), releaseOwner: vi.fn(async () => {}),
     inspectRuntime: vi.fn(async () => ({ status: 'missing', code: 'runtime_missing', stage: 'manifest' })),
@@ -51,9 +55,97 @@ beforeEach(async () => {
 afterEach(async () => {
   await registration?.dispose(); registration = undefined;
   await rm(adapter.directory, { recursive: true, force: true });
+  vi.restoreAllMocks();
 });
 
 describe('Subtitle Studio transcription application IPC', () => {
+  it('prepares durable translation recovery only for opted-in enqueue, without blocking media or plain transcription', async () => {
+    const client = attach();
+    let finish!: () => void;
+    const pending = new Promise<void>(resolve => { finish = resolve; });
+    const initialize = vi.spyOn(TranslationService.prototype, 'initialize').mockReturnValue(pending);
+    const autoTranslation = { config: { model: { profileId: 'controlled', modelKey: 'controlled', endpoint: 'http://127.0.0.1:4567/v1', apiFormat: 'chat_completions' },
+      language: 'zh', instructions: '', contextWindow: 8192, maxOutputTokens: 1024, maxBatchCues: 30 }, apiKey: 'ephemeral-test-only' };
+    try {
+      expect((await client.invoke('enqueueTranscription', request)).ok).toBe(true);
+      expect(initialize).not.toHaveBeenCalled();
+      const enabled = client.invoke('enqueueTranscription', { ...request, autoTranslation });
+      await vi.waitFor(() => expect(initialize).toHaveBeenCalledOnce());
+      expect(adapter.runtime.tasks.enqueue).toHaveBeenCalledTimes(1);
+      expect((await client.invoke('probeTranscriptionMedia', { fileToken })).ok).toBe(true);
+      finish();
+      expect((await enabled).ok).toBe(true);
+      expect(adapter.runtime.tasks.enqueue).toHaveBeenLastCalledWith(client.key, { ...request, autoTranslation });
+      const dependencies = adapter.create.mock.calls[0][1];
+      expect(dependencies.automaticTranslation).toMatchObject({ initialize: expect.any(Function), handoff: expect.any(Function), shutdown: expect.any(Function) });
+    } finally { finish(); }
+  });
+
+  it('fences opted-in admission synchronously on shutdown and joins initialization before disposing translation', async () => {
+    const client = attach();
+    let finish!: () => void;
+    const pending = new Promise<void>(resolve => { finish = resolve; });
+    vi.spyOn(TranslationService.prototype, 'initialize').mockReturnValue(pending);
+    const disposeTranslation = vi.spyOn(TranslationService.prototype, 'dispose');
+    await client.invoke('listTranscriptionTasks', {});
+    const coordinator = adapter.create.mock.calls[0][1].automaticTranslation;
+    const preparing = coordinator.initialize();
+    try {
+      const closing = registration!.dispose(); const settled = vi.fn(); void closing.then(settled);
+      await expect(coordinator.handoff(randomUUID(), randomUUID(), 'ephemeral-test-only')).rejects.toMatchObject({ code: 'interrupted' });
+      await Promise.resolve();
+      expect(disposeTranslation).not.toHaveBeenCalled(); expect(settled).not.toHaveBeenCalled();
+      expect(adapter.handlers.has(STUDIO_CHANNELS.dropTranscriptionMedia)).toBe(false);
+      finish(); await preparing; await closing;
+      expect(disposeTranslation).toHaveBeenCalledOnce(); expect(adapter.runtime.shutdown).toHaveBeenCalledOnce();
+    } finally { finish(); }
+  });
+
+  it('imports a dropped media batch through the picker authority, preserving partial probe failures and original names', async () => {
+    const client = attach();
+    const backing = path.join(adapter.directory, 'voice (1).wav');
+    const original = path.join(adapter.directory, 'voice.wav');
+    const invalid = path.join(adapter.directory, 'no-audio.mp4');
+    const folder = path.join(adapter.directory, 'folder');
+    await writeFile(backing, 'controlled backing'); await writeFile(original, 'controlled source'); await writeFile(invalid, 'controlled video'); await mkdir(folder);
+    dropResolver.mockResolvedValue([original, original, invalid]);
+    adapter.runtime.media.probe.mockResolvedValueOnce(probe).mockRejectedValueOnce({ code: 'unsupported_media', message: adapter.directory });
+    const result = await client.invoke('dropTranscriptionMedia', { paths: [backing, backing, folder, invalid, path.join(adapter.directory, 'missing.wav')] });
+    expect(result).toEqual({ ok: true, value: { items: [
+      { displayName: 'voice.wav', ok: true, media, probe },
+      { displayName: 'folder', ok: false, error: 'invalid_input' },
+      { displayName: 'no-audio.mp4', ok: false, error: 'unsupported_feature', media },
+      { displayName: 'missing.wav', ok: false, error: 'document_unavailable' },
+    ] } });
+    expect(adapter.open).not.toHaveBeenCalled();
+    expect(adapter.runtime.media.authorizeInput.mock.calls).toEqual([[client.key, original], [client.key, invalid]]);
+    expect(JSON.stringify(result)).not.toContain(adapter.directory);
+  });
+
+  it('rejects untrusted frames and malformed media captures before authorization', async () => {
+    const client = attach();
+    const payload = { paths: [path.join(adapter.directory, 'voice.wav')] };
+    expect(await client.invoke('dropTranscriptionMedia', payload, { senderFrame: { url: rendererUrl } })).toEqual({ ok: false, error: 'access_denied' });
+    expect(await client.invoke('dropTranscriptionMedia', { ...payload, source: 'picker' })).toEqual({ ok: false, error: 'invalid_input' });
+    expect(await client.invoke('dropTranscriptionMedia', { paths: Array(21).fill(payload.paths[0]) })).toEqual({ ok: false, error: 'invalid_input' });
+    expect(adapter.create).not.toHaveBeenCalled(); expect(dropResolver).not.toHaveBeenCalled();
+  });
+
+  it('keeps ambiguous Shell proxies untrusted and fences a resolved batch after navigation', async () => {
+    const client = attach(); const backing = path.join(adapter.directory, 'voice.wav'); await writeFile(backing, 'controlled');
+    dropResolver.mockRejectedValueOnce(new Error('Ambiguous original.'));
+    expect(await client.invoke('dropTranscriptionMedia', { paths: [backing] })).toEqual({ ok: true, value: { items: [{ displayName: 'voice.wav', ok: false, error: 'access_denied' }] } });
+    expect(adapter.runtime.media.authorizeInput).not.toHaveBeenCalled();
+    let finish!: (paths: readonly string[]) => void;
+    dropResolver.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+    const pending = client.invoke('dropTranscriptionMedia', { paths: [backing] });
+    await vi.waitFor(() => expect(finish).toBeTypeOf('function'));
+    client.sender.emit('did-start-navigation', {}, rendererUrl, false, true);
+    finish([backing]);
+    expect(await pending).toEqual({ ok: false, error: 'access_denied' });
+    expect(adapter.runtime.media.authorizeInput).not.toHaveBeenCalled();
+  });
+
   it('exposes only the narrow shared status DTO through the resource list', async () => {
     const client = attach();
     adapter.runtime.resources.status.mockReturnValue({ shared: true, revision: 3, busyResourceIds: ['model'], cleanupPending: false,

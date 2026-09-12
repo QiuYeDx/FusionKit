@@ -3,7 +3,7 @@
   "feature": "subtitle-studio",
   "tier": "L",
   "risk": "medium",
-  "current_increment": "I3",
+  "current_increment": "I6",
   "modules": [
     {
       "slug": "workspace",
@@ -19,6 +19,16 @@
       "slug": "acceptance",
       "code": "ACCEPTANCE",
       "path": "modules/module-acceptance"
+    },
+    {
+      "slug": "experience",
+      "code": "EXPERIENCE",
+      "path": "modules/module-experience"
+    },
+    {
+      "slug": "interaction",
+      "code": "INTERACTION",
+      "path": "modules/module-interaction"
     }
   ],
   "increments": [
@@ -72,9 +82,45 @@
         "digest": "",
         "state": "pending",
         "record": "records/2026-09-12-acceptance-closeout.md",
-        "basis": "六项人工问题的实现和必要技术验证已完成，四项任务台账及最终集成证据完整；用户整体验收保留pending，未代签。打包继续暂停，本轮工作树尚未提交推送。"
+        "basis": "六项人工问题的实现和必要技术验证已完成，四项任务台账及最终集成证据完整；用户整体验收保留pending，未代签。打包继续暂停，已于I5开始前按用户要求提交并推送3855c2c，历史实施记录保留验证当时状态。"
       },
       "id": "I3"
+    },
+    {
+      "id": "I5",
+      "title": "第二轮体验完善与可选自动翻译",
+      "status": "verifying",
+      "approval": {
+        "state": "approved",
+        "by": "用户（当前Codex任务）",
+        "basis": "2026-09-12用户提供五张截图，先要求“先提交一下代码并推送，然后处理一下”，随后逐条列出十项问题并明确“记得依然是先记录问题，然后再逐一解决”。已先将上一轮提交推送3855c2c并核对远端，再登记本轮完整范围。授权连续实现十项及必要隔离验证；不代签整体验收，不自动提交新一轮，不开展打包或I4编辑。",
+        "digest": "0999033cd03225dc8ca9666f9f35a24ddab73770b9106bc5b3158a966720a89c"
+      },
+      "acceptance": {
+        "state": "pending",
+        "by": "",
+        "basis": "第二轮十项体验问题已完整实施，四项任务所需技术验证、最终Electron复验及源码证据已完成。整体验收保留pending，不代签用户。上一轮已先提交推送3855c2c，本轮新改动未自动提交；打包仍暂停，I4仍后置。",
+        "record": "records/2026-09-13-experience-closeout.md",
+        "digest": ""
+      }
+    },
+    {
+      "id": "I6",
+      "title": "第三轮交互简化与布局稳定",
+      "status": "verifying",
+      "approval": {
+        "state": "approved",
+        "by": "用户（当前Codex任务）",
+        "basis": "2026-09-13用户提供七图，原文“还有一点小问题”并逐项要求优化十项：进度槽、队列提示、复制语义、已选次序、导出检查确认、操作结果、header密度、视图切换、任务概览归属及全选状态。沿用本任务连续实施授权，记录后完整实现及隔离验证。I5尚未提交，本轮无提交请求，不打包、不代签验收。",
+        "digest": "c96c217848ebd05e9633a4b1a2ebe8a4835099464868af1cf3b1331474feb4d7"
+      },
+      "acceptance": {
+        "state": "pending",
+        "by": "",
+        "basis": "第三轮十项交互问题已完整实施，四项任务所需技术验证和最终实际Electron复验完成；用户整体验收保持pending。I5/I6未提交，打包与I4保持后置。",
+        "record": "records/2026-09-13-interaction-closeout.md",
+        "digest": ""
+      }
     },
     {
       "title": "校正、时间编辑与译文版本",
@@ -207,7 +253,7 @@
       },
       {
         "path": "src/pages/Tools/Subtitle/SubtitleStudio/index.tsx",
-        "owner": "Codex root"
+        "owner": "ipc_design"
       }
     ]
   }

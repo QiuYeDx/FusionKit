@@ -36,15 +36,17 @@ import { canonicalResourceId, SPEECH_CUDA_RESOURCE_ID } from '../../speech-resou
 import { createStudioSharedResources, type StudioSharedResources } from './shared-resources';
 import { createLocalSubtitleServerSession } from './native/server-session';
 import { cleanupSpeechResourceSessionStartupOrphans } from '../../speech-resources/engine/resource-startup-cleaner';
+import type { AutomaticTranslationCoordinator } from '../automatic-translation';
 
 export interface TranscriptionRuntimeOptions {
   readonly userDataRoot: string;
   readonly environment: LocalSubtitleResourceEnvironment;
 }
 
-/** Low-level adapters for isolated hosts/tests; composed services cannot be supplied. */
+/** Application-owned collaborators and low-level adapters for isolated hosts/tests. */
 export interface TranscriptionRuntimeDependencies {
   readonly sharedResources?: SpeechResourceService;
+  readonly automaticTranslation?: Pick<AutomaticTranslationCoordinator, 'handoff'>;
   readonly signatureVerifier?: LocalSubtitleSignatureVerifier;
   readonly media?: Pick<LocalSubtitleMediaNormalizerOptions, 'processRunner' | 'availableBytes' | 'sourceEnvironment'>;
   readonly server?: Omit<LocalSubtitleServerSupervisorOptions, 'managedResourceRoot'>;
@@ -153,7 +155,8 @@ export function createTranscriptionRuntime(options: TranscriptionRuntimeOptions,
       metalAttestationAvailable: attestor.supportedBackends.includes('metal'), cudaAttestationAvailable: attestor.supportedBackends.includes('cuda') });
     if (repository) {
       const executor = new TranscriptionExecutor({ media, supervisor: server, runtimeEnvironment: environment, resolveCudaAccelerator });
-      tasks = createTranscriptionTaskService({ repository, inputs, leases, media, modelResolver: models, backendResolver, executor });
+      tasks = createTranscriptionTaskService({ repository, inputs, leases, media, modelResolver: models, backendResolver, executor,
+        automaticTranslation: dependencies.automaticTranslation });
     } else {
       // Retain the resource-only T03 host contract; no legacy job API is exposed.
       const exporter = new LocalSubtitleExporter(artifacts);

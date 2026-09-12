@@ -72,16 +72,16 @@
       "role": "studio-composition",
       "sourceBlobOid": "1b6d9a13912fe67cfb435552030a3ab9bd0727e0",
       "sourceSha256": "1d6275e6f14fd4e065b2d1e534b8f423a4d0943a27b4005a5600287944179917",
-      "currentBlobOid": "f56567a7413ec6c12619dccc0865cbf5bb9a41bd",
-      "reason": "T09 reviewed shared-resource integration: one neutral authority and client-owned jobs/reservations, sanitized global revision observation, domain-private session cleanup and joined shutdown. This audit approves only current composition/bridge bytes; the frozen ASR, source baseline and independent copied implementation remain unchanged. 2026-09-12 I3 wires owner-bound native subtitle drops, safe global translation summaries and per-document source-directory selection/export; ASR algorithms and shared resource leases remain unchanged. Final I3 review keeps native default-save paths indexed under Windows case-insensitive path spelling, with two real-file collision regressions; explicit alternate-save authorization remains unchanged."
+      "currentBlobOid": "824583be7a55407a9c423e09b1d0f5f020e2d5bc",
+      "reason": "T09 reviewed shared-resource integration: one neutral authority and client-owned jobs/reservations, sanitized global revision observation, domain-private session cleanup and joined shutdown. This audit approves only current composition/bridge bytes; the frozen ASR, source baseline and independent copied implementation remain unchanged. 2026-09-12 I3 wires owner-bound native subtitle drops, safe global translation summaries and per-document source-directory selection/export; ASR algorithms and shared resource leases remain unchanged. Final I3 review keeps native default-save paths indexed under Windows case-insensitive path spelling, with two real-file collision regressions; explicit alternate-save authorization remains unchanged. I5 review: fixed owner-bound native media drop authority shares picker authorization/probe; automatic translation coordinator initializes opted-in admission, fences synchronously on shutdown, joins admission before translation disposal, and is injected only by application composition. ASR algorithms and shared resource authority remain unchanged."
     },
     {
       "sourcePath": "electron/main/subtitle-studio/transcription/runtime.ts",
       "role": "studio-composition",
       "sourceBlobOid": "9979ba89730f8ae79bf5f2637a4c927de4ac37ac",
       "sourceSha256": "5abc364a15680a137fd09b47c24e9f369d991702676fc0597b4420bdf079634e",
-      "currentBlobOid": "baaa9ae0384faa88a4e032feb9ee09db4524fa8f",
-      "reason": "T09 reviewed shared-resource integration: one neutral authority and client-owned jobs/reservations, sanitized global revision observation, domain-private session cleanup and joined shutdown. This audit approves only current composition/bridge bytes; the frozen ASR, source baseline and independent copied implementation remain unchanged. 2026-09-12 I3 includes derive_source_output when authorizing selected media, so source-parent identity is pinned before a task-owned lease and document publication; no ASR configuration or executor changes."
+      "currentBlobOid": "6b6bc4ea6c61769975436df26e5d528570a2e23b",
+      "reason": "T09 reviewed shared-resource integration: one neutral authority and client-owned jobs/reservations, sanitized global revision observation, domain-private session cleanup and joined shutdown. This audit approves only current composition/bridge bytes; the frozen ASR, source baseline and independent copied implementation remain unchanged. 2026-09-12 I3 includes derive_source_output when authorizing selected media, so source-parent identity is pinned before a task-owned lease and document publication; no ASR configuration or executor changes. I5 review: application injects a main-only automatic translation handoff into the task service; native runtime, algorithms, model/VAD ownership and shared leases remain unchanged."
     },
     {
       "sourcePath": "electron/main/subtitle-studio/transcription/shared-resources.ts",

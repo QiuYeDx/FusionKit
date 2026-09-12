@@ -70,6 +70,7 @@ export class TranslationService {
   private initialized?: Promise<void>;
   private shutdown?: Promise<void>;
   private closed = false;
+  private automaticAdmissions = new Map<string, Promise<{ taskId: string }>>();
   constructor(private repository: DocumentRepository, private send: (request: ModelRuntimeTextRequest) => Promise<ModelRuntimeTextResult> = sendModelRuntimeText,
     private scheduler: TranslationScheduler = translationScheduler) {}
 
@@ -77,10 +78,12 @@ export class TranslationService {
     if (!this.initialized) this.initialized = (async () => {
       for (const document of await this.repository.list()) {
         const current = await this.repository.readSnapshot(document.id);
-        if (!current.tasks.some(activeStatus)) continue;
+        if (!current.tasks.some(activeStatus) && current.automaticTranslation?.state !== 'pending') continue;
+        const automatic = current.automaticTranslation?.state === 'pending' ? this.automaticPlan(current) : undefined;
         await publishTransaction(this.repository, document.id, current.document.revision, value => {
           for (const task of value.tasks) if (activeStatus(task)) interruptTask(task, 'interrupted');
-        });
+          if (automatic) this.appendAutomaticTask(value, automatic, false);
+        }, () => this.assertOpen());
       }
     })().catch(error => {
       // Share an in-flight initialization, but allow retry after a temporary storage failure.
@@ -124,6 +127,66 @@ export class TranslationService {
     const doc = await this.repository.read(documentId); guard();
     if (doc.revision !== revision) throw new StudioError('revision_conflict');
     return this.admit(planTranslation(doc, config), apiKey, guard);
+  }
+
+  private automaticPlan(snapshot: DocumentSnapshot): { plan?: TranslationPlan; error?: ReturnType<typeof failureCode> } {
+    try { return { plan: planTranslation(snapshot.document, snapshot.automaticTranslation!.config) }; }
+    catch (error) { return { error: failureCode(error) }; }
+  }
+  private appendAutomaticTask(snapshot: DocumentSnapshot, prepared: ReturnType<TranslationService['automaticPlan']>, launch: boolean): string {
+    const intent = snapshot.automaticTranslation!;
+    if (intent.state !== 'pending') throw new StudioError('revision_conflict');
+    const taskId = randomUUID(), trackId = randomUUID();
+    const plan = prepared.plan;
+    const conflict = launch && snapshot.tasks.some(activeStatus);
+    const status = !plan || conflict ? 'failed' : launch ? 'queued' : 'needs_configuration';
+    const error = prepared.error ?? (conflict ? 'revision_conflict' : launch ? undefined : 'needs_configuration');
+    snapshot.document.translationTracks.push({ id: trackId, revision: 1, language: intent.config.language, entries: {} });
+    snapshot.tasks.push({ id: taskId, trackId, generation: 1, status, completedBatchIds: [], uncertainBatchIds: [], attempts: 0,
+      translation: { config: plan?.config ?? intent.config, totalBatches: plan?.batches.length ?? 1,
+        estimatedInputTokens: plan?.batches.reduce((n, batch) => n + batch.estimatedInputTokens, 0) ?? 0,
+        outputTokenReserve: (plan?.batches.length ?? 1) * intent.config.maxOutputTokens,
+        usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 }, uncertainAttempts: 0,
+        ...(plan ? { checkpoint: checkpointForPlan(plan, snapshot.document) } : {}), ...(error ? { error } : {}) } });
+    intent.state = 'admitted'; intent.translationTaskId = taskId;
+    return taskId;
+  }
+
+  /** Main-only durable handoff. The persisted intent-to-task link is authoritative even
+   * after completion; the in-memory Promise only coalesces concurrent callers. */
+  startAutomatic(documentId: string, intentId: string, apiKey: string, guard: () => void = () => {}): Promise<{ taskId: string }> {
+    const key = JSON.stringify([documentId, intentId]);
+    const existing = this.automaticAdmissions.get(key);
+    if (existing) return existing;
+    const operation = Promise.resolve().then(async () => {
+      this.assertOpen(); guard(); await this.initialize(); this.assertOpen(); guard();
+      const current = await this.repository.readSnapshot(documentId); guard();
+      const intent = current.automaticTranslation;
+      if (intent?.state === 'cancelled') throw new StudioError('interrupted');
+      if (!intent || intent.intentId !== intentId) throw new StudioError('access_denied');
+      const configured = typeof apiKey === 'string' && !!apiKey.trim() && apiKey.length <= 8000;
+      if (intent.state === 'admitted') {
+        const task = current.tasks.find(task => task.id === intent.translationTaskId)!;
+        // A pending intent may have been materialized by initialization just above.
+        // Never resume a provider attempt, failure, cancellation or completed task here.
+        if (configured && task.status === 'needs_configuration' && task.attempts === 0 && task.translation?.checkpoint) {
+          return this.resume(documentId, current.document.revision, task.id, task.translation.config.model, apiKey, guard);
+        }
+        return { taskId: task.id };
+      }
+      const prepared = this.automaticPlan(current);
+      let taskId = '';
+      const snapshot = await publishTransaction(this.repository, documentId, current.document.revision, value => {
+        if (value.automaticTranslation?.intentId !== intentId) throw new StudioError('revision_conflict');
+        taskId = this.appendAutomaticTask(value, prepared, configured);
+      }, () => { this.assertOpen(); guard(); });
+      if (prepared.plan && snapshot.tasks.find(task => task.id === taskId)?.status === 'queued') this.launch(prepared.plan, snapshot, taskId, apiKey);
+      return { taskId };
+    });
+    this.automaticAdmissions.set(key, operation);
+    const release = () => { if (this.automaticAdmissions.get(key) === operation) this.automaticAdmissions.delete(key); };
+    void operation.then(release, release);
+    return operation;
   }
 
   private async admit(plan: TranslationPlan, apiKey: string, guard: () => void) {
@@ -190,7 +253,10 @@ export class TranslationService {
   dispose(): Promise<void> {
     if (this.shutdown) return this.shutdown;
     this.closed = true; this.plans.clear();
-    this.shutdown = Promise.resolve().then(() => this.interruptOwnedRuns());
+    this.shutdown = Promise.resolve().then(async () => {
+      await Promise.allSettled([...this.automaticAdmissions.values()]);
+      await this.interruptOwnedRuns();
+    });
     return this.shutdown;
   }
   private async interruptOwnedRuns() {
